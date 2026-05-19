@@ -50,27 +50,31 @@ const HAZARD_SCENE := "res://scenes/main.tscn"
 
 # Grid geometry — 320×400 / 32 = 10 × 12.5. Use 12 rows of 32, centered
 # vertically with 8px slack so the grid lives at y = 8 … 392.
-const COLS: int = 15
+const COLS: int = 14
 const ROWS: int = 12
-# 480×270 widescreen rework v2 — 15×12 grid of 16-px cells = 240 × 192,
-# centered in viewport (GRID_X0=120, GRID_Y0=39). Cell size matches a
-# clean 2:1 downscale of the 32-px dot atlas so pixels stay sharp
-# (Cody 2026-05-19 — fixes "unaligned" feel from non-integer scaling).
-const CELL: int = 16
-const GRID_Y0: int = 39
-const GRID_X0: int = 120
+# 480×270 widescreen rework v3 (Cody 2026-05-19) — anisotropic cell
+# pitch (32 wide × 20 tall). Width pitch matches the native 32×32 dot
+# atlas so dots render crisply at scale 1; vertical pitch is tighter so
+# 12 rows still fit in the short 270 height (12×20=240, GRID_Y0=15).
+# Width 14×32 = 448, GRID_X0=16.
+const CELL_X: int = 32
+const CELL_Y: int = 20
+const NODE_PX: int = 32  # native dot/icon atlas size — used for btn sizing
+const GRID_X0: int = 16
+const GRID_Y0: int = 15
 const C_MIN: int = 1
-const C_MAX: int = COLS - 2  # 13
+const C_MAX: int = COLS - 2  # 12
 const R_MIN: int = 1
 const R_MAX: int = ROWS - 2  # 10
 const BOSS_ROW: int = R_MIN              # 1
 const PRE_BOSS_ROW: int = BOSS_ROW + 1   # 2
-# Start sits centered on col 7 (the geometric center of 15 cols) at the
-# bottom of the playable rows. Boss mirrors above. Single-cell anchors
-# now — the 2×2 corner trick was a 320-wide artifact.
+# Start centered between cols 6 and 7 (geometric center of 14 cols).
+# cell_center(6, r).x = 224, cell_center(7, r).x = 256 — pick col 7 so
+# the start sits just right of center (matches the original 320-wide
+# layout aesthetic where start was off-axis right of midline).
 const ANCHOR_COL: int = 7
-const START_POS := Vector2(GRID_X0 + ANCHOR_COL * CELL + CELL / 2, GRID_Y0 + 11 * CELL + CELL / 2)
-const BOSS_POS := Vector2(GRID_X0 + ANCHOR_COL * CELL + CELL / 2, GRID_Y0 + 1 * CELL + CELL / 2)
+const START_POS := Vector2(GRID_X0 + ANCHOR_COL * CELL_X + CELL_X / 2, GRID_Y0 + 11 * CELL_Y + CELL_Y / 2)
+const BOSS_POS := Vector2(GRID_X0 + ANCHOR_COL * CELL_X + CELL_X / 2, GRID_Y0 + 1 * CELL_Y + CELL_Y / 2)
 # Start "covers" rows 10 and 11. Per Roman, no other nodes may share
 # those rows; the lowest non-start node is at row 9 (1 up) or row 8
 # (2 up). All inner rows above that are open.
@@ -78,9 +82,7 @@ const FILL_ROW_MIN: int = PRE_BOSS_ROW + 1  # 3 — first row above pre-boss
 const FILL_ROW_MAX: int = R_MAX - 1         # 9 — one row above start
 # Edge constraints — connect 1-2 rows up, ≤2 cols away.
 const EDGE_ROW_REACH: int = 2
-# Edge col reach bumped from 2 to 4 to match the same physical span
-# (~64 px) now that CELL halved from 32→16.
-const EDGE_COL_REACH: int = 4
+const EDGE_COL_REACH: int = 2
 
 # State frame coloring is baked into the sprite strip — no per-state
 # modulate needed. Keep these around in case we want to dim visited/far
@@ -112,15 +114,18 @@ func _ready() -> void:
 
 
 static func cell_center(c: int, r: int) -> Vector2:
-	return Vector2(GRID_X0 + c * CELL + CELL / 2, GRID_Y0 + r * CELL + CELL / 2)
+	return Vector2(GRID_X0 + c * CELL_X + CELL_X / 2, GRID_Y0 + r * CELL_Y + CELL_Y / 2)
 
 
 func _install_background() -> void:
-	var bg := TextureRect.new()
-	bg.texture = BG_TEXTURE
+	# Flat dark backdrop — the old sector_bg.png art was authored for the
+	# 320×400 / 10-col grid layout with baked-in gear/skull/circle motifs
+	# at fixed positions. Those positions no longer match the new 15-col
+	# / CELL=16 widescreen grid, so the BG looked like nodes were drifting
+	# off-grid. Strip it. We can re-author dedicated art later.
+	var bg := ColorRect.new()
+	bg.color = Color(0.04, 0.06, 0.10, 1.0)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	bg.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 	move_child(bg, 0)
@@ -677,9 +682,9 @@ func _render() -> void:
 		btn.texture_normal = _dot_texture(_frame_for(n, state))
 		btn.ignore_texture_size = true
 		btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-		btn.custom_minimum_size = Vector2(CELL, CELL)
-		btn.size = Vector2(CELL, CELL)
-		btn.position = n.pos - Vector2(CELL / 2, CELL / 2)
+		btn.custom_minimum_size = Vector2(NODE_PX, NODE_PX)
+		btn.size = Vector2(NODE_PX, NODE_PX)
+		btn.position = n.pos - Vector2(NODE_PX / 2, NODE_PX / 2)
 		btn.modulate = MOD_DIM if state == "visited" else MOD_NORMAL
 		btn.disabled = not _is_reachable(n)
 		btn.pressed.connect(_on_node_pressed.bind(n))
@@ -856,7 +861,7 @@ func _draw_debug_grid(parent: Control) -> void:
 				else Color(1.0, 0.95, 0.55, 1.0))
 			l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 			l.add_theme_constant_override("outline_size", 2)
-			l.position = Vector2(GRID_X0 + c * CELL + 2, GRID_Y0 + r * CELL + 1)
+			l.position = Vector2(GRID_X0 + c * CELL_X + 2, GRID_Y0 + r * CELL_Y + 1)
 			l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			parent.add_child(l)
 
@@ -866,14 +871,14 @@ func _draw_grid_lines(canvas: Node2D) -> void:
 	var col_margin: Color = Color(0.85, 0.30, 0.30, 0.55)
 	# Vertical lines.
 	for c in range(COLS + 1):
-		var x: float = GRID_X0 + c * CELL
+		var x: float = GRID_X0 + c * CELL_X
 		var color: Color = col_margin if (c == C_MIN or c == C_MAX + 1) else col_grid
-		canvas.draw_line(Vector2(x, GRID_Y0), Vector2(x, GRID_Y0 + ROWS * CELL), color, 1.0)
+		canvas.draw_line(Vector2(x, GRID_Y0), Vector2(x, GRID_Y0 + ROWS * CELL_Y), color, 1.0)
 	# Horizontal lines.
 	for r in range(ROWS + 1):
-		var y: float = GRID_Y0 + r * CELL
+		var y: float = GRID_Y0 + r * CELL_Y
 		var color2: Color = col_margin if (r == R_MIN or r == R_MAX + 1) else col_grid
-		canvas.draw_line(Vector2(GRID_X0, y), Vector2(GRID_X0 + COLS * CELL, y), color2, 1.0)
+		canvas.draw_line(Vector2(GRID_X0, y), Vector2(GRID_X0 + COLS * CELL_X, y), color2, 1.0)
 
 
 func _input(event: InputEvent) -> void:
