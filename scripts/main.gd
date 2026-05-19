@@ -295,6 +295,7 @@ func _on_player_died() -> void:
 func new_game() -> void:
 	bounty = 0
 	_enemy_stats.clear()
+	_current_level = null
 	if has_node("/root/Run"):
 		bounty = get_node("/root/Run").bounty
 	$CanvasLayer/UI.update_score(bounty)
@@ -348,10 +349,22 @@ func new_game() -> void:
 		else:
 			_current_level = Levels.build_minefield_level()
 	else:
+		# Custom-level shortcut: dev menu's "Test Level" stashes the .tres
+		# path on Run; load it directly so designers can iterate on a
+		# specific wave composition without going through the generator.
+		# Single-shot — meta cleared after use.
+		if has_node("/root/Run") and get_node("/root/Run").has_meta("custom_level_path"):
+			var run = get_node("/root/Run")
+			var path: String = String(run.get_meta("custom_level_path", ""))
+			run.remove_meta("custom_level_path")
+			if path != "" and ResourceLoader.exists(path):
+				var lvl = load(path)
+				if lvl:
+					_current_level = lvl
 		# Roman, 2026-05-18: wave_tester stashes V2 knobs on Run via meta.
 		# When present, route through WaveGeneratorV2 instead of the
 		# existing dynamic generator so the tester knobs take effect.
-		if has_node("/root/Run") and get_node("/root/Run").has_meta("wave_v2_knobs"):
+		if _current_level == null and has_node("/root/Run") and get_node("/root/Run").has_meta("wave_v2_knobs"):
 			var run = get_node("/root/Run")
 			var WaveGenV2 = load("res://scripts/levels/wave_generator_v2.gd")
 			var sd_v2: int = int(run.get_meta("wave_v2_sector", 1))
@@ -361,7 +374,7 @@ func new_game() -> void:
 			run.remove_meta("wave_v2_knobs")
 			run.remove_meta("wave_v2_sector")
 			_current_level = WaveGenV2.build_combat(sd_v2, knobs)
-		else:
+		if _current_level == null:
 			# Standard combat node — dynamic wave generator. First combat
 			# in a sector = 2 waves / 1 type; deepens from there.
 			var sd: int = 1

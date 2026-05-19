@@ -1,0 +1,22 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/levels/wave_def.gd" id="1_wd"]
+[ext_resource type="PackedScene" uid="uid://cdartship001" path="res://scenes/enemies/enemy_dart.tscn" id="2_enemy"]
+
+[resource]
+script = ExtResource("1_wd")
+enemy_scene = ExtResource("2_enemy")
+count = 5
+spawn_interval = 0.35
+spawn_delay = 0.5
+formation = 0
+formation_padding = 32.0
+spawn_y = -12.0
+movement_override = null
+shoot_pattern_override = null
+fire_interval_min = -1.0
+fire_interval_max = -1.0
+max_health = -1
+bounty_value = -1
+silent = false
+announce_text = ""

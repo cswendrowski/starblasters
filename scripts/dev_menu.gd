@@ -80,6 +80,7 @@ func _build_ui() -> void:
 	_add_button("[ Movement Test ]", _on_movement_test, true)
 	_add_button("[ Movement Lab ]", _on_movement_lab, true)
 	_add_button("[ Wave Tester ]", _on_wave_tester, true)
+	_add_button("[ Test Level ]", _on_test_level, true)
 	_add_button("[ Shipyard ]", _on_shipyard, true)
 	_add_button("[ Parallax Tuner ]", _on_parallax_tuner, true)
 	_add_button("[ UI Designer ]", _on_ui_designer, true)
@@ -129,6 +130,26 @@ func _on_movement_lab() -> void:
 
 func _on_wave_tester() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/wave_tester.tscn")
+
+
+# Load resources/levels/test_level.tres and launch combat with it. Designers
+# author waves/enemies as .tres in the Godot inspector, point test_level.tres
+# at them, then come here to play. No code edits required for a new wave.
+const TEST_LEVEL_PATH := "res://resources/levels/test_level.tres"
+
+
+func _on_test_level() -> void:
+	if not ResourceLoader.exists(TEST_LEVEL_PATH):
+		push_warning("Test Level: %s missing. Create one as a LevelData .tres." % TEST_LEVEL_PATH)
+		return
+	if has_node("/root/Run"):
+		var run = get_node("/root/Run")
+		# Fresh run state so HUD doesn't carry shop / sector context in.
+		if run.has_method("new_run"):
+			run.new_run()
+		run.test_mode_active = true
+		run.set_meta("custom_level_path", TEST_LEVEL_PATH)
+	SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
 
 
 func _on_parallax_tuner() -> void:

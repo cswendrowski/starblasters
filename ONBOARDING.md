@@ -88,6 +88,35 @@ Autoloads (`/root/*`): `Run`, `Dbg`, `Music`, `Settings`. `Run` is the one you'l
 - **No silent fallbacks**: if a bug is "X should not Y," grep for every path that does Y across base and subclasses. Delete the fallback, don't gate it.
 - **Black hole is decorative**: the background black hole is pure visual flair. No gravity, no damage, no interaction.
 
+## Workflow: iterating on enemies + waves
+
+This is a data-first loop — author Resources in Godot's inspector, hit "Test Level" to play. No code edits required for new wave compositions or enemy stat tweaks.
+
+**Tweak an enemy** (HP, bounty, speed, damage, hitbox, sprite):
+- Open `scenes/enemies/enemy_<name>.tscn` in Godot.
+- Edit `@export` vars on the root node in the inspector — `max_hull`, `bounty_value`, `movement` (a movement-pattern Resource), `shoot_pattern` (a shoot-pattern Resource), etc.
+- Save. Changes apply on the next combat boot.
+
+**Tweak a movement or shoot pattern** (S-curve amplitude, dive angle, fire interval):
+- Patterns are `Resource` scripts under `scripts/enemies/patterns/` and `scripts/enemies/shoot_patterns/`. Each has `@export` knobs.
+- In Godot, FileSystem panel → right-click → New Resource → pick the pattern script. Save as `resources/patterns/my_pattern.tres`. Edit knobs in inspector.
+- Drop the new `.tres` into an enemy's `movement` / `shoot_pattern` slot — or into a `WaveDef`'s `movement_override` / `shoot_pattern_override` slot (per-wave override).
+
+**Compose a custom wave**:
+- FileSystem → right-click → New Resource → `wave_def.gd`. Save as `resources/waves/my_wave.tres`.
+- Inspector fields: `enemy_scene` (drop in a `.tscn`), `count`, `spawn_interval`, `spawn_delay`, `formation`, `movement_override` (optional), `shoot_pattern_override` (optional), `max_health` (optional override), `bounty_value` (optional override), `silent` (skip the WAVE banner), `announce_text` (custom banner copy).
+
+**Compose a level** (one or more waves played in order):
+- New Resource → `level_def.gd`. Save as `resources/levels/test_level.tres` *(this exact filename is what the dev menu loads)*.
+- Drag your wave `.tres` files into the `waves` array in the inspector. Order = play order.
+
+**Test it**:
+- Run the project. Main menu → Dev Menu → **Test Level**.
+- This loads `resources/levels/test_level.tres` and boots combat with it. Die or clear → back to menu → tweak the `.tres` → retry.
+- The dev menu's existing **Wave Tester** is different — that drives the procedural generator with sector/depth knobs (no specific authored wave).
+
+Examples to copy and mutate: `resources/waves/test_wave_darts.tres`, `resources/waves/test_wave_hoppers.tres`, `resources/levels/test_level.tres`.
+
 ## Workflow: when to use a tuner vs. ask Claude
 
 Context is the scarce resource on Claude's side. The cheapest collaboration is the one where you iterate locally (eyes-on, sub-second feedback) and Claude only consumes the *result*. Use this matrix:
