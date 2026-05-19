@@ -588,7 +588,7 @@ func _spawn_planet(scene_path: String, rng: RandomNumberGenerator, planet_idx_us
 	if p.has_method("set_dither"):
 		p.set_dither(rng.randf() < 0.5)
 	var jitter: float = rng.randf_range(-80.0, 80.0)
-	var x: float = (320.0 - actual_size) * 0.5 + jitter
+	var x: float = (480.0 - actual_size) * 0.5 + jitter
 	var vert_off: float = PLANET_VERT_OFFSET.get(planet_idx_used, 0.78)
 	var y: float = -actual_size * vert_off
 	p.position = Vector2(x, y)
@@ -793,8 +793,8 @@ func _spawn_background_mines(rng: RandomNumberGenerator) -> void:
 		{"count": 10, "scale": 0.45, "speed": 36.0, "z": -1},
 		{"count": 12, "scale": 0.55, "speed": 50.0, "z": -1},
 	]
-	var vp_x: float = 320.0
-	var vp_y: float = 400.0
+	var vp_x: float = 480.0
+	var vp_y: float = 270.0
 	for layer in layers:
 		var count: int = int(layer["count"])
 		var spr_scale: float = float(layer["scale"])

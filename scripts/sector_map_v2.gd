@@ -50,15 +50,15 @@ const HAZARD_SCENE := "res://scenes/main.tscn"
 
 # Grid geometry — 320×400 / 32 = 10 × 12.5. Use 12 rows of 32, centered
 # vertically with 8px slack so the grid lives at y = 8 … 392.
-const COLS: int = 10
+const COLS: int = 15
 const ROWS: int = 12
-# 480×270 widescreen rework — cell shrunk 32 → 20 so 12-row grid (240 px)
-# fits inside 270-tall viewport, with 15 px slack top and bottom. Grid
-# stays 10×12 logically; total grid is 200 wide × 240 tall, centered
-# horizontally on the 480-wide playfield (GRID_X0 = 140).
+# 480×270 widescreen rework — 15×12 grid of 20-px cells = 300 × 240,
+# centered in the 480-wide viewport with GRID_X0=90 and 15-px slack
+# top/bottom (GRID_Y0=15). Wider grid (was 10) uses the new horizontal
+# room and stops the nodes from feeling crammed (Cody 2026-05-19).
 const CELL: int = 20
 const GRID_Y0: int = 15
-const GRID_X0: int = 140
+const GRID_X0: int = 90
 # Inner playable area (1-cell margin on each side).
 const C_MIN: int = 1
 const C_MAX: int = COLS - 2  # 8
@@ -69,13 +69,13 @@ const BOSS_ROW: int = R_MIN              # 1
 const PRE_BOSS_ROW: int = BOSS_ROW + 1   # 2
 # Start cell: bottom 2×2 (rows R_MAX..R_MAX+1 conceptually; we sit at
 # (160, 352) which is the corner between cells (4,10)-(5,11)).
-const START_POS := Vector2(GRID_X0 + 5 * CELL, GRID_Y0 + 11 * CELL)
+const START_POS := Vector2(GRID_X0 + 8 * CELL, GRID_Y0 + 11 * CELL)
 # Boss mirrors the start placement: single icon, sits at the corner
 # between rows 0 and 1.
-const BOSS_POS := Vector2(GRID_X0 + 5 * CELL, GRID_Y0 + 1 * CELL)
+const BOSS_POS := Vector2(GRID_X0 + 8 * CELL, GRID_Y0 + 1 * CELL)
 # Conceptual column for edge math on start + boss (both straddle cols
 # 4-5; we treat them as col 4 for col-distance checks).
-const ANCHOR_COL: int = 4
+const ANCHOR_COL: int = 7
 # Start "covers" rows 10 and 11. Per Roman, no other nodes may share
 # those rows; the lowest non-start node is at row 9 (1 up) or row 8
 # (2 up). All inner rows above that are open.
