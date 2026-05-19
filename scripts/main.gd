@@ -119,6 +119,20 @@ func _install_playfield_frame() -> void:
 			ui_node.set_wave_label_node(wave_label)
 		if ui_node.has_method("migrate_hd_labels"):
 			ui_node.migrate_hd_labels(hd_viewport)
+	# BossLabel: reparent into the HD viewport for crisper boss naming.
+	# .tscn original sits at viewport (48, 246)-(432, 256), font_size=8 →
+	# HD coords (96, 492)-(864, 512), font_size doubled.
+	if boss_label and is_instance_valid(boss_label):
+		var bl_parent := boss_label.get_parent()
+		if bl_parent and bl_parent != hd_viewport:
+			bl_parent.remove_child(boss_label)
+		if boss_label.get_parent() == null:
+			boss_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+			boss_label.position = Vector2(96, 492)
+			boss_label.size = Vector2(768, 20)
+			boss_label.custom_minimum_size = Vector2(768, 20)
+			boss_label.add_theme_font_size_override("font_size", 16)
+			hd_viewport.add_child(boss_label)
 
 	# Outline frame on its own layer ABOVE the HUD so the band's edge is
 	# always visible — the 1-px transparent-fill border doesn't obscure

@@ -177,8 +177,8 @@ func _ready() -> void:
 	hull_warning.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	UiTheme.style_label(hull_warning, UiTheme.LabelKind.DANGER)
 	hull_warning.text = "HULL COMPROMISED"
-	hull_warning.add_theme_font_size_override("font_size", 11)
-	hull_warning.add_theme_constant_override("outline_size", 2)
+	hull_warning.add_theme_font_size_override("font_size", 22)
+	hull_warning.add_theme_constant_override("outline_size", 4)
 	hull_warning.visible = false
 	# Insert immediately after the HullShieldRow so it sits beneath the
 	# hull bar, not next to the bounty label.
@@ -197,12 +197,32 @@ func _ready() -> void:
 	add_child(hologram_hud)
 
 
-# Reparent text-heavy labels from the 4× row into the HD SubViewport
-# after main.gd has installed the HD layer. Currently no-op — bounty
-# reparent broke its visibility (layout-context dependency in the
-# top_row that's not yet root-caused). Re-enable once debugged.
-func migrate_hd_labels(_hd: SubViewport) -> void:
-	pass
+# Reparent text-heavy labels into the HD SubViewport after main.gd has
+# installed the HD layer. Bounty + ammo are skipped here — they live in
+# HBoxContainers and turn invisible when reparented out (root cause not
+# yet identified; tracked separately).
+func migrate_hd_labels(hd: SubViewport) -> void:
+	if hd == null:
+		return
+	_migrate_label_to_hd(hd, hull_warning, Vector2(262, 28), Vector2(440, 32))
+
+
+# Lift a Label out of its current parent and into the HD viewport at a
+# given 960×540 position and size. Resets anchors to TOP_LEFT so the
+# label uses explicit position/size (no inherited container layout).
+func _migrate_label_to_hd(hd: SubViewport, label: Label, pos: Vector2, sz: Vector2) -> void:
+	if label == null or not is_instance_valid(label):
+		return
+	var parent := label.get_parent()
+	if parent and parent != hd:
+		parent.remove_child(label)
+	if label.get_parent() != null:
+		return
+	label.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	label.position = pos
+	label.size = sz
+	label.custom_minimum_size = sz
+	hd.add_child(label)
 
 
 func _install_ammo_row() -> void:
