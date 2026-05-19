@@ -23,6 +23,8 @@ const SceneTransition = preload("res://scripts/scene_transition.gd")
 const BACKDROP_V1 = preload("res://scripts/galaxy_backdrop.gd")
 const BACKDROP_V2 = preload("res://scripts/parallax/galaxy_backdrop_v2.gd")
 
+const CONFIG_PATH := "user://tuners/parallax.json"
+
 const PLANET_NAMES := [
 	"LavaWorld", "IceWorld", "DryTerran", "GasPlanet",
 	"NoAtmosphere", "LandMasses", "BlackHole", "Galaxy", "Star",
@@ -56,6 +58,10 @@ var _layer_brightness: Dictionary = {}
 var _layer_contrast: Dictionary = {}
 var _use_v2: bool = false
 var _version_label: Label = null
+var _status_label: Label = null
+# Per-layer silhouette RGBA cache so Copy GDScript can emit it even
+# after the slider was last touched on a different layer.
+var _layer_silhouette: Dictionary = {}
 
 
 func _ready() -> void:
@@ -205,6 +211,30 @@ func _build_ui() -> void:
 	_silhouette_g_slider = _add_slider_row(rail, "G", 0.0, 1.0, 0.0, _on_silhouette_changed)
 	_silhouette_b_slider = _add_slider_row(rail, "B", 0.0, 1.0, 0.0, _on_silhouette_changed)
 	_silhouette_a_slider = _add_slider_row(rail, "A", 0.0, 1.0, 1.0, _on_silhouette_changed)
+
+	rail.add_child(HSeparator.new())
+	# Handoff row: persist + copy a paste-ready snippet for Claude to
+	# integrate. JSON lives at user://tuners/parallax.json; clipboard gets a
+	# GDScript const dict keyed by layer name.
+	var save_btn := Button.new()
+	save_btn.text = "Save"
+	UiTheme.style_button(save_btn, true)
+	save_btn.pressed.connect(_on_save)
+	rail.add_child(save_btn)
+	var load_btn := Button.new()
+	load_btn.text = "Load"
+	UiTheme.style_button(load_btn, true)
+	load_btn.pressed.connect(_on_load)
+	rail.add_child(load_btn)
+	var copy_btn := Button.new()
+	copy_btn.text = "Copy GDScript"
+	UiTheme.style_button(copy_btn, true)
+	copy_btn.pressed.connect(_on_copy_snippet)
+	rail.add_child(copy_btn)
+	_status_label = Label.new()
+	_status_label.text = ""
+	UiTheme.style_label(_status_label, UiTheme.LabelKind.CAPTION)
+	rail.add_child(_status_label)
 
 
 func _add_slider_row(parent: Node, label_text: String, min_v: float, max_v: float, initial: float, on_changed: Callable) -> HSlider:
@@ -358,6 +388,7 @@ func _on_silhouette_changed(_v: float) -> void:
 		_silhouette_a_slider.value,
 	)
 	sm.set_shader_parameter("silhouette_color", c)
+	_layer_silhouette[_selected_layer.get_instance_id()] = c
 
 
 func _on_speed_changed(v: float) -> void:
@@ -420,3 +451,139 @@ func _on_back() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 		_on_back()
+
+
+# ---- Handoff: persist + emit snippet --------------------------------------
+
+# Build a per-layer-name dict of {brightness, contrast, speed, silhouette}
+# from the current sliders/caches. Used by both save and copy.
+func _current_config() -> Dictionary:
+	var out: Dictionary = {}
+	if _backdrop == null or not is_instance_valid(_backdrop):
+		return out
+	for child in _backdrop.get_children():
+		if not (child is CanvasItem):
+			continue
+		var id := child.get_instance_id()
+		var entry: Dictionary = {
+			"brightness": float(_layer_brightness.get(id, 1.0)),
+			"contrast": float(_layer_contrast.get(id, 1.0)),
+		}
+		var dm: float = 1.0
+		if child is Parallax2D:
+			dm = (child as Parallax2D).scroll_scale.y
+		elif child.has_meta("drift_mult"):
+			dm = float(child.get_meta("drift_mult"))
+		entry["speed"] = dm
+		if _layer_silhouette.has(id):
+			var c: Color = _layer_silhouette[id]
+			entry["silhouette"] = [c.r, c.g, c.b, c.a]
+		out[String(child.name)] = entry
+	return out
+
+
+func _save_to_disk() -> bool:
+	DirAccess.make_dir_recursive_absolute("user://tuners")
+	var f := FileAccess.open(CONFIG_PATH, FileAccess.WRITE)
+	if f == null:
+		return false
+	f.store_string(JSON.stringify(_current_config(), "  "))
+	f.close()
+	return true
+
+
+func _load_from_disk() -> Dictionary:
+	if not FileAccess.file_exists(CONFIG_PATH):
+		return {}
+	var f := FileAccess.open(CONFIG_PATH, FileAccess.READ)
+	if f == null:
+		return {}
+	var raw := f.get_as_text()
+	f.close()
+	var parsed = JSON.parse_string(raw)
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return {}
+	return parsed
+
+
+func _apply_config(cfg: Dictionary) -> void:
+	if _backdrop == null or not is_instance_valid(_backdrop):
+		return
+	for child in _backdrop.get_children():
+		if not (child is CanvasItem):
+			continue
+		var nm := String(child.name)
+		if not cfg.has(nm):
+			continue
+		var entry: Dictionary = cfg[nm]
+		var id := child.get_instance_id()
+		_layer_brightness[id] = float(entry.get("brightness", 1.0))
+		_layer_contrast[id] = float(entry.get("contrast", 1.0))
+		_apply_layer_modulate(child)
+		var speed: float = float(entry.get("speed", 1.0))
+		if child is Parallax2D:
+			var p := child as Parallax2D
+			p.scroll_scale = Vector2(p.scroll_scale.x, speed)
+		else:
+			child.set_meta("drift_mult", speed)
+		if entry.has("silhouette") and child is Parallax2D \
+				and _backdrop.has_method("silhouette_material_for"):
+			var arr: Array = entry["silhouette"]
+			if arr.size() >= 4:
+				var sm: ShaderMaterial = _backdrop.silhouette_material_for(child)
+				if sm:
+					var c := Color(arr[0], arr[1], arr[2], arr[3])
+					sm.set_shader_parameter("silhouette_color", c)
+					_layer_silhouette[id] = c
+	# Resync the visible sliders to whatever the currently-selected layer now holds.
+	if _selected_layer:
+		_select_layer(_selected_layer)
+
+
+func _build_snippet() -> String:
+	var cfg := _current_config()
+	var lines: PackedStringArray = []
+	lines.append("# Parallax tuner export — paste into galaxy_backdrop.gd or a config Resource.")
+	lines.append("# Per-layer overrides keyed by node name. Drop unused entries.")
+	lines.append("const PARALLAX_OVERRIDES := {")
+	var names := cfg.keys()
+	names.sort()
+	for nm in names:
+		var e: Dictionary = cfg[nm]
+		var parts: PackedStringArray = []
+		parts.append("\"brightness\": %.3f" % float(e.get("brightness", 1.0)))
+		parts.append("\"contrast\": %.3f" % float(e.get("contrast", 1.0)))
+		parts.append("\"speed\": %.3f" % float(e.get("speed", 1.0)))
+		if e.has("silhouette"):
+			var s: Array = e["silhouette"]
+			parts.append("\"silhouette\": Color(%.3f, %.3f, %.3f, %.3f)" % [s[0], s[1], s[2], s[3]])
+		lines.append("\t\"%s\": {%s}," % [nm, ", ".join(parts)])
+	lines.append("}")
+	return "\n".join(lines)
+
+
+func _on_save() -> void:
+	if _save_to_disk():
+		_set_status("Saved to %s" % CONFIG_PATH)
+	else:
+		_set_status("Save FAILED")
+
+
+func _on_load() -> void:
+	var cfg := _load_from_disk()
+	if cfg.is_empty():
+		_set_status("No saved config (or load failed)")
+		return
+	_apply_config(cfg)
+	_set_status("Loaded from %s" % CONFIG_PATH)
+
+
+func _on_copy_snippet() -> void:
+	var s := _build_snippet()
+	DisplayServer.clipboard_set(s)
+	_set_status("Snippet copied (%d chars)" % s.length())
+
+
+func _set_status(msg: String) -> void:
+	if _status_label:
+		_status_label.text = msg
