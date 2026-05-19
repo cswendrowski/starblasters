@@ -4,6 +4,7 @@ const HologramHUDCls = preload("res://scripts/hologram_hud.gd")
 const HullPipsCls = preload("res://scripts/hull_pips.gd")
 const ShieldPipsCls = preload("res://scripts/shield_pips_hud.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
+const HdCanvas = preload("res://scripts/ui/hd_canvas.gd")
 
 @onready var shield_bar = $BoxContainer/ShieldBar
 @onready var hull_bar = $BoxContainer/HullBar if has_node("BoxContainer/HullBar") else null
@@ -53,19 +54,15 @@ func _ready() -> void:
 	# warm-gold tint so the bounty actually reads on screen.
 	if score_counter:
 		score_counter.visible = false
-	# Bounty: anchored to top-right of the HUD margin, half the previous
-	# size (Roman, 2026-05-17). Lives directly on the UI MarginContainer,
-	# not in the vertical BoxContainer, so it doesn't fight for layout.
+	# Bounty: HD-density text in the right gutter. font_size doubled
+	# (10 → 20) so visual size stays the same but rasterises at 2× density.
 	bounty_label = Label.new()
 	bounty_label.name = "BountyLabel"
 	bounty_label.text = "BOUNTY 0"
 	bounty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	UiTheme.style_label(bounty_label, UiTheme.LabelKind.BOUNTY)
-	# Bounty kind is FONT_SIZE_BODY + 4 = 16 by default; Roman wants ~half.
-	# Original BOUNTY size is 16 (FONT_SIZE_BODY+4). Half = 8; bumped to 10
-	# for legibility while staying near "about half".
-	bounty_label.add_theme_font_size_override("font_size", 10)
-	bounty_label.add_theme_constant_override("outline_size", 1)
+	bounty_label.add_theme_font_size_override("font_size", 20)
+	bounty_label.add_theme_constant_override("outline_size", 2)
 	# Push the bounty closer to the right edge (Roman, 2026-05-18: "check
 	# the readability of the bounty counter, push it more right"). Width
 	# stays generous for the BOUNTY X label but the alignment now sits
@@ -147,12 +144,16 @@ func _ready() -> void:
 	spacer_mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_row.add_child(spacer_mid)
 
-	bounty_label.size_flags_horizontal = Control.SIZE_SHRINK_END
-	bounty_label.custom_minimum_size = Vector2(80, 0)
 	bounty_label.add_theme_color_override("font_color", UiTheme.COLOR_BOUNTY)
-	bounty_label.z_index = 0
 	bounty_label.modulate = Color(1, 1, 1, 1)
 	bounty_label.visible = true
+	# Initial parent is the 4× row. main.gd calls migrate_hd_labels() after
+	# _install_playfield_frame builds the HD viewport, which reparents the
+	# bounty into the HD layer. Scenes that don't install the HD layer
+	# (feature_showcase, dev scenes) keep the row-parented version.
+	bounty_label.size_flags_horizontal = Control.SIZE_SHRINK_END
+	bounty_label.custom_minimum_size = Vector2(80, 0)
+	bounty_label.z_index = 0
 	top_row.add_child(bounty_label)
 
 	$BoxContainer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -190,6 +191,26 @@ func _ready() -> void:
 	hologram_hud.name = "HologramHUD"
 	hologram_hud._hud_root = self
 	add_child(hologram_hud)
+
+
+# Reparent text-heavy labels from the 4× row into the HD SubViewport
+# now that main.gd has installed the HD layer. Called from main.gd after
+# _install_playfield_frame; safe to call repeatedly (idempotent).
+func migrate_hd_labels(hd: SubViewport) -> void:
+	if hd == null:
+		return
+	if bounty_label and is_instance_valid(bounty_label):
+		var parent := bounty_label.get_parent()
+		if parent and parent != hd:
+			parent.remove_child(bounty_label)
+		if bounty_label.get_parent() == null:
+			# 960×540 coords. Right edge of label at x=944 sits inside the
+			# right gutter (gutter spans HD x=696..960, i.e. viewport
+			# 348..480). Right-aligned text anchors to the box's right edge.
+			bounty_label.position = Vector2(696, 8)
+			bounty_label.size = Vector2(248, 28)
+			bounty_label.z_index = 0
+			hd.add_child(bounty_label)
 
 
 func _install_ammo_row() -> void:
