@@ -501,9 +501,12 @@ func _on_play() -> void:
 
 
 func _save_pending(w: WaveDef) -> void:
-	# Duplicate so we don't write a shared reference Godot might re-resolve.
-	var snapshot: WaveDef = w.duplicate(true)
-	var err := ResourceSaver.save(snapshot, PENDING_WAVE_PATH)
+	# Save the in-memory wave directly — NO duplicate. Resource.duplicate(true)
+	# deep-clones sub-resources and wipes their resource_path, which breaks
+	# the round-trip for movement_override / shoot_pattern_override (they
+	# come back as path-less inline Resources, and the pickers can't map
+	# them back to known .tres files).
+	var err := ResourceSaver.save(w, PENDING_WAVE_PATH)
 	if err != OK:
 		push_warning("wave_editor: failed to write pending snapshot (%d)" % err)
 
