@@ -1,0 +1,177 @@
+extends Node2D
+class_name DamageSmokeTrail
+
+# Damage smoke trail — burning industrial/tech smoke from damaged
+# components (Roman/Cody 2026-05-18). Single Line2D with the
+# billow_smoke shader applied as a texture, width grows toward the tail
+# so the line reads as "dispersing column" rather than a constant-width
+# stroke.
+
+const SHADER_PATH := "res://graphics/billow_smoke.gdshader"
+
+const ACTIVATE_BELOW: float = 0.5         # hull <= 50% → emit
+const SAMPLE_INTERVAL: float = 0.04
+const MAX_POINTS: int = 56
+const POINT_LIFETIME: float = 1.8
+
+# Line width at the head (engine) ramps from MIN_WIDTH at 50% hull to
+# MAX_WIDTH at 0% hull (Roman 2026-05-18 "thicker the closer to 0").
+const MIN_WIDTH: float = 6.0
+const MAX_WIDTH: float = 16.0
+# Multiplier at the tail-most point of the curve. 1.0 at head → TAIL_WIDTH_MULT at tail.
+# Roman 2026-05-18: bumped to 10× — dramatic flare at the dissipation end.
+const TAIL_WIDTH_MULT: float = 10.0
+
+# Drift: older points fall faster (forward-motion left-behind).
+# Roman 2026-05-18: +25% over the previous pass.
+const DRIFT_BASE_SPEED: float = 225.0
+const DRIFT_AGE_GAIN: float = 400.0
+
+# Per-point sideways wander so the column breathes.
+const WANDER_PX_PER_SEC: float = 18.0
+
+# Default emit coord (player engine pixel). Bombers / other units pass
+# their own via set_player_with_offset() — Roman 2026-05-18.
+const EMIT_LOCAL_DEFAULT: Vector2 = Vector2(0, 6)
+var emit_local: Vector2 = EMIT_LOCAL_DEFAULT
+
+# Dark industrial palette.
+const SMOKE_COLOR := Color(0.10, 0.10, 0.11, 0.90)
+
+var _player: Node2D = null
+var _damage_level: float = 0.0
+var _line: Line2D = null
+var _sample_t: float = 0.0
+var _point_t: Array = []
+
+
+func _ready() -> void:
+	_line = Line2D.new()
+	_line.name = "DamageTrailLine"
+	_line.width = MIN_WIDTH
+	_line.default_color = SMOKE_COLOR
+	# Width curve: thin at head (1.0) → fat at tail (TAIL_WIDTH_MULT).
+	var curve := Curve.new()
+	curve.add_point(Vector2(0.0, TAIL_WIDTH_MULT))   # tail
+	curve.add_point(Vector2(1.0, 1.0))               # head
+	_line.width_curve = curve
+	# Alpha gradient: head dense at the engine, tail dissipates to 0 even
+	# though the WIDTH keeps growing. Combined with width_curve this reads
+	# as smoke widening AND fading as it disperses (Roman 2026-05-18).
+	# Steeper falloff so the dissipation is obvious — alpha drops fast in
+	# the last third of the trail.
+	var grad := Gradient.new()
+	grad.offsets = PackedFloat32Array([0.0, 0.5, 0.85, 1.0])
+	grad.colors = PackedColorArray([
+		Color(SMOKE_COLOR.r, SMOKE_COLOR.g, SMOKE_COLOR.b, 0.0),
+		Color(SMOKE_COLOR.r, SMOKE_COLOR.g, SMOKE_COLOR.b, 0.35),
+		Color(SMOKE_COLOR.r, SMOKE_COLOR.g, SMOKE_COLOR.b, 0.80),
+		Color(SMOKE_COLOR.r, SMOKE_COLOR.g, SMOKE_COLOR.b, SMOKE_COLOR.a),
+	])
+	_line.gradient = grad
+	_line.joint_mode = Line2D.LINE_JOINT_ROUND
+	_line.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	_line.end_cap_mode = Line2D.LINE_CAP_ROUND
+	# Smoke draws BELOW the engine fire (torch is at z=1). Set to 0 so the
+	# fire stays on top (Roman 2026-05-18).
+	_line.z_index = 0
+	_line.z_as_relative = false
+	# Procedurally-baked noise texture so the strip reads as "smoke" rather
+	# than a flat band. Generated once in _build_noise_texture(); tiled
+	# along the line's length via Line2D.texture_mode.
+	_line.texture = _build_noise_texture()
+	_line.texture_mode = Line2D.LINE_TEXTURE_TILE
+	# Parent under scene root so the line lives in world space.
+	var p := get_tree().current_scene
+	if p == null:
+		p = get_tree().root
+	p.call_deferred("add_child", _line)
+
+
+func set_player(player: Node2D) -> void:
+	_player = player
+	if player.has_signal("hull_changed"):
+		if not player.hull_changed.is_connected(_on_hull_changed):
+			player.hull_changed.connect(_on_hull_changed)
+	if "max_hull" in player and "hull" in player:
+		_on_hull_changed(player.max_hull, player.hull)
+
+
+func _on_hull_changed(max_hull, hull) -> void:
+	if max_hull <= 0:
+		_damage_level = 0.0
+		return
+	_damage_level = clamp(1.0 - (float(hull) / float(max_hull)), 0.0, 1.0)
+	# Width ramps within the damaged range (50%-100% damage_level) so the
+	# trail gets noticeably fatter as the player approaches death.
+	if _line and is_instance_valid(_line):
+		var ramp: float = clamp((_damage_level - ACTIVATE_BELOW) / (1.0 - ACTIVATE_BELOW), 0.0, 1.0)
+		_line.width = lerp(MIN_WIDTH, MAX_WIDTH, ramp)
+
+
+func _process(delta: float) -> void:
+	if _player == null or not is_instance_valid(_player):
+		_clear_line()
+		return
+	_age_points(delta)
+	if _damage_level < ACTIVATE_BELOW:
+		# Let the existing trail fade out instead of yanking it.
+		return
+	_sample_t -= delta
+	if _sample_t > 0.0:
+		return
+	_sample_t = SAMPLE_INTERVAL
+	var pos: Vector2 = _player.to_global(emit_local)
+	pos += Vector2(randf_range(-1.5, 1.5), randf_range(-0.5, 0.5))
+	_line.add_point(pos)
+	_point_t.append(0.0)
+	while _line.get_point_count() > MAX_POINTS:
+		_line.remove_point(0)
+		_point_t.pop_front()
+
+
+func _age_points(delta: float) -> void:
+	if _line == null or not is_instance_valid(_line):
+		return
+	var n: int = _point_t.size()
+	for i in range(n):
+		_point_t[i] = float(_point_t[i]) + delta
+		var t: float = clamp(float(_point_t[i]) / POINT_LIFETIME, 0.0, 1.0)
+		var drop: float = (DRIFT_BASE_SPEED + DRIFT_AGE_GAIN * t) * delta
+		var wander: float = WANDER_PX_PER_SEC * delta * sin(float(i) * 0.55 + float(_point_t[i]) * 4.5)
+		var p: Vector2 = _line.get_point_position(i)
+		_line.set_point_position(i, p + Vector2(wander, drop))
+	while _point_t.size() > 0 and float(_point_t[0]) >= POINT_LIFETIME:
+		_line.remove_point(0)
+		_point_t.pop_front()
+
+
+func _clear_line() -> void:
+	if _line and is_instance_valid(_line):
+		_line.clear_points()
+	_point_t.clear()
+
+
+# Build a 64×16 grayscale noise texture (white spots on alpha=0). Tiled
+# along the Line2D's length, it modulates the strip's solid color so the
+# trail reads as billowy smoke rather than a uniform band.
+static func _build_noise_texture() -> Texture2D:
+	const W: int = 64
+	const H: int = 16
+	var img := Image.create(W, H, false, Image.FORMAT_RGBA8)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0xBEEF
+	for y in H:
+		for x in W:
+			# Smooth value-noise-ish: blend a low-frequency wave with
+			# random spots so the texture has both structure and grain.
+			var base: float = 0.6 + 0.4 * sin(float(x) * 0.35) * cos(float(y) * 0.6)
+			var grain: float = rng.randf_range(0.6, 1.0)
+			# Edges of the strip (top/bottom of texture) feather to 0 so
+			# the line's outer pixels are soft rather than hard-cut.
+			var v: float = float(y) / float(H - 1)
+			var feather: float = 1.0 - pow(abs(v - 0.5) * 2.0, 2.4)
+			feather = clamp(feather, 0.0, 1.0)
+			var a: float = clamp(base * grain * feather, 0.0, 1.0)
+			img.set_pixel(x, y, Color(1.0, 1.0, 1.0, a))
+	return ImageTexture.create_from_image(img)

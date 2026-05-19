@@ -1,0 +1,67 @@
+[gd_scene load_steps=2 format=3 uid="uid://b1clrdsummary"]
+
+[ext_resource type="Script" path="res://scripts/cleared_summary.gd" id="1_clr_scr"]
+
+[node name="ClearedSummary" type="CanvasLayer"]
+layer = 90
+script = ExtResource("1_clr_scr")
+
+[node name="Bg" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 1)
+mouse_filter = 2
+
+[node name="Root" type="Control" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = 14.0
+offset_right = -16.0
+offset_bottom = -14.0
+mouse_filter = 2
+
+[node name="Title" type="Label" parent="Root"]
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 22.0
+grow_horizontal = 2
+text = "CLEARED!"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0.05, 0.08, 0.12, 1)
+theme_override_constants/outline_size = 2
+
+[node name="List" type="VBoxContainer" parent="Root"]
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 34.0
+offset_bottom = 150.0
+grow_horizontal = 2
+theme_override_constants/separation = 3
+
+[node name="Bottom" type="VBoxContainer" parent="Root"]
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -60.0
+grow_horizontal = 2
+grow_vertical = 0
+alignment = 1
+theme_override_constants/separation = 6
+
+[node name="TotalBounty" type="Label" parent="Root/Bottom"]
+text = "TOTAL BOUNTY: 0"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 10
+theme_override_colors/font_color = Color(1, 0.85, 0.45, 1)
+
+[node name="MapBtn" type="Button" parent="Root/Bottom"]
+custom_minimum_size = Vector2(90, 18)
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 9
+text = "Sector Map"

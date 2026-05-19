@@ -1,0 +1,12 @@
+{
+    "first_wave":  {
+                       "frame_ms_p50":  1.344,
+                       "frame_ms_p95":  5.057,
+                       "frame_ms_max":  5.057,
+                       "node_peak":  172,
+                       "draw_calls_peak":  0,
+                       "primitives_peak":  0,
+                       "memory_mb_peak":  86.4274463653564,
+                       "recorded_at":  "2026-05-17T18:29:05"
+                   }
+}

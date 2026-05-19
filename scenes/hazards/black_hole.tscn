@@ -1,0 +1,42 @@
+[gd_scene load_steps=4 format=3 uid="uid://b1blkh0le2dhz"]
+
+[ext_resource type="Script" path="res://scripts/black_hole.gd" id="1_bh_scr"]
+[ext_resource type="Shader" path="res://graphics/black_hole.gdshader" id="2_bh_shd"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_bh1"]
+shader = ExtResource("2_bh_shd")
+shader_parameter/event_horizon = 0.18
+shader_parameter/photon_ring = 0.22
+shader_parameter/disk_inner = 0.24
+shader_parameter/disk_outer = 0.46
+shader_parameter/lens_radius = 0.48
+shader_parameter/lens_strength = 0.55
+shader_parameter/spin_speed = 1.4
+shader_parameter/turbulence_scale = 5.0
+shader_parameter/ring_intensity = 2.4
+shader_parameter/doppler_boost = 0.65
+shader_parameter/color_hot = Color(1, 0.95, 0.75, 1)
+shader_parameter/color_mid = Color(1, 0.55, 0.18, 1)
+shader_parameter/color_edge = Color(0.55, 0.1, 0.4, 1)
+shader_parameter/color_core = Color(0, 0, 0, 1)
+shader_parameter/fade = 0.0
+
+[node name="BlackHole" type="Node2D"]
+script = ExtResource("1_bh_scr")
+
+[node name="BackBufferCopy" type="BackBufferCopy" parent="."]
+copy_mode = 2
+
+[node name="Visual" type="ColorRect" parent="."]
+material = SubResource("ShaderMaterial_bh1")
+offset_left = -360.0
+offset_top = -360.0
+offset_right = 360.0
+offset_bottom = 360.0
+mouse_filter = 2
+
+[node name="Well" type="Area2D" parent="."]
+monitoring = true
+monitorable = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Well"]

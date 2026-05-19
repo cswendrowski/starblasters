@@ -1,0 +1,538 @@
+[gd_scene load_steps=2 format=3 uid="uid://bc58sr7cblqkg"]
+
+[ext_resource type="Script" path="res://scripts/debug_testbed.gd" id="1_52yoh"]
+
+[node name="DebugTestbed" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_52yoh")
+
+[node name="Stage" type="Node2D" parent="."]
+
+[node name="TopBar" type="HBoxContainer" parent="."]
+custom_minimum_size = Vector2(760, 36)
+layout_mode = 0
+offset_left = 20.0
+offset_top = 16.0
+offset_right = 20.0
+offset_bottom = 16.0
+
+[node name="BackBtn" type="Button" parent="TopBar"]
+custom_minimum_size = Vector2(110, 36)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "< Back"
+
+[node name="RandomizeBtn" type="Button" parent="TopBar"]
+custom_minimum_size = Vector2(140, 36)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Randomize"
+
+[node name="InfoLabel" type="Label" parent="TopBar"]
+custom_minimum_size = Vector2(480, 36)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.9, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "—"
+horizontal_alignment = 2
+
+[node name="Showcase" type="Node2D" parent="."]
+
+[node name="Tabs" type="TabContainer" parent="."]
+custom_minimum_size = Vector2(240, 880)
+layout_mode = 0
+offset_left = 540.0
+offset_top = 70.0
+offset_right = 780.0
+offset_bottom = 950.0
+current_tab = 0
+
+[node name="Planet" type="VBoxContainer" parent="Tabs"]
+layout_mode = 2
+metadata/_tab_index = 0
+
+[node name="PlanetName" type="Label" parent="Tabs/Planet"]
+custom_minimum_size = Vector2(220, 22)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.95, 0.7, 1)
+theme_override_font_sizes/font_size = 16
+text = "[ 1/9 ] LavaWorld"
+horizontal_alignment = 1
+
+[node name="PlanetBtns" type="HBoxContainer" parent="Tabs/Planet"]
+layout_mode = 2
+
+[node name="PrevBtn" type="Button" parent="Tabs/Planet/PlanetBtns"]
+custom_minimum_size = Vector2(65, 32)
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "< Prev"
+
+[node name="NextBtn" type="Button" parent="Tabs/Planet/PlanetBtns"]
+custom_minimum_size = Vector2(65, 32)
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Next >"
+
+[node name="RandomBtn" type="Button" parent="Tabs/Planet/PlanetBtns"]
+custom_minimum_size = Vector2(65, 32)
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Rand"
+
+[node name="PlanetStats" type="Label" parent="Tabs/Planet"]
+custom_minimum_size = Vector2(220, 100)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.95, 1, 1)
+theme_override_font_sizes/font_size = 11
+text = "—"
+
+[node name="Row_planet_pixels" type="VBoxContainer" parent="Tabs/Planet"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Tabs/Planet/Row_planet_pixels"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "pixels: ?"
+
+[node name="Slider" type="HSlider" parent="Tabs/Planet/Row_planet_pixels"]
+custom_minimum_size = Vector2(220, 16)
+layout_mode = 2
+min_value = 10.0
+max_value = 5000.0
+value = 10.0
+metadata/prop = "planet_pixels"
+metadata/label_pfx = "pixels"
+metadata/suffix = ""
+
+[node name="Row_surface_time_scale" type="VBoxContainer" parent="Tabs/Planet"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Tabs/Planet/Row_surface_time_scale"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "surface_time: ?"
+
+[node name="Slider" type="HSlider" parent="Tabs/Planet/Row_surface_time_scale"]
+custom_minimum_size = Vector2(220, 16)
+layout_mode = 2
+max_value = 1.0
+step = 0.01
+metadata/prop = "surface_time_scale"
+metadata/label_pfx = "surface_time"
+metadata/suffix = ""
+
+[node name="Row_planet_size" type="VBoxContainer" parent="Tabs/Planet"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Tabs/Planet/Row_planet_size"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "size: ? (respawn)"
+
+[node name="Slider" type="HSlider" parent="Tabs/Planet/Row_planet_size"]
+custom_minimum_size = Vector2(220, 16)
+layout_mode = 2
+min_value = 200.0
+max_value = 2500.0
+step = 10.0
+value = 200.0
+metadata/prop = "planet_size"
+metadata/label_pfx = "size"
+metadata/suffix = " (respawn)"
+
+[node name="Row_planet_size_variance" type="VBoxContainer" parent="Tabs/Planet"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Tabs/Planet/Row_planet_size_variance"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "variance: ? (respawn)"
+
+[node name="Slider" type="HSlider" parent="Tabs/Planet/Row_planet_size_variance"]
+custom_minimum_size = Vector2(220, 16)
+layout_mode = 2
+max_value = 0.9
+step = 0.05
+metadata/prop = "planet_size_variance"
+metadata/label_pfx = "variance"
+metadata/suffix = " (respawn)"
+
+[node name="Row_drift_speed" type="VBoxContainer" parent="Tabs/Planet"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Tabs/Planet/Row_drift_speed"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "drift: ?"
+
+[node name="Slider" type="HSlider" parent="Tabs/Planet/Row_drift_speed"]
+custom_minimum_size = Vector2(220, 16)
+layout_mode = 2
+max_value = 50.0
+step = 0.5
+metadata/prop = "drift_speed"
+metadata/label_pfx = "drift"
+metadata/suffix = ""
+
+[node name="Row_asteroid_pixels" type="VBoxContainer" parent="Tabs/Planet"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Tabs/Planet/Row_asteroid_pixels"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "ast pixels: ?"
+
+[node name="Slider" type="HSlider" parent="Tabs/Planet/Row_asteroid_pixels"]
+custom_minimum_size = Vector2(220, 16)
+layout_mode = 2
+min_value = 10.0
+max_value = 5000.0
+value = 10.0
+metadata/prop = "asteroid_pixels"
+metadata/label_pfx = "ast pixels"
+metadata/suffix = ""
+
+[node name="Row_asteroid_count" type="VBoxContainer" parent="Tabs/Planet"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Tabs/Planet/Row_asteroid_count"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "ast count: ? (respawn)"
+
+[node name="Slider" type="HSlider" parent="Tabs/Planet/Row_asteroid_count"]
+custom_minimum_size = Vector2(220, 16)
+layout_mode = 2
+max_value = 15.0
+metadata/prop = "asteroid_count"
+metadata/label_pfx = "ast count"
+metadata/suffix = " (respawn)"
+
+[node name="Nebula" type="VBoxContainer" parent="Tabs"]
+visible = false
+layout_mode = 2
+metadata/_tab_index = 1
+
+[node name="NebulaName" type="Label" parent="Tabs/Nebula"]
+custom_minimum_size = Vector2(220, 22)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 16
+text = "[ 1/6 ] Default"
+horizontal_alignment = 1
+
+[node name="NebulaBtns" type="HBoxContainer" parent="Tabs/Nebula"]
+layout_mode = 2
+
+[node name="NebPrevBtn" type="Button" parent="Tabs/Nebula/NebulaBtns"]
+custom_minimum_size = Vector2(70, 32)
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "< Prev"
+
+[node name="NebNextBtn" type="Button" parent="Tabs/Nebula/NebulaBtns"]
+custom_minimum_size = Vector2(70, 32)
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Next >"
+
+[node name="NebRandBtn" type="Button" parent="Tabs/Nebula/NebulaBtns"]
+custom_minimum_size = Vector2(70, 32)
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Rand"
+
+[node name="NebulaStats" type="Label" parent="Tabs/Nebula"]
+custom_minimum_size = Vector2(220, 80)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.95, 1, 1)
+theme_override_font_sizes/font_size = 11
+text = "—"
+
+[node name="Row_nebula_pixels" type="VBoxContainer" parent="Tabs/Nebula"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Tabs/Nebula/Row_nebula_pixels"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "neb px: ? (respawn)"
+
+[node name="Slider" type="HSlider" parent="Tabs/Nebula/Row_nebula_pixels"]
+custom_minimum_size = Vector2(220, 16)
+layout_mode = 2
+min_value = 10.0
+max_value = 1000.0
+value = 10.0
+metadata/prop = "nebula_pixels"
+metadata/label_pfx = "neb px"
+metadata/suffix = " (respawn)"
+
+[node name="Row_nebula_octaves" type="VBoxContainer" parent="Tabs/Nebula"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Tabs/Nebula/Row_nebula_octaves"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "neb oct: ? (respawn)"
+
+[node name="Slider" type="HSlider" parent="Tabs/Nebula/Row_nebula_octaves"]
+custom_minimum_size = Vector2(220, 16)
+layout_mode = 2
+min_value = 1.0
+max_value = 10.0
+value = 1.0
+metadata/prop = "nebula_octaves"
+metadata/label_pfx = "neb oct"
+metadata/suffix = " (respawn)"
+
+[node name="Row_nebula_drift" type="VBoxContainer" parent="Tabs/Nebula"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Tabs/Nebula/Row_nebula_drift"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "neb drift: ?"
+
+[node name="Slider" type="HSlider" parent="Tabs/Nebula/Row_nebula_drift"]
+custom_minimum_size = Vector2(220, 16)
+layout_mode = 2
+max_value = 0.05
+step = 0.001
+metadata/prop = "nebula_drift"
+metadata/label_pfx = "neb drift"
+metadata/suffix = ""
+
+[node name="Row_starfield_density" type="VBoxContainer" parent="Tabs/Nebula"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Tabs/Nebula/Row_starfield_density"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "stars: ? (respawn)"
+
+[node name="Slider" type="HSlider" parent="Tabs/Nebula/Row_starfield_density"]
+custom_minimum_size = Vector2(220, 16)
+layout_mode = 2
+max_value = 80.0
+metadata/prop = "starfield_density"
+metadata/label_pfx = "stars"
+metadata/suffix = " (respawn)"
+
+[node name="Row_nebula_alpha" type="VBoxContainer" parent="Tabs/Nebula"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Tabs/Nebula/Row_nebula_alpha"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "alpha: ?"
+
+[node name="Slider" type="HSlider" parent="Tabs/Nebula/Row_nebula_alpha"]
+custom_minimum_size = Vector2(220, 16)
+layout_mode = 2
+max_value = 1.0
+step = 0.01
+metadata/prop = "nebula_alpha"
+metadata/label_pfx = "alpha"
+metadata/suffix = ""
+
+[node name="Row_nebula_density" type="VBoxContainer" parent="Tabs/Nebula"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Tabs/Nebula/Row_nebula_density"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "density: ? (respawn)"
+
+[node name="Slider" type="HSlider" parent="Tabs/Nebula/Row_nebula_density"]
+custom_minimum_size = Vector2(220, 16)
+layout_mode = 2
+max_value = 2.0
+step = 0.05
+metadata/prop = "nebula_density"
+metadata/label_pfx = "density"
+metadata/suffix = " (respawn)"
+
+[node name="Row_nebula_edge" type="VBoxContainer" parent="Tabs/Nebula"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Tabs/Nebula/Row_nebula_edge"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "edge: ? (respawn)"
+
+[node name="Slider" type="HSlider" parent="Tabs/Nebula/Row_nebula_edge"]
+custom_minimum_size = Vector2(220, 16)
+layout_mode = 2
+max_value = 1.0
+step = 0.05
+metadata/prop = "nebula_edge"
+metadata/label_pfx = "edge"
+metadata/suffix = " (respawn)"
+
+[node name="Row_nebula_scale" type="VBoxContainer" parent="Tabs/Nebula"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Tabs/Nebula/Row_nebula_scale"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "scale: ? (respawn)"
+
+[node name="Slider" type="HSlider" parent="Tabs/Nebula/Row_nebula_scale"]
+custom_minimum_size = Vector2(220, 16)
+layout_mode = 2
+min_value = 0.5
+max_value = 8.0
+step = 0.1
+value = 0.5
+metadata/prop = "nebula_scale"
+metadata/label_pfx = "scale"
+metadata/suffix = " (respawn)"
+
+[node name="Ships" type="VBoxContainer" parent="Tabs"]
+visible = false
+layout_mode = 2
+metadata/_tab_index = 2
+
+[node name="@Label@25121" type="Label" parent="Tabs/Ships"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "── PER-SHIP SCALE ──"
+horizontal_alignment = 1
+
+[node name="Row_Player" type="VBoxContainer" parent="Tabs/Ships"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Tabs/Ships/Row_Player"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Player: 3.00"
+
+[node name="Slider" type="HSlider" parent="Tabs/Ships/Row_Player"]
+custom_minimum_size = Vector2(220, 16)
+layout_mode = 2
+min_value = 0.5
+max_value = 6.0
+step = 0.05
+value = 3.0
+metadata/ship_name = "Player"
+metadata/scene_path = "res://scenes/player/player.tscn"
+
+[node name="Row_Firecore" type="VBoxContainer" parent="Tabs/Ships"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Tabs/Ships/Row_Firecore"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Firecore: 3.00"
+
+[node name="Slider" type="HSlider" parent="Tabs/Ships/Row_Firecore"]
+custom_minimum_size = Vector2(220, 16)
+layout_mode = 2
+min_value = 0.5
+max_value = 6.0
+step = 0.05
+value = 3.0
+metadata/ship_name = "Firecore"
+metadata/scene_path = "res://scenes/enemies/enemy_firecore.tscn"
+
+[node name="Row_Diver" type="VBoxContainer" parent="Tabs/Ships"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Tabs/Ships/Row_Diver"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Diver: 2.50"
+
+[node name="Slider" type="HSlider" parent="Tabs/Ships/Row_Diver"]
+custom_minimum_size = Vector2(220, 16)
+layout_mode = 2
+min_value = 0.5
+max_value = 6.0
+step = 0.05
+value = 2.5
+metadata/ship_name = "Diver"
+metadata/scene_path = "res://scenes/enemies/enemy_diver.tscn"
+
+[node name="Row_Crystal" type="VBoxContainer" parent="Tabs/Ships"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Tabs/Ships/Row_Crystal"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Crystal: 1.60"
+
+[node name="Slider" type="HSlider" parent="Tabs/Ships/Row_Crystal"]
+custom_minimum_size = Vector2(220, 16)
+layout_mode = 2
+min_value = 0.5
+max_value = 6.0
+step = 0.05
+value = 1.6
+metadata/ship_name = "Crystal"
+metadata/scene_path = "res://scenes/enemies/enemy_crystal.tscn"
+
+[node name="Row_Dart" type="VBoxContainer" parent="Tabs/Ships"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Tabs/Ships/Row_Dart"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Dart: 1.50"
+
+[node name="Slider" type="HSlider" parent="Tabs/Ships/Row_Dart"]
+custom_minimum_size = Vector2(220, 16)
+layout_mode = 2
+min_value = 0.5
+max_value = 6.0
+step = 0.05
+value = 1.5
+metadata/ship_name = "Dart"
+metadata/scene_path = "res://scenes/enemies/enemy_dart.tscn"
+
+[node name="Row_Hopper" type="VBoxContainer" parent="Tabs/Ships"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Tabs/Ships/Row_Hopper"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Hopper: 2.00"
+
+[node name="Slider" type="HSlider" parent="Tabs/Ships/Row_Hopper"]
+custom_minimum_size = Vector2(220, 16)
+layout_mode = 2
+min_value = 0.5
+max_value = 6.0
+step = 0.05
+value = 2.0
+metadata/ship_name = "Hopper"
+metadata/scene_path = "res://scenes/enemies/enemy_hopper.tscn"
+
+[node name="Row_Boss" type="VBoxContainer" parent="Tabs/Ships"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Tabs/Ships/Row_Boss"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Boss: 3.00"
+
+[node name="Slider" type="HSlider" parent="Tabs/Ships/Row_Boss"]
+custom_minimum_size = Vector2(220, 16)
+layout_mode = 2
+min_value = 0.5
+max_value = 6.0
+step = 0.05
+value = 3.0
+metadata/ship_name = "Boss"
+metadata/scene_path = "res://scenes/enemies/boss.tscn"
+
+[node name="SaveScalesBtn" type="Button" parent="Tabs/Ships"]
+custom_minimum_size = Vector2(220, 36)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 1, 0.7, 1)
+theme_override_font_sizes/font_size = 13
+text = "Save Scales to Scenes"

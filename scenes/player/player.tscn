@@ -1,0 +1,245 @@
+[gd_scene load_steps=36 format=3 uid="uid://b32476hejmrnj"]
+
+[ext_resource type="Script" path="res://scripts/player.gd" id="1_4pouc"]
+[ext_resource type="Texture2D" uid="uid://c7uwy5ydmq5in" path="res://Mini Pixel Pack 3/Player ship/Player_ship (16 x 16).png" id="1_jhf5r"]
+[ext_resource type="Texture2D" uid="uid://1huvnyjwjxyr" path="res://Mini Pixel Pack 3/Player ship/Boosters (16 x 16).png" id="2_6cdot"]
+[ext_resource type="PackedScene" uid="uid://ce2sbgdju6rp7" path="res://scenes/projectiles/bullet.tscn" id="2_6pkbm"]
+[ext_resource type="Texture2D" uid="uid://4nsv8l6yppaf" path="res://Mini Pixel Pack 3/Player ship/Boosters_left (16 x 16).png" id="3_n7bvj"]
+[ext_resource type="PackedScene" uid="uid://c5te1ekoxw700" path="res://scenes/projectiles/bullet_heavy.tscn" id="3_qal1l"]
+[ext_resource type="Texture2D" uid="uid://b1jinxtgd3rv0" path="res://Mini Pixel Pack 3/Player ship/Boosters_right (16 x 16).png" id="4_bbrn4"]
+[ext_resource type="AudioStream" uid="uid://b3ly44akrfjnx" path="res://Sound/SFX_shot8.wav" id="7_0ksjw"]
+[ext_resource type="PackedScene" uid="uid://dionbws2gpfnd" path="res://scenes/shield.tscn" id="7_hq860"]
+[ext_resource type="AudioStream" uid="uid://7woqbofpv2f4" path="res://Sound/SFX_explosion1.wav" id="9_b1qs2"]
+[ext_resource type="Script" path="res://scenes/player_weapon_changer.gd" id="9_ptdv3"]
+[ext_resource type="AudioStream" uid="uid://dqjwv5lcwapki" path="res://Sound/SFX_hit&damage9.wav" id="9_qdso2"]
+[ext_resource type="AudioStream" uid="uid://bgsdyxqmgbntp" path="res://Sound/SFX_wrong&malus6.wav" id="9_y3jdr"]
+[ext_resource type="AudioStream" uid="uid://dcat8ema0o6ak" path="res://Sound/SFX_powerUp9.wav" id="10_0el21"]
+[ext_resource type="PackedScene" uid="uid://dxumspm4c6yeg" path="res://scenes/effects/shell_eject_small.tscn" id="10_1x2k1"]
+[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="10_65dxt"]
+[ext_resource type="PackedScene" uid="uid://qy4pikt4sjwk" path="res://scenes/effects/muzzleflash_small.tscn" id="11_02uoo"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_rbfoc"]
+atlas = ExtResource("2_6cdot")
+region = Rect2(0, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_kqk0y"]
+atlas = ExtResource("2_6cdot")
+region = Rect2(16, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_dvhhs"]
+atlas = ExtResource("3_n7bvj")
+region = Rect2(0, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_7nji5"]
+atlas = ExtResource("3_n7bvj")
+region = Rect2(16, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ido4s"]
+atlas = ExtResource("4_bbrn4")
+region = Rect2(0, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_u7ed7"]
+atlas = ExtResource("4_bbrn4")
+region = Rect2(16, 0, 16, 16)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_p6f8n"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_rbfoc")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_kqk0y")
+}],
+"loop": true,
+"name": &"forward",
+"speed": 10.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_dvhhs")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_7nji5")
+}],
+"loop": true,
+"name": &"left",
+"speed": 10.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ido4s")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_u7ed7")
+}],
+"loop": true,
+"name": &"right",
+"speed": 10.0
+}]
+
+[sub_resource type="Gradient" id="Gradient_taoqu"]
+offsets = PackedFloat32Array(0, 0.289256, 0.628099, 1)
+colors = PackedColorArray(0.94902, 0.945098, 0.941176, 1, 0.407843, 0.870588, 0.933333, 1, 0.12549, 0.639216, 0.972549, 1, 0.00622988, 0.262372, 0.421719, 1)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_yi2sc"]
+gradient = SubResource("Gradient_taoqu")
+
+[sub_resource type="Curve" id="Curve_1uk8o"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_re8xg"]
+curve = SubResource("Curve_1uk8o")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_jc1yr"]
+lifetime_randomness = 0.5
+particle_flag_disable_z = true
+direction = Vector3(0, 1, 0)
+spread = 0.0
+initial_velocity_min = 75.68
+initial_velocity_max = 76.68
+gravity = Vector3(0, 0, 0)
+radial_accel_min = -2.23517e-06
+radial_accel_max = -2.23517e-06
+damping_max = 26.486
+scale_max = 1.5
+scale_curve = SubResource("CurveTexture_re8xg")
+color_ramp = SubResource("GradientTexture1D_yi2sc")
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_11ea1"]
+size = Vector2(14, 14)
+
+[sub_resource type="Gradient" id="Gradient_on6p3"]
+offsets = PackedFloat32Array(0, 0.280992, 0.619835, 1)
+colors = PackedColorArray(0.94902, 0.945098, 0.941176, 1, 0.407843, 0.870588, 0.933333, 1, 0.12549, 0.639216, 0.972549, 1, 0.94902, 0.945098, 0.941176, 1)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_cjbju"]
+gradient = SubResource("Gradient_on6p3")
+
+[sub_resource type="Curve" id="Curve_t7bto"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_yabdq"]
+curve = SubResource("Curve_t7bto")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_ulur3"]
+lifetime_randomness = 1.0
+particle_flag_disable_z = true
+emission_shape = 1
+emission_sphere_radius = 10.0
+direction = Vector3(0, 1, 0)
+flatness = 0.28
+initial_velocity_min = 25.0
+initial_velocity_max = 75.0
+gravity = Vector3(0, 0, 0)
+scale_max = 1.25
+scale_curve = SubResource("CurveTexture_yabdq")
+color_ramp = SubResource("GradientTexture1D_cjbju")
+
+[node name="Player" type="Area2D"]
+script = ExtResource("1_4pouc")
+bullet_scene = ExtResource("2_6pkbm")
+heavy_scene = ExtResource("3_qal1l")
+
+[node name="Ship" type="Sprite2D" parent="."]
+texture = ExtResource("1_jhf5r")
+hframes = 3
+frame = 1
+
+[node name="Boosters" type="AnimatedSprite2D" parent="Ship"]
+position = Vector2(0, 16)
+sprite_frames = SubResource("SpriteFrames_p6f8n")
+animation = &"forward"
+autoplay = "forward"
+frame_progress = 0.710315
+
+[node name="GPUParticles2D" type="GPUParticles2D" parent="Ship"]
+position = Vector2(0, 10)
+amount = 128
+process_material = SubResource("ParticleProcessMaterial_jc1yr")
+lifetime = 0.25
+
+[node name="Shield" parent="Ship" instance=ExtResource("7_hq860")]
+visible = false
+scale = Vector2(1, 1.00602)
+
+[node name="Cannon_Left" type="Marker2D" parent="Ship"]
+visible = false
+position = Vector2(-4, -1)
+
+[node name="Cannon_Right" type="Marker2D" parent="Ship"]
+visible = false
+position = Vector2(4, -1)
+
+[node name="Gun_Nose" type="Marker2D" parent="Ship"]
+position = Vector2(0, -7)
+
+[node name="Gun_Left" type="Marker2D" parent="Ship"]
+visible = false
+position = Vector2(-2, -5)
+
+[node name="Gun_Right" type="Marker2D" parent="Ship"]
+visible = false
+position = Vector2(2, -5)
+
+[node name="PlayerWeaponChanger" type="Node2D" parent="Ship"]
+visible = false
+script = ExtResource("9_ptdv3")
+casing_particle_scene = ExtResource("10_1x2k1")
+flash_particle_scene = ExtResource("11_02uoo")
+
+[node name="Gun_Nose_Eject" type="Marker2D" parent="Ship"]
+position = Vector2(1, -5)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+visible = false
+shape = SubResource("RectangleShape2D_11ea1")
+
+[node name="GunCooldown" type="Timer" parent="."]
+one_shot = true
+
+[node name="MinigunCooldown" type="Timer" parent="."]
+wait_time = 0.1
+one_shot = true
+
+[node name="ShieldRegenTimer" type="Timer" parent="."]
+wait_time = 2.0
+autostart = true
+
+[node name="ShootMinigun" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("9_qdso2")
+volume_db = -8.0
+
+[node name="ShootSound" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("7_0ksjw")
+
+[node name="CannonShoot" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("9_b1qs2")
+
+[node name="SuperShoot" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("10_65dxt")
+
+[node name="BulletHit" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("9_qdso2")
+
+[node name="ShieldUp" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("10_0el21")
+
+[node name="Death" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("9_y3jdr")
+
+[node name="ImpactParticle" type="GPUParticles2D" parent="."]
+emitting = false
+amount = 128
+process_material = SubResource("ParticleProcessMaterial_ulur3")
+lifetime = 0.5
+one_shot = true
+explosiveness = 1.0
+randomness = 1.0
+
+[connection signal="area_entered" from="." to="." method="_on_area_entered"]
+[connection signal="timeout" from="GunCooldown" to="." method="_on_gun_cooldown_timeout"]
+[connection signal="timeout" from="MinigunCooldown" to="." method="_on_gun_cooldown_timeout"]
+[connection signal="timeout" from="ShieldRegenTimer" to="." method="_on_shield_regen_timer_timeout"]

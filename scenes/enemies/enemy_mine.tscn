@@ -1,0 +1,18 @@
+[gd_scene load_steps=4 format=3 uid="uid://bmineh0az0001"]
+
+[ext_resource type="Script" path="res://scripts/enemies/mine.gd" id="1_mine_scr"]
+[ext_resource type="Texture2D" path="res://graphics/mines/mine_basic.png" id="2_mine_tex"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_mine"]
+size = Vector2(12, 12)
+
+[node name="EnemyMine" type="Area2D" groups=["enemies"]]
+script = ExtResource("1_mine_scr")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_mine_tex")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_mine")
+
+[connection signal="area_entered" from="." to="." method="_on_area_entered"]

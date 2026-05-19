@@ -1,0 +1,18 @@
+[gd_scene load_steps=4 format=3 uid="uid://bbomblet00001"]
+
+[ext_resource type="Script" path="res://scripts/enemies/bomblet.gd" id="1_bombs"]
+[ext_resource type="Texture2D" path="res://graphics/mines/mine_bomblet.png" id="2_bombtex"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_bomb"]
+size = Vector2(6, 6)
+
+[node name="EnemyBomblet" type="Area2D" groups=["enemies"]]
+script = ExtResource("1_bombs")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_bombtex")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_bomb")
+
+[connection signal="area_entered" from="." to="." method="_on_area_entered"]

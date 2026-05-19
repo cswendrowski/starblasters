@@ -1,0 +1,30 @@
+[gd_scene load_steps=3 format=3 uid="uid://bplyrkt0001"]
+
+[ext_resource type="Script" path="res://scripts/projectiles/base_missile.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://Mini Pixel Pack 3/Projectiles/Player_missile_shots (16 x 16).png" id="2_tex"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
+size = Vector2(8, 14)
+
+[node name="PlayerRocket" type="Area2D"]
+collision_layer = 1
+collision_mask = 1
+script = ExtResource("1_script")
+target_group = "enemies"
+drift_time = 0.05
+drift_speed = 480.0
+homing_accel = 0.0
+homing_max_speed = 900.0
+fuse = 4.5
+damage_on_contact = 2
+dumb_fire = true
+flame_trail = true
+initial_dir = Vector2(0, -1)
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+hframes = 16
+frame = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_1")

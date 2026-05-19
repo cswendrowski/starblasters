@@ -1,0 +1,62 @@
+[gd_scene load_steps=9 format=3 uid="uid://dodjo07j8iurh"]
+
+[ext_resource type="Script" path="res://scripts/bullet.gd" id="1_ygshx"]
+[ext_resource type="Texture2D" uid="uid://bgh2dexnxpy0x" path="res://Mini Pixel Pack 3/Projectiles/Player_charged_beam (16 x 16).png" id="2_cn6re"]
+
+[sub_resource type="Gradient" id="Gradient_8lr20"]
+offsets = PackedFloat32Array(0, 0.512397, 1)
+colors = PackedColorArray(0.94902, 0.945098, 0.941176, 1, 0.168627, 0.788235, 0.698039, 1, 0.0588235, 0.443137, 0.662745, 1)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_ybm7t"]
+gradient = SubResource("Gradient_8lr20")
+
+[sub_resource type="Curve" id="Curve_8n01i"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_ftyiv"]
+curve = SubResource("Curve_8n01i")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_00y63"]
+particle_flag_disable_z = true
+spread = 180.0
+initial_velocity_max = 1.0
+gravity = Vector3(0, 0, 0)
+damping_max = 12.432
+scale_max = 1.5
+scale_curve = SubResource("CurveTexture_ftyiv")
+color_ramp = SubResource("GradientTexture1D_ybm7t")
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_j08f7"]
+size = Vector2(10, 10)
+
+[node name="Bullet" type="Area2D"]
+script = ExtResource("1_ygshx")
+speed = 250
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_cn6re")
+hframes = 2
+frame = 1
+
+[node name="GPUParticles2D" type="GPUParticles2D" parent="Sprite2D"]
+position = Vector2(4, -4)
+amount = 128
+process_material = SubResource("ParticleProcessMaterial_00y63")
+lifetime = 0.25
+
+[node name="GPUParticles2D2" type="GPUParticles2D" parent="Sprite2D"]
+position = Vector2(-4, -4)
+amount = 128
+process_material = SubResource("ParticleProcessMaterial_00y63")
+lifetime = 0.25
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+visible = false
+shape = SubResource("RectangleShape2D_j08f7")
+
+[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="."]
+visible = false
+
+[connection signal="area_entered" from="." to="." method="_on_area_entered"]
+[connection signal="screen_exited" from="VisibleOnScreenNotifier2D" to="." method="_on_visible_on_screen_notifier_2d_screen_exited"]

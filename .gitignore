@@ -1,0 +1,24 @@
+# Godot 4+ specific ignores
+.godot/
+.import/
+/android/
+
+# Mono / C# build output
+.mono/
+mono_crash.*.json
+
+# Editor autosaves (per CLAUDE.md — Godot leftovers)
+*.tmp
+
+# Local credentials
+export_credentials.cfg
+
+# Capture artifacts (Anvil/Claude screencaps + GIFs)
+/captures/
+
+# OS / IDE
+Thumbs.db
+.DS_Store
+.vs/
+.vscode/
+*.swp

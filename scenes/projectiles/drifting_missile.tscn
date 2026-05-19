@@ -1,0 +1,22 @@
+[gd_scene load_steps=3 format=3 uid="uid://bdrftms0000001"]
+
+[ext_resource type="Script" path="res://scripts/projectiles/base_missile.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://graphics/main-ship/Main ship weapon - Projectile - Rocket.png" id="2_tex"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
+size = Vector2(10, 14)
+
+[node name="DriftingMissile" type="Area2D" groups=["enemies"]]
+collision_layer = 1
+collision_mask = 1
+script = ExtResource("1_script")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+hframes = 3
+frame = 0
+flip_v = true
+modulate = Color(1, 0.85, 0.7, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_1")

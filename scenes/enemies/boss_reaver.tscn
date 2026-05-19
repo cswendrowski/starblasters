@@ -1,0 +1,35 @@
+[gd_scene load_steps=4 format=3 uid="uid://breaverboss0001"]
+
+[ext_resource type="Script" path="res://scripts/enemies/boss_reaver.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://graphics/extra-ships/tiny_ship15.png" id="2_tex"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
+size = Vector2(36, 36)
+
+[node name="Enemy" type="Area2D" groups=["enemies"]]
+script = ExtResource("1_script")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+flip_v = true
+modulate = Color(1.4, 0.55, 0.5, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_1")
+
+[node name="MoveTimer" type="Timer" parent="."]
+one_shot = true
+
+[node name="ShootTimer" type="Timer" parent="."]
+one_shot = true
+
+[node name="MinionTimer" type="Timer" parent="."]
+wait_time = 4.0
+one_shot = true
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("3_die")
+
+[connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
+[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

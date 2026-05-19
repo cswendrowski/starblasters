@@ -1,0 +1,42 @@
+[gd_scene load_steps=2 format=3 uid="uid://cvhfa8sjwaih6"]
+
+[ext_resource type="Script" path="res://scripts/signal_event.gd" id="1_4o8bv"]
+
+[node name="SignalEvent" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_4o8bv")
+
+[node name="Panel" type="Panel" parent="."]
+custom_minimum_size = Vector2(280, 240)
+layout_mode = 0
+offset_left = 20.0
+offset_top = 80.0
+offset_right = 20.0
+offset_bottom = 80.0
+
+[node name="VBox" type="VBoxContainer" parent="Panel"]
+custom_minimum_size = Vector2(260, 220)
+layout_mode = 0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 10.0
+offset_bottom = 10.0
+
+[node name="Title" type="Label" parent="Panel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Unknown Signal"
+
+[node name="Body" type="Label" parent="Panel/VBox"]
+custom_minimum_size = Vector2(250, 60)
+layout_mode = 2
+theme_override_font_sizes/font_size = 8
+text = "..."
+autowrap_mode = 3
+
+[node name="Choices" type="VBoxContainer" parent="Panel/VBox"]
+custom_minimum_size = Vector2(250, 100)
+layout_mode = 2

@@ -1,0 +1,29 @@
+[gd_scene load_steps=6 format=3 uid="uid://cdynvll6mcgih"]
+
+[ext_resource type="Texture2D" uid="uid://cbgow5ramimgg" path="res://BackgroundGenerator/stars-special.png" id="1"]
+[ext_resource type="Texture2D" uid="uid://khlkd5x01wx0" path="res://BackgroundGenerator/Colorscheme.tres" id="2"]
+[ext_resource type="Script" path="res://BackgroundGenerator/BigStar.gd" id="3"]
+
+[sub_resource type="Shader" id="1"]
+code = "shader_type canvas_item;
+render_mode blend_mix, unshaded;
+
+uniform sampler2D colorscheme;
+
+void fragment() {
+	float col_val = texture(TEXTURE, UV).r;
+	float a = texture(TEXTURE, UV).a;
+	vec4 replace_col = texture(colorscheme, vec2(round(col_val * 7.0) / 7.0, 0.0));
+	COLOR = vec4(replace_col.rgb, a);
+}"
+
+[sub_resource type="ShaderMaterial" id="2"]
+resource_local_to_scene = true
+shader = SubResource("1")
+shader_parameter/colorscheme = ExtResource("2")
+
+[node name="BigStar" type="Sprite2D"]
+material = SubResource("2")
+texture = ExtResource("1")
+hframes = 6
+script = ExtResource("3")

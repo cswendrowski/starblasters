@@ -1,0 +1,34 @@
+[gd_scene load_steps=5 format=3 uid="uid://bfrigate00001"]
+
+[ext_resource type="Script" path="res://scripts/enemy_core.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://graphics/extra-ships/ship_1.png" id="2_tex"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
+[ext_resource type="AudioStream" path="res://Sound/SFX_flameShot3b.wav" id="4_shot"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
+size = Vector2(48, 48)
+
+[node name="Enemy" type="Area2D" groups=["enemies"]]
+script = ExtResource("1_script")
+max_health = 6
+bounty_value = 25
+display_scale = 1.0
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+flip_v = true
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_1")
+
+[node name="ShootTimer" type="Timer" parent="."]
+one_shot = true
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("3_die")
+
+[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("4_shot")
+volume_db = -4.0
+
+[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

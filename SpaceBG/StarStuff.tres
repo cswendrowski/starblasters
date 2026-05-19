@@ -1,0 +1,15 @@
+[gd_resource type="ShaderMaterial" load_steps=3 format=3 uid="uid://pmaq6r6fbmt4"]
+
+[ext_resource type="Texture2D" uid="uid://khlkd5x01wx0" path="res://BackgroundGenerator/Colorscheme.tres" id="1"]
+[ext_resource type="Shader" path="res://BackgroundGenerator/StarStuff.gdshader" id="2"]
+
+[resource]
+shader = ExtResource("2")
+shader_parameter/size = 10.0
+shader_parameter/OCTAVES = 8
+shader_parameter/seed = 6.175
+shader_parameter/pixels = 100.0
+shader_parameter/should_tile = false
+shader_parameter/reduce_background = false
+shader_parameter/uv_correct = Vector2(1, 1)
+shader_parameter/colorscheme = ExtResource("1")

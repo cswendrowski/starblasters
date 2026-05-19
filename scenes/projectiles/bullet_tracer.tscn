@@ -1,0 +1,21 @@
+[gd_scene load_steps=4 format=3 uid="uid://7674mb4nuvts"]
+
+[ext_resource type="Script" path="res://scenes/projectiles/bullet_minigun.gd" id="1_qbiup"]
+[ext_resource type="Texture2D" uid="uid://cliemk5icgvb1" path="res://graphics/projectiles/tracer-large-yellow.png" id="2_r0hgg"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_j08f7"]
+size = Vector2(3, 6)
+
+[node name="Bullet_Tracer" type="Area2D"]
+script = ExtResource("1_qbiup")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_r0hgg")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_j08f7")
+
+[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="."]
+
+[connection signal="area_entered" from="." to="." method="_on_area_entered"]
+[connection signal="screen_exited" from="VisibleOnScreenNotifier2D" to="." method="_on_visible_on_screen_notifier_2d_screen_exited"]

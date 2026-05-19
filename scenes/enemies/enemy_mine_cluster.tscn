@@ -1,0 +1,22 @@
+[gd_scene load_steps=5 format=3 uid="uid://bmineclus0001"]
+
+[ext_resource type="Script" path="res://scripts/enemies/mine_cluster.gd" id="1_mcls"]
+[ext_resource type="Texture2D" path="res://graphics/mines/mine_cluster.png" id="2_mcltex"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/enemy_bomblet.tscn" id="3_bomb"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_mclus"]
+size = Vector2(14, 14)
+
+[node name="EnemyMineCluster" type="Area2D" groups=["enemies"]]
+script = ExtResource("1_mcls")
+bomblet_scene = ExtResource("3_bomb")
+bomblet_count = 4
+bomblet_smart = false
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_mcltex")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_mclus")
+
+[connection signal="area_entered" from="." to="." method="_on_area_entered"]

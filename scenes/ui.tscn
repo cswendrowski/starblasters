@@ -1,0 +1,88 @@
+[gd_scene load_steps=8 format=3 uid="uid://b54c7ad6cogrm"]
+
+[ext_resource type="Script" path="res://scripts/ui.gd" id="1_2ifyw"]
+[ext_resource type="Texture2D" uid="uid://cj6xormygja1x" path="res://Mini Pixel Pack 3/UI objects/Item_held_box (16 x 16).png" id="1_nnhfv"]
+[ext_resource type="Texture2D" uid="uid://0p6so5w0mcjw" path="res://Mini Pixel Pack 3/UI objects/bar_background.png" id="2_4c7md"]
+[ext_resource type="PackedScene" uid="uid://crr2gxtgxt1cm" path="res://scenes/score_counter.tscn" id="2_hbnwe"]
+[ext_resource type="Texture2D" uid="uid://bf8xo3kqj5h54" path="res://Mini Pixel Pack 3/UI objects/bar_foreground.png" id="3_vcqhw"]
+[ext_resource type="Texture2D" uid="uid://bd1m1f6xdmltw" path="res://Mini Pixel Pack 3/Items/Circle_+_Square_+_Missile_pick-ups (16 x 16).png" id="4_1s16x"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_xn21l"]
+atlas = ExtResource("4_1s16x")
+region = Rect2(32, 2.08165e-12, 16, 16)
+
+[node name="UI" type="MarginContainer"]
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 14.0
+grow_horizontal = 2
+size_flags_horizontal = 0
+size_flags_vertical = 0
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+script = ExtResource("1_2ifyw")
+
+[node name="BoxContainer" type="BoxContainer" parent="."]
+layout_mode = 2
+size_flags_vertical = 0
+theme_override_constants/separation = 0
+vertical = true
+
+[node name="ShieldBar" type="TextureProgressBar" parent="BoxContainer"]
+custom_minimum_size = Vector2(120, 6)
+layout_mode = 2
+size_flags_vertical = 4
+value = 10.0
+nine_patch_stretch = true
+stretch_margin_left = 3
+stretch_margin_top = 3
+stretch_margin_right = 3
+stretch_margin_bottom = 3
+texture_under = ExtResource("2_4c7md")
+texture_progress = ExtResource("3_vcqhw")
+
+[node name="HullBar" type="TextureProgressBar" parent="BoxContainer"]
+modulate = Color(1, 0.4, 0.4, 1)
+custom_minimum_size = Vector2(120, 6)
+layout_mode = 2
+size_flags_vertical = 4
+max_value = 5.0
+value = 5.0
+nine_patch_stretch = true
+stretch_margin_left = 3
+stretch_margin_top = 3
+stretch_margin_right = 3
+stretch_margin_bottom = 3
+texture_under = ExtResource("2_4c7md")
+texture_progress = ExtResource("3_vcqhw")
+
+[node name="TextureRect" type="TextureRect" parent="BoxContainer"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 4
+texture = ExtResource("1_nnhfv")
+stretch_mode = 2
+
+[node name="MarginContainer" type="CenterContainer" parent="BoxContainer/TextureRect"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="TextureRect" type="TextureRect" parent="BoxContainer/TextureRect/MarginContainer"]
+layout_mode = 2
+texture = SubResource("AtlasTexture_xn21l")
+stretch_mode = 2
+
+[node name="ScoreCounter" parent="BoxContainer" instance=ExtResource("2_hbnwe")]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="WaveLabel" type="Label" parent="BoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 0.8)
+theme_override_font_sizes/font_size = 8
+text = "WAVE 1 / 7"

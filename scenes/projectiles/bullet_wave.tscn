@@ -1,0 +1,19 @@
+[gd_scene load_steps=3 format=3 uid="uid://bbulwave0001"]
+
+[ext_resource type="Script" path="res://scripts/bullet_wave.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://Mini Pixel Pack 3/Projectiles/Player_donut_shot (16 x 16).png" id="2_tex"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
+size = Vector2(14, 8)
+
+[node name="BulletWave" type="Area2D"]
+script = ExtResource("1_script")
+scale = Vector2(1, 1)
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_1")
+
+[connection signal="area_entered" from="." to="." method="_on_area_entered"]
