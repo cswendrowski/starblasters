@@ -80,6 +80,7 @@ func _build_ui() -> void:
 	_add_button("[ Movement Test ]", _on_movement_test, true)
 	_add_button("[ Movement Lab ]", _on_movement_lab, true)
 	_add_button("[ Wave Tester ]", _on_wave_tester, true)
+	_add_button("[ Wave Editor ]", _on_wave_editor, true)
 	_add_button("[ Test Level ]", _on_test_level, true)
 	_add_button("[ Shipyard ]", _on_shipyard, true)
 	_add_button("[ Parallax Tuner ]", _on_parallax_tuner, true)
@@ -130,6 +131,10 @@ func _on_movement_lab() -> void:
 
 func _on_wave_tester() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/wave_tester.tscn")
+
+
+func _on_wave_editor() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/wave_editor.tscn")
 
 
 # Load resources/levels/test_level.tres and launch combat with it. Designers
