@@ -74,7 +74,7 @@ func _build_ui() -> void:
 	# Left column — scrollable list of encountered enemies.
 	var left := Panel.new()
 	left.add_theme_stylebox_override("panel", UiTheme.make_panel_stylebox())
-	left.size = Vector2(108, 320)
+	left.size = Vector2(140, 220)
 	left.position = Vector2(8, 36)
 	add_child(left)
 	var scroll := ScrollContainer.new()
@@ -89,8 +89,8 @@ func _build_ui() -> void:
 	# Right column — preview pane.
 	var right := Panel.new()
 	right.add_theme_stylebox_override("panel", UiTheme.make_panel_stylebox())
-	right.size = Vector2(196, 320)
-	right.position = Vector2(120, 36)
+	right.size = Vector2(316, 220)
+	right.position = Vector2(156, 36)
 	add_child(right)
 	_preview_holder = Node2D.new()
 	_preview_holder.name = "Preview"

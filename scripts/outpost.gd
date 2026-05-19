@@ -116,8 +116,8 @@ func _build_ui() -> void:
 	add_child(upgrades_lbl)
 	_upgrade_box = HBoxContainer.new()
 	_upgrade_box.position = Vector2(8, 30)
-	_upgrade_box.custom_minimum_size = Vector2(280, 98)
-	_upgrade_box.size = Vector2(280, 98)
+	_upgrade_box.custom_minimum_size = Vector2(336, 98)
+	_upgrade_box.size = Vector2(336, 98)
 	_upgrade_box.size_flags_horizontal = 0
 	_upgrade_box.clip_contents = true
 	_upgrade_box.add_theme_constant_override("separation", 6)
@@ -131,33 +131,36 @@ func _build_ui() -> void:
 	add_child(cannons_lbl)
 	_cannon_box = HBoxContainer.new()
 	_cannon_box.position = Vector2(8, 142)
-	_cannon_box.custom_minimum_size = Vector2(280, 98)
-	_cannon_box.size = Vector2(280, 98)
+	_cannon_box.custom_minimum_size = Vector2(336, 98)
+	_cannon_box.size = Vector2(336, 98)
 	_cannon_box.size_flags_horizontal = 0
 	_cannon_box.clip_contents = true
 	_cannon_box.add_theme_constant_override("separation", 6)
 	add_child(_cannon_box)
 	_render_cannon_offers()
 
+	# Right column: x=352, width=120 (left column ends at x=344).
 	var services_lbl := Label.new()
 	services_lbl.text = "Services"
-	services_lbl.position = Vector2(324,30)
+	services_lbl.position = Vector2(352, 20)
 	UiTheme.style_label(services_lbl, UiTheme.LabelKind.CAPTION)
 	add_child(services_lbl)
 	var services := VBoxContainer.new()
-	services.position = Vector2(324,42)
-	services.size = Vector2(148, 36)
+	services.position = Vector2(352, 32)
+	services.size = Vector2(120, 50)
 	services.add_theme_constant_override("separation", 4)
 	add_child(services)
 	var repair_btn := Button.new()
-	repair_btn.text = "Repair +25%% (%d)" % HULL_REPAIR_COST
-	repair_btn.custom_minimum_size = Vector2(148, 16)
+	repair_btn.text = "Repair (%d)" % HULL_REPAIR_COST
+	repair_btn.custom_minimum_size = Vector2(120, 20)
+	repair_btn.clip_text = true
 	UiTheme.style_button(repair_btn)
 	repair_btn.pressed.connect(_on_repair.bind(repair_btn))
 	services.add_child(repair_btn)
 	var ammo_btn := Button.new()
-	ammo_btn.text = "Ammo +50%% (%d)" % AMMO_REFILL_COST
-	ammo_btn.custom_minimum_size = Vector2(148, 16)
+	ammo_btn.text = "Ammo (%d)" % AMMO_REFILL_COST
+	ammo_btn.custom_minimum_size = Vector2(120, 20)
+	ammo_btn.clip_text = true
 	UiTheme.style_button(ammo_btn)
 	ammo_btn.pressed.connect(_on_ammo_refill.bind(ammo_btn))
 	if _run_ammo() < 0:
@@ -167,12 +170,12 @@ func _build_ui() -> void:
 
 	var storage_lbl := Label.new()
 	storage_lbl.text = "Weapon Storage"
-	storage_lbl.position = Vector2(324,84)
+	storage_lbl.position = Vector2(352, 110)
 	UiTheme.style_label(storage_lbl, UiTheme.LabelKind.CAPTION)
 	add_child(storage_lbl)
 	var storage_scroll := ScrollContainer.new()
-	storage_scroll.position = Vector2(324,96)
-	storage_scroll.size = Vector2(148, 130)
+	storage_scroll.position = Vector2(352, 122)
+	storage_scroll.size = Vector2(120, 108)
 	add_child(storage_scroll)
 	_storage_box = VBoxContainer.new()
 	_storage_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -182,8 +185,8 @@ func _build_ui() -> void:
 
 	var leave_btn := Button.new()
 	leave_btn.text = "Leave"
-	leave_btn.position = Vector2(324,234)
-	leave_btn.size = Vector2(148, 16)
+	leave_btn.position = Vector2(352, 240)
+	leave_btn.size = Vector2(120, 20)
 	UiTheme.style_button(leave_btn, true)
 	leave_btn.pressed.connect(_on_leave)
 	add_child(leave_btn)
@@ -287,7 +290,7 @@ func _render_upgrade_offers() -> void:
 
 func _make_upgrade_card(offer: Dictionary) -> Control:
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(88, 86)
+	card.custom_minimum_size = Vector2(108, 98)
 	card.size_flags_horizontal = 0  # strict min-size — don't stretch into the right column
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.08, 0.10, 0.14, 0.9)
@@ -302,25 +305,29 @@ func _make_upgrade_card(offer: Dictionary) -> Control:
 	sb.content_margin_bottom = 4
 	card.add_theme_stylebox_override("panel", sb)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 6)
+	v.add_theme_constant_override("separation", 2)
 	card.add_child(v)
 	var name_lbl := Label.new()
 	name_lbl.text = "%s (Mk %d)" % [offer["name"], int(offer["next_mk"])]
+	name_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_lbl.custom_minimum_size = Vector2(100, 14)
 	UiTheme.style_label(name_lbl, UiTheme.LabelKind.BODY)
 	v.add_child(name_lbl)
 	var current_lbl := Label.new()
 	current_lbl.text = "Currently Mk %d" % _current_mk(offer["key"])
+	current_lbl.custom_minimum_size = Vector2(100, 0)
 	UiTheme.style_label(current_lbl, UiTheme.LabelKind.CAPTION)
 	v.add_child(current_lbl)
 	var desc_lbl := Label.new()
 	desc_lbl.text = String(offer["desc"])
 	desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	desc_lbl.custom_minimum_size = Vector2(72, 22)
+	desc_lbl.custom_minimum_size = Vector2(100, 22)
 	UiTheme.style_label(desc_lbl, UiTheme.LabelKind.CAPTION)
 	v.add_child(desc_lbl)
 	var buy_btn := Button.new()
 	var sold: bool = offer.get("sold", false)
 	buy_btn.text = "Sold" if sold else "Buy (%d)" % int(offer["cost"])
+	buy_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	UiTheme.style_button(buy_btn, true)
 	buy_btn.disabled = sold or _run_bounty() < int(offer["cost"])
 	buy_btn.pressed.connect(_on_buy_upgrade.bind(offer, buy_btn))
@@ -338,7 +345,7 @@ func _render_cannon_offers() -> void:
 func _make_cannon_card(offer: Dictionary) -> Control:
 	var part = offer["part"]
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(88, 86)
+	card.custom_minimum_size = Vector2(108, 98)
 	card.size_flags_horizontal = 0  # strict min-size — don't stretch into the right column
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.10, 0.08, 0.12, 0.9)
@@ -353,20 +360,23 @@ func _make_cannon_card(offer: Dictionary) -> Control:
 	sb.content_margin_bottom = 4
 	card.add_theme_stylebox_override("panel", sb)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 6)
+	v.add_theme_constant_override("separation", 2)
 	card.add_child(v)
 	var name_lbl := Label.new()
 	name_lbl.text = part.get_display() if part.has_method("get_display") else String(part.display_name)
+	name_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_lbl.custom_minimum_size = Vector2(100, 14)
 	UiTheme.style_label(name_lbl, UiTheme.LabelKind.BODY)
 	v.add_child(name_lbl)
 	var desc_lbl := Label.new()
 	desc_lbl.text = String(part.description)
 	desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	desc_lbl.custom_minimum_size = Vector2(72, 22)
+	desc_lbl.custom_minimum_size = Vector2(100, 22)
 	UiTheme.style_label(desc_lbl, UiTheme.LabelKind.CAPTION)
 	v.add_child(desc_lbl)
 	var buy_btn := Button.new()
 	buy_btn.text = "Swap In (%d)" % int(offer["cost"])
+	buy_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	UiTheme.style_button(buy_btn, true)
 	buy_btn.disabled = _run_bounty() < int(offer["cost"])
 	buy_btn.pressed.connect(_on_buy_cannon.bind(offer, buy_btn))

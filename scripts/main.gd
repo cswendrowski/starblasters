@@ -310,7 +310,10 @@ func new_game() -> void:
 func _run_intro(is_boss: bool) -> void:
 	# Park player just below the bottom of the viewport, controls disabled.
 	var vp := get_viewport_rect().size
-	var start_pos := Vector2(vp.x / 2.0, vp.y - 160.0)
+	# Park player roughly 30 px above the bottom edge. The old `vp.y - 160`
+	# was tuned for the 400-tall viewport; in 270-tall it dropped the
+	# player at y=110 (top half), not near the bottom. (Cody 2026-05-19.)
+	var start_pos := Vector2(vp.x / 2.0, vp.y - 30.0)
 	if player and is_instance_valid(player):
 		player.controls_enabled = false
 		player.position = Vector2(start_pos.x, vp.y + 120.0)

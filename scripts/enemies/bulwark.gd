@@ -23,7 +23,7 @@ const SHIELD_SHADER = preload("res://graphics/sci_fi_shield.gdshader")
 # --- Movement (inertial drift toward screen center) ---------------------
 @export var move_speed_max: float = 60.0
 @export var accel: float = 90.0
-@export var center_target: Vector2 = Vector2(160, 110)
+@export var center_target: Vector2 = Vector2(240, 90)
 @export var arrive_radius: float = 12.0
 
 var _vel: Vector2 = Vector2.ZERO

@@ -88,8 +88,11 @@ func _build_ui() -> void:
 
 	var panel := Panel.new()
 	panel.add_theme_stylebox_override("panel", UiTheme.make_panel_stylebox())
-	panel.size = Vector2(280, 320)
-	panel.position = Vector2((vp.x - 280.0) * 0.5, (vp.y - 320.0) * 0.5)
+	# Panel sized to fit inside the 480×270 viewport with a 10 px margin
+	# top/bottom (was 280×320 — taller than the new viewport, panel top
+	# was clipping above y=0).
+	panel.size = Vector2(360, 250)
+	panel.position = Vector2((vp.x - 360.0) * 0.5, (vp.y - 250.0) * 0.5)
 	layer.add_child(panel)
 
 	var vbox := VBoxContainer.new()

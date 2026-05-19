@@ -131,8 +131,10 @@ func _build_ui() -> void:
 	var ui := CanvasLayer.new()
 	ui.name = "HangarUI"
 	add_child(ui)
+	# Panel docked to the right edge of the 480-wide viewport (was x=200
+	# for the legacy 320-wide layout, which left it floating mid-screen).
 	var root := Panel.new()
-	root.position = Vector2(200, 0)
+	root.position = Vector2(get_viewport_rect().size.x - 120.0, 0)
 	root.size = Vector2(120, get_viewport_rect().size.y)
 	var sb: StyleBoxFlat = UiTheme.make_panel_stylebox()
 	sb.bg_color = Color(0.04, 0.06, 0.10, 0.95)
