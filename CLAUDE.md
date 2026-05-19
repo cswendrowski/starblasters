@@ -23,9 +23,20 @@ No CLI build for the editor side — open `project.godot` in Godot 4.3 Mono.
 - Pre-built artifacts (`Classic Shmup.console.exe`, `*.pck`, `shmup-*.zip`) at repo root are release outputs, not inputs.
 - No test framework. No lint step.
 
+## Workflow: human-iterated, agent-consumed
+
+Context is the scarce resource. Iteration-heavy work (UI layout, visual feel, numeric tuning) belongs in a dev tuner the **human** runs — Claude consumes the *output*, not the iteration loop.
+
+**For UI/HUD layout, visual tuning, or numeric balance:**
+- If a tuner already exists (`UI Designer`, `Ship Sizer`, `Parallax Tuner`, `Wave Tester`, `Asteroid Lab`, `Movement Lab`, `Shipyard`, `Maneuver Sim`), the default is: **ask Roman to run it and paste the exported values / JSON**. Do not iterate by edit-capture-look — that burns context to do what a human's eyes do in seconds.
+- If no tuner exists for a 3+-knob system Roman will want to fiddle with, **scaffold one first** (see `scripts/dev/ui_designer.gd` / `ship_sizer.gd` as references — JSON persist to `user://tuners/<name>.json`, Copy-GDScript clipboard export), then hand it off.
+- Tuner authoring contract: every new tuner must have a **Copy GDScript** button that emits a paste-ready snippet (constants, `_ready` calls, or a `.tres` dict). Without that, the handoff is broken.
+
+**For visual mechanics that aren't knob-tunable** (shaders, particle FX, projectile feel), the capture pipeline still applies — but prefer posting the GIF to Roman over reading PNG frames yourself unless actively iterating on a specific bug. See `feedback_visual_review.md` / `feedback_no_image_reads.md` memory rules.
+
 ## Visual capture pipeline
 
-For iterating on visual mechanics (shaders, particle FX, drop shadows, projectile feel), write a one-shot `tools/capture_<mechanic>.gd` (SceneTree script) + `.ps1` wrapper that runs ffmpeg to a GIF. Pattern is proven for `capture_boss_blackhole`, `capture_debris`, `capture_engine_torch`, etc. **Always Read the captured PNG frames to verify the visual before claiming a fix landed — a clean smoke test only verifies the code parsed, not that the visual is correct.**
+For iterating on visual mechanics (shaders, particle FX, drop shadows, projectile feel), write a one-shot `tools/capture_<mechanic>.gd` (SceneTree script) + `.ps1` wrapper that runs ffmpeg to a GIF. Pattern is proven for `capture_boss_blackhole`, `capture_debris`, `capture_engine_torch`, etc. **Always Read the captured PNG frames to verify the visual before claiming a fix landed — a clean smoke test only verifies the code parsed, not that the visual is correct.** (Caveat: if a tuner covers the same surface, prefer the tuner handoff — capture-and-read is a fallback for non-tunable surfaces.)
 
 ## Input map
 
