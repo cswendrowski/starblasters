@@ -52,8 +52,13 @@ const HAZARD_SCENE := "res://scenes/main.tscn"
 # vertically with 8px slack so the grid lives at y = 8 … 392.
 const COLS: int = 10
 const ROWS: int = 12
-const CELL: int = 32
-const GRID_Y0: int = 8
+# 480×270 widescreen rework — cell shrunk 32 → 20 so 12-row grid (240 px)
+# fits inside 270-tall viewport, with 15 px slack top and bottom. Grid
+# stays 10×12 logically; total grid is 200 wide × 240 tall, centered
+# horizontally on the 480-wide playfield (GRID_X0 = 140).
+const CELL: int = 20
+const GRID_Y0: int = 15
+const GRID_X0: int = 140
 # Inner playable area (1-cell margin on each side).
 const C_MIN: int = 1
 const C_MAX: int = COLS - 2  # 8
@@ -64,10 +69,10 @@ const BOSS_ROW: int = R_MIN              # 1
 const PRE_BOSS_ROW: int = BOSS_ROW + 1   # 2
 # Start cell: bottom 2×2 (rows R_MAX..R_MAX+1 conceptually; we sit at
 # (160, 352) which is the corner between cells (4,10)-(5,11)).
-const START_POS := Vector2(160, 360)
-# Boss mirrors the start placement: single icon, 32px, centered at the
-# corner between cells (4,0)-(5,0)-(4,1)-(5,1) — pixel y = 40.
-const BOSS_POS := Vector2(160, 40)
+const START_POS := Vector2(GRID_X0 + 5 * CELL, GRID_Y0 + 11 * CELL)
+# Boss mirrors the start placement: single icon, sits at the corner
+# between rows 0 and 1.
+const BOSS_POS := Vector2(GRID_X0 + 5 * CELL, GRID_Y0 + 1 * CELL)
 # Conceptual column for edge math on start + boss (both straddle cols
 # 4-5; we treat them as col 4 for col-distance checks).
 const ANCHOR_COL: int = 4
@@ -110,7 +115,7 @@ func _ready() -> void:
 
 
 static func cell_center(c: int, r: int) -> Vector2:
-	return Vector2(c * CELL + CELL / 2, GRID_Y0 + r * CELL + CELL / 2)
+	return Vector2(GRID_X0 + c * CELL + CELL / 2, GRID_Y0 + r * CELL + CELL / 2)
 
 
 func _install_background() -> void:
@@ -854,7 +859,7 @@ func _draw_debug_grid(parent: Control) -> void:
 				else Color(1.0, 0.95, 0.55, 1.0))
 			l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 			l.add_theme_constant_override("outline_size", 2)
-			l.position = Vector2(c * CELL + 2, GRID_Y0 + r * CELL + 1)
+			l.position = Vector2(GRID_X0 + c * CELL + 2, GRID_Y0 + r * CELL + 1)
 			l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			parent.add_child(l)
 
@@ -864,14 +869,14 @@ func _draw_grid_lines(canvas: Node2D) -> void:
 	var col_margin: Color = Color(0.85, 0.30, 0.30, 0.55)
 	# Vertical lines.
 	for c in range(COLS + 1):
-		var x: float = c * CELL
+		var x: float = GRID_X0 + c * CELL
 		var color: Color = col_margin if (c == C_MIN or c == C_MAX + 1) else col_grid
 		canvas.draw_line(Vector2(x, GRID_Y0), Vector2(x, GRID_Y0 + ROWS * CELL), color, 1.0)
 	# Horizontal lines.
 	for r in range(ROWS + 1):
 		var y: float = GRID_Y0 + r * CELL
 		var color2: Color = col_margin if (r == R_MIN or r == R_MAX + 1) else col_grid
-		canvas.draw_line(Vector2(0, y), Vector2(COLS * CELL, y), color2, 1.0)
+		canvas.draw_line(Vector2(GRID_X0, y), Vector2(GRID_X0 + COLS * CELL, y), color2, 1.0)
 
 
 func _input(event: InputEvent) -> void:

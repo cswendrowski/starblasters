@@ -10,20 +10,20 @@ anchor_bottom = 1.0
 script = ExtResource("1_4o8bv")
 
 [node name="Panel" type="Panel" parent="."]
-custom_minimum_size = Vector2(280, 240)
+custom_minimum_size = Vector2(320, 220)
 layout_mode = 0
-offset_left = 20.0
-offset_top = 80.0
-offset_right = 20.0
-offset_bottom = 80.0
+offset_left = 80.0
+offset_top = 25.0
+offset_right = 400.0
+offset_bottom = 245.0
 
 [node name="VBox" type="VBoxContainer" parent="Panel"]
-custom_minimum_size = Vector2(260, 220)
+custom_minimum_size = Vector2(300, 200)
 layout_mode = 0
 offset_left = 10.0
 offset_top = 10.0
-offset_right = 10.0
-offset_bottom = 10.0
+offset_right = 310.0
+offset_bottom = 210.0
 
 [node name="Title" type="Label" parent="Panel/VBox"]
 layout_mode = 2

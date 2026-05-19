@@ -92,19 +92,22 @@ func _build_ui() -> void:
 	add_child(_status_label)
 	_update_status_label()
 
-	# Outpost rebuild (Roman, 2026-05-17 playtest: "scale, spacing, fits
-	# in screen, readable"). Section layout for the 320×400 viewport:
-	#   y=  4   title strip
-	#   y= 20   "Upgrades" caption
-	#   y= 30   3 upgrade cards   (h=98)
-	#   y=132   "Cannons" caption
-	#   y=142   3 cannon cards    (h=98)
-	#   y=244   "Services" caption
-	#   y=256   repair + ammo row (h=16)
-	#   y=276   "Weapon Storage" caption
-	#   y=288   storage scroll    (h=80, ends 368)
-	#   y=374   "Leave" button
-	# Cards: 3 across at 96 each + 2*6 sep + 2*8 outer margin = 308 in 320.
+	# 480×270 widescreen rework: 2-column layout. Left column (cards)
+	# stacks Upgrades + Cannons at full original height; right column
+	# (170 px wide) takes Services, Storage, and the Leave button. Frees
+	# enough vertical room to fit comfortably in 270.
+	#   LEFT (x=8, w=300):
+	#     y=  4   title strip
+	#     y= 20   "Upgrades" caption
+	#     y= 30   3 upgrade cards   (h=98)  → ends 128
+	#     y=132   "Cannons" caption
+	#     y=142   3 cannon cards    (h=98)  → ends 240
+	#   RIGHT (x=312, w=160):
+	#     y= 20   "Services" caption
+	#     y= 32   repair + ammo (vertical stack, 2× h=16)
+	#     y= 70   "Weapon Storage" caption
+	#     y= 82   storage scroll (h=140)
+	#     y=232   "Leave" button (h=14)
 
 	var upgrades_lbl := Label.new()
 	upgrades_lbl.text = "Upgrades"
@@ -132,23 +135,23 @@ func _build_ui() -> void:
 
 	var services_lbl := Label.new()
 	services_lbl.text = "Services"
-	services_lbl.position = Vector2(8, 244)
+	services_lbl.position = Vector2(312, 30)
 	UiTheme.style_label(services_lbl, UiTheme.LabelKind.CAPTION)
 	add_child(services_lbl)
-	var services := HBoxContainer.new()
-	services.position = Vector2(8, 256)
-	services.size = Vector2(300, 16)
-	services.add_theme_constant_override("separation", 6)
+	var services := VBoxContainer.new()
+	services.position = Vector2(312, 42)
+	services.size = Vector2(160, 36)
+	services.add_theme_constant_override("separation", 4)
 	add_child(services)
 	var repair_btn := Button.new()
 	repair_btn.text = "Repair +25%% (%d)" % HULL_REPAIR_COST
-	repair_btn.custom_minimum_size = Vector2(147, 16)
+	repair_btn.custom_minimum_size = Vector2(160, 16)
 	UiTheme.style_button(repair_btn)
 	repair_btn.pressed.connect(_on_repair.bind(repair_btn))
 	services.add_child(repair_btn)
 	var ammo_btn := Button.new()
 	ammo_btn.text = "Ammo +50%% (%d)" % AMMO_REFILL_COST
-	ammo_btn.custom_minimum_size = Vector2(147, 16)
+	ammo_btn.custom_minimum_size = Vector2(160, 16)
 	UiTheme.style_button(ammo_btn)
 	ammo_btn.pressed.connect(_on_ammo_refill.bind(ammo_btn))
 	if _run_ammo() < 0:
@@ -158,12 +161,12 @@ func _build_ui() -> void:
 
 	var storage_lbl := Label.new()
 	storage_lbl.text = "Weapon Storage"
-	storage_lbl.position = Vector2(8, 276)
+	storage_lbl.position = Vector2(312, 84)
 	UiTheme.style_label(storage_lbl, UiTheme.LabelKind.CAPTION)
 	add_child(storage_lbl)
 	var storage_scroll := ScrollContainer.new()
-	storage_scroll.position = Vector2(8, 288)
-	storage_scroll.size = Vector2(300, 80)
+	storage_scroll.position = Vector2(312, 96)
+	storage_scroll.size = Vector2(160, 130)
 	add_child(storage_scroll)
 	_storage_box = VBoxContainer.new()
 	_storage_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -173,8 +176,8 @@ func _build_ui() -> void:
 
 	var leave_btn := Button.new()
 	leave_btn.text = "Leave"
-	leave_btn.position = Vector2(8, 374)
-	leave_btn.size = Vector2(76, 18)
+	leave_btn.position = Vector2(312, 234)
+	leave_btn.size = Vector2(160, 16)
 	UiTheme.style_button(leave_btn, true)
 	leave_btn.pressed.connect(_on_leave)
 	add_child(leave_btn)

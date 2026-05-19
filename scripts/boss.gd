@@ -32,8 +32,8 @@ signal health_changed(cur: int, max: int)
 
 # Where the boss settles after its enter sweep (Y pixels from top). Lower
 # = higher on the screen. Per-boss so Reaver/Sentinel can tune their own
-# stand-off. 320×400 viewport, so ~88 sits in the top quarter.
-@export var boss_hover_y: float = 56.0
+# stand-off. 480×270 viewport — top quarter ≈ 68 px.
+@export var boss_hover_y: float = 48.0
 
 var _pattern = null
 var _minions: Array = []
