@@ -83,6 +83,7 @@ func _build_ui() -> void:
 	_add_button("[ Shipyard ]", _on_shipyard, true)
 	_add_button("[ Parallax Tuner ]", _on_parallax_tuner, true)
 	_add_button("[ UI Designer ]", _on_ui_designer, true)
+	_add_button("[ Ship Sizer ]", _on_ship_sizer, true)
 	_add_button("[ Test Bed ]", _on_test_bed, true)
 	_add_button("[ Test Hazard ]", _on_test_hazard, true)
 	_add_button("[ Boss Fight ]", _on_boss_fight, true)
@@ -136,6 +137,10 @@ func _on_parallax_tuner() -> void:
 
 func _on_ui_designer() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/ui_designer.tscn")
+
+
+func _on_ship_sizer() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/ship_sizer.tscn")
 
 
 
