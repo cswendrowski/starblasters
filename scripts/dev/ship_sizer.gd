@@ -20,7 +20,11 @@ extends Control
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const BACKDROP_SCRIPT = preload("res://scripts/galaxy_backdrop.gd")
-# Playfield is globally registered via `class_name Playfield`.
+# Playfield class_name resolves at parse time inside .tscn-loaded scripts
+# but Godot 4.4.1's GDScript::reload path can't see the global class cache
+# (capture scripts hit this — "Identifier Playfield not declared"). Make it
+# a local const so the file is self-contained regardless of load path.
+const Playfield = preload("res://scripts/playfield.gd")
 
 const CONFIG_PATH := "user://tuners/ship_sizer.json"
 
@@ -74,6 +78,7 @@ var _frame_layer: CanvasLayer = null
 var _preview_layer: CanvasLayer = null
 
 var _sizes: Dictionary = {}        # scene_path -> float
+var _flips: Dictionary = {}        # scene_path -> bool (extra 180° flip)
 var _current_index: int = 0
 var _show_all: bool = false
 
@@ -81,6 +86,7 @@ var _picker: OptionButton = null
 var _size_slider: HSlider = null
 var _size_spin: SpinBox = null
 var _show_all_check: CheckButton = null
+var _flip_check: CheckButton = null
 var _status_label: Label = null
 var _grabber_tex: ImageTexture = null
 
@@ -103,6 +109,7 @@ func _ready() -> void:
 func _seed_defaults() -> void:
 	for ship in SHIPS:
 		_sizes[String(ship["path"])] = DEFAULT_SIZE
+		_flips[String(ship["path"])] = false
 
 
 func _make_grabber_texture() -> ImageTexture:
@@ -303,6 +310,15 @@ func _build_ui() -> void:
 	_size_slider.value_changed.connect(_on_size_changed)
 	_size_spin.value_changed.connect(_on_size_changed)
 
+	# Flip toggle — adds 180° to the current ship's rotation, in case the
+	# default face-down orientation is backwards for some sprite.
+	_flip_check = CheckButton.new()
+	_flip_check.text = "Flip 180°"
+	_flip_check.custom_minimum_size = Vector2(0, 12)
+	_flip_check.add_theme_font_size_override("font_size", 8)
+	_flip_check.toggled.connect(_on_flip_toggled)
+	rail.add_child(_flip_check)
+
 	rail.add_child(HSeparator.new())
 
 	# Show All toggle.
@@ -362,19 +378,27 @@ func _rebuild_preview() -> void:
 
 
 func _build_single_preview() -> void:
+	# Always mount the player at the bottom of the band so Roman has a
+	# size reference — even when an enemy is selected.
+	var player_size: float = float(_sizes.get(PLAYER_SCENE_PATH, DEFAULT_SIZE))
+	var player_inst = _instance_ship(PLAYER_SCENE_PATH, player_size)
+	if player_inst is Node2D:
+		(player_inst as Node2D).position = Vector2(Playfield.CENTER.x, Playfield.Y_MAX - 30.0)
+	if player_inst != null:
+		_preview_layer.add_child(player_inst)
+
+	# If the picker is on the player, we're done — don't double-mount.
 	var ship: Dictionary = SHIPS[_current_index]
 	var path: String = String(ship["path"])
+	if path == PLAYER_SCENE_PATH:
+		return
 	var size: float = float(_sizes.get(path, DEFAULT_SIZE))
 	var inst = _instance_ship(path, size)
 	if inst == null:
 		_set_status("Failed to instantiate %s" % path)
 		return
-	# Player sits at bottom of band; enemies sit centred.
-	var pos: Vector2 = Playfield.CENTER
-	if path == PLAYER_SCENE_PATH:
-		pos = Vector2(Playfield.CENTER.x, Playfield.Y_MAX - 30.0)
 	if inst is Node2D:
-		(inst as Node2D).position = pos
+		(inst as Node2D).position = Playfield.CENTER
 	_preview_layer.add_child(inst)
 
 
@@ -424,24 +448,59 @@ func _instance_ship(path: String, size: float) -> Node:
 	var inst: Node = packed.instantiate()
 	if inst == null:
 		return null
-	# Disable any motion / AI / shoot logic so the preview ship just sits
-	# still for inspection. Bomber / bulwark / mine_smart subclass _process
-	# heavily — process_mode = DISABLED is the safest catch-all. Player
-	# uses the explicit controls_enabled flag.
+	# Disable motion/AI/shoot logic so the preview ship sits still.
+	# Bomber/bulwark/mine_smart subclass _process heavily —
+	# PROCESS_MODE_DISABLED is the safest catch-all.
 	if path == PLAYER_SCENE_PATH:
 		if "controls_enabled" in inst:
 			inst.set("controls_enabled", false)
 	else:
 		inst.process_mode = Node.PROCESS_MODE_DISABLED
-	# Apply display_scale for enemies that expose it (so any code that
-	# reads it later sees the value), then force-apply scale on the
-	# instance so the preview reflects the slider immediately without
-	# waiting for the enemy's _ready.
+	# Drive scale.
 	if "display_scale" in inst:
 		inst.set("display_scale", size)
 	if inst is Node2D:
 		(inst as Node2D).scale = Vector2(size, size)
+	# Facing. Enemy sprites are authored facing UP; in combat their
+	# movement_pattern rotates them to face their travel direction
+	# (typically PI = down). Since process_mode is DISABLED, that never
+	# runs in the preview. Set rotation = PI by hand so enemies render
+	# the way they actually spawn. Player ship stays at rotation 0
+	# (faces up — its in-game orientation). Flip toggle adds another PI.
+	if inst is Node2D and path != PLAYER_SCENE_PATH:
+		var base_rot: float = PI
+		if bool(_flips.get(path, false)):
+			base_rot += PI
+		(inst as Node2D).rotation = base_rot
+		# auto_rotate would still try to overwrite this on the first
+		# physics tick if the parent re-enables processing, so clear it.
+		if "auto_rotate" in inst:
+			inst.set("auto_rotate", false)
+	# Strip the orange engine flame + parallax shadow VFX that enemy_core
+	# / enemy_base attach in _ready. They render as a glow / dark blob
+	# behind the sprite and clutter the preview.
+	_strip_preview_vfx(inst)
 	return inst
+
+
+func _strip_preview_vfx(root: Node) -> void:
+	# Hide any child node that's a particle system or whose name matches
+	# a known VFX helper. Walks the tree once so deeply-nested attachments
+	# (e.g. effects attached via static .attach() helpers) are caught.
+	var stack: Array = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.push_back(c)
+			if c is CPUParticles2D or c is GPUParticles2D:
+				c.visible = false
+				continue
+			var nm: String = String(c.name).to_lower()
+			if nm.find("engineflame") >= 0 or nm.find("torch") >= 0 \
+				or nm.find("smoke") >= 0 or nm.find("trail") >= 0 \
+				or nm.find("shadow") >= 0 or nm.find("burn") >= 0 \
+				or nm.find("warp") >= 0 or nm.find("muzzle") >= 0:
+				c.visible = false
 
 
 # --- Knob handlers --------------------------------------------------------
@@ -484,6 +543,12 @@ func _on_show_all_toggled(pressed: bool) -> void:
 	_rebuild_preview()
 
 
+func _on_flip_toggled(pressed: bool) -> void:
+	var path: String = String(SHIPS[_current_index]["path"])
+	_flips[path] = pressed
+	_rebuild_preview()
+
+
 func _sync_size_editors() -> void:
 	var path: String = String(SHIPS[_current_index]["path"])
 	var v: float = float(_sizes.get(path, DEFAULT_SIZE))
@@ -491,6 +556,8 @@ func _sync_size_editors() -> void:
 		_size_slider.set_value_no_signal(v)
 	if _size_spin:
 		_size_spin.set_value_no_signal(v)
+	if _flip_check:
+		_flip_check.set_pressed_no_signal(bool(_flips.get(path, false)))
 
 
 # --- Persistence ---------------------------------------------------------
@@ -503,7 +570,8 @@ func _save_to_disk() -> bool:
 	var f := FileAccess.open(CONFIG_PATH, FileAccess.WRITE)
 	if f == null:
 		return false
-	f.store_string(JSON.stringify(_sizes, "  "))
+	var out := {"sizes": _sizes, "flips": _flips}
+	f.store_string(JSON.stringify(out, "  "))
 	f.close()
 	return true
 
@@ -519,12 +587,16 @@ func _load_from_disk() -> bool:
 	var parsed = JSON.parse_string(txt)
 	if not (parsed is Dictionary):
 		return false
-	# Merge — don't replace — so adding a new ship to SHIPS later doesn't
-	# nuke its default just because the on-disk file predates it.
+	# v2 schema: {"sizes": {...}, "flips": {...}}. Fall back to v1 (flat
+	# dict of sizes) if "sizes" key is missing.
+	var sizes_in: Dictionary = parsed.get("sizes", parsed) as Dictionary
+	var flips_in: Dictionary = parsed.get("flips", {}) as Dictionary
 	for ship in SHIPS:
 		var p: String = String(ship["path"])
-		if parsed.has(p):
-			_sizes[p] = float(parsed[p])
+		if sizes_in.has(p):
+			_sizes[p] = float(sizes_in[p])
+		if flips_in.has(p):
+			_flips[p] = bool(flips_in[p])
 	return true
 
 
@@ -541,7 +613,9 @@ func _build_snippet() -> String:
 		var path: String = String(ship["path"])
 		var lbl: String = String(ship["label"])
 		var v: float = float(_sizes.get(path, DEFAULT_SIZE))
-		lines.append("# %s -> %.2f  (%s)" % [path, v, lbl])
+		var flipped: bool = bool(_flips.get(path, false))
+		var flip_tag: String = "  [FLIP 180°]" if flipped else ""
+		lines.append("# %s -> %.2f%s  (%s)" % [path, v, flip_tag, lbl])
 	return "\n".join(lines)
 
 

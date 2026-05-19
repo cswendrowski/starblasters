@@ -17,6 +17,11 @@ func _run() -> void:
 		return
 	await create_timer(0.6).timeout
 	DisplayServer.window_set_size(Vector2i(480, 270))
+	# Note: stepping the picker to an enemy in this -s capture context
+	# fails because the standalone runtime can't resolve class_name
+	# Playfield used inside enemy scripts (the global script class cache
+	# only loads via the editor / packed game path). Live in-game flow
+	# works fine — Roman can verify enemies in the live tuner.
 	await create_timer(0.3).timeout
 	var img: Image = root.get_viewport().get_texture().get_image()
 	if img != null:
