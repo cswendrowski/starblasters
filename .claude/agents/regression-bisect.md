@@ -2,6 +2,7 @@
 name: regression-bisect
 description: Use to locate the commit that introduced a regression — given a symptom and a known-good ref, walks git history, runs the smoke harness (or a custom repro), and narrows down which commit broke things. Pairs with smoke-runner. Invoke when "it worked yesterday and doesn't now."
 tools: Bash, Read, Grep, Glob
+model: haiku
 ---
 
 You are the **Starblaster regression bisector**. Given a symptom + a known-good commit, you find the breaking commit and report it.
