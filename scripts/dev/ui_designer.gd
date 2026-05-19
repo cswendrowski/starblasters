@@ -32,15 +32,21 @@ const CONFIG_PATH := "user://tuners/ui_designer.json"
 # default. The order here drives the rail UI AND the snippet output.
 
 const KNOBS := [
+	# Playfield bounds — the 216×270 band the gameplay is constrained to.
+	{"key": "playfield_x_min",        "label": "Playfield X",           "kind": "int",   "min": 0,   "max": 240, "step": 1,  "default": 132},
+	{"key": "playfield_width",        "label": "Playfield W",           "kind": "int",   "min": 60,  "max": 480, "step": 1,  "default": 216},
+	{"key": "playfield_y_min",        "label": "Playfield Y",           "kind": "int",   "min": 0,   "max": 200, "step": 1,  "default": 0},
+	{"key": "playfield_height",       "label": "Playfield H",           "kind": "int",   "min": 60,  "max": 270, "step": 1,  "default": 270},
+	# HUD widget placement.
 	{"key": "hud_top_margin",         "label": "HUD top margin",        "kind": "int",   "min": 0,   "max": 40,  "step": 1,  "default": 6},
 	{"key": "hull_bar_left_spacer",   "label": "Hull spacer (L)",       "kind": "int",   "min": 0,   "max": 320, "step": 1,  "default": 186},
-	{"key": "hull_bar_width",         "label": "Hull bar width",        "kind": "int",   "min": 20,  "max": 200, "step": 1,  "default": 80},
-	{"key": "hull_bar_height",        "label": "Hull bar height",       "kind": "int",   "min": 4,   "max": 32,  "step": 1,  "default": 12},
-	{"key": "bounty_min_width",       "label": "Bounty min width",      "kind": "int",   "min": 20,  "max": 200, "step": 1,  "default": 80},
-	{"key": "boxcontainer_min_width", "label": "BoxContainer width",    "kind": "int",   "min": 100, "max": 480, "step": 1,  "default": 452},
-	{"key": "bounty_font_size",       "label": "Bounty font size",      "kind": "int",   "min": 6,   "max": 24,  "step": 1,  "default": 10},
-	{"key": "ammo_font_size",         "label": "Ammo font size",        "kind": "int",   "min": 6,   "max": 24,  "step": 1,  "default": 10},
-	{"key": "hull_warning_font_size", "label": "Warning font size",     "kind": "int",   "min": 6,   "max": 24,  "step": 1,  "default": 11},
+	{"key": "hull_bar_width",         "label": "Hull bar W",            "kind": "int",   "min": 20,  "max": 200, "step": 1,  "default": 80},
+	{"key": "hull_bar_height",        "label": "Hull bar H",            "kind": "int",   "min": 4,   "max": 32,  "step": 1,  "default": 12},
+	{"key": "bounty_min_width",       "label": "Bounty min W",          "kind": "int",   "min": 20,  "max": 200, "step": 1,  "default": 80},
+	{"key": "boxcontainer_min_width", "label": "BoxContainer W",        "kind": "int",   "min": 100, "max": 480, "step": 1,  "default": 452},
+	{"key": "bounty_font_size",       "label": "Bounty font",           "kind": "int",   "min": 6,   "max": 24,  "step": 1,  "default": 10},
+	{"key": "ammo_font_size",         "label": "Ammo font",             "kind": "int",   "min": 6,   "max": 24,  "step": 1,  "default": 10},
+	{"key": "hull_warning_font_size", "label": "Warning font",          "kind": "int",   "min": 6,   "max": 24,  "step": 1,  "default": 11},
 	{"key": "glass_bg_color",         "label": "Glass BG",              "kind": "color", "default": [0.04, 0.06, 0.10, 0.55]},
 	{"key": "frame_border_color",     "label": "Frame border",          "kind": "color", "default": [0.32, 0.50, 0.72, 1.0]},
 ]
@@ -195,24 +201,25 @@ func _build_ui() -> void:
 
 	var header := Label.new()
 	header.text = "UI DESIGNER — Esc to close"
-	header.position = Vector2(8, 4)
+	header.position = Vector2(6, 4)
 	UiTheme.style_label(header, UiTheme.LabelKind.HEADER)
+	header.add_theme_font_size_override("font_size", 9)
 	rail_layer.add_child(header)
 
 	var rail_bg := PanelContainer.new()
-	rail_bg.position = Vector2(8, 22)
-	rail_bg.size = Vector2(190, 240)
+	rail_bg.position = Vector2(6, 18)
+	rail_bg.size = Vector2(148, 244)
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.05, 0.07, 0.11, 0.84)
+	sb.bg_color = Color(0.05, 0.07, 0.11, 0.86)
 	sb.border_color = UiTheme.COLOR_ACCENT_DIM
-	sb.border_width_left = 2
-	sb.border_width_top = 2
-	sb.border_width_right = 2
-	sb.border_width_bottom = 2
-	sb.content_margin_left = 8
-	sb.content_margin_right = 8
-	sb.content_margin_top = 6
-	sb.content_margin_bottom = 6
+	sb.border_width_left = 1
+	sb.border_width_top = 1
+	sb.border_width_right = 1
+	sb.border_width_bottom = 1
+	sb.content_margin_left = 4
+	sb.content_margin_right = 4
+	sb.content_margin_top = 3
+	sb.content_margin_bottom = 3
 	rail_bg.add_theme_stylebox_override("panel", sb)
 	rail_layer.add_child(rail_bg)
 
@@ -222,7 +229,7 @@ func _build_ui() -> void:
 	rail_bg.add_child(scroll)
 
 	var rail := VBoxContainer.new()
-	rail.add_theme_constant_override("separation", 4)
+	rail.add_theme_constant_override("separation", 1)
 	rail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(rail)
 
@@ -234,8 +241,9 @@ func _build_ui() -> void:
 	_status_label = Label.new()
 	_status_label.text = ""
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_status_label.custom_minimum_size = Vector2(160, 0)
+	_status_label.custom_minimum_size = Vector2(130, 0)
 	UiTheme.style_label(_status_label, UiTheme.LabelKind.CAPTION)
+	_status_label.add_theme_font_size_override("font_size", 8)
 	rail.add_child(_status_label)
 
 	# Buttons row — Save / Load / Reset / Copy.
@@ -250,7 +258,8 @@ func _build_ui() -> void:
 func _add_button(parent: Node, label: String, cb: Callable) -> void:
 	var btn := Button.new()
 	btn.text = label
-	btn.custom_minimum_size = Vector2(0, 14)
+	btn.custom_minimum_size = Vector2(0, 12)
+	btn.add_theme_font_size_override("font_size", 8)
 	UiTheme.style_button(btn, true)
 	btn.pressed.connect(cb)
 	parent.add_child(btn)
@@ -260,6 +269,7 @@ func _add_knob_row(parent: Node, k: Dictionary) -> void:
 	var lbl := Label.new()
 	lbl.text = String(k["label"])
 	UiTheme.style_label(lbl, UiTheme.LabelKind.CAPTION)
+	lbl.add_theme_font_size_override("font_size", 8)
 	parent.add_child(lbl)
 
 	var key: String = String(k["key"])
@@ -267,7 +277,8 @@ func _add_knob_row(parent: Node, k: Dictionary) -> void:
 
 	if kind == "color":
 		var picker := ColorPickerButton.new()
-		picker.custom_minimum_size = Vector2(0, 14)
+		picker.custom_minimum_size = Vector2(0, 12)
+		picker.add_theme_font_size_override("font_size", 8)
 		picker.color = _values[key]
 		picker.edit_alpha = true
 		picker.color_changed.connect(func(c: Color):
@@ -278,11 +289,10 @@ func _add_knob_row(parent: Node, k: Dictionary) -> void:
 		_editors[key] = picker
 		return
 
-	# Numeric: slider + spinbox + readout. Slider is the primary input;
-	# spinbox lets Roman type exact values. Both push to _values via the
-	# same setter.
+	# Numeric: slider + spinbox. Slider is the primary input; spinbox lets
+	# Roman type exact values. Both push to _values via the same setter.
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 4)
+	row.add_theme_constant_override("separation", 2)
 	parent.add_child(row)
 
 	var slider := HSlider.new()
@@ -291,7 +301,7 @@ func _add_knob_row(parent: Node, k: Dictionary) -> void:
 	slider.step = float(k["step"])
 	slider.value = float(_values[key])
 	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	slider.custom_minimum_size = Vector2(0, 12)
+	slider.custom_minimum_size = Vector2(0, 10)
 	row.add_child(slider)
 
 	var spin := SpinBox.new()
@@ -299,7 +309,8 @@ func _add_knob_row(parent: Node, k: Dictionary) -> void:
 	spin.max_value = float(k["max"])
 	spin.step = float(k["step"])
 	spin.value = float(_values[key])
-	spin.custom_minimum_size = Vector2(48, 12)
+	spin.custom_minimum_size = Vector2(40, 10)
+	spin.add_theme_font_size_override("font_size", 8)
 	row.add_child(spin)
 
 	var setter := func(v: float):
@@ -362,14 +373,21 @@ func _apply_to_hud() -> void:
 func _refresh_frame() -> void:
 	if _glass_layer == null or not is_instance_valid(_glass_layer):
 		return
+	# Playfield bounds come from the knobs, not the const Playfield class —
+	# so dragging the playspace sliders moves the live preview.
+	var px: float = float(_values["playfield_x_min"])
+	var pw: float = float(_values["playfield_width"])
+	var py: float = float(_values["playfield_y_min"])
+	var ph: float = float(_values["playfield_height"])
+	var x_max: float = px + pw
 	# Wipe + rebuild glass panels with the current color.
 	for c in _glass_layer.get_children():
 		c.queue_free()
 	var glass_bg: Color = _values["glass_bg_color"]
 	var glass_edge: Color = _values["frame_border_color"]
 	for spec in [
-		{"name": "GutterLeft",  "x": 0.0,             "w": Playfield.X_MIN,         "edge": "right"},
-		{"name": "GutterRight", "x": Playfield.X_MAX, "w": 480.0 - Playfield.X_MAX, "edge": "left"},
+		{"name": "GutterLeft",  "x": 0.0,   "w": px,            "edge": "right"},
+		{"name": "GutterRight", "x": x_max, "w": 480.0 - x_max, "edge": "left"},
 	]:
 		var panel := Panel.new()
 		panel.name = String(spec["name"])
@@ -391,8 +409,8 @@ func _refresh_frame() -> void:
 		c.queue_free()
 	var frame := Panel.new()
 	frame.name = "Frame"
-	frame.position = Vector2(Playfield.X_MIN, Playfield.Y_MIN)
-	frame.size = Vector2(Playfield.W, Playfield.H)
+	frame.position = Vector2(px, py)
+	frame.size = Vector2(pw, ph)
 	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0, 0, 0, 0)
@@ -489,8 +507,21 @@ func _sync_editors_from_values() -> void:
 
 func _build_snippet() -> String:
 	var lines: PackedStringArray = []
-	lines.append("# UI Designer export — paste into scripts/ui.gd::_ready and")
-	lines.append("# scripts/main.gd::_install_playfield_frame.")
+	lines.append("# UI Designer export — paste into scripts/playfield.gd,")
+	lines.append("# scripts/ui.gd::_ready, and scripts/main.gd::_install_playfield_frame.")
+	lines.append("")
+	lines.append("# --- scripts/playfield.gd ---")
+	var px: int = int(_values["playfield_x_min"])
+	var pw: int = int(_values["playfield_width"])
+	var py: int = int(_values["playfield_y_min"])
+	var ph: int = int(_values["playfield_height"])
+	lines.append("const W: float = %d.0" % pw)
+	lines.append("const H: float = %d.0" % ph)
+	lines.append("const X_MIN: float = %d.0" % px)
+	lines.append("const X_MAX: float = %d.0  # X_MIN + W" % (px + pw))
+	lines.append("const Y_MIN: float = %d.0" % py)
+	lines.append("const Y_MAX: float = %d.0" % (py + ph))
+	lines.append("const CENTER := Vector2(%.1f, %.1f)" % [float(px) + float(pw) * 0.5, float(py) + float(ph) * 0.5])
 	lines.append("")
 	lines.append("# --- scripts/ui.gd::_ready ---")
 	lines.append("add_theme_constant_override(\"margin_top\", %d)" % int(_values["hud_top_margin"]))
