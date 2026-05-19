@@ -100,6 +100,50 @@ func _install_playfield_frame() -> void:
 		panel.add_theme_stylebox_override("panel", gsb)
 		glass_layer.add_child(panel)
 
+	# HD UI layer: a SubViewport rendered at 2× density (960×540) displayed
+	# back into the 480×270 main viewport via SubViewportContainer with
+	# stretch_shrink=2. Text rendered here is rasterized at 2× the gameplay
+	# resolution, so font glyphs get 4× the pixel area for legibility while
+	# the rest of the scene keeps its chunky-pixel feel. UI authored here
+	# uses 960×540 logical coords — anchors resolve naturally against the
+	# SubViewport's own viewport rect.
+	var hd_layer := CanvasLayer.new()
+	hd_layer.name = "PlayfieldHd"
+	hd_layer.layer = 6
+	add_child(hd_layer)
+	var hd_container := SubViewportContainer.new()
+	hd_container.name = "HdContainer"
+	hd_container.position = Vector2.ZERO
+	hd_container.size = Vector2(480, 270)
+	hd_container.stretch = true
+	hd_container.stretch_shrink = 2
+	hd_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hd_layer.add_child(hd_container)
+	var hd_viewport := SubViewport.new()
+	hd_viewport.name = "HdViewport"
+	hd_viewport.transparent_bg = true
+	hd_viewport.handle_input_locally = false
+	hd_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	hd_container.add_child(hd_viewport)
+	# Spike: migrate the WaveLabel into the HD layer so Roman can A/B it.
+	# Position roughly tracks the old WaveLabel (top of right gutter — old
+	# was in the left-anchored UI MarginContainer's vertical stack; this
+	# is the same visual target in 960×540 coords).
+	var wave_label := Label.new()
+	wave_label.name = "WaveLabel"
+	wave_label.position = Vector2(16, 16)
+	wave_label.size = Vector2(280, 24)
+	wave_label.add_theme_font_size_override("font_size", 16)
+	wave_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.8))
+	wave_label.text = ""
+	wave_label.visible = false
+	hd_viewport.add_child(wave_label)
+	# Hand the new label to ui.gd so update_wave keeps working unchanged.
+	if has_node("CanvasLayer/UI"):
+		var ui_node = $CanvasLayer/UI
+		if ui_node.has_method("set_wave_label_node"):
+			ui_node.set_wave_label_node(wave_label)
+
 	# Outline frame on its own layer ABOVE the HUD so the band's edge is
 	# always visible — the 1-px transparent-fill border doesn't obscure
 	# any of the corner-anchored HUD widgets.

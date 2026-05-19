@@ -8,7 +8,14 @@ const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 @onready var shield_bar = $BoxContainer/ShieldBar
 @onready var hull_bar = $BoxContainer/HullBar if has_node("BoxContainer/HullBar") else null
 @onready var score_counter = $BoxContainer/ScoreCounter
-@onready var wave_label: Label = $BoxContainer/WaveLabel if has_node("BoxContainer/WaveLabel") else null
+# Wave label lives in the HD UI SubViewport (2× density text) — assigned
+# by main.gd after _install_playfield_frame builds the SubViewport. null
+# in scenes that don't install the HD layer (e.g. dev tools).
+var wave_label: Label = null
+
+
+func set_wave_label_node(label: Label) -> void:
+	wave_label = label
 
 var hologram_hud = null
 var hull_pips = null  # HullPips (HBoxContainer)
