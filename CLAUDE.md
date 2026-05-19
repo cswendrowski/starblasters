@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Godot 2D top-down vertical shmup (GDScript). Originated from the kidscancode "Godot 101: Classic Shmup" tutorial; rebuilt against the Starblaster design doc as a roguelite shmup with branching sector map, slotted parts, and Mk.1–9 upgrade scaling. Renderer: `gl_compatibility`. **Internal viewport 320×400 with `stretch/mode = viewport` (2× display = 640×800).** All position/size math is in 320×400 coords.
+Godot 2D top-down vertical shmup (GDScript). Originated from the kidscancode "Godot 101: Classic Shmup" tutorial; rebuilt against the Starblaster design doc as a roguelite shmup with branching sector map, slotted parts, and Mk.1–9 upgrade scaling. Renderer: `gl_compatibility`. **Internal viewport 480×270 with `stretch/mode = canvas_items`, `stretch/aspect = keep` (4× display = 1920×1080).** Gameplay is constrained to a **216×270 centered playfield band** (X 132–348) — same 0.8:1 aspect as the original 320×400, so legacy wave/movement code reads correctly. Side gutters (132 px each) host glass panels + HUD. **Always import `scripts/playfield.gd` (`Playfield.X_MIN`, `X_MAX`, `CENTER`, `clamp_pos`) for gameplay bounds — never `get_viewport_rect()`** (that returns the full 480 width, which lets enemies leave the shootable band). Backdrop/despawn margins still read the viewport directly.
 
 ## Engine versions (important — they parse differently)
 
@@ -76,8 +76,11 @@ Parallax stack: deep-sky base → starfield foundation → nebula → planet (on
 ### Effects (`scripts/effects/`)
 Static helpers — most are called as `Cls.method(...)` (no instance needed): `hit_flash_fx.flash(node, kind)`, `shadow_fx.attach_shadow(spr)`, `parallax_shadow.attach(node)`, `explosion_fx.play(pos, scale)` or `.burst(pos, count, jitter, stagger)` for multi-blast, `impact_fx.spawn(parent, pos, color, kind)`, `burn_fx.apply_burn(spr, dur)`, `enemy_engine_fx.attach(enemy, tint, scale)`, `shield_sfx.play_hit/play_break(parent, pos)`. Damage tell pair: `engine_torch.attach_to_player(host, nozzle_offset)` + `damage_smoke_trail.new()` with `emit_local` set — both gate on `hull_changed` and a 50%-hull threshold.
 
+### Playfield frame (`scripts/main.gd::_install_playfield_frame`)
+Combat scene installs three CanvasLayers above the world: **Glass=1** (translucent panels over the two side gutters, x 0–132 and 348–480), **HUD=5** (`$CanvasLayer/UI` bumped from default 0), **Outline=10** (left+right borders only — no top/bottom bars). HUD is anchored to span the full viewport (overrides the 152×24 pin in `main.tscn`) so bounty/ammo land in the right gutter while the hull bar centers in the playfield band.
+
 ### Dev menu (`scripts/dev_menu.gd`, reachable from main menu)
-Movement Test, Movement Lab, **Wave Tester** (V2 with sector+depth sliders), Shipyard, Parallax Tuner, **Asteroid Lab**, Test Bed, **Test Hazard** (Minefield with composition sub-modal / Asteroid Field), **Boss Fight** (pick from Commander/Reaver/Sentinel — sets `Run.forced_boss_scene`, consumed by `wave_generator._pick_boss`), Hangar.
+2-column GridContainer. Movement Test, Movement Lab, **Wave Tester** (V2 with sector+depth sliders), Shipyard, Parallax Tuner, **Asteroid Lab**, Test Bed, **Test Hazard** (Minefield with composition sub-modal / Asteroid Field), **Boss Fight** (pick from Commander/Reaver/Sentinel — sets `Run.forced_boss_scene`, consumed by `wave_generator._pick_boss`), Hangar, **UI Designer** (`scripts/dev/ui_designer.gd` — 15 knobs for playfield bounds + HUD spacing/sizing, saves to `user://tuners/ui_designer.json`, has Copy GDScript export), **Ship Sizer** (`scripts/dev/ship_sizer.gd` — preview player + any enemy at tunable scale, with orientation flip and `_strip_preview_vfx` to hide engine flames/smoke/shadows in the preview).
 
 ## Conventions worth knowing
 
