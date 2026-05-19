@@ -80,7 +80,7 @@ class MockPlayer extends Node:
 	signal ammo_changed(value)
 
 	var max_hull: int = 50
-	var hull: int = 32  # below 50% so the warning shows
+	var hull: int = 18  # 36% — well below the 50% threshold so HULL COMPROMISED is visible
 	var max_shield: int = 3
 	var shield: int = 2
 	var ammo: int = 24
@@ -184,11 +184,20 @@ func _install_fallback_preview() -> void:
 # --- UI rail --------------------------------------------------------------
 
 func _build_ui() -> void:
+	# Tuner rail sits on its own CanvasLayer ABOVE the glass + outline so
+	# the controls always read on top of whatever HUD layout is being
+	# previewed. Without this, glass (layer 1) and outline (layer 10)
+	# overlay the tuner controls in the gutters / playfield edges.
+	var rail_layer := CanvasLayer.new()
+	rail_layer.name = "TunerRail"
+	rail_layer.layer = 20
+	add_child(rail_layer)
+
 	var header := Label.new()
 	header.text = "UI DESIGNER — Esc to close"
 	header.position = Vector2(8, 4)
 	UiTheme.style_label(header, UiTheme.LabelKind.HEADER)
-	add_child(header)
+	rail_layer.add_child(header)
 
 	var rail_bg := PanelContainer.new()
 	rail_bg.position = Vector2(8, 22)
@@ -205,7 +214,7 @@ func _build_ui() -> void:
 	sb.content_margin_top = 6
 	sb.content_margin_bottom = 6
 	rail_bg.add_theme_stylebox_override("panel", sb)
-	add_child(rail_bg)
+	rail_layer.add_child(rail_bg)
 
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
