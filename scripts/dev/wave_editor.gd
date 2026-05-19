@@ -18,6 +18,9 @@ const ENEMY_DIR := "res://scenes/enemies/"
 # One-shot playtest level — overwritten each "Play Wave" click. Lives in
 # user:// so it's writable in any build (res:// is read-only in exports).
 const PLAY_LEVEL_PATH := "user://wave_editor_play.tres"
+# Stash unsaved in-memory state across the playtest scene transition so
+# coming back from "Play Wave" doesn't reset the form.
+const PENDING_WAVE_PATH := "user://wave_editor_pending.tres"
 
 # Dev-tool viewport scale: the project ships at 480×270 for chunky-pixel
 # gameplay, but a text-dense editor needs more real estate. We swap the
@@ -69,6 +72,10 @@ func _ready() -> void:
 	_populate_movement_picker()
 	_scan_waves()
 	_wire_signals()
+	# If we just came back from a Play Wave, restore the unsaved in-memory
+	# state so the designer can keep iterating or save what they tested.
+	if _try_restore_pending():
+		return
 	if _wave_list.item_count > 0:
 		_wave_list.select(0)
 		_on_wave_selected(0)
@@ -430,6 +437,10 @@ func _on_play() -> void:
 	if err != OK:
 		_set_status("Play FAILED to write level (%d)" % err)
 		return
+	# Snapshot the unsaved in-memory wave so it survives the scene
+	# transition. Saved separately from PLAY_LEVEL_PATH so we keep the
+	# original (unsaved) state including any rename the designer typed.
+	_save_pending(w)
 	if has_node("/root/Run"):
 		var run = get_node("/root/Run")
 		if run.has_method("new_run"):
@@ -439,8 +450,58 @@ func _on_play() -> void:
 		# When the wave finishes (or player dies), cleared_summary routes
 		# us back here instead of the main menu.
 		run.set_meta("test_return_scene", "res://scenes/dev/wave_editor.tscn")
+		# Pass the metadata about which wave's in-memory state is pending,
+		# plus what the Name field said (potential rename) so the editor
+		# can restore both on return.
+		run.set_meta("wave_editor_pending_key", _current_key)
+		run.set_meta("wave_editor_pending_name", _name_edit.text)
 	_exit_hd_viewport()
 	SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
+
+
+func _save_pending(w: WaveDef) -> void:
+	# Duplicate so we don't write a shared reference Godot might re-resolve.
+	var snapshot: WaveDef = w.duplicate(true)
+	var err := ResourceSaver.save(snapshot, PENDING_WAVE_PATH)
+	if err != OK:
+		push_warning("wave_editor: failed to write pending snapshot (%d)" % err)
+
+
+# Pull the unsaved snapshot back into _waves and select it. Returns true
+# if a restore actually happened (caller skips the default selection).
+func _try_restore_pending() -> bool:
+	if not has_node("/root/Run"):
+		return false
+	var run = get_node("/root/Run")
+	if not run.has_meta("wave_editor_pending_key"):
+		return false
+	var key := String(run.get_meta("wave_editor_pending_key", ""))
+	var name_field := String(run.get_meta("wave_editor_pending_name", key))
+	run.remove_meta("wave_editor_pending_key")
+	run.remove_meta("wave_editor_pending_name")
+	if key == "" or not FileAccess.file_exists(PENDING_WAVE_PATH):
+		return false
+	var pending = load(PENDING_WAVE_PATH)
+	if pending == null:
+		return false
+	# Replace the disk-loaded entry with the snapshot. If the key isn't on
+	# disk anymore (e.g. it was unsaved-new), inject a transient entry so
+	# the designer can still see + save it.
+	if _waves.has(key):
+		_waves[key]["res"] = pending
+	else:
+		_waves[key] = {"path": WAVES_DIR + key + ".tres", "res": pending}
+		_wave_list.add_item(key)
+	_select_by_key(key)
+	# Restore the Name field separately — it lives outside the WaveDef.
+	_populating = true
+	_name_edit.text = name_field
+	_populating = false
+	# Wipe the on-disk snapshot so a clean re-entry next session starts
+	# fresh from saved state, not from this just-restored buffer.
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(PENDING_WAVE_PATH))
+	_set_status("Restored unsaved changes — Save to persist")
+	return true
 
 
 func _on_back() -> void:
