@@ -112,13 +112,13 @@ func _process(delta: float) -> void:
 		var k: float = 1.0 + 0.9 * pulse
 		$Sprite2D.modulate = Color(k, 0.6, 0.55, 1.0)
 	position += _velocity * delta
-	# Bounce off the side edges.
+	# Bounce off the playfield band edges (not the 480-px viewport).
 	var margin: float = 4.0
-	if position.x < margin and _velocity.x < 0.0:
-		position.x = margin
+	if position.x < Playfield.X_MIN + margin and _velocity.x < 0.0:
+		position.x = Playfield.X_MIN + margin
 		_velocity.x = -_velocity.x * 0.85
-	elif position.x > screensize.x - margin and _velocity.x > 0.0:
-		position.x = screensize.x - margin
+	elif position.x > Playfield.X_MAX - margin and _velocity.x > 0.0:
+		position.x = Playfield.X_MAX - margin
 		_velocity.x = -_velocity.x * 0.85
 	# Despawn off top/bottom — silent leaver.
 	if position.y > screensize.y + 24.0 or position.y < -24.0:

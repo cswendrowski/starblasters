@@ -70,12 +70,13 @@ func compute_step(enemy, delta: float) -> Vector2:
 	# override thrust to point back into the playfield.
 	const LOOKAHEAD: float = 0.6
 	const WALL_BUFFER: float = 18.0
+	# Horizontal walls = 216-wide playfield band; vertical = full viewport.
 	var vp: Vector2 = enemy.get_viewport_rect().size
 	var future: Vector2 = enemy.global_position + _vel * LOOKAHEAD
 	var wall_avoid: Vector2 = Vector2.ZERO
-	if future.x < WALL_BUFFER:
+	if future.x < Playfield.X_MIN + WALL_BUFFER:
 		wall_avoid.x += 1.0
-	elif future.x > vp.x - WALL_BUFFER:
+	elif future.x > Playfield.X_MAX - WALL_BUFFER:
 		wall_avoid.x -= 1.0
 	if future.y < WALL_BUFFER:
 		wall_avoid.y += 1.0

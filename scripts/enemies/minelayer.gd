@@ -40,11 +40,13 @@ func start(pos: Vector2) -> void:
 	var dir: int = 1
 	if _pattern != null and "direction" in _pattern:
 		dir = int(_pattern.direction)
+	# Spawn just outside the playfield band so the carrier enters gameplay
+	# immediately and mines drop inside the shootable zone.
 	var mid_y: float = screensize.y * 0.45
 	if dir > 0:
-		position = Vector2(-32.0, mid_y)
+		position = Vector2(Playfield.X_MIN - 32.0, mid_y)
 	else:
-		position = Vector2(screensize.x + 32.0, mid_y)
+		position = Vector2(Playfield.X_MAX + 32.0, mid_y)
 
 
 func _process(delta: float) -> void:
@@ -68,10 +70,14 @@ func _process(delta: float) -> void:
 # entirely on-screen before mines fall. Uses a generous 56 px margin so
 # the wing tips clear the edge.
 func _carrier_fully_visible() -> bool:
-	const CARRIER_MARGIN := 56.0
+	# Margin sized to half the carrier silhouette (sprite ~48 px wide after
+	# scale) plus a small buffer. On the narrow 216-px playfield band, 56
+	# left only ~100 px of drop range; 32 gives ~150 px while keeping the
+	# wingtips inside the shootable zone.
+	const CARRIER_MARGIN := 32.0
 	var p: Vector2 = position
-	return p.x >= CARRIER_MARGIN \
-		and p.x <= screensize.x - CARRIER_MARGIN \
+	return p.x >= Playfield.X_MIN + CARRIER_MARGIN \
+		and p.x <= Playfield.X_MAX - CARRIER_MARGIN \
 		and p.y >= 8.0 \
 		and p.y <= screensize.y - 8.0
 

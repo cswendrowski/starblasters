@@ -50,13 +50,16 @@ func compute_step(enemy, delta: float) -> Vector2:
 	# Bounce off the playfield walls so a strafe doesn't push us out.
 	# Wider lookahead margin so the strafe flip happens before we corner
 	# (Roman, 2026-05-17: "they are bumping into the edges and getting
-	# caught in corners").
+	# caught in corners"). Horizontal walls = 216-wide playfield band;
+	# vertical walls = full viewport height.
 	var vp: Vector2 = enemy.get_viewport_rect().size
+	var x_lo: float = Playfield.X_MIN
+	var x_hi: float = Playfield.X_MAX
 	var lookahead: float = 22.0
-	if enemy.position.x < playfield_margin + lookahead and _strafe_dir < 0:
+	if enemy.position.x < x_lo + playfield_margin + lookahead and _strafe_dir < 0:
 		_strafe_dir = 1
 		_strafe_t = 0.0
-	elif enemy.position.x > vp.x - playfield_margin - lookahead and _strafe_dir > 0:
+	elif enemy.position.x > x_hi - playfield_margin - lookahead and _strafe_dir > 0:
 		_strafe_dir = -1
 		_strafe_t = 0.0
 
@@ -90,9 +93,9 @@ func compute_step(enemy, delta: float) -> Vector2:
 	#      INTO the wall, so we slide along walls instead of pinning.
 	var avoid_band: float = playfield_margin + 16.0
 	var push_dir: Vector2 = Vector2.ZERO
-	if enemy.position.x < avoid_band:
+	if enemy.position.x < x_lo + avoid_band:
 		push_dir.x += 1.0
-	elif enemy.position.x > vp.x - avoid_band:
+	elif enemy.position.x > x_hi - avoid_band:
 		push_dir.x -= 1.0
 	if enemy.position.y < avoid_band:
 		push_dir.y += 1.0
@@ -101,7 +104,7 @@ func compute_step(enemy, delta: float) -> Vector2:
 	if push_dir != Vector2.ZERO:
 		# Blend factor: 0 at avoid_band, 1 at the wall.
 		var dx: float = min(
-			abs(enemy.position.x - 0.0) if push_dir.x > 0 else (vp.x - enemy.position.x) if push_dir.x < 0 else avoid_band,
+			abs(enemy.position.x - x_lo) if push_dir.x > 0 else (x_hi - enemy.position.x) if push_dir.x < 0 else avoid_band,
 			avoid_band
 		)
 		var dy: float = min(
@@ -115,9 +118,9 @@ func compute_step(enemy, delta: float) -> Vector2:
 	_vel = _vel.move_toward(desired_vel, accel * delta)
 
 	# Zero velocity component into walls so we slide along, not pin.
-	if enemy.position.x <= playfield_margin and _vel.x < 0.0:
+	if enemy.position.x <= x_lo + playfield_margin and _vel.x < 0.0:
 		_vel.x = 0.0
-	elif enemy.position.x >= vp.x - playfield_margin and _vel.x > 0.0:
+	elif enemy.position.x >= x_hi - playfield_margin and _vel.x > 0.0:
 		_vel.x = 0.0
 	if enemy.position.y <= playfield_margin and _vel.y < 0.0:
 		_vel.y = 0.0

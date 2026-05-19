@@ -19,8 +19,9 @@ func on_start(enemy) -> void:
 
 func compute_step(enemy, delta: float) -> Vector2:
 	_t += delta
-	var sw: float = enemy.get_viewport_rect().size.x
-	var max_amp: float = min(_start_x - 22.0, sw - _start_x - 22.0)
+	# Bounce against the 216-px playfield band, not the 480-px viewport,
+	# so the swing stays where the player can shoot it.
+	var max_amp: float = min(_start_x - (Playfield.X_MIN + 22.0), (Playfield.X_MAX - 22.0) - _start_x)
 	var safe_amp: float = min(amplitude, max(max_amp, 8.0))
 	var target_x: float = _start_x + sin(_t * frequency) * safe_amp
 	return Vector2(target_x - enemy.position.x, down_speed * delta)

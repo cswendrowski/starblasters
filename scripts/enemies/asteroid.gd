@@ -138,11 +138,13 @@ func _process(delta: float) -> void:
 	# Reflect horizontal drift at the playfield edges so the asteroid stays
 	# in the gamespace (Roman, 2026-05-16). 0.6 multiplier dampens so it
 	# doesn't ping-pong forever.
-	if position.x < 6.0 and drift_x < 0.0:
-		position.x = 6.0
+	# Reflect off the 216-px playfield band, not the full viewport, so the
+	# rock stays in the player's shootable zone.
+	if position.x < Playfield.X_MIN + 6.0 and drift_x < 0.0:
+		position.x = Playfield.X_MIN + 6.0
 		drift_x = -drift_x * 0.6
-	elif position.x > screensize.x - 6.0 and drift_x > 0.0:
-		position.x = screensize.x - 6.0
+	elif position.x > Playfield.X_MAX - 6.0 and drift_x > 0.0:
+		position.x = Playfield.X_MAX - 6.0
 		drift_x = -drift_x * 0.6
 	if position.y > screensize.y + 40.0:
 		queue_free()

@@ -27,12 +27,14 @@ func on_start(enemy) -> void:
 	# (b) trip it on frame 1, depending on where formation dropped it.
 	# Take ownership of the spawn point: enter at travel_y from the far
 	# side of the screen so the entry is identical every time.
-	var w: float = enemy.get_viewport_rect().size.x
+	# Spawn just outside the playfield band (not the full viewport) so the
+	# cutter enters the gameplay area immediately and the trigger column is
+	# inside the shootable zone.
 	enemy.position.y = travel_y
 	if direction > 0:
-		enemy.position.x = -12.0          # offscreen left, walks right
+		enemy.position.x = Playfield.X_MIN - 12.0
 	else:
-		enemy.position.x = w + 12.0       # offscreen right, walks left
+		enemy.position.x = Playfield.X_MAX + 12.0
 
 
 func compute_step(enemy, delta: float) -> Vector2:
@@ -44,8 +46,7 @@ func compute_step(enemy, delta: float) -> Vector2:
 			# which teleported the cutter back to travel_y after any
 			# external nudge).
 			var dx: float = enter_speed * float(direction) * delta
-			var w: float = enemy.get_viewport_rect().size.x
-			var trigger_x: float = w * 0.30 if direction > 0 else w * 0.70
+			var trigger_x: float = Playfield.X_MIN + Playfield.W * 0.30 if direction > 0 else Playfield.X_MIN + Playfield.W * 0.70
 			var new_x: float = enemy.position.x + dx
 			if (direction > 0 and new_x >= trigger_x) or (direction < 0 and new_x <= trigger_x):
 				_phase = Phase.CUT

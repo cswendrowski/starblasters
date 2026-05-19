@@ -40,8 +40,9 @@ func compute_step(enemy, delta: float) -> Vector2:
 	# cruise speed so the turn rate (which is highest at low speed) lets
 	# us pivot away (Roman, 2026-05-17: "Jet should slow down, thus
 	# getting a tighter turn radius, so that it can avoid walls better").
+	# Horizontal walls = playfield band; vertical = full viewport.
 	var vp: Vector2 = enemy.get_viewport_rect().size
-	var near_wall_x: float = min(enemy.position.x, vp.x - enemy.position.x)
+	var near_wall_x: float = min(enemy.position.x - Playfield.X_MIN, Playfield.X_MAX - enemy.position.x)
 	var near_wall_y: float = min(enemy.position.y, vp.y - enemy.position.y)
 	var near_wall: float = min(near_wall_x, near_wall_y)
 	var wall_band: float = 48.0
@@ -59,9 +60,9 @@ func compute_step(enemy, delta: float) -> Vector2:
 			desired_dir = to_p.normalized()
 	# Edge avoidance — if too close to a wall, steer back toward center.
 	var bias: Vector2 = Vector2.ZERO
-	if enemy.position.x < playfield_margin:
+	if enemy.position.x < Playfield.X_MIN + playfield_margin:
 		bias.x += 1.0
-	elif enemy.position.x > vp.x - playfield_margin:
+	elif enemy.position.x > Playfield.X_MAX - playfield_margin:
 		bias.x -= 1.0
 	if enemy.position.y < playfield_margin:
 		bias.y += 1.0

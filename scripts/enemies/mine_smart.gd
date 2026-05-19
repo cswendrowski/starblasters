@@ -73,12 +73,12 @@ func _process(delta: float) -> void:
 				var dir: Vector2 = (p_c.global_position - global_position).normalized()
 				_velocity = _velocity.move_toward(dir * chase_max_speed, chase_accel * delta)
 	position += _velocity * delta
-	# Don't sail off the sides while chasing.
-	if position.x < 4.0 and _velocity.x < 0.0:
-		position.x = 4.0
+	# Don't sail off the playfield band while chasing.
+	if position.x < Playfield.X_MIN + 4.0 and _velocity.x < 0.0:
+		position.x = Playfield.X_MIN + 4.0
 		_velocity.x = -_velocity.x * 0.5
-	elif position.x > screensize.x - 4.0 and _velocity.x > 0.0:
-		position.x = screensize.x - 4.0
+	elif position.x > Playfield.X_MAX - 4.0 and _velocity.x > 0.0:
+		position.x = Playfield.X_MAX - 4.0
 		_velocity.x = -_velocity.x * 0.5
 	# Despawn off the bottom only when dormant — once chasing, stick
 	# around until destroyed or contact.

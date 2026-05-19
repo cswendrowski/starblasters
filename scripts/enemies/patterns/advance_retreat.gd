@@ -46,8 +46,7 @@ func compute_step(enemy, delta: float) -> Vector2:
 				step_y2 = 24.0 - enemy.position.y
 				_cycle += 1
 				if _cycle >= cycles:
-					var w: float = enemy.get_viewport_rect().size.x
-					_break_dir = -1.0 if enemy.position.x < w * 0.5 else 1.0
+					_break_dir = -1.0 if enemy.position.x < Playfield.CENTER.x else 1.0
 					_phase = Phase.BREAK
 				else:
 					_phase = Phase.ADVANCE

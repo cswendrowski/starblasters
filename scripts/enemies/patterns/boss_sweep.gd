@@ -4,12 +4,12 @@ extends "res://scripts/enemies/movement_pattern.gd"
 # wave plus a tiny vertical wobble. Boss-friendly — never leaves the top
 # quarter.
 
-# 480×270 widescreen rework: hover Y dropped (top quarter of 270 ≈ 68);
-# sweep amplitude bumped 110 → 170 so the boss covers ~70% of the wider
-# 480-px playfield (was ~70% of 320 before).
+# 480×270 viewport, 216-wide centred playfield. Amplitude pulled back to
+# 90 px (~83 % of the 108-px half-width) so the boss stays inside the
+# shootable band — Roman, vertical-aspect lock pass.
 @export var hover_y: float = 60.0
 @export var enter_speed: float = 70.0
-@export var sweep_amplitude: float = 170.0
+@export var sweep_amplitude: float = 90.0
 @export var sweep_frequency: float = 0.35
 
 enum Phase { ENTERING, SWEEPING }

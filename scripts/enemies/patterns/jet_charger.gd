@@ -56,9 +56,10 @@ func compute_step(enemy, delta: float) -> Vector2:
 func _should_end_cruise(enemy, player) -> bool:
 	if _phase_t > cruise_duration:
 		return true
+	# Horizontal proximity = playfield band; vertical = full viewport.
 	var vp: Vector2 = enemy.get_viewport_rect().size
 	const NEAR: float = 30.0
-	if enemy.position.x < NEAR or enemy.position.x > vp.x - NEAR \
+	if enemy.position.x < Playfield.X_MIN + NEAR or enemy.position.x > Playfield.X_MAX - NEAR \
 		or enemy.position.y < NEAR or enemy.position.y > vp.y - NEAR:
 		return true
 	return false
