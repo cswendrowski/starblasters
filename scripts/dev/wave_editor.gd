@@ -19,6 +19,13 @@ const ENEMY_DIR := "res://scenes/enemies/"
 # user:// so it's writable in any build (res:// is read-only in exports).
 const PLAY_LEVEL_PATH := "user://wave_editor_play.tres"
 
+# Dev-tool viewport scale: the project ships at 480×270 for chunky-pixel
+# gameplay, but a text-dense editor needs more real estate. We swap the
+# window's content_scale_size to native (1920×1080) for the duration of
+# this scene, then restore on Back. Other scenes are unaffected.
+const HD_VIEWPORT := Vector2i(1920, 1080)
+var _prev_scale_size: Vector2i = Vector2i.ZERO
+
 @onready var _wave_list: ItemList = $Body/LeftRail/WaveList
 @onready var _new_btn: Button = $Body/LeftRail/LeftButtons/NewBtn
 @onready var _dup_btn: Button = $Body/LeftRail/LeftButtons/DuplicateBtn
@@ -51,6 +58,7 @@ var _populating: bool = false
 
 
 func _ready() -> void:
+	_enter_hd_viewport()
 	_populate_enemy_picker()
 	_populate_formation_picker()
 	_scan_waves()
@@ -58,6 +66,30 @@ func _ready() -> void:
 	if _wave_list.item_count > 0:
 		_wave_list.select(0)
 		_on_wave_selected(0)
+
+
+# Swap to 1920×1080 logical viewport so the editor has room for legible
+# text. Save the previous value so we can restore it on Back.
+func _enter_hd_viewport() -> void:
+	var w := get_window()
+	if w == null:
+		return
+	_prev_scale_size = w.content_scale_size
+	w.content_scale_size = HD_VIEWPORT
+
+
+func _exit_hd_viewport() -> void:
+	var w := get_window()
+	if w == null:
+		return
+	if _prev_scale_size != Vector2i.ZERO:
+		w.content_scale_size = _prev_scale_size
+
+
+func _exit_tree() -> void:
+	# Defensive restore — covers crashes / unexpected exits where _on_back
+	# didn't run. Idempotent if _on_back already restored.
+	_exit_hd_viewport()
 
 
 func _wire_signals() -> void:
@@ -354,10 +386,12 @@ func _on_play() -> void:
 			run.new_run()
 		run.test_mode_active = true
 		run.set_meta("custom_level_path", PLAY_LEVEL_PATH)
+	_exit_hd_viewport()
 	SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
 
 
 func _on_back() -> void:
+	_exit_hd_viewport()
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev_menu.tscn")
 
 
