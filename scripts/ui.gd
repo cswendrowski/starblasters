@@ -54,15 +54,19 @@ func _ready() -> void:
 	# warm-gold tint so the bounty actually reads on screen.
 	if score_counter:
 		score_counter.visible = false
-	# Bounty: HD-density text in the right gutter. font_size doubled
-	# (10 → 20) so visual size stays the same but rasterises at 2× density.
+	# Bounty: anchored to top-right of the HUD margin, half the previous
+	# size (Roman, 2026-05-17). Lives directly on the UI MarginContainer,
+	# not in the vertical BoxContainer, so it doesn't fight for layout.
+	# (HD migration attempted and reverted — moving the label out of the
+	# top_row layout context renders it invisible; root cause unknown.
+	# Tracked for later debug; stays 4× density for now.)
 	bounty_label = Label.new()
 	bounty_label.name = "BountyLabel"
 	bounty_label.text = "BOUNTY 0"
 	bounty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	UiTheme.style_label(bounty_label, UiTheme.LabelKind.BOUNTY)
-	bounty_label.add_theme_font_size_override("font_size", 20)
-	bounty_label.add_theme_constant_override("outline_size", 2)
+	bounty_label.add_theme_font_size_override("font_size", 10)
+	bounty_label.add_theme_constant_override("outline_size", 1)
 	# Push the bounty closer to the right edge (Roman, 2026-05-18: "check
 	# the readability of the bounty counter, push it more right"). Width
 	# stays generous for the BOUNTY X label but the alignment now sits
@@ -194,23 +198,11 @@ func _ready() -> void:
 
 
 # Reparent text-heavy labels from the 4× row into the HD SubViewport
-# now that main.gd has installed the HD layer. Called from main.gd after
-# _install_playfield_frame; safe to call repeatedly (idempotent).
-func migrate_hd_labels(hd: SubViewport) -> void:
-	if hd == null:
-		return
-	if bounty_label and is_instance_valid(bounty_label):
-		var parent := bounty_label.get_parent()
-		if parent and parent != hd:
-			parent.remove_child(bounty_label)
-		if bounty_label.get_parent() == null:
-			# 960×540 coords. Right edge of label at x=944 sits inside the
-			# right gutter (gutter spans HD x=696..960, i.e. viewport
-			# 348..480). Right-aligned text anchors to the box's right edge.
-			bounty_label.position = Vector2(696, 8)
-			bounty_label.size = Vector2(248, 28)
-			bounty_label.z_index = 0
-			hd.add_child(bounty_label)
+# after main.gd has installed the HD layer. Currently no-op — bounty
+# reparent broke its visibility (layout-context dependency in the
+# top_row that's not yet root-caused). Re-enable once debugged.
+func migrate_hd_labels(_hd: SubViewport) -> void:
+	pass
 
 
 func _install_ammo_row() -> void:
