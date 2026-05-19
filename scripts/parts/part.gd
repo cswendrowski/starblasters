@@ -20,3 +20,16 @@ func unapply(_ship) -> void:
 
 func get_display() -> String:
 	return "Mk.%d %s" % [mark, display_name]
+
+
+# Default damage formula used by every standard cannon: base + (mark-1) * per_mark.
+# Override in subclasses with non-linear scaling (wave_gun_cannon).
+# Returns -1 for non-weapon parts (engines/shields/wings) so the weapon
+# editor can detect "not a weapon" and skip the field.
+func effective_damage(at_mark: int) -> int:
+	if not ("base_damage" in self):
+		return -1
+	var per_mark: int = 0
+	if "dmg_per_mark" in self:
+		per_mark = int(self.get("dmg_per_mark"))
+	return int(self.get("base_damage")) + (at_mark - 1) * per_mark

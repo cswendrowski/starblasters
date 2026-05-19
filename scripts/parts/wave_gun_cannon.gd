@@ -50,3 +50,10 @@ func unapply(ship) -> void:
 		ship.weapon_style = _prev_style
 	if ship.has_node("GunCooldown"):
 		ship.get_node("GunCooldown").wait_time = ship.cooldown
+
+
+# Wave gun uses multiplicative Mk scaling, not the standard additive
+# formula. Mirror the math in apply() so the weapon editor's DPS
+# readout matches in-game damage.
+func effective_damage(at_mark: int) -> int:
+	return int(max(1.0, float(base_damage) * (1.0 + 0.5 * (float(at_mark) - 1.0))))
