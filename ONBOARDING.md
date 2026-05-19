@@ -88,6 +88,29 @@ Autoloads (`/root/*`): `Run`, `Dbg`, `Music`, `Settings`. `Run` is the one you'l
 - **No silent fallbacks**: if a bug is "X should not Y," grep for every path that does Y across base and subclasses. Delete the fallback, don't gate it.
 - **Black hole is decorative**: the background black hole is pure visual flair. No gravity, no damage, no interaction.
 
+## Workflow: when to use a tuner vs. ask Claude
+
+Context is the scarce resource on Claude's side. The cheapest collaboration is the one where you iterate locally (eyes-on, sub-second feedback) and Claude only consumes the *result*. Use this matrix:
+
+| Task | Where | Output → Claude |
+|---|---|---|
+| HUD layout, panel sizing, gutter widths | **UI Designer** tuner | hit "Copy GDScript", paste in chat |
+| Ship/enemy sprite scale + facing previews | **Ship Sizer** tuner | "Copy GDScript", paste |
+| Parallax layer brightness/contrast/speed/silhouette | **Parallax Tuner** | "Copy GDScript" or commit `user://tuners/parallax.json` and reference it |
+| Wave count / density / tier ceiling per sector | **Wave Tester** | just play it — knobs are scoped to that run; ask Claude only if a value should become production default |
+| Single enemy/part/maneuver `.tres` numbers | **Godot inspector** on the `.tres` | commit the `.tres` — Claude doesn't need to be involved at all |
+| Maneuver pattern feel (S-curve amplitude, loiter timing) | **Movement Lab** + Godot inspector on the pattern Resource | commit the `.tres` |
+| Asteroid density / drift / spawn rate | **Asteroid Lab** | (no export yet — describe the feel and Claude will tune) |
+| Boss timing windows (charge / sweep / black-hole) | no tuner yet — Godot inspector on `scripts/boss*.gd` exports, or `.tres` if it's a Resource | commit |
+| New Part / new movement pattern / new shoot pattern | code | ask Claude |
+| New enemy variant (using existing patterns) | `.tres` in Godot editor | commit; ask Claude only to slot it into a wave |
+| Visual effect / shader / particle FX | code + capture pipeline | ask Claude |
+| Bug investigation, refactor, new system | code | ask Claude |
+
+Rule of thumb: **if it's a number on something that already exists, you should be the one tuning it.** Bring Claude in when the number drives something structural (e.g. a Mk-scaling curve that needs a formula, not nine hand-typed values).
+
+If you find yourself wanting a tuner for a 3+-knob system that doesn't have one, ask Claude to scaffold it — see `scripts/dev/parallax_tuner.gd` or `ui_designer.gd` as references. Each tuner gets Save / Load / Copy-GDScript at minimum.
+
 ## The capture pipeline (visual iteration)
 
 For any visual mechanic — shader, particle FX, drop shadows, projectile feel — the loop is:
