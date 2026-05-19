@@ -199,7 +199,7 @@ func _setup_shield_ring() -> void:
 func start() -> void:
 	show()
 	is_alive = true
-	position = Vector2(screensize.x / 2, screensize.y - 64)
+	position = Vector2(Playfield.CENTER.x, screensize.y - 30)
 	# Run-level upgrades (outpost purchases) feed into max_hull, max_shield,
 	# shield_recharge, hull_damage_reduction, and speed_multiplier here so
 	# every combat scene picks up the latest upgrade state.
@@ -257,7 +257,7 @@ func _process(delta: float) -> void:
 	# Thrusters / Armor Plating upgrades feed into speed_multiplier;
 	# applied here so the runtime stat reflects the live upgrade state.
 	position += input * speed * speed_multiplier * delta
-	position = position.clamp(Vector2(8, 8), screensize - Vector2(8, 8))
+	position = Playfield.clamp_pos(position, 8.0)
 	if Input.is_action_pressed("shoot"):
 		fire_primary()
 		# MG audio loop only when the machinegun is the equipped CANNON

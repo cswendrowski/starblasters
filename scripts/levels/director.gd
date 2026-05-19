@@ -130,31 +130,33 @@ func _spawn_enemy(wave: Resource, index: int) -> void:
 			enemy.health = wave.max_health
 	if wave.bounty_value > 0 and "bounty_value" in enemy:
 		enemy.bounty_value = wave.bounty_value
-	# Compute spawn x based on formation
-	var viewport_w := get_viewport().get_visible_rect().size.x
+	# Compute spawn x based on formation. Spawn x is confined to the
+	# playfield band (Playfield.X_MIN..X_MAX), not the full viewport,
+	# so the side gutters stay clear.
 	var pad: float = wave.formation_padding
-	var usable_w: float = viewport_w - pad * 2.0
+	var x_min: float = Playfield.X_MIN + pad
+	var usable_w: float = Playfield.W - pad * 2.0
 	var x := 0.0
 	match wave.formation:
 		0: # TOP_LEFT_TO_RIGHT
 			var t: float = 0.0
 			if wave.count > 1:
 				t = float(index) / float(wave.count - 1)
-			x = pad + usable_w * t
+			x = x_min + usable_w * t
 		1: # TOP_RIGHT_TO_LEFT
 			var t: float = 0.0
 			if wave.count > 1:
 				t = float(index) / float(wave.count - 1)
-			x = pad + usable_w * (1.0 - t)
+			x = x_min + usable_w * (1.0 - t)
 		2: # TOP_RANDOM
-			x = pad + randf() * usable_w
+			x = x_min + randf() * usable_w
 		3: # TOP_CENTER_OUT
-			var center: float = viewport_w * 0.5
+			var center: float = Playfield.CENTER.x
 			var step: float = usable_w / maxf(1.0, float(wave.count))
 			var offset: float = (float(index) - float(wave.count - 1) * 0.5) * step
 			x = center + offset
 		_:
-			x = pad + randf() * usable_w
+			x = x_min + randf() * usable_w
 	var pos := Vector2(x, wave.spawn_y)
 	# Make the enemy a child of our parent (typically Main) so it lives in the world
 	var parent = get_parent()

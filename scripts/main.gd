@@ -6,6 +6,7 @@ const SectorNode = preload("res://scripts/sector_node.gd")
 const WaveBannerScene = preload("res://scenes/hud/wave_banner.tscn")
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const ClearedSummaryScene = preload("res://scenes/cleared_summary.tscn")
+const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 
 var bounty: int = 0
 var playing: bool = false
@@ -55,7 +56,33 @@ func _ready() -> void:
 		boss_hp_bar.visible = false
 	if boss_label:
 		boss_label.visible = false
+	_install_playfield_frame()
 	new_game()
+
+
+# Light-blue card-style outline around the 216×270 playfield, centred in
+# the 480-wide viewport. Visual cue for the player that gameplay is
+# constrained to the band — the side gutters are reserved for future
+# UI / framing (Roman, 2026-05-19).
+func _install_playfield_frame() -> void:
+	var layer := CanvasLayer.new()
+	layer.name = "PlayfieldFrame"
+	layer.layer = -1
+	add_child(layer)
+	var frame := Panel.new()
+	frame.name = "Frame"
+	frame.position = Vector2(Playfield.X_MIN, Playfield.Y_MIN)
+	frame.size = Vector2(Playfield.W, Playfield.H)
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0, 0, 0, 0)
+	sb.border_color = UiTheme.COLOR_ACCENT_DIM
+	sb.border_width_left = 1
+	sb.border_width_right = 1
+	sb.border_width_top = 1
+	sb.border_width_bottom = 1
+	frame.add_theme_stylebox_override("panel", sb)
+	layer.add_child(frame)
 
 func _warm_up_explosion() -> void:
 	# The first-kill freeze is the burn shader compiling against each
@@ -310,10 +337,10 @@ func new_game() -> void:
 func _run_intro(is_boss: bool) -> void:
 	# Park player just below the bottom of the viewport, controls disabled.
 	var vp := get_viewport_rect().size
-	# Park player roughly 30 px above the bottom edge. The old `vp.y - 160`
-	# was tuned for the 400-tall viewport; in 270-tall it dropped the
-	# player at y=110 (top half), not near the bottom. (Cody 2026-05-19.)
-	var start_pos := Vector2(vp.x / 2.0, vp.y - 30.0)
+	# Park player roughly 30 px above the bottom edge, horizontally centred
+	# on the playfield (not the full viewport — gameplay is constrained to
+	# a 216-px-wide central band, see scripts/playfield.gd).
+	var start_pos := Vector2(Playfield.CENTER.x, vp.y - 30.0)
 	if player and is_instance_valid(player):
 		player.controls_enabled = false
 		player.position = Vector2(start_pos.x, vp.y + 120.0)
