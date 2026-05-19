@@ -4,19 +4,11 @@ const HologramHUDCls = preload("res://scripts/hologram_hud.gd")
 const HullPipsCls = preload("res://scripts/hull_pips.gd")
 const ShieldPipsCls = preload("res://scripts/shield_pips_hud.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
-const HdCanvas = preload("res://scripts/ui/hd_canvas.gd")
 
 @onready var shield_bar = $BoxContainer/ShieldBar
 @onready var hull_bar = $BoxContainer/HullBar if has_node("BoxContainer/HullBar") else null
 @onready var score_counter = $BoxContainer/ScoreCounter
-# Wave label lives in the HD UI SubViewport (2× density text) — assigned
-# by main.gd after _install_playfield_frame builds the SubViewport. null
-# in scenes that don't install the HD layer (e.g. dev tools).
-var wave_label: Label = null
-
-
-func set_wave_label_node(label: Label) -> void:
-	wave_label = label
+@onready var wave_label: Label = $BoxContainer/WaveLabel if has_node("BoxContainer/WaveLabel") else null
 
 var hologram_hud = null
 var hull_pips = null  # HullPips (HBoxContainer)
@@ -57,14 +49,14 @@ func _ready() -> void:
 	# Bounty: anchored to top-right of the HUD margin, half the previous
 	# size (Roman, 2026-05-17). Lives directly on the UI MarginContainer,
 	# not in the vertical BoxContainer, so it doesn't fight for layout.
-	# (HD migration attempted and reverted — moving the label out of the
-	# top_row layout context renders it invisible; root cause unknown.
-	# Tracked for later debug; stays 4× density for now.)
 	bounty_label = Label.new()
 	bounty_label.name = "BountyLabel"
 	bounty_label.text = "BOUNTY 0"
 	bounty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	UiTheme.style_label(bounty_label, UiTheme.LabelKind.BOUNTY)
+	# Bounty kind is FONT_SIZE_BODY + 4 = 16 by default; Roman wants ~half.
+	# Original BOUNTY size is 16 (FONT_SIZE_BODY+4). Half = 8; bumped to 10
+	# for legibility while staying near "about half".
 	bounty_label.add_theme_font_size_override("font_size", 10)
 	bounty_label.add_theme_constant_override("outline_size", 1)
 	# Push the bounty closer to the right edge (Roman, 2026-05-18: "check
@@ -148,16 +140,12 @@ func _ready() -> void:
 	spacer_mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_row.add_child(spacer_mid)
 
-	bounty_label.add_theme_color_override("font_color", UiTheme.COLOR_BOUNTY)
-	bounty_label.modulate = Color(1, 1, 1, 1)
-	bounty_label.visible = true
-	# Initial parent is the 4× row. main.gd calls migrate_hd_labels() after
-	# _install_playfield_frame builds the HD viewport, which reparents the
-	# bounty into the HD layer. Scenes that don't install the HD layer
-	# (feature_showcase, dev scenes) keep the row-parented version.
 	bounty_label.size_flags_horizontal = Control.SIZE_SHRINK_END
 	bounty_label.custom_minimum_size = Vector2(80, 0)
+	bounty_label.add_theme_color_override("font_color", UiTheme.COLOR_BOUNTY)
 	bounty_label.z_index = 0
+	bounty_label.modulate = Color(1, 1, 1, 1)
+	bounty_label.visible = true
 	top_row.add_child(bounty_label)
 
 	$BoxContainer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -195,19 +183,6 @@ func _ready() -> void:
 	hologram_hud.name = "HologramHUD"
 	hologram_hud._hud_root = self
 	add_child(hologram_hud)
-
-
-# Reparent text-heavy labels into the HD SubViewport after main.gd has
-# installed the HD layer. Currently no-op for ui.gd labels — bounty,
-# ammo, hull_warning all live inside Containers (HBox/VBox); reparenting
-# Controls out of Containers leaves them in a degenerate layout state
-# and they render invisible. The fix needs to BUILD widgets fresh in HD
-# (not reparent), but that requires reworking each widget's
-# construction site to gate on HD viewport availability.
-# WaveLabel + BossLabel work because they're built fresh in HD (WaveLabel
-# in main.gd) or live on a CanvasLayer directly (BossLabel).
-func migrate_hd_labels(_hd: SubViewport) -> void:
-	pass
 
 
 func _install_ammo_row() -> void:
