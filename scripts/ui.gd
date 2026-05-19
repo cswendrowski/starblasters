@@ -91,12 +91,13 @@ func _ready() -> void:
 	$BoxContainer.add_child(top_row)
 	$BoxContainer.move_child(top_row, 0)
 
-	# Left spacer pushes hull+pips off the left edge so they centre over
-	# the playfield band. With margin_left=14 and a 186-px spacer, hull
-	# starts at screen x≈200 (band centre is x=240).
+	# Left spacer pushes hull+pips off the left edge. 117 px (UI Designer
+	# export, Roman 2026-05-19) lands hull at screen x≈131 — right at the
+	# playfield band's left edge so the bar reads against the band, not
+	# inside it.
 	var spacer_left := Control.new()
 	spacer_left.name = "SpacerLeft"
-	spacer_left.custom_minimum_size = Vector2(186, 0)
+	spacer_left.custom_minimum_size = Vector2(117, 0)
 	top_row.add_child(spacer_left)
 
 	# Hide the legacy bars so they don't steal layout space.

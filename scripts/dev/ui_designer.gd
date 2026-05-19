@@ -39,7 +39,7 @@ const KNOBS := [
 	{"key": "playfield_height",       "label": "Playfield H",           "kind": "int",   "min": 60,  "max": 270, "step": 1,  "default": 270},
 	# HUD widget placement.
 	{"key": "hud_top_margin",         "label": "HUD top margin",        "kind": "int",   "min": 0,   "max": 40,  "step": 1,  "default": 6},
-	{"key": "hull_bar_left_spacer",   "label": "Hull spacer (L)",       "kind": "int",   "min": 0,   "max": 320, "step": 1,  "default": 186},
+	{"key": "hull_bar_left_spacer",   "label": "Hull spacer (L)",       "kind": "int",   "min": 0,   "max": 320, "step": 1,  "default": 117},
 	{"key": "hull_bar_width",         "label": "Hull bar W",            "kind": "int",   "min": 20,  "max": 200, "step": 1,  "default": 80},
 	{"key": "hull_bar_height",        "label": "Hull bar H",            "kind": "int",   "min": 4,   "max": 32,  "step": 1,  "default": 12},
 	{"key": "bounty_min_width",       "label": "Bounty min W",          "kind": "int",   "min": 20,  "max": 200, "step": 1,  "default": 80},
