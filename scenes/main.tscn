@@ -143,7 +143,7 @@ libraries = {
 autoplay = "new_animation"
 
 [node name="Camera2D" type="Camera2D" parent="."]
-position = Vector2(160, 200)
+position = Vector2(240, 135)
 script = ExtResource("7_c8ll8")
 noise = SubResource("FastNoiseLite_uf0tv")
 

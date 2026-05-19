@@ -116,7 +116,10 @@ func _build_ui() -> void:
 	add_child(upgrades_lbl)
 	_upgrade_box = HBoxContainer.new()
 	_upgrade_box.position = Vector2(8, 30)
-	_upgrade_box.size = Vector2(300, 98)
+	_upgrade_box.custom_minimum_size = Vector2(280, 98)
+	_upgrade_box.size = Vector2(280, 98)
+	_upgrade_box.size_flags_horizontal = 0
+	_upgrade_box.clip_contents = true
 	_upgrade_box.add_theme_constant_override("separation", 6)
 	add_child(_upgrade_box)
 	_render_upgrade_offers()
@@ -128,30 +131,33 @@ func _build_ui() -> void:
 	add_child(cannons_lbl)
 	_cannon_box = HBoxContainer.new()
 	_cannon_box.position = Vector2(8, 142)
-	_cannon_box.size = Vector2(300, 98)
+	_cannon_box.custom_minimum_size = Vector2(280, 98)
+	_cannon_box.size = Vector2(280, 98)
+	_cannon_box.size_flags_horizontal = 0
+	_cannon_box.clip_contents = true
 	_cannon_box.add_theme_constant_override("separation", 6)
 	add_child(_cannon_box)
 	_render_cannon_offers()
 
 	var services_lbl := Label.new()
 	services_lbl.text = "Services"
-	services_lbl.position = Vector2(312, 30)
+	services_lbl.position = Vector2(324,30)
 	UiTheme.style_label(services_lbl, UiTheme.LabelKind.CAPTION)
 	add_child(services_lbl)
 	var services := VBoxContainer.new()
-	services.position = Vector2(312, 42)
-	services.size = Vector2(160, 36)
+	services.position = Vector2(324,42)
+	services.size = Vector2(148, 36)
 	services.add_theme_constant_override("separation", 4)
 	add_child(services)
 	var repair_btn := Button.new()
 	repair_btn.text = "Repair +25%% (%d)" % HULL_REPAIR_COST
-	repair_btn.custom_minimum_size = Vector2(160, 16)
+	repair_btn.custom_minimum_size = Vector2(148, 16)
 	UiTheme.style_button(repair_btn)
 	repair_btn.pressed.connect(_on_repair.bind(repair_btn))
 	services.add_child(repair_btn)
 	var ammo_btn := Button.new()
 	ammo_btn.text = "Ammo +50%% (%d)" % AMMO_REFILL_COST
-	ammo_btn.custom_minimum_size = Vector2(160, 16)
+	ammo_btn.custom_minimum_size = Vector2(148, 16)
 	UiTheme.style_button(ammo_btn)
 	ammo_btn.pressed.connect(_on_ammo_refill.bind(ammo_btn))
 	if _run_ammo() < 0:
@@ -161,12 +167,12 @@ func _build_ui() -> void:
 
 	var storage_lbl := Label.new()
 	storage_lbl.text = "Weapon Storage"
-	storage_lbl.position = Vector2(312, 84)
+	storage_lbl.position = Vector2(324,84)
 	UiTheme.style_label(storage_lbl, UiTheme.LabelKind.CAPTION)
 	add_child(storage_lbl)
 	var storage_scroll := ScrollContainer.new()
-	storage_scroll.position = Vector2(312, 96)
-	storage_scroll.size = Vector2(160, 130)
+	storage_scroll.position = Vector2(324,96)
+	storage_scroll.size = Vector2(148, 130)
 	add_child(storage_scroll)
 	_storage_box = VBoxContainer.new()
 	_storage_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -176,8 +182,8 @@ func _build_ui() -> void:
 
 	var leave_btn := Button.new()
 	leave_btn.text = "Leave"
-	leave_btn.position = Vector2(312, 234)
-	leave_btn.size = Vector2(160, 16)
+	leave_btn.position = Vector2(324,234)
+	leave_btn.size = Vector2(148, 16)
 	UiTheme.style_button(leave_btn, true)
 	leave_btn.pressed.connect(_on_leave)
 	add_child(leave_btn)
@@ -281,8 +287,8 @@ func _render_upgrade_offers() -> void:
 
 func _make_upgrade_card(offer: Dictionary) -> Control:
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(96, 86)
-	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.custom_minimum_size = Vector2(88, 86)
+	card.size_flags_horizontal = 0  # strict min-size — don't stretch into the right column
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.08, 0.10, 0.14, 0.9)
 	sb.border_color = UiTheme.COLOR_ACCENT_DIM
@@ -332,8 +338,8 @@ func _render_cannon_offers() -> void:
 func _make_cannon_card(offer: Dictionary) -> Control:
 	var part = offer["part"]
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(96, 86)
-	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.custom_minimum_size = Vector2(88, 86)
+	card.size_flags_horizontal = 0  # strict min-size — don't stretch into the right column
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.10, 0.08, 0.12, 0.9)
 	sb.border_color = UiTheme.COLOR_ACCENT_DIM

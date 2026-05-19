@@ -12,7 +12,7 @@ grow_vertical = 2
 script = ExtResource("1_ailud")
 
 [node name="TopBar" type="HBoxContainer" parent="."]
-custom_minimum_size = Vector2(464, 16)
+custom_minimum_size = Vector2(304, 16)
 layout_mode = 0
 offset_left = 8.0
 offset_top = 8.0
