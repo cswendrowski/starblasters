@@ -60,19 +60,54 @@ func _ready() -> void:
 	new_game()
 
 
-# Light-blue card-style outline around the 216×270 playfield, centred in
-# the 480-wide viewport. Visual cue for the player that gameplay is
-# constrained to the band — the side gutters are reserved for future
-# UI / framing (Roman, 2026-05-19).
+# Light-blue card-style outline around the 216×270 playfield, plus a
+# translucent "glass" tint over the two side gutters so the non-play
+# space reads as reserved UI surface instead of dead backdrop.
 func _install_playfield_frame() -> void:
-	var layer := CanvasLayer.new()
-	layer.name = "PlayfieldFrame"
-	# Layer 1 = above the galaxy backdrop (Node2D world canvas at 0) so the
-	# frame is actually visible. Frame is a thin transparent panel with a
-	# 1-px border at x=132 / x=348, well outside the corner-anchored HUD
-	# elements, so sharing layer 1 with the UI is fine.
-	layer.layer = 1
-	add_child(layer)
+	# Layer order, bottom → top:
+	#   0: world canvas (galaxy backdrop, gameplay nodes)
+	#   1: PlayfieldGlass — translucent gutter tint
+	#   5: HUD canvas (main.tscn's CanvasLayer, bumped from default 1)
+	#  10: PlayfieldFrame outline — always visible above HUD
+	# Bumping the main HUD canvas keeps the glass below the HUD (so the
+	# right-gutter bounty/ammo read on top of the tint) and the outline
+	# above everything.
+	if has_node("CanvasLayer"):
+		($CanvasLayer as CanvasLayer).layer = 5
+	var glass_layer := CanvasLayer.new()
+	glass_layer.name = "PlayfieldGlass"
+	glass_layer.layer = 1
+	add_child(glass_layer)
+
+	var glass_bg := Color(0.04, 0.06, 0.10, 0.55)
+	var glass_edge := UiTheme.COLOR_ACCENT_DIM
+	for spec in [
+		{"name": "GutterLeft",  "x": 0.0,             "w": Playfield.X_MIN,           "edge": "right"},
+		{"name": "GutterRight", "x": Playfield.X_MAX, "w": 480.0 - Playfield.X_MAX,   "edge": "left"},
+	]:
+		var panel := Panel.new()
+		panel.name = String(spec["name"])
+		panel.position = Vector2(float(spec["x"]), 0.0)
+		panel.size = Vector2(float(spec["w"]), 270.0)
+		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var gsb := StyleBoxFlat.new()
+		gsb.bg_color = glass_bg
+		gsb.border_color = glass_edge
+		if String(spec["edge"]) == "right":
+			gsb.border_width_right = 1
+		else:
+			gsb.border_width_left = 1
+		panel.add_theme_stylebox_override("panel", gsb)
+		glass_layer.add_child(panel)
+
+	# Outline frame on its own layer ABOVE the HUD so the band's edge is
+	# always visible — the 1-px transparent-fill border doesn't obscure
+	# any of the corner-anchored HUD widgets.
+	var frame_layer := CanvasLayer.new()
+	frame_layer.name = "PlayfieldFrame"
+	frame_layer.layer = 10
+	add_child(frame_layer)
+
 	var frame := Panel.new()
 	frame.name = "Frame"
 	frame.position = Vector2(Playfield.X_MIN, Playfield.Y_MIN)
@@ -86,7 +121,7 @@ func _install_playfield_frame() -> void:
 	sb.border_width_top = 1
 	sb.border_width_bottom = 1
 	frame.add_theme_stylebox_override("panel", sb)
-	layer.add_child(frame)
+	frame_layer.add_child(frame)
 
 func _warm_up_explosion() -> void:
 	# The first-kill freeze is the burn shader compiling against each
