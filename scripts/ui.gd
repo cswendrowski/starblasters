@@ -21,11 +21,13 @@ var bounty_label: Label = null
 var _warning_tween: Tween = null
 
 func _ready() -> void:
-	# Modest side margins — enough room for the damage-shake shake to wiggle
-	# without clipping, but not so generous that the HUD eats playfield.
-	add_theme_constant_override("margin_left", 14)
-	add_theme_constant_override("margin_right", 14)
-	add_theme_constant_override("margin_top", 10)
+	# 480-wide viewport, 216-wide playfield band centred at x=132..348.
+	# Pull the top HUD strip into the band so the health bar + shield pips
+	# read inside the centre panel; the side gutters host bounty/ammo on
+	# their own canvas children (built below).
+	add_theme_constant_override("margin_left", int(Playfield.X_MIN) + 4)
+	add_theme_constant_override("margin_right", 480 - int(Playfield.X_MAX) + 4)
+	add_theme_constant_override("margin_top", 6)
 
 	# Keep the wave label off — banner pops carry that info.
 	if wave_label:
@@ -74,6 +76,9 @@ func _ready() -> void:
 	var top_row := HBoxContainer.new()
 	top_row.name = "HullShieldRow"
 	top_row.add_theme_constant_override("separation", 6)
+	# Centred inside the 216-wide playfield band so the hull bar + shield
+	# pips read in the centre panel rather than hugging one edge.
+	top_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	$BoxContainer.add_child(top_row)
 	$BoxContainer.move_child(top_row, 0)
 
@@ -109,23 +114,13 @@ func _ready() -> void:
 	shield_pips.name = "ShieldPips"
 	top_row.add_child(shield_pips)
 
-	# Spacer that pushes the bounty to the right end of the row.
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top_row.add_child(spacer)
-	top_row.add_child(bounty_label)
+	# Bounty no longer rides the hull row — it lives in the right gutter
+	# (x=348..480) on its own canvas-pinned label. Built in
+	# _install_right_gutter() after the top-row layout is finished.
 	bounty_label.size_flags_horizontal = Control.SIZE_SHRINK_END
-	# Restore the warm-gold styling now that bounty lives in a sane place.
 	bounty_label.add_theme_color_override("font_color", UiTheme.COLOR_BOUNTY)
 	bounty_label.z_index = 0
-	# The MarginContainer/BoxContainer chain caps width at the UI scene's
-	# offset_right=152 override; widen the BoxContainer to push the bounty
-	# closer to the screen's right edge.
 	$BoxContainer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	# Bounty placement — tuned 312 -> 296 so it sits closer to the
-	# hull/pip cluster without clipping the viewport edge (Roman,
-	# 2026-05-18: "bounty indicator is now too far right").
-	$BoxContainer.custom_minimum_size = Vector2(296, 0)
 
 	# Diegetic warning that fires when integrity drops to ≤50%.
 	# Hull warning — Roman, 2026-05-18: "Move the hull damage warning to
@@ -145,11 +140,76 @@ func _ready() -> void:
 	$BoxContainer.add_child(hull_warning)
 	$BoxContainer.move_child(hull_warning, 1)
 
+	# Right-gutter HUD column — bounty on top, ammo just under it. Pinned
+	# to the CanvasLayer in absolute viewport coords so it sits in the
+	# reserved x=348..480 panel regardless of how the top-strip
+	# MarginContainer is laid out.
+	_install_right_gutter()
+
 	# Now apply the hologram material to the assembled tree.
 	hologram_hud = HologramHUDCls.new()
 	hologram_hud.name = "HologramHUD"
 	hologram_hud._hud_root = self
 	add_child(hologram_hud)
+
+
+func _install_right_gutter() -> void:
+	var canvas := get_parent() as CanvasLayer
+	if canvas == null:
+		canvas = get_node_or_null("/root/Main/CanvasLayer") as CanvasLayer
+	if canvas == null:
+		return
+	# Detach bounty from the top-row HBox and re-parent under a panel pinned
+	# to the right gutter so it doesn't fight the centred hull/pip row.
+	if bounty_label.get_parent() != null:
+		bounty_label.get_parent().remove_child(bounty_label)
+	var gutter := VBoxContainer.new()
+	gutter.name = "RightGutter"
+	gutter.add_theme_constant_override("separation", 2)
+	# Right gutter spans x=Playfield.X_MAX..480 (132 px). Pin to the
+	# viewport's top-right corner via anchors so a window resize keeps
+	# the column in the gutter.
+	gutter.anchor_left = 1.0
+	gutter.anchor_right = 1.0
+	gutter.anchor_top = 0.0
+	gutter.anchor_bottom = 0.0
+	gutter.offset_left = -(480.0 - Playfield.X_MAX) + 2.0   # ~ -130
+	gutter.offset_right = -2.0
+	gutter.offset_top = 6.0
+	gutter.offset_bottom = 60.0
+	canvas.add_child(gutter)
+
+	bounty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	bounty_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gutter.add_child(bounty_label)
+
+	# Ammo label moves here too. Created lazily so we don't double-install
+	# if bind_player() runs after _ready (showcase paths).
+	if ammo_label == null or not is_instance_valid(ammo_label):
+		ammo_label = Label.new()
+		ammo_label.name = "AmmoLabel"
+		ammo_label.text = "AMMO 0"
+		UiTheme.style_label(ammo_label, UiTheme.LabelKind.BOUNTY)
+		ammo_label.add_theme_font_size_override("font_size", 10)
+		ammo_label.add_theme_constant_override("outline_size", 1)
+		ammo_label.add_theme_color_override("font_color", Color(1, 0.85, 0.5))
+		ammo_label.visible = false
+	if ammo_label.get_parent() != null and ammo_label.get_parent() != gutter:
+		ammo_label.get_parent().remove_child(ammo_label)
+	if ammo_label.get_parent() == null:
+		gutter.add_child(ammo_label)
+	ammo_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	ammo_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Clear the legacy bottom-right anchor presets in case this label was
+	# created by the old _install_ammo_label() path.
+	ammo_label.anchor_left = 0.0
+	ammo_label.anchor_right = 0.0
+	ammo_label.anchor_top = 0.0
+	ammo_label.anchor_bottom = 0.0
+	ammo_label.offset_left = 0.0
+	ammo_label.offset_right = 0.0
+	ammo_label.offset_top = 0.0
+	ammo_label.offset_bottom = 0.0
 
 func bind_player(player) -> void:
 	if hologram_hud:
@@ -247,32 +307,10 @@ func update_wave(idx: int, total: int) -> void:
 		tw.tween_property(wave_label, "modulate", Color(1, 1, 1, 1.0), 0.6)
 
 func _install_ammo_label() -> void:
-	if ammo_label != null and is_instance_valid(ammo_label):
-		return
-	# Lives on the same CanvasLayer as the rest of the HUD so it's pinned
-	# to screen, not the playfield. Anchored bottom-right.
-	var canvas := get_parent() as CanvasLayer
-	if canvas == null:
-		canvas = get_node_or_null("/root/Main/CanvasLayer") as CanvasLayer
-	if canvas == null:
-		return
-	ammo_label = Label.new()
-	ammo_label.name = "AmmoLabel"
-	ammo_label.text = "AMMO 0000"
-	ammo_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	UiTheme.style_label(ammo_label, UiTheme.LabelKind.BOUNTY)
-	ammo_label.add_theme_color_override("font_color", Color(1, 0.85, 0.5))
-	# Bottom-right anchor.
-	ammo_label.anchor_left = 1.0
-	ammo_label.anchor_right = 1.0
-	ammo_label.anchor_top = 1.0
-	ammo_label.anchor_bottom = 1.0
-	ammo_label.offset_left = -180.0
-	ammo_label.offset_right = -16.0
-	ammo_label.offset_top = -44.0
-	ammo_label.offset_bottom = -12.0
-	ammo_label.visible = false
-	canvas.add_child(ammo_label)
+	# Ammo label is now provisioned by _install_right_gutter() so it sits in
+	# the reserved right gutter alongside bounty. Kept as a no-op so the
+	# showcase path that called this before bind_player still works.
+	pass
 
 
 func _on_ammo_changed(value: int) -> void:
