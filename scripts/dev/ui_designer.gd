@@ -207,8 +207,11 @@ func _build_ui() -> void:
 	rail_layer.add_child(header)
 
 	var rail_bg := PanelContainer.new()
-	rail_bg.position = Vector2(6, 18)
-	rail_bg.size = Vector2(148, 244)
+	# Push the rail down past the top HUD strip so HULL COMPROMISED + the
+	# hull bar are visible above it; left flush so the right gutter +
+	# bounty / ammo also read.
+	rail_bg.position = Vector2(6, 38)
+	rail_bg.size = Vector2(158, 224)
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.05, 0.07, 0.11, 0.86)
 	sb.border_color = UiTheme.COLOR_ACCENT_DIM
@@ -266,18 +269,25 @@ func _add_button(parent: Node, label: String, cb: Callable) -> void:
 
 
 func _add_knob_row(parent: Node, k: Dictionary) -> void:
+	var key: String = String(k["key"])
+	var kind: String = String(k["kind"])
+
+	# One-line row: [label][control(s)] so each knob takes ~10 px tall.
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 2)
+	parent.add_child(row)
+
 	var lbl := Label.new()
 	lbl.text = String(k["label"])
 	UiTheme.style_label(lbl, UiTheme.LabelKind.CAPTION)
 	lbl.add_theme_font_size_override("font_size", 8)
-	parent.add_child(lbl)
-
-	var key: String = String(k["key"])
-	var kind: String = String(k["kind"])
+	lbl.custom_minimum_size = Vector2(58, 0)
+	row.add_child(lbl)
 
 	if kind == "color":
 		var picker := ColorPickerButton.new()
-		picker.custom_minimum_size = Vector2(0, 12)
+		picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		picker.custom_minimum_size = Vector2(0, 10)
 		picker.add_theme_font_size_override("font_size", 8)
 		picker.color = _values[key]
 		picker.edit_alpha = true
@@ -285,15 +295,9 @@ func _add_knob_row(parent: Node, k: Dictionary) -> void:
 			_values[key] = c
 			_apply_all()
 		)
-		parent.add_child(picker)
+		row.add_child(picker)
 		_editors[key] = picker
 		return
-
-	# Numeric: slider + spinbox. Slider is the primary input; spinbox lets
-	# Roman type exact values. Both push to _values via the same setter.
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 2)
-	parent.add_child(row)
 
 	var slider := HSlider.new()
 	slider.min_value = float(k["min"])
@@ -301,7 +305,9 @@ func _add_knob_row(parent: Node, k: Dictionary) -> void:
 	slider.step = float(k["step"])
 	slider.value = float(_values[key])
 	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	slider.custom_minimum_size = Vector2(0, 10)
+	slider.custom_minimum_size = Vector2(0, 8)
+	# Shrink the grabber so the slider can actually compress vertically.
+	slider.add_theme_constant_override("grabber_offset", 0)
 	row.add_child(slider)
 
 	var spin := SpinBox.new()
@@ -309,7 +315,7 @@ func _add_knob_row(parent: Node, k: Dictionary) -> void:
 	spin.max_value = float(k["max"])
 	spin.step = float(k["step"])
 	spin.value = float(_values[key])
-	spin.custom_minimum_size = Vector2(40, 10)
+	spin.custom_minimum_size = Vector2(34, 10)
 	spin.add_theme_font_size_override("font_size", 8)
 	row.add_child(spin)
 
@@ -415,10 +421,12 @@ func _refresh_frame() -> void:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0, 0, 0, 0)
 	sb.border_color = glass_edge
+	# Left + right edges only — Roman doesn't want a top/bottom cap on
+	# the playfield outline (the band reads as an open vertical column).
 	sb.border_width_left = 1
 	sb.border_width_right = 1
-	sb.border_width_top = 1
-	sb.border_width_bottom = 1
+	sb.border_width_top = 0
+	sb.border_width_bottom = 0
 	frame.add_theme_stylebox_override("panel", sb)
 	_frame_layer.add_child(frame)
 

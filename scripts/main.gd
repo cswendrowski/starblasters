@@ -116,10 +116,12 @@ func _install_playfield_frame() -> void:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0, 0, 0, 0)
 	sb.border_color = UiTheme.COLOR_ACCENT_DIM
+	# Vertical edges only — the band reads as an open column, no top /
+	# bottom cap. Matches the UI Designer preview.
 	sb.border_width_left = 1
 	sb.border_width_right = 1
-	sb.border_width_top = 1
-	sb.border_width_bottom = 1
+	sb.border_width_top = 0
+	sb.border_width_bottom = 0
 	frame.add_theme_stylebox_override("panel", sb)
 	frame_layer.add_child(frame)
 
