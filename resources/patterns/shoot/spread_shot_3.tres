@@ -1,0 +1,8 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/shoot_patterns/spread_shot.gd" id="1_sp"]
+
+[resource]
+script = ExtResource("1_sp")
+bullet_count = 3
+spread_degrees = 30.0

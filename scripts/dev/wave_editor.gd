@@ -18,6 +18,9 @@ const ENEMY_DIR := "res://scenes/enemies/"
 # One-shot playtest level — overwritten each "Play Wave" click. Lives in
 # user:// so it's writable in any build (res:// is read-only in exports).
 const PLAY_LEVEL_PATH := "user://wave_editor_play.tres"
+# Companion to PLAY_LEVEL_PATH: the wave the level references. Written
+# fresh on each Play Wave so unsaved in-memory changes are honored.
+const PLAY_WAVE_PATH := "user://wave_editor_play_wave.tres"
 # Stash unsaved in-memory state across the playtest scene transition so
 # coming back from "Play Wave" doesn't reset the form.
 const PENDING_WAVE_PATH := "user://wave_editor_pending.tres"
@@ -30,8 +33,10 @@ const HD_VIEWPORT := Vector2i(1920, 1080)
 var _prev_scale_size: Vector2i = Vector2i.ZERO
 
 const MOVEMENT_DIR := "res://resources/patterns/movement/"
-# Paths in MovementPick by item index, parallel to enemy_paths.
+const SHOOT_DIR := "res://resources/patterns/shoot/"
+# Paths in MovementPick / ShootPick by item index.
 var _movement_paths: Array = []
+var _shoot_paths: Array = []
 
 @onready var _wave_list: ItemList = $Body/LeftRail/WaveList
 @onready var _new_btn: Button = $Body/LeftRail/LeftButtons/NewBtn
@@ -44,6 +49,7 @@ var _movement_paths: Array = []
 @onready var _delay_spin: SpinBox = $Body/RightPanel/Props/DelaySpin
 @onready var _formation_pick: OptionButton = $Body/RightPanel/Props/FormationPick
 @onready var _movement_pick: OptionButton = $Body/RightPanel/Props/MovementPick
+@onready var _shoot_pick: OptionButton = $Body/RightPanel/Props/ShootPick
 @onready var _hp_spin: SpinBox = $Body/RightPanel/Props/HpSpin
 @onready var _bounty_spin: SpinBox = $Body/RightPanel/Props/BountySpin
 @onready var _silent_check: CheckBox = $Body/RightPanel/Props/SilentCheck
@@ -70,6 +76,7 @@ func _ready() -> void:
 	_populate_enemy_picker()
 	_populate_formation_picker()
 	_populate_movement_picker()
+	_populate_shoot_picker()
 	_scan_waves()
 	_wire_signals()
 	# If we just came back from a Play Wave, restore the unsaved in-memory
@@ -122,6 +129,7 @@ func _wire_signals() -> void:
 	_delay_spin.value_changed.connect(_on_delay_changed)
 	_formation_pick.item_selected.connect(_on_formation_picked)
 	_movement_pick.item_selected.connect(_on_movement_picked)
+	_shoot_pick.item_selected.connect(_on_shoot_picked)
 	_hp_spin.value_changed.connect(_on_hp_changed)
 	_bounty_spin.value_changed.connect(_on_bounty_changed)
 	_silent_check.toggled.connect(_on_silent_toggled)
@@ -187,26 +195,35 @@ func _populate_formation_picker() -> void:
 
 
 func _populate_movement_picker() -> void:
-	_movement_pick.clear()
-	_movement_paths.clear()
-	# First item is "<none>" so the designer can clear the override.
-	_movement_pick.add_item("<none>")
-	_movement_paths.append("")
-	var dir := DirAccess.open(MOVEMENT_DIR)
+	_populate_pattern_picker(_movement_pick, _movement_paths, MOVEMENT_DIR)
+
+
+func _populate_shoot_picker() -> void:
+	_populate_pattern_picker(_shoot_pick, _shoot_paths, SHOOT_DIR)
+
+
+# Shared between movement + shoot pickers. First entry is "<none>" with
+# an empty path so the designer can clear the override.
+func _populate_pattern_picker(picker: OptionButton, paths_arr: Array, source_dir: String) -> void:
+	picker.clear()
+	paths_arr.clear()
+	picker.add_item("<none>")
+	paths_arr.append("")
+	var dir := DirAccess.open(source_dir)
 	if dir == null:
 		return
 	dir.list_dir_begin()
-	var paths: Array = []
+	var found: Array = []
 	var fname := dir.get_next()
 	while fname != "":
 		if not dir.current_is_dir() and fname.ends_with(".tres"):
-			paths.append(MOVEMENT_DIR + fname)
+			found.append(source_dir + fname)
 		fname = dir.get_next()
 	dir.list_dir_end()
-	paths.sort()
-	for p in paths:
-		_movement_paths.append(p)
-		_movement_pick.add_item(String(p).get_file().get_basename())
+	found.sort()
+	for p in found:
+		paths_arr.append(p)
+		picker.add_item(String(p).get_file().get_basename())
 
 
 # ---- Selection / form binding -------------------------------------------
@@ -225,7 +242,10 @@ func _on_wave_selected(idx: int) -> void:
 	_interval_spin.value = w.spawn_interval
 	_delay_spin.value = w.spawn_delay
 	_formation_pick.select(clamp(w.formation, 0, _formation_pick.item_count - 1))
-	_select_movement_path(w.movement_override.resource_path if w.movement_override else "")
+	_select_pattern_path(_movement_pick, _movement_paths,
+		w.movement_override.resource_path if w.movement_override else "")
+	_select_pattern_path(_shoot_pick, _shoot_paths,
+		w.shoot_pattern_override.resource_path if w.shoot_pattern_override else "")
 	_hp_spin.value = w.max_health
 	_bounty_spin.value = w.bounty_value
 	_silent_check.button_pressed = w.silent
@@ -242,12 +262,12 @@ func _select_enemy_path(path: String) -> void:
 	_enemy_pick.select(-1)
 
 
-func _select_movement_path(path: String) -> void:
-	for i in _movement_paths.size():
-		if _movement_paths[i] == path:
-			_movement_pick.select(i)
+func _select_pattern_path(picker: OptionButton, paths_arr: Array, path: String) -> void:
+	for i in paths_arr.size():
+		if paths_arr[i] == path:
+			picker.select(i)
 			return
-	_movement_pick.select(0)  # <none>
+	picker.select(0)  # <none>
 
 
 func _current_wave() -> WaveDef:
@@ -302,6 +322,17 @@ func _on_movement_picked(idx: int) -> void:
 		w.movement_override = null
 	else:
 		w.movement_override = load(_movement_paths[idx])
+	_mark_dirty()
+
+
+func _on_shoot_picked(idx: int) -> void:
+	var w := _current_wave()
+	if w == null:
+		return
+	if idx <= 0 or idx >= _shoot_paths.size():
+		w.shoot_pattern_override = null
+	else:
+		w.shoot_pattern_override = load(_shoot_paths[idx])
 	_mark_dirty()
 
 
@@ -425,11 +456,21 @@ func _on_play() -> void:
 	if w == null:
 		_set_status("Select a wave to play")
 		return
-	# Force-announce so the WAVE banner pops even for short tests, unless
-	# the designer explicitly set a banner.
-	var play_wave: WaveDef = w.duplicate(true)
-	if play_wave.silent and play_wave.announce_text == "":
-		play_wave.silent = false
+	# Persist the current in-memory wave to its own user:// path. Doing
+	# this (instead of duplicating in memory + saving the level inline)
+	# preserves the movement_override / shoot_pattern_override as proper
+	# ExtResource references back to their on-disk .tres files. Inline
+	# duplicates lose resource_path and break script-bound sub-resources.
+	var wave_err := ResourceSaver.save(w, PLAY_WAVE_PATH)
+	if wave_err != OK:
+		_set_status("Play FAILED to write wave (%d)" % wave_err)
+		return
+	# Re-load from disk to get a clean Resource with resource_path set
+	# (so the level can ExtResource-reference it cleanly).
+	var play_wave = load(PLAY_WAVE_PATH)
+	if play_wave == null:
+		_set_status("Play FAILED to reload wave")
+		return
 	var lvl := LevelDef.new()
 	lvl.level_name = "Editor — %s" % _current_key
 	lvl.waves = [play_wave]
