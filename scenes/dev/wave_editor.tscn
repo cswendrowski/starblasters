@@ -167,10 +167,21 @@ layout_mode = 2
 text = "Movement override"
 theme_override_font_sizes/font_size = 20
 
-[node name="MovementPick" type="OptionButton" parent="Body/RightPanel/Props"]
+[node name="MovementRow" type="HBoxContainer" parent="Body/RightPanel/Props"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="MovementPick" type="OptionButton" parent="Body/RightPanel/Props/MovementRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 custom_minimum_size = Vector2(0, 44)
+theme_override_font_sizes/font_size = 20
+
+[node name="EditMovementBtn" type="Button" parent="Body/RightPanel/Props/MovementRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(110, 44)
+text = "Edit"
 theme_override_font_sizes/font_size = 20
 
 [node name="ShootLbl" type="Label" parent="Body/RightPanel/Props"]
@@ -178,10 +189,21 @@ layout_mode = 2
 text = "Shoot pattern override"
 theme_override_font_sizes/font_size = 20
 
-[node name="ShootPick" type="OptionButton" parent="Body/RightPanel/Props"]
+[node name="ShootRow" type="HBoxContainer" parent="Body/RightPanel/Props"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="ShootPick" type="OptionButton" parent="Body/RightPanel/Props/ShootRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 custom_minimum_size = Vector2(0, 44)
+theme_override_font_sizes/font_size = 20
+
+[node name="EditShootBtn" type="Button" parent="Body/RightPanel/Props/ShootRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(110, 44)
+text = "Edit"
 theme_override_font_sizes/font_size = 20
 
 [node name="HpLbl" type="Label" parent="Body/RightPanel/Props"]

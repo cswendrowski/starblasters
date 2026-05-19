@@ -48,8 +48,10 @@ var _shoot_paths: Array = []
 @onready var _interval_spin: SpinBox = $Body/RightPanel/Props/IntervalSpin
 @onready var _delay_spin: SpinBox = $Body/RightPanel/Props/DelaySpin
 @onready var _formation_pick: OptionButton = $Body/RightPanel/Props/FormationPick
-@onready var _movement_pick: OptionButton = $Body/RightPanel/Props/MovementPick
-@onready var _shoot_pick: OptionButton = $Body/RightPanel/Props/ShootPick
+@onready var _movement_pick: OptionButton = $Body/RightPanel/Props/MovementRow/MovementPick
+@onready var _edit_movement_btn: Button = $Body/RightPanel/Props/MovementRow/EditMovementBtn
+@onready var _shoot_pick: OptionButton = $Body/RightPanel/Props/ShootRow/ShootPick
+@onready var _edit_shoot_btn: Button = $Body/RightPanel/Props/ShootRow/EditShootBtn
 @onready var _hp_spin: SpinBox = $Body/RightPanel/Props/HpSpin
 @onready var _bounty_spin: SpinBox = $Body/RightPanel/Props/BountySpin
 @onready var _silent_check: CheckBox = $Body/RightPanel/Props/SilentCheck
@@ -130,6 +132,8 @@ func _wire_signals() -> void:
 	_formation_pick.item_selected.connect(_on_formation_picked)
 	_movement_pick.item_selected.connect(_on_movement_picked)
 	_shoot_pick.item_selected.connect(_on_shoot_picked)
+	_edit_movement_btn.pressed.connect(_on_edit_movement)
+	_edit_shoot_btn.pressed.connect(_on_edit_shoot)
 	_hp_spin.value_changed.connect(_on_hp_changed)
 	_bounty_spin.value_changed.connect(_on_bounty_changed)
 	_silent_check.toggled.connect(_on_silent_toggled)
@@ -551,6 +555,39 @@ func _try_restore_pending() -> bool:
 func _on_back() -> void:
 	_exit_hd_viewport()
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev_menu.tscn")
+
+
+# Open the movement pattern editor with the currently-selected wave's
+# pending state stashed for restore on return. Pattern editor sees a
+# return-scene meta and lands back here when it's done.
+func _on_edit_movement() -> void:
+	var w := _current_wave()
+	if w == null:
+		_set_status("Select a wave first")
+		return
+	_save_pending(w)
+	if has_node("/root/Run"):
+		var run = get_node("/root/Run")
+		run.set_meta("wave_editor_pending_key", _current_key)
+		run.set_meta("wave_editor_pending_name", _name_edit.text)
+		run.set_meta("pattern_editor_return_scene", "res://scenes/dev/wave_editor.tscn")
+	_exit_hd_viewport()
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/movement_pattern_editor.tscn")
+
+
+func _on_edit_shoot() -> void:
+	var w := _current_wave()
+	if w == null:
+		_set_status("Select a wave first")
+		return
+	_save_pending(w)
+	if has_node("/root/Run"):
+		var run = get_node("/root/Run")
+		run.set_meta("wave_editor_pending_key", _current_key)
+		run.set_meta("wave_editor_pending_name", _name_edit.text)
+		run.set_meta("pattern_editor_return_scene", "res://scenes/dev/wave_editor.tscn")
+	_exit_hd_viewport()
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/shoot_pattern_editor.tscn")
 
 
 func _select_by_key(key: String) -> void:
