@@ -52,30 +52,25 @@ const HAZARD_SCENE := "res://scenes/main.tscn"
 # vertically with 8px slack so the grid lives at y = 8 … 392.
 const COLS: int = 15
 const ROWS: int = 12
-# 480×270 widescreen rework — 15×12 grid of 20-px cells = 300 × 240,
-# centered in the 480-wide viewport with GRID_X0=90 and 15-px slack
-# top/bottom (GRID_Y0=15). Wider grid (was 10) uses the new horizontal
-# room and stops the nodes from feeling crammed (Cody 2026-05-19).
-const CELL: int = 20
-const GRID_Y0: int = 15
-const GRID_X0: int = 90
-# Inner playable area (1-cell margin on each side).
+# 480×270 widescreen rework v2 — 15×12 grid of 16-px cells = 240 × 192,
+# centered in viewport (GRID_X0=120, GRID_Y0=39). Cell size matches a
+# clean 2:1 downscale of the 32-px dot atlas so pixels stay sharp
+# (Cody 2026-05-19 — fixes "unaligned" feel from non-integer scaling).
+const CELL: int = 16
+const GRID_Y0: int = 39
+const GRID_X0: int = 120
 const C_MIN: int = 1
-const C_MAX: int = COLS - 2  # 8
+const C_MAX: int = COLS - 2  # 13
 const R_MIN: int = 1
 const R_MAX: int = ROWS - 2  # 10
-# Special rows.
 const BOSS_ROW: int = R_MIN              # 1
 const PRE_BOSS_ROW: int = BOSS_ROW + 1   # 2
-# Start cell: bottom 2×2 (rows R_MAX..R_MAX+1 conceptually; we sit at
-# (160, 352) which is the corner between cells (4,10)-(5,11)).
-const START_POS := Vector2(GRID_X0 + 8 * CELL, GRID_Y0 + 11 * CELL)
-# Boss mirrors the start placement: single icon, sits at the corner
-# between rows 0 and 1.
-const BOSS_POS := Vector2(GRID_X0 + 8 * CELL, GRID_Y0 + 1 * CELL)
-# Conceptual column for edge math on start + boss (both straddle cols
-# 4-5; we treat them as col 4 for col-distance checks).
+# Start sits centered on col 7 (the geometric center of 15 cols) at the
+# bottom of the playable rows. Boss mirrors above. Single-cell anchors
+# now — the 2×2 corner trick was a 320-wide artifact.
 const ANCHOR_COL: int = 7
+const START_POS := Vector2(GRID_X0 + ANCHOR_COL * CELL + CELL / 2, GRID_Y0 + 11 * CELL + CELL / 2)
+const BOSS_POS := Vector2(GRID_X0 + ANCHOR_COL * CELL + CELL / 2, GRID_Y0 + 1 * CELL + CELL / 2)
 # Start "covers" rows 10 and 11. Per Roman, no other nodes may share
 # those rows; the lowest non-start node is at row 9 (1 up) or row 8
 # (2 up). All inner rows above that are open.
@@ -83,7 +78,9 @@ const FILL_ROW_MIN: int = PRE_BOSS_ROW + 1  # 3 — first row above pre-boss
 const FILL_ROW_MAX: int = R_MAX - 1         # 9 — one row above start
 # Edge constraints — connect 1-2 rows up, ≤2 cols away.
 const EDGE_ROW_REACH: int = 2
-const EDGE_COL_REACH: int = 2
+# Edge col reach bumped from 2 to 4 to match the same physical span
+# (~64 px) now that CELL halved from 32→16.
+const EDGE_COL_REACH: int = 4
 
 # State frame coloring is baked into the sprite strip — no per-state
 # modulate needed. Keep these around in case we want to dim visited/far
