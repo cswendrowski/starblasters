@@ -150,7 +150,13 @@ func _start_cycle() -> void:
 	await get_tree().create_timer(delay).timeout
 	if not is_instance_valid(self):
 		return
-	var entry_x: float = randf_range(32.0, screensize.x - 32.0)
+	# Pick a re-entry x inside the playfield band, not the full viewport —
+	# otherwise the cycle dropped enemies into the side gutters where the
+	# player can't shoot back. 22 px inset keeps the sprite fully inside
+	# the band edges (Roman, 2026-05-19).
+	var x_min: float = Playfield.X_MIN + 22.0
+	var x_max: float = Playfield.X_MAX - 22.0
+	var entry_x: float = randf_range(x_min, x_max)
 	position = Vector2(entry_x, screensize.y + 12.0)
 	_pre_cycle_scale = scale
 	_pre_cycle_modulate = modulate
