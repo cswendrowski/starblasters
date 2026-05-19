@@ -262,9 +262,14 @@ func _spawn_vignette() -> void:
 	var sprite := Sprite2D.new()
 	sprite.name = "Vignette"
 	sprite.texture = _build_vignette_texture()
-	# Cover the 800x1000 viewport. The vignette texture is 64x80 → scale 12.5x.
-	sprite.scale = Vector2(5, 5)
-	sprite.position = Vector2(160, 200)
+	# Cover the 480×270 viewport. Texture is 64×80; uniform 7.5× scales it to
+	# 480×600, more than enough to span the playfield horizontally and
+	# vertically with comfortable falloff. Position = viewport centre.
+	# (Previous values 5× / (160,200) were sized for the legacy 320×400
+	# viewport and left the right 160 px of the new aspect un-vignetted —
+	# read as a bright vertical bar on the right side. Cody 2026-05-19.)
+	sprite.scale = Vector2(7.5, 7.5)
+	sprite.position = Vector2(240, 135)
 	var mat := CanvasItemMaterial.new()
 	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_MUL
 	sprite.material = mat
@@ -587,7 +592,12 @@ func _spawn_planet(scene_path: String, rng: RandomNumberGenerator, planet_idx_us
 		p.set_rotates(rng.randf() < 0.7)
 	if p.has_method("set_dither"):
 		p.set_dither(rng.randf() < 0.5)
-	var jitter: float = rng.randf_range(-80.0, 80.0)
+	# Jitter clamped so the planet's bloom/halo (up to ~2.2× actual_size
+	# for stars + black holes) doesn't bleed past the 480-wide viewport
+	# and form a vertical bright bar on either edge (Cody 2026-05-19).
+	var max_glow_half: float = actual_size * 1.1
+	var jitter_max: float = max(0.0, 240.0 - max_glow_half - 8.0)
+	var jitter: float = rng.randf_range(-jitter_max, jitter_max)
 	var x: float = (480.0 - actual_size) * 0.5 + jitter
 	var vert_off: float = PLANET_VERT_OFFSET.get(planet_idx_used, 0.78)
 	var y: float = -actual_size * vert_off
@@ -918,11 +928,11 @@ func _spawn_warp_streaks() -> void:
 	p.one_shot = false
 	p.explosiveness = 0.0
 	p.local_coords = false
-	p.position = Vector2(400, -10)
+	p.position = Vector2(240, -10)
 	p.texture = _build_streak_texture()
 	var m := ParticleProcessMaterial.new()
 	m.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	m.emission_box_extents = Vector3(420, 6, 0)
+	m.emission_box_extents = Vector3(260, 6, 0)
 	m.direction = Vector3(0, 1, 0)
 	m.spread = 0.0
 	m.initial_velocity_min = warp_streak_speed * 0.8

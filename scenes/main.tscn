@@ -127,7 +127,7 @@ region_rect = Rect2(2.08165e-12, 2.08165e-12, 480, 270)
 [node name="Backdrop" type="Node2D" parent="."]
 script = ExtResource("2_p68gc")
 drift_speed = 50.0
-planet_size = 200.0
+planet_size = 130.0
 asteroid_count = 15
 planet_pixels = 128.0
 asteroid_pixels = 64.0
