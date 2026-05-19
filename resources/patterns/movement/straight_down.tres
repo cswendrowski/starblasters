@@ -1,0 +1,8 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/patterns/straight_down.gd" id="1_sd"]
+
+[resource]
+script = ExtResource("1_sd")
+speed = 125.0
+drift_x = 0.0

@@ -272,8 +272,12 @@ func _on_map_pressed() -> void:
 	if has_node("/root/Run"):
 		var run = get_node("/root/Run")
 		if run.test_mode_active:
-			target = "res://scenes/main_menu.tscn"
+			# Honor a custom return scene (e.g. wave editor) when the test
+			# was launched from a dev tool. Defaults to main menu.
+			target = String(run.get_meta("test_return_scene", "res://scenes/main_menu.tscn"))
 			run.test_mode_active = false
+			if run.has_meta("test_return_scene"):
+				run.remove_meta("test_return_scene")
 	var root: Control = $Root
 	var tw = create_tween()
 	tw.tween_property(root, "modulate:a", 0.0, 0.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)

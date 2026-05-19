@@ -26,6 +26,10 @@ const PLAY_LEVEL_PATH := "user://wave_editor_play.tres"
 const HD_VIEWPORT := Vector2i(1920, 1080)
 var _prev_scale_size: Vector2i = Vector2i.ZERO
 
+const MOVEMENT_DIR := "res://resources/patterns/movement/"
+# Paths in MovementPick by item index, parallel to enemy_paths.
+var _movement_paths: Array = []
+
 @onready var _wave_list: ItemList = $Body/LeftRail/WaveList
 @onready var _new_btn: Button = $Body/LeftRail/LeftButtons/NewBtn
 @onready var _dup_btn: Button = $Body/LeftRail/LeftButtons/DuplicateBtn
@@ -36,6 +40,7 @@ var _prev_scale_size: Vector2i = Vector2i.ZERO
 @onready var _interval_spin: SpinBox = $Body/RightPanel/Props/IntervalSpin
 @onready var _delay_spin: SpinBox = $Body/RightPanel/Props/DelaySpin
 @onready var _formation_pick: OptionButton = $Body/RightPanel/Props/FormationPick
+@onready var _movement_pick: OptionButton = $Body/RightPanel/Props/MovementPick
 @onready var _hp_spin: SpinBox = $Body/RightPanel/Props/HpSpin
 @onready var _bounty_spin: SpinBox = $Body/RightPanel/Props/BountySpin
 @onready var _silent_check: CheckBox = $Body/RightPanel/Props/SilentCheck
@@ -61,6 +66,7 @@ func _ready() -> void:
 	_enter_hd_viewport()
 	_populate_enemy_picker()
 	_populate_formation_picker()
+	_populate_movement_picker()
 	_scan_waves()
 	_wire_signals()
 	if _wave_list.item_count > 0:
@@ -108,6 +114,7 @@ func _wire_signals() -> void:
 	_interval_spin.value_changed.connect(_on_interval_changed)
 	_delay_spin.value_changed.connect(_on_delay_changed)
 	_formation_pick.item_selected.connect(_on_formation_picked)
+	_movement_pick.item_selected.connect(_on_movement_picked)
 	_hp_spin.value_changed.connect(_on_hp_changed)
 	_bounty_spin.value_changed.connect(_on_bounty_changed)
 	_silent_check.toggled.connect(_on_silent_toggled)
@@ -172,6 +179,29 @@ func _populate_formation_picker() -> void:
 		_formation_pick.add_item(label)
 
 
+func _populate_movement_picker() -> void:
+	_movement_pick.clear()
+	_movement_paths.clear()
+	# First item is "<none>" so the designer can clear the override.
+	_movement_pick.add_item("<none>")
+	_movement_paths.append("")
+	var dir := DirAccess.open(MOVEMENT_DIR)
+	if dir == null:
+		return
+	dir.list_dir_begin()
+	var paths: Array = []
+	var fname := dir.get_next()
+	while fname != "":
+		if not dir.current_is_dir() and fname.ends_with(".tres"):
+			paths.append(MOVEMENT_DIR + fname)
+		fname = dir.get_next()
+	dir.list_dir_end()
+	paths.sort()
+	for p in paths:
+		_movement_paths.append(p)
+		_movement_pick.add_item(String(p).get_file().get_basename())
+
+
 # ---- Selection / form binding -------------------------------------------
 
 func _on_wave_selected(idx: int) -> void:
@@ -188,6 +218,7 @@ func _on_wave_selected(idx: int) -> void:
 	_interval_spin.value = w.spawn_interval
 	_delay_spin.value = w.spawn_delay
 	_formation_pick.select(clamp(w.formation, 0, _formation_pick.item_count - 1))
+	_select_movement_path(w.movement_override.resource_path if w.movement_override else "")
 	_hp_spin.value = w.max_health
 	_bounty_spin.value = w.bounty_value
 	_silent_check.button_pressed = w.silent
@@ -202,6 +233,14 @@ func _select_enemy_path(path: String) -> void:
 			_enemy_pick.select(i)
 			return
 	_enemy_pick.select(-1)
+
+
+func _select_movement_path(path: String) -> void:
+	for i in _movement_paths.size():
+		if _movement_paths[i] == path:
+			_movement_pick.select(i)
+			return
+	_movement_pick.select(0)  # <none>
 
 
 func _current_wave() -> WaveDef:
@@ -246,6 +285,17 @@ func _on_delay_changed(v: float) -> void:
 func _on_formation_picked(idx: int) -> void:
 	var w := _current_wave()
 	if w: w.formation = idx; _mark_dirty()
+
+
+func _on_movement_picked(idx: int) -> void:
+	var w := _current_wave()
+	if w == null:
+		return
+	if idx <= 0 or idx >= _movement_paths.size():
+		w.movement_override = null
+	else:
+		w.movement_override = load(_movement_paths[idx])
+	_mark_dirty()
 
 
 func _on_hp_changed(v: float) -> void:
@@ -386,6 +436,9 @@ func _on_play() -> void:
 			run.new_run()
 		run.test_mode_active = true
 		run.set_meta("custom_level_path", PLAY_LEVEL_PATH)
+		# When the wave finishes (or player dies), cleared_summary routes
+		# us back here instead of the main menu.
+		run.set_meta("test_return_scene", "res://scenes/dev/wave_editor.tscn")
 	_exit_hd_viewport()
 	SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
 

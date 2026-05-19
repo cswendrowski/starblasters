@@ -1,0 +1,11 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/patterns/loiter.gd" id="1_lo"]
+
+[resource]
+script = ExtResource("1_lo")
+hover_y = 88.0
+enter_speed = 110.0
+loiter_time = 3.0
+exit_accel = 300.0
+exit_max_speed = 350.0
