@@ -11,6 +11,7 @@ const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 
 var _test_hazard_modal: CanvasLayer = null
 var _vbox: VBoxContainer = null
+var _grid: GridContainer = null
 
 
 func _ready() -> void:
@@ -36,25 +37,21 @@ func _install_backdrop() -> void:
 
 
 func _build_ui() -> void:
-	# Wrap the menu in a ScrollContainer so the bottom-most button is
-	# always reachable on the 320×400 viewport (Roman, 2026-05-18: "the
-	# bottom most button is cut off"). Center horizontally + give a fixed
-	# inset so the column is a consistent 180px wide.
+	# Roman 2026-05-19: dev shortcuts now lay out as a 2-column grid (the
+	# list grew past comfortable single-column scroll). Title + Back
+	# button stay full-width above/below the grid.
 	var scroll := ScrollContainer.new()
 	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(scroll)
 	var pad := MarginContainer.new()
-	pad.add_theme_constant_override("margin_left", 70)
-	pad.add_theme_constant_override("margin_right", 70)
+	pad.add_theme_constant_override("margin_left", 22)
+	pad.add_theme_constant_override("margin_right", 22)
 	pad.add_theme_constant_override("margin_top", 8)
 	pad.add_theme_constant_override("margin_bottom", 8)
 	pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(pad)
 	var v := VBoxContainer.new()
-	# Tighter separation — was 12, dev menu fits 400px with 8 (Roman
-	# also wants the bottom button visible).
 	v.add_theme_constant_override("separation", 6)
-	v.custom_minimum_size = Vector2(180, 0)
 	pad.add_child(v)
 	_vbox = v
 
@@ -73,8 +70,13 @@ func _build_ui() -> void:
 
 	v.add_child(HSeparator.new())
 
-	# Roman, 2026-05-18: Maneuver Sim and Import/Export pulled from the
-	# menu for now (kept in code, just not exposed).
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 6)
+	grid.add_theme_constant_override("v_separation", 4)
+	v.add_child(grid)
+	_grid = grid
+
 	_add_button("[ Movement Test ]", _on_movement_test, true)
 	_add_button("[ Movement Lab ]", _on_movement_lab, true)
 	_add_button("[ Wave Tester ]", _on_wave_tester, true)
@@ -89,18 +91,25 @@ func _build_ui() -> void:
 
 	v.add_child(HSeparator.new())
 
-	_add_button("Back", _on_back, false)
+	# Back button stays in the outer VBox so it spans both columns.
+	var back := Button.new()
+	back.text = "Back"
+	back.custom_minimum_size = Vector2(140, 16)
+	UiTheme.style_button(back, true)
+	back.pressed.connect(_on_back)
+	v.add_child(back)
 
 
 func _add_button(text: String, cb: Callable, dev_green: bool) -> void:
 	var btn := Button.new()
 	btn.text = text
-	btn.custom_minimum_size = Vector2(140, 16)
+	btn.custom_minimum_size = Vector2(108, 16)
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	UiTheme.style_button(btn, true)
 	if dev_green:
 		btn.add_theme_color_override("font_color", Color(0.55, 1.0, 0.6, 1.0))
 	btn.pressed.connect(cb)
-	_vbox.add_child(btn)
+	_grid.add_child(btn)
 
 
 # ---- Button handlers ----

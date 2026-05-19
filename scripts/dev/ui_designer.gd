@@ -73,6 +73,25 @@ var _readouts: Dictionary = {} # key -> Label
 var _status_label: Label = null
 var _live_preview_failed: bool = false
 var _fallback_label: Label = null
+var _grabber_tex: ImageTexture = null
+
+
+func _make_grabber_texture() -> ImageTexture:
+	# 4×4 white disc (slightly soft) used as the HSlider grabber so each
+	# knob row can compress to ~10 px tall. Cached on _grabber_tex so we
+	# don't allocate per-knob.
+	if _grabber_tex != null:
+		return _grabber_tex
+	var img := Image.create(4, 4, false, Image.FORMAT_RGBA8)
+	img.fill(Color(1, 1, 1, 0))
+	for y in 4:
+		for x in 4:
+			var dx := float(x) - 1.5
+			var dy := float(y) - 1.5
+			if dx * dx + dy * dy <= 4.0:
+				img.set_pixel(x, y, Color(0.85, 0.92, 1.0, 1.0))
+	_grabber_tex = ImageTexture.create_from_image(img)
+	return _grabber_tex
 
 
 # --- Mock player ---------------------------------------------------------
@@ -306,8 +325,13 @@ func _add_knob_row(parent: Node, k: Dictionary) -> void:
 	slider.value = float(_values[key])
 	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	slider.custom_minimum_size = Vector2(0, 8)
-	# Shrink the grabber so the slider can actually compress vertically.
-	slider.add_theme_constant_override("grabber_offset", 0)
+	# Override the grabber icon with a tiny 4×4 disc so the slider row
+	# can compress vertically; default grabber forces ~16 px tall rows.
+	var grab_tex := _make_grabber_texture()
+	if grab_tex:
+		slider.add_theme_icon_override("grabber", grab_tex)
+		slider.add_theme_icon_override("grabber_highlight", grab_tex)
+		slider.add_theme_icon_override("grabber_disabled", grab_tex)
 	row.add_child(slider)
 
 	var spin := SpinBox.new()
@@ -316,8 +340,15 @@ func _add_knob_row(parent: Node, k: Dictionary) -> void:
 	spin.step = float(k["step"])
 	spin.value = float(_values[key])
 	spin.custom_minimum_size = Vector2(34, 10)
-	spin.add_theme_font_size_override("font_size", 8)
+	# SpinBox renders its number via an inner LineEdit; theme font_size
+	# on the SpinBox itself doesn't reach it, so drive the LineEdit's
+	# font_size directly. Defer one frame in case the LineEdit isn't
+	# ready until after add_child.
+	spin.alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	row.add_child(spin)
+	var le := spin.get_line_edit()
+	if le:
+		le.add_theme_font_size_override("font_size", 7)
 
 	var setter := func(v: float):
 		var nv = int(v) if kind == "int" else v
