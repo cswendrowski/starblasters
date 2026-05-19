@@ -120,6 +120,19 @@ func _spawn_enemy(wave: Resource, index: int) -> void:
 		enemy.movement = wave.movement_override
 	if wave.shoot_pattern_override != null and "shoot_pattern" in enemy:
 		enemy.shoot_pattern = wave.shoot_pattern_override
+	# Pattern-claimed intervals are step 1 (pattern owns its rhythm), wave
+	# overrides win as step 2. Final precedence: wave > pattern > .tscn
+	# default. Works regardless of how shoot_pattern landed on the enemy
+	# (authored in .tscn vs assigned just above from wave_override).
+	if "shoot_pattern" in enemy and enemy.shoot_pattern != null:
+		if "fire_interval_min" in enemy.shoot_pattern \
+				and enemy.shoot_pattern.fire_interval_min > 0.0 \
+				and "fire_interval_min" in enemy:
+			enemy.fire_interval_min = enemy.shoot_pattern.fire_interval_min
+		if "fire_interval_max" in enemy.shoot_pattern \
+				and enemy.shoot_pattern.fire_interval_max > 0.0 \
+				and "fire_interval_max" in enemy:
+			enemy.fire_interval_max = enemy.shoot_pattern.fire_interval_max
 	if wave.fire_interval_min > 0.0 and "fire_interval_min" in enemy:
 		enemy.fire_interval_min = wave.fire_interval_min
 	if wave.fire_interval_max > 0.0 and "fire_interval_max" in enemy:

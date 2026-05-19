@@ -12,6 +12,14 @@ extends Resource
 
 @export var bullet_scene: PackedScene
 
+# Per-pattern fire pacing. -1 means "don't override the enemy's
+# fire_interval_min / fire_interval_max defaults"; positive values let
+# the pattern claim its own rhythm (e.g. a heavy spread that needs more
+# cooldown than the enemy's default cadence). The wave's
+# fire_interval_min/max override still wins over this.
+@export var fire_interval_min: float = -1.0
+@export var fire_interval_max: float = -1.0
+
 
 func fire(_enemy) -> void:
 	pass

@@ -46,14 +46,34 @@ func _ready() -> void:
 	)
 
 
-func _on_pattern_loaded(_res: Resource) -> void:
+func _on_pattern_loaded(res: Resource) -> void:
 	_fire_timer = 0.0
 	_clear_shots()
+	_seed_preview_interval(res)
 
 
-func _on_field_changed(_res: Resource, _prop_name: String) -> void:
-	# Tracers auto-update on next fire — no restart needed.
-	pass
+func _on_field_changed(res: Resource, prop_name: String) -> void:
+	# When the designer tweaks fire_interval_min/max, reseat the preview
+	# interval so the rhythm change shows up immediately.
+	if prop_name == "fire_interval_min" or prop_name == "fire_interval_max":
+		_seed_preview_interval(res)
+
+
+# Pick the preview interval from the pattern's own fire_interval_min/max
+# when both are set (positive). Falls back to the SpinBox's value when
+# the pattern hasn't claimed its own rhythm. Randomise within the range
+# each cycle so the visualisation matches in-game cadence variance.
+func _seed_preview_interval(res: Resource) -> void:
+	if res == null:
+		return
+	var mn := -1.0
+	var mx := -1.0
+	if "fire_interval_min" in res:
+		mn = float(res.get("fire_interval_min"))
+	if "fire_interval_max" in res:
+		mx = float(res.get("fire_interval_max"))
+	if mn > 0.0 and mx > 0.0:
+		_preview_interval = randf_range(mn, mx)
 
 
 func _clear_shots() -> void:
@@ -66,11 +86,13 @@ func _clear_shots() -> void:
 func _process(delta: float) -> void:
 	if _shots_layer == null:
 		return
-	# Advance fire clock; emit tracers when interval elapses.
+	# Advance fire clock; emit tracers when interval elapses, then
+	# re-roll the interval (matches in-game randf_range cadence).
 	_fire_timer += delta
 	if _fire_timer >= _preview_interval:
 		_fire_timer = 0.0
 		_emit_tracers()
+		_seed_preview_interval(_current_resource())
 	# Move existing tracers forward; cull when expired.
 	for tr in _shots_layer.get_children():
 		var dir: Vector2 = tr.get_meta("dir", Vector2(0, 1))
