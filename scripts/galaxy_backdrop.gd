@@ -61,7 +61,7 @@ const PLANET_TINT = {
 @export var drift_speed: float = 22.0
 # Stellar foundation: slightly bigger + slower per Roman 2026-05-16
 # parallax overhaul ("should be somewhat bigger and move a bit slower").
-@export var planet_size: float = 352.0  # 320×400 res rework
+@export var planet_size: float = 240.0  # 480×270 widescreen rework — sized so the body comfortably peeks in at the top of the new aspect without smothering the playfield
 @export_range(0.0, 0.9) var planet_size_variance: float = 0.35
 @export var planet_drift_mult: float = 0.10
 @export var asteroid_count: int = 3
@@ -308,7 +308,7 @@ func _spawn_anchor_tint_color(hue: Color, alpha: float) -> void:
 	var tint = ColorRect.new()
 	tint.name = "AnchorTint"
 	tint.color = multiplier
-	tint.size = Vector2(320, 400)
+	tint.size = Vector2(480, 270)
 	tint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var mat := CanvasItemMaterial.new()
 	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_MUL
@@ -319,7 +319,7 @@ func _spawn_deep_clear() -> void:
 	var deep = ColorRect.new()
 	deep.name = "DeepSky"
 	deep.color = Color(0.06, 0.06, 0.09, 1.0)
-	deep.size = Vector2(320, 400)
+	deep.size = Vector2(480, 270)
 	deep.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(deep)
 
@@ -360,7 +360,7 @@ func _make_space_layer(layer_name: String, shader_path: String, colorscheme, sd:
 		return
 	var rect = ColorRect.new()
 	rect.name = layer_name
-	rect.size = Vector2(320, 400)
+	rect.size = Vector2(480, 270)
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	rect.color = Color(0, 0, 0, 0)
 	var mat = ShaderMaterial.new()
@@ -423,7 +423,7 @@ func _spawn_starfield() -> void:
 		var rect = ColorRect.new()
 		rect.name = layer["name"]
 		rect.color = Color(0, 0, 0, 0)
-		rect.size = Vector2(320, 400)
+		rect.size = Vector2(480, 270)
 		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		rect.modulate = layer["modulate"]
 		var mat = ShaderMaterial.new()
@@ -992,7 +992,9 @@ func _process(delta: float) -> void:
 		if c.has_meta("drift_mult"):
 			mult = c.get_meta("drift_mult")
 		c.position.y += drift_speed * mult * delta
-		if c.position.y > 440:
+		# Reset bound was 440 at 400-tall viewport; 270-tall viewport uses
+		# 310 as the corresponding off-bottom mark.
+		if c.position.y > 310:
 			var reset_y: float = -120.0
 			if mult < 0.3 and c.has_meta("planet_actual_size"):
 				reset_y = -float(c.get_meta("planet_actual_size")) * 0.78

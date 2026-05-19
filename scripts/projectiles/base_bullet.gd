@@ -40,10 +40,10 @@ class_name BaseBullet
 var _t: float = 0.0
 var _killed: bool = false
 
-# 320×400 internal resolution (Roman, 2026-05-17 resolution rework).
+# 480×270 internal resolution (horizontal rework 2026-05-19).
 const PLAYFIELD_MARGIN: float = 24.0
-const PLAYFIELD_W: float = 320.0
-const PLAYFIELD_H: float = 400.0
+const PLAYFIELD_W: float = 480.0
+const PLAYFIELD_H: float = 270.0
 
 
 func _ready() -> void:
