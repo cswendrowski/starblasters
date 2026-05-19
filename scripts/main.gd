@@ -67,7 +67,11 @@ func _ready() -> void:
 func _install_playfield_frame() -> void:
 	var layer := CanvasLayer.new()
 	layer.name = "PlayfieldFrame"
-	layer.layer = -1
+	# Layer 1 = above the galaxy backdrop (Node2D world canvas at 0) so the
+	# frame is actually visible. Frame is a thin transparent panel with a
+	# 1-px border at x=132 / x=348, well outside the corner-anchored HUD
+	# elements, so sharing layer 1 with the UI is fine.
+	layer.layer = 1
 	add_child(layer)
 	var frame := Panel.new()
 	frame.name = "Frame"
