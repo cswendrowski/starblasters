@@ -251,6 +251,25 @@ func start() -> void:
 		$ShieldRegenTimer.start()
 	else:
 		$ShieldRegenTimer.stop()
+	# Restore super_charges from Run (persisted across scenes) — parts'
+	# apply() already set max during _ready, so we just overwrite the
+	# current charge count with whatever was saved. Run.super_charges
+	# starts at 0 on new_run, but the part's initial apply has already
+	# populated max_super_charges and run.super_charges (via the part).
+	# Use the larger of the two on first combat so we start with full
+	# charges.
+	if has_node("/root/Run"):
+		var run = get_node("/root/Run")
+		if "super_charges" in run and "max_super_charges" in run:
+			if int(run.super_charges) <= 0 and run.super_charges < max_super_charges:
+				# Fresh run — keep the full charges the part assigned and
+				# sync Run so the snapshot starts off correct.
+				run.super_charges = super_charges
+				run.max_super_charges = max_super_charges
+			else:
+				# Returning from a meta scene with partial charges spent.
+				super_charges = clampi(int(run.super_charges), 0, max_super_charges)
+				super_charges_changed.emit(super_charges, max_super_charges)
 	# Force-emit UI updates so bars reflect current loadout
 	shield_changed.emit(max_shield, shield)
 	hull_changed.emit(max_hull, hull)
@@ -533,6 +552,12 @@ func fire_super() -> void:
 		return
 	super_charges -= 1
 	super_charges_changed.emit(super_charges, max_super_charges)
+	# Persist immediately so a mid-combat scene swap (death, level clear)
+	# carries the consumed charge forward.
+	if has_node("/root/Run"):
+		var run = get_node("/root/Run")
+		if "super_charges" in run:
+			run.super_charges = super_charges
 	if super_part.has_method("activate"):
 		super_part.activate(self)
 

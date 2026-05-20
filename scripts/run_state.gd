@@ -15,6 +15,11 @@ var bounty: int = 0:
 
 # Ship persistence (set from Player when transitioning out of combat)
 var current_hull: int = 0
+# Super-weapon charges (Smart Bomb / Hyper / Phase Shift). Persists
+# across scenes so a partial-spend in combat survives a trip to the
+# outpost. Refilled to max by outpost's _on_super_refill action.
+var super_charges: int = 0
+var max_super_charges: int = 3
 var max_hull: int = 0
 var current_shield: int = 0
 var max_shield: int = 0
@@ -176,6 +181,10 @@ func snapshot_player(player) -> void:
 	max_hull = player.max_hull
 	current_shield = player.shield
 	max_shield = player.max_shield
+	if "super_charges" in player:
+		super_charges = player.super_charges
+	if "max_super_charges" in player:
+		max_super_charges = player.max_super_charges
 	if player.has_method("get_loadout"):
 		loadout_snapshot = player.get_loadout()
 
@@ -189,3 +198,10 @@ func apply_to_player(player) -> void:
 		player.shield = current_shield
 	if player.has_method("apply_loadout") and not loadout_snapshot.is_empty():
 		player.apply_loadout(loadout_snapshot)
+	# Restore super charges AFTER apply_loadout — loadout's apply()
+	# would otherwise reset them to max via the Smart Bomb part's apply.
+	if "super_charges" in player and max_super_charges > 0:
+		player.max_super_charges = max_super_charges
+		player.super_charges = super_charges
+		if player.has_signal("super_charges_changed"):
+			player.super_charges_changed.emit(super_charges, max_super_charges)

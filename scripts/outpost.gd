@@ -57,6 +57,13 @@ func _ready() -> void:
 	_build_ui()
 	if has_node("/root/Run"):
 		get_node("/root/Run").bounty_changed.connect(_update_bounty_label)
+	# Free super-charge refill on outpost visit (genre standard: bombs
+	# refill between stages). A paid in-station refill button is a polish
+	# follow-up; for now visiting is the refill action.
+	if has_node("/root/Run"):
+		var run = get_node("/root/Run")
+		if "super_charges" in run and "max_super_charges" in run:
+			run.super_charges = run.max_super_charges
 
 
 # ---- UI scaffold ----------------------------------------------------------
