@@ -106,20 +106,39 @@ func _regenerate() -> void:
 		return
 	var v = ps.instantiate()
 	# Per-instance shader material so each seed produces a distinct rock.
-	var inner: Node = v.get_node_or_null("Asteroid")
-	if inner and "material" in inner and inner.material != null:
+	# Targets the INNER Asteroid ColorRect — that's where the shader lives.
+	var inner: Control = v.get_node_or_null("Asteroid") as Control
+	if inner and inner.material != null:
 		inner.material = inner.material.duplicate()
 	if v.has_method("set_seed"):
 		v.set_seed(_seed)
+	# Size is authoritative — it drives both the outer Control rect AND
+	# the inner ColorRect rect (which the shader actually paints into).
+	# `pixels` is a shader uniform that controls the procgen detail level
+	# independently from the display size.
 	var size_px: float = float(_size_slider.value)
 	if v is Control:
 		v.custom_minimum_size = Vector2(size_px, size_px)
 		v.size = Vector2(size_px, size_px)
 		v.position = Vector2(220 - size_px * 0.5, 220 - size_px * 0.5)
+		# Pivot at the centre so rotation spins around the visible midpoint.
 		v.pivot_offset = Vector2(size_px * 0.5, size_px * 0.5)
 		v.modulate = Color(_tint_r_slider.value, _tint_g_slider.value, _tint_b_slider.value, 1.0)
+	# Re-size the inner ColorRect to match outer (otherwise it stays at
+	# the .tscn's 100×100 default and the Size slider does nothing
+	# visible). Pivot it so any inner rotation also stays centered.
+	if inner:
+		inner.size = Vector2(size_px, size_px)
+		inner.position = Vector2.ZERO
+		inner.pivot_offset = Vector2(size_px * 0.5, size_px * 0.5)
+	# `pixels` shader uniform — keep separate from display size so the
+	# designer can author detail level vs. screen footprint independently.
+	# Asteroid.set_pixels also force-resizes the inner ColorRect, so call
+	# it AFTER our resize above and re-set the inner size to size_px.
 	if v.has_method("set_pixels"):
 		v.set_pixels(float(_pixels_slider.value))
+	if inner:
+		inner.size = Vector2(size_px, size_px)
 	v.set_meta("spin", float(_spin_slider.value))
 	add_child(v)
 	_visual = v
