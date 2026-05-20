@@ -18,6 +18,13 @@ var bullet_damage: int = 1
 # bullet_spread_count > 1 + bullet_spread_degrees > 0.
 var bullet_spread_count: int = 1
 var bullet_spread_degrees: float = 0.0
+# Super weapon slot — DEVICE_BAY_1 Part assigns itself here on apply().
+# Charges are consumed on tap (single-use per press); refilled at
+# outposts. Initial charges populated when the part is equipped.
+var super_part: Resource = null
+var super_charges: int = 0
+var max_super_charges: int = 3
+signal super_charges_changed(value: int, maximum: int)
 # Exported so player.tscn can assign a fallback bullet; parts override at runtime.
 @export var bullet_scene: PackedScene
 @export var super_scene: PackedScene
@@ -458,10 +465,19 @@ func fire_secondary() -> void:
 
 
 func fire_super() -> void:
-	# Hook for super weapons (Smart Bomb / Hyper / Drone Swarm / Phase
-	# Shift). Limited charges, consumed on tap, refilled at outposts.
-	# Stub — replace when DEVICE_BAY Parts land.
-	pass
+	# Single-tap super weapon. Needs an equipped DEVICE_BAY Part and at
+	# least one charge. Part owns the activation effect (Smart Bomb /
+	# Hyper / Drone Swarm / Phase Shift).
+	if super_part == null:
+		return
+	if super_charges <= 0:
+		return
+	if not is_alive:
+		return
+	super_charges -= 1
+	super_charges_changed.emit(super_charges, max_super_charges)
+	if super_part.has_method("activate"):
+		super_part.activate(self)
 
 
 # Spawn a 4-px white dot at the ship's center so the player can see the

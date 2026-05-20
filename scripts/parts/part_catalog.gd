@@ -20,6 +20,7 @@ const LaserBeamCannon = preload("res://scripts/parts/laser_beam_cannon.gd")
 const RocketPodCannon = preload("res://scripts/parts/rocket_pod_cannon.gd")
 const SeekingMissileCannon = preload("res://scripts/parts/seeking_missile_cannon.gd")
 const SpreadCannon = preload("res://scripts/parts/spread_cannon.gd")
+const SmartBomb = preload("res://scripts/parts/smart_bomb.gd")
 const BulletDefault = preload("res://scenes/projectiles/bullet.tscn")
 const BulletHeavy = preload("res://scenes/projectiles/bullet_heavy.tscn")
 const BulletMinigun = preload("res://scenes/projectiles/bullet_minigun.tscn")
@@ -52,6 +53,7 @@ static func _all_pool() -> Array:
 		{"factory": "_make_rocket_pod", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_seeking_missile", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_spread_cannon", "slot": Slots.SlotType.CANNON},
+		{"factory": "_make_smart_bomb", "slot": Slots.SlotType.DEVICE_BAY_1},
 	]
 
 static func roll_random_part(rng: RandomNumberGenerator):
@@ -143,4 +145,7 @@ static func _make_by_name(name: String, slot: int):
 			var sc = SpreadCannon.new()
 			sc.bullet_scene = BulletDefault
 			return sc
+		"_make_smart_bomb":
+			var sb = SmartBomb.new()
+			return sb
 	return null

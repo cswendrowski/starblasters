@@ -6,6 +6,7 @@ const BasicTail = preload("res://scripts/parts/basic_tail.gd")
 const BasicEngine = preload("res://scripts/parts/basic_engine.gd")
 const BasicShield = preload("res://scripts/parts/basic_shield.gd")
 const BasicBlasterCannon = preload("res://scripts/parts/basic_blaster_cannon.gd")
+const SmartBomb = preload("res://scripts/parts/smart_bomb.gd")
 const BulletDefault = preload("res://scenes/projectiles/bullet.tscn")
 
 # Builds the default Mk.1 starting loadout from the design doc.
@@ -25,3 +26,8 @@ static func default_starting_loadout(loadout) -> void:
 	var cannon = BasicBlasterCannon.new()
 	cannon.bullet_scene = BulletDefault
 	loadout.equip(Slots.SlotType.CANNON, cannon)
+
+	# Smart Bomb ships in every starting loadout (genre staple — every
+	# shmup has at least one panic bomb). Mk.1 = 3 charges. Outpost
+	# refill / upgrade path is a TODO.
+	loadout.equip(Slots.SlotType.DEVICE_BAY_1, SmartBomb.new())
