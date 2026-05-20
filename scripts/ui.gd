@@ -19,6 +19,11 @@ var hull_warning: Label = null
 var ammo_label: Label = null
 var bounty_label: Label = null
 var _warning_tween: Tween = null
+# Super-weapon charge pips — small icons in the right gutter under
+# the bounty readout. Built lazily on bind_player.
+var _super_pips_row: HBoxContainer = null
+var _super_charge_count: int = 0
+var _super_charge_max: int = 0
 
 func _ready() -> void:
 	# main.tscn pins this MarginContainer to a 152×24 rect at top-left. We
@@ -238,6 +243,15 @@ func bind_player(player) -> void:
 	if player and player.has_signal("shield_changed"):
 		if not player.shield_changed.is_connected(update_shield):
 			player.shield_changed.connect(update_shield)
+	# Super-charge indicator: small pip strip in the right gutter under
+	# the bounty label. Updated by super_charges_changed signal.
+	_install_super_pips()
+	if player and player.has_signal("super_charges_changed"):
+		if not player.super_charges_changed.is_connected(_on_super_charges_changed):
+			player.super_charges_changed.connect(_on_super_charges_changed)
+		# Seed with the current state in case the part already applied.
+		if "super_charges" in player and "max_super_charges" in player:
+			_on_super_charges_changed(int(player.super_charges), int(player.max_super_charges))
 	# Seed once from current values.
 	if player and "max_hull" in player and "hull" in player:
 		update_hull(player.max_hull, player.hull)
@@ -328,6 +342,47 @@ func _on_ammo_changed(value: int) -> void:
 func _set_ammo_visible(v: bool) -> void:
 	if ammo_label:
 		ammo_label.visible = v
+
+
+# Build the super-charge pip strip — a row of small diamond/pill markers
+# below the bounty readout. Lit pips = charges remaining; dim pips =
+# spent. Anchored to the BoxContainer so it rides the same layout flow
+# as the other HUD widgets.
+func _install_super_pips() -> void:
+	if _super_pips_row != null and is_instance_valid(_super_pips_row):
+		return
+	var row := HBoxContainer.new()
+	row.name = "SuperPips"
+	row.add_theme_constant_override("separation", 2)
+	row.size_flags_horizontal = Control.SIZE_SHRINK_END
+	if has_node("BoxContainer"):
+		$BoxContainer.add_child(row)
+	else:
+		add_child(row)
+	_super_pips_row = row
+
+
+func _on_super_charges_changed(value: int, maximum: int) -> void:
+	_super_charge_count = value
+	_super_charge_max = maximum
+	if _super_pips_row == null or not is_instance_valid(_super_pips_row):
+		return
+	# Rebuild pips when max changes (Mk upgrade or new super equipped).
+	if _super_pips_row.get_child_count() != maximum:
+		for c in _super_pips_row.get_children():
+			c.queue_free()
+		for i in maximum:
+			var pip := ColorRect.new()
+			pip.size = Vector2(5, 7)
+			pip.custom_minimum_size = Vector2(5, 7)
+			_super_pips_row.add_child(pip)
+	# Repaint: filled (gold) for charges remaining, dim (grey) for spent.
+	var pips := _super_pips_row.get_children()
+	for i in pips.size():
+		var pip: ColorRect = pips[i] as ColorRect
+		if pip == null:
+			continue
+		pip.color = Color(1.0, 0.85, 0.3, 1.0) if i < value else Color(0.3, 0.3, 0.3, 0.7)
 
 
 # Style a ProgressBar as a flat %-bar with a colored fill + dark BG.

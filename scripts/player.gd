@@ -357,6 +357,17 @@ func take_damage(amount: int) -> void:
 		return
 	# No shield — apply armor-plated DR then bleed into hull.
 	var effective: int = max(1, int(round(float(amount) * (1.0 - hull_damage_reduction))))
+	# Touhou death-bomb hook — if this hit would be lethal AND the player
+	# has a super charge available, auto-trigger the super instead. Costs
+	# the charge but the super's invuln + cleanup keeps the player alive.
+	# The activation itself sets _invuln_t so the bullet that triggered
+	# this gets a free window.
+	if hull - effective <= 0 and super_charges > 0 and super_part != null:
+		fire_super()
+		# Re-check — super activation should have set invuln; if not,
+		# we fall through to taking the hit normally.
+		if _invuln_t > 0.0:
+			return
 	damaged.emit(effective)
 	hull -= effective
 	if has_node("Ship"):
