@@ -49,6 +49,10 @@ Captured from Cody's 2026-05-19 punch list. Ordered roughly by leverage.
   - Next step: capture-and-look to confirm WHICH sliders look broken, then surgical fix per knob.
 - [ ] **Update UI** to match the actual asteroid system knobs (after the fix lands).
 
+## Visual / FX
+
+- [ ] **Outline asteroids in the asteroid hazard playspace** (Cody 2026-05-19). Apply `resources/materials/outline_1px_black.tres` (Efficient 2D Pixel Outlines shader, round, 1px black) to the asteroid sprites that drift through the asteroid_field hazard combat. Part of broader asteroid event updates — make the asteroids read as foreground hazards rather than background dressing. Hookup: probably the enemy_asteroid.tscn Sprite2D material slot, OR via a runtime ShaderMaterial assignment in enemy_asteroid's _ready so it doesn't affect any decorative-background asteroids that share the scene.
+
 ## Already-done (since this list was captured)
 
 - Wave editor with full CRUD + playtest + state persistence.
