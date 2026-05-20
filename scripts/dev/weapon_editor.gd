@@ -26,14 +26,19 @@ const TRACER_SPEED := 480.0  # px/s — player bullets fly faster than enemy
 @onready var _slot_filter: OptionButton = $Body/LeftRail/SlotFilter
 
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
-# Slot filter — "All" plus the three weapon-bearing slot types.
-const SLOT_FILTERS := [
-	{"label": "All weapons", "slot": -1},
-	{"label": "Primary (CANNON)", "slot": 4},      # Slots.SlotType.CANNON
-	{"label": "Secondary (HARDPOINT)", "slot": 5}, # HARDPOINT_WING
-	{"label": "Super (DEVICE_BAY)", "slot": 7},    # DEVICE_BAY_1
-]
+# Slot filter — "All" plus the three weapon-bearing slot types. Built
+# dynamically from the enum so renames don't break magic numbers.
+var SLOT_FILTERS: Array = []
 var _slot_filter_value: int = -1
+
+
+func _build_slot_filters() -> void:
+	SLOT_FILTERS = [
+		{"label": "All weapons", "slot": -1},
+		{"label": "Primary (CANNON)", "slot": int(Slots.SlotType.CANNON)},
+		{"label": "Secondary (HARDPOINT)", "slot": int(Slots.SlotType.HARDPOINT_WING)},
+		{"label": "Super (DEVICE_BAY)", "slot": int(Slots.SlotType.DEVICE_BAY_1)},
+	]
 
 var _preview_mark: int = 1
 var _fire_timer: float = 0.0
@@ -49,6 +54,7 @@ func _ready() -> void:
 	# _on_item_selected → _on_pattern_loaded which reads slider state.
 	_mark_slider.value_changed.connect(_on_mark_slider_changed)
 	# Populate the slot filter dropdown before _scan_items runs.
+	_build_slot_filters()
 	for entry in SLOT_FILTERS:
 		_slot_filter.add_item(String(entry["label"]))
 	_slot_filter.select(0)

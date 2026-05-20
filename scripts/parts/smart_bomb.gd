@@ -53,6 +53,11 @@ func activate(ship) -> void:
 	var tree: SceneTree = ship.get_tree()
 	if tree == null:
 		return
+	# Grant brief invulnerability so the bomb's screen-clear has time to
+	# resolve before the next hit lands. Also lets the Touhou death-bomb
+	# hook in player.take_damage save the player from a fatal hit.
+	if "_invuln_t" in ship:
+		ship._invuln_t = max(ship._invuln_t, 0.6)
 	var damage: int = _damage_at_mark(int(mark))
 	# Damage every enemy. take_hit returns true if the enemy died — let
 	# enemy_base / enemy_core handle scoring + debris + explosion VFX so

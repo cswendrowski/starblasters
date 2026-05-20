@@ -160,6 +160,10 @@ func new_run() -> void:
 	weapon_storage = []
 	sector_map_cache = {}
 	run_seed = randi()
+	# Reset super-weapon state — player._ready will repopulate via the
+	# equipped Smart Bomb's apply().
+	super_charges = 0
+	max_super_charges = 3
 
 func record_kill(value: int) -> void:
 	enemies_killed += 1
