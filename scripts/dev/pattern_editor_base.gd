@@ -63,6 +63,12 @@ func _configure() -> void:
 	pass
 
 
+# Subclass hook: filter which loaded Resources show in the list. Default
+# includes everything; weapon_editor overrides to filter by slot_type.
+func _should_include(_res: Resource) -> bool:
+	return true
+
+
 func _wire_signals() -> void:
 	_list.item_selected.connect(_on_item_selected)
 	_new_btn.pressed.connect(_on_new)
@@ -114,7 +120,7 @@ func _scan_items() -> void:
 			var key := fname.get_basename()
 			var path := RESOURCE_DIR + fname
 			var res = load(path)
-			if res != null:
+			if res != null and _should_include(res):
 				_items[key] = {"path": path, "res": res}
 				keys.append(key)
 		fname = dir.get_next()

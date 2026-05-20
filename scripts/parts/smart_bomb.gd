@@ -48,7 +48,9 @@ func unapply(ship) -> void:
 
 # Drive the screen clear + enemy-damage burst. Called by player.fire_super.
 func activate(ship) -> void:
-	var tree := ship.get_tree() if ship.has_method("get_tree") else null
+	if not ship.has_method("get_tree"):
+		return
+	var tree: SceneTree = ship.get_tree()
 	if tree == null:
 		return
 	var damage: int = _damage_at_mark(int(mark))
@@ -71,7 +73,7 @@ func activate(ship) -> void:
 	if ExplosionFx:
 		ExplosionFx.burst(ship.global_position, 8, 80.0, 0.05)
 	# Camera shake if available — sells the impact.
-	var main := tree.get_current_scene()
+	var main: Node = tree.get_current_scene()
 	if main and main.has_node("Camera2D"):
 		var cam = main.get_node("Camera2D")
 		if cam.has_method("add_trauma"):

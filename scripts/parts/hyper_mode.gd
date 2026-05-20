@@ -57,13 +57,14 @@ func activate(ship) -> void:
 	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
 	if ExplosionFx:
 		ExplosionFx.play(ship.global_position, 1.5, true)
-	var tree := ship.get_tree() if ship.has_method("get_tree") else null
-	if tree:
-		var main := tree.get_current_scene()
-		if main and main.has_node("Camera2D"):
-			var cam = main.get_node("Camera2D")
-			if cam.has_method("add_trauma"):
-				cam.add_trauma(0.4)
+	if ship.has_method("get_tree"):
+		var tree: SceneTree = ship.get_tree()
+		if tree:
+			var main: Node = tree.get_current_scene()
+			if main and main.has_node("Camera2D"):
+				var cam = main.get_node("Camera2D")
+				if cam.has_method("add_trauma"):
+					cam.add_trauma(0.4)
 
 
 # Editor readout — duration-based super, no per-hit damage. Report

@@ -23,6 +23,17 @@ const TRACER_SPEED := 480.0  # px/s — player bullets fly faster than enemy
 @onready var _dps_value: Label = $Body/Center/DpsRow/DpsValue
 @onready var _dummy_player: Node2D = $Body/Preview/PreviewFrame/PreviewContainer/PreviewViewport/DummyPlayer
 @onready var _bullets_layer: Node2D = $Body/Preview/PreviewFrame/PreviewContainer/PreviewViewport/BulletsLayer
+@onready var _slot_filter: OptionButton = $Body/LeftRail/SlotFilter
+
+const Slots = preload("res://scripts/weapons/SlotTypes.gd")
+# Slot filter — "All" plus the three weapon-bearing slot types.
+const SLOT_FILTERS := [
+	{"label": "All weapons", "slot": -1},
+	{"label": "Primary (CANNON)", "slot": 4},      # Slots.SlotType.CANNON
+	{"label": "Secondary (HARDPOINT)", "slot": 5}, # HARDPOINT_WING
+	{"label": "Super (DEVICE_BAY)", "slot": 7},    # DEVICE_BAY_1
+]
+var _slot_filter_value: int = -1
 
 var _preview_mark: int = 1
 var _fire_timer: float = 0.0
@@ -37,7 +48,33 @@ func _ready() -> void:
 	# Wire the slider signal BEFORE super._ready() — super calls
 	# _on_item_selected → _on_pattern_loaded which reads slider state.
 	_mark_slider.value_changed.connect(_on_mark_slider_changed)
+	# Populate the slot filter dropdown before _scan_items runs.
+	for entry in SLOT_FILTERS:
+		_slot_filter.add_item(String(entry["label"]))
+	_slot_filter.select(0)
+	_slot_filter.item_selected.connect(_on_slot_filter_changed)
 	super._ready()
+
+
+func _on_slot_filter_changed(idx: int) -> void:
+	if idx < 0 or idx >= SLOT_FILTERS.size():
+		return
+	_slot_filter_value = int(SLOT_FILTERS[idx]["slot"])
+	_scan_items()
+	if _list.item_count > 0:
+		_list.select(0)
+		_on_item_selected(0)
+	else:
+		_clear_form()
+
+
+# Filter resources by slot_type. -1 = show all.
+func _should_include(res: Resource) -> bool:
+	if _slot_filter_value < 0:
+		return true
+	if not ("slot_type" in res):
+		return false
+	return int(res.slot_type) == _slot_filter_value
 
 
 # pattern_editor_base hook — fired when a weapon .tres is selected.

@@ -47,7 +47,9 @@ func activate(ship) -> void:
 	var dur: float = base_duration + (float(mark) - 1.0) * duration_per_mark
 	if "_invuln_t" in ship:
 		ship._invuln_t = max(ship._invuln_t, dur)
-	var tree := ship.get_tree() if ship.has_method("get_tree") else null
+	if not ship.has_method("get_tree"):
+		return
+	var tree: SceneTree = ship.get_tree()
 	if tree == null:
 		return
 	# Cancel every bullet on screen (same path as Smart Bomb, minus the
