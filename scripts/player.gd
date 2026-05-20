@@ -35,6 +35,11 @@ var super_part: Resource = null
 var super_charges: int = 0
 var max_super_charges: int = 3
 signal super_charges_changed(value: int, maximum: int)
+# Hyper Mode timer — when > 0, fire_primary triggers every frame
+# regardless of GunCooldown, and damage is multiplied. Driven by the
+# Hyper super weapon's activate(); ticks down in _process.
+var _hyper_t: float = 0.0
+const HYPER_DAMAGE_MULT := 2.0
 # Exported so player.tscn can assign a fallback bullet; parts override at runtime.
 @export var bullet_scene: PackedScene
 @export var super_scene: PackedScene
@@ -261,6 +266,11 @@ func _process(delta: float) -> void:
 	# weapon recharges in the background and a tap fires immediately
 	# whenever it's ready.
 	_secondary_t = min(_secondary_t + delta, secondary_cooldown)
+	if _hyper_t > 0.0:
+		_hyper_t = max(0.0, _hyper_t - delta)
+		# While hyper is active, bypass GunCooldown so primary fires every
+		# frame. Damage gets scaled inside fire_primary below.
+		can_shoot = true
 	if not controls_enabled:
 		# Ship still animates "forward" so it reads as actively flying during
 		# the intro slide-in / outro fly-out cinematic.
@@ -438,8 +448,12 @@ func fire_primary() -> void:
 		get_tree().root.add_child(b)
 		# Propagate the equipped cannon's damage to the bullet so per-Part /
 		# per-Mark scaling actually reaches the take_hit call.
+		# Hyper Mode doubles damage for its duration.
 		if "damage" in b:
-			b.damage = bullet_damage
+			var dmg: int = bullet_damage
+			if _hyper_t > 0.0:
+				dmg = int(round(float(bullet_damage) * HYPER_DAMAGE_MULT))
+			b.damage = dmg
 		b.start(position + Vector2(0, -8), dir)
 	# Style-specific muzzle FX + per-shot SFX.
 	var MuzzleFx = load("res://scripts/effects/muzzle_fx.gd")

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/parts/phase_shift.gd" id="1_ps"]
+
+[resource]
+script = ExtResource("1_ps")
+mark = 1
+base_duration = 2.0
+duration_per_mark = 0.2
+base_charges = 3
+charges_per_mark = 1

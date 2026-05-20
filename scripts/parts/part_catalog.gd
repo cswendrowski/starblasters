@@ -21,6 +21,8 @@ const RocketPodCannon = preload("res://scripts/parts/rocket_pod_cannon.gd")
 const SeekingMissileCannon = preload("res://scripts/parts/seeking_missile_cannon.gd")
 const SpreadCannon = preload("res://scripts/parts/spread_cannon.gd")
 const SmartBomb = preload("res://scripts/parts/smart_bomb.gd")
+const HyperMode = preload("res://scripts/parts/hyper_mode.gd")
+const PhaseShift = preload("res://scripts/parts/phase_shift.gd")
 const BulletDefault = preload("res://scenes/projectiles/bullet.tscn")
 const BulletHeavy = preload("res://scenes/projectiles/bullet_heavy.tscn")
 const BulletMinigun = preload("res://scenes/projectiles/bullet_minigun.tscn")
@@ -56,6 +58,8 @@ static func _all_pool() -> Array:
 		{"factory": "_make_seeking_missile", "slot": Slots.SlotType.HARDPOINT_WING},
 		{"factory": "_make_spread_cannon", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_smart_bomb", "slot": Slots.SlotType.DEVICE_BAY_1},
+		{"factory": "_make_hyper_mode", "slot": Slots.SlotType.DEVICE_BAY_1},
+		{"factory": "_make_phase_shift", "slot": Slots.SlotType.DEVICE_BAY_1},
 	]
 
 static func roll_random_part(rng: RandomNumberGenerator):
@@ -150,4 +154,10 @@ static func _make_by_name(name: String, slot: int):
 		"_make_smart_bomb":
 			var sb = SmartBomb.new()
 			return sb
+		"_make_hyper_mode":
+			var hm = HyperMode.new()
+			return hm
+		"_make_phase_shift":
+			var ps = PhaseShift.new()
+			return ps
 	return null
