@@ -32,6 +32,10 @@ const MAX_MK := 9
 const HULL_REPAIR_COST := 30
 const HULL_REPAIR_PCT := 0.25
 const AMMO_REFILL_COST := 25
+# Per-charge cost for buying super refills mid-stay. The visit-time
+# free refill on _ready handles the common case; this button covers the
+# "I came back during a long stop and need another bomb" case.
+const SUPER_REFILL_COST := 30
 const AMMO_REFILL_PCT := 0.5
 const AMMO_FULL_VALUE := 1000
 const CANNON_BASE_COST := 58
@@ -174,6 +178,21 @@ func _build_ui() -> void:
 		ammo_btn.disabled = true
 		ammo_btn.text = "Ammo (no MG)"
 	services.add_child(ammo_btn)
+	# Super weapon refill (Cody 2026-05-20). One charge per click, costs
+	# bounty. Visible when the player has a super equipped (max > 0) and
+	# at least one charge has been spent.
+	var super_btn := Button.new()
+	super_btn.text = "Super (%d)" % SUPER_REFILL_COST
+	super_btn.custom_minimum_size = Vector2(120, 20)
+	super_btn.clip_text = true
+	UiTheme.style_button(super_btn)
+	super_btn.pressed.connect(_on_super_refill.bind(super_btn))
+	if has_node("/root/Run"):
+		var rr = get_node("/root/Run")
+		if "max_super_charges" in rr and int(rr.max_super_charges) <= 0:
+			super_btn.disabled = true
+			super_btn.text = "Super (none)"
+	services.add_child(super_btn)
 
 	var storage_lbl := Label.new()
 	storage_lbl.text = "Weapon Storage"
@@ -512,6 +531,22 @@ func _on_repair(btn: Button) -> void:
 	var heal: int = max(1, int(round(float(run.max_hull) * HULL_REPAIR_PCT)))
 	run.current_hull = clampi(int(run.current_hull) + heal, 0, int(run.max_hull))
 	btn.text = "Repair +25%% (%d)" % HULL_REPAIR_COST
+	_update_status_label()
+
+
+func _on_super_refill(btn: Button) -> void:
+	if not has_node("/root/Run"):
+		return
+	var run = get_node("/root/Run")
+	if int(run.bounty) < SUPER_REFILL_COST:
+		return
+	if not ("super_charges" in run) or not ("max_super_charges" in run):
+		return
+	if int(run.super_charges) >= int(run.max_super_charges):
+		return  # Already maxed
+	run.bounty -= SUPER_REFILL_COST
+	run.super_charges = clampi(int(run.super_charges) + 1, 0, int(run.max_super_charges))
+	btn.text = "Super (%d)" % SUPER_REFILL_COST
 	_update_status_label()
 
 
