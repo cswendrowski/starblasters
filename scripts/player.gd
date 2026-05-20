@@ -13,6 +13,11 @@ signal damaged(amount: int)
 var speed: float = 125.0  # 320×400 res — halved from 250
 var cooldown: float = 0.15
 var bullet_damage: int = 1
+# Spread fire knobs — used by the Spread Cannon Part. Default 1 bullet
+# straight forward (legacy behavior). Spread Cannon's apply() sets
+# bullet_spread_count > 1 + bullet_spread_degrees > 0.
+var bullet_spread_count: int = 1
+var bullet_spread_degrees: float = 0.0
 # Exported so player.tscn can assign a fallback bullet; parts override at runtime.
 @export var bullet_scene: PackedScene
 @export var super_scene: PackedScene
@@ -396,14 +401,25 @@ func fire_primary() -> void:
 	can_shoot = false
 	$GunCooldown.start()
 	var muzzle_pos: Vector2 = global_position + Vector2(0, -8)
-	var b: Node = bullet_scene.instantiate()
-	get_tree().root.add_child(b)
-	# Propagate the equipped cannon's damage to the bullet so per-Part /
-	# per-Mark scaling actually reaches the take_hit call. Pre-refactor
-	# the bullet hardcoded damage=1 regardless of the part's bullet_damage.
-	if "damage" in b:
-		b.damage = bullet_damage
-	b.start(position + Vector2(0, -8))
+	# Spread support — Spread Cannon Part sets bullet_spread_count > 1.
+	# Default 1 fires straight up exactly as before. For N > 1, fan the
+	# bullets out across bullet_spread_degrees, centred straight up.
+	var count: int = max(1, bullet_spread_count)
+	var spread_rad: float = deg_to_rad(bullet_spread_degrees)
+	for i in range(count):
+		var angle: float = 0.0
+		if count > 1:
+			var t: float = float(i) / float(count - 1)
+			angle = -spread_rad * 0.5 + spread_rad * t
+		# 0 angle = straight up. (sin(a), -cos(a)) rotates around the up axis.
+		var dir := Vector2(sin(angle), -cos(angle))
+		var b: Node = bullet_scene.instantiate()
+		get_tree().root.add_child(b)
+		# Propagate the equipped cannon's damage to the bullet so per-Part /
+		# per-Mark scaling actually reaches the take_hit call.
+		if "damage" in b:
+			b.damage = bullet_damage
+		b.start(position + Vector2(0, -8), dir)
 	# Style-specific muzzle FX + per-shot SFX.
 	var MuzzleFx = load("res://scripts/effects/muzzle_fx.gd")
 	if weapon_style == "machinegun":
