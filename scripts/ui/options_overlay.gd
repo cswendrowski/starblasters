@@ -238,12 +238,18 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		if e is InputEventKey:
 			existing_key = e
 			break
-	if existing_key:
+	# Persist via Settings.set_keybind — it both updates InputMap AND
+	# writes the override to settings.cfg so the rebind survives a
+	# restart.
+	if _settings().has_method("set_keybind"):
+		_settings().set_keybind(_rebind_pending_action, event.physical_keycode)
+	elif existing_key:
+		# Fallback for the unlikely case Settings is unavailable.
 		InputMap.action_erase_event(_rebind_pending_action, existing_key)
-	var new_ev := InputEventKey.new()
-	new_ev.physical_keycode = event.physical_keycode
-	new_ev.keycode = event.keycode
-	InputMap.action_add_event(_rebind_pending_action, new_ev)
+		var new_ev := InputEventKey.new()
+		new_ev.physical_keycode = event.physical_keycode
+		new_ev.keycode = event.keycode
+		InputMap.action_add_event(_rebind_pending_action, new_ev)
 	if _rebind_pending_button:
 		_rebind_pending_button.text = _key_label_for(_rebind_pending_action)
 	_rebind_pending_action = ""

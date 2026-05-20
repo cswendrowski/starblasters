@@ -29,12 +29,17 @@ var font_style: String = "pixel"
 # the player holding the button. Useful for marathon shmup sessions
 # where holding fire for an hour is fatiguing. Toggleable in options.
 var autofire: bool = false
+# Keybind overrides — { action_name: physical_keycode }. Replaces the
+# first keyboard event on each action when the override is set.
+# Empty = use project.godot defaults.
+var keyboard_overrides: Dictionary = {}
 
 
 func _ready() -> void:
 	load_from_disk()
 	_apply_audio()
 	_apply_window()
+	_apply_keybinds()
 
 
 func load_from_disk() -> void:
@@ -48,6 +53,12 @@ func load_from_disk() -> void:
 	fullscreen = bool(cfg.get_value("video", "fullscreen", fullscreen))
 	font_style = String(cfg.get_value("video", "font_style", font_style))
 	autofire = bool(cfg.get_value("controls", "autofire", autofire))
+	# Keybind overrides — stored as a JSON-serialised dict (ConfigFile
+	# doesn't natively round-trip Dictionary cleanly across versions).
+	var raw_overrides := String(cfg.get_value("controls", "keyboard_overrides", "{}"))
+	var parsed = JSON.parse_string(raw_overrides)
+	if typeof(parsed) == TYPE_DICTIONARY:
+		keyboard_overrides = parsed
 
 
 func save_to_disk() -> void:
@@ -58,6 +69,7 @@ func save_to_disk() -> void:
 	cfg.set_value("video", "fullscreen", fullscreen)
 	cfg.set_value("video", "font_style", font_style)
 	cfg.set_value("controls", "autofire", autofire)
+	cfg.set_value("controls", "keyboard_overrides", JSON.stringify(keyboard_overrides))
 	cfg.save(CFG_PATH)
 
 
@@ -98,6 +110,46 @@ func set_autofire(on: bool) -> void:
 	autofire = on
 	save_to_disk()
 	settings_changed.emit()
+
+
+# Persist + apply a keybind override. Replaces the action's first
+# keyboard event with the given physical_keycode. Pass keycode = 0 to
+# clear the override (restore project default).
+func set_keybind(action_name: String, physical_keycode: int) -> void:
+	if not InputMap.has_action(action_name):
+		return
+	if physical_keycode == 0:
+		keyboard_overrides.erase(action_name)
+	else:
+		keyboard_overrides[action_name] = physical_keycode
+	_apply_keybind(action_name)
+	save_to_disk()
+	settings_changed.emit()
+
+
+func _apply_keybinds() -> void:
+	for action_name in keyboard_overrides.keys():
+		_apply_keybind(action_name)
+
+
+func _apply_keybind(action_name: String) -> void:
+	if not InputMap.has_action(action_name):
+		return
+	if not keyboard_overrides.has(action_name):
+		return
+	var target_keycode: int = int(keyboard_overrides[action_name])
+	# Erase the first existing keyboard event; replace with the override.
+	var existing_key: InputEventKey = null
+	for ev in InputMap.action_get_events(action_name):
+		if ev is InputEventKey:
+			existing_key = ev
+			break
+	if existing_key:
+		InputMap.action_erase_event(action_name, existing_key)
+	var new_ev := InputEventKey.new()
+	new_ev.physical_keycode = target_keycode
+	new_ev.keycode = target_keycode
+	InputMap.action_add_event(action_name, new_ev)
 
 
 func _apply_audio() -> void:
