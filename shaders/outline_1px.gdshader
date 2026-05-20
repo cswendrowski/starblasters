@@ -12,7 +12,8 @@ shader_type canvas_item;
 // Source: https://godotshaders.com/shader/efficient-2d-pixel-outlines/
 
 uniform vec4 clr : source_color = vec4(0.0, 0.0, 0.0, 1.0);
-uniform int type : hint_enum("Disable", "Round", "Square") = 1;
+// type: 0 = disable, 1 = round (4-neighbor), 2 = square (8-neighbor).
+uniform int type : hint_range(0, 2) = 1;
 uniform float thickness = 1.0;
 
 const vec2[8] DIRECTIONS = {

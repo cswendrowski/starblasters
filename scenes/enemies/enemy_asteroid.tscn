@@ -1,7 +1,8 @@
-[gd_scene load_steps=4 format=3 uid="uid://basterohaz001"]
+[gd_scene load_steps=5 format=3 uid="uid://basterohaz001"]
 
 [ext_resource type="Script" path="res://scripts/enemies/asteroid.gd" id="1_ast_scr"]
 [ext_resource type="Texture2D" path="res://graphics/enemy-mine.png" id="2_ast_tex"]
+[ext_resource type="Material" path="res://resources/materials/outline_1px_black.tres" id="3_outline"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ast"]
 size = Vector2(28, 28)
@@ -11,6 +12,7 @@ script = ExtResource("1_ast_scr")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("2_ast_tex")
+material = ExtResource("3_outline")
 scale = Vector2(1, 1)
 modulate = Color(0.55, 0.5, 0.45, 1)
 
