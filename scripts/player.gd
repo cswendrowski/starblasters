@@ -51,6 +51,10 @@ var hull_damage_reduction: float = 0.0
 # Speed multiplier from upgrades (Thrusters +, Armor Plating −). Applied
 # in _process so the live speed = base * speed_multiplier.
 var speed_multiplier: float = 1.0
+# Focus-mode slowdown — held `focus` action drops the ship to FOCUS_FACTOR
+# of normal speed for precision dodging. Cave / Touhou convention; ~2/3.
+const FOCUS_FACTOR := 0.55
+var _focus_dot: Node2D = null
 
 var can_shoot: bool = true
 var is_alive: bool = true
@@ -254,9 +258,14 @@ func _process(delta: float) -> void:
 	else:
 		$Ship.frame = 1
 		$Ship/Boosters.animation = "forward"
+	# Focus mode (Shift, by convention): ⅔-ish speed for precision
+	# dodging + show the hitbox dot so the player sees their collider.
+	var focused: bool = Input.is_action_pressed("focus")
+	var focus_mult: float = FOCUS_FACTOR if focused else 1.0
+	_update_focus_dot(focused)
 	# Thrusters / Armor Plating upgrades feed into speed_multiplier;
 	# applied here so the runtime stat reflects the live upgrade state.
-	position += input * speed * speed_multiplier * delta
+	position += input * speed * speed_multiplier * focus_mult * delta
 	position = Playfield.clamp_pos(position, 8.0)
 	if Input.is_action_pressed("shoot"):
 		fire_primary()
@@ -272,8 +281,14 @@ func _process(delta: float) -> void:
 			_mg_loop_player.stop()
 		if _mg_end_player and is_alive and weapon_style == "machinegun":
 			_mg_end_player.play()
-	if Input.is_action_pressed("shoot_nose"):
+	# Secondary fire (C by default, hold-fire). Stub until HARDPOINT
+	# slot Parts implement themselves.
+	if Input.is_action_pressed("shoot2"):
 		fire_secondary()
+	# Super weapon (X by default, single-tap, consumes a charge). Stub
+	# until DEVICE_BAY slot Parts implement themselves.
+	if Input.is_action_just_pressed("shoot_nose"):
+		fire_super()
 
 # ---- Damage pipeline ----
 # Shield is a charge pool: one charge fully absorbs one hit (regardless
@@ -424,6 +439,31 @@ func set_ammo(value: int) -> void:
 func fire_secondary() -> void:
 	# Hook for hardpoint weapons; no-op until a secondary Part is equipped.
 	pass
+
+
+func fire_super() -> void:
+	# Hook for super weapons (Smart Bomb / Hyper / Drone Swarm / Phase
+	# Shift). Limited charges, consumed on tap, refilled at outposts.
+	# Stub — replace when DEVICE_BAY Parts land.
+	pass
+
+
+# Spawn a 4-px white dot at the ship's center so the player can see the
+# exact hitbox while focus-dodging. Only visible when focus is held;
+# matches Touhou's iconic centered hitbox indicator.
+func _update_focus_dot(visible: bool) -> void:
+	if _focus_dot == null:
+		_focus_dot = Node2D.new()
+		_focus_dot.name = "FocusDot"
+		var dot := ColorRect.new()
+		dot.size = Vector2(4, 4)
+		dot.position = Vector2(-2, -2)
+		dot.color = Color(1, 1, 1, 0.95)
+		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_focus_dot.add_child(dot)
+		_focus_dot.z_index = 100
+		add_child(_focus_dot)
+	_focus_dot.visible = visible
 
 func _on_gun_cooldown_timeout() -> void:
 	can_shoot = true
