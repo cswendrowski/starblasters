@@ -77,22 +77,22 @@ func _build_ui() -> void:
 	v.add_child(grid)
 	_grid = grid
 
-	_add_button("[ Movement Test ]", _on_movement_test, true)
-	_add_button("[ Movement Lab ]", _on_movement_lab, true)
-	_add_button("[ Wave Tester ]", _on_wave_tester, true)
+	# Authoring tools
 	_add_button("[ Wave Editor ]", _on_wave_editor, true)
 	_add_button("[ Movement Patterns ]", _on_movement_pattern_editor, true)
 	_add_button("[ Shoot Patterns ]", _on_shoot_pattern_editor, true)
 	_add_button("[ Weapons ]", _on_weapon_editor, true)
-	_add_button("[ Test Level ]", _on_test_level, true)
 	_add_button("[ Shipyard ]", _on_shipyard, true)
+	# Tuners / labs
+	_add_button("[ Movement Lab ]", _on_movement_lab, true)
 	_add_button("[ Parallax Tuner ]", _on_parallax_tuner, true)
-	_add_button("[ UI Designer ]", _on_ui_designer, true)
 	_add_button("[ Ship Sizer ]", _on_ship_sizer, true)
-	_add_button("[ Test Bed ]", _on_test_bed, true)
+	_add_button("[ Asteroid Lab ]", _on_asteroid_lab, true)
+	# Test launchers (Test Level + Test Hazard + Boss Fight to be merged
+	# into a single Test Combat launcher — see TODO.md).
+	_add_button("[ Test Level ]", _on_test_level, true)
 	_add_button("[ Test Hazard ]", _on_test_hazard, true)
 	_add_button("[ Boss Fight ]", _on_boss_fight, true)
-	_add_button("[ Asteroid Lab ]", _on_asteroid_lab, true)
 	_add_button("[ Hangar ]", _on_hangar, true)
 
 	v.add_child(HSeparator.new())
@@ -124,16 +124,8 @@ func _on_shipyard() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/shipyard.tscn")
 
 
-func _on_movement_test() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev/movement_test.tscn")
-
-
 func _on_movement_lab() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/movement_lab.tscn")
-
-
-func _on_wave_tester() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev/wave_tester.tscn")
 
 
 func _on_wave_editor() -> void:
@@ -176,18 +168,8 @@ func _on_parallax_tuner() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/parallax_tuner.tscn")
 
 
-func _on_ui_designer() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev/ui_designer.tscn")
-
-
 func _on_ship_sizer() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/ship_sizer.tscn")
-
-
-
-
-func _on_test_bed() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/debug_testbed.tscn")
 
 
 func _on_hangar() -> void:
