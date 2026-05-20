@@ -1,0 +1,9 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/parts/particle_beam.gd" id="1_pb"]
+
+[resource]
+script = ExtResource("1_pb")
+mark = 1
+base_dps = 30.0
+dps_per_mark = 5.0

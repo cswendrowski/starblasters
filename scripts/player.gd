@@ -28,6 +28,14 @@ var secondary_cooldown: float = 0.5
 var secondary_damage: int = 1
 var secondary_homing: bool = false  # true for seeking missile
 var _secondary_t: float = 0.0
+# Continuous-beam secondary (Particle Beam). When non-empty, secondary
+# fire ignores the bullet pipeline and instead runs a held-beam tick.
+# Set to "beam" by ParticleBeam.apply(); empty string = bullet mode.
+var secondary_mode: String = ""
+var secondary_beam_dps: float = 30.0
+# Line2D visual + active state for the beam.
+var _beam_line: Line2D = null
+var _beam_active: bool = false
 # Super weapon slot — DEVICE_BAY_1 Part assigns itself here on apply().
 # Charges are consumed on tap (single-use per press); refilled at
 # outposts. Initial charges populated when the part is equipped.
@@ -344,9 +352,12 @@ func _process(delta: float) -> void:
 			_mg_loop_player.stop()
 		if _mg_end_player and is_alive and weapon_style == "machinegun":
 			_mg_end_player.play()
-	# Secondary fire (C by default, hold-fire). Stub until HARDPOINT
-	# slot Parts implement themselves.
-	if Input.is_action_pressed("shoot2"):
+	# Secondary fire (C by default, hold-fire). Beam mode is held-tick
+	# per-frame; bullet mode spawns a projectile per cooldown window.
+	if secondary_mode == "beam":
+		var holding: bool = Input.is_action_pressed("shoot2")
+		_tick_beam(holding, delta)
+	elif Input.is_action_pressed("shoot2"):
 		fire_secondary()
 	# Super weapon (X by default, single-tap, consumes a charge). Stub
 	# until DEVICE_BAY slot Parts implement themselves.
@@ -546,6 +557,101 @@ func fire_secondary() -> void:
 	# muzzle reads on a wingtip rather than the cannon nozzle. Direction
 	# straight up (matches base_bullet default for player projectiles).
 	b.start(position + Vector2(0, -10))
+
+
+## Continuous Particle Beam ##
+
+# Build the Line2D lazily on first beam tick. Stored as a child of the
+# player so it inherits transforms — beam endpoints are in LOCAL coords
+# (player origin = 0,0; muzzle slightly above).
+func _ensure_beam_visual() -> void:
+	if _beam_line and is_instance_valid(_beam_line):
+		return
+	var line := Line2D.new()
+	line.name = "ParticleBeam"
+	line.width = 3.0
+	line.default_color = Color(0.55, 0.95, 1.0, 1.0)
+	line.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	line.end_cap_mode = Line2D.LINE_CAP_ROUND
+	line.z_index = 5  # in front of the ship sprite so the beam reads on top
+	line.visible = false
+	# add_child can fail with "parent busy" during the first physics
+	# tick after equip. Deferred add waits a frame for the tree to settle.
+	if is_inside_tree():
+		add_child.call_deferred(line)
+	else:
+		add_child(line)
+	_beam_line = line
+
+
+# Per-frame: scan enemies in a vertical column above the player, sorted
+# by Y descending so we hit the nearest first. Pierce through any enemy
+# that ISN'T flagged tough/boss; stop on the first tough/boss enemy.
+# Damage applied = secondary_beam_dps × delta to every enemy in the path.
+const BEAM_HALF_WIDTH := 6.0  # px tolerance on x-axis
+const TOUGH_HP_THRESHOLD := 8  # enemies with > 8 max_hull count as "tough"
+
+
+func _tick_beam(holding: bool, delta: float) -> void:
+	_ensure_beam_visual()
+	if not holding or not is_alive:
+		if _beam_active:
+			_beam_active = false
+			_beam_line.visible = false
+		return
+	_beam_active = true
+	_beam_line.visible = true
+	# Find the first tough/boss enemy in the beam's column; that's where
+	# the beam stops. Soft enemies between us and it get damaged.
+	var tree := get_tree()
+	if tree == null:
+		return
+	var enemies_in_column: Array = []
+	for e in tree.get_nodes_in_group("enemies"):
+		if not is_instance_valid(e):
+			continue
+		# Skip enemies BELOW the player or outside the beam's x band.
+		if e.global_position.y > global_position.y:
+			continue
+		if abs(e.global_position.x - global_position.x) > BEAM_HALF_WIDTH:
+			continue
+		enemies_in_column.append(e)
+	enemies_in_column.sort_custom(_sort_by_y_desc)
+	var dmg_amount: int = max(1, int(round(secondary_beam_dps * delta)))
+	var stop_y: float = -screensize.y  # default: top of world
+	for e in enemies_in_column:
+		if e.has_method("take_hit"):
+			e.take_hit(dmg_amount)
+		if _is_tough_or_boss(e):
+			# Beam stops here — set end point at the enemy's Y, exit.
+			stop_y = e.global_position.y - global_position.y
+			break
+	# Beam line in local coords: muzzle just above the ship, ending
+	# either at the first tough/boss enemy hit or off the top of screen.
+	_beam_line.points = PackedVector2Array([
+		Vector2(0, -10),
+		Vector2(0, stop_y),
+	])
+
+
+func _sort_by_y_desc(a, b) -> bool:
+	return a.global_position.y > b.global_position.y
+
+
+# Tough/boss detection — scene_file_path string match catches the three
+# named bosses; max_hull threshold catches "elite" chaff like bulwark,
+# bomber, frigate, etc.
+func _is_tough_or_boss(enemy: Node) -> bool:
+	if enemy == null:
+		return false
+	var path: String = enemy.scene_file_path if "scene_file_path" in enemy else ""
+	if path.find("boss") != -1:
+		return true
+	if "max_hull" in enemy and int(enemy.max_hull) > TOUGH_HP_THRESHOLD:
+		return true
+	if "max_health" in enemy and int(enemy.max_health) > TOUGH_HP_THRESHOLD:
+		return true
+	return false
 
 
 func fire_super() -> void:
