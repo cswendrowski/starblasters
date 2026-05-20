@@ -4,41 +4,41 @@ Captured from Cody's 2026-05-19 punch list. Ordered roughly by leverage.
 
 ## Controls + Player
 
-- [ ] **Rebind to genre conventions.** Z = primary, X = bomb/super, **Shift = focus** (reclaim from `shoot_nose`), C or A = secondary, Q/E for weapon swap. Keep Space/WASD aliases for non-shmup players. Ship a settings UI for arbitrary rebinding.
-- [ ] **Focus Mode.** Hold focus → player speed × ~0.55. Pair with a small hitbox dot at player center (only visible when focused). Touhou/Cave convention.
+- [x] **Rebind to genre conventions** — `5d36dcc`. Z+Space = primary, C = secondary, X = super, Shift = focus, Q/E weapon swap. Settings remap UI still TODO.
+- [x] **Focus Mode** — `5d36dcc`. Hold Shift → speed × 0.55 + hitbox dot at player center.
+- [ ] **Settings remap UI.** Currently keys are hardcoded in project.godot. Players can't rebind without editing the .godot file.
 - [ ] **Autofire toggle.** A keybind (or settings checkbox) that latches "primary fire" on without needing to hold. Many PC shmup players prefer it.
 - [ ] **Gamepad support.** D-pad/stick → move, A → fire, X → bomb, hold-Y → focus, RB → secondary. Settings remap supported.
 
 ## Weapons + Parts
 
-- [ ] **Shuffle to Primary / Secondary / Super categories.**
-  - Primary (CANNON, hold `shoot`): Energy Blaster, Heavy Blaster, Laser Beam, Machinegun, Wave Gun (+ new Spread Cannon).
-  - Secondary (HARDPOINT_WING, hold `shoot_secondary`): **Seeking Missile** and **Rocket Pod** move here from CANNON — they were always supplements masquerading as primaries.
-  - Super (DEVICE_BAY_1, tap `shoot_super`, charges per run, refill at outposts): all new.
-- [ ] **Build missing weapon types.**
-  - **Spread Cannon** (primary) — 3-way / 5-way forked bullets. Mk scaling adds bullets.
-  - **Smart Bomb** (super) — screen clear, bullet-cancel, heavy damage.
-  - **Hyper Mode** (super) — ~3 s supercharged primary + brief i-frames.
-  - **Drone Swarm** (super) — spawn 4-6 autonomous drones for ~5 s.
-  - **Phase Shift** (super) — ~2 s invulnerability + bullet-cancel.
-  - Optional: **Side Pods**, **Drone Bits** (secondary supplements in HARDPOINT slots).
-- [ ] **Wire weapon editor for the new classes.** Filter the list by slot_type so the editor can show primaries / secondaries / supers as separate tabs (or a slot picker). Add resources/weapons subdirs per category.
+- [ ] **Shuffle Seeking Missile + Rocket Pod to HARDPOINT_WING.** **BLOCKED**: requires `fire_secondary()` pipeline first — separate `secondary_bullet_scene` / `secondary_cooldown` / `secondary_ammo` fields + own timer, since their `apply()` currently writes to the primary fields. Order: wire secondary fire pipeline → then move the parts.
+- [x] **Spread Cannon** — `83cd9f5`. Fans bullets across an arc, Mk scaling adds bullets (Mk.1=3 → Mk.4+=9 capped). `player.gd::fire_primary` honors `bullet_spread_count` / `bullet_spread_degrees`.
+- [x] **Smart Bomb** — `b9e3458`. First super weapon. Screen-clear + heavy damage on every enemy. Mk scales damage + charges. Auto-equipped Mk.1 in DEVICE_BAY_1 on starting loadout. `fire_super()` wired.
+- [ ] **Hyper Mode** (super) — ~3 s supercharged primary + brief i-frames.
+- [ ] **Drone Swarm** (super) — spawn 4-6 autonomous drones for ~5 s.
+- [ ] **Phase Shift** (super) — ~2 s invulnerability + bullet-cancel.
+- [ ] **Side Pods / Drone Bits** — secondary supplements in HARDPOINT slots.
+- [ ] **Outpost refill for super charges.** Smart Bomb starts each run with full charges; spent charges don't refill on shop visits yet.
+- [ ] **HUD indicator for super_charges.** `super_charges_changed` signal is emitted; nothing reads it. Need a charge pip strip somewhere visible.
+- [ ] **Filter Weapon Editor list by slot_type.** Now that DEVICE_BAY + (eventually) HARDPOINT parts are in `resources/weapons/`, the editor should show category tabs (Primary / Secondary / Super) instead of one flat list.
 - [ ] **Touhou death-bomb hook.** On fatal hit, if a super charge is available, consume it and grant i-frames instead of dying.
 - [ ] **Hook PartFactory to load weapons from resources/weapons/.tres.** Currently the weapon editor's saves don't affect in-game balance because PartFactory uses script defaults.
 
 ## Onboarding
 
-- [ ] **Update onboarding to teach new keybinds + Mk system.** Currently silent on Mk scaling. Need a short panel: "Parts have Mk.1–9; higher Mk = more damage / faster / etc. Mk values are stamped on the part card."
+- [x] **Update onboarding to teach new keybinds + Mk system** — `57faad3`. Controls page now lists Z/C/X/Shift. New Parts & Marks page explains Mk.1–9 scaling.
 
 ## Dev Menu Cleanup
 
-- [ ] **Remove buttons:** Test Bed, Movement Test, UI Designer, Wave Tester (and the V2 path it drives — `WaveGeneratorV2` likely needs deletion too).
+- [x] **Remove obsolete buttons** — `35a66a2`. Test Bed, Movement Test, UI Designer, Wave Tester gone. `WaveGeneratorV2` still on disk; pull when nothing references it.
 - [ ] **Merge Ship Sizer + Shipyard → unified Shipyard.** Edit any ship / enemy: stats (HP, bounty, speed, hitbox), sprite, scale, orientation flip. Should be the one tool for unit authoring.
-- [ ] **Merge Test Level + Test Hazard + Boss Fight → unified "Test Combat" launcher.** One menu with three picker rows: pick wave/level (.tres dropdown), pick hazard (minefield/asteroid_field), pick boss (commander/reaver/sentinel). Single "Launch" button.
+- [x] **Unified Test Combat launcher** — `eb45a8f`. One modal fans out to Test Level / Hazard / Boss Fight.
 
 ## Asteroid Lab
 
-- [ ] **Fix slider wiring.** First-pass investigation:
+- [x] **Fix slider wiring** — `7835360`. Size slider now drives the inner ColorRect (was a no-op). Pivot centered for spin. Investigation notes preserved below for reference.
+- [ ] **Fix slider wiring (resolved).** Investigation notes:
   - `_on_slider_changed` IS connected to all 6 sliders and calls `_regenerate()`.
   - Asteroid is `res://Planets/Asteroids/Asteroid.tscn` — a Planet root (script holder) with one child `Asteroid` ColorRect that owns the shader material.
   - `set_seed(sd)` and `set_pixels(amount)` mutate the inner ColorRect's shader. Should work — the material is per-instance-duplicated in `_regenerate`.
