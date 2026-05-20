@@ -2,9 +2,12 @@ extends "res://scripts/parts/part.gd"
 
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 
-# Rocket Pod. Dumb-fire ordnance — fast, straight-line, contact-detonate.
-# Slow cadence to balance the high per-shot damage; doesn't home, so the
-# player has to lead targets.
+# Rocket Pod. Secondary weapon (HARDPOINT_WING). Dumb-fire ordnance —
+# fast, straight-line, contact-detonate. Slow cadence balances the high
+# per-shot damage; doesn't home, so the player has to lead targets.
+#
+# Was a CANNON primary; moved to HARDPOINT_WING (Cody 2026-05-19) so it
+# supplements a primary blaster instead of replacing one.
 
 @export var bullet_scene: PackedScene
 @export var base_damage: int = 2
@@ -14,35 +17,33 @@ const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 var _prev_bullet_scene: PackedScene = null
 var _prev_cooldown: float = 0.0
 var _prev_damage: int = 0
-var _prev_style: String = ""
+var _prev_homing: bool = false
+
 
 func _init() -> void:
-	slot_type = Slots.SlotType.CANNON
+	slot_type = Slots.SlotType.HARDPOINT_WING
 	display_name = "Rocket Pod"
-	description = "Dumb-fire rockets. Heavy hit on impact, lead your shots."
+	description = "Dumb-fire rockets. Heavy hit, lead your shots. Secondary."
+
 
 func apply(ship) -> void:
-	_prev_bullet_scene = ship.bullet_scene
-	_prev_cooldown = ship.cooldown
-	_prev_damage = ship.bullet_damage
-	if "weapon_style" in ship:
-		_prev_style = ship.weapon_style
-		ship.weapon_style = "energy"
+	if not ("secondary_bullet_scene" in ship):
+		return
+	_prev_bullet_scene = ship.secondary_bullet_scene
+	_prev_cooldown = ship.secondary_cooldown
+	_prev_damage = ship.secondary_damage
+	_prev_homing = ship.secondary_homing
 	if bullet_scene != null:
-		ship.bullet_scene = bullet_scene
-	if "fire_sfx_kind" in ship:
-		ship.fire_sfx_kind = "rocket"
-	ship.cooldown = base_cooldown
-	ship.bullet_damage = base_damage + (int(mark) - 1) * dmg_per_mark
-	if ship.has_node("GunCooldown"):
-		ship.get_node("GunCooldown").wait_time = ship.cooldown
+		ship.secondary_bullet_scene = bullet_scene
+	ship.secondary_cooldown = base_cooldown
+	ship.secondary_damage = base_damage + (int(mark) - 1) * dmg_per_mark
+	ship.secondary_homing = false
 
 
 func unapply(ship) -> void:
-	ship.bullet_scene = _prev_bullet_scene
-	ship.cooldown = _prev_cooldown
-	ship.bullet_damage = _prev_damage
-	if "weapon_style" in ship:
-		ship.weapon_style = _prev_style
-	if ship.has_node("GunCooldown"):
-		ship.get_node("GunCooldown").wait_time = ship.cooldown
+	if not ("secondary_bullet_scene" in ship):
+		return
+	ship.secondary_bullet_scene = _prev_bullet_scene
+	ship.secondary_cooldown = _prev_cooldown
+	ship.secondary_damage = _prev_damage
+	ship.secondary_homing = _prev_homing

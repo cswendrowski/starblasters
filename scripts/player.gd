@@ -18,6 +18,16 @@ var bullet_damage: int = 1
 # bullet_spread_count > 1 + bullet_spread_degrees > 0.
 var bullet_spread_count: int = 1
 var bullet_spread_degrees: float = 0.0
+# Secondary fire pipeline — HARDPOINT_WING Part assigns these on apply()
+# (Seeking Missile, Rocket Pod, future Side Pods / Drone Bits). Separate
+# from the primary cannon's bullet_scene / cooldown / damage so the two
+# fire independently. secondary_t counts up each frame; when it crosses
+# secondary_cooldown the next fire_secondary press emits a bullet.
+var secondary_bullet_scene: PackedScene = null
+var secondary_cooldown: float = 0.5
+var secondary_damage: int = 1
+var secondary_homing: bool = false  # true for seeking missile
+var _secondary_t: float = 0.0
 # Super weapon slot — DEVICE_BAY_1 Part assigns itself here on apply().
 # Charges are consumed on tap (single-use per press); refilled at
 # outposts. Initial charges populated when the part is equipped.
@@ -247,6 +257,10 @@ func _process(delta: float) -> void:
 		return
 	if _invuln_t > 0.0:
 		_invuln_t = max(0.0, _invuln_t - delta)
+	# Secondary cooldown ticks every frame regardless of input — so the
+	# weapon recharges in the background and a tap fires immediately
+	# whenever it's ready.
+	_secondary_t = min(_secondary_t + delta, secondary_cooldown)
 	if not controls_enabled:
 		# Ship still animates "forward" so it reads as actively flying during
 		# the intro slide-in / outro fly-out cinematic.
@@ -460,8 +474,26 @@ func set_ammo(value: int) -> void:
 		get_node("/root/Run").ammo = ammo
 
 func fire_secondary() -> void:
-	# Hook for hardpoint weapons; no-op until a secondary Part is equipped.
-	pass
+	# HARDPOINT_WING Parts (Seeking Missile, Rocket Pod, future Side Pods)
+	# write to secondary_bullet_scene / secondary_cooldown / secondary_damage
+	# in their apply(). We spawn one bullet per cooldown window.
+	if secondary_bullet_scene == null:
+		return
+	if not is_alive:
+		return
+	if _secondary_t < secondary_cooldown:
+		return
+	_secondary_t = 0.0
+	var b: Node = secondary_bullet_scene.instantiate()
+	get_tree().root.add_child(b)
+	if "damage" in b:
+		b.damage = secondary_damage
+	if secondary_homing and "guided" in b:
+		b.guided = true
+	# Side-mounted hardpoints — spawn offset from the player so the
+	# muzzle reads on a wingtip rather than the cannon nozzle. Direction
+	# straight up (matches base_bullet default for player projectiles).
+	b.start(position + Vector2(0, -10))
 
 
 func fire_super() -> void:

@@ -50,8 +50,10 @@ static func _all_pool() -> Array:
 		{"factory": "_make_machinegun", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_wave_gun", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_laser_beam", "slot": Slots.SlotType.CANNON},
-		{"factory": "_make_rocket_pod", "slot": Slots.SlotType.CANNON},
-		{"factory": "_make_seeking_missile", "slot": Slots.SlotType.CANNON},
+		# Cody 2026-05-19: missile/rocket weapons live in HARDPOINT_WING
+		# now (secondary slot, fires alongside primary cannon via `shoot2`).
+		{"factory": "_make_rocket_pod", "slot": Slots.SlotType.HARDPOINT_WING},
+		{"factory": "_make_seeking_missile", "slot": Slots.SlotType.HARDPOINT_WING},
 		{"factory": "_make_spread_cannon", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_smart_bomb", "slot": Slots.SlotType.DEVICE_BAY_1},
 	]
