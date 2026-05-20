@@ -322,7 +322,15 @@ func _process(delta: float) -> void:
 	# applied here so the runtime stat reflects the live upgrade state.
 	position += input * speed * speed_multiplier * focus_mult * delta
 	position = Playfield.clamp_pos(position, 8.0)
-	if Input.is_action_pressed("shoot"):
+	# Autofire toggle (Settings.autofire) latches primary fire on so
+	# players don't have to hold the button. Holding still works
+	# explicitly when autofire is off.
+	var fire_held: bool = Input.is_action_pressed("shoot")
+	if not fire_held and has_node("/root/Settings"):
+		var s = get_node("/root/Settings")
+		if "autofire" in s and s.autofire:
+			fire_held = true
+	if fire_held:
 		fire_primary()
 		# MG audio loop only when the machinegun is the equipped CANNON
 		# AND there's still ammo. Energy blaster fire is silent.

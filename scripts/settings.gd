@@ -25,6 +25,10 @@ var fullscreen: bool = false
 # "ttf" = Pixelify Sans (smoother TTF alternative). Toggled in the
 # Options menu; saved on change.
 var font_style: String = "pixel"
+# Autofire — when true, primary fire latches on automatically without
+# the player holding the button. Useful for marathon shmup sessions
+# where holding fire for an hour is fatiguing. Toggleable in options.
+var autofire: bool = false
 
 
 func _ready() -> void:
@@ -43,6 +47,7 @@ func load_from_disk() -> void:
 	shake_scale = float(cfg.get_value("video", "shake_scale", shake_scale))
 	fullscreen = bool(cfg.get_value("video", "fullscreen", fullscreen))
 	font_style = String(cfg.get_value("video", "font_style", font_style))
+	autofire = bool(cfg.get_value("controls", "autofire", autofire))
 
 
 func save_to_disk() -> void:
@@ -52,6 +57,7 @@ func save_to_disk() -> void:
 	cfg.set_value("video", "shake_scale", shake_scale)
 	cfg.set_value("video", "fullscreen", fullscreen)
 	cfg.set_value("video", "font_style", font_style)
+	cfg.set_value("controls", "autofire", autofire)
 	cfg.save(CFG_PATH)
 
 
@@ -84,6 +90,12 @@ func set_fullscreen(on: bool) -> void:
 func set_font_style(style: String) -> void:
 	# Only "pixel" and "ttf" are valid. Anything else falls back to pixel.
 	font_style = style if style == "ttf" else "pixel"
+	save_to_disk()
+	settings_changed.emit()
+
+
+func set_autofire(on: bool) -> void:
+	autofire = on
 	save_to_disk()
 	settings_changed.emit()
 

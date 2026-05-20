@@ -110,6 +110,21 @@ func _build_ui() -> void:
 	_fullscreen_check.toggled.connect(_on_fullscreen_toggled)
 	fs_row.add_child(_fullscreen_check)
 
+	# Autofire toggle row — when on, primary fire latches without
+	# holding the button. Cave/Touhou tradition for marathon sessions.
+	var af_row := HBoxContainer.new()
+	af_row.add_theme_constant_override("separation", 12)
+	v.add_child(af_row)
+	var af_label := Label.new()
+	af_label.text = "Autofire"
+	af_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	UiTheme.style_label(af_label, UiTheme.LabelKind.BODY)
+	af_row.add_child(af_label)
+	var af_check := CheckButton.new()
+	af_check.button_pressed = bool(_settings().get("autofire") if "autofire" in _settings() else false)
+	af_check.toggled.connect(_on_autofire_toggled)
+	af_row.add_child(af_check)
+
 	# Font face row — "Pixel" (Pixel Operator, default) vs "TTF" (Pixelify
 	# Sans). Re-opening menus after a swap shows the new face.
 	var font_row := HBoxContainer.new()
@@ -190,6 +205,11 @@ func _on_shake_changed(v: float) -> void:
 
 func _on_fullscreen_toggled(on: bool) -> void:
 	_settings().set_fullscreen(on)
+
+
+func _on_autofire_toggled(on: bool) -> void:
+	if _settings().has_method("set_autofire"):
+		_settings().set_autofire(on)
 
 
 func _on_font_picked(idx: int) -> void:
