@@ -27,6 +27,11 @@ var secondary_bullet_scene: PackedScene = null
 var secondary_cooldown: float = 0.5
 var secondary_damage: int = 1
 var secondary_homing: bool = false  # true for seeking missile
+# Side Pods support — when > 1, fire_secondary spawns multiple bullets
+# at offsets symmetrically distributed across the player's wingspan.
+# Default 1 = single centered bullet (Seeking Missile, Rocket Pod).
+var secondary_pod_count: int = 1
+var secondary_pod_halfspan: float = 10.0  # px from center to outermost pod
 var _secondary_t: float = 0.0
 # Continuous-beam secondary (Particle Beam). When non-empty, secondary
 # fire ignores the bullet pipeline and instead runs a held-beam tick.
@@ -549,9 +554,10 @@ func set_ammo(value: int) -> void:
 		get_node("/root/Run").ammo = ammo
 
 func fire_secondary() -> void:
-	# HARDPOINT_WING Parts (Seeking Missile, Rocket Pod, future Side Pods)
-	# write to secondary_bullet_scene / secondary_cooldown / secondary_damage
-	# in their apply(). We spawn one bullet per cooldown window.
+	# HARDPOINT_WING Parts (Seeking Missile, Rocket Pod, Side Pods) write
+	# to secondary_bullet_scene / cooldown / damage / pod_count in their
+	# apply(). One cooldown tick spawns secondary_pod_count bullets
+	# evenly distributed across ±halfspan.
 	if secondary_bullet_scene == null:
 		return
 	if not is_alive:
@@ -559,16 +565,22 @@ func fire_secondary() -> void:
 	if _secondary_t < secondary_cooldown:
 		return
 	_secondary_t = 0.0
-	var b: Node = secondary_bullet_scene.instantiate()
-	get_tree().root.add_child(b)
-	if "damage" in b:
-		b.damage = secondary_damage
-	if secondary_homing and "guided" in b:
-		b.guided = true
-	# Side-mounted hardpoints — spawn offset from the player so the
-	# muzzle reads on a wingtip rather than the cannon nozzle. Direction
-	# straight up (matches base_bullet default for player projectiles).
-	b.start(position + Vector2(0, -10))
+	var count: int = max(1, secondary_pod_count)
+	for i in count:
+		var offset_x: float = 0.0
+		if count > 1:
+			# Spread evenly from -halfspan to +halfspan.
+			var t: float = float(i) / float(count - 1)
+			offset_x = -secondary_pod_halfspan + secondary_pod_halfspan * 2.0 * t
+		var b: Node = secondary_bullet_scene.instantiate()
+		get_tree().root.add_child(b)
+		if "damage" in b:
+			b.damage = secondary_damage
+		if secondary_homing and "guided" in b:
+			b.guided = true
+		# Wing-offset spawn position so multi-pod fire reads as
+		# "wingtip muzzles" rather than a stack of nose-mounted bolts.
+		b.start(position + Vector2(offset_x, -10))
 
 
 ## Continuous Particle Beam ##

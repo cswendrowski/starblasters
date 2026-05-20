@@ -38,6 +38,8 @@ func apply(ship) -> void:
 	ship.secondary_cooldown = base_cooldown
 	ship.secondary_damage = base_damage + (int(mark) - 1) * dmg_per_mark
 	ship.secondary_homing = false
+	if "secondary_pod_count" in ship:
+		ship.secondary_pod_count = 1
 
 
 func unapply(ship) -> void:

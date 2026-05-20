@@ -40,6 +40,10 @@ func apply(ship) -> void:
 	ship.secondary_cooldown = base_cooldown
 	ship.secondary_damage = base_damage + (int(mark) - 1) * dmg_per_mark
 	ship.secondary_homing = true
+	# Single-bullet — reset any pod_count left over from a previous
+	# Side Pods equip.
+	if "secondary_pod_count" in ship:
+		ship.secondary_pod_count = 1
 
 
 func unapply(ship) -> void:

@@ -24,6 +24,7 @@ const SmartBomb = preload("res://scripts/parts/smart_bomb.gd")
 const HyperMode = preload("res://scripts/parts/hyper_mode.gd")
 const PhaseShift = preload("res://scripts/parts/phase_shift.gd")
 const ParticleBeam = preload("res://scripts/parts/particle_beam.gd")
+const SidePods = preload("res://scripts/parts/side_pods.gd")
 const BulletDefault = preload("res://scenes/projectiles/bullet.tscn")
 const BulletHeavy = preload("res://scenes/projectiles/bullet_heavy.tscn")
 const BulletMinigun = preload("res://scenes/projectiles/bullet_minigun.tscn")
@@ -62,6 +63,7 @@ static func _all_pool() -> Array:
 		{"factory": "_make_hyper_mode", "slot": Slots.SlotType.DEVICE_BAY_1},
 		{"factory": "_make_phase_shift", "slot": Slots.SlotType.DEVICE_BAY_1},
 		{"factory": "_make_particle_beam", "slot": Slots.SlotType.HARDPOINT_WING},
+		{"factory": "_make_side_pods", "slot": Slots.SlotType.HARDPOINT_WING},
 	]
 
 static func roll_random_part(rng: RandomNumberGenerator):
@@ -145,6 +147,8 @@ static func _make_by_name(name: String, slot: int):
 			return _build_weapon("res://resources/weapons/phase_shift.tres", PhaseShift, null)
 		"_make_particle_beam":
 			return _build_weapon("res://resources/weapons/particle_beam.tres", ParticleBeam, null)
+		"_make_side_pods":
+			return _build_weapon("res://resources/weapons/side_pods.tres", SidePods, BulletDefault)
 	return null
 
 
