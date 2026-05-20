@@ -86,7 +86,6 @@ func _build_ui() -> void:
 	# Tuners / labs
 	_add_button("[ Movement Lab ]", _on_movement_lab, true)
 	_add_button("[ Parallax Tuner ]", _on_parallax_tuner, true)
-	_add_button("[ Ship Sizer ]", _on_ship_sizer, true)
 	_add_button("[ Asteroid Lab ]", _on_asteroid_lab, true)
 	# Test launchers
 	_add_button("[ Test Combat ]", _on_test_combat, true)
@@ -163,10 +162,6 @@ func _on_test_level() -> void:
 
 func _on_parallax_tuner() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/parallax_tuner.tscn")
-
-
-func _on_ship_sizer() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev/ship_sizer.tscn")
 
 
 func _on_hangar() -> void:

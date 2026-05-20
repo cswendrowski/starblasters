@@ -61,6 +61,13 @@ var _shield_label: Label = null
 var _bounty_label: Label = null
 var _rarity_label: Label = null
 var _shoot_toggle: CheckBox = null
+# Ship Sizer integration (merged in, Cody 2026-05-20). Scale slider +
+# orientation flip toggle so the Shipyard subsumes the Ship Sizer tool.
+var _scale_slider: HSlider = null
+var _scale_label: Label = null
+var _flip_toggle: CheckBox = null
+var _preview_scale: float = 1.0
+var _preview_flipped: bool = false
 
 
 func _ready() -> void:
@@ -149,6 +156,25 @@ func _build_ui() -> void:
 	_shoot_toggle.add_theme_font_size_override("font_size", 9)
 	_shoot_toggle.toggled.connect(_on_shoot_toggled)
 	right.add_child(_shoot_toggle)
+	# Ship Sizer fold-in: scale slider + orientation flip. Apply to the
+	# spawned preview enemy so designers can eyeball it at any size.
+	_scale_label = Label.new()
+	_scale_label.text = "Scale: 1.0×"
+	_scale_label.add_theme_font_size_override("font_size", 9)
+	right.add_child(_scale_label)
+	_scale_slider = HSlider.new()
+	_scale_slider.min_value = 0.25
+	_scale_slider.max_value = 3.0
+	_scale_slider.step = 0.05
+	_scale_slider.value = 1.0
+	_scale_slider.custom_minimum_size = Vector2(0, 8)
+	_scale_slider.value_changed.connect(_on_scale_changed)
+	right.add_child(_scale_slider)
+	_flip_toggle = CheckBox.new()
+	_flip_toggle.text = "Flip"
+	_flip_toggle.add_theme_font_size_override("font_size", 9)
+	_flip_toggle.toggled.connect(_on_flip_toggled)
+	right.add_child(_flip_toggle)
 	right.add_child(HSeparator.new())
 	var respawn_btn := Button.new()
 	respawn_btn.text = "Respawn"
@@ -200,6 +226,31 @@ func _on_list_select(idx: int) -> void:
 	_respawn_current()
 
 
+func _on_scale_changed(v: float) -> void:
+	_preview_scale = v
+	if _scale_label:
+		_scale_label.text = "Scale: %.2f×" % v
+	_apply_preview_transform()
+
+
+func _on_flip_toggled(pressed: bool) -> void:
+	_preview_flipped = pressed
+	_apply_preview_transform()
+
+
+# Apply scale + flip to the currently-spawned enemy. Flip = rotate 180°
+# in-place so a sprite authored facing the wrong way for combat reads
+# correctly in the preview.
+func _apply_preview_transform() -> void:
+	if _current_enemy == null or not is_instance_valid(_current_enemy):
+		return
+	if not (_current_enemy is Node2D):
+		return
+	var n2d := _current_enemy as Node2D
+	n2d.scale = Vector2(_preview_scale, _preview_scale)
+	n2d.rotation = PI if _preview_flipped else 0.0
+
+
 func _on_shoot_toggled(_v: bool) -> void:
 	_respawn_current()
 
@@ -223,6 +274,7 @@ func _respawn_current() -> void:
 			inst.get_node("ShootTimer").stop()
 	_preview_anchor.add_child(inst)
 	_current_enemy = inst
+	_apply_preview_transform()
 	_refresh_stats(inst)
 
 
