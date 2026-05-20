@@ -17,10 +17,14 @@ const SceneTransition = preload("res://scripts/scene_transition.gd")
 const PROCGEN_ASTEROID = "res://Planets/Asteroids/Asteroid.tscn"
 
 # Cody's 25%-smaller pass — used by the slider/label rows below.
-const FONT_HDR := 12   # was 16
-const FONT_LBL := 7    # was 9
-const FONT_VAL := 7    # numeric readout
-const SLIDER_H := 9    # was 12
+const FONT_HDR := 10   # was 16 → 12 → 10 (another 20%)
+const FONT_LBL := 6    # was 9 → 7 → 6
+const FONT_VAL := 6    # numeric readout
+const SLIDER_H := 7    # was 12 → 9 → 7
+
+# Asteroid centred in the right half of the 480×270 viewport so the
+# slider rail on the left doesn't crowd the preview.
+const ASTEROID_CENTER := Vector2(360.0, 135.0)
 
 var _visual: Control = null
 var _seed: int = 12345
@@ -50,8 +54,8 @@ func _build_ui() -> void:
 	# Sidebar with sliders on the left, asteroid preview on the right.
 	var v := VBoxContainer.new()
 	v.position = Vector2(8, 8)
-	v.size = Vector2(120, 380)
-	v.add_theme_constant_override("separation", 3)
+	v.size = Vector2(96, 380)
+	v.add_theme_constant_override("separation", 2)
 	add_child(v)
 	var hdr := Label.new()
 	hdr.text = "ASTEROID LAB"
@@ -158,7 +162,7 @@ func _regenerate() -> void:
 	if v is Control:
 		v.custom_minimum_size = Vector2(size_px, size_px)
 		v.size = Vector2(size_px, size_px)
-		v.position = Vector2(220 - size_px * 0.5, 220 - size_px * 0.5)
+		v.position = ASTEROID_CENTER - Vector2(size_px * 0.5, size_px * 0.5)
 		v.pivot_offset = Vector2(size_px * 0.5, size_px * 0.5)
 	if v.has_method("set_pixels"):
 		v.set_pixels(float(_pixels_slider.value))
