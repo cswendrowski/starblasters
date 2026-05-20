@@ -5,6 +5,7 @@
 [resource]
 script = ExtResource("1_pb")
 mark = 1
-base_dps = 30.0
-base_width = 3.0
-width_per_mark = 2.0
+base_damage_per_tick = 1
+damage_per_mark = 1
+base_width = 6.0
+width_per_mark = 1.0

@@ -32,13 +32,21 @@ var _secondary_t: float = 0.0
 # fire ignores the bullet pipeline and instead runs a held-beam tick.
 # Set to "beam" by ParticleBeam.apply(); empty string = bullet mode.
 var secondary_mode: String = ""
-var secondary_beam_dps: float = 30.0
-# Beam width — Particle Beam Part sets this; Mk scaling = +2 per Mk.
-# Drives both the Line2D visual width AND the hit-column tolerance so
-# wider beam = larger hit area.
-var secondary_beam_width: float = 3.0
-# Line2D visual + active state for the beam.
+# Per-tick damage applied to every enemy in the beam's column each
+# frame. Drives total DPS at runtime — at 60 fps, secondary_beam_damage
+# = N means 60N damage per second per enemy in the column.
+var secondary_beam_damage: int = 1
+# Beam width — Particle Beam Part sets this; Mk scales it +1 px / Mk.
+# Drives the visual width AND the hit-column tolerance so wider beam
+# = larger hit area.
+var secondary_beam_width: float = 6.0
+# Three-layer beam visual:
+#   _beam_halo — wide, low-alpha teal — bloom feel.
+#   _beam_line — main beam, full-alpha teal.
+#   _beam_core — narrow, white — hot core.
+var _beam_halo: Line2D = null
 var _beam_line: Line2D = null
+var _beam_core: Line2D = null
 var _beam_active: bool = false
 # Super weapon slot — DEVICE_BAY_1 Part assigns itself here on apply().
 # Charges are consumed on tap (single-use per press); refilled at
@@ -571,21 +579,43 @@ func fire_secondary() -> void:
 func _ensure_beam_visual() -> void:
 	if _beam_line and is_instance_valid(_beam_line):
 		return
+	# Halo — wide, low-alpha teal "glow." Drawn first so the main beam
+	# overlays it. Width is sized in _tick_beam based on current beam_width.
+	var halo := Line2D.new()
+	halo.name = "ParticleBeamHalo"
+	halo.default_color = Color(0.35, 0.85, 1.0, 0.35)
+	halo.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	halo.end_cap_mode = Line2D.LINE_CAP_ROUND
+	halo.z_index = 4
+	halo.visible = false
+	# Main beam — teal/cyan, full alpha.
 	var line := Line2D.new()
 	line.name = "ParticleBeam"
-	line.width = 3.0
 	line.default_color = Color(0.55, 0.95, 1.0, 1.0)
 	line.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	line.end_cap_mode = Line2D.LINE_CAP_ROUND
-	line.z_index = 5  # in front of the ship sprite so the beam reads on top
+	line.z_index = 5
 	line.visible = false
-	# add_child can fail with "parent busy" during the first physics
-	# tick after equip. Deferred add waits a frame for the tree to settle.
+	# Core — narrow, white hot center.
+	var core := Line2D.new()
+	core.name = "ParticleBeamCore"
+	core.default_color = Color(1.0, 1.0, 1.0, 1.0)
+	core.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	core.end_cap_mode = Line2D.LINE_CAP_ROUND
+	core.z_index = 6
+	core.visible = false
+	# Deferred adds avoid "parent busy" during the first tick after equip.
 	if is_inside_tree():
+		add_child.call_deferred(halo)
 		add_child.call_deferred(line)
+		add_child.call_deferred(core)
 	else:
+		add_child(halo)
 		add_child(line)
+		add_child(core)
+	_beam_halo = halo
 	_beam_line = line
+	_beam_core = core
 
 
 # Per-frame: scan enemies in a vertical column above the player, sorted
@@ -595,19 +625,27 @@ func _ensure_beam_visual() -> void:
 const TOUGH_HP_THRESHOLD := 8  # enemies with > 8 max_hull count as "tough"
 
 
-func _tick_beam(holding: bool, delta: float) -> void:
+func _tick_beam(holding: bool, _delta: float) -> void:
 	_ensure_beam_visual()
 	if not holding or not is_alive:
 		if _beam_active:
 			_beam_active = false
-			_beam_line.visible = false
+			if _beam_halo: _beam_halo.visible = false
+			if _beam_line: _beam_line.visible = false
+			if _beam_core: _beam_core.visible = false
 		return
 	_beam_active = true
-	_beam_line.visible = true
-	# Width drives both the visual and the hit-column tolerance, so wider
-	# beam = bigger hit area. Half-width on each side + a small fudge so
-	# enemies that visually touch the edge get hit.
-	_beam_line.width = secondary_beam_width
+	if _beam_halo: _beam_halo.visible = true
+	if _beam_line: _beam_line.visible = true
+	if _beam_core: _beam_core.visible = true
+	# Width drives the visual AND the hit-column tolerance. Halo bloats
+	# 60% wider than main; core is 35% as wide for a hot center.
+	if _beam_line:
+		_beam_line.width = secondary_beam_width
+	if _beam_halo:
+		_beam_halo.width = secondary_beam_width * 1.6
+	if _beam_core:
+		_beam_core.width = max(1.0, secondary_beam_width * 0.35)
 	var beam_half_width: float = secondary_beam_width * 0.5 + 2.0
 	# Find the first tough/boss enemy in the beam's column; that's where
 	# the beam stops. Soft enemies between us and it get damaged.
@@ -625,7 +663,9 @@ func _tick_beam(holding: bool, delta: float) -> void:
 			continue
 		enemies_in_column.append(e)
 	enemies_in_column.sort_custom(_sort_by_y_desc)
-	var dmg_amount: int = max(1, int(round(secondary_beam_dps * delta)))
+	# Per-tick damage: secondary_beam_damage applied to every enemy in
+	# the path each frame the beam is held.
+	var dmg_amount: int = max(1, secondary_beam_damage)
 	var stop_y: float = -screensize.y  # default: top of world
 	for e in enemies_in_column:
 		if e.has_method("take_hit"):
@@ -634,12 +674,15 @@ func _tick_beam(holding: bool, delta: float) -> void:
 			# Beam stops here — set end point at the enemy's Y, exit.
 			stop_y = e.global_position.y - global_position.y
 			break
-	# Beam line in local coords: muzzle just above the ship, ending
-	# either at the first tough/boss enemy hit or off the top of screen.
-	_beam_line.points = PackedVector2Array([
+	# All three layers share the same start/end points so they composite
+	# as halo-under-beam-under-core. Muzzle just above the ship.
+	var points := PackedVector2Array([
 		Vector2(0, -10),
 		Vector2(0, stop_y),
 	])
+	if _beam_halo: _beam_halo.points = points
+	if _beam_line: _beam_line.points = points
+	if _beam_core: _beam_core.points = points
 
 
 func _sort_by_y_desc(a, b) -> bool:
