@@ -1,0 +1,15 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/parts/drone_bits.gd" id="1_db"]
+[ext_resource type="PackedScene" uid="uid://ce2sbgdju6rp7" path="res://scenes/projectiles/bullet.tscn" id="2_b"]
+
+[resource]
+script = ExtResource("1_db")
+mark = 1
+bullet_scene = ExtResource("2_b")
+base_damage = 1
+dmg_per_mark = 1
+base_drones = 1
+drones_per_mark = 1
+max_drones = 5
+halfspan = 18.0

@@ -1,0 +1,14 @@
+[gd_scene load_steps=2 format=3 uid="uid://bplyrdrone1"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_drone"]
+radius = 3.0
+
+[node name="PlayerDrone" type="Node2D"]
+
+[node name="Outer" type="Polygon2D" parent="."]
+color = Color(0.35, 0.85, 1, 1)
+polygon = PackedVector2Array(-4, 0, -3, -3, 0, -4, 3, -3, 4, 0, 3, 3, 0, 4, -3, 3)
+
+[node name="Inner" type="Polygon2D" parent="."]
+color = Color(1, 1, 1, 1)
+polygon = PackedVector2Array(-2, 0, -1, -1.5, 0, -2, 1, -1.5, 2, 0, 1, 1.5, 0, 2, -1, 1.5)

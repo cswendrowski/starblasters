@@ -33,6 +33,12 @@ var secondary_homing: bool = false  # true for seeking missile
 var secondary_pod_count: int = 1
 var secondary_pod_halfspan: float = 10.0  # px from center to outermost pod
 var _secondary_t: float = 0.0
+# Drone Bits (Gradius Options) — orbiting companions that fire alongside
+# the primary. drone_bits holds the spawned drone Node2Ds; fire_primary
+# spawns an extra bullet from each drone's global_position each shot.
+var drone_bits: Array = []
+var drone_bits_damage: int = 1
+var drone_bits_bullet_scene: PackedScene = null
 # Continuous-beam secondary (Particle Beam). When non-empty, secondary
 # fire ignores the bullet pipeline and instead runs a held-beam tick.
 # Set to "beam" by ParticleBeam.apply(); empty string = bullet mode.
@@ -521,6 +527,20 @@ func fire_primary() -> void:
 				dmg = int(round(float(bullet_damage) * HYPER_DAMAGE_MULT))
 			b.damage = dmg
 		b.start(position + Vector2(0, -8), dir)
+	# Drone Bits piggyback the primary fire — one extra bullet from each
+	# drone's position, fired straight up. Uses drone_bits_bullet_scene
+	# (defaults to the primary's bullet if not set) and drone damage.
+	if drone_bits and drone_bits.size() > 0:
+		var drone_scene: PackedScene = drone_bits_bullet_scene if drone_bits_bullet_scene else bullet_scene
+		if drone_scene:
+			for drone in drone_bits:
+				if not is_instance_valid(drone):
+					continue
+				var db: Node = drone_scene.instantiate()
+				get_tree().root.add_child(db)
+				if "damage" in db:
+					db.damage = drone_bits_damage
+				db.start(drone.global_position + Vector2(0, -4))
 	# Style-specific muzzle FX + per-shot SFX.
 	var MuzzleFx = load("res://scripts/effects/muzzle_fx.gd")
 	if weapon_style == "machinegun":
