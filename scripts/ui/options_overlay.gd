@@ -144,6 +144,17 @@ func _build_ui() -> void:
 
 	v.add_child(_make_separator())
 
+	# Controls — display current keyboard bindings + click-to-rebind
+	# (keyboard only for now; gamepad bindings stay defaults).
+	var ctrl_lbl := Label.new()
+	ctrl_lbl.text = "Controls"
+	UiTheme.style_label(ctrl_lbl, UiTheme.LabelKind.HEADER)
+	v.add_child(ctrl_lbl)
+	for action_name in ["shoot", "shoot2", "shoot_nose", "focus", "weapon_previous", "weapon_next"]:
+		_add_rebind_row(v, action_name)
+
+	v.add_child(_make_separator())
+
 	var back := Button.new()
 	back.text = "Back"
 	back.custom_minimum_size = Vector2(140, 22)
@@ -152,6 +163,92 @@ func _build_ui() -> void:
 	var back_center := CenterContainer.new()
 	back_center.add_child(back)
 	v.add_child(back_center)
+
+
+# Rebind row for one input action. Shows the action's display label and
+# the current primary keyboard binding (if any) as a clickable button.
+# Clicking arms a one-shot key capture; the next keypress replaces the
+# action's first keyboard event.
+const _ACTION_LABELS := {
+	"shoot": "Primary fire",
+	"shoot2": "Secondary fire",
+	"shoot_nose": "Super weapon",
+	"focus": "Focus / Slow",
+	"weapon_previous": "Previous weapon",
+	"weapon_next": "Next weapon",
+}
+
+var _rebind_pending_action: String = ""
+var _rebind_pending_button: Button = null
+
+
+func _add_rebind_row(parent: VBoxContainer, action_name: String) -> void:
+	if not InputMap.has_action(action_name):
+		return
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 14)
+	parent.add_child(row)
+	var lbl := Label.new()
+	lbl.text = _ACTION_LABELS.get(action_name, action_name)
+	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	UiTheme.style_label(lbl, UiTheme.LabelKind.BODY)
+	row.add_child(lbl)
+	var btn := Button.new()
+	btn.custom_minimum_size = Vector2(90, 18)
+	btn.text = _key_label_for(action_name)
+	UiTheme.style_button(btn)
+	btn.pressed.connect(func(): _start_rebind(action_name, btn))
+	row.add_child(btn)
+
+
+# Returns a human-readable label for the action's first keyboard event,
+# or "—" if no keyboard binding exists.
+func _key_label_for(action_name: String) -> String:
+	for ev in InputMap.action_get_events(action_name):
+		if ev is InputEventKey:
+			return OS.get_keycode_string(ev.physical_keycode) if ev.physical_keycode != 0 else OS.get_keycode_string(ev.keycode)
+	return "—"
+
+
+func _start_rebind(action_name: String, btn: Button) -> void:
+	_rebind_pending_action = action_name
+	_rebind_pending_button = btn
+	btn.text = "Press a key…"
+
+
+# Capture the next keypress and rebind the action's first keyboard event
+# to it. Other events (gamepad buttons, the secondary keyboard binding)
+# are left untouched.
+func _unhandled_key_input(event: InputEvent) -> void:
+	if _rebind_pending_action == "":
+		return
+	if not (event is InputEventKey) or not event.pressed:
+		return
+	if event.keycode == KEY_ESCAPE:
+		# Cancel rebind silently.
+		if _rebind_pending_button:
+			_rebind_pending_button.text = _key_label_for(_rebind_pending_action)
+		_rebind_pending_action = ""
+		_rebind_pending_button = null
+		get_viewport().set_input_as_handled()
+		return
+	# Find the existing first keyboard event and replace it.
+	var existing_key: InputEventKey = null
+	for e in InputMap.action_get_events(_rebind_pending_action):
+		if e is InputEventKey:
+			existing_key = e
+			break
+	if existing_key:
+		InputMap.action_erase_event(_rebind_pending_action, existing_key)
+	var new_ev := InputEventKey.new()
+	new_ev.physical_keycode = event.physical_keycode
+	new_ev.keycode = event.keycode
+	InputMap.action_add_event(_rebind_pending_action, new_ev)
+	if _rebind_pending_button:
+		_rebind_pending_button.text = _key_label_for(_rebind_pending_action)
+	_rebind_pending_action = ""
+	_rebind_pending_button = null
+	get_viewport().set_input_as_handled()
 
 
 func _make_separator() -> Control:
