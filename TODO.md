@@ -4,26 +4,26 @@ Captured from Cody's 2026-05-19 punch list. Ordered roughly by leverage.
 
 ## Controls + Player
 
-- [x] **Rebind to genre conventions** — `5d36dcc`. Z+Space = primary, C = secondary, X = super, Shift = focus, Q/E weapon swap. Settings remap UI still TODO.
+- [x] **Rebind to genre conventions** — `5d36dcc`. Z+Space = primary, C = secondary, X = super, Shift = focus, Q/E weapon swap.
 - [x] **Focus Mode** — `5d36dcc`. Hold Shift → speed × 0.55 + hitbox dot at player center.
-- [ ] **Settings remap UI.** Currently keys are hardcoded in project.godot. Players can't rebind without editing the .godot file.
-- [ ] **Autofire toggle.** A keybind (or settings checkbox) that latches "primary fire" on without needing to hold. Many PC shmup players prefer it.
-- [ ] **Gamepad support.** D-pad/stick → move, A → fire, X → bomb, hold-Y → focus, RB → secondary. Settings remap supported.
+- [x] **Settings remap UI** — `1cf36be`. Options overlay Controls section, click-to-rebind per action. Keyboard only (gamepad rebind in-app deferred). Session-only persistence — cross-session rebind serialisation is a polish follow-up.
+- [x] **Autofire toggle** — `fba545a`. Settings.autofire (checkbox in Options).
+- [x] **Gamepad support** — `94be6ab`. D-pad / left stick for movement; A/B/X/Y + LB for action buttons. Standard shmup layout.
 
 ## Weapons + Parts
 
-- [ ] **Shuffle Seeking Missile + Rocket Pod to HARDPOINT_WING.** **BLOCKED**: requires `fire_secondary()` pipeline first — separate `secondary_bullet_scene` / `secondary_cooldown` / `secondary_ammo` fields + own timer, since their `apply()` currently writes to the primary fields. Order: wire secondary fire pipeline → then move the parts.
-- [x] **Spread Cannon** — `83cd9f5`. Fans bullets across an arc, Mk scaling adds bullets (Mk.1=3 → Mk.4+=9 capped). `player.gd::fire_primary` honors `bullet_spread_count` / `bullet_spread_degrees`.
-- [x] **Smart Bomb** — `b9e3458`. First super weapon. Screen-clear + heavy damage on every enemy. Mk scales damage + charges. Auto-equipped Mk.1 in DEVICE_BAY_1 on starting loadout. `fire_super()` wired.
-- [ ] **Hyper Mode** (super) — ~3 s supercharged primary + brief i-frames.
-- [ ] **Drone Swarm** (super) — spawn 4-6 autonomous drones for ~5 s.
-- [ ] **Phase Shift** (super) — ~2 s invulnerability + bullet-cancel.
-- [ ] **Side Pods / Drone Bits** — secondary supplements in HARDPOINT slots.
-- [ ] **Outpost refill for super charges.** Smart Bomb starts each run with full charges; spent charges don't refill on shop visits yet.
-- [ ] **HUD indicator for super_charges.** `super_charges_changed` signal is emitted; nothing reads it. Need a charge pip strip somewhere visible.
-- [ ] **Filter Weapon Editor list by slot_type.** Now that DEVICE_BAY + (eventually) HARDPOINT parts are in `resources/weapons/`, the editor should show category tabs (Primary / Secondary / Super) instead of one flat list.
-- [ ] **Touhou death-bomb hook.** On fatal hit, if a super charge is available, consume it and grant i-frames instead of dying.
-- [ ] **Hook PartFactory to load weapons from resources/weapons/.tres.** Currently the weapon editor's saves don't affect in-game balance because PartFactory uses script defaults.
+- [x] **Secondary fire pipeline + shuffle missile/rocket to HARDPOINT_WING** — `278066e`. player.gd grew secondary_bullet_scene / secondary_cooldown / secondary_damage / secondary_homing + _secondary_t. Seeking Missile + Rocket Pod's apply() now writes there, slot_type = HARDPOINT_WING.
+- [x] **Spread Cannon** — `83cd9f5`. Fans bullets across an arc, Mk scaling adds bullets.
+- [x] **Smart Bomb** — `b9e3458`, `ee904d9`. Screen-clear + heavy damage + 0.6s invuln. Auto-equipped Mk.1 on starting loadout.
+- [x] **Hyper Mode** — `073a709`. 3 s supercharged primary (bypass GunCooldown + 2× damage) + invuln.
+- [x] **Phase Shift** — `073a709`. 2 s invuln + bullet cancel.
+- [ ] **Drone Swarm** (super) — deferred; needs autonomous drone enemy scenes that don't exist yet.
+- [ ] **Side Pods / Drone Bits** — secondary supplements in HARDPOINT slots, expand the secondary roster.
+- [x] **Outpost refill for super charges** — `3cbfef0`. Free refill on outpost visit (paid in-station button is a follow-up polish).
+- [x] **HUD super_charges pip strip** — `e41cf49`. Gold = remaining, dim = spent. Rebuilds on Mk change.
+- [x] **Filter Weapon Editor list by slot_type** — `ff47632`. SlotFilter dropdown with All / Primary / Secondary / Super.
+- [x] **Touhou death-bomb hook** — `e41cf49`, `ee904d9`. On fatal hit, auto-fire super (consumes a charge, grants invuln) instead of dying.
+- [x] **Hook PartFactory to load weapons from resources/weapons/.tres** — `c54befc`. Both starting loadout AND shop pool consult .tres first, fall back to script defaults. Weapon Editor saves now affect in-game balance.
 
 ## Onboarding
 
@@ -32,7 +32,7 @@ Captured from Cody's 2026-05-19 punch list. Ordered roughly by leverage.
 ## Dev Menu Cleanup
 
 - [x] **Remove obsolete buttons** — `35a66a2`. Test Bed, Movement Test, UI Designer, Wave Tester gone. `WaveGeneratorV2` still on disk; pull when nothing references it.
-- [ ] **Merge Ship Sizer + Shipyard → unified Shipyard.** Edit any ship / enemy: stats (HP, bounty, speed, hitbox), sprite, scale, orientation flip. Should be the one tool for unit authoring.
+- [ ] **Merge Ship Sizer + Shipyard → unified Shipyard.** Edit any ship / enemy: stats (HP, bounty, speed, hitbox), sprite, scale, orientation flip. Should be the one tool for unit authoring. **Deferred — bigger UI refactor than fit this session.**
 - [x] **Unified Test Combat launcher** — `eb45a8f`. One modal fans out to Test Level / Hazard / Boss Fight.
 
 ## Asteroid Lab
