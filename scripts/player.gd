@@ -33,6 +33,10 @@ var _secondary_t: float = 0.0
 # Set to "beam" by ParticleBeam.apply(); empty string = bullet mode.
 var secondary_mode: String = ""
 var secondary_beam_dps: float = 30.0
+# Beam width — Particle Beam Part sets this; Mk scaling = +2 per Mk.
+# Drives both the Line2D visual width AND the hit-column tolerance so
+# wider beam = larger hit area.
+var secondary_beam_width: float = 3.0
 # Line2D visual + active state for the beam.
 var _beam_line: Line2D = null
 var _beam_active: bool = false
@@ -588,7 +592,6 @@ func _ensure_beam_visual() -> void:
 # by Y descending so we hit the nearest first. Pierce through any enemy
 # that ISN'T flagged tough/boss; stop on the first tough/boss enemy.
 # Damage applied = secondary_beam_dps × delta to every enemy in the path.
-const BEAM_HALF_WIDTH := 6.0  # px tolerance on x-axis
 const TOUGH_HP_THRESHOLD := 8  # enemies with > 8 max_hull count as "tough"
 
 
@@ -601,6 +604,11 @@ func _tick_beam(holding: bool, delta: float) -> void:
 		return
 	_beam_active = true
 	_beam_line.visible = true
+	# Width drives both the visual and the hit-column tolerance, so wider
+	# beam = bigger hit area. Half-width on each side + a small fudge so
+	# enemies that visually touch the edge get hit.
+	_beam_line.width = secondary_beam_width
+	var beam_half_width: float = secondary_beam_width * 0.5 + 2.0
 	# Find the first tough/boss enemy in the beam's column; that's where
 	# the beam stops. Soft enemies between us and it get damaged.
 	var tree := get_tree()
@@ -613,7 +621,7 @@ func _tick_beam(holding: bool, delta: float) -> void:
 		# Skip enemies BELOW the player or outside the beam's x band.
 		if e.global_position.y > global_position.y:
 			continue
-		if abs(e.global_position.x - global_position.x) > BEAM_HALF_WIDTH:
+		if abs(e.global_position.x - global_position.x) > beam_half_width:
 			continue
 		enemies_in_column.append(e)
 	enemies_in_column.sort_custom(_sort_by_y_desc)

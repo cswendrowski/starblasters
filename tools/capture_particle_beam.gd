@@ -20,11 +20,11 @@ func _init() -> void:
 	if player == null:
 		quit()
 		return
-	# Equip the Particle Beam onto the player. We do this by directly
-	# instantiating the part and applying — bypassing the PlayerLoadout's
-	# slot-replacement path so we don't need to know the loadout API.
+	# Equip the Particle Beam onto the player at MK.9 so the wider-beam
+	# (Mk scales width +2 per Mk → Mk.9 = 19 px) shows clearly.
 	var ParticleBeamScript = load("res://scripts/parts/particle_beam.gd")
 	var beam = ParticleBeamScript.new()
+	beam.mark = 9
 	beam.apply(player)
 	# Mute the camera shake so the capture doesn't jitter the frame.
 	if "_shake_amp" in player and player.has_node("/root/HologramHUD"):
