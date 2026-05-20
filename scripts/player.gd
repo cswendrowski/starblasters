@@ -32,10 +32,10 @@ var _secondary_t: float = 0.0
 # fire ignores the bullet pipeline and instead runs a held-beam tick.
 # Set to "beam" by ParticleBeam.apply(); empty string = bullet mode.
 var secondary_mode: String = ""
-# Per-tick damage applied to every enemy in the beam's column each
-# frame. Drives total DPS at runtime — at 60 fps, secondary_beam_damage
-# = N means 60N damage per second per enemy in the column.
-var secondary_beam_damage: int = 1
+# DPS-based beam damage — secondary_beam_dps × delta per frame, applied
+# to every enemy in the column. Frame-rate independent; flat per-Mk
+# (Mk grows the width, not the damage).
+var secondary_beam_dps: float = 30.0
 # Beam width — Particle Beam Part sets this; Mk scales it +1 px / Mk.
 # Drives the visual width AND the hit-column tolerance so wider beam
 # = larger hit area.
@@ -625,7 +625,7 @@ func _ensure_beam_visual() -> void:
 const TOUGH_HP_THRESHOLD := 8  # enemies with > 8 max_hull count as "tough"
 
 
-func _tick_beam(holding: bool, _delta: float) -> void:
+func _tick_beam(holding: bool, delta: float) -> void:
 	_ensure_beam_visual()
 	if not holding or not is_alive:
 		if _beam_active:
@@ -663,9 +663,10 @@ func _tick_beam(holding: bool, _delta: float) -> void:
 			continue
 		enemies_in_column.append(e)
 	enemies_in_column.sort_custom(_sort_by_y_desc)
-	# Per-tick damage: secondary_beam_damage applied to every enemy in
-	# the path each frame the beam is held.
-	var dmg_amount: int = max(1, secondary_beam_damage)
+	# DPS × delta — frame-rate independent. At 60 fps + 30 DPS that
+	# rounds to 1 dmg/tick (since int(round(0.5)) = 1 on tied rounding,
+	# but max(1, ...) guards anyway).
+	var dmg_amount: int = max(1, int(round(secondary_beam_dps * delta)))
 	var stop_y: float = -screensize.y  # default: top of world
 	for e in enemies_in_column:
 		if e.has_method("take_hit"):
