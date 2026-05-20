@@ -88,11 +88,8 @@ func _build_ui() -> void:
 	_add_button("[ Parallax Tuner ]", _on_parallax_tuner, true)
 	_add_button("[ Ship Sizer ]", _on_ship_sizer, true)
 	_add_button("[ Asteroid Lab ]", _on_asteroid_lab, true)
-	# Test launchers (Test Level + Test Hazard + Boss Fight to be merged
-	# into a single Test Combat launcher — see TODO.md).
-	_add_button("[ Test Level ]", _on_test_level, true)
-	_add_button("[ Test Hazard ]", _on_test_hazard, true)
-	_add_button("[ Boss Fight ]", _on_boss_fight, true)
+	# Test launchers
+	_add_button("[ Test Combat ]", _on_test_combat, true)
 	_add_button("[ Hangar ]", _on_hangar, true)
 
 	v.add_child(HSeparator.new())
@@ -174,6 +171,77 @@ func _on_ship_sizer() -> void:
 
 func _on_hangar() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/hangar.tscn")
+
+
+# Unified Test Combat launcher (Cody 2026-05-19): one modal that fans
+# out to the three existing test paths instead of three separate dev
+# menu buttons. Each option re-uses its own modal/flow downstream.
+func _on_test_combat() -> void:
+	if _test_hazard_modal != null and is_instance_valid(_test_hazard_modal):
+		return
+	var layer := CanvasLayer.new()
+	layer.layer = 80
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.6)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.add_child(dim)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(center)
+	var panel := VBoxContainer.new()
+	panel.custom_minimum_size = Vector2(200, 140)
+	panel.add_theme_constant_override("separation", 12)
+	center.add_child(panel)
+	var header := Label.new()
+	header.text = "TEST COMBAT"
+	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	UiTheme.style_label(header, UiTheme.LabelKind.HEADER)
+	panel.add_child(header)
+	var body := Label.new()
+	body.text = "What kind of fight?"
+	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	UiTheme.style_label(body, UiTheme.LabelKind.BODY)
+	panel.add_child(body)
+	# Each option closes this modal, then fans out:
+	#   Level   → directly loads resources/levels/test_level.tres
+	#   Hazard  → opens the hazard sub-modal (minefield / asteroid field)
+	#   Boss    → opens the boss picker sub-modal
+	var level_btn := Button.new()
+	level_btn.text = "Custom Level (test_level.tres)"
+	level_btn.custom_minimum_size = Vector2(180, 18)
+	UiTheme.style_button(level_btn)
+	level_btn.pressed.connect(func():
+		_close_test_hazard_modal()
+		_on_test_level()
+	)
+	panel.add_child(level_btn)
+	var hazard_btn := Button.new()
+	hazard_btn.text = "Hazard..."
+	hazard_btn.custom_minimum_size = Vector2(180, 18)
+	UiTheme.style_button(hazard_btn)
+	hazard_btn.pressed.connect(func():
+		_close_test_hazard_modal()
+		_on_test_hazard()
+	)
+	panel.add_child(hazard_btn)
+	var boss_btn := Button.new()
+	boss_btn.text = "Boss..."
+	boss_btn.custom_minimum_size = Vector2(180, 18)
+	UiTheme.style_button(boss_btn)
+	boss_btn.pressed.connect(func():
+		_close_test_hazard_modal()
+		_on_boss_fight()
+	)
+	panel.add_child(boss_btn)
+	var cancel_btn := Button.new()
+	cancel_btn.text = "Cancel"
+	cancel_btn.custom_minimum_size = Vector2(140, 16)
+	UiTheme.style_button(cancel_btn, true)
+	cancel_btn.pressed.connect(_close_test_hazard_modal)
+	panel.add_child(cancel_btn)
+	add_child(layer)
+	_test_hazard_modal = layer
 
 
 func _on_back() -> void:
