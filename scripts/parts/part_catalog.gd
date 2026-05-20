@@ -120,44 +120,42 @@ static func _make_by_name(name: String, slot: int):
 		"_make_reinforced_shield":
 			return ReinforcedShield.new()
 		"_make_basic_blaster":
-			var b = BasicBlasterCannon.new()
-			b.bullet_scene = BulletDefault
-			return b
+			return _build_weapon("res://resources/weapons/energy_blaster.tres", BasicBlasterCannon, BulletDefault)
 		"_make_heavy_blaster":
-			var h = HeavyBlaster.new()
-			h.bullet_scene = BulletHeavy
-			return h
+			return _build_weapon("res://resources/weapons/heavy_blaster.tres", HeavyBlaster, BulletHeavy)
 		"_make_machinegun":
-			var m = MachinegunCannon.new()
-			m.bullet_scene = BulletMinigun
-			return m
+			return _build_weapon("res://resources/weapons/machinegun.tres", MachinegunCannon, BulletMinigun)
 		"_make_wave_gun":
-			var w = WaveGunCannon.new()
-			w.bullet_scene = BulletWave
-			return w
+			return _build_weapon("res://resources/weapons/wave_gun.tres", WaveGunCannon, BulletWave)
 		"_make_laser_beam":
-			var l = LaserBeamCannon.new()
-			l.bullet_scene = BulletLaser
-			return l
+			return _build_weapon("res://resources/weapons/laser_beam.tres", LaserBeamCannon, BulletLaser)
 		"_make_rocket_pod":
-			var r = RocketPodCannon.new()
-			r.bullet_scene = PlayerRocket
-			return r
+			return _build_weapon("res://resources/weapons/rocket_pod.tres", RocketPodCannon, PlayerRocket)
 		"_make_seeking_missile":
-			var s = SeekingMissileCannon.new()
-			s.bullet_scene = PlayerSeekingMissile
-			return s
+			return _build_weapon("res://resources/weapons/seeking_missile.tres", SeekingMissileCannon, PlayerSeekingMissile)
 		"_make_spread_cannon":
-			var sc = SpreadCannon.new()
-			sc.bullet_scene = BulletDefault
-			return sc
+			return _build_weapon("res://resources/weapons/spread_cannon.tres", SpreadCannon, BulletDefault)
 		"_make_smart_bomb":
-			var sb = SmartBomb.new()
-			return sb
+			return _build_weapon("res://resources/weapons/smart_bomb.tres", SmartBomb, null)
 		"_make_hyper_mode":
-			var hm = HyperMode.new()
-			return hm
+			return _build_weapon("res://resources/weapons/hyper_mode.tres", HyperMode, null)
 		"_make_phase_shift":
-			var ps = PhaseShift.new()
-			return ps
+			return _build_weapon("res://resources/weapons/phase_shift.tres", PhaseShift, null)
 	return null
+
+
+# Weapon-editor parity: load resources/weapons/<name>.tres if present,
+# else build a fresh instance from the script. Duplicate the loaded
+# resource so subsequent uses don't mutate a shared cache. Auto-assigns
+# bullet_scene from the bullet fallback when the .tres didn't set it.
+static func _build_weapon(tres_path: String, fallback_script: Script, bullet_fallback):
+	var weapon
+	if ResourceLoader.exists(tres_path):
+		var loaded = load(tres_path)
+		if loaded != null:
+			weapon = loaded.duplicate()
+	if weapon == null:
+		weapon = fallback_script.new()
+	if bullet_fallback != null and "bullet_scene" in weapon and weapon.bullet_scene == null:
+		weapon.bullet_scene = bullet_fallback
+	return weapon
