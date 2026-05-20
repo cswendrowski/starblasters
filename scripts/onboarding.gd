@@ -39,7 +39,11 @@ func _build_pages() -> Array:
 	return [
 		{
 			"title": "Controls",
-			"body": "WASD or Arrow Keys to move.\nSpace to fire your main cannon.\nShift to fire your nose-mounted hardpoint.\nQ / E cycle between weapons.\nEsc opens the pause menu.",
+			"body": "WASD or Arrow Keys to move.\nZ or Space — fire primary cannon.\nC — fire secondary (hardpoint).\nX — super weapon (limited charges).\nShift — Focus mode: slows movement for precision dodging, shows your hitbox dot.\nQ / E — cycle weapons.\nEsc — pause menu.",
+		},
+		{
+			"title": "Parts & Marks",
+			"body": "Your ship is a hull stuffed with slotted parts: Cannon, Engine, Shield, Wings, Tail.\n\nEvery part has a Mark — Mk.1 through Mk.9. Higher Mk = stronger: more damage, more speed, deeper shield pool. Mk values are stamped on the part card.\n\nOutposts sell upgraded marks of parts you already own; pick up doubles to climb the curve. A Mk.9 build by sector's end is the goal.",
 		},
 		{
 			"title": "Shields & Hull",
