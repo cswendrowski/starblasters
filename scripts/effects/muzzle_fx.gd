@@ -61,7 +61,7 @@ static func _spawn_flash(root: Node, world_pos: Vector2) -> void:
 	glow.position = world_pos
 	glow.scale = Vector2(0.85, 0.85)
 	glow.modulate = Color(1.0, 0.72, 0.28, 0.95)  # yellow-orange
-	glow.z_index = -1  # sort under the player ship (Cobalt 2026-05-21)
+	glow.z_index = 2  # over the player ship (Cobalt 2026-05-21 follow-up)
 	var glow_mat := CanvasItemMaterial.new()
 	glow_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	glow.material = glow_mat
@@ -76,7 +76,7 @@ static func _spawn_flash(root: Node, world_pos: Vector2) -> void:
 	flash.hframes = MUZZLE_STRIP_HFRAMES
 	flash.frame = randi() % MUZZLE_STRIP_HFRAMES
 	flash.position = world_pos
-	flash.z_index = -1  # sort under the player ship
+	flash.z_index = 3  # over the player ship + glow halo
 	root.add_child(flash)
 	var tw := flash.create_tween()
 	tw.tween_property(flash, "modulate:a", 0.0, 0.08)
