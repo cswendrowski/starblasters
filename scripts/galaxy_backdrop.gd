@@ -37,6 +37,7 @@ const PLANET_VERT_OFFSET = {
 const ASTEROID_SCENE = "res://Planets/Asteroids/Asteroid.tscn"
 const STARFIELD_SHADER = "res://graphics/starfield.gdshader"
 const NEBULA_SHADER = "res://graphics/nebula.gdshader"
+const NEBULA2_SHADER = "res://graphics/nebula2.gdshader"
 const STARSTUFF_SHADER = "res://graphics/starstuff.gdshader"
 const SPACE_COLORSCHEME = "res://SpaceBG/Colorscheme.tres"
 
@@ -352,8 +353,11 @@ func _spawn_nebulae(rng: RandomNumberGenerator, band_tag: String = "", band_tint
 		tint_for_layer
 	)
 	# NEAR nebula — smaller scale, contrastier, drifts faster.
+	# Staged rollout of nebula2.gdshader: near pass gets the domain-warped
+	# / filament version with conservative swirl, far pass still on the
+	# original shader. If the near pass reads right, swap far too.
 	_make_space_layer(
-		"NebulaNear", NEBULA_SHADER, cs,
+		"NebulaNear", NEBULA2_SHADER, cs,
 		sd_base + 4.3, nebula_pixels, int(nebula_octaves), nebula_drift * 2.0,
 		nebula_alpha * alpha_mult, nebula_density, nebula_scale,
 		tint_for_layer
@@ -370,7 +374,7 @@ func _make_space_layer(layer_name: String, shader_path: String, colorscheme, sd:
 	rect.color = Color(0, 0, 0, 0)
 	var mat = ShaderMaterial.new()
 	mat.shader = shader
-	if shader_path == NEBULA_SHADER:
+	if shader_path == NEBULA_SHADER or shader_path == NEBULA2_SHADER:
 		# Per-layer overrides so we can stack multiple nebula passes at
 		# different scales / alphas / densities for volumetric depth.
 		var use_scale: float = scale_override if scale_override > 0.0 else nebula_scale
@@ -387,6 +391,16 @@ func _make_space_layer(layer_name: String, shader_path: String, colorscheme, sd:
 		mat.set_shader_parameter("uv_correct", Vector2(1.0, 1.0))
 		if colorscheme != null:
 			mat.set_shader_parameter("colorscheme", colorscheme)
+		# nebula2-only knobs — conservative defaults for the live near pass.
+		# Swirl is gentle (0.8) so it reads as motion in the cloud, not a
+		# painterly distortion. Filaments are subtle (0.2). Opacity left at
+		# 1.0 so the existing max_alpha threshold continues to drive fade.
+		if shader_path == NEBULA2_SHADER:
+			mat.set_shader_parameter("warp_strength", 0.8)
+			mat.set_shader_parameter("warp_scale", 1.0)
+			mat.set_shader_parameter("wisp_strength", 0.2)
+			mat.set_shader_parameter("opacity", 1.0)
+			mat.set_shader_parameter("scroll_offset", Vector2.ZERO)
 	else:
 		# Legacy PixelSpace StarStuff fallback (kept for option toggling)
 		mat.set_shader_parameter("size", 50.0)
