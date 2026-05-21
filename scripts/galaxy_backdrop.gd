@@ -68,6 +68,11 @@ const PLANET_TINT = {
 @export var asteroid_count: int = 3
 @export var asteroid_spin_min: float = 0.03
 @export var asteroid_spin_max: float = 0.10
+# Minimum decorative asteroid size in viewport pixels. Below ~16 vp-px the
+# procgen shader can't generate a recognizable rock silhouette at 1:1
+# pixel parity (it'd render as 16 indistinct cells). Cobalt 2026-05-20 —
+# this is the legibility floor for "somewhat small" parallax asteroids.
+@export_range(8.0, 48.0) var asteroid_min_size: float = 16.0
 # Per-sector chance of asteroid spawns. Levels without asteroids feel more
 # like deep-space cruising.
 @export_range(0.0, 1.0) var asteroid_presence: float = 0.65
@@ -81,24 +86,39 @@ const PLANET_TINT = {
 @export var warp_streak_count: int = 14
 @export var warp_streak_speed: float = 520.0
 @export_range(0.0, 1.0) var surface_time_scale: float = 0.15
-@export_range(10.0, 5000.0) var planet_pixels: float = 100.0
-@export_range(10.0, 5000.0) var asteroid_pixels: float = 100.0
-# When true, the actual `pixels` shader uniform scales with the planet/asteroid's
-# displayed size, so a 1000-px planet doesn't render at 100 internal pixels and
-# look blocky. Roman, 2026-05-16: "planets with size 1000 would look best with
-# a pixel setting of 480 or so." The ratio is in internal-pixels per
-# displayed-pixel; clamped to keep small bodies from being too sharp (no point
-# in a 200px planet rendering at 200 internal pixels — fine detail vanishes).
-@export var size_scaled_pixels: bool = true
-# Roman, 2026-05-17 empirical anchor: "at size 1000, 468 pixels looked best".
-# That gives ratio = 468 / 1000 = 0.468 — a touch under the old 0.5 default,
-# applied as a linear rule so anything bigger or smaller scales pixel density
-# along the same curve.
-@export_range(0.1, 1.0) var pixels_per_size: float = 0.468
-@export_range(64.0, 1024.0) var pixels_floor: float = 100.0
-# Ceiling raised 600 -> 800 so the linear rule can express more pixels for
-# the larger end of the size variance band (size up to ~1700 stays unclamped).
-@export_range(128.0, 2048.0) var pixels_ceiling: float = 800.0
+# Pixel parity (Cobalt 2026-05-20): every procedural backdrop body
+# (planets, asteroids, nebula) renders at exactly `pixel_density` viewport
+# pixels per art pixel, regardless of how big the body is on screen. Set
+# to 1.0 to match the player ship's 1 viewport-px per art-pixel. Raise
+# above 1.0 (e.g., 2.0) for a chunkier "deep space" look.
+#
+# This replaces the old per-knob system (planet_pixels, asteroid_pixels,
+# nebula_pixels, pixels_per_size, pixels_floor, pixels_ceiling), all of
+# which were partial fixes for the same underlying equation. The rule:
+#
+#     shader_pixels = display_size_in_vp / pixel_density
+#
+# combined with resetting each procedural body's internal ColorRect back
+# to its canonical size, gives 1:1 parity from tiny moons to screen-
+# filling black holes.
+@export_range(0.5, 6.0) var pixel_density: float = 1.0
+# Safety-net minimum cell count. Asteroid bands clamp their own size to
+# `asteroid_min_size` so the floor rarely kicks in for them; this is here
+# in case something else (companion moon, custom spawn) feeds a tiny
+# value. 16 is the legibility threshold for the procgen rock silhouette.
+@export_range(8.0, 64.0) var pixels_floor: float = 16.0
+# Canonical ColorRect logical sizes by node name. PixelPlanets'
+# set_pixels() resizes inner ColorRects to (amount, amount), which
+# couples shader resolution to display footprint. After calling
+# set_pixels we reset every ColorRect back to its canonical size so the
+# shader runs at the requested cell count over the original area. Ring
+# overlays (BlackHole's Disk, GasPlanetLayers' Ring) are authored as 3×
+# the body's footprint, so they get 300×300 instead of 100×100.
+const COLORRECT_DEFAULT_CANONICAL := Vector2(100.0, 100.0)
+const COLORRECT_CANONICAL_BY_NAME := {
+	"Disk": Vector2(300.0, 300.0),
+	"Ring": Vector2(300.0, 300.0),
+}
 # Procedural starfield overlay. Set density=0 to disable.
 @export_range(0.0, 80.0) var starfield_density: float = 40.0
 @export_range(0.0, 200.0) var starfield_scroll: float = 8.0
@@ -106,7 +126,6 @@ const PLANET_TINT = {
 # Nebula background layer (custom soft shader).
 @export var use_nebula: bool = true
 @export var use_starstuff: bool = false  # legacy, kept for compatibility
-@export_range(0.0, 800.0) var nebula_pixels: float = 200.0
 @export_range(10.0, 1000.0) var starstuff_pixels: float = 200.0  # legacy
 @export_range(1.0, 8.0) var nebula_octaves: float = 5.0
 @export_range(0.0, 0.05) var nebula_drift: float = 0.004
@@ -345,10 +364,14 @@ func _spawn_nebulae(rng: RandomNumberGenerator, band_tag: String = "", band_tint
 	var in_band: bool = band_tag != ""
 	var tint_for_layer: Color = band_tint if in_band else Color(1, 1, 1, 1)
 	var alpha_mult: float = 1.6 if in_band else 1.0
+	# Nebula cell count derives from viewport size + pixel_density so each
+	# cell lands at the target viewport-pixels-per-art-pixel. Same value
+	# for far + near — both targets are player-pixel parity.
+	var nebula_px: float = 480.0 / max(pixel_density, 0.01)
 	# FAR nebula — huge, very soft, slow, and dimmed for depth.
 	_make_space_layer(
 		"NebulaFar", NEBULA_SHADER, cs,
-		sd_base, nebula_pixels * 1.6, int(nebula_octaves), nebula_drift * 0.6,
+		sd_base, nebula_px, int(nebula_octaves), nebula_drift * 0.6,
 		nebula_alpha * 0.4 * alpha_mult, nebula_density * 0.6, nebula_scale * 1.4,
 		tint_for_layer
 	)
@@ -358,7 +381,7 @@ func _spawn_nebulae(rng: RandomNumberGenerator, band_tag: String = "", band_tint
 	# original shader. If the near pass reads right, swap far too.
 	_make_space_layer(
 		"NebulaNear", NEBULA2_SHADER, cs,
-		sd_base + 4.3, nebula_pixels, int(nebula_octaves), nebula_drift * 2.0,
+		sd_base + 4.3, nebula_px, int(nebula_octaves), nebula_drift * 2.0,
 		nebula_alpha * alpha_mult, nebula_density, nebula_scale,
 		tint_for_layer
 	)
@@ -509,11 +532,7 @@ func _spawn_companion_body(scene_path: String, rng: RandomNumberGenerator, plane
 		p.pivot_offset = Vector2.ZERO
 	var sf: float = actual_size / 100.0
 	p.scale = Vector2(sf, sf)
-	var px: float = _pixels_for_size(actual_size, planet_pixels)
-	if p.has_method("set_pixels"):
-		p.set_pixels(px)
-	else:
-		_apply_pixels_only(p, px)
+	_apply_pixel_parity(p, actual_size)
 	if "override_time" in p:
 		p.override_time = true
 	if p.has_method("set_seed"):
@@ -579,18 +598,11 @@ func _spawn_planet(scene_path: String, rng: RandomNumberGenerator, planet_idx_us
 	var actual_size: float = planet_size * size_mult
 	var sf: float = actual_size / 100.0
 	p.scale = Vector2(sf, sf)
-	var px: float = _pixels_for_size(actual_size, planet_pixels)
-	# Prefer the planet asset's own set_pixels(amount) when present — each
-	# variant knows whether its sub-shaders need a multiplier (BlackHole
-	# scales the Disk by 3×; Galaxy / GasPlanetLayers have similar tweaks).
-	# Falling back to _apply_pixels_only bypasses that and starved the disc
-	# shaders of pixel resolution (Roman, 2026-05-17: "black hole still
-	# looking super pixelated"). _apply_pixels_only stays as the fallback
-	# for planet variants without a custom set_pixels.
-	if p.has_method("set_pixels"):
-		p.set_pixels(px)
-	else:
-		_apply_pixels_only(p, px)
+	# Pixel-parity helper handles set_pixels + ColorRect reset (see
+	# _apply_pixel_parity). Same path for every planet variant including
+	# BlackHole / GasPlanetLayers, whose ring overlays are special-cased
+	# via COLORRECT_CANONICAL_BY_NAME.
+	_apply_pixel_parity(p, actual_size)
 	if "override_time" in p:
 		p.override_time = true
 	# Use the full range of Planet builder randomization (Roman, 2026-05-16:
@@ -852,33 +864,34 @@ func _spawn_asteroid_in_band(rng: RandomNumberGenerator, band: String) -> Node:
 	var inner: Node = a.get_node_or_null("Asteroid")
 	if inner and "material" in inner and inner.material != null:
 		inner.material = inner.material.duplicate()
-	# Per-band size + speed + visual weight. Deep band asteroids are small,
+		# Per-band size + speed + visual weight. Deep band asteroids are small,
 	# dim, slow — they sit behind the stars conceptually but in front of
 	# nebula for visual depth. Near band is big, bright, fast — they whip past.
+	#
+	# Cobalt 2026-05-20: every band's lower bound clamps to
+	# `asteroid_min_size` so even the smallest decorative rock stays
+	# legible at 1:1 pixel parity. Below ~16 vp-px the procgen shader
+	# can't generate a recognizable silhouette.
 	var sz: float = 80.0
 	var base_drift: float = 1.0
 	var modulate_color: Color = Color(1, 1, 1, 1)
-	# Cody, 2026-05-18 playtest: target asteroids should be clearly the
-	# big ones in the foreground; background asteroids stay small + tinted
-	# so the player can tell what's shootable at a glance.
 	match band:
 		"deep":
-			sz = rng.randf_range(6.0, 14.0)
+			sz = rng.randf_range(max(16.0, asteroid_min_size), max(24.0, asteroid_min_size + 4.0))
 			base_drift = rng.randf_range(0.18, 0.32)
 			modulate_color = Color(0.35, 0.45, 0.65, 0.50)
 		"mid":
-			sz = rng.randf_range(12.0, 22.0)
+			sz = rng.randf_range(max(22.0, asteroid_min_size + 4.0), max(32.0, asteroid_min_size + 12.0))
 			base_drift = rng.randf_range(0.5, 0.9)
 			modulate_color = Color(0.55, 0.65, 0.80, 0.70)
 		"near":
-			sz = rng.randf_range(18.0, 30.0)
+			sz = rng.randf_range(max(32.0, asteroid_min_size + 12.0), max(44.0, asteroid_min_size + 24.0))
 			base_drift = rng.randf_range(1.1, 1.7)
 			modulate_color = Color(0.70, 0.78, 0.90, 0.85)
 	var sf: float = sz / 100.0
 	a.scale = Vector2(sf, sf)
 	a.modulate = modulate_color
-	var apx: float = _pixels_for_size(sz, asteroid_pixels)
-	_apply_pixels_only(a, apx)
+	_apply_pixel_parity(a, sz)
 	if a.has_method("set_seed"):
 		a.set_seed(rng.randi() % 100000)
 	if "override_time" in a:
@@ -991,14 +1004,47 @@ static func _build_streak_texture() -> Texture2D:
 	t.fill_to = Vector2(0.5, 1.0)
 	return t
 
-# Pixel resolution for a celestial body of the given displayed size.
-# When size_scaled_pixels is off, returns the flat fallback; otherwise scales
-# linearly with size and clamps to [floor, ceiling].
-func _pixels_for_size(displayed_size: float, flat_fallback: float) -> float:
-	if not size_scaled_pixels:
-		return flat_fallback
-	var raw: float = displayed_size * pixels_per_size
-	return clamp(raw, pixels_floor, pixels_ceiling)
+# Pixel cell count for a body of `displayed_size` viewport-px at the
+# current `pixel_density` setting. Below `pixels_floor` we cap so tiny
+# distant bodies don't degenerate into a handful of cells — they render
+# slightly chunkier than target rather than disappear into mush.
+func _pixels_for_size(displayed_size: float) -> float:
+	var raw: float = displayed_size / max(pixel_density, 0.01)
+	return max(raw, pixels_floor)
+
+
+# Apply pixel parity to a procedural body: drive the shader's `pixels`
+# uniform AND reset each internal ColorRect back to its canonical
+# logical size. The reset is what decouples shader resolution from
+# display footprint — without it, PixelPlanets' set_pixels resizes the
+# ColorRect in lockstep with the uniform, leaving cell viewport size
+# pinned to the parent's scale.
+#
+# Returns the cell count used so callers can stash it for later (e.g.,
+# the BlackHole boss attack reuses it via _apply_pixels_only).
+func _apply_pixel_parity(p: Node, displayed_size: float) -> float:
+	var px: float = _pixels_for_size(displayed_size)
+	# Prefer the planet asset's own set_pixels(amount) when present —
+	# each variant knows whether sub-shaders need a multiplier (BlackHole
+	# scales the Disk by 3×; GasPlanetLayers Ring similarly). Fallback
+	# walks ColorRect children and sets the uniform directly.
+	if p.has_method("set_pixels"):
+		p.set_pixels(px)
+	else:
+		_apply_pixels_only(p, px)
+	_reset_colorrect_sizes(p)
+	return px
+
+
+# Walk ColorRect descendants and reset their `size` to the canonical
+# logical dimensions the addon shipped with. Lookup table handles ring
+# overlays (Disk/Ring) which are authored at 300×300 by convention.
+func _reset_colorrect_sizes(root: Node) -> void:
+	for child in root.get_children():
+		if child is ColorRect:
+			var canon: Vector2 = COLORRECT_CANONICAL_BY_NAME.get(String(child.name), COLORRECT_DEFAULT_CANONICAL)
+			(child as ColorRect).size = canon
+		_reset_colorrect_sizes(child)
 
 
 func _apply_pixels_only(root: Node, value: float) -> void:
