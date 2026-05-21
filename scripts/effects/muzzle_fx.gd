@@ -14,6 +14,11 @@ extends Node
 
 const SHELL_TEX = preload("res://graphics/2x1-shell.png")
 const ShellCasing = preload("res://scripts/effects/shell_casing.gd")
+# Machinegun muzzle-flash strip (Cobalt 2026-05-21). 5 frames of 16×16;
+# _spawn_flash picks a random frame each fire so consecutive shots don't
+# look identical.
+const MUZZLE_STRIP = preload("res://graphics/gun_muzzle_flash.png")
+const MUZZLE_STRIP_HFRAMES := 5
 
 
 static func play(world_pos: Vector2) -> void:
@@ -47,20 +52,34 @@ static func play_energy(world_pos: Vector2) -> void:
 
 
 static func _spawn_flash(root: Node, world_pos: Vector2) -> void:
+	# Cobalt 2026-05-21: warm-flash now uses the gun_muzzle_flash strip
+	# with a random frame per fire. A yellow-orange additive glow halo
+	# sits behind it so the flash reads as a hot light source rather
+	# than just a sprite.
+	var glow := Sprite2D.new()
+	glow.texture = _build_flash_texture()
+	glow.position = world_pos
+	glow.scale = Vector2(0.85, 0.85)
+	glow.modulate = Color(1.0, 0.72, 0.28, 0.95)  # yellow-orange
+	glow.z_index = 5
+	var glow_mat := CanvasItemMaterial.new()
+	glow_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	glow.material = glow_mat
+	root.add_child(glow)
+	var glow_tw := glow.create_tween()
+	glow_tw.tween_property(glow, "scale", Vector2(1.4, 1.4), 0.09)
+	glow_tw.parallel().tween_property(glow, "modulate:a", 0.0, 0.09)
+	glow_tw.tween_callback(glow.queue_free)
+	# Pixel-art flash sprite — random frame from the 5-frame strip.
 	var flash := Sprite2D.new()
-	flash.texture = _build_flash_texture()
+	flash.texture = MUZZLE_STRIP
+	flash.hframes = MUZZLE_STRIP_HFRAMES
+	flash.frame = randi() % MUZZLE_STRIP_HFRAMES
 	flash.position = world_pos
-	flash.scale = Vector2(0.9, 0.9)
-	flash.modulate = Color(1.0, 0.95, 0.7, 1.0)
-	flash.z_index = 5
-	var mat := CanvasItemMaterial.new()
-	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	flash.material = mat
+	flash.z_index = 6
 	root.add_child(flash)
-	# Quick punch out — scale up + fade to zero over 80ms then free.
 	var tw := flash.create_tween()
-	tw.tween_property(flash, "scale", Vector2(1.6, 1.6), 0.08)
-	tw.parallel().tween_property(flash, "modulate:a", 0.0, 0.08)
+	tw.tween_property(flash, "modulate:a", 0.0, 0.08)
 	tw.tween_callback(flash.queue_free)
 
 
@@ -76,15 +95,18 @@ static func _spawn_smoke(root: Node, world_pos: Vector2) -> void:
 	p.local_coords = false
 	p.texture = _build_smoke_texture()
 	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_SPHERE
-	p.emission_sphere_radius = 4.0
+	# Cobalt 2026-05-21: muzzle smoke shrunk to 50% — radius, velocity,
+	# and scale all halved so the smoke reads as a small puff rather
+	# than a billowing column.
+	p.emission_sphere_radius = 2.0
 	p.direction = Vector2(0, 1)  # downward = "back along ship's travel"
 	p.spread = 28.0
-	p.initial_velocity_min = 70.0
-	p.initial_velocity_max = 160.0
-	p.linear_accel_min = 30.0
-	p.linear_accel_max = 50.0
-	p.scale_amount_min = 0.6
-	p.scale_amount_max = 1.4
+	p.initial_velocity_min = 35.0
+	p.initial_velocity_max = 80.0
+	p.linear_accel_min = 15.0
+	p.linear_accel_max = 25.0
+	p.scale_amount_min = 0.3
+	p.scale_amount_max = 0.7
 	var curve := Curve.new()
 	curve.add_point(Vector2(0.0, 0.4))
 	curve.add_point(Vector2(0.3, 1.0))
