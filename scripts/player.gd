@@ -59,17 +59,6 @@ var _beam_halo: Line2D = null
 var _beam_line: Line2D = null
 var _beam_core: Line2D = null
 var _beam_active: bool = false
-# Pre-fire sparkle (Cobalt 2026-05-21). When the beam is first held down
-# we hold the firing line for `BEAM_SPARKLE_TIME` while the sparkling
-# star shader plays at the player's nose. Damage and beam visual are
-# suppressed during the sparkle so the player can read the windup.
-const BEAM_SPARKLE_TIME := 0.5
-const BEAM_SPARKLE_SHADER = preload("res://graphics/sparkling_star.gdshader")
-var _beam_sparkle: ColorRect = null
-# Wall-time deadline (Time.get_ticks_msec()) for the sparkle to end.
-# 0 means not in windup. Using ticks_msec instead of delta-accum so a
-# single huge delta tick can't blow past the deadline.
-var _beam_sparkle_end_ms: int = 0
 # Super weapon slot — DEVICE_BAY_1 Part assigns itself here on apply().
 # Charges are consumed on tap (single-use per press); refilled at
 # outposts. Initial charges populated when the part is equipped.
@@ -671,125 +660,6 @@ func _ensure_beam_visual() -> void:
 	_beam_core = core
 
 
-# Spawn the sparkling-star ColorRect at the player's nose. The shader
-# expects square UVs centered on (0.5, 0.5); we size at 24 px so the
-# star is clearly readable but not overwhelming. Cleaned up at the end
-# of the windup via _end_beam_sparkle().
-const BEAM_SPARKLE_SIZE := Vector2(84, 84)  # ~3× the original 28 (Cobalt 2026-05-21)
-
-func _begin_beam_sparkle() -> void:
-	if _beam_sparkle and is_instance_valid(_beam_sparkle):
-		_beam_sparkle.queue_free()
-	var rect := ColorRect.new()
-	rect.name = "BeamSparkle"
-	rect.size = BEAM_SPARKLE_SIZE
-	rect.position = -BEAM_SPARKLE_SIZE * 0.5 + Vector2(0, -10)
-	rect.color = Color(1, 1, 1, 1)
-	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# Pivot at center for the 45° rotation.
-	rect.pivot_offset = BEAM_SPARKLE_SIZE * 0.5
-	rect.rotation = PI * 0.25
-	var mat := ShaderMaterial.new()
-	mat.shader = BEAM_SPARKLE_SHADER
-	# Cobalt 2026-05-21 spec:
-	# - rotate_speed = 0 (sparkle is static, not spinning)
-	# - decay_magnitude animates 1 → 0.5 over the first half of the
-	#   windup, then oscillates 0.4–0.6 for the rest. _tick_beam_sparkle
-	#   drives this per-frame; we seed at 1.0 here so the first frame
-	#   is at full extent.
-	# - sort OVER the beam (beam halo is z=4, line z=5, core z=6; we
-	#   sit at z=7).
-	# - Color matches beam halo's teal so the glow reads cohesive.
-	mat.set_shader_parameter("color", Color(0.55, 0.95, 1.0, 1.0))
-	mat.set_shader_parameter("scale", 5000.0)
-	mat.set_shader_parameter("decay_magnitude", 1.0)
-	mat.set_shader_parameter("cut_magnitude", 0.04)
-	mat.set_shader_parameter("rotate_speed", 0.0)
-	mat.set_shader_parameter("time_speed", 4.0)
-	mat.set_shader_parameter("frequency_base", 1.4)
-	mat.set_shader_parameter("frequency_disturbance_scale", 0.8)
-	mat.set_shader_parameter("stop_shine", false)
-	rect.material = mat
-	rect.z_index = 7
-	add_child(rect)
-	_beam_sparkle = rect
-	# Glow halo. Cobalt 2026-05-21: the old flat ColorRect glow was
-	# rendering as a square because the additive ColorRect filled its
-	# entire bounding box. New glow uses the SAME sparkling_star shader
-	# (with softer frequency + wider decay) so it shares the sparkle's
-	# alpha mask — only the star shape glows. Sits just under the
-	# sparkle, slightly larger, slightly different rotation phase for a
-	# subtle bloom underneath.
-	var glow := ColorRect.new()
-	glow.name = "BeamSparkleGlow"
-	glow.size = BEAM_SPARKLE_SIZE * 1.4
-	glow.position = -glow.size * 0.5 + Vector2(0, -10)
-	glow.color = Color(1, 1, 1, 1)
-	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	glow.pivot_offset = glow.size * 0.5
-	glow.rotation = PI * 0.25
-	var glow_mat := ShaderMaterial.new()
-	glow_mat.shader = BEAM_SPARKLE_SHADER
-	# Beefier halo tint than the core; lower frequency so the rays
-	# spread further; bumped decay so the falloff is gentler.
-	glow_mat.set_shader_parameter("color", Color(0.35, 0.85, 1.0, 0.65))
-	glow_mat.set_shader_parameter("scale", 6500.0)
-	glow_mat.set_shader_parameter("decay_magnitude", 0.45)
-	glow_mat.set_shader_parameter("cut_magnitude", 0.03)
-	glow_mat.set_shader_parameter("rotate_speed", 0.0)
-	glow_mat.set_shader_parameter("time_speed", 3.0)
-	glow_mat.set_shader_parameter("frequency_base", 1.0)
-	glow_mat.set_shader_parameter("frequency_disturbance_scale", 0.5)
-	glow_mat.set_shader_parameter("stop_shine", false)
-	glow.material = glow_mat
-	glow.z_index = 6
-	rect.set_meta("glow", glow)
-	rect.set_meta("glow_mat", glow_mat)
-	add_child(glow)
-
-
-# Per-frame decay animation while the sparkle is alive. First half of
-# the windup: 1.0 → 0.5. Second half: oscillate 0.4–0.6.
-func _tick_beam_sparkle(_delta: float) -> void:
-	if _beam_sparkle == null or not is_instance_valid(_beam_sparkle):
-		return
-	var mat: ShaderMaterial = _beam_sparkle.material
-	if mat == null:
-		return
-	var remaining_ms: int = max(0, _beam_sparkle_end_ms - Time.get_ticks_msec())
-	var total_ms: int = int(BEAM_SPARKLE_TIME * 1000.0)
-	var elapsed: float = 1.0 - float(remaining_ms) / float(max(1, total_ms))  # 0..1
-	var decay: float
-	if elapsed < 0.5:
-		# Ramp 1.0 → 0.5 over first half.
-		decay = lerp(1.0, 0.5, elapsed / 0.5)
-	else:
-		# Oscillate 0.4–0.6 over the second half.
-		var t: float = (elapsed - 0.5) * TAU * 4.0  # 4 oscillations
-		decay = 0.5 + 0.1 * sin(t)
-	mat.set_shader_parameter("decay_magnitude", decay)
-	# Drive the glow's decay in parallel — softer falloff (offset by
-	# −0.1) so the halo is consistently wider than the core sparkle.
-	var glow_mat: ShaderMaterial = _beam_sparkle.get_meta("glow_mat", null)
-	if glow_mat:
-		glow_mat.set_shader_parameter("decay_magnitude", max(0.05, decay - 0.1))
-
-
-func _end_beam_sparkle() -> void:
-	if _beam_sparkle and is_instance_valid(_beam_sparkle):
-		var fade := _beam_sparkle
-		_beam_sparkle = null
-		# Tear down the glow halo alongside the sparkle.
-		var glow = fade.get_meta("glow", null)
-		if glow and is_instance_valid(glow):
-			var glow_tw := create_tween()
-			glow_tw.tween_property(glow, "modulate:a", 0.0, 0.08)
-			glow_tw.tween_callback(glow.queue_free)
-		var tw := create_tween()
-		tw.tween_property(fade, "modulate:a", 0.0, 0.08)
-		tw.tween_callback(fade.queue_free)
-
-
 # Per-frame: scan enemies in a vertical column above the player, sorted
 # by Y descending so we hit the nearest first. Pierce through any enemy
 # that ISN'T flagged tough/boss; stop on the first tough/boss enemy.
@@ -805,27 +675,7 @@ func _tick_beam(holding: bool, delta: float) -> void:
 			if _beam_halo: _beam_halo.visible = false
 			if _beam_line: _beam_line.visible = false
 			if _beam_core: _beam_core.visible = false
-		_end_beam_sparkle()
-		_beam_sparkle_end_ms = 0
 		return
-	# Sparkle pre-fire: half-second windup before the beam locks in,
-	# wall-clock-anchored so a single huge process delta can't blow past
-	# the deadline.
-	var now_ms: int = Time.get_ticks_msec()
-	if not _beam_active and _beam_sparkle_end_ms == 0 and _beam_sparkle == null:
-		_beam_sparkle_end_ms = now_ms + int(BEAM_SPARKLE_TIME * 1000.0)
-		_begin_beam_sparkle()
-	if _beam_sparkle_end_ms > 0:
-		if now_ms < _beam_sparkle_end_ms:
-			# Still in windup — beam lines hidden, damage suppressed.
-			if _beam_halo: _beam_halo.visible = false
-			if _beam_line: _beam_line.visible = false
-			if _beam_core: _beam_core.visible = false
-			_tick_beam_sparkle(delta)
-			return
-		# Sparkle just finished — fade it out, beam takes over.
-		_end_beam_sparkle()
-		_beam_sparkle_end_ms = 0
 	_beam_active = true
 	if _beam_halo: _beam_halo.visible = true
 	if _beam_line: _beam_line.visible = true
