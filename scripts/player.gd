@@ -675,7 +675,7 @@ func _ensure_beam_visual() -> void:
 # expects square UVs centered on (0.5, 0.5); we size at 24 px so the
 # star is clearly readable but not overwhelming. Cleaned up at the end
 # of the windup via _end_beam_sparkle().
-const BEAM_SPARKLE_SIZE := Vector2(28, 28)
+const BEAM_SPARKLE_SIZE := Vector2(84, 84)  # ~3× the original 28 (Cobalt 2026-05-21)
 
 func _begin_beam_sparkle() -> void:
 	if _beam_sparkle and is_instance_valid(_beam_sparkle):
@@ -713,20 +713,38 @@ func _begin_beam_sparkle() -> void:
 	rect.z_index = 7
 	add_child(rect)
 	_beam_sparkle = rect
-	# Glow halo behind the sparkle — mirrors the beam halo's tint so the
-	# windup reads as the same light source charging up. Drawn under the
-	# main sparkle (z=6).
+	# Glow halo. Cobalt 2026-05-21: the old flat ColorRect glow was
+	# rendering as a square because the additive ColorRect filled its
+	# entire bounding box. New glow uses the SAME sparkling_star shader
+	# (with softer frequency + wider decay) so it shares the sparkle's
+	# alpha mask — only the star shape glows. Sits just under the
+	# sparkle, slightly larger, slightly different rotation phase for a
+	# subtle bloom underneath.
 	var glow := ColorRect.new()
 	glow.name = "BeamSparkleGlow"
-	glow.size = BEAM_SPARKLE_SIZE * 1.6
+	glow.size = BEAM_SPARKLE_SIZE * 1.4
 	glow.position = -glow.size * 0.5 + Vector2(0, -10)
-	glow.color = Color(0.35, 0.85, 1.0, 0.55)
+	glow.color = Color(1, 1, 1, 1)
 	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var glow_mat := CanvasItemMaterial.new()
-	glow_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	glow.pivot_offset = glow.size * 0.5
+	glow.rotation = PI * 0.25
+	var glow_mat := ShaderMaterial.new()
+	glow_mat.shader = BEAM_SPARKLE_SHADER
+	# Beefier halo tint than the core; lower frequency so the rays
+	# spread further; bumped decay so the falloff is gentler.
+	glow_mat.set_shader_parameter("color", Color(0.35, 0.85, 1.0, 0.65))
+	glow_mat.set_shader_parameter("scale", 6500.0)
+	glow_mat.set_shader_parameter("decay_magnitude", 0.45)
+	glow_mat.set_shader_parameter("cut_magnitude", 0.03)
+	glow_mat.set_shader_parameter("rotate_speed", 0.0)
+	glow_mat.set_shader_parameter("time_speed", 3.0)
+	glow_mat.set_shader_parameter("frequency_base", 1.0)
+	glow_mat.set_shader_parameter("frequency_disturbance_scale", 0.5)
+	glow_mat.set_shader_parameter("stop_shine", false)
 	glow.material = glow_mat
 	glow.z_index = 6
 	rect.set_meta("glow", glow)
+	rect.set_meta("glow_mat", glow_mat)
 	add_child(glow)
 
 
@@ -750,6 +768,11 @@ func _tick_beam_sparkle(_delta: float) -> void:
 		var t: float = (elapsed - 0.5) * TAU * 4.0  # 4 oscillations
 		decay = 0.5 + 0.1 * sin(t)
 	mat.set_shader_parameter("decay_magnitude", decay)
+	# Drive the glow's decay in parallel — softer falloff (offset by
+	# −0.1) so the halo is consistently wider than the core sparkle.
+	var glow_mat: ShaderMaterial = _beam_sparkle.get_meta("glow_mat", null)
+	if glow_mat:
+		glow_mat.set_shader_parameter("decay_magnitude", max(0.05, decay - 0.1))
 
 
 func _end_beam_sparkle() -> void:
