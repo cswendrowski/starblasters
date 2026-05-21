@@ -384,10 +384,17 @@ func _refresh_layer_picker() -> void:
 		_layer_base_drift[id] = dm
 		_layer_brightness[id] = 1.0
 		_layer_contrast[id] = 1.0
-		# Seed the Colorization picker from the layer's authored tint
-		# (Parallax2D.modulate on V2, modulate on V1 layers). The picker
-		# then drives modulate via _apply_layer_visual on any edit.
-		_layer_color[id] = child.modulate
+		# Seed the Colorization picker. V3 exposes a tint shader uniform
+		# per content layer (planet's dominant color is the default);
+		# fall back to layer.modulate for V1/V2 + overlays.
+		var seed_color: Color = child.modulate
+		if child is Parallax2D and _backdrop and _backdrop.has_method("tint_material_for"):
+			var mat: ShaderMaterial = _backdrop.tint_material_for(child)
+			if mat != null:
+				var c = mat.get_shader_parameter("tint")
+				if c is Color:
+					seed_color = c
+		_layer_color[id] = seed_color
 		_layer_picker.add_item(String(child.name))
 		if first == null:
 			first = child
@@ -459,11 +466,18 @@ func _apply_layer_visual(layer: CanvasItem) -> void:
 	var g: float = ((base.g * tint.g) * b - 0.5) * c + 0.5
 	var bl: float = ((base.b * tint.b) * b - 0.5) * c + 0.5
 	var modulate_color := Color(r, g, bl, base.a * tint.a)
-	# Parallax2D layers in 4.3 don't reliably propagate modulate to their
-	# tiled child draws — push modulate down to the direct children so the
-	# tint actually shows on stars/asteroids/nebula content (Cobalt
-	# 2026-05-20 feedback). Non-Parallax2D layers (the ColorCorrection
-	# overlay) still get modulate set directly.
+	# Preferred path (V3): backdrop exposes a tint ShaderMaterial per
+	# layer; the parallax_tint shader multiplies the layer's composited
+	# texture by `tint`. This bypasses Parallax2D's flaky modulate
+	# propagation entirely.
+	if layer is Parallax2D and _backdrop and _backdrop.has_method("tint_material_for"):
+		var mat: ShaderMaterial = _backdrop.tint_material_for(layer)
+		if mat != null:
+			mat.set_shader_parameter("tint", modulate_color)
+			return
+	# Fallback (V1/V2 + non-Parallax2D layers like the ColorCorrection
+	# overlay) — set modulate directly; for Parallax2D layers in V1/V2
+	# also push modulate to direct children to cover the propagation gap.
 	if layer is Parallax2D:
 		for child in layer.get_children():
 			if child is CanvasItem:
