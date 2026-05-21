@@ -1,18 +1,17 @@
-extends Control
+extends Node2D
 
-# Hangar V3 — Cobalt 2026-05-20 rework.
+# Hangar V4 — Cobalt 2026-05-20 redirect.
 #
-# HD UI viewport (1920×1080 logical) wrapping a native 480×270 SubViewport
-# that hosts the actual playfield. Same pattern as the parallax tuner —
-# pixel-art look + HD-legible controls.
+# Drops the HD-viewport + SubViewport setup (it made the player blurry,
+# moved bullets into the wrong coordinate space, and didn't match what a
+# "new game" player would see). Instead, the hangar IS the live combat
+# scene: same native 480×270 viewport, same Playfield band, same
+# backdrop, same player at the same spawn position. The wave director
+# is replaced by a single dummy target the player can shoot for as long
+# as the menu is open.
 #
-# Lets the player configure all ten ship slots with whatever PartCatalog
-# advertises, with a per-slot Mk slider, then fly around in the center
-# play space and shoot a dummy target at the top.
-#
-# Player.gd's bullet_parent override routes spawned bullets / drone shots
-# into the SubViewport so they collide with the target instead of
-# escaping into the root scene tree.
+# UI sits on a CanvasLayer overlay at native viewport scale, panels
+# tucked into the side gutters so the playable band stays unobstructed.
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
@@ -22,15 +21,10 @@ const PlayerScene = preload("res://scenes/player/player.tscn")
 const BackdropScript = preload("res://scripts/galaxy_backdrop.gd")
 const DummyTargetScript = preload("res://scripts/dev/hangar_dummy_target.gd")
 
-const HD_VIEWPORT := Vector2i(1920, 1080)
-const PLAYFIELD_VIEWPORT := Vector2i(480, 270)
+const TARGET_POS := Vector2(240, 36)
 
-# Positions in the SubViewport's native 480×270 coordinate space.
-const TARGET_POS_NATIVE := Vector2(240, 36)
-const PLAYER_SPAWN_NATIVE := Vector2(240, 220)
-
-# Logical weapon groups Cobalt wants exposed in the hangar — primary,
-# secondary, super. Each maps to the real SlotType the live game uses.
+# Same three logical groups as before — Primary, Secondary, Super —
+# mapping to the live-game SlotTypes the picker filters on.
 const WEAPON_GROUPS := [
 	{"name": "Primary (Z / SPACE)",   "slot": SlotTypes.SlotType.CANNON},
 	{"name": "Secondary (C)",         "slot": SlotTypes.SlotType.HARDPOINT_WING},
@@ -40,9 +34,6 @@ const WEAPON_GROUPS := [
 
 # ---- State ---------------------------------------------------------------
 
-var _prev_scale_size: Vector2i = Vector2i.ZERO
-var _playfield_viewport: SubViewport = null
-var _playfield_display: TextureRect = null
 var _backdrop: Node2D = null
 var _player: Node = null
 var _target: Area2D = null
@@ -56,96 +47,53 @@ var _status_label: Label = null
 var _equipped_summary: Label = null
 
 var _selected_slot: int = SlotTypes.SlotType.CANNON
-var _equipped_per_slot: Dictionary = {}
 
 
 # ---- Lifecycle -----------------------------------------------------------
 
 func _ready() -> void:
-	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_enter_hd_viewport()
-	_build_playfield_pipeline()
+	RenderingServer.set_default_clear_color(Color(0.0, 0.0, 0.0))
 	_spawn_backdrop()
 	_spawn_player()
 	_spawn_dummy_target()
 	_build_ui()
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("menu")
-	# Player.gd has already seeded the default starting loadout in its
-	# _ready (PartFactoryCls.default_starting_loadout). Wait a frame for
-	# that to settle, then mirror the state into the hangar's picker.
+	# Player.gd's _ready calls PartFactoryCls.default_starting_loadout()
+	# — same loadout a fresh-run player would have. Wait a frame for that
+	# to settle, then mirror it into the picker.
 	await get_tree().process_frame
-	_sync_from_loadout()
-
-
-func _enter_hd_viewport() -> void:
-	var w := get_window()
-	if w == null:
-		return
-	_prev_scale_size = w.content_scale_size
-	w.content_scale_size = HD_VIEWPORT
-
-
-func _exit_hd_viewport() -> void:
-	var w := get_window()
-	if w == null:
-		return
-	if _prev_scale_size != Vector2i.ZERO:
-		w.content_scale_size = _prev_scale_size
-
-
-func _exit_tree() -> void:
-	_exit_hd_viewport()
-
-
-# ---- Playfield SubViewport ----------------------------------------------
-
-func _build_playfield_pipeline() -> void:
-	_playfield_viewport = SubViewport.new()
-	_playfield_viewport.name = "PlayfieldViewport"
-	_playfield_viewport.size = PLAYFIELD_VIEWPORT
-	_playfield_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	_playfield_viewport.transparent_bg = false
-	_playfield_viewport.handle_input_locally = false
-	add_child(_playfield_viewport)
-
-	_playfield_display = TextureRect.new()
-	_playfield_display.name = "PlayfieldDisplay"
-	_playfield_display.texture = _playfield_viewport.get_texture()
-	_playfield_display.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_playfield_display.stretch_mode = TextureRect.STRETCH_SCALE
-	_playfield_display.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_playfield_display.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	add_child(_playfield_display)
-	move_child(_playfield_display, 0)
+	_refresh_part_picker()
+	_refresh_equipped()
 
 
 func _spawn_backdrop() -> void:
 	_backdrop = Node2D.new()
 	_backdrop.name = "Backdrop"
 	_backdrop.set_script(BackdropScript)
-	_playfield_viewport.add_child(_backdrop)
+	add_child(_backdrop)
 
 
 func _spawn_player() -> void:
 	_player = PlayerScene.instantiate()
-	_playfield_viewport.add_child(_player)
-	# Route bullets / drones into the SubViewport instead of the root tree
-	# so they collide with the dummy target.
-	_player.bullet_parent = _playfield_viewport
-	# Defer so player.start() (called inside player._ready) finishes wiring
-	# autoload signals before we reposition.
+	add_child(_player)
+	# Match the live-game spawn — Playfield.CENTER bottom-ish — exactly
+	# where new_game() puts the player. No SubViewport routing; bullets
+	# spawn at get_tree().root just like in combat.
 	await get_tree().process_frame
-	_player.position = PLAYER_SPAWN_NATIVE
 	if "controls_enabled" in _player:
 		_player.controls_enabled = true
+	# Playfield is the autoload class with the band constants.
+	_player.position = Vector2(Playfield.CENTER.x, Playfield.Y_MAX - 30.0)
 
 
 func _spawn_dummy_target() -> void:
 	_target = Area2D.new()
 	_target.name = "DummyTarget"
 	_target.add_to_group("enemies")
-	_target.position = TARGET_POS_NATIVE
+	# Position near the top of the playfield band so bullets travel a
+	# full vertical sweep to reach it.
+	_target.position = Vector2(Playfield.CENTER.x, Playfield.Y_MIN + 36.0)
 	_target.set_script(DummyTargetScript)
 	var spr := Sprite2D.new()
 	var tex: Texture2D = load("res://graphics/extra-ships/ship_4.png")
@@ -153,108 +101,107 @@ func _spawn_dummy_target() -> void:
 		tex = load("res://graphics/extra-ships/ship_1.png")
 	if tex:
 		spr.texture = tex
-	# 1:1 pixel parity with the player (Cobalt 2026-05-20). Native art
-	# pixel = 1 viewport pixel, same as the player ship.
+	# 1:1 pixel parity with the player.
 	spr.scale = Vector2(1, 1)
 	_target.add_child(spr)
 	var shape := CollisionShape2D.new()
 	var rect := RectangleShape2D.new()
-	rect.size = Vector2(24, 24)
+	rect.size = Vector2(16, 16)
 	shape.shape = rect
 	_target.add_child(shape)
 	var lbl := Label.new()
 	lbl.text = "TARGET"
-	lbl.position = Vector2(-30, 18)
-	lbl.size = Vector2(60, 12)
+	lbl.position = Vector2(-20, 14)
+	lbl.size = Vector2(40, 8)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.add_theme_font_size_override("font_size", 9)
+	lbl.add_theme_font_size_override("font_size", 6)
 	_target.add_child(lbl)
-	_playfield_viewport.add_child(_target)
+	add_child(_target)
 
 
-# ---- HD UI rail ---------------------------------------------------------
+# ---- UI ----------------------------------------------------------------
 
 func _build_ui() -> void:
 	var ui_layer := CanvasLayer.new()
 	ui_layer.name = "HangarUI"
-	ui_layer.layer = 20
+	ui_layer.layer = 5
 	add_child(ui_layer)
 
 	var header := Label.new()
-	header.text = "HANGAR — WASD fly, Z/SPACE primary, C secondary, X super, Shift focus, Esc closes"
-	header.position = Vector2(24, 16)
-	UiTheme.style_label(header, UiTheme.LabelKind.HEADER)
+	header.text = "HANGAR  Esc closes"
+	header.position = Vector2(4, 2)
+	UiTheme.style_label(header, UiTheme.LabelKind.CAPTION)
+	header.add_theme_font_size_override("font_size", 7)
 	ui_layer.add_child(header)
 
-	# Left rail — slot + part selection + Mk + buttons.
-	var left_panel := _make_panel(Vector2(24, 56), Vector2(420, 980))
+	# Left gutter panel — slot + part picker + Mk slider + actions.
+	# Playfield band is x 132-348; we have x 0-132 on the left and x
+	# 348-480 on the right to work with.
+	var left_panel := _make_panel(Vector2(4, 16), Vector2(124, 250))
 	ui_layer.add_child(left_panel)
 	var left_scroll := ScrollContainer.new()
 	left_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	left_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	left_panel.add_child(left_scroll)
 	var left_vb := VBoxContainer.new()
-	left_vb.add_theme_constant_override("separation", 6)
+	left_vb.add_theme_constant_override("separation", 3)
 	left_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	left_scroll.add_child(left_vb)
 
-	_add_caption(left_vb, "WEAPON GROUP")
+	_add_caption(left_vb, "GROUP")
 	_slot_picker = OptionButton.new()
-	_slot_picker.custom_minimum_size = Vector2(0, 28)
+	_slot_picker.custom_minimum_size = Vector2(0, 12)
+	_slot_picker.add_theme_font_size_override("font_size", 7)
 	for i in WEAPON_GROUPS.size():
-		_slot_picker.add_item(WEAPON_GROUPS[i]["name"], int(WEAPON_GROUPS[i]["slot"]))
+		_slot_picker.add_item(String(WEAPON_GROUPS[i]["name"]), int(WEAPON_GROUPS[i]["slot"]))
 	_slot_picker.item_selected.connect(_on_slot_picked)
 	left_vb.add_child(_slot_picker)
 
 	_add_caption(left_vb, "PART")
 	_part_picker = OptionButton.new()
-	_part_picker.custom_minimum_size = Vector2(0, 28)
+	_part_picker.custom_minimum_size = Vector2(0, 12)
+	_part_picker.add_theme_font_size_override("font_size", 7)
 	left_vb.add_child(_part_picker)
 
 	_add_caption(left_vb, "MARK")
 	_mark_label = Label.new()
 	_mark_label.text = "Mk.1"
-	UiTheme.style_label(_mark_label, UiTheme.LabelKind.BODY)
+	_mark_label.add_theme_font_size_override("font_size", 7)
 	left_vb.add_child(_mark_label)
 	_mark_slider = HSlider.new()
 	_mark_slider.min_value = 1
 	_mark_slider.max_value = 9
 	_mark_slider.step = 1
 	_mark_slider.value = 1
-	_mark_slider.custom_minimum_size = Vector2(0, 24)
+	_mark_slider.custom_minimum_size = Vector2(0, 10)
 	_mark_slider.value_changed.connect(_on_mark_changed)
 	left_vb.add_child(_mark_slider)
 
-	_add_button(left_vb, "Apply to Slot", _on_apply_part)
-	_add_button(left_vb, "Clear Slot", _on_clear_slot)
-	left_vb.add_child(HSeparator.new())
-	_add_button(left_vb, "Reset Player Position", _on_reset_player)
-	left_vb.add_child(HSeparator.new())
-	_add_button(left_vb, "Back to Dev Menu", _on_back)
+	_add_button(left_vb, "Apply", _on_apply_part)
+	_add_button(left_vb, "Clear", _on_clear_slot)
+	_add_button(left_vb, "Back", _on_back)
 
 	_status_label = Label.new()
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_status_label.custom_minimum_size = Vector2(380, 0)
+	_status_label.custom_minimum_size = Vector2(118, 0)
+	_status_label.add_theme_font_size_override("font_size", 6)
 	UiTheme.style_label(_status_label, UiTheme.LabelKind.CAPTION)
 	left_vb.add_child(_status_label)
 
-	# Right rail — equipped summary across all slots.
-	var right_panel := _make_panel(Vector2(1476, 56), Vector2(420, 980))
+	# Right gutter — equipped summary.
+	var right_panel := _make_panel(Vector2(352, 16), Vector2(124, 250))
 	ui_layer.add_child(right_panel)
 	var right_vb := VBoxContainer.new()
-	right_vb.add_theme_constant_override("separation", 4)
+	right_vb.add_theme_constant_override("separation", 3)
 	right_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right_vb.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right_panel.add_child(right_vb)
 	_add_caption(right_vb, "EQUIPPED")
 	_equipped_summary = Label.new()
 	_equipped_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_equipped_summary.custom_minimum_size = Vector2(380, 0)
+	_equipped_summary.custom_minimum_size = Vector2(118, 0)
+	_equipped_summary.add_theme_font_size_override("font_size", 7)
 	UiTheme.style_label(_equipped_summary, UiTheme.LabelKind.BODY)
 	right_vb.add_child(_equipped_summary)
-
-	_refresh_part_picker()
-	_refresh_equipped()
 
 
 func _make_panel(pos: Vector2, size: Vector2) -> PanelContainer:
@@ -262,16 +209,16 @@ func _make_panel(pos: Vector2, size: Vector2) -> PanelContainer:
 	p.position = pos
 	p.size = size
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.05, 0.07, 0.11, 0.86)
+	sb.bg_color = Color(0.05, 0.07, 0.11, 0.85)
 	sb.border_color = UiTheme.COLOR_ACCENT_DIM
-	sb.border_width_left = 2
-	sb.border_width_top = 2
-	sb.border_width_right = 2
-	sb.border_width_bottom = 2
-	sb.content_margin_left = 14
-	sb.content_margin_right = 14
-	sb.content_margin_top = 10
-	sb.content_margin_bottom = 10
+	sb.border_width_left = 1
+	sb.border_width_top = 1
+	sb.border_width_right = 1
+	sb.border_width_bottom = 1
+	sb.content_margin_left = 3
+	sb.content_margin_right = 3
+	sb.content_margin_top = 2
+	sb.content_margin_bottom = 2
 	p.add_theme_stylebox_override("panel", sb)
 	return p
 
@@ -279,6 +226,7 @@ func _make_panel(pos: Vector2, size: Vector2) -> PanelContainer:
 func _add_caption(parent: Node, text: String) -> void:
 	var l := Label.new()
 	l.text = text
+	l.add_theme_font_size_override("font_size", 6)
 	UiTheme.style_label(l, UiTheme.LabelKind.CAPTION)
 	parent.add_child(l)
 
@@ -286,7 +234,8 @@ func _add_caption(parent: Node, text: String) -> void:
 func _add_button(parent: Node, text: String, cb: Callable) -> void:
 	var b := Button.new()
 	b.text = text
-	b.custom_minimum_size = Vector2(0, 28)
+	b.custom_minimum_size = Vector2(0, 12)
+	b.add_theme_font_size_override("font_size", 7)
 	UiTheme.style_button(b, true)
 	b.pressed.connect(cb)
 	parent.add_child(b)
@@ -300,22 +249,24 @@ func _on_slot_picked(idx: int) -> void:
 
 
 func _refresh_part_picker() -> void:
+	if _part_picker == null:
+		return
 	_part_picker.clear()
 	_part_picker.add_item("(none)", -1)
 	var factories := _parts_for_slot(_selected_slot)
 	for i in factories.size():
 		_part_picker.add_item(_short_name(factories[i]), i)
-	# Highlight what's currently equipped in this slot, if anything.
-	if _equipped_per_slot.has(_selected_slot):
-		var cur = _equipped_per_slot[_selected_slot]
-		var cur_factory: String = String(cur.get_meta("factory", ""))
+	# Highlight what's already equipped in this slot via the live Loadout.
+	var current = _loadout_part(_selected_slot)
+	if current:
+		var dn: String = String(current.display_name) if "display_name" in current else ""
 		for i in factories.size():
-			if factories[i] == cur_factory:
+			if _short_name(factories[i]) == _short_name(dn) or _short_name(factories[i]).to_lower() == dn.to_lower():
 				_part_picker.select(i + 1)
 				if _mark_slider:
-					_mark_slider.set_value_no_signal(int(cur.mark))
+					_mark_slider.set_value_no_signal(int(current.mark))
 					if _mark_label:
-						_mark_label.text = "Mk.%d" % int(cur.mark)
+						_mark_label.text = "Mk.%d" % int(current.mark)
 				return
 	_part_picker.select(0)
 
@@ -356,48 +307,37 @@ func _on_apply_part() -> void:
 	var factory: String = factories[part_idx]
 	var part = PartCatalog._make_by_name(factory, _selected_slot)
 	if part == null:
-		_set_status("PartCatalog returned null for %s" % factory)
+		_set_status("PartCatalog null for %s" % factory)
 		return
 	part.mark = int(_mark_slider.value)
-	# Stash the factory name on the part so the picker can resync when the
-	# user swaps slots and back.
-	part.set_meta("factory", factory)
-	_equipped_per_slot[_selected_slot] = part
 	if _player and _player.has_node("Loadout"):
 		_player.get_node("Loadout").equip(_selected_slot, part)
-	_set_status("Equipped %s Mk.%d in %s" % [_short_name(factory), int(part.mark), SlotTypes.slot_name(_selected_slot)])
+	_set_status("Equipped %s Mk.%d" % [_short_name(factory), int(part.mark)])
 	_refresh_equipped()
 
 
 func _on_clear_slot() -> void:
-	if _equipped_per_slot.has(_selected_slot):
-		_equipped_per_slot.erase(_selected_slot)
 	if _player and _player.has_node("Loadout"):
 		var loadout = _player.get_node("Loadout")
-		if loadout.has_method("clear"):
-			loadout.clear(_selected_slot)
-		elif loadout.has_method("unequip"):
+		if loadout.has_method("unequip"):
 			loadout.unequip(_selected_slot)
-	_set_status("Cleared %s" % SlotTypes.slot_name(_selected_slot))
+	_set_status("Cleared")
 	_refresh_equipped()
 
 
 func _refresh_equipped() -> void:
 	if _equipped_summary == null:
 		return
-	# Only show the three weapon groups Cobalt cares about — full slot
-	# listing was noise. Pulls live state from the Loadout node so we
-	# reflect what's actually applied to the player, not a side cache.
 	var lines: PackedStringArray = []
 	for group in WEAPON_GROUPS:
 		var slot_id: int = int(group["slot"])
-		var nm: String = String(group["name"])
+		var nm: String = String(group["name"]).split(" ")[0]  # short label
 		var p = _loadout_part(slot_id)
 		if p != null:
 			var dn: String = String(p.display_name) if "display_name" in p else "?"
-			lines.append("%s — %s Mk.%d" % [nm, dn, int(p.mark)])
+			lines.append("%s: %s Mk.%d" % [nm, dn, int(p.mark)])
 		else:
-			lines.append("%s — (empty)" % nm)
+			lines.append("%s: --" % nm)
 	_equipped_summary.text = "\n".join(lines)
 
 
@@ -410,26 +350,7 @@ func _loadout_part(slot_id: int) -> Resource:
 	return null
 
 
-# Player.gd's _ready calls PartFactoryCls.default_starting_loadout(),
-# which equips the live-game baseline (basic wings/tail/engine/shield +
-# energy blaster + smart bomb). The hangar doesn't re-seed — it just
-# syncs its picker state with whatever the Loadout already holds.
-func _sync_from_loadout() -> void:
-	for group in WEAPON_GROUPS:
-		var slot_id: int = int(group["slot"])
-		var p = _loadout_part(slot_id)
-		if p:
-			_equipped_per_slot[slot_id] = p
-	_refresh_part_picker()
-	_refresh_equipped()
-
-
 # ---- Misc ---------------------------------------------------------------
-
-func _on_reset_player() -> void:
-	if _player and is_instance_valid(_player):
-		_player.position = PLAYER_SPAWN_NATIVE
-
 
 func _on_back() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev_menu.tscn")
