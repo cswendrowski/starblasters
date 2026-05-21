@@ -19,6 +19,11 @@ const ShellCasing = preload("res://scripts/effects/shell_casing.gd")
 # look identical.
 const MUZZLE_STRIP = preload("res://graphics/gun_muzzle_flash.png")
 const MUZZLE_STRIP_HFRAMES := 5
+# Default-blaster muzzle strip (Cobalt 2026-05-21). 3 frames of 16×16,
+# cyan-blue glow color #5acbfd.
+const BLASTER_MUZZLE_STRIP = preload("res://graphics/blaster_muzzle.png")
+const BLASTER_MUZZLE_STRIP_HFRAMES := 3
+const BLASTER_GLOW_COLOR := Color(0.353, 0.796, 0.992, 1.0)
 
 
 static func play(world_pos: Vector2) -> void:
@@ -33,21 +38,32 @@ static func play(world_pos: Vector2) -> void:
 # warm/smokey machinegun look when the equipped CANNON is the blaster.
 static func play_energy(world_pos: Vector2) -> void:
 	var root = Engine.get_main_loop().root
+	# Cobalt 2026-05-21: replace the gradient-only flash with the
+	# blaster_muzzle strip + a cyan-blue glow halo at #5acbfd.
+	var glow := Sprite2D.new()
+	glow.texture = _build_flash_texture()
+	glow.position = world_pos
+	glow.scale = Vector2(0.95, 0.95)
+	glow.modulate = BLASTER_GLOW_COLOR
+	glow.z_index = 2
+	var glow_mat := CanvasItemMaterial.new()
+	glow_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	glow.material = glow_mat
+	root.add_child(glow)
+	var gtw := glow.create_tween()
+	gtw.tween_property(glow, "scale", Vector2(1.6, 1.6), 0.10)
+	gtw.parallel().tween_property(glow, "modulate:a", 0.0, 0.10)
+	gtw.tween_callback(glow.queue_free)
+	# Pixel-art strip — random frame per shot.
 	var flash := Sprite2D.new()
-	flash.texture = _build_flash_texture()
+	flash.texture = BLASTER_MUZZLE_STRIP
+	flash.hframes = BLASTER_MUZZLE_STRIP_HFRAMES
+	flash.frame = randi() % BLASTER_MUZZLE_STRIP_HFRAMES
 	flash.position = world_pos
-	flash.scale = Vector2(0.95, 0.95)
-	# Cool cyan-blue to match the Player_beam_single energy bolt + the
-	# bullet glow in bullet.gd.
-	flash.modulate = Color(0.55, 0.9, 1.0, 1.0)
-	flash.z_index = 5
-	var mat := CanvasItemMaterial.new()
-	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	flash.material = mat
+	flash.z_index = 3
 	root.add_child(flash)
 	var tw := flash.create_tween()
-	tw.tween_property(flash, "scale", Vector2(1.7, 1.7), 0.10)
-	tw.parallel().tween_property(flash, "modulate:a", 0.0, 0.10)
+	tw.tween_property(flash, "modulate:a", 0.0, 0.10)
 	tw.tween_callback(flash.queue_free)
 
 
