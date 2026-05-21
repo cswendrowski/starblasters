@@ -29,6 +29,14 @@ const PLAYFIELD_VIEWPORT := Vector2i(480, 270)
 const TARGET_POS_NATIVE := Vector2(240, 36)
 const PLAYER_SPAWN_NATIVE := Vector2(240, 220)
 
+# Logical weapon groups Cobalt wants exposed in the hangar — primary,
+# secondary, super. Each maps to the real SlotType the live game uses.
+const WEAPON_GROUPS := [
+	{"name": "Primary (Z / SPACE)",   "slot": SlotTypes.SlotType.CANNON},
+	{"name": "Secondary (C)",         "slot": SlotTypes.SlotType.HARDPOINT_WING},
+	{"name": "Super (X)",             "slot": SlotTypes.SlotType.DEVICE_BAY_1},
+]
+
 
 # ---- State ---------------------------------------------------------------
 
@@ -63,9 +71,11 @@ func _ready() -> void:
 	_build_ui()
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("menu")
-	# Defer so player.start() finishes wiring before we apply the loadout.
+	# Player.gd has already seeded the default starting loadout in its
+	# _ready (PartFactoryCls.default_starting_loadout). Wait a frame for
+	# that to settle, then mirror the state into the hangar's picker.
 	await get_tree().process_frame
-	_set_default_loadout()
+	_sync_from_loadout()
 
 
 func _enter_hd_viewport() -> void:
@@ -143,7 +153,9 @@ func _spawn_dummy_target() -> void:
 		tex = load("res://graphics/extra-ships/ship_1.png")
 	if tex:
 		spr.texture = tex
-	spr.scale = Vector2(2, 2)
+	# 1:1 pixel parity with the player (Cobalt 2026-05-20). Native art
+	# pixel = 1 viewport pixel, same as the player ship.
+	spr.scale = Vector2(1, 1)
 	_target.add_child(spr)
 	var shape := CollisionShape2D.new()
 	var rect := RectangleShape2D.new()
@@ -169,7 +181,7 @@ func _build_ui() -> void:
 	add_child(ui_layer)
 
 	var header := Label.new()
-	header.text = "HANGAR — WASD fly, SPACE primary, G secondary, X super, Esc closes"
+	header.text = "HANGAR — WASD fly, Z/SPACE primary, C secondary, X super, Shift focus, Esc closes"
 	header.position = Vector2(24, 16)
 	UiTheme.style_label(header, UiTheme.LabelKind.HEADER)
 	ui_layer.add_child(header)
@@ -186,11 +198,11 @@ func _build_ui() -> void:
 	left_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	left_scroll.add_child(left_vb)
 
-	_add_caption(left_vb, "SLOT")
+	_add_caption(left_vb, "WEAPON GROUP")
 	_slot_picker = OptionButton.new()
 	_slot_picker.custom_minimum_size = Vector2(0, 28)
-	for slot_id in SlotTypes.ALL_SLOTS:
-		_slot_picker.add_item(SlotTypes.slot_name(slot_id), slot_id)
+	for i in WEAPON_GROUPS.size():
+		_slot_picker.add_item(WEAPON_GROUPS[i]["name"], int(WEAPON_GROUPS[i]["slot"]))
 	_slot_picker.item_selected.connect(_on_slot_picked)
 	left_vb.add_child(_slot_picker)
 
@@ -373,11 +385,15 @@ func _on_clear_slot() -> void:
 func _refresh_equipped() -> void:
 	if _equipped_summary == null:
 		return
+	# Only show the three weapon groups Cobalt cares about — full slot
+	# listing was noise. Pulls live state from the Loadout node so we
+	# reflect what's actually applied to the player, not a side cache.
 	var lines: PackedStringArray = []
-	for slot_id in SlotTypes.ALL_SLOTS:
-		var nm: String = SlotTypes.slot_name(slot_id)
-		if _equipped_per_slot.has(slot_id):
-			var p = _equipped_per_slot[slot_id]
+	for group in WEAPON_GROUPS:
+		var slot_id: int = int(group["slot"])
+		var nm: String = String(group["name"])
+		var p = _loadout_part(slot_id)
+		if p != null:
 			var dn: String = String(p.display_name) if "display_name" in p else "?"
 			lines.append("%s — %s Mk.%d" % [nm, dn, int(p.mark)])
 		else:
@@ -385,29 +401,25 @@ func _refresh_equipped() -> void:
 	_equipped_summary.text = "\n".join(lines)
 
 
-func _set_default_loadout() -> void:
-	# Seed slots with a sane default loadout so the user can fly + fire on
-	# entry without configuring anything. Mirrors the PlayerLoadout defaults
-	# the live game uses on a new run.
-	var defaults := [
-		[SlotTypes.SlotType.CANNON,    "_make_basic_blaster"],
-		[SlotTypes.SlotType.SHIELD,    "_make_basic_shield"],
-		[SlotTypes.SlotType.WING_LEFT, "_make_basic_wing"],
-		[SlotTypes.SlotType.WING_RIGHT, "_make_basic_wing"],
-		[SlotTypes.SlotType.TAIL,      "_make_basic_tail"],
-		[SlotTypes.SlotType.ENGINE,    "_make_basic_engine"],
-	]
-	for d in defaults:
-		var slot: int = d[0]
-		var factory: String = d[1]
-		var part = PartCatalog._make_by_name(factory, slot)
-		if part == null:
-			continue
-		part.mark = 1
-		part.set_meta("factory", factory)
-		_equipped_per_slot[slot] = part
-		if _player and _player.has_node("Loadout"):
-			_player.get_node("Loadout").equip(slot, part)
+func _loadout_part(slot_id: int) -> Resource:
+	if _player == null or not _player.has_node("Loadout"):
+		return null
+	var lo = _player.get_node("Loadout")
+	if lo.has_method("get_part"):
+		return lo.get_part(slot_id)
+	return null
+
+
+# Player.gd's _ready calls PartFactoryCls.default_starting_loadout(),
+# which equips the live-game baseline (basic wings/tail/engine/shield +
+# energy blaster + smart bomb). The hangar doesn't re-seed — it just
+# syncs its picker state with whatever the Loadout already holds.
+func _sync_from_loadout() -> void:
+	for group in WEAPON_GROUPS:
+		var slot_id: int = int(group["slot"])
+		var p = _loadout_part(slot_id)
+		if p:
+			_equipped_per_slot[slot_id] = p
 	_refresh_part_picker()
 	_refresh_equipped()
 
