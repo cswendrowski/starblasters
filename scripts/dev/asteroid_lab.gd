@@ -30,11 +30,21 @@ var _visual: Control = null
 var _seed: int = 12345
 
 var _size_slider: HSlider = null
-var _pixels_slider: HSlider = null
 var _spin_slider: HSlider = null
 var _tint_r_slider: HSlider = null
 var _tint_g_slider: HSlider = null
 var _tint_b_slider: HSlider = null
+# Cobalt 2026-05-21: roundness knob. Internally drives the asteroid
+# shader's `size` (noise frequency) and `octaves` (detail layers) —
+# at 0 the rock looks jagged/lumpy, at 1 it tends toward a clean disc
+# because the noise can no longer carve large divots out of the radial
+# envelope.
+var _roundness_slider: HSlider = null
+# Pixel parity for the lab — same rule as galaxy_backdrop:
+# shader_pixels = displayed_size_vp / pixel_density.
+const PIXEL_DENSITY := 1.0
+const PIXELS_FLOOR := 16.0
+const COLORRECT_CANONICAL := Vector2(100.0, 100.0)
 # Per-slider readout labels — bound by closure on slider.value_changed.
 var _readouts: Dictionary = {}
 var _readout: Label = null
@@ -69,7 +79,10 @@ func _build_ui() -> void:
 	v.add_child(sub)
 	v.add_child(HSeparator.new())
 	_size_slider = _add_slider(v, "Size", 30.0, 160.0, 1.0, 60.0, "%d px")
-	_pixels_slider = _add_slider(v, "Pixels", 30.0, 200.0, 1.0, 60.0, "%d")
+	# Pixels uniform is no longer a free slider — it's derived from Size
+	# so the asteroid always renders at 1:1 pixel parity (same density as
+	# the player ship). Roundness replaces it as the second knob.
+	_roundness_slider = _add_slider(v, "Roundness", 0.0, 1.0, 0.05, 0.0, "%.2f")
 	_spin_slider = _add_slider(v, "Spin", -3.0, 3.0, 0.1, 0.0, "%.1f rad/s")
 	_tint_r_slider = _add_slider(v, "Tint R", 0.3, 1.7, 0.05, 1.20, "%.2f")
 	_tint_g_slider = _add_slider(v, "Tint G", 0.3, 1.7, 0.05, 1.05, "%.2f")
@@ -155,25 +168,39 @@ func _regenerate() -> void:
 		inner.material = inner.material.duplicate()
 	if v.has_method("set_seed"):
 		v.set_seed(_seed)
-	# Size drives both outer + inner so the visible rendered rect matches
-	# the Size slider. Pixels is a separate shader uniform for procgen
-	# detail level.
+	# Cobalt 2026-05-21: asteroid now renders at 1:1 pixel parity. The
+	# outer Control uses scale instead of resizing so the canonical
+	# 100×100 ColorRect inside the addon stays untouched; shader pixels =
+	# size_px keeps cell viewport size = 1 (matches player density).
 	var size_px: float = float(_size_slider.value)
+	var sf: float = size_px / 100.0
 	if v is Control:
-		v.custom_minimum_size = Vector2(size_px, size_px)
-		v.size = Vector2(size_px, size_px)
-		v.position = ASTEROID_CENTER - Vector2(size_px * 0.5, size_px * 0.5)
-		v.pivot_offset = Vector2(size_px * 0.5, size_px * 0.5)
+		v.custom_minimum_size = COLORRECT_CANONICAL
+		v.size = COLORRECT_CANONICAL
+		v.scale = Vector2(sf, sf)
+		v.position = ASTEROID_CENTER - COLORRECT_CANONICAL * 0.5 * sf
+		v.pivot_offset = COLORRECT_CANONICAL * 0.5
+	# Drive shader pixels via the parity rule. Floor protects against
+	# unreadable mush at very small sizes.
+	var shader_pixels: float = max(size_px / PIXEL_DENSITY, PIXELS_FLOOR)
 	if v.has_method("set_pixels"):
-		v.set_pixels(float(_pixels_slider.value))
-	# Cody 2026-05-19: Tint applied directly to the inner ColorRect.
-	# Setting modulate on the outer Planet wasn't reaching the shader's
-	# COLOR output in some draw paths; applying to the shader-bearing
-	# node guarantees the tint shows.
+		v.set_pixels(shader_pixels)
+	# Roundness drives shader `size` (noise frequency) and `octaves`
+	# inversely — high roundness = small noise lobes + few octaves =
+	# rounder silhouette.
+	var roundness: float = float(_roundness_slider.value)
+	var asteroid_size: float = lerp(8.0, 1.5, roundness)
+	var asteroid_octaves: int = int(round(lerp(4.0, 1.0, roundness)))
+	if inner and inner.material is ShaderMaterial:
+		var mat: ShaderMaterial = inner.material
+		mat.set_shader_parameter("size", asteroid_size)
+		mat.set_shader_parameter("octaves", asteroid_octaves)
+	# Inner ColorRect stays at canonical 100×100 — set_pixels was resizing
+	# it which couples shader resolution to footprint. Reset undoes that.
 	if inner:
-		inner.size = Vector2(size_px, size_px)
+		inner.size = COLORRECT_CANONICAL
 		inner.position = Vector2.ZERO
-		inner.pivot_offset = Vector2(size_px * 0.5, size_px * 0.5)
+		inner.pivot_offset = COLORRECT_CANONICAL * 0.5
 		inner.modulate = Color(_tint_r_slider.value, _tint_g_slider.value, _tint_b_slider.value, 1.0)
 	v.set_meta("spin", float(_spin_slider.value))
 	add_child(v)
