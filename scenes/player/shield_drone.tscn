@@ -1,0 +1,22 @@
+[gd_scene load_steps=3 format=3 uid="uid://bshlddrone1"]
+
+[ext_resource type="Script" path="res://scripts/player/shield_drone.gd" id="1_script"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_drone"]
+radius = 4.0
+
+[node name="ShieldDrone" type="Area2D" groups=["shield_drones", "player"]]
+collision_layer = 1
+collision_mask = 1
+script = ExtResource("1_script")
+
+[node name="Outer" type="Polygon2D" parent="."]
+color = Color(0.35, 0.85, 1, 1)
+polygon = PackedVector2Array(-4, 0, -3, -3, 0, -4, 3, -3, 4, 0, 3, 3, 0, 4, -3, 3)
+
+[node name="Inner" type="Polygon2D" parent="."]
+color = Color(1, 1, 1, 1)
+polygon = PackedVector2Array(-2, 0, -1, -1.5, 0, -2, 1, -1.5, 2, 0, 1, 1.5, 0, 2, -1, 1.5)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_drone")

@@ -1,54 +1,40 @@
 extends "res://scripts/parts/part.gd"
 
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
-const DroneScene = preload("res://scenes/player/player_drone.tscn")
+const ShieldDroneScene = preload("res://scenes/player/shield_drone.tscn")
 
-# Drone Bits — Gradius-style Options. Equipped via HARDPOINT_WING, but
-# the drones piggyback the PRIMARY fire trigger: every time the player's
-# primary cannon fires, each equipped drone also spawns a bullet from
-# its position. Mk scales drone count (1 → up to 5).
+# Shield Drones — secondary slot. Cobalt 2026-05-21 redesign: previously
+# these piggybacked the primary fire (Gradius Options). Now they orbit
+# the player at ~18 px and act as an ablative bullet/collision shield.
+# Each drone takes 2 hits at Mk.1, +1 per Mk. Default count is 3 spinning
+# drones spawned on equip and persisting until destroyed.
 #
-# Drones are children of the player so they follow movement naturally.
-# Offsets fan out left + right of center, with later Mk drones placed
-# further out.
+# When equipped, spawns the drones immediately. When unequipped (or part
+# swapped), the drones are freed. They don't fire.
 
-@export var bullet_scene: PackedScene
-@export var base_damage: int = 1
-@export var dmg_per_mark: int = 1
-@export var base_drones: int = 1
-@export var drones_per_mark: int = 1
-@export var max_drones: int = 5
-@export var halfspan: float = 18.0
+@export var base_drones: int = 3
+@export var max_drones: int = 3
+@export var base_hits: int = 2
+@export var hits_per_mark: int = 1
+@export var orbit_radius: float = 18.0
+@export var orbit_speed: float = 2.4
 
 var _spawned_drones: Array = []
 
 
 func _init() -> void:
 	slot_type = Slots.SlotType.HARDPOINT_WING
-	display_name = "Drone Bits"
-	description = "Orbital companion drones fire alongside primary. Mk adds more drones."
+	display_name = "Shield Drones"
+	description = "3 spinning ablative drones orbit your ship and block bullets. Mk adds +1 hit per drone."
 
 
 func apply(ship) -> void:
-	# Spawn N drones as children of the ship, plus register them on the
-	# ship so fire_primary can read them and add extra muzzles.
-	var n: int = mini(base_drones + (int(mark) - 1) * drones_per_mark, max_drones)
-	_spawned_drones.clear()
-	for i in n:
-		var offset_x: float = 0.0
-		if n > 1:
-			var t: float = float(i) / float(n - 1)
-			offset_x = -halfspan + halfspan * 2.0 * t
-		var drone = DroneScene.instantiate()
-		drone.position = Vector2(offset_x, -2.0)
-		ship.add_child.call_deferred(drone)
-		_spawned_drones.append(drone)
+	_spawn_drones(ship)
+	# Clear any drone_bits primary-piggyback hook left over from the old
+	# design — fire_primary checks this array, and we don't want shield
+	# drones contributing extra bullets.
 	if "drone_bits" in ship:
-		ship.drone_bits = _spawned_drones
-	if "drone_bits_damage" in ship:
-		ship.drone_bits_damage = base_damage + (int(mark) - 1) * dmg_per_mark
-	if "drone_bits_bullet_scene" in ship:
-		ship.drone_bits_bullet_scene = bullet_scene
+		ship.drone_bits = []
 
 
 func unapply(ship) -> void:
@@ -58,12 +44,31 @@ func unapply(ship) -> void:
 	_spawned_drones.clear()
 	if "drone_bits" in ship:
 		ship.drone_bits = []
-	if "drone_bits_bullet_scene" in ship:
-		ship.drone_bits_bullet_scene = null
 
 
-# Editor readout — total per-shot damage from all drones combined.
+func _spawn_drones(ship) -> void:
+	for d in _spawned_drones:
+		if is_instance_valid(d):
+			d.queue_free()
+	_spawned_drones.clear()
+	var n: int = mini(base_drones, max_drones)
+	var hp: int = base_hits + (int(mark) - 1) * hits_per_mark
+	# Drones are parented under the SceneTree root so they keep their
+	# orbit even if the ship rotates (we drive position manually in
+	# _process). bind_player gives each drone its starting angle so the
+	# three are evenly spaced.
+	for i in n:
+		var drone = ShieldDroneScene.instantiate()
+		var start_angle: float = TAU * (float(i) / float(n))
+		ship.get_tree().root.call_deferred("add_child", drone)
+		# Defer the bind so the drone's _ready has fired first.
+		drone.call_deferred("bind_player", ship, start_angle, hp)
+		drone.call_deferred("set", "orbit_radius", orbit_radius)
+		drone.call_deferred("set", "orbit_speed", orbit_speed)
+		_spawned_drones.append(drone)
+
+
+# Editor readout — total drone hit pool across all drones at this Mk.
 func effective_damage(at_mark: int) -> int:
-	var per_drone: int = base_damage + (at_mark - 1) * dmg_per_mark
-	var n_drones: int = mini(base_drones + (at_mark - 1) * drones_per_mark, max_drones)
-	return per_drone * n_drones
+	var per_drone: int = base_hits + (at_mark - 1) * hits_per_mark
+	return per_drone * mini(base_drones, max_drones)

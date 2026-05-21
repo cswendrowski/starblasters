@@ -1,6 +1,9 @@
 extends "res://scripts/parts/part.gd"
 
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
+const AutonomousDroneCls = preload("res://scripts/player/autonomous_drone.gd")
+# Visual asset reused from the existing player_drone scene; the
+# autonomous_drone script gets set after instantiate.
 const DroneScene = preload("res://scenes/player/player_drone.tscn")
 
 # Drone Swarm — super weapon. Tap X (shoot_nose) → spawns a burst of
@@ -58,31 +61,30 @@ func activate(ship) -> void:
 		return
 	var n: int = mini(base_drones + (int(mark) - 1) * drones_per_mark, max_drones)
 	var dur: float = base_duration + (float(mark) - 1.0) * duration_per_mark
-	# Spawn drones at the player; they reparent under the ship + get
-	# added to drone_bits so fire_primary picks them up.
+	# Cobalt 2026-05-21: drones are now autonomous — tethered to the
+	# player and free to pick their own targets (bosses first, otherwise
+	# nearest enemy). They fire the basic blaster bullet.
 	var spawned: Array = []
 	for i in n:
-		var offset_x: float = 0.0
-		if n > 1:
-			var t: float = float(i) / float(n - 1)
-			offset_x = -halfspan + halfspan * 2.0 * t
 		var drone = DroneScene.instantiate()
-		drone.position = Vector2(offset_x, -6.0)
-		ship.add_child.call_deferred(drone)
+		# Swap in the autonomous behaviour. The drone scene's visual nodes
+		# stay; the script handles movement + targeting + firing.
+		drone.set_script(AutonomousDroneCls)
+		# Parented at scene root so the drone's movement is in world
+		# space (the tether maths handle following the player).
+		tree.root.call_deferred("add_child", drone)
+		var angle_seed: float = TAU * float(i) / float(max(1, n))
+		drone.call_deferred("bind_player", ship, angle_seed)
 		spawned.append(drone)
-		if "drone_bits" in ship:
-			ship.drone_bits.append(drone)
 	# Brief muzzle flash + small camera nudge so the activation reads.
 	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
 	if ExplosionFx:
 		ExplosionFx.play(ship.global_position, 0.8, true)
-	# Schedule cleanup after duration. Captures `spawned` + `ship` by ref.
+	# Schedule cleanup after duration.
 	var cleanup_timer := tree.create_timer(dur)
 	cleanup_timer.timeout.connect(func():
 		for d in spawned:
 			if is_instance_valid(d):
-				if "drone_bits" in ship and ship.drone_bits.has(d):
-					ship.drone_bits.erase(d)
 				d.queue_free()
 	)
 
