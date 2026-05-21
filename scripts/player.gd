@@ -151,6 +151,16 @@ var _mg_firing: bool = false
 
 @onready var screensize: Vector2 = get_viewport_rect().size
 
+# Override target for spawned bullets/drones. Default null = parent at
+# get_tree().root (live combat path). The Hangar dev tool runs the player
+# inside a SubViewport and sets this to that viewport so projectiles stay
+# in the same scene tree as the player + dummy target.
+var bullet_parent: Node = null
+
+func _bullet_parent() -> Node:
+	return bullet_parent if bullet_parent != null else get_tree().root
+
+
 func _ready() -> void:
 	# Self-register in the "player" group so enemies (smart bomblets,
 	# homing mines) can find us via get_nodes_in_group("player"). Without
@@ -517,7 +527,7 @@ func fire_primary() -> void:
 		# 0 angle = straight up. (sin(a), -cos(a)) rotates around the up axis.
 		var dir := Vector2(sin(angle), -cos(angle))
 		var b: Node = bullet_scene.instantiate()
-		get_tree().root.add_child(b)
+		_bullet_parent().add_child(b)
 		# Propagate the equipped cannon's damage to the bullet so per-Part /
 		# per-Mark scaling actually reaches the take_hit call.
 		# Hyper Mode doubles damage for its duration.
@@ -537,7 +547,7 @@ func fire_primary() -> void:
 				if not is_instance_valid(drone):
 					continue
 				var db: Node = drone_scene.instantiate()
-				get_tree().root.add_child(db)
+				_bullet_parent().add_child(db)
 				if "damage" in db:
 					db.damage = drone_bits_damage
 				db.start(drone.global_position + Vector2(0, -4))
@@ -593,7 +603,7 @@ func fire_secondary() -> void:
 			var t: float = float(i) / float(count - 1)
 			offset_x = -secondary_pod_halfspan + secondary_pod_halfspan * 2.0 * t
 		var b: Node = secondary_bullet_scene.instantiate()
-		get_tree().root.add_child(b)
+		_bullet_parent().add_child(b)
 		if "damage" in b:
 			b.damage = secondary_damage
 		if secondary_homing and "guided" in b:
