@@ -68,8 +68,11 @@ const BEAM_FLASH_TEX = preload("res://graphics/star_flash.png")
 const BEAM_FLASH_HFRAMES := 7
 const BEAM_WARMUP_TIME := 0.5
 const BEAM_COOLDOWN_TIME := 0.3
-const BEAM_FRAME_TIME_WARMUP := BEAM_WARMUP_TIME / 4.0   # 4 warm-up frames
-const BEAM_FRAME_TIME_COOLDOWN := BEAM_COOLDOWN_TIME / 3.0  # 3 cool-down frames (4→5→6)
+# Warm-up = 3 frames (0,1,2), HOLD on frame 3, cool-down plays 4..6.
+# Cobalt 2026-05-21: hold-frame was 4, dialed back to 3.
+const BEAM_HOLD_FRAME := 3
+const BEAM_FRAME_TIME_WARMUP := BEAM_WARMUP_TIME / float(BEAM_HOLD_FRAME)
+const BEAM_FRAME_TIME_COOLDOWN := BEAM_COOLDOWN_TIME / float(BEAM_FLASH_HFRAMES - BEAM_HOLD_FRAME - 1)
 enum BeamFlashState { NONE, WARMUP, HOLD, COOLDOWN }
 var _beam_flash: Sprite2D = null
 var _beam_flash_state: int = BeamFlashState.NONE
@@ -708,24 +711,23 @@ func _tick_beam_flash(delta: float) -> void:
 	_beam_flash_frame_t += delta
 	match _beam_flash_state:
 		BeamFlashState.WARMUP:
-			# 4 frames over BEAM_WARMUP_TIME.
-			var target_frame: int = clampi(int(_beam_flash_frame_t / BEAM_FRAME_TIME_WARMUP), 0, 3)
+			# Frames 0..(BEAM_HOLD_FRAME-1) over BEAM_WARMUP_TIME.
+			var target_frame: int = clampi(int(_beam_flash_frame_t / BEAM_FRAME_TIME_WARMUP), 0, BEAM_HOLD_FRAME - 1)
 			_beam_flash.frame = target_frame
-			if target_frame >= 3 and _beam_flash_frame_t >= BEAM_WARMUP_TIME:
+			if _beam_flash_frame_t >= BEAM_WARMUP_TIME:
 				_beam_flash_state = BeamFlashState.HOLD
 				_beam_flash_frame_t = 0.0
-				_beam_flash.frame = 4
+				_beam_flash.frame = BEAM_HOLD_FRAME
 		BeamFlashState.HOLD:
-			# Hold on frame 4 with a subtle scale jitter so the beam reads
-			# as a live, breathing core rather than a static sprite.
-			_beam_flash.frame = 4
+			# Hold on BEAM_HOLD_FRAME with a subtle scale jitter.
+			_beam_flash.frame = BEAM_HOLD_FRAME
 			var jitter: float = 1.0 + 0.12 * sin(_beam_flash_frame_t * TAU * 6.0)
 			_beam_flash.scale = Vector2(jitter, jitter)
 		BeamFlashState.COOLDOWN:
-			# Frames 4 → 5 → 6 over BEAM_COOLDOWN_TIME, then free.
+			# Frames (HOLD+1)..(HFRAMES-1) over BEAM_COOLDOWN_TIME, then free.
 			_beam_flash.scale = Vector2.ONE
-			var idx: int = 4 + int(_beam_flash_frame_t / BEAM_FRAME_TIME_COOLDOWN)
-			_beam_flash.frame = clampi(idx, 4, 6)
+			var idx: int = BEAM_HOLD_FRAME + 1 + int(_beam_flash_frame_t / BEAM_FRAME_TIME_COOLDOWN)
+			_beam_flash.frame = clampi(idx, BEAM_HOLD_FRAME + 1, BEAM_FLASH_HFRAMES - 1)
 			if _beam_flash_frame_t >= BEAM_COOLDOWN_TIME:
 				_beam_flash.queue_free()
 				_beam_flash = null
@@ -743,10 +745,20 @@ const SHIELD_BREAK_TEX = preload("res://graphics/shield_break.png")
 const SHIELD_ANIM_HFRAMES := 5
 const SHIELD_ANIM_DURATION := 0.4
 const SHIELD_ANIM_FRAME_TIME := SHIELD_ANIM_DURATION / float(SHIELD_ANIM_HFRAMES)
+# Dedupe guard. set_shield can fire twice in one frame (e.g., setter
+# recursion via the property's `set =` hook), or back-to-back hits inside
+# a single physics tick before the previous anim has visually started.
+# Skip any call within this many ms of the previous one.
+const SHIELD_ANIM_MIN_INTERVAL_MS := 80
+var _shield_anim_last_ms: int = 0
 
 func _play_shield_anim(tex: Texture2D) -> void:
 	if tex == null:
 		return
+	var now_ms: int = Time.get_ticks_msec()
+	if now_ms - _shield_anim_last_ms < SHIELD_ANIM_MIN_INTERVAL_MS:
+		return
+	_shield_anim_last_ms = now_ms
 	var s := Sprite2D.new()
 	s.name = "ShieldAnim"
 	s.texture = tex
@@ -796,7 +808,7 @@ func _tick_beam(holding: bool, delta: float) -> void:
 			if _beam_flash and is_instance_valid(_beam_flash) and _beam_flash_state == BeamFlashState.HOLD:
 				_beam_flash_state = BeamFlashState.COOLDOWN
 				_beam_flash_frame_t = 0.0
-				_beam_flash.frame = 4
+				_beam_flash.frame = BEAM_HOLD_FRAME
 		_tick_beam_flash(delta)
 		return
 	# Holding. If no flash yet, kick off WARMUP.
