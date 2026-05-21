@@ -4,7 +4,7 @@
 [ext_resource type="Texture2D" path="res://graphics/projectiles/gun_tracer.png" id="2_tracer"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hit"]
-size = Vector2(12, 3)
+size = Vector2(3, 12)
 
 [sub_resource type="Gradient" id="Gradient_glow"]
 colors = PackedColorArray(1, 0.85, 0.35, 1, 1, 0.7, 0.2, 0.55, 1, 0.55, 0.1, 0)
@@ -19,18 +19,18 @@ fill_from = Vector2(0.5, 0.5)
 fill_to = Vector2(1.0, 0.5)
 
 [node name="Bullet_Minigun" type="Area2D"]
-rotation = -1.5707963
 script = ExtResource("1_dy0fe")
 
 [node name="Glow" type="Sprite2D" parent="."]
 texture = SubResource("GradientTexture2D_glow")
 modulate = Color(1, 0.8, 0.3, 1)
-scale = Vector2(0.9, 1.4)
+scale = Vector2(1.4, 0.9)
 z_index = -1
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("2_tracer")
 hframes = 3
+rotation = 1.5707963
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 visible = false

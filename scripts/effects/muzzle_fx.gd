@@ -75,7 +75,7 @@ static func play_energy(world_pos: Vector2, host: Node = null) -> void:
 		flash.position = world_pos - (host as Node2D).global_position
 	else:
 		flash.position = world_pos
-	flash.scale = Vector2(1.5, 1.5)
+	flash.scale = Vector2(1.0, 1.0)  # Cobalt 2026-05-21: pixel-perfect 1×
 	flash.z_index = 5
 	parent.add_child(flash)
 	var tw := flash.create_tween()
@@ -116,7 +116,7 @@ static func _spawn_flash(parent: Node, world_pos: Vector2, use_local: bool = fal
 	flash.hframes = MUZZLE_STRIP_HFRAMES
 	flash.frame = randi() % MUZZLE_STRIP_HFRAMES
 	flash.position = local_pos
-	flash.scale = Vector2(1.5, 1.5)
+	flash.scale = Vector2(1.0, 1.0)  # Cobalt 2026-05-21: pixel-perfect 1×
 	flash.z_index = 5
 	parent.add_child(flash)
 	# Hold full alpha for the first 70 ms so the sprite reads even in a
