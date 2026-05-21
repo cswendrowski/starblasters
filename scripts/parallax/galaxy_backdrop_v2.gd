@@ -19,7 +19,6 @@ extends Node2D
 const ASTEROID_SCENE = "res://Planets/Asteroids/Asteroid.tscn"
 const NEBULA_SHADER = "res://graphics/nebula.gdshader"
 const SPACE_COLORSCHEME = "res://SpaceBG/Colorscheme.tres"
-const SILHOUETTE_SHADER = preload("res://graphics/parallax_silhouette.gdshader")
 # 320×400 res rework — tile matches the new internal viewport so layers
 # wrap every screen of scroll.
 const TILE_SIZE := Vector2(320.0, 400.0)
@@ -38,16 +37,29 @@ const TILE_SIZE := Vector2(320.0, 400.0)
 @export var small_asteroid_tint: Color = Color(0.45, 0.55, 0.75, 1.0)
 # Nebula final alpha (Roman wants ~40%).
 @export var nebula_alpha: float = 0.40
+# Nebula silhouette tint — magenta-ish gas by default so the layer reads
+# as celestial cloud rather than a flat white veil. Tunable in-tuner.
+@export var nebula_tint: Color = Color(0.55, 0.30, 0.65, 1.0)
+# Pixel parity (Cobalt 2026-05-20) — same rule as galaxy_backdrop V1.
+# shader_pixels = display_size_vp / pixel_density keeps each cell at
+# `pixel_density` viewport-px per art-pixel regardless of body size.
+# 1.0 matches the player's 1 vp-px per art-pixel.
+@export_range(0.5, 6.0) var pixel_density: float = 1.0
+@export_range(8.0, 64.0) var pixels_floor: float = 16.0
+# Minimum decorative asteroid size in viewport pixels (legibility floor —
+# below ~16 vp-px the procgen rock can't form a readable silhouette at
+# 1:1 pixel parity).
+@export_range(8.0, 48.0) var asteroid_min_size: float = 16.0
+const COLORRECT_DEFAULT_CANONICAL_V2 := Vector2(100.0, 100.0)
+const COLORRECT_CANONICAL_BY_NAME_V2 := {
+	"Disk": Vector2(300.0, 300.0),
+	"Ring": Vector2(300.0, 300.0),
+}
 
 var _parallax_layers: Array = []           # Parallax2D nodes — driven each frame
 var _spinning: Array = []                  # {node, spin} entries
 var _layer_time_updaters: Array = []       # asteroid Controls with update_time(t)
 var _shader_time: float = 0.0
-# Each Parallax2D gets a CanvasGroup wrapper so the silhouette shader
-# can sample the layer's composited render rather than each individual
-# sprite. The tuner uses this dict to find the layer's ShaderMaterial
-# when the player adjusts the RGBA color sliders.
-var _layer_silhouette_mat: Dictionary = {}  # Parallax2D instance_id -> ShaderMaterial
 
 
 func _ready() -> void:
@@ -60,20 +72,27 @@ func _ready() -> void:
 	deep.size = TILE_SIZE
 	deep.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(deep)
-	# Layer 1 — base stars: small, dim, dense.
+	# Layer 1 — base stars: small, dim, dense. Cool white reads well as
+	# distant pinpricks against the dark deep.
 	_spawn_stars_layer("BaseStars", base_stars_scroll, rng,
 		160, 1.0, 1.5, Color(0.85, 0.92, 1.00, 0.85))
-	# Layer 2 — big stars: fewer, brighter, slightly larger.
+	# Layer 2 — big stars: fewer, brighter, slightly larger. Slightly
+	# warmer than base stars so depth reads (warm pop in front of cool
+	# pinpricks).
 	_spawn_stars_layer("BigStars", big_stars_scroll, rng,
-		55, 2.0, 3.0, Color(1.00, 0.98, 0.92, 1.00))
-	# Layer 3 — small spinning asteroids, silhouette-darkened.
+		55, 2.0, 3.0, Color(1.00, 0.96, 0.86, 1.00))
+	# Layer 3 — small spinning asteroids, silhouette-darkened blue-gray.
+	# Lower bound clamps to `asteroid_min_size` for 1:1 legibility.
 	_spawn_asteroid_layer("SmallAsteroids", small_asteroid_scroll, rng,
-		small_asteroid_count, 18.0, 42.0, small_asteroid_tint)
-	# Layer 4 — nebula clouds.
+		small_asteroid_count, max(18.0, asteroid_min_size), max(42.0, asteroid_min_size + 26.0), small_asteroid_tint)
+	# Layer 4 — nebula clouds. Default to a deep magenta so the layer reads
+	# as gas instead of a flat white wash. Tuner Colorization knob is the
+	# primary way to retune this per scene.
 	_spawn_nebula_layer(rng)
-	# Layer 5 — large close asteroids.
+	# Layer 5 — large close asteroids. Default to a warm mid-gray so the
+	# close band reads as illuminated rock, not a featureless white sheet.
 	_spawn_asteroid_layer("LargeAsteroids", large_asteroid_scroll, rng,
-		large_asteroid_count, 100.0, 200.0, Color(1.0, 1.0, 1.0, 1.0))
+		large_asteroid_count, 100.0, 200.0, Color(0.58, 0.55, 0.50, 1.0))
 
 
 # ---- Master scroll driver -------------------------------------------------
@@ -151,6 +170,9 @@ func _spawn_one_asteroid(rng: RandomNumberGenerator, size_min: float, size_max: 
 	var sz: float = rng.randf_range(size_min, size_max)
 	var sf: float = sz / 100.0
 	a.scale = Vector2(sf, sf)
+	# Pixel parity — shader cells track displayed size so a tiny asteroid
+	# and a giant one both render at the target density.
+	_apply_pixel_parity_v2(a, sz)
 	if a.has_method("set_seed"):
 		a.set_seed(rng.randi() % 100000)
 	if "override_time" in a:
@@ -166,9 +188,37 @@ func _spawn_one_asteroid(rng: RandomNumberGenerator, size_min: float, size_max: 
 	return a
 
 
+# Pixel parity helper for V2 — mirrors galaxy_backdrop.gd's _apply_pixel_parity.
+# Drives shader.pixels = displayed_size_vp / density, then resets internal
+# ColorRects to their authored canonical size so the shader cell count is
+# independent of the layer's scale.
+func _apply_pixel_parity_v2(p: Node, displayed_size: float) -> void:
+	var px: float = max(displayed_size / max(pixel_density, 0.01), pixels_floor)
+	if p.has_method("set_pixels"):
+		p.set_pixels(px)
+	else:
+		_apply_pixels_only_v2(p, px)
+	_reset_colorrect_sizes_v2(p)
+
+
+func _apply_pixels_only_v2(root: Node, value: float) -> void:
+	for child in root.get_children():
+		if child is ColorRect and child.material is ShaderMaterial:
+			child.material.set_shader_parameter("pixels", value)
+		_apply_pixels_only_v2(child, value)
+
+
+func _reset_colorrect_sizes_v2(root: Node) -> void:
+	for child in root.get_children():
+		if child is ColorRect:
+			var canon: Vector2 = COLORRECT_CANONICAL_BY_NAME_V2.get(String(child.name), COLORRECT_DEFAULT_CANONICAL_V2)
+			(child as ColorRect).size = canon
+		_reset_colorrect_sizes_v2(child)
+
+
 func _spawn_nebula_layer(rng: RandomNumberGenerator) -> void:
 	var par := _make_parallax("Nebula", nebula_scroll)
-	var canvas := _make_canvas_group_child(par, Color(1, 1, 1, nebula_alpha))
+	var canvas := _make_canvas_group_child(par, Color(nebula_tint.r, nebula_tint.g, nebula_tint.b, nebula_alpha))
 	var shader = load(NEBULA_SHADER)
 	if shader == null:
 		return
@@ -183,7 +233,10 @@ func _spawn_nebula_layer(rng: RandomNumberGenerator) -> void:
 	mat.set_shader_parameter("scale", 2.6)
 	mat.set_shader_parameter("octaves", 5)
 	mat.set_shader_parameter("seed", 1.0 + (float(rng.seed % 900) / 100.0))
-	mat.set_shader_parameter("pixels", 200.0)
+	# Pixel parity — TILE_SIZE.x is the larger axis (320 vs 400-y but
+	# in 480×270 viewport the rect is full-width; use the longer of the
+	# two to keep cells ≤ density viewport-px in either dimension).
+	mat.set_shader_parameter("pixels", max(TILE_SIZE.x, TILE_SIZE.y) / max(pixel_density, 0.01))
 	mat.set_shader_parameter("drift_speed", 0.0)
 	mat.set_shader_parameter("max_alpha", 1.0)
 	mat.set_shader_parameter("density", 0.9)
@@ -212,36 +265,25 @@ func _make_parallax(layer_name: String, scroll: float) -> Parallax2D:
 	return par
 
 
-# Wrap a Parallax2D's content inside a CanvasGroup with the silhouette
-# shader attached. CanvasGroup composites its children into one off-
-# screen texture; the shader then samples that texture per fragment so
-# the per-layer silhouette color applies uniformly to the whole layer
-# (stars, asteroids, nebula clouds) while still respecting per-child
-# alpha cutouts (Roman, 2026-05-17). Initial silhouette color comes
-# from the layer's "natural" tint so a fresh roll matches what V1's
-# palette wanted.
-func _make_canvas_group_child(par: Parallax2D, initial_color: Color) -> CanvasGroup:
-	var cg := CanvasGroup.new()
-	cg.name = "Silhouette"
-	# Fit margin extends the offscreen render rect by N pixels so child
-	# content drawing past the layer bounds doesn't get clipped (e.g. a
-	# spinning asteroid rotating past its placement). 64 px is a soft
-	# buffer that costs basically nothing.
-	cg.fit_margin = 64.0
-	var mat := ShaderMaterial.new()
-	mat.shader = SILHOUETTE_SHADER
-	mat.set_shader_parameter("silhouette_color", initial_color)
-	cg.material = mat
-	par.add_child(cg)
-	_layer_silhouette_mat[par.get_instance_id()] = mat
-	return cg
+# Apply the per-layer tint to the Parallax2D directly via modulate. No
+# CanvasGroup / silhouette compositing — the natural art of the layer
+# (star ColorRects, asteroid sprites, nebula shader) reads through, with
+# the tint as a simple cascading multiplier. Cobalt 2026-05-20: the
+# previous silhouette pass (flat-fill the whole band with one color) hid
+# the actual layer art, defeating the V1/V2 comparison.
+#
+# Returns the Parallax2D itself so callers can add children to it as
+# they did to the old CanvasGroup wrapper.
+func _make_canvas_group_child(par: Parallax2D, initial_tint: Color) -> Parallax2D:
+	par.modulate = initial_tint
+	return par
 
 
-# Public accessor used by the Tuner — given a Parallax2D layer, return
-# the ShaderMaterial driving its silhouette so the RGBA sliders can
-# update silhouette_color without grovelling through children.
-func silhouette_material_for(par: Parallax2D) -> ShaderMaterial:
-	return _layer_silhouette_mat.get(par.get_instance_id(), null)
+# Back-compat shim — silhouette pass no longer exists, but the tuner
+# still calls this. Returns null now; the tuner falls back to reading
+# Parallax2D.modulate as the per-layer tint (same path V1 uses).
+func silhouette_material_for(_par: Parallax2D) -> ShaderMaterial:
+	return null
 
 
 # Seed off Run's run_seed so visits look the same on a retry — falls back

@@ -363,7 +363,10 @@ func _refresh_layer_picker() -> void:
 		if not (child is CanvasItem):
 			continue
 		var id := child.get_instance_id()
-		_layer_base_modulate[id] = child.modulate
+		# base_modulate is held at white so the Colorization picker is the
+		# single source of truth for tint. (Otherwise the authored layer
+		# tint would double up: base × tint × brightness × contrast.)
+		_layer_base_modulate[id] = Color(1, 1, 1, 1)
 		var dm: float = 1.0
 		if child is Parallax2D:
 			dm = (child as Parallax2D).scroll_scale.y
@@ -372,7 +375,10 @@ func _refresh_layer_picker() -> void:
 		_layer_base_drift[id] = dm
 		_layer_brightness[id] = 1.0
 		_layer_contrast[id] = 1.0
-		_layer_color[id] = Color(1, 1, 1, 1)
+		# Seed the Colorization picker from the layer's authored tint
+		# (Parallax2D.modulate on V2, modulate on V1 layers). The picker
+		# then drives modulate via _apply_layer_visual on any edit.
+		_layer_color[id] = child.modulate
 		_layer_picker.add_item(String(child.name))
 		if first == null:
 			first = child
@@ -429,12 +435,6 @@ func _on_color_changed(c: Color) -> void:
 		return
 	_layer_color[_selected_layer.get_instance_id()] = c
 	_apply_layer_visual(_selected_layer)
-	# V2 layers also drive the silhouette uniform from the same picker.
-	if _use_v2 and _selected_layer is Parallax2D \
-			and _backdrop and _backdrop.has_method("silhouette_material_for"):
-		var sm: ShaderMaterial = _backdrop.silhouette_material_for(_selected_layer)
-		if sm:
-			sm.set_shader_parameter("silhouette_color", c)
 
 
 func _apply_layer_visual(layer: CanvasItem) -> void:
@@ -579,11 +579,6 @@ func _apply_config(cfg: Dictionary) -> void:
 		if arr is Array and arr.size() >= 4:
 			_layer_color[id] = Color(float(arr[0]), float(arr[1]), float(arr[2]), float(arr[3]))
 		_apply_layer_visual(child)
-		if _use_v2 and child is Parallax2D \
-				and _backdrop.has_method("silhouette_material_for"):
-			var sm: ShaderMaterial = _backdrop.silhouette_material_for(child)
-			if sm:
-				sm.set_shader_parameter("silhouette_color", _layer_color[id])
 	if _selected_layer and is_instance_valid(_selected_layer):
 		_select_layer(_selected_layer)
 
