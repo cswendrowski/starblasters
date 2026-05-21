@@ -53,7 +53,6 @@ var _vel: Vector2 = Vector2.ZERO
 var _t: float = 0.0
 var _ignited: bool = false
 # Flame + smoke trail nodes; created on _ready when `flame_trail` is true.
-var _trail_line: Line2D = null
 var _flame_sprite: Sprite2D = null
 var _flame_t: float = 0.0
 
@@ -70,17 +69,25 @@ func _ready() -> void:
 	# joins the group by default; remove it after super._ready() runs.
 	super._ready()
 	if target_group == "enemies":
-		# Player ordnance: leave the enemies group; pin a default initial
-		# direction of "up" so launch goes from ship muzzle toward the top.
+		# Player ordnance: leave the enemies group so it isn't friendly-
+		# fired, and drop BACKWARD off the player during the drift phase
+		# (Cobalt 2026-05-21: "missiles should drop from the player and
+		# fall backwards for half a second before igniting").
 		if is_in_group("enemies"):
 			remove_from_group("enemies")
+		# initial_dir is the POST-IGNITE heading. During drift the velocity
+		# is set to the opposite direction so the warhead falls away from
+		# the launching ship first.
 		if initial_dir == Vector2(0, 1):
 			initial_dir = Vector2(0, -1)
 	scale = BASE_SCALE
 	var dir: Vector2 = initial_dir.normalized()
 	if dir == Vector2.ZERO:
 		dir = Vector2(0, 1)
-	_vel = dir * drift_speed + Vector2(randf_range(-30.0, 30.0), 0.0)
+	# Player missiles drift in the OPPOSITE of their post-ignite direction
+	# (drop backwards). Enemy missiles drift in their initial_dir as before.
+	var drift_dir: Vector2 = -dir if target_group == "enemies" else dir
+	_vel = drift_dir * drift_speed + Vector2(randf_range(-30.0, 30.0), 0.0)
 	if not area_entered.is_connected(_on_area_entered):
 		area_entered.connect(_on_area_entered)
 	if has_node("Sprite2D"):
@@ -89,26 +96,19 @@ func _ready() -> void:
 		_build_trail_line()
 
 
-# Smoke trail spline parented to the SceneTree root so it survives the
-# missile's queue_free at detonation (the trail fades out on its own).
+# Replaced the inline Line2D smoke spline with the shared
+# MissileSmokeTrail effect (Cobalt 2026-05-21: light-gray copy of the
+# player damage-smoke effect, applied to rockets + missiles in place of
+# the old trail). The trail lives on the scene root so it survives this
+# missile's queue_free.
+const MissileSmokeTrailCls = preload("res://scripts/effects/missile_smoke_trail.gd")
+var _smoke_trail: Node = null
+
 func _build_trail_line() -> void:
-	_trail_line = Line2D.new()
-	_trail_line.width = 5.0
-	_trail_line.default_color = Color(0.85, 0.85, 0.9, 0.55)
-	# Gradient — bright/opaque at the rocket end, transparent at the tail.
-	var grad := Gradient.new()
-	grad.colors = PackedColorArray([
-		Color(0.95, 0.92, 0.86, 0.0),
-		Color(0.85, 0.85, 0.9, 0.65),
-	])
-	grad.offsets = PackedFloat32Array([0.0, 1.0])
-	_trail_line.gradient = grad
-	# Slight thinning toward the tail for a "smoke dissipates" feel.
-	var curve := Curve.new()
-	curve.add_point(Vector2(0.0, 0.3))
-	curve.add_point(Vector2(1.0, 1.0))
-	_trail_line.width_curve = curve
-	get_tree().root.call_deferred("add_child", _trail_line)
+	_smoke_trail = MissileSmokeTrailCls.new()
+	get_tree().root.call_deferred("add_child", _smoke_trail)
+	# Defer attach_to until the trail's _ready has set up its Line2D.
+	_smoke_trail.call_deferred("attach_to", self)
 
 
 func start(pos: Vector2) -> void:
@@ -151,29 +151,8 @@ func _process(delta: float) -> void:
 	# "Rockets/Missiles should be rotating as they fly").
 	if _vel.length_squared() > 4.0:
 		rotation = _vel.angle() + PI * 0.5
-	# Smoke trail: append current world pos to the Line2D each frame.
-	# Roman 2026-05-18: drift older points toward the bottom of the screen
-	# so the trail reads as "left behind" by forward motion; sprinkle a
-	# tiny per-emit perpendicular jitter so it reads as turbulent smoke.
-	if _trail_line != null and is_instance_valid(_trail_line):
-		const FORWARD_DRIFT_SPEED: float = 60.0
-		const PUFF_NOISE_PX: float = 1.4
-		var emit_pos: Vector2 = global_position + Vector2(
-			randf_range(-PUFF_NOISE_PX, PUFF_NOISE_PX),
-			randf_range(-PUFF_NOISE_PX * 0.4, PUFF_NOISE_PX * 0.4),
-		)
-		_trail_line.add_point(emit_pos)
-		# Drift all but the newest point downward; the newest sits at the
-		# rocket and shouldn't lag behind.
-		var pc: int = _trail_line.get_point_count()
-		var drift: float = FORWARD_DRIFT_SPEED * delta
-		for i in range(pc - 1):
-			# Older points drift faster (newer → smaller offset).
-			var t: float = 1.0 - float(i) / float(max(1, pc - 1))
-			var p: Vector2 = _trail_line.get_point_position(i)
-			_trail_line.set_point_position(i, p + Vector2(0.0, drift * (0.4 + 0.9 * (1.0 - t))))
-		while _trail_line.get_point_count() > 50:
-			_trail_line.remove_point(0)
+	# Smoke trail handled by MissileSmokeTrail (autonomous in its own
+	# _process; nothing to do here per-frame).
 	# Flame flicker — wobble the rear glow's scale + brightness so it
 	# reads as a live engine rather than a static halo.
 	if _flame_sprite != null and is_instance_valid(_flame_sprite):
@@ -191,6 +170,12 @@ func _process(delta: float) -> void:
 
 func _ignite() -> void:
 	_ignited = true
+	# Reverse the drift velocity to the post-ignite heading so the warhead
+	# stops falling backward and committed forward thrust kicks in.
+	if target_group == "enemies":
+		var fwd: Vector2 = initial_dir.normalized()
+		if fwd != Vector2.ZERO:
+			_vel = fwd * drift_speed
 	if has_node("Sprite2D"):
 		$Sprite2D.modulate = Color(1.6, 0.55, 0.25, 1.0)
 	# Flickering orange glow at the rear (Roman, 2026-05-16: "flickering
@@ -332,24 +317,20 @@ func hit() -> void:
 func _leave() -> void:
 	if _dying:
 		return
-	if _trail_line != null and is_instance_valid(_trail_line):
-		var line: Line2D = _trail_line
-		_trail_line = null
-		var tw: Tween = line.create_tween()
-		tw.tween_property(line, "modulate:a", 0.0, 0.5).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-		tw.tween_callback(line.queue_free)
+	if _smoke_trail != null and is_instance_valid(_smoke_trail):
+		# Drop the missile reference; the trail's own _process will detect
+		# the null emitter and fade out + free itself.
+		_smoke_trail.call("attach_to", null)
+		_smoke_trail = null
 	super._leave()
 
 
 func explode() -> void:
 	if _dying:
 		return
-	if _trail_line != null and is_instance_valid(_trail_line):
-		var line: Line2D = _trail_line
-		_trail_line = null
-		var tw: Tween = line.create_tween()
-		tw.tween_property(line, "modulate:a", 0.0, 1.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-		tw.tween_callback(line.queue_free)
+	if _smoke_trail != null and is_instance_valid(_smoke_trail):
+		_smoke_trail.call("attach_to", null)
+		_smoke_trail = null
 	# Explosive impact flash + fiery explosion (Roman, 2026-05-17 sprite
 	# pass). Color taken from the warhead's flame trail tint (warm
 	# orange/yellow) so the flash reads as ignition.
