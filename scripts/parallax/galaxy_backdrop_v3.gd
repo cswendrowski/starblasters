@@ -306,10 +306,12 @@ func _build_content_layers() -> void:
 	_content_layers["near"] = _make_content_parallax("Near", near_scroll)
 
 
-# Make a Parallax2D content slot whose children sit inside a CanvasGroup
-# with the parallax_tint shader. The tuner drives the tint uniform via
-# tint_material_for(par). This bypasses Parallax2D's flaky modulate
-# propagation entirely.
+# Make a Parallax2D content slot. The CanvasGroup + tint shader is now
+# created LAZILY by populate_layer when actual content is added — an
+# empty CanvasGroup composes to a non-transparent default buffer in
+# Godot 4.3, which the tint shader then dyed with the planet's dominant
+# color, painting a flat opaque sheet across the screen (Cobalt 2026-05-
+# 21 bug report). Empty layers now stay genuinely empty.
 func _make_content_parallax(layer_name: String, scroll: float) -> Parallax2D:
 	var par := Parallax2D.new()
 	par.name = layer_name
@@ -318,22 +320,36 @@ func _make_content_parallax(layer_name: String, scroll: float) -> Parallax2D:
 	par.repeat_times = 2
 	add_child(par)
 	_parallax_layers.append(par)
-	# CanvasGroup wrapper inside the Parallax2D — composites content,
-	# applies tint, then Parallax2D tiles the composited result.
+	return par
+
+
+# Lazily create the CanvasGroup + tint material for `par` on first
+# content add. Idempotent — returns the existing CanvasGroup if already
+# created.
+func _ensure_content_wrapper(par: Parallax2D) -> Node:
+	if par == null:
+		return null
+	var existing: Node = par.get_node_or_null("Content")
+	if existing:
+		return existing
 	var cg := CanvasGroup.new()
 	cg.name = "Content"
 	cg.fit_margin = 64.0
 	var mat := ShaderMaterial.new()
 	mat.shader = TINT_SHADER
-	mat.set_shader_parameter("tint", Color(1, 1, 1, 1))
+	# Seed with the planet's dominant color so the first content added
+	# is already toned to match the scene.
+	mat.set_shader_parameter("tint", _planet_dominant_color)
 	cg.material = mat
 	par.add_child(cg)
 	_tint_materials[par.get_instance_id()] = mat
-	return par
+	return cg
 
 
-# Apply default tint from the planet's dominant color to every content
-# layer. Tuner reads this back as the initial Colorization swatch.
+# Re-apply the planet's dominant color to any tint materials that ARE
+# already created. Called after the planet rolls so previously-cached
+# tints get refreshed; empty layers (no Content wrapper yet) are
+# skipped, which is the fix for the opaque-overlay bug.
 func _apply_planet_dominant_default_tints() -> void:
 	for layer in [_content_layers.get("far"), _content_layers.get("middle"), _content_layers.get("near")]:
 		if layer == null:
@@ -375,8 +391,13 @@ func populate_layer(slot_name: String, fills, rng: RandomNumberGenerator = null)
 	if not _content_layers.has(slot_name):
 		return
 	var par: Parallax2D = _content_layers[slot_name]
-	# Children go inside the CanvasGroup so the tint shader applies.
-	var cg: Node = par.get_node_or_null("Content")
+	# No content to add → don't create the wrapper. Empty CanvasGroups in
+	# 4.3 composite to a non-transparent buffer that the tint shader
+	# then paints solid color across the screen.
+	if fills == null or fills.is_empty():
+		return
+	# Lazy-create the CanvasGroup + tint material on first content add.
+	var cg: Node = _ensure_content_wrapper(par)
 	if cg == null:
 		cg = par
 	var actual_rng: RandomNumberGenerator = rng
