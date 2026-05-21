@@ -538,7 +538,10 @@ func fire_primary() -> void:
 		return
 	can_shoot = false
 	$GunCooldown.start()
-	var muzzle_pos: Vector2 = global_position + Vector2(0, -8)
+	# Cobalt 2026-05-21: muzzle origin shifted to sprite pixel (7, 1) —
+	# "just behind top center" of the 16×16 player ship. In Godot's
+	# centered Sprite2D coords that's offset (-1, -7) from the ship origin.
+	var muzzle_pos: Vector2 = global_position + Vector2(-1, -7)
 	# Spread support — Spread Cannon Part sets bullet_spread_count > 1.
 	# Default 1 fires straight up exactly as before. For N > 1, fan the
 	# bullets out across bullet_spread_degrees, centred straight up.
