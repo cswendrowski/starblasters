@@ -84,9 +84,12 @@ func _ready() -> void:
 	var dir: Vector2 = initial_dir.normalized()
 	if dir == Vector2.ZERO:
 		dir = Vector2(0, 1)
-	# Player missiles drift in the OPPOSITE of their post-ignite direction
-	# (drop backwards). Enemy missiles drift in their initial_dir as before.
-	var drift_dir: Vector2 = -dir if target_group == "enemies" else dir
+	# Drop-backward drift only applies to seeking missiles. Rockets keep
+	# the straight-forward release (Cobalt 2026-05-21 — dumb_fire rockets
+	# were firing out the back of the ship after the drop change).
+	var drift_dir: Vector2 = dir
+	if target_group == "enemies" and not dumb_fire:
+		drift_dir = -dir
 	_vel = drift_dir * drift_speed + Vector2(randf_range(-30.0, 30.0), 0.0)
 	if not area_entered.is_connected(_on_area_entered):
 		area_entered.connect(_on_area_entered)
@@ -168,11 +171,31 @@ func _process(delta: float) -> void:
 	_offscreen_cleanup_check()
 
 
+# Player seeking missiles can drift BELOW the screen during their
+# release phase — they fall backward off the ship, then ignite and
+# climb back up to find targets. Without this override the missile
+# would be freed by the FREE_ANY_EDGE check the moment it dropped past
+# the bottom edge (Cobalt 2026-05-21).
+#
+# Once ignited, normal offscreen rules apply so spent ordnance still
+# cleans up on the far side of the playfield.
+func _offscreen_cleanup_check() -> void:
+	if _dying:
+		return
+	if target_group == "enemies" and not dumb_fire and not _ignited:
+		# In drift phase. Skip all offscreen checks; let the missile
+		# coast below the screen during the 0.5s drop without being
+		# freed.
+		return
+	super._offscreen_cleanup_check()
+
+
 func _ignite() -> void:
 	_ignited = true
 	# Reverse the drift velocity to the post-ignite heading so the warhead
-	# stops falling backward and committed forward thrust kicks in.
-	if target_group == "enemies":
+	# stops falling backward and committed forward thrust kicks in. Only
+	# matters for seeking missiles (the ones that DID drop backward).
+	if target_group == "enemies" and not dumb_fire:
 		var fwd: Vector2 = initial_dir.normalized()
 		if fwd != Vector2.ZERO:
 			_vel = fwd * drift_speed
