@@ -23,6 +23,9 @@ const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const BACKDROP_V1 = preload("res://scripts/galaxy_backdrop.gd")
 const BACKDROP_V2 = preload("res://scripts/parallax/galaxy_backdrop_v2.gd")
+const BACKDROP_V3 = preload("res://scripts/parallax/galaxy_backdrop_v3.gd")
+# Backdrop variant cycle — Swap button rotates V1 → V2 → V3 → V1.
+const VARIANTS := ["V1", "V2", "V3"]
 
 const CONFIG_PATH := "user://tuners/parallax.json"
 
@@ -45,7 +48,7 @@ var _prev_scale_size: Vector2i = Vector2i.ZERO
 var _backdrop_viewport: SubViewport = null
 var _backdrop_display: TextureRect = null
 var _backdrop: Node2D = null
-var _use_v2: bool = false
+var _variant_idx: int = 0   # index into VARIANTS — 0:V1, 1:V2, 2:V3
 var _seed_value: int = 0
 var _selected_layer: CanvasItem = null
 
@@ -143,7 +146,13 @@ func _rebuild_backdrop() -> void:
 		_backdrop.queue_free()
 	_backdrop = Node2D.new()
 	_backdrop.name = "Backdrop"
-	_backdrop.set_script(BACKDROP_V2 if _use_v2 else BACKDROP_V1)
+	match VARIANTS[_variant_idx]:
+		"V2":
+			_backdrop.set_script(BACKDROP_V2)
+		"V3":
+			_backdrop.set_script(BACKDROP_V3)
+		_:
+			_backdrop.set_script(BACKDROP_V1)
 	if has_node("/root/Run"):
 		var run = get_node("/root/Run")
 		run.run_seed = _seed_value
@@ -236,7 +245,7 @@ func _build_ui() -> void:
 	_style_caption(_version_label)
 	version_row.add_child(_version_label)
 	var swap_btn := Button.new()
-	swap_btn.text = "Swap V1/V2"
+	swap_btn.text = "Cycle V1/V2/V3"
 	swap_btn.custom_minimum_size = Vector2(0, 14)
 	UiTheme.style_button(swap_btn, true)
 	swap_btn.pressed.connect(_on_swap_version)
@@ -465,9 +474,9 @@ func _on_randomize() -> void:
 
 
 func _on_swap_version() -> void:
-	_use_v2 = not _use_v2
+	_variant_idx = (_variant_idx + 1) % VARIANTS.size()
 	if _version_label:
-		_version_label.text = "V2" if _use_v2 else "V1"
+		_version_label.text = VARIANTS[_variant_idx]
 	_rebuild_backdrop()
 	await get_tree().process_frame
 	_refresh_layer_picker()
@@ -490,7 +499,7 @@ func _refresh_info() -> void:
 	if _backdrop == null or not is_instance_valid(_backdrop):
 		return
 	var lines: PackedStringArray = []
-	lines.append("Version: %s" % ("V2" if _use_v2 else "V1"))
+	lines.append("Version: %s" % VARIANTS[_variant_idx])
 	var planet_idx: int = -1
 	if "_last_planet_idx" in _backdrop:
 		planet_idx = int(_backdrop._last_planet_idx)
@@ -520,7 +529,7 @@ func _current_config() -> Dictionary:
 	var out: Dictionary = {}
 	if _backdrop == null or not is_instance_valid(_backdrop):
 		return out
-	out["_version"] = "V2" if _use_v2 else "V1"
+	out["_version"] = VARIANTS[_variant_idx]
 	out["_seed"] = _seed_value
 	var layers := {}
 	for child in _backdrop.get_children():
