@@ -323,40 +323,25 @@ func _make_content_parallax(layer_name: String, scroll: float) -> Parallax2D:
 	return par
 
 
-# Lazily create the CanvasGroup + tint material for `par` on first
-# content add. Idempotent — returns the existing CanvasGroup if already
-# created.
-func _ensure_content_wrapper(par: Parallax2D) -> Node:
-	if par == null:
-		return null
-	var existing: Node = par.get_node_or_null("Content")
-	if existing:
-		return existing
-	var cg := CanvasGroup.new()
-	cg.name = "Content"
-	cg.fit_margin = 64.0
-	var mat := ShaderMaterial.new()
-	mat.shader = TINT_SHADER
-	# Seed with the planet's dominant color so the first content added
-	# is already toned to match the scene.
-	mat.set_shader_parameter("tint", _planet_dominant_color)
-	cg.material = mat
-	par.add_child(cg)
-	_tint_materials[par.get_instance_id()] = mat
-	return cg
-
-
-# Re-apply the planet's dominant color to any tint materials that ARE
-# already created. Called after the planet rolls so previously-cached
-# tints get refreshed; empty layers (no Content wrapper yet) are
-# skipped, which is the fix for the opaque-overlay bug.
+# Cobalt 2026-05-21 deep-dive: the CanvasGroup + tint-shader wrapper
+# was painting an opaque sheet across the layer because Godot 4.3's
+# CanvasGroup composites its offscreen buffer with the default canvas
+# color (not transparent) even when children have alpha cutouts. The
+# tint shader then dyed that buffer.
+#
+# Going back to per-child modulate for tinting. Each new child added by
+# populate_layer gets its modulate seeded to the current planet
+# dominant color; tint_material_for returns null so the tuner falls
+# through to its existing per-child-modulate path.
 func _apply_planet_dominant_default_tints() -> void:
 	for layer in [_content_layers.get("far"), _content_layers.get("middle"), _content_layers.get("near")]:
 		if layer == null:
 			continue
-		var mat: ShaderMaterial = _tint_materials.get(layer.get_instance_id(), null)
-		if mat != null:
-			mat.set_shader_parameter("tint", _planet_dominant_color)
+		# Apply the planet color to existing children (if any). Empty
+		# layers just stay empty.
+		for child in layer.get_children():
+			if child is CanvasItem:
+				(child as CanvasItem).modulate = _planet_dominant_color
 
 
 func _make_parallax(layer_name: String, scroll: float) -> Parallax2D:
@@ -370,19 +355,15 @@ func _make_parallax(layer_name: String, scroll: float) -> Parallax2D:
 	return par
 
 
-# Public — returns the shader material driving this content layer's tint
-# (parallax_tint shader, "tint" uniform). The tuner uses this to drive
-# the Colorization picker without going through modulate.
-func tint_material_for(par: Parallax2D) -> ShaderMaterial:
-	if par == null:
-		return null
-	return _tint_materials.get(par.get_instance_id(), null)
+# Public — V3 no longer uses a tint shader (the CanvasGroup pipeline
+# was painting opaque overlays). Tinting is per-child modulate now;
+# the tuner's existing Parallax2D fallback path handles it.
+func tint_material_for(_par: Parallax2D) -> ShaderMaterial:
+	return null
 
 
-# Back-compat shim — V2 had silhouette_material_for. V3 redirects to the
-# new tint material so the tuner can keep using the same name.
-func silhouette_material_for(par: Parallax2D) -> ShaderMaterial:
-	return tint_material_for(par)
+func silhouette_material_for(_par: Parallax2D) -> ShaderMaterial:
+	return null
 
 
 # ---- Content population --------------------------------------------------
@@ -391,15 +372,10 @@ func populate_layer(slot_name: String, fills, rng: RandomNumberGenerator = null)
 	if not _content_layers.has(slot_name):
 		return
 	var par: Parallax2D = _content_layers[slot_name]
-	# No content to add → don't create the wrapper. Empty CanvasGroups in
-	# 4.3 composite to a non-transparent buffer that the tint shader
-	# then paints solid color across the screen.
+	# No content → leave the layer truly empty (no CanvasGroup, no
+	# children). An empty Parallax2D draws nothing.
 	if fills == null or fills.is_empty():
 		return
-	# Lazy-create the CanvasGroup + tint material on first content add.
-	var cg: Node = _ensure_content_wrapper(par)
-	if cg == null:
-		cg = par
 	var actual_rng: RandomNumberGenerator = rng
 	if actual_rng == null:
 		actual_rng = RandomNumberGenerator.new()
@@ -407,11 +383,11 @@ func populate_layer(slot_name: String, fills, rng: RandomNumberGenerator = null)
 	for item in fills:
 		match String(item):
 			"asteroid_few":
-				_spawn_asteroids_in(cg, 3, actual_rng)
+				_spawn_asteroids_in(par, 3, actual_rng)
 			"asteroid_many":
-				_spawn_asteroids_in(cg, 8, actual_rng)
+				_spawn_asteroids_in(par, 8, actual_rng)
 			"nebula":
-				_spawn_nebula_in(par, cg, slot_name, actual_rng)
+				_spawn_nebula_in(par, par, slot_name, actual_rng)
 			"debris":
 				pass  # TODO — needs a debris sprite
 
@@ -426,10 +402,9 @@ func _spawn_asteroids_in(parent: Node, count: int, rng: RandomNumberGenerator) -
 		if a == null:
 			continue
 		parent.add_child(a)
-		# Asteroid rotation removed (Cobalt 2026-05-20: spinning breaks
-		# the sharp pixel-art read). _time_updaters still drives the
-		# procgen shader's `time` uniform so internal surface animation
-		# continues; only the rigid-body spin is gone.
+		# Per-child modulate tinted toward the planet's dominant color.
+		if a is CanvasItem:
+			(a as CanvasItem).modulate = _planet_dominant_color
 		_time_updaters.append(a)
 
 
@@ -492,6 +467,11 @@ func _spawn_nebula_in(par: Parallax2D, cg: Node, slot_name: String, rng: RandomN
 	if cs != null:
 		mat.set_shader_parameter("colorscheme", cs)
 	r.material = mat
+	# Tint nebula via modulate (per-child, propagates through Parallax2D
+	# repeat draws). Drop the alpha a bit so the planet-color tint
+	# doesn't make the nebula opaque.
+	var tint: Color = _planet_dominant_color
+	r.modulate = Color(tint.r, tint.g, tint.b, 1.0)
 	cg.add_child(r)
 	# Register for seamless-scroll driver — _process feeds the layer's
 	# accumulated scroll into the nebula shader's scroll_offset.
