@@ -15,6 +15,20 @@ class_name EnemyRoster
 
 enum Tier { COMMON, UNCOMMON, RARE }
 
+const SIZE_TABLE := {
+	"small":  {"hp": 1,  "shield_cap": 1, "bounty": 5,   "speed_mult": 1.3},
+	"medium": {"hp": 3,  "shield_cap": 2, "bounty": 15,  "speed_mult": 1.0},
+	"large":  {"hp": 8,  "shield_cap": 3, "bounty": 40,  "speed_mult": 0.75},
+	"huge":   {"hp": 20, "shield_cap": 4, "bounty": 100, "speed_mult": 0.5},
+	"giant":  {"hp": 50, "shield_cap": 5, "bounty": 250, "speed_mult": 0.3},
+}
+
+const RARITY_BOUNTY_MULT := {
+	Tier.COMMON: 1,
+	Tier.UNCOMMON: 2,
+	Tier.RARE: 4,
+}
+
 const StraightDown = preload("res://scripts/enemies/patterns/straight_down.gd")
 const SCurve = preload("res://scripts/enemies/patterns/s_curve.gd")
 const Loiter = preload("res://scripts/enemies/patterns/loiter.gd")
@@ -40,110 +54,110 @@ const ENTRIES := [
 	{
 		"scene": "res://scenes/enemies/enemy_firecore.tscn",
 		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
 		"movement": "straight",
 		"shoot": "single",
 		"base_count": 6,
 		"fire_min": 2.0, "fire_max": 3.5,
-		"max_health": 1, "bounty_value": 5,
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_diver.tscn",
 		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
 		"movement": "fast_straight",
 		"shoot": "single",
 		"base_count": 7,
 		"fire_min": 0.7, "fire_max": 1.3,
-		"max_health": 1, "bounty_value": 5,
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_dart.tscn",
 		"tier": Tier.COMMON,
+		"size": "small", "tags": ["tough"],
 		"movement": "s_curve",
 		"shoot": "aimed",
 		"base_count": 5,
 		"fire_min": 1.2, "fire_max": 2.0,
-		"max_health": 2, "bounty_value": 15,
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_hunter_drone.tscn",
 		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
 		"movement": "beeline",
 		"shoot": null,
 		"base_count": 4,
-		"max_health": 1, "bounty_value": 10,
 	},
 
 	# --- UNCOMMON ---------------------------------------------------------
 	{
 		"scene": "res://scenes/enemies/enemy_hopper.tscn",
 		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": [],
 		"movement": "loiter",
 		"shoot": "burst",
 		"base_count": 4,
 		"fire_min": 1.6, "fire_max": 2.4,
-		"max_health": 2, "bounty_value": 20,
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_frigate.tscn",
 		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": ["tough"],
 		"movement": "slow_advance",
 		"shoot": "burst",
 		"base_count": 3,
 		"fire_min": 1.8, "fire_max": 2.8,
-		"max_health": 4, "bounty_value": 25,
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_cutter.tscn",
 		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": [],
 		"movement": "side_cut",
 		"shoot": "single_fast",
 		"base_count": 4,
 		"fire_min": 0.3, "fire_max": 0.5,
-		"max_health": 2, "bounty_value": 30,
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_skirmisher.tscn",
 		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": [],
 		"movement": "advance_retreat",
 		"shoot": "aimed",
 		"base_count": 4,
 		"fire_min": 0.7, "fire_max": 1.1,
-		"max_health": 2, "bounty_value": 25,
 	},
 
 	# --- RARE -------------------------------------------------------------
 	{
 		"scene": "res://scenes/enemies/enemy_crystal.tscn",
 		"tier": Tier.RARE,
+		"size": "medium", "tags": [],
 		"movement": "loiter",
 		"shoot": "spread5",
 		"base_count": 2,
 		"fire_min": 1.8, "fire_max": 2.6,
-		"max_health": 3, "bounty_value": 25,
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_minelayer.tscn",
 		"tier": Tier.RARE,
+		"size": "large", "tags": [],
 		"movement": "side_traverse",
 		"shoot": null,
 		"base_count": 2,
-		"max_health": 4, "bounty_value": 40,
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_interceptor.tscn",
 		"tier": Tier.RARE,
+		"size": "medium", "tags": ["tough"],
 		"movement": "top_dive",
 		"shoot": null,
 		"base_count": 3,
-		"max_health": 2, "bounty_value": 35,
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_bulwark.tscn",
 		"tier": Tier.RARE,
+		"size": "large", "tags": [],
 		"movement": "bulwark_drift",
 		"shoot": null,
 		"base_count": 1,
-		"max_health": 5, "bounty_value": 50,
 	},
 ]
 
@@ -154,6 +168,42 @@ static func entries_of(tier: int) -> Array:
 		if int(e["tier"]) == tier:
 			out.append(e)
 	return out
+
+
+static func entry_for_scene(scene_path: String) -> Dictionary:
+	for e in ENTRIES:
+		if str(e["scene"]) == scene_path:
+			return e
+	return {}
+
+
+static func compose_stats(entry: Dictionary) -> Dictionary:
+	var size: String = entry.get("size", "medium")
+	var st: Dictionary = SIZE_TABLE.get(size, SIZE_TABLE["medium"])
+	var tags: Array = entry.get("tags", [])
+	var tier: int = int(entry.get("tier", Tier.COMMON))
+
+	var hp: int = st["hp"]
+	if "tough" in tags:
+		hp *= 2
+
+	var shield_charges: int = 0
+	if "shielded" in tags:
+		shield_charges = st["shield_cap"]
+		if "tough" in tags:
+			shield_charges *= 2
+
+	var bounty: int = st["bounty"] * RARITY_BOUNTY_MULT.get(tier, 1)
+	var recycle: int = entry.get("recycle", -2)
+	if recycle >= 0:
+		bounty = max(1, int(round(float(bounty) * max(0.5, 1.0 - 0.15 * float(recycle)))))
+
+	return {
+		"max_health": hp,
+		"shield_charges": shield_charges,
+		"bounty_value": bounty,
+		"recycle_passes": recycle,
+	}
 
 
 # Build a fresh movement-pattern Resource for an entry. Each spawned enemy

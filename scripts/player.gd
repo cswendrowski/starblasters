@@ -426,14 +426,6 @@ func take_damage(amount: int) -> void:
 	# break out of mine + bomblet pile-ons that would otherwise stack.
 	if _invuln_t > 0.0:
 		return
-	# Sector damage scaling (Roman framework): +5% incoming damage per
-	# sector beyond 1. Applies to all enemy damage sources (bullets,
-	# contact, mines, asteroids) since they all funnel through here.
-	# Shield charges are binary so this only meaningfully scales hull bleed.
-	if has_node("/root/Run"):
-		var s: int = int(get_node("/root/Run").sectors_cleared)
-		if s > 0:
-			amount = max(1, int(round(float(amount) * (1.0 + 0.05 * float(s)))))
 	var HitFlashFx = load("res://scripts/effects/hit_flash_fx.gd")
 	if shield > 0:
 		# Charge consumed, regardless of damage amount.
@@ -979,7 +971,7 @@ func apply_run_upgrades() -> void:
 	if not has_node("/root/Run"):
 		return
 	var run = get_node("/root/Run")
-	max_hull = 50 + int(run.hull_mk) * 10
+	max_hull = 20 if int(run.hull_mk) >= 9 else 10 + int(run.hull_mk)
 	hull_damage_reduction = clamp(float(run.armor_mk) * 0.05, 0.0, 0.85)
 	var speed_pct: float = 1.0 + float(run.thrusters_mk) * 0.03 - float(run.armor_mk) * 0.02
 	speed_multiplier = max(0.3, speed_pct)

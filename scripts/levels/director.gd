@@ -141,8 +141,17 @@ func _spawn_enemy(wave: Resource, index: int) -> void:
 		enemy.max_health = wave.max_health
 		if "health" in enemy:
 			enemy.health = wave.max_health
+	if wave.health_bonus > 0 and "max_health" in enemy:
+		enemy.max_health += wave.health_bonus
+		if "health" in enemy:
+			enemy.health = enemy.max_health
 	if wave.bounty_value > 0 and "bounty_value" in enemy:
 		enemy.bounty_value = wave.bounty_value
+	if wave.shield_charges > 0 and "max_shield" in enemy:
+		enemy.max_shield = wave.shield_charges
+		enemy.shield = wave.shield_charges
+	if wave.recycle_passes >= -1 and "recycle_passes" in enemy:
+		enemy.recycle_passes = wave.recycle_passes
 	# Compute spawn x based on formation. Spawn x is confined to the
 	# playfield band (Playfield.X_MIN..X_MAX), not the full viewport,
 	# so the side gutters stay clear.

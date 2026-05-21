@@ -20,7 +20,11 @@ enum Formation { TOP_LEFT_TO_RIGHT, TOP_RIGHT_TO_LEFT, TOP_RANDOM, TOP_CENTER_OU
 @export var fire_interval_min: float = -1.0
 @export var fire_interval_max: float = -1.0
 @export var max_health: int = -1
+@export var health_bonus: int = 0
 @export var bounty_value: int = -1
+
+@export var shield_charges: int = 0
+@export var recycle_passes: int = -2   # -2 = don't override; -1 = unlimited; 0+ = N passes
 
 # Sub-wave flag. Silent waves don't show the WAVE banner and don't wait for it
 # to fade — they spawn after their own spawn_delay. Mark every wave AFTER an

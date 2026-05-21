@@ -203,10 +203,13 @@ static func _make_wave_spec(rng: RandomNumberGenerator, entry: Dictionary, secto
 		w.fire_interval_min = float(entry["fire_min"])
 	if entry.has("fire_max"):
 		w.fire_interval_max = float(entry["fire_max"])
-	if entry.has("max_health"):
-		w.max_health = int(entry["max_health"])
-	if entry.has("bounty_value"):
-		w.bounty_value = int(entry["bounty_value"])
+	var stats: Dictionary = Roster.compose_stats(entry)
+	w.max_health = stats["max_health"]
+	w.bounty_value = stats["bounty_value"]
+	if stats["shield_charges"] > 0:
+		w.shield_charges = stats["shield_charges"]
+	if stats["recycle_passes"] >= -1:
+		w.recycle_passes = stats["recycle_passes"]
 	return w
 
 

@@ -23,6 +23,7 @@ const ParallaxShadowScript = preload("res://scripts/effects/parallax_shadow.gd")
 const DamageOverlayShader = preload("res://graphics/damage_overlay.gdshader")
 const ExplosionFxScript = preload("res://scripts/effects/explosion_fx.gd")
 const BurnFxScript = preload("res://scripts/burn_fx.gd")
+const SHIELD_SHADER = preload("res://graphics/sci_fi_shield.gdshader")
 
 # Shared base for everything that joins the "enemies" group — regular
 # pattern-driven ships (via enemy_core), hazards (mines, asteroids,
@@ -54,6 +55,8 @@ enum OffscreenMode { CYCLE_BOTTOM, FREE_ANY_EDGE, FREE_OPPOSITE_SIDE, NONE }
 
 @export var max_health: int = 1
 @export var bounty_value: int = 5
+@export var max_shield: int = 0
+@export var shield_ring_size: float = 28.0
 # Hazards (mines, bomblets, asteroids) should not gate wave clear —
 # they're terrain, not combatants (Cody, 2026-05-18). Wave director
 # filters the "enemies" group by this flag when checking for empty.
@@ -80,6 +83,8 @@ enum OffscreenMode { CYCLE_BOTTOM, FREE_ANY_EDGE, FREE_OPPOSITE_SIDE, NONE }
 var allow_side_exit: bool = false
 
 var health: int = 1
+var shield: int = 0
+var recycle_passes: int = -1   # -1 = unlimited (matches current default behavior)
 var _dying: bool = false
 var _last_position: Vector2 = Vector2.ZERO
 var _rot_init: bool = false
@@ -93,6 +98,9 @@ var screensize: Vector2 = Vector2(800, 1000)
 func _ready() -> void:
 	screensize = get_viewport_rect().size
 	health = max_health
+	shield = max_shield
+	if max_shield > 0:
+		_setup_shield_ring()
 	# Defensive group registration. Every enemy .tscn already declares
 	# `groups=["enemies"]` on its root; this is the safety net for any
 	# enemy that was instantiated from script without a scene.
@@ -122,6 +130,10 @@ func _ready() -> void:
 
 
 var _damage_material: ShaderMaterial = null
+var _shield_ring: ColorRect = null
+var _shield_mat: ShaderMaterial = null
+var _shield_alpha_tween: Tween = null
+var _shield_hit_tween: Tween = null
 
 
 func _install_damage_material(spr: Sprite2D) -> void:
@@ -153,6 +165,20 @@ func _update_damage_visual() -> void:
 func take_hit(damage: int = 1) -> bool:
 	if _dying:
 		return false
+	if shield > 0:
+		shield -= 1
+		_pulse_shield_hit()
+		var HitFlashFxShield = load("res://scripts/effects/hit_flash_fx.gd")
+		if has_node("Sprite2D"):
+			HitFlashFxShield.flash($Sprite2D, HitFlashFxShield.FLASH_SHIELD)
+		var ShieldSfx2 = load("res://scripts/effects/shield_sfx.gd")
+		if ShieldSfx2:
+			if shield <= 0:
+				ShieldSfx2.play_break(get_tree().root, global_position)
+				_set_shield_alpha(0.0, 0.25)
+			else:
+				ShieldSfx2.play_hit(get_tree().root, global_position)
+		return false
 	health -= damage
 	# Push the new health ratio into the damage shader so the sprite
 	# darkens + frays as it takes damage (Roman, 2026-05-18).
@@ -177,6 +203,8 @@ func hit() -> void:
 func explode() -> void:
 	if _dying:
 		return
+	if _shield_ring and is_instance_valid(_shield_ring):
+		_shield_ring.visible = false
 	_dying = true
 	set_deferred("monitorable", false)
 	died.emit(bounty_value)
@@ -331,3 +359,47 @@ func _leave() -> void:
 		return
 	_dying = true
 	queue_free()
+
+
+# ---- Shield ring helpers (used when max_shield > 0) --------------------
+
+func _setup_shield_ring() -> void:
+	_shield_mat = ShaderMaterial.new()
+	_shield_mat.shader = SHIELD_SHADER
+	_shield_mat.set_shader_parameter("alpha", 0.85)
+	_shield_mat.set_shader_parameter("hit_strength", 0.0)
+	_shield_ring = ColorRect.new()
+	_shield_ring.name = "ShieldRing"
+	_shield_ring.color = Color(1, 1, 1, 1)
+	_shield_ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_shield_ring.size = Vector2(shield_ring_size, shield_ring_size)
+	_shield_ring.position = -_shield_ring.size * 0.5
+	_shield_ring.material = _shield_mat
+	_shield_ring.z_index = 1
+	add_child(_shield_ring)
+
+
+func _set_shield_alpha(target: float, duration: float) -> void:
+	if _shield_mat == null:
+		return
+	if _shield_alpha_tween and _shield_alpha_tween.is_valid():
+		_shield_alpha_tween.kill()
+	if duration <= 0.0:
+		_shield_mat.set_shader_parameter("alpha", target)
+		return
+	var current: float = float(_shield_mat.get_shader_parameter("alpha"))
+	_shield_alpha_tween = create_tween()
+	_shield_alpha_tween.tween_method(func(v): _shield_mat.set_shader_parameter("alpha", v), current, target, duration)
+
+
+func _pulse_shield_hit() -> void:
+	if _shield_mat == null:
+		return
+	if _shield_hit_tween and _shield_hit_tween.is_valid():
+		_shield_hit_tween.kill()
+	_shield_mat.set_shader_parameter("hit_strength", 1.0)
+	_shield_hit_tween = create_tween()
+	_shield_hit_tween.tween_method(
+		func(v): _shield_mat.set_shader_parameter("hit_strength", v),
+		1.0, 0.0, 0.35
+	).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)

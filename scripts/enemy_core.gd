@@ -130,7 +130,15 @@ func _clamp_to_sides() -> void:
 
 # Override EnemyBase's bottom-exit hook: instead of freeing, do the
 # parallax fly-back so the enemy reappears for another pass.
+# recycle_passes controls how many fly-back cycles are allowed:
+#   -1 = unlimited (legacy default), 0 = leave instead of cycling,
+#   N > 0 = decrement then cycle.
 func _on_offscreen() -> void:
+	if recycle_passes == 0:
+		_leave()
+		return
+	if recycle_passes > 0:
+		recycle_passes -= 1
 	_start_cycle()
 
 

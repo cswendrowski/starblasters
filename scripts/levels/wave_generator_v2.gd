@@ -14,6 +14,7 @@ class_name WaveGeneratorV2
 
 const WaveSpec = preload("res://scripts/levels/wave_def.gd")
 const LevelData = preload("res://scripts/levels/level_def.gd")
+const EnemyRoster = preload("res://scripts/levels/enemy_roster.gd")
 const StraightDown = preload("res://scripts/enemies/patterns/straight_down.gd")
 const SCurve = preload("res://scripts/enemies/patterns/s_curve.gd")
 const Loiter = preload("res://scripts/enemies/patterns/loiter.gd")
@@ -129,15 +130,26 @@ static func _build_shape(shape: String, enemy_path: String, delay: float, is_lea
 	var scene = load(enemy_path)
 	if scene == null:
 		return []
+	var specs: Array = []
 	match shape:
-		"sweep":         return _shape_sweep(scene, delay, is_lead, density, sector_idx)
-		"counter_sweep": return _shape_counter_sweep(scene, delay, is_lead, density, sector_idx)
-		"pincer":        return _shape_pincer(scene, delay, is_lead, density, sector_idx)
-		"drip":          return _shape_drip(scene, delay, is_lead, density, sector_idx)
-		"loiter":        return _shape_loiter(scene, delay, is_lead, density, sector_idx)
-		"burst":         return _shape_burst(scene, delay, is_lead, density, sector_idx)
-		"harasser":      return _shape_harasser(scene, delay, is_lead, density, sector_idx, rng)
-	return []
+		"sweep":         specs = _shape_sweep(scene, delay, is_lead, density, sector_idx)
+		"counter_sweep": specs = _shape_counter_sweep(scene, delay, is_lead, density, sector_idx)
+		"pincer":        specs = _shape_pincer(scene, delay, is_lead, density, sector_idx)
+		"drip":          specs = _shape_drip(scene, delay, is_lead, density, sector_idx)
+		"loiter":        specs = _shape_loiter(scene, delay, is_lead, density, sector_idx)
+		"burst":         specs = _shape_burst(scene, delay, is_lead, density, sector_idx)
+		"harasser":      specs = _shape_harasser(scene, delay, is_lead, density, sector_idx, rng)
+	var entry: Dictionary = EnemyRoster.entry_for_scene(enemy_path)
+	if not entry.is_empty():
+		var stats: Dictionary = EnemyRoster.compose_stats(entry)
+		for w in specs:
+			w.max_health = stats["max_health"]
+			w.bounty_value = stats["bounty_value"]
+			if stats["shield_charges"] > 0:
+				w.shield_charges = stats["shield_charges"]
+			if stats["recycle_passes"] >= -1:
+				w.recycle_passes = stats["recycle_passes"]
+	return specs
 
 
 static func _hp_bump(sector_idx: int) -> int:
@@ -155,7 +167,7 @@ static func _shape_sweep(scene, delay: float, is_lead: bool, density: float, sec
 	w.shoot_pattern_override = _single()
 	w.fire_interval_min = 1.4
 	w.fire_interval_max = 2.4
-	w.max_health = _hp_bump(sector_idx)
+	w.health_bonus = _hp_bump(sector_idx)
 	if is_lead:
 		w.announce_text = "INCOMING"
 	else:
@@ -172,7 +184,7 @@ static func _shape_counter_sweep(scene, delay: float, is_lead: bool, density: fl
 	w.formation = 1  # right-to-left
 	w.formation_padding = 50.0
 	w.shoot_pattern_override = _single()
-	w.max_health = _hp_bump(sector_idx)
+	w.health_bonus = _hp_bump(sector_idx)
 	if is_lead:
 		w.announce_text = "INCOMING"
 	else:
@@ -189,7 +201,7 @@ static func _shape_pincer(scene, delay: float, is_lead: bool, density: float, se
 	left.formation = 0
 	left.formation_padding = 32.0
 	left.shoot_pattern_override = _aimed()
-	left.max_health = _hp_bump(sector_idx)
+	left.health_bonus = _hp_bump(sector_idx)
 	if is_lead:
 		left.announce_text = "INCOMING"
 	else:
@@ -202,7 +214,7 @@ static func _shape_pincer(scene, delay: float, is_lead: bool, density: float, se
 	right.formation = 1
 	right.formation_padding = 32.0
 	right.shoot_pattern_override = _aimed()
-	right.max_health = _hp_bump(sector_idx)
+	right.health_bonus = _hp_bump(sector_idx)
 	right.silent = true
 	return [left, right]
 
@@ -215,7 +227,7 @@ static func _shape_drip(scene, delay: float, is_lead: bool, density: float, sect
 	w.spawn_delay = delay
 	w.formation = 2  # TOP_RANDOM
 	w.shoot_pattern_override = _single()
-	w.max_health = _hp_bump(sector_idx)
+	w.health_bonus = _hp_bump(sector_idx)
 	if is_lead:
 		w.announce_text = "INCOMING"
 	else:
@@ -240,7 +252,7 @@ static func _shape_loiter(scene, delay: float, is_lead: bool, density: float, se
 	w.shoot_pattern_override = _spread(3, 28.0)
 	w.fire_interval_min = 1.6
 	w.fire_interval_max = 2.4
-	w.max_health = _hp_bump(sector_idx)
+	w.health_bonus = _hp_bump(sector_idx)
 	if is_lead:
 		w.announce_text = "INCOMING"
 	else:
@@ -257,7 +269,7 @@ static func _shape_burst(scene, delay: float, is_lead: bool, density: float, sec
 	w.formation = 0
 	w.formation_padding = 28.0
 	w.shoot_pattern_override = _single()
-	w.max_health = _hp_bump(sector_idx)
+	w.health_bonus = _hp_bump(sector_idx)
 	if is_lead:
 		w.announce_text = "INCOMING"
 	else:
@@ -360,7 +372,7 @@ static func _shape_harasser(scene, delay: float, is_lead: bool, density: float, 
 	w.shoot_pattern_override = _aimed()
 	w.fire_interval_min = 1.1
 	w.fire_interval_max = 1.9
-	w.max_health = _hp_bump(sector_idx)
+	w.health_bonus = _hp_bump(sector_idx)
 	if is_lead:
 		w.announce_text = "HARASSERS"
 	else:
