@@ -115,30 +115,23 @@ func _exit_tree() -> void:
 	_exit_hd_viewport()
 
 
-# Stand up the SubViewport + TextureRect that hosts the live backdrop at
-# its native 480×270 resolution, then upscale it (nearest-neighbour) to
-# fill the HD canvas. Backdrop scripts are parented INTO the SubViewport
-# so all their hardcoded 480×270 ColorRect sizes / shader uniforms stay
-# correct — only the final display is HD.
-func _build_backdrop_pipeline() -> void:
-	_backdrop_viewport = SubViewport.new()
-	_backdrop_viewport.name = "BackdropViewport"
-	_backdrop_viewport.size = BACKDROP_NATIVE
-	_backdrop_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	_backdrop_viewport.transparent_bg = false
-	_backdrop_viewport.handle_input_locally = false
-	add_child(_backdrop_viewport)
+# SubViewport pipeline was dropped (Cobalt 2026-05-20) — V3 didn't
+# render reliably through it. Backdrop now mounts directly under a
+# CanvasLayer so the scaling transform isn't applied to the Parallax2D
+# layers (whose tiled draws don't play nice with parent Node2D scale).
+const BACKDROP_DISPLAY_SCALE := 4.0  # 1920 / 480
+var _backdrop_layer: CanvasLayer = null
 
-	_backdrop_display = TextureRect.new()
-	_backdrop_display.name = "BackdropDisplay"
-	_backdrop_display.texture = _backdrop_viewport.get_texture()
-	_backdrop_display.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_backdrop_display.stretch_mode = TextureRect.STRETCH_SCALE
-	_backdrop_display.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# Nearest-neighbour so the pixel-art chunky look survives the 4× upscale.
-	_backdrop_display.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	add_child(_backdrop_display)
-	move_child(_backdrop_display, 0)
+
+func _build_backdrop_pipeline() -> void:
+	_backdrop_layer = CanvasLayer.new()
+	_backdrop_layer.name = "BackdropLayer"
+	_backdrop_layer.layer = -10  # below all UI canvas layers
+	# CanvasLayer.transform scales its children without touching their
+	# local transform — Parallax2D inside renders at native, then the
+	# CanvasLayer scales the result up.
+	_backdrop_layer.transform = Transform2D.IDENTITY.scaled(Vector2(BACKDROP_DISPLAY_SCALE, BACKDROP_DISPLAY_SCALE))
+	add_child(_backdrop_layer)
 
 
 func _rebuild_backdrop() -> void:
@@ -162,7 +155,10 @@ func _rebuild_backdrop() -> void:
 			run.current_stellar = {}
 		if "current_hazard_subtype" in run:
 			run.current_hazard_subtype = ""
-	_backdrop_viewport.add_child(_backdrop)
+	if _backdrop_layer:
+		_backdrop_layer.add_child(_backdrop)
+	else:
+		add_child(_backdrop)
 
 
 # ---- UI build ------------------------------------------------------------
@@ -493,6 +489,10 @@ func _on_randomize() -> void:
 	if _seed_label:
 		_seed_label.text = "seed: %d" % _seed_value
 	_rebuild_backdrop()
+	# Two-frame defer: V3 in particular spawns children across several
+	# add_child calls in _ready; one process_frame isn't always enough
+	# for them all to settle before the picker enumerates direct children.
+	await get_tree().process_frame
 	await get_tree().process_frame
 	_refresh_layer_picker()
 	_refresh_info()
@@ -503,6 +503,10 @@ func _on_swap_version() -> void:
 	if _version_label:
 		_version_label.text = VARIANTS[_variant_idx]
 	_rebuild_backdrop()
+	# Two-frame defer: V3 in particular spawns children across several
+	# add_child calls in _ready; one process_frame isn't always enough
+	# for them all to settle before the picker enumerates direct children.
+	await get_tree().process_frame
 	await get_tree().process_frame
 	_refresh_layer_picker()
 	_refresh_info()

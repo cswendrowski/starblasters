@@ -33,7 +33,6 @@ func _run() -> void:
 	if img != null:
 		img.save_png(ProjectSettings.globalize_path(OUT))
 		print("[parallax-tuner-v3] wrote %s" % OUT)
-	# Dump the layer inventory so we can confirm V3's 5-layer shape.
 	var bd = inst.get("_backdrop") if "_backdrop" in inst else null
 	if bd:
 		print("[parallax-tuner-v3] backdrop class: %s" % bd.get_script().resource_path)
