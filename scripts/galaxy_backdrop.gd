@@ -114,10 +114,16 @@ const PLANET_TINT = {
 # shader runs at the requested cell count over the original area. Ring
 # overlays (BlackHole's Disk, GasPlanetLayers' Ring) are authored as 3×
 # the body's footprint, so they get 300×300 instead of 100×100.
-const COLORRECT_DEFAULT_CANONICAL := Vector2(100.0, 100.0)
+# Each entry: {size, pos}. set_pixels() in PixelPlanets writes both —
+# Disk/Ring overlays sit at a negative offset so the ring extends past
+# the body. Resetting only size and leaving position alone left flares
+# + discs drifting off-screen.
+const COLORRECT_DEFAULT_CANONICAL := {"size": Vector2(100.0, 100.0), "pos": Vector2.ZERO}
 const COLORRECT_CANONICAL_BY_NAME := {
-	"Disk": Vector2(300.0, 300.0),
-	"Ring": Vector2(300.0, 300.0),
+	"Disk":       {"size": Vector2(300.0, 300.0), "pos": Vector2(-100.0, -100.0)},
+	"Ring":       {"size": Vector2(300.0, 300.0), "pos": Vector2(-100.0, -100.0)},
+	"Blobs":      {"size": Vector2(200.0, 200.0), "pos": Vector2(-50.0, -50.0)},
+	"StarFlares": {"size": Vector2(200.0, 200.0), "pos": Vector2(-50.0, -50.0)},
 }
 # Procedural starfield overlay. Set density=0 to disable.
 @export_range(0.0, 80.0) var starfield_density: float = 40.0
@@ -1042,8 +1048,9 @@ func _apply_pixel_parity(p: Node, displayed_size: float) -> float:
 func _reset_colorrect_sizes(root: Node) -> void:
 	for child in root.get_children():
 		if child is ColorRect:
-			var canon: Vector2 = COLORRECT_CANONICAL_BY_NAME.get(String(child.name), COLORRECT_DEFAULT_CANONICAL)
-			(child as ColorRect).size = canon
+			var canon: Dictionary = COLORRECT_CANONICAL_BY_NAME.get(String(child.name), COLORRECT_DEFAULT_CANONICAL)
+			(child as ColorRect).size = canon["size"]
+			(child as ColorRect).position = canon["pos"]
 		_reset_colorrect_sizes(child)
 
 

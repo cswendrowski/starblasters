@@ -50,10 +50,12 @@ const TILE_SIZE := Vector2(320.0, 400.0)
 # below ~16 vp-px the procgen rock can't form a readable silhouette at
 # 1:1 pixel parity).
 @export_range(8.0, 48.0) var asteroid_min_size: float = 16.0
-const COLORRECT_DEFAULT_CANONICAL_V2 := Vector2(100.0, 100.0)
+const COLORRECT_DEFAULT_CANONICAL_V2 := {"size": Vector2(100.0, 100.0), "pos": Vector2.ZERO}
 const COLORRECT_CANONICAL_BY_NAME_V2 := {
-	"Disk": Vector2(300.0, 300.0),
-	"Ring": Vector2(300.0, 300.0),
+	"Disk":       {"size": Vector2(300.0, 300.0), "pos": Vector2(-100.0, -100.0)},
+	"Ring":       {"size": Vector2(300.0, 300.0), "pos": Vector2(-100.0, -100.0)},
+	"Blobs":      {"size": Vector2(200.0, 200.0), "pos": Vector2(-50.0, -50.0)},
+	"StarFlares": {"size": Vector2(200.0, 200.0), "pos": Vector2(-50.0, -50.0)},
 }
 
 var _parallax_layers: Array = []           # Parallax2D nodes — driven each frame
@@ -211,8 +213,9 @@ func _apply_pixels_only_v2(root: Node, value: float) -> void:
 func _reset_colorrect_sizes_v2(root: Node) -> void:
 	for child in root.get_children():
 		if child is ColorRect:
-			var canon: Vector2 = COLORRECT_CANONICAL_BY_NAME_V2.get(String(child.name), COLORRECT_DEFAULT_CANONICAL_V2)
-			(child as ColorRect).size = canon
+			var canon: Dictionary = COLORRECT_CANONICAL_BY_NAME_V2.get(String(child.name), COLORRECT_DEFAULT_CANONICAL_V2)
+			(child as ColorRect).size = canon["size"]
+			(child as ColorRect).position = canon["pos"]
 		_reset_colorrect_sizes_v2(child)
 
 

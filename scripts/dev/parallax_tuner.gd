@@ -458,7 +458,18 @@ func _apply_layer_visual(layer: CanvasItem) -> void:
 	var r: float = ((base.r * tint.r) * b - 0.5) * c + 0.5
 	var g: float = ((base.g * tint.g) * b - 0.5) * c + 0.5
 	var bl: float = ((base.b * tint.b) * b - 0.5) * c + 0.5
-	layer.modulate = Color(r, g, bl, base.a * tint.a)
+	var modulate_color := Color(r, g, bl, base.a * tint.a)
+	# Parallax2D layers in 4.3 don't reliably propagate modulate to their
+	# tiled child draws — push modulate down to the direct children so the
+	# tint actually shows on stars/asteroids/nebula content (Cobalt
+	# 2026-05-20 feedback). Non-Parallax2D layers (the ColorCorrection
+	# overlay) still get modulate set directly.
+	if layer is Parallax2D:
+		for child in layer.get_children():
+			if child is CanvasItem:
+				(child as CanvasItem).modulate = modulate_color
+	else:
+		layer.modulate = modulate_color
 
 
 # ---- Buttons -------------------------------------------------------------

@@ -58,11 +58,14 @@ const TILE_SIZE := Vector2(480.0, 270.0)
 
 # Default slot fills — overridable via populate_layer() at runtime so
 # different sectors / hazards can stuff different content in the same
-# slot. By default Far + Middle are empty (pure void); Near gets a
-# sparse asteroid scatter so the tuner has something to look at.
+# slot. By default the layers roll random content (mix of asteroids and
+# nebula across all three slots) so the tuner shows a populated scene.
+# Set explicit arrays to override per-instance.
 @export var default_far_fill: Array[String] = []
 @export var default_middle_fill: Array[String] = []
-@export var default_near_fill: Array[String] = ["asteroid_few"]
+@export var default_near_fill: Array[String] = []
+# If a default_*_fill is empty, _ready rolls random content via this rule.
+@export var randomize_empty_slots: bool = true
 
 # ---- Pixel parity (matches galaxy_backdrop.gd V1) ------------------------
 
@@ -77,10 +80,16 @@ const TILE_SIZE := Vector2(480.0, 270.0)
 @export_enum("Mix", "Add", "Multiply") var color_correction_blend: int = 0
 @export_range(0.0, 1.0) var color_correction_intensity: float = 0.0
 
-const COLORRECT_DEFAULT_CANONICAL := Vector2(100.0, 100.0)
+# Each entry: {size, pos}. set_pixels() on PixelPlanets writes both — the
+# Disk / Ring ring-overlays sit at a negative offset from the body so the
+# ring extends beyond it. Resetting only size and leaving position alone
+# left flares + discs drifting off-screen (Cobalt 2026-05-20 feedback).
+const COLORRECT_DEFAULT_CANONICAL := {"size": Vector2(100.0, 100.0), "pos": Vector2.ZERO}
 const COLORRECT_CANONICAL_BY_NAME := {
-	"Disk": Vector2(300.0, 300.0),
-	"Ring": Vector2(300.0, 300.0),
+	"Disk":       {"size": Vector2(300.0, 300.0), "pos": Vector2(-100.0, -100.0)},
+	"Ring":       {"size": Vector2(300.0, 300.0), "pos": Vector2(-100.0, -100.0)},
+	"Blobs":      {"size": Vector2(200.0, 200.0), "pos": Vector2(-50.0, -50.0)},
+	"StarFlares": {"size": Vector2(200.0, 200.0), "pos": Vector2(-50.0, -50.0)},
 }
 
 # ---- Runtime state -------------------------------------------------------
@@ -92,6 +101,23 @@ var _time_updaters: Array = []           # asteroid Controls + planets w/ update
 var _shader_time: float = 0.0
 var _last_planet_idx: int = -1
 var _color_correction_rect: ColorRect = null
+# Stars registered for the twinkle driver. Each entry:
+# {node, base_color, phase, amp, hz}
+var _twinkle_stars: Array = []
+
+
+func _register_twinkle(rect: ColorRect, rng: RandomNumberGenerator) -> void:
+	# ~70% of stars get a subtle twinkle; the rest stay constant so the
+	# field doesn't read as ALL pulsing at once.
+	if rng.randf() > 0.7:
+		return
+	_twinkle_stars.append({
+		"node": rect,
+		"base_color": rect.color,
+		"phase": rng.randf() * TAU,
+		"amp": rng.randf_range(0.15, 0.45),
+		"hz": rng.randf_range(0.4, 2.2),
+	})
 
 
 # ---- Lifecycle -----------------------------------------------------------
@@ -100,10 +126,27 @@ func _ready() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = _seed_value()
 	_build_layers(rng)
-	populate_layer("far", default_far_fill, rng)
-	populate_layer("middle", default_middle_fill, rng)
-	populate_layer("near", default_near_fill, rng)
+	populate_layer("far", _resolve_fill(default_far_fill, "far", rng), rng)
+	populate_layer("middle", _resolve_fill(default_middle_fill, "middle", rng), rng)
+	populate_layer("near", _resolve_fill(default_near_fill, "near", rng), rng)
 	_build_color_correction()
+
+
+# Decide what to put in a slot when no explicit fill was given. Each slot
+# rolls independently: ~50% asteroids (light or dense), ~25% nebula,
+# ~25% empty. Allows nebulas to coexist with asteroids in any layer.
+func _resolve_fill(explicit: Array, slot: String, rng: RandomNumberGenerator) -> Array:
+	if explicit.size() > 0 or not randomize_empty_slots:
+		return explicit
+	var picks: Array = []
+	var roll: float = rng.randf()
+	if roll < 0.30:
+		picks.append("asteroid_few")
+	elif roll < 0.55:
+		picks.append("asteroid_many")
+	if rng.randf() < 0.35:
+		picks.append("nebula")
+	return picks
 
 
 func _seed_value() -> int:
@@ -131,40 +174,53 @@ func _build_layers(rng: RandomNumberGenerator) -> void:
 
 
 # Pixel-perfect ColorRect starfield. Two populations: dense 1×1
-# pinpricks (small distant stars) + sparse 2×2 brighter pops (closer or
-# bigger stars). No anti-aliasing, no shader — every star sits on the
-# viewport pixel grid by construction.
+# pinpricks + sparse 2×2 brighter pops. No anti-aliasing, no shader —
+# every star sits on the viewport pixel grid by construction.
+# Cobalt 2026-05-20: density + colorfulness should vary per spawn, with
+# light blink/pulse so the field feels alive rather than static.
+const STAR_COLORS := [
+	Color(0.95, 0.97, 1.00),  # cool white
+	Color(1.00, 0.97, 0.92),  # warm white
+	Color(1.00, 0.85, 0.60),  # orange dwarf
+	Color(0.75, 0.85, 1.00),  # blue
+	Color(1.00, 0.95, 0.80),  # yellow
+	Color(0.95, 0.70, 0.70),  # red giant
+	Color(0.80, 0.95, 0.95),  # cyan
+]
+
+
 func _spawn_stars_layer(rng: RandomNumberGenerator) -> void:
 	var par := _make_parallax("Stars", stars_scroll)
 	_layers["stars"] = par
-	# Pinpricks
-	for i in 220:
+	# Random density per spawn — anywhere from sparse to crowded.
+	var pinprick_count: int = rng.randi_range(140, 320)
+	var pop_count: int = rng.randi_range(20, 70)
+	# Twinkle uses a per-star phase. Driver runs in _process and modulates
+	# `_twinkle_stars` alpha by a sine wave so the field appears to breathe.
+	for i in pinprick_count:
 		var dot := ColorRect.new()
 		dot.size = Vector2(1, 1)
 		dot.position = Vector2(
 			floor(rng.randf() * TILE_SIZE.x),
 			floor(rng.randf() * TILE_SIZE.y)
 		)
+		var base: Color = STAR_COLORS[rng.randi() % STAR_COLORS.size()]
 		var bright: float = 0.55 + rng.randf() * 0.45
-		dot.color = Color(bright * 0.95, bright * 0.97, bright * 1.0, 1.0)
+		dot.color = Color(base.r * bright, base.g * bright, base.b * bright, 1.0)
 		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_register_twinkle(dot, rng)
 		par.add_child(dot)
-	# Bigger pops
-	for i in 40:
+	# Bigger pops — same color/density rules but with a richer tint.
+	for i in pop_count:
 		var big := ColorRect.new()
 		big.size = Vector2(2, 2)
 		big.position = Vector2(
 			floor(rng.randf() * (TILE_SIZE.x - 2.0)),
 			floor(rng.randf() * (TILE_SIZE.y - 2.0))
 		)
-		# Mix warm + cool stars for variety.
-		var col: Color
-		if rng.randf() < 0.5:
-			col = Color(1.00, 0.97, 0.92, 1.0)
-		else:
-			col = Color(0.92, 0.95, 1.00, 1.0)
-		big.color = col
+		big.color = STAR_COLORS[rng.randi() % STAR_COLORS.size()]
 		big.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_register_twinkle(big, rng)
 		par.add_child(big)
 
 
@@ -395,8 +451,9 @@ func _apply_pixels_only(root: Node, value: float) -> void:
 func _reset_colorrect_sizes(root: Node) -> void:
 	for child in root.get_children():
 		if child is ColorRect:
-			var canon: Vector2 = COLORRECT_CANONICAL_BY_NAME.get(String(child.name), COLORRECT_DEFAULT_CANONICAL)
-			(child as ColorRect).size = canon
+			var canon: Dictionary = COLORRECT_CANONICAL_BY_NAME.get(String(child.name), COLORRECT_DEFAULT_CANONICAL)
+			(child as ColorRect).size = canon["size"]
+			(child as ColorRect).position = canon["pos"]
 		_reset_colorrect_sizes(child)
 
 
@@ -410,10 +467,28 @@ func _process(delta: float) -> void:
 			continue
 		var par := p as Parallax2D
 		par.scroll_offset.y += step * par.scroll_scale.y
+	# Twinkle drive — sine modulation around the base color brightness so
+	# stars lightly pulse rather than hard-blink. Uses _shader_time (10×
+	# slower than delta accumulation) so phase advances at a calm rate.
+	var t: float = Time.get_ticks_msec() / 1000.0
+	for entry in _twinkle_stars:
+		var node = entry["node"]
+		if not is_instance_valid(node):
+			continue
+		var phase: float = float(entry["phase"]) + t * TAU * float(entry["hz"])
+		var brightness: float = 1.0 - float(entry["amp"]) * (0.5 - 0.5 * cos(phase))
+		var base: Color = entry["base_color"]
+		(node as ColorRect).color = Color(base.r * brightness, base.g * brightness, base.b * brightness, base.a)
+	# Spin handles both Node2D (rare) and Control (asteroids — procgen
+	# Asteroid.tscn is a Control). Both expose `rotation`.
 	for entry in _spinning:
 		var node: Node = entry["node"]
-		if is_instance_valid(node) and node is Node2D:
+		if not is_instance_valid(node):
+			continue
+		if node is Node2D:
 			(node as Node2D).rotation += float(entry["spin"]) * delta
+		elif node is Control:
+			(node as Control).rotation += float(entry["spin"]) * delta
 	for n in _time_updaters:
 		if is_instance_valid(n) and n.has_method("update_time"):
 			n.update_time(_shader_time)
