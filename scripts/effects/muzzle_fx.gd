@@ -26,9 +26,14 @@ const BLASTER_MUZZLE_STRIP_HFRAMES := 3
 const BLASTER_GLOW_COLOR := Color(0.353, 0.796, 0.992, 1.0)
 
 
-static func play(world_pos: Vector2) -> void:
+static func play(world_pos: Vector2, host: Node = null) -> void:
 	var root = Engine.get_main_loop().root
-	_spawn_flash(root, world_pos)
+	# Flash parents under the host (player) when supplied so it inherits
+	# the ship's transform and renders on the same canvas (the star_flash
+	# beam windup uses this same pattern and renders correctly). Smoke +
+	# shell stay at scene root since they outlive the player frame and
+	# drift through world space.
+	_spawn_flash(host if host != null else root, world_pos, host != null)
 	_spawn_smoke(root, world_pos)
 	_spawn_shell(root, world_pos)
 
@@ -36,65 +41,88 @@ static func play(world_pos: Vector2) -> void:
 # Energy Blaster muzzle FX — blue additive flash, no smoke, no shell. Used
 # for the default Energy Blaster cannon (Roman, 2026-05-16). Replaces the
 # warm/smokey machinegun look when the equipped CANNON is the blaster.
-static func play_energy(world_pos: Vector2) -> void:
+static func play_energy(world_pos: Vector2, host: Node = null) -> void:
 	var root = Engine.get_main_loop().root
+	var parent: Node = host if host != null else root
+	var use_local: bool = host != null
 	# Cobalt 2026-05-21: replace the gradient-only flash with the
 	# blaster_muzzle strip + a cyan-blue glow halo at #5acbfd.
+	# When `host` is supplied, parent under it so the flash inherits the
+	# ship's transform (matches what star_flash does for the beam windup).
 	var glow := Sprite2D.new()
 	glow.texture = _build_flash_texture()
-	glow.position = world_pos
-	glow.scale = Vector2(0.95, 0.95)
+	glow.position = (Vector2(0, 0) if use_local else world_pos)
+	if use_local:
+		glow.position = world_pos - (host as Node2D).global_position
+	glow.scale = Vector2(1.05, 1.05)
 	glow.modulate = BLASTER_GLOW_COLOR
-	glow.z_index = 2
+	glow.z_index = 4
 	var glow_mat := CanvasItemMaterial.new()
 	glow_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	glow.material = glow_mat
-	root.add_child(glow)
+	parent.add_child(glow)
 	var gtw := glow.create_tween()
-	gtw.tween_property(glow, "scale", Vector2(1.6, 1.6), 0.10)
-	gtw.parallel().tween_property(glow, "modulate:a", 0.0, 0.10)
+	gtw.tween_property(glow, "scale", Vector2(1.8, 1.8), 0.15)
+	gtw.parallel().tween_property(glow, "modulate:a", 0.0, 0.15)
 	gtw.tween_callback(glow.queue_free)
-	# Pixel-art strip — random frame per shot.
+	# Pixel-art strip — random frame per shot. Sprite held at 1.5× and
+	# at full alpha for 70 ms so it reads in the GIF, then fades.
 	var flash := Sprite2D.new()
 	flash.texture = BLASTER_MUZZLE_STRIP
 	flash.hframes = BLASTER_MUZZLE_STRIP_HFRAMES
 	flash.frame = randi() % BLASTER_MUZZLE_STRIP_HFRAMES
-	flash.position = world_pos
-	flash.z_index = 3
-	root.add_child(flash)
+	if use_local:
+		flash.position = world_pos - (host as Node2D).global_position
+	else:
+		flash.position = world_pos
+	flash.scale = Vector2(1.5, 1.5)
+	flash.z_index = 5
+	parent.add_child(flash)
 	var tw := flash.create_tween()
+	tw.tween_interval(0.07)
 	tw.tween_property(flash, "modulate:a", 0.0, 0.10)
 	tw.tween_callback(flash.queue_free)
 
 
-static func _spawn_flash(root: Node, world_pos: Vector2) -> void:
-	# Cobalt 2026-05-21: warm-flash now uses the gun_muzzle_flash strip
-	# with a random frame per fire. A yellow-orange additive glow halo
-	# sits behind it so the flash reads as a hot light source rather
-	# than just a sprite.
+static func _spawn_flash(parent: Node, world_pos: Vector2, use_local: bool = false) -> void:
+	# Yellow-orange glow halo + random-frame strip. When `parent` is a
+	# Node2D (host = player), the positions are local to the host so the
+	# flash inherits the ship's transform/canvas. Falls back to world
+	# position when `parent` is the scene root.
+	#
+	# Cobalt 2026-05-21 visibility pass: scale + lifetime bumped so the
+	# flash reads clearly per shot. Sprite holds full alpha for the first
+	# half of its life before fading, so it lingers visible across more
+	# captured frames.
+	var local_pos: Vector2 = world_pos
+	if use_local and parent is Node2D:
+		local_pos = world_pos - (parent as Node2D).global_position
 	var glow := Sprite2D.new()
 	glow.texture = _build_flash_texture()
-	glow.position = world_pos
-	glow.scale = Vector2(0.85, 0.85)
-	glow.modulate = Color(1.0, 0.72, 0.28, 0.95)  # yellow-orange
-	glow.z_index = 2  # over the player ship (Cobalt 2026-05-21 follow-up)
+	glow.position = local_pos
+	glow.scale = Vector2(1.0, 1.0)
+	glow.modulate = Color(1.0, 0.72, 0.28, 1.0)  # yellow-orange
+	glow.z_index = 4
 	var glow_mat := CanvasItemMaterial.new()
 	glow_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	glow.material = glow_mat
-	root.add_child(glow)
+	parent.add_child(glow)
 	var glow_tw := glow.create_tween()
-	glow_tw.tween_property(glow, "scale", Vector2(1.4, 1.4), 0.09)
-	glow_tw.parallel().tween_property(glow, "modulate:a", 0.0, 0.09)
+	glow_tw.tween_property(glow, "scale", Vector2(1.8, 1.8), 0.15)
+	glow_tw.parallel().tween_property(glow, "modulate:a", 0.0, 0.15)
 	glow_tw.tween_callback(glow.queue_free)
-	# Pixel-art flash sprite — random frame from the 5-frame strip.
 	var flash := Sprite2D.new()
 	flash.texture = MUZZLE_STRIP
 	flash.hframes = MUZZLE_STRIP_HFRAMES
 	flash.frame = randi() % MUZZLE_STRIP_HFRAMES
-	flash.position = world_pos
-	flash.z_index = 3  # over the player ship + glow halo
-	root.add_child(flash)
+	flash.position = local_pos
+	flash.scale = Vector2(1.5, 1.5)
+	flash.z_index = 5
+	parent.add_child(flash)
+	# Hold full alpha for the first 70 ms so the sprite reads even in a
+	# 30fps GIF, then fade out across another 80 ms.
 	var tw := flash.create_tween()
+	tw.tween_interval(0.07)
 	tw.tween_property(flash, "modulate:a", 0.0, 0.08)
 	tw.tween_callback(flash.queue_free)
 

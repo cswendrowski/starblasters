@@ -582,14 +582,14 @@ func fire_primary() -> void:
 	# Style-specific muzzle FX + per-shot SFX.
 	var MuzzleFx = load("res://scripts/effects/muzzle_fx.gd")
 	if weapon_style == "machinegun":
-		MuzzleFx.play(muzzle_pos)  # warm flash + smoke + shell
+		MuzzleFx.play(muzzle_pos, self)  # flash parented to player
 		if ammo > 0:
 			ammo -= 1
 			ammo_changed.emit(ammo)
 			if has_node("/root/Run"):
 				get_node("/root/Run").ammo = ammo
 	else:
-		MuzzleFx.play_energy(muzzle_pos)
+		MuzzleFx.play_energy(muzzle_pos, self)
 		# Per-shot cannon SFX, dispatched by the equipped cannon's
 		# fire_sfx_kind. Falls back to the legacy ShootSound when the
 		# kind is empty (e.g., laser beam — sounds not yet supplied).
