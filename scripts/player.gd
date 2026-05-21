@@ -59,6 +59,21 @@ var _beam_halo: Line2D = null
 var _beam_line: Line2D = null
 var _beam_core: Line2D = null
 var _beam_active: bool = false
+# Beam pre-fire/hold/cool sprite windup (Cobalt 2026-05-21). Plays
+# star_flash strip across the lifetime of a shoot2 hold:
+#   - WARMUP: frames 0..3 over BEAM_WARMUP_TIME, beam suppressed
+#   - HOLD:   stays on frame 4 with subtle scale jitter while firing
+#   - COOLDOWN: frames 4..6 over BEAM_COOLDOWN_TIME after release
+const BEAM_FLASH_TEX = preload("res://graphics/star_flash.png")
+const BEAM_FLASH_HFRAMES := 7
+const BEAM_WARMUP_TIME := 0.5
+const BEAM_COOLDOWN_TIME := 0.3
+const BEAM_FRAME_TIME_WARMUP := BEAM_WARMUP_TIME / 4.0   # 4 warm-up frames
+const BEAM_FRAME_TIME_COOLDOWN := BEAM_COOLDOWN_TIME / 3.0  # 3 cool-down frames (4→5→6)
+enum BeamFlashState { NONE, WARMUP, HOLD, COOLDOWN }
+var _beam_flash: Sprite2D = null
+var _beam_flash_state: int = BeamFlashState.NONE
+var _beam_flash_frame_t: float = 0.0
 # Super weapon slot — DEVICE_BAY_1 Part assigns itself here on apply().
 # Charges are consumed on tap (single-use per press); refilled at
 # outposts. Initial charges populated when the part is equipped.
@@ -458,6 +473,13 @@ func set_shield(value: int) -> void:
 				ShieldSfx.play_break(get_tree().root, global_position)
 			else:
 				ShieldSfx.play_hit(get_tree().root, global_position)
+		# Cobalt 2026-05-21: animated shield_hit / shield_break sprite at
+		# the shield center on each drain. Break plays only when the last
+		# charge is consumed.
+		if shield == 0:
+			_play_shield_anim(SHIELD_BREAK_TEX)
+		else:
+			_play_shield_anim(SHIELD_HIT_TEX)
 	# Regen timer ticks every `shield_recharge_seconds` while charges are
 	# below max. The Shield Recharge upgrade shortens this; the upgrade
 	# applier writes shield_recharge_seconds before combat starts.
@@ -660,6 +682,97 @@ func _ensure_beam_visual() -> void:
 	_beam_core = core
 
 
+# Spawn the beam flash sprite at the player's muzzle and put it into
+# WARMUP. Lives until cool-down completes.
+func _begin_beam_flash() -> void:
+	if _beam_flash and is_instance_valid(_beam_flash):
+		_beam_flash.queue_free()
+	var s := Sprite2D.new()
+	s.name = "BeamFlash"
+	s.texture = BEAM_FLASH_TEX
+	s.hframes = BEAM_FLASH_HFRAMES
+	s.frame = 0
+	s.position = Vector2(0, -10)  # muzzle
+	s.z_index = 7  # over halo(4)/line(5)/core(6)
+	add_child(s)
+	_beam_flash = s
+	_beam_flash_state = BeamFlashState.WARMUP
+	_beam_flash_frame_t = 0.0
+
+
+# Per-frame state machine for the flash sprite. Advances WARMUP frames,
+# jitters HOLD frame, advances COOLDOWN frames, then frees the sprite.
+func _tick_beam_flash(delta: float) -> void:
+	if _beam_flash == null or not is_instance_valid(_beam_flash):
+		return
+	_beam_flash_frame_t += delta
+	match _beam_flash_state:
+		BeamFlashState.WARMUP:
+			# 4 frames over BEAM_WARMUP_TIME.
+			var target_frame: int = clampi(int(_beam_flash_frame_t / BEAM_FRAME_TIME_WARMUP), 0, 3)
+			_beam_flash.frame = target_frame
+			if target_frame >= 3 and _beam_flash_frame_t >= BEAM_WARMUP_TIME:
+				_beam_flash_state = BeamFlashState.HOLD
+				_beam_flash_frame_t = 0.0
+				_beam_flash.frame = 4
+		BeamFlashState.HOLD:
+			# Hold on frame 4 with a subtle scale jitter so the beam reads
+			# as a live, breathing core rather than a static sprite.
+			_beam_flash.frame = 4
+			var jitter: float = 1.0 + 0.12 * sin(_beam_flash_frame_t * TAU * 6.0)
+			_beam_flash.scale = Vector2(jitter, jitter)
+		BeamFlashState.COOLDOWN:
+			# Frames 4 → 5 → 6 over BEAM_COOLDOWN_TIME, then free.
+			_beam_flash.scale = Vector2.ONE
+			var idx: int = 4 + int(_beam_flash_frame_t / BEAM_FRAME_TIME_COOLDOWN)
+			_beam_flash.frame = clampi(idx, 4, 6)
+			if _beam_flash_frame_t >= BEAM_COOLDOWN_TIME:
+				_beam_flash.queue_free()
+				_beam_flash = null
+				_beam_flash_state = BeamFlashState.NONE
+		_:
+			pass
+
+
+# Shield hit / break sprite playback (Cobalt 2026-05-21). Spawns a
+# Sprite2D at the player's shield ring, plays the strip across 5 frames
+# over ~0.4s, frees itself. `texture` is the sprite strip with hframes
+# set; both shield_hit and shield_break are 5-frame strips.
+const SHIELD_HIT_TEX = preload("res://graphics/shield_hit.png")
+const SHIELD_BREAK_TEX = preload("res://graphics/shield_break.png")
+const SHIELD_ANIM_HFRAMES := 5
+const SHIELD_ANIM_DURATION := 0.4
+const SHIELD_ANIM_FRAME_TIME := SHIELD_ANIM_DURATION / float(SHIELD_ANIM_HFRAMES)
+
+func _play_shield_anim(tex: Texture2D) -> void:
+	if tex == null:
+		return
+	var s := Sprite2D.new()
+	s.name = "ShieldAnim"
+	s.texture = tex
+	s.hframes = SHIELD_ANIM_HFRAMES
+	s.frame = 0
+	# Anchor on the Ship's shield ring (centered on the ship sprite).
+	if has_node("Ship"):
+		$Ship.add_child(s)
+		s.position = Vector2.ZERO
+	else:
+		add_child(s)
+	s.z_index = 6
+	# Drive frame index via a tween — simple, no need for a per-frame loop.
+	var tw := create_tween()
+	# Tween the frame property as a float; setter rounds.
+	tw.tween_method(
+		func(v: float):
+			if is_instance_valid(s):
+				s.frame = clampi(int(v), 0, SHIELD_ANIM_HFRAMES - 1),
+		0.0,
+		float(SHIELD_ANIM_HFRAMES - 1),
+		SHIELD_ANIM_DURATION,
+	)
+	tw.tween_callback(s.queue_free)
+
+
 # Per-frame: scan enemies in a vertical column above the player, sorted
 # by Y descending so we hit the nearest first. Pierce through any enemy
 # that ISN'T flagged tough/boss; stop on the first tough/boss enemy.
@@ -669,12 +782,32 @@ const TOUGH_HP_THRESHOLD := 8  # enemies with > 8 max_hull count as "tough"
 
 func _tick_beam(holding: bool, delta: float) -> void:
 	_ensure_beam_visual()
+	# Drive the flash sprite state machine. The beam itself only fires
+	# during HOLD; during WARMUP we play the windup frames and the beam
+	# lines stay hidden. On release we kick into COOLDOWN frames before
+	# tearing the sprite down.
 	if not holding or not is_alive:
+		# Released (or died). Switch active beam → cool-down.
 		if _beam_active:
 			_beam_active = false
 			if _beam_halo: _beam_halo.visible = false
 			if _beam_line: _beam_line.visible = false
 			if _beam_core: _beam_core.visible = false
+			if _beam_flash and is_instance_valid(_beam_flash) and _beam_flash_state == BeamFlashState.HOLD:
+				_beam_flash_state = BeamFlashState.COOLDOWN
+				_beam_flash_frame_t = 0.0
+				_beam_flash.frame = 4
+		_tick_beam_flash(delta)
+		return
+	# Holding. If no flash yet, kick off WARMUP.
+	if _beam_flash == null or not is_instance_valid(_beam_flash):
+		_begin_beam_flash()
+	_tick_beam_flash(delta)
+	# Beam only actually fires during HOLD — suppress during WARMUP.
+	if _beam_flash_state != BeamFlashState.HOLD:
+		if _beam_halo: _beam_halo.visible = false
+		if _beam_line: _beam_line.visible = false
+		if _beam_core: _beam_core.visible = false
 		return
 	_beam_active = true
 	if _beam_halo: _beam_halo.visible = true
