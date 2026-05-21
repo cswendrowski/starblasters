@@ -1,14 +1,18 @@
-extends Node2D
+extends Area2D
 class_name AutonomousDrone
 
-# Drone Swarm super drone. Cobalt 2026-05-21: tethered to the player
-# (≤ TETHER_RADIUS px from ship center, constrained to the playfield
-# band) and free to maneuver in that area while it targets enemies.
-# Fires a basic blaster cannon at the chosen target. Targeting rule:
-# bosses first, otherwise the enemy nearest the player.
+# Combined Drone Swarm super (Cobalt 2026-05-21): consolidates the old
+# secondary Shield Drone + the prior autonomous shooter into one entity.
+# Each drone:
+#   - Orbits the player (≤ TETHER_RADIUS px), free to maneuver in band
+#   - Picks bosses first, otherwise the enemy nearest the player
+#   - Fires the basic blaster bullet at the chosen target
+#   - INTERCEPTS incoming enemy projectiles with its body — bullets in
+#     the "enemy_bullets" group entering the Area2D are eaten and the
+#     drone takes one ablative hit
+#   - Pops after MAX_HITS contacts (default 2) so they're not invulnerable
 #
-# Lifetime is owned by the spawner (drone_swarm.gd); the drone frees
-# itself only when the parent ship goes away.
+# Lifetime is owned by drone_swarm.gd (cleanup timer at activate-time).
 
 const BULLET_SCENE = preload("res://scenes/projectiles/bullet.tscn")
 
@@ -16,17 +20,20 @@ const TETHER_RADIUS := 20.0
 const MOVE_SPEED := 140.0
 const FIRE_INTERVAL := 0.22
 const BULLET_DAMAGE := 1
+const MAX_HITS := 2
 
 var _player: Node2D = null
 var _cooldown: float = 0.0
-# Per-drone wobble so a swarm doesn't all stack on the same target
-# offset. Initialized via bind_player().
 var _angle_seed: float = 0.0
 var _drift_phase: float = 0.0
+var _hits: int = 0
+var _dying: bool = false
 
 
 func _ready() -> void:
 	_drift_phase = randf() * TAU
+	if not area_entered.is_connected(_on_area_entered):
+		area_entered.connect(_on_area_entered)
 
 
 func bind_player(player: Node2D, angle_seed: float) -> void:
@@ -35,23 +42,20 @@ func bind_player(player: Node2D, angle_seed: float) -> void:
 
 
 func _process(delta: float) -> void:
+	if _dying:
+		return
 	if _player == null or not is_instance_valid(_player):
 		queue_free()
 		return
 	_cooldown -= delta
 	_drift_phase += delta * 2.5
-	# Pick a target inside the playfield. Bosses preempt closest.
 	var target: Node = _pick_target()
-	# Movement: drift toward target X (if any) within tether radius, else
-	# orbit player. Use sine to wobble in/out so multiple drones in a
-	# swarm don't all converge on the same spot.
 	var anchor: Vector2 = _player.global_position
 	var desired: Vector2 = anchor + Vector2(
 		cos(_angle_seed + _drift_phase) * TETHER_RADIUS * 0.85,
 		sin(_angle_seed + _drift_phase * 0.7) * TETHER_RADIUS * 0.6 - 6.0,
 	)
 	if target and is_instance_valid(target):
-		# Bias toward target's X within the tether band.
 		var dx: float = clampf(target.global_position.x - anchor.x, -TETHER_RADIUS, TETHER_RADIUS)
 		desired = anchor + Vector2(dx, -TETHER_RADIUS * 0.8 + sin(_drift_phase) * 4.0)
 	var to_desired: Vector2 = desired - global_position
@@ -60,15 +64,45 @@ func _process(delta: float) -> void:
 		position += to_desired.normalized() * step
 	else:
 		position = desired
-	# Constrain to the playfield band so drones don't drift into the
-	# side gutters.
 	if Playfield:
 		position.x = clamp(position.x, Playfield.X_MIN + 4.0, Playfield.X_MAX - 4.0)
 		position.y = clamp(position.y, Playfield.Y_MIN + 4.0, Playfield.Y_MAX - 4.0)
-	# Fire at the chosen target. If no target, hold fire.
 	if target and is_instance_valid(target) and _cooldown <= 0.0:
 		_cooldown = FIRE_INTERVAL
 		_fire_at(target)
+
+
+# Bullet / enemy contact handler. We absorb enemy bullets (eat them so
+# they can't reach the player) and take an ablative hit each time. After
+# MAX_HITS the drone pops.
+func _on_area_entered(area: Area2D) -> void:
+	if _dying:
+		return
+	if area == null or area == _player:
+		return
+	if area.is_in_group("player_drones") or area.is_in_group("player"):
+		return
+	# Anything in "enemies" or "enemy_bullets" counts as an incoming hit.
+	# Most enemy projectiles are in the enemies group via EnemyBase, so
+	# checking enemies is the broad-stroke catch.
+	if not (area.is_in_group("enemies") or area.is_in_group("enemy_bullets")):
+		return
+	# Eat the projectile if it's a bullet-shaped enemy (low HP, no boss).
+	if area.has_method("take_hit") and "max_health" in area and int(area.max_health) <= 1:
+		area.queue_free()
+	_hits += 1
+	if _hits >= MAX_HITS:
+		_explode()
+
+
+func _explode() -> void:
+	if _dying:
+		return
+	_dying = true
+	var ExplosionFxCls = load("res://scripts/effects/explosion_fx.gd")
+	if ExplosionFxCls:
+		ExplosionFxCls.play(global_position, 0.5, false)
+	queue_free()
 
 
 func _pick_target() -> Node:
@@ -77,19 +111,20 @@ func _pick_target() -> Node:
 	var tree := get_tree()
 	if tree == null:
 		return null
-	# Bosses first — scene_file_path contains "boss".
 	for n in tree.get_nodes_in_group("enemies"):
 		if not is_instance_valid(n):
 			continue
 		var path: String = n.scene_file_path if "scene_file_path" in n else ""
 		if path.find("boss") != -1:
 			return n
-	# Otherwise pick the enemy closest to the player.
 	var best: Node = null
 	var best_d: float = INF
 	var anchor: Vector2 = _player.global_position
 	for n in tree.get_nodes_in_group("enemies"):
 		if not is_instance_valid(n):
+			continue
+		# Skip projectiles + chaff that we don't really want to "target".
+		if "max_health" in n and int(n.max_health) <= 1:
 			continue
 		var d: float = (n.global_position - anchor).length_squared()
 		if d < best_d:
@@ -112,5 +147,3 @@ func _fire_at(target: Node) -> void:
 			dir = Vector2(0, -1)
 	if bullet.has_method("start"):
 		bullet.start(global_position + Vector2(0, -4), dir)
-	# Tiny audio for shoot — reuse the player's basic blaster SFX if
-	# available; otherwise silent.

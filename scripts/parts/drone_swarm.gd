@@ -1,9 +1,9 @@
 extends "res://scripts/parts/part.gd"
 
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
-const AutonomousDroneCls = preload("res://scripts/player/autonomous_drone.gd")
-# Visual asset reused from the existing player_drone scene; the
-# autonomous_drone script gets set after instantiate.
+# player_drone.tscn now bundles the Area2D + Sprite2D + CollisionShape +
+# the autonomous behaviour script. drone_swarm just instantiates and
+# binds; no script swap.
 const DroneScene = preload("res://scenes/player/player_drone.tscn")
 
 # Drone Swarm — super weapon. Tap X (shoot_nose) → spawns a burst of
@@ -67,11 +67,11 @@ func activate(ship) -> void:
 	var spawned: Array = []
 	for i in n:
 		var drone = DroneScene.instantiate()
-		# Swap in the autonomous behaviour. The drone scene's visual nodes
-		# stay; the script handles movement + targeting + firing.
-		drone.set_script(AutonomousDroneCls)
-		# Parented at scene root so the drone's movement is in world
-		# space (the tether maths handle following the player).
+		# player_drone.tscn is already an Area2D with the autonomous
+		# script's required setup. Cobalt 2026-05-21 also asked for drones
+		# to spawn from the player's center, so start them at the player's
+		# global position; the autonomous _process tether-orbits them out.
+		drone.position = ship.global_position
 		tree.root.call_deferred("add_child", drone)
 		var angle_seed: float = TAU * float(i) / float(max(1, n))
 		drone.call_deferred("bind_player", ship, angle_seed)

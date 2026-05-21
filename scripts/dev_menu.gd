@@ -71,8 +71,8 @@ func _build_ui() -> void:
 	v.add_child(HSeparator.new())
 
 	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 6)
+	grid.columns = 3  # Cobalt 2026-05-21 — was 2; adding Progression Mockup nudged us to 3-wide
+	grid.add_theme_constant_override("h_separation", 5)
 	grid.add_theme_constant_override("v_separation", 4)
 	v.add_child(grid)
 	_grid = grid
@@ -90,6 +90,7 @@ func _build_ui() -> void:
 	# Test launchers
 	_add_button("[ Test Combat ]", _on_test_combat, true)
 	_add_button("[ Hangar ]", _on_hangar, true)
+	_add_button("[ Progression Mockup ]", _on_progression_mockup, true)
 
 	v.add_child(HSeparator.new())
 
@@ -105,7 +106,7 @@ func _build_ui() -> void:
 func _add_button(text: String, cb: Callable, dev_green: bool) -> void:
 	var btn := Button.new()
 	btn.text = text
-	btn.custom_minimum_size = Vector2(108, 16)
+	btn.custom_minimum_size = Vector2(86, 14)  # smaller per 2026-05-21 to fit 3-wide grid
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	UiTheme.style_button(btn, true)
 	if dev_green:
@@ -166,6 +167,10 @@ func _on_parallax_tuner() -> void:
 
 func _on_hangar() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/hangar.tscn")
+
+
+func _on_progression_mockup() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/progression_mockup.tscn")
 
 
 # Unified Test Combat launcher (Cody 2026-05-19): one modal that fans

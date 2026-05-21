@@ -1,14 +1,18 @@
-[gd_scene load_steps=2 format=3 uid="uid://bplyrdrone1"]
+[gd_scene load_steps=4 format=3 uid="uid://bplyrdrone1"]
+
+[ext_resource type="Texture2D" path="res://graphics/player_drone.png" id="1_drsprite"]
+[ext_resource type="Script" path="res://scripts/player/autonomous_drone.gd" id="2_drscript"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_drone"]
-radius = 3.0
+radius = 5.0
 
-[node name="PlayerDrone" type="Node2D"]
+[node name="PlayerDrone" type="Area2D" groups=["player_drones", "player"]]
+collision_layer = 1
+collision_mask = 1
+script = ExtResource("2_drscript")
 
-[node name="Outer" type="Polygon2D" parent="."]
-color = Color(0.35, 0.85, 1, 1)
-polygon = PackedVector2Array(-4, 0, -3, -3, 0, -4, 3, -3, 4, 0, 3, 3, 0, 4, -3, 3)
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("1_drsprite")
 
-[node name="Inner" type="Polygon2D" parent="."]
-color = Color(1, 1, 1, 1)
-polygon = PackedVector2Array(-2, 0, -1, -1.5, 0, -2, 1, -1.5, 2, 0, 1, 1.5, 0, 2, -1, 1.5)
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_drone")
