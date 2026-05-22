@@ -118,14 +118,14 @@ func _process(delta: float) -> void:
 # Bumped 16 → 40 so sprites stay fully on-screen instead of clipping the
 # edge (sprites are ~48 px wide after 2× display × 3× world). Roman,
 # 2026-05-16: enemy patterns should avoid colliding with the sides.
-const SIDE_MARGIN := 14.0  # 320×400 res rework
+const SIDE_MARGIN := 14.0
 func _clamp_to_sides() -> void:
 	if "allow_side_exit" in self and self.allow_side_exit:
 		return
-	if position.x < SIDE_MARGIN:
-		position.x = SIDE_MARGIN
-	elif position.x > screensize.x - SIDE_MARGIN:
-		position.x = screensize.x - SIDE_MARGIN
+	if position.x < Playfield.X_MIN + SIDE_MARGIN:
+		position.x = Playfield.X_MIN + SIDE_MARGIN
+	elif position.x > Playfield.X_MAX - SIDE_MARGIN:
+		position.x = Playfield.X_MAX - SIDE_MARGIN
 
 
 # Override EnemyBase's bottom-exit hook: instead of freeing, do the

@@ -9,6 +9,8 @@ extends "res://scripts/enemies/enemy_base.gd"
 # resource_path == "res://scripts/boss.gd" — that still matches because the
 # node's immediate script is boss.gd; enemy_base.gd is just the parent.
 
+const Playfield = preload("res://scripts/playfield.gd")
+
 signal health_changed(cur: int, max: int)
 
 @export var shoot_pattern: Resource = null
@@ -131,7 +133,7 @@ func _process(delta: float) -> void:
 func _clamp_to_playfield() -> void:
 	var vp: Vector2 = get_viewport_rect().size
 	const MARGIN: float = 24.0
-	position.x = clamp(position.x, MARGIN, vp.x - MARGIN)
+	position.x = clamp(position.x, Playfield.X_MIN + MARGIN, Playfield.X_MAX - MARGIN)
 	position.y = clamp(position.y, MARGIN, vp.y * 0.7)
 
 
