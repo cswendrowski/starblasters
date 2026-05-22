@@ -6,6 +6,7 @@ extends Control
 
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
+const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
 
 @onready var title_label: Label = $Center/Panel/VBox/Title
 @onready var stats_label: Label = $Center/Panel/VBox/Stats
@@ -78,7 +79,7 @@ func _render() -> void:
 func _new_game() -> void:
 	if has_node("/root/Run"):
 		get_node("/root/Run").new_run()
-	SceneTransition.change_scene(get_tree(), "res://scenes/sector_map_v2.tscn")
+	SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE)
 
 func _to_menu() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/main_menu.tscn")

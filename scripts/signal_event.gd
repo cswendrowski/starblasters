@@ -13,6 +13,7 @@ extends Control
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
+const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
 
 @onready var title_label: Label = $Panel/VBox/Title
 @onready var body_label: Label = $Panel/VBox/Body
@@ -401,6 +402,6 @@ func _finish_to_sector_map(result_text: String) -> void:
 	btn.text = "Sector Map"
 	UiTheme.style_button(btn)
 	btn.pressed.connect(func():
-		SceneTransition.change_scene(get_tree(), "res://scenes/sector_map_v2.tscn")
+		SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE)
 	)
 	choices_box.add_child(btn)

@@ -11,7 +11,8 @@ extends CanvasLayer
 
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
-const SECTOR_MAP_SCENE := "res://scenes/sector_map_v2.tscn"
+const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
+const SECTOR_MAP_SCENE := SectorMapRoute.SECTOR_MAP_SCENE
 
 # Cached enemy sprite textures keyed by scene path.
 static var _sprite_cache: Dictionary = {}
@@ -158,7 +159,7 @@ func _on_next_sector() -> void:
 	var tw = create_tween()
 	tw.tween_property(root, "modulate:a", 0.0, 0.35).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 	await tw.finished
-	SceneTransition.change_scene(get_tree(), "res://scenes/sector_map_v2.tscn")
+	SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE)
 
 
 func _play_reveal(title: Label, rows: Array, total_label, btn: Button) -> void:

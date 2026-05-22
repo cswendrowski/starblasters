@@ -8,6 +8,7 @@ extends Control
 const BACKDROP_SCRIPT = preload("res://scripts/galaxy_backdrop.gd")
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
+const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
 
 @onready var continue_btn: Button = $Center/VBox/ContinueBtn
 @onready var new_game_btn: Button = $Center/VBox/NewGameBtn
@@ -136,7 +137,7 @@ func _has_save() -> bool:
 	return FileAccess.file_exists("user://run_save.dat")
 
 func _on_continue() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/sector_map_v2.tscn")
+	SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE)
 
 func _on_new_game() -> void:
 	if has_node("/root/Run"):

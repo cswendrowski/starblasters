@@ -9,6 +9,7 @@ extends Control
 
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
+const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
 
 # Icons used in the Sector Map page so we explain what the player will see.
 const ICON_COMBAT = preload("res://graphics/sector/sector-battle.png")
@@ -205,4 +206,4 @@ func _on_prev() -> void:
 
 
 func _finish() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/sector_map_v2.tscn")
+	SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE)

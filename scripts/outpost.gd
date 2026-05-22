@@ -13,6 +13,7 @@ extends Control
 const SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 
 # Upgrade catalog: each entry's price scales with the *next* Mk you'd
@@ -564,7 +565,7 @@ func _on_ammo_refill(btn: Button) -> void:
 
 
 func _on_leave() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/sector_map_v2.tscn")
+	SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE)
 
 
 # ---- Helpers --------------------------------------------------------------

@@ -1,0 +1,26 @@
+[gd_scene load_steps=2 format=3 uid="uid://sector_map_hd001"]
+
+[ext_resource type="Script" path="res://scripts/sector_map_hd.gd" id="1_smhd"]
+
+[node name="SectorMapHD" type="SubViewportContainer"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+stretch = true
+
+[node name="SubViewport" type="SubViewport" parent="."]
+disable_3d = true
+size = Vector2i(1920, 1080)
+transparent_bg = false
+
+[node name="Control" type="Control" parent="SubViewport"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_smhd")
