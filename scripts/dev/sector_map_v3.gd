@@ -45,8 +45,8 @@ const ROUTE_MAX_LEN := 368.0
 const ROUTE_WIDTH   := 8.0
 const ROUTE_COLOR   := Color(0.30, 0.38, 0.55, 0.70)
 
-# Planet placement on routes: starts at x=112 (col6/7 intersection).
-const PLANET_START_X   := 112.0
+# Planet placement on routes: starts at x=128 (col7/8 intersection).
+const PLANET_START_X   := 128.0
 const PLANET_MIN_PX    := 16.0
 const PLANET_MAX_PX    := 32.0
 const PLANET_STOP_PROB := 0.30  # per-planet chance to stop placing after ≥1
@@ -165,8 +165,9 @@ func _build_planets() -> void:
 			var type_idx: int = _pick_planet_type(frac)
 			_spawn_planet(anchor.y, cursor, px, type_idx)
 			placed += 1
-			# Advance: right half of this planet + 1 col gap + left half min.
-			var advance: float = (ceil(px * 0.5 / CELL) + 1) * CELL
+			# Advance: full planet width (rounded up to cell) + 2 cell gap.
+			# Centers snap to grid intersections; 2-cell gap keeps planets from cramping.
+			var advance: float = (ceili(px / CELL) + 2) * CELL
 			cursor += advance
 			# After first planet, randomly stop (routes shouldn't all be packed).
 			if placed >= 1 and _map_rng.randf() < PLANET_STOP_PROB:
