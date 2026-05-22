@@ -1,0 +1,21 @@
+[gd_scene load_steps=3 format=3 uid="uid://enemy_fire_mine_001"]
+
+[ext_resource type="Script" path="res://scripts/enemies/fire_mine.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://br6btvch0he8" path="res://graphics/enemies/enemy_placeholder_16x.png" id="2_tex"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
+size = Vector2(12, 12)
+
+[node name="Enemy" type="Area2D" groups=["enemies"]]
+script = ExtResource("1_script")
+max_health = 3
+bounty_value = 0
+is_hazard = true
+display_scale = 1.0
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+modulate = Color(1.0, 0.5, 0.1, 1.0)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_1")

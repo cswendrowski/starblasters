@@ -89,6 +89,14 @@ const ENTRIES := [
 
 	# --- UNCOMMON ---------------------------------------------------------
 	{
+		"scene": "res://scenes/enemies/enemy_burner.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "straight",
+		"shoot": null,
+		"base_count": 3,
+	},
+	{
 		"scene": "res://scenes/enemies/enemy_hopper.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
@@ -143,6 +151,14 @@ const ENTRIES := [
 	},
 
 	# --- RARE -------------------------------------------------------------
+	{
+		"scene": "res://scenes/enemies/enemy_sapper.tscn",
+		"tier": Tier.RARE,
+		"size": "small", "tags": [],
+		"movement": "omni",
+		"shoot": null,
+		"base_count": 1,
+	},
 	{
 		"scene": "res://scenes/enemies/enemy_crystal.tscn",
 		"tier": Tier.RARE,
