@@ -268,10 +268,11 @@ func _spawn_planet(center_y: float, center_x: float, display_px: float, type_idx
 		p.pivot_offset = Vector2.ZERO
 	p.scale    = Vector2(sf, sf)
 	p.position = Vector2(center_x - 50.0 * sf, center_y - 50.0 * sf)
-	if p.has_method("set_pixels"):       p.set_pixels(display_px)
-	if p.has_method("set_seed"):         p.set_seed(_map_rng.randi() % 100000)
+	if p.has_method("set_pixels"):  p.set_pixels(display_px)
+	if p.has_method("set_seed"):    p.set_seed(_map_rng.randi() % 100000)
+	seed(_map_rng.randi())          # drive global RNG so randomize_colors is unique
 	if p.has_method("randomize_colors"): p.randomize_colors()
-	if p.has_method("set_rotates"):      p.set_rotates(true)
+	if p.has_method("set_rotates"): p.set_rotates(true)
 	add_child(p)
 	_reset_planet_colorrects(p)
 	if p.has_method("set_light"):
@@ -329,11 +330,12 @@ func _spawn_large_asteroid(center_y: float, center_x: float) -> void:
 		ast.pivot_offset = Vector2.ZERO
 	ast.scale    = Vector2(sf, sf)
 	ast.position = Vector2(center_x - 50.0 * sf, center_y - 50.0 * sf)
-	if ast.has_method("set_pixels"):       ast.set_pixels(PX)
-	if ast.has_method("set_seed"):         ast.set_seed(_map_rng.randi() % 100000)
+	if ast.has_method("set_pixels"): ast.set_pixels(PX)
+	if ast.has_method("set_seed"):   ast.set_seed(_map_rng.randi() % 100000)
+	seed(_map_rng.randi())
 	if ast.has_method("randomize_colors"): ast.randomize_colors()
-	if ast.has_method("set_light"):        ast.set_light(Vector2(0.0, 0.5))
-	if ast.has_method("set_rotates"):      ast.set_rotates(true)
+	if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
+	if ast.has_method("set_rotates"): ast.set_rotates(true)
 	add_child(ast)
 	_reset_planet_colorrects(ast)
 
@@ -355,11 +357,12 @@ func _spawn_asteroid_cluster(center_y: float, center_x: float) -> void:
 			ast.pivot_offset = Vector2.ZERO
 		ast.scale    = Vector2(sf, sf)
 		ast.position = Vector2(center_x + ox - 50.0 * sf, center_y + oy - 50.0 * sf)
-		if ast.has_method("set_pixels"):       ast.set_pixels(px)
-		if ast.has_method("set_seed"):         ast.set_seed(_map_rng.randi() % 100000)
+		if ast.has_method("set_pixels"): ast.set_pixels(px)
+		if ast.has_method("set_seed"):   ast.set_seed(_map_rng.randi() % 100000)
+		seed(_map_rng.randi())
 		if ast.has_method("randomize_colors"): ast.randomize_colors()
-		if ast.has_method("set_light"):        ast.set_light(Vector2(0.0, 0.5))
-		if ast.has_method("set_rotates"):      ast.set_rotates(true)
+		if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
+		if ast.has_method("set_rotates"): ast.set_rotates(true)
 		add_child(ast)
 		_reset_planet_colorrects(ast)
 
@@ -391,6 +394,25 @@ func _spawn_nebula(center_y: float, center_x: float) -> void:
 	rect.position     = Vector2(center_x - px * 0.5, center_y - px * 0.5)
 	rect.modulate     = NEBULA_TINTS[_map_rng.randi() % NEBULA_TINTS.size()]
 	add_child(rect)
+	# Circular mask: radial gradient from transparent-center to BG-edge,
+	# painted on top to cut the square corners off the nebula.
+	var mask_g := Gradient.new()
+	mask_g.colors  = PackedColorArray([
+		Color(BG_COLOR.r, BG_COLOR.g, BG_COLOR.b, 0.0),
+		BG_COLOR,
+	])
+	mask_g.offsets = PackedFloat32Array([0.40, 0.75])
+	var mask_gt := GradientTexture2D.new()
+	mask_gt.gradient  = mask_g
+	mask_gt.width     = 64; mask_gt.height = 64
+	mask_gt.fill      = GradientTexture2D.FILL_RADIAL
+	mask_gt.fill_from = Vector2(0.5, 0.5)
+	mask_gt.fill_to   = Vector2(1.0, 0.5)
+	var mask_spr := Sprite2D.new()
+	mask_spr.texture  = mask_gt
+	mask_spr.scale    = Vector2(px / 64.0, px / 64.0)
+	mask_spr.position = Vector2(center_x, center_y)
+	add_child(mask_spr)
 
 
 # ---------------------------------------------------------------------------
