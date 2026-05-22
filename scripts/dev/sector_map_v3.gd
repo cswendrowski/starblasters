@@ -3,6 +3,17 @@ extends Node2D
 const FONT            = preload("res://graphics/fonts/PixelOperator.ttf")
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const STAR_SCENE      = preload("res://Planets/Star/Star.tscn")
+const PLANET_SCENES   := [
+	"res://Planets/LavaWorld/LavaWorld.tscn",
+	"res://Planets/DryTerran/DryTerran.tscn",
+	"res://Planets/NoAtmosphere/NoAtmosphere.tscn",
+	"res://Planets/LandMasses/LandMasses.tscn",
+	"res://Planets/GasPlanet/GasPlanet.tscn",
+	"res://Planets/IceWorld/IceWorld.tscn",
+]
+# Orbital zone preference per planet type (0=inner…1=outer).
+# Pick types whose zone weight is highest for the current position fraction.
+const PLANET_ZONE_PEAK := [0.10, 0.25, 0.30, 0.50, 0.70, 0.90]
 
 const CELL  := 16
 const COLS  := 30
@@ -14,51 +25,53 @@ const GRID_MAJOR  := Color(0.35, 0.43, 0.58, 0.85)
 const LABEL_COLOR := Color(0.32, 0.42, 0.58, 0.50)
 const FONT_SIZE   := 5
 
-# Grid intersection positions (col*CELL, row*CELL) for the star anchors.
-const STAR_ANCHORS := [Vector2(64, 64), Vector2(64, 128), Vector2(64, 192)]
-
-# Name label origins: top-left of cell [6, row].
-const LABEL_CELLS := [Vector2(6, 2), Vector2(6, 7), Vector2(6, 11)]
-
-# Star display sizes and glow palettes (seed is now driven by map_seed + index).
-const STAR_DISPLAY_PX := [64.0, 32.0, 20.0]
+const STAR_ANCHORS    := [Vector2(64, 64), Vector2(64, 128), Vector2(64, 192)]
+# Labels start at cell [5, row] — one cell left of previous [6, row].
+const LABEL_CELLS     := [Vector2(5, 2), Vector2(5, 7), Vector2(5, 11)]
+const STAR_DISPLAY_PX := [64.0, 32.0, 24.0]   # min 24 per spec
 const STAR_GLOW_COLORS := [
-	Color(0.45, 0.65, 1.00, 1.0),   # B-type blue
-	Color(1.00, 0.72, 0.18, 1.0),   # G-type yellow
-	Color(1.00, 0.26, 0.07, 1.0),   # M-type red
+	Color(0.45, 0.65, 1.00, 1.0),
+	Color(1.00, 0.72, 0.18, 1.0),
+	Color(1.00, 0.26, 0.07, 1.0),
 ]
-const STAR_GLOW_ALPHA  := [0.65, 0.60, 0.55]
-const STAR_PULSE_HZ    := [0.38, 0.52, 0.44]
-const STAR_PHASE       := [0.00, 1.10, 2.30]
-# B-type = odd seed (cool), G/M = even seed (warm). Applied per-star from map_seed.
-const STAR_COOL        := [true, false, false]
+const STAR_GLOW_ALPHA := [0.65, 0.60, 0.55]
+const STAR_PULSE_HZ   := [0.38, 0.52, 0.44]
+const STAR_PHASE      := [0.00, 1.10, 2.30]
+const STAR_COOL       := [true, false, false]
 
-# Route line: right from star anchor, randomised length, capped at col28 (x=448).
-const ROUTE_MAX_X   := 448.0   # intersection of columns 27 and 28
-const ROUTE_MIN_LEN := 128.0   # minimum pixels right of anchor
-const ROUTE_MAX_LEN := 368.0   # maximum pixels right of anchor (anchor x=64 → 432)
+const ROUTE_MAX_X   := 448.0  # col-27/28 intersection
+const ROUTE_MIN_LEN := 128.0
+const ROUTE_MAX_LEN := 368.0
 const ROUTE_WIDTH   := 8.0
 const ROUTE_COLOR   := Color(0.30, 0.38, 0.55, 0.70)
 
-# Name generation pools — mix of real designation conventions and sci-fi tropes.
-const NAME_GREEK   := ["Alpha","Beta","Gamma","Delta","Epsilon","Zeta","Eta","Theta",
-                        "Iota","Kappa","Lambda","Mu","Nu","Xi","Omicron","Pi","Sigma",
-                        "Tau","Upsilon","Phi","Chi","Psi","Omega"]
-const NAME_ROOTS   := ["Kyros","Novara","Eridani","Centauri","Vega","Cygni","Persei",
-                        "Orionis","Leonis","Draconis","Lyrae","Tauri","Ursae","Aquilae",
-                        "Corvi","Hydrae","Lupi","Velorum","Carinae","Puppis"]
-const NAME_CATALOG := ["HD","GJ","HIP","KIC","TYC","WISE","2MASS"]
-const NAME_SUFFIX  := ["","","","I","II","III","IV","Prime","Station","Relay"]
+# Planet placement on routes: starts at x=112 (col6/7 intersection).
+const PLANET_START_X   := 112.0
+const PLANET_MIN_PX    := 16.0
+const PLANET_MAX_PX    := 32.0
+const PLANET_STOP_PROB := 0.30  # per-planet chance to stop placing after ≥1
 
-# Seed that drives star seeds, system names, and route lengths.
-# Change this to generate a different map layout.
+# Mashup naming: always "Greek Root[Suffix]" — root pool blends real and sci-fi.
+const NAME_GREEK  := ["Alpha","Beta","Gamma","Delta","Epsilon","Zeta","Eta","Theta",
+                       "Iota","Kappa","Lambda","Mu","Nu","Xi","Sigma","Tau",
+                       "Upsilon","Phi","Chi","Psi","Omega","Proxima","Nova"]
+const NAME_ROOTS  := ["Kyros","Novara","Centauri","Eridani","Cygni","Persei",
+                       "Orionis","Leonis","Draconis","Lyrae","Tauri","Velorum",
+                       "Carinae","Vega","Aquilae","Corvi","Hydrae","Lupi",
+                       "Puppis","Ursae","Volantis","Piscium","Arietis","Hydrax",
+                       "Noctis","Ferrum","Caeli","Fornax","Proxima","Solus"]
+const NAME_SUFFIX := ["","","","","I","II","III","IV","Prime","Station",
+                       "Relay","Colony","Outpost","Reach","Terminus","System"]
+
 @export var map_seed: int = 12345
 
 var _map_rng: RandomNumberGenerator
-var _time: float = 0.0
-var _star_glows: Array = []
-var _system_names: Array = []   # one string per star slot
-var _route_lengths: Array = []  # one float per star slot
+var _time:          float = 0.0
+var _star_glows:    Array = []    # glow Node2D per star
+var _system_names:  Array = []
+var _route_lengths: Array = []
+# All PixelPlanets Control nodes (stars + planets) — updated at 0.5× speed.
+var _celestial_nodes: Array = []
 
 
 func _ready() -> void:
@@ -67,13 +80,19 @@ func _ready() -> void:
 	_map_rng.seed = map_seed
 	_generate_names()
 	_generate_route_lengths()
-	_build_routes()   # add Line2D nodes BEFORE stars so they z-sort under
-	_build_stars()
-	_build_labels()
+	_build_routes()     # Line2D — added first so it draws under everything
+	_build_planets()    # planets on routes — above routes, below stars
+	_build_stars()      # stars at anchors — above planets
+	_build_labels()     # labels last — on top of stars
 
 
 func _process(delta: float) -> void:
 	_time += delta
+	# Drive all PixelPlanets nodes at half the planet's natural speed.
+	for node in _celestial_nodes:
+		if is_instance_valid(node) and node.has_method("update_time"):
+			node.update_time(_time * 0.5)
+	# Animate glow halos.
 	for i in _star_glows.size():
 		var pulse: float = sin(_time * STAR_PULSE_HZ[i] * TAU + STAR_PHASE[i])
 		var glow_spr: Sprite2D = _star_glows[i].get_child(0)
@@ -82,53 +101,40 @@ func _process(delta: float) -> void:
 		glow_spr.modulate.a = STAR_GLOW_ALPHA[i] + 0.15 * pulse
 
 
-# ---- Name generation -------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Name generation — mashup of real-world designations and sci-fi tropes.
+# Always produces: [Greek letter] [mixed root] [optional suffix].
+# ---------------------------------------------------------------------------
 
 func _generate_names() -> void:
 	_system_names.clear()
-	for i in STAR_ANCHORS.size():
-		_system_names.append(_make_name())
-
-func _make_name() -> String:
-	var roll: int = _map_rng.randi() % 3
-	match roll:
-		0:  # "Alpha Novara" style
-			var g: String = NAME_GREEK[_map_rng.randi() % NAME_GREEK.size()]
-			var r: String = NAME_ROOTS[_map_rng.randi() % NAME_ROOTS.size()]
-			return g + " " + r
-		1:  # "Novara II" or "Novara Prime" style
-			var r: String = NAME_ROOTS[_map_rng.randi() % NAME_ROOTS.size()]
-			var s: String = NAME_SUFFIX[_map_rng.randi() % NAME_SUFFIX.size()]
-			return r + (" " + s if s != "" else "")
-		_:  # "HD 29487" catalogue style
-			var cat: String = NAME_CATALOG[_map_rng.randi() % NAME_CATALOG.size()]
-			var num: int    = _map_rng.randi_range(1000, 99999)
-			return cat + " " + str(num)
+	for _i in STAR_ANCHORS.size():
+		var g: String = NAME_GREEK[_map_rng.randi() % NAME_GREEK.size()]
+		var r: String = NAME_ROOTS[_map_rng.randi() % NAME_ROOTS.size()]
+		var s: String = NAME_SUFFIX[_map_rng.randi() % NAME_SUFFIX.size()]
+		_system_names.append(g + " " + r + (" " + s if s != "" else ""))
 
 
-# ---- Route line lengths ----------------------------------------------------
+# ---------------------------------------------------------------------------
+# Route generation
+# ---------------------------------------------------------------------------
 
 func _generate_route_lengths() -> void:
 	_route_lengths.clear()
 	for i in STAR_ANCHORS.size():
-		var len: float = _map_rng.randf_range(ROUTE_MIN_LEN, ROUTE_MAX_LEN)
-		var end_x: float = STAR_ANCHORS[i].x + len
-		# Cap so the line never crosses into column 29.
+		var raw: float = _map_rng.randf_range(ROUTE_MIN_LEN, ROUTE_MAX_LEN)
+		var end_x: float = STAR_ANCHORS[i].x + raw
 		_route_lengths.append(minf(end_x, ROUTE_MAX_X) - STAR_ANCHORS[i].x)
 
 
-# ---- Route lines -----------------------------------------------------------
-# Added BEFORE star nodes so they render below them in draw order.
-
 func _build_routes() -> void:
 	for i in STAR_ANCHORS.size():
-		var anchor: Vector2 = STAR_ANCHORS[i]
-		var line := Line2D.new()
-		line.default_color     = ROUTE_COLOR
-		line.width             = ROUTE_WIDTH
-		line.begin_cap_mode    = Line2D.LINE_CAP_ROUND
-		line.end_cap_mode      = Line2D.LINE_CAP_ROUND
-		line.z_index           = 0
+		var anchor := STAR_ANCHORS[i]
+		var line   := Line2D.new()
+		line.default_color  = ROUTE_COLOR
+		line.width          = ROUTE_WIDTH
+		line.begin_cap_mode = Line2D.LINE_CAP_ROUND
+		line.end_cap_mode   = Line2D.LINE_CAP_ROUND
 		line.points = PackedVector2Array([
 			anchor,
 			Vector2(anchor.x + _route_lengths[i], anchor.y),
@@ -136,15 +142,89 @@ func _build_routes() -> void:
 		add_child(line)
 
 
-# ---- Stars -----------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Planet placement along routes
+# ---------------------------------------------------------------------------
+
+func _build_planets() -> void:
+	for i in STAR_ANCHORS.size():
+		var anchor:    Vector2 = STAR_ANCHORS[i]
+		var route_end: float   = anchor.x + _route_lengths[i]
+		var cursor:    float   = PLANET_START_X
+		var placed:    int     = 0
+
+		while cursor <= route_end:
+			# Pick display size (snap to 8px steps within 16–32 range).
+			var steps: int = _map_rng.randi() % 3      # 0,1,2 → 16,24,32
+			var px: float  = PLANET_MIN_PX + steps * 8.0
+			# Check if planet fits (right edge must not exceed route end).
+			if cursor + px * 0.5 > route_end:
+				break
+			# Pick orbital zone weight based on position fraction.
+			var frac: float = (cursor - PLANET_START_X) / max(1.0, route_end - PLANET_START_X)
+			var type_idx: int = _pick_planet_type(frac)
+			_spawn_planet(anchor.y, cursor, px, type_idx)
+			placed += 1
+			# Advance: right half of this planet + 1 col gap + left half min.
+			var advance: float = (ceil(px * 0.5 / CELL) + 1) * CELL
+			cursor += advance
+			# After first planet, randomly stop (routes shouldn't all be packed).
+			if placed >= 1 and _map_rng.randf() < PLANET_STOP_PROB:
+				break
+
+
+func _pick_planet_type(frac: float) -> int:
+	# Weighted pick: planet types with zone_peak closer to frac are more likely.
+	var weights: PackedFloat32Array
+	weights.resize(PLANET_ZONE_PEAK.size())
+	var total: float = 0.0
+	for j in PLANET_ZONE_PEAK.size():
+		var w: float = 1.0 - absf(PLANET_ZONE_PEAK[j] - frac) * 3.0
+		weights[j] = maxf(0.05, w)
+		total += weights[j]
+	var roll: float = _map_rng.randf() * total
+	for j in weights.size():
+		roll -= weights[j]
+		if roll <= 0.0:
+			return j
+	return PLANET_ZONE_PEAK.size() - 1
+
+
+func _spawn_planet(center_y: float, center_x: float, display_px: float, type_idx: int) -> void:
+	var ps = load(PLANET_SCENES[type_idx])
+	if ps == null:
+		return
+	var p = ps.instantiate()
+	var sf: float = display_px / 100.0
+	if p is Control:
+		p.anchor_left = 0.0; p.anchor_top    = 0.0
+		p.anchor_right = 0.0; p.anchor_bottom = 0.0
+		p.offset_right = 100.0; p.offset_bottom = 100.0
+		p.size = Vector2(100.0, 100.0)
+		p.custom_minimum_size = Vector2(100.0, 100.0)
+		p.pivot_offset = Vector2.ZERO
+	p.scale    = Vector2(sf, sf)
+	p.position = Vector2(center_x - 50.0 * sf, center_y - 50.0 * sf)
+	if p.has_method("set_pixels"):     p.set_pixels(display_px)
+	if p.has_method("set_seed"):       p.set_seed(_map_rng.randi() % 100000)
+	if p.has_method("randomize_colors"): p.randomize_colors()
+	if p.has_method("set_rotates"):    p.set_rotates(true)
+	add_child(p)
+	_reset_planet_colorrects(p)
+	p.override_time = true
+	_celestial_nodes.append(p)
+
+
+# ---------------------------------------------------------------------------
+# Stars
+# ---------------------------------------------------------------------------
 
 func _build_stars() -> void:
 	for i in STAR_ANCHORS.size():
 		var anchor:     Vector2 = STAR_ANCHORS[i]
 		var display_px: float   = STAR_DISPLAY_PX[i]
-		# Derive a repeatable per-star seed from map_seed + index.
-		var seed_val: int = (map_seed + i * 7919) % 100000
-		var cool: bool    = STAR_COOL[i]
+		var seed_val:   int     = (map_seed + i * 7919) % 100000
+		var cool: bool          = STAR_COOL[i]
 
 		var star = STAR_SCENE.instantiate()
 		var sf: float = display_px / 100.0
@@ -163,22 +243,23 @@ func _build_stars() -> void:
 		add_child(star)
 		_reset_star_colorrects(star)
 		_apply_star_colors(star, cool)
+		star.override_time = true
+		_celestial_nodes.append(star)
 
-		# Additive glow halo.
+		# Glow halo.
 		var glow_node := Node2D.new()
 		glow_node.position = anchor
 		add_child(glow_node)
 		_star_glows.append(glow_node)
-
 		var glow_spr := Sprite2D.new()
 		var gc: Color = STAR_GLOW_COLORS[i]
 		var g := Gradient.new()
 		g.colors  = PackedColorArray([gc, Color(gc.r, gc.g, gc.b, 0.0)])
 		g.offsets = PackedFloat32Array([0.0, 1.0])
 		var gt := GradientTexture2D.new()
-		gt.gradient  = g;  gt.width = 64;  gt.height = 64
+		gt.gradient  = g; gt.width = 64; gt.height = 64
 		gt.fill      = GradientTexture2D.FILL_RADIAL
-		gt.fill_from = Vector2(0.5, 0.5);  gt.fill_to = Vector2(1.0, 0.5)
+		gt.fill_from = Vector2(0.5, 0.5); gt.fill_to = Vector2(1.0, 0.5)
 		glow_spr.texture = gt
 		var mat := CanvasItemMaterial.new()
 		mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
@@ -188,23 +269,31 @@ func _build_stars() -> void:
 	_process(0.0)
 
 
-# ---- System name labels ----------------------------------------------------
+# ---------------------------------------------------------------------------
+# Labels — added last so they render on top of everything
+# ---------------------------------------------------------------------------
 
 func _build_labels() -> void:
+	var ls := LabelSettings.new()
+	ls.font         = FONT
+	ls.font_size    = 9       # 7 * 1.25 ≈ 9
+	ls.font_color   = Color(0.85, 0.92, 1.0, 0.95)
+	ls.outline_size  = 1
+	ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
+
 	for i in LABEL_CELLS.size():
-		var cell:  Vector2 = LABEL_CELLS[i]
-		var px:    float   = cell.x * CELL + 2
-		var py:    float   = cell.y * CELL + CELL - 2
+		var cell: Vector2 = LABEL_CELLS[i]
 		var lbl := Label.new()
-		lbl.text = _system_names[i]
-		lbl.position = Vector2(px, py - 9)
-		lbl.add_theme_font_override("font", FONT)
-		lbl.add_theme_font_size_override("font_size", 7)
-		lbl.add_theme_color_override("font_color", Color(0.85, 0.92, 1.0, 0.90))
+		lbl.text           = _system_names[i]
+		lbl.label_settings = ls
+		lbl.position = Vector2(cell.x * CELL + 2, cell.y * CELL + 1)
+		lbl.z_index   = 10   # above stars (default 0)
 		add_child(lbl)
 
 
-# ---- Shader color helpers --------------------------------------------------
+# ---------------------------------------------------------------------------
+# PixelPlanets helpers
+# ---------------------------------------------------------------------------
 
 func _apply_star_colors(root: Node, cool: bool) -> void:
 	for child in root.get_children():
@@ -248,7 +337,17 @@ func _reset_star_colorrects(root: Node) -> void:
 		_reset_star_colorrects(child)
 
 
-# ---- Grid draw -------------------------------------------------------------
+func _reset_planet_colorrects(root: Node) -> void:
+	for child in root.get_children():
+		if child is ColorRect:
+			(child as ColorRect).size     = Vector2(100.0, 100.0)
+			(child as ColorRect).position = Vector2.ZERO
+		_reset_planet_colorrects(child)
+
+
+# ---------------------------------------------------------------------------
+# Grid
+# ---------------------------------------------------------------------------
 
 func _draw() -> void:
 	draw_rect(Rect2(0, 0, 480, 270), BG_COLOR)
