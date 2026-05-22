@@ -35,6 +35,10 @@ var inventory: Array = []
 # Sector progress
 var current_node_id: String = ""
 var current_node_type: int = -1  # SectorNode.NodeType; -1 if none
+# Active sector modifiers for the current combat. Set by the sector map when
+# the player enters a node; cleared on new_run(). Values: "shielded",
+# "armored", "heavily_armored", "aggressive", "wanted", "fleeing", "dangerous".
+var sector_modifiers: Array = []
 # When current_node_type is HAZARD, this picks which hazard played out:
 #   "minefield" or "asteroid_field". Set by sector_map._on_node_pressed.
 var current_hazard_subtype: String = ""
@@ -145,6 +149,7 @@ func new_run() -> void:
 	combats_in_sector = 0
 	visited_nodes = []
 	current_node_id = ""
+	sector_modifiers = []
 	loadout_snapshot = {}
 	inventory = []
 	current_hull = 0

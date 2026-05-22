@@ -85,6 +85,7 @@ var allow_side_exit: bool = false
 var health: int = 1
 var shield: int = 0
 var recycle_passes: int = -1   # -1 = unlimited (matches current default behavior)
+var damage_reduction: float = 0.0  # 0.0–1.0; set by sector modifiers (armored/heavily_armored)
 var _dying: bool = false
 var _last_position: Vector2 = Vector2.ZERO
 var _rot_init: bool = false
@@ -179,7 +180,8 @@ func take_hit(damage: int = 1) -> bool:
 			else:
 				ShieldSfx2.play_hit(get_tree().root, global_position)
 		return false
-	health -= damage
+	var effective_dmg := max(1, int(round(float(damage) * (1.0 - damage_reduction))))
+	health -= effective_dmg
 	# Push the new health ratio into the damage shader so the sprite
 	# darkens + frays as it takes damage (Roman, 2026-05-18).
 	_update_damage_visual()

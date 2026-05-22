@@ -508,6 +508,11 @@ func _process(delta: float) -> void:
 func take_damage(amount: int) -> void:
 	if not is_alive or amount <= 0:
 		return
+	# "dangerous" sector modifier doubles all incoming enemy damage.
+	if has_node("/root/Run"):
+		var _run = get_node("/root/Run")
+		if "sector_modifiers" in _run and "dangerous" in _run.sector_modifiers:
+			amount *= 2
 	# I-frame window — comes after a shield absorb. Lets the player
 	# break out of mine + bomblet pile-ons that would otherwise stack.
 	if _invuln_t > 0.0:

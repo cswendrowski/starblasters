@@ -152,6 +152,10 @@ func _spawn_enemy(wave: Resource, index: int) -> void:
 		enemy.shield = wave.shield_charges
 	if wave.recycle_passes >= -1 and "recycle_passes" in enemy:
 		enemy.recycle_passes = wave.recycle_passes
+	# Sector modifiers — applied last so they stack on top of wave overrides.
+	var _run = get_node_or_null("/root/Run")
+	if _run and "sector_modifiers" in _run and not _run.sector_modifiers.is_empty():
+		_apply_sector_modifiers(enemy, _run.sector_modifiers)
 	# Compute spawn x based on formation. Spawn x is confined to the
 	# playfield band (Playfield.X_MIN..X_MAX), not the full viewport,
 	# so the side gutters stay clear.
@@ -202,6 +206,38 @@ func _spawn_enemy(wave: Resource, index: int) -> void:
 
 func _on_enemy_died(value, scene_path: String) -> void:
 	enemy_died.emit(value, scene_path)
+
+
+func _apply_sector_modifiers(enemy: Node, modifiers: Array) -> void:
+	for mod in modifiers:
+		match mod:
+			"shielded":
+				if "max_shield" in enemy:
+					if enemy.max_shield == 0:
+						enemy.max_shield = 1
+						if "shield" in enemy:
+							enemy.shield = 1
+					else:
+						var boosted := ceilf(enemy.max_shield * 1.5)
+						enemy.max_shield = int(boosted)
+						if "shield" in enemy:
+							enemy.shield = int(boosted)
+			"armored":
+				if "damage_reduction" in enemy:
+					enemy.damage_reduction = max(enemy.damage_reduction, 0.10)
+			"heavily_armored":
+				if "damage_reduction" in enemy:
+					enemy.damage_reduction = max(enemy.damage_reduction, 0.20)
+			"aggressive":
+				if enemy.has_node("ShootTimer"):
+					var st: Timer = enemy.get_node("ShootTimer")
+					st.wait_time = max(0.05, st.wait_time * 0.90)
+			"wanted":
+				if "bounty_value" in enemy:
+					enemy.bounty_value = int(enemy.bounty_value * 1.20)
+			"fleeing":
+				if "recycle_passes" in enemy:
+					enemy.recycle_passes = 0
 
 func _process(_delta: float) -> void:
 	if _check_clear:
