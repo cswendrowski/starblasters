@@ -230,9 +230,6 @@ func _spawn_route_obj(cy: float, cx: float, route_end: float, _sys_i: int, type_
 		2:  # asteroid cluster
 			_spawn_asteroid_cluster(cy, cx)
 			return float(OBJ_ADVANCE_CELLS[2] * CELL)
-		3:  # nebula (nebula2.gdshader ColorRect)
-			_spawn_nebula(cy, cx)
-			return float(OBJ_ADVANCE_CELLS[3] * CELL)
 	return float(4 * CELL)
 
 

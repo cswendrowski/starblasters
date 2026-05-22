@@ -180,7 +180,7 @@ func take_hit(damage: int = 1) -> bool:
 			else:
 				ShieldSfx2.play_hit(get_tree().root, global_position)
 		return false
-	var effective_dmg := max(1, int(round(float(damage) * (1.0 - damage_reduction))))
+	var effective_dmg: int = max(1, int(round(float(damage) * (1.0 - damage_reduction))))
 	health -= effective_dmg
 	# Push the new health ratio into the damage shader so the sprite
 	# darkens + frays as it takes damage (Roman, 2026-05-18).
