@@ -174,7 +174,7 @@ var _mg_end_player: AudioStreamPlayer2D = null
 var _mg_firing: bool = false
 
 # Rotary Laser audio — charge → loop → release-shot.
-const RL_CHARGE_DURATION: float = 0.8
+const RL_CHARGE_DURATION: float = 0.4
 var _rl_shoot_streams: Array = []
 var _rl_charging: bool = false
 var _rl_charged: bool = false

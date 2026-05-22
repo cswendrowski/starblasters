@@ -27,7 +27,7 @@ const BLASTER_GLOW_COLOR := Color(0.353, 0.796, 0.992, 1.0)
 # Rotary Laser muzzle-flash strip. Frame 0 is the projectile itself;
 # frames 1–3 are the muzzle flash frames used here.
 const ROTARY_LASER_STRIP = preload("res://graphics/energy_muzzle_blue.png")
-const ROTARY_LASER_STRIP_HFRAMES := 3
+const ROTARY_LASER_STRIP_HFRAMES := 4
 const ROTARY_LASER_GLOW_COLOR := Color(0.3, 0.7, 1.0, 1.0)
 
 
