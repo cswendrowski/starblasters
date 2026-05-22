@@ -98,6 +98,37 @@ func _install_background() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 	move_child(bg, 0)
+	_add_stars()
+
+
+func _add_stars() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = (int(get_node("/root/Run").run_seed) + 7777) if has_node("/root/Run") else 7777
+	var star_data: Array = []
+	# 300 dim background stars + 60 slightly brighter foreground stars
+	for _i in 300:
+		star_data.append({
+			"pos": Vector2(rng.randf_range(0, 1920), rng.randf_range(0, 1080)),
+			"r": rng.randf_range(0.5, 1.0),
+			"col": Color(rng.randf_range(0.5, 0.85), rng.randf_range(0.55, 0.9),
+						rng.randf_range(0.7, 1.0), rng.randf_range(0.4, 0.75)),
+		})
+	for _i in 60:
+		star_data.append({
+			"pos": Vector2(rng.randf_range(0, 1920), rng.randf_range(0, 1080)),
+			"r": rng.randf_range(1.0, 2.0),
+			"col": Color(rng.randf_range(0.8, 1.0), rng.randf_range(0.85, 1.0),
+						1.0, rng.randf_range(0.7, 1.0)),
+		})
+	var layer := Node2D.new()
+	layer.name = "Stars"
+	layer.draw.connect(func():
+		for s in star_data:
+			layer.draw_circle(s["pos"], s["r"], s["col"])
+	)
+	layer.queue_redraw()
+	add_child(layer)
+	move_child(layer, 1)  # above bg, below graph
 
 
 # ---- Generation (identical logic to V2 — only positions differ) -------------
