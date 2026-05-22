@@ -1,4 +1,4 @@
-[gd_scene load_steps=38 format=3 uid="uid://b32476hejmrnj"]
+[gd_scene load_steps=41 format=3 uid="uid://b32476hejmrnj"]
 
 [ext_resource type="Script" path="res://scripts/player.gd" id="1_4pouc"]
 [ext_resource type="Texture2D" uid="uid://c7uwy5ydmq5in" path="res://Mini Pixel Pack 3/Player ship/Player_ship (16 x 16).png" id="1_jhf5r"]
@@ -18,6 +18,9 @@
 [ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="10_65dxt"]
 [ext_resource type="AudioStream" uid="uid://rlimik0xgrhw" path="res://Sound/weapons/rotary_laser_charge.ogg" id="11_rlchg"]
 [ext_resource type="AudioStream" uid="uid://rlg59l3krv5u" path="res://Sound/weapons/rotary_laser_loop.ogg" id="11_rlloop"]
+[ext_resource type="AudioStream" uid="uid://pbjpgk1gmsog" path="res://Sound/weapons/particle_charge.ogg" id="12_pbchg"]
+[ext_resource type="AudioStream" uid="uid://pbbf3bpemtwc" path="res://Sound/weapons/particle_loop.ogg" id="12_pbloop"]
+[ext_resource type="AudioStream" uid="uid://pbkezxmkwmkr" path="res://Sound/weapons/particle_stop.ogg" id="12_pbstop"]
 [ext_resource type="PackedScene" uid="uid://qy4pikt4sjwk" path="res://scenes/effects/muzzleflash_small.tscn" id="11_02uoo"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_rbfoc"]
@@ -239,6 +242,15 @@ stream = ExtResource("11_rlchg")
 stream = ExtResource("11_rlloop")
 
 [node name="RotaryLaserShoot" type="AudioStreamPlayer2D" parent="."]
+
+[node name="ParticleBeamCharge" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("12_pbchg")
+
+[node name="ParticleBeamLoop" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("12_pbloop")
+
+[node name="ParticleBeamStop" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("12_pbstop")
 
 [node name="ImpactParticle" type="GPUParticles2D" parent="."]
 emitting = false

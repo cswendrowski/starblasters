@@ -190,6 +190,11 @@ var _rl_charge_player: AudioStreamPlayer2D = null
 var _rl_loop_player: AudioStreamPlayer2D = null
 var _rl_shoot_player: AudioStreamPlayer2D = null
 
+# Particle Beam audio — charge → loop → stop (tap-fire skips loop+stop).
+var _pb_charge_player: AudioStreamPlayer2D = null
+var _pb_loop_player: AudioStreamPlayer2D = null
+var _pb_stop_player: AudioStreamPlayer2D = null
+
 @onready var screensize: Vector2 = get_viewport_rect().size
 
 # Override target for spawned bullets/drones. Default null = parent at
@@ -296,6 +301,13 @@ func _setup_mg_audio() -> void:
 		var ls: AudioStream = _rl_loop_player.stream
 		if ls is AudioStreamOggVorbis:
 			(ls as AudioStreamOggVorbis).loop = true
+	_pb_charge_player = get_node_or_null("ParticleBeamCharge")
+	_pb_loop_player = get_node_or_null("ParticleBeamLoop")
+	_pb_stop_player = get_node_or_null("ParticleBeamStop")
+	if _pb_loop_player:
+		var pls: AudioStream = _pb_loop_player.stream
+		if pls is AudioStreamOggVorbis:
+			(pls as AudioStreamOggVorbis).loop = true
 
 
 func _rl_stop() -> void:
@@ -790,6 +802,8 @@ func _begin_beam_flash() -> void:
 	_beam_flash = s
 	_beam_flash_state = BeamFlashState.WARMUP
 	_beam_flash_frame_t = 0.0
+	if _pb_charge_player:
+		_pb_charge_player.play()
 
 
 # Per-frame state machine for the flash sprite. Advances WARMUP frames,
@@ -807,6 +821,10 @@ func _tick_beam_flash(delta: float) -> void:
 				_beam_flash_state = BeamFlashState.HOLD
 				_beam_flash_frame_t = 0.0
 				_beam_flash.frame = BEAM_HOLD_FRAME
+				if _pb_charge_player and _pb_charge_player.playing:
+					_pb_charge_player.stop()
+				if _pb_loop_player:
+					_pb_loop_player.play()
 		BeamFlashState.HOLD:
 			# Hold on BEAM_HOLD_FRAME with a subtle scale jitter.
 			_beam_flash.frame = BEAM_HOLD_FRAME
@@ -898,6 +916,15 @@ func _tick_beam(holding: bool, delta: float) -> void:
 				_beam_flash_state = BeamFlashState.COOLDOWN
 				_beam_flash_frame_t = 0.0
 				_beam_flash.frame = BEAM_HOLD_FRAME
+			# Was firing — stop loop, play stop sound.
+			if _pb_loop_player and _pb_loop_player.playing:
+				_pb_loop_player.stop()
+			if _pb_stop_player:
+				_pb_stop_player.play()
+		elif _beam_flash_state == BeamFlashState.WARMUP:
+			# Tap-fire: released during warmup — stop charge, skip loop+stop.
+			if _pb_charge_player and _pb_charge_player.playing:
+				_pb_charge_player.stop()
 		_tick_beam_flash(delta)
 		return
 	# Holding. If no flash yet, kick off WARMUP.
