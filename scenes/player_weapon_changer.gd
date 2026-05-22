@@ -34,6 +34,8 @@ func switch_weapon(direction):
 	current_weapon = weapons[current_weapon_index]
 
 func shoot():
+	if not current_weapon is PackedScene:
+		return
 	var p = current_weapon.instantiate()
 	var casing_spawn_point: Marker2D = $"../Gun_Nose_Eject"
 	var particle_instance = casing_particle_scene.instantiate()
