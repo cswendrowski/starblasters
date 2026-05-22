@@ -105,27 +105,50 @@ func _add_stars() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = (int(get_node("/root/Run").run_seed) + 7777) if has_node("/root/Run") else 7777
 	var star_data: Array = []
-	# 300 dim background stars + 60 slightly brighter foreground stars
+	# 300 dim background stars + 60 brighter foreground stars.
+	# Each star stores base_alpha, twinkle_speed (radians/sec), and phase_offset
+	# so every star shimmers at a different rate and cycle position.
 	for _i in 300:
+		var base_a: float = rng.randf_range(0.4, 0.75)
 		star_data.append({
 			"pos": Vector2(rng.randf_range(0, 1920), rng.randf_range(0, 1080)),
 			"r": rng.randf_range(0.5, 1.0),
-			"col": Color(rng.randf_range(0.5, 0.85), rng.randf_range(0.55, 0.9),
-						rng.randf_range(0.7, 1.0), rng.randf_range(0.4, 0.75)),
+			"rgb": Color(rng.randf_range(0.5, 0.85), rng.randf_range(0.55, 0.9),
+						 rng.randf_range(0.7, 1.0)),
+			"base_a": base_a,
+			"amp": rng.randf_range(0.08, 0.22),     # how much alpha swings
+			"speed": rng.randf_range(0.4, 1.8),     # twinkle cycles per second
+			"phase": rng.randf_range(0.0, TAU),
 		})
 	for _i in 60:
+		var base_a: float = rng.randf_range(0.7, 1.0)
 		star_data.append({
 			"pos": Vector2(rng.randf_range(0, 1920), rng.randf_range(0, 1080)),
 			"r": rng.randf_range(1.0, 2.0),
-			"col": Color(rng.randf_range(0.8, 1.0), rng.randf_range(0.85, 1.0),
-						1.0, rng.randf_range(0.7, 1.0)),
+			"rgb": Color(rng.randf_range(0.8, 1.0), rng.randf_range(0.85, 1.0), 1.0),
+			"base_a": base_a,
+			"amp": rng.randf_range(0.15, 0.35),
+			"speed": rng.randf_range(0.6, 2.5),
+			"phase": rng.randf_range(0.0, TAU),
 		})
+	var t: float = 0.0
 	var layer := Node2D.new()
 	layer.name = "Stars"
 	layer.draw.connect(func():
 		for s in star_data:
-			layer.draw_circle(s["pos"], s["r"], s["col"])
+			var a: float = s["base_a"] + s["amp"] * sin(t * s["speed"] * TAU + s["phase"])
+			var col: Color = s["rgb"]
+			col.a = clamp(a, 0.05, 1.0)
+			layer.draw_circle(s["pos"], s["r"], col)
 	)
+	var timer := Timer.new()
+	timer.wait_time = 1.0 / 30.0   # 30 fps twinkle update
+	timer.autostart = true
+	timer.timeout.connect(func():
+		t += 1.0 / 30.0
+		layer.queue_redraw()
+	)
+	layer.add_child(timer)
 	layer.queue_redraw()
 	add_child(layer)
 	move_child(layer, 1)  # above bg, below graph
