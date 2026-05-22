@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3 uid="uid://dionbws2gpfnd"]
+[gd_scene format=3 uid="uid://dionbws2gpfnd"]
 
 [ext_resource type="Texture2D" uid="uid://d0kvmpvy4ohkn" path="res://Mini Pixel Pack 3/Projectiles/SpaceShooterAssetPack_Miscellaneous.png" id="1_31x21"]
 
@@ -7,7 +7,7 @@ atlas = ExtResource("1_31x21")
 region = Rect2(88, 32, 16, 16)
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_f5drd"]
-radius = 11.0
+radius = 9.0
 
 [sub_resource type="Animation" id="Animation_8juuh"]
 length = 0.001
@@ -42,20 +42,18 @@ tracks/0/keys = {
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_x6qsa"]
 _data = {
-"RESET": SubResource("Animation_8juuh"),
-"default": SubResource("Animation_3wl5o")
+&"RESET": SubResource("Animation_8juuh"),
+&"default": SubResource("Animation_3wl5o")
 }
 
-[node name="Shield" type="Area2D"]
+[node name="Shield" type="Area2D" unique_id=1205930197]
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1059566660]
 texture = SubResource("AtlasTexture_x8b85")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1716571821]
 shape = SubResource("CircleShape2D_f5drd")
 
-[node name="ShieldFlash" type="AnimationPlayer" parent="."]
-libraries = {
-"": SubResource("AnimationLibrary_x6qsa")
-}
-autoplay = "default"
+[node name="ShieldFlash" type="AnimationPlayer" parent="." unique_id=1377841084]
+libraries/ = SubResource("AnimationLibrary_x6qsa")
+autoplay = &"default"

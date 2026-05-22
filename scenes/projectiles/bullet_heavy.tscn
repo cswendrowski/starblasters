@@ -1,25 +1,25 @@
-[gd_scene load_steps=3 format=3 uid="uid://c5te1ekoxw700"]
+[gd_scene format=3 uid="uid://c5te1ekoxw700"]
 
-[ext_resource type="Script" path="res://scripts/projectiles/bullet_heavy.gd" id="1_hvscr"]
-[ext_resource type="Texture2D" uid="uid://blasterheavy01" path="res://graphics/projectiles/blaster_heavy.png" id="2_hvtex"]
+[ext_resource type="Script" uid="uid://cujno5vjg5gh" path="res://scripts/projectiles/bullet_heavy.gd" id="1_hvscr"]
+[ext_resource type="Texture2D" uid="uid://crb8v5dl2odom" path="res://graphics/projectiles/blaster_heavy.png" id="2_hvtex"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_heavy"]
-size = Vector2(6, 14)
+size = Vector2(10, 31)
 
-[node name="Bullet" type="Area2D"]
+[node name="Bullet" type="Area2D" unique_id=1062005731]
 script = ExtResource("1_hvscr")
 speed = 150
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1228754949]
 rotation = -1.5708
 texture = ExtResource("2_hvtex")
-hframes = 4
-frame = 0
+hframes = 5
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1281268116]
+position = Vector2(1, -12.5)
 shape = SubResource("RectangleShape2D_heavy")
 
-[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="."]
+[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="." unique_id=1211096388]
 visible = false
 
 [connection signal="area_entered" from="." to="." method="_on_area_entered"]

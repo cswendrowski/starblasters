@@ -1,14 +1,13 @@
-[gd_scene load_steps=7 format=3 uid="uid://bplyseek001"]
+[gd_scene format=3 uid="uid://bplyseek001"]
 
-[ext_resource type="Script" path="res://scripts/projectiles/base_missile.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://pqv25k2c52si" path="res://scripts/projectiles/base_missile.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://cqlt8bryndrht" path="res://graphics/projectiles/missile-teal.png" id="2_tex"]
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
-size = Vector2(2, 5)
+[sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_glow"]
+blend_mode = 1
 
 [sub_resource type="Gradient" id="Gradient_glow"]
 colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0)
-offsets = PackedFloat32Array(0.0, 1.0)
 
 [sub_resource type="GradientTexture2D" id="GradientTexture2D_glow"]
 gradient = SubResource("Gradient_glow")
@@ -16,37 +15,32 @@ width = 16
 height = 16
 fill = 1
 fill_from = Vector2(0.5, 0.5)
-fill_to = Vector2(1.0, 0.5)
+fill_to = Vector2(1, 0.5)
 
-[sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_glow"]
-blend_mode = 1
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
+size = Vector2(4, 8)
 
-[node name="PlayerSeekingMissile" type="Area2D"]
+[node name="PlayerSeekingMissile" type="Area2D" unique_id=1350119224]
 z_index = -1
-collision_layer = 1
-collision_mask = 1
 script = ExtResource("1_script")
 target_group = "enemies"
 drift_time = 0.5
 drift_speed = 73.0
 homing_accel = 720.0
 homing_max_speed = 540.0
-fuse = 6.0
 damage_on_contact = 3
-dumb_fire = false
 flame_trail = true
 initial_dir = Vector2(0, -1)
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1260301818]
 texture = ExtResource("2_tex")
 
-[node name="Glow" type="Sprite2D" parent="."]
-position = Vector2(0, 3)
-scale = Vector2(0.4, 0.4)
-modulate = Color(0.25, 0.9, 0.85, 0.9)
+[node name="Glow" type="Sprite2D" parent="." unique_id=980592905]
+modulate = Color(1.0540515, 0.6047006, 0, 1)
 material = SubResource("CanvasItemMaterial_glow")
+position = Vector2(-0.100000195, 3)
+scale = Vector2(0.51250005, 0.5)
 texture = SubResource("GradientTexture2D_glow")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
-visible = false
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=35382132]
 shape = SubResource("RectangleShape2D_1")

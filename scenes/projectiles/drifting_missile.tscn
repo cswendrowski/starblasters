@@ -1,22 +1,41 @@
-[gd_scene load_steps=3 format=3 uid="uid://bdrftms0000001"]
+[gd_scene format=3 uid="uid://cyq0cbqqw6465"]
 
-[ext_resource type="Script" path="res://scripts/projectiles/base_missile.gd" id="1_script"]
-[ext_resource type="Texture2D" path="res://graphics/main-ship/Main ship weapon - Projectile - Rocket.png" id="2_tex"]
+[ext_resource type="Script" uid="uid://pqv25k2c52si" path="res://scripts/projectiles/base_missile.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://b6mpco0qeqgrx" path="res://graphics/main-ship/Main ship weapon - Projectile - Rocket.png" id="2_tex"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
-size = Vector2(10, 14)
+size = Vector2(5, 12)
 
-[node name="DriftingMissile" type="Area2D" groups=["enemies"]]
-collision_layer = 1
-collision_mask = 1
+[sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_4l8t6"]
+blend_mode = 1
+
+[sub_resource type="Gradient" id="Gradient_ha5ef"]
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_6k5qm"]
+gradient = SubResource("Gradient_ha5ef")
+width = 16
+height = 16
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(1, 0.5)
+
+[node name="DriftingMissile" type="Area2D" unique_id=618994227 groups=["enemies"]]
 script = ExtResource("1_script")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
-texture = ExtResource("2_tex")
-hframes = 3
-frame = 0
-flip_v = true
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=450670839]
 modulate = Color(1, 0.85, 0.7, 1)
+texture = ExtResource("2_tex")
+flip_v = true
+hframes = 3
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=122742199]
+position = Vector2(-0.5, 0)
 shape = SubResource("RectangleShape2D_1")
+
+[node name="Glow" type="Sprite2D" parent="." unique_id=1800867087]
+modulate = Color(1, 0.55, 0.15, 0.9)
+material = SubResource("CanvasItemMaterial_4l8t6")
+position = Vector2(-0.5000005, -7)
+scale = Vector2(0.9374999, 1)
+texture = SubResource("GradientTexture2D_6k5qm")
