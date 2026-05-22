@@ -173,6 +173,23 @@ var _mg_loop_player: AudioStreamPlayer2D = null
 var _mg_end_player: AudioStreamPlayer2D = null
 var _mg_firing: bool = false
 
+# Rotary Laser audio — charge → loop → release-shot.
+const RL_CHARGE_DURATION: float = 0.8
+const RL_SHOOT_STREAMS := [
+	preload("res://Sound/weapons/rotary_laser_shoot_1.ogg"),
+	preload("res://Sound/weapons/rotary_laser_shoot_2.ogg"),
+	preload("res://Sound/weapons/rotary_laser_shoot_3.ogg"),
+	preload("res://Sound/weapons/rotary_laser_shoot_4.ogg"),
+	preload("res://Sound/weapons/rotary_laser_shoot_5.ogg"),
+	preload("res://Sound/weapons/rotary_laser_shoot_6.ogg"),
+]
+var _rl_charging: bool = false
+var _rl_charged: bool = false
+var _rl_charge_t: float = 0.0
+var _rl_charge_player: AudioStreamPlayer2D = null
+var _rl_loop_player: AudioStreamPlayer2D = null
+var _rl_shoot_player: AudioStreamPlayer2D = null
+
 @onready var screensize: Vector2 = get_viewport_rect().size
 
 # Override target for spawned bullets/drones. Default null = parent at
@@ -271,6 +288,28 @@ func _setup_mg_audio() -> void:
 	_mg_end_player.volume_db = -3.0
 	_mg_end_player.pitch_scale = 0.92
 	add_child(_mg_end_player)
+	# Rotary Laser audio nodes come from the player scene.
+	_rl_charge_player = get_node_or_null("RotaryLaserCharge")
+	_rl_loop_player = get_node_or_null("RotaryLaserLoop")
+	_rl_shoot_player = get_node_or_null("RotaryLaserShoot")
+	if _rl_loop_player:
+		var ls: AudioStream = _rl_loop_player.stream
+		if ls is AudioStreamOggVorbis:
+			(ls as AudioStreamOggVorbis).loop = true
+
+
+func _rl_stop() -> void:
+	var was_charged := _rl_charged
+	_rl_charging = false
+	_rl_charged = false
+	_rl_charge_t = 0.0
+	if _rl_charge_player and _rl_charge_player.playing:
+		_rl_charge_player.stop()
+	if _rl_loop_player and _rl_loop_player.playing:
+		_rl_loop_player.stop()
+	if was_charged and is_alive and _rl_shoot_player:
+		_rl_shoot_player.stream = RL_SHOOT_STREAMS[randi() % RL_SHOOT_STREAMS.size()]
+		_rl_shoot_player.play()
 
 
 func _setup_shield_ring() -> void:
@@ -403,12 +442,28 @@ func _process(delta: float) -> void:
 			_mg_firing = true
 			if _mg_loop_player and not _mg_loop_player.playing:
 				_mg_loop_player.play()
+		# Rotary Laser: charge → loop → fire.
+		elif weapon_style == "rotary_laser" and ammo > 0 and is_alive:
+			if not _rl_charging and not _rl_charged:
+				_rl_charging = true
+				_rl_charge_t = 0.0
+				if _rl_charge_player:
+					_rl_charge_player.play()
+			elif _rl_charging:
+				_rl_charge_t += delta
+				if _rl_charge_t >= RL_CHARGE_DURATION:
+					_rl_charging = false
+					_rl_charged = true
+					if _rl_loop_player:
+						_rl_loop_player.play()
 	elif _mg_firing:
 		_mg_firing = false
 		if _mg_loop_player and _mg_loop_player.playing:
 			_mg_loop_player.stop()
 		if _mg_end_player and is_alive and weapon_style == "machinegun":
 			_mg_end_player.play()
+	if not fire_held and (_rl_charging or _rl_charged):
+		_rl_stop()
 	# Rotary Laser ammo recharge — ticks when not firing. Players who have
 	# autofire enabled will never recharge while alive on screen (same
 	# behaviour as the machinegun: continuous trigger = no pause to refill).
@@ -534,6 +589,12 @@ func die() -> void:
 	if _mg_loop_player and _mg_loop_player.playing:
 		_mg_loop_player.stop()
 	_mg_firing = false
+	_rl_charging = false
+	_rl_charged = false
+	if _rl_charge_player and _rl_charge_player.playing:
+		_rl_charge_player.stop()
+	if _rl_loop_player and _rl_loop_player.playing:
+		_rl_loop_player.stop()
 	$Death.play()
 
 # ---- Fire paths ----
@@ -547,7 +608,7 @@ func fire_primary() -> void:
 	if weapon_style == "machinegun" and ammo == 0:
 		return
 	# Rotary Laser: also ammo-gated.
-	if weapon_style == "rotary_laser" and ammo == 0:
+	if weapon_style == "rotary_laser" and (ammo == 0 or not _rl_charged):
 		return
 	can_shoot = false
 	$GunCooldown.start()
