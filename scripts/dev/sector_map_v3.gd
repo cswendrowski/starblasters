@@ -22,6 +22,14 @@ const ICON_COUNT       := 6
 const COLOR_NODE_GREEN := Color(0.55, 1.0, 0.50, 1.0)
 # Planet designation letters (real-world exoplanet convention).
 const PLANET_LETTERS   := ["b", "c", "d", "e", "f", "g"]
+# PixelPlanets scenes for non-planet route objects.
+const ASTEROID_SCENE = preload("res://Planets/Asteroids/Asteroid.tscn")
+const GALAXY_SCENE   = preload("res://Planets/Galaxy/Galaxy.tscn")
+# Route object types: 0=planet 1=large_asteroid 2=asteroid_cluster 3=nebula
+const OBJ_TYPE_COUNT    := 4
+# Per-type advance in cells (placed object width + 2-cell gap).
+# Planet advance is computed per-object from its size; others use these fixed values.
+const OBJ_ADVANCE_CELLS := [0, 4, 6, 6]  # planet=computed, ast=4, cluster=6, nebula=6
 
 const CELL  := 16
 const COLS  := 30
@@ -90,10 +98,11 @@ func _ready() -> void:
 	_map_rng.seed = map_seed
 	_generate_names()
 	_generate_route_lengths()
-	_build_routes()     # Line2D — added first so it draws under everything
-	_build_planets()    # planets on routes — above routes, below stars
-	_build_stars()      # stars at anchors — above planets
-	_build_labels()     # labels last — on top of stars
+	_build_routes()          # Line2D — added first so it draws under everything
+	_build_route_objects()   # planets/asteroids/nebulae — above routes, below stars
+	_build_stars()           # stars at anchors — above planets
+	_build_labels()          # labels last — on top of stars
+	_build_ui()              # Generate New button
 
 
 func _process(delta: float) -> void:
@@ -163,35 +172,59 @@ func _build_routes() -> void:
 
 
 # ---------------------------------------------------------------------------
-# Planet placement along routes
+# Route object placement — planets, asteroids, nebulae
 # ---------------------------------------------------------------------------
 
-func _build_planets() -> void:
+func _build_route_objects() -> void:
 	for i in STAR_ANCHORS.size():
 		var anchor:    Vector2 = STAR_ANCHORS[i]
 		var route_end: float   = anchor.x + _route_lengths[i]
-		var cursor:    float   = PLANET_START_X
-		var placed:    int     = 0
+		# Final column intersection on this route — always gets an object.
+		var final_x:   float   = float(int(route_end / CELL)) * CELL
+		final_x = maxf(final_x, PLANET_START_X)
+		var cursor:     float  = PLANET_START_X
+		var placed:     int    = 0
+		var planet_idx: int    = 0  # designation letter index for this system
 
-		while cursor <= route_end:
-			# Pick display size (snap to 8px steps within 16–32 range).
-			var steps: int = _map_rng.randi() % 3      # 0,1,2 → 16,24,32
-			var px: float  = PLANET_MIN_PX + steps * 8.0
-			# Check if planet fits (right edge must not exceed route end).
-			if cursor + px * 0.5 > route_end:
-				break
-			# Pick orbital zone weight based on position fraction.
-			var frac: float = (cursor - PLANET_START_X) / max(1.0, route_end - PLANET_START_X)
-			var type_idx: int = _pick_planet_type(frac)
-			_spawn_planet(anchor.y, cursor, px, type_idx, placed)
+		# Intermediate objects — stop well before final_x so it stays clear.
+		while cursor < final_x:
+			var min_gap: float = 3.0 * CELL  # smallest possible advance
+			if cursor + min_gap > final_x:
+				break  # too close — leave the slot for the mandatory end object
+			var type_id: int = _map_rng.randi() % OBJ_TYPE_COUNT
+			var advance: float = _spawn_route_obj(anchor.y, cursor, route_end, i, type_id, planet_idx)
+			if type_id == 0:
+				planet_idx += 1
 			placed += 1
-			# Advance: full planet width (rounded up to cell) + 2 cell gap.
-			# Centers snap to grid intersections; 2-cell gap keeps planets from cramping.
-			var advance: float = (ceili(px / CELL) + 2) * CELL
 			cursor += advance
-			# After first planet, randomly stop (routes shouldn't all be packed).
 			if placed >= 1 and _map_rng.randf() < PLANET_STOP_PROB:
 				break
+
+		# Guaranteed object at the final column intersection.
+		var end_type: int = _map_rng.randi() % OBJ_TYPE_COUNT
+		_spawn_route_obj(anchor.y, final_x, route_end, i, end_type, planet_idx)
+
+
+# Dispatches to the right spawn function; returns the advance step in px.
+func _spawn_route_obj(cy: float, cx: float, route_end: float, _sys_i: int, type_id: int, planet_idx: int) -> float:
+	match type_id:
+		0:  # planet
+			var steps: int = _map_rng.randi() % 3
+			var px: float  = PLANET_MIN_PX + steps * 8.0
+			var frac: float = (cx - PLANET_START_X) / max(1.0, route_end - PLANET_START_X)
+			var ptype: int  = _pick_planet_type(frac)
+			_spawn_planet(cy, cx, px, ptype, planet_idx)
+			return float((ceili(px / CELL) + 2) * CELL)
+		1:  # large asteroid
+			_spawn_large_asteroid(cy, cx)
+			return float(OBJ_ADVANCE_CELLS[1] * CELL)
+		2:  # asteroid cluster
+			_spawn_asteroid_cluster(cy, cx)
+			return float(OBJ_ADVANCE_CELLS[2] * CELL)
+		3:  # nebula (Galaxy.tscn)
+			_spawn_nebula(cy, cx)
+			return float(OBJ_ADVANCE_CELLS[3] * CELL)
+	return float(4 * CELL)
 
 
 func _pick_planet_type(frac: float) -> int:
@@ -272,6 +305,77 @@ func _spawn_planet(center_y: float, center_x: float, display_px: float, type_idx
 		"label":  lbl,
 		"icon":   icon_spr,
 	})
+
+
+func _spawn_large_asteroid(center_y: float, center_x: float) -> void:
+	var ast = ASTEROID_SCENE.instantiate()
+	const PX: float = 32.0
+	var sf: float = PX / 100.0
+	if ast is Control:
+		ast.anchor_left = 0.0; ast.anchor_top = 0.0
+		ast.anchor_right = 0.0; ast.anchor_bottom = 0.0
+		ast.offset_right = 100.0; ast.offset_bottom = 100.0
+		ast.size = Vector2(100.0, 100.0)
+		ast.custom_minimum_size = Vector2(100.0, 100.0)
+		ast.pivot_offset = Vector2.ZERO
+	ast.scale    = Vector2(sf, sf)
+	ast.position = Vector2(center_x - 50.0 * sf, center_y - 50.0 * sf)
+	if ast.has_method("set_pixels"):       ast.set_pixels(PX)
+	if ast.has_method("set_seed"):         ast.set_seed(_map_rng.randi() % 100000)
+	if ast.has_method("randomize_colors"): ast.randomize_colors()
+	if ast.has_method("set_light"):        ast.set_light(Vector2(0.0, 0.5))
+	if ast.has_method("set_rotates"):      ast.set_rotates(true)
+	add_child(ast)
+	_reset_planet_colorrects(ast)
+
+
+func _spawn_asteroid_cluster(center_y: float, center_x: float) -> void:
+	var count: int = 3 + _map_rng.randi() % 3  # 3-5 rocks
+	for _k in count:
+		var ast = ASTEROID_SCENE.instantiate()
+		var px: float = 8.0 + float(_map_rng.randi() % 3) * 4.0  # 8,12,16px
+		var sf: float = px / 100.0
+		var ox: float = _map_rng.randf_range(-20.0, 20.0)
+		var oy: float = _map_rng.randf_range(-16.0, 16.0)
+		if ast is Control:
+			ast.anchor_left = 0.0; ast.anchor_top = 0.0
+			ast.anchor_right = 0.0; ast.anchor_bottom = 0.0
+			ast.offset_right = 100.0; ast.offset_bottom = 100.0
+			ast.size = Vector2(100.0, 100.0)
+			ast.custom_minimum_size = Vector2(100.0, 100.0)
+			ast.pivot_offset = Vector2.ZERO
+		ast.scale    = Vector2(sf, sf)
+		ast.position = Vector2(center_x + ox - 50.0 * sf, center_y + oy - 50.0 * sf)
+		if ast.has_method("set_pixels"):       ast.set_pixels(px)
+		if ast.has_method("set_seed"):         ast.set_seed(_map_rng.randi() % 100000)
+		if ast.has_method("randomize_colors"): ast.randomize_colors()
+		if ast.has_method("set_light"):        ast.set_light(Vector2(0.0, 0.5))
+		if ast.has_method("set_rotates"):      ast.set_rotates(true)
+		add_child(ast)
+		_reset_planet_colorrects(ast)
+
+
+func _spawn_nebula(center_y: float, center_x: float) -> void:
+	var neb = GALAXY_SCENE.instantiate()
+	var px: float = 32.0 + float(_map_rng.randi() % 3) * 16.0  # 32, 48, 64px
+	var sf: float = px / 100.0
+	if neb is Control:
+		neb.anchor_left = 0.0; neb.anchor_top = 0.0
+		neb.anchor_right = 0.0; neb.anchor_bottom = 0.0
+		neb.offset_right = 100.0; neb.offset_bottom = 100.0
+		neb.size = Vector2(100.0, 100.0)
+		neb.custom_minimum_size = Vector2(100.0, 100.0)
+		neb.pivot_offset = Vector2.ZERO
+	neb.scale    = Vector2(sf, sf)
+	neb.position = Vector2(center_x - 50.0 * sf, center_y - 50.0 * sf)
+	if neb.has_method("set_pixels"):       neb.set_pixels(px)
+	if neb.has_method("set_seed"):         neb.set_seed(_map_rng.randi() % 100000)
+	if neb.has_method("randomize_colors"): neb.randomize_colors()
+	if neb.has_method("set_rotates"):      neb.set_rotates(true)
+	add_child(neb)
+	_reset_planet_colorrects(neb)
+	neb.override_time = true
+	_celestial_nodes.append(neb)
 
 
 # ---------------------------------------------------------------------------
@@ -433,4 +537,40 @@ func _draw() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 		SceneTransition.change_scene(get_tree(), "res://scenes/dev_menu.tscn")
+
+
+# ---------------------------------------------------------------------------
+# Dev UI — "Generate New" button at cell [13,15]
+# ---------------------------------------------------------------------------
+
+func _build_ui() -> void:
+	var btn := Button.new()
+	btn.text     = "Generate New"
+	btn.position = Vector2(13 * CELL, 15 * CELL)
+	btn.size     = Vector2(80, 14)
+	btn.pressed.connect(_rebuild)
+	add_child(btn)
+
+
+func _rebuild() -> void:
+	for child in get_children():
+		child.queue_free()
+	_star_glows.clear()
+	_system_names.clear()
+	_route_lengths.clear()
+	_celestial_nodes.clear()
+	_planet_hovers.clear()
+	map_seed = _map_rng.randi()
+	call_deferred("_deferred_build")
+
+
+func _deferred_build() -> void:
+	_map_rng.seed = map_seed
+	_generate_names()
+	_generate_route_lengths()
+	_build_routes()
+	_build_route_objects()
+	_build_stars()
+	_build_labels()
+	_build_ui()
 
