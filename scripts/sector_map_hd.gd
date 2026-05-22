@@ -67,9 +67,6 @@ var _pause_layer: CanvasLayer = null
 
 
 func _ready() -> void:
-	# Force size before any layout — Control inside SubViewport doesn't
-	# inherit size from the viewport automatically on the first _ready tick.
-	size = Vector2(1920, 1080)
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("sector")
 	_install_background()
@@ -80,9 +77,7 @@ func _ready() -> void:
 			current_id = run.current_node_id
 	if current_id == "" and nodes_by_id.has("start"):
 		current_id = "start"
-	# Defer render one frame so the SubViewport finishes its first layout
-	# pass — without this, added child Controls may not become visible.
-	_render.call_deferred()
+	_render()
 
 
 static func cell_center(c: int, r: int) -> Vector2:
