@@ -15,11 +15,16 @@ const PLANET_SCENES   := [
 # Pick types whose zone weight is highest for the current position fraction.
 const PLANET_ZONE_PEAK := [0.10, 0.25, 0.30, 0.50, 0.70, 0.90]
 
-# Sector icons (same strip as sector_map_v2) — 6 frames × 32px.
+# Node dot strip + sector icons (same assets as sector_map_v2).
+const NODE_STRIP       = preload("res://graphics/ui/sector_nodes.png")
 const ICON_STRIP       = preload("res://graphics/ui/sector_icons.png")
 const ICON_COUNT       := 6
+const ICON_BOSS        := 3   # boss frame in ICON_STRIP
 # "Available node" green from sector_map_v2.
 const COLOR_NODE_GREEN := Color(0.55, 1.0, 0.50, 1.0)
+const COLOR_BOSS_RED   := Color(1.0, 0.30, 0.25, 1.0)
+# Boss hazard positions — one per route, at the route endpoint.
+const BOSS_POSITIONS   := [Vector2(448, 64), Vector2(448, 128), Vector2(448, 192)]
 # Planet designation letters (real-world exoplanet convention).
 const PLANET_LETTERS   := ["b", "c", "d", "e", "f", "g"]
 # PixelPlanets scenes for non-planet route objects.
@@ -111,6 +116,7 @@ func _ready() -> void:
 	_generate_route_lengths()
 	_build_routes()          # Line2D — added first so it draws under everything
 	_build_route_objects()   # planets/asteroids/nebulae — above routes, below stars
+	_build_boss_nodes()      # boss hazard at route endpoints
 	_build_stars()           # stars at anchors — above planets
 	_build_labels()          # labels last — on top of stars
 	_build_ui()              # Generate New button
@@ -166,9 +172,8 @@ func _generate_names() -> void:
 func _generate_route_lengths() -> void:
 	_route_lengths.clear()
 	for i in STAR_ANCHORS.size():
-		var raw: float = _map_rng.randf_range(ROUTE_MIN_LEN, ROUTE_MAX_LEN)
-		var end_x: float = STAR_ANCHORS[i].x + raw
-		_route_lengths.append(minf(end_x, ROUTE_MAX_X) - STAR_ANCHORS[i].x)
+		# Routes always extend to ROUTE_MAX_X so the boss node is at the endpoint.
+		_route_lengths.append(ROUTE_MAX_X - STAR_ANCHORS[i].x)
 
 
 func _build_routes() -> void:
@@ -194,19 +199,14 @@ func _build_route_objects() -> void:
 	for i in STAR_ANCHORS.size():
 		var anchor:    Vector2 = STAR_ANCHORS[i]
 		var route_end: float   = anchor.x + _route_lengths[i]
-		# Final column intersection on this route — always gets an object.
-		var final_x:   float   = float(int(route_end / CELL)) * CELL
-		final_x = maxf(final_x, PLANET_START_X)
+		# Leave 3 cells before the boss node clear.
+		var fill_limit: float  = route_end - 3.0 * CELL
 		var cursor:     float  = PLANET_START_X
 		var placed:     int    = 0
-		var planet_idx: int    = 0  # designation letter index for this system
+		var planet_idx: int    = 0
 
-		# Intermediate objects — stop well before final_x so it stays clear.
-		while cursor < final_x:
-			var min_gap: float = 3.0 * CELL  # smallest possible advance
-			if cursor + min_gap > final_x:
-				break  # too close — leave the slot for the mandatory end object
-			var type_id: int = _map_rng.randi() % OBJ_TYPE_COUNT
+		while cursor <= fill_limit:
+			var type_id: int   = _map_rng.randi() % OBJ_TYPE_COUNT
 			var advance: float = _spawn_route_obj(anchor.y, cursor, route_end, i, type_id, planet_idx)
 			if type_id == 0:
 				planet_idx += 1
@@ -214,10 +214,6 @@ func _build_route_objects() -> void:
 			cursor += advance
 			if placed >= 1 and _map_rng.randf() < PLANET_STOP_PROB:
 				break
-
-		# Guaranteed object at the final column intersection.
-		var end_type: int = _map_rng.randi() % OBJ_TYPE_COUNT
-		_spawn_route_obj(anchor.y, final_x, route_end, i, end_type, planet_idx)
 
 
 # Dispatches to the right spawn function; returns the advance step in px.
@@ -309,9 +305,10 @@ func _spawn_large_asteroid(center_y: float, center_x: float) -> void:
 	_reset_planet_colorrects(ast)
 	_asteroid_rotators.append({
 		"node":  ast,
-		"speed": _map_rng.randf_range(0.03, 0.10),
+		"speed": _map_rng.randf_range(0.008, 0.025),
 		"phase": _map_rng.randf_range(0.0, TAU),
 	})
+	_scatter_asteroid_band(center_y, center_x)
 	_add_hover_label_icon(center_y, center_x, PX, "Asteroid")
 
 
@@ -340,14 +337,96 @@ func _spawn_asteroid_cluster(center_y: float, center_x: float) -> void:
 		_reset_planet_colorrects(ast)
 		_asteroid_rotators.append({
 			"node":  ast,
-			"speed": _map_rng.randf_range(0.02, 0.08),
+			"speed": _map_rng.randf_range(0.005, 0.020),
 			"phase": _map_rng.randf_range(0.0, TAU),
 		})
+	_scatter_asteroid_band(center_y, center_x)
 	# One hover label + icon representing the whole cluster.
 	_add_hover_label_icon(center_y, center_x, 40.0, "Belt")
 
 
 # Shared helper: label above object + sector icon at center + hover entry.
+# Scatter 2-4 tiny filler asteroids around an asteroid POI to form a band.
+func _scatter_asteroid_band(center_y: float, center_x: float) -> void:
+	var count: int = 2 + _map_rng.randi() % 3  # 2-4 rocks
+	for _k in count:
+		var px: float = 4.0 + float(_map_rng.randi() % 3) * 2.0  # 4,6,8px
+		var sf: float = px / 100.0
+		var ox: float = _map_rng.randf_range(-36.0, 36.0)
+		var oy: float = _map_rng.randf_range(-12.0, 12.0)
+		var ast = ASTEROID_SCENE.instantiate()
+		if ast is Control:
+			ast.anchor_left = 0.0; ast.anchor_top = 0.0
+			ast.anchor_right = 0.0; ast.anchor_bottom = 0.0
+			ast.offset_right = 100.0; ast.offset_bottom = 100.0
+			ast.size = Vector2(100.0, 100.0)
+			ast.custom_minimum_size = Vector2(100.0, 100.0)
+			ast.pivot_offset = Vector2.ZERO
+		ast.scale    = Vector2(sf, sf)
+		ast.position = Vector2(center_x + ox - 50.0 * sf, center_y + oy - 50.0 * sf)
+		_duplicate_materials(ast)
+		if ast.has_method("set_pixels"): ast.set_pixels(px)
+		if ast.has_method("set_seed"):   ast.set_seed(_map_rng.randi())
+		if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
+		add_child(ast)
+		_reset_planet_colorrects(ast)
+		_asteroid_rotators.append({
+			"node":  ast,
+			"speed": _map_rng.randf_range(0.005, 0.018),
+			"phase": _map_rng.randf_range(0.0, TAU),
+		})
+
+
+# ---------------------------------------------------------------------------
+# Boss hazard nodes — placed at the route endpoint for each system
+# ---------------------------------------------------------------------------
+
+func _build_boss_nodes() -> void:
+	for i in BOSS_POSITIONS.size():
+		var pos: Vector2 = BOSS_POSITIONS[i]
+		# Node dot — boss frame (0) from NODE_STRIP, 1× scale (32px).
+		var dot_at := AtlasTexture.new()
+		dot_at.atlas  = NODE_STRIP
+		dot_at.region = Rect2(0, 0, 32, 32)   # frame 0 = boss
+		var dot_spr := Sprite2D.new()
+		dot_spr.texture  = dot_at
+		dot_spr.position = pos
+		dot_spr.modulate = Color(COLOR_BOSS_RED.r, COLOR_BOSS_RED.g, COLOR_BOSS_RED.b, 0.5)
+		dot_spr.z_index  = 3
+		add_child(dot_spr)
+		# Boss icon on top of the dot.
+		var icon_at := AtlasTexture.new()
+		icon_at.atlas  = ICON_STRIP
+		icon_at.region = Rect2(ICON_BOSS * 32, 0, 32, 32)
+		var icon_spr := Sprite2D.new()
+		icon_spr.texture  = icon_at
+		icon_spr.position = pos
+		icon_spr.scale    = Vector2(0.5, 0.5)
+		icon_spr.z_index  = 5
+		icon_spr.modulate = Color(1.0, 1.0, 1.0, 0.2)
+		add_child(icon_spr)
+		# Label above.
+		var ls := LabelSettings.new()
+		ls.font = FONT; ls.font_size = 9
+		ls.font_color    = Color(1.0, 0.65, 0.60, 0.95)
+		ls.outline_size  = 1
+		ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
+		var lbl := Label.new()
+		lbl.text           = "BOSS"
+		lbl.label_settings = ls
+		var row_above: int  = int((pos.y - 16.0) / CELL) - 1
+		lbl.position  = Vector2(pos.x - 12, row_above * CELL + 2)
+		lbl.z_index   = 10
+		lbl.modulate.a = 0.2
+		add_child(lbl)
+		_planet_hovers.append({
+			"center": pos,
+			"radius": 16.0,
+			"label":  lbl,
+			"icon":   icon_spr,
+		})
+
+
 func _add_hover_label_icon(center_y: float, center_x: float, display_px: float, label_text: String) -> void:
 	var ls := LabelSettings.new()
 	ls.font = FONT; ls.font_size = 9
@@ -633,6 +712,7 @@ func _deferred_build() -> void:
 	_generate_route_lengths()
 	_build_routes()
 	_build_route_objects()
+	_build_boss_nodes()
 	_build_stars()
 	_build_labels()
 	_build_ui()
