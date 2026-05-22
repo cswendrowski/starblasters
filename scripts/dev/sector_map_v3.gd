@@ -106,10 +106,19 @@ var _celestial_nodes: Array = []
 var _planet_hovers: Array = []
 # Asteroid rotation entries: {node, speed, phase} — driven in _process.
 var _asteroid_rotators: Array = []
+# Current system index while building route objects (used by spawn helpers for tint).
+var _cur_sys_i: int = 0
+# POI ambient dressing: pulsing glows {spr, hz, phase, base_a} + combat glitter particles.
+var _glow_pulses: Array = []
+var _glitter:     Array = []  # {pos, vel, rect, brightness, hidden, timer}
+# Non-deterministic RNG for runtime flicker — not seeded from map_seed.
+var _fx_rng: RandomNumberGenerator
 
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(BG_COLOR)
+	_fx_rng = RandomNumberGenerator.new()
+	_fx_rng.seed = randi()
 	_map_rng = RandomNumberGenerator.new()
 	_map_rng.seed = map_seed
 	_generate_names()
@@ -139,6 +148,27 @@ func _process(delta: float) -> void:
 	for entry in _asteroid_rotators:
 		if is_instance_valid(entry.node) and entry.node.has_method("set_custom_time"):
 			entry.node.set_custom_time(_time * entry.speed + entry.phase)
+	# Pulse ambient glows (outpost/hazard/signal dressing).
+	for g in _glow_pulses:
+		if is_instance_valid(g.spr):
+			g.spr.modulate.a = g.base_a * (0.4 + 0.6 * (0.5 + 0.5 * sin(_time * g.hz * TAU + g.phase)))
+	# Update combat glitter particles.
+	var needs_redraw := false
+	for p in _glitter:
+		p.pos += p.vel * delta
+		if p.pos.x < p.rect.position.x or p.pos.x > p.rect.end.x:
+			p.vel.x *= -1
+		if p.pos.y < p.rect.position.y or p.pos.y > p.rect.end.y:
+			p.vel.y *= -1
+		p.timer -= delta
+		if p.timer <= 0.0:
+			p.hidden = not p.hidden
+			p.timer = _fx_rng.randf_range(0.05, 0.5) if p.hidden else _fx_rng.randf_range(0.4, 2.5)
+		var target_b: float = 0.0 if p.hidden else _fx_rng.randf_range(0.4, 1.0)
+		p.brightness = lerpf(p.brightness, target_b, delta * 6.0)
+		needs_redraw = true
+	if needs_redraw:
+		queue_redraw()
 	# Hover: fade labels and icons in/out on mouse-over.
 	var mouse: Vector2 = get_local_mouse_position()
 	for entry in _planet_hovers:
@@ -197,6 +227,7 @@ func _build_routes() -> void:
 
 func _build_route_objects() -> void:
 	for i in STAR_ANCHORS.size():
+		_cur_sys_i = i
 		var anchor:    Vector2 = STAR_ANCHORS[i]
 		var route_end: float   = anchor.x + _route_lengths[i]
 		# Leave 3 cells before the boss node clear.
@@ -206,8 +237,9 @@ func _build_route_objects() -> void:
 		var planet_idx: int    = 0
 
 		while cursor <= fill_limit:
-			var type_id: int   = _map_rng.randi() % OBJ_TYPE_COUNT
-			var advance: float = _spawn_route_obj(anchor.y, cursor, route_end, i, type_id, planet_idx)
+			var type_id:   int = _map_rng.randi() % OBJ_TYPE_COUNT
+			var node_type: int = _pick_node_type()
+			var advance: float = _spawn_route_obj(anchor.y, cursor, route_end, i, type_id, planet_idx, node_type)
 			if type_id == 0:
 				planet_idx += 1
 			placed += 1
@@ -217,7 +249,8 @@ func _build_route_objects() -> void:
 
 
 # Dispatches to the right spawn function; returns the advance step in px.
-func _spawn_route_obj(cy: float, cx: float, route_end: float, _sys_i: int, type_id: int, planet_idx: int) -> float:
+func _spawn_route_obj(cy: float, cx: float, route_end: float, _sys_i: int, type_id: int, planet_idx: int, node_type: int) -> float:
+	var advance: float = float(4 * CELL)
 	match type_id:
 		0:  # planet
 			var steps: int = _map_rng.randi() % 3
@@ -225,14 +258,15 @@ func _spawn_route_obj(cy: float, cx: float, route_end: float, _sys_i: int, type_
 			var frac: float = (cx - PLANET_START_X) / max(1.0, route_end - PLANET_START_X)
 			var ptype: int  = _pick_planet_type(frac)
 			_spawn_planet(cy, cx, px, ptype, planet_idx)
-			return float((ceili(px / CELL) + 2) * CELL)
+			advance = float((ceili(px / CELL) + 2) * CELL)
 		1:  # large asteroid
 			_spawn_large_asteroid(cy, cx)
-			return float(OBJ_ADVANCE_CELLS[1] * CELL)
+			advance = float(OBJ_ADVANCE_CELLS[1] * CELL)
 		2:  # asteroid cluster
 			_spawn_asteroid_cluster(cy, cx)
-			return float(OBJ_ADVANCE_CELLS[2] * CELL)
-	return float(4 * CELL)
+			advance = float(OBJ_ADVANCE_CELLS[2] * CELL)
+	_add_node_dressing(cy, cx, node_type)
+	return advance
 
 
 func _pick_planet_type(frac: float) -> int:
@@ -277,6 +311,7 @@ func _spawn_planet(center_y: float, center_x: float, display_px: float, type_idx
 	_reset_planet_colorrects(p)
 	if p.has_method("set_light"):
 		p.set_light(Vector2(0.0, 0.5))
+	p.modulate = Color.WHITE.lerp(STAR_GLOW_COLORS[_cur_sys_i], 0.18)
 	p.override_time = true
 	_celestial_nodes.append(p)
 
@@ -303,6 +338,7 @@ func _spawn_large_asteroid(center_y: float, center_x: float) -> void:
 	if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
 	add_child(ast)
 	_reset_planet_colorrects(ast)
+	ast.modulate = Color.WHITE.lerp(STAR_GLOW_COLORS[_cur_sys_i], 0.18)
 	_asteroid_rotators.append({
 		"node":  ast,
 		"speed": _map_rng.randf_range(0.008, 0.025),
@@ -335,6 +371,7 @@ func _spawn_asteroid_cluster(center_y: float, center_x: float) -> void:
 		if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
 		add_child(ast)
 		_reset_planet_colorrects(ast)
+		ast.modulate = Color.WHITE.lerp(STAR_GLOW_COLORS[_cur_sys_i], 0.18)
 		_asteroid_rotators.append({
 			"node":  ast,
 			"speed": _map_rng.randf_range(0.005, 0.020),
@@ -424,6 +461,69 @@ func _build_boss_nodes() -> void:
 			"radius": 16.0,
 			"label":  lbl,
 			"icon":   icon_spr,
+		})
+
+
+# Node type for ambient dressing: 0=outpost 1=hazard 2=signal 3=combat
+func _pick_node_type() -> int:
+	var r: int = _map_rng.randi() % 9
+	if r < 4: return 3  # combat  (4/9)
+	if r < 6: return 0  # outpost (2/9)
+	if r < 8: return 1  # hazard  (2/9)
+	return 2             # signal  (1/9)
+
+
+func _add_node_dressing(cy: float, cx: float, node_type: int) -> void:
+	match node_type:
+		0: _add_pulse_glow(cy, cx, Color(0.35, 0.65, 1.0),  0.35)  # outpost — blue
+		1: _add_pulse_glow(cy, cx, Color(1.0,  0.25, 0.20), 0.40)  # hazard  — red
+		2: _add_pulse_glow(cy, cx, Color(1.0,  0.90, 0.15), 0.35)  # signal  — yellow
+		3: _add_glitter_zone(cy, cx)                                 # combat  — glitter
+
+
+func _add_pulse_glow(cy: float, cx: float, color: Color, base_alpha: float) -> void:
+	var g := Gradient.new()
+	g.colors  = PackedColorArray([color, Color(color.r, color.g, color.b, 0.0)])
+	g.offsets = PackedFloat32Array([0.0, 1.0])
+	var gt := GradientTexture2D.new()
+	gt.gradient = g; gt.width = 64; gt.height = 64
+	gt.fill      = GradientTexture2D.FILL_RADIAL
+	gt.fill_from = Vector2(0.5, 0.5); gt.fill_to = Vector2(1.0, 0.5)
+	var spr := Sprite2D.new()
+	spr.texture  = gt
+	# Random offset within ±0.4 cell of the POI centre.
+	spr.position = Vector2(
+		cx + _map_rng.randf_range(-CELL * 0.4, CELL * 0.4),
+		cy + _map_rng.randf_range(-CELL * 0.4, CELL * 0.4))
+	spr.scale = Vector2(1.2, 1.2)   # ~77px glow footprint
+	var mat := CanvasItemMaterial.new()
+	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	spr.material  = mat
+	spr.modulate.a = base_alpha
+	add_child(spr)
+	_glow_pulses.append({
+		"spr":    spr,
+		"hz":     _map_rng.randf_range(0.25, 0.55),
+		"phase":  _map_rng.randf_range(0.0, TAU),
+		"base_a": base_alpha,
+	})
+
+
+func _add_glitter_zone(cy: float, cx: float) -> void:
+	var half_w: float = CELL * 2.5
+	var half_h: float = CELL * 1.2
+	var rect: Rect2 = Rect2(cx - half_w, cy - half_h, half_w * 2.0, half_h * 2.0)
+	var count: int = 7 + _fx_rng.randi() % 5  # 7-11 particles
+	for _k in count:
+		_glitter.append({
+			"pos":        Vector2(_fx_rng.randf_range(rect.position.x, rect.end.x),
+			                      _fx_rng.randf_range(rect.position.y, rect.end.y)),
+			"vel":        Vector2(_fx_rng.randf_range(-10.0, 10.0),
+			                      _fx_rng.randf_range(-6.0,   6.0)),
+			"rect":       rect,
+			"brightness": _fx_rng.randf(),
+			"hidden":     false,
+			"timer":      _fx_rng.randf_range(0.3, 2.0),
 		})
 
 
@@ -658,6 +758,11 @@ func _duplicate_materials(root: Node) -> void:
 
 func _draw() -> void:
 	draw_rect(Rect2(0, 0, 480, 270), BG_COLOR)
+	# Combat glitter — 1px dots.
+	for p in _glitter:
+		if p.brightness > 0.04:
+			draw_rect(Rect2(p.pos, Vector2(1, 1)),
+				Color(0.78, 0.84, 0.92, p.brightness))
 	for col in range(COLS + 1):
 		var x   := col * CELL
 		var maj := col % 4 == 0
@@ -702,6 +807,8 @@ func _rebuild() -> void:
 	_celestial_nodes.clear()
 	_planet_hovers.clear()
 	_asteroid_rotators.clear()
+	_glow_pulses.clear()
+	_glitter.clear()
 	map_seed = _map_rng.randi()
 	call_deferred("_deferred_build")
 
