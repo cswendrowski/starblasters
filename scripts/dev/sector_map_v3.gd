@@ -153,17 +153,12 @@ func _process(delta: float) -> void:
 		var s: float = (STAR_DISPLAY_PX[i] * 2.2) / 64.0 * (1.0 + 0.06 * pulse)
 		glow_spr.scale      = Vector2(s, s)
 		glow_spr.modulate.a = STAR_GLOW_ALPHA[i] + 0.15 * pulse
-	# Animate planet moons — orbit + z_index for in-front/behind layering.
+	# Animate planet moons — elliptical orbits, always visible.
 	for m in _moon_data:
 		if not is_instance_valid(m.node):
 			continue
 		var angle: float = _time * m.speed + m.phase
-		var pos: Vector2  = m.center + Vector2(cos(angle), sin(angle)) * m.orbit_r
-		if m.is_ctrl:
-			m.node.position = Vector2(pos.x - m.ctrl_half, pos.y - m.ctrl_half)
-		else:
-			m.node.position = pos
-		m.node.z_index = 1 if sin(angle) > 0.0 else -1
+		m.node.position = m.center + Vector2(cos(angle) * m.rx, sin(angle) * m.ry)
 	# Rotate asteroids at their individual speeds.
 	for entry in _asteroid_rotators:
 		if is_instance_valid(entry.node) and entry.node.has_method("set_custom_time"):
@@ -225,9 +220,11 @@ func _generate_names() -> void:
 func _generate_route_lengths() -> void:
 	_route_lengths.clear()
 	for i in STAR_ANCHORS.size():
-		var raw: float = _map_rng.randf_range(ROUTE_MIN_LEN, ROUTE_MAX_LEN)
-		var end_x: float = STAR_ANCHORS[i].x + raw
-		_route_lengths.append(minf(end_x, ROUTE_MAX_X) - STAR_ANCHORS[i].x)
+		var raw: float   = _map_rng.randf_range(ROUTE_MIN_LEN, ROUTE_MAX_LEN)
+		var end_x: float = minf(STAR_ANCHORS[i].x + raw, ROUTE_MAX_X)
+		# Snap endpoint to the nearest column intersection so it's a valid POI slot.
+		end_x = float(int(end_x / CELL)) * CELL
+		_route_lengths.append(end_x - STAR_ANCHORS[i].x)
 
 
 func _build_routes() -> void:
@@ -270,6 +267,12 @@ func _build_route_objects() -> void:
 			cursor += advance
 			if placed >= 1 and _map_rng.randf() < PLANET_STOP_PROB:
 				break
+
+		# Always place something at the route endpoint (column intersection).
+		if route_end >= PLANET_START_X:
+			var end_type_id:   int = _map_rng.randi() % OBJ_TYPE_COUNT
+			var end_node_type: int = _pick_node_type()
+			_spawn_route_obj(anchor.y, route_end, route_end, i, end_type_id, planet_idx, end_node_type)
 
 
 # Dispatches to the right spawn function; returns the advance step in px.
@@ -466,7 +469,7 @@ func _build_boss_nodes() -> void:
 		icon_spr.position = pos
 		icon_spr.scale    = Vector2(0.5, 0.5)
 		icon_spr.z_index  = 5
-		icon_spr.modulate = Color(1.0, 1.0, 1.0, 0.2)
+		icon_spr.modulate = Color(1.0, 1.0, 1.0, 0.0)
 		add_child(icon_spr)
 		# Label above.
 		var ls := LabelSettings.new()
@@ -511,59 +514,31 @@ func _get_moon_texture(radius_px: int) -> ImageTexture:
 
 
 func _spawn_moons(planet_cy: float, planet_cx: float, planet_px: float) -> void:
-	# Bias distribution toward fewer moons — squaring randf pulls toward 0.
-	var count: int = int(_map_rng.randf() * _map_rng.randf() * 13.0)
+	var count: int = int(_map_rng.randf() * _map_rng.randf() * 13.0)  # 0-12, biased low
 	if count == 0:
 		return
 	var center := Vector2(planet_cx, planet_cy)
-	var kit_used := false
 	for _k in count:
-		var orbit_r: float  = planet_px * 0.5 + _map_rng.randf_range(3.0, planet_px * 1.8)
-		var spd: float      = _map_rng.randf_range(0.15, 0.60)
-		if _map_rng.randf() > 0.5:
-			spd *= -1.0   # some orbit counter-clockwise
-		var phase: float    = _map_rng.randf_range(0.0, TAU)
-		# 30% chance first eligible moon becomes a planet-kit asteroid (max 1).
-		var use_kit: bool   = not kit_used and _map_rng.randf() < 0.30
-		if use_kit:
-			kit_used = true
-			const KIT_PX: float = 8.0
-			var sf: float = KIT_PX / 100.0
-			var ast = ASTEROID_SCENE.instantiate()
-			if ast is Control:
-				ast.anchor_left = 0.0; ast.anchor_top = 0.0
-				ast.anchor_right = 0.0; ast.anchor_bottom = 0.0
-				ast.offset_right = 100.0; ast.offset_bottom = 100.0
-				ast.size = Vector2(100.0, 100.0)
-				ast.custom_minimum_size = Vector2(100.0, 100.0)
-				ast.pivot_offset = Vector2.ZERO
-			ast.scale = Vector2(sf, sf)
-			_duplicate_materials(ast)
-			if ast.has_method("set_pixels"): ast.set_pixels(KIT_PX)
-			if ast.has_method("set_seed"):   ast.set_seed(_map_rng.randi())
-			if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
-			ast.position = Vector2(planet_cx - 50.0 * sf, planet_cy - 50.0 * sf)
-			add_child(ast)
-			_reset_planet_colorrects(ast)
-			_asteroid_rotators.append({
-				"node": ast, "speed": _map_rng.randf_range(0.01, 0.04),
-				"phase": _map_rng.randf_range(0.0, TAU),
-			})
-			_moon_data.append({
-				"node": ast, "center": center, "orbit_r": orbit_r,
-				"speed": spd, "phase": phase,
-				"is_ctrl": true, "ctrl_half": 50.0 * sf,
-			})
-		else:
-			var radius_px: int = 1 + _map_rng.randi() % 6  # 1-6
-			var spr := Sprite2D.new()
-			spr.texture = _get_moon_texture(radius_px)
-			spr.modulate = Color(0.85, 0.90, 1.0, 0.80)
-			add_child(spr)
-			_moon_data.append({
-				"node": spr, "center": center, "orbit_r": orbit_r,
-				"speed": spd, "phase": phase, "is_ctrl": false,
-			})
+		# Tight orbital radii: just outside the planet edge up to ~1.2× the planet radius.
+		var base_r: float = planet_px * 0.5 + _map_rng.randf_range(2.0, planet_px * 0.7)
+		# Elliptical: rx = base_r, ry = base_r * eccentricity (0.45–1.0).
+		var rx: float = base_r
+		var ry: float = base_r * _map_rng.randf_range(0.45, 1.0)
+		var spd: float = _map_rng.randf_range(0.20, 0.70) * (1.0 if _map_rng.randf() > 0.5 else -1.0)
+		var phase: float = _map_rng.randf_range(0.0, TAU)
+		# Random soft pastel tint.
+		var tint := Color.from_hsv(_map_rng.randf(), _map_rng.randf_range(0.2, 0.6), 0.95, 0.85)
+		var radius_px: int = 1 + _map_rng.randi() % 6  # 1-6px
+		var spr := Sprite2D.new()
+		spr.texture  = _get_moon_texture(radius_px)
+		spr.modulate = tint
+		spr.z_index  = 1  # always in front — no z-flip
+		add_child(spr)
+		_moon_data.append({
+			"node": spr, "center": center,
+			"rx": rx, "ry": ry,
+			"speed": spd, "phase": phase,
+		})
 
 
 # Node type for ambient dressing: 0=outpost 1=hazard 2=signal 3=combat
@@ -648,7 +623,7 @@ func _add_hover_label_icon(center_y: float, center_x: float, display_px: float, 
 	icon_spr.position = Vector2(center_x, center_y)
 	icon_spr.scale    = Vector2(0.5, 0.5)
 	icon_spr.z_index  = 5
-	icon_spr.modulate = Color(1.0, 1.0, 1.0, 0.2)
+	icon_spr.modulate = Color(1.0, 1.0, 1.0, 0.0)
 	add_child(icon_spr)
 	_planet_hovers.append({
 		"center": Vector2(center_x, center_y),
