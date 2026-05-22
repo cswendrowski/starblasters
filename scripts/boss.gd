@@ -52,7 +52,7 @@ func _ready() -> void:
 	# Stats assigned directly (no floor checks) so Commander behaves the
 	# same as Reaver/Sentinel — the previous `<= 0` guard missed the
 	# EnemyBase default of 1 and Commander spawned at 1 HP.
-	max_health = 80
+	max_health = 160
 	bounty_value = 300
 	display_scale = 1.0
 	auto_rotate = false

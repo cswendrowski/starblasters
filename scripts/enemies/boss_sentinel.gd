@@ -12,7 +12,7 @@ var _missile_t: float = 0.0
 
 
 func _ready() -> void:
-	max_health = 160  # Roman, 2026-05-18 balance: S4 mid-boss tier
+	max_health = 320  # ×2 balance pass 2026-05-22
 	bounty_value = 400
 	display_scale = 1.0
 	fire_interval_min = 1.4

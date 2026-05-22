@@ -8,7 +8,7 @@ func _ready() -> void:
 	# Override stats before the base _ready runs (which would otherwise pull
 	# default values from the .gd's @export defaults). We can mutate the
 	# @export fields and they take effect for the base init.
-	max_health = 100  # Roman, 2026-05-18 balance: S3 mid-boss tier
+	max_health = 200  # ×2 balance pass 2026-05-22
 	bounty_value = 250
 	display_scale = 1.0
 	fire_interval_min = 0.35
