@@ -14,6 +14,7 @@ var _prev_bullet_scene: PackedScene = null
 var _prev_cooldown: float = 0.0
 var _prev_damage: int = 0
 var _prev_style: String = ""
+var _prev_sfx_kind: String = ""
 
 func _init() -> void:
 	slot_type = Slots.SlotType.CANNON
@@ -30,6 +31,7 @@ func apply(ship) -> void:
 	if bullet_scene != null:
 		ship.bullet_scene = bullet_scene
 	if "fire_sfx_kind" in ship:
+		_prev_sfx_kind = ship.fire_sfx_kind
 		ship.fire_sfx_kind = "pulse"
 	ship.cooldown = base_cooldown
 	# Roman, 2026-05-18 weapon damage audit: wave gun was one-shotting
@@ -48,6 +50,8 @@ func unapply(ship) -> void:
 	ship.bullet_damage = _prev_damage
 	if "weapon_style" in ship:
 		ship.weapon_style = _prev_style
+	if "fire_sfx_kind" in ship:
+		ship.fire_sfx_kind = _prev_sfx_kind
 	if ship.has_node("GunCooldown"):
 		ship.get_node("GunCooldown").wait_time = ship.cooldown
 
