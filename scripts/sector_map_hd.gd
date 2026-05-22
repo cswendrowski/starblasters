@@ -117,7 +117,7 @@ func _add_stars() -> void:
 						 rng.randf_range(0.7, 1.0)),
 			"base_a": base_a,
 			"amp": rng.randf_range(0.25, 0.55),
-			"speed": rng.randf_range(0.3, 2.2),
+			"speed": rng.randf_range(0.1, 0.73),
 			"phase": rng.randf_range(0.0, TAU),
 		})
 	for _i in 60:
@@ -128,7 +128,7 @@ func _add_stars() -> void:
 			"rgb": Color(rng.randf_range(0.8, 1.0), rng.randf_range(0.85, 1.0), 1.0),
 			"base_a": base_a,
 			"amp": rng.randf_range(0.35, 0.65),
-			"speed": rng.randf_range(0.5, 3.0),
+			"speed": rng.randf_range(0.17, 1.0),
 			"phase": rng.randf_range(0.0, TAU),
 		})
 	# Use an Array so the time value is a reference shared across both lambdas.
