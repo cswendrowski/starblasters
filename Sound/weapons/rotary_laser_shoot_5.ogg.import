@@ -2,13 +2,13 @@
 
 importer="oggvorbisstr"
 type="AudioStreamOggVorbis"
-uid="uid://rlvv2l3gh9dt"
-path="res://.godot/imported/rotary_laser_shoot_5.ogg-59e171504409ca57c324b7528ca4ac76.oggvorbisstr"
+uid="uid://rlvv2l3giadt"
+path="res://.godot/imported/rotary_laser_shoot_5.ogg-767a48d4ee291423acaf4841bc665050.oggvorbisstr"
 
 [deps]
 
 source_file="res://Sound/weapons/rotary_laser_shoot_5.ogg"
-dest_files=["res://.godot/imported/rotary_laser_shoot_5.ogg-59e171504409ca57c324b7528ca4ac76.oggvorbisstr"]
+dest_files=["res://.godot/imported/rotary_laser_shoot_5.ogg-767a48d4ee291423acaf4841bc665050.oggvorbisstr"]
 
 [params]
 

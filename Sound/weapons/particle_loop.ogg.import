@@ -3,12 +3,12 @@
 importer="oggvorbisstr"
 type="AudioStreamOggVorbis"
 uid="uid://pbbf3bpemtwc"
-path="res://.godot/imported/particle_loop.ogg-68b1b6827cb4784e67dc9a9b957dafd0.oggvorbisstr"
+path="res://.godot/imported/particle_loop.ogg-f708d8d18d8f1b70bb35ed8076e08176.oggvorbisstr"
 
 [deps]
 
 source_file="res://Sound/weapons/particle_loop.ogg"
-dest_files=["res://.godot/imported/particle_loop.ogg-68b1b6827cb4784e67dc9a9b957dafd0.oggvorbisstr"]
+dest_files=["res://.godot/imported/particle_loop.ogg-f708d8d18d8f1b70bb35ed8076e08176.oggvorbisstr"]
 
 [params]
 

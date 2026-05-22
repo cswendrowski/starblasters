@@ -3,12 +3,12 @@
 importer="oggvorbisstr"
 type="AudioStreamOggVorbis"
 uid="uid://pbjpgk1gmsog"
-path="res://.godot/imported/particle_charge.ogg-54bc1fab075696f6aa7228682da0a54d.oggvorbisstr"
+path="res://.godot/imported/particle_charge.ogg-c092e8cdc5dcce3cd9efa25536f41658.oggvorbisstr"
 
 [deps]
 
 source_file="res://Sound/weapons/particle_charge.ogg"
-dest_files=["res://.godot/imported/particle_charge.ogg-54bc1fab075696f6aa7228682da0a54d.oggvorbisstr"]
+dest_files=["res://.godot/imported/particle_charge.ogg-c092e8cdc5dcce3cd9efa25536f41658.oggvorbisstr"]
 
 [params]
 

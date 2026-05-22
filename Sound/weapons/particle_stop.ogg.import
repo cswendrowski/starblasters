@@ -2,13 +2,13 @@
 
 importer="oggvorbisstr"
 type="AudioStreamOggVorbis"
-uid="uid://pbkezxmkwmkr"
-path="res://.godot/imported/particle_stop.ogg-2280f85c299f67685bd2e8b0e83dbf26.oggvorbisstr"
+uid="uid://pbke0xmkwmkr"
+path="res://.godot/imported/particle_stop.ogg-241e47ed3bf93a9d2bf4ae7062d59fb3.oggvorbisstr"
 
 [deps]
 
 source_file="res://Sound/weapons/particle_stop.ogg"
-dest_files=["res://.godot/imported/particle_stop.ogg-2280f85c299f67685bd2e8b0e83dbf26.oggvorbisstr"]
+dest_files=["res://.godot/imported/particle_stop.ogg-241e47ed3bf93a9d2bf4ae7062d59fb3.oggvorbisstr"]
 
 [params]
 
