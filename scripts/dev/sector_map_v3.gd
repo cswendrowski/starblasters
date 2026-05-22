@@ -99,6 +99,8 @@ var _route_lengths: Array = []
 var _celestial_nodes: Array = []
 # Per-planet hover entries: {center, radius, label, icon}
 var _planet_hovers: Array = []
+# Asteroid rotation entries: {node, speed, phase} — driven in _process.
+var _asteroid_rotators: Array = []
 
 
 func _ready() -> void:
@@ -127,7 +129,11 @@ func _process(delta: float) -> void:
 		var s: float = (STAR_DISPLAY_PX[i] * 2.2) / 64.0 * (1.0 + 0.06 * pulse)
 		glow_spr.scale      = Vector2(s, s)
 		glow_spr.modulate.a = STAR_GLOW_ALPHA[i] + 0.15 * pulse
-	# Hover: fade planet labels and icons in/out on mouse-over.
+	# Rotate asteroids at their individual speeds.
+	for entry in _asteroid_rotators:
+		if is_instance_valid(entry.node) and entry.node.has_method("set_custom_time"):
+			entry.node.set_custom_time(_time * entry.speed + entry.phase)
+	# Hover: fade labels and icons in/out on mouse-over.
 	var mouse: Vector2 = get_local_mouse_position()
 	for entry in _planet_hovers:
 		var hovered: bool = mouse.distance_to(entry.center) <= entry.radius
@@ -277,47 +283,14 @@ func _spawn_planet(center_y: float, center_x: float, display_px: float, type_idx
 	p.override_time = true
 	_celestial_nodes.append(p)
 
-	# Planet label — row just above planet's top edge, 20% default opacity.
-	var ls := LabelSettings.new()
-	ls.font = FONT; ls.font_size = 9
-	ls.font_color   = Color(0.85, 0.92, 1.0, 0.95)
-	ls.outline_size  = 1
-	ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
-	var lbl := Label.new()
-	lbl.text           = PLANET_LETTERS[mini(planet_idx, PLANET_LETTERS.size() - 1)]
-	lbl.label_settings = ls
-	var planet_top: float = center_y - display_px * 0.5
-	var row_above: int    = int(planet_top / CELL) - 1
-	lbl.position = Vector2(center_x - 3, row_above * CELL + 2)
-	lbl.z_index   = 10
-	lbl.modulate.a = 0.2
-	add_child(lbl)
-
-	# Sector icon — centered on planet, 0.5× scale (16px), 20% opacity.
-	var icon_idx: int = _map_rng.randi() % ICON_COUNT
-	var at := AtlasTexture.new()
-	at.atlas  = ICON_STRIP
-	at.region = Rect2(icon_idx * 32, 0, 32, 32)
-	var icon_spr := Sprite2D.new()
-	icon_spr.texture  = at
-	icon_spr.position = Vector2(center_x, center_y)
-	icon_spr.scale    = Vector2(0.5, 0.5)
-	icon_spr.z_index  = 5   # above planet (0), below labels (10)
-	icon_spr.modulate = Color(1.0, 1.0, 1.0, 0.2)
-	add_child(icon_spr)
-
-	_planet_hovers.append({
-		"center": Vector2(center_x, center_y),
-		"radius": display_px * 0.5,
-		"label":  lbl,
-		"icon":   icon_spr,
-	})
+	_add_hover_label_icon(center_y, center_x, display_px,
+		PLANET_LETTERS[mini(planet_idx, PLANET_LETTERS.size() - 1)])
 
 
 func _spawn_large_asteroid(center_y: float, center_x: float) -> void:
-	var ast = ASTEROID_SCENE.instantiate()
 	const PX: float = 32.0
-	var sf: float = PX / 100.0
+	var sf: float   = PX / 100.0
+	var ast = ASTEROID_SCENE.instantiate()
 	if ast is Control:
 		ast.anchor_left = 0.0; ast.anchor_top = 0.0
 		ast.anchor_right = 0.0; ast.anchor_bottom = 0.0
@@ -331,20 +304,26 @@ func _spawn_large_asteroid(center_y: float, center_x: float) -> void:
 	if ast.has_method("set_seed"):   ast.set_seed(_map_rng.randi() % 100000)
 	seed(_map_rng.randi())
 	if ast.has_method("randomize_colors"): ast.randomize_colors()
-	if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
-	if ast.has_method("set_rotates"): ast.set_rotates(true)
+	if ast.has_method("set_light"):        ast.set_light(Vector2(0.0, 0.5))
 	add_child(ast)
 	_reset_planet_colorrects(ast)
+	# Slow randomized rotation via shader.
+	_asteroid_rotators.append({
+		"node":  ast,
+		"speed": _map_rng.randf_range(0.03, 0.10),
+		"phase": _map_rng.randf_range(0.0, TAU),
+	})
+	_add_hover_label_icon(center_y, center_x, PX, "Asteroid")
 
 
 func _spawn_asteroid_cluster(center_y: float, center_x: float) -> void:
 	var count: int = 3 + _map_rng.randi() % 3  # 3-5 rocks
 	for _k in count:
+		var px: float  = 8.0 + float(_map_rng.randi() % 3) * 4.0  # 8,12,16px
+		var sf: float  = px / 100.0
+		var ox: float  = _map_rng.randf_range(-20.0, 20.0)
+		var oy: float  = _map_rng.randf_range(-16.0, 16.0)
 		var ast = ASTEROID_SCENE.instantiate()
-		var px: float = 8.0 + float(_map_rng.randi() % 3) * 4.0  # 8,12,16px
-		var sf: float = px / 100.0
-		var ox: float = _map_rng.randf_range(-20.0, 20.0)
-		var oy: float = _map_rng.randf_range(-16.0, 16.0)
 		if ast is Control:
 			ast.anchor_left = 0.0; ast.anchor_top = 0.0
 			ast.anchor_right = 0.0; ast.anchor_bottom = 0.0
@@ -358,10 +337,51 @@ func _spawn_asteroid_cluster(center_y: float, center_x: float) -> void:
 		if ast.has_method("set_seed"):   ast.set_seed(_map_rng.randi() % 100000)
 		seed(_map_rng.randi())
 		if ast.has_method("randomize_colors"): ast.randomize_colors()
-		if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
-		if ast.has_method("set_rotates"): ast.set_rotates(true)
+		if ast.has_method("set_light"):        ast.set_light(Vector2(0.0, 0.5))
 		add_child(ast)
 		_reset_planet_colorrects(ast)
+		_asteroid_rotators.append({
+			"node":  ast,
+			"speed": _map_rng.randf_range(0.02, 0.08),
+			"phase": _map_rng.randf_range(0.0, TAU),
+		})
+	# One hover label + icon representing the whole cluster.
+	_add_hover_label_icon(center_y, center_x, 40.0, "Belt")
+
+
+# Shared helper: label above object + sector icon at center + hover entry.
+func _add_hover_label_icon(center_y: float, center_x: float, display_px: float, label_text: String) -> void:
+	var ls := LabelSettings.new()
+	ls.font = FONT; ls.font_size = 9
+	ls.font_color    = Color(0.85, 0.92, 1.0, 0.95)
+	ls.outline_size  = 1
+	ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
+	var lbl := Label.new()
+	lbl.text           = label_text
+	lbl.label_settings = ls
+	var obj_top: float = center_y - display_px * 0.5
+	var row_above: int = int(obj_top / CELL) - 1
+	lbl.position  = Vector2(center_x - 3, row_above * CELL + 2)
+	lbl.z_index   = 10
+	lbl.modulate.a = 0.2
+	add_child(lbl)
+	var icon_idx: int = _map_rng.randi() % ICON_COUNT
+	var at := AtlasTexture.new()
+	at.atlas  = ICON_STRIP
+	at.region = Rect2(icon_idx * 32, 0, 32, 32)
+	var icon_spr := Sprite2D.new()
+	icon_spr.texture  = at
+	icon_spr.position = Vector2(center_x, center_y)
+	icon_spr.scale    = Vector2(0.5, 0.5)
+	icon_spr.z_index  = 5
+	icon_spr.modulate = Color(1.0, 1.0, 1.0, 0.2)
+	add_child(icon_spr)
+	_planet_hovers.append({
+		"center": Vector2(center_x, center_y),
+		"radius": display_px * 0.5,
+		"label":  lbl,
+		"icon":   icon_spr,
+	})
 
 
 func _spawn_nebula(center_y: float, center_x: float) -> void:
@@ -594,6 +614,7 @@ func _rebuild() -> void:
 	_route_lengths.clear()
 	_celestial_nodes.clear()
 	_planet_hovers.clear()
+	_asteroid_rotators.clear()
 	map_seed = _map_rng.randi()
 	call_deferred("_deferred_build")
 
