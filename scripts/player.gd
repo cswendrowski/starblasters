@@ -175,20 +175,13 @@ var _mg_firing: bool = false
 
 # Rotary Laser audio — charge → loop → release-shot.
 const RL_CHARGE_DURATION: float = 0.8
-const RL_SHOOT_STREAMS := [
-	preload("res://Sound/weapons/rotary_laser_shoot_1.ogg"),
-	preload("res://Sound/weapons/rotary_laser_shoot_2.ogg"),
-	preload("res://Sound/weapons/rotary_laser_shoot_3.ogg"),
-	preload("res://Sound/weapons/rotary_laser_shoot_4.ogg"),
-	preload("res://Sound/weapons/rotary_laser_shoot_5.ogg"),
-	preload("res://Sound/weapons/rotary_laser_shoot_6.ogg"),
-]
+var _rl_shoot_streams: Array = []
 var _rl_charging: bool = false
 var _rl_charged: bool = false
 var _rl_charge_t: float = 0.0
 var _rl_charge_player: AudioStreamPlayer2D = null
 var _rl_loop_player: AudioStreamPlayer2D = null
-var _rl_shoot_player: AudioStreamPlayer2D = null
+var _rl_shoot_player_node: AudioStreamPlayer2D = null
 
 # Particle Beam audio — charge → loop → stop (tap-fire skips loop+stop).
 var _pb_charge_player: AudioStreamPlayer2D = null
@@ -296,7 +289,15 @@ func _setup_mg_audio() -> void:
 	# Rotary Laser audio nodes come from the player scene.
 	_rl_charge_player = get_node_or_null("RotaryLaserCharge")
 	_rl_loop_player = get_node_or_null("RotaryLaserLoop")
-	_rl_shoot_player = get_node_or_null("RotaryLaserShoot")
+	_rl_shoot_player_node = get_node_or_null("RotaryLaserShoot")
+	_rl_shoot_streams = [
+		load("res://Sound/weapons/rotary_laser_shoot_1.ogg"),
+		load("res://Sound/weapons/rotary_laser_shoot_2.ogg"),
+		load("res://Sound/weapons/rotary_laser_shoot_3.ogg"),
+		load("res://Sound/weapons/rotary_laser_shoot_4.ogg"),
+		load("res://Sound/weapons/rotary_laser_shoot_5.ogg"),
+		load("res://Sound/weapons/rotary_laser_shoot_6.ogg"),
+	]
 	if _rl_loop_player:
 		var ls: AudioStream = _rl_loop_player.stream
 		if ls is AudioStreamOggVorbis:
@@ -319,9 +320,9 @@ func _rl_stop() -> void:
 		_rl_charge_player.stop()
 	if _rl_loop_player and _rl_loop_player.playing:
 		_rl_loop_player.stop()
-	if was_charged and is_alive and _rl_shoot_player:
-		_rl_shoot_player.stream = RL_SHOOT_STREAMS[randi() % RL_SHOOT_STREAMS.size()]
-		_rl_shoot_player.play()
+	if was_charged and is_alive and _rl_shoot_player_node and not _rl_shoot_streams.is_empty():
+		_rl_shoot_player_node.stream = _rl_shoot_streams[randi() % _rl_shoot_streams.size()]
+		_rl_shoot_player_node.play()
 
 
 func _setup_shield_ring() -> void:
