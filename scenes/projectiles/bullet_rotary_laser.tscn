@@ -1,20 +1,17 @@
 [gd_scene load_steps=3 format=3 uid="uid://rotarylaser001"]
 
 [ext_resource type="Script" path="res://scripts/bullet.gd" id="1_script"]
-[ext_resource type="Texture2D" path="res://graphics/projectiles/energy_laser_blue.png" id="2_tex"]
+[ext_resource type="Texture2D" uid="uid://energyboltsmall1" path="res://graphics/projectiles/energy_bolt_small.png" id="2_tex"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
-size = Vector2(3, 8)
+size = Vector2(3, 6)
 
 [node name="BulletRotaryLaser" type="Area2D"]
 script = ExtResource("1_script")
-scale = Vector2(1, 1)
 speed = 700
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("2_tex")
-hframes = 4
-frame = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 visible = false

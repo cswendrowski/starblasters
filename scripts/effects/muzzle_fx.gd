@@ -26,8 +26,8 @@ const BLASTER_MUZZLE_STRIP_HFRAMES := 3
 const BLASTER_GLOW_COLOR := Color(0.353, 0.796, 0.992, 1.0)
 # Rotary Laser muzzle-flash strip. Frame 0 is the projectile itself;
 # frames 1–3 are the muzzle flash frames used here.
-const ROTARY_LASER_STRIP = preload("res://graphics/projectiles/energy_laser_blue.png")
-const ROTARY_LASER_STRIP_HFRAMES := 4
+const ROTARY_LASER_STRIP = preload("res://graphics/energy_muzzle_blue.png")
+const ROTARY_LASER_STRIP_HFRAMES := 3
 const ROTARY_LASER_GLOW_COLOR := Color(0.3, 0.7, 1.0, 1.0)
 
 
@@ -119,7 +119,7 @@ static func play_rotary_laser(world_pos: Vector2, host: Node = null) -> void:
 	var flash := Sprite2D.new()
 	flash.texture = ROTARY_LASER_STRIP
 	flash.hframes = ROTARY_LASER_STRIP_HFRAMES
-	flash.frame = 1 + (randi() % 3)
+	flash.frame = randi() % ROTARY_LASER_STRIP_HFRAMES
 	if use_local:
 		flash.position = world_pos - (host as Node2D).global_position
 	else:
