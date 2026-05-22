@@ -23,8 +23,17 @@ const COLOR_NODE_GREEN := Color(0.55, 1.0, 0.50, 1.0)
 # Planet designation letters (real-world exoplanet convention).
 const PLANET_LETTERS   := ["b", "c", "d", "e", "f", "g"]
 # PixelPlanets scenes for non-planet route objects.
-const ASTEROID_SCENE = preload("res://Planets/Asteroids/Asteroid.tscn")
-const GALAXY_SCENE   = preload("res://Planets/Galaxy/Galaxy.tscn")
+const ASTEROID_SCENE    = preload("res://Planets/Asteroids/Asteroid.tscn")
+const NEBULA_SHADER     = preload("res://graphics/nebula2.gdshader")
+const NEBULA_COLORSCHEME = preload("res://SpaceBG/Colorscheme.tres")
+# Random hue tints for nebulae — cycle through distinct hues.
+const NEBULA_TINTS := [
+	Color(0.45, 0.55, 1.0, 1.0),   # blue
+	Color(0.80, 0.45, 1.0, 1.0),   # purple
+	Color(1.0,  0.45, 0.55, 1.0),  # red/pink
+	Color(0.45, 1.0,  0.75, 1.0),  # teal
+	Color(1.0,  0.75, 0.30, 1.0),  # amber
+]
 # Route object types: 0=planet 1=large_asteroid 2=asteroid_cluster 3=nebula
 const OBJ_TYPE_COUNT    := 4
 # Per-type advance in cells (placed object width + 2-cell gap).
@@ -221,7 +230,7 @@ func _spawn_route_obj(cy: float, cx: float, route_end: float, _sys_i: int, type_
 		2:  # asteroid cluster
 			_spawn_asteroid_cluster(cy, cx)
 			return float(OBJ_ADVANCE_CELLS[2] * CELL)
-		3:  # nebula (Galaxy.tscn)
+		3:  # nebula (nebula2.gdshader ColorRect)
 			_spawn_nebula(cy, cx)
 			return float(OBJ_ADVANCE_CELLS[3] * CELL)
 	return float(4 * CELL)
@@ -356,26 +365,32 @@ func _spawn_asteroid_cluster(center_y: float, center_x: float) -> void:
 
 
 func _spawn_nebula(center_y: float, center_x: float) -> void:
-	var neb = GALAXY_SCENE.instantiate()
 	var px: float = 32.0 + float(_map_rng.randi() % 3) * 16.0  # 32, 48, 64px
-	var sf: float = px / 100.0
-	if neb is Control:
-		neb.anchor_left = 0.0; neb.anchor_top = 0.0
-		neb.anchor_right = 0.0; neb.anchor_bottom = 0.0
-		neb.offset_right = 100.0; neb.offset_bottom = 100.0
-		neb.size = Vector2(100.0, 100.0)
-		neb.custom_minimum_size = Vector2(100.0, 100.0)
-		neb.pivot_offset = Vector2.ZERO
-	neb.scale    = Vector2(sf, sf)
-	neb.position = Vector2(center_x - 50.0 * sf, center_y - 50.0 * sf)
-	if neb.has_method("set_pixels"):       neb.set_pixels(px)
-	if neb.has_method("set_seed"):         neb.set_seed(_map_rng.randi() % 100000)
-	if neb.has_method("randomize_colors"): neb.randomize_colors()
-	if neb.has_method("set_rotates"):      neb.set_rotates(true)
-	add_child(neb)
-	_reset_planet_colorrects(neb)
-	neb.override_time = true
-	_celestial_nodes.append(neb)
+	var mat := ShaderMaterial.new()
+	mat.shader = NEBULA_SHADER
+	mat.set_shader_parameter("colorscheme", NEBULA_COLORSCHEME)
+	mat.set_shader_parameter("scale",        2.0)
+	mat.set_shader_parameter("octaves",      4)
+	mat.set_shader_parameter("seed",         float(_map_rng.randi() % 900) / 100.0 + 1.0)
+	mat.set_shader_parameter("pixels",       px)
+	mat.set_shader_parameter("drift_speed",  0.004)
+	mat.set_shader_parameter("max_alpha",    0.90)
+	mat.set_shader_parameter("density",      1.2)
+	mat.set_shader_parameter("edge_sharpness", 0.5)
+	mat.set_shader_parameter("warp_strength", 1.0)
+	mat.set_shader_parameter("warp_scale",   1.0)
+	mat.set_shader_parameter("wisp_strength", 0.3)
+	mat.set_shader_parameter("opacity",      1.0)
+	mat.set_shader_parameter("uv_correct",   Vector2(1.0, 1.0))
+	mat.set_shader_parameter("scroll_offset", Vector2.ZERO)
+	var rect := ColorRect.new()
+	rect.color        = Color(0.0, 0.0, 0.0, 0.0)
+	rect.material     = mat
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rect.size         = Vector2(px, px)
+	rect.position     = Vector2(center_x - px * 0.5, center_y - px * 0.5)
+	rect.modulate     = NEBULA_TINTS[_map_rng.randi() % NEBULA_TINTS.size()]
+	add_child(rect)
 
 
 # ---------------------------------------------------------------------------
