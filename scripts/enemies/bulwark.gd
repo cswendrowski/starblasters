@@ -11,7 +11,6 @@ extends "res://scripts/enemies/enemy_base.gd"
 # bullets the same way I do."
 
 const BulletScene = preload("res://scenes/projectiles/enemy_bullet.tscn")
-const SHIELD_SHADER = preload("res://graphics/sci_fi_shield.gdshader")
 
 # --- Stats --------------------------------------------------------------
 @export var shield_charges_max: int = 4        # 2× uncommon-tough baseline
@@ -30,9 +29,6 @@ var _vel: Vector2 = Vector2.ZERO
 var _shield: int = 0
 var _recharge_t: float = 0.0
 var _fire_t: float = 0.0
-var _shield_ring: ColorRect = null
-var _shield_mat: ShaderMaterial = null
-var _shield_hit_tween: Tween = null
 
 const HitFlashFx = preload("res://scripts/effects/hit_flash_fx.gd")
 

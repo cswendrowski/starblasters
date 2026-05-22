@@ -16,7 +16,6 @@ extends "res://scripts/enemies/enemy_base.gd"
 
 const BulletScene = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const TURRET_BULLET_TEX = preload("res://graphics/projectiles/tracer-yellow.png")
-const SHIELD_SHADER = preload("res://graphics/sci_fi_shield.gdshader")
 
 # --- Shape / stats ------------------------------------------------------
 @export var shield_charges_max: int = 2
@@ -48,9 +47,6 @@ var _shield: int = 0
 var _slot_anchor: Vector2 = Vector2.ZERO
 var _enter_t: float = 0.0
 var _sway_seed: float = 0.0
-var _shield_ring: ColorRect = null
-var _shield_mat: ShaderMaterial = null
-var _shield_hit_tween: Tween = null
 
 const HitFlashFx = preload("res://scripts/effects/hit_flash_fx.gd")
 
