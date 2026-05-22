@@ -129,7 +129,7 @@ func _generate_route_lengths() -> void:
 
 func _build_routes() -> void:
 	for i in STAR_ANCHORS.size():
-		var anchor := STAR_ANCHORS[i]
+		var anchor: Vector2 = STAR_ANCHORS[i]
 		var line   := Line2D.new()
 		line.default_color  = ROUTE_COLOR
 		line.width          = ROUTE_WIDTH
@@ -371,3 +371,4 @@ func _draw() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 		SceneTransition.change_scene(get_tree(), "res://scenes/dev_menu.tscn")
+
