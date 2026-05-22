@@ -1,0 +1,20 @@
+[gd_scene load_steps=5 format=3 uid="uid://beamturret001"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_beam_turret.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://cpmt01v4t8ejj" path="res://graphics/enemies/hook_turret.png" id="2_tex"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
+size = Vector2(12, 12)
+
+[node name="EnemyBeamTurret" type="Area2D" groups=["enemies"]]
+script = ExtResource("1_script")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_1")
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("3_die")

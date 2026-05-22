@@ -168,6 +168,14 @@ const ENTRIES := [
 		"shoot": null,
 		"base_count": 1,
 	},
+	{
+		"scene": "res://scenes/enemies/enemy_cruiser.tscn",
+		"tier": Tier.RARE,
+		"size": "large", "tags": [],
+		"movement": "loiter",
+		"shoot": null,
+		"base_count": 1,
+	},
 ]
 
 
