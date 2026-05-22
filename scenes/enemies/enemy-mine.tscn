@@ -51,7 +51,7 @@ tracks/2/keys = {
 [sub_resource type="Animation" id="Animation_ad1l1"]
 resource_name = "bounce"
 loop_mode = 1
-step = 0.05
+step = 0.25
 
 [sub_resource type="Animation" id="Animation_jorl6"]
 resource_name = "explode"

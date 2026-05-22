@@ -24,6 +24,7 @@ extends Control
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const EnemyManifest = preload("res://scripts/dev/enemy_manifest.gd")
+const EnemyRoster = preload("res://scripts/levels/enemy_roster.gd")
 
 const TIER_BY_PATH := {
 	"res://scenes/enemies/boss.tscn": "Boss",
@@ -60,6 +61,8 @@ var _hull_label: Label = null
 var _shield_label: Label = null
 var _bounty_label: Label = null
 var _rarity_label: Label = null
+var _size_label: Label = null
+var _tags_label: Label = null
 var _shoot_toggle: CheckBox = null
 # Ship Sizer integration (merged in, Cody 2026-05-20). Scale slider +
 # orientation flip toggle so the Shipyard subsumes the Ship Sizer tool.
@@ -149,6 +152,8 @@ func _build_ui() -> void:
 	_shield_label = _add_stat(right, "Shield: ?")
 	_bounty_label = _add_stat(right, "Bounty: ?")
 	_rarity_label = _add_stat(right, "Rarity: ?")
+	_size_label = _add_stat(right, "Size: ?")
+	_tags_label = _add_stat(right, "Tags: —")
 	right.add_child(HSeparator.new())
 	_shoot_toggle = CheckBox.new()
 	_shoot_toggle.text = "Shoot"
@@ -278,6 +283,13 @@ func _respawn_current() -> void:
 	_refresh_stats(inst)
 
 
+func _lookup_roster_entry(path: String) -> Dictionary:
+	for entry in EnemyRoster.ENTRIES:
+		if String(entry.get("scene", "")) == path:
+			return entry
+	return {}
+
+
 func _refresh_stats(inst: Node) -> void:
 	var hull: int = int(inst.max_health) if "max_health" in inst else 0
 	var bounty: int = int(inst.bounty_value) if "bounty_value" in inst else 0
@@ -291,6 +303,10 @@ func _refresh_stats(inst: Node) -> void:
 	_shield_label.text = "Shield: %s" % shield_text
 	_bounty_label.text = "Bounty: %d" % bounty
 	_rarity_label.text = "Rarity: %s" % rarity
+	var entry: Dictionary = _lookup_roster_entry(_current_path)
+	_size_label.text = "Size: %s" % String(entry.get("size", "?")).capitalize()
+	var tags: Array = entry.get("tags", [])
+	_tags_label.text = "Tags: %s" % (", ".join(tags).capitalize() if not tags.is_empty() else "—")
 
 
 func _process(_delta: float) -> void:

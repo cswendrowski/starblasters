@@ -1,26 +1,25 @@
 extends Control
 
-# Movement Lab — preview the three new movement patterns
-# (omnidirectional / inertial / jet) all at once. A pointer ship the user
-# drags around with the mouse plays "player", and each test enemy is
-# locked to one pattern so Roman can watch behavior in isolation.
+# Movement Lab — preview the five movement patterns (omni / inertial / jet /
+# vector / charger) all at once. A pointer ship the user drags around with
+# the mouse plays "player", and each test enemy is locked to one pattern so
+# Roman can watch behavior in isolation.
 #
-# Build pattern:
-#   - Three labeled enemy stubs, each running one of the three patterns.
-#   - One Node2D in group "player" that follows the mouse — the patterns
-#     read this via `get_tree().get_nodes_in_group("player")`.
-#   - A reset button to re-randomize spawn positions, plus speed knobs
-#     so the patterns can be tuned without rebuilding.
+# Layout: 480×270 viewport with the live playfield band (X 132–348, Y 0–270).
+# Left gutter (x 0–132): controls panel. Right gutter (x 348–480): info panel.
+# Field area (x 132–348): no background fill, faint 16×16 grid overlay only.
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const SceneTransition = preload("res://scripts/scene_transition.gd")
+const Playfield = preload("res://scripts/playfield.gd")
 const OmniThrust = preload("res://scripts/enemies/patterns/omni_thrust.gd")
 const InertialThrust = preload("res://scripts/enemies/patterns/inertial_thrust.gd")
 const JetMovement = preload("res://scripts/enemies/patterns/jet.gd")
 const JetCharger = preload("res://scripts/enemies/patterns/jet_charger.gd")
 const JetVector = preload("res://scripts/enemies/patterns/jet_vector.gd")
 
-const FIELD_RECT := Rect2(8, 24, 200, 352)
+# Field covers the full playfield band in viewport coordinates.
+const FIELD_RECT := Rect2(132, 0, 216, 270)
 const ENEMY_SIZE := Vector2(14, 14)
 const POINTER_SIZE := Vector2(10, 10)
 
@@ -40,6 +39,13 @@ class TestEnemy extends Node2D:
 	var _fire_t: float = 0.0
 	const FIRE_COOLDOWN: float = 0.6
 	const FIRE_TOL_DEG: float = 12.0
+	# Playfield bounds in field-local coords (field origin = 132, 0).
+	# Values: X_MIN - field_x = 132 - 132 = 0; X_MAX - field_x = 348 - 132 = 216;
+	# Y_MIN = 0; Y_MAX = 270. (from Playfield constants)
+	const CLAMP_X_MIN: float = 0.0
+	const CLAMP_X_MAX: float = 216.0
+	const CLAMP_Y_MIN: float = 0.0
+	const CLAMP_Y_MAX: float = 270.0
 
 	func _ready() -> void:
 		_body = Polygon2D.new()
@@ -68,13 +74,12 @@ class TestEnemy extends Node2D:
 		var step: Vector2 = pattern.compute_step(self, delta)
 		position += step
 		# Hard playfield clamp so a pattern that wants to flee doesn't
-		# vanish off-canvas. Mirrors what boss.gd does in combat.
-		position.x = clamp(position.x, 8.0, 192.0)
-		position.y = clamp(position.y, 8.0, 344.0)
+		# vanish off-canvas. Field origin is at (132, 0) in viewport space,
+		# so field-local coords map directly to Playfield width/height.
+		position.x = clamp(position.x, CLAMP_X_MIN, CLAMP_X_MAX)
+		position.y = clamp(position.y, CLAMP_Y_MIN, CLAMP_Y_MAX)
 		# Test-fire check — emit a tracer when nose is on player, capped
-		# by FIRE_COOLDOWN so we don't spam (Roman, 2026-05-17 Movement
-		# Lab: "have each of these enemies fire a shot at the player when
-		# their nose is pointed at them").
+		# by FIRE_COOLDOWN so we don't spam.
 		_fire_t -= delta
 		if _fire_t <= 0.0:
 			var player := _find_player()
@@ -118,72 +123,110 @@ func _ready() -> void:
 
 
 func _build_ui() -> void:
+	# Dark full-viewport background.
 	var bg := ColorRect.new()
 	bg.color = Color(0.04, 0.05, 0.08, 1.0)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 
+	# Left gutter panel: x 0–132, full height 270.
+	var left_panel := _make_panel(Vector2(0, 0), Vector2(132, 270))
+	add_child(left_panel)
+	var left_vb := VBoxContainer.new()
+	left_vb.add_theme_constant_override("separation", 4)
+	left_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_panel.add_child(left_vb)
+
+	# Header.
 	var header := Label.new()
 	header.text = "MOVEMENT LAB"
-	header.position = Vector2(8, 4)
+	header.add_theme_font_size_override("font_size", 7)
 	UiTheme.style_label(header, UiTheme.LabelKind.HEADER)
-	add_child(header)
+	# Override font size back to 7 after style_label sets it larger.
+	header.add_theme_font_size_override("font_size", 7)
+	left_vb.add_child(header)
 
-	var hint := Label.new()
-	hint.text = "Move mouse — enemies chase pointer"
-	hint.position = Vector2(8, 380)
-	hint.add_theme_font_size_override("font_size", 7)
-	hint.add_theme_color_override("font_color", Color(0.7, 0.78, 0.9))
-	add_child(hint)
+	# Color legend.
+	_add_legend_row(left_vb, "OMNI",     Color(1.0, 0.45, 0.45))
+	_add_legend_row(left_vb, "INERTIAL", Color(0.55, 1.0, 0.55))
+	_add_legend_row(left_vb, "JET",      Color(0.55, 0.85, 1.0))
+	_add_legend_row(left_vb, "VECTOR",   Color(0.85, 0.65, 1.0))
+	_add_legend_row(left_vb, "CHARGER",  Color(1.0, 0.85, 0.4))
 
-	var back := Button.new()
-	back.text = "Back to Dev Menu"
-	back.position = Vector2(214, 376)
-	back.size = Vector2(100, 18)
-	UiTheme.style_button(back, true)
-	back.pressed.connect(_on_back)
-	add_child(back)
+	# Spacer.
+	var gap := Control.new()
+	gap.custom_minimum_size = Vector2(0, 6)
+	left_vb.add_child(gap)
 
-	# Reset button — re-randomize spawn positions.
-	var reset := Button.new()
-	reset.text = "Reset Positions"
-	reset.position = Vector2(214, 26)
-	reset.size = Vector2(100, 18)
-	UiTheme.style_button(reset, true)
-	reset.pressed.connect(_on_reset)
-	add_child(reset)
+	# Buttons.
+	_add_button(left_vb, "Reset", _on_reset)
+	_add_button(left_vb, "Back",  _on_back)
 
-	# Legend.
-	_add_legend("OMNI",     Color(1.0, 0.45, 0.45), Vector2(214, 60))
-	_add_legend("INERTIAL", Color(0.55, 1.0, 0.55), Vector2(214, 74))
-	_add_legend("JET",      Color(0.55, 0.85, 1.0), Vector2(214, 88))
-	_add_legend("VECTOR",   Color(0.85, 0.65, 1.0), Vector2(214, 102))
-	_add_legend("CHARGER",  Color(1.0, 0.85, 0.4), Vector2(214, 116))
+	# Right gutter panel: x 348–480, full height 270.
+	var right_panel := _make_panel(Vector2(348, 0), Vector2(132, 270))
+	add_child(right_panel)
+	var right_vb := VBoxContainer.new()
+	right_vb.add_theme_constant_override("separation", 4)
+	right_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_panel.add_child(right_vb)
 
-	# Tunables hint.
-	var note := Label.new()
-	note.text = "Tune in patterns/*.gd:\nomni_thrust  inertial_thrust  jet"
-	note.position = Vector2(214, 116)
-	note.size = Vector2(100, 60)
-	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	note.add_theme_font_size_override("font_size", 7)
-	note.add_theme_color_override("font_color", Color(0.6, 0.7, 0.85))
-	add_child(note)
+	var right_caption := Label.new()
+	right_caption.text = "PATTERNS"
+	right_caption.add_theme_font_size_override("font_size", 6)
+	UiTheme.style_label(right_caption, UiTheme.LabelKind.CAPTION)
+	right_vb.add_child(right_caption)
+
+	var right_note := Label.new()
+	right_note.text = "Tune in patterns/*.gd"
+	right_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	right_note.add_theme_font_size_override("font_size", 6)
+	right_note.add_theme_color_override("font_color", Color(0.6, 0.7, 0.85))
+	right_vb.add_child(right_note)
 
 
-func _add_legend(text: String, color: Color, pos: Vector2) -> void:
+func _make_panel(pos: Vector2, sz: Vector2) -> PanelContainer:
+	var p := PanelContainer.new()
+	p.position = pos
+	p.size = sz
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.05, 0.07, 0.11, 0.85)
+	sb.border_color = UiTheme.COLOR_ACCENT_DIM
+	sb.border_width_left = 1
+	sb.border_width_top = 1
+	sb.border_width_right = 1
+	sb.border_width_bottom = 1
+	sb.content_margin_left = 3
+	sb.content_margin_right = 3
+	sb.content_margin_top = 3
+	sb.content_margin_bottom = 3
+	p.add_theme_stylebox_override("panel", sb)
+	return p
+
+
+func _add_legend_row(parent: Node, text: String, color: Color) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	parent.add_child(row)
 	var dot := ColorRect.new()
 	dot.color = color
-	dot.position = pos
-	dot.size = Vector2(8, 8)
-	add_child(dot)
+	dot.custom_minimum_size = Vector2(8, 8)
+	dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(dot)
 	var lbl := Label.new()
 	lbl.text = text
-	lbl.position = pos + Vector2(12, -3)
-	lbl.size = Vector2(98, 12)
-	lbl.add_theme_font_size_override("font_size", 7)
+	lbl.add_theme_font_size_override("font_size", 6)
 	lbl.add_theme_color_override("font_color", Color(0.85, 0.92, 1.0))
-	add_child(lbl)
+	row.add_child(lbl)
+
+
+func _add_button(parent: Node, text: String, cb: Callable) -> void:
+	var b := Button.new()
+	b.text = text
+	b.custom_minimum_size = Vector2(0, 12)
+	b.add_theme_font_size_override("font_size", 7)
+	UiTheme.style_button(b, true)
+	b.pressed.connect(cb)
+	parent.add_child(b)
 
 
 func _build_field() -> void:
@@ -192,12 +235,8 @@ func _build_field() -> void:
 	_field.size = FIELD_RECT.size
 	_field.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(_field)
-	var bg := ColorRect.new()
-	bg.color = Color(0.10, 0.12, 0.16, 1.0)
-	bg.size = FIELD_RECT.size
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_field.add_child(bg)
-	# Faint grid.
+	# No background fill — playfield band shows through the dark viewport bg.
+	# Faint 16×16 grid drawn over it.
 	var grid := Node2D.new()
 	grid.draw.connect(_draw_grid.bind(grid))
 	_field.add_child(grid)
@@ -217,7 +256,9 @@ func _spawn_player_marker() -> void:
 	_player_marker = Node2D.new()
 	_player_marker.name = "PlayerPointer"
 	_player_marker.add_to_group("player")
-	_player_marker.position = FIELD_RECT.size * 0.5
+	# Start at centre of the field in field-local coords:
+	# (Playfield.X_MAX - Playfield.X_MIN) * 0.5 = 108, (Playfield.Y_MAX - Playfield.Y_MIN) * 0.5 = 135
+	_player_marker.position = Vector2(108.0, 135.0)
 	_field.add_child(_player_marker)
 	var ring := Polygon2D.new()
 	var pts := PackedVector2Array()
@@ -232,11 +273,13 @@ func _spawn_player_marker() -> void:
 
 func _spawn_enemies() -> void:
 	_clear_enemies()
-	_enemies.append(_make_enemy("OMNI", Color(1.0, 0.45, 0.45), OmniThrust.new(), Vector2(30, 60)))
-	_enemies.append(_make_enemy("INERTIAL", Color(0.55, 1.0, 0.55), InertialThrust.new(), Vector2(80, 60)))
-	_enemies.append(_make_enemy("JET", Color(0.55, 0.85, 1.0), JetMovement.new(), Vector2(130, 60)))
-	_enemies.append(_make_enemy("VECTOR", Color(0.85, 0.65, 1.0), JetVector.new(), Vector2(30, 200)))
-	_enemies.append(_make_enemy("CHARGER", Color(1.0, 0.85, 0.4), JetCharger.new(), Vector2(130, 200)))
+	# Positions are field-local (origin at field x=132, y=0).
+	# Spread across the 216×270 field: three top, two mid.
+	_enemies.append(_make_enemy("OMNI",     Color(1.0, 0.45, 0.45), OmniThrust.new(),    Vector2(50,  60)))
+	_enemies.append(_make_enemy("INERTIAL", Color(0.55, 1.0, 0.55), InertialThrust.new(), Vector2(108, 60)))
+	_enemies.append(_make_enemy("JET",      Color(0.55, 0.85, 1.0), JetMovement.new(),   Vector2(166, 60)))
+	_enemies.append(_make_enemy("VECTOR",   Color(0.85, 0.65, 1.0), JetVector.new(),     Vector2(50,  160)))
+	_enemies.append(_make_enemy("CHARGER",  Color(1.0, 0.85, 0.4),  JetCharger.new(),    Vector2(166, 160)))
 
 
 func _make_enemy(label: String, color: Color, pattern, spawn_pos: Vector2):
