@@ -15,6 +15,14 @@ const PLANET_SCENES   := [
 # Pick types whose zone weight is highest for the current position fraction.
 const PLANET_ZONE_PEAK := [0.10, 0.25, 0.30, 0.50, 0.70, 0.90]
 
+# Sector icons (same strip as sector_map_v2) — 6 frames × 32px.
+const ICON_STRIP       = preload("res://graphics/ui/sector_icons.png")
+const ICON_COUNT       := 6
+# "Available node" green from sector_map_v2.
+const COLOR_NODE_GREEN := Color(0.55, 1.0, 0.50, 1.0)
+# Planet designation letters (real-world exoplanet convention).
+const PLANET_LETTERS   := ["b", "c", "d", "e", "f", "g"]
+
 const CELL  := 16
 const COLS  := 30
 const ROWS  := 16
@@ -72,6 +80,8 @@ var _system_names:  Array = []
 var _route_lengths: Array = []
 # All PixelPlanets Control nodes (stars + planets) — updated at 0.5× speed.
 var _celestial_nodes: Array = []
+# Per-planet hover entries: {center, radius, label, icon}
+var _planet_hovers: Array = []
 
 
 func _ready() -> void:
@@ -99,6 +109,16 @@ func _process(delta: float) -> void:
 		var s: float = (STAR_DISPLAY_PX[i] * 2.2) / 64.0 * (1.0 + 0.06 * pulse)
 		glow_spr.scale      = Vector2(s, s)
 		glow_spr.modulate.a = STAR_GLOW_ALPHA[i] + 0.15 * pulse
+	# Hover: fade planet labels and icons in/out on mouse-over.
+	var mouse: Vector2 = get_local_mouse_position()
+	for entry in _planet_hovers:
+		var hovered: bool = mouse.distance_to(entry.center) <= entry.radius
+		var lbl: Label    = entry.label
+		var icon: Sprite2D = entry.icon
+		lbl.modulate.a = lerpf(lbl.modulate.a, 1.0 if hovered else 0.2, delta * 8.0)
+		var tgt: Color = COLOR_NODE_GREEN if hovered else Color.WHITE
+		tgt.a = 0.9 if hovered else 0.2
+		icon.modulate = icon.modulate.lerp(tgt, delta * 8.0)
 
 
 # ---------------------------------------------------------------------------
@@ -163,7 +183,7 @@ func _build_planets() -> void:
 			# Pick orbital zone weight based on position fraction.
 			var frac: float = (cursor - PLANET_START_X) / max(1.0, route_end - PLANET_START_X)
 			var type_idx: int = _pick_planet_type(frac)
-			_spawn_planet(anchor.y, cursor, px, type_idx)
+			_spawn_planet(anchor.y, cursor, px, type_idx, placed)
 			placed += 1
 			# Advance: full planet width (rounded up to cell) + 2 cell gap.
 			# Centers snap to grid intersections; 2-cell gap keeps planets from cramping.
@@ -191,7 +211,7 @@ func _pick_planet_type(frac: float) -> int:
 	return PLANET_ZONE_PEAK.size() - 1
 
 
-func _spawn_planet(center_y: float, center_x: float, display_px: float, type_idx: int) -> void:
+func _spawn_planet(center_y: float, center_x: float, display_px: float, type_idx: int, planet_idx: int) -> void:
 	var ps = load(PLANET_SCENES[type_idx])
 	if ps == null:
 		return
@@ -206,16 +226,52 @@ func _spawn_planet(center_y: float, center_x: float, display_px: float, type_idx
 		p.pivot_offset = Vector2.ZERO
 	p.scale    = Vector2(sf, sf)
 	p.position = Vector2(center_x - 50.0 * sf, center_y - 50.0 * sf)
-	if p.has_method("set_pixels"):     p.set_pixels(display_px)
-	if p.has_method("set_seed"):       p.set_seed(_map_rng.randi() % 100000)
+	if p.has_method("set_pixels"):       p.set_pixels(display_px)
+	if p.has_method("set_seed"):         p.set_seed(_map_rng.randi() % 100000)
 	if p.has_method("randomize_colors"): p.randomize_colors()
-	if p.has_method("set_rotates"):    p.set_rotates(true)
+	if p.has_method("set_rotates"):      p.set_rotates(true)
 	add_child(p)
 	_reset_planet_colorrects(p)
 	if p.has_method("set_light"):
-		p.set_light(Vector2(0.0, 0.5))  # lit from the left
+		p.set_light(Vector2(0.0, 0.5))
 	p.override_time = true
 	_celestial_nodes.append(p)
+
+	# Planet label — row just above planet's top edge, 20% default opacity.
+	var ls := LabelSettings.new()
+	ls.font = FONT; ls.font_size = 9
+	ls.font_color   = Color(0.85, 0.92, 1.0, 0.95)
+	ls.outline_size  = 1
+	ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
+	var lbl := Label.new()
+	lbl.text           = PLANET_LETTERS[mini(planet_idx, PLANET_LETTERS.size() - 1)]
+	lbl.label_settings = ls
+	var planet_top: float = center_y - display_px * 0.5
+	var row_above: int    = int(planet_top / CELL) - 1
+	lbl.position = Vector2(center_x - 3, row_above * CELL + 2)
+	lbl.z_index   = 10
+	lbl.modulate.a = 0.2
+	add_child(lbl)
+
+	# Sector icon — centered on planet, 0.5× scale (16px), 20% opacity.
+	var icon_idx: int = _map_rng.randi() % ICON_COUNT
+	var at := AtlasTexture.new()
+	at.atlas  = ICON_STRIP
+	at.region = Rect2(icon_idx * 32, 0, 32, 32)
+	var icon_spr := Sprite2D.new()
+	icon_spr.texture  = at
+	icon_spr.position = Vector2(center_x, center_y)
+	icon_spr.scale    = Vector2(0.5, 0.5)
+	icon_spr.z_index  = 5   # above planet (0), below labels (10)
+	icon_spr.modulate = Color(1.0, 1.0, 1.0, 0.2)
+	add_child(icon_spr)
+
+	_planet_hovers.append({
+		"center": Vector2(center_x, center_y),
+		"radius": display_px * 0.5,
+		"label":  lbl,
+		"icon":   icon_spr,
+	})
 
 
 # ---------------------------------------------------------------------------
@@ -284,12 +340,15 @@ func _build_labels() -> void:
 	ls.outline_size  = 1
 	ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
 
-	for i in LABEL_CELLS.size():
-		var cell: Vector2 = LABEL_CELLS[i]
+	for i in STAR_ANCHORS.size():
+		var anchor: Vector2 = STAR_ANCHORS[i]
+		var star_top: float  = anchor.y - STAR_DISPLAY_PX[i] * 0.5
+		# Row just above the star's upper edge.
+		var row_above: int   = int(star_top / CELL) - 1
 		var lbl := Label.new()
 		lbl.text           = _system_names[i]
 		lbl.label_settings = ls
-		lbl.position = Vector2(cell.x * CELL + 2, cell.y * CELL + 1)
+		lbl.position = Vector2(anchor.x - 2, row_above * CELL + 2)
 		lbl.z_index   = 10   # above stars (default 0)
 		add_child(lbl)
 
