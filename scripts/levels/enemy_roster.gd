@@ -125,6 +125,15 @@ const ENTRIES := [
 		"fire_min": 0.7, "fire_max": 1.1,
 	},
 
+	{
+		"scene": "res://scenes/enemies/enemy_beam_shooter.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": ["tough"],
+		"movement": "loiter",
+		"shoot": null,  # uses built-in beam, not shoot_pattern
+		"base_count": 2,
+	},
+
 	# --- RARE -------------------------------------------------------------
 	{
 		"scene": "res://scenes/enemies/enemy_crystal.tscn",
