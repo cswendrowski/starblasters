@@ -14,16 +14,11 @@ extends "res://scripts/enemies/enemy_base.gd"
 # Roman, 2026-05-18 mine pass: shielded mine is a 3-frame strip
 # (F0 dormant → F1 transition → F2 shielded). It doesn't chase; the
 # shield is the upgrade, not motility.
-const SHIELD_SHADER = preload("res://graphics/sci_fi_shield.gdshader")
 # Was 8.0 — too small to render outside the mine sprite, so the shield
 # was effectively invisible (Roman 2026-05-19 "shielded mines activated
 # but didn't have a shield effect"). Bumped to 24 so the ring sits
 # clearly around the mine.
 const SHIELD_RING_SIZE := 24.0
-var _shield_ring: ColorRect = null
-var _shield_mat: ShaderMaterial = null
-var _shield_alpha_tween: Tween = null
-var _shield_hit_tween: Tween = null
 
 var _shield: int = 0
 var _shield_up: bool = false
