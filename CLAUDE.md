@@ -4,50 +4,39 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Godot 2D top-down vertical shmup (GDScript). Originated from the kidscancode "Godot 101: Classic Shmup" tutorial; rebuilt against the Starblaster design doc as a roguelite shmup with branching sector map, slotted parts, and Mk.1–9 upgrade scaling. Renderer: `gl_compatibility`. **Internal viewport 480×270 with `stretch/mode = canvas_items`, `stretch/aspect = keep` (4× display = 1920×1080).** Gameplay is constrained to a **216×270 centered playfield band** (X 132–348) — same 0.8:1 aspect as the original 320×400, so legacy wave/movement code reads correctly. Side gutters (132 px each) host glass panels + HUD. **Always import `scripts/playfield.gd` (`Playfield.X_MIN`, `X_MAX`, `CENTER`, `clamp_pos`) for gameplay bounds — never `get_viewport_rect()`** (that returns the full 480 width, which lets enemies leave the shootable band). Backdrop/despawn margins still read the viewport directly.
+Godot 2D top-down vertical shmup (GDScript). Roguelite with branching sector map, slotted parts, Mk.1–9 upgrade scaling. Renderer: `gl_compatibility`. **Internal viewport 480×270, 4× display = 1920×1080.** Gameplay constrained to **216×270 playfield band (X 132–348)**. Side gutters host glass panels + HUD. **Always import `scripts/playfield.gd` (`Playfield.X_MIN`, `X_MAX`, `CENTER`, `clamp_pos`) for gameplay bounds — never `get_viewport_rect()`** (returns full 480 width). Backdrop/despawn margins may read the viewport directly.
 
-## Engine versions (important — they parse differently)
+## Engine versions
 
-The project uses **two** Godot binaries:
+Two Godot binaries — they parse differently:
 
-- **Godot 4.3 Mono** — the editor, used for day-to-day work. Mono is required because the project ships C# (`assembly_name="Classic Shmup"` per project.godot). Mono **cannot export to Web** — it fails silently with exit 5.
-- **Godot 4.4.1 standalone (non-Mono)** — used only for the web export. 4.4.1's GDScript parser is **stricter** than 4.3's: rejects duplicate `var` shadows, rejects walrus `:=` on untyped array indexing. **A clean editor smoke test does NOT guarantee a working web build.** Always run `tools/parse_check.ps1` before publishing — it's wired into `tools/publish.ps1` as a hard gate.
+- **Godot 4.3 Mono** — editor. Mono **cannot export to Web** (fails silently, exit 5).
+- **Godot 4.4.1 standalone** — web export only. Stricter GDScript parser: rejects duplicate `var` shadows, rejects walrus `:=` on untyped array indexing. **A clean editor smoke test does NOT guarantee a working web build.** Always run `tools/parse_check.ps1` before publishing.
 
 ## Running / building
 
-No CLI build for the editor side — open `project.godot` in Godot 4.3 Mono.
-
-- Headless smoke (4.3 mono, on PATH as `godot`): `godot --path . --headless --quit-after 2`
-- Full parse check (4.4.1 standalone, every user-reachable scene): `tools/parse_check.ps1`
-- Publish to itch (web): `tools/publish.ps1 -Version "0.1.NN"` — bumps `config/version`, runs parse_check as a gate, exports via standalone 4.4.1, mtime-validates the pck, then `butler push`. **Never `butler push` directly — always go through publish.ps1 with explicit version bump.** Don't push without explicit user confirmation.
-- Pre-built artifacts (`Classic Shmup.console.exe`, `*.pck`, `shmup-*.zip`) at repo root are release outputs, not inputs.
-- No test framework. No lint step.
+- Headless smoke: `godot --path . --headless --quit-after 2`
+- Full parse check: `tools/parse_check.ps1`
+- Publish: `tools/publish.ps1 -Version "0.1.NN"` — bumps version, runs parse_check, exports via 4.4.1, mtime-validates pck, then `butler push`. **Never `butler push` directly.** Don't push without explicit user confirmation.
 
 ## Workflow: human-iterated, agent-consumed
 
-Context is the scarce resource. Iteration-heavy work (UI layout, visual feel, numeric tuning) belongs in a dev tuner the **human** runs — Claude consumes the *output*, not the iteration loop.
+Context is the scarce resource. Iteration-heavy work belongs in a dev tuner the **human** runs.
 
 **For UI/HUD layout, visual tuning, or numeric balance:**
-- If a tuner already exists (`UI Designer`, `Ship Sizer`, `Parallax Tuner`, `Wave Tester`, `Asteroid Lab`, `Movement Lab`, `Shipyard`, `Maneuver Sim`), the default is: **ask Roman to run it and paste the exported values / JSON**. Do not iterate by edit-capture-look — that burns context to do what a human's eyes do in seconds.
-- If no tuner exists for a 3+-knob system Roman will want to fiddle with, **scaffold one first** (see `scripts/dev/ui_designer.gd` / `ship_sizer.gd` as references — JSON persist to `user://tuners/<name>.json`, Copy-GDScript clipboard export), then hand it off.
-- Tuner authoring contract: every new tuner must have a **Copy GDScript** button that emits a paste-ready snippet (constants, `_ready` calls, or a `.tres` dict). Without that, the handoff is broken.
+- Existing tuners: `UI Designer`, `Ship Sizer`, `Parallax Tuner`, `Wave Tester`, `Asteroid Lab`, `Movement Lab`, `Shipyard`, `Maneuver Sim`. Ask Roman to run it and paste the exported values. Do not iterate by edit-capture-look.
+- No tuner for a 3+-knob system? Scaffold one first (see `scripts/dev/ui_designer.gd` as reference — JSON persist to `user://tuners/<name>.json`).
+- **Tuner contract:** every tuner must have a **Copy GDScript** button emitting a paste-ready snippet. Without it the handoff is broken.
 
-**For visual mechanics that aren't knob-tunable** (shaders, particle FX, projectile feel), the capture pipeline still applies — but prefer posting the GIF to Roman over reading PNG frames yourself unless actively iterating on a specific bug. See `feedback_visual_review.md` / `feedback_no_image_reads.md` memory rules.
-
-## Visual capture pipeline
-
-For iterating on visual mechanics (shaders, particle FX, drop shadows, projectile feel), write a one-shot `tools/capture_<mechanic>.gd` (SceneTree script) + `.ps1` wrapper that runs ffmpeg to a GIF. Pattern is proven for `capture_boss_blackhole`, `capture_debris`, `capture_engine_torch`, etc. **Always Read the captured PNG frames to verify the visual before claiming a fix landed — a clean smoke test only verifies the code parsed, not that the visual is correct.** (Caveat: if a tuner covers the same surface, prefer the tuner handoff — capture-and-read is a fallback for non-tunable surfaces.)
+**For visual mechanics:** write `tools/capture_<mechanic>.gd` + `.ps1` → ffmpeg → GIF. Post GIF to Discord; don't read PNG frames yourself unless actively debugging a specific visual bug.
 
 ## Input map
 
-Defined in `project.godot` under `[input]`:
-- Movement: `left`/`right`/`up`/`down` (WASD + arrows)
-- `shoot` (Space), `shoot2` (G), `shoot_nose` (Shift)
-- `weapon_previous` (Q), `weapon_next` (E)
+`left`/`right`/`up`/`down` (WASD + arrows), `shoot` (Space), `shoot2` (G), `shoot_nose` (Shift), `weapon_previous` (Q), `weapon_next` (E).
 
 ## Autoloads (`/root/...`)
 
-- `Run` (`scripts/run_state.gd`) — persistent run state: bounty, hull/shield, loadout snapshot, sector_map_cache, current_node_id/type, current_hazard_subtype, sectors_cleared, run_seed. `Run.new_run()` resets. Dev menu and signal events stash one-shot config via `Run.set_meta(...)` (e.g. `wave_v2_knobs`, `forced_boss_scene`, `minefield_mine_type`) consumed by `main.gd` / wave generator on combat start.
+- `Run` (`scripts/run_state.gd`) — run state: bounty, hull/shield, loadout snapshot, sector_map_cache, current_node_id/type, current_hazard_subtype, sectors_cleared, run_seed. `Run.new_run()` resets. One-shot config via `Run.set_meta(...)` (e.g. `wave_v2_knobs`, `forced_boss_scene`, `minefield_mine_type`).
 - `Dbg` — debug helpers
 - `Music` — context-aware BGM (`set_context("menu"|"combat"|"boss"|"sector")`)
 - `Settings` — persisted user prefs
@@ -55,55 +44,48 @@ Defined in `project.godot` under `[input]`:
 ## Architecture
 
 ### Scene flow
-`main_menu.tscn` (main scene) → `main.tscn` (combat) ↔ `sector_map_v2.tscn` → `outpost.tscn` / `signal_event.tscn` / `cleared_summary.tscn` / `run_summary.tscn`. Sector map is V2 (a 12-row grid with forward-only edges; `_strip_backward_edges` enforces the invariant after generation AND after cache restore).
+`main_menu.tscn` → `main.tscn` (combat) ↔ `sector_map_v2.tscn` → `outpost.tscn` / `signal_event.tscn` / `cleared_summary.tscn` / `run_summary.tscn`. Sector map: 12-row grid, forward-only edges (`_strip_backward_edges`).
 
 ### Combat flow (`scripts/main.gd`)
-`main.gd::new_game()` looks at `Run.current_node_type` (or `wave_v2_knobs` meta) and builds a `LevelData` via either:
-- `WaveGen.build(sector_depth, level_index, is_boss)` — `scripts/levels/wave_generator.gd`, the dynamic generator used in production.
-- `WaveGeneratorV2.build_combat(sector_idx, knobs)` — `scripts/levels/wave_generator_v2.gd`, used by the Wave Tester dev menu. Knobs auto-derive from `sector_depth`: more waves, more density, deeper tier pool as depth climbs. Includes a rare bomber-wing event (`_pending_wings` static registry).
-- `Levels.build_minefield_level()` / `build_asteroid_field_level()` — `scripts/levels/levels_v2.gd`, the live hazard builders. Minefield reads `Run.minefield_mine_type` meta if the dev tester forced a composition.
-
-`scripts/levels/director.gd` (instanced as `WaveDirector` under Main) walks the level's `WaveSpec`s and spawns enemies. Emits `enemy_died(value)`, `wave_started(i, total)`, `level_cleared`. `level_cleared` triggers `_run_outro()`: exit thruster SFX, player fly-out tween, wipe-to-black, mount `ClearedSummaryScene`.
+`new_game()` builds `LevelData` via `WaveGen.build()` (production), `WaveGeneratorV2.build_combat()` (Wave Tester dev), or `Levels.build_minefield/asteroid_field_level()` (hazard nodes). `director.gd` walks `WaveSpec`s, emits `enemy_died`, `wave_started`, `level_cleared`. `level_cleared` → `_run_outro()` → fly-out tween → wipe → `ClearedSummaryScene`.
 
 ### Enemies (`scripts/enemies/`)
-- `enemy_base.gd` (extends `Area2D`, `class_name EnemyBase`) — base for everything in the `enemies` group. Provides `health`/`max_health`/`take_hit(damage)`/`explode()`/`died(value)`, automatic engine flame + parallax shadow + damage overlay shader for ships (`auto_rotate` gates these), debris spawn on death (`_spawn_debris`), offscreen cleanup via `offscreen_mode` enum.
-- `enemy_core.gd` — pattern-driven layer on top of EnemyBase. Adds `movement: Resource` + `shoot_pattern: Resource` slots and the legacy "anchor follow" fallback.
-- `patterns/` — movement Resources (`straight_down`, `s_curve`, `loiter`, `boss_sweep`, `top_dive`, `side_cut`, `advance_retreat`, `beeline_player`, `slow_advance`, `omni_thrust`, `inertial_thrust`, `jet_*`). Subclass `movement_pattern.gd`; override `compute_step(enemy, delta) -> Vector2`.
-- `shoot_patterns/` — fire Resources (`single_shot`, `aimed_fire`, `spread_shot`, etc.).
-- Custom enemies that need bespoke `_process` logic (bomber, bulwark v2) extend `enemy_base.gd` directly. They expose `hull` / `max_hull` shim properties and a `hull_changed(max, current)` signal so player-side damage tells (engine_torch, damage_smoke_trail) can attach to them too.
+- `enemy_base.gd` — base (`Area2D`, `class_name EnemyBase`). Health, `take_hit`, `explode`, engine flame + parallax shadow + damage overlay shader (gated by `auto_rotate`), debris on death, offscreen cleanup.
+- `enemy_core.gd` — adds `movement: Resource` + `shoot_pattern: Resource` slots.
+- `patterns/` — movement Resources; subclass `movement_pattern.gd`, override `compute_step(enemy, delta) -> Vector2`.
+- Custom enemies (bomber, bulwark v2) extend `enemy_base.gd` directly, expose `hull`/`max_hull` + `hull_changed` signal.
 
-### Bosses (`scripts/boss.gd`, `scripts/enemies/boss_reaver.gd`, `boss_sentinel.gd`)
-Three bosses (Commander/Reaver/Sentinel) share `boss.gd` as base. Each sets stats directly in `_ready()` before `super._ready()` — never via the `<= 0 ? default` pattern (caused 1-HP bug). Boss attack: charge-fire-detonate black hole (`_run_black_hole_sequence`) — small hole tracks boss during 2.5s charge with boss `_charging = true` halting shoot timer + slowing sweep, fires straight down to player Y, detonates with concentric scale tween + pull activation. `boss_sweep.gd` X-axis uses `sin³(t)` easing so direction reversals aren't stark.
+### Bosses (`scripts/boss.gd`, `boss_reaver.gd`, `boss_sentinel.gd`)
+Three bosses share `boss.gd`. **Each sets stats in `_ready()` before `super._ready()` — never via `<= 0 ? default` pattern (caused 1-HP bug).** Boss attack: charge → fire → detonate black hole sequence. `boss_sweep.gd` uses `sin³(t)` easing on X-axis.
 
-### Player (`scripts/player.gd`, part-driven stats)
-All stats start at zero and are populated by **Parts** equipped through `PlayerLoadout`. See `scripts/weapons/SlotTypes.gd` for the 10-slot layout, `scripts/parts/*` for parts. Shield is a CHARGE pool — each hit consumes one charge with brief i-frames regardless of damage; once empty, damage bleeds to hull. **Same mechanic on all shielded enemies** (bulwark, bomber, mine_shielded). When hull ≤ 50%, `engine_torch` (procedural fire shader at the engine pixel) + `damage_smoke_trail` (textured Line2D with drift) kick in. `take_damage()` applies sector damage scaling `× (1 + 0.05 × sectors_cleared)` before shield/armor math.
+### Player (`scripts/player.gd`)
+All stats start at zero, populated by Parts via `PlayerLoadout`. **Shield = CHARGE pool** — each hit consumes one charge + brief i-frames; empty → hull damage. When hull ≤ 50%: `engine_torch` + `damage_smoke_trail` activate. `take_damage()` applies sector scaling `× (1 + 0.05 × sectors_cleared)`.
 
 ### Projectiles (`scripts/projectiles/`)
-All projectiles extend `base_bullet.gd` (player bullets, enemy bullets, `bullet_minigun`) or `base_missile.gd` (player + enemy missiles). Both have offscreen cleanup. **Spawn bullets as children of `get_tree().root`, never the player or enemy** — so they survive the spawner's `queue_free`.
+Extend `base_bullet.gd` or `base_missile.gd`. **Spawn as children of `get_tree().root`, never the player or enemy** — must survive spawner's `queue_free`.
 
 ### Backdrop (`scripts/galaxy_backdrop.gd`)
-Parallax stack: deep-sky base → starfield foundation → nebula → planet (one stellar body per level) → asteroids (deep/mid/near bands) → warp streaks → anchor tint → vignette. Celestial pick is **weighted** (`_weighted_celestial_pick`): 7% BlackHole, 3% Galaxy, 40% Star, 50% globe planet (split across 6 variants). Globe planets can spawn moons; stars can be binary (`_spawn_companions`). Mine-hazard levels also drop decorative background mines via `_spawn_background_mines` (no collision, multiply-blend at 50% black).
+Parallax stack: deep-sky → starfield → nebula → planet → asteroids → warp streaks → vignette. One celestial body per level (weighted pick). Mine-hazard levels add decorative background mines (no collision).
 
 ### Effects (`scripts/effects/`)
-Static helpers — most are called as `Cls.method(...)` (no instance needed): `hit_flash_fx.flash(node, kind)`, `shadow_fx.attach_shadow(spr)`, `parallax_shadow.attach(node)`, `explosion_fx.play(pos, scale)` or `.burst(pos, count, jitter, stagger)` for multi-blast, `impact_fx.spawn(parent, pos, color, kind)`, `burn_fx.apply_burn(spr, dur)`, `enemy_engine_fx.attach(enemy, tint, scale)`, `shield_sfx.play_hit/play_break(parent, pos)`. Damage tell pair: `engine_torch.attach_to_player(host, nozzle_offset)` + `damage_smoke_trail.new()` with `emit_local` set — both gate on `hull_changed` and a 50%-hull threshold.
+Static helpers called as `Cls.method(...)`: `hit_flash_fx.flash`, `shadow_fx.attach_shadow`, `explosion_fx.play/.burst`, `impact_fx.spawn`, `burn_fx.apply_burn`, `enemy_engine_fx.attach`, `shield_sfx.play_hit/play_break`, `muzzle_fx.play/play_energy`. Damage tells: `engine_torch.attach_to_player` + `damage_smoke_trail` — both gate on `hull_changed` + 50%-hull threshold.
 
-### Playfield frame (`scripts/main.gd::_install_playfield_frame`)
-Combat scene installs three CanvasLayers above the world: **Glass=1** (translucent panels over the two side gutters, x 0–132 and 348–480), **HUD=5** (`$CanvasLayer/UI` bumped from default 0), **Outline=10** (left+right borders only — no top/bottom bars). HUD is anchored to span the full viewport (overrides the 152×24 pin in `main.tscn`) so bounty/ammo land in the right gutter while the hull bar centers in the playfield band.
+### Playfield frame
+Three CanvasLayers: **Glass=1** (side gutter panels, x 0–132 and 348–480), **HUD=5**, **Outline=10** (left+right borders only).
 
-### Dev menu (`scripts/dev_menu.gd`, reachable from main menu)
-2-column GridContainer. Movement Test, Movement Lab, **Wave Tester** (V2 with sector+depth sliders), Shipyard, Parallax Tuner, **Asteroid Lab**, Test Bed, **Test Hazard** (Minefield with composition sub-modal / Asteroid Field), **Boss Fight** (pick from Commander/Reaver/Sentinel — sets `Run.forced_boss_scene`, consumed by `wave_generator._pick_boss`), Hangar, **UI Designer** (`scripts/dev/ui_designer.gd` — 15 knobs for playfield bounds + HUD spacing/sizing, saves to `user://tuners/ui_designer.json`, has Copy GDScript export), **Ship Sizer** (`scripts/dev/ship_sizer.gd` — preview player + any enemy at tunable scale, with orientation flip and `_strip_preview_vfx` to hide engine flames/smoke/shadows in the preview).
+### Dev menu (`scripts/dev_menu.gd`)
+3-column GridContainer, 86×14 buttons. Includes: Movement Lab, Wave Tester, Shipyard, Parallax Tuner, Asteroid Lab, Test Hazard, Boss Fight, Hangar, UI Designer, Ship Sizer, Progression Mockup.
 
-## Conventions worth knowing
+## Conventions
 
-- **Hitboxes**: enemy CollisionShape2D = sprite size exactly (no inset). Player hitbox = sprite size − 2-4 px (gives wiggle-room for close calls). Difficulty goes through HP/damage/spawn rate, never via stealth-shrunk hitboxes.
-- **Explosions**: always native 1× scale. Big enemies get MORE blasts (`ExplosionFx.burst(pos, count, jitter, stagger)`) with random jitter, not stretched sprites. Same rule for debris — count scales with enemy size, piece scale is fixed at 1×.
-- **All ships moving forward**: the game's fiction is that the player races forward (up) and enemies fly down toward them. Stationary-looking objects are actively propelling themselves. Death VFX (debris, falling hulks) should immediately drift downward from frame 0 — never "freeze then fall."
-- `.uid` files next to every `.gd`/`.gdshader` are Godot-generated resource UIDs — commit them; never edit by hand.
-- `.tmp` files in `scenes/player/` and the repo root are Godot editor autosave leftovers — safe to ignore, do not treat as source.
-- Sprite assets come from "Mini Pixel Pack 3" (third-party) and `graphics/`. Don't relocate without updating `.tscn` resource paths.
-- `default_texture_filter=0` (nearest) is intentional for the pixel-art look.
-- When adding a new Part: extend `Part`, set `slot_type` in `_init`, override `apply(ship)` (additive + record delta) and `unapply(ship)` (reverse). Register in `PartFactory` for starting/shop pools.
+- **Hitboxes**: enemies = full sprite size. Player = sprite − 2-4 px. Difficulty via HP/damage/spawn rate, never hitbox size.
+- **Explosions**: always 1× scale. Big enemies get more blasts (`.burst()`), not stretched sprites. Debris count scales with enemy size, piece scale fixed at 1×.
+- **Death VFX**: debris drifts downward from frame 0 — never freeze-then-fall.
+- `.uid` files — Godot-generated UIDs; commit them, never edit by hand.
+- `.tmp` files in `scenes/player/` — editor autosave, ignore.
+- `default_texture_filter=0` (nearest) — intentional for pixel art.
+- **New Part**: extend `Part`, set `slot_type` in `_init`, override `apply(ship)` (additive + record delta) and `unapply(ship)` (reverse). Register in `PartFactory`.
 
 ## Godot MCP integration
 
-`addons/godot_mcp/` (ee0pdt/Godot-MCP) is enabled. With the Godot editor open and the addon's WebSocket server running on port 9080, Claude Code can read/edit scripts and scene trees live. Bridge binary: `F:\Programming\Git\Godot-MCP\server\dist\index.js`. Editing `.tscn` files on disk while the editor has them open will prompt for a reload — accept it.
+`addons/godot_mcp/` enabled. Editor open + addon WebSocket on port 9080 = live script/scene editing. Bridge: `F:\Programming\Git\Godot-MCP\server\dist\index.js`. Editing `.tscn` on disk while editor has it open prompts reload — accept it.

@@ -29,10 +29,10 @@ scripts/
   boss.gd           boss base
   run_state.gd      Run autoload (persistent run state)
   enemies/
-    enemy_base.gd     Area2D base for everything in `enemies` group
-    enemy_core.gd     pattern-driven layer (movement Resource + shoot Resource)
-    patterns/         movement Resources
-    shoot_patterns/   fire Resources
+	enemy_base.gd     Area2D base for everything in `enemies` group
+	enemy_core.gd     pattern-driven layer (movement Resource + shoot Resource)
+	patterns/         movement Resources
+	shoot_patterns/   fire Resources
   projectiles/      base_bullet.gd, base_missile.gd + subclasses
   effects/          static FX helpers (hit_flash, explosion, debris, …)
   levels/           wave_generator(_v2), levels_v2 (hazards), director

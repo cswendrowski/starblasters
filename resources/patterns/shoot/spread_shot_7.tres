@@ -1,0 +1,63 @@
+[gd_resource type="Resource" load_steps=11 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/enemy_bullet.gd" id="1_32fgk"]
+[ext_resource type="Texture2D" path="res://Mini Pixel Pack 3/Projectiles/Enemy_projectile (16 x 16).png" id="2_kh1fm"]
+[ext_resource type="Script" path="res://scripts/enemies/shoot_patterns/spread_shot.gd" id="3_i87v7"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ua1nk"]
+atlas = ExtResource("2_kh1fm")
+region = Rect2(0, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_r5jcj"]
+atlas = ExtResource("2_kh1fm")
+region = Rect2(16, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_0ep23"]
+atlas = ExtResource("2_kh1fm")
+region = Rect2(32, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ibyax"]
+atlas = ExtResource("2_kh1fm")
+region = Rect2(48, 0, 16, 16)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_aappp"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ua1nk")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_r5jcj")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_0ep23")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ibyax")
+}],
+"loop": true,
+"name": &"default",
+"speed": 10.0
+}]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_ruvs5"]
+size = Vector2(6, 6)
+
+[sub_resource type="PackedScene" id="PackedScene_xqldg"]
+_bundled = {
+"conn_count": 2,
+"conns": PackedInt32Array(1073741828, 1073741827, 18, 17, 2, 0, 0, 1073741830, 1073741829, 20, 19, 2, 0, 0),
+"editable_instances": [],
+"names": PackedStringArray("EnemyBullet", "Area2D", "bullets", "script", "scale", "AnimatedSprite2D", "AnimatedSprite2D", "sprite_frames", "autoplay", "frame_progress", "CollisionShape2D", "CollisionShape2D", "visible", "shape", "VisibleOnScreenNotifier2D", "VisibleOnScreenNotifier2D", "visible", "_on_area_entered", "area_entered", "_on_visible_on_screen_notifier_2d_screen_exited", "screen_exited"),
+"node_count": 4,
+"node_paths": [NodePath("."), NodePath("."), NodePath("."), NodePath("."), NodePath("."), NodePath("."), NodePath("VisibleOnScreenNotifier2D")],
+"nodes": PackedInt32Array(-1, -1, 1, 0, -1, 2, 3, 0, 4, 1, 1, 2, 1073741824, 0, 6, 5, -1, 3, 7, 2, 8, 3, 9, 4, 0, 1073741825, 0, 11, 10, -1, 2, 12, 5, 13, 6, 0, 1073741826, 0, 15, 14, -1, 1, 16, 7, 0),
+"variants": [ExtResource("1_32fgk"), Vector2(1, 1), SubResource("SpriteFrames_aappp"), "default", 0.140445, false, SubResource("RectangleShape2D_ruvs5"), false],
+"version": 3
+}
+
+[resource]
+script = ExtResource("3_i87v7")
+bullet_count = 7
+spread_degrees = 100.0
+bullet_scene = SubResource("PackedScene_xqldg")

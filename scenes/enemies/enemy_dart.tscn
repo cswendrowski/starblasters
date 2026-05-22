@@ -243,6 +243,7 @@ color_ramp = SubResource("GradientTexture1D_4lmie")
 script = ExtResource("1_0exlg")
 max_health = 2
 bounty_value = 15
+display_scale = 0.55
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("3_g646a")
