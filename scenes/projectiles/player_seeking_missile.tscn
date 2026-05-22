@@ -1,10 +1,25 @@
-[gd_scene load_steps=3 format=3 uid="uid://bplyseek001"]
+[gd_scene load_steps=7 format=3 uid="uid://bplyseek001"]
 
 [ext_resource type="Script" path="res://scripts/projectiles/base_missile.gd" id="1_script"]
-[ext_resource type="Texture2D" path="res://Mini Pixel Pack 3/Projectiles/Player_missile_shots (16 x 16).png" id="2_tex"]
+[ext_resource type="Texture2D" uid="uid://cqlt8bryndrht" path="res://graphics/projectiles/missile-teal.png" id="2_tex"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
-size = Vector2(8, 14)
+size = Vector2(2, 5)
+
+[sub_resource type="Gradient" id="Gradient_glow"]
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0)
+offsets = PackedFloat32Array(0.0, 1.0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_glow"]
+gradient = SubResource("Gradient_glow")
+width = 16
+height = 16
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(1.0, 0.5)
+
+[sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_glow"]
+blend_mode = 1
 
 [node name="PlayerSeekingMissile" type="Area2D"]
 z_index = -1
@@ -24,9 +39,14 @@ initial_dir = Vector2(0, -1)
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("2_tex")
-hframes = 16
-frame = 8
-modulate = Color(0.85, 1.0, 0.85, 1)
+
+[node name="Glow" type="Sprite2D" parent="."]
+position = Vector2(0, 3)
+scale = Vector2(0.4, 0.4)
+modulate = Color(0.25, 0.9, 0.85, 0.9)
+material = SubResource("CanvasItemMaterial_glow")
+texture = SubResource("GradientTexture2D_glow")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+visible = false
 shape = SubResource("RectangleShape2D_1")
