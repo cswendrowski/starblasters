@@ -14,24 +14,22 @@ const GRID_MAJOR  := Color(0.35, 0.43, 0.58, 0.85)
 const LABEL_COLOR := Color(0.32, 0.42, 0.58, 0.50)
 const FONT_SIZE   := 5
 
-# Stars placed at major-grid intersections (col4/row4, col4/row8, col4/row12).
 # Each row: [center_px, center_py, display_px, seed, glow_color, glow_alpha, pulse_hz, pulse_phase]
-# Seed parity drives Star.gd's _set_colors: odd → cool blue-white, even → warm yellow-orange.
+# Seed parity: odd = cool blue-white (B-type), even = warm yellow-orange (G/M-type).
 const STAR_DATA := [
-	# B-type — large blue-white — pixel (64, 64)
+	# B-type — cool blue-white — (64, 64)
 	[64.0, 64.0,  64.0, 7,
 		Color(0.45, 0.65, 1.00, 1.0), 0.65, 0.38, 0.00],
-	# G-type — mid yellow — pixel (64, 128)
+	# G-type — warm yellow — (64, 128)
 	[64.0, 128.0, 32.0, 42,
 		Color(1.00, 0.72, 0.18, 1.0), 0.60, 0.52, 1.10],
-	# M-type — small orange-red — pixel (64, 192)
+	# M-type — warm orange-red — (64, 192)
 	[64.0, 192.0, 20.0, 16,
 		Color(1.00, 0.26, 0.07, 1.0), 0.55, 0.44, 2.30],
 ]
 
 var _time: float = 0.0
-var _star_controls: Array = []
-var _star_glows:    Array = []
+var _star_glows: Array = []
 
 
 func _ready() -> void:
@@ -41,20 +39,18 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
-	for i in _star_controls.size():
-		var star = _star_controls[i]
-		if star.has_method("update_time"):
-			star.update_time(_time)
-		var d: Array = STAR_DATA[i]
+	# Stars animate via their own Planet._process — only the glow halo needs
+	# manual animation here.
+	for i in _star_glows.size():
+		var d: Array    = STAR_DATA[i]
 		var hz:         float = d[6]
 		var phase:      float = d[7]
 		var base_alpha: float = d[5]
 		var display_px: float = d[2]
 		var pulse: float = sin(_time * hz * TAU + phase)
-		var glow_node = _star_glows[i]
-		var glow_spr: Sprite2D = glow_node.get_child(0)
-		var glow_s: float = (display_px * 2.2) / 64.0 * (1.0 + 0.06 * pulse)
-		glow_spr.scale     = Vector2(glow_s, glow_s)
+		var glow_spr: Sprite2D = _star_glows[i].get_child(0)
+		var s: float = (display_px * 2.2) / 64.0 * (1.0 + 0.06 * pulse)
+		glow_spr.scale     = Vector2(s, s)
 		glow_spr.modulate.a = base_alpha + 0.15 * pulse
 
 
@@ -65,35 +61,38 @@ func _build_stars() -> void:
 		var display_px: float = d[2]
 		var seed_val:   int   = d[3]
 		var glow_color: Color = d[4]
+		var cool: bool        = (seed_val % 2 == 1)
 
-		# ---- PixelPlanets Star (Control node) --------------------------------
+		# ---- PixelPlanets Star -------------------------------------------------
+		# Follow the same setup order as galaxy_backdrop._spawn_planet:
+		# configure the Control, call set_pixels + set_seed BEFORE add_child
+		# so the shader parameters are consistent when _ready() fires.
 		var star = STAR_SCENE.instantiate()
 		var sf: float = display_px / 100.0
-		# Flatten the anchors so the Control doesn't collapse when reparented
-		# under a Node2D — same fix as galaxy_backdrop._spawn_planet.
-		star.anchor_left   = 0.0; star.anchor_top    = 0.0
-		star.anchor_right  = 0.0; star.anchor_bottom = 0.0
-		star.offset_right  = 100.0; star.offset_bottom = 100.0
-		star.size = Vector2(100.0, 100.0)
-		star.custom_minimum_size = Vector2(100.0, 100.0)
-		star.pivot_offset = Vector2.ZERO
-		star.scale = Vector2(sf, sf)
-		# Centre on the grid intersection.
+		if star is Control:
+			star.anchor_left   = 0.0;  star.anchor_top    = 0.0
+			star.anchor_right  = 0.0;  star.anchor_bottom = 0.0
+			star.offset_right  = 100.0; star.offset_bottom = 100.0
+			star.size = Vector2(100.0, 100.0)
+			star.custom_minimum_size = Vector2(100.0, 100.0)
+			star.pivot_offset = Vector2.ZERO
+		star.scale    = Vector2(sf, sf)
 		star.position = Vector2(cx - 50.0 * sf, cy - 50.0 * sf)
-		# add_child first so Star._ready() runs (it initialises the gradient
-		# vars that _set_colors references).
-		add_child(star)
+		# 1:1 pixel parity — shader cells = display pixels (pixel_density=1).
 		if star.has_method("set_pixels"):
 			star.set_pixels(display_px)
-		_reset_star_colorrects(star)
 		if star.has_method("set_seed"):
 			star.set_seed(seed_val)
-		_apply_star_type_colors(star, seed_val % 2 == 1)  # odd=cool, even=warm
 		if star.has_method("set_rotates"):
 			star.set_rotates(false)
-		_star_controls.append(star)
+		add_child(star)
+		# Reset ColorRect canonical sizes AFTER add_child so the nodes exist.
+		_reset_star_colorrects(star)
+		# Apply stellar type colors. Duplicate materials first so three stars
+		# on the same preloaded scene don't share ShaderMaterial instances.
+		_apply_star_colors(star, cool)
 
-		# ---- Additive glow halo (blooms on top of the star sprite) ----------
+		# ---- Additive glow halo on top -----------------------------------------
 		var glow_node := Node2D.new()
 		glow_node.position = Vector2(cx, cy)
 		add_child(glow_node)
@@ -105,8 +104,7 @@ func _build_stars() -> void:
 		g.offsets = PackedFloat32Array([0.0, 1.0])
 		var gt := GradientTexture2D.new()
 		gt.gradient  = g
-		gt.width     = 64
-		gt.height    = 64
+		gt.width     = 64; gt.height = 64
 		gt.fill      = GradientTexture2D.FILL_RADIAL
 		gt.fill_from = Vector2(0.5, 0.5)
 		gt.fill_to   = Vector2(1.0, 0.5)
@@ -119,33 +117,40 @@ func _build_stars() -> void:
 	_process(0.0)
 
 
-# Set warm/cool star colors via the `colors` shader parameter that the
-# Star/Blobs/StarFlares shaders actually expose (avoids _set_colors which
-# tries to assign to a `colorramp` gradient that isn't in the .tscn).
-func _apply_star_type_colors(star: Node, cool: bool) -> void:
-	var star_colors_cool := PackedColorArray([
-		Color(0.96, 1.00, 0.91, 1), Color(0.47, 0.84, 0.76, 1),
-		Color(0.11, 0.57, 0.65, 1), Color(0.01, 0.24, 0.37, 1),
-	])
-	var star_colors_warm := PackedColorArray([
-		Color(0.96, 1.00, 0.91, 1), Color(1.00, 0.85, 0.20, 1),
-		Color(1.00, 0.51, 0.23, 1), Color(0.49, 0.10, 0.10, 1),
-	])
-	var blob_cool  := PackedColorArray([Color(0.47, 0.84, 0.76, 1)])
-	var blob_warm  := PackedColorArray([Color(1.00, 0.85, 0.20, 1)])
-	var flare_cool := PackedColorArray([Color(0.47, 0.84, 0.76, 1), Color(0.96, 1.00, 0.91, 1)])
-	var flare_warm := PackedColorArray([Color(1.00, 0.85, 0.20, 1), Color(0.96, 1.00, 0.91, 1)])
-	for child in star.get_children():
+# Shader colors per stellar type.
+# Blobs: vec4[1], Star: vec4[4], StarFlares: vec4[2] — counts must match shaders.
+func _apply_star_colors(root: Node, cool: bool) -> void:
+	for child in root.get_children():
 		if child is ColorRect and child.material is ShaderMaterial:
+			# Duplicate so multiple stars don't share the same material instance.
+			child.material = (child.material as ShaderMaterial).duplicate()
 			var mat: ShaderMaterial = child.material
 			match String(child.name):
-				"Star":      mat.set_shader_parameter("colors", star_colors_cool if cool else star_colors_warm)
-				"Blobs":     mat.set_shader_parameter("colors", blob_cool if cool else blob_warm)
-				"StarFlares": mat.set_shader_parameter("colors", flare_cool if cool else flare_warm)
-		_apply_star_type_colors(child, cool)
+				"Star":
+					mat.set_shader_parameter("colors",
+						PackedColorArray([          # cool: blue-white
+							Color(0.96, 1.00, 0.91, 1), Color(0.47, 0.84, 0.76, 1),
+							Color(0.11, 0.57, 0.65, 1), Color(0.01, 0.24, 0.37, 1),
+						]) if cool else
+						PackedColorArray([          # warm: yellow-orange-red
+							Color(0.96, 1.00, 0.91, 1), Color(1.00, 0.85, 0.20, 1),
+							Color(1.00, 0.51, 0.23, 1), Color(0.49, 0.10, 0.10, 1),
+						]))
+				"Blobs":
+					mat.set_shader_parameter("colors",
+						PackedColorArray([Color(0.47, 0.84, 0.76, 1)]) if cool else
+						PackedColorArray([Color(1.00, 0.85, 0.20, 1)]))
+				"StarFlares":
+					mat.set_shader_parameter("colors",
+						PackedColorArray([           # cool flares
+							Color(0.47, 0.84, 0.76, 1), Color(0.96, 1.00, 0.91, 1),
+						]) if cool else
+						PackedColorArray([           # warm flares
+							Color(1.00, 0.85, 0.20, 1), Color(0.96, 1.00, 0.91, 1),
+						]))
+		_apply_star_colors(child, cool)
 
 
-# Mirror of galaxy_backdrop._reset_colorrect_sizes for the Star variant.
 func _reset_star_colorrects(root: Node) -> void:
 	for child in root.get_children():
 		if child is ColorRect:
