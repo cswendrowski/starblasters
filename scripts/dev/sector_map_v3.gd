@@ -300,14 +300,12 @@ func _spawn_large_asteroid(center_y: float, center_x: float) -> void:
 		ast.pivot_offset = Vector2.ZERO
 	ast.scale    = Vector2(sf, sf)
 	ast.position = Vector2(center_x - 50.0 * sf, center_y - 50.0 * sf)
+	_duplicate_materials(ast)                        # own material per instance
 	if ast.has_method("set_pixels"): ast.set_pixels(PX)
-	if ast.has_method("set_seed"):   ast.set_seed(_map_rng.randi() % 100000)
-	seed(_map_rng.randi())
-	if ast.has_method("randomize_colors"): ast.randomize_colors()
-	if ast.has_method("set_light"):        ast.set_light(Vector2(0.0, 0.5))
+	if ast.has_method("set_seed"):   ast.set_seed(_map_rng.randi())
+	if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
 	add_child(ast)
 	_reset_planet_colorrects(ast)
-	# Slow randomized rotation via shader.
 	_asteroid_rotators.append({
 		"node":  ast,
 		"speed": _map_rng.randf_range(0.03, 0.10),
@@ -333,11 +331,10 @@ func _spawn_asteroid_cluster(center_y: float, center_x: float) -> void:
 			ast.pivot_offset = Vector2.ZERO
 		ast.scale    = Vector2(sf, sf)
 		ast.position = Vector2(center_x + ox - 50.0 * sf, center_y + oy - 50.0 * sf)
+		_duplicate_materials(ast)
 		if ast.has_method("set_pixels"): ast.set_pixels(px)
-		if ast.has_method("set_seed"):   ast.set_seed(_map_rng.randi() % 100000)
-		seed(_map_rng.randi())
-		if ast.has_method("randomize_colors"): ast.randomize_colors()
-		if ast.has_method("set_light"):        ast.set_light(Vector2(0.0, 0.5))
+		if ast.has_method("set_seed"):   ast.set_seed(_map_rng.randi())
+		if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
 		add_child(ast)
 		_reset_planet_colorrects(ast)
 		_asteroid_rotators.append({
@@ -563,6 +560,15 @@ func _reset_planet_colorrects(root: Node) -> void:
 			(child as ColorRect).size     = Vector2(100.0, 100.0)
 			(child as ColorRect).position = Vector2.ZERO
 		_reset_planet_colorrects(child)
+
+
+# Duplicate every ShaderMaterial on ColorRect children so each instance
+# gets its own parameter namespace (avoids shared-resource clobbering).
+func _duplicate_materials(root: Node) -> void:
+	for child in root.get_children():
+		if child is ColorRect and child.material is ShaderMaterial:
+			(child as ColorRect).material = (child.material as ShaderMaterial).duplicate()
+		_duplicate_materials(child)
 
 
 # ---------------------------------------------------------------------------
