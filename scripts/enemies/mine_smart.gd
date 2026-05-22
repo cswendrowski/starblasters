@@ -18,7 +18,7 @@ extends "res://scripts/enemies/enemy_base.gd"
 @export var chase_accel: float = 360.0
 @export var chase_max_speed: float = 180.0
 @export var damage_on_collide: int = 2
-@export var proximity_trigger: float = 16.0
+@export var proximity_trigger: float = 80.0
 # Frame-by-frame transition timing once activation fires.
 @export var transition_time: float = 0.18
 

@@ -9,7 +9,7 @@ extends "res://scripts/enemy_core.gd"
 # hold station and only pursue when the player gets close.
 const BombletScene = preload("res://scenes/enemies/enemy_smart_bomblet.tscn")
 
-@export var drop_interval: float = 0.7
+@export var drop_interval: float = 2.5
 @export var drop_count_on_death: int = 6
 
 var _drop_t: float = 0.0

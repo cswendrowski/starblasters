@@ -28,7 +28,7 @@ const BOMBLET_GROUP := "bomblets"
 # Smart bomblets only pursue when the player crosses inside this range
 # (Roman, 2026-05-18 mine pass: smart bomblet "holds its position in
 # space but pursues the player if they come within 16 pixels").
-@export var smart_engage_range: float = 16.0
+@export var smart_engage_range: float = 100.0
 var _smart_engaged: bool = false
 
 var _velocity: Vector2 = Vector2.ZERO

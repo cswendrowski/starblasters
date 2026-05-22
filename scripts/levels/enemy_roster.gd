@@ -133,6 +133,14 @@ const ENTRIES := [
 		"shoot": null,  # uses built-in beam, not shoot_pattern
 		"base_count": 2,
 	},
+	{
+		"scene": "res://scenes/enemies/enemy_gunship.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": ["tough"],
+		"movement": "loiter",
+		"shoot": null,
+		"base_count": 2,
+	},
 
 	# --- RARE -------------------------------------------------------------
 	{
@@ -170,6 +178,14 @@ const ENTRIES := [
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_cruiser.tscn",
+		"tier": Tier.RARE,
+		"size": "large", "tags": [],
+		"movement": "loiter",
+		"shoot": null,
+		"base_count": 1,
+	},
+	{
+		"scene": "res://scenes/enemies/enemy_drone_carrier.tscn",
 		"tier": Tier.RARE,
 		"size": "large", "tags": [],
 		"movement": "loiter",
