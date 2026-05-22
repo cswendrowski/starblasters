@@ -116,8 +116,8 @@ func _add_stars() -> void:
 			"rgb": Color(rng.randf_range(0.5, 0.85), rng.randf_range(0.55, 0.9),
 						 rng.randf_range(0.7, 1.0)),
 			"base_a": base_a,
-			"amp": rng.randf_range(0.08, 0.22),     # how much alpha swings
-			"speed": rng.randf_range(0.4, 1.8),     # twinkle cycles per second
+			"amp": rng.randf_range(0.25, 0.55),
+			"speed": rng.randf_range(0.3, 2.2),
 			"phase": rng.randf_range(0.0, TAU),
 		})
 	for _i in 60:
@@ -127,14 +127,16 @@ func _add_stars() -> void:
 			"r": rng.randf_range(1.0, 2.0),
 			"rgb": Color(rng.randf_range(0.8, 1.0), rng.randf_range(0.85, 1.0), 1.0),
 			"base_a": base_a,
-			"amp": rng.randf_range(0.15, 0.35),
-			"speed": rng.randf_range(0.6, 2.5),
+			"amp": rng.randf_range(0.35, 0.65),
+			"speed": rng.randf_range(0.5, 3.0),
 			"phase": rng.randf_range(0.0, TAU),
 		})
-	var t: float = 0.0
+	# Use an Array so the time value is a reference shared across both lambdas.
+	var time_ref: Array = [0.0]
 	var layer := Node2D.new()
 	layer.name = "Stars"
 	layer.draw.connect(func():
+		var t: float = time_ref[0]
 		for s in star_data:
 			var a: float = s["base_a"] + s["amp"] * sin(t * s["speed"] * TAU + s["phase"])
 			var col: Color = s["rgb"]
@@ -142,10 +144,10 @@ func _add_stars() -> void:
 			layer.draw_circle(s["pos"], s["r"], col)
 	)
 	var timer := Timer.new()
-	timer.wait_time = 1.0 / 30.0   # 30 fps twinkle update
+	timer.wait_time = 1.0 / 30.0
 	timer.autostart = true
 	timer.timeout.connect(func():
-		t += 1.0 / 30.0
+		time_ref[0] += 1.0 / 30.0
 		layer.queue_redraw()
 	)
 	layer.add_child(timer)
