@@ -212,6 +212,8 @@ func _spawn_planet(center_y: float, center_x: float, display_px: float, type_idx
 	if p.has_method("set_rotates"):    p.set_rotates(true)
 	add_child(p)
 	_reset_planet_colorrects(p)
+	if p.has_method("set_light"):
+		p.set_light(Vector2(0.0, 0.5))  # lit from the left
 	p.override_time = true
 	_celestial_nodes.append(p)
 
