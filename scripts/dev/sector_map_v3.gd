@@ -34,11 +34,11 @@ const NEBULA_TINTS := [
 	Color(0.45, 1.0,  0.75, 1.0),  # teal
 	Color(1.0,  0.75, 0.30, 1.0),  # amber
 ]
-# Route object types: 0=planet 1=large_asteroid 2=asteroid_cluster 3=nebula
-const OBJ_TYPE_COUNT    := 4
+# Route object types: 0=planet 1=large_asteroid 2=asteroid_cluster
+const OBJ_TYPE_COUNT    := 3
 # Per-type advance in cells (placed object width + 2-cell gap).
 # Planet advance is computed per-object from its size; others use these fixed values.
-const OBJ_ADVANCE_CELLS := [0, 4, 6, 6]  # planet=computed, ast=4, cluster=6, nebula=6
+const OBJ_ADVANCE_CELLS := [0, 4, 6]  # planet=computed, ast=4, cluster=6
 
 const CELL  := 16
 const COLS  := 30
