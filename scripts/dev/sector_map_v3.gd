@@ -88,8 +88,7 @@ func _build_stars() -> void:
 		_reset_star_colorrects(star)
 		if star.has_method("set_seed"):
 			star.set_seed(seed_val)
-		if star.has_method("_set_colors"):
-			star._set_colors(seed_val)   # odd = cool, even = warm
+		_apply_star_type_colors(star, seed_val % 2 == 1)  # odd=cool, even=warm
 		if star.has_method("set_rotates"):
 			star.set_rotates(false)
 		_star_controls.append(star)
@@ -118,6 +117,32 @@ func _build_stars() -> void:
 		glow_node.add_child(glow_spr)
 
 	_process(0.0)
+
+
+# Set warm/cool star colors via the `colors` shader parameter that the
+# Star/Blobs/StarFlares shaders actually expose (avoids _set_colors which
+# tries to assign to a `colorramp` gradient that isn't in the .tscn).
+func _apply_star_type_colors(star: Node, cool: bool) -> void:
+	var star_colors_cool := PackedColorArray([
+		Color(0.96, 1.00, 0.91, 1), Color(0.47, 0.84, 0.76, 1),
+		Color(0.11, 0.57, 0.65, 1), Color(0.01, 0.24, 0.37, 1),
+	])
+	var star_colors_warm := PackedColorArray([
+		Color(0.96, 1.00, 0.91, 1), Color(1.00, 0.85, 0.20, 1),
+		Color(1.00, 0.51, 0.23, 1), Color(0.49, 0.10, 0.10, 1),
+	])
+	var blob_cool  := PackedColorArray([Color(0.47, 0.84, 0.76, 1)])
+	var blob_warm  := PackedColorArray([Color(1.00, 0.85, 0.20, 1)])
+	var flare_cool := PackedColorArray([Color(0.47, 0.84, 0.76, 1), Color(0.96, 1.00, 0.91, 1)])
+	var flare_warm := PackedColorArray([Color(1.00, 0.85, 0.20, 1), Color(0.96, 1.00, 0.91, 1)])
+	for child in star.get_children():
+		if child is ColorRect and child.material is ShaderMaterial:
+			var mat: ShaderMaterial = child.material
+			match String(child.name):
+				"Star":      mat.set_shader_parameter("colors", star_colors_cool if cool else star_colors_warm)
+				"Blobs":     mat.set_shader_parameter("colors", blob_cool if cool else blob_warm)
+				"StarFlares": mat.set_shader_parameter("colors", flare_cool if cool else flare_warm)
+		_apply_star_type_colors(child, cool)
 
 
 # Mirror of galaxy_backdrop._reset_colorrect_sizes for the Star variant.
