@@ -111,8 +111,12 @@ var _planet_hovers: Array = []
 # Asteroid rotation entries: {node, speed, phase} — driven in _process.
 var _asteroid_rotators: Array = []
 # Current system/node indices while building route objects — used by spawn helpers.
-var _cur_sys_i:  int = 0
+var _cur_sys_i:     int = 0
 var _cur_node_type: int = 3  # 0=outpost 1=hazard 2=signal 3=combat
+# Moon orbit data: {node, center, orbit_r, speed, phase, is_ctrl, ctrl_half?}
+var _moon_data:     Array = []
+# Lazy-created white circle textures keyed by radius_px.
+var _moon_textures: Dictionary = {}
 # POI ambient dressing: pulsing glows {spr, hz, phase, base_a} + combat glitter particles.
 var _glow_pulses: Array = []
 var _glitter:     Array = []  # {pos, vel, rect, brightness, hidden, timer}
@@ -149,6 +153,17 @@ func _process(delta: float) -> void:
 		var s: float = (STAR_DISPLAY_PX[i] * 2.2) / 64.0 * (1.0 + 0.06 * pulse)
 		glow_spr.scale      = Vector2(s, s)
 		glow_spr.modulate.a = STAR_GLOW_ALPHA[i] + 0.15 * pulse
+	# Animate planet moons — orbit + z_index for in-front/behind layering.
+	for m in _moon_data:
+		if not is_instance_valid(m.node):
+			continue
+		var angle: float = _time * m.speed + m.phase
+		var pos: Vector2  = m.center + Vector2(cos(angle), sin(angle)) * m.orbit_r
+		if m.is_ctrl:
+			m.node.position = Vector2(pos.x - m.ctrl_half, pos.y - m.ctrl_half)
+		else:
+			m.node.position = pos
+		m.node.z_index = 1 if sin(angle) > 0.0 else -1
 	# Rotate asteroids at their individual speeds.
 	for entry in _asteroid_rotators:
 		if is_instance_valid(entry.node) and entry.node.has_method("set_custom_time"):
@@ -325,6 +340,7 @@ func _spawn_planet(center_y: float, center_x: float, display_px: float, type_idx
 	p.override_time = true
 	_celestial_nodes.append(p)
 
+	_spawn_moons(center_y, center_x, display_px)
 	_add_hover_label_icon(center_y, center_x, display_px,
 		PLANET_LETTERS[mini(planet_idx, PLANET_LETTERS.size() - 1)])
 
@@ -472,6 +488,82 @@ func _build_boss_nodes() -> void:
 			"label":  lbl,
 			"icon":   icon_spr,
 		})
+
+
+# ---------------------------------------------------------------------------
+# Moon system
+# ---------------------------------------------------------------------------
+
+func _get_moon_texture(radius_px: int) -> ImageTexture:
+	if _moon_textures.has(radius_px):
+		return _moon_textures[radius_px]
+	var size: int = radius_px * 2
+	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	for x in size:
+		for y in size:
+			var dx: float = x - radius_px + 0.5
+			var dy: float = y - radius_px + 0.5
+			if dx * dx + dy * dy <= float(radius_px * radius_px):
+				img.set_pixel(x, y, Color.WHITE)
+	var tex := ImageTexture.create_from_image(img)
+	_moon_textures[radius_px] = tex
+	return tex
+
+
+func _spawn_moons(planet_cy: float, planet_cx: float, planet_px: float) -> void:
+	# Bias distribution toward fewer moons — squaring randf pulls toward 0.
+	var count: int = int(_map_rng.randf() * _map_rng.randf() * 13.0)
+	if count == 0:
+		return
+	var center := Vector2(planet_cx, planet_cy)
+	var kit_used := false
+	for _k in count:
+		var orbit_r: float  = planet_px * 0.5 + _map_rng.randf_range(3.0, planet_px * 1.8)
+		var spd: float      = _map_rng.randf_range(0.15, 0.60)
+		if _map_rng.randf() > 0.5:
+			spd *= -1.0   # some orbit counter-clockwise
+		var phase: float    = _map_rng.randf_range(0.0, TAU)
+		# 30% chance first eligible moon becomes a planet-kit asteroid (max 1).
+		var use_kit: bool   = not kit_used and _map_rng.randf() < 0.30
+		if use_kit:
+			kit_used = true
+			const KIT_PX: float = 8.0
+			var sf: float = KIT_PX / 100.0
+			var ast = ASTEROID_SCENE.instantiate()
+			if ast is Control:
+				ast.anchor_left = 0.0; ast.anchor_top = 0.0
+				ast.anchor_right = 0.0; ast.anchor_bottom = 0.0
+				ast.offset_right = 100.0; ast.offset_bottom = 100.0
+				ast.size = Vector2(100.0, 100.0)
+				ast.custom_minimum_size = Vector2(100.0, 100.0)
+				ast.pivot_offset = Vector2.ZERO
+			ast.scale = Vector2(sf, sf)
+			_duplicate_materials(ast)
+			if ast.has_method("set_pixels"): ast.set_pixels(KIT_PX)
+			if ast.has_method("set_seed"):   ast.set_seed(_map_rng.randi())
+			if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
+			ast.position = Vector2(planet_cx - 50.0 * sf, planet_cy - 50.0 * sf)
+			add_child(ast)
+			_reset_planet_colorrects(ast)
+			_asteroid_rotators.append({
+				"node": ast, "speed": _map_rng.randf_range(0.01, 0.04),
+				"phase": _map_rng.randf_range(0.0, TAU),
+			})
+			_moon_data.append({
+				"node": ast, "center": center, "orbit_r": orbit_r,
+				"speed": spd, "phase": phase,
+				"is_ctrl": true, "ctrl_half": 50.0 * sf,
+			})
+		else:
+			var radius_px: int = 1 + _map_rng.randi() % 6  # 1-6
+			var spr := Sprite2D.new()
+			spr.texture = _get_moon_texture(radius_px)
+			spr.modulate = Color(0.85, 0.90, 1.0, 0.80)
+			add_child(spr)
+			_moon_data.append({
+				"node": spr, "center": center, "orbit_r": orbit_r,
+				"speed": spd, "phase": phase, "is_ctrl": false,
+			})
 
 
 # Node type for ambient dressing: 0=outpost 1=hazard 2=signal 3=combat
@@ -814,6 +906,8 @@ func _rebuild() -> void:
 	_asteroid_rotators.clear()
 	_glow_pulses.clear()
 	_glitter.clear()
+	_moon_data.clear()
+	_moon_textures.clear()
 	map_seed = _map_rng.randi()
 	call_deferred("_deferred_build")
 
