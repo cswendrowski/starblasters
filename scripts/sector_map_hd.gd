@@ -67,6 +67,9 @@ var _pause_layer: CanvasLayer = null
 
 
 func _ready() -> void:
+	# Switch to native 1920x1080 for this scene so all rendering is pixel-perfect.
+	# _exit_tree() restores the game's normal 480x270 when we leave.
+	get_tree().get_root().content_scale_size = Vector2i(1920, 1080)
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("sector")
 	_install_background()
@@ -80,6 +83,10 @@ func _ready() -> void:
 	_render()
 
 
+func _exit_tree() -> void:
+	get_tree().get_root().content_scale_size = Vector2i(480, 270)
+
+
 static func cell_center(c: int, r: int) -> Vector2:
 	return Vector2(GRID_X0 + c * CELL_X + CELL_X / 2, GRID_Y0 + r * CELL_Y + CELL_Y / 2)
 
@@ -87,7 +94,7 @@ static func cell_center(c: int, r: int) -> Vector2:
 func _install_background() -> void:
 	var bg := ColorRect.new()
 	bg.color = Color(0.04, 0.06, 0.10, 1.0)
-	bg.size = Vector2(1920, 1080)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 	move_child(bg, 0)
@@ -509,7 +516,7 @@ func _ensure_reachable() -> void:
 func _render() -> void:
 	var graph := Control.new()
 	graph.name = "Graph"
-	graph.size = Vector2(1920, 1080)
+	graph.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	graph.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(graph)
 	if debug_grid:
