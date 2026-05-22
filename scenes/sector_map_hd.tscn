@@ -17,10 +17,5 @@ size = Vector2i(1920, 1080)
 transparent_bg = false
 
 [node name="Control" type="Control" parent="SubViewport"]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+size = Vector2(1920, 1080)
 script = ExtResource("1_smhd")

@@ -87,7 +87,7 @@ static func cell_center(c: int, r: int) -> Vector2:
 func _install_background() -> void:
 	var bg := ColorRect.new()
 	bg.color = Color(0.04, 0.06, 0.10, 1.0)
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.size = Vector2(1920, 1080)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 	move_child(bg, 0)
@@ -509,7 +509,7 @@ func _ensure_reachable() -> void:
 func _render() -> void:
 	var graph := Control.new()
 	graph.name = "Graph"
-	graph.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	graph.size = Vector2(1920, 1080)
 	graph.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(graph)
 	if debug_grid:
