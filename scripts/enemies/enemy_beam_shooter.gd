@@ -103,12 +103,6 @@ func _tick_beam_state(delta: float) -> void:
 func _enter_windup() -> void:
 	_beam_state = BeamState.WINDUP
 	_state_timer = 0.0
-	var player := find_player()
-	if player:
-		_aim_pos = player.global_position
-		_aim_dir = (player.global_position - global_position).normalized()
-		if _aim_dir.length_squared() < 0.001:
-			_aim_dir = Vector2.DOWN
 
 
 func _enter_firing() -> void:
@@ -149,8 +143,7 @@ func _make_line(color: Color, width: float) -> Line2D:
 func _update_line_points(line: Line2D) -> void:
 	if line == null or not is_instance_valid(line):
 		return
-	var endpoint := _aim_pos + _aim_dir * BEAM_REACH
-	line.points = PackedVector2Array([Vector2.ZERO, to_local(endpoint)])
+	line.points = PackedVector2Array([Vector2.ZERO, _aim_dir * BEAM_REACH])
 
 
 func _set_beam_layers_visible(outer: bool, mid: bool, core: bool, telegraph: bool) -> void:
