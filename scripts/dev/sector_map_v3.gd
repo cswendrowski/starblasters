@@ -19,12 +19,14 @@ const PLANET_ZONE_PEAK := [0.10, 0.25, 0.30, 0.50, 0.70, 0.90]
 const NODE_STRIP       = preload("res://graphics/ui/sector_nodes.png")
 const ICON_STRIP       = preload("res://graphics/ui/sector_icons.png")
 const ICON_COUNT       := 6
-const ICON_BOSS        := 3   # boss frame in ICON_STRIP
+# Icon frames by gameplay node type — reference sector_map_v2:
+#   0=base(outpost) 1=start(origin) 2=battle(combat) 3=boss 4=hazard 5=signal
+# Exclude 1(start/origin) and 3(boss) from regular POI icons.
+const NODE_TYPE_ICONS  := [0, 4, 5, 2]  # outpost, hazard, signal, combat
+const ICON_BOSS        := 3
 # "Available node" green from sector_map_v2.
 const COLOR_NODE_GREEN := Color(0.55, 1.0, 0.50, 1.0)
 const COLOR_BOSS_RED   := Color(1.0, 0.30, 0.25, 1.0)
-# Boss hazard positions — one per route, at the route endpoint.
-const BOSS_POSITIONS   := [Vector2(448, 64), Vector2(448, 128), Vector2(448, 192)]
 # Planet designation letters (real-world exoplanet convention).
 const PLANET_LETTERS   := ["b", "c", "d", "e", "f", "g"]
 # PixelPlanets scenes for non-planet route objects.
@@ -106,8 +108,9 @@ var _celestial_nodes: Array = []
 var _planet_hovers: Array = []
 # Asteroid rotation entries: {node, speed, phase} — driven in _process.
 var _asteroid_rotators: Array = []
-# Current system index while building route objects (used by spawn helpers for tint).
-var _cur_sys_i: int = 0
+# Current system/node indices while building route objects — used by spawn helpers.
+var _cur_sys_i:  int = 0
+var _cur_node_type: int = 3  # 0=outpost 1=hazard 2=signal 3=combat
 # POI ambient dressing: pulsing glows {spr, hz, phase, base_a} + combat glitter particles.
 var _glow_pulses: Array = []
 var _glitter:     Array = []  # {pos, vel, rect, brightness, hidden, timer}
@@ -148,10 +151,13 @@ func _process(delta: float) -> void:
 	for entry in _asteroid_rotators:
 		if is_instance_valid(entry.node) and entry.node.has_method("set_custom_time"):
 			entry.node.set_custom_time(_time * entry.speed + entry.phase)
-	# Pulse ambient glows (outpost/hazard/signal dressing).
+	# Pulse ambient glows — size breathes 1→8px, alpha 0.3→1.0.
 	for g in _glow_pulses:
 		if is_instance_valid(g.spr):
-			g.spr.modulate.a = g.base_a * (0.4 + 0.6 * (0.5 + 0.5 * sin(_time * g.hz * TAU + g.phase)))
+			var t: float = 0.5 + 0.5 * sin(_time * g.hz * TAU + g.phase)
+			var sz: float = lerpf(1.0 / 64.0, 8.0 / 64.0, t)
+			g.spr.scale     = Vector2(sz, sz)
+			g.spr.modulate.a = lerpf(0.3, 1.0, t)
 	# Update combat glitter particles.
 	var needs_redraw := false
 	for p in _glitter:
@@ -202,8 +208,9 @@ func _generate_names() -> void:
 func _generate_route_lengths() -> void:
 	_route_lengths.clear()
 	for i in STAR_ANCHORS.size():
-		# Routes always extend to ROUTE_MAX_X so the boss node is at the endpoint.
-		_route_lengths.append(ROUTE_MAX_X - STAR_ANCHORS[i].x)
+		var raw: float = _map_rng.randf_range(ROUTE_MIN_LEN, ROUTE_MAX_LEN)
+		var end_x: float = STAR_ANCHORS[i].x + raw
+		_route_lengths.append(minf(end_x, ROUTE_MAX_X) - STAR_ANCHORS[i].x)
 
 
 func _build_routes() -> void:
@@ -250,6 +257,7 @@ func _build_route_objects() -> void:
 
 # Dispatches to the right spawn function; returns the advance step in px.
 func _spawn_route_obj(cy: float, cx: float, route_end: float, _sys_i: int, type_id: int, planet_idx: int, node_type: int) -> float:
+	_cur_node_type = node_type
 	var advance: float = float(4 * CELL)
 	match type_id:
 		0:  # planet
@@ -419,8 +427,8 @@ func _scatter_asteroid_band(center_y: float, center_x: float) -> void:
 # ---------------------------------------------------------------------------
 
 func _build_boss_nodes() -> void:
-	for i in BOSS_POSITIONS.size():
-		var pos: Vector2 = BOSS_POSITIONS[i]
+	for i in STAR_ANCHORS.size():
+		var pos: Vector2 = Vector2(STAR_ANCHORS[i].x + _route_lengths[i], STAR_ANCHORS[i].y)
 		# Node dot — boss frame (0) from NODE_STRIP, 1× scale (32px).
 		var dot_at := AtlasTexture.new()
 		dot_at.atlas  = NODE_STRIP
@@ -481,7 +489,7 @@ func _add_node_dressing(cy: float, cx: float, node_type: int) -> void:
 		3: _add_glitter_zone(cy, cx)                                 # combat  — glitter
 
 
-func _add_pulse_glow(cy: float, cx: float, color: Color, base_alpha: float) -> void:
+func _add_pulse_glow(cy: float, cx: float, color: Color, _unused: float) -> void:
 	var g := Gradient.new()
 	g.colors  = PackedColorArray([color, Color(color.r, color.g, color.b, 0.0)])
 	g.offsets = PackedFloat32Array([0.0, 1.0])
@@ -491,28 +499,23 @@ func _add_pulse_glow(cy: float, cx: float, color: Color, base_alpha: float) -> v
 	gt.fill_from = Vector2(0.5, 0.5); gt.fill_to = Vector2(1.0, 0.5)
 	var spr := Sprite2D.new()
 	spr.texture  = gt
-	# Random offset within ±0.4 cell of the POI centre.
 	spr.position = Vector2(
-		cx + _map_rng.randf_range(-CELL * 0.4, CELL * 0.4),
-		cy + _map_rng.randf_range(-CELL * 0.4, CELL * 0.4))
-	spr.scale = Vector2(1.2, 1.2)   # ~77px glow footprint
+		cx + _map_rng.randf_range(-CELL * 0.3, CELL * 0.3),
+		cy + _map_rng.randf_range(-CELL * 0.3, CELL * 0.3))
+	spr.scale = Vector2(8.0 / 64.0, 8.0 / 64.0)  # starts at 8px; pulses down to 1px
 	var mat := CanvasItemMaterial.new()
 	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	spr.material  = mat
-	spr.modulate.a = base_alpha
+	spr.material = mat
 	add_child(spr)
 	_glow_pulses.append({
-		"spr":    spr,
-		"hz":     _map_rng.randf_range(0.25, 0.55),
-		"phase":  _map_rng.randf_range(0.0, TAU),
-		"base_a": base_alpha,
+		"spr":   spr,
+		"hz":    _map_rng.randf_range(0.20, 0.50),
+		"phase": _map_rng.randf_range(0.0, TAU),
 	})
 
 
 func _add_glitter_zone(cy: float, cx: float) -> void:
-	var half_w: float = CELL * 2.5
-	var half_h: float = CELL * 1.2
-	var rect: Rect2 = Rect2(cx - half_w, cy - half_h, half_w * 2.0, half_h * 2.0)
+	var rect: Rect2 = Rect2(cx - 32.0, cy - 32.0, 64.0, 64.0)
 	var count: int = 7 + _fx_rng.randi() % 5  # 7-11 particles
 	for _k in count:
 		_glitter.append({
@@ -542,7 +545,7 @@ func _add_hover_label_icon(center_y: float, center_x: float, display_px: float, 
 	lbl.z_index   = 10
 	lbl.modulate.a = 0.2
 	add_child(lbl)
-	var icon_idx: int = _map_rng.randi() % ICON_COUNT
+	var icon_idx: int = NODE_TYPE_ICONS[_cur_node_type]
 	var at := AtlasTexture.new()
 	at.atlas  = ICON_STRIP
 	at.region = Rect2(icon_idx * 32, 0, 32, 32)
