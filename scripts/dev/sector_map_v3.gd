@@ -271,6 +271,7 @@ func _spawn_planet(center_y: float, center_x: float, display_px: float, type_idx
 		p.pivot_offset = Vector2.ZERO
 	p.scale    = Vector2(sf, sf)
 	p.position = Vector2(center_x - 50.0 * sf, center_y - 50.0 * sf)
+	_duplicate_materials(p)
 	if p.has_method("set_pixels"):  p.set_pixels(display_px)
 	if p.has_method("set_seed"):    p.set_seed(_map_rng.randi() % 100000)
 	seed(_map_rng.randi())          # drive global RNG so randomize_colors is unique
@@ -451,6 +452,7 @@ func _build_stars() -> void:
 			star.pivot_offset = Vector2.ZERO
 		star.scale    = Vector2(sf, sf)
 		star.position = Vector2(anchor.x - 50.0 * sf, anchor.y - 50.0 * sf)
+		_duplicate_materials(star)
 		if star.has_method("set_pixels"):  star.set_pixels(display_px)
 		if star.has_method("set_seed"):    star.set_seed(seed_val)
 		if star.has_method("set_rotates"): star.set_rotates(false)
