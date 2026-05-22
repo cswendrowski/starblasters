@@ -272,3 +272,8 @@ func _on_reset() -> void:
 
 func _on_back() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev_menu.tscn")
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+		_on_back()

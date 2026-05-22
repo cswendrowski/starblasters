@@ -660,6 +660,10 @@ func fire_secondary() -> void:
 		# Wing-offset spawn position so multi-pod fire reads as
 		# "wingtip muzzles" rather than a stack of nose-mounted bolts.
 		b.start(position + Vector2(offset_x, -10))
+	var WeaponSfxSec = load("res://scripts/effects/weapon_sfx.gd")
+	if WeaponSfxSec:
+		var kind: String = "missile" if secondary_homing else "rocket"
+		WeaponSfxSec.play(get_tree().root, global_position, kind)
 
 
 ## Continuous Particle Beam ##
