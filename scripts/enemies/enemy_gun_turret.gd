@@ -26,9 +26,9 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if _dying:
 		return
-	var player := find_player()
+	var player = find_player()
 	if player:
-		var dir := (player.global_position - global_position).normalized()
+		var dir: Vector2 = (player.global_position - global_position).normalized()
 		_target_rot = atan2(dir.y, dir.x) + PI * 0.5
 	# Rotate toward target at capped speed.
 	var diff := angle_difference(rotation, _target_rot)
