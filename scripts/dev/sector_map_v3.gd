@@ -53,7 +53,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_time += delta
 	for i in STAR_DATA.size():
-		var d     := STAR_DATA[i]
+		var d: Array = STAR_DATA[i]
 		var glow_base: float = d[2]
 		var core_base: float = d[3]
 		var hz:    float     = d[6]
