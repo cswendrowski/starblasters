@@ -145,6 +145,12 @@ var fire_sfx_kind: String = "blaster_small"
 # means counted (Machinegun). Outpost refills write here via Run.ammo.
 var ammo: int = -1
 signal ammo_changed(value: int)
+# Rotary Laser recharge state. ammo_max and ammo_recharge_rate are written
+# by RotaryLaserCannon.apply(); zeroed on unapply. _ammo_recharge_acc
+# accumulates fractional shots so recharge is frame-rate independent.
+var ammo_max: int = 0
+var ammo_recharge_rate: float = 0.0
+var _ammo_recharge_acc: float = 0.0
 # Set false during intro/outro cinematics — _process still runs (so external
 # tweens of position work), but input is ignored.
 var controls_enabled: bool = true
@@ -403,6 +409,18 @@ func _process(delta: float) -> void:
 			_mg_loop_player.stop()
 		if _mg_end_player and is_alive and weapon_style == "machinegun":
 			_mg_end_player.play()
+	# Rotary Laser ammo recharge — ticks when not firing. Players who have
+	# autofire enabled will never recharge while alive on screen (same
+	# behaviour as the machinegun: continuous trigger = no pause to refill).
+	if ammo_recharge_rate > 0.0 and ammo_max > 0 and ammo < ammo_max and not Input.is_action_pressed("shoot"):
+		_ammo_recharge_acc += ammo_recharge_rate * delta
+		var to_add: int = int(_ammo_recharge_acc)
+		if to_add >= 1:
+			_ammo_recharge_acc -= float(to_add)
+			ammo = min(ammo + to_add, ammo_max)
+			ammo_changed.emit(ammo)
+			if has_node("/root/Run"):
+				get_node("/root/Run").ammo = ammo
 	# Secondary fire (C by default, hold-fire). Beam mode is held-tick
 	# per-frame; bullet mode spawns a projectile per cooldown window.
 	if secondary_mode == "beam":
@@ -528,6 +546,9 @@ func fire_primary() -> void:
 	# unmetered (ammo == -1).
 	if weapon_style == "machinegun" and ammo == 0:
 		return
+	# Rotary Laser: also ammo-gated.
+	if weapon_style == "rotary_laser" and ammo == 0:
+		return
 	can_shoot = false
 	$GunCooldown.start()
 	# Cobalt 2026-05-21 follow-up: emit from the top-center of the player
@@ -576,6 +597,13 @@ func fire_primary() -> void:
 	var MuzzleFx = load("res://scripts/effects/muzzle_fx.gd")
 	if weapon_style == "machinegun":
 		MuzzleFx.play(muzzle_pos, self)  # flash parented to player
+		if ammo > 0:
+			ammo -= 1
+			ammo_changed.emit(ammo)
+			if has_node("/root/Run"):
+				get_node("/root/Run").ammo = ammo
+	elif weapon_style == "rotary_laser":
+		MuzzleFx.play_rotary_laser(muzzle_pos, self)
 		if ammo > 0:
 			ammo -= 1
 			ammo_changed.emit(ammo)

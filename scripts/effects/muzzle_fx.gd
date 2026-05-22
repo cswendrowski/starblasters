@@ -24,6 +24,11 @@ const MUZZLE_STRIP_HFRAMES := 5
 const BLASTER_MUZZLE_STRIP = preload("res://graphics/blaster_muzzle.png")
 const BLASTER_MUZZLE_STRIP_HFRAMES := 3
 const BLASTER_GLOW_COLOR := Color(0.353, 0.796, 0.992, 1.0)
+# Rotary Laser muzzle-flash strip. Frame 0 is the projectile itself;
+# frames 1–3 are the muzzle flash frames used here.
+const ROTARY_LASER_STRIP = preload("res://graphics/projectiles/energy_laser_blue.png")
+const ROTARY_LASER_STRIP_HFRAMES := 4
+const ROTARY_LASER_GLOW_COLOR := Color(0.3, 0.7, 1.0, 1.0)
 
 
 static func play(world_pos: Vector2, host: Node = null) -> void:
@@ -81,6 +86,50 @@ static func play_energy(world_pos: Vector2, host: Node = null) -> void:
 	var tw := flash.create_tween()
 	tw.tween_interval(0.07)
 	tw.tween_property(flash, "modulate:a", 0.0, 0.10)
+	tw.tween_callback(flash.queue_free)
+
+
+# Rotary Laser muzzle FX — cyan-blue additive glow + random flash frame
+# drawn from frames 1–3 of the energy_laser_blue strip (frame 0 is the
+# bullet projectile). Pattern mirrors play_energy().
+static func play_rotary_laser(world_pos: Vector2, host: Node = null) -> void:
+	var root = Engine.get_main_loop().root
+	var parent: Node = host if host != null else root
+	var use_local: bool = host != null
+	# Cyan-blue additive glow halo.
+	var glow := Sprite2D.new()
+	glow.texture = _build_flash_texture()
+	if use_local:
+		glow.position = world_pos - (host as Node2D).global_position
+	else:
+		glow.position = world_pos
+	glow.scale = Vector2(0.8, 0.8)
+	glow.modulate = ROTARY_LASER_GLOW_COLOR
+	glow.z_index = 4
+	var glow_mat := CanvasItemMaterial.new()
+	glow_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	glow.material = glow_mat
+	parent.add_child(glow)
+	var gtw := glow.create_tween()
+	gtw.tween_property(glow, "scale", Vector2(1.4, 1.4), 0.08)
+	gtw.parallel().tween_property(glow, "modulate:a", 0.0, 0.08)
+	gtw.tween_callback(glow.queue_free)
+	# Pixel-art flash — pick from frames 1..3 so the bullet frame (0) is
+	# never shown as a flash.
+	var flash := Sprite2D.new()
+	flash.texture = ROTARY_LASER_STRIP
+	flash.hframes = ROTARY_LASER_STRIP_HFRAMES
+	flash.frame = 1 + (randi() % 3)
+	if use_local:
+		flash.position = world_pos - (host as Node2D).global_position
+	else:
+		flash.position = world_pos
+	flash.scale = Vector2(1.0, 1.0)
+	flash.z_index = 5
+	parent.add_child(flash)
+	var tw := flash.create_tween()
+	tw.tween_interval(0.04)
+	tw.tween_property(flash, "modulate:a", 0.0, 0.04)
 	tw.tween_callback(flash.queue_free)
 
 

@@ -7,4 +7,4 @@ script = ExtResource("1_w")
 mark = 1
 base_damage = 4
 dmg_per_mark = 3
-base_cooldown = 0.28
+base_cooldown = 0.20
