@@ -27,6 +27,8 @@ const ICON_BOSS        := 3
 # "Available node" green from sector_map_v2.
 const COLOR_NODE_GREEN := Color(0.55, 1.0, 0.50, 1.0)
 const COLOR_BOSS_RED   := Color(1.0, 0.30, 0.25, 1.0)
+# Fixed boss hazard positions — at col28/row4, col28/row8, col28/row12 intersections.
+const BOSS_POSITIONS   := [Vector2(448, 64), Vector2(448, 128), Vector2(448, 192)]
 # Planet designation letters (real-world exoplanet convention).
 const PLANET_LETTERS   := ["b", "c", "d", "e", "f", "g"]
 # PixelPlanets scenes for non-planet route objects.
@@ -427,8 +429,8 @@ func _scatter_asteroid_band(center_y: float, center_x: float) -> void:
 # ---------------------------------------------------------------------------
 
 func _build_boss_nodes() -> void:
-	for i in STAR_ANCHORS.size():
-		var pos: Vector2 = Vector2(STAR_ANCHORS[i].x + _route_lengths[i], STAR_ANCHORS[i].y)
+	for i in BOSS_POSITIONS.size():
+		var pos: Vector2 = BOSS_POSITIONS[i]
 		# Node dot — boss frame (0) from NODE_STRIP, 1× scale (32px).
 		var dot_at := AtlasTexture.new()
 		dot_at.atlas  = NODE_STRIP
