@@ -1,140 +1,15 @@
-[gd_scene load_steps=30 format=3 uid="uid://chopperhip001"]
+[gd_scene load_steps=30 format=3 uid="uid://cweavership001"]
 
-[ext_resource type="Script" path="res://scripts/enemy_core.gd" id="1_0exlg"]
-[ext_resource type="Texture2D" uid="uid://dix3tap04k2ou" path="res://graphics/extra-ships/tiny_ship17.png" id="3_g646a"]
+[ext_resource type="Script" path="res://scripts/enemy_core.gd" id="1_core"]
+[ext_resource type="Texture2D" uid="uid://coelavq6oi5gm" path="res://graphics/enemies/small_weaver.png" id="3_g646a"]
 [ext_resource type="Texture2D" uid="uid://dn1edfs6n7tjr" path="res://Mini Pixel Pack 3/Effects/Explosion (16 x 16).png" id="3_jathr"]
-[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="4_gqutq"]
-[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="5_41ijo"]
+[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="4_shoot"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="5_die"]
+[ext_resource type="Resource" path="res://resources/patterns/movement/s_curve.tres" id="10_movres"]
+[ext_resource type="Resource" path="res://resources/patterns/shoot/spread_shot_3.tres" id="11_shoot"]
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_j7632"]
-size = Vector2(34, 24)
-
-[sub_resource type="Animation" id="Animation_suct1"]
-length = 0.001
-tracks/0/type = "value"
-tracks/0/imported = false
-tracks/0/enabled = true
-tracks/0/path = NodePath("Sprite2D:frame")
-tracks/0/interp = 1
-tracks/0/loop_wrap = true
-tracks/0/keys = {
-"times": PackedFloat32Array(0),
-"transitions": PackedFloat32Array(1),
-"update": 1,
-"values": [0]
-}
-tracks/1/type = "value"
-tracks/1/imported = false
-tracks/1/enabled = true
-tracks/1/path = NodePath("Sprite2D:texture")
-tracks/1/interp = 1
-tracks/1/loop_wrap = true
-tracks/1/keys = {
-"times": PackedFloat32Array(0),
-"transitions": PackedFloat32Array(1),
-"update": 1,
-"values": [ExtResource("3_g646a")]
-}
-tracks/2/type = "value"
-tracks/2/imported = false
-tracks/2/enabled = true
-tracks/2/path = NodePath("Sprite2D:hframes")
-tracks/2/interp = 1
-tracks/2/loop_wrap = true
-tracks/2/keys = {
-"times": PackedFloat32Array(0),
-"transitions": PackedFloat32Array(1),
-"update": 1,
-"values": [1]
-}
-
-[sub_resource type="Animation" id="Animation_ad1l1"]
-resource_name = "bounce"
-loop_mode = 1
-step = 0.25
-tracks/0/type = "value"
-tracks/0/imported = false
-tracks/0/enabled = true
-tracks/0/path = NodePath("Sprite2D:frame")
-tracks/0/interp = 1
-tracks/0/loop_wrap = true
-tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.25, 0.5, 0.75),
-"transitions": PackedFloat32Array(1, 1, 1, 1),
-"update": 1,
-"values": [0, 1, 2, 3]
-}
-tracks/1/type = "value"
-tracks/1/imported = false
-tracks/1/enabled = true
-tracks/1/path = NodePath("Sprite2D:texture")
-tracks/1/interp = 1
-tracks/1/loop_wrap = true
-tracks/1/keys = {
-"times": PackedFloat32Array(0),
-"transitions": PackedFloat32Array(1),
-"update": 1,
-"values": [ExtResource("3_g646a")]
-}
-tracks/2/type = "value"
-tracks/2/imported = false
-tracks/2/enabled = true
-tracks/2/path = NodePath("Sprite2D:hframes")
-tracks/2/interp = 1
-tracks/2/loop_wrap = true
-tracks/2/keys = {
-"times": PackedFloat32Array(0),
-"transitions": PackedFloat32Array(1),
-"update": 1,
-"values": [4]
-}
-
-[sub_resource type="Animation" id="Animation_jorl6"]
-resource_name = "explode"
-length = 0.4
-tracks/0/type = "value"
-tracks/0/imported = false
-tracks/0/enabled = true
-tracks/0/path = NodePath("Sprite2D:hframes")
-tracks/0/interp = 1
-tracks/0/loop_wrap = true
-tracks/0/keys = {
-"times": PackedFloat32Array(0),
-"transitions": PackedFloat32Array(1),
-"update": 1,
-"values": [6]
-}
-tracks/1/type = "value"
-tracks/1/imported = false
-tracks/1/enabled = true
-tracks/1/path = NodePath("Sprite2D:texture")
-tracks/1/interp = 1
-tracks/1/loop_wrap = true
-tracks/1/keys = {
-"times": PackedFloat32Array(0),
-"transitions": PackedFloat32Array(1),
-"update": 1,
-"values": [ExtResource("3_jathr")]
-}
-tracks/2/type = "value"
-tracks/2/imported = false
-tracks/2/enabled = true
-tracks/2/path = NodePath("Sprite2D:frame")
-tracks/2/interp = 1
-tracks/2/loop_wrap = true
-tracks/2/keys = {
-"times": PackedFloat32Array(0, 0.4),
-"transitions": PackedFloat32Array(1, 1),
-"update": 0,
-"values": [0, 5]
-}
-
-[sub_resource type="AnimationLibrary" id="AnimationLibrary_rfrsa"]
-_data = {
-"RESET": SubResource("Animation_suct1"),
-"bounce": SubResource("Animation_ad1l1"),
-"explode": SubResource("Animation_jorl6")
-}
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_hit"]
+size = Vector2(14, 14)
 
 [sub_resource type="Gradient" id="Gradient_7yss3"]
 offsets = PackedFloat32Array(0, 0.347107, 0.669421, 1)
@@ -239,22 +114,21 @@ scale_max = 1.25
 scale_curve = SubResource("CurveTexture_nnpah")
 color_ramp = SubResource("GradientTexture1D_4lmie")
 
-[node name="Enemy2" type="Area2D" groups=["enemies"]]
-script = ExtResource("1_0exlg")
+[node name="Enemy" type="Area2D" groups=["enemies"]]
+script = ExtResource("1_core")
 max_health = 2
-bounty_value = 20
+bounty_value = 10
+display_scale = 1.0
+movement = ExtResource("10_movres")
+shoot_pattern = ExtResource("11_shoot")
+fire_interval_min = 3.5
+fire_interval_max = 4.5
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("3_g646a")
-flip_v = true
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
-shape = SubResource("RectangleShape2D_j7632")
-
-[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
-libraries = {
-"": SubResource("AnimationLibrary_rfrsa")
-}
+shape = SubResource("RectangleShape2D_hit")
 
 [node name="MoveTimer" type="Timer" parent="."]
 one_shot = true
@@ -290,10 +164,10 @@ explosiveness = 1.0
 randomness = 1.0
 
 [node name="EnemyShoot" type="AudioStreamPlayer2D" parent="."]
-stream = ExtResource("4_gqutq")
+stream = ExtResource("4_shoot")
 
 [node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
-stream = ExtResource("5_41ijo")
+stream = ExtResource("5_die")
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
 [connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

@@ -36,10 +36,11 @@ const PLAYER_SCENE_PATH := "res://scenes/player/player.tscn"
 const SHIPS := [
 	{"path": PLAYER_SCENE_PATH,                              "label": "Player"},
 	{"path": "res://scenes/enemies/enemy_firecore.tscn",     "label": "Firecore"},
-	{"path": "res://scenes/enemies/enemy_diver.tscn",        "label": "Diver"},
+	{"path": "res://scenes/enemies/enemy_drifter.tscn",      "label": "Drifter"},
 	{"path": "res://scenes/enemies/enemy_crystal.tscn",      "label": "Crystal"},
 	{"path": "res://scenes/enemies/enemy_dart.tscn",         "label": "Dart"},
-	{"path": "res://scenes/enemies/enemy_hopper.tscn",       "label": "Hopper"},
+	{"path": "res://scenes/enemies/enemy_weaver.tscn",       "label": "Weaver"},
+	{"path": "res://scenes/enemies/enemy_hover.tscn",        "label": "Hover"},
 	{"path": "res://scenes/enemies/enemy_mine.tscn",         "label": "Mine"},
 	{"path": "res://scenes/enemies/enemy_mine_shield.tscn",  "label": "Mine Shield"},
 	{"path": "res://scenes/enemies/enemy_mine_cluster.tscn", "label": "Mine Cluster"},

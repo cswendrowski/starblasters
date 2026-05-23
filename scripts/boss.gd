@@ -60,7 +60,7 @@ func _ready() -> void:
 	super._ready()
 	# Fallback minion config if not set externally
 	if minion_scene == null:
-		minion_scene = load("res://scenes/enemies/enemy_diver.tscn")
+		minion_scene = load("res://scenes/enemies/enemy_dart.tscn")
 	if minion_movement == null:
 		var Straight = load("res://scripts/enemies/patterns/straight_down.gd")
 		var mv = Straight.new()

@@ -14,10 +14,10 @@ const AimedShot = preload("res://scripts/enemies/shoot_patterns/aimed_fire.gd")
 const BurstShot = preload("res://scripts/enemies/shoot_patterns/burst_shot.gd")
 const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const FirecoreScene = preload("res://scenes/enemies/enemy_firecore.tscn")
-const DiverScene = preload("res://scenes/enemies/enemy_diver.tscn")
+const DrifterScene = preload("res://scenes/enemies/enemy_drifter.tscn")
 const CrystalScene = preload("res://scenes/enemies/enemy_crystal.tscn")
 const DartScene = preload("res://scenes/enemies/enemy_dart.tscn")
-const HopperScene = preload("res://scenes/enemies/enemy_hopper.tscn")
+const HoverScene = preload("res://scenes/enemies/enemy_hover.tscn")
 const BossScene = preload("res://scenes/enemies/boss.tscn")
 const BossSweep = preload("res://scripts/enemies/patterns/boss_sweep.gd")
 const MineScene = preload("res://scenes/enemies/enemy_mine.tscn")
@@ -119,7 +119,7 @@ static func build_level_1_1():
 
 	# WAVE 4: fast diver rush — single shots, lots of them
 	var w4 = WaveSpec.new()
-	w4.enemy_scene = DiverScene
+	w4.enemy_scene = DartScene
 	w4.count = 8
 	w4.spawn_interval = 0.22
 	w4.spawn_delay = 1.5
@@ -171,7 +171,7 @@ static func build_level_1_1():
 
 	# WAVE 7: alien hoppers — silent sub-wave of WAVE 6 dart raiders.
 	var w7 = WaveSpec.new()
-	w7.enemy_scene = HopperScene
+	w7.enemy_scene = HoverScene
 	w7.count = 4
 	w7.spawn_interval = 0.6
 	w7.spawn_delay = 1.5
@@ -201,7 +201,7 @@ static func build_level_1_1():
 static func build_boss_level():
 	# Lead-in: divers
 	var w1 = WaveSpec.new()
-	w1.enemy_scene = DiverScene
+	w1.enemy_scene = DartScene
 	w1.count = 8
 	w1.spawn_interval = 0.25
 	w1.spawn_delay = 0.5

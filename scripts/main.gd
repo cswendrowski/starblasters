@@ -143,10 +143,11 @@ func _warm_up_explosion() -> void:
 	# enemy type doesn't stall the frame.
 	var enemy_scenes := [
 		"res://scenes/enemies/enemy_firecore.tscn",
-		"res://scenes/enemies/enemy_diver.tscn",
+		"res://scenes/enemies/enemy_drifter.tscn",
 		"res://scenes/enemies/enemy_crystal.tscn",
 		"res://scenes/enemies/enemy_dart.tscn",
-		"res://scenes/enemies/enemy_hopper.tscn",
+		"res://scenes/enemies/enemy_weaver.tscn",
+		"res://scenes/enemies/enemy_hover.tscn",
 		"res://scenes/enemies/enemy_mine.tscn",
 		"res://scenes/enemies/enemy_mine_shield.tscn",
 		"res://scenes/enemies/enemy_mine_cluster.tscn",

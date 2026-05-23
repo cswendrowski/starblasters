@@ -2,7 +2,7 @@ extends Resource
 
 # One wave of enemies inside a Level.
 
-enum Formation { TOP_LEFT_TO_RIGHT, TOP_RIGHT_TO_LEFT, TOP_RANDOM, TOP_CENTER_OUT }
+enum Formation { TOP_LEFT_TO_RIGHT, TOP_RIGHT_TO_LEFT, TOP_RANDOM, TOP_CENTER_OUT, SIDE_ALTERNATING }
 
 @export var enemy_scene: PackedScene
 @export var count: int = 6

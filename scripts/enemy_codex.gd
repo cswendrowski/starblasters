@@ -16,14 +16,15 @@ const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 
 # Static lookup: every enemy scene → display name + entry hint.
 const ENTRIES = [
-	{"path": "res://scenes/enemies/enemy_firecore.tscn", "name": "Firecore", "tier": "Common"},
-	{"path": "res://scenes/enemies/enemy_diver.tscn",    "name": "Dart",     "tier": "Common"},
-	{"path": "res://scenes/enemies/enemy_dart.tscn",     "name": "Viper",    "tier": "Common"},
-	{"path": "res://scenes/enemies/enemy_hunter_drone.tscn", "name": "Hunter Drone", "tier": "Common"},
-	{"path": "res://scenes/enemies/enemy_hopper.tscn",   "name": "Hopper",   "tier": "Uncommon"},
-	{"path": "res://scenes/enemies/enemy_frigate.tscn",  "name": "Frigate",  "tier": "Uncommon"},
-	{"path": "res://scenes/enemies/enemy_cutter.tscn",   "name": "Cutter",   "tier": "Uncommon"},
-	{"path": "res://scenes/enemies/enemy_skirmisher.tscn", "name": "Skirmisher", "tier": "Uncommon"},
+	{"path": "res://scenes/enemies/enemy_dart.tscn",     "name": "Dart",     "tier": "Common", "blurb": "Pure movement, no fire. Teaches you to shoot proactively."},
+	{"path": "res://scenes/enemies/enemy_drifter.tscn",  "name": "Drifter",  "tier": "Common", "blurb": "Halves into +drift / -drift squads. Easy spacing puzzle."},
+	{"path": "res://scenes/enemies/enemy_firecore.tscn", "name": "Firecore", "tier": "Common", "blurb": "Lazy single-shot chaff. Punish first, sweep second."},
+	{"path": "res://scenes/enemies/enemy_hunter_drone.tscn", "name": "Hunter Drone", "tier": "Common", "blurb": "Beelines at the player. Don't let it catch up."},
+	{"path": "res://scenes/enemies/enemy_cutter.tscn",   "name": "Cutter",   "tier": "Uncommon", "blurb": "Side-entry strafer. Alternates flanks, fires fast and exits."},
+	{"path": "res://scenes/enemies/enemy_weaver.tscn",   "name": "Weaver",   "tier": "Uncommon", "blurb": "Paired center-out arc with aimed shots."},
+	{"path": "res://scenes/enemies/enemy_hover.tscn",    "name": "Hover",    "tier": "Uncommon", "blurb": "Loiters at altitude, picks at you with single shots."},
+	{"path": "res://scenes/enemies/enemy_skirmisher.tscn", "name": "Skirmisher", "tier": "Uncommon", "blurb": "Advances, retreats, fires aimed bursts. Aggressive."},
+	{"path": "res://scenes/enemies/enemy_frigate.tscn",  "name": "Frigate",  "tier": "Uncommon", "blurb": "Slow advance, burst fire, tough hull."},
 	{"path": "res://scenes/enemies/enemy_crystal.tscn",  "name": "Crystal",  "tier": "Rare"},
 	{"path": "res://scenes/enemies/enemy_minelayer.tscn", "name": "Minelayer", "tier": "Rare"},
 	{"path": "res://scenes/enemies/enemy_interceptor.tscn", "name": "Interceptor", "tier": "Rare"},

@@ -16,10 +16,10 @@ const ENEMIES: Array = [
 	"res://scenes/enemies/enemy_crystal.tscn",
 	"res://scenes/enemies/enemy_cutter.tscn",
 	"res://scenes/enemies/enemy_dart.tscn",
-	"res://scenes/enemies/enemy_diver.tscn",
+	"res://scenes/enemies/enemy_drifter.tscn",
 	"res://scenes/enemies/enemy_firecore.tscn",
 	"res://scenes/enemies/enemy_frigate.tscn",
-	"res://scenes/enemies/enemy_hopper.tscn",
+	"res://scenes/enemies/enemy_hover.tscn",
 	"res://scenes/enemies/enemy_hunter_drone.tscn",
 	"res://scenes/enemies/enemy_interceptor.tscn",
 	"res://scenes/enemies/enemy_mine.tscn",
@@ -28,6 +28,7 @@ const ENEMIES: Array = [
 	"res://scenes/enemies/enemy_mine_shield.tscn",
 	"res://scenes/enemies/enemy_minelayer.tscn",
 	"res://scenes/enemies/enemy_skirmisher.tscn",
+	"res://scenes/enemies/enemy_weaver.tscn",
 ]
 
 

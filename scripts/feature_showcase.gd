@@ -8,7 +8,7 @@ extends Node2D
 
 const PLAYER = preload("res://scenes/player/player.tscn")
 const ENEMY_DART = preload("res://scenes/enemies/enemy_dart.tscn")
-const ENEMY_DIVER = preload("res://scenes/enemies/enemy_diver.tscn")
+const ENEMY_DRIFTER = preload("res://scenes/enemies/enemy_drifter.tscn")
 const ENEMY_FIRECORE = preload("res://scenes/enemies/enemy_firecore.tscn")
 const BOSS = preload("res://scenes/enemies/boss.tscn")
 const BLACK_HOLE = preload("res://scenes/hazards/black_hole.tscn")
@@ -94,7 +94,7 @@ func _setup_demo(idx: int) -> void:
 func _demo_idle() -> void:
 	_spawn_player(Vector2(400, 760))
 	# Mix of enemies so different display_scales are visible against player
-	_spawn_enemy(Vector2(200, 280), ENEMY_DIVER)
+	_spawn_enemy(Vector2(200, 280), ENEMY_DRIFTER)
 	_spawn_enemy(Vector2(400, 260), ENEMY_FIRECORE)
 	_spawn_enemy(Vector2(600, 280), ENEMY_DART)
 
@@ -271,8 +271,8 @@ func _demo_level_outro() -> void:
 			# Fake some enemy stats so the cleared screen has rows to show.
 			if "_enemy_stats" in main_inst:
 				main_inst._enemy_stats = {
-					"res://scenes/enemies/enemy_dart.tscn": {"spawned": 14, "killed": 12, "bounty": 10, "total_bounty": 120},
-					"res://scenes/enemies/enemy_diver.tscn": {"spawned": 8, "killed": 7, "bounty": 15, "total_bounty": 105},
+					"res://scenes/enemies/enemy_dart.tscn": {"spawned": 14, "killed": 12, "bounty": 5, "total_bounty": 60},
+					"res://scenes/enemies/enemy_drifter.tscn": {"spawned": 8, "killed": 7, "bounty": 8, "total_bounty": 56},
 					"res://scenes/enemies/enemy_firecore.tscn": {"spawned": 4, "killed": 4, "bounty": 25, "total_bounty": 100},
 				}
 				main_inst.bounty = 325
@@ -555,12 +555,13 @@ func _demo_codex() -> void:
 		var run = get_node("/root/Run")
 		for path in [
 			"res://scenes/enemies/enemy_firecore.tscn",
-			"res://scenes/enemies/enemy_diver.tscn",
+			"res://scenes/enemies/enemy_drifter.tscn",
 			"res://scenes/enemies/enemy_dart.tscn",
 			"res://scenes/enemies/enemy_hunter_drone.tscn",
-			"res://scenes/enemies/enemy_hopper.tscn",
+			"res://scenes/enemies/enemy_hover.tscn",
 			"res://scenes/enemies/enemy_frigate.tscn",
 			"res://scenes/enemies/enemy_cutter.tscn",
+			"res://scenes/enemies/enemy_weaver.tscn",
 			"res://scenes/enemies/enemy_skirmisher.tscn",
 			"res://scenes/enemies/enemy_crystal.tscn",
 			"res://scenes/enemies/enemy_minelayer.tscn",
@@ -578,11 +579,12 @@ func _demo_enemy_roster_sheet() -> void:
 	const ROSTER = [
 		# COMMON
 		{"path": "res://scenes/enemies/enemy_firecore.tscn", "name": "Firecore", "tier": "Common"},
-		{"path": "res://scenes/enemies/enemy_diver.tscn",    "name": "Diver",    "tier": "Common"},
+		{"path": "res://scenes/enemies/enemy_drifter.tscn",  "name": "Drifter",  "tier": "Common"},
 		{"path": "res://scenes/enemies/enemy_dart.tscn",     "name": "Dart",     "tier": "Common"},
 		{"path": "res://scenes/enemies/enemy_hunter_drone.tscn", "name": "Hunter Drone", "tier": "Common"},
 		# UNCOMMON
-		{"path": "res://scenes/enemies/enemy_hopper.tscn",   "name": "Hopper",   "tier": "Uncommon"},
+		{"path": "res://scenes/enemies/enemy_weaver.tscn",   "name": "Weaver",   "tier": "Uncommon"},
+		{"path": "res://scenes/enemies/enemy_hover.tscn",    "name": "Hover",    "tier": "Uncommon"},
 		{"path": "res://scenes/enemies/enemy_frigate.tscn",  "name": "Frigate",  "tier": "Uncommon"},
 		{"path": "res://scenes/enemies/enemy_cutter.tscn",   "name": "Cutter",   "tier": "Uncommon"},
 		{"path": "res://scenes/enemies/enemy_skirmisher.tscn", "name": "Skirmisher", "tier": "Uncommon"},

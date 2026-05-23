@@ -163,27 +163,44 @@ func _spawn_enemy(wave: Resource, index: int) -> void:
 	var x_min: float = Playfield.X_MIN + pad
 	var usable_w: float = Playfield.W - pad * 2.0
 	var x := 0.0
+	var pos: Vector2
 	match wave.formation:
 		0: # TOP_LEFT_TO_RIGHT
 			var t: float = 0.0
 			if wave.count > 1:
 				t = float(index) / float(wave.count - 1)
 			x = x_min + usable_w * t
+			pos = Vector2(x, wave.spawn_y)
 		1: # TOP_RIGHT_TO_LEFT
 			var t: float = 0.0
 			if wave.count > 1:
 				t = float(index) / float(wave.count - 1)
 			x = x_min + usable_w * (1.0 - t)
+			pos = Vector2(x, wave.spawn_y)
 		2: # TOP_RANDOM
 			x = x_min + randf() * usable_w
+			pos = Vector2(x, wave.spawn_y)
 		3: # TOP_CENTER_OUT
 			var center: float = Playfield.CENTER.x
 			var step: float = usable_w / maxf(1.0, float(wave.count))
 			var offset: float = (float(index) - float(wave.count - 1) * 0.5) * step
 			x = center + offset
+			pos = Vector2(x, wave.spawn_y)
+		4: # SIDE_ALTERNATING — alternate sides per spawn; pattern direction is set to match.
+			var side: int = 1 if (index % 2) == 0 else -1
+			if side > 0:
+				x = Playfield.X_MIN - 12.0
+			else:
+				x = Playfield.X_MAX + 12.0
+			pos = Vector2(x, wave.spawn_y)
+			# Per-instance direction override; duplicate so siblings don't share state.
+			if "movement" in enemy and enemy.movement != null and "direction" in enemy.movement:
+				var mv_dup: Resource = enemy.movement.duplicate()
+				mv_dup.direction = side
+				enemy.movement = mv_dup
 		_:
 			x = x_min + randf() * usable_w
-	var pos := Vector2(x, wave.spawn_y)
+			pos = Vector2(x, wave.spawn_y)
 	# Make the enemy a child of our parent (typically Main) so it lives in the world
 	var parent = get_parent()
 	parent.add_child(enemy)

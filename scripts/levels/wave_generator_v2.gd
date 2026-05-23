@@ -25,33 +25,13 @@ const SpreadShot = preload("res://scripts/enemies/shoot_patterns/spread_shot.gd"
 const AimedShot = preload("res://scripts/enemies/shoot_patterns/aimed_fire.gd")
 const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
 
-# Enemy pools by tier. Indices: 0=common, 1=uncommon, 2=rare, 3=elite.
-const TIER_POOLS := [
-	# Common
-	[
-		"res://scenes/enemies/enemy_dart.tscn",
-		"res://scenes/enemies/enemy_diver.tscn",
-		"res://scenes/enemies/enemy_firecore.tscn",
-		"res://scenes/enemies/enemy_hopper.tscn",
-		"res://scenes/enemies/enemy_hunter_drone.tscn",
-	],
-	# Uncommon
-	[
-		"res://scenes/enemies/enemy_cutter.tscn",
-		"res://scenes/enemies/enemy_frigate.tscn",
-		"res://scenes/enemies/enemy_skirmisher.tscn",
-	],
-	# Rare
-	[
-		"res://scenes/enemies/enemy_crystal.tscn",
-		"res://scenes/enemies/enemy_interceptor.tscn",
-		"res://scenes/enemies/enemy_minelayer.tscn",
-	],
-	# Elite
-	[
-		"res://scenes/enemies/enemy_bulwark.tscn",
-	],
-]
+# Chaff side-entry scenes: when shape="side_alternating" runs, formation 4
+# is used and director alternates spawn side + sets movement direction.
+const SIDE_ENTRY_SCENES := {
+	"res://scenes/enemies/enemy_cutter.tscn": true,
+}
+# Max tier index used by sector_depth auto-progression (common/uncommon/rare/elite).
+const TIER_MAX_IDX := 3
 
 const SHAPES := ["sweep", "counter_sweep", "pincer", "drip", "loiter", "burst", "harasser"]
 # Rare random event chance per wave slot — bomber wing intrudes occasionally.
@@ -85,22 +65,24 @@ static func build_combat(sector_idx: int = 1, knobs: Dictionary = {}) -> LevelDa
 	var density_mult: float = density_base * sector_scale
 	var tier_max: int
 	if knobs.has("tier_max"):
-		tier_max = clampi(int(knobs["tier_max"]), 0, TIER_POOLS.size() - 1)
+		tier_max = clampi(int(knobs["tier_max"]), 0, TIER_MAX_IDX)
 	else:
-		tier_max = clampi(int(floor(float(sector_depth - 1) * 0.5)), 0, TIER_POOLS.size() - 1)
+		tier_max = clampi(int(floor(float(sector_depth - 1) * 0.5)), 0, TIER_MAX_IDX)
 
 	# Reset the bomber-wing slot registry so a stale wing from a prior
 	# level (player died before bombers spawned, scene change, etc.)
 	# doesn't bleed into the new build.
 	_pending_wings.clear()
 	var rng := RandomNumberGenerator.new()
-	rng.randomize()
+	if knobs.has("seed"):
+		rng.seed = int(knobs["seed"])
+	else:
+		rng.randomize()
 
-	# Build the merged enemy pool.
-	var pool: Array = []
-	for t in range(tier_max + 1):
-		for e in TIER_POOLS[t]:
-			pool.append(e)
+	# Weighted, gated pool from the roster — honors unlock_sector / unlock_depth
+	# / weight so new chaff stagger into rolls without scripted indices.
+	var pool: Array = EnemyRoster.eligible_pool(sector_idx, sector_depth, tier_max)
+	assert(not pool.is_empty(), "WaveGeneratorV2: no chaff entries match sector=%d depth=%d tier_max=%d — check enemy_roster.gd unlock gates" % [sector_idx, sector_depth, tier_max])
 
 	var waves: Array = []
 	var delay: float = 0.5
@@ -114,7 +96,12 @@ static func build_combat(sector_idx: int = 1, knobs: Dictionary = {}) -> LevelDa
 			delay += 6.0 + rng.randf_range(0.0, 1.5)
 			continue
 		var enemy_path: String = pool[rng.randi() % pool.size()]
-		var shape: String = SHAPES[rng.randi() % SHAPES.size()]
+		var shape: String
+		if SIDE_ENTRY_SCENES.has(enemy_path):
+			# Cutter must enter from a side, not the top — force SIDE_ALTERNATING.
+			shape = "side_alternating"
+		else:
+			shape = SHAPES[rng.randi() % SHAPES.size()]
 		var wave_specs: Array = _build_shape(shape, enemy_path, delay, i == 0, density_mult, sector_idx, rng)
 		for w in wave_specs:
 			waves.append(w)
@@ -139,9 +126,11 @@ static func _build_shape(shape: String, enemy_path: String, delay: float, is_lea
 		"loiter":        specs = _shape_loiter(scene, delay, is_lead, density, sector_idx)
 		"burst":         specs = _shape_burst(scene, delay, is_lead, density, sector_idx)
 		"harasser":      specs = _shape_harasser(scene, delay, is_lead, density, sector_idx, rng)
+		"side_alternating": specs = _shape_side_alternating(scene, delay, is_lead, density, sector_idx)
 	var entry: Dictionary = EnemyRoster.entry_for_scene(enemy_path)
 	if not entry.is_empty():
 		var stats: Dictionary = EnemyRoster.compose_stats(entry)
+		var no_shoot: bool = entry.get("shoot", null) == null
 		for w in specs:
 			w.max_health = stats["max_health"]
 			w.bounty_value = stats["bounty_value"]
@@ -149,6 +138,8 @@ static func _build_shape(shape: String, enemy_path: String, delay: float, is_lea
 				w.shield_charges = stats["shield_charges"]
 			if stats["recycle_passes"] >= -1:
 				w.recycle_passes = stats["recycle_passes"]
+			if no_shoot:
+				w.shoot_pattern_override = null
 	return specs
 
 
@@ -269,6 +260,27 @@ static func _shape_burst(scene, delay: float, is_lead: bool, density: float, sec
 	w.formation = 0
 	w.formation_padding = 28.0
 	w.shoot_pattern_override = _single()
+	w.health_bonus = _hp_bump(sector_idx)
+	if is_lead:
+		w.announce_text = "INCOMING"
+	else:
+		w.silent = true
+	return [w]
+
+
+static func _shape_side_alternating(scene, delay: float, is_lead: bool, density: float, sector_idx: int) -> Array:
+	# Cutter pattern: 3-4 enemies alternate L/R side entry. Director handles
+	# spawn x + movement direction per index when formation == SIDE_ALTERNATING.
+	var w = WaveSpec.new()
+	w.enemy_scene = scene
+	w.count = max(3, int(round(4.0 * density)))
+	w.spawn_interval = 0.65
+	w.spawn_delay = delay
+	w.formation = 4  # SIDE_ALTERNATING
+	w.spawn_y = 72.0  # side_cut snaps y itself but match the pattern's travel_y
+	w.shoot_pattern_override = _single()
+	w.fire_interval_min = 0.4
+	w.fire_interval_max = 0.7
 	w.health_bonus = _hp_bump(sector_idx)
 	if is_lead:
 		w.announce_text = "INCOMING"
