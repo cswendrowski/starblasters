@@ -128,7 +128,6 @@ script = ExtResource("1_core")
 max_health = 2
 bounty_value = 15
 display_scale = 1.0
-auto_rotate = false
 movement = SubResource("MovePattern_inst")
 shoot_pattern = ExtResource("11_shoot")
 fire_interval_min = 999.0
