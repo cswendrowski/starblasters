@@ -71,7 +71,7 @@ func _build_ui() -> void:
 	v.add_child(HSeparator.new())
 
 	var grid := GridContainer.new()
-	grid.columns = 3  # Cobalt 2026-05-21 — was 2; adding Progression Mockup nudged us to 3-wide
+	grid.columns = 3
 	grid.add_theme_constant_override("h_separation", 5)
 	grid.add_theme_constant_override("v_separation", 4)
 	v.add_child(grid)
@@ -90,7 +90,6 @@ func _build_ui() -> void:
 	# Test launchers
 	_add_button("[ Test Combat ]", _on_test_combat, true)
 	_add_button("[ Hangar ]", _on_hangar, true)
-	_add_button("[ Progression Mockup ]", _on_progression_mockup, true)
 	_add_button("[ Sector Map V3 ]", _on_sector_map_v3, true)
 
 	v.add_child(HSeparator.new())
@@ -168,10 +167,6 @@ func _on_parallax_tuner() -> void:
 
 func _on_hangar() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/hangar.tscn")
-
-
-func _on_progression_mockup() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev/progression_mockup.tscn")
 
 
 func _on_sector_map_v3() -> void:
