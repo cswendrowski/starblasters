@@ -1,24 +1,29 @@
 extends Control
 
-# Shipyard V3 — Roman 2026-05-23 teardown: "rebuild with HD dev-menu UI, a
-# central play space showing the enemy move/shoot pattern, info on the
-# enemy. Left = scrollable ship list. Rarity dropdown. Dummy player at
-# bottom of play space so behaviors that target the player have something
-# to chase/shoot."
+# Shipyard V3 — Roman 2026-05-23 rework: "full-screen play space like other
+# dev menus, but with hd-ui over it. The central play space should be where
+# the enemies spawn and attack the dummy target."
 #
-# Layout (1920×1080 native, see sector_map_hd.gd pattern):
-#   ┌────────────┬──────────────────────────────┬─────────────────┐
-#   │  RAIL 360  │  PLAY SPACE 1200×900         │  INFO 360       │
-#   │  rarity ▾  │  (SubViewport @ 480×270      │  name / tier    │
-#   │  • dart    │   display-scaled to fit)     │  hp / bounty    │
-#   │  • drift   │   enemy spawns top           │  move / shoot   │
-#   │  • …       │   dummy player @ bottom      │  tags / codex   │
-#   └────────────┴──────────────────────────────┴─────────────────┘
+# Layout (1920×1080 HD; gameplay SubViewport 480×270 stretched to fill):
+#   ┌──────────────────────────────────────────────────────────────────┐
+#   │ SHIPYARD                                                  [Back] │
+#   │ ┌────────┐                                       ┌────────────┐  │
+#   │ │ Rarity▾│                                       │  Name      │  │
+#   │ │────────│                                       │  Rarity    │  │
+#   │ │ • dart │           ★ FULL-WINDOW PLAYSPACE ★    │  HP/Bounty │  │
+#   │ │ • drift│                                       │  Move/Shoot│  │
+#   │ │ • …    │   (enemy spawns top, attacks dummy    │  Tags      │  │
+#   │ │        │    player at bottom of playfield band)│  Blurb     │  │
+#   │ │        │                                       │ [✓] Shoot  │  │
+#   │ │        │                                       │ [Respawn]  │  │
+#   │ └────────┘                                       └────────────┘  │
+#   └──────────────────────────────────────────────────────────────────┘
 #
-# SubViewport is intentionally 480×270 (game-native) so all movement
-# patterns + Playfield.X_MIN/X_MAX read correctly. Scaled to ~1200×675
-# via SubViewportContainer stretch — pixels stay crisp because the inner
-# canvas is rendered at native size and then nearest-filtered up.
+# The SubViewport stays 480×270 (game-native) so all Playfield.X_MIN /
+# X_MAX math + movement patterns read correctly. A fullscreen
+# SubViewportContainer with stretch=true displays it at 4× across the
+# whole 1920×1080 window. UI panels live on a CanvasLayer above with
+# semi-transparent backgrounds so gameplay remains visible behind them.
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const SceneTransition = preload("res://scripts/scene_transition.gd")
@@ -58,22 +63,19 @@ const TIER_BY_PATH := {
 const RARITY_FILTERS := ["All", "Common", "Uncommon", "Rare", "Boss", "Hazard"]
 
 # HD font sizes — UiTheme defaults are sized for 480×270; bump for 1080p.
-const FS_TITLE := 44
-const FS_HEADER := 28
-const FS_BODY := 22
-const FS_CAPTION := 18
+const FS_TITLE := 40
+const FS_HEADER := 26
+const FS_BODY := 20
+const FS_CAPTION := 16
 
-# Layout constants (1920×1080 native).
-const RAIL_W := 360
-const INFO_W := 360
-const MARGIN := 24
-const HEADER_H := 64
-const PLAY_W := 1920 - RAIL_W - INFO_W - MARGIN * 4   # ~1128
-const PLAY_H := 1080 - HEADER_H - MARGIN * 2          # ~968
-# SubViewport is 480×270; we display-scale to (PLAY_W × PLAY_W*270/480) to
-# keep aspect, capped at PLAY_H. 480→1128 ≈ 2.35×, height = 270×2.35 ≈ 634.
-const PREVIEW_DISPLAY_W := PLAY_W
-const PREVIEW_DISPLAY_H := int(PLAY_W * 270.0 / 480.0)
+# HD overlay layout (1920×1080). Panels are narrower than the V2 columns
+# and translucent so the gameplay shows through behind them.
+const RAIL_W := 280
+const INFO_W := 300
+const MARGIN := 20
+const HEADER_H := 56
+const PANEL_BG := Color(0.0, 0.0, 0.0, 0.55)
+const PANEL_BORDER := Color(0.35, 0.55, 0.75, 0.85)
 
 const RESPAWN_DELAY := 1.5
 
@@ -104,10 +106,11 @@ var _shoot_toggle: CheckBox = null
 
 func _ready() -> void:
 	# Native 1920×1080 for this scene; restored on exit. Same pattern as
-	# sector_map_hd.gd so all child geometry below is authored in HD coords.
+	# sector_map_hd.gd so all HD overlay geometry is authored in HD coords.
 	get_tree().get_root().content_scale_size = Vector2i(1920, 1080)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_build_ui()
+	_build_playspace()
+	_build_overlay()
 	_load_manifest()
 	_apply_filter()
 	if _list.item_count > 0:
@@ -119,111 +122,36 @@ func _exit_tree() -> void:
 	get_tree().get_root().content_scale_size = Vector2i(480, 270)
 
 
-func _build_ui() -> void:
-	var bg := ColorRect.new()
-	bg.color = Color(0.04, 0.06, 0.10, 1.0)
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(bg)
+# ---- Playspace (fills the whole window) --------------------------------
 
-	var header := Label.new()
-	header.text = "SHIPYARD"
-	header.position = Vector2(MARGIN, 12)
-	header.add_theme_font_override("font", UiTheme.active_font())
-	header.add_theme_font_size_override("font_size", FS_TITLE)
-	header.add_theme_color_override("font_color", UiTheme.COLOR_ACCENT)
-	header.add_theme_color_override("font_outline_color", UiTheme.COLOR_OUTLINE)
-	header.add_theme_constant_override("outline_size", 6)
-	add_child(header)
-
-	var back_btn := Button.new()
-	back_btn.text = "Back"
-	back_btn.position = Vector2(1920 - MARGIN - 140, 16)
-	back_btn.size = Vector2(140, 44)
-	UiTheme.style_button(back_btn, true)
-	back_btn.add_theme_font_size_override("font_size", FS_BODY)
-	back_btn.pressed.connect(_on_back)
-	add_child(back_btn)
-
-	_build_left_rail()
-	_build_play_space()
-	_build_info_panel()
-
-
-func _build_left_rail() -> void:
-	var x := MARGIN
-	var y := HEADER_H + MARGIN
-	var h := 1080 - y - MARGIN
-
-	var panel := Panel.new()
-	panel.add_theme_stylebox_override("panel", UiTheme.make_panel_stylebox())
-	panel.position = Vector2(x, y)
-	panel.size = Vector2(RAIL_W, h)
-	add_child(panel)
-
-	var filter_lbl := Label.new()
-	filter_lbl.text = "Rarity"
-	filter_lbl.position = Vector2(x + 16, y + 14)
-	filter_lbl.add_theme_font_override("font", UiTheme.active_font())
-	filter_lbl.add_theme_font_size_override("font_size", FS_CAPTION)
-	filter_lbl.add_theme_color_override("font_color", UiTheme.COLOR_FAINT)
-	add_child(filter_lbl)
-
-	_filter_dd = OptionButton.new()
-	_filter_dd.position = Vector2(x + 16, y + 38)
-	_filter_dd.size = Vector2(RAIL_W - 32, 40)
-	_filter_dd.add_theme_font_override("font", UiTheme.active_font())
-	_filter_dd.add_theme_font_size_override("font_size", FS_BODY)
-	for f in RARITY_FILTERS:
-		_filter_dd.add_item(f)
-	_filter_dd.select(0)
-	_filter_dd.item_selected.connect(_on_filter_changed)
-	add_child(_filter_dd)
-
-	var list_y := y + 90
-	var list_h := h - 90 - 16
-	_list = ItemList.new()
-	_list.position = Vector2(x + 16, list_y)
-	_list.size = Vector2(RAIL_W - 32, list_h)
-	_list.add_theme_font_override("font", UiTheme.active_font())
-	_list.add_theme_font_size_override("font_size", FS_BODY)
-	_list.fixed_icon_size = Vector2i(32, 32)
-	_list.item_selected.connect(_on_list_select)
-	add_child(_list)
-
-
-func _build_play_space() -> void:
-	var x := MARGIN * 2 + RAIL_W
-	var y := HEADER_H + MARGIN
-
-	var frame := Panel.new()
-	frame.add_theme_stylebox_override("panel", UiTheme.make_panel_stylebox())
-	frame.position = Vector2(x, y)
-	frame.size = Vector2(PLAY_W, PLAY_H)
-	add_child(frame)
-
-	# Centre the (PLAY_W × PREVIEW_DISPLAY_H) preview vertically inside frame.
-	var preview_y := y + (PLAY_H - PREVIEW_DISPLAY_H) / 2
+func _build_playspace() -> void:
+	# A SubViewportContainer that fills the entire 1920×1080 window with
+	# stretch=true — the inner 480×270 SubViewport upscales 4× to fill.
+	# Nearest filter keeps the pixel art crisp.
 	var sub_container := SubViewportContainer.new()
 	sub_container.stretch = true
-	sub_container.position = Vector2(x, preview_y)
-	sub_container.size = Vector2(PREVIEW_DISPLAY_W, PREVIEW_DISPLAY_H)
+	sub_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	sub_container.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	# Don't eat input events that should reach the UI overlay above.
+	sub_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(sub_container)
 
 	_preview_vp = SubViewport.new()
 	_preview_vp.size = Vector2i(480, 270)
 	_preview_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_preview_vp.transparent_bg = false
+	# Disable input handling inside the subviewport — it's display-only.
+	_preview_vp.handle_input_locally = false
 	sub_container.add_child(_preview_vp)
 
-	# Inner background — gameplay band darker than gutters so the 216-wide
-	# Playfield region reads as the "real" combat strip.
+	# Gutters (matches the real game's frame: dark side bands, slightly
+	# lighter 216-wide playfield strip in the middle).
 	var gutter := ColorRect.new()
-	gutter.color = Color(0.05, 0.06, 0.10, 1.0)
+	gutter.color = Color(0.04, 0.05, 0.08, 1.0)
 	gutter.size = Vector2(480, 270)
 	_preview_vp.add_child(gutter)
 	var band := ColorRect.new()
-	band.color = Color(0.08, 0.10, 0.14, 1.0)
+	band.color = Color(0.07, 0.09, 0.13, 1.0)
 	band.position = Vector2(Playfield.X_MIN, 0)
 	band.size = Vector2(Playfield.W, Playfield.H)
 	_preview_vp.add_child(band)
@@ -258,22 +186,119 @@ func _build_play_space() -> void:
 	add_child(_respawn_timer)
 
 
-func _build_info_panel() -> void:
+# ---- HD overlay UI (floats over playspace) -----------------------------
+
+func _build_overlay() -> void:
+	# Layer 5 matches main.tscn's HUD convention — well above the
+	# SubViewportContainer at the default layer 0.
+	var ui_layer := CanvasLayer.new()
+	ui_layer.layer = 5
+	ui_layer.name = "UiOverlay"
+	add_child(ui_layer)
+
+	# Header label (top-left).
+	var header := Label.new()
+	header.text = "SHIPYARD"
+	header.position = Vector2(MARGIN, 12)
+	header.add_theme_font_override("font", UiTheme.active_font())
+	header.add_theme_font_size_override("font_size", FS_TITLE)
+	header.add_theme_color_override("font_color", UiTheme.COLOR_ACCENT)
+	header.add_theme_color_override("font_outline_color", UiTheme.COLOR_OUTLINE)
+	header.add_theme_constant_override("outline_size", 6)
+	ui_layer.add_child(header)
+
+	# Back button (top-right corner).
+	var back_btn := Button.new()
+	back_btn.text = "Back"
+	back_btn.position = Vector2(1920 - MARGIN - 120, 16)
+	back_btn.size = Vector2(120, 40)
+	UiTheme.style_button(back_btn, true)
+	back_btn.add_theme_font_size_override("font_size", FS_BODY)
+	back_btn.pressed.connect(_on_back)
+	ui_layer.add_child(back_btn)
+
+	_build_left_rail(ui_layer)
+	_build_info_panel(ui_layer)
+
+
+func _make_panel_bg(pos: Vector2, sz: Vector2) -> Panel:
+	var panel := Panel.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = PANEL_BG
+	sb.border_color = PANEL_BORDER
+	sb.border_width_left = 2
+	sb.border_width_top = 2
+	sb.border_width_right = 2
+	sb.border_width_bottom = 2
+	sb.corner_radius_top_left = 4
+	sb.corner_radius_top_right = 4
+	sb.corner_radius_bottom_left = 4
+	sb.corner_radius_bottom_right = 4
+	sb.content_margin_left = 10
+	sb.content_margin_top = 10
+	sb.content_margin_right = 10
+	sb.content_margin_bottom = 10
+	panel.add_theme_stylebox_override("panel", sb)
+	panel.position = pos
+	panel.size = sz
+	# Let the panel itself ignore mouse so child controls receive clicks.
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return panel
+
+
+func _build_left_rail(parent: CanvasLayer) -> void:
+	var x := MARGIN
+	var y := HEADER_H + MARGIN
+	# Take ~3/4 of remaining vertical space, leaving open air at the bottom.
+	var h := int((1080 - y - MARGIN) * 0.78)
+
+	var panel := _make_panel_bg(Vector2(x, y), Vector2(RAIL_W, h))
+	parent.add_child(panel)
+
+	var filter_lbl := Label.new()
+	filter_lbl.text = "Rarity"
+	filter_lbl.position = Vector2(x + 14, y + 10)
+	filter_lbl.add_theme_font_override("font", UiTheme.active_font())
+	filter_lbl.add_theme_font_size_override("font_size", FS_CAPTION)
+	filter_lbl.add_theme_color_override("font_color", UiTheme.COLOR_FAINT)
+	parent.add_child(filter_lbl)
+
+	_filter_dd = OptionButton.new()
+	_filter_dd.position = Vector2(x + 14, y + 32)
+	_filter_dd.size = Vector2(RAIL_W - 28, 36)
+	_filter_dd.add_theme_font_override("font", UiTheme.active_font())
+	_filter_dd.add_theme_font_size_override("font_size", FS_BODY)
+	for f in RARITY_FILTERS:
+		_filter_dd.add_item(f)
+	_filter_dd.select(0)
+	_filter_dd.item_selected.connect(_on_filter_changed)
+	parent.add_child(_filter_dd)
+
+	var list_y := y + 78
+	var list_h := h - 78 - 14
+	_list = ItemList.new()
+	_list.position = Vector2(x + 14, list_y)
+	_list.size = Vector2(RAIL_W - 28, list_h)
+	_list.add_theme_font_override("font", UiTheme.active_font())
+	_list.add_theme_font_size_override("font_size", FS_BODY)
+	_list.fixed_icon_size = Vector2i(28, 28)
+	_list.item_selected.connect(_on_list_select)
+	parent.add_child(_list)
+
+
+func _build_info_panel(parent: CanvasLayer) -> void:
 	var x := 1920 - MARGIN - INFO_W
 	var y := HEADER_H + MARGIN
-	var h := 1080 - y - MARGIN
+	var h := int((1080 - y - MARGIN) * 0.78)
 
-	var panel := Panel.new()
-	panel.add_theme_stylebox_override("panel", UiTheme.make_panel_stylebox())
-	panel.position = Vector2(x, y)
-	panel.size = Vector2(INFO_W, h)
-	add_child(panel)
+	var panel := _make_panel_bg(Vector2(x, y), Vector2(INFO_W, h))
+	parent.add_child(panel)
 
 	var vbox := VBoxContainer.new()
-	vbox.position = Vector2(x + 20, y + 20)
-	vbox.size = Vector2(INFO_W - 40, h - 40)
-	vbox.add_theme_constant_override("separation", 10)
-	add_child(vbox)
+	vbox.position = Vector2(x + 16, y + 14)
+	vbox.size = Vector2(INFO_W - 32, h - 28)
+	vbox.add_theme_constant_override("separation", 8)
+	parent.add_child(vbox)
 
 	_name_lbl = _make_label("—", FS_HEADER, UiTheme.COLOR_ACCENT)
 	vbox.add_child(_name_lbl)
@@ -298,7 +323,7 @@ func _build_info_panel() -> void:
 
 	_blurb_lbl = _make_label("", FS_CAPTION, UiTheme.COLOR_TEXT)
 	_blurb_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_blurb_lbl.custom_minimum_size = Vector2(INFO_W - 40, 100)
+	_blurb_lbl.custom_minimum_size = Vector2(INFO_W - 32, 80)
 	vbox.add_child(_blurb_lbl)
 	vbox.add_child(HSeparator.new())
 
@@ -314,7 +339,7 @@ func _build_info_panel() -> void:
 	respawn_btn.text = "Respawn"
 	UiTheme.style_button(respawn_btn, true)
 	respawn_btn.add_theme_font_size_override("font_size", FS_BODY)
-	respawn_btn.custom_minimum_size = Vector2(0, 44)
+	respawn_btn.custom_minimum_size = Vector2(0, 40)
 	respawn_btn.pressed.connect(_spawn_current)
 	vbox.add_child(respawn_btn)
 
