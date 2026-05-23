@@ -11,6 +11,8 @@ extends "res://scripts/enemies/movement_pattern.gd"
 @export var break_speed: float = 240.0
 @export var cycles: int = 2
 
+signal phase_entered(phase_name: String)
+
 enum Phase { ADVANCE, HOLD, RETREAT, BREAK }
 var _phase: int = Phase.ADVANCE
 var _t: float = 0.0
@@ -24,6 +26,7 @@ func on_start(enemy) -> void:
 	_t = 0.0
 	_cycle = 0
 	_break_dir = 0.0
+	phase_entered.emit("advance")
 
 
 func compute_step(enemy, delta: float) -> Vector2:
@@ -34,11 +37,13 @@ func compute_step(enemy, delta: float) -> Vector2:
 				step_y = advance_y - enemy.position.y
 				_phase = Phase.HOLD
 				_t = 0.0
+				phase_entered.emit("hold")
 			return Vector2(0, step_y)
 		Phase.HOLD:
 			_t += delta
 			if _t >= hold_time:
 				_phase = Phase.RETREAT
+				phase_entered.emit("retreat")
 			return Vector2.ZERO
 		Phase.RETREAT:
 			var step_y2: float = -retreat_speed * delta
@@ -48,8 +53,10 @@ func compute_step(enemy, delta: float) -> Vector2:
 				if _cycle >= cycles:
 					_break_dir = -1.0 if enemy.position.x < Playfield.CENTER.x else 1.0
 					_phase = Phase.BREAK
+					phase_entered.emit("break")
 				else:
 					_phase = Phase.ADVANCE
+					phase_entered.emit("advance")
 			return Vector2(0, step_y2)
 		Phase.BREAK:
 			return Vector2(_break_dir * break_speed * delta, 24.0 * delta)

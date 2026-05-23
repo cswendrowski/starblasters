@@ -27,6 +27,11 @@ var _pattern = null
 # polling but no bullet is emitted until alignment.
 @export var fire_only_on_target: bool = false
 @export var fire_aim_tol_deg: float = 18.0
+# When non-empty, fire one shot whenever the movement pattern emits
+# `phase_entered(phase_name)` with this name. Replaces the statistical
+# ShootTimer for patterns that have a meaningful "shoot here" beat
+# (Hover hold, Skirmisher hold). Empty = legacy timer-only firing.
+@export var fire_on_phase: String = ""
 
 # Cycling state — enemy is currently flying back up through parallax.
 var _cycling: bool = false
@@ -61,13 +66,19 @@ func start(pos: Vector2) -> void:
 func _start_with_pattern(pos: Vector2) -> void:
 	position = pos
 	_pattern = movement.duplicate()
+	# Connect phase events BEFORE on_start so the initial-phase emit lands.
+	if _pattern.has_signal("phase_entered") \
+		and not _pattern.is_connected("phase_entered", _on_movement_phase_entered):
+		_pattern.phase_entered.connect(_on_movement_phase_entered)
 	if _pattern.has_method("on_start"):
 		_pattern.on_start(self)
 	# Only arm the shoot timer if the enemy *can* shoot. A null shoot_pattern
 	# means this enemy has no weapon — don't let a timer fire bullets via
 	# the legacy bullet_scene fallback. Roman, 2026-05-17: minelayer/mine
 	# carriers should not shoot.
-	if shoot_pattern != null and has_node("ShootTimer"):
+	# Phase-driven enemies (fire_on_phase != "") use the pattern's event
+	# instead of the random timer, so we skip starting it.
+	if shoot_pattern != null and has_node("ShootTimer") and fire_on_phase == "":
 		$ShootTimer.wait_time = randf_range(fire_interval_min, fire_interval_max)
 		$ShootTimer.start()
 
@@ -198,7 +209,7 @@ func _start_cycle() -> void:
 	_rot_init = false
 	set_deferred("monitorable", true)
 	set_deferred("monitoring", true)
-	if has_node("ShootTimer"):
+	if has_node("ShootTimer") and fire_on_phase == "":
 		$ShootTimer.wait_time = randf_range(fire_interval_min, fire_interval_max)
 		$ShootTimer.start()
 	if _pattern and _pattern.has_method("on_start"):
@@ -232,6 +243,20 @@ func _on_shoot_timer_timeout() -> void:
 	shoot_pattern.fire(self)
 	$ShootTimer.wait_time = randf_range(fire_interval_min, fire_interval_max)
 	$ShootTimer.start()
+	if has_node("EnemyShoot"):
+		$EnemyShoot.play()
+
+
+func _on_movement_phase_entered(phase_name: String) -> void:
+	if fire_on_phase == "" or phase_name != fire_on_phase:
+		return
+	if shoot_pattern == null:
+		return
+	if _cycling or not _on_playfield():
+		return
+	if fire_only_on_target and not _nose_on_player():
+		return
+	shoot_pattern.fire(self)
 	if has_node("EnemyShoot"):
 		$EnemyShoot.play()
 

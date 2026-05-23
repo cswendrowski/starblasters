@@ -66,6 +66,7 @@ const ENTRIES := [
 		"base_count": 6,
 		"fire_min": 2.0, "fire_max": 3.5,
 		"unlock_sector": 2, "unlock_depth": 5, "weight": 0.7, "chaff": true,
+		"conflict_tags": ["aimed_or_spread"],
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_dart.tscn",
@@ -87,6 +88,7 @@ const ENTRIES := [
 		"fire_min": 2.4, "fire_max": 3.2,
 		"hp_override": 1, "bounty_override": 8,
 		"unlock_sector": 1, "unlock_depth": 2, "weight": 1.2, "chaff": true,
+		"conflict_tags": ["dumb_shot"],
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_hunter_drone.tscn",
@@ -117,6 +119,7 @@ const ENTRIES := [
 		"fire_min": 1.4, "fire_max": 2.2,
 		"hp_override": 2, "bounty_override": 10,
 		"unlock_sector": 1, "unlock_depth": 4, "weight": 0.9, "chaff": true,
+		"conflict_tags": ["aimed_or_spread", "wide_dodge"],
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_hover.tscn",
@@ -128,6 +131,7 @@ const ENTRIES := [
 		"fire_min": 1.6, "fire_max": 2.4,
 		"hp_override": 2, "bounty_override": 12,
 		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.9, "chaff": true,
+		"conflict_tags": ["demands_focus"],
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_frigate.tscn",
@@ -148,6 +152,7 @@ const ENTRIES := [
 		"fire_min": 0.3, "fire_max": 0.5,
 		"hp_override": 1, "bounty_override": 10,
 		"unlock_sector": 1, "unlock_depth": 4, "weight": 1.0, "chaff": true,
+		"conflict_tags": ["dumb_shot"],
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_skirmisher.tscn",
@@ -159,6 +164,7 @@ const ENTRIES := [
 		"fire_min": 0.7, "fire_max": 1.1,
 		"hp_override": 2, "bounty_override": 15,
 		"unlock_sector": 2, "unlock_depth": 3, "weight": 0.8, "chaff": true,
+		"conflict_tags": ["aimed_or_spread", "demands_focus"],
 	},
 
 	{

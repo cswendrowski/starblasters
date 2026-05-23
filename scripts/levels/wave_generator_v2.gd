@@ -86,6 +86,7 @@ static func build_combat(sector_idx: int = 1, knobs: Dictionary = {}) -> LevelDa
 
 	var waves: Array = []
 	var delay: float = 0.5
+	var prev_tags: PackedStringArray = PackedStringArray()
 	for i in wave_count:
 		# Rare random event: bomber wing intrusion. Replaces a normal wave
 		# slot with a V-formation of 3-5 bombers (Roman 2026-05-18).
@@ -95,7 +96,11 @@ static func build_combat(sector_idx: int = 1, knobs: Dictionary = {}) -> LevelDa
 				waves.append(w)
 			delay += 6.0 + rng.randf_range(0.0, 1.5)
 			continue
-		var enemy_path: String = pool[rng.randi() % pool.size()]
+		var allowed: Array = _filter_by_conflict(pool, prev_tags)
+		if allowed.is_empty():
+			push_warning("WaveGeneratorV2: conflict filter emptied pool at wave %d — falling back to full pool" % i)
+			allowed = pool
+		var enemy_path: String = allowed[rng.randi() % allowed.size()]
 		var shape: String
 		if SIDE_ENTRY_SCENES.has(enemy_path):
 			# Cutter must enter from a side, not the top — force SIDE_ALTERNATING.
@@ -106,6 +111,8 @@ static func build_combat(sector_idx: int = 1, knobs: Dictionary = {}) -> LevelDa
 		for w in wave_specs:
 			waves.append(w)
 		delay += 3.0 + rng.randf_range(0.0, 1.5)
+		var picked_entry: Dictionary = EnemyRoster.entry_for_scene(enemy_path)
+		prev_tags = PackedStringArray(picked_entry.get("conflict_tags", []))
 
 	var level := LevelData.new()
 	level.level_name = "S%d Combat" % sector_idx
@@ -390,6 +397,23 @@ static func _shape_harasser(scene, delay: float, is_lead: bool, density: float, 
 	else:
 		w.silent = true
 	return [w]
+
+
+static func _filter_by_conflict(pool: Array, prev_tags: PackedStringArray) -> Array:
+	if prev_tags.is_empty():
+		return pool
+	var out: Array = []
+	for path in pool:
+		var entry: Dictionary = EnemyRoster.entry_for_scene(str(path))
+		var tags: Array = entry.get("conflict_tags", [])
+		var clash: bool = false
+		for t in tags:
+			if prev_tags.has(str(t)):
+				clash = true
+				break
+		if not clash:
+			out.append(path)
+	return out
 
 
 static func _single() -> Resource:

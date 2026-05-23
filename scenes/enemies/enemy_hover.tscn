@@ -257,8 +257,9 @@ display_scale = 1.0
 auto_rotate = false
 movement = SubResource("MovePattern_inst")
 shoot_pattern = ExtResource("11_shoot")
-fire_interval_min = 0.9
-fire_interval_max = 1
+fire_interval_min = 999.0
+fire_interval_max = 999.0
+fire_on_phase = "hold"
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("3_g646a")

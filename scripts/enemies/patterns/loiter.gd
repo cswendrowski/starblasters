@@ -10,6 +10,8 @@ extends "res://scripts/enemies/movement_pattern.gd"
 @export var exit_accel: float = 300.0
 @export var exit_max_speed: float = 350.0
 
+signal phase_entered(phase_name: String)
+
 enum Phase { ENTERING, LOITERING, EXITING }
 var _phase: int = Phase.ENTERING
 var _timer: float = 0.0
@@ -20,6 +22,7 @@ func on_start(_enemy) -> void:
 	_phase = Phase.ENTERING
 	_timer = 0.0
 	_exit_speed = 0.0
+	phase_entered.emit("enter")
 
 
 func compute_step(enemy, delta: float) -> Vector2:
@@ -33,12 +36,14 @@ func compute_step(enemy, delta: float) -> Vector2:
 				step_y = hover_y - enemy.position.y
 				_phase = Phase.LOITERING
 				_timer = 0.0
+				phase_entered.emit("hold")
 			return Vector2(0, step_y)
 		Phase.LOITERING:
 			_timer += delta
 			if _timer >= loiter_time:
 				_phase = Phase.EXITING
 				_exit_speed = enter_speed
+				phase_entered.emit("exit")
 			return Vector2.ZERO
 		Phase.EXITING:
 			_exit_speed = min(_exit_speed + exit_accel * delta, exit_max_speed)
