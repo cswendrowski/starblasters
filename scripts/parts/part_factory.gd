@@ -53,13 +53,16 @@ static func _load_or_default(tres_path: String, fallback_script: Script):
 	if part == null:
 		part = fallback_script.new()
 	# Godot doesn't run _init() on Resources loaded from .tres; the .tres
-	# files don't persist display_name/description (only stat @exports).
-	# Restore them from a fresh script-default. Same fix as
-	# PartCatalog._build_weapon for the outpost path.
-	if fallback_script != null and "display_name" in part:
-		if part.display_name == "" or part.display_name == "Unnamed Part":
-			var defaults = fallback_script.new()
+	# files don't persist display_name / description / slot_type. Restore
+	# from a fresh script-default. Same fix as PartCatalog._build_weapon.
+	# slot_type=-1 is critical: without this, Run.equip_part routes the
+	# part to slot -1, so the player can't fire it.
+	if fallback_script != null:
+		var defaults = fallback_script.new()
+		if "display_name" in part and (part.display_name == "" or part.display_name == "Unnamed Part"):
 			part.display_name = defaults.display_name
 			if "description" in part and "description" in defaults:
 				part.description = defaults.description
+		if "slot_type" in part and int(part.slot_type) < 0 and "slot_type" in defaults:
+			part.slot_type = defaults.slot_type
 	return part

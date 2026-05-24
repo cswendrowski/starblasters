@@ -182,14 +182,19 @@ static func _build_weapon(tres_path: String, fallback_script: Script, bullet_fal
 	if weapon == null:
 		weapon = fallback_script.new()
 	# Godot does NOT call _init() on Resources loaded from disk; the .tres files
-	# don't persist display_name/description so they stay at the base "Unnamed
-	# Part" / "" defaults. Pull them off a fresh script-default instance.
-	if fallback_script != null and "display_name" in weapon:
-		if weapon.display_name == "" or weapon.display_name == "Unnamed Part":
-			var defaults = fallback_script.new()
+	# don't persist display_name / description / slot_type (only the stat
+	# @exports). Without this, loaded weapons stay at base defaults
+	# (display_name="Unnamed Part", description="", slot_type=-1). slot_type=-1
+	# is the load-bearing one — it makes Run.equip_part route to slot -1, so
+	# the part doesn't reach its real slot and the player can't fire it.
+	if fallback_script != null:
+		var defaults = fallback_script.new()
+		if "display_name" in weapon and (weapon.display_name == "" or weapon.display_name == "Unnamed Part"):
 			weapon.display_name = defaults.display_name
 			if "description" in weapon and "description" in defaults:
 				weapon.description = defaults.description
+		if "slot_type" in weapon and int(weapon.slot_type) < 0 and "slot_type" in defaults:
+			weapon.slot_type = defaults.slot_type
 	if bullet_fallback != null and "bullet_scene" in weapon and weapon.bullet_scene == null:
 		weapon.bullet_scene = bullet_fallback
 	return weapon
