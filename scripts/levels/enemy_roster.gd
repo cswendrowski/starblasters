@@ -61,7 +61,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/enemy_firecore.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "straight",
+		"movement": "firecore_straight",
 		"shoot": "single",
 		"base_count": 6,
 		"fire_min": 2.0, "fire_max": 3.5,
@@ -82,7 +82,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/enemy_drifter.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "straight",
+		"movement": "drifter_straight",
 		"shoot": "single",
 		"base_count": 4,
 		"fire_min": 2.4, "fire_max": 3.2,
@@ -322,44 +322,92 @@ static func compose_stats(entry: Dictionary) -> Dictionary:
 static func make_movement(entry: Dictionary) -> Resource:
 	match entry.get("movement", "straight"):
 		"straight":
+			# Generic chaff descent (Burner). Firecore + Drifter have their
+			# own keys after the 2026-05-24 speed pass.
 			var m = StraightDown.new()
 			m.speed = 220.0
 			return m
-		"fast_straight":
+		"firecore_straight":
+			# Firecore — slowed from 220 to 180 so it sits between Drifter
+			# (110) and the dive tier (Dart 360). Mid-band fodder.
 			var m = StraightDown.new()
-			m.speed = 480.0
+			m.speed = 180.0
+			return m
+		"drifter_straight":
+			# Drifter — slow descent (110) with ±15 lateral drift so it
+			# doesn't read as a Firecore clone. TOS ~2.5s.
+			var m = StraightDown.new()
+			m.speed = 110.0
+			m.drift_x = 15.0 if randf() < 0.5 else -15.0
+			return m
+		"fast_straight":
+			# Dart — 360 (was 480). 480 reaction-test variant is filed as a
+			# separate "Sprint Dart" TODO in TODO.md.
+			var m = StraightDown.new()
+			m.speed = 360.0
 			return m
 		"s_curve":
+			# Weaver carries aimed fire — slow carriage so the player can
+			# read the lead. 220→160 down, freq 1.6→1.2, amp 160→110.
 			var m = SCurve.new()
-			m.down_speed = 220.0
-			m.amplitude = 160.0
-			m.frequency = 1.6
+			m.down_speed = 160.0
+			m.amplitude = 110.0
+			m.frequency = 1.2
 			return m
 		"loiter":
+			# Hover etc. Exit accel/max trimmed (was 600/700) so a player
+			# drifting upward isn't rammed by an exiting Hover.
 			var m = Loiter.new()
 			m.hover_y = 240.0
-			m.enter_speed = 240.0
-			m.loiter_time = 5.0
-			m.exit_accel = 600.0
-			m.exit_max_speed = 700.0
+			m.enter_speed = 180.0
+			m.loiter_time = 3.0
+			m.exit_accel = 400.0
+			m.exit_max_speed = 480.0
 			return m
 		"slow_advance":
-			return SlowAdvance.new()
+			# Frigate — enter_speed 35→60 so it actually reaches hold_y
+			# before the player kills it.
+			var m = SlowAdvance.new()
+			m.enter_speed = 60.0
+			return m
 		"side_cut":
+			# Cutter — identity is "snaps across screen". 130→160 enter,
+			# 210→250 cut.
 			var m = SideCut.new()
+			m.enter_speed = 160.0
+			m.cut_speed = 250.0
 			m.direction = 1 if randf() < 0.5 else -1
 			return m
 		"advance_retreat":
-			return AdvanceRetreat.new()
+			# Skirmisher — aimed-fire pacing slowed. 180→150 adv, 260→220
+			# ret, 0.6→0.8 hold.
+			var m = AdvanceRetreat.new()
+			m.advance_speed = 150.0
+			m.retreat_speed = 220.0
+			m.hold_time = 0.8
+			return m
 		"side_traverse":
+			# Minelayer — 55→75 so TOS is ~6s instead of ~9s.
 			var m = SideTraverse.new()
+			m.speed = 75.0
 			m.direction = 1 if randf() < 0.5 else -1
 			return m
 		"top_dive":
-			return TopDive.new()
+			# Interceptor — 270→220 to differentiate from Dart by trajectory,
+			# not raw speed.
+			var m = TopDive.new()
+			m.speed = 220.0
+			return m
 		"beeline":
-			return BeelinePlayer.new()
+			# Hunter Drone — should threaten, not connect. 230→190 hunt,
+			# 360→280 accel.
+			var m = BeelinePlayer.new()
+			m.max_speed = 190.0
+			m.accel = 280.0
+			return m
 		"bulwark_drift":
+			# Bulwark drift is out of scope here — separate Bulwark turret
+			# task will retune it.
 			return BulwarkDrift.new()
 	return StraightDown.new()
 

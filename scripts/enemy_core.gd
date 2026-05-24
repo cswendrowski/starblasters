@@ -66,6 +66,11 @@ func start(pos: Vector2) -> void:
 func _start_with_pattern(pos: Vector2) -> void:
 	position = pos
 	_pattern = movement.duplicate()
+	# Sector speed scaling (Cody, 2026-05-24): +5% per cleared sector, capped
+	# at 2× (so sector 21+ tops out). Applied once per spawn on the duplicated
+	# pattern resource so siblings don't share state. Scales any @export float
+	# whose name is `speed`, `accel`, `drift_x`, or ends in `_speed`/`_accel`.
+	_apply_sector_speed_scale(_pattern)
 	# Connect phase events BEFORE on_start so the initial-phase emit lands.
 	if _pattern.has_signal("phase_entered") \
 		and not _pattern.is_connected("phase_entered", _on_movement_phase_entered):
@@ -81,6 +86,30 @@ func _start_with_pattern(pos: Vector2) -> void:
 	if shoot_pattern != null and has_node("ShootTimer") and fire_on_phase == "":
 		$ShootTimer.wait_time = randf_range(fire_interval_min, fire_interval_max)
 		$ShootTimer.start()
+
+
+func _apply_sector_speed_scale(pattern: Resource) -> void:
+	if pattern == null:
+		return
+	var run := get_node_or_null("/root/Run")
+	if run == null or not ("sectors_cleared" in run):
+		return
+	var cleared: int = int(run.sectors_cleared)
+	if cleared <= 0:
+		return
+	var scale_factor: float = clamp(1.0 + 0.05 * float(cleared), 1.0, 2.0)
+	for prop in pattern.get_property_list():
+		if not (int(prop.get("usage", 0)) & PROPERTY_USAGE_SCRIPT_VARIABLE):
+			continue
+		if int(prop.get("type", -1)) != TYPE_FLOAT:
+			continue
+		var n: String = str(prop.get("name", ""))
+		var is_speed: bool = n == "speed" or n == "accel" or n == "drift_x" \
+			or n.ends_with("_speed") or n.ends_with("_accel")
+		if not is_speed:
+			continue
+		var current: float = float(pattern.get(n))
+		pattern.set(n, current * scale_factor)
 
 
 func _start_anchored(pos: Vector2) -> void:

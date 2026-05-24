@@ -448,7 +448,15 @@ func _process(delta: float) -> void:
 	position = Playfield.clamp_pos(position, 8.0)
 	# Autofire toggle (Settings.autofire) latches primary fire on so
 	# players don't have to hold the button. Holding still works
-	# explicitly when autofire is off.
+	# explicitly when autofire is off. The "autofire_toggle" action (R)
+	# flips Settings.autofire at runtime and surfaces a brief toast so
+	# the player sees the new state without opening the options menu.
+	if Input.is_action_just_pressed("autofire_toggle") and has_node("/root/Settings"):
+		var s_toggle = get_node("/root/Settings")
+		if s_toggle.has_method("set_autofire"):
+			var new_state: bool = not bool(s_toggle.autofire)
+			s_toggle.set_autofire(new_state)
+			_show_autofire_toast(new_state)
 	var fire_held: bool = Input.is_action_pressed("shoot")
 	if not fire_held and has_node("/root/Settings"):
 		var s = get_node("/root/Settings")
@@ -1180,3 +1188,42 @@ func _pulse_shield_ring() -> void:
 		func(v): _shield_mat.set_shader_parameter("hit_strength", v),
 		1.0, 0.0, 0.35
 	).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+
+
+# Brief on-screen toast announcing the new autofire state. Mounts a
+# CanvasLayer above the HUD (layer 20) so it sits over gameplay AND the
+# side gutters; auto-frees after ~1s. Stacked invocations replace the
+# prior toast rather than piling up.
+const UiTheme := preload("res://scripts/ui/ui_theme.gd")
+var _autofire_toast: CanvasLayer = null
+
+func _show_autofire_toast(on: bool) -> void:
+	if _autofire_toast and is_instance_valid(_autofire_toast):
+		_autofire_toast.queue_free()
+		_autofire_toast = null
+	var layer := CanvasLayer.new()
+	layer.layer = 20
+	var root := get_tree().root
+	if root == null:
+		return
+	root.add_child(layer)
+	_autofire_toast = layer
+	var lbl := Label.new()
+	lbl.text = "AUTOFIRE: ON" if on else "AUTOFIRE: OFF"
+	UiTheme.style_label(lbl, UiTheme.LabelKind.HEADER)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	# Drop the label a bit below the top edge so it doesn't clip against
+	# the playfield outline. PRESET_CENTER_TOP anchors at y=0; nudge down.
+	lbl.position = Vector2(-60, 16)
+	lbl.size = Vector2(120, 16)
+	layer.add_child(lbl)
+	var tw := create_tween()
+	tw.tween_interval(0.8)
+	tw.tween_property(lbl, "modulate:a", 0.0, 0.25)
+	tw.tween_callback(func():
+		if is_instance_valid(layer):
+			layer.queue_free()
+		if _autofire_toast == layer:
+			_autofire_toast = null
+	)

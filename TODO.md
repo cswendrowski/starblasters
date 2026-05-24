@@ -63,6 +63,13 @@ Captured from Cody's 2026-05-19 punch list. Ordered roughly by leverage.
 - [ ] **Drone Swarm super emit point** — drones should emit from the player center on activation (currently spawn at the wing-halfspan offset).
 - [ ] **Direction-based player sprite rotation** — the player ship sprite used to rotate based on horizontal input direction; this seems to have been lost in the horizontal-rework branch. Restore the frame-swap / rotation behaviour.
 
+## Enemy rework backlog 2026-05-24
+
+- [ ] **480-speed Dart reaction-test variant** ("Sprint Dart") — distinct enemy for late-game; reuses Dart sprite + faster movement (~480 px/s), no shoot. Spun off from the 2026-05-24 speed pass where Dart was dropped from 480 → 360 for fair-play; the 480 tier still wants to exist as a deliberate reaction test.
+- [ ] **Per-enemy-class loiter timing** — Beam Shooter / Gunship / Crystal / Cruiser / Drone Carrier currently share the identical `enter 110 / hold 3 / exit accel 300 max 350` cadence on the `Loiter` pattern. Fold into a per-enemy-class rework like chaff got (medium tier ~130 / 3 / 400-450; large tier ~90 / 4 / 280 per the §3 doc). Out of scope of the 2026-05-24 speed pass.
+- [ ] **Bullet library refactor (B2)** — replace the single `enemy_bullet.tscn` + 200 px/s baseline with a roster of bullet variants (dumb 220 / aimed 300 / heavy 180 / fast 240) selectable per shoot_pattern. Doc audit §3 + §1 reference bands. Cheapest path is a `bullet_speed` @export on `shoot_pattern.gd` honored in `_spawn_bullet`, but designer prefers a real bullet-resource roster rather than a single override knob.
+- [ ] **Bulwark drift retune** — bulwark_drift currently 25/36/0.35; doc §3 proposes 50/50/0.45. Folded into a separate Bulwark-turret pass alongside the shielding rework.
+
 ## Already-done (since this list was captured)
 
 - Wave editor with full CRUD + playtest + state persistence.

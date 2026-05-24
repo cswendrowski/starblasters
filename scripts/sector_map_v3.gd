@@ -63,8 +63,22 @@ const STAR_PHASE      := [0.00, 1.10, 2.30]
 const STAR_COOL       := [true, false, false]
 
 const ROUTE_WIDTH := 8.0
-const ROUTE_COLOR := Color(0.30, 0.38, 0.55, 0.70)
+# 0.70 × 0.8 = 0.56 — designer asked for -20% opacity on POI lines.
+const ROUTE_COLOR := Color(0.30, 0.38, 0.55, 0.56)
 const PROGRESS_COLOR := Color(0.40, 0.95, 0.40, 1.0)
+
+# Background starfield palette — mirrors galaxy_backdrop_v3.STAR_COLORS but with
+# -20% brightness applied at draw time per designer.
+const BG_STAR_COLORS := [
+	Color(0.95, 0.97, 1.00),
+	Color(1.00, 0.97, 0.92),
+	Color(1.00, 0.85, 0.60),
+	Color(0.75, 0.85, 1.00),
+	Color(1.00, 0.95, 0.80),
+	Color(0.95, 0.70, 0.70),
+	Color(0.80, 0.95, 0.95),
+]
+const BG_STAR_BRIGHTNESS_MUL := 0.8  # -20%
 
 # Scene paths for click transitions. Combat/Boss/Hazard all share main.tscn;
 # the distinction comes from current_node_type set on Run.
@@ -110,11 +124,43 @@ func _ready() -> void:
 		get_node("/root/Music").set_context("sector")
 	_ensure_sector_cache()
 	_advance_if_complete()
+	_build_bg_stars()
 	_build_routes()
 	_build_pois_from_cache()
 	_build_bosses_from_cache()
 	_build_stars()
 	_build_labels()
+
+
+# Background star layer — modeled on galaxy_backdrop_v3._spawn_stars_layer
+# but static (sector map doesn't scroll) and -20% brightness. Sits behind
+# everything else via negative z_index. Only stars; no nebula / asteroids.
+func _build_bg_stars() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0xB6500FF  # stable per-load
+	var holder := Node2D.new()
+	holder.name = "BgStars"
+	holder.z_index = -100
+	add_child(holder)
+	var pinprick_count: int = rng.randi_range(140, 320)
+	var pop_count: int = rng.randi_range(20, 70)
+	for _i in pinprick_count:
+		var dot := ColorRect.new()
+		dot.size = Vector2(1, 1)
+		dot.position = Vector2(floor(rng.randf() * 480.0), floor(rng.randf() * 270.0))
+		var base: Color = BG_STAR_COLORS[rng.randi() % BG_STAR_COLORS.size()]
+		var bright: float = (0.55 + rng.randf() * 0.45) * BG_STAR_BRIGHTNESS_MUL
+		dot.color = Color(base.r * bright, base.g * bright, base.b * bright, 1.0)
+		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		holder.add_child(dot)
+	for _i in pop_count:
+		var big := ColorRect.new()
+		big.size = Vector2(2, 2)
+		big.position = Vector2(floor(rng.randf() * 478.0), floor(rng.randf() * 268.0))
+		var c: Color = BG_STAR_COLORS[rng.randi() % BG_STAR_COLORS.size()]
+		big.color = Color(c.r * BG_STAR_BRIGHTNESS_MUL, c.g * BG_STAR_BRIGHTNESS_MUL, c.b * BG_STAR_BRIGHTNESS_MUL, 1.0)
+		big.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		holder.add_child(big)
 
 
 # Pull cache; create one if missing OR if it's for a different sector.
@@ -187,15 +233,21 @@ func _process(delta: float) -> void:
 		needs_redraw = true
 	if needs_redraw or not _asteroid_pixels.is_empty():
 		queue_redraw()
-	# Hover fade.
+	# Hover fade. Each entry stores its own rest alphas — POI icons rest at
+	# 0.0 (invisible until hover) per designer, bosses keep their old 0.2 so
+	# the "BOSS" / "DEFEATED" label stays readable, completed POIs rest at 0.6.
 	var mouse: Vector2 = get_local_mouse_position()
 	for entry in _planet_hovers:
 		var hovered: bool = mouse.distance_to(entry.center) <= entry.radius
 		var lbl: Label    = entry.label
 		var icon: Sprite2D = entry.icon
-		lbl.modulate.a = lerpf(lbl.modulate.a, 1.0 if hovered else 0.2, delta * 8.0)
-		var tgt: Color = COLOR_NODE_GREEN if hovered else Color.WHITE
-		tgt.a = 0.9 if hovered else 0.2
+		var label_rest: float = float(entry.get("label_rest", 0.2))
+		var icon_rest: float  = float(entry.get("icon_rest", 0.0))
+		var hover_tint: Color = entry.get("hover_tint", COLOR_NODE_GREEN)
+		var rest_tint: Color  = entry.get("rest_tint", Color.WHITE)
+		lbl.modulate.a = lerpf(lbl.modulate.a, 1.0 if hovered else label_rest, delta * 8.0)
+		var tgt: Color = hover_tint if hovered else rest_tint
+		tgt.a = 0.9 if hovered else icon_rest
 		icon.modulate = icon.modulate.lerp(tgt, delta * 8.0)
 
 
@@ -260,7 +312,10 @@ func _build_pois_from_cache() -> void:
 			_poi_hits.append({
 				"id":     String(poi.id),
 				"pos":    Vector2(poi.pos),
-				"radius": 10.0,
+				# 14px — wide enough to cover the 16px icon footprint (32px
+				# atlas at 0.5 scale) so the icon itself is clickable. Matches
+				# the hover radius so reveal + click happen at the same range.
+				"radius": 14.0,
 				"kind":   "poi",
 			})
 
@@ -521,6 +576,15 @@ func _scatter_asteroid_band(center: Vector2, rng: RandomNumberGenerator) -> void
 func _scatter_pulse_pixels(center: Vector2, ast_px: float, rng: RandomNumberGenerator) -> void:
 	var count: int = 6 + rng.randi() % 7
 	var radius: float = ast_px * 0.6 + 6.0
+	# Source pixel color from the current row's star tint — this matches the
+	# modulate the generated asteroids receive (lerp(WHITE, star, 0.18)) so
+	# the decorative pixels read as the same family. Per-pixel brightness
+	# variation kept (0.55-0.85) to preserve depth.
+	var base_tint: Color = STAR_GLOW_COLORS[_cur_row_idx] if _cur_row_idx < STAR_GLOW_COLORS.size() else Color.WHITE
+	# Pull the star tint toward white so we don't get a saturated red haze
+	# around every asteroid — mirrors the 0.18 lerp on the asteroid modulate
+	# but pushed further white (asteroid surface art is itself colored).
+	base_tint = Color.WHITE.lerp(base_tint, 0.55)
 	for _k in count:
 		var ang: float = rng.randf() * TAU
 		var dist: float = rng.randf_range(ast_px * 0.5 + 1.0, radius)
@@ -530,9 +594,10 @@ func _scatter_pulse_pixels(center: Vector2, ast_px: float, rng: RandomNumberGene
 		_asteroid_pixels.append({
 			"pos":   Vector2(floor(pos.x), floor(pos.y)),
 			"size":  size_px,
-			"hz":    rng.randf_range(0.25, 0.70),
+			# 80% slower blink — old range 0.25-0.70 Hz / 5 = 0.05-0.14 Hz.
+			"hz":    rng.randf_range(0.05, 0.14),
 			"phase": rng.randf_range(0.0, TAU),
-			"color": Color(shade, shade, shade, 1.0),
+			"color": Color(base_tint.r * shade, base_tint.g * shade, base_tint.b * shade, 1.0),
 		})
 
 
@@ -611,10 +676,14 @@ func _build_bosses_from_cache() -> void:
 			add_child(lock_lbl)
 
 		_planet_hovers.append({
-			"center": pos,
-			"radius": 16.0,
-			"label":  lbl,
-			"icon":   icon_spr,
+			"center":     pos,
+			"radius":     16.0,
+			"label":      lbl,
+			"icon":       icon_spr,
+			"label_rest": 0.2,   # boss label dim-but-visible at rest
+			"icon_rest":  0.0,
+			"hover_tint": COLOR_NODE_GREEN,
+			"rest_tint":  Color.WHITE,
 		})
 		_boss_entries.append({
 			"id":       String(boss.id),
@@ -787,17 +856,24 @@ func _add_hover_label_icon(pos: Vector2, display_px: float, label_text: String, 
 	icon_spr.position = pos
 	icon_spr.scale    = Vector2(0.5, 0.5)
 	icon_spr.z_index  = 5
-	# Completed POIs render in soft green; otherwise use the hover-fade default.
-	if completed:
-		icon_spr.modulate = Color(COLOR_NODE_GREEN.r, COLOR_NODE_GREEN.g, COLOR_NODE_GREEN.b, 0.6)
-	else:
-		icon_spr.modulate = Color(1.0, 1.0, 1.0, 0.0)
+	# Designer: POI icons start 0% opacity and reveal on mouseover. Completed
+	# POIs keep a soft green resting alpha (0.6) so the player can see what's
+	# been done; uncompleted rest at 0.0.
+	var icon_rest: float = 0.6 if completed else 0.0
+	var rest_tint: Color = COLOR_NODE_GREEN if completed else Color.WHITE
+	icon_spr.modulate = Color(rest_tint.r, rest_tint.g, rest_tint.b, icon_rest)
 	add_child(icon_spr)
+	# Hover radius matches the click radius (14) — slightly larger than the
+	# previous display_px*0.5=16 baseline, but consistent with click-to-launch.
 	_planet_hovers.append({
-		"center": pos,
-		"radius": display_px * 0.5,
-		"label":  lbl,
-		"icon":   icon_spr,
+		"center":     pos,
+		"radius":     14.0,
+		"label":      lbl,
+		"icon":       icon_spr,
+		"label_rest": 0.2,
+		"icon_rest":  icon_rest,
+		"hover_tint": COLOR_NODE_GREEN,
+		"rest_tint":  rest_tint,
 	})
 
 

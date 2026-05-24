@@ -65,6 +65,13 @@ func _build_ui() -> void:
 	add_child(center)
 
 	var panel := PanelContainer.new()
+	# Cap the panel to fit the 480×270 viewport with a small margin even
+	# when stacked over the sector map (which uses native res). Without
+	# the cap the panel overflows vertically once the controls section
+	# expands to 7 rebindable actions.
+	panel.custom_minimum_size = Vector2(0, 0)
+	panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = UiTheme.COLOR_PANEL_BG
 	sb.border_color = UiTheme.COLOR_ACCENT_DIM
@@ -72,17 +79,26 @@ func _build_ui() -> void:
 	sb.border_width_top = 2
 	sb.border_width_right = 2
 	sb.border_width_bottom = 2
-	sb.content_margin_left = 28
-	sb.content_margin_right = 28
-	sb.content_margin_top = 24
-	sb.content_margin_bottom = 24
+	sb.content_margin_left = 12
+	sb.content_margin_right = 12
+	sb.content_margin_top = 8
+	sb.content_margin_bottom = 8
 	panel.add_theme_stylebox_override("panel", sb)
 	center.add_child(panel)
 
+	# Scroll wrapper so the 7-action rebind list + sliders always fit
+	# inside the 270 px tall viewport.
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(260, 240)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	panel.add_child(scroll)
+
 	var v := VBoxContainer.new()
-	v.custom_minimum_size = Vector2(280, 0)
-	v.add_theme_constant_override("separation", 14)
-	panel.add_child(v)
+	v.custom_minimum_size = Vector2(240, 0)
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.add_theme_constant_override("separation", 4)
+	scroll.add_child(v)
 
 	var header := Label.new()
 	header.text = "OPTIONS"
@@ -110,20 +126,10 @@ func _build_ui() -> void:
 	_fullscreen_check.toggled.connect(_on_fullscreen_toggled)
 	fs_row.add_child(_fullscreen_check)
 
-	# Autofire toggle row — when on, primary fire latches without
-	# holding the button. Cave/Touhou tradition for marathon sessions.
-	var af_row := HBoxContainer.new()
-	af_row.add_theme_constant_override("separation", 12)
-	v.add_child(af_row)
-	var af_label := Label.new()
-	af_label.text = "Autofire"
-	af_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	UiTheme.style_label(af_label, UiTheme.LabelKind.BODY)
-	af_row.add_child(af_label)
-	var af_check := CheckButton.new()
-	af_check.button_pressed = bool(_settings().get("autofire") if "autofire" in _settings() else false)
-	af_check.toggled.connect(_on_autofire_toggled)
-	af_row.add_child(af_check)
+	# Autofire is toggled in-game via the rebindable "autofire_toggle"
+	# action (default R). The settings checkbox was removed 2026-05-24
+	# per designer feedback — runtime toggle is friendlier and the
+	# rebind row below exposes the keybinding.
 
 	# Font face row — "Pixel" (Pixel Operator, default) vs "TTF" (Pixelify
 	# Sans). Re-opening menus after a swap shows the new face.
@@ -150,7 +156,7 @@ func _build_ui() -> void:
 	ctrl_lbl.text = "Controls"
 	UiTheme.style_label(ctrl_lbl, UiTheme.LabelKind.HEADER)
 	v.add_child(ctrl_lbl)
-	for action_name in ["shoot", "shoot2", "shoot_nose", "focus", "weapon_previous", "weapon_next"]:
+	for action_name in ["shoot", "shoot2", "shoot_nose", "focus", "weapon_previous", "weapon_next", "autofire_toggle"]:
 		_add_rebind_row(v, action_name)
 
 	v.add_child(_make_separator())
@@ -176,6 +182,7 @@ const _ACTION_LABELS := {
 	"focus": "Focus / Slow",
 	"weapon_previous": "Previous weapon",
 	"weapon_next": "Next weapon",
+	"autofire_toggle": "Toggle autofire",
 }
 
 var _rebind_pending_action: String = ""
@@ -310,13 +317,20 @@ func _on_fullscreen_toggled(on: bool) -> void:
 	_settings().set_fullscreen(on)
 
 
-func _on_autofire_toggled(on: bool) -> void:
-	if _settings().has_method("set_autofire"):
-		_settings().set_autofire(on)
-
-
 func _on_font_picked(idx: int) -> void:
 	_settings().set_font_style("pixel" if idx == 0 else "ttf")
+	# Rebuild the overlay so every existing Label/Button picks up the
+	# new active_font() — UiTheme.style_*() reads font_style at apply
+	# time and caches it on the node, so swapping requires a re-style.
+	# Deferred to avoid mutating the tree while the OptionButton's
+	# item_selected signal handler is still on the stack.
+	call_deferred("_rebuild_ui")
+
+
+func _rebuild_ui() -> void:
+	for child in get_children():
+		child.queue_free()
+	_build_ui()
 
 
 func _on_back() -> void:
