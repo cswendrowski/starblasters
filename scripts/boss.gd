@@ -29,6 +29,13 @@ extends "res://scripts/enemies/boss_base.gd"
 
 var _minions: Array = []
 const TetherMineScene = preload("res://scenes/enemies/tether_mine.tscn")
+# Dedicated child Timer for tether-mine cadence. We use a node-bound Timer
+# (not get_tree().create_timer()) so that:
+#   - exactly one fire is ever pending (cancels itself on restart),
+#   - the timer dies with the boss (no warmup-orphan SceneTreeTimers
+#     firing on a freed instance — the cause of the "3 mines at start"
+#     designer report, 2026-05-24).
+var _tether_timer: Timer = null
 
 
 func _ready() -> void:
@@ -53,13 +60,17 @@ func _ready() -> void:
 		$MinionTimer.wait_time = minion_spawn_interval
 		if not $MinionTimer.timeout.is_connected(_on_minion_timer_timeout):
 			$MinionTimer.timeout.connect(_on_minion_timer_timeout)
-	_schedule_next_tether_mine()
+	_tether_timer = Timer.new()
+	_tether_timer.one_shot = true
+	_tether_timer.timeout.connect(_spawn_tether_mine_attack)
+	add_child(_tether_timer)
 
 
 func start(pos: Vector2) -> void:
 	super.start(pos)
 	if has_node("MinionTimer"):
 		$MinionTimer.start()
+	_schedule_next_tether_mine()
 
 
 # Phase gate — escalate cadence on entry to phase 2.
@@ -83,10 +94,14 @@ func _on_boss_death() -> void:
 # ---- Tether-mine signature attack -------------------------------------
 
 func _schedule_next_tether_mine() -> void:
-	if _dying:
+	if _dying or _tether_timer == null:
 		return
 	var t: float = randf_range(tether_mine_interval_min, tether_mine_interval_max)
-	get_tree().create_timer(t).timeout.connect(_spawn_tether_mine_attack)
+	# Restarting a Timer cancels any pending fire, guaranteeing exactly one
+	# pending mine spawn at all times. Prevents the multi-schedule regression.
+	_tether_timer.stop()
+	_tether_timer.wait_time = t
+	_tether_timer.start()
 
 
 func _spawn_tether_mine_attack() -> void:

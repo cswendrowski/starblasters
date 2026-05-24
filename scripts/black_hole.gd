@@ -22,7 +22,14 @@ extends Node2D
 ## Scales the pull for anything in the `player` group (gentler on the player).
 @export var player_pull_multiplier: float = 0.35
 ## Hard cap on per-frame displacement so a low framerate can't teleport things.
-@export var max_extra_speed: float = 1500.0
+## Lowered from 1500 → 600 (2026-05-24) to smooth visible jitter in pulled
+## entities. Combined with the per-frame lerp in `_apply_pull`, this removes
+## the position-fight between BH pull and the player's own movement.
+@export var max_extra_speed: float = 600.0
+## Groups the well pulls. Default = everything (matches the original Commander
+## attack semantics). Voidmaw narrows this to ["player"] so the well doesn't
+## suck in Voidmaw itself or its own bullets (2026-05-24).
+@export var pull_target_groups: PackedStringArray = PackedStringArray(["player", "enemies", "enemy_bullets"])
 ## When > 0, the visual scales from 0 → final over this many seconds at the
 ## start of life. Used by the boss telegraph (charge phase) and the post-fire
 ## expand pulse (Roman 2026-05-18 "grows while charging, expands after fired").
@@ -99,6 +106,16 @@ func _physics_process(delta: float) -> void:
 			_apply_pull(body, center, strength, delta)
 
 func _apply_pull(node: Node2D, center: Vector2, strength: float, delta: float) -> void:
+	# Group filter — Voidmaw narrows to ["player"] so the well doesn't pull
+	# Voidmaw itself or its own bullets. Default array matches the original
+	# Commander semantics (pulls everything).
+	var in_target_group: bool = false
+	for g in pull_target_groups:
+		if node.is_in_group(g):
+			in_target_group = true
+			break
+	if not in_target_group:
+		return
 	var to_center: Vector2 = center - node.global_position
 	var dist: float = to_center.length()
 	if dist < 1.0:
@@ -116,4 +133,8 @@ func _apply_pull(node: Node2D, center: Vector2, strength: float, delta: float) -
 	var max_step: float = max_extra_speed * delta
 	if step.length() > max_step:
 		step = step.normalized() * max_step
-	node.global_position += step
+	# Lerp instead of teleport — smooths the per-frame fight between BH pull
+	# and the player's own movement input, eliminating visible jitter
+	# (designer report 2026-05-24).
+	var target_pos: Vector2 = node.global_position + step
+	node.global_position = node.global_position.lerp(target_pos, 0.5)

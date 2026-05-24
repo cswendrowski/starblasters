@@ -81,14 +81,22 @@ func _spawn_drifting_hole() -> void:
 	bh.pull_strength = bh_pull
 	bh.player_pull_multiplier = 0.35
 	bh.visual_modulate = Color(0.85, 0.55, 1.0, 1.0)
+	# Voidmaw only pulls the player — not itself, not its bullets, not its
+	# own future bullets. The default groups list would suck everything in.
+	bh.pull_target_groups = PackedStringArray(["player"])
 	bh.position = global_position + Vector2(0, 40.0)
-	add_world_node_above_backdrop(bh)
-	_live_holes.append(bh)
-	# Drift downward at bh_drift_speed via a tween. Despawn at bottom margin.
+	# Compute travel duration BEFORE add_child so we can wire expand_in_time
+	# (BH grows from 1px → full radius over its travel to player.y zone).
 	var vp: Vector2 = get_viewport_rect().size
 	var target_y: float = vp.y + 80.0
 	var travel: float = max(0.0, target_y - bh.position.y)
 	var dur: float = travel / max(bh_drift_speed, 1.0)
+	# BH starts at scale 0 and expands to full size over the drift duration.
+	# black_hole.gd's expand_in_time tween handles the visual ease + overshoot.
+	bh.expand_in_time = dur
+	add_world_node_above_backdrop(bh)
+	_live_holes.append(bh)
+	# Drift downward at bh_drift_speed via a tween. Despawn at bottom margin.
 	var tw := bh.create_tween()
 	tw.tween_property(bh, "position:y", target_y, dur)
 	tw.tween_callback(func() -> void:

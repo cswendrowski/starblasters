@@ -361,13 +361,21 @@ func _show_minefield_options_modal() -> void:
 	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	UiTheme.style_label(body, UiTheme.LabelKind.BODY)
 	panel.add_child(body)
+	# Roman 2026-05-24: 6 mine types in 2 columns for vertical safety at
+	# 480x270 (matches boss picker layout).
+	var mine_grid := GridContainer.new()
+	mine_grid.columns = 2
+	mine_grid.add_theme_constant_override("h_separation", 6)
+	mine_grid.add_theme_constant_override("v_separation", 4)
+	panel.add_child(mine_grid)
 	for entry in MINEFIELD_OPTIONS:
 		var btn := Button.new()
 		btn.text = entry[0]
-		btn.custom_minimum_size = Vector2(160, 18)
+		btn.custom_minimum_size = Vector2(100, 16)
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		UiTheme.style_button(btn)
 		btn.pressed.connect(_on_minefield_option_pick.bind(entry[1]))
-		panel.add_child(btn)
+		mine_grid.add_child(btn)
 	var cancel_btn := Button.new()
 	cancel_btn.text = "Cancel"
 	cancel_btn.custom_minimum_size = Vector2(160, 16)
@@ -431,13 +439,21 @@ func _on_boss_fight() -> void:
 	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	UiTheme.style_label(body, UiTheme.LabelKind.BODY)
 	panel.add_child(body)
+	# Roman 2026-05-24: roster grew to 7, single-column VBox overflowed the
+	# 480x270 viewport. 2-column grid fits 7 entries in 4 rows.
+	var boss_grid := GridContainer.new()
+	boss_grid.columns = 2
+	boss_grid.add_theme_constant_override("h_separation", 6)
+	boss_grid.add_theme_constant_override("v_separation", 4)
+	panel.add_child(boss_grid)
 	for entry in BOSS_PICKS:
 		var btn := Button.new()
 		btn.text = entry[0]
-		btn.custom_minimum_size = Vector2(140, 18)
+		btn.custom_minimum_size = Vector2(90, 16)
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		UiTheme.style_button(btn)
 		btn.pressed.connect(_on_boss_pick.bind(entry[1]))
-		panel.add_child(btn)
+		boss_grid.add_child(btn)
 	var cancel_btn := Button.new()
 	cancel_btn.text = "Cancel"
 	cancel_btn.custom_minimum_size = Vector2(140, 16)

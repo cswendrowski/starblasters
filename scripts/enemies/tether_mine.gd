@@ -29,7 +29,7 @@ enum Phase { TRAVELING, ARRIVING, ACTIVE }
 @export var pull_strength: float = 1100.0
 @export var pull_radius: float = 140.0
 @export var player_pull_multiplier: float = 0.35
-@export var max_extra_speed: float = 1500.0
+@export var max_extra_speed: float = 600.0
 
 # Active phase duration (matches old black_hole_lifetime).
 @export var active_duration: float = 4.5
@@ -131,7 +131,10 @@ func _physics_process(delta: float) -> void:
 		var max_step: float = max_extra_speed * delta
 		if step.length() > max_step:
 			step = step.normalized() * max_step
-		pn.global_position += step
+		# Lerp instead of teleport — matches the black_hole.gd jitter fix
+		# (2026-05-24). Smooths the fight between pull + player input.
+		var target_pos: Vector2 = pn.global_position + step
+		pn.global_position = pn.global_position.lerp(target_pos, 0.5)
 
 
 func _draw() -> void:
