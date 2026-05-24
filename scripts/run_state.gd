@@ -418,6 +418,35 @@ func is_sector_complete() -> bool:
 			return false
 	return true
 
+# Generalized equip path used by meta scenes (outpost + sector map manage-ship modal).
+# Looks at part.slot_type and:
+#   - displaces whatever was in that slot of loadout_snapshot into weapon_storage
+#   - writes the new part into loadout_snapshot[slot]
+#   - for ammo-bearing HARDPOINT_WING parts, seeds Run.secondary_ammo so a fresh
+#     magazine survives until next combat (where the part's apply() reads it back)
+#   - for DEVICE_BAY_1 parts, refills super charges (mirrors outpost convention).
+# No live Player exists in meta scenes, so player-side apply runs at next combat.
+const _SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
+
+func equip_part(part) -> void:
+	if part == null:
+		return
+	var slot: int = int(part.slot_type)
+	var prev = loadout_snapshot.get(slot, null)
+	if prev != null:
+		weapon_storage.append(prev)
+	loadout_snapshot[slot] = part
+	if slot == _SlotTypes.SlotType.HARDPOINT_WING:
+		if "base_ammo" in part and int(part.base_ammo) > 0:
+			secondary_ammo = int(part.base_ammo)
+			secondary_ammo_max = int(part.base_ammo)
+		else:
+			secondary_ammo = -1
+			secondary_ammo_max = -1
+	if slot == _SlotTypes.SlotType.DEVICE_BAY_1:
+		super_charges = int(max_super_charges)
+
+
 # Snapshot player into RunState so we can restore after meta scenes.
 func snapshot_player(player) -> void:
 	current_hull = player.hull

@@ -6,6 +6,11 @@ var cannon_on = true
 var cannon_shoot = true
 
 func _ready():
+	# Allow rapid $CannonShoot.play() to overlap (Roman feedback
+	# 2026-05-23).
+	var SfxCls = load("res://scripts/effects/sfx.gd")
+	if has_node("CannonShoot"):
+		SfxCls.ensure_polyphony($CannonShoot, 4)
 	start()
 
 func start():

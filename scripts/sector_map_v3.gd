@@ -18,6 +18,7 @@ extends Node2D
 const FONT            = preload("res://graphics/fonts/PixelOperator.ttf")
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const SectorNode      = preload("res://scripts/sector_node.gd")
+const SlotTypes       = preload("res://scripts/weapons/SlotTypes.gd")
 const STAR_SCENE      = preload("res://Planets/Star/Star.tscn")
 const PLANET_SCENES   := [
 	"res://Planets/LavaWorld/LavaWorld.tscn",
@@ -774,6 +775,21 @@ func _build_labels() -> void:
 	hdr.z_index = 10
 	hdr.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(hdr)
+	# Manage Ship button — opens an inspector modal (ship status, loadout,
+	# upgrades, stored equipment). Sits on its own CanvasLayer so it isn't
+	# eaten by the celestial _disable_celestial_mouse walks above.
+	var btn_layer := CanvasLayer.new()
+	btn_layer.name = "ManageShipBtnLayer"
+	btn_layer.layer = 6
+	add_child(btn_layer)
+	var manage_btn := Button.new()
+	manage_btn.text = "MANAGE SHIP"
+	manage_btn.add_theme_font_override("font", FONT)
+	manage_btn.add_theme_font_size_override("font_size", 9)
+	manage_btn.custom_minimum_size = Vector2(76, 14)
+	manage_btn.position = Vector2(396, 2)
+	manage_btn.pressed.connect(_show_manage_ship_modal)
+	btn_layer.add_child(manage_btn)
 
 
 # ---------------------------------------------------------------------------
@@ -1055,6 +1071,12 @@ func _draw() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+		# Manage-Ship modal takes priority on Esc — close it without opening
+		# the options overlay. Falls through to options when modal absent.
+		if get_node_or_null(_MS_MODAL_NAME) != null:
+			_close_manage_ship_modal()
+			get_viewport().set_input_as_handled()
+			return
 		# Esc opens the options overlay; never ends the run.
 		var OptionsOverlay = load("res://scripts/ui/options_overlay.gd")
 		if OptionsOverlay:
@@ -1062,6 +1084,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		# Block POI/boss clicks when the Manage Ship modal is open. The modal's
+		# dim ColorRect already absorbs the event via MOUSE_FILTER_STOP, but
+		# Node2D._unhandled_input can still fire if the Control tree doesn't
+		# consume it first — belt-and-suspenders so a buried POI never fires.
+		if get_node_or_null(_MS_MODAL_NAME) != null:
+			return
 		var mp: Vector2 = get_local_mouse_position()
 		# Try POIs first (smaller hit-radius, more numerous).
 		for hit in _poi_hits:
@@ -1225,4 +1253,261 @@ func _close_no_bounty_modal() -> void:
 	var m := get_node_or_null(_NB_MODAL_NAME)
 	if m != null:
 		m.queue_free()
+
+
+# ---------------------------------------------------------------------------
+# Manage Ship modal — full loadout inspector + equip-swap UI
+# ---------------------------------------------------------------------------
+# Reads Run state (loadout_snapshot, weapon_storage, inventory, hull/shield/
+# super/ammo balances, mk levels) and renders a centered modal on a high
+# CanvasLayer. Equip buttons reuse Run.equip_part so the displacement rules
+# match the outpost path exactly. Modal stays open across multiple swaps;
+# only Close (or Esc) tears it down. Dim ColorRect blocks underlying POI
+# clicks; _unhandled_input has an additional guard for Node2D ordering.
+
+const _MS_MODAL_NAME := "ManageShipModal"
+const _MS_PANEL_SIZE := Vector2(420.0, 220.0)
+const _MS_PANEL_ORIGIN := Vector2((480.0 - 420.0) * 0.5, (270.0 - 220.0) * 0.5)
+
+# Slot ordering for the "Equipped Loadout" section. Only the four
+# player-swappable slots are listed — wings / tail / engine / shield are
+# fixed by the chassis and never swap mid-run.
+const _MS_LOADOUT_SLOTS := [
+	{"slot": SlotTypes.SlotType.CANNON,         "label": "PRIMARY"},
+	{"slot": SlotTypes.SlotType.HARDPOINT_WING, "label": "SECONDARY"},
+	{"slot": SlotTypes.SlotType.DEVICE_BAY_1,   "label": "SUPER"},
+]
+
+const _MS_UPGRADE_KEYS := [
+	{"key": "hull_mk",            "name": "Hull"},
+	{"key": "armor_mk",           "name": "Armor"},
+	{"key": "thrusters_mk",       "name": "Thrusters"},
+	{"key": "self_repair_mk",     "name": "Self-Repair"},
+	{"key": "shield_cap_mk",      "name": "Shield Cap"},
+	{"key": "shield_recharge_mk", "name": "Shield Regen"},
+]
+
+
+func _show_manage_ship_modal() -> void:
+	if get_node_or_null(_MS_MODAL_NAME) != null:
+		return
+	var cl := CanvasLayer.new()
+	cl.name = _MS_MODAL_NAME
+	cl.layer = 50
+	add_child(cl)
+	# Dim backdrop — blocks POI clicks underneath via MOUSE_FILTER_STOP.
+	var dim := ColorRect.new()
+	dim.color = Color(0.0, 0.0, 0.0, 0.55)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	cl.add_child(dim)
+	var panel := PanelContainer.new()
+	panel.name = "Panel"
+	panel.position = _MS_PANEL_ORIGIN
+	panel.custom_minimum_size = _MS_PANEL_SIZE
+	panel.size = _MS_PANEL_SIZE
+	cl.add_child(panel)
+	_render_manage_ship_contents(panel)
+
+
+func _close_manage_ship_modal() -> void:
+	var m := get_node_or_null(_MS_MODAL_NAME)
+	if m != null:
+		m.queue_free()
+
+
+# Rebuilds the modal panel contents from scratch — called after every
+# equip-swap so loadout + storage stay in sync with Run.
+func _render_manage_ship_contents(panel: PanelContainer) -> void:
+	for child in panel.get_children():
+		child.queue_free()
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 3)
+	panel.add_child(vbox)
+	# Title row.
+	var title := Label.new()
+	title.text = "MANAGE SHIP"
+	title.label_settings = _ms_label_settings(11, Color(0.95, 0.92, 0.55, 1.0))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+	if not has_node("/root/Run"):
+		var err := Label.new()
+		err.text = "Run state unavailable."
+		err.label_settings = _ms_label_settings(9, Color(1.0, 0.5, 0.5, 1.0))
+		vbox.add_child(err)
+		return
+	var run = get_node("/root/Run")
+	_ms_add_status_section(vbox, run)
+	_ms_add_separator(vbox)
+	_ms_add_loadout_section(vbox, run, panel)
+	_ms_add_separator(vbox)
+	_ms_add_upgrades_section(vbox, run)
+	_ms_add_separator(vbox)
+	_ms_add_storage_section(vbox, run, panel)
+	_ms_add_separator(vbox)
+	# Close.
+	var close_row := HBoxContainer.new()
+	close_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(close_row)
+	var close_btn := Button.new()
+	close_btn.text = "Close"
+	close_btn.add_theme_font_override("font", FONT)
+	close_btn.add_theme_font_size_override("font_size", 9)
+	close_btn.custom_minimum_size = Vector2(72, 14)
+	close_btn.pressed.connect(_close_manage_ship_modal)
+	close_row.add_child(close_btn)
+
+
+func _ms_label_settings(size: int, color: Color) -> LabelSettings:
+	var ls := LabelSettings.new()
+	ls.font = FONT
+	ls.font_size = size
+	ls.font_color = color
+	ls.outline_size = 1
+	ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
+	return ls
+
+
+func _ms_add_separator(vbox: VBoxContainer) -> void:
+	var sep := ColorRect.new()
+	sep.color = Color(0.30, 0.38, 0.55, 0.4)
+	sep.custom_minimum_size = Vector2(0, 1)
+	vbox.add_child(sep)
+
+
+func _ms_add_status_section(vbox: VBoxContainer, run) -> void:
+	var bits: Array = []
+	bits.append("Hull %d/%d" % [int(run.current_hull), int(run.max_hull)])
+	bits.append("Shield %d/%d" % [int(run.current_shield), int(run.max_shield)])
+	bits.append("Bounty %d" % int(run.bounty))
+	bits.append("Super %d/%d" % [int(run.super_charges), int(run.max_super_charges)])
+	if int(run.ammo) >= 0:
+		bits.append("MG %d" % int(run.ammo))
+	if int(run.secondary_ammo) >= 0 and int(run.secondary_ammo_max) > 0:
+		bits.append("2nd %d/%d" % [int(run.secondary_ammo), int(run.secondary_ammo_max)])
+	var lbl := Label.new()
+	lbl.text = "  ".join(bits)
+	lbl.label_settings = _ms_label_settings(9, Color(0.85, 0.92, 1.0, 1.0))
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(lbl)
+
+
+func _ms_add_loadout_section(vbox: VBoxContainer, run, panel: PanelContainer) -> void:
+	for entry in _MS_LOADOUT_SLOTS:
+		var slot: int = int(entry["slot"])
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		vbox.add_child(row)
+		var name_lbl := Label.new()
+		name_lbl.text = String(entry["label"])
+		name_lbl.label_settings = _ms_label_settings(9, Color(0.65, 0.78, 0.95, 1.0))
+		name_lbl.custom_minimum_size = Vector2(70, 0)
+		row.add_child(name_lbl)
+		var equipped = run.loadout_snapshot.get(slot, null)
+		var part_lbl := Label.new()
+		if equipped == null:
+			part_lbl.text = "— (empty)"
+			part_lbl.label_settings = _ms_label_settings(9, Color(0.55, 0.60, 0.70, 1.0))
+		else:
+			part_lbl.text = _ms_part_name(equipped)
+			part_lbl.label_settings = _ms_label_settings(9, Color(0.95, 0.97, 1.0, 1.0))
+		row.add_child(part_lbl)
+
+
+func _ms_part_name(part) -> String:
+	if part == null:
+		return "—"
+	var nm: String = String(part.get("display_name")) if "display_name" in part else "Part"
+	var mk: int = int(part.get("mark")) if "mark" in part else 0
+	if mk > 0:
+		return "Mk.%d %s" % [mk, nm]
+	return nm
+
+
+func _ms_add_upgrades_section(vbox: VBoxContainer, run) -> void:
+	var parts: Array = []
+	for u in _MS_UPGRADE_KEYS:
+		var key: String = String(u["key"])
+		var lvl: int = int(run.get(key))
+		if lvl > 0:
+			parts.append("%s Mk %d" % [u["name"], lvl])
+	var lbl := Label.new()
+	if parts.is_empty():
+		lbl.text = "Upgrades: none"
+		lbl.label_settings = _ms_label_settings(9, Color(0.55, 0.60, 0.70, 1.0))
+	else:
+		lbl.text = "Upgrades: " + ", ".join(parts)
+		lbl.label_settings = _ms_label_settings(9, Color(0.85, 0.92, 1.0, 1.0))
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl.custom_minimum_size = Vector2(_MS_PANEL_SIZE.x - 16.0, 0)
+	vbox.add_child(lbl)
+
+
+func _ms_add_storage_section(vbox: VBoxContainer, run, panel: PanelContainer) -> void:
+	var hdr := Label.new()
+	hdr.text = "STORED EQUIPMENT"
+	hdr.label_settings = _ms_label_settings(9, Color(0.65, 0.78, 0.95, 1.0))
+	vbox.add_child(hdr)
+	# Both arrays are valid sources of swappable parts. weapon_storage holds
+	# displaced weapons from outpost / modal swaps; inventory is Junk Trader
+	# cargo. Keep them distinct in the model — we record which array each row
+	# came from so equip removes from the right one.
+	var rows_added: int = 0
+	for i in range(run.weapon_storage.size()):
+		_ms_add_storage_row(vbox, panel, run.weapon_storage[i], i, "weapon_storage")
+		rows_added += 1
+	for i in range(run.inventory.size()):
+		_ms_add_storage_row(vbox, panel, run.inventory[i], i, "inventory")
+		rows_added += 1
+	if rows_added == 0:
+		var empty := Label.new()
+		empty.text = "  (no carried equipment)"
+		empty.label_settings = _ms_label_settings(9, Color(0.55, 0.60, 0.70, 1.0))
+		vbox.add_child(empty)
+
+
+func _ms_add_storage_row(vbox: VBoxContainer, panel: PanelContainer, part, idx: int, source: String) -> void:
+	if part == null:
+		return
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	vbox.add_child(row)
+	var name_lbl := Label.new()
+	name_lbl.text = _ms_part_name(part)
+	name_lbl.label_settings = _ms_label_settings(9, Color(0.95, 0.97, 1.0, 1.0))
+	name_lbl.custom_minimum_size = Vector2(180, 0)
+	row.add_child(name_lbl)
+	var slot_lbl := Label.new()
+	slot_lbl.text = SlotTypes.slot_name(int(part.slot_type))
+	slot_lbl.label_settings = _ms_label_settings(8, Color(0.65, 0.78, 0.95, 1.0))
+	slot_lbl.custom_minimum_size = Vector2(120, 0)
+	row.add_child(slot_lbl)
+	var equip_btn := Button.new()
+	equip_btn.text = "Equip"
+	equip_btn.add_theme_font_override("font", FONT)
+	equip_btn.add_theme_font_size_override("font_size", 8)
+	equip_btn.custom_minimum_size = Vector2(48, 14)
+	equip_btn.pressed.connect(_ms_on_equip_stored.bind(idx, source, panel))
+	row.add_child(equip_btn)
+
+
+func _ms_on_equip_stored(idx: int, source: String, panel: PanelContainer) -> void:
+	if not has_node("/root/Run"):
+		return
+	var run = get_node("/root/Run")
+	var arr: Array
+	match source:
+		"weapon_storage": arr = run.weapon_storage
+		"inventory":      arr = run.inventory
+		_: return
+	if idx < 0 or idx >= arr.size():
+		return
+	var picked = arr[idx]
+	arr.remove_at(idx)
+	# Run.equip_part displaces the currently-equipped same-slot part into
+	# weapon_storage — do NOT manually push the previous part here.
+	run.equip_part(picked)
+	# Rebuild the modal so loadout + storage rows reflect the new state.
+	_render_manage_ship_contents(panel)
 

@@ -100,6 +100,12 @@ func _ready() -> void:
 	screensize = get_viewport_rect().size
 	health = max_health
 	shield = max_shield
+	# Allow rapid $EnemyShoot.play() calls to overlap so each shot is
+	# audible to completion (Roman feedback 2026-05-23). $EnemyDie is
+	# handled separately in explode() via Sfx.play_node_detached.
+	var SfxCls = load("res://scripts/effects/sfx.gd")
+	if has_node("EnemyShoot"):
+		SfxCls.ensure_polyphony($EnemyShoot, 4)
 	if max_shield > 0:
 		_setup_shield_ring()
 	# Defensive group registration. Every enemy .tscn already declares
@@ -229,7 +235,12 @@ func explode() -> void:
 	if has_node("ParticleExplode"):
 		$ParticleExplode.restart()
 	if has_node("EnemyDie"):
-		$EnemyDie.play()
+		# Detach the death SFX from the dying enemy so it plays to
+		# completion instead of clipping when queue_free() fires below
+		# (Roman feedback 2026-05-23). Sfx.play_node_detached re-parents
+		# under root.
+		var SfxCls = load("res://scripts/effects/sfx.gd")
+		SfxCls.play_node_detached($EnemyDie)
 	await get_tree().create_timer(0.5).timeout
 	queue_free()
 

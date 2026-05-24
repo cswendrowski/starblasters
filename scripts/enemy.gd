@@ -11,6 +11,15 @@ var health = 1
 
 @onready var screensize  = get_viewport_rect().size
 
+
+func _ready() -> void:
+	# Allow repeated $EnemyShoot.play() calls to overlap instead of cutting
+	# off the previous shot (Roman feedback 2026-05-23).
+	var SfxCls = load("res://scripts/effects/sfx.gd")
+	if has_node("EnemyShoot"):
+		SfxCls.ensure_polyphony($EnemyShoot, 4)
+
+
 func play_randomized(Idle : String):
 	randomize()
 	$AnimationPlayer.play(Idle)
@@ -50,7 +59,10 @@ func explode():
 	$ParticleHullBits.restart()
 	set_deferred("monitorable", false)
 	died.emit(5)
-	$EnemyDie.play()
+	# Detach the death SFX so it survives queue_free() below and plays
+	# to completion (Roman feedback 2026-05-23).
+	var SfxCls = load("res://scripts/effects/sfx.gd")
+	SfxCls.play_node_detached($EnemyDie)
 	await $AnimationPlayer.animation_finished
 	queue_free()
 

@@ -672,30 +672,12 @@ func _on_buy_weapon(offer: Dictionary, btn: Button) -> void:
 # No live Player exists in a meta scene, so player-side apply runs at
 # next combat via player._ready() → loadout.equip().
 func _apply_part_to_player(part) -> void:
+	# Delegates to Run.equip_part so the sector map's Manage Ship modal and the
+	# outpost share one canonical equip path. See Run.equip_part for the
+	# slot-displacement + ammo / super-charges reseed contract.
 	if part == null or not has_node("/root/Run"):
 		return
-	var run = get_node("/root/Run")
-	var slot: int = int(part.slot_type)
-	var prev = run.loadout_snapshot.get(slot, null)
-	if prev != null:
-		run.weapon_storage.append(prev)
-	run.loadout_snapshot[slot] = part
-	# Secondary ammo seed (only for HARDPOINT_WING parts with a base_ammo
-	# field — Rocket Pod + Seeking Missile expose one). Side Pods + Particle
-	# Beam don't set base_ammo, so we leave Run.secondary_ammo untouched
-	# for those (-1 = unmetered, fire forever).
-	if slot == SlotTypes.SlotType.HARDPOINT_WING:
-		if "base_ammo" in part and int(part.base_ammo) > 0:
-			run.secondary_ammo = int(part.base_ammo)
-			run.secondary_ammo_max = int(part.base_ammo)
-		else:
-			run.secondary_ammo = -1
-			run.secondary_ammo_max = -1
-	# Super charges fully refill on equipping a new DEVICE_BAY_1 part —
-	# matches the visit-time refill convention.
-	if slot == SlotTypes.SlotType.DEVICE_BAY_1:
-		if "max_super_charges" in run:
-			run.super_charges = int(run.max_super_charges)
+	get_node("/root/Run").equip_part(part)
 
 
 func _on_equip_stored(idx: int) -> void:

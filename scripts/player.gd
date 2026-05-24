@@ -213,6 +213,14 @@ func _ready() -> void:
 	# this, the smart cluster mines could never see a target.
 	if not is_in_group("player"):
 		add_to_group("player")
+	# Bump polyphony on the legacy fire SFX nodes so rapid shots don't
+	# clip each other (Roman feedback 2026-05-23). Per-weapon SFX through
+	# WeaponSfx already spawn fresh one-shots, but $ShootSound /
+	# $CannonShoot / $SuperShoot are scene-embedded and cut themselves.
+	var SfxCls = load("res://scripts/effects/sfx.gd")
+	for sfx_name in ["ShootSound", "CannonShoot", "SuperShoot"]:
+		if has_node(sfx_name):
+			SfxCls.ensure_polyphony(get_node(sfx_name), 4)
 	loadout = PlayerLoadoutCls.new()
 	loadout.name = "Loadout"
 	add_child(loadout)

@@ -29,6 +29,27 @@ const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
 # these tags so the boss's signature pressure doesn't overlap a chaff
 # pattern that demands the same player attention budget. Empty / unlisted
 # scene = no filtering.
+# Wave intermingling — probability the Nth combat wave in a level mixes
+# two enemy types. Index = level_index_in_sector, clamped to last entry.
+# Sector_depth adds +0.05 per sector past the first. Clamped to [0, 0.85].
+# Wave 0 of every level is never mixed (calm intro). See _should_intermingle.
+const WAVE_INTERMINGLE_PROBS := [0.0, 0.20, 0.40, 0.60, 0.75]
+
+# Affinity table — symmetric pairs that "go together" thematically. When a
+# rolled pair is on this table, accept it immediately. Otherwise re-roll
+# the second pick once with 50% chance. Scene-path keyed.
+const WAVE_AFFINITY := {
+	"res://scenes/enemies/enemy_minelayer.tscn": ["res://scenes/enemies/enemy_hunter_drone.tscn"],
+	"res://scenes/enemies/enemy_hunter_drone.tscn": ["res://scenes/enemies/enemy_minelayer.tscn"],
+	"res://scenes/enemies/enemy_drifter.tscn": ["res://scenes/enemies/enemy_dart.tscn", "res://scenes/enemies/enemy_weaver.tscn"],
+	"res://scenes/enemies/enemy_dart.tscn": ["res://scenes/enemies/enemy_drifter.tscn"],
+	"res://scenes/enemies/enemy_skirmisher.tscn": ["res://scenes/enemies/enemy_firecore.tscn"],
+	"res://scenes/enemies/enemy_firecore.tscn": ["res://scenes/enemies/enemy_skirmisher.tscn"],
+	"res://scenes/enemies/enemy_cutter.tscn": ["res://scenes/enemies/enemy_hover.tscn"],
+	"res://scenes/enemies/enemy_hover.tscn": ["res://scenes/enemies/enemy_cutter.tscn"],
+	"res://scenes/enemies/enemy_weaver.tscn": ["res://scenes/enemies/enemy_drifter.tscn"],
+}
+
 const BOSS_LEADIN_CONFLICTS := {
 	"res://scenes/enemies/boss_voidmaw.tscn": ["dumb_shot", "wide_dodge"],
 	"res://scenes/enemies/boss_howler.tscn": ["aimed_or_spread"],
@@ -108,17 +129,98 @@ static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, l
 	var waves: Array = []
 	var used: Array = []  # entries already used in this level (variety)
 	for i in n_waves:
-		var entry: Dictionary = _pick_entry(rng, sector_depth, level_index, used)
-		used.append(entry)
-		var w = _make_wave_spec(rng, entry, sector_depth, level_index, i)
-		# First wave gets the "ENGAGE" / sector announce; later waves silent so
-		# we don't pop banner after banner on a single level.
-		if i == 0:
-			w.announce_text = ""  # uses default "WAVE 1 / N"
+		# Wave 0 is never mixed (calm intro). Otherwise roll P(mix).
+		var mix: bool = i > 0 and _should_intermingle(level_index, sector_depth, rng)
+		if mix:
+			var pair: Array = _pick_pair(rng, sector_depth, level_index, used)
+			used.append(pair[0])
+			used.append(pair[1])
+			var sub_a = _make_wave_spec(rng, pair[0], sector_depth, level_index, i)
+			var sub_b = _make_wave_spec(rng, pair[1], sector_depth, level_index, i)
+			# Density formula: count_each = max(2, round(base_count * 0.5)).
+			# Exception: base_count == 1 (Rare-tier solo enemies) — keep full count
+			# on both sub-waves for the intentional late-wave threat spike.
+			var base_a: int = int(pair[0].get("base_count", 4))
+			var base_b: int = int(pair[1].get("base_count", 4))
+			if base_a > 1:
+				sub_a.count = maxi(2, int(round(float(sub_a.count) * 0.5)))
+			if base_b > 1:
+				sub_b.count = maxi(2, int(round(float(sub_b.count) * 0.5)))
+			# Opposite formations so streams come from opposite sides.
+			# 50/50 which side leads.
+			if rng.randf() < 0.5:
+				sub_a.formation = WaveSpec.Formation.TOP_LEFT_TO_RIGHT
+				sub_b.formation = WaveSpec.Formation.TOP_RIGHT_TO_LEFT
+			else:
+				sub_a.formation = WaveSpec.Formation.TOP_RIGHT_TO_LEFT
+				sub_b.formation = WaveSpec.Formation.TOP_LEFT_TO_RIGHT
+			# Both sub-waves share spawn_delay (already set by _make_wave_spec from
+			# wave_index_in_level); second sub-wave's stream is stretched 1.3× so
+			# the two streams interleave instead of stacking.
+			sub_b.spawn_delay = sub_a.spawn_delay
+			# Stretch sub_b's stream relative to sub_a so they interleave
+			# instead of stacking. Use sub_a's interval as the anchor.
+			sub_b.spawn_interval = sub_a.spawn_interval * 1.3
+			# One banner per logical wave — sub_b is silent.
+			sub_b.announce_text = ""
+			sub_b.silent = true
+			if i == 0:
+				sub_a.announce_text = ""
+			waves.append(sub_a)
+			waves.append(sub_b)
 		else:
-			w.silent = false  # banner each wave so player can pace
-		waves.append(w)
+			var entry: Dictionary = _pick_entry(rng, sector_depth, level_index, used)
+			used.append(entry)
+			var w = _make_wave_spec(rng, entry, sector_depth, level_index, i)
+			# First wave gets the "ENGAGE" / sector announce; later waves silent so
+			# we don't pop banner after banner on a single level.
+			if i == 0:
+				w.announce_text = ""  # uses default "WAVE 1 / N"
+			else:
+				w.silent = false  # banner each wave so player can pace
+			waves.append(w)
 	return waves
+
+
+# Returns true if this wave should be a mixed two-enemy wave.
+# P(mix) = WAVE_INTERMINGLE_PROBS[clamp(level_index, ...)] + 0.05*(sector_depth-1)
+# Clamped to [0, 0.85]. Caller is responsible for skipping wave 0.
+static func _should_intermingle(level_index: int, sector_depth: int, rng: RandomNumberGenerator) -> bool:
+	var idx: int = clampi(level_index, 0, WAVE_INTERMINGLE_PROBS.size() - 1)
+	var p: float = float(WAVE_INTERMINGLE_PROBS[idx]) + 0.05 * float(max(sector_depth - 1, 0))
+	p = clampf(p, 0.0, 0.85)
+	return rng.randf() < p
+
+
+# Pick two entries for an intermingled wave. Second pick excludes the first
+# pick's conflict_tags (existing safety) and is tier-capped at UNCOMMON if the
+# first pick was RARE (max one Rare per mixed wave). Affinity bias: if the
+# resulting pair isn't in WAVE_AFFINITY, with 50% chance re-roll the second
+# pick once. Returns [first, second].
+static func _pick_pair(rng: RandomNumberGenerator, sector_depth: int, level_index: int, used: Array) -> Array:
+	var first: Dictionary = _pick_entry(rng, sector_depth, level_index, used)
+	var first_tags: PackedStringArray = PackedStringArray(first.get("conflict_tags", []))
+	var tier_cap: int = Roster.Tier.RARE
+	if int(first.get("tier", Roster.Tier.COMMON)) == Roster.Tier.RARE:
+		tier_cap = Roster.Tier.UNCOMMON
+	# Block the first pick itself from being picked again as second.
+	var exclude_second: Array = used.duplicate()
+	exclude_second.append(first)
+	var second: Dictionary = _pick_entry(rng, sector_depth, level_index, exclude_second, first_tags, tier_cap)
+	# Affinity bias — if pair not in affinity table, 50% chance to re-roll once.
+	if not _is_affinity_pair(first, second) and rng.randf() < 0.5:
+		var second2: Dictionary = _pick_entry(rng, sector_depth, level_index, exclude_second, first_tags, tier_cap)
+		second = second2
+	return [first, second]
+
+
+static func _is_affinity_pair(a: Dictionary, b: Dictionary) -> bool:
+	var pa: String = String(a.get("scene", ""))
+	var pb: String = String(b.get("scene", ""))
+	if not WAVE_AFFINITY.has(pa):
+		return false
+	var partners: Array = WAVE_AFFINITY[pa]
+	return partners.has(pb)
 
 
 # Boss level: 2-4 escalating lead-in waves then the boss. Lead-in chaff
@@ -182,11 +284,13 @@ static func _make_boss_wave(boss_entry: Dictionary) -> WaveSpec:
 # boss lead-in waves to avoid chaff that overlaps the boss's pressure
 # signature. If the filter empties the pool, falls back to the unfiltered
 # pool so we never softlock generation.
-static func _pick_entry(rng: RandomNumberGenerator, sector_depth: int, level_index: int, exclude: Array, exclude_tags: PackedStringArray = PackedStringArray()) -> Dictionary:
+static func _pick_entry(rng: RandomNumberGenerator, sector_depth: int, level_index: int, exclude: Array, exclude_tags: PackedStringArray = PackedStringArray(), max_tier: int = Roster.Tier.RARE) -> Dictionary:
 	var tier := _roll_tier(rng, sector_depth, level_index)
+	if tier > max_tier:
+		tier = max_tier
 	var pool: Array = Roster.entries_of(tier)
 	# Fall back to other tiers if the rolled tier is empty.
-	if pool.is_empty():
+	if pool.is_empty() and Roster.Tier.UNCOMMON <= max_tier:
 		pool = Roster.entries_of(Roster.Tier.UNCOMMON)
 	if pool.is_empty():
 		pool = Roster.entries_of(Roster.Tier.COMMON)
