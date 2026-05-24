@@ -25,6 +25,20 @@ const BossSweep = preload("res://scripts/enemies/patterns/boss_sweep.gd")
 const SpreadShot = preload("res://scripts/enemies/shoot_patterns/spread_shot.gd")
 const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
 
+# Per-boss chaff conflict tags. Lead-in waves drop chaff carrying any of
+# these tags so the boss's signature pressure doesn't overlap a chaff
+# pattern that demands the same player attention budget. Empty / unlisted
+# scene = no filtering.
+const BOSS_LEADIN_CONFLICTS := {
+	"res://scenes/enemies/boss_voidmaw.tscn": ["dumb_shot", "wide_dodge"],
+	"res://scenes/enemies/boss_howler.tscn": ["aimed_or_spread"],
+	"res://scenes/enemies/boss_reaver.tscn": ["aimed_or_spread"],   # Lash
+	"res://scenes/enemies/boss_sentinel.tscn": ["demands_focus"],   # Aegis
+	"res://scenes/enemies/boss_spinwright.tscn": ["wide_dodge"],
+	"res://scenes/enemies/boss_conductor.tscn": ["demands_focus", "aimed_or_spread"],
+}
+
+
 # Boss roster. Generator picks one weighted by sector_depth and the run
 # seed. Each entry exports its own scene + a label for diagnostics.
 const BOSS_ROSTER := [
@@ -107,17 +121,35 @@ static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, l
 	return waves
 
 
-# Boss level: one lead-in wave then the boss. Roman, 2026-05-16: "Boss levels
-# always add one new wave, and it's always before the boss itself."
+# Boss level: 2-4 escalating lead-in waves then the boss. Lead-in chaff
+# filters out enemies whose conflict_tags overlap the boss's own pressure
+# signature (BOSS_LEADIN_CONFLICTS). Final lead-in is thinned and re-bannered
+# so the boss arrival reads cleanly.
 static func _build_boss_waves(rng: RandomNumberGenerator, sector_depth: int, level_index: int) -> Array:
-	# Lead-in: a regular combat wave at the current depth.
-	var lead_entry: Dictionary = _pick_entry(rng, sector_depth, level_index, [])
-	var w_lead = _make_wave_spec(rng, lead_entry, sector_depth, level_index, 0)
-
-	# Boss wave: 1 boss rolled from the roster. Each boss scene applies its
-	# own HP / behavior overrides in _ready(); we just pick which scene the
-	# director instantiates.
 	var boss_entry: Dictionary = _pick_boss(rng, sector_depth)
+	var conflict_tags: PackedStringArray = PackedStringArray(
+		BOSS_LEADIN_CONFLICTS.get(boss_entry["scene"], []))
+	var n_leadin: int = clampi(1 + sector_depth, 2, 4)  # S1=2, S2=3, S3+=4
+	var used: Array = []
+	var waves: Array = []
+	for i in n_leadin:
+		var entry: Dictionary = _pick_entry(rng, sector_depth, level_index + i, used, conflict_tags)
+		used.append(entry)
+		var w = _make_wave_spec(rng, entry, sector_depth, level_index + i, i)
+		if i == n_leadin - 1:
+			# Thin the final lead-in and re-banner so the boss arrival reads cleanly.
+			w.count = maxi(2, int(w.count / 2))
+			w.announce_text = "BOSS APPROACHING"
+		waves.append(w)
+	var w_boss = _make_boss_wave(boss_entry)
+	w_boss.spawn_delay = 5.0 - 0.5 * float(sector_depth - 1)  # 4.5/4.0/3.5
+	waves.append(w_boss)
+	return waves
+
+
+# Build the boss WaveSpec. Boss scene applies its own HP / behavior
+# overrides in _ready(); we just pick which scene the director instantiates.
+static func _make_boss_wave(boss_entry: Dictionary) -> WaveSpec:
 	var w_boss = WaveSpec.new()
 	w_boss.enemy_scene = load(boss_entry["scene"])
 	w_boss.count = 1
@@ -140,13 +172,17 @@ static func _build_boss_waves(rng: RandomNumberGenerator, sector_depth: int, lev
 	w_boss.shoot_pattern_override = bs
 	w_boss.fire_interval_min = 0.9
 	w_boss.fire_interval_max = 1.4
-	return [w_lead, w_boss]
+	return w_boss
 
 
 # Roll a roster entry weighted by tier probability for the current depth.
 # `exclude` is a list of entries already used in this level (skipped if any
 # unused entries remain).
-static func _pick_entry(rng: RandomNumberGenerator, sector_depth: int, level_index: int, exclude: Array) -> Dictionary:
+# `exclude_tags` filters out entries whose conflict_tags intersect — used by
+# boss lead-in waves to avoid chaff that overlaps the boss's pressure
+# signature. If the filter empties the pool, falls back to the unfiltered
+# pool so we never softlock generation.
+static func _pick_entry(rng: RandomNumberGenerator, sector_depth: int, level_index: int, exclude: Array, exclude_tags: PackedStringArray = PackedStringArray()) -> Dictionary:
 	var tier := _roll_tier(rng, sector_depth, level_index)
 	var pool: Array = Roster.entries_of(tier)
 	# Fall back to other tiers if the rolled tier is empty.
@@ -154,6 +190,20 @@ static func _pick_entry(rng: RandomNumberGenerator, sector_depth: int, level_ind
 		pool = Roster.entries_of(Roster.Tier.UNCOMMON)
 	if pool.is_empty():
 		pool = Roster.entries_of(Roster.Tier.COMMON)
+	# Conflict-tag filter for boss lead-ins.
+	if not exclude_tags.is_empty():
+		var tag_filtered: Array = []
+		for e in pool:
+			var etags: Array = e.get("conflict_tags", [])
+			var clash: bool = false
+			for t in etags:
+				if exclude_tags.has(String(t)):
+					clash = true
+					break
+			if not clash:
+				tag_filtered.append(e)
+		if not tag_filtered.is_empty():
+			pool = tag_filtered
 	# Avoid repeating an enemy already in this level when we have room.
 	var fresh: Array = []
 	for e in pool:
