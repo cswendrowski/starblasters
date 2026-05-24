@@ -33,6 +33,13 @@ var secondary_homing: bool = false  # true for seeking missile
 var secondary_pod_count: int = 1
 var secondary_pod_halfspan: float = 10.0  # px from center to outermost pod
 var _secondary_t: float = 0.0
+# Secondary ammo (Rocket Pod / Seeking Missile). -1 = unmetered (default
+# for Side Pods / Particle Beam / no secondary). >= 0 = counted; 0 =
+# empty, silently fails to fire. Seeded by the Part's apply() from
+# Run.secondary_ammo so refills survive scene changes.
+var secondary_ammo: int = -1
+var secondary_ammo_max: int = -1
+signal secondary_ammo_changed(value: int, maximum: int)
 # Drone Bits (Gradius Options) — orbiting companions that fire alongside
 # the primary. drone_bits holds the spawned drone Node2Ds; fire_primary
 # spawns an extra bullet from each drone's global_position each shot.
@@ -711,6 +718,25 @@ func set_ammo(value: int) -> void:
 	if has_node("/root/Run"):
 		get_node("/root/Run").ammo = ammo
 
+
+# Secondary ammo setter — called by Rocket Pod / Seeking Missile Part on
+# apply(), and by the future shop refill flow. value < 0 disables metering
+# (unmetered Side Pods / Particle Beam state). maximum < 0 is treated as
+# "match value" so callers that don't care about cap don't have to pass it.
+func set_secondary_ammo(value: int, maximum: int = -1) -> void:
+	secondary_ammo = value
+	if maximum >= 0:
+		secondary_ammo_max = maximum
+	elif value >= 0 and secondary_ammo_max < 0:
+		secondary_ammo_max = value
+	if value < 0:
+		secondary_ammo_max = -1
+	secondary_ammo_changed.emit(secondary_ammo, secondary_ammo_max)
+	if has_node("/root/Run"):
+		var run = get_node("/root/Run")
+		run.secondary_ammo = secondary_ammo
+		run.secondary_ammo_max = secondary_ammo_max
+
 func fire_secondary() -> void:
 	# HARDPOINT_WING Parts (Seeking Missile, Rocket Pod, Side Pods) write
 	# to secondary_bullet_scene / cooldown / damage / pod_count in their
@@ -721,6 +747,10 @@ func fire_secondary() -> void:
 	if not is_alive:
 		return
 	if _secondary_t < secondary_cooldown:
+		return
+	# Ammo gate — only applies to metered secondaries (Rocket Pod / Seeking
+	# Missile set secondary_ammo_max > 0). Unmetered (-1) fires forever.
+	if secondary_ammo == 0:
 		return
 	_secondary_t = 0.0
 	var count: int = max(1, secondary_pod_count)
@@ -743,6 +773,14 @@ func fire_secondary() -> void:
 	if WeaponSfxSec:
 		var kind: String = "missile" if secondary_homing else "rocket"
 		WeaponSfxSec.play(get_tree().root, global_position, kind)
+	# Decrement ONE per fire_secondary press regardless of pod_count — the
+	# pod_count is a visual fan, not a per-shot multiplier on ammo cost.
+	# (If we ever want pod_count to cost N rounds, change here.)
+	if secondary_ammo > 0:
+		secondary_ammo -= 1
+		secondary_ammo_changed.emit(secondary_ammo, secondary_ammo_max)
+		if has_node("/root/Run"):
+			get_node("/root/Run").secondary_ammo = secondary_ammo
 
 
 ## Continuous Particle Beam ##

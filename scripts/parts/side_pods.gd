@@ -57,6 +57,10 @@ func apply(ship) -> void:
 		)
 	if "secondary_pod_halfspan" in ship:
 		ship.secondary_pod_halfspan = halfspan
+	# Side Pods are unmetered — clear any leftover Rocket/Missile ammo
+	# state so the HUD + fire gate don't think we're still ammo-limited.
+	if ship.has_method("set_secondary_ammo"):
+		ship.set_secondary_ammo(-1, -1)
 
 
 func unapply(ship) -> void:

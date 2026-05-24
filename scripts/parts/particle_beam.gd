@@ -29,6 +29,9 @@ func apply(ship) -> void:
 		ship.secondary_beam_dps = base_dps
 	if "secondary_beam_width" in ship:
 		ship.secondary_beam_width = base_width + (float(mark) - 1.0) * width_per_mark
+	# Beam is unmetered — clear any leftover Rocket/Missile ammo state.
+	if ship.has_method("set_secondary_ammo"):
+		ship.set_secondary_ammo(-1, -1)
 
 
 func unapply(ship) -> void:

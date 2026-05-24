@@ -21,6 +21,12 @@ const MOVE_SPEED := 140.0
 const FIRE_INTERVAL := 0.22
 const BULLET_DAMAGE := 1
 const MAX_HITS := 2
+# Boids-style separation so a 4-6 drone swarm doesn't stack into a single
+# pixel near the desired anchor (Roman, 2026-05-23). Only repels OTHER
+# super-drones; the player + target attraction stays untouched.
+const SEPARATION_RADIUS := 24.0
+const SEPARATION_STRENGTH := 80.0
+const SUPER_DRONE_GROUP := "super_drone"
 
 var _player: Node2D = null
 var _cooldown: float = 0.0
@@ -34,6 +40,9 @@ func _ready() -> void:
 	_drift_phase = randf() * TAU
 	if not area_entered.is_connected(_on_area_entered):
 		area_entered.connect(_on_area_entered)
+	# Self-register so peer drones can find us for separation.
+	if not is_in_group(SUPER_DRONE_GROUP):
+		add_to_group(SUPER_DRONE_GROUP)
 
 
 func bind_player(player: Node2D, angle_seed: float) -> void:
@@ -58,12 +67,27 @@ func _process(delta: float) -> void:
 	if target and is_instance_valid(target):
 		var dx: float = clampf(target.global_position.x - anchor.x, -TETHER_RADIUS, TETHER_RADIUS)
 		desired = anchor + Vector2(dx, -TETHER_RADIUS * 0.8 + sin(_drift_phase) * 4.0)
-	var to_desired: Vector2 = desired - global_position
-	var step: float = MOVE_SPEED * delta
-	if to_desired.length() > step:
-		position += to_desired.normalized() * step
-	else:
-		position = desired
+	# Boids separation — sum of repulsion vectors from peer super-drones
+	# within SEPARATION_RADIUS. Closer peers contribute more (1/distance).
+	# Added as a velocity (px/s) on top of the seek-to-desired step, then
+	# the combined step is capped at MOVE_SPEED so separation never makes
+	# a drone outrun the swarm's intended speed.
+	var separation: Vector2 = Vector2.ZERO
+	for peer in get_tree().get_nodes_in_group(SUPER_DRONE_GROUP):
+		if peer == self or not is_instance_valid(peer):
+			continue
+		var offset: Vector2 = global_position - (peer as Node2D).global_position
+		var dist: float = offset.length()
+		if dist > 0.0 and dist < SEPARATION_RADIUS:
+			separation += offset.normalized() / max(dist, 1.0)
+	separation *= SEPARATION_STRENGTH
+	var seek_v: Vector2 = (desired - global_position) / max(delta, 0.0001)
+	var combined: Vector2 = seek_v + separation
+	var max_step: float = MOVE_SPEED * delta
+	var step_vec: Vector2 = combined * delta
+	if step_vec.length() > max_step:
+		step_vec = step_vec.normalized() * max_step
+	position += step_vec
 	if Playfield:
 		position.x = clamp(position.x, Playfield.X_MIN + 4.0, Playfield.X_MAX - 4.0)
 		position.y = clamp(position.y, Playfield.Y_MIN + 4.0, Playfield.Y_MAX - 4.0)

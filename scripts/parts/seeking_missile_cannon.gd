@@ -15,6 +15,10 @@ const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 @export var base_damage: int = 3
 @export var dmg_per_mark: int = 3
 @export var base_cooldown: float = 0.75
+# Limited magazine — designer call (Roman, 2026-05-23): missiles are
+# premium ordnance, refilled at outposts (shop rework pending). Flat 60
+# regardless of mark; mark scales damage only.
+@export var base_ammo: int = 60
 
 var _prev_bullet_scene: PackedScene = null
 var _prev_cooldown: float = 0.0
@@ -44,6 +48,15 @@ func apply(ship) -> void:
 	# Side Pods equip.
 	if "secondary_pod_count" in ship:
 		ship.secondary_pod_count = 1
+	# Seed ammo from the Run snapshot if the player already has a partial
+	# magazine; otherwise hand them a fresh `base_ammo`.
+	if ship.has_method("set_secondary_ammo"):
+		var seeded: int = base_ammo
+		if ship.has_node("/root/Run"):
+			var run = ship.get_node("/root/Run")
+			if "secondary_ammo" in run and int(run.secondary_ammo) >= 0:
+				seeded = int(run.secondary_ammo)
+		ship.set_secondary_ammo(seeded, base_ammo)
 
 
 func unapply(ship) -> void:
@@ -53,3 +66,5 @@ func unapply(ship) -> void:
 	ship.secondary_cooldown = _prev_cooldown
 	ship.secondary_damage = _prev_damage
 	ship.secondary_homing = _prev_homing
+	if ship.has_method("set_secondary_ammo"):
+		ship.set_secondary_ammo(-1, -1)

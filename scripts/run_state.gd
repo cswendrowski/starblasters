@@ -65,6 +65,14 @@ var current_stellar: Dictionary = {}
 # Machinegun ammo balance — persists across scenes so refills at outposts
 # carry into the next combat. 0 = empty; -1 = no MG equipped (default).
 var ammo: int = -1
+# Secondary-weapon ammo balance (Rocket Pod / Seeking Missile). Same
+# convention as `ammo`: 0 = empty, -1 = no ammo-bearing secondary
+# equipped. Persists across scenes; the secondary Part's apply() seeds
+# from this on equip so a refill at outpost A carries into outpost B.
+var secondary_ammo: int = -1
+# Max capacity for the equipped secondary so the upcoming shop refill UI
+# can clamp / display % remaining. -1 mirrors `secondary_ammo == -1`.
+var secondary_ammo_max: int = -1
 # Set of enemy scene paths the player has encountered (i.e. seen
 # spawned in a wave). Persists across sessions via JSON in the codex
 # save file. Used by the Enemy Codex on the main menu.
@@ -191,6 +199,10 @@ func new_run() -> void:
 	shield_recharge_mk = 0
 	weapon_storage = []
 	sector_map_cache = {}
+	# Reset ammo state — Part.apply() reseeds on equip.
+	ammo = -1
+	secondary_ammo = -1
+	secondary_ammo_max = -1
 	run_seed = randi()
 	# Reset super-weapon state — player._ready will repopulate via the
 	# equipped Smart Bomb's apply().
