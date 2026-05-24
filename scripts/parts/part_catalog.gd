@@ -181,6 +181,15 @@ static func _build_weapon(tres_path: String, fallback_script: Script, bullet_fal
 			weapon = loaded.duplicate()
 	if weapon == null:
 		weapon = fallback_script.new()
+	# Godot does NOT call _init() on Resources loaded from disk; the .tres files
+	# don't persist display_name/description so they stay at the base "Unnamed
+	# Part" / "" defaults. Pull them off a fresh script-default instance.
+	if fallback_script != null and "display_name" in weapon:
+		if weapon.display_name == "" or weapon.display_name == "Unnamed Part":
+			var defaults = fallback_script.new()
+			weapon.display_name = defaults.display_name
+			if "description" in weapon and "description" in defaults:
+				weapon.description = defaults.description
 	if bullet_fallback != null and "bullet_scene" in weapon and weapon.bullet_scene == null:
 		weapon.bullet_scene = bullet_fallback
 	return weapon
