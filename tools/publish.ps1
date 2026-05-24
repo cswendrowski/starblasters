@@ -13,7 +13,7 @@ $BUTLER = 'C:\Users\Cody\Downloads\butler-windows-amd64\windows-amd64\butler.exe
 $REPO = Split-Path -Parent $PSScriptRoot
 $OUT_DIR = Join-Path (Split-Path -Parent $REPO) 'Starblasters_html'
 $OUT_HTML = Join-Path $OUT_DIR 'index.html'
-$CHANNEL = 'cswendrowski/slugblasters:html'
+$CHANNEL = 'cswendrowski/starblaster:html'
 
 if (-not (Test-Path $STANDALONE_GODOT)) { throw "Standalone Godot not found at $STANDALONE_GODOT" }
 if (-not (Test-Path $BUTLER)) { throw "butler not found at $BUTLER" }
