@@ -1,9 +1,13 @@
 extends Area2D
 
-# Aegis pylon — destructible turret-node hanging off the Aegis boss. Has
-# its own HP, takes hits, emits a signal on destruction, free itself.
+# Aegis pylon — destructible shield-node hanging off the Aegis boss. Has
+# its own HP, takes hits, emits a signal on destruction, frees itself.
 # Not a real EnemyBase to avoid the engine flame / parallax shadow / etc
 # pipeline — pylons are stationary props attached to the boss.
+#
+# 2026-05-24: Pylons no longer shoot. They visually link to the boss via
+# a blue Line2D (managed by boss_aegis.gd) and uphold the shield. Killing
+# one opens a 1.5s damage window on the core.
 
 signal pylon_killed(side: String)
 
