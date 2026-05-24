@@ -204,10 +204,14 @@ func _process(delta: float) -> void:
 		var s: float = (STAR_DISPLAY_PX[i] * 2.2) / 64.0 * (1.0 + 0.06 * pulse)
 		glow_spr.scale      = Vector2(s, s)
 		glow_spr.modulate.a = STAR_GLOW_ALPHA[i] + 0.15 * pulse
+	# Designer: moons on the sector map orbit 70% slower than their descriptor
+	# speed. Multiply at consumption so the descriptor remains the single
+	# source of truth for combat backdrop derivation.
+	const MOON_MAP_SPEED_MUL := 0.30
 	for m in _moon_data:
 		if not is_instance_valid(m.node):
 			continue
-		var angle: float = _time * m.speed + m.phase
+		var angle: float = _time * m.speed * MOON_MAP_SPEED_MUL + m.phase
 		m.node.position = m.center + Vector2(cos(angle) * m.rx, sin(angle) * m.ry)
 	for entry in _asteroid_rotators:
 		if is_instance_valid(entry.node) and entry.node.has_method("set_custom_time"):
@@ -265,6 +269,16 @@ func _build_routes() -> void:
 		var boss: Dictionary = rows[i].boss
 		var end_x: float = boss.pos.x
 		var line := Line2D.new()
+		# Designer: POI line alpha 0 at the star end, 1 at the boss end. Line2D
+		# supports per-length gradient via the `gradient` property, so we keep a
+		# single Line2D and tint via gradient stops (cheaper than splitting into
+		# many _draw'd segments).
+		var grad := Gradient.new()
+		var c_star: Color = Color(ROUTE_COLOR.r, ROUTE_COLOR.g, ROUTE_COLOR.b, 0.0)
+		var c_boss: Color = Color(ROUTE_COLOR.r, ROUTE_COLOR.g, ROUTE_COLOR.b, ROUTE_COLOR.a)
+		grad.colors  = PackedColorArray([c_star, c_boss])
+		grad.offsets = PackedFloat32Array([0.0, 1.0])
+		line.gradient       = grad
 		line.default_color  = ROUTE_COLOR
 		line.width          = ROUTE_WIDTH
 		line.begin_cap_mode = Line2D.LINE_CAP_ROUND
@@ -502,7 +516,10 @@ func _spawn_large_asteroid(center: Vector2, row_idx: int, rng: RandomNumberGener
 	add_child(ast)
 	_disable_celestial_mouse(ast)
 	_reset_planet_colorrects(ast)
-	ast.modulate = Color.WHITE.lerp(STAR_GLOW_COLORS[row_idx], 0.18)
+	# Designer: asteroid parents were not reading the row's star tint — bump
+	# the lerp toward star from 0.18 to 0.6 so the parent rocks visibly share
+	# the family color the surrounding decorative pixels already use.
+	ast.modulate = Color.WHITE.lerp(STAR_GLOW_COLORS[row_idx], 0.6)
 	_asteroid_rotators.append({
 		"node":  ast,
 		"speed": rng.randf_range(0.008, 0.025),
@@ -536,7 +553,7 @@ func _spawn_asteroid_cluster(center: Vector2, row_idx: int, rng: RandomNumberGen
 		add_child(ast)
 		_disable_celestial_mouse(ast)
 		_reset_planet_colorrects(ast)
-		ast.modulate = Color.WHITE.lerp(STAR_GLOW_COLORS[row_idx], 0.18)
+		ast.modulate = Color.WHITE.lerp(STAR_GLOW_COLORS[row_idx], 0.6)
 		_asteroid_rotators.append({
 			"node":  ast,
 			"speed": rng.randf_range(0.005, 0.020),
@@ -570,6 +587,10 @@ func _scatter_asteroid_band(center: Vector2, rng: RandomNumberGenerator) -> void
 		add_child(ast)
 		_disable_celestial_mouse(ast)
 		_reset_planet_colorrects(ast)
+		# Same star-tint treatment as the parent asteroid spawners. _cur_row_idx
+		# is the row this band is being scattered into.
+		var band_tint_row: int = _cur_row_idx if _cur_row_idx < STAR_GLOW_COLORS.size() else 0
+		ast.modulate = Color.WHITE.lerp(STAR_GLOW_COLORS[band_tint_row], 0.6)
 		_asteroid_rotators.append({
 			"node":  ast,
 			"speed": rng.randf_range(0.005, 0.018),
@@ -767,9 +788,23 @@ func _build_labels() -> void:
 	ls.font_color   = Color(0.85, 0.92, 1.0, 0.95)
 	ls.outline_size  = 1
 	ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
-	# Sector header.
+	# Sector header. "<Name> (Sector Patrol X/Y)" where X = current sector
+	# (1-indexed) and Y = Run.TOTAL_SECTORS. Name is generated deterministically
+	# from the sector seed and cached on sector_map_cache.sector_name; if a
+	# stale cache from a prior run is missing the key, regenerate from the
+	# cached seed so the header still reads correctly. No silent fallback to
+	# "SECTOR N" — the name is required.
+	var run = get_node("/root/Run")
+	var current_sector: int = run.sectors_cleared + 1
+	var total_sectors: int = int(run.TOTAL_SECTORS)
+	var sector_name: String = String(run.sector_map_cache.get("sector_name", ""))
+	if sector_name == "":
+		var SectorNameGen = preload("res://scripts/sector_name_generator.gd")
+		var seed_value: int = int(run.sector_map_cache.get("seed", run.run_seed + run.sectors_cleared))
+		sector_name = SectorNameGen.generate(seed_value)
+		run.sector_map_cache["sector_name"] = sector_name
 	var hdr := Label.new()
-	hdr.text = "SECTOR %d" % (get_node("/root/Run").sectors_cleared + 1)
+	hdr.text = "%s (Sector Patrol %d/%d)" % [sector_name, current_sector, total_sectors]
 	hdr.label_settings = ls
 	hdr.position = Vector2(8, 2)
 	hdr.z_index = 10
@@ -1039,34 +1074,37 @@ func _draw() -> void:
 		var c: Color = px.color
 		c.a = a
 		draw_rect(Rect2(px.pos, Vector2(px.size, px.size)), c)
-	# Green progress overlay per row.
+	# Designer: line-progress overlay removed; boss radial ring replaces it.
+	# For each boss, draw a segmented clockwise arc — total segments = POI
+	# count in that row, filled count = completed POIs. Starts at 12 o'clock
+	# (-PI/2), progresses clockwise.
 	var run = get_node("/root/Run")
 	var rows: Array = run.sector_map_cache.get("rows", [])
-	for i in _route_segments.size():
-		var seg: Dictionary = _route_segments[i]
-		var pois: Array = rows[i].pois
-		if pois.is_empty():
+	const RING_RADIUS: float       = 26.0   # ~10 px outside the boss dot's visible halfwidth (~16)
+	const RING_WIDTH: float        = 2.0
+	const RING_GAP_RAD: float      = 0.08   # gap between segments for readability
+	const RING_ARC_STEPS: int      = 6      # arc smoothness per segment
+	var ring_filled: Color   = PROGRESS_COLOR
+	var ring_unfilled: Color = Color(0.3, 0.3, 0.3, 0.5)
+	for i in _boss_entries.size():
+		if i >= rows.size():
 			continue
-		var sorted := pois.duplicate()
-		sorted.sort_custom(func(a, b): return a.pos.x < b.pos.x)
-		var farthest_x: float = -INF
-		var all_done: bool = true
-		for poi in sorted:
-			if poi.completed:
-				farthest_x = maxf(farthest_x, poi.pos.x)
-			else:
-				all_done = false
-		# If row's POIs are all complete, extend through the boss endpoint.
-		if all_done:
-			farthest_x = seg.end_x
-		if farthest_x > -INF:
-			draw_line(seg.anchor, Vector2(farthest_x, seg.anchor.y),
-				PROGRESS_COLOR, ROUTE_WIDTH)
-		# Completed POI ring markers.
+		var b: Dictionary = _boss_entries[i]
+		var center: Vector2 = b.pos
+		var pois: Array = rows[i].pois
+		var total: int = pois.size()
+		if total <= 0:
+			continue
+		var done: int = 0
 		for poi in pois:
 			if poi.completed:
-				draw_rect(Rect2(poi.pos.x - 4, poi.pos.y - 4, 8, 8),
-					PROGRESS_COLOR, false, 1.0)
+				done += 1
+		var seg_span: float = TAU / float(total)
+		for s in total:
+			var a0: float = -PI * 0.5 + float(s) * seg_span + RING_GAP_RAD * 0.5
+			var a1: float = -PI * 0.5 + float(s + 1) * seg_span - RING_GAP_RAD * 0.5
+			var col: Color = ring_filled if s < done else ring_unfilled
+			draw_arc(center, RING_RADIUS, a0, a1, RING_ARC_STEPS, col, RING_WIDTH)
 
 
 func _unhandled_input(event: InputEvent) -> void:

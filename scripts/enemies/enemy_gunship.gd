@@ -86,3 +86,13 @@ func _fire_rocket() -> void:
 		r.start(global_position, fire_dir)
 	elif "velocity" in r:
 		r.velocity = fire_dir * 280.0
+
+	# Rocket sound + smoke trail (matches player missile aesthetic).
+	var WeaponSfx = load("res://scripts/effects/weapon_sfx.gd")
+	if WeaponSfx:
+		WeaponSfx.play(get_tree().root, global_position, "rocket")
+
+	var TrailCls = preload("res://scripts/effects/missile_smoke_trail.gd")
+	var trail = TrailCls.new()
+	get_tree().root.call_deferred("add_child", trail)
+	trail.call_deferred("attach_to", r)

@@ -239,6 +239,12 @@ func sector_complete() -> void:
 # above for the shape.
 
 const SectorNodeType = preload("res://scripts/sector_node.gd").NodeType
+const SectorNameGenerator = preload("res://scripts/sector_name_generator.gd")
+
+# Total sectors required to beat the game. Drives the "Sector Patrol X/Y"
+# header in sector_map_v3. Designer-tunable — bump when adding mid/late
+# sectors. Read by sector_map_v3 directly.
+const TOTAL_SECTORS: int = 3
 
 # (Re)generate the sector map cache for the given sector index + seed.
 # Always overwrites; call when entering a fresh sector.
@@ -270,6 +276,7 @@ func start_new_sector(sector_idx: int, seed_value: int) -> void:
 	sector_map_cache = {
 		"sector_idx": sector_idx,
 		"seed": seed_value,
+		"sector_name": SectorNameGenerator.generate(seed_value),
 		"rows": rows,
 	}
 

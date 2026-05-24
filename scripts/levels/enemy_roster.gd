@@ -76,6 +76,7 @@ const ENTRIES := [
 		"movement": "fast_straight",
 		"shoot": null,
 		"base_count": 8,
+		"recycle": 0,
 		"hp_override": 1, "bounty_override": 5,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 1.4, "chaff": true,
 	},
@@ -175,6 +176,7 @@ const ENTRIES := [
 		"movement": "loiter",
 		"shoot": null,  # uses built-in beam, not shoot_pattern
 		"base_count": 2,
+		"conflict_tags": ["beamshooter"],
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_gunship.tscn",

@@ -2,16 +2,20 @@ extends EnemyBase
 class_name EnemyBeamShooter
 
 enum BeamState { IDLE, WINDUP, FIRING, COOLDOWN }
+enum PairPhase { ENTER, FIRE_IN, SEPARATE, FIRE_OUT, REGROUP }
 
 const IDLE_DURATION    := 1.5
-const WINDUP_DURATION  := 3.0
-const FIRING_DURATION  := 2.0
+const WINDUP_DURATION  := 1.5   # halved (was 3.0)
+const FIRING_DURATION  := 1.0   # halved (was 2.0)
 const COOLDOWN_DURATION := 2.5
 
-const SETTLE_Y     := 60.0
-const ENTER_SPEED  := 220.0
-const DRIFT_RANGE  := 30.0
-const DRIFT_SPEED  := 20.0
+const SETTLE_Y         := 60.0
+const ENTER_SPEED      := 220.0
+const INNER_X_OFFSET   := 12.0
+const OUTER_X_OFFSET   := 70.0
+const LATERAL_SPEED    := 40.0
+const X_ARRIVAL_EPS    := 1.0
+
 const BEAM_DPS     := 3.0
 const BEAM_REACH   := 300.0
 const HIT_RADIUS   := 10.0
@@ -23,8 +27,9 @@ var _beam_t: float = 0.0
 var _aim_pos: Vector2 = Vector2.ZERO
 var _aim_dir: Vector2 = Vector2.DOWN
 
-var _settled: bool = false
-var _drift_origin: float = 0.0
+var _pair_phase: int = PairPhase.ENTER
+var _side_sign: int = -1  # -1 = left, +1 = right
+var _side_resolved: bool = false
 
 var _beam_outer:      Line2D = null
 var _beam_mid:        Line2D = null
@@ -38,28 +43,87 @@ func _ready() -> void:
 	bounty_value  = 30
 	auto_rotate   = false
 	super._ready()
-	_drift_origin = global_position.x
+	_resolve_side()
+
+
+func _resolve_side() -> void:
+	# Per-instance side. Wave generator may set "beam_pair_side" meta ("L"/"R"),
+	# otherwise fall back to spawn-X position vs playfield centre.
+	var side := "L"
+	if has_meta("beam_pair_side"):
+		side = str(get_meta("beam_pair_side"))
+	else:
+		side = "L" if global_position.x < Playfield.CENTER.x else "R"
+	_side_sign = -1 if side == "L" else 1
+	_side_resolved = true
 
 
 func _process(delta: float) -> void:
 	_move(delta)
-	_tick_beam_state(delta)
+	# Beam cycle only ticks during firing phases; phases choose when to enter
+	# WINDUP via _enter_windup() so the visuals stay in sync with the cycle.
+	if _pair_phase == PairPhase.FIRE_IN or _pair_phase == PairPhase.FIRE_OUT:
+		_tick_beam_state(delta)
+	else:
+		_hide_all_beam_lines()
 	super._process(delta)
+
+
+func _inner_x() -> float:
+	return Playfield.CENTER.x + float(_side_sign) * INNER_X_OFFSET
+
+
+func _outer_x() -> float:
+	return Playfield.CENTER.x + float(_side_sign) * OUTER_X_OFFSET
+
+
+func _lerp_x_toward(target_x: float, delta: float) -> bool:
+	# Move global_position.x toward target_x at LATERAL_SPEED. Returns true on arrival.
+	var diff := target_x - global_position.x
+	if absf(diff) <= X_ARRIVAL_EPS:
+		global_position.x = target_x
+		return true
+	var step: float = LATERAL_SPEED * delta
+	if absf(diff) <= step:
+		global_position.x = target_x
+		return true
+	global_position.x += signf(diff) * step
+	return false
 
 
 func _move(delta: float) -> void:
 	if _dying:
 		return
-	if not _settled:
-		if global_position.y < SETTLE_Y:
-			global_position.y += ENTER_SPEED * delta
-		else:
-			global_position.y = SETTLE_Y
-			_settled = true
-			_drift_origin = global_position.x
-	else:
-		var drift_x := sin(_beam_t * (DRIFT_SPEED / DRIFT_RANGE)) * DRIFT_RANGE
-		global_position.x = _drift_origin + drift_x
+	if not _side_resolved:
+		_resolve_side()
+	match _pair_phase:
+		PairPhase.ENTER:
+			if global_position.y < SETTLE_Y:
+				global_position.y += ENTER_SPEED * delta
+			else:
+				global_position.y = SETTLE_Y
+				_pair_phase = PairPhase.FIRE_IN
+				_reset_beam_cycle()
+		PairPhase.FIRE_IN:
+			# Drift to inner X while firing cycle runs in _process.
+			_lerp_x_toward(_inner_x(), delta)
+		PairPhase.SEPARATE:
+			if _lerp_x_toward(_outer_x(), delta):
+				_pair_phase = PairPhase.FIRE_OUT
+				_reset_beam_cycle()
+		PairPhase.FIRE_OUT:
+			_lerp_x_toward(_outer_x(), delta)
+		PairPhase.REGROUP:
+			if _lerp_x_toward(_inner_x(), delta):
+				_pair_phase = PairPhase.FIRE_IN
+				_reset_beam_cycle()
+
+
+func _reset_beam_cycle() -> void:
+	_beam_state = BeamState.IDLE
+	_state_timer = 0.0
+	_dmg_accum = 0.0
+	_hide_all_beam_lines()
 
 
 func _tick_beam_state(delta: float) -> void:
@@ -97,7 +161,15 @@ func _tick_beam_state(delta: float) -> void:
 		BeamState.COOLDOWN:
 			_hide_all_beam_lines()
 			if _state_timer >= COOLDOWN_DURATION:
-				_enter_windup()
+				# One fire cycle complete — advance the pair-cycle phase
+				# instead of looping the beam locally. The new phase will
+				# call _reset_beam_cycle() once it arrives at its X target.
+				if _pair_phase == PairPhase.FIRE_IN:
+					_pair_phase = PairPhase.SEPARATE
+				elif _pair_phase == PairPhase.FIRE_OUT:
+					_pair_phase = PairPhase.REGROUP
+				_beam_state = BeamState.IDLE
+				_state_timer = 0.0
 
 
 func _enter_windup() -> void:
