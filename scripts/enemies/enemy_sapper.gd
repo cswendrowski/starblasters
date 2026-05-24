@@ -80,6 +80,20 @@ func _restore_shield_regen(player: Node) -> void:
 			regen_timer.start()
 
 
+# Cleanup hook — fires on ANY removal path (death explosion, queue_free,
+# offscreen despawn, scene change). The Sapper stops ShieldRegenTimer
+# each frame while draining; without this cleanup, dying mid-drain
+# would leave the player's regen timer permanently halted until their
+# next shield hit re-armed it. Roman, 2026-05-24: "shield regen freeze
+# must be removed when the enemy is destroyed or removed from play".
+# If another Sapper is still alive and draining, it will re-stop the
+# timer next frame — refcounting not needed; the per-frame stop wins.
+func _exit_tree() -> void:
+	var player = find_player()
+	if player != null:
+		_restore_shield_regen(player)
+
+
 # ---- Beam visuals -----------------------------------------------------------
 
 func _ensure_beam_visuals() -> void:

@@ -44,6 +44,11 @@ const AMMO_REFILL_PCT := 0.5
 const AMMO_FULL_VALUE := 1000
 const CANNON_BASE_COST := 58
 const CANNON_COST_PER_MK := 35
+# Refresh stock pricing — doubles per use within the same visit. Cap at
+# 7 doublings so the ceiling is 10 << 7 = 1280 bounty (designer call,
+# Roman 2026-05-24: "double per use" — capped to avoid runaway numbers).
+const REFRESH_BASE_COST := 10
+const REFRESH_MAX_DOUBLINGS := 7
 # Mark distribution: roll picks from sector_index + 3 max, with weighting
 # that favors the middle of the available range and tapers at the high end.
 const MK_HIGH_OFFSET := 3
@@ -103,8 +108,11 @@ var _services_box: VBoxContainer = null
 var _storage_box: VBoxContainer = null
 var _toast_label: Label = null
 var _toast_tween: Tween = null
+var _refresh_btn: Button = null
 # Bumped by Refresh Stock so re-rolling produces different offers (the
 # deterministic seed is otherwise stable across calls in the same visit).
+# Also drives exponential refresh pricing — cost doubles each use, capped
+# at REFRESH_MAX_DOUBLINGS so it caps at 10 << 7 = 1280 bounty.
 var _refresh_count: int = 0
 
 
@@ -465,12 +473,12 @@ func _build_services() -> void:
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_services_box.add_child(spacer)
 
-	var refresh_btn := Button.new()
-	refresh_btn.text = "Refresh Stock (10)"
-	refresh_btn.custom_minimum_size = Vector2(0, 48)
-	refresh_btn.add_theme_font_size_override("font_size", FS_BODY)
-	refresh_btn.pressed.connect(_on_refresh_stock.bind(refresh_btn))
-	_services_box.add_child(refresh_btn)
+	_refresh_btn = Button.new()
+	_refresh_btn.custom_minimum_size = Vector2(0, 48)
+	_refresh_btn.add_theme_font_size_override("font_size", FS_BODY)
+	_refresh_btn.pressed.connect(_on_refresh_stock.bind(_refresh_btn))
+	_update_refresh_btn_label()
+	_services_box.add_child(_refresh_btn)
 
 	var leave_btn := Button.new()
 	leave_btn.text = "Leave"
@@ -561,7 +569,13 @@ func _roll_offers() -> void:
 	var sector_idx: int = _current_sector()
 	var max_mk_for_sector: int = mini(MAX_MK, sector_idx + MK_HIGH_OFFSET)
 
-	# Upgrades: 3 distinct rolls, skip maxed keys.
+	# Upgrades: 3 distinct rolls, skip maxed keys. The card shows the Mk
+	# the player will be at AFTER buying — i.e. current_mk + 1 — so the
+	# advertised number matches what the purchase handler actually
+	# applies (run.set(key, _current_mk(key) + 1) at _on_buy_upgrade).
+	# Pool gating uses max_mk_for_sector (sector-scaled cap), but the
+	# displayed Mk is always exactly +1 over current, never the rolled
+	# fantasy. Fixes "card says Mk 5 but you get Mk 3" (Roman, 2026-05-24).
 	var pool: Array = []
 	for u in UPGRADES:
 		if _current_mk(u["key"]) < max_mk_for_sector:
@@ -570,11 +584,11 @@ func _roll_offers() -> void:
 	_upgrade_offers.clear()
 	for i in min(UPGRADES_COLUMN_COUNT, pool.size()):
 		var u: Dictionary = pool[i]
-		var rolled_mk: int = _roll_weighted_mark(rng, _current_mk(u["key"]) + 1, max_mk_for_sector)
-		var cost: int = UPGRADE_BASE_COST + (rolled_mk - 1) * UPGRADE_COST_PER_MK
+		var next_mk: int = mini(MAX_MK, _current_mk(u["key"]) + 1)
+		var cost: int = UPGRADE_BASE_COST + (next_mk - 1) * UPGRADE_COST_PER_MK
 		_upgrade_offers.append({
 			"key": u["key"], "name": u["name"], "desc": u["desc"],
-			"next_mk": rolled_mk, "cost": cost, "sold": false,
+			"next_mk": next_mk, "cost": cost, "sold": false,
 		})
 
 	# Weapons: WEAPONS_COLUMN_COUNT cards. Slot weighted 50/25/25 via
@@ -789,18 +803,39 @@ func _on_super_refill(btn: Button) -> void:
 
 
 func _on_refresh_stock(btn: Button) -> void:
-	# Reroll the weapon + upgrade columns. 10 bounty per refresh — keeps
-	# it from being a strict gain over leaving + re-entering.
-	const REFRESH_COST := 10
-	if not has_node("/root/Run") or int(_run_bounty()) < REFRESH_COST:
+	# Reroll the weapon + upgrade columns. Cost doubles per use within the
+	# same outpost visit — keeps re-rolling from being a strict gain over
+	# leaving + re-entering, and the ramp punishes spam.
+	var cost: int = _current_refresh_cost()
+	if not has_node("/root/Run") or int(_run_bounty()) < cost:
 		return
 	var run = get_node("/root/Run")
-	run.bounty -= REFRESH_COST
+	run.bounty -= cost
 	_refresh_count += 1
 	_roll_offers()
 	_render_weapon_offers()
 	_render_upgrade_offers()
+	_update_refresh_btn_label()
 	_refresh_status_panel()
+
+
+# Current refresh price: REFRESH_BASE_COST * 2^uses, capped at
+# REFRESH_MAX_DOUBLINGS doublings so the price plateaus rather than
+# running away after many refreshes.
+func _current_refresh_cost() -> int:
+	var doublings: int = mini(_refresh_count, REFRESH_MAX_DOUBLINGS)
+	return REFRESH_BASE_COST << doublings
+
+
+func _update_refresh_btn_label() -> void:
+	if _refresh_btn == null:
+		return
+	var cost: int = _current_refresh_cost()
+	if _refresh_count >= REFRESH_MAX_DOUBLINGS:
+		_refresh_btn.text = "Refresh Stock (%d, max)" % cost
+	else:
+		_refresh_btn.text = "Refresh Stock (%d)" % cost
+	_refresh_btn.disabled = _run_bounty() < cost
 
 
 func _on_leave() -> void:
@@ -856,6 +891,7 @@ func _refresh_status_panel() -> void:
 
 	_refresh_services()
 	_refresh_card_affordability()
+	_update_refresh_btn_label()
 
 
 func _on_bounty_changed(_value) -> void:

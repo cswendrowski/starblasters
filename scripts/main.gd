@@ -318,12 +318,13 @@ func new_game() -> void:
 			if run.max_hull > 0:
 				player.max_hull = run.max_hull
 				player.hull = run.current_hull if run.current_hull > 0 else run.max_hull
-			if run.max_shield > 0:
-				player.max_shield = run.max_shield
-				# Always start each sector with full shields (Cody, 2026-05-17
-				# playtest: "should we start each sector with full shields?" —
-				# yes, hull persists but shield refills as the in-between beat).
-				player.shield = run.max_shield
+			# Shield stomp removed (Bug 2 fix, 2026-05-24): player.start()
+			# already wrote max_shield = 3 + shield_cap_mk via
+			# apply_run_upgrades() and then shield = max_shield. The previous
+			# block here overwrote that with the stale snapshot from the
+			# end of the prior combat, silently erasing any Shield Capacity
+			# upgrade purchased at the outpost (and never emitting
+			# shield_changed, so the HUD pip count stayed wrong).
 	# Old hardcoded BGM is silenced; the Music manager handles combat tracks.
 	$BGM.playing = false
 	# Pick level by current sector node type
