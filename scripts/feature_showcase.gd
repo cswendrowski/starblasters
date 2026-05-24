@@ -144,20 +144,23 @@ func _demo_boss_black_hole() -> void:
 
 func _demo_scene_transition() -> void:
 	_demo_idle()
-	# Manually drive the transition overlay through a full out + in cycle so
-	# the wipe is visible in a single capture without an actual scene change.
+	# Drive a fade-to-black + fade-back cycle (Roman 2026-05-24: replaced the
+	# fractal wipe shader with a plain fade for all scene transitions).
 	get_tree().create_timer(0.4).timeout.connect(func():
-		var overlay: CanvasLayer = SCENE_TRANSITION.instantiate()
-		add_child(overlay)
-		if overlay.has_method("randomize_seed"):
-			overlay.randomize_seed()
-		if overlay.has_method("set_progress"):
-			overlay.set_progress(0.0)
+		var cl := CanvasLayer.new()
+		cl.layer = 128
+		add_child(cl)
+		var rect := ColorRect.new()
+		rect.color = Color(0, 0, 0, 0)
+		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		rect.anchor_right = 1.0
+		rect.anchor_bottom = 1.0
+		cl.add_child(rect)
 		var tw := create_tween()
-		tw.tween_method(Callable(overlay, "set_progress"), 0.0, 1.0, 0.7)
+		tw.tween_property(rect, "color:a", 1.0, 0.45)
 		tw.tween_interval(0.15)
-		tw.tween_method(Callable(overlay, "set_progress"), 1.0, 0.0, 0.7)
-		tw.finished.connect(func(): if is_instance_valid(overlay): overlay.queue_free())
+		tw.tween_property(rect, "color:a", 0.0, 0.45)
+		tw.finished.connect(func(): if is_instance_valid(cl): cl.queue_free())
 	)
 
 func _demo_bullet_trails() -> void:

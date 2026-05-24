@@ -1,6 +1,12 @@
 // Fractal Noise Scene Transition
 // Source: https://godotshaders.com/shader/fractal-noise-scene-transition/
 // Original author: Gerardo Montaño 2025 (MIT license per shader header below).
+//
+// STATUS: UNUSED as of 2026-05-24. Roman pulled all scene transitions over to
+// a plain fade-to-black (scripts/scene_transition.gd). Kept on disk + still
+// referenced by scenes/effects/scene_transition.tscn in case we want to bring
+// the wipe back. No live call sites remain in scripts/.
+//
 // Adapted for the Starblaster shmup. Drives a full-screen wipe between scenes
 // by tweening the `progress` uniform from 0.0 (clear) to 1.0 (fully covered)
 // for the out-wipe, then back 1.0 -> 0.0 for the in-wipe.

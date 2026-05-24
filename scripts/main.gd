@@ -419,19 +419,21 @@ func _run_intro(is_boss: bool) -> void:
 	# HUD starts blank — flicker_in will reveal it.
 	if $CanvasLayer/UI.has_method("flicker_out"):
 		$CanvasLayer/UI.flicker_out(0.001)
-	# Wipe from black: instance the scene transition overlay at progress=1 and
-	# tween down to 0 — same shader as the inter-scene wipes.
-	const SceneTransitionScene = preload("res://scenes/effects/scene_transition.tscn")
-	var overlay: CanvasLayer = SceneTransitionScene.instantiate()
+	# Fade from black (Roman 2026-05-24: "replace ALL scene transitions with
+	# a fade to black"). Same aesthetic as SceneTransition.change_scene's
+	# fade-in half. Black ColorRect on a high CanvasLayer, alpha 1.0 -> 0.0.
+	var overlay := CanvasLayer.new()
 	overlay.layer = 80
 	add_child(overlay)
-	if overlay.has_method("randomize_seed"):
-		overlay.randomize_seed()
-	if overlay.has_method("set_progress"):
-		overlay.set_progress(1.0)
+	var fade_rect := ColorRect.new()
+	fade_rect.color = Color(0, 0, 0, 1.0)
+	fade_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fade_rect.anchor_right = 1.0
+	fade_rect.anchor_bottom = 1.0
+	overlay.add_child(fade_rect)
 	var wipe_tw := create_tween()
-	wipe_tw.tween_method(Callable(overlay, "set_progress"), 1.0, 0.0, 0.7).set_trans(Tween.TRANS_SINE)
-	# Slide the player up in parallel with the wipe.
+	wipe_tw.tween_property(fade_rect, "color:a", 0.0, 0.7).set_trans(Tween.TRANS_SINE)
+	# Slide the player up in parallel with the fade.
 	var slide_tw := create_tween()
 	if player and is_instance_valid(player):
 		slide_tw.tween_property(player, "position", start_pos, 1.6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
@@ -507,19 +509,24 @@ func _run_outro() -> void:
 	var target := Vector2(vp.x / 2.0, -120.0)
 	fly_tw.tween_property(player, "position", target, 1.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	await fly_tw.finished
-	# Wipe to black.
-	const SceneTransitionScene = preload("res://scenes/effects/scene_transition.tscn")
-	var overlay: CanvasLayer = SceneTransitionScene.instantiate()
+	# Fade to black (Roman 2026-05-24: replaced fractal wipe with a plain fade,
+	# matching SceneTransition.change_scene's fade-out half). The cleared
+	# summary is mounted as a sibling on top of the black overlay below, so we
+	# don't actually swap scenes here — the data flow (populate(stats,…)) needs
+	# the live main scene to hand its enemy tally to the summary.
+	var overlay := CanvasLayer.new()
 	overlay.layer = 80
 	add_child(overlay)
-	if overlay.has_method("randomize_seed"):
-		overlay.randomize_seed()
-	if overlay.has_method("set_progress"):
-		overlay.set_progress(0.0)
+	var fade_rect := ColorRect.new()
+	fade_rect.color = Color(0, 0, 0, 0.0)
+	fade_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fade_rect.anchor_right = 1.0
+	fade_rect.anchor_bottom = 1.0
+	overlay.add_child(fade_rect)
 	var wipe_tw := create_tween()
-	wipe_tw.tween_method(Callable(overlay, "set_progress"), 0.0, 1.0, 0.55).set_trans(Tween.TRANS_SINE)
+	wipe_tw.tween_property(fade_rect, "color:a", 1.0, 0.55).set_trans(Tween.TRANS_SINE)
 	await wipe_tw.finished
-	# Mount the cleared summary on top of the black wipe.
+	# Mount the cleared summary on top of the black overlay.
 	var summary = ClearedSummaryScene.instantiate()
 	add_child(summary)
 	# Hazards don't tally enemies or bounty — pass an empty stats dict and
