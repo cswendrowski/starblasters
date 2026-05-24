@@ -65,8 +65,13 @@ func _track_player(delta: float) -> void:
 	if player:
 		var dir: Vector2 = (player.global_position - global_position).normalized()
 		_target_rot = atan2(dir.y, dir.x) + PI * 0.5
-	var diff := angle_difference(rotation, _target_rot)
-	rotation += clamp(diff, -ROTATION_SPEED * delta, ROTATION_SPEED * delta)
+	# Rotate the Turret child only — the base ship body stays upright like
+	# Bulwark. If the scene is missing the Turret child, no-op gracefully.
+	var turret := get_node_or_null("Turret") as Sprite2D
+	if turret == null:
+		return
+	var diff := angle_difference(turret.rotation, _target_rot)
+	turret.rotation += clamp(diff, -ROTATION_SPEED * delta, ROTATION_SPEED * delta)
 
 
 func _fire_rocket() -> void:
@@ -74,7 +79,9 @@ func _fire_rocket() -> void:
 		return
 	var r = ROCKET_SCENE.instantiate()
 	get_tree().root.add_child(r)
-	var fire_dir := Vector2(cos(rotation - PI * 0.5), sin(rotation - PI * 0.5))
+	var turret := get_node_or_null("Turret") as Sprite2D
+	var fire_rot: float = turret.rotation if turret != null else rotation
+	var fire_dir := Vector2(cos(fire_rot - PI * 0.5), sin(fire_rot - PI * 0.5))
 	if r.has_method("start"):
 		r.start(global_position, fire_dir)
 	elif "velocity" in r:

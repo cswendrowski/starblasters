@@ -467,6 +467,7 @@ func _spawn_planet(center: Vector2, display_px: float, type_idx: int, row_idx: i
 	if p.has_method("randomize_colors"): p.randomize_colors()
 	if p.has_method("set_rotates"): p.set_rotates(true)
 	add_child(p)
+	_disable_celestial_mouse(p)
 	_reset_planet_colorrects(p)
 	if p.has_method("set_light"):
 		p.set_light(Vector2(0.0, 0.5))
@@ -498,6 +499,7 @@ func _spawn_large_asteroid(center: Vector2, row_idx: int, rng: RandomNumberGener
 	if ast.has_method("set_seed"):   ast.set_seed(rng.randi())
 	if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
 	add_child(ast)
+	_disable_celestial_mouse(ast)
 	_reset_planet_colorrects(ast)
 	ast.modulate = Color.WHITE.lerp(STAR_GLOW_COLORS[row_idx], 0.18)
 	_asteroid_rotators.append({
@@ -531,6 +533,7 @@ func _spawn_asteroid_cluster(center: Vector2, row_idx: int, rng: RandomNumberGen
 		if ast.has_method("set_seed"):   ast.set_seed(rng.randi())
 		if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
 		add_child(ast)
+		_disable_celestial_mouse(ast)
 		_reset_planet_colorrects(ast)
 		ast.modulate = Color.WHITE.lerp(STAR_GLOW_COLORS[row_idx], 0.18)
 		_asteroid_rotators.append({
@@ -564,6 +567,7 @@ func _scatter_asteroid_band(center: Vector2, rng: RandomNumberGenerator) -> void
 		if ast.has_method("set_seed"):   ast.set_seed(rng.randi())
 		if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
 		add_child(ast)
+		_disable_celestial_mouse(ast)
 		_reset_planet_colorrects(ast)
 		_asteroid_rotators.append({
 			"node":  ast,
@@ -654,6 +658,7 @@ func _build_bosses_from_cache() -> void:
 		lbl.position  = Vector2(pos.x - 14, row_above * CELL + 2)
 		lbl.z_index   = 10
 		lbl.modulate.a = 0.2
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(lbl)
 
 		# Lock progress label "k/N" below the dot when not unlocked.
@@ -673,8 +678,15 @@ func _build_bosses_from_cache() -> void:
 			lock_lbl.label_settings = locks
 			lock_lbl.position = Vector2(pos.x - 6, pos.y + 10)
 			lock_lbl.z_index = 11
+			lock_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			add_child(lock_lbl)
 
+		# Locked bosses must NOT hover green — designer feedback. Use dim red so
+		# the player gets a clear "not yet" signal. Defeated bosses also avoid
+		# green to keep "green = clickable" semantically tight.
+		var boss_hover_tint: Color = COLOR_NODE_GREEN
+		if not unlocked or defeated:
+			boss_hover_tint = Color(COLOR_BOSS_RED.r, COLOR_BOSS_RED.g, COLOR_BOSS_RED.b, 1.0)
 		_planet_hovers.append({
 			"center":     pos,
 			"radius":     16.0,
@@ -682,7 +694,7 @@ func _build_bosses_from_cache() -> void:
 			"icon":       icon_spr,
 			"label_rest": 0.2,   # boss label dim-but-visible at rest
 			"icon_rest":  0.0,
-			"hover_tint": COLOR_NODE_GREEN,
+			"hover_tint": boss_hover_tint,
 			"rest_tint":  Color.WHITE,
 		})
 		_boss_entries.append({
@@ -720,6 +732,7 @@ func _build_stars() -> void:
 		if star.has_method("set_seed"):    star.set_seed(seed_val)
 		if star.has_method("set_rotates"): star.set_rotates(false)
 		add_child(star)
+		_disable_celestial_mouse(star)
 		_reset_star_colorrects(star)
 		_apply_star_colors(star, cool)
 		star.override_time = true
@@ -759,6 +772,7 @@ func _build_labels() -> void:
 	hdr.label_settings = ls
 	hdr.position = Vector2(8, 2)
 	hdr.z_index = 10
+	hdr.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(hdr)
 
 
@@ -847,6 +861,7 @@ func _add_hover_label_icon(pos: Vector2, display_px: float, label_text: String, 
 	lbl.position  = Vector2(pos.x - 3, row_above * CELL + 2)
 	lbl.z_index   = 10
 	lbl.modulate.a = 0.2
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(lbl)
 	var at := AtlasTexture.new()
 	at.atlas  = ICON_STRIP
@@ -977,6 +992,18 @@ func _duplicate_materials(root: Node) -> void:
 		if child is ColorRect and child.material is ShaderMaterial:
 			(child as ColorRect).material = (child.material as ShaderMaterial).duplicate()
 		_duplicate_materials(child)
+
+
+# Recursively ignore mouse on every Control in a celestial subtree. Planets,
+# stars, and asteroids are Control-rooted scenes — their default mouse_filter
+# is STOP, which silently eats clicks on POI/boss hot-spots and explains why
+# POI launches "don't work." Walk the tree and force IGNORE so our
+# _unhandled_input click handler actually receives the event.
+func _disable_celestial_mouse(root: Node) -> void:
+	if root is Control:
+		(root as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for child in root.get_children():
+		_disable_celestial_mouse(child)
 
 
 # ---------------------------------------------------------------------------
