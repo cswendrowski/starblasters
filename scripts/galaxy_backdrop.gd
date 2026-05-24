@@ -149,7 +149,6 @@ var _last_planet_idx: int = -1
 # Per-POI moonlets that orbit the foundation planet. Each entry:
 #   {node: Sprite2D, planet: Node, planet_size: float, rx, ry, phase, speed}
 var _poi_moonlets: Array = []
-var _poi_moon_textures: Dictionary = {}
 
 func _ready() -> void:
 	var sector_num: int = 0
@@ -1099,27 +1098,26 @@ func _reset_colorrect_sizes(root: Node) -> void:
 		_reset_colorrect_sizes(child)
 
 
-# Build (or fetch from cache) a small solid white circle texture for a moon.
-func _get_poi_moon_texture(radius_px: int) -> ImageTexture:
-	if _poi_moon_textures.has(radius_px):
-		return _poi_moon_textures[radius_px]
-	var size: int = max(1, radius_px * 2)
-	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
-	for x in size:
-		for y in size:
-			var dx: float = x - radius_px + 0.5
-			var dy: float = y - radius_px + 0.5
-			if dx * dx + dy * dy <= float(radius_px * radius_px):
-				img.set_pixel(x, y, Color.WHITE)
-	var tex := ImageTexture.create_from_image(img)
-	_poi_moon_textures[radius_px] = tex
-	return tex
+# PlanetKit moon scene. NoAtmosphere is airless rock — the right shape for a
+# moon. Spec said "may need to use a small planet scene instead"; this is it.
+const POI_MOON_SCENE := "res://Planets/NoAtmosphere/NoAtmosphere.tscn"
 
 
-# Spawn moonlets that orbit the most recently added planet. Position is
-# updated per-frame in _process so moons track the planet as it drifts
-# down. Distances are scaled up from the V3 map (planet there is ~16-32 px;
-# the combat-scene planet is ~240) so the moon ring reads at combat scale.
+# Spawn PlanetKit NoAtmosphere instances as moonlets that orbit the most
+# recently added planet. Position is updated per-frame in _process so moons
+# track the planet as it drifts down (do NOT tag them with `drift` meta —
+# that would double-apply the planet's drift).
+#
+# Descriptor mapping (from sector_map_v3._derive_moon_descriptors):
+#   radius (1..3) -> display_size (18/22/26 vp-px) — keeps the moon legible
+#       above `pixels_floor` (16) while staying small vs. the ~240 px planet.
+#   color           -> Control.modulate tint (skip randomize_colors to keep
+#       the visual influenced by the sector-map moon palette, AND to keep
+#       same poi.id deterministic).
+#   rx, ry          -> elliptical orbit radii scaled up from map-px to
+#       combat-px by planet_size_px / 24.0 (the V3 map planet is ~16-32 px,
+#       the combat planet is ~planet_size_px).
+#   phase, speed    -> orbit starting angle + angular speed (forwarded).
 func _attach_poi_moons(moons: Array) -> void:
 	if moons.is_empty():
 		return
@@ -1134,30 +1132,74 @@ func _attach_poi_moons(moons: Array) -> void:
 			break
 	if planet == null:
 		return
+	var moon_scene = load(POI_MOON_SCENE)
+	if moon_scene == null:
+		push_warning("[Backdrop] could not load POI moon scene: %s" % POI_MOON_SCENE)
+		return
+	# Deterministic per-POI seed so a revisit to the same node produces the
+	# same moon surfaces. Salt with index per-moon below.
+	var base_seed: int = 0
+	if has_node("/root/Run"):
+		base_seed = abs(hash(String(get_node("/root/Run").current_node_id)))
 	# Scale moon orbit radii from the V3 map's tiny planet (~16-32 px) up
-	# to the combat planet's footprint. Use a multiplier from planet size
-	# so distant moons stay outside the disc.
+	# to the combat planet's footprint.
 	var scale_factor: float = planet_size_px / 24.0
+	var moon_idx: int = 0
 	for m in moons:
-		var radius_px: int = clampi(int(m.get("radius", 1)), 1, 4)
-		# Make the actual visible moonlet a bit bigger than the map dot so
-		# it reads at combat scale — but still small relative to the planet.
-		var visible_r: int = max(2, int(round(radius_px * scale_factor * 0.15)))
-		var spr := Sprite2D.new()
-		spr.name = "PoiMoon"
-		spr.texture = _get_poi_moon_texture(visible_r)
-		spr.modulate = m.get("color", Color.WHITE)
-		spr.z_index = 0
-		add_child(spr)
+		var radius_descriptor: int = clampi(int(m.get("radius", 1)), 1, 3)
+		# Map descriptor radius 1/2/3 -> 18/22/26 vp-px. Above pixels_floor
+		# (16) so the procgen silhouette renders cleanly; small enough to
+		# read as "moon" beside a 240-px planet.
+		var actual_size: float = 14.0 + float(radius_descriptor) * 4.0
+		var p = moon_scene.instantiate()
+		# Reset Control anchors the same way _spawn_planet does — the
+		# PlanetKit scenes ship with full-rect anchors that collapse when
+		# reparented under a Node2D.
+		if p is Control:
+			p.anchor_left = 0.0
+			p.anchor_top = 0.0
+			p.anchor_right = 0.0
+			p.anchor_bottom = 0.0
+			p.offset_left = 0.0
+			p.offset_top = 0.0
+			p.offset_right = 100.0
+			p.offset_bottom = 100.0
+			p.size = Vector2(100, 100)
+			p.custom_minimum_size = Vector2(100, 100)
+			p.pivot_offset = Vector2(50, 50)
+		var sf: float = actual_size / 100.0
+		p.scale = Vector2(sf, sf)
+		_apply_pixel_parity(p, actual_size)
+		if "override_time" in p:
+			p.override_time = true
+		# Deterministic per-moon seed — same POI revisit reproduces the
+		# same moon surfaces. Skip randomize_colors so the descriptor's
+		# `color` field drives the visible tint (spec: "color should be
+		# influenced by the sector map pixel moons").
+		if p.has_method("set_seed"):
+			p.set_seed((base_seed + moon_idx * 1009) % 100000)
+		if p.has_method("set_rotates"):
+			p.set_rotates(true)
+		p.name = "PoiMoon"
+		p.modulate = m.get("color", Color.WHITE)
+		p.z_index = 0
+		p.set_meta("time_update", true)
+		# Centered pivot so orbit position lands the moon's center on the
+		# orbit point. Subtract half the displayed size from the orbit
+		# position in the _process loop instead — keep authored Control
+		# top-left semantics intact.
+		add_child(p)
 		_poi_moonlets.append({
-			"node":     spr,
+			"node":     p,
 			"planet":   planet,
 			"planet_size": planet_size_px,
+			"moon_size":   actual_size,
 			"rx":       float(m.get("rx", 12.0)) * scale_factor,
 			"ry":       float(m.get("ry", 10.0)) * scale_factor,
 			"phase":    float(m.get("phase", 0.0)),
 			"speed":    float(m.get("speed", 0.4)),
 		})
+		moon_idx += 1
 
 
 func _apply_pixels_only(root: Node, value: float) -> void:
@@ -1188,11 +1230,18 @@ func _process(delta: float) -> void:
 			c.update_time(_shader_time)
 	# POI moons orbit the foundation planet's CURRENT position so they
 	# inherit the planet's drift without being parented (parenting under a
-	# scaled Control distorts the moonlet's own scale).
+	# scaled Control distorts the moonlet's own scale). PlanetKit moons are
+	# Controls authored top-left, so subtract half the moon display size to
+	# center the moon's body on the orbit point. Also pump update_time on
+	# the moon's shader so the surface animates with the rest of the scene.
 	if not _poi_moonlets.is_empty():
 		for m in _poi_moonlets:
 			if not is_instance_valid(m.node) or not is_instance_valid(m.planet):
 				continue
 			var planet_center: Vector2 = m.planet.position + Vector2(m.planet_size, m.planet_size) * 0.5
 			var ang: float = _shader_time * m.speed * TAU + m.phase
-			m.node.position = planet_center + Vector2(cos(ang) * m.rx, sin(ang) * m.ry)
+			var orbit_pt: Vector2 = planet_center + Vector2(cos(ang) * m.rx, sin(ang) * m.ry)
+			var moon_sz: float = float(m.get("moon_size", 18.0))
+			m.node.position = orbit_pt - Vector2(moon_sz, moon_sz) * 0.5
+			if m.node.has_method("update_time"):
+				m.node.update_time(_shader_time)

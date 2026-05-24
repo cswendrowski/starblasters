@@ -2,7 +2,7 @@ extends Resource
 
 # One wave of enemies inside a Level.
 
-enum Formation { TOP_LEFT_TO_RIGHT, TOP_RIGHT_TO_LEFT, TOP_RANDOM, TOP_CENTER_OUT, SIDE_ALTERNATING }
+enum Formation { TOP_LEFT_TO_RIGHT, TOP_RIGHT_TO_LEFT, TOP_RANDOM, TOP_CENTER_OUT, SIDE_ALTERNATING, TOP_TANDEM_PAIRS }
 
 @export var enemy_scene: PackedScene
 @export var count: int = 6
@@ -12,6 +12,10 @@ enum Formation { TOP_LEFT_TO_RIGHT, TOP_RIGHT_TO_LEFT, TOP_RANDOM, TOP_CENTER_OU
 # 320×400 res rework — halved.
 @export var formation_padding: float = 32.0
 @export var spawn_y: float = -12.0
+# Tandem-pair X offset from CENTER (formation TOP_TANDEM_PAIRS). Two enemies
+# spawn simultaneously at (CENTER - offset, CENTER + offset) sharing the same
+# movement pattern (duplicated so each owns its state).
+@export var tandem_offset_x: float = 30.0
 
 # Per-wave overrides applied by the director after instantiating each enemy.
 # Negative ints / null means "don't override; use the scene's default".

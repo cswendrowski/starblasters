@@ -237,7 +237,7 @@ static func _build_boss_waves(rng: RandomNumberGenerator, sector_depth: int, lev
 	for i in n_leadin:
 		var entry: Dictionary = _pick_entry(rng, sector_depth, level_index + i, used, conflict_tags)
 		used.append(entry)
-		var w = _make_wave_spec(rng, entry, sector_depth, level_index + i, i)
+		var w = _make_wave_spec(rng, entry, sector_depth, level_index + i, i, true)
 		if i == n_leadin - 1:
 			# Thin the final lead-in and re-banner so the boss arrival reads cleanly.
 			w.count = maxi(2, int(w.count / 2))
@@ -357,7 +357,7 @@ static func _roll_tier(rng: RandomNumberGenerator, sector_depth: int, level_inde
 # Build a WaveSpec for a given roster entry, scaled by sector depth + level
 # index. wave_index_in_level just shifts spawn_delay so consecutive waves don't
 # collide.
-static func _make_wave_spec(rng: RandomNumberGenerator, entry: Dictionary, sector_depth: int, level_index: int, wave_index_in_level: int) -> WaveSpec:
+static func _make_wave_spec(rng: RandomNumberGenerator, entry: Dictionary, sector_depth: int, level_index: int, wave_index_in_level: int, is_boss_leadin: bool = false) -> WaveSpec:
 	var w = WaveSpec.new()
 	w.enemy_scene = load(entry["scene"])
 	# Count scales with level_index + sector_depth. Capped so rarer enemies
@@ -365,11 +365,42 @@ static func _make_wave_spec(rng: RandomNumberGenerator, entry: Dictionary, secto
 	var base: int = int(entry.get("base_count", 4))
 	var scale: float = 1.0 + 0.15 * float(level_index) + 0.08 * float(max(sector_depth - 1, 0))
 	var count: int = int(round(base * scale))
-	w.count = clamp(count, 1, base * 2)
+	count = clamp(count, 1, base * 2)
+	# CHAFF DENSITY BUMP (designer 2026-05-24): chaff waves +50% count so they
+	# run 50% longer AND have ~50% more enemies on screen at once (spawn_interval
+	# unchanged, so per-enemy onscreen lifetime is constant → more concurrent).
+	# Boss lead-ins keep their tuned count (they're separately thinned in
+	# _build_boss_waves for the final lead-in). Mixed-wave 0.5× halving is
+	# applied by _build_combat_waves AFTER this returns, so mixed waves are
+	# still smaller than singles but proportionally larger than before the bump.
+	if not is_boss_leadin and base > 1:
+		count = int(ceil(float(count) * 1.5))
+	w.count = count
 	w.spawn_interval = 0.4 + rng.randf_range(0.0, 0.25)
 	w.spawn_delay = 0.5 + 0.6 * float(wave_index_in_level)
 	w.formation = rng.randi() % 4
 	w.movement_override = Roster.make_movement(entry)
+	# S-curve mirror coin-flip — designer 2026-05-24: top-down traversing
+	# patterns should support mirrored variants for variety. Coin-flip here
+	# (after Roster.make_movement) so the mirror flag rides on the wave's
+	# movement_override Resource and both sub-wave streams (or both tandem
+	# pair members) inherit it for in-concert motion.
+	if w.movement_override != null and "mirrored" in w.movement_override:
+		w.movement_override.mirrored = rng.randf() < 0.5
+	# Tandem formation roll — designer 2026-05-24: 25% chance at level_index >= 2
+	# (chaff only, not boss lead-ins). Gated to top-down descent patterns so we
+	# don't pair up side-cutters or loiterers. The director spawns pairs at
+	# CENTER ± tandem_offset_x simultaneously; force even count so no lone
+	# trailing enemy.
+	var mv_key: String = String(entry.get("movement", ""))
+	var tandem_eligible: bool = mv_key in [
+		"straight", "firecore_straight", "drifter_straight",
+		"fast_straight", "s_curve",
+	]
+	if tandem_eligible and not is_boss_leadin and level_index >= 2 and rng.randf() < 0.25:
+		w.formation = WaveSpec.Formation.TOP_TANDEM_PAIRS
+		if (w.count % 2) == 1:
+			w.count += 1
 	var sp: Resource = Roster.make_shoot(entry)
 	if sp != null:
 		w.shoot_pattern_override = sp

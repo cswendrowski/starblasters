@@ -84,6 +84,13 @@ func _spawn_next(wave: Resource) -> void:
 		return
 	_spawn_enemy(wave, _spawn_index)
 	_spawn_index += 1
+	# Tandem pairs: spawn the partner immediately at mirrored X so the two
+	# streams move in concert. Count is assumed even by the wave generator;
+	# if odd, the trailing lone enemy spawns solo at CENTER - offset (its
+	# index % 2 == 0 slot).
+	if wave.formation == 5 and _spawn_index < wave.count and (_spawn_index % 2) == 1:
+		_spawn_enemy(wave, _spawn_index)
+		_spawn_index += 1
 	await get_tree().create_timer(wave.spawn_interval).timeout
 	_spawn_next(wave)
 
@@ -185,6 +192,16 @@ func _spawn_enemy(wave: Resource, index: int) -> void:
 			var step: float = usable_w / maxf(1.0, float(wave.count))
 			var offset: float = (float(index) - float(wave.count - 1) * 0.5) * step
 			x = center + offset
+			pos = Vector2(x, wave.spawn_y)
+		5: # TOP_TANDEM_PAIRS — two streams in concert, offset ±tandem_offset_x from CENTER.
+			# Even index = left member; odd index = right member of the pair.
+			# Both pair members share wave.movement_override (parameters: amplitude,
+			# frequency, mirrored). enemy_core duplicates per spawn so per-instance
+			# state (_t, _start_x) stays separate, but identical params + same spawn
+			# tick = lockstep motion.
+			var center: float = Playfield.CENTER.x
+			var side: int = -1 if (index % 2) == 0 else 1
+			x = center + float(side) * wave.tandem_offset_x
 			pos = Vector2(x, wave.spawn_y)
 		4: # SIDE_ALTERNATING — alternate sides per spawn; pattern direction is set to match.
 			var side: int = 1 if (index % 2) == 0 else -1
