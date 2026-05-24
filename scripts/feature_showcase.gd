@@ -594,9 +594,13 @@ func _demo_enemy_roster_sheet() -> void:
 		{"path": "res://scenes/enemies/enemy_interceptor.tscn", "name": "Interceptor", "tier": "Rare"},
 		{"path": "res://scenes/enemies/enemy_bulwark.tscn",  "name": "Bulwark",  "tier": "Rare"},
 		# BOSS
-		{"path": "res://scenes/enemies/boss.tscn",           "name": "Commander", "tier": "Boss"},
-		{"path": "res://scenes/enemies/boss_reaver.tscn",    "name": "Reaver",   "tier": "Boss"},
-		{"path": "res://scenes/enemies/boss_sentinel.tscn",  "name": "Sentinel", "tier": "Boss"},
+		{"path": "res://scenes/enemies/boss.tscn",            "name": "Commander",  "tier": "Boss"},
+		{"path": "res://scenes/enemies/boss_reaver.tscn",     "name": "Lash",       "tier": "Boss"},
+		{"path": "res://scenes/enemies/boss_sentinel.tscn",   "name": "Aegis",      "tier": "Boss"},
+		{"path": "res://scenes/enemies/boss_howler.tscn",     "name": "Howler",     "tier": "Boss"},
+		{"path": "res://scenes/enemies/boss_voidmaw.tscn",    "name": "Voidmaw",    "tier": "Boss"},
+		{"path": "res://scenes/enemies/boss_spinwright.tscn", "name": "Spinwright", "tier": "Boss"},
+		{"path": "res://scenes/enemies/boss_conductor.tscn",  "name": "Conductor",  "tier": "Boss"},
 	]
 	# 4 columns × 4 rows fits 16 cells with room for labels.
 	# Tightened from 200/80 → 184/56 so the rightmost column isn't clipped

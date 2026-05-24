@@ -1,7 +1,7 @@
 [gd_scene load_steps=4 format=3 uid="uid://bintcp0000001"]
 
 [ext_resource type="Script" path="res://scripts/enemies/interceptor.gd" id="1_script"]
-[ext_resource type="Texture2D" uid="uid://b0intctex00001" path="res://graphics/extra-ships/ship_2.png" id="2_tex"]
+[ext_resource type="Texture2D" uid="uid://bbpgjlsafmj2g" path="res://graphics/enemies/enemy_placeholder_32x.png" id="2_tex"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
@@ -16,6 +16,7 @@ display_scale = 1.0
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("2_tex")
 flip_v = true
+modulate = Color(0.85, 0.35, 0.35, 1)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_1")

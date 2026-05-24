@@ -228,13 +228,10 @@ func start_new_sector(sector_idx: int, seed_value: int) -> void:
 	# Three rows, anchored at the same Y-coords the V3 map renders at.
 	var anchors := [Vector2(64, 64), Vector2(64, 128), Vector2(64, 192)]
 	var boss_positions := [Vector2(448, 64), Vector2(448, 128), Vector2(448, 192)]
-	var boss_scenes := [
-		"res://scenes/enemies/boss.tscn",
-		"res://scenes/enemies/boss_reaver.tscn",
-		"res://scenes/enemies/boss_sentinel.tscn",
-	]
-	# Shuffle bosses per-sector so the order varies.
-	boss_scenes.shuffle()
+	# Per-sector boss pool + final-slot lock. Sector 3 row-3 is always the
+	# Conductor; the other two row slots pull from the sector pool minus the
+	# Conductor, with conflict-pair rules applied (see _pick_row_bosses).
+	var boss_scenes: Array = _pick_row_bosses(sector_idx, rng)
 	for r in range(3):
 		var pois: Array = _gen_row_pois(rng, sector_idx, r, anchors[r])
 		var boss := {
@@ -287,6 +284,72 @@ func _gen_row_pois(rng: RandomNumberGenerator, sector_idx: int, row_idx: int, an
 			"completed": false,
 		})
 	return pois
+
+
+# Per-sector boss roster + never-pair rules. Sector 3 row-3 is always the
+# Conductor (final). Other rows pull from sector pools and avoid forbidden
+# pairs ("never-pair-with" from the boss proposal):
+#   Commander  never with Voidmaw  (both BH)
+#   Lash       never with Howler   (both aggro)
+#   Aegis      never with Spinwright (both long tanks)
+#   Howler     never with Commander (both summon-stationary feel)
+const BOSS_COMMANDER  := "res://scenes/enemies/boss.tscn"
+const BOSS_LASH       := "res://scenes/enemies/boss_reaver.tscn"
+const BOSS_HOWLER     := "res://scenes/enemies/boss_howler.tscn"
+const BOSS_AEGIS      := "res://scenes/enemies/boss_sentinel.tscn"
+const BOSS_VOIDMAW    := "res://scenes/enemies/boss_voidmaw.tscn"
+const BOSS_SPINWRIGHT := "res://scenes/enemies/boss_spinwright.tscn"
+const BOSS_CONDUCTOR  := "res://scenes/enemies/boss_conductor.tscn"
+
+const _BOSS_CONFLICTS := {
+	BOSS_COMMANDER:  [BOSS_VOIDMAW, BOSS_HOWLER],
+	BOSS_VOIDMAW:    [BOSS_COMMANDER],
+	BOSS_LASH:       [BOSS_HOWLER],
+	BOSS_HOWLER:     [BOSS_LASH, BOSS_COMMANDER],
+	BOSS_AEGIS:      [BOSS_SPINWRIGHT],
+	BOSS_SPINWRIGHT: [BOSS_AEGIS],
+}
+
+
+# Returns a 3-element Array[String] of boss scene paths, one per row. The
+# final boss (Conductor) is locked to sector-3 row-3.
+func _pick_row_bosses(sector_idx: int, rng: RandomNumberGenerator) -> Array:
+	var pool: Array = []
+	if sector_idx <= 1:
+		pool = [BOSS_COMMANDER, BOSS_LASH, BOSS_HOWLER]
+	elif sector_idx == 2:
+		pool = [BOSS_COMMANDER, BOSS_LASH, BOSS_VOIDMAW, BOSS_AEGIS, BOSS_SPINWRIGHT]
+	else:
+		pool = [BOSS_AEGIS, BOSS_VOIDMAW, BOSS_SPINWRIGHT]
+	var picks: Array = []
+	# Sector 3 row-3 final lock.
+	var final_locked: bool = sector_idx >= 3
+	var slots: int = 3
+	for slot in range(slots):
+		if final_locked and slot == slots - 1:
+			picks.append(BOSS_CONDUCTOR)
+			continue
+		var candidates: Array = []
+		for b in pool:
+			# Skip if conflicts with any already-picked.
+			var ok: bool = true
+			for chosen in picks:
+				var clist: Array = _BOSS_CONFLICTS.get(chosen, [])
+				if clist.has(b):
+					ok = false
+					break
+				var clist2: Array = _BOSS_CONFLICTS.get(b, [])
+				if clist2.has(chosen):
+					ok = false
+					break
+			if ok:
+				candidates.append(b)
+		if candidates.is_empty():
+			# Pool exhausted by conflicts — fall back to whatever's left in
+			# the pool so we never push a Conductor or empty path here.
+			candidates = pool.duplicate()
+		picks.append(candidates[rng.randi() % candidates.size()])
+	return picks
 
 
 func _roll_poi_type(rng: RandomNumberGenerator) -> int:

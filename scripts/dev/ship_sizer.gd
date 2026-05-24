@@ -58,8 +58,12 @@ const SHIPS := [
 	{"path": "res://scenes/enemies/enemy_minelayer.tscn",    "label": "Minelayer"},
 	{"path": "res://scenes/enemies/enemy_hunter_drone.tscn", "label": "Hunter Drone"},
 	{"path": "res://scenes/enemies/boss.tscn",               "label": "Boss (Commander)"},
-	{"path": "res://scenes/enemies/boss_reaver.tscn",        "label": "Boss (Reaver)"},
-	{"path": "res://scenes/enemies/boss_sentinel.tscn",      "label": "Boss (Sentinel)"},
+	{"path": "res://scenes/enemies/boss_reaver.tscn",        "label": "Boss (Lash)"},
+	{"path": "res://scenes/enemies/boss_sentinel.tscn",      "label": "Boss (Aegis)"},
+	{"path": "res://scenes/enemies/boss_howler.tscn",        "label": "Boss (Howler)"},
+	{"path": "res://scenes/enemies/boss_voidmaw.tscn",       "label": "Boss (Voidmaw)"},
+	{"path": "res://scenes/enemies/boss_spinwright.tscn",    "label": "Boss (Spinwright)"},
+	{"path": "res://scenes/enemies/boss_conductor.tscn",     "label": "Boss (Conductor)"},
 ]
 
 const SIZE_MIN := 0.25

@@ -382,26 +382,35 @@ func fire_ring(count: int, angle_offset_deg: float = 0.0, _bullet_speed_override
 		_spawn_bullet(Vector2(cos(theta), sin(theta)))
 
 
-# Telegraphed horizontal beam with one safe-gap. STUB — primitive surface
-# only; no boss currently uses this. Renders the telegraph line, then a
-# brief solid bar minus the gap. Damage is NOT wired (the bar is a
-# ColorRect, not an Area2D). Promote to a real hitbox when the first
-# beam-using boss lands.
-func fire_beam_telegraphed(width_px: float, gap_x: float, telegraph_duration: float, beam_duration: float) -> void:
-	var vp: Vector2 = get_viewport_rect().size
-	# Telegraph: 1-px red line at the boss's Y across the whole playfield.
-	var tele := ColorRect.new()
-	tele.color = Color(1.0, 0.15, 0.15, 0.7)
-	tele.size = Vector2(Playfield.X_MAX - Playfield.X_MIN, 1.0)
-	tele.position = Vector2(Playfield.X_MIN, global_position.y - 0.5)
-	tele.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	get_tree().current_scene.add_child(tele)
-	await get_tree().create_timer(telegraph_duration).timeout
-	if is_instance_valid(tele):
-		tele.queue_free()
-	# Beam: width_px tall bar across the playfield minus the safe gap.
-	var gap_half: float = width_px * 0.5
+# Telegraphed horizontal beam with one safe-gap. Renders the telegraph
+# line, then a solid bar minus the gap PLUS two Area2D damage hitboxes
+# (one per side of the gap) that deal `damage` to bodies in the "player"
+# group on contact.
+func fire_beam_telegraphed(width_px: float, gap_x: float, telegraph_duration: float, beam_duration: float, damage: int = 1) -> void:
+	# Telegraph: 1-px red line at the boss's Y across the whole playfield,
+	# with a thin gap at gap_x to read the safe-zone.
 	var beam_y: float = global_position.y
+	var gap_half: float = width_px * 0.5
+	var tele_left := ColorRect.new()
+	tele_left.color = Color(1.0, 0.15, 0.15, 0.7)
+	tele_left.size = Vector2(max(0.0, gap_x - gap_half - Playfield.X_MIN), 1.0)
+	tele_left.position = Vector2(Playfield.X_MIN, beam_y - 0.5)
+	tele_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	get_tree().current_scene.add_child(tele_left)
+	var tele_right := ColorRect.new()
+	tele_right.color = Color(1.0, 0.15, 0.15, 0.7)
+	tele_right.size = Vector2(max(0.0, Playfield.X_MAX - (gap_x + gap_half)), 1.0)
+	tele_right.position = Vector2(gap_x + gap_half, beam_y - 0.5)
+	tele_right.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	get_tree().current_scene.add_child(tele_right)
+	await get_tree().create_timer(telegraph_duration).timeout
+	if is_instance_valid(tele_left):
+		tele_left.queue_free()
+	if is_instance_valid(tele_right):
+		tele_right.queue_free()
+	if _dying:
+		return
+	# Beam: width_px tall bar across the playfield minus the safe gap.
 	var left := ColorRect.new()
 	left.color = Color(1.0, 0.3, 0.3, 0.9)
 	left.size = Vector2(max(0.0, gap_x - gap_half - Playfield.X_MIN), width_px)
@@ -414,13 +423,43 @@ func fire_beam_telegraphed(width_px: float, gap_x: float, telegraph_duration: fl
 	right.position = Vector2(gap_x + gap_half, beam_y - width_px * 0.5)
 	right.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	get_tree().current_scene.add_child(right)
-	# (TODO: real Area2D damage hitboxes. The visual is fine for now.)
-	var _vp_unused := vp
+	# Damage hitboxes — one per side of the gap. Spawned as children of the
+	# current scene so they outlive any boss reposition mid-beam.
+	_spawn_beam_hitbox(Playfield.X_MIN, gap_x - gap_half, beam_y, width_px, beam_duration, damage)
+	_spawn_beam_hitbox(gap_x + gap_half, Playfield.X_MAX, beam_y, width_px, beam_duration, damage)
 	await get_tree().create_timer(beam_duration).timeout
 	if is_instance_valid(left):
 		left.queue_free()
 	if is_instance_valid(right):
 		right.queue_free()
+
+
+# Internal: spawn an Area2D rectangle hitbox covering [x_left, x_right] at
+# beam_y, height width_px, that damages anything in the "player" group on
+# contact, then auto-frees after beam_duration.
+func _spawn_beam_hitbox(x_left: float, x_right: float, beam_y: float, width_px: float, beam_duration: float, damage: int) -> void:
+	var w: float = max(0.0, x_right - x_left)
+	if w <= 0.0:
+		return
+	var hb := Area2D.new()
+	hb.monitoring = true
+	hb.monitorable = false
+	var cs := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(w, width_px)
+	cs.shape = shape
+	hb.add_child(cs)
+	hb.global_position = Vector2(x_left + w * 0.5, beam_y)
+	get_tree().current_scene.add_child(hb)
+	var dmg: int = damage
+	hb.area_entered.connect(func(other: Area2D) -> void:
+		if other != null and other.is_in_group("player") and other.has_method("take_damage"):
+			other.take_damage(dmg)
+	)
+	get_tree().create_timer(beam_duration).timeout.connect(func() -> void:
+		if is_instance_valid(hb):
+			hb.queue_free()
+	)
 
 
 # ---- Movement primitives -----------------------------------------------

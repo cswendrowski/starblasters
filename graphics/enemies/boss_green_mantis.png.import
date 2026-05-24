@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bossgreenmantis1"
-path="res://.godot/imported/boss_green_mantis.png-1848185065270f115bc5177a84fd3f74.ctex"
+uid="uid://deqmo34uqv2ja"
+path="res://.godot/imported/boss_green_mantis.png-69fab5c8fe15dd3b0a0c4e459be25308.ctex"
 metadata={
 "vram_texture": false
 }
@@ -11,7 +11,7 @@ metadata={
 [deps]
 
 source_file="res://graphics/enemies/boss_green_mantis.png"
-dest_files=["res://.godot/imported/boss_green_mantis.png-1848185065270f115bc5177a84fd3f74.ctex"]
+dest_files=["res://.godot/imported/boss_green_mantis.png-69fab5c8fe15dd3b0a0c4e459be25308.ctex"]
 
 [params]
 

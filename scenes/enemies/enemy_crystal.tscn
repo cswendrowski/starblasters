@@ -1,7 +1,7 @@
 [gd_scene load_steps=30 format=3 uid="uid://7m4682abuyea"]
 
 [ext_resource type="Script" path="res://scripts/enemy_core.gd" id="1_0exlg"]
-[ext_resource type="Texture2D" uid="uid://d4deih8dardj0" path="res://graphics/extra-ships/ship_4.png" id="3_g646a"]
+[ext_resource type="Texture2D" uid="uid://bbpgjlsafmj2g" path="res://graphics/enemies/enemy_placeholder_32x.png" id="3_g646a"]
 [ext_resource type="Texture2D" uid="uid://dn1edfs6n7tjr" path="res://Mini Pixel Pack 3/Effects/Explosion (16 x 16).png" id="3_jathr"]
 [ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="4_gqutq"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="5_41ijo"]
@@ -245,6 +245,7 @@ script = ExtResource("1_0exlg")
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("3_g646a")
 flip_v = true
+modulate = Color(0.5, 0.95, 1.0, 1)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_j7632")

@@ -29,19 +29,39 @@ const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
 # seed. Each entry exports its own scene + a label for diagnostics.
 const BOSS_ROSTER := [
 	{
-		"scene": "res://scenes/enemies/boss.tscn",       # Commander (minion + black-hole kit)
+		"scene": "res://scenes/enemies/boss.tscn",            # Commander (minion + black-hole)
 		"label": "Commander",
 		"banner": "HIGH VALUE TARGET INCOMING",
 	},
 	{
-		"scene": "res://scenes/enemies/boss_reaver.tscn",   # Reaver (fast, raw firepower)
-		"label": "Reaver",
-		"banner": "REAVER INBOUND",
+		"scene": "res://scenes/enemies/boss_reaver.tscn",     # Lash (dive sweeper)
+		"label": "Lash",
+		"banner": "LASH INBOUND",
 	},
 	{
-		"scene": "res://scenes/enemies/boss_sentinel.tscn", # Sentinel (slow, spread + missiles)
-		"label": "Sentinel",
-		"banner": "SENTINEL ENGAGED",
+		"scene": "res://scenes/enemies/boss_sentinel.tscn",   # Aegis (multi-part shielded turret)
+		"label": "Aegis",
+		"banner": "AEGIS ENGAGED",
+	},
+	{
+		"scene": "res://scenes/enemies/boss_howler.tscn",     # Howler (anchored ring/burst)
+		"label": "Howler",
+		"banner": "HOWLER INBOUND",
+	},
+	{
+		"scene": "res://scenes/enemies/boss_voidmaw.tscn",    # Voidmaw (drifting BHs)
+		"label": "Voidmaw",
+		"banner": "VOIDMAW EMERGES",
+	},
+	{
+		"scene": "res://scenes/enemies/boss_spinwright.tscn", # Spinwright (beam sweep + ring deflect)
+		"label": "Spinwright",
+		"banner": "SPINWRIGHT ACTIVE",
+	},
+	{
+		"scene": "res://scenes/enemies/boss_conductor.tscn",  # Conductor (final — satellites + transform)
+		"label": "Conductor",
+		"banner": "THE CONDUCTOR ARRIVES",
 	},
 ]
 

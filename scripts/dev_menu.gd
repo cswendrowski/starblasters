@@ -391,8 +391,12 @@ func _on_minefield_option_pick(mine_type: String) -> void:
 
 const BOSS_PICKS := [
 	["Commander", "res://scenes/enemies/boss.tscn"],
-	["Reaver", "res://scenes/enemies/boss_reaver.tscn"],
-	["Sentinel", "res://scenes/enemies/boss_sentinel.tscn"],
+	["Lash", "res://scenes/enemies/boss_reaver.tscn"],
+	["Aegis", "res://scenes/enemies/boss_sentinel.tscn"],
+	["Howler", "res://scenes/enemies/boss_howler.tscn"],
+	["Voidmaw", "res://scenes/enemies/boss_voidmaw.tscn"],
+	["Spinwright", "res://scenes/enemies/boss_spinwright.tscn"],
+	["Conductor", "res://scenes/enemies/boss_conductor.tscn"],
 ]
 
 

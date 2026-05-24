@@ -1,7 +1,7 @@
 [gd_scene load_steps=4 format=3 uid="uid://cbomberwing001"]
 
 [ext_resource type="Script" path="res://scripts/enemies/enemy_bomber.gd" id="1_bomber"]
-[ext_resource type="Texture2D" path="res://graphics/extra-ships/ship_2.png" id="2_ship"]
+[ext_resource type="Texture2D" uid="uid://bbpgjlsafmj2g" path="res://graphics/enemies/enemy_placeholder_32x.png" id="2_ship"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_bomber"]
 size = Vector2(48, 48)
@@ -13,6 +13,7 @@ bounty_value = 100
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("2_ship")
+modulate = Color(0.55, 0.95, 0.55, 1)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_bomber")

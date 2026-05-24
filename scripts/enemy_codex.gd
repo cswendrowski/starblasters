@@ -29,9 +29,13 @@ const ENTRIES = [
 	{"path": "res://scenes/enemies/enemy_minelayer.tscn", "name": "Minelayer", "tier": "Rare"},
 	{"path": "res://scenes/enemies/enemy_interceptor.tscn", "name": "Interceptor", "tier": "Rare"},
 	{"path": "res://scenes/enemies/enemy_bulwark.tscn",  "name": "Bulwark",  "tier": "Rare"},
-	{"path": "res://scenes/enemies/boss.tscn",           "name": "Commander", "tier": "Boss"},
-	{"path": "res://scenes/enemies/boss_reaver.tscn",    "name": "Reaver",   "tier": "Boss"},
-	{"path": "res://scenes/enemies/boss_sentinel.tscn",  "name": "Sentinel", "tier": "Boss"},
+	{"path": "res://scenes/enemies/boss.tscn",            "name": "Commander",  "tier": "Boss"},
+	{"path": "res://scenes/enemies/boss_reaver.tscn",     "name": "Lash",       "tier": "Boss"},
+	{"path": "res://scenes/enemies/boss_sentinel.tscn",   "name": "Aegis",      "tier": "Boss"},
+	{"path": "res://scenes/enemies/boss_howler.tscn",     "name": "Howler",     "tier": "Boss"},
+	{"path": "res://scenes/enemies/boss_voidmaw.tscn",    "name": "Voidmaw",    "tier": "Boss"},
+	{"path": "res://scenes/enemies/boss_spinwright.tscn", "name": "Spinwright", "tier": "Boss"},
+	{"path": "res://scenes/enemies/boss_conductor.tscn",  "name": "Conductor",  "tier": "Boss"},
 ]
 const HOLO_SHADER = preload("res://graphics/hologram.gdshader")
 

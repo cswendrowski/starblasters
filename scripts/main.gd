@@ -165,6 +165,10 @@ func _warm_up_explosion() -> void:
 		"res://scenes/enemies/boss.tscn",
 		"res://scenes/enemies/boss_reaver.tscn",
 		"res://scenes/enemies/boss_sentinel.tscn",
+		"res://scenes/enemies/boss_howler.tscn",
+		"res://scenes/enemies/boss_voidmaw.tscn",
+		"res://scenes/enemies/boss_spinwright.tscn",
+		"res://scenes/enemies/boss_conductor.tscn",
 	]
 	var to_free: Array = []
 	for path in enemy_scenes:
