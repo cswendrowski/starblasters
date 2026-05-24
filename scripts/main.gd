@@ -9,6 +9,10 @@ const ClearedSummaryScene = preload("res://scenes/cleared_summary.tscn")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 
 var bounty: int = 0
+# Bounty carry-in from Run at new_game() — subtract from `bounty` at clear
+# to compute what was earned in THIS combat/hazard only. Read by the
+# cleared summary (e.g. asteroid mining miners-thank-you line).
+var _bounty_at_combat_start: int = 0
 var playing: bool = false
 var _boss_hooked: Node = null
 # Per-enemy-type stats: scene_path → {"spawned": int, "killed": int, "bounty": int, "total_bounty": int}
@@ -310,6 +314,7 @@ func new_game() -> void:
 	_current_level = null
 	if has_node("/root/Run"):
 		bounty = get_node("/root/Run").bounty
+	_bounty_at_combat_start = bounty
 	$CanvasLayer/UI.update_score(bounty)
 	if player and is_instance_valid(player):
 		player.start()
@@ -527,6 +532,13 @@ func _run_outro() -> void:
 		var run = get_node("/root/Run")
 		is_hazard_level = run.current_node_type == SectorNode.NodeType.HAZARD
 		was_boss = run.current_node_type == SectorNode.NodeType.BOSS
+	# Stash combat-only bounty (delta from start) so the summary can render
+	# context lines like the asteroid-mining "miners thank you" message
+	# without re-summing _enemy_stats. Persists via Run meta because the
+	# summary scene is added as a sibling and reads Run on _ready.
+	var combat_bounty_earned: int = max(0, bounty - _bounty_at_combat_start)
+	if has_node("/root/Run"):
+		get_node("/root/Run").set_meta("last_combat_bounty", combat_bounty_earned)
 	if summary.has_method("populate"):
 		if is_hazard_level:
 			summary.populate({}, 0, true)

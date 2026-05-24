@@ -68,6 +68,7 @@ func populate(enemy_stats: Dictionary, total_bounty: int, hide_tally: bool = fal
 	# Hazards render a stripped-down summary: no enemy tally, no bounty.
 	if hide_tally:
 		total_label.visible = false
+		_install_hazard_flavor(title)
 	else:
 		total_label.visible = true
 		total_label.text = "TOTAL BOUNTY: %d" % total_bounty
@@ -271,6 +272,57 @@ func _build_scene_preview(scene_path: String, size: int) -> Control:
 
 func _style_outline_button(btn: Button) -> void:
 	UiTheme.style_button(btn)
+
+
+# Hazard flavor line — currently only asteroid_field gets one. Added under
+# the title so it reads as the headline result for the run (Roman, 2026-05-23:
+# "miners thank you for the help, and transfer your share of credits: X").
+func _install_hazard_flavor(title: Label) -> void:
+	if not has_node("/root/Run"):
+		return
+	var run = get_node("/root/Run")
+	var subtype: String = String(run.current_hazard_subtype)
+	if subtype != "asteroid_field":
+		return
+	var earned: int = int(run.get_meta("last_combat_bounty", 0))
+	var msg := Label.new()
+	msg.name = "HazardFlavor"
+	msg.text = "The miners thank you for the help, and transfer your share of credits: %d" % earned
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	msg.add_theme_font_size_override("font_size", 10)
+	msg.add_theme_color_override("font_color", UiTheme.COLOR_BOUNTY)
+	msg.add_theme_font_override("font", UiTheme.active_font())
+	# Anchor below the title (offset_bottom 22) with breathing room.
+	msg.anchor_left = 0.0
+	msg.anchor_right = 1.0
+	msg.offset_left = 8.0
+	msg.offset_right = -8.0
+	msg.offset_top = 40.0
+	msg.offset_bottom = 80.0
+	msg.material = _shared_mat
+	$Root.add_child(msg)
+
+
+# Spacebar (and the `shoot` action generally — Space + Z + gamepad A) advances
+# the summary to its primary action: back to the sector map. When the boss-
+# sector endless prompt is up, default to NEXT SECTOR (the forward action).
+# (Roman, 2026-05-23: "spacebar on the level clear screen should move back to
+# sector map".)
+func _unhandled_input(event: InputEvent) -> void:
+	if not event.is_action_pressed("shoot"):
+		return
+	get_viewport().set_input_as_handled()
+	# Pick the primary action: NEXT SECTOR if it's available (boss + sector
+	# complete), otherwise MAP. Fire the handler directly so we don't depend
+	# on the button being focused.
+	var endless: Node = get_node_or_null("Root/Bottom/EndlessChoiceRow")
+	if endless != null:
+		# Sector-complete endless prompt up — there's no "sector map" option
+		# at this point (MAIN MENU vs NEXT SECTOR is a meaningful run-level
+		# choice). Don't auto-advance; let the player pick deliberately.
+		return
+	_on_map_pressed()
 
 
 func _on_map_pressed() -> void:

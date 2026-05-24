@@ -144,6 +144,11 @@ func _ready() -> void:
 	# Cheap fresh seed on startup; will be overwritten by new_run()
 	run_seed = randi()
 	_load_codex()
+	# Seed defaults so Hangar / dev tools that open the Manage Ship modal
+	# (or read loadout_snapshot) without going through new_run() still see
+	# the starter Energy Blaster + Smart Bomb. Idempotent — new_run() will
+	# call this again on a real run start.
+	_seed_default_loadout_snapshot()
 
 
 # ---- Enemy Codex persistence ------------------------------------------
@@ -205,9 +210,13 @@ func new_run() -> void:
 	secondary_ammo_max = -1
 	run_seed = randi()
 	# Reset super-weapon state — player._ready will repopulate via the
-	# equipped Smart Bomb's apply().
+	# equipped Smart Bomb's apply(). Seeded below so meta-scene reads
+	# (Manage Ship modal, outpost status bar) match what combat will apply.
 	super_charges = 0
 	max_super_charges = 3
+	# Seed default Energy Blaster + Smart Bomb so meta scenes see the same
+	# loadout the combat scene will apply via PartFactory.default_starting_loadout.
+	_seed_default_loadout_snapshot()
 
 func record_kill(value: int) -> void:
 	enemies_killed += 1
@@ -427,6 +436,35 @@ func is_sector_complete() -> bool:
 #   - for DEVICE_BAY_1 parts, refills super charges (mirrors outpost convention).
 # No live Player exists in meta scenes, so player-side apply runs at next combat.
 const _SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
+const _PartFactory = preload("res://scripts/parts/part_factory.gd")
+const _BasicBlasterCannon = preload("res://scripts/parts/basic_blaster_cannon.gd")
+const _SmartBomb = preload("res://scripts/parts/smart_bomb.gd")
+const _BulletDefault = preload("res://scenes/projectiles/bullet.tscn")
+
+
+# Seed loadout_snapshot with the same Mk.1 defaults PartFactory.default_starting_loadout
+# would equip on the player. Without this, meta scenes (sector map Manage Ship modal,
+# outpost loadout line) see an empty dict for the swappable slots until the player
+# performs their first outpost swap — leading to "PRIMARY: — (empty)" on a fresh run
+# even though the player is flying with an Energy Blaster + Smart Bomb. Mirrors the
+# PartFactory load path so a designer-edited .tres applies here too. Called from
+# new_run() so the snapshot is always populated before any meta scene reads it.
+func _seed_default_loadout_snapshot() -> void:
+	var cannon = _PartFactory._load_or_default(
+		"res://resources/weapons/energy_blaster.tres", _BasicBlasterCannon)
+	if "bullet_scene" in cannon and cannon.bullet_scene == null:
+		cannon.bullet_scene = _BulletDefault
+	loadout_snapshot[_SlotTypes.SlotType.CANNON] = cannon
+	var super_part = _PartFactory._load_or_default(
+		"res://resources/weapons/smart_bomb.tres", _SmartBomb)
+	loadout_snapshot[_SlotTypes.SlotType.DEVICE_BAY_1] = super_part
+	# Smart Bomb hasn't run apply() on a player yet (no live player in meta
+	# scenes), so seed super_charges from the part's per-mark formula directly
+	# so the Manage Ship modal's "Super x/y" reads correctly on a fresh run.
+	if super_part.has_method("_charges_at_mark"):
+		max_super_charges = int(super_part._charges_at_mark(int(super_part.mark)))
+		super_charges = max_super_charges
+
 
 func equip_part(part) -> void:
 	if part == null:

@@ -1404,6 +1404,13 @@ func _ms_add_loadout_section(vbox: VBoxContainer, run, panel: PanelContainer) ->
 		name_lbl.custom_minimum_size = Vector2(70, 0)
 		row.add_child(name_lbl)
 		var equipped = run.loadout_snapshot.get(slot, null)
+		# Name + description stacked so the player sees what the equipped part
+		# actually does without leaving the modal. Description is dim/gray so the
+		# name remains the dominant read.
+		var info := VBoxContainer.new()
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		info.add_theme_constant_override("separation", 0)
+		row.add_child(info)
 		var part_lbl := Label.new()
 		if equipped == null:
 			part_lbl.text = "— (empty)"
@@ -1411,7 +1418,15 @@ func _ms_add_loadout_section(vbox: VBoxContainer, run, panel: PanelContainer) ->
 		else:
 			part_lbl.text = _ms_part_name(equipped)
 			part_lbl.label_settings = _ms_label_settings(9, Color(0.95, 0.97, 1.0, 1.0))
-		row.add_child(part_lbl)
+		info.add_child(part_lbl)
+		var desc_text: String = _ms_part_description(equipped)
+		if desc_text != "":
+			var desc_lbl := Label.new()
+			desc_lbl.text = desc_text
+			desc_lbl.label_settings = _ms_label_settings(8, Color(0.65, 0.72, 0.82, 1.0))
+			desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			desc_lbl.custom_minimum_size = Vector2(_MS_PANEL_SIZE.x - 100.0, 0)
+			info.add_child(desc_lbl)
 
 
 func _ms_part_name(part) -> String:
@@ -1422,6 +1437,17 @@ func _ms_part_name(part) -> String:
 	if mk > 0:
 		return "Mk.%d %s" % [mk, nm]
 	return nm
+
+
+# Pull the part's description line for the modal sub-label. Returns "" when
+# absent so the caller can skip the row entirely instead of rendering an
+# empty Label.
+func _ms_part_description(part) -> String:
+	if part == null:
+		return ""
+	if "description" in part:
+		return String(part.get("description"))
+	return ""
 
 
 func _ms_add_upgrades_section(vbox: VBoxContainer, run) -> void:
@@ -1473,11 +1499,25 @@ func _ms_add_storage_row(vbox: VBoxContainer, panel: PanelContainer, part, idx: 
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
 	vbox.add_child(row)
+	# Stack name + description so the player can see what each stored part
+	# does at a glance, mirroring the loadout section above.
+	var info := VBoxContainer.new()
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	info.add_theme_constant_override("separation", 0)
+	info.custom_minimum_size = Vector2(180, 0)
+	row.add_child(info)
 	var name_lbl := Label.new()
 	name_lbl.text = _ms_part_name(part)
 	name_lbl.label_settings = _ms_label_settings(9, Color(0.95, 0.97, 1.0, 1.0))
-	name_lbl.custom_minimum_size = Vector2(180, 0)
-	row.add_child(name_lbl)
+	info.add_child(name_lbl)
+	var desc_text: String = _ms_part_description(part)
+	if desc_text != "":
+		var desc_lbl := Label.new()
+		desc_lbl.text = desc_text
+		desc_lbl.label_settings = _ms_label_settings(8, Color(0.65, 0.72, 0.82, 1.0))
+		desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		desc_lbl.custom_minimum_size = Vector2(180, 0)
+		info.add_child(desc_lbl)
 	var slot_lbl := Label.new()
 	slot_lbl.text = SlotTypes.slot_name(int(part.slot_type))
 	slot_lbl.label_settings = _ms_label_settings(8, Color(0.65, 0.78, 0.95, 1.0))

@@ -170,6 +170,20 @@ func explode() -> void:
 	_on_boss_death()
 	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
 	ExplosionFx.burst(global_position, 7, 28.0, 0.08)
+	# Settling dust supplement (Roman 2026-05-24). Each of the 7 cascade
+	# blasts gets its own smaller puff (16 particles), staggered to match
+	# the 0.08s explosion cadence with mild positional jitter so the dust
+	# layer mirrors the cascade rather than dumping all at the origin.
+	var DeathDust = load("res://scripts/effects/death_dust.gd")
+	var tree := get_tree()
+	for i in range(7):
+		var delay: float = float(i) * 0.08
+		var jitter := Vector2(randf_range(-28.0, 28.0), randf_range(-28.0, 28.0))
+		var puff_pos: Vector2 = global_position + jitter
+		if delay <= 0.001:
+			DeathDust.play_with_count(puff_pos, 16)
+		else:
+			tree.create_timer(delay).timeout.connect(DeathDust.play_with_count.bind(puff_pos, 16))
 	if has_node("Sprite2D"):
 		var BurnFx = load("res://scripts/burn_fx.gd")
 		BurnFx.apply_burn($Sprite2D, 1.2)

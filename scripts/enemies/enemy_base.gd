@@ -22,6 +22,7 @@ const EnemyEngineFxScript = preload("res://scripts/effects/enemy_engine_fx.gd")
 const ParallaxShadowScript = preload("res://scripts/effects/parallax_shadow.gd")
 const DamageOverlayShader = preload("res://graphics/damage_overlay.gdshader")
 const ExplosionFxScript = preload("res://scripts/effects/explosion_fx.gd")
+const DeathDustScript = preload("res://scripts/effects/death_dust.gd")
 const BurnFxScript = preload("res://scripts/burn_fx.gd")
 const SHIELD_SHADER = preload("res://graphics/sci_fi_shield.gdshader")
 
@@ -224,6 +225,13 @@ func explode() -> void:
 		ExplosionFxScript.play(global_position, 1.0)
 	else:
 		ExplosionFxScript.burst(global_position, blast_count, 12.0 * max(1.0, display_scale * 0.6), 0.06)
+	# Settling dust supplement (Roman 2026-05-24): 1px gray particles
+	# scattering radially with downward gravity. Count scales with size
+	# (8/16/32/64). Fires alongside the debris strip, not instead of it.
+	# For boss-class enemies (display_scale large enough to trigger the
+	# multi-blast cascade above) the bigger count bucket gives each blast
+	# a corresponding dust puff feel without per-blast wiring.
+	DeathDustScript.play(global_position, display_scale)
 	# Debris scatter (Roman 2026-05-18). Parent under scene root so the
 	# pieces survive the enemy's queue_free at the end of explode().
 	var parent: Node = get_tree().current_scene
