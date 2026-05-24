@@ -22,8 +22,14 @@ var _warning_tween: Tween = null
 # Super-weapon charge pips — small icons in the right gutter under
 # the bounty readout. Built lazily on bind_player.
 var _super_pips_row: HBoxContainer = null
+var _super_key_label: Label = null
 var _super_charge_count: int = 0
 var _super_charge_max: int = 0
+# Weapon-readout block in the right gutter — PRI / SEC names + key hints
+# pulled from InputMap so a rebinding update is automatic.
+var _weapon_hints_box: VBoxContainer = null
+var _pri_label: Label = null
+var _sec_label: Label = null
 
 func _ready() -> void:
 	# main.tscn pins this MarginContainer to a 152×24 rect at top-left. We
@@ -252,6 +258,11 @@ func bind_player(player) -> void:
 		# Seed with the current state in case the part already applied.
 		if "super_charges" in player and "max_super_charges" in player:
 			_on_super_charges_changed(int(player.super_charges), int(player.max_super_charges))
+	# Weapon-name + key-hint readout in the right gutter (Roman playtest
+	# 2026-05-23). Reads Run.loadout_snapshot + InputMap; refreshes on
+	# every bind_player so a weapon swap at the outpost shows up on the
+	# next combat scene.
+	_install_weapon_hints()
 	# Seed once from current values.
 	if player and "max_hull" in player and "hull" in player:
 		update_hull(player.max_hull, player.hull)
@@ -351,15 +362,125 @@ func _set_ammo_visible(v: bool) -> void:
 func _install_super_pips() -> void:
 	if _super_pips_row != null and is_instance_valid(_super_pips_row):
 		return
+	# Wrapper row: [expand-spacer] [pips] [gap] [key hint] — pinned to the
+	# right gutter via SHRINK_END on the inner row, same layout trick as
+	# the bounty/ammo rows.
+	var wrap := HBoxContainer.new()
+	wrap.name = "SuperRow"
+	wrap.add_theme_constant_override("separation", 3)
+	var wrap_spacer := Control.new()
+	wrap_spacer.name = "SuperSpacer"
+	wrap_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wrap.add_child(wrap_spacer)
 	var row := HBoxContainer.new()
 	row.name = "SuperPips"
 	row.add_theme_constant_override("separation", 2)
 	row.size_flags_horizontal = Control.SIZE_SHRINK_END
+	wrap.add_child(row)
+	# Super-fire key hint, faded so it doesn't shout next to the pips.
+	# Roman playtest 2026-05-23: "give a hint about the button to hit
+	# next to the Super ammo count".
+	var key_lbl := Label.new()
+	key_lbl.name = "SuperKey"
+	UiTheme.style_label(key_lbl, UiTheme.LabelKind.BOUNTY)
+	key_lbl.add_theme_font_size_override("font_size", 8)
+	key_lbl.add_theme_constant_override("outline_size", 1)
+	key_lbl.add_theme_color_override("font_color", Color(1, 1, 1, 0.5))
+	key_lbl.text = "[%s]" % _action_key_label("shoot_nose")
+	key_lbl.size_flags_horizontal = Control.SIZE_SHRINK_END
+	wrap.add_child(key_lbl)
+	_super_key_label = key_lbl
 	if has_node("BoxContainer"):
-		$BoxContainer.add_child(row)
+		$BoxContainer.add_child(wrap)
 	else:
-		add_child(row)
+		add_child(wrap)
 	_super_pips_row = row
+
+
+# Pull the first keyboard binding for an action and return a short human
+# label ("Space", "X", "C", "Shift"). Empty string if the action has no
+# keyboard event. Reads InputMap so HUD updates on rebind.
+func _action_key_label(action: String) -> String:
+	if not InputMap.has_action(action):
+		return ""
+	for ev in InputMap.action_get_events(action):
+		if ev is InputEventKey:
+			var kc: int = (ev as InputEventKey).physical_keycode
+			if kc == 0:
+				kc = (ev as InputEventKey).keycode
+			if kc == 0:
+				continue
+			var s: String = OS.get_keycode_string(kc)
+			# OS returns "Space" / "X" / "Shift" — pass through; uppercase
+			# single letters look correct at HUD size already.
+			return s
+	return ""
+
+
+# Right-gutter weapon readout: "PRI <name> [Key]" + "SEC <name> [Key]".
+# Names pull from Run.loadout_snapshot so swaps at outposts reflect on
+# next combat entry (the HUD is rebuilt with each Main scene). Keys pull
+# from InputMap.
+func _install_weapon_hints() -> void:
+	if _weapon_hints_box != null and is_instance_valid(_weapon_hints_box):
+		_refresh_weapon_hints()
+		return
+	# Wrapper row aligns the VBox to the right edge — same SHRINK_END
+	# trick as bounty / super.
+	var wrap := HBoxContainer.new()
+	wrap.name = "WeaponHintsRow"
+	wrap.add_theme_constant_override("separation", 0)
+	var sp := Control.new()
+	sp.name = "WeaponHintsSpacer"
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wrap.add_child(sp)
+	var box := VBoxContainer.new()
+	box.name = "WeaponHints"
+	box.add_theme_constant_override("separation", 0)
+	box.size_flags_horizontal = Control.SIZE_SHRINK_END
+	wrap.add_child(box)
+	_pri_label = _make_weapon_hint_label("PriLabel")
+	_sec_label = _make_weapon_hint_label("SecLabel")
+	box.add_child(_pri_label)
+	box.add_child(_sec_label)
+	if has_node("BoxContainer"):
+		$BoxContainer.add_child(wrap)
+	else:
+		add_child(wrap)
+	_weapon_hints_box = box
+	_refresh_weapon_hints()
+
+
+func _make_weapon_hint_label(node_name: String) -> Label:
+	var l := Label.new()
+	l.name = node_name
+	UiTheme.style_label(l, UiTheme.LabelKind.BOUNTY)
+	l.add_theme_font_size_override("font_size", 8)
+	l.add_theme_constant_override("outline_size", 1)
+	l.add_theme_color_override("font_color", Color(1, 1, 1, 0.65))
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	return l
+
+
+func _refresh_weapon_hints() -> void:
+	if _pri_label == null or _sec_label == null:
+		return
+	const Slots = preload("res://scripts/weapons/SlotTypes.gd")
+	var pri_name: String = "—"
+	var sec_name: String = "—"
+	if has_node("/root/Run"):
+		var run = get_node("/root/Run")
+		if "loadout_snapshot" in run and run.loadout_snapshot is Dictionary:
+			var p_cannon = run.loadout_snapshot.get(Slots.SlotType.CANNON, null)
+			if p_cannon != null and "display_name" in p_cannon:
+				pri_name = String(p_cannon.display_name)
+			var p_sec = run.loadout_snapshot.get(Slots.SlotType.HARDPOINT_WING, null)
+			if p_sec != null and "display_name" in p_sec:
+				sec_name = String(p_sec.display_name)
+	var pri_key: String = _action_key_label("shoot")
+	var sec_key: String = _action_key_label("shoot2")
+	_pri_label.text = "PRI %s [%s]" % [pri_name, pri_key]
+	_sec_label.text = "SEC %s [%s]" % [sec_name, sec_key]
 
 
 func _on_super_charges_changed(value: int, maximum: int) -> void:

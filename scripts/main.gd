@@ -471,6 +471,15 @@ func _play_exit_thruster_sfx() -> void:
 
 
 func _run_outro() -> void:
+	# Disable player collision IMMEDIATELY so the grace period + fly-out
+	# tween can't be interrupted by a stray hazard hit (Roman playtest
+	# 2026-05-23: "leaving a level, collision is still on, possible to
+	# hit a hazard and die"). Player IS the Area2D — clearing both flags
+	# stops bullets/asteroids/mines from registering. Player is freed
+	# with the scene on transition, no revert needed.
+	if player != null and is_instance_valid(player):
+		player.monitoring = false
+		player.monitorable = false
 	# Grace period — bullets settle, last shockwave reads. Tuned down from
 	# 2.5s after Cody's playtest report that the end-of-sector delay felt
 	# long. With the director's POST_CLEAR_GRACE also dropped to 0.4s,
