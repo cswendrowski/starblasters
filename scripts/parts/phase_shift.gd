@@ -57,11 +57,21 @@ func activate(ship) -> void:
 	for b in tree.get_nodes_in_group("bullets"):
 		if b and is_instance_valid(b):
 			b.queue_free()
-	# Cool blue VFX — distinct from Smart Bomb's orange burst so players
-	# learn which super is which by colour.
+	# Distinct activation VFX — radial ring of small bursts so the
+	# bullet-cancel reads as "wall of force around the ship," visibly
+	# different from Smart Bomb's tight panic-burst and Hyper's single
+	# flash. (No tinting available; we differentiate by SHAPE.)
 	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
 	if ExplosionFx:
 		ExplosionFx.play(ship.global_position, 1.2, true)
+		ExplosionFx.burst(ship.global_position, 6, 36.0, 0.0)
+	# Camera nudge — every other super has one; without it Phase Shift's
+	# activation has no tactile feedback when no bullets are onscreen.
+	var main: Node = tree.get_current_scene()
+	if main and main.has_node("Camera2D"):
+		var cam = main.get_node("Camera2D")
+		if cam.has_method("add_trauma"):
+			cam.add_trauma(0.35)
 
 
 # Editor readout — duration-based, no damage. Report duration*5 as a

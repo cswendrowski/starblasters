@@ -76,10 +76,19 @@ func activate(ship) -> void:
 		var angle_seed: float = TAU * float(i) / float(max(1, n))
 		drone.call_deferred("bind_player", ship, angle_seed)
 		spawned.append(drone)
-	# Brief muzzle flash + small camera nudge so the activation reads.
+	# Activation flare — spawn-puff per drone so each one reads as
+	# physically emerging from the ship, plus a central flash. Distinct
+	# from Smart Bomb (chain of blasts), Phase Shift (wide ring), and
+	# Hyper (single big punch).
 	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
 	if ExplosionFx:
-		ExplosionFx.play(ship.global_position, 0.8, true)
+		ExplosionFx.play(ship.global_position, 1.0, true)
+		ExplosionFx.burst(ship.global_position, n, 12.0, 0.03)
+	var main: Node = tree.get_current_scene()
+	if main and main.has_node("Camera2D"):
+		var cam = main.get_node("Camera2D")
+		if cam.has_method("add_trauma"):
+			cam.add_trauma(0.35)
 	# Schedule cleanup after duration.
 	var cleanup_timer := tree.create_timer(dur)
 	cleanup_timer.timeout.connect(func():

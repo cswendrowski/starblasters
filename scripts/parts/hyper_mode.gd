@@ -53,10 +53,13 @@ func activate(ship) -> void:
 		ship._hyper_t = dur
 	if "_invuln_t" in ship:
 		ship._invuln_t = max(ship._invuln_t, dur)
-	# VFX: golden ring around player, plus camera nudge to sell the snap.
+	# VFX: single tight central flash (offensive snap), plus camera nudge.
+	# Distinct shape vs Phase Shift's wide ring of bursts and Smart Bomb's
+	# scattered chain — Hyper is "one big punch from the ship outward."
 	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
 	if ExplosionFx:
-		ExplosionFx.play(ship.global_position, 1.5, true)
+		ExplosionFx.play(ship.global_position, 1.8, true)
+		ExplosionFx.burst(ship.global_position, 3, 8.0, 0.04)
 	if ship.has_method("get_tree"):
 		var tree: SceneTree = ship.get_tree()
 		if tree:
