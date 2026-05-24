@@ -120,6 +120,18 @@ var _moon_textures: Dictionary = {}
 # POI ambient dressing: pulsing glows {spr, hz, phase, base_a} + combat glitter particles.
 var _glow_pulses: Array = []
 var _glitter:     Array = []  # {pos, vel, rect, brightness, hidden, timer}
+# Decorative pulsing pixels scattered around asteroids: {pos, size, hz, phase, color}
+var _asteroid_pixels: Array = []
+# POI nodes (visit-eligible — outpost/hazard/signal/combat, not boss/origin):
+# {id, route_idx, pos, order, icon}
+var _pois: Array = []
+# Per-route ordered list of POI ids along the route (for line progress).
+var _route_pois: Dictionary = {}
+# id -> bool completed flag (set by click handler today, gameplay tomorrow).
+var _node_completed: Dictionary = {}
+# Per-route anchor + endpoint cache for drawing the green progress overlay.
+var _route_segments: Array = []  # {anchor: Vector2, end_x: float}
+var _next_poi_id: int = 0
 # Non-deterministic RNG for runtime flicker — not seeded from map_seed.
 var _fx_rng: RandomNumberGenerator
 
@@ -167,7 +179,7 @@ func _process(delta: float) -> void:
 	for g in _glow_pulses:
 		if is_instance_valid(g.spr):
 			var t: float = 0.5 + 0.5 * sin(_time * g.hz * TAU + g.phase)
-			var sz: float = lerpf(1.0 / 64.0, 8.0 / 64.0, t)
+			var sz: float = lerpf(0.8 / 64.0, 6.4 / 64.0, t)
 			g.spr.scale     = Vector2(sz, sz)
 			g.spr.modulate.a = lerpf(0.3, 1.0, t)
 	# Update combat glitter particles.
@@ -185,7 +197,7 @@ func _process(delta: float) -> void:
 		var target_b: float = 0.0 if p.hidden else _fx_rng.randf_range(0.4, 1.0)
 		p.brightness = lerpf(p.brightness, target_b, delta * 6.0)
 		needs_redraw = true
-	if needs_redraw:
+	if needs_redraw or not _asteroid_pixels.is_empty():
 		queue_redraw()
 	# Hover: fade labels and icons in/out on mouse-over.
 	var mouse: Vector2 = get_local_mouse_position()
@@ -228,8 +240,10 @@ func _generate_route_lengths() -> void:
 
 
 func _build_routes() -> void:
+	_route_segments.clear()
 	for i in STAR_ANCHORS.size():
 		var anchor: Vector2 = STAR_ANCHORS[i]
+		var end_x: float = anchor.x + _route_lengths[i]
 		var line   := Line2D.new()
 		line.default_color  = ROUTE_COLOR
 		line.width          = ROUTE_WIDTH
@@ -237,9 +251,10 @@ func _build_routes() -> void:
 		line.end_cap_mode   = Line2D.LINE_CAP_ROUND
 		line.points = PackedVector2Array([
 			anchor,
-			Vector2(anchor.x + _route_lengths[i], anchor.y),
+			Vector2(end_x, anchor.y),
 		])
 		add_child(line)
+		_route_segments.append({"anchor": anchor, "end_x": end_x})
 
 
 # ---------------------------------------------------------------------------
@@ -374,6 +389,7 @@ func _spawn_large_asteroid(center_y: float, center_x: float) -> void:
 		"phase": _map_rng.randf_range(0.0, TAU),
 	})
 	_scatter_asteroid_band(center_y, center_x)
+	_scatter_pulse_pixels(Vector2(center_x, center_y), PX)
 	_add_hover_label_icon(center_y, center_x, PX, "Asteroid")
 
 
@@ -406,6 +422,7 @@ func _spawn_asteroid_cluster(center_y: float, center_x: float) -> void:
 			"speed": _map_rng.randf_range(0.005, 0.020),
 			"phase": _map_rng.randf_range(0.0, TAU),
 		})
+		_scatter_pulse_pixels(Vector2(center_x + ox, center_y + oy), px)
 	_scatter_asteroid_band(center_y, center_x)
 	# One hover label + icon representing the whole cluster.
 	_add_hover_label_icon(center_y, center_x, 40.0, "Belt")
@@ -440,6 +457,26 @@ func _scatter_asteroid_band(center_y: float, center_x: float) -> void:
 			"node":  ast,
 			"speed": _map_rng.randf_range(0.005, 0.018),
 			"phase": _map_rng.randf_range(0.0, TAU),
+		})
+		_scatter_pulse_pixels(Vector2(center_x + ox, center_y + oy), px)
+
+
+func _scatter_pulse_pixels(center: Vector2, ast_px: float) -> void:
+	var count: int = 6 + _map_rng.randi() % 7  # 6-12
+	var radius: float = ast_px * 0.6 + 6.0
+	for _k in count:
+		var ang: float = _map_rng.randf() * TAU
+		var dist: float = _map_rng.randf_range(ast_px * 0.5 + 1.0, radius)
+		var pos := Vector2(center.x + cos(ang) * dist, center.y + sin(ang) * dist)
+		# Weight toward 1px (75%) over 2px (25%).
+		var size_px: int = 1 if _map_rng.randf() < 0.75 else 2
+		var shade: float = _map_rng.randf_range(0.55, 0.85)
+		_asteroid_pixels.append({
+			"pos":   Vector2(floor(pos.x), floor(pos.y)),
+			"size":  size_px,
+			"hz":    _map_rng.randf_range(0.25, 0.70),
+			"phase": _map_rng.randf_range(0.0, TAU),
+			"color": Color(shade, shade, shade, 1.0),
 		})
 
 
@@ -526,9 +563,10 @@ func _spawn_moons(planet_cy: float, planet_cx: float, planet_px: float) -> void:
 		var ry: float = base_r * _map_rng.randf_range(0.45, 1.0)
 		var spd: float = _map_rng.randf_range(0.20, 0.70) * (1.0 if _map_rng.randf() > 0.5 else -1.0)
 		var phase: float = _map_rng.randf_range(0.0, TAU)
-		# Random soft pastel tint.
-		var tint := Color.from_hsv(_map_rng.randf(), _map_rng.randf_range(0.2, 0.6), 0.95, 0.85)
-		var radius_px: int = 1 + _map_rng.randi() % 6  # 1-6px
+		# Random soft pastel tint, darkened 50%, fully opaque.
+		var base_tint := Color.from_hsv(_map_rng.randf(), _map_rng.randf_range(0.2, 0.6), 0.95, 1.0)
+		var tint := Color(base_tint.r * 0.5, base_tint.g * 0.5, base_tint.b * 0.5, 1.0)
+		var radius_px: int = 1 + _map_rng.randi() % 3  # 1-3px
 		var spr := Sprite2D.new()
 		spr.texture  = _get_moon_texture(radius_px)
 		spr.modulate = tint
@@ -571,7 +609,7 @@ func _add_pulse_glow(cy: float, cx: float, color: Color, _unused: float) -> void
 	spr.position = Vector2(
 		cx + _map_rng.randf_range(-CELL * 0.3, CELL * 0.3),
 		cy + _map_rng.randf_range(-CELL * 0.3, CELL * 0.3))
-	spr.scale = Vector2(8.0 / 64.0, 8.0 / 64.0)  # starts at 8px; pulses down to 1px
+	spr.scale = Vector2(6.4 / 64.0, 6.4 / 64.0)  # 20% smaller; pulses 0.8→6.4px
 	var mat := CanvasItemMaterial.new()
 	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	spr.material = mat
@@ -581,6 +619,13 @@ func _add_pulse_glow(cy: float, cx: float, color: Color, _unused: float) -> void
 		"hz":    _map_rng.randf_range(0.20, 0.50),
 		"phase": _map_rng.randf_range(0.0, TAU),
 	})
+	# Static 1px dot at the beacon center, fully opaque, matching light color.
+	var dot := ColorRect.new()
+	dot.color  = Color(color.r, color.g, color.b, 1.0)
+	dot.position = Vector2(floor(spr.position.x), floor(spr.position.y))
+	dot.size   = Vector2(1, 1)
+	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(dot)
 
 
 func _add_glitter_zone(cy: float, cx: float) -> void:
@@ -631,6 +676,19 @@ func _add_hover_label_icon(center_y: float, center_x: float, display_px: float, 
 		"label":  lbl,
 		"icon":   icon_spr,
 	})
+	# Register POI for line-progress + click-to-toggle (dev affordance).
+	var poi_id: int = _next_poi_id
+	_next_poi_id += 1
+	var poi := {
+		"id":        poi_id,
+		"route_idx": _cur_sys_i,
+		"pos":       Vector2(center_x, center_y),
+		"icon":      icon_spr,
+	}
+	_pois.append(poi)
+	if not _route_pois.has(_cur_sys_i):
+		_route_pois[_cur_sys_i] = []
+	(_route_pois[_cur_sys_i] as Array).append(poi)
 
 
 func _spawn_nebula(center_y: float, center_x: float) -> void:
@@ -835,6 +893,39 @@ func _draw() -> void:
 		if p.brightness > 0.04:
 			draw_rect(Rect2(p.pos, Vector2(1, 1)),
 				Color(0.78, 0.84, 0.92, p.brightness))
+	# Pulsing decorative pixels around asteroids.
+	for px in _asteroid_pixels:
+		var a: float = 0.5 + 0.5 * sin(_time * px.hz * TAU + px.phase)
+		var c: Color = px.color
+		c.a = a
+		draw_rect(Rect2(px.pos, Vector2(px.size, px.size)), c)
+	# POI line progress — green overlay up through the last completed POI on each route.
+	const PROGRESS_COLOR := Color(0.40, 0.95, 0.40, 1.0)
+	for i in _route_segments.size():
+		var seg: Dictionary = _route_segments[i]
+		var route_pois: Array = _route_pois.get(i, [])
+		if route_pois.is_empty():
+			continue
+		var sorted := route_pois.duplicate()
+		sorted.sort_custom(func(a, b): return a.pos.x < b.pos.x)
+		var farthest_x: float = -INF
+		var all_done: bool = true
+		for poi in sorted:
+			if _node_completed.get(poi.id, false):
+				farthest_x = maxf(farthest_x, poi.pos.x)
+			else:
+				all_done = false
+		if all_done and not sorted.is_empty():
+			farthest_x = seg.end_x
+		if farthest_x > -INF:
+			var anchor: Vector2 = seg.anchor
+			draw_line(anchor, Vector2(farthest_x, anchor.y),
+				PROGRESS_COLOR, ROUTE_WIDTH)
+	# Completed POI markers — small green outline ring.
+	for poi in _pois:
+		if _node_completed.get(poi.id, false):
+			draw_rect(Rect2(poi.pos.x - 4, poi.pos.y - 4, 8, 8),
+				PROGRESS_COLOR, false, 1.0)
 	for col in range(COLS + 1):
 		var x   := col * CELL
 		var maj := col % 4 == 0
@@ -855,6 +946,15 @@ func _draw() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 		SceneTransition.change_scene(get_tree(), "res://scenes/dev_menu.tscn")
+		return
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		var mp: Vector2 = get_local_mouse_position()
+		for poi in _pois:
+			if mp.distance_to(poi.pos) <= 6.0:
+				var id: int = poi.id
+				_node_completed[id] = not _node_completed.get(id, false)
+				queue_redraw()
+				return
 
 
 # ---------------------------------------------------------------------------
@@ -883,6 +983,12 @@ func _rebuild() -> void:
 	_glitter.clear()
 	_moon_data.clear()
 	_moon_textures.clear()
+	_asteroid_pixels.clear()
+	_pois.clear()
+	_route_pois.clear()
+	_node_completed.clear()
+	_route_segments.clear()
+	_next_poi_id = 0
 	map_seed = _map_rng.randi()
 	call_deferred("_deferred_build")
 
