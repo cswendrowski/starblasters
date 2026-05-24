@@ -70,6 +70,10 @@ Captured from Cody's 2026-05-19 punch list. Ordered roughly by leverage.
 - [ ] **Bullet library refactor (B2)** — replace the single `enemy_bullet.tscn` + 200 px/s baseline with a roster of bullet variants (dumb 220 / aimed 300 / heavy 180 / fast 240) selectable per shoot_pattern. Doc audit §3 + §1 reference bands. Cheapest path is a `bullet_speed` @export on `shoot_pattern.gd` honored in `_spawn_bullet`, but designer prefers a real bullet-resource roster rather than a single override knob.
 - [ ] **Bulwark drift retune** — bulwark_drift currently 25/36/0.35; doc §3 proposes 50/50/0.45. Folded into a separate Bulwark-turret pass alongside the shielding rework.
 
+## Hazard rework backlog 2026-05-24
+
+- [ ] **Overhaul Asteroid Hazard** — current asteroid_field level needs a structural pass. Cody flagged background asteroids overlapping the playspace; APT confirmed the underlying behavior isn't what was described and the level wants a broader rework, not a spawn-range patch. Defer until the hazard rework slot opens.
+
 ## Already-done (since this list was captured)
 
 - Wave editor with full CRUD + playtest + state persistence.
