@@ -1100,7 +1100,14 @@ func _on_poi_clicked(node_id: String) -> void:
 		int(SectorNode.NodeType.COMBAT):
 			SceneTransition.change_scene(get_tree(), COMBAT_SCENE)
 		int(SectorNode.NodeType.OUTPOST):
-			SceneTransition.change_scene(get_tree(), OUTPOST_SCENE)
+			# Designer ask (Cody 2026-05-24): block outpost entry with 0
+			# bounty — show a Yes/Cancel modal so the player doesn't burn
+			# the node by accident. Visiting is still allowed (refill
+			# services can be free), so we don't hard-stop the launch.
+			if int(run.bounty) <= 0:
+				_show_no_bounty_modal()
+			else:
+				SceneTransition.change_scene(get_tree(), OUTPOST_SCENE)
 		int(SectorNode.NodeType.SIGNAL):
 			SceneTransition.change_scene(get_tree(), SIGNAL_SCENE)
 		int(SectorNode.NodeType.HAZARD):
@@ -1131,3 +1138,91 @@ func _on_boss_clicked(node_id: String) -> void:
 	run.current_stellar = _compute_boss_stellar(row_idx)
 	run.forced_boss_scene = String(boss.get("boss_scene", ""))
 	SceneTransition.change_scene(get_tree(), BOSS_SCENE)
+
+
+# ---------------------------------------------------------------------------
+# Zero-bounty outpost guard modal (Cody 2026-05-24)
+# ---------------------------------------------------------------------------
+# Renders an inline confirmation panel on a dedicated CanvasLayer so it sits
+# above the parallax content. "Yes" enters the outpost (refills can be free).
+# "Cancel" tears the modal down and returns the player to the map.
+
+const _NB_MODAL_NAME := "NoBountyModal"
+
+func _show_no_bounty_modal() -> void:
+	if get_node_or_null(_NB_MODAL_NAME) != null:
+		return  # already open
+	var cl := CanvasLayer.new()
+	cl.name = _NB_MODAL_NAME
+	cl.layer = 50
+	add_child(cl)
+	# Dim backdrop blocks clicks on POIs underneath.
+	var dim := ColorRect.new()
+	dim.color = Color(0.0, 0.0, 0.0, 0.55)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	cl.add_child(dim)
+	var panel := PanelContainer.new()
+	panel.position = Vector2(120, 92)
+	panel.custom_minimum_size = Vector2(240, 86)
+	cl.add_child(panel)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 4)
+	panel.add_child(vbox)
+	var title := Label.new()
+	title.text = "NO BOUNTY"
+	var title_ls := LabelSettings.new()
+	title_ls.font = FONT
+	title_ls.font_size = 11
+	title_ls.font_color = Color(1.0, 0.85, 0.30, 1.0)
+	title_ls.outline_size = 1
+	title_ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
+	title.label_settings = title_ls
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+	var body := Label.new()
+	body.text = "You have no bounty to spend.\nVisit the outpost anyway?"
+	var body_ls := LabelSettings.new()
+	body_ls.font = FONT
+	body_ls.font_size = 9
+	body_ls.font_color = Color(0.85, 0.92, 1.0, 1.0)
+	body_ls.outline_size = 1
+	body_ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
+	body.label_settings = body_ls
+	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(body)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 8)
+	vbox.add_child(row)
+	var yes_btn := Button.new()
+	yes_btn.text = "Yes"
+	yes_btn.custom_minimum_size = Vector2(64, 16)
+	yes_btn.pressed.connect(func():
+		# current_node_id / current_node_type were set in _on_poi_clicked
+		# before this modal opened — just transition.
+		_close_no_bounty_modal()
+		SceneTransition.change_scene(get_tree(), OUTPOST_SCENE)
+	)
+	row.add_child(yes_btn)
+	var cancel_btn := Button.new()
+	cancel_btn.text = "Cancel"
+	cancel_btn.custom_minimum_size = Vector2(64, 16)
+	cancel_btn.pressed.connect(func():
+		# Roll back the run.current_node_* writes so the player can retry
+		# the click cleanly (or pick a different node).
+		var run = get_node("/root/Run")
+		run.current_node_id = ""
+		run.current_node_type = -1
+		run.current_hazard_subtype = ""
+		_close_no_bounty_modal()
+	)
+	row.add_child(cancel_btn)
+
+
+func _close_no_bounty_modal() -> void:
+	var m := get_node_or_null(_NB_MODAL_NAME)
+	if m != null:
+		m.queue_free()
+

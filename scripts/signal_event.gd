@@ -14,6 +14,7 @@ const SceneTransition = preload("res://scripts/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
+const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 
 @onready var title_label: Label = $Panel/VBox/Title
 @onready var body_label: Label = $Panel/VBox/Body
@@ -109,7 +110,29 @@ func _events() -> Array:
 			],
 		},
 		_make_wreck_event(),
+		_make_salvage_cache_event(),
 	]
+
+
+# Salvage Cache — abandoned cargo container drifting in the void. The
+# salvage roll picks one of three outcomes (Cody, 2026-05-24): 40% +1Mk on a
+# random upgrade, 35% offer a rolled weapon of >= current Mk for swap, 25%
+# ammo refill. Ammo outcome re-rolls if the player has no metered weapons.
+func _make_salvage_cache_event() -> Dictionary:
+	return {
+		"title": "Salvage Cache",
+		"body": "Sensors flag a battered container tumbling through the dust — military markings, locks half-melted. Worth cracking open.",
+		"choices": [
+			{
+				"label": "Salvage the cache (random reward)",
+				"action": func(s): s._do_salvage_cache(),
+			},
+			{
+				"label": "Leave it adrift",
+				"action": func(s): s._finish_to_sector_map("You pass on the cache."),
+			},
+		],
+	}
 
 
 # Wrecked Starfighter — the scavenge option flips based on whether the
@@ -285,6 +308,163 @@ func _do_wreck_scavenge(prefer_ammo: bool) -> void:
 	else:
 		_apply_bounty(30)
 		_finish_to_sector_map("Salvaged scrap. +30 bounty")
+
+
+# Salvage Cache — three sub-outcomes, weighted. The ammo refill re-rolls
+# itself if the player has no metered weapons so the event isn't wasted.
+const _SALVAGE_UPGRADE_KEYS := [
+	"hull_mk", "armor_mk", "thrusters_mk",
+	"self_repair_mk", "shield_cap_mk", "shield_recharge_mk",
+]
+const _SALVAGE_UPGRADE_LABELS := {
+	"hull_mk": "Hull",
+	"armor_mk": "Armor",
+	"thrusters_mk": "Thrusters",
+	"self_repair_mk": "Self Repair",
+	"shield_cap_mk": "Shield Capacity",
+	"shield_recharge_mk": "Shield Recharge",
+}
+const _SALVAGE_MK_CAP := 9
+
+# 40% +1Mk upgrade, 35% weapon offer, 25% ammo refill.
+func _do_salvage_cache(reroll_depth: int = 0) -> void:
+	var roll: float = _rng.randf()
+	if roll < 0.40:
+		_salvage_outcome_upgrade()
+		return
+	if roll < 0.75:
+		_salvage_outcome_weapon()
+		return
+	# Ammo outcome — collapses to a fresh roll if no metered weapons.
+	if not _has_metered_weapons():
+		if reroll_depth >= 4:
+			# Belt-and-suspenders: if we somehow keep rolling ammo with no
+			# metered weapons, fall through to an upgrade so we never spin.
+			_salvage_outcome_upgrade()
+			return
+		_do_salvage_cache(reroll_depth + 1)
+		return
+	_salvage_outcome_ammo()
+
+
+func _salvage_outcome_upgrade() -> void:
+	if not has_node("/root/Run"):
+		_finish_to_sector_map("Cache empty.")
+		return
+	var run = get_node("/root/Run")
+	var eligible: Array = []
+	for k in _SALVAGE_UPGRADE_KEYS:
+		if int(run.get(k)) < _SALVAGE_MK_CAP:
+			eligible.append(k)
+	if eligible.is_empty():
+		# All upgrades maxed — try weapon offer instead so the event still pays.
+		_salvage_outcome_weapon()
+		return
+	var key: String = eligible[_rng.randi() % eligible.size()]
+	var new_mk: int = int(run.get(key)) + 1
+	run.set(key, new_mk)
+	var label: String = String(_SALVAGE_UPGRADE_LABELS.get(key, key))
+	_finish_to_sector_map("Salvaged tech upgrade! %s → Mk %d" % [label, new_mk])
+
+
+# Roll a weapon at >= current Mk in either CANNON or HARDPOINT_WING slot,
+# then offer the player a swap modal. Picks the slot randomly, falls back
+# to the other slot if the player has nothing equipped in the first pick.
+func _salvage_outcome_weapon() -> void:
+	if not has_node("/root/Run"):
+		_finish_to_sector_map("Cache empty.")
+		return
+	var run = get_node("/root/Run")
+	var slot_pool: Array = [
+		int(Slots.SlotType.CANNON),
+		int(Slots.SlotType.HARDPOINT_WING),
+	]
+	# Try the random pick first, then the other slot.
+	var first: int = slot_pool[_rng.randi() % slot_pool.size()]
+	var slots: Array = [first]
+	for s in slot_pool:
+		if s != first:
+			slots.append(s)
+	for slot in slots:
+		var current = run.loadout_snapshot.get(slot, null)
+		var current_mark: int = int(current.mark) if current != null and "mark" in current else 1
+		var new_part = PartCatalog.roll_for_slot(_rng, slot, current_mark)
+		if new_part == null:
+			continue
+		# If we drew a lower Mk than the player's current part, snap up.
+		if "mark" in new_part and int(new_part.mark) < current_mark:
+			new_part.mark = current_mark
+		_offer_weapon_swap(slot, current, new_part)
+		return
+	_finish_to_sector_map("Cache held no compatible weapons.")
+
+
+# Replace the choice row with a Swap / Keep modal — single-screen, no scene
+# change. Outcome resolves via _finish_to_sector_map either way.
+func _offer_weapon_swap(slot: int, current_part, new_part) -> void:
+	if not has_node("/root/Run"):
+		_finish_to_sector_map("Cache empty.")
+		return
+	var slot_name: String = "Primary" if slot == int(Slots.SlotType.CANNON) else "Secondary"
+	var new_label: String = _part_label(new_part)
+	var current_label: String = _part_label(current_part) if current_part != null else "(empty)"
+	body_label.text = "SALVAGED: %s.\nSwap your current %s (%s)?" % [
+		new_label, slot_name, current_label
+	]
+	for c in choices_box.get_children():
+		c.queue_free()
+	var swap_btn := Button.new()
+	swap_btn.text = "Swap → %s" % new_label
+	UiTheme.style_button(swap_btn)
+	swap_btn.pressed.connect(func():
+		var run = get_node("/root/Run")
+		# Move the displaced part to inventory if there was one.
+		if current_part != null:
+			run.inventory.append(current_part)
+		run.loadout_snapshot[slot] = new_part
+		_finish_to_sector_map("Equipped %s as %s." % [new_label, slot_name])
+	)
+	choices_box.add_child(swap_btn)
+	var keep_btn := Button.new()
+	keep_btn.text = "Keep current — stow %s" % new_label
+	UiTheme.style_button(keep_btn)
+	keep_btn.pressed.connect(func():
+		var run = get_node("/root/Run")
+		run.inventory.append(new_part)
+		_finish_to_sector_map("Stowed %s in cargo." % new_label)
+	)
+	choices_box.add_child(keep_btn)
+
+
+func _has_metered_weapons() -> bool:
+	if not has_node("/root/Run"):
+		return false
+	var run = get_node("/root/Run")
+	var has_mg: bool = int(run.ammo) >= 0
+	var has_sec: bool = int(run.secondary_ammo) >= 0 and int(run.secondary_ammo_max) > 0
+	return has_mg or has_sec
+
+
+func _salvage_outcome_ammo() -> void:
+	if not has_node("/root/Run"):
+		_finish_to_sector_map("Cache empty.")
+		return
+	var run = get_node("/root/Run")
+	var parts: Array = []
+	# MG: there's no Run-side max, but the player + outpost both treat 1000
+	# as the canonical full value (AMMO_FULL_VALUE). Match that here.
+	const MG_FULL := 1000
+	if int(run.ammo) >= 0:
+		run.ammo = MG_FULL
+		parts.append("MG +%d rounds" % MG_FULL)
+	if int(run.secondary_ammo) >= 0 and int(run.secondary_ammo_max) > 0:
+		run.secondary_ammo = int(run.secondary_ammo_max)
+		parts.append("Secondary full (%d)" % int(run.secondary_ammo_max))
+	if parts.is_empty():
+		# Shouldn't happen — _has_metered_weapons gated this. Bail safe.
+		_finish_to_sector_map("Cache held only inert ammo crates.")
+		return
+	_finish_to_sector_map("Ammo refilled! " + ", ".join(parts))
 
 
 # Freespace Miner: launch asteroid hazard with bonus bounty per asteroid.
