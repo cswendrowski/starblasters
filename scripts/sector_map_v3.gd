@@ -246,7 +246,7 @@ func _build_pois_from_cache() -> void:
 					var px: float = PLANET_MIN_PX + float(deco_rng.randi() % 3) * 8.0
 					var frac: float = (poi.pos.x - 128.0) / max(1.0, row_end_x - 128.0)
 					var ptype: int  = _pick_planet_type(deco_rng, frac)
-					_spawn_planet(poi.pos, px, ptype, r_idx, deco_rng)
+					_spawn_planet(poi.pos, px, ptype, r_idx, deco_rng, String(poi.id))
 					hover_label = PLANET_LETTERS[mini(planet_seq, PLANET_LETTERS.size() - 1)]
 					planet_seq += 1
 				OBJ_LARGE_AST:
@@ -281,7 +281,116 @@ func _pick_planet_type(rng: RandomNumberGenerator, frac: float) -> int:
 	return PLANET_ZONE_PEAK.size() - 1
 
 
-func _spawn_planet(center: Vector2, display_px: float, type_idx: int, row_idx: int, rng: RandomNumberGenerator) -> void:
+# V3 planet type index -> galaxy_backdrop.PLANETS index. Keeps the planet
+# the player saw on the map identical to the one they fly past in combat.
+const V3_TO_BACKDROP_PLANET_IDX := {
+	0: 0,  # LavaWorld    -> backdrop 0 LavaWorld
+	1: 2,  # DryTerran    -> backdrop 2 DryTerran
+	2: 4,  # NoAtmosphere -> backdrop 4 NoAtmosphere
+	3: 5,  # LandMasses   -> backdrop 5 LandMasses
+	4: 3,  # GasPlanet    -> backdrop 3 GasPlanet
+	5: 1,  # IceWorld     -> backdrop 1 IceWorld
+}
+
+
+# Stable per-POI moon RNG. Salt the seed so moon derivation is decoupled
+# from the planet's randomize_colors / set_seed consumption ordering — the
+# combat backdrop can re-derive the same moon descriptors without having
+# to replay the entire V3 spawn sequence.
+func _make_moon_rng(poi_id: String) -> RandomNumberGenerator:
+	var r := RandomNumberGenerator.new()
+	r.seed = abs(hash(poi_id) ^ 0x9E3779B9)
+	return r
+
+
+# Flat descriptor for the combat backdrop. Deterministic per poi.id, no
+# external state. obj_kind / planet_type mirror _build_pois_from_cache so
+# the combat scene's planet matches what the player clicked on the map.
+func _compute_poi_stellar(poi: Dictionary, row_idx: int) -> Dictionary:
+	var run = get_node("/root/Run")
+	var rows: Array = run.sector_map_cache.get("rows", [])
+	var row_end_x: float = float(rows[row_idx].boss.pos.x) if row_idx < rows.size() else 416.0
+	var deco_rng := RandomNumberGenerator.new()
+	deco_rng.seed = abs(hash(poi.id))
+	var obj_kind: int = deco_rng.randi() % 3
+	var planet_idx: int = -1
+	var planet_type: int = -1
+	var moons: Array = []
+	var has_asteroids: bool = false
+	var asteroid_density: float = 0.0
+	match obj_kind:
+		OBJ_PLANET:
+			var px: float = PLANET_MIN_PX + float(deco_rng.randi() % 3) * 8.0
+			var frac: float = (poi.pos.x - 128.0) / max(1.0, row_end_x - 128.0)
+			planet_type = _pick_planet_type(deco_rng, frac)
+			planet_idx = int(V3_TO_BACKDROP_PLANET_IDX.get(planet_type, 0))
+			moons = _derive_moon_descriptors(String(poi.id), px)
+		OBJ_LARGE_AST:
+			has_asteroids = true
+			asteroid_density = 0.6
+		OBJ_CLUSTER:
+			has_asteroids = true
+			asteroid_density = 1.2
+	return {
+		"obj_kind":         obj_kind,
+		"planet_idx":       planet_idx,
+		"planet_type":      planet_type,
+		"has_asteroids":    has_asteroids,
+		"asteroid_density": asteroid_density,
+		"moons":            moons,
+		"star_color":       STAR_GLOW_COLORS[row_idx],
+		"star_cool":        STAR_COOL[row_idx],
+		"row_idx":          row_idx,
+		"poi_id":           String(poi.id),
+	}
+
+
+# Deterministic moon list around a POI's planet. Same formula as the
+# refactored _spawn_moons — uses the salted moon_rng. Each entry is a flat
+# Dictionary the combat backdrop can spawn directly.
+func _derive_moon_descriptors(poi_id: String, planet_px: float) -> Array:
+	var moon_rng := _make_moon_rng(poi_id)
+	var count: int = int(moon_rng.randf() * moon_rng.randf() * 13.0)
+	var out: Array = []
+	for _k in count:
+		var base_r: float = planet_px * 0.5 + moon_rng.randf_range(2.0, planet_px * 0.7)
+		var rx: float = base_r
+		var ry: float = base_r * moon_rng.randf_range(0.45, 1.0)
+		var spd: float = moon_rng.randf_range(0.20, 0.70) * (1.0 if moon_rng.randf() > 0.5 else -1.0)
+		var phase: float = moon_rng.randf_range(0.0, TAU)
+		var base_tint := Color.from_hsv(moon_rng.randf(), moon_rng.randf_range(0.2, 0.6), 0.95, 1.0)
+		var tint := Color(base_tint.r * 0.5, base_tint.g * 0.5, base_tint.b * 0.5, 1.0)
+		var radius_px: int = 1 + moon_rng.randi() % 3
+		out.append({
+			"radius": radius_px,
+			"color":  tint,
+			"phase":  phase,
+			"rx":     rx,
+			"ry":     ry,
+			"speed":  spd,
+		})
+	return out
+
+
+# Boss descriptor: bosses live at fixed row endpoints with no planet/asteroid
+# decoration of their own. Tint the scene with the row's star color so the
+# boss arena still feels "visited from" that line.
+func _compute_boss_stellar(row_idx: int) -> Dictionary:
+	return {
+		"obj_kind":         -1,
+		"planet_idx":       -1,
+		"planet_type":      -1,
+		"has_asteroids":    false,
+		"asteroid_density": 0.0,
+		"moons":            [],
+		"star_color":       STAR_GLOW_COLORS[row_idx],
+		"star_cool":        STAR_COOL[row_idx],
+		"row_idx":          row_idx,
+		"poi_id":           "boss:%d" % row_idx,
+	}
+
+
+func _spawn_planet(center: Vector2, display_px: float, type_idx: int, row_idx: int, rng: RandomNumberGenerator, poi_id: String = "") -> void:
 	var ps = load(PLANET_SCENES[type_idx])
 	if ps == null:
 		return
@@ -309,7 +418,11 @@ func _spawn_planet(center: Vector2, display_px: float, type_idx: int, row_idx: i
 	p.modulate = Color.WHITE.lerp(STAR_GLOW_COLORS[row_idx], 0.18)
 	p.override_time = true
 	_celestial_nodes.append(p)
-	_spawn_moons(center, display_px, rng)
+	# Moons use a per-POI salted RNG so the descriptor produced by
+	# _compute_poi_stellar matches what we draw here, regardless of how much
+	# of `rng` got consumed by randomize_colors / set_seed above.
+	var moon_rng: RandomNumberGenerator = _make_moon_rng(poi_id) if poi_id != "" else rng
+	_spawn_moons(center, display_px, moon_rng)
 
 
 func _spawn_large_asteroid(center: Vector2, row_idx: int, rng: RandomNumberGenerator) -> void:
@@ -869,8 +982,17 @@ func _on_poi_clicked(node_id: String) -> void:
 	run.current_node_id = node_id
 	run.current_node_type = int(poi.node_type)
 	run.current_hazard_subtype = String(poi.get("hazard_subtype", ""))
-	# Stellar metadata is V2-only; clear it so combat backdrop doesn't read stale data.
-	run.current_stellar = {}
+	# Find this POI's row so the descriptor inherits the right star color.
+	var rows: Array = run.sector_map_cache.get("rows", [])
+	var poi_row_idx: int = 0
+	for r_idx in rows.size():
+		for p in rows[r_idx].pois:
+			if String(p.id) == node_id:
+				poi_row_idx = r_idx
+				break
+	# Stellar descriptor — combat/outpost/signal/hazard backdrops read this so
+	# the scene visually echoes the POI the player clicked.
+	run.current_stellar = _compute_poi_stellar(poi, poi_row_idx)
 	match int(poi.node_type):
 		int(SectorNode.NodeType.COMBAT):
 			SceneTransition.change_scene(get_tree(), COMBAT_SCENE)
@@ -901,6 +1023,8 @@ func _on_boss_clicked(node_id: String) -> void:
 	run.current_node_id = node_id
 	run.current_node_type = int(SectorNode.NodeType.BOSS)
 	run.current_hazard_subtype = ""
-	run.current_stellar = {}
+	# Boss arenas don't have a planet/asteroid of their own — just tint with
+	# the row's star color so the fight still feels rooted on the chosen line.
+	run.current_stellar = _compute_boss_stellar(row_idx)
 	run.forced_boss_scene = String(boss.get("boss_scene", ""))
 	SceneTransition.change_scene(get_tree(), BOSS_SCENE)

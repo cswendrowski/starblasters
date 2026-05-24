@@ -146,6 +146,10 @@ const COLORRECT_CANONICAL_BY_NAME := {
 
 var _shader_time: float = 0.0
 var _last_planet_idx: int = -1
+# Per-POI moonlets that orbit the foundation planet. Each entry:
+#   {node: Sprite2D, planet: Node, planet_size: float, rx, ry, phase, speed}
+var _poi_moonlets: Array = []
+var _poi_moon_textures: Dictionary = {}
 
 func _ready() -> void:
 	var sector_num: int = 0
@@ -198,18 +202,35 @@ func _ready() -> void:
 	# reads as "we're inside that nebula".
 	var nebula_band: String = ""
 	var nebula_tint: Color = Color(1, 1, 1, 1)
+	# V3 sector-map POI descriptor — drives planet/asteroid/moon/star fields
+	# so the combat scene visually echoes the node the player clicked.
+	var poi_has_asteroids_override: bool = false
+	var poi_asteroid_density: float = 0.0
+	var poi_moons: Array = []
+	var poi_star_color: Color = Color(1, 1, 1, 1)
+	var poi_star_cool: bool = false
+	var has_poi_star: bool = false
 	if has_node("/root/Run"):
 		var stellar = get_node("/root/Run").current_stellar
 		if stellar is Dictionary:
 			nebula_band = String(stellar.get("nebula_band", ""))
 			nebula_tint = stellar.get("nebula_tint", Color(1, 1, 1, 1))
+			if stellar.has("has_asteroids"):
+				poi_has_asteroids_override = bool(stellar.get("has_asteroids", false))
+			poi_asteroid_density = float(stellar.get("asteroid_density", 0.0))
+			if stellar.has("moons") and stellar.get("moons") is Array:
+				poi_moons = stellar.get("moons")
+			if stellar.has("star_color"):
+				poi_star_color = stellar.get("star_color", Color(1, 1, 1, 1))
+				poi_star_cool = bool(stellar.get("star_cool", false))
+				has_poi_star = true
 	# Roman, 2026-05-16 parallax overhaul: 3 foundation layers (back, bright,
 	# slow) + up to 5 above (progressively dimmed toward silhouettes against
 	# the foundation lights). The dominant_tint pushed into the silhouette
 	# modulate is sampled from the planet's palette so the silhouette
 	# shadowing matches what the player is lit by.
 	var dominant_tint: Color = PLANET_TINT.get(planet_idx, Color(1, 1, 1, 1))
-	_spawn_deep_clear()
+	_spawn_deep_clear(poi_star_color if has_poi_star else Color(1, 1, 1, 1), poi_star_cool, has_poi_star)
 	# Foundation 1 + 2: starfields. Bright, slow.
 	if starfield_density > 0.0:
 		_spawn_starfield()
@@ -221,16 +242,25 @@ func _ready() -> void:
 	# anchors as the dominant light source.
 	if PLANETS.has(planet_idx):
 		_spawn_planet(PLANETS[planet_idx], rng, planet_idx)
+		# Sector-map POI moons: parent moonlets to the just-spawned planet so
+		# they drift down with it. They orbit per-frame in our own _process.
+		if not poi_moons.is_empty():
+			_attach_poi_moons(poi_moons)
 	# Per-sector roll: do we have asteroids in this level at all?
 	# Asteroid Field hazard forces parallax-side asteroids in every layer at
 	# higher density (Roman, 2026-05-16). Detected via Run.current_hazard_subtype.
 	var asteroid_hazard: bool = false
 	if has_node("/root/Run"):
 		asteroid_hazard = String(get_node("/root/Run").current_hazard_subtype) == "asteroid_field"
-	var has_asteroids: bool = asteroid_hazard or (rng.randf() < asteroid_presence)
+	var has_asteroids: bool = asteroid_hazard or poi_has_asteroids_override or (rng.randf() < asteroid_presence)
 	# Asteroid hazard doubles density again per Roman, 2026-05-16
 	# ("doubled across all parallax layers"). 2.5 → 5.0.
 	var density_mult: float = 5.0 if asteroid_hazard else 1.0
+	# Sector-map POI declares an asteroid object (large or cluster) — ramp
+	# the per-band counts so the combat scene reflects what the player saw.
+	# asteroid_density runs roughly 0.6 (single large) .. 1.2 (cluster).
+	if poi_asteroid_density > 0.0 and not asteroid_hazard:
+		density_mult *= 1.5 * max(1.0, poi_asteroid_density)
 	if has_asteroids:
 		for i in range(int(asteroid_deep_count * density_mult)):
 			var a_d := _spawn_asteroid_in_band(rng, "deep")
@@ -346,10 +376,22 @@ func _spawn_anchor_tint_color(hue: Color, alpha: float) -> void:
 	tint.material = mat
 	add_child(tint)
 
-func _spawn_deep_clear() -> void:
+func _spawn_deep_clear(star_color: Color = Color(1, 1, 1, 1), star_cool: bool = false, has_poi_star: bool = false) -> void:
 	var deep = ColorRect.new()
 	deep.name = "DeepSky"
-	deep.color = Color(0.06, 0.06, 0.09, 1.0)
+	# Base deep-space color, then bias toward the POI's row star color. Warm
+	# stars push the deep sky a touch warm, cool stars a touch cool — a wash,
+	# not a recolor (alpha ~0.12 keeps the planet/nebula readable).
+	var base := Color(0.06, 0.06, 0.09, 1.0)
+	if has_poi_star:
+		# Push toward warm-orange or cool-blue bias before blending the
+		# specific star hue, so the difference between row 0 (cool blue) and
+		# row 2 (warm red) reads even when the actual hues are similar.
+		var bias := Color(0.50, 0.62, 0.95, 1.0) if star_cool else Color(0.95, 0.62, 0.40, 1.0)
+		var biased := base.lerp(Color(base.r * bias.r * 1.4, base.g * bias.g * 1.4, base.b * bias.b * 1.4, 1.0), 0.35)
+		var tinted := biased.lerp(Color(star_color.r * 0.18, star_color.g * 0.18, star_color.b * 0.18, 1.0), 0.45)
+		base = tinted
+	deep.color = base
 	deep.size = Vector2(480, 270)
 	deep.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(deep)
@@ -638,6 +680,9 @@ func _spawn_planet(scene_path: String, rng: RandomNumberGenerator, planet_idx_us
 	p.set_meta("drift_mult", planet_drift_mult)
 	p.set_meta("planet_actual_size", actual_size)
 	p.set_meta("time_update", true)
+	# Mark this as the foundation planet so _attach_poi_moons can find it
+	# unambiguously — companion bodies share the planet_actual_size meta.
+	p.set_meta("is_foundation_planet", true)
 	add_child(p)
 	# BlackHole disc colors are randomized per-spawn (set_colors via
 	# randomize_colors), so the halo can't be hardcoded — it has to be
@@ -1054,6 +1099,67 @@ func _reset_colorrect_sizes(root: Node) -> void:
 		_reset_colorrect_sizes(child)
 
 
+# Build (or fetch from cache) a small solid white circle texture for a moon.
+func _get_poi_moon_texture(radius_px: int) -> ImageTexture:
+	if _poi_moon_textures.has(radius_px):
+		return _poi_moon_textures[radius_px]
+	var size: int = max(1, radius_px * 2)
+	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	for x in size:
+		for y in size:
+			var dx: float = x - radius_px + 0.5
+			var dy: float = y - radius_px + 0.5
+			if dx * dx + dy * dy <= float(radius_px * radius_px):
+				img.set_pixel(x, y, Color.WHITE)
+	var tex := ImageTexture.create_from_image(img)
+	_poi_moon_textures[radius_px] = tex
+	return tex
+
+
+# Spawn moonlets that orbit the most recently added planet. Position is
+# updated per-frame in _process so moons track the planet as it drifts
+# down. Distances are scaled up from the V3 map (planet there is ~16-32 px;
+# the combat-scene planet is ~240) so the moon ring reads at combat scale.
+func _attach_poi_moons(moons: Array) -> void:
+	if moons.is_empty():
+		return
+	# Find the foundation planet (not a companion body — those also have
+	# planet_actual_size meta). _spawn_planet tags it with is_foundation_planet.
+	var planet: Node = null
+	var planet_size_px: float = planet_size
+	for c in get_children():
+		if c.has_meta("is_foundation_planet"):
+			planet = c
+			planet_size_px = float(c.get_meta("planet_actual_size"))
+			break
+	if planet == null:
+		return
+	# Scale moon orbit radii from the V3 map's tiny planet (~16-32 px) up
+	# to the combat planet's footprint. Use a multiplier from planet size
+	# so distant moons stay outside the disc.
+	var scale_factor: float = planet_size_px / 24.0
+	for m in moons:
+		var radius_px: int = clampi(int(m.get("radius", 1)), 1, 4)
+		# Make the actual visible moonlet a bit bigger than the map dot so
+		# it reads at combat scale — but still small relative to the planet.
+		var visible_r: int = max(2, int(round(radius_px * scale_factor * 0.15)))
+		var spr := Sprite2D.new()
+		spr.name = "PoiMoon"
+		spr.texture = _get_poi_moon_texture(visible_r)
+		spr.modulate = m.get("color", Color.WHITE)
+		spr.z_index = 0
+		add_child(spr)
+		_poi_moonlets.append({
+			"node":     spr,
+			"planet":   planet,
+			"planet_size": planet_size_px,
+			"rx":       float(m.get("rx", 12.0)) * scale_factor,
+			"ry":       float(m.get("ry", 10.0)) * scale_factor,
+			"phase":    float(m.get("phase", 0.0)),
+			"speed":    float(m.get("speed", 0.4)),
+		})
+
+
 func _apply_pixels_only(root: Node, value: float) -> void:
 	for child in root.get_children():
 		if child is ColorRect and child.material is ShaderMaterial:
@@ -1080,3 +1186,13 @@ func _process(delta: float) -> void:
 			c.rotation += float(c.get_meta("spin")) * delta
 		if c.has_meta("time_update") and c.has_method("update_time"):
 			c.update_time(_shader_time)
+	# POI moons orbit the foundation planet's CURRENT position so they
+	# inherit the planet's drift without being parented (parenting under a
+	# scaled Control distorts the moonlet's own scale).
+	if not _poi_moonlets.is_empty():
+		for m in _poi_moonlets:
+			if not is_instance_valid(m.node) or not is_instance_valid(m.planet):
+				continue
+			var planet_center: Vector2 = m.planet.position + Vector2(m.planet_size, m.planet_size) * 0.5
+			var ang: float = _shader_time * m.speed * TAU + m.phase
+			m.node.position = planet_center + Vector2(cos(ang) * m.rx, sin(ang) * m.ry)
