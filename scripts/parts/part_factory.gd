@@ -45,8 +45,21 @@ static func default_starting_loadout(loadout) -> void:
 # unique instance — for .tres, duplicate() so subsequent equips don't
 # mutate the cached resource.
 static func _load_or_default(tres_path: String, fallback_script: Script):
+	var part = null
 	if ResourceLoader.exists(tres_path):
 		var res = load(tres_path)
 		if res != null:
-			return res.duplicate()
-	return fallback_script.new()
+			part = res.duplicate()
+	if part == null:
+		part = fallback_script.new()
+	# Godot doesn't run _init() on Resources loaded from .tres; the .tres
+	# files don't persist display_name/description (only stat @exports).
+	# Restore them from a fresh script-default. Same fix as
+	# PartCatalog._build_weapon for the outpost path.
+	if fallback_script != null and "display_name" in part:
+		if part.display_name == "" or part.display_name == "Unnamed Part":
+			var defaults = fallback_script.new()
+			part.display_name = defaults.display_name
+			if "description" in part and "description" in defaults:
+				part.description = defaults.description
+	return part
