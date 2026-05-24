@@ -90,13 +90,21 @@ func populate(enemy_stats: Dictionary, total_bounty: int, hide_tally: bool = fal
 	if not btn.pressed.is_connected(_on_map_pressed):
 		btn.pressed.connect(_on_map_pressed)
 
-	# Boss arena clear → endless-mode prompt. Hide the single map button and
-	# install a Menu + Next Sector pair right next to the total-bounty line.
-	# Buttons live under $Root/Bottom so they ride the same fade-in pass.
+	# Boss arena clear → endless-mode prompt ONLY if every row boss in the
+	# sector is dead. A single-row boss kill in V3 is just one of three
+	# milestones; bounce the player back to the sector map so they can
+	# pick another row.
 	var endless_buttons: Array = []
-	if was_boss:
+	var sector_actually_done: bool = false
+	if was_boss and has_node("/root/Run"):
+		sector_actually_done = get_node("/root/Run").is_sector_complete()
+	if was_boss and sector_actually_done:
 		btn.visible = false
 		endless_buttons = _install_endless_buttons(btn.get_parent())
+	elif was_boss:
+		# Boss down but sector still has bosses left. Override the title
+		# so the player knows there's more to come.
+		title.text = "BOSS DOWN"
 
 	var reveal_btn = btn
 	if not endless_buttons.is_empty():
@@ -142,19 +150,20 @@ func _on_end_run() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/main_menu.tscn")
 
 
-# Next sector — reset combats_in_sector, reroll the sector_map seed so the
-# new map looks fresh, and transition back to the sector_map scene. The
-# wave generator will pick up `sectors_cleared` to bump difficulty.
+# Next sector — bump sectors_cleared, generate a fresh V3 map, and bounce
+# back to the sector map. Wave generator picks up `sectors_cleared` for
+# difficulty scaling.
 func _on_next_sector() -> void:
 	if has_node("/root/Run"):
 		var run = get_node("/root/Run")
 		run.combats_in_sector = 0
-		run.visited_nodes = []
 		run.current_node_id = ""
 		run.current_node_type = -1
+		run.sectors_cleared += 1
 		run.run_seed = randi()
-		# Drop the cached map so the next sector rolls fresh.
-		run.sector_map_cache = {}
+		# Build the next sector's cache up front so the map renders without
+		# the empty-state bootstrap path.
+		run.start_new_sector(run.sectors_cleared + 1, run.run_seed)
 	var root: Control = $Root
 	var tw = create_tween()
 	tw.tween_property(root, "modulate:a", 0.0, 0.35).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)

@@ -402,6 +402,14 @@ func _finish_to_sector_map(result_text: String) -> void:
 	btn.text = "Sector Map"
 	UiTheme.style_button(btn)
 	btn.pressed.connect(func():
+		# Mark the signal node done in the V3 sector cache before leaving.
+		# Signal events that escalated into combat/hazard already routed
+		# through main.gd's mark_node_completed; this covers the plain
+		# choice-only exit path.
+		if has_node("/root/Run"):
+			var run = get_node("/root/Run")
+			if String(run.current_node_id) != "":
+				run.mark_node_completed(String(run.current_node_id))
 		SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE)
 	)
 	choices_box.add_child(btn)

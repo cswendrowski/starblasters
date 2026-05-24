@@ -565,6 +565,12 @@ func _on_ammo_refill(btn: Button) -> void:
 
 
 func _on_leave() -> void:
+	# Mark this outpost node done so the V3 map renders it completed and
+	# counts toward the row's boss-unlock.
+	if has_node("/root/Run"):
+		var run = get_node("/root/Run")
+		if String(run.current_node_id) != "":
+			run.mark_node_completed(String(run.current_node_id))
 	SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE)
 
 

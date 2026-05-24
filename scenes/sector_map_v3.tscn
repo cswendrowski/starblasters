@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://sectorlive001"]
+
+[ext_resource type="Script" path="res://scripts/sector_map_v3.gd" id="1_sv3live"]
+
+[node name="SectorMapV3" type="Node2D"]
+script = ExtResource("1_sv3live")

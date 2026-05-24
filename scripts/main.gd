@@ -259,7 +259,14 @@ func _on_level_cleared() -> void:
 		var is_combat_node: bool = (run.current_node_type != SectorNode.NodeType.BOSS) and (run.current_node_type != SectorNode.NodeType.HAZARD)
 		if is_combat_node:
 			run.combats_in_sector += 1
-		run.sector_complete()
+		# Mark the node completed in the V3 sector cache. The map scene
+		# reads this on next entry to render the green progress overlay
+		# and unlock the row boss when all POIs are done.
+		if String(run.current_node_id) != "":
+			run.mark_node_completed(String(run.current_node_id))
+		# NOTE: Run.sector_complete() (per-level sectors_cleared bump) is
+		# V2-era. Sector advance now happens once all 3 row bosses are
+		# defeated — driven by sector_map_v3._advance_if_complete().
 		# Consume per-run flags so they don't leak into the next level.
 		run.asteroid_bonus_bounty = 0
 		run.combat_intro = ""

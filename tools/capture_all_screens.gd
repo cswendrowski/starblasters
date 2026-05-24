@@ -14,7 +14,7 @@ const SETTLE := 0.6
 const SCREENS := [
 	{"name": "01_main_menu",      "scene": "res://scenes/main_menu.tscn",     "settle": 0.6},
 	{"name": "02_onboarding",     "scene": "res://scenes/onboarding.tscn",    "settle": 0.6},
-	{"name": "03_sector_map_v2",  "scene": "res://scenes/sector_map_v2.tscn", "settle": 0.8},
+	{"name": "03_sector_map_v3",  "scene": "res://scenes/sector_map_v3.tscn", "settle": 0.8},
 	{"name": "04_outpost",        "scene": "res://scenes/outpost.tscn",       "settle": 0.6},
 	{"name": "05_signal_event",   "scene": "res://scenes/signal_event.tscn",  "settle": 0.6},
 	{"name": "06_combat",         "scene": "res://scenes/main.tscn",          "settle": 2.0},

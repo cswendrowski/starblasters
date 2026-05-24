@@ -99,10 +99,37 @@ var shield_recharge_mk: int = 0
 # slot, the old one moves here). Each entry is a Part resource.
 var weapon_storage: Array = []
 
-# Generated sector map snapshot, keyed by str(run_seed). Lets the sector
-# map scene restore the exact same graph after a combat/outpost round-trip
-# instead of re-rolling procgen (which isn't fully deterministic across
-# instantiations even with a locked seed).
+# Sector Map V3 cache. Single source of truth for the current sector's
+# 3-row layout: every POI + per-row boss with completion flags. Generated
+# once on sector entry via start_new_sector(); persists across the
+# combat / outpost round-trips so the map renders identically on return.
+#
+# Shape:
+#   {
+#     "sector_idx": int,
+#     "seed": int,
+#     "rows": [                           # exactly 3
+#       {
+#         "anchor": Vector2,              # star/route anchor (for drawing)
+#         "boss": {
+#           "id": "s1_r0_boss",
+#           "node_type": int,             # SectorNode.NodeType.BOSS (3)
+#           "pos": Vector2,
+#           "boss_scene": String,         # path passed to forced_boss_scene
+#           "completed": bool,
+#         },
+#         "pois": [                       # ordered along the route, left→right
+#           {
+#             "id": "s1_r0_p0",
+#             "node_type": int,           # COMBAT/OUTPOST/SIGNAL/HAZARD enum
+#             "hazard_subtype": String,   # "" unless node_type == HAZARD
+#             "pos": Vector2,
+#             "completed": bool,
+#           }, ...
+#         ],
+#       }, ...
+#     ],
+#   }
 var sector_map_cache: Dictionary = {}
 
 func _ready() -> void:
@@ -183,6 +210,138 @@ func mark_node_visited(node_id: String) -> void:
 
 func sector_complete() -> void:
 	sectors_cleared += 1
+
+
+# ---- Sector Map V3 helpers --------------------------------------------
+# The cache is owned here so combat/outpost/signal scenes can mark nodes
+# completed without touching the map scene. See `sector_map_cache` doc
+# above for the shape.
+
+const SectorNodeType = preload("res://scripts/sector_node.gd").NodeType
+
+# (Re)generate the sector map cache for the given sector index + seed.
+# Always overwrites; call when entering a fresh sector.
+func start_new_sector(sector_idx: int, seed_value: int) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value
+	var rows: Array = []
+	# Three rows, anchored at the same Y-coords the V3 map renders at.
+	var anchors := [Vector2(64, 64), Vector2(64, 128), Vector2(64, 192)]
+	var boss_positions := [Vector2(448, 64), Vector2(448, 128), Vector2(448, 192)]
+	var boss_scenes := [
+		"res://scenes/enemies/boss.tscn",
+		"res://scenes/enemies/boss_reaver.tscn",
+		"res://scenes/enemies/boss_sentinel.tscn",
+	]
+	# Shuffle bosses per-sector so the order varies.
+	boss_scenes.shuffle()
+	for r in range(3):
+		var pois: Array = _gen_row_pois(rng, sector_idx, r, anchors[r])
+		var boss := {
+			"id": "s%d_r%d_boss" % [sector_idx, r],
+			"node_type": int(SectorNodeType.BOSS),
+			"pos": boss_positions[r],
+			"boss_scene": boss_scenes[r],
+			"completed": false,
+		}
+		rows.append({
+			"anchor": anchors[r],
+			"boss": boss,
+			"pois": pois,
+		})
+	sector_map_cache = {
+		"sector_idx": sector_idx,
+		"seed": seed_value,
+		"rows": rows,
+	}
+
+
+# Per-row POI generation. Picks 2-4 POIs at cell-snapped x-positions
+# between PLANET_START_X (128) and the boss column (448). Types follow
+# the dev v3 weights: combat-heavy, sprinkled outpost/hazard/signal.
+func _gen_row_pois(rng: RandomNumberGenerator, sector_idx: int, row_idx: int, anchor: Vector2) -> Array:
+	const CELL_PX: float = 16.0
+	const POI_X_MIN: float = 128.0
+	const POI_X_MAX: float = 432.0  # one cell short of boss column (448)
+	var count: int = rng.randi_range(3, 5)
+	var positions: Array = []
+	# Sample evenly with jitter so POIs don't pile up.
+	var step: float = (POI_X_MAX - POI_X_MIN) / float(count)
+	for i in range(count):
+		var base_x: float = POI_X_MIN + step * (0.5 + float(i))
+		var jitter: float = rng.randf_range(-step * 0.25, step * 0.25)
+		var x: float = base_x + jitter
+		x = float(int(x / CELL_PX)) * CELL_PX
+		positions.append(x)
+	var pois: Array = []
+	for i in range(positions.size()):
+		var node_type: int = _roll_poi_type(rng)
+		var hazard_sub: String = ""
+		if node_type == int(SectorNodeType.HAZARD):
+			hazard_sub = "minefield" if rng.randi() % 2 == 0 else "asteroid_field"
+		pois.append({
+			"id": "s%d_r%d_p%d" % [sector_idx, row_idx, i],
+			"node_type": node_type,
+			"hazard_subtype": hazard_sub,
+			"pos": Vector2(positions[i], anchor.y),
+			"completed": false,
+		})
+	return pois
+
+
+func _roll_poi_type(rng: RandomNumberGenerator) -> int:
+	# Same weights as the dev v3 _pick_node_type, mapped to enum ints.
+	# combat 4/9, outpost 2/9, hazard 2/9, signal 1/9
+	var r: int = rng.randi() % 9
+	if r < 4: return int(SectorNodeType.COMBAT)
+	if r < 6: return int(SectorNodeType.OUTPOST)
+	if r < 8: return int(SectorNodeType.HAZARD)
+	return int(SectorNodeType.SIGNAL)
+
+
+# Look up a node (POI or boss) by id. Returns null if not found.
+func find_sector_node(node_id: String):
+	if sector_map_cache.is_empty() or not sector_map_cache.has("rows"):
+		return null
+	for row in sector_map_cache.rows:
+		if row.boss.id == node_id:
+			return row.boss
+		for poi in row.pois:
+			if poi.id == node_id:
+				return poi
+	return null
+
+
+# Mark a node completed by id. Called by combat / outpost / signal scenes
+# on their respective exit paths. Silent no-op if id is unknown so we
+# don't blow up on Test Hazard launches with synthetic ids.
+func mark_node_completed(node_id: String) -> void:
+	var n = find_sector_node(node_id)
+	if n != null:
+		n.completed = true
+
+
+# True when every POI on the given row is completed. Drives the boss-lock.
+func is_row_pois_complete(row_idx: int) -> bool:
+	if sector_map_cache.is_empty():
+		return false
+	var rows: Array = sector_map_cache.get("rows", [])
+	if row_idx < 0 or row_idx >= rows.size():
+		return false
+	for poi in rows[row_idx].pois:
+		if not poi.completed:
+			return false
+	return true
+
+
+# True when all 3 row bosses are dead. Sector advances on next map entry.
+func is_sector_complete() -> bool:
+	if sector_map_cache.is_empty():
+		return false
+	for row in sector_map_cache.get("rows", []):
+		if not row.boss.completed:
+			return false
+	return true
 
 # Snapshot player into RunState so we can restore after meta scenes.
 func snapshot_player(player) -> void:
