@@ -1,6 +1,7 @@
 extends "res://scripts/parts/part.gd"
 
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
+const WS = preload("res://scripts/weapons/WeaponStyle.gd")
 
 # Side Pods — secondary weapon. Hold shoot2 (C) to fire. Spawns a
 # symmetric pair (or more, at higher Mk) of straight-forward bullets
@@ -26,6 +27,7 @@ var _prev_damage: int = 0
 var _prev_homing: bool = false
 var _prev_pod_count: int = 1
 var _prev_pod_halfspan: float = 10.0
+var _prev_secondary_mode: int = WS.SecondaryMode.BULLET
 
 
 func _init() -> void:
@@ -45,6 +47,9 @@ func apply(ship) -> void:
 		_prev_pod_count = ship.secondary_pod_count
 	if "secondary_pod_halfspan" in ship:
 		_prev_pod_halfspan = ship.secondary_pod_halfspan
+	if "secondary_mode" in ship:
+		_prev_secondary_mode = int(ship.secondary_mode)
+		ship.secondary_mode = WS.SecondaryMode.BULLET
 	if bullet_scene != null:
 		ship.secondary_bullet_scene = bullet_scene
 	ship.secondary_cooldown = base_cooldown
@@ -74,6 +79,8 @@ func unapply(ship) -> void:
 		ship.secondary_pod_count = _prev_pod_count
 	if "secondary_pod_halfspan" in ship:
 		ship.secondary_pod_halfspan = _prev_pod_halfspan
+	if "secondary_mode" in ship:
+		ship.secondary_mode = _prev_secondary_mode
 
 
 # Editor DPS readout — total damage per cooldown × fire rate.

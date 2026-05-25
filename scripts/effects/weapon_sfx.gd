@@ -3,7 +3,9 @@ class_name WeaponSfx
 
 # Per-cannon firing sounds (Roman, 2026-05-18). Static API:
 #   play(parent, world_pos, kind)
-# `kind` is a string from the cannon part's `fire_sfx_kind` field:
+# `kind` is a string from WS.sfx_kind_string(ship.fire_sfx_kind) — the
+# cannon part writes the enum, player.fire_primary bridges it to a string
+# here. Pool keys:
 #   "blaster_small" — Energy Blaster (5 clips)
 #   "blaster_large" — Heavy Blaster   (4 clips)
 # Future kinds (laser, wave, rockets, seeking) get clips dropped into

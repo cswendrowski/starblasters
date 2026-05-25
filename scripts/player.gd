@@ -61,10 +61,12 @@ signal secondary_ammo_changed(value: int, maximum: int)
 var drone_bits: Array = []
 var drone_bits_damage: int = 1
 var drone_bits_bullet_scene: PackedScene = null
-# Continuous-beam secondary (Particle Beam). When non-empty, secondary
-# fire ignores the bullet pipeline and instead runs a held-beam tick.
-# Set to "beam" by ParticleBeam.apply(); empty string = bullet mode.
-var secondary_mode: String = ""
+# Continuous-beam secondary (Particle Beam). When SecondaryMode.BEAM,
+# secondary fire ignores the bullet pipeline and instead runs a held-beam
+# tick. Set by ParticleBeam.apply(); BULLET = projectile pipeline (rockets,
+# missiles, pods). Migrated from String to enum 2026-05-24 to eliminate
+# the empty-string silent fallback.
+var secondary_mode: int = WS.SecondaryMode.BULLET
 # DPS-based beam damage — secondary_beam_dps × delta per frame, applied
 # to every enemy in the column. Frame-rate independent; flat per-Mk
 # (Mk grows the width, not the damage).
@@ -165,8 +167,11 @@ var is_alive: bool = true
 # fallback bug where Parts forgot to set/restore the style.
 var weapon_style: int = WS.WeaponStyle.ENERGY
 # Per-cannon SFX tag — set by the equipped cannon's apply(). Routed to
-# WeaponSfx.play() in fire_primary so each weapon has its own sound.
-var fire_sfx_kind: String = "blaster_small"
+# WeaponSfx.play() in fire_primary via WS.sfx_kind_string() so each weapon
+# has its own sound. Migrated from String to enum 2026-05-24 to kill the
+# silent fallback where an empty string implicitly routed through
+# $ShootSound. NONE is now an explicit enum value, branched on below.
+var fire_sfx_kind: int = WS.FireSfxKind.BLASTER_SMALL
 # Ammo for the equipped CANNON. -1 means infinite (Energy Blaster). >= 0
 # means counted (Machinegun). Outpost refills write here via Run.ammo.
 var ammo: int = -1
@@ -533,7 +538,7 @@ func _process(delta: float) -> void:
 				get_node("/root/Run").ammo = ammo
 	# Secondary fire (C by default, hold-fire). Beam mode is held-tick
 	# per-frame; bullet mode spawns a projectile per cooldown window.
-	if secondary_mode == "beam":
+	if secondary_mode == WS.SecondaryMode.BEAM:
 		var holding: bool = Input.is_action_pressed("shoot2")
 		_tick_beam(holding, delta)
 	elif Input.is_action_pressed("shoot2"):
@@ -755,11 +760,12 @@ func fire_primary() -> void:
 		else:
 			MuzzleFx.play_energy(muzzle_pos, self)
 		# Per-shot cannon SFX, dispatched by the equipped cannon's
-		# fire_sfx_kind. Falls back to the legacy ShootSound when the
-		# kind is empty (e.g., laser beam — sounds not yet supplied).
+		# fire_sfx_kind enum. NONE explicitly falls through to the legacy
+		# ShootSound (e.g., Auto Laser — placeholder until dedicated SFX
+		# land). See WS.FireSfxKind / WS.sfx_kind_string.
 		var WeaponSfx = load("res://scripts/effects/weapon_sfx.gd")
-		if WeaponSfx and fire_sfx_kind != "":
-			WeaponSfx.play(get_tree().root, global_position, fire_sfx_kind)
+		if WeaponSfx and fire_sfx_kind != WS.FireSfxKind.NONE:
+			WeaponSfx.play(get_tree().root, global_position, WS.sfx_kind_string(fire_sfx_kind))
 		elif has_node("ShootSound"):
 			$ShootSound.play()
 	var tween := create_tween().set_parallel(false)

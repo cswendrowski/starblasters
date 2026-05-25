@@ -31,7 +31,7 @@ var _prev_bullet_scene: PackedScene = null
 var _prev_cooldown: float = 0.0
 var _prev_damage: int = 0
 var _prev_style: int = WS.WeaponStyle.ENERGY
-var _prev_sfx_kind: String = ""
+var _prev_sfx_kind: int = WS.FireSfxKind.NONE
 var _prev_bullet_speed_override: float = -1.0
 var _prev_bullet_max_hits_override: int = -1
 
@@ -79,7 +79,7 @@ func apply(ship) -> void:
 		ship.weapon_style = WS.WeaponStyle.ENERGY
 	if "fire_sfx_kind" in ship:
 		_prev_sfx_kind = ship.fire_sfx_kind
-		ship.fire_sfx_kind = "pulse"
+		ship.fire_sfx_kind = WS.FireSfxKind.PULSE
 	# Bullet scene: small (<Mk.5) or large (>=Mk.5). The @export wins only
 	# if the designer pinned a specific scene in the .tres; otherwise we
 	# select per Mk.

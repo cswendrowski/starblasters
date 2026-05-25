@@ -468,9 +468,29 @@ func _seed_default_loadout_snapshot() -> void:
 	# Smart Bomb hasn't run apply() on a player yet (no live player in meta
 	# scenes), so seed super_charges from the part's per-mark formula directly
 	# so the Manage Ship modal's "Super x/y" reads correctly on a fresh run.
-	if super_part.has_method("_charges_at_mark"):
-		max_super_charges = int(super_part._charges_at_mark(int(super_part.mark)))
-		super_charges = max_super_charges
+	max_super_charges = _super_charges_from_part(super_part)
+	super_charges = max_super_charges
+
+
+# Derive the max super charges a DEVICE_BAY_1 part would grant at its current
+# Mk, WITHOUT needing a live player. Mirrors what the part's apply(ship) does
+# at combat start. Used by equip_part / _seed_default_loadout_snapshot so the
+# Run.max_super_charges is always consistent for meta-scene reads (Hangar UI,
+# Manage Ship modal, outpost super refill action).
+#
+# Per the no-silent-fallbacks rule: prefer the part's own _charges_at_mark()
+# method; fall back to the documented base_charges + (mark-1)*charges_per_mark
+# convention every super part in scripts/parts/ exposes; otherwise warn loudly
+# and return 1 so the super is at least usable.
+func _super_charges_from_part(part) -> int:
+	if part == null:
+		return 0
+	if part.has_method("_charges_at_mark"):
+		return int(part._charges_at_mark(int(part.mark)))
+	if "base_charges" in part and "charges_per_mark" in part:
+		return int(part.base_charges) + (int(part.mark) - 1) * int(part.charges_per_mark)
+	push_warning("Run._super_charges_from_part: part %s has no _charges_at_mark / base_charges — defaulting to 1" % part)
+	return 1
 
 
 func equip_part(part) -> void:
@@ -489,6 +509,13 @@ func equip_part(part) -> void:
 			secondary_ammo = -1
 			secondary_ammo_max = -1
 	if slot == _SlotTypes.SlotType.DEVICE_BAY_1:
+		# Reseed max_super_charges from the part's per-Mk formula here. The
+		# part's apply(ship) only runs at combat start, so without this any
+		# meta-scene re-equip (Hangar clear + re-equip, outpost swap) would
+		# leave max_super_charges at whatever the previous super left behind
+		# (or 0 after unequip_slot). See _seed_default_loadout_snapshot for
+		# the same pattern used on first run.
+		max_super_charges = _super_charges_from_part(part)
 		super_charges = int(max_super_charges)
 
 

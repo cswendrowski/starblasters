@@ -26,3 +26,51 @@ static func style_name(s: int) -> String:
 		WeaponStyle.ROTARY_LASER: return "Rotary Laser"
 		WeaponStyle.BEAM: return "Beam"
 		_: return "Unknown"
+
+
+# Secondary fire pipeline mode. Drives player.fire_secondary's branching:
+# BULLET routes through the projectile spawner (rockets, missiles, pods);
+# BEAM runs the held-tick hit-scan path (Particle Beam). Each secondary
+# Part MUST explicitly set this in apply() — no silent fallback through
+# a default empty value. Migrated from stringly-typed "bullet"/"beam"/""
+# on 2026-05-24.
+
+enum SecondaryMode {
+	BULLET,    # standard projectile (rocket, missile, pods)
+	BEAM,      # hit-scan beam (particle beam)
+}
+
+
+# Per-shot fire SFX routing for CANNON Parts. Lives alongside WeaponStyle
+# because the two travel together — every cannon Part sets both in apply().
+# Migrated from stringly-typed "blaster_small" / "" on 2026-05-24 to kill
+# the silent fallback where an empty string implicitly routed through
+# $ShootSound. NONE is now an explicit enum value — the player's
+# fire_primary still falls back to $ShootSound for NONE, but the intent
+# reads at the call site instead of being hidden in an empty literal.
+enum FireSfxKind {
+	NONE,           # Explicit fallback to player's $ShootSound (e.g. Auto Laser placeholder)
+	BLASTER_SMALL,  # base + spread blaster (SMALL_CLIPS pool)
+	BLASTER_LARGE,  # heavy blaster (LARGE_CLIPS pool)
+	PULSE,          # wave gun (PULSE_CLIPS pool)
+	MACHINEGUN,     # reserved — MG currently routes via weapon_style audio loop
+	ROTARY_LASER,   # reserved — rotary currently routes via weapon_style audio loop
+	BEAM,           # reserved — placeholder for future beam SFX
+}
+
+
+# Bridge from the enum back to the legacy string pool keys consumed by
+# WeaponSfx.play(kind: String). Keeps the SFX pool dictionary untouched
+# while the call sites move to the enum. NONE returns "" — WeaponSfx.play
+# will early-out on the unknown kind, and player.fire_primary branches on
+# FireSfxKind.NONE explicitly to play $ShootSound.
+static func sfx_kind_string(k: int) -> String:
+	match k:
+		FireSfxKind.NONE: return ""
+		FireSfxKind.BLASTER_SMALL: return "blaster_small"
+		FireSfxKind.BLASTER_LARGE: return "blaster_large"
+		FireSfxKind.PULSE: return "pulse"
+		FireSfxKind.MACHINEGUN: return "machinegun"
+		FireSfxKind.ROTARY_LASER: return "rotary_laser"
+		FireSfxKind.BEAM: return "beam"
+		_: return ""

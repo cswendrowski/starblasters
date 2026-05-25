@@ -1,6 +1,7 @@
 extends "res://scripts/parts/part.gd"
 
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
+const WS = preload("res://scripts/weapons/WeaponStyle.gd")
 
 # Particle Beam — secondary continuous beam. Hold shoot2 (C) to fire.
 # Pierces through any enemy NOT flagged tough or boss; stops at the
@@ -14,6 +15,8 @@ const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 @export var base_width: float = 6.0
 @export var width_per_mark: float = 1.0
 
+var _prev_secondary_mode: int = WS.SecondaryMode.BULLET
+
 
 func _init() -> void:
 	slot_type = Slots.SlotType.HARDPOINT_WING
@@ -24,7 +27,8 @@ func _init() -> void:
 func apply(ship) -> void:
 	if not ("secondary_mode" in ship):
 		return
-	ship.secondary_mode = "beam"
+	_prev_secondary_mode = int(ship.secondary_mode)
+	ship.secondary_mode = WS.SecondaryMode.BEAM
 	if "secondary_beam_dps" in ship:
 		ship.secondary_beam_dps = base_dps
 	if "secondary_beam_width" in ship:
@@ -37,8 +41,8 @@ func apply(ship) -> void:
 func unapply(ship) -> void:
 	if not ("secondary_mode" in ship):
 		return
-	if ship.secondary_mode == "beam":
-		ship.secondary_mode = ""
+	if ship.secondary_mode == WS.SecondaryMode.BEAM:
+		ship.secondary_mode = _prev_secondary_mode
 		# Tear down the beam visual if it's currently on.
 		if "_beam_line" in ship and ship._beam_line and ship._beam_line.visible:
 			ship._beam_line.visible = false

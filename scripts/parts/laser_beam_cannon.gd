@@ -8,9 +8,9 @@ const WS = preload("res://scripts/weapons/WeaponStyle.gd")
 # center; player.fire_primary handles the toggle via fire_tandem_alternating.
 # Uses the rotary laser muzzle flash for the "energy weapon" tell.
 #
-# Roman, 2026-05-24: placeholder fire SFX — fire_sfx_kind = "" routes
+# Roman, 2026-05-24: placeholder fire SFX — fire_sfx_kind = NONE routes
 # through the legacy $ShootSound on the player scene. Swap to a dedicated
-# kind in scripts/effects/weapon_sfx.gd once final SFX land.
+# enum value in WS.FireSfxKind once final SFX land.
 
 @export var bullet_scene: PackedScene
 @export var base_damage: int = 3
@@ -21,7 +21,7 @@ var _prev_bullet_scene: PackedScene = null
 var _prev_cooldown: float = 0.0
 var _prev_damage: int = 0
 var _prev_style: int = WS.WeaponStyle.ENERGY
-var _prev_sfx_kind: String = ""
+var _prev_sfx_kind: int = WS.FireSfxKind.NONE
 var _prev_tandem: bool = false
 var _prev_tandem_side: int = 0
 var _prev_use_rotary_muzzle: bool = false
@@ -40,10 +40,10 @@ func apply(ship) -> void:
 		ship.weapon_style = WS.WeaponStyle.ENERGY
 	if bullet_scene != null:
 		ship.bullet_scene = bullet_scene
-	# Placeholder fire SFX — empty kind falls through to $ShootSound.
+	# Placeholder fire SFX — NONE explicitly routes through $ShootSound.
 	if "fire_sfx_kind" in ship:
 		_prev_sfx_kind = ship.fire_sfx_kind
-		ship.fire_sfx_kind = ""
+		ship.fire_sfx_kind = WS.FireSfxKind.NONE
 	# Tandem alternating fire (player.fire_primary reads these).
 	if "fire_tandem_alternating" in ship:
 		_prev_tandem = ship.fire_tandem_alternating

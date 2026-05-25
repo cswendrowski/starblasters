@@ -11,7 +11,7 @@ const WS = preload("res://scripts/weapons/WeaponStyle.gd")
 var _prev_bullet_scene: PackedScene = null
 var _prev_cooldown: float = 0.0
 var _prev_damage: int = 0
-var _prev_sfx_kind: String = ""
+var _prev_sfx_kind: int = WS.FireSfxKind.NONE
 # Roman, 2026-05-24: Heavy Blaster previously forgot to snapshot/set the
 # weapon_style. Equipping it after the Machinegun left weapon_style as
 # MACHINEGUN, routing fire_primary through the MG audio loop. Heavy is
@@ -32,7 +32,7 @@ func apply(ship) -> void:
 		ship.weapon_style = WS.WeaponStyle.ENERGY
 	if "fire_sfx_kind" in ship:
 		_prev_sfx_kind = ship.fire_sfx_kind
-		ship.fire_sfx_kind = "blaster_large"
+		ship.fire_sfx_kind = WS.FireSfxKind.BLASTER_LARGE
 	if bullet_scene != null:
 		ship.bullet_scene = bullet_scene
 	ship.cooldown = base_cooldown

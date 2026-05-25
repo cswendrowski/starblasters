@@ -31,7 +31,7 @@ func apply(ship) -> void:
 		_prev_style = ship.weapon_style
 		ship.weapon_style = WS.WeaponStyle.ENERGY
 	if "fire_sfx_kind" in ship:
-		ship.fire_sfx_kind = "blaster_small"
+		ship.fire_sfx_kind = WS.FireSfxKind.BLASTER_SMALL
 	if bullet_scene != null:
 		ship.bullet_scene = bullet_scene
 	ship.cooldown = base_cooldown

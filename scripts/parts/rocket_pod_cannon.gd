@@ -1,6 +1,7 @@
 extends "res://scripts/parts/part.gd"
 
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
+const WS = preload("res://scripts/weapons/WeaponStyle.gd")
 
 # Rocket Pod. Secondary weapon (HARDPOINT_WING). Dumb-fire ordnance —
 # fast, straight-line, contact-detonate. Slow cadence balances the high
@@ -22,6 +23,7 @@ var _prev_bullet_scene: PackedScene = null
 var _prev_cooldown: float = 0.0
 var _prev_damage: int = 0
 var _prev_homing: bool = false
+var _prev_secondary_mode: int = WS.SecondaryMode.BULLET
 
 
 func _init() -> void:
@@ -37,6 +39,9 @@ func apply(ship) -> void:
 	_prev_cooldown = ship.secondary_cooldown
 	_prev_damage = ship.secondary_damage
 	_prev_homing = ship.secondary_homing
+	if "secondary_mode" in ship:
+		_prev_secondary_mode = int(ship.secondary_mode)
+		ship.secondary_mode = WS.SecondaryMode.BULLET
 	if bullet_scene != null:
 		ship.secondary_bullet_scene = bullet_scene
 	ship.secondary_cooldown = base_cooldown
@@ -63,5 +68,7 @@ func unapply(ship) -> void:
 	ship.secondary_cooldown = _prev_cooldown
 	ship.secondary_damage = _prev_damage
 	ship.secondary_homing = _prev_homing
+	if "secondary_mode" in ship:
+		ship.secondary_mode = _prev_secondary_mode
 	if ship.has_method("set_secondary_ammo"):
 		ship.set_secondary_ammo(-1, -1)
