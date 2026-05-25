@@ -1,6 +1,8 @@
 # Enemy Speeds — Audit & Proposal
 *Date: 2026-05-24 · Branch: horizontal-rework*
 
+**Status: MOSTLY SHIPPED 2026-05-25.** Per-enemy speed tweaks landed in #15. Outstanding follow-ups in `TODO.md`: per-pattern `bullet_speed` override, chaff-speed sector scaling, Skirmisher `lead_factor`, per-class loiter timing (already in Enemy rework backlog). Doc kept as archival reference for the band recommendations.
+
 ## 1. Genre research summary
 
 Source notes: hard-cited numbers for shmup pixel velocities are scarce because most genre references talk in terms of dodge-windows and "screens per second," not px/s.

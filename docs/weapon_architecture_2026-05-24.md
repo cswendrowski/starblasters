@@ -1,5 +1,7 @@
 # Weapons & Player Projectile Architecture Review
 
+**Status: MOSTLY SHIPPED 2026-05-25.** Core refactor (WeaponPart base, SuperPart base, snapshot helper, Heavy Blaster `weapon_style` bug fix, dead-code cleanup) landed in `2083c59` + `cd8c939` + cleanup commits. Remaining outstanding items tracked in `TODO.md` §Weapons / Architecture (bullet script relocation, snapshot asymmetries, `fire_offset` per Part, Heavy cooldown lerp regression).
+
 ## 1. Current state inventory
 
 ### Weapon Parts (CANNON / HARDPOINT_WING / DEVICE_BAY_1)

@@ -1,7 +1,6 @@
 # Progression Choice — 3-Pick Replacement for Sector Map
 
-**Status:** proposal for review (2026-05-21). Mockup dev screen lives at
-`scenes/dev/progression_mockup.tscn` + `scripts/dev/progression_mockup.gd`.
+**Status: ABANDONED 2026-05-25.** Designer dropped this concept in favor of Sector Map V3 (3-row free-pick with boss-lock; see memory `project_sector_map_v3.md`). Doc kept for historical context — mockup dev screen `scenes/dev/progression_mockup.tscn` + `scripts/dev/progression_mockup.gd` are candidates for cull.
 
 ---
 

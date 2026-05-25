@@ -1,6 +1,8 @@
 # Starblaster Boss Roster Proposal — 2026-05-24
 
-**Status:** research + design proposal, no code changes. Targets the new "sector clears when all 3 row bosses are beaten" flow (Sector Map V3). Current count: 3 bosses for 9 slots. This doc proposes how many to build, which to keep/rework, and what to add.
+**Status: PARTIALLY SHIPPED 2026-05-25.** Reworks landed for Commander, Lash (ex-Reaver), Aegis (ex-Sentinel), Howler (#11), Voidmaw (#8). **Spinwright + Conductor not built** — tracked in `TODO.md` §Bosses. Phase-transition VFX helper + `conflict_tags` + biome reskins also outstanding.
+
+**Original status:** research + design proposal, no code changes. Targets the new "sector clears when all 3 row bosses are beaten" flow (Sector Map V3). Current count: 3 bosses for 9 slots. This doc proposes how many to build, which to keep/rework, and what to add.
 
 **Sources note:** External web sources were thin (Wikipedia stubs lack boss-mechanic detail; fan wikis 403'd). Figures below reflect designer/genre knowledge and are flagged where uncertain. No fabricated citations.
 

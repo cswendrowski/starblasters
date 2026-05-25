@@ -74,6 +74,80 @@ Captured from Cody's 2026-05-19 punch list. Ordered roughly by leverage.
 
 - [ ] **Overhaul Asteroid Hazard** — current asteroid_field level needs a structural pass. Cody flagged background asteroids overlapping the playspace; APT confirmed the underlying behavior isn't what was described and the level wants a broader rework, not a spawn-range patch. Defer until the hazard rework slot opens.
 
+## New 2026-05-25 (designer)
+
+- [ ] **Cull the sector V3 dev menu** — V3 is now live in the main game (`scripts/sector_map_v3.gd`), so `scripts/dev/sector_map_v3.gd` + `scenes/dev/sector_map_v3.tscn` + `tools/capture_sector_map_v3.*` are obsolete tooling. Verify nothing else references them, then delete.
+- [ ] **POI visited state — disable lights + decor on resolve** — once a POI is visited and completed, its node lights and decorative ships should turn off. Today they keep animating after completion (the completed marker is the green rect/icon tint only). Likely needs a check against `Run.is_node_completed(poi.id)` in `_add_node_dressing` + the decorative ship spawner.
+- [ ] **Grid-based screen designer** — dev tool using the same grid the Sector V3 screen uses (32×20 px cells, 14×12 layout). Place ColorRects/labels/buttons by grid coord for fine-tuning HUD + modal layouts. Pattern to follow: `scripts/dev/parallax_tuner.gd` for the JSON persist + Copy-GDScript button shape.
+
+## Outstanding 2026-05-25 (sweep)
+
+Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" flags, and project memory. Existing entries above not duplicated.
+
+### Bosses (`docs/boss_proposals_2026-05-24.md`)
+
+- [ ] **Boss roster gaps — Spinwright + Conductor** — proposal's 7-boss roster ships 5 of 7 (`boss.gd` Commander, `boss_reaver.gd` → Lash, `boss_sentinel.gd` → Aegis, `boss_howler.gd`, `boss_voidmaw.gd`). Missing: **Spinwright** (transforming ring + beam-sweep, S2-3) and **Conductor** (final, mirror/predictive + transforming, S3 row-3). No `boss_spinwright*` / `boss_conductor*` files on disk. (Source: `docs/boss_proposals_2026-05-24.md` §4)
+- [ ] **Tethered-orbit movement resource** — Conductor needs a `scripts/enemies/patterns/` movement resource (~50 lines) for satellites mirroring player X. (Source: `docs/boss_proposals_2026-05-24.md` §4 Conductor)
+- [ ] **Biome reskins per boss** — palette + one attack tweak variants to double visual variety once base roster ships. (Source: `docs/boss_proposals_2026-05-24.md` §5)
+- [ ] **Shared boss-enrage VFX helper** — phase-transition flash + screen-shake helper so HP-gate transitions read consistently across bosses. (Source: `docs/boss_proposals_2026-05-24.md` §6 open question 6)
+- [ ] **Boss `conflict_tags` "never-pair" enforcement** — Voidmaw shouldn't pair with Commander; Howler shouldn't pair with Reaver/Lash; etc. (Source: `docs/boss_proposals_2026-05-24.md` §6 open question 4)
+- [ ] **Bosses with omni-strafe** — designer-flagged variation idea, currently deferred. (Source: task list #12)
+
+### Enemies / Bullets
+
+- [ ] **Bullet library refactor (B2)** — `BulletVariant` Resource + 7 variants (Basic/Aimed Sniper/Heavy Slug/Spread Pellet/Plasma Orb/Tracker/Burst Round); APT sprite list ready. Currently every enemy bullet is one scene at 200 px/s. (Source: `docs/bullet_library_2026-05-24.md`; task #17 deferred. Already in Enemy rework backlog above — keeping single citation.)
+- [ ] **Boss bullet primitives accept `bullet_variant`** — `boss_base.fire_aimed_burst` / `fire_ring` default to Basic; add optional variant param. (Source: `docs/bullet_library_2026-05-24.md` §6 open question 4)
+- [ ] **Wave-gen `bullet_variant_override` knob** — themed waves force all enemies to fire variant X. Add if themed waves land. (Source: `docs/bullet_library_2026-05-24.md` §6 open question 2)
+- [ ] **Per-pattern `bullet_speed` override** — `@export var bullet_speed: float = -1.0` on `shoot_pattern.gd` honored in `_spawn_bullet`. Cheapest path before the full bullet-library refactor; aimed shots want 300 not 200. (Source: `docs/enemy_speeds_2026-05-24.md` §3, §5)
+- [ ] **Chaff-speed sector scaling** — `+5%/sector` cap `+25%` if player damage already scales. (Source: `docs/enemy_speeds_2026-05-24.md` §5 open question 4)
+- [ ] **`AimedShot.lead_factor` on Skirmisher** — flip from 0 to ~0.15 for "experienced gunner" feel without raising bullet speed. (Source: `docs/enemy_speeds_2026-05-24.md` §4)
+- [ ] **Hunter Drone kamikaze bounty cancel** — `enemy_roster.gd:97` lists 5 bounty; `enemy_hunter_drone.gd` says "no bounty for kamikaze hit" — verify the cancel-on-hit path actually fires. (Source: `docs/economy_2026-05-24.md` §5)
+
+### Economy (`docs/economy_2026-05-24.md`)
+
+- [ ] **Mk power asymmetry (P2)** — weapons scale 7-9× across Mk1-9; hull caps at 1.8×. Proposal: flatten `mark_multiplier()` to `1 + 0.25*(mark-1)` and raise base damage to compensate; hull `10 + 2*hull_mk`. (Source: `docs/economy_2026-05-24.md` §1.6, §4)
+- [ ] **Boss bounty share is 72% (P3)** — combat nodes earn ~3× less than bosses. Either nerf boss payouts or add a combat-clear bonus (+20) / hazard-clear bonus (+25). (Source: `docs/economy_2026-05-24.md` §3 P3, §5)
+- [ ] **Mk-Gating: asymmetric cannon vs upgrade caps** — Upgrade cap `min(9, 2 + sector*2)`, Cannon cap `min(9, sector*3)` so Mk 9 cannons become the run's identity moment. Currently both share `sector + 3`. (Source: `docs/economy_2026-05-24.md` §4)
+- [ ] **Boss-clear unlock bumps** — each row-boss kill bumps remaining outpost Mk-cap floor in that sector. (Source: `docs/economy_2026-05-24.md` §4(b))
+- [ ] **Smart Bomb auto-bomb has no economy cost (P10)** — free auto-bomb on lethal hit + free outpost refill. Pick a cost. (Source: `docs/economy_2026-05-24.md` §3 P10)
+- [ ] **`wanted` / `dangerous` POI bounty multipliers** — modifier tags now generate (#76 shipped) but bounty effect (`wanted` +30%, `dangerous` +50%) not yet wired in. (Source: `docs/economy_2026-05-24.md` §5)
+- [ ] **Outpost density too high (~3/sector)** — consider 1 outpost + 1 Junk Trader signal/sector to feel scarcer + more decisive. (Source: `docs/economy_2026-05-24.md` §5)
+- [ ] **Asteroid 0-bounty default** — hazards are bounty deserts. Default `+1/asteroid` or flat hazard-completion bonus. (Source: `docs/economy_2026-05-24.md` §5)
+- [ ] **Hull formula Mk-9 cliff** — `max_hull = 20 if Mk≥9 else 10+Mk` has odd cap jump; replace with `10 + 2*hull_mk` or `10 + 3*hull_mk`. (Source: `docs/economy_2026-05-24.md` §5)
+- [ ] **Resale arbitrage** — outpost cannon 50%, signal-event part 30% (now 20% per #75?). Verify rates symmetric; otherwise player picks the better venue. (Source: `docs/economy_2026-05-24.md` §3 P6)
+- [ ] **Manage Ship modal PartTier badges + 20% sell UI** — modal not yet using the shared `part_tier.gd` helper or the 20% resale. (Source: commit `cd71f44` open flag)
+- [ ] **Outpost density hard clamp → probabilistic** — current sim: 2 outposts 51%, 3 outposts 23%, 4 outposts 26%; 0/1/5+ blocked. Designer flagged need for "rarely 1, super rarely 0" tail. (Source: commit `cd71f44` open flag)
+
+### Visual / VFX
+
+- [ ] **Dynamic animated nebula** — already in Cobalt 2026-05-21 backlog above; keep.
+- [ ] **V3 parallax color sliders not working + blend-mode dropdown** — already in Cobalt 2026-05-21 backlog above; keep.
+- [ ] **Galaxy Backdrop V3 missing debris sprite** — `scripts/parallax/galaxy_backdrop_v3.gd:392` `# TODO — needs a debris sprite`. (Source: `scripts/parallax/galaxy_backdrop_v3.gd:392`)
+- [ ] **Moon vs planet wrap-around desync on >226s combats** — pre-existing flag carried across multiple agents. (Source: commits `2083c59` / `1532071` open flags)
+- [ ] **`current_stellar` cleared per POI click** — combat backdrop will look uniform across a sector. Eyeball + decide. (Source: memory `project_sector_map_v3.md` §Known open issue 2)
+- [ ] **Shadow shaders cluster — retire prototypes** — `graphics/masked_shadow.gdshader`, `graphics/topdown_shadow_outofbounds.gdshader`, `graphics/drop_shadow_canvas_group.gdshader` + 6 `tools/capture_shadow_*` drivers (a/b/iterate/mask/ray/test) are capture-only prototypes; oblique-shadow won. (Source: `docs/redundancy_audit_2026-05-21.md` §Shadow shaders — confirmed still on disk 2026-05-25)
+- [ ] **Parallax shader cluster — retire** — `graphics/parallax_silhouette.gdshader`, `graphics/parallax_tint.gdshader` (+ `TINT_SHADER` preload const in `scripts/parallax/galaxy_backdrop_v3.gd`); both unused after V3 CanvasGroup removal. (Source: `docs/redundancy_audit_2026-05-21.md` §Parallax shaders — confirmed still on disk 2026-05-25)
+- [ ] **`starstuff.gdshader` retire pending confirmation** — legacy fallback for V1's `use_starstuff` @export (default false). (Source: `docs/redundancy_audit_2026-05-21.md` §Parallax shaders)
+- [ ] **Audit `particle_trail.gdshader` + `bloom.gdshader` references** — not preloaded anywhere visible; confirm via scene materials or retire. (Source: `docs/redundancy_audit_2026-05-21.md` §Other shaders)
+- [ ] **NEBULA_SHADER preload dead in V3** — V3 uses NEBULA2; the V1 shader preload in `galaxy_backdrop_v3.gd` is dead in V3 specifically. (Source: `docs/redundancy_audit_2026-05-21.md` §Summary)
+
+### Weapons / Architecture (`docs/weapon_architecture_2026-05-24.md`)
+
+- [ ] **`scripts/bullet.gd` + `scripts/bullet_wave.gd` live at `scripts/` root** — siblings are in `scripts/projectiles/`. Move + update `.tscn` paths. (Source: `docs/weapon_architecture_2026-05-24.md` §5)
+- [ ] **`drone_bits.apply()` doesn't snapshot prior `ship.drone_bits` array** — practical impact low (swarm drones self-manage lifecycle), flagged for designer awareness. (Source: commit `2083c59` open flag)
+- [ ] **Heavy Blaster cooldown lerp 0.20 → 0.18 per Mk** — tiny per-Mk drift introduced by refactor; can be reverted by setting constant `0.20`. (Source: commit `2083c59` open flag)
+- [ ] **basic_blaster + spread_cannon snapshot/restore asymmetry** — set `weapon_style`/`fire_sfx_kind` without symmetric restore in `unapply`. (Source: commit `2083c59` open follow-up)
+- [ ] **`drone_bits.tres` + `drone_swarm.tres` stale defaults** — open in editor, re-save against current `.gd` defaults so Weapon Editor doesn't surface stale values. (Source: `docs/redundancy_audit_2026-05-21.md` §Weapons action items)
+- [ ] **Weapon mounts: per-Part `fire_offset: Vector2`** — so wing-mounted vs nose-mounted weapons don't all spawn at `(0,-10)`. (Source: `docs/weapon_architecture_2026-05-24.md` §4 item 5)
+- [ ] **`burst_shot.tres` — author designer instance** — `scripts/enemies/shoot_patterns/burst_shot.gd` has no `.tres` companion. (Source: `docs/redundancy_audit_2026-05-21.md` §Enemy shoot patterns)
+
+### Dev tools
+
+- [ ] **WaveGeneratorV2 + `scenes/dev/wave_tester.tscn` removal** — already in Follow-ups above; keep.
+- [ ] **Old Ship Sizer scene + script** — already in Follow-ups above; keep.
+- [ ] **`scenes/sector_map.tscn` orphan** — pre-existing, no V suffix, referenced by `feature_showcase.gd` + `tools/parse_check.ps1`. Clean once safe. (Source: memory `project_sector_map_v3.md` §Known open issue 3)
+- [ ] **`SmokeTrail.new(palette)` factory** — consolidate `damage_smoke_trail.gd` + `missile_smoke_trail.gd` (~90% shared code) once a third smoke emitter appears. Not urgent. (Source: `docs/redundancy_audit_2026-05-21.md` §Particle effects)
+
 ## Already-done (since this list was captured)
 
 - Wave editor with full CRUD + playtest + state persistence.

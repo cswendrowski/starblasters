@@ -1,5 +1,7 @@
 # Starblaster — Enemy Bullet Library Design
 
+**Status: DEFERRED 2026-05-25.** Spec + sprite list approved (#19) but implementation deferred (#17) awaiting APT sprite delivery. Doc remains authoritative for the refactor when it lands.
+
 **Branch:** horizontal-rework. Internal viewport 480×270, gameplay band X 132–348. Currently all enemy fire uses one scene (`scenes/projectiles/enemy_bullet.tscn`).
 
 ## 1. Current state & case for change

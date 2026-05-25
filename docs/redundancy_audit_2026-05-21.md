@@ -1,5 +1,7 @@
 # Redundancy Audit — 2026-05-21
 
+**Status: PARTIALLY SHIPPED 2026-05-25.** Heavy_cannon.gd + bullet_fat.tscn + bullet_twin.tscn deleted; Drone Bits → Shield Drones rename done (#51). **Still outstanding** (confirmed on disk 2026-05-25): shadow-shader cluster + capture_shadow_* drivers, parallax_silhouette/parallax_tint/starstuff shaders, NEBULA_SHADER/TINT_SHADER dead preloads, `drone_bits.tres`/`drone_swarm.tres` stale defaults, `burst_shot.tres` authoring, `SmokeTrail` factory consolidation — tracked in `TODO.md` §Visual / VFX and §Dev tools.
+
 Audit of weapons, projectiles, shaders, particle effects, and explosion assets
 for cases where multiple instances exist for the same concept. Goal: identify
 where a single source-of-truth should replace multiple parallel paths, and
