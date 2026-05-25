@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://crb8v5dl2odom"
-path="res://.godot/imported/blaster_heavy.png-4fca39f28ffd925de649afce5af2b8f3.ctex"
+uid="uid://hc2pragmw71j"
+path="res://.godot/imported/energy_wave.png-35579282dd5e936376d6ebccb9c138eb.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://graphics/projectiles/blaster_heavy.png"
-dest_files=["res://.godot/imported/blaster_heavy.png-4fca39f28ffd925de649afce5af2b8f3.ctex"]
+source_file="res://graphics/projectiles/energy_wave.png"
+dest_files=["res://.godot/imported/energy_wave.png-35579282dd5e936376d6ebccb9c138eb.ctex"]
 
 [params]
 

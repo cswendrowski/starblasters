@@ -1,6 +1,7 @@
 extends "res://scripts/parts/part.gd"
 
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
+const WS = preload("res://scripts/weapons/WeaponStyle.gd")
 
 # Machinegun Cannon. Alt CANNON weapon. Trades the Energy Blaster's
 # infinite ammo for raw damage + cadence: limited ammo (1000 rounds at
@@ -16,7 +17,7 @@ const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 var _prev_bullet_scene: PackedScene = null
 var _prev_cooldown: float = 0.0
 var _prev_damage: int = 0
-var _prev_style: String = ""
+var _prev_style: int = WS.WeaponStyle.ENERGY
 
 func _init() -> void:
 	slot_type = Slots.SlotType.CANNON
@@ -36,7 +37,7 @@ func apply(ship) -> void:
 	# across scenes.
 	if "weapon_style" in ship:
 		_prev_style = ship.weapon_style
-		ship.weapon_style = "machinegun"
+		ship.weapon_style = WS.WeaponStyle.MACHINEGUN
 	# Seed ammo from the Run snapshot if it exists (so a player who bought
 	# the MG at outpost A keeps their remaining ammo into outpost B). The
 	# outpost top-up flow writes back to Run.ammo when refilling.

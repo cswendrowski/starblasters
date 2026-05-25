@@ -1,6 +1,7 @@
 extends "res://scripts/parts/part.gd"
 
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
+const WS = preload("res://scripts/weapons/WeaponStyle.gd")
 
 # Rotary Laser Cannon. Minigun-style energy weapon — blistering rate of fire
 # (20 shots/sec), limited ammo (300 base), recharges at 10 shots/sec when not
@@ -15,7 +16,7 @@ const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 var _prev_bullet_scene: PackedScene = null
 var _prev_cooldown: float = 0.0
 var _prev_damage: int = 0
-var _prev_style: String = ""
+var _prev_style: int = WS.WeaponStyle.ENERGY
 var _prev_ammo_recharge_rate: float = 0.0
 var _prev_ammo_max: int = 0
 
@@ -34,7 +35,7 @@ func apply(ship) -> void:
 	ship.bullet_damage = base_damage + (int(mark) - 1) * dmg_per_mark
 	if "weapon_style" in ship:
 		_prev_style = ship.weapon_style
-		ship.weapon_style = "rotary_laser"
+		ship.weapon_style = WS.WeaponStyle.ROTARY_LASER
 	# Record and set ammo recharge rate.
 	if "ammo_recharge_rate" in ship:
 		_prev_ammo_recharge_rate = ship.ammo_recharge_rate

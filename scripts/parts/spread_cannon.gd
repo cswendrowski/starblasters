@@ -1,6 +1,7 @@
 extends "res://scripts/parts/part.gd"
 
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
+const WS = preload("res://scripts/weapons/WeaponStyle.gd")
 
 # Spread Cannon. Fans bullets across an arc instead of stacking them
 # straight up — classic shmup 3-way / spread weapon. Trades single-target
@@ -25,7 +26,7 @@ const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 var _prev_bullet_scene: PackedScene = null
 var _prev_cooldown: float = 0.0
 var _prev_damage: int = 0
-var _prev_style: String = ""
+var _prev_style: int = WS.WeaponStyle.ENERGY
 var _prev_spread_count: int = 1
 var _prev_spread_degrees: float = 0.0
 
@@ -42,7 +43,7 @@ func apply(ship) -> void:
 	_prev_damage = ship.bullet_damage
 	if "weapon_style" in ship:
 		_prev_style = ship.weapon_style
-		ship.weapon_style = "energy"
+		ship.weapon_style = WS.WeaponStyle.ENERGY
 	if "fire_sfx_kind" in ship:
 		ship.fire_sfx_kind = "blaster_small"
 	if bullet_scene != null:

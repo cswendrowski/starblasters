@@ -1,6 +1,7 @@
 extends "res://scripts/parts/part.gd"
 
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
+const WS = preload("res://scripts/weapons/WeaponStyle.gd")
 
 @export var bullet_scene: PackedScene
 @export var base_damage: int = 4
@@ -11,6 +12,11 @@ var _prev_bullet_scene: PackedScene = null
 var _prev_cooldown: float = 0.0
 var _prev_damage: int = 0
 var _prev_sfx_kind: String = ""
+# Roman, 2026-05-24: Heavy Blaster previously forgot to snapshot/set the
+# weapon_style. Equipping it after the Machinegun left weapon_style as
+# MACHINEGUN, routing fire_primary through the MG audio loop. Heavy is
+# an energy-class cannon — snapshot+set ENERGY same as the rest.
+var _prev_style: int = WS.WeaponStyle.ENERGY
 
 func _init() -> void:
 	slot_type = Slots.SlotType.CANNON
@@ -21,6 +27,9 @@ func apply(ship) -> void:
 	_prev_bullet_scene = ship.bullet_scene
 	_prev_cooldown = ship.cooldown
 	_prev_damage = ship.bullet_damage
+	if "weapon_style" in ship:
+		_prev_style = ship.weapon_style
+		ship.weapon_style = WS.WeaponStyle.ENERGY
 	if "fire_sfx_kind" in ship:
 		_prev_sfx_kind = ship.fire_sfx_kind
 		ship.fire_sfx_kind = "blaster_large"
@@ -35,6 +44,8 @@ func unapply(ship) -> void:
 	ship.bullet_scene = _prev_bullet_scene
 	ship.cooldown = _prev_cooldown
 	ship.bullet_damage = _prev_damage
+	if "weapon_style" in ship:
+		ship.weapon_style = _prev_style
 	if "fire_sfx_kind" in ship:
 		ship.fire_sfx_kind = _prev_sfx_kind
 	if ship.has_node("GunCooldown"):

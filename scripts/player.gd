@@ -71,6 +71,7 @@ var _beam_active: bool = false
 #   - WARMUP: frames 0..3 over BEAM_WARMUP_TIME, beam suppressed
 #   - HOLD:   stays on frame 4 with subtle scale jitter while firing
 #   - COOLDOWN: frames 4..6 over BEAM_COOLDOWN_TIME after release
+const WS = preload("res://scripts/weapons/WeaponStyle.gd")
 const BEAM_FLASH_TEX = preload("res://graphics/star_flash.png")
 const BEAM_FLASH_HFRAMES := 7
 const BEAM_WARMUP_TIME := 0.5
@@ -141,10 +142,13 @@ var _focus_dot: Node2D = null
 
 var can_shoot: bool = true
 var is_alive: bool = true
-# Equipped CANNON style. "energy" (default Energy Blaster — blue muzzle,
-# silent, infinite ammo) or "machinegun" (brrrt loop, smoke + shells,
-# limited ammo). Set by the equipped CANNON Part.
-var weapon_style: String = "energy"
+# Equipped CANNON style. See scripts/weapons/WeaponStyle.gd for the
+# enum. ENERGY (default Energy Blaster — blue muzzle, silent, infinite
+# ammo), MACHINEGUN (brrrt loop, smoke + shells, limited ammo), or
+# ROTARY_LASER (charge-up + ammo). Set by the equipped CANNON Part.
+# Migrated from String to enum 2026-05-24 to eliminate the silent
+# fallback bug where Parts forgot to set/restore the style.
+var weapon_style: int = WS.WeaponStyle.ENERGY
 # Per-cannon SFX tag — set by the equipped cannon's apply(). Routed to
 # WeaponSfx.play() in fire_primary so each weapon has its own sound.
 var fire_sfx_kind: String = "blaster_small"
@@ -474,12 +478,12 @@ func _process(delta: float) -> void:
 		fire_primary()
 		# MG audio loop only when the machinegun is the equipped CANNON
 		# AND there's still ammo. Energy blaster fire is silent.
-		if weapon_style == "machinegun" and ammo != 0 and not _mg_firing and is_alive:
+		if weapon_style == WS.WeaponStyle.MACHINEGUN and ammo != 0 and not _mg_firing and is_alive:
 			_mg_firing = true
 			if _mg_loop_player and not _mg_loop_player.playing:
 				_mg_loop_player.play()
 		# Rotary Laser: charge → loop → fire.
-		elif weapon_style == "rotary_laser" and ammo > 0 and is_alive:
+		elif weapon_style == WS.WeaponStyle.ROTARY_LASER and ammo > 0 and is_alive:
 			if not _rl_charging and not _rl_charged:
 				_rl_charging = true
 				_rl_charge_t = 0.0
@@ -496,7 +500,7 @@ func _process(delta: float) -> void:
 		_mg_firing = false
 		if _mg_loop_player and _mg_loop_player.playing:
 			_mg_loop_player.stop()
-		if _mg_end_player and is_alive and weapon_style == "machinegun":
+		if _mg_end_player and is_alive and weapon_style == WS.WeaponStyle.MACHINEGUN:
 			_mg_end_player.play()
 	if not fire_held and (_rl_charging or _rl_charged):
 		_rl_stop()
@@ -646,10 +650,10 @@ func fire_primary() -> void:
 		return
 	# Machinegun: out of ammo → silent click + abort. Energy blaster is
 	# unmetered (ammo == -1).
-	if weapon_style == "machinegun" and ammo == 0:
+	if weapon_style == WS.WeaponStyle.MACHINEGUN and ammo == 0:
 		return
 	# Rotary Laser: also ammo-gated.
-	if weapon_style == "rotary_laser" and (ammo == 0 or not _rl_charged):
+	if weapon_style == WS.WeaponStyle.ROTARY_LASER and (ammo == 0 or not _rl_charged):
 		return
 	can_shoot = false
 	$GunCooldown.start()
@@ -697,14 +701,14 @@ func fire_primary() -> void:
 				db.start(drone.global_position + Vector2(0, -4))
 	# Style-specific muzzle FX + per-shot SFX.
 	var MuzzleFx = load("res://scripts/effects/muzzle_fx.gd")
-	if weapon_style == "machinegun":
+	if weapon_style == WS.WeaponStyle.MACHINEGUN:
 		MuzzleFx.play(muzzle_pos, self)  # flash parented to player
 		if ammo > 0:
 			ammo -= 1
 			ammo_changed.emit(ammo)
 			if has_node("/root/Run"):
 				get_node("/root/Run").ammo = ammo
-	elif weapon_style == "rotary_laser":
+	elif weapon_style == WS.WeaponStyle.ROTARY_LASER:
 		MuzzleFx.play_rotary_laser(muzzle_pos, self)
 		if ammo > 0:
 			ammo -= 1

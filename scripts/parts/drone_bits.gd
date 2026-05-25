@@ -1,9 +1,11 @@
 extends "res://scripts/parts/part.gd"
 
+# Filename retained for .tres compatibility — Part renamed Drone Bits → Intercept Drones (2026-05-24).
+
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 const ShieldDroneScene = preload("res://scenes/player/shield_drone.tscn")
 
-# Shield Drones — secondary slot. Cobalt 2026-05-21 redesign: previously
+# Intercept Drones — secondary slot. Cobalt 2026-05-21 redesign: previously
 # these piggybacked the primary fire (Gradius Options). Now they orbit
 # the player at ~18 px and act as an ablative bullet/collision shield.
 # Each drone takes 2 hits at Mk.1, +1 per Mk. Default count is 3 spinning
@@ -24,8 +26,8 @@ var _spawned_drones: Array = []
 
 func _init() -> void:
 	slot_type = Slots.SlotType.HARDPOINT_WING
-	display_name = "Shield Drones"
-	description = "3 spinning ablative drones orbit your ship and block bullets. Mk adds +1 hit per drone."
+	display_name = "Intercept Drones"
+	description = "3 spinning drones orbit your ship and intercept incoming bullets. Mk adds +1 hit per drone."
 
 
 func apply(ship) -> void:

@@ -1,6 +1,7 @@
 extends "res://scripts/parts/part.gd"
 
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
+const WS = preload("res://scripts/weapons/WeaponStyle.gd")
 
 # Wave Gun. Wide multi-hit energy wave. Lower per-shot damage but each
 # bullet pierces up to 5 enemies on its way up the screen — strong
@@ -13,7 +14,7 @@ const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 var _prev_bullet_scene: PackedScene = null
 var _prev_cooldown: float = 0.0
 var _prev_damage: int = 0
-var _prev_style: String = ""
+var _prev_style: int = WS.WeaponStyle.ENERGY
 var _prev_sfx_kind: String = ""
 
 func _init() -> void:
@@ -27,7 +28,7 @@ func apply(ship) -> void:
 	_prev_damage = ship.bullet_damage
 	if "weapon_style" in ship:
 		_prev_style = ship.weapon_style
-		ship.weapon_style = "energy"
+		ship.weapon_style = WS.WeaponStyle.ENERGY
 	if bullet_scene != null:
 		ship.bullet_scene = bullet_scene
 	if "fire_sfx_kind" in ship:

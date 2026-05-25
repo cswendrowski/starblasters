@@ -239,7 +239,8 @@ func bind_player(player) -> void:
 		# Also poll weapon_style to decide visibility — energy = hidden,
 		# machinegun = shown.
 		if "weapon_style" in player:
-			_set_ammo_visible(String(player.weapon_style) == "machinegun")
+			var WS = preload("res://scripts/weapons/WeaponStyle.gd")
+			_set_ammo_visible(int(player.weapon_style) == WS.WeaponStyle.MACHINEGUN)
 	# Standalone showcase bind: main.tscn wires hull_changed via the scene
 	# connection table, but the showcase instantiates ui.tscn manually and that
 	# connection doesn't exist. So we wire it here defensively.

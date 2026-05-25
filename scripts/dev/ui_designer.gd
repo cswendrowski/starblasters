@@ -109,7 +109,11 @@ class MockPlayer extends Node:
 	var max_shield: int = 3
 	var shield: int = 2
 	var ammo: int = 24
-	var weapon_style: String = "machinegun"
+	# WeaponStyle.MACHINEGUN (= 1) — mirrors player.gd's int-typed
+	# weapon_style after the 2026-05-24 enum migration. UI checks this
+	# via `int(player.weapon_style) == WS.WeaponStyle.MACHINEGUN` to
+	# decide ammo HUD visibility.
+	var weapon_style: int = 1
 
 
 # --- Lifecycle ------------------------------------------------------------
