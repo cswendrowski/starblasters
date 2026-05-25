@@ -38,13 +38,20 @@ func _ready() -> void:
 	curve.add_point(Vector2(0.0, TAIL_WIDTH_MULT))
 	curve.add_point(Vector2(1.0, 1.0))
 	_line.width_curve = curve
+	# Head transparent so the 3-px wide trail doesn't sit on top of the
+	# 4x8-px missile sprite (Cody 2026-05-24 playtest: rockets/missiles
+	# "missing their projectiles/sprites" — the z=3 trail was occluding
+	# the z=-1 missile sprite). Smoke fades IN behind the warhead, peaks
+	# mid-trail, then dissipates at the tail.
+	# Point 0 = oldest (tail), last point = newest (head/missile position).
 	var grad := Gradient.new()
-	grad.offsets = PackedFloat32Array([0.0, 0.5, 0.85, 1.0])
+	grad.offsets = PackedFloat32Array([0.0, 0.15, 0.5, 0.85, 1.0])
 	grad.colors = PackedColorArray([
-		Color(SMOKE_COLOR.r, SMOKE_COLOR.g, SMOKE_COLOR.b, 0.0),
-		Color(SMOKE_COLOR.r, SMOKE_COLOR.g, SMOKE_COLOR.b, 0.30),
-		Color(SMOKE_COLOR.r, SMOKE_COLOR.g, SMOKE_COLOR.b, 0.75),
+		Color(SMOKE_COLOR.r, SMOKE_COLOR.g, SMOKE_COLOR.b, 0.0),       # tail dispersed
+		Color(SMOKE_COLOR.r, SMOKE_COLOR.g, SMOKE_COLOR.b, 0.55),
 		Color(SMOKE_COLOR.r, SMOKE_COLOR.g, SMOKE_COLOR.b, SMOKE_COLOR.a),
+		Color(SMOKE_COLOR.r, SMOKE_COLOR.g, SMOKE_COLOR.b, 0.45),
+		Color(SMOKE_COLOR.r, SMOKE_COLOR.g, SMOKE_COLOR.b, 0.0),       # head transparent (missile visible)
 	])
 	_line.gradient = grad
 	_line.joint_mode = Line2D.LINE_JOINT_ROUND
