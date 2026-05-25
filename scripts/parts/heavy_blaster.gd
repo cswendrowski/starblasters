@@ -1,52 +1,35 @@
-extends "res://scripts/parts/part.gd"
+extends "res://scripts/parts/primary_weapon.gd"
 
-const Slots = preload("res://scripts/weapons/SlotTypes.gd")
-const WS = preload("res://scripts/weapons/WeaponStyle.gd")
+# Heavy Blaster. Slow-firing high-damage energy cannon. Mk scales both
+# damage (4 → 28) and cadence (base_cooldown → cooldown_at_mk9) — faster
+# + harder hitting at top tier.
+#
+# Was the canary for the 2026-05-24 WeaponPart refactor — used to silently
+# inherit the previous cannon's weapon_style (e.g. Machinegun's audio loop)
+# because apply() forgot to snapshot+write it. The new base auto-snapshots
+# weapon_style + fire_sfx_kind, AND the virtual _fire_sfx_kind() method
+# survives .tres loading (unlike @export which would default to NONE for
+# resource-loaded instances since _init doesn't run).
 
-@export var bullet_scene: PackedScene
-@export var base_damage: int = 4
-@export var dmg_per_mark: int = 3
-@export var base_cooldown: float = 0.28
+# Cooldown shrinks by ~35% from Mk.1 → Mk.9 (faster firing at top tier).
+@export var cooldown_at_mk9: float = 0.18
 
-var _prev_bullet_scene: PackedScene = null
-var _prev_cooldown: float = 0.0
-var _prev_damage: int = 0
-var _prev_sfx_kind: int = WS.FireSfxKind.NONE
-# Roman, 2026-05-24: Heavy Blaster previously forgot to snapshot/set the
-# weapon_style. Equipping it after the Machinegun left weapon_style as
-# MACHINEGUN, routing fire_primary through the MG audio loop. Heavy is
-# an energy-class cannon — snapshot+set ENERGY same as the rest.
-var _prev_style: int = WS.WeaponStyle.ENERGY
 
 func _init() -> void:
-	slot_type = Slots.SlotType.CANNON
+	super._init()
 	display_name = "Heavy Blaster"
 	description = "Slow firing, hits hard per shot."
+	base_damage = 4
+	dmg_per_mark = 3
+	base_cooldown = 0.28
 
-func apply(ship) -> void:
-	_prev_bullet_scene = ship.bullet_scene
-	_prev_cooldown = ship.cooldown
-	_prev_damage = ship.bullet_damage
-	if "weapon_style" in ship:
-		_prev_style = ship.weapon_style
-		ship.weapon_style = WS.WeaponStyle.ENERGY
-	if "fire_sfx_kind" in ship:
-		_prev_sfx_kind = ship.fire_sfx_kind
-		ship.fire_sfx_kind = WS.FireSfxKind.BLASTER_LARGE
-	if bullet_scene != null:
-		ship.bullet_scene = bullet_scene
-	ship.cooldown = base_cooldown
-	ship.bullet_damage = base_damage + (int(mark) - 1) * dmg_per_mark
-	if ship.has_node("GunCooldown"):
-		ship.get_node("GunCooldown").wait_time = ship.cooldown
 
-func unapply(ship) -> void:
-	ship.bullet_scene = _prev_bullet_scene
-	ship.cooldown = _prev_cooldown
-	ship.bullet_damage = _prev_damage
-	if "weapon_style" in ship:
-		ship.weapon_style = _prev_style
-	if "fire_sfx_kind" in ship:
-		ship.fire_sfx_kind = _prev_sfx_kind
-	if ship.has_node("GunCooldown"):
-		ship.get_node("GunCooldown").wait_time = ship.cooldown
+func _fire_sfx_kind() -> int:
+	return WS.FireSfxKind.BLASTER_LARGE
+
+
+func _mk_knobs() -> Dictionary:
+	return {
+		"bullet_damage": [base_damage, base_damage + dmg_per_mark * 8],
+		"cooldown": [base_cooldown, cooldown_at_mk9],
+	}
