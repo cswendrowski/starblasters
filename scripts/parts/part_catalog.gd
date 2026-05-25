@@ -72,9 +72,9 @@ static func _all_pool() -> Array:
 		{"factory": "_make_side_pods", "slot": Slots.SlotType.HARDPOINT_WING},
 		# Cobalt 2026-05-21: Drone Bits (secondary shield drones) sidelined
 		# while the combined Drone Swarm super is the canonical drone
-		# experience. Leave the script + scene on disk; just don't surface
-		# in the roll pool / weapon editor.
-		# {"factory": "_make_drone_bits", "slot": Slots.SlotType.HARDPOINT_WING},
+		# experience. Roman 2026-05-24: re-enabled — renamed to "Intercept
+		# Drones" and was missing from the hangar roll pool.
+		{"factory": "_make_drone_bits", "slot": Slots.SlotType.HARDPOINT_WING},
 		{"factory": "_make_drone_swarm", "slot": Slots.SlotType.DEVICE_BAY_1},
 	]
 

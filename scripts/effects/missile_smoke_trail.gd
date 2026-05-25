@@ -50,7 +50,7 @@ func _ready() -> void:
 	_line.joint_mode = Line2D.LINE_JOINT_ROUND
 	_line.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	_line.end_cap_mode = Line2D.LINE_CAP_ROUND
-	_line.z_index = 0
+	_line.z_index = 3
 	_line.z_as_relative = false
 	_line.texture = _build_noise_texture()
 	_line.texture_mode = Line2D.LINE_TEXTURE_TILE

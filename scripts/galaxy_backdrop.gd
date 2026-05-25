@@ -146,9 +146,6 @@ const COLORRECT_CANONICAL_BY_NAME := {
 
 var _shader_time: float = 0.0
 var _last_planet_idx: int = -1
-# Per-POI moonlets that orbit the foundation planet. Each entry:
-#   {node: Sprite2D, planet: Node, planet_size: float, rx, ry, phase, speed}
-var _poi_moonlets: Array = []
 
 func _ready() -> void:
 	var sector_num: int = 0
@@ -241,8 +238,10 @@ func _ready() -> void:
 	# anchors as the dominant light source.
 	if PLANETS.has(planet_idx):
 		_spawn_planet(PLANETS[planet_idx], rng, planet_idx)
-		# Sector-map POI moons: parent moonlets to the just-spawned planet so
-		# they drift down with it. They orbit per-frame in our own _process.
+		# Sector-map POI moons: drop moonlets at fixed offsets around the
+		# foundation planet and let the shared drift loop carry them downward
+		# at the same speed as the planet. No per-frame orbit (Roman, 2026-05-24
+		# — "Pixel moons should not orbit when placed in the background").
 		if not poi_moons.is_empty():
 			_attach_poi_moons(poi_moons)
 	# Per-sector roll: do we have asteroids in this level at all?
@@ -1103,10 +1102,14 @@ func _reset_colorrect_sizes(root: Node) -> void:
 const POI_MOON_SCENE := "res://Planets/NoAtmosphere/NoAtmosphere.tscn"
 
 
-# Spawn PlanetKit NoAtmosphere instances as moonlets that orbit the most
-# recently added planet. Position is updated per-frame in _process so moons
-# track the planet as it drifts down (do NOT tag them with `drift` meta —
-# that would double-apply the planet's drift).
+# Spawn PlanetKit NoAtmosphere instances as moonlets placed at fixed
+# positions around the foundation planet. Each moon gets the standard
+# `drift` / `drift_mult` meta so the shared _process drift loop carries it
+# downward at the same rate as the planet — no per-frame orbit math, no
+# parenting (parenting under the scaled planet Control would distort moon
+# scale). Roman, 2026-05-24: "place them around the parent planet at
+# appropriate distances and apply the same slow movement as any other
+# planets in the background."
 #
 # Descriptor mapping (from sector_map_v3._derive_moon_descriptors):
 #   radius (1..3) -> display_size (18/22/26 vp-px) — keeps the moon legible
@@ -1114,10 +1117,12 @@ const POI_MOON_SCENE := "res://Planets/NoAtmosphere/NoAtmosphere.tscn"
 #   color           -> Control.modulate tint (skip randomize_colors to keep
 #       the visual influenced by the sector-map moon palette, AND to keep
 #       same poi.id deterministic).
-#   rx, ry          -> elliptical orbit radii scaled up from map-px to
+#   rx, ry          -> elliptical placement radii scaled up from map-px to
 #       combat-px by planet_size_px / 24.0 (the V3 map planet is ~16-32 px,
 #       the combat planet is ~planet_size_px).
-#   phase, speed    -> orbit starting angle + angular speed (forwarded).
+#   phase           -> static angular offset that determines where on the
+#       ellipse the moon sits. `speed` is ignored now (kept on descriptor
+#       for back-compat with the sector map).
 func _attach_poi_moons(moons: Array) -> void:
 	if moons.is_empty():
 		return
@@ -1184,21 +1189,23 @@ func _attach_poi_moons(moons: Array) -> void:
 		p.modulate = m.get("color", Color.WHITE)
 		p.z_index = 0
 		p.set_meta("time_update", true)
-		# Centered pivot so orbit position lands the moon's center on the
-		# orbit point. Subtract half the displayed size from the orbit
-		# position in the _process loop instead — keep authored Control
-		# top-left semantics intact.
+		# Static placement around the planet: project the descriptor's
+		# (rx, ry, phase) ellipse to a single point and place the moon's
+		# CENTER there (Controls are authored top-left, so subtract half the
+		# display size). Use the planet's spawn position — moons + planet
+		# both ride the shared drift loop afterwards so they stay in sync.
+		var rx_px: float = float(m.get("rx", 12.0)) * scale_factor
+		var ry_px: float = float(m.get("ry", 10.0)) * scale_factor
+		var phase: float = float(m.get("phase", 0.0))
+		var planet_center: Vector2 = planet.position + Vector2(planet_size_px, planet_size_px) * 0.5
+		var anchor: Vector2 = planet_center + Vector2(cos(phase) * rx_px, sin(phase) * ry_px)
+		p.position = anchor - Vector2(actual_size, actual_size) * 0.5
+		# Inherit the planet's drift speed so the moon stays at a fixed
+		# offset from the planet as the whole stack scrolls down.
+		p.set_meta("drift", true)
+		p.set_meta("drift_mult", planet_drift_mult)
+		p.set_meta("planet_actual_size", actual_size)
 		add_child(p)
-		_poi_moonlets.append({
-			"node":     p,
-			"planet":   planet,
-			"planet_size": planet_size_px,
-			"moon_size":   actual_size,
-			"rx":       float(m.get("rx", 12.0)) * scale_factor,
-			"ry":       float(m.get("ry", 10.0)) * scale_factor,
-			"phase":    float(m.get("phase", 0.0)),
-			"speed":    float(m.get("speed", 0.4)),
-		})
 		moon_idx += 1
 
 
@@ -1228,20 +1235,3 @@ func _process(delta: float) -> void:
 			c.rotation += float(c.get_meta("spin")) * delta
 		if c.has_meta("time_update") and c.has_method("update_time"):
 			c.update_time(_shader_time)
-	# POI moons orbit the foundation planet's CURRENT position so they
-	# inherit the planet's drift without being parented (parenting under a
-	# scaled Control distorts the moonlet's own scale). PlanetKit moons are
-	# Controls authored top-left, so subtract half the moon display size to
-	# center the moon's body on the orbit point. Also pump update_time on
-	# the moon's shader so the surface animates with the rest of the scene.
-	if not _poi_moonlets.is_empty():
-		for m in _poi_moonlets:
-			if not is_instance_valid(m.node) or not is_instance_valid(m.planet):
-				continue
-			var planet_center: Vector2 = m.planet.position + Vector2(m.planet_size, m.planet_size) * 0.5
-			var ang: float = _shader_time * m.speed * TAU + m.phase
-			var orbit_pt: Vector2 = planet_center + Vector2(cos(ang) * m.rx, sin(ang) * m.ry)
-			var moon_sz: float = float(m.get("moon_size", 18.0))
-			m.node.position = orbit_pt - Vector2(moon_sz, moon_sz) * 0.5
-			if m.node.has_method("update_time"):
-				m.node.update_time(_shader_time)

@@ -165,8 +165,12 @@ func explode() -> void:
 	_dying = true
 	set_deferred("monitorable", false)
 	died.emit(bounty_value)
-	if has_node("/root/Run"):
-		get_node("/root/Run").sector_complete()
+	# NOTE: do NOT call Run.sector_complete() here — that's the V2-era
+	# per-boss sectors_cleared bump. In V3 a sector has 3 row bosses; the
+	# sector only advances when ALL 3 die. Advance happens on next sector
+	# map entry via sector_map_v3._advance_if_complete(), gated on
+	# Run.is_sector_complete(). Bumping here on every boss death made the
+	# map jump a sector after the first row boss kill.
 	_on_boss_death()
 	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
 	ExplosionFx.burst(global_position, 7, 28.0, 0.08)

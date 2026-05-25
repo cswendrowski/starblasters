@@ -561,10 +561,14 @@ func _spawn_large_asteroid(center: Vector2, row_idx: int, rng: RandomNumberGener
 	add_child(ast)
 	_disable_celestial_mouse(ast)
 	_reset_planet_colorrects(ast)
-	# Designer: asteroid parents were not reading the row's star tint — bump
-	# the lerp toward star from 0.18 to 0.6 so the parent rocks visibly share
-	# the family color the surrounding decorative pixels already use.
-	ast.modulate = Color.WHITE.lerp(STAR_GLOW_COLORS[row_idx], 0.6)
+	# Designer: asteroid surfaces were not picking up the row's randomized
+	# tint — modulate-only ran into the muted gray-blue default palette and
+	# came out muddy. Inject a 3-tone palette derived from the row star color
+	# directly into the shader so the rocks actually read in the family color
+	# the decoration pixels already use. Keep modulate at WHITE so we don't
+	# double-tint.
+	_apply_row_tint_to_asteroid(ast, row_idx)
+	ast.modulate = Color.WHITE
 	_asteroid_rotators.append({
 		"node":  ast,
 		"speed": rng.randf_range(0.008, 0.025),
@@ -598,7 +602,10 @@ func _spawn_asteroid_cluster(center: Vector2, row_idx: int, rng: RandomNumberGen
 		add_child(ast)
 		_disable_celestial_mouse(ast)
 		_reset_planet_colorrects(ast)
-		ast.modulate = Color.WHITE.lerp(STAR_GLOW_COLORS[row_idx], 0.6)
+		# Inject row tint into the asteroid shader's `colors` palette instead
+		# of multiplying via modulate — modulate-on-gray reads muddy.
+		_apply_row_tint_to_asteroid(ast, row_idx)
+		ast.modulate = Color.WHITE
 		_asteroid_rotators.append({
 			"node":  ast,
 			"speed": rng.randf_range(0.005, 0.020),
@@ -633,9 +640,12 @@ func _scatter_asteroid_band(center: Vector2, rng: RandomNumberGenerator) -> void
 		_disable_celestial_mouse(ast)
 		_reset_planet_colorrects(ast)
 		# Same star-tint treatment as the parent asteroid spawners. _cur_row_idx
-		# is the row this band is being scattered into.
+		# is the row this band is being scattered into. Inject palette into the
+		# shader rather than relying on modulate (which read muddy on the gray
+		# default colors).
 		var band_tint_row: int = _cur_row_idx if _cur_row_idx < STAR_GLOW_COLORS.size() else 0
-		ast.modulate = Color.WHITE.lerp(STAR_GLOW_COLORS[band_tint_row], 0.6)
+		_apply_row_tint_to_asteroid(ast, band_tint_row)
+		ast.modulate = Color.WHITE
 		_asteroid_rotators.append({
 			"node":  ast,
 			"speed": rng.randf_range(0.005, 0.018),
@@ -855,9 +865,25 @@ func _build_labels() -> void:
 	hdr.z_index = 10
 	hdr.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(hdr)
+	# Live status row in the header — Hull/Shield/Bounty/Super/MG/2nd. Designer
+	# (2026-05-24): "place Hull/Shield/Bounty from manage ship menu where
+	# manage ship is, and put manage ship under it." Uses the same bits the
+	# Manage Ship modal uses (_ms_build_status_bits) so the two read identically.
+	var status_lbl := Label.new()
+	status_lbl.text = _ms_build_status_bits_text(run)
+	status_lbl.label_settings = ls
+	status_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	# Right-anchored so the status sits at the far-right where MANAGE SHIP used
+	# to live. Width 200 covers all bits at font_size 9 without wrapping.
+	status_lbl.position = Vector2(272, 2)
+	status_lbl.size = Vector2(200, 10)
+	status_lbl.z_index = 10
+	status_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(status_lbl)
 	# Manage Ship button — opens an inspector modal (ship status, loadout,
 	# upgrades, stored equipment). Sits on its own CanvasLayer so it isn't
-	# eaten by the celestial _disable_celestial_mouse walks above.
+	# eaten by the celestial _disable_celestial_mouse walks above. Moved
+	# DOWN to y=14 to sit beneath the status row per designer.
 	var btn_layer := CanvasLayer.new()
 	btn_layer.name = "ManageShipBtnLayer"
 	btn_layer.layer = 6
@@ -867,7 +893,7 @@ func _build_labels() -> void:
 	manage_btn.add_theme_font_override("font", FONT)
 	manage_btn.add_theme_font_size_override("font_size", 9)
 	manage_btn.custom_minimum_size = Vector2(76, 14)
-	manage_btn.position = Vector2(396, 2)
+	manage_btn.position = Vector2(396, 14)
 	manage_btn.pressed.connect(_show_manage_ship_modal)
 	btn_layer.add_child(manage_btn)
 
@@ -1088,6 +1114,37 @@ func _duplicate_materials(root: Node) -> void:
 		if child is ColorRect and child.material is ShaderMaterial:
 			(child as ColorRect).material = (child.material as ShaderMaterial).duplicate()
 		_duplicate_materials(child)
+
+
+# Override the asteroid shader's `colors` palette with a 3-tone derived from
+# the row's star color (dark / mid / light). PlanetKit's Asteroid shader uses
+# a fixed gray-blue palette by default; modulate-tinting that palette reads
+# muddy because gray × red = brown. Setting the shader uniform directly makes
+# the rocks render in the family color the surrounding decoration pixels use.
+# Caller is expected to have called _duplicate_materials(root) first so this
+# write is per-instance, not shared.
+func _apply_row_tint_to_asteroid(root: Node, row_idx: int) -> void:
+	var idx: int = clampi(row_idx, 0, STAR_GLOW_COLORS.size() - 1)
+	var star: Color = STAR_GLOW_COLORS[idx]
+	# Pull the base color partway toward white so the lit face still reads as
+	# a rock surface (not a flat saturated blob). The mid tone is the star
+	# color itself, dark for shadow, light for highlight.
+	var c_light: Color = Color.WHITE.lerp(star, 0.45)
+	var c_mid: Color   = Color.WHITE.lerp(star, 0.75).darkened(0.10)
+	var c_dark: Color  = star.darkened(0.55)
+	c_light.a = 1.0; c_mid.a = 1.0; c_dark.a = 1.0
+	_set_asteroid_palette(root, PackedColorArray([c_light, c_mid, c_dark]))
+
+
+func _set_asteroid_palette(root: Node, palette: PackedColorArray) -> void:
+	for child in root.get_children():
+		if child is ColorRect and child.material is ShaderMaterial:
+			var mat: ShaderMaterial = child.material
+			# Only touch shaders that actually expose `colors` — guard so a
+			# future child ColorRect with an unrelated shader doesn't crash.
+			if mat.shader != null and mat.get_shader_parameter("colors") != null:
+				mat.set_shader_parameter("colors", palette)
+		_set_asteroid_palette(child, palette)
 
 
 # Recursively ignore mouse on every Control in a celestial subtree. Planets,
@@ -1459,6 +1516,17 @@ func _ms_add_separator(vbox: VBoxContainer) -> void:
 
 
 func _ms_add_status_section(vbox: VBoxContainer, run) -> void:
+	var lbl := Label.new()
+	lbl.text = _ms_build_status_bits_text(run)
+	lbl.label_settings = _ms_label_settings(9, Color(0.85, 0.92, 1.0, 1.0))
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(lbl)
+
+
+# Shared status string used by both the Manage Ship modal and the sector map
+# header row, so the two never drift apart. Designer wants Hull/Shield/Bounty
+# (+ Super + ammo when present) visible at a glance without opening the modal.
+func _ms_build_status_bits_text(run) -> String:
 	var bits: Array = []
 	bits.append("Hull %d/%d" % [int(run.current_hull), int(run.max_hull)])
 	bits.append("Shield %d/%d" % [int(run.current_shield), int(run.max_shield)])
@@ -1468,11 +1536,7 @@ func _ms_add_status_section(vbox: VBoxContainer, run) -> void:
 		bits.append("MG %d" % int(run.ammo))
 	if int(run.secondary_ammo) >= 0 and int(run.secondary_ammo_max) > 0:
 		bits.append("2nd %d/%d" % [int(run.secondary_ammo), int(run.secondary_ammo_max)])
-	var lbl := Label.new()
-	lbl.text = "  ".join(bits)
-	lbl.label_settings = _ms_label_settings(9, Color(0.85, 0.92, 1.0, 1.0))
-	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(lbl)
+	return "  ".join(bits)
 
 
 func _ms_add_loadout_section(vbox: VBoxContainer, run, panel: PanelContainer) -> void:

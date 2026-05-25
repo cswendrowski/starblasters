@@ -11,7 +11,7 @@ const COOLDOWN_DURATION := 2.5
 
 const SETTLE_Y         := 60.0
 const ENTER_SPEED      := 220.0
-const INNER_X_OFFSET   := 12.0
+const INNER_X_OFFSET   := 24.0
 const OUTER_X_OFFSET   := 70.0
 const LATERAL_SPEED    := 40.0
 const X_ARRIVAL_EPS    := 1.0

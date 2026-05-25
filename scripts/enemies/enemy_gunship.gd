@@ -82,6 +82,8 @@ func _fire_rocket() -> void:
 	var turret := get_node_or_null("Turret") as Sprite2D
 	var fire_rot: float = turret.rotation if turret != null else rotation
 	var fire_dir := Vector2(cos(fire_rot - PI * 0.5), sin(fire_rot - PI * 0.5))
+	var jitter_rad: float = deg_to_rad(randf_range(-15.0, 15.0))
+	fire_dir = fire_dir.rotated(jitter_rad)
 	if r.has_method("start"):
 		r.start(global_position, fire_dir)
 	elif "velocity" in r:

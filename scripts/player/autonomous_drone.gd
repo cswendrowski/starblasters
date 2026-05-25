@@ -24,8 +24,8 @@ const MAX_HITS := 2
 # Boids-style separation so a 4-6 drone swarm doesn't stack into a single
 # pixel near the desired anchor (Roman, 2026-05-23). Only repels OTHER
 # super-drones; the player + target attraction stays untouched.
-const SEPARATION_RADIUS := 24.0
-const SEPARATION_STRENGTH := 80.0
+const SEPARATION_RADIUS := 32.0
+const SEPARATION_STRENGTH := 120.0
 const SUPER_DRONE_GROUP := "super_drone"
 
 var _player: Node2D = null

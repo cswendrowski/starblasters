@@ -26,8 +26,11 @@ var fullscreen: bool = false
 # Options menu; saved on change.
 var font_style: String = "pixel"
 # Autofire — when true, primary fire latches on automatically without
-# the player holding the button. Useful for marathon shmup sessions
-# where holding fire for an hour is fatiguing. Toggleable in options.
+# the player holding the button. Cannon-only: equivalent to holding the
+# "shoot" button continuously. Secondary/super inputs are unaffected.
+# RUNTIME-ONLY (Roman, 2026-05-24): NOT persisted to settings.cfg, so
+# every fresh launch starts with autofire off. Toggled in-game via the
+# rebindable "autofire_toggle" action (default R).
 var autofire: bool = false
 # Keybind overrides — { action_name: physical_keycode }. Replaces the
 # first keyboard event on each action when the override is set.
@@ -52,7 +55,7 @@ func load_from_disk() -> void:
 	shake_scale = float(cfg.get_value("video", "shake_scale", shake_scale))
 	fullscreen = bool(cfg.get_value("video", "fullscreen", fullscreen))
 	font_style = String(cfg.get_value("video", "font_style", font_style))
-	autofire = bool(cfg.get_value("controls", "autofire", autofire))
+	# autofire intentionally NOT loaded — runtime-only, defaults off each launch.
 	# Keybind overrides — stored as a JSON-serialised dict (ConfigFile
 	# doesn't natively round-trip Dictionary cleanly across versions).
 	var raw_overrides := String(cfg.get_value("controls", "keyboard_overrides", "{}"))
@@ -68,7 +71,7 @@ func save_to_disk() -> void:
 	cfg.set_value("video", "shake_scale", shake_scale)
 	cfg.set_value("video", "fullscreen", fullscreen)
 	cfg.set_value("video", "font_style", font_style)
-	cfg.set_value("controls", "autofire", autofire)
+	# autofire intentionally NOT saved — runtime-only, defaults off each launch.
 	cfg.set_value("controls", "keyboard_overrides", JSON.stringify(keyboard_overrides))
 	cfg.save(CFG_PATH)
 
@@ -108,7 +111,7 @@ func set_font_style(style: String) -> void:
 
 func set_autofire(on: bool) -> void:
 	autofire = on
-	save_to_disk()
+	# Runtime-only — do NOT persist. Fresh launch always starts off.
 	settings_changed.emit()
 
 
