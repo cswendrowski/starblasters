@@ -4,7 +4,10 @@ extends "res://scripts/parts/secondary_weapon.gd"
 # (Particle Beam). Sets secondary_mode=BEAM; subclasses provide dps/width
 # scaling via _mk_knobs over secondary_beam_dps/secondary_beam_width.
 
-const WS = preload("res://scripts/weapons/WeaponStyle.gd")
+# NOTE: WS is inherited from the SecondaryWeapon parent. Re-declaring it
+# here parses under 4.3 Mono but the 4.4.1 standalone parser rejects it
+# as a duplicate member — that broke .tres loading of particle_beam on
+# web export and headless runs.
 
 
 func _secondary_mode() -> int:

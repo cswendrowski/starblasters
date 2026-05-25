@@ -502,9 +502,19 @@ func equip_part(part) -> void:
 		weapon_storage.append(prev)
 	loadout_snapshot[slot] = part
 	if slot == _SlotTypes.SlotType.HARDPOINT_WING:
-		if "base_ammo" in part and int(part.base_ammo) > 0:
-			secondary_ammo = int(part.base_ammo)
-			secondary_ammo_max = int(part.base_ammo)
+		# WeaponPart refactor (2026-05-24) moved ammo declaration from an
+		# @export `base_ammo` to a virtual `_base_ammo()` method on
+		# BulletSecondary subclasses. Honor both shapes so this works for
+		# the new bullet/beam Parts and any legacy Part still exposing
+		# @export base_ammo.
+		var ammo: int = -1
+		if part.has_method("_base_ammo"):
+			ammo = int(part._base_ammo())
+		elif "base_ammo" in part:
+			ammo = int(part.base_ammo)
+		if ammo > 0:
+			secondary_ammo = ammo
+			secondary_ammo_max = ammo
 		else:
 			secondary_ammo = -1
 			secondary_ammo_max = -1

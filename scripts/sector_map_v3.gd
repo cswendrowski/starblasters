@@ -131,6 +131,51 @@ func _ready() -> void:
 	_build_bosses_from_cache()
 	_build_stars()
 	_build_labels()
+	_show_post_combat_banner()
+
+
+# Post-combat banner — Asteroid Miners + future events plant a message
+# on Run via set_meta("post_combat_banner", text). We render it as a
+# top-center label that lingers for a few seconds, then fades. Meta is
+# cleared immediately so it never displays twice (no silent leak across
+# returns to the map).
+func _show_post_combat_banner() -> void:
+	if not has_node("/root/Run"):
+		return
+	var run = get_node("/root/Run")
+	if not run.has_meta("post_combat_banner"):
+		return
+	var text: String = String(run.get_meta("post_combat_banner", ""))
+	run.remove_meta("post_combat_banner")
+	if text == "":
+		return
+	var layer := CanvasLayer.new()
+	layer.layer = 50
+	add_child(layer)
+	var ls := LabelSettings.new()
+	ls.font = FONT
+	ls.font_size = 10
+	ls.font_color = Color(1.0, 0.92, 0.55, 1.0)  # bounty-gold
+	ls.outline_size = 2
+	ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
+	var lbl := Label.new()
+	lbl.label_settings = ls
+	lbl.text = text
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.anchor_left = 0.0
+	lbl.anchor_right = 1.0
+	lbl.offset_left = 8
+	lbl.offset_right = -8
+	lbl.offset_top = 16
+	lbl.offset_bottom = 32
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(lbl)
+	# Hold for 3s, then fade out over 0.6s.
+	var tw := create_tween()
+	tw.tween_interval(3.0)
+	tw.tween_property(lbl, "modulate:a", 0.0, 0.6)
+	tw.tween_callback(layer.queue_free)
 
 
 # Background star layer — modeled on galaxy_backdrop_v3._spawn_stars_layer

@@ -43,6 +43,12 @@ func activate(ship) -> void:
 	_flash_at(ship, 1.0)
 	_burst_at(ship, 8, 80.0, 0.05)
 	_camera_trauma(ship, 0.7)
+	# Bomb detonation SFX — explosion.tscn itself doesn't play audio, and
+	# pre-refactor smart_bomb never wired one. Reuse the mine explosion
+	# clip (SFX_explosion1.wav) so the panic-button reads. One detached
+	# one-shot — the staggered _burst_at would clip if each spawned audio.
+	var ExplosionSfx = preload("res://Sound/SFX_explosion1.wav")
+	Sfx.play_one_shot(ExplosionSfx, ship.global_position, -2.0)
 
 
 func _damage_at_mark(at_mark: int) -> int:

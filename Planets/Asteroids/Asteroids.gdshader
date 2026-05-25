@@ -10,6 +10,12 @@ uniform float size = 50.0;
 uniform int octaves : hint_range(0, 20, 1);
 uniform float seed: hint_range(1, 10);
 uniform bool should_dither = true;
+// 1-pixel black outline around the asteroid silhouette (Roman, 2026-05-24:
+// "asteroids didn't pick up the pixel outline shader given"). Sampled at
+// the same pixel grid as the body so the outline is exactly one pixel
+// thick on the final 480x270 viewport.
+uniform bool draw_outline = true;
+uniform vec4 outline_color : source_color = vec4(0.0, 0.0, 0.0, 1.0);
 
 float rand(vec2 coord) {
 	return fract(sin(dot(coord.xy ,vec2(12.9898,78.233))) * 15.5453 * seed);
@@ -70,6 +76,16 @@ float crater(vec2 uv) {
 	return 1.0 - c;
 }
 
+// Reproduce just the silhouette test (n_step) at an arbitrary UV. Used
+// by the outline pass to detect "outside this pixel, inside a neighbor."
+float silhouette_at(vec2 base_uv) {
+	vec2 uv_s = floor(base_uv * pixels) / pixels;
+	float d_s = distance(uv_s, vec2(0.5));
+	vec2 uv_r = rotate(uv_s, rotation);
+	float n_s = fbm(uv_r * size);
+	return step(0.2, n_s - d_s);
+}
+
 void fragment() {
 	//pixelize uv
 	vec2 uv = floor(UV*pixels)/pixels;
@@ -120,4 +136,19 @@ void fragment() {
 	}
 	
 	COLOR = vec4(col.rgb, n_step * col.a);
+
+	// Outline pass: if this pixel is outside the silhouette but any of
+	// the 4-neighbor cells is inside, write outline_color. Sampled at
+	// 1/pixels offsets so the band is exactly one pixelized cell thick.
+	if (draw_outline && n_step < 0.5) {
+		float step_px = 1.0 / pixels;
+		float neighbor = 0.0;
+		neighbor = max(neighbor, silhouette_at(UV + vec2( step_px, 0.0)));
+		neighbor = max(neighbor, silhouette_at(UV + vec2(-step_px, 0.0)));
+		neighbor = max(neighbor, silhouette_at(UV + vec2(0.0,  step_px)));
+		neighbor = max(neighbor, silhouette_at(UV + vec2(0.0, -step_px)));
+		if (neighbor > 0.5) {
+			COLOR = outline_color;
+		}
+	}
 }

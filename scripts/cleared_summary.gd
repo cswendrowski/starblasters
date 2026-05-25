@@ -274,34 +274,18 @@ func _style_outline_button(btn: Button) -> void:
 	UiTheme.style_button(btn)
 
 
-# Hazard flavor line — currently only asteroid_field gets one. Added under
-# the title so it reads as the headline result for the run (Roman, 2026-05-23:
-# "miners thank you for the help, and transfer your share of credits: X").
-func _install_hazard_flavor(title: Label) -> void:
-	if not has_node("/root/Run"):
-		return
-	var run = get_node("/root/Run")
-	var subtype: String = String(run.current_hazard_subtype)
-	if subtype != "asteroid_field":
-		return
-	var earned: int = int(run.get_meta("last_combat_bounty", 0))
-	var msg := Label.new()
-	msg.name = "HazardFlavor"
-	msg.text = "The miners thank you for the help, and transfer your share of credits: %d" % earned
-	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	msg.add_theme_font_size_override("font_size", 10)
-	msg.add_theme_color_override("font_color", UiTheme.COLOR_BOUNTY)
-	msg.add_theme_font_override("font", UiTheme.active_font())
-	# Anchor below the title (offset_bottom 22) with breathing room.
-	msg.anchor_left = 0.0
-	msg.anchor_right = 1.0
-	msg.offset_left = 8.0
-	msg.offset_right = -8.0
-	msg.offset_top = 40.0
-	msg.offset_bottom = 80.0
-	msg.material = _shared_mat
-	$Root.add_child(msg)
+# Hazard flavor line — historically used to inject the Asteroid Miners
+# thank-you here. As of 2026-05-24 the asteroid_field hazard skips this
+# scene entirely (main.gd jumps straight to sector_map) and the banner
+# lives above the sector map instead. Kept the function as a no-op so
+# existing callers don't break; new hazard subtypes can hook in here.
+func _install_hazard_flavor(_title: Label) -> void:
+	# asteroid_field hazard skips this scene entirely (main.gd routes
+	# straight to sector_map_v3 after the wipe; the miners thank-you is
+	# rendered there via Run.post_combat_banner meta). No other hazard
+	# subtype emits flavor here yet — add new branches above this comment
+	# rather than gating on subtype lists.
+	return
 
 
 # Spacebar (and the `shoot` action generally — Space + Z + gamepad A) advances

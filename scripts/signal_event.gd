@@ -15,6 +15,7 @@ const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
+const EnemyRoster = preload("res://scripts/levels/enemy_roster.gd")
 
 @onready var title_label: Label = $Panel/VBox/Title
 @onready var body_label: Label = $Panel/VBox/Body
@@ -135,33 +136,61 @@ func _make_salvage_cache_event() -> Dictionary:
 	}
 
 
-# Wrecked Starfighter — the scavenge option flips based on whether the
-# player runs an ammo-fed weapon. Roman, 2026-05-16: "Add back in the
-# wreck event as a wrecked starfighter, add scavenge ammo as an option
-# if the user has ammo weapons, otherwise scavenge bounty."
+# Wrecked Starfighter — five-choice rework (Roman, 2026-05-24):
+#   1. Claim bounty   — random chaff enemy's bounty_value tagged on the wreck
+#   2. Scavenge weapon — roll a weapon for one of the swap-eligible slots
+#   3. Scavenge upgrade — +1 Mk on a random non-maxed upgrade
+#   4. Scavenge ammo   — only offered if player runs a metered weapon below 100%
+#   5. Leave it be     — no rewards, move on
+# Ammo option is gated explicitly — omitted from the choice list when the
+# player has nothing to refill (no silent fallback path).
 func _make_wreck_event() -> Dictionary:
-	var has_ammo_weapon: bool = false
-	if has_node("/root/Run"):
-		has_ammo_weapon = int(get_node("/root/Run").ammo) >= 0
-	var scavenge_label: String = "Scavenge ammo (+300 rounds)" if has_ammo_weapon else "Scavenge bounty (+30)"
+	var choices: Array = [
+		{
+			"label": "Claim bounty",
+			"action": func(s): s._do_wreck_claim_bounty(),
+		},
+		{
+			"label": "Scavenge weapon",
+			"action": func(s): s._do_wreck_scavenge_weapon(),
+		},
+		{
+			"label": "Scavenge upgrade",
+			"action": func(s): s._do_wreck_scavenge_upgrade(),
+		},
+	]
+	if _wreck_ammo_option_available():
+		choices.append({
+			"label": "Scavenge ammo (+25% of max)",
+			"action": func(s): s._do_wreck_scavenge_ammo(),
+		})
+	choices.append({
+		"label": "Leave it be",
+		"action": func(s): s._finish_to_sector_map("You give the wreck a wide berth."),
+	})
 	return {
 		"title": "Wrecked Starfighter",
 		"body": "A burnt-out fighter tumbles end over end through the void, hull cracked and lockers spilling debris. Worth a closer look.",
-		"choices": [
-			{
-				"label": "Tag for bounty (+25)",
-				"action": func(s): s._do_wreck_tag(),
-			},
-			{
-				"label": scavenge_label,
-				"action": func(s): s._do_wreck_scavenge(has_ammo_weapon),
-			},
-			{
-				"label": "Leave it be",
-				"action": func(s): s._finish_to_sector_map("You give the wreck a wide berth."),
-			},
-		],
+		"choices": choices,
 	}
+
+
+# True if the player currently runs a metered weapon (MG primary or
+# ammo-bearing secondary) AND that meter is below 100% — otherwise the
+# ammo option is hidden so the event never offers a no-op.
+func _wreck_ammo_option_available() -> bool:
+	if not has_node("/root/Run"):
+		return false
+	var run = get_node("/root/Run")
+	# MG primary: track on Run.ammo. -1 = no MG; otherwise canonical full == 1000.
+	const MG_FULL := 1000
+	if int(run.ammo) >= 0 and int(run.ammo) < MG_FULL:
+		return true
+	# Secondary: secondary_ammo_max is the canonical max for the equipped part.
+	if int(run.secondary_ammo) >= 0 and int(run.secondary_ammo_max) > 0:
+		if int(run.secondary_ammo) < int(run.secondary_ammo_max):
+			return true
+	return false
 
 
 # ---- Outcome implementations -------------------------------------------
@@ -288,26 +317,62 @@ func _do_junk_ammo() -> void:
 	_finish_to_sector_map("Crates loaded. -%d bounty, +%d rounds" % [_JUNK_AMMO_COST, _JUNK_AMMO_AMOUNT])
 
 
-# Floating Wreck: three salvage paths. Tag = pure bounty grab. Parts =
-# modest bounty + hull patch. Ammo = no bounty, free rounds (refuses if
-# you don't have an ammo-fed weapon). Roman, 2026-05-16: "The wreck
-# event for scavenging bounty should also let you scavenge for ammo".
-func _do_wreck_tag() -> void:
-	_apply_bounty(25)
-	_finish_to_sector_map("Bounty tagged. +25 bounty")
+# Wrecked Starfighter outcome handlers (Roman, 2026-05-24 rework).
+
+# Claim bounty — pull a random chaff enemy's bounty_value out of the roster
+# so the payout reflects "what a kill of that ship would yield."
+func _do_wreck_claim_bounty() -> void:
+	var entries: Array = EnemyRoster.entries_of(EnemyRoster.Tier.COMMON)
+	if entries.is_empty():
+		# Should be impossible — roster always has chaff. Fall back loud.
+		push_warning("Wrecked Starfighter: no COMMON entries in roster")
+		_apply_bounty(10)
+		_finish_to_sector_map("Bounty tagged. +10 bounty")
+		return
+	var entry: Dictionary = entries[_rng.randi() % entries.size()]
+	var stats: Dictionary = EnemyRoster.compose_stats(entry)
+	var value: int = max(1, int(stats.get("bounty_value", 5)))
+	_apply_bounty(value)
+	_finish_to_sector_map("Bounty tagged. +%d bounty" % value)
 
 
-# Single scavenge action — `prefer_ammo` is true when the player has an
-# ammo-fed weapon (resolved when _events() built the wreck dict), and
-# the scavenge yields rounds instead of bounty.
-func _do_wreck_scavenge(prefer_ammo: bool) -> void:
-	if prefer_ammo and has_node("/root/Run"):
-		var run = get_node("/root/Run")
-		run.ammo = int(run.ammo) + 300
-		_finish_to_sector_map("Locker pried open. +300 rounds")
-	else:
-		_apply_bounty(30)
-		_finish_to_sector_map("Salvaged scrap. +30 bounty")
+# Scavenge weapon — same swap modal flow as Salvage Cache: roll one of
+# CANNON / HARDPOINT_WING and present a Swap/Keep choice.
+func _do_wreck_scavenge_weapon() -> void:
+	_salvage_outcome_weapon()
+
+
+# Scavenge upgrade — same +1 Mk path as Salvage Cache; if all upgrades
+# are at the cap, the salvage helper escalates to a weapon offer so the
+# event still pays.
+func _do_wreck_scavenge_upgrade() -> void:
+	_salvage_outcome_upgrade()
+
+
+# Scavenge ammo — restore 25% of max on whatever metered weapons are
+# below full. Guarded by _wreck_ammo_option_available; this should never
+# run with nothing to refill.
+func _do_wreck_scavenge_ammo() -> void:
+	if not has_node("/root/Run"):
+		_finish_to_sector_map("Comms dropped.")
+		return
+	var run = get_node("/root/Run")
+	var parts: Array = []
+	const MG_FULL := 1000
+	if int(run.ammo) >= 0 and int(run.ammo) < MG_FULL:
+		var add_mg: int = int(round(float(MG_FULL) * 0.25))
+		run.ammo = min(MG_FULL, int(run.ammo) + add_mg)
+		parts.append("MG +%d rounds" % add_mg)
+	if int(run.secondary_ammo) >= 0 and int(run.secondary_ammo_max) > 0 \
+			and int(run.secondary_ammo) < int(run.secondary_ammo_max):
+		var add_sec: int = max(1, int(round(float(run.secondary_ammo_max) * 0.25)))
+		run.secondary_ammo = min(int(run.secondary_ammo_max), int(run.secondary_ammo) + add_sec)
+		parts.append("Secondary +%d" % add_sec)
+	if parts.is_empty():
+		# Shouldn't happen — option would have been hidden.
+		_finish_to_sector_map("Lockers already topped up.")
+		return
+	_finish_to_sector_map("Ammo crates salvaged: " + ", ".join(parts))
 
 
 # Salvage Cache — three sub-outcomes, weighted. The ammo refill re-rolls
@@ -467,13 +532,18 @@ func _salvage_outcome_ammo() -> void:
 	_finish_to_sector_map("Ammo refilled! " + ", ".join(parts))
 
 
-# Freespace Miner: launch asteroid hazard with bonus bounty per asteroid.
+# Freespace Miner: launch asteroid hazard. Per-asteroid bounty is suppressed
+# (Run.asteroid_bonus_bounty stays 0); main.gd counts asteroid kills and pays
+# 5 bounty per on clear, then posts the thank-you banner above the sector map
+# (Roman, 2026-05-24: "give this level a level clear and count the asteroids
+# destroyed, and give 5 bounty per ... above the sector map").
 func _do_freespace_miner() -> void:
 	if has_node("/root/Run"):
 		var run = get_node("/root/Run")
 		run.current_node_type = 5  # SectorNode.NodeType.HAZARD
 		run.current_hazard_subtype = "asteroid_field"
-		run.asteroid_bonus_bounty = 5  # per asteroid
+		run.asteroid_bonus_bounty = 0
+		run.set_meta("asteroid_miners_event", true)
 	SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
 
 

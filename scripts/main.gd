@@ -18,6 +18,10 @@ var _boss_hooked: Node = null
 # Per-enemy-type stats: scene_path → {"spawned": int, "killed": int, "bounty": int, "total_bounty": int}
 var _enemy_stats: Dictionary = {}
 var _current_level = null
+# Asteroid Miners event: counts asteroids destroyed this level so the
+# clear payout (5 bounty per) can apply. Reset on new_game(); only spent
+# when Run.has_meta("asteroid_miners_event").
+var _asteroids_killed_this_level: int = 0
 # Suppress the wave banner during the intro so it doesn't double up with the
 # scripted "WAVE 1" alert we fire at the end of the slide-in.
 var _suppress_wave_banner: bool = false
@@ -257,6 +261,12 @@ func _on_enemy_died(value, scene_path: String) -> void:
 	if scene_path != "" and _enemy_stats.has(scene_path):
 		_enemy_stats[scene_path]["killed"] += 1
 		_enemy_stats[scene_path]["total_bounty"] += value
+	# Asteroid Miners event tracking — count asteroid kills so the
+	# level-cleared payout (5 bounty per asteroid) can apply at the end.
+	# Per-kill bounty stays 0 during this run; the event meta flag is
+	# set by signal_event._do_freespace_miner.
+	if scene_path == "res://scenes/enemies/enemy_asteroid.tscn":
+		_asteroids_killed_this_level += 1
 
 func _on_level_cleared() -> void:
 	if has_node("/root/Run"):
@@ -275,6 +285,20 @@ func _on_level_cleared() -> void:
 		# NOTE: Run.sector_complete() (per-level sectors_cleared bump) is
 		# V2-era. Sector advance now happens once all 3 row bosses are
 		# defeated — driven by sector_map_v3._advance_if_complete().
+		# Asteroid Miners payout — 5 bounty per asteroid destroyed, applied
+		# on level clear instead of per-kill. Plants a banner message that
+		# sector_map_v3 reads + displays + clears on its next _ready.
+		if run.has_meta("asteroid_miners_event"):
+			var miner_payout: int = _asteroids_killed_this_level * 5
+			if miner_payout > 0:
+				bounty += miner_payout
+				run.bounty += miner_payout
+				$CanvasLayer/UI.update_score(bounty)
+			run.set_meta(
+				"post_combat_banner",
+				"The miners thank you for the help, and transfer your share of credits over. (+%d)" % miner_payout
+			)
+			run.remove_meta("asteroid_miners_event")
 		# Consume per-run flags so they don't leak into the next level.
 		run.asteroid_bonus_bounty = 0
 		run.combat_intro = ""
@@ -312,6 +336,7 @@ func new_game() -> void:
 	bounty = 0
 	_enemy_stats.clear()
 	_current_level = null
+	_asteroids_killed_this_level = 0
 	if has_node("/root/Run"):
 		bounty = get_node("/root/Run").bounty
 	_bounty_at_combat_start = bounty
@@ -526,6 +551,15 @@ func _run_outro() -> void:
 	var wipe_tw := create_tween()
 	wipe_tw.tween_property(fade_rect, "color:a", 1.0, 0.55).set_trans(Tween.TRANS_SINE)
 	await wipe_tw.finished
+	# Asteroid-field hazard skips the cleared summary entirely (Roman,
+	# 2026-05-24: "this combat doesn't need an event summary/clear screen").
+	# Miners thank-you banner is delivered above the sector map instead.
+	if has_node("/root/Run"):
+		var run_skip = get_node("/root/Run")
+		if run_skip.current_node_type == SectorNode.NodeType.HAZARD \
+				and String(run_skip.current_hazard_subtype) == "asteroid_field":
+			SceneTransition.change_scene(get_tree(), "res://scenes/sector_map_v3.tscn")
+			return
 	# Mount the cleared summary on top of the black overlay.
 	var summary = ClearedSummaryScene.instantiate()
 	add_child(summary)

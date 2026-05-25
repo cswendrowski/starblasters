@@ -5,7 +5,10 @@ extends "res://scripts/parts/secondary_weapon.gd"
 # loading skips _init, so script-default @exports would silently override
 # subclass values).
 
-const WS = preload("res://scripts/weapons/WeaponStyle.gd")
+# NOTE: WS is inherited from the SecondaryWeapon parent. Re-declaring it
+# here parses under 4.3 Mono but the 4.4.1 standalone parser rejects it
+# as a duplicate member — that broke .tres loading of every BulletSecondary
+# subclass (rocket pod, seeking missile) on web export and headless runs.
 
 
 # Subclass overrides — Resource-load safe (no _init dependency).
