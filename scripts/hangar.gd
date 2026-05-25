@@ -310,6 +310,12 @@ func _on_apply_part() -> void:
 		_set_status("PartCatalog null for %s" % factory)
 		return
 	part.mark = int(_mark_slider.value)
+	# Route through canonical Run.equip_part so secondary ammo + super charges
+	# get seeded and any displaced same-slot part lands in weapon_storage. Then
+	# mirror onto the live Player's Loadout so the in-Hangar test-fire reflects
+	# the new part immediately (combat-start apply_to_player is what does this
+	# in the real run; Hangar has a live ship already).
+	Run.equip_part(part)
 	if _player and _player.has_node("Loadout"):
 		_player.get_node("Loadout").equip(_selected_slot, part)
 	_set_status("Equipped %s Mk.%d" % [_short_name(factory), int(part.mark)])
@@ -317,6 +323,9 @@ func _on_apply_part() -> void:
 
 
 func _on_clear_slot() -> void:
+	# Canonical Run-side clear first (snapshot + ammo/super state), then mirror
+	# onto the live Player so the test ship loses the part immediately.
+	Run.unequip_slot(_selected_slot)
 	if _player and _player.has_node("Loadout"):
 		var loadout = _player.get_node("Loadout")
 		if loadout.has_method("unequip"):

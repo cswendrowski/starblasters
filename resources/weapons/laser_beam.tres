@@ -1,7 +1,7 @@
 [gd_resource type="Resource" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/parts/laser_beam_cannon.gd" id="1_w"]
-[ext_resource type="PackedScene" uid="uid://bbullaser001" path="res://scenes/projectiles/bullet_laser.tscn" id="2_b"]
+[ext_resource type="PackedScene" uid="uid://bautolaser001" path="res://scenes/projectiles/bullet_auto_laser.tscn" id="2_b"]
 
 [resource]
 script = ExtResource("1_w")
@@ -9,4 +9,4 @@ mark = 1
 bullet_scene = ExtResource("2_b")
 base_damage = 3
 dmg_per_mark = 3
-base_cooldown = 0.40
+base_cooldown = 0.18

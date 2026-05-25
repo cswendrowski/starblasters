@@ -18,6 +18,21 @@ var bullet_damage: int = 1
 # bullet_spread_count > 1 + bullet_spread_degrees > 0.
 var bullet_spread_count: int = 1
 var bullet_spread_degrees: float = 0.0
+# Per-cannon bullet overrides (Roman, 2026-05-24). Cannons that need to
+# scale speed/pierce per Mk write these in apply(); fire_primary stamps
+# them onto each spawned bullet. -1 sentinel = "use the bullet scene's
+# own default" (no override). Mirrors the bullet_spread_* pattern.
+var bullet_speed_override: float = -1.0
+var bullet_max_hits_override: int = -1
+# Auto Laser tandem firing: when true, fire_primary alternates spawning
+# the bullet 8px left / right of the player's pixel center each shot.
+# _tandem_side toggles 0/1 between shots.
+var fire_tandem_alternating: bool = false
+var _tandem_side: int = 0
+# Use the rotary laser muzzle FX in place of the default energy muzzle.
+# Set by cannons (Auto Laser) that want the rotary laser flash without
+# being on the ROTARY_LASER ammo/charge path.
+var use_rotary_laser_muzzle: bool = false
 # Secondary fire pipeline — HARDPOINT_WING Part assigns these on apply()
 # (Seeking Missile, Rocket Pod, future Side Pods / Drone Bits). Separate
 # from the primary cannon's bullet_scene / cooldown / damage so the two
@@ -684,7 +699,23 @@ func fire_primary() -> void:
 			if _hyper_t > 0.0:
 				dmg = int(round(float(bullet_damage) * HYPER_DAMAGE_MULT))
 			b.damage = dmg
-		b.start(position + Vector2(0, -8), dir)
+		# Per-cannon overrides (Wave Gun speed + pierce, etc). Sentinel
+		# < 0 / <= 0 leaves the bullet scene's own export default alone.
+		if bullet_speed_override > 0.0 and "speed" in b:
+			b.speed = bullet_speed_override
+		if bullet_max_hits_override > 0 and "max_hits" in b:
+			b.max_hits = bullet_max_hits_override
+		# Auto Laser tandem fire: alternate L/R 8px from the player center
+		# on each shot. Only applies to single-shot cannons (count == 1).
+		# Slide the muzzle flash position with the spawn so the rotary
+		# laser flash sits over the bolt, not at center.
+		var spawn_offset: Vector2 = Vector2(0, -8)
+		if fire_tandem_alternating and count == 1:
+			var side_x: float = -8.0 if _tandem_side == 0 else 8.0
+			spawn_offset = Vector2(side_x, -8)
+			muzzle_pos = global_position + Vector2(side_x, -10)
+			_tandem_side = 1 - _tandem_side
+		b.start(position + spawn_offset, dir)
 	# Drone Bits piggyback the primary fire — one extra bullet from each
 	# drone's position, fired straight up. Uses drone_bits_bullet_scene
 	# (defaults to the primary's bullet if not set) and drone damage.
@@ -716,7 +747,13 @@ func fire_primary() -> void:
 			if has_node("/root/Run"):
 				get_node("/root/Run").ammo = ammo
 	else:
-		MuzzleFx.play_energy(muzzle_pos, self)
+		# Auto Laser et al. piggyback the rotary laser muzzle flash even
+		# though they're ENERGY-style (no ammo/charge gate). Branch on
+		# the explicit flag so we don't have to expand WeaponStyle.
+		if use_rotary_laser_muzzle:
+			MuzzleFx.play_rotary_laser(muzzle_pos, self)
+		else:
+			MuzzleFx.play_energy(muzzle_pos, self)
 		# Per-shot cannon SFX, dispatched by the equipped cannon's
 		# fire_sfx_kind. Falls back to the legacy ShootSound when the
 		# kind is empty (e.g., laser beam — sounds not yet supplied).

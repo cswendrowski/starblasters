@@ -34,6 +34,7 @@ const BulletMinigun = preload("res://scenes/projectiles/bullet_minigun.tscn")
 const BulletRotaryLaser = preload("res://scenes/projectiles/bullet_rotary_laser.tscn")
 const BulletWave = preload("res://scenes/projectiles/bullet_wave.tscn")
 const BulletLaser = preload("res://scenes/projectiles/bullet_laser.tscn")
+const BulletAutoLaser = preload("res://scenes/projectiles/bullet_auto_laser.tscn")
 const PlayerRocket = preload("res://scenes/projectiles/player_rocket.tscn")
 const PlayerSeekingMissile = preload("res://scenes/projectiles/player_seeking_missile.tscn")
 
@@ -143,9 +144,14 @@ static func _make_by_name(name: String, slot: int):
 		"_make_rotary_laser":
 			return _build_weapon("res://resources/weapons/rotary_laser.tres", RotaryLaserCannon, BulletRotaryLaser)
 		"_make_wave_gun":
-			return _build_weapon("res://resources/weapons/wave_gun.tres", WaveGunCannon, BulletWave)
+			# Bullet fallback is null — WaveGunCannon picks small vs large per
+			# Mk inside apply(). Forcing a single bullet here would override
+			# the Mk-based selection.
+			return _build_weapon("res://resources/weapons/wave_gun.tres", WaveGunCannon, null)
 		"_make_laser_beam":
-			return _build_weapon("res://resources/weapons/laser_beam.tres", LaserBeamCannon, BulletLaser)
+			# Renamed to "Auto Laser" 2026-05-24 — alternating tandem fire,
+			# uses the energy_bolt_small projectile.
+			return _build_weapon("res://resources/weapons/laser_beam.tres", LaserBeamCannon, BulletAutoLaser)
 		"_make_rocket_pod":
 			return _build_weapon("res://resources/weapons/rocket_pod.tres", RocketPodCannon, PlayerRocket)
 		"_make_seeking_missile":

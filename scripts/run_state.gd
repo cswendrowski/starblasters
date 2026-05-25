@@ -492,6 +492,23 @@ func equip_part(part) -> void:
 		super_charges = int(max_super_charges)
 
 
+# Inverse of equip_part: clears a slot in loadout_snapshot and zeroes any
+# per-slot side state (secondary ammo, super charges). Unlike equip_part this
+# is an explicit discard — the removed part is NOT pushed into weapon_storage
+# (the hangar treats it as a remove, not a swap). Silent no-op if slot is
+# already empty.
+func unequip_slot(slot: int) -> void:
+	if not loadout_snapshot.has(slot):
+		return
+	loadout_snapshot.erase(slot)
+	if slot == _SlotTypes.SlotType.HARDPOINT_WING:
+		secondary_ammo = -1
+		secondary_ammo_max = -1
+	if slot == _SlotTypes.SlotType.DEVICE_BAY_1:
+		super_charges = 0
+		max_super_charges = 0
+
+
 # Snapshot player into RunState so we can restore after meta scenes.
 func snapshot_player(player) -> void:
 	current_hull = player.hull
