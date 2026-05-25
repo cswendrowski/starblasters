@@ -50,6 +50,13 @@ const WAVE_AFFINITY := {
 	"res://scenes/enemies/enemy_weaver.tscn": ["res://scenes/enemies/enemy_drifter.tscn"],
 }
 
+# Per-wave HP bonus from prior wave-clears within the current sector. Each
+# cleared combat in a sector adds BONUS_HP_PER_WAVE to every chaff's max_health
+# in subsequent waves, capped at BONUS_HP_CAP. Bosses scale separately and
+# don't take this bonus on their own wave; their lead-in chaff DOES.
+const BONUS_HP_PER_WAVE: int = 1
+const BONUS_HP_CAP: int = 5
+
 const BOSS_LEADIN_CONFLICTS := {
 	"res://scenes/enemies/boss_voidmaw.tscn": ["dumb_shot", "wide_dodge"],
 	"res://scenes/enemies/boss_howler.tscn": ["aimed_or_spread"],
@@ -363,7 +370,10 @@ static func _make_wave_spec(rng: RandomNumberGenerator, entry: Dictionary, secto
 	# Count scales with level_index + sector_depth. Capped so rarer enemies
 	# don't overflow the playfield.
 	var base: int = int(entry.get("base_count", 4))
-	var scale: float = 1.0 + 0.15 * float(level_index) + 0.08 * float(max(sector_depth - 1, 0))
+	# Sector-depth scaling has moved to the explicit chaff_bonus below (was
+	# `+ 0.08 * (sector_depth-1)` here; removed to avoid double-counting with
+	# the additive +1/sector bonus for COMMON chaff).
+	var scale: float = 1.0 + 0.15 * float(level_index)
 	var count: int = int(round(base * scale))
 	count = clamp(count, 1, base * 2)
 	# CHAFF DENSITY BUMP (designer 2026-05-24): chaff waves +50% count so they
@@ -375,7 +385,31 @@ static func _make_wave_spec(rng: RandomNumberGenerator, entry: Dictionary, secto
 	# still smaller than singles but proportionally larger than before the bump.
 	if not is_boss_leadin and base > 1:
 		count = int(ceil(float(count) * 1.5))
+	# Per-sector chaff bonus (designer 2026-05-24 economy pass): COMMONs get
+	# +1 enemy per sector beyond the first (S1=+0, S2=+1, S3=+2). UNCOMMON +
+	# RARE get nothing extra here — they pick up difficulty via the per-wave
+	# HP bonus below. Boss lead-ins are exempt; they're tuned by _build_boss_waves.
+	var chaff_bonus: int = 0
+	var roster_tier: int = int(entry.get("tier", Roster.Tier.COMMON))
+	if roster_tier == Roster.Tier.COMMON and not is_boss_leadin:
+		chaff_bonus = maxi(sector_depth - 1, 0)
+	count += chaff_bonus
+	# Widen the clamp ceiling by chaff_bonus so the bonus isn't silently eaten
+	# by the existing `base * 2` cap on dense COMMON waves.
+	count = clampi(count, 1, base * 2 + chaff_bonus)
 	w.count = count
+	# Per-wave HP bonus from prior wave-clears in this sector. Read Run via the
+	# main-loop root (matches _pick_boss above). Boss lead-ins don't take this
+	# bump (their boss scales per the boss design pass); their chaff still gets
+	# the chaff_bonus above.
+	if not is_boss_leadin:
+		var combats: int = 0
+		var mloop = Engine.get_main_loop()
+		if mloop and mloop.root:
+			var run_node = mloop.root.get_node_or_null("Run")
+			if run_node and "combats_in_sector" in run_node:
+				combats = int(run_node.combats_in_sector)
+		w.health_bonus = clampi(combats * BONUS_HP_PER_WAVE, 0, BONUS_HP_CAP)
 	w.spawn_interval = 0.4 + rng.randf_range(0.0, 0.25)
 	w.spawn_delay = 0.5 + 0.6 * float(wave_index_in_level)
 	w.formation = rng.randi() % 4
