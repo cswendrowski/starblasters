@@ -18,6 +18,7 @@ extends Control
 
 const SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
+const PartTier = preload("res://scripts/parts/part_tier.gd")
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
@@ -36,12 +37,17 @@ const UPGRADE_COST_PER_MK := 35
 const MAX_MK := 9
 const HULL_REPAIR_COST := 30
 const HULL_REPAIR_PCT := 0.25
-const AMMO_REFILL_COST := 25
-const SECONDARY_REFILL_COST := 25
-const SECONDARY_REFILL_AMOUNT := 30
-const SUPER_REFILL_COST := 30
-const AMMO_REFILL_PCT := 0.5
-const AMMO_FULL_VALUE := 1000
+# Ammo refill: cost scales with the number of rounds the player is missing,
+# so a near-empty mag is more expensive than a top-up. COST_PER_ROUND tuned
+# so a full 1000-round MG refill = 500 bounty (still a major expense), a
+# full 60-round secondary refill = 30 bounty (incidental), and partials
+# fall out linearly. Partial refills are allowed when the player can't
+# cover the full top-up — see _on_primary_ammo_refill.
+const AMMO_COST_PER_ROUND := 0.5
+# Super charges: per-charge purchase. Doubled from 30 → 60 (Roman 2026-05-25):
+# free auto-refill on outpost visit removed at the same time, so the player
+# now PAYS to keep their super topped up — supers are a real economy lever.
+const SUPER_REFILL_COST := 60
 const CANNON_BASE_COST := 58
 const CANNON_COST_PER_MK := 35
 # Refresh stock pricing — doubles per use within the same visit. Cap at
@@ -122,15 +128,15 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("outpost")
-	# Auto-restore on visit (mirrors prior outpost behavior).
-	# - Super charges refill (genre standard, free between stages).
+	# Auto-restore on visit. Designer policy (Roman 2026-05-25):
+	# - Super charges are NO LONGER auto-refilled — supers cost real bounty
+	#   now (SUPER_REFILL_COST = 60 per charge). Free refill made the paid
+	#   button dead UI and devalued the resource.
 	# - Shields read full at next combat start (player.start() does
 	#   shield = max_shield), so write that to Run here too so the
 	#   status bar shows the correct value before the player leaves.
 	if has_node("/root/Run"):
 		var run = get_node("/root/Run")
-		if "super_charges" in run and "max_super_charges" in run:
-			run.super_charges = run.max_super_charges
 		if "max_shield" in run and "current_shield" in run and int(run.max_shield) > 0:
 			run.current_shield = int(run.max_shield)
 	_roll_offers()
@@ -306,7 +312,9 @@ func _make_weapon_card(offer: Dictionary) -> Control:
 	var part = offer["part"]
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(0, CARD_H)
-	card.add_theme_stylebox_override("panel", _card_style())
+	var part_mk: int = int(part.mark) if "mark" in part else 1
+	var tier: Dictionary = PartTier.tier_for_mk(part_mk)
+	card.add_theme_stylebox_override("panel", _card_style_tier(tier["color"]))
 
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 14)
@@ -335,6 +343,12 @@ func _make_weapon_card(offer: Dictionary) -> Control:
 	name_lbl.text = part.get_display() if part.has_method("get_display") else String(part.display_name)
 	_style_label(name_lbl, FS_BODY, Color(0.95, 0.95, 0.95))
 	v.add_child(name_lbl)
+	# Tier badge — color-coded label so player can size up a card at a glance.
+	# Matches the card border tint (set above via _card_style_tier).
+	var tier_lbl := Label.new()
+	tier_lbl.text = PartTier.tier_label(part_mk)
+	_style_label(tier_lbl, FS_CAPTION, tier["color"])
+	v.add_child(tier_lbl)
 	var desc_lbl := Label.new()
 	desc_lbl.text = String(part.description)
 	desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -379,7 +393,9 @@ func _render_upgrade_offers() -> void:
 func _make_upgrade_card(offer: Dictionary) -> Control:
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(0, CARD_H)
-	card.add_theme_stylebox_override("panel", _card_style())
+	var next_mk: int = int(offer["next_mk"])
+	var tier: Dictionary = PartTier.tier_for_mk(next_mk)
+	card.add_theme_stylebox_override("panel", _card_style_tier(tier["color"]))
 
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 14)
@@ -394,9 +410,15 @@ func _make_upgrade_card(offer: Dictionary) -> Control:
 	row.add_child(v)
 
 	var name_lbl := Label.new()
-	name_lbl.text = "%s  Mk.%d" % [offer["name"], int(offer["next_mk"])]
+	name_lbl.text = "%s  Mk.%d" % [offer["name"], next_mk]
 	_style_label(name_lbl, FS_BODY, Color(0.95, 0.95, 0.95))
 	v.add_child(name_lbl)
+	# Tier badge — same scheme as weapons. Reads the Mk the player gets
+	# AFTER buying, so a Mk.6 → Mk.7 upgrade shows "Tier IV - Improved".
+	var tier_lbl := Label.new()
+	tier_lbl.text = PartTier.tier_label(next_mk)
+	_style_label(tier_lbl, FS_CAPTION, tier["color"])
+	v.add_child(tier_lbl)
 	var current_lbl := Label.new()
 	current_lbl.text = "Currently Mk.%d" % _current_mk(offer["key"])
 	_style_label(current_lbl, FS_CAPTION, Color(0.62, 0.72, 0.82))
@@ -438,13 +460,18 @@ func _build_services() -> void:
 	# shield restore happened on _ready / will happen at combat start.
 	var shield_btn := _make_service_button("Shield Refill", 0, _on_shield_refill, "shield")
 	_services_box.add_child(shield_btn)
-	# MG Ammo refill (only if MG equipped).
+	# Primary ammo refill (CANNON: MG / Rotary Laser). Hidden when the
+	# equipped cannon is unmetered (energy blaster, heavy blaster, etc.) —
+	# _apply_service_button_state hides via disabled+label when ammo == -1.
+	# Cost scales with rounds missing; partial refill allowed if the player
+	# can't afford the full top-up. See _on_primary_ammo_refill.
 	_services_box.add_child(_make_service_button(
-		"MG Ammo  +50%%", AMMO_REFILL_COST, _on_ammo_refill, "mg_ammo"))
-	# Secondary Ammo refill (only if metered secondary equipped).
+		"Primary Ammo", 0, _on_primary_ammo_refill, "primary_ammo"))
+	# Secondary ammo refill (HARDPOINT_WING: Rocket Pod / Seeking Missile).
+	# Hidden when no metered secondary is equipped. Same cost-scaled
+	# partial-refill rules as primary.
 	_services_box.add_child(_make_service_button(
-		"Secondary Ammo  +%d" % SECONDARY_REFILL_AMOUNT, SECONDARY_REFILL_COST,
-		_on_secondary_ammo_refill, "secondary_ammo"))
+		"Secondary Ammo", 0, _on_secondary_ammo_refill, "secondary_ammo"))
 	# Super charge (per-charge purchase).
 	_services_box.add_child(_make_service_button(
 		"Super Charge  +1", SUPER_REFILL_COST, _on_super_refill, "super"))
@@ -548,12 +575,14 @@ func _make_storage_row(part, idx: int) -> Control:
 	return row
 
 
-# Sell price (uniform across all part slots — same formula as the old
-# cannon sell-back, 50% of buy price). Per-slot pricing is a future
-# polish item; see open issues in the task notes.
+# Sell price — 20% of the cannon-buy formula. Designer call (Roman 2026-05-25):
+# old 50% sell-back let players resale-arbitrage and over-buy with no risk.
+# 20% means re-rolling stock is an expensive mistake, not a free do-over.
+# Floor of 5 so a Mk.1 part still gives the player something for the click.
 func _sell_value_for(part) -> int:
 	var mk: int = int(part.mark) if "mark" in part else 1
-	return max(15, int(0.5 * (CANNON_BASE_COST + (mk - 1) * CANNON_COST_PER_MK)))
+	var buy_cost: int = CANNON_BASE_COST + (mk - 1) * CANNON_COST_PER_MK
+	return max(5, int(0.2 * float(buy_cost)))
 
 
 # ---- Offer rolls ----------------------------------------------------------
@@ -567,7 +596,12 @@ func _roll_offers() -> void:
 		rng.randomize()
 
 	var sector_idx: int = _current_sector()
-	var max_mk_for_sector: int = mini(MAX_MK, sector_idx + MK_HIGH_OFFSET)
+	# Boss-clear cap bump: each row-boss already killed in this sector raises
+	# the outpost's Mk floor. Encourages clearing the sector instead of
+	# beelining bosses; rewards the player who actually risked the boss
+	# fight with better stock at the next outpost they hit.
+	var bosses_killed: int = _bosses_killed_in_sector()
+	var max_mk_for_sector: int = mini(MAX_MK, sector_idx + MK_HIGH_OFFSET + bosses_killed)
 
 	# Upgrades: 3 distinct rolls, skip maxed keys. The card shows the Mk
 	# the player will be at AFTER buying — i.e. current_mk + 1 — so the
@@ -611,6 +645,24 @@ func _roll_weighted_mark(rng: RandomNumberGenerator, lo: int, hi: int) -> int:
 	var a: int = rng.randi_range(lo, hi)
 	var b: int = rng.randi_range(lo, hi)
 	return clampi(int(round(float(a + b) * 0.5)), lo, hi)
+
+
+# Count of row-bosses already killed in the current sector. Drives the
+# outpost Mk-cap floor bump — clearing a row boss bumps the cap for the
+# rest of this sector's outposts. Walks the sector_map_cache rows since
+# that's the single source of truth for boss completion.
+func _bosses_killed_in_sector() -> int:
+	if not has_node("/root/Run"):
+		return 0
+	var run = get_node("/root/Run")
+	var cache: Dictionary = run.sector_map_cache
+	if cache.is_empty() or not cache.has("rows"):
+		return 0
+	var killed: int = 0
+	for row in cache.rows:
+		if row.has("boss") and row.boss.get("completed", false):
+			killed += 1
+	return killed
 
 
 func _current_sector() -> int:
@@ -738,15 +790,74 @@ func _on_shield_refill(btn: Button) -> void:
 	_refresh_status_panel()
 
 
-func _on_ammo_refill(btn: Button) -> void:
+# ---- Cost-scaled partial ammo refills -------------------------------------
+# Both refill paths share the same shape:
+#   rounds_missing = max - current
+#   full_cost      = ceil(rounds_missing * AMMO_COST_PER_ROUND)
+#   if bounty >= full_cost: refill all, charge full_cost
+#   else: refill floor(bounty / AMMO_COST_PER_ROUND) rounds, charge that much
+# Partial refills are explicit (not a silent fallback) — the button label
+# in _apply_service_button_state always advertises the full top-up cost so
+# the player isn't surprised by the partial.
+
+# Returns the equipped CANNON's max ammo (via its base_ammo on metered
+# primaries). 0 if no metered primary is equipped.
+func _primary_ammo_max() -> int:
+	if not has_node("/root/Run"):
+		return 0
+	var run = get_node("/root/Run")
+	var cannon = run.loadout_snapshot.get(SlotTypes.SlotType.CANNON, null)
+	if cannon == null:
+		return 0
+	if "base_ammo" in cannon:
+		return int(cannon.base_ammo)
+	return 0
+
+
+func _ammo_refill_cost(missing: int) -> int:
+	if missing <= 0:
+		return 0
+	return int(ceil(float(missing) * AMMO_COST_PER_ROUND))
+
+
+# Returns [refilled_rounds, cost_paid] for the affordability of `bounty`
+# against a top-up of `missing` rounds. Caps refilled at `missing`.
+func _ammo_refill_partial(bounty: int, missing: int) -> Array:
+	if missing <= 0 or bounty <= 0:
+		return [0, 0]
+	var full_cost: int = _ammo_refill_cost(missing)
+	if bounty >= full_cost:
+		return [missing, full_cost]
+	# Partial — floor(bounty / per_round), capped at missing.
+	var rounds: int = int(floor(float(bounty) / AMMO_COST_PER_ROUND))
+	if rounds <= 0:
+		return [0, 0]
+	if rounds > missing:
+		rounds = missing
+	var cost: int = int(ceil(float(rounds) * AMMO_COST_PER_ROUND))
+	return [rounds, cost]
+
+
+func _on_primary_ammo_refill(btn: Button) -> void:
 	if not has_node("/root/Run"):
 		return
 	var run = get_node("/root/Run")
-	if int(run.bounty) < AMMO_REFILL_COST or int(run.ammo) < 0:
+	if int(run.ammo) < 0:
 		return
-	run.bounty -= AMMO_REFILL_COST
-	var add: int = int(round(float(AMMO_FULL_VALUE) * AMMO_REFILL_PCT))
-	run.ammo = clampi(int(run.ammo) + add, 0, AMMO_FULL_VALUE)
+	var ammo_max: int = _primary_ammo_max()
+	if ammo_max <= 0:
+		return
+	var missing: int = ammo_max - int(run.ammo)
+	if missing <= 0:
+		return
+	var result: Array = _ammo_refill_partial(int(run.bounty), missing)
+	var rounds: int = int(result[0])
+	var cost: int = int(result[1])
+	if rounds <= 0:
+		return
+	run.bounty -= cost
+	run.ammo = clampi(int(run.ammo) + rounds, 0, ammo_max)
+	_show_toast("+%d rounds (%d)" % [rounds, cost])
 	_refresh_status_panel()
 
 
@@ -754,16 +865,19 @@ func _on_secondary_ammo_refill(btn: Button) -> void:
 	if not has_node("/root/Run"):
 		return
 	var run = get_node("/root/Run")
-	if int(run.bounty) < SECONDARY_REFILL_COST:
-		return
 	if int(run.secondary_ammo) < 0 or int(run.secondary_ammo_max) <= 0:
-		return  # No metered secondary equipped
-	if int(run.secondary_ammo) >= int(run.secondary_ammo_max):
-		return  # Already full
-	run.bounty -= SECONDARY_REFILL_COST
-	run.secondary_ammo = clampi(
-		int(run.secondary_ammo) + SECONDARY_REFILL_AMOUNT,
-		0, int(run.secondary_ammo_max))
+		return
+	var missing: int = int(run.secondary_ammo_max) - int(run.secondary_ammo)
+	if missing <= 0:
+		return
+	var result: Array = _ammo_refill_partial(int(run.bounty), missing)
+	var rounds: int = int(result[0])
+	var cost: int = int(result[1])
+	if rounds <= 0:
+		return
+	run.bounty -= cost
+	run.secondary_ammo = clampi(int(run.secondary_ammo) + rounds, 0, int(run.secondary_ammo_max))
+	_show_toast("+%d rounds (%d)" % [rounds, cost])
 	_refresh_status_panel()
 
 
@@ -950,24 +1064,60 @@ func _apply_service_button_state(btn: Button) -> void:
 				return
 			btn.disabled = false
 			btn.text = "%s  (FREE)" % base_label
-		"mg_ammo":
+		"primary_ammo":
+			# Cost-scaled refill — base_label is just the slot name; we append
+			# "+rounds (cost)" or "(no primary ammo)" / "(Full)" so the player
+			# always sees the live price + the current top-up they'd get.
 			if run == null or int(run.ammo) < 0:
 				btn.disabled = true
-				btn.text = "MG Ammo  (no MG)"
+				btn.text = "%s  (no primary ammo)" % base_label
 				return
-			btn.disabled = _run_bounty() < cost
-			btn.text = "%s  (%d)" % [base_label, cost]
+			var pmax: int = _primary_ammo_max()
+			if pmax <= 0:
+				btn.disabled = true
+				btn.text = "%s  (no primary ammo)" % base_label
+				return
+			var pmiss: int = pmax - int(run.ammo)
+			if pmiss <= 0:
+				btn.disabled = true
+				btn.text = "%s  Full" % base_label
+				return
+			var pfull: int = _ammo_refill_cost(pmiss)
+			var paff: Array = _ammo_refill_partial(_run_bounty(), pmiss)
+			var paff_rounds: int = int(paff[0])
+			var paff_cost: int = int(paff[1])
+			if paff_rounds <= 0:
+				btn.disabled = true
+				btn.text = "%s  +%d (need %d)" % [base_label, pmiss, pfull]
+				return
+			btn.disabled = false
+			if paff_rounds < pmiss:
+				btn.text = "%s  +%d (%d, partial)" % [base_label, paff_rounds, paff_cost]
+			else:
+				btn.text = "%s  +%d (%d)" % [base_label, paff_rounds, paff_cost]
 		"secondary_ammo":
 			if run == null or int(run.secondary_ammo) < 0 or int(run.secondary_ammo_max) <= 0:
 				btn.disabled = true
-				btn.text = "Secondary Ammo  (none)"
+				btn.text = "%s  (none equipped)" % base_label
 				return
-			if int(run.secondary_ammo) >= int(run.secondary_ammo_max):
+			var smiss: int = int(run.secondary_ammo_max) - int(run.secondary_ammo)
+			if smiss <= 0:
 				btn.disabled = true
-				btn.text = "Secondary  Full"
+				btn.text = "%s  Full" % base_label
 				return
-			btn.disabled = _run_bounty() < cost
-			btn.text = "%s  (%d)" % [base_label, cost]
+			var sfull: int = _ammo_refill_cost(smiss)
+			var saff: Array = _ammo_refill_partial(_run_bounty(), smiss)
+			var saff_rounds: int = int(saff[0])
+			var saff_cost: int = int(saff[1])
+			if saff_rounds <= 0:
+				btn.disabled = true
+				btn.text = "%s  +%d (need %d)" % [base_label, smiss, sfull]
+				return
+			btn.disabled = false
+			if saff_rounds < smiss:
+				btn.text = "%s  +%d (%d, partial)" % [base_label, saff_rounds, saff_cost]
+			else:
+				btn.text = "%s  +%d (%d)" % [base_label, saff_rounds, saff_cost]
 		"super":
 			if run == null or int(run.max_super_charges) <= 0:
 				btn.disabled = true
@@ -1083,6 +1233,30 @@ func _card_style() -> StyleBoxFlat:
 	sb.border_width_top = 1
 	sb.border_width_right = 1
 	sb.border_width_bottom = 1
+	sb.content_margin_left = 12
+	sb.content_margin_right = 12
+	sb.content_margin_top = 10
+	sb.content_margin_bottom = 10
+	return sb
+
+
+# Tier-tinted variant — thicker left border in the tier color so cards
+# fan out visually by quality. Background + other borders match _card_style
+# so the layout doesn't shift.
+func _card_style_tier(tier_color: Color) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.08, 0.10, 0.14, 0.85)
+	sb.border_color = Color(0.35, 0.45, 0.60, 0.9)
+	sb.border_width_top = 1
+	sb.border_width_right = 1
+	sb.border_width_bottom = 1
+	# Left edge is the tier stripe (4px so it reads at HD scale).
+	sb.border_width_left = 4
+	# Stylebox uses one border_color for all sides; emulate per-side by
+	# layering corner_detail isn't supported on StyleBoxFlat. Instead set
+	# the dominant color to tier and let the thin top/right/bottom carry
+	# that same hue (still reads as a left stripe due to width difference).
+	sb.border_color = tier_color
 	sb.content_margin_left = 12
 	sb.content_margin_right = 12
 	sb.content_margin_top = 10

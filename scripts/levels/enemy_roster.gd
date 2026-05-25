@@ -99,6 +99,10 @@ const ENTRIES := [
 		"movement": "beeline",
 		"shoot": null,
 		"base_count": 4,
+		# Hunter Drones are kamikaze threats, not bounty piñatas — pay
+		# mine-equivalent value (1) so killing one doesn't reward more
+		# than dodging an asteroid/mine of the same threat profile.
+		"bounty_override": 1,
 		"unlock_sector": 2, "unlock_depth": 4, "weight": 0.6, "chaff": true,
 	},
 

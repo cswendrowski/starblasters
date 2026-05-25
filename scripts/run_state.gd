@@ -246,11 +246,33 @@ const SectorNameGenerator = preload("res://scripts/sector_name_generator.gd")
 # sectors. Read by sector_map_v3 directly.
 const TOTAL_SECTORS: int = 3
 
+# Full modifier vocabulary the director knows how to apply. Source of truth:
+# scripts/levels/director.gd::_apply_sector_modifiers. Keep in sync.
+const ALL_SECTOR_MODIFIERS := [
+	"wanted", "armored", "heavily_armored", "shielded",
+	"aggressive", "dangerous", "fleeing",
+]
+
+# Per-POI chance to carry no modifier. Designer-tunable knob; ~40% null keeps
+# the map from feeling uniformly modified at high sector counts. Flagged as
+# guessed default — surface in tuner if it matters.
+const POI_NULL_MODIFIER_CHANCE: float = 0.4
+
+# Outpost-density post-roll clamp. Designer (Cody 2026-05-24): "2-3 per sector,
+# rarely 1 or 4, super rarely 0." Hard-clamp to [2,4] is the simplest robust fix
+# — converts overflow OUTPOST→COMBAT and underflow COMBAT→OUTPOST.
+const OUTPOST_MIN_PER_SECTOR: int = 2
+const OUTPOST_MAX_PER_SECTOR: int = 4
+
 # (Re)generate the sector map cache for the given sector index + seed.
 # Always overwrites; call when entering a fresh sector.
 func start_new_sector(sector_idx: int, seed_value: int) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
+	# Roll sector-wide modifier pool: 1 base + 1 per prior sector clear, capped 6.
+	# At sector 1 with 0 cleared, pool = 1. Sector 6+ with 5+ cleared, pool = 6.
+	var modifier_count: int = clampi(1 + sectors_cleared, 1, 6)
+	var sector_mod_pool: Array = _pick_sector_modifiers(rng, modifier_count)
 	var rows: Array = []
 	# Three rows, anchored at the same Y-coords the V3 map renders at.
 	var anchors := [Vector2(64, 64), Vector2(64, 128), Vector2(64, 192)]
@@ -260,31 +282,85 @@ func start_new_sector(sector_idx: int, seed_value: int) -> void:
 	# Conductor, with conflict-pair rules applied (see _pick_row_bosses).
 	var boss_scenes: Array = _pick_row_bosses(sector_idx, rng)
 	for r in range(3):
-		var pois: Array = _gen_row_pois(rng, sector_idx, r, anchors[r])
+		var pois: Array = _gen_row_pois(rng, sector_idx, r, anchors[r], sector_mod_pool)
 		var boss := {
 			"id": "s%d_r%d_boss" % [sector_idx, r],
 			"node_type": int(SectorNodeType.BOSS),
 			"pos": boss_positions[r],
 			"boss_scene": boss_scenes[r],
 			"completed": false,
+			# Bosses currently carry no modifiers — only POIs do. Open issue:
+			# decide whether row bosses inherit the row's modifier theme.
+			"modifiers": [],
 		}
 		rows.append({
 			"anchor": anchors[r],
 			"boss": boss,
 			"pois": pois,
 		})
+	# Post-roll outpost-count clamp. Operates on the assembled rows array so a
+	# combat→outpost (or outpost→combat) conversion shows up in the cache.
+	_clamp_outpost_density(rows, rng)
 	sector_map_cache = {
 		"sector_idx": sector_idx,
 		"seed": seed_value,
 		"sector_name": SectorNameGenerator.generate(seed_value),
+		"sector_modifiers": sector_mod_pool,
 		"rows": rows,
 	}
+
+
+# Picks `count` distinct modifiers from ALL_SECTOR_MODIFIERS. Count is clamped
+# to the available vocabulary so a future cap > vocab won't infinite-loop.
+func _pick_sector_modifiers(rng: RandomNumberGenerator, count: int) -> Array:
+	var pool: Array = ALL_SECTOR_MODIFIERS.duplicate()
+	var n: int = clampi(count, 0, pool.size())
+	var picks: Array = []
+	for i in range(n):
+		var idx: int = rng.randi() % pool.size()
+		picks.append(pool[idx])
+		pool.remove_at(idx)
+	return picks
+
+
+# Post-roll outpost clamp. Walks every POI in `rows`, converts to keep total
+# outpost count in [OUTPOST_MIN_PER_SECTOR, OUTPOST_MAX_PER_SECTOR]. Conversion
+# preserves position + id, only rewrites node_type (and clears hazard_subtype
+# when promoting from HAZARD, though we only convert COMBAT↔OUTPOST here).
+func _clamp_outpost_density(rows: Array, rng: RandomNumberGenerator) -> void:
+	var all_pois: Array = []
+	for row in rows:
+		for poi in row.pois:
+			all_pois.append(poi)
+	var outposts: Array = []
+	var combats: Array = []
+	for poi in all_pois:
+		match int(poi.node_type):
+			int(SectorNodeType.OUTPOST):
+				outposts.append(poi)
+			int(SectorNodeType.COMBAT):
+				combats.append(poi)
+	# Underflow: promote random COMBATs to OUTPOST.
+	while outposts.size() < OUTPOST_MIN_PER_SECTOR and combats.size() > 0:
+		var idx: int = rng.randi() % combats.size()
+		var victim = combats[idx]
+		combats.remove_at(idx)
+		victim.node_type = int(SectorNodeType.OUTPOST)
+		victim.hazard_subtype = ""
+		outposts.append(victim)
+	# Overflow: demote random OUTPOSTs to COMBAT.
+	while outposts.size() > OUTPOST_MAX_PER_SECTOR:
+		var idx: int = rng.randi() % outposts.size()
+		var victim = outposts[idx]
+		outposts.remove_at(idx)
+		victim.node_type = int(SectorNodeType.COMBAT)
+		combats.append(victim)
 
 
 # Per-row POI generation. Picks 2-4 POIs at cell-snapped x-positions
 # between PLANET_START_X (128) and the boss column (448). Types follow
 # the dev v3 weights: combat-heavy, sprinkled outpost/hazard/signal.
-func _gen_row_pois(rng: RandomNumberGenerator, sector_idx: int, row_idx: int, anchor: Vector2) -> Array:
+func _gen_row_pois(rng: RandomNumberGenerator, sector_idx: int, row_idx: int, anchor: Vector2, sector_mod_pool: Array = []) -> Array:
 	const CELL_PX: float = 16.0
 	const POI_X_MIN: float = 128.0
 	const POI_X_MAX: float = 432.0  # one cell short of boss column (448)
@@ -304,12 +380,19 @@ func _gen_row_pois(rng: RandomNumberGenerator, sector_idx: int, row_idx: int, an
 		var hazard_sub: String = ""
 		if node_type == int(SectorNodeType.HAZARD):
 			hazard_sub = "minefield" if rng.randi() % 2 == 0 else "asteroid_field"
+		# Per-POI modifier: chance to be null, else pick one from the sector pool.
+		# Stored as Array[String] so the director can apply zero or more without
+		# branching on null. Empty array == no modifier.
+		var poi_mods: Array = []
+		if not sector_mod_pool.is_empty() and rng.randf() >= POI_NULL_MODIFIER_CHANCE:
+			poi_mods = [sector_mod_pool[rng.randi() % sector_mod_pool.size()]]
 		pois.append({
 			"id": "s%d_r%d_p%d" % [sector_idx, row_idx, i],
 			"node_type": node_type,
 			"hazard_subtype": hazard_sub,
 			"pos": Vector2(positions[i], anchor.y),
 			"completed": false,
+			"modifiers": poi_mods,
 		})
 	return pois
 
