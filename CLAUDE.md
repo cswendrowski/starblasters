@@ -6,18 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Godot 2D top-down vertical shmup (GDScript). Roguelite with branching sector map, slotted parts, Mk.1–9 upgrade scaling. Renderer: `gl_compatibility`. **Internal viewport 480×270, 4× display = 1920×1080.** Gameplay constrained to **216×270 playfield band (X 132–348)**. Side gutters host glass panels + HUD. **Always import `scripts/playfield.gd` (`Playfield.X_MIN`, `X_MAX`, `CENTER`, `clamp_pos`) for gameplay bounds — never `get_viewport_rect()`** (returns full 480 width). Backdrop/despawn margins may read the viewport directly.
 
-## Engine versions
+## Engine version
 
-Two Godot binaries — they parse differently:
-
-- **Godot 4.3 Mono** — editor. Mono **cannot export to Web** (fails silently, exit 5).
-- **Godot 4.4.1 standalone** — web export only. Stricter GDScript parser: rejects duplicate `var` shadows, rejects walrus `:=` on untyped array indexing. **A clean editor smoke test does NOT guarantee a working web build.** Always run `tools/parse_check.ps1` before publishing.
+**Godot 4.6.3 standalone** (no Mono) — single binary for editor + web export. Consolidated from a 4.3-Mono editor + 4.4.1-standalone exporter split on 2026-05-26 since the project never used C#. Binary path lives in `tools/parse_check.ps1` and `tools/publish.ps1`; update both if it moves.
 
 ## Running / building
 
 - Headless smoke: `godot --path . --headless --quit-after 2`
 - Full parse check: `tools/parse_check.ps1`
-- Publish: `tools/publish.ps1 -Version "0.1.NN"` — bumps version, runs parse_check, exports via 4.4.1, mtime-validates pck, then `butler push`. **Never `butler push` directly.** Don't push without explicit user confirmation.
+- Publish: `tools/publish.ps1 -Version "0.1.NN"` — bumps version, runs parse_check, exports the Web preset, mtime-validates pck, then `butler push`. **Never `butler push` directly.** Don't push without explicit user confirmation.
 
 ## Workflow: human-iterated, agent-consumed
 

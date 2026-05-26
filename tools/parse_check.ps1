@@ -1,12 +1,12 @@
 $ErrorActionPreference = 'Stop'
-$STANDALONE = 'C:\Users\Cody\Downloads\PortalSDK(3)\Godot_v4.4.1-stable_win64.exe'
+$STANDALONE = 'C:\Users\Cody\Downloads\Godot_v4.6.3-stable_win64.exe\Godot_v4.6.3-stable_win64.exe'
 $REPO = Split-Path -Parent $PSScriptRoot
 
 if (-not (Test-Path $STANDALONE)) { throw "Standalone Godot not found at $STANDALONE" }
 
 # Scenes that are user-reachable and route through their own scripts. If
-# ANY of these fails to parse under 4.4.1, the build that gets published
-# will hit the same error in the browser. Pre-publish gate.
+# ANY of these fails to parse under the editor+export Godot, the build
+# that gets published will hit the same error in the browser. Pre-publish gate.
 $scenes = @(
   'res://scenes/main.tscn',
   'res://scenes/main_menu.tscn',

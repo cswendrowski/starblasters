@@ -2,13 +2,12 @@ param(
   [Parameter(Mandatory=$true)][string]$Version
 )
 # Web export + butler push for Starblasters.
-# IMPORTANT: Godot 4 with C#/.NET (Mono) CANNOT export to Web - it fails
-# silently with a stderr error and exit code 5. We must use the NON-Mono
-# standalone Godot 4.4.1 build for the web target. Mono build stays for
-# day-to-day editor work (it's what the project was authored against).
-# If a future export ever silently no-ops again, check this script first.
+# Single-binary setup (2026-05-26 consolidation): editor + export both run
+# the same standalone Godot 4.6.3. We dropped the 4.3 Mono editor since the
+# project never used C#. If web export ever silently no-ops again, first
+# check that this binary path still exists and matches the editor in use.
 $ErrorActionPreference = 'Stop'
-$STANDALONE_GODOT = 'C:\Users\Cody\Downloads\PortalSDK(3)\Godot_v4.4.1-stable_win64.exe'
+$STANDALONE_GODOT = 'C:\Users\Cody\Downloads\Godot_v4.6.3-stable_win64.exe\Godot_v4.6.3-stable_win64.exe'
 $BUTLER = 'C:\Users\Cody\Downloads\butler-windows-amd64\windows-amd64\butler.exe'
 $REPO = Split-Path -Parent $PSScriptRoot
 $OUT_DIR = Join-Path (Split-Path -Parent $REPO) 'Starblasters_html'
@@ -19,10 +18,10 @@ if (-not (Test-Path $STANDALONE_GODOT)) { throw "Standalone Godot not found at $
 if (-not (Test-Path $BUTLER)) { throw "butler not found at $BUTLER" }
 
 # HARD GATE: every user-reachable scene must parse-clean on the same Godot
-# version we're about to export with. 4.3 editor accepts walrus inference
-# on untyped Arrays and duplicate `var` shadows; 4.4.1 rejects both —
-# silent in headless tests, fatal in browser. Run the project-wide
-# parser audit before touching the export pipeline.
+# version we're about to export with. With the single-binary consolidation
+# this is now belt-and-braces (editor == exporter), but the audit still
+# catches scripts that reference autoloads/classes only seeded by the
+# editor's class cache.
 Write-Output "Running parse_check across all user-reachable scenes..."
 $checkScript = Join-Path $PSScriptRoot 'parse_check.ps1'
 & $checkScript
