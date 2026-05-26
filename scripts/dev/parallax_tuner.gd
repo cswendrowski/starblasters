@@ -44,7 +44,7 @@ const BACKDROP_NATIVE := Vector2i(480, 270)
 
 # ---- State ---------------------------------------------------------------
 
-var _prev_scale_size: Vector2i = Vector2i.ZERO
+var _hd_scope: HdViewportScope = null
 var _backdrop_viewport: SubViewport = null
 var _backdrop_display: TextureRect = null
 var _backdrop: Node2D = null
@@ -79,7 +79,7 @@ var _grabber_tex: ImageTexture = null
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_enter_hd_viewport()
+	_hd_scope = HdViewportScope.attach(self, HD_VIEWPORT)
 	_seed_value = randi()
 	_build_backdrop_pipeline()
 	_rebuild_backdrop()
@@ -91,28 +91,6 @@ func _ready() -> void:
 	_refresh_info()
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("menu")
-
-
-# Swap the window's content_scale_size to HD so the rail UI gets room to
-# breathe. Save the previous value for _exit restoration.
-func _enter_hd_viewport() -> void:
-	var w := get_window()
-	if w == null:
-		return
-	_prev_scale_size = w.content_scale_size
-	w.content_scale_size = HD_VIEWPORT
-
-
-func _exit_hd_viewport() -> void:
-	var w := get_window()
-	if w == null:
-		return
-	if _prev_scale_size != Vector2i.ZERO:
-		w.content_scale_size = _prev_scale_size
-
-
-func _exit_tree() -> void:
-	_exit_hd_viewport()
 
 
 # SubViewport pipeline was dropped (Cobalt 2026-05-20) — V3 didn't
@@ -544,6 +522,12 @@ func _refresh_info() -> void:
 
 
 func _on_back() -> void:
+	# Restore native scale *before* change_scene so the next scene doesn't
+	# render at HD between its _ready and our _exit_tree. See
+	# wave_editor._restore_hd_now for the timing rationale.
+	if _hd_scope != null and is_instance_valid(_hd_scope):
+		_hd_scope.free()
+		_hd_scope = null
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev_menu.tscn")
 
 

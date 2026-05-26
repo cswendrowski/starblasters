@@ -86,6 +86,15 @@ enum LabelKind {
 	BOUNTY,
 	CAPTION,
 	DANGER,
+	# Outpost-style "Hull: 12/20" right-aligned readout — body weight,
+	# accent-tinted, denser outline. Folded in from outpost.gd's local
+	# STATUS_VALUE preset 2026-05-26 so the same look applies to the
+	# Manage Ship modal + future status surfaces.
+	STATUS_VALUE,
+	# Outpost / sector-map slot badges ("CANNON", "WING L") — caption
+	# size, accent-tinted, thin outline. Folded in from outpost.gd's
+	# local SLOT_PILL preset 2026-05-26.
+	SLOT_PILL,
 }
 
 # ----- Hologram material presets (legacy enum kept for compatibility) ----
@@ -187,6 +196,16 @@ static func style_label(lbl: Label, kind: int = LabelKind.BODY) -> void:
 			lbl.add_theme_color_override("font_color", COLOR_DANGER)
 			lbl.add_theme_color_override("font_outline_color", COLOR_DANGER_DK)
 			lbl.add_theme_constant_override("outline_size", 4)
+		LabelKind.STATUS_VALUE:
+			lbl.add_theme_font_size_override("font_size", FONT_SIZE_BODY)
+			lbl.add_theme_color_override("font_color", COLOR_ACCENT)
+			lbl.add_theme_color_override("font_outline_color", COLOR_OUTLINE)
+			lbl.add_theme_constant_override("outline_size", 3)
+		LabelKind.SLOT_PILL:
+			lbl.add_theme_font_size_override("font_size", FONT_SIZE_CAPTION)
+			lbl.add_theme_color_override("font_color", COLOR_ACCENT)
+			lbl.add_theme_color_override("font_outline_color", COLOR_OUTLINE)
+			lbl.add_theme_constant_override("outline_size", 2)
 
 
 # Build a flat dark panel StyleBox for menu backgrounds. Used by panels that
@@ -205,3 +224,107 @@ static func make_panel_stylebox() -> StyleBoxFlat:
 	sb.content_margin_top = 14
 	sb.content_margin_bottom = 14
 	return sb
+
+
+# ----- Shared modal scaffold ---------------------------------------------
+# Every in-game modal (Manage Ship, Pause confirm, Pick Screen, No Bounty,
+# Test Hazard picker) used to build the same CanvasLayer + dim ColorRect +
+# centered PanelContainer + VBox by hand — ~50 lines per modal. Route new
+# modals (and migrate old ones at leisure) through this factory.
+#
+# Returns {layer, panel, vbox, dim} so the caller can append content to
+# `vbox`, attach a Cancel handler to `dim` if desired, and free `layer`
+# to dismiss. `vbox` already has the standard 8px separation; override
+# via `vbox.add_theme_constant_override("separation", N)` if needed.
+#
+# `min_size` lets the caller widen the panel without hand-rolling
+# CenterContainer math. Default (160, 0) matches the Pick Screen modal.
+static func make_modal(layer_idx: int = 90, min_size: Vector2 = Vector2(160, 0)) -> Dictionary:
+	var layer := CanvasLayer.new()
+	layer.layer = layer_idx
+	layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	var dim := ColorRect.new()
+	dim.name = "Dim"
+	dim.color = Color(0, 0, 0, 0.70)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.add_child(dim)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(center)
+	var panel := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = COLOR_PANEL_BG
+	sb.border_color = COLOR_ACCENT_DIM
+	sb.border_width_left = 2
+	sb.border_width_top = 2
+	sb.border_width_right = 2
+	sb.border_width_bottom = 2
+	sb.content_margin_left = 10
+	sb.content_margin_right = 10
+	sb.content_margin_top = 8
+	sb.content_margin_bottom = 8
+	panel.add_theme_stylebox_override("panel", sb)
+	center.add_child(panel)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 8)
+	if min_size != Vector2.ZERO:
+		vbox.custom_minimum_size = min_size
+	panel.add_child(vbox)
+	return {"layer": layer, "dim": dim, "panel": panel, "vbox": vbox}
+
+
+# ----- Off-screen guardrail ----------------------------------------------
+# Walks `root`'s Control descendants and warns about anyone whose global
+# rect extends past the viewport. Debug-only — no-op in release builds so
+# the production game pays nothing.
+#
+# Call at the end of every menu's _build_ui() to catch "I forgot the
+# panel is wider than 480 minus margins" bugs at scene-load time instead
+# of at playtest time. Warnings include node path + overflow px so the
+# offender is easy to find.
+static func assert_inside_viewport(root: Node) -> void:
+	if not OS.is_debug_build():
+		return
+	if root == null or not root.is_inside_tree():
+		return
+	var vp_rect: Rect2 = root.get_viewport().get_visible_rect()
+	# Inflate by 1px to absorb single-pixel rounding (which is harmless
+	# visually but trips a strict rect contains check).
+	vp_rect = vp_rect.grow(1)
+	_walk_overflow(root, root, vp_rect)
+
+
+static func _walk_overflow(root: Node, n: Node, vp_rect: Rect2) -> void:
+	if n is Control and _is_ui_control(n):
+		var c: Control = n
+		# Only flag Controls that are actually drawn; hidden or zero-size
+		# layout helpers (VBox spacers, etc.) trip false positives.
+		if c.visible and c.size.x > 0.0 and c.size.y > 0.0:
+			var r: Rect2 = c.get_global_rect()
+			if not vp_rect.encloses(r):
+				var overflow := Vector2(
+					maxf(r.end.x - vp_rect.end.x, 0.0) + maxf(vp_rect.position.x - r.position.x, 0.0),
+					maxf(r.end.y - vp_rect.end.y, 0.0) + maxf(vp_rect.position.y - r.position.y, 0.0),
+				)
+				# Ignore single-pixel rounding from anchor-centered layouts.
+				if overflow.x >= 2.0 or overflow.y >= 2.0:
+					push_warning("UI overflow: %s extends past viewport by (%d, %d)px (rect=%s, vp=%s)" % [
+						root.get_path_to(c), int(overflow.x), int(overflow.y), r, vp_rect,
+					])
+	for child in n.get_children():
+		_walk_overflow(root, child, vp_rect)
+
+
+# Filter: only walk Controls that live in a Control-only ancestry. Controls
+# embedded under a Node2D subtree (parallax planets, backdrop SubViewport
+# wrappers) are scene decoration whose extents are author-intentional —
+# warning on those is just noise. The viewport-overflow check is for UI
+# tree surfaces (menus, modals, HUD), which always anchor to Control roots.
+static func _is_ui_control(n: Node) -> bool:
+	var p: Node = n.get_parent()
+	while p != null:
+		if p is Node2D:
+			return false
+		p = p.get_parent()
+	return true

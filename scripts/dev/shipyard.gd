@@ -108,10 +108,13 @@ var _blurb_lbl: Label = null
 var _shoot_toggle: CheckBox = null
 
 
+var _hd_scope: HdViewportScope = null
+
+
 func _ready() -> void:
-	# Native 1920×1080 for this scene; restored on exit. Same pattern as
-	# sector_map_hd.gd so all HD overlay geometry is authored in HD coords.
-	get_tree().get_root().content_scale_size = Vector2i(1920, 1080)
+	# Native 1920×1080 for this scene. RAII scope auto-restores on exit;
+	# _on_back forces it earlier so dev_menu doesn't render at HD briefly.
+	_hd_scope = HdViewportScope.attach(self)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_playspace()
 	_build_overlay()
@@ -120,10 +123,6 @@ func _ready() -> void:
 	if _list.item_count > 0:
 		_list.select(0)
 		_on_list_select(0)
-
-
-func _exit_tree() -> void:
-	get_tree().get_root().content_scale_size = Vector2i(480, 270)
 
 
 # ---- Playspace (fills the whole window) --------------------------------
@@ -531,6 +530,9 @@ func _codex_blurb(path: String) -> String:
 # ---- Back --------------------------------------------------------------
 
 func _on_back() -> void:
+	if _hd_scope != null and is_instance_valid(_hd_scope):
+		_hd_scope.free()
+		_hd_scope = null
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev_menu.tscn")
 
 

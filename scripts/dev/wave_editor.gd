@@ -30,7 +30,7 @@ const PENDING_WAVE_PATH := "user://wave_editor_pending.tres"
 # window's content_scale_size to native (1920×1080) for the duration of
 # this scene, then restore on Back. Other scenes are unaffected.
 const HD_VIEWPORT := Vector2i(1920, 1080)
-var _prev_scale_size: Vector2i = Vector2i.ZERO
+var _hd_scope: HdViewportScope = null
 
 const MOVEMENT_DIR := "res://resources/patterns/movement/"
 const SHOOT_DIR := "res://resources/patterns/shoot/"
@@ -74,7 +74,7 @@ var _populating: bool = false
 
 
 func _ready() -> void:
-	_enter_hd_viewport()
+	_hd_scope = HdViewportScope.attach(self, HD_VIEWPORT)
 	_populate_enemy_picker()
 	_populate_formation_picker()
 	_populate_movement_picker()
@@ -90,28 +90,15 @@ func _ready() -> void:
 		_on_wave_selected(0)
 
 
-# Swap to 1920×1080 logical viewport so the editor has room for legible
-# text. Save the previous value so we can restore it on Back.
-func _enter_hd_viewport() -> void:
-	var w := get_window()
-	if w == null:
-		return
-	_prev_scale_size = w.content_scale_size
-	w.content_scale_size = HD_VIEWPORT
-
-
-func _exit_hd_viewport() -> void:
-	var w := get_window()
-	if w == null:
-		return
-	if _prev_scale_size != Vector2i.ZERO:
-		w.content_scale_size = _prev_scale_size
-
-
-func _exit_tree() -> void:
-	# Defensive restore — covers crashes / unexpected exits where _on_back
-	# didn't run. Idempotent if _on_back already restored.
-	_exit_hd_viewport()
+# Force HD restore *now*, before change_scene starts loading the next scene.
+# Without this, the next scene's _ready briefly renders at HD before our
+# RAII scope's _exit_tree fires (scene swap order). Free()-ing the scope
+# directly drives its _exit_tree synchronously. Idempotent — call twice
+# and the second is a no-op.
+func _restore_hd_now() -> void:
+	if _hd_scope != null and is_instance_valid(_hd_scope):
+		_hd_scope.free()
+		_hd_scope = null
 
 
 func _wire_signals() -> void:
@@ -500,7 +487,7 @@ func _on_play() -> void:
 		# can restore both on return.
 		run.set_meta("wave_editor_pending_key", _current_key)
 		run.set_meta("wave_editor_pending_name", _name_edit.text)
-	_exit_hd_viewport()
+	_restore_hd_now()
 	SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
 
 
@@ -553,7 +540,7 @@ func _try_restore_pending() -> bool:
 
 
 func _on_back() -> void:
-	_exit_hd_viewport()
+	_restore_hd_now()
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev_menu.tscn")
 
 
@@ -571,7 +558,7 @@ func _on_edit_movement() -> void:
 		run.set_meta("wave_editor_pending_key", _current_key)
 		run.set_meta("wave_editor_pending_name", _name_edit.text)
 		run.set_meta("pattern_editor_return_scene", "res://scenes/dev/wave_editor.tscn")
-	_exit_hd_viewport()
+	_restore_hd_now()
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/movement_pattern_editor.tscn")
 
 
@@ -586,7 +573,7 @@ func _on_edit_shoot() -> void:
 		run.set_meta("wave_editor_pending_key", _current_key)
 		run.set_meta("wave_editor_pending_name", _name_edit.text)
 		run.set_meta("pattern_editor_return_scene", "res://scenes/dev/wave_editor.tscn")
-	_exit_hd_viewport()
+	_restore_hd_now()
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/shoot_pattern_editor.tscn")
 
 

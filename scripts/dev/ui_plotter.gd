@@ -36,6 +36,8 @@ var _hud_readout: Label = null
 var _hud_status: Label = null
 var _pick_modal: CanvasLayer = null
 var _current_screen_label: String = ""
+var _overflow_layer: CanvasLayer = null
+var _overflow_visible: bool = false
 
 
 func _ready() -> void:
@@ -119,7 +121,7 @@ func _build_hud() -> void:
 	_hud_readout.add_theme_constant_override("outline_size", 3)
 	bottom.add_child(_hud_readout)
 	var hint := Label.new()
-	hint.text = "[G] grid 8/16/32/off  [L] labels  [Esc] back"
+	hint.text = "[G] grid  [L] labels  [O] overflow  [Esc] back"
 	UiTheme.style_label(hint, UiTheme.LabelKind.CAPTION)
 	hint.add_theme_color_override("font_color", Color(0.7, 0.85, 0.9, 0.9))
 	hint.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
@@ -156,6 +158,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		KEY_L:
 			_overlay.show_labels = not _overlay.show_labels
 			get_viewport().set_input_as_handled()
+		KEY_O:
+			_overflow_visible = not _overflow_visible
+			_refresh_overflow_outlines()
+			get_viewport().set_input_as_handled()
 
 
 func _back_to_dev_menu() -> void:
@@ -181,6 +187,64 @@ func _load_screen(entry: Dictionary) -> void:
 	_loaded_host.add_child(inst)
 	_current_screen_label = String(entry.get("label", path))
 	_hud_status.text = "UI Plotter — %s" % _current_screen_label
+	# Walk the freshly-loaded screen once it's settled; defers a frame so
+	# anchors-and-offsets-preset calls in the loaded scene's _ready land
+	# before we measure.
+	call_deferred("_audit_loaded_screen")
+
+
+func _audit_loaded_screen() -> void:
+	if _loaded_host == null or _loaded_host.get_child_count() == 0:
+		return
+	UiTheme.assert_inside_viewport(_loaded_host)
+	_refresh_overflow_outlines()
+
+
+# Walks the loaded screen's Control descendants and draws a red outline
+# rect around any whose global rect exceeds the viewport. Toggled by [O].
+# Outlines clear on every screen swap or every keypress refresh — cheap
+# to redraw, so we don't try to cache.
+func _refresh_overflow_outlines() -> void:
+	if _overflow_layer != null and is_instance_valid(_overflow_layer):
+		_overflow_layer.queue_free()
+	_overflow_layer = null
+	if not _overflow_visible:
+		return
+	_overflow_layer = CanvasLayer.new()
+	_overflow_layer.layer = 1050  # above grid, below pick-modal
+	add_child(_overflow_layer)
+	if _loaded_host == null:
+		return
+	var vp_rect: Rect2 = get_viewport().get_visible_rect().grow(1)
+	_collect_and_draw_overflow(_loaded_host, vp_rect)
+
+
+func _collect_and_draw_overflow(n: Node, vp_rect: Rect2) -> void:
+	if n is Control:
+		var c: Control = n
+		if c.visible and c.size.x > 0.0 and c.size.y > 0.0:
+			var r: Rect2 = c.get_global_rect()
+			if not vp_rect.encloses(r):
+				var box := ColorRect.new()
+				box.color = Color(0, 0, 0, 0)
+				box.position = r.position
+				box.size = r.size
+				box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				_overflow_layer.add_child(box)
+				# Draw the outline via a child Line2D — ColorRect can't outline.
+				var line := Line2D.new()
+				line.width = 1.0
+				line.default_color = Color(1.0, 0.25, 0.25, 0.95)
+				line.points = PackedVector2Array([
+					r.position,
+					Vector2(r.end.x, r.position.y),
+					r.end,
+					Vector2(r.position.x, r.end.y),
+					r.position,
+				])
+				_overflow_layer.add_child(line)
+	for child in n.get_children():
+		_collect_and_draw_overflow(child, vp_rect)
 
 
 # ---------------------------------------------------------------------------
@@ -190,30 +254,12 @@ func _load_screen(entry: Dictionary) -> void:
 func _show_pick_modal() -> void:
 	if _pick_modal != null and is_instance_valid(_pick_modal):
 		return
-	var layer := CanvasLayer.new()
-	layer.layer = 1100
-	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.70)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	dim.mouse_filter = Control.MOUSE_FILTER_STOP
-	layer.add_child(dim)
-	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	layer.add_child(center)
-	var panel := PanelContainer.new()
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = UiTheme.COLOR_PANEL_BG
-	sb.border_color = UiTheme.COLOR_ACCENT_DIM
-	sb.border_width_left = 2; sb.border_width_top = 2
-	sb.border_width_right = 2; sb.border_width_bottom = 2
-	sb.content_margin_left = 10; sb.content_margin_right = 10
-	sb.content_margin_top = 8;  sb.content_margin_bottom = 8
-	panel.add_theme_stylebox_override("panel", sb)
-	center.add_child(panel)
-	var v := VBoxContainer.new()
+	# First consumer of UiTheme.make_modal — shared factory replaces the
+	# 30-line CanvasLayer + dim + panel + vbox boilerplate that every
+	# modal in the codebase used to hand-roll.
+	var m := UiTheme.make_modal(1100, Vector2(160, 0))
+	var v: VBoxContainer = m.vbox
 	v.add_theme_constant_override("separation", 3)
-	v.custom_minimum_size = Vector2(160, 0)
-	panel.add_child(v)
 	var head := Label.new()
 	head.text = "Pick Screen"
 	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -232,8 +278,8 @@ func _show_pick_modal() -> void:
 	UiTheme.style_button(cancel, true)
 	cancel.pressed.connect(_close_pick_modal)
 	v.add_child(cancel)
-	add_child(layer)
-	_pick_modal = layer
+	add_child(m.layer)
+	_pick_modal = m.layer
 
 
 func _close_pick_modal() -> void:

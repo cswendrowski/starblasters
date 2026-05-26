@@ -120,11 +120,14 @@ var _refresh_btn: Button = null
 # Also drives exponential refresh pricing — cost doubles each use, capped
 # at REFRESH_MAX_DOUBLINGS so it caps at 10 << 7 = 1280 bounty.
 var _refresh_count: int = 0
+var _hd_scope: HdViewportScope = null
 
 
 func _ready() -> void:
-	# HD overlay (matches shipyard V3 / sector_map_hd pattern).
-	get_tree().get_root().content_scale_size = Vector2i(HD_W, HD_H)
+	# HD overlay (matches shipyard V3 / sector_map_hd pattern). RAII scope
+	# auto-restores native scale on scene exit. _on_leave forces it earlier
+	# so the next scene doesn't render at HD during the transition.
+	_hd_scope = HdViewportScope.attach(self, Vector2i(HD_W, HD_H))
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("outpost")
@@ -143,12 +146,6 @@ func _ready() -> void:
 	_build_ui()
 	if has_node("/root/Run"):
 		get_node("/root/Run").bounty_changed.connect(_on_bounty_changed)
-
-
-func _exit_tree() -> void:
-	# Restore the native game size so we don't leave the editor / next
-	# scene rendering at 1920×1080.
-	get_tree().get_root().content_scale_size = Vector2i(480, 270)
 
 
 # ---- UI scaffold ----------------------------------------------------------
@@ -939,6 +936,11 @@ func _on_leave() -> void:
 		var run = get_node("/root/Run")
 		if String(run.current_node_id) != "":
 			run.mark_node_completed(String(run.current_node_id))
+	# Drop the HD scope before change_scene so the sector map's _ready
+	# isn't briefly rendered at 1920×1080.
+	if _hd_scope != null and is_instance_valid(_hd_scope):
+		_hd_scope.free()
+		_hd_scope = null
 	SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE)
 
 

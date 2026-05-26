@@ -19,7 +19,7 @@ extends Control
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 
 const HD_VIEWPORT := Vector2i(1920, 1080)
-var _prev_scale_size: Vector2i = Vector2i.ZERO
+var _hd_scope: HdViewportScope = null
 
 # Subclass overrides — directory of .tres files this editor manages and
 # the script class new patterns instantiate.
@@ -47,7 +47,7 @@ var _field_widgets: Array = []  # of {prop:String, node:Control, type:int}
 
 
 func _ready() -> void:
-	_enter_hd_viewport()
+	_hd_scope = HdViewportScope.attach(self, HD_VIEWPORT)
 	_configure()
 	_wire_signals()
 	_scan_items()
@@ -79,26 +79,12 @@ func _wire_signals() -> void:
 	_name_edit.text_changed.connect(func(_t): _mark_dirty())
 
 
-# ---- HD viewport swap (same trick as wave_editor) -----------------------
-
-func _enter_hd_viewport() -> void:
-	var w := get_window()
-	if w == null:
-		return
-	_prev_scale_size = w.content_scale_size
-	w.content_scale_size = HD_VIEWPORT
-
-
-func _exit_hd_viewport() -> void:
-	var w := get_window()
-	if w == null:
-		return
-	if _prev_scale_size != Vector2i.ZERO:
-		w.content_scale_size = _prev_scale_size
-
-
-func _exit_tree() -> void:
-	_exit_hd_viewport()
+# Force HD restore *now*, before change_scene starts loading the next
+# scene. See wave_editor._restore_hd_now for the timing rationale.
+func _restore_hd_now() -> void:
+	if _hd_scope != null and is_instance_valid(_hd_scope):
+		_hd_scope.free()
+		_hd_scope = null
 
 
 # ---- Disk scan ----------------------------------------------------------
@@ -381,7 +367,7 @@ func _on_back() -> void:
 		if run.has_meta("pattern_editor_return_scene"):
 			target = String(run.get_meta("pattern_editor_return_scene", target))
 			run.remove_meta("pattern_editor_return_scene")
-	_exit_hd_viewport()
+	_restore_hd_now()
 	SceneTransition.change_scene(get_tree(), target)
 
 
