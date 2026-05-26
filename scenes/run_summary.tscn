@@ -59,7 +59,7 @@ alignment = 1
 custom_minimum_size = Vector2(80, 18)
 layout_mode = 2
 theme_override_font_sizes/font_size = 9
-text = "New Game"
+text = "New Patrol"
 
 [node name="MenuBtn" type="Button" parent="Center/Panel/Buttons"]
 custom_minimum_size = Vector2(80, 18)

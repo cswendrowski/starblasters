@@ -86,8 +86,71 @@ func _resume() -> void:
 	_toggle()
 
 func _to_menu() -> void:
-	get_tree().paused = false
-	SceneTransition.change_scene(get_tree(), "res://scenes/main_menu.tscn")
+	# Pause menu lives in combat — bailing here scraps the current level's
+	# progress (waves cleared, bounty earned mid-level). The saved sector
+	# is still safe (autosaved on last map entry), so the run resumes from
+	# that node, not this fight. Warn first so this isn't a one-click ragequit.
+	_show_menu_warning()
+
+
+func _show_menu_warning() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 95
+	layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.75)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.add_child(dim)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(center)
+	var panel := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = UiTheme.COLOR_PANEL_BG
+	sb.border_color = UiTheme.COLOR_ACCENT_DIM
+	sb.border_width_left = 2; sb.border_width_top = 2
+	sb.border_width_right = 2; sb.border_width_bottom = 2
+	sb.content_margin_left = 12; sb.content_margin_right = 12
+	sb.content_margin_top = 10; sb.content_margin_bottom = 10
+	panel.add_theme_stylebox_override("panel", sb)
+	center.add_child(panel)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 8)
+	v.custom_minimum_size = Vector2(240, 0)
+	panel.add_child(v)
+	var head := Label.new()
+	head.text = "Return to Main Menu?"
+	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	UiTheme.style_label(head, UiTheme.LabelKind.HEADER)
+	v.add_child(head)
+	var body := Label.new()
+	body.text = "Leaving this level will scrap your progress in it.\nYour patrol resumes from the sector map."
+	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.custom_minimum_size = Vector2(220, 0)
+	UiTheme.style_label(body, UiTheme.LabelKind.BODY)
+	v.add_child(body)
+	var btn_row := HBoxContainer.new()
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	btn_row.add_theme_constant_override("separation", 12)
+	v.add_child(btn_row)
+	var cancel := Button.new()
+	cancel.text = "Cancel"
+	cancel.custom_minimum_size = Vector2(96, 22)
+	UiTheme.style_button(cancel, true)
+	cancel.pressed.connect(func(): layer.queue_free())
+	btn_row.add_child(cancel)
+	var confirm := Button.new()
+	confirm.text = "Leave"
+	confirm.custom_minimum_size = Vector2(96, 22)
+	UiTheme.style_button(confirm)
+	confirm.pressed.connect(func():
+		get_tree().paused = false
+		SceneTransition.change_scene(get_tree(), "res://scenes/main_menu.tscn")
+	)
+	btn_row.add_child(confirm)
+	add_child(layer)
 
 func _quit() -> void:
 	get_tree().paused = false

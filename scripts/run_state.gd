@@ -181,6 +181,10 @@ func _load_codex() -> void:
 			encountered_enemies[String(p)] = true
 
 func new_run() -> void:
+	# Starting fresh — invalidate any saved run so Resume Patrol on the main
+	# menu can't drop the player back into the old state if they bail before
+	# the first sector map entry rewrites the save.
+	clear_save()
 	bounty = 0
 	enemies_killed = 0
 	max_bounty_earned = 0
@@ -627,6 +631,70 @@ func unequip_slot(slot: int) -> void:
 	if slot == _SlotTypes.SlotType.DEVICE_BAY_1:
 		super_charges = 0
 		max_super_charges = 0
+
+
+# ---- Run save / resume ------------------------------------------------
+# Single-slot save written on sector map entry; consumed by Resume Patrol.
+# Format: RunSave Resource serialized via ResourceSaver so embedded Part
+# resources in loadout_snapshot / inventory / weapon_storage round-trip
+# as inline sub-resources without us hand-rolling JSON for every Part type.
+
+const _RunSave = preload("res://scripts/run_save.gd")
+const SAVE_PATH := "user://run_save.tres"
+
+# Fields mirrored to/from RunSave. Kept as a const so save_to_disk and
+# load_from_disk can't drift out of sync — adding a field is a one-line
+# change here + an @export in run_save.gd.
+const _SAVE_FIELDS := [
+	"bounty", "current_hull", "max_hull", "current_shield", "max_shield",
+	"super_charges", "max_super_charges",
+	"loadout_snapshot", "inventory", "weapon_storage",
+	"current_node_id", "current_node_type", "sector_modifiers",
+	"current_hazard_subtype", "asteroid_bonus_bounty", "combat_intro",
+	"current_stellar",
+	"ammo", "secondary_ammo", "secondary_ammo_max",
+	"visited_nodes", "sectors_cleared", "combats_in_sector",
+	"enemies_killed", "max_bounty_earned", "run_distance", "run_seed",
+	"hull_mk", "armor_mk", "thrusters_mk", "self_repair_mk",
+	"shield_cap_mk", "shield_recharge_mk",
+	"sector_map_cache",
+]
+
+
+func has_save_on_disk() -> bool:
+	return FileAccess.file_exists(SAVE_PATH)
+
+
+func save_to_disk() -> void:
+	var s = _RunSave.new()
+	for f in _SAVE_FIELDS:
+		s.set(f, get(f))
+	var err: int = ResourceSaver.save(s, SAVE_PATH)
+	if err != OK:
+		push_warning("Run.save_to_disk: ResourceSaver.save failed (%d)" % err)
+
+
+# Load saved run into this autoload. Returns true on success. On failure
+# the autoload is left untouched and the save is wiped (corrupt slot).
+func load_from_disk() -> bool:
+	if not FileAccess.file_exists(SAVE_PATH):
+		return false
+	var s = load(SAVE_PATH)
+	if s == null or not (s is _RunSave):
+		push_warning("Run.load_from_disk: save corrupt — wiping")
+		clear_save()
+		return false
+	for f in _SAVE_FIELDS:
+		set(f, s.get(f))
+	return true
+
+
+func clear_save() -> void:
+	if not FileAccess.file_exists(SAVE_PATH):
+		return
+	var d := DirAccess.open("user://")
+	if d != null:
+		d.remove("run_save.tres")
 
 
 # Snapshot player into RunState so we can restore after meta scenes.

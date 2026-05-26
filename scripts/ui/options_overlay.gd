@@ -161,6 +161,19 @@ func _build_ui() -> void:
 
 	v.add_child(_make_separator())
 
+	# Return to Main Menu — available from any non-menu scene. From the
+	# sector map there's nothing to lose (autosave already fired); inside a
+	# level (combat/outpost/signal/hazard) we warn before bailing.
+	if _show_menu_button():
+		var menu := Button.new()
+		menu.text = "Return to Main Menu"
+		menu.custom_minimum_size = Vector2(180, 22)
+		UiTheme.style_button(menu, true)
+		menu.pressed.connect(_on_return_to_menu)
+		var menu_center := CenterContainer.new()
+		menu_center.add_child(menu)
+		v.add_child(menu_center)
+
 	var back := Button.new()
 	back.text = "Back"
 	back.custom_minimum_size = Vector2(140, 22)
@@ -335,6 +348,94 @@ func _rebuild_ui() -> void:
 
 func _on_back() -> void:
 	queue_free()
+
+
+# Hide the menu button on the main menu itself — already there.
+const _MAIN_MENU_PATH := "res://scenes/main_menu.tscn"
+const _SECTOR_MAP_PATH := "res://scenes/sector_map_v3.tscn"
+
+func _show_menu_button() -> bool:
+	var scn = get_tree().current_scene
+	if scn == null:
+		return false
+	return scn.scene_file_path != _MAIN_MENU_PATH
+
+
+# True for any scene where leaving means scrapping current-level progress.
+# Sector map is safe (autosaved on entry), so no warning there.
+func _in_level() -> bool:
+	var scn = get_tree().current_scene
+	if scn == null:
+		return false
+	var p: String = scn.scene_file_path
+	return p != _MAIN_MENU_PATH and p != _SECTOR_MAP_PATH
+
+
+func _on_return_to_menu() -> void:
+	if _in_level():
+		_show_menu_warning()
+	else:
+		_go_to_menu()
+
+
+func _go_to_menu() -> void:
+	get_tree().paused = false
+	var SceneTransition = load("res://scripts/scene_transition.gd")
+	SceneTransition.change_scene(get_tree(), _MAIN_MENU_PATH)
+
+
+func _show_menu_warning() -> void:
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.75)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.name = "WarnDim"
+	add_child(dim)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.add_child(center)
+	var panel := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = UiTheme.COLOR_PANEL_BG
+	sb.border_color = UiTheme.COLOR_ACCENT_DIM
+	sb.border_width_left = 2; sb.border_width_top = 2
+	sb.border_width_right = 2; sb.border_width_bottom = 2
+	sb.content_margin_left = 12; sb.content_margin_right = 12
+	sb.content_margin_top = 10; sb.content_margin_bottom = 10
+	panel.add_theme_stylebox_override("panel", sb)
+	center.add_child(panel)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 8)
+	v.custom_minimum_size = Vector2(240, 0)
+	panel.add_child(v)
+	var head := Label.new()
+	head.text = "Return to Main Menu?"
+	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	UiTheme.style_label(head, UiTheme.LabelKind.HEADER)
+	v.add_child(head)
+	var body := Label.new()
+	body.text = "Leaving this level will scrap your progress in it.\nYour patrol resumes from the sector map."
+	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.custom_minimum_size = Vector2(220, 0)
+	UiTheme.style_label(body, UiTheme.LabelKind.BODY)
+	v.add_child(body)
+	var btn_row := HBoxContainer.new()
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	btn_row.add_theme_constant_override("separation", 12)
+	v.add_child(btn_row)
+	var cancel := Button.new()
+	cancel.text = "Cancel"
+	cancel.custom_minimum_size = Vector2(96, 22)
+	UiTheme.style_button(cancel, true)
+	cancel.pressed.connect(func(): dim.queue_free())
+	btn_row.add_child(cancel)
+	var confirm := Button.new()
+	confirm.text = "Leave"
+	confirm.custom_minimum_size = Vector2(96, 22)
+	UiTheme.style_button(confirm)
+	confirm.pressed.connect(_go_to_menu)
+	btn_row.add_child(confirm)
 
 
 func _unhandled_input(event: InputEvent) -> void:

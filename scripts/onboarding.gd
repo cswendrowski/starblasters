@@ -67,6 +67,10 @@ func _build_pages() -> Array:
 			"body": "Between fights you'll see the sector map — a branching graph of nodes you choose between.",
 			"icons": true,
 		},
+		{
+			"title": "Mission Briefing",
+			"body": "Your mission is to patrol three sectors, hunting down the wanted pirates and corporate privateers lurking there. Each one you take out is worth bounty, and each bounty will help you secure the next one a little more easily. Search the systems, blast pirates until you figure out where the worst of them are, and eliminate them.\n\nGood luck, Starblaster!",
+		},
 	]
 
 
@@ -161,7 +165,7 @@ func _render() -> void:
 	_body_label.text = page.get("body", "")
 	_page_label.text = "%d / %d" % [_index + 1, _pages.size()]
 	_prev_btn.disabled = _index == 0
-	_next_btn.text = "Sector Map" if _index == _pages.size() - 1 else "Next"
+	_next_btn.text = "Begin Patrol" if _index == _pages.size() - 1 else "Next"
 	# Icons row only populated on the sector-map page.
 	for c in _icons_row.get_children():
 		c.queue_free()

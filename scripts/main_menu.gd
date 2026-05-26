@@ -134,9 +134,19 @@ func _on_test_bed() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/debug_testbed.tscn")
 
 func _has_save() -> bool:
-	return FileAccess.file_exists("user://run_save.dat")
+	if has_node("/root/Run"):
+		return get_node("/root/Run").has_save_on_disk()
+	return false
 
 func _on_continue() -> void:
+	# Resume Patrol: load the saved run into the Run autoload, then jump to
+	# the sector map (the only mid-run save point). Falls back to a fresh
+	# run if the load fails for any reason — better than booting into a
+	# half-applied state.
+	if has_node("/root/Run"):
+		var run = get_node("/root/Run")
+		if not run.load_from_disk():
+			run.new_run()
 	SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE)
 
 func _on_new_game() -> void:

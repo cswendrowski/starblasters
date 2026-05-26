@@ -15,6 +15,10 @@ const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
 @onready var quit_btn: Button = $Center/Panel/Buttons/QuitBtn
 
 func _ready() -> void:
+	# Run is over (death or victory) — wipe the resume save so Main Menu's
+	# Resume Patrol doesn't drop the player back into a corpse run.
+	if has_node("/root/Run"):
+		get_node("/root/Run").clear_save()
 	# Force the root + Center to fill the viewport, regardless of parent.
 	# When this scene is loaded by change_scene_to_file Godot auto-fills,
 	# but when instanced under a Node2D (showcase capture) it stays 0x0.
@@ -44,7 +48,7 @@ func _ready() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 	move_child(bg, 0)
-	new_game_btn.text = "New Game"
+	new_game_btn.text = "New Patrol"
 	menu_btn.text = "Main Menu"
 	quit_btn.text = "Quit"
 	# Unified styling.

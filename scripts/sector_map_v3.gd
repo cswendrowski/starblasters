@@ -125,6 +125,12 @@ func _ready() -> void:
 		get_node("/root/Music").set_context("sector")
 	_ensure_sector_cache()
 	_advance_if_complete()
+	# Single mid-run save point: every time the player lands on the sector
+	# map (fresh run, post-combat, post-outpost, post-hazard), persist Run
+	# state to disk so Resume Patrol from the main menu drops them back
+	# here. Anything between map visits is "in a level" and not saved.
+	if has_node("/root/Run"):
+		get_node("/root/Run").save_to_disk()
 	_build_bg_stars()
 	_build_routes()
 	_build_pois_from_cache()
@@ -352,22 +358,31 @@ func _build_pois_from_cache() -> void:
 			# Object kind: planet/large_ast/cluster. Distribution roughly
 			# matches the dev v3 random pick (uniform across 3 types).
 			var obj_kind: int = deco_rng.randi() % 3
-			var hover_label: String = "?"
+			var hover_label: String = "" if poi.completed else "?"
+			# Decorations (planet/asteroid/cluster + pulse glow / glitter) are
+			# suppressed once a POI is completed (Roman 2026-05-26) so the map
+			# reads as "spent" at a glance. Advance planet_seq either way so
+			# the next uncompleted POI keeps the planet-letter sequence stable.
+			var draw_deco: bool = not poi.completed
 			match obj_kind:
 				OBJ_PLANET:
-					var px: float = PLANET_MIN_PX + float(deco_rng.randi() % 3) * 8.0
-					var frac: float = (poi.pos.x - 128.0) / max(1.0, row_end_x - 128.0)
-					var ptype: int  = _pick_planet_type(deco_rng, frac)
-					_spawn_planet(poi.pos, px, ptype, r_idx, deco_rng, String(poi.id))
-					hover_label = PLANET_LETTERS[mini(planet_seq, PLANET_LETTERS.size() - 1)]
+					if draw_deco:
+						var px: float = PLANET_MIN_PX + float(deco_rng.randi() % 3) * 8.0
+						var frac: float = (poi.pos.x - 128.0) / max(1.0, row_end_x - 128.0)
+						var ptype: int  = _pick_planet_type(deco_rng, frac)
+						_spawn_planet(poi.pos, px, ptype, r_idx, deco_rng, String(poi.id))
+						hover_label = PLANET_LETTERS[mini(planet_seq, PLANET_LETTERS.size() - 1)]
 					planet_seq += 1
 				OBJ_LARGE_AST:
-					_spawn_large_asteroid(poi.pos, r_idx, deco_rng)
-					hover_label = "Asteroid"
+					if draw_deco:
+						_spawn_large_asteroid(poi.pos, r_idx, deco_rng)
+						hover_label = "Asteroid"
 				OBJ_CLUSTER:
-					_spawn_asteroid_cluster(poi.pos, r_idx, deco_rng)
-					hover_label = "Belt"
-			_add_node_dressing(poi.pos, int(poi.node_type), deco_rng)
+					if draw_deco:
+						_spawn_asteroid_cluster(poi.pos, r_idx, deco_rng)
+						hover_label = "Belt"
+			if draw_deco:
+				_add_node_dressing(poi.pos, int(poi.node_type), deco_rng)
 			_add_hover_label_icon(poi.pos, 32.0, hover_label, int(poi.node_type), poi.completed)
 			_poi_hits.append({
 				"id":     String(poi.id),
