@@ -9,7 +9,8 @@ class_name DamageSmokeTrail
 
 const SHADER_PATH := "res://graphics/billow_smoke.gdshader"
 
-const ACTIVATE_BELOW: float = 0.5         # hull <= 50% → emit
+const ACTIVATE_BELOW_DEFAULT: float = 0.5  # hull <= 50% → emit (enemy default)
+var activate_below: float = ACTIVATE_BELOW_DEFAULT  # player overrides to 0.01
 const SAMPLE_INTERVAL: float = 0.04
 const MAX_POINTS: int = 56
 const POINT_LIFETIME: float = 1.8
@@ -105,7 +106,7 @@ func _on_hull_changed(max_hull, hull) -> void:
 	# Width ramps within the damaged range (50%-100% damage_level) so the
 	# trail gets noticeably fatter as the player approaches death.
 	if _line and is_instance_valid(_line):
-		var ramp: float = clamp((_damage_level - ACTIVATE_BELOW) / (1.0 - ACTIVATE_BELOW), 0.0, 1.0)
+		var ramp: float = clamp((_damage_level - activate_below) / (1.0 - activate_below), 0.0, 1.0)
 		_line.width = lerp(MIN_WIDTH, MAX_WIDTH, ramp)
 
 
@@ -114,7 +115,7 @@ func _process(delta: float) -> void:
 		_clear_line()
 		return
 	_age_points(delta)
-	if _damage_level < ACTIVATE_BELOW:
+	if _damage_level < activate_below:
 		# Let the existing trail fade out instead of yanking it.
 		return
 	_sample_t -= delta

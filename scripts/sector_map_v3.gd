@@ -130,7 +130,12 @@ func _ready() -> void:
 	# state to disk so Resume Patrol from the main menu drops them back
 	# here. Anything between map visits is "in a level" and not saved.
 	if has_node("/root/Run"):
-		get_node("/root/Run").save_to_disk()
+		var _run_ref = get_node("/root/Run")
+		# Hull regen on sector map return — requires self_repair_mk upgrade.
+		# +1 pip each visit, capped at max_hull (spec 2026-05-26).
+		if int(_run_ref.self_repair_mk) > 0:
+			_run_ref.current_hull = clampi(int(_run_ref.current_hull) + 1, 0, int(_run_ref.max_hull))
+		_run_ref.save_to_disk()
 	_build_bg_stars()
 	_build_routes()
 	_build_pois_from_cache()

@@ -1,71 +1,94 @@
 extends HBoxContainer
 class_name HullPips
 
-# Pip strip that doesn't depend on Unicode glyph support. Each pip is a
-# TextureRect using a procedurally-generated diamond texture, so the pips
-# render identically in editor and web export.
+# Sprite-strip pip HUD for hull. Uses hud_hull_light.png (32x16, 2 frames):
+#   Frame 0 (left 16x16)  — dim red  = missing pip
+#   Frame 1 (right 16x16) — bright red = full pip
+# Hull spec 2026-05-26: replaces procedural diamond pips.
 
-@export var pip_count: int = 6
-@export var pip_size: int = 26
+const STRIP = preload("res://graphics/ui/hud_hull_light.png")
+const FRAME_MISSING: int = 0   # dim = pip lost
+const FRAME_FULL: int = 1      # bright = pip intact
+const FRAME_W: int = 16
+const FRAME_H: int = 16
 
-static var _filled_tex: Texture2D = null
-static var _empty_tex: Texture2D = null
+var _pips: Array = []         # Array of TextureRect
+var _flash_tween: Tween = null
+var _flashing: bool = false
 
-var _pips: Array = []  # of TextureRect
 
 func _ready() -> void:
-	_ensure_textures()
-	add_theme_constant_override("separation", 8)
+	add_theme_constant_override("separation", 4)
 	alignment = BoxContainer.ALIGNMENT_CENTER
-	for i in pip_count:
-		var tr := TextureRect.new()
-		tr.texture = _empty_tex
-		tr.stretch_mode = TextureRect.STRETCH_SCALE
-		tr.custom_minimum_size = Vector2(pip_size, pip_size)
-		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		add_child(tr)
-		_pips.append(tr)
 
 
 func set_state(cur: int, max_val: int) -> void:
-	if _pips.is_empty():
+	# Rebuild pip count if max changed.
+	if _pips.size() != max_val:
+		for c in get_children():
+			c.queue_free()
+		_pips.clear()
+		for i in max_val:
+			var tr := TextureRect.new()
+			tr.texture = _atlas(FRAME_MISSING)
+			tr.stretch_mode = TextureRect.STRETCH_KEEP
+			tr.custom_minimum_size = Vector2(FRAME_W, FRAME_H)
+			tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			add_child(tr)
+			_pips.append(tr)
+	# Set frames.
+	for i in _pips.size():
+		_pips[i].texture = _atlas(FRAME_FULL if i < cur else FRAME_MISSING)
+		_pips[i].modulate = Color(1, 1, 1, 1)
+	# Flash when at zero pips.
+	if cur <= 0 and max_val > 0:
+		_start_flash()
+	else:
+		_stop_flash()
+
+
+func _start_flash() -> void:
+	if _flashing:
 		return
-	var ratio: float = 0.0
-	if max_val > 0:
-		ratio = clamp(float(cur) / float(max_val), 0.0, 1.0)
-	# Round up so 1 HP always shows at least one filled pip.
-	var n_cur: int = int(ceil(ratio * pip_count))
-	if cur > 0 and n_cur < 1:
-		n_cur = 1
-	for i in pip_count:
-		_pips[i].texture = _filled_tex if i < n_cur else _empty_tex
+	_flashing = true
+	_run_flash_cycle()
 
 
-static func _ensure_textures(s: int = 26) -> void:
-	if _filled_tex != null and _empty_tex != null:
+func _run_flash_cycle() -> void:
+	if not _flashing:
 		return
-	_filled_tex = _make_diamond_tex(s, true)
-	_empty_tex = _make_diamond_tex(s, false)
+	if _flash_tween and _flash_tween.is_valid():
+		_flash_tween.kill()
+	_flash_tween = create_tween()
+	# 2s visible, 2s hidden, repeat.
+	_flash_tween.tween_callback(func(): _set_pip_visible(true))
+	_flash_tween.tween_interval(2.0)
+	_flash_tween.tween_callback(func(): _set_pip_visible(false))
+	_flash_tween.tween_interval(2.0)
+	_flash_tween.tween_callback(_run_flash_cycle)
 
 
-# Diamond shape via L1-norm distance from center. Filled = solid alpha inside,
-# empty = 2-pixel outline only. Anti-aliasing kept off for the pixel-art look.
-static func _make_diamond_tex(s: int, filled: bool) -> Texture2D:
-	var img := Image.create(s, s, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 0))
-	var center: float = float(s) / 2.0
-	var radius: float = center - 1.5
-	for y in s:
-		for x in s:
-			var dx: float = abs(float(x) + 0.5 - center)
-			var dy: float = abs(float(y) + 0.5 - center)
-			var dist: float = dx + dy
-			if filled:
-				if dist <= radius:
-					img.set_pixel(x, y, Color(1, 1, 1, 1))
-			else:
-				# 2px outline band
-				if dist <= radius and dist >= radius - 2.0:
-					img.set_pixel(x, y, Color(1, 1, 1, 1))
-	return ImageTexture.create_from_image(img)
+func _stop_flash() -> void:
+	_flashing = false
+	if _flash_tween and _flash_tween.is_valid():
+		_flash_tween.kill()
+	_set_pip_visible(true)
+
+
+func _set_pip_visible(v: bool) -> void:
+	for pip in _pips:
+		pip.modulate.a = 1.0 if v else 0.0
+
+
+static var _atlas_cache: Array = []
+static func _atlas(frame: int) -> Texture2D:
+	if _atlas_cache.is_empty():
+		_atlas_cache.resize(2)
+		for i in 2:
+			var at := AtlasTexture.new()
+			at.atlas = STRIP
+			at.region = Rect2(i * FRAME_W, 0, FRAME_W, FRAME_H)
+			_atlas_cache[i] = at
+	return _atlas_cache[clamp(frame, 0, 1)]

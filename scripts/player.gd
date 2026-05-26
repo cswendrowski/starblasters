@@ -128,28 +128,31 @@ const HIT_SFX_POOL: Array = [
 ]
 var _hit_sfx_idx: int = 0
 
-# Shield: a pool of CHARGES, not a damage soak. Each charge fully blocks
-# one hit regardless of incoming damage and grants brief i-frames. One
-# charge recharges every `shield_recharge_seconds` while the pool is below
-# max. Roman, 2026-05-17 design pass.
-var max_shield: int = 3
-var shield: int = 3:
+# Shield: HP pool. Full hit absorbed by shield (no overflow to hull).
+# Regen: 5s delay after last hit, then 1/sec until full.
+# Roman/spec 2026-05-26 rework: charge-based model retired.
+var max_shield: int = 10
+var shield: int = 10:
 	set = set_shield
-# Time per charge regen. Reduced by the Shield Recharge outpost upgrade.
-var shield_recharge_seconds: float = 30.0
+# Regen delay tracking. True during 5s countdown after a shield hit;
+# false once regen ticks begin (or shield is full).
+var _shield_in_delay: bool = false
+# shield_recharge_seconds kept as field for save-compat references; no longer written.
+var shield_recharge_seconds: float = 5.0
 # I-frames in seconds after a shield absorbs a hit. Stops chained
 # instant-kills (mine + bomblet) from one-shotting the player.
 const SHIELD_INVULN_SECONDS: float = 0.6
 var _invuln_t: float = 0.0
 
-# Hull: does NOT regen automatically; death at 0. Outpost "Self Repair"
-# heals N hull at combat start, "Hull" upgrade adds N to max.
-var max_hull: int = 50
-var hull: int = 50:
+# Hull: pip-based (3 pips base). Loss is always 1 pip per hit (not damage).
+# Hull == 0 → flash pips; next hit fires super-bomb then kills.
+# Roman/spec 2026-05-26 rework.
+var max_hull: int = 3
+var hull: int = 3:
 	set = set_hull
-# Damage reduction applied to hull damage (Armor Plating upgrade).
+# armor_mk DR retired. Field kept for save compat.
 var hull_damage_reduction: float = 0.0
-# Speed multiplier from upgrades (Thrusters +, Armor Plating −). Applied
+# Speed multiplier from upgrades (Thrusters). Applied
 # in _process so the live speed = base * speed_multiplier.
 var speed_multiplier: float = 1.0
 # Focus-mode slowdown — held `focus` action drops the ship to FOCUS_FACTOR
@@ -288,13 +291,16 @@ func _setup_smoke_trail() -> void:
 	var TrailCls = preload("res://scripts/effects/damage_smoke_trail.gd")
 	var trail = TrailCls.new()
 	trail.name = "DamageSmokeTrail"
+	# Activate at any pip loss (hull spec 2026-05-26): player uses 0.01 so
+	# even losing 1 of 3 pips (damage_level ≈ 0.33) triggers the effects.
+	trail.activate_below = 0.01
 	add_child(trail)
 	trail.set_player(self)
 	# Procedural torch fire on the engine nozzle (Roman 2026-05-18). Reads
 	# horizontal velocity each frame and pipes it into the shader's
 	# windForce so the flame leans opposite the direction of travel.
 	var EngineTorchCls = preload("res://scripts/effects/engine_torch.gd")
-	EngineTorchCls.attach_to_player(self)
+	EngineTorchCls.attach_to_player(self, EngineTorchCls.NOZZLE_OFFSET_DEFAULT, 0.01)
 
 
 func _setup_mg_audio() -> void:
@@ -388,25 +394,15 @@ func start() -> void:
 	is_alive = true
 	position = Vector2(Playfield.CENTER.x, screensize.y - 30)
 	# Run-level upgrades (outpost purchases) feed into max_hull, max_shield,
-	# shield_recharge, hull_damage_reduction, and speed_multiplier here so
-	# every combat scene picks up the latest upgrade state.
+	# and speed_multiplier here so every combat scene picks up the latest state.
 	apply_run_upgrades()
-	shield = max_shield  # combat level starts fully-shielded per Roman 2026-05-17
-	# Self Repair upgrade heals N hull at combat start. Cap at max so it
-	# can't over-cap an already-healthy player.
-	var self_repair: int = _self_repair_amount()
-	hull = clampi(hull + self_repair, 0, max_hull) if hull > 0 else max_hull
-	if hull == 0:
-		hull = max_hull
+	shield = max_shield  # combat level starts fully-shielded
+	# Hull loaded from Run.current_hull via start() context (set in apply_run_upgrades).
 	can_shoot = true
 	$GunCooldown.wait_time = cooldown
-	$ShieldRegenTimer.wait_time = max(0.5, shield_recharge_seconds)
-	# Only start regen if a charge is actually missing. Roman, 2026-05-17:
-	# "Shield recharge shouldn't start until a shield charge is expended."
-	if shield < max_shield:
-		$ShieldRegenTimer.start()
-	else:
-		$ShieldRegenTimer.stop()
+	# Shield regen: always full at combat start — no timer needed.
+	_shield_in_delay = false
+	$ShieldRegenTimer.stop()
 	# Restore super_charges from Run (persisted across scenes) — parts'
 	# apply() already set max during _ready, so we just overwrite the
 	# current charge count with whatever was saved. Run.super_charges
@@ -554,18 +550,15 @@ func _process(delta: float) -> void:
 		fire_super()
 
 # ---- Damage pipeline ----
-# Shield is a charge pool: one charge fully absorbs one hit (regardless
-# of damage amount) and grants i-frames. Once charges run out, damage
-# bleeds straight into hull (no partial soak). Roman, 2026-05-17.
+# Shield is an HP pool — full bullet damage absorbed, no overflow to hull.
+# Hull is pip-based — 1 pip per hit when shield is empty.
+# Hull == 0 → pips flash; NEXT hit fires super-bomb then kills.
+# Spec 2026-05-26 rework.
 func take_damage(amount: int) -> void:
 	if not is_alive or amount <= 0:
 		return
 	# "dangerous" sector modifier doubles all incoming enemy damage.
-	# Per-sector difficulty scaler (economy pass 2026-05-24): incoming
-	# damage scales × (1 + 0.05 × sectors_cleared) so endless mode keeps
-	# pressure on as the player's build outscales chaff. Concurrent with
-	# the wave-cleared enemy HP bonus in wave_generator so the enemy buff
-	# stack doesn't tilt difficulty too easy.
+	# Per-sector difficulty scaler: incoming damage scales × (1 + 0.05 × sectors_cleared).
 	if has_node("/root/Run"):
 		var _run = get_node("/root/Run")
 		if "sector_modifiers" in _run and "dangerous" in _run.sector_modifiers:
@@ -573,37 +566,37 @@ func take_damage(amount: int) -> void:
 		if "sectors_cleared" in _run:
 			var sector_mult: float = 1.0 + 0.05 * float(_run.sectors_cleared)
 			amount = int(round(float(amount) * sector_mult))
-	# I-frame window — comes after a shield absorb. Lets the player
-	# break out of mine + bomblet pile-ons that would otherwise stack.
+	# I-frame window after a shield or hull hit.
 	if _invuln_t > 0.0:
 		return
 	var HitFlashFx = load("res://scripts/effects/hit_flash_fx.gd")
 	if shield > 0:
-		# Charge consumed, regardless of damage amount.
-		shield -= 1
+		# Shield absorbs full hit — no overflow to hull.
+		set_shield(max(0, shield - amount))
 		_invuln_t = SHIELD_INVULN_SECONDS
 		damaged.emit(0)
 		_pulse_shield_ring()
 		if has_node("Ship"):
 			HitFlashFx.flash($Ship, HitFlashFx.FLASH_SHIELD)
 		return
-	# No shield — apply armor-plated DR then bleed into hull.
-	var effective: int = max(1, int(round(float(amount) * (1.0 - hull_damage_reduction))))
-	# Touhou death-bomb hook — if this hit would be lethal AND the player
-	# has a super charge available, auto-trigger the super instead. Costs
-	# the charge but the super's invuln + cleanup keeps the player alive.
-	# The activation itself sets _invuln_t so the bullet that triggered
-	# this gets a free window.
-	if hull - effective <= 0 and super_charges > 0 and super_part != null:
-		fire_super()
-		# Re-check — super activation should have set invuln; if not,
-		# we fall through to taking the hit normally.
-		if _invuln_t > 0.0:
-			return
-	damaged.emit(effective)
-	hull -= effective
+	# Shield empty — hull takes a binary 1-pip hit.
+	if hull <= 0:
+		# Already at zero pips — kill hit. Super-bomb fires first if available.
+		if super_charges > 0 and super_part != null:
+			fire_super()
+			# Super sets _invuln_t; if so, we survive this hit.
+			if _invuln_t > 0.0:
+				return
+		damaged.emit(1)
+		set_hull(0)
+		die()
+		return
+	# Normal hull pip loss (hull > 0, shield == 0).
+	damaged.emit(1)
+	_invuln_t = SHIELD_INVULN_SECONDS
 	if has_node("Ship"):
 		HitFlashFx.flash($Ship, HitFlashFx.FLASH_WHITE)
+	set_hull(hull - 1)
 
 func set_shield(value: int) -> void:
 	var prev := shield
@@ -626,15 +619,17 @@ func set_shield(value: int) -> void:
 			_play_shield_anim(SHIELD_BREAK_TEX)
 		else:
 			_play_shield_anim(SHIELD_HIT_TEX)
-	# Regen timer ticks every `shield_recharge_seconds` while charges are
-	# below max. The Shield Recharge upgrade shortens this; the upgrade
-	# applier writes shield_recharge_seconds before combat starts.
-	if shield < max_shield and has_node("ShieldRegenTimer"):
-		$ShieldRegenTimer.wait_time = max(0.5, shield_recharge_seconds)
-		if $ShieldRegenTimer.is_stopped():
+	# Regen: 5s delay after any hit, then 1/sec ticks until full.
+	if prev > shield:
+		# Hit — restart 5s regen delay.
+		_shield_in_delay = true
+		if has_node("ShieldRegenTimer"):
+			$ShieldRegenTimer.stop()
+			$ShieldRegenTimer.wait_time = 5.0
 			$ShieldRegenTimer.start()
 	elif shield >= max_shield and has_node("ShieldRegenTimer"):
-		# At cap — halt regen until the next hit drops us below max.
+		# At cap — halt regen.
+		_shield_in_delay = false
 		$ShieldRegenTimer.stop()
 	# FX gates — the shield ring is visible only while we have charges.
 	if has_node("ImpactParticle"):
@@ -650,8 +645,8 @@ func set_hull(value: int) -> void:
 	hull = clampi(value, 0, max_hull)
 	hull_changed.emit(max_hull, hull)
 	$ImpactParticle.restart()
-	if hull <= 0:
-		die()
+	# Death is triggered from take_damage, not here. hull == 0 means
+	# flashing pips; the kill hit (next hit at hull == 0) calls die() explicitly.
 
 func die() -> void:
 	if not is_alive:
@@ -1256,40 +1251,44 @@ func _play_hit_sfx() -> void:
 
 
 func _on_shield_regen_timer_timeout() -> void:
-	# One charge per tick. set_shield() restarts the timer when shield
-	# is still below max, so the recharge continues automatically.
+	if _shield_in_delay:
+		# 5s delay just expired — begin 1/sec regen ticks.
+		_shield_in_delay = false
+		if shield < max_shield:
+			$ShieldRegenTimer.wait_time = 1.0
+			$ShieldRegenTimer.start()
+		return
+	# Regen tick: +1 HP per second.
 	if shield < max_shield:
-		shield += 1
+		set_shield(shield + 1)
 
 
 # Read upgrade Mks from /root/Run and translate them into runtime stats.
 # Called from start() so every combat scene picks up the latest values.
-#   Hull            +10 max hull per Mk
-#   Armor Plating   +5% hull DR per Mk, -2% speed per Mk
+#   Hull            +1 max hull pip per Mk (base 3)
+#   Armor Plating   RETIRED — no-op, kept for save compat
 #   Thrusters       +3% speed per Mk
-#   Self Repair     heal 5+2*Mk hull at combat start (applied by start())
-#   Shield Capacity +1 shield charge per Mk
-#   Shield Recharge -2 sec recharge per Mk (floored at 4s minimum)
+#   Self Repair     +1 hull on sector map return (gates on mk > 0)
+#   Shield Capacity +2 max shield HP per Mk (base 10)
+#   Shield Recharge RETIRED — regen always 1/sec after 5s delay
 func apply_run_upgrades() -> void:
 	if not has_node("/root/Run"):
 		return
 	var run = get_node("/root/Run")
-	max_hull = 20 if int(run.hull_mk) >= 9 else 10 + int(run.hull_mk)
-	hull_damage_reduction = clamp(float(run.armor_mk) * 0.05, 0.0, 0.85)
-	var speed_pct: float = 1.0 + float(run.thrusters_mk) * 0.03 - float(run.armor_mk) * 0.02
+	# Hull: 3 base + 1 per Mk (hull spec 2026-05-26).
+	max_hull = 3 + int(run.hull_mk)
+	# armor_mk retired — no DR applied (kept in run_state for save compat).
+	var speed_pct: float = 1.0 + float(run.thrusters_mk) * 0.03
 	speed_multiplier = max(0.3, speed_pct)
-	max_shield = 3 + int(run.shield_cap_mk)
-	shield_recharge_seconds = max(4.0, 30.0 - float(run.shield_recharge_mk) * 2.0)
+	# Shield: 10 base + 2 per Mk (shield spec 2026-05-26).
+	max_shield = 10 + int(run.shield_cap_mk) * 2
+	# shield_recharge_mk retired — regen is now always 1/sec after 5s delay.
 
 
-# Self Repair upgrade heal-on-combat-start amount.
+# Self Repair heal moved to sector_map_v3 return (spec 2026-05-26).
+# This function is kept as a no-op stub so any lingering call sites don't crash.
 func _self_repair_amount() -> int:
-	if not has_node("/root/Run"):
-		return 0
-	var run = get_node("/root/Run")
-	if int(run.self_repair_mk) <= 0:
-		return 0
-	return 5 + int(run.self_repair_mk) * 2
+	return 0
 
 
 # ---- Shield ring helpers ----

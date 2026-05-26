@@ -34,10 +34,11 @@ const WIND_GAIN: float = 0.0024
 # flame across the screen.
 const WIND_SMOOTHING: float = 8.0
 
-# Hull threshold for the flame to be visible. Matches DamageSmokeTrail
-# so both effects engage simultaneously when the ship hits 50% hull or
-# below (Cody 2026-05-18).
-const ACTIVATE_BELOW: float = 0.5
+# Hull threshold for the flame to be visible. Default 0.5 for enemies
+# (engage at 50% hull). Player overrides this to 0.01 so the torch
+# activates on the first pip lost (hull_changed spec 2026-05-26).
+const ACTIVATE_BELOW_DEFAULT: float = 0.5
+var activate_below: float = ACTIVATE_BELOW_DEFAULT
 
 # Flame size ramp (Roman 2026-05-18 "smaller at start, grows toward 0
 # hull"). Min = 50% of max in both axes; lerped between them across the
@@ -49,10 +50,10 @@ var _player: Node2D = null
 var _mat: ShaderMaterial = null
 var _last_pos: Vector2 = Vector2.ZERO
 var _wind: float = 0.0
-var _was_damaged: bool = false   # tracks 50% threshold crossing
+var _was_damaged: bool = false   # tracks activate_below threshold crossing
 
 
-static func attach_to_player(player: Node2D, nozzle: Vector2 = NOZZLE_OFFSET_DEFAULT) -> ColorRect:
+static func attach_to_player(player: Node2D, nozzle: Vector2 = NOZZLE_OFFSET_DEFAULT, p_activate_below: float = ACTIVATE_BELOW_DEFAULT) -> ColorRect:
 	var Script = load("res://scripts/effects/engine_torch.gd")
 	var torch: ColorRect = Script.new()
 	torch.name = "EngineTorch"
@@ -90,6 +91,7 @@ static func attach_to_player(player: Node2D, nozzle: Vector2 = NOZZLE_OFFSET_DEF
 	torch._mat = mat
 	torch._player = player
 	torch._last_pos = player.global_position
+	torch.activate_below = p_activate_below
 	# Hide until damage threshold met.
 	torch.visible = false
 	if player.has_signal("hull_changed"):
@@ -108,11 +110,11 @@ func _on_hull_changed(max_hull, hull) -> void:
 		_was_damaged = false
 		return
 	var damage_level: float = clamp(1.0 - (float(hull) / float(max_hull)), 0.0, 1.0)
-	# Ramp flame size with damage within [ACTIVATE_BELOW, 1.0].
+	# Ramp flame size with damage within [activate_below, 1.0].
 	if _mat != null:
-		var ramp: float = clamp((damage_level - ACTIVATE_BELOW) / (1.0 - ACTIVATE_BELOW), 0.0, 1.0)
+		var ramp: float = clamp((damage_level - activate_below) / (1.0 - activate_below), 0.0, 1.0)
 		_mat.set_shader_parameter("size", FLAME_SIZE_MIN.lerp(FLAME_SIZE_MAX, ramp))
-	var is_damaged: bool = damage_level >= ACTIVATE_BELOW
+	var is_damaged: bool = damage_level >= activate_below
 	# Threshold-crossing into damage: punch an impact flash at the engine
 	# nozzle, then fade the flame in shortly after so the visual reads as
 	# "the ship just took serious damage" (Roman 2026-05-18).

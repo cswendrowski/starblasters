@@ -213,10 +213,10 @@ func new_run() -> void:
 	sector_modifiers = []
 	loadout_snapshot = {}
 	inventory = []
-	current_hull = 0
-	max_hull = 0
-	current_shield = 0
-	max_shield = 0
+	current_hull = 3
+	max_hull = 3
+	current_shield = 10
+	max_shield = 10
 	hull_mk = 0
 	armor_mk = 0
 	thrusters_mk = 0

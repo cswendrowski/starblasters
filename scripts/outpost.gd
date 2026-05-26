@@ -24,19 +24,17 @@ const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 
 const UPGRADES := [
-	{"key": "hull_mk",            "name": "Hull",             "desc": "+10 max hull per Mk."},
-	{"key": "armor_mk",           "name": "Armor Plating",    "desc": "+5% hull DR / Mk; -2% speed / Mk."},
-	{"key": "thrusters_mk",       "name": "Thrusters",        "desc": "+3% movement speed per Mk."},
-	{"key": "self_repair_mk",     "name": "Self Repair",      "desc": "Heal 5 + 2/Mk hull at combat start."},
-	{"key": "shield_cap_mk",      "name": "Shield Capacity",  "desc": "+1 shield charge per Mk."},
-	{"key": "shield_recharge_mk", "name": "Shield Recharge",  "desc": "-2s shield recharge per Mk."},
+	{"key": "hull_mk",        "name": "Hull",            "desc": "+1 max hull pip per Mk (base 3)."},
+	{"key": "thrusters_mk",   "name": "Thrusters",       "desc": "+3% movement speed per Mk."},
+	{"key": "self_repair_mk", "name": "Self Repair",     "desc": "+1 hull pip on sector map return."},
+	{"key": "shield_cap_mk",  "name": "Shield Capacity", "desc": "+2 max shield HP per Mk (base 10)."},
+	# armor_mk and shield_recharge_mk retired — no longer purchasable.
 ]
 
 const UPGRADE_BASE_COST := 70
 const UPGRADE_COST_PER_MK := 35
 const MAX_MK := 9
-const HULL_REPAIR_COST := 30
-const HULL_REPAIR_PCT := 0.25
+const HULL_REPAIR_COST := 250
 # Ammo refill: cost scales with the number of rounds the player is missing,
 # so a near-empty mag is more expensive than a top-up. COST_PER_ROUND tuned
 # so a full 1000-round MG refill = 500 bounty (still a major expense), a
@@ -457,7 +455,7 @@ func _build_services() -> void:
 
 	# Hull Repair.
 	_services_box.add_child(_make_service_button(
-		"Hull Repair  +25%%", HULL_REPAIR_COST, _on_repair, "repair"))
+		"Hull Repair  +1 pip", HULL_REPAIR_COST, _on_repair, "repair"))
 	# Shield refill button. Always shows as FREE / Shields Full — the actual
 	# shield restore happened on _ready / will happen at combat start.
 	var shield_btn := _make_service_button("Shield Refill", 0, _on_shield_refill, "shield")
@@ -802,19 +800,17 @@ func _on_sell_stored(idx: int, sell_value: int) -> void:
 
 
 func _on_repair(btn: Button) -> void:
-	if not has_node("/root/Run"):
+	var run = get_node_or_null("/root/Run")
+	if run == null:
 		return
-	var run = get_node("/root/Run")
 	if int(run.max_hull) <= 0:
 		return
 	if int(run.current_hull) >= int(run.max_hull):
-		btn.text = "Hull Full"
 		return
-	if int(run.bounty) < HULL_REPAIR_COST:
+	if int(run.bounty) < 250:
 		return
-	run.bounty -= HULL_REPAIR_COST
-	var heal: int = max(1, int(round(float(run.max_hull) * HULL_REPAIR_PCT)))
-	run.current_hull = clampi(int(run.current_hull) + heal, 0, int(run.max_hull))
+	run.bounty -= 250
+	run.current_hull = clampi(int(run.current_hull) + 1, 0, int(run.max_hull))
 	_refresh_status_panel()
 
 
