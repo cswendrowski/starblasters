@@ -913,6 +913,12 @@ func _spawn_asteroid_in_band(rng: RandomNumberGenerator, band: String) -> Node:
 	var inner: Node = a.get_node_or_null("Asteroid")
 	if inner and "material" in inner and inner.material != null:
 		inner.material = inner.material.duplicate()
+		# Parallax-only: strip the 1-px outline. Outline reads as "shootable
+		# foreground rock" — keep it on the asteroid-hazard / freespace-miner
+		# instances (which spawn via scripts/enemies/asteroid.gd, not here)
+		# but background parallax rocks should be flat (Roman, 2026-05-25).
+		if inner.material is ShaderMaterial:
+			(inner.material as ShaderMaterial).set_shader_parameter("draw_outline", false)
 		# Per-band size + speed + visual weight. Deep band asteroids are small,
 	# dim, slow — they sit behind the stars conceptually but in front of
 	# nebula for visual depth. Near band is big, bright, fast — they whip past.

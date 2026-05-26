@@ -11,7 +11,7 @@ size = Vector2(12, 12)
 script = ExtResource("1_mcsm")
 bomblet_scene = ExtResource("3_bombs")
 bomblet_count = 8
-bomblet_smart = true
+bomblet_smart = false
 bomblet_eject_speed = 180.0
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
