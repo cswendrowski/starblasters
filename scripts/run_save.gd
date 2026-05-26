@@ -32,6 +32,7 @@ extends Resource
 
 @export var visited_nodes: Array = []
 @export var sectors_cleared: int = 0
+@export var used_boss_scenes: Array = []
 @export var combats_in_sector: int = 0
 @export var enemies_killed: int = 0
 @export var max_bounty_earned: int = 0

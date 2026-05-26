@@ -79,6 +79,7 @@ var secondary_ammo_max: int = -1
 var encountered_enemies: Dictionary = {}
 var visited_nodes: Array = []  # node ids
 var sectors_cleared: int = 0
+var used_boss_scenes: Array = []  # scene paths used in prior sectors; prevents cross-sector repeats
 # Combat nodes (non-boss, non-hazard) completed since the start of the
 # current sector. Drives wave_generator scaling. Resets to 0 when a new
 # sector begins (endless mode).
@@ -207,6 +208,7 @@ func new_run() -> void:
 	sectors_cleared = 0
 	combats_in_sector = 0
 	visited_nodes = []
+	used_boss_scenes = []
 	current_node_id = ""
 	sector_modifiers = []
 	loadout_snapshot = {}
@@ -302,7 +304,7 @@ func start_new_sector(sector_idx: int, seed_value: int) -> void:
 	# Per-sector boss pool + final-slot lock. Sector 3 row-3 is always the
 	# Conductor; the other two row slots pull from the sector pool minus the
 	# Conductor, with conflict-pair rules applied (see _pick_row_bosses).
-	var boss_scenes: Array = _pick_row_bosses(sector_idx, rng)
+	var boss_scenes: Array = _pick_row_bosses(sector_idx, rng, used_boss_scenes)
 	for r in range(3):
 		var pois: Array = _gen_row_pois(rng, sector_idx, r, anchors[r], sector_mod_pool)
 		var boss := {
@@ -330,6 +332,9 @@ func start_new_sector(sector_idx: int, seed_value: int) -> void:
 		"sector_modifiers": sector_mod_pool,
 		"rows": rows,
 	}
+	for bs in boss_scenes:
+		if bs != BOSS_CONDUCTOR and not used_boss_scenes.has(bs):
+			used_boss_scenes.append(bs)
 
 
 # Picks `count` distinct modifiers from ALL_SECTOR_MODIFIERS. Count is clamped
@@ -445,8 +450,10 @@ const _BOSS_CONFLICTS := {
 
 
 # Returns a 3-element Array[String] of boss scene paths, one per row. The
-# final boss (Conductor) is locked to sector-3 row-3.
-func _pick_row_bosses(sector_idx: int, rng: RandomNumberGenerator) -> Array:
+# final boss (Conductor) is locked to sector-3 row-3. `prior_bosses` lists
+# scene paths already used in previous sectors — excluded from the pool so
+# no boss repeats across sectors in the same run.
+func _pick_row_bosses(sector_idx: int, rng: RandomNumberGenerator, prior_bosses: Array = []) -> Array:
 	var pool: Array = []
 	if sector_idx <= 1:
 		pool = [BOSS_COMMANDER, BOSS_LASH, BOSS_HOWLER]
@@ -454,6 +461,9 @@ func _pick_row_bosses(sector_idx: int, rng: RandomNumberGenerator) -> Array:
 		pool = [BOSS_COMMANDER, BOSS_LASH, BOSS_VOIDMAW, BOSS_AEGIS, BOSS_SPINWRIGHT]
 	else:
 		pool = [BOSS_AEGIS, BOSS_VOIDMAW, BOSS_SPINWRIGHT]
+	# Remove bosses already used in prior sectors. Keep Conductor out — it's
+	# always locked to sector-3 row-3 and handled separately below.
+	pool = pool.filter(func(b): return not prior_bosses.has(b))
 	var picks: Array = []
 	# Sector 3 row-3 final lock.
 	var final_locked: bool = sector_idx >= 3
@@ -775,7 +785,7 @@ const _SAVE_FIELDS := [
 	"current_hazard_subtype", "asteroid_bonus_bounty", "combat_intro",
 	"current_stellar",
 	"ammo", "secondary_ammo", "secondary_ammo_max",
-	"visited_nodes", "sectors_cleared", "combats_in_sector",
+	"visited_nodes", "sectors_cleared", "combats_in_sector", "used_boss_scenes",
 	"enemies_killed", "max_bounty_earned", "run_distance", "run_seed",
 	"hull_mk", "armor_mk", "thrusters_mk", "self_repair_mk",
 	"shield_cap_mk", "shield_recharge_mk",
