@@ -40,7 +40,7 @@ func _build_pages() -> Array:
 	return [
 		{
 			"title": "Controls",
-			"body": "WASD or Arrow Keys to move.\nZ or Space — fire primary cannon.\nC — fire secondary (hardpoint).\nX — super weapon (limited charges).\nShift — Focus mode: slows movement for precision dodging, shows your hitbox dot.\nQ — swap to/from secondary primary.\nEsc — pause menu.",
+			"body": "WASD or Arrow Keys — move.\nSpace / Z — fire primary cannon.\nC — fire secondary hardpoint weapon.\nX — super weapon (limited charges).\nShift — Focus mode: slower precise movement; shows your hitbox.\nQ — swap between primary cannons (if you own more than one).\nEsc — pause.",
 		},
 		{
 			"title": "Parts & Marks",
@@ -64,8 +64,12 @@ func _build_pages() -> Array:
 		},
 		{
 			"title": "Sector Map",
-			"body": "Between fights you'll see the sector map — a branching graph of nodes you choose between.",
+			"body": "Your patrol covers three sectors. Each sector is a branching map — pick your path forward through a row of nodes, then face the sector boss at the end.\n\nAfter the boss, the next sector opens. Clear all three to complete the mission.",
 			"icons": true,
+		},
+		{
+			"title": "Node Types",
+			"body": "Combat — fight a wave of enemies for bounty.\nOutpost — spend bounty on parts, ammo, and hull repairs.\nSignal — unknown contact; random reward or risk.\nHazard — fly through a dangerous field for a bonus.\nBoss — the sector commander. Defeat it to advance.",
 		},
 		{
 			"title": "Mission Briefing",
