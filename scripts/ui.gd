@@ -30,6 +30,9 @@ var _super_charge_max: int = 0
 var _weapon_hints_box: VBoxContainer = null
 var _pri_label: Label = null
 var _sec_label: Label = null
+var _focus_bar_bg: ColorRect = null
+var _focus_bar_fill: ColorRect = null
+var _focus_bar_label: Label = null
 
 func _ready() -> void:
 	# main.tscn pins this MarginContainer to a 152×24 rect at top-left. We
@@ -224,6 +227,46 @@ func _install_ammo_row() -> void:
 		ammo_row.add_child(ammo_label)
 
 
+func _install_focus_bar() -> void:
+	# Focus charge bar — lower-left corner, viewport-anchored.
+	# 48px wide, 4px tall, sits 8px from the left edge and 10px from the bottom.
+	var vp := Vector2(480, 270)
+	const BAR_W := 48
+	const BAR_H := 4
+	const PAD_LEFT := 8.0
+	const PAD_BOT := 10.0
+	var layer := CanvasLayer.new()
+	layer.name = "FocusBarLayer"
+	layer.layer = 5
+	add_child(layer)
+	# Label above the bar.
+	_focus_bar_label = Label.new()
+	_focus_bar_label.text = "FOCUS"
+	_focus_bar_label.add_theme_font_size_override("font_size", 7)
+	_focus_bar_label.position = Vector2(PAD_LEFT, vp.y - PAD_BOT - BAR_H - 9)
+	_focus_bar_label.add_theme_color_override("font_color", Color(0.5, 0.75, 1.0, 0.85))
+	layer.add_child(_focus_bar_label)
+	# Background track.
+	_focus_bar_bg = ColorRect.new()
+	_focus_bar_bg.color = Color(0.1, 0.15, 0.3, 0.7)
+	_focus_bar_bg.position = Vector2(PAD_LEFT, vp.y - PAD_BOT - BAR_H)
+	_focus_bar_bg.size = Vector2(BAR_W, BAR_H)
+	layer.add_child(_focus_bar_bg)
+	# Fill.
+	_focus_bar_fill = ColorRect.new()
+	_focus_bar_fill.color = Color(0.4, 0.7, 1.0, 0.9)
+	_focus_bar_fill.position = Vector2(PAD_LEFT, vp.y - PAD_BOT - BAR_H)
+	_focus_bar_fill.size = Vector2(BAR_W, BAR_H)
+	layer.add_child(_focus_bar_fill)
+
+
+func _on_focus_charge_changed(charge: float, max_charge: float) -> void:
+	if _focus_bar_fill == null:
+		return
+	var ratio: float = clamp(charge / max(1.0, max_charge), 0.0, 1.0)
+	_focus_bar_fill.size.x = 48.0 * ratio
+
+
 func bind_player(player) -> void:
 	if hologram_hud:
 		hologram_hud.bind_player(player)
@@ -269,6 +312,14 @@ func bind_player(player) -> void:
 		update_hull(player.max_hull, player.hull)
 	if player and "max_shield" in player and "shield" in player:
 		update_shield(player.max_shield, player.shield)
+	# Focus charge bar.
+	_install_focus_bar()
+	if player and player.has_signal("focus_charge_changed"):
+		if not player.focus_charge_changed.is_connected(_on_focus_charge_changed):
+			player.focus_charge_changed.connect(_on_focus_charge_changed)
+		# Seed with current state.
+		if "focus_charge" in player and "focus_charge_max" in player:
+			_on_focus_charge_changed(float(player.focus_charge), float(player.focus_charge_max))
 
 
 func flicker_in(duration: float = 0.6) -> void:

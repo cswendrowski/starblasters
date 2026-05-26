@@ -159,6 +159,18 @@ var speed_multiplier: float = 1.0
 # of normal speed for precision dodging. Cave / Touhou convention; ~2/3.
 const FOCUS_FACTOR := 0.55
 var _focus_dot: Node2D = null
+var _focus_was_active: bool = false
+var _focus_trail: Line2D = null
+var _focus_trail_history: PackedVector2Array = PackedVector2Array()
+const FOCUS_TRAIL_LEN := 18
+var focus_charge: float = 10.0
+var focus_charge_max: float = 10.0
+var _focus_regen_delay: float = 0.0
+const FOCUS_DRAIN_RATE := 1.0    # seconds of charge lost per second held
+const FOCUS_REGEN_RATE := 1.0    # seconds of charge gained per second released
+const FOCUS_REGEN_DELAY := 2.0   # seconds after release before regen starts
+
+signal focus_charge_changed(charge: float, max_charge: float)
 
 var can_shoot: bool = true
 var is_alive: bool = true
@@ -425,6 +437,10 @@ func start() -> void:
 	# Force-emit UI updates so bars reflect current loadout
 	shield_changed.emit(max_shield, shield)
 	hull_changed.emit(max_hull, hull)
+	# Focus charge: always full at combat start.
+	focus_charge = focus_charge_max
+	_focus_regen_delay = 0.0
+	focus_charge_changed.emit(focus_charge, focus_charge_max)
 	# Initial shield-ring visibility matches starting shield.
 	_set_shield_ring_alpha(1.0 if shield > 0 else 0.0, 0.0)
 
@@ -467,7 +483,21 @@ func _process(delta: float) -> void:
 		$Ship/Boosters.animation = "forward"
 	# Focus mode (Shift, by convention): ⅔-ish speed for precision
 	# dodging + show the hitbox dot so the player sees their collider.
-	var focused: bool = Input.is_action_pressed("focus")
+	# Charge-gated: focus deactivates when charge hits 0; recharges 2s
+	# after release.
+	var want_focus: bool = Input.is_action_pressed("focus") and focus_charge > 0.0
+	# Drain charge while focused.
+	if want_focus:
+		focus_charge = max(0.0, focus_charge - FOCUS_DRAIN_RATE * delta)
+		_focus_regen_delay = FOCUS_REGEN_DELAY
+		focus_charge_changed.emit(focus_charge, focus_charge_max)
+	else:
+		if _focus_regen_delay > 0.0:
+			_focus_regen_delay -= delta
+		elif focus_charge < focus_charge_max:
+			focus_charge = min(focus_charge_max, focus_charge + FOCUS_REGEN_RATE * delta)
+			focus_charge_changed.emit(focus_charge, focus_charge_max)
+	var focused: bool = want_focus
 	var focus_mult: float = FOCUS_FACTOR if focused else 1.0
 	_update_focus_dot(focused)
 	# Thrusters / Armor Plating upgrades feed into speed_multiplier;
@@ -1225,6 +1255,49 @@ func _update_focus_dot(visible: bool) -> void:
 		_focus_dot.z_index = 100
 		add_child(_focus_dot)
 	_focus_dot.visible = visible
+	# Edge-triggered sound.
+	if visible and not _focus_was_active:
+		_play_focus_sound(true)
+	elif not visible and _focus_was_active:
+		_play_focus_sound(false)
+	_focus_was_active = visible
+	# Blue tint while focused.
+	if has_node("Ship"):
+		if visible:
+			$Ship.modulate = Color(0.5, 0.7, 1.0, 0.5)
+		else:
+			$Ship.modulate = Color(1.0, 1.0, 1.0, 1.0)
+	# Trail management — Line2D parented to get_parent() so it stays in world space.
+	if visible:
+		if _focus_trail == null or not is_instance_valid(_focus_trail):
+			_focus_trail = Line2D.new()
+			_focus_trail.width = 2.0
+			_focus_trail.joint_mode = Line2D.LINE_JOINT_ROUND
+			_focus_trail.begin_cap_mode = Line2D.LINE_CAP_ROUND
+			_focus_trail.end_cap_mode = Line2D.LINE_CAP_ROUND
+			_focus_trail.z_index = 99
+			var grad := Gradient.new()
+			grad.set_color(0, Color(0.4, 0.7, 1.0, 0.0))
+			grad.set_color(1, Color(0.4, 0.7, 1.0, 0.8))
+			_focus_trail.gradient = grad
+			get_parent().add_child(_focus_trail)
+			_focus_trail_history.clear()
+		_focus_trail_history.append(global_position)
+		if _focus_trail_history.size() > FOCUS_TRAIL_LEN:
+			_focus_trail_history = _focus_trail_history.slice(_focus_trail_history.size() - FOCUS_TRAIL_LEN)
+		var local_pts := PackedVector2Array()
+		for gp in _focus_trail_history:
+			local_pts.append(get_parent().to_local(gp))
+		_focus_trail.points = local_pts
+	else:
+		if _focus_trail != null and is_instance_valid(_focus_trail):
+			_focus_trail.queue_free()
+			_focus_trail = null
+		_focus_trail_history.clear()
+
+
+func _play_focus_sound(_starting: bool) -> void:
+	pass  # TODO: swap in focus_start.wav / focus_end.wav when assets land
 
 func _on_gun_cooldown_timeout() -> void:
 	can_shoot = true
