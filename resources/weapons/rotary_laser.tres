@@ -7,8 +7,9 @@
 script = ExtResource("1_w")
 mark = 1
 base_damage = 1
-dmg_per_mark = 1
+dmg_per_mark = 0
 base_cooldown = 0.05
-base_ammo = 300
-ammo_recharge_rate = 10.0
+base_ammo = 120
+ammo_recharge_rate = 3.0
+no_outpost_refill = true
 bullet_scene = ExtResource("2_bullet")

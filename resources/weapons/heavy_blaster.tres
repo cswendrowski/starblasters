@@ -6,7 +6,7 @@
 [resource]
 script = ExtResource("1_w")
 mark = 1
-base_damage = 4
+base_damage = 5
 dmg_per_mark = 3
-base_cooldown = 0.20
+base_cooldown = 0.28
 bullet_scene = ExtResource("2_bullet")

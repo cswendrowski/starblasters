@@ -4,12 +4,11 @@ extends "res://scripts/parts/primary_weapon.gd"
 # straight up — classic shmup 3-way / spread weapon. Trades single-target
 # DPS for crowd coverage; aim-forgiving against wave formations.
 #
-# Mk scaling alternates between +1 bullet and +1 damage per Mk so every
-# upgrade meaningfully shifts either coverage or per-shot bite:
+# Mk scaling: bullet count grows every 2 Mk (coverage), damage is fixed at 2.
 #   Mk: 1  2  3  4  5  6  7  8  9
 #   N : 3  4  4  5  5  6  6  7  7
-#   D : 1  1  2  2  3  3  4  4  5
-# Formula: count = 3 + (mk / 2), damage = base + (mk - 1) / 2 (int div).
+#   D : 2  2  2  2  2  2  2  2  2
+# Formula: count = 3 + (mk / 2), damage = base_damage (constant).
 
 @export var base_bullet_count: int = 3
 @export var spread_degrees: float = 30.0
@@ -18,9 +17,9 @@ extends "res://scripts/parts/primary_weapon.gd"
 func _init() -> void:
 	super._init()
 	display_name = "Spread Cannon"
-	description = "Fans bullets in a forward arc. Even Mk adds a bullet, odd Mk adds damage."
-	base_damage = 1
-	dmg_per_mark = 1
+	description = "Fans bullets in a forward arc. Each pair of Mks adds another bullet."
+	base_damage = 2
+	dmg_per_mark = 0
 	base_cooldown = 0.30
 
 
@@ -49,9 +48,9 @@ func _count_for_mark(at_mark: int) -> int:
 	return base_bullet_count + int(at_mark / 2)
 
 
-func _damage_for_mark(at_mark: int) -> int:
-	# Mk 1 → +0, Mk 2 → +0, Mk 3 → +1, Mk 4 → +1, ... Mk 9 → +4.
-	return base_damage + int((at_mark - 1) / 2)
+func _damage_for_mark(_at_mark: int) -> int:
+	# Fixed damage at all marks — spread's scaling identity is bullet count.
+	return base_damage
 
 
 # Editor DPS readout — accounts for bullet count.

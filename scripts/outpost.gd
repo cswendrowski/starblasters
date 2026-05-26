@@ -891,14 +891,19 @@ func _on_primary_ammo_refill(btn: Button) -> void:
 	var active = run.get_active_cannon()
 	if active == null or not ("current_ammo" in active) or not ("ammo_max" in active):
 		return
+	if "no_outpost_refill" in active and bool(active.no_outpost_refill):
+		return
 	var cap: int = int(active.ammo_max)
 	if cap <= 0:
 		return
 	if int(active.current_ammo) >= cap:
 		return
-	if int(run.bounty) < PRIMARY_REFILL_COST:
+	var cost: int = PRIMARY_REFILL_COST
+	if "refill_cost_override" in active and int(active.refill_cost_override) >= 0:
+		cost = int(active.refill_cost_override)
+	if int(run.bounty) < cost:
 		return
-	run.bounty -= PRIMARY_REFILL_COST
+	run.bounty -= cost
 	active.current_ammo = cap
 	# Mirror to Run.ammo + player.ammo so HUD updates immediately on return.
 	run.ammo = cap
@@ -1126,7 +1131,8 @@ func _apply_service_button_state(btn: Button) -> void:
 			# Weapons Phase 1: flat-cost refill on the active replacement
 			# primary. Blaster active → greyed (no ammo to refill). Active
 			# slot not metered or already full → greyed with reason. Cost is
-			# constant (PRIMARY_REFILL_COST), independent of rounds missing.
+			# PRIMARY_REFILL_COST unless the cannon declares refill_cost_override.
+			# Cannons with no_outpost_refill (lasers) show as auto-regen.
 			if run == null:
 				btn.disabled = true
 				btn.text = "%s  (no run)" % base_label
@@ -1140,6 +1146,10 @@ func _apply_service_button_state(btn: Button) -> void:
 				btn.disabled = true
 				btn.text = "%s  (no primary ammo)" % base_label
 				return
+			if "no_outpost_refill" in active and bool(active.no_outpost_refill):
+				btn.disabled = true
+				btn.text = "%s  (auto-regen)" % base_label
+				return
 			var pmax: int = int(active.ammo_max)
 			if pmax <= 0:
 				btn.disabled = true
@@ -1149,8 +1159,11 @@ func _apply_service_button_state(btn: Button) -> void:
 				btn.disabled = true
 				btn.text = "%s  Full" % base_label
 				return
-			btn.disabled = _run_bounty() < PRIMARY_REFILL_COST
-			btn.text = "%s  Refill (%d)" % [base_label, PRIMARY_REFILL_COST]
+			var pcost: int = PRIMARY_REFILL_COST
+			if "refill_cost_override" in active and int(active.refill_cost_override) >= 0:
+				pcost = int(active.refill_cost_override)
+			btn.disabled = _run_bounty() < pcost
+			btn.text = "%s  Refill (%d)" % [base_label, pcost]
 		"secondary_ammo":
 			if run == null or int(run.secondary_ammo) < 0 or int(run.secondary_ammo_max) <= 0:
 				btn.disabled = true

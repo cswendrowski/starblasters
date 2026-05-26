@@ -22,6 +22,13 @@ const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 @export var current_ammo: int = -1
 @export var ammo_max: int = -1
 
+# Prevents outpost from showing an ammo-refill row for this cannon.
+# Used by lasers which regen naturally and shouldn't be sold refills.
+@export var no_outpost_refill: bool = false
+
+# If >= 0, outpost uses this cost instead of PRIMARY_REFILL_COST.
+@export var refill_cost_override: int = -1
+
 
 func _init() -> void:
 	slot_type = Slots.SlotType.CANNON

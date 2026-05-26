@@ -19,7 +19,7 @@ func _init() -> void:
 	super._init()
 	display_name = "Heavy Blaster"
 	description = "Slow firing, hits hard per shot."
-	base_damage = 4
+	base_damage = 5
 	dmg_per_mark = 3
 	base_cooldown = 0.28
 

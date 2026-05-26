@@ -6,8 +6,8 @@ extends "res://scripts/parts/primary_weapon.gd"
 # spec:
 #
 #                       Mk.1     Mk.5     Mk.9
-#   base_damage          1        3        5
-#   base_cooldown (s)    0.85     0.55     0.35
+#   base_damage          4        8        12
+#   base_cooldown (s)    0.85     ~0.49    ~0.30   (compound 1.15^(mk-1))
 #   bullet_speed (px/s)  600      900      1200
 #   max_hits (pierce)    1        4        4 (cap)
 #   bullet_scene         small    large    large
@@ -20,8 +20,8 @@ const BulletWaveSmall = preload("res://scenes/projectiles/bullet_wave_small.tscn
 const BulletWaveLarge = preload("res://scenes/projectiles/bullet_wave_large.tscn")
 
 # Mk.9 endpoints (Mk.1 reads from base_*). Exposed for .tres tuning.
-@export var damage_at_mk9: int = 5
-@export var cooldown_at_mk9: float = 0.35
+@export var damage_at_mk9: int = 12
+@export var cooldown_at_mk9: float = 0.30
 @export var bullet_speed_at_mk1: float = 600.0
 @export var bullet_speed_at_mk9: float = 1200.0
 
@@ -29,8 +29,8 @@ const BulletWaveLarge = preload("res://scenes/projectiles/bullet_wave_large.tscn
 func _init() -> void:
 	super._init()
 	display_name = "Wave Gun"
-	description = "Pierces enemies in a line. Slow and weak at Mk.1, fattens to a wide multi-hit pulse at higher Mks."
-	base_damage = 1
+	description = "Pierces enemies in a line. Mk.1 fires a small slow wave (dmg 4); Mk.9 punches a wide multi-hit pulse (dmg 12, fast)."
+	base_damage = 4
 	dmg_per_mark = 0  # not used — _mk_knobs encodes the curve directly
 	base_cooldown = 0.85
 
@@ -48,12 +48,22 @@ func _snapshot_keys() -> Array:
 
 func _mk_knobs() -> Dictionary:
 	return {
-		"bullet_damage": [base_damage, damage_at_mk9],
-		"cooldown": [base_cooldown, cooldown_at_mk9],
+		"bullet_damage": Callable(self, "_wave_damage_for_mark"),
+		"cooldown": Callable(self, "_cooldown_for_mark"),
 		"bullet_speed_override": [bullet_speed_at_mk1, bullet_speed_at_mk9],
 		"bullet_max_hits_override": Callable(self, "_max_hits_for_mark"),
 		"bullet_scene": Callable(self, "_scene_for_mark"),
 	}
+
+
+func _wave_damage_for_mark(at_mark: int) -> int:
+	# Mk.1 = 4, Mk.2 = 5, ..., Mk.9 = 12. Linear +1/mark.
+	return 3 + clampf(at_mark, 1, 9)
+
+
+func _cooldown_for_mark(at_mark: int) -> float:
+	# Compound reduction: 0.85 / 1.15^(mk-1). Mk.1=0.85s, Mk.9≈0.30s.
+	return 0.85 / pow(1.15, clampf(float(at_mark - 1), 0.0, 8.0))
 
 
 func _scene_for_mark(at_mark: int) -> PackedScene:
@@ -81,5 +91,4 @@ func _max_hits_for_mark(at_mark: int) -> int:
 
 # Weapon editor DPS readout — match the _mk_knobs damage curve.
 func effective_damage(at_mark: int) -> int:
-	var t: float = (clampf(float(at_mark), 1.0, 9.0) - 1.0) / 8.0
-	return int(round(lerpf(float(base_damage), float(damage_at_mk9), t)))
+	return _wave_damage_for_mark(at_mark)

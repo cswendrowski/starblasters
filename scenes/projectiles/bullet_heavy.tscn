@@ -20,7 +20,7 @@ size = Vector2(6, 16)
 
 [node name="Bullet" type="Area2D" unique_id=1062005731]
 script = ExtResource("1_hvscr")
-speed = 600
+speed = 500
 
 [node name="Glow" type="Sprite2D" parent="." unique_id=2188701901]
 modulate = Color(0.3, 0.6, 1, 0.85)

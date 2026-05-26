@@ -7,9 +7,9 @@
 script = ExtResource("1_w")
 mark = 1
 bullet_scene = ExtResource("2_b")
-base_damage = 1
-dmg_per_mark = 1
-base_cooldown = 0.20
+base_damage = 2
+dmg_per_mark = 0
+base_cooldown = 0.30
 base_bullet_count = 3
 bullets_per_mark = 2
 max_bullets = 9
