@@ -494,6 +494,11 @@ func _process(delta: float) -> void:
 		var s = get_node("/root/Settings")
 		if "autofire" in s and s.autofire:
 			fire_held = true
+	# Primary swap (Weapons Phase 1, Q): flip between blaster (cannon_pool[0])
+	# and the last-used replacement primary. Re-applies the new active cannon
+	# to the ship so bullet_scene / cooldown / damage all swap atomically.
+	if Input.is_action_just_pressed("primary_swap"):
+		_swap_active_primary()
 	if fire_held:
 		fire_primary()
 		# MG audio loop only when the machinegun is the equipped CANNON
@@ -676,12 +681,18 @@ func die() -> void:
 func fire_primary() -> void:
 	if not can_shoot or bullet_scene == null:
 		return
-	# Machinegun: out of ammo → silent click + abort. Energy blaster is
-	# unmetered (ammo == -1).
-	if weapon_style == WS.WeaponStyle.MACHINEGUN and ammo == 0:
+	# Weapons Phase 1: every non-blaster primary is metered. Active cannon
+	# index 0 == blaster (infinite); anything else has a magazine that lives
+	# on the Part instance in Run.cannon_pool[active_cannon_idx].current_ammo.
+	# The player's `ammo` field mirrors that for HUD/SFX gating.
+	if _is_replacement_primary_active() and ammo == 0:
+		# Out of ammo on a non-blaster — snap back to blaster (defensive;
+		# normally happens at the moment ammo hits 0 below). Skip this
+		# shot; next fire will use the blaster.
+		_snap_to_blaster_and_reapply()
 		return
-	# Rotary Laser: also ammo-gated.
-	if weapon_style == WS.WeaponStyle.ROTARY_LASER and (ammo == 0 or not _rl_charged):
+	# Rotary Laser: also charge-gated.
+	if weapon_style == WS.WeaponStyle.ROTARY_LASER and not _rl_charged:
 		return
 	can_shoot = false
 	$GunCooldown.start()
@@ -747,18 +758,8 @@ func fire_primary() -> void:
 	var MuzzleFx = load("res://scripts/effects/muzzle_fx.gd")
 	if weapon_style == WS.WeaponStyle.MACHINEGUN:
 		MuzzleFx.play(muzzle_pos, self)  # flash parented to player
-		if ammo > 0:
-			ammo -= 1
-			ammo_changed.emit(ammo)
-			if has_node("/root/Run"):
-				get_node("/root/Run").ammo = ammo
 	elif weapon_style == WS.WeaponStyle.ROTARY_LASER:
 		MuzzleFx.play_rotary_laser(muzzle_pos, self)
-		if ammo > 0:
-			ammo -= 1
-			ammo_changed.emit(ammo)
-			if has_node("/root/Run"):
-				get_node("/root/Run").ammo = ammo
 	else:
 		# Auto Laser et al. piggyback the rotary laser muzzle flash even
 		# though they're ENERGY-style (no ammo/charge gate). Branch on
@@ -779,6 +780,73 @@ func fire_primary() -> void:
 	var tween := create_tween().set_parallel(false)
 	tween.tween_property($Ship, "position:y", 1, 0.1)
 	tween.tween_property($Ship, "position:y", 0, 0.05)
+	# Weapons Phase 1: every non-blaster primary deducts ONE ammo per fire.
+	# The blaster (cannon_pool[0]) has ammo == -1 and is skipped. When ammo
+	# hits 0, snap to the blaster and re-apply on the next frame so the
+	# WeaponPart.apply/unapply snapshot cycle happens cleanly outside the
+	# fire loop.
+	if _is_replacement_primary_active() and ammo > 0:
+		ammo -= 1
+		ammo_changed.emit(ammo)
+		# Mirror to the active cannon Part so the magazine survives swap-out.
+		if has_node("/root/Run"):
+			var run = get_node("/root/Run")
+			run.ammo = ammo
+			var active = run.get_active_cannon()
+			if active != null and "current_ammo" in active:
+				active.current_ammo = ammo
+		if ammo == 0:
+			# Defer the swap so we don't mutate loadout mid-fire (WeaponPart
+			# apply/unapply rewrites bullet_scene/cooldown/etc).
+			call_deferred("_snap_to_blaster_and_reapply")
+
+
+# True when active_cannon_idx != 0 (non-blaster). Centralizes the "is
+# this a metered/replacement primary?" check so fire_primary and the
+# swap path stay in agreement (no silent fallbacks).
+func _is_replacement_primary_active() -> bool:
+	if not has_node("/root/Run"):
+		return false
+	var run = get_node("/root/Run")
+	return int(run.active_cannon_idx) != 0
+
+
+# Snap the active cannon back to cannon_pool[0] (blaster) and re-apply it
+# through the loadout system so bullet_scene / cooldown / damage / SFX all
+# revert. Called when ammo hits 0 OR when the player presses primary_swap.
+func _snap_to_blaster_and_reapply() -> void:
+	if not has_node("/root/Run"):
+		return
+	var run = get_node("/root/Run")
+	run.swap_to_blaster()
+	_reapply_active_cannon()
+
+
+# Re-apply whatever Run.get_active_cannon() points at to the player ship.
+# The loadout's equip() runs unapply on the prior CANNON part (restoring
+# its snapshot) then apply on the new one. Safe to call any time outside
+# fire_primary's tight loop.
+func _reapply_active_cannon() -> void:
+	if not has_node("/root/Run") or loadout == null:
+		return
+	var run = get_node("/root/Run")
+	var active = run.get_active_cannon()
+	if active == null:
+		return
+	const Slots = preload("res://scripts/weapons/SlotTypes.gd")
+	loadout.equip(Slots.SlotType.CANNON, active)
+
+
+# Toggle the active primary. Q-bound; routes to Run.cycle_primary() and
+# re-applies. No-op if the player only owns the blaster.
+func _swap_active_primary() -> void:
+	if not has_node("/root/Run"):
+		return
+	var run = get_node("/root/Run")
+	if int(run.cannon_pool.size()) <= 1:
+		return
+	run.cycle_primary()
+	_reapply_active_cannon()
 
 
 # Ammo setter for the CANNON Part to plumb its starting ammo. Public so

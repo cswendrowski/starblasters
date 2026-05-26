@@ -46,3 +46,9 @@ extends Resource
 @export var shield_recharge_mk: int = 0
 
 @export var sector_map_cache: Dictionary = {}
+
+# Weapons Phase 1 (2026-05-26): cannon pool + active index. cannon_pool[0]
+# is the permanent Energy Blaster; further entries are owned replacement
+# primaries with per-cannon `current_ammo` on the Part.
+@export var cannon_pool: Array = []
+@export var active_cannon_idx: int = 0

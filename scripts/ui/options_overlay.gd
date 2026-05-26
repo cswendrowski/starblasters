@@ -156,7 +156,7 @@ func _build_ui() -> void:
 	ctrl_lbl.text = "Controls"
 	UiTheme.style_label(ctrl_lbl, UiTheme.LabelKind.HEADER)
 	v.add_child(ctrl_lbl)
-	for action_name in ["shoot", "shoot2", "shoot_nose", "focus", "weapon_previous", "weapon_next", "autofire_toggle"]:
+	for action_name in ["shoot", "shoot2", "shoot_nose", "focus", "primary_swap", "autofire_toggle"]:
 		_add_rebind_row(v, action_name)
 
 	v.add_child(_make_separator())
@@ -193,8 +193,7 @@ const _ACTION_LABELS := {
 	"shoot2": "Secondary fire",
 	"shoot_nose": "Super weapon",
 	"focus": "Focus / Slow",
-	"weapon_previous": "Previous weapon",
-	"weapon_next": "Next weapon",
+	"primary_swap": "Swap primary",
 	"autofire_toggle": "Toggle autofire",
 }
 

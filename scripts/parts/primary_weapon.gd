@@ -14,8 +14,41 @@ const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 # Virtual methods work for both .new() and .tres-loaded instances.
 
 
+# Weapons Phase 1 (2026-05-26): every non-blaster primary carries its own
+# ammo on the Part instance, so cannon_pool[i] survives swaps. The blaster
+# (Energy Blaster) overrides ammo_at_mark() to return -1 (infinite).
+# Default current_ammo = -1 so cannons that haven't been mark-bumped yet
+# still read as infinite — Run.equip_part seeds these on append.
+@export var current_ammo: int = -1
+@export var ammo_max: int = -1
+
+
 func _init() -> void:
 	slot_type = Slots.SlotType.CANNON
+
+
+# Returns the starting ammo for this cannon at the given mark. Designer
+# formula (Roman 2026-05-26): 1000 / max(1, effective damage at mark) for
+# replacement primaries. The blaster + metered_primary subclasses override
+# (blaster returns -1 = infinite; metered keeps its explicit base_ammo).
+func ammo_at_mark(mk: int) -> int:
+	var dmg: int = _effective_damage_at_mark(mk)
+	return int(1000.0 / float(max(1, dmg)))
+
+
+# Resolve bullet_damage from the per-mark curve in _mk_knobs() without
+# touching a live ship. Mirrors WeaponPart._compute_knob_value for the
+# bullet_damage array case (the only one we need for the ammo formula).
+func _effective_damage_at_mark(mk: int) -> int:
+	var spec = _mk_knobs().get("bullet_damage", null)
+	if spec == null:
+		return max(1, int(base_damage))
+	if spec is Array and spec.size() == 2:
+		var t: float = (clampf(float(mk), 1.0, 9.0) - 1.0) / 8.0
+		return int(round(lerpf(float(spec[0]), float(spec[1]), t)))
+	if spec is Callable:
+		return int(spec.call(int(mk)))
+	return max(1, int(base_damage))
 
 
 # Subclasses override these — return the WS enum value for the cannon's
@@ -59,3 +92,11 @@ func _apply_visuals(ship) -> void:
 		ship.bullet_scene = bullet_scene
 	ship.weapon_style = _weapon_style()
 	ship.fire_sfx_kind = _fire_sfx_kind()
+	# Weapons Phase 1: stamp the Part's ammo onto the ship so fire_primary's
+	# decrement guard (`ammo > 0`) trips correctly for every non-blaster
+	# primary — not just the metered_primary subclasses. Blaster passes
+	# current_ammo == -1 (infinite); the >= 0 guard is the discriminator.
+	if "ammo_max" in ship:
+		ship.ammo_max = ammo_max
+	if ship.has_method("set_ammo"):
+		ship.set_ammo(current_ammo)

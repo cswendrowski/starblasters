@@ -107,6 +107,21 @@ var shield_recharge_mk: int = 0
 # slot, the old one moves here). Each entry is a Part resource.
 var weapon_storage: Array = []
 
+# ---- Cannon pool (Weapons Phase 1, 2026-05-26) ------------------------
+# cannon_pool[0] is ALWAYS the permanent Energy Blaster (infinite ammo,
+# unremovable, upgradeable). cannon_pool[1..N] are owned replacement
+# primaries that carry per-cannon ammo on the Part instance
+# (`current_ammo` field). active_cannon_idx selects which one fire_primary
+# uses; 0 = Blaster, non-zero = whichever replacement the player last
+# swapped to. Out-of-ammo on a non-blaster auto-snaps back to 0.
+# `loadout_snapshot[CANNON]` mirrors `cannon_pool[active_cannon_idx]` so
+# legacy reads (HUD, outpost loadout line, Manage Ship modal) keep working.
+var cannon_pool: Array = []
+var active_cannon_idx: int = 0
+# Last non-blaster cannon the player picked. cycle_primary() flips between
+# 0 and this index; reset to 0 when only the blaster is owned.
+var _last_non_blaster_idx: int = 0
+
 # Sector Map V3 cache. Single source of truth for the current sector's
 # 3-row layout: every POI + per-row boss with completion flags. Generated
 # once on sector entry via start_new_sector(); persists across the
@@ -207,6 +222,9 @@ func new_run() -> void:
 	shield_cap_mk = 0
 	shield_recharge_mk = 0
 	weapon_storage = []
+	cannon_pool = []
+	active_cannon_idx = 0
+	_last_non_blaster_idx = 0
 	sector_map_cache = {}
 	# Reset ammo state — Part.apply() reseeds on equip.
 	ammo = -1
@@ -549,6 +567,11 @@ func _seed_default_loadout_snapshot() -> void:
 	if "bullet_scene" in cannon and cannon.bullet_scene == null:
 		cannon.bullet_scene = _BulletDefault
 	loadout_snapshot[_SlotTypes.SlotType.CANNON] = cannon
+	# Seed cannon_pool[0] with the same blaster instance — the loadout
+	# snapshot's CANNON entry is a derived view of cannon_pool[active_idx].
+	cannon_pool = [cannon]
+	active_cannon_idx = 0
+	_last_non_blaster_idx = 0
 	var super_part = _PartFactory._load_or_default(
 		"res://resources/weapons/smart_bomb.tres", _SmartBomb)
 	loadout_snapshot[_SlotTypes.SlotType.DEVICE_BAY_1] = super_part
@@ -584,6 +607,31 @@ func equip_part(part) -> void:
 	if part == null:
 		return
 	var slot: int = int(part.slot_type)
+	# CANNON-specific: replacement primaries append to cannon_pool instead
+	# of displacing the prior slot occupant into weapon_storage. The blaster
+	# at cannon_pool[0] is permanent. If the same-name cannon is already
+	# owned, mark-bump it in place rather than appending a duplicate.
+	if slot == _SlotTypes.SlotType.CANNON:
+		var name: String = String(part.display_name)
+		var existing_idx: int = find_owned_cannon_by_name(name)
+		if existing_idx >= 0:
+			# Dedupe-up: caller (outpost) already chose +1 Mk for an owned
+			# cannon. Bump the owned copy and refill its ammo from the new
+			# mark's curve.
+			mark_bump_owned_cannon(part)
+		else:
+			# Seed current_ammo on the new cannon from its per-mark formula
+			# so the first equip has a fresh magazine.
+			if part.has_method("ammo_at_mark") and "current_ammo" in part and "ammo_max" in part:
+				var seed: int = int(part.ammo_at_mark(int(part.mark)))
+				part.current_ammo = seed
+				part.ammo_max = seed
+			cannon_pool.append(part)
+			active_cannon_idx = cannon_pool.size() - 1
+			_last_non_blaster_idx = active_cannon_idx
+		# Keep loadout_snapshot mirror in sync with the active cannon.
+		loadout_snapshot[slot] = cannon_pool[active_cannon_idx]
+		return
 	var prev = loadout_snapshot.get(slot, null)
 	if prev != null:
 		weapon_storage.append(prev)
@@ -614,6 +662,80 @@ func equip_part(part) -> void:
 		# the same pattern used on first run.
 		max_super_charges = _super_charges_from_part(part)
 		super_charges = int(max_super_charges)
+
+
+# ---- Cannon pool helpers (Weapons Phase 1) -----------------------------
+
+# Active cannon Part — what player.fire_primary should be using. Returns
+# null if pool is empty (shouldn't happen — blaster is permanent).
+func get_active_cannon():
+	if cannon_pool.is_empty():
+		return null
+	var idx: int = clampi(active_cannon_idx, 0, cannon_pool.size() - 1)
+	return cannon_pool[idx]
+
+
+# Force the active cannon back to the blaster (idx 0). Called by
+# player.gd when a non-blaster runs out of ammo. Caller is responsible
+# for re-applying the new active cannon to the player ship.
+func swap_to_blaster() -> void:
+	active_cannon_idx = 0
+	if cannon_pool.size() > 0:
+		loadout_snapshot[_SlotTypes.SlotType.CANNON] = cannon_pool[0]
+
+
+# Toggle action: if blaster is active and the player owns a non-blaster
+# primary, switch to the last one used. If a non-blaster is active, swap
+# back to the blaster. Single-owner case (only blaster) is a no-op.
+func cycle_primary() -> void:
+	if cannon_pool.size() <= 1:
+		return
+	if active_cannon_idx == 0:
+		# Restore last used non-blaster. Clamp in case the pool shrank
+		# (Phase 2: sell would invalidate the index; defensive for now).
+		var target: int = _last_non_blaster_idx
+		if target <= 0 or target >= cannon_pool.size():
+			target = cannon_pool.size() - 1
+		active_cannon_idx = target
+		_last_non_blaster_idx = target
+	else:
+		_last_non_blaster_idx = active_cannon_idx
+		active_cannon_idx = 0
+	loadout_snapshot[_SlotTypes.SlotType.CANNON] = cannon_pool[active_cannon_idx]
+
+
+# Look up an owned cannon by display_name. Returns the cannon_pool index
+# or -1 if not owned. Used by the outpost dedupe-up roll.
+func find_owned_cannon_by_name(name: String) -> int:
+	for i in range(cannon_pool.size()):
+		var c = cannon_pool[i]
+		if c != null and String(c.display_name) == name:
+			return i
+	return -1
+
+
+# Mark-bump an owned cannon. `bump_part` is the freshly-rolled +1 Mk Part
+# the player just bought; we read its mark and re-apply it to the OWNED
+# entry so a single dedupe-up purchase doesn't create a duplicate. Refills
+# ammo from the new mark's curve.
+func mark_bump_owned_cannon(bump_part) -> void:
+	if bump_part == null:
+		return
+	var idx: int = find_owned_cannon_by_name(String(bump_part.display_name))
+	if idx < 0:
+		push_warning("Run.mark_bump_owned_cannon: %s not owned" % bump_part.display_name)
+		return
+	var owned = cannon_pool[idx]
+	if "mark" in owned and "mark" in bump_part:
+		owned.mark = int(bump_part.mark)
+	# Refill ammo from the new mark's per-mark formula.
+	if owned.has_method("ammo_at_mark") and "current_ammo" in owned and "ammo_max" in owned:
+		var seed: int = int(owned.ammo_at_mark(int(owned.mark)))
+		owned.current_ammo = seed
+		owned.ammo_max = seed
+	# Keep loadout_snapshot mirror in sync if the bumped cannon is active.
+	if idx == active_cannon_idx:
+		loadout_snapshot[_SlotTypes.SlotType.CANNON] = owned
 
 
 # Inverse of equip_part: clears a slot in loadout_snapshot and zeroes any
@@ -658,6 +780,7 @@ const _SAVE_FIELDS := [
 	"hull_mk", "armor_mk", "thrusters_mk", "self_repair_mk",
 	"shield_cap_mk", "shield_recharge_mk",
 	"sector_map_cache",
+	"cannon_pool", "active_cannon_idx",
 ]
 
 
@@ -686,6 +809,14 @@ func load_from_disk() -> bool:
 		return false
 	for f in _SAVE_FIELDS:
 		set(f, s.get(f))
+	# Save migration: pre-Phase-1 saves have no cannon_pool. Seed it from
+	# loadout_snapshot[CANNON] so the player keeps their blaster on resume.
+	if cannon_pool == null or cannon_pool.is_empty():
+		var legacy_cannon = loadout_snapshot.get(_SlotTypes.SlotType.CANNON, null)
+		if legacy_cannon != null:
+			cannon_pool = [legacy_cannon]
+		active_cannon_idx = 0
+		_last_non_blaster_idx = 0
 	return true
 
 

@@ -44,6 +44,11 @@ const HULL_REPAIR_PCT := 0.25
 # fall out linearly. Partial refills are allowed when the player can't
 # cover the full top-up — see _on_primary_ammo_refill.
 const AMMO_COST_PER_ROUND := 0.5
+# Weapons Phase 1 (2026-05-26): primary ammo refill is now a flat-cost
+# button — refills the active cannon_pool entry's magazine to full. Blaster
+# (active_cannon_idx == 0) has infinite ammo so the button greys out.
+# Placeholder value pending designer tuning.
+const PRIMARY_REFILL_COST := 50
 # Super charges: per-charge purchase. Doubled from 30 → 60 (Roman 2026-05-25):
 # free auto-refill on outpost visit removed at the same time, so the player
 # now PAYS to keep their super topped up — supers are a real economy lever.
@@ -208,7 +213,7 @@ func _build_status_panel(parent: CanvasLayer) -> void:
 	# Stat blocks.
 	_hull_value_lbl = _make_stat_block(h, "HULL")
 	_shield_value_lbl = _make_stat_block(h, "SHIELD")
-	_mg_ammo_lbl = _make_stat_block(h, "MG AMMO")
+	_mg_ammo_lbl = _make_stat_block(h, "PRIMARY")
 	_sec_ammo_lbl = _make_stat_block(h, "SECONDARY")
 	_super_value_lbl = _make_stat_block(h, "SUPER")
 
@@ -585,12 +590,15 @@ func _sell_value_for(part) -> int:
 # ---- Offer rolls ----------------------------------------------------------
 
 func _roll_offers() -> void:
+	# Per-visit randomization. Roman 2026-05-25: "each outpost should be
+	# randomized when visited" — drop the deterministic run_seed mix so the
+	# same node id revisited (or two outposts in the same sector) reroll
+	# clean. _refresh_count is irrelevant once we randomize, but keep the
+	# call so refreshes still touch the rng state explicitly.
 	var rng := RandomNumberGenerator.new()
-	if has_node("/root/Run"):
-		var r = get_node("/root/Run")
-		rng.seed = r.run_seed + r.visited_nodes.size() * 17 + _refresh_count * 101
-	else:
-		rng.randomize()
+	rng.randomize()
+	if _refresh_count > 0:
+		rng.seed = rng.seed ^ (_refresh_count * 101)
 
 	var sector_idx: int = _current_sector()
 	# Boss-clear cap bump: each row-boss already killed in this sector raises
@@ -624,15 +632,50 @@ func _roll_offers() -> void:
 
 	# Weapons: WEAPONS_COLUMN_COUNT cards. Slot weighted 50/25/25 via
 	# WEAPON_SLOT_WEIGHTS; mark via the triangular roll capped at sector+3.
+	# Dedupe by (slot, mark, name) — Roman 2026-05-25: "shop should not
+	# offer repeats". Bounded reroll so we don't loop forever if the catalog
+	# can't fill 5 unique slots at the current sector cap.
 	_weapon_offers.clear()
+	var seen: Dictionary = {}
 	for i in WEAPONS_COLUMN_COUNT:
-		var slot: int = int(WEAPON_SLOT_WEIGHTS[rng.randi() % WEAPON_SLOT_WEIGHTS.size()])
-		var picked_mk: int = _roll_weighted_mark(rng, 1, max_mk_for_sector)
-		var part = PartCatalog.roll_for_slot(rng, slot, picked_mk)
-		if part == null:
+		var picked = null
+		var picked_mk: int = 1
+		for attempt in 8:
+			var slot: int = int(WEAPON_SLOT_WEIGHTS[rng.randi() % WEAPON_SLOT_WEIGHTS.size()])
+			picked_mk = _roll_weighted_mark(rng, 1, max_mk_for_sector)
+			var part = PartCatalog.roll_for_slot(rng, slot, picked_mk)
+			if part == null:
+				continue
+			var part_name: String = String(part.display_name)
+			# Weapons Phase 1: CANNON dedupe-up. If the player already owns
+			# this cannon (by display_name in Run.cannon_pool), offer the
+			# next mark up — provided the sector cap allows it. If the
+			# owned mark is already at the cap, re-roll a different
+			# cannon. Blaster at index 0 is permanent / always owned but
+			# IS upgradeable, so the same rule applies to it.
+			if slot == SlotTypes.SlotType.CANNON and has_node("/root/Run"):
+				var run = get_node("/root/Run")
+				var owned_idx: int = -1
+				if run.has_method("find_owned_cannon_by_name"):
+					owned_idx = int(run.find_owned_cannon_by_name(part_name))
+				if owned_idx >= 0:
+					var owned_mk: int = int(run.cannon_pool[owned_idx].mark)
+					if owned_mk >= max_mk_for_sector or owned_mk >= MAX_MK:
+						# Cap reached — try a different cannon next attempt.
+						continue
+					picked_mk = owned_mk + 1
+					if "mark" in part:
+						part.mark = picked_mk
+			var key: String = "%d:%d:%s" % [slot, picked_mk, part_name]
+			if seen.has(key):
+				continue
+			seen[key] = true
+			picked = part
+			break
+		if picked == null:
 			continue
 		var cost: int = CANNON_BASE_COST + (picked_mk - 1) * CANNON_COST_PER_MK
-		_weapon_offers.append({"part": part, "cost": cost, "sold": false})
+		_weapon_offers.append({"part": picked, "cost": cost, "sold": false})
 
 
 # Triangular mark roll — average of two dice peaks at the midpoint.
@@ -836,25 +879,30 @@ func _ammo_refill_partial(bounty: int, missing: int) -> Array:
 
 
 func _on_primary_ammo_refill(btn: Button) -> void:
+	# Weapons Phase 1: flat-cost refill on the ACTIVE non-blaster cannon's
+	# magazine. Reads ammo_max from the cannon Part (cannon_pool entry) and
+	# fills current_ammo to that cap. Blaster (idx 0) is greyed in
+	# _apply_service_button_state so this handler only runs for replacements.
 	if not has_node("/root/Run"):
 		return
 	var run = get_node("/root/Run")
-	if int(run.ammo) < 0:
+	if int(run.active_cannon_idx) == 0:
 		return
-	var ammo_max: int = _primary_ammo_max()
-	if ammo_max <= 0:
+	var active = run.get_active_cannon()
+	if active == null or not ("current_ammo" in active) or not ("ammo_max" in active):
 		return
-	var missing: int = ammo_max - int(run.ammo)
-	if missing <= 0:
+	var cap: int = int(active.ammo_max)
+	if cap <= 0:
 		return
-	var result: Array = _ammo_refill_partial(int(run.bounty), missing)
-	var rounds: int = int(result[0])
-	var cost: int = int(result[1])
-	if rounds <= 0:
+	if int(active.current_ammo) >= cap:
 		return
-	run.bounty -= cost
-	run.ammo = clampi(int(run.ammo) + rounds, 0, ammo_max)
-	_show_toast("+%d rounds (%d)" % [rounds, cost])
+	if int(run.bounty) < PRIMARY_REFILL_COST:
+		return
+	run.bounty -= PRIMARY_REFILL_COST
+	active.current_ammo = cap
+	# Mirror to Run.ammo + player.ammo so HUD updates immediately on return.
+	run.ammo = cap
+	_show_toast("Primary refilled")
 	_refresh_status_panel()
 
 
@@ -966,10 +1014,18 @@ func _refresh_status_panel() -> void:
 		else:
 			_shield_value_lbl.text = "—"
 	if _mg_ammo_lbl:
-		if int(run.ammo) >= 0:
-			_mg_ammo_lbl.text = "%d" % int(run.ammo)
+		# Weapons Phase 1: PRIMARY label reads active cannon. Blaster shows
+		# infinity; replacement primaries show current/max from the Part.
+		if int(run.active_cannon_idx) == 0:
+			_mg_ammo_lbl.text = "∞"
 		else:
-			_mg_ammo_lbl.text = "—"
+			var active = run.get_active_cannon()
+			if active != null and "current_ammo" in active and "ammo_max" in active and int(active.ammo_max) > 0:
+				_mg_ammo_lbl.text = "%d / %d" % [int(active.current_ammo), int(active.ammo_max)]
+			elif int(run.ammo) >= 0:
+				_mg_ammo_lbl.text = "%d" % int(run.ammo)
+			else:
+				_mg_ammo_lbl.text = "—"
 	if _sec_ammo_lbl:
 		if int(run.secondary_ammo) >= 0 and int(run.secondary_ammo_max) > 0:
 			_sec_ammo_lbl.text = "%d / %d" % [int(run.secondary_ammo), int(run.secondary_ammo_max)]
@@ -1067,36 +1123,34 @@ func _apply_service_button_state(btn: Button) -> void:
 			btn.disabled = false
 			btn.text = "%s  (FREE)" % base_label
 		"primary_ammo":
-			# Cost-scaled refill — base_label is just the slot name; we append
-			# "+rounds (cost)" or "(no primary ammo)" / "(Full)" so the player
-			# always sees the live price + the current top-up they'd get.
-			if run == null or int(run.ammo) < 0:
+			# Weapons Phase 1: flat-cost refill on the active replacement
+			# primary. Blaster active → greyed (no ammo to refill). Active
+			# slot not metered or already full → greyed with reason. Cost is
+			# constant (PRIMARY_REFILL_COST), independent of rounds missing.
+			if run == null:
+				btn.disabled = true
+				btn.text = "%s  (no run)" % base_label
+				return
+			if int(run.active_cannon_idx) == 0:
+				btn.disabled = true
+				btn.text = "%s  (Blaster, infinite)" % base_label
+				return
+			var active = run.get_active_cannon()
+			if active == null or not ("current_ammo" in active) or not ("ammo_max" in active):
 				btn.disabled = true
 				btn.text = "%s  (no primary ammo)" % base_label
 				return
-			var pmax: int = _primary_ammo_max()
+			var pmax: int = int(active.ammo_max)
 			if pmax <= 0:
 				btn.disabled = true
 				btn.text = "%s  (no primary ammo)" % base_label
 				return
-			var pmiss: int = pmax - int(run.ammo)
-			if pmiss <= 0:
+			if int(active.current_ammo) >= pmax:
 				btn.disabled = true
 				btn.text = "%s  Full" % base_label
 				return
-			var pfull: int = _ammo_refill_cost(pmiss)
-			var paff: Array = _ammo_refill_partial(_run_bounty(), pmiss)
-			var paff_rounds: int = int(paff[0])
-			var paff_cost: int = int(paff[1])
-			if paff_rounds <= 0:
-				btn.disabled = true
-				btn.text = "%s  +%d (need %d)" % [base_label, pmiss, pfull]
-				return
-			btn.disabled = false
-			if paff_rounds < pmiss:
-				btn.text = "%s  +%d (%d, partial)" % [base_label, paff_rounds, paff_cost]
-			else:
-				btn.text = "%s  +%d (%d)" % [base_label, paff_rounds, paff_cost]
+			btn.disabled = _run_bounty() < PRIMARY_REFILL_COST
+			btn.text = "%s  Refill (%d)" % [base_label, PRIMARY_REFILL_COST]
 		"secondary_ammo":
 			if run == null or int(run.secondary_ammo) < 0 or int(run.secondary_ammo_max) <= 0:
 				btn.disabled = true

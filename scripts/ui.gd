@@ -236,11 +236,11 @@ func bind_player(player) -> void:
 		if not player.ammo_changed.is_connected(_on_ammo_changed):
 			player.ammo_changed.connect(_on_ammo_changed)
 		_on_ammo_changed(player.ammo if "ammo" in player else -1)
-		# Also poll weapon_style to decide visibility — energy = hidden,
-		# machinegun = shown.
-		if "weapon_style" in player:
-			var WS = preload("res://scripts/weapons/WeaponStyle.gd")
-			_set_ammo_visible(int(player.weapon_style) == WS.WeaponStyle.MACHINEGUN)
+		# Weapons Phase 1: show ammo any time a non-blaster primary is
+		# active. Blaster (Run.active_cannon_idx == 0) hides the readout.
+		if has_node("/root/Run"):
+			var _run = get_node("/root/Run")
+			_set_ammo_visible(int(_run.active_cannon_idx) != 0 and int(player.ammo if "ammo" in player else -1) >= 0)
 	# Standalone showcase bind: main.tscn wires hull_changed via the scene
 	# connection table, but the showcase instantiates ui.tscn manually and that
 	# connection doesn't exist. So we wire it here defensively.
@@ -342,13 +342,20 @@ func _install_ammo_label() -> void:
 
 
 func _on_ammo_changed(value: int) -> void:
-	if ammo_label == null:
-		return
-	if value < 0:
-		_set_ammo_visible(false)
-		return
-	ammo_label.text = "AMMO %d" % value
-	_set_ammo_visible(true)
+	# Weapons Phase 1: visibility is driven by active cannon idx (blaster = hide)
+	# rather than weapon_style, so cycling primaries via Q toggles the readout
+	# even when the new primary isn't MG/RL style.
+	var show: bool = value >= 0
+	if has_node("/root/Run"):
+		var _run = get_node("/root/Run")
+		if int(_run.active_cannon_idx) == 0:
+			show = false
+	if ammo_label:
+		if show:
+			ammo_label.text = "AMMO %d" % value
+		_set_ammo_visible(show)
+	# Refresh PRI label so the ammo suffix updates as shots are fired.
+	_refresh_weapon_hints()
 
 
 func _set_ammo_visible(v: bool) -> void:
@@ -468,19 +475,26 @@ func _refresh_weapon_hints() -> void:
 		return
 	const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 	var pri_name: String = "—"
+	var pri_ammo_suffix: String = ""
 	var sec_name: String = "—"
 	if has_node("/root/Run"):
 		var run = get_node("/root/Run")
+		# Weapons Phase 1: PRI label reads the active cannon Part directly
+		# from cannon_pool so the swap is reflected instantly. Append ammo
+		# count for non-blaster primaries; blaster shows nothing extra (∞).
+		if run.has_method("get_active_cannon"):
+			var active = run.get_active_cannon()
+			if active != null and "display_name" in active:
+				pri_name = String(active.display_name)
+			if int(run.active_cannon_idx) != 0 and active != null and "current_ammo" in active:
+				pri_ammo_suffix = "  %d" % int(active.current_ammo)
 		if "loadout_snapshot" in run and run.loadout_snapshot is Dictionary:
-			var p_cannon = run.loadout_snapshot.get(Slots.SlotType.CANNON, null)
-			if p_cannon != null and "display_name" in p_cannon:
-				pri_name = String(p_cannon.display_name)
 			var p_sec = run.loadout_snapshot.get(Slots.SlotType.HARDPOINT_WING, null)
 			if p_sec != null and "display_name" in p_sec:
 				sec_name = String(p_sec.display_name)
 	var pri_key: String = _action_key_label("shoot")
 	var sec_key: String = _action_key_label("shoot2")
-	_pri_label.text = "PRI %s [%s]" % [pri_name, pri_key]
+	_pri_label.text = "PRI %s%s [%s]" % [pri_name, pri_ammo_suffix, pri_key]
 	_sec_label.text = "SEC %s [%s]" % [sec_name, sec_key]
 
 

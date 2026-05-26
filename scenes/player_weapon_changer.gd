@@ -18,12 +18,11 @@ func _ready():
 func _process(_float):
 	if Input.is_action_pressed("shoot_nose") and $"../../MinigunCooldown".is_stopped():
 		shoot()
-	if Input.is_action_just_pressed("weapon_previous"):
-		var direction = -1
-		switch_weapon(direction)
-	if Input.is_action_just_pressed("weapon_next"):
-		var direction = 1
-		switch_weapon(direction)
+	# Weapons Phase 1 (2026-05-26): weapon_previous/weapon_next actions
+	# removed in favor of primary_swap. This legacy nose-minigun stub stays
+	# wired to player.tscn but no longer cycles — the new system swaps via
+	# Q at the player.gd level. Left as a no-op pending Phase 2 cleanup.
+	pass
 	
 func switch_weapon(direction):
 	current_weapon_index += direction

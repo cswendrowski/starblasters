@@ -16,3 +16,9 @@ func _init() -> void:
 
 func _fire_sfx_kind() -> int:
 	return WS.FireSfxKind.BLASTER_SMALL
+
+
+# Energy Blaster is the permanent core primary — infinite ammo always.
+# Run.cannon_pool[0] is always this part; -1 signals "no metering".
+func ammo_at_mark(_mk: int) -> int:
+	return -1
