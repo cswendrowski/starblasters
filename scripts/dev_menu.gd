@@ -90,7 +90,7 @@ func _build_ui() -> void:
 	# Test launchers
 	_add_button("[ Test Combat ]", _on_test_combat, true)
 	_add_button("[ Hangar ]", _on_hangar, true)
-	_add_button("[ Sector Map V3 ]", _on_sector_map_v3, true)
+	_add_button("[ UI Plotter ]", _on_ui_plotter, true)
 
 	v.add_child(HSeparator.new())
 
@@ -169,8 +169,8 @@ func _on_hangar() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/hangar.tscn")
 
 
-func _on_sector_map_v3() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev/sector_map_v3.tscn")
+func _on_ui_plotter() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/ui_plotter.tscn")
 
 
 # Unified Test Combat launcher (Cody 2026-05-19): one modal that fans

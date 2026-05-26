@@ -76,9 +76,9 @@ Captured from Cody's 2026-05-19 punch list. Ordered roughly by leverage.
 
 ## New 2026-05-25 (designer)
 
-- [ ] **Cull the sector V3 dev menu** — V3 is now live in the main game (`scripts/sector_map_v3.gd`), so `scripts/dev/sector_map_v3.gd` + `scenes/dev/sector_map_v3.tscn` + `tools/capture_sector_map_v3.*` are obsolete tooling. Verify nothing else references them, then delete.
-- [ ] **POI visited state — disable lights + decor on resolve** — once a POI is visited and completed, its node lights and decorative ships should turn off. Today they keep animating after completion (the completed marker is the green rect/icon tint only). Likely needs a check against `Run.is_node_completed(poi.id)` in `_add_node_dressing` + the decorative ship spawner.
-- [ ] **Grid-based screen designer** — dev tool using the same grid the Sector V3 screen uses (32×20 px cells, 14×12 layout). Place ColorRects/labels/buttons by grid coord for fine-tuning HUD + modal layouts. Pattern to follow: `scripts/dev/parallax_tuner.gd` for the JSON persist + Copy-GDScript button shape.
+- [x] **Cull the sector V3 dev menu** — done in dev tooling cleanup (this commit). Also dropped WaveGeneratorV2 + dev/wave_tester + the old dev/ship_sizer in the same pass. Grid annotation pattern preserved in `scripts/dev/grid_overlay.gd` for the new UI Plotter.
+- [x] **POI visited state — disable lights + decor on resolve** — `641cb79`. Completed POIs skip planet/asteroid/cluster decoration + pulse-glow / glitter / hover label.
+- [x] **Grid-based screen designer** — shipped as `scripts/dev/ui_plotter.gd` + `scenes/dev/ui_plotter.tscn`. Pick a player screen from the modal, overlay 8/16/32px annotated grid (G/L hotkeys), live mouse-cell readout. Reuses the V3 sector map grid via `scripts/dev/grid_overlay.gd`.
 
 ## Outstanding 2026-05-25 (sweep)
 

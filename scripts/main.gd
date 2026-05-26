@@ -404,19 +404,6 @@ func new_game() -> void:
 				var lvl = load(path)
 				if lvl:
 					_current_level = lvl
-		# Roman, 2026-05-18: wave_tester stashes V2 knobs on Run via meta.
-		# When present, route through WaveGeneratorV2 instead of the
-		# existing dynamic generator so the tester knobs take effect.
-		if _current_level == null and has_node("/root/Run") and get_node("/root/Run").has_meta("wave_v2_knobs"):
-			var run = get_node("/root/Run")
-			var WaveGenV2 = load("res://scripts/levels/wave_generator_v2.gd")
-			var sd_v2: int = int(run.get_meta("wave_v2_sector", 1))
-			var knobs: Dictionary = run.get_meta("wave_v2_knobs", {})
-			# Single-shot: clear the meta so subsequent combats use the
-			# normal dynamic generator.
-			run.remove_meta("wave_v2_knobs")
-			run.remove_meta("wave_v2_sector")
-			_current_level = WaveGenV2.build_combat(sd_v2, knobs)
 		if _current_level == null:
 			# Standard combat node — dynamic wave generator. First combat
 			# in a sector = 2 waves / 1 type; deepens from there.

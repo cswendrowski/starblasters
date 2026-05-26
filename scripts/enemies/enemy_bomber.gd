@@ -63,16 +63,11 @@ func _ready() -> void:
 	super._ready()
 	_shield = shield_charges_max
 	_sway_seed = randf() * TAU
-	# Claim a V-formation slot.
-	var WaveGenV2 = load("res://scripts/levels/wave_generator_v2.gd")
-	if WaveGenV2:
-		var slot: Dictionary = WaveGenV2.claim_bomber_slot()
-		var x_offset: float = float(slot.get("x_offset", 0.0))
-		var y_depth: float = float(slot.get("y_depth", 0.0))
-		position.x += x_offset
-		_slot_anchor = Vector2(position.x, hover_y + y_depth)
-	else:
-		_slot_anchor = Vector2(position.x, hover_y)
+	# V-formation slotting was only ever assigned by the deleted
+	# WaveGeneratorV2 path — production WaveGen never registered wings,
+	# so bombers always landed on the no-slot branch. Keep the bare
+	# anchor so wing-formations could be reintroduced via a new path.
+	_slot_anchor = Vector2(position.x, hover_y)
 	# Two sets of damage tells — fire + smoke at both rear positions.
 	var EngineTorchCls = preload("res://scripts/effects/engine_torch.gd")
 	const DamageSmokeTrailCls = preload("res://scripts/effects/damage_smoke_trail.gd")
