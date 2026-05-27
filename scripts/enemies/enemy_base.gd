@@ -166,7 +166,7 @@ func _update_damage_visual() -> void:
 		return
 	# 0 at full health → 1 at zero health. Capped slightly under 1 so the
 	# sprite still reads on the frame before explode() fires.
-	var lvl: float = clamp(1.0 - float(health) / float(max_health), 0.0, 0.92)
+	var lvl: float = clamp(1.0 - float(health) / float(max_health), 0.0, 0.75)
 	_damage_material.set_shader_parameter("sensitivity", lvl)
 
 
