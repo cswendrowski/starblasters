@@ -20,7 +20,9 @@ const DEBRIS_SPIN_MAX: float = 8.0
 # parse + class lookup happens once per project load.
 const EnemyEngineFxScript = preload("res://scripts/effects/enemy_engine_fx.gd")
 const ParallaxShadowScript = preload("res://scripts/effects/parallax_shadow.gd")
-const DamageOverlayShader = preload("res://graphics/damage_overlay.gdshader")
+const DamageOverlayShader = preload("res://graphics/damage_noise.gdshader")
+const _DamageNoiseTex = preload("res://resources/noise_damage.tres")
+const _DamageEdgeTex = preload("res://resources/edge_distance_flat.tres")
 const ExplosionFxScript = preload("res://scripts/effects/explosion_fx.gd")
 const DeathDustScript = preload("res://scripts/effects/death_dust.gd")
 const BurnFxScript = preload("res://scripts/burn_fx.gd")
@@ -149,7 +151,10 @@ func _install_damage_material(spr: Sprite2D) -> void:
 		return  # don't stomp a pre-existing material (hologram, etc.)
 	var mat := ShaderMaterial.new()
 	mat.shader = DamageOverlayShader
-	mat.set_shader_parameter("damage_level", 0.0)
+	mat.set_shader_parameter("sensitivity", 0.0)
+	mat.set_shader_parameter("noise_texture", _DamageNoiseTex)
+	mat.set_shader_parameter("edge_distance_map", _DamageEdgeTex)
+	mat.set_shader_parameter("noise_seed", float(randi() % 999))
 	spr.material = mat
 	_damage_material = mat
 
@@ -162,7 +167,7 @@ func _update_damage_visual() -> void:
 	# 0 at full health → 1 at zero health. Capped slightly under 1 so the
 	# sprite still reads on the frame before explode() fires.
 	var lvl: float = clamp(1.0 - float(health) / float(max_health), 0.0, 0.92)
-	_damage_material.set_shader_parameter("damage_level", lvl)
+	_damage_material.set_shader_parameter("sensitivity", lvl)
 
 
 # ---- Bullet hit pipeline -----------------------------------------------
