@@ -63,6 +63,19 @@ const STAR_PULSE_HZ   := [0.38, 0.52, 0.44]
 const STAR_PHASE      := [0.00, 1.10, 2.30]
 const STAR_COOL       := [true, false, false]
 
+const BINARY_STAR_CHANCE     := 0.08          # 8% chance of a companion star
+const BINARY_STAR_SIZE_RATIO := 0.55          # companion is 55% of primary size
+const BINARY_STAR_OFFSET     := Vector2(-22.0, 7.0)  # companion center offset from primary
+
+const EXOTIC_STAR_CHANCE_BASE       := 0.04   # 4% at 0 sectors cleared
+const EXOTIC_STAR_CHANCE_PER_SECTOR := 0.012  # +1.2% per sector cleared
+const EXOTIC_STAR_CHANCE_MAX        := 0.25   # cap at 25%
+const EXOTIC_GLOW_COLORS := [
+	Color(0.70, 0.22, 0.95, 1.0),  # purple
+	Color(0.18, 0.90, 0.35, 1.0),  # green
+	Color(1.00, 0.25, 0.65, 1.0),  # pink
+]
+
 const ROUTE_WIDTH := 8.0
 # 0.70 × 0.8 = 0.56 — designer asked for -20% opacity on POI lines.
 const ROUTE_COLOR := Color(0.30, 0.38, 0.55, 0.56)
@@ -444,6 +457,33 @@ func _make_moon_rng(poi_id: String) -> RandomNumberGenerator:
 	return r
 
 
+# Deterministic exotic/binary state for a given row. Same result whether
+# called from _build_stars() (map display) or _compute_poi/boss_stellar
+# (combat backdrop) — keyed on run_seed + row so both see the same star.
+func _get_star_variant(row_idx: int) -> Dictionary:
+	var run = get_node("/root/Run")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = abs(hash("star_variant:%d:%d" % [row_idx, run.run_seed]))
+	# Base star class: randomize which of the 3 realistic types this row shows.
+	var base_type_idx: int = rng.randi() % STAR_GLOW_COLORS.size()
+	# Pixel seed: vary surface pattern per run.
+	var pixel_seed: int = abs(rng.randi()) % 100000
+	# Exotic color chance scales with sectors cleared.
+	var exotic_chance: float = clampf(
+		EXOTIC_STAR_CHANCE_BASE + EXOTIC_STAR_CHANCE_PER_SECTOR * run.sectors_cleared,
+		0.0, EXOTIC_STAR_CHANCE_MAX)
+	var exotic_idx: int = -1
+	if rng.randf() < exotic_chance:
+		exotic_idx = rng.randi() % EXOTIC_GLOW_COLORS.size()
+	var has_binary: bool = rng.randf() < BINARY_STAR_CHANCE
+	return {
+		"base_type_idx": base_type_idx,
+		"pixel_seed":    pixel_seed,
+		"exotic_idx":    exotic_idx,
+		"has_binary":    has_binary,
+	}
+
+
 # Flat descriptor for the combat backdrop. Deterministic per poi.id, no
 # external state. obj_kind / planet_type mirror _build_pois_from_cache so
 # the combat scene's planet matches what the player clicked on the map.
@@ -472,6 +512,9 @@ func _compute_poi_stellar(poi: Dictionary, row_idx: int) -> Dictionary:
 		OBJ_CLUSTER:
 			has_asteroids = true
 			asteroid_density = 1.2
+	var sv: Dictionary = _get_star_variant(row_idx)
+	var base_type: int  = sv.base_type_idx
+	var star_color: Color = EXOTIC_GLOW_COLORS[sv.exotic_idx] if sv.exotic_idx >= 0 else STAR_GLOW_COLORS[base_type]
 	return {
 		"obj_kind":         obj_kind,
 		"planet_idx":       planet_idx,
@@ -479,10 +522,12 @@ func _compute_poi_stellar(poi: Dictionary, row_idx: int) -> Dictionary:
 		"has_asteroids":    has_asteroids,
 		"asteroid_density": asteroid_density,
 		"moons":            moons,
-		"star_color":       STAR_GLOW_COLORS[row_idx],
-		"star_cool":        STAR_COOL[row_idx],
+		"star_color":       star_color,
+		"star_cool":        STAR_COOL[base_type],
 		"row_idx":          row_idx,
 		"poi_id":           String(poi.id),
+		"exotic_idx":       sv.exotic_idx,
+		"has_binary":       sv.has_binary,
 	}
 
 
@@ -517,6 +562,9 @@ func _derive_moon_descriptors(poi_id: String, planet_px: float) -> Array:
 # decoration of their own. Tint the scene with the row's star color so the
 # boss arena still feels "visited from" that line.
 func _compute_boss_stellar(row_idx: int) -> Dictionary:
+	var sv: Dictionary = _get_star_variant(row_idx)
+	var base_type: int  = sv.base_type_idx
+	var star_color: Color = EXOTIC_GLOW_COLORS[sv.exotic_idx] if sv.exotic_idx >= 0 else STAR_GLOW_COLORS[base_type]
 	return {
 		"obj_kind":         -1,
 		"planet_idx":       -1,
@@ -524,10 +572,12 @@ func _compute_boss_stellar(row_idx: int) -> Dictionary:
 		"has_asteroids":    false,
 		"asteroid_density": 0.0,
 		"moons":            [],
-		"star_color":       STAR_GLOW_COLORS[row_idx],
-		"star_cool":        STAR_COOL[row_idx],
+		"star_color":       star_color,
+		"star_cool":        STAR_COOL[base_type],
 		"row_idx":          row_idx,
 		"poi_id":           "boss:%d" % row_idx,
+		"exotic_idx":       sv.exotic_idx,
+		"has_binary":       sv.has_binary,
 	}
 
 
@@ -831,55 +881,84 @@ func _build_stars() -> void:
 	for i in STAR_ANCHORS.size():
 		var anchor:     Vector2 = STAR_ANCHORS[i]
 		var display_px: float   = STAR_DISPLAY_PX[i]
-		var seed_val:   int     = (12345 + i * 7919) % 100000
-		var cool: bool          = STAR_COOL[i]
-		var star = STAR_SCENE.instantiate()
-		var sf: float = display_px / 100.0
-		if star is Control:
-			star.anchor_left = 0.0; star.anchor_top = 0.0
-			star.anchor_right = 0.0; star.anchor_bottom = 0.0
-			star.offset_right = 100.0; star.offset_bottom = 100.0
-			star.size = Vector2(100.0, 100.0)
-			star.custom_minimum_size = Vector2(100.0, 100.0)
-			star.pivot_offset = Vector2.ZERO
-		star.scale    = Vector2(sf, sf)
-		star.position = Vector2(anchor.x - 50.0 * sf, anchor.y - 50.0 * sf)
-		_duplicate_materials(star)
-		if star.has_method("set_pixels"):  star.set_pixels(display_px)
-		if star.has_method("set_seed"):    star.set_seed(seed_val)
-		if star.has_method("set_rotates"): star.set_rotates(false)
-		add_child(star)
-		_disable_celestial_mouse(star)
-		_reset_star_colorrects(star)
-		_apply_star_colors(star, cool)
-		star.override_time = true
-		_celestial_nodes.append(star)
+		var sv: Dictionary      = _get_star_variant(i)
+		var base_type:  int     = sv.base_type_idx
+		var seed_val:   int     = sv.pixel_seed
+		var cool: bool          = STAR_COOL[base_type]
+		var exotic_idx: int     = sv.exotic_idx
+		var has_binary: bool    = sv.has_binary
+		var glow_color: Color   = EXOTIC_GLOW_COLORS[exotic_idx] if exotic_idx >= 0 else STAR_GLOW_COLORS[base_type]
+
+		_spawn_star_body(anchor, display_px, seed_val, cool, exotic_idx, i)
+
 		# Glow halo.
 		var glow_node := Node2D.new()
 		glow_node.position = anchor
 		add_child(glow_node)
 		_star_glows.append(glow_node)
-		var glow_spr := Sprite2D.new()
-		var gc: Color = STAR_GLOW_COLORS[i]
-		var g := Gradient.new()
-		g.colors  = PackedColorArray([gc, Color(gc.r, gc.g, gc.b, 0.0)])
-		g.offsets = PackedFloat32Array([0.0, 1.0])
-		var gt := GradientTexture2D.new()
-		gt.gradient  = g; gt.width = 64; gt.height = 64
-		gt.fill      = GradientTexture2D.FILL_RADIAL
-		gt.fill_from = Vector2(0.5, 0.5); gt.fill_to = Vector2(1.0, 0.5)
-		glow_spr.texture = gt
-		var mat := CanvasItemMaterial.new()
-		mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-		glow_spr.material = mat
-		glow_node.add_child(glow_spr)
-		# Change 4: star name label — seed from row index + run seed for variety
+		_add_glow_sprite(glow_node, glow_color)
+
+		# Binary companion — half-size, offset left of primary.
+		if has_binary:
+			var comp_px: float    = display_px * BINARY_STAR_SIZE_RATIO
+			var comp_anchor: Vector2 = anchor + BINARY_STAR_OFFSET
+			var comp_cool: bool   = not cool  # complement temperature for contrast
+			var comp_seed: int    = (seed_val + 31337) % 100000
+			_spawn_star_body(comp_anchor, comp_px, comp_seed, comp_cool, -1, i)
+			var comp_glow_node := Node2D.new()
+			comp_glow_node.position = comp_anchor
+			add_child(comp_glow_node)
+			_star_glows.append(comp_glow_node)
+			var comp_gc: Color = STAR_GLOW_COLORS[0] if comp_cool else STAR_GLOW_COLORS[1]
+			_add_glow_sprite(comp_glow_node, comp_gc)
+
+		# Star name label.
 		var star_seed: int = abs(hash("star:%d" % i))
 		if has_node("/root/Run"):
 			star_seed = abs(hash("star:%d:%d" % [i, get_node("/root/Run").run_seed]))
 		var star_name: String = _generate_celestial_name("star", star_seed)
 		_spawn_celestial_name_label(anchor, star_name, display_px * 0.5 + 4.0)
 	_process(0.0)
+
+
+func _spawn_star_body(anchor: Vector2, display_px: float, seed_val: int, cool: bool, exotic_idx: int, row_i: int) -> void:
+	var star = STAR_SCENE.instantiate()
+	var sf: float = display_px / 100.0
+	if star is Control:
+		star.anchor_left = 0.0; star.anchor_top = 0.0
+		star.anchor_right = 0.0; star.anchor_bottom = 0.0
+		star.offset_right = 100.0; star.offset_bottom = 100.0
+		star.size = Vector2(100.0, 100.0)
+		star.custom_minimum_size = Vector2(100.0, 100.0)
+		star.pivot_offset = Vector2.ZERO
+	star.scale    = Vector2(sf, sf)
+	star.position = Vector2(anchor.x - 50.0 * sf, anchor.y - 50.0 * sf)
+	_duplicate_materials(star)
+	if star.has_method("set_pixels"):  star.set_pixels(display_px)
+	if star.has_method("set_seed"):    star.set_seed(seed_val)
+	if star.has_method("set_rotates"): star.set_rotates(false)
+	add_child(star)
+	_disable_celestial_mouse(star)
+	_reset_star_colorrects(star)
+	_apply_star_colors(star, cool, exotic_idx)
+	star.override_time = true
+	_celestial_nodes.append(star)
+
+
+func _add_glow_sprite(parent: Node2D, gc: Color) -> void:
+	var glow_spr := Sprite2D.new()
+	var g := Gradient.new()
+	g.colors  = PackedColorArray([gc, Color(gc.r, gc.g, gc.b, 0.0)])
+	g.offsets = PackedFloat32Array([0.0, 1.0])
+	var gt := GradientTexture2D.new()
+	gt.gradient  = g; gt.width = 64; gt.height = 64
+	gt.fill      = GradientTexture2D.FILL_RADIAL
+	gt.fill_from = Vector2(0.5, 0.5); gt.fill_to = Vector2(1.0, 0.5)
+	glow_spr.texture = gt
+	var mat := CanvasItemMaterial.new()
+	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	glow_spr.material = mat
+	parent.add_child(glow_spr)
 
 
 func _build_labels() -> void:
@@ -1105,33 +1184,58 @@ func _spawn_moons(center: Vector2, planet_px: float, rng: RandomNumberGenerator)
 		})
 
 
-func _apply_star_colors(root: Node, cool: bool) -> void:
+func _apply_star_colors(root: Node, cool: bool, exotic_idx: int = -1) -> void:
 	for child in root.get_children():
 		if child is ColorRect and child.material is ShaderMaterial:
 			child.material = (child.material as ShaderMaterial).duplicate()
 			var mat: ShaderMaterial = child.material
 			match String(child.name):
 				"Star":
-					mat.set_shader_parameter("colors",
-						PackedColorArray([
-							Color(0.96,1.00,0.91,1), Color(0.47,0.84,0.76,1),
-							Color(0.11,0.57,0.65,1), Color(0.01,0.24,0.37,1),
-						]) if cool else PackedColorArray([
-							Color(0.96,1.00,0.91,1), Color(1.00,0.85,0.20,1),
-							Color(1.00,0.51,0.23,1), Color(0.49,0.10,0.10,1),
-						]))
+					mat.set_shader_parameter("colors", _star_surface_palette(cool, exotic_idx))
 				"Blobs":
-					mat.set_shader_parameter("colors",
-						PackedColorArray([Color(0.47,0.84,0.76,1)]) if cool else
-						PackedColorArray([Color(1.00,0.85,0.20,1)]))
+					mat.set_shader_parameter("colors", _star_blob_palette(cool, exotic_idx))
 				"StarFlares":
-					mat.set_shader_parameter("colors",
-						PackedColorArray([
-							Color(0.47,0.84,0.76,1), Color(0.96,1.00,0.91,1),
-						]) if cool else PackedColorArray([
-							Color(1.00,0.85,0.20,1), Color(0.96,1.00,0.91,1),
-						]))
-		_apply_star_colors(child, cool)
+					mat.set_shader_parameter("colors", _star_flare_palette(cool, exotic_idx))
+		_apply_star_colors(child, cool, exotic_idx)
+
+
+func _star_surface_palette(cool: bool, exotic_idx: int) -> PackedColorArray:
+	match exotic_idx:
+		0: return PackedColorArray([  # purple
+			Color(0.90,0.80,1.00,1), Color(0.65,0.25,0.95,1),
+			Color(0.38,0.08,0.65,1), Color(0.18,0.03,0.30,1)])
+		1: return PackedColorArray([  # green
+			Color(0.80,1.00,0.82,1), Color(0.25,0.88,0.40,1),
+			Color(0.05,0.55,0.22,1), Color(0.02,0.25,0.12,1)])
+		2: return PackedColorArray([  # pink
+			Color(1.00,0.85,0.90,1), Color(1.00,0.35,0.60,1),
+			Color(0.75,0.10,0.35,1), Color(0.40,0.04,0.18,1)])
+	return PackedColorArray([
+		Color(0.96,1.00,0.91,1), Color(0.47,0.84,0.76,1),
+		Color(0.11,0.57,0.65,1), Color(0.01,0.24,0.37,1),
+	]) if cool else PackedColorArray([
+		Color(0.96,1.00,0.91,1), Color(1.00,0.85,0.20,1),
+		Color(1.00,0.51,0.23,1), Color(0.49,0.10,0.10,1)])
+
+
+func _star_blob_palette(cool: bool, exotic_idx: int) -> PackedColorArray:
+	match exotic_idx:
+		0: return PackedColorArray([Color(0.65,0.25,0.95,1)])
+		1: return PackedColorArray([Color(0.25,0.88,0.40,1)])
+		2: return PackedColorArray([Color(1.00,0.35,0.60,1)])
+	return PackedColorArray([Color(0.47,0.84,0.76,1)]) if cool else \
+		PackedColorArray([Color(1.00,0.85,0.20,1)])
+
+
+func _star_flare_palette(cool: bool, exotic_idx: int) -> PackedColorArray:
+	match exotic_idx:
+		0: return PackedColorArray([Color(0.65,0.25,0.95,1), Color(0.90,0.80,1.00,1)])
+		1: return PackedColorArray([Color(0.25,0.88,0.40,1), Color(0.80,1.00,0.82,1)])
+		2: return PackedColorArray([Color(1.00,0.35,0.60,1), Color(1.00,0.85,0.90,1)])
+	return PackedColorArray([
+		Color(0.47,0.84,0.76,1), Color(0.96,1.00,0.91,1),
+	]) if cool else PackedColorArray([
+		Color(1.00,0.85,0.20,1), Color(0.96,1.00,0.91,1)])
 
 
 func _reset_star_colorrects(root: Node) -> void:

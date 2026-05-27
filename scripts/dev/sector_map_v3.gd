@@ -832,7 +832,7 @@ func _build_labels() -> void:
 # PixelPlanets helpers
 # ---------------------------------------------------------------------------
 
-func _apply_star_colors(root: Node, cool: bool) -> void:
+func _apply_star_colors(root: Node, cool: bool, exotic_idx: int = -1) -> void:
 	for child in root.get_children():
 		if child is ColorRect and child.material is ShaderMaterial:
 			child.material = (child.material as ShaderMaterial).duplicate()
@@ -858,7 +858,7 @@ func _apply_star_colors(root: Node, cool: bool) -> void:
 						]) if cool else PackedColorArray([
 							Color(1.00,0.85,0.20,1), Color(0.96,1.00,0.91,1),
 						]))
-		_apply_star_colors(child, cool)
+		_apply_star_colors(child, cool, exotic_idx)
 
 
 func _reset_star_colorrects(root: Node) -> void:
