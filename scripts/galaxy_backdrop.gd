@@ -84,7 +84,7 @@ const PLANET_TINT = {
 # Warp-streak foreground layer for hyperspace-ish rush feel.
 @export var use_warp_streaks: bool = true
 @export var warp_streak_count: int = 14
-@export var warp_streak_speed: float = 520.0
+@export var warp_streak_speed: float = 624.0
 @export_range(0.0, 1.0) var surface_time_scale: float = 0.15
 # Pixel parity (Cobalt 2026-05-20): every procedural backdrop body
 # (planets, asteroids, nebula) renders at exactly `pixel_density` viewport
@@ -250,7 +250,7 @@ func _ready() -> void:
 	var asteroid_hazard: bool = false
 	if has_node("/root/Run"):
 		asteroid_hazard = String(get_node("/root/Run").current_hazard_subtype) == "asteroid_field"
-	var has_asteroids: bool = asteroid_hazard or poi_has_asteroids_override or (rng.randf() < asteroid_presence)
+	var has_asteroids: bool = asteroid_hazard
 	# Asteroid hazard doubles density again per Roman, 2026-05-16
 	# ("doubled across all parallax layers"). 2.5 → 5.0.
 	var density_mult: float = 5.0 if asteroid_hazard else 1.0

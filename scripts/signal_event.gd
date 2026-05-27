@@ -46,7 +46,10 @@ func _ready() -> void:
 # ---- Event templates ----------------------------------------------------
 
 func _events() -> Array:
-	return [
+	var is_asteroid_field: bool = false
+	if has_node("/root/Run"):
+		is_asteroid_field = String(get_node("/root/Run").current_hazard_subtype) == "asteroid_field"
+	var list: Array = [
 		{
 			"title": Strings.EVENT_AMBUSH_TITLE,
 			"body": Strings.EVENT_AMBUSH_BODY,
@@ -101,7 +104,15 @@ func _events() -> Array:
 				},
 			],
 		},
-		{
+		_make_wreck_event(),
+		_make_salvage_cache_event(),
+		_make_derelict_event(),
+		_make_inspection_event(),
+		_make_experimental_event(),
+		_make_bounty_board_event(),
+	]
+	if is_asteroid_field:
+		list.append({
 			"title": Strings.EVENT_MINER_TITLE,
 			"body": Strings.EVENT_MINER_BODY,
 			"choices": [
@@ -114,14 +125,8 @@ func _events() -> Array:
 					"action": func(s): s._finish_to_sector_map(Strings.OUTCOME_MINER_REFUSE),
 				},
 			],
-		},
-		_make_wreck_event(),
-		_make_salvage_cache_event(),
-		_make_derelict_event(),
-		_make_inspection_event(),
-		_make_experimental_event(),
-		_make_bounty_board_event(),
-	]
+		})
+	return list
 
 
 # Salvage Cache — abandoned cargo container drifting in the void. The
