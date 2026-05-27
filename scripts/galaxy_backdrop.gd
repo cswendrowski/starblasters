@@ -46,6 +46,19 @@ const PLANET_DRIFT_MULT_SLOW := 0.18
 # parallax to unify the palette around the visual "star" of the level. Hue
 # follows the planet variant; alpha is intentionally light so detail and
 # interest survive (Roman, 2026-05-16: "unify colors, don't rob interest").
+# Realistic asteroid base hues (C/S/M/D/icy types). Band depth controls
+# brightness and alpha on top of whichever family is picked per spawn.
+const ASTEROID_FAMILY_COLORS := [
+	Color(0.25, 0.24, 0.23),  # C-type dark carbon
+	Color(0.48, 0.44, 0.40),  # C-type medium grey
+	Color(0.52, 0.42, 0.35),  # S-type grey-brown
+	Color(0.55, 0.38, 0.28),  # S-type warm brown
+	Color(0.44, 0.30, 0.20),  # D-type reddish
+	Color(0.62, 0.60, 0.58),  # M-type silvery
+	Color(0.42, 0.50, 0.62),  # icy blue-grey
+	Color(0.35, 0.40, 0.52),  # dark icy/shadowed
+]
+
 const PLANET_TINT = {
 	0: Color(1.00, 0.45, 0.22),  # LavaWorld   → hot orange
 	1: Color(0.55, 0.75, 1.00),  # IceWorld    → cool blue
@@ -927,6 +940,8 @@ func _spawn_asteroid_in_band(rng: RandomNumberGenerator, band: String) -> Node:
 	# `asteroid_min_size` so even the smallest decorative rock stays
 	# legible at 1:1 pixel parity. Below ~16 vp-px the procgen shader
 	# can't generate a recognizable silhouette.
+	# Pick a random realistic asteroid family; depth band scales brightness + alpha.
+	var base: Color = ASTEROID_FAMILY_COLORS[rng.randi() % ASTEROID_FAMILY_COLORS.size()]
 	var sz: float = 80.0
 	var base_drift: float = 1.0
 	var modulate_color: Color = Color(1, 1, 1, 1)
@@ -934,15 +949,15 @@ func _spawn_asteroid_in_band(rng: RandomNumberGenerator, band: String) -> Node:
 		"deep":
 			sz = rng.randf_range(max(16.0, asteroid_min_size), max(24.0, asteroid_min_size + 4.0))
 			base_drift = rng.randf_range(0.18, 0.32)
-			modulate_color = Color(0.35, 0.45, 0.65, 0.50)
+			modulate_color = Color(base.r * 0.55, base.g * 0.55, base.b * 0.55, rng.randf_range(0.42, 0.55))
 		"mid":
 			sz = rng.randf_range(max(22.0, asteroid_min_size + 4.0), max(32.0, asteroid_min_size + 12.0))
 			base_drift = rng.randf_range(0.5, 0.9)
-			modulate_color = Color(0.55, 0.65, 0.80, 0.70)
+			modulate_color = Color(base.r * 0.80, base.g * 0.80, base.b * 0.80, rng.randf_range(0.62, 0.75))
 		"near":
 			sz = rng.randf_range(max(32.0, asteroid_min_size + 12.0), max(44.0, asteroid_min_size + 24.0))
 			base_drift = rng.randf_range(1.1, 1.7)
-			modulate_color = Color(0.70, 0.78, 0.90, 0.85)
+			modulate_color = Color(base.r, base.g, base.b, rng.randf_range(0.78, 0.90))
 	var sf: float = sz / 100.0
 	a.scale = Vector2(sf, sf)
 	a.modulate = modulate_color

@@ -54,7 +54,7 @@ func _process(delta: float) -> void:
 		var dir: Vector2 = (player.global_position - global_position).normalized()
 		target_rot = atan2(dir.y, dir.x) + PI * 0.5
 		if arc_deg > 0.0:
-			var center := p.global_rotation + deg_to_rad(rest_angle_deg)
+			var center: float = p.global_rotation + deg_to_rad(rest_angle_deg)
 			target_rot = _clamp_to_arc(target_rot, center, deg_to_rad(arc_deg * 0.5))
 	var diff := angle_difference(_turret_rot, target_rot)
 	_turret_rot += clamp(diff, -rotation_speed * delta, rotation_speed * delta)

@@ -607,7 +607,10 @@ func _spawn_planet(center: Vector2, display_px: float, type_idx: int, row_idx: i
 	_reset_planet_colorrects(p)
 	if p.has_method("set_light"):
 		p.set_light(Vector2(0.0, 0.5))
-	p.modulate = Color.WHITE.lerp(STAR_GLOW_COLORS[row_idx], 0.18)
+	# Mild star-color wash — use effective (randomized) star color for this row.
+	var _psv: Dictionary = _get_star_variant(row_idx)
+	var _p_star: Color = EXOTIC_GLOW_COLORS[_psv.exotic_idx] if _psv.exotic_idx >= 0 else STAR_GLOW_COLORS[_psv.base_type_idx]
+	p.modulate = Color.WHITE.lerp(_p_star, 0.18)
 	p.override_time = true
 	_celestial_nodes.append(p)
 	# Moons use a per-POI salted RNG so the descriptor produced by
@@ -1470,7 +1473,9 @@ func _spawn_poi_name_label(pos: Vector2, name_text: String) -> void:
 # write is per-instance, not shared.
 func _apply_row_tint_to_asteroid(root: Node, row_idx: int) -> void:
 	var idx: int = clampi(row_idx, 0, STAR_GLOW_COLORS.size() - 1)
-	var star: Color = STAR_GLOW_COLORS[idx]
+	# Use the per-run randomized star color so asteroid tints match the star on display.
+	var sv: Dictionary = _get_star_variant(idx)
+	var star: Color = EXOTIC_GLOW_COLORS[sv.exotic_idx] if sv.exotic_idx >= 0 else STAR_GLOW_COLORS[sv.base_type_idx]
 	# Pull the base color partway toward white so the lit face still reads as
 	# a rock surface (not a flat saturated blob). The mid tone is the star
 	# color itself, dark for shadow, light for highlight.
