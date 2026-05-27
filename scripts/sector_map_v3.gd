@@ -112,6 +112,7 @@ var _time:          float = 0.0
 var _star_glows:    Array = []
 var _celestial_nodes: Array = []
 var _planet_hovers: Array = []   # {center, radius, label, icon}
+var _icon_outline_mat: ShaderMaterial = null
 var _asteroid_rotators: Array = []
 var _moon_data:     Array = []
 var _moon_textures: Dictionary = {}
@@ -395,11 +396,7 @@ func _build_pois_from_cache() -> void:
 					_spawn_asteroid_cluster(poi.pos, r_idx, deco_rng)
 			if draw_dressing:
 				_add_node_dressing(poi.pos, int(poi.node_type), deco_rng)
-			var poi_label: String = ""
-			if not poi.completed and int(poi.node_type) != int(SectorNode.NodeType.BOSS):
-				var poi_name_seed: int = abs(hash(poi.id)) ^ 0x3F7A1C2B
-				poi_label = _generate_poi_name(int(poi.node_type), poi_name_seed, String(poi.get("hazard_subtype", "")))
-			_add_hover_label_icon(poi.pos, 32.0, poi_label, int(poi.node_type), poi.completed)
+			_add_hover_label_icon(poi.pos, 32.0, int(poi.node_type), poi.completed)
 			_poi_hits.append({
 				"id":     String(poi.id),
 				"pos":    Vector2(poi.pos),
@@ -610,6 +607,9 @@ func _spawn_planet(center: Vector2, display_px: float, type_idx: int, row_idx: i
 	# of `rng` got consumed by randomize_colors / set_seed above.
 	var moon_rng: RandomNumberGenerator = _make_moon_rng(poi_id) if poi_id != "" else rng
 	_spawn_moons(center, display_px, moon_rng)
+	var planet_name_seed: int = abs(hash(poi_id)) if poi_id != "" else abs(hash(center))
+	var planet_name: String = _generate_celestial_name("planet", planet_name_seed)
+	_spawn_celestial_name_label(center, planet_name, display_px * 0.5 + 4.0, true)
 
 
 func _spawn_large_asteroid(center: Vector2, row_idx: int, rng: RandomNumberGenerator) -> void:
@@ -648,6 +648,8 @@ func _spawn_large_asteroid(center: Vector2, row_idx: int, rng: RandomNumberGener
 	})
 	_scatter_asteroid_band(center, rng)
 	_scatter_pulse_pixels(center, PX, rng)
+	var ast_name: String = _generate_celestial_name("asteroid", abs(hash(center)))
+	_spawn_celestial_name_label(center, ast_name, PX * 0.5 + 4.0, true)
 
 
 func _spawn_asteroid_cluster(center: Vector2, row_idx: int, rng: RandomNumberGenerator) -> void:
@@ -686,6 +688,8 @@ func _spawn_asteroid_cluster(center: Vector2, row_idx: int, rng: RandomNumberGen
 		})
 		_scatter_pulse_pixels(Vector2(center.x + ox, center.y + oy), px, rng)
 	_scatter_asteroid_band(center, rng)
+	var cluster_name: String = _generate_celestial_name("cluster", abs(hash(center)) ^ 0xABCD)
+	_spawn_celestial_name_label(center, cluster_name, 20.0, true)
 
 
 func _scatter_asteroid_band(center: Vector2, rng: RandomNumberGenerator) -> void:
@@ -793,23 +797,26 @@ func _build_bosses_from_cache() -> void:
 		var icon_spr := Sprite2D.new()
 		icon_spr.texture  = icon_at
 		icon_spr.position = pos
-		icon_spr.scale    = Vector2(0.25, 0.25)   # Change 1: half size (was 0.5)
+		icon_spr.scale    = Vector2(0.25, 0.25)
 		icon_spr.z_index  = 5
 		icon_spr.modulate = Color(1.0, 1.0, 1.0, 0.5)
+		icon_spr.material = _get_icon_outline_mat()
 		add_child(icon_spr)
-		# Top label: BOSS / DEFEATED.
+		# Top label: BOSS / DEFEATED — same row/font as POI labels, red opaque.
 		var ls := LabelSettings.new()
-		ls.font = FONT; ls.font_size = 5   # Change 1: halved from 9
-		ls.font_color    = Color(1.0, 0.65, 0.60, 0.95) if not defeated else Color(0.50, 1.0, 0.60, 0.95)
+		ls.font = FONT; ls.font_size = 7
+		ls.font_color    = Color(0.90, 0.30, 0.30, 1.0) if not defeated else Color(0.50, 1.0, 0.60, 1.0)
 		ls.outline_size  = 1
 		ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
 		var lbl := Label.new()
-		lbl.text           = "DEFEATED" if defeated else "BOSS"
-		lbl.label_settings = ls
-		var row_above: int  = int((pos.y - 8.0) / CELL) - 1   # Change 1: 16→8
-		lbl.position  = Vector2(pos.x - 7, row_above * CELL + 2)   # Change 1: -14→-7
+		lbl.text                  = "DEFEATED" if defeated else "BOSS"
+		lbl.label_settings        = ls
+		lbl.custom_minimum_size.x = 40.0
+		lbl.horizontal_alignment  = HORIZONTAL_ALIGNMENT_CENTER
+		var row_above: int  = int((pos.y - 8.0) / CELL) - 1
+		lbl.position  = Vector2(pos.x - 20.0, row_above * CELL + 2)
 		lbl.z_index   = 10
-		lbl.modulate.a = 0.2
+		lbl.modulate.a = 1.0
 		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(lbl)
 
@@ -844,7 +851,7 @@ func _build_bosses_from_cache() -> void:
 			"radius":     8.0,    # Change 1: halved from 16
 			"label":      lbl,
 			"icon":       icon_spr,
-			"label_rest": 0.2,   # boss label dim-but-visible at rest
+			"label_rest": 1.0,   # boss label always fully visible
 			"icon_rest":  0.0,
 			"hover_tint": boss_hover_tint,
 			"rest_tint":  Color.WHITE,
@@ -1069,6 +1076,26 @@ func _add_glitter_zone(pos: Vector2) -> void:
 		})
 
 
+func _node_type_name(node_type: int) -> String:
+	match node_type:
+		int(SectorNode.NodeType.COMBAT):  return "COMBAT"
+		int(SectorNode.NodeType.OUTPOST): return "OUTPOST"
+		int(SectorNode.NodeType.SIGNAL):  return "SIGNAL"
+		int(SectorNode.NodeType.HAZARD):  return "HAZARD"
+	return ""
+
+
+func _get_icon_outline_mat() -> ShaderMaterial:
+	if _icon_outline_mat != null:
+		return _icon_outline_mat
+	var sh := Shader.new()
+	sh.code = "shader_type canvas_item;\nvoid fragment() {\n\tvec4 c = texture(TEXTURE, UV);\n\tif (c.a < 0.1) {\n\t\tvec2 px = TEXTURE_PIXEL_SIZE;\n\t\tfloat a = texture(TEXTURE, UV + vec2(px.x, 0.0)).a\n\t\t\t+ texture(TEXTURE, UV - vec2(px.x, 0.0)).a\n\t\t\t+ texture(TEXTURE, UV + vec2(0.0, px.y)).a\n\t\t\t+ texture(TEXTURE, UV - vec2(0.0, px.y)).a;\n\t\tif (a > 0.0) { COLOR = vec4(0.0, 0.0, 0.0, 1.0); } else { COLOR = c; }\n\t} else { COLOR = c; }\n}"
+	var mat := ShaderMaterial.new()
+	mat.shader = sh
+	_icon_outline_mat = mat
+	return mat
+
+
 func _icon_for_type(node_type: int) -> int:
 	match node_type:
 		int(SectorNode.NodeType.COMBAT):  return ICON_COMBAT
@@ -1079,21 +1106,23 @@ func _icon_for_type(node_type: int) -> int:
 	return ICON_COMBAT
 
 
-func _add_hover_label_icon(pos: Vector2, display_px: float, label_text: String, node_type: int, completed: bool) -> void:
+func _add_hover_label_icon(pos: Vector2, display_px: float, node_type: int, completed: bool) -> void:
+	# Node type label — appears directly below the icon on hover, green.
 	var ls := LabelSettings.new()
 	ls.font = FONT; ls.font_size = 7
-	ls.font_color    = Color(0.85, 0.92, 1.0, 0.95)
+	ls.font_color    = COLOR_NODE_GREEN
 	ls.outline_size  = 1
 	ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
 	var lbl := Label.new()
-	lbl.text           = label_text
-	lbl.label_settings = ls
-	var obj_top: float = pos.y - display_px * 0.5
-	var row_above: int = int(obj_top / CELL) - 1
-	lbl.position  = Vector2(pos.x - 3, row_above * CELL + 2)
-	lbl.z_index   = 10
-	lbl.modulate.a = 0.0
-	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl.text                  = _node_type_name(node_type)
+	lbl.label_settings        = ls
+	lbl.custom_minimum_size.x = 48.0
+	lbl.horizontal_alignment  = HORIZONTAL_ALIGNMENT_CENTER
+	# Icon half-size at scale 0.5 of 32px = 8px; sit label 2px below icon bottom.
+	lbl.position       = Vector2(pos.x - 24.0, pos.y + 10.0)
+	lbl.z_index        = 10
+	lbl.modulate.a     = 0.0
+	lbl.mouse_filter   = Control.MOUSE_FILTER_IGNORE
 	add_child(lbl)
 	var at := AtlasTexture.new()
 	at.atlas  = ICON_STRIP
@@ -1103,6 +1132,7 @@ func _add_hover_label_icon(pos: Vector2, display_px: float, label_text: String, 
 	icon_spr.position = pos
 	icon_spr.scale    = Vector2(0.5, 0.5)
 	icon_spr.z_index  = 5
+	icon_spr.material = _get_icon_outline_mat()
 	# Designer: POI icons start 0% opacity and reveal on mouseover. Completed
 	# POIs keep a soft green resting alpha (0.6) so the player can see what's
 	# been done; uncompleted rest at 0.0.
