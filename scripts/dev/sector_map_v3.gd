@@ -29,8 +29,8 @@ const COLOR_NODE_GREEN := Color(0.55, 1.0, 0.50, 1.0)
 const COLOR_BOSS_RED   := Color(1.0, 0.30, 0.25, 1.0)
 # Fixed boss hazard positions — at col28/row4, col28/row8, col28/row12 intersections.
 const BOSS_POSITIONS   := [Vector2(448, 64), Vector2(448, 128), Vector2(448, 192)]
-# Planet designation letters (real-world exoplanet convention).
-const PLANET_LETTERS   := ["b", "c", "d", "e", "f", "g"]
+# Stellar body designation letters: A=star, B/C/D...=planets/asteroids in order.
+const STELLAR_LETTERS  := ["A", "B", "C", "D", "E", "F", "G", "H"]
 # PixelPlanets scenes for non-planet route objects.
 const ASTEROID_SCENE    = preload("res://Planets/Asteroids/Asteroid.tscn")
 const NEBULA_SHADER     = preload("res://graphics/nebula2.gdshader")
@@ -111,17 +111,27 @@ var _planet_hovers: Array = []
 # Asteroid rotation entries: {node, speed, phase} — driven in _process.
 var _asteroid_rotators: Array = []
 # Current system/node indices while building route objects — used by spawn helpers.
-var _cur_sys_i:     int = 0
-var _cur_node_type: int = 3  # 0=outpost 1=hazard 2=signal 3=combat
+var _cur_sys_i:       int = 0
+var _cur_node_type:   int = 3  # 0=outpost 1=hazard 2=signal 3=combat
+# Per-system stellar body counter (star=0/A, first route object=1/B, etc.).
+var _cur_stellar_idx: int = 1  # starts at 1 since star is always A (idx 0)
 # Moon orbit data: {node, center, orbit_r, speed, phase, is_ctrl, ctrl_half?}
 var _moon_data:     Array = []
 # Lazy-created white circle textures keyed by radius_px.
 var _moon_textures: Dictionary = {}
 # POI ambient dressing: pulsing glows {spr, hz, phase, base_a} + combat glitter particles.
-var _glow_pulses: Array = []
-var _glitter:     Array = []  # {pos, vel, rect, brightness, hidden, timer}
+var _glow_pulses:   Array = []
+var _glitter:       Array = []  # {pos, vel, rect, brightness, hidden, timer}
+# Minefield pulsing red pixels: {pos, hz, phase} — drawn in _draw().
+var _mine_pixels:   Array = []
 # Non-deterministic RNG for runtime flicker — not seeded from map_seed.
 var _fx_rng: RandomNumberGenerator
+# Boss-ready state per system (index 0-2). True = line turns red + boss pulses.
+var _boss_ready: Array = [false, false, false]
+# Boss dot sprites per system — driven by pulse in _process when boss_ready.
+var _boss_dot_sprites: Array = []
+# Route Line2D nodes per system — color toggled when boss_ready changes.
+var _route_lines: Array = []
 
 
 func _ready() -> void:
@@ -185,17 +195,24 @@ func _process(delta: float) -> void:
 		var target_b: float = 0.0 if p.hidden else _fx_rng.randf_range(0.4, 1.0)
 		p.brightness = lerpf(p.brightness, target_b, delta * 6.0)
 		needs_redraw = true
-	if needs_redraw:
+	if needs_redraw or _mine_pixels.size() > 0:
 		queue_redraw()
+	# Task 7: Pulse boss dot sprites when boss_ready is active.
+	for i in _boss_dot_sprites.size():
+		if is_instance_valid(_boss_dot_sprites[i]) and _boss_ready[i]:
+			var pulse: float = 0.5 + 0.5 * sin(_time * 1.8 * TAU + float(i) * 1.1)
+			_boss_dot_sprites[i].modulate.a = lerpf(0.3, 0.85, pulse)
 	# Hover: fade labels and icons in/out on mouse-over.
 	var mouse: Vector2 = get_local_mouse_position()
 	for entry in _planet_hovers:
 		var hovered: bool = mouse.distance_to(entry.center) <= entry.radius
 		var lbl: Label    = entry.label
 		var icon: Sprite2D = entry.icon
-		lbl.modulate.a = lerpf(lbl.modulate.a, 1.0 if hovered else 0.2, delta * 8.0)
-		var tgt: Color = COLOR_NODE_GREEN if hovered else Color.WHITE
-		tgt.a = 0.9 if hovered else 0.2
+		lbl.modulate.a = lerpf(lbl.modulate.a, 1.0 if hovered else 0.0, delta * 8.0)
+		# Use stored icon_tint if available (task 1 + 4), else fallback to green.
+		var base_tint: Color = entry.get("icon_tint", COLOR_NODE_GREEN)
+		var tgt: Color = Color(base_tint.r, base_tint.g, base_tint.b,
+			0.9 if hovered else 0.0)
 		icon.modulate = icon.modulate.lerp(tgt, delta * 8.0)
 
 
@@ -228,6 +245,7 @@ func _generate_route_lengths() -> void:
 
 
 func _build_routes() -> void:
+	_route_lines.clear()
 	for i in STAR_ANCHORS.size():
 		var anchor: Vector2 = STAR_ANCHORS[i]
 		var line   := Line2D.new()
@@ -240,6 +258,7 @@ func _build_routes() -> void:
 			Vector2(anchor.x + _route_lengths[i], anchor.y),
 		])
 		add_child(line)
+		_route_lines.append(line)
 
 
 # ---------------------------------------------------------------------------
@@ -249,35 +268,40 @@ func _build_routes() -> void:
 func _build_route_objects() -> void:
 	for i in STAR_ANCHORS.size():
 		_cur_sys_i = i
+		# Task 2: star is body A (idx 0); first route object starts at B (idx 1).
+		_cur_stellar_idx = 1
 		var anchor:    Vector2 = STAR_ANCHORS[i]
 		var route_end: float   = anchor.x + _route_lengths[i]
 		# Leave 3 cells before the boss node clear.
 		var fill_limit: float  = route_end - 3.0 * CELL
 		var cursor:     float  = PLANET_START_X
 		var placed:     int    = 0
-		var planet_idx: int    = 0
+		var last_cursor: float = -1.0  # guard against double-placing endpoint
 
 		while cursor <= fill_limit:
 			var type_id:   int = _map_rng.randi() % OBJ_TYPE_COUNT
 			var node_type: int = _pick_node_type()
-			var advance: float = _spawn_route_obj(anchor.y, cursor, route_end, i, type_id, planet_idx, node_type)
-			if type_id == 0:
-				planet_idx += 1
+			var advance: float = _spawn_route_obj(anchor.y, cursor, route_end, i, type_id, node_type)
+			last_cursor = cursor
 			placed += 1
 			cursor += advance
 			if placed >= 1 and _map_rng.randf() < PLANET_STOP_PROB:
 				break
 
 		# Always place something at the route endpoint (column intersection).
-		if route_end >= PLANET_START_X:
+		# Guard: skip if the loop already landed exactly on route_end to avoid duplicates.
+		if route_end >= PLANET_START_X and absf(last_cursor - route_end) > 0.5:
 			var end_type_id:   int = _map_rng.randi() % OBJ_TYPE_COUNT
 			var end_node_type: int = _pick_node_type()
-			_spawn_route_obj(anchor.y, route_end, route_end, i, end_type_id, planet_idx, end_node_type)
+			_spawn_route_obj(anchor.y, route_end, route_end, i, end_type_id, end_node_type)
 
 
 # Dispatches to the right spawn function; returns the advance step in px.
-func _spawn_route_obj(cy: float, cx: float, route_end: float, _sys_i: int, type_id: int, planet_idx: int, node_type: int) -> float:
+func _spawn_route_obj(cy: float, cx: float, route_end: float, _sys_i: int, type_id: int, node_type: int) -> float:
 	_cur_node_type = node_type
+	# Task 2: stellar body letter for this object (star=A is idx 0; we start at 1=B).
+	var letter: String = STELLAR_LETTERS[mini(_cur_stellar_idx, STELLAR_LETTERS.size() - 1)]
+	_cur_stellar_idx += 1
 	var advance: float = float(4 * CELL)
 	match type_id:
 		0:  # planet
@@ -285,13 +309,13 @@ func _spawn_route_obj(cy: float, cx: float, route_end: float, _sys_i: int, type_
 			var px: float  = PLANET_MIN_PX + steps * 8.0
 			var frac: float = (cx - PLANET_START_X) / max(1.0, route_end - PLANET_START_X)
 			var ptype: int  = _pick_planet_type(frac)
-			_spawn_planet(cy, cx, px, ptype, planet_idx)
+			_spawn_planet(cy, cx, px, ptype, letter)
 			advance = float((ceili(px / CELL) + 2) * CELL)
 		1:  # large asteroid
-			_spawn_large_asteroid(cy, cx)
+			_spawn_large_asteroid(cy, cx, letter)
 			advance = float(OBJ_ADVANCE_CELLS[1] * CELL)
 		2:  # asteroid cluster
-			_spawn_asteroid_cluster(cy, cx)
+			_spawn_asteroid_cluster(cy, cx, letter)
 			advance = float(OBJ_ADVANCE_CELLS[2] * CELL)
 	_add_node_dressing(cy, cx, node_type)
 	return advance
@@ -314,7 +338,7 @@ func _pick_planet_type(frac: float) -> int:
 	return PLANET_ZONE_PEAK.size() - 1
 
 
-func _spawn_planet(center_y: float, center_x: float, display_px: float, type_idx: int, planet_idx: int) -> void:
+func _spawn_planet(center_y: float, center_x: float, display_px: float, type_idx: int, letter: String) -> void:
 	var ps = load(PLANET_SCENES[type_idx])
 	if ps == null:
 		return
@@ -344,11 +368,10 @@ func _spawn_planet(center_y: float, center_x: float, display_px: float, type_idx
 	_celestial_nodes.append(p)
 
 	_spawn_moons(center_y, center_x, display_px)
-	_add_hover_label_icon(center_y, center_x, display_px,
-		PLANET_LETTERS[mini(planet_idx, PLANET_LETTERS.size() - 1)])
+	_add_hover_label_icon(center_y, center_x, display_px, letter)
 
 
-func _spawn_large_asteroid(center_y: float, center_x: float) -> void:
+func _spawn_large_asteroid(center_y: float, center_x: float, letter: String = "?") -> void:
 	const PX: float = 32.0
 	var sf: float   = PX / 100.0
 	var ast = ASTEROID_SCENE.instantiate()
@@ -374,10 +397,10 @@ func _spawn_large_asteroid(center_y: float, center_x: float) -> void:
 		"phase": _map_rng.randf_range(0.0, TAU),
 	})
 	_scatter_asteroid_band(center_y, center_x)
-	_add_hover_label_icon(center_y, center_x, PX, "Asteroid")
+	_add_hover_label_icon(center_y, center_x, PX, letter)
 
 
-func _spawn_asteroid_cluster(center_y: float, center_x: float) -> void:
+func _spawn_asteroid_cluster(center_y: float, center_x: float, letter: String = "?") -> void:
 	var count: int = 3 + _map_rng.randi() % 3  # 3-5 rocks
 	for _k in count:
 		var px: float  = 8.0 + float(_map_rng.randi() % 3) * 4.0  # 8,12,16px
@@ -408,7 +431,7 @@ func _spawn_asteroid_cluster(center_y: float, center_x: float) -> void:
 		})
 	_scatter_asteroid_band(center_y, center_x)
 	# One hover label + icon representing the whole cluster.
-	_add_hover_label_icon(center_y, center_x, 40.0, "Belt")
+	_add_hover_label_icon(center_y, center_x, 40.0, letter)
 
 
 # Shared helper: label above object + sector icon at center + hover entry.
@@ -448,6 +471,7 @@ func _scatter_asteroid_band(center_y: float, center_x: float) -> void:
 # ---------------------------------------------------------------------------
 
 func _build_boss_nodes() -> void:
+	_boss_dot_sprites.clear()
 	for i in BOSS_POSITIONS.size():
 		var pos: Vector2 = BOSS_POSITIONS[i]
 		# Node dot — boss frame (0) from NODE_STRIP, 1× scale (32px).
@@ -460,6 +484,8 @@ func _build_boss_nodes() -> void:
 		dot_spr.modulate = Color(COLOR_BOSS_RED.r, COLOR_BOSS_RED.g, COLOR_BOSS_RED.b, 0.5)
 		dot_spr.z_index  = 3
 		add_child(dot_spr)
+		# Task 7: store per-system boss dot so _process can pulse it.
+		_boss_dot_sprites.append(dot_spr)
 		# Boss icon on top of the dot.
 		var icon_at := AtlasTexture.new()
 		icon_at.atlas  = ICON_STRIP
@@ -471,7 +497,7 @@ func _build_boss_nodes() -> void:
 		icon_spr.z_index  = 5
 		icon_spr.modulate = Color(1.0, 1.0, 1.0, 0.0)
 		add_child(icon_spr)
-		# Label above.
+		# Task 4: label BELOW the icon, alpha 0.0 by default.
 		var ls := LabelSettings.new()
 		ls.font = FONT; ls.font_size = 9
 		ls.font_color    = Color(1.0, 0.65, 0.60, 0.95)
@@ -480,16 +506,18 @@ func _build_boss_nodes() -> void:
 		var lbl := Label.new()
 		lbl.text           = "BOSS"
 		lbl.label_settings = ls
-		var row_above: int  = int((pos.y - 16.0) / CELL) - 1
-		lbl.position  = Vector2(pos.x - 12, row_above * CELL + 2)
+		var row_below: int  = int((pos.y + 16.0) / CELL) + 1
+		lbl.position  = Vector2(pos.x - 12, row_below * CELL + 2)
 		lbl.z_index   = 10
-		lbl.modulate.a = 0.2
+		lbl.modulate.a = 0.0
 		add_child(lbl)
 		_planet_hovers.append({
-			"center": pos,
-			"radius": 16.0,
-			"label":  lbl,
-			"icon":   icon_spr,
+			"center":    pos,
+			"radius":    16.0,
+			"label":     lbl,
+			"icon":      icon_spr,
+			"icon_tint": Color(1.0, 0.65, 0.60),
+			"lbl_color": Color(1.0, 0.65, 0.60, 0.95),
 		})
 
 
@@ -541,6 +569,16 @@ func _spawn_moons(planet_cy: float, planet_cx: float, planet_px: float) -> void:
 		})
 
 
+# Task 4: per-type label/icon hover color.
+func _node_type_color(node_type: int) -> Color:
+	match node_type:
+		0: return Color(0.35, 0.65, 1.0,  0.95)  # outpost — blue
+		1: return Color(1.0,  0.30, 0.25, 0.95)  # hazard  — red
+		2: return Color(1.0,  0.90, 0.15, 0.95)  # signal  — yellow
+		3: return COLOR_NODE_GREEN                # combat  — green
+	return Color(0.85, 0.92, 1.0, 0.95)
+
+
 # Node type for ambient dressing: 0=outpost 1=hazard 2=signal 3=combat
 func _pick_node_type() -> int:
 	var r: int = _map_rng.randi() % 9
@@ -553,7 +591,9 @@ func _pick_node_type() -> int:
 func _add_node_dressing(cy: float, cx: float, node_type: int) -> void:
 	match node_type:
 		0: _add_pulse_glow(cy, cx, Color(0.35, 0.65, 1.0),  0.35)  # outpost — blue
-		1: _add_pulse_glow(cy, cx, Color(1.0,  0.25, 0.20), 0.40)  # hazard  — red
+		1:  # hazard — red glow + task 3: pulsing red mine pixels
+			_add_pulse_glow(cy, cx, Color(1.0, 0.25, 0.20), 0.40)
+			_add_mine_pixels(cy, cx)
 		2: _add_pulse_glow(cy, cx, Color(1.0,  0.90, 0.15), 0.35)  # signal  — yellow
 		3: _add_glitter_zone(cy, cx)                                 # combat  — glitter
 
@@ -599,21 +639,44 @@ func _add_glitter_zone(cy: float, cx: float) -> void:
 		})
 
 
+# Task 3: scatter 6-8 pulsing red 1-2px pixels around a hazard/minefield POI.
+func _add_mine_pixels(cy: float, cx: float) -> void:
+	var count: int = 6 + _map_rng.randi() % 3  # 6-8 pixels
+	for _k in count:
+		var ox: float = _map_rng.randf_range(-28.0, 28.0)
+		var oy: float = _map_rng.randf_range(-20.0, 20.0)
+		var sz: float = 1.0 if _map_rng.randi() % 2 == 0 else 2.0
+		_mine_pixels.append({
+			"pos":   Vector2(cx + ox, cy + oy),
+			"sz":    sz,
+			"hz":    _map_rng.randf_range(0.40, 1.10),
+			"phase": _map_rng.randf_range(0.0, TAU),
+		})
+
+
 func _add_hover_label_icon(center_y: float, center_x: float, display_px: float, label_text: String) -> void:
+	# Task 5: Signal nodes always display "Unknown Signal" as their label.
+	var display_text: String = label_text
+	if _cur_node_type == 2:
+		display_text = "Unknown Signal"
+	# Task 4: label color matches node-type color (same color used for hover tint on icon).
+	var lbl_color: Color = _node_type_color(_cur_node_type)
 	var ls := LabelSettings.new()
 	ls.font = FONT; ls.font_size = 9
-	ls.font_color    = Color(0.85, 0.92, 1.0, 0.95)
+	ls.font_color    = lbl_color
 	ls.outline_size  = 1
 	ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
 	var lbl := Label.new()
-	lbl.text           = label_text
+	lbl.text           = display_text
 	lbl.label_settings = ls
-	var obj_top: float = center_y - display_px * 0.5
-	var row_above: int = int(obj_top / CELL) - 1
-	lbl.position  = Vector2(center_x - 3, row_above * CELL + 2)
+	# Task 4: label appears BELOW the icon, not above. Default alpha 0.0.
+	var obj_bottom: float = center_y + display_px * 0.5
+	var row_below: int = int(obj_bottom / CELL) + 1
+	lbl.position  = Vector2(center_x - 3, row_below * CELL + 2)
 	lbl.z_index   = 10
-	lbl.modulate.a = 0.2
+	lbl.modulate.a = 0.0
 	add_child(lbl)
+	# Task 1: icon gets star glow tint from the current system.
 	var icon_idx: int = NODE_TYPE_ICONS[_cur_node_type]
 	var at := AtlasTexture.new()
 	at.atlas  = ICON_STRIP
@@ -623,13 +686,17 @@ func _add_hover_label_icon(center_y: float, center_x: float, display_px: float, 
 	icon_spr.position = Vector2(center_x, center_y)
 	icon_spr.scale    = Vector2(0.5, 0.5)
 	icon_spr.z_index  = 5
-	icon_spr.modulate = Color(1.0, 1.0, 1.0, 0.0)
+	# Tint base color toward the line's star glow; alpha 0.0 until hovered.
+	var star_tint: Color = Color.WHITE.lerp(STAR_GLOW_COLORS[_cur_sys_i], 0.25)
+	icon_spr.modulate = Color(star_tint.r, star_tint.g, star_tint.b, 0.0)
 	add_child(icon_spr)
 	_planet_hovers.append({
-		"center": Vector2(center_x, center_y),
-		"radius": display_px * 0.5,
-		"label":  lbl,
-		"icon":   icon_spr,
+		"center":    Vector2(center_x, center_y),
+		"radius":    display_px * 0.5,
+		"label":     lbl,
+		"icon":      icon_spr,
+		"icon_tint": star_tint,
+		"lbl_color": lbl_color,
 	})
 
 
@@ -751,7 +818,7 @@ func _build_labels() -> void:
 	for i in STAR_ANCHORS.size():
 		var anchor: Vector2 = STAR_ANCHORS[i]
 		var star_top: float  = anchor.y - STAR_DISPLAY_PX[i] * 0.5
-		# Row just above the star's upper edge.
+		# Row just above the star's upper edge — system name label.
 		var row_above: int   = int(star_top / CELL) - 1
 		var lbl := Label.new()
 		lbl.text           = _system_names[i]
@@ -759,6 +826,19 @@ func _build_labels() -> void:
 		lbl.position = Vector2(anchor.x - 2, row_above * CELL + 2)
 		lbl.z_index   = 10   # above stars (default 0)
 		add_child(lbl)
+		# Task 2: star itself is stellar body "A" — small letter label beside the star.
+		var ls_a := LabelSettings.new()
+		ls_a.font         = FONT
+		ls_a.font_size    = 7
+		ls_a.font_color   = Color(STAR_GLOW_COLORS[i].r, STAR_GLOW_COLORS[i].g, STAR_GLOW_COLORS[i].b, 0.85)
+		ls_a.outline_size  = 1
+		ls_a.outline_color = Color(0.0, 0.0, 0.0, 1.0)
+		var lbl_a := Label.new()
+		lbl_a.text           = "A"
+		lbl_a.label_settings = ls_a
+		lbl_a.position = Vector2(anchor.x + STAR_DISPLAY_PX[i] * 0.5 + 2, anchor.y - 4)
+		lbl_a.z_index   = 10
+		add_child(lbl_a)
 
 
 # ---------------------------------------------------------------------------
@@ -835,6 +915,11 @@ func _draw() -> void:
 		if p.brightness > 0.04:
 			draw_rect(Rect2(p.pos, Vector2(1, 1)),
 				Color(0.78, 0.84, 0.92, p.brightness))
+	# Task 3: minefield pulsing red pixels — sine-wave alpha.
+	for m in _mine_pixels:
+		var a: float = 0.5 + 0.5 * sin(_time * m.hz * TAU + m.phase)
+		draw_rect(Rect2(m.pos, Vector2(m.sz, m.sz)),
+			Color(1.0, 0.15, 0.10, clampf(a, 0.2, 1.0)))
 	for col in range(COLS + 1):
 		var x   := col * CELL
 		var maj := col % 4 == 0
@@ -868,6 +953,30 @@ func _build_ui() -> void:
 	btn.size     = Vector2(80, 14)
 	btn.pressed.connect(_rebuild)
 	add_child(btn)
+	# Task 7: per-system "Boss Ready" toggle buttons below Generate New.
+	var labels_str: Array = ["Row1 Boss Ready", "Row2 Boss Ready", "Row3 Boss Ready"]
+	for i in STAR_ANCHORS.size():
+		var tbtn := Button.new()
+		tbtn.text       = labels_str[i]
+		tbtn.toggle_mode = true
+		tbtn.position   = Vector2(13 * CELL, (15 + i + 1) * CELL)
+		tbtn.size       = Vector2(80, 14)
+		var idx := i  # capture
+		tbtn.toggled.connect(func(pressed: bool): _set_boss_ready(idx, pressed))
+		add_child(tbtn)
+
+
+# Task 7: toggle boss-ready state for system i — turn route line red + restore.
+func _set_boss_ready(sys_i: int, ready: bool) -> void:
+	if sys_i >= _boss_ready.size():
+		return
+	_boss_ready[sys_i] = ready
+	if sys_i < _route_lines.size() and is_instance_valid(_route_lines[sys_i]):
+		_route_lines[sys_i].default_color = Color(1.0, 0.20, 0.15, 0.85) if ready else ROUTE_COLOR
+	# When not ready, restore boss dot to its normal dim-red alpha.
+	if sys_i < _boss_dot_sprites.size() and is_instance_valid(_boss_dot_sprites[sys_i]):
+		if not ready:
+			_boss_dot_sprites[sys_i].modulate.a = 0.5
 
 
 func _rebuild() -> void:
@@ -881,8 +990,12 @@ func _rebuild() -> void:
 	_asteroid_rotators.clear()
 	_glow_pulses.clear()
 	_glitter.clear()
+	_mine_pixels.clear()
 	_moon_data.clear()
 	_moon_textures.clear()
+	_boss_dot_sprites.clear()
+	_route_lines.clear()
+	_boss_ready = [false, false, false]
 	map_seed = _map_rng.randi()
 	call_deferred("_deferred_build")
 
