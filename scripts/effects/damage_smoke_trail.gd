@@ -27,6 +27,8 @@ const TAIL_WIDTH_MULT: float = 10.0
 # Roman 2026-05-18: +25% over the previous pass.
 const DRIFT_BASE_SPEED: float = 225.0
 const DRIFT_AGE_GAIN: float = 400.0
+# +1.0 = drift downward (player default), -1.0 = drift upward (enemy smoke).
+var drift_sign: float = 1.0
 
 # Per-point sideways wander so the column breathes.
 const WANDER_PX_PER_SEC: float = 18.0
@@ -138,7 +140,7 @@ func _age_points(delta: float) -> void:
 	for i in range(n):
 		_point_t[i] = float(_point_t[i]) + delta
 		var t: float = clamp(float(_point_t[i]) / POINT_LIFETIME, 0.0, 1.0)
-		var drop: float = (DRIFT_BASE_SPEED + DRIFT_AGE_GAIN * t) * delta
+		var drop: float = (DRIFT_BASE_SPEED + DRIFT_AGE_GAIN * t) * delta * drift_sign
 		var wander: float = WANDER_PX_PER_SEC * delta * sin(float(i) * 0.55 + float(_point_t[i]) * 4.5)
 		var p: Vector2 = _line.get_point_position(i)
 		_line.set_point_position(i, p + Vector2(wander, drop))

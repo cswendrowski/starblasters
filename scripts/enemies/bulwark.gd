@@ -10,9 +10,6 @@ extends "res://scripts/enemies/enemy_base.gd"
 # the player's shield visual so the player understands "this thing eats
 # bullets the same way I do."
 
-const BulletScene = preload("res://scenes/projectiles/enemy_bullet.tscn")
-const TurretTex = preload("res://graphics/enemies/tank_turret.png")
-
 # --- Stats --------------------------------------------------------------
 @export var shield_charges_max: int = 4        # 2× uncommon-tough baseline
 @export var shield_recharge_interval: float = 6.0
@@ -29,13 +26,6 @@ const TurretTex = preload("res://graphics/enemies/tank_turret.png")
 var _vel: Vector2 = Vector2.ZERO
 var _shield: int = 0
 var _recharge_t: float = 0.0
-var _fire_t: float = 0.0
-
-# Turret (created in _ready, rotates to track player).
-@export var turret_offset: Vector2 = Vector2(0, -4)  # local offset from base center
-@export var turret_track_rate: float = 4.0           # lerp_angle rate
-@export var turret_barrel_length: float = 9.0        # spawn bullet this far along barrel
-var _turret: Sprite2D = null
 
 const HitFlashFx = preload("res://scripts/effects/hit_flash_fx.gd")
 
@@ -51,22 +41,18 @@ func _ready() -> void:
 	offscreen_mode = OffscreenMode.NONE
 	super._ready()
 	_shield = shield_charges_max
-	_fire_t = randf_range(fire_interval_min, fire_interval_max)
 	_build_shield_ring()
 	_update_shield_visual()
-	_build_turret()
 	hull_changed.emit(max_health, health)
-
-
-func _build_turret() -> void:
-	_turret = Sprite2D.new()
-	_turret.name = "Turret"
-	_turret.texture = TurretTex
-	_turret.position = turret_offset
-	# Render above the base sprite but below the shield ring (z=1).
-	_turret.z_index = 0
-	_turret.z_as_relative = false
-	add_child(_turret)
+	var t := EnemyTurret.new()
+	t.name = "Turret"
+	t.position = Vector2(0, -4)
+	t.rotation_speed    = 1.6
+	t.fire_interval_min = fire_interval_min
+	t.fire_interval_max = fire_interval_max
+	t.aim_tolerance_deg = 30.0
+	t.bullet_speed      = bullet_speed
+	add_child(t)
 
 
 # Hull shim — engine_torch / damage_smoke_trail look for these.
@@ -153,43 +139,4 @@ func _process(delta: float) -> void:
 			_recharge_t = 0.0
 			_shield = mini(_shield + 1, shield_charges_max)
 			_update_shield_visual()
-	# Turret tracks player smoothly (visual only — bullet aim is direct).
-	_update_turret_rotation(delta)
-	# Weapon. Slow, aimed shot at the player.
-	_fire_t -= delta
-	if _fire_t <= 0.0:
-		_fire_t = randf_range(fire_interval_min, fire_interval_max)
-		_fire_at_player()
-
-
-func _update_turret_rotation(delta: float) -> void:
-	if _turret == null:
-		return
-	var player := find_player()
-	if player == null:
-		return
-	# Sprite faces up by convention — same +PI/2 as _apply_auto_rotation.
-	var target: float = (player.global_position - _turret.global_position).angle() + PI / 2.0
-	_turret.rotation = lerp_angle(_turret.rotation, target, turret_track_rate * delta)
-
-
-func _fire_at_player() -> void:
-	var player := find_player()
-	if player == null:
-		return
-	# Spawn position: along the turret's current "up" direction (barrel tip).
-	# Sprite-up = -Y rotated by turret rotation; convention puts angle 0 at -Y.
-	var muzzle: Vector2 = global_position
-	if _turret != null:
-		var up_dir: Vector2 = Vector2.UP.rotated(_turret.rotation)
-		muzzle = _turret.global_position + up_dir * turret_barrel_length
-	var b = BulletScene.instantiate()
-	b.global_position = muzzle
-	# Bullet aims straight at the player from the muzzle position — clean,
-	# avoids the bullet "missing" while the turret is mid-lerp.
-	var to_p: Vector2 = (player.global_position - muzzle).normalized()
-	if "velocity_dir" in b:
-		b.velocity_dir = to_p
-	if "speed" in b:
-		b.speed = bullet_speed
-	get_tree().root.add_child(b)
+	# EnemyTurret child handles aiming + firing.

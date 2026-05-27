@@ -10,30 +10,21 @@ class_name EnemyFirecoreCruiser
 const TRAVERSE_SPEED  := 60.0      # px/s horizontal
 const DESCENT_SPEED   := 40.0      # px/s downward during death
 const TRAVERSE_Y      := 62.0      # centre Y while traversing
-const FIRE_INTERVAL   := 2.0       # seconds between turret shots
-const BULLET_SPEED    := 160.0
-const ROTATION_SPEED  := 2.0       # turret aim radians/second
-const AIM_TOLERANCE   := 0.20      # radians — must be aimed within to fire
 const SIZE_PX         := 64.0      # sprite-frame width for on-screen check
 
 const PlasmaOrbVariant = preload("res://data/bullets/plasma_orb.tres")
-const EnemyBulletScene = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const HookTurretTex    = preload("res://graphics/enemies/hook_turret.png")
 
 var _traverse_speed: float = TRAVERSE_SPEED
 var _direction: float = 1.0  # +1 = moving right, -1 = moving left
 
-# Inline turret state
-var _turret_node: Node2D = null
-var _turret_sprite: Sprite2D = null
-var _fire_t: float = 0.0
-var _turret_rot: float = 0.0
-var _turret_can_fire: bool = false
+var _turret_node: EnemyTurret = null
 
 # Death descent
 var _descending: bool = false
 var _traverse_speed_initial: float = TRAVERSE_SPEED
 var _descent_speed: float = 0.0
+var _death_start_rotation: float = 0.0
 var _explosion_t: float = 0.0
 var _next_explosion_interval: float = 0.3
 
@@ -57,22 +48,23 @@ func _ready() -> void:
 	# Clamp Y to the traversal band.
 	global_position.y = TRAVERSE_Y
 
-	# Build inline turret.
 	_build_turret()
-
-	# Stagger initial fire timer so first shot isn't instant.
-	_fire_t = randf_range(0.5, FIRE_INTERVAL)
 
 
 func _build_turret() -> void:
-	_turret_node = Node2D.new()
+	_turret_node = EnemyTurret.new()
 	_turret_node.name = "HookTurret"
+	_turret_node.rotation_speed    = 2.0
+	_turret_node.fire_interval_min = 2.0
+	_turret_node.fire_interval_max = 2.0
+	_turret_node.aim_tolerance_deg = 11.5
+	_turret_node.bullet_speed      = 160.0
+	_turret_node.bullet_variant    = PlasmaOrbVariant
+	var s := Sprite2D.new()
+	s.texture = HookTurretTex
+	s.modulate = Color.html("9350ad")
+	_turret_node.add_child(s)
 	add_child(_turret_node)
-
-	_turret_sprite = Sprite2D.new()
-	_turret_sprite.texture = HookTurretTex
-	_turret_sprite.modulate = Color.html("9350ad")
-	_turret_node.add_child(_turret_sprite)
 
 
 func _process(delta: float) -> void:
@@ -84,7 +76,6 @@ func _process(delta: float) -> void:
 		return
 
 	_tick_traverse(delta)
-	_tick_turret(delta)
 	# No super._process() call — NONE offscreen mode and auto_rotate=false
 	# means the base _process would just check offscreen (skipped) and
 	# _apply_auto_rotation (no-op). Skip to avoid redundant work.
@@ -92,9 +83,10 @@ func _process(delta: float) -> void:
 
 func _tick_traverse(delta: float) -> void:
 	global_position.x += _traverse_speed * _direction * delta
-	# Face direction of travel: sprites authored facing down → ±90°.
 	rotation = (PI * 0.5) * _direction
-	# Exit off the opposite side — clean leave, no death.
+	# Gate turret firing while >51% offscreen.
+	if _turret_node:
+		_turret_node.enabled = not _offscreen_majority()
 	if _direction > 0.0 and global_position.x > screensize.x + SIZE_PX:
 		_leave()
 	elif _direction < 0.0 and global_position.x < -SIZE_PX:
@@ -109,45 +101,6 @@ func _offscreen_majority() -> bool:
 		or global_position.x > Playfield.X_MAX - half
 
 
-func _tick_turret(delta: float) -> void:
-	_turret_can_fire = not _offscreen_majority()
-
-	var player := find_player()
-	if player and _turret_node and is_instance_valid(_turret_node):
-		var dir: Vector2 = (player.global_position - _turret_node.global_position).normalized()
-		var target_rot: float = atan2(dir.y, dir.x) + PI * 0.5
-		var diff := angle_difference(_turret_rot, target_rot)
-		_turret_rot += clamp(diff, -ROTATION_SPEED * delta, ROTATION_SPEED * delta)
-		_turret_node.rotation = _turret_rot
-
-	if not _turret_can_fire:
-		return
-	_fire_t += delta
-	if _fire_t >= FIRE_INTERVAL:
-		var player2 := find_player()
-		if player2:
-			var dir2: Vector2 = (player2.global_position - _turret_node.global_position).normalized()
-			var target2: float = atan2(dir2.y, dir2.x) + PI * 0.5
-			if abs(angle_difference(_turret_rot, target2)) < AIM_TOLERANCE:
-				_fire_t = 0.0
-				_shoot_turret()
-
-
-func _shoot_turret() -> void:
-	var fire_dir := Vector2(cos(_turret_rot - PI * 0.5), sin(_turret_rot - PI * 0.5))
-	var b = EnemyBulletScene.instantiate()
-	if "variant" in b:
-		b.variant = PlasmaOrbVariant
-	get_tree().root.add_child(b)
-	var spawn_pos: Vector2 = _turret_node.global_position
-	if b.has_method("start"):
-		b.start(spawn_pos, fire_dir)
-	else:
-		b.global_position = spawn_pos
-		if "velocity" in b:
-			b.velocity = fire_dir * BULLET_SPEED
-
-
 # ---- Death sequence --------------------------------------------------------
 
 func explode() -> void:
@@ -159,13 +112,13 @@ func explode() -> void:
 	_descending = true
 	set_deferred("monitorable", false)
 
-	# Record speed for proportional rotation decay — do NOT zero here.
-	# _tick_descent will decelerate it smoothly.
+	# Record speed and current rotation as death-sequence start values.
 	_traverse_speed_initial = max(_traverse_speed, 1.0)
+	_death_start_rotation = rotation
 
 	# Disable turret.
-	_turret_can_fire = false
 	if _turret_node and is_instance_valid(_turret_node):
+		_turret_node.enabled = false
 		_turret_node.visible = false
 
 	# Attach engine torch pointing upward (nozzle at top of ship).
@@ -214,7 +167,7 @@ func _attach_death_torch() -> void:
 
 
 func _attach_death_smoke() -> void:
-	var SmokeScript = load("res://scripts/effects/damage_smoke_trail.gd")
+	var SmokeScript = load("res://scripts/effects/enemy_smoke_trail.gd")
 	var smoke: Node2D = SmokeScript.new()
 	smoke.name = "DeathSmoke"
 	# emit_local: top of ship in local coords so smoke starts from the top.
@@ -230,29 +183,38 @@ func _attach_death_smoke() -> void:
 
 
 func _tick_descent(delta: float) -> void:
-	# Decelerate horizontal speed smoothly (~0.5 s to stop).
-	_traverse_speed = move_toward(_traverse_speed, 0.0, 120.0 * delta)
+	# Step 2: Decelerate horizontal over 2 seconds (TRAVERSE_SPEED=60 / 30 = 2s).
+	_traverse_speed = move_toward(_traverse_speed, 0.0, 30.0 * delta)
 	global_position.x += _traverse_speed * _direction * delta
 
-	# Ramp descent speed from 0 toward DESCENT_SPEED (40 px/s).
-	_descent_speed = move_toward(_descent_speed, DESCENT_SPEED, 60.0 * delta)
+	# Step 3b: Begin descent once horizontal speed falls below half (≈1s into decel).
+	if _traverse_speed < _traverse_speed_initial * 0.5:
+		_descent_speed = move_toward(_descent_speed, DESCENT_SPEED, 60.0 * delta)
 	global_position.y += _descent_speed * delta
 
-	# Rotate proportionally: travel angle at full speed → 0 (nose down) at stop.
-	var travel_angle: float = (PI * 0.5) * _direction
-	var t: float = clamp(_traverse_speed / _traverse_speed_initial, 0.0, 1.0)
-	rotation = lerp_angle(0.0, travel_angle, t)
+	# Step 2/3a: Smoothly rotate from traversal angle toward a 15° lean as speed decays.
+	# t=1 (full speed) → _death_start_rotation; t=0 (stopped) → 15° lean.
+	var target_lean: float = deg_to_rad(15.0) * _direction
+	if _traverse_speed >= 5.0:
+		var t: float = clamp(_traverse_speed / _traverse_speed_initial, 0.0, 1.0)
+		rotation = lerp_angle(target_lean, _death_start_rotation, t)
+	else:
+		rotation = target_lean
 
-	# Rolling explosions at random offsets.
-	_explosion_t += delta
-	if _explosion_t >= _next_explosion_interval:
-		_explosion_t = 0.0
-		_next_explosion_interval = randf_range(0.25, 0.5)
-		var offset := Vector2(randf_range(-12.0, 12.0), randf_range(-12.0, 12.0))
-		var ExplosionFxScript = load("res://scripts/effects/explosion_fx.gd")
-		ExplosionFxScript.play(global_position + offset, 1.0)
+	# Step 3a: Explosions taper off as speed decays; stop when essentially halted.
+	if _traverse_speed >= 5.0:
+		_explosion_t += delta
+		var speed_frac: float = clamp(_traverse_speed / _traverse_speed_initial, 0.0, 1.0)
+		# interval: 0.25s at full speed → 1.5s near stop
+		var max_interval: float = lerp(1.5, 0.25, speed_frac)
+		if _explosion_t >= _next_explosion_interval:
+			_explosion_t = 0.0
+			_next_explosion_interval = randf_range(max_interval * 0.7, max_interval)
+			var offset := Vector2(randf_range(-12.0, 12.0), randf_range(-12.0, 12.0))
+			var ExplosionFxScript = load("res://scripts/effects/explosion_fx.gd")
+			ExplosionFxScript.play(global_position + offset, 1.0)
 
-	# Off the bottom of the screen — trigger final death burst.
+	# Step 4: Off the bottom of the screen — trigger final death burst.
 	if global_position.y > 300.0:
 		_finish_death()
 
