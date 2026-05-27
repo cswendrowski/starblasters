@@ -267,7 +267,7 @@ func _process(delta: float) -> void:
 	for node in _celestial_nodes:
 		if is_instance_valid(node) and node.has_method("update_time"):
 			node.update_time(_time * 0.5)
-	for i in mini(_star_glows.size(), STAR_PULSE_HZ.size()):
+	for i in _star_glows.size():
 		var pulse: float = sin(_time * STAR_PULSE_HZ[i] * TAU + STAR_PHASE[i])
 		var glow_spr: Sprite2D = _star_glows[i].get_child(0)
 		var s: float = (STAR_DISPLAY_PX[i] * 2.2) / 64.0 * (1.0 + 0.06 * pulse)
