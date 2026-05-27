@@ -18,129 +18,237 @@ position = Vector2(64, 256)
 position = Vector2(448, 256)
 
 [node name="star_1" type="Marker2D" parent="." unique_id=554673070]
-position = Vector2(64, 64)
+position = Vector2(32, 64)
 
 [node name="star_label_1" type="Marker2D" parent="star_1" unique_id=1135672396]
 position = Vector2(0, -32)
 
-[node name="boss_1" type="Marker2D" parent="star_1" unique_id=31149741]
-position = Vector2(384, 0)
-
-[node name="boss_label_1" type="Marker2D" parent="star_1/boss_1" unique_id=1311184674]
-position = Vector2(0, -40)
-
 [node name="row_1_poi_1" type="Marker2D" parent="star_1" unique_id=759104837]
-position = Vector2(64, 0)
+position = Vector2(48, 0)
 
 [node name="row_1_label_1" type="Marker2D" parent="star_1/row_1_poi_1" unique_id=175370619]
 position = Vector2(0, -24)
 
-[node name="row_1_poi_2" type="Marker2D" parent="star_1" unique_id=1490527818]
-position = Vector2(128, 0)
+[node name="row_1_poi_2" type="Marker2D" parent="star_1" unique_id=261674145]
+position = Vector2(80, 0)
 
-[node name="row_1_label_2" type="Marker2D" parent="star_1/row_1_poi_2" unique_id=1540577739]
+[node name="row_1_label_2" type="Marker2D" parent="star_1/row_1_poi_2" unique_id=775554420]
 position = Vector2(0, -24)
 
-[node name="row_1_poi_3" type="Marker2D" parent="star_1" unique_id=261674145]
-position = Vector2(192, 0)
+[node name="row_1_poi_3" type="Marker2D" parent="star_1" unique_id=1787629719]
+position = Vector2(112, 0)
 
-[node name="row_1_label_3" type="Marker2D" parent="star_1/row_1_poi_3" unique_id=775554420]
+[node name="row_1_label_2" type="Marker2D" parent="star_1/row_1_poi_3" unique_id=1439434167]
 position = Vector2(0, -24)
 
-[node name="row_1_poi_4" type="Marker2D" parent="star_1" unique_id=1787629719]
-position = Vector2(256, 0)
+[node name="row_1_poi_4" type="Marker2D" parent="star_1" unique_id=889965394]
+position = Vector2(144, 0)
 
-[node name="row_1_label_4" type="Marker2D" parent="star_1/row_1_poi_4" unique_id=1439434167]
+[node name="row_1_label_4" type="Marker2D" parent="star_1/row_1_poi_4" unique_id=1917844472]
 position = Vector2(0, -24)
 
-[node name="row_1_poi_5" type="Marker2D" parent="star_1" unique_id=889965394]
-position = Vector2(320, 0)
+[node name="row_1_poi_5" type="Marker2D" parent="star_1" unique_id=314847798]
+position = Vector2(176, 0)
 
-[node name="row_1_label_5" type="Marker2D" parent="star_1/row_1_poi_5" unique_id=1917844472]
+[node name="row_1_label_5" type="Marker2D" parent="star_1/row_1_poi_5" unique_id=1775773084]
+position = Vector2(0, -24)
+
+[node name="row_1_poi_6" type="Marker2D" parent="star_1" unique_id=466696499]
+position = Vector2(208, 0)
+
+[node name="row_1_label_6" type="Marker2D" parent="star_1/row_1_poi_6" unique_id=811946942]
+position = Vector2(0, -24)
+
+[node name="row_1_poi_7" type="Marker2D" parent="star_1" unique_id=1478437868]
+position = Vector2(240, 0)
+
+[node name="row_1_label_7" type="Marker2D" parent="star_1/row_1_poi_7" unique_id=248183091]
+position = Vector2(0, -24)
+
+[node name="row_1_poi_8" type="Marker2D" parent="star_1" unique_id=1339224938]
+position = Vector2(272, 0)
+
+[node name="row_1_label_8" type="Marker2D" parent="star_1/row_1_poi_8" unique_id=706224621]
+position = Vector2(0, -24)
+
+[node name="row_1_poi_9" type="Marker2D" parent="star_1" unique_id=1920542941]
+position = Vector2(304, 0)
+
+[node name="row_1_label_9" type="Marker2D" parent="star_1/row_1_poi_9" unique_id=931772614]
+position = Vector2(0, -24)
+
+[node name="row_1_poi_10" type="Marker2D" parent="star_1" unique_id=296532538]
+position = Vector2(336, 0)
+
+[node name="row_1_label_10" type="Marker2D" parent="star_1/row_1_poi_10" unique_id=726808556]
+position = Vector2(0, -24)
+
+[node name="row_1_poi_11" type="Marker2D" parent="star_1" unique_id=95756528]
+position = Vector2(368, 0)
+
+[node name="row_1_label_11" type="Marker2D" parent="star_1/row_1_poi_11" unique_id=2128224897]
+position = Vector2(0, -24)
+
+[node name="row_1_boss_1" type="Marker2D" parent="star_1" unique_id=31149741]
+position = Vector2(416, 0)
+
+[node name="boss_label_1" type="Marker2D" parent="star_1/row_1_boss_1" unique_id=1311184674]
 position = Vector2(0, -24)
 
 [node name="star_2" type="Marker2D" parent="." unique_id=832592214]
-position = Vector2(64, 128)
+position = Vector2(32, 128)
 
 [node name="star_label_2" type="Marker2D" parent="star_2" unique_id=1997914111]
 position = Vector2(0, -32)
 
-[node name="boss_2" type="Marker2D" parent="star_2" unique_id=1550288882]
-position = Vector2(384, 0)
+[node name="row_2_boss_2" type="Marker2D" parent="star_2" unique_id=1550288882]
+position = Vector2(416, 0)
 
-[node name="boss_label_2" type="Marker2D" parent="star_2/boss_2" unique_id=71134378]
-position = Vector2(0, -32)
+[node name="boss_label_2" type="Marker2D" parent="star_2/row_2_boss_2" unique_id=71134378]
+position = Vector2(0, -24)
 
 [node name="row_2_poi_1" type="Marker2D" parent="star_2" unique_id=59762207]
-position = Vector2(64, 0)
+position = Vector2(48, 0)
 
-[node name="row_2_label_1" type="Marker2D" parent="star_2/row_2_poi_1" unique_id=1894205685]
+[node name="row_1_label_1" type="Marker2D" parent="star_2/row_2_poi_1" unique_id=1894205685]
 position = Vector2(0, -24)
 
-[node name="row_2_poi_2" type="Marker2D" parent="star_2" unique_id=982675970]
-position = Vector2(128, 0)
+[node name="row_2_poi_2" type="Marker2D" parent="star_2" unique_id=1101858678]
+position = Vector2(80, 0)
 
-[node name="row_2_label_2" type="Marker2D" parent="star_2/row_2_poi_2" unique_id=733783861]
+[node name="row_1_label_2" type="Marker2D" parent="star_2/row_2_poi_2" unique_id=535787698]
 position = Vector2(0, -24)
 
-[node name="row_2_poi_3" type="Marker2D" parent="star_2" unique_id=1545568543]
-position = Vector2(192, 0)
+[node name="row_2_poi_3" type="Marker2D" parent="star_2" unique_id=982675970]
+position = Vector2(112, 0)
 
-[node name="row_2_label_3" type="Marker2D" parent="star_2/row_2_poi_3" unique_id=944840817]
+[node name="row_1_label_3" type="Marker2D" parent="star_2/row_2_poi_3" unique_id=733783861]
 position = Vector2(0, -24)
 
-[node name="row_2_poi_4" type="Marker2D" parent="star_2" unique_id=1158619342]
-position = Vector2(256, 0)
+[node name="row_2_poi_4" type="Marker2D" parent="star_2" unique_id=1486392012]
+position = Vector2(144, 0)
 
-[node name="row_2_label_4" type="Marker2D" parent="star_2/row_2_poi_4" unique_id=594948635]
+[node name="row_1_label_4" type="Marker2D" parent="star_2/row_2_poi_4" unique_id=253932169]
 position = Vector2(0, -24)
 
-[node name="row_2_poi_5" type="Marker2D" parent="star_2" unique_id=543127055]
-position = Vector2(320, 0)
+[node name="row_2_poi_5" type="Marker2D" parent="star_2" unique_id=1545568543]
+position = Vector2(176, 0)
 
-[node name="row_2_label_5" type="Marker2D" parent="star_2/row_2_poi_5" unique_id=460715472]
+[node name="row_1_label_5" type="Marker2D" parent="star_2/row_2_poi_5" unique_id=944840817]
+position = Vector2(0, -24)
+
+[node name="row_2_poi_6" type="Marker2D" parent="star_2" unique_id=1940768339]
+position = Vector2(208, 0)
+
+[node name="row_1_label_6" type="Marker2D" parent="star_2/row_2_poi_6" unique_id=963581923]
+position = Vector2(0, -24)
+
+[node name="row_2_poi_7" type="Marker2D" parent="star_2" unique_id=1158619342]
+position = Vector2(240, 0)
+
+[node name="row_1_label_7" type="Marker2D" parent="star_2/row_2_poi_7" unique_id=594948635]
+position = Vector2(0, -24)
+
+[node name="row_2_poi_8" type="Marker2D" parent="star_2" unique_id=1789470045]
+position = Vector2(272, 0)
+
+[node name="row_1_label_8" type="Marker2D" parent="star_2/row_2_poi_8" unique_id=298609427]
+position = Vector2(0, -24)
+
+[node name="row_2_poi_9" type="Marker2D" parent="star_2" unique_id=543127055]
+position = Vector2(304, 0)
+
+[node name="row_1_label_9" type="Marker2D" parent="star_2/row_2_poi_9" unique_id=460715472]
+position = Vector2(0, -24)
+
+[node name="row_2_poi_10" type="Marker2D" parent="star_2" unique_id=547317591]
+position = Vector2(336, 0)
+
+[node name="row_1_label_10" type="Marker2D" parent="star_2/row_2_poi_10" unique_id=1535381635]
+position = Vector2(0, -24)
+
+[node name="row_2_poi_11" type="Marker2D" parent="star_2" unique_id=346178838]
+position = Vector2(368, 0)
+
+[node name="row_1_label_11" type="Marker2D" parent="star_2/row_2_poi_11" unique_id=1618190537]
 position = Vector2(0, -24)
 
 [node name="star_3" type="Marker2D" parent="." unique_id=1623316203]
-position = Vector2(64, 192)
+position = Vector2(32, 192)
 
 [node name="star_label_3" type="Marker2D" parent="star_3" unique_id=1968720714]
 position = Vector2(0, -32)
 
-[node name="boss_3" type="Marker2D" parent="star_3/star_label_3" unique_id=1229402557]
-position = Vector2(384, 32)
-
-[node name="boss_label_3" type="Marker2D" parent="star_3/star_label_3/boss_3" unique_id=777858355]
-position = Vector2(0, -32)
-
 [node name="row_3_poi_1" type="Marker2D" parent="star_3" unique_id=770090753]
-position = Vector2(64, 0)
+position = Vector2(48, 0)
 
 [node name="row_3_label_1" type="Marker2D" parent="star_3/row_3_poi_1" unique_id=692380691]
 position = Vector2(0, -24)
 
-[node name="row_3_poi_2" type="Marker2D" parent="star_3" unique_id=2037274320]
-position = Vector2(128, 0)
+[node name="row_3_poi_2" type="Marker2D" parent="star_3" unique_id=929592123]
+position = Vector2(80, 0)
 
-[node name="row_3_label_2" type="Marker2D" parent="star_3/row_3_poi_2" unique_id=1195065063]
+[node name="row_3_label_2" type="Marker2D" parent="star_3/row_3_poi_2" unique_id=1067091487]
 position = Vector2(0, -24)
 
-[node name="row_3_poi_3" type="Marker2D" parent="star_3" unique_id=2097123919]
-position = Vector2(192, 0)
+[node name="row_3_poi_3" type="Marker2D" parent="star_3" unique_id=2037274320]
+position = Vector2(112, 0)
 
-[node name="row_3_label_3" type="Marker2D" parent="star_3/row_3_poi_3" unique_id=48686401]
+[node name="row_3_label_3" type="Marker2D" parent="star_3/row_3_poi_3" unique_id=1195065063]
 position = Vector2(0, -24)
 
-[node name="row_3_poi_4" type="Marker2D" parent="star_3" unique_id=2123748153]
-position = Vector2(256, 0)
+[node name="row_3_poi_4" type="Marker2D" parent="star_3" unique_id=1793343197]
+position = Vector2(144, 0)
 
-[node name="row_3_label_4" type="Marker2D" parent="star_3/row_3_poi_4" unique_id=1474171878]
+[node name="row_3_label_4" type="Marker2D" parent="star_3/row_3_poi_4" unique_id=2007160194]
 position = Vector2(0, -24)
 
-[node name="row_3_poi_5" type="Marker2D" parent="star_3" unique_id=761767500]
-position = Vector2(320, 0)
+[node name="row_3_poi_5" type="Marker2D" parent="star_3" unique_id=2097123919]
+position = Vector2(176, 0)
 
-[node name="row_3_label_5" type="Marker2D" parent="star_3/row_3_poi_5" unique_id=1466760338]
+[node name="row_3_label_5" type="Marker2D" parent="star_3/row_3_poi_5" unique_id=48686401]
+position = Vector2(0, -24)
+
+[node name="row_3_poi_6" type="Marker2D" parent="star_3" unique_id=297161496]
+position = Vector2(208, 0)
+
+[node name="row_3_label_6" type="Marker2D" parent="star_3/row_3_poi_6" unique_id=1610200311]
+position = Vector2(0, -24)
+
+[node name="row_3_poi_7" type="Marker2D" parent="star_3" unique_id=2123748153]
+position = Vector2(240, 0)
+
+[node name="row_3_label_7" type="Marker2D" parent="star_3/row_3_poi_7" unique_id=1474171878]
+position = Vector2(0, -24)
+
+[node name="row_3_poi_8" type="Marker2D" parent="star_3" unique_id=1692874004]
+position = Vector2(272, 0)
+
+[node name="row_3_label_8" type="Marker2D" parent="star_3/row_3_poi_8" unique_id=2147034131]
+position = Vector2(0, -24)
+
+[node name="row_3_poi_9" type="Marker2D" parent="star_3" unique_id=761767500]
+position = Vector2(304, 0)
+
+[node name="row_3_label_9" type="Marker2D" parent="star_3/row_3_poi_9" unique_id=1466760338]
+position = Vector2(0, -24)
+
+[node name="row_3_poi_10" type="Marker2D" parent="star_3" unique_id=316526920]
+position = Vector2(336, 0)
+
+[node name="row_3_label_10" type="Marker2D" parent="star_3/row_3_poi_10" unique_id=116830667]
+position = Vector2(0, -24)
+
+[node name="row_3_poi_11" type="Marker2D" parent="star_3" unique_id=753498183]
+position = Vector2(368, 0)
+
+[node name="row_3_label_11" type="Marker2D" parent="star_3/row_3_poi_11" unique_id=1700017721]
+position = Vector2(0, -24)
+
+[node name="row_3_boss_3" type="Marker2D" parent="star_3" unique_id=1229402557]
+position = Vector2(416, 0)
+
+[node name="boss_label_3" type="Marker2D" parent="star_3/row_3_boss_3" unique_id=777858355]
 position = Vector2(0, -24)
 
 [node name="selected_node_label" type="Marker2D" parent="." unique_id=1604718374]

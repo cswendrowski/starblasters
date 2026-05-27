@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://pneira12v2pc"]
 
-[ext_resource type="Script" uid="uid://cnrsrr4h8slcu" path="res://scripts/enemies/boss_conductor.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://counimiosxas6" path="res://scripts/enemies/boss_conductor.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://deqmo34uqv2ja" path="res://graphics/enemies/boss_green_mantis.png" id="2_tex"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
 
@@ -26,6 +26,21 @@ one_shot = true
 
 [node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=750894165]
 stream = ExtResource("3_die")
+
+[node name="weapon_nose" type="Marker2D" parent="." unique_id=1997347206]
+position = Vector2(0, 28)
+
+[node name="turret_1" type="Marker2D" parent="." unique_id=29330652]
+position = Vector2(-10, 5)
+
+[node name="turret_2" type="Marker2D" parent="." unique_id=439320244]
+position = Vector2(10, 5)
+
+[node name="missile_port_1" type="Marker2D" parent="." unique_id=2024465780]
+position = Vector2(-16, -23)
+
+[node name="missile_port_2" type="Marker2D" parent="." unique_id=842517701]
+position = Vector2(16, -23)
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
 [connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]
