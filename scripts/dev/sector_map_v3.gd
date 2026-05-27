@@ -826,19 +826,6 @@ func _build_labels() -> void:
 		lbl.position = Vector2(anchor.x - 2, row_above * CELL + 2)
 		lbl.z_index   = 10   # above stars (default 0)
 		add_child(lbl)
-		# Task 2: star itself is stellar body "A" — small letter label beside the star.
-		var ls_a := LabelSettings.new()
-		ls_a.font         = FONT
-		ls_a.font_size    = 7
-		ls_a.font_color   = Color(STAR_GLOW_COLORS[i].r, STAR_GLOW_COLORS[i].g, STAR_GLOW_COLORS[i].b, 0.85)
-		ls_a.outline_size  = 1
-		ls_a.outline_color = Color(0.0, 0.0, 0.0, 1.0)
-		var lbl_a := Label.new()
-		lbl_a.text           = "A"
-		lbl_a.label_settings = ls_a
-		lbl_a.position = Vector2(anchor.x + STAR_DISPLAY_PX[i] * 0.5 + 2, anchor.y - 4)
-		lbl_a.z_index   = 10
-		add_child(lbl_a)
 
 
 # ---------------------------------------------------------------------------
