@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3 uid="uid://enemy_firecore_cruiser"]
+[gd_scene load_steps=10 format=3 uid="uid://enemy_firecore_cruiser"]
 
 [ext_resource type="Script" path="res://scripts/enemies/enemy_firecore_cruiser.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://dys10yoi061nc" path="res://graphics/enemies/firecore_cruiser.png" id="2_tex"]
@@ -6,11 +6,19 @@
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_frame0"]
 atlas = ExtResource("2_tex")
-region = Rect2(0, 0, 32, 32)
+region = Rect2(0, 0, 16, 32)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_frame1"]
 atlas = ExtResource("2_tex")
-region = Rect2(32, 0, 32, 32)
+region = Rect2(16, 0, 16, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_frame2"]
+atlas = ExtResource("2_tex")
+region = Rect2(32, 0, 16, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_frame3"]
+atlas = ExtResource("2_tex")
+region = Rect2(48, 0, 16, 32)
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_fly"]
 animations = [{
@@ -20,6 +28,12 @@ animations = [{
 }, {
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_frame1")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_frame2")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_frame3")
 }],
 "loop": true,
 "name": &"fly",

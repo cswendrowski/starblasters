@@ -32,6 +32,10 @@ var _turret_can_fire: bool = false
 
 # Death descent
 var _descending: bool = false
+var _traverse_speed_initial: float = TRAVERSE_SPEED
+var _descent_speed: float = 0.0
+var _explosion_t: float = 0.0
+var _next_explosion_interval: float = 0.3
 
 
 func _ready() -> void:
@@ -88,6 +92,8 @@ func _process(delta: float) -> void:
 
 func _tick_traverse(delta: float) -> void:
 	global_position.x += _traverse_speed * _direction * delta
+	# Face direction of travel: sprites authored facing down → ±90°.
+	rotation = (PI * 0.5) * _direction
 	# Exit off the opposite side — clean leave, no death.
 	if _direction > 0.0 and global_position.x > screensize.x + SIZE_PX:
 		_leave()
@@ -153,8 +159,9 @@ func explode() -> void:
 	_descending = true
 	set_deferred("monitorable", false)
 
-	# Stop horizontal movement.
-	_traverse_speed = 0.0
+	# Record speed for proportional rotation decay — do NOT zero here.
+	# _tick_descent will decelerate it smoothly.
+	_traverse_speed_initial = max(_traverse_speed, 1.0)
 
 	# Disable turret.
 	_turret_can_fire = false
@@ -223,7 +230,27 @@ func _attach_death_smoke() -> void:
 
 
 func _tick_descent(delta: float) -> void:
-	global_position.y += DESCENT_SPEED * delta
+	# Decelerate horizontal speed smoothly (~0.5 s to stop).
+	_traverse_speed = move_toward(_traverse_speed, 0.0, 120.0 * delta)
+	global_position.x += _traverse_speed * _direction * delta
+
+	# Ramp descent speed from 0 toward DESCENT_SPEED (40 px/s).
+	_descent_speed = move_toward(_descent_speed, DESCENT_SPEED, 60.0 * delta)
+	global_position.y += _descent_speed * delta
+
+	# Rotate proportionally: travel angle at full speed → 0 (nose down) at stop.
+	var travel_angle: float = (PI * 0.5) * _direction
+	var t: float = clamp(_traverse_speed / _traverse_speed_initial, 0.0, 1.0)
+	rotation = lerp_angle(0.0, travel_angle, t)
+
+	# Rolling explosions at random offsets.
+	_explosion_t += delta
+	if _explosion_t >= _next_explosion_interval:
+		_explosion_t = 0.0
+		_next_explosion_interval = randf_range(0.25, 0.5)
+		var offset := Vector2(randf_range(-12.0, 12.0), randf_range(-12.0, 12.0))
+		var ExplosionFxScript = load("res://scripts/effects/explosion_fx.gd")
+		ExplosionFxScript.play(global_position + offset, 1.0)
 
 	# Off the bottom of the screen — trigger final death burst.
 	if global_position.y > 300.0:
