@@ -1,6 +1,150 @@
-[gd_scene load_steps=2 format=3 uid="uid://sectorlive001"]
+[gd_scene format=3 uid="uid://cwpdcjwimliyy"]
 
-[ext_resource type="Script" path="res://scripts/sector_map_v3.gd" id="1_sv3live"]
+[ext_resource type="Script" uid="uid://ddwchlvq14dk4" path="res://scripts/sector_map_v3.gd" id="1_sv3live"]
 
-[node name="SectorMapV3" type="Node2D"]
+[node name="SectorMapV3" type="Node2D" unique_id=2088483420]
 script = ExtResource("1_sv3live")
+
+[node name="sector_label" type="Marker2D" parent="." unique_id=1615575564]
+position = Vector2(256, 16)
+
+[node name="player_status" type="Marker2D" parent="." unique_id=1858405631]
+position = Vector2(64, 232)
+
+[node name="manage_ship_button" type="Marker2D" parent="." unique_id=344181871]
+position = Vector2(64, 256)
+
+[node name="options_button" type="Marker2D" parent="." unique_id=2014244365]
+position = Vector2(448, 256)
+
+[node name="star_1" type="Marker2D" parent="." unique_id=554673070]
+position = Vector2(64, 64)
+
+[node name="star_label_1" type="Marker2D" parent="star_1" unique_id=1135672396]
+position = Vector2(0, -32)
+
+[node name="boss_1" type="Marker2D" parent="star_1" unique_id=31149741]
+position = Vector2(384, 0)
+
+[node name="boss_label_1" type="Marker2D" parent="star_1/boss_1" unique_id=1311184674]
+position = Vector2(0, -40)
+
+[node name="row_1_poi_1" type="Marker2D" parent="star_1" unique_id=759104837]
+position = Vector2(64, 0)
+
+[node name="row_1_label_1" type="Marker2D" parent="star_1/row_1_poi_1" unique_id=175370619]
+position = Vector2(0, -24)
+
+[node name="row_1_poi_2" type="Marker2D" parent="star_1" unique_id=1490527818]
+position = Vector2(128, 0)
+
+[node name="row_1_label_2" type="Marker2D" parent="star_1/row_1_poi_2" unique_id=1540577739]
+position = Vector2(0, -24)
+
+[node name="row_1_poi_3" type="Marker2D" parent="star_1" unique_id=261674145]
+position = Vector2(192, 0)
+
+[node name="row_1_label_3" type="Marker2D" parent="star_1/row_1_poi_3" unique_id=775554420]
+position = Vector2(0, -24)
+
+[node name="row_1_poi_4" type="Marker2D" parent="star_1" unique_id=1787629719]
+position = Vector2(256, 0)
+
+[node name="row_1_label_4" type="Marker2D" parent="star_1/row_1_poi_4" unique_id=1439434167]
+position = Vector2(0, -24)
+
+[node name="row_1_poi_5" type="Marker2D" parent="star_1" unique_id=889965394]
+position = Vector2(320, 0)
+
+[node name="row_1_label_5" type="Marker2D" parent="star_1/row_1_poi_5" unique_id=1917844472]
+position = Vector2(0, -24)
+
+[node name="star_2" type="Marker2D" parent="." unique_id=832592214]
+position = Vector2(64, 128)
+
+[node name="star_label_2" type="Marker2D" parent="star_2" unique_id=1997914111]
+position = Vector2(0, -32)
+
+[node name="boss_2" type="Marker2D" parent="star_2" unique_id=1550288882]
+position = Vector2(384, 0)
+
+[node name="boss_label_2" type="Marker2D" parent="star_2/boss_2" unique_id=71134378]
+position = Vector2(0, -32)
+
+[node name="row_2_poi_1" type="Marker2D" parent="star_2" unique_id=59762207]
+position = Vector2(64, 0)
+
+[node name="row_2_label_1" type="Marker2D" parent="star_2/row_2_poi_1" unique_id=1894205685]
+position = Vector2(0, -24)
+
+[node name="row_2_poi_2" type="Marker2D" parent="star_2" unique_id=982675970]
+position = Vector2(128, 0)
+
+[node name="row_2_label_2" type="Marker2D" parent="star_2/row_2_poi_2" unique_id=733783861]
+position = Vector2(0, -24)
+
+[node name="row_2_poi_3" type="Marker2D" parent="star_2" unique_id=1545568543]
+position = Vector2(192, 0)
+
+[node name="row_2_label_3" type="Marker2D" parent="star_2/row_2_poi_3" unique_id=944840817]
+position = Vector2(0, -24)
+
+[node name="row_2_poi_4" type="Marker2D" parent="star_2" unique_id=1158619342]
+position = Vector2(256, 0)
+
+[node name="row_2_label_4" type="Marker2D" parent="star_2/row_2_poi_4" unique_id=594948635]
+position = Vector2(0, -24)
+
+[node name="row_2_poi_5" type="Marker2D" parent="star_2" unique_id=543127055]
+position = Vector2(320, 0)
+
+[node name="row_2_label_5" type="Marker2D" parent="star_2/row_2_poi_5" unique_id=460715472]
+position = Vector2(0, -24)
+
+[node name="star_3" type="Marker2D" parent="." unique_id=1623316203]
+position = Vector2(64, 192)
+
+[node name="star_label_3" type="Marker2D" parent="star_3" unique_id=1968720714]
+position = Vector2(0, -32)
+
+[node name="boss_3" type="Marker2D" parent="star_3/star_label_3" unique_id=1229402557]
+position = Vector2(384, 32)
+
+[node name="boss_label_3" type="Marker2D" parent="star_3/star_label_3/boss_3" unique_id=777858355]
+position = Vector2(0, -32)
+
+[node name="row_3_poi_1" type="Marker2D" parent="star_3" unique_id=770090753]
+position = Vector2(64, 0)
+
+[node name="row_3_label_1" type="Marker2D" parent="star_3/row_3_poi_1" unique_id=692380691]
+position = Vector2(0, -24)
+
+[node name="row_3_poi_2" type="Marker2D" parent="star_3" unique_id=2037274320]
+position = Vector2(128, 0)
+
+[node name="row_3_label_2" type="Marker2D" parent="star_3/row_3_poi_2" unique_id=1195065063]
+position = Vector2(0, -24)
+
+[node name="row_3_poi_3" type="Marker2D" parent="star_3" unique_id=2097123919]
+position = Vector2(192, 0)
+
+[node name="row_3_label_3" type="Marker2D" parent="star_3/row_3_poi_3" unique_id=48686401]
+position = Vector2(0, -24)
+
+[node name="row_3_poi_4" type="Marker2D" parent="star_3" unique_id=2123748153]
+position = Vector2(256, 0)
+
+[node name="row_3_label_4" type="Marker2D" parent="star_3/row_3_poi_4" unique_id=1474171878]
+position = Vector2(0, -24)
+
+[node name="row_3_poi_5" type="Marker2D" parent="star_3" unique_id=761767500]
+position = Vector2(320, 0)
+
+[node name="row_3_label_5" type="Marker2D" parent="star_3/row_3_poi_5" unique_id=1466760338]
+position = Vector2(0, -24)
+
+[node name="selected_node_label" type="Marker2D" parent="." unique_id=1604718374]
+position = Vector2(256, 232)
+
+[node name="depart_button" type="Marker2D" parent="selected_node_label" unique_id=66115526]
+position = Vector2(0, 24)
