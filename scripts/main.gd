@@ -369,10 +369,7 @@ func new_game() -> void:
 			is_hazard = true
 			hazard_subtype = run.current_hazard_subtype
 	if has_node("/root/Music"):
-		if is_boss:
-			get_node("/root/Music").set_context("boss")
-		else:
-			get_node("/root/Music").set_context("combat")
+		get_node("/root/Music").set_context("combat")
 	if is_boss:
 		# Endless-mode boss arenas pull from the depth-aware generator so each
 		# sector escalates. sector_depth = sectors_cleared + 1 (1-based for

@@ -30,6 +30,8 @@ var _super_charge_max: int = 0
 var _weapon_hints_box: VBoxContainer = null
 var _pri_label: Label = null
 var _sec_label: Label = null
+var _sec_ammo: int = -1
+var _sec_ammo_max: int = -1
 var _focus_bar_bg: ColorRect = null
 var _focus_bar_fill: ColorRect = null
 var _focus_bar_label: Label = null
@@ -311,6 +313,12 @@ func bind_player(player) -> void:
 		update_hull(player.max_hull, player.hull)
 	if player and "max_shield" in player and "shield" in player:
 		update_shield(player.max_shield, player.shield)
+	# Secondary ammo readout — seed from player and track changes.
+	if player and player.has_signal("secondary_ammo_changed"):
+		if not player.secondary_ammo_changed.is_connected(_on_secondary_ammo_changed):
+			player.secondary_ammo_changed.connect(_on_secondary_ammo_changed)
+		if "secondary_ammo" in player and "secondary_ammo_max" in player:
+			_on_secondary_ammo_changed(int(player.secondary_ammo), int(player.secondary_ammo_max))
 	# Focus charge bar.
 	_install_focus_bar()
 	if player and player.has_signal("focus_charge_changed"):
@@ -533,8 +541,17 @@ func _refresh_weapon_hints() -> void:
 				sec_name = String(p_sec.display_name)
 	var pri_key: String = _action_key_label("shoot")
 	var sec_key: String = _action_key_label("shoot2")
+	var sec_ammo_suffix: String = ""
+	if _sec_ammo >= 0:
+		sec_ammo_suffix = "  %d" % _sec_ammo
 	_pri_label.text = "PRI %s%s [%s]" % [pri_name, pri_ammo_suffix, pri_key]
-	_sec_label.text = "SEC %s [%s]" % [sec_name, sec_key]
+	_sec_label.text = "SEC %s%s [%s]" % [sec_name, sec_ammo_suffix, sec_key]
+
+
+func _on_secondary_ammo_changed(value: int, maximum: int) -> void:
+	_sec_ammo = value
+	_sec_ammo_max = maximum
+	_refresh_weapon_hints()
 
 
 func _on_super_charges_changed(value: int, maximum: int) -> void:

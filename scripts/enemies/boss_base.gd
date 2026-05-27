@@ -223,6 +223,8 @@ func _on_shoot_timer_timeout() -> void:
 # ---- Phase state machine ------------------------------------------------
 
 func _init_phases() -> void:
+	if has_node("/root/Music"):
+		get_node("/root/Music").set_context("boss")
 	if phases.is_empty():
 		# Subclass left it empty — treat as single 1.0 phase. No push_error
 		# here because "1 phase" is a legitimate design choice for some bosses

@@ -364,29 +364,30 @@ func _build_pois_from_cache() -> void:
 			# matches the dev v3 random pick (uniform across 3 types).
 			var obj_kind: int = deco_rng.randi() % 3
 			var hover_label: String = "" if poi.completed else "?"
-			# Decorations (planet/asteroid/cluster + pulse glow / glitter) are
-			# suppressed once a POI is completed (Roman 2026-05-26) so the map
-			# reads as "spent" at a glance. Advance planet_seq either way so
-			# the next uncompleted POI keeps the planet-letter sequence stable.
-			var draw_deco: bool = not poi.completed
+			# Celestial bodies (planet/asteroid/cluster) are always drawn so
+			# the map reads as a real star chart. The pulse glow and node
+			# dressing are suppressed on completed POIs so the node reads
+			# as "spent" at a glance. Advance planet_seq either way so the
+			# next uncompleted POI keeps the planet-letter sequence stable.
+			var draw_dressing: bool = not poi.completed
 			match obj_kind:
 				OBJ_PLANET:
-					if draw_deco:
-						var px: float = PLANET_MIN_PX + float(deco_rng.randi() % 3) * 8.0
-						var frac: float = (poi.pos.x - 128.0) / max(1.0, row_end_x - 128.0)
-						var ptype: int  = _pick_planet_type(deco_rng, frac)
-						_spawn_planet(poi.pos, px, ptype, r_idx, deco_rng, String(poi.id))
+					var px: float = PLANET_MIN_PX + float(deco_rng.randi() % 3) * 8.0
+					var frac: float = (poi.pos.x - 128.0) / max(1.0, row_end_x - 128.0)
+					var ptype: int  = _pick_planet_type(deco_rng, frac)
+					_spawn_planet(poi.pos, px, ptype, r_idx, deco_rng, String(poi.id))
+					if draw_dressing:
 						hover_label = PLANET_LETTERS[mini(planet_seq, PLANET_LETTERS.size() - 1)]
 					planet_seq += 1
 				OBJ_LARGE_AST:
-					if draw_deco:
-						_spawn_large_asteroid(poi.pos, r_idx, deco_rng)
+					_spawn_large_asteroid(poi.pos, r_idx, deco_rng)
+					if draw_dressing:
 						hover_label = "Asteroid"
 				OBJ_CLUSTER:
-					if draw_deco:
-						_spawn_asteroid_cluster(poi.pos, r_idx, deco_rng)
+					_spawn_asteroid_cluster(poi.pos, r_idx, deco_rng)
+					if draw_dressing:
 						hover_label = "Belt"
-			if draw_deco:
+			if draw_dressing:
 				_add_node_dressing(poi.pos, int(poi.node_type), deco_rng)
 			_add_hover_label_icon(poi.pos, 32.0, hover_label, int(poi.node_type), poi.completed)
 			_poi_hits.append({
@@ -740,7 +741,7 @@ func _build_bosses_from_cache() -> void:
 		icon_spr.position = pos
 		icon_spr.scale    = Vector2(0.5, 0.5)
 		icon_spr.z_index  = 5
-		icon_spr.modulate = Color(1.0, 1.0, 1.0, 0.0)
+		icon_spr.modulate = Color(1.0, 1.0, 1.0, 0.5)
 		add_child(icon_spr)
 		# Top label: BOSS / DEFEATED.
 		var ls := LabelSettings.new()
