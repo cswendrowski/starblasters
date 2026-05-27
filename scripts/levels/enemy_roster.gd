@@ -300,6 +300,17 @@ const ENTRIES := [
 		"shoot": null,
 		"base_count": 1,
 	},
+	{
+		"scene": "res://scenes/enemies/enemy_firecore_cruiser.tscn",
+		"tier": Tier.RARE,
+		"size": "huge", "tags": ["tough"],
+		"movement": null,   # handles own movement
+		"shoot": null,      # handles own shooting
+		"base_count": 1,
+		"no_scale": true,
+		"hp_override": 32, "bounty_override": 100,
+		"unlock_sector": 2, "unlock_depth": 6, "weight": 0.6,
+	},
 ]
 
 
