@@ -84,7 +84,7 @@ const PLANET_TINT = {
 # Warp-streak foreground layer for hyperspace-ish rush feel.
 @export var use_warp_streaks: bool = true
 @export var warp_streak_count: int = 14
-@export var warp_streak_speed: float = 520.0
+@export var warp_streak_speed: float = 624.0
 @export_range(0.0, 1.0) var surface_time_scale: float = 0.15
 # Pixel parity (Cobalt 2026-05-20): every procedural backdrop body
 # (planets, asteroids, nebula) renders at exactly `pixel_density` viewport
@@ -209,10 +209,21 @@ func _ready() -> void:
 	# modulate is sampled from the planet's palette so the silhouette
 	# shadowing matches what the player is lit by.
 	var dominant_tint: Color = PLANET_TINT.get(planet_idx, Color(1, 1, 1, 1))
+	# Tasks 3+4: read star_color + star_distance_ratio from current_stellar.
+	# Fallback: use planet tint as star color, ratio 0.5 (mid-distance).
+	var line_star_color: Color = PLANET_TINT.get(planet_idx, Color(1.00, 0.88, 0.55))
+	var line_star_dist: float = 0.5
+	if has_node("/root/Run"):
+		var stellar = get_node("/root/Run").current_stellar
+		if stellar is Dictionary:
+			line_star_color = stellar.get("star_color", line_star_color)
+			line_star_dist = float(stellar.get("star_distance_ratio", 0.5))
 	_spawn_deep_clear()
 	# Foundation 1 + 2: starfields. Bright, slow.
 	if starfield_density > 0.0:
 		_spawn_starfield()
+	# Task 3: always show the POI line star behind the nebula layer.
+	_spawn_line_star(line_star_color, line_star_dist)
 	# Above-foundation: nebulae as the first silhouette band.
 	_spawn_nebulae(rng, nebula_band, nebula_tint)
 	_apply_silhouette_to_layer_named("NebulaFar", 1, dominant_tint)
@@ -227,7 +238,8 @@ func _ready() -> void:
 	var asteroid_hazard: bool = false
 	if has_node("/root/Run"):
 		asteroid_hazard = String(get_node("/root/Run").current_hazard_subtype) == "asteroid_field"
-	var has_asteroids: bool = asteroid_hazard or (rng.randf() < asteroid_presence)
+	# Task 2: asteroids only render when explicitly in an asteroid_field hazard.
+	var has_asteroids: bool = asteroid_hazard
 	# Asteroid hazard doubles density again per Roman, 2026-05-16
 	# ("doubled across all parallax layers"). 2.5 → 5.0.
 	var density_mult: float = 5.0 if asteroid_hazard else 1.0
@@ -353,6 +365,48 @@ func _spawn_deep_clear() -> void:
 	deep.size = Vector2(480, 270)
 	deep.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(deep)
+
+
+# Tasks 3+4: Draw the POI line's star as a glowing point in the background.
+# Always rendered so combat always has a stellar anchor.
+# `dist_ratio` 0=closest (radius 12) → 1=farthest (radius 4), linear interp.
+# Positioned at Y=145 (vertical center) so it sits below the planet body
+# (1:1 planets at (240, -22..78) for globes; this keeps the star visible
+# at all planet variant vertical offsets). Behind nebula in draw order.
+func _spawn_line_star(star_color: Color, dist_ratio: float) -> void:
+	var radius: float = lerp(12.0, 4.0, clampf(dist_ratio, 0.0, 1.0))
+	# Offset from center so the planet body (centered ~240, starting near top)
+	# doesn't occlude the star as it drifts downward across the level.
+	# X=120 sits in the left gutter/edge of the playfield; Y=110 keeps the star
+	# in the upper half. The playfield band is X 132-348, so this is just outside
+	# the gameplay area — always visible as a distant background reference.
+	var star_x: float = 120.0
+	var star_y: float = 110.0
+	# Core glow: additive halo sized proportional to radius.
+	var halo := Sprite2D.new()
+	halo.name = "LineStarHalo"
+	halo.texture = _build_halo_texture()
+	halo.position = Vector2(star_x, star_y)
+	var halo_size: float = radius * 6.0
+	halo.scale = Vector2(halo_size / 64.0, halo_size / 64.0)
+	var halo_color: Color = Color(star_color.r, star_color.g, star_color.b, 0.7)
+	halo.self_modulate = halo_color
+	var mat := CanvasItemMaterial.new()
+	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	halo.material = mat
+	add_child(halo)
+	# Inner bright core drawn as a tiny ColorRect.
+	var core := ColorRect.new()
+	core.name = "LineStarCore"
+	var core_size: float = radius * 2.0
+	core.size = Vector2(core_size, core_size)
+	core.position = Vector2(star_x - core_size * 0.5, star_y - core_size * 0.5)
+	core.color = Color(1.0, 1.0, 1.0, 1.0)
+	core.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var core_mat := CanvasItemMaterial.new()
+	core_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	core.material = core_mat
+	add_child(core)
 
 
 # Two nebula passes for volumetric dust feel. Far pass is huge, soft and slow.
@@ -536,9 +590,10 @@ func _spawn_companion_body(scene_path: String, rng: RandomNumberGenerator, plane
 		p.size = Vector2(100, 100)
 		p.custom_minimum_size = Vector2(100, 100)
 		p.pivot_offset = Vector2.ZERO
-	var sf: float = actual_size / 100.0
+	# Task 1: 1:1 pixel scale for companion bodies too.
+	var sf: float = 1.0
 	p.scale = Vector2(sf, sf)
-	_apply_pixel_parity(p, actual_size)
+	_apply_pixel_parity(p, 100.0)
 	if "override_time" in p:
 		p.override_time = true
 	if p.has_method("set_seed"):
@@ -550,7 +605,7 @@ func _spawn_companion_body(scene_path: String, rng: RandomNumberGenerator, plane
 	p.position = Vector2(x, y)
 	p.set_meta("drift", true)
 	p.set_meta("drift_mult", planet_drift_mult)
-	p.set_meta("planet_actual_size", actual_size)
+	p.set_meta("planet_actual_size", 100.0)
 	p.set_meta("time_update", true)
 	add_child(p)
 
@@ -599,10 +654,11 @@ func _spawn_planet(scene_path: String, rng: RandomNumberGenerator, planet_idx_us
 		p.size = Vector2(100, 100)
 		p.custom_minimum_size = Vector2(100, 100)
 		p.pivot_offset = Vector2.ZERO
-	var v: float = clampf(planet_size_variance, 0.0, 0.9)
-	var size_mult: float = rng.randf_range(1.0 - v, 1.0 + v)
-	var actual_size: float = planet_size * size_mult
-	var sf: float = actual_size / 100.0
+	# Task 1: render planets at 1:1 pixel scale (scale = Vector2(1,1)).
+	# Planet scenes are authored as 100×100 Controls, so actual_size = 100 gives
+	# sf = 1.0 and no stretching. Variance/planet_size are intentionally ignored.
+	var actual_size: float = 100.0
+	var sf: float = 1.0
 	p.scale = Vector2(sf, sf)
 	# Pixel-parity helper handles set_pixels + ColorRect reset (see
 	# _apply_pixel_parity). Same path for every planet variant including

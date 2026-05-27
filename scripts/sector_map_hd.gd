@@ -717,10 +717,26 @@ func _on_node_pressed(n) -> void:
 		var run = get_node("/root/Run")
 		run.mark_node_visited(n.id)
 		run.current_node_type = effective_type
+		# Tasks 3+4: derive star_color from planet tint and star_distance_ratio
+		# from row position. Row 1=BOSS_ROW is closest to the star (ratio 0.0);
+		# row R_MAX-1=9 is farthest (ratio 1.0). Linear interpolation in-between.
+		var p_idx: int = int(n.planet_idx)
+		const PLANET_TINT_LOCAL := {
+			0: Color(1.00, 0.45, 0.22), 1: Color(0.55, 0.75, 1.00),
+			2: Color(1.00, 0.82, 0.55), 3: Color(0.80, 0.55, 1.00),
+			4: Color(0.70, 0.78, 0.90), 5: Color(0.55, 0.92, 0.78),
+			6: Color(0.55, 0.30, 0.70), 7: Color(0.78, 0.55, 1.00),
+			8: Color(1.00, 0.88, 0.55),
+		}
+		var star_color: Color = PLANET_TINT_LOCAL.get(p_idx, Color(1.00, 0.88, 0.55))
+		var node_row: int = int(n.row)
+		var dist_ratio: float = clampf(float(node_row - BOSS_ROW) / float(R_MAX - 1 - BOSS_ROW), 0.0, 1.0)
 		run.current_stellar = {
 			"planet_idx": n.planet_idx,
 			"nebula_band": n.nebula_band,
 			"nebula_tint": n.nebula_tint,
+			"star_color": star_color,
+			"star_distance_ratio": dist_ratio,
 		}
 		if effective_type == SectorNode.NodeType.HAZARD:
 			run.current_hazard_subtype = "minefield" if randi() % 2 == 0 else "asteroid_field"

@@ -39,7 +39,7 @@ func _ready() -> void:
 # ---- Event templates ----------------------------------------------------
 
 func _events() -> Array:
-	return [
+	var list: Array = [
 		{
 			"title": "Ambush!",
 			"body": "Warning lights flare in your periphery: active scan warnings. Sensors pick them up a second later — multiple incoming signatures closing from behind!",
@@ -94,7 +94,20 @@ func _events() -> Array:
 				},
 			],
 		},
-		{
+		_make_wreck_event(),
+	]
+	# Task 6: Freespace Miner only appears when the current hazard is an
+	# asteroid field. current_hazard_subtype is set by sector_map when a
+	# HAZARD node is entered — HAZARD nodes route to main.tscn, not here.
+	# A SIGNAL node that rolls into HAZARD also sets current_hazard_subtype
+	# and routes to main.tscn, so signal_event will only ever see this as
+	# "asteroid_field" if the run_state was pre-set externally (e.g. dev).
+	# The gate is correct as specified: apply it and document the constraint.
+	var is_asteroid_field: bool = false
+	if has_node("/root/Run"):
+		is_asteroid_field = String(get_node("/root/Run").current_hazard_subtype) == "asteroid_field"
+	if is_asteroid_field:
+		list.append({
 			"title": "Freespace Miner",
 			"body": "Your comms light up as a wandering mining ship calls for your attention: they've found high-value minerals, but the asteroids are too tough for their mining lasers. Proper fighter weapons would crack them.",
 			"choices": [
@@ -107,9 +120,8 @@ func _events() -> Array:
 					"action": func(s): s._finish_to_sector_map("Channel closed."),
 				},
 			],
-		},
-		_make_wreck_event(),
-	]
+		})
+	return list
 
 
 # Wrecked Starfighter — the scavenge option flips based on whether the

@@ -60,7 +60,8 @@ var forced_boss_scene: String = ""
 # Stellar metadata of the sector node the player just clicked. Read by
 # combat / hazard scenes to seed the galaxy_backdrop with a consistent
 # planet + nebula tint. Keys: planet_idx (int), nebula_band (String),
-# nebula_tint (Color). Empty until the first node click.
+# nebula_tint (Color), star_color (Color), star_distance_ratio (float 0=close 1=far).
+# Empty until the first node click.
 var current_stellar: Dictionary = {}
 # Machinegun ammo balance — persists across scenes so refills at outposts
 # carry into the next combat. 0 = empty; -1 = no MG equipped (default).
