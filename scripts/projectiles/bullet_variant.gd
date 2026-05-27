@@ -13,6 +13,8 @@ class_name BulletVariant
 # Visuals — leave both null to keep the scene's default appearance.
 @export var sprite_frames: SpriteFrames = null    # null → use static_texture
 @export var static_texture: Texture2D = null       # shown when sprite_frames is null
+@export var frame_count: int = 1                   # frames in static_texture strip (1 = static)
+@export var fps: float = 8.0                       # playback speed for animated strips
 
 @export var glow_color: Color = Color(1, 0.11, 1, 0.5)
 
@@ -33,3 +35,8 @@ class_name BulletVariant
 
 # Pick a random static frame on spawn (Aimed Sniper tracer)
 @export var random_frame: bool = false
+
+# Runtime cache: SpriteFrames built from static_texture + frame_count.
+# Not exported — rebuilt on first use and shared across all instances of
+# this variant to avoid per-bullet allocation overhead.
+var _built_frames: SpriteFrames = null

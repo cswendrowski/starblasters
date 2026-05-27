@@ -115,8 +115,35 @@ func _apply_variant() -> void:
 				asp.stop()
 			else:
 				asp.play("default")
+	elif variant.static_texture != null and variant.frame_count > 1:
+		# Animated strip: build (or reuse cached) SpriteFrames from the PNG
+		# strip and drive the scene's AnimatedSprite2D.
+		var asp: AnimatedSprite2D = get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
+		if asp != null:
+			# Build SpriteFrames once per variant and cache on the resource to
+			# avoid per-bullet allocation in bullet-heavy scenarios.
+			if variant._built_frames == null:
+				var tex: Texture2D = variant.static_texture
+				var frame_w: int = tex.get_width() / variant.frame_count
+				var frame_h: int = tex.get_height()
+				var frames := SpriteFrames.new()
+				frames.set_animation_loop("default", true)
+				frames.set_animation_speed("default", variant.fps)
+				for i in range(variant.frame_count):
+					var atlas := AtlasTexture.new()
+					atlas.atlas = tex
+					atlas.region = Rect2(i * frame_w, 0, frame_w, frame_h)
+					frames.add_frame("default", atlas)
+				variant._built_frames = frames
+			asp.sprite_frames = variant._built_frames
+			if variant.random_frame:
+				asp.frame = randi() % variant.frame_count
+				asp.stop()
+			else:
+				asp.play("default")
+			asp.visible = true
 	elif variant.static_texture != null:
-		# Static texture: hide AnimatedSprite2D, set Sprite2D (not Glow).
+		# Single-frame static texture: hide AnimatedSprite2D, set Sprite2D.
 		var asp: AnimatedSprite2D = get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
 		if asp != null:
 			asp.visible = false
