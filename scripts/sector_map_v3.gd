@@ -390,6 +390,11 @@ func _build_pois_from_cache() -> void:
 			if draw_dressing:
 				_add_node_dressing(poi.pos, int(poi.node_type), deco_rng)
 			_add_hover_label_icon(poi.pos, 32.0, hover_label, int(poi.node_type), poi.completed)
+			# POI name label — skip completed nodes (spent) and BOSS type (handled separately).
+			if not poi.completed and int(poi.node_type) != int(SectorNode.NodeType.BOSS):
+				var poi_name_seed: int = abs(hash(poi.id)) ^ 0x3F7A1C2B
+				var poi_name: String = _generate_poi_name(int(poi.node_type), poi_name_seed, String(poi.get("hazard_subtype", "")))
+				_spawn_poi_name_label(poi.pos, poi_name)
 			_poi_hits.append({
 				"id":     String(poi.id),
 				"pos":    Vector2(poi.pos),
@@ -1176,6 +1181,23 @@ const _CN_SCI_FI_NAMES := ["Station", "Reach", "Drift", "Crossing", "Terminus",
 						   "Anchorage", "Bastion", "Hollow", "Shard", "Gate"]
 const _CN_BELT_NAMES := ["Kappa", "Delta", "Zeta", "Rho", "Sigma", "Nu", "Tau", "Pi"]
 
+# POI name word banks — one per node-type family.
+const _PN_COMBAT_PREFIXES  := ["Contact", "Skirmish at", "Interdiction Zone", "Strike at",
+								"Engagement", "Patrol", "Intercept", "Ambush at"]
+const _PN_COMBAT_DESIGNATORS := ["Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot",
+								  "Keth", "Vorn", "Ash", "Ryn", "Cael", "Dusk", "Haze"]
+const _PN_COMBAT_SUFFIXES  := ["-1", "-2", "-3", "-4", "-5", "-7", "-9", "-12"]
+const _PN_STATION_PREFIX   := ["Relay Station", "Waypoint", "Depot", "Anchorage", "Outpost",
+								"Waystation", "Beacon", "Checkpoint"]
+const _PN_STATION_SUFFIX   := ["Sigma", "Alpha", "Crest", "Veil", "Reach", "Ridge", "Spur", "Gate"]
+const _PN_SIGNAL_PREFIX    := ["Anomaly", "Signal", "Ghost Trace", "Echo", "Pulse", "Drift Mark"]
+const _PN_SIGNAL_SUFFIX    := ["Veil", "Wraith", "Null", "Shard", "Fade", "Quiet"]
+const _PN_HAZARD_ASTEROID  := ["Debris Field", "Rock Field", "Scatter Zone", "Fragment Belt",
+								"Dust Belt", "Shard Cloud"]
+const _PN_HAZARD_MINE      := ["Mine Zone", "Exclusion Zone", "Mine Field", "Danger Zone",
+								"Interdiction Field"]
+const _PN_HAZARD_SUFFIX    := ["Kappa", "Alpha", "Delta", "Sigma", "Tau", "Mu", "Zeta"]
+
 # Generate a deterministic celestial name seeded by the node's position hash.
 # type: "star", "planet", "asteroid", "cluster"
 func _generate_celestial_name(type: String, seed_val: int) -> String:
@@ -1227,6 +1249,69 @@ func _generate_celestial_name(type: String, seed_val: int) -> String:
 	return "UNK-%d" % (abs(seed_val) % 9999)
 
 
+# Generate a short deterministic name for a POI node.
+# node_type matches SectorNode.NodeType ints. hazard_subtype is "" unless HAZARD.
+func _generate_poi_name(node_type: int, seed_val: int, hazard_subtype: String = "") -> String:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = abs(seed_val) % 0x7FFFFFFF
+	match node_type:
+		int(SectorNode.NodeType.COMBAT):
+			var style: int = rng.randi() % 3
+			match style:
+				0:
+					# "Contact Keth-3" / "Contact Vorn-7"
+					var p: String = _PN_COMBAT_PREFIXES[rng.randi() % _PN_COMBAT_PREFIXES.size()]
+					var d: String = _PN_COMBAT_DESIGNATORS[rng.randi() % _PN_COMBAT_DESIGNATORS.size()]
+					var s: String = _PN_COMBAT_SUFFIXES[rng.randi() % _PN_COMBAT_SUFFIXES.size()]
+					return "%s %s%s" % [p, d, s]
+				1:
+					# "HD-827" style callsign
+					return "HD-%d" % rng.randi_range(100, 999)
+				_:
+					# "Strike at Alpha-4"
+					var p: String = _PN_COMBAT_PREFIXES[rng.randi() % _PN_COMBAT_PREFIXES.size()]
+					var g: String = _CN_GREEK[rng.randi() % _CN_GREEK.size()]
+					return "%s %s" % [p, g]
+		int(SectorNode.NodeType.OUTPOST):
+			var style: int = rng.randi() % 2
+			match style:
+				0:
+					# "Relay Station 7" / "Depot Crest-4"
+					var p: String = _PN_STATION_PREFIX[rng.randi() % _PN_STATION_PREFIX.size()]
+					var n: int = rng.randi_range(1, 12)
+					return "%s %d" % [p, n]
+				_:
+					# "Waypoint Sigma" / "Anchorage Veil"
+					var p: String = _PN_STATION_PREFIX[rng.randi() % _PN_STATION_PREFIX.size()]
+					var s: String = _PN_STATION_SUFFIX[rng.randi() % _PN_STATION_SUFFIX.size()]
+					return "%s %s" % [p, s]
+		int(SectorNode.NodeType.SIGNAL):
+			var style: int = rng.randi() % 2
+			match style:
+				0:
+					# "Anomaly 94-K" style
+					var p: String = _PN_SIGNAL_PREFIX[rng.randi() % _PN_SIGNAL_PREFIX.size()]
+					var n: int = rng.randi_range(1, 99)
+					var g: String = _CN_GREEK[rng.randi() % _CN_GREEK.size()].left(1)
+					return "%s %d-%s" % [p, n, g]
+				_:
+					# "Signal Veil" / "Ghost Trace Wraith"
+					var p: String = _PN_SIGNAL_PREFIX[rng.randi() % _PN_SIGNAL_PREFIX.size()]
+					var s: String = _PN_SIGNAL_SUFFIX[rng.randi() % _PN_SIGNAL_SUFFIX.size()]
+					return "%s %s" % [p, s]
+		int(SectorNode.NodeType.HAZARD):
+			if hazard_subtype == "minefield":
+				var p: String = _PN_HAZARD_MINE[rng.randi() % _PN_HAZARD_MINE.size()]
+				var s: String = _PN_HAZARD_SUFFIX[rng.randi() % _PN_HAZARD_SUFFIX.size()]
+				return "%s %s" % [p, s]
+			else:
+				# asteroid_field or generic
+				var p: String = _PN_HAZARD_ASTEROID[rng.randi() % _PN_HAZARD_ASTEROID.size()]
+				var s: String = _PN_HAZARD_SUFFIX[rng.randi() % _PN_HAZARD_SUFFIX.size()]
+				return "%s %s" % [p, s]
+	return ""
+
+
 # Spawn a small name label near a celestial body. Low opacity so it reads as
 # ambient chart data rather than UI chrome. font_size 7, alpha 0.35.
 func _spawn_celestial_name_label(pos: Vector2, name_text: String, y_offset: float = 8.0) -> void:
@@ -1241,6 +1326,32 @@ func _spawn_celestial_name_label(pos: Vector2, name_text: String, y_offset: floa
 	lbl.label_settings = ls
 	lbl.modulate.a = 0.35
 	lbl.position = Vector2(pos.x - 24.0, pos.y + y_offset)
+	lbl.z_index = 8
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(lbl)
+
+
+# Spawn a tiny POI name label below the POI icon position.
+# Distinct from _spawn_celestial_name_label: slightly smaller (font_size 6)
+# and uses a warmer tint so it reads as a designation rather than a star-chart
+# annotation. Alpha kept at 0.45 — subtle but readable on hover.
+func _spawn_poi_name_label(pos: Vector2, name_text: String) -> void:
+	if name_text == "":
+		return
+	var ls := LabelSettings.new()
+	ls.font = FONT
+	ls.font_size = 6
+	ls.font_color = Color(0.80, 0.90, 0.75, 1.0)
+	ls.outline_size = 1
+	ls.outline_color = Color(0.0, 0.0, 0.0, 0.8)
+	var lbl := Label.new()
+	lbl.text = name_text
+	lbl.label_settings = ls
+	lbl.modulate.a = 0.45
+	# Sit the label 11px below centre — clears the 16px icon footprint (0.5
+	# scale of 32px atlas = 16px half-height) without overlapping the
+	# celestial-body name label that appears above it.
+	lbl.position = Vector2(pos.x - 24.0, pos.y + 11.0)
 	lbl.z_index = 8
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(lbl)

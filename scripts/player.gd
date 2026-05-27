@@ -1315,7 +1315,7 @@ func _on_gun_cooldown_timeout() -> void:
 func _on_area_entered(area: Area2D) -> void:
 	if area.is_in_group("enemies"):
 		if area.has_method("take_hit"):
-			area.take_hit(1)
+			area.take_hit(6)
 		_play_hit_sfx()
 		take_damage(2)
 	elif area.is_in_group("bullets"):

@@ -6,7 +6,7 @@ extends EnemyBase
 
 enum SapState { SEEKING, DRAINING }
 
-const DRAIN_RANGE   := 160.0   # beam max reach
+const DRAIN_RANGE   := 140.0   # beam max reach — matches omni_thrust target_range (130) + tolerance
 const DRAIN_DPS     := 0.4     # shield drain rate — 1 charge per 2.5s
 const BEAM_COLOR    := Color(0.2, 0.9, 0.85, 0.9)  # teal
 
