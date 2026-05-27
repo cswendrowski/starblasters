@@ -47,6 +47,13 @@ const BurstShot = preload("res://scripts/enemies/shoot_patterns/burst_shot.gd")
 const SpreadShot = preload("res://scripts/enemies/shoot_patterns/spread_shot.gd")
 const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
 
+# Bullet variant resources — wired per entry below.
+const BV_Basic        = preload("res://data/bullets/basic.tres")
+const BV_SpreadPellet = preload("res://data/bullets/spread_pellet.tres")
+const BV_AimedSniper  = preload("res://data/bullets/aimed_sniper.tres")
+const BV_BurstRound   = preload("res://data/bullets/burst_round.tres")
+const BV_PlasmaOrb    = preload("res://data/bullets/plasma_orb.tres")
+
 # Each entry: scene path + movement_factory + shoot_factory + tier + suggested
 # counts per wave at the entry-level (modest end of the scaling).
 # `shoot` may be null for melee/contact enemies.
@@ -64,6 +71,7 @@ const ENTRIES := [
 		"size": "small", "tags": [],
 		"movement": "firecore_straight",
 		"shoot": "single_diagonal",
+		"bullet_variant": BV_SpreadPellet,
 		"base_count": 6,
 		"fire_min": 2.0, "fire_max": 3.5,
 		"unlock_sector": 2, "unlock_depth": 5, "weight": 0.7, "chaff": true,
@@ -97,6 +105,7 @@ const ENTRIES := [
 		"size": "small", "tags": [],
 		"movement": "drifter_straight",
 		"shoot": "single_diagonal",
+		"bullet_variant": BV_SpreadPellet,
 		"base_count": 4,
 		"fire_min": 2.4, "fire_max": 3.2,
 		"hp_override": 1, "bounty_override": 8,
@@ -132,6 +141,7 @@ const ENTRIES := [
 		"size": "small", "tags": [],
 		"movement": "s_curve",
 		"shoot": "aimed",
+		"bullet_variant": BV_PlasmaOrb,
 		"base_count": 2,
 		"fire_min": 1.4, "fire_max": 2.2,
 		"hp_override": 2, "bounty_override": 10,
@@ -144,6 +154,7 @@ const ENTRIES := [
 		"size": "small", "tags": [],
 		"movement": "loiter",
 		"shoot": "single",
+		"bullet_variant": BV_Basic,
 		"base_count": 2,
 		"fire_min": 1.6, "fire_max": 2.4,
 		"hp_override": 2, "bounty_override": 12,
@@ -156,6 +167,7 @@ const ENTRIES := [
 		"size": "medium", "tags": ["tough"],
 		"movement": "slow_advance",
 		"shoot": "burst",
+		"bullet_variant": BV_BurstRound,
 		"base_count": 3,
 		"fire_min": 1.8, "fire_max": 2.8,
 	},
@@ -178,6 +190,7 @@ const ENTRIES := [
 		"size": "small", "tags": [],
 		"movement": "advance_retreat",
 		"shoot": "aimed",
+		"bullet_variant": BV_AimedSniper,
 		"base_count": 3,
 		"fire_min": 0.7, "fire_max": 1.1,
 		"hp_override": 2, "bounty_override": 15,
@@ -243,6 +256,7 @@ const ENTRIES := [
 		"size": "medium", "tags": [],
 		"movement": "loiter",
 		"shoot": "spread5",
+		"bullet_variant": BV_SpreadPellet,
 		"base_count": 2,
 		"fire_min": 1.8, "fire_max": 2.6,
 	},
@@ -460,15 +474,16 @@ static func make_shoot(entry: Dictionary) -> Resource:
 	var kind: Variant = entry.get("shoot", null)
 	if kind == null:
 		return null
+	var pattern: Resource = null
 	match kind:
 		"single":
 			var s = SingleShot.new()
 			s.bullet_scene = EnemyBullet
-			return s
+			pattern = s
 		"single_fast":
 			var s = SingleShot.new()
 			s.bullet_scene = EnemyBullet
-			return s
+			pattern = s
 		"single_diagonal":
 			# Fires toward the opposite side — left-spawn enemies angle right,
 			# right-spawn enemies angle left. ~30° diagonal.
@@ -476,21 +491,23 @@ static func make_shoot(entry: Dictionary) -> Resource:
 			s.bullet_scene = EnemyBullet
 			s.aim_angle_deg = 30.0
 			s.aim_toward_center = true
-			return s
+			pattern = s
 		"aimed":
 			var s = AimedShot.new()
 			s.bullet_scene = EnemyBullet
-			return s
+			pattern = s
 		"burst":
 			var s = BurstShot.new()
 			s.bullet_scene = EnemyBullet
 			s.burst_count = 3
 			s.burst_interval = 0.18
-			return s
+			pattern = s
 		"spread5":
 			var s = SpreadShot.new()
 			s.bullet_scene = EnemyBullet
 			s.bullet_count = 5
 			s.spread_degrees = 36.0
-			return s
-	return null
+			pattern = s
+	if pattern != null:
+		pattern.bullet_variant = entry.get("bullet_variant", null)
+	return pattern
