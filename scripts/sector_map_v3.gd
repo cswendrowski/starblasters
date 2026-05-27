@@ -51,7 +51,7 @@ const BG_COLOR    := Color(0.06, 0.07, 0.10, 1.0)
 const LABEL_COLOR := Color(0.32, 0.42, 0.58, 0.50)
 
 # Row anchors must match Run.start_new_sector — three stars on the left.
-const STAR_ANCHORS    := [Vector2(64, 64), Vector2(64, 128), Vector2(64, 192)]
+const STAR_ANCHORS    := [Vector2(32, 64), Vector2(32, 128), Vector2(32, 192)]
 const STAR_DISPLAY_PX := [64.0, 32.0, 24.0]
 const STAR_GLOW_COLORS := [
 	Color(0.45, 0.65, 1.00, 1.0),
@@ -381,12 +381,15 @@ func _build_pois_from_cache() -> void:
 			# Object kind: planet/large_ast/cluster. Distribution roughly
 			# matches the dev v3 random pick (uniform across 3 types).
 			var obj_kind: int = deco_rng.randi() % 3
-			var hover_label: String = "" if poi.completed else "?"
-			# Celestial bodies (planet/asteroid/cluster) are always drawn so
-			# the map reads as a real star chart. The pulse glow and node
-			# dressing are suppressed on completed POIs so the node reads
-			# as "spent" at a glance. Advance planet_seq either way so the
-			# next uncompleted POI keeps the planet-letter sequence stable.
+			# Celestial body name — deterministic from poi.id, same seed as the body spawn.
+			var body_name: String = ""
+			match obj_kind:
+				OBJ_PLANET:
+					body_name = _generate_celestial_name("planet", abs(hash(poi.id)))
+				OBJ_LARGE_AST:
+					body_name = _generate_celestial_name("asteroid", abs(hash(poi.pos)))
+				OBJ_CLUSTER:
+					body_name = _generate_celestial_name("cluster", abs(hash(poi.pos)) ^ 0xABCD)
 			var draw_dressing: bool = not poi.completed
 			match obj_kind:
 				OBJ_PLANET:
@@ -394,33 +397,20 @@ func _build_pois_from_cache() -> void:
 					var frac: float = (poi.pos.x - 128.0) / max(1.0, row_end_x - 128.0)
 					var ptype: int  = _pick_planet_type(deco_rng, frac)
 					_spawn_planet(poi.pos, px, ptype, r_idx, deco_rng, String(poi.id))
-					if draw_dressing:
-						hover_label = PLANET_LETTERS[mini(planet_seq, PLANET_LETTERS.size() - 1)]
 					planet_seq += 1
 				OBJ_LARGE_AST:
 					_spawn_large_asteroid(poi.pos, r_idx, deco_rng)
-					if draw_dressing:
-						hover_label = "Asteroid"
 				OBJ_CLUSTER:
 					_spawn_asteroid_cluster(poi.pos, r_idx, deco_rng)
-					if draw_dressing:
-						hover_label = "Belt"
 			if draw_dressing:
 				_add_node_dressing(poi.pos, int(poi.node_type), deco_rng)
-			_add_hover_label_icon(poi.pos, 32.0, hover_label, int(poi.node_type), poi.completed)
-			# POI name label — skip completed nodes (spent) and BOSS type (handled separately).
-			if not poi.completed and int(poi.node_type) != int(SectorNode.NodeType.BOSS):
-				var poi_name_seed: int = abs(hash(poi.id)) ^ 0x3F7A1C2B
-				var poi_name: String = _generate_poi_name(int(poi.node_type), poi_name_seed, String(poi.get("hazard_subtype", "")))
-				_spawn_poi_name_label(poi.pos, poi_name)
+			_add_hover_label_icon(poi.pos, body_name, int(poi.node_type), poi.completed)
 			_poi_hits.append({
-				"id":     String(poi.id),
-				"pos":    Vector2(poi.pos),
-				# 14px — wide enough to cover the 16px icon footprint (32px
-				# atlas at 0.5 scale) so the icon itself is clickable. Matches
-				# the hover radius so reveal + click happen at the same range.
-				"radius": 14.0,
-				"kind":   "poi",
+				"id":        String(poi.id),
+				"pos":       Vector2(poi.pos),
+				"radius":    14.0,
+				"kind":      "poi",
+				"body_name": body_name,
 			})
 
 
@@ -820,21 +810,28 @@ func _build_bosses_from_cache() -> void:
 		icon_spr.z_index  = 5
 		icon_spr.modulate = Color(1.0, 1.0, 1.0, 0.5)
 		add_child(icon_spr)
-		# Top label: BOSS / DEFEATED.
+		# Boss label — directly above boss center per marker (0, -24 relative to boss).
 		var ls := LabelSettings.new()
 		ls.font = FONT; ls.font_size = 7
 		ls.font_color    = Color(0.90, 0.30, 0.30, 1.0) if not defeated else Color(0.50, 1.0, 0.60, 1.0)
 		ls.outline_size  = 1
 		ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
 		var lbl := Label.new()
-		lbl.text           = "DEFEATED" if defeated else "BOSS"
-		lbl.label_settings = ls
+		lbl.text                  = "DEFEATED" if defeated else "BOSS"
+		lbl.label_settings        = ls
 		lbl.custom_minimum_size.x = 40.0
 		lbl.horizontal_alignment  = HORIZONTAL_ALIGNMENT_CENTER
-		lbl.position = Vector2(pos.x - 20.0, pos.y - 36.0)
-		lbl.z_index   = 10
+		lbl.position  = Vector2(pos.x - 20.0, pos.y - 24.0)
+		lbl.z_index   = 100
 		lbl.modulate.a = 1.0
 		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var boss_lbl_bg := StyleBoxFlat.new()
+		boss_lbl_bg.bg_color = Color(0.0, 0.0, 0.0, 0.85)
+		boss_lbl_bg.content_margin_left   = 2.0
+		boss_lbl_bg.content_margin_right  = 2.0
+		boss_lbl_bg.content_margin_top    = 0.0
+		boss_lbl_bg.content_margin_bottom = 0.0
+		lbl.add_theme_stylebox_override("normal", boss_lbl_bg)
 		add_child(lbl)
 
 		# Lock progress label "k/N" below the dot when not unlocked.
@@ -939,8 +936,15 @@ func _build_stars() -> void:
 		star_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		star_lbl.position = Vector2(anchor.x - 32.0, anchor.y - 36.0)
 		star_lbl.modulate.a = 0.6
-		star_lbl.z_index = 8
 		star_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var star_lbl_bg := StyleBoxFlat.new()
+		star_lbl_bg.bg_color = Color(0.0, 0.0, 0.0, 0.85)
+		star_lbl_bg.content_margin_left   = 2.0
+		star_lbl_bg.content_margin_right  = 2.0
+		star_lbl_bg.content_margin_top    = 0.0
+		star_lbl_bg.content_margin_bottom = 0.0
+		star_lbl.add_theme_stylebox_override("normal", star_lbl_bg)
+		star_lbl.z_index = 100
 		add_child(star_lbl)
 	_process(0.0)
 
@@ -1026,7 +1030,7 @@ func _build_labels() -> void:
 	# Selected node label — bottom center at (256, 232)
 	var sel_ls := LabelSettings.new()
 	sel_ls.font = FONT; sel_ls.font_size = 9
-	sel_ls.font_color    = Color(0.75, 1.0, 0.75, 0.95)
+	sel_ls.font_color    = COLOR_NODE_GREEN
 	sel_ls.outline_size  = 1
 	sel_ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
 	_selected_node_lbl = Label.new()
@@ -1149,22 +1153,32 @@ func _icon_for_type(node_type: int) -> int:
 	return ICON_COMBAT
 
 
-func _add_hover_label_icon(pos: Vector2, display_px: float, label_text: String, node_type: int, completed: bool) -> void:
-	var ls := LabelSettings.new()
-	ls.font = FONT; ls.font_size = 9
-	ls.font_color    = Color(0.85, 0.92, 1.0, 0.95)
-	ls.outline_size  = 1
-	ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
-	var lbl := Label.new()
-	lbl.text           = label_text
-	lbl.label_settings = ls
-	lbl.custom_minimum_size.x = 48.0
-	lbl.horizontal_alignment  = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.position  = Vector2(pos.x - 24.0, pos.y - 24.0)
-	lbl.z_index   = 10
-	lbl.modulate.a = 0.2
-	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(lbl)
+func _add_hover_label_icon(pos: Vector2, body_name: String, node_type: int, completed: bool) -> void:
+	# Celestial body name label — always visible, black background, above poi center.
+	if body_name != "" and not completed:
+		var ls := LabelSettings.new()
+		ls.font = FONT; ls.font_size = 7
+		ls.font_color    = Color(0.75, 0.85, 1.0, 1.0)
+		ls.outline_size  = 1
+		ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
+		var lbl := Label.new()
+		lbl.text                  = body_name
+		lbl.label_settings        = ls
+		lbl.custom_minimum_size.x = 48.0
+		lbl.horizontal_alignment  = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.position              = Vector2(pos.x - 24.0, pos.y - 24.0)
+		lbl.modulate.a            = 1.0
+		lbl.z_index               = 100
+		lbl.mouse_filter          = Control.MOUSE_FILTER_IGNORE
+		var lbl_bg := StyleBoxFlat.new()
+		lbl_bg.bg_color = Color(0.0, 0.0, 0.0, 0.85)
+		lbl_bg.content_margin_left   = 2.0
+		lbl_bg.content_margin_right  = 2.0
+		lbl_bg.content_margin_top    = 0.0
+		lbl_bg.content_margin_bottom = 0.0
+		lbl.add_theme_stylebox_override("normal", lbl_bg)
+		add_child(lbl)
+	# Node icon — green tint, hover-revealed for uncompleted nodes.
 	var at := AtlasTexture.new()
 	at.atlas  = ICON_STRIP
 	at.region = Rect2(_icon_for_type(node_type) * 32, 0, 32, 32)
@@ -1173,24 +1187,23 @@ func _add_hover_label_icon(pos: Vector2, display_px: float, label_text: String, 
 	icon_spr.position = pos
 	icon_spr.scale    = Vector2(0.5, 0.5)
 	icon_spr.z_index  = 5
-	# Designer: POI icons start 0% opacity and reveal on mouseover. Completed
-	# POIs keep a soft green resting alpha (0.6) so the player can see what's
-	# been done; uncompleted rest at 0.0.
 	var icon_rest: float = 0.6 if completed else 0.0
-	var rest_tint: Color = COLOR_NODE_GREEN if completed else Color.WHITE
-	icon_spr.modulate = Color(rest_tint.r, rest_tint.g, rest_tint.b, icon_rest)
+	icon_spr.modulate = Color(COLOR_NODE_GREEN.r, COLOR_NODE_GREEN.g, COLOR_NODE_GREEN.b, icon_rest)
 	add_child(icon_spr)
-	# Hover radius matches the click radius (14) — slightly larger than the
-	# previous display_px*0.5=16 baseline, but consistent with click-to-launch.
+	# Dummy label required by _planet_hovers structure — zero-size, invisible.
+	var dummy_lbl := Label.new()
+	dummy_lbl.modulate.a = 0.0
+	dummy_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(dummy_lbl)
 	_planet_hovers.append({
 		"center":     pos,
 		"radius":     14.0,
-		"label":      lbl,
+		"label":      dummy_lbl,
 		"icon":       icon_spr,
-		"label_rest": 0.2,
+		"label_rest": 0.0,
 		"icon_rest":  icon_rest,
 		"hover_tint": COLOR_NODE_GREEN,
-		"rest_tint":  rest_tint,
+		"rest_tint":  Color(COLOR_NODE_GREEN.r, COLOR_NODE_GREEN.g, COLOR_NODE_GREEN.b, 1.0),
 	})
 
 
@@ -1672,8 +1685,17 @@ func _on_poi_selected(node_id: String) -> void:
 	# Show mission designation in the bottom panel.
 	var poi_name_seed: int = abs(hash(node_id)) ^ 0x3F7A1C2B
 	var poi_name: String = _generate_poi_name(int(poi.node_type), poi_name_seed, String(poi.get("hazard_subtype", "")))
+	# Find the stored body name for this POI.
+	var body_name: String = ""
+	for hit in _poi_hits:
+		if hit.id == node_id:
+			body_name = hit.get("body_name", "")
+			break
+	var display_text: String = poi_name
+	if body_name != "":
+		display_text = "%s at %s" % [poi_name, body_name]
 	if is_instance_valid(_selected_node_lbl):
-		_selected_node_lbl.text = poi_name
+		_selected_node_lbl.text = display_text
 		_selected_node_lbl.modulate.a = 1.0
 	if is_instance_valid(_depart_btn):
 		_depart_btn.modulate.a = 1.0
