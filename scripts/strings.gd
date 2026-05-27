@@ -21,28 +21,28 @@ const ONBOARDING_CONTROLS_TITLE := "Controls"
 const ONBOARDING_CONTROLS_BODY := "Arrow Keys — move.\nSpace / Z — fire primary cannon.\nC — fire secondary hardpoint weapon.\nX — super weapon (limited charges).\nShift — Focus mode: slower precise movement; shows your hitbox.\nQ — swap between primary cannons (if you own more than one).\nEsc — pause."
 
 const ONBOARDING_PARTS_TITLE := "Parts & Marks"
-const ONBOARDING_PARTS_BODY := "Your ship is a hull stuffed with slotted parts: Cannon, Engine, Shield, Wings, Tail.\n\nEvery part has a Mark — Mk.1 through Mk.9. Higher Mk = stronger: more damage, more speed, deeper shield pool. Mk values are stamped on the part card.\n\nOutposts sell upgraded marks of parts you already own; pick up doubles to climb the curve. A Mk.9 build by sector's end is the goal."
+const ONBOARDING_PARTS_BODY := "Your ship and its weapons can receive upgrades during a patrol.\n\nEvery part has a Mark — Mk.1 through Mk.9. Higher Mk = stronger: more damage, more speed, deeper shield pool. Mk values are stamped on the part card.\n\nOutposts sell upgraded marks of parts you already own; pick up doubles to climb the curve."
 
 const ONBOARDING_SHIELDS_TITLE := "Shields & Hull"
-const ONBOARDING_SHIELDS_BODY := "Your ship has two layers of integrity.\n\nThe SHIELD bar at the top absorbs incoming fire. When it runs out, hits bleed into your HULL.\n\nThe diamond pips next to it are your hull. When the last pip falls, your ship is gone — there's no second chance in a run."
+const ONBOARDING_SHIELDS_BODY := "Your ship has two layers of integrity.\n\nThe SHIELD bar at the top absorbs incoming fire. When it runs out, your HULL becomes vulnerable.\n\nAt start you can sustain three hits before you're put into a danger state, if you take another hit while in this danger state your ship is gone and your patrol ends. You can repair our hull at outposts."
 
 const ONBOARDING_SHIELD_REGEN_TITLE := "Shield Regen"
-const ONBOARDING_SHIELD_REGEN_BODY := "Shields regenerate automatically a couple of seconds after the last hit.\n\nIf you can disengage for a beat — duck behind cover, juke away from a barrage — your shield will come back. The TAIL part on your ship determines how fast."
+const ONBOARDING_SHIELD_REGEN_BODY := "Shields regenerate automatically a couple of seconds after the last hit.\n\nIf you can avoid taking damage for a few seconds your shield will start to come back. Upgrades can increase the capacity and recharge rate."
 
 const ONBOARDING_BOUNTY_TITLE := "Bounty"
-const ONBOARDING_BOUNTY_BODY := "Every enemy you destroy drops Bounty Credits. You can see your running total at the top-right of the HUD.\n\nSpend bounty at Friendly Outposts on new parts and hull repairs, or on Junk Traders for sketchier deals. Survive deeper into a run and the prices climb — but so do the rewards."
+const ONBOARDING_BOUNTY_BODY := "Every enemy you destroy awards Bounty Credits. You can see your running total at the top-right of the HUD.\n\nSpend bounty at friendly Outposts on new parts and hull repairs, or with Junk Traders for sketchier deals. Survive deeper into a run and the prices climb — but so do quality of things being sold."
 
 const ONBOARDING_WAVES_TITLE := "Waves"
-const ONBOARDING_WAVES_BODY := "Combat levels are split into waves. A banner pops at the start of each: WAVE 1 / 7, WAVE 2 / 7, and so on.\n\nMid-level, the wave count tells you how close you are to clearing. The last two waves of every level are the loudest — keep something in reserve."
+const ONBOARDING_WAVES_BODY := "Combat levels are split into waves. A banner pops at the start of each: WAVE 1 / 7, WAVE 2 / 7, and so on.\n\nMid-level, the wave count tells you how close you are to clearing. The last two waves of every level are the toughest — keep something in reserve."
 
 const ONBOARDING_SECTOR_MAP_TITLE := "Sector Map"
-const ONBOARDING_SECTOR_MAP_BODY := "Your patrol covers three sectors. Each sector is a branching map — pick your path forward through a row of nodes, then face the sector boss at the end.\n\nAfter the boss, the next sector opens. Clear all three to complete the mission."
+const ONBOARDING_SECTOR_MAP_BODY := "Your patrol covers three sectors. Each sector is comprised of three star systems, each with a series of locations you can tackle in any order you choose. Clearing all the nodes on a path opens up that system's boss for attack.\n\nAfter the last boss in the sector is beaten the next sector opens. Clear all three to complete the patrol."
 
 const ONBOARDING_NODE_TYPES_TITLE := "Node Types"
-const ONBOARDING_NODE_TYPES_BODY := "Combat — fight a wave of enemies for bounty.\nOutpost — spend bounty on parts, ammo, and hull repairs.\nSignal — unknown contact; random reward or risk.\nHazard — fly through a dangerous field for a bonus.\nBoss — the sector commander. Defeat it to advance."
+const ONBOARDING_NODE_TYPES_BODY := "Combat — fight waves of enemies for bounty.\nOutpost — spend bounty on parts, ammo, and hull repairs.\nSignal — unknown contact; random event with reward and risk.\nHazard — fly through a dangerous field of mines or asteroids.\nBoss — the sector commander. Defeat it to advance."
 
 const ONBOARDING_MISSION_TITLE := "Mission Briefing"
-const ONBOARDING_MISSION_BODY := "Your mission is to patrol three sectors, hunting down the wanted pirates and corporate privateers lurking there. Each one you take out is worth bounty, and each bounty will help you secure the next one a little more easily. Search the systems, blast pirates until you figure out where the worst of them are, and eliminate them.\n\nGood luck, Starblaster!"
+const ONBOARDING_MISSION_BODY := "Your mission is to patrol three sectors, hunting down Supremacy slavers and corporate privateers lurking there. Each one you take out is worth bounty, and each bounty will help you take the next one down a little more easily. Search the systems, tally up kills, and eventually you'll learn where the worst of them are. Eliminate them, for the good of the galaxy and your accounts.\n\nGood luck, Starblaster!"
 
 # Navigation buttons.
 const ONBOARDING_BTN_BACK := "Back"
