@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://bomb_drone_001"]
 
 [ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemy_core.gd" id="1_core"]
-[ext_resource type="Texture2D" uid="uid://cdqh33di5kmne" path="res://graphics/enemies/drone_bomblet_omni.png" id="3_g646a"]
+[ext_resource type="Texture2D" uid="uid://daqyp35f3qsnh" path="res://graphics/enemies/drone_bomblet_jet.png" id="3_g646a"]
 [ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="4_shoot"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="5_die"]
 [ext_resource type="Script" uid="uid://bbr5n16o8e4g0" path="res://scripts/enemies/patterns/top_dive.gd" id="10_mov"]
