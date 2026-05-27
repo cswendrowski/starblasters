@@ -10,6 +10,7 @@ extends Control
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
+const Strings = preload("res://scripts/strings.gd")
 
 # Icons used in the Sector Map page so we explain what the player will see.
 const ICON_COMBAT = preload("res://graphics/sector/sector-battle.png")
@@ -39,41 +40,41 @@ func _ready() -> void:
 func _build_pages() -> Array:
 	return [
 		{
-			"title": "Controls",
-			"body": "Arrow Keys — move.\nSpace / Z — fire primary cannon.\nC — fire secondary hardpoint weapon.\nX — super weapon (limited charges).\nShift — Focus mode: slower precise movement; shows your hitbox.\nQ — swap between primary cannons (if you own more than one).\nEsc — pause.",
+			"title": Strings.ONBOARDING_CONTROLS_TITLE,
+			"body": Strings.ONBOARDING_CONTROLS_BODY,
 		},
 		{
-			"title": "Parts & Marks",
-			"body": "Your ship is a hull stuffed with slotted parts: Cannon, Engine, Shield, Wings, Tail.\n\nEvery part has a Mark — Mk.1 through Mk.9. Higher Mk = stronger: more damage, more speed, deeper shield pool. Mk values are stamped on the part card.\n\nOutposts sell upgraded marks of parts you already own; pick up doubles to climb the curve. A Mk.9 build by sector's end is the goal.",
+			"title": Strings.ONBOARDING_PARTS_TITLE,
+			"body": Strings.ONBOARDING_PARTS_BODY,
 		},
 		{
-			"title": "Shields & Hull",
-			"body": "Your ship has two layers of integrity.\n\nThe SHIELD bar at the top absorbs incoming fire. When it runs out, hits bleed into your HULL.\n\nThe diamond pips next to it are your hull. When the last pip falls, your ship is gone — there's no second chance in a run.",
+			"title": Strings.ONBOARDING_SHIELDS_TITLE,
+			"body": Strings.ONBOARDING_SHIELDS_BODY,
 		},
 		{
-			"title": "Shield Regen",
-			"body": "Shields regenerate automatically a couple of seconds after the last hit.\n\nIf you can disengage for a beat — duck behind cover, juke away from a barrage — your shield will come back. The TAIL part on your ship determines how fast.",
+			"title": Strings.ONBOARDING_SHIELD_REGEN_TITLE,
+			"body": Strings.ONBOARDING_SHIELD_REGEN_BODY,
 		},
 		{
-			"title": "Bounty",
-			"body": "Every enemy you destroy drops Bounty Credits. You can see your running total at the top-right of the HUD.\n\nSpend bounty at Friendly Outposts on new parts and hull repairs, or on Junk Traders for sketchier deals. Survive deeper into a run and the prices climb — but so do the rewards.",
+			"title": Strings.ONBOARDING_BOUNTY_TITLE,
+			"body": Strings.ONBOARDING_BOUNTY_BODY,
 		},
 		{
-			"title": "Waves",
-			"body": "Combat levels are split into waves. A banner pops at the start of each: WAVE 1 / 7, WAVE 2 / 7, and so on.\n\nMid-level, the wave count tells you how close you are to clearing. The last two waves of every level are the loudest — keep something in reserve.",
+			"title": Strings.ONBOARDING_WAVES_TITLE,
+			"body": Strings.ONBOARDING_WAVES_BODY,
 		},
 		{
-			"title": "Sector Map",
-			"body": "Your patrol covers three sectors. Each sector is a branching map — pick your path forward through a row of nodes, then face the sector boss at the end.\n\nAfter the boss, the next sector opens. Clear all three to complete the mission.",
+			"title": Strings.ONBOARDING_SECTOR_MAP_TITLE,
+			"body": Strings.ONBOARDING_SECTOR_MAP_BODY,
 			"icons": true,
 		},
 		{
-			"title": "Node Types",
-			"body": "Combat — fight a wave of enemies for bounty.\nOutpost — spend bounty on parts, ammo, and hull repairs.\nSignal — unknown contact; random reward or risk.\nHazard — fly through a dangerous field for a bonus.\nBoss — the sector commander. Defeat it to advance.",
+			"title": Strings.ONBOARDING_NODE_TYPES_TITLE,
+			"body": Strings.ONBOARDING_NODE_TYPES_BODY,
 		},
 		{
-			"title": "Mission Briefing",
-			"body": "Your mission is to patrol three sectors, hunting down the wanted pirates and corporate privateers lurking there. Each one you take out is worth bounty, and each bounty will help you secure the next one a little more easily. Search the systems, blast pirates until you figure out where the worst of them are, and eliminate them.\n\nGood luck, Starblaster!",
+			"title": Strings.ONBOARDING_MISSION_TITLE,
+			"body": Strings.ONBOARDING_MISSION_BODY,
 		},
 	]
 
@@ -143,13 +144,13 @@ func _build_ui() -> void:
 	vbox.add_child(nav)
 
 	_prev_btn = Button.new()
-	_prev_btn.text = "Back"
+	_prev_btn.text = Strings.ONBOARDING_BTN_BACK
 	UiTheme.style_button(_prev_btn)
 	_prev_btn.pressed.connect(_on_prev)
 	nav.add_child(_prev_btn)
 
 	_skip_btn = Button.new()
-	_skip_btn.text = "Skip Tutorial"
+	_skip_btn.text = Strings.ONBOARDING_BTN_SKIP
 	UiTheme.style_button(_skip_btn, true)
 	# Dev-shortcut green so it reads as an explicit "I've done this" path
 	# rather than just another nav button next to Back/Next.
@@ -158,7 +159,7 @@ func _build_ui() -> void:
 	nav.add_child(_skip_btn)
 
 	_next_btn = Button.new()
-	_next_btn.text = "Next"
+	_next_btn.text = Strings.ONBOARDING_BTN_NEXT
 	UiTheme.style_button(_next_btn)
 	_next_btn.pressed.connect(_on_next)
 	nav.add_child(_next_btn)
@@ -170,16 +171,16 @@ func _render() -> void:
 	_body_label.text = page.get("body", "")
 	_page_label.text = "%d / %d" % [_index + 1, _pages.size()]
 	_prev_btn.disabled = _index == 0
-	_next_btn.text = "Begin Patrol" if _index == _pages.size() - 1 else "Next"
+	_next_btn.text = Strings.ONBOARDING_BTN_BEGIN if _index == _pages.size() - 1 else Strings.ONBOARDING_BTN_NEXT
 	# Icons row only populated on the sector-map page.
 	for c in _icons_row.get_children():
 		c.queue_free()
 	if page.get("icons", false):
-		_add_icon(_icons_row, ICON_COMBAT, "Combat")
-		_add_icon(_icons_row, ICON_OUTPOST, "Outpost")
-		_add_icon(_icons_row, ICON_SIGNAL, "Signal")
-		_add_icon(_icons_row, ICON_HAZARD, "Hazard")
-		_add_icon(_icons_row, ICON_BOSS, "Boss")
+		_add_icon(_icons_row, ICON_COMBAT, Strings.ONBOARDING_ICON_COMBAT)
+		_add_icon(_icons_row, ICON_OUTPOST, Strings.ONBOARDING_ICON_OUTPOST)
+		_add_icon(_icons_row, ICON_SIGNAL, Strings.ONBOARDING_ICON_SIGNAL)
+		_add_icon(_icons_row, ICON_HAZARD, Strings.ONBOARDING_ICON_HAZARD)
+		_add_icon(_icons_row, ICON_BOSS, Strings.ONBOARDING_ICON_BOSS)
 
 
 func _add_icon(parent: Container, tex: Texture2D, label: String) -> void:

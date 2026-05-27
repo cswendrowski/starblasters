@@ -22,12 +22,13 @@ const PartTier = preload("res://scripts/parts/part_tier.gd")
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
+const Strings = preload("res://scripts/strings.gd")
 
 const UPGRADES := [
-	{"key": "hull_mk",        "name": "Hull",            "desc": "+1 max hull pip per Mk (base 3)."},
-	{"key": "thrusters_mk",   "name": "Thrusters",       "desc": "+3% movement speed per Mk."},
-	{"key": "self_repair_mk", "name": "Self Repair",     "desc": "+1 hull pip on sector map return."},
-	{"key": "shield_cap_mk",  "name": "Shield Capacity", "desc": "+2 max shield HP per Mk (base 10)."},
+	{"key": "hull_mk",        "name": Strings.UPGRADE_HULL_NAME,         "desc": Strings.UPGRADE_HULL_DESC},
+	{"key": "thrusters_mk",   "name": Strings.UPGRADE_THRUSTERS_NAME,    "desc": Strings.UPGRADE_THRUSTERS_DESC},
+	{"key": "self_repair_mk", "name": Strings.UPGRADE_SELF_REPAIR_NAME,  "desc": Strings.UPGRADE_SELF_REPAIR_DESC},
+	{"key": "shield_cap_mk",  "name": Strings.UPGRADE_SHIELD_CAP_NAME,   "desc": Strings.UPGRADE_SHIELD_CAP_DESC},
 	# armor_mk and shield_recharge_mk retired — no longer purchasable.
 ]
 
@@ -199,7 +200,7 @@ func _build_status_panel(parent: CanvasLayer) -> void:
 	var title_v := VBoxContainer.new()
 	title_v.add_theme_constant_override("separation", 2)
 	var title := Label.new()
-	title.text = "FRIENDLY OUTPOST"
+	title.text = Strings.OUTPOST_TITLE
 	_style_label(title, FS_TITLE, Color(0.95, 0.92, 0.78))
 	title_v.add_child(title)
 	_loadout_lbl = Label.new()
@@ -209,18 +210,18 @@ func _build_status_panel(parent: CanvasLayer) -> void:
 	h.add_child(title_v)
 
 	# Stat blocks.
-	_hull_value_lbl = _make_stat_block(h, "HULL")
-	_shield_value_lbl = _make_stat_block(h, "SHIELD")
-	_mg_ammo_lbl = _make_stat_block(h, "PRIMARY")
-	_sec_ammo_lbl = _make_stat_block(h, "SECONDARY")
-	_super_value_lbl = _make_stat_block(h, "SUPER")
+	_hull_value_lbl = _make_stat_block(h, Strings.OUTPOST_STAT_HULL)
+	_shield_value_lbl = _make_stat_block(h, Strings.OUTPOST_STAT_SHIELD)
+	_mg_ammo_lbl = _make_stat_block(h, Strings.OUTPOST_STAT_PRIMARY)
+	_sec_ammo_lbl = _make_stat_block(h, Strings.OUTPOST_STAT_SECONDARY)
+	_super_value_lbl = _make_stat_block(h, Strings.OUTPOST_STAT_SUPER)
 
 	# Spacer to push bounty right.
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	h.add_child(spacer)
 
-	_bounty_value_lbl = _make_stat_block(h, "BOUNTY", Color(0.95, 0.86, 0.45))
+	_bounty_value_lbl = _make_stat_block(h, Strings.OUTPOST_STAT_BOUNTY, Color(0.95, 0.86, 0.45))
 
 
 func _make_stat_block(parent: BoxContainer, caption_text: String, accent: Color = Color(0.78, 0.92, 1.0)) -> Label:
@@ -244,18 +245,18 @@ func _build_columns(parent: CanvasLayer) -> void:
 	var height: float = HD_H - top - MARGIN
 	var x: float = MARGIN
 	# Weapons column.
-	_weapons_box = _build_column(parent, "WEAPONS", PANEL_BG_WEAPON,
+	_weapons_box = _build_column(parent, Strings.OUTPOST_COL_WEAPONS, PANEL_BG_WEAPON,
 			x, top, COL_WEAPONS_W, height)
 	_render_weapon_offers()
 	x += COL_WEAPONS_W + COL_GAP
 	# Upgrades column.
-	_upgrades_box = _build_column(parent, "UPGRADES", PANEL_BG_UPGRADE,
+	_upgrades_box = _build_column(parent, Strings.OUTPOST_COL_UPGRADES, PANEL_BG_UPGRADE,
 			x, top, COL_UPGRADES_W, height)
 	_render_upgrade_offers()
 	x += COL_UPGRADES_W + COL_GAP
 	# Services column gets whatever's left.
 	var services_w: float = HD_W - MARGIN - x
-	_services_box = _build_column(parent, "SERVICES", PANEL_BG_SERVICE,
+	_services_box = _build_column(parent, Strings.OUTPOST_COL_SERVICES, PANEL_BG_SERVICE,
 			x, top, services_w, height)
 	_build_services()
 
@@ -300,7 +301,7 @@ func _render_weapon_offers() -> void:
 		c.queue_free()
 	if _weapon_offers.is_empty():
 		var lbl := Label.new()
-		lbl.text = "Stock depleted."
+		lbl.text = Strings.OUTPOST_WEAPONS_DEPLETED
 		_style_label(lbl, FS_BODY, Color(0.72, 0.62, 0.62))
 		_weapons_box.add_child(lbl)
 		return
@@ -364,10 +365,10 @@ func _make_weapon_card(offer: Dictionary) -> Control:
 	buy_btn.add_theme_font_size_override("font_size", FS_BODY)
 	var sold: bool = offer.get("sold", false)
 	if sold:
-		buy_btn.text = "Equipped"
+		buy_btn.text = Strings.OUTPOST_BTN_EQUIPPED
 		buy_btn.disabled = true
 	else:
-		buy_btn.text = "Buy (%d)" % int(offer["cost"])
+		buy_btn.text = Strings.OUTPOST_BTN_BUY % int(offer["cost"])
 		buy_btn.disabled = _run_bounty() < int(offer["cost"])
 	buy_btn.pressed.connect(_on_buy_weapon.bind(offer, buy_btn))
 	row.add_child(buy_btn)
@@ -382,7 +383,7 @@ func _render_upgrade_offers() -> void:
 		c.queue_free()
 	if _upgrade_offers.is_empty():
 		var lbl := Label.new()
-		lbl.text = "All upgrades maxed."
+		lbl.text = Strings.OUTPOST_UPGRADES_MAXED
 		_style_label(lbl, FS_BODY, Color(0.72, 0.72, 0.62))
 		_upgrades_box.add_child(lbl)
 		return
@@ -437,10 +438,10 @@ func _make_upgrade_card(offer: Dictionary) -> Control:
 	buy_btn.add_theme_font_size_override("font_size", FS_BODY)
 	var sold: bool = offer.get("sold", false)
 	if sold:
-		buy_btn.text = "Purchased"
+		buy_btn.text = Strings.OUTPOST_BTN_PURCHASED
 		buy_btn.disabled = true
 	else:
-		buy_btn.text = "Buy (%d)" % int(offer["cost"])
+		buy_btn.text = Strings.OUTPOST_BTN_BUY % int(offer["cost"])
 		buy_btn.disabled = _run_bounty() < int(offer["cost"])
 	buy_btn.pressed.connect(_on_buy_upgrade.bind(offer, buy_btn))
 	row.add_child(buy_btn)
@@ -455,10 +456,10 @@ func _build_services() -> void:
 
 	# Hull Repair.
 	_services_box.add_child(_make_service_button(
-		"Hull Repair  +1 pip", HULL_REPAIR_COST, _on_repair, "repair"))
+		Strings.SERVICE_HULL_REPAIR, HULL_REPAIR_COST, _on_repair, "repair"))
 	# Shield refill button. Always shows as FREE / Shields Full — the actual
 	# shield restore happened on _ready / will happen at combat start.
-	var shield_btn := _make_service_button("Shield Refill", 0, _on_shield_refill, "shield")
+	var shield_btn := _make_service_button(Strings.SERVICE_SHIELD_REFILL, 0, _on_shield_refill, "shield")
 	_services_box.add_child(shield_btn)
 	# Primary ammo refill (CANNON: MG / Rotary Laser). Hidden when the
 	# equipped cannon is unmetered (energy blaster, heavy blaster, etc.) —
@@ -466,21 +467,21 @@ func _build_services() -> void:
 	# Cost scales with rounds missing; partial refill allowed if the player
 	# can't afford the full top-up. See _on_primary_ammo_refill.
 	_services_box.add_child(_make_service_button(
-		"Primary Ammo", 0, _on_primary_ammo_refill, "primary_ammo"))
+		Strings.SERVICE_PRIMARY_AMMO, 0, _on_primary_ammo_refill, "primary_ammo"))
 	# Secondary ammo refill (HARDPOINT_WING: Rocket Pod / Seeking Missile).
 	# Hidden when no metered secondary is equipped. Same cost-scaled
 	# partial-refill rules as primary.
 	_services_box.add_child(_make_service_button(
-		"Secondary Ammo", 0, _on_secondary_ammo_refill, "secondary_ammo"))
+		Strings.SERVICE_SECONDARY_AMMO, 0, _on_secondary_ammo_refill, "secondary_ammo"))
 	# Super charge (per-charge purchase).
 	_services_box.add_child(_make_service_button(
-		"Super Charge  +1", SUPER_REFILL_COST, _on_super_refill, "super"))
+		Strings.SERVICE_SUPER_CHARGE, SUPER_REFILL_COST, _on_super_refill, "super"))
 
 	# Sell Equipment subsection (storage list).
 	var sep := HSeparator.new()
 	_services_box.add_child(sep)
 	var sell_header := Label.new()
-	sell_header.text = "SELL EQUIPMENT"
+	sell_header.text = Strings.OUTPOST_SELL_HEADER
 	_style_label(sell_header, FS_CAPTION, Color(0.78, 0.92, 1.0))
 	_services_box.add_child(sell_header)
 
@@ -508,7 +509,7 @@ func _build_services() -> void:
 	_services_box.add_child(_refresh_btn)
 
 	var leave_btn := Button.new()
-	leave_btn.text = "Leave"
+	leave_btn.text = Strings.OUTPOST_BTN_LEAVE
 	leave_btn.custom_minimum_size = Vector2(0, 56)
 	leave_btn.add_theme_font_size_override("font_size", FS_HEADER)
 	leave_btn.pressed.connect(_on_leave)
@@ -541,7 +542,7 @@ func _render_storage() -> void:
 	var run = get_node("/root/Run")
 	if run.weapon_storage.is_empty():
 		var lbl := Label.new()
-		lbl.text = "No spare equipment."
+		lbl.text = Strings.OUTPOST_STORAGE_EMPTY
 		_style_label(lbl, FS_CAPTION, Color(0.55, 0.62, 0.70))
 		_storage_box.add_child(lbl)
 		return
@@ -561,14 +562,14 @@ func _make_storage_row(part, idx: int) -> Control:
 	row.add_child(label)
 
 	var equip_btn := Button.new()
-	equip_btn.text = "Equip"
+	equip_btn.text = Strings.OUTPOST_BTN_EQUIP
 	equip_btn.add_theme_font_size_override("font_size", FS_CAPTION)
 	equip_btn.pressed.connect(_on_equip_stored.bind(idx))
 	row.add_child(equip_btn)
 
 	var sell_value: int = _sell_value_for(part)
 	var sell_btn := Button.new()
-	sell_btn.text = "Sell +%d" % sell_value
+	sell_btn.text = Strings.OUTPOST_BTN_SELL % sell_value
 	sell_btn.add_theme_font_size_override("font_size", FS_CAPTION)
 	sell_btn.pressed.connect(_on_sell_stored.bind(idx, sell_value))
 	row.add_child(sell_btn)
@@ -727,10 +728,10 @@ func _on_buy_upgrade(offer: Dictionary, btn: Button) -> void:
 	var key: String = String(offer["key"])
 	run.set(key, _current_mk(key) + 1)
 	offer["sold"] = true
-	btn.text = "Purchased"
+	btn.text = Strings.OUTPOST_BTN_PURCHASED
 	btn.disabled = true
 	_refresh_status_panel()
-	_show_toast("Upgrade purchased")
+	_show_toast(Strings.TOAST_UPGRADE_PURCHASED)
 
 
 func _on_buy_weapon(offer: Dictionary, btn: Button) -> void:
@@ -745,11 +746,11 @@ func _on_buy_weapon(offer: Dictionary, btn: Button) -> void:
 	run.bounty -= cost
 	_apply_part_to_player(offer["part"])
 	offer["sold"] = true
-	btn.text = "Equipped"
+	btn.text = Strings.OUTPOST_BTN_EQUIPPED
 	btn.disabled = true
 	_render_storage()
 	_refresh_status_panel()
-	_show_toast("EQUIPPED")
+	_show_toast(Strings.TOAST_EQUIPPED)
 
 
 # Generalized equip path. Looks at part.slot_type and:
@@ -784,7 +785,7 @@ func _on_equip_stored(idx: int) -> void:
 	_apply_part_to_player(picked)
 	_render_storage()
 	_refresh_status_panel()
-	_show_toast("EQUIPPED")
+	_show_toast(Strings.TOAST_EQUIPPED)
 
 
 func _on_sell_stored(idx: int, sell_value: int) -> void:
@@ -903,7 +904,7 @@ func _on_primary_ammo_refill(btn: Button) -> void:
 	active.current_ammo = cap
 	# Mirror to Run.ammo + player.ammo so HUD updates immediately on return.
 	run.ammo = cap
-	_show_toast("Primary refilled")
+	_show_toast(Strings.TOAST_PRIMARY_REFILLED)
 	_refresh_status_panel()
 
 
@@ -923,7 +924,7 @@ func _on_secondary_ammo_refill(btn: Button) -> void:
 		return
 	run.bounty -= cost
 	run.secondary_ammo = clampi(int(run.secondary_ammo) + rounds, 0, int(run.secondary_ammo_max))
-	_show_toast("+%d rounds (%d)" % [rounds, cost])
+	_show_toast(Strings.TOAST_SECONDARY_REFILLED % [rounds, cost])
 	_refresh_status_panel()
 
 
@@ -974,9 +975,9 @@ func _update_refresh_btn_label() -> void:
 		return
 	var cost: int = _current_refresh_cost()
 	if _refresh_count >= REFRESH_MAX_DOUBLINGS:
-		_refresh_btn.text = "Refresh Stock (%d, max)" % cost
+		_refresh_btn.text = Strings.OUTPOST_BTN_REFRESH_MAX % cost
 	else:
-		_refresh_btn.text = "Refresh Stock (%d)" % cost
+		_refresh_btn.text = Strings.OUTPOST_BTN_REFRESH % cost
 	_refresh_btn.disabled = _run_bounty() < cost
 
 
@@ -1104,25 +1105,25 @@ func _apply_service_button_state(btn: Button) -> void:
 		"repair":
 			if run == null or int(run.max_hull) <= 0:
 				btn.disabled = true
-				btn.text = "%s (no ship)" % base_label
+				btn.text = "%s %s" % [base_label, Strings.SERVICE_SUFFIX_NO_SHIP]
 				return
 			if int(run.current_hull) >= int(run.max_hull):
 				btn.disabled = true
-				btn.text = "Hull Full"
+				btn.text = Strings.SERVICE_STATE_HULL_FULL
 				return
 			btn.disabled = _run_bounty() < cost
 			btn.text = "%s  (%d)" % [base_label, cost]
 		"shield":
 			if run == null or int(run.max_shield) <= 0:
 				btn.disabled = true
-				btn.text = "%s (no shield)" % base_label
+				btn.text = "%s %s" % [base_label, Strings.SERVICE_SUFFIX_NO_SHIELD]
 				return
 			if int(run.current_shield) >= int(run.max_shield):
 				btn.disabled = true
-				btn.text = "Shields Full"
+				btn.text = Strings.SERVICE_STATE_SHIELDS_FULL
 				return
 			btn.disabled = false
-			btn.text = "%s  (FREE)" % base_label
+			btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_FREE]
 		"primary_ammo":
 			# Weapons Phase 1: flat-cost refill on the active replacement
 			# primary. Blaster active → greyed (no ammo to refill). Active
@@ -1131,44 +1132,44 @@ func _apply_service_button_state(btn: Button) -> void:
 			# Cannons with no_outpost_refill (lasers) show as auto-regen.
 			if run == null:
 				btn.disabled = true
-				btn.text = "%s  (no run)" % base_label
+				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_NO_RUN]
 				return
 			if int(run.active_cannon_idx) == 0:
 				btn.disabled = true
-				btn.text = "%s  (Blaster, infinite)" % base_label
+				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_BLASTER_INFINITE]
 				return
 			var active = run.get_active_cannon()
 			if active == null or not ("current_ammo" in active) or not ("ammo_max" in active):
 				btn.disabled = true
-				btn.text = "%s  (no primary ammo)" % base_label
+				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_NO_PRIMARY_AMMO]
 				return
 			if "no_outpost_refill" in active and bool(active.no_outpost_refill):
 				btn.disabled = true
-				btn.text = "%s  (auto-regen)" % base_label
+				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_AUTO_REGEN]
 				return
 			var pmax: int = int(active.ammo_max)
 			if pmax <= 0:
 				btn.disabled = true
-				btn.text = "%s  (no primary ammo)" % base_label
+				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_NO_PRIMARY_AMMO]
 				return
 			if int(active.current_ammo) >= pmax:
 				btn.disabled = true
-				btn.text = "%s  Full" % base_label
+				btn.text = Strings.SERVICE_STATE_AMMO_FULL % base_label
 				return
 			var pcost: int = PRIMARY_REFILL_COST
 			if "refill_cost_override" in active and int(active.refill_cost_override) >= 0:
 				pcost = int(active.refill_cost_override)
 			btn.disabled = _run_bounty() < pcost
-			btn.text = "%s  Refill (%d)" % [base_label, pcost]
+			btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_REFILL_COST % pcost]
 		"secondary_ammo":
 			if run == null or int(run.secondary_ammo) < 0 or int(run.secondary_ammo_max) <= 0:
 				btn.disabled = true
-				btn.text = "%s  (none equipped)" % base_label
+				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_NONE_EQUIPPED]
 				return
 			var smiss: int = int(run.secondary_ammo_max) - int(run.secondary_ammo)
 			if smiss <= 0:
 				btn.disabled = true
-				btn.text = "%s  Full" % base_label
+				btn.text = Strings.SERVICE_STATE_AMMO_FULL % base_label
 				return
 			var sfull: int = _ammo_refill_cost(smiss)
 			var saff: Array = _ammo_refill_partial(_run_bounty(), smiss)
@@ -1176,21 +1177,21 @@ func _apply_service_button_state(btn: Button) -> void:
 			var saff_cost: int = int(saff[1])
 			if saff_rounds <= 0:
 				btn.disabled = true
-				btn.text = "%s  +%d (need %d)" % [base_label, smiss, sfull]
+				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_NEED % [smiss, sfull]]
 				return
 			btn.disabled = false
 			if saff_rounds < smiss:
-				btn.text = "%s  +%d (%d, partial)" % [base_label, saff_rounds, saff_cost]
+				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_PARTIAL % [saff_rounds, saff_cost]]
 			else:
-				btn.text = "%s  +%d (%d)" % [base_label, saff_rounds, saff_cost]
+				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_AMMO_COST % [saff_rounds, saff_cost]]
 		"super":
 			if run == null or int(run.max_super_charges) <= 0:
 				btn.disabled = true
-				btn.text = "Super  (none equipped)"
+				btn.text = Strings.SERVICE_STATE_SUPER_NONE
 				return
 			if int(run.super_charges) >= int(run.max_super_charges):
 				btn.disabled = true
-				btn.text = "Super  Full"
+				btn.text = Strings.SERVICE_STATE_SUPER_FULL
 				return
 			btn.disabled = _run_bounty() < cost
 			btn.text = "%s  (%d)" % [base_label, cost]
@@ -1237,15 +1238,15 @@ func _run_bounty() -> int:
 
 func _slot_short_name(slot: int) -> String:
 	match slot:
-		SlotTypes.SlotType.CANNON: return "PRIMARY"
-		SlotTypes.SlotType.HARDPOINT_WING: return "SECONDARY"
-		SlotTypes.SlotType.DEVICE_BAY_1: return "SUPER"
-		SlotTypes.SlotType.SHIELD: return "SHIELD"
-		SlotTypes.SlotType.ENGINE: return "ENGINE"
-		SlotTypes.SlotType.TAIL: return "TAIL"
-		SlotTypes.SlotType.WING_LEFT: return "WING L"
-		SlotTypes.SlotType.WING_RIGHT: return "WING R"
-	return "PART"
+		SlotTypes.SlotType.CANNON: return Strings.SLOT_NAME_PRIMARY
+		SlotTypes.SlotType.HARDPOINT_WING: return Strings.SLOT_NAME_SECONDARY
+		SlotTypes.SlotType.DEVICE_BAY_1: return Strings.SLOT_NAME_SUPER
+		SlotTypes.SlotType.SHIELD: return Strings.SLOT_NAME_SHIELD
+		SlotTypes.SlotType.ENGINE: return Strings.SLOT_NAME_ENGINE
+		SlotTypes.SlotType.TAIL: return Strings.SLOT_NAME_TAIL
+		SlotTypes.SlotType.WING_LEFT: return Strings.SLOT_NAME_WING_L
+		SlotTypes.SlotType.WING_RIGHT: return Strings.SLOT_NAME_WING_R
+	return Strings.SLOT_NAME_PART
 
 
 func _slot_color(slot: int) -> Color:
@@ -1259,11 +1260,11 @@ func _slot_color(slot: int) -> Color:
 func _format_loadout_line(run) -> String:
 	var parts: Array[String] = []
 	var cannon = run.loadout_snapshot.get(SlotTypes.SlotType.CANNON, null)
-	parts.append("PRI: %s" % _short_part_text(cannon))
+	parts.append(Strings.LOADOUT_PRIMARY % _short_part_text(cannon))
 	var sec = run.loadout_snapshot.get(SlotTypes.SlotType.HARDPOINT_WING, null)
-	parts.append("SEC: %s" % _short_part_text(sec))
+	parts.append(Strings.LOADOUT_SECONDARY % _short_part_text(sec))
 	var sup = run.loadout_snapshot.get(SlotTypes.SlotType.DEVICE_BAY_1, null)
-	parts.append("SPR: %s" % _short_part_text(sup))
+	parts.append(Strings.LOADOUT_SUPER % _short_part_text(sup))
 	return "   ".join(parts)
 
 
