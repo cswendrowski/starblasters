@@ -1,20 +1,19 @@
-[gd_scene load_steps=4 format=3 uid="uid://btethermine001"]
+[gd_scene format=3 uid="uid://c5i5p1n8brm53"]
 
-[ext_resource type="Script" path="res://scripts/enemies/tether_mine.gd" id="1_tmsc"]
-[ext_resource type="Texture2D" path="res://graphics/mines/mine_smart.png" id="2_tmtex"]
+[ext_resource type="Script" uid="uid://dyvd8hiluwce5" path="res://scripts/enemies/tether_mine.gd" id="1_tmsc"]
+[ext_resource type="Texture2D" uid="uid://r37t1joxoq3r" path="res://graphics/mines/mine_smart.png" id="2_tmtex"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_tether"]
-size = Vector2(12, 12)
+size = Vector2(16, 16)
 
-[node name="TetherMine" type="Area2D" groups=["enemies"]]
+[node name="TetherMine" type="Area2D" unique_id=162556384 groups=["enemies"]]
 script = ExtResource("1_tmsc")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=621064148]
 texture = ExtResource("2_tmtex")
 hframes = 3
-frame = 0
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=401287511]
 shape = SubResource("RectangleShape2D_tether")
 
 [connection signal="area_entered" from="." to="." method="_on_area_entered"]

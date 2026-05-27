@@ -16,7 +16,7 @@ fill_from = Vector2(0.5, 0.5)
 fill_to = Vector2(1, 0.5)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hit"]
-size = Vector2(3, 12)
+size = Vector2(4, 14)
 
 [node name="Bullet_Minigun" type="Area2D" unique_id=1921940008]
 script = ExtResource("1_dy0fe")
@@ -34,7 +34,6 @@ texture = ExtResource("2_tracer")
 hframes = 3
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1254382976]
-visible = false
 shape = SubResource("RectangleShape2D_hit")
 
 [node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="." unique_id=2083137850]

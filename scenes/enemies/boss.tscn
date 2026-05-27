@@ -1,13 +1,13 @@
-[gd_scene load_steps=30 format=3 uid="uid://cbossnode0001"]
+[gd_scene format=3 uid="uid://cbossnode0001"]
 
-[ext_resource type="Script" path="res://scripts/boss.gd" id="1_0exlg"]
+[ext_resource type="Script" uid="uid://rhpmxg73a8sb" path="res://scripts/boss.gd" id="1_0exlg"]
 [ext_resource type="Texture2D" uid="uid://da1oo5uw2mrct" path="res://graphics/extra-ships/ship_5.png" id="3_g646a"]
 [ext_resource type="Texture2D" uid="uid://dn1edfs6n7tjr" path="res://Mini Pixel Pack 3/Effects/Explosion (16 x 16).png" id="3_jathr"]
 [ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="4_gqutq"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="5_41ijo"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_pyiq4"]
-size = Vector2(40, 40)
+size = Vector2(40, 44)
 
 [sub_resource type="Animation" id="Animation_suct1"]
 length = 0.001
@@ -131,9 +131,9 @@ tracks/2/keys = {
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_rfrsa"]
 _data = {
-"RESET": SubResource("Animation_suct1"),
-"bounce": SubResource("Animation_ad1l1"),
-"explode": SubResource("Animation_jorl6")
+&"RESET": SubResource("Animation_suct1"),
+&"bounce": SubResource("Animation_ad1l1"),
+&"explode": SubResource("Animation_jorl6")
 }
 
 [sub_resource type="Gradient" id="Gradient_7yss3"]
@@ -144,7 +144,7 @@ colors = PackedColorArray(1, 1, 1, 1, 1, 1, 0, 1, 1, 0.317647, 0, 1, 0.407999, 0
 gradient = SubResource("Gradient_7yss3")
 
 [sub_resource type="Curve" id="Curve_pudws"]
-max_value = 200.0
+_limits = [0.0, 200.0, 0.0, 1.0]
 _data = [Vector2(0, 200), 0.0, 0.0, 0, 0, Vector2(0.422819, 200), 0.0, 0.0, 0, 0, Vector2(0.832215, -200), 0.0, 0.0, 0, 0]
 point_count = 3
 
@@ -180,7 +180,7 @@ colors = PackedColorArray(0.85098, 0.462745, 1, 1, 0.270588, 0.156863, 0.235294,
 gradient = SubResource("Gradient_1udue")
 
 [sub_resource type="Curve" id="Curve_5u88i"]
-max_value = 200.0
+_limits = [0.0, 200.0, 0.0, 1.0]
 _data = [Vector2(0, 200), 0.0, 0.0, 0, 0, Vector2(0.422819, 200), 0.0, 0.0, 0, 0, Vector2(0.832215, -200), 0.0, 0.0, 0, 0]
 point_count = 3
 
@@ -239,61 +239,59 @@ scale_max = 1.25
 scale_curve = SubResource("CurveTexture_nnpah")
 color_ramp = SubResource("GradientTexture1D_4lmie")
 
-[node name="Enemy" type="Area2D" groups=["enemies"]]
+[node name="Enemy" type="Area2D" unique_id=873223640 groups=["enemies"]]
 script = ExtResource("1_0exlg")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1453680669]
 texture = ExtResource("3_g646a")
 flip_v = true
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=271690281]
 shape = SubResource("RectangleShape2D_pyiq4")
 
-[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
-libraries = {
-"": SubResource("AnimationLibrary_rfrsa")
-}
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=277306863]
+libraries/ = SubResource("AnimationLibrary_rfrsa")
 
-[node name="MoveTimer" type="Timer" parent="."]
+[node name="MoveTimer" type="Timer" parent="." unique_id=558829189]
 one_shot = true
 
-[node name="ShootTimer" type="Timer" parent="."]
+[node name="ShootTimer" type="Timer" parent="." unique_id=746882959]
 one_shot = true
 
-[node name="ParticleExplode" type="GPUParticles2D" parent="."]
+[node name="ParticleExplode" type="GPUParticles2D" parent="." unique_id=1218913540]
 emitting = false
 amount = 128
-process_material = SubResource("ParticleProcessMaterial_kn0e5")
 lifetime = 0.6
 one_shot = true
 explosiveness = 1.0
 randomness = 1.0
+process_material = SubResource("ParticleProcessMaterial_kn0e5")
 
-[node name="ParticleHullBits" type="GPUParticles2D" parent="."]
+[node name="ParticleHullBits" type="GPUParticles2D" parent="." unique_id=1406111029]
 emitting = false
 amount = 64
-process_material = SubResource("ParticleProcessMaterial_h8535")
 lifetime = 0.6
 one_shot = true
 explosiveness = 1.0
 randomness = 1.0
+process_material = SubResource("ParticleProcessMaterial_h8535")
 
-[node name="ParticleHit" type="GPUParticles2D" parent="."]
+[node name="ParticleHit" type="GPUParticles2D" parent="." unique_id=568398856]
 emitting = false
 amount = 128
-process_material = SubResource("ParticleProcessMaterial_unky2")
 lifetime = 0.5
 one_shot = true
 explosiveness = 1.0
 randomness = 1.0
+process_material = SubResource("ParticleProcessMaterial_unky2")
 
-[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="."]
+[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="." unique_id=573647698]
 stream = ExtResource("4_gqutq")
 
-[node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=858348308]
 stream = ExtResource("5_41ijo")
 
-[node name="MinionTimer" type="Timer" parent="."]
+[node name="MinionTimer" type="Timer" parent="." unique_id=1879209565]
 wait_time = 4.0
 one_shot = true
 

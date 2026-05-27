@@ -1,20 +1,21 @@
-[gd_scene load_steps=5 format=3 uid="uid://gunturret001"]
+[gd_scene format=3 uid="uid://gunturret001"]
 
-[ext_resource type="Script" path="res://scripts/enemies/enemy_gun_turret.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://cgp4qstji0ccy" path="res://scripts/enemies/enemy_gun_turret.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://xhgdwj50qsej" path="res://graphics/enemies/tank_turret.png" id="2_tex"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
-size = Vector2(12, 12)
+size = Vector2(8, 11)
 
-[node name="EnemyGunTurret" type="Area2D" groups=["enemies"]]
+[node name="EnemyGunTurret" type="Area2D" unique_id=21891303 groups=["enemies"]]
 script = ExtResource("1_script")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=136013063]
 texture = ExtResource("2_tex")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=9215165]
+position = Vector2(0, -2.5)
 shape = SubResource("RectangleShape2D_1")
 
-[node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=243832823]
 stream = ExtResource("3_die")

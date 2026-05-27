@@ -1,34 +1,34 @@
-[gd_scene load_steps=4 format=3 uid="uid://bsentboss0001"]
+[gd_scene format=3 uid="uid://bsentboss0001"]
 
-[ext_resource type="Script" path="res://scripts/enemies/boss_aegis.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://dyhv71r0tk5b6" path="res://scripts/enemies/boss_aegis.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://3c5218c35y1w" path="res://graphics/extra-ships/ship_3.png" id="2_tex"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
-size = Vector2(40, 38)
+size = Vector2(48, 40)
 
-[node name="Enemy" type="Area2D" groups=["enemies"]]
+[node name="Enemy" type="Area2D" unique_id=455541058 groups=["enemies"]]
 script = ExtResource("1_script")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1715902507]
+modulate = Color(0.55, 1, 1.1, 1)
 texture = ExtResource("2_tex")
 flip_v = true
-modulate = Color(0.55, 1.0, 1.1, 1)
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=93878486]
 shape = SubResource("RectangleShape2D_1")
 
-[node name="MoveTimer" type="Timer" parent="."]
+[node name="MoveTimer" type="Timer" parent="." unique_id=1049556703]
 one_shot = true
 
-[node name="ShootTimer" type="Timer" parent="."]
+[node name="ShootTimer" type="Timer" parent="." unique_id=1211803610]
 one_shot = true
 
-[node name="MinionTimer" type="Timer" parent="."]
+[node name="MinionTimer" type="Timer" parent="." unique_id=390124677]
 wait_time = 4.0
 one_shot = true
 
-[node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1725732317]
 stream = ExtResource("3_die")
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]

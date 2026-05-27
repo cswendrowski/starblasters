@@ -1,4 +1,4 @@
-[gd_scene load_steps=5 format=3 uid="uid://dxumspm4c6yeg"]
+[gd_scene format=3 uid="uid://dxumspm4c6yeg"]
 
 [ext_resource type="Texture2D" uid="uid://d07fxm23pq2aj" path="res://graphics/2x1-shell.png" id="2_fvl3v"]
 
@@ -21,12 +21,12 @@ linear_accel_min = -2.23517e-06
 linear_accel_max = 21.62
 scale_curve = SubResource("CurveTexture_hjgra")
 
-[node name="ShellEjectParticle" type="GPUParticles2D"]
+[node name="ShellEjectParticle" type="GPUParticles2D" unique_id=1461046813]
 emitting = false
 amount = 1
-process_material = SubResource("ParticleProcessMaterial_wy87o")
 texture = ExtResource("2_fvl3v")
 one_shot = true
+process_material = SubResource("ParticleProcessMaterial_wy87o")
 
-[node name="Timer" type="Timer" parent="."]
+[node name="Timer" type="Timer" parent="." unique_id=493393844]
 wait_time = 3.0

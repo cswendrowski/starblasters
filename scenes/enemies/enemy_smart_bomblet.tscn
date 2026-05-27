@@ -1,19 +1,19 @@
-[gd_scene load_steps=4 format=3 uid="uid://bsmartbomb001"]
+[gd_scene format=3 uid="uid://bsmartbomb001"]
 
-[ext_resource type="Script" path="res://scripts/enemies/bomblet.gd" id="1_sbomb"]
-[ext_resource type="Texture2D" path="res://graphics/mines/mine_smart_bomblet.png" id="2_sbtex"]
+[ext_resource type="Script" uid="uid://d1uay56gf47su" path="res://scripts/enemies/bomblet.gd" id="1_sbomb"]
+[ext_resource type="Texture2D" uid="uid://dvnlse4b2tq5g" path="res://graphics/mines/mine_smart_bomblet.png" id="2_sbtex"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_sbomb"]
-size = Vector2(8, 8)
+size = Vector2(10, 10)
 
-[node name="EnemySmartBomblet" type="Area2D" groups=["enemies"]]
+[node name="EnemySmartBomblet" type="Area2D" unique_id=1854199309 groups=["enemies"]]
 script = ExtResource("1_sbomb")
 smart = true
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1357550842]
 texture = ExtResource("2_sbtex")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=798624998]
 shape = SubResource("RectangleShape2D_sbomb")
 
 [connection signal="area_entered" from="." to="." method="_on_area_entered"]

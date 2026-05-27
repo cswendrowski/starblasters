@@ -1,20 +1,19 @@
-[gd_scene load_steps=4 format=3 uid="uid://bminesmrt001"]
+[gd_scene format=3 uid="uid://bminesmrt001"]
 
-[ext_resource type="Script" path="res://scripts/enemies/mine_smart.gd" id="1_smine"]
-[ext_resource type="Texture2D" path="res://graphics/mines/mine_smart.png" id="2_smtex"]
+[ext_resource type="Script" uid="uid://c5sfuwpiolbut" path="res://scripts/enemies/mine_smart.gd" id="1_smine"]
+[ext_resource type="Texture2D" uid="uid://r37t1joxoq3r" path="res://graphics/mines/mine_smart.png" id="2_smtex"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_smart"]
-size = Vector2(12, 12)
+size = Vector2(16, 16)
 
-[node name="EnemyMineSmart" type="Area2D" groups=["enemies"]]
+[node name="EnemyMineSmart" type="Area2D" unique_id=384806254 groups=["enemies"]]
 script = ExtResource("1_smine")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1064359297]
 texture = ExtResource("2_smtex")
 hframes = 3
-frame = 0
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=240949741]
 shape = SubResource("RectangleShape2D_smart")
 
 [connection signal="area_entered" from="." to="." method="_on_area_entered"]

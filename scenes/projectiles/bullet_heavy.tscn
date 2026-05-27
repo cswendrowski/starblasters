@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://c5te1ekoxw700"]
 
-[ext_resource type="Script" uid="uid://cujno5vjg5gh" path="res://scripts/projectiles/bullet_heavy.gd" id="1_hvscr"]
+[ext_resource type="Script" uid="uid://bceocec1lcdrt" path="res://scripts/projectiles/bullet_heavy.gd" id="1_hvscr"]
 [ext_resource type="Texture2D" uid="uid://crb8v5dl2odom" path="res://graphics/projectiles/blaster_heavy.png" id="2_hvtex"]
 
 [sub_resource type="Gradient" id="Gradient_heavy_glow"]
@@ -22,7 +22,7 @@ size = Vector2(6, 16)
 script = ExtResource("1_hvscr")
 speed = 500
 
-[node name="Glow" type="Sprite2D" parent="." unique_id=2188701901]
+[node name="Glow" type="Sprite2D" parent="." unique_id=-2106265395]
 modulate = Color(0.3, 0.6, 1, 0.85)
 z_index = -1
 scale = Vector2(0.7, 0.7)

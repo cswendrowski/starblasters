@@ -1,20 +1,20 @@
-[gd_scene load_steps=3 format=3 uid="uid://bbullaser001"]
+[gd_scene format=3 uid="uid://bbullaser001"]
 
-[ext_resource type="Script" path="res://scripts/bullet.gd" id="1_script"]
-[ext_resource type="Texture2D" path="res://Mini Pixel Pack 3/Projectiles/Player_charged_beam (16 x 16).png" id="2_tex"]
+[ext_resource type="Script" uid="uid://dnmfi0ia7f020" path="res://scripts/bullet.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://bgh2dexnxpy0x" path="res://Mini Pixel Pack 3/Projectiles/Player_charged_beam (16 x 16).png" id="2_tex"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
 size = Vector2(4, 14)
 
-[node name="BulletLaser" type="Area2D"]
+[node name="BulletLaser" type="Area2D" unique_id=1166361325]
 script = ExtResource("1_script")
-scale = Vector2(1, 1)
 speed = 900
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=282822656]
 texture = ExtResource("2_tex")
+hframes = 4
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1666728319]
 shape = SubResource("RectangleShape2D_1")
 
 [connection signal="area_entered" from="." to="." method="_on_area_entered"]

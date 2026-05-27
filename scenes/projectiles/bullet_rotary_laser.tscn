@@ -1,23 +1,22 @@
-[gd_scene load_steps=3 format=3 uid="uid://rotarylaser001"]
+[gd_scene format=3 uid="uid://bhumpxm8yt321"]
 
-[ext_resource type="Script" path="res://scripts/bullet.gd" id="1_script"]
-[ext_resource type="Texture2D" uid="uid://energyboltsmall1" path="res://graphics/projectiles/energy_bolt_small.png" id="2_tex"]
+[ext_resource type="Script" uid="uid://dnmfi0ia7f020" path="res://scripts/bullet.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://btdyes3k0k0lc" path="res://graphics/projectiles/energy_bolt_small.png" id="2_tex"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
-size = Vector2(3, 6)
+size = Vector2(4, 8)
 
-[node name="BulletRotaryLaser" type="Area2D"]
+[node name="BulletRotaryLaser" type="Area2D" unique_id=788222472]
 script = ExtResource("1_script")
 speed = 700
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1423675720]
 texture = ExtResource("2_tex")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
-visible = false
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1951951040]
 shape = SubResource("RectangleShape2D_1")
 
-[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="."]
+[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="." unique_id=1959904793]
 visible = false
 
 [connection signal="area_entered" from="." to="." method="_on_area_entered"]

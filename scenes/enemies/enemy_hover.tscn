@@ -1,15 +1,23 @@
-[gd_scene load_steps=30 format=3 uid="uid://chovership0001"]
+[gd_scene format=3 uid="uid://b84ukp0py6emi"]
 
-[ext_resource type="Script" path="res://scripts/enemy_core.gd" id="1_core"]
+[ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemy_core.gd" id="1_core"]
 [ext_resource type="Texture2D" uid="uid://cmfq1u30d06pe" path="res://graphics/enemies/small_hover.png" id="3_g646a"]
 [ext_resource type="Texture2D" uid="uid://dn1edfs6n7tjr" path="res://Mini Pixel Pack 3/Effects/Explosion (16 x 16).png" id="3_jathr"]
 [ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="4_shoot"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="5_die"]
-[ext_resource type="Script" path="res://scripts/enemies/patterns/loiter.gd" id="10_mov"]
-[ext_resource type="Resource" path="res://resources/patterns/shoot/single_shot.tres" id="11_shoot"]
+[ext_resource type="Script" uid="uid://c2nnsbxlwvuep" path="res://scripts/enemies/patterns/loiter.gd" id="10_mov"]
+[ext_resource type="Resource" uid="uid://br63l373x26od" path="res://resources/patterns/shoot/single_shot.tres" id="11_shoot"]
+
+[sub_resource type="Resource" id="MovePattern_inst"]
+script = ExtResource("10_mov")
+hover_y = 70.0
+enter_speed = 140.0
+loiter_time = 1.8
+exit_accel = 600.0
+exit_max_speed = 420.0
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hit"]
-size = Vector2(14, 14)
+size = Vector2(16, 16)
 
 [sub_resource type="Animation" id="Animation_suct1"]
 length = 0.001
@@ -133,18 +141,10 @@ tracks/2/keys = {
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_lib"]
 _data = {
-"RESET": SubResource("Animation_suct1"),
-"bounce": SubResource("Animation_bnc"),
-"explode": SubResource("Animation_jorl6")
+&"RESET": SubResource("Animation_suct1"),
+&"bounce": SubResource("Animation_bnc"),
+&"explode": SubResource("Animation_jorl6")
 }
-
-[sub_resource type="Resource" id="MovePattern_inst"]
-script = ExtResource("10_mov")
-hover_y = 70.0
-enter_speed = 140.0
-loiter_time = 1.8
-exit_accel = 600.0
-exit_max_speed = 420.0
 
 [sub_resource type="Gradient" id="Gradient_7yss3"]
 offsets = PackedFloat32Array(0, 0.347107, 0.669421, 1)
@@ -154,7 +154,7 @@ colors = PackedColorArray(1, 1, 1, 1, 1, 1, 0, 1, 1, 0.317647, 0, 1, 0.407999, 0
 gradient = SubResource("Gradient_7yss3")
 
 [sub_resource type="Curve" id="Curve_pudws"]
-max_value = 200.0
+_limits = [0.0, 200.0, 0.0, 1.0]
 _data = [Vector2(0, 200), 0.0, 0.0, 0, 0, Vector2(0.422819, 200), 0.0, 0.0, 0, 0, Vector2(0.832215, -200), 0.0, 0.0, 0, 0]
 point_count = 3
 
@@ -190,7 +190,7 @@ colors = PackedColorArray(0.85098, 0.462745, 1, 1, 0.270588, 0.156863, 0.235294,
 gradient = SubResource("Gradient_1udue")
 
 [sub_resource type="Curve" id="Curve_5u88i"]
-max_value = 200.0
+_limits = [0.0, 200.0, 0.0, 1.0]
 _data = [Vector2(0, 200), 0.0, 0.0, 0, 0, Vector2(0.422819, 200), 0.0, 0.0, 0, 0, Vector2(0.832215, -200), 0.0, 0.0, 0, 0]
 point_count = 3
 
@@ -249,68 +249,64 @@ scale_max = 1.25
 scale_curve = SubResource("CurveTexture_nnpah")
 color_ramp = SubResource("GradientTexture1D_4lmie")
 
-[node name="Enemy" type="Area2D" groups=["enemies"]]
+[node name="Enemy" type="Area2D" unique_id=882422533 groups=["enemies"]]
 script = ExtResource("1_core")
-max_health = 2
-bounty_value = 12
-display_scale = 1.0
 movement = SubResource("MovePattern_inst")
 shoot_pattern = ExtResource("11_shoot")
 fire_interval_min = 999.0
 fire_interval_max = 999.0
 fire_on_phase = "hold"
+max_health = 2
+bounty_value = 12
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=476952677]
 texture = ExtResource("3_g646a")
 hframes = 4
-frame = 0
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=680700562]
 shape = SubResource("RectangleShape2D_hit")
 
-[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
-libraries = {
-"": SubResource("AnimationLibrary_lib")
-}
-autoplay = "bounce"
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=2133586243]
+libraries/ = SubResource("AnimationLibrary_lib")
+autoplay = &"bounce"
 
-[node name="MoveTimer" type="Timer" parent="."]
+[node name="MoveTimer" type="Timer" parent="." unique_id=817086382]
 one_shot = true
 
-[node name="ShootTimer" type="Timer" parent="."]
+[node name="ShootTimer" type="Timer" parent="." unique_id=1622285554]
 one_shot = true
 
-[node name="ParticleExplode" type="GPUParticles2D" parent="."]
+[node name="ParticleExplode" type="GPUParticles2D" parent="." unique_id=764779492]
 emitting = false
 amount = 128
-process_material = SubResource("ParticleProcessMaterial_kn0e5")
 lifetime = 0.6
 one_shot = true
 explosiveness = 1.0
 randomness = 1.0
+process_material = SubResource("ParticleProcessMaterial_kn0e5")
 
-[node name="ParticleHullBits" type="GPUParticles2D" parent="."]
+[node name="ParticleHullBits" type="GPUParticles2D" parent="." unique_id=142118982]
 emitting = false
 amount = 64
-process_material = SubResource("ParticleProcessMaterial_h8535")
 lifetime = 0.6
 one_shot = true
 explosiveness = 1.0
 randomness = 1.0
+process_material = SubResource("ParticleProcessMaterial_h8535")
 
-[node name="ParticleHit" type="GPUParticles2D" parent="."]
+[node name="ParticleHit" type="GPUParticles2D" parent="." unique_id=257913360]
 emitting = false
 amount = 128
-process_material = SubResource("ParticleProcessMaterial_unky2")
 lifetime = 0.5
 one_shot = true
 explosiveness = 1.0
 randomness = 1.0
+process_material = SubResource("ParticleProcessMaterial_unky2")
 
-[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="."]
+[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="." unique_id=1438992934]
 stream = ExtResource("4_shoot")
 
-[node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=725576757]
 stream = ExtResource("5_die")
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]

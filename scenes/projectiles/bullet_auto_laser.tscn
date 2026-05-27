@@ -1,22 +1,23 @@
-[gd_scene load_steps=3 format=3 uid="uid://bautolaser001"]
+[gd_scene format=3 uid="uid://bautolaser001"]
 
-[ext_resource type="Script" path="res://scripts/bullet.gd" id="1_script"]
-[ext_resource type="Texture2D" path="res://graphics/projectiles/energy_laser_blue.png" id="2_tex"]
+[ext_resource type="Script" uid="uid://dnmfi0ia7f020" path="res://scripts/bullet.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://ch68fdq58538p" path="res://graphics/projectiles/energy_laser_blue.png" id="2_tex"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
-size = Vector2(8, 8)
+size = Vector2(4, 16)
 
-[node name="BulletAutoLaser" type="Area2D"]
+[node name="BulletAutoLaser" type="Area2D" unique_id=194059262]
 script = ExtResource("1_script")
 speed = 900
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1412851644]
 texture = ExtResource("2_tex")
+hframes = 4
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=142610669]
 shape = SubResource("RectangleShape2D_1")
 
-[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="."]
+[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="." unique_id=1296149188]
 visible = false
 
 [connection signal="area_entered" from="." to="." method="_on_area_entered"]

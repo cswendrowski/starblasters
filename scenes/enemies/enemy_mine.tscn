@@ -1,18 +1,18 @@
-[gd_scene load_steps=4 format=3 uid="uid://bmineh0az0001"]
+[gd_scene format=3 uid="uid://bmineh0a00001"]
 
-[ext_resource type="Script" path="res://scripts/enemies/mine.gd" id="1_mine_scr"]
-[ext_resource type="Texture2D" path="res://graphics/mines/mine_basic.png" id="2_mine_tex"]
+[ext_resource type="Script" uid="uid://dedawobba5oax" path="res://scripts/enemies/mine.gd" id="1_mine_scr"]
+[ext_resource type="Texture2D" uid="uid://dyaui0d17wj4e" path="res://graphics/mines/mine_basic.png" id="2_mine_tex"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_mine"]
-size = Vector2(12, 12)
+size = Vector2(16, 16)
 
-[node name="EnemyMine" type="Area2D" groups=["enemies"]]
+[node name="EnemyMine" type="Area2D" unique_id=1541690150 groups=["enemies"]]
 script = ExtResource("1_mine_scr")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1395373083]
 texture = ExtResource("2_mine_tex")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1322724913]
 shape = SubResource("RectangleShape2D_mine")
 
 [connection signal="area_entered" from="." to="." method="_on_area_entered"]

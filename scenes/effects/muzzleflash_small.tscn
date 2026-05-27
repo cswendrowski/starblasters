@@ -1,4 +1,15 @@
-[gd_scene load_steps=8 format=3 uid="uid://qy4pikt4sjwk"]
+[gd_scene format=3 uid="uid://qy4pikt4sjwk"]
+
+[sub_resource type="Gradient" id="Gradient_f34ij"]
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_4fmc0"]
+gradient = SubResource("Gradient_f34ij")
+width = 16
+height = 16
+fill = 1
+fill_from = Vector2(0.520737, 0.506912)
+fill_to = Vector2(1, 0.479263)
 
 [sub_resource type="Gradient" id="Gradient_jipp5"]
 offsets = PackedFloat32Array(0, 0.280992, 0.586777, 1)
@@ -26,23 +37,12 @@ scale_max = 0.5
 scale_curve = SubResource("CurveTexture_ie4by")
 color_ramp = SubResource("GradientTexture1D_wpobi")
 
-[sub_resource type="Gradient" id="Gradient_f34ij"]
-colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0)
-
-[sub_resource type="GradientTexture2D" id="GradientTexture2D_4fmc0"]
-gradient = SubResource("Gradient_f34ij")
-width = 16
-height = 16
-fill = 1
-fill_from = Vector2(0.520737, 0.506912)
-fill_to = Vector2(1, 0.479263)
-
-[node name="Muzzleflash_small" type="GPUParticles2D"]
+[node name="Muzzleflash_small" type="GPUParticles2D" unique_id=1643434707]
 emitting = false
 amount = 16
-process_material = SubResource("ParticleProcessMaterial_8i1aw")
 texture = SubResource("GradientTexture2D_4fmc0")
 one_shot = true
 preprocess = 0.1
 speed_scale = 5.0
 explosiveness = 0.5
+process_material = SubResource("ParticleProcessMaterial_8i1aw")
