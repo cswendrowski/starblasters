@@ -51,7 +51,7 @@ func _events() -> Array:
 					"action": func(s): s._do_ambush_combat(),
 				},
 				{
-					"label": "Evasive maneuvers (-2 hull)",
+					"label": "Evasive maneuvers (risky)",
 					"action": func(s): s._do_ambush_evade(),
 				},
 			],
@@ -205,8 +205,11 @@ func _do_ambush_combat() -> void:
 
 
 func _do_ambush_evade() -> void:
-	_apply_hull_delta(-2)
-	_finish_to_sector_map("Evaded — hull took 2 damage")
+	if _rng.randf() < 0.5:
+		_finish_to_sector_map("Evaded — escaped cleanly!")
+	else:
+		_apply_hull_delta(-1)
+		_finish_to_sector_map("Evaded — hull grazed! -1 hull")
 
 
 # Nano Cloud: 25% damage / 50% repair / 10% upgrade / 15% ammo. The ammo

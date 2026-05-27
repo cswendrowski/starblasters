@@ -40,7 +40,7 @@ func _build_pages() -> Array:
 	return [
 		{
 			"title": "Controls",
-			"body": "WASD or Arrow Keys — move.\nSpace / Z — fire primary cannon.\nC — fire secondary hardpoint weapon.\nX — super weapon (limited charges).\nShift — Focus mode: slower precise movement; shows your hitbox.\nQ — swap between primary cannons (if you own more than one).\nEsc — pause.",
+			"body": "Arrow Keys — move.\nSpace / Z — fire primary cannon.\nC — fire secondary hardpoint weapon.\nX — super weapon (limited charges).\nShift — Focus mode: slower precise movement; shows your hitbox.\nQ — swap between primary cannons (if you own more than one).\nEsc — pause.",
 		},
 		{
 			"title": "Parts & Marks",

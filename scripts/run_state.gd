@@ -491,7 +491,11 @@ func _pick_row_bosses(sector_idx: int, rng: RandomNumberGenerator, prior_bosses:
 			# Pool exhausted by conflicts — fall back to whatever's left in
 			# the pool so we never push a Conductor or empty path here.
 			candidates = pool.duplicate()
-		picks.append(candidates[rng.randi() % candidates.size()])
+		var chosen: String = candidates[rng.randi() % candidates.size()]
+		picks.append(chosen)
+		# Remove the chosen boss from the pool so it can't be picked again
+		# for another row in this sector (Bug fix 2026-05-26: Howler repeating).
+		pool.erase(chosen)
 	return picks
 
 

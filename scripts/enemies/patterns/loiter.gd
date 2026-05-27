@@ -5,10 +5,10 @@ extends "res://scripts/enemies/movement_pattern.gd"
 
 # 320×400 res rework: y/speed halved.
 @export var hover_y: float = 88.0
-@export var enter_speed: float = 110.0
+@export var enter_speed: float = 88.0
 @export var loiter_time: float = 3.0
 @export var exit_accel: float = 300.0
-@export var exit_max_speed: float = 350.0
+@export var exit_max_speed: float = 280.0
 
 signal phase_entered(phase_name: String)
 

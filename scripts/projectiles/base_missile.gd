@@ -93,7 +93,11 @@ func _ready() -> void:
 	_vel = drift_dir * drift_speed + Vector2(randf_range(-30.0, 30.0), 0.0)
 	if not area_entered.is_connected(_on_area_entered):
 		area_entered.connect(_on_area_entered)
-	if has_node("Sprite2D"):
+	# Rockets (dumb_fire) start with a warm orange pre-ignite tint so the
+	# orange warhead reads as "cold then hot." Seeking missiles (teal sprite,
+	# !dumb_fire) keep their natural colour — the orange tint would muddy
+	# missile-teal.png and make the sprite nearly invisible.
+	if has_node("Sprite2D") and dumb_fire:
 		$Sprite2D.modulate = Color(1.0, 0.85, 0.7, 1.0)
 	if flame_trail:
 		_build_trail_line()
@@ -199,7 +203,10 @@ func _ignite() -> void:
 		var fwd: Vector2 = initial_dir.normalized()
 		if fwd != Vector2.ZERO:
 			_vel = fwd * drift_speed
-	if has_node("Sprite2D"):
+	# Orange rockets get a hot-ignition tint on the sprite. Teal seeking
+	# missiles keep their natural colour — the warm modulate would make the
+	# teal sprite invisible (Bug 2 fix, 2026-05-26).
+	if has_node("Sprite2D") and dumb_fire:
 		$Sprite2D.modulate = Color(1.6, 0.55, 0.25, 1.0)
 	# Flickering orange glow at the rear (Roman, 2026-05-16: "flickering
 	# orange glow on their rear when active"). Sits behind the sprite,

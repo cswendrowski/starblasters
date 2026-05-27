@@ -560,6 +560,10 @@ func _spawn_planet(center: Vector2, display_px: float, type_idx: int, row_idx: i
 	# of `rng` got consumed by randomize_colors / set_seed above.
 	var moon_rng: RandomNumberGenerator = _make_moon_rng(poi_id) if poi_id != "" else rng
 	_spawn_moons(center, display_px, moon_rng)
+	# Change 4: planet name label
+	var planet_name_seed: int = abs(hash(poi_id)) if poi_id != "" else abs(hash(center))
+	var planet_name: String = _generate_celestial_name("planet", planet_name_seed)
+	_spawn_celestial_name_label(center, planet_name, display_px * 0.5 + 4.0)
 
 
 func _spawn_large_asteroid(center: Vector2, row_idx: int, rng: RandomNumberGenerator) -> void:
@@ -576,6 +580,7 @@ func _spawn_large_asteroid(center: Vector2, row_idx: int, rng: RandomNumberGener
 	ast.scale    = Vector2(sf, sf)
 	ast.position = Vector2(center.x - 50.0 * sf, center.y - 50.0 * sf)
 	_duplicate_materials(ast)
+	_disable_asteroid_outlines(ast)   # Change 3
 	if ast.has_method("set_pixels"): ast.set_pixels(PX)
 	if ast.has_method("set_seed"):   ast.set_seed(rng.randi())
 	if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
@@ -597,6 +602,9 @@ func _spawn_large_asteroid(center: Vector2, row_idx: int, rng: RandomNumberGener
 	})
 	_scatter_asteroid_band(center, rng)
 	_scatter_pulse_pixels(center, PX, rng)
+	# Change 4: asteroid name label
+	var ast_name: String = _generate_celestial_name("asteroid", abs(hash(center)))
+	_spawn_celestial_name_label(center, ast_name, PX * 0.5 + 4.0)
 
 
 func _spawn_asteroid_cluster(center: Vector2, row_idx: int, rng: RandomNumberGenerator) -> void:
@@ -617,6 +625,7 @@ func _spawn_asteroid_cluster(center: Vector2, row_idx: int, rng: RandomNumberGen
 		ast.scale    = Vector2(sf, sf)
 		ast.position = Vector2(center.x + ox - 50.0 * sf, center.y + oy - 50.0 * sf)
 		_duplicate_materials(ast)
+		_disable_asteroid_outlines(ast)   # Change 3
 		if ast.has_method("set_pixels"): ast.set_pixels(px)
 		if ast.has_method("set_seed"):   ast.set_seed(rng.randi())
 		if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
@@ -634,6 +643,9 @@ func _spawn_asteroid_cluster(center: Vector2, row_idx: int, rng: RandomNumberGen
 		})
 		_scatter_pulse_pixels(Vector2(center.x + ox, center.y + oy), px, rng)
 	_scatter_asteroid_band(center, rng)
+	# Change 4: cluster name label (once per cluster, not per individual rock)
+	var cluster_name: String = _generate_celestial_name("cluster", abs(hash(center)) ^ 0xABCD)
+	_spawn_celestial_name_label(center, cluster_name, 20.0)
 
 
 func _scatter_asteroid_band(center: Vector2, rng: RandomNumberGenerator) -> void:
@@ -654,6 +666,7 @@ func _scatter_asteroid_band(center: Vector2, rng: RandomNumberGenerator) -> void
 		ast.scale    = Vector2(sf, sf)
 		ast.position = Vector2(center.x + ox - 50.0 * sf, center.y + oy - 50.0 * sf)
 		_duplicate_materials(ast)
+		_disable_asteroid_outlines(ast)   # Change 3
 		if ast.has_method("set_pixels"): ast.set_pixels(px)
 		if ast.has_method("set_seed"):   ast.set_seed(rng.randi())
 		if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
@@ -723,6 +736,7 @@ func _build_bosses_from_cache() -> void:
 		var dot_spr := Sprite2D.new()
 		dot_spr.texture  = dot_at
 		dot_spr.position = pos
+		dot_spr.scale    = Vector2(0.5, 0.5)   # Change 1: half size
 		# Locked: dim 50% alpha. Unlocked: full strength. Defeated: dim green.
 		if defeated:
 			dot_spr.modulate = Color(COLOR_NODE_GREEN.r, COLOR_NODE_GREEN.g, COLOR_NODE_GREEN.b, 0.4)
@@ -739,21 +753,21 @@ func _build_bosses_from_cache() -> void:
 		var icon_spr := Sprite2D.new()
 		icon_spr.texture  = icon_at
 		icon_spr.position = pos
-		icon_spr.scale    = Vector2(0.5, 0.5)
+		icon_spr.scale    = Vector2(0.25, 0.25)   # Change 1: half size (was 0.5)
 		icon_spr.z_index  = 5
 		icon_spr.modulate = Color(1.0, 1.0, 1.0, 0.5)
 		add_child(icon_spr)
 		# Top label: BOSS / DEFEATED.
 		var ls := LabelSettings.new()
-		ls.font = FONT; ls.font_size = 9
+		ls.font = FONT; ls.font_size = 5   # Change 1: halved from 9
 		ls.font_color    = Color(1.0, 0.65, 0.60, 0.95) if not defeated else Color(0.50, 1.0, 0.60, 0.95)
 		ls.outline_size  = 1
 		ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
 		var lbl := Label.new()
 		lbl.text           = "DEFEATED" if defeated else "BOSS"
 		lbl.label_settings = ls
-		var row_above: int  = int((pos.y - 16.0) / CELL) - 1
-		lbl.position  = Vector2(pos.x - 14, row_above * CELL + 2)
+		var row_above: int  = int((pos.y - 8.0) / CELL) - 1   # Change 1: 16→8
+		lbl.position  = Vector2(pos.x - 7, row_above * CELL + 2)   # Change 1: -14→-7
 		lbl.z_index   = 10
 		lbl.modulate.a = 0.2
 		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -767,14 +781,14 @@ func _build_bosses_from_cache() -> void:
 				if poi.completed:
 					n_done += 1
 			var locks := LabelSettings.new()
-			locks.font = FONT; locks.font_size = 8
+			locks.font = FONT; locks.font_size = 4   # Change 1: halved from 8
 			locks.font_color    = Color(1.0, 0.85, 0.30, 1.0)
 			locks.outline_size  = 1
 			locks.outline_color = Color(0.0, 0.0, 0.0, 1.0)
 			var lock_lbl := Label.new()
 			lock_lbl.text = "%d/%d" % [n_done, n_total]
 			lock_lbl.label_settings = locks
-			lock_lbl.position = Vector2(pos.x - 6, pos.y + 10)
+			lock_lbl.position = Vector2(pos.x - 3, pos.y + 6)   # Change 1: -6→-3, +10→+6
 			lock_lbl.z_index = 11
 			lock_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			add_child(lock_lbl)
@@ -787,7 +801,7 @@ func _build_bosses_from_cache() -> void:
 			boss_hover_tint = Color(COLOR_BOSS_RED.r, COLOR_BOSS_RED.g, COLOR_BOSS_RED.b, 1.0)
 		_planet_hovers.append({
 			"center":     pos,
-			"radius":     16.0,
+			"radius":     8.0,    # Change 1: halved from 16
 			"label":      lbl,
 			"icon":       icon_spr,
 			"label_rest": 0.2,   # boss label dim-but-visible at rest
@@ -854,6 +868,12 @@ func _build_stars() -> void:
 		mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 		glow_spr.material = mat
 		glow_node.add_child(glow_spr)
+		# Change 4: star name label — seed from row index + run seed for variety
+		var star_seed: int = abs(hash("star:%d" % i))
+		if has_node("/root/Run"):
+			star_seed = abs(hash("star:%d:%d" % [i, get_node("/root/Run").run_seed]))
+		var star_name: String = _generate_celestial_name("star", star_seed)
+		_spawn_celestial_name_label(anchor, star_name, display_px * 0.5 + 4.0)
 	_process(0.0)
 
 
@@ -1137,6 +1157,95 @@ func _duplicate_materials(root: Node) -> void:
 		_duplicate_materials(child)
 
 
+# ---------------------------------------------------------------------------
+# Change 4: Celestial name generator — seeded, deterministic per node
+# ---------------------------------------------------------------------------
+
+const _CN_GREEK := ["Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta",
+					 "Eta", "Theta", "Iota", "Kappa", "Lambda", "Mu",
+					 "Nu", "Xi", "Omicron", "Pi", "Rho", "Sigma",
+					 "Tau", "Upsilon", "Phi", "Chi", "Psi", "Omega"]
+const _CN_CONSTELLATIONS := ["Centauri", "Eridani", "Cephei", "Pavonis",
+							 "Hydrae", "Draconis", "Cygni", "Orionis",
+							 "Lyrae", "Aquilae", "Velorum", "Carinae",
+							 "Lupi", "Scorpii", "Persei", "Tauri"]
+const _CN_ROMAN := ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"]
+const _CN_SCI_FI_PREFIXES := ["Void", "Iron", "Cinder", "Pale", "Deep",
+							  "Ashen", "Storm", "Null", "Ember", "Drift"]
+const _CN_SCI_FI_NAMES := ["Station", "Reach", "Drift", "Crossing", "Terminus",
+						   "Anchorage", "Bastion", "Hollow", "Shard", "Gate"]
+const _CN_BELT_NAMES := ["Kappa", "Delta", "Zeta", "Rho", "Sigma", "Nu", "Tau", "Pi"]
+
+# Generate a deterministic celestial name seeded by the node's position hash.
+# type: "star", "planet", "asteroid", "cluster"
+func _generate_celestial_name(type: String, seed_val: int) -> String:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = abs(seed_val) % 0x7FFFFFFF
+	match type:
+		"star":
+			var style: int = rng.randi() % 3
+			match style:
+				0:
+					return "HD-%d" % (rng.randi_range(1000, 9999))
+				1:
+					return "KIC-%d" % (rng.randi_range(1000, 9999))
+				_:
+					var g: String = _CN_GREEK[rng.randi() % _CN_GREEK.size()]
+					var c: String = _CN_CONSTELLATIONS[rng.randi() % _CN_CONSTELLATIONS.size()]
+					return "%s %s" % [g, c]
+		"planet":
+			var style: int = rng.randi() % 2
+			match style:
+				0:
+					# "Proxima III" style — use a constellation fragment + roman numeral
+					var c: String = _CN_CONSTELLATIONS[rng.randi() % _CN_CONSTELLATIONS.size()]
+					# Strip trailing "i" for pronounceability (Centauri→Centaur is too far; just use as-is)
+					var r: String = _CN_ROMAN[rng.randi() % mini(6, _CN_ROMAN.size())]
+					return "%s %s" % [c, r]
+				_:
+					var p: String = _CN_SCI_FI_PREFIXES[rng.randi() % _CN_SCI_FI_PREFIXES.size()]
+					var n: String = _CN_SCI_FI_NAMES[rng.randi() % _CN_SCI_FI_NAMES.size()]
+					return "%s %s" % [p, n]
+		"asteroid":
+			var style: int = rng.randi() % 3
+			match style:
+				0:
+					return "NGC-%d" % (rng.randi_range(100, 999))
+				1:
+					var belt: String = _CN_BELT_NAMES[rng.randi() % _CN_BELT_NAMES.size()]
+					return "Rock %d-%s" % [rng.randi_range(1, 99), belt]
+				_:
+					return "Belt Shard %d" % rng.randi_range(1, 99)
+		"cluster":
+			var style: int = rng.randi() % 2
+			match style:
+				0:
+					return "AST-%d" % (rng.randi_range(1000, 9999))
+				_:
+					var belt: String = _CN_BELT_NAMES[rng.randi() % _CN_BELT_NAMES.size()]
+					return "Field %s-%d" % [belt, rng.randi_range(1, 9)]
+	return "UNK-%d" % (abs(seed_val) % 9999)
+
+
+# Spawn a small name label near a celestial body. Low opacity so it reads as
+# ambient chart data rather than UI chrome. font_size 7, alpha 0.35.
+func _spawn_celestial_name_label(pos: Vector2, name_text: String, y_offset: float = 8.0) -> void:
+	var ls := LabelSettings.new()
+	ls.font = FONT
+	ls.font_size = 7
+	ls.font_color = Color(0.75, 0.85, 1.0, 1.0)
+	ls.outline_size = 1
+	ls.outline_color = Color(0.0, 0.0, 0.0, 0.8)
+	var lbl := Label.new()
+	lbl.text = name_text
+	lbl.label_settings = ls
+	lbl.modulate.a = 0.35
+	lbl.position = Vector2(pos.x - 24.0, pos.y + y_offset)
+	lbl.z_index = 8
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(lbl)
+
+
 # Override the asteroid shader's `colors` palette with a 3-tone derived from
 # the row's star color (dark / mid / light). PlanetKit's Asteroid shader uses
 # a fixed gray-blue palette by default; modulate-tinting that palette reads
@@ -1155,6 +1264,19 @@ func _apply_row_tint_to_asteroid(root: Node, row_idx: int) -> void:
 	var c_dark: Color  = star.darkened(0.55)
 	c_light.a = 1.0; c_mid.a = 1.0; c_dark.a = 1.0
 	_set_asteroid_palette(root, PackedColorArray([c_light, c_mid, c_dark]))
+
+
+# Change 3: disable the 1-px black outline baked into the Asteroid shader.
+# Walk the subtree and set draw_outline=false on every ShaderMaterial that
+# exposes it. Must be called after _duplicate_materials so we don't pollute
+# the shared shader instance.
+func _disable_asteroid_outlines(root: Node) -> void:
+	for child in root.get_children():
+		if child is ColorRect and child.material is ShaderMaterial:
+			var mat: ShaderMaterial = child.material
+			if mat.shader != null and mat.get_shader_parameter("draw_outline") != null:
+				mat.set_shader_parameter("draw_outline", false)
+		_disable_asteroid_outlines(child)
 
 
 func _set_asteroid_palette(root: Node, palette: PackedColorArray) -> void:
@@ -1203,10 +1325,9 @@ func _draw() -> void:
 	# (-PI/2), progresses clockwise.
 	var run = get_node("/root/Run")
 	var rows: Array = run.sector_map_cache.get("rows", [])
-	const RING_RADIUS: float       = 26.0   # ~10 px outside the boss dot's visible halfwidth (~16)
-	const RING_WIDTH: float        = 2.0
-	const RING_GAP_RAD: float      = 0.08   # gap between segments for readability
-	const RING_ARC_STEPS: int      = 6      # arc smoothness per segment
+	const RING_RADIUS: float       = 13.0   # halved from 26 (Change 1)
+	const RING_WIDTH: float        = 1.0    # halved from 2 (Change 1)
+	const RING_ARC_STEPS: int      = 32     # smooth arc steps for full circle
 	var ring_filled: Color   = PROGRESS_COLOR
 	var ring_unfilled: Color = Color(0.3, 0.3, 0.3, 0.5)
 	for i in _boss_entries.size():
@@ -1222,12 +1343,17 @@ func _draw() -> void:
 		for poi in pois:
 			if poi.completed:
 				done += 1
-		var seg_span: float = TAU / float(total)
-		for s in total:
-			var a0: float = -PI * 0.5 + float(s) * seg_span + RING_GAP_RAD * 0.5
-			var a1: float = -PI * 0.5 + float(s + 1) * seg_span - RING_GAP_RAD * 0.5
-			var col: Color = ring_filled if s < done else ring_unfilled
-			draw_arc(center, RING_RADIUS, a0, a1, RING_ARC_STEPS, col, RING_WIDTH)
+		# Change 2: smooth continuous arc instead of per-POI segments.
+		# Filled arc from 12-o'clock to done/total fraction, then unfilled remainder.
+		var fill_frac: float = float(done) / float(total)
+		var start_angle: float = -PI * 0.5
+		var fill_end: float = start_angle + fill_frac * TAU
+		var filled_steps: int = maxi(1, int(RING_ARC_STEPS * fill_frac))
+		var unfilled_steps: int = maxi(1, int(RING_ARC_STEPS * (1.0 - fill_frac)))
+		if done > 0:
+			draw_arc(center, RING_RADIUS, start_angle, fill_end, filled_steps, ring_filled, RING_WIDTH)
+		if done < total:
+			draw_arc(center, RING_RADIUS, fill_end, start_angle + TAU, unfilled_steps, ring_unfilled, RING_WIDTH)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -1259,7 +1385,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				return
 		# Then bosses.
 		for b in _boss_entries:
-			if mp.distance_to(b.pos) <= 16.0:
+			if mp.distance_to(b.pos) <= 8.0:   # Change 1: halved from 16
 				_on_boss_clicked(String(b.id))
 				return
 
@@ -1473,6 +1599,18 @@ func _show_manage_ship_modal() -> void:
 	panel.position = _MS_PANEL_ORIGIN
 	panel.custom_minimum_size = _MS_PANEL_SIZE
 	panel.size = _MS_PANEL_SIZE
+	# Increase panel opacity by 15% over the Godot default (~0.70 → 0.85).
+	var ms_sb := StyleBoxFlat.new()
+	ms_sb.bg_color = Color(0.12, 0.12, 0.16, 0.85)
+	ms_sb.corner_radius_top_left = 3
+	ms_sb.corner_radius_top_right = 3
+	ms_sb.corner_radius_bottom_left = 3
+	ms_sb.corner_radius_bottom_right = 3
+	ms_sb.content_margin_left = 6
+	ms_sb.content_margin_right = 6
+	ms_sb.content_margin_top = 4
+	ms_sb.content_margin_bottom = 4
+	panel.add_theme_stylebox_override("panel", ms_sb)
 	cl.add_child(panel)
 	_render_manage_ship_contents(panel)
 

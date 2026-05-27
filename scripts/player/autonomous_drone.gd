@@ -123,9 +123,8 @@ func _explode() -> void:
 	if _dying:
 		return
 	_dying = true
-	var ExplosionFxCls = load("res://scripts/effects/explosion_fx.gd")
-	if ExplosionFxCls:
-		ExplosionFxCls.play(global_position, 0.5, false)
+	# Drones despawn silently — no explosion VFX (Bug fix 2026-05-26: drones
+	# should not spawn explosions when they die or are cleaned up).
 	queue_free()
 
 

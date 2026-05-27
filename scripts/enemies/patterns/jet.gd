@@ -11,8 +11,8 @@ extends "res://scripts/enemies/movement_pattern.gd"
 #   - Apply yaw rate toward (player - position), scaled inversely to speed.
 #   - Sinusoidal micro-weave on top of the yaw to break up linear paths.
 
-@export var min_speed: float = 90.0
-@export var max_speed: float = 200.0
+@export var min_speed: float = 72.0
+@export var max_speed: float = 160.0
 @export var accel: float = 60.0               # how fast speed adjusts toward the target speed
 # Yaw rate at min_speed (degrees/sec). At max_speed, this gets multiplied
 # by `turn_speed_falloff`.
@@ -20,7 +20,7 @@ extends "res://scripts/enemies/movement_pattern.gd"
 @export var turn_speed_falloff: float = 0.35   # turn_rate(max_speed) = turn_rate_at_min × falloff
 @export var weave_amplitude_deg: float = 8.0   # baseline sinusoidal yaw
 @export var weave_freq: float = 1.6
-@export var target_speed: float = 160.0
+@export var target_speed: float = 128.0
 # Pull the enemy back into the play field when it strays past these bounds.
 @export var playfield_margin: float = 16.0
 

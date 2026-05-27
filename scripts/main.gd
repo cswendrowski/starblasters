@@ -305,7 +305,9 @@ func _on_level_cleared() -> void:
 		if player and is_instance_valid(player):
 			run.current_hull = player.hull
 			run.max_hull = player.max_hull
-			run.current_shield = player.shield
+			# Shield fully restores between levels (spec: shield refills on sector map
+			# return). Save max_shield so the next combat starts fully shielded.
+			run.current_shield = player.max_shield
 			run.max_shield = player.max_shield
 	_run_outro()
 

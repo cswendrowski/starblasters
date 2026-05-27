@@ -5,9 +5,9 @@ extends "res://scripts/enemies/movement_pattern.gd"
 # track the player from off-screen and could overshoot upward.
 
 # 320×400 res rework: halved.
-@export var max_speed: float = 230.0
+@export var max_speed: float = 184.0
 @export var accel: float = 360.0
-@export var enter_speed: float = 160.0
+@export var enter_speed: float = 128.0
 @export var commit_y: float = 48.0  # start hunting once we're this far down
 
 enum Phase { ENTER, HUNT }

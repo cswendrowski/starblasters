@@ -10,6 +10,9 @@ const DRAIN_RANGE   := 160.0   # beam max reach
 const DRAIN_DPS     := 0.4     # shield drain rate — 1 charge per 2.5s
 const BEAM_COLOR    := Color(0.2, 0.9, 0.85, 0.9)  # teal
 
+# Beam shader — scrolling UV drives the player→sapper energy-flow animation.
+const BEAM_SHADER = preload("res://graphics/sapper_beam.gdshader")
+
 var _sap_state: int = SapState.SEEKING
 var _drain_accum: float = 0.0
 var _pattern: Resource = null
@@ -17,10 +20,15 @@ var _pattern: Resource = null
 # Beam visuals — created lazily on first DRAINING entry.
 var _beam_outer: Line2D = null
 var _beam_core: Line2D = null
+var _beam_mat: ShaderMaterial = null
 
 
 func _ready() -> void:
+	# Set stats BEFORE super._ready() so the base class sees max_shield = 3
+	# and calls _setup_shield_ring() automatically (same pattern as bosses).
 	max_health = 2
+	max_shield = 3          # Change 3: sapper starts with 3 shields
+	shield_ring_size = 22.0 # Tight ring around the small sapper sprite
 	bounty_value = 20
 	auto_rotate = true
 	display_scale = 1.0
@@ -55,6 +63,29 @@ func _process(delta: float) -> void:
 	super._process(delta)
 
 
+# Change 1: Override take_hit — while draining, redirect damage to player
+# shields first. Only let through once the player has no shields left.
+func take_hit(damage: int = 1) -> bool:
+	if _dying:
+		return false
+	if _sap_state == SapState.DRAINING:
+		var player = find_player()
+		if player != null and "shield" in player and player.shield > 0:
+			# Beam interaction: hit energy feeds back into the player's own
+			# shields, stripping charges instead of hurting the sapper.
+			# player.shield uses a setter that fires ShieldSfx + animations
+			# automatically, so we don't need to call ShieldSfx manually.
+			player.shield = max(0, player.shield - damage)
+			# Flash the player's ship shield-blue so it reads as a deflect,
+			# not a normal hit.
+			var HitFlashFx = load("res://scripts/effects/hit_flash_fx.gd")
+			if player.has_node("Ship"):
+				HitFlashFx.flash(player.get_node("Ship"), HitFlashFx.FLASH_SHIELD)
+			return false  # sapper took no damage
+	# Either not draining, or player shields already empty — normal base logic.
+	return super.take_hit(damage)
+
+
 func _tick_drain(player: Node, delta: float) -> void:
 	# Block shield regen each frame we are draining.
 	var regen_timer = player.get_node_or_null("ShieldRegenTimer")
@@ -67,8 +98,10 @@ func _tick_drain(player: Node, delta: float) -> void:
 		if "shield" in player and player.shield > 0:
 			# Assigning through the setter fires shield_changed + SFX automatically.
 			player.shield -= 1
-			# Steal the charge into Sapper's own pool (internal tracking, no visual ring).
-			shield = min(shield + 1, 3)
+			# Steal the charge into Sapper's own pool (capped by max_shield).
+			# Note: when sapper starts with max_shield = 3 this increment is a
+			# no-op unless shields have already been depleted by player hits.
+			shield = min(shield + 1, max_shield)
 
 
 func _restore_shield_regen(player: Node) -> void:
@@ -80,33 +113,31 @@ func _restore_shield_regen(player: Node) -> void:
 			regen_timer.start()
 
 
-# Cleanup hook — fires on ANY removal path (death explosion, queue_free,
-# offscreen despawn, scene change). The Sapper stops ShieldRegenTimer
-# each frame while draining; without this cleanup, dying mid-drain
-# would leave the player's regen timer permanently halted until their
-# next shield hit re-armed it. Roman, 2026-05-24: "shield regen freeze
-# must be removed when the enemy is destroyed or removed from play".
-# If another Sapper is still alive and draining, it will re-stop the
-# timer next frame — refcounting not needed; the per-frame stop wins.
-func _exit_tree() -> void:
-	var player = find_player()
-	if player != null:
-		_restore_shield_regen(player)
-
-
 # ---- Beam visuals -----------------------------------------------------------
 
 func _ensure_beam_visuals() -> void:
 	if _beam_outer and is_instance_valid(_beam_outer):
 		return
+	# Change 2: outer beam gets the scrolling shader for the drain animation.
+	_beam_mat = ShaderMaterial.new()
+	_beam_mat.shader = BEAM_SHADER
+	# Tune the shader uniforms — match the teal palette, noticeable pulse.
+	_beam_mat.set_shader_parameter("beam_color", Color(0.2, 0.9, 0.85, 0.85))
+	_beam_mat.set_shader_parameter("scroll_speed", 1.4)
+	_beam_mat.set_shader_parameter("band_freq", 4.0)
+	_beam_mat.set_shader_parameter("pulse_contrast", 0.55)
+	_beam_mat.set_shader_parameter("edge_fade", 0.06)
+
 	_beam_outer = Line2D.new()
-	_beam_outer.default_color = Color(0.2, 0.9, 0.85, 0.6)
-	_beam_outer.width = 3.0
+	_beam_outer.default_color = Color(1.0, 1.0, 1.0, 1.0)  # white; shader colorizes
+	_beam_outer.width = 5.0
 	_beam_outer.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	_beam_outer.end_cap_mode = Line2D.LINE_CAP_ROUND
+	_beam_outer.material = _beam_mat
 	_beam_outer.z_index = 4
 	_beam_outer.visible = false
 
+	# Core stays plain white — hot wire effect over the animated outer layer.
 	_beam_core = Line2D.new()
 	_beam_core.default_color = Color(1.0, 1.0, 1.0, 0.9)
 	_beam_core.width = 1.0

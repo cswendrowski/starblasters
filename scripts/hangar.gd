@@ -12,6 +12,8 @@ extends Node2D
 #
 # UI sits on a CanvasLayer overlay at native viewport scale, panels
 # tucked into the side gutters so the playable band stays unobstructed.
+# Right gutter: live HUD (same ui.tscn as combat, wired to the live player).
+# Left gutter: loadout selection panel only.
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
@@ -20,6 +22,7 @@ const SceneTransition = preload("res://scripts/scene_transition.gd")
 const PlayerScene = preload("res://scenes/player/player.tscn")
 const BackdropScript = preload("res://scripts/galaxy_backdrop.gd")
 const DummyTargetScript = preload("res://scripts/dev/hangar_dummy_target.gd")
+const UiScene = preload("res://scenes/ui.tscn")
 
 const TARGET_POS := Vector2(240, 36)
 
@@ -37,6 +40,7 @@ const WEAPON_GROUPS := [
 var _backdrop: Node2D = null
 var _player: Node = null
 var _target: Area2D = null
+var _hud = null  # ui.tscn instance in the right gutter
 
 # UI nodes
 var _slot_picker: OptionButton = null
@@ -44,7 +48,6 @@ var _part_picker: OptionButton = null
 var _mark_slider: HSlider = null
 var _mark_label: Label = null
 var _status_label: Label = null
-var _equipped_summary: Label = null
 var _preview_label: Label = null
 
 var _selected_slot: int = SlotTypes.SlotType.CANNON
@@ -55,6 +58,7 @@ var _selected_slot: int = SlotTypes.SlotType.CANNON
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(Color(0.0, 0.0, 0.0))
 	_spawn_backdrop()
+	_install_playfield_frame()
 	_spawn_player()
 	_spawn_dummy_target()
 	_build_ui()
@@ -65,7 +69,8 @@ func _ready() -> void:
 	# to settle, then mirror it into the picker.
 	await get_tree().process_frame
 	_refresh_part_picker()
-	_refresh_equipped()
+	# Install HUD after player is ready and loadout settled.
+	_install_hud()
 
 
 func _spawn_backdrop() -> void:
@@ -84,6 +89,9 @@ func _spawn_player() -> void:
 	await get_tree().process_frame
 	if "controls_enabled" in _player:
 		_player.controls_enabled = true
+	# Make player immune to damage in the hangar.
+	if "invincible" in _player:
+		_player.invincible = true
 	# Playfield is the autoload class with the band constants.
 	_player.position = Vector2(Playfield.CENTER.x, Playfield.Y_MAX - 30.0)
 
@@ -120,6 +128,72 @@ func _spawn_dummy_target() -> void:
 	add_child(_target)
 
 
+# ---- Playfield frame (mirrors main.gd _install_playfield_frame) ----------
+
+func _install_playfield_frame() -> void:
+	var glass_layer := CanvasLayer.new()
+	glass_layer.name = "PlayfieldGlass"
+	glass_layer.layer = 1
+	add_child(glass_layer)
+
+	var glass_bg := Color(0.04, 0.06, 0.10, 0.55)
+	var glass_edge := UiTheme.COLOR_ACCENT_DIM
+	for spec in [
+		{"name": "GutterLeft",  "x": 0.0,             "w": Playfield.X_MIN,         "edge": "right"},
+		{"name": "GutterRight", "x": Playfield.X_MAX, "w": 480.0 - Playfield.X_MAX, "edge": "left"},
+	]:
+		var gpanel := Panel.new()
+		gpanel.name = String(spec["name"])
+		gpanel.position = Vector2(float(spec["x"]), 0.0)
+		gpanel.size = Vector2(float(spec["w"]), 270.0)
+		gpanel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var gsb := StyleBoxFlat.new()
+		gsb.bg_color = glass_bg
+		gsb.border_color = glass_edge
+		if String(spec["edge"]) == "right":
+			gsb.border_width_right = 1
+		else:
+			gsb.border_width_left = 1
+		gpanel.add_theme_stylebox_override("panel", gsb)
+		glass_layer.add_child(gpanel)
+
+	var frame_layer := CanvasLayer.new()
+	frame_layer.name = "PlayfieldFrame"
+	frame_layer.layer = 10
+	add_child(frame_layer)
+
+	var frame := Panel.new()
+	frame.name = "Frame"
+	frame.position = Vector2(Playfield.X_MIN, Playfield.Y_MIN)
+	frame.size = Vector2(Playfield.W, Playfield.H)
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0, 0, 0, 0)
+	sb.border_color = UiTheme.COLOR_ACCENT_DIM
+	sb.border_width_left = 1
+	sb.border_width_right = 1
+	sb.border_width_top = 0
+	sb.border_width_bottom = 0
+	frame.add_theme_stylebox_override("panel", sb)
+	frame_layer.add_child(frame)
+
+
+# ---- Live HUD (right gutter, same as combat) ----------------------------
+
+func _install_hud() -> void:
+	if _player == null or not is_instance_valid(_player):
+		return
+	var hud_layer := CanvasLayer.new()
+	hud_layer.name = "HUDLayer"
+	hud_layer.layer = 5
+	add_child(hud_layer)
+	_hud = UiScene.instantiate()
+	_hud.name = "UI"
+	hud_layer.add_child(_hud)
+	if _hud.has_method("bind_player"):
+		_hud.bind_player(_player)
+
+
 # ---- UI ----------------------------------------------------------------
 
 func _build_ui() -> void:
@@ -132,27 +206,27 @@ func _build_ui() -> void:
 	header.text = "HANGAR  Esc closes"
 	header.position = Vector2(4, 2)
 	UiTheme.style_label(header, UiTheme.LabelKind.CAPTION)
-	header.add_theme_font_size_override("font_size", 9)
+	header.add_theme_font_size_override("font_size", 7)
 	ui_layer.add_child(header)
 
 	# Left gutter panel — slot + part picker + Mk slider + actions.
-	# Playfield band is x 132-348; we have x 0-132 on the left and x
-	# 348-480 on the right to work with.
-	var left_panel := _make_panel(Vector2(4, 16), Vector2(124, 250))
+	# Reduced 25%: was 124×250, now 93×188. Font sizes reduced 25%.
+	# Playfield band is x 132-348; we have x 0-132 on the left.
+	var left_panel := _make_panel(Vector2(3, 14), Vector2(93, 188))
 	ui_layer.add_child(left_panel)
 	var left_scroll := ScrollContainer.new()
 	left_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	left_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	left_panel.add_child(left_scroll)
 	var left_vb := VBoxContainer.new()
-	left_vb.add_theme_constant_override("separation", 4)
+	left_vb.add_theme_constant_override("separation", 3)
 	left_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	left_scroll.add_child(left_vb)
 
 	_add_caption(left_vb, "GROUP")
 	_slot_picker = OptionButton.new()
-	_slot_picker.custom_minimum_size = Vector2(0, 12)
-	_slot_picker.add_theme_font_size_override("font_size", 9)
+	_slot_picker.custom_minimum_size = Vector2(0, 9)
+	_slot_picker.add_theme_font_size_override("font_size", 7)
 	for i in WEAPON_GROUPS.size():
 		_slot_picker.add_item(String(WEAPON_GROUPS[i]["name"]), int(WEAPON_GROUPS[i]["slot"]))
 	_slot_picker.item_selected.connect(_on_slot_picked)
@@ -160,22 +234,22 @@ func _build_ui() -> void:
 
 	_add_caption(left_vb, "PART")
 	_part_picker = OptionButton.new()
-	_part_picker.custom_minimum_size = Vector2(0, 12)
-	_part_picker.add_theme_font_size_override("font_size", 9)
+	_part_picker.custom_minimum_size = Vector2(0, 9)
+	_part_picker.add_theme_font_size_override("font_size", 7)
 	_part_picker.item_selected.connect(_on_part_selected)
 	left_vb.add_child(_part_picker)
 
 	_add_caption(left_vb, "MARK")
 	_mark_label = Label.new()
 	_mark_label.text = "Mk.1"
-	_mark_label.add_theme_font_size_override("font_size", 9)
+	_mark_label.add_theme_font_size_override("font_size", 7)
 	left_vb.add_child(_mark_label)
 	_mark_slider = HSlider.new()
 	_mark_slider.min_value = 1
 	_mark_slider.max_value = 9
 	_mark_slider.step = 1
 	_mark_slider.value = 1
-	_mark_slider.custom_minimum_size = Vector2(0, 10)
+	_mark_slider.custom_minimum_size = Vector2(0, 8)
 	_mark_slider.value_changed.connect(_on_mark_changed)
 	left_vb.add_child(_mark_slider)
 
@@ -185,37 +259,21 @@ func _build_ui() -> void:
 
 	_status_label = Label.new()
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_status_label.custom_minimum_size = Vector2(118, 0)
-	_status_label.add_theme_font_size_override("font_size", 8)
+	_status_label.custom_minimum_size = Vector2(88, 0)
+	_status_label.add_theme_font_size_override("font_size", 6)
 	UiTheme.style_label(_status_label, UiTheme.LabelKind.CAPTION)
 	left_vb.add_child(_status_label)
 
 	# Preview label — shows stats for the currently-selected (not yet applied) part.
 	_preview_label = Label.new()
 	_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_preview_label.custom_minimum_size = Vector2(118, 0)
-	_preview_label.add_theme_font_size_override("font_size", 8)
+	_preview_label.custom_minimum_size = Vector2(88, 0)
+	_preview_label.add_theme_font_size_override("font_size", 6)
 	UiTheme.style_label(_preview_label, UiTheme.LabelKind.CAPTION)
 	left_vb.add_child(_preview_label)
 
-	# Right gutter — equipped summary.
-	var right_panel := _make_panel(Vector2(352, 16), Vector2(124, 250))
-	ui_layer.add_child(right_panel)
-	var right_scroll := ScrollContainer.new()
-	right_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_panel.add_child(right_scroll)
-	var right_vb := VBoxContainer.new()
-	right_vb.add_theme_constant_override("separation", 4)
-	right_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right_scroll.add_child(right_vb)
-	_add_caption(right_vb, "EQUIPPED")
-	_equipped_summary = Label.new()
-	_equipped_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_equipped_summary.custom_minimum_size = Vector2(118, 0)
-	_equipped_summary.add_theme_font_size_override("font_size", 9)
-	UiTheme.style_label(_equipped_summary, UiTheme.LabelKind.BODY)
-	right_vb.add_child(_equipped_summary)
+	# Right gutter hosts the live HUD (installed via _install_hud after
+	# a frame delay). No separate "EQUIPPED" panel here.
 
 
 func _make_panel(pos: Vector2, size: Vector2) -> PanelContainer:
@@ -229,8 +287,8 @@ func _make_panel(pos: Vector2, size: Vector2) -> PanelContainer:
 	sb.border_width_top = 1
 	sb.border_width_right = 1
 	sb.border_width_bottom = 1
-	sb.content_margin_left = 3
-	sb.content_margin_right = 3
+	sb.content_margin_left = 2
+	sb.content_margin_right = 2
 	sb.content_margin_top = 2
 	sb.content_margin_bottom = 2
 	p.add_theme_stylebox_override("panel", sb)
@@ -240,7 +298,7 @@ func _make_panel(pos: Vector2, size: Vector2) -> PanelContainer:
 func _add_caption(parent: Node, text: String) -> void:
 	var l := Label.new()
 	l.text = text
-	l.add_theme_font_size_override("font_size", 8)
+	l.add_theme_font_size_override("font_size", 6)
 	UiTheme.style_label(l, UiTheme.LabelKind.CAPTION)
 	parent.add_child(l)
 
@@ -248,8 +306,8 @@ func _add_caption(parent: Node, text: String) -> void:
 func _add_button(parent: Node, text: String, cb: Callable) -> void:
 	var b := Button.new()
 	b.text = text
-	b.custom_minimum_size = Vector2(0, 12)
-	b.add_theme_font_size_override("font_size", 9)
+	b.custom_minimum_size = Vector2(0, 9)
+	b.add_theme_font_size_override("font_size", 7)
 	UiTheme.style_button(b, true)
 	b.pressed.connect(cb)
 	parent.add_child(b)
@@ -269,13 +327,13 @@ func _refresh_part_picker() -> void:
 	_part_picker.add_item("(none)", -1)
 	var factories := _parts_for_slot(_selected_slot)
 	for i in factories.size():
-		_part_picker.add_item(_short_name(factories[i]), i)
+		_part_picker.add_item(_display_name_for_factory(factories[i], _selected_slot), i)
 	# Highlight what's already equipped in this slot via the live Loadout.
 	var current = _loadout_part(_selected_slot)
 	if current:
 		var dn: String = String(current.display_name) if "display_name" in current else ""
 		for i in factories.size():
-			if _short_name(factories[i]) == _short_name(dn) or _short_name(factories[i]).to_lower() == dn.to_lower():
+			if _display_name_for_factory(factories[i], _selected_slot) == dn or _display_name_for_factory(factories[i], _selected_slot).to_lower() == dn.to_lower():
 				_part_picker.select(i + 1)
 				if _mark_slider:
 					_mark_slider.set_value_no_signal(int(current.mark))
@@ -300,6 +358,18 @@ func _parts_for_slot(slot: int) -> Array:
 				out.append(f)
 				seen[f] = true
 	return out
+
+
+# Returns the authoritative display_name from the Part itself, falling
+# back to the derived short-name only when the part can't be instantiated.
+# This ensures "Auto Laser" shows instead of "Laser Beam" etc.
+func _display_name_for_factory(factory: String, slot: int) -> String:
+	var part = PartCatalog._make_by_name(factory, slot)
+	if part != null and "display_name" in part:
+		var dn: String = String(part.display_name)
+		if dn != "" and dn != "Unnamed Part":
+			return dn
+	return _short_name(factory)
 
 
 func _short_name(factory: String) -> String:
@@ -376,8 +446,10 @@ func _on_apply_part() -> void:
 	Run.equip_part(part)
 	if _player and _player.has_node("Loadout"):
 		_player.get_node("Loadout").equip(_selected_slot, part)
-	_set_status("Equipped %s Mk.%d" % [_short_name(factory), int(part.mark)])
-	_refresh_equipped()
+	_set_status("Equipped %s Mk.%d" % [_display_name_for_factory(factory, _selected_slot), int(part.mark)])
+	# Refresh HUD weapon hints after equip.
+	if _hud and _hud.has_method("bind_player") and _player:
+		_hud.bind_player(_player)
 
 
 func _on_clear_slot() -> void:
@@ -389,64 +461,9 @@ func _on_clear_slot() -> void:
 		if loadout.has_method("unequip"):
 			loadout.unequip(_selected_slot)
 	_set_status("Cleared")
-	_refresh_equipped()
-
-
-func _refresh_equipped() -> void:
-	if _equipped_summary == null:
-		return
-	var lines: PackedStringArray = []
-	var is_super := false
-	for group in WEAPON_GROUPS:
-		var slot_id: int = int(group["slot"])
-		is_super = (slot_id == SlotTypes.SlotType.DEVICE_BAY_1)
-		# Short label: first word of group name, e.g. "Primary", "Secondary", "Super".
-		var nm: String = String(group["name"]).split(" ")[0].to_upper()
-		var p = _loadout_part(slot_id)
-		if p != null:
-			var dn: String = String(p.display_name) if "display_name" in p else "?"
-			var mk: int = int(p.mark)
-			lines.append(nm)
-			lines.append("%s  Mk.%d" % [dn, mk])
-			if not is_super:
-				# Read live stats from the player for equipped weapons.
-				var stat_line := _equipped_stat_line(slot_id)
-				lines.append(stat_line)
-		else:
-			lines.append(nm)
-			lines.append("—")  # em dash
-		lines.append("")  # blank separator between groups
-	# Trim trailing blank line.
-	while lines.size() > 0 and lines[-1] == "":
-		lines.resize(lines.size() - 1)
-	_equipped_summary.text = "\n".join(lines)
-
-
-func _equipped_stat_line(slot_id: int) -> String:
-	if _player == null:
-		return ""
-	var dmg: int = 0
-	var cooldown: float = 0.0
-	var ammo: int = -1
-	if slot_id == SlotTypes.SlotType.CANNON:
-		if "bullet_damage" in _player:
-			dmg = int(_player.bullet_damage)
-		if "cooldown" in _player:
-			cooldown = float(_player.cooldown)
-		if "ammo" in _player:
-			ammo = int(_player.ammo)
-	elif slot_id == SlotTypes.SlotType.HARDPOINT_WING:
-		if "secondary_damage" in _player:
-			dmg = int(_player.secondary_damage)
-		if "secondary_cooldown" in _player:
-			cooldown = float(_player.secondary_cooldown)
-		if "secondary_ammo" in _player:
-			ammo = int(_player.secondary_ammo)
-	var rof_str := "—"
-	if cooldown > 0.0:
-		rof_str = "%.1f/s" % (1.0 / cooldown)
-	var ammo_str := "∞" if ammo < 0 else str(ammo)
-	return "DMG %d  ROF %s  AMMO %s" % [dmg, rof_str, ammo_str]
+	# Refresh HUD weapon hints after clear.
+	if _hud and _hud.has_method("bind_player") and _player:
+		_hud.bind_player(_player)
 
 
 func _loadout_part(slot_id: int) -> Resource:

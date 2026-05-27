@@ -7,8 +7,8 @@ extends "res://scripts/parts/primary_weapon.gd"
 #
 #                       Mk.1     Mk.5     Mk.9
 #   base_damage          4        8        12
-#   base_cooldown (s)    0.85     ~0.49    ~0.30   (compound 1.15^(mk-1))
-#   bullet_speed (px/s)  600      900      1200
+#   base_cooldown (s)    0.708    ~0.41    ~0.25   (compound 1.15^(mk-1))
+#   bullet_speed (px/s)  300      450      600
 #   max_hits (pierce)    1        4        4 (cap)
 #   bullet_scene         small    large    large
 #
@@ -22,8 +22,8 @@ const BulletWaveLarge = preload("res://scenes/projectiles/bullet_wave_large.tscn
 # Mk.9 endpoints (Mk.1 reads from base_*). Exposed for .tres tuning.
 @export var damage_at_mk9: int = 12
 @export var cooldown_at_mk9: float = 0.30
-@export var bullet_speed_at_mk1: float = 600.0
-@export var bullet_speed_at_mk9: float = 1200.0
+@export var bullet_speed_at_mk1: float = 300.0
+@export var bullet_speed_at_mk9: float = 600.0
 
 
 func _init() -> void:
@@ -32,7 +32,7 @@ func _init() -> void:
 	description = "Pierces enemies in a line. Mk.1 fires a small slow wave (dmg 4); Mk.9 punches a wide multi-hit pulse (dmg 12, fast)."
 	base_damage = 4
 	dmg_per_mark = 0  # not used — _mk_knobs encodes the curve directly
-	base_cooldown = 0.85
+	base_cooldown = 0.708
 
 
 func _fire_sfx_kind() -> int:
@@ -62,8 +62,8 @@ func _wave_damage_for_mark(at_mark: int) -> int:
 
 
 func _cooldown_for_mark(at_mark: int) -> float:
-	# Compound reduction: 0.85 / 1.15^(mk-1). Mk.1=0.85s, Mk.9≈0.30s.
-	return 0.85 / pow(1.15, clampf(float(at_mark - 1), 0.0, 8.0))
+	# Compound reduction: 0.708 / 1.15^(mk-1). Mk.1=0.708s (~+20% fire rate), Mk.9≈0.25s.
+	return 0.708 / pow(1.15, clampf(float(at_mark - 1), 0.0, 8.0))
 
 
 func _scene_for_mark(at_mark: int) -> PackedScene:

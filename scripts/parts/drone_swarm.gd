@@ -16,6 +16,10 @@ const DroneScene = preload("res://scenes/player/player_drone.tscn")
 @export var max_drones: int = 6
 @export var halfspan: float = 24.0
 
+# Guard flag — true while a swarm is alive. Prevents re-activation before
+# the current batch of drones despawns (Bug fix 2026-05-26).
+var _drones_active: bool = false
+
 
 func _init() -> void:
 	super._init()
@@ -26,6 +30,8 @@ func _init() -> void:
 
 
 func activate(ship) -> void:
+	if _drones_active:
+		return
 	if not ship.has_method("get_tree"):
 		return
 	var tree: SceneTree = ship.get_tree()
@@ -34,6 +40,7 @@ func activate(ship) -> void:
 	var n: int = mini(base_drones + (int(mark) - 1) * drones_per_mark, max_drones)
 	var dur: float = base_duration + (float(mark) - 1.0) * duration_per_mark
 	var spawned: Array = []
+	_drones_active = true
 	for i in n:
 		var drone = DroneScene.instantiate()
 		# Spawn from the player's center; drone autonomous _process
@@ -54,6 +61,7 @@ func activate(ship) -> void:
 		for d in spawned:
 			if is_instance_valid(d):
 				d.queue_free()
+		_drones_active = false
 	)
 
 

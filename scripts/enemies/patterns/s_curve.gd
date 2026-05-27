@@ -4,7 +4,7 @@ extends "res://scripts/enemies/movement_pattern.gd"
 # auto-clamps so a spawn near the wall doesn't push the enemy out the side.
 
 # 320×400 res rework: halved.
-@export var down_speed: float = 90.0
+@export var down_speed: float = 72.0
 @export var amplitude: float = 70.0
 @export var frequency: float = 1.4
 # Mirror flag — flips the lateral swing direction (sin → -sin). Designer

@@ -6,9 +6,9 @@ extends "res://scripts/enemies/movement_pattern.gd"
 # 320×400 res rework: halved.
 @export var advance_y: float = 192.0
 @export var hold_time: float = 0.6
-@export var advance_speed: float = 180.0
-@export var retreat_speed: float = 260.0
-@export var break_speed: float = 240.0
+@export var advance_speed: float = 144.0
+@export var retreat_speed: float = 208.0
+@export var break_speed: float = 192.0
 @export var cycles: int = 2
 
 signal phase_entered(phase_name: String)
@@ -59,5 +59,5 @@ func compute_step(enemy, delta: float) -> Vector2:
 					phase_entered.emit("advance")
 			return Vector2(0, step_y2)
 		Phase.BREAK:
-			return Vector2(_break_dir * break_speed * delta, 24.0 * delta)
+			return Vector2(_break_dir * break_speed * delta, 19.2 * delta)
 	return Vector2.ZERO

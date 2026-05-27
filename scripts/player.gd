@@ -8,6 +8,9 @@ signal died
 # to diff old vs new bar values.
 signal damaged(amount: int)
 
+# Set to true to make the player immune to all damage (e.g. in Hangar).
+var invincible: bool = false
+
 # ---- Stats (mutated by equipped Parts) ----
 # Base values; Parts add on top. Gives a sane floor even with no parts equipped.
 var speed: float = 125.0  # 320×400 res — halved from 250
@@ -590,6 +593,8 @@ func _process(delta: float) -> void:
 # Hull == 0 → pips flash; NEXT hit fires super-bomb then kills.
 # Spec 2026-05-26 rework.
 func take_damage(amount: int) -> void:
+	if invincible:
+		return
 	if not is_alive or amount <= 0:
 		return
 	# "dangerous" sector modifier doubles all incoming enemy damage.
@@ -1309,7 +1314,8 @@ func _on_gun_cooldown_timeout() -> void:
 
 func _on_area_entered(area: Area2D) -> void:
 	if area.is_in_group("enemies"):
-		area.explode()
+		if area.has_method("take_hit"):
+			area.take_hit(1)
 		_play_hit_sfx()
 		take_damage(2)
 	elif area.is_in_group("bullets"):

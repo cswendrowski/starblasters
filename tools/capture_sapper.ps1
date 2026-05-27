@@ -1,6 +1,6 @@
 param([int]$Fps = 30, [string]$OutName = "sapper")
 $ErrorActionPreference = 'Continue'
-$GODOT = 'C:\Users\Cody\Downloads\Godot_v4.3-stable_mono_win64\Godot_v4.3-stable_mono_win64\Godot.exe'
+$GODOT = 'C:\Users\Cody\Downloads\Godot_v4.6.3-stable_win64.exe\Godot_v4.6.3-stable_win64.exe'
 $Repo = Split-Path -Parent $PSScriptRoot
 $OutDir = Join-Path $Repo 'captures'
 $FrameDir = Join-Path $OutDir 'sapper'

@@ -167,7 +167,7 @@ static func _make_by_name(name: String, slot: int):
 		"_make_particle_beam":
 			return _build_weapon("res://resources/weapons/particle_beam.tres", ParticleBeam, null)
 		"_make_side_pods":
-			return _build_weapon("res://resources/weapons/side_pods.tres", SidePods, BulletDefault)
+			return SidePods.new()
 		"_make_drone_bits":
 			return _build_weapon("res://resources/weapons/drone_bits.tres", DroneBits, BulletDefault)
 		"_make_drone_swarm":

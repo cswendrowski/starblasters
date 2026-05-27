@@ -16,7 +16,7 @@ extends "res://scripts/enemies/movement_pattern.gd"
 # aggressively attempting to adjust itself as it flies, trying to keep
 # its nose pointed at the player." Bumped rotate_speed 90 -> 200 and
 # halved face_tolerance so it commits to thrust earlier.
-@export var max_speed: float = 150.0
+@export var max_speed: float = 120.0
 @export var thrust: float = 280.0
 @export var brake_thrust: float = 360.0
 @export var rotate_speed: float = 240.0       # degrees / sec

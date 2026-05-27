@@ -7,8 +7,8 @@ extends "res://scripts/enemies/movement_pattern.gd"
 
 # 320×400 res rework: halved.
 @export var travel_y: float = 72.0
-@export var enter_speed: float = 130.0
-@export var cut_speed: float = 210.0
+@export var enter_speed: float = 104.0
+@export var cut_speed: float = 168.0
 @export var direction: int = 1
 
 enum Phase { ENTER, CUT }

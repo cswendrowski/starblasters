@@ -5,7 +5,7 @@ extends "res://scripts/enemies/patterns/jet.gd"
 # Inherits jet.gd; bumps the turn rate at low speed AND auto-decelerates
 # when the target is behind the nose, so the jet brakes into the turn.
 
-@export var slow_speed: float = 50.0
+@export var slow_speed: float = 40.0
 @export var brake_rate: float = 90.0
 
 
