@@ -125,11 +125,12 @@ func _attack_loop() -> void:
 		match _phase:
 			0:
 				# Pressure-only ring every 5s while the deflector holds the
-				# player honest from above.
+				# player honest from above. Heavy slug: slow fat orbs match
+				# the boss's deliberate mechanical identity.
 				await get_tree().create_timer(5.0).timeout
 				if _dying:
 					return
-				fire_ring(6)
+				fire_ring(6, 0.0, load("res://data/bullets/heavy_slug.tres"))
 			1:
 				# Single beam every ~4s; gap follows the player's X at
 				# telegraph start.

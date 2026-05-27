@@ -31,6 +31,12 @@ signal phase_changed(old_idx: int, new_idx: int, phase_name: String)
 @export var fire_interval_max: float = 1.4
 @export var movement: Resource = null
 
+# Optional default variant applied to every primitive that doesn't receive
+# an explicit variant argument. Subclasses set this in _ready() BEFORE
+# super._ready() so the value is visible from the first bullet spawned.
+# Leave null for default enemy_bullet visuals.
+@export var default_bullet_variant: BulletVariant = null
+
 # Where the boss settles after its enter sweep (Y pixels from top). Per-boss
 # so each boss can tune its stand-off. 480×270 viewport — top quarter ≈ 68 px.
 @export var boss_hover_y: float = 48.0
@@ -332,11 +338,25 @@ func _bullet_scene() -> PackedScene:
 	return _DEFAULT_BULLET
 
 
-func _spawn_bullet(dir: Vector2) -> void:
+# Resolve which variant to use: explicit override wins, then
+# default_bullet_variant, then null (= plain enemy_bullet look).
+func _resolve_variant(override: BulletVariant) -> BulletVariant:
+	if override != null:
+		return override
+	return default_bullet_variant
+
+
+func _spawn_bullet(dir: Vector2, variant: BulletVariant = null) -> void:
 	var bs := _bullet_scene()
 	if bs == null:
 		return
 	var b = bs.instantiate()
+	# IMPORTANT: set variant BEFORE add_child so _apply_variant() fires in
+	# _ready(), which runs at add_child time. Setting it after add_child
+	# would be a no-op.
+	var v: BulletVariant = _resolve_variant(variant)
+	if v != null:
+		b.variant = v
 	get_tree().root.add_child(b)
 	if b.has_method("start"):
 		b.start(global_position, dir)
@@ -346,7 +366,7 @@ func _spawn_bullet(dir: Vector2) -> void:
 
 # Time-staggered aimed burst. `interval=0` fires all at once aimed at the
 # player's position at the start of the burst.
-func fire_aimed_burst(count: int, spread_deg: float, interval: float = 0.0) -> void:
+func fire_aimed_burst(count: int, spread_deg: float, interval: float = 0.0, variant: BulletVariant = null) -> void:
 	if count <= 0:
 		return
 	var aim: Vector2 = _aim_at_player()
@@ -358,13 +378,13 @@ func fire_aimed_burst(count: int, spread_deg: float, interval: float = 0.0) -> v
 		if count > 1:
 			t = (float(i) / float(count - 1)) * 2.0 - 1.0
 		var dir: Vector2 = aim.rotated(t * spread_rad * 0.5)
-		_spawn_bullet(dir)
+		_spawn_bullet(dir, variant)
 		if interval > 0.0 and i < count - 1:
 			await get_tree().create_timer(interval).timeout
 
 
 # Synchronous aimed cone — all bullets at once.
-func fire_aimed_cone(count: int, spread_deg: float) -> void:
+func fire_aimed_cone(count: int, spread_deg: float, variant: BulletVariant = null) -> void:
 	if count <= 0:
 		return
 	var aim: Vector2 = _aim_at_player()
@@ -373,11 +393,11 @@ func fire_aimed_cone(count: int, spread_deg: float) -> void:
 		var t: float = 0.0
 		if count > 1:
 			t = (float(i) / float(count - 1)) * 2.0 - 1.0
-		_spawn_bullet(aim.rotated(t * spread_rad * 0.5))
+		_spawn_bullet(aim.rotated(t * spread_rad * 0.5), variant)
 
 
 # Dumb fan (not aimed). `downward=true` centers on +Y, false centers on -Y.
-func fire_spread(count: int, spread_deg: float, downward: bool = true) -> void:
+func fire_spread(count: int, spread_deg: float, downward: bool = true, variant: BulletVariant = null) -> void:
 	if count <= 0:
 		return
 	var base: Vector2 = Vector2(0, 1) if downward else Vector2(0, -1)
@@ -386,20 +406,20 @@ func fire_spread(count: int, spread_deg: float, downward: bool = true) -> void:
 		var t: float = 0.0
 		if count > 1:
 			t = (float(i) / float(count - 1)) * 2.0 - 1.0
-		_spawn_bullet(base.rotated(t * spread_rad * 0.5))
+		_spawn_bullet(base.rotated(t * spread_rad * 0.5), variant)
 
 
 # Even-spaced 360 ring. `bullet_speed_override` left as a hint for future
 # work — current enemy_bullet doesn't expose a speed setter from outside
 # the scene.
-func fire_ring(count: int, angle_offset_deg: float = 0.0, _bullet_speed_override: float = -1.0) -> void:
+func fire_ring(count: int, angle_offset_deg: float = 0.0, variant: BulletVariant = null) -> void:
 	if count <= 0:
 		return
 	var step: float = TAU / float(count)
 	var off: float = deg_to_rad(angle_offset_deg)
 	for i in count:
 		var theta: float = off + step * i
-		_spawn_bullet(Vector2(cos(theta), sin(theta)))
+		_spawn_bullet(Vector2(cos(theta), sin(theta)), variant)
 
 
 # Telegraphed horizontal beam with one safe-gap. Renders the telegraph

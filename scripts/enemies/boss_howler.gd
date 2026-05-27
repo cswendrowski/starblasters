@@ -28,6 +28,12 @@ var _cycle_cadence: float = 1.4
 var _ring_double_fire: bool = false
 var _reinforcements_spawned: bool = false
 
+# Per-slot bullet variants. Loaded once in _ready().
+var _var_aimed: BulletVariant = null   # aimed burst (slot 0)
+var _var_ring: BulletVariant = null    # ring (slot 1)
+var _var_spread: BulletVariant = null  # spread cascade (slot 2)
+var _var_sniper: BulletVariant = null  # sniper shot (slot 3) — upgrades in P2
+
 
 func _ready() -> void:
 	max_health = 180
@@ -36,6 +42,12 @@ func _ready() -> void:
 	boss_hover_y = 60.0
 	fire_interval_min = 1.4
 	fire_interval_max = 1.4
+	# Each slot gets a distinct variant so the player learns the rotation visually.
+	# P2 enrage upgrades slot 3 to laser_bolt (swap done in _on_phase_entered).
+	_var_aimed  = load("res://data/bullets/aimed_sniper.tres")
+	_var_ring   = load("res://data/bullets/heavy_slug.tres")
+	_var_spread = load("res://data/bullets/plasma_orb.tres")
+	_var_sniper = load("res://data/bullets/aimed_sniper.tres")
 	phases = [
 		BossPhase.make("Phase 1", 1.0, false, 0.0),
 		BossPhase.make("Phase 2", 0.5, true, 4.0),
@@ -53,6 +65,8 @@ func _on_phase_entered(phase_idx: int, _phase_name: String) -> void:
 		_cycle_cadence = 1.0
 		_ring_step_deg = 30.0
 		_ring_double_fire = true
+		# P2 enrage: upgrade the sniper slot to laser_bolt for the "panic" read.
+		_var_sniper = load("res://data/bullets/laser_bolt.tres")
 		_spawn_reinforcement_wave()
 
 
@@ -73,23 +87,26 @@ func _run_cycle_loop() -> void:
 		match _attack_idx % 4:
 			0:
 				# Aimed burst — staggered to force the player to track.
-				fire_aimed_burst(5, 30.0, 0.05)
+				fire_aimed_burst(5, 30.0, 0.05, _var_aimed)
 			1:
 				# Rotating 360 ring. P2: fire twice for a denser wave.
-				fire_ring(12, _ring_offset_deg)
+				# Heavy slug: slow fat orbs make the ring readable + threatening.
+				fire_ring(12, _ring_offset_deg, _var_ring)
 				_ring_offset_deg += _ring_step_deg
 				if _ring_double_fire:
 					await get_tree().create_timer(0.25).timeout
 					if _dying:
 						return
-					fire_ring(12, _ring_offset_deg + 15.0)
+					fire_ring(12, _ring_offset_deg + 15.0, _var_ring)
 					_ring_offset_deg += _ring_step_deg
 			2:
 				# Wide downward spread cascade — punishes camping below.
-				fire_spread(8, 60.0, true)
+				# Plasma orb: wobble adds chaos to the dumb fan.
+				fire_spread(8, 60.0, true, _var_spread)
 			3:
 				# Sniper shot — single fast aimed bullet, "predict me".
-				fire_aimed_cone(1, 0.0)
+				# Upgrades to laser_bolt in P2 enrage.
+				fire_aimed_cone(1, 0.0, _var_sniper)
 		_attack_idx += 1
 
 

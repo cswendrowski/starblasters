@@ -26,6 +26,9 @@ func _ready() -> void:
 	boss_hover_y = 56.0
 	fire_interval_min = 4.0
 	fire_interval_max = 4.0
+	# Heavy slug as default: fat slow orbs suit the Conductor's deliberate,
+	# multi-part identity. P2 rotating ring(18) reads as a slow orbital wall.
+	default_bullet_variant = load("res://data/bullets/heavy_slug.tres")
 	phases = [
 		BossPhase.make("Phase 1", 1.0, false, 0.0),
 		BossPhase.make("Phase 2", 0.66, true, 4.0),
@@ -141,7 +144,10 @@ func _attack_loop() -> void:
 					await dive_toward(target, 220.0, true)
 					if _dying:
 						return
-					fire_aimed_cone(7, 24.0)
+					# Tracker: final-phase homing tease after the dive — the
+					# violet diamonds turn the post-dive cone into a threat that
+					# lingers even after the boss repositions.
+					fire_aimed_cone(7, 24.0, load("res://data/bullets/tracker.tres"))
 
 
 func _on_boss_death() -> void:

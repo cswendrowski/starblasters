@@ -49,6 +49,9 @@ func _ready() -> void:
 	boss_hover_y = 56.0
 	fire_interval_min = 1.5
 	fire_interval_max = 1.5
+	# Aimed sniper: precise cyan tracers fit the turret-core identity.
+	# core_only phase overrides to burst_round per-call for the panic read.
+	default_bullet_variant = load("res://data/bullets/aimed_sniper.tres")
 	# Empty phases — pylon-driven state machine handles the escalation.
 	phases = []
 	super._ready()
@@ -280,7 +283,9 @@ func _attack_loop() -> void:
 				await get_tree().create_timer(1.5).timeout
 				if _dying:
 					return
-				fire_aimed_burst(7, 28.0)
+				# Burst round: red short-life streaks escalate the panic read
+				# now that the shield pylons are gone and the core is exposed.
+				fire_aimed_burst(7, 28.0, 0.0, load("res://data/bullets/burst_round.tres"))
 				_missile_t += 1.5
 				if _missile_t >= 3.5:
 					_missile_t = 0.0

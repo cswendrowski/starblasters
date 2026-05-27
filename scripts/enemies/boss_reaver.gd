@@ -35,6 +35,9 @@ func _ready() -> void:
 	# defaults sane in case a wave-director shoot_pattern_override is injected.
 	fire_interval_min = 0.6
 	fire_interval_max = 0.9
+	# Aimed sniper: cyan tracer that signals precision and threat on all
+	# aimed fans + cones. Unified default fits both P1 strafe and P2 dive.
+	default_bullet_variant = load("res://data/bullets/aimed_sniper.tres")
 	phases = [
 		BossPhase.make("Phase 1", 1.0, false, 0.0),
 		BossPhase.make("Phase 2", 0.5, true, 3.0),
