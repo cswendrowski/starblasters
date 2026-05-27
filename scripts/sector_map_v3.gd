@@ -376,6 +376,7 @@ func _build_pois_from_cache() -> void:
 			# Object kind: planet/large_ast/cluster. Distribution roughly
 			# matches the dev v3 random pick (uniform across 3 types).
 			var obj_kind: int = deco_rng.randi() % 3
+			var hover_label: String = "" if poi.completed else "?"
 			# Celestial bodies (planet/asteroid/cluster) are always drawn so
 			# the map reads as a real star chart. The pulse glow and node
 			# dressing are suppressed on completed POIs so the node reads
@@ -388,18 +389,25 @@ func _build_pois_from_cache() -> void:
 					var frac: float = (poi.pos.x - 128.0) / max(1.0, row_end_x - 128.0)
 					var ptype: int  = _pick_planet_type(deco_rng, frac)
 					_spawn_planet(poi.pos, px, ptype, r_idx, deco_rng, String(poi.id))
+					if draw_dressing:
+						hover_label = PLANET_LETTERS[mini(planet_seq, PLANET_LETTERS.size() - 1)]
 					planet_seq += 1
 				OBJ_LARGE_AST:
 					_spawn_large_asteroid(poi.pos, r_idx, deco_rng)
+					if draw_dressing:
+						hover_label = "Asteroid"
 				OBJ_CLUSTER:
 					_spawn_asteroid_cluster(poi.pos, r_idx, deco_rng)
+					if draw_dressing:
+						hover_label = "Belt"
 			if draw_dressing:
 				_add_node_dressing(poi.pos, int(poi.node_type), deco_rng)
-			var poi_label: String = ""
+			_add_hover_label_icon(poi.pos, 32.0, hover_label, int(poi.node_type), poi.completed)
+			# POI name label — skip completed nodes (spent) and BOSS type (handled separately).
 			if not poi.completed and int(poi.node_type) != int(SectorNode.NodeType.BOSS):
 				var poi_name_seed: int = abs(hash(poi.id)) ^ 0x3F7A1C2B
-				poi_label = _generate_poi_name(int(poi.node_type), poi_name_seed, String(poi.get("hazard_subtype", "")))
-			_add_hover_label_icon(poi.pos, 32.0, poi_label, int(poi.node_type), poi.completed)
+				var poi_name: String = _generate_poi_name(int(poi.node_type), poi_name_seed, String(poi.get("hazard_subtype", "")))
+				_spawn_poi_name_label(poi.pos, poi_name)
 			_poi_hits.append({
 				"id":     String(poi.id),
 				"pos":    Vector2(poi.pos),
@@ -610,6 +618,10 @@ func _spawn_planet(center: Vector2, display_px: float, type_idx: int, row_idx: i
 	# of `rng` got consumed by randomize_colors / set_seed above.
 	var moon_rng: RandomNumberGenerator = _make_moon_rng(poi_id) if poi_id != "" else rng
 	_spawn_moons(center, display_px, moon_rng)
+	# Change 4: planet name label
+	var planet_name_seed: int = abs(hash(poi_id)) if poi_id != "" else abs(hash(center))
+	var planet_name: String = _generate_celestial_name("planet", planet_name_seed)
+	_spawn_celestial_name_label(center, planet_name, display_px * 0.5 + 4.0)
 
 
 func _spawn_large_asteroid(center: Vector2, row_idx: int, rng: RandomNumberGenerator) -> void:
@@ -648,6 +660,9 @@ func _spawn_large_asteroid(center: Vector2, row_idx: int, rng: RandomNumberGener
 	})
 	_scatter_asteroid_band(center, rng)
 	_scatter_pulse_pixels(center, PX, rng)
+	# Change 4: asteroid name label
+	var ast_name: String = _generate_celestial_name("asteroid", abs(hash(center)))
+	_spawn_celestial_name_label(center, ast_name, PX * 0.5 + 4.0)
 
 
 func _spawn_asteroid_cluster(center: Vector2, row_idx: int, rng: RandomNumberGenerator) -> void:
@@ -686,6 +701,9 @@ func _spawn_asteroid_cluster(center: Vector2, row_idx: int, rng: RandomNumberGen
 		})
 		_scatter_pulse_pixels(Vector2(center.x + ox, center.y + oy), px, rng)
 	_scatter_asteroid_band(center, rng)
+	# Change 4: cluster name label (once per cluster, not per individual rock)
+	var cluster_name: String = _generate_celestial_name("cluster", abs(hash(center)) ^ 0xABCD)
+	_spawn_celestial_name_label(center, cluster_name, 20.0)
 
 
 func _scatter_asteroid_band(center: Vector2, rng: RandomNumberGenerator) -> void:
@@ -897,12 +915,12 @@ func _build_stars() -> void:
 			var comp_gc: Color = STAR_GLOW_COLORS[0] if comp_cool else STAR_GLOW_COLORS[1]
 			_add_glow_sprite(comp_glow_node, comp_gc)
 
-		# Star name label — centered above the star body.
+		# Star name label.
 		var star_seed: int = abs(hash("star:%d" % i))
 		if has_node("/root/Run"):
 			star_seed = abs(hash("star:%d:%d" % [i, get_node("/root/Run").run_seed]))
 		var star_name: String = _generate_celestial_name("star", star_seed)
-		_spawn_celestial_name_label(anchor, star_name, display_px * 0.5 + 4.0, true)
+		_spawn_celestial_name_label(anchor, star_name, display_px * 0.5 + 4.0)
 	_process(0.0)
 
 
@@ -1081,7 +1099,7 @@ func _icon_for_type(node_type: int) -> int:
 
 func _add_hover_label_icon(pos: Vector2, display_px: float, label_text: String, node_type: int, completed: bool) -> void:
 	var ls := LabelSettings.new()
-	ls.font = FONT; ls.font_size = 7
+	ls.font = FONT; ls.font_size = 9
 	ls.font_color    = Color(0.85, 0.92, 1.0, 0.95)
 	ls.outline_size  = 1
 	ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
@@ -1092,7 +1110,7 @@ func _add_hover_label_icon(pos: Vector2, display_px: float, label_text: String, 
 	var row_above: int = int(obj_top / CELL) - 1
 	lbl.position  = Vector2(pos.x - 3, row_above * CELL + 2)
 	lbl.z_index   = 10
-	lbl.modulate.a = 0.0
+	lbl.modulate.a = 0.2
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(lbl)
 	var at := AtlasTexture.new()
@@ -1117,7 +1135,7 @@ func _add_hover_label_icon(pos: Vector2, display_px: float, label_text: String, 
 		"radius":     14.0,
 		"label":      lbl,
 		"icon":       icon_spr,
-		"label_rest": 0.0,
+		"label_rest": 0.2,
 		"icon_rest":  icon_rest,
 		"hover_tint": COLOR_NODE_GREEN,
 		"rest_tint":  rest_tint,
@@ -1403,24 +1421,18 @@ func _generate_poi_name(node_type: int, seed_val: int, hazard_subtype: String = 
 
 # Spawn a small name label near a celestial body. Low opacity so it reads as
 # ambient chart data rather than UI chrome. font_size 7, alpha 0.35.
-# center=true: horizontally centered above pos (for stars).
-func _spawn_celestial_name_label(pos: Vector2, name_text: String, y_offset: float = 8.0, center: bool = false) -> void:
+func _spawn_celestial_name_label(pos: Vector2, name_text: String, y_offset: float = 8.0) -> void:
 	var ls := LabelSettings.new()
 	ls.font = FONT
 	ls.font_size = 7
 	ls.font_color = Color(0.75, 0.85, 1.0, 1.0)
 	ls.outline_size = 1
-	ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
+	ls.outline_color = Color(0.0, 0.0, 0.0, 0.8)
 	var lbl := Label.new()
 	lbl.text = name_text
 	lbl.label_settings = ls
 	lbl.modulate.a = 0.35
-	if center:
-		lbl.custom_minimum_size.x = 64.0
-		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		lbl.position = Vector2(pos.x - 32.0, pos.y - y_offset - 8.0)
-	else:
-		lbl.position = Vector2(pos.x - 24.0, pos.y + y_offset)
+	lbl.position = Vector2(pos.x - 24.0, pos.y + y_offset)
 	lbl.z_index = 8
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(lbl)
