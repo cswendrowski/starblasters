@@ -121,6 +121,11 @@ var _asteroid_pixels: Array = []
 var _fx_rng: RandomNumberGenerator
 
 # Per-POI click hit-region entry: {id, pos, radius, on_press: Callable}
+var _selected_node_id: String = ""
+var _selected_is_boss: bool = false
+var _selected_node_lbl: Label = null
+var _depart_btn: Button = null
+
 var _poi_hits: Array = []
 # Per-boss entry: {id, pos, row_idx, label, icon, dot_spr}
 var _boss_entries: Array = []
@@ -817,17 +822,18 @@ func _build_bosses_from_cache() -> void:
 		add_child(icon_spr)
 		# Top label: BOSS / DEFEATED.
 		var ls := LabelSettings.new()
-		ls.font = FONT; ls.font_size = 5   # Change 1: halved from 9
-		ls.font_color    = Color(1.0, 0.65, 0.60, 0.95) if not defeated else Color(0.50, 1.0, 0.60, 0.95)
+		ls.font = FONT; ls.font_size = 7
+		ls.font_color    = Color(0.90, 0.30, 0.30, 1.0) if not defeated else Color(0.50, 1.0, 0.60, 1.0)
 		ls.outline_size  = 1
 		ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
 		var lbl := Label.new()
 		lbl.text           = "DEFEATED" if defeated else "BOSS"
 		lbl.label_settings = ls
-		var row_above: int  = int((pos.y - 8.0) / CELL) - 1   # Change 1: 16→8
-		lbl.position  = Vector2(pos.x - 7, row_above * CELL + 2)   # Change 1: -14→-7
+		lbl.custom_minimum_size.x = 40.0
+		lbl.horizontal_alignment  = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.position = Vector2(pos.x - 20.0, pos.y - 36.0)
 		lbl.z_index   = 10
-		lbl.modulate.a = 0.2
+		lbl.modulate.a = 1.0
 		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(lbl)
 
@@ -862,7 +868,7 @@ func _build_bosses_from_cache() -> void:
 			"radius":     8.0,    # Change 1: halved from 16
 			"label":      lbl,
 			"icon":       icon_spr,
-			"label_rest": 0.2,   # boss label dim-but-visible at rest
+			"label_rest": 1.0,
 			"icon_rest":  0.0,
 			"hover_tint": boss_hover_tint,
 			"rest_tint":  Color.WHITE,
@@ -920,7 +926,22 @@ func _build_stars() -> void:
 		if has_node("/root/Run"):
 			star_seed = abs(hash("star:%d:%d" % [i, get_node("/root/Run").run_seed]))
 		var star_name: String = _generate_celestial_name("star", star_seed)
-		_spawn_celestial_name_label(anchor, star_name, display_px * 0.5 + 4.0)
+		var star_ls := LabelSettings.new()
+		star_ls.font = FONT
+		star_ls.font_size = 7
+		star_ls.font_color = Color(0.75, 0.85, 1.0, 1.0)
+		star_ls.outline_size = 1
+		star_ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
+		var star_lbl := Label.new()
+		star_lbl.text = star_name
+		star_lbl.label_settings = star_ls
+		star_lbl.custom_minimum_size.x = 64.0
+		star_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		star_lbl.position = Vector2(anchor.x - 32.0, anchor.y - 36.0)
+		star_lbl.modulate.a = 0.6
+		star_lbl.z_index = 8
+		star_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(star_lbl)
 	_process(0.0)
 
 
@@ -965,18 +986,6 @@ func _add_glow_sprite(parent: Node2D, gc: Color) -> void:
 
 
 func _build_labels() -> void:
-	var ls := LabelSettings.new()
-	ls.font         = FONT
-	ls.font_size    = 9
-	ls.font_color   = Color(0.85, 0.92, 1.0, 0.95)
-	ls.outline_size  = 1
-	ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
-	# Sector header. "<Name> (Sector Patrol X/Y)" where X = current sector
-	# (1-indexed) and Y = Run.TOTAL_SECTORS. Name is generated deterministically
-	# from the sector seed and cached on sector_map_cache.sector_name; if a
-	# stale cache from a prior run is missing the key, regenerate from the
-	# cached seed so the header still reads correctly. No silent fallback to
-	# "SECTOR N" — the name is required.
 	var run = get_node("/root/Run")
 	var current_sector: int = run.sectors_cleared + 1
 	var total_sectors: int = int(run.TOTAL_SECTORS)
@@ -986,44 +995,87 @@ func _build_labels() -> void:
 		var seed_value: int = int(run.sector_map_cache.get("seed", run.run_seed + run.sectors_cleared))
 		sector_name = SectorNameGen.generate(seed_value)
 		run.sector_map_cache["sector_name"] = sector_name
+
+	var ls := LabelSettings.new()
+	ls.font = FONT; ls.font_size = 9
+	ls.font_color    = Color(0.85, 0.92, 1.0, 0.95)
+	ls.outline_size  = 1
+	ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
+
+	# Sector header — centered at top
 	var hdr := Label.new()
-	hdr.text = "%s (Sector Patrol %d/%d)" % [sector_name, current_sector, total_sectors]
+	hdr.text = "%s  —  Sector %d / %d" % [sector_name, current_sector, total_sectors]
 	hdr.label_settings = ls
-	hdr.position = Vector2(8, 2)
+	hdr.position = Vector2(0.0, 10.0)
+	hdr.size = Vector2(480.0, 14.0)
+	hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hdr.z_index = 10
 	hdr.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(hdr)
-	# Live status row in the header — Hull/Shield/Bounty/Super/MG/2nd. Designer
-	# (2026-05-24): "place Hull/Shield/Bounty from manage ship menu where
-	# manage ship is, and put manage ship under it." Uses the same bits the
-	# Manage Ship modal uses (_ms_build_status_bits) so the two read identically.
+
+	# Player status — bottom left at (64, 232)
 	var status_lbl := Label.new()
 	status_lbl.text = _ms_build_status_bits_text(run)
 	status_lbl.label_settings = ls
-	status_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	# Right-anchored so the status sits at the far-right where MANAGE SHIP used
-	# to live. Width 200 covers all bits at font_size 9 without wrapping.
-	status_lbl.position = Vector2(272, 2)
-	status_lbl.size = Vector2(200, 10)
+	status_lbl.position = Vector2(4.0, 230.0)
+	status_lbl.size = Vector2(120.0, 14.0)
 	status_lbl.z_index = 10
 	status_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(status_lbl)
-	# Manage Ship button — opens an inspector modal (ship status, loadout,
-	# upgrades, stored equipment). Sits on its own CanvasLayer so it isn't
-	# eaten by the celestial _disable_celestial_mouse walks above. Moved
-	# DOWN to y=14 to sit beneath the status row per designer.
+
+	# Selected node label — bottom center at (256, 232)
+	var sel_ls := LabelSettings.new()
+	sel_ls.font = FONT; sel_ls.font_size = 9
+	sel_ls.font_color    = Color(0.75, 1.0, 0.75, 0.95)
+	sel_ls.outline_size  = 1
+	sel_ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
+	_selected_node_lbl = Label.new()
+	_selected_node_lbl.text = ""
+	_selected_node_lbl.label_settings = sel_ls
+	_selected_node_lbl.position = Vector2(130.0, 230.0)
+	_selected_node_lbl.size = Vector2(220.0, 14.0)
+	_selected_node_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_selected_node_lbl.z_index = 10
+	_selected_node_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_selected_node_lbl.modulate.a = 0.0
+	add_child(_selected_node_lbl)
+
+	# Bottom buttons on their own CanvasLayer so mouse events reach them
 	var btn_layer := CanvasLayer.new()
-	btn_layer.name = "ManageShipBtnLayer"
+	btn_layer.name = "BottomBtnLayer"
 	btn_layer.layer = 6
 	add_child(btn_layer)
+
+	# Manage Ship button — bottom left at (64, 256) minus half button width
 	var manage_btn := Button.new()
 	manage_btn.text = "MANAGE SHIP"
 	manage_btn.add_theme_font_override("font", FONT)
 	manage_btn.add_theme_font_size_override("font_size", 9)
 	manage_btn.custom_minimum_size = Vector2(76, 14)
-	manage_btn.position = Vector2(396, 14)
+	manage_btn.position = Vector2(26, 248)
 	manage_btn.pressed.connect(_show_manage_ship_modal)
 	btn_layer.add_child(manage_btn)
+
+	# Options button — bottom right at (448, 256)
+	var options_btn := Button.new()
+	options_btn.text = "OPTIONS"
+	options_btn.add_theme_font_override("font", FONT)
+	options_btn.add_theme_font_size_override("font_size", 9)
+	options_btn.custom_minimum_size = Vector2(56, 14)
+	options_btn.position = Vector2(420, 248)
+	options_btn.pressed.connect(_open_options)
+	btn_layer.add_child(options_btn)
+
+	# Depart button — bottom center at (256, 256), faded until a node is selected
+	_depart_btn = Button.new()
+	_depart_btn.text = "DEPART"
+	_depart_btn.add_theme_font_override("font", FONT)
+	_depart_btn.add_theme_font_size_override("font_size", 9)
+	_depart_btn.custom_minimum_size = Vector2(56, 14)
+	_depart_btn.position = Vector2(228, 248)
+	_depart_btn.modulate.a = 0.3
+	_depart_btn.pressed.connect(_on_depart_pressed)
+	btn_layer.add_child(_depart_btn)
 
 
 # ---------------------------------------------------------------------------
@@ -1106,9 +1158,9 @@ func _add_hover_label_icon(pos: Vector2, display_px: float, label_text: String, 
 	var lbl := Label.new()
 	lbl.text           = label_text
 	lbl.label_settings = ls
-	var obj_top: float = pos.y - display_px * 0.5
-	var row_above: int = int(obj_top / CELL) - 1
-	lbl.position  = Vector2(pos.x - 3, row_above * CELL + 2)
+	lbl.custom_minimum_size.x = 48.0
+	lbl.horizontal_alignment  = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.position  = Vector2(pos.x - 24.0, pos.y - 24.0)
 	lbl.z_index   = 10
 	lbl.modulate.a = 0.2
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1601,13 +1653,67 @@ func _unhandled_input(event: InputEvent) -> void:
 		# Try POIs first (smaller hit-radius, more numerous).
 		for hit in _poi_hits:
 			if mp.distance_to(hit.pos) <= hit.radius:
-				_on_poi_clicked(String(hit.id))
+				_on_poi_selected(String(hit.id))
 				return
 		# Then bosses.
 		for b in _boss_entries:
 			if mp.distance_to(b.pos) <= 8.0:   # Change 1: halved from 16
-				_on_boss_clicked(String(b.id))
+				_on_boss_selected(String(b.id))
 				return
+
+
+func _on_poi_selected(node_id: String) -> void:
+	var run = get_node("/root/Run")
+	var poi = run.find_sector_node(node_id)
+	if poi == null or poi.get("completed", false):
+		return
+	_selected_node_id = node_id
+	_selected_is_boss = false
+	# Show mission designation in the bottom panel.
+	var poi_name_seed: int = abs(hash(node_id)) ^ 0x3F7A1C2B
+	var poi_name: String = _generate_poi_name(int(poi.node_type), poi_name_seed, String(poi.get("hazard_subtype", "")))
+	if is_instance_valid(_selected_node_lbl):
+		_selected_node_lbl.text = poi_name
+		_selected_node_lbl.modulate.a = 1.0
+	if is_instance_valid(_depart_btn):
+		_depart_btn.modulate.a = 1.0
+
+
+func _on_boss_selected(node_id: String) -> void:
+	var run = get_node("/root/Run")
+	var boss = run.find_sector_node(node_id)
+	if boss == null or boss.get("completed", false):
+		return
+	var rows: Array = run.sector_map_cache.get("rows", [])
+	var row_idx: int = -1
+	for i in rows.size():
+		if rows[i].boss.id == node_id:
+			row_idx = i
+			break
+	if row_idx < 0 or not run.is_row_pois_complete(row_idx):
+		return  # locked
+	_selected_node_id = node_id
+	_selected_is_boss = true
+	if is_instance_valid(_selected_node_lbl):
+		_selected_node_lbl.text = "BOSS ENCOUNTER"
+		_selected_node_lbl.modulate.a = 1.0
+	if is_instance_valid(_depart_btn):
+		_depart_btn.modulate.a = 1.0
+
+
+func _on_depart_pressed() -> void:
+	if _selected_node_id == "":
+		return
+	if _selected_is_boss:
+		_on_boss_clicked(_selected_node_id)
+	else:
+		_on_poi_clicked(_selected_node_id)
+
+
+func _open_options() -> void:
+	var OptionsOverlay = load("res://scripts/ui/options_overlay.gd")
+	if OptionsOverlay:
+		OptionsOverlay.open(self)
 
 
 func _on_poi_clicked(node_id: String) -> void:
