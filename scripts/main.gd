@@ -356,9 +356,15 @@ func new_game() -> void:
 		player.start()
 		if has_node("/root/Run"):
 			var run = get_node("/root/Run")
-			if run.max_hull > 0:
-				player.max_hull = run.max_hull
-				player.hull = run.current_hull if run.current_hull > 0 else run.max_hull
+			# Hull stomp removed (Bug fix, 2026-05-27): apply_run_upgrades()
+			# already set player.max_hull = 3 + hull_mk. Stomping it with
+			# run.max_hull would use the stale snapshot and erase any Hull
+			# upgrade purchased at the outpost -- same bug as the shield stomp
+			# removed 2026-05-24. Only hull (current) is loaded from Run,
+			# clamped to the freshly-computed max_hull from apply_run_upgrades.
+			if run.current_hull > 0:
+				player.hull = mini(run.current_hull, player.max_hull)
+			# else: hull stays at max_hull (first combat of a fresh run).
 			# Shield stomp removed (Bug 2 fix, 2026-05-24): player.start()
 			# already wrote max_shield = 3 + shield_cap_mk via
 			# apply_run_upgrades() and then shield = max_shield. The previous

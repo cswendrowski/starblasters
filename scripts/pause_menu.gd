@@ -33,7 +33,9 @@ func _ready() -> void:
 	# Label child of the VBox.
 	for child in vbox.get_children():
 		if child is Label and child.text == "PAUSED":
-			UiTheme.style_label(child, UiTheme.LabelKind.TITLE)
+			# Use HEADER (16px) instead of TITLE (28px) to fit 480x270 viewport.
+			UiTheme.style_label(child, UiTheme.LabelKind.HEADER)
+			child.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			break
 	resume_btn.pressed.connect(_resume)
 	menu_btn.pressed.connect(_to_menu)

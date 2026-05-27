@@ -1,6 +1,7 @@
 extends "res://scripts/enemies/movement_pattern.gd"
 
-# Enter from top, snap-hold at hover_y for `loiter_time` seconds, then
+# Enter from top, decelerate smoothly to a hold at hover_y (clamped to the
+# top half of the 270-px viewport) for `loiter_time` seconds, then
 # accelerate away downward.
 
 # 320×400 res rework: y/speed halved.
@@ -10,34 +11,54 @@ extends "res://scripts/enemies/movement_pattern.gd"
 @export var exit_accel: float = 300.0
 @export var exit_max_speed: float = 280.0
 
+# Smooth entry: how quickly the ship decelerates as it nears hover_y.
+# Larger = heavier feel. 220 px/s² gives a "heavy" approach arc.
+@export var enter_decel: float = 220.0
+
 signal phase_entered(phase_name: String)
 
 enum Phase { ENTERING, LOITERING, EXITING }
 var _phase: int = Phase.ENTERING
 var _timer: float = 0.0
 var _exit_speed: float = 0.0
+var _enter_vel: float = 0.0  # current downward velocity during ENTERING
 
 
-func on_start(_enemy) -> void:
+func on_start(enemy) -> void:
 	_phase = Phase.ENTERING
 	_timer = 0.0
 	_exit_speed = 0.0
+	_enter_vel = enter_speed
+	# Clamp hover_y so the enemy never settles in the bottom half (y > 135).
+	hover_y = minf(hover_y, 135.0)
 	phase_entered.emit("enter")
 
 
 func compute_step(enemy, delta: float) -> Vector2:
 	match _phase:
 		Phase.ENTERING:
-			var step_y: float = enter_speed * delta
-			# Snap exactly to hover_y when we'd overshoot — no overshoot
-			# means the LOITER phase always starts from the same height
-			# regardless of frame rate.
-			if enemy.position.y + step_y >= hover_y:
-				step_y = hover_y - enemy.position.y
+			# Decelerate as we approach hover_y — heavy, weighted feel.
+			var dist: float = hover_y - enemy.position.y
+			if dist <= 0.0:
+				# Arrived or overshot — snap to hover_y and hold.
+				var snap: float = hover_y - enemy.position.y
 				_phase = Phase.LOITERING
 				_timer = 0.0
+				_enter_vel = 0.0
 				phase_entered.emit("hold")
-			return Vector2(0, step_y)
+				return Vector2(0, snap)
+			# Decelerate when close, accelerate otherwise — smooth arc.
+			var target_vel: float = enter_speed * clampf(dist / 40.0, 0.0, 1.0)
+			_enter_vel = move_toward(_enter_vel, target_vel, enter_decel * delta)
+			_enter_vel = maxf(_enter_vel, 0.0)
+			var step: float = _enter_vel * delta
+			if enemy.position.y + step >= hover_y:
+				step = hover_y - enemy.position.y
+				_phase = Phase.LOITERING
+				_timer = 0.0
+				_enter_vel = 0.0
+				phase_entered.emit("hold")
+			return Vector2(0, step)
 		Phase.LOITERING:
 			_timer += delta
 			if _timer >= loiter_time:

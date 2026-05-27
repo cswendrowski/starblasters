@@ -222,6 +222,10 @@ func _spawn_enemy(wave: Resource, index: int) -> void:
 	var parent = get_parent()
 	parent.add_child(enemy)
 	enemy.add_to_group("enemies")
+	# Per-instance wave context (e.g. gunship role assignment). Called before
+	# start() so the enemy can adjust its settle position before entering.
+	if enemy.has_method("on_spawned_in_wave"):
+		enemy.on_spawned_in_wave(index, wave.count)
 	if enemy.has_method("start"):
 		enemy.start(pos)
 	elif enemy.has_method("spawn"):

@@ -1,12 +1,12 @@
 [gd_scene format=3 uid="uid://ci4wdjeyw5q7y"]
 
-[ext_resource type="Script" uid="uid://cr84xrjml35ar" path="res://scripts/weapons/enemy_bullet.gd" id="1_script"]
+[ext_resource type="Script" path="res://scripts/weapons/enemy_rocket.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://cqouepl1tqfqm" path="res://graphics/projectiles/missile-orange.png" id="2_tex"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
 size = Vector2(2, 7)
 
-[node name="EnemyRocket" type="Area2D" unique_id=484008050 groups=["bullets"]]
+[node name="EnemyRocket" type="Area2D" unique_id=484008050 groups=["enemies", "bullets"]]
 script = ExtResource("1_script")
 speed = 280.0
 damage = 2

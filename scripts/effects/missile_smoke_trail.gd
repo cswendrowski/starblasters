@@ -23,6 +23,10 @@ const WANDER_PX_PER_SEC: float = 12.0
 # black to light gray).
 const SMOKE_COLOR := Color(0.78, 0.78, 0.80, 0.85)
 
+# Set true on downward-traveling rockets so the drift trails BEHIND (upward)
+# instead of forward (downward). Player missiles leave this false.
+var flip_drift: bool = false
+
 var _emitter: Node2D = null
 var _line: Line2D = null
 var _sample_t: float = 0.0
@@ -98,6 +102,8 @@ func _age_points(delta: float) -> void:
 		_point_t[i] = float(_point_t[i]) + delta
 		var t: float = clamp(float(_point_t[i]) / POINT_LIFETIME, 0.0, 1.0)
 		var drop: float = (DRIFT_BASE_SPEED + DRIFT_AGE_GAIN * t) * delta
+		if flip_drift:
+			drop = -drop  # downward rockets: trail drifts upward (behind the rocket)
 		var wander: float = WANDER_PX_PER_SEC * delta * sin(float(i) * 0.55 + float(_point_t[i]) * 4.5)
 		var p: Vector2 = _line.get_point_position(i)
 		_line.set_point_position(i, p + Vector2(wander, drop))

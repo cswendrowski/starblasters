@@ -13,7 +13,7 @@ var invincible: bool = false
 
 # ---- Stats (mutated by equipped Parts) ----
 # Base values; Parts add on top. Gives a sane floor even with no parts equipped.
-var speed: float = 125.0  # 320×400 res — halved from 250
+var speed: float = 100.0  # 320×400 res — 20% reduction from 125 (2026-05-27)
 var cooldown: float = 0.15
 var bullet_damage: int = 1
 # Spread fire knobs — used by the Spread Cannon Part. Default 1 bullet

@@ -18,12 +18,12 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 
 [node name="VBox" type="VBoxContainer" parent="Center"]
-custom_minimum_size = Vector2(160, 150)
+custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
 
 [node name="@Label@20636" type="Label" parent="Center/VBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 16
 text = "PAUSED"
 horizontal_alignment = 1
 

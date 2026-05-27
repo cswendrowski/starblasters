@@ -63,7 +63,7 @@ const ENTRIES := [
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "firecore_straight",
-		"shoot": "single",
+		"shoot": "single_diagonal",
 		"base_count": 6,
 		"fire_min": 2.0, "fire_max": 3.5,
 		"unlock_sector": 2, "unlock_depth": 5, "weight": 0.7, "chaff": true,
@@ -96,7 +96,7 @@ const ENTRIES := [
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "drifter_straight",
-		"shoot": "single",
+		"shoot": "single_diagonal",
 		"base_count": 4,
 		"fire_min": 2.4, "fire_max": 3.2,
 		"hp_override": 1, "bounty_override": 8,
@@ -159,18 +159,19 @@ const ENTRIES := [
 		"base_count": 3,
 		"fire_min": 1.8, "fire_max": 2.8,
 	},
-	{
-		"scene": "res://scenes/enemies/enemy_cutter.tscn",
-		"tier": Tier.UNCOMMON,
-		"size": "small", "tags": [],
-		"movement": "side_cut",
-		"shoot": "single_fast",
-		"base_count": 4,
-		"fire_min": 0.3, "fire_max": 0.5,
-		"hp_override": 1, "bounty_override": 10,
-		"unlock_sector": 1, "unlock_depth": 4, "weight": 1.0, "chaff": true,
-		"conflict_tags": ["dumb_shot"],
-	},
+	# TODO: Replace cutter with a new horizontal strafe enemy that crosses the screen cleanly
+	#{
+	#	"scene": "res://scenes/enemies/enemy_cutter.tscn",
+	#	"tier": Tier.UNCOMMON,
+	#	"size": "small", "tags": [],
+	#	"movement": "side_cut",
+	#	"shoot": "single_fast",
+	#	"base_count": 4,
+	#	"fire_min": 0.3, "fire_max": 0.5,
+	#	"hp_override": 1, "bounty_override": 10,
+	#	"unlock_sector": 1, "unlock_depth": 4, "weight": 1.0, "chaff": true,
+	#	"conflict_tags": ["dumb_shot"],
+	#},
 	{
 		"scene": "res://scenes/enemies/enemy_skirmisher.tscn",
 		"tier": Tier.UNCOMMON,
@@ -193,6 +194,18 @@ const ENTRIES := [
 		"base_count": 2,
 		"conflict_tags": ["beamshooter"],
 	},
+	# Gunship single: one ship sweeps left↔right, fires 3 salvos, exits.
+	{
+		"scene": "res://scenes/enemies/enemy_gunship.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": ["tough"],
+		"movement": "loiter",
+		"shoot": null,
+		"base_count": 1,
+		"no_scale": true,  # count must stay fixed; role logic requires exact N
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8,
+	},
+	# Gunship duo: two ships sweep in opposite directions.
 	{
 		"scene": "res://scenes/enemies/enemy_gunship.tscn",
 		"tier": Tier.UNCOMMON,
@@ -200,6 +213,19 @@ const ENTRIES := [
 		"movement": "loiter",
 		"shoot": null,
 		"base_count": 2,
+		"no_scale": true,  # exact 2
+		"unlock_sector": 2, "unlock_depth": 2, "weight": 0.9,
+	},
+	# Gunship trio: three ships in fixed spread formation.
+	{
+		"scene": "res://scenes/enemies/enemy_gunship.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": ["tough"],
+		"movement": "loiter",
+		"shoot": null,
+		"base_count": 3,
+		"no_scale": true,  # exact 3
+		"unlock_sector": 3, "unlock_depth": 2, "weight": 0.7,
 	},
 
 	# --- RARE -------------------------------------------------------------
@@ -442,6 +468,14 @@ static func make_shoot(entry: Dictionary) -> Resource:
 		"single_fast":
 			var s = SingleShot.new()
 			s.bullet_scene = EnemyBullet
+			return s
+		"single_diagonal":
+			# Fires toward the opposite side — left-spawn enemies angle right,
+			# right-spawn enemies angle left. ~30° diagonal.
+			var s = SingleShot.new()
+			s.bullet_scene = EnemyBullet
+			s.aim_angle_deg = 30.0
+			s.aim_toward_center = true
 			return s
 		"aimed":
 			var s = AimedShot.new()

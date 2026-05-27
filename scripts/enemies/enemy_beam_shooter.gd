@@ -20,6 +20,9 @@ const BEAM_DPS     := 3.0
 const BEAM_REACH   := 300.0
 const HIT_RADIUS   := 10.0
 
+const SPACING_RADIUS  := 32.0  # minimum px gap between beam shooters
+const PUSH_STRENGTH   := 60.0  # px/sec repulsion force
+
 var _beam_state: int = BeamState.IDLE
 var _state_timer: float = 0.0
 var _beam_t: float = 0.0
@@ -60,6 +63,7 @@ func _resolve_side() -> void:
 
 func _process(delta: float) -> void:
 	_move(delta)
+	_repel_siblings(delta)
 	# Beam cycle only ticks during firing phases; phases choose when to enter
 	# WINDUP via _enter_windup() so the visuals stay in sync with the cycle.
 	if _pair_phase == PairPhase.FIRE_IN or _pair_phase == PairPhase.FIRE_OUT:
@@ -67,6 +71,25 @@ func _process(delta: float) -> void:
 	else:
 		_hide_all_beam_lines()
 	super._process(delta)
+
+
+# Push away from any other EnemyBeamShooter within SPACING_RADIUS to prevent
+# overlap. Clamps result to playfield bounds.
+func _repel_siblings(delta: float) -> void:
+	if _dying:
+		return
+	for node in get_tree().get_nodes_in_group("enemies"):
+		if node == self:
+			continue
+		if node.get_script() != get_script():
+			continue
+		if not is_instance_valid(node):
+			continue
+		var diff: Vector2 = global_position - node.global_position
+		var dist: float = diff.length()
+		if dist < SPACING_RADIUS and dist > 0.001:
+			global_position += diff.normalized() * PUSH_STRENGTH * delta
+	global_position = Playfield.clamp_pos(global_position, 8.0)
 
 
 func _inner_x() -> float:

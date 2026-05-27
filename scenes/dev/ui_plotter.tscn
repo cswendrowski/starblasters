@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://b8hpltrshmu7p"]
+[gd_scene format=3 uid="uid://b8hpltrshmu7p"]
 
 [ext_resource type="Script" path="res://scripts/dev/ui_plotter.gd" id="1_plot"]
 

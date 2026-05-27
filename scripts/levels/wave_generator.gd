@@ -149,9 +149,11 @@ static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, l
 			# on both sub-waves for the intentional late-wave threat spike.
 			var base_a: int = int(pair[0].get("base_count", 4))
 			var base_b: int = int(pair[1].get("base_count", 4))
-			if base_a > 1:
+			# no_scale entries (e.g. gunship trio) must not be halved — their
+			# role assignment logic depends on the exact count being preserved.
+			if base_a > 1 and not bool(pair[0].get("no_scale", false)):
 				sub_a.count = maxi(2, int(round(float(sub_a.count) * 0.5)))
-			if base_b > 1:
+			if base_b > 1 and not bool(pair[1].get("no_scale", false)):
 				sub_b.count = maxi(2, int(round(float(sub_b.count) * 0.5)))
 			# Opposite formations so streams come from opposite sides.
 			# 50/50 which side leads.
@@ -370,21 +372,27 @@ static func _make_wave_spec(rng: RandomNumberGenerator, entry: Dictionary, secto
 	# Count scales with level_index + sector_depth. Capped so rarer enemies
 	# don't overflow the playfield.
 	var base: int = int(entry.get("base_count", 4))
-	# Sector-depth scaling has moved to the explicit chaff_bonus below (was
-	# `+ 0.08 * (sector_depth-1)` here; removed to avoid double-counting with
-	# the additive +1/sector bonus for COMMON chaff).
-	var scale: float = 1.0 + 0.15 * float(level_index)
-	var count: int = int(round(base * scale))
-	count = clamp(count, 1, base * 2)
-	# CHAFF DENSITY BUMP (designer 2026-05-24): chaff waves +50% count so they
-	# run 50% longer AND have ~50% more enemies on screen at once (spawn_interval
-	# unchanged, so per-enemy onscreen lifetime is constant → more concurrent).
-	# Boss lead-ins keep their tuned count (they're separately thinned in
-	# _build_boss_waves for the final lead-in). Mixed-wave 0.5× halving is
-	# applied by _build_combat_waves AFTER this returns, so mixed waves are
-	# still smaller than singles but proportionally larger than before the bump.
-	if not is_boss_leadin and base > 1:
-		count = int(ceil(float(count) * 1.5))
+	# no_scale: true locks count to base_count (e.g. gunship trio needs
+	# exactly 3 so the role-assignment logic receives the right indices).
+	var count: int
+	if bool(entry.get("no_scale", false)):
+		count = base
+	else:
+		# Sector-depth scaling has moved to the explicit chaff_bonus below (was
+		# `+ 0.08 * (sector_depth-1)` here; removed to avoid double-counting with
+		# the additive +1/sector bonus for COMMON chaff).
+		var scale: float = 1.0 + 0.15 * float(level_index)
+		count = int(round(base * scale))
+		count = clamp(count, 1, base * 2)
+		# CHAFF DENSITY BUMP (designer 2026-05-24): chaff waves +50% count so they
+		# run 50% longer AND have ~50% more enemies on screen at once (spawn_interval
+		# unchanged, so per-enemy onscreen lifetime is constant → more concurrent).
+		# Boss lead-ins keep their tuned count (they're separately thinned in
+		# _build_boss_waves for the final lead-in). Mixed-wave 0.5× halving is
+		# applied by _build_combat_waves AFTER this returns, so mixed waves are
+		# still smaller than singles but proportionally larger than before the bump.
+		if not is_boss_leadin and base > 1:
+			count = int(ceil(float(count) * 1.5))
 	# Per-sector chaff bonus (designer 2026-05-24 economy pass): COMMONs get
 	# +1 enemy per sector beyond the first (S1=+0, S2=+1, S3=+2). UNCOMMON +
 	# RARE get nothing extra here — they pick up difficulty via the per-wave
