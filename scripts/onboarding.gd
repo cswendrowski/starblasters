@@ -126,7 +126,8 @@ func _build_ui() -> void:
 
 	_body_label = Label.new()
 	_body_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_body_label.custom_minimum_size = Vector2(260, 160)
+	_body_label.custom_minimum_size = Vector2(260, 0)
+	_body_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	UiTheme.style_label(_body_label, UiTheme.LabelKind.BODY)
 	vbox.add_child(_body_label)
 

@@ -470,6 +470,8 @@ func _process(delta: float) -> void:
 			_mg_firing = false
 			if _mg_loop_player and _mg_loop_player.playing:
 				_mg_loop_player.stop()
+		if _rl_charging or _rl_charged:
+			_rl_stop()
 		return
 	var input := Input.get_vector("left", "right", "up", "down")
 	if input.x > 0:
@@ -554,6 +556,9 @@ func _process(delta: float) -> void:
 		if _mg_end_player and is_alive and weapon_style == WS.WeaponStyle.MACHINEGUN:
 			_mg_end_player.play()
 	if not fire_held and (_rl_charging or _rl_charged):
+		_rl_stop()
+	# Stop rotary laser loop if ammo runs out while charged.
+	if (_rl_charging or _rl_charged) and weapon_style == WS.WeaponStyle.ROTARY_LASER and ammo <= 0:
 		_rl_stop()
 	# Rotary Laser ammo recharge — ticks when not firing. Players who have
 	# autofire enabled will never recharge while alive on screen (same

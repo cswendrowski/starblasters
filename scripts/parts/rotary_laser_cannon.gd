@@ -22,6 +22,18 @@ func ammo_at_mark(mk: int) -> int:
 	return 120 + 30 * (mk - 1)
 
 
+func _damage_for_mark(at_mark: int) -> int:
+	# Mk1=1, Mk2=1, Mk3=2, Mk4=2, Mk5=3, Mk6=3, Mk7=4, Mk8=4, Mk9=5
+	return int((at_mark - 1) / 2) + 1
+
+
+func _mk_knobs() -> Dictionary:
+	return {
+		"bullet_damage": Callable(self, "_damage_for_mark"),
+		"cooldown": [base_cooldown, base_cooldown],
+	}
+
+
 func _weapon_style() -> int:
 	return WS.WeaponStyle.ROTARY_LASER
 

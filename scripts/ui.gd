@@ -105,13 +105,11 @@ func _ready() -> void:
 	$BoxContainer.add_child(top_row)
 	$BoxContainer.move_child(top_row, 0)
 
-	# Left spacer pushes hull+pips off the left edge. 117 px (UI Designer
-	# export, Roman 2026-05-19) lands hull at screen x≈131 — right at the
-	# playfield band's left edge so the bar reads against the band, not
-	# inside it.
+	# Left spacer: 4 px keeps hull pips tucked inside the left gutter
+	# (x 0–132). Roman 2026-05-26: move both bars into the margin.
 	var spacer_left := Control.new()
 	spacer_left.name = "SpacerLeft"
-	spacer_left.custom_minimum_size = Vector2(117, 0)
+	spacer_left.custom_minimum_size = Vector2(4, 0)
 	top_row.add_child(spacer_left)
 
 	# Hide the legacy bars so they don't steal layout space.
@@ -120,31 +118,32 @@ func _ready() -> void:
 	if shield_bar:
 		shield_bar.visible = false
 
-	# Sprite-based hull bar — uses Roman's supplied bar_*.png + red tint.
-	var hull_tex_bg: Texture2D = load("res://graphics/ui/bar_background.png")
-	var hull_tex_fg: Texture2D = load("res://graphics/ui/bar_foreground_white.png")
-	var hull_tpb := TextureProgressBar.new()
-	hull_tpb.name = "HullBarSprite"
-	hull_tpb.custom_minimum_size = Vector2(80, 12)
-	hull_tpb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	hull_tpb.texture_under = hull_tex_bg
-	hull_tpb.texture_progress = hull_tex_fg
-	hull_tpb.nine_patch_stretch = true
-	hull_tpb.stretch_margin_left = 3
-	hull_tpb.stretch_margin_top = 3
-	hull_tpb.stretch_margin_right = 3
-	hull_tpb.stretch_margin_bottom = 3
-	hull_tpb.tint_progress = Color(1.0, 0.30, 0.28, 1.0)
-	hull_tpb.max_value = 50
-	hull_tpb.value = 50
-	top_row.add_child(hull_tpb)
-	hull_bar = hull_tpb
+	# Sprite-strip hull pip bar — uses Roman's hud_hull_light.png frames.
+	# Roman 2026-05-26: hull should use the hull sprite pips.
+	hull_pips = HullPipsCls.new()
+	hull_pips.name = "HullPips"
+	top_row.add_child(hull_pips)
 
-	# Shield pip strip (unchanged behavior — just moved into the row to
-	# sit right of the hull bar).
-	shield_pips = ShieldPipsCls.new()
-	shield_pips.name = "ShieldPips"
-	top_row.add_child(shield_pips)
+	# Shield bar — TextureProgressBar using bar_*.png, blue-tinted.
+	# Roman 2026-05-26: shield should use the preexisting health bar style.
+	var shield_tex_bg: Texture2D = load("res://graphics/ui/bar_background.png")
+	var shield_tex_fg: Texture2D = load("res://graphics/ui/bar_foreground_white.png")
+	var shield_tpb := TextureProgressBar.new()
+	shield_tpb.name = "ShieldBar"
+	shield_tpb.custom_minimum_size = Vector2(80, 12)
+	shield_tpb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	shield_tpb.texture_under = shield_tex_bg
+	shield_tpb.texture_progress = shield_tex_fg
+	shield_tpb.nine_patch_stretch = true
+	shield_tpb.stretch_margin_left = 3
+	shield_tpb.stretch_margin_top = 3
+	shield_tpb.stretch_margin_right = 3
+	shield_tpb.stretch_margin_bottom = 3
+	shield_tpb.tint_progress = Color(0.35, 0.65, 1.0, 1.0)
+	shield_tpb.max_value = 10
+	shield_tpb.value = 10
+	top_row.add_child(shield_tpb)
+	shield_pips = shield_tpb
 
 	# Middle spacer pushes bounty to the row's right end. Once that lands
 	# at x≈386 with the BoxContainer custom_minimum_size set below, bounty
@@ -337,29 +336,18 @@ func update_score(value):
 	if score_counter and score_counter.has_method("display_digits"):
 		score_counter.display_digits(value)
 
-# Hull-bar fill colors. Blue when at least one shield charge is up (Roman,
-# 2026-05-17: "visual indicator that hull is protected"); red otherwise.
-const HULL_COLOR_UNPROTECTED := Color(1.0, 0.30, 0.28, 1.0)
-const HULL_COLOR_SHIELDED    := Color(0.30, 0.65, 1.00, 1.0)
-
-
 func update_shield(max_value, value):
-	# Shield rendering moved to the pip strip — listens to the player's
-	# shield_changed signal directly via bind_player(). Keep this method
-	# for backward-compat with main.tscn's connection table.
-	if shield_bar:
-		shield_bar.max_value = max_value
-		shield_bar.value = value
-	# Hull bar tint reflects shield state: blue while at least one charge
-	# is up, red once the last charge breaks.
-	if hull_bar and hull_bar is TextureProgressBar:
-		var protected: bool = int(value) >= 1
-		(hull_bar as TextureProgressBar).tint_progress = HULL_COLOR_SHIELDED if protected else HULL_COLOR_UNPROTECTED
+	# Shield bar is now a TextureProgressBar (blue-tinted).
+	# Keeps backward-compat with main.tscn's connection table.
+	if shield_pips and shield_pips is TextureProgressBar:
+		shield_pips.max_value = int(max_value)
+		shield_pips.value = int(value)
+	# NOTE: hull-bar tint from shield state (blue=protected, red=open) is
+	# intentionally removed — hull is now pip-strip-based; no bar to tint.
 
 func update_hull(max_value, value):
-	if hull_bar:
-		hull_bar.max_value = max(1, int(max_value))
-		hull_bar.value = clamp(int(value), 0, int(max_value))
+	if hull_pips:
+		hull_pips.set_state(int(value), int(max_value))
 	# Warning element: visible when integrity at or below 50%.
 	if hull_warning:
 		var pct: float = (float(value) / max(float(max_value), 0.001))
