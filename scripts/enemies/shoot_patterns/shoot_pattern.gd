@@ -29,10 +29,14 @@ func fire(_enemy) -> void:
 # `dir` — it should be a unit vector pointing where the shot goes. The
 # bullet's `target_group` is left at the scene's default ("player" for
 # enemy_bullet.tscn) so this helper does not need to set it.
-func _spawn_bullet(enemy, dir: Vector2) -> void:
+# Optional `bv` (BulletVariant) is applied before start() so the variant
+# can override speed, damage, hitbox, and visuals at spawn time.
+func _spawn_bullet(enemy, dir: Vector2, bv = null) -> void:
 	if bullet_scene == null:
 		return
 	var b = bullet_scene.instantiate()
+	if bv != null and "variant" in b:
+		b.variant = bv
 	enemy.get_tree().root.add_child(b)
 	if b.has_method("start"):
 		b.start(enemy.global_position, dir)
@@ -44,15 +48,15 @@ func _spawn_bullet(enemy, dir: Vector2) -> void:
 # in burst_shot — fires `count` bullets spaced `interval` seconds apart,
 # each in direction `dir`. Safe if the enemy dies mid-burst (the
 # is_instance_valid gate stops further shots).
-func _spawn_burst(enemy, dir: Vector2, count: int, interval: float) -> void:
+func _spawn_burst(enemy, dir: Vector2, count: int, interval: float, bv = null) -> void:
 	if count <= 0 or bullet_scene == null:
 		return
-	_spawn_bullet(enemy, dir)
+	_spawn_bullet(enemy, dir, bv)
 	for i in range(1, count):
 		await enemy.get_tree().create_timer(interval).timeout
 		if not is_instance_valid(enemy):
 			return
-		_spawn_bullet(enemy, dir)
+		_spawn_bullet(enemy, dir, bv)
 
 
 # Resolve a unit vector aimed at the player's current position. Returns

@@ -6,7 +6,8 @@ extends "res://scripts/enemies/shoot_patterns/shoot_pattern.gd"
 
 @export var burst_count: int = 3
 @export var burst_interval: float = 0.12
+@export var bullet_variant: BulletVariant = null
 
 
 func fire(enemy) -> void:
-	_spawn_burst(enemy, Vector2(0, 1), burst_count, burst_interval)
+	_spawn_burst(enemy, Vector2(0, 1), burst_count, burst_interval, bullet_variant)

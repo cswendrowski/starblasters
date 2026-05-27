@@ -1,0 +1,35 @@
+extends Resource
+class_name BulletVariant
+
+# Data resource describing one bullet archetype. Assign to
+# BaseBullet.variant before start() to override all stats and visuals.
+# Zero/null defaults cost nothing at runtime (no variant = current behavior).
+
+@export var speed: float = 220.0
+@export var damage: int = 1
+@export var lifetime: float = 4.0
+@export var hitbox_size: Vector2 = Vector2(6.0, 6.0)
+
+# Visuals — leave both null to keep the scene's default appearance.
+@export var sprite_frames: SpriteFrames = null    # null → use static_texture
+@export var static_texture: Texture2D = null       # shown when sprite_frames is null
+
+@export var glow_color: Color = Color(1, 0.11, 1, 0.5)
+
+# Impact
+@export var impact_kind: int = 0   # 0=SMOKE, 1=EXPLOSIVE
+@export var impact_color: Color = Color(1, 1, 1, 1)
+
+# Audio — null = default blip
+@export var sfx: AudioStream = null
+
+# Behavior knobs — zero defaults mean no extra cost for dumb bullets
+@export var homing_rate: float = 0.0         # degrees/sec turn toward player
+@export var wobble_amplitude: float = 0.0    # px lateral to dir
+@export var wobble_frequency: float = 0.0    # Hz
+
+# Telegraph flash at spawn (Heavy Slug style)
+@export var telegraph_flash: bool = false
+
+# Pick a random static frame on spawn (Aimed Sniper tracer)
+@export var random_frame: bool = false

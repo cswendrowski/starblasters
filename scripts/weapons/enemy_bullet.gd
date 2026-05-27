@@ -15,7 +15,14 @@ func _init() -> void:
 
 
 func _apply_visuals() -> void:
-	# Warm orange-red glow halo to match the enemy projectile palette.
-	GlowFX.attach_glow(self, Color(1.0, 0.55, 0.25), 0.75, 0.6)
+	# When a BulletVariant is active its glow_color already drove the scene's
+	# "Glow" child (or will be applied via GlowFX below), so skip the default
+	# orange-red halo to avoid overpainting the variant color.
+	if variant == null:
+		GlowFX.attach_glow(self, Color(1.0, 0.55, 0.25), 0.75, 0.6)
+	else:
+		# Attach a programmatic glow using the variant's color, since
+		# enemy_bullet.tscn's Glow node was already colored in _apply_variant.
+		GlowFX.attach_glow(self, variant.glow_color, 0.75, 0.6)
 	if guided:
 		TrailFX.attach_trail(self, false)
