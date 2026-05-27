@@ -81,6 +81,17 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 1.4, "chaff": true,
 	},
 	{
+		"scene": "res://scenes/enemies/enemy_bomb_drone.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "fast_straight",
+		"shoot": null,
+		"base_count": 6,
+		"recycle": 0,
+		"hp_override": 1, "bounty_override": 5,
+		"unlock_sector": 1, "unlock_depth": 2, "weight": 1.0, "chaff": true,
+	},
+	{
 		"scene": "res://scenes/enemies/enemy_drifter.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
