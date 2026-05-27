@@ -82,6 +82,18 @@ const EVENT_WRECK_BODY := "A burnt-out fighter tumbles end over end through the 
 const EVENT_SALVAGE_TITLE := "Salvage Cache"
 const EVENT_SALVAGE_BODY := "Sensors flag a battered container tumbling through the dust — military markings, locks half-melted. Worth cracking open."
 
+const EVENT_DERELICT_TITLE := "Derelict Warship"
+const EVENT_DERELICT_BODY := "A gutted corporate cruiser hangs in the void, its guts strewn out behind it in a long trail. You pull in but threat detection goes live immediate: auto-defense is still hot. You see a corp crate in the debris, could be something good, might be worth the risk."
+
+const EVENT_INSPECTION_TITLE := "Corporate Inspection"
+const EVENT_INSPECTION_BODY := "A corporate frigate flanked by a wing of interceptors catches up to you, threat detection going wild. A voice demands you cut engines and prepare for inspection. You know you're clean, but they will find something. They always do."
+
+const EVENT_EXPERIMENTAL_TITLE := "Experimental Tech"
+const EVENT_EXPERIMENTAL_BODY := "Passing by, you find an abandoned corp hardware station with one bay still active. The ident system reads you as an employee vessel. The metadata is corrupted so you have no idea how effective it is, but corp nano-hives are akin to magic."
+
+const EVENT_BOUNTY_BOARD_TITLE := "Bounty Board Alert"
+const EVENT_BOUNTY_BOARD_BODY := "You get an alert on the bounty-net: new priority targets available if you decide to opt-in. The metadata looks iffy, but you know these can be lucrative."
+
 # Fallback title when no event loaded.
 const EVENT_UNKNOWN_TITLE := "Unknown Signal"
 
@@ -110,6 +122,21 @@ const CHOICE_WRECK_LEAVE := "Leave it be"
 
 const CHOICE_SALVAGE_SALVAGE := "Salvage the cache (random reward)"
 const CHOICE_SALVAGE_LEAVE := "Leave it adrift"
+
+const CHOICE_DERELICT_RISK := "Risk It"
+const CHOICE_DERELICT_IFF := "Buy spoofed IFF codes (-%d bounty)"
+const CHOICE_DERELICT_TAG := "Tag it for bounty"
+
+const CHOICE_INSPECTION_COMPLY := "Comply"
+const CHOICE_INSPECTION_RUN := "Run"
+const CHOICE_INSPECTION_FIGHT := "Fight"
+
+const CHOICE_EXPERIMENTAL_CHANCE := "Take the Chance"
+const CHOICE_EXPERIMENTAL_TAG := "Tag it"
+const CHOICE_EXPERIMENTAL_DESTROY := "Destroy it"
+
+const CHOICE_BOUNTY_BOARD_OPTIN := "Opt-in"
+const CHOICE_BOUNTY_BOARD_OPTOUT := "Opt-out"
 
 # ---- Outcome messages ----
 # Format strings: use  Strings.FOO % value  at call site.
@@ -152,6 +179,23 @@ const OUTCOME_SALVAGE_UPGRADE := "Salvaged tech upgrade! %s → Mk %d"
 const OUTCOME_SALVAGE_NO_WEAPONS := "Cache held no compatible weapons."
 const OUTCOME_SALVAGE_AMMO_INERT := "Cache held only inert ammo crates."
 const OUTCOME_SALVAGE_AMMO := "Ammo refilled! "
+
+const OUTCOME_DERELICT_RISK_GOOD := "You scoop the crate, weaving through energy bolts and dodging rockets like a pro. Once clear, you crack it open and find %s."
+const OUTCOME_DERELICT_RISK_BAD := "You scoop the crate, but not without some unnecessary roughness. As you fly away a hull damage indicator flashes. Once clear, you crack it open and find %s."
+const OUTCOME_DERELICT_IFF := "You transmit the black market IFF and watch the auto-defenses stand down. You only need a second to grab the crate. Once clear, you crack it open and find %s."
+const OUTCOME_DERELICT_TAG := "You tag the location on the Scavenger net. Within seconds a bounty payment comes through. As you fly off you wonder what was inside, but your curiosity isn't worth risking a hull breach."
+
+const OUTCOME_INSPECTION_COMPLY := "You cut engines and let them scan you. Naturally they find something — an unlicensed firmware key, apparently — and issue a fine. You pay %d bounty and they let you go."
+const OUTCOME_INSPECTION_RUN_DAMAGE := "You outrun them, but not before interceptor missiles scar your hull."
+const OUTCOME_INSPECTION_RUN_ESCAPE := "Full burn, tight jink, and they lose you in the debris field. Clean escape."
+
+const OUTCOME_EXPERIMENTAL_UPGRADE := "You decide to see what the nano-hive can do. The station hums to life and gets to work. Upgraded %s."
+const OUTCOME_EXPERIMENTAL_DOWNGRADE := "You decide to see what the nano-hive can do. The station hums to life... and gets to work on the wrong thing. Downgraded %s."
+const OUTCOME_EXPERIMENTAL_TAG := "You put the station location on the scavenger net. Payment comes through quickly — someone will make good use of it."
+const OUTCOME_EXPERIMENTAL_DESTROY := "You light up the station with everything you have. It's gone in seconds. Felt great."
+
+const OUTCOME_BOUNTY_BOARD_OPTIN := "A slaver worm uploads your coords and tags you for capture. On the bright side, you're now opted in to priority bounties on %s. You just need to survive long enough to collect."
+const OUTCOME_BOUNTY_BOARD_OPTOUT := "You don't trust the metadata and pass. Not worth the risk."
 
 # Ammo-line fragments (joined with ", ").
 const AMMO_FRAGMENT_MG := "MG +%d rounds"

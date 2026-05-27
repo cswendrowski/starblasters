@@ -253,6 +253,15 @@ func _on_enemy_spawned(scene_path: String, bounty_value: int) -> void:
 		get_node("/root/Run").mark_encountered(scene_path)
 
 func _on_enemy_died(value, scene_path: String) -> void:
+	# Bounty Board bonus: if the player opted in to a priority target type,
+	# apply the multiplier when that enemy type is killed. Meta persists until
+	# consumed by a new_run() or until manually cleared — intentional so it
+	# survives across the combat the player opts into.
+	if has_node("/root/Run"):
+		var run = get_node("/root/Run")
+		if run.has_meta("bounty_type_bonus_path") and scene_path != "":
+			if scene_path == String(run.get_meta("bounty_type_bonus_path")):
+				value = int(ceil(float(value) * float(run.get_meta("bounty_type_bonus_mult", 1.0))))
 	bounty += value
 	if has_node("/root/Run"):
 		get_node("/root/Run").record_kill(value)
@@ -412,6 +421,21 @@ func new_game() -> void:
 				sd = get_node("/root/Run").sectors_cleared + 1
 				li = get_node("/root/Run").combats_in_sector
 			_current_level = WaveGen.build(sd, li, false)
+			# Bounty Board extra waves: append additional wave specs consumed
+			# from Run meta. Only applies to standard combat nodes (not boss,
+			# not hazard, not custom). Consumed after first use.
+			if has_node("/root/Run"):
+				var run = get_node("/root/Run")
+				var extra_waves: int = int(run.get_meta("extra_combat_waves", 0))
+				if extra_waves > 0:
+					run.remove_meta("extra_combat_waves")
+					# Extra waves reuse the last generated wave spec as a template:
+					# clone the final wave and append it once per extra wave so the
+					# difficulty stays consistent with what the generator produced.
+					if _current_level != null and _current_level.waves.size() > 0:
+						var template_wave = _current_level.waves[_current_level.waves.size() - 1]
+						for _i in range(extra_waves):
+							_current_level.waves.append(template_wave.duplicate())
 	_run_intro(is_boss)
 
 # ---- Intro sequence -----------------------------------------------------

@@ -25,6 +25,10 @@ const Strings = preload("res://scripts/strings.gd")
 var _rng: RandomNumberGenerator
 var _current_event: Dictionary = {}
 
+# Per-event setup state for events that must pre-roll before building choices.
+var _derelict_weapon = null
+var _derelict_price: int = 0
+
 
 func _ready() -> void:
 	if has_node("/root/Music"):
@@ -113,6 +117,10 @@ func _events() -> Array:
 		},
 		_make_wreck_event(),
 		_make_salvage_cache_event(),
+		_make_derelict_event(),
+		_make_inspection_event(),
+		_make_experimental_event(),
+		_make_bounty_board_event(),
 	]
 
 
@@ -135,6 +143,235 @@ func _make_salvage_cache_event() -> Dictionary:
 			},
 		],
 	}
+
+
+# ---- Kill-guard helper --------------------------------------------------
+
+# Returns true if dealing `damage` hull to the player would kill them. Used
+# to hide lethal-damage options so we never silently wipe the player.
+func _would_kill(damage: int) -> bool:
+	if not has_node("/root/Run"):
+		return false
+	return get_node("/root/Run").current_hull <= damage
+
+
+# ---- Event 1: Derelict Warship ------------------------------------------
+# Pre-rolls a weapon and IFF price before building choices so the dynamic
+# label on option 2 is available at render time.
+
+func _make_derelict_event() -> Dictionary:
+	var run = get_node_or_null("/root/Run")
+	var current_mark: int = 1
+	if run != null:
+		current_mark = clampi(run.sectors_cleared + 1, 1, 9)
+	_derelict_weapon = PartCatalog.roll_for_slot(_rng, Slots.SlotType.CANNON, current_mark)
+	_derelict_price = 58 + 35 * (current_mark - 1)
+	var choices: Array = []
+	if not _would_kill(1):
+		choices.append({
+			"label": Strings.CHOICE_DERELICT_RISK,
+			"action": func(s): s._do_derelict_risk(),
+		})
+	var can_afford_iff: bool = run != null and int(run.bounty) >= _derelict_price
+	if can_afford_iff:
+		choices.append({
+			"label": Strings.CHOICE_DERELICT_IFF % _derelict_price,
+			"action": func(s): s._do_derelict_iff(),
+		})
+	choices.append({
+		"label": Strings.CHOICE_DERELICT_TAG,
+		"action": func(s): s._do_derelict_tag(),
+	})
+	return {
+		"title": Strings.EVENT_DERELICT_TITLE,
+		"body": Strings.EVENT_DERELICT_BODY,
+		"choices": choices,
+	}
+
+
+func _do_derelict_risk() -> void:
+	var weapon_label: String = _part_label(_derelict_weapon)
+	if _rng.randf() < 0.5:
+		_offer_weapon_stow(_derelict_weapon, Strings.OUTCOME_DERELICT_RISK_GOOD % weapon_label)
+	else:
+		_apply_hull_delta(-1)
+		_offer_weapon_stow(_derelict_weapon, Strings.OUTCOME_DERELICT_RISK_BAD % weapon_label)
+
+
+func _do_derelict_iff() -> void:
+	_apply_bounty(-_derelict_price)
+	var weapon_label: String = _part_label(_derelict_weapon)
+	_offer_weapon_stow(_derelict_weapon, Strings.OUTCOME_DERELICT_IFF % weapon_label)
+
+
+func _do_derelict_tag() -> void:
+	var award: int = 75 + _rng.randi() % 26
+	_apply_bounty(award)
+	_finish_to_sector_map(Strings.OUTCOME_DERELICT_TAG)
+
+
+# Directly stow a weapon into Run.inventory without a swap modal, then
+# finish to the sector map with the given flavor text. The derelict event
+# always stows (no choice) per the spec.
+func _offer_weapon_stow(weapon, flavor: String) -> void:
+	if has_node("/root/Run") and weapon != null:
+		get_node("/root/Run").inventory.append(weapon)
+	_finish_to_sector_map(flavor)
+
+
+# ---- Event 2: Corporate Inspection --------------------------------------
+
+func _make_inspection_event() -> Dictionary:
+	return {
+		"title": Strings.EVENT_INSPECTION_TITLE,
+		"body": Strings.EVENT_INSPECTION_BODY,
+		"choices": [
+			{
+				"label": Strings.CHOICE_INSPECTION_COMPLY,
+				"action": func(s): s._do_inspection_comply(),
+			},
+			{
+				"label": Strings.CHOICE_INSPECTION_RUN,
+				"action": func(s): s._do_inspection_run(),
+			},
+			{
+				"label": Strings.CHOICE_INSPECTION_FIGHT,
+				"action": func(s): s._do_inspection_fight(),
+			},
+		],
+	}
+
+
+func _do_inspection_comply() -> void:
+	var b: int = _bounty()
+	var fine: int = max(1, int(float(b) * (0.25 + _rng.randf() * 0.25)))
+	_apply_bounty(-fine)
+	_finish_to_sector_map(Strings.OUTCOME_INSPECTION_COMPLY % fine)
+
+
+func _do_inspection_run() -> void:
+	# 3-way coin flip. If the damage branch would kill, collapse to a 2-way
+	# flip between combat and escape so we never silently wipe the player.
+	var roll: int
+	if _would_kill(1):
+		roll = 1 + _rng.randi() % 2  # 1 = combat, 2 = escape
+	else:
+		roll = _rng.randi() % 3
+	match roll:
+		0:
+			_apply_hull_delta(-1)
+			_finish_to_sector_map(Strings.OUTCOME_INSPECTION_RUN_DAMAGE)
+		1:
+			if has_node("/root/Run"):
+				get_node("/root/Run").combat_intro = "interceptor_chase"
+			SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
+		_:
+			_finish_to_sector_map(Strings.OUTCOME_INSPECTION_RUN_ESCAPE)
+
+
+func _do_inspection_fight() -> void:
+	if has_node("/root/Run"):
+		get_node("/root/Run").combat_intro = "inspection_fight"
+	SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
+
+
+# ---- Event 3: Experimental Tech -----------------------------------------
+
+func _make_experimental_event() -> Dictionary:
+	return {
+		"title": Strings.EVENT_EXPERIMENTAL_TITLE,
+		"body": Strings.EVENT_EXPERIMENTAL_BODY,
+		"choices": [
+			{
+				"label": Strings.CHOICE_EXPERIMENTAL_CHANCE,
+				"action": func(s): s._do_experimental_chance(),
+			},
+			{
+				"label": Strings.CHOICE_EXPERIMENTAL_TAG,
+				"action": func(s): s._do_experimental_tag(),
+			},
+			{
+				"label": Strings.CHOICE_EXPERIMENTAL_DESTROY,
+				"action": func(s): s._finish_to_sector_map(Strings.OUTCOME_EXPERIMENTAL_DESTROY),
+			},
+		],
+	}
+
+
+func _do_experimental_chance() -> void:
+	if _rng.randf() < 0.60:
+		var part_label: String = _upgrade_random_part()
+		var msg: String = Strings.OUTCOME_EXPERIMENTAL_UPGRADE % part_label if part_label != "" else Strings.OUTCOME_NANO_UPGRADE_MAXED
+		_finish_to_sector_map(msg)
+	else:
+		var part_label: String = _downgrade_random_part()
+		var msg: String = Strings.OUTCOME_EXPERIMENTAL_DOWNGRADE % part_label if part_label != "" else Strings.OUTCOME_NANO_UPGRADE_MAXED
+		_finish_to_sector_map(msg)
+
+
+func _do_experimental_tag() -> void:
+	var award: int = 50 + _rng.randi() % 76
+	_apply_bounty(award)
+	_finish_to_sector_map(Strings.OUTCOME_EXPERIMENTAL_TAG)
+
+
+# Downgrade a random equipped or inventory part by -1 Mk (floor 1).
+func _downgrade_random_part() -> String:
+	if not has_node("/root/Run"):
+		return ""
+	var run = get_node("/root/Run")
+	var pool: Array = []
+	for slot_key in run.loadout_snapshot.keys():
+		var p = run.loadout_snapshot[slot_key]
+		if p != null and "mark" in p and int(p.mark) > 1:
+			pool.append(p)
+	for p in run.inventory:
+		if p != null and "mark" in p and int(p.mark) > 1:
+			pool.append(p)
+	if pool.is_empty():
+		return ""
+	var pick = pool[_rng.randi() % pool.size()]
+	pick.mark = clampi(int(pick.mark) - 1, 1, 9)
+	return _part_label(pick)
+
+
+# ---- Event 4: Bounty Board Alert ----------------------------------------
+
+func _make_bounty_board_event() -> Dictionary:
+	var enemy_path: String = ""
+	var enemy_name: String = "unknown"
+	var entries: Array = EnemyRoster.entries_of(EnemyRoster.Tier.COMMON)
+	if not entries.is_empty():
+		var entry: Dictionary = entries[_rng.randi() % entries.size()]
+		enemy_path = String(entry.get("scene", ""))
+		# Derive display name from scene path stem: strip prefix + suffix,
+		# capitalize. e.g. "res://scenes/enemies/enemy_dart.tscn" -> "Dart"
+		var stem: String = enemy_path.get_file().replace(".tscn", "").replace("enemy_", "")
+		enemy_name = stem.capitalize()
+	return {
+		"title": Strings.EVENT_BOUNTY_BOARD_TITLE,
+		"body": Strings.EVENT_BOUNTY_BOARD_BODY,
+		"choices": [
+			{
+				"label": Strings.CHOICE_BOUNTY_BOARD_OPTIN,
+				"action": func(s): s._do_bounty_board_optin(enemy_path, enemy_name),
+			},
+			{
+				"label": Strings.CHOICE_BOUNTY_BOARD_OPTOUT,
+				"action": func(s): s._finish_to_sector_map(Strings.OUTCOME_BOUNTY_BOARD_OPTOUT),
+			},
+		],
+	}
+
+
+func _do_bounty_board_optin(enemy_scene_path: String, enemy_name: String) -> void:
+	if has_node("/root/Run"):
+		var run = get_node("/root/Run")
+		if enemy_scene_path != "":
+			run.set_meta("bounty_type_bonus_path", enemy_scene_path)
+			run.set_meta("bounty_type_bonus_mult", 1.15)
+		run.set_meta("extra_combat_waves", 3)
+	_finish_to_sector_map(Strings.OUTCOME_BOUNTY_BOARD_OPTIN % enemy_name)
 
 
 # Wrecked Starfighter — five-choice rework (Roman, 2026-05-24):
