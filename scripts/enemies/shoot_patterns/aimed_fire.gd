@@ -5,7 +5,8 @@ extends "res://scripts/enemies/shoot_patterns/shoot_pattern.gd"
 # the shot.
 
 @export var lead_factor: float = 0.0
+@export var bullet_variant: BulletVariant = null
 
 
 func fire(enemy) -> void:
-	_spawn_bullet(enemy, _aim_at_player(enemy, lead_factor))
+	_spawn_bullet(enemy, _aim_at_player(enemy, lead_factor), bullet_variant)

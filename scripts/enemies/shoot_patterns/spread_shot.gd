@@ -4,6 +4,7 @@ extends "res://scripts/enemies/shoot_patterns/shoot_pattern.gd"
 
 @export var bullet_count: int = 3
 @export var spread_degrees: float = 30.0
+@export var bullet_variant: BulletVariant = null
 
 func fire(enemy) -> void:
 	if bullet_count <= 0:
@@ -18,4 +19,4 @@ func fire(enemy) -> void:
 		var angle: float = start + step * float(i)
 		# 0 angle = straight down (0, 1); rotate by angle
 		var dir := Vector2(sin(angle), cos(angle))
-		_spawn_bullet(enemy, dir)
+		_spawn_bullet(enemy, dir, bullet_variant)

@@ -2,6 +2,10 @@ extends Area2D
 class_name BaseBullet
 
 # Shared bullet base for all gunfire — player + enemy + multi-hit + minigun.
+# Variant system: assign a BulletVariant resource before start() to override
+# speed, damage, lifetime, hitbox, visuals, glow color, and behavior knobs
+# (wobble, homing, telegraph_flash, random_frame). variant == null = unchanged
+# behavior so all existing bullets work without modification.
 # Refactored 2026-05-17 to consolidate the five-different-ways the bullet
 # pipeline had drifted:
 #   - off-screen kill bounds (each script had its own bounds)
@@ -23,6 +27,7 @@ class_name BaseBullet
 #                   signed scalar with negative = upward; base_bullet
 #                   normalizes by taking abs() and flipping the dir.
 
+@export var variant: BulletVariant = null
 @export var target_group: String = "enemies"
 @export var speed: float = 1400.0
 @export var damage: int = 1
@@ -39,6 +44,10 @@ class_name BaseBullet
 
 var _t: float = 0.0
 var _killed: bool = false
+# Wobble support: we advance the canonical position without wobble offset
+# so the offset is purely re-derived each frame (no drift accumulation).
+var _base_position: Vector2 = Vector2.ZERO
+var _wobble_active: bool = false
 
 # 480×270 internal resolution (horizontal rework 2026-05-19).
 const PLAYFIELD_MARGIN: float = 24.0
@@ -57,6 +66,13 @@ func _ready() -> void:
 		velocity_dir = Vector2(0, -1)
 	if not area_entered.is_connected(_on_area_entered):
 		area_entered.connect(_on_area_entered)
+	# Seed _base_position from current position so bullets that skip start()
+	# don't teleport to (0,0) on first frame.
+	_base_position = global_position
+	# Apply variant data before _apply_visuals() so subclass overrides can
+	# read variant-set values and gate their own logic.
+	if variant != null:
+		_apply_variant()
 	_apply_visuals()
 
 
@@ -66,6 +82,94 @@ func _apply_visuals() -> void:
 	pass
 
 
+# Apply a BulletVariant's stat and visual overrides. Called from _ready()
+# when variant != null. Subclasses should gate their own _apply_visuals
+# glow on `variant == null` so the variant glow_color wins.
+func _apply_variant() -> void:
+	speed = variant.speed
+	damage = variant.damage
+	max_lifetime = variant.lifetime
+	impact_kind = variant.impact_kind
+	impact_color = variant.impact_color
+
+	# --- hitbox ---
+	var cshape: CollisionShape2D = get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if cshape != null and cshape.shape != null:
+		# Duplicate to avoid mutating the shared SubResource across all instances.
+		var sh: Shape2D = cshape.shape.duplicate()
+		cshape.shape = sh
+		if sh is RectangleShape2D:
+			(sh as RectangleShape2D).size = variant.hitbox_size
+		elif sh is CircleShape2D:
+			(sh as CircleShape2D).radius = variant.hitbox_size.x * 0.5
+
+	# --- visuals ---
+	if variant.sprite_frames != null:
+		# Animated bullet: hide the static Sprite2D (if any), use AnimatedSprite2D.
+		var asp: AnimatedSprite2D = get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
+		if asp != null:
+			asp.sprite_frames = variant.sprite_frames
+			if variant.random_frame:
+				var fc: int = variant.sprite_frames.get_frame_count("default")
+				asp.frame = randi() % fc if fc > 0 else 0
+				asp.stop()
+			else:
+				asp.play("default")
+	elif variant.static_texture != null:
+		# Static texture: hide AnimatedSprite2D, set Sprite2D (not Glow).
+		var asp: AnimatedSprite2D = get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
+		if asp != null:
+			asp.visible = false
+		var sp: Sprite2D = _get_bullet_sprite()
+		if sp != null:
+			sp.texture = variant.static_texture
+			sp.visible = true
+			if variant.random_frame:
+				# Static texture with frame picking: nothing to randomize,
+				# but support is harmless.
+				pass
+
+	# --- glow color ---
+	# Modulate the scene's "Glow" child (additive halo sprite in enemy_bullet.tscn).
+	var glow: Node2D = get_node_or_null("Glow") as Node2D
+	if glow != null:
+		glow.modulate = variant.glow_color
+
+	# --- telegraph flash ---
+	if variant.telegraph_flash:
+		_do_telegraph_flash()
+
+	# --- wobble flag ---
+	if variant.wobble_amplitude > 0.0:
+		_wobble_active = true
+
+
+# Return the bullet's own Sprite2D (NOT the Glow node). Creates a child
+# named "BulletSprite" if none exists.
+func _get_bullet_sprite() -> Sprite2D:
+	# First look for an existing non-Glow Sprite2D child.
+	for child in get_children():
+		if child is Sprite2D and child.name != "Glow":
+			return child as Sprite2D
+	# Create one if missing.
+	var s := Sprite2D.new()
+	s.name = "BulletSprite"
+	add_child(s)
+	return s
+
+
+# Brief white flash on the AnimatedSprite2D to telegraph an incoming heavy
+# shot. Tween modulate white → original color over ~0.15 s.
+func _do_telegraph_flash() -> void:
+	var asp: AnimatedSprite2D = get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
+	var target: CanvasItem = asp if asp != null else self
+	target.modulate = Color(1, 1, 1, 1)
+	var tw := create_tween()
+	tw.tween_property(target, "modulate", Color(1, 1, 1, 1), 0.0)
+	tw.tween_property(target, "modulate", Color(1, 1, 1, 0.3), 0.08)
+	tw.tween_property(target, "modulate", Color(1, 1, 1, 1), 0.07)
+
+
 # Entry point — callers set position + optional direction. Backward-compat
 # for the few callers that still pass just a position.
 func start(pos: Vector2, dir: Vector2 = Vector2.ZERO) -> void:
@@ -73,13 +177,40 @@ func start(pos: Vector2, dir: Vector2 = Vector2.ZERO) -> void:
 	if dir != Vector2.ZERO:
 		velocity_dir = dir.normalized()
 	rotation = velocity_dir.angle() + PI * 0.5
+	_base_position = pos
 
 
 func _process(delta: float) -> void:
 	if _killed:
 		return
 	_t += delta
-	global_position += velocity_dir * speed * delta
+
+	# Homing: steer velocity_dir toward player at homing_rate deg/s.
+	if variant != null and variant.homing_rate > 0.0:
+		var tree := get_tree()
+		if tree != null:
+			var player: Node = tree.get_first_node_in_group("player")
+			if player != null and player is Node2D:
+				var to_player: Vector2 = (player as Node2D).global_position - global_position
+				if to_player.length_squared() > 0.0001:
+					var target_dir: Vector2 = to_player.normalized()
+					var max_turn: float = deg_to_rad(variant.homing_rate) * delta
+					velocity_dir = velocity_dir.rotated(
+						clampf(velocity_dir.angle_to(target_dir), -max_turn, max_turn)
+					)
+					rotation = velocity_dir.angle() + PI * 0.5
+
+	# Advance canonical (non-wobble) position.
+	_base_position += velocity_dir * speed * delta
+
+	# Wobble: offset perpendicular to velocity_dir, re-derived each frame.
+	if _wobble_active and variant != null and variant.wobble_amplitude > 0.0:
+		var perp: Vector2 = Vector2(-velocity_dir.y, velocity_dir.x)
+		var offset: float = sin(_t * variant.wobble_frequency * TAU) * variant.wobble_amplitude
+		global_position = _base_position + perp * offset
+	else:
+		global_position = _base_position
+
 	if _t >= max_lifetime or _is_offscreen():
 		queue_free()
 
