@@ -7,10 +7,10 @@ uniform vec2 noise_config_size = vec2(64.0, 64.0);
 uniform float noise_seed : hint_range(0.0, 999.0) = 0.0;
 
 uniform vec4 replace_color : source_color = vec4(0.0, 0.0, 0.0, 1.0);
-uniform vec4 edge_color : source_color = vec4(0.3, 0.3, 0.3, 1.0);
+uniform vec4 edge_color : source_color = vec4(0.85, 0.45, 0.05, 1.0);
 uniform vec4 outline_color : source_color = vec4(0.0, 0.0, 0.0, 1.0);
 uniform vec4 details_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
-uniform float details_opacity : hint_range(0.0, 1.0) = 0.1;
+uniform float details_opacity : hint_range(0.0, 1.0) = 0.2;
 
 uniform sampler2D edge_distance_map : repeat_enable, filter_nearest;
 uniform float edge_bias_strength : hint_range(0.0, 1.0) = 0.4;
