@@ -377,7 +377,8 @@ func _build_pois_from_cache() -> void:
 		var row_end_x: float = rows[r_idx].boss.pos.x
 		var pois: Array = rows[r_idx].pois
 		var planet_seq: int = 0
-		for poi in pois:
+		for poi_idx in pois.size():
+			var poi = pois[poi_idx]
 			var deco_rng := RandomNumberGenerator.new()
 			deco_rng.seed = abs(hash(poi.id))
 			# Object kind: planet/large_ast/cluster. Distribution roughly
@@ -417,7 +418,13 @@ func _build_pois_from_cache() -> void:
 			if not poi.completed and int(poi.node_type) != int(SectorNode.NodeType.BOSS):
 				var poi_name_seed: int = abs(hash(poi.id)) ^ 0x3F7A1C2B
 				var poi_name: String = _generate_poi_name(int(poi.node_type), poi_name_seed, String(poi.get("hazard_subtype", "")))
-				_make_label(poi_name, Vector2(poi.pos.x, poi.pos.y + 14.0), Color(0.75, 0.85, 1.0, 1.0))
+				# Use Marker2D position from the scene
+				var label_marker_path = "star_%d/row_%d_poi_%d/row_%d_label_%d" % [r_idx + 1, r_idx + 1, poi_idx + 1, r_idx + 1, poi_idx + 1]
+				if has_node(label_marker_path):
+					var marker: Marker2D = get_node(label_marker_path)
+					_make_label(poi_name, marker.global_position, Color(0.75, 0.85, 1.0, 1.0))
+				else:
+					_make_label(poi_name, Vector2(poi.pos.x, poi.pos.y + 14.0), Color(0.75, 0.85, 1.0, 1.0))
 			_poi_hits.append({
 				"id":     String(poi.id),
 				"pos":    Vector2(poi.pos),
@@ -857,7 +864,13 @@ func _build_bosses_from_cache() -> void:
 		# BOSS/DEFEATED label — positioned above boss dot
 		var boss_label_text: String = "DEFEATED" if defeated else "BOSS"
 		var boss_label_color: Color = Color(0.50, 1.0, 0.60, 1.0) if defeated else Color(0.90, 0.30, 0.30, 1.0)
-		_make_label(boss_label_text, Vector2(pos.x, pos.y - 20.0), boss_label_color)
+		# Use Marker2D position from the scene
+		var boss_label_marker_path = "star_%d/row_%d_boss_%d/boss_label_%d" % [r_idx + 1, r_idx + 1, r_idx + 1, r_idx + 1]
+		if has_node(boss_label_marker_path):
+			var boss_marker: Marker2D = get_node(boss_label_marker_path)
+			_make_label(boss_label_text, boss_marker.global_position, boss_label_color)
+		else:
+			_make_label(boss_label_text, Vector2(pos.x, pos.y - 20.0), boss_label_color)
 
 		var boss_hover_tint: Color = COLOR_NODE_GREEN
 		if not unlocked or defeated:
@@ -925,7 +938,13 @@ func _build_stars() -> void:
 		if has_node("/root/Run"):
 			star_seed = abs(hash("star:%d:%d" % [i, get_node("/root/Run").run_seed]))
 		var star_name: String = _generate_celestial_name("star", star_seed)
-		_make_label(star_name, Vector2(anchor.x, anchor.y - 20.0), Color(0.75, 0.85, 1.0, 1.0))
+		# Use Marker2D position from the scene
+		var star_label_marker_path = "star_%d/star_label_%d" % [i + 1, i + 1]
+		if has_node(star_label_marker_path):
+			var star_marker: Marker2D = get_node(star_label_marker_path)
+			_make_label(star_name, star_marker.global_position, Color(0.75, 0.85, 1.0, 1.0))
+		else:
+			_make_label(star_name, Vector2(anchor.x, anchor.y - 20.0), Color(0.75, 0.85, 1.0, 1.0))
 
 	_process(0.0)
 
@@ -993,7 +1012,12 @@ func _build_labels() -> void:
 	for row in rows:
 		patrol_count += row.pois.size()
 	var sector_header_text: String = "%s  —  %d Patrols" % [sector_name, patrol_count]
-	_make_label(sector_header_text, Vector2(240.0, 8.0), Color(0.85, 0.92, 1.0, 1.0))
+	# Use Marker2D position from the scene
+	if has_node("sector_label"):
+		var sector_marker: Marker2D = get_node("sector_label")
+		_make_label(sector_header_text, sector_marker.global_position, Color(0.85, 0.92, 1.0, 1.0))
+	else:
+		_make_label(sector_header_text, Vector2(240.0, 8.0), Color(0.85, 0.92, 1.0, 1.0))
 
 	# Player status — bottom left at (64, 232)
 	var status_lbl := Label.new()
@@ -1619,7 +1643,8 @@ func _draw() -> void:
 		if total <= 0:
 			continue
 		var done: int = 0
-		for poi in pois:
+		for poi_idx in pois.size():
+			var poi = pois[poi_idx]
 			if poi.completed:
 				done += 1
 		# Change 2: smooth continuous arc instead of per-POI segments.
