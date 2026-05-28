@@ -3,9 +3,6 @@ class_name HudLight
 
 enum Pattern { STEADY, BLINK, PULSE, FLICKER }
 
-# Keyed by node.get_instance_id() -> Tween
-static var _pattern_tweens: Dictionary = {}
-
 
 static func apply(node: CanvasItem, pattern: Pattern) -> void:
 	stop(node)
@@ -20,12 +17,12 @@ static func apply(node: CanvasItem, pattern: Pattern) -> void:
 			t.tween_interval(1.0)
 			t.tween_property(node, "modulate:a", 0.05, 0.0)
 			t.tween_interval(1.0)
-			_pattern_tweens[node.get_instance_id()] = t
+			node.set_meta("_hlt", t)
 		Pattern.PULSE:
 			var t := node.create_tween().set_loops()
 			t.tween_property(node, "modulate:a", 0.2, 1.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 			t.tween_property(node, "modulate:a", 1.0, 1.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-			_pattern_tweens[node.get_instance_id()] = t
+			node.set_meta("_hlt", t)
 		Pattern.FLICKER:
 			var rng := RandomNumberGenerator.new()
 			rng.seed = node.get_instance_id()
@@ -34,25 +31,27 @@ static func apply(node: CanvasItem, pattern: Pattern) -> void:
 				var alpha: float = 1.0 if rng.randf() > 0.3 else rng.randf_range(0.05, 0.4)
 				var dur: float = rng.randf_range(0.04, 0.18)
 				t.tween_property(node, "modulate:a", alpha, dur)
-			_pattern_tweens[node.get_instance_id()] = t
+			node.set_meta("_hlt", t)
 
 
 static func stop(node: CanvasItem) -> void:
 	if not is_instance_valid(node):
 		return
-	var id := node.get_instance_id()
-	if _pattern_tweens.has(id):
-		var t: Tween = _pattern_tweens[id]
+	if node.has_meta("_hlt"):
+		var t: Tween = node.get_meta("_hlt")
 		if t != null and t.is_valid():
 			t.kill()
-		_pattern_tweens.erase(id)
-	node.modulate.a = 1.0
+		node.remove_meta("_hlt")
+	node.modulate = Color.WHITE
 
 
 static func hit_flash(node: CanvasItem) -> void:
 	if not is_instance_valid(node):
 		return
 	var base_color := node.modulate
+	# Flash tween runs concurrently with any active pattern tween.
+	# Since it is newer, its modulate writes dominate for ~0.4s, after which
+	# the pattern tween resumes naturally (last-write-wins per frame in Godot 4).
 	var t := node.create_tween()
 	# Instant white-bright flash
 	t.tween_callback(func(): node.modulate = Color(1.5, 1.5, 1.5, 1.0))
@@ -68,6 +67,7 @@ static func hit_flash(node: CanvasItem) -> void:
 static func pip_flash(container: CanvasItem) -> void:
 	if not is_instance_valid(container):
 		return
+	var base_color := container.modulate
 	var t := container.create_tween()
 	t.tween_property(container, "modulate", Color(2.0, 2.0, 2.0, 1.0), 0.03)
-	t.tween_property(container, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	t.tween_property(container, "modulate", base_color, 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
