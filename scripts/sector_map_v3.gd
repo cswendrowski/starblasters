@@ -319,6 +319,8 @@ func _process(delta: float) -> void:
 	for entry in _planet_hovers:
 		var hovered: bool = mouse.distance_to(entry.center) <= entry.radius
 		var lbl: Label    = entry.label
+		if lbl == null:
+			continue
 		var icon: Sprite2D = entry.icon
 		var label_rest: float = float(entry.get("label_rest", 0.2))
 		var icon_rest: float  = float(entry.get("icon_rest", 0.0))
@@ -414,8 +416,9 @@ func _build_pois_from_cache() -> void:
 			# POI name label — skip completed nodes (spent) and BOSS type (handled separately).
 			if not poi.completed and int(poi.node_type) != int(SectorNode.NodeType.BOSS):
 				var poi_name_seed: int = abs(hash(poi.id)) ^ 0x3F7A1C2B
-				var poi_name: String = _generate_poi_name(int(poi.node_type), poi_name_seed, String(poi.get("hazard_subtype", "")))
-				_spawn_poi_name_label(poi.pos, poi_name)
+				# DISABLED: POI name label
+				# 				var poi_name: String = _generate_poi_name(int(poi.node_type), poi_name_seed, String(poi.get("hazard_subtype", "")))
+				# 				_spawn_poi_name_label(poi.pos, poi_name)
 			_poi_hits.append({
 				"id":     String(poi.id),
 				"pos":    Vector2(poi.pos),
@@ -626,10 +629,10 @@ func _spawn_planet(center: Vector2, display_px: float, type_idx: int, row_idx: i
 	# of `rng` got consumed by randomize_colors / set_seed above.
 	var moon_rng: RandomNumberGenerator = _make_moon_rng(poi_id) if poi_id != "" else rng
 	_spawn_moons(center, display_px, moon_rng)
-	# Change 4: planet name label
-	var planet_name_seed: int = abs(hash(poi_id)) if poi_id != "" else abs(hash(center))
-	var planet_name: String = _generate_celestial_name("planet", planet_name_seed)
-	_spawn_celestial_name_label(center, planet_name, display_px * 0.5 + 4.0)
+	# DISABLED: Change 4: planet name label
+# 	var planet_name_seed: int = abs(hash(poi_id)) if poi_id != "" else abs(hash(center))
+# 	var planet_name: String = _generate_celestial_name("planet", planet_name_seed)
+# 	_spawn_celestial_name_label(center, planet_name, display_px * 0.5 + 4.0)
 
 
 func _spawn_large_asteroid(center: Vector2, row_idx: int, rng: RandomNumberGenerator) -> void:
@@ -668,10 +671,10 @@ func _spawn_large_asteroid(center: Vector2, row_idx: int, rng: RandomNumberGener
 	})
 	_scatter_asteroid_band(center, rng)
 	_scatter_pulse_pixels(center, PX, rng)
-	# Change 4: asteroid name label
-	var ast_name: String = _generate_celestial_name("asteroid", abs(hash(center)))
-	_spawn_celestial_name_label(center, ast_name, PX * 0.5 + 4.0)
-
+	# DISABLED: Change 4: asteroid name label
+# 	var ast_name: String = _generate_celestial_name("asteroid", abs(hash(center)))
+# 	_spawn_celestial_name_label(center, ast_name, PX * 0.5 + 4.0)
+# 
 
 func _spawn_asteroid_cluster(center: Vector2, row_idx: int, rng: RandomNumberGenerator) -> void:
 	var count: int = 3 + rng.randi() % 3
@@ -709,10 +712,10 @@ func _spawn_asteroid_cluster(center: Vector2, row_idx: int, rng: RandomNumberGen
 		})
 		_scatter_pulse_pixels(Vector2(center.x + ox, center.y + oy), px, rng)
 	_scatter_asteroid_band(center, rng)
-	# Change 4: cluster name label (once per cluster, not per individual rock)
-	var cluster_name: String = _generate_celestial_name("cluster", abs(hash(center)) ^ 0xABCD)
-	_spawn_celestial_name_label(center, cluster_name, 20.0)
-
+	# DISABLED: Change 4: cluster name label (once per cluster, not per individual rock)
+# 	var cluster_name: String = _generate_celestial_name("cluster", abs(hash(center)) ^ 0xABCD)
+# 	_spawn_celestial_name_label(center, cluster_name, 20.0)
+# 
 
 func _scatter_asteroid_band(center: Vector2, rng: RandomNumberGenerator) -> void:
 	var count: int = 2 + rng.randi() % 3
@@ -784,7 +787,7 @@ func _scatter_pulse_pixels(center: Vector2, ast_px: float, rng: RandomNumberGene
 		})
 
 
-# Scatter 6-8 blinking red 2×2 pixel indicators around a minefield node.
+# Scatter 6-8 blinking red 1×1 pixel indicators around a minefield node.
 # Uses the same _asteroid_pixels array + _draw() loop as decorative asteroid
 # pixels — per-pixel blink hz and phase so they desync naturally. Color is
 # saturated red to read distinctly from the amber/blue asteroid decoration.
@@ -802,7 +805,7 @@ func _add_minefield_indicators(center: Vector2, rng: RandomNumberGenerator) -> v
 			floor(center.y + sin(ang) * dist))
 		_asteroid_pixels.append({
 			"pos":   pos,
-			"size":  2,
+			"size":  1,
 			# Blink rate 0.25-0.80 Hz — visibly faster than the subdued asteroid
 			# debris pixels (0.05-0.14 Hz) so mines read as urgent/active.
 			"hz":    rng.randf_range(0.25, 0.80),
@@ -852,42 +855,42 @@ func _build_bosses_from_cache() -> void:
 		icon_spr.z_index  = 5
 		icon_spr.modulate = Color(1.0, 1.0, 1.0, 0.5)
 		add_child(icon_spr)
-		# Top label: BOSS / DEFEATED.
-		var ls := LabelSettings.new()
-		ls.font = FONT; ls.font_size = 7
-		ls.font_color    = Color(0.90, 0.30, 0.30, 1.0) if not defeated else Color(0.50, 1.0, 0.60, 1.0)
-		ls.outline_size  = 1
-		ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
-		var lbl := Label.new()
-		lbl.text           = "DEFEATED" if defeated else "BOSS"
-		lbl.label_settings = ls
-		lbl.custom_minimum_size.x = 40.0
-		lbl.horizontal_alignment  = HORIZONTAL_ALIGNMENT_CENTER
-		lbl.position = Vector2(pos.x - 20.0, pos.y - 36.0)
-		lbl.z_index   = 10
-		lbl.modulate.a = 1.0
-		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		add_child(lbl)
+# DISABLED: BOSS/DEFEATED label section
+# 		var ls := LabelSettings.new()
+# 		ls.font = FONT; ls.font_size = 7
+# 		ls.font_color    = Color(0.90, 0.30, 0.30, 1.0) if not defeated else Color(0.50, 1.0, 0.60, 1.0)
+# 		ls.outline_size  = 1
+# 		ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
+# 		var lbl := Label.new()
+# 		lbl.text           = "DEFEATED" if defeated else "BOSS"
+# 		lbl.label_settings = ls
+# 		lbl.custom_minimum_size.x = 40.0
+# 		lbl.horizontal_alignment  = HORIZONTAL_ALIGNMENT_CENTER
+# 		lbl.position = Vector2(pos.x - 20.0, pos.y - 36.0)
+# 		lbl.z_index   = 10
+# 		lbl.modulate.a = 1.0
+# 		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+# 		add_child(lbl)
 
-		# Lock progress label "k/N" below the dot when not unlocked.
-		if not unlocked and not defeated:
-			var n_total: int = rows[r_idx].pois.size()
-			var n_done: int  = 0
-			for poi in rows[r_idx].pois:
-				if poi.completed:
-					n_done += 1
-			var locks := LabelSettings.new()
-			locks.font = FONT; locks.font_size = 4   # Change 1: halved from 8
-			locks.font_color    = Color(1.0, 0.85, 0.30, 1.0)
-			locks.outline_size  = 1
-			locks.outline_color = Color(0.0, 0.0, 0.0, 1.0)
-			var lock_lbl := Label.new()
-			lock_lbl.text = "%d/%d" % [n_done, n_total]
-			lock_lbl.label_settings = locks
-			lock_lbl.position = Vector2(pos.x - 3, pos.y + 6)   # Change 1: -6→-3, +10→+6
-			lock_lbl.z_index = 11
-			lock_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			add_child(lock_lbl)
+# DISABLED: Boss lock counter
+# 		if not unlocked and not defeated:
+# 			var n_total: int = rows[r_idx].pois.size()
+# 			var n_done: int  = 0
+# 			for poi in rows[r_idx].pois:
+# 				if poi.completed:
+# 					n_done += 1
+# 			var locks := LabelSettings.new()
+# 			locks.font = FONT; locks.font_size = 4   # Change 1: halved from 8
+# 			locks.font_color    = Color(1.0, 0.85, 0.30, 1.0)
+# 			locks.outline_size  = 1
+# 			locks.outline_color = Color(0.0, 0.0, 0.0, 1.0)
+# 			var lock_lbl := Label.new()
+# 			lock_lbl.text = "%d/%d" % [n_done, n_total]
+# 			lock_lbl.label_settings = locks
+# 			lock_lbl.position = Vector2(pos.x - 3, pos.y + 6)   # Change 1: -6→-3, +10→+6
+# 			lock_lbl.z_index = 11
+# 			lock_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+# 			add_child(lock_lbl)
 
 		# Locked bosses must NOT hover green — designer feedback. Use dim red so
 		# the player gets a clear "not yet" signal. Defeated bosses also avoid
@@ -898,7 +901,7 @@ func _build_bosses_from_cache() -> void:
 		_planet_hovers.append({
 			"center":     pos,
 			"radius":     8.0,    # Change 1: halved from 16
-			"label":      lbl,
+			"label":      null,
 			"icon":       icon_spr,
 			"label_rest": 1.0,
 			"icon_rest":  0.0,
@@ -953,27 +956,28 @@ func _build_stars() -> void:
 			var comp_gc: Color = STAR_GLOW_COLORS[0] if comp_cool else STAR_GLOW_COLORS[1]
 			_add_glow_sprite(comp_glow_node, comp_gc)
 
-		# Star name label.
-		var star_seed: int = abs(hash("star:%d" % i))
-		if has_node("/root/Run"):
-			star_seed = abs(hash("star:%d:%d" % [i, get_node("/root/Run").run_seed]))
-		var star_name: String = _generate_celestial_name("star", star_seed)
-		var star_ls := LabelSettings.new()
-		star_ls.font = FONT
-		star_ls.font_size = 7
-		star_ls.font_color = Color(0.75, 0.85, 1.0, 1.0)
-		star_ls.outline_size = 1
-		star_ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
-		var star_lbl := Label.new()
-		star_lbl.text = star_name
-		star_lbl.label_settings = star_ls
-		star_lbl.custom_minimum_size.x = 64.0
-		star_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		star_lbl.position = Vector2(anchor.x - 32.0, anchor.y - 36.0)
-		star_lbl.modulate.a = 0.6
-		star_lbl.z_index = 8
-		star_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		add_child(star_lbl)
+		# DISABLED: Star name label
+		# # 		# Star name label.
+		# 		var star_seed: int = abs(hash("star:%d" % i))
+		# 		if has_node("/root/Run"):
+		# 			star_seed = abs(hash("star:%d:%d" % [i, get_node("/root/Run").run_seed]))
+		# 		var star_name: String = _generate_celestial_name("star", star_seed)
+		# 		var star_ls := LabelSettings.new()
+		# 		star_ls.font = FONT
+		# 		star_ls.font_size = 7
+		# 		star_ls.font_color = Color(0.75, 0.85, 1.0, 1.0)
+		# 		star_ls.outline_size = 1
+		# 		star_ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
+		# 		var star_lbl := Label.new()
+		# 		star_lbl.text = star_name
+		# 		star_lbl.label_settings = star_ls
+		# 		star_lbl.custom_minimum_size.x = 64.0
+		# 		star_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		# 		star_lbl.position = Vector2(anchor.x - 32.0, anchor.y - 36.0)
+		# 		star_lbl.modulate.a = 0.6
+		# 		star_lbl.z_index = 8
+		# 		star_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# 		add_child(star_lbl)
 	_process(0.0)
 
 
@@ -1034,16 +1038,17 @@ func _build_labels() -> void:
 	ls.outline_size  = 1
 	ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
 
-	# Sector header — centered at top
-	var hdr := Label.new()
-	hdr.text = "%s  —  Sector %d / %d" % [sector_name, current_sector, total_sectors]
-	hdr.label_settings = ls
-	hdr.position = Vector2(0.0, 10.0)
-	hdr.size = Vector2(480.0, 14.0)
-	hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hdr.z_index = 10
-	hdr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(hdr)
+# DISABLED: Sector header label
+# 	# Sector header — centered at top
+# 	var hdr := Label.new()
+# 	hdr.text = "%s  —  Sector %d / %d" % [sector_name, current_sector, total_sectors]
+# 	hdr.label_settings = ls
+# 	hdr.position = Vector2(0.0, 10.0)
+# 	hdr.size = Vector2(480.0, 14.0)
+# 	hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+# 	hdr.z_index = 10
+# 	hdr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+# 	add_child(hdr)
 
 	# Player status — bottom left at (64, 232)
 	var status_lbl := Label.new()
