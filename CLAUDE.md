@@ -52,6 +52,8 @@ Context is the scarce resource. Iteration-heavy work belongs in a dev tuner the 
 - `patterns/` — movement Resources; subclass `movement_pattern.gd`, override `compute_step(enemy, delta) -> Vector2`.
 - Custom enemies (bomber, bulwark v2) extend `enemy_base.gd` directly, expose `hull`/`max_hull` + `hull_changed` signal.
 
+**Enemy convention:** When adding new enemies, prefer extending `enemy_core.gd` and declaring movement/shoot behavior via the `movement` and `shoot_pattern` resource slots over inline bespoke `_process` logic. Check `scripts/enemies/patterns/` and `scripts/enemies/shoot_patterns/` for existing patterns before writing new movement code. Reserve bespoke scripts for behavior that genuinely cannot be expressed as a pattern (complex state machines, multi-phase locomotion, continuous-effect weapons).
+
 ### Bosses (`scripts/boss.gd`, `boss_reaver.gd`, `boss_sentinel.gd`)
 Three bosses share `boss.gd`. **Each sets stats in `_ready()` before `super._ready()` — never via `<= 0 ? default` pattern (caused 1-HP bug).** Boss attack: charge → fire → detonate black hole sequence. `boss_sweep.gd` uses `sin³(t)` easing on X-axis.
 
