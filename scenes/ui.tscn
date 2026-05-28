@@ -1,6 +1,6 @@
-[gd_scene load_steps=8 format=3 uid="uid://b54c7ad6cogrm"]
+[gd_scene format=3 uid="uid://b54c7ad6cogrm"]
 
-[ext_resource type="Script" path="res://scripts/ui.gd" id="1_2ifyw"]
+[ext_resource type="Script" uid="uid://bjujuqgar0xmh" path="res://scripts/ui.gd" id="1_2ifyw"]
 [ext_resource type="Texture2D" uid="uid://cj6xormygja1x" path="res://Mini Pixel Pack 3/UI objects/Item_held_box (16 x 16).png" id="1_nnhfv"]
 [ext_resource type="Texture2D" uid="uid://0p6so5w0mcjw" path="res://Mini Pixel Pack 3/UI objects/bar_background.png" id="2_4c7md"]
 [ext_resource type="PackedScene" uid="uid://crr2gxtgxt1cm" path="res://scenes/score_counter.tscn" id="2_hbnwe"]
@@ -11,10 +11,10 @@
 atlas = ExtResource("4_1s16x")
 region = Rect2(32, 2.08165e-12, 16, 16)
 
-[node name="UI" type="MarginContainer"]
+[node name="UI" type="MarginContainer" unique_id=646251911]
 anchors_preset = 10
 anchor_right = 1.0
-offset_bottom = 14.0
+offset_bottom = 272.0
 grow_horizontal = 2
 size_flags_horizontal = 0
 size_flags_vertical = 0
@@ -23,13 +23,14 @@ theme_override_constants/margin_top = 4
 theme_override_constants/margin_right = 4
 script = ExtResource("1_2ifyw")
 
-[node name="BoxContainer" type="BoxContainer" parent="."]
+[node name="BoxContainer" type="BoxContainer" parent="." unique_id=835397728]
 layout_mode = 2
 size_flags_vertical = 0
 theme_override_constants/separation = 0
 vertical = true
 
-[node name="ShieldBar" type="TextureProgressBar" parent="BoxContainer"]
+[node name="ShieldBar" type="TextureProgressBar" parent="BoxContainer" unique_id=1837443218]
+visible = false
 custom_minimum_size = Vector2(120, 6)
 layout_mode = 2
 size_flags_vertical = 4
@@ -42,7 +43,8 @@ stretch_margin_bottom = 3
 texture_under = ExtResource("2_4c7md")
 texture_progress = ExtResource("3_vcqhw")
 
-[node name="HullBar" type="TextureProgressBar" parent="BoxContainer"]
+[node name="HullBar" type="TextureProgressBar" parent="BoxContainer" unique_id=6614702]
+visible = false
 modulate = Color(1, 0.4, 0.4, 1)
 custom_minimum_size = Vector2(120, 6)
 layout_mode = 2
@@ -57,14 +59,15 @@ stretch_margin_bottom = 3
 texture_under = ExtResource("2_4c7md")
 texture_progress = ExtResource("3_vcqhw")
 
-[node name="TextureRect" type="TextureRect" parent="BoxContainer"]
+[node name="TextureRect" type="TextureRect" parent="BoxContainer" unique_id=1926543019]
 visible = false
 layout_mode = 2
 size_flags_vertical = 4
 texture = ExtResource("1_nnhfv")
 stretch_mode = 2
 
-[node name="MarginContainer" type="CenterContainer" parent="BoxContainer/TextureRect"]
+[node name="MarginContainer" type="CenterContainer" parent="BoxContainer/TextureRect" unique_id=995030095]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -72,17 +75,65 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="TextureRect" type="TextureRect" parent="BoxContainer/TextureRect/MarginContainer"]
+[node name="TextureRect" type="TextureRect" parent="BoxContainer/TextureRect/MarginContainer" unique_id=242766088]
+visible = false
 layout_mode = 2
 texture = SubResource("AtlasTexture_xn21l")
 stretch_mode = 2
 
-[node name="ScoreCounter" parent="BoxContainer" instance=ExtResource("2_hbnwe")]
+[node name="ScoreCounter" parent="BoxContainer" unique_id=1973372268 instance=ExtResource("2_hbnwe")]
+visible = false
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="WaveLabel" type="Label" parent="BoxContainer"]
+[node name="WaveLabel" type="Label" parent="BoxContainer" unique_id=358474326]
+visible = false
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 0.8)
 theme_override_font_sizes/font_size = 8
 text = "WAVE 1 / 7"
+
+[node name="shield_pip_row_1" type="Marker2D" parent="." unique_id=1418869902]
+position = Vector2(16, 16)
+
+[node name="hull_pip_row_1" type="Marker2D" parent="." unique_id=674624727]
+position = Vector2(16, 72)
+
+[node name="hull_annuciator" type="Marker2D" parent="." unique_id=269198951]
+position = Vector2(16, 88)
+
+[node name="bounty_label" type="Marker2D" parent="." unique_id=1936988066]
+position = Vector2(392, 240)
+
+[node name="bounty_count" type="Marker2D" parent="bounty_label" unique_id=945098942]
+position = Vector2(56, 0)
+
+[node name="shield_pip_row_2" type="Marker2D" parent="." unique_id=1587702842]
+position = Vector2(16, 32)
+
+[node name="shield_pip_row_3" type="Marker2D" parent="." unique_id=1785235052]
+position = Vector2(16, 48)
+
+[node name="pri_blaster_label" type="Marker2D" parent="." unique_id=1453883348]
+position = Vector2(392, 16)
+
+[node name="blaster_status" type="Marker2D" parent="pri_blaster_label" unique_id=204925319]
+position = Vector2(64, 0)
+
+[node name="pri_weapon_label" type="Marker2D" parent="pri_blaster_label" unique_id=732164559]
+position = Vector2(0, 16)
+
+[node name="pri_ammo_count" type="Marker2D" parent="pri_blaster_label/pri_weapon_label" unique_id=1086461611]
+position = Vector2(64, 0)
+
+[node name="sec_weapon_label" type="Marker2D" parent="pri_blaster_label" unique_id=1142059862]
+position = Vector2(0, 32)
+
+[node name="sec_ammo_count" type="Marker2D" parent="pri_blaster_label/sec_weapon_label" unique_id=996086799]
+position = Vector2(64, 16)
+
+[node name="sup_weapon_label" type="Marker2D" parent="pri_blaster_label" unique_id=1909199236]
+position = Vector2(0, 48)
+
+[node name="sup_ammo_bars" type="Marker2D" parent="pri_blaster_label/sup_weapon_label" unique_id=1157031644]
+position = Vector2(64, -16)
