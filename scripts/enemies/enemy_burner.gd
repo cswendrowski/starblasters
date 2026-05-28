@@ -1,4 +1,4 @@
-extends "res://scripts/enemies/enemy_core.gd"
+extends "res://scripts/enemy_core.gd"
 
 # Burner — small uncommon enemy that flies straight down and drops fire mines
 # in its wake. Fast, dies quickly, but the fire trail lingers.

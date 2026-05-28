@@ -1,4 +1,4 @@
-extends "res://scripts/enemies/enemy_core.gd"
+extends "res://scripts/enemy_core.gd"
 
 # Sapper — rare small enemy that drains player shield charges via a teal beam.
 # Does NOT deal damage directly; instead transfers shield charges from the player
