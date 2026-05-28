@@ -12,6 +12,9 @@ const DOT_STEP   := 10
 const SHIELD_ROWS := 3
 const SHIELD_COLS := 10
 const HULL_COLS   := 10
+const BAR_W := 48
+const BAR_H := 4
+const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 
 const COLOR_GRAY   := Color(0.70, 0.78, 0.88, 0.70)
 const COLOR_GREEN  := Color(0.55, 1.00, 0.50, 1.0)
@@ -51,6 +54,8 @@ var _wave_spawning: bool = false
 var _sec_ammo: int = -1
 var _super_charge_count: int = 0
 
+var _font: Font = null
+
 var hologram_hud = null
 
 
@@ -71,6 +76,7 @@ func _ready() -> void:
 	_hud_root_node.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(_hud_root_node)
 
+	_font = load(FONT_PATH) as Font
 	_install_hud()
 
 	hologram_hud = HologramHUDCls.new()
@@ -89,7 +95,7 @@ func _make_label(pos: Vector2, text: String, color: Color, font_size: int = 7) -
 	var l := Label.new()
 	l.text = text
 	l.position = pos
-	l.add_theme_font_override("font", load(FONT_PATH) as Font)
+	l.add_theme_font_override("font", _font)
 	l.add_theme_font_size_override("font_size", font_size)
 	l.add_theme_color_override("font_color", color)
 	l.add_theme_color_override("font_outline_color", COLOR_BLACK)
@@ -247,6 +253,7 @@ func flicker_out(duration: float = 0.5) -> void:
 func bind_player(player) -> void:
 	if hologram_hud:
 		hologram_hud.bind_player(player)
+	_disconnect_player_signals(_player_ref)
 	_player_ref = player
 	if player == null:
 		return
@@ -294,8 +301,6 @@ func _install_ammo_label() -> void:
 func _install_focus_bar() -> void:
 	if _focus_bar_fill != null and is_instance_valid(_focus_bar_fill):
 		return
-	const BAR_W := 48
-	const BAR_H := 4
 	var c := _hud_root_node
 	c.add_child(_make_label(_mpos("focus_label", Vector2(8, 247)), "FOCUS", Color(0.5, 0.75, 1.0, 0.85), 7))
 	var bg := ColorRect.new()
@@ -319,11 +324,10 @@ func _install_focus_bar() -> void:
 func _on_focus_charge_changed(charge: float, max_charge: float) -> void:
 	if _focus_bar_fill == null:
 		return
-	_focus_bar_fill.size.x = 48.0 * clamp(charge / max(1.0, max_charge), 0.0, 1.0)
+	_focus_bar_fill.size.x = float(BAR_W) * clamp(charge / max(1.0, max_charge), 0.0, 1.0)
 
 
 func _refresh_weapon_names() -> void:
-	const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 	if not has_node("/root/Run"):
 		return
 	var run = get_node("/root/Run")
@@ -384,6 +388,23 @@ func _set_threat_blink(on: bool) -> void:
 			_threat_light.modulate.a = 1.0
 
 
+func _disconnect_player_signals(player) -> void:
+	if player == null or not is_instance_valid(player):
+		return
+	if player.has_signal("hull_changed") and player.hull_changed.is_connected(update_hull):
+		player.hull_changed.disconnect(update_hull)
+	if player.has_signal("shield_changed") and player.shield_changed.is_connected(update_shield):
+		player.shield_changed.disconnect(update_shield)
+	if player.has_signal("ammo_changed") and player.ammo_changed.is_connected(_on_ammo_changed):
+		player.ammo_changed.disconnect(_on_ammo_changed)
+	if player.has_signal("secondary_ammo_changed") and player.secondary_ammo_changed.is_connected(_on_secondary_ammo_changed):
+		player.secondary_ammo_changed.disconnect(_on_secondary_ammo_changed)
+	if player.has_signal("super_charges_changed") and player.super_charges_changed.is_connected(_on_super_charges_changed):
+		player.super_charges_changed.disconnect(_on_super_charges_changed)
+	if player.has_signal("focus_charge_changed") and player.focus_charge_changed.is_connected(_on_focus_charge_changed):
+		player.focus_charge_changed.disconnect(_on_focus_charge_changed)
+
+
 # ---------------------------------------------------------------------------
 # Per-frame logic
 # ---------------------------------------------------------------------------
@@ -403,8 +424,6 @@ func _action_key_label(action: String) -> String:
 
 
 func _process(_delta: float) -> void:
-	const Slots = preload("res://scripts/weapons/SlotTypes.gd")
-
 	if has_node("/root/Run"):
 		var run = get_node("/root/Run")
 		var blaster_active: bool = int(run.active_cannon_idx) == 0
