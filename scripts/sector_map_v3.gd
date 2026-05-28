@@ -361,9 +361,17 @@ func _build_routes() -> void:
 	var run = get_node("/root/Run")
 	var rows: Array = run.sector_map_cache.get("rows", [])
 	for i in rows.size():
+		# Source anchor from star Marker2D so routes follow the scene editor.
 		var anchor: Vector2 = STAR_ANCHORS[i]
+		var star_marker_path: String = "star_%d" % (i + 1)
+		if has_node(star_marker_path):
+			anchor = (get_node(star_marker_path) as Marker2D).global_position
 		var boss: Dictionary = rows[i].boss
+		# Source boss end from its Marker2D so routes end at the marker position.
+		var boss_marker_path: String = "star_%d/row_%d_boss_%d" % [i + 1, i + 1, i + 1]
 		var end_x: float = boss.pos.x
+		if has_node(boss_marker_path):
+			end_x = (get_node(boss_marker_path) as Marker2D).global_position.x
 		var line := Line2D.new()
 		# Designer: POI line alpha 0 at the star end, 1 at the boss end. Line2D
 		# supports per-length gradient via the `gradient` property, so we keep a
@@ -393,12 +401,21 @@ func _build_pois_from_cache() -> void:
 	var rows: Array = run.sector_map_cache.get("rows", [])
 	for r_idx in rows.size():
 		_cur_row_idx = r_idx
-		var anchor: Vector2 = STAR_ANCHORS[r_idx]
+		# Boss end_x — prefer its Marker2D so route + frac stay consistent.
+		var boss_marker_path_row: String = "star_%d/row_%d_boss_%d" % [r_idx + 1, r_idx + 1, r_idx + 1]
 		var row_end_x: float = rows[r_idx].boss.pos.x
+		if has_node(boss_marker_path_row):
+			row_end_x = (get_node(boss_marker_path_row) as Marker2D).global_position.x
 		var pois: Array = rows[r_idx].pois
 		var planet_seq: int = 0
 		for poi_idx in pois.size():
 			var poi = pois[poi_idx]
+			# Resolve this POI's display position from its Marker2D so moving
+			# the marker in the scene editor repositions ALL visuals + hit regions.
+			var poi_marker_path: String = "star_%d/row_%d_poi_%d" % [r_idx + 1, r_idx + 1, poi_idx + 1]
+			var pos: Vector2 = poi.pos
+			if has_node(poi_marker_path):
+				pos = (get_node(poi_marker_path) as Marker2D).global_position
 			var deco_rng := RandomNumberGenerator.new()
 			deco_rng.seed = abs(hash(poi.id))
 			# Object kind: planet/large_ast/cluster. Distribution roughly
@@ -414,40 +431,40 @@ func _build_pois_from_cache() -> void:
 			match obj_kind:
 				OBJ_PLANET:
 					var px: float = PLANET_MIN_PX + float(deco_rng.randi() % 3) * 8.0
-					var frac: float = (poi.pos.x - 128.0) / max(1.0, row_end_x - 128.0)
+					var frac: float = (pos.x - 128.0) / max(1.0, row_end_x - 128.0)
 					var ptype: int  = _pick_planet_type(deco_rng, frac)
-					_spawn_planet(poi.pos, px, ptype, r_idx, deco_rng, String(poi.id))
+					_spawn_planet(pos, px, ptype, r_idx, deco_rng, String(poi.id))
 					if draw_dressing:
 						hover_label = PLANET_LETTERS[mini(planet_seq, PLANET_LETTERS.size() - 1)]
 					planet_seq += 1
 				OBJ_LARGE_AST:
-					_spawn_large_asteroid(poi.pos, r_idx, deco_rng)
+					_spawn_large_asteroid(pos, r_idx, deco_rng)
 					if draw_dressing:
 						hover_label = "Asteroid"
 				OBJ_CLUSTER:
-					_spawn_asteroid_cluster(poi.pos, r_idx, deco_rng)
+					_spawn_asteroid_cluster(pos, r_idx, deco_rng)
 					if draw_dressing:
 						hover_label = "Belt"
 			if draw_dressing:
-				_add_node_dressing(poi.pos, int(poi.node_type), deco_rng)
+				_add_node_dressing(pos, int(poi.node_type), deco_rng)
 				if int(poi.node_type) == int(SectorNode.NodeType.HAZARD) \
 						and String(poi.get("hazard_subtype", "")) == "minefield":
-					_add_minefield_indicators(poi.pos, deco_rng)
-			_add_hover_label_icon(poi.pos, 32.0, hover_label, int(poi.node_type), poi.completed)
+					_add_minefield_indicators(pos, deco_rng)
+			_add_hover_label_icon(pos, 32.0, hover_label, int(poi.node_type), poi.completed)
 			# POI name label — skip completed nodes (spent) and BOSS type (handled separately).
 			if not poi.completed and int(poi.node_type) != int(SectorNode.NodeType.BOSS):
 				var poi_name_seed: int = abs(hash(poi.id)) ^ 0x3F7A1C2B
 				var poi_name: String = _generate_poi_name(int(poi.node_type), poi_name_seed, String(poi.get("hazard_subtype", "")))
-				# Use Marker2D position from the scene
+				# Use child label Marker2D position from the scene.
 				var label_marker_path = "star_%d/row_%d_poi_%d/row_%d_label_%d" % [r_idx + 1, r_idx + 1, poi_idx + 1, r_idx + 1, poi_idx + 1]
 				if has_node(label_marker_path):
 					var marker: Marker2D = get_node(label_marker_path)
 					_make_label(poi_name, marker.global_position, Color(0.75, 0.85, 1.0, 1.0))
 				else:
-					_make_label(poi_name, Vector2(poi.pos.x, poi.pos.y + 14.0), Color(0.75, 0.85, 1.0, 1.0))
+					_make_label(poi_name, Vector2(pos.x, pos.y + 14.0), Color(0.75, 0.85, 1.0, 1.0))
 			_poi_hits.append({
 				"id":     String(poi.id),
-				"pos":    Vector2(poi.pos),
+				"pos":    pos,
 				# 14px — wide enough to cover the 16px icon footprint (32px
 				# atlas at 0.5 scale) so the icon itself is clickable. Matches
 				# the hover radius so reveal + click happen at the same range.
@@ -853,7 +870,12 @@ func _build_bosses_from_cache() -> void:
 	var rows: Array = run.sector_map_cache.get("rows", [])
 	for r_idx in rows.size():
 		var boss: Dictionary = rows[r_idx].boss
+		# Resolve position from Marker2D so moving the marker repositions
+		# both the boss visual and its click/hover region.
+		var boss_body_marker_path: String = "star_%d/row_%d_boss_%d" % [r_idx + 1, r_idx + 1, r_idx + 1]
 		var pos: Vector2 = boss.pos
+		if has_node(boss_body_marker_path):
+			pos = (get_node(boss_body_marker_path) as Marker2D).global_position
 		var unlocked: bool = run.is_row_pois_complete(r_idx)
 		var defeated: bool = boss.completed
 
@@ -924,7 +946,12 @@ func _build_bosses_from_cache() -> void:
 
 func _build_stars() -> void:
 	for i in STAR_ANCHORS.size():
-		var anchor:     Vector2 = STAR_ANCHORS[i]
+		# Source anchor from scene Marker2D so moving star_N repositions
+		# the star body, glow, and label together.
+		var anchor: Vector2 = STAR_ANCHORS[i]
+		var star_body_marker_path: String = "star_%d" % (i + 1)
+		if has_node(star_body_marker_path):
+			anchor = (get_node(star_body_marker_path) as Marker2D).global_position
 		var display_px: float   = STAR_DISPLAY_PX[i]
 		var sv: Dictionary      = _get_star_variant(i)
 		var base_type:  int     = sv.base_type_idx
