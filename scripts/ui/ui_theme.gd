@@ -19,6 +19,7 @@ const COLOR_ACCENT     := Color(0.62, 0.82, 1.00, 1.0)  # buttons, headers, link
 const COLOR_ACCENT_DIM := Color(0.32, 0.50, 0.72, 1.0)  # outlines / inactive border
 const COLOR_OUTLINE    := Color(0.05, 0.08, 0.12, 1.0)  # text outline — pure dark
 const COLOR_BOUNTY     := Color(1.00, 0.86, 0.42, 1.0)  # warm gold — currency
+const COLOR_GREEN      := Color(0.55, 1.00, 0.50, 1.0)  # sector map green — weapon UI, node markers
 const COLOR_DANGER     := Color(1.00, 0.40, 0.32, 1.0)  # alert red
 const COLOR_DANGER_DK  := Color(0.40, 0.05, 0.00, 1.0)  # alert outline
 const COLOR_DISABLED   := Color(0.45, 0.50, 0.58, 0.75)

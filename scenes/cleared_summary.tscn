@@ -58,7 +58,7 @@ theme_override_constants/separation = 6
 text = "TOTAL BOUNTY: 0"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 10
-theme_override_colors/font_color = Color(1, 0.85, 0.45, 1)
+theme_override_colors/font_color = Color(1, 0.86, 0.42, 1)
 
 [node name="MapBtn" type="Button" parent="Root/Bottom"]
 custom_minimum_size = Vector2(90, 18)

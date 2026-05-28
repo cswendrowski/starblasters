@@ -115,7 +115,7 @@ func _style_buttons() -> void:
 		UiTheme.style_button(b, true)  # dense — menu has 5+ buttons
 	# Test bed keeps its distinct green to mark it as a dev shortcut.
 	if test_bed_btn != null:
-		test_bed_btn.add_theme_color_override("font_color", Color(0.55, 1.0, 0.6, 1.0))
+		test_bed_btn.add_theme_color_override("font_color", UiTheme.COLOR_GREEN)
 
 
 func _style_version() -> void:
@@ -178,7 +178,7 @@ func _install_dev_menu_button() -> void:
 	btn.text = "[ Dev Menu ]"
 	btn.custom_minimum_size = Vector2(160, 22)
 	UiTheme.style_button(btn, true)
-	btn.add_theme_color_override("font_color", Color(0.55, 1.0, 0.6, 1.0))
+	btn.add_theme_color_override("font_color", UiTheme.COLOR_GREEN)
 	btn.pressed.connect(func():
 		SceneTransition.change_scene(get_tree(), "res://scenes/dev_menu.tscn")
 	)

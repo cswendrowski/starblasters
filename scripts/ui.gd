@@ -574,7 +574,7 @@ func _on_super_charges_changed(value: int, maximum: int) -> void:
 		var pip: ColorRect = pips[i] as ColorRect
 		if pip == null:
 			continue
-		pip.color = Color(1.0, 0.85, 0.3, 1.0) if i < value else Color(0.3, 0.3, 0.3, 0.7)
+		pip.color = UiTheme.COLOR_BOUNTY if i < value else Color(0.3, 0.3, 0.3, 0.7)
 
 
 # Style a ProgressBar as a flat %-bar with a colored fill + dark BG.

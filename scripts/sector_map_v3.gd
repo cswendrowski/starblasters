@@ -99,7 +99,7 @@ const ASTEROID_EXOTIC_COLORS: Array[Color] = [
 const ROUTE_WIDTH := 8.0
 # 0.70 × 0.8 = 0.56 — designer asked for -20% opacity on POI lines.
 const ROUTE_COLOR := Color(0.30, 0.38, 0.55, 0.56)
-const PROGRESS_COLOR := Color(0.40, 0.95, 0.40, 1.0)
+const PROGRESS_COLOR := Color(0.55, 1.0, 0.50, 1.0)
 
 # Background starfield palette — mirrors galaxy_backdrop_v3.STAR_COLORS but with
 # -20% brightness applied at draw time per designer.
@@ -204,7 +204,7 @@ func _show_post_combat_banner() -> void:
 	var ls := LabelSettings.new()
 	ls.font = FONT
 	ls.font_size = 10
-	ls.font_color = Color(1.0, 0.92, 0.55, 1.0)  # bounty-gold
+	ls.font_color = UiTheme.COLOR_BOUNTY  # bounty-gold
 	ls.outline_size = 2
 	ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
 	var lbl := Label.new()
@@ -909,7 +909,7 @@ func _build_bosses_from_cache() -> void:
 		add_child(icon_spr)
 		# BOSS/DEFEATED label — positioned above boss dot
 		var boss_label_text: String = "DEFEATED" if defeated else "BOSS"
-		var boss_label_color: Color = Color(0.50, 1.0, 0.60, 1.0) if defeated else Color(0.90, 0.30, 0.30, 1.0)
+		var boss_label_color: Color = COLOR_NODE_GREEN if defeated else Color(0.90, 0.30, 0.30, 1.0)
 		# Use Marker2D position from the scene
 		var boss_label_marker_path = "star_%d/row_%d_boss_%d/boss_label_%d" % [r_idx + 1, r_idx + 1, r_idx + 1, r_idx + 1]
 		if has_node(boss_label_marker_path):
@@ -1908,7 +1908,7 @@ func _show_no_bounty_modal() -> void:
 	var title_ls := LabelSettings.new()
 	title_ls.font = FONT
 	title_ls.font_size = 11
-	title_ls.font_color = Color(1.0, 0.85, 0.30, 1.0)
+	title_ls.font_color = UiTheme.COLOR_BOUNTY
 	title_ls.outline_size = 1
 	title_ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
 	title.label_settings = title_ls
@@ -2045,7 +2045,7 @@ func _render_manage_ship_contents(panel: PanelContainer) -> void:
 	# Title row.
 	var title := Label.new()
 	title.text = "MANAGE SHIP"
-	title.label_settings = _ms_label_settings(11, Color(0.95, 0.92, 0.55, 1.0))
+	title.label_settings = _ms_label_settings(11, UiTheme.COLOR_BOUNTY)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
 	if not has_node("/root/Run"):
