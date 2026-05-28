@@ -1,6 +1,7 @@
 extends MarginContainer
 
 const HologramHUDCls = preload("res://scripts/hologram_hud.gd")
+const HudLight = preload("res://scripts/hud_light.gd")
 
 const DOT_TEX   := "res://graphics/ui/hud_dot_light.png"
 const ANN_TEX   := "res://graphics/ui/hud_annunciator_danger.png"
@@ -48,7 +49,6 @@ var _light_sec: Sprite2D = null
 var _light_sup: Sprite2D = null
 var _fire_light: Sprite2D = null
 var _threat_light: Sprite2D = null
-var _threat_blink_tween: Tween = null
 
 var _focus_bar_fill: ColorRect = null
 
@@ -246,6 +246,23 @@ func update_hull(max_value, value) -> void:
 		pip.frame = 1 if on else 0
 		pip.modulate = COLOR_HULL if on else _color_hull_off
 
+	# Pip hit flash on damage
+	if _prev_hull >= 0 and int(value) < _prev_hull and _hull_pip_container != null:
+		HudLight.pip_flash(_hull_pip_container)
+	_prev_hull = int(value)
+
+	# Critical flicker on fire light at hull <= 50%
+	var crit := float(value) / max(float(max_value), 1.0) <= 0.5 and int(value) > 0
+	if crit != _hull_crit:
+		_hull_crit = crit
+		if _fire_light != null:
+			if crit:
+				_fire_light.frame = 1
+				HudLight.apply(_fire_light, HudLight.Pattern.FLICKER)
+			else:
+				HudLight.stop(_fire_light)
+				_fire_light.frame = 0
+
 
 func update_shield(max_value, value) -> void:
 	var total := SHIELD_ROWS * SHIELD_COLS
@@ -257,6 +274,11 @@ func update_shield(max_value, value) -> void:
 			var on: bool = (row_i * SHIELD_COLS + col_i) < filled
 			pip.frame = 1 if on else 0
 			pip.modulate = COLOR_SHIELD if on else _color_shield_off
+
+	# Pip hit flash on damage
+	if _prev_shield >= 0 and int(value) < _prev_shield and _shield_pip_container != null:
+		HudLight.pip_flash(_shield_pip_container)
+	_prev_shield = int(value)
 
 
 func update_score(value) -> void:
@@ -302,6 +324,8 @@ func bind_player(player) -> void:
 		player.super_charges_changed.connect(_on_super_charges_changed)
 	if player.has_signal("focus_charge_changed") and not player.focus_charge_changed.is_connected(_on_focus_charge_changed):
 		player.focus_charge_changed.connect(_on_focus_charge_changed)
+	if player.has_signal("damaged") and not player.damaged.is_connected(_on_player_damaged):
+		player.damaged.connect(_on_player_damaged)
 
 	# Seed from current values
 	if "max_hull" in player and "hull" in player:
@@ -359,6 +383,13 @@ func _on_focus_charge_changed(charge: float, max_charge: float) -> void:
 	_focus_bar_fill.size.x = float(BAR_W) * clamp(charge / max(1.0, max_charge), 0.0, 1.0)
 
 
+func _on_player_damaged(_amount: int) -> void:
+	if _fire_light != null:
+		HudLight.hit_flash(_fire_light)
+	if _threat_light != null:
+		HudLight.hit_flash(_threat_light)
+
+
 func _refresh_weapon_names() -> void:
 	if not has_node("/root/Run"):
 		return
@@ -395,29 +426,10 @@ func _on_super_charges_changed(value: int, _maximum: int) -> void:
 
 func _on_wave_started_threat(_idx, _total, _silent, _text) -> void:
 	_wave_spawning = true
-	_set_threat_blink(true)
 
 
 func _on_level_cleared_threat() -> void:
 	_wave_spawning = false
-
-
-func _set_threat_blink(on: bool) -> void:
-	if on:
-		if _threat_blink_tween != null and _threat_blink_tween.is_valid():
-			return
-		if _threat_light == null:
-			return
-		_threat_light.frame = 1
-		_threat_blink_tween = create_tween().set_loops()
-		_threat_blink_tween.tween_property(_threat_light, "modulate:a", 0.1, 0.35)
-		_threat_blink_tween.tween_property(_threat_light, "modulate:a", 1.0, 0.35)
-	else:
-		if _threat_blink_tween != null and _threat_blink_tween.is_valid():
-			_threat_blink_tween.kill()
-		_threat_blink_tween = null
-		if _threat_light:
-			_threat_light.modulate.a = 1.0
 
 
 func _disconnect_player_signals(player) -> void:
@@ -435,6 +447,8 @@ func _disconnect_player_signals(player) -> void:
 		player.super_charges_changed.disconnect(_on_super_charges_changed)
 	if player.has_signal("focus_charge_changed") and player.focus_charge_changed.is_connected(_on_focus_charge_changed):
 		player.focus_charge_changed.disconnect(_on_focus_charge_changed)
+	if player.has_signal("damaged") and player.damaged.is_connected(_on_player_damaged):
+		player.damaged.disconnect(_on_player_damaged)
 
 
 # ---------------------------------------------------------------------------
@@ -481,20 +495,25 @@ func _process(_delta: float) -> void:
 		var blaster_on: bool = has_node("/root/Run") and int(get_node("/root/Run").active_cannon_idx) == 0
 		_blaster_status_lbl.text = "STANDBY" if not blaster_on else ("FIRING" if Input.is_action_pressed("shoot") else "READY")
 
-	if _fire_light and _player_ref != null and is_instance_valid(_player_ref):
-		var pct: float = float(_player_ref.hull) / max(float(_player_ref.max_hull), 1.0)
-		_fire_light.frame = 1 if pct <= 0.5 and int(_player_ref.hull) > 0 else 0
-
+	# --- Threat light (state-tracked to avoid restarting tween every frame) ---
 	var enemy_count: int = get_tree().get_nodes_in_group("enemies").size()
-	if _threat_light:
-		if enemy_count > 0:
-			if _threat_blink_tween != null and _threat_blink_tween.is_valid():
-				_threat_blink_tween.kill()
-				_threat_blink_tween = null
-				_wave_spawning = false
-			_threat_light.frame = 1
-		elif _wave_spawning:
-			_set_threat_blink(true)
-		else:
-			_set_threat_blink(false)
-			_threat_light.frame = 0
+	var new_threat: int = 0  # OFF
+	if enemy_count > 0:
+		new_threat = 2  # STEADY
+	elif _wave_spawning:
+		new_threat = 1  # BLINK
+
+	if new_threat != _threat_state:
+		_threat_state = new_threat
+		if _threat_light != null:
+			match _threat_state:
+				2:  # STEADY
+					_wave_spawning = false
+					_threat_light.frame = 1
+					HudLight.apply(_threat_light, HudLight.Pattern.STEADY)
+				1:  # BLINK
+					_threat_light.frame = 1
+					HudLight.apply(_threat_light, HudLight.Pattern.BLINK)
+				0:  # OFF
+					HudLight.stop(_threat_light)
+					_threat_light.frame = 0
