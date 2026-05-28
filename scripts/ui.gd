@@ -128,7 +128,7 @@ func _install_hud() -> void:
 	# Hull annunciator — always shows the danger frame
 	var ann := Sprite2D.new()
 	ann.texture = load(ANN_TEX) as Texture2D
-	ann.hframes = 2
+	ann.hframes = 4
 	ann.centered = false
 	ann.frame = 1
 	ann.position = _mpos("hull_annuciator", Vector2(16, 104))
