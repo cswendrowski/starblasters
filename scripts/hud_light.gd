@@ -5,6 +5,9 @@ enum Pattern { STEADY, BLINK, PULSE, FLICKER }
 
 
 static func apply(node: CanvasItem, pattern: Pattern) -> void:
+	# Store original modulate so stop() can restore it.
+	if is_instance_valid(node) and not node.has_meta("_hlt_base"):
+		node.set_meta("_hlt_base", node.modulate)
 	stop(node)
 	if not is_instance_valid(node):
 		return
@@ -42,13 +45,17 @@ static func stop(node: CanvasItem) -> void:
 		if t != null and t.is_valid():
 			t.kill()
 		node.remove_meta("_hlt")
-	node.modulate = Color.WHITE
+	if node.has_meta("_hlt_base"):
+		node.modulate = node.get_meta("_hlt_base")
+		node.remove_meta("_hlt_base")
+	else:
+		node.modulate.a = 1.0
 
 
 static func hit_flash(node: CanvasItem) -> void:
 	if not is_instance_valid(node):
 		return
-	var base_color := node.modulate
+	var base_color: Color = node.get_meta("_hlt_base") if node.has_meta("_hlt_base") else node.modulate
 	# Flash tween runs concurrently with any active pattern tween.
 	# Since it is newer, its modulate writes dominate for ~0.4s, after which
 	# the pattern tween resumes naturally (last-write-wins per frame in Godot 4).
