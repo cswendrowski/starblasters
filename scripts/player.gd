@@ -153,7 +153,7 @@ var _invuln_t: float = 0.0
 var max_hull: int = 3
 var hull: int = 3:
 	set = set_hull
-# Chance (0.0–1.0) to shrug off a hull hit entirely. Unlocked at Mk.3/6/9.
+# Chance (0.0–1.0) to shrug off a hull hit entirely. 3% per Hull Plating Mk.
 var hull_shrug_chance: float = 0.0
 # armor_mk DR retired. Field kept for save compat.
 var hull_damage_reduction: float = 0.0
@@ -1364,18 +1364,15 @@ func apply_run_upgrades() -> void:
 	if not has_node("/root/Run"):
 		return
 	var run = get_node("/root/Run")
-	# Hull: 1 base + 1 per Mk → Mk.1=2, Mk.9=10 (hull spec 2026-05-28).
-	max_hull = 1 + int(run.hull_mk)
-	# Shrug chance: 5% at Mk.3, +5% at Mk.6, +5% at Mk.9 → max 15%.
-	hull_shrug_chance = 0.05 * (1 if run.hull_mk >= 3 else 0) \
-		+ 0.05 * (1 if run.hull_mk >= 6 else 0) \
-		+ 0.05 * (1 if run.hull_mk >= 9 else 0)
+	# Hull: 3 base + 1 per Mk + 1 bonus at Mk.9 → Mk.1=4, Mk.8=11, Mk.9=13.
+	max_hull = 3 + int(run.hull_mk) + (1 if run.hull_mk >= 9 else 0)
+	# Shrug chance: 3% per Hull Plating Mk → max 27% at Mk.9.
+	hull_shrug_chance = 0.03 * run.hull_plating_mk
 	# armor_mk retired — no DR applied (kept in run_state for save compat).
 	var speed_pct: float = 1.0 + float(run.thrusters_mk) * 0.03
 	speed_multiplier = max(0.3, speed_pct)
-	# Shield: 10 base + 2 per Mk + milestone bonuses at Mk.5 and Mk.9
-	# → Mk.1=12, Mk.5=21, Mk.9=30 (shield spec 2026-05-28).
-	var _shield_bonus := (1 if run.shield_cap_mk >= 5 else 0) + (1 if run.shield_cap_mk >= 9 else 0)
+	# Shield: 10 base + 2 per Mk + 2 bonus at Mk.9 → Mk.1=12, Mk.8=26, Mk.9=30.
+	var _shield_bonus := 2 if run.shield_cap_mk >= 9 else 0
 	max_shield = 10 + int(run.shield_cap_mk) * 2 + _shield_bonus
 	# shield_recharge_mk retired — regen is now always 1/sec after 5s delay.
 

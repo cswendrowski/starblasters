@@ -104,6 +104,7 @@ var thrusters_mk: int = 0
 var self_repair_mk: int = 0
 var shield_cap_mk: int = 0
 var shield_recharge_mk: int = 0
+var hull_plating_mk: int = 0
 
 # Stored cannons swapped out at outposts (the new one takes the CANNON
 # slot, the old one moves here). Each entry is a Part resource.
@@ -224,6 +225,7 @@ func new_run() -> void:
 	self_repair_mk = 0
 	shield_cap_mk = 0
 	shield_recharge_mk = 0
+	hull_plating_mk = 0
 	weapon_storage = []
 	cannon_pool = []
 	active_cannon_idx = 0
@@ -793,7 +795,7 @@ const _SAVE_FIELDS := [
 	"visited_nodes", "sectors_cleared", "combats_in_sector", "used_boss_scenes",
 	"enemies_killed", "max_bounty_earned", "run_distance", "run_seed",
 	"hull_mk", "armor_mk", "thrusters_mk", "self_repair_mk",
-	"shield_cap_mk", "shield_recharge_mk",
+	"shield_cap_mk", "shield_recharge_mk", "hull_plating_mk",
 	"sector_map_cache",
 	"cannon_pool", "active_cannon_idx",
 ]

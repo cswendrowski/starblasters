@@ -25,10 +25,11 @@ const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const Strings = preload("res://scripts/strings.gd")
 
 const UPGRADES := [
-	{"key": "hull_mk",        "name": Strings.UPGRADE_HULL_NAME,         "desc": Strings.UPGRADE_HULL_DESC},
-	{"key": "thrusters_mk",   "name": Strings.UPGRADE_THRUSTERS_NAME,    "desc": Strings.UPGRADE_THRUSTERS_DESC},
-	{"key": "self_repair_mk", "name": Strings.UPGRADE_SELF_REPAIR_NAME,  "desc": Strings.UPGRADE_SELF_REPAIR_DESC},
-	{"key": "shield_cap_mk",  "name": Strings.UPGRADE_SHIELD_CAP_NAME,   "desc": Strings.UPGRADE_SHIELD_CAP_DESC},
+	{"key": "hull_mk",          "name": Strings.UPGRADE_HULL_NAME,          "desc": Strings.UPGRADE_HULL_DESC},
+	{"key": "thrusters_mk",     "name": Strings.UPGRADE_THRUSTERS_NAME,     "desc": Strings.UPGRADE_THRUSTERS_DESC},
+	{"key": "self_repair_mk",   "name": Strings.UPGRADE_SELF_REPAIR_NAME,   "desc": Strings.UPGRADE_SELF_REPAIR_DESC},
+	{"key": "shield_cap_mk",    "name": Strings.UPGRADE_SHIELD_CAP_NAME,    "desc": Strings.UPGRADE_SHIELD_CAP_DESC},
+	{"key": "hull_plating_mk",  "name": Strings.UPGRADE_HULL_PLATING_NAME,  "desc": Strings.UPGRADE_HULL_PLATING_DESC},
 	# armor_mk and shield_recharge_mk retired — no longer purchasable.
 ]
 

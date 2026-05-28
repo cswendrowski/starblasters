@@ -45,6 +45,7 @@ extends Resource
 @export var self_repair_mk: int = 0
 @export var shield_cap_mk: int = 0
 @export var shield_recharge_mk: int = 0
+@export var hull_plating_mk: int = 0
 
 @export var sector_map_cache: Dictionary = {}
 

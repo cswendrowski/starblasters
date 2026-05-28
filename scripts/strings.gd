@@ -238,6 +238,9 @@ const UPGRADE_SELF_REPAIR_DESC := "+1 hull pip on sector map return."
 const UPGRADE_SHIELD_CAP_NAME := "Shield Capacity"
 const UPGRADE_SHIELD_CAP_DESC := "+2 max shield HP per Mk (base 10)."
 
+const UPGRADE_HULL_PLATING_NAME := "Hull Plating"
+const UPGRADE_HULL_PLATING_DESC := "3% chance to shrug off hull hits per mark."
+
 # ---- Service button base labels ----
 
 const SERVICE_HULL_REPAIR := "Hull Repair  +1 pip"
