@@ -93,14 +93,38 @@ theme_override_colors/font_color = Color(1, 1, 1, 0.8)
 theme_override_font_sizes/font_size = 8
 text = "WAVE 1 / 7"
 
-[node name="shield_pip_row_1" type="Marker2D" parent="." unique_id=1418869902]
+[node name="threat_label" type="Marker2D" parent="." unique_id=664230742]
+position = Vector2(376, 72)
+
+[node name="threat_light" type="Marker2D" parent="threat_label" unique_id=1204626613]
+position = Vector2(0, 8)
+
+[node name="shield_label" type="Marker2D" parent="." unique_id=1525754728]
 position = Vector2(16, 16)
 
-[node name="hull_pip_row_1" type="Marker2D" parent="." unique_id=674624727]
+[node name="shield_pip_row_1" type="Marker2D" parent="shield_label" unique_id=1418869902]
+position = Vector2(0, 8)
+
+[node name="shield_pip_row_2" type="Marker2D" parent="shield_label" unique_id=1587702842]
+position = Vector2(0, 24)
+
+[node name="shield_pip_row_3" type="Marker2D" parent="shield_label" unique_id=1785235052]
+position = Vector2(0, 40)
+
+[node name="hull_label" type="Marker2D" parent="." unique_id=1451471628]
 position = Vector2(16, 72)
 
+[node name="hull_pip_row_1" type="Marker2D" parent="hull_label" unique_id=674624727]
+position = Vector2(0, 16)
+
+[node name="fire_label" type="Marker2D" parent="." unique_id=1240572794]
+position = Vector2(48, 104)
+
+[node name="fire_light" type="Marker2D" parent="fire_label" unique_id=239029704]
+position = Vector2(16, 0)
+
 [node name="hull_annuciator" type="Marker2D" parent="." unique_id=269198951]
-position = Vector2(16, 88)
+position = Vector2(16, 104)
 
 [node name="bounty_label" type="Marker2D" parent="." unique_id=1936988066]
 position = Vector2(392, 240)
@@ -108,32 +132,41 @@ position = Vector2(392, 240)
 [node name="bounty_count" type="Marker2D" parent="bounty_label" unique_id=945098942]
 position = Vector2(56, 0)
 
-[node name="shield_pip_row_2" type="Marker2D" parent="." unique_id=1587702842]
-position = Vector2(16, 32)
-
-[node name="shield_pip_row_3" type="Marker2D" parent="." unique_id=1785235052]
-position = Vector2(16, 48)
+[node name="armanent_label" type="Marker2D" parent="." unique_id=1992955572]
+position = Vector2(392, 16)
 
 [node name="pri_blaster_label" type="Marker2D" parent="." unique_id=1453883348]
-position = Vector2(392, 16)
+position = Vector2(392, 24)
+
+[node name="weapon_light" type="Marker2D" parent="pri_blaster_label" unique_id=1820928927]
+position = Vector2(-16, 0)
 
 [node name="blaster_status" type="Marker2D" parent="pri_blaster_label" unique_id=204925319]
 position = Vector2(64, 0)
 
 [node name="pri_weapon_label" type="Marker2D" parent="pri_blaster_label" unique_id=732164559]
-position = Vector2(0, 16)
+position = Vector2(0, 8)
+
+[node name="weapon_light" type="Marker2D" parent="pri_blaster_label/pri_weapon_label" unique_id=152730044]
+position = Vector2(-16, 0)
 
 [node name="pri_ammo_count" type="Marker2D" parent="pri_blaster_label/pri_weapon_label" unique_id=1086461611]
 position = Vector2(64, 0)
 
 [node name="sec_weapon_label" type="Marker2D" parent="pri_blaster_label" unique_id=1142059862]
-position = Vector2(0, 32)
+position = Vector2(0, 16)
+
+[node name="weapon_light" type="Marker2D" parent="pri_blaster_label/sec_weapon_label" unique_id=1264664770]
+position = Vector2(-16, 0)
 
 [node name="sec_ammo_count" type="Marker2D" parent="pri_blaster_label/sec_weapon_label" unique_id=996086799]
-position = Vector2(64, 16)
+position = Vector2(64, 0)
 
 [node name="sup_weapon_label" type="Marker2D" parent="pri_blaster_label" unique_id=1909199236]
-position = Vector2(0, 48)
+position = Vector2(0, 24)
 
 [node name="sup_ammo_bars" type="Marker2D" parent="pri_blaster_label/sup_weapon_label" unique_id=1157031644]
-position = Vector2(64, -16)
+position = Vector2(64, 0)
+
+[node name="weapon_light" type="Marker2D" parent="pri_blaster_label/sup_weapon_label" unique_id=553655975]
+position = Vector2(-16, 0)
