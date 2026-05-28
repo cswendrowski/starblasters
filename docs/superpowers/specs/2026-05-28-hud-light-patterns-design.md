@@ -38,7 +38,7 @@ static func pip_flash(container: CanvasItem) -> void
 | Pattern | Mechanism | Timing |
 |---|---|---|
 | STEADY | frame=1, no tween | — |
-| BLINK | modulate:a 1.0↔0.05, sharp | 0.5s on / 0.5s off (1s cycle) |
+| BLINK | modulate:a 1.0↔0.05, sharp | 1s on / 1s off (2s cycle) |
 | PULSE | modulate:a 0.2↔1.0, TRANS_SINE EASE_IN_OUT | 1s up / 1s down (2s cycle) |
 | FLICKER | 16-step random sequence, looped | 0.04–0.18s per step, alpha 1.0 (70%) or 0.05–0.4 (30%) |
 
