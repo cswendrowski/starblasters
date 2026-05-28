@@ -58,6 +58,9 @@ var _font: Font = null
 
 var hologram_hud = null
 
+var _color_shield_off: Color
+var _color_hull_off: Color
+
 
 func _ready() -> void:
 	anchor_left = 0.0; anchor_right = 1.0
@@ -77,6 +80,11 @@ func _ready() -> void:
 	add_child(_hud_root_node)
 
 	_font = load(FONT_PATH) as Font
+
+	# Pre-compute desaturated colors for off-state pips (50% saturation reduction)
+	_color_shield_off = Color.from_hsv(COLOR_SHIELD.h, COLOR_SHIELD.s * 0.5, COLOR_SHIELD.v, 1.0)
+	_color_hull_off   = Color.from_hsv(COLOR_HULL.h,   COLOR_HULL.s   * 0.5, COLOR_HULL.v,   1.0)
+
 	_install_hud()
 
 	hologram_hud = HologramHUDCls.new()
@@ -215,7 +223,10 @@ func _install_hud() -> void:
 func update_hull(max_value, value) -> void:
 	var filled := roundi(float(value) / max(float(max_value), 1.0) * HULL_COLS)
 	for i in _hull_pips.size():
-		(_hull_pips[i] as Sprite2D).frame = 1 if i < filled else 0
+		var pip := _hull_pips[i] as Sprite2D
+		var on: bool = i < filled
+		pip.frame = 1 if on else 0
+		pip.modulate = COLOR_HULL if on else _color_hull_off
 
 
 func update_shield(max_value, value) -> void:
@@ -224,7 +235,10 @@ func update_shield(max_value, value) -> void:
 	for row_i in _shield_pips.size():
 		var row: Array = _shield_pips[row_i]
 		for col_i in row.size():
-			(row[col_i] as Sprite2D).frame = 1 if (row_i * SHIELD_COLS + col_i) < filled else 0
+			var pip := row[col_i] as Sprite2D
+			var on: bool = (row_i * SHIELD_COLS + col_i) < filled
+			pip.frame = 1 if on else 0
+			pip.modulate = COLOR_SHIELD if on else _color_shield_off
 
 
 func update_score(value) -> void:
@@ -431,13 +445,9 @@ func _process(_delta: float) -> void:
 		if _light_blaster:
 			_light_blaster.frame = 1 if blaster_active else 0
 
-		var pri_ok: bool = false
-		if run.has_method("get_active_cannon"):
-			var ac = run.get_active_cannon()
-			if ac != null:
-				pri_ok = blaster_active or int(ac.current_ammo if "current_ammo" in ac else 0) > 0
+		# _light_pri: on when a non-blaster cannon is selected
 		if _light_pri:
-			_light_pri.frame = 1 if pri_ok else 0
+			_light_pri.frame = 0 if blaster_active else 1
 
 		var sec_ok: bool = false
 		if "loadout_snapshot" in run and run.loadout_snapshot is Dictionary:
