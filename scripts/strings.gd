@@ -227,7 +227,7 @@ const BTN_SECTOR_MAP := "Sector Map"
 # ---- Upgrade card names and descriptions ----
 
 const UPGRADE_HULL_NAME := "Hull"
-const UPGRADE_HULL_DESC := "+1 max hull pip per Mk (base 3)."
+const UPGRADE_HULL_DESC := "Increases max hull. Mk.9: Hull Repair -30%."
 
 const UPGRADE_THRUSTERS_NAME := "Thrusters"
 const UPGRADE_THRUSTERS_DESC := "+3% movement speed per Mk."
@@ -239,7 +239,7 @@ const UPGRADE_SHIELD_CAP_NAME := "Shield Capacity"
 const UPGRADE_SHIELD_CAP_DESC := "+2 max shield HP per Mk (base 10)."
 
 const UPGRADE_HULL_PLATING_NAME := "Hull Plating"
-const UPGRADE_HULL_PLATING_DESC := "3% chance to shrug off hull hits per mark."
+const UPGRADE_HULL_PLATING_DESC := "3% chance per Mk to shrug hull hits (Mk.1–8). Mk.9: +6% bonus → 30% total."
 
 # ---- Service button base labels ----
 

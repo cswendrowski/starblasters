@@ -801,6 +801,15 @@ func _on_sell_stored(idx: int, sell_value: int) -> void:
 	_refresh_status_panel()
 
 
+func _hull_repair_cost() -> int:
+	var base: int = HULL_REPAIR_COST
+	if has_node("/root/Run"):
+		var run = get_node("/root/Run")
+		if "hull_mk" in run and int(run.hull_mk) >= 9:
+			base = int(round(float(base) * 0.70))
+	return base
+
+
 func _on_repair(btn: Button) -> void:
 	var run = get_node_or_null("/root/Run")
 	if run == null:
@@ -809,9 +818,10 @@ func _on_repair(btn: Button) -> void:
 		return
 	if int(run.current_hull) >= int(run.max_hull):
 		return
-	if int(run.bounty) < 250:
+	var cost: int = _hull_repair_cost()
+	if int(run.bounty) < cost:
 		return
-	run.bounty -= 250
+	run.bounty -= cost
 	run.current_hull = clampi(int(run.current_hull) + 1, 0, int(run.max_hull))
 	_refresh_status_panel()
 
@@ -1112,8 +1122,9 @@ func _apply_service_button_state(btn: Button) -> void:
 				btn.disabled = true
 				btn.text = Strings.SERVICE_STATE_HULL_FULL
 				return
-			btn.disabled = _run_bounty() < cost
-			btn.text = "%s  (%d)" % [base_label, cost]
+			var repair_cost: int = _hull_repair_cost()
+			btn.disabled = _run_bounty() < repair_cost
+			btn.text = "%s  (%d)" % [base_label, repair_cost]
 		"shield":
 			if run == null or int(run.max_shield) <= 0:
 				btn.disabled = true

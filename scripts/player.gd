@@ -155,6 +155,7 @@ var hull: int = 3:
 	set = set_hull
 # Chance (0.0–1.0) to shrug off a hull hit entirely. 3% per Hull Plating Mk.
 var hull_shrug_chance: float = 0.0
+var hull_repair_discount: float = 0.0
 # armor_mk DR retired. Field kept for save compat.
 var hull_damage_reduction: float = 0.0
 # Speed multiplier from upgrades (Thrusters). Applied
@@ -1354,7 +1355,7 @@ func _on_shield_regen_timer_timeout() -> void:
 
 # Read upgrade Mks from /root/Run and translate them into runtime stats.
 # Called from start() so every combat scene picks up the latest values.
-#   Hull            +1 max hull pip per Mk (base 3)
+#   Hull            base 2 + min(Mk,8) pips; Mk.9 perk = hull repair -30%
 #   Armor Plating   RETIRED — no-op, kept for save compat
 #   Thrusters       +3% speed per Mk
 #   Self Repair     +1 hull on sector map return (gates on mk > 0)
@@ -1364,10 +1365,11 @@ func apply_run_upgrades() -> void:
 	if not has_node("/root/Run"):
 		return
 	var run = get_node("/root/Run")
-	# Hull: 3 base + 1 per Mk + 1 bonus at Mk.9 → Mk.1=4, Mk.8=11, Mk.9=13.
-	max_hull = 3 + int(run.hull_mk) + (1 if run.hull_mk >= 9 else 0)
-	# Shrug chance: 3% per Hull Plating Mk → max 27% at Mk.9.
-	hull_shrug_chance = 0.03 * run.hull_plating_mk
+	# Hull: 2 base + min(Mk, 8) → Mk.1=3, Mk.8=10, Mk.9=10 (Mk.9 perk is repair discount).
+	max_hull = 2 + min(int(run.hull_mk), 8)
+	hull_repair_discount = 0.30 if run.hull_mk >= 9 else 0.0
+	# Shrug chance: 3% per Hull Plating Mk (Mk.1–8) + 6% bonus at Mk.9 → 30% total at Mk.9.
+	hull_shrug_chance = 0.03 * min(run.hull_plating_mk, 8) + (0.06 if run.hull_plating_mk >= 9 else 0.0)
 	# armor_mk retired — no DR applied (kept in run_state for save compat).
 	var speed_pct: float = 1.0 + float(run.thrusters_mk) * 0.03
 	speed_multiplier = max(0.3, speed_pct)
