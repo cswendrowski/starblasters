@@ -30,6 +30,9 @@ var _hud_root_node: Control = null
 var _shield_pips: Array = []  # Array[Array[Sprite2D]] — SHIELD_ROWS × SHIELD_COLS
 var _hull_pips: Array = []    # Array[Sprite2D] — HULL_COLS
 
+var _shield_pip_container: Control = null
+var _hull_pip_container: Control = null
+
 var _bounty_value_lbl: Label = null
 var _blaster_status_lbl: Label = null
 var _pri_name_lbl: Label = null
@@ -60,6 +63,11 @@ var hologram_hud = null
 
 var _color_shield_off: Color
 var _color_hull_off: Color
+
+var _prev_hull: int = -1
+var _prev_shield: int = -1
+var _hull_crit: bool = false
+var _threat_state: int = 0  # 0=OFF 1=BLINK 2=STEADY
 
 
 func _ready() -> void:
@@ -142,7 +150,12 @@ func _install_hud() -> void:
 	ann.position = _mpos("hull_annuciator", Vector2(16, 104))
 	c.add_child(ann)
 
-	# Shield pip rows (3 × 10)
+	# Shield pip container + rows (3 × 10)
+	_shield_pip_container = Control.new()
+	_shield_pip_container.name = "ShieldPips"
+	_shield_pip_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_shield_pip_container.set_anchors_preset(Control.PRESET_FULL_RECT)
+	c.add_child(_shield_pip_container)
 	var row_origins := [
 		_mpos("shield_label/shield_pip_row_1", Vector2(16, 24)),
 		_mpos("shield_label/shield_pip_row_2", Vector2(16, 40)),
@@ -153,16 +166,21 @@ func _install_hud() -> void:
 		var row_arr: Array = []
 		for col_i in SHIELD_COLS:
 			var pip := _make_dot(row_origins[row_i] + Vector2(col_i * DOT_STEP, 0), COLOR_SHIELD)
-			c.add_child(pip)
+			_shield_pip_container.add_child(pip)
 			row_arr.append(pip)
 		_shield_pips.append(row_arr)
 
-	# Hull pip row (10)
+	# Hull pip container + row (10)
+	_hull_pip_container = Control.new()
+	_hull_pip_container.name = "HullPips"
+	_hull_pip_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hull_pip_container.set_anchors_preset(Control.PRESET_FULL_RECT)
+	c.add_child(_hull_pip_container)
 	var hull_origin := _mpos("hull_label/hull_pip_row_1", Vector2(16, 88))
 	_hull_pips.clear()
 	for col_i in HULL_COLS:
 		var pip := _make_dot(hull_origin + Vector2(col_i * DOT_STEP, 0), COLOR_HULL)
-		c.add_child(pip)
+		_hull_pip_container.add_child(pip)
 		_hull_pips.append(pip)
 
 	# Fire + threat lights
