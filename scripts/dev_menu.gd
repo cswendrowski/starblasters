@@ -30,7 +30,7 @@ func _install_backdrop() -> void:
 	bd.set("starfield_density", 30.0)
 	bd.set("starfield_scroll", 5.0)
 	bd.set("warp_streak_count", 6)
-	bd.set("warp_streak_speed", 280.0)
+	bd.set("warp_streak_speed", 336.0)
 	bd.set("asteroid_presence", 0.0)
 	add_child(bd)
 	move_child(bd, 0)

@@ -19,6 +19,10 @@ uniform float edge_remap_max : hint_range(0.0, 1.0) = 1.0;
 
 const float epsilon = 0.01;
 
+// Sprite-local vertex position, stable across animation frames.
+// UV shifts when a sprite sheet frame changes; VERTEX does not.
+varying vec2 v_local_pos;
+
 bool compare_colors(vec4 c1, vec4 c2) {
     return abs(c1.r - c2.r) < epsilon && abs(c1.g - c2.g) < epsilon
         && abs(c1.b - c2.b) < epsilon && abs(c1.a - c2.a) < epsilon;
@@ -28,19 +32,23 @@ float seeded_noise(float seed) {
     return fract(sin(seed * 12.9898) * 43758.5453);
 }
 
+void vertex() {
+    v_local_pos = VERTEX;
+}
+
 void fragment() {
     vec4 color = texture(TEXTURE, UV);
     if (color.a < 0.01 || compare_colors(color, outline_color)) {
         COLOR = color;
     } else {
-        float size_x = float(textureSize(TEXTURE, 0).x);
-        float size_y = float(textureSize(TEXTURE, 0).y);
-        vec2 UVr = vec2(floor(UV.x * size_x) / size_x, floor(UV.y * size_y) / size_y);
-        vec2 sprite_size = vec2(size_x, size_y);
+        // Use sprite-local pixel coordinates for the noise lookup so the
+        // pattern is stable regardless of which animation frame is active.
+        // The old path used atlas UV (which shifts per frame on a sprite
+        // sheet), causing the noise pattern to change with each frame.
+        vec2 stable_px = floor(v_local_pos);
         vec2 base_noise_size = max(noise_config_size, vec2(1.0));
-        vec2 noise_scale = sprite_size / base_noise_size;
         vec2 random_offset = vec2(seeded_noise(noise_seed), seeded_noise(noise_seed + 1.0));
-        vec2 noise_uv = vec2(UVr.x * noise_scale.x, UVr.y * noise_scale.y) + random_offset;
+        vec2 noise_uv = stable_px / base_noise_size + random_offset;
         float noise_value = texture(noise_texture, noise_uv).r;
         float edge_distance = texture(edge_distance_map, UV).r;
         edge_distance = clamp((edge_distance - edge_remap_min) / (edge_remap_max - edge_remap_min), 0.0, 1.0);

@@ -407,6 +407,9 @@ func _build_pois_from_cache() -> void:
 						hover_label = "Belt"
 			if draw_dressing:
 				_add_node_dressing(poi.pos, int(poi.node_type), deco_rng)
+				if int(poi.node_type) == int(SectorNode.NodeType.HAZARD) \
+						and String(poi.get("hazard_subtype", "")) == "minefield":
+					_add_minefield_indicators(poi.pos, deco_rng)
 			_add_hover_label_icon(poi.pos, 32.0, hover_label, int(poi.node_type), poi.completed)
 			# POI name label — skip completed nodes (spent) and BOSS type (handled separately).
 			if not poi.completed and int(poi.node_type) != int(SectorNode.NodeType.BOSS):
@@ -754,14 +757,16 @@ func _scatter_asteroid_band(center: Vector2, rng: RandomNumberGenerator) -> void
 func _scatter_pulse_pixels(center: Vector2, ast_px: float, rng: RandomNumberGenerator) -> void:
 	var count: int = 6 + rng.randi() % 7
 	var radius: float = ast_px * 0.6 + 6.0
-	# Source pixel color from the current row's star tint — this matches the
-	# modulate the generated asteroids receive (lerp(WHITE, star, 0.18)) so
-	# the decorative pixels read as the same family. Per-pixel brightness
-	# variation kept (0.55-0.85) to preserve depth.
-	var base_tint: Color = STAR_GLOW_COLORS[_cur_row_idx] if _cur_row_idx < STAR_GLOW_COLORS.size() else Color.WHITE
-	# Pull the star tint toward white so we don't get a saturated red haze
-	# around every asteroid — mirrors the 0.18 lerp on the asteroid modulate
-	# but pushed further white (asteroid surface art is itself colored).
+	# Source pixel color from the row's actual randomized star color — honors
+	# exotic overrides (purple/green/pink) so the decorative pixels around the
+	# asteroid match the asteroid body tint set by _apply_row_tint_to_asteroid.
+	# Previously this indexed STAR_GLOW_COLORS[_cur_row_idx] (row 0/1/2 → fixed
+	# blue/orange/red) which diverged from exotic-row asteroids. Now we match the
+	# same _get_star_variant lookup the asteroid shader uses.
+	var sv: Dictionary = _get_star_variant(_cur_row_idx)
+	var base_tint: Color = EXOTIC_GLOW_COLORS[sv.exotic_idx] if sv.exotic_idx >= 0 else STAR_GLOW_COLORS[sv.base_type_idx]
+	# Pull the star tint toward white so we don't get a saturated haze
+	# around every asteroid — mirrors the lerp in _apply_row_tint_to_asteroid.
 	base_tint = Color.WHITE.lerp(base_tint, 0.55)
 	for _k in count:
 		var ang: float = rng.randf() * TAU
@@ -776,6 +781,33 @@ func _scatter_pulse_pixels(center: Vector2, ast_px: float, rng: RandomNumberGene
 			"hz":    rng.randf_range(0.05, 0.14),
 			"phase": rng.randf_range(0.0, TAU),
 			"color": Color(base_tint.r * shade, base_tint.g * shade, base_tint.b * shade, 1.0),
+		})
+
+
+# Scatter 6-8 blinking red 2×2 pixel indicators around a minefield node.
+# Uses the same _asteroid_pixels array + _draw() loop as decorative asteroid
+# pixels — per-pixel blink hz and phase so they desync naturally. Color is
+# saturated red to read distinctly from the amber/blue asteroid decoration.
+# Only called when draw_dressing is true (i.e. node not yet completed), so
+# clearing happens automatically — the map rebuilds from cache on every entry.
+func _add_minefield_indicators(center: Vector2, rng: RandomNumberGenerator) -> void:
+	const MINE_COLOR := Color(1.0, 0.10, 0.10, 1.0)
+	const SCATTER_RADIUS: float = 30.0
+	var count: int = 6 + rng.randi() % 3   # 6-8 pixels
+	for _k in count:
+		var ang: float  = rng.randf() * TAU
+		var dist: float = rng.randf_range(8.0, SCATTER_RADIUS)
+		var pos := Vector2(
+			floor(center.x + cos(ang) * dist),
+			floor(center.y + sin(ang) * dist))
+		_asteroid_pixels.append({
+			"pos":   pos,
+			"size":  2,
+			# Blink rate 0.25-0.80 Hz — visibly faster than the subdued asteroid
+			# debris pixels (0.05-0.14 Hz) so mines read as urgent/active.
+			"hz":    rng.randf_range(0.25, 0.80),
+			"phase": rng.randf_range(0.0, TAU),
+			"color": MINE_COLOR,
 		})
 
 

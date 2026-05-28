@@ -28,7 +28,7 @@ var bullet_spread_degrees: float = 0.0
 var bullet_speed_override: float = -1.0
 var bullet_max_hits_override: int = -1
 # Auto Laser tandem firing: when true, fire_primary alternates spawning
-# the bullet 8px left / right of the player's pixel center each shot.
+# the bullet 6px left / right of the player's pixel center each shot.
 # _tandem_side toggles 0/1 between shots.
 var fire_tandem_alternating: bool = false
 var _tandem_side: int = 0
@@ -770,7 +770,7 @@ func fire_primary() -> void:
 		# laser flash sits over the bolt, not at center.
 		var spawn_offset: Vector2 = Vector2(0, -8)
 		if fire_tandem_alternating and count == 1:
-			var side_x: float = -8.0 if _tandem_side == 0 else 8.0
+			var side_x: float = -6.0 if _tandem_side == 0 else 6.0
 			spawn_offset = Vector2(side_x, -8)
 			muzzle_pos = global_position + Vector2(side_x, -10)
 			_tandem_side = 1 - _tandem_side

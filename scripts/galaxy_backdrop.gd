@@ -97,7 +97,7 @@ const PLANET_TINT = {
 # Warp-streak foreground layer for hyperspace-ish rush feel.
 @export var use_warp_streaks: bool = true
 @export var warp_streak_count: int = 14
-@export var warp_streak_speed: float = 624.0
+@export var warp_streak_speed: float = 750.0
 @export_range(0.0, 1.0) var surface_time_scale: float = 0.15
 # Pixel parity (Cobalt 2026-05-20): every procedural backdrop body
 # (planets, asteroids, nebula) renders at exactly `pixel_density` viewport

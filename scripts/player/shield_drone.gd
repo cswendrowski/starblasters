@@ -42,16 +42,20 @@ func _process(delta: float) -> void:
 
 
 # Bullet / collision contact — the drone absorbs one hit then dies on
-# the max_hits-th contact. The bullet's own _on_area_entered will see
-# us in its "player" group and stop / damage as if it hit the player,
-# so we don't need to manually queue_free the projectile here.
+# the max_hits-th contact. Only enemy projectiles (groups: "enemies",
+# "enemy_bullets", "bullets") count as hits; player bullets carry no
+# group and are filtered out by the whitelist below.
 func _on_area_entered(area: Area2D) -> void:
 	if _dying:
 		return
-	# Only intercept bullets / enemies, not the player or other drones.
+	# Only intercept enemy bullets / enemies, not the player, own drones, or
+	# player bullets. Player bullets carry no group so we whitelist hostile
+	# groups instead of blacklisting friendly ones.
 	if area == _player:
 		return
-	if area.is_in_group("shield_drones"):
+	if area.is_in_group("shield_drones") or area.is_in_group("player_drones") or area.is_in_group("player"):
+		return
+	if not (area.is_in_group("enemies") or area.is_in_group("enemy_bullets") or area.is_in_group("bullets")):
 		return
 	_hits += 1
 	if _hits >= max_hits:

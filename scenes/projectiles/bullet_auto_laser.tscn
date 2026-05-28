@@ -8,7 +8,7 @@ size = Vector2(4, 16)
 
 [node name="BulletAutoLaser" type="Area2D" unique_id=194059262]
 script = ExtResource("1_script")
-speed = 900
+speed = 1080
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1412851644]
 texture = ExtResource("2_tex")

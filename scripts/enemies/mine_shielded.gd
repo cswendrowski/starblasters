@@ -8,7 +8,7 @@ extends "res://scripts/enemies/enemy_base.gd"
 # Flow: 1st bullet raises the shield + 2 absorbed by shield + 1 activates +
 # 1 kills = 5 total bullets.
 # 320×400 res rework — speeds halved.
-@export var drift_speed: float = 78.0  # +20% per Roman 2026-05-18
+@export var drift_speed: float = 90.0  # +15% per Roman 2026-05-27 (was 78.0)
 @export var damage_on_collide: int = 2
 @export var shield_health: int = 2
 # Roman, 2026-05-18 mine pass: shielded mine is a 3-frame strip

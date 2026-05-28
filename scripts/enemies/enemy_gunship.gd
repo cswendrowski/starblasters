@@ -7,6 +7,7 @@ class_name EnemyGunship
 @export var wave_role: String = "single"
 
 const ROCKET_SCENE = preload("res://scenes/projectiles/enemy_rocket.tscn")
+const BULLET_SCENE = preload("res://scenes/projectiles/enemy_bullet.tscn")
 
 # --- Shared tuning constants -------------------------------------------------
 const ENTER_SPEED   := 120.0  # px/s descent into position
@@ -14,7 +15,12 @@ const LEAVE_SPEED   := 140.0  # px/s ascent when exiting
 const SWEEP_SPEED   := 40.0   # px/s horizontal sweep
 const SALVO_SIZE    := 3      # rockets per salvo (override per role below)
 const SALVO_COUNT   := 3      # salvos before exiting
-const SALVO_INTERVAL := 1.5   # seconds between salvos
+const SALVO_INTERVAL := 0.5   # seconds between salvos
+
+# --- Turret burst constants --------------------------------------------------
+const BURST_SIZE     := 10    # bullets per burst
+const BURST_DELAY    := 0.1   # seconds between bullets within a burst
+const BURST_COOLDOWN := 2.0   # seconds between bursts
 
 # --- State machine -----------------------------------------------------------
 enum GState { ENTERING, ACTIVE, EXITING }
@@ -27,6 +33,13 @@ var _sweep_dir: int = 1      # +1 right, -1 left
 
 var _salvo_timer: float = 0.0
 var _salvos_fired: int = 0
+var _rocket_side: int = -1  # alternates -1 (left) / +1 (right) per rocket
+
+# --- Turret burst state -----------------------------------------------------
+var _burst_shots_fired: int = 0
+var _burst_timer: float = 0.0        # delay between shots within burst
+var _burst_cooldown_timer: float = 0.0  # delay between bursts; counts down while > 0
+var _in_burst: bool = false
 
 
 func _ready() -> void:
@@ -38,6 +51,10 @@ func _ready() -> void:
 	# Default single starting X: centre of playfield
 	global_position.x = Playfield.CENTER.x
 	_target_x = Playfield.X_MIN + 20.0  # first sweep target (leftward)
+	# Turret starts facing straight down (same direction as main sprite)
+	var turret := get_node_or_null("Turret") as Sprite2D
+	if turret != null:
+		turret.rotation = 0.0
 
 
 # Called by the director immediately after spawning this enemy.
@@ -87,13 +104,13 @@ func _apply_role_config() -> void:
 			_settle_y = 60.0
 			_sweep_dir = 1
 			_target_x = Playfield.X_MIN + 20.0
-	# Seed the salvo timer so all three don't fire simultaneously on the same tick
-	# Trio center fires first; left/right staggered slightly
+	# Stagger offset applied when transitioning to ACTIVE so rockets don't
+	# fire all at once in formations. Stored here; applied in _do_enter().
 	match wave_role:
-		"trio_left":   _salvo_timer = 0.15
-		"trio_right":  _salvo_timer = 0.30
-		"duo_b":       _salvo_timer = 0.20
-		_:             _salvo_timer = 0.0
+		"trio_left":   _salvo_timer = SALVO_INTERVAL + 0.15
+		"trio_right":  _salvo_timer = SALVO_INTERVAL + 0.30
+		"duo_b":       _salvo_timer = SALVO_INTERVAL + 0.20
+		_:             _salvo_timer = SALVO_INTERVAL
 
 
 func _process(delta: float) -> void:
@@ -119,7 +136,10 @@ func _do_enter(delta: float) -> void:
 	if global_position.y >= _settle_y:
 		global_position.y = _settle_y
 		_state = GState.ACTIVE
-		# _salvo_timer was pre-seeded by _apply_role_config; no reassignment needed
+		# _salvo_timer was set to SALVO_INTERVAL (+ stagger) in _apply_role_config.
+		# It is NOT decremented during ENTERING, so the ship fully settles before
+		# firing its first salvo. Burst cooldown mirrors the salvo stagger.
+		_burst_cooldown_timer = _salvo_timer
 
 
 func _do_active(delta: float) -> void:
@@ -131,6 +151,8 @@ func _do_active(delta: float) -> void:
 			_state = GState.EXITING
 			return
 		_salvo_timer = SALVO_INTERVAL
+
+	_do_burst_fire(delta)
 
 	match wave_role:
 		"single", "duo_a", "duo_b":
@@ -169,32 +191,72 @@ func _fire_salvo() -> void:
 	# Single and duo get 4-rocket salvos for a bit more density
 	if wave_role in ["single", "duo_a", "duo_b"]:
 		count = 4
-	var spread_total: float = deg_to_rad(20.0)
 	for i in count:
-		var t: float = float(i) / float(max(count - 1, 1))
-		var angle_offset: float = lerp(-spread_total * 0.5, spread_total * 0.5, t)
-		_fire_rocket(angle_offset)
+		_fire_rocket()
 
 
-func _fire_rocket(extra_angle: float = 0.0) -> void:
+func _fire_rocket() -> void:
 	if ROCKET_SCENE == null:
 		return
 	var r = ROCKET_SCENE.instantiate()
 	get_tree().root.add_child(r)
-	# Aim turret at player, then fire in that direction + jitter
-	var turret := get_node_or_null("Turret") as Sprite2D
-	var fire_rot: float = turret.rotation if turret != null else (PI * 0.5)  # default: straight down
-	var fire_dir := Vector2(cos(fire_rot - PI * 0.5), sin(fire_rot - PI * 0.5))
-	fire_dir = fire_dir.rotated(extra_angle)
+	# Rockets fire straight down with ±15° random deviation.
+	var fire_dir := Vector2(0, 1).rotated(randf_range(-deg_to_rad(15.0), deg_to_rad(15.0)))
+	# Alternate spawn offsets: left (-8) then right (+8) per rocket
+	var offset_x: float = _rocket_side * 8.0
+	_rocket_side = -_rocket_side
+	var spawn_pos := global_position + Vector2(offset_x, 0.0)
 	if r.has_method("start"):
-		r.start(global_position, fire_dir)
+		r.start(spawn_pos, fire_dir)
 	elif "velocity" in r:
 		r.velocity = fire_dir * 280.0
+	# Render rocket behind the gunship sprite
+	r.z_as_relative = false
+	r.z_index = z_index - 1
 
 	# Rocket launch SFX
 	var WeaponSfx = load("res://scripts/effects/weapon_sfx.gd")
 	if WeaponSfx:
 		WeaponSfx.play(get_tree().root, global_position, "rocket")
+
+
+# --- Turret burst firing -----------------------------------------------------
+
+func _do_burst_fire(delta: float) -> void:
+	if _in_burst:
+		_burst_timer -= delta
+		if _burst_timer <= 0.0:
+			_fire_turret_bullet()
+			_burst_shots_fired += 1
+			if _burst_shots_fired >= BURST_SIZE:
+				# Burst complete — enter cooldown
+				_in_burst = false
+				_burst_cooldown_timer = BURST_COOLDOWN
+			else:
+				_burst_timer = BURST_DELAY
+	else:
+		_burst_cooldown_timer -= delta
+		if _burst_cooldown_timer <= 0.0:
+			# Start a new burst
+			_in_burst = true
+			_burst_shots_fired = 0
+			_burst_timer = 0.0  # fire first bullet immediately
+
+
+func _fire_turret_bullet() -> void:
+	if BULLET_SCENE == null:
+		return
+	var b = BULLET_SCENE.instantiate()
+	get_tree().root.add_child(b)
+	# Aim at player's current position (no leading)
+	var player = find_player()
+	var fire_dir := Vector2(0, 1)  # default straight down
+	if player != null:
+		fire_dir = (player.global_position - global_position).normalized()
+	if b.has_method("start"):
+		b.start(global_position, fire_dir)
+	elif "velocity" in b:
+		b.velocity = fire_dir * 200.0
 
 
 func _track_player(delta: float) -> void:

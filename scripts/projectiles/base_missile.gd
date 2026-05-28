@@ -152,6 +152,17 @@ func _process(delta: float) -> void:
 			var accel_use: float = homing_accel * (lock_accel_mult if _locked else 1.0)
 			_vel = _vel.move_toward(target_dir * max_speed, accel_use * delta)
 	global_position += _vel * delta
+	# Enemy missiles (target_group == "player") that leave the playfield
+	# X band or go far off-screen vertically must be destroyed immediately
+	# so they cannot arc back into play. Player missiles are excluded —
+	# they chase enemies that may be anywhere on screen.
+	# X_MIN / X_MAX sourced from Playfield class (scripts/playfield.gd).
+	if target_group == "player" and _ignited:
+		var px: float = global_position.x
+		var py: float = global_position.y
+		if px < 132.0 or px > 348.0 or py > 290.0 or py < -50.0:
+			queue_free()
+			return
 	# Rotate the missile sprite to point along its velocity. Same trick
 	# as EnemyBase auto_rotate, but applied here so missiles aren't
 	# sliding sideways during their homing arc (Roman, 2026-05-16:

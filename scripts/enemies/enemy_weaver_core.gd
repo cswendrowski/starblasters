@@ -1,46 +1,40 @@
 extends "res://scripts/enemy_core.gd"
 
-# Weaver variant of enemy_core: fires one aimed rocket mid-path (1.5–2.5 s
-# after spawn) in addition to its normal spread-shot pattern. The rocket aims
-# at the player's current position at the moment of firing.
+# Weaver variant of enemy_core: bullet-based shoot_pattern is disabled;
+# instead fires two rockets (±6 px on X) when crossing Y ≈ 135 (midpoint of
+# the 0–270 playfield). Rockets travel straight down at default speed.
 #
-# Spawning: as a child of get_tree().root so it survives the weaver's death.
-# Scale: 1.5× the base rocket sprite for visual distinctiveness.
+# Spawning: as children of get_tree().root so they survive the weaver's death.
 
 const EnemyRocket = preload("res://scenes/projectiles/enemy_rocket.tscn")
 
-var _rocket_fired: bool = false
-var _rocket_timer: float = 0.0
-var _rocket_delay: float = 0.0
+const ROCKET_TRIGGER_Y: float = 135.0
+const ROCKET_OFFSET_X: float = 6.0
+
+var _rockets_fired: bool = false
 
 
 func _ready() -> void:
 	super._ready()
-	_rocket_delay = randf_range(1.5, 2.5)
+	# Disable the bullet-based shoot pattern; the Weaver attacks via rockets only.
+	shoot_pattern = null
+	if has_node("ShootTimer"):
+		$ShootTimer.stop()
 
 
 func _process(delta: float) -> void:
 	super._process(delta)
-	if _rocket_fired or _dying or _cycling:
+	if _rockets_fired or _dying or _cycling:
 		return
-	_rocket_timer += delta
-	if _rocket_timer >= _rocket_delay:
-		_fire_rocket()
+	if global_position.y >= ROCKET_TRIGGER_Y:
+		_fire_rockets()
 
 
-func _fire_rocket() -> void:
-	_rocket_fired = true
-	var player := find_player()
-	var dir: Vector2 = Vector2(0, 1)
-	if player != null:
-		var to_p: Vector2 = player.global_position - global_position
-		if to_p.length_squared() > 0.01:
-			dir = to_p.normalized()
-
-	var rocket = EnemyRocket.instantiate()
-	get_tree().root.add_child(rocket)
-	rocket.scale = Vector2(1.5, 1.5)
-	if rocket.has_method("start"):
-		rocket.start(global_position, dir)
-	else:
-		rocket.global_position = global_position
+func _fire_rockets() -> void:
+	_rockets_fired = true
+	var down: Vector2 = Vector2(0, 1)
+	for offset_x in [-ROCKET_OFFSET_X, ROCKET_OFFSET_X]:
+		var rocket = EnemyRocket.instantiate()
+		get_tree().root.add_child(rocket)
+		rocket.scale = Vector2(1.5, 1.5)
+		rocket.start(global_position + Vector2(offset_x, 0), down)

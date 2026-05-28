@@ -149,7 +149,7 @@ func _install_backdrop() -> void:
 	_backdrop.set("starfield_density", 30.0)
 	_backdrop.set("starfield_scroll", 5.0)
 	_backdrop.set("warp_streak_count", 6)
-	_backdrop.set("warp_streak_speed", 280.0)
+	_backdrop.set("warp_streak_speed", 336.0)
 	add_child(_backdrop)
 	move_child(_backdrop, 0)
 

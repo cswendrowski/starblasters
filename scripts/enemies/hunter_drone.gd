@@ -35,6 +35,15 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	super._process(delta)
+	# Destroy the drone if it flies outside the playfield band. The normal
+	# kamikaze path keeps it within X 132–348; this catches the edge case
+	# where it overshoots or misses the player and would otherwise return
+	# from off-screen. _leave() is used (not explode) — no bounty, no died
+	# signal, no camera trauma for a clean miss.
+	if global_position.x < 132.0 or global_position.x > 348.0 \
+			or global_position.y < -50.0 or global_position.y > 290.0:
+		_leave()
+		return
 	# Red-pulse blink — drives a brightness sine on the sprite AND on the
 	# additive halo so the red portion reads as glowing, not just blinking.
 	if has_node("Sprite2D"):
