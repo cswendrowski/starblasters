@@ -36,6 +36,17 @@ var _focus_bar_bg: ColorRect = null
 var _focus_bar_fill: ColorRect = null
 var _focus_bar_label: Label = null
 
+var _light_blaster: Sprite2D = null
+var _light_pri: Sprite2D = null
+var _light_sec: Sprite2D = null
+var _light_sup: Sprite2D = null
+var _blaster_status_lbl: Label = null
+var _fire_light: Sprite2D = null
+var _threat_light: Sprite2D = null
+var _threat_blink_tween: Tween = null
+var _player_ref = null       # weak ref to player for _process polling
+var _wave_spawning: bool = false   # true between wave_started and wave_clear
+
 func _ready() -> void:
 	# main.tscn pins this MarginContainer to a 152×24 rect at top-left. We
 	# need the HUD to span the viewport so widgets can land in both the
@@ -199,6 +210,8 @@ func _ready() -> void:
 	hologram_hud._hud_root = self
 	add_child(hologram_hud)
 
+	_install_new_hud()
+
 
 func _install_ammo_row() -> void:
 	var ammo_row := HBoxContainer.new()
@@ -327,6 +340,17 @@ func bind_player(player) -> void:
 		# Seed with current state.
 		if "focus_charge" in player and "focus_charge_max" in player:
 			_on_focus_charge_changed(float(player.focus_charge), float(player.focus_charge_max))
+	# Store player ref for _process polling.
+	_player_ref = player
+	# Wire threat lights to the wave director.
+	var director = get_node_or_null("/root/Main/WaveDirector")
+	if director == null:
+		director = get_node_or_null("/root/Main/Director")
+	if director != null:
+		if director.has_signal("wave_started") and not director.wave_started.is_connected(_on_wave_started_threat):
+			director.wave_started.connect(_on_wave_started_threat)
+		if director.has_signal("level_cleared") and not director.level_cleared.is_connected(_on_level_cleared_threat):
+			director.level_cleared.connect(_on_level_cleared_threat)
 
 
 func flicker_in(duration: float = 0.6) -> void:
@@ -616,3 +640,169 @@ func _start_warning_pulse() -> void:
 	_warning_tween = create_tween().set_loops()
 	_warning_tween.tween_property(hull_warning, "modulate:a", 0.35, 0.45).set_trans(Tween.TRANS_SINE)
 	_warning_tween.tween_property(hull_warning, "modulate:a", 1.0, 0.45).set_trans(Tween.TRANS_SINE)
+
+
+# ---------------------------------------------------------------------------
+# New HUD overlay — section labels, weapon lights, fire/threat indicators
+# ---------------------------------------------------------------------------
+
+func _make_dot_sprite(pos: Vector2, tint: Color) -> Sprite2D:
+	var s := Sprite2D.new()
+	s.texture = load("res://graphics/ui/hud_dot_light.png")
+	s.hframes = 2
+	s.centered = false
+	s.modulate = tint
+	s.frame = 0
+	s.position = pos
+	return s
+
+
+func _make_hud_label(pos: Vector2, text: String, color: Color, font_size: int = 7) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.position = pos
+	var font = load("res://graphics/fonts/PixelOperator.ttf")
+	l.add_theme_font_override("font", font)
+	l.add_theme_font_size_override("font_size", font_size)
+	l.add_theme_color_override("font_color", color)
+	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	l.add_theme_constant_override("outline_size", 1)
+	return l
+
+
+func _install_new_hud() -> void:
+	var layer := CanvasLayer.new()
+	layer.name = "NewHUD"
+	layer.layer = 5
+	add_child(layer)
+
+	var color_faint := Color(0.70, 0.78, 0.88, 0.70)
+	var color_green := Color(0.55, 1.0, 0.50)
+	var color_amber := Color(1.0, 0.65, 0.10, 1.0)
+
+	# Section header labels
+	layer.add_child(_make_hud_label(Vector2(16, 16), "SHIELD", color_faint))
+	layer.add_child(_make_hud_label(Vector2(16, 72), "HULL", color_faint))
+	layer.add_child(_make_hud_label(Vector2(48, 104), "FIRE", color_faint))
+	layer.add_child(_make_hud_label(Vector2(376, 72), "THREAT", color_faint))
+	layer.add_child(_make_hud_label(Vector2(392, 16), "ARMAMENT", color_faint))
+
+	# Weapon lights (green)
+	_light_blaster = _make_dot_sprite(Vector2(376, 24), color_green)
+	_light_pri = _make_dot_sprite(Vector2(376, 32), color_green)
+	_light_sec = _make_dot_sprite(Vector2(376, 40), color_green)
+	_light_sup = _make_dot_sprite(Vector2(376, 48), color_green)
+	layer.add_child(_light_blaster)
+	layer.add_child(_light_pri)
+	layer.add_child(_light_sec)
+	layer.add_child(_light_sup)
+
+	# Blaster status label
+	_blaster_status_lbl = _make_hud_label(Vector2(456, 24), "STANDBY", color_green)
+	layer.add_child(_blaster_status_lbl)
+
+	# Fire light (amber)
+	_fire_light = _make_dot_sprite(Vector2(64, 104), color_amber)
+	layer.add_child(_fire_light)
+
+	# Threat light (amber)
+	_threat_light = _make_dot_sprite(Vector2(376, 80), color_amber)
+	layer.add_child(_threat_light)
+
+
+func _on_wave_started_threat(_idx, _total, _silent, _text) -> void:
+	_wave_spawning = true
+	_set_threat_blink(true)
+
+
+func _on_level_cleared_threat() -> void:
+	_wave_spawning = false
+	# threat_light update handled in _process
+
+
+func _set_threat_blink(on: bool) -> void:
+	if on:
+		if _threat_blink_tween != null and _threat_blink_tween.is_valid():
+			return  # already blinking
+		if _threat_light == null:
+			return
+		_threat_light.frame = 1
+		_threat_blink_tween = create_tween().set_loops()
+		_threat_blink_tween.tween_property(_threat_light, "modulate:a", 0.1, 0.35)
+		_threat_blink_tween.tween_property(_threat_light, "modulate:a", 1.0, 0.35)
+	else:
+		if _threat_blink_tween != null and _threat_blink_tween.is_valid():
+			_threat_blink_tween.kill()
+		_threat_blink_tween = null
+		if _threat_light:
+			_threat_light.modulate.a = 1.0
+
+
+func _process(_delta: float) -> void:
+	const Slots = preload("res://scripts/weapons/SlotTypes.gd")
+
+	# --- Weapon lights ---
+	if has_node("/root/Run"):
+		var run = get_node("/root/Run")
+		var blaster_active: bool = int(run.active_cannon_idx) == 0
+
+		# Blaster light: on when active cannon idx == 0
+		if _light_blaster:
+			_light_blaster.frame = 1 if blaster_active else 0
+
+		# Pri weapon light: on when blaster (infinite) or active non-blaster has ammo
+		var pri_ok: bool = false
+		if run.has_method("get_active_cannon"):
+			var ac = run.get_active_cannon()
+			if ac != null:
+				if blaster_active:
+					pri_ok = true
+				else:
+					pri_ok = int(ac.current_ammo if "current_ammo" in ac else 0) > 0
+		if _light_pri:
+			_light_pri.frame = 1 if pri_ok else 0
+
+		# Sec weapon light: HARDPOINT_WING slot filled + secondary_ammo > 0
+		var sec_ok: bool = false
+		if "loadout_snapshot" in run and run.loadout_snapshot is Dictionary:
+			var sec = run.loadout_snapshot.get(Slots.SlotType.HARDPOINT_WING, null)
+			sec_ok = sec != null and (_sec_ammo > 0 if _sec_ammo >= 0 else false)
+		if _light_sec:
+			_light_sec.frame = 1 if sec_ok else 0
+
+		# Sup weapon light: check super_charges > 0
+		if _light_sup:
+			_light_sup.frame = 1 if _super_charge_count > 0 else 0
+
+	# --- Blaster status label ---
+	if _blaster_status_lbl:
+		var blaster_on: bool = has_node("/root/Run") and int(get_node("/root/Run").active_cannon_idx) == 0
+		if not blaster_on:
+			_blaster_status_lbl.text = "STANDBY"
+		elif Input.is_action_pressed("shoot"):
+			_blaster_status_lbl.text = "FIRING"
+		else:
+			_blaster_status_lbl.text = "READY"
+
+	# --- Fire light (hull <= 50%) ---
+	if _fire_light and _player_ref != null and is_instance_valid(_player_ref):
+		var pct: float = float(_player_ref.hull) / max(float(_player_ref.max_hull), 1.0)
+		_fire_light.frame = 1 if pct <= 0.5 and int(_player_ref.hull) > 0 else 0
+
+	# --- Threat light ---
+	var enemy_count: int = get_tree().get_nodes_in_group("enemies").size()
+	if _threat_light:
+		if enemy_count > 0:
+			# Enemies on screen — solid on; stop any blink
+			if _threat_blink_tween != null and _threat_blink_tween.is_valid():
+				_threat_blink_tween.kill()
+				_threat_blink_tween = null
+				_wave_spawning = false
+			_threat_light.frame = 1
+		elif _wave_spawning:
+			# Wave incoming but no enemies yet — blink
+			_set_threat_blink(true)
+		else:
+			# No enemies, no wave — off
+			_set_threat_blink(false)
+			_threat_light.frame = 0
