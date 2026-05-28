@@ -27,8 +27,10 @@ const PLANET_SCENES   := [
 	"res://Planets/LandMasses/LandMasses.tscn",
 	"res://Planets/GasPlanet/GasPlanet.tscn",
 	"res://Planets/IceWorld/IceWorld.tscn",
+	"res://Planets/GasPlanetLayers/GasPlanetLayers.tscn",
+	"res://Planets/Rivers/Rivers.tscn",
 ]
-const PLANET_ZONE_PEAK := [0.10, 0.25, 0.30, 0.50, 0.70, 0.90]
+const PLANET_ZONE_PEAK := [0.10, 0.25, 0.30, 0.50, 0.70, 0.90, 0.75, 0.45]
 
 const NODE_STRIP       = preload("res://graphics/ui/sector_nodes.png")
 const ICON_STRIP       = preload("res://graphics/ui/sector_icons.png")
@@ -74,6 +76,24 @@ const EXOTIC_GLOW_COLORS := [
 	Color(0.70, 0.22, 0.95, 1.0),  # purple
 	Color(0.18, 0.90, 0.35, 1.0),  # green
 	Color(1.00, 0.25, 0.65, 1.0),  # pink
+]
+
+# Asteroid surface palette — realistic astronomical types (85%) + exotic variants (15%).
+const ASTEROID_REALISTIC_COLORS: Array[Color] = [
+	Color(0.25, 0.24, 0.23),  # C-type dark carbon
+	Color(0.48, 0.44, 0.40),  # C-type medium grey
+	Color(0.52, 0.42, 0.35),  # S-type grey-brown
+	Color(0.55, 0.38, 0.28),  # S-type warm brown
+	Color(0.44, 0.30, 0.20),  # D-type reddish-brown
+	Color(0.62, 0.60, 0.58),  # M-type silvery
+	Color(0.42, 0.50, 0.62),  # icy blue-grey
+	Color(0.35, 0.40, 0.52),  # dark icy/shadowed
+]
+const ASTEROID_EXOTIC_COLORS: Array[Color] = [
+	Color(0.72, 0.35, 0.20),  # iron-oxide rusty red
+	Color(0.45, 0.62, 0.35),  # olivine green
+	Color(0.70, 0.65, 0.20),  # sulfurous yellow
+	Color(0.55, 0.30, 0.60),  # iridescent purple
 ]
 
 const ROUTE_WIDTH := 8.0
@@ -455,12 +475,14 @@ func _pick_planet_type(rng: RandomNumberGenerator, frac: float) -> int:
 # V3 planet type index -> galaxy_backdrop.PLANETS index. Keeps the planet
 # the player saw on the map identical to the one they fly past in combat.
 const V3_TO_BACKDROP_PLANET_IDX := {
-	0: 0,  # LavaWorld    -> backdrop 0 LavaWorld
-	1: 2,  # DryTerran    -> backdrop 2 DryTerran
-	2: 4,  # NoAtmosphere -> backdrop 4 NoAtmosphere
-	3: 5,  # LandMasses   -> backdrop 5 LandMasses
-	4: 3,  # GasPlanet    -> backdrop 3 GasPlanet
-	5: 1,  # IceWorld     -> backdrop 1 IceWorld
+	0: 0,  # LavaWorld       -> backdrop 0 LavaWorld
+	1: 2,  # DryTerran       -> backdrop 2 DryTerran
+	2: 4,  # NoAtmosphere    -> backdrop 4 NoAtmosphere
+	3: 5,  # LandMasses      -> backdrop 5 LandMasses
+	4: 3,  # GasPlanet       -> backdrop 3 GasPlanet
+	5: 1,  # IceWorld        -> backdrop 1 IceWorld
+	6: 3,  # GasPlanetLayers -> backdrop 3 GasPlanet (closest match)
+	7: 5,  # Rivers          -> backdrop 5 LandMasses (closest match)
 }
 
 
@@ -499,6 +521,18 @@ func _get_star_variant(row_idx: int) -> Dictionary:
 		"exotic_idx":    exotic_idx,
 		"has_binary":    has_binary,
 	}
+
+
+# Deterministic asteroid surface color for a given row. 85% realistic
+# (gray/brown/silvery), 15% exotic. Seeded from row_idx + run_seed so the
+# same row always gets the same color within a run, independent of star color.
+func _get_asteroid_color(row_idx: int) -> Color:
+	var run = get_node("/root/Run")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = abs(hash("asteroid_color:%d:%d" % [row_idx, run.run_seed]))
+	if rng.randf() < 0.15:
+		return ASTEROID_EXOTIC_COLORS[rng.randi() % ASTEROID_EXOTIC_COLORS.size()]
+	return ASTEROID_REALISTIC_COLORS[rng.randi() % ASTEROID_REALISTIC_COLORS.size()]
 
 
 # Flat descriptor for the combat backdrop. Deterministic per poi.id, no
@@ -748,12 +782,9 @@ func _scatter_asteroid_band(center: Vector2, rng: RandomNumberGenerator) -> void
 		add_child(ast)
 		_disable_celestial_mouse(ast)
 		_reset_planet_colorrects(ast)
-		# Same star-tint treatment as the parent asteroid spawners. _cur_row_idx
-		# is the row this band is being scattered into. Inject palette into the
-		# shader rather than relying on modulate (which read muddy on the gray
-		# default colors).
-		var band_tint_row: int = _cur_row_idx if _cur_row_idx < STAR_GLOW_COLORS.size() else 0
-		_apply_row_tint_to_asteroid(ast, band_tint_row)
+		# Apply asteroid-palette tint (gray/brown/silvery) rather than star tint.
+		# _get_asteroid_color handles arbitrary row_idx via hashing — no clamp needed.
+		_apply_row_tint_to_asteroid(ast, _cur_row_idx)
 		ast.modulate = Color.WHITE
 		_asteroid_rotators.append({
 			"node":  ast,
@@ -766,17 +797,10 @@ func _scatter_asteroid_band(center: Vector2, rng: RandomNumberGenerator) -> void
 func _scatter_pulse_pixels(center: Vector2, ast_px: float, rng: RandomNumberGenerator) -> void:
 	var count: int = 6 + rng.randi() % 7
 	var radius: float = ast_px * 0.6 + 6.0
-	# Source pixel color from the row's actual randomized star color — honors
-	# exotic overrides (purple/green/pink) so the decorative pixels around the
-	# asteroid match the asteroid body tint set by _apply_row_tint_to_asteroid.
-	# Previously this indexed STAR_GLOW_COLORS[_cur_row_idx] (row 0/1/2 → fixed
-	# blue/orange/red) which diverged from exotic-row asteroids. Now we match the
-	# same _get_star_variant lookup the asteroid shader uses.
-	var sv: Dictionary = _get_star_variant(_cur_row_idx)
-	var base_tint: Color = EXOTIC_GLOW_COLORS[sv.exotic_idx] if sv.exotic_idx >= 0 else STAR_GLOW_COLORS[sv.base_type_idx]
-	# Pull the star tint toward white so we don't get a saturated haze
-	# around every asteroid — mirrors the lerp in _apply_row_tint_to_asteroid.
-	base_tint = Color.WHITE.lerp(base_tint, 0.55)
+	# Source pixel color from the asteroid palette so scatter pixels match the
+	# rock body tint set by _apply_row_tint_to_asteroid — not the star color.
+	# Mid-tone: lerp base toward white by ~55%, matching the c_mid derivation.
+	var base_tint: Color = Color.WHITE.lerp(_get_asteroid_color(_cur_row_idx), 0.55)
 	for _k in count:
 		var ang: float = rng.randf() * TAU
 		var dist: float = rng.randf_range(ast_px * 0.5 + 1.0, radius)
@@ -1555,16 +1579,13 @@ func _spawn_poi_name_label(pos: Vector2, name_text: String) -> void:
 # Caller is expected to have called _duplicate_materials(root) first so this
 # write is per-instance, not shared.
 func _apply_row_tint_to_asteroid(root: Node, row_idx: int) -> void:
-	var idx: int = clampi(row_idx, 0, STAR_GLOW_COLORS.size() - 1)
-	# Use the per-run randomized star color so asteroid tints match the star on display.
-	var sv: Dictionary = _get_star_variant(idx)
-	var star: Color = EXOTIC_GLOW_COLORS[sv.exotic_idx] if sv.exotic_idx >= 0 else STAR_GLOW_COLORS[sv.base_type_idx]
-	# Pull the base color partway toward white so the lit face still reads as
-	# a rock surface (not a flat saturated blob). The mid tone is the star
-	# color itself, dark for shadow, light for highlight.
-	var c_light: Color = Color.WHITE.lerp(star, 0.45)
-	var c_mid: Color   = Color.WHITE.lerp(star, 0.75).darkened(0.10)
-	var c_dark: Color  = star.darkened(0.55)
+	# Use realistic asteroid colors (gray/brown/silvery, 15% exotic) rather than
+	# the star color — rocks should look like rocks, not star-tinted blobs.
+	var base: Color = _get_asteroid_color(row_idx)
+	# 3-tone palette: light (highlight), mid (surface), dark (shadow).
+	var c_light: Color = Color.WHITE.lerp(base, 0.45)
+	var c_mid: Color   = Color.WHITE.lerp(base, 0.75).darkened(0.10)
+	var c_dark: Color  = base.darkened(0.55)
 	c_light.a = 1.0; c_mid.a = 1.0; c_dark.a = 1.0
 	_set_asteroid_palette(root, PackedColorArray([c_light, c_mid, c_dark]))
 
@@ -1772,6 +1793,9 @@ func _on_poi_clicked(node_id: String) -> void:
 	# Stellar descriptor — combat/outpost/signal/hazard backdrops read this so
 	# the scene visually echoes the POI the player clicked.
 	run.current_stellar = _compute_poi_stellar(poi, poi_row_idx)
+	# Store the row's asteroid color so galaxy_backdrop uses the same family
+	# for all backdrop asteroids in this level. Falls back to random if absent.
+	run.set_meta("asteroid_base_color", _get_asteroid_color(poi_row_idx))
 	match int(poi.node_type):
 		int(SectorNode.NodeType.COMBAT):
 			SceneTransition.change_scene(get_tree(), COMBAT_SCENE)
@@ -1815,6 +1839,10 @@ func _on_boss_clicked(node_id: String) -> void:
 	# Boss arenas don't have a planet/asteroid of their own — just tint with
 	# the row's star color so the fight still feels rooted on the chosen line.
 	run.current_stellar = _compute_boss_stellar(row_idx)
+	# Store the row's asteroid color for the combat backdrop. Boss arenas
+	# don't have asteroid decorations of their own, but the backdrop still
+	# spawns parallax rocks — give them the same family color the sector used.
+	run.set_meta("asteroid_base_color", _get_asteroid_color(row_idx))
 	run.forced_boss_scene = String(boss.get("boss_scene", ""))
 	SceneTransition.change_scene(get_tree(), BOSS_SCENE)
 

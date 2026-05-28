@@ -940,8 +940,14 @@ func _spawn_asteroid_in_band(rng: RandomNumberGenerator, band: String) -> Node:
 	# `asteroid_min_size` so even the smallest decorative rock stays
 	# legible at 1:1 pixel parity. Below ~16 vp-px the procgen shader
 	# can't generate a recognizable silhouette.
-	# Pick a random realistic asteroid family; depth band scales brightness + alpha.
-	var base: Color = ASTEROID_FAMILY_COLORS[rng.randi() % ASTEROID_FAMILY_COLORS.size()]
+	# Pick asteroid base color: use sector-specific color stored by sector_map_v3
+	# on departure, or fall back to a random family when no sector context exists
+	# (main menu, dev tools, tutorial runs).
+	var base: Color
+	if has_node("/root/Run") and get_node("/root/Run").has_meta("asteroid_base_color"):
+		base = get_node("/root/Run").get_meta("asteroid_base_color")
+	else:
+		base = ASTEROID_FAMILY_COLORS[rng.randi() % ASTEROID_FAMILY_COLORS.size()]
 	var sz: float = 80.0
 	var base_drift: float = 1.0
 	var modulate_color: Color = Color(1, 1, 1, 1)
