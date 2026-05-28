@@ -16,8 +16,8 @@ const DOT_FH := 8
 const ANN_FW := 32
 const ANN_FH := 32
 
-const SHIELD_ON   := [10, 4]
-const SHIELD_ROWS := 2
+const SHIELD_ON   := [10, 10, 4]
+const SHIELD_ROWS := 3
 const SHIELD_COLS := 10
 const HULL_ON     := 7
 const HULL_COLS   := 10

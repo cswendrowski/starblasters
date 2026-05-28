@@ -3,15 +3,8 @@ extends Node
 # Catalog of every available part with a rolling-pool API for outposts.
 
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
-const BasicWings = preload("res://scripts/parts/basic_wings.gd")
-const BasicTail = preload("res://scripts/parts/basic_tail.gd")
 const BasicEngine = preload("res://scripts/parts/basic_engine.gd")
-const BasicShield = preload("res://scripts/parts/basic_shield.gd")
 const BasicBlasterCannon = preload("res://scripts/parts/basic_blaster_cannon.gd")
-const ReactiveWings = preload("res://scripts/parts/reactive_wings.gd")
-const ArmoredWings = preload("res://scripts/parts/armored_wings.gd")
-const QuickResetShield = preload("res://scripts/parts/quick_reset_shield.gd")
-const ReinforcedShield = preload("res://scripts/parts/reinforced_shield.gd")
 const HeavyBlaster = preload("res://scripts/parts/heavy_blaster.gd")
 const VectoringEngine = preload("res://scripts/parts/vectoring_engine.gd")
 const MachinegunCannon = preload("res://scripts/parts/machinegun_cannon.gd")
@@ -42,18 +35,8 @@ const PlayerSeekingMissile = preload("res://scenes/projectiles/player_seeking_mi
 # Slot is used for the WING_LEFT vs WING_RIGHT disambiguation only.
 static func _all_pool() -> Array:
 	return [
-		{"factory": "_make_basic_wing", "slot": Slots.SlotType.WING_LEFT},
-		{"factory": "_make_basic_wing", "slot": Slots.SlotType.WING_RIGHT},
-		{"factory": "_make_reactive_wing", "slot": Slots.SlotType.WING_LEFT},
-		{"factory": "_make_reactive_wing", "slot": Slots.SlotType.WING_RIGHT},
-		{"factory": "_make_armored_wing", "slot": Slots.SlotType.WING_LEFT},
-		{"factory": "_make_armored_wing", "slot": Slots.SlotType.WING_RIGHT},
-		{"factory": "_make_basic_tail", "slot": Slots.SlotType.TAIL},
 		{"factory": "_make_basic_engine", "slot": Slots.SlotType.ENGINE},
 		{"factory": "_make_vectoring_engine", "slot": Slots.SlotType.ENGINE},
-		{"factory": "_make_basic_shield", "slot": Slots.SlotType.SHIELD},
-		{"factory": "_make_quick_reset_shield", "slot": Slots.SlotType.SHIELD},
-		{"factory": "_make_reinforced_shield", "slot": Slots.SlotType.SHIELD},
 		{"factory": "_make_basic_blaster", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_heavy_blaster", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_machinegun", "slot": Slots.SlotType.CANNON},
@@ -111,30 +94,10 @@ static func roll_for_slot(rng: RandomNumberGenerator, slot: int, mark: int):
 
 static func _make_by_name(name: String, slot: int):
 	match name:
-		"_make_basic_wing":
-			var p = BasicWings.new()
-			p.slot_type = slot
-			return p
-		"_make_reactive_wing":
-			var p = ReactiveWings.new()
-			p.slot_type = slot
-			return p
-		"_make_armored_wing":
-			var p = ArmoredWings.new()
-			p.slot_type = slot
-			return p
-		"_make_basic_tail":
-			return BasicTail.new()
 		"_make_basic_engine":
 			return BasicEngine.new()
 		"_make_vectoring_engine":
 			return VectoringEngine.new()
-		"_make_basic_shield":
-			return BasicShield.new()
-		"_make_quick_reset_shield":
-			return QuickResetShield.new()
-		"_make_reinforced_shield":
-			return ReinforcedShield.new()
 		"_make_basic_blaster":
 			return _build_weapon("res://resources/weapons/energy_blaster.tres", BasicBlasterCannon, BulletDefault)
 		"_make_heavy_blaster":
