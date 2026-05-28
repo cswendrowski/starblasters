@@ -170,3 +170,21 @@ position = Vector2(64, 0)
 
 [node name="weapon_light" type="Marker2D" parent="pri_blaster_label/sup_weapon_label" unique_id=553655975]
 position = Vector2(-16, 0)
+
+[node name="focus_label" type="Marker2D" parent="." unique_id=2000000001]
+position = Vector2(8, 247)
+
+[node name="focus_bar" type="Marker2D" parent="." unique_id=2000000002]
+position = Vector2(8, 256)
+
+[node name="weapon_key" type="Marker2D" parent="pri_blaster_label" unique_id=2000000003]
+position = Vector2(-32, 0)
+
+[node name="weapon_key" type="Marker2D" parent="pri_blaster_label/pri_weapon_label" unique_id=2000000004]
+position = Vector2(-32, 0)
+
+[node name="weapon_key" type="Marker2D" parent="pri_blaster_label/sec_weapon_label" unique_id=2000000005]
+position = Vector2(-32, 0)
+
+[node name="weapon_key" type="Marker2D" parent="pri_blaster_label/sup_weapon_label" unique_id=2000000006]
+position = Vector2(-32, 0)
