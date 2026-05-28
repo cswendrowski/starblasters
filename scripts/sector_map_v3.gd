@@ -416,9 +416,8 @@ func _build_pois_from_cache() -> void:
 			# POI name label — skip completed nodes (spent) and BOSS type (handled separately).
 			if not poi.completed and int(poi.node_type) != int(SectorNode.NodeType.BOSS):
 				var poi_name_seed: int = abs(hash(poi.id)) ^ 0x3F7A1C2B
-				# DISABLED: POI name label
-				# 				var poi_name: String = _generate_poi_name(int(poi.node_type), poi_name_seed, String(poi.get("hazard_subtype", "")))
-				# 				_spawn_poi_name_label(poi.pos, poi_name)
+				var poi_name: String = _generate_poi_name(int(poi.node_type), poi_name_seed, String(poi.get("hazard_subtype", "")))
+				_make_label(poi_name, Vector2(poi.pos.x, poi.pos.y + 14.0), Color(0.75, 0.85, 1.0, 1.0))
 			_poi_hits.append({
 				"id":     String(poi.id),
 				"pos":    Vector2(poi.pos),
@@ -855,46 +854,11 @@ func _build_bosses_from_cache() -> void:
 		icon_spr.z_index  = 5
 		icon_spr.modulate = Color(1.0, 1.0, 1.0, 0.5)
 		add_child(icon_spr)
-# DISABLED: BOSS/DEFEATED label section
-# 		var ls := LabelSettings.new()
-# 		ls.font = FONT; ls.font_size = 7
-# 		ls.font_color    = Color(0.90, 0.30, 0.30, 1.0) if not defeated else Color(0.50, 1.0, 0.60, 1.0)
-# 		ls.outline_size  = 1
-# 		ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
-# 		var lbl := Label.new()
-# 		lbl.text           = "DEFEATED" if defeated else "BOSS"
-# 		lbl.label_settings = ls
-# 		lbl.custom_minimum_size.x = 40.0
-# 		lbl.horizontal_alignment  = HORIZONTAL_ALIGNMENT_CENTER
-# 		lbl.position = Vector2(pos.x - 20.0, pos.y - 36.0)
-# 		lbl.z_index   = 10
-# 		lbl.modulate.a = 1.0
-# 		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-# 		add_child(lbl)
+		# BOSS/DEFEATED label — positioned above boss dot
+		var boss_label_text: String = "DEFEATED" if defeated else "BOSS"
+		var boss_label_color: Color = Color(0.50, 1.0, 0.60, 1.0) if defeated else Color(0.90, 0.30, 0.30, 1.0)
+		_make_label(boss_label_text, Vector2(pos.x, pos.y - 20.0), boss_label_color)
 
-# DISABLED: Boss lock counter
-# 		if not unlocked and not defeated:
-# 			var n_total: int = rows[r_idx].pois.size()
-# 			var n_done: int  = 0
-# 			for poi in rows[r_idx].pois:
-# 				if poi.completed:
-# 					n_done += 1
-# 			var locks := LabelSettings.new()
-# 			locks.font = FONT; locks.font_size = 4   # Change 1: halved from 8
-# 			locks.font_color    = Color(1.0, 0.85, 0.30, 1.0)
-# 			locks.outline_size  = 1
-# 			locks.outline_color = Color(0.0, 0.0, 0.0, 1.0)
-# 			var lock_lbl := Label.new()
-# 			lock_lbl.text = "%d/%d" % [n_done, n_total]
-# 			lock_lbl.label_settings = locks
-# 			lock_lbl.position = Vector2(pos.x - 3, pos.y + 6)   # Change 1: -6→-3, +10→+6
-# 			lock_lbl.z_index = 11
-# 			lock_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-# 			add_child(lock_lbl)
-
-		# Locked bosses must NOT hover green — designer feedback. Use dim red so
-		# the player gets a clear "not yet" signal. Defeated bosses also avoid
-		# green to keep "green = clickable" semantically tight.
 		var boss_hover_tint: Color = COLOR_NODE_GREEN
 		if not unlocked or defeated:
 			boss_hover_tint = Color(COLOR_BOSS_RED.r, COLOR_BOSS_RED.g, COLOR_BOSS_RED.b, 1.0)
@@ -956,28 +920,13 @@ func _build_stars() -> void:
 			var comp_gc: Color = STAR_GLOW_COLORS[0] if comp_cool else STAR_GLOW_COLORS[1]
 			_add_glow_sprite(comp_glow_node, comp_gc)
 
-		# DISABLED: Star name label
-		# # 		# Star name label.
-		# 		var star_seed: int = abs(hash("star:%d" % i))
-		# 		if has_node("/root/Run"):
-		# 			star_seed = abs(hash("star:%d:%d" % [i, get_node("/root/Run").run_seed]))
-		# 		var star_name: String = _generate_celestial_name("star", star_seed)
-		# 		var star_ls := LabelSettings.new()
-		# 		star_ls.font = FONT
-		# 		star_ls.font_size = 7
-		# 		star_ls.font_color = Color(0.75, 0.85, 1.0, 1.0)
-		# 		star_ls.outline_size = 1
-		# 		star_ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
-		# 		var star_lbl := Label.new()
-		# 		star_lbl.text = star_name
-		# 		star_lbl.label_settings = star_ls
-		# 		star_lbl.custom_minimum_size.x = 64.0
-		# 		star_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		# 		star_lbl.position = Vector2(anchor.x - 32.0, anchor.y - 36.0)
-		# 		star_lbl.modulate.a = 0.6
-		# 		star_lbl.z_index = 8
-		# 		star_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		# 		add_child(star_lbl)
+		# Star name label — centered above star anchor
+		var star_seed: int = abs(hash("star:%d" % i))
+		if has_node("/root/Run"):
+			star_seed = abs(hash("star:%d:%d" % [i, get_node("/root/Run").run_seed]))
+		var star_name: String = _generate_celestial_name("star", star_seed)
+		_make_label(star_name, Vector2(anchor.x, anchor.y - 20.0), Color(0.75, 0.85, 1.0, 1.0))
+
 	_process(0.0)
 
 
@@ -1038,17 +987,13 @@ func _build_labels() -> void:
 	ls.outline_size  = 1
 	ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
 
-# DISABLED: Sector header label
-# 	# Sector header — centered at top
-# 	var hdr := Label.new()
-# 	hdr.text = "%s  —  Sector %d / %d" % [sector_name, current_sector, total_sectors]
-# 	hdr.label_settings = ls
-# 	hdr.position = Vector2(0.0, 10.0)
-# 	hdr.size = Vector2(480.0, 14.0)
-# 	hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-# 	hdr.z_index = 10
-# 	hdr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-# 	add_child(hdr)
+# Sector header label — centered at top at (256, 16)
+	var patrol_count: int = 0
+	var rows: Array = run.sector_map_cache.get("rows", [])
+	for row in rows:
+		patrol_count += row.pois.size()
+	var sector_header_text: String = "%s  —  %d Patrols" % [sector_name, patrol_count]
+	_make_label(sector_header_text, Vector2(240.0, 8.0), Color(0.85, 0.92, 1.0, 1.0))
 
 	# Player status — bottom left at (64, 232)
 	var status_lbl := Label.new()
@@ -1359,6 +1304,31 @@ func _duplicate_materials(root: Node) -> void:
 
 
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Label creation helper — standard style for all labels
+# ---------------------------------------------------------------------------
+
+func _make_label(text: String, pos: Vector2, color: Color) -> Label:
+	var ls := LabelSettings.new()
+	ls.font = FONT
+	ls.font_size = 7
+	ls.font_color = color
+	ls.outline_size = 1
+	ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.label_settings = ls
+	lbl.custom_minimum_size.x = 64
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.position = pos
+	lbl.z_index = 100
+	lbl.modulate.a = 1.0
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(lbl)
+	return lbl
+
+
 # Change 4: Celestial name generator — seeded, deterministic per node
 # ---------------------------------------------------------------------------
 
