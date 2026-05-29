@@ -68,13 +68,13 @@ func _spawn_stars() -> void:
 		var brightness: float = 0.55 + _rng.randf() * 0.45
 		var color := Color(base_color.r * brightness, base_color.g * brightness, base_color.b * brightness)
 		var r := _make_star_rect(_rng, 1, color, _far_para)
-		if _rng.randf() > 0.7:  # 30% twinkle
+		if _rng.randf() > 0.45:  # ~55% twinkle
 			_twinkle_stars.append({
 				"rect": r,
 				"base_color": color,
 				"phase": _rng.randf() * TAU,
-				"amp": _rng.randf_range(0.15, 0.45),
-				"hz": _rng.randf_range(0.4, 2.2),
+				"amp": _rng.randf_range(0.35, 0.75),
+				"hz": _rng.randf_range(0.5, 2.5),
 			})
 
 	# Pops (2×2) — near layer for depth separation
@@ -82,13 +82,13 @@ func _spawn_stars() -> void:
 	for _i in n_pops:
 		var base_color: Color = STAR_COLORS[_rng.randi() % STAR_COLORS.size()]
 		var r := _make_star_rect(_rng, 2, base_color, _near_para)
-		if _rng.randf() > 0.7:
+		if _rng.randf() > 0.45:
 			_twinkle_stars.append({
 				"rect": r,
 				"base_color": base_color,
 				"phase": _rng.randf() * TAU,
-				"amp": _rng.randf_range(0.15, 0.35),
-				"hz": _rng.randf_range(0.4, 1.5),
+				"amp": _rng.randf_range(0.30, 0.65),
+				"hz": _rng.randf_range(0.5, 2.0),
 			})
 
 

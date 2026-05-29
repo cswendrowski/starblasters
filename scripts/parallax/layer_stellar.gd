@@ -93,6 +93,8 @@ func _spawn_asteroid() -> void:
 	if inner is Control:
 		inner.size = Vector2(100, 100)
 		inner.position = Vector2.ZERO
+		if inner.material is ShaderMaterial:
+			(inner.material as ShaderMaterial).set_shader_parameter("draw_outline", false)
 	_objects.append({"node": a, "size": sz})
 
 
