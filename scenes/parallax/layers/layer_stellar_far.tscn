@@ -9,6 +9,12 @@ scroll_rate = 0.25
 asteroid_count = 4
 asteroid_min_size = 42.0
 asteroid_max_size = 72.0
+nebula_enabled = true
+nebula_shader_path = "res://graphics/nebula.gdshader"
+nebula_alpha = 0.1
+nebula_scale = 3.5
+nebula_density = 0.55
+nebula_drift = 0.0024
 
 [node name="CanvasModulate" type="CanvasModulate" parent="."]
 color = Color(1, 1, 1, 1)

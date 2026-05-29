@@ -7,10 +7,18 @@ const RESET_THRESHOLD := 340.0
 @export var asteroid_max_size: float = 24.0
 @export var nebula_enabled: bool = false
 @export var nebula_alpha: float = 0.18
+@export var nebula_shader_path: String = "res://graphics/nebula2.gdshader"
+@export var nebula_scale: float = 2.5
+@export var nebula_octaves: int = 5
+@export var nebula_density: float = 0.9
+@export var nebula_edge: float = 0.4
+@export var nebula_drift: float = 0.004
+@export var pixel_density: float = 1.0
 @export var mine_count: int = 0
 
 # Use the actual ASTEROID_SCENE path from galaxy_backdrop.gd
 const ASTEROID_SCENE = "res://Planets/Asteroids/Asteroid.tscn"
+const SPACE_COLORSCHEME := "res://SpaceBG/Colorscheme.tres"
 
 var _objects: Array = []
 var _nebula_rect: ColorRect = null
@@ -59,16 +67,39 @@ func _spawn_asteroid() -> void:
 
 
 func _spawn_nebula() -> void:
-	var nebula_path := "res://graphics/nebula2.gdshader"
-	if not ResourceLoader.exists(nebula_path):
+	var shader := load(nebula_shader_path) as Shader
+	if shader == null:
 		return
+	var cs = load(SPACE_COLORSCHEME)  # gradient texture — required for color
 	_nebula_rect = ColorRect.new()
-	_nebula_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_nebula_rect.name = "Nebula"
+	_nebula_rect.size = Vector2(480, 270)
+	_nebula_rect.color = Color(0, 0, 0, 0)
+	_nebula_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var mat := ShaderMaterial.new()
-	mat.shader = load(nebula_path) as Shader
-	mat.set_shader_parameter("alpha", nebula_alpha)
+	mat.shader = shader
+	var nebula_px: float = 480.0 / max(pixel_density, 0.01)
+	var sd: float = 1.0
 	if _local_rng:
-		mat.set_shader_parameter("seed_val", float(_local_rng.randi() % 10000))
+		sd = 1.0 + float(_local_rng.seed % 900) / 100.0
+	mat.set_shader_parameter("scale", nebula_scale)
+	mat.set_shader_parameter("octaves", nebula_octaves)
+	mat.set_shader_parameter("seed", sd)
+	mat.set_shader_parameter("pixels", nebula_px)
+	mat.set_shader_parameter("drift_speed", nebula_drift)
+	mat.set_shader_parameter("max_alpha", nebula_alpha)
+	mat.set_shader_parameter("density", nebula_density)
+	mat.set_shader_parameter("edge_sharpness", nebula_edge)
+	mat.set_shader_parameter("uv_correct", Vector2(1.0, 1.0))
+	if cs != null:
+		mat.set_shader_parameter("colorscheme", cs)
+	# nebula2-only knobs — gentle swirl/filaments per V1's live near pass.
+	if nebula_shader_path.ends_with("nebula2.gdshader"):
+		mat.set_shader_parameter("warp_strength", 0.8)
+		mat.set_shader_parameter("warp_scale", 1.0)
+		mat.set_shader_parameter("wisp_strength", 0.2)
+		mat.set_shader_parameter("opacity", 1.0)
+		mat.set_shader_parameter("scroll_offset", Vector2.ZERO)
 	_nebula_rect.material = mat
 	add_child(_nebula_rect)
 
@@ -94,10 +125,14 @@ func _on_scrolled() -> void:
 			if _local_rng:
 				n.position.x = _local_rng.randf_range(16, 464)
 				n.position.y = -_local_rng.randf_range(0, 270) - offset.y
-	if _nebula_rect and is_instance_valid(_nebula_rect) and _nebula_rect.material is ShaderMaterial:
-		(_nebula_rect.material as ShaderMaterial).set_shader_parameter(
-			"scroll_offset", Vector2(0, offset.y / NEBULA_TILE)
-		)
+	if _nebula_rect and is_instance_valid(_nebula_rect):
+		# Keep the nebula screen-fixed (counter the layer's offset.y) so it
+		# doesn't scroll off and leave a gap; drift comes from the shader.
+		_nebula_rect.position.y = -offset.y
+		if _nebula_rect.material is ShaderMaterial:
+			(_nebula_rect.material as ShaderMaterial).set_shader_parameter(
+				"scroll_offset", Vector2(0, offset.y / NEBULA_TILE)
+			)
 
 
 func _on_reset() -> void:
