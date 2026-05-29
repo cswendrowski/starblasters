@@ -1,7 +1,7 @@
-[gd_scene load_steps=20 format=3 uid="uid://b8exv6qda8frv"]
+[gd_scene load_steps=19 format=3 uid="uid://b8exv6qda8frv"]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_017ve"]
-[ext_resource type="Script" path="res://scripts/galaxy_backdrop.gd" id="2_p68gc"]
+[ext_resource type="PackedScene" uid="uid://dlqpfn4jxbpg3" path="res://scenes/parallax/backdrop_coordinator.tscn" id="coord_v4"]
 [ext_resource type="PackedScene" uid="uid://b54c7ad6cogrm" path="res://scenes/ui.tscn" id="2_rh4g5"]
 [ext_resource type="Texture2D" uid="uid://cr7usmfo6apt8" path="res://Mini Pixel Pack 3/UI objects/GAME_OVER (72 x 8).png" id="3_kgptm"]
 [ext_resource type="Texture2D" uid="uid://o6gwbftsnc8c" path="res://Mini Pixel Pack 3/UI objects/START (48 x 8).png" id="4_3to3k"]
@@ -124,14 +124,8 @@ texture = ExtResource("5_c0oev")
 region_enabled = true
 region_rect = Rect2(2.08165e-12, 2.08165e-12, 480, 270)
 
-[node name="Backdrop" type="Node2D" parent="."]
-script = ExtResource("2_p68gc")
+[node name="Backdrop" parent="." instance=ExtResource("coord_v4")]
 drift_speed = 50.0
-planet_size = 130.0
-asteroid_count = 15
-planet_pixels = 128.0
-asteroid_pixels = 64.0
-starfield_density = 32.0
 
 [node name="Player" parent="." instance=ExtResource("6_t4pur")]
 position = Vector2(160, 320)
