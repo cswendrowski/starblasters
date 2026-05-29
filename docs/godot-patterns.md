@@ -104,6 +104,19 @@ For star fields specifically, the V3 procedural approach (random `ColorRect` pos
 
 ---
 
+## Backdrop CanvasLayers must be negative to stay below UI
+
+**Pattern:** UI scenes (main menu, HUD, overlays) render at CanvasLayer 0 (default) or higher (Glass=1, HUD=5, Outline=10). Backdrop/parallax CanvasLayers set to 0 or positive will render ON TOP of menus and HUD.
+
+**Fix:** Keep all backdrop/parallax CanvasLayers at negative values (-10 through -1). The composite/grade layer should be the least-negative (closest to 0, e.g., -1). Deepest content (stars) gets the most-negative value.
+
+**Layer assignments for V4 backdrop:**
+- -10: Stars, -8: Planet, -6: Stellar Far, -5: Mid, -4: Near, -2: Streaks, -1: Composite
+
+**Discovered:** 2026-05-29, Parallax V4 composite at layer 2 rendered over main menu
+
+---
+
 ## GDScript `:=` vs `= ` for type inference
 
 **Pattern:** `var x = value` generates `UNTYPED_DECLARATION` warnings in Godot 4.6+. Use `:=` for type inference (`var x := value`) or explicit types (`var x: Type = value`).
