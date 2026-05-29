@@ -44,7 +44,7 @@ func _ready() -> void:
 	_layer_stellar_near  = get_node_or_null("LayerStellarNear")
 	_layer_streaks       = get_node_or_null("LayerStreaks")
 	_layer_composite     = get_node_or_null("LayerComposite")
-	_scroll_layers = [_layer_stellar_far, _layer_stellar_mid, _layer_stellar_near]
+	_scroll_layers = [_layer_planet, _layer_stellar_far, _layer_stellar_mid, _layer_stellar_near]
 	_populate()
 
 

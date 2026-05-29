@@ -15,7 +15,16 @@ const BACKDROP_COORDINATOR = preload("res://scenes/parallax/backdrop_coordinator
 const CONFIG_PATH := "user://tuners/parallax_v4.json"
 
 const LAYER_NAMES := ["LayerStars", "LayerPlanet", "LayerStellarFar", "LayerStellarMid", "LayerStellarNear", "LayerStreaks", "LayerComposite"]
-const LAYER_SHORT_NAMES := ["Stars", "Planet", "Far", "Mid", "Near", "Streaks", "Grade"]
+
+const LAYER_SHORT_NAMES := {
+	"LayerStars":       "Stars",
+	"LayerPlanet":      "Planet",
+	"LayerStellarFar":  "Far",
+	"LayerStellarMid":  "Mid",
+	"LayerStellarNear": "Near",
+	"LayerStreaks":     "Streaks",
+	"LayerComposite":   "Grade",
+}
 
 # ---- State ---------------------------------------------------------------
 
@@ -60,10 +69,10 @@ func _build_ui() -> void:
 	rail_layer.layer = 20
 	add_child(rail_layer)
 
-	# Rail panel — 480×270 compact layout on the left edge.
+	# Rail panel — left gutter at position (2, 2), size (128, 266).
 	var rail_bg := PanelContainer.new()
-	rail_bg.position = Vector2(0, 0)
-	rail_bg.size = Vector2(120, 270)
+	rail_bg.position = Vector2(2, 2)
+	rail_bg.size = Vector2(128, 266)
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.05, 0.07, 0.11, 0.88)
 	sb.content_margin_left = 4
@@ -79,37 +88,45 @@ func _build_ui() -> void:
 	rail_bg.add_child(scroll)
 
 	var rail := VBoxContainer.new()
-	rail.add_theme_constant_override("separation", 2)
+	rail.add_theme_constant_override("separation", 4)
 	rail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(rail)
 
 	# ---- Top: Title ----
 	var title := Label.new()
 	title.text = "TUNER V4"
-	title.custom_minimum_size = Vector2(0, 14)
+	title.custom_minimum_size = Vector2(0, 16)
+	title.add_theme_font_size_override("font_size", 8)
 	_style_caption(title)
 	rail.add_child(title)
+
+	# ---- Generate button ----
+	var gen_btn := _add_button(rail, "Generate New", _on_generate_new)
+	gen_btn.custom_minimum_size = Vector2(0, 18)
+
+	# ---- First separator ----
+	rail.add_child(HSeparator.new())
 
 	# ---- Layer rows container ----
 	# This will be filled in by _refresh_layers()
 	var layers_container := VBoxContainer.new()
 	layers_container.name = "LayersContainer"
-	layers_container.add_theme_constant_override("separation", 2)
+	layers_container.add_theme_constant_override("separation", 4)
 	layers_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	rail.add_child(layers_container)
 
-	# ---- Bottom: Buttons (small) ----
-	var gen_btn := _add_button(rail, "Generate", _on_generate_new)
-	gen_btn.custom_minimum_size = Vector2(0, 16)
+	# ---- Second separator ----
+	rail.add_child(HSeparator.new())
 
-	_add_button(rail, "Save", _on_save).custom_minimum_size = Vector2(0, 16)
-	_add_button(rail, "Load", _on_load).custom_minimum_size = Vector2(0, 16)
-	_add_button(rail, "Copy", _on_copy_snippet).custom_minimum_size = Vector2(0, 16)
+	# ---- Bottom buttons ----
+	_add_button(rail, "Save", _on_save).custom_minimum_size = Vector2(0, 14)
+	_add_button(rail, "Load", _on_load).custom_minimum_size = Vector2(0, 14)
+	_add_button(rail, "Copy GDScript", _on_copy_snippet).custom_minimum_size = Vector2(0, 14)
 
 	_status_label = Label.new()
 	_status_label.text = ""
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_status_label.custom_minimum_size = Vector2(112, 0)
+	_status_label.custom_minimum_size = Vector2(120, 0)
 	_style_caption(_status_label)
 	rail.add_child(_status_label)
 
@@ -117,9 +134,7 @@ func _build_ui() -> void:
 func _style_caption(lbl: Label) -> void:
 	if lbl == null:
 		return
-	var font_size := 10
 	var font_color := Color(0.70, 0.78, 0.88, 0.70)  # COLOR_FAINT
-	lbl.add_theme_font_size_override("font_size", font_size)
 	lbl.add_theme_color_override("font_color", font_color)
 
 
@@ -127,8 +142,8 @@ func _add_button(parent: Node, text: String, cb: Callable) -> Button:
 	var btn := Button.new()
 	btn.text = text
 	btn.custom_minimum_size = Vector2(0, 16)
-	# Simple button styling: light blue accent text
-	btn.add_theme_color_override("font_color", Color(0.62, 0.82, 1.00, 1.0))  # COLOR_ACCENT
+	# Light blue accent text
+	btn.add_theme_color_override("font_color", Color(0.62, 0.82, 1.00, 1.0))
 	btn.pressed.connect(cb)
 	parent.add_child(btn)
 	return btn
@@ -164,9 +179,8 @@ func _refresh_layers() -> void:
 	if _backdrop == null or not is_instance_valid(_backdrop):
 		return
 
-	for i in range(LAYER_NAMES.size()):
-		var layer_name = LAYER_NAMES[i]
-		var short_name = LAYER_SHORT_NAMES[i]
+	for layer_name in LAYER_NAMES:
+		var short_name = LAYER_SHORT_NAMES.get(layer_name, layer_name)
 		var layer_node = _backdrop.get_node_or_null(layer_name)
 		if layer_node == null:
 			continue
@@ -179,14 +193,15 @@ func _refresh_layers() -> void:
 		if not _layer_colors.has(layer_name):
 			_layer_colors[layer_name] = cm.color
 
-		# Create a row: short label + color picker (compact)
+		# Create a row: short label + color picker
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 2)
 		layers_container.add_child(row)
 
 		var lbl := Label.new()
 		lbl.text = short_name
-		lbl.custom_minimum_size = Vector2(40, 0)
+		lbl.custom_minimum_size = Vector2(52, 0)
+		lbl.add_theme_font_size_override("font_size", 7)
 		_style_caption(lbl)
 		row.add_child(lbl)
 
