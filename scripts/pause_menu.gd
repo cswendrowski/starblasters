@@ -39,6 +39,8 @@ func _resume() -> void:
 
 func _open_options() -> void:
 	var OptionsOverlay = load("res://scripts/ui/options_overlay.gd")
+	if OptionsOverlay == null:
+		return
 	OptionsOverlay.open(self)
 
 
@@ -74,9 +76,11 @@ func _show_menu_warning() -> void:
 	var confirm := Button.new()
 	confirm.text = "Leave"
 	confirm.custom_minimum_size = Vector2(96, 22)
-	UiTheme.style_button(confirm)
+	UiTheme.style_button(confirm, true)
 	confirm.pressed.connect(func():
 		get_tree().paused = false
+		if has_node("/root/Music"):
+			get_node("/root/Music").set_walk_frozen(false)
 		SceneTransition.change_scene(get_tree(), "res://scenes/main_menu.tscn")
 	)
 	btn_row.add_child(confirm)
