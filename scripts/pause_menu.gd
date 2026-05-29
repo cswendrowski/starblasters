@@ -23,6 +23,7 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 		_toggle()
+		get_viewport().set_input_as_handled()
 
 
 func _toggle() -> void:
@@ -78,6 +79,7 @@ func _show_menu_warning() -> void:
 	confirm.custom_minimum_size = Vector2(96, 22)
 	UiTheme.style_button(confirm, true)
 	confirm.pressed.connect(func():
+		_paused = false
 		get_tree().paused = false
 		if has_node("/root/Music"):
 			get_node("/root/Music").set_walk_frozen(false)
