@@ -49,6 +49,7 @@ var _light_sec: Sprite2D = null
 var _light_sup: Sprite2D = null
 var _fire_light: Sprite2D = null
 var _threat_light: Sprite2D = null
+var _ann: Sprite2D = null
 
 var _focus_bar_fill: ColorRect = null
 
@@ -66,6 +67,8 @@ var _color_hull_off: Color
 
 var _prev_hull: int = -1
 var _prev_shield: int = -1
+var _cached_shield: int = 0
+var _cached_shield_max: int = 1
 var _hull_crit: bool = false
 var _threat_state: int = 0  # 0=OFF 1=BLINK 2=STEADY
 
@@ -89,9 +92,9 @@ func _ready() -> void:
 
 	_font = load(FONT_PATH) as Font
 
-	# Pre-compute desaturated colors for off-state pips (50% saturation reduction)
-	_color_shield_off = Color.from_hsv(COLOR_SHIELD.h, COLOR_SHIELD.s * 0.5, COLOR_SHIELD.v, 1.0)
-	_color_hull_off   = Color.from_hsv(COLOR_HULL.h,   COLOR_HULL.s   * 0.5, COLOR_HULL.v,   1.0)
+	# Off-state pip lights: neutral dark
+	_color_shield_off = Color(0.18, 0.18, 0.18, 1.0)
+	_color_hull_off   = Color(0.18, 0.18, 0.18, 1.0)
 
 	_install_hud()
 
@@ -141,14 +144,14 @@ func _install_hud() -> void:
 	c.add_child(_make_label(_mpos("threat_label",   Vector2(376, 72)), "THREAT",    COLOR_GRAY))
 	c.add_child(_make_label(_mpos("armanent_label", Vector2(392, 16)), "ARMAMENT",  COLOR_GRAY))
 
-	# Hull annunciator — always shows the danger frame
-	var ann := Sprite2D.new()
-	ann.texture = load(ANN_TEX) as Texture2D
-	ann.hframes = 4
-	ann.centered = false
-	ann.frame = 1
-	ann.position = _mpos("hull_annuciator", Vector2(16, 104))
-	c.add_child(ann)
+	# Hull annunciator
+	_ann = Sprite2D.new()
+	_ann.texture = load(ANN_TEX) as Texture2D
+	_ann.hframes = 4
+	_ann.centered = false
+	_ann.frame = 1
+	_ann.position = _mpos("hull_annuciator", Vector2(16, 104))
+	c.add_child(_ann)
 
 	# Shield pip container + rows (3 × 10)
 	_shield_pip_container = Control.new()
@@ -239,6 +242,11 @@ func _install_hud() -> void:
 # ---------------------------------------------------------------------------
 
 func update_hull(max_value, value) -> void:
+	# Rebuild pips if count doesn't match
+	var expected_count := clampi(max_value, 1, HULL_COLS)
+	if _hull_pips.size() != expected_count:
+		_rebuild_hull_pips(expected_count)
+
 	var filled := roundi(float(value) / max(float(max_value), 1.0) * HULL_COLS)
 	for i in _hull_pips.size():
 		var pip := _hull_pips[i] as Sprite2D
@@ -263,8 +271,20 @@ func update_hull(max_value, value) -> void:
 				HudLight.stop(_fire_light)
 				_fire_light.frame = 0
 
+	# Update annunciator based on shield + hull state
+	_update_annunciator(_cached_shield, int(value), max_value)
+
 
 func update_shield(max_value, value) -> void:
+	# Cache for annunciator state
+	_cached_shield = int(value)
+	_cached_shield_max = max_value
+
+	# Rebuild pips if count doesn't match
+	var expected_count := clampi(max_value, 1, SHIELD_ROWS * SHIELD_COLS)
+	if _get_shield_pip_count() != expected_count:
+		_rebuild_shield_pips(expected_count)
+
 	var total := SHIELD_ROWS * SHIELD_COLS
 	var filled := roundi(float(value) / max(float(max_value), 1.0) * total)
 	for row_i in _shield_pips.size():
@@ -279,6 +299,69 @@ func update_shield(max_value, value) -> void:
 	if _prev_shield >= 0 and int(value) < _prev_shield and _shield_pip_container != null:
 		HudLight.pip_flash(_shield_pip_container)
 	_prev_shield = int(value)
+
+	# Update annunciator based on shield + hull state
+	_update_annunciator(int(value), _prev_hull, _cached_shield_max)
+
+
+func _get_shield_pip_count() -> int:
+	var count := 0
+	for row in _shield_pips:
+		count += (row as Array).size()
+	return count
+
+
+func _rebuild_hull_pips(count: int) -> void:
+	for p in _hull_pips:
+		if is_instance_valid(p):
+			p.queue_free()
+	_hull_pips.clear()
+	if not is_instance_valid(_hull_pip_container):
+		return
+	var hull_origin := Vector2(16, 88)
+	for _i in range(count):
+		var pip := _make_dot(hull_origin + Vector2(_i * DOT_STEP, 0), COLOR_HULL)
+		_hull_pip_container.add_child(pip)
+		_hull_pips.append(pip)
+
+
+func _rebuild_shield_pips(count: int) -> void:
+	for row in _shield_pips:
+		for p in row:
+			if is_instance_valid(p):
+				p.queue_free()
+	_shield_pips.clear()
+	if not is_instance_valid(_shield_pip_container):
+		return
+	var row_origins := [
+		Vector2(16, 24),
+		Vector2(16, 40),
+		Vector2(16, 56),
+	]
+	var pips_placed := 0
+	for row_i in SHIELD_ROWS:
+		var row_arr: Array = []
+		for col_i in SHIELD_COLS:
+			if pips_placed >= count:
+				break
+			var pip := _make_dot(row_origins[row_i] + Vector2(col_i * DOT_STEP, 0), COLOR_SHIELD)
+			_shield_pip_container.add_child(pip)
+			row_arr.append(pip)
+			pips_placed += 1
+		_shield_pips.append(row_arr)
+		if pips_placed >= count:
+			break
+
+
+func _update_annunciator(shield_val: int, hull_val: int, hull_max: int) -> void:
+	if _ann == null or not is_instance_valid(_ann):
+		return
+	if shield_val > 0:
+		_ann.frame = 0  # OK — shields up
+	elif float(hull_val) / max(float(hull_max), 1.0) > 0.5:
+		_ann.frame = 1  # Warn — shields down, hull OK
+	else:
+		_ann.frame = 2  # Danger — shields down, hull critical
 
 
 func update_score(value) -> void:
@@ -384,8 +467,6 @@ func _on_focus_charge_changed(charge: float, max_charge: float) -> void:
 
 
 func _on_player_damaged(_amount: int) -> void:
-	if _fire_light != null:
-		HudLight.hit_flash(_fire_light)
 	if _threat_light != null:
 		HudLight.hit_flash(_threat_light)
 
@@ -455,6 +536,17 @@ func _disconnect_player_signals(player) -> void:
 # Per-frame logic
 # ---------------------------------------------------------------------------
 
+func _enemies_on_screen() -> int:
+	var count := 0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e is Node2D:
+			var y: float = (e as Node2D).global_position.y
+			var x: float = (e as Node2D).global_position.x
+			if y >= -32.0 and y <= 302.0 and x >= -32.0 and x <= 512.0:
+				count += 1
+	return count
+
+
 func _action_key_label(action: String) -> String:
 	if not InputMap.has_action(action):
 		return ""
@@ -497,18 +589,21 @@ func _process(_delta: float) -> void:
 
 	# --- Threat light (state-tracked to avoid restarting tween every frame) ---
 	var enemy_count: int = get_tree().get_nodes_in_group("enemies").size()
+	var on_screen: int = _enemies_on_screen() if enemy_count > 0 else 0
 	var new_threat: int = 0  # OFF
-	if enemy_count > 0:
-		new_threat = 2  # STEADY
-	elif _wave_spawning:
-		new_threat = 1  # BLINK
+	if on_screen > 0:
+		# Enemies visible on screen → STEADY threat
+		new_threat = 2
+	elif enemy_count > 0 or _wave_spawning:
+		# Enemies exist but offscreen (recycling) or wave incoming → BLINK
+		new_threat = 1
+	# else new_threat = 0 (OFF)
 
 	if new_threat != _threat_state:
 		_threat_state = new_threat
 		if _threat_light != null:
 			match _threat_state:
 				2:  # STEADY
-					_wave_spawning = false
 					_threat_light.frame = 1
 					HudLight.apply(_threat_light, HudLight.Pattern.STEADY)
 				1:  # BLINK

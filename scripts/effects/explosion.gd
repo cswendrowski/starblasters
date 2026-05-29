@@ -244,34 +244,18 @@ func _spawn_debris_unused() -> void:
 	add_child(p)
 
 
-# Soft round dot for sparks: 8x8 radial gradient white → transparent.
+# Sharp 2x2 white pixel for sparks. CPUParticles2D scale_amount controls rendered size.
 static func _build_spark_texture() -> Texture2D:
-	var g = Gradient.new()
-	g.colors = PackedColorArray([Color(1,1,1,1), Color(1,1,1,0.6), Color(1,1,1,0)])
-	g.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
-	var t = GradientTexture2D.new()
-	t.gradient = g
-	t.width = 8
-	t.height = 8
-	t.fill = GradientTexture2D.FILL_RADIAL
-	t.fill_from = Vector2(0.5, 0.5)
-	t.fill_to = Vector2(1.0, 0.5)
-	return t
+	var img := Image.create(2, 2, false, Image.FORMAT_RGBA8)
+	img.fill(Color.WHITE)
+	return ImageTexture.create_from_image(img)
 
 
-# Small irregular chunk for debris — just a slightly larger soft square.
+# Sharp 2x2 white pixel for debris. CPUParticles2D scale_amount controls rendered size.
 static func _build_debris_texture() -> Texture2D:
-	var g = Gradient.new()
-	g.colors = PackedColorArray([Color(1,1,1,1), Color(1,1,1,0.4), Color(1,1,1,0)])
-	g.offsets = PackedFloat32Array([0.0, 0.6, 1.0])
-	var t = GradientTexture2D.new()
-	t.gradient = g
-	t.width = 6
-	t.height = 6
-	t.fill = GradientTexture2D.FILL_RADIAL
-	t.fill_from = Vector2(0.5, 0.5)
-	t.fill_to = Vector2(1.0, 0.5)
-	return t
+	var img := Image.create(2, 2, false, Image.FORMAT_RGBA8)
+	img.fill(Color.WHITE)
+	return ImageTexture.create_from_image(img)
 
 
 func _spawn_light() -> void:
