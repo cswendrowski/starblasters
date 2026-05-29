@@ -1,7 +1,41 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="PackedScene" uid="uid://iqys12s5srvb" path="res://scenes/projectiles/enemy_bullet.tscn" id="1_base"]
 [ext_resource type="Resource" path="res://data/bullets/burst_round.tres" id="2_variant"]
+[ext_resource type="Texture2D" path="res://graphics/projectiles/enemy_cannon.png" id="3_tex"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_bst1"]
+atlas = ExtResource("3_tex")
+region = Rect2(0, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_bst2"]
+atlas = ExtResource("3_tex")
+region = Rect2(16, 0, 16, 16)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_bst"]
+animations = [{
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_bst1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_bst2")}],
+"loop": true,
+"name": &"default",
+"speed": 8.0
+}]
+
+[sub_resource type="RectangleShape2D" id="Shape_bst"]
+size = Vector2(5, 5)
 
 [node name="EnemyBullet" instance=ExtResource("1_base")]
 variant = ExtResource("2_variant")
+speed = 280.0
+damage = 1
+max_lifetime = 1.5
+impact_color = Color(1, 0.2, 0.2, 1)
+
+[node name="AnimatedSprite2D" parent="."]
+sprite_frames = SubResource("SpriteFrames_bst")
+autoplay = "default"
+
+[node name="CollisionShape2D" parent="."]
+shape = SubResource("Shape_bst")
+
+[node name="Glow" parent="."]
+modulate = Color(1, 0.2, 0.2, 0.5)
