@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://scripts/parallax/layer_stellar.gd" id="1_stellar"]
 
 [node name="LayerStellarMid" type="CanvasLayer"]
-layer = -1
+layer = -5
 script = ExtResource("1_stellar")
 scroll_rate = 0.55
 asteroid_count = 5

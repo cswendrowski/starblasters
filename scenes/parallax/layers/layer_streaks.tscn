@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://scripts/parallax/layer_streaks.gd" id="1_streaks"]
 
 [node name="LayerStreaks" type="CanvasLayer"]
-layer = 1
+layer = -2
 script = ExtResource("1_streaks")
 scroll_rate = 0.0
 

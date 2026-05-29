@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://scripts/parallax/layer_planet.gd" id="1_planet"]
 
 [node name="LayerPlanet" type="CanvasLayer"]
-layer = -3
+layer = -8
 script = ExtResource("1_planet")
 
 [node name="CanvasModulate" type="CanvasModulate" parent="."]
