@@ -72,6 +72,12 @@ func _spawn_asteroid() -> void:
 	# Spawn fully above the top so it drifts in (body spans [pos.y, pos.y+sz]).
 	a.position = Vector2(_local_rng.randf_range(16, 464), -sz - _local_rng.randf_range(0, 270))
 	add_child(a)
+	# Each Asteroid.tscn instance shares one inline ShaderMaterial — duplicate
+	# it per-instance so set_seed/set_pixels/set_rotates don't all write to the
+	# same material (which made every asteroid identical — last-write-wins).
+	var _inner_mat := a.get_node_or_null("Asteroid")
+	if _inner_mat != null and _inner_mat is CanvasItem and _inner_mat.material != null:
+		_inner_mat.material = _inner_mat.material.duplicate()
 	# Unique shape + rotation per asteroid.
 	if a.has_method("set_seed"):
 		a.set_seed(_local_rng.randi())

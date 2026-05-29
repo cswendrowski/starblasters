@@ -20,8 +20,8 @@ const TILE_H := 270
 @export var pop_count_max: int = 70
 
 # Scroll rates (independent — stars move nearly-static)
-const FAR_RATE  := 0.02
-const NEAR_RATE := 0.08
+const FAR_RATE  := 0.005
+const NEAR_RATE := 0.02
 
 var _rng: RandomNumberGenerator = null
 var _seed: int = 12345
