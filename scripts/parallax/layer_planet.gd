@@ -311,6 +311,8 @@ func _spawn_companion_body(scene_path: String, rng: RandomNumberGenerator, plane
 	p.position = Vector2(x, y)
 	add_child(p)
 	_apply_pixel_parity(p, actual_size)
+	_duplicate_materials(p)
+	_make_planet_halo(p, planet_idx_used, actual_size, x, y)
 
 
 # Attach POI moons from sector map data. Moons are projected around the
