@@ -1,0 +1,14 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/parallax/layer_stellar.gd" id="1_stellar"]
+
+[node name="LayerStellarMid" type="CanvasLayer"]
+layer = -1
+script = ExtResource("1_stellar")
+scroll_rate = 0.55
+asteroid_count = 5
+asteroid_min_size = 10.0
+asteroid_max_size = 20.0
+
+[node name="CanvasModulate" type="CanvasModulate" parent="."]
+color = Color(1, 1, 1, 1)

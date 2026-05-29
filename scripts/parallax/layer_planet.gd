@@ -1,0 +1,237 @@
+extends "res://scripts/parallax/layer_base.gd"
+
+@export var pixel_density: float = 1.0
+@export var pixels_floor: float = 16.0
+
+const PLANETS := {
+	0: "res://Planets/LavaWorld/LavaWorld.tscn",
+	1: "res://Planets/IceWorld/IceWorld.tscn",
+	2: "res://Planets/DryTerran/DryTerran.tscn",
+	3: "res://Planets/GasPlanet/GasPlanet.tscn",
+	4: "res://Planets/NoAtmosphere/NoAtmosphere.tscn",
+	5: "res://Planets/LandMasses/LandMasses.tscn",
+	6: "res://Planets/BlackHole/BlackHole.tscn",
+	7: "res://Planets/Galaxy/Galaxy.tscn",
+	8: "res://Planets/Star/Star.tscn",
+}
+
+const PLANET_TINT = {
+	0: Color(1.00, 0.45, 0.22),  # LavaWorld   → hot orange
+	1: Color(0.55, 0.75, 1.00),  # IceWorld    → cool blue
+	2: Color(1.00, 0.82, 0.55),  # DryTerran   → sandy warm
+	3: Color(0.80, 0.55, 1.00),  # GasPlanet   → purple-magenta
+	4: Color(0.70, 0.78, 0.90),  # NoAtmosphere → muted blue-grey
+	5: Color(0.55, 0.92, 0.78),  # LandMasses  → green-cyan
+	6: Color(0.55, 0.30, 0.70),  # BlackHole   → deep violet
+	7: Color(0.78, 0.55, 1.00),  # Galaxy      → cool magenta
+	8: Color(1.00, 0.88, 0.55),  # Star        → warm yellow-white
+}
+
+const COLORRECT_DEFAULT_CANONICAL := {"size": Vector2(100.0, 100.0), "pos": Vector2.ZERO}
+const COLORRECT_CANONICAL_BY_NAME := {
+	"Disk":       {"size": Vector2(300.0, 300.0), "pos": Vector2(-100.0, -100.0)},
+	"Ring":       {"size": Vector2(300.0, 300.0), "pos": Vector2(-100.0, -100.0)},
+	"Blobs":      {"size": Vector2(200.0, 200.0), "pos": Vector2(-50.0, -50.0)},
+	"StarFlares": {"size": Vector2(200.0, 200.0), "pos": Vector2(-50.0, -50.0)},
+}
+
+const PULSE_GLOW_SHADER = preload("res://graphics/pulse_glow.gdshader")
+
+
+func spawn_planet(planet_idx: int, actual_size: float, rng: RandomNumberGenerator, poi_id: String = "") -> void:
+	clear_planet()
+	var scene_path: String = PLANETS.get(planet_idx, PLANETS[2])
+	var ps := load(scene_path) as PackedScene
+	if ps == null:
+		return
+	var p := ps.instantiate()
+	# Set up Control anchors (same as galaxy_backdrop.gd _spawn_planet)
+	if p is Control:
+		p.anchor_left = 0.0; p.anchor_top = 0.0
+		p.anchor_right = 0.0; p.anchor_bottom = 0.0
+		p.offset_right = 100.0; p.offset_bottom = 100.0
+		p.size = Vector2(100, 100)
+		p.custom_minimum_size = Vector2(100, 100)
+		p.pivot_offset = Vector2.ZERO
+	var sf := actual_size / 100.0
+	p.scale = Vector2(sf, sf)
+	var x := (480.0 - actual_size) * 0.5
+	var y := -actual_size * 0.78
+	p.position = Vector2(x, y)
+	add_child(p)  # MUST come before _apply_pixel_parity
+	_apply_pixel_parity(p, actual_size)
+	if p.has_method("set_seed"):
+		p.set_seed(rng.randi() % 100000)
+	if p.has_method("randomize_colors"):
+		p.randomize_colors()
+	if p.has_method("set_rotates"):
+		p.set_rotates(rng.randf() < 0.7)
+	if p.has_method("set_dither"):
+		p.set_dither(rng.randf() < 0.5)
+	if "override_time" in p:
+		p.override_time = true
+	_make_planet_halo(p, planet_idx, actual_size, x, y)
+
+
+func clear_planet() -> void:
+	for child in get_children():
+		if child is not CanvasModulate:
+			child.queue_free()
+
+
+func _on_reset() -> void:
+	clear_planet()
+
+
+# Pixel cell count for a body of `displayed_size` viewport-px at the
+# current `pixel_density` setting. Below `pixels_floor` we cap so tiny
+# distant bodies don't degenerate into a handful of cells — they render
+# slightly chunkier than target rather than disappear into mush.
+func _pixels_for_size(displayed_size: float) -> float:
+	var raw: float = displayed_size / max(pixel_density, 0.01)
+	return max(raw, pixels_floor)
+
+
+# Apply pixel parity to a procedural body: drive the shader's `pixels`
+# uniform AND reset each internal ColorRect back to its canonical
+# logical size. The reset is what decouples shader resolution from
+# display footprint — without it, PixelPlanets' set_pixels resizes the
+# ColorRect in lockstep with the uniform, leaving cell viewport size
+# pinned to the parent's scale.
+#
+# Returns the cell count used so callers can stash it for later (e.g.,
+# the BlackHole boss attack reuses it via _apply_pixels_only).
+#
+# CRITICAL: must be called AFTER add_child(p) — see commit 7d834da
+func _apply_pixel_parity(p: Node, displayed_size: float) -> float:
+	var px: float = _pixels_for_size(displayed_size)
+	# Prefer the planet asset's own set_pixels(amount) when present —
+	# each variant knows whether sub-shaders need a multiplier (BlackHole
+	# scales the Disk by 3×; GasPlanetLayers Ring similarly). Fallback
+	# walks ColorRect children and sets the uniform directly.
+	if p.has_method("set_pixels"):
+		p.set_pixels(px)
+	else:
+		_apply_pixels_only(p, px)
+	_reset_colorrect_sizes(p)
+	return px
+
+
+# Walk ColorRect descendants and reset their `size` to the canonical
+# logical dimensions the addon shipped with. Lookup table handles ring
+# overlays (Disk/Ring) which are authored at 300×300 by convention.
+func _reset_colorrect_sizes(root: Node) -> void:
+	for child in root.get_children():
+		if child is ColorRect:
+			var canon: Dictionary = COLORRECT_CANONICAL_BY_NAME.get(String(child.name), COLORRECT_DEFAULT_CANONICAL)
+			(child as ColorRect).size = canon["size"]
+			(child as ColorRect).position = canon["pos"]
+		_reset_colorrect_sizes(child)
+
+
+func _apply_pixels_only(root: Node, value: float) -> void:
+	for child in root.get_children():
+		if child is ColorRect and child.material is ShaderMaterial:
+			child.material.set_shader_parameter("pixels", value)
+		_apply_pixels_only(child, value)
+
+
+# Per-planet brightness + atmosphere treatment.
+#   Star / BlackHole get a hot additive halo and an above-tint z_index so the
+#   multiplicative anchor tint can't darken the phenomenon itself.
+#   Globe planets get a softer atmosphere glow underneath (where it's
+#   "appropriate" — no atmosphere for the airless NoAtmosphere variant).
+func _make_planet_halo(planet_node: Node, planet_idx: int, actual_size: float, planet_x: float, planet_y: float) -> void:
+	# Stellar objects are the FOUNDATION 3 lighting source. Roman, 2026-05-16
+	# parallax overhaul: "should also have a bright bloom effect attached
+	# to them". Adds a wide, soft outer halo that sits behind the planet
+	# regardless of variant — amplifies the existing per-variant haloing.
+	var center_pre: Vector2 = Vector2(planet_x + actual_size * 0.5, planet_y + actual_size * 0.5)
+	var bloom_color: Color = PLANET_TINT.get(planet_idx, Color(1, 1, 1, 1))
+	bloom_color.a = 0.35
+	_make_halo_sprite(center_pre, actual_size * 1.7, bloom_color)
+
+	# Center of the planet visual in LayerPlanet-local coords. For Control planets
+	# we placed the (100x100) rect at top-left planet_pos and scaled it up, so
+	# center = planet_pos + size/2.
+	var center: Vector2 = Vector2(planet_x + actual_size * 0.5, planet_y + actual_size * 0.5)
+	match planet_idx:
+		8:  # Star — full additive halo, blow it bright
+			_make_halo_sprite(center, actual_size * 1.5, Color(1.0, 0.95, 0.6, 0.8))
+		6:  # BlackHole — pulse-glow halo (Roman, 2026-05-17). Color comes
+			# from the sampled disc palette (set on planet meta during
+			# spawn); pulse_glow shader drives radial falloff + a slow
+			# sine intensity pulse so the glow breathes.
+			var disc: Color = planet_node.get_meta("blackhole_halo_color", Color(0.85, 0.6, 1.0, 1.0))
+			_attach_pulse_glow(center, actual_size * 2.2, disc)
+		7:  # Galaxy — soft additive bloom but a bit dimmer
+			_make_halo_sprite(center, actual_size * 1.4, Color(0.6, 0.85, 1.0, 0.45))
+		0:  # LavaWorld — magma glow
+			_make_halo_sprite(center, actual_size * 1.25, Color(1.0, 0.5, 0.2, 0.35))
+		1:  # IceWorld — pale cyan atmosphere
+			_make_halo_sprite(center, actual_size * 1.22, Color(0.65, 0.85, 1.0, 0.32))
+		2:  # DryTerran — thin warm atmosphere
+			_make_halo_sprite(center, actual_size * 1.18, Color(1.0, 0.82, 0.55, 0.28))
+		3:  # GasPlanet — vivid magenta atmosphere
+			_make_halo_sprite(center, actual_size * 1.28, Color(0.85, 0.55, 1.0, 0.4))
+		5:  # LandMasses — green atmosphere
+			_make_halo_sprite(center, actual_size * 1.22, Color(0.55, 0.95, 0.75, 0.32))
+		# NoAtmosphere (4): intentionally no halo — airless rock
+		_:
+			pass
+
+
+# Additive halo behind/beside the planet. z_index is kept at 0 so the
+# parallax layer stays in its own render layer.
+func _make_halo_sprite(center: Vector2, diameter: float, color: Color) -> void:
+	var halo := Sprite2D.new()
+	halo.name = "PlanetHalo"
+	halo.texture = _build_halo_texture()
+	halo.position = center
+	var s: float = diameter / 64.0
+	halo.scale = Vector2(s, s)
+	halo.self_modulate = color
+	var mat := CanvasItemMaterial.new()
+	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	halo.material = mat
+	halo.z_index = 0
+	add_child(halo)
+
+
+# Item-pulse-glow style halo for the BlackHole. Radial falloff from quad
+# center, sine-pulsed intensity, color sourced from the sampled disc tone.
+# Composited additively via CanvasItemMaterial so it adds glow over the
+# disc rather than darkening it.
+func _attach_pulse_glow(center: Vector2, diameter: float, color: Color) -> void:
+	var rect := ColorRect.new()
+	rect.name = "BlackHolePulseGlow"
+	rect.color = Color(1, 1, 1, 1)
+	rect.size = Vector2(diameter, diameter)
+	rect.position = center - rect.size * 0.5
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mat := ShaderMaterial.new()
+	mat.shader = PULSE_GLOW_SHADER
+	mat.set_shader_parameter("glow_color", Color(color.r, color.g, color.b, 0.85))
+	rect.material = mat
+	var ci_mat := CanvasItemMaterial.new()
+	ci_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	rect.material = mat  # ShaderMaterial wins, blend lives on the canvas item
+	add_child(rect)
+
+
+static func _build_halo_texture() -> Texture2D:
+	var g = Gradient.new()
+	g.colors = PackedColorArray([
+		Color(1, 1, 1, 1),
+		Color(1, 1, 1, 0.45),
+		Color(1, 1, 1, 0.0),
+	])
+	g.offsets = PackedFloat32Array([0.0, 0.55, 1.0])
+	var t = GradientTexture2D.new()
+	t.gradient = g
+	t.width = 64
+	t.height = 64
+	t.fill = GradientTexture2D.FILL_RADIAL
+	t.fill_from = Vector2(0.5, 0.5)
+	t.fill_to = Vector2(1.0, 0.5)
+	return t

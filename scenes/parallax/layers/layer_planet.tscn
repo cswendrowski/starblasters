@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/parallax/layer_planet.gd" id="1_planet"]
+
+[node name="LayerPlanet" type="CanvasLayer"]
+layer = -3
+script = ExtResource("1_planet")
+
+[node name="CanvasModulate" type="CanvasModulate" parent="."]
+color = Color(1, 1, 1, 1)
