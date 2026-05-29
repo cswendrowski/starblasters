@@ -56,13 +56,36 @@ func _spawn_asteroid() -> void:
 		return
 	var a := ps.instantiate()
 	var sz := _local_rng.randf_range(asteroid_min_size, asteroid_max_size)
+	# Reset Control anchors to a clean top-left 100×100 box — PlanetKit scenes
+	# ship full-rect anchors that collapse under a CanvasLayer (Node-type) parent.
+	if a is Control:
+		a.anchor_left = 0.0; a.anchor_top = 0.0
+		a.anchor_right = 0.0; a.anchor_bottom = 0.0
+		a.offset_left = 0.0; a.offset_top = 0.0
+		a.offset_right = 100.0; a.offset_bottom = 100.0
+		a.size = Vector2(100, 100)
+		a.custom_minimum_size = Vector2(100, 100)
+		a.pivot_offset = Vector2.ZERO
 	var sf := sz / 100.0
 	a.scale = Vector2(sf, sf)
 	a.modulate = Color(0.9, 0.88, 0.85, 1.0)
-	a.position = Vector2(_local_rng.randf_range(16, 464), _local_rng.randf_range(-270, 0))
+	# Spawn fully above the top so it drifts in (body spans [pos.y, pos.y+sz]).
+	a.position = Vector2(_local_rng.randf_range(16, 464), -sz - _local_rng.randf_range(0, 270))
 	add_child(a)
+	# Unique shape + rotation per asteroid.
+	if a.has_method("set_seed"):
+		a.set_seed(_local_rng.randi())
+	if a.has_method("set_rotates"):
+		a.set_rotates(_local_rng.randf() < 0.7)
+	# Pixel parity: set_pixels resizes the inner Asteroid ColorRect to sz×sz;
+	# reset it to 100×100 so node scale alone controls footprint (otherwise
+	# footprint = sz²/100, quadratic).
 	if a.has_method("set_pixels"):
 		a.set_pixels(maxf(sz, 16.0))
+	var inner := a.get_node_or_null("Asteroid")
+	if inner is Control:
+		inner.size = Vector2(100, 100)
+		inner.position = Vector2.ZERO
 	_objects.append({"node": a, "size": sz})
 
 
@@ -121,10 +144,13 @@ func _on_scrolled() -> void:
 		var n: Node = entry.node
 		if not is_instance_valid(n):
 			continue
-		if offset.y + n.position.y > RESET_THRESHOLD:
+		var sz: float = entry.size
+		# Wrap only when FULLY below the screen (top edge past the bottom),
+		# and respawn FULLY above the top so it drifts in with no pop.
+		if offset.y + n.position.y > 270.0 + 16.0:
 			if _local_rng:
 				n.position.x = _local_rng.randf_range(16, 464)
-				n.position.y = -_local_rng.randf_range(0, 270) - offset.y
+				n.position.y = (-sz - _local_rng.randf_range(8, 220)) - offset.y
 	if _nebula_rect and is_instance_valid(_nebula_rect):
 		# Keep the nebula screen-fixed (counter the layer's offset.y) so it
 		# doesn't scroll off and leave a gap; drift comes from the shader.
