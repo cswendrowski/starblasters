@@ -84,6 +84,7 @@ Three CanvasLayers: **Glass=1** (side gutter panels, x 0–132 and 348–480), *
 - `.tmp` files in `scenes/player/` — editor autosave, ignore.
 - `default_texture_filter=0` (nearest) — intentional for pixel art.
 - **New Part**: extend `Part`, set `slot_type` in `_init`, override `apply(ship)` (additive + record delta) and `unapply(ship)` (reverse). Register in `PartFactory`.
+- **PixelPlanets / planetkit placement**: Every PixelPlanets scene placed into any scene (backdrop, sector map, dev tool) MUST use the pixel-parity setup: (1) set `p.scale = Vector2(actual_size / 100.0, actual_size / 100.0)`, (2) call `add_child(p)` FIRST so `_ready()` initializes the ColorRect children, (3) THEN call `_apply_pixel_parity(p, actual_size)`. Skipping step 2 before step 3 silently leaves shader cells mismatched — each cell covers multiple viewport pixels and individual pixels appear larger than they should. See `scripts/parallax/layer_planet.gd` for the canonical implementation and `docs/godot-patterns.md` for the explanation.
 
 ## Godot MCP integration
 
