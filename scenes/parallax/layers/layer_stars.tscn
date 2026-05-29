@@ -18,13 +18,5 @@ color = Color(0, 0, 0, 1)
 [node name="FarStars" type="Parallax2D" parent="."]
 repeat_size = Vector2(480, 270)
 
-[node name="FarRect" type="ColorRect" parent="FarStars"]
-offset_right = 480.0
-offset_bottom = 270.0
-
 [node name="NearStars" type="Parallax2D" parent="."]
 repeat_size = Vector2(480, 270)
-
-[node name="NearRect" type="ColorRect" parent="NearStars"]
-offset_right = 480.0
-offset_bottom = 270.0
