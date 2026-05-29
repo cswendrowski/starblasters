@@ -50,6 +50,8 @@ func _ready() -> void:
 	# Defer a frame so the backdrop's _ready spawns children before we enumerate them.
 	await get_tree().process_frame
 	_refresh_layers()
+	if not LAYER_NAMES.is_empty():
+		_on_layer_selected(LAYER_NAMES[0])
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("menu")
 
@@ -62,6 +64,8 @@ func _build_backdrop_subviewport() -> void:
 
 	var container := SubViewportContainer.new()
 	container.stretch = true
+	container.stretch_shrink = 4  # 1920/4 = 480 → SubViewport renders at 480×270, upscaled 4×
+	container.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST  # crisp pixel-art upscale
 	container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	container.add_child(_sub_viewport)
 	add_child(container)
@@ -316,7 +320,14 @@ func _on_generate_new() -> void:
 	_rebuild_backdrop()
 	await get_tree().process_frame
 	await get_tree().process_frame
+	# Clear caches so the sliders re-read the freshly generated backdrop's
+	# tints instead of showing stale values from the previous backdrop.
+	_layer_colors.clear()
+	_layer_brightness.clear()
+	_layer_contrast.clear()
 	_refresh_layers()
+	if not _current_layer.is_empty():
+		_on_layer_selected(_current_layer)
 	_set_status("Generated new backdrop")
 
 
