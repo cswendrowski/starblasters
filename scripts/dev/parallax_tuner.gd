@@ -44,8 +44,10 @@ var _status_label: Label
 var _layer_controls: Dictionary = {}  # layer_name -> {color_picker, brightness_slider, contrast_slider}
 var _brightness_value_lbl: Label = null
 var _contrast_value_lbl: Label = null
+var _density_value_lbl: Label = null
 var _layer_buttons: Dictionary = {}  # layer_name -> Button
 var _forced_planet: int = -1  # -1 = random
+var _density_scale: float = 1.0
 
 # ---- Lifecycle -----------------------------------------------------------
 
@@ -86,6 +88,7 @@ func _rebuild_backdrop() -> void:
 		_backdrop.queue_free()
 	_backdrop = BackdropCoordinatorScene.instantiate()
 	_backdrop.set("forced_planet_idx", _forced_planet)
+	_backdrop.set("asteroid_density_scale", _density_scale)
 	_sub_viewport.add_child(_backdrop)
 
 
@@ -140,6 +143,37 @@ func _build_ui() -> void:
 		planet_picker.add_item(pt_name)
 	planet_picker.item_selected.connect(func(idx: int): _on_planet_type_picked(idx))
 	vbox.add_child(planet_picker)
+
+	vbox.add_child(HSeparator.new())
+
+	# ---- Asteroid Density slider ----
+	var density_label := Label.new()
+	density_label.text = "Asteroid Density"
+	density_label.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	_style_caption(density_label)
+	vbox.add_child(density_label)
+
+	var density_hbox := HBoxContainer.new()
+	density_hbox.add_theme_constant_override("separation", 8)
+	vbox.add_child(density_hbox)
+
+	var density_slider := HSlider.new()
+	density_slider.name = "DensitySlider"
+	density_slider.min_value = 1.0
+	density_slider.max_value = 2.0
+	density_slider.value = 1.0
+	density_slider.step = 0.05
+	density_slider.custom_minimum_size = Vector2(0, 24)
+	density_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	density_slider.value_changed.connect(func(v: float): _on_density_changed(v))
+	density_hbox.add_child(density_slider)
+
+	_density_value_lbl = Label.new()
+	_density_value_lbl.text = "1.00"
+	_density_value_lbl.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	_density_value_lbl.add_theme_color_override("font_color", UiTheme.COLOR_TEXT)
+	_density_value_lbl.custom_minimum_size = Vector2(32, 0)
+	density_hbox.add_child(_density_value_lbl)
 
 	vbox.add_child(HSeparator.new())
 
@@ -294,6 +328,13 @@ var _current_layer: String = ""
 
 func _on_planet_type_picked(idx: int) -> void:
 	_forced_planet = (idx - 1)  # "Random"(0) -> -1; type N(1..9) -> 0..8
+	_on_generate_new()
+
+
+func _on_density_changed(v: float) -> void:
+	_density_scale = v
+	if _density_value_lbl:
+		_density_value_lbl.text = "%.2f" % v
 	_on_generate_new()
 
 

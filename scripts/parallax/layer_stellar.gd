@@ -15,6 +15,7 @@ const RESET_THRESHOLD := 340.0
 @export var nebula_density: float = 0.9
 @export var nebula_edge: float = 0.4
 @export var nebula_drift: float = 0.004
+@export var nebula_chance: float = 0.7
 @export var pixel_density: float = 1.0
 @export var mine_count: int = 0
 
@@ -36,7 +37,7 @@ func populate(rng: RandomNumberGenerator) -> void:
 		_spawn_asteroid()
 	for _i in mini_asteroid_count:
 		_spawn_mini_asteroid()
-	if nebula_enabled:
+	if nebula_enabled and _local_rng != null and _local_rng.randf() < nebula_chance:
 		_spawn_nebula()
 	if mine_count > 0:
 		_spawn_bg_mines()
@@ -137,13 +138,14 @@ func _spawn_nebula() -> void:
 	var nebula_px: float = 480.0 / max(pixel_density, 0.01)
 	var sd: float = 1.0
 	if _local_rng:
-		sd = 1.0 + float(_local_rng.seed % 900) / 100.0
+		sd = 1.0 + float(_local_rng.randi() % 900) / 100.0   # fresh draw → unique per band
 	mat.set_shader_parameter("scale", nebula_scale)
 	mat.set_shader_parameter("octaves", nebula_octaves)
 	mat.set_shader_parameter("seed", sd)
 	mat.set_shader_parameter("pixels", nebula_px)
 	mat.set_shader_parameter("drift_speed", nebula_drift)
-	mat.set_shader_parameter("max_alpha", nebula_alpha)
+	var alpha_mult: float = _local_rng.randf_range(1.0, 1.5) if _local_rng else 1.0
+	mat.set_shader_parameter("max_alpha", nebula_alpha * alpha_mult)
 	mat.set_shader_parameter("density", nebula_density)
 	mat.set_shader_parameter("edge_sharpness", nebula_edge)
 	mat.set_shader_parameter("uv_correct", Vector2(1.0, 1.0))

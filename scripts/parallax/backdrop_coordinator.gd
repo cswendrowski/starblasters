@@ -10,6 +10,7 @@ extends Node2D
 @export var forced_planet_idx: int = -1
 @export var pixel_density: float = 1.0
 @export var asteroid_presence: float = 0.65
+@export_range(1.0, 2.0) var asteroid_density_scale: float = 1.0
 
 # Planet-to-tint mapping from V1 PLANET_TINT. Read galaxy_backdrop.gd for the exact colors.
 const PLANET_TINT := {
@@ -86,7 +87,7 @@ func _populate() -> void:
 
 	# Stellar layers
 	var asteroid_density: float = float(stellar.get("asteroid_density", 0.0))
-	var density_mult: float = 0.5 + asteroid_density   # planet node→0.5×, large-ast→1.1×, cluster→1.7×
+	var density_mult: float = (0.5 + asteroid_density) * asteroid_density_scale
 	var ast_color: Color = Color(0.9, 0.88, 0.85, 1.0)
 	if run_node != null and run_node.has_meta("asteroid_base_color"):
 		ast_color = run_node.get_meta("asteroid_base_color")
@@ -95,6 +96,9 @@ func _populate() -> void:
 			if "asteroid_count" in layer:
 				var base_ct: int = int(layer.get("asteroid_count"))
 				layer.set("asteroid_count", maxi(1, int(round(base_ct * density_mult))))
+			if "mini_asteroid_count" in layer:
+				var base_mini: int = int(layer.get("mini_asteroid_count"))
+				layer.set("mini_asteroid_count", maxi(1, int(round(base_mini * density_mult))))
 			if "asteroid_tint" in layer:
 				layer.set("asteroid_tint", ast_color)
 			layer.populate(rng)
