@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/parallax/layer_streaks.gd" id="1_streaks"]
+
+[node name="LayerStreaks" type="CanvasLayer"]
+layer = 1
+script = ExtResource("1_streaks")
+scroll_rate = 0.0
+
+[node name="CanvasModulate" type="CanvasModulate" parent="."]
+color = Color(1, 1, 1, 1)

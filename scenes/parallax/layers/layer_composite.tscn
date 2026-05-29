@@ -1,0 +1,18 @@
+[gd_scene format=3]
+
+[node name="LayerComposite" type="CanvasLayer"]
+layer = 2
+
+[node name="CanvasModulate" type="CanvasModulate" parent="."]
+color = Color(1, 1, 1, 1)
+
+[node name="GradeRect" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(1, 1, 1, 0.09)
+mouse_filter = 2
+
+[node name="Vignette" type="Sprite2D" parent="."]
+position = Vector2(240, 135)
+scale = Vector2(7.5, 7.5)
