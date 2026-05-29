@@ -72,6 +72,22 @@ container.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST  # crisp pixel-art 
 
 ---
 
+## Constant fallback seed → procgen looks identical in dev tools
+
+**Pattern:** Procedural generators that seed from an autoload (`Run.run_seed`) often fall back to a hardcoded constant when that autoload is absent. Dev tools (tuners, capture scripts, isolated test scenes) usually run WITHOUT the gameplay autoloads — so they all get the same constant seed and every "Generate New" produces a byte-identical result. The generation code looks broken ("nothing randomizes") when it's actually fine — it's just being fed one frozen seed.
+
+**Fix:** When the seed source autoload is absent, fall back to a time-based seed (`Time.get_ticks_usec()`) rather than a constant, so dev-tool regeneration actually varies. Keep the deterministic autoload seed for real gameplay.
+
+```gdscript
+var seed_val := int(Time.get_ticks_usec())   # varies in tuner/capture
+if has_node("/root/Run"):
+    seed_val = Run.run_seed + Run.sectors_cleared * 9973  # deterministic in-game
+```
+
+**Discovered:** 2026-05-29, Parallax V4 (every tuner "Generate New" repeated one fixed backdrop because seed fell back to 12345 with no Run)
+
+---
+
 ## CanvasLayer `scroll_rate`/drift defaults to 0 — scrolling layers must set it explicitly
 
 **Pattern:** When a layer's scroll is driven by a coordinator reading `layer.scroll_rate` (or any exported drift multiplier defaulting to 0.0), a layer scene that omits the override sits frozen even if it's in the scroll list.
