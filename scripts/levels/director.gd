@@ -279,7 +279,7 @@ func _apply_sector_modifiers(enemy: Node, modifiers: Array) -> void:
 
 func _process(_delta: float) -> void:
 	if _check_clear:
-		if not _live_combatants_present():
+		if not _live_combatants_present() and not _hazards_present():
 			_check_clear = false
 			level_cleared.emit()
 
@@ -294,6 +294,12 @@ func _live_combatants_present() -> bool:
 		if "is_hazard" in n and n.is_hazard:
 			continue
 		return true
+	return false
+
+func _hazards_present() -> bool:
+	for n in get_tree().get_nodes_in_group("enemies"):
+		if "is_hazard" in n and n.is_hazard:
+			return true
 	return false
 
 func _ready() -> void:
