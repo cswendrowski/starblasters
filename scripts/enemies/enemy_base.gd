@@ -52,7 +52,7 @@ const SHIELD_SHADER = preload("res://graphics/sci_fi_shield.gdshader")
 #                        responsible (rare; bosses are NONE because they
 #                        live inside the playfield).
 
-signal died(value)
+signal died(value: int)
 
 enum OffscreenMode { CYCLE_BOTTOM, FREE_ANY_EDGE, FREE_OPPOSITE_SIDE, NONE }
 

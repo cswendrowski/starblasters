@@ -19,8 +19,8 @@ enum Formation { TOP_LEFT_TO_RIGHT, TOP_RIGHT_TO_LEFT, TOP_RANDOM, TOP_CENTER_OU
 
 # Per-wave overrides applied by the director after instantiating each enemy.
 # Negative ints / null means "don't override; use the scene's default".
-@export var movement_override = null
-@export var shoot_pattern_override = null
+@export var movement_override: Resource = null
+@export var shoot_pattern_override: Resource = null
 @export var fire_interval_min: float = -1.0
 @export var fire_interval_max: float = -1.0
 @export var max_health: int = -1

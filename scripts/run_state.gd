@@ -3,9 +3,9 @@ extends Node
 # Persistent run state. Autoloaded as "Run" so any scene can read/write.
 # Survives scene changes; reset by new_run().
 
-signal bounty_changed(value)
-signal hull_changed(cur, max)
-signal shield_changed(cur, max)
+signal bounty_changed(value: int)
+signal hull_changed(cur: int, max: int)
+signal shield_changed(cur: int, max: int)
 
 # Currency
 var bounty: int = 0:

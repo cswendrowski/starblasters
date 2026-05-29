@@ -42,10 +42,10 @@ func _ready() -> void:
 	# Volume slider lives in the pause/options menu now, not the main HUD.
 	if has_node("CanvasLayer/Volume"):
 		$CanvasLayer/Volume.visible = false
-	var tween = create_tween().set_loops().set_parallel(false).set_trans(Tween.TRANS_SINE)
+	var tween := create_tween().set_loops().set_parallel(false).set_trans(Tween.TRANS_SINE)
 	tween.tween_property($EnemyAnchor, "position:x", $EnemyAnchor.position.x + 3, 1.0)
 	tween.tween_property($EnemyAnchor, "position:x", $EnemyAnchor.position.x - 3, 1.0)
-	var tween2 = create_tween().set_loops().set_parallel(false).set_trans(Tween.TRANS_BACK)
+	var tween2 := create_tween().set_loops().set_parallel(false).set_trans(Tween.TRANS_BACK)
 	tween2.tween_property($EnemyAnchor, "position:y", $EnemyAnchor.position.y + 3, 1.5).set_ease(Tween.EASE_IN_OUT)
 	tween2.tween_property($EnemyAnchor, "position:y", $EnemyAnchor.position.y - 3, 1.5).set_ease(Tween.EASE_IN_OUT)
 	if not wave_director.enemy_died.is_connected(_on_enemy_died):
@@ -139,11 +139,11 @@ func _warm_up_explosion() -> void:
 	# first-time init. Pre-compile ALL hot-path resources up-front by
 	# applying burn to every enemy's sprite and firing a few explosions.
 	var WARM_DIR := Vector2(-9999, -9999)
-	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
-	var BurnFx = load("res://scripts/burn_fx.gd")
+	var ExplosionFx := load("res://scripts/effects/explosion_fx.gd")
+	var BurnFx := load("res://scripts/burn_fx.gd")
 	# Pre-fire one explosion to compile the shader path. All explosions are
 	# 1× now (Roman 2026-05-18) so we only need one warmup variant.
-	var warm_explosion = ExplosionFx.play(WARM_DIR, 1.0, true)
+	var warm_explosion := ExplosionFx.play(WARM_DIR, 1.0, true)
 	if warm_explosion:
 		warm_explosion.modulate = Color(1, 1, 1, 0.001)
 	# Burn-compile each enemy's authored Sprite2D texture (each unique
@@ -180,10 +180,10 @@ func _warm_up_explosion() -> void:
 	]
 	var to_free: Array = []
 	for path in enemy_scenes:
-		var ps = load(path)
+		var ps := load(path)
 		if ps == null:
 			continue
-		var inst = ps.instantiate()
+		var inst := ps.instantiate()
 		inst.process_mode = Node.PROCESS_MODE_DISABLED
 		# Visible=true (off-screen) so the shader actually compiles. Hidden
 		# nodes skip the draw pass under gl_compatibility, so a `visible=false`
@@ -195,7 +195,7 @@ func _warm_up_explosion() -> void:
 		inst.set_meta("warmup_only", true)
 		get_tree().root.add_child(inst)
 		# If the enemy has a Sprite2D, compile burn against its texture.
-		var sprite = inst.get_node_or_null("Sprite2D")
+		var sprite := inst.get_node_or_null("Sprite2D")
 		if sprite and sprite is Sprite2D:
 			BurnFx.apply_burn(sprite, 0.05)
 		to_free.append(inst)
@@ -252,13 +252,13 @@ func _on_enemy_spawned(scene_path: String, bounty_value: int) -> void:
 	if has_node("/root/Run"):
 		get_node("/root/Run").mark_encountered(scene_path)
 
-func _on_enemy_died(value, scene_path: String) -> void:
+func _on_enemy_died(value: int, scene_path: String) -> void:
 	# Bounty Board bonus: if the player opted in to a priority target type,
 	# apply the multiplier when that enemy type is killed. Meta persists until
 	# consumed by a new_run() or until manually cleared — intentional so it
 	# survives across the combat the player opts into.
 	if has_node("/root/Run"):
-		var run = get_node("/root/Run")
+		var run := get_node("/root/Run")
 		if run.has_meta("bounty_type_bonus_path") and scene_path != "":
 			if scene_path == String(run.get_meta("bounty_type_bonus_path")):
 				value = int(ceil(float(value) * float(run.get_meta("bounty_type_bonus_mult", 1.0))))
@@ -279,7 +279,7 @@ func _on_enemy_died(value, scene_path: String) -> void:
 
 func _on_level_cleared() -> void:
 	if has_node("/root/Run"):
-		var run = get_node("/root/Run")
+		var run := get_node("/root/Run")
 		# Bump the per-sector combat count, but only for actual combat nodes —
 		# bosses end the sector (handled by the endless-mode flow elsewhere),
 		# and hazards/signals aren't part of the wave-scaling progression.
@@ -328,7 +328,7 @@ func _on_player_died() -> void:
 	$End.play()
 	wave_director.stop()
 	# Player explodes on death — fire the same VFX a regular kill would.
-	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
+	var ExplosionFx := load("res://scripts/effects/explosion_fx.gd")
 	if player and is_instance_valid(player):
 		# Player death = multi-blast at 1× scale (Roman 2026-05-18 uniform).
 		ExplosionFx.burst(player.global_position, 4, 14.0, 0.08)
@@ -355,7 +355,7 @@ func new_game() -> void:
 	if player and is_instance_valid(player):
 		player.start()
 		if has_node("/root/Run"):
-			var run = get_node("/root/Run")
+			var run := get_node("/root/Run")
 			# Hull stomp removed (Bug fix, 2026-05-27): apply_run_upgrades()
 			# already set player.max_hull = 3 + hull_mk. Stomping it with
 			# run.max_hull would use the stale snapshot and erase any Hull
@@ -379,7 +379,7 @@ func new_game() -> void:
 	var is_hazard := false
 	var hazard_subtype: String = ""
 	if has_node("/root/Run"):
-		var run = get_node("/root/Run")
+		var run := get_node("/root/Run")
 		if run.current_node_type == SectorNode.NodeType.BOSS:
 			is_boss = true
 		elif run.current_node_type == SectorNode.NodeType.HAZARD:
@@ -411,11 +411,11 @@ func new_game() -> void:
 		# specific wave composition without going through the generator.
 		# Single-shot — meta cleared after use.
 		if has_node("/root/Run") and get_node("/root/Run").has_meta("custom_level_path"):
-			var run = get_node("/root/Run")
+			var run := get_node("/root/Run")
 			var path: String = String(run.get_meta("custom_level_path", ""))
 			run.remove_meta("custom_level_path")
 			if path != "" and ResourceLoader.exists(path):
-				var lvl = load(path)
+				var lvl := load(path)
 				if lvl:
 					_current_level = lvl
 		if _current_level == null:
@@ -431,7 +431,7 @@ func new_game() -> void:
 			# from Run meta. Only applies to standard combat nodes (not boss,
 			# not hazard, not custom). Consumed after first use.
 			if has_node("/root/Run"):
-				var run = get_node("/root/Run")
+				var run := get_node("/root/Run")
 				var extra_waves: int = int(run.get_meta("extra_combat_waves", 0))
 				if extra_waves > 0:
 					run.remove_meta("extra_combat_waves")
@@ -439,7 +439,7 @@ func new_game() -> void:
 					# clone the final wave and append it once per extra wave so the
 					# difficulty stays consistent with what the generator produced.
 					if _current_level != null and _current_level.waves.size() > 0:
-						var template_wave = _current_level.waves[_current_level.waves.size() - 1]
+						var template_wave := _current_level.waves[_current_level.waves.size() - 1]
 						for _i in range(extra_waves):
 							_current_level.waves.append(template_wave.duplicate())
 	_run_intro(is_boss)
@@ -506,7 +506,7 @@ const EXIT_THRUSTER_CLIPS := [
 
 func _play_exit_thruster_sfx() -> void:
 	var pick: String = EXIT_THRUSTER_CLIPS[randi() % EXIT_THRUSTER_CLIPS.size()]
-	var stream = load(pick) as AudioStream
+	var stream := load(pick) as AudioStream
 	if stream == null:
 		return
 	var p := AudioStreamPlayer.new()
@@ -573,13 +573,13 @@ func _run_outro() -> void:
 	# 2026-05-24: "this combat doesn't need an event summary/clear screen").
 	# Miners thank-you banner is delivered above the sector map instead.
 	if has_node("/root/Run"):
-		var run_skip = get_node("/root/Run")
+		var run_skip := get_node("/root/Run")
 		if run_skip.current_node_type == SectorNode.NodeType.HAZARD \
 				and String(run_skip.current_hazard_subtype) == "asteroid_field":
 			SceneTransition.change_scene(get_tree(), "res://scenes/sector_map_v3.tscn")
 			return
 	# Mount the cleared summary on top of the black overlay.
-	var summary = ClearedSummaryScene.instantiate()
+	var summary := ClearedSummaryScene.instantiate()
 	add_child(summary)
 	# Hazards don't tally enemies or bounty — pass an empty stats dict and
 	# 0 bounty, and tell the summary to render the minimal layout.
@@ -588,7 +588,7 @@ func _run_outro() -> void:
 	var is_hazard_level: bool = false
 	var was_boss: bool = false
 	if has_node("/root/Run"):
-		var run = get_node("/root/Run")
+		var run := get_node("/root/Run")
 		is_hazard_level = run.current_node_type == SectorNode.NodeType.HAZARD
 		was_boss = run.current_node_type == SectorNode.NodeType.BOSS
 	# Stash combat-only bounty (delta from start) so the summary can render
@@ -612,14 +612,14 @@ func _on_start_pressed() -> void:
 func _on_node_added_to_tree(n: Node) -> void:
 	if _boss_hooked != null and is_instance_valid(_boss_hooked):
 		return
-	var sc = n.get_script()
+	var sc := n.get_script()
 	if sc == null:
 		return
 	# Walk the inheritance chain so boss subclasses (Reaver, Sentinel, …)
 	# also trigger the HP bar — direct resource_path comparison would miss
 	# them. Fix: 2026-05-16 boss-bar regression after adding boss subclasses.
 	var found_boss: bool = false
-	var cur = sc
+	var cur := sc
 	while cur != null:
 		if cur.resource_path == "res://scripts/enemies/boss_base.gd":
 			found_boss = true

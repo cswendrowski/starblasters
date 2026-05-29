@@ -9,14 +9,14 @@ extends "res://scripts/enemies/enemy_base.gd"
 # Legacy anchor-follow fields (used when movement == null).
 var start_pos: Vector2 = Vector2.ZERO
 var speed: float = 0.0
-var anchor
+var anchor: Node2D = null
 var follow_anchor: bool = false
 const _DEFAULT_BULLET = preload("res://scenes/projectiles/enemy_bullet.tscn")
-var bullet_scene = _DEFAULT_BULLET
+var bullet_scene: PackedScene = _DEFAULT_BULLET
 
 # Pattern-driven slots.
 @export var movement: Resource = null
-var _pattern = null
+var _pattern: Resource = null
 
 @export var shoot_pattern: Resource = null
 @export var fire_interval_min: float = 1.2

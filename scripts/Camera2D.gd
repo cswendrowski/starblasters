@@ -1,23 +1,23 @@
 extends Camera2D
 
-@export var decay = 0.85 
-@export var max_offset = Vector2(4, 4)  # 320×400 res rework — halved
-@export var max_roll = 0.2
-@export var noise : FastNoiseLite
+@export var decay: float = 0.85
+@export var max_offset: Vector2 = Vector2(4, 4)  # 320×400 res rework — halved
+@export var max_roll: float = 0.2
+@export var noise: FastNoiseLite
 
-var trauma = 0.0
-var trauma_power = 2
-var noise_pos = Vector3.ZERO
+var trauma: float = 0.0
+var trauma_power: int = 2
+var noise_pos: Vector3 = Vector3.ZERO
 
-func add_trauma(amount):
+func add_trauma(amount: float) -> void:
 	trauma = min(trauma + amount, 0.5)
-	
-func _process(delta):
+
+func _process(delta: float) -> void:
 	if trauma:
 		trauma = max(trauma - decay * delta, 0)
 		shake()
-		
-func shake():
+
+func shake() -> void:
 	# Honor the Options menu's Screen Shake slider. shake_scale 0 = no shake,
 	# 1 = stock. Pulled live so the change takes effect during the current
 	# trauma decay.

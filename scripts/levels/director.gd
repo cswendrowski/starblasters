@@ -4,7 +4,7 @@ extends Node
 # walks its waves, spawns enemies on a timer, and emits level_cleared when
 # all waves are spawned AND no enemies remain in the "enemies" group.
 
-signal enemy_died(value, scene_path)
+signal enemy_died(value: int, scene_path: String)
 signal enemy_spawned(scene_path: String, bounty_value: int)
 signal wave_started(wave_index: int, wave_count: int, silent: bool, announce_text: String)
 signal level_cleared
@@ -26,7 +26,7 @@ var _wave_index: int = -1
 var _spawn_index: int = 0
 var _check_clear: bool = false
 
-func start_level(new_level = null) -> void:
+func start_level(new_level: Resource = null) -> void:
 	if new_level != null:
 		level = new_level
 	if level == null or level.waves.is_empty():
@@ -242,7 +242,7 @@ func _spawn_enemy(wave: Resource, index: int) -> void:
 	if enemy.has_signal("died"):
 		enemy.died.connect(_on_enemy_died.bind(scene_path))
 
-func _on_enemy_died(value, scene_path: String) -> void:
+func _on_enemy_died(value: int, scene_path: String) -> void:
 	enemy_died.emit(value, scene_path)
 
 
