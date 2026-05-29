@@ -57,7 +57,9 @@ func _populate() -> void:
 	var rng := RandomNumberGenerator.new()
 	var seed_val := 12345
 	if run_node:
-		seed_val = int(run_node.get("run_seed", 12345)) + int(run_node.get("sectors_cleared", 0)) * 9973
+		var rs := 12345 if not "run_seed" in run_node else int(run_node.run_seed)
+		var sc := 0 if not "sectors_cleared" in run_node else int(run_node.sectors_cleared)
+		seed_val = rs + sc * 9973
 	rng.seed = abs(seed_val)
 
 	# Planet

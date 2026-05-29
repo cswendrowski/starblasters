@@ -5,7 +5,7 @@ extends Control
 # buttons. All styling is code-driven so the .tscn cache-bind trap doesn't
 # bite when we iterate.
 
-const BACKDROP_SCRIPT = preload("res://scripts/galaxy_backdrop.gd")
+const BackdropCoordinatorScene = preload("res://scenes/parallax/backdrop_coordinator.tscn")
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
@@ -73,14 +73,11 @@ func _fix_center_anchors() -> void:
 func _install_backdrop() -> void:
 	# Spawn the same parallax setup the combat scene uses. Slower planet drift
 	# so the menu's planet doesn't blow past — this is the lobby, not a level.
-	var bd := Node2D.new()
+	var bd := BackdropCoordinatorScene.instantiate()
 	bd.name = "Backdrop"
-	bd.set_script(BACKDROP_SCRIPT)
 	# Reasonable tune for a menu — present, calm but with motion. Asteroids
 	# might or might not roll in; same call as combat.
 	bd.set("drift_speed", 14.0)
-	bd.set("starfield_density", 36.0)
-	bd.set("starfield_scroll", 6.0)
 	bd.set("warp_streak_count", 8)
 	bd.set("warp_streak_speed", 432.0)
 	bd.set("asteroid_presence", 0.5)
