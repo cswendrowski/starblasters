@@ -9,27 +9,16 @@ extends Control
 # Layout mirrors scripts/dev/ui_designer.gd: full-rect Control, backdrop
 # behind, translucent rail panel on the left at z=20.
 
-const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const BACKDROP_COORDINATOR = preload("res://scenes/parallax/backdrop_coordinator.tscn")
 
 const CONFIG_PATH := "user://tuners/parallax_v4.json"
 
 const LAYER_NAMES := ["LayerStars", "LayerPlanet", "LayerStellarFar", "LayerStellarMid", "LayerStellarNear", "LayerStreaks", "LayerComposite"]
-
-# Dev-tool viewport scale: the project ships at 480×270 for chunky-pixel
-# gameplay, but this tuner needs HD real estate for the rail UI. We swap
-# the window's content_scale_size to 1920×1080 for the scene's lifetime,
-# then render the backdrop into a 480×270 SubViewport and upscale it with
-# nearest-neighbour so the pixel-art look is preserved.
-const HD_VIEWPORT := Vector2i(1920, 1080)
-const BACKDROP_NATIVE := Vector2i(480, 270)
-const BACKDROP_DISPLAY_SCALE := 4.0  # 1920 / 480
+const LAYER_SHORT_NAMES := ["Stars", "Planet", "Far", "Mid", "Near", "Streaks", "Grade"]
 
 # ---- State ---------------------------------------------------------------
 
-var _hd_scope: HdViewportScope = null
-var _backdrop_layer: CanvasLayer = null
 var _backdrop: Node2D = null
 
 # Per-layer color cache, keyed by layer name. Persist across backdrop regens
@@ -45,8 +34,6 @@ var _layer_rows: Array = []  # stores (layer_name, color_picker, reset_btn) tupl
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_hd_scope = HdViewportScope.attach(self, HD_VIEWPORT)
-	_build_backdrop_pipeline()
 	_rebuild_backdrop()
 	_build_ui()
 	# Defer a frame so the backdrop's _ready spawns children before we
@@ -57,25 +44,11 @@ func _ready() -> void:
 		get_node("/root/Music").set_context("menu")
 
 
-func _build_backdrop_pipeline() -> void:
-	_backdrop_layer = CanvasLayer.new()
-	_backdrop_layer.name = "BackdropLayer"
-	_backdrop_layer.layer = -10  # below all UI canvas layers
-	# CanvasLayer.transform scales its children without touching their
-	# local transform — layers inside render at native, then the
-	# CanvasLayer scales the result up.
-	_backdrop_layer.transform = Transform2D.IDENTITY.scaled(Vector2(BACKDROP_DISPLAY_SCALE, BACKDROP_DISPLAY_SCALE))
-	add_child(_backdrop_layer)
-
-
 func _rebuild_backdrop() -> void:
 	if _backdrop != null and is_instance_valid(_backdrop):
 		_backdrop.queue_free()
 	_backdrop = BACKDROP_COORDINATOR.instantiate()
-	if _backdrop_layer:
-		_backdrop_layer.add_child(_backdrop)
-	else:
-		add_child(_backdrop)
+	add_child(_backdrop)
 
 
 # ---- UI build ------------------------------------------------------------
@@ -87,29 +60,16 @@ func _build_ui() -> void:
 	rail_layer.layer = 20
 	add_child(rail_layer)
 
-	# Header strip.
-	var header := Label.new()
-	header.text = "PARALLAX TUNER V4 — Esc closes"
-	header.position = Vector2(24, 16)
-	UiTheme.style_label(header, UiTheme.LabelKind.HEADER)
-	rail_layer.add_child(header)
-
-	# Rail panel — sized for the HD viewport (1920×1080 logical). Sits
-	# along the left edge so the backdrop preview reads behind + to the right.
+	# Rail panel — 480×270 compact layout on the left edge.
 	var rail_bg := PanelContainer.new()
-	rail_bg.position = Vector2(24, 56)
-	rail_bg.size = Vector2(520, 980)
+	rail_bg.position = Vector2(0, 0)
+	rail_bg.size = Vector2(120, 270)
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.05, 0.07, 0.11, 0.86)
-	sb.border_color = UiTheme.COLOR_ACCENT_DIM
-	sb.border_width_left = 2
-	sb.border_width_top = 2
-	sb.border_width_right = 2
-	sb.border_width_bottom = 2
-	sb.content_margin_left = 16
-	sb.content_margin_right = 16
-	sb.content_margin_top = 12
-	sb.content_margin_bottom = 12
+	sb.bg_color = Color(0.05, 0.07, 0.11, 0.88)
+	sb.content_margin_left = 4
+	sb.content_margin_right = 4
+	sb.content_margin_top = 4
+	sb.content_margin_bottom = 4
 	rail_bg.add_theme_stylebox_override("panel", sb)
 	rail_layer.add_child(rail_bg)
 
@@ -119,50 +79,56 @@ func _build_ui() -> void:
 	rail_bg.add_child(scroll)
 
 	var rail := VBoxContainer.new()
-	rail.add_theme_constant_override("separation", 8)
+	rail.add_theme_constant_override("separation", 2)
 	rail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(rail)
 
-	# ---- Top: Generate New button ----
-	var gen_btn := _add_button(rail, "Generate New", _on_generate_new)
-	gen_btn.custom_minimum_size = Vector2(0, 14)
-
-	rail.add_child(HSeparator.new())
+	# ---- Top: Title ----
+	var title := Label.new()
+	title.text = "TUNER V4"
+	title.custom_minimum_size = Vector2(0, 14)
+	_style_caption(title)
+	rail.add_child(title)
 
 	# ---- Layer rows container ----
 	# This will be filled in by _refresh_layers()
 	var layers_container := VBoxContainer.new()
 	layers_container.name = "LayersContainer"
-	layers_container.add_theme_constant_override("separation", 8)
+	layers_container.add_theme_constant_override("separation", 2)
 	layers_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	rail.add_child(layers_container)
 
-	rail.add_child(HSeparator.new())
+	# ---- Bottom: Buttons (small) ----
+	var gen_btn := _add_button(rail, "Generate", _on_generate_new)
+	gen_btn.custom_minimum_size = Vector2(0, 16)
 
-	# ---- Persistence + handoff ----
-	_add_button(rail, "Save", _on_save)
-	_add_button(rail, "Load", _on_load)
-	_add_button(rail, "Copy GDScript", _on_copy_snippet)
-	rail.add_child(HSeparator.new())
-	_add_button(rail, "Back to Dev Menu", _on_back)
+	_add_button(rail, "Save", _on_save).custom_minimum_size = Vector2(0, 16)
+	_add_button(rail, "Load", _on_load).custom_minimum_size = Vector2(0, 16)
+	_add_button(rail, "Copy", _on_copy_snippet).custom_minimum_size = Vector2(0, 16)
 
 	_status_label = Label.new()
 	_status_label.text = ""
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_status_label.custom_minimum_size = Vector2(440, 0)
+	_status_label.custom_minimum_size = Vector2(112, 0)
 	_style_caption(_status_label)
 	rail.add_child(_status_label)
 
 
 func _style_caption(lbl: Label) -> void:
-	UiTheme.style_label(lbl, UiTheme.LabelKind.CAPTION)
+	if lbl == null:
+		return
+	var font_size := 10
+	var font_color := Color(0.70, 0.78, 0.88, 0.70)  # COLOR_FAINT
+	lbl.add_theme_font_size_override("font_size", font_size)
+	lbl.add_theme_color_override("font_color", font_color)
 
 
 func _add_button(parent: Node, text: String, cb: Callable) -> Button:
 	var btn := Button.new()
 	btn.text = text
-	btn.custom_minimum_size = Vector2(0, 28)
-	UiTheme.style_button(btn, true)
+	btn.custom_minimum_size = Vector2(0, 16)
+	# Simple button styling: light blue accent text
+	btn.add_theme_color_override("font_color", Color(0.62, 0.82, 1.00, 1.0))  # COLOR_ACCENT
 	btn.pressed.connect(cb)
 	parent.add_child(btn)
 	return btn
@@ -198,7 +164,9 @@ func _refresh_layers() -> void:
 	if _backdrop == null or not is_instance_valid(_backdrop):
 		return
 
-	for layer_name in LAYER_NAMES:
+	for i in range(LAYER_NAMES.size()):
+		var layer_name = LAYER_NAMES[i]
+		var short_name = LAYER_SHORT_NAMES[i]
 		var layer_node = _backdrop.get_node_or_null(layer_name)
 		if layer_node == null:
 			continue
@@ -211,31 +179,22 @@ func _refresh_layers() -> void:
 		if not _layer_colors.has(layer_name):
 			_layer_colors[layer_name] = cm.color
 
-		# Create a row: label + color picker + reset button
+		# Create a row: short label + color picker (compact)
 		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 8)
+		row.add_theme_constant_override("separation", 2)
 		layers_container.add_child(row)
 
 		var lbl := Label.new()
-		lbl.text = layer_name
-		lbl.custom_minimum_size = Vector2(120, 0)
+		lbl.text = short_name
+		lbl.custom_minimum_size = Vector2(40, 0)
 		_style_caption(lbl)
 		row.add_child(lbl)
 
 		var color_picker := ColorPickerButton.new()
 		color_picker.color = _layer_colors[layer_name]
 		color_picker.edit_alpha = true
-		color_picker.custom_minimum_size = Vector2(80, 28)
+		color_picker.custom_minimum_size = Vector2(60, 16)
 		row.add_child(color_picker)
-
-		var reset_btn := Button.new()
-		reset_btn.text = "Reset"
-		reset_btn.custom_minimum_size = Vector2(60, 28)
-		UiTheme.style_button(reset_btn, true)
-		row.add_child(reset_btn)
-
-		# Make row fill horizontally
-		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 		# Store the tuple and bind signals
 		_layer_rows.append({
@@ -243,17 +202,11 @@ func _refresh_layers() -> void:
 			"layer_node": layer_node,
 			"canvas_modulate": cm,
 			"color_picker": color_picker,
-			"reset_btn": reset_btn,
 		})
 
 		# Connect color change signal
 		color_picker.color_changed.connect(func(c: Color):
 			_on_layer_color_changed(layer_name, c)
-		)
-
-		# Connect reset button
-		reset_btn.pressed.connect(func():
-			_on_reset_layer(layer_name)
 		)
 
 
@@ -264,20 +217,6 @@ func _on_layer_color_changed(layer_name: String, c: Color) -> void:
 			var cm: CanvasModulate = row["canvas_modulate"]
 			if cm and is_instance_valid(cm):
 				cm.color = c
-			break
-
-
-func _on_reset_layer(layer_name: String) -> void:
-	_layer_colors[layer_name] = Color.WHITE
-	for row in _layer_rows:
-		if row["layer_name"] == layer_name:
-			var cm: CanvasModulate = row["canvas_modulate"]
-			if cm and is_instance_valid(cm):
-				cm.color = Color.WHITE
-			var picker: ColorPickerButton = row["color_picker"]
-			if picker and is_instance_valid(picker):
-				picker.color = Color.WHITE
-			_set_status("Reset %s" % layer_name)
 			break
 
 
@@ -294,11 +233,6 @@ func _on_generate_new() -> void:
 
 
 func _on_back() -> void:
-	# Restore native scale *before* change_scene so the next scene doesn't
-	# render at HD between its _ready and our _exit_tree.
-	if _hd_scope != null and is_instance_valid(_hd_scope):
-		_hd_scope.free()
-		_hd_scope = null
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev_menu.tscn")
 
 
