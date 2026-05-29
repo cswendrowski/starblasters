@@ -338,18 +338,18 @@ func _process(delta: float) -> void:
 	var mouse: Vector2 = get_local_mouse_position()
 	for entry in _planet_hovers:
 		var hovered: bool = mouse.distance_to(entry.center) <= entry.radius
-		var lbl: Label    = entry.label
-		if lbl == null:
-			continue
+		var lbl: Label     = entry.label
 		var icon: Sprite2D = entry.icon
-		var label_rest: float = float(entry.get("label_rest", 0.2))
-		var icon_rest: float  = float(entry.get("icon_rest", 0.0))
+		var icon_rest: float  = float(entry.get("icon_rest",  0.0))
 		var hover_tint: Color = entry.get("hover_tint", COLOR_NODE_GREEN)
-		var rest_tint: Color  = entry.get("rest_tint", Color.WHITE)
-		lbl.modulate.a = lerpf(lbl.modulate.a, 1.0 if hovered else label_rest, delta * 8.0)
-		var tgt: Color = hover_tint if hovered else rest_tint
-		tgt.a = 0.9 if hovered else icon_rest
-		icon.modulate = icon.modulate.lerp(tgt, delta * 8.0)
+		var rest_tint: Color  = entry.get("rest_tint",  Color.WHITE)
+		if lbl != null:
+			var label_rest: float = float(entry.get("label_rest", 0.0))
+			lbl.modulate.a = lerpf(lbl.modulate.a, 1.0 if hovered else label_rest, delta * 8.0)
+		if icon != null:
+			var tgt: Color = hover_tint if hovered else rest_tint
+			tgt.a = 0.9 if hovered else icon_rest
+			icon.modulate = icon.modulate.lerp(tgt, delta * 8.0)
 
 
 # ---------------------------------------------------------------------------
@@ -1207,21 +1207,6 @@ func _icon_for_type(node_type: int) -> int:
 
 
 func _add_hover_label_icon(pos: Vector2, display_px: float, label_text: String, node_type: int, completed: bool) -> void:
-	var ls := LabelSettings.new()
-	ls.font = FONT; ls.font_size = 9
-	ls.font_color    = Color(0.85, 0.92, 1.0, 0.95)
-	ls.outline_size  = 1
-	ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
-	var lbl := Label.new()
-	lbl.text           = label_text
-	lbl.label_settings = ls
-	lbl.custom_minimum_size.x = 48.0
-	lbl.horizontal_alignment  = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.position  = Vector2(pos.x - 24.0, pos.y - 24.0)
-	lbl.z_index   = 10
-	lbl.modulate.a = 0.0
-	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(lbl)
 	var at := AtlasTexture.new()
 	at.atlas  = ICON_STRIP
 	at.region = Rect2(_icon_for_type(node_type) * 32, 0, 32, 32)
@@ -1242,7 +1227,7 @@ func _add_hover_label_icon(pos: Vector2, display_px: float, label_text: String, 
 	_planet_hovers.append({
 		"center":     pos,
 		"radius":     14.0,
-		"label":      lbl,
+		"label":      null,
 		"icon":       icon_spr,
 		"label_rest": 0.0,
 		"icon_rest":  icon_rest,
