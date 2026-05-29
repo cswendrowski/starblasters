@@ -1,0 +1,27 @@
+[gd_scene load_steps=9 format=3 uid="uid://dlqpfn4jxbpg3"]
+
+[ext_resource type="Script" path="res://scripts/parallax/backdrop_coordinator.gd" id="1_coord"]
+[ext_resource type="PackedScene" path="res://scenes/parallax/layers/layer_stars.tscn" id="2_stars"]
+[ext_resource type="PackedScene" path="res://scenes/parallax/layers/layer_planet.tscn" id="3_planet"]
+[ext_resource type="PackedScene" path="res://scenes/parallax/layers/layer_stellar_far.tscn" id="4_far"]
+[ext_resource type="PackedScene" path="res://scenes/parallax/layers/layer_stellar_mid.tscn" id="5_mid"]
+[ext_resource type="PackedScene" path="res://scenes/parallax/layers/layer_stellar_near.tscn" id="6_near"]
+[ext_resource type="PackedScene" path="res://scenes/parallax/layers/layer_streaks.tscn" id="7_streaks"]
+[ext_resource type="PackedScene" path="res://scenes/parallax/layers/layer_composite.tscn" id="8_composite"]
+
+[node name="BackdropCoordinator" type="Node2D"]
+script = ExtResource("1_coord")
+
+[node name="LayerStars" parent="." instance=ExtResource("2_stars")]
+
+[node name="LayerPlanet" parent="." instance=ExtResource("3_planet")]
+
+[node name="LayerStellarFar" parent="." instance=ExtResource("4_far")]
+
+[node name="LayerStellarMid" parent="." instance=ExtResource("5_mid")]
+
+[node name="LayerStellarNear" parent="." instance=ExtResource("6_near")]
+
+[node name="LayerStreaks" parent="." instance=ExtResource("7_streaks")]
+
+[node name="LayerComposite" parent="." instance=ExtResource("8_composite")]
