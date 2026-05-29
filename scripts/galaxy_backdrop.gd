@@ -591,7 +591,6 @@ func _spawn_companion_body(scene_path: String, rng: RandomNumberGenerator, plane
 		p.pivot_offset = Vector2.ZERO
 	var sf: float = actual_size / 100.0
 	p.scale = Vector2(sf, sf)
-	_apply_pixel_parity(p, actual_size)
 	if "override_time" in p:
 		p.override_time = true
 	if p.has_method("set_seed"):
@@ -606,6 +605,7 @@ func _spawn_companion_body(scene_path: String, rng: RandomNumberGenerator, plane
 	p.set_meta("planet_actual_size", actual_size)
 	p.set_meta("time_update", true)
 	add_child(p)
+	_apply_pixel_parity(p, actual_size)
 
 
 # Weighted celestial pick (Roman 2026-05-18 — black holes appeared too often).
@@ -661,7 +661,6 @@ func _spawn_planet(scene_path: String, rng: RandomNumberGenerator, planet_idx_us
 	# _apply_pixel_parity). Same path for every planet variant including
 	# BlackHole / GasPlanetLayers, whose ring overlays are special-cased
 	# via COLORRECT_CANONICAL_BY_NAME.
-	_apply_pixel_parity(p, actual_size)
 	if "override_time" in p:
 		p.override_time = true
 	# Use the full range of Planet builder randomization (Roman, 2026-05-16:
@@ -695,6 +694,9 @@ func _spawn_planet(scene_path: String, rng: RandomNumberGenerator, planet_idx_us
 	# unambiguously — companion bodies share the planet_actual_size meta.
 	p.set_meta("is_foundation_planet", true)
 	add_child(p)
+	# Pixel-parity must be applied AFTER add_child so PixelPlanets' _ready()
+	# runs first and initializes its ColorRect children before we reset them.
+	_apply_pixel_parity(p, actual_size)
 	# BlackHole disc colors are randomized per-spawn (set_colors via
 	# randomize_colors), so the halo can't be hardcoded — it has to be
 	# sampled from the actual disc palette or it'll mismatch (Roman, 2026-
@@ -967,7 +969,6 @@ func _spawn_asteroid_in_band(rng: RandomNumberGenerator, band: String) -> Node:
 	var sf: float = sz / 100.0
 	a.scale = Vector2(sf, sf)
 	a.modulate = modulate_color
-	_apply_pixel_parity(a, sz)
 	if a.has_method("set_seed"):
 		a.set_seed(rng.randi() % 100000)
 	if "override_time" in a:
@@ -985,6 +986,7 @@ func _spawn_asteroid_in_band(rng: RandomNumberGenerator, band: String) -> Node:
 	a.set_meta("spin", spin)
 	a.set_meta("time_update", true)
 	add_child(a)
+	_apply_pixel_parity(a, sz)
 	return a
 
 
@@ -1201,7 +1203,6 @@ func _attach_poi_moons(moons: Array) -> void:
 			p.pivot_offset = Vector2(50, 50)
 		var sf: float = actual_size / 100.0
 		p.scale = Vector2(sf, sf)
-		_apply_pixel_parity(p, actual_size)
 		if "override_time" in p:
 			p.override_time = true
 		# Deterministic per-moon seed — same POI revisit reproduces the
@@ -1233,6 +1234,7 @@ func _attach_poi_moons(moons: Array) -> void:
 		p.set_meta("drift_mult", planet_drift_mult)
 		p.set_meta("planet_actual_size", actual_size)
 		add_child(p)
+		_apply_pixel_parity(p, actual_size)
 		moon_idx += 1
 
 
