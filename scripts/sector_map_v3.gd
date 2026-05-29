@@ -923,7 +923,7 @@ func _build_bosses_from_cache() -> void:
 			boss_hover_tint = Color(COLOR_BOSS_RED.r, COLOR_BOSS_RED.g, COLOR_BOSS_RED.b, 1.0)
 		_planet_hovers.append({
 			"center":     pos,
-			"radius":     8.0,    # Change 1: halved from 16
+			"radius":     16.0,
 			"label":      null,
 			"icon":       icon_spr,
 			"label_rest": 1.0,
@@ -1396,7 +1396,7 @@ func _make_label(text: String, pos: Vector2, color: Color) -> Label:
 	lbl.label_settings = ls
 	lbl.custom_minimum_size.x = 64
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.position = pos
+	lbl.position = Vector2(pos.x - lbl.custom_minimum_size.x * 0.5, pos.y)
 	lbl.z_index = 100
 	lbl.modulate.a = 1.0
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1737,7 +1737,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				return
 		# Then bosses.
 		for b in _boss_entries:
-			if mp.distance_to(b.pos) <= 8.0:   # Change 1: halved from 16
+			if mp.distance_to(b.pos) <= 16.0:
 				_on_boss_selected(String(b.id))
 				return
 
