@@ -168,7 +168,7 @@ func _ready() -> void:
 	# state to disk so Resume Patrol from the main menu drops them back
 	# here. Anything between map visits is "in a level" and not saved.
 	if has_node("/root/Run"):
-		var _run_ref = get_node("/root/Run")
+		var _run_ref := get_node("/root/Run")
 		# Hull regen on sector map return — requires self_repair_mk upgrade.
 		# +1 pip each visit, capped at max_hull (spec 2026-05-26).
 		if int(_run_ref.self_repair_mk) > 0:
@@ -191,7 +191,7 @@ func _ready() -> void:
 func _show_post_combat_banner() -> void:
 	if not has_node("/root/Run"):
 		return
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	if not run.has_meta("post_combat_banner"):
 		return
 	var text: String = String(run.get_meta("post_combat_banner", ""))
@@ -262,7 +262,7 @@ func _build_bg_stars() -> void:
 func _ensure_sector_cache() -> void:
 	if not has_node("/root/Run"):
 		return
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var target_sector: int = run.sectors_cleared + 1
 	var cache: Dictionary = run.sector_map_cache
 	var needs_gen: bool = cache.is_empty() \
@@ -279,7 +279,7 @@ func _ensure_sector_cache() -> void:
 func _advance_if_complete() -> void:
 	if not has_node("/root/Run"):
 		return
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	if run.is_sector_complete():
 		run.sectors_cleared += 1
 		run.combats_in_sector = 0
@@ -358,7 +358,7 @@ func _process(delta: float) -> void:
 
 func _build_routes() -> void:
 	_route_segments.clear()
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var rows: Array = run.sector_map_cache.get("rows", [])
 	for i in rows.size():
 		# Source anchor from star Marker2D so routes follow the scene editor.
@@ -397,7 +397,7 @@ func _build_routes() -> void:
 # ---------------------------------------------------------------------------
 
 func _build_pois_from_cache() -> void:
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var rows: Array = run.sector_map_cache.get("rows", [])
 	for r_idx in rows.size():
 		_cur_row_idx = r_idx
@@ -456,7 +456,7 @@ func _build_pois_from_cache() -> void:
 				var poi_name_seed: int = abs(hash(poi.id)) ^ 0x3F7A1C2B
 				var poi_name: String = _generate_poi_name(int(poi.node_type), poi_name_seed, String(poi.get("hazard_subtype", "")))
 				# Use child label Marker2D position from the scene.
-				var label_marker_path = "star_%d/row_%d_poi_%d/row_%d_label_%d" % [r_idx + 1, r_idx + 1, poi_idx + 1, r_idx + 1, poi_idx + 1]
+				var label_marker_path := "star_%d/row_%d_poi_%d/row_%d_label_%d" % [r_idx + 1, r_idx + 1, poi_idx + 1, r_idx + 1, poi_idx + 1]
 				if has_node(label_marker_path):
 					var marker: Marker2D = get_node(label_marker_path)
 					_make_label(poi_name, marker.global_position, Color(0.75, 0.85, 1.0, 1.0))
@@ -517,7 +517,7 @@ func _make_moon_rng(poi_id: String) -> RandomNumberGenerator:
 # called from _build_stars() (map display) or _compute_poi/boss_stellar
 # (combat backdrop) — keyed on run_seed + row so both see the same star.
 func _get_star_variant(row_idx: int) -> Dictionary:
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var rng := RandomNumberGenerator.new()
 	rng.seed = abs(hash("star_variant:%d:%d" % [row_idx, run.run_seed]))
 	# Base star class: randomize which of the 3 realistic types this row shows.
@@ -544,7 +544,7 @@ func _get_star_variant(row_idx: int) -> Dictionary:
 # (gray/brown/silvery), 15% exotic. Seeded from row_idx + run_seed so the
 # same row always gets the same color within a run, independent of star color.
 func _get_asteroid_color(row_idx: int) -> Color:
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var rng := RandomNumberGenerator.new()
 	rng.seed = abs(hash("asteroid_color:%d:%d" % [row_idx, run.run_seed]))
 	if rng.randf() < 0.15:
@@ -556,7 +556,7 @@ func _get_asteroid_color(row_idx: int) -> Color:
 # external state. obj_kind / planet_type mirror _build_pois_from_cache so
 # the combat scene's planet matches what the player clicked on the map.
 func _compute_poi_stellar(poi: Dictionary, row_idx: int) -> Dictionary:
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var rows: Array = run.sector_map_cache.get("rows", [])
 	var row_end_x: float = float(rows[row_idx].boss.pos.x) if row_idx < rows.size() else 416.0
 	var deco_rng := RandomNumberGenerator.new()
@@ -650,7 +650,7 @@ func _compute_boss_stellar(row_idx: int) -> Dictionary:
 
 
 func _spawn_planet(center: Vector2, display_px: float, type_idx: int, row_idx: int, rng: RandomNumberGenerator, poi_id: String = "") -> void:
-	var ps = load(PLANET_SCENES[type_idx])
+	var ps := load(PLANET_SCENES[type_idx])
 	if ps == null:
 		return
 	var p = ps.instantiate()
@@ -866,7 +866,7 @@ func _add_minefield_indicators(center: Vector2, rng: RandomNumberGenerator) -> v
 # ---------------------------------------------------------------------------
 
 func _build_bosses_from_cache() -> void:
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var rows: Array = run.sector_map_cache.get("rows", [])
 	for r_idx in rows.size():
 		var boss: Dictionary = rows[r_idx].boss
@@ -911,7 +911,7 @@ func _build_bosses_from_cache() -> void:
 		var boss_label_text: String = "DEFEATED" if defeated else "BOSS"
 		var boss_label_color: Color = COLOR_NODE_GREEN if defeated else Color(0.90, 0.30, 0.30, 1.0)
 		# Use Marker2D position from the scene
-		var boss_label_marker_path = "star_%d/row_%d_boss_%d/boss_label_%d" % [r_idx + 1, r_idx + 1, r_idx + 1, r_idx + 1]
+		var boss_label_marker_path := "star_%d/row_%d_boss_%d/boss_label_%d" % [r_idx + 1, r_idx + 1, r_idx + 1, r_idx + 1]
 		if has_node(boss_label_marker_path):
 			var boss_marker: Marker2D = get_node(boss_label_marker_path)
 			_make_label(boss_label_text, boss_marker.global_position, boss_label_color)
@@ -990,7 +990,7 @@ func _build_stars() -> void:
 			star_seed = abs(hash("star:%d:%d" % [i, get_node("/root/Run").run_seed]))
 		var star_name: String = _generate_celestial_name("star", star_seed)
 		# Use Marker2D position from the scene
-		var star_label_marker_path = "star_%d/star_label_%d" % [i + 1, i + 1]
+		var star_label_marker_path := "star_%d/star_label_%d" % [i + 1, i + 1]
 		if has_node(star_label_marker_path):
 			var star_marker: Marker2D = get_node(star_label_marker_path)
 			_make_label(star_name, star_marker.global_position, Color(0.75, 0.85, 1.0, 1.0))
@@ -1041,12 +1041,12 @@ func _add_glow_sprite(parent: Node2D, gc: Color) -> void:
 
 
 func _build_labels() -> void:
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var current_sector: int = run.sectors_cleared + 1
 	var total_sectors: int = int(run.TOTAL_SECTORS)
 	var sector_name: String = String(run.sector_map_cache.get("sector_name", ""))
 	if sector_name == "":
-		var SectorNameGen = preload("res://scripts/sector_name_generator.gd")
+		var SectorNameGen := preload("res://scripts/sector_name_generator.gd")
 		var seed_value: int = int(run.sector_map_cache.get("seed", run.run_seed + run.sectors_cleared))
 		sector_name = SectorNameGen.generate(seed_value)
 		run.sector_map_cache["sector_name"] = sector_name
@@ -1674,7 +1674,7 @@ func _draw() -> void:
 	# For each boss, draw a segmented clockwise arc — total segments = POI
 	# count in that row, filled count = completed POIs. Starts at 12 o'clock
 	# (-PI/2), progresses clockwise.
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var rows: Array = run.sector_map_cache.get("rows", [])
 	const RING_RADIUS: float       = 13.0   # halved from 26 (Change 1)
 	const RING_WIDTH: float        = 1.0    # halved from 2 (Change 1)
@@ -1717,7 +1717,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			return
 		# Esc opens the options overlay; never ends the run.
-		var OptionsOverlay = load("res://scripts/ui/options_overlay.gd")
+		var OptionsOverlay := load("res://scripts/ui/options_overlay.gd")
 		if OptionsOverlay:
 			OptionsOverlay.open(self)
 		get_viewport().set_input_as_handled()
@@ -1743,7 +1743,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _on_poi_selected(node_id: String) -> void:
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var poi = run.find_sector_node(node_id)
 	if poi == null or poi.get("completed", false):
 		return
@@ -1760,7 +1760,7 @@ func _on_poi_selected(node_id: String) -> void:
 
 
 func _on_boss_selected(node_id: String) -> void:
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var boss = run.find_sector_node(node_id)
 	if boss == null or boss.get("completed", false):
 		return
@@ -1791,13 +1791,13 @@ func _on_depart_pressed() -> void:
 
 
 func _open_options() -> void:
-	var OptionsOverlay = load("res://scripts/ui/options_overlay.gd")
+	var OptionsOverlay := load("res://scripts/ui/options_overlay.gd")
 	if OptionsOverlay:
 		OptionsOverlay.open(self)
 
 
 func _on_poi_clicked(node_id: String) -> void:
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var poi = run.find_sector_node(node_id)
 	if poi == null:
 		return
@@ -1842,7 +1842,7 @@ func _on_poi_clicked(node_id: String) -> void:
 
 
 func _on_boss_clicked(node_id: String) -> void:
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var boss = run.find_sector_node(node_id)
 	if boss == null:
 		return
@@ -1946,7 +1946,7 @@ func _show_no_bounty_modal() -> void:
 	cancel_btn.pressed.connect(func():
 		# Roll back the run.current_node_* writes so the player can retry
 		# the click cleanly (or pick a different node).
-		var run = get_node("/root/Run")
+		var run := get_node("/root/Run")
 		run.current_node_id = ""
 		run.current_node_type = -1
 		run.current_hazard_subtype = ""
@@ -2054,7 +2054,7 @@ func _render_manage_ship_contents(panel: PanelContainer) -> void:
 		err.label_settings = _ms_label_settings(9, Color(1.0, 0.5, 0.5, 1.0))
 		vbox.add_child(err)
 		return
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	_ms_add_status_section(vbox, run)
 	_ms_add_separator(vbox)
 	_ms_add_loadout_section(vbox, run, panel)
@@ -2260,7 +2260,7 @@ func _ms_add_storage_row(vbox: VBoxContainer, panel: PanelContainer, part, idx: 
 func _ms_on_equip_stored(idx: int, source: String, panel: PanelContainer) -> void:
 	if not has_node("/root/Run"):
 		return
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var arr: Array
 	match source:
 		"weapon_storage": arr = run.weapon_storage

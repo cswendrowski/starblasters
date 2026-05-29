@@ -324,7 +324,7 @@ func _do_experimental_tag() -> void:
 func _downgrade_random_part() -> String:
 	if not has_node("/root/Run"):
 		return ""
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var pool: Array = []
 	for slot_key in run.loadout_snapshot.keys():
 		var p = run.loadout_snapshot[slot_key]
@@ -371,7 +371,7 @@ func _make_bounty_board_event() -> Dictionary:
 
 func _do_bounty_board_optin(enemy_scene_path: String, enemy_name: String) -> void:
 	if has_node("/root/Run"):
-		var run = get_node("/root/Run")
+		var run := get_node("/root/Run")
 		if enemy_scene_path != "":
 			run.set_meta("bounty_type_bonus_path", enemy_scene_path)
 			run.set_meta("bounty_type_bonus_mult", 1.15)
@@ -424,7 +424,7 @@ func _make_wreck_event() -> Dictionary:
 func _wreck_ammo_option_available() -> bool:
 	if not has_node("/root/Run"):
 		return false
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	# MG primary: track on Run.ammo. -1 = no MG; otherwise canonical full == 1000.
 	const MG_FULL := 1000
 	if int(run.ammo) >= 0 and int(run.ammo) < MG_FULL:
@@ -442,7 +442,7 @@ func _wreck_ammo_option_available() -> bool:
 # fighters flying up through the parallax (wired in main.gd later).
 func _do_ambush_combat() -> void:
 	if has_node("/root/Run"):
-		var run = get_node("/root/Run")
+		var run := get_node("/root/Run")
 		run.combat_intro = "fly_up_from_below"
 	SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
 
@@ -481,7 +481,7 @@ func _do_nano_cloud() -> void:
 	# Ammo outcome — only if MG equipped, else collapse to repair.
 	if has_ammo_weapon and has_node("/root/Run"):
 		var amt := 200 + _rng.randi() % 200  # 200-399 rounds
-		var run = get_node("/root/Run")
+		var run := get_node("/root/Run")
 		run.ammo = int(run.ammo) + amt
 		_finish_to_sector_map(Strings.OUTCOME_NANO_AMMO % amt)
 	else:
@@ -551,7 +551,7 @@ func _do_junk_ammo() -> void:
 	if not has_node("/root/Run"):
 		_finish_to_sector_map(Strings.OUTCOME_JUNK_NO_RUN)
 		return
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	if int(run.ammo) < 0:
 		_finish_to_sector_map(Strings.OUTCOME_JUNK_NO_AMMO_WEAPON)
 		return
@@ -602,7 +602,7 @@ func _do_wreck_scavenge_ammo() -> void:
 	if not has_node("/root/Run"):
 		_finish_to_sector_map(Strings.OUTCOME_WRECK_NO_RUN)
 		return
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var parts: Array = []
 	const MG_FULL := 1000
 	if int(run.ammo) >= 0 and int(run.ammo) < MG_FULL:
@@ -662,7 +662,7 @@ func _salvage_outcome_upgrade() -> void:
 	if not has_node("/root/Run"):
 		_finish_to_sector_map(Strings.OUTCOME_SALVAGE_NO_RUN)
 		return
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var eligible: Array = []
 	for k in _SALVAGE_UPGRADE_KEYS:
 		if int(run.get(k)) < _SALVAGE_MK_CAP:
@@ -685,7 +685,7 @@ func _salvage_outcome_weapon() -> void:
 	if not has_node("/root/Run"):
 		_finish_to_sector_map(Strings.OUTCOME_SALVAGE_NO_RUN)
 		return
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var slot_pool: Array = [
 		int(Slots.SlotType.CANNON),
 		int(Slots.SlotType.HARDPOINT_WING),
@@ -726,7 +726,7 @@ func _offer_weapon_swap(slot: int, current_part, new_part) -> void:
 	swap_btn.text = Strings.EVENT_SWAP_BTN % new_label
 	UiTheme.style_button(swap_btn)
 	swap_btn.pressed.connect(func():
-		var run = get_node("/root/Run")
+		var run := get_node("/root/Run")
 		# Move the displaced part to inventory if there was one.
 		if current_part != null:
 			run.inventory.append(current_part)
@@ -738,7 +738,7 @@ func _offer_weapon_swap(slot: int, current_part, new_part) -> void:
 	keep_btn.text = Strings.EVENT_SWAP_KEEP % new_label
 	UiTheme.style_button(keep_btn)
 	keep_btn.pressed.connect(func():
-		var run = get_node("/root/Run")
+		var run := get_node("/root/Run")
 		run.inventory.append(new_part)
 		_finish_to_sector_map(Strings.OUTCOME_SWAP_STOWED % new_label)
 	)
@@ -748,7 +748,7 @@ func _offer_weapon_swap(slot: int, current_part, new_part) -> void:
 func _has_metered_weapons() -> bool:
 	if not has_node("/root/Run"):
 		return false
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var has_mg: bool = int(run.ammo) >= 0
 	var has_sec: bool = int(run.secondary_ammo) >= 0 and int(run.secondary_ammo_max) > 0
 	return has_mg or has_sec
@@ -758,7 +758,7 @@ func _salvage_outcome_ammo() -> void:
 	if not has_node("/root/Run"):
 		_finish_to_sector_map(Strings.OUTCOME_SALVAGE_NO_RUN)
 		return
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var parts: Array = []
 	# MG: there's no Run-side max, but the player + outpost both treat 1000
 	# as the canonical full value (AMMO_FULL_VALUE). Match that here.
@@ -783,7 +783,7 @@ func _salvage_outcome_ammo() -> void:
 # destroyed, and give 5 bounty per ... above the sector map").
 func _do_freespace_miner() -> void:
 	if has_node("/root/Run"):
-		var run = get_node("/root/Run")
+		var run := get_node("/root/Run")
 		run.current_node_type = 5  # SectorNode.NodeType.HAZARD
 		run.current_hazard_subtype = "asteroid_field"
 		run.asteroid_bonus_bounty = 0
@@ -801,7 +801,7 @@ func _apply_bounty(delta: int) -> void:
 func _apply_hull_delta(delta: int) -> void:
 	if not has_node("/root/Run"):
 		return
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	if run.max_hull <= 0:
 		return
 	run.current_hull = clampi(run.current_hull + delta, 0, run.max_hull)
@@ -840,7 +840,7 @@ func _part_label(part) -> String:
 func _upgrade_random_part() -> String:
 	if not has_node("/root/Run"):
 		return ""
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	# Try equipped loadout first, then inventory cargo.
 	var pool: Array = []
 	for slot_key in run.loadout_snapshot.keys():
@@ -904,7 +904,7 @@ func _finish_to_sector_map(result_text: String) -> void:
 		# through main.gd's mark_node_completed; this covers the plain
 		# choice-only exit path.
 		if has_node("/root/Run"):
-			var run = get_node("/root/Run")
+			var run := get_node("/root/Run")
 			if String(run.current_node_id) != "":
 				run.mark_node_completed(String(run.current_node_id))
 		SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE)

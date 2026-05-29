@@ -354,7 +354,7 @@ static func build_minefield_level():
 		var variant_total: int = max(1, int(round(float(total_basic) * variant_pct)))
 		# Pick a single variant type for this sprinkle pass so the pattern
 		# reads as "mostly basic with N shielded mines mixed in".
-		var sprinkle_scene = _scene_by_name(VARIANT_SCENES[rng.randi() % VARIANT_SCENES.size()])
+		var sprinkle_scene := _scene_by_name(VARIANT_SCENES[rng.randi() % VARIANT_SCENES.size()])
 		var sprinkle := WaveSpec.new()
 		sprinkle.enemy_scene = sprinkle_scene
 		sprinkle.count = variant_total

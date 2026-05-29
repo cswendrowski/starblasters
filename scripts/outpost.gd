@@ -144,7 +144,7 @@ func _ready() -> void:
 	#   shield = max_shield), so write that to Run here too so the
 	#   status bar shows the correct value before the player leaves.
 	if has_node("/root/Run"):
-		var run = get_node("/root/Run")
+		var run := get_node("/root/Run")
 		if "max_shield" in run and "current_shield" in run and int(run.max_shield) > 0:
 			run.current_shield = int(run.max_shield)
 	_roll_offers()
@@ -540,7 +540,7 @@ func _render_storage() -> void:
 		c.queue_free()
 	if not has_node("/root/Run"):
 		return
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	if run.weapon_storage.is_empty():
 		var lbl := Label.new()
 		lbl.text = Strings.OUTPOST_STORAGE_EMPTY
@@ -654,7 +654,7 @@ func _roll_offers() -> void:
 			# cannon. Blaster at index 0 is permanent / always owned but
 			# IS upgradeable, so the same rule applies to it.
 			if slot == SlotTypes.SlotType.CANNON and has_node("/root/Run"):
-				var run = get_node("/root/Run")
+				var run := get_node("/root/Run")
 				var owned_idx: int = -1
 				if run.has_method("find_owned_cannon_by_name"):
 					owned_idx = int(run.find_owned_cannon_by_name(part_name))
@@ -694,7 +694,7 @@ func _roll_weighted_mark(rng: RandomNumberGenerator, lo: int, hi: int) -> int:
 func _bosses_killed_in_sector() -> int:
 	if not has_node("/root/Run"):
 		return 0
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var cache: Dictionary = run.sector_map_cache
 	if cache.is_empty() or not cache.has("rows"):
 		return 0
@@ -708,7 +708,7 @@ func _bosses_killed_in_sector() -> int:
 func _current_sector() -> int:
 	if not has_node("/root/Run"):
 		return 1
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	if "sectors_cleared" in run:
 		return int(run.sectors_cleared) + 1
 	return 1
@@ -721,7 +721,7 @@ func _on_buy_upgrade(offer: Dictionary, btn: Button) -> void:
 		return
 	if not has_node("/root/Run"):
 		return
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var cost: int = int(offer["cost"])
 	if int(run.bounty) < cost:
 		return
@@ -740,7 +740,7 @@ func _on_buy_weapon(offer: Dictionary, btn: Button) -> void:
 		return
 	if not has_node("/root/Run"):
 		return
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var cost: int = int(offer["cost"])
 	if int(run.bounty) < cost:
 		return
@@ -775,7 +775,7 @@ func _apply_part_to_player(part) -> void:
 func _on_equip_stored(idx: int) -> void:
 	if not has_node("/root/Run"):
 		return
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	if idx < 0 or idx >= run.weapon_storage.size():
 		return
 	var picked = run.weapon_storage[idx]
@@ -792,7 +792,7 @@ func _on_equip_stored(idx: int) -> void:
 func _on_sell_stored(idx: int, sell_value: int) -> void:
 	if not has_node("/root/Run"):
 		return
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	if idx < 0 or idx >= run.weapon_storage.size():
 		return
 	run.weapon_storage.remove_at(idx)
@@ -804,7 +804,7 @@ func _on_sell_stored(idx: int, sell_value: int) -> void:
 func _hull_repair_cost() -> int:
 	var base: int = HULL_REPAIR_COST
 	if has_node("/root/Run"):
-		var run = get_node("/root/Run")
+		var run := get_node("/root/Run")
 		if "hull_mk" in run and int(run.hull_mk) >= 9:
 			base = int(round(float(base) * 0.70))
 	return base
@@ -831,7 +831,7 @@ func _on_shield_refill(btn: Button) -> void:
 	# This exists so the status bar reads "full" before the player leaves.
 	if not has_node("/root/Run"):
 		return
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	if int(run.max_shield) <= 0:
 		return
 	run.current_shield = int(run.max_shield)
@@ -853,7 +853,7 @@ func _on_shield_refill(btn: Button) -> void:
 func _primary_ammo_max() -> int:
 	if not has_node("/root/Run"):
 		return 0
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	var cannon = run.loadout_snapshot.get(SlotTypes.SlotType.CANNON, null)
 	if cannon == null:
 		return 0
@@ -893,7 +893,7 @@ func _on_primary_ammo_refill(btn: Button) -> void:
 	# _apply_service_button_state so this handler only runs for replacements.
 	if not has_node("/root/Run"):
 		return
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	if int(run.active_cannon_idx) == 0:
 		return
 	var active = run.get_active_cannon()
@@ -922,7 +922,7 @@ func _on_primary_ammo_refill(btn: Button) -> void:
 func _on_secondary_ammo_refill(btn: Button) -> void:
 	if not has_node("/root/Run"):
 		return
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	if int(run.secondary_ammo) < 0 or int(run.secondary_ammo_max) <= 0:
 		return
 	var missing: int = int(run.secondary_ammo_max) - int(run.secondary_ammo)
@@ -942,7 +942,7 @@ func _on_secondary_ammo_refill(btn: Button) -> void:
 func _on_super_refill(btn: Button) -> void:
 	if not has_node("/root/Run"):
 		return
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	if int(run.bounty) < SUPER_REFILL_COST:
 		return
 	if not ("super_charges" in run) or not ("max_super_charges" in run):
@@ -963,7 +963,7 @@ func _on_refresh_stock(btn: Button) -> void:
 	var cost: int = _current_refresh_cost()
 	if not has_node("/root/Run") or int(_run_bounty()) < cost:
 		return
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 	run.bounty -= cost
 	_refresh_count += 1
 	_roll_offers()
@@ -994,7 +994,7 @@ func _update_refresh_btn_label() -> void:
 
 func _on_leave() -> void:
 	if has_node("/root/Run"):
-		var run = get_node("/root/Run")
+		var run := get_node("/root/Run")
 		if String(run.current_node_id) != "":
 			run.mark_node_completed(String(run.current_node_id))
 	# Drop the HD scope before change_scene so the sector map's _ready
@@ -1014,7 +1014,7 @@ func _on_leave() -> void:
 func _refresh_status_panel() -> void:
 	if not has_node("/root/Run"):
 		return
-	var run = get_node("/root/Run")
+	var run := get_node("/root/Run")
 
 	if _hull_value_lbl:
 		if int(run.max_hull) > 0:

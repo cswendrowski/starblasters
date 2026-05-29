@@ -166,7 +166,7 @@ func _ready() -> void:
 	var visit_count: int = 0
 	var node_id: String = ""
 	if has_node("/root/Run"):
-		var run = get_node("/root/Run")
+		var run := get_node("/root/Run")
 		sector_num = run.sectors_cleared
 		seed_val = run.run_seed
 		visit_count = run.visited_nodes.size()
@@ -181,7 +181,7 @@ func _ready() -> void:
 	# when the node didn't seed one (Test Hazard etc.).
 	var planet_idx: int = -1
 	if has_node("/root/Run"):
-		var stellar = get_node("/root/Run").current_stellar
+		var stellar: Variant = get_node("/root/Run").current_stellar
 		if stellar is Dictionary and stellar.has("planet_idx"):
 			planet_idx = int(stellar["planet_idx"])
 	if planet_idx < 0 or planet_idx >= PLANETS.size():
@@ -220,7 +220,7 @@ func _ready() -> void:
 	var poi_star_cool: bool = false
 	var has_poi_star: bool = false
 	if has_node("/root/Run"):
-		var stellar = get_node("/root/Run").current_stellar
+		var stellar: Variant = get_node("/root/Run").current_stellar
 		if stellar is Dictionary:
 			nebula_band = String(stellar.get("nebula_band", ""))
 			nebula_tint = stellar.get("nebula_tint", Color(1, 1, 1, 1))
@@ -414,7 +414,7 @@ func _spawn_deep_clear(star_color: Color = Color(1, 1, 1, 1), star_cool: bool = 
 func _spawn_nebulae(rng: RandomNumberGenerator, band_tag: String = "", band_tint: Color = Color(1, 1, 1, 1)) -> void:
 	if not use_nebula:
 		return
-	var cs = load(SPACE_COLORSCHEME)
+	var cs := load(SPACE_COLORSCHEME)
 	var sd_base: float = 1.0 + (float(rng.seed % 900) / 100.0)
 	# A non-empty band_tag means this node is inside a sector-map nebula
 	# band — push the tint via ColorRect.modulate so the existing shader
@@ -446,7 +446,7 @@ func _spawn_nebulae(rng: RandomNumberGenerator, band_tag: String = "", band_tint
 	)
 
 func _make_space_layer(layer_name: String, shader_path: String, colorscheme, sd: float, px: float, octaves: int, drift: float = 0.0, alpha_override: float = -1.0, density_override: float = -1.0, scale_override: float = -1.0, modulate_tint: Color = Color(1, 1, 1, 1)) -> void:
-	var shader = load(shader_path)
+	var shader := load(shader_path)
 	if shader == null:
 		return
 	var rect = ColorRect.new()
@@ -503,7 +503,7 @@ func _make_space_layer(layer_name: String, shader_path: String, colorscheme, sd:
 	add_child(rect)
 
 func _spawn_starfield() -> void:
-	var shader = load(STARFIELD_SHADER)
+	var shader := load(STARFIELD_SHADER)
 	if shader == null:
 		return
 	# Foundation 1 + 2: two bright, slow starfields per Roman 2026-05-16
@@ -513,7 +513,7 @@ func _spawn_starfield() -> void:
 	# perspective; now just two foundation-density passes.
 	var density_scale: float = starfield_density / 40.0
 	var scroll_scale: float = starfield_scroll / 8.0
-	var layers = [
+	var layers := [
 		# Foundation 1 — denser, slowest, soft white. Reads as a dust of
 		# pinpricks that anchor the deep background.
 		{"name": "StarsFoundation1", "density": 32.0, "scroll":  3.0, "thresh": 0.95, "modulate": Color(0.95, 0.98, 1.00, 1.00), "seed": Vector2(0.0,  0.0)},
@@ -573,7 +573,7 @@ func _spawn_companions(rng: RandomNumberGenerator, main_idx: int, main_x: float,
 # Lightweight companion spawner — same lifecycle hooks as _spawn_planet
 # but at a custom size + position. No companion-of-companion recursion.
 func _spawn_companion_body(scene_path: String, rng: RandomNumberGenerator, planet_idx_used: int, x: float, y: float, actual_size: float) -> void:
-	var ps = load(scene_path)
+	var ps := load(scene_path)
 	if ps == null:
 		return
 	var p = ps.instantiate()
@@ -629,7 +629,7 @@ static func _weighted_celestial_pick(rng: RandomNumberGenerator) -> int:
 
 
 func _spawn_planet(scene_path: String, rng: RandomNumberGenerator, planet_idx_used: int) -> void:
-	var ps = load(scene_path)
+	var ps := load(scene_path)
 	if ps == null:
 		push_warning("[Backdrop] could not load: %s" % scene_path)
 		return
@@ -920,7 +920,7 @@ func _spawn_background_mines(rng: RandomNumberGenerator) -> void:
 
 
 func _spawn_asteroid_in_band(rng: RandomNumberGenerator, band: String) -> Node:
-	var ps = load(ASTEROID_SCENE)
+	var ps := load(ASTEROID_SCENE)
 	if ps == null:
 		return null
 	var a = ps.instantiate()
@@ -1166,7 +1166,7 @@ func _attach_poi_moons(moons: Array) -> void:
 			break
 	if planet == null:
 		return
-	var moon_scene = load(POI_MOON_SCENE)
+	var moon_scene := load(POI_MOON_SCENE)
 	if moon_scene == null:
 		push_warning("[Backdrop] could not load POI moon scene: %s" % POI_MOON_SCENE)
 		return

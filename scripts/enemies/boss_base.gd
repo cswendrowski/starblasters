@@ -83,7 +83,7 @@ func _ready() -> void:
 		$ShootTimer.timeout.connect(_on_shoot_timer_timeout)
 	# Oblique drop-shadow under the boss sprite.
 	if has_node("Sprite2D"):
-		var ShadowFx = load("res://scripts/shadow_fx.gd")
+		var ShadowFx := load("res://scripts/shadow_fx.gd")
 		ShadowFx.attach_shadow($Sprite2D, Vector2(14, 14), 0.5, 2.0)
 	# Initialise the phase machine. Phase 0 enter fires once HP is known.
 	_init_phases()
@@ -148,7 +148,7 @@ func _clamp_to_playfield() -> void:
 # Non-fatal damage reaction: white flash + HP-bar update + phase check.
 func hit() -> void:
 	modulate = Color(2, 2, 2, 1)
-	var tw = create_tween()
+	var tw := create_tween()
 	tw.tween_property(self, "modulate", Color(1, 1, 1, 1), 0.15)
 	health_changed.emit(health, max_health)
 	_check_phase_transition()
@@ -178,13 +178,13 @@ func explode() -> void:
 	# Run.is_sector_complete(). Bumping here on every boss death made the
 	# map jump a sector after the first row boss kill.
 	_on_boss_death()
-	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
+	var ExplosionFx := load("res://scripts/effects/explosion_fx.gd")
 	ExplosionFx.burst(global_position, 7, 28.0, 0.08)
 	# Settling dust supplement (Roman 2026-05-24). Each of the 7 cascade
 	# blasts gets its own smaller puff (16 particles), staggered to match
 	# the 0.08s explosion cadence with mild positional jitter so the dust
 	# layer mirrors the cascade rather than dumping all at the origin.
-	var DeathDust = load("res://scripts/effects/death_dust.gd")
+	var DeathDust := load("res://scripts/effects/death_dust.gd")
 	var tree := get_tree()
 	for i in range(7):
 		var delay: float = float(i) * 0.08
@@ -195,7 +195,7 @@ func explode() -> void:
 		else:
 			tree.create_timer(delay).timeout.connect(DeathDust.play_with_count.bind(puff_pos, 16))
 	if has_node("Sprite2D"):
-		var BurnFx = load("res://scripts/burn_fx.gd")
+		var BurnFx := load("res://scripts/burn_fx.gd")
 		BurnFx.apply_burn($Sprite2D, 1.2)
 	if has_node("AnimationPlayer") and $AnimationPlayer.has_animation("explode"):
 		$AnimationPlayer.play("explode")
@@ -507,7 +507,7 @@ func _spawn_beam_hitbox(x_left: float, x_right: float, beam_y: float, width_px: 
 # Replace the current movement Resource with a sweep. Restarts the
 # pattern's internal phase via on_start().
 func sweep_horizontal(amplitude_x: float, period_sec: float, _ease: String = "sin3") -> void:
-	var BossSweep = load("res://scripts/enemies/patterns/boss_sweep.gd")
+	var BossSweep := load("res://scripts/enemies/patterns/boss_sweep.gd")
 	var mv = BossSweep.new()
 	mv.hover_y = boss_hover_y
 	mv.sweep_amplitude = amplitude_x
