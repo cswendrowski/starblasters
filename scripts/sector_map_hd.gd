@@ -207,13 +207,13 @@ func _generate_map() -> void:
 	else:
 		lane_cols = [2, 5, 8]
 	var prev_row_cols: Array = []
-	var last_outpost_row: int = -999
 	for r in range(FILL_ROW_MIN, FILL_ROW_MAX + 1):
 		var max_nodes: int = mini(4, lane_cols.size())
 		var n_in_row: int = rng.randi_range(maxi(1, max_nodes - 1), max_nodes)
 		var lanes_this_row: Array = lane_cols.duplicate()
 		lanes_this_row.shuffle()
 		var used_cols: Array = []
+		var row_has_outpost: bool = false
 		for i in n_in_row:
 			var lane: int = int(lanes_this_row[i % lanes_this_row.size()])
 			var c: int = _pick_col_in_lane(rng, lane, used_cols, prev_row_cols)
@@ -223,10 +223,10 @@ func _generate_map() -> void:
 			var n = SectorNode.new()
 			n.id = "n_%d_%d" % [r, c]
 			n.node_type = _roll_type(rng)
-			if n.node_type == SectorNode.NodeType.OUTPOST and (r - last_outpost_row) < 2:
+			if n.node_type == SectorNode.NodeType.OUTPOST and row_has_outpost:
 				n.node_type = SectorNode.NodeType.COMBAT
 			if n.node_type == SectorNode.NodeType.OUTPOST:
-				last_outpost_row = r
+				row_has_outpost = true
 			n.row = r
 			n.col = c
 			n.pos = cell_center(c, r)
@@ -238,6 +238,10 @@ func _generate_map() -> void:
 				var n_fb = SectorNode.new()
 				n_fb.id = "n_%d_%d" % [r, fallback_c]
 				n_fb.node_type = _roll_type(rng)
+				if n_fb.node_type == SectorNode.NodeType.OUTPOST and row_has_outpost:
+					n_fb.node_type = SectorNode.NodeType.COMBAT
+				if n_fb.node_type == SectorNode.NodeType.OUTPOST:
+					row_has_outpost = true
 				n_fb.row = r
 				n_fb.col = fallback_c
 				n_fb.pos = cell_center(fallback_c, r)
