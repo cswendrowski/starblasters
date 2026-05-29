@@ -252,7 +252,7 @@ func update_hull(max_value, value) -> void:
 	_prev_hull = int(value)
 
 	# Critical flicker on fire light at hull <= 50%
-	var crit := float(value) / max(float(max_value), 1.0) <= 0.5 and int(value) > 0
+	var crit: bool = float(value) / max(float(max_value), 1.0) <= 0.5 and int(value) > 0
 	if crit != _hull_crit:
 		_hull_crit = crit
 		if _fire_light != null:
