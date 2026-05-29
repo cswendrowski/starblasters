@@ -1,16 +1,15 @@
 extends Control
 
-# Parallax Tuner V4 — rewritten 2026-05-29 for the backdrop_coordinator.tscn
-# (Parallax V4 only, no V1/V2/V3 cycling). Lets the designer:
-#   - Generate a new coordinator instance
-#   - Tune CanvasModulate color per layer (LayerStars, LayerPlanet, etc.)
-#   - Save / Load / Copy GDScript export
-#
-# Layout mirrors scripts/dev/ui_designer.gd: full-rect Control, backdrop
-# behind, translucent rail panel on the left at z=20.
+# Parallax Tuner V4 — rewritten 2026-05-29 with SubViewport rendering + brightness/contrast
+# Full 1920×1080 HD viewport showing 480×270 backdrop at 4× scale in a SubViewportContainer,
+# overlaid with UI panel on the right side. Layers can be individually tuned by:
+#   - Color picker
+#   - Brightness multiplier (0.0–2.0)
+#   - Contrast curve (0.5–2.0)
+# Persistence: save/load/copy-snippet for all three dicts (colors, brightness, contrast).
 
 const SceneTransition = preload("res://scripts/scene_transition.gd")
-const BACKDROP_COORDINATOR = preload("res://scenes/parallax/backdrop_coordinator.tscn")
+const BackdropCoordinatorScene = preload("res://scenes/parallax/backdrop_coordinator.tscn")
 
 const CONFIG_PATH := "user://tuners/parallax_v4.json"
 
@@ -19,168 +18,227 @@ const LAYER_NAMES := ["LayerStars", "LayerPlanet", "LayerStellarFar", "LayerStel
 const LAYER_SHORT_NAMES := {
 	"LayerStars":       "Stars",
 	"LayerPlanet":      "Planet",
-	"LayerStellarFar":  "Far",
-	"LayerStellarMid":  "Mid",
-	"LayerStellarNear": "Near",
+	"LayerStellarFar":  "Stellar Far",
+	"LayerStellarMid":  "Stellar Mid",
+	"LayerStellarNear": "Stellar Near",
 	"LayerStreaks":     "Streaks",
-	"LayerComposite":   "Grade",
+	"LayerComposite":   "Composite",
 }
 
 # ---- State ---------------------------------------------------------------
 
+var _sub_viewport: SubViewport = null
 var _backdrop: Node2D = null
 
-# Per-layer color cache, keyed by layer name. Persist across backdrop regens
-# so the pickers recall the layer's last edited color.
+# Per-layer caches, keyed by layer name
 var _layer_colors: Dictionary = {}
+var _layer_brightness: Dictionary = {}
+var _layer_contrast: Dictionary = {}
 
 # ---- UI nodes ------------------------------------------------------------
 
 var _status_label: Label
-var _layer_rows: Array = []  # stores (layer_name, color_picker, reset_btn) tuples
+var _layer_controls: Dictionary = {}  # layer_name -> {color_picker, brightness_slider, contrast_slider}
 
 # ---- Lifecycle -----------------------------------------------------------
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_rebuild_backdrop()
+	_build_backdrop_subviewport()
 	_build_ui()
-	# Defer a frame so the backdrop's _ready spawns children before we
-	# enumerate them for the picker.
+	# Defer a frame so the backdrop's _ready spawns children before we enumerate them.
 	await get_tree().process_frame
 	_refresh_layers()
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("menu")
 
 
+func _build_backdrop_subviewport() -> void:
+	_sub_viewport = SubViewport.new()
+	_sub_viewport.size = Vector2i(480, 270)
+	_sub_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_sub_viewport.transparent_bg = false
+
+	var container := SubViewportContainer.new()
+	container.stretch = true
+	container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	container.add_child(_sub_viewport)
+	add_child(container)
+
+	_rebuild_backdrop()
+
+
 func _rebuild_backdrop() -> void:
 	if _backdrop != null and is_instance_valid(_backdrop):
 		_backdrop.queue_free()
-	_backdrop = BACKDROP_COORDINATOR.instantiate()
-	add_child(_backdrop)
+	_backdrop = BackdropCoordinatorScene.instantiate()
+	_sub_viewport.add_child(_backdrop)
 
 
-# ---- UI build ------------------------------------------------------------
+# ---- UI build (right panel at CanvasLayer 20) ----------------------------
 
 func _build_ui() -> void:
-	# Rail above everything — backdrop + any glass/outline siblings.
-	var rail_layer := CanvasLayer.new()
-	rail_layer.name = "TunerRail"
-	rail_layer.layer = 20
-	add_child(rail_layer)
+	var ui_layer := CanvasLayer.new()
+	ui_layer.name = "TunerUI"
+	ui_layer.layer = 20
+	add_child(ui_layer)
 
-	# Rail panel — left gutter at position (2, 2), size (128, 266).
-	var rail_bg := PanelContainer.new()
-	rail_bg.position = Vector2(2, 2)
-	rail_bg.size = Vector2(128, 266)
+	# Panel: right side 560×1080 at x=1360
+	var panel := PanelContainer.new()
+	panel.position = Vector2(1360, 0)
+	panel.size = Vector2(560, 1080)
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.05, 0.07, 0.11, 0.88)
-	sb.content_margin_left = 4
-	sb.content_margin_right = 4
-	sb.content_margin_top = 4
-	sb.content_margin_bottom = 4
-	rail_bg.add_theme_stylebox_override("panel", sb)
-	rail_layer.add_child(rail_bg)
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	sb.content_margin_top = 8
+	sb.content_margin_bottom = 8
+	panel.add_theme_stylebox_override("panel", sb)
+	ui_layer.add_child(panel)
 
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	rail_bg.add_child(scroll)
+	panel.add_child(scroll)
 
-	var rail := VBoxContainer.new()
-	rail.add_theme_constant_override("separation", 4)
-	rail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(rail)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 6)
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(vbox)
 
-	# ---- Top: Title ----
+	# ---- Title ----
 	var title := Label.new()
-	title.text = "TUNER V4"
-	title.custom_minimum_size = Vector2(0, 16)
-	title.add_theme_font_size_override("font_size", 8)
-	_style_caption(title)
-	rail.add_child(title)
+	title.text = "PARALLAX TUNER V4"
+	title.add_theme_font_size_override("font_size", 10)
+	title.add_theme_color_override("font_color", Color(0.82, 0.90, 1.0, 1.0))
+	vbox.add_child(title)
+
+	# ---- Layer picker ----
+	var layer_label := Label.new()
+	layer_label.text = "Layers"
+	layer_label.add_theme_font_size_override("font_size", 8)
+	_style_caption(layer_label)
+	vbox.add_child(layer_label)
+
+	var layer_grid := GridContainer.new()
+	layer_grid.columns = 2
+	layer_grid.add_theme_constant_override("h_separation", 4)
+	layer_grid.add_theme_constant_override("v_separation", 4)
+	vbox.add_child(layer_grid)
+
+	for layer_name in LAYER_NAMES:
+		var short_name = LAYER_SHORT_NAMES.get(layer_name, layer_name)
+		var btn := Button.new()
+		btn.text = short_name
+		btn.custom_minimum_size = Vector2(120, 24)
+		btn.add_theme_font_size_override("font_size", 8)
+		btn.add_theme_color_override("font_color", Color(0.62, 0.82, 1.00, 1.0))
+		btn.pressed.connect(func(): _on_layer_selected(layer_name))
+		layer_grid.add_child(btn)
+
+	vbox.add_child(HSeparator.new())
+
+	# ---- Color section (will populate on layer select) ----
+	var color_label := Label.new()
+	color_label.text = "Color"
+	color_label.add_theme_font_size_override("font_size", 8)
+	_style_caption(color_label)
+	vbox.add_child(color_label)
+
+	var color_picker := ColorPickerButton.new()
+	color_picker.name = "LayerColorPicker"
+	color_picker.edit_alpha = true
+	color_picker.custom_minimum_size = Vector2(0, 32)
+	color_picker.color_changed.connect(func(c: Color): _on_layer_color_changed(c))
+	vbox.add_child(color_picker)
+	_layer_controls["color_picker"] = color_picker
+
+	vbox.add_child(HSeparator.new())
+
+	# ---- Brightness slider ----
+	var brightness_label := Label.new()
+	brightness_label.text = "Brightness"
+	brightness_label.add_theme_font_size_override("font_size", 8)
+	_style_caption(brightness_label)
+	vbox.add_child(brightness_label)
+
+	var brightness_slider := HSlider.new()
+	brightness_slider.name = "BrightnessSlider"
+	brightness_slider.min_value = 0.0
+	brightness_slider.max_value = 2.0
+	brightness_slider.value = 1.0
+	brightness_slider.step = 0.05
+	brightness_slider.custom_minimum_size = Vector2(0, 20)
+	brightness_slider.value_changed.connect(func(v: float): _on_brightness_changed(v))
+	vbox.add_child(brightness_slider)
+	_layer_controls["brightness_slider"] = brightness_slider
+
+	# ---- Contrast slider ----
+	var contrast_label := Label.new()
+	contrast_label.text = "Contrast"
+	contrast_label.add_theme_font_size_override("font_size", 8)
+	_style_caption(contrast_label)
+	vbox.add_child(contrast_label)
+
+	var contrast_slider := HSlider.new()
+	contrast_slider.name = "ContrastSlider"
+	contrast_slider.min_value = 0.5
+	contrast_slider.max_value = 2.0
+	contrast_slider.value = 1.0
+	contrast_slider.step = 0.05
+	contrast_slider.custom_minimum_size = Vector2(0, 20)
+	contrast_slider.value_changed.connect(func(v: float): _on_contrast_changed(v))
+	vbox.add_child(contrast_slider)
+	_layer_controls["contrast_slider"] = contrast_slider
+
+	vbox.add_child(HSeparator.new())
 
 	# ---- Generate button ----
-	var gen_btn := _add_button(rail, "Generate New", _on_generate_new)
-	gen_btn.custom_minimum_size = Vector2(0, 18)
+	_add_button(vbox, "Generate New", _on_generate_new)
 
-	# ---- First separator ----
-	rail.add_child(HSeparator.new())
-
-	# ---- Layer rows container ----
-	# This will be filled in by _refresh_layers()
-	var layers_container := VBoxContainer.new()
-	layers_container.name = "LayersContainer"
-	layers_container.add_theme_constant_override("separation", 4)
-	layers_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	rail.add_child(layers_container)
-
-	# ---- Second separator ----
-	rail.add_child(HSeparator.new())
+	vbox.add_child(HSeparator.new())
 
 	# ---- Bottom buttons ----
-	_add_button(rail, "Save", _on_save).custom_minimum_size = Vector2(0, 14)
-	_add_button(rail, "Load", _on_load).custom_minimum_size = Vector2(0, 14)
-	_add_button(rail, "Copy GDScript", _on_copy_snippet).custom_minimum_size = Vector2(0, 14)
+	_add_button(vbox, "Save JSON", _on_save)
+	_add_button(vbox, "Load JSON", _on_load)
+	_add_button(vbox, "Copy GDScript", _on_copy_snippet)
 
 	_status_label = Label.new()
 	_status_label.text = ""
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_status_label.custom_minimum_size = Vector2(120, 0)
+	_status_label.custom_minimum_size = Vector2(540, 0)
 	_style_caption(_status_label)
-	rail.add_child(_status_label)
+	vbox.add_child(_status_label)
 
 
 func _style_caption(lbl: Label) -> void:
 	if lbl == null:
 		return
-	var font_color := Color(0.70, 0.78, 0.88, 0.70)  # COLOR_FAINT
+	var font_color := Color(0.70, 0.78, 0.88, 0.70)
 	lbl.add_theme_color_override("font_color", font_color)
 
 
 func _add_button(parent: Node, text: String, cb: Callable) -> Button:
 	var btn := Button.new()
 	btn.text = text
-	btn.custom_minimum_size = Vector2(0, 16)
-	# Light blue accent text
+	btn.custom_minimum_size = Vector2(0, 24)
+	btn.add_theme_font_size_override("font_size", 8)
 	btn.add_theme_color_override("font_color", Color(0.62, 0.82, 1.00, 1.0))
 	btn.pressed.connect(cb)
 	parent.add_child(btn)
 	return btn
 
 
-# ---- Layer enumeration + UI rows -----------------------------------------------
+# ---- Layer enumeration + selection -----------------------------------------------
+
+var _current_layer: String = ""
 
 func _refresh_layers() -> void:
-	# Find the LayersContainer and clear it
-	var rail_layer = get_node_or_null("TunerRail")
-	if rail_layer == null:
-		return
-	var layers_container = null
-	for child in rail_layer.get_children():
-		if child is PanelContainer:
-			for panel_child in child.get_children():
-				if panel_child is ScrollContainer:
-					for scroll_child in panel_child.get_children():
-						if scroll_child is VBoxContainer and scroll_child.name == "LayersContainer":
-							layers_container = scroll_child
-						break
-			break
-
-	if layers_container == null:
-		return
-
-	# Clear existing layer rows
-	for child in layers_container.get_children():
-		child.queue_free()
-	_layer_rows.clear()
-
-	# Build UI for each layer
 	if _backdrop == null or not is_instance_valid(_backdrop):
 		return
 
+	# Initialize each layer's color, brightness, contrast from the backdrop
 	for layer_name in LAYER_NAMES:
-		var short_name = LAYER_SHORT_NAMES.get(layer_name, layer_name)
 		var layer_node = _backdrop.get_node_or_null(layer_name)
 		if layer_node == null:
 			continue
@@ -189,58 +247,72 @@ func _refresh_layers() -> void:
 		if cm == null:
 			continue
 
-		# Initialize color cache with the current CanvasModulate color
 		if not _layer_colors.has(layer_name):
 			_layer_colors[layer_name] = cm.color
-
-		# Create a row: short label + color picker
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 2)
-		layers_container.add_child(row)
-
-		var lbl := Label.new()
-		lbl.text = short_name
-		lbl.custom_minimum_size = Vector2(52, 0)
-		lbl.add_theme_font_size_override("font_size", 7)
-		_style_caption(lbl)
-		row.add_child(lbl)
-
-		var color_picker := ColorPickerButton.new()
-		color_picker.color = _layer_colors[layer_name]
-		color_picker.edit_alpha = true
-		color_picker.custom_minimum_size = Vector2(60, 16)
-		row.add_child(color_picker)
-
-		# Store the tuple and bind signals
-		_layer_rows.append({
-			"layer_name": layer_name,
-			"layer_node": layer_node,
-			"canvas_modulate": cm,
-			"color_picker": color_picker,
-		})
-
-		# Connect color change signal
-		color_picker.color_changed.connect(func(c: Color):
-			_on_layer_color_changed(layer_name, c)
-		)
+		if not _layer_brightness.has(layer_name):
+			_layer_brightness[layer_name] = 1.0
+		if not _layer_contrast.has(layer_name):
+			_layer_contrast[layer_name] = 1.0
 
 
-func _on_layer_color_changed(layer_name: String, c: Color) -> void:
-	_layer_colors[layer_name] = c
-	for row in _layer_rows:
-		if row["layer_name"] == layer_name:
-			var cm: CanvasModulate = row["canvas_modulate"]
-			if cm and is_instance_valid(cm):
-				cm.color = c
-			break
+func _on_layer_selected(layer_name: String) -> void:
+	_current_layer = layer_name
+	var color_picker: ColorPickerButton = _layer_controls.get("color_picker")
+	var brightness_slider: HSlider = _layer_controls.get("brightness_slider")
+	var contrast_slider: HSlider = _layer_controls.get("contrast_slider")
+
+	if color_picker:
+		color_picker.color = _layer_colors.get(layer_name, Color.WHITE)
+	if brightness_slider:
+		brightness_slider.value = _layer_brightness.get(layer_name, 1.0)
+	if contrast_slider:
+		contrast_slider.value = _layer_contrast.get(layer_name, 1.0)
+
+
+func _on_layer_color_changed(c: Color) -> void:
+	if _current_layer.is_empty():
+		return
+	_layer_colors[_current_layer] = c
+	_apply_grade(_current_layer)
+
+
+func _on_brightness_changed(v: float) -> void:
+	if _current_layer.is_empty():
+		return
+	_layer_brightness[_current_layer] = v
+	_apply_grade(_current_layer)
+
+
+func _on_contrast_changed(v: float) -> void:
+	if _current_layer.is_empty():
+		return
+	_layer_contrast[_current_layer] = v
+	_apply_grade(_current_layer)
+
+
+func _apply_grade(layer_name: String) -> void:
+	var layer := _backdrop.get_node_or_null(layer_name)
+	if layer == null:
+		return
+	var cm := layer.get_node_or_null("CanvasModulate") as CanvasModulate
+	if cm == null:
+		return
+
+	var base: Color = _layer_colors.get(layer_name, Color.WHITE)
+	var b: float = _layer_brightness.get(layer_name, 1.0)
+	var c: float = _layer_contrast.get(layer_name, 1.0)
+
+	# Apply contrast: (color - 0.5) * contrast + 0.5, then multiply by brightness
+	var r := clampf((base.r - 0.5) * c + 0.5, 0, 1) * b
+	var g := clampf((base.g - 0.5) * c + 0.5, 0, 1) * b
+	var bv := clampf((base.b - 0.5) * c + 0.5, 0, 1) * b
+	cm.color = Color(r, g, bv, base.a)
 
 
 # ---- Buttons ---------------------------------------------------------------
 
 func _on_generate_new() -> void:
 	_rebuild_backdrop()
-	# Two-frame defer: backdrop spawns children in _ready; one process_frame
-	# isn't always enough for them all to settle.
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_refresh_layers()
@@ -261,13 +333,17 @@ func _unhandled_input(event: InputEvent) -> void:
 func _current_config() -> Dictionary:
 	var out: Dictionary = {}
 	out["_version"] = "V4"
-	var layers := {}
+	var colors := {}
+	var brightness := {}
+	var contrast := {}
 	for layer_name in LAYER_NAMES:
 		var c: Color = _layer_colors.get(layer_name, Color.WHITE)
-		layers[layer_name] = {
-			"color": [c.r, c.g, c.b, c.a],
-		}
-	out["layers"] = layers
+		colors[layer_name] = [c.r, c.g, c.b, c.a]
+		brightness[layer_name] = _layer_brightness.get(layer_name, 1.0)
+		contrast[layer_name] = _layer_contrast.get(layer_name, 1.0)
+	out["colors"] = colors
+	out["brightness"] = brightness
+	out["contrast"] = contrast
 	return out
 
 
@@ -296,49 +372,73 @@ func _load_from_disk() -> Dictionary:
 
 
 func _apply_config(cfg: Dictionary) -> void:
-	var layers: Dictionary = cfg.get("layers", {})
-	for layer_name in LAYER_NAMES:
-		if not layers.has(layer_name):
-			continue
-		var entry: Dictionary = layers[layer_name]
-		var arr = entry.get("color", [1.0, 1.0, 1.0, 1.0])
-		if arr is Array and arr.size() >= 4:
-			var c := Color(float(arr[0]), float(arr[1]), float(arr[2]), float(arr[3]))
-			_layer_colors[layer_name] = c
+	var colors: Dictionary = cfg.get("colors", {})
+	var brightness: Dictionary = cfg.get("brightness", {})
+	var contrast: Dictionary = cfg.get("contrast", {})
 
-			# Find and update the corresponding row's color picker and canvas modulate
-			for row in _layer_rows:
-				if row["layer_name"] == layer_name:
-					var picker: ColorPickerButton = row["color_picker"]
-					var cm: CanvasModulate = row["canvas_modulate"]
-					if picker and is_instance_valid(picker):
-						picker.color = c
-					if cm and is_instance_valid(cm):
-						cm.color = c
-					break
+	for layer_name in LAYER_NAMES:
+		if colors.has(layer_name):
+			var arr = colors[layer_name]
+			if arr is Array and arr.size() >= 4:
+				var c := Color(float(arr[0]), float(arr[1]), float(arr[2]), float(arr[3]))
+				_layer_colors[layer_name] = c
+
+		if brightness.has(layer_name):
+			_layer_brightness[layer_name] = float(brightness[layer_name])
+
+		if contrast.has(layer_name):
+			_layer_contrast[layer_name] = float(contrast[layer_name])
+
+	# Refresh UI to reflect loaded values
+	if not _current_layer.is_empty():
+		_on_layer_selected(_current_layer)
+
+	# Apply grades to all layers
+	for layer_name in LAYER_NAMES:
+		_apply_grade(layer_name)
 
 
 func _build_snippet() -> String:
 	var cfg := _current_config()
 	var lines: PackedStringArray = []
-	lines.append("# Parallax V4 layer tints")
-	lines.append("var LAYER_TINTS := {")
-	var layers: Dictionary = cfg.get("layers", {})
-	var names: Array = layers.keys()
+	lines.append("# Parallax V4 layer tuning (colors, brightness, contrast)")
+	lines.append("")
+
+	lines.append("var LAYER_COLORS := {")
+	var colors: Dictionary = cfg.get("colors", {})
+	var names: Array = colors.keys()
 	names.sort()
 	for nm in names:
-		var e: Dictionary = layers[nm]
-		var s: Array = e.get("color", [1.0, 1.0, 1.0, 1.0])
+		var s: Array = colors[nm]
 		lines.append("\t\"%s\": Color(%.3f, %.3f, %.3f, %.3f)," % [
 			nm, float(s[0]), float(s[1]), float(s[2]), float(s[3]),
 		])
 	lines.append("}")
+	lines.append("")
+
+	lines.append("var LAYER_BRIGHTNESS := {")
+	var brightness: Dictionary = cfg.get("brightness", {})
+	names = brightness.keys()
+	names.sort()
+	for nm in names:
+		lines.append("\t\"%s\": %.3f," % [nm, float(brightness[nm])])
+	lines.append("}")
+	lines.append("")
+
+	lines.append("var LAYER_CONTRAST := {")
+	var contrast: Dictionary = cfg.get("contrast", {})
+	names = contrast.keys()
+	names.sort()
+	for nm in names:
+		lines.append("\t\"%s\": %.3f," % [nm, float(contrast[nm])])
+	lines.append("}")
+
 	return "\n".join(lines)
 
 
 func _on_save() -> void:
 	if _save_to_disk():
-		_set_status("Saved to %s" % CONFIG_PATH)
+		_set_status("Saved to user://tuners/parallax_v4.json")
 	else:
 		_set_status("Save FAILED")
 
@@ -349,7 +449,7 @@ func _on_load() -> void:
 		_set_status("No saved config")
 		return
 	_apply_config(cfg)
-	_set_status("Loaded from %s" % CONFIG_PATH)
+	_set_status("Loaded from user://tuners/parallax_v4.json")
 
 
 func _on_copy_snippet() -> void:

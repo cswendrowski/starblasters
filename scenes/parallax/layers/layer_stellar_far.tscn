@@ -7,8 +7,8 @@ layer = -2
 script = ExtResource("1_stellar")
 scroll_rate = 0.25
 asteroid_count = 4
-asteroid_min_size = 14.0
-asteroid_max_size = 24.0
+asteroid_min_size = 42.0
+asteroid_max_size = 72.0
 
 [node name="CanvasModulate" type="CanvasModulate" parent="."]
 color = Color(1, 1, 1, 1)
