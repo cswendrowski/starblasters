@@ -6,6 +6,8 @@
 layer = -6
 script = ExtResource("1_stellar")
 scroll_rate = 0.25
+brightness = 0.2
+contrast = 0.0
 asteroid_count = 4
 asteroid_min_size = 42.0
 asteroid_max_size = 72.0

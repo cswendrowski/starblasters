@@ -26,6 +26,8 @@ const LAYER_SHORT_NAMES := {
 	"LayerComposite":   "Composite",
 }
 
+const PLANET_TYPE_NAMES := ["Random", "LavaWorld", "IceWorld", "DryTerran", "GasPlanet", "NoAtmosphere", "LandMasses", "BlackHole", "Galaxy", "Star"]
+
 # ---- State ---------------------------------------------------------------
 
 var _sub_viewport: SubViewport = null
@@ -43,6 +45,7 @@ var _layer_controls: Dictionary = {}  # layer_name -> {color_picker, brightness_
 var _brightness_value_lbl: Label = null
 var _contrast_value_lbl: Label = null
 var _layer_buttons: Dictionary = {}  # layer_name -> Button
+var _forced_planet: int = -1  # -1 = random
 
 # ---- Lifecycle -----------------------------------------------------------
 
@@ -82,6 +85,7 @@ func _rebuild_backdrop() -> void:
 	if _backdrop != null and is_instance_valid(_backdrop):
 		_backdrop.queue_free()
 	_backdrop = BackdropCoordinatorScene.instantiate()
+	_backdrop.set("forced_planet_idx", _forced_planet)
 	_sub_viewport.add_child(_backdrop)
 
 
@@ -122,6 +126,22 @@ func _build_ui() -> void:
 	title.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_HEADER)
 	title.add_theme_color_override("font_color", Color(0.82, 0.90, 1.0, 1.0))
 	vbox.add_child(title)
+
+	# ---- Planet type picker ----
+	var planet_label := Label.new()
+	planet_label.text = "Planet"
+	planet_label.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	_style_caption(planet_label)
+	vbox.add_child(planet_label)
+
+	var planet_picker := OptionButton.new()
+	planet_picker.custom_minimum_size = Vector2(0, 28)
+	for pt_name in PLANET_TYPE_NAMES:
+		planet_picker.add_item(pt_name)
+	planet_picker.item_selected.connect(func(idx: int): _on_planet_type_picked(idx))
+	vbox.add_child(planet_picker)
+
+	vbox.add_child(HSeparator.new())
 
 	# ---- Layer picker ----
 	var layer_label := Label.new()
@@ -210,7 +230,7 @@ func _build_ui() -> void:
 
 	var contrast_slider := HSlider.new()
 	contrast_slider.name = "ContrastSlider"
-	contrast_slider.min_value = 0.5
+	contrast_slider.min_value = 0.0
 	contrast_slider.max_value = 2.0
 	contrast_slider.value = 1.0
 	contrast_slider.step = 0.05
@@ -272,6 +292,17 @@ func _add_button(parent: Node, text: String, cb: Callable) -> Button:
 var _current_layer: String = ""
 
 
+func _on_planet_type_picked(idx: int) -> void:
+	_forced_planet = (idx - 1)  # "Random"(0) -> -1; type N(1..9) -> 0..8
+	_on_generate_new()
+
+
+func _layer_node(layer_name: String) -> Node:
+	if _backdrop == null or not is_instance_valid(_backdrop):
+		return null
+	return _backdrop.get_node_or_null(layer_name)
+
+
 func _refresh_layer_button_selection() -> void:
 	for ln in _layer_buttons:
 		var b: Button = _layer_buttons[ln]
@@ -296,21 +327,30 @@ func _refresh_layers() -> void:
 	if _backdrop == null or not is_instance_valid(_backdrop):
 		return
 
-	# Initialize each layer's color, brightness, contrast from the backdrop
+	# Initialize each layer's color, brightness, contrast from the actual layer nodes
 	for layer_name in LAYER_NAMES:
 		var layer_node = _backdrop.get_node_or_null(layer_name)
 		if layer_node == null:
 			continue
 
-		var cm: CanvasModulate = layer_node.get_node_or_null("CanvasModulate")
-		if cm == null:
-			continue
+		# Read from the layer's actual properties (includes baked .tscn defaults)
+		if "modulate_color" in layer_node:
+			_layer_colors[layer_name] = layer_node.modulate_color
+		else:
+			var cm: CanvasModulate = layer_node.get_node_or_null("CanvasModulate")
+			if cm != null:
+				_layer_colors[layer_name] = cm.color
+			else:
+				_layer_colors[layer_name] = Color.WHITE
 
-		if not _layer_colors.has(layer_name):
-			_layer_colors[layer_name] = cm.color
-		if not _layer_brightness.has(layer_name):
+		if "brightness" in layer_node:
+			_layer_brightness[layer_name] = layer_node.brightness
+		else:
 			_layer_brightness[layer_name] = 1.0
-		if not _layer_contrast.has(layer_name):
+
+		if "contrast" in layer_node:
+			_layer_contrast[layer_name] = layer_node.contrast
+		else:
 			_layer_contrast[layer_name] = 1.0
 
 
@@ -320,18 +360,38 @@ func _on_layer_selected(layer_name: String) -> void:
 	var brightness_slider: HSlider = _layer_controls.get("brightness_slider")
 	var contrast_slider: HSlider = _layer_controls.get("contrast_slider")
 
+	# Read current values from the layer node (includes baked .tscn defaults)
+	var layer = _layer_node(layer_name)
+	var current_color := Color.WHITE
+	var current_brightness := 1.0
+	var current_contrast := 1.0
+
+	if layer != null:
+		if "modulate_color" in layer:
+			current_color = layer.modulate_color
+		if "brightness" in layer:
+			current_brightness = layer.brightness
+		if "contrast" in layer:
+			current_contrast = layer.contrast
+
+	# Update sliders and picker
 	if color_picker:
-		color_picker.color = _layer_colors.get(layer_name, Color.WHITE)
+		color_picker.color = current_color
 	if brightness_slider:
-		brightness_slider.value = _layer_brightness.get(layer_name, 1.0)
+		brightness_slider.value = current_brightness
 	if contrast_slider:
-		contrast_slider.value = _layer_contrast.get(layer_name, 1.0)
+		contrast_slider.value = current_contrast
 
 	# Update value labels
 	if _brightness_value_lbl:
-		_brightness_value_lbl.text = "%.2f" % _layer_brightness.get(layer_name, 1.0)
+		_brightness_value_lbl.text = "%.2f" % current_brightness
 	if _contrast_value_lbl:
-		_contrast_value_lbl.text = "%.2f" % _layer_contrast.get(layer_name, 1.0)
+		_contrast_value_lbl.text = "%.2f" % current_contrast
+
+	# Update caches
+	_layer_colors[layer_name] = current_color
+	_layer_brightness[layer_name] = current_brightness
+	_layer_contrast[layer_name] = current_contrast
 
 	_refresh_layer_button_selection()
 
@@ -340,14 +400,18 @@ func _on_layer_color_changed(c: Color) -> void:
 	if _current_layer.is_empty():
 		return
 	_layer_colors[_current_layer] = c
-	_apply_grade(_current_layer)
+	var layer = _layer_node(_current_layer)
+	if layer != null and "modulate_color" in layer:
+		layer.modulate_color = c
 
 
 func _on_brightness_changed(v: float) -> void:
 	if _current_layer.is_empty():
 		return
 	_layer_brightness[_current_layer] = v
-	_apply_grade(_current_layer)
+	var layer = _layer_node(_current_layer)
+	if layer != null and "brightness" in layer:
+		layer.brightness = v
 	if _brightness_value_lbl:
 		_brightness_value_lbl.text = "%.2f" % v
 
@@ -356,28 +420,29 @@ func _on_contrast_changed(v: float) -> void:
 	if _current_layer.is_empty():
 		return
 	_layer_contrast[_current_layer] = v
-	_apply_grade(_current_layer)
+	var layer = _layer_node(_current_layer)
+	if layer != null and "contrast" in layer:
+		layer.contrast = v
 	if _contrast_value_lbl:
 		_contrast_value_lbl.text = "%.2f" % v
 
 
 func _apply_grade(layer_name: String) -> void:
-	var layer := _backdrop.get_node_or_null(layer_name)
+	var layer = _layer_node(layer_name)
 	if layer == null:
-		return
-	var cm := layer.get_node_or_null("CanvasModulate") as CanvasModulate
-	if cm == null:
 		return
 
 	var base: Color = _layer_colors.get(layer_name, Color.WHITE)
 	var b: float = _layer_brightness.get(layer_name, 1.0)
 	var c: float = _layer_contrast.get(layer_name, 1.0)
 
-	# Apply contrast: (color - 0.5) * contrast + 0.5, then multiply by brightness
-	var r := clampf((base.r - 0.5) * c + 0.5, 0, 1) * b
-	var g := clampf((base.g - 0.5) * c + 0.5, 0, 1) * b
-	var bv := clampf((base.b - 0.5) * c + 0.5, 0, 1) * b
-	cm.color = Color(r, g, bv, base.a)
+	# Set the layer's properties; it will recompute via _recompute_modulate()
+	if "modulate_color" in layer:
+		layer.modulate_color = base
+	if "brightness" in layer:
+		layer.brightness = b
+	if "contrast" in layer:
+		layer.contrast = c
 
 
 # ---- Buttons ---------------------------------------------------------------
