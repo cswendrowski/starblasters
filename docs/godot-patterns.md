@@ -55,6 +55,33 @@ _apply_pixel_parity(p, actual_size)   # ← now safe to reset them
 
 ---
 
+## SubViewportContainer.stretch resizes the SubViewport (use stretch_shrink to keep native res)
+
+**Pattern:** `SubViewportContainer.stretch = true` does NOT scale a fixed-size SubViewport up to fill the container. It *resizes* the SubViewport's render resolution to `container_size / stretch_shrink`. With the default `stretch_shrink = 1` and a 1920×1080 container, your SubViewport becomes 1920×1080 — any `sub_viewport.size = Vector2i(480, 270)` you set manually is overridden.
+
+**Gotcha:** Content authored for 480×270 (positions, sizes) then renders into a 1920×1080 viewport and clusters in the top-left quarter.
+
+**Fix:** To render at 480×270 and display at 1920×1080 (4× upscale):
+```gdscript
+container.stretch = true
+container.stretch_shrink = 4   # 1920/4 = 480 → renders at 480×270
+container.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST  # crisp pixel-art upscale
+```
+
+**Discovered:** 2026-05-29, Parallax V4 tuner (backdrop appeared in top-left quarter)
+
+---
+
+## CanvasLayer `scroll_rate`/drift defaults to 0 — scrolling layers must set it explicitly
+
+**Pattern:** When a layer's scroll is driven by a coordinator reading `layer.scroll_rate` (or any exported drift multiplier defaulting to 0.0), a layer scene that omits the override sits frozen even if it's in the scroll list.
+
+**Gotcha:** Adding a layer to the coordinator's `_scroll_layers` array is necessary but NOT sufficient — the layer's `scroll_rate` must be a non-zero override in its `.tscn`, or `scroll(drift × 0.0)` moves it nothing.
+
+**Discovered:** 2026-05-29, Parallax V4 planet layer (added to scroll list but scroll_rate defaulted to 0.0)
+
+---
+
 ## `HdViewportScope` + CanvasLayer backdrop = wrong coordinate space
 
 **Pattern:** `HdViewportScope` changes `content_scale_size` to 1920×1080. This makes all CanvasLayer nodes operate in 1920×1080 coordinate space. If your backdrop is designed for 480×270 (planetary sizes, asteroid positions, starfield density), it will render at 1920×1080 — elements appear in the wrong positions and at the wrong sizes.
