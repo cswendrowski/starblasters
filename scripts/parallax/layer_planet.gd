@@ -2,6 +2,7 @@ extends "res://scripts/parallax/layer_base.gd"
 
 @export var pixel_density: float = 1.0
 @export var pixels_floor: float = 16.0
+@export var planet_size: float = 240.0
 
 const PLANETS := {
 	0: "res://Planets/LavaWorld/LavaWorld.tscn",
@@ -36,6 +37,10 @@ const COLORRECT_CANONICAL_BY_NAME := {
 }
 
 const PULSE_GLOW_SHADER = preload("res://graphics/pulse_glow.gdshader")
+const POI_MOON_SCENE := "res://Planets/NoAtmosphere/NoAtmosphere.tscn"
+
+var _planet_node: Node = null
+var _planet_actual_size: float = 0.0
 
 
 func spawn_planet(planet_idx: int, actual_size: float, rng: RandomNumberGenerator, poi_id: String = "") -> void:
@@ -70,7 +75,12 @@ func spawn_planet(planet_idx: int, actual_size: float, rng: RandomNumberGenerato
 		p.set_dither(rng.randf() < 0.5)
 	if "override_time" in p:
 		p.override_time = true
+	# Store planet node and size for POI moons attachment
+	_planet_node = p
+	_planet_actual_size = actual_size
 	_make_planet_halo(p, planet_idx, actual_size, x, y)
+	# Spawn companion bodies (moons/binary stars) around the main planet
+	_spawn_companions(rng, planet_idx, x, y, actual_size)
 
 
 func clear_planet() -> void:
@@ -217,6 +227,148 @@ func _attach_pulse_glow(center: Vector2, diameter: float, color: Color) -> void:
 	ci_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	rect.material = mat  # ShaderMaterial wins, blend lives on the canvas item
 	add_child(rect)
+
+
+# Spawn 1-2 companion bodies near a freshly-placed celestial. Globe
+# planets get a 30% chance for a moon (or two), stars get a 15% chance
+# for a binary companion. BlackHole / Galaxy skip — their visuals are
+# already busy.
+func _spawn_companions(rng: RandomNumberGenerator, main_idx: int, main_x: float, main_y: float, main_size: float) -> void:
+	if main_idx == 6 or main_idx == 7:
+		return
+	var is_star: bool = main_idx == 8
+	var roll: float = rng.randf()
+	var companion_count: int = 0
+	if is_star:
+		if roll < 0.15:
+			companion_count = 1   # binary
+	else:
+		if roll < 0.30:
+			companion_count = 1
+		elif roll < 0.45:
+			companion_count = 2
+	for i in companion_count:
+		var comp_idx: int = main_idx
+		if not is_star:
+			# Globe planets: pick a different globe variant for variety.
+			comp_idx = rng.randi() % 6
+			if comp_idx == main_idx and rng.randf() < 0.5:
+				comp_idx = (main_idx + 1 + rng.randi() % 5) % 6
+		var size_mult: float = rng.randf_range(0.30, 0.55) if not is_star else rng.randf_range(0.55, 0.75)
+		var size_px: float = main_size * size_mult
+		# Offset from main planet — sideways + slight vertical.
+		var angle: float = rng.randf_range(-PI, PI)
+		var dist: float = main_size * rng.randf_range(0.65, 0.95)
+		var offset: Vector2 = Vector2(cos(angle), sin(angle)) * dist
+		_spawn_companion_body(PLANETS[comp_idx], rng, comp_idx, main_x + offset.x, main_y + offset.y, size_px)
+
+
+# Lightweight companion spawner — same lifecycle hooks as spawn_planet
+# but at a custom size + position. No companion-of-companion recursion.
+func _spawn_companion_body(scene_path: String, rng: RandomNumberGenerator, planet_idx_used: int, x: float, y: float, actual_size: float) -> void:
+	var ps := load(scene_path)
+	if ps == null:
+		return
+	var p = ps.instantiate()
+	if p is Control:
+		p.anchor_left = 0.0
+		p.anchor_top = 0.0
+		p.anchor_right = 0.0
+		p.anchor_bottom = 0.0
+		p.offset_left = 0.0
+		p.offset_top = 0.0
+		p.offset_right = 100.0
+		p.offset_bottom = 100.0
+		p.size = Vector2(100, 100)
+		p.custom_minimum_size = Vector2(100, 100)
+		p.pivot_offset = Vector2.ZERO
+	var sf: float = actual_size / 100.0
+	p.scale = Vector2(sf, sf)
+	if "override_time" in p:
+		p.override_time = true
+	if p.has_method("set_seed"):
+		p.set_seed(rng.randi() % 100000)
+	if p.has_method("randomize_colors"):
+		p.randomize_colors()
+	if p.has_method("set_rotates"):
+		p.set_rotates(rng.randf() < 0.7)
+	p.position = Vector2(x, y)
+	add_child(p)
+	_apply_pixel_parity(p, actual_size)
+
+
+# Attach POI moons from sector map data. Moons are projected around the
+# main planet in orbits specified by their descriptor (rx, ry, phase).
+# Layer scrolls as a unit via offset.y, so moons move with the planet automatically.
+func attach_moons(moons: Array) -> void:
+	if moons.is_empty():
+		return
+	if _planet_node == null:
+		return
+	var moon_scene := load(POI_MOON_SCENE)
+	if moon_scene == null:
+		push_warning("[LayerPlanet] could not load POI moon scene: %s" % POI_MOON_SCENE)
+		return
+	# Deterministic per-POI seed so a revisit to the same node produces the
+	# same moon surfaces. Salt with index per-moon below.
+	var base_seed: int = 0
+	if has_node("/root/Run"):
+		base_seed = abs(hash(String(get_node("/root/Run").current_node_id)))
+	# Scale moon orbit radii from the V3 map's tiny planet (~16-32 px) up
+	# to the combat planet's footprint.
+	var scale_factor: float = _planet_actual_size / 24.0
+	var moon_idx: int = 0
+	for m in moons:
+		var radius_descriptor: int = clampi(int(m.get("radius", 1)), 1, 3)
+		# Map descriptor radius 1/2/3 -> 18/22/26 vp-px. Above pixels_floor
+		# (16) so the procgen silhouette renders cleanly; small enough to
+		# read as "moon" beside a 240-px planet.
+		var actual_size: float = 14.0 + float(radius_descriptor) * 4.0
+		var p = moon_scene.instantiate()
+		# Reset Control anchors the same way spawn_planet does — the
+		# PlanetKit scenes ship with full-rect anchors that collapse when
+		# reparented under a Node2D.
+		if p is Control:
+			p.anchor_left = 0.0
+			p.anchor_top = 0.0
+			p.anchor_right = 0.0
+			p.anchor_bottom = 0.0
+			p.offset_left = 0.0
+			p.offset_top = 0.0
+			p.offset_right = 100.0
+			p.offset_bottom = 100.0
+			p.size = Vector2(100, 100)
+			p.custom_minimum_size = Vector2(100, 100)
+			p.pivot_offset = Vector2(50, 50)
+		var sf: float = actual_size / 100.0
+		p.scale = Vector2(sf, sf)
+		if "override_time" in p:
+			p.override_time = true
+		# Deterministic per-moon seed — same POI revisit reproduces the
+		# same moon surfaces. Skip randomize_colors so the descriptor's
+		# `color` field drives the visible tint (spec: "color should be
+		# influenced by the sector map pixel moons").
+		if p.has_method("set_seed"):
+			p.set_seed((base_seed + moon_idx * 1009) % 100000)
+		if p.has_method("set_rotates"):
+			p.set_rotates(true)
+		p.name = "PoiMoon"
+		p.modulate = m.get("color", Color.WHITE)
+		p.z_index = 0
+		# Static placement around the planet: project the descriptor's
+		# (rx, ry, phase) ellipse to a single point and place the moon's
+		# CENTER there (Controls are authored top-left, so subtract half the
+		# display size). Use the planet's spawn position — moons + planet
+		# both ride the layer's offset.y scroll so they stay in sync.
+		var rx_px: float = float(m.get("rx", 12.0)) * scale_factor
+		var ry_px: float = float(m.get("ry", 10.0)) * scale_factor
+		var phase: float = float(m.get("phase", 0.0))
+		var planet_center: Vector2 = _planet_node.position + Vector2(_planet_actual_size, _planet_actual_size) * 0.5
+		var anchor: Vector2 = planet_center + Vector2(cos(phase) * rx_px, sin(phase) * ry_px)
+		p.position = anchor - Vector2(actual_size, actual_size) * 0.5
+		add_child(p)
+		_apply_pixel_parity(p, actual_size)
+		moon_idx += 1
 
 
 static func _build_halo_texture() -> Texture2D:

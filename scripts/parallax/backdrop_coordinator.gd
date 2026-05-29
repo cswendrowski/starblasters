@@ -73,6 +73,11 @@ func _populate() -> void:
 		_layer_planet.set("pixel_density", pixel_density)
 		if _layer_planet.has_method("spawn_planet"):
 			_layer_planet.spawn_planet(planet_idx, actual_size, rng, "")
+		# Attach POI moons if present
+		if _layer_planet.has_method("attach_moons"):
+			var moons: Array = stellar.get("moons", [])
+			if not moons.is_empty():
+				_layer_planet.attach_moons(moons)
 
 	# Stellar layers
 	var has_asteroids: bool = stellar.get("has_asteroids", rng.randf() < asteroid_presence)
