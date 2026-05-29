@@ -75,7 +75,9 @@ func _populate() -> void:
 	if _layer_planet != null:
 		_layer_planet.set("pixel_density", pixel_density)
 		if _layer_planet.has_method("spawn_planet"):
-			_layer_planet.spawn_planet(planet_idx, actual_size, rng, "")
+			var planet_seed: int = int(stellar.get("planet_seed", -1))
+			var star_color: Color = stellar.get("star_color", Color.WHITE)
+			_layer_planet.spawn_planet(planet_idx, actual_size, rng, "", planet_seed, star_color)
 		# Attach POI moons if present
 		if _layer_planet.has_method("attach_moons"):
 			var moons: Array = stellar.get("moons", [])
@@ -83,13 +85,19 @@ func _populate() -> void:
 				_layer_planet.attach_moons(moons)
 
 	# Stellar layers
-	var has_asteroids: bool = stellar.get("has_asteroids", rng.randf() < asteroid_presence)
+	var asteroid_density: float = float(stellar.get("asteroid_density", 0.0))
+	var density_mult: float = 0.5 + asteroid_density   # planet node→0.5×, large-ast→1.1×, cluster→1.7×
+	var ast_color: Color = Color(0.9, 0.88, 0.85, 1.0)
+	if run_node != null and run_node.has_meta("asteroid_base_color"):
+		ast_color = run_node.get_meta("asteroid_base_color")
 	for layer in _scroll_layers:
 		if layer != null and layer.has_method("populate"):
-			if has_asteroids:
-				layer.populate(rng)
-			else:
-				layer.populate(rng)  # still populate, asteroid_count handles density
+			if "asteroid_count" in layer:
+				var base_ct: int = int(layer.get("asteroid_count"))
+				layer.set("asteroid_count", maxi(1, int(round(base_ct * density_mult))))
+			if "asteroid_tint" in layer:
+				layer.set("asteroid_tint", ast_color)
+			layer.populate(rng)
 
 	# Warp streaks
 	if _layer_streaks != null:

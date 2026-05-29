@@ -5,6 +5,7 @@ const RESET_THRESHOLD := 340.0
 @export var asteroid_count: int = 4
 @export var asteroid_min_size: float = 12.0
 @export var asteroid_max_size: float = 24.0
+@export var asteroid_tint: Color = Color(0.9, 0.88, 0.85, 1.0)
 @export var nebula_enabled: bool = false
 @export var nebula_alpha: float = 0.18
 @export var nebula_shader_path: String = "res://graphics/nebula2.gdshader"
@@ -68,7 +69,7 @@ func _spawn_asteroid() -> void:
 		a.pivot_offset = Vector2.ZERO
 	var sf := sz / 100.0
 	a.scale = Vector2(sf, sf)
-	a.modulate = Color(0.9, 0.88, 0.85, 1.0)
+	a.modulate = asteroid_tint
 	# Spawn fully above the top so it drifts in (body spans [pos.y, pos.y+sz]).
 	a.position = Vector2(_local_rng.randf_range(16, 464), -sz - _local_rng.randf_range(0, 270))
 	add_child(a)

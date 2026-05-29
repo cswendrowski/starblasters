@@ -587,6 +587,7 @@ func _compute_poi_stellar(poi: Dictionary, row_idx: int) -> Dictionary:
 		"obj_kind":         obj_kind,
 		"planet_idx":       planet_idx,
 		"planet_type":      planet_type,
+		"planet_seed":      abs(hash(poi.id)),
 		"has_asteroids":    has_asteroids,
 		"asteroid_density": asteroid_density,
 		"moons":            moons,
@@ -666,8 +667,11 @@ func _spawn_planet(center: Vector2, display_px: float, type_idx: int, row_idx: i
 	p.position = Vector2(center.x - 50.0 * sf, center.y - 50.0 * sf)
 	_duplicate_materials(p)
 	if p.has_method("set_pixels"):  p.set_pixels(display_px)
-	if p.has_method("set_seed"):    p.set_seed(rng.randi() % 100000)
-	seed(rng.randi())
+	# Deterministic per-node appearance so the combat backdrop can reproduce
+	# this exact planet from the stored planet_seed in current_stellar.
+	var psd: int = abs(hash(poi_id)) if poi_id != "" else rng.randi()
+	if p.has_method("set_seed"):    p.set_seed(psd % 100000)
+	seed(psd)
 	if p.has_method("randomize_colors"): p.randomize_colors()
 	if p.has_method("set_rotates"): p.set_rotates(true)
 	add_child(p)

@@ -43,7 +43,14 @@ var _planet_node: Node = null
 var _planet_actual_size: float = 0.0
 
 
-func spawn_planet(planet_idx: int, actual_size: float, rng: RandomNumberGenerator, poi_id: String = "") -> void:
+func _duplicate_materials(root: Node) -> void:
+	for child in root.get_children():
+		if child is ColorRect and child.material is ShaderMaterial:
+			(child as ColorRect).material = (child.material as ShaderMaterial).duplicate()
+		_duplicate_materials(child)
+
+
+func spawn_planet(planet_idx: int, actual_size: float, rng: RandomNumberGenerator, poi_id: String = "", planet_seed: int = -1, star_color: Color = Color.WHITE) -> void:
 	clear_planet()
 	var scene_path: String = PLANETS.get(planet_idx, PLANETS[2])
 	var ps := load(scene_path) as PackedScene
@@ -65,16 +72,25 @@ func spawn_planet(planet_idx: int, actual_size: float, rng: RandomNumberGenerato
 	p.position = Vector2(x, y)
 	add_child(p)  # MUST come before _apply_pixel_parity
 	_apply_pixel_parity(p, actual_size)
-	if p.has_method("set_seed"):
-		p.set_seed(rng.randi() % 100000)
-	if p.has_method("randomize_colors"):
-		p.randomize_colors()
-	if p.has_method("set_rotates"):
-		p.set_rotates(rng.randf() < 0.7)
-	if p.has_method("set_dither"):
-		p.set_dither(rng.randf() < 0.5)
+	_duplicate_materials(p)
+	if planet_seed >= 0:
+		# Deterministic — reproduce the sector map's exact planet.
+		if p.has_method("set_seed"):    p.set_seed(planet_seed % 100000)
+		seed(planet_seed)
+		if p.has_method("randomize_colors"): p.randomize_colors()
+		if p.has_method("set_rotates"): p.set_rotates(true)
+		if p.has_method("set_light"):   p.set_light(Vector2(0.0, 0.5))
+	else:
+		# No stored seed (tuner / no Run) — random per spawn.
+		if p.has_method("set_seed"):    p.set_seed(rng.randi() % 100000)
+		if p.has_method("randomize_colors"): p.randomize_colors()
+		if p.has_method("set_rotates"): p.set_rotates(rng.randf() < 0.7)
+		if p.has_method("set_dither"):  p.set_dither(rng.randf() < 0.5)
 	if "override_time" in p:
 		p.override_time = true
+	# Star-color wash on the planet — matches the sector map's planet modulate.
+	if p is CanvasItem:
+		p.modulate = Color.WHITE.lerp(star_color, 0.18)
 	# Store planet node and size for POI moons attachment
 	_planet_node = p
 	_planet_actual_size = actual_size
