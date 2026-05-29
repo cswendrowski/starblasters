@@ -72,6 +72,24 @@ container.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST  # crisp pixel-art 
 
 ---
 
+## Duplicate materials before setting per-instance shader params
+
+**Pattern:** A `.tscn` that defines its material as an inline `[sub_resource type="ShaderMaterial"]` (without `resource_local_to_scene = true`) shares ONE material across every instance of that scene. Calling `material.set_shader_parameter(...)` on any instance writes to the shared material — last-write-wins, so all instances end up rendering with the final value.
+
+**Symptom:** You seed each instance differently (`set_seed(randi())` per asteroid) but they all look identical. The seeds ARE varying; the material isn't.
+
+**Fix:** Duplicate the material per-instance before setting any shader params:
+```gdscript
+var inner := node.get_node_or_null("Asteroid")  # the CanvasItem holding the material
+if inner != null and inner.material != null:
+    inner.material = inner.material.duplicate()
+# now set_seed / set_pixels / set_shader_parameter only affect THIS instance
+```
+
+**Discovered:** twice — sector map V3 (planet shader params), then Parallax V4 (every asteroid identical because Asteroid.tscn's ShaderMaterial is a shared inline SubResource). PixelPlanets/Asteroid scenes all ship shared inline materials — always duplicate when spawning more than one.
+
+---
+
 ## Constant fallback seed → procgen looks identical in dev tools
 
 **Pattern:** Procedural generators that seed from an autoload (`Run.run_seed`) often fall back to a hardcoded constant when that autoload is absent. Dev tools (tuners, capture scripts, isolated test scenes) usually run WITHOUT the gameplay autoloads — so they all get the same constant seed and every "Generate New" produces a byte-identical result. The generation code looks broken ("nothing randomizes") when it's actually fine — it's just being fed one frozen seed.
