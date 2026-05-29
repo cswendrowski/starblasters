@@ -10,6 +10,7 @@ extends Control
 
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const BackdropCoordinatorScene = preload("res://scenes/parallax/backdrop_coordinator.tscn")
+const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 
 const CONFIG_PATH := "user://tuners/parallax_v4.json"
 
@@ -39,6 +40,9 @@ var _layer_contrast: Dictionary = {}
 
 var _status_label: Label
 var _layer_controls: Dictionary = {}  # layer_name -> {color_picker, brightness_slider, contrast_slider}
+var _brightness_value_lbl: Label = null
+var _contrast_value_lbl: Label = null
+var _layer_buttons: Dictionary = {}  # layer_name -> Button
 
 # ---- Lifecycle -----------------------------------------------------------
 
@@ -52,6 +56,7 @@ func _ready() -> void:
 	_refresh_layers()
 	if not LAYER_NAMES.is_empty():
 		_on_layer_selected(LAYER_NAMES[0])
+		_refresh_layer_button_selection()
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("menu")
 
@@ -114,14 +119,14 @@ func _build_ui() -> void:
 	# ---- Title ----
 	var title := Label.new()
 	title.text = "PARALLAX TUNER V4"
-	title.add_theme_font_size_override("font_size", 10)
+	title.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_HEADER)
 	title.add_theme_color_override("font_color", Color(0.82, 0.90, 1.0, 1.0))
 	vbox.add_child(title)
 
 	# ---- Layer picker ----
 	var layer_label := Label.new()
 	layer_label.text = "Layers"
-	layer_label.add_theme_font_size_override("font_size", 8)
+	layer_label.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
 	_style_caption(layer_label)
 	vbox.add_child(layer_label)
 
@@ -135,18 +140,19 @@ func _build_ui() -> void:
 		var short_name = LAYER_SHORT_NAMES.get(layer_name, layer_name)
 		var btn := Button.new()
 		btn.text = short_name
-		btn.custom_minimum_size = Vector2(120, 24)
-		btn.add_theme_font_size_override("font_size", 8)
+		btn.custom_minimum_size = Vector2(120, 28)
+		btn.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BUTTON)
 		btn.add_theme_color_override("font_color", Color(0.62, 0.82, 1.00, 1.0))
 		btn.pressed.connect(func(): _on_layer_selected(layer_name))
 		layer_grid.add_child(btn)
+		_layer_buttons[layer_name] = btn
 
 	vbox.add_child(HSeparator.new())
 
 	# ---- Color section (will populate on layer select) ----
 	var color_label := Label.new()
 	color_label.text = "Color"
-	color_label.add_theme_font_size_override("font_size", 8)
+	color_label.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
 	_style_caption(color_label)
 	vbox.add_child(color_label)
 
@@ -163,9 +169,13 @@ func _build_ui() -> void:
 	# ---- Brightness slider ----
 	var brightness_label := Label.new()
 	brightness_label.text = "Brightness"
-	brightness_label.add_theme_font_size_override("font_size", 8)
+	brightness_label.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
 	_style_caption(brightness_label)
 	vbox.add_child(brightness_label)
+
+	var brightness_hbox := HBoxContainer.new()
+	brightness_hbox.add_theme_constant_override("separation", 8)
+	vbox.add_child(brightness_hbox)
 
 	var brightness_slider := HSlider.new()
 	brightness_slider.name = "BrightnessSlider"
@@ -173,17 +183,30 @@ func _build_ui() -> void:
 	brightness_slider.max_value = 2.0
 	brightness_slider.value = 1.0
 	brightness_slider.step = 0.05
-	brightness_slider.custom_minimum_size = Vector2(0, 20)
+	brightness_slider.custom_minimum_size = Vector2(0, 24)
+	brightness_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	brightness_slider.value_changed.connect(func(v: float): _on_brightness_changed(v))
-	vbox.add_child(brightness_slider)
+	brightness_hbox.add_child(brightness_slider)
+
+	_brightness_value_lbl = Label.new()
+	_brightness_value_lbl.text = "1.00"
+	_brightness_value_lbl.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	_brightness_value_lbl.add_theme_color_override("font_color", UiTheme.COLOR_TEXT)
+	_brightness_value_lbl.custom_minimum_size = Vector2(32, 0)
+	brightness_hbox.add_child(_brightness_value_lbl)
+
 	_layer_controls["brightness_slider"] = brightness_slider
 
 	# ---- Contrast slider ----
 	var contrast_label := Label.new()
 	contrast_label.text = "Contrast"
-	contrast_label.add_theme_font_size_override("font_size", 8)
+	contrast_label.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
 	_style_caption(contrast_label)
 	vbox.add_child(contrast_label)
+
+	var contrast_hbox := HBoxContainer.new()
+	contrast_hbox.add_theme_constant_override("separation", 8)
+	vbox.add_child(contrast_hbox)
 
 	var contrast_slider := HSlider.new()
 	contrast_slider.name = "ContrastSlider"
@@ -191,27 +214,37 @@ func _build_ui() -> void:
 	contrast_slider.max_value = 2.0
 	contrast_slider.value = 1.0
 	contrast_slider.step = 0.05
-	contrast_slider.custom_minimum_size = Vector2(0, 20)
+	contrast_slider.custom_minimum_size = Vector2(0, 24)
+	contrast_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	contrast_slider.value_changed.connect(func(v: float): _on_contrast_changed(v))
-	vbox.add_child(contrast_slider)
+	contrast_hbox.add_child(contrast_slider)
+
+	_contrast_value_lbl = Label.new()
+	_contrast_value_lbl.text = "1.00"
+	_contrast_value_lbl.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	_contrast_value_lbl.add_theme_color_override("font_color", UiTheme.COLOR_TEXT)
+	_contrast_value_lbl.custom_minimum_size = Vector2(32, 0)
+	contrast_hbox.add_child(_contrast_value_lbl)
+
 	_layer_controls["contrast_slider"] = contrast_slider
 
 	vbox.add_child(HSeparator.new())
 
 	# ---- Generate button ----
-	_add_button(vbox, "Generate New", _on_generate_new)
+	var gen_btn = _add_button(vbox, "Generate New", _on_generate_new)
 
 	vbox.add_child(HSeparator.new())
 
 	# ---- Bottom buttons ----
-	_add_button(vbox, "Save JSON", _on_save)
-	_add_button(vbox, "Load JSON", _on_load)
-	_add_button(vbox, "Copy GDScript", _on_copy_snippet)
+	var save_btn = _add_button(vbox, "Save JSON", _on_save)
+	var load_btn = _add_button(vbox, "Load JSON", _on_load)
+	var copy_btn = _add_button(vbox, "Copy GDScript", _on_copy_snippet)
 
 	_status_label = Label.new()
 	_status_label.text = ""
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status_label.custom_minimum_size = Vector2(540, 0)
+	_status_label.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
 	_style_caption(_status_label)
 	vbox.add_child(_status_label)
 
@@ -226,8 +259,8 @@ func _style_caption(lbl: Label) -> void:
 func _add_button(parent: Node, text: String, cb: Callable) -> Button:
 	var btn := Button.new()
 	btn.text = text
-	btn.custom_minimum_size = Vector2(0, 24)
-	btn.add_theme_font_size_override("font_size", 8)
+	btn.custom_minimum_size = Vector2(0, 28)
+	btn.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BUTTON)
 	btn.add_theme_color_override("font_color", Color(0.62, 0.82, 1.00, 1.0))
 	btn.pressed.connect(cb)
 	parent.add_child(btn)
@@ -237,6 +270,27 @@ func _add_button(parent: Node, text: String, cb: Callable) -> Button:
 # ---- Layer enumeration + selection -----------------------------------------------
 
 var _current_layer: String = ""
+
+
+func _refresh_layer_button_selection() -> void:
+	for ln in _layer_buttons:
+		var b: Button = _layer_buttons[ln]
+		if b == null:
+			continue
+		if ln == _current_layer:
+			b.add_theme_color_override("font_color", UiTheme.COLOR_WHITE)
+			b.modulate = Color(1.0, 1.0, 1.0, 1.0)
+			# selected: bright accent background via a stylebox
+			var sb := StyleBoxFlat.new()
+			sb.bg_color = UiTheme.COLOR_ACCENT
+			sb.corner_radius_top_left = 2
+			sb.corner_radius_top_right = 2
+			sb.corner_radius_bottom_left = 2
+			sb.corner_radius_bottom_right = 2
+			b.add_theme_stylebox_override("normal", sb)
+		else:
+			b.add_theme_color_override("font_color", UiTheme.COLOR_ACCENT)
+			b.remove_theme_stylebox_override("normal")
 
 func _refresh_layers() -> void:
 	if _backdrop == null or not is_instance_valid(_backdrop):
@@ -273,6 +327,14 @@ func _on_layer_selected(layer_name: String) -> void:
 	if contrast_slider:
 		contrast_slider.value = _layer_contrast.get(layer_name, 1.0)
 
+	# Update value labels
+	if _brightness_value_lbl:
+		_brightness_value_lbl.text = "%.2f" % _layer_brightness.get(layer_name, 1.0)
+	if _contrast_value_lbl:
+		_contrast_value_lbl.text = "%.2f" % _layer_contrast.get(layer_name, 1.0)
+
+	_refresh_layer_button_selection()
+
 
 func _on_layer_color_changed(c: Color) -> void:
 	if _current_layer.is_empty():
@@ -286,6 +348,8 @@ func _on_brightness_changed(v: float) -> void:
 		return
 	_layer_brightness[_current_layer] = v
 	_apply_grade(_current_layer)
+	if _brightness_value_lbl:
+		_brightness_value_lbl.text = "%.2f" % v
 
 
 func _on_contrast_changed(v: float) -> void:
@@ -293,6 +357,8 @@ func _on_contrast_changed(v: float) -> void:
 		return
 	_layer_contrast[_current_layer] = v
 	_apply_grade(_current_layer)
+	if _contrast_value_lbl:
+		_contrast_value_lbl.text = "%.2f" % v
 
 
 func _apply_grade(layer_name: String) -> void:
