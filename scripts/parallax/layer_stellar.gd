@@ -6,6 +6,7 @@ const RESET_THRESHOLD := 340.0
 @export var asteroid_min_size: float = 12.0
 @export var asteroid_max_size: float = 24.0
 @export var asteroid_tint: Color = Color(0.9, 0.88, 0.85, 1.0)
+@export var mini_asteroid_count: int = 14
 @export var nebula_enabled: bool = false
 @export var nebula_alpha: float = 0.18
 @export var nebula_shader_path: String = "res://graphics/nebula2.gdshader"
@@ -33,6 +34,8 @@ func populate(rng: RandomNumberGenerator) -> void:
 	_clear_content()
 	for _i in asteroid_count:
 		_spawn_asteroid()
+	for _i in mini_asteroid_count:
+		_spawn_mini_asteroid()
 	if nebula_enabled:
 		_spawn_nebula()
 	if mine_count > 0:
@@ -95,7 +98,28 @@ func _spawn_asteroid() -> void:
 		inner.position = Vector2.ZERO
 		if inner.material is ShaderMaterial:
 			(inner.material as ShaderMaterial).set_shader_parameter("draw_outline", false)
-	_objects.append({"node": a, "size": sz})
+	var spin: float = 0.0
+	if _local_rng.randf() < 0.35:
+		spin = _local_rng.randf_range(0.05, 0.25)
+		if _local_rng.randf() < 0.5:
+			spin = -spin
+	var base_rot: float = 0.0
+	if inner != null and inner.material is ShaderMaterial:
+		base_rot = float((inner.material as ShaderMaterial).get_shader_parameter("rotation"))
+	_objects.append({"node": a, "size": sz, "spin": spin, "rot": base_rot, "mini": false})
+
+
+func _spawn_mini_asteroid() -> void:
+	if _local_rng == null:
+		return
+	var r := ColorRect.new()
+	var px: float = 2.0 if _local_rng.randf() < 0.4 else 1.0
+	r.size = Vector2(px, px)
+	r.color = asteroid_tint
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	r.position = Vector2(_local_rng.randf_range(0, 480), -_local_rng.randf_range(0, 270))
+	add_child(r)
+	_objects.append({"node": r, "size": px, "spin": 0.0, "rot": 0.0, "mini": true})
 
 
 func _spawn_nebula() -> void:
@@ -168,6 +192,20 @@ func _on_scrolled() -> void:
 			(_nebula_rect.material as ShaderMaterial).set_shader_parameter(
 				"scroll_offset", Vector2(0, offset.y / NEBULA_TILE)
 			)
+
+
+func _process(delta: float) -> void:
+	for entry in _objects:
+		var sp: float = float(entry.get("spin", 0.0))
+		if sp == 0.0:
+			continue
+		var n: Node = entry.node
+		if not is_instance_valid(n):
+			continue
+		var inner := n.get_node_or_null("Asteroid")
+		if inner != null and inner.material is ShaderMaterial:
+			entry.rot = float(entry.get("rot", 0.0)) + sp * delta
+			(inner.material as ShaderMaterial).set_shader_parameter("rotation", entry.rot)
 
 
 func _on_reset() -> void:

@@ -87,7 +87,7 @@ func spawn_planet(planet_idx: int, actual_size: float, rng: RandomNumberGenerato
 		if p.has_method("set_rotates"): p.set_rotates(rng.randf() < 0.7)
 		if p.has_method("set_dither"):  p.set_dither(rng.randf() < 0.5)
 	if "override_time" in p:
-		p.override_time = true
+		p.override_time = false
 	# Star-color wash on the planet — matches the sector map's planet modulate.
 	if p is CanvasItem:
 		p.modulate = Color.WHITE.lerp(star_color, 0.18)
@@ -301,7 +301,7 @@ func _spawn_companion_body(scene_path: String, rng: RandomNumberGenerator, plane
 	var sf: float = actual_size / 100.0
 	p.scale = Vector2(sf, sf)
 	if "override_time" in p:
-		p.override_time = true
+		p.override_time = false
 	if p.has_method("set_seed"):
 		p.set_seed(rng.randi() % 100000)
 	if p.has_method("randomize_colors"):
@@ -359,7 +359,7 @@ func attach_moons(moons: Array) -> void:
 		var sf: float = actual_size / 100.0
 		p.scale = Vector2(sf, sf)
 		if "override_time" in p:
-			p.override_time = true
+			p.override_time = false
 		# Deterministic per-moon seed — same POI revisit reproduces the
 		# same moon surfaces. Skip randomize_colors so the descriptor's
 		# `color` field drives the visible tint (spec: "color should be
