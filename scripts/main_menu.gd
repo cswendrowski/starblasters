@@ -55,10 +55,8 @@ func _ready() -> void:
 # anchors weren't fully set. Force full-rect anchors so the VBox centers on
 # the viewport.
 func _fix_center_anchors() -> void:
-	var vp_size: Vector2 = get_viewport_rect().size
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	position = Vector2.ZERO
-	size = vp_size
 	# Bump the menu Control's render bucket above 0 so any parallax planet
 	# halos or transient overlays inside the Backdrop can't accidentally
 	# draw over the buttons.
@@ -68,7 +66,6 @@ func _fix_center_anchors() -> void:
 		return
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	center.position = Vector2.ZERO
-	center.size = vp_size
 	center.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	center.grow_vertical = Control.GROW_DIRECTION_BOTH
 
