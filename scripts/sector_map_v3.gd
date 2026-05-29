@@ -1219,7 +1219,7 @@ func _add_hover_label_icon(pos: Vector2, display_px: float, label_text: String, 
 	lbl.horizontal_alignment  = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.position  = Vector2(pos.x - 24.0, pos.y - 24.0)
 	lbl.z_index   = 10
-	lbl.modulate.a = 0.2
+	lbl.modulate.a = 0.0
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(lbl)
 	var at := AtlasTexture.new()
@@ -1244,7 +1244,7 @@ func _add_hover_label_icon(pos: Vector2, display_px: float, label_text: String, 
 		"radius":     14.0,
 		"label":      lbl,
 		"icon":       icon_spr,
-		"label_rest": 0.2,
+		"label_rest": 0.0,
 		"icon_rest":  icon_rest,
 		"hover_tint": COLOR_NODE_GREEN,
 		"rest_tint":  rest_tint,
