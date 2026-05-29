@@ -43,7 +43,7 @@ project/assembly_name="Classic Shmup"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/godot_mcp/plugin.cfg", "res://addons/terrain_autotiler/plugin.cfg")
+enabled=PackedStringArray("res://addons/godot_mcp/plugin.cfg")
 
 [input]
 
