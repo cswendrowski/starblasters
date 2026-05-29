@@ -388,6 +388,17 @@ func _rl_stop() -> void:
 		_rl_shoot_player_node.play()
 
 
+func stop_all_weapon_audio() -> void:
+	if _mg_loop_player and is_instance_valid(_mg_loop_player):
+		_mg_loop_player.stop()
+	if _rl_charge_player and is_instance_valid(_rl_charge_player):
+		_rl_charge_player.stop()
+	if _rl_loop_player and is_instance_valid(_rl_loop_player):
+		_rl_loop_player.stop()
+	if _pb_loop_player and is_instance_valid(_pb_loop_player):
+		_pb_loop_player.stop()
+
+
 func _setup_shield_ring() -> void:
 	# ColorRect is a Control; size in local space. Player is scaled 3x by its
 	# parent, so 26 local px = 78 screen px ring diameter (comfortably wraps the
@@ -714,6 +725,8 @@ func die() -> void:
 		_rl_charge_player.stop()
 	if _rl_loop_player and _rl_loop_player.playing:
 		_rl_loop_player.stop()
+	if _pb_loop_player and is_instance_valid(_pb_loop_player):
+		_pb_loop_player.stop()
 	$Death.play()
 
 # ---- Fire paths ----

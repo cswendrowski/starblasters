@@ -536,6 +536,8 @@ func _run_outro() -> void:
 	await get_tree().create_timer(0.8).timeout
 	if player == null or not is_instance_valid(player):
 		return
+	if is_instance_valid(player):
+		player.stop_all_weapon_audio()
 	player.controls_enabled = false
 	if $CanvasLayer/UI.has_method("flicker_out"):
 		$CanvasLayer/UI.flicker_out(0.45)
