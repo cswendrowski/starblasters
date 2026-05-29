@@ -55,7 +55,10 @@ func _populate() -> void:
 		stellar = run_node.current_stellar
 
 	var rng := RandomNumberGenerator.new()
-	var seed_val := 12345
+	# Deterministic per-run seed in gameplay (from Run); a fresh time-based
+	# seed everywhere else (tuner "Generate New", capture tool) so each
+	# regeneration actually varies instead of repeating one fixed backdrop.
+	var seed_val := int(Time.get_ticks_usec())
 	if run_node:
 		var rs := 12345 if not "run_seed" in run_node else int(run_node.run_seed)
 		var sc := 0 if not "sectors_cleared" in run_node else int(run_node.sectors_cleared)

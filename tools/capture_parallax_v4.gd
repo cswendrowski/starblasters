@@ -22,7 +22,7 @@ const FRAME_TIME: float = 1.0 / float(FPS)
 
 # Force a visible globe planet (5 = LandMasses) and a brisk drift so the
 # planet + asteroids show clear motion within the short capture window.
-const FORCED_PLANET_IDX: int = 5
+const FORCED_PLANET_IDX: int = -1
 const CAPTURE_DRIFT_SPEED: float = 50.0
 
 
