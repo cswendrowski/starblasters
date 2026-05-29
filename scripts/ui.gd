@@ -318,7 +318,7 @@ func _rebuild_hull_pips(count: int) -> void:
 	_hull_pips.clear()
 	if not is_instance_valid(_hull_pip_container):
 		return
-	var hull_origin := Vector2(16, 88)
+	var hull_origin := _mpos("hull_label/hull_pip_row_1", Vector2(16, 88))
 	for _i in range(count):
 		var pip := _make_dot(hull_origin + Vector2(_i * DOT_STEP, 0), COLOR_HULL)
 		_hull_pip_container.add_child(pip)
@@ -334,9 +334,9 @@ func _rebuild_shield_pips(count: int) -> void:
 	if not is_instance_valid(_shield_pip_container):
 		return
 	var row_origins := [
-		Vector2(16, 24),
-		Vector2(16, 40),
-		Vector2(16, 56),
+		_mpos("shield_label/shield_pip_row_1", Vector2(16, 24)),
+		_mpos("shield_label/shield_pip_row_2", Vector2(16, 40)),
+		_mpos("shield_label/shield_pip_row_3", Vector2(16, 56)),
 	]
 	var pips_placed := 0
 	for row_i in SHIELD_ROWS:
