@@ -44,6 +44,7 @@ var _layer_controls: Dictionary = {}  # layer_name -> {color_picker, brightness_
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	HdViewportScope.attach(self)   # 1920×1080 so UI panel coordinates work
 	_build_backdrop_subviewport()
 	_build_ui()
 	# Defer a frame so the backdrop's _ready spawns children before we enumerate them.
