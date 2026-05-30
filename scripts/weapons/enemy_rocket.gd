@@ -10,6 +10,7 @@ class_name EnemyRocket
 
 const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
 const MissileSmokeTrail = preload("res://scripts/effects/missile_smoke_trail.gd")
+const EngineFlareCls := preload("res://scripts/effects/engine_flare.gd")
 const ANIM_FPS := 12.0
 
 var health: int = 1
@@ -33,13 +34,20 @@ func _ready() -> void:
 	# art has the nose at the top of the sheet; + PI*0.5 makes the sprite's
 	# "up" point along the velocity vector (matching base_missile.gd convention).
 	rotation = velocity_dir.angle() + PI * 0.5
+	# Engine flare at the exhaust marker. Enemy rockets fire immediately
+	# (no drift), so the flare is visible from spawn — no ignition gate.
+	var exhaust: Node2D = get_node_or_null("exhaust_point")
+	if exhaust != null:
+		var flare: Sprite2D = EngineFlareCls.new()
+		exhaust.add_child.call_deferred(flare)
 	# Attach the smoke trail with downward drift flipped (rocket travels
 	# downward; without flip the trail drifts further down = in front of the
-	# rocket instead of behind it).
+	# rocket instead of behind it). Emit from the exhaust marker when present.
 	var trail: MissileSmokeTrail = MissileSmokeTrail.new()
 	trail.flip_drift = true
 	get_tree().root.call_deferred("add_child", trail)
-	trail.call_deferred("attach_to", self)
+	var emitter: Node2D = exhaust if exhaust != null else self
+	trail.call_deferred("attach_to", emitter)
 
 
 func _process(delta: float) -> void:

@@ -49,13 +49,17 @@ var _locked: bool = false
 
 const BASE_SCALE := Vector2(1.0, 1.0)
 const ANIM_FPS := 12.0
+# Looping muzzle-flash engine plume drawn at the exhaust marker, gated on
+# ignition (off during the drift/freefall). Replaces the old code-side
+# gradient flame glow.
+const EngineFlareCls := preload("res://scripts/effects/engine_flare.gd")
 
 var _vel: Vector2 = Vector2.ZERO
 var _t: float = 0.0
 var _ignited: bool = false
-# Flame + smoke trail nodes; created on _ready when `flame_trail` is true.
-var _flame_sprite: Sprite2D = null
-var _flame_t: float = 0.0
+# Engine flare + exhaust marker; resolved/created in _ready.
+var _engine_flare: Sprite2D = null
+var _exhaust_point: Node2D = null
 var _anim_frame_t := 0.0
 
 
@@ -101,6 +105,16 @@ func _ready() -> void:
 	# missile-teal.png and make the sprite nearly invisible.
 	if has_node("Sprite2D") and dumb_fire:
 		$Sprite2D.modulate = Color(1.0, 0.85, 0.7, 1.0)
+	# Resolve the exhaust marker and build the engine flare HIDDEN — it
+	# ignites in _ignite() so it stays off during the drift/freefall.
+	# Created for every missile with an exhaust marker, independent of the
+	# flame_trail flag (which only gates the smoke trail below).
+	_exhaust_point = get_node_or_null("exhaust_point")
+	if _exhaust_point != null:
+		_engine_flare = EngineFlareCls.new()
+		_engine_flare.visible = false   # ignites in _ignite() — off during drift/freefall
+		# Deferred: we're mid-_ready, the marker is busy setting up children.
+		_exhaust_point.add_child.call_deferred(_engine_flare)
 	if flame_trail:
 		_build_trail_line()
 
@@ -117,7 +131,9 @@ func _build_trail_line() -> void:
 	_smoke_trail = MissileSmokeTrailCls.new()
 	get_tree().root.call_deferred("add_child", _smoke_trail)
 	# Defer attach_to until the trail's _ready has set up its Line2D.
-	_smoke_trail.call_deferred("attach_to", self)
+	# Emit from the exhaust marker when present so smoke leaves the rear.
+	var emitter: Node2D = _exhaust_point if _exhaust_point != null else self
+	_smoke_trail.call_deferred("attach_to", emitter)
 
 
 func start(pos: Vector2) -> void:
@@ -178,14 +194,8 @@ func _process(delta: float) -> void:
 			_anim_frame_t += delta
 			sprite.frame = int(_anim_frame_t * ANIM_FPS) % sprite.hframes
 	# Smoke trail handled by MissileSmokeTrail (autonomous in its own
-	# _process; nothing to do here per-frame).
-	# Flame flicker — wobble the rear glow's scale + brightness so it
-	# reads as a live engine rather than a static halo.
-	if _flame_sprite != null and is_instance_valid(_flame_sprite):
-		_flame_t += delta * 14.0
-		var pulse: float = 0.85 + 0.25 * sin(_flame_t)
-		_flame_sprite.scale = Vector2(0.55 + 0.15 * pulse, 0.85 + 0.25 * pulse)
-		_flame_sprite.modulate = Color(1.0, 0.55 + 0.1 * pulse, 0.20 + 0.10 * pulse, 1.0)
+	# _process; nothing to do here per-frame). Engine flare is self-
+	# animating (EngineFlare._process), nothing to drive here.
 	# Fuse expiry detonates with VFX rather than the silent FREE_ANY_EDGE
 	# path — distinguishes "I burned out" from "I flew off-screen".
 	if _t >= fuse:
@@ -227,43 +237,10 @@ func _ignite() -> void:
 	# teal sprite invisible (Bug 2 fix, 2026-05-26).
 	if has_node("Sprite2D") and dumb_fire:
 		$Sprite2D.modulate = Color(1.6, 0.55, 0.25, 1.0)
-	# Flickering orange glow at the rear (Roman, 2026-05-16: "flickering
-	# orange glow on their rear when active"). Sits behind the sprite,
-	# additive blend, scale wobble driven by _flame_t in _process.
-	if flame_trail and _flame_sprite == null:
-		var s := Sprite2D.new()
-		s.texture = _flame_glow_texture()
-		s.position = Vector2(0, 8)
-		s.scale = Vector2(0.6, 0.9)
-		s.modulate = Color(1.0, 0.6, 0.25, 1.0)
-		var mat := CanvasItemMaterial.new()
-		mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-		s.material = mat
-		s.z_index = -1
-		add_child(s)
-		_flame_sprite = s
-
-
-static var _flame_glow_tex: Texture2D = null
-static func _flame_glow_texture() -> Texture2D:
-	if _flame_glow_tex != null:
-		return _flame_glow_tex
-	var g = Gradient.new()
-	g.colors = PackedColorArray([
-		Color(1, 1, 1, 1),
-		Color(1, 1, 1, 0.45),
-		Color(1, 1, 1, 0.0),
-	])
-	g.offsets = PackedFloat32Array([0.0, 0.55, 1.0])
-	var t = GradientTexture2D.new()
-	t.gradient = g
-	t.width = 24
-	t.height = 32
-	t.fill = GradientTexture2D.FILL_RADIAL
-	t.fill_from = Vector2(0.5, 0.4)
-	t.fill_to = Vector2(1.0, 0.7)
-	_flame_glow_tex = t
-	return t
+	# Ignite the engine flare — the muzzle-flash plume at the exhaust marker
+	# (Roman, 2026-05-29). Gated here so it stays off during drift/freefall.
+	if _engine_flare != null:
+		_engine_flare.visible = true
 
 
 # Player contact: deal damage and self-destruct with VFX.
