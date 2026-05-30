@@ -26,6 +26,18 @@ const PLANET_TINT := {
 }
 const SKIP_TINT := [6, 8]
 
+# ── Row-system staging position knobs (Roman to tune) ──────────────────────
+# When current_stellar carries a `system` array (star + nearest planets), the
+# bodies are spread across the upper backdrop by their `frac` (0=left/near star,
+# 1=right/far). Bodies are decorative + behind gameplay, so the full 480 width
+# (incl. side gutters) is fair game for spreading them out without overlap.
+const SYS_X_MIN        := 40.0    # KNOB: screen-x for frac 0.0 (star, left)
+const SYS_X_MAX        := 440.0   # KNOB: screen-x for frac 1.0 (far-right body)
+const SYS_Y_BASE       := -40.0   # KNOB: baseline top-y of a body's top-left
+const SYS_Y_JITTER     := 70.0    # KNOB: per-seed vertical spread band (px)
+const SYS_Y_LOWER_BIG  := 26.0    # KNOB: nearer/larger bodies sit this much lower
+const SYS_MIN_BODY_PX  := 18.0    # KNOB: clamp so distant bodies don't degenerate
+
 var _layer_stars: Node = null
 var _layer_planet: Node = null
 var _layer_stellar_far: Node = null
@@ -73,17 +85,25 @@ func _populate() -> void:
 	var size_mult := rng.randf_range(1.0 - planet_size_variance, 1.0 + planet_size_variance)
 	var actual_size := planet_size * size_mult
 
+	# Row-system staging: if current_stellar carries a non-empty `system` array,
+	# render every body (star + nearest planets) staged by frac/scale instead of
+	# a single planet. Bodies are decorative + behind gameplay. Moons are SKIPPED
+	# in system mode (KNOB) — the bodies themselves are the decoration, and there
+	# is no single "the planet" for moons to orbit.
+	var system: Array = stellar.get("system", [])
 	if _layer_planet != null:
 		_layer_planet.set("pixel_density", pixel_density)
-		if _layer_planet.has_method("spawn_planet"):
+		if not system.is_empty() and _layer_planet.has_method("spawn_system_body"):
+			_spawn_system(system)
+		elif _layer_planet.has_method("spawn_planet"):
 			var planet_seed: int = int(stellar.get("planet_seed", -1))
 			var star_color: Color = stellar.get("star_color", Color.WHITE)
 			_layer_planet.spawn_planet(planet_idx, actual_size, rng, "", planet_seed, star_color)
-		# Attach POI moons if present
-		if _layer_planet.has_method("attach_moons"):
-			var moons: Array = stellar.get("moons", [])
-			if not moons.is_empty():
-				_layer_planet.attach_moons(moons)
+			# Attach POI moons if present (single-planet path only).
+			if _layer_planet.has_method("attach_moons"):
+				var moons: Array = stellar.get("moons", [])
+				if not moons.is_empty():
+					_layer_planet.attach_moons(moons)
 
 	# Stellar layers.
 	# Decorative parallax asteroids appear ONLY when the current node is an
@@ -126,6 +146,31 @@ func _populate() -> void:
 	# Tints
 	_apply_tints(planet_idx)
 	_setup_composite(planet_idx)
+
+
+# Render a staged star-system: clear LayerPlanet ONCE, then spawn each body at a
+# frac-derived screen position + scale-derived size. `system` entries are dicts:
+#   {kind, planet_idx, planet_seed, frac, scale, star_color}
+func _spawn_system(system: Array) -> void:
+	if _layer_planet.has_method("clear_planet"):
+		_layer_planet.clear_planet()
+	for body in system:
+		var b: Dictionary = body
+		var p_idx: int = int(b.get("planet_idx", 8))
+		var p_seed: int = int(b.get("planet_seed", 0))
+		var scale_f: float = float(b.get("scale", 1.0))
+		var frac: float = clampf(float(b.get("frac", 0.0)), 0.0, 1.0)
+		var star_color: Color = b.get("star_color", Color.WHITE)
+		var size_px: float = maxf(SYS_MIN_BODY_PX, planet_size * scale_f)
+		# Position: x by frac across the comfortable spread; y is a per-seed
+		# jitter within the band, with larger (nearer) bodies nudged lower so
+		# they read as more central/present.
+		var jrng := RandomNumberGenerator.new()
+		jrng.seed = abs(p_seed) ^ 0x5A17C0DE
+		var center_x: float = lerpf(SYS_X_MIN, SYS_X_MAX, frac)
+		var y_top: float = SYS_Y_BASE + jrng.randf_range(0.0, SYS_Y_JITTER) + scale_f * SYS_Y_LOWER_BIG
+		var top_left: Vector2 = Vector2(center_x - size_px * 0.5, y_top)
+		_layer_planet.spawn_system_body(p_idx, size_px, top_left, p_seed, star_color)
 
 
 func _apply_tints(planet_idx: int) -> void:

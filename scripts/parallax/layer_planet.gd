@@ -105,6 +105,49 @@ func spawn_planet(planet_idx: int, actual_size: float, rng: RandomNumberGenerato
 	_spawn_companions(rng, planet_idx, x, y, actual_size)
 
 
+# Spawn ONE body of a star-system at an arbitrary screen position + size,
+# WITHOUT clearing prior bodies. Generalizes _spawn_companion_body for the
+# row-system backdrop (backdrop_coordinator iterates current_stellar.system).
+# Deterministic from planet_seed (mirrors spawn_planet) so a revisit reproduces
+# the same surfaces. The coordinator calls clear_planet() ONCE before looping.
+# `top_left` is the body's top-left in LayerPlanet-local coords (Control planets
+# are authored top-left); pass center - actual_size/2 if you have a center.
+func spawn_system_body(planet_idx: int, actual_size: float, top_left: Vector2, planet_seed: int, star_color: Color = Color.WHITE) -> void:
+	var scene_path: String = PLANETS.get(planet_idx, PLANETS[2])
+	var ps := load(scene_path) as PackedScene
+	if ps == null:
+		return
+	var p := ps.instantiate()
+	if p is Control:
+		p.anchor_left = 0.0; p.anchor_top = 0.0
+		p.anchor_right = 0.0; p.anchor_bottom = 0.0
+		p.offset_left = 0.0; p.offset_top = 0.0
+		p.offset_right = 100.0; p.offset_bottom = 100.0
+		p.size = Vector2(100, 100)
+		p.custom_minimum_size = Vector2(100, 100)
+		p.pivot_offset = Vector2.ZERO
+	var sf: float = actual_size / 100.0
+	p.scale = Vector2(sf, sf)
+	p.position = top_left
+	add_child(p)  # MUST come before _apply_pixel_parity
+	_apply_pixel_parity(p, actual_size)
+	_duplicate_materials(p)
+	# Deterministic surfaces (mirror spawn_planet's seeded branch).
+	if p.has_method("set_seed"):    p.set_seed(planet_seed % 100000)
+	seed(planet_seed)
+	if p.has_method("randomize_colors"): p.randomize_colors()
+	if p.has_method("set_rotates"): p.set_rotates(true)
+	if p.has_method("set_light"):   p.set_light(Vector2(0.0, 0.5))
+	if "override_time" in p:
+		p.override_time = true
+	if p.has_method("update_time"):
+		_animated.append(p)
+	# Star-color wash (skip the star itself — its own light shouldn't be tinted).
+	if p is CanvasItem and planet_idx != 8:
+		p.modulate = Color.WHITE.lerp(star_color, 0.18)
+	_make_planet_halo(p, planet_idx, actual_size, top_left.x, top_left.y)
+
+
 func clear_planet() -> void:
 	_animated.clear()
 	for child in get_children():

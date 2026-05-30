@@ -503,6 +503,26 @@ const V3_TO_BACKDROP_PLANET_IDX := {
 }
 
 
+# ── Row-system staging knobs (Roman to tune) ───────────────────────────────
+# Each sector-map ROW is a star system: a star at the left edge (frac 0.0) and
+# the row's planet POIs strung left→right by their `frac` (0=near star, 1=far
+# right). When the player enters a node at `frac = C`, every body in the row is
+# STAGED by its distance from C: a body coincident with the current node renders
+# at BODY_SCALE_MAX; a body a full row-width away renders at BODY_SCALE_MIN.
+# (so: at the far-right node the star is small; a mid-row planet is large when
+# you enter a mid-row node — Roman's "middle of the row would be larger".)
+const BODY_SCALE_MAX := 1.0    # KNOB: scale of a body coincident with current node
+const BODY_SCALE_MIN := 0.18   # KNOB: scale of a body a full row-width away
+# Cap on simultaneously-emitted PLANET bodies (the star is always included and
+# does NOT count against this). Keeps a busy 5-POI row from cluttering the
+# backdrop — we keep the planets NEAREST the current node (largest ones).
+const SYSTEM_MAX_PLANETS := 3  # KNOB: max planet bodies emitted alongside the star
+# Master gate for the per-row star-system backdrop (Roman v1, 2026-05-30).
+# OFF pending visual tuning of body size/overlap: when false, current_stellar
+# emits NO `system` array and the backdrop uses the original single-planet path.
+const SYSTEM_BACKDROP_ENABLED := false
+
+
 # Stable per-POI moon RNG. Salt the seed so moon derivation is decoupled
 # from the planet's randomize_colors / set_seed consumption ordering — the
 # combat backdrop can re-derive the same moon descriptors without having
@@ -608,7 +628,89 @@ func _compute_poi_stellar(poi: Dictionary, row_idx: int) -> Dictionary:
 		"poi_id":           String(poi.id),
 		"exotic_idx":       sv.exotic_idx,
 		"has_binary":       sv.has_binary,
+		# Row-system staging array (star + nearest planet POIs) for the combat
+		# backdrop. See _compute_row_system. Single planet_idx/seed keys above
+		# remain authoritative for tint + asteroid gating + fallback.
+		"system":           _compute_row_system(poi, row_idx),
 	}
+
+
+# Build the "star system" body list for the row containing `current_poi`, viewed
+# from the current node's position `C` (its frac along the row). Bodies = the
+# star (frac 0.0) + each POI whose obj_kind == PLANET, each tagged with the same
+# planet_idx/seed it would render with on the map. Every body's `scale` is its
+# staging size by distance |C - frac|.
+#
+# CRITICAL — map/backdrop agreement: the per-POI deco_rng MUST be consumed in
+# the EXACT order _build_pois_from_cache uses, or planet_type diverges from the
+# map even with a matching seed:
+#   1. randi() % 3          -> obj_kind            (matches :423)
+#   2. (only if PLANET) randi() % 3  -> the `px` draw (matches :433)
+#   3. _pick_planet_type(rng, frac)  -> planet_type (matches :435)
+func _compute_row_system(current_poi: Dictionary, row_idx: int) -> Array:
+	if not SYSTEM_BACKDROP_ENABLED:
+		return []
+	var run := get_node("/root/Run")
+	var rows: Array = run.sector_map_cache.get("rows", [])
+	if row_idx < 0 or row_idx >= rows.size():
+		return []
+	var row: Dictionary = rows[row_idx]
+	var pois: Array = row.get("pois", [])
+	var row_end_x: float = float(row.boss.pos.x)
+	var span: float = max(1.0, row_end_x - 128.0)
+	# Current node's position metric C.
+	var current_frac: float = (float(current_poi.pos.x) - 128.0) / span
+
+	var sv: Dictionary = _get_star_variant(row_idx)
+	var base_type: int = sv.base_type_idx
+	var star_color: Color = EXOTIC_GLOW_COLORS[sv.exotic_idx] if sv.exotic_idx >= 0 else STAR_GLOW_COLORS[base_type]
+
+	var system: Array = []
+	# Star body — anchored at the left edge of the row (frac 0.0).
+	system.append({
+		"kind":        "star",
+		"planet_idx":  8,                # layer_planet PLANETS[8] = Star
+		"planet_seed": abs(hash("star:%d:%d" % [row_idx, run.run_seed])),
+		"frac":        0.0,
+		"scale":       _stage_scale(current_frac, 0.0),
+		"star_color":  star_color,
+	})
+
+	# Collect candidate planet bodies (reproducing the map's obj_kind/type).
+	var planets: Array = []
+	for p in pois:
+		var deco_rng := RandomNumberGenerator.new()
+		deco_rng.seed = abs(hash(p.id))
+		var obj_kind: int = deco_rng.randi() % 3          # step 1 (matches map :423)
+		if obj_kind != OBJ_PLANET:
+			continue
+		var _px_draw: int = deco_rng.randi() % 3           # step 2 (matches map :433)
+		var p_frac: float = (float(p.pos.x) - 128.0) / span
+		var ptype: int = _pick_planet_type(deco_rng, p_frac)  # step 3 (matches map :435)
+		var p_idx: int = int(V3_TO_BACKDROP_PLANET_IDX.get(ptype, 0))
+		planets.append({
+			"kind":        "planet",
+			"planet_idx":  p_idx,
+			"planet_seed": abs(hash(p.id)),
+			"frac":        p_frac,
+			"scale":       _stage_scale(current_frac, p_frac),
+			"star_color":  star_color,
+		})
+
+	# Cap to the SYSTEM_MAX_PLANETS planets NEAREST the current node (largest,
+	# most-present bodies). Sort by distance |C - frac| ascending.
+	planets.sort_custom(func(a, b):
+		return absf(current_frac - float(a.frac)) < absf(current_frac - float(b.frac)))
+	for i in mini(planets.size(), SYSTEM_MAX_PLANETS):
+		system.append(planets[i])
+	return system
+
+
+# Staging scale for a body at `body_frac` viewed from current node `c`.
+# Coincident -> BODY_SCALE_MAX; a full row-width apart -> BODY_SCALE_MIN.
+func _stage_scale(c: float, body_frac: float) -> float:
+	var d: float = clampf(absf(c - body_frac), 0.0, 1.0)
+	return lerpf(BODY_SCALE_MAX, BODY_SCALE_MIN, d)
 
 
 # Deterministic moon list around a POI's planet. Same formula as the
@@ -642,6 +744,7 @@ func _derive_moon_descriptors(poi_id: String, planet_px: float) -> Array:
 # decoration of their own. Tint the scene with the row's star color so the
 # boss arena still feels "visited from" that line.
 func _compute_boss_stellar(row_idx: int) -> Dictionary:
+	var run := get_node("/root/Run")
 	var sv: Dictionary = _get_star_variant(row_idx)
 	var base_type: int  = sv.base_type_idx
 	var star_color: Color = EXOTIC_GLOW_COLORS[sv.exotic_idx] if sv.exotic_idx >= 0 else STAR_GLOW_COLORS[base_type]
@@ -658,6 +761,17 @@ func _compute_boss_stellar(row_idx: int) -> Dictionary:
 		"poi_id":           "boss:%d" % row_idx,
 		"exotic_idx":       sv.exotic_idx,
 		"has_binary":       sv.has_binary,
+		# Boss sits at the row's far-right endpoint (frac 1.0), so it views the
+		# star at maximum distance -> small/distant (consistent with the staging
+		# model). Star-only system; bosses have no planet of their own.
+		"system":           ([{
+			"kind":        "star",
+			"planet_idx":  8,
+			"planet_seed": abs(hash("star:%d:%d" % [row_idx, run.run_seed])),
+			"frac":        0.0,
+			"scale":       _stage_scale(1.0, 0.0),
+			"star_color":  star_color,
+		}] if SYSTEM_BACKDROP_ENABLED else []),
 	}
 
 
