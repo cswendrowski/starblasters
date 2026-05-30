@@ -5,11 +5,5 @@
 [resource]
 script = ExtResource("1_ds")
 mark = 1
-base_duration = 5.0
-duration_per_mark = 0.5
-base_drones = 4
-drones_per_mark = 0
-max_drones = 6
-halfspan = 24.0
 base_charges = 1
 charges_per_mark = 1

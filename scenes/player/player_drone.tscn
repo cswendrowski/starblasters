@@ -7,6 +7,7 @@
 radius = 5.0
 
 [node name="PlayerDrone" type="Area2D" groups=["player_drones", "player"]]
+z_index = -1
 collision_layer = 1
 collision_mask = 1
 script = ExtResource("2_drscript")
