@@ -85,7 +85,15 @@ func _populate() -> void:
 			if not moons.is_empty():
 				_layer_planet.attach_moons(moons)
 
-	# Stellar layers
+	# Stellar layers.
+	# Decorative parallax asteroids appear ONLY when the current node is an
+	# asteroid-field hazard (Roman 2026-05-30). The sector map sets
+	# current_stellar.has_asteroids = true only for those nodes
+	# (see sector_map_v3._compute_poi_stellar). When false we drive the per-layer
+	# asteroid + mini-asteroid counts to ZERO so nothing spawns — note we must
+	# bypass the maxi(1, ...) floor below, which previously forced >=1 asteroid
+	# per layer regardless of density. Planets / nebula / stars are unaffected.
+	var has_asteroids: bool = bool(stellar.get("has_asteroids", false))
 	var asteroid_density: float = float(stellar.get("asteroid_density", 0.0))
 	var density_mult: float = (0.5 + asteroid_density) * asteroid_density_scale
 	var ast_color: Color = Color(0.9, 0.88, 0.85, 1.0)
@@ -94,11 +102,17 @@ func _populate() -> void:
 	for layer in _scroll_layers:
 		if layer != null and layer.has_method("populate"):
 			if "asteroid_count" in layer:
-				var base_ct: int = int(layer.get("asteroid_count"))
-				layer.set("asteroid_count", maxi(1, int(round(base_ct * density_mult))))
+				if has_asteroids:
+					var base_ct: int = int(layer.get("asteroid_count"))
+					layer.set("asteroid_count", maxi(1, int(round(base_ct * density_mult))))
+				else:
+					layer.set("asteroid_count", 0)
 			if "mini_asteroid_count" in layer:
-				var base_mini: int = int(layer.get("mini_asteroid_count"))
-				layer.set("mini_asteroid_count", maxi(1, int(round(base_mini * density_mult))))
+				if has_asteroids:
+					var base_mini: int = int(layer.get("mini_asteroid_count"))
+					layer.set("mini_asteroid_count", maxi(1, int(round(base_mini * density_mult))))
+				else:
+					layer.set("mini_asteroid_count", 0)
 			if "asteroid_tint" in layer:
 				layer.set("asteroid_tint", ast_color)
 			layer.populate(rng)

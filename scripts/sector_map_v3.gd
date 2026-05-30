@@ -567,19 +567,30 @@ func _compute_poi_stellar(poi: Dictionary, row_idx: int) -> Dictionary:
 	var moons: Array = []
 	var has_asteroids: bool = false
 	var asteroid_density: float = 0.0
-	match obj_kind:
-		OBJ_PLANET:
-			var px: float = PLANET_MIN_PX + float(deco_rng.randi() % 3) * 8.0
-			var frac: float = (poi.pos.x - 128.0) / max(1.0, row_end_x - 128.0)
-			planet_type = _pick_planet_type(deco_rng, frac)
-			planet_idx = int(V3_TO_BACKDROP_PLANET_IDX.get(planet_type, 0))
-			moons = _derive_moon_descriptors(String(poi.id), px)
-		OBJ_LARGE_AST:
-			has_asteroids = true
-			asteroid_density = 0.6
-		OBJ_CLUSTER:
-			has_asteroids = true
-			asteroid_density = 1.2
+	# Decorative parallax asteroids in COMBAT must appear ONLY when the node the
+	# player entered is an asteroid-field hazard (Roman 2026-05-30). The old code
+	# keyed has_asteroids off `obj_kind` (a purely-decorative random pick shared
+	# with the sector-map icon), which sprinkled background asteroids onto ~2/3 of
+	# ALL levels. We now gate purely on hazard_subtype. NOTE: this only governs the
+	# DECORATIVE backdrop — real gameplay asteroids are spawned by main.gd /
+	# Levels.asteroid_field_level keyed off Run.current_hazard_subtype, untouched.
+	var is_asteroid_field: bool = String(poi.get("hazard_subtype", "")) == "asteroid_field"
+	if is_asteroid_field:
+		has_asteroids = true
+		# Cluster-grade density for a real field; the old OBJ_CLUSTER used 1.2.
+		asteroid_density = 1.2
+		# An asteroid field has no planet of its own — asteroids ARE the backdrop.
+	else:
+		# Every non-asteroid-field node gets a real planet backdrop. Previously
+		# the OBJ_LARGE_AST / OBJ_CLUSTER arms left planet_idx = -1 (the combat
+		# coordinator then fell back to DryTerran), so forcing the planet path
+		# here gives a deliberate planet instead of a fallback and avoids leaving
+		# the now-asteroid-less nodes as bare starfields.
+		var px: float = PLANET_MIN_PX + float(deco_rng.randi() % 3) * 8.0
+		var frac: float = (poi.pos.x - 128.0) / max(1.0, row_end_x - 128.0)
+		planet_type = _pick_planet_type(deco_rng, frac)
+		planet_idx = int(V3_TO_BACKDROP_PLANET_IDX.get(planet_type, 0))
+		moons = _derive_moon_descriptors(String(poi.id), px)
 	var sv: Dictionary = _get_star_variant(row_idx)
 	var base_type: int  = sv.base_type_idx
 	var star_color: Color = EXOTIC_GLOW_COLORS[sv.exotic_idx] if sv.exotic_idx >= 0 else STAR_GLOW_COLORS[base_type]

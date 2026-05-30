@@ -60,7 +60,17 @@ func _spawn_asteroid() -> void:
 	if ps == null:
 		return
 	var a := ps.instantiate()
-	var sz := _local_rng.randf_range(asteroid_min_size, asteroid_max_size)
+	# Size selection (Roman 2026-05-30): reduce how often a decorative asteroid
+	# lands at the top of the size range by ~20%, so max-size asteroids are a bit
+	# less frequent. Previously this was a flat uniform pick:
+	#     randf_range(min, max)  -> top 20% bucket hit 20% of the time.
+	# Now we power-curve the [0,1] roll toward the small end. With exponent 1.286
+	# the probability the roll lands in the top 20% of the range becomes
+	# 1 - 0.8^(1/1.286) = 1 - 0.838 = 0.162, i.e. ~16.2% vs 20% before — a 20%
+	# relative reduction in max-size frequency, redistributed to smaller sizes.
+	# (Mini asteroids in _spawn_mini_asteroid keep their own sizing, untouched.)
+	var size_t: float = pow(_local_rng.randf(), 1.286)
+	var sz := asteroid_min_size + (asteroid_max_size - asteroid_min_size) * size_t
 	# Reset Control anchors to a clean top-left 100×100 box — PlanetKit scenes
 	# ship full-rect anchors that collapse under a CanvasLayer (Node-type) parent.
 	if a is Control:
