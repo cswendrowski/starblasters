@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://cyq0cbqqw6465"]
 
 [ext_resource type="Script" uid="uid://pqv25k2c52si" path="res://scripts/projectiles/base_missile.gd" id="1_script"]
-[ext_resource type="Texture2D" uid="uid://b6mpco0qeqgrx" path="res://graphics/main-ship/Main ship weapon - Projectile - Rocket.png" id="2_tex"]
+[ext_resource type="Texture2D" uid="uid://dikgfe45156qc" path="res://graphics/projectiles/missile.png" id="2_tex"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
 size = Vector2(5, 12)

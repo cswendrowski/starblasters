@@ -48,6 +48,7 @@ var _locked: bool = false
 @export var initial_dir: Vector2 = Vector2(0, 1)
 
 const BASE_SCALE := Vector2(1.0, 1.0)
+const ANIM_FPS := 12.0
 
 var _vel: Vector2 = Vector2.ZERO
 var _t: float = 0.0
@@ -55,6 +56,7 @@ var _ignited: bool = false
 # Flame + smoke trail nodes; created on _ready when `flame_trail` is true.
 var _flame_sprite: Sprite2D = null
 var _flame_t: float = 0.0
+var _anim_frame_t := 0.0
 
 
 func _ready() -> void:
@@ -169,6 +171,12 @@ func _process(delta: float) -> void:
 	# "Rockets/Missiles should be rotating as they fly").
 	if _vel.length_squared() > 4.0:
 		rotation = _vel.angle() + PI * 0.5
+	# Thruster frame loop (no-op for single-frame sheets)
+	if has_node("Sprite2D"):
+		var sprite: Sprite2D = $Sprite2D
+		if sprite.hframes > 1:
+			_anim_frame_t += delta
+			sprite.frame = int(_anim_frame_t * ANIM_FPS) % sprite.hframes
 	# Smoke trail handled by MissileSmokeTrail (autonomous in its own
 	# _process; nothing to do here per-frame).
 	# Flame flicker — wobble the rear glow's scale + brightness so it

@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://bplyseek001"]
 
 [ext_resource type="Script" uid="uid://pqv25k2c52si" path="res://scripts/projectiles/base_missile.gd" id="1_script"]
-[ext_resource type="Texture2D" uid="uid://cqlt8bryndrht" path="res://graphics/projectiles/missile-teal.png" id="2_tex"]
+[ext_resource type="Texture2D" uid="uid://dikgfe45156qc" path="res://graphics/projectiles/missile.png" id="2_tex"]
 
 [sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_glow"]
 blend_mode = 1
@@ -34,6 +34,7 @@ initial_dir = Vector2(0, -1)
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1260301818]
 texture = ExtResource("2_tex")
+hframes = 3
 
 [node name="Glow" type="Sprite2D" parent="." unique_id=980592905]
 modulate = Color(1.0540515, 0.6047006, 0, 1)

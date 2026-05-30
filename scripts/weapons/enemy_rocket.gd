@@ -10,9 +10,11 @@ class_name EnemyRocket
 
 const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
 const MissileSmokeTrail = preload("res://scripts/effects/missile_smoke_trail.gd")
+const ANIM_FPS := 12.0
 
 var health: int = 1
 var is_hazard: bool = true  # don't gate wave-clear (director.gd checks this)
+var _anim_frame_t := 0.0
 
 
 func _init() -> void:
@@ -34,6 +36,15 @@ func _ready() -> void:
 	trail.flip_drift = true
 	get_tree().root.call_deferred("add_child", trail)
 	trail.call_deferred("attach_to", self)
+
+
+func _process(delta: float) -> void:
+	# Thruster frame loop (no-op for single-frame sheets)
+	if has_node("Sprite2D"):
+		var sprite: Sprite2D = $Sprite2D
+		if sprite.hframes > 1:
+			_anim_frame_t += delta
+			sprite.frame = int(_anim_frame_t * ANIM_FPS) % sprite.hframes
 
 
 # Called by player bullets via _apply_enemy_hit → area.take_hit(damage).
