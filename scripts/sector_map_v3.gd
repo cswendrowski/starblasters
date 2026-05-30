@@ -507,19 +507,34 @@ const V3_TO_BACKDROP_PLANET_IDX := {
 # Each sector-map ROW is a star system: a star at the left edge (frac 0.0) and
 # the row's planet POIs strung left→right by their `frac` (0=near star, 1=far
 # right). When the player enters a node at `frac = C`, every body in the row is
-# STAGED by its distance from C: a body coincident with the current node renders
-# at BODY_SCALE_MAX; a body a full row-width away renders at BODY_SCALE_MIN.
-# (so: at the far-right node the star is small; a mid-row planet is large when
-# you enter a mid-row node — Roman's "middle of the row would be larger".)
-const BODY_SCALE_MAX := 1.0    # KNOB: scale of a body coincident with current node
-const BODY_SCALE_MIN := 0.18   # KNOB: scale of a body a full row-width away
+# STAGED by its distance from C. The body coincident with the current node
+# (distance 0) renders at BODY_SCALE_MAX (filling the screen); distant bodies
+# fall off VERY FAST via a steep exponential curve so space reads as vast.
+#
+# Curve (Roman v2, 2026-05-30): scale = exp(-FALLOFF_K * d) where d = |C - frac|
+# in [0,1]. This decays much faster than the old linear lerp:
+#   d=0.0 -> 1.00 (full)   d=0.2 -> 0.37   d=0.4 -> 0.14
+#   d=0.6 -> 0.05          d=0.8 -> 0.02   d=1.0 -> 0.007
+# `scale` is a 0..1 multiplier; the coordinator turns it into px via
+# planet_size (the size ceiling lives in backdrop_coordinator.planet_size /
+# SYS_SIZE_CEILING and the 2px-dot threshold lives there too).
+const BODY_SCALE_MAX := 1.0    # KNOB: scale of a body coincident with current node (full screen)
+const FALLOFF_K      := 5.0    # KNOB: exponential falloff steepness; bigger = distant bodies vanish faster
 # Cap on simultaneously-emitted PLANET bodies (the star is always included and
 # does NOT count against this). Keeps a busy 5-POI row from cluttering the
 # backdrop — we keep the planets NEAREST the current node (largest ones).
 const SYSTEM_MAX_PLANETS := 3  # KNOB: max planet bodies emitted alongside the star
+# Asteroid-belt amplification (Roman v2, 2026-05-30). When the current node IS
+# an asteroid_field, or is ADJACENT (immediate row neighbor) to one, the
+# decorative parallax asteroids get cranked across all 3 stellar layers so the
+# player feels embedded in a vast belt. GATED behind SYSTEM_BACKDROP_ENABLED so
+# the live combat path is unchanged until Roman flips the gate.
+const BELT_DENSITY_SELF     := 2.4  # KNOB: asteroid_density when current node IS a belt
+const BELT_DENSITY_ADJACENT := 1.6  # KNOB: asteroid_density when current node is NEXT TO a belt
 # Master gate for the per-row star-system backdrop (Roman v1, 2026-05-30).
 # OFF pending visual tuning of body size/overlap: when false, current_stellar
-# emits NO `system` array and the backdrop uses the original single-planet path.
+# emits NO `system` array, the backdrop uses the original single-planet path,
+# AND the belt-adjacency amplification above is inert (live path untouched).
 const SYSTEM_BACKDROP_ENABLED := false
 
 
@@ -595,11 +610,28 @@ func _compute_poi_stellar(poi: Dictionary, row_idx: int) -> Dictionary:
 	# DECORATIVE backdrop — real gameplay asteroids are spawned by main.gd /
 	# Levels.asteroid_field_level keyed off Run.current_hazard_subtype, untouched.
 	var is_asteroid_field: bool = String(poi.get("hazard_subtype", "")) == "asteroid_field"
+	# Belt adjacency (GATED): when the current node is next to a belt, we still
+	# want a planet backdrop here but with amped decorative asteroids drifting in
+	# from the neighboring field. Only consulted when SYSTEM_BACKDROP_ENABLED so
+	# the live path keeps today's behavior (no asteroids on non-field nodes).
+	var belt_adjacent: bool = SYSTEM_BACKDROP_ENABLED and _is_belt_adjacent(poi, row_idx)
 	if is_asteroid_field:
 		has_asteroids = true
 		# Cluster-grade density for a real field; the old OBJ_CLUSTER used 1.2.
-		asteroid_density = 1.2
+		# When the system backdrop is enabled, crank it to BELT_DENSITY_SELF so the
+		# field reads as a vast belt across all 3 stellar layers.
+		asteroid_density = BELT_DENSITY_SELF if SYSTEM_BACKDROP_ENABLED else 1.2
 		# An asteroid field has no planet of its own — asteroids ARE the backdrop.
+	elif belt_adjacent:
+		# Adjacent to a belt: keep this node's planet backdrop AND sprinkle dense
+		# drifting asteroids so the belt's edge is visible from here.
+		has_asteroids = true
+		asteroid_density = BELT_DENSITY_ADJACENT
+		var px_adj: float = PLANET_MIN_PX + float(deco_rng.randi() % 3) * 8.0
+		var frac_adj: float = (poi.pos.x - 128.0) / max(1.0, row_end_x - 128.0)
+		planet_type = _pick_planet_type(deco_rng, frac_adj)
+		planet_idx = int(V3_TO_BACKDROP_PLANET_IDX.get(planet_type, 0))
+		moons = _derive_moon_descriptors(String(poi.id), px_adj)
 	else:
 		# Every non-asteroid-field node gets a real planet backdrop. Previously
 		# the OBJ_LARGE_AST / OBJ_CLUSTER arms left planet_idx = -1 (the combat
@@ -647,6 +679,32 @@ func _compute_poi_stellar(poi: Dictionary, row_idx: int) -> Dictionary:
 #   1. randi() % 3          -> obj_kind            (matches :423)
 #   2. (only if PLANET) randi() % 3  -> the `px` draw (matches :433)
 #   3. _pick_planet_type(rng, frac)  -> planet_type (matches :435)
+# True when an immediate row-neighbor of `current_poi` is an asteroid_field.
+# Row POIs are generated left→right with monotonically increasing pos.x and
+# stored in that order (run_state._gen_row_pois), so the neighbors are simply
+# the entries at index±1. The current node itself being a field is handled by
+# the caller (is_asteroid_field) — this only reports NEIGHBORS.
+func _is_belt_adjacent(current_poi: Dictionary, row_idx: int) -> bool:
+	var run := get_node("/root/Run")
+	var rows: Array = run.sector_map_cache.get("rows", [])
+	if row_idx < 0 or row_idx >= rows.size():
+		return false
+	var pois: Array = rows[row_idx].get("pois", [])
+	var cur_id: String = String(current_poi.get("id", ""))
+	var idx: int = -1
+	for i in pois.size():
+		if String(pois[i].get("id", "")) == cur_id:
+			idx = i
+			break
+	if idx < 0:
+		return false
+	for n in [idx - 1, idx + 1]:
+		if n >= 0 and n < pois.size():
+			if String(pois[n].get("hazard_subtype", "")) == "asteroid_field":
+				return true
+	return false
+
+
 func _compute_row_system(current_poi: Dictionary, row_idx: int) -> Array:
 	if not SYSTEM_BACKDROP_ENABLED:
 		return []
@@ -707,10 +765,13 @@ func _compute_row_system(current_poi: Dictionary, row_idx: int) -> Array:
 
 
 # Staging scale for a body at `body_frac` viewed from current node `c`.
-# Coincident -> BODY_SCALE_MAX; a full row-width apart -> BODY_SCALE_MIN.
+# Coincident (d=0) -> BODY_SCALE_MAX; falls off on a STEEP exponential curve so
+# distant bodies shrink fast (sells the vastness of space). The returned scale
+# is intentionally NOT floored — the coordinator decides dot-vs-sprite from the
+# resulting raw px, so the far end must be allowed to approach ~0.
 func _stage_scale(c: float, body_frac: float) -> float:
 	var d: float = clampf(absf(c - body_frac), 0.0, 1.0)
-	return lerpf(BODY_SCALE_MAX, BODY_SCALE_MIN, d)
+	return BODY_SCALE_MAX * exp(-FALLOFF_K * d)
 
 
 # Deterministic moon list around a POI's planet. Same formula as the

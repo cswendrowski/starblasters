@@ -148,6 +148,31 @@ func spawn_system_body(planet_idx: int, actual_size: float, top_left: Vector2, p
 	_make_planet_halo(p, planet_idx, actual_size, top_left.x, top_left.y)
 
 
+# Render an EXTREME-DISTANCE body as a tiny glowing dot in `color` instead of a
+# sphere. Used by the row-system backdrop when a body's computed size drops below
+# the dot threshold (backdrop_coordinator.SYS_DOT_THRESHOLD_PX). The dot is a
+# small additive halo (so it reads as a glowing point of light) with a crisp
+# `dot_px` bright core on top. `center` is in LayerPlanet-local coords.
+func spawn_system_dot(center: Vector2, dot_px: float, color: Color) -> void:
+	# Soft additive glow behind the core so the point reads as luminous, not a
+	# flat pixel. Reuse the shared radial halo texture; keep it small (a few px)
+	# so distant bodies stay subtle.
+	var glow_color: Color = Color(color.r, color.g, color.b, 0.55)
+	_make_halo_sprite(center, dot_px * 4.0, glow_color)
+	# Crisp bright core — a 2px additive ColorRect, color pushed bright.
+	var core := ColorRect.new()
+	core.name = "SystemDot"
+	core.size = Vector2(dot_px, dot_px)
+	core.position = Vector2(round(center.x - dot_px * 0.5), round(center.y - dot_px * 0.5))
+	core.color = Color(min(color.r * 1.4, 1.0), min(color.g * 1.4, 1.0), min(color.b * 1.4, 1.0), 1.0)
+	core.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mat := CanvasItemMaterial.new()
+	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	core.material = mat
+	core.z_index = 1
+	add_child(core)
+
+
 func clear_planet() -> void:
 	_animated.clear()
 	for child in get_children():

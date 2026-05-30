@@ -36,7 +36,17 @@ const SYS_X_MAX        := 440.0   # KNOB: screen-x for frac 1.0 (far-right body)
 const SYS_Y_BASE       := -40.0   # KNOB: baseline top-y of a body's top-left
 const SYS_Y_JITTER     := 70.0    # KNOB: per-seed vertical spread band (px)
 const SYS_Y_LOWER_BIG  := 26.0    # KNOB: nearer/larger bodies sit this much lower
-const SYS_MIN_BODY_PX  := 18.0    # KNOB: clamp so distant bodies don't degenerate
+# Size ceiling for the NEAREST body (scale 1.0). Roman v2: the body at the
+# current node should FILL the screen — the playfield is 480×270, so a ceiling
+# of 330px makes the nearest body ~330px tall (taller than the 270 viewport;
+# partially off-frame is intended). `scale` (0..1) from _stage_scale multiplies
+# this. Distant bodies fall off fast via the exponential curve in sector_map_v3.
+const SYS_SIZE_CEILING := 330.0   # KNOB: px size of a body at scale 1.0 (fills screen)
+# Below this RAW px size (before any floor) a body is too far to read as a
+# sphere — render it as a ~2px glowing dot in its main color instead.
+const SYS_DOT_THRESHOLD_PX := 6.0 # KNOB: raw px under which a body becomes a 2px dot
+const SYS_DOT_PX           := 2.0 # KNOB: the glowing dot's core size (px)
+const SYS_MIN_BODY_PX  := 18.0    # KNOB: clamp so NON-dot bodies don't degenerate
 
 var _layer_stars: Node = null
 var _layer_planet: Node = null
@@ -161,16 +171,42 @@ func _spawn_system(system: Array) -> void:
 		var scale_f: float = float(b.get("scale", 1.0))
 		var frac: float = clampf(float(b.get("frac", 0.0)), 0.0, 1.0)
 		var star_color: Color = b.get("star_color", Color.WHITE)
-		var size_px: float = maxf(SYS_MIN_BODY_PX, planet_size * scale_f)
+		# RAW (unfloored) px from the size ceiling — this is what decides whether
+		# the body is close enough to render as a sphere or far enough to collapse
+		# to a glowing dot. Do NOT floor before this branch (see dot-threshold).
+		var raw_px: float = SYS_SIZE_CEILING * scale_f
 		# Position: x by frac across the comfortable spread; y is a per-seed
 		# jitter within the band, with larger (nearer) bodies nudged lower so
 		# they read as more central/present.
 		var jrng := RandomNumberGenerator.new()
 		jrng.seed = abs(p_seed) ^ 0x5A17C0DE
 		var center_x: float = lerpf(SYS_X_MIN, SYS_X_MAX, frac)
+		if raw_px < SYS_DOT_THRESHOLD_PX:
+			# Extreme distance: render a tiny additive glowing dot in the body's
+			# MAIN color instead of a degenerate sphere. The dot sits centered in
+			# the upper band (no big-body lower-nudge, it has no size to nudge).
+			var dot_color: Color = _body_main_color(p_idx, star_color)
+			var dot_y: float = SYS_Y_BASE + jrng.randf_range(0.0, SYS_Y_JITTER)
+			var dot_center: Vector2 = Vector2(center_x, dot_y)
+			if _layer_planet.has_method("spawn_system_dot"):
+				_layer_planet.spawn_system_dot(dot_center, SYS_DOT_PX, dot_color)
+			continue
+		# Close enough to read as a body — floor so it doesn't degenerate.
+		var size_px: float = maxf(SYS_MIN_BODY_PX, raw_px)
 		var y_top: float = SYS_Y_BASE + jrng.randf_range(0.0, SYS_Y_JITTER) + scale_f * SYS_Y_LOWER_BIG
 		var top_left: Vector2 = Vector2(center_x - size_px * 0.5, y_top)
 		_layer_planet.spawn_system_body(p_idx, size_px, top_left, p_seed, star_color)
+
+
+# Representative MAIN color for a far body's glowing dot. The star (planet_idx
+# 8) uses its actual star_color; planets use the per-type PLANET_TINT palette
+# (PixelPlanets are shader-driven ColorRects with no CPU-readable texture, so
+# _derive_color can't be used here — Roman 2026-05-30).
+func _body_main_color(planet_idx: int, star_color: Color) -> Color:
+	if planet_idx == 8:
+		return Color(star_color.r, star_color.g, star_color.b, 1.0)
+	var c: Color = PLANET_TINT.get(planet_idx, Color(0.8, 0.85, 1.0))
+	return Color(c.r, c.g, c.b, 1.0)
 
 
 func _apply_tints(planet_idx: int) -> void:
