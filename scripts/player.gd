@@ -51,6 +51,24 @@ var secondary_homing: bool = false  # true for seeking missile
 var secondary_pod_count: int = 1
 var secondary_pod_halfspan: float = 10.0  # px from center to outermost pod
 var _secondary_t: float = 0.0
+# Burst secondary (Rocket Pod). secondary_mode == BURST routes secondary
+# fire through _tick_burst: a trigger fires `secondary_burst_shots` rockets
+# one at a time at `secondary_burst_interval` apart (500 RPM = 0.12s),
+# alternating the spawn between the -port and +port on X, then locks out
+# for `secondary_burst_cooldown` seconds before another cycle can start.
+# Set by RocketPodCannon.apply() (Mk-scaled shots + the constants).
+var secondary_burst_shots: int = 2
+var secondary_burst_interval: float = 0.12
+var secondary_burst_cooldown: float = 1.0
+var secondary_burst_port_offset: float = 6.0
+# Transient burst state machine — runtime only, NOT part of the loadout
+# round-trip (the Part writes the stats above; these track the live cycle).
+# _burst_phase: 0 = idle/ready, 1 = firing a cycle, 2 = cooling down.
+var _burst_phase: int = 0
+var _burst_shots_left: int = 0
+var _burst_shot_t: float = 0.0
+var _burst_cool_t: float = 0.0
+var _burst_port_right: bool = false  # toggled each shot; false = -port first
 # Secondary ammo (Rocket Pod / Seeking Missile). -1 = unmetered (default
 # for Side Pods / Particle Beam / no secondary). >= 0 = counted; 0 =
 # empty, silently fails to fire. Seeded by the Part's apply() from
@@ -603,6 +621,9 @@ func _process(delta: float) -> void:
 	if secondary_mode == WS.SecondaryMode.BEAM:
 		var holding: bool = Input.is_action_pressed("shoot2")
 		_tick_beam(holding, delta)
+	elif secondary_mode == WS.SecondaryMode.BURST:
+		var burst_held: bool = Input.is_action_pressed("shoot2")
+		_tick_burst(burst_held, delta)
 	elif Input.is_action_pressed("shoot2"):
 		fire_secondary()
 	# Super weapon (X by default, single-tap, consumes a charge). Stub
@@ -979,6 +1000,72 @@ func fire_secondary() -> void:
 	# Decrement ONE per fire_secondary press regardless of pod_count — the
 	# pod_count is a visual fan, not a per-shot multiplier on ammo cost.
 	# (If we ever want pod_count to cost N rounds, change here.)
+	if secondary_ammo > 0:
+		secondary_ammo -= 1
+		secondary_ammo_changed.emit(secondary_ammo, secondary_ammo_max)
+		if has_node("/root/Run"):
+			get_node("/root/Run").secondary_ammo = secondary_ammo
+
+
+## Burst Rocket Pod ##
+
+# Burst-fire state machine for the Rocket Pod (secondary_mode == BURST).
+# Driven every frame with whether shoot2 is held.
+#   phase 0 (idle): a held trigger starts a cycle if not empty on ammo.
+#   phase 1 (firing): loose one rocket every secondary_burst_interval,
+#                     alternating -port / +port, until the cycle's shots
+#                     are spent, then enter cooldown.
+#   phase 2 (cooling): wait secondary_burst_cooldown, then return to idle.
+# Autofire (held trigger) automatically starts the next cycle once the
+# cooldown clears. Ammo is charged per rocket (one round per rocket).
+func _tick_burst(held: bool, delta: float) -> void:
+	if not is_alive:
+		return
+	match _burst_phase:
+		1:  # firing the current cycle
+			_burst_shot_t -= delta
+			while _burst_phase == 1 and _burst_shot_t <= 0.0 and _burst_shots_left > 0:
+				# Out of ammo mid-cycle: stop and cool down.
+				if secondary_ammo == 0:
+					_burst_shots_left = 0
+					break
+				_spawn_burst_rocket()
+				_burst_shots_left -= 1
+				_burst_shot_t += secondary_burst_interval
+			if _burst_shots_left <= 0:
+				_burst_phase = 2
+				_burst_cool_t = secondary_burst_cooldown
+		2:  # cooldown lockout
+			_burst_cool_t -= delta
+			if _burst_cool_t <= 0.0:
+				_burst_phase = 0
+		_:  # idle / ready
+			if held and secondary_bullet_scene != null and secondary_ammo != 0:
+				_burst_phase = 1
+				_burst_shots_left = max(1, secondary_burst_shots)
+				_burst_shot_t = 0.0
+				_burst_port_right = false  # first rocket from the -port
+
+
+# Spawn one rocket from the alternating wing port, charge one round of
+# ammo, and play the rocket SFX. Mirrors fire_secondary's spawn/ammo path
+# but for a single rocket at the toggled X offset.
+func _spawn_burst_rocket() -> void:
+	if secondary_bullet_scene == null:
+		return
+	var offset_x: float = secondary_burst_port_offset if _burst_port_right else -secondary_burst_port_offset
+	_burst_port_right = not _burst_port_right
+	var b: Node = secondary_bullet_scene.instantiate()
+	_bullet_parent().add_child(b)
+	if "damage_on_contact" in b:
+		b.damage_on_contact = secondary_damage
+	if "damage" in b:
+		b.damage = secondary_damage
+	b.start(position + Vector2(offset_x, 0))
+	var WeaponSfxBurst = load("res://scripts/effects/weapon_sfx.gd")
+	if WeaponSfxBurst:
+		WeaponSfxBurst.play(get_tree().root, global_position, "rocket")
+	# One round per rocket (per-rocket ammo cost).
 	if secondary_ammo > 0:
 		secondary_ammo -= 1
 		secondary_ammo_changed.emit(secondary_ammo, secondary_ammo_max)

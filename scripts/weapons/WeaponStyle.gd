@@ -38,6 +38,9 @@ static func style_name(s: int) -> String:
 enum SecondaryMode {
 	BULLET,    # standard projectile (rocket, missile, pods)
 	BEAM,      # hit-scan beam (particle beam)
+	BURST,     # burst-fire ordnance (Rocket Pod): N rockets at a fixed RPM,
+	           # alternating wing ports, then a fixed cooldown before the
+	           # next cycle. State machine lives in player._tick_burst.
 }
 
 
