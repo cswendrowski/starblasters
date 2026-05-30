@@ -1,21 +1,21 @@
-[gd_scene format=3 uid="uid://cyq0cbqqw6465"]
+[gd_scene format=3 uid="uid://divtx2h78j3pi"]
 
-[ext_resource type="Script" uid="uid://pqv25k2c52si" path="res://scripts/projectiles/base_missile.gd" id="1_script"]
-[ext_resource type="Texture2D" uid="uid://dikgfe45156qc" path="res://graphics/projectiles/missile.png" id="2_tex"]
+[ext_resource type="Script" uid="uid://pqv25k2c52si" path="res://scripts/projectiles/base_missile.gd" id="1_eyxx8"]
+[ext_resource type="Texture2D" uid="uid://c1xwejfrcoq1o" path="res://graphics/projectiles/missile_large.png" id="2_eyxx8"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
-size = Vector2(6, 8.5)
+size = Vector2(6, 16)
 
 [node name="DriftingMissile" type="Area2D" unique_id=618994227 groups=["enemies"]]
-script = ExtResource("1_script")
+script = ExtResource("1_eyxx8")
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=450670839]
 modulate = Color(1, 0.85, 0.7, 1)
-texture = ExtResource("2_tex")
+texture = ExtResource("2_eyxx8")
 hframes = 3
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=122742199]
 shape = SubResource("RectangleShape2D_1")
 
 [node name="exhaust_point" type="Marker2D" parent="." unique_id=480908495]
-position = Vector2(0, 4)
+position = Vector2(0, 8)

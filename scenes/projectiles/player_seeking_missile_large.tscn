@@ -1,0 +1,29 @@
+[gd_scene format=3 uid="uid://btrwmu1aogj5r"]
+
+[ext_resource type="Script" uid="uid://pqv25k2c52si" path="res://scripts/projectiles/base_missile.gd" id="1_cy77d"]
+[ext_resource type="Texture2D" uid="uid://c1xwejfrcoq1o" path="res://graphics/projectiles/missile_large.png" id="2_cy77d"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
+size = Vector2(6, 16)
+
+[node name="PlayerSeekingMissile" type="Area2D" unique_id=1350119224]
+z_index = -1
+script = ExtResource("1_cy77d")
+target_group = "enemies"
+drift_time = 0.5
+drift_speed = 73.0
+homing_accel = 720.0
+homing_max_speed = 540.0
+damage_on_contact = 3
+flame_trail = true
+initial_dir = Vector2(0, -1)
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1260301818]
+texture = ExtResource("2_cy77d")
+hframes = 3
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=35382132]
+shape = SubResource("RectangleShape2D_1")
+
+[node name="exhaust_point" type="Marker2D" parent="." unique_id=484846250]
+position = Vector2(0, 8)

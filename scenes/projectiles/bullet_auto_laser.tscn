@@ -24,8 +24,8 @@ speed = 1080
 [node name="Glow" type="Sprite2D" parent="." unique_id=294277692]
 modulate = Color(0.3, 0.6, 1, 0.85)
 z_index = -1
-position = Vector2(1.1920929e-07, 0.49999973)
-scale = Vector2(0.42343748, 0.78125)
+position = Vector2(-5.9604645e-08, -2.9802322e-08)
+scale = Vector2(0.34374997, 0.71875)
 texture = SubResource("GradientTexture2D_8xc78")
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1412851644]

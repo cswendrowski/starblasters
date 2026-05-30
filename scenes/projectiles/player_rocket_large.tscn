@@ -1,14 +1,14 @@
-[gd_scene format=3 uid="uid://bplyrkt0001"]
+[gd_scene format=3 uid="uid://ch6njfft6ofds"]
 
-[ext_resource type="Script" uid="uid://pqv25k2c52si" path="res://scripts/projectiles/base_missile.gd" id="1_script"]
-[ext_resource type="Texture2D" uid="uid://j88xtqkwfxoq" path="res://graphics/projectiles/rocket.png" id="2_tex"]
+[ext_resource type="Script" uid="uid://pqv25k2c52si" path="res://scripts/projectiles/base_missile.gd" id="1_f4m47"]
+[ext_resource type="Texture2D" uid="uid://b3o70o7qr6n5k" path="res://graphics/projectiles/rocket_large.png" id="2_f4m47"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
-size = Vector2(4.5, 8)
+size = Vector2(6, 16)
 
 [node name="PlayerRocket" type="Area2D" unique_id=234366825]
 z_index = -1
-script = ExtResource("1_script")
+script = ExtResource("1_f4m47")
 target_group = "enemies"
 drift_time = 0.05
 drift_speed = 480.0
@@ -21,11 +21,11 @@ flame_trail = true
 initial_dir = Vector2(0, -1)
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1486977977]
-texture = ExtResource("2_tex")
+texture = ExtResource("2_f4m47")
 hframes = 3
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=69431782]
 shape = SubResource("RectangleShape2D_1")
 
 [node name="exhaust_point" type="Marker2D" parent="." unique_id=1991817926]
-position = Vector2(0, 4)
+position = Vector2(0, 8)
