@@ -17,6 +17,10 @@ class_name ParallaxShadow
 # child for the elliptical shadow. The script's _process tracks the
 # ship's position.
 
+# Drop shadows disabled 2026-05-30 (Roman) — to be revisited in a dedicated
+# shadow pass. Flip to true to re-enable everywhere it's attached.
+const SHADOWS_ENABLED := false
+
 const SHADOW_OFFSET := Vector2(10, 14)
 # 60% transparent black per Roman, 2026-05-16: "60% transparent black
 # sprite would serve in most cases".
@@ -49,6 +53,8 @@ func _process(_delta: float) -> void:
 
 
 static func attach(ship: Node2D) -> Node:
+	if not SHADOWS_ENABLED:
+		return null
 	if ship == null or not is_instance_valid(ship):
 		return null
 	if ship.has_meta("parallax_shadow"):

@@ -7,6 +7,10 @@ extends Node
 # Designed to be called from _ready() of any Area2D/Node2D actor — no .tscn
 # edits required. Modeled on burn_fx.gd / trail_fx.gd for resource caching.
 
+# Drop shadows disabled 2026-05-30 (Roman) — revisit in a dedicated shadow
+# pass. Flip to true to re-enable everywhere it's attached.
+const SHADOWS_ENABLED := false
+
 const SHADOW_SHADER = preload("res://graphics/oblique_shadow.gdshader")
 
 # Defaults tuned for our 16x16 pixel-art ships rendered at 3x world scale.
@@ -27,6 +31,8 @@ static func attach_shadow(
 		opacity: float = DEFAULT_OPACITY,
 		softness_px: float = DEFAULT_SOFTNESS_PX
 ) -> Node:
+	if not SHADOWS_ENABLED:
+		return null
 	if host_sprite == null or not is_instance_valid(host_sprite):
 		return null
 	if not (host_sprite is Sprite2D or host_sprite is AnimatedSprite2D):
