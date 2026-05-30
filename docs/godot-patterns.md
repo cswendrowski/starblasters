@@ -190,6 +190,10 @@ For star fields specifically, the V3 procedural approach (random `ColorRect` pos
 
 **Discovered:** 2026-05-29, warning sweep
 
+**⚠️ DANGER — `:=` on a Variant value is a HARD COMPILE ERROR, not a warning.** A blanket `var x = …` → `var x := …` migration WILL break the build wherever the right-hand side is Variant-typed: a call on an untyped variable, a function with no return-type annotation, an untyped array index, `get_node_or_null(...)` on an untyped var, etc. Godot reports "Cannot infer the type of X because the value doesn't have a set type." Only use `:=` where the RHS type is statically known; otherwise leave `var x = …` (untyped — a benign warning) or add an explicit `var x: Type = …`.
+
+**Verification trap:** `tools/parse_check.ps1` (scene-load check) gave a FALSE PASS on these errors — it didn't recompile the scripts the way a real boot does. **To verify GDScript actually compiles, boot the scene headless** (`godot --path . --headless res://scenes/<scene>.tscn --quit-after 60` and grep for `SCRIPT ERROR|Parse Error|Cannot infer|Failed to load`), not just parse_check. A blanket `:=` migration broke `main.tscn` (New Game crash) and sat undetected behind a green parse_check until playtest. **Discovered:** 2026-05-29.
+
 ---
 
 ## Boss stats must be set before `super._ready()`
