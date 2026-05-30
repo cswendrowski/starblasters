@@ -1,8 +1,4 @@
-<<<<<<< Updated upstream
-[gd_scene load_steps=8 format=3]
-=======
-[gd_scene format=3 uid="uid://cj2abfdml4uip"]
->>>>>>> Stashed changes
+[gd_scene load_steps=8 format=3 uid="uid://cj2abfdml4uip"]
 
 [ext_resource type="PackedScene" uid="uid://iqys12s5srvb" path="res://scenes/projectiles/enemy_bullet.tscn" id="1_base"]
 [ext_resource type="Resource" path="res://data/bullets/burst_round.tres" id="2_variant"]
