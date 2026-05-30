@@ -6,7 +6,7 @@ extends "res://scripts/projectiles/base_bullet.gd"
 # tracks "which enemies have already been hit" and only kills the bullet
 # once the per-bullet budget is spent.
 
-const GlowFX = preload("res://scripts/effects/glow_fx.gd")
+const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
 
 # Roman, 2026-05-18 weapon balance: 5 -> 3 so wave can't drill through
 # a whole boss formation in a single shot.
@@ -28,13 +28,9 @@ func _ready() -> void:
 
 
 func _apply_visuals() -> void:
-	# Scenes that embed their own "Glow" Sprite2D child (the new
-	# bullet_wave_small / bullet_wave_large) opt out of the procedural
-	# halo so we don't double-stack glows. Legacy bullet_wave.tscn (no
-	# Glow child) still gets the teal halo for back-compat.
-	if has_node("Glow"):
-		return
-	GlowFX.attach_glow(self, Color(0.55, 0.95, 0.85, 1.0), 1.1, 0.7)
+	# Subtle shader halo, color auto-derived from the wave sprite. Replaces
+	# both the old scene "Glow" children and the procedural GlowFX halo.
+	GlowShaderFx.apply_to_host(self)
 
 
 # Override the per-hit consumption: skip enemies we've already tagged,

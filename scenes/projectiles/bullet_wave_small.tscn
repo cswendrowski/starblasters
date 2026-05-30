@@ -6,17 +6,6 @@
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_wave_small"]
 size = Vector2(16, 8)
 
-[sub_resource type="Gradient" id="Gradient_wave_glow"]
-colors = PackedColorArray(0.6, 0.8980392, 0.3137255, 1, 0.6, 0.8980392, 0.3137255, 0)
-
-[sub_resource type="GradientTexture2D" id="GradientTexture2D_rvhoi"]
-gradient = SubResource("Gradient_wave_glow")
-width = 32
-height = 32
-fill = 1
-fill_from = Vector2(0.5, 0.5)
-fill_to = Vector2(1, 0.5)
-
 [node name="BulletWaveSmall" type="Area2D" unique_id=1884644584]
 script = ExtResource("1_script")
 
@@ -25,12 +14,5 @@ texture = ExtResource("2_tex")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=172856150]
 shape = SubResource("RectangleShape2D_wave_small")
-
-[node name="Glow" type="Sprite2D" parent="." unique_id=1189244979]
-modulate = Color(0.3, 1, 0.5, 0.85)
-z_index = -1
-position = Vector2(0, 1)
-scale = Vector2(0.74999994, 0.43749997)
-texture = SubResource("GradientTexture2D_rvhoi")
 
 [connection signal="area_entered" from="." to="." method="_on_area_entered"]

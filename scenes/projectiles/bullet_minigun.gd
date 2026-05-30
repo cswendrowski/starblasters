@@ -4,6 +4,9 @@ extends "res://scripts/projectiles/base_bullet.gd"
 # bullet pipeline so it goes through take_hit + bulwark-shielded check
 # instead of the legacy `area.health -=` path it used to.
 
+const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
+
+
 func _init() -> void:
 	target_group = "enemies"
 	velocity_dir = Vector2(0, -1)
@@ -23,3 +26,9 @@ func _ready() -> void:
 		if s.hframes > 1:
 			s.frame = randi() % s.hframes
 	super._ready()
+
+
+func _apply_visuals() -> void:
+	# Subtle shader halo, color auto-derived from the tracer sprite (warm
+	# amber). Replaces the removed scene "Glow" child.
+	GlowShaderFx.apply_to_host(self)

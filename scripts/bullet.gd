@@ -4,7 +4,7 @@ extends "res://scripts/projectiles/base_bullet.gd"
 # BaseBullet; this script just sets player-side defaults (heads up,
 # damages enemies) and attaches the cyan glow / optional trail.
 
-const GlowFX = preload("res://scripts/effects/glow_fx.gd")
+const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
 const TrailFX = preload("res://scripts/trail_fx.gd")
 
 
@@ -20,8 +20,9 @@ func _init() -> void:
 
 
 func _apply_visuals() -> void:
-	# Cyan glow halo — sized just slightly larger than the bullet sprite so
-	# it reads as a charged shot without painting the screen.
-	GlowFX.attach_glow(self, Color(0.55, 0.9, 1.0), 0.75, 0.6)
+	# Subtle shader halo, color auto-derived from the bullet sprite (cyan
+	# bolts glow cyan, etc.). Replaces the old radial GlowFX + scene "Glow"
+	# child. See scripts/effects/glow_shader_fx.gd.
+	GlowShaderFx.apply_to_host(self)
 	if guided:
 		TrailFX.attach_trail(self, true)

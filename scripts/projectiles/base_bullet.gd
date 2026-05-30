@@ -157,10 +157,9 @@ func _apply_variant() -> void:
 				pass
 
 	# --- glow color ---
-	# Modulate the scene's "Glow" child (additive halo sprite in enemy_bullet.tscn).
-	var glow: Node2D = get_node_or_null("Glow") as Node2D
-	if glow != null:
-		glow.modulate = variant.glow_color
+	# The shader halo (glow_shader_fx) reads variant.glow_color in the
+	# subclass _apply_visuals; nothing to do here. The old scene "Glow"
+	# child has been removed from all projectile scenes.
 
 	# --- telegraph flash ---
 	if variant.telegraph_flash:
@@ -171,12 +170,12 @@ func _apply_variant() -> void:
 		_wobble_active = true
 
 
-# Return the bullet's own Sprite2D (NOT the Glow node). Creates a child
-# named "BulletSprite" if none exists.
+# Return the bullet's own Sprite2D (NOT the shader-glow halo). Creates a
+# child named "BulletSprite" if none exists.
 func _get_bullet_sprite() -> Sprite2D:
-	# First look for an existing non-Glow Sprite2D child.
+	# First look for an existing bullet Sprite2D child (skip the glow halo).
 	for child in get_children():
-		if child is Sprite2D and child.name != "Glow":
+		if child is Sprite2D and child.name != "ShaderGlow":
 			return child as Sprite2D
 	# Create one if missing.
 	var s := Sprite2D.new()

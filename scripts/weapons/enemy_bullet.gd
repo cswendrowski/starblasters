@@ -4,7 +4,7 @@ extends "res://scripts/projectiles/base_bullet.gd"
 # the unified pipeline (BaseBullet handles offscreen kill + damage
 # routing); this script just sets enemy-side defaults and visuals.
 
-const GlowFX = preload("res://scripts/effects/glow_fx.gd")
+const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
 const TrailFX = preload("res://scripts/trail_fx.gd")
 
 
@@ -15,14 +15,9 @@ func _init() -> void:
 
 
 func _apply_visuals() -> void:
-	# When a BulletVariant is active its glow_color already drove the scene's
-	# "Glow" child (or will be applied via GlowFX below), so skip the default
-	# orange-red halo to avoid overpainting the variant color.
-	if variant == null:
-		GlowFX.attach_glow(self, Color(1.0, 0.55, 0.25), 0.75, 0.6)
-	else:
-		# Attach a programmatic glow using the variant's color, since
-		# enemy_bullet.tscn's Glow node was already colored in _apply_variant.
-		GlowFX.attach_glow(self, variant.glow_color, 0.75, 0.6)
+	# Subtle shader halo, color AUTO-DERIVED from the bullet sprite (brightest
+	# non-white pixel) — no per-weapon authoring. BulletVariant.glow_color is
+	# now vestigial for glow purposes (see scripts/projectiles/bullet_variant.gd).
+	GlowShaderFx.apply_to_host(self)
 	if guided:
 		TrailFX.attach_trail(self, false)

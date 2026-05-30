@@ -49,8 +49,3 @@ frame_progress = 0.0
 [node name="CollisionShape2D" parent="." index="1" unique_id=834368476]
 visible = true
 shape = SubResource("Shape_snp")
-
-[node name="Glow" parent="." index="3" unique_id=2066727736]
-modulate = Color(1, 1, 1, 0.5019608)
-position = Vector2(7.1054274e-15, -1)
-scale = Vector2(0.56249994, 1.0625)

@@ -22,17 +22,6 @@ animations = [{
 [sub_resource type="RectangleShape2D" id="Shape_lsr"]
 size = Vector2(3, 8)
 
-[sub_resource type="Gradient" id="Gradient_glow"]
-colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0)
-
-[sub_resource type="GradientTexture2D" id="GradientTexture2D_oyeob"]
-gradient = SubResource("Gradient_glow")
-width = 32
-height = 32
-fill = 1
-fill_from = Vector2(0.5, 0.5)
-fill_to = Vector2(1, 0.5)
-
 [node name="EnemyBullet" unique_id=1673724191 instance=ExtResource("1_base")]
 variant = ExtResource("2_variant")
 speed = 350.0
@@ -45,9 +34,3 @@ frame_progress = 0.0
 
 [node name="CollisionShape2D" parent="." index="1" unique_id=834368476]
 shape = SubResource("Shape_lsr")
-
-[node name="Glow" parent="." index="3" unique_id=2066727736]
-modulate = Color(1, 0.1882353, 1, 0.7372549)
-position = Vector2(4.7683716e-07, 0)
-scale = Vector2(0.31250006, 0.6875)
-texture = SubResource("GradientTexture2D_oyeob")
