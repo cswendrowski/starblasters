@@ -51,6 +51,10 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	# base_bullet drives movement in _process — must call super or the rocket
+	# sits still (regression fix 2026-05-30: the thruster frame loop override
+	# was eating the movement step).
+	super._process(delta)
 	# Thruster frame loop (no-op for single-frame sheets)
 	if has_node("Sprite2D"):
 		var sprite: Sprite2D = $Sprite2D
