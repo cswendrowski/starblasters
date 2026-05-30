@@ -29,10 +29,9 @@ extends Node
 const GLOW_SHADER: Shader = preload("res://scripts/effects/glow_halo.gdshader")
 
 # --- Tuning knobs (designer-facing) -----------------------------------------
-# Outer halo width in *texture* pixels, added on every edge. 2-3 px per the
-# brief. Per-axis scale is computed from this so thin bolts and fat orbs get
-# the same visual halo width.
-const HALO_PX: float = 2.5
+# Outer halo width in *texture* pixels, added on every edge. Per-axis scale is
+# computed from this so thin bolts and fat orbs get the same visual halo width.
+const HALO_PX: float = 5.0
 # Overall additive brightness of the halo. Subtle but present.
 const INTENSITY: float = 0.55
 # Saturation/value gates for "is this pixel a usable, non-white color".
@@ -235,8 +234,10 @@ static func _derive_color(tex: Texture2D) -> Color:
 					sat = (mx - mn) / mx
 				var is_near_white: bool = sat < MIN_SAT and mx > MAX_WHITE_VALUE
 				if sat >= MIN_SAT and not is_near_white:
-					# Favor bright AND saturated colors.
-					var score: float = mx * sat
+					# Pick the BRIGHTEST non-white pixel (Roman 2026-05-30): value*saturation
+						# grabbed the saturated rim/edge instead of the bright body.
+						# sat>=MIN_SAT still skips greys; brightest colored pixel wins.
+					var score: float = mx
 					if score > best_score:
 						best_score = score
 						best = Color(px.r, px.g, px.b, 1.0)
