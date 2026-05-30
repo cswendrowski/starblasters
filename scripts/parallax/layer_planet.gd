@@ -42,6 +42,10 @@ const POI_MOON_SCENE := "res://Planets/NoAtmosphere/NoAtmosphere.tscn"
 var _planet_node: Node = null
 var _planet_actual_size: float = 0.0
 
+const ANIM_SPEED: float = 0.30   # 70% slower than real-time
+var _anim_time: float = 0.0
+var _animated: Array = []   # planet nodes to drive update_time on
+
 
 func _duplicate_materials(root: Node) -> void:
 	for child in root.get_children():
@@ -87,7 +91,9 @@ func spawn_planet(planet_idx: int, actual_size: float, rng: RandomNumberGenerato
 		if p.has_method("set_rotates"): p.set_rotates(rng.randf() < 0.7)
 		if p.has_method("set_dither"):  p.set_dither(rng.randf() < 0.5)
 	if "override_time" in p:
-		p.override_time = false
+		p.override_time = true
+	if p.has_method("update_time"):
+		_animated.append(p)
 	# Star-color wash on the planet — matches the sector map's planet modulate.
 	if p is CanvasItem:
 		p.modulate = Color.WHITE.lerp(star_color, 0.18)
@@ -100,6 +106,7 @@ func spawn_planet(planet_idx: int, actual_size: float, rng: RandomNumberGenerato
 
 
 func clear_planet() -> void:
+	_animated.clear()
 	for child in get_children():
 		if child is not CanvasModulate:
 			child.queue_free()
@@ -107,6 +114,13 @@ func clear_planet() -> void:
 
 func _on_reset() -> void:
 	clear_planet()
+
+
+func _process(delta: float) -> void:
+	_anim_time += delta * ANIM_SPEED
+	for n in _animated:
+		if is_instance_valid(n) and n.has_method("update_time"):
+			n.update_time(_anim_time)
 
 
 # Pixel cell count for a body of `displayed_size` viewport-px at the
@@ -301,7 +315,9 @@ func _spawn_companion_body(scene_path: String, rng: RandomNumberGenerator, plane
 	var sf: float = actual_size / 100.0
 	p.scale = Vector2(sf, sf)
 	if "override_time" in p:
-		p.override_time = false
+		p.override_time = true
+	if p.has_method("update_time"):
+		_animated.append(p)
 	if p.has_method("set_seed"):
 		p.set_seed(rng.randi() % 100000)
 	if p.has_method("randomize_colors"):
@@ -361,7 +377,9 @@ func attach_moons(moons: Array) -> void:
 		var sf: float = actual_size / 100.0
 		p.scale = Vector2(sf, sf)
 		if "override_time" in p:
-			p.override_time = false
+			p.override_time = true
+		if p.has_method("update_time"):
+			_animated.append(p)
 		# Deterministic per-moon seed — same POI revisit reproduces the
 		# same moon surfaces. Skip randomize_colors so the descriptor's
 		# `color` field drives the visible tint (spec: "color should be

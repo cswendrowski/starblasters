@@ -5,7 +5,7 @@
 [node name="LayerStellarFar" type="CanvasLayer"]
 layer = -6
 script = ExtResource("1_stellar")
-scroll_rate = 0.25
+scroll_rate = 0.2
 brightness = 0.2
 contrast = 0.0
 asteroid_count = 4
