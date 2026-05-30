@@ -292,7 +292,7 @@ const VARIANT_SCENES := [
 
 
 static func build_minefield_level():
-	var rng := RandomNumberGenerator.new()
+	var rng = RandomNumberGenerator.new()
 	rng.randomize()
 	# Dev override: minefield tester can force a specific mine type.
 	# Roman 2026-05-18. Consumed once.
@@ -323,7 +323,7 @@ static func build_minefield_level():
 		base_scene = _scene_by_name(VARIANT_SCENES[rng.randi() % VARIANT_SCENES.size()])
 
 	# Pick 3 distinct pattern templates.
-	var indices := []
+	var indices = []
 	while indices.size() < 3:
 		var i: int = rng.randi() % HAZARD_PATTERNS.size()
 		if not indices.has(i):
@@ -354,8 +354,8 @@ static func build_minefield_level():
 		var variant_total: int = max(1, int(round(float(total_basic) * variant_pct)))
 		# Pick a single variant type for this sprinkle pass so the pattern
 		# reads as "mostly basic with N shielded mines mixed in".
-		var sprinkle_scene := _scene_by_name(VARIANT_SCENES[rng.randi() % VARIANT_SCENES.size()])
-		var sprinkle := WaveSpec.new()
+		var sprinkle_scene = _scene_by_name(VARIANT_SCENES[rng.randi() % VARIANT_SCENES.size()])
+		var sprinkle = WaveSpec.new()
 		sprinkle.enemy_scene = sprinkle_scene
 		sprinkle.count = variant_total
 		sprinkle.spawn_interval = max(0.5, 6.0 / float(variant_total))
@@ -516,7 +516,7 @@ static func _invoke_pattern(name: String, scene, delay: float, lead: bool) -> Ar
 # producing a diamond shape as the rows drift down the screen.
 static func _pattern_diamond(scene, delay: float, lead: bool) -> Array:
 	var waves: Array = []
-	var widths := [80.0, 56.0, 32.0, 56.0, 80.0]
+	var widths = [80.0, 56.0, 32.0, 56.0, 80.0]
 	for i in widths.size():
 		var w = WaveSpec.new()
 		w.enemy_scene = scene
@@ -554,7 +554,7 @@ static func _pattern_checkerboard(scene, delay: float, lead: bool) -> Array:
 # producing a "concentric circle" feel as the mines descend.
 static func _pattern_rings(scene, delay: float, lead: bool) -> Array:
 	var waves: Array = []
-	var rings := [30.0, 60.0, 90.0, 60.0, 30.0]
+	var rings = [30.0, 60.0, 90.0, 60.0, 30.0]
 	for i in rings.size():
 		var w = WaveSpec.new()
 		w.enemy_scene = scene
