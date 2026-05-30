@@ -29,9 +29,15 @@ extends Node
 const GLOW_SHADER: Shader = preload("res://scripts/effects/glow_halo.gdshader")
 
 # --- Tuning knobs (designer-facing) -----------------------------------------
-# Outer halo width in *texture* pixels, added on every edge. Per-axis scale is
-# computed from this so thin bolts and fat orbs get the same visual halo width.
-const HALO_PX: float = 5.0
+# Outer halo MARGIN in *texture* pixels, added on every edge. This is the
+# transparent room the bloom fades into; it MUST exceed BLUR_PX so the haze
+# reaches zero before the quad edge (otherwise it gets cut off as a hard rect).
+const HALO_PX: float = 7.0
+# Bloom reach in native texture pixels (how far the alpha is spread/blurred).
+# Kept under HALO_PX so the soft tail fully fades inside the quad.
+const BLUR_PX: float = 4.0
+# Falloff exponent: >1 keeps a brighter core with a faster-fading tail (bloom).
+const FALLOFF: float = 1.6
 # Overall additive brightness of the halo. Subtle but present.
 const INTENSITY: float = 0.55
 # Saturation/value gates for "is this pixel a usable, non-white color".
@@ -119,7 +125,12 @@ static func apply(host: CanvasItem, color_override: Color = Color(0, 0, 0, 0)) -
 	# default is nearest). The shader samples the builtin TEXTURE so this
 	# node-level filter applies to it.
 	glow.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-	glow.material = _get_material(color)
+	# quad_scale tells the shader how to map this enlarged quad's UV back onto
+	# the native sprite rect (so the bloom fades into the transparent margin).
+	# It varies per aspect ratio, so it MUST be part of the material cache key —
+	# sharing one material across different-aspect bullets would mis-size the
+	# bloom (a thin bolt's scale leaking onto a round orb, etc.).
+	glow.material = _get_material(color, Vector2(sx, sy))
 
 	# Parent behind the host's own sprite. The host is the Sprite2D /
 	# AnimatedSprite2D; add the glow as its sibling under the host's parent so
@@ -177,17 +188,22 @@ static func _host_texture(host: CanvasItem) -> Texture2D:
 	return null
 
 
-# Shared material per glow color. The shader reads the builtin TEXTURE off
-# the glow node, so the texture is NOT part of the material — every bullet
-# with the same derived color shares one material.
-static func _get_material(color: Color) -> ShaderMaterial:
-	var key: String = color.to_html(true)
+# Shared material per (glow color, quad scale). The shader reads the builtin
+# TEXTURE off the glow node, so the texture is NOT part of the material — but
+# quad_scale (the per-axis upscale of this quad) IS a shader uniform and varies
+# by sprite aspect ratio, so it belongs in the key: bullets that share both a
+# color AND an aspect-derived scale share one material.
+static func _get_material(color: Color, quad_scale: Vector2) -> ShaderMaterial:
+	var key: String = "%s|%.3f|%.3f" % [color.to_html(true), quad_scale.x, quad_scale.y]
 	if _mat_cache.has(key):
 		return _mat_cache[key]
 	var mat := ShaderMaterial.new()
 	mat.shader = GLOW_SHADER
 	mat.set_shader_parameter("glow_color", color)
 	mat.set_shader_parameter("intensity", INTENSITY)
+	mat.set_shader_parameter("blur_px", BLUR_PX)
+	mat.set_shader_parameter("falloff", FALLOFF)
+	mat.set_shader_parameter("quad_scale", quad_scale)
 	_mat_cache[key] = mat
 	return mat
 
