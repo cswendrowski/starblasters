@@ -4,8 +4,6 @@ extends Control
 # can cycle through planet variants + nebula styles independently and
 # inspect the rendering. Accessible from main menu.
 
-const Backdrop = preload("res://scripts/galaxy_backdrop.gd")
-
 const PLANET_NAMES = [
 	"LavaWorld", "IceWorld", "DryTerran", "GasPlanet", "NoAtmosphere",
 	"LandMasses", "BlackHole", "Galaxy", "Star",
@@ -86,42 +84,32 @@ func _ready() -> void:
 	_wire_sliders()
 	_wire_ships_tab()
 	_spawn_showcase()
-	_spawn_backdrop()
+	_install_dark_background()
 
-# Read planet/nebula settings from main.tscn's Backdrop node and stash them
-# as the initial _tweak_overrides so the testbed mirrors the real game.
+# Stub: no longer syncs backdrop defaults (V1 backdrop removed).
 func _sync_defaults_from_main() -> void:
-	var ps = load("res://scenes/main.tscn")
-	if ps == null:
-		return
-	var inst = ps.instantiate()
-	var bd = inst.get_node_or_null("Backdrop")
-	if bd:
-		var keys = [
-			"planet_size", "planet_size_variance", "planet_pixels", "asteroid_pixels",
-			"asteroid_count", "drift_speed", "surface_time_scale",
-			"nebula_pixels", "nebula_octaves", "nebula_drift", "nebula_alpha",
-			"nebula_density", "nebula_edge", "nebula_scale", "starfield_density",
-		]
-		for k in keys:
-			if k in bd:
-				_tweak_overrides[k] = bd.get(k)
-	inst.queue_free()
+	pass
 
 # --- Spawning ---
 
-func _spawn_backdrop() -> void:
+func _install_dark_background() -> void:
 	if _current_bd != null and is_instance_valid(_current_bd):
 		_current_bd.queue_free()
-	var bd = Backdrop.new()
-	bd.name = "Backdrop"
-	bd.forced_planet_idx = _current_planet_idx if _planet_forced else -1
-	# Apply all overrides BEFORE add_child so _ready uses them
-	for prop in _tweak_overrides.keys():
-		if prop in bd:
-			bd.set(prop, _tweak_overrides[prop])
-	stage.add_child(bd)
-	_current_bd = bd
+	var bg := ColorRect.new()
+	bg.name = "DarkBackground"
+	bg.color = Color(0.04, 0.04, 0.07, 1.0)
+	bg.anchor_left = 0.0
+	bg.anchor_top = 0.0
+	bg.anchor_right = 1.0
+	bg.anchor_bottom = 1.0
+	bg.offset_left = 0.0
+	bg.offset_top = 0.0
+	bg.offset_right = 0.0
+	bg.offset_bottom = 0.0
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bg.z_index = -100
+	stage.add_child(bg)
+	_current_bd = bg
 	await get_tree().process_frame
 	_update_info()
 
@@ -227,40 +215,18 @@ func _update_info() -> void:
 	nebula_stats_label.text = _build_nebula_stats()
 
 func _build_planet_stats() -> String:
-	var bd = _current_bd
-	var planet = null
-	for c in bd.get_children():
-		if c.has_meta("planet_actual_size"):
-			planet = c
-			break
-	var lines: Array = []
-	lines.append("size:     %d" % int(bd.planet_size))
-	lines.append("variance: %.2f" % bd.planet_size_variance)
-	lines.append("drift:    %.1f" % bd.drift_speed)
-	lines.append("pixels:   %d" % int(bd.planet_pixels))
-	if planet:
-		var act: float = float(planet.get_meta("planet_actual_size"))
-		lines.append("actual:   %d" % int(act))
-		lines.append("scale:    %.2fx" % (act / 100.0))
-		var voff: float = -planet.position.y / max(act, 1.0)
-		lines.append("y_offset: %.2f" % voff)
-	return "\n".join(lines)
+	# Backdrop removed (V1); planet stats unavailable
+	return "(backdrop removed)"
 
 func _build_nebula_stats() -> String:
-	var bd = _current_bd
-	var lines: Array = []
-	lines.append("neb_pixels:  %d" % int(bd.nebula_pixels))
-	lines.append("neb_octaves: %d" % int(bd.nebula_octaves))
-	lines.append("neb_drift:   %.3f" % bd.nebula_drift)
-	lines.append("starfield:   %d" % int(bd.starfield_density))
-	return "\n".join(lines)
+	# Backdrop removed (V1); nebula stats unavailable
+	return "(backdrop removed)"
 
 # --- Slider wiring ---
 
 func _wire_sliders() -> void:
 	if tabs == null:
 		return
-	var defaults_src = Backdrop.new()
 	# Walk both tabs
 	for tab in [tabs.get_node("Planet"), tabs.get_node("Nebula")]:
 		for row in tab.get_children():
@@ -272,8 +238,8 @@ func _wire_sliders() -> void:
 			if sld == null:
 				continue
 			var prop: String = sld.get_meta("prop")
-			# Initialize from script default OR existing override
-			var v: float = float(defaults_src.get(prop)) if (prop in defaults_src) else sld.value
+			# Initialize from existing override or use slider default
+			var v: float = sld.value
 			if _tweak_overrides.has(prop):
 				v = _tweak_overrides[prop]
 			sld.value = v
@@ -281,7 +247,6 @@ func _wire_sliders() -> void:
 			_update_slider_label(row)
 			sld.value_changed.connect(_on_slider_changed.bind(row))
 			sld.drag_ended.connect(_on_slider_drag_ended.bind(row))
-	defaults_src.queue_free()
 
 func _update_slider_label(row: VBoxContainer) -> void:
 	var sld = row.get_node("Slider")
@@ -297,58 +262,30 @@ func _on_slider_changed(value, row) -> void:
 	var prop: String = sld.get_meta("prop")
 	_tweak_overrides[prop] = value
 	_update_slider_label(row)
-	if prop in LIVE_PROPS and _current_bd != null and is_instance_valid(_current_bd):
-		_current_bd.set(prop, value)
-		if prop == "planet_pixels" or prop == "asteroid_pixels":
-			for c in _current_bd.get_children():
-				_current_bd._apply_pixels_only(c, value)
-		else:
-			# Nebula shader-uniform map: prop name -> uniform name
-			var neb_uniforms = {
-				"nebula_drift": "drift_speed",
-				"nebula_alpha": "max_alpha",
-				"nebula_density": "density",
-				"nebula_edge": "edge_sharpness",
-				"nebula_scale": "scale",
-				"nebula_octaves": "octaves",
-				"nebula_pixels": "pixels",
-			}
-			if prop in neb_uniforms:
-				for c in _current_bd.get_children():
-					if c.name == "Nebula" and c.material is ShaderMaterial:
-						var uname: String = neb_uniforms[prop]
-						# octaves is int
-						if uname == "octaves":
-							c.material.set_shader_parameter(uname, int(value))
-						else:
-							c.material.set_shader_parameter(uname, value)
+	# Backdrop-specific slider changes no longer apply (V1 backdrop removed)
 
 func _on_slider_drag_ended(value_changed: bool, row) -> void:
 	if not value_changed:
 		return
-	var sld = row.get_node("Slider")
-	var prop: String = sld.get_meta("prop")
-	if prop in LIVE_PROPS:
-		return
-	_spawn_backdrop()
+	# Backdrop respawn no longer applies (V1 backdrop removed)
 
 # --- Planet controls ---
 
 func _on_planet_prev() -> void:
 	_planet_forced = true
 	_current_planet_idx = (_current_planet_idx - 1 + PLANET_NAMES.size()) % PLANET_NAMES.size()
-	_spawn_backdrop()
+	_install_dark_background()
 
 func _on_planet_next() -> void:
 	_planet_forced = true
 	_current_planet_idx = (_current_planet_idx + 1) % PLANET_NAMES.size()
-	_spawn_backdrop()
+	_install_dark_background()
 
 func _on_planet_random() -> void:
 	_planet_forced = false
 	if has_node("/root/Run"):
 		get_node("/root/Run").run_seed = randi()
-	_spawn_backdrop()
+	_install_dark_background()
 
 # --- Nebula controls ---
 
@@ -357,21 +294,21 @@ func _on_nebula_prev() -> void:
 	_current_nebula_idx = (_current_nebula_idx - 1 + NEBULA_PRESETS.size()) % NEBULA_PRESETS.size()
 	_apply_nebula_preset(_current_nebula_idx)
 	_sync_sliders_from_overrides()
-	_spawn_backdrop()
+	_install_dark_background()
 
 func _on_nebula_next() -> void:
 	_nebula_forced = true
 	_current_nebula_idx = (_current_nebula_idx + 1) % NEBULA_PRESETS.size()
 	_apply_nebula_preset(_current_nebula_idx)
 	_sync_sliders_from_overrides()
-	_spawn_backdrop()
+	_install_dark_background()
 
 func _on_nebula_random() -> void:
 	# Randomize nebula seed (not preset) — keeps preset but new pattern
 	_nebula_forced = false
 	if has_node("/root/Run"):
 		get_node("/root/Run").run_seed = randi()
-	_spawn_backdrop()
+	_install_dark_background()
 
 func _apply_nebula_preset(idx: int) -> void:
 	if idx < 0 or idx >= NEBULA_PRESETS.size():
@@ -406,4 +343,4 @@ func _on_back() -> void:
 func _on_randomize() -> void:
 	if has_node("/root/Run"):
 		get_node("/root/Run").run_seed = randi()
-	_spawn_backdrop()
+	_install_dark_background()

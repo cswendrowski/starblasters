@@ -5,7 +5,6 @@ extends Control
 # Shipyard). Reached from a single "Dev Menu" button on the main menu so
 # the main menu itself stays focused on player-facing entries.
 
-const BACKDROP_SCRIPT = preload("res://scripts/galaxy_backdrop.gd")
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 
@@ -16,24 +15,20 @@ var _grid: GridContainer = null
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_install_backdrop()
+	_install_dark_background()
 	_build_ui()
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("menu")
 
 
-func _install_backdrop() -> void:
-	var bd := Node2D.new()
-	bd.name = "Backdrop"
-	bd.set_script(BACKDROP_SCRIPT)
-	bd.set("drift_speed", 10.0)
-	bd.set("starfield_density", 30.0)
-	bd.set("starfield_scroll", 5.0)
-	bd.set("warp_streak_count", 6)
-	bd.set("warp_streak_speed", 336.0)
-	bd.set("asteroid_presence", 0.0)
-	add_child(bd)
-	move_child(bd, 0)
+func _install_dark_background() -> void:
+	var bg := ColorRect.new()
+	bg.color = Color(0.04, 0.04, 0.07, 1.0)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bg.z_index = -100
+	add_child(bg)
+	move_child(bg, 0)
 
 
 func _build_ui() -> void:

@@ -21,7 +21,6 @@ extends Control
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const SceneTransition = preload("res://scripts/scene_transition.gd")
-const BACKDROP_SCRIPT = preload("res://scripts/galaxy_backdrop.gd")
 # Playfield is globally registered via `class_name Playfield` — no preload needed.
 const UI_SCENE := preload("res://scenes/ui.tscn")
 
@@ -122,7 +121,7 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_seed_defaults()
 	_load_from_disk()
-	_install_backdrop()
+	_install_dark_background()
 	if not _install_live_preview():
 		_live_preview_failed = true
 		_install_fallback_preview()
@@ -141,17 +140,14 @@ func _seed_defaults() -> void:
 			_values[k["key"]] = dflt
 
 
-func _install_backdrop() -> void:
-	_backdrop = Node2D.new()
-	_backdrop.name = "Backdrop"
-	_backdrop.set_script(BACKDROP_SCRIPT)
-	_backdrop.set("drift_speed", 10.0)
-	_backdrop.set("starfield_density", 30.0)
-	_backdrop.set("starfield_scroll", 5.0)
-	_backdrop.set("warp_streak_count", 6)
-	_backdrop.set("warp_streak_speed", 336.0)
-	add_child(_backdrop)
-	move_child(_backdrop, 0)
+func _install_dark_background() -> void:
+	var bg := ColorRect.new()
+	bg.color = Color(0.04, 0.04, 0.07, 1.0)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bg.z_index = -100
+	add_child(bg)
+	move_child(bg, 0)
 
 	# Glass gutters + frame outline. Mirrors main.gd::_install_playfield_frame
 	# 1:1 — those panels are what we're tuning. Refreshed on every

@@ -20,7 +20,6 @@ const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const PlayerScene = preload("res://scenes/player/player.tscn")
-const BackdropScript = preload("res://scripts/galaxy_backdrop.gd")
 const DummyTargetScript = preload("res://scripts/dev/hangar_dummy_target.gd")
 const UiScene = preload("res://scenes/ui.tscn")
 
@@ -37,7 +36,6 @@ const WEAPON_GROUPS := [
 
 # ---- State ---------------------------------------------------------------
 
-var _backdrop: Node2D = null
 var _player: Node = null
 var _target: Area2D = null
 var _hud = null  # ui.tscn instance in the right gutter
@@ -57,7 +55,7 @@ var _selected_slot: int = SlotTypes.SlotType.CANNON
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(Color(0.0, 0.0, 0.0))
-	_spawn_backdrop()
+	_install_dark_background()
 	_install_playfield_frame()
 	_spawn_player()
 	_spawn_dummy_target()
@@ -73,11 +71,15 @@ func _ready() -> void:
 	_install_hud()
 
 
-func _spawn_backdrop() -> void:
-	_backdrop = Node2D.new()
-	_backdrop.name = "Backdrop"
-	_backdrop.set_script(BackdropScript)
-	add_child(_backdrop)
+func _install_dark_background() -> void:
+	var bg := ColorRect.new()
+	bg.name = "DarkBackground"
+	bg.color = Color(0.04, 0.04, 0.07, 1.0)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bg.z_index = -100
+	add_child(bg)
+	move_child(bg, 0)
 
 
 func _spawn_player() -> void:
