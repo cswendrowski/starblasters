@@ -142,9 +142,18 @@ var shield: int = 10:
 var _shield_in_delay: bool = false
 # shield_recharge_seconds kept as field for save-compat references; no longer written.
 var shield_recharge_seconds: float = 5.0
-# I-frames in seconds after a shield absorbs a hit. Stops chained
-# instant-kills (mine + bomblet) from one-shotting the player.
+# I-frames in seconds after a HULL hit. Stops chained instant-kills
+# (mine + bomblet) from one-shotting the player through the hull.
 const SHIELD_INVULN_SECONDS: float = 0.6
+# Short i-frame after a SHIELD-absorbed hit. The shield is an HP POOL now
+# (2026-05-26 rework), so a sustained bullet stream SHOULD drain it per
+# hit — the old 0.6s full-invuln (carried over from the retired charge
+# model) silently dropped any hit landing inside that window, which read
+# as "hits on shields don't register sometimes" (Roman). Kept short so a
+# multi-pellet cluster (mine + bomblet) entering within ~2 frames is still
+# absorbed as one shield event, while normal bullet spacing (> 0.1s)
+# registers every hit. Tuning value — Roman can dial this.
+const SHIELD_HIT_INVULN_SECONDS: float = 0.1
 var _invuln_t: float = 0.0
 
 # Hull: pip-based (3 pips base). Loss is always 1 pip per hit (not damage).
@@ -625,9 +634,10 @@ func take_damage(amount: int) -> void:
 		return
 	var HitFlashFx = load("res://scripts/effects/hit_flash_fx.gd")
 	if shield > 0:
-		# Shield absorbs full hit — no overflow to hull.
+		# Shield absorbs full hit — no overflow to hull. Short i-frame only,
+		# so a sustained bullet stream keeps draining the HP pool per hit.
 		set_shield(max(0, shield - amount))
-		_invuln_t = SHIELD_INVULN_SECONDS
+		_invuln_t = SHIELD_HIT_INVULN_SECONDS
 		damaged.emit(0)
 		_pulse_shield_ring()
 		if has_node("Ship"):

@@ -728,6 +728,20 @@ func _on_buy_upgrade(offer: Dictionary, btn: Button) -> void:
 	run.bounty -= cost
 	var key: String = String(offer["key"])
 	run.set(key, _current_mk(key) + 1)
+	# Hull upgrade: the new pip arrives FILLED. Without this, max_hull grows
+	# (via apply_run_upgrades: 2 + min(hull_mk, 8)) while current_hull keeps
+	# its stale value, so next combat the ship reads as damaged (hull <
+	# max_hull) and the engine-torch / smoke damage-tell falsely ignites on
+	# an undamaged ship (Roman: "adding more hull causes the ship to be on
+	# fire"). Bump current_hull by the same delta the upgrade added to
+	# max_hull, clamped to the new max. We do NOT blanket-fill — a genuinely
+	# damaged ship stays damaged (1/2 → buy pip → 1/3, fire still shows).
+	if key == "hull_mk":
+		var new_max_hull: int = 2 + mini(int(run.hull_mk), 8)
+		var hull_delta: int = new_max_hull - int(run.max_hull)
+		run.max_hull = new_max_hull
+		if hull_delta > 0:
+			run.current_hull = clampi(int(run.current_hull) + hull_delta, 0, new_max_hull)
 	offer["sold"] = true
 	btn.text = Strings.OUTPOST_BTN_PURCHASED
 	btn.disabled = true
