@@ -4,7 +4,7 @@
 [ext_resource type="Texture2D" uid="uid://j88xtqkwfxoq" path="res://graphics/projectiles/rocket.png" id="2_tex"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
-size = Vector2(2, 7)
+size = Vector2(6, 16)
 
 [node name="EnemyRocket" type="Area2D" unique_id=484008050 groups=["enemies", "bullets"]]
 script = ExtResource("1_script")

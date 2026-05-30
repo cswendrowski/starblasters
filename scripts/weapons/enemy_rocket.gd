@@ -29,10 +29,14 @@ func _init() -> void:
 func _ready() -> void:
 	add_to_group("enemies")
 	super._ready()
+	# Rotate sprite to face travel direction (downward). New asymmetric rocket
+	# art has the nose at the top of the sheet; + PI*0.5 makes the sprite's
+	# "up" point along the velocity vector (matching base_missile.gd convention).
+	rotation = velocity_dir.angle() + PI * 0.5
 	# Attach the smoke trail with downward drift flipped (rocket travels
 	# downward; without flip the trail drifts further down = in front of the
 	# rocket instead of behind it).
-	var trail = MissileSmokeTrail.new()
+	var trail: MissileSmokeTrail = MissileSmokeTrail.new()
 	trail.flip_drift = true
 	get_tree().root.call_deferred("add_child", trail)
 	trail.call_deferred("attach_to", self)

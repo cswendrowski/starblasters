@@ -18,7 +18,7 @@ fill_from = Vector2(0.5, 0.5)
 fill_to = Vector2(1, 0.5)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
-size = Vector2(4, 8)
+size = Vector2(6, 16)
 
 [node name="PlayerRocket" type="Area2D" unique_id=234366825]
 z_index = -1
