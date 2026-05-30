@@ -3,22 +3,8 @@
 [ext_resource type="Script" uid="uid://pqv25k2c52si" path="res://scripts/projectiles/base_missile.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://dikgfe45156qc" path="res://graphics/projectiles/missile.png" id="2_tex"]
 
-[sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_glow"]
-blend_mode = 1
-
-[sub_resource type="Gradient" id="Gradient_glow"]
-colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0)
-
-[sub_resource type="GradientTexture2D" id="GradientTexture2D_glow"]
-gradient = SubResource("Gradient_glow")
-width = 16
-height = 16
-fill = 1
-fill_from = Vector2(0.5, 0.5)
-fill_to = Vector2(1, 0.5)
-
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
-size = Vector2(6, 16)
+size = Vector2(6, 8)
 
 [node name="PlayerSeekingMissile" type="Area2D" unique_id=1350119224]
 z_index = -1
@@ -36,12 +22,8 @@ initial_dir = Vector2(0, -1)
 texture = ExtResource("2_tex")
 hframes = 3
 
-[node name="Glow" type="Sprite2D" parent="." unique_id=980592905]
-modulate = Color(1.0540515, 0.6047006, 0, 1)
-material = SubResource("CanvasItemMaterial_glow")
-position = Vector2(-0.100000195, 3)
-scale = Vector2(0.51250005, 0.5)
-texture = SubResource("GradientTexture2D_glow")
-
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=35382132]
 shape = SubResource("RectangleShape2D_1")
+
+[node name="exhaust_point" type="Marker2D" parent="." unique_id=484846250]
+position = Vector2(0, 4)
