@@ -52,8 +52,8 @@ static func _spawn_smoke(parent: Node, world_pos: Vector2, color: Color) -> void
 	var mat := CanvasItemMaterial.new()
 	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	s.material = mat
-	parent.add_child(s)
-	_animate_strip(s, color, SMOKE_FRAMES, SMOKE_COLOR_FRAMES)
+	s.tree_entered.connect(_animate_strip.bind(s, color, SMOKE_FRAMES, SMOKE_COLOR_FRAMES), CONNECT_ONE_SHOT)
+	parent.add_child.call_deferred(s)
 
 
 static func _spawn_explosive(parent: Node, world_pos: Vector2, color: Color) -> void:
@@ -64,13 +64,13 @@ static func _spawn_explosive(parent: Node, world_pos: Vector2, color: Color) -> 
 	var mat := CanvasItemMaterial.new()
 	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	s.material = mat
-	parent.add_child(s)
-	_animate_strip(s, color, FLASH_FRAMES, FLASH_COLOR_FRAMES)
+	s.tree_entered.connect(_animate_strip.bind(s, color, FLASH_FRAMES, FLASH_COLOR_FRAMES), CONNECT_ONE_SHOT)
+	parent.add_child.call_deferred(s)
 	# Layer the existing fiery explosion underneath.
 	var exp = EXPLOSION_SCENE.instantiate()
 	if exp is Node2D:
 		exp.global_position = world_pos
-	parent.add_child(exp)
+	parent.add_child.call_deferred(exp)
 
 
 # Build a Sprite2D with the strip's first frame visible. Subsequent frames

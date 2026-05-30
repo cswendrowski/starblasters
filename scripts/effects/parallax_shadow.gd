@@ -82,7 +82,7 @@ static func attach(ship: Node2D) -> Node:
 		host = ship.get_tree().current_scene
 	if host == null:
 		host = ship.get_tree().root
-	host.add_child(holder)
+	host.add_child.call_deferred(holder)
 	ship.set_meta("parallax_shadow", holder)
 	ship.tree_exiting.connect(func():
 		if is_instance_valid(holder):

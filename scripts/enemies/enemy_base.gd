@@ -129,7 +129,8 @@ func _ready() -> void:
 	# Engine flame trail. Same gate as auto_rotate — ships need it,
 	# mines/asteroids/bomblets don't.
 	if auto_rotate:
-		EnemyEngineFxScript.attach(self, engine_tint, engine_scale_mult)
+		# Engine-flame glow disabled 2026-05-30 pending a unified engine-effect
+		# overhaul (Roman) — EnemyEngineFxScript stays preloaded for reuse.
 		# Ground-shadow on the top parallax layer. Same gate (ships only).
 		ParallaxShadowScript.attach(self)
 	# Damage overlay shader (Roman, 2026-05-18): darken + fray the sprite
