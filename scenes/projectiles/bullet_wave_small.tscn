@@ -1,13 +1,15 @@
-[gd_scene load_steps=5 format=3 uid="uid://bwavesmall001"]
+[gd_scene format=3 uid="uid://bwavesmall001"]
 
-[ext_resource type="Script" path="res://scripts/bullet_wave.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://sw6xmop2yaqg" path="res://scripts/bullet_wave.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://hc2pragmw71j" path="res://graphics/projectiles/energy_wave.png" id="2_tex"]
 
-[sub_resource type="Gradient" id="Gradient_wave_glow"]
-offsets = PackedFloat32Array(0, 0.45, 1)
-colors = PackedColorArray(0.4, 1, 0.55, 1, 0.3, 1, 0.5, 0.55, 0.2, 1, 0.45, 0)
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_wave_small"]
+size = Vector2(16, 8)
 
-[sub_resource type="GradientTexture2D" id="GradientTexture2D_wave_glow"]
+[sub_resource type="Gradient" id="Gradient_wave_glow"]
+colors = PackedColorArray(0.6, 0.8980392, 0.3137255, 1, 0.6, 0.8980392, 0.3137255, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_rvhoi"]
 gradient = SubResource("Gradient_wave_glow")
 width = 32
 height = 32
@@ -15,22 +17,20 @@ fill = 1
 fill_from = Vector2(0.5, 0.5)
 fill_to = Vector2(1, 0.5)
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_wave_small"]
-size = Vector2(16, 8)
-
-[node name="BulletWaveSmall" type="Area2D"]
+[node name="BulletWaveSmall" type="Area2D" unique_id=1884644584]
 script = ExtResource("1_script")
 
-[node name="Glow" type="Sprite2D" parent="."]
-modulate = Color(0.3, 1, 0.5, 0.85)
-z_index = -1
-scale = Vector2(0.85, 0.55)
-texture = SubResource("GradientTexture2D_wave_glow")
-
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1225875099]
 texture = ExtResource("2_tex")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=172856150]
 shape = SubResource("RectangleShape2D_wave_small")
+
+[node name="Glow" type="Sprite2D" parent="." unique_id=1189244979]
+modulate = Color(0.3, 1, 0.5, 0.85)
+z_index = -1
+position = Vector2(0, 1)
+scale = Vector2(0.74999994, 0.43749997)
+texture = SubResource("GradientTexture2D_rvhoi")
 
 [connection signal="area_entered" from="." to="." method="_on_area_entered"]

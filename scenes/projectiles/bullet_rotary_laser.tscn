@@ -3,6 +3,17 @@
 [ext_resource type="Script" uid="uid://dnmfi0ia7f020" path="res://scripts/bullet.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://btdyes3k0k0lc" path="res://graphics/projectiles/energy_bolt_small.png" id="2_tex"]
 
+[sub_resource type="Gradient" id="Gradient_djw7b"]
+colors = PackedColorArray(0.05490196, 0, 1, 1, 0.05490196, 0, 1, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_wmoql"]
+gradient = SubResource("Gradient_djw7b")
+width = 32
+height = 32
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(1, 0.49130434)
+
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
 size = Vector2(4, 8)
 
@@ -10,10 +21,17 @@ size = Vector2(4, 8)
 script = ExtResource("1_script")
 speed = 700
 
+[node name="Glow" type="Sprite2D" parent="." unique_id=709168474]
+modulate = Color(0.3, 0.6, 1, 0.85)
+z_index = -1
+scale = Vector2(0.37499997, 0.43749994)
+texture = SubResource("GradientTexture2D_wmoql")
+
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1423675720]
 texture = ExtResource("2_tex")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1951951040]
+visible = false
 shape = SubResource("RectangleShape2D_1")
 
 [node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="." unique_id=1959904793]

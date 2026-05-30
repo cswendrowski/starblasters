@@ -3,17 +3,16 @@
 [ext_resource type="Script" uid="uid://bceocec1lcdrt" path="res://scripts/projectiles/bullet_heavy.gd" id="1_hvscr"]
 [ext_resource type="Texture2D" uid="uid://crb8v5dl2odom" path="res://graphics/projectiles/blaster_heavy.png" id="2_hvtex"]
 
-[sub_resource type="Gradient" id="Gradient_heavy_glow"]
-offsets = PackedFloat32Array(0, 0.45, 1)
-colors = PackedColorArray(0.4, 0.75, 1, 1, 0.3, 0.6, 1, 0.55, 0.2, 0.5, 1, 0)
+[sub_resource type="Gradient" id="Gradient_djw7b"]
+colors = PackedColorArray(0.59607846, 1, 0.9647059, 1, 0.59607846, 1, 0.9647059, 0)
 
 [sub_resource type="GradientTexture2D" id="GradientTexture2D_heavy_glow"]
-gradient = SubResource("Gradient_heavy_glow")
+gradient = SubResource("Gradient_djw7b")
 width = 32
 height = 32
 fill = 1
 fill_from = Vector2(0.5, 0.5)
-fill_to = Vector2(1, 0.5)
+fill_to = Vector2(1, 0.49130434)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_heavy"]
 size = Vector2(6, 16)
@@ -32,6 +31,7 @@ texture = SubResource("GradientTexture2D_heavy_glow")
 texture = ExtResource("2_hvtex")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1281268116]
+visible = false
 shape = SubResource("RectangleShape2D_heavy")
 
 [node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="." unique_id=1211096388]

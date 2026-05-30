@@ -1,8 +1,8 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene format=3 uid="uid://hcksctbycjhs"]
 
 [ext_resource type="PackedScene" uid="uid://iqys12s5srvb" path="res://scenes/projectiles/enemy_bullet.tscn" id="1_base"]
 [ext_resource type="Resource" path="res://data/bullets/spread_pellet.tres" id="2_variant"]
-[ext_resource type="Texture2D" path="res://graphics/projectiles/enemy_bullet_small.png" id="3_tex"]
+[ext_resource type="Texture2D" uid="uid://ctjof4bc6s7a6" path="res://graphics/projectiles/enemy_bullet_small.png" id="3_tex"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_spr1"]
 atlas = ExtResource("3_tex")
@@ -18,28 +18,37 @@ region = Rect2(12, 0, 6, 6)
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_spr"]
 animations = [{
-"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_spr1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_spr2")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_spr3")}],
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_spr1")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_spr2")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_spr3")
+}],
 "loop": true,
 "name": &"default",
 "speed": 8.0
 }]
 
 [sub_resource type="RectangleShape2D" id="Shape_spr"]
-size = Vector2(5, 5)
+size = Vector2(6, 6)
 
-[node name="EnemyBullet" instance=ExtResource("1_base")]
+[node name="EnemyBullet" unique_id=1257212815 instance=ExtResource("1_base")]
 variant = ExtResource("2_variant")
 speed = 200.0
-damage = 1
 max_lifetime = 3.0
 impact_color = Color(1, 0.933333, 0.266667, 1)
 
-[node name="AnimatedSprite2D" parent="."]
+[node name="AnimatedSprite2D" parent="." index="0" unique_id=791917356]
 sprite_frames = SubResource("SpriteFrames_spr")
-autoplay = "default"
+frame_progress = 0.0
 
-[node name="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" parent="." index="1" unique_id=834368476]
+visible = true
 shape = SubResource("Shape_spr")
 
-[node name="Glow" parent="."]
-modulate = Color(1, 0.933333, 0.266667, 0.5)
+[node name="Glow" parent="." index="3" unique_id=2066727736]
+modulate = Color(1, 1, 1, 0.5019608)

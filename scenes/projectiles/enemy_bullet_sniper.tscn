@@ -1,8 +1,8 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene format=3 uid="uid://cgtkipun1jpa4"]
 
 [ext_resource type="PackedScene" uid="uid://iqys12s5srvb" path="res://scenes/projectiles/enemy_bullet.tscn" id="1_base"]
 [ext_resource type="Resource" path="res://data/bullets/aimed_sniper.tres" id="2_variant"]
-[ext_resource type="Texture2D" path="res://graphics/projectiles/enemy_tracer.png" id="3_tex"]
+[ext_resource type="Texture2D" uid="uid://dgvkmat4stmig" path="res://graphics/projectiles/enemy_tracer.png" id="3_tex"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_snp1"]
 atlas = ExtResource("3_tex")
@@ -18,28 +18,39 @@ region = Rect2(32, 0, 16, 16)
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_snp"]
 animations = [{
-"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_snp1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_snp2")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_snp3")}],
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_snp1")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_snp2")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_snp3")
+}],
 "loop": true,
 "name": &"default",
 "speed": 10.0
 }]
 
 [sub_resource type="RectangleShape2D" id="Shape_snp"]
-size = Vector2(4, 6)
+size = Vector2(4, 14)
 
-[node name="EnemyBullet" instance=ExtResource("1_base")]
+[node name="EnemyBullet" unique_id=1887349845 instance=ExtResource("1_base")]
 variant = ExtResource("2_variant")
 speed = 300.0
-damage = 1
 max_lifetime = 3.0
 impact_color = Color(0.266667, 1, 1, 1)
 
-[node name="AnimatedSprite2D" parent="."]
+[node name="AnimatedSprite2D" parent="." index="0" unique_id=791917356]
 sprite_frames = SubResource("SpriteFrames_snp")
-autoplay = "default"
+frame_progress = 0.0
 
-[node name="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" parent="." index="1" unique_id=834368476]
+visible = true
 shape = SubResource("Shape_snp")
 
-[node name="Glow" parent="."]
-modulate = Color(0.266667, 1, 1, 0.5)
+[node name="Glow" parent="." index="3" unique_id=2066727736]
+modulate = Color(1, 1, 1, 0.5019608)
+position = Vector2(7.1054274e-15, -1)
+scale = Vector2(0.56249994, 1.0625)

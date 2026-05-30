@@ -3,6 +3,17 @@
 [ext_resource type="Script" uid="uid://dnmfi0ia7f020" path="res://scripts/bullet.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://ch68fdq58538p" path="res://graphics/projectiles/energy_laser_blue.png" id="2_tex"]
 
+[sub_resource type="Gradient" id="Gradient_heavy_glow"]
+colors = PackedColorArray(0, 0, 1, 1, 0, 0.07058824, 1, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_8xc78"]
+gradient = SubResource("Gradient_heavy_glow")
+width = 32
+height = 32
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(1, 0.49130434)
+
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
 size = Vector2(4, 16)
 
@@ -10,11 +21,19 @@ size = Vector2(4, 16)
 script = ExtResource("1_script")
 speed = 1080
 
+[node name="Glow" type="Sprite2D" parent="." unique_id=294277692]
+modulate = Color(0.3, 0.6, 1, 0.85)
+z_index = -1
+position = Vector2(1.1920929e-07, 0.49999973)
+scale = Vector2(0.42343748, 0.78125)
+texture = SubResource("GradientTexture2D_8xc78")
+
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1412851644]
 texture = ExtResource("2_tex")
 hframes = 4
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=142610669]
+visible = false
 shape = SubResource("RectangleShape2D_1")
 
 [node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="." unique_id=1296149188]
