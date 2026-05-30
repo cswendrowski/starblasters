@@ -1,4 +1,4 @@
-[gd_scene load_steps=19 format=3 uid="uid://b8exv6qda8frv"]
+[gd_scene load_steps=15 format=3 uid="uid://b8exv6qda8frv"]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_017ve"]
 [ext_resource type="PackedScene" uid="uid://dlqpfn4jxbpg3" path="res://scenes/parallax/backdrop_coordinator.tscn" id="coord_v4"]
@@ -6,7 +6,6 @@
 [ext_resource type="Texture2D" uid="uid://cr7usmfo6apt8" path="res://Mini Pixel Pack 3/UI objects/GAME_OVER (72 x 8).png" id="3_kgptm"]
 [ext_resource type="Texture2D" uid="uid://o6gwbftsnc8c" path="res://Mini Pixel Pack 3/UI objects/START (48 x 8).png" id="4_3to3k"]
 [ext_resource type="PackedScene" uid="uid://bk3v582opu7qy" path="res://scenes/volume_slider.tscn" id="5_2mma3"]
-[ext_resource type="Texture2D" uid="uid://cwuy4b17rh7ql" path="res://Mini Pixel Pack 3/Space_BG (2 frames) (64 x 64).png" id="5_c0oev"]
 [ext_resource type="Texture2D" uid="uid://0p6so5w0mcjw" path="res://Mini Pixel Pack 3/UI objects/bar_background.png" id="6_bt3es"]
 [ext_resource type="PackedScene" uid="uid://b32476hejmrnj" path="res://scenes/player/player.tscn" id="6_t4pur"]
 [ext_resource type="Texture2D" uid="uid://bf8xo3kqj5h54" path="res://Mini Pixel Pack 3/UI objects/bar_foreground.png" id="7_01cyq"]
@@ -15,44 +14,6 @@
 [ext_resource type="AudioStream" uid="uid://drcetuq4ylxow" path="res://Sound/Stinger_Fail1.wav" id="9_jpgor"]
 [ext_resource type="Script" path="res://scripts/levels/director.gd" id="11_jjei3"]
 [ext_resource type="PackedScene" uid="uid://b2t4ltiewu7fw" path="res://scenes/pause_menu.tscn" id="12_yw3xl"]
-
-[sub_resource type="Animation" id="Animation_frim2"]
-length = 0.001
-tracks/0/type = "value"
-tracks/0/imported = false
-tracks/0/enabled = true
-tracks/0/path = NodePath("Background:region_rect")
-tracks/0/interp = 1
-tracks/0/loop_wrap = true
-tracks/0/keys = {
-"times": PackedFloat32Array(0),
-"transitions": PackedFloat32Array(1),
-"update": 0,
-"values": [Rect2(2.08165e-12, 2.08165e-12, 480, 270)]
-}
-
-[sub_resource type="Animation" id="Animation_lmpjc"]
-resource_name = "new_animation"
-length = 2.0
-loop_mode = 1
-tracks/0/type = "value"
-tracks/0/imported = false
-tracks/0/enabled = true
-tracks/0/path = NodePath("Background:region_rect")
-tracks/0/interp = 1
-tracks/0/loop_wrap = true
-tracks/0/keys = {
-"times": PackedFloat32Array(0, 2),
-"transitions": PackedFloat32Array(1, 1),
-"update": 0,
-"values": [Rect2(2.08165e-12, 2.08165e-12, 480, 270), Rect2(2.08165e-12, -200, 480, 270)]
-}
-
-[sub_resource type="AnimationLibrary" id="AnimationLibrary_d33qh"]
-_data = {
-"RESET": SubResource("Animation_frim2"),
-"new_animation": SubResource("Animation_lmpjc")
-}
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_uf0tv"]
 
@@ -117,24 +78,11 @@ theme_override_font_sizes/font_size = 8
 text = "SECTOR COMMANDER"
 horizontal_alignment = 1
 
-[node name="Background" type="Sprite2D" parent="."]
-texture_repeat = 2
-position = Vector2(240, 135)
-texture = ExtResource("5_c0oev")
-region_enabled = true
-region_rect = Rect2(2.08165e-12, 2.08165e-12, 480, 270)
-
 [node name="Backdrop" parent="." instance=ExtResource("coord_v4")]
 drift_speed = 50.0
 
 [node name="Player" parent="." instance=ExtResource("6_t4pur")]
 position = Vector2(160, 320)
-
-[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
-libraries = {
-"": SubResource("AnimationLibrary_d33qh")
-}
-autoplay = "new_animation"
 
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2(240, 135)
