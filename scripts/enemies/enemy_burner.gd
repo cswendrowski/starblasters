@@ -168,11 +168,22 @@ func _descend_to_settle(delta: float) -> void:
 
 
 func _joint_descent(delta: float) -> void:
-	# Both members descend at the same uniform speed and keep their own X, so
-	# the horizontal tandem spread is preserved for free. Owner drives its own
-	# Y; the anchor drives its own Y too (both run this from their _process).
-	global_position.y += DESCENT_SPEED * delta
-	global_position = Playfield.clamp_pos(global_position, X_CLAMP_INSET)
+	# Both members keep their own X (tandem spread preserved for free), but Y is
+	# OWNER-AUTHORITATIVE so the beam is dead-level (Roman, 2026-05-31). The owner
+	# advances its Y by DESCENT_SPEED then stamps that exact Y onto the partner,
+	# so even if they entered TELEGRAPH a frame apart or drifted, they re-converge
+	# to a common Y every frame the beam is live. The anchor only clamps its X and
+	# leaves Y alone (the owner sets it), so the two stay perfectly parallel.
+	if _is_beam_owner:
+		global_position.y += DESCENT_SPEED * delta
+		global_position = Playfield.clamp_pos(global_position, X_CLAMP_INSET)
+		if _has_live_partner():
+			var p: Vector2 = _partner.global_position
+			p.y = global_position.y
+			_partner.global_position = Playfield.clamp_pos(p, X_CLAMP_INSET)
+	else:
+		# Anchor: keep X in-band; Y is driven by the owner's stamp above.
+		global_position = Playfield.clamp_pos(global_position, X_CLAMP_INSET)
 
 
 func _enter_telegraph() -> void:
@@ -186,6 +197,12 @@ func _enter_telegraph() -> void:
 	if _has_live_partner() and _partner._phase == Phase.ENTER:
 		_partner._phase = Phase.TELEGRAPH
 		_partner._phase_t = 0.0
+		# Snap the partner to the owner's exact Y the instant the beam is
+		# established so the TELEGRAPH (and the FIRING beam after it) is dead
+		# horizontal from frame 0 — _joint_descent keeps it level thereafter.
+		var p: Vector2 = _partner.global_position
+		p.y = global_position.y
+		_partner.global_position = Playfield.clamp_pos(p, X_CLAMP_INSET)
 
 
 func _enter_firing() -> void:
@@ -232,11 +249,12 @@ func _tick_beam_firing(delta: float) -> void:
 func _ensure_beam_visuals() -> void:
 	if _beam_outer and is_instance_valid(_beam_outer):
 		return
-	# enemy_beam_shooter visual style: outer=16, mid=8, core=3, telegraph=1.
-	_beam_outer     = _make_line(Color(0.65, 0.15, 1.0, 0.55), 16.0)
-	_beam_mid       = _make_line(Color(1.0, 0.5, 0.1, 0.85),   8.0)
-	_beam_core      = _make_line(Color(1.0, 0.95, 0.35, 1.0),  3.0)
-	_beam_telegraph = _make_line(Color(1.0, 0.95, 0.35, 0.5),  1.0)
+	# enemy_beam_shooter visual style thinned ~20% (Roman, 2026-05-31):
+	# outer 16→12.8, mid 8→6.4, core 3→2.4, telegraph 1→0.8. Colors/style kept.
+	_beam_outer     = _make_line(Color(0.65, 0.15, 1.0, 0.55), 12.8)
+	_beam_mid       = _make_line(Color(1.0, 0.5, 0.1, 0.85),   6.4)
+	_beam_core      = _make_line(Color(1.0, 0.95, 0.35, 1.0),  2.4)
+	_beam_telegraph = _make_line(Color(1.0, 0.95, 0.35, 0.5),  0.8)
 	add_child.call_deferred(_beam_outer)
 	add_child.call_deferred(_beam_mid)
 	add_child.call_deferred(_beam_core)

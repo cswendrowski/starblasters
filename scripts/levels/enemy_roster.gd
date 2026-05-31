@@ -139,10 +139,13 @@ const ENTRIES := [
 		# arrives in pairs, strings a damaging beam between the two members and
 		# descends together; killing either blows up both. Handles its own
 		# movement + beam (no Resource slots) so movement/shoot are null, like
-		# enemy_firecore_cruiser. NOT chaff-rolled — spawned only by explicit
-		# wave authoring. Burner waves MUST use formation TOP_TANDEM_PAIRS
+		# enemy_firecore_cruiser. Burner waves MUST use formation TOP_TANDEM_PAIRS
 		# (index 5) and an EVEN count so every member gets a partner; an odd
-		# member simply descends and leaves (no beam) rather than crashing.
+		# member simply descends and leaves (no beam) rather than crashing. The
+		# generator honors `force_formation` to guarantee this whenever the
+		# Burner rolls (single OR mixed wave) — see wave_generator._make_wave_spec
+		# and the mixed-wave re-apply in _build_combat_waves. (Roman, 2026-05-31:
+		# rolls as a normal UNCOMMON now, wired into production waves.)
 		"scene": "res://scenes/enemies/enemy_burner.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
@@ -150,6 +153,16 @@ const ENTRIES := [
 		"shoot": null,      # handles own beam
 		"base_count": 2,
 		"hp_override": 12, "bounty_override": 30,
+		# Documentary gating (matches uncommon peers). NOTE: production selection
+		# (_pick_entry → entries_of(tier)) ignores weight/unlock_* today — these
+		# are inert until/unless the generator is taught to honor them. See report.
+		"weight": 0.7, "unlock_sector": 1, "unlock_depth": 3,
+		# Guarantee the pair formation + even count every time this rolls.
+		# 5 == WaveSpec.Formation.TOP_TANDEM_PAIRS (wave_def.gd). Literal because
+		# the roster doesn't preload WaveSpec; the generator validates against the
+		# enum.
+		"force_formation": 5,
+		"force_even_count": true,
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_weaver.tscn",
@@ -336,9 +349,10 @@ const ENTRIES := [
 		# shoot — killing it DETACHES the rings into real enemy_bullets that fly
 		# outward as expanding waves. Bespoke self-driving enemy (handles its own
 		# descent + ring orbit + death release), so movement/shoot are null like
-		# burner/firecore_cruiser. NOT chaff-rolled — spawned only by explicit
-		# wave authoring (build_firecore_drone_showcase). Keep hp_override in sync
-		# with the script's max_health (10) so the codex matches.
+		# burner/firecore_cruiser. Rolls as a normal UNCOMMON (Roman, 2026-05-31)
+		# — self-manages its rings so default formation/count is fine (no even-count
+		# requirement). Keep hp_override in sync with the script's max_health (10)
+		# so the codex matches.
 		"scene": "res://scenes/enemies/enemy_firecore_drone.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],

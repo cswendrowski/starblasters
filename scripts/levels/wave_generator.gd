@@ -163,6 +163,12 @@ static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, l
 			else:
 				sub_a.formation = WaveSpec.Formation.TOP_RIGHT_TO_LEFT
 				sub_b.formation = WaveSpec.Formation.TOP_LEFT_TO_RIGHT
+			# The opposite-formation stomp above would override a forced tandem
+			# formation (Burner). Re-apply per-entry force_formation so a Burner
+			# picked into a mixed wave still spawns as TOP_TANDEM_PAIRS with an
+			# even count and every member gets a beam partner.
+			_apply_force_formation(sub_a, pair[0])
+			_apply_force_formation(sub_b, pair[1])
 			# Both sub-waves share spawn_delay (already set by _make_wave_spec from
 			# wave_index_in_level); second sub-wave's stream is stretched 1.3× so
 			# the two streams interleave instead of stacking.
@@ -434,7 +440,15 @@ static func _make_wave_spec(rng: RandomNumberGenerator, entry: Dictionary, secto
 	# don't pair up side-cutters or loiterers. The director spawns pairs at
 	# CENTER ± tandem_offset_x simultaneously; force even count so no lone
 	# trailing enemy.
-	var mv_key: String = String(entry.get("movement", ""))
+	# NOTE (2026-05-31): the "" default only applies when the key is ABSENT.
+	# Bespoke enemies (Burner, Firecore Drone, firecore_cruiser) set
+	# `movement: null` explicitly, so .get returns null and String(null) is an
+	# invalid constructor in Godot 4.6 — it crashed _make_wave_spec for any
+	# null-movement enemy that rolled. Guard the null so mv_key is "" (→ not
+	# tandem-eligible, which is correct; Burner's formation comes from the
+	# unconditional _apply_force_formation below, not this 25% roll).
+	var mv_raw: Variant = entry.get("movement", "")
+	var mv_key: String = String(mv_raw) if mv_raw != null else ""
 	var tandem_eligible: bool = mv_key in [
 		"straight", "firecore_straight", "drifter_straight",
 		"fast_straight", "s_curve",
@@ -443,6 +457,12 @@ static func _make_wave_spec(rng: RandomNumberGenerator, entry: Dictionary, secto
 		w.formation = WaveSpec.Formation.TOP_TANDEM_PAIRS
 		if (w.count % 2) == 1:
 			w.count += 1
+	# Per-entry forced formation (Burner: must always arrive in TOP_TANDEM_PAIRS
+	# so each member finds a partner to beam with). Honored for single waves and
+	# boss lead-ins here; the mixed-wave path re-applies it in _build_combat_waves
+	# after that path stomps formation. force_even_count guarantees no lone
+	# trailing member (a lone burner just descends + leaves, but pairs are intent).
+	_apply_force_formation(w, entry)
 	var sp: Resource = Roster.make_shoot(entry)
 	if sp != null:
 		w.shoot_pattern_override = sp
@@ -458,6 +478,21 @@ static func _make_wave_spec(rng: RandomNumberGenerator, entry: Dictionary, secto
 	if stats["recycle_passes"] >= -1:
 		w.recycle_passes = stats["recycle_passes"]
 	return w
+
+
+# Apply a roster entry's force_formation / force_even_count onto a WaveSpec.
+# Idempotent — safe to call again after the mixed-wave path overwrites
+# formation. Validates the index against the Formation enum so a bad roster
+# value can't set a garbage formation.
+static func _apply_force_formation(w: WaveSpec, entry: Dictionary) -> void:
+	if not entry.has("force_formation"):
+		return
+	var ff: int = int(entry["force_formation"])
+	if ff < 0 or ff > int(WaveSpec.Formation.TOP_TANDEM_PAIRS):
+		return
+	w.formation = ff
+	if bool(entry.get("force_even_count", false)) and (w.count % 2) == 1:
+		w.count += 1
 
 
 # Pick a boss from BOSS_ROSTER. For now a flat random — could be weighted
