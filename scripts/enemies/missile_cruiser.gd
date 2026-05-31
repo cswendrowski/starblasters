@@ -46,7 +46,10 @@ const DEPTH_TINT_SHADER: Shader = preload("res://graphics/enemies/missile_cruise
 # Slow vertical traverse. If derive_speed_from_cycle is true this is treated as
 # a CEILING and the actual speed is clamped down so one full salvo lands while
 # the full sprite is on-screen.
-@export var traverse_speed: float = 50.0
+# Roman 2026-05-31: HALVED 50 -> 25 so the cruiser dwells ~2x longer on-screen
+# (more salvos). The derived ceiling (~66) still exceeds 25, so the
+# guarantee-a-salvo-lands derivation is unchanged and just has more headroom.
+@export var traverse_speed: float = 25.0
 # When true, clamp traverse_speed so the on-screen dwell comfortably exceeds
 # one mark->fire->explode cycle (so the explosions LAND on-screen).
 @export var derive_speed_from_cycle: bool = true
@@ -66,6 +69,15 @@ const DEPTH_TINT_SHADER: Shader = preload("res://graphics/enemies/missile_cruise
 # clamped to the gameplay band via Playfield.X_MIN/X_MAX. Kept inside 0..270.
 @export var zone_y_min: float = 40.0
 @export var zone_y_max: float = 240.0
+
+# Minimum center-to-center separation between the chosen strike points so the
+# red telegraph circles + AoE explosions don't visually overlap. Defaults to
+# 2*aoe_radius + a small margin (kept modest: with a 216x200 band and 4 points
+# this packs easily, so rejection sampling rarely hits the retry cap).
+@export var min_zone_separation: float = 56.0  # ~= 2*aoe_radius(24) + 8 margin
+# Retry cap for rejection sampling a non-overlapping point before accepting the
+# best-spread candidate seen so far.
+const ZONE_PICK_TRIES: int = 24
 
 # --- Telegraph circle visual ------------------------------------------------
 const TELEGRAPH_COLOR := Color(1.0, 0.15, 0.15, 0.5)  # filled red, alpha 0.5
@@ -104,6 +116,15 @@ func _ready() -> void:
 
 	scale = Vector2(cruiser_scale, cruiser_scale)
 
+	# Rotate to face travel direction like other enemies (auto-rotate convention:
+	# rotation = velocity.angle() + PI*0.5, sprite art points "up"/north).
+	# Moving down (dir +1, vel (0,+1)) -> PI (nose down); moving up (dir -1,
+	# vel (0,-1)) -> 0 (nose up). Children (Glow, Body, LaunchPoint) rotate with
+	# the root; LaunchPoint at local (0,0) stays at center so launch/targeting are
+	# rotation-invariant and missiles (world-parented) compute their own heading.
+	var vel: Vector2 = Vector2(0.0, float(_direction))
+	rotation = vel.angle() + PI * 0.5
+
 	# Tint the BODY sprite only — never the root (would dim the glow + halo).
 	# Use a mix-toward-color SHADER, not modulate: modulate multiplies and can
 	# only dim/cool the saturated-red art; the shader lerps RGB toward the flat
@@ -114,6 +135,13 @@ func _ready() -> void:
 		mat.shader = DEPTH_TINT_SHADER
 		mat.set_shader_parameter("bg_tint", bg_tint_color)
 		mat.set_shader_parameter("amount", bg_tint_amount)
+		# MID-LAYER GRADE MATCH: multiply the body by the LIVE mid parallax
+		# layer's CanvasModulate color so it reads at the same brightness /
+		# contrast / tint as mid-depth parallax objects. The CanvasModulate color
+		# already bakes modulate_color * brightness * contrast, so a single
+		# multiply is an exact match (no need to re-run the curve). White = no-op
+		# fallback when the mid layer can't be found (showcase/dev bare scenes).
+		mat.set_shader_parameter("grade_mul", _read_mid_layer_grade())
 		_body.material = mat
 
 	# Engine glow: bright emissive frame + shader bloom halo, full brightness.
@@ -194,8 +222,9 @@ func _begin_mark() -> void:
 	_phase = Phase.MARK
 	_phase_t = 0.0
 	_clear_telegraphs()
-	for _i in range(zone_count):
-		var zone: Vector2 = _pick_zone_point()
+	var zones: Array = _pick_zone_points(zone_count)
+	for zone_v in zones:
+		var zone: Vector2 = zone_v
 		var circle: Node2D = _TelegraphCircle.new()
 		circle.setup(zone, aoe_radius)
 		_world_parent().add_child(circle)
@@ -238,12 +267,83 @@ func _clear_telegraphs() -> void:
 	_live_telegraphs.clear()
 
 
-# Pick a random point in the gameplay band (X via Playfield, Y in the
-# configured band). These are world coords directly.
-func _pick_zone_point() -> Vector2:
+# Pick `count` random strike points in the gameplay band (X via Playfield, Y in
+# the configured band) that do NOT overlap each other — every chosen point is at
+# least `min_zone_separation` from all previously chosen points. Rejection
+# sampling with a retry cap (ZONE_PICK_TRIES); if the cap is hit for a slot we
+# accept the candidate that was best-spread (max min-distance to the accepted
+# set) so we never loop forever and still maximize spacing. World coords.
+func _pick_zone_points(count: int) -> Array:
+	var points: Array = []
+	var sep_sq: float = min_zone_separation * min_zone_separation
+	for _i in range(count):
+		var best: Vector2 = _rand_zone_point()
+		var best_min_d: float = _min_dist_sq(best, points)
+		# If the very first candidate already clears the separation, take it.
+		if best_min_d >= sep_sq:
+			points.append(best)
+			continue
+		# Otherwise re-roll up to the cap, keeping the best-spread candidate.
+		for _try in range(ZONE_PICK_TRIES):
+			var cand: Vector2 = _rand_zone_point()
+			var cand_min_d: float = _min_dist_sq(cand, points)
+			if cand_min_d >= sep_sq:
+				best = cand
+				best_min_d = cand_min_d
+				break
+			if cand_min_d > best_min_d:
+				best = cand
+				best_min_d = cand_min_d
+		points.append(best)
+	return points
+
+
+# One uniformly random point in the gameplay band.
+func _rand_zone_point() -> Vector2:
 	var x: float = randf_range(Playfield.X_MIN, Playfield.X_MAX)
 	var y: float = randf_range(zone_y_min, zone_y_max)
 	return Vector2(x, y)
+
+
+# Squared distance from `p` to the nearest point already in `pts` (INF if empty).
+func _min_dist_sq(p: Vector2, pts: Array) -> float:
+	var best: float = INF
+	for q_v in pts:
+		var q: Vector2 = q_v
+		var d: float = p.distance_squared_to(q)
+		if d < best:
+			best = d
+	return best
+
+
+# Read the LIVE mid parallax layer's CanvasModulate color so the cruiser body
+# can be multiplied by it (exact mid-depth grade match). The cruiser is parented
+# to the Backdrop (= the BackdropCoordinator Node2D), whose mid stellar layer
+# node is "LayerStellarMid" with a child "CanvasModulate" whose color already
+# bakes modulate_color * brightness * contrast. Returns WHITE (no-op) if any
+# part of that chain is missing (showcase/dev bare scenes) so the prior look is
+# preserved. Explicit Variant types throughout (get_node_or_null is Variant).
+func _read_mid_layer_grade() -> Color:
+	var coordinator: Node = get_parent()
+	if coordinator == null:
+		return Color.WHITE
+	var mid: Node = coordinator.get_node_or_null("LayerStellarMid")
+	if mid == null:
+		return Color.WHITE
+	var cm: CanvasModulate = mid.get_node_or_null("CanvasModulate") as CanvasModulate
+	if cm != null:
+		return cm.color
+	# Fallback: re-run ParallaxLayerBase._recompute_modulate from the layer's
+	# exported brightness/contrast/modulate_color (matches the math exactly).
+	if ("modulate_color" in mid) and ("brightness" in mid) and ("contrast" in mid):
+		var base: Color = mid.get("modulate_color")
+		var bri: float = float(mid.get("brightness"))
+		var con: float = float(mid.get("contrast"))
+		var r: float = clampf((base.r - 0.5) * con + 0.5, 0.0, 1.0) * bri
+		var g: float = clampf((base.g - 0.5) * con + 0.5, 0.0, 1.0) * bri
+		var b: float = clampf((base.b - 0.5) * con + 0.5, 0.0, 1.0) * bri
+		return Color(r, g, b, base.a)
+	return Color.WHITE
 
 
 # Launch point: a child Marker2D named "LaunchPoint" if present, else the

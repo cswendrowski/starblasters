@@ -16,7 +16,9 @@ const MAIN := "res://scenes/main.tscn"
 const FRAME_DIR := "res://captures/frames_missile_cruiser"
 const FPS := 20
 # Long enough to clear the ~3.4s intro and still catch a full salvo on-screen.
-const DURATION := 9.0
+# Roman 2026-05-31: speed HALVED (50->25), so the cruiser dwells ~2x longer;
+# extend the capture window so the GIF shows the slower traverse + extra salvos.
+const DURATION := 16.0
 const START_DELAY := 4.0  # skip the intro fade/fly-in before capturing
 
 

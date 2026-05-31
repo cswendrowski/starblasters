@@ -13,8 +13,17 @@ render_mode blend_mix, unshaded;
 uniform vec4 bg_tint : source_color = vec4(0.42, 0.50, 0.62, 1.0);
 uniform float amount : hint_range(0.0, 1.0) = 0.45;
 
+// MID-LAYER GRADE MATCH (Roman 2026-05-31): the parallax mid layer
+// (layer_stellar_mid) is a CanvasLayer whose CanvasModulate multiplies a single
+// flat color across the whole layer. That color already bakes in the layer's
+// modulate_color * brightness * contrast (see ParallaxLayerBase._recompute_modulate).
+// To make the cruiser body read at the SAME mid-depth grade we simply multiply
+// the desaturated body by that exact CanvasModulate color, read live at spawn.
+// Defaults to white (no-op) so the showcase/dev fallback keeps the prior look.
+uniform vec4 grade_mul : source_color = vec4(1.0, 1.0, 1.0, 1.0);
+
 void fragment() {
 	vec4 tex_color = texture(TEXTURE, UV);
 	vec3 mixed = mix(tex_color.rgb, bg_tint.rgb, amount);
-	COLOR = vec4(mixed, tex_color.a);
+	COLOR = vec4(mixed * grade_mul.rgb, tex_color.a);
 }

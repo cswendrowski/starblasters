@@ -25,6 +25,21 @@ var _want_missile_cruiser: bool = false
 # Showcase only: keep respawning the cruiser after each fly-through so the
 # tuner sees repeated salvos. Off for production one-shot spawns.
 var _missile_cruiser_respawn: bool = false
+# Seconds to wait AFTER the intro/start_level before spawning the cruiser. 0 =
+# immediate (showcase + one-shot meta). The rare in-level encounter sets this so
+# the cruiser drifts in a few seconds into the fight, while waves are spawning.
+var _missile_cruiser_delay: float = 0.0
+
+# ── Rare in-level Missile Cruiser encounter (Roman 2026-05-31) ──────────────
+# On a STANDARD combat level (not boss/hazard/custom) roll a rare chance to
+# schedule one cruiser fly-through mid-level, coexisting with the active waves.
+# Because the cruiser is NOT in the "enemies" group it never gates wave-clear.
+# Base chance per combat node; deeper sectors add a per-sector bonus (capped).
+const MISSILE_CRUISER_RARE_CHANCE: float = 0.10        # KNOB: base roll (~10%)
+const MISSILE_CRUISER_RARE_PER_SECTOR: float = 0.02    # KNOB: +chance per sector cleared
+const MISSILE_CRUISER_RARE_CHANCE_MAX: float = 0.25    # KNOB: chance ceiling
+const MISSILE_CRUISER_MIN_SECTORS: int = 0             # KNOB: only after N sectors cleared
+const MISSILE_CRUISER_SPAWN_DELAY: float = 4.0         # KNOB: seconds into the fight
 # Asteroid Miners event: counts asteroids destroyed this level so the
 # clear payout (5 bounty per) can apply. Reset on new_game(); only spent
 # when Run.has_meta("asteroid_miners_event").
@@ -443,6 +458,14 @@ func new_game() -> void:
 				sd = get_node("/root/Run").sectors_cleared + 1
 				li = get_node("/root/Run").combats_in_sector
 			_current_level = WaveGen.build(sd, li, false)
+			# Rare ambient encounter: roll for a mid-level Missile Cruiser
+			# fly-through. STANDARD combat nodes only (we're in the generator
+			# sub-branch, so not boss/hazard/custom). Chance scales with sector
+			# depth (capped). Plain randf() (per the task — deterministic seeding
+			# off run_seed alone would make it all-or-nothing across the run).
+			# Skipped if a one-shot/showcase cruiser is already wanted.
+			if not _want_missile_cruiser:
+				_maybe_schedule_rare_cruiser(sd)
 			# Bounty Board extra waves: append additional wave specs consumed
 			# from Run meta. Only applies to standard combat nodes (not boss,
 			# not hazard, not custom). Consumed after first use.
@@ -467,6 +490,10 @@ func new_game() -> void:
 		if mc_run.has_meta("missile_cruiser"):
 			mc_run.remove_meta("missile_cruiser")
 			_want_missile_cruiser = true
+			# Explicit one-shot trigger spawns immediately (override any rare-roll
+			# delay/respawn scheduled above for the same standard-combat node).
+			_missile_cruiser_delay = 0.0
+			_missile_cruiser_respawn = false
 	_run_intro(is_boss)
 
 # ---- Intro sequence -----------------------------------------------------
@@ -523,7 +550,21 @@ func _run_intro(is_boss: bool) -> void:
 	# player + camera all exist (deferred from level selection).
 	if _want_missile_cruiser:
 		_want_missile_cruiser = false
-		_spawn_missile_cruiser()
+		var mc_delay: float = _missile_cruiser_delay
+		_missile_cruiser_delay = 0.0
+		if mc_delay > 0.0:
+			# Rare in-level encounter: drift in a few seconds into the fight while
+			# waves are spawning. Guard the callback against teardown (timer can
+			# fire after a scene change / outro) and require playing == true.
+			var tree: SceneTree = get_tree()
+			if tree != null:
+				var t: SceneTreeTimer = tree.create_timer(mc_delay)
+				t.timeout.connect(func() -> void:
+					if playing and is_inside_tree() and get_tree() != null:
+						_spawn_missile_cruiser()
+				)
+		else:
+			_spawn_missile_cruiser()
 
 
 # Spawn a MISSILE CRUISER into the world above the parallax backdrop. It is a
@@ -534,6 +575,24 @@ func _run_intro(is_boss: bool) -> void:
 # seam as boss_base.add_world_node_above_backdrop. World coords == playfield
 # coords because the combat camera is centred on (240,135).
 const MISSILE_CRUISER_SCENE := preload("res://scenes/enemies/missile_cruiser.tscn")
+
+
+# Roll the rare in-level encounter. `sector_depth` is sectors_cleared + 1 (the
+# value the wave generator was built against). On success, schedule a single
+# (non-respawning) cruiser to drift in MISSILE_CRUISER_SPAWN_DELAY seconds into
+# the fight via the deferred spawn site in _run_intro. Gated to deeper sectors
+# via MISSILE_CRUISER_MIN_SECTORS; chance ramps with depth up to the cap.
+func _maybe_schedule_rare_cruiser(sector_depth: int) -> void:
+	var sectors_cleared: int = maxi(0, sector_depth - 1)
+	if sectors_cleared < MISSILE_CRUISER_MIN_SECTORS:
+		return
+	var chance: float = MISSILE_CRUISER_RARE_CHANCE \
+		+ MISSILE_CRUISER_RARE_PER_SECTOR * float(sectors_cleared)
+	chance = minf(chance, MISSILE_CRUISER_RARE_CHANCE_MAX)
+	if randf() < chance:
+		_want_missile_cruiser = true
+		_missile_cruiser_respawn = false  # rare = exactly one fly-through
+		_missile_cruiser_delay = MISSILE_CRUISER_SPAWN_DELAY
 
 
 func _spawn_missile_cruiser() -> void:
