@@ -49,11 +49,6 @@ func _ready() -> void:
 	if has_node("Sprite2D"):
 		var ShadowFx = load("res://scripts/shadow_fx.gd")
 		ShadowFx.attach_shadow($Sprite2D)
-	# Firecore-specific: pulsing core glow. Identified by scene file path
-	# so we don't have to bolt on a per-scene script.
-	if scene_file_path == "res://scenes/enemies/enemy_firecore.tscn" and has_node("Sprite2D"):
-		var GlowFx = load("res://scripts/effects/glow_fx.gd")
-		GlowFx.attach_flickering_glow($Sprite2D, Color(1.0, 0.55, 0.15), 1.2, 0.7, 0.3)
 
 
 func start(pos: Vector2) -> void:

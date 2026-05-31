@@ -8,7 +8,6 @@ extends "res://scripts/enemy_core.gd"
 @export var contact_damage: int = 2
 
 var _pulse_t: float = 0.0
-var _pulse_glow: Sprite2D = null
 
 
 func _ready() -> void:
@@ -16,13 +15,6 @@ func _ready() -> void:
 	super._ready()
 	if has_node("Sprite2D"):
 		$Sprite2D.modulate = Color(1.6, 0.5, 0.45, 1.0)
-		# Attach an additive red halo behind the sprite so the pulse reads
-		# as a glow, not just a brightness flicker (Roman, 2026-05-17:
-		# "add a shader that makes the red portion pulse/glow"). Lives at
-		# the same scope as the sprite so it tracks the drone position.
-		var GlowFx = load("res://scripts/effects/glow_fx.gd")
-		if GlowFx:
-			_pulse_glow = GlowFx.attach_glow($Sprite2D, Color(1.0, 0.15, 0.10), 1.6, 0.7)
 	area_entered.connect(_on_contact)
 	# Hunter drones are kamikazes — they don't shoot, no matter what shoot
 	# pattern the wave director assigned (Roman, 2026-05-16). Clear the
@@ -44,17 +36,11 @@ func _process(delta: float) -> void:
 			or global_position.y < -50.0 or global_position.y > 290.0:
 		_leave()
 		return
-	# Red-pulse blink — drives a brightness sine on the sprite AND on the
-	# additive halo so the red portion reads as glowing, not just blinking.
+	# Red-pulse blink — drives a brightness sine on the sprite.
 	if has_node("Sprite2D"):
 		_pulse_t += delta * 6.0
 		var k: float = 1.2 + 0.5 * sin(_pulse_t)
 		$Sprite2D.modulate = Color(k * 1.3, 0.45, 0.40, 1.0)
-		if _pulse_glow != null and is_instance_valid(_pulse_glow):
-			var ga: float = 0.55 + 0.35 * sin(_pulse_t)
-			_pulse_glow.modulate.a = ga
-			var gs: float = 1.5 + 0.25 * sin(_pulse_t)
-			_pulse_glow.scale = Vector2(gs, gs)
 
 
 # Self-destruct on player contact. Also handled in enemy_core.gd's standard
