@@ -12,7 +12,10 @@ class_name AutonomousDrone
 #     drone takes one ablative hit
 #   - Pops after MAX_HITS contacts (default 2) so they're not invulnerable
 #
-# Lifetime is owned by drone_swarm.gd (cleanup timer at activate-time).
+# Lifetime is owned by player._tick_deploy: it counts the deploy duration
+# down and calls begin_shutdown() on each surviving drone when it expires
+# (Roman 2026-05-30 — Combat Drones converted from a super to a deploy
+# secondary; the old drone_swarm.gd cleanup timer was replaced).
 
 const BULLET_SCENE = preload("res://scenes/projectiles/bullet.tscn")
 
@@ -34,6 +37,18 @@ var _angle_seed: float = 0.0
 var _drift_phase: float = 0.0
 var _hits: int = 0
 var _dying: bool = false
+# Shutdown animation (duration-expiry). When begin_shutdown() is called by
+# the deploy owner (player._end_deploy), the drone stops fighting, darkens to
+# ~50% brightness, and falls toward the bottom of the screen, free-ing once
+# it's off the bottom edge — reads as the drone powering down + dropping away.
+# Distinct from _explode() (early MAX_HITS death), which is a silent free.
+var _shutting_down: bool = false
+var _fall_velocity: float = 0.0
+const SHUTDOWN_DARKEN := Color(0.5, 0.5, 0.5, 1.0)
+const SHUTDOWN_DARKEN_RATE := 6.0    # modulate lerp speed toward 50% brightness
+const SHUTDOWN_GRAVITY := 280.0      # downward accel (px/s^2)
+const SHUTDOWN_MAX_FALL := 240.0     # terminal fall speed (px/s)
+const SHUTDOWN_OFFSCREEN_MARGIN := 24.0
 
 
 func _ready() -> void:
@@ -52,6 +67,20 @@ func bind_player(player: Node2D, angle_seed: float) -> void:
 
 func _process(delta: float) -> void:
 	if _dying:
+		return
+	# Shutdown takes priority over everything: it must run even if the player
+	# is gone, and must NOT be clamped to the playfield (the drone falls off
+	# the bottom). Read the viewport for the despawn edge per CLAUDE.md.
+	if _shutting_down:
+		modulate = modulate.lerp(SHUTDOWN_DARKEN, clampf(SHUTDOWN_DARKEN_RATE * delta, 0.0, 1.0))
+		_fall_velocity = min(_fall_velocity + SHUTDOWN_GRAVITY * delta, SHUTDOWN_MAX_FALL)
+		position.y += _fall_velocity * delta
+		var bottom: float = 270.0
+		var vp := get_viewport()
+		if vp != null:
+			bottom = vp.get_visible_rect().size.y
+		if position.y > bottom + SHUTDOWN_OFFSCREEN_MARGIN:
+			queue_free()
 		return
 	if _player == null or not is_instance_valid(_player):
 		queue_free()
@@ -126,6 +155,22 @@ func _explode() -> void:
 	# Drones despawn silently — no explosion VFX (Bug fix 2026-05-26: drones
 	# should not spawn explosions when they die or are cleaned up).
 	queue_free()
+
+
+# Begin the powering-down animation: stop fighting, darken to ~50% brightness,
+# and fall toward the bottom of the screen, free-ing once off the bottom edge.
+# Called by the deploy owner (player._end_deploy) when the duration expires.
+# Idempotent + guarded so it never fights an early MAX_HITS death.
+func begin_shutdown() -> void:
+	if _dying or _shutting_down:
+		return
+	_shutting_down = true
+	_fall_velocity = 0.0
+	# Stop intercepting/absorbing — the drone is done.
+	monitoring = false
+	monitorable = false
+	if is_in_group(SUPER_DRONE_GROUP):
+		remove_from_group(SUPER_DRONE_GROUP)
 
 
 func _pick_target() -> Node:

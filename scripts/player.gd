@@ -76,6 +76,20 @@ var _burst_port_right: bool = false  # toggled each shot; false = -port first
 var secondary_ammo: int = -1
 var secondary_ammo_max: int = -1
 signal secondary_ammo_changed(value: int, maximum: int)
+# Deploy secondary (Combat Drones) — SecondaryMode.DEPLOY. One press spawns a
+# timed wave of companion drones, consuming one deploy (secondary_ammo). The
+# player owns the live wave: _drones_active gates re-deploy, _deploy_timer
+# counts the duration down, _deployed_drones tracks the spawned nodes so we
+# can shut them down on expiry. secondary_deploy_duration is written by the
+# Combat Drones Part's apply() (Mk-scaled, 8s base). State machine: _tick_deploy.
+var secondary_deploy_duration: float = 8.0
+var _drones_active: bool = false
+var _deploy_timer: float = 0.0
+var _deployed_drones: Array = []
+# Emitted while a deploy wave is live so the HUD can show a countdown in the
+# secondary slot instead of the ammo count. active=false on expiry tells the
+# HUD to revert to the ammo number.
+signal secondary_timer_changed(seconds: float, active: bool)
 # Drone Bits (Gradius Options) — orbiting companions that fire alongside
 # the primary. drone_bits holds the spawned drone Node2Ds; fire_primary
 # spawns an extra bullet from each drone's global_position each shot.
@@ -638,6 +652,10 @@ func _process(delta: float) -> void:
 	elif secondary_mode == WS.SecondaryMode.BURST:
 		var burst_held: bool = Input.is_action_pressed("shoot2")
 		_tick_burst(burst_held, delta)
+	elif secondary_mode == WS.SecondaryMode.DEPLOY:
+		# Runs every frame: ticks the active-wave countdown AND handles the
+		# deploy press (gated internally so re-deploy is blocked while live).
+		_tick_deploy(delta)
 	elif Input.is_action_pressed("shoot2"):
 		fire_secondary()
 	# Super weapon (X by default, single-tap, consumes a charge). Stub
@@ -1085,6 +1103,88 @@ func _spawn_burst_rocket() -> void:
 		secondary_ammo_changed.emit(secondary_ammo, secondary_ammo_max)
 		if has_node("/root/Run"):
 			get_node("/root/Run").secondary_ammo = secondary_ammo
+
+
+## Deployable Drones (Combat Drones) ##
+
+# Deploy-secondary state machine (secondary_mode == DEPLOY). Driven every
+# frame. A press (shoot2, edge) spawns a timed wave of companion drones via
+# the equipped secondary Part's deploy(); the wave is live for
+# secondary_deploy_duration seconds, during which:
+#   - re-deploy is blocked (_drones_active gate),
+#   - the remaining time is pushed to the HUD via secondary_timer_changed.
+# On expiry the surviving drones are told to shut down (darken + fall away),
+# and the HUD reverts to the deploy-ammo count.
+func _tick_deploy(delta: float) -> void:
+	if not is_alive:
+		return
+	if _drones_active:
+		_deploy_timer -= delta
+		# Prune freed drones from the tracking list (early MAX_HITS deaths).
+		for i in range(_deployed_drones.size() - 1, -1, -1):
+			if not is_instance_valid(_deployed_drones[i]):
+				_deployed_drones.remove_at(i)
+		if _deploy_timer <= 0.0:
+			_end_deploy()
+		else:
+			secondary_timer_changed.emit(_deploy_timer, true)
+		return
+	# Idle — wait for a deploy press. Ammo-gated (0 = empty).
+	if not Input.is_action_just_pressed("shoot2"):
+		return
+	if secondary_ammo == 0:
+		return
+	var part = _secondary_part()
+	if part == null or not part.has_method("deploy"):
+		return
+	var spawned: Array = part.deploy(self)
+	if spawned.is_empty():
+		return
+	_deployed_drones = spawned
+	_drones_active = true
+	# Duration: prefer the live Part value (Mk-scaled) over the cached field.
+	var dur: float = secondary_deploy_duration
+	if part.has_method("deploy_duration"):
+		dur = float(part.deploy_duration())
+	_deploy_timer = dur
+	secondary_timer_changed.emit(_deploy_timer, true)
+	# Consume one deploy.
+	if secondary_ammo > 0:
+		secondary_ammo -= 1
+		secondary_ammo_changed.emit(secondary_ammo, secondary_ammo_max)
+		if has_node("/root/Run"):
+			get_node("/root/Run").secondary_ammo = secondary_ammo
+
+
+# End an active deploy wave: shut down (darken + fall) any surviving drones,
+# clear the gate, and tell the HUD to revert to the ammo count.
+func _end_deploy() -> void:
+	for d in _deployed_drones:
+		if is_instance_valid(d) and d.has_method("begin_shutdown"):
+			d.begin_shutdown()
+		elif is_instance_valid(d):
+			d.queue_free()
+	_deployed_drones.clear()
+	_drones_active = false
+	_deploy_timer = 0.0
+	secondary_timer_changed.emit(0.0, false)
+
+
+# Resolve the equipped secondary Part (HARDPOINT_WING) so DEPLOY can call
+# deploy() on it. Prefers the player's live loadout node (the part instance
+# whose apply() set up this secondary); falls back to Run.loadout_snapshot.
+func _secondary_part():
+	var SlotsP = preload("res://scripts/weapons/SlotTypes.gd")
+	if loadout != null and loadout.has_method("get_part"):
+		var p = loadout.get_part(SlotsP.SlotType.HARDPOINT_WING)
+		if p != null:
+			return p
+	if not has_node("/root/Run"):
+		return null
+	var run = get_node("/root/Run")
+	if not ("loadout_snapshot" in run) or not (run.loadout_snapshot is Dictionary):
+		return null
+	return run.loadout_snapshot.get(SlotsP.SlotType.HARDPOINT_WING, null)
 
 
 ## Continuous Particle Beam ##

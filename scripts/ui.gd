@@ -56,6 +56,10 @@ var _focus_bar_fill: ColorRect = null
 var _player_ref = null
 var _wave_spawning: bool = false
 var _sec_ammo: int = -1
+# Combat Drones deploy timer: while a wave is live the secondary ammo slot
+# shows a remaining-time countdown instead of the ammo count. _sec_timer_active
+# gates _on_secondary_ammo_changed so the ammo signal can't clobber the timer.
+var _sec_timer_active: bool = false
 var _super_charge_count: int = 0
 
 var _font: Font = null
@@ -403,6 +407,8 @@ func bind_player(player) -> void:
 		player.ammo_changed.connect(_on_ammo_changed)
 	if player.has_signal("secondary_ammo_changed") and not player.secondary_ammo_changed.is_connected(_on_secondary_ammo_changed):
 		player.secondary_ammo_changed.connect(_on_secondary_ammo_changed)
+	if player.has_signal("secondary_timer_changed") and not player.secondary_timer_changed.is_connected(_on_secondary_timer_changed):
+		player.secondary_timer_changed.connect(_on_secondary_timer_changed)
 	if player.has_signal("super_charges_changed") and not player.super_charges_changed.is_connected(_on_super_charges_changed):
 		player.super_charges_changed.connect(_on_super_charges_changed)
 	if player.has_signal("focus_charge_changed") and not player.focus_charge_changed.is_connected(_on_focus_charge_changed):
@@ -495,9 +501,27 @@ func _on_ammo_changed(value: int) -> void:
 
 func _on_secondary_ammo_changed(value: int, _maximum: int) -> void:
 	_sec_ammo = value
+	# While a Combat Drones deploy is live the slot shows the countdown timer;
+	# don't let the ammo signal overwrite it. The ammo count re-renders when
+	# the timer ends (_on_secondary_timer_changed active=false).
+	if _sec_timer_active:
+		return
 	if _sec_ammo_lbl:
 		# Always show the count, incl. 0 (Roman). -1 = infinite/none → ∞.
 		_sec_ammo_lbl.text = "∞" if value < 0 else "%d" % value
+
+
+# Combat Drones deploy timer. While active, the secondary ammo slot shows the
+# remaining time (rounded-up seconds) instead of the ammo count. On expiry
+# (active=false) the slot reverts to the cached deploy-ammo count.
+func _on_secondary_timer_changed(seconds: float, active: bool) -> void:
+	_sec_timer_active = active
+	if _sec_ammo_lbl == null:
+		return
+	if active:
+		_sec_ammo_lbl.text = "%ds" % int(ceil(seconds))
+	else:
+		_sec_ammo_lbl.text = "∞" if _sec_ammo < 0 else "%d" % _sec_ammo
 
 
 func _on_super_charges_changed(value: int, _maximum: int) -> void:
@@ -525,6 +549,8 @@ func _disconnect_player_signals(player) -> void:
 		player.ammo_changed.disconnect(_on_ammo_changed)
 	if player.has_signal("secondary_ammo_changed") and player.secondary_ammo_changed.is_connected(_on_secondary_ammo_changed):
 		player.secondary_ammo_changed.disconnect(_on_secondary_ammo_changed)
+	if player.has_signal("secondary_timer_changed") and player.secondary_timer_changed.is_connected(_on_secondary_timer_changed):
+		player.secondary_timer_changed.disconnect(_on_secondary_timer_changed)
 	if player.has_signal("super_charges_changed") and player.super_charges_changed.is_connected(_on_super_charges_changed):
 		player.super_charges_changed.disconnect(_on_super_charges_changed)
 	if player.has_signal("focus_charge_changed") and player.focus_charge_changed.is_connected(_on_focus_charge_changed):

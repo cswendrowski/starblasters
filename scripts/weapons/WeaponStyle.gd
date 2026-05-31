@@ -41,6 +41,11 @@ enum SecondaryMode {
 	BURST,     # burst-fire ordnance (Rocket Pod): N rockets at a fixed RPM,
 	           # alternating wing ports, then a fixed cooldown before the
 	           # next cycle. State machine lives in player._tick_burst.
+	DEPLOY,    # timed deployable (Combat Drones): one press spawns a wave of
+	           # companion drones for a duration, consuming one deploy charge.
+	           # Re-deploy is blocked while a wave is live. Duration countdown
+	           # + active gate + ammo decrement live in player._tick_deploy;
+	           # the Part's deploy() spawns + returns the drone nodes.
 }
 
 

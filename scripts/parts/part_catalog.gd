@@ -58,7 +58,9 @@ static func _all_pool() -> Array:
 		# experience. Roman 2026-05-24: re-enabled — renamed to "Intercept
 		# Drones" and was missing from the hangar roll pool.
 		{"factory": "_make_drone_bits", "slot": Slots.SlotType.HARDPOINT_WING},
-		{"factory": "_make_drone_swarm", "slot": Slots.SlotType.DEVICE_BAY_1},
+		# Roman 2026-05-30: Combat Drones converted SUPER -> SECONDARY; now
+		# equips in the HARDPOINT_WING slot and fires on shoot2 (deploy).
+		{"factory": "_make_drone_swarm", "slot": Slots.SlotType.HARDPOINT_WING},
 	]
 
 static func roll_random_part(rng: RandomNumberGenerator):
