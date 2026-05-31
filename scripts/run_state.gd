@@ -80,6 +80,12 @@ var secondary_ammo_max: int = -1
 var encountered_enemies: Dictionary = {}
 var visited_nodes: Array = []  # node ids
 var sectors_cleared: int = 0
+# Run-wide count of bosses defeated this run. Each defeated boss grants
+# +5% max HP to every SUBSEQUENT boss spawned (boss_base._ready applies the
+# scale: max_health *= 1 + 0.05 * bosses_defeated). Cumulative across all
+# sectors; reset only by new_run(). Incremented exactly once per boss in
+# boss_base.explode() (guarded by the boss's _dying flag).
+var bosses_defeated: int = 0
 var used_boss_scenes: Array = []  # scene paths used in prior sectors; prevents cross-sector repeats
 # Combat nodes (non-boss, non-hazard) completed since the start of the
 # current sector. Drives wave_generator scaling. Resets to 0 when a new
@@ -208,6 +214,7 @@ func new_run() -> void:
 	max_bounty_earned = 0
 	run_distance = 0.0
 	sectors_cleared = 0
+	bosses_defeated = 0
 	combats_in_sector = 0
 	visited_nodes = []
 	used_boss_scenes = []
@@ -792,7 +799,7 @@ const _SAVE_FIELDS := [
 	"current_hazard_subtype", "asteroid_bonus_bounty", "combat_intro",
 	"current_stellar",
 	"ammo", "secondary_ammo", "secondary_ammo_max",
-	"visited_nodes", "sectors_cleared", "combats_in_sector", "used_boss_scenes",
+	"visited_nodes", "sectors_cleared", "bosses_defeated", "combats_in_sector", "used_boss_scenes",
 	"enemies_killed", "max_bounty_earned", "run_distance", "run_seed",
 	"hull_mk", "armor_mk", "thrusters_mk", "self_repair_mk",
 	"shield_cap_mk", "shield_recharge_mk", "hull_plating_mk",

@@ -78,6 +78,19 @@ func _ready() -> void:
 	# attachment — boss .tscns carry their own art.
 	auto_rotate = false
 	offscreen_mode = OffscreenMode.NONE
+	# Run-wide boss HP escalation: each boss defeated this run grants +5% max
+	# HP to every subsequent boss (designer Roman, 2026-05-31). Applied here —
+	# before super._ready() — so it lands while max_health still holds the
+	# subclass base value but BEFORE enemy_base._ready() does `health =
+	# max_health`. Single shared site: every boss subclass routes through this
+	# _ready(), so no boss can forget the buff. Guarded for autoload-less
+	# dev/test scenes (defaults to x1.0). Explicit type — never `:=` here.
+	var run: Node = get_node_or_null("/root/Run")
+	if run != null and "bosses_defeated" in run:
+		var defeated: int = int(run.bosses_defeated)
+		if defeated > 0 and max_health > 0:
+			var scale_mult: float = 1.0 + 0.05 * float(defeated)
+			max_health = int(round(float(max_health) * scale_mult))
 	super._ready()
 	if has_node("ShootTimer") and not $ShootTimer.timeout.is_connected(_on_shoot_timer_timeout):
 		$ShootTimer.timeout.connect(_on_shoot_timer_timeout)
@@ -170,6 +183,14 @@ func explode() -> void:
 		return
 	_dying = true
 	set_deferred("monitorable", false)
+	# Run-wide boss-defeat tally. Drives the +5%-per-prior-boss HP escalation
+	# applied at spawn in _ready(). Incremented here — exactly once per boss —
+	# because the _dying guard above makes explode() a single-fire path
+	# (reaver overrides explode() but calls super, so it routes through here
+	# too). Guarded for autoload-less dev/test scenes. Explicit type, no `:=`.
+	var run: Node = get_node_or_null("/root/Run")
+	if run != null and "bosses_defeated" in run:
+		run.bosses_defeated = int(run.bosses_defeated) + 1
 	died.emit(bounty_value)
 	# NOTE: do NOT call Run.sector_complete() here — that's the V2-era
 	# per-boss sectors_cleared bump. In V3 a sector has 3 row bosses; the
