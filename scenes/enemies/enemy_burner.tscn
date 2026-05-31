@@ -9,8 +9,8 @@ size = Vector2(10, 10)
 
 [node name="Enemy" type="Area2D" groups=["enemies"]]
 script = ExtResource("1_script")
-max_health = 2
-bounty_value = 10
+max_health = 12
+bounty_value = 30
 display_scale = 1.0
 
 [node name="Sprite2D" type="Sprite2D" parent="."]

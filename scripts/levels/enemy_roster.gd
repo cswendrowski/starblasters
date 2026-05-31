@@ -135,12 +135,21 @@ const ENTRIES := [
 
 	# --- UNCOMMON ---------------------------------------------------------
 	{
+		# Burner — beam pair (Roman, 2026-05-31). Bespoke self-driving enemy:
+		# arrives in pairs, strings a damaging beam between the two members and
+		# descends together; killing either blows up both. Handles its own
+		# movement + beam (no Resource slots) so movement/shoot are null, like
+		# enemy_firecore_cruiser. NOT chaff-rolled — spawned only by explicit
+		# wave authoring. Burner waves MUST use formation TOP_TANDEM_PAIRS
+		# (index 5) and an EVEN count so every member gets a partner; an odd
+		# member simply descends and leaves (no beam) rather than crashing.
 		"scene": "res://scenes/enemies/enemy_burner.tscn",
 		"tier": Tier.UNCOMMON,
-		"size": "small", "tags": [],
-		"movement": "straight",
-		"shoot": null,
-		"base_count": 3,
+		"size": "medium", "tags": [],
+		"movement": null,   # handles own movement
+		"shoot": null,      # handles own beam
+		"base_count": 2,
+		"hp_override": 12, "bounty_override": 30,
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_weaver.tscn",
