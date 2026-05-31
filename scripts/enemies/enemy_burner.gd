@@ -63,7 +63,15 @@ func _ready() -> void:
 	# for this non-chaff enemy). Roman: ~12 HP, ~30 bounty.
 	max_health   = 12
 	bounty_value = 30
-	auto_rotate  = false   # beam pair holds a fixed horizontal stance; no banking
+	# auto_rotate stays true (base default): the base _apply_auto_rotation()
+	# rotates the sprite to face the travel direction (rotation =
+	# velocity_dir.angle() + PI*0.5). The pair enters from the top and
+	# descends, so the nose points DOWN throughout; if a future wave ever
+	# sends them up, the same logic faces them up. The beam is unaffected —
+	# its Line2D endpoints go through to_local(world_pos), which already
+	# accounts for the node's rotation, and the damage segment uses world
+	# positions. (Was auto_rotate=false; restored per the enemy convention
+	# that only mines/turrets disable it — Roman 2026-05-31.)
 	display_scale = 1.0
 	super._ready()
 
@@ -272,15 +280,32 @@ func _make_line(color: Color, width: float) -> Line2D:
 	return l
 
 
+# Beam endpoint in WORLD space. If the scene has a child Marker2D named
+# "beam_emit", the beam attaches to it so Roman can line the effect up on a
+# marker he places; otherwise it falls back to the node center (global_position),
+# i.e. exactly the prior behavior. NOTE: get_node_or_null is statically typed
+# Node (no global_position), so we MUST cast to Node2D explicitly — `$beam_emit`
+# / Variant access here is a compile error parse_check misses.
+func _beam_point() -> Vector2:
+	var m: Node2D = get_node_or_null("beam_emit") as Node2D
+	if m != null:
+		return m.global_position
+	return global_position
+
+
 func _update_beam_points(line: Line2D) -> void:
 	if line == null or not is_instance_valid(line):
 		return
 	if not _has_live_partner():
 		return
-	# Line is a child of the owner; draw from owner origin to the partner's
-	# position in owner-local space (arbitrary-endpoint geometry, beam-turret
-	# style). seg_start = own global, seg_end = partner global.
-	line.points = PackedVector2Array([Vector2.ZERO, to_local(_partner.global_position)])
+	# Line is a child of the owner; draw from this burner's beam-emit point to
+	# the partner's beam-emit point, both expressed in owner-local space
+	# (arbitrary-endpoint geometry, beam-turret style). to_local() accounts for
+	# the owner's rotation, so the beam connects the two world points correctly
+	# even when both burners are rotated nose-down. With no "beam_emit" marker,
+	# _beam_point() == global_position, so to_local(own) collapses to Vector2.ZERO
+	# and the drawn line is byte-identical to the prior center-to-center behavior.
+	line.points = PackedVector2Array([to_local(_beam_point()), to_local(_partner._beam_point())])
 
 
 func _set_beam_layers_visible(outer: bool, mid: bool, core: bool, telegraph: bool) -> void:
@@ -306,8 +331,10 @@ func _apply_beam_damage(delta: float) -> void:
 		return
 	if not _has_live_partner():
 		return
-	var seg_start: Vector2 = global_position
-	var seg_end: Vector2 = _partner.global_position
+	# WORLD-space segment endpoints (must match the drawn beam): own beam-emit →
+	# partner beam-emit. Falls back to centers when no "beam_emit" marker exists.
+	var seg_start: Vector2 = _beam_point()
+	var seg_end: Vector2 = _partner._beam_point()
 	if _dist_point_to_segment(player.global_position, seg_start, seg_end) <= HIT_RADIUS:
 		_dmg_accum += BEAM_DPS * delta
 		while _dmg_accum >= 1.0:
