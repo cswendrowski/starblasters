@@ -78,7 +78,10 @@ const ENTRIES := [
 		# reads as active without becoming a wall. Keeps min<max jitter so
 		# volleys desync. First-pass — tune in playtest.
 		"fire_min": 1.4, "fire_max": 2.3,
-		"unlock_sector": 2, "unlock_depth": 5, "weight": 0.7, "chaff": true,
+		# Firecore is a shooting common — basic but not the very first thing the
+		# player sees. Unlocks one combat node into any sector. (Was S2/D5, which
+		# under live depth gating was effectively unreachable on a 3-node sector.)
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": true,
 		"conflict_tags": ["aimed_or_spread"],
 	},
 	{
@@ -90,7 +93,8 @@ const ENTRIES := [
 		"base_count": 8,
 		"recycle": 0,
 		"hp_override": 1, "bounty_override": 5,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 1.4, "chaff": true,
+		# Dart — the canonical first-encounter chaff. Always available.
+		"unlock_sector": 0, "unlock_depth": 0, "weight": 1.4, "chaff": true,
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_bomb_drone.tscn",
@@ -101,7 +105,8 @@ const ENTRIES := [
 		"base_count": 6,
 		"recycle": 0,
 		"hp_override": 1, "bounty_override": 5,
-		"unlock_sector": 1, "unlock_depth": 2, "weight": 1.0, "chaff": true,
+		# Bomb drone — basic dive chaff. Always available alongside Dart.
+		"unlock_sector": 0, "unlock_depth": 0, "weight": 1.0, "chaff": true,
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_drifter.tscn",
@@ -116,7 +121,9 @@ const ENTRIES := [
 		# than firecore so the two chaff types still feel distinct. First-pass.
 		"fire_min": 1.6, "fire_max": 2.2,
 		"hp_override": 1, "bounty_override": 8,
-		"unlock_sector": 1, "unlock_depth": 2, "weight": 1.2, "chaff": true,
+		# Drifter — basic chaff (slow drifting shooter). Always available so the
+		# sector-1/depth-0 opener has a couple of distinct basic types.
+		"unlock_sector": 0, "unlock_depth": 0, "weight": 1.2, "chaff": true,
 		"conflict_tags": ["dumb_shot"],
 	},
 	{
@@ -130,7 +137,9 @@ const ENTRIES := [
 		# mine-equivalent value (1) so killing one doesn't reward more
 		# than dodging an asteroid/mine of the same threat profile.
 		"bounty_override": 1,
-		"unlock_sector": 2, "unlock_depth": 4, "weight": 0.6, "chaff": true,
+		# Hunter Drone — kamikaze threat; deeper-common. Appears from sector 2,
+		# a node or two in. (Was D4 — unreachable on short sectors; pulled to D1.)
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.6, "chaff": true,
 	},
 
 	# --- UNCOMMON ---------------------------------------------------------
@@ -153,10 +162,11 @@ const ENTRIES := [
 		"shoot": null,      # handles own beam
 		"base_count": 2,
 		"hp_override": 12, "bounty_override": 30,
-		# Documentary gating (matches uncommon peers). NOTE: production selection
-		# (_pick_entry → entries_of(tier)) ignores weight/unlock_* today — these
-		# are inert until/unless the generator is taught to honor them. See report.
-		"weight": 0.7, "unlock_sector": 1, "unlock_depth": 3,
+		# DEPTH GATING (Roman 2026-05-31): now live — _pick_entry honors
+		# unlock_sector/unlock_depth via Roster.entries_eligible. Burner is an
+		# advanced beam-pair behavior, so it's gated to sector 2 (not a sector-1
+		# surprise). Within sector 2+ it can appear from the first node.
+		"weight": 0.7, "unlock_sector": 2, "unlock_depth": 0,
 		# Guarantee the pair formation + even count every time this rolls.
 		# 5 == WaveSpec.Formation.TOP_TANDEM_PAIRS (wave_def.gd). Literal because
 		# the roster doesn't preload WaveSpec; the generator validates against the
@@ -174,7 +184,9 @@ const ENTRIES := [
 		"base_count": 2,
 		"fire_min": 1.4, "fire_max": 2.2,
 		"hp_override": 2, "bounty_override": 10,
-		"unlock_sector": 1, "unlock_depth": 4, "weight": 0.9, "chaff": true,
+		# Weaver — entry-level uncommon (s-curve + aimed). The gentlest uncommon,
+		# so it's the first to appear: sector 1, one node in. (Was D4.)
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.9, "chaff": true,
 		"conflict_tags": ["aimed_or_spread", "wide_dodge"],
 	},
 	{
@@ -187,7 +199,8 @@ const ENTRIES := [
 		"base_count": 2,
 		"fire_min": 1.6, "fire_max": 2.4,
 		"hp_override": 2, "bounty_override": 12,
-		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.9, "chaff": true,
+		# Hover — loitering gunner that demands focus. Sector 1, two nodes in.
+		"unlock_sector": 1, "unlock_depth": 2, "weight": 0.9, "chaff": true,
 		"conflict_tags": ["demands_focus"],
 	},
 	{
@@ -202,6 +215,11 @@ const ENTRIES := [
 		# slow ceiling in from 2.8 → 2.4s so the 3-round burst recurs a bit
 		# more often. Floor unchanged (burst is already a heavy beat). First-pass.
 		"fire_min": 1.8, "fire_max": 2.4,
+		# Frigate — tough burst-gunner workhorse. Gate so it doesn't show up in
+		# the very first sector opener; appears sector 1, two nodes in. (Had no
+		# unlock fields — under the new default-0 semantics that would put it at
+		# sector-1/depth-0, too heavy for the opener.)
+		"unlock_sector": 1, "unlock_depth": 2,
 	},
 	# TODO: Replace cutter with a new horizontal strafe enemy that crosses the screen cleanly
 	#{
@@ -226,7 +244,9 @@ const ENTRIES := [
 		"base_count": 3,
 		"fire_min": 0.7, "fire_max": 1.1,
 		"hp_override": 2, "bounty_override": 15,
-		"unlock_sector": 2, "unlock_depth": 3, "weight": 0.8, "chaff": true,
+		# Skirmisher — aggressive aimed-fire advance/retreat. Sector 2, one node
+		# in. (Was D3 — pulled to D1 so it's reachable on a short sector.)
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.8, "chaff": true,
 		"conflict_tags": ["aimed_or_spread", "demands_focus"],
 	},
 
@@ -237,6 +257,10 @@ const ENTRIES := [
 		"movement": "loiter",
 		"shoot": null,  # uses built-in beam, not shoot_pattern
 		"base_count": 2,
+		# Beam shooter — tough beam specialist. Gate to sector 2 so beam pressure
+		# is a deeper-sector escalation, not a sector-1 opener threat. (Had no
+		# unlock fields.)
+		"unlock_sector": 2, "unlock_depth": 0,
 		"conflict_tags": ["beamshooter"],
 	},
 	# Gunship single: one ship sweeps left↔right, fires 3 salvos, exits.
@@ -281,6 +305,14 @@ const ENTRIES := [
 		"movement": "omni",
 		"shoot": null,
 		"base_count": 1,
+		# RARE gating (Roman 2026-05-31): rares already only roll when _roll_tier
+		# lands RARE (deep nodes / late sectors), so these unlocks are a second,
+		# explicit gate on top. "Lighter" rares (sapper, crystal, minelayer,
+		# interceptor) open from sector 1's deep nodes; heavier elites wait for
+		# sector 2+. (All RARE entries previously had NO unlock fields, which
+		# under the new default-0 rule would have made them sector-1/depth-0
+		# eligible whenever a RARE tier-roll occurred.)
+		"unlock_sector": 1, "unlock_depth": 0,
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_crystal.tscn",
@@ -291,6 +323,7 @@ const ENTRIES := [
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 2,
 		"fire_min": 1.8, "fire_max": 2.6,
+		"unlock_sector": 1, "unlock_depth": 0,
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_minelayer.tscn",
@@ -299,6 +332,7 @@ const ENTRIES := [
 		"movement": "side_traverse",
 		"shoot": null,
 		"base_count": 2,
+		"unlock_sector": 1, "unlock_depth": 0,
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_interceptor.tscn",
@@ -307,6 +341,7 @@ const ENTRIES := [
 		"movement": "top_dive",
 		"shoot": null,
 		"base_count": 3,
+		"unlock_sector": 1, "unlock_depth": 0,
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_bulwark.tscn",
@@ -315,6 +350,8 @@ const ENTRIES := [
 		"movement": "bulwark_drift",
 		"shoot": null,
 		"base_count": 1,
+		# Heavy elite — sector 2+.
+		"unlock_sector": 2, "unlock_depth": 0,
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_cruiser.tscn",
@@ -323,6 +360,7 @@ const ENTRIES := [
 		"movement": "loiter",
 		"shoot": null,
 		"base_count": 1,
+		"unlock_sector": 2, "unlock_depth": 0,
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_drone_carrier.tscn",
@@ -331,6 +369,8 @@ const ENTRIES := [
 		"movement": "loiter",
 		"shoot": null,
 		"base_count": 1,
+		# Drone carrier — top-tier elite, latest of the standard rares.
+		"unlock_sector": 3, "unlock_depth": 0,
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_firecore_cruiser.tscn",
@@ -341,7 +381,10 @@ const ENTRIES := [
 		"base_count": 1,
 		"no_scale": true,
 		"hp_override": 32, "bounty_override": 100,
-		"unlock_sector": 2, "unlock_depth": 6, "weight": 0.6,
+		# huge firecore elite — sector 2+, a node in. (Was D6 — unreachable on a
+		# short sector; pulled to D1 so it's actually reachable once gated by
+		# sector. The RARE tier-roll still keeps it scarce.)
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.6,
 	},
 	{
 		# Firecore Drone (Roman, 2026-05-31). Small + tough; descends slowly
@@ -360,6 +403,11 @@ const ENTRIES := [
 		"shoot": null,      # handles own ring release
 		"base_count": 3,
 		"hp_override": 10, "bounty_override": 25,
+		# DEPTH GATING (Roman 2026-05-31): NEW advanced enemy — the death-burst
+		# ring release is a learned threat, so gate it out of sector 1 entirely.
+		# Unlocks sector 2 (peer of Burner). Had no unlock fields, which under
+		# the new default-0 rule would have put it at sector-1/depth-0.
+		"unlock_sector": 2, "unlock_depth": 0,
 	},
 ]
 
@@ -393,6 +441,34 @@ static func entries_of(tier: int) -> Array:
 	for e in ENTRIES:
 		if int(e["tier"]) == tier:
 			out.append(e)
+	return out
+
+
+# Depth-gated tier pool (Roman 2026-05-31, enemy unlock gating).
+# Returns the entries of `tier` whose unlock thresholds are met for the given
+# progression coordinate, where:
+#   sector_idx   <- WaveGen.build's sector_depth   (1-based: sector 1, 2, 3...)
+#   sector_depth <- WaveGen.build's level_index    (0-based: 0 = first combat
+#                   node since the sector reset)
+# An entry is eligible when BOTH:
+#   sector_idx   >= unlock_sector   (absent/0 => always; treated as 0)
+#   sector_depth >= unlock_depth    (absent/0 => always; treated as 0)
+# IMPORTANT: default is 0 (always-available), NOT 1. The first combat node
+# passes level_index = 0, so any unlock_depth >= 1 enemy is gated out of the
+# sector opener — exactly the "fresh sector opens calm" intent. The basic
+# chaff carry unlock_depth 0 explicitly so the filtered pool is non-empty at
+# (sector 1, depth 0) BY CONSTRUCTION, without relying on a fallback.
+# Callers (WaveGen._pick_entry) still apply their own last-ditch fallback.
+static func entries_eligible(tier: int, sector_idx: int, sector_depth: int) -> Array:
+	var out: Array = []
+	for e in ENTRIES:
+		if int(e["tier"]) != tier:
+			continue
+		if int(e.get("unlock_sector", 0)) > sector_idx:
+			continue
+		if int(e.get("unlock_depth", 0)) > sector_depth:
+			continue
+		out.append(e)
 	return out
 
 

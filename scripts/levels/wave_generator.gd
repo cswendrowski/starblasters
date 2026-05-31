@@ -303,10 +303,24 @@ static func _pick_entry(rng: RandomNumberGenerator, sector_depth: int, level_ind
 	var tier := _roll_tier(rng, sector_depth, level_index)
 	if tier > max_tier:
 		tier = max_tier
-	var pool: Array = Roster.entries_of(tier)
-	# Fall back to other tiers if the rolled tier is empty.
+	# DEPTH GATING (Roman 2026-05-31): pull only entries unlocked at this
+	# progression coordinate. sector_depth here is WaveGen's 1-based sector
+	# (maps to roster unlock_sector); level_index is the 0-based combat-node
+	# index within the sector (maps to roster unlock_depth). entries_eligible
+	# treats absent/0 thresholds as always-available, and the basic chaff are
+	# unlock 0 so the COMMON pool is never empty at (sector 1, depth 0).
+	var pool: Array = Roster.entries_eligible(tier, sector_depth, level_index)
+	# Fall back to other tiers if the rolled tier has nothing unlocked yet.
+	# Keep the depth filter on the fallback tiers so a gated enemy can't sneak
+	# in via a tier-downgrade (e.g. an empty UNCOMMON pool must not pull a
+	# locked RARE through an unfiltered COMMON list).
 	if pool.is_empty() and Roster.Tier.UNCOMMON <= max_tier:
-		pool = Roster.entries_of(Roster.Tier.UNCOMMON)
+		pool = Roster.entries_eligible(Roster.Tier.UNCOMMON, sector_depth, level_index)
+	if pool.is_empty():
+		pool = Roster.entries_eligible(Roster.Tier.COMMON, sector_depth, level_index)
+	# Last-ditch roster-misconfig guard: if even the filtered COMMON pool is
+	# empty (should be impossible given the unlock-0 basic chaff), fall back to
+	# the unfiltered COMMON tier so wave generation can never softlock.
 	if pool.is_empty():
 		pool = Roster.entries_of(Roster.Tier.COMMON)
 	# Conflict-tag filter for boss lead-ins.
