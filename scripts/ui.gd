@@ -488,15 +488,16 @@ func _refresh_weapon_names() -> void:
 func _on_ammo_changed(value: int) -> void:
 	if _pri_ammo_lbl == null:
 		return
-	var blaster_active: bool = has_node("/root/Run") and int(get_node("/root/Run").active_cannon_idx) == 0
-	_pri_ammo_lbl.text = "" if blaster_active else "%d" % value
+	# Always show the count, incl. 0 (Roman). -1 = infinite (Energy Blaster) → ∞.
+	_pri_ammo_lbl.text = "∞" if value < 0 else "%d" % value
 	_refresh_weapon_names()
 
 
 func _on_secondary_ammo_changed(value: int, _maximum: int) -> void:
 	_sec_ammo = value
 	if _sec_ammo_lbl:
-		_sec_ammo_lbl.text = "%d" % value if value >= 0 else ""
+		# Always show the count, incl. 0 (Roman). -1 = infinite/none → ∞.
+		_sec_ammo_lbl.text = "∞" if value < 0 else "%d" % value
 
 
 func _on_super_charges_changed(value: int, _maximum: int) -> void:
