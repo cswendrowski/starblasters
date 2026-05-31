@@ -37,7 +37,7 @@ const X_CLAMP_INSET := 8.0     # keep members inside the playfield band
 # --- beam tuning --------------------------------------------------------
 const TELEGRAPH_DURATION := 0.7   # pulsing, no-damage warning before the beam bites
 const BEAM_DPS    := 3.0
-const HIT_RADIUS  := 10.0
+const HIT_RADIUS  := 6.0   # matches the thinned beam's visible outer half-width (Roman 2026-05-31)
 
 enum Phase { ENTER, TELEGRAPH, FIRING, LEAVING }
 
