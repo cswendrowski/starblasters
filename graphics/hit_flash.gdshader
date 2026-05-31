@@ -10,5 +10,10 @@ uniform vec4 flash_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
 void fragment() {
 	vec4 tex = texture(TEXTURE, UV);
 	vec3 mixed = mix(tex.rgb, flash_color.rgb, flash_strength);
-	COLOR = vec4(mixed, tex.a);
+	// Multiply by the built-in COLOR varying so the node's modulate (tint AND
+	// alpha) is honored. Without this, a sprite that sets modulate.a (e.g. the
+	// player ship going semi-transparent in focus mode) stays fully opaque once
+	// this material is installed, since alpha would come only from the texture.
+	// Identity for opaque-white modulate, so enemies/mines are unaffected.
+	COLOR = vec4(mixed, tex.a) * COLOR;
 }

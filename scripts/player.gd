@@ -196,6 +196,14 @@ var _focus_was_active: bool = false
 var _focus_trail: Line2D = null
 var _focus_trail_history: PackedVector2Array = PackedVector2Array()
 const FOCUS_TRAIL_LEN := 18
+# Focus-mode visual presence: ship goes semi-transparent, gains a soft diffuse
+# glow aura, and the engine exhaust doubles in length. (Roman 2026-05-30.)
+const FOCUS_SHIP_ALPHA := 0.55                 # ship opacity while focused
+const FOCUS_GLOW_COLOR := Color(0.5, 0.9, 1.0) # cool cyan focus aura
+const FOCUS_EXHAUST_LIFETIME := 0.5            # 2x the scene default (0.25)
+const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
+var _focus_glow: CanvasItem = null
+var _exhaust_base_lifetime: float = 0.25
 var focus_charge: float = 10.0
 var focus_charge_max: float = 10.0
 var _focus_regen_delay: float = 0.0
@@ -327,6 +335,12 @@ func _ready() -> void:
 		var booster: Node2D = $Ship.get_node("Boosters") as Node2D
 		var glow = GlowFx.attach_glow($Ship, Color(0.45, 0.85, 1.0), 1.2, 0.75)
 		glow.position = booster.position
+	# Remember the scene's default exhaust lifetime so focus mode can double it
+	# and restore the exact baseline on release.
+	if $Ship.has_node("GPUParticles2D"):
+		var exhaust: GPUParticles2D = $Ship.get_node("GPUParticles2D") as GPUParticles2D
+		if exhaust != null:
+			_exhaust_base_lifetime = exhaust.lifetime
 	start()
 
 func _setup_smoke_trail() -> void:
@@ -1381,16 +1395,22 @@ func _update_focus_dot(visible: bool) -> void:
 		_focus_dot.z_index = 100
 		add_child(_focus_dot)
 	_focus_dot.visible = visible
-	# Edge-triggered sound.
+	# Edge-triggered sound + glow aura + doubled exhaust. Create-once on enter,
+	# free/restore on exit — no per-frame node churn.
 	if visible and not _focus_was_active:
 		_play_focus_sound(true)
+		_focus_visuals_enter()
 	elif not visible and _focus_was_active:
 		_play_focus_sound(false)
+		_focus_visuals_exit()
 	_focus_was_active = visible
-	# Blue tint while focused.
+	# Blue tint + semi-transparency while focused. Per-frame is idempotent and
+	# harmless; the modulate alpha now actually renders because hit_flash.gdshader
+	# multiplies by the built-in COLOR (it previously clobbered modulate alpha,
+	# which is why focus transparency regressed once the ship took its first hit).
 	if has_node("Ship"):
 		if visible:
-			$Ship.modulate = Color(0.5, 0.7, 1.0, 0.5)
+			$Ship.modulate = Color(0.5, 0.7, 1.0, FOCUS_SHIP_ALPHA)
 		else:
 			$Ship.modulate = Color(1.0, 1.0, 1.0, 1.0)
 	# Trail management — Line2D parented to get_parent() so it stays in world space.
@@ -1420,6 +1440,34 @@ func _update_focus_dot(visible: bool) -> void:
 			_focus_trail.queue_free()
 			_focus_trail = null
 		_focus_trail_history.clear()
+
+
+# Focus-enter: spawn the diffuse glow aura behind the ship sprite and double
+# the engine exhaust length. Guarded against double-spawn so a stray re-entry
+# never leaks a second glow node.
+func _focus_visuals_enter() -> void:
+	if not has_node("Ship"):
+		return
+	# Soft cyan bloom behind the ship (GlowShaderFx parents a halo quad as a
+	# sibling at z_index -1). apply() returns a typed CanvasItem.
+	if _focus_glow == null or not is_instance_valid(_focus_glow):
+		_focus_glow = GlowShaderFx.apply($Ship, FOCUS_GLOW_COLOR)
+	# Double the engine exhaust lifetime → ~2x trail length (velocity is fixed).
+	if $Ship.has_node("GPUParticles2D"):
+		var exhaust: GPUParticles2D = $Ship.get_node("GPUParticles2D") as GPUParticles2D
+		if exhaust != null:
+			exhaust.lifetime = FOCUS_EXHAUST_LIFETIME
+
+
+# Focus-exit: free the glow aura and restore the engine exhaust to baseline.
+func _focus_visuals_exit() -> void:
+	if _focus_glow != null and is_instance_valid(_focus_glow):
+		_focus_glow.queue_free()
+	_focus_glow = null
+	if has_node("Ship") and $Ship.has_node("GPUParticles2D"):
+		var exhaust: GPUParticles2D = $Ship.get_node("GPUParticles2D") as GPUParticles2D
+		if exhaust != null:
+			exhaust.lifetime = _exhaust_base_lifetime
 
 
 func _play_focus_sound(_starting: bool) -> void:
