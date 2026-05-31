@@ -30,6 +30,9 @@ class_name BaseMissile
 
 # Set true once a target enters the cone; never returns to false.
 var _locked: bool = false
+# Player seeking missiles lock onto a single target. Store the reference so
+# we only home toward THIS target, never re-acquire a new one.
+var _locked_target: Node = null
 @export var fuse: float = 6.0
 @export var damage_on_contact: int = 1
 # Dumb-fire mode (Roman, 2026-05-16): straight-line acceleration in the
@@ -158,14 +161,38 @@ func _process(delta: float) -> void:
 			# Roman, 2026-05-18: seeker missiles fly straight unless a
 			# target enters the cone in front of them. Once acquired,
 			# they LOCK and don't unlock — double speed rapidly.
+			# Roman, 2026-05-29: player seeking missiles get ONE SHOT to
+			# lock — store the target and never re-acquire. If the target
+			# dies/becomes invalid, fly straight off-screen.
 			var fwd: Vector2 = _vel.normalized() if _vel.length_squared() > 0.001 else initial_dir.normalized()
 			if fwd == Vector2.ZERO:
 				fwd = Vector2(0, 1) if target_group == "player" else Vector2(0, -1)
-			var p = _find_homing_target_in_cone(fwd) if not _locked else _find_homing_target()
+
+			# Player seeking missiles (target_group == "enemies" and not dumb_fire)
+			# use the one-shot lock logic. All others (enemy missiles and rockets)
+			# keep their original behavior.
+			var p: Node = null
+			if target_group == "enemies" and not dumb_fire:
+				# Player seeking missile: one-shot lock behavior
+				if not _locked:
+					# Looking for initial target acquisition
+					p = _find_homing_target_in_cone(fwd)
+					if p and is_instance_valid(p):
+						_locked = true
+						_locked_target = p
+				elif _locked_target != null and is_instance_valid(_locked_target):
+					# Locked and target still valid: track it
+					p = _locked_target
+				# else: locked but target is gone → fly straight, p stays null
+			else:
+				# Enemy missiles and rockets: use original re-acquire logic
+				p = _find_homing_target_in_cone(fwd) if not _locked else _find_homing_target()
+				if p and is_instance_valid(p):
+					_locked = true
+
 			var target_dir: Vector2 = fwd  # default: continue straight
 			if p and is_instance_valid(p):
 				target_dir = (p.global_position - global_position).normalized()
-				_locked = true
 			var max_speed: float = homing_max_speed * (speed_lock_mult if _locked else 1.0)
 			var accel_use: float = homing_accel * (lock_accel_mult if _locked else 1.0)
 			_vel = _vel.move_toward(target_dir * max_speed, accel_use * delta)
