@@ -531,11 +531,11 @@ const SYSTEM_MAX_PLANETS := 3  # KNOB: max planet bodies emitted alongside the s
 # the live combat path is unchanged until Roman flips the gate.
 const BELT_DENSITY_SELF     := 2.4  # KNOB: asteroid_density when current node IS a belt
 const BELT_DENSITY_ADJACENT := 1.6  # KNOB: asteroid_density when current node is NEXT TO a belt
-# Master gate for the per-row star-system backdrop (Roman v1, 2026-05-30).
-# OFF pending visual tuning of body size/overlap: when false, current_stellar
-# emits NO `system` array, the backdrop uses the original single-planet path,
-# AND the belt-adjacency amplification above is inert (live path untouched).
-const SYSTEM_BACKDROP_ENABLED := false
+# Master gate for the per-row star-system backdrop (Roman, enabled 2026-05-31
+# for live testing). When false, current_stellar emits NO `system` array, the
+# backdrop uses the original single-planet path, AND the belt-adjacency
+# amplification is inert. Flip to false to fall back to the single-planet path.
+const SYSTEM_BACKDROP_ENABLED := true
 
 
 # Stable per-POI moon RNG. Salt the seed so moon derivation is decoupled
