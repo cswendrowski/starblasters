@@ -41,6 +41,10 @@ const DEPTH_TINT_SHADER: Shader = preload("res://graphics/enemies/missile_cruise
 # Extra emissive brightness on the engine-glow sprite (frame 1). >1 = additive
 # overdrive on top of the shader bloom halo.
 @export var glow_brightness: float = 1.8
+# How strongly (0..1) the body adopts the mid layer's dark grade. 1 = exact
+# match (as dark as mid-layer objects); 0 = full brightness. 0.5 keeps the
+# cruiser reading a little brighter than the rest of the layer (Roman 2026-05-31).
+@export var grade_strength: float = 0.5
 
 # --- Traverse tuning --------------------------------------------------------
 # Slow vertical traverse. If derive_speed_from_cycle is true this is treated as
@@ -141,7 +145,9 @@ func _ready() -> void:
 		# already bakes modulate_color * brightness * contrast, so a single
 		# multiply is an exact match (no need to re-run the curve). White = no-op
 		# fallback when the mid layer can't be found (showcase/dev bare scenes).
-		mat.set_shader_parameter("grade_mul", _read_mid_layer_grade())
+		# Apply only grade_strength of the mid-layer grade (lerp from white) so the
+		# cruiser stays a bit brighter than pure mid-layer objects (Roman 2026-05-31).
+		mat.set_shader_parameter("grade_mul", Color.WHITE.lerp(_read_mid_layer_grade(), grade_strength))
 		_body.material = mat
 
 	# Engine glow: bright emissive frame + shader bloom halo, full brightness.
