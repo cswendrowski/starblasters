@@ -41,10 +41,37 @@ const ACTIVATE_BELOW_DEFAULT: float = 0.5
 var activate_below: float = ACTIVATE_BELOW_DEFAULT
 
 # Flame size ramp (Roman 2026-05-18 "smaller at start, grows toward 0
-# hull"). Min = 50% of max in both axes; lerped between them across the
+# hull"). Min = a sliver of the max; lerped between them across the
 # damaged range so the flame visibly grows as the player nears death.
-const FLAME_SIZE_MIN := Vector2(0.0, 0.5)
+# Roman 2026-05-29: floor dropped from (0, 0.5) to (0, 0.25) so a lightly
+# damaged ship shows only a faint flame, not a half-strength one.
+const FLAME_SIZE_MIN := Vector2(0.0, 0.25)
 const FLAME_SIZE_MAX := Vector2(0.4, 1.0)
+
+# Flame opacity (shader `alpha` uniform) scales with damage severity so a
+# barely-damaged ship shows a near-transparent flame and a near-dead ship
+# shows the full warm torch. Previously `alpha` was left at the shader
+# default (0.95) regardless of damage — the binary "worst appearance on
+# the first pip" Roman flagged 2026-05-29.
+const ALPHA_MIN: float = 0.10
+const ALPHA_MAX: float = 0.95
+
+# Severity easing exponent. >1 keeps the bottom of the range subtle (light
+# damage barely shows) and back-loads the intensity toward death. ROMAN'S
+# TO TUNE. NOTE: the base ship has only 3 hull pips, so the only reachable
+# living damaged states are 2/3 (ramp≈0.66) and 1/3 (ramp≈0.32). 1.5 keeps
+# 2/3 subtle while letting 1/3 read clearly as critical; squaring (2.0) was
+# too aggressive (1/3 only reached ~0.44 severity). Upgraded hulls (Mk.9 =
+# 9 pips) get finer granularity and reach deeper into the curve.
+const SEVERITY_EXP: float = 1.5
+
+# Severity at/above which the one-shot EXPLOSIVE impact burst fires when
+# crossing into damaged. Below this we just fade the flame in quietly —
+# the dramatic "ship just got wrecked" flash is reserved for heavy hits
+# (Roman 2026-05-29), not every pip. NOTE: with base 3 hull the deepest
+# reachable severity is ~0.66, so this fires only when crossing straight
+# to 1 pip on a base ship, or on upgraded (more-pip) hulls. ROMAN'S TO TUNE.
+const BURST_SEVERITY: float = 0.6
 
 var _player: Node2D = null
 var _mat: ShaderMaterial = null
@@ -87,6 +114,8 @@ static func attach_to_player(player: Node2D, nozzle: Vector2 = NOZZLE_OFFSET_DEF
 	# the 50% activation threshold, full size as hull → 0. Updated in
 	# _on_hull_changed.
 	mat.set_shader_parameter("size", FLAME_SIZE_MIN)
+	# Start faint; severity ramp in _on_hull_changed drives this up.
+	mat.set_shader_parameter("alpha", ALPHA_MIN)
 	torch.material = mat
 	torch._mat = mat
 	torch._player = player
@@ -110,16 +139,29 @@ func _on_hull_changed(max_hull, hull) -> void:
 		_was_damaged = false
 		return
 	var damage_level: float = clamp(1.0 - (float(hull) / float(max_hull)), 0.0, 1.0)
-	# Ramp flame size with damage within [activate_below, 1.0].
+	# Damage severity 0..1 drives both flame size and opacity so the flame
+	# grows AND brightens as the ship nears death (Roman 2026-05-29 "scale
+	# with severity proportional to hull remaining; light damage = subtle").
+	# Eased (SEVERITY_EXP) so the bottom of the range stays subtle — a single
+	# pip lost barely shows. Ramps across the whole damaged span
+	# [activate_below, 1.0]. ROMAN'S TO TUNE: the easing exponent and the
+	# MIN floors below decide how quickly the flame ramps up.
+	var ramp: float = clamp((damage_level - activate_below) / (1.0 - activate_below), 0.0, 1.0)
+	var severity: float = pow(ramp, SEVERITY_EXP)
 	if _mat != null:
-		var ramp: float = clamp((damage_level - activate_below) / (1.0 - activate_below), 0.0, 1.0)
-		_mat.set_shader_parameter("size", FLAME_SIZE_MIN.lerp(FLAME_SIZE_MAX, ramp))
+		_mat.set_shader_parameter("size", FLAME_SIZE_MIN.lerp(FLAME_SIZE_MAX, severity))
+		_mat.set_shader_parameter("alpha", lerp(ALPHA_MIN, ALPHA_MAX, severity))
 	var is_damaged: bool = damage_level >= activate_below
 	# Threshold-crossing into damage: punch an impact flash at the engine
 	# nozzle, then fade the flame in shortly after so the visual reads as
-	# "the ship just took serious damage" (Roman 2026-05-18).
+	# "the ship just took serious damage" (Roman 2026-05-18). Only fire the
+	# flash for HEAVY hits (severity >= BURST_SEVERITY) — light damage just
+	# fades the faint flame in quietly (Roman 2026-05-29).
 	if is_damaged and not _was_damaged:
-		_trigger_damage_burst()
+		if severity >= BURST_SEVERITY:
+			_trigger_damage_burst()
+		else:
+			visible = true
 	elif not is_damaged and _was_damaged:
 		visible = false
 	_was_damaged = is_damaged

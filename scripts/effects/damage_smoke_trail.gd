@@ -11,7 +11,16 @@ const SHADER_PATH := "res://graphics/billow_smoke.gdshader"
 
 const ACTIVATE_BELOW_DEFAULT: float = 0.5  # hull <= 50% → emit (enemy default)
 var activate_below: float = ACTIVATE_BELOW_DEFAULT  # player overrides to 0.01
-const SAMPLE_INTERVAL: float = 0.04
+# Emission rate scales with damage severity (Roman 2026-05-29): a lightly
+# damaged ship puffs slowly + sparsely, a near-dead ship emits at the fast
+# rate. Interpolated per hull_changed into _sample_interval.
+const SAMPLE_INTERVAL_MIN: float = 0.04   # near death: dense, fast puffs
+const SAMPLE_INTERVAL_MAX: float = 0.16   # lightly damaged: sparse puffs
+var _sample_interval: float = SAMPLE_INTERVAL_MAX
+# Severity easing exponent — must match engine_torch.SEVERITY_EXP so fire
+# and smoke ramp together. ROMAN'S TO TUNE. See engine_torch.gd for the
+# 3-pip-hull reasoning behind 1.5.
+const SEVERITY_EXP: float = 1.5
 const MAX_POINTS: int = 56
 const POINT_LIFETIME: float = 1.8
 
@@ -43,6 +52,7 @@ const SMOKE_COLOR := Color(0.10, 0.10, 0.11, 0.90)
 
 var _player: Node2D = null
 var _damage_level: float = 0.0
+var _severity: float = 0.0   # eased 0..1, drives opacity + emission rate
 var _line: Line2D = null
 var _sample_t: float = 0.0
 var _point_t: Array = []
@@ -105,11 +115,22 @@ func _on_hull_changed(max_hull, hull) -> void:
 		_damage_level = 0.0
 		return
 	_damage_level = clamp(1.0 - (float(hull) / float(max_hull)), 0.0, 1.0)
-	# Width ramps within the damaged range (50%-100% damage_level) so the
-	# trail gets noticeably fatter as the player approaches death.
+	# Damage severity 0..1 drives width, opacity, and emission rate so the
+	# smoke is faint+sparse when lightly damaged and a thick fast column as
+	# the ship nears death (Roman 2026-05-29 "scale with severity; light
+	# damage = subtle"). Eased (SEVERITY_EXP) over the damaged span so the
+	# bottom of the range stays subtle. ROMAN'S TO TUNE: easing exponent +
+	# the MIN floors above decide the ramp shape.
+	var ramp: float = clamp((_damage_level - activate_below) / (1.0 - activate_below), 0.0, 1.0)
+	_severity = pow(ramp, SEVERITY_EXP)
+	# Emission rate: slow/sparse when light, fast/dense near death.
+	_sample_interval = lerp(SAMPLE_INTERVAL_MAX, SAMPLE_INTERVAL_MIN, _severity)
 	if _line and is_instance_valid(_line):
-		var ramp: float = clamp((_damage_level - activate_below) / (1.0 - activate_below), 0.0, 1.0)
-		_line.width = lerp(MIN_WIDTH, MAX_WIDTH, ramp)
+		_line.width = lerp(MIN_WIDTH, MAX_WIDTH, _severity)
+		# Opacity scales with severity — was fixed (full-density on the first
+		# pip), the binary "worst appearance" Roman flagged. Floor keeps a
+		# faint wisp visible once damaged at all.
+		_line.modulate.a = lerp(0.15, 1.0, _severity)
 
 
 func _process(delta: float) -> void:
@@ -123,7 +144,7 @@ func _process(delta: float) -> void:
 	_sample_t -= delta
 	if _sample_t > 0.0:
 		return
-	_sample_t = SAMPLE_INTERVAL
+	_sample_t = _sample_interval
 	var pos: Vector2 = _player.to_global(emit_local)
 	pos += Vector2(randf_range(-1.5, 1.5), randf_range(-0.5, 0.5))
 	_line.add_point(pos)
