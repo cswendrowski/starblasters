@@ -29,6 +29,10 @@ enum Formation { TOP_LEFT_TO_RIGHT, TOP_RIGHT_TO_LEFT, TOP_RANDOM, TOP_CENTER_OU
 
 @export var shield_charges: int = 0
 @export var recycle_passes: int = -2   # -2 = don't override; -1 = unlimited; 0+ = N passes
+# Firecore Drone ring count override (-1 = use scene/script default). Lets a
+# wave dial the number of orbiting bullet rings (1-4) per drone so different
+# comps cover different amounts of screen on death (Roman, 2026-05-31).
+@export var ring_count_override: int = -1
 
 # Sub-wave flag. Silent waves don't show the WAVE banner and don't wait for it
 # to fade — they spawn after their own spawn_delay. Mark every wave AFTER an

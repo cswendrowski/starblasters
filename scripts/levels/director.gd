@@ -159,6 +159,10 @@ func _spawn_enemy(wave: Resource, index: int) -> void:
 		enemy.shield = wave.shield_charges
 	if wave.recycle_passes >= -1 and "recycle_passes" in enemy:
 		enemy.recycle_passes = wave.recycle_passes
+	# Firecore Drone ring count — set before add_child() below (the drone
+	# builds its rings in _ready()). Guarded so other enemies ignore it.
+	if wave.ring_count_override >= 0 and "ring_count" in enemy:
+		enemy.ring_count = wave.ring_count_override
 	# Sector modifiers — applied last so they stack on top of wave overrides.
 	var _run = get_node_or_null("/root/Run")
 	if _run and "sector_modifiers" in _run and not _run.sector_modifiers.is_empty():

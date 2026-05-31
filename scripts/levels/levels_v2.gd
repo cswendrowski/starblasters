@@ -33,6 +33,7 @@ const MinelayerScene = preload("res://scenes/enemies/enemy_minelayer.tscn")
 const InterceptorScene = preload("res://scenes/enemies/enemy_interceptor.tscn")
 const HunterDroneScene = preload("res://scenes/enemies/enemy_hunter_drone.tscn")
 const BulwarkScene = preload("res://scenes/enemies/enemy_bulwark.tscn")
+const FirecoreDroneScene = preload("res://scenes/enemies/enemy_firecore_drone.tscn")
 const SideTraverse = preload("res://scripts/enemies/patterns/side_traverse.gd")
 const SlowAdvance = preload("res://scripts/enemies/patterns/slow_advance.gd")
 const TopDive = preload("res://scripts/enemies/patterns/top_dive.gd")
@@ -733,4 +734,52 @@ static func build_roster_test():
 	var level = LevelData.new()
 	level.level_name = "New Roster Test"
 	level.waves = [w1, w2, w3, w4, w5, w6, w7]
+	return level
+
+
+# Firecore Drone showcase (Roman, 2026-05-31). Three waves with deliberately
+# varied screen coverage on death — the whole point of this enemy is the
+# expanding bullet wave it releases when killed.
+#   W1: one lone 4-ring drone, dead center — a dense local bullet-flower that
+#       erupts into ~30 outward bullets. Tight, intense local dodge.
+#   W2: three spread 2-ring drones — wide coverage; three medium bursts across
+#       the playfield force lateral movement.
+#   W3: a line of five 1-ring drones — broad, shallow coverage; many small
+#       simultaneous rings tile the screen with gaps to thread.
+static func build_firecore_drone_showcase():
+	# WAVE 1: lone 4-ring drone, center.
+	var w1 = WaveSpec.new()
+	w1.enemy_scene = FirecoreDroneScene
+	w1.count = 1
+	w1.spawn_interval = 0.5
+	w1.spawn_delay = 0.5
+	w1.formation = 3  # TOP_CENTER_OUT
+	w1.ring_count_override = 4
+	w1.announce_text = "FIRECORE DRONE"
+
+	# WAVE 2: three spread 2-ring drones.
+	var w2 = WaveSpec.new()
+	w2.enemy_scene = FirecoreDroneScene
+	w2.count = 3
+	w2.spawn_interval = 0.4
+	w2.spawn_delay = 2.5
+	w2.formation = 3  # TOP_CENTER_OUT — even spread
+	w2.formation_padding = 36.0
+	w2.ring_count_override = 2
+	w2.announce_text = "DRONE TRIAD"
+
+	# WAVE 3: line of five 1-ring drones.
+	var w3 = WaveSpec.new()
+	w3.enemy_scene = FirecoreDroneScene
+	w3.count = 5
+	w3.spawn_interval = 0.3
+	w3.spawn_delay = 2.5
+	w3.formation = 0  # TOP_LEFT_TO_RIGHT — full-width line
+	w3.formation_padding = 24.0
+	w3.ring_count_override = 1
+	w3.announce_text = "DRONE LINE"
+
+	var level = LevelData.new()
+	level.level_name = "Firecore Drone Showcase"
+	level.waves = [w1, w2, w3]
 	return level

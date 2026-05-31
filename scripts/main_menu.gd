@@ -246,6 +246,12 @@ func _show_test_hazard_modal() -> void:
 	UiTheme.style_button(roster_btn)
 	roster_btn.pressed.connect(_on_test_hazard_pick.bind("roster_test"))
 	panel.add_child(roster_btn)
+	var drone_btn := Button.new()
+	drone_btn.text = "Firecore Drone Showcase"
+	drone_btn.custom_minimum_size = Vector2(320, 50)
+	UiTheme.style_button(drone_btn)
+	drone_btn.pressed.connect(_on_test_hazard_pick.bind("firecore_drone_showcase"))
+	panel.add_child(drone_btn)
 	var cancel_btn := Button.new()
 	cancel_btn.text = "Cancel"
 	cancel_btn.custom_minimum_size = Vector2(320, 40)

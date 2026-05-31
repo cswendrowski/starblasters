@@ -403,6 +403,8 @@ func new_game() -> void:
 			_current_level = Levels.build_asteroid_field_level()
 		elif hazard_subtype == "roster_test":
 			_current_level = Levels.build_roster_test()
+		elif hazard_subtype == "firecore_drone_showcase":
+			_current_level = Levels.build_firecore_drone_showcase()
 		else:
 			_current_level = Levels.build_minefield_level()
 	else:

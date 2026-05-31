@@ -330,6 +330,23 @@ const ENTRIES := [
 		"hp_override": 32, "bounty_override": 100,
 		"unlock_sector": 2, "unlock_depth": 6, "weight": 0.6,
 	},
+	{
+		# Firecore Drone (Roman, 2026-05-31). Small + tough; descends slowly
+		# wreathed in 1-4 concentric rings of orbiting bullet visuals. Doesn't
+		# shoot — killing it DETACHES the rings into real enemy_bullets that fly
+		# outward as expanding waves. Bespoke self-driving enemy (handles its own
+		# descent + ring orbit + death release), so movement/shoot are null like
+		# burner/firecore_cruiser. NOT chaff-rolled — spawned only by explicit
+		# wave authoring (build_firecore_drone_showcase). Keep hp_override in sync
+		# with the script's max_health (10) so the codex matches.
+		"scene": "res://scenes/enemies/enemy_firecore_drone.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": null,   # handles own movement
+		"shoot": null,      # handles own ring release
+		"base_count": 3,
+		"hp_override": 10, "bounty_override": 25,
+	},
 ]
 
 
