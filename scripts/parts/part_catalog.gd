@@ -13,6 +13,7 @@ const WaveGunCannon = preload("res://scripts/parts/wave_gun_cannon.gd")
 const LaserBeamCannon = preload("res://scripts/parts/laser_beam_cannon.gd")
 const RocketPodCannon = preload("res://scripts/parts/rocket_pod_cannon.gd")
 const SeekingMissileCannon = preload("res://scripts/parts/seeking_missile_cannon.gd")
+const AntiShipMissileCannon = preload("res://scripts/parts/anti_ship_missile_cannon.gd")
 const SpreadCannon = preload("res://scripts/parts/spread_cannon.gd")
 const SmartBomb = preload("res://scripts/parts/smart_bomb.gd")
 const HyperMode = preload("res://scripts/parts/hyper_mode.gd")
@@ -30,6 +31,7 @@ const BulletLaser = preload("res://scenes/projectiles/bullet_laser.tscn")
 const BulletAutoLaser = preload("res://scenes/projectiles/bullet_auto_laser.tscn")
 const PlayerRocket = preload("res://scenes/projectiles/player_rocket.tscn")
 const PlayerSeekingMissile = preload("res://scenes/projectiles/player_seeking_missile.tscn")
+const PlayerSeekingMissileLarge = preload("res://scenes/projectiles/player_seeking_missile_large.tscn")
 
 # Pool entries: [factory_callable, slot_for_factory]
 # Slot is used for the WING_LEFT vs WING_RIGHT disambiguation only.
@@ -47,6 +49,9 @@ static func _all_pool() -> Array:
 		# now (secondary slot, fires alongside primary cannon via `shoot2`).
 		{"factory": "_make_rocket_pod", "slot": Slots.SlotType.HARDPOINT_WING},
 		{"factory": "_make_seeking_missile", "slot": Slots.SlotType.HARDPOINT_WING},
+		# Roman 2026-05-30: Anti-Ship Missile — heavy secondary, large slow
+		# projectile, prefers/one-shots the largest enemy, half ammo.
+		{"factory": "_make_anti_ship_missile", "slot": Slots.SlotType.HARDPOINT_WING},
 		{"factory": "_make_spread_cannon", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_smart_bomb", "slot": Slots.SlotType.DEVICE_BAY_1},
 		{"factory": "_make_hyper_mode", "slot": Slots.SlotType.DEVICE_BAY_1},
@@ -121,6 +126,8 @@ static func _make_by_name(name: String, slot: int):
 			return _build_weapon("res://resources/weapons/rocket_pod.tres", RocketPodCannon, PlayerRocket)
 		"_make_seeking_missile":
 			return _build_weapon("res://resources/weapons/seeking_missile.tres", SeekingMissileCannon, PlayerSeekingMissile)
+		"_make_anti_ship_missile":
+			return _build_weapon("res://resources/weapons/anti_ship_missile.tres", AntiShipMissileCannon, PlayerSeekingMissileLarge)
 		"_make_spread_cannon":
 			return _build_weapon("res://resources/weapons/spread_cannon.tres", SpreadCannon, BulletDefault)
 		"_make_smart_bomb":

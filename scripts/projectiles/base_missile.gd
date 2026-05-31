@@ -28,6 +28,14 @@ class_name BaseMissile
 @export var speed_lock_mult: float = 2.0
 @export var lock_accel_mult: float = 2.5
 
+# Anti-Ship behavior (Roman, 2026-05-30): when true, target acquisition in
+# the cone prefers the LARGEST in-cone enemy instead of the nearest. "Size"
+# is read from the enemy's `max_health` — it tracks the heavy-ship tier
+# (cruiser 16, firecore cruiser 32) where `display_scale` reads 1.0 for some
+# big hulls (e.g. bomber). Default false → the regular seeking missile keeps
+# its nearest-target acquisition unchanged.
+@export var prefer_large: bool = false
+
 # Set true once a target enters the cone; never returns to false.
 var _locked: bool = false
 # Player seeking missiles lock onto a single target. Store the reference so
@@ -290,6 +298,9 @@ func _find_homing_target_in_cone(fwd: Vector2):
 		return best_p
 	var best: Node = null
 	var best_d: float = INF
+	# Anti-Ship: track the largest valid in-cone target instead of nearest.
+	var best_large: Node = null
+	var best_size: float = -INF
 	for n in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(n) or n == self:
 			continue
@@ -300,10 +311,24 @@ func _find_homing_target_in_cone(fwd: Vector2):
 			continue
 		if fwd.dot(to_n.normalized()) < cos_tol:
 			continue
-		var nd: float = abs(to_n.x) + abs(to_n.y)
-		if nd < best_d:
-			best_d = nd
-			best = n
+		if prefer_large:
+			# Size metric: max_health (heavy-ship tier proxy). Tie-break on
+			# nearest so two equally-tough targets resolve deterministically.
+			var sz: float = 0.0
+			if "max_health" in n:
+				sz = float(n.max_health)
+			var sd: float = abs(to_n.x) + abs(to_n.y)
+			if sz > best_size or (sz == best_size and sd < best_d):
+				best_size = sz
+				best_d = sd
+				best_large = n
+		else:
+			var nd: float = abs(to_n.x) + abs(to_n.y)
+			if nd < best_d:
+				best_d = nd
+				best = n
+	if prefer_large:
+		return best_large
 	return best
 
 
