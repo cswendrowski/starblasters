@@ -122,8 +122,8 @@ color_ramp = SubResource("GradientTexture1D_4lmie")
 script = ExtResource("1_core")
 movement = SubResource("MovePattern_inst")
 shoot_pattern = ExtResource("11_shoot")
-fire_interval_min = 2.6
-fire_interval_max = 3.4
+fire_interval_min = 1.6
+fire_interval_max = 2.2
 bounty_value = 8
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=636393289]

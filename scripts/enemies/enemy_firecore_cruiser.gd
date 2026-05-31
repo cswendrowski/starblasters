@@ -55,8 +55,11 @@ func _build_turret() -> void:
 	_turret_node = EnemyTurret.new()
 	_turret_node.name = "HookTurret"
 	_turret_node.rotation_speed    = 2.0
-	_turret_node.fire_interval_min = 2.0
-	_turret_node.fire_interval_max = 2.0
+	# Fire-rate pass (2026-05-30, Roman): was a flat 2.0/2.0 (no jitter, so
+	# repeat volleys stacked). Tightened to 1.6-2.2s with a real min<max
+	# spread so shots desync. Elite cruiser — stays threatening but readable.
+	_turret_node.fire_interval_min = 1.6
+	_turret_node.fire_interval_max = 2.2
 	_turret_node.aim_tolerance_deg = 11.5
 	_turret_node.bullet_speed      = 160.0
 	_turret_node.bullet_variant    = PlasmaOrbVariant

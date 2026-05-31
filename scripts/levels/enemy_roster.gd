@@ -73,7 +73,11 @@ const ENTRIES := [
 		"shoot": "single_diagonal",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 6,
-		"fire_min": 2.0, "fire_max": 3.5,
+		# Fire-rate pass (2026-05-30, Roman): chaff was firing every ~2.0-3.5s
+		# and felt passive. Tightened to ~1.4-2.3s (~35% faster) so firecore
+		# reads as active without becoming a wall. Keeps min<max jitter so
+		# volleys desync. First-pass — tune in playtest.
+		"fire_min": 1.4, "fire_max": 2.3,
 		"unlock_sector": 2, "unlock_depth": 5, "weight": 0.7, "chaff": true,
 		"conflict_tags": ["aimed_or_spread"],
 	},
@@ -107,7 +111,10 @@ const ENTRIES := [
 		"shoot": "single_diagonal",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 4,
-		"fire_min": 2.4, "fire_max": 3.2,
+		# Fire-rate pass (2026-05-30, Roman): was ~2.4-3.2s (slowest shooter).
+		# Tightened to ~1.6-2.2s (~33% faster). Drifter stays a touch slower
+		# than firecore so the two chaff types still feel distinct. First-pass.
+		"fire_min": 1.6, "fire_max": 2.2,
 		"hp_override": 1, "bounty_override": 8,
 		"unlock_sector": 1, "unlock_depth": 2, "weight": 1.2, "chaff": true,
 		"conflict_tags": ["dumb_shot"],
@@ -169,7 +176,10 @@ const ENTRIES := [
 		"shoot": "burst",
 		"bullet_variant": BV_BurstRound,
 		"base_count": 3,
-		"fire_min": 1.8, "fire_max": 2.8,
+		# Fire-rate pass (2026-05-30, Roman): workhorse gunner — pulled the
+		# slow ceiling in from 2.8 → 2.4s so the 3-round burst recurs a bit
+		# more often. Floor unchanged (burst is already a heavy beat). First-pass.
+		"fire_min": 1.8, "fire_max": 2.4,
 	},
 	# TODO: Replace cutter with a new horizontal strafe enemy that crosses the screen cleanly
 	#{
