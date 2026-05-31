@@ -38,6 +38,10 @@ var _missile_cruiser_delay: float = 0.0
 const MISSILE_CRUISER_RARE_CHANCE: float = 0.10        # KNOB: base roll (~10%)
 const MISSILE_CRUISER_RARE_PER_SECTOR: float = 0.02    # KNOB: +chance per sector cleared
 const MISSILE_CRUISER_RARE_CHANCE_MAX: float = 0.25    # KNOB: chance ceiling
+# When the "cruiser_support" sector modifier is active the base chance is
+# multiplied by Run.cruiser_encounter_chance_mult() and the ceiling is raised
+# to this value so the boost isn't immediately clamped away by the normal cap.
+const MISSILE_CRUISER_RARE_CHANCE_MAX_BOOSTED: float = 0.60  # KNOB: boosted ceiling
 const MISSILE_CRUISER_MIN_SECTORS: int = 0             # KNOB: only after N sectors cleared
 const MISSILE_CRUISER_SPAWN_DELAY: float = 4.0         # KNOB: seconds into the fight
 # Asteroid Miners event: counts asteroids destroyed this level so the
@@ -588,7 +592,18 @@ func _maybe_schedule_rare_cruiser(sector_depth: int) -> void:
 		return
 	var chance: float = MISSILE_CRUISER_RARE_CHANCE \
 		+ MISSILE_CRUISER_RARE_PER_SECTOR * float(sectors_cleared)
-	chance = minf(chance, MISSILE_CRUISER_RARE_CHANCE_MAX)
+	# "cruiser_support" sector modifier: cruisers patrol this sector, so any
+	# cruiser encounter is more likely. Route through the Run seam so future
+	# cruiser-flavored encounters can reuse the same modifier-governed knob.
+	# mult is 1.0 (no-op) when the modifier is absent — base behavior unchanged.
+	var cap: float = MISSILE_CRUISER_RARE_CHANCE_MAX
+	if has_node("/root/Run"):
+		var run := get_node("/root/Run")
+		var mult: float = run.cruiser_encounter_chance_mult()
+		chance *= mult
+		if mult > 1.0:
+			cap = MISSILE_CRUISER_RARE_CHANCE_MAX_BOOSTED
+	chance = minf(chance, cap)
 	if randf() < chance:
 		_want_missile_cruiser = true
 		_missile_cruiser_respawn = false  # rare = exactly one fly-through

@@ -37,7 +37,8 @@ var current_node_id: String = ""
 var current_node_type: int = -1  # SectorNode.NodeType; -1 if none
 # Active sector modifiers for the current combat. Set by the sector map when
 # the player enters a node; cleared on new_run(). Values: "shielded",
-# "armored", "heavily_armored", "aggressive", "wanted", "fleeing", "dangerous".
+# "armored", "heavily_armored", "aggressive", "wanted", "fleeing", "dangerous",
+# "cruiser_support".
 var sector_modifiers: Array = []
 # When current_node_type is HAZARD, this picks which hazard played out:
 #   "minefield" or "asteroid_field". Set by sector_map._on_node_pressed.
@@ -204,6 +205,28 @@ func _load_codex() -> void:
 		for p in parsed:
 			encountered_enemies[String(p)] = true
 
+# ── Sector modifier query helpers ──────────────────────────────────────────
+# Single seam for asking "is modifier X active on the current combat?". Any
+# gameplay site (enemy stat tweak, spawn-chance hook, payout, etc.) should
+# route through here rather than poking sector_modifiers directly so the
+# storage representation can change without touching call sites.
+func has_modifier(id: String) -> bool:
+	return sector_modifiers.has(id)
+
+
+# Multiplier applied to ANY rare cruiser-encounter roll while the
+# "cruiser_support" sector modifier is active. Returns 1.0 (no-op) otherwise.
+# Reusable seam: future cruiser-flavored encounters (escort packs, cruiser
+# duos, cruiser-led waves, etc.) should multiply their own base spawn chance
+# by this so the one modifier governs them all from a single knob.
+const CRUISER_SUPPORT_CHANCE_MULT: float = 2.75
+
+func cruiser_encounter_chance_mult() -> float:
+	if has_modifier("cruiser_support"):
+		return CRUISER_SUPPORT_CHANCE_MULT
+	return 1.0
+
+
 func new_run() -> void:
 	# Starting fresh — invalidate any saved run so Resume Patrol on the main
 	# menu can't drop the player back into the old state if they bail before
@@ -280,11 +303,19 @@ const SectorNameGenerator = preload("res://scripts/sector_name_generator.gd")
 # sectors. Read by sector_map_v3 directly.
 const TOTAL_SECTORS: int = 3
 
-# Full modifier vocabulary the director knows how to apply. Source of truth:
-# scripts/levels/director.gd::_apply_sector_modifiers. Keep in sync.
+# Full rollable modifier vocabulary. Most effects live in
+# scripts/levels/director.gd::_apply_sector_modifiers (per-enemy stat tweaks).
+# A few are handled at their own gameplay site instead and intentionally have
+# NO match-case in the director:
+#   "dangerous"        -> scripts/player.gd::take_damage (2x incoming damage)
+#   "cruiser_support"  -> scripts/main.gd::_maybe_schedule_rare_cruiser
+#                         (boosts rare cruiser encounter chance; see
+#                          Run.cruiser_encounter_chance_mult)
+# When adding a modifier, register it here and implement its effect either in
+# the director or at a dedicated site (and note it above).
 const ALL_SECTOR_MODIFIERS := [
 	"wanted", "armored", "heavily_armored", "shielded",
-	"aggressive", "dangerous", "fleeing",
+	"aggressive", "dangerous", "fleeing", "cruiser_support",
 ]
 
 # Per-POI chance to carry no modifier. Designer-tunable knob; ~40% null keeps
