@@ -783,3 +783,34 @@ static func build_firecore_drone_showcase():
 	level.level_name = "Firecore Drone Showcase"
 	level.waves = [w1, w2, w3]
 	return level
+
+
+# MISSILE CRUISER showcase (Roman, 2026-05-31). The cruiser itself is NOT a
+# wave enemy — it is spawned into the world by main.gd (see
+# _spawn_missile_cruiser) when the showcase subtype is active. This level just
+# provides a light, slow trickle of drifters so a player exists and the level
+# does not insta-clear (which would trigger _run_outro before the cruiser
+# fires). Long spacing keeps the screen mostly clear so the telegraph circles,
+# missiles, and AoE explosions read cleanly.
+static func build_missile_cruiser_showcase():
+	var w1 = WaveSpec.new()
+	w1.enemy_scene = DrifterScene
+	w1.count = 3
+	w1.spawn_interval = 6.0
+	w1.spawn_delay = 4.0
+	w1.formation = 0  # TOP_LEFT_TO_RIGHT
+	w1.formation_padding = 48.0
+	w1.announce_text = "MISSILE CRUISER"
+
+	var w2 = WaveSpec.new()
+	w2.enemy_scene = DrifterScene
+	w2.count = 3
+	w2.spawn_interval = 6.0
+	w2.spawn_delay = 12.0
+	w2.formation = 0
+	w2.formation_padding = 48.0
+
+	var level = LevelData.new()
+	level.level_name = "Missile Cruiser Showcase"
+	level.waves = [w1, w2]
+	return level

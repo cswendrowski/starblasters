@@ -1,0 +1,19 @@
+[gd_scene load_steps=3 format=3 uid="uid://b7mssilecruisr0"]
+
+[ext_resource type="Script" path="res://scripts/enemies/missile_cruiser.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://rlm1xw61yr6u" path="res://graphics/enemies/missile_cruiser.png" id="2_tex"]
+
+[node name="MissileCruiser" type="Node2D"]
+script = ExtResource("1_script")
+
+[node name="Glow" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+hframes = 2
+frame = 1
+
+[node name="Body" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+hframes = 2
+frame = 0
+
+[node name="LaunchPoint" type="Marker2D" parent="."]

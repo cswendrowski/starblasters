@@ -252,6 +252,12 @@ func _show_test_hazard_modal() -> void:
 	UiTheme.style_button(drone_btn)
 	drone_btn.pressed.connect(_on_test_hazard_pick.bind("firecore_drone_showcase"))
 	panel.add_child(drone_btn)
+	var cruiser_btn := Button.new()
+	cruiser_btn.text = "Missile Cruiser Showcase"
+	cruiser_btn.custom_minimum_size = Vector2(320, 50)
+	UiTheme.style_button(cruiser_btn)
+	cruiser_btn.pressed.connect(_on_test_hazard_pick.bind("missile_cruiser_showcase"))
+	panel.add_child(cruiser_btn)
 	var cancel_btn := Button.new()
 	cancel_btn.text = "Cancel"
 	cancel_btn.custom_minimum_size = Vector2(320, 40)

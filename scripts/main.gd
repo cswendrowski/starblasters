@@ -18,6 +18,13 @@ var _boss_hooked: Node = null
 # Per-enemy-type stats: scene_path → {"spawned": int, "killed": int, "bounty": int, "total_bounty": int}
 var _enemy_stats: Dictionary = {}
 var _current_level = null
+# Missile Cruiser (unattackable background mortar ship): when true, spawn it
+# into the Backdrop world AFTER the intro completes. Set by the showcase
+# subtype or the Run.set_meta("missile_cruiser", true) one-shot trigger.
+var _want_missile_cruiser: bool = false
+# Showcase only: keep respawning the cruiser after each fly-through so the
+# tuner sees repeated salvos. Off for production one-shot spawns.
+var _missile_cruiser_respawn: bool = false
 # Asteroid Miners event: counts asteroids destroyed this level so the
 # clear payout (5 bounty per) can apply. Reset on new_game(); only spent
 # when Run.has_meta("asteroid_miners_event").
@@ -405,6 +412,13 @@ func new_game() -> void:
 			_current_level = Levels.build_roster_test()
 		elif hazard_subtype == "firecore_drone_showcase":
 			_current_level = Levels.build_firecore_drone_showcase()
+		elif hazard_subtype == "missile_cruiser_showcase":
+			_current_level = Levels.build_missile_cruiser_showcase()
+			# Showcase: spawn the (unattackable, non-wave) cruiser into the world
+			# and keep respawning it after each fly-through so Roman can watch
+			# repeated salvos for tuning (production spawns are one-shot).
+			_want_missile_cruiser = true
+			_missile_cruiser_respawn = true
 		else:
 			_current_level = Levels.build_minefield_level()
 	else:
@@ -444,6 +458,15 @@ func new_game() -> void:
 						var template_wave = _current_level.waves[_current_level.waves.size() - 1]
 						for _i in range(extra_waves):
 							_current_level.waves.append(template_wave.duplicate())
+	# Missile Cruiser one-shot trigger: Run.set_meta("missile_cruiser", true)
+	# spawns the unattackable background mortar ship into the world after the
+	# intro. Consumed (removed) on read so it fires exactly once. Applies to any
+	# combat/hazard node, not just the showcase.
+	if has_node("/root/Run"):
+		var mc_run = get_node("/root/Run")
+		if mc_run.has_meta("missile_cruiser"):
+			mc_run.remove_meta("missile_cruiser")
+			_want_missile_cruiser = true
 	_run_intro(is_boss)
 
 # ---- Intro sequence -----------------------------------------------------
@@ -496,6 +519,61 @@ func _run_intro(is_boss: bool) -> void:
 	playing = true
 	# WaveDirector emits wave_started immediately, so the banner shows then.
 	wave_director.start_level(_current_level)
+	# Spawn the unattackable background Missile Cruiser now that the Backdrop +
+	# player + camera all exist (deferred from level selection).
+	if _want_missile_cruiser:
+		_want_missile_cruiser = false
+		_spawn_missile_cruiser()
+
+
+# Spawn a MISSILE CRUISER into the world above the parallax backdrop. It is a
+# plain Node2D (NOT in the "enemies" group) so it never gates wave-clear. It
+# starts at a random X in the gameplay band; the script picks its entry edge
+# (top/bottom) and parks itself off-screen in _ready(). Parents under the
+# scene's "Backdrop" Node2D (above parallax, below ships, world space) — same
+# seam as boss_base.add_world_node_above_backdrop. World coords == playfield
+# coords because the combat camera is centred on (240,135).
+const MISSILE_CRUISER_SCENE := preload("res://scenes/enemies/missile_cruiser.tscn")
+
+
+func _spawn_missile_cruiser() -> void:
+	var cruiser: Node2D = MISSILE_CRUISER_SCENE.instantiate() as Node2D
+	if cruiser == null:
+		return
+	# Random X within the gameplay band so salvos are centred on the playfield.
+	cruiser.position = Vector2(randf_range(Playfield.X_MIN, Playfield.X_MAX), 0.0)
+	var backdrop: Node = get_node_or_null("Backdrop")
+	if backdrop != null:
+		# Mirror boss_base.add_world_node_above_backdrop: as the LAST child of
+		# the Backdrop (BackdropCoordinator) the cruiser draws AFTER all the
+		# parallax layers (all z=0) but, because Backdrop is an earlier sibling
+		# of Player in main.tscn, still BELOW the player + enemy ships. No
+		# z_index override — that would lift it above the ships (all parallax
+		# layers are z=0, so tree order alone gives the correct mid-depth).
+		backdrop.add_child(cruiser)
+	else:
+		add_child(cruiser)
+	# Showcase: respawn another cruiser shortly after this one frees itself
+	# (it queue_free()s when it traverses off the far edge) so the tuner sees
+	# a continuous stream of salvos. Guarded by `playing` so it stops on outro.
+	if _missile_cruiser_respawn:
+		cruiser.tree_exited.connect(_on_missile_cruiser_freed)
+
+
+func _on_missile_cruiser_freed() -> void:
+	if not _missile_cruiser_respawn or not playing:
+		return
+	# Guard against teardown: tree_exited can fire while the whole scene is
+	# being freed (scene change / app quit), when get_tree() is already null.
+	var tree: SceneTree = get_tree()
+	if tree == null or not is_inside_tree():
+		return
+	# Brief gap before the next fly-through.
+	var t: SceneTreeTimer = tree.create_timer(1.5)
+	t.timeout.connect(func() -> void:
+		if _missile_cruiser_respawn and playing:
+			_spawn_missile_cruiser()
+	)
 
 # ---- Outro sequence -----------------------------------------------------
 # 2.5s grace → controls off → HUD flicker out → ship flies up off-screen →
