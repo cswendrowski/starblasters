@@ -33,8 +33,8 @@ const UPGRADES := [
 	# armor_mk and shield_recharge_mk retired — no longer purchasable.
 ]
 
-const UPGRADE_BASE_COST := 70
-const UPGRADE_COST_PER_MK := 35
+const UPGRADE_BASE_COST := 140
+const UPGRADE_COST_PER_MK := 70
 const MAX_MK := 9
 const HULL_REPAIR_COST := 250
 # Ammo refill: cost scales with the number of rounds the player is missing,
@@ -43,18 +43,18 @@ const HULL_REPAIR_COST := 250
 # full 60-round secondary refill = 30 bounty (incidental), and partials
 # fall out linearly. Partial refills are allowed when the player can't
 # cover the full top-up — see _on_primary_ammo_refill.
-const AMMO_COST_PER_ROUND := 0.5
+const AMMO_COST_PER_ROUND := 1.0
 # Weapons Phase 1 (2026-05-26): primary ammo refill is now a flat-cost
 # button — refills the active cannon_pool entry's magazine to full. Blaster
 # (active_cannon_idx == 0) has infinite ammo so the button greys out.
 # Placeholder value pending designer tuning.
-const PRIMARY_REFILL_COST := 50
+const PRIMARY_REFILL_COST := 100
 # Super charges: per-charge purchase. Doubled from 30 → 60 (Roman 2026-05-25):
 # free auto-refill on outpost visit removed at the same time, so the player
 # now PAYS to keep their super topped up — supers are a real economy lever.
-const SUPER_REFILL_COST := 60
-const CANNON_BASE_COST := 58
-const CANNON_COST_PER_MK := 35
+const SUPER_REFILL_COST := 120
+const CANNON_BASE_COST := 116
+const CANNON_COST_PER_MK := 70
 # Refresh stock pricing — doubles per use within the same visit. Cap at
 # 7 doublings so the ceiling is 10 << 7 = 1280 bounty (designer call,
 # Roman 2026-05-24: "double per use" — capped to avoid runaway numbers).
@@ -577,14 +577,15 @@ func _make_storage_row(part, idx: int) -> Control:
 	return row
 
 
-# Sell price — 20% of the cannon-buy formula. Designer call (Roman 2026-05-25):
+# Sell price — 10% of the cannon-buy formula. Designer call (Roman 2026-05-25):
 # old 50% sell-back let players resale-arbitrage and over-buy with no risk.
 # 20% means re-rolling stock is an expensive mistake, not a free do-over.
 # Floor of 5 so a Mk.1 part still gives the player something for the click.
 func _sell_value_for(part) -> int:
 	var mk: int = int(part.mark) if "mark" in part else 1
 	var buy_cost: int = CANNON_BASE_COST + (mk - 1) * CANNON_COST_PER_MK
-	return max(5, int(0.2 * float(buy_cost)))
+	# 0.1 (was 0.2) keeps sell-back constant after the 2x cannon-price bump (Roman 2026-06-01)
+	return max(5, int(0.1 * float(buy_cost)))
 
 
 # ---- Offer rolls ----------------------------------------------------------
