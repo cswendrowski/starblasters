@@ -1,7 +1,7 @@
 [gd_scene load_steps=6 format=3 uid="uid://cstrafer00001"]
 
 [ext_resource type="Script" uid="uid://ipggpcnp6in0" path="res://scripts/enemies/enemy_strafer.gd" id="1_straf"]
-[ext_resource type="Texture2D" uid="uid://c8xm6iut52axc" path="res://graphics/enemies/small_orange.png" id="2_sprite"]
+[ext_resource type="Texture2D" uid="uid://dw20qmih708wm" path="res://graphics/enemies/small_strafer.png" id="2_sprite"]
 [ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="3_shoot"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="4_die"]
 
