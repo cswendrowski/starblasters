@@ -251,7 +251,7 @@ func update_hull(max_value, value) -> void:
 	if _hull_pips.size() != expected_count:
 		_rebuild_hull_pips(expected_count)
 
-	var filled := roundi(float(value) / max(float(max_value), 1.0) * HULL_COLS)
+	var filled := roundi(float(value) / max(float(max_value), 1.0) * float(_hull_pips.size()))
 	for i in _hull_pips.size():
 		var pip := _hull_pips[i] as Sprite2D
 		var on: bool = i < filled
@@ -289,8 +289,8 @@ func update_shield(max_value, value) -> void:
 	if _get_shield_pip_count() != expected_count:
 		_rebuild_shield_pips(expected_count)
 
-	var total := SHIELD_ROWS * SHIELD_COLS
-	var filled := roundi(float(value) / max(float(max_value), 1.0) * total)
+	var pip_count := _get_shield_pip_count()
+	var filled := roundi(float(value) / max(float(max_value), 1.0) * float(pip_count))
 	for row_i in _shield_pips.size():
 		var row: Array = _shield_pips[row_i]
 		for col_i in row.size():

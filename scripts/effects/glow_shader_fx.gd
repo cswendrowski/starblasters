@@ -93,31 +93,30 @@ static func apply(host: CanvasItem, color_override: Color = Color(0, 0, 0, 0)) -
 	var sy: float = (tex_h + 2.0 * HALO_PX) / tex_h
 
 	# --- glow node ---
-	var glow: CanvasItem
-	var asp: AnimatedSprite2D = host as AnimatedSprite2D
-	if asp != null and asp.sprite_frames != null:
-		# Animated host: mirror its frames so the halo silhouette animates too.
-		var g := AnimatedSprite2D.new()
-		g.sprite_frames = asp.sprite_frames
-		g.animation = asp.animation
-		g.frame = asp.frame
-		if asp.is_playing():
-			g.play(asp.animation)
-		g.scale = Vector2(sx, sy)
-		glow = g
-	else:
-		var g := Sprite2D.new()
-		var s2d: Sprite2D = host as Sprite2D
-		g.texture = tex
-		if s2d != null:
-			# Mirror frame layout so the silhouette matches the shown frame.
-			g.hframes = s2d.hframes
-			g.vframes = s2d.vframes
-			g.frame = s2d.frame
-			g.region_enabled = s2d.region_enabled
-			g.region_rect = s2d.region_rect
-		g.scale = Vector2(sx, sy)
-		glow = g
+	# The glow node is ALWAYS a plain Sprite2D carrying a SINGLE-FRAME texture
+	# (the host's currently-displayed frame, cropped to a standalone
+	# ImageTexture). The shader insets UV around the FULL-texture center and
+	# clamps its bloom taps to [0,1] of the WHOLE texture — so if we fed it a
+	# multi-frame sheet (AtlasTexture sub-region or hframes Sprite2D) the bloom
+	# would read ACROSS frame boundaries and ghost neighboring frames into the
+	# halo. A one-frame texture makes UV genuinely span 0..1 of one frame, so the
+	# existing shader math is correct with no shader change.
+	#
+	# TRADEOFF: the halo is STATIC (one frame's silhouette) and won't pulse with
+	# the bullet's animation. For a soft additive bloom behind a 16px bullet this
+	# is imperceptible and strictly better than ghosting.
+	#
+	# Note `tex` (the size/color source above) is intentionally LEFT UNTOUCHED:
+	# the per-axis size block already divides the full sheet by hframes/vframes,
+	# and _derive_color caches by the shared source-texture id. We only swap what
+	# the glow NODE samples, via a separate single-frame `frame_tex`.
+	var frame_tex: Texture2D = _single_frame_texture(host, tex)
+	if frame_tex == null:
+		return null
+	var g := Sprite2D.new()
+	g.texture = frame_tex
+	g.scale = Vector2(sx, sy)
+	var glow: CanvasItem = g
 
 	glow.name = "ShaderGlow"
 	glow.z_index = -1
@@ -262,6 +261,105 @@ static func _derive_color(tex: Texture2D) -> Color:
 
 	_color_cache[tid] = best
 	return best
+
+
+# Cache: "<source texture instance id>:<frame index>" → single-frame Texture2D.
+# Bullet frames are tiny (16px), so cropping once per bullet-type-frame is cheap.
+static var _frame_tex_cache: Dictionary = {}
+
+
+# Return a standalone SINGLE-FRAME Texture2D for `host`'s currently-displayed
+# frame, so the glow node samples one frame's UV span 0..1 (no cross-frame
+# bleed). `sheet_tex` is the texture already resolved by _host_texture (reused
+# for the single-frame Sprite2D / atlas-frame-0 cases). Returns null if no
+# image can be read. CACHED by (source texture id + frame index).
+static func _single_frame_texture(host: CanvasItem, sheet_tex: Texture2D) -> Texture2D:
+	var asp: AnimatedSprite2D = host as AnimatedSprite2D
+	if asp != null and asp.sprite_frames != null:
+		# Animated host: crop the CURRENT frame's AtlasTexture region out of the
+		# atlas image. apply() runs in _ready before the animation advances, so
+		# frame is effectively 0 here — but reading asp.frame keeps it correct if
+		# applied later. The cropped silhouette is static regardless (see note in
+		# apply): the bloom does not pulse with the animation.
+		var anim: String = asp.animation
+		var frame_idx: int = asp.frame
+		var fcount: int = asp.sprite_frames.get_frame_count(anim)
+		if fcount <= 0:
+			return null
+		if frame_idx < 0 or frame_idx >= fcount:
+			frame_idx = 0
+		var ftex: Texture2D = asp.sprite_frames.get_frame_texture(anim, frame_idx)
+		return _crop_atlas_frame(ftex)
+	var s2d: Sprite2D = host as Sprite2D
+	if s2d != null:
+		if s2d.hframes > 1 or s2d.vframes > 1:
+			return _crop_grid_frame(s2d)
+		# Single-frame Sprite2D (possibly region-enabled): use as-is.
+		return sheet_tex
+	return sheet_tex
+
+
+# Crop an AtlasTexture's region out of its atlas image into a standalone
+# ImageTexture. If `tex` is not an atlas (single-frame), return it unchanged.
+static func _crop_atlas_frame(tex: Texture2D) -> Texture2D:
+	if tex == null:
+		return null
+	var atlas: AtlasTexture = tex as AtlasTexture
+	if atlas == null or atlas.atlas == null:
+		return tex
+	var src_id: int = atlas.atlas.get_instance_id()
+	var rr: Rect2 = atlas.region
+	var key: String = "%d:r%d_%d_%d_%d" % [src_id, int(rr.position.x), int(rr.position.y), int(rr.size.x), int(rr.size.y)]
+	if _frame_tex_cache.has(key):
+		return _frame_tex_cache[key]
+	var full: Image = atlas.atlas.get_image()
+	if full == null:
+		_frame_tex_cache[key] = null
+		return null
+	var region_i: Rect2i = Rect2i(int(rr.position.x), int(rr.position.y), int(rr.size.x), int(rr.size.y))
+	# Clamp to the atlas bounds so get_region never reads out of range.
+	region_i = region_i.intersection(Rect2i(0, 0, full.get_width(), full.get_height()))
+	if region_i.size.x <= 0 or region_i.size.y <= 0:
+		_frame_tex_cache[key] = null
+		return null
+	var sub: Image = full.get_region(region_i)
+	var itex: ImageTexture = ImageTexture.create_from_image(sub)
+	_frame_tex_cache[key] = itex
+	return itex
+
+
+# Crop the displayed cell of an hframes/vframes Sprite2D into a standalone
+# ImageTexture. Returns null if the texture image can't be read.
+static func _crop_grid_frame(s2d: Sprite2D) -> Texture2D:
+	if s2d.texture == null:
+		return null
+	var src_id: int = s2d.texture.get_instance_id()
+	var hf: int = maxi(s2d.hframes, 1)
+	var vf: int = maxi(s2d.vframes, 1)
+	var frame_idx: int = s2d.frame
+	var key: String = "%d:g%d_%d_%d" % [src_id, hf, vf, frame_idx]
+	if _frame_tex_cache.has(key):
+		return _frame_tex_cache[key]
+	var img: Image = _texture_image(s2d.texture)
+	if img == null:
+		_frame_tex_cache[key] = null
+		return null
+	var cell_w: int = img.get_width() / hf
+	var cell_h: int = img.get_height() / vf
+	if cell_w <= 0 or cell_h <= 0:
+		_frame_tex_cache[key] = null
+		return null
+	var col: int = frame_idx % hf
+	var row: int = frame_idx / hf
+	var region_i: Rect2i = Rect2i(col * cell_w, row * cell_h, cell_w, cell_h)
+	region_i = region_i.intersection(Rect2i(0, 0, img.get_width(), img.get_height()))
+	if region_i.size.x <= 0 or region_i.size.y <= 0:
+		_frame_tex_cache[key] = null
+		return null
+	var sub: Image = img.get_region(region_i)
+	var itex: ImageTexture = ImageTexture.create_from_image(sub)
+	_frame_tex_cache[key] = itex
+	return itex
 
 
 # Get a CPU-readable Image from any Texture2D flavor (AtlasTexture, plain
