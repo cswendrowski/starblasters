@@ -8,19 +8,20 @@ enum SapState { SEEKING, DRAINING }
 
 const DRAIN_RANGE   := 140.0   # beam max reach — matches omni_thrust target_range (130) + tolerance
 const DRAIN_DPS     := 0.4     # shield drain rate — 1 charge per 2.5s
-const BEAM_COLOR    := Color(0.2, 0.9, 0.85, 0.9)  # teal
 
-# Beam shader — scrolling UV drives the player→sapper energy-flow animation.
-const BEAM_SHADER = preload("res://graphics/sapper_beam.gdshader")
+# Shield blue — matches Ui.COLOR_SHIELD (the HUD shield pip color) so the beam
+# visually reads as "this thing is eating your shield".
+const BEAM_COLOR    := Color(0.35, 0.65, 1.0)
+
 const OmniThrust  = preload("res://scripts/enemies/patterns/omni_thrust.gd")
 
 var _sap_state: int = SapState.SEEKING
 var _drain_accum: float = 0.0
 
 # Beam visuals — created lazily on first DRAINING entry.
+# Two stacked Line2Ds: a wide low-alpha additive "glow" under a crisp 2px core.
 var _beam_outer: Line2D = null
 var _beam_core: Line2D = null
-var _beam_mat: ShaderMaterial = null
 
 
 func _ready() -> void:
@@ -98,26 +99,26 @@ func _restore_shield_regen(player: Node) -> void:
 func _ensure_beam_visuals() -> void:
 	if _beam_outer and is_instance_valid(_beam_outer):
 		return
-	_beam_mat = ShaderMaterial.new()
-	_beam_mat.shader = BEAM_SHADER
-	_beam_mat.set_shader_parameter("beam_color", Color(0.2, 0.9, 0.85, 0.85))
-	_beam_mat.set_shader_parameter("scroll_speed", 1.4)
-	_beam_mat.set_shader_parameter("band_freq", 4.0)
-	_beam_mat.set_shader_parameter("pulse_contrast", 0.55)
-	_beam_mat.set_shader_parameter("edge_fade", 0.06)
+
+	# Diffuse glow: a wide, low-alpha line drawn UNDER the core. Additive blend
+	# (CanvasItemMaterial ADD) makes the overlapping translucent blue brighten
+	# rather than just stack alpha, giving a soft halo instead of a hard edge.
+	var glow_mat := CanvasItemMaterial.new()
+	glow_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 
 	_beam_outer = Line2D.new()
-	_beam_outer.default_color = Color(1.0, 1.0, 1.0, 1.0)
-	_beam_outer.width = 5.0
+	_beam_outer.default_color = Color(BEAM_COLOR.r, BEAM_COLOR.g, BEAM_COLOR.b, 0.3)
+	_beam_outer.width = 6.0
 	_beam_outer.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	_beam_outer.end_cap_mode = Line2D.LINE_CAP_ROUND
-	_beam_outer.material = _beam_mat
+	_beam_outer.material = glow_mat
 	_beam_outer.z_index = 4
 	_beam_outer.visible = false
 
+	# Core: crisp 2px shield-blue line on top of the glow.
 	_beam_core = Line2D.new()
-	_beam_core.default_color = Color(1.0, 1.0, 1.0, 0.9)
-	_beam_core.width = 1.0
+	_beam_core.default_color = BEAM_COLOR
+	_beam_core.width = 2.0
 	_beam_core.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	_beam_core.end_cap_mode = Line2D.LINE_CAP_ROUND
 	_beam_core.z_index = 5
