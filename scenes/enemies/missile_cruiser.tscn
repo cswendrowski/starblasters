@@ -1,19 +1,28 @@
-[gd_scene load_steps=3 format=3 uid="uid://b7mssilecruisr0"]
+[gd_scene format=3 uid="uid://djx4ohgwlmjy6"]
 
-[ext_resource type="Script" path="res://scripts/enemies/missile_cruiser.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://du84keejl8xny" path="res://scripts/enemies/missile_cruiser.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://rlm1xw61yr6u" path="res://graphics/enemies/missile_cruiser.png" id="2_tex"]
 
-[node name="MissileCruiser" type="Node2D"]
+[node name="MissileCruiser" type="Node2D" unique_id=232795489]
 script = ExtResource("1_script")
 
-[node name="Glow" type="Sprite2D" parent="."]
+[node name="Glow" type="Sprite2D" parent="." unique_id=2138718890]
 texture = ExtResource("2_tex")
 hframes = 2
 frame = 1
 
-[node name="Body" type="Sprite2D" parent="."]
+[node name="Body" type="Sprite2D" parent="." unique_id=324963331]
 texture = ExtResource("2_tex")
 hframes = 2
-frame = 0
 
-[node name="LaunchPoint" type="Marker2D" parent="."]
+[node name="LaunchPoint1" type="Marker2D" parent="." unique_id=121860235]
+position = Vector2(-9, -7)
+
+[node name="LaunchPoint2" type="Marker2D" parent="." unique_id=1290466490]
+position = Vector2(8, -7)
+
+[node name="LaunchPoint3" type="Marker2D" parent="." unique_id=275776557]
+position = Vector2(-9, -3)
+
+[node name="LaunchPoint4" type="Marker2D" parent="." unique_id=183036974]
+position = Vector2(8, -3)
