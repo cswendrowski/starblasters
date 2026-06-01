@@ -6,8 +6,13 @@ class_name EnemyGunship
 # Defaults to "single" for backward compatibility (manual placement, dev menu, etc.)
 @export var wave_role: String = "single"
 
+# If true, the ship hull rotates to face the player during combat.
+# Bullets always aim at the player regardless; this only affects the visual rotation.
+@export var aim_at_player: bool = false
+
 const ROCKET_SCENE = preload("res://scenes/projectiles/enemy_rocket.tscn")
 const BULLET_SCENE = preload("res://scenes/projectiles/enemy_bullet.tscn")
+const MuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
 
 # --- Shared tuning constants -------------------------------------------------
 const ENTER_SPEED   := 120.0  # px/s descent into position
@@ -17,10 +22,11 @@ const SALVO_SIZE    := 3      # rockets per salvo (override per role below)
 const SALVO_COUNT   := 3      # salvos before exiting
 const SALVO_INTERVAL := 0.5   # seconds between salvos
 
-# --- Turret burst constants --------------------------------------------------
+# --- Gun burst constants (same rhythm as old turret) -------------------------
 const BURST_SIZE     := 10    # bullets per burst
 const BURST_DELAY    := 0.1   # seconds between bullets within a burst
 const BURST_COOLDOWN := 2.0   # seconds between bursts
+const TRACER_BULLET_SPEED := 300.0  # px/s; matches Strafer's speed for visual consistency
 
 # --- State machine -----------------------------------------------------------
 enum GState { ENTERING, ACTIVE, EXITING }
@@ -33,13 +39,17 @@ var _sweep_dir: int = 1      # +1 right, -1 left
 
 var _salvo_timer: float = 0.0
 var _salvos_fired: int = 0
-var _rocket_side: int = -1  # alternates -1 (left) / +1 (right) per rocket
+var _next_rocket_idx: int = 0  # cycles 0..5 across launch_point markers
 
-# --- Turret burst state -----------------------------------------------------
+# --- Gun burst state --------------------------------------------------------
 var _burst_shots_fired: int = 0
 var _burst_timer: float = 0.0        # delay between shots within burst
 var _burst_cooldown_timer: float = 0.0  # delay between bursts; counts down while > 0
 var _in_burst: bool = false
+var _next_muzzle_left: bool = true   # alternates gun muzzles: L / R / L / R
+
+# --- Ship aim state (for aim_at_player) -----------------------------------
+var _ship_rotation: float = 0.0  # current rotation toward player
 
 
 func _ready() -> void:
@@ -51,10 +61,7 @@ func _ready() -> void:
 	# Default single starting X: centre of playfield
 	global_position.x = Playfield.CENTER.x
 	_target_x = Playfield.X_MIN + 20.0  # first sweep target (leftward)
-	# Turret starts facing straight down (same direction as main sprite)
-	var turret := get_node_or_null("Turret") as Sprite2D
-	if turret != null:
-		turret.rotation = 0.0
+	_ship_rotation = 0.0
 
 
 # Called by the director immediately after spawning this enemy.
@@ -121,9 +128,9 @@ func _process(delta: float) -> void:
 			_do_enter(delta)
 		GState.ACTIVE:
 			_do_active(delta)
+			_update_ship_aim(delta)  # smooth rotation toward player if enabled
 		GState.EXITING:
 			_do_exit(delta)
-	_track_player(delta)
 	super._process(delta)
 
 
@@ -196,16 +203,19 @@ func _fire_salvo() -> void:
 
 
 func _fire_rocket() -> void:
+	# Spawn rocket from one of the 6 launch_pointN markers, cycling through them.
 	if ROCKET_SCENE == null:
 		return
+	var marker := get_node_or_null("launch_point%d" % (_next_rocket_idx + 1)) as Marker2D
+	if marker == null:
+		return
+	_next_rocket_idx = (_next_rocket_idx + 1) % 6
+
 	var r = ROCKET_SCENE.instantiate()
 	get_tree().root.add_child(r)
 	# Rockets fire straight down with ±15° random deviation.
 	var fire_dir := Vector2(0, 1).rotated(randf_range(-deg_to_rad(15.0), deg_to_rad(15.0)))
-	# Alternate spawn offsets: left (-8) then right (+8) per rocket
-	var offset_x: float = _rocket_side * 8.0
-	_rocket_side = -_rocket_side
-	var spawn_pos := global_position + Vector2(offset_x, 0.0)
+	var spawn_pos := marker.global_position
 	if r.has_method("start"):
 		r.start(spawn_pos, fire_dir)
 	elif "velocity" in r:
@@ -220,13 +230,13 @@ func _fire_rocket() -> void:
 		WeaponSfx.play(get_tree().root, global_position, "rocket")
 
 
-# --- Turret burst firing -----------------------------------------------------
+# --- Gun burst firing -------------------------------------------------------
 
 func _do_burst_fire(delta: float) -> void:
 	if _in_burst:
 		_burst_timer -= delta
 		if _burst_timer <= 0.0:
-			_fire_turret_bullet()
+			_fire_gun_bullet()
 			_burst_shots_fired += 1
 			if _burst_shots_fired >= BURST_SIZE:
 				# Burst complete — enter cooldown
@@ -243,31 +253,50 @@ func _do_burst_fire(delta: float) -> void:
 			_burst_timer = 0.0  # fire first bullet immediately
 
 
-func _fire_turret_bullet() -> void:
+func _fire_gun_bullet() -> void:
+	# Fire tracer bullets from alternating muzzles, aiming at the player.
 	if BULLET_SCENE == null:
 		return
+
+	# Pick the next muzzle marker (MuzzleL or MuzzleR), alternating each shot.
+	var muzzle_name: String = "MuzzleL" if _next_muzzle_left else "MuzzleR"
+	_next_muzzle_left = !_next_muzzle_left
+	var muzzle := get_node_or_null(muzzle_name) as Marker2D
+	var spawn_pos: Vector2 = muzzle.global_position if muzzle else global_position
+
 	var b = BULLET_SCENE.instantiate()
 	get_tree().root.add_child(b)
-	# Aim at player's current position (no leading)
+
+	# Aim at player's current position (no leading).
 	var player = find_player()
 	var fire_dir := Vector2(0, 1)  # default straight down
 	if player != null:
-		fire_dir = (player.global_position - global_position).normalized()
+		fire_dir = (player.global_position - spawn_pos).normalized()
+
 	if b.has_method("start"):
-		b.start(global_position, fire_dir)
+		b.start(spawn_pos, fire_dir)
 	elif "velocity" in b:
-		b.velocity = fire_dir * 200.0
+		b.velocity = fire_dir * TRACER_BULLET_SPEED
+
+	# Muzzle flash at the firing location
+	if muzzle:
+		MuzzleFx.play_enemy(spawn_pos, fire_dir, get_tree().root)
 
 
-func _track_player(delta: float) -> void:
+func _update_ship_aim(delta: float) -> void:
+	# Smoothly rotate the ship hull to face the player (if aim_at_player is enabled).
+	# The sprite points up (north), so target rotation is angle-to-player + PI/2.
+	if not aim_at_player:
+		return
+
+	const ROTATION_SPEED := 2.2  # rad/s; same speed as old turret tracking
 	var player = find_player()
-	const ROTATION_SPEED := 2.2  # rad/s
-	var target_rot: float = PI * 0.5  # default: aim straight down
+	var target_rot: float = 0.0  # default: face straight up (sprite convention)
 	if player:
 		var dir: Vector2 = (player.global_position - global_position).normalized()
 		target_rot = atan2(dir.y, dir.x) + PI * 0.5
-	var turret := get_node_or_null("Turret") as Sprite2D
-	if turret == null:
-		return
-	var diff := angle_difference(turret.rotation, target_rot)
-	turret.rotation += clamp(diff, -ROTATION_SPEED * delta, ROTATION_SPEED * delta)
+
+	# Smoothly rotate toward target.
+	var diff := angle_difference(_ship_rotation, target_rot)
+	_ship_rotation += clamp(diff, -ROTATION_SPEED * delta, ROTATION_SPEED * delta)
+	self.rotation = _ship_rotation
