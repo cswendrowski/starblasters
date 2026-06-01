@@ -10,6 +10,8 @@ extends Resource
 # patterns hand-rolled the bullet spawn, the aim-at-player lookup, and
 # the "spaced burst" timing with recursive awaits.
 
+const MuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
+
 @export var bullet_scene: PackedScene
 
 # Per-pattern fire pacing. -1 means "don't override the enemy's
@@ -38,10 +40,19 @@ func _spawn_bullet(enemy, dir: Vector2, bv = null) -> void:
 	if bv != null and "variant" in b:
 		b.variant = bv
 	enemy.get_tree().root.add_child(b)
+	# Spawn at the next muzzle marker when the enemy has them (cycling
+	# index alternates two-muzzle enemies); else the enemy center as before.
+	# A pink muzzle flash plays at each muzzle in the fire direction. Un-
+	# muzzled enemies (crystal spread, frigate burst) fall back to origin
+	# and do NOT flash — only marker-equipped enemies get the flash.
+	var has_mz: bool = enemy.has_method("has_muzzles") and enemy.has_muzzles()
+	var spawn_pos: Vector2 = enemy.next_muzzle_pos() if has_mz else enemy.global_position
 	if b.has_method("start"):
-		b.start(enemy.global_position, dir)
+		b.start(spawn_pos, dir)
 	else:
-		b.position = enemy.global_position
+		b.position = spawn_pos
+	if has_mz:
+		MuzzleFx.play_enemy(spawn_pos, dir, enemy.get_tree().root)
 
 
 # Time-driven multi-shot helper. Replaces the old recursive `await` chain

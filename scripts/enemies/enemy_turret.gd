@@ -87,20 +87,32 @@ func _shoot() -> void:
 	var EnemyBullet = load("res://scenes/projectiles/enemy_bullet.tscn")
 	if EnemyBullet == null:
 		return
+	# Fire from the parent enemy's muzzle marker when it has one (gun_turret
+	# has a `Muzzle`), else from this turret node's own position. Mount-only
+	# enemies (firecore_cruiser's turret_mount, bulwark) report has_muzzles()
+	# == false and are unchanged. A pink flash plays at the muzzle on a hit.
+	var p := get_parent()
+	var has_mz: bool = p != null and p.has_method("has_muzzles") and p.has_muzzles()
+	var spawn_pos: Vector2 = global_position
+	if has_mz:
+		spawn_pos = p.next_muzzle_pos()
 	var b = EnemyBullet.instantiate()
 	if bullet_variant != null and "variant" in b:
 		b.variant = bullet_variant
 	get_tree().root.add_child(b)
 	if b.has_method("start"):
-		b.start(global_position, fire_dir)
+		b.start(spawn_pos, fire_dir)
 	else:
-		b.global_position = global_position
+		b.global_position = spawn_pos
 		if "velocity_dir" in b:
 			b.velocity_dir = fire_dir
 		if "speed" in b:
 			b.speed = bullet_speed
 		elif "velocity" in b:
 			b.velocity = fire_dir * bullet_speed
+	if has_mz:
+		var MuzzleFx = load("res://scripts/effects/muzzle_fx.gd")
+		MuzzleFx.play_enemy(spawn_pos, fire_dir, get_tree().root)
 
 
 func find_player() -> Node:

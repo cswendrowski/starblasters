@@ -15,16 +15,19 @@ extends "res://scripts/enemies/enemy_base.gd"
 #                  and exits, like a fighter breaking off the pass.
 #
 # Bespoke (extends enemy_base directly, bomber-style) because the firing is
-# tightly coupled to the locomotion phase and the alternating-marker spawn
-# can't be expressed by the stock shoot_pattern helpers (which spawn at the
-# enemy center, not at a marker). See CLAUDE.md: bespoke is reserved for
-# exactly this kind of multi-phase locomotion + coupled fire.
+# tightly coupled to the locomotion phase (committed head-on pass, locked
+# fire direction, veer-on-last-shot) — that timing can't be expressed by the
+# stock shoot_pattern helpers. Marker spawning + alternation + the muzzle
+# flash DO use the shared enemy_base helpers (next_muzzle_pos / has_muzzles /
+# MuzzleFx.play_enemy); only the phase coupling stays bespoke. See CLAUDE.md:
+# bespoke is reserved for exactly this kind of multi-phase locomotion.
 #
 # Markers: MuzzleL / MuzzleR are real Marker2D children — the burst reads
 # their LIVE global_position every shot, so Roman can reposition them in the
 # scene after push and the shots follow with no code change.
 
 const BulletScene = preload("res://scenes/projectiles/enemy_bullet.tscn")
+const MuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
 
 enum Phase { APPROACH, FIRE, VEER }
 
@@ -52,7 +55,6 @@ var _vel: Vector2 = Vector2(0, 1)
 var _approach_t: float = 0.0
 var _shots_fired: int = 0
 var _shot_timer: float = 0.0
-var _next_muzzle_left: bool = true
 var _fire_dir: Vector2 = Vector2(0, 1)
 var _veer_t: float = 0.0
 var _veer_dir: Vector2 = Vector2(1, 0)
@@ -79,7 +81,6 @@ func start(pos: Vector2) -> void:
 	_phase = Phase.APPROACH
 	_approach_t = 0.0
 	_shots_fired = 0
-	_next_muzzle_left = true
 	_vel = Vector2(0, 1) * travel_speed
 
 
@@ -158,17 +159,12 @@ func _process_fire(dt: float) -> void:
 
 
 func _fire_one() -> void:
-	# Read the LIVE marker global_position so repositioning the Marker2D in
-	# the scene moves the muzzle with no code change. Alternate L/R/L/R...
-	var muzzle: Node2D = null
-	if _next_muzzle_left:
-		muzzle = get_node_or_null("MuzzleL") as Node2D
-	else:
-		muzzle = get_node_or_null("MuzzleR") as Node2D
-	_next_muzzle_left = not _next_muzzle_left
-	var spawn_pos: Vector2 = global_position
-	if muzzle != null:
-		spawn_pos = muzzle.global_position
+	# Alternate MuzzleL/MuzzleR via the shared enemy_base helper, which reads
+	# the LIVE marker global_position (repositioning the Marker2D in the scene
+	# moves the muzzle with no code change) and cycles its per-instance index
+	# so consecutive shots alternate L/R/L/R. Markers are name-sorted, so the
+	# first shot fires from MuzzleL — identical to the previous behavior.
+	var spawn_pos: Vector2 = next_muzzle_pos() if has_muzzles() else global_position
 	var b = BulletScene.instantiate()
 	if "speed" in b:
 		b.speed = bullet_speed
@@ -178,6 +174,9 @@ func _fire_one() -> void:
 		b.start(spawn_pos, _fire_dir)
 	else:
 		b.global_position = spawn_pos
+	# Pink muzzle flash at the firing marker, pointed along the locked dir.
+	if has_muzzles():
+		MuzzleFx.play_enemy(spawn_pos, _fire_dir, get_tree().root)
 	if has_node("EnemyShoot"):
 		$EnemyShoot.play()
 	_shots_fired += 1

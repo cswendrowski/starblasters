@@ -7,6 +7,7 @@ extends "res://scripts/enemy_core.gd"
 # Spawning: as children of get_tree().root so they survive the weaver's death.
 
 const EnemyRocket = preload("res://scenes/projectiles/enemy_rocket.tscn")
+const MuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
 
 const ROCKET_TRIGGER_Y: float = 135.0
 const ROCKET_OFFSET_X: float = 6.0
@@ -33,8 +34,18 @@ func _process(delta: float) -> void:
 func _fire_rockets() -> void:
 	_rockets_fired = true
 	var down: Vector2 = Vector2(0, 1)
-	for offset_x in [-ROCKET_OFFSET_X, ROCKET_OFFSET_X]:
+	# One rocket per muzzle (MuzzleL then MuzzleR — name-sorted by the base),
+	# each spawning at the live marker position with a pink flash. Falls back
+	# to the ±6 px offsets if the markers are ever removed.
+	var spawns: Array = all_muzzle_pos() if has_muzzles() else [
+		global_position + Vector2(-ROCKET_OFFSET_X, 0),
+		global_position + Vector2(ROCKET_OFFSET_X, 0),
+	]
+	var flashing: bool = has_muzzles()
+	for spawn_pos in spawns:
 		var rocket = EnemyRocket.instantiate()
 		get_tree().root.add_child(rocket)
 		rocket.scale = Vector2(1.5, 1.5)
-		rocket.start(global_position + Vector2(offset_x, 0), down)
+		rocket.start(spawn_pos, down)
+		if flashing:
+			MuzzleFx.play_enemy(spawn_pos, down, get_tree().root)

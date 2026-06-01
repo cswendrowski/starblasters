@@ -85,6 +85,18 @@ enum OffscreenMode { CYCLE_BOTTOM, FREE_ANY_EDGE, FREE_OPPOSITE_SIDE, NONE }
 # the dynamic-assignment in patterns lands on a real property.
 var allow_side_exit: bool = false
 
+# Muzzle markers (Roman, 2026-05-31). Resolved lazily on first use from
+# Marker2D descendants named `Muzzle*` / `cannon_*` (case-insensitive),
+# EXCLUDING mount points named `turret_base` / `turret_mount`. Sorted by
+# NAME ascending so MuzzleL precedes MuzzleR and cannon_left precedes
+# cannon_right regardless of tree/child order (weaver's markers are nested
+# under CollisionShape2D). The alternation index lives on the ENEMY INSTANCE
+# — never on a shoot_pattern Resource (Resources are shared across all
+# instances of a pattern, so per-enemy state there would corrupt).
+var _muzzles: Array = []          # Array[Marker2D], resolved + name-sorted
+var _muzzles_resolved: bool = false
+var _muzzle_idx: int = 0
+
 var health: int = 1
 var shield: int = 0
 var recycle_passes: int = -1   # -1 = unlimited (matches current default behavior)
@@ -316,6 +328,61 @@ func find_player() -> Node:
 	for n in get_tree().get_nodes_in_group("player"):
 		return n
 	return null
+
+
+# ---- Muzzle resolution -------------------------------------------------
+# Lazily find + cache all Marker2D descendants whose name marks them as a
+# muzzle. Mount points (turret_base / turret_mount) are sprite anchors, NOT
+# muzzles, so they're excluded. Sorted by name ascending so two-muzzle
+# enemies fire in a stable L→R order independent of scene tree layout.
+func _resolve_muzzles() -> void:
+	if _muzzles_resolved:
+		return
+	_muzzles_resolved = true
+	_muzzles = []
+	# find_children returns Variant — never use := on it.
+	var markers: Array = find_children("*", "Marker2D", true, false)
+	for node in markers:
+		var m: Marker2D = node as Marker2D
+		if m == null:
+			continue
+		var lname: String = m.name.to_lower()
+		if lname == "turret_base" or lname == "turret_mount":
+			continue
+		if lname.begins_with("muzzle") or lname.begins_with("cannon"):
+			_muzzles.append(m)
+	# Stable ordering by name (MuzzleL < MuzzleR, cannon_left < cannon_right).
+	_muzzles.sort_custom(func(a, b): return String(a.name) < String(b.name))
+
+
+# True when this enemy has at least one resolved muzzle marker.
+func has_muzzles() -> bool:
+	_resolve_muzzles()
+	return _muzzles.size() > 0
+
+
+# Global position of the NEXT muzzle, cycling the per-instance index so
+# two-muzzle enemies alternate L/R/L/R. Falls back to the enemy center when
+# there are no muzzles.
+func next_muzzle_pos() -> Vector2:
+	_resolve_muzzles()
+	if _muzzles.is_empty():
+		return global_position
+	var m: Marker2D = _muzzles[_muzzle_idx]
+	_muzzle_idx = (_muzzle_idx + 1) % _muzzles.size()
+	return m.global_position
+
+
+# All muzzle global positions (for pair / simultaneous fire). Empty when
+# there are no muzzles.
+func all_muzzle_pos() -> Array:
+	_resolve_muzzles()
+	var out: Array = []
+	for node in _muzzles:
+		var m: Marker2D = node as Marker2D
+		if m != null:
+			out.append(m.global_position)
+	return out
 
 
 # Per-frame offscreen check + optional sprite auto-rotation. Subclasses

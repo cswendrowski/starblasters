@@ -29,6 +29,10 @@ const BLASTER_GLOW_COLOR := Color(0.353, 0.796, 0.992, 1.0)
 const ROTARY_LASER_STRIP = preload("res://graphics/energy_muzzle_blue.png")
 const ROTARY_LASER_STRIP_HFRAMES := 4
 const ROTARY_LASER_GLOW_COLOR := Color(0.3, 0.7, 1.0, 1.0)
+# Enemy muzzle-flash strip (Roman 2026-05-31). 48×16 = 3 frames of 16×16,
+# pink flame. The flame points UP (tip up, base at bottom) at rest.
+const ENEMY_MUZZLE_STRIP = preload("res://graphics/projectiles/enemy_muzzle.png")
+const ENEMY_MUZZLE_STRIP_HFRAMES := 3
 
 
 static func play(world_pos: Vector2, host: Node = null) -> void:
@@ -130,6 +134,41 @@ static func play_rotary_laser(world_pos: Vector2, host: Node = null) -> void:
 	var tw := flash.create_tween()
 	tw.tween_interval(0.04)
 	tw.tween_property(flash, "modulate:a", 0.0, 0.04)
+	tw.tween_callback(flash.queue_free)
+
+
+# Enemy muzzle flash (Roman 2026-05-31). Pink flame anchored at its BASE to
+# `world_pos`, pointing along `dir`. No smoke, no shell (player-only). Always
+# parented at ROOT in WORLD space — most enemies have auto_rotate=true, so
+# parenting under them would double-rotate the flash and contaminate its
+# angle with the enemy's banking. An ~80 ms flash needn't follow the enemy.
+static func play_enemy(world_pos: Vector2, dir: Vector2, root: Node) -> void:
+	if root == null:
+		root = Engine.get_main_loop().root
+	var flash := Sprite2D.new()
+	flash.texture = ENEMY_MUZZLE_STRIP
+	flash.hframes = ENEMY_MUZZLE_STRIP_HFRAMES
+	# Random frame per shot so consecutive flashes differ.
+	flash.frame = randi() % ENEMY_MUZZLE_STRIP_HFRAMES
+	# Anchor the BASE (bottom-center) of the 16×16 frame at the node origin:
+	# centered=true puts the frame center at origin, so shift it up by half a
+	# frame (8 px) — the flame's bottom edge now sits on the origin and the
+	# flame extends "up" (-Y) from there before rotation.
+	flash.centered = true
+	flash.offset = Vector2(0, -8)
+	flash.global_position = world_pos
+	# Sprite flame points up (-Y) at rest. atan2(dir) gives 0 = +X (east);
+	# +PI/2 maps "up" to the fire direction so the flame extends along `dir`.
+	flash.global_rotation = dir.angle() + PI * 0.5
+	flash.z_index = 5
+	var mat := CanvasItemMaterial.new()
+	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	flash.material = mat
+	root.add_child(flash)
+	# Match the player flash feel: hold full alpha ~70 ms, fade ~80 ms.
+	var tw := flash.create_tween()
+	tw.tween_interval(0.07)
+	tw.tween_property(flash, "modulate:a", 0.0, 0.08)
 	tw.tween_callback(flash.queue_free)
 
 
