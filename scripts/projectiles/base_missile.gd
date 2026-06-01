@@ -301,6 +301,18 @@ func _find_homing_target_in_cone(fwd: Vector2):
 	# Anti-Ship: track the largest valid in-cone target instead of nearest.
 	var best_large: Node = null
 	var best_size: float = -INF
+	# Bosses are the priority target above ALL non-boss enemies (Roman,
+	# 2026-05-31 playtest: "missiles should always prioritize bosses").
+	# Tracked separately so a boss in-cone wins regardless of nearest/largest
+	# fallback metric. Among multiple bosses (rare): nearest for the seeker,
+	# largest for the anti-ship (prefer_large). Applies to BOTH player seeking
+	# missiles — this second half of the function is only reachable by them
+	# (enemy missiles take the "player" branch above; dumb_fire rockets never
+	# call this). Explicit types throughout — get_script()/get_base_script()
+	# return Variant, never `:=`.
+	var best_boss: Node = null
+	var best_boss_d: float = INF
+	var best_boss_size: float = -INF
 	for n in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(n) or n == self:
 			continue
@@ -310,6 +322,24 @@ func _find_homing_target_in_cone(fwd: Vector2):
 		if to_n.length_squared() < 1.0:
 			continue
 		if fwd.dot(to_n.normalized()) < cos_tol:
+			continue
+		if _is_boss(n):
+			# Boss candidate: prefer largest (anti-ship) / nearest (seeker),
+			# matching the same metric the non-boss fallback would use.
+			var bd: float = abs(to_n.x) + abs(to_n.y)
+			if prefer_large:
+				var bsz: float = 0.0
+				if "max_health" in n:
+					bsz = float(n.max_health)
+				if bsz > best_boss_size or (bsz == best_boss_size and bd < best_boss_d):
+					best_boss_size = bsz
+					best_boss_d = bd
+					best_boss = n
+			else:
+				if bd < best_boss_d:
+					best_boss_d = bd
+					best_boss = n
+			# Don't also count the boss in the non-boss trackers.
 			continue
 		if prefer_large:
 			# Size metric: max_health (heavy-ship tier proxy). Tie-break on
@@ -327,9 +357,28 @@ func _find_homing_target_in_cone(fwd: Vector2):
 			if nd < best_d:
 				best_d = nd
 				best = n
+	# Boss always wins if one is in cone, regardless of the fallback metric.
+	if best_boss != null:
+		return best_boss
 	if prefer_large:
 		return best_large
 	return best
+
+
+# True if `n` is a boss — i.e. its script chain includes boss_base.gd.
+# boss_base.gd deliberately has no class_name (path-based to dodge the
+# global-class-cache cold-boot ordering), so we walk the inheritance chain
+# the same way main.gd's boss-HP-bar hook does. get_script()/get_base_script()
+# return Variant; use explicit `Script` typing, never `:=`.
+func _is_boss(n: Node) -> bool:
+	if n == null:
+		return false
+	var sc: Script = n.get_script()
+	while sc != null:
+		if sc.resource_path == "res://scripts/enemies/boss_base.gd":
+			return true
+		sc = sc.get_base_script()
+	return false
 
 
 func _find_homing_target():
