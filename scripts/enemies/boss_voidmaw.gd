@@ -27,7 +27,7 @@ func _ready() -> void:
 	fire_interval_max = 2.0
 	# Plasma orb: wobbling green orbs match the organic, gravitational identity
 	# of the drifting black holes. Chaos spread feels natural here.
-	default_bullet_variant = load("res://data/bullets/plasma_orb.tres")
+	default_bullet_variant = load("res://data/bullets/boss/plasma_orb.tres")
 	phases = [
 		BossPhase.make("Phase 1", 1.0, false, 0.0),
 		BossPhase.make("Phase 2", 0.33, true, 5.0),

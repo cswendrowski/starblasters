@@ -44,10 +44,10 @@ func _ready() -> void:
 	fire_interval_max = 1.4
 	# Each slot gets a distinct variant so the player learns the rotation visually.
 	# P2 enrage upgrades slot 3 to laser_bolt (swap done in _on_phase_entered).
-	_var_aimed  = load("res://data/bullets/aimed_sniper.tres")
-	_var_ring   = load("res://data/bullets/heavy_slug.tres")
-	_var_spread = load("res://data/bullets/plasma_orb.tres")
-	_var_sniper = load("res://data/bullets/aimed_sniper.tres")
+	_var_aimed  = load("res://data/bullets/boss/aimed_sniper.tres")
+	_var_ring   = load("res://data/bullets/boss/heavy_slug.tres")
+	_var_spread = load("res://data/bullets/boss/plasma_orb.tres")
+	_var_sniper = load("res://data/bullets/boss/aimed_sniper.tres")
 	phases = [
 		BossPhase.make("Phase 1", 1.0, false, 0.0),
 		BossPhase.make("Phase 2", 0.5, true, 4.0),
@@ -66,7 +66,7 @@ func _on_phase_entered(phase_idx: int, _phase_name: String) -> void:
 		_ring_step_deg = 30.0
 		_ring_double_fire = true
 		# P2 enrage: upgrade the sniper slot to laser_bolt for the "panic" read.
-		_var_sniper = load("res://data/bullets/laser_bolt.tres")
+		_var_sniper = load("res://data/bullets/boss/laser_bolt.tres")
 		_spawn_reinforcement_wave()
 
 

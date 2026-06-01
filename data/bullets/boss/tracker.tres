@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="BulletVariant" format=3]
+
+[ext_resource type="Script" path="res://scripts/projectiles/bullet_variant.gd" id="1_variant"]
+
+[resource]
+script = ExtResource("1_variant")
+speed = 200.0
+damage = 1
+lifetime = 2.5
+hitbox_size = Vector2(6, 6)
+impact_kind = 0
+impact_color = Color(0.666667, 0.266667, 1, 1)
+homing_rate = 90.0

@@ -21,6 +21,12 @@ extends "res://scripts/enemies/enemy_base.gd"
 
 const Playfield = preload("res://scripts/playfield.gd")
 
+# Flat base HP multiplier applied to EVERY boss (designer Roman, 2026-05-31:
+# "bosses die too fast"). Layered ON TOP of the per-boss-defeated +5% run
+# escalation below, so effective HP = base * BASE_HP_MULT * (1 + 0.05*defeated).
+# Single shared site so all bosses pick it up; tunable here.
+const BASE_HP_MULT: float = 1.5
+
 signal health_changed(cur: int, max: int)
 signal phase_changed(old_idx: int, new_idx: int, phase_name: String)
 
@@ -85,6 +91,12 @@ func _ready() -> void:
 	# max_health`. Single shared site: every boss subclass routes through this
 	# _ready(), so no boss can forget the buff. Guarded for autoload-less
 	# dev/test scenes (defaults to x1.0). Explicit type — never `:=` here.
+	# Flat base buff FIRST — unconditional, lands even at defeated=0 and in
+	# autoload-less dev/test scenes. Its own statement (not folded into the
+	# run scale_mult) so the defeated==0 case still gets the x1.5. Explicit
+	# type, no `:=`.
+	if max_health > 0:
+		max_health = int(round(float(max_health) * BASE_HP_MULT))
 	var run: Node = get_node_or_null("/root/Run")
 	if run != null and "bosses_defeated" in run:
 		var defeated: int = int(run.bosses_defeated)

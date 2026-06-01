@@ -130,7 +130,7 @@ func _attack_loop() -> void:
 				await get_tree().create_timer(5.0).timeout
 				if _dying:
 					return
-				fire_ring(6, 0.0, load("res://data/bullets/heavy_slug.tres"))
+				fire_ring(6, 0.0, load("res://data/bullets/boss/heavy_slug.tres"))
 			1:
 				# Single beam every ~4s; gap follows the player's X at
 				# telegraph start.
