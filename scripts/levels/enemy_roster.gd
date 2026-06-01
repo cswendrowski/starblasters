@@ -127,6 +127,26 @@ const ENTRIES := [
 		"conflict_tags": ["dumb_shot"],
 	},
 	{
+		# Strafer (Roman, 2026-05-31). Chaff fighter doing head-on passes:
+		# homes from the top, fires a 6-shot tracer burst at the MG cannon's
+		# base ROF (alternating L/R muzzle markers), then veers off and
+		# bee-lines for the bottom. Bespoke self-driving enemy (owns its
+		# 3-phase locomotion + the marker-alternating burst), so movement +
+		# shoot are null like burner/firecore_drone/firecore_cruiser.
+		# Classed COMMON but gated a node into the sector (it shoots, unlike
+		# Dart) so the opener stays calm. hp_override kept in sync with the
+		# script's max_health (2). First-pass weight/gating — tune in playtest.
+		"scene": "res://scenes/enemies/enemy_strafer.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": null,   # handles own 3-phase locomotion
+		"shoot": null,      # handles own marker-alternating burst
+		"base_count": 4,
+		"hp_override": 2, "bounty_override": 8,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.9, "chaff": true,
+		"conflict_tags": ["aimed_or_spread"],
+	},
+	{
 		"scene": "res://scenes/enemies/enemy_hunter_drone.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],

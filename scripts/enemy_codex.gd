@@ -24,6 +24,7 @@ const ENTRIES = [
 	{"path": "res://scenes/enemies/enemy_weaver.tscn",   "name": "Weaver",   "tier": "Uncommon", "blurb": "Paired center-out arc with aimed shots."},
 	{"path": "res://scenes/enemies/enemy_hover.tscn",    "name": "Hover",    "tier": "Uncommon", "blurb": "Loiters at altitude, picks at you with single shots."},
 	{"path": "res://scenes/enemies/enemy_skirmisher.tscn", "name": "Skirmisher", "tier": "Uncommon", "blurb": "Advances, retreats, fires aimed bursts. Aggressive."},
+	{"path": "res://scenes/enemies/enemy_strafer.tscn",  "name": "Strafer",  "tier": "Common", "blurb": "Head-on pass: dives in, fires a tracer burst, breaks off to the bottom."},
 	{"path": "res://scenes/enemies/enemy_frigate.tscn",  "name": "Frigate",  "tier": "Uncommon", "blurb": "Slow advance, burst fire, tough hull."},
 	{"path": "res://scenes/enemies/enemy_crystal.tscn",  "name": "Crystal",  "tier": "Rare"},
 	{"path": "res://scenes/enemies/enemy_minelayer.tscn", "name": "Minelayer", "tier": "Rare"},
