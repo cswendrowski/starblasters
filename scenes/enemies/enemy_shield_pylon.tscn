@@ -1,0 +1,33 @@
+[gd_scene load_steps=5 format=3 uid="uid://bshldpylon001"]
+
+[ext_resource type="Script" uid="uid://dc6g5rqp2xkar" path="res://scripts/enemies/enemy_shield_pylon.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://dxo2261cbxwx0" path="res://graphics/enemies/enemy_shield_pylon.png" id="2_body"]
+[ext_resource type="Texture2D" uid="uid://66uvb8vtaltt" path="res://graphics/enemies/enemy_shield_pylon_orb.png" id="3_orb"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="4_die"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_pylon"]
+size = Vector2(16, 16)
+
+[node name="ShieldPylon" type="Area2D" groups=["enemies"]]
+script = ExtResource("1_script")
+
+; BODY — shows progressive damage. hframes=4 splits the 64x16 strip into four
+; 16x16 frames; frame 0 shown. Frames are exposed but NOT animated pending the
+; designer's answer on what they represent (damage states vs. animation).
+; NO material here on purpose: the script installs the damage shader after
+; super._ready(); a material line would early-return that install (no-op).
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_body")
+hframes = 4
+
+; ORB — drawn AFTER the body so it renders on top ("orb over the pylon").
+; NO material so the damage shader never touches it; the orb stays bright.
+[node name="Orb" type="Sprite2D" parent="."]
+texture = ExtResource("3_orb")
+hframes = 4
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_pylon")
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("4_die")
