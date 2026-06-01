@@ -576,7 +576,10 @@ func _process(delta: float) -> void:
 	_update_focus_dot(focused)
 	# Thrusters / Armor Plating upgrades feed into speed_multiplier;
 	# applied here so the runtime stat reflects the live upgrade state.
-	position += input * speed * speed_multiplier * focus_mult * delta
+	# Movement is delta-scaled (framerate-independent). Clamp the step to a
+	# 30fps-equivalent ceiling so a frame hitch / huge delta can't teleport the
+	# ship across the playfield (matches enemy_core's delta cap). Roman 2026-06-01.
+	position += input * speed * speed_multiplier * focus_mult * minf(delta, 1.0 / 30.0)
 	position = Playfield.clamp_pos(position, 8.0)
 	# Autofire toggle (Settings.autofire) latches primary fire on so
 	# players don't have to hold the button. Holding still works
