@@ -138,7 +138,7 @@ func _ready() -> void:
 		get_node("/root/Music").set_context("outpost")
 	# Auto-restore on visit. Designer policy (Roman 2026-05-25):
 	# - Super charges are NO LONGER auto-refilled — supers cost real bounty
-	#   now (SUPER_REFILL_COST = 60 per charge). Free refill made the paid
+	#   now (SUPER_REFILL_COST per charge). Free refill made the paid
 	#   button dead UI and devalued the resource.
 	# - Shields read full at next combat start (player.start() does
 	#   shield = max_shield), so write that to Run here too so the
