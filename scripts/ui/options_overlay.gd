@@ -18,6 +18,8 @@ static func open(parent: Node) -> CanvasLayer:
 	return overlay
 
 
+var _options_panel: PanelContainer = null
+
 var _master_slider: HSlider = null
 var _music_slider: HSlider = null
 var _shake_slider: HSlider = null
@@ -47,13 +49,12 @@ func _build_ui() -> void:
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(dim)
 
-	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(center)
-
+	# Panel parented directly to the CanvasLayer (NOT a CenterContainer) so
+	# we can scale it down to fit the 480×270 render resolution. CenterContainer
+	# positions by UNSCALED minimum size, so a scaled child wouldn't re-center
+	# — we center manually in _fit_panel() instead. Roman: "Options screen is
+	# too big — limit it to the render resolution, scale down as necessary."
 	var panel := PanelContainer.new()
-	panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = UiTheme.COLOR_PANEL_BG
 	sb.border_color = UiTheme.COLOR_ACCENT_DIM
@@ -63,7 +64,8 @@ func _build_ui() -> void:
 	sb.content_margin_top = 10
 	sb.content_margin_bottom = 10
 	panel.add_theme_stylebox_override("panel", sb)
-	center.add_child(panel)
+	add_child(panel)
+	_options_panel = panel
 
 	var outer := VBoxContainer.new()
 	outer.add_theme_constant_override("separation", 8)
@@ -155,6 +157,35 @@ func _build_ui() -> void:
 	var back_center := CenterContainer.new()
 	back_center.add_child(back)
 	outer.add_child(back_center)
+
+	# Containers report their final size only after a layout pass, so defer
+	# the scale-to-fit until the panel has resolved its natural size.
+	call_deferred("_fit_panel")
+
+
+# Scale the panel down (never up) so it fits inside the 480×270 internal
+# render resolution, then center it manually. Done after layout because a
+# PanelContainer's size is unknown until its children are measured. Re-run
+# safe (idempotent) — resets scale before measuring.
+func _fit_panel() -> void:
+	if _options_panel == null or not is_instance_valid(_options_panel):
+		return
+	var vp: Vector2 = get_viewport().get_visible_rect().size
+	# Margin so the panel border doesn't kiss the screen edge.
+	var avail: Vector2 = vp - Vector2(16, 16)
+	_options_panel.scale = Vector2.ONE
+	var natural: Vector2 = _options_panel.get_combined_minimum_size()
+	if natural.x <= 0.0 or natural.y <= 0.0:
+		natural = _options_panel.size
+	var s: float = 1.0
+	if natural.x > avail.x:
+		s = min(s, avail.x / natural.x)
+	if natural.y > avail.y:
+		s = min(s, avail.y / natural.y)
+	_options_panel.scale = Vector2(s, s)
+	_options_panel.size = natural
+	# Center the scaled panel in the viewport.
+	_options_panel.position = (vp - natural * s) * 0.5
 
 
 const _ACTION_LABELS := {

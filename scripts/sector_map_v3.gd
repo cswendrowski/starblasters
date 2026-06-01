@@ -149,6 +149,12 @@ var _depart_btn: Button = null
 var _poi_hits: Array = []
 # Per-boss entry: {id, pos, row_idx, label, icon, dot_spr}
 var _boss_entries: Array = []
+# Dedicated child Node2D that draws the boss progress rings ABOVE the poi
+# route lines (Roman: "boss circle and progress bar should sort above the poi
+# bar"). The root Node2D's own _draw paints an opaque BG fill, so the ring can't
+# live there and still beat the route Line2D children — it gets its own node
+# with z_index high enough to sit over both routes (z 0) and the boss dot (z 3).
+var _boss_ring_node: Node2D = null
 # Per-row endpoint cache for green progress overlay: {anchor, end_x}
 var _route_segments: Array = []
 # Tracks the visual decorator currently being placed (for hover-color logic).
@@ -1058,6 +1064,14 @@ func _add_minefield_indicators(center: Vector2, rng: RandomNumberGenerator) -> v
 func _build_bosses_from_cache() -> void:
 	var run := get_node("/root/Run")
 	var rows: Array = run.sector_map_cache.get("rows", [])
+	# Dedicated ring layer — z_index 4 puts the boss circle + progress arc above
+	# the poi route lines (z 0) and the boss dot (z 3). Rings are static (no
+	# _time animation), so one redraw after build is enough.
+	_boss_ring_node = Node2D.new()
+	_boss_ring_node.name = "BossRings"
+	_boss_ring_node.z_index = 4
+	add_child(_boss_ring_node)
+	_boss_ring_node.draw.connect(_draw_boss_rings)
 	for r_idx in rows.size():
 		var boss: Dictionary = rows[r_idx].boss
 		# Resolve position from Marker2D so moving the marker repositions
@@ -1077,11 +1091,13 @@ func _build_bosses_from_cache() -> void:
 		dot_spr.texture  = dot_at
 		dot_spr.position = pos
 		dot_spr.scale    = Vector2(0.5, 0.5)   # Change 1: half size
-		# Locked: dim 50% alpha. Unlocked: full strength. Defeated: dim green.
+		# Locked: dim red 50% alpha. Unlocked (boss AVAILABLE): full green so the
+		# player reads "ready to fight" at a glance — matches the ring's
+		# PROGRESS_COLOR / COLOR_NODE_GREEN. Defeated: dim green.
 		if defeated:
 			dot_spr.modulate = Color(COLOR_NODE_GREEN.r, COLOR_NODE_GREEN.g, COLOR_NODE_GREEN.b, 0.4)
 		elif unlocked:
-			dot_spr.modulate = Color(COLOR_BOSS_RED.r, COLOR_BOSS_RED.g, COLOR_BOSS_RED.b, 1.0)
+			dot_spr.modulate = Color(COLOR_NODE_GREEN.r, COLOR_NODE_GREEN.g, COLOR_NODE_GREEN.b, 1.0)
 		else:
 			dot_spr.modulate = Color(COLOR_BOSS_RED.r, COLOR_BOSS_RED.g, COLOR_BOSS_RED.b, 0.5)
 		dot_spr.z_index = 3
@@ -1095,7 +1111,12 @@ func _build_bosses_from_cache() -> void:
 		icon_spr.position = pos
 		icon_spr.scale    = Vector2(0.25, 0.25)   # Change 1: half size (was 0.5)
 		icon_spr.z_index  = 5
-		icon_spr.modulate = Color(1.0, 1.0, 1.0, 0.5)
+		# Boss icon is ALWAYS visible (unlike regular POI icons, which rest at
+		# alpha 0 until hovered). When the boss is AVAILABLE it shows green;
+		# otherwise it shows its normal white tint. _process keeps it pinned via
+		# the icon_rest / rest_tint entries below.
+		var boss_icon_rest_tint: Color = COLOR_NODE_GREEN if (unlocked and not defeated) else Color.WHITE
+		icon_spr.modulate = Color(boss_icon_rest_tint.r, boss_icon_rest_tint.g, boss_icon_rest_tint.b, 1.0)
 		add_child(icon_spr)
 		# BOSS/DEFEATED label — positioned above boss dot
 		var boss_label_text: String = "DEFEATED" if defeated else "BOSS"
@@ -1117,9 +1138,12 @@ func _build_bosses_from_cache() -> void:
 			"label":      null,
 			"icon":       icon_spr,
 			"label_rest": 1.0,
-			"icon_rest":  0.0,
+			# Boss icon always shows (rest alpha ~0.9) — Roman: "boss poi icon
+			# should not be invisible, unlike other poi icons."
+			"icon_rest":  0.9,
 			"hover_tint": boss_hover_tint,
-			"rest_tint":  Color.WHITE,
+			# Rest tint matches the dot/ring: green when AVAILABLE, white otherwise.
+			"rest_tint":  boss_icon_rest_tint,
 		})
 		_boss_entries.append({
 			"id":       String(boss.id),
@@ -1128,6 +1152,46 @@ func _build_bosses_from_cache() -> void:
 			"unlocked": unlocked,
 			"defeated": defeated,
 		})
+	if is_instance_valid(_boss_ring_node):
+		_boss_ring_node.queue_redraw()
+
+
+# Draws the boss progress rings on the dedicated _boss_ring_node (z_index 4) so
+# they sort ABOVE the poi route lines. Connected to that node's `draw` signal,
+# so `draw_arc` here targets the ring node's canvas item, not the root's.
+func _draw_boss_rings() -> void:
+	var run := get_node("/root/Run")
+	var rows: Array = run.sector_map_cache.get("rows", [])
+	const RING_RADIUS: float       = 13.0   # halved from 26 (Change 1)
+	const RING_WIDTH: float        = 1.0    # halved from 2 (Change 1)
+	const RING_ARC_STEPS: int      = 32     # smooth arc steps for full circle
+	var ring_filled: Color   = PROGRESS_COLOR
+	var ring_unfilled: Color = Color(0.3, 0.3, 0.3, 0.5)
+	for i in _boss_entries.size():
+		if i >= rows.size():
+			continue
+		var b: Dictionary = _boss_entries[i]
+		var center: Vector2 = b.pos
+		var pois: Array = rows[i].pois
+		var total: int = pois.size()
+		if total <= 0:
+			continue
+		var done: int = 0
+		for poi_idx in pois.size():
+			var poi = pois[poi_idx]
+			if poi.completed:
+				done += 1
+		# Smooth continuous arc: filled from 12-o'clock to done/total fraction,
+		# then unfilled remainder.
+		var fill_frac: float = float(done) / float(total)
+		var start_angle: float = -PI * 0.5
+		var fill_end: float = start_angle + fill_frac * TAU
+		var filled_steps: int = maxi(1, int(RING_ARC_STEPS * fill_frac))
+		var unfilled_steps: int = maxi(1, int(RING_ARC_STEPS * (1.0 - fill_frac)))
+		if done > 0:
+			_boss_ring_node.draw_arc(center, RING_RADIUS, start_angle, fill_end, filled_steps, ring_filled, RING_WIDTH)
+		if done < total:
+			_boss_ring_node.draw_arc(center, RING_RADIUS, fill_end, start_angle + TAU, unfilled_steps, ring_unfilled, RING_WIDTH)
 
 
 # ---------------------------------------------------------------------------
@@ -1845,42 +1909,9 @@ func _draw() -> void:
 		var c: Color = px.color
 		c.a = a
 		draw_rect(Rect2(px.pos, Vector2(px.size, px.size)), c)
-	# Designer: line-progress overlay removed; boss radial ring replaces it.
-	# For each boss, draw a segmented clockwise arc — total segments = POI
-	# count in that row, filled count = completed POIs. Starts at 12 o'clock
-	# (-PI/2), progresses clockwise.
-	var run := get_node("/root/Run")
-	var rows: Array = run.sector_map_cache.get("rows", [])
-	const RING_RADIUS: float       = 13.0   # halved from 26 (Change 1)
-	const RING_WIDTH: float        = 1.0    # halved from 2 (Change 1)
-	const RING_ARC_STEPS: int      = 32     # smooth arc steps for full circle
-	var ring_filled: Color   = PROGRESS_COLOR
-	var ring_unfilled: Color = Color(0.3, 0.3, 0.3, 0.5)
-	for i in _boss_entries.size():
-		if i >= rows.size():
-			continue
-		var b: Dictionary = _boss_entries[i]
-		var center: Vector2 = b.pos
-		var pois: Array = rows[i].pois
-		var total: int = pois.size()
-		if total <= 0:
-			continue
-		var done: int = 0
-		for poi_idx in pois.size():
-			var poi = pois[poi_idx]
-			if poi.completed:
-				done += 1
-		# Change 2: smooth continuous arc instead of per-POI segments.
-		# Filled arc from 12-o'clock to done/total fraction, then unfilled remainder.
-		var fill_frac: float = float(done) / float(total)
-		var start_angle: float = -PI * 0.5
-		var fill_end: float = start_angle + fill_frac * TAU
-		var filled_steps: int = maxi(1, int(RING_ARC_STEPS * fill_frac))
-		var unfilled_steps: int = maxi(1, int(RING_ARC_STEPS * (1.0 - fill_frac)))
-		if done > 0:
-			draw_arc(center, RING_RADIUS, start_angle, fill_end, filled_steps, ring_filled, RING_WIDTH)
-		if done < total:
-			draw_arc(center, RING_RADIUS, fill_end, start_angle + TAU, unfilled_steps, ring_unfilled, RING_WIDTH)
+	# Boss progress rings are NOT drawn here — they live in _boss_ring_node
+	# (z_index 4) so they sort ABOVE the poi route lines instead of being
+	# occluded by them. See _draw_boss_rings / _build_bosses_from_cache.
 
 
 func _unhandled_input(event: InputEvent) -> void:

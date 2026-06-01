@@ -481,14 +481,36 @@ func _refresh_weapon_names() -> void:
 	if not has_node("/root/Run"):
 		return
 	var run = get_node("/root/Run")
-	if run.has_method("get_active_cannon"):
-		var ac = run.get_active_cannon()
-		if ac != null and "display_name" in ac and _pri_name_lbl:
-			_pri_name_lbl.text = String(ac.display_name)
+	# PRI row (2nd primary slot): the non-blaster cannon the player can swap
+	# to with [shoot]/Q/E. cannon_pool[0] is ALWAYS the permanent Energy
+	# Blaster (run_state) — so a non-blaster is equipped iff the pool has more
+	# than one entry. Read it from the pool directly, NOT get_active_cannon():
+	# that returns the blaster whenever the blaster is the active selection,
+	# which would falsely echo "Energy Blaster" into this slot (Roman: 2nd
+	# primary should read EMPTY unless a non-blaster is equipped).
+	if _pri_name_lbl:
+		var non_blaster = null
+		if "cannon_pool" in run and run.cannon_pool is Array and run.cannon_pool.size() > 1:
+			# Last entry = most-recently-equipped non-blaster, matching
+			# cycle_primary's default target (cannon_pool.size() - 1).
+			non_blaster = run.cannon_pool[run.cannon_pool.size() - 1]
+		if non_blaster != null and "display_name" in non_blaster:
+			_pri_name_lbl.text = String(non_blaster.display_name)
+		else:
+			_pri_name_lbl.text = "—"
 	if "loadout_snapshot" in run and run.loadout_snapshot is Dictionary:
 		var p_sec = run.loadout_snapshot.get(Slots.SlotType.HARDPOINT_WING, null)
 		if p_sec != null and "display_name" in p_sec and _sec_name_lbl:
 			_sec_name_lbl.text = String(p_sec.display_name)
+		# SUP row: the equipped super (DEVICE_BAY_1 = Smart Bomb, etc.). Was
+		# never populated, so the name read blank even when a super was
+		# equipped (Roman: Smart Bomb missing its name in the armament bar).
+		var p_sup = run.loadout_snapshot.get(Slots.SlotType.DEVICE_BAY_1, null)
+		if _sup_name_lbl:
+			if p_sup != null and "display_name" in p_sup:
+				_sup_name_lbl.text = String(p_sup.display_name)
+			else:
+				_sup_name_lbl.text = "—"
 
 
 func _on_ammo_changed(value: int) -> void:

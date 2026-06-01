@@ -13,7 +13,11 @@ const FADE_OUT := 0.45
 const FADE_IN := 0.45
 const HOLD := 0.05
 
-static func change_scene(tree: SceneTree, path: String) -> void:
+# `on_covered` (optional) runs once the black overlay fully covers the
+# screen, BEFORE the scene swap. Use it to tear down per-scene state that
+# must not be visible during the fade but must be gone before the
+# destination's _ready (e.g. an HD viewport scope — see outpost._on_leave).
+static func change_scene(tree: SceneTree, path: String, on_covered: Callable = Callable()) -> void:
 	if tree == null:
 		return
 	var cl := CanvasLayer.new()
@@ -33,6 +37,11 @@ static func change_scene(tree: SceneTree, path: String) -> void:
 	if not is_instance_valid(rect):
 		return
 	rect.color.a = 1.0
+
+	# Screen is now fully black — safe to flip viewport scale / tear down
+	# the leaving scene's HD state without a visible blown-up frame.
+	if on_covered.is_valid():
+		on_covered.call()
 
 	var err := tree.change_scene_to_file(path)
 	if err != OK:

@@ -1011,12 +1011,20 @@ func _on_leave() -> void:
 		var run := get_node("/root/Run")
 		if String(run.current_node_id) != "":
 			run.mark_node_completed(String(run.current_node_id))
-	# Drop the HD scope before change_scene so the sector map's _ready
-	# isn't briefly rendered at 1920×1080.
+	# Drop the HD scope only once the fade-to-black FULLY covers the screen
+	# (via the on_covered callback), NOT before the fade. Freeing it early
+	# restored content_scale_size to 480×270 while the HD-laid-out outpost
+	# was still visible, so the fade revealed a 4×-scaled blow-up of the
+	# upper-left corner for ~0.45s (Roman: "blown-up view of the upper-left
+	# corner before transitioning"). Freeing it while black keeps both
+	# constraints: invisible during fade, gone before the destination _ready.
+	SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE, _drop_hd_scope)
+
+
+func _drop_hd_scope() -> void:
 	if _hd_scope != null and is_instance_valid(_hd_scope):
 		_hd_scope.free()
 		_hd_scope = null
-	SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE)
 
 
 # ---- Status panel refresh -------------------------------------------------

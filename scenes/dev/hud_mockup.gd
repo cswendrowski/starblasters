@@ -46,7 +46,7 @@ func _ready() -> void:
 		[Vector2(456, 32),  "120",          COLOR_GREEN],
 		[Vector2(392, 48),  "Rocket Pod",   COLOR_GREEN],
 		[Vector2(456, 48),  "6",            COLOR_GREEN],
-		[Vector2(392, 64),  "Drone Swarm",  COLOR_GREEN],
+		[Vector2(392, 64),  "Combat Drones",  COLOR_GREEN],
 		[Vector2(456, 64),  "|||",          COLOR_GREEN],
 		[Vector2(392, 240), "BOUNTY",       COLOR_GOLD],
 		[Vector2(448, 240), "4,250",        COLOR_GOLD],
