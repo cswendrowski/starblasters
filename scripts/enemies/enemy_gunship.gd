@@ -213,8 +213,10 @@ func _fire_rocket() -> void:
 
 	var r = ROCKET_SCENE.instantiate()
 	get_tree().root.add_child(r)
-	# Rockets fire straight down with ±15° random deviation.
-	var fire_dir := Vector2(0, 1).rotated(randf_range(-deg_to_rad(15.0), deg_to_rad(15.0)))
+	# Rockets fire in the direction the hull is facing with ±15° random deviation.
+	# Forward vector: at rotation 0, faces down (0,1); rotates with the hull.
+	var forward := Vector2.DOWN.rotated(_ship_rotation)
+	var fire_dir := forward.rotated(randf_range(-deg_to_rad(15.0), deg_to_rad(15.0)))
 	var spawn_pos := marker.global_position
 	if r.has_method("start"):
 		r.start(spawn_pos, fire_dir)
