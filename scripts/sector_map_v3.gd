@@ -2481,4 +2481,3 @@ func _ms_on_equip_stored(idx: int, source: String, panel: PanelContainer) -> voi
 	run.equip_part(picked)
 	# Rebuild the modal so loadout + storage rows reflect the new state.
 	_render_manage_ship_contents(panel)
-

@@ -38,8 +38,14 @@ position = Vector2(10, 5)
 [node name="missile_port_1" type="Marker2D" parent="." unique_id=2024465780]
 position = Vector2(-16, -23)
 
+[node name="launch_direction" type="Marker2D" parent="missile_port_1" unique_id=1902932384]
+position = Vector2(-4, 3)
+
 [node name="missile_port_2" type="Marker2D" parent="." unique_id=842517701]
 position = Vector2(16, -23)
+
+[node name="launch_direction" type="Marker2D" parent="missile_port_2" unique_id=536721193]
+position = Vector2(4, 3)
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
 [connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

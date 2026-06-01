@@ -1,4 +1,4 @@
-﻿; Engine configuration file.
+; Engine configuration file.
 ; It's best edited using the editor UI and not directly,
 ; since the parameters that go here are not all obvious.
 ;
@@ -8,6 +8,7 @@
 
 config_version=5
 
+"ï»¿config_version"=5
 "Ã¯Â»Â¿config_version"=5
 
 [animation]
@@ -124,5 +125,8 @@ renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_s3tc_bptc=true
 textures/vram_compression/import_etc2_astc=true
 2d/snap/snap_2d_transforms_to_pixel=true
+<<<<<<< Updated upstream
 
 
+=======
+>>>>>>> Stashed changes
