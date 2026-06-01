@@ -5,7 +5,7 @@ extends CanvasLayer
 @onready var label: Label = $Center/Label
 
 const FADE_IN := 0.45
-const HOLD := 1.7
+const HOLD := 0.85
 const FADE_OUT := 0.55
 
 

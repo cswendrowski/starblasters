@@ -291,6 +291,13 @@ func _process_breakoff(dt: float) -> void:
 	position += _vel * dt
 
 
+# Pass-1 APPROACH/FIRE still gates (first engagement matters). Once it
+# breaks off pass 1 (BREAKOFF) or starts any recycle pass (_pass_index>=2),
+# it's disengaging/looping and must not stall the next wave.
+func is_recycling() -> bool:
+	return _phase == Phase.BREAKOFF or _pass_index >= 2
+
+
 # ---- Off-field detection + recycle/free --------------------------------
 
 # We own this (offscreen_mode == NONE). Generous margin so on-screen wobble

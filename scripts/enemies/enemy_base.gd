@@ -322,6 +322,15 @@ func _spawn_debris_piece(parent: Node, world_pos: Vector2, scale_factor: float) 
 
 # ---- Shared helpers ----------------------------------------------------
 
+# True when this enemy is in a transient "recycling" state (leaving the field
+# to re-enter for another pass). The director's wave-ADVANCE gate ignores such
+# enemies so a lone recycler doesn't stall the next wave. Subclasses override.
+# The final level-clear gate stays strict (counts everyone) so a level never
+# ends with a recycler still on-screen. (Roman 2026-06-01)
+func is_recycling() -> bool:
+	return false
+
+
 # Cheap player lookup. Returns null if the player isn't in the scene tree
 # yet (very early in level start) or has been freed (post-death).
 func find_player() -> Node:

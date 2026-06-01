@@ -29,11 +29,16 @@ const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
 # these tags so the boss's signature pressure doesn't overlap a chaff
 # pattern that demands the same player attention budget. Empty / unlisted
 # scene = no filtering.
+# Chaos ramp (Roman 2026-06-01). Per-node chaff add caps at this; combined with
+# the cross-sector term, the grand total chaff bonus caps at CHAFF_BONUS_TOTAL_CAP.
+const COMBAT_DEPTH_CHAFF_MAX := 3
+const CHAFF_BONUS_TOTAL_CAP := 4
+
 # Wave intermingling — probability the Nth combat wave in a level mixes
 # two enemy types. Index = level_index_in_sector, clamped to last entry.
 # Sector_depth adds +0.05 per sector past the first. Clamped to [0, 0.85].
 # Wave 0 of every level is never mixed (calm intro). See _should_intermingle.
-const WAVE_INTERMINGLE_PROBS := [0.0, 0.20, 0.40, 0.60, 0.75]
+const WAVE_INTERMINGLE_PROBS := [0.0, 0.30, 0.55, 0.75, 0.85]
 
 # Affinity table — symmetric pairs that "go together" thematically. When a
 # rolled pair is on this table, accept it immediately. Otherwise re-roll
@@ -420,7 +425,14 @@ static func _make_wave_spec(rng: RandomNumberGenerator, entry: Dictionary, secto
 	var chaff_bonus: int = 0
 	var roster_tier: int = int(entry.get("tier", Roster.Tier.COMMON))
 	if roster_tier == Roster.Tier.COMMON and not is_boss_leadin:
+		# Cross-sector chaff bonus (existing): +1 per sector past the first.
 		chaff_bonus = maxi(sector_depth - 1, 0)
+		# Chaos ramp (Roman 2026-06-01): deeper combat NODES within a sector pack
+		# more chaff. +1 at the 2nd node (level_index 1), +1 per further node.
+		chaff_bonus += mini(level_index, COMBAT_DEPTH_CHAFF_MAX)
+		# Cap the COMBINED bonus so a deep-sector/deep-node COMMON wave can't
+		# balloon (the two terms stack).
+		chaff_bonus = mini(chaff_bonus, CHAFF_BONUS_TOTAL_CAP)
 	count += chaff_bonus
 	# Widen the clamp ceiling by chaff_bonus so the bonus isn't silently eaten
 	# by the existing `base * 2` cap on dense COMMON waves.

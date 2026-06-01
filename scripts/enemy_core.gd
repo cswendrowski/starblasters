@@ -43,6 +43,10 @@ var _pre_cycle_modulate: Color = Color(1, 1, 1, 1)
 # re-entry). Leavers can flip this to FREE_ANY_EDGE / FREE_OPPOSITE_SIDE.
 
 
+func is_recycling() -> bool:
+	return _cycling
+
+
 func _ready() -> void:
 	super._ready()
 	# Oblique drop-shadow under the enemy sprite.

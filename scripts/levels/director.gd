@@ -11,12 +11,12 @@ signal level_cleared
 
 # Banner fade-in+hold+fade-out budget. Director waits this long before the
 # first enemy of an ANNOUNCED wave so spawns never overlap the WAVE alert.
-const BANNER_HOLD: float = 3.8
+const BANNER_HOLD: float = 1.9  # Roman 2026-06-01: halved inter-wave windows
 # Extra beat after the banner clears before enemies start (Roman, 2026-05-15).
-const POST_BANNER_GRACE: float = 0.4
+const POST_BANNER_GRACE: float = 0.2
 # Grace period AFTER a wave is cleared (all enemies in the group dead) and
 # BEFORE the next banner pops. "Wait a beat, show next wave banner."
-const POST_CLEAR_GRACE: float = 0.4
+const POST_CLEAR_GRACE: float = 0.2
 
 @export var level: Resource  # LevelData
 @export var auto_start: bool = false
@@ -98,7 +98,7 @@ func _spawn_next(wave: Resource) -> void:
 func _wait_for_clear_then_advance() -> void:
 	# Poll the enemies group on a short interval. When empty + the cleared
 	# grace beat has elapsed, advance.
-	while _running and _live_combatants_present():
+	while _running and _live_combatants_present(true):
 		await get_tree().create_timer(0.2).timeout
 	if not _running:
 		return
@@ -289,13 +289,18 @@ func _process(_delta: float) -> void:
 
 
 # True if any "enemies"-group node is alive AND not flagged is_hazard.
+# When ignore_recycling is true, also skip enemies reporting is_recycling()
+# (used by the wave-ADVANCE gate so a lone recycler doesn't stall the next
+# wave). The level-clear gate calls with the default (false) → stays strict.
 # Mines / bomblets / asteroids dropped behind a minelayer don't gate
 # wave progression (Cody, 2026-05-18 playtest).
-func _live_combatants_present() -> bool:
+func _live_combatants_present(ignore_recycling: bool = false) -> bool:
 	for n in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(n):
 			continue
 		if "is_hazard" in n and n.is_hazard:
+			continue
+		if ignore_recycling and n.has_method("is_recycling") and n.is_recycling():
 			continue
 		return true
 	return false
