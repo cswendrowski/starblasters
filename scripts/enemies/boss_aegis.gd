@@ -20,7 +20,9 @@ extends "res://scripts/enemies/boss_base.gd"
 # Stats set BEFORE super._ready() — no fallback pattern.
 
 const MissileScene = preload("res://scenes/projectiles/drifting_missile.tscn")
-const AegisPylonScript = preload("res://scripts/enemies/aegis_pylon.gd")
+# Pylon is now a real scene (body art + orb + damage shader). Its root runs
+# aegis_pylon.gd, so the hp/max_hp/side + pylon_killed contract is unchanged.
+const PylonScene = preload("res://scenes/enemies/enemy_shield_pylon.tscn")
 
 # Tuning knob (future sectors can override). Default 2 — keep parity with
 # the existing fight. Pylons are placed evenly across [-pylon_offset_x,
@@ -82,21 +84,14 @@ func _spawn_pylons() -> void:
 
 
 func _make_pylon(local_x: float, side_name: String) -> Area2D:
-	var pylon := Area2D.new()
-	pylon.set_script(AegisPylonScript)
+	# Instance the pylon scene (body + orb + collision + damage shader) instead
+	# of building it inline. The scene root is an aegis_pylon Area2D, so the
+	# hp/max_hp/side fields and pylon_killed signal we wire below are the same
+	# contract this boss has always used.
+	var pylon := PylonScene.instantiate() as Area2D
 	pylon.name = "Pylon_" + side_name
 	pylon.position = Vector2(local_x, 0)
 	pylon.add_to_group("enemies")
-	var spr := Sprite2D.new()
-	spr.texture = preload("res://graphics/enemies/enemy_placeholder_16x.png")
-	spr.modulate = Color(0.5, 1.0, 1.0, 1.0)
-	spr.name = "Sprite2D"
-	pylon.add_child(spr)
-	var cs := CollisionShape2D.new()
-	var shape := RectangleShape2D.new()
-	shape.size = Vector2(16, 16)
-	cs.shape = shape
-	pylon.add_child(cs)
 	pylon.hp = pylon_hp
 	pylon.max_hp = pylon_hp
 	pylon.side = side_name

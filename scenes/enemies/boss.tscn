@@ -5,6 +5,7 @@
 [ext_resource type="Texture2D" uid="uid://dn1edfs6n7tjr" path="res://Mini Pixel Pack 3/Effects/Explosion (16 x 16).png" id="3_jathr"]
 [ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="4_gqutq"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="5_41ijo"]
+[ext_resource type="PackedScene" uid="uid://bbossdrone001" path="res://scenes/enemies/enemy_boss_drone.tscn" id="6_drone"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_pyiq4"]
 size = Vector2(40, 44)
@@ -241,6 +242,7 @@ color_ramp = SubResource("GradientTexture1D_4lmie")
 
 [node name="Enemy" type="Area2D" unique_id=873223640 groups=["enemies"]]
 script = ExtResource("1_0exlg")
+minion_scene = ExtResource("6_drone")
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1453680669]
 texture = ExtResource("3_g646a")
