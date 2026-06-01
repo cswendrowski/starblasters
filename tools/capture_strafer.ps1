@@ -1,4 +1,4 @@
-param([int]$Fps = 24, [string]$OutName = "strafer")
+param([int]$Fps = 24, [string]$OutName = "strafer_paths")
 $ErrorActionPreference = 'Continue'
 # 4.6.3 standalone (consolidated single binary — see CLAUDE.md). Mirrors
 # tools/parse_check.ps1. NOT the stale 4.3-mono path some old capture_*.ps1
