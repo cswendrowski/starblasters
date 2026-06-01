@@ -21,7 +21,7 @@ Godot 2D top-down vertical shmup (GDScript). Roguelite with branching sector map
 Context is the scarce resource. Iteration-heavy work belongs in a dev tuner the **human** runs.
 
 **For UI/HUD layout, visual tuning, or numeric balance:**
-- Existing tuners: `UI Designer`, `Ship Sizer`, `Parallax Tuner`, `Wave Tester`, `Asteroid Lab`, `Movement Lab`, `Shipyard`, `Maneuver Sim`. Ask Roman to run it and paste the exported values. Do not iterate by edit-capture-look.
+- Existing tuners include `UI Designer`, `Parallax Tuner`, `Wave Tester`, `Asteroid Lab`, `Movement Lab`, `Shipyard` (current list lives in `scripts/dev_menu.gd` / `docs/contributing/01-getting-started.md`). Ask Roman to run one and paste the exported values. Do not iterate by edit-capture-look.
 - No tuner for a 3+-knob system? Scaffold one first (see `scripts/dev/ui_designer.gd` as reference — JSON persist to `user://tuners/<name>.json`).
 - **Tuner contract:** every tuner must have a **Copy GDScript** button emitting a paste-ready snippet. Without it the handoff is broken.
 
@@ -29,26 +29,31 @@ Context is the scarce resource. Iteration-heavy work belongs in a dev tuner the 
 
 ## Input map
 
-`left`/`right`/`up`/`down` (WASD + arrows), `shoot` (Space), `shoot2` (G), `shoot_nose` (Shift), `weapon_previous` (Q), `weapon_next` (E).
+Actions: `left`/`right`/`up`/`down` (WASD + arrows), `shoot` (Space/Z), `shoot2` (C), `shoot_nose` (X), `focus` (Shift), `primary_swap` (Q), `autofire_toggle` (R). Bindings drift — `project.godot` `[input]` is the source of truth; confirm there before relying on a specific key.
 
 ## Autoloads (`/root/...`)
 
 - `Run` (`scripts/run_state.gd`) — run state: bounty, hull/shield, loadout snapshot, sector_map_cache, current_node_id/type, current_hazard_subtype, sectors_cleared, run_seed. `Run.new_run()` resets. One-shot config via `Run.set_meta(...)` (e.g. `wave_v2_knobs`, `forced_boss_scene`, `minefield_mine_type`).
 - `Dbg` — debug helpers
-- `Music` — context-aware BGM (`set_context("menu"|"combat"|"boss"|"sector")`)
+- `Music` — context-aware BGM (`set_context(...)`, e.g. `"menu"`/`"combat"`/`"boss"`/`"outpost"`; see `scripts/music_manager.gd` for the contexts it handles)
 - `Settings` — persisted user prefs
 
 ## Architecture
 
+> **This section is a terse map for orientation. The detailed, newbie-friendly
+> tour lives in `docs/contributing/` (verified against code).** Keep load-bearing
+> RULES here; for volatile FACTS (exact scene names, thresholds, dev-tool lists)
+> the code + the contributing docs are the source of truth — point, don't copy.
+
 ### Scene flow
-`main_menu.tscn` → `main.tscn` (combat) ↔ `sector_map_v2.tscn` → `outpost.tscn` / `signal_event.tscn` / `cleared_summary.tscn` / `run_summary.tscn`. Sector map: 12-row grid, forward-only edges (`_strip_backward_edges`).
+`main_menu.tscn` → `main.tscn` (combat) ↔ `sector_map_v3.tscn` → `outpost.tscn` / `signal_event.tscn` / `cleared_summary.tscn` / `run_summary.tscn`. Forward-only branching grid (see `docs/contributing/02-architecture.md` for the grid details). Confirm the live sector-map scene in `main_menu.gd`/`main.gd` rather than trusting this line.
 
 ### Combat flow (`scripts/main.gd`)
-`new_game()` builds `LevelData` via `WaveGen.build()` (production), `WaveGeneratorV2.build_combat()` (Wave Tester dev), or `Levels.build_minefield/asteroid_field_level()` (hazard nodes). `director.gd` walks `WaveSpec`s, emits `enemy_died`, `wave_started`, `level_cleared`. `level_cleared` → `_run_outro()` → fly-out tween → wipe → `ClearedSummaryScene`.
+`new_game()` builds `LevelData` via `WaveGen.build()` (= `WaveGenerator.build()`, production) or `Levels.build_minefield/asteroid_field_level()` (hazard nodes); the dev wave-authoring tool is `scripts/dev/wave_editor.gd`. `director.gd` walks `WaveSpec`s and emits `enemy_died` / `enemy_spawned` / `wave_started` / `level_cleared`; `level_cleared` → `_run_outro()` → fly-out → wipe → cleared summary. Full walkthrough: `docs/contributing/03-combat-waves-enemies.md`.
 
-### Enemies (`scripts/enemies/`)
-- `enemy_base.gd` — base (`Area2D`, `class_name EnemyBase`). Health, `take_hit`, `explode`, engine flame + parallax shadow + damage overlay shader (gated by `auto_rotate`), debris on death, offscreen cleanup.
-- `enemy_core.gd` — adds `movement: Resource` + `shoot_pattern: Resource` slots.
+### Enemies (`scripts/enemies/` + `scripts/enemy_core.gd`)
+- `scripts/enemies/enemy_base.gd` — base (`Area2D`, `class_name EnemyBase`). Health, `take_hit`, `explode`, engine flame + parallax shadow + damage overlay shader (gated by `auto_rotate`), debris on death, offscreen cleanup.
+- `scripts/enemy_core.gd` (TOP-LEVEL `scripts/`, not `scripts/enemies/`) — extends the base, adds `movement: Resource` + `shoot_pattern: Resource` slots.
 - `patterns/` — movement Resources; subclass `movement_pattern.gd`, override `compute_step(enemy, delta) -> Vector2`.
 - Custom enemies (bomber, bulwark v2) extend `enemy_base.gd` directly, expose `hull`/`max_hull` + `hull_changed` signal.
 
@@ -58,7 +63,7 @@ Context is the scarce resource. Iteration-heavy work belongs in a dev tuner the 
 Three bosses share `boss.gd`. **Each sets stats in `_ready()` before `super._ready()` — never via `<= 0 ? default` pattern (caused 1-HP bug).** Boss attack: charge → fire → detonate black hole sequence. `boss_sweep.gd` uses `sin³(t)` easing on X-axis.
 
 ### Player (`scripts/player.gd`)
-All stats start at zero, populated by Parts via `PlayerLoadout`. **Shield = CHARGE pool** — each hit consumes one charge + brief i-frames; empty → hull damage. When hull ≤ 50%: `engine_torch` + `damage_smoke_trail` activate. `take_damage()` applies sector scaling `× (1 + 0.05 × sectors_cleared)`.
+All stats start at zero, populated by Parts via `PlayerLoadout`. **Shield = CHARGE pool** — each hit consumes one charge + brief i-frames; empty → hull damage. The `engine_torch` + `damage_smoke_trail` damage tells activate on hull loss (low-hull tell; `scripts/player.gd` owns the exact `activate_below` threshold — currently any pip lost). `take_damage()` applies sector scaling `× (1 + 0.05 × sectors_cleared)`. Details: `docs/contributing/04-player-parts-economy.md`.
 
 ### Projectiles (`scripts/projectiles/`)
 Extend `base_bullet.gd` or `base_missile.gd`. **Spawn as children of `get_tree().root`, never the player or enemy** — must survive spawner's `queue_free`.
@@ -67,13 +72,13 @@ Extend `base_bullet.gd` or `base_missile.gd`. **Spawn as children of `get_tree()
 Parallax stack: deep-sky → starfield → nebula → planet → asteroids → warp streaks → vignette. One celestial body per level (weighted pick). Mine-hazard levels add decorative background mines (no collision).
 
 ### Effects (`scripts/effects/`)
-Static helpers called as `Cls.method(...)`: `hit_flash_fx.flash`, `shadow_fx.attach_shadow`, `explosion_fx.play/.burst`, `impact_fx.spawn`, `burn_fx.apply_burn`, `enemy_engine_fx.attach`, `shield_sfx.play_hit/play_break`, `muzzle_fx.play/play_energy`. Damage tells: `engine_torch.attach_to_player` + `damage_smoke_trail` — both gate on `hull_changed` + 50%-hull threshold.
+Static helpers called as `Cls.method(...)`: `hit_flash_fx.flash`, `shadow_fx.attach_shadow`, `explosion_fx.play/.burst`, `impact_fx.spawn`, `burn_fx.apply_burn`, `enemy_engine_fx.attach`, `shield_sfx.play_hit/play_break`, `muzzle_fx.play/play_energy`. Damage tells: `engine_torch.attach_to_player` + `damage_smoke_trail` — both driven off `hull_changed` (activation threshold lives in `player.gd`, see Player above).
 
 ### Playfield frame
 Three CanvasLayers: **Glass=1** (side gutter panels, x 0–132 and 348–480), **HUD=5**, **Outline=10** (left+right borders only).
 
 ### Dev menu (`scripts/dev_menu.gd`)
-3-column GridContainer, 86×14 buttons. Includes: Movement Lab, Wave Tester, Shipyard, Parallax Tuner, Asteroid Lab, Test Hazard, Boss Fight, Hangar, UI Designer, Ship Sizer, Progression Mockup.
+3-column GridContainer of launch buttons (movement/wave/shipyard/parallax/boss/etc.). The button list drifts — read `scripts/dev_menu.gd` (or `docs/contributing/01-getting-started.md`) for the current set rather than trusting a hardcoded list here.
 
 ## Conventions
 
