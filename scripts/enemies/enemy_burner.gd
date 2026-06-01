@@ -280,16 +280,35 @@ func _make_line(color: Color, width: float) -> Line2D:
 	return l
 
 
-# Beam endpoint in WORLD space. If the scene has a child Marker2D named
-# "beam_emit", the beam attaches to it so Roman can line the effect up on a
-# marker he places; otherwise it falls back to the node center (global_position),
-# i.e. exactly the prior behavior. NOTE: get_node_or_null is statically typed
-# Node (no global_position), so we MUST cast to Node2D explicitly — `$beam_emit`
-# / Variant access here is a compile error parse_check misses.
-func _beam_point() -> Vector2:
-	var m: Node2D = get_node_or_null("beam_emit") as Node2D
-	if m != null:
-		return m.global_position
+# Beam endpoint in WORLD space, emitting from the side facing the partner.
+# Roman added TWO emitter markers (2026-05-31): "beam_emit_r" at local (15,0)
+# and "beam_emit_l" at local (-15,0) so either burner can emit toward its
+# partner. We pick the marker whose WORLD position is physically closer to
+# `toward` (the partner's world position) — i.e. the INNER-facing emitter.
+#
+# IMPORTANT: selecting by marker NAME / local x would be wrong, because the
+# burner root auto-rotates ~180° on descent (enemy_base._apply_auto_rotation
+# sets rotation = PI for velocity (0,+1)). Under that rotation the "_r" marker
+# (local +x) lands on the LEFT in world space, so name-based logic would emit
+# from the OUTER edge. Selecting by world distance to the partner is
+# rotation-invariant and always yields the inner edge.
+#
+# NOTE: get_node_or_null is statically typed Node (no global_position), so we
+# MUST cast to Node2D explicitly — `$beam_emit_r` / Variant access here is a
+# compile error parse_check misses. Falls back to center (global_position) when
+# a marker is missing, preserving the prior center-to-center behavior.
+func _beam_point(toward: Vector2) -> Vector2:
+	var mr: Node2D = get_node_or_null("beam_emit_r") as Node2D
+	var ml: Node2D = get_node_or_null("beam_emit_l") as Node2D
+	if mr != null and ml != null:
+		# Emit from whichever marker is physically closer to the partner (inner side).
+		var dr: float = mr.global_position.distance_squared_to(toward)
+		var dl: float = ml.global_position.distance_squared_to(toward)
+		return mr.global_position if dr <= dl else ml.global_position
+	if mr != null:
+		return mr.global_position
+	if ml != null:
+		return ml.global_position
 	return global_position
 
 
@@ -298,14 +317,18 @@ func _update_beam_points(line: Line2D) -> void:
 		return
 	if not _has_live_partner():
 		return
-	# Line is a child of the owner; draw from this burner's beam-emit point to
-	# the partner's beam-emit point, both expressed in owner-local space
-	# (arbitrary-endpoint geometry, beam-turret style). to_local() accounts for
-	# the owner's rotation, so the beam connects the two world points correctly
-	# even when both burners are rotated nose-down. With no "beam_emit" marker,
-	# _beam_point() == global_position, so to_local(own) collapses to Vector2.ZERO
-	# and the drawn line is byte-identical to the prior center-to-center behavior.
-	line.points = PackedVector2Array([to_local(_beam_point()), to_local(_partner._beam_point())])
+	# Line is a child of the owner; draw from this burner's inner-facing beam-emit
+	# point to the partner's inner-facing beam-emit point, both expressed in
+	# owner-local space (arbitrary-endpoint geometry, beam-turret style). Each
+	# side emits from the marker facing the OTHER burner: owner toward partner,
+	# partner toward owner. to_local() accounts for the owner's rotation, so the
+	# beam connects the two world points correctly even when both burners are
+	# rotated nose-down. With markers missing, _beam_point() == global_position,
+	# so to_local(own) collapses to Vector2.ZERO and the drawn line is identical
+	# to the prior center-to-center behavior.
+	var own_pt: Vector2 = _beam_point(_partner.global_position)
+	var partner_pt: Vector2 = _partner._beam_point(global_position)
+	line.points = PackedVector2Array([to_local(own_pt), to_local(partner_pt)])
 
 
 func _set_beam_layers_visible(outer: bool, mid: bool, core: bool, telegraph: bool) -> void:
@@ -331,10 +354,11 @@ func _apply_beam_damage(delta: float) -> void:
 		return
 	if not _has_live_partner():
 		return
-	# WORLD-space segment endpoints (must match the drawn beam): own beam-emit →
-	# partner beam-emit. Falls back to centers when no "beam_emit" marker exists.
-	var seg_start: Vector2 = _beam_point()
-	var seg_end: Vector2 = _partner._beam_point()
+	# WORLD-space segment endpoints (must match the drawn beam): own inner-facing
+	# beam-emit → partner inner-facing beam-emit. Falls back to centers when the
+	# markers are missing.
+	var seg_start: Vector2 = _beam_point(_partner.global_position)
+	var seg_end: Vector2 = _partner._beam_point(global_position)
 	if _dist_point_to_segment(player.global_position, seg_start, seg_end) <= HIT_RADIUS:
 		_dmg_accum += BEAM_DPS * delta
 		while _dmg_accum >= 1.0:

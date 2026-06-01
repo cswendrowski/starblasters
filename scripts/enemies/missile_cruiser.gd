@@ -102,6 +102,11 @@ var _half_height: float = 0.0    # scaled half sprite height (for on-screen gate
 var _did_first_salvo: bool = false
 var _live_telegraphs: Array = [] # active telegraph circle nodes this salvo
 var _missiles_remaining: int = 0 # outstanding missiles this salvo
+# Cycling launch-point index. Advances by ONE per missile fired and PERSISTS
+# across salvos so successive shots keep walking LaunchPoint1 -> 2 -> 3 -> 4 ->
+# wrap (mod LAUNCH_POINT_COUNT). Roman 2026-05-31.
+var _launch_idx: int = 0
+const LAUNCH_POINT_COUNT: int = 4
 
 @onready var _body: Sprite2D = get_node_or_null("Body") as Sprite2D
 @onready var _glow: Sprite2D = get_node_or_null("Glow") as Sprite2D
@@ -242,11 +247,14 @@ func _begin_fire() -> void:
 	_phase = Phase.FIRE_WAIT
 	_phase_t = 0.0
 	_missiles_remaining = 0
-	var launch: Vector2 = _launch_point()
 	for entry in _live_telegraphs:
 		var tdict: Dictionary = entry
 		var zone: Vector2 = tdict["zone"]
 		var circle: Node2D = tdict["node"]
+		# Cycle the launch ORIGIN through LaunchPoint1..4 in sequence, one step
+		# per missile, persisting the index across salvos so it keeps walking.
+		var launch: Vector2 = _launch_point(_launch_idx)
+		_launch_idx = (_launch_idx + 1) % LAUNCH_POINT_COUNT
 		var missile: Node2D = _Missile.new()
 		missile.setup(
 			launch, zone, missile_travel_time, fuse_time,
@@ -352,12 +360,19 @@ func _read_mid_layer_grade() -> Color:
 	return Color.WHITE
 
 
-# Launch point: a child Marker2D named "LaunchPoint" if present, else the
-# sprite centre (the cruiser's world position).
-func _launch_point() -> Vector2:
-	var marker: Marker2D = get_node_or_null("LaunchPoint") as Marker2D
+# Launch point for shot `idx` (0-based): the child Marker2D "LaunchPoint{idx+1}"
+# (Roman added LaunchPoint1..4, 2026-05-31). Falls back to the legacy single
+# "LaunchPoint" marker, then to the sprite centre (cruiser world position) when
+# the indexed marker is missing — preserving the prior behavior on bare scenes.
+# get_node_or_null is statically typed Node, so cast to Node2D explicitly;
+# `:=` on the Variant RHS would be a parse_check-missed compile error.
+func _launch_point(idx: int) -> Vector2:
+	var marker: Node2D = get_node_or_null("LaunchPoint%d" % (idx + 1)) as Node2D
 	if marker != null:
 		return marker.global_position
+	var legacy: Node2D = get_node_or_null("LaunchPoint") as Node2D
+	if legacy != null:
+		return legacy.global_position
 	return global_position
 
 
