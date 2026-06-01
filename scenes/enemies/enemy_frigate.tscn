@@ -1,6 +1,6 @@
 [gd_scene load_steps=5 format=3 uid="uid://bfrigate00001"]
 
-[ext_resource type="Script" path="res://scripts/enemy_core.gd" id="1_script"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_frigate.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://bbpgjlsafmj2g" path="res://graphics/enemies/enemy_placeholder_32x.png" id="2_tex"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
 [ext_resource type="AudioStream" path="res://Sound/SFX_flameShot3b.wav" id="4_shot"]
@@ -17,7 +17,6 @@ display_scale = 1.0
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("2_tex")
 flip_v = true
-modulate = Color(1.0, 0.55, 0.45, 1)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_1")

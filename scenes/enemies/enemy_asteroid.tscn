@@ -14,7 +14,6 @@ script = ExtResource("1_ast_scr")
 texture = ExtResource("2_ast_tex")
 material = ExtResource("3_outline")
 scale = Vector2(1, 1)
-modulate = Color(0.55, 0.5, 0.45, 1)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_ast")

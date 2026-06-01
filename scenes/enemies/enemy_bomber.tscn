@@ -13,7 +13,6 @@ bounty_value = 100
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("2_ship")
-modulate = Color(0.55, 0.95, 0.55, 1)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_bomber")

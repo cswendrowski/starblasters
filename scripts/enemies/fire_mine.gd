@@ -20,9 +20,6 @@ func _ready() -> void:
 	auto_rotate = false
 	offscreen_mode = OffscreenMode.FREE_ANY_EDGE
 	super._ready()
-	# Tint orange-red so it reads as fire.
-	if has_node("Sprite2D"):
-		$Sprite2D.modulate = Color(1.0, 0.5, 0.1, 1.0)
 
 
 func _process(delta: float) -> void:
