@@ -1,24 +1,24 @@
-[gd_scene load_steps=5 format=3 uid="uid://enemygunship001"]
+[gd_scene format=3 uid="uid://do5iinq73mlki"]
 
-[ext_resource type="Script" path="res://scripts/enemies/enemy_gunship.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://bsrm7tpjdmbds" path="res://scripts/enemies/enemy_gunship.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://bbpgjlsafmj2g" path="res://graphics/enemies/enemy_placeholder_32x.png" id="2_base"]
 [ext_resource type="Texture2D" uid="uid://xhgdwj50qsej" path="res://graphics/enemies/tank_turret.png" id="3_turret"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="4_die"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
-size = Vector2(12, 12)
+size = Vector2(32, 32)
 
-[node name="EnemyGunship" type="Area2D" groups=["enemies"]]
+[node name="EnemyGunship" type="Area2D" unique_id=1892792395 groups=["enemies"]]
 script = ExtResource("1_script")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=946980638]
 texture = ExtResource("2_base")
 
-[node name="Turret" type="Sprite2D" parent="."]
+[node name="Turret" type="Sprite2D" parent="." unique_id=1387194014]
 texture = ExtResource("3_turret")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=490208667]
 shape = SubResource("RectangleShape2D_1")
 
-[node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1769718148]
 stream = ExtResource("4_die")

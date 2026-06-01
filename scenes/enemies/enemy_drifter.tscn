@@ -171,5 +171,8 @@ stream = ExtResource("4_shoot")
 [node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=367474041]
 stream = ExtResource("5_die")
 
+[node name="Muzzle" type="Marker2D" parent="." unique_id=1625331717]
+position = Vector2(0, -4)
+
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
 [connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

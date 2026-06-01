@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://bhvuthnoi2vlg"]
 
-[ext_resource type="Script" path="res://scripts/enemies/enemy_weaver_core.gd" id="1_core"]
+[ext_resource type="Script" uid="uid://b5de3as3625am" path="res://scripts/enemies/enemy_weaver_core.gd" id="1_core"]
 [ext_resource type="Texture2D" uid="uid://coelavq6oi5gm" path="res://graphics/enemies/small_weaver.png" id="3_g646a"]
 [ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="4_shoot"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="5_die"]
@@ -127,6 +127,12 @@ texture = ExtResource("3_g646a")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1840973092]
 shape = SubResource("RectangleShape2D_hit")
+
+[node name="MuzzleL" type="Marker2D" parent="CollisionShape2D" unique_id=1162035141]
+position = Vector2(-6, 0)
+
+[node name="MuzzleR" type="Marker2D" parent="CollisionShape2D" unique_id=1312557305]
+position = Vector2(6, 0)
 
 [node name="MoveTimer" type="Timer" parent="." unique_id=1618535555]
 one_shot = true

@@ -5,7 +5,7 @@
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
-size = Vector2(8, 11)
+size = Vector2(8, 11.75)
 
 [node name="EnemyGunTurret" type="Area2D" unique_id=21891303 groups=["enemies"]]
 script = ExtResource("1_script")
@@ -14,8 +14,13 @@ script = ExtResource("1_script")
 texture = ExtResource("2_tex")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=9215165]
-position = Vector2(0, -2.5)
+position = Vector2(0, -3)
 shape = SubResource("RectangleShape2D_1")
 
 [node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=243832823]
 stream = ExtResource("3_die")
+
+[node name="turret_base" type="Marker2D" parent="." unique_id=531904299]
+
+[node name="Muzzle" type="Marker2D" parent="." unique_id=1699182265]
+position = Vector2(0, -8)
