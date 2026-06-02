@@ -3,7 +3,12 @@
 .import/
 /android/
 
-# Mono / C# build output
+# Build outputs / publish artifacts (exported binaries are outputs, not inputs)
+*.pck
+*.exe
+shmup-*.zip
+
+# Mono / C# build output (vestigial — project never used C#, consolidated off Mono 2026-05-26)
 .mono/
 mono_crash.*.json
 

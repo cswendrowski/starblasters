@@ -1,9 +1,23 @@
-# Godot 101: Classic Shmup
+# Starblaster
 
-![alt](http://kidscancode.org/godot_recipes/4.x/img/2d_101_screenshot.png)
+A 2D top-down vertical shmup built in Godot 4 (GDScript). Roguelite structure:
+a branching sector map, slotted ship parts with Mk.1–9 upgrade scaling, procedural
+hazard levels (minefields, asteroid fields), and a roster of bosses.
 
-Tutorial:
-http://kidscancode.org/godot_recipes/4.x/games/first_2d/
+- **Engine:** Godot 4.6.3 standalone (no Mono), `gl_compatibility` renderer.
+- **Target:** Web (HTML5), shipped to itch.io.
+- **Internal resolution:** 480×270 (4× → 1920×1080), with a 216×270 centered playfield band.
 
-![GitHub](https://img.shields.io/github/license/kidscancode/godot_recipes) ![Static Badge](https://img.shields.io/badge/Godot-4.x-blue)
+## Getting started
 
+See [`ONBOARDING.md`](ONBOARDING.md) for the human dev setup and [`CLAUDE.md`](CLAUDE.md)
+for the architecture reference. The newbie-friendly tour lives in [`docs/contributing/`](docs/contributing/).
+
+```
+godot --path . --headless --quit-after 2   # headless boot smoke test
+tools/parse_check.ps1                        # full parse check across scenes
+tools/publish.ps1 -Version "0.1.NN"          # gated Web export + butler push
+```
+
+Originally scaffolded from the kidscancode "Classic Shmup" tutorial, since rebuilt
+against the Starblaster design.

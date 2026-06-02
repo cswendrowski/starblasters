@@ -4,19 +4,18 @@ A pragmatic guide for getting productive in this repo. Pairs with `CLAUDE.md` (w
 
 ## What this project is
 
-A Godot 4 top-down vertical shmup, written in GDScript. Started life as the kidscancode "Classic Shmup" tutorial and was rebuilt against the **Starblaster** design doc: a roguelite with a branching sector map, slotted parts, Mk.1–9 upgrade scaling, three bosses (Commander / Reaver / Sentinel), and procedural hazard levels (minefield, asteroid field).
+A Godot 4 top-down vertical shmup, written in GDScript. Started life as the kidscancode "Classic Shmup" tutorial and was rebuilt against the **Starblaster** design doc: a roguelite with a branching sector map, slotted parts, Mk.1–9 upgrade scaling, a growing boss roster (see `scripts/enemies/boss_*.gd`), and procedural hazard levels (minefield, asteroid field).
 
 Ships to itch.io as a Web (HTML5) build. No Steam/desktop release pipeline today.
 
 ## Setup
 
-1. **Install Godot 4.3 Mono** — this is the editor. Mono is required because `project.godot` declares `assembly_name="Classic Shmup"` (C# is present even if you never touch it). Put `godot` on your PATH.
-2. **Install Godot 4.4.1 standalone (non-Mono)** — used only by the publish pipeline. Mono can't export to Web (silent exit 5). The publish script pins the standalone path.
-3. **Install `butler`** (itch.io CLI) and log in if you'll be publishing.
-4. **Install ffmpeg** (on PATH) if you'll iterate on visual effects — the capture scripts pipe PNG frames into GIFs.
-5. Open `project.godot` in the 4.3 Mono editor. The Godot MCP addon is enabled but optional — it just lets AI agents poke the live editor over a WebSocket.
+1. **Install Godot 4.6.3 standalone (non-Mono)** — a single binary serves as both the editor and the Web exporter. (The repo was consolidated off a 4.3-Mono-editor + 4.4.1-standalone-exporter split on 2026-05-26; the project never used C#.) The publish/parse scripts pin its absolute path — see `tools/publish.ps1` and `tools/parse_check.ps1`.
+2. **Install `butler`** (itch.io CLI) and `butler login` if you'll be publishing.
+3. **Install ffmpeg** (on PATH) if you'll iterate on visual effects — the capture scripts pipe PNG frames into GIFs.
+4. Open `project.godot` in the 4.6.3 editor. The Godot MCP addon is enabled but optional — it just lets AI agents poke the live editor over a WebSocket.
 
-Renderer is `gl_compatibility` (for Web). Internal viewport is **480×270** with a **216×270 centered playfield band** — all gameplay math is in those coords, the side gutters are HUD/glass. (CLAUDE.md still says 320×400 in places; the project switched to a wider letterbox on the `horizontal-rework` branch.)
+Renderer is `gl_compatibility` (for Web). Internal viewport is **480×270** with a **216×270 centered playfield band** — all gameplay math is in those coords, the side gutters are HUD/glass.
 
 ## Repo layout
 
@@ -26,7 +25,7 @@ scenes/             *.tscn — every screen, ship, projectile, FX
 scripts/
   main.gd           combat scene controller
   player.gd         player ship (stat-driven, parts populate it)
-  boss.gd           boss base
+  enemies/boss_base.gd  boss base (boss.gd = Commander variant)
   run_state.gd      Run autoload (persistent run state)
   enemies/
 	enemy_base.gd     Area2D base for everything in `enemies` group
@@ -152,19 +151,17 @@ A passing smoke test means the code parsed. It does **not** mean the visual is r
 
 ## Releasing
 
-Two Godot binaries, two parsers, and that's where most publish disasters come from.
+One Godot binary (4.6.3 standalone) now serves as both editor and exporter, so editor/exporter parser mismatches are no longer a class of publish disaster — but the parse-check gate is still belt-and-braces (it catches scripts that only resolve against the editor's class cache).
 
-1. **Smoke test against 4.4.1 standalone**, not just the 4.3 editor. The editor will happily parse things 4.4.1 rejects (duplicate `var` shadows, walrus on untyped array indexing). `tools/parse_check.ps1` runs every user-reachable scene through 4.4.1.
+1. **Smoke test / parse check.** `tools/parse_check.ps1` runs every user-reachable scene through the same 4.6.3 binary the export uses.
 2. **Commit before you publish.** Each release is a commit on `main`, so `git bisect` lands on a published build.
-3. **Run `tools/publish.ps1 -Version "0.1.NN"`.** It bumps `config/version` in `project.godot`, runs the parse check as a hard gate, exports via standalone 4.4.1, validates the `.pck` mtime, and calls `butler push`. **Never `butler push` directly.** Never `--no-verify`.
+3. **Run `tools/publish.ps1 -Version "0.1.NN"`.** It bumps `config/version` in `project.godot`, runs the parse check as a hard gate, exports the Web preset, validates the `.pck` mtime advanced (catches a silent no-op), and calls `butler push`. **Never `butler push` directly.** Never `--no-verify`.
 4. Quick post-publish check: open the itch page, hard-refresh, confirm version string in the corner matches what you bumped to.
-
-The pre-built `Classic Shmup.console.exe` / `*.pck` / `shmup-*.zip` at the repo root are publish *outputs*, not inputs. Don't commit changes to them by hand.
 
 ## Debugging tips
 
-- **Headless smoke (4.3 mono)**: `godot --path . --headless --quit-after 2` — boots autoloads + main scene, surfaces parser errors and missing-resource errors fast.
-- **Full parse check (4.4.1)**: `tools/parse_check.ps1` — catches Web-export-only parser errors.
+- **Headless smoke**: `godot --path . --headless --quit-after 2` — boots autoloads + main scene, surfaces parser errors and missing-resource errors fast.
+- **Full parse check**: `tools/parse_check.ps1` — catches Web-export-only parser errors.
 - **`DirAccess.open("res://...")` does not work in Web builds** at runtime. Use a hardcoded const manifest if you need to enumerate assets.
 - **Bullets vanish on enemy death?** They're parented to the enemy. Reparent to `get_tree().root`.
 - **Shader on Web looks wrong?** `gl_compatibility` is a subset of GL ES 3.0. Some Forward+ features silently no-op. Test on Web before assuming it's fine.

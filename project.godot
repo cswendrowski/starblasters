@@ -1,4 +1,4 @@
-; Engine configuration file.
+﻿; Engine configuration file.
 ; It's best edited using the editor UI and not directly,
 ; since the parameters that go here are not all obvious.
 ;
@@ -8,8 +8,8 @@
 
 config_version=5
 
-"ï»¿config_version"=5
 "Ã¯Â»Â¿config_version"=5
+"ÃƒÂ¯Ã‚Â»Ã‚Â¿config_version"=5
 
 [animation]
 
@@ -18,7 +18,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="Starblaster"
-config/version="0.1.110"
+config/version="0.1.111"
 run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://Mini Pixel Pack 3/UI objects/Player_life_icon (16 x 16).png"
@@ -37,10 +37,6 @@ window/size/viewport_height=270
 window/size/window_width_override=1920
 window/size/window_height_override=1080
 window/stretch/mode="canvas_items"
-
-[dotnet]
-
-project/assembly_name="Classic Shmup"
 
 [editor_plugins]
 
@@ -125,3 +121,5 @@ renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_s3tc_bptc=true
 textures/vram_compression/import_etc2_astc=true
 2d/snap/snap_2d_transforms_to_pixel=true
+
+
