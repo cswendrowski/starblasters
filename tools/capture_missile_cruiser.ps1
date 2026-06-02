@@ -1,5 +1,5 @@
 $ErrorActionPreference = 'Continue'
-$GODOT = 'C:\Users\Cody\Downloads\Godot_v4.6.3-stable_win64.exe\Godot_v4.6.3-stable_win64.exe'
+$GODOT = 'E:\tools\Godot_v4.6.3\Godot_v4.6.3-stable_win64.exe'
 $REPO = Split-Path -Parent $PSScriptRoot
 
 if (-not (Test-Path $GODOT)) { throw "Godot not found at $GODOT" }
