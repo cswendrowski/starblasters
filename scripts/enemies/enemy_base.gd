@@ -428,10 +428,24 @@ func _offscreen_cleanup_check() -> void:
 		OffscreenMode.NONE:
 			return
 		OffscreenMode.CYCLE_BOTTOM:
-			# Only the bottom triggers anything; subclasses override
-			# _on_offscreen() (enemy_core does this for its parallax cycle).
+			# The bottom exit always triggers the recycle hook; subclasses
+			# override _on_offscreen() (enemy_core does this for its parallax
+			# cycle). Enemies that break off SIDEWAYS — allow_side_exit patterns
+			# like the Skirmisher's advance_retreat BREAK phase — used to wait
+			# until their slow Y descent finally crossed the bottom margin (the
+			# Skirmisher's 19.2 px/s drift = ~14 s of off-screen loiter before it
+			# recycled). Treat a full side exit as an off-screen trigger too, so
+			# the recycle fires promptly and consistently regardless of which edge
+			# the enemy actually left through. We deliberately do NOT watch the
+			# TOP edge here: patterns legitimately spawn/retreat near y=0, so a
+			# top trigger would misfire — sideways drift is the real culprit.
+			# Viewport edges (not playfield band) so in-band pong/overshoot from
+			# side-cutters never trips this; only a genuine off-screen exit does.
 			var sz_b: Vector2 = get_viewport_rect().size
 			if global_position.y > sz_b.y + offscreen_margin:
+				_on_offscreen()
+			elif allow_side_exit and (global_position.x < -offscreen_margin \
+				or global_position.x > sz_b.x + offscreen_margin):
 				_on_offscreen()
 		OffscreenMode.FREE_ANY_EDGE:
 			var sz_a: Vector2 = get_viewport_rect().size

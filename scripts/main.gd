@@ -579,6 +579,7 @@ func _run_intro(is_boss: bool) -> void:
 # seam as boss_base.add_world_node_above_backdrop. World coords == playfield
 # coords because the combat camera is centred on (240,135).
 const MISSILE_CRUISER_SCENE := preload("res://scenes/enemies/missile_cruiser.tscn")
+const MidDepthPresentation = preload("res://scripts/effects/mid_depth_presentation.gd")
 
 
 # Roll the rare in-level encounter. `sector_depth` is sectors_cleared + 1 (the
@@ -616,17 +617,11 @@ func _spawn_missile_cruiser() -> void:
 		return
 	# Random X within the gameplay band so salvos are centred on the playfield.
 	cruiser.position = Vector2(randf_range(Playfield.X_MIN, Playfield.X_MAX), 0.0)
-	var backdrop: Node = get_node_or_null("Backdrop")
-	if backdrop != null:
-		# Mirror boss_base.add_world_node_above_backdrop: as the LAST child of
-		# the Backdrop (BackdropCoordinator) the cruiser draws AFTER all the
-		# parallax layers (all z=0) but, because Backdrop is an earlier sibling
-		# of Player in main.tscn, still BELOW the player + enemy ships. No
-		# z_index override — that would lift it above the ships (all parallax
-		# layers are z=0, so tree order alone gives the correct mid-depth).
-		backdrop.add_child(cruiser)
-	else:
-		add_child(cruiser)
+	# Parent above the parallax backdrop but below the ships via the shared
+	# faked-mid-depth helper (same seam boss hazards use). Tree order alone gives
+	# the correct mid-depth — Backdrop's layers are all z=0 and it's an earlier
+	# sibling of Player in main.tscn, so no z_index override is needed.
+	MidDepthPresentation.add_above_backdrop(self, cruiser)
 	# Showcase: respawn another cruiser shortly after this one frees itself
 	# (it queue_free()s when it traverses off the far edge) so the tuner sees
 	# a continuous stream of salvos. Guarded by `playing` so it stops on outro.

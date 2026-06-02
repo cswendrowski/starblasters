@@ -14,21 +14,24 @@ extends Node2D
 # they outlive it when it traverses off the far edge.
 #
 # FAKED MID-DEPTH (confirmed faked, not literal CanvasLayer parenting): the
-# node is added as a child of the scene's `Backdrop` Node2D (above the
-# parallax layers, below the ships, in world space) via
-# add_to_backdrop()/boss_base.add_world_node_above_backdrop. It is scaled DOWN
-# and its BODY sprite tinted toward a desaturated background blue/grey so it
-# reads as living in the mid layer. The engine-glow sprite is left bright
-# (additive + shader bloom) so the tint never dims the glow.
+# node is added as a child of the scene's `Backdrop` Node2D (above the parallax
+# layers, below the ships, in world space) via MidDepthPresentation — the shared
+# faked-depth helper (scripts/effects/mid_depth_presentation.gd). It is scaled
+# DOWN and its BODY sprite tinted toward a desaturated background blue/grey +
+# grade-matched to the live mid layer so it reads as living in the mid layer.
+# The engine-glow sprite is left bright (additive + shader bloom) so the tint
+# never dims the glow.
 #
 # STRUCTURAL TEMPLATE: scripts/enemies/tether_mine.gd (fly-to-fixed-point +
 # phase state machine + per-frame _draw), with the EnemyBase inheritance
 # stripped out.
 
-const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
 const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
-# Mix-toward-bg-color shader (true desaturation; modulate can only dim/cool).
-const DEPTH_TINT_SHADER: Shader = preload("res://graphics/enemies/missile_cruiser_depth_tint.gdshader")
+# Shared faked-mid-depth presentation (backdrop parenting + depth-tint shader +
+# live-layer grade-match + bright glow). Extracted from this script 2026-06-01
+# (scripts/effects/mid_depth_presentation.gd) so every recycling / background
+# ship reuses one source of truth.
+const MidDepthPresentation = preload("res://scripts/effects/mid_depth_presentation.gd")
 
 # --- Faked-depth tuning (designer-facing) -----------------------------------
 # Visual scale of the whole cruiser. <1 sells "further away / mid layer".
@@ -141,33 +144,22 @@ func _ready() -> void:
 	rotation = vel.angle() + PI * 0.5
 
 	# Tint the BODY sprite only — never the root (would dim the glow + halo).
-	# Use a mix-toward-color SHADER, not modulate: modulate multiplies and can
-	# only dim/cool the saturated-red art; the shader lerps RGB toward the flat
-	# background color so the ship genuinely desaturates and reads mid-depth.
+	# The shared helper lerps the art toward the bg color (true desaturation,
+	# unlike modulate) and multiplies by grade_strength of the LIVE mid-layer
+	# grade so the cruiser reads at mid-depth. get_parent() is the Backdrop
+	# coordinator (we were add_child'd to it before _ready ran).
 	if _body != null:
 		_body.frame = BODY_FRAME
-		var mat := ShaderMaterial.new()
-		mat.shader = DEPTH_TINT_SHADER
-		mat.set_shader_parameter("bg_tint", bg_tint_color)
-		mat.set_shader_parameter("amount", bg_tint_amount)
-		# MID-LAYER GRADE MATCH: multiply the body by the LIVE mid parallax
-		# layer's CanvasModulate color so it reads at the same brightness /
-		# contrast / tint as mid-depth parallax objects. The CanvasModulate color
-		# already bakes modulate_color * brightness * contrast, so a single
-		# multiply is an exact match (no need to re-run the curve). White = no-op
-		# fallback when the mid layer can't be found (showcase/dev bare scenes).
-		# Apply only grade_strength of the mid-layer grade (lerp from white) so the
-		# cruiser stays a bit brighter than pure mid-layer objects (Roman 2026-05-31).
-		mat.set_shader_parameter("grade_mul", Color.WHITE.lerp(_read_mid_layer_grade(), grade_strength))
-		_body.material = mat
+		MidDepthPresentation.apply_body_tint(
+			_body, get_parent(), bg_tint_amount, bg_tint_color, grade_strength
+		)
 
 	# Engine glow: bright emissive frame + shader bloom halo, full brightness.
+	# apply_glow parents the halo as a sibling under the host's parent, so the
+	# host must already be in-tree — it is (we're inside the scene now).
 	if _glow != null:
 		_glow.frame = GLOW_FRAME
-		_glow.modulate = Color(glow_brightness, glow_brightness, glow_brightness, 1.0)
-		# apply() parents the halo as a sibling under the host's parent, so the
-		# host must already be in-tree — it is (we're inside the scene now).
-		GlowShaderFx.apply(_glow)
+		MidDepthPresentation.apply_glow(_glow, glow_brightness)
 
 	if derive_speed_from_cycle:
 		traverse_speed = _derive_traverse_speed()
@@ -372,36 +364,6 @@ func _min_dist_sq(p: Vector2, pts: Array) -> float:
 		if d < best:
 			best = d
 	return best
-
-
-# Read the LIVE mid parallax layer's CanvasModulate color so the cruiser body
-# can be multiplied by it (exact mid-depth grade match). The cruiser is parented
-# to the Backdrop (= the BackdropCoordinator Node2D), whose mid stellar layer
-# node is "LayerStellarMid" with a child "CanvasModulate" whose color already
-# bakes modulate_color * brightness * contrast. Returns WHITE (no-op) if any
-# part of that chain is missing (showcase/dev bare scenes) so the prior look is
-# preserved. Explicit Variant types throughout (get_node_or_null is Variant).
-func _read_mid_layer_grade() -> Color:
-	var coordinator: Node = get_parent()
-	if coordinator == null:
-		return Color.WHITE
-	var mid: Node = coordinator.get_node_or_null("LayerStellarMid")
-	if mid == null:
-		return Color.WHITE
-	var cm: CanvasModulate = mid.get_node_or_null("CanvasModulate") as CanvasModulate
-	if cm != null:
-		return cm.color
-	# Fallback: re-run ParallaxLayerBase._recompute_modulate from the layer's
-	# exported brightness/contrast/modulate_color (matches the math exactly).
-	if ("modulate_color" in mid) and ("brightness" in mid) and ("contrast" in mid):
-		var base: Color = mid.get("modulate_color")
-		var bri: float = float(mid.get("brightness"))
-		var con: float = float(mid.get("contrast"))
-		var r: float = clampf((base.r - 0.5) * con + 0.5, 0.0, 1.0) * bri
-		var g: float = clampf((base.g - 0.5) * con + 0.5, 0.0, 1.0) * bri
-		var b: float = clampf((base.b - 0.5) * con + 0.5, 0.0, 1.0) * bri
-		return Color(r, g, b, base.a)
-	return Color.WHITE
 
 
 # Launch point for shot `idx` (0-based): the child Marker2D "LaunchPoint{idx+1}"

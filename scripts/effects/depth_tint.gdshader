@@ -1,8 +1,9 @@
-// Mid-depth tint for the MISSILE CRUISER body sprite. Unlike modulate /
-// parallax_tint (both MULTIPLICATIVE — they can only dim/cool a color, never
-// push a saturated red toward grey-blue), this LERPS the texture RGB toward a
-// flat background color by `amount`, so the ship genuinely desaturates toward
-// the backdrop and reads as living in the mid parallax layer.
+// Mid-depth tint for a background object's BODY sprite (missile cruiser and any
+// other recycling/background ship — see scripts/effects/mid_depth_presentation.gd).
+// Unlike modulate / parallax_tint (both MULTIPLICATIVE — they can only dim/cool a
+// color, never push a saturated red toward grey-blue), this LERPS the texture RGB
+// toward a flat background color by `amount`, so the ship genuinely desaturates
+// toward the backdrop and reads as living in the mid parallax layer.
 //
 //   amount 0.0 = untouched art; amount 1.0 = fully the tint color.
 //

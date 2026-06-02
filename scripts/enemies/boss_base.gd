@@ -53,6 +53,7 @@ signal phase_changed(old_idx: int, new_idx: int, phase_name: String)
 # global-class-cache ordering on cold boot). Subclasses populate via
 # `BossPhase.make(...)`.
 const BossPhase = preload("res://scripts/enemies/boss_phase.gd")
+const MidDepthPresentation = preload("res://scripts/effects/mid_depth_presentation.gd")
 @export var phases: Array[Resource] = []
 
 # ---- Phase state machine -----------------------------------------------
@@ -647,14 +648,7 @@ func _aim_at_player() -> Vector2:
 # ---- Hazard parenting helper (used by signature attacks) ---------------
 
 # Parent a hazard so it draws ABOVE the parallax backdrop but BELOW the
-# ships. Mirrors boss.gd's previous behavior.
+# ships. Delegates to the shared faked-mid-depth helper (one source of truth
+# for the backdrop-parenting seam). get_parent() is the scene holding Backdrop.
 func add_world_node_above_backdrop(node: Node2D) -> void:
-	var p := get_parent()
-	var bd: Node = null
-	if p:
-		bd = p.get_node_or_null("Backdrop")
-	if bd:
-		bd.add_child(node)
-	else:
-		if p:
-			p.add_child(node)
+	MidDepthPresentation.add_above_backdrop(get_parent(), node)
