@@ -83,7 +83,12 @@ func _spawn_asteroid() -> void:
 		a.pivot_offset = Vector2.ZERO
 	var sf := sz / 100.0
 	a.scale = Vector2(sf, sf)
-	a.modulate = asteroid_tint
+	# Recolor the rock to the POI's asteroid color. modulate alone can't do this:
+	# it MULTIPLIES the shader's blue-gray default palette, so the rock always
+	# reads blue-gray. Driving the shader `colors` ramp (light→mid→dark derived
+	# from asteroid_tint) makes the asteroid genuinely that color. The layer's
+	# CanvasModulate still handles per-depth dimming. (Roman 2026-06-02)
+	a.modulate = Color.WHITE
 	# Spawn fully above the top so it drifts in (body spans [pos.y, pos.y+sz]).
 	a.position = Vector2(_local_rng.randf_range(16, 464), -sz - _local_rng.randf_range(0, 270))
 	add_child(a)
@@ -98,6 +103,9 @@ func _spawn_asteroid() -> void:
 		a.set_seed(_local_rng.randi())
 	if a.has_method("set_rotates"):
 		a.set_rotates(_local_rng.randf() < 0.7)
+	# Recolor to the POI hue via the shader palette (see modulate note above).
+	if a.has_method("set_colors"):
+		a.set_colors(_tint_ramp(asteroid_tint))
 	# Pixel parity: set_pixels resizes the inner Asteroid ColorRect to sz×sz;
 	# reset it to 100×100 so node scale alone controls footprint (otherwise
 	# footprint = sz²/100, quadratic).
@@ -118,6 +126,16 @@ func _spawn_asteroid() -> void:
 	if inner != null and inner.material is ShaderMaterial:
 		base_rot = float((inner.material as ShaderMaterial).get_shader_parameter("rotation"))
 	_objects.append({"node": a, "size": sz, "spin": spin, "rot": base_rot, "mini": false})
+
+
+# Build the Asteroids.gdshader `colors` ramp (light → mid → dark) from a single
+# base hue, matching the spread of the shader's default blue-gray palette.
+func _tint_ramp(base: Color) -> PackedColorArray:
+	return PackedColorArray([
+		base.lightened(0.35),
+		base,
+		base.darkened(0.45),
+	])
 
 
 func _spawn_mini_asteroid() -> void:

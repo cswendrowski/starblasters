@@ -606,26 +606,28 @@ static func _scene_by_name(s: String):
 # parallax-side asteroid_presence boost in galaxy_backdrop, the field
 # should feel busy at every depth.
 static func build_asteroid_field_level():
+	# Roman 2026-06-02: +30% density (counts ×1.3, spawn intervals ×0.7 for a
+	# tighter, busier field) and +20% asteroid speed (drift_speed in asteroid.gd).
 	var w1 = WaveSpec.new()
 	w1.enemy_scene = AsteroidScene
-	w1.count = 22
-	w1.spawn_interval = 0.42
+	w1.count = 29
+	w1.spawn_interval = 0.29
 	w1.spawn_delay = 0.5
 	w1.formation = 2  # TOP_RANDOM
 	w1.announce_text = "COLLISION WARNING"
 
 	var w2 = WaveSpec.new()
 	w2.enemy_scene = AsteroidScene
-	w2.count = 18
-	w2.spawn_interval = 0.48
+	w2.count = 23
+	w2.spawn_interval = 0.34
 	w2.spawn_delay = 0.4
 	w2.silent = true
 	w2.formation = 2
 
 	var w3 = WaveSpec.new()
 	w3.enemy_scene = AsteroidScene
-	w3.count = 16
-	w3.spawn_interval = 0.55
+	w3.count = 21
+	w3.spawn_interval = 0.39
 	w3.spawn_delay = 0.4
 	w3.silent = true
 	w3.formation = 2

@@ -55,7 +55,12 @@ var _ship_rotation: float = 0.0  # current rotation toward player
 func _ready() -> void:
 	max_health    = 12
 	bounty_value  = 30
-	auto_rotate   = false
+	# Facing (Roman 2026-06-01): use the shared movement-based turning (sprite
+	# top = front, faces its travel direction) like every other enemy. The
+	# aim_at_player variant drives its OWN facing via _update_ship_aim, so it
+	# opts OUT of auto-rotate to avoid the two fighting over `rotation`. Firing
+	# is untouched either way — rockets/bullets keep their existing directions.
+	auto_rotate   = not aim_at_player
 	display_scale = 1.0
 	super._ready()
 	# Default single starting X: centre of playfield

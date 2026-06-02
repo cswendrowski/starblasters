@@ -3,8 +3,9 @@ extends "res://scripts/enemies/enemy_base.gd"
 # Hazard asteroid. Slow drift, modest HP, no shoot, no bounty. Damages the
 # player on contact but isn't actively hunting.
 
-# 320×400 res rework — speeds halved.
-@export var drift_speed: float = 55.0
+# 320×400 res rework — speeds halved. Roman 2026-06-02: +20% (55 → 66) for the
+# denser/faster asteroid-field hazard pass.
+@export var drift_speed: float = 66.0
 @export var drift_x: float = 0.0
 @export var damage_on_collide: int = 2
 
@@ -47,10 +48,20 @@ func _ready() -> void:
 			visual.custom_minimum_size = Vector2(visual_size, visual_size)
 			visual.size = Vector2(visual_size, visual_size)
 			visual.position = Vector2(-visual_size * 0.5, -visual_size * 0.5)
-			# Cody, 2026-05-18 playtest: tint target asteroids warm so they
-			# read distinct from the now-cool-blue background rocks.
-			visual.modulate = Color(1.20, 1.05, 0.85, 1.0)
 			visual.pivot_offset = Vector2(visual_size * 0.5, visual_size * 0.5)
+		# Recolor the rock to the POI's asteroid color so hazard targets match
+		# the field/backdrop the player flew into (Roman 2026-06-02). Drive the
+		# shader palette, not modulate (modulate just multiplies the blue-gray
+		# default). The background rocks share this hue but the parallax layers
+		# dim them — so we BRIGHTEN the base here, keeping these targets reading
+		# as lit foreground objects (replaces Cody's flat warm tint).
+		var base: Color = Color(0.70, 0.66, 0.60)
+		if has_node("/root/Run") and get_node("/root/Run").has_meta("asteroid_base_color"):
+			base = get_node("/root/Run").get_meta("asteroid_base_color")
+		var mx: float = maxf(base.r, maxf(base.g, base.b))
+		base = base * (0.95 / maxf(mx, 0.01))  # normalize brightest channel for pop
+		if visual.has_method("set_colors"):
+			visual.set_colors(PackedColorArray([base.lightened(0.4), base, base.darkened(0.4)]))
 		if visual.has_method("set_pixels"):
 			visual.set_pixels(visual_size)
 		add_child(visual)
