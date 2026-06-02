@@ -5,9 +5,11 @@ extends "res://scripts/enemy_core.gd"
 # slow and chunky. On death, scatters a cluster of bomblets like a
 # cluster mine going off.
 
-# Roman, 2026-05-18 mine pass: minelayer drops smart bomblets — they
-# hold station and only pursue when the player gets close.
-const BombletScene = preload("res://scenes/enemies/enemy_smart_bomblet.tscn")
+# Roman 2026-06-01: minelayer drops plain DUMB bomblets (not the smart,
+# station-keeping variant) — both the trail it lays and the death scatter use
+# the same simple bomblet, mirroring the cluster mine's burst.
+const BombletScene = preload("res://scenes/enemies/enemy_bomblet.tscn")
+const DeathBombletScene = preload("res://scenes/enemies/enemy_bomblet.tscn")
 
 @export var drop_interval: float = 2.5
 @export var drop_count_on_death: int = 6
@@ -41,8 +43,10 @@ func start(pos: Vector2) -> void:
 	if _pattern != null and "direction" in _pattern:
 		dir = int(_pattern.direction)
 	# Spawn just outside the playfield band so the carrier enters gameplay
-	# immediately and mines drop inside the shootable zone.
-	var mid_y: float = screensize.y * 0.45
+	# immediately and mines drop inside the shootable zone. Roman 2026-06-01:
+	# crosses the mid-UPPER band (0.33) so the line of mines sits ahead of the
+	# player rather than dead-center.
+	var mid_y: float = screensize.y * 0.33
 	if dir > 0:
 		position = Vector2(Playfield.X_MIN - 32.0, mid_y)
 	else:
@@ -74,7 +78,10 @@ func _carrier_fully_visible() -> bool:
 	# scale) plus a small buffer. On the narrow 216-px playfield band, 56
 	# left only ~100 px of drop range; 32 gives ~150 px while keeping the
 	# wingtips inside the shootable zone.
-	const CARRIER_MARGIN := 32.0
+	# Sized to ~half the carrier silhouette. New 16×32 art (Roman 2026-06-01,
+	# was a scaled 48px placeholder) crosses ~32 px along its travel axis, so 16
+	# keeps the hull on-screen while leaving most of the band as drop range.
+	const CARRIER_MARGIN := 16.0
 	var p: Vector2 = position
 	return p.x >= Playfield.X_MIN + CARRIER_MARGIN \
 		and p.x <= Playfield.X_MAX - CARRIER_MARGIN \
@@ -91,7 +98,7 @@ func _drop_bomblet() -> void:
 	var dir: int = 1
 	if _pattern != null and "direction" in _pattern:
 		dir = int(_pattern.direction)
-	var rear_offset: Vector2 = Vector2(-float(dir) * 32.0, 0.0)
+	var rear_offset: Vector2 = Vector2(-float(dir) * 16.0, 0.0)
 	if b.has_method("start"):
 		b.start(global_position + rear_offset)
 	else:
@@ -102,7 +109,7 @@ func _drop_bomblet() -> void:
 # explode sequence.
 func explode() -> void:
 	for i in drop_count_on_death:
-		var b = BombletScene.instantiate()
+		var b = DeathBombletScene.instantiate()
 		get_tree().root.add_child(b)
 		var jitter: Vector2 = Vector2(randf_range(-28.0, 28.0), randf_range(-12.0, 18.0))
 		if b.has_method("start"):

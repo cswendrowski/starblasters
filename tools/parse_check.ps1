@@ -1,5 +1,5 @@
 $ErrorActionPreference = 'Stop'
-$STANDALONE = 'C:\Users\Cody\Downloads\Godot_v4.6.3-stable_win64.exe\Godot_v4.6.3-stable_win64.exe'
+$STANDALONE = 'E:\tools\Godot_v4.6.3\Godot_v4.6.3-stable_win64.exe'
 $REPO = Split-Path -Parent $PSScriptRoot
 
 if (-not (Test-Path $STANDALONE)) { throw "Standalone Godot not found at $STANDALONE" }

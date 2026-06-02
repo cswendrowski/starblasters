@@ -227,18 +227,17 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/enemy_frigate.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
-		"movement": "slow_advance",
-		"shoot": "burst",
-		"bullet_variant": BV_BurstRound,
+		# Bespoke broadside gunner (enemy_frigate.gd) — self-drives (two arrival
+		# modes) and self-fires a perpendicular broadside, so movement/shoot are
+		# null. hp_override makes it a genuine bullet-sponge: compose_stats feeds
+		# max_health to the director, which is what the hull actually uses (the
+		# script's _ready value is overwritten on spawn).
+		"movement": null,
+		"shoot": null,
+		"hp_override": 28,
 		"base_count": 3,
-		# Fire-rate pass (2026-05-30, Roman): workhorse gunner — pulled the
-		# slow ceiling in from 2.8 → 2.4s so the 3-round burst recurs a bit
-		# more often. Floor unchanged (burst is already a heavy beat). First-pass.
-		"fire_min": 1.8, "fire_max": 2.4,
-		# Frigate — tough burst-gunner workhorse. Gate so it doesn't show up in
-		# the very first sector opener; appears sector 1, two nodes in. (Had no
-		# unlock fields — under the new default-0 semantics that would put it at
-		# sector-1/depth-0, too heavy for the opener.)
+		# Frigate — tough broadside warship. Gate so it doesn't show up in the
+		# very first sector opener; appears sector 1, two nodes in.
 		"unlock_sector": 1, "unlock_depth": 2,
 	},
 	# TODO: Replace cutter with a new horizontal strafe enemy that crosses the screen cleanly
@@ -270,17 +269,31 @@ const ENTRIES := [
 		"conflict_tags": ["aimed_or_spread", "demands_focus"],
 	},
 
+	# Beamer (aim-DOWN sweeper): descends, then sweeps L↔R firing a straight-down
+	# beam that rakes across the band. Bespoke (enemy_beam_shooter.gd) self-drives
+	# + self-beams, so movement/shoot are null.
 	{
 		"scene": "res://scenes/enemies/enemy_beam_shooter.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
-		"movement": "loiter",
+		"movement": null,
 		"shoot": null,  # uses built-in beam, not shoot_pattern
 		"base_count": 2,
-		# Beam shooter — tough beam specialist. Gate to sector 2 so beam pressure
-		# is a deeper-sector escalation, not a sector-1 opener threat. (Had no
-		# unlock fields.)
+		# Beam pressure is a deeper-sector escalation, not a sector-1 opener.
 		"unlock_sector": 2, "unlock_depth": 0,
+		"conflict_tags": ["beamshooter"],
+	},
+	# Beamer (aim-at-PLAYER sweeper): same chassis, but each windup locks the
+	# beam onto the player's position — it sweeps AND aims. Inherited scene that
+	# flips the aim_at_player export. Slightly deeper gate than the aim-down one.
+	{
+		"scene": "res://scenes/enemies/enemy_beamer_tracker.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": ["tough"],
+		"movement": null,
+		"shoot": null,
+		"base_count": 2,
+		"unlock_sector": 2, "unlock_depth": 2, "weight": 0.7,
 		"conflict_tags": ["beamshooter"],
 	},
 	# Gunship single: one ship sweeps left↔right, fires 3 salvos, exits.
@@ -315,6 +328,37 @@ const ENTRIES := [
 		"base_count": 3,
 		"no_scale": true,  # exact 3
 		"unlock_sector": 3, "unlock_depth": 2, "weight": 0.7,
+	},
+	# Bomber wing — large, tough rear-gunners that descend slowly and hold,
+	# raking the chasing player with tail turrets. Bespoke (enemy_bomber.gd):
+	# self-drives + self-fires, so movement/shoot are null. no_scale locks the
+	# wing to a readable formation. Two entries give a wing of 2 OR 3 (each
+	# half-weighted so bombers don't appear twice as often as other UNCOMMONs).
+	# Extra bounty for the bullet-sponge HP. Gated to sector 2 as a heavier
+	# escalation threat.
+	{
+		"scene": "res://scenes/enemies/enemy_bomber.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "large", "tags": ["tough"],
+		"movement": null,
+		"shoot": null,
+		"hp_override": 30,
+		"bounty_override": 120,
+		"base_count": 2,
+		"no_scale": true,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.35,
+	},
+	{
+		"scene": "res://scenes/enemies/enemy_bomber.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "large", "tags": ["tough"],
+		"movement": null,
+		"shoot": null,
+		"hp_override": 30,
+		"bounty_override": 120,
+		"base_count": 3,
+		"no_scale": true,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.35,
 	},
 
 	# --- RARE -------------------------------------------------------------

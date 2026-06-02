@@ -203,3 +203,27 @@ For star fields specifically, the V3 procedural approach (random `ColorRect` pos
 **Gotcha (historical):** Setting stats after `super._ready()` via the `<= 0 ? default` pattern caused a 1-HP bug where the boss appeared to die on any hit.
 
 **Discovered:** Earlier session, documented here for reference.
+
+---
+
+## World-space trails: `top_level` Line2D fed global points
+
+**Pattern:** For a trail/contrail/exhaust plume that should hang in **world space** (lag behind a moving emitter, not ride the parent's transform), make the `Line2D` `top_level = true` and set its `points` directly from **global** coordinates (`marker.global_position`, or `nozzle + dir * len`). `top_level` makes the node ignore its parent's transform, so global points render where you put them — no `to_local()` needed.
+
+**Gotcha it avoids:** The player focus trail parents a `Line2D` to `get_parent()` and converts via `get_parent().to_local(gp)` — which only works because that parent happens to be a `Node2D`. Reusing that on a node whose parent might be a plain `Node`/`Window` throws "Nonexistent function 'to_local'". `top_level` + global points sidesteps the dependency entirely.
+
+**Z-order:** a `top_level` line still inherits z-ordering — set `z_index` to sit it in front of / behind the hull as intended (the bomber's engine plumes render at `z_index = 1`, on top of the sprite).
+
+**Example:** `enemy_bomber.gd` (twin engine plumes).
+
+---
+
+## Aim by rotating the hull, not by steering the projectile
+
+**Pattern:** To make an enemy "aim," rotate the **whole sprite** toward the target and fire the weapon along a **fixed local-forward** direction (out the nose/emitter), rather than computing a per-shot aim vector while the sprite sits still. The art stays coherent — the emitter, muzzle, and shot all line up with the hull — and the visible turn *is* the telegraph.
+
+- Forward is a constant in local space (e.g. `FWD_LOCAL = Vector2(0, -1)` for a sprite drawn facing up). The shot/beam direction in the world is just `FWD_LOCAL.rotated(rotation)`, or — for a `Line2D` beam that's a child of the hull — author the points in local space and let the hull's `rotation` carry them.
+- Rotate toward target with a **speed limit** so tracking stays dodgeable: `rotation += clampf(angle_difference(rotation, target_rot), -SPEED*delta, SPEED*delta)`, where `target_rot = atan2(dir.x, -dir.y)` makes local-up point along `dir`.
+- This is `auto_rotate = false` territory — you own `rotation`, so the base auto-rotate (which faces *movement*) stays out of the way.
+
+**Examples:** `enemy_gunship.gd` (hull rotates to player, rockets fire along facing), `enemy_beam_shooter.gd` (hull rotates, beam exits the front maw).

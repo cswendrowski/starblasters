@@ -231,14 +231,27 @@ When an enemy spawns, its movement pattern is duplicated and speed-scaled by +5%
 
 ### Tier 2b: Bespoke Enemies
 
-Some enemies (Burner, Strafer, Firecore Cruiser, Bomber) extend `EnemyBase` directly, not `enemy_core`. They own complex multi-phase behavior that can't be expressed as a single movement + shoot pair:
+Some enemies extend `EnemyBase` directly, not `enemy_core`. They own complex multi-phase behavior that can't be expressed as a single movement + shoot pair:
 
 - **Burner** — two ships beam-linked, descend together, die together
 - **Strafer** — three-phase: home in, fire 6-round burst, veer off
 - **Firecore Drone** — rings of orbiting projectiles that auto-fire
-- **Bomber** — spiraling dive with a payload drop
+- **Gunship / Frigate / Beamer / Bomber** — arrive → settle → sweep/hold while firing a signature weapon (rockets, perpendicular broadside, swept beam, rear tail-turret)
 
 **When to write bespoke vs. pattern:** See the convention below.
+
+#### The bespoke-enemy recipe
+
+A bespoke enemy self-drives and self-fires, so the roster entry hands it **no** movement/shoot Resource. The director applies overrides guarded by `if "<prop>" in enemy` (see `director.gd`), and `EnemyBase` has **no** `movement`/`shoot_pattern` properties — so those overrides are silently skipped, while `max_health`/`bounty_value` (which `EnemyBase` *does* have) still apply. That gives a clean division: roster data sets the **stats**, your script owns the **behavior**.
+
+1. **Roster:** set `"movement": null, "shoot": null`. Drive stats with `"hp_override"` / `"bounty_override"` (and `"no_scale": true` if a formation needs an exact count — e.g. a fixed wing). `make_movement(null)` returns a throwaway `StraightDown` the director discards, so `null` is safe.
+2. **Stats:** set `max_health`/`bounty_value` in `_ready()` **before** `super._ready()` (see the override-pipeline section below). The roster's `hp_override` then overwrites them on spawn — keep the two roughly in sync so manual placement (dev menu) still behaves.
+3. **Entry points** — the director calls these, in order, right after `add_child`:
+   - `on_spawned_in_wave(index, count)` *(optional)* — derive a per-instance role from spawn order (the gunship picks single/duo/trio this way).
+   - `start(pos)` — override it to reposition. Top-spawned enemies keep `pos`; side-entry enemies (frigate cross, minelayer) ignore it and place themselves just outside the playfield band (`Playfield.X_MIN - N` / `X_MAX + N`).
+4. **Locomotion:** move `position`/`global_position` yourself in `_process(delta)`, then call `super._process(delta)` **last**. The base `_process` only does bookkeeping — auto-rotation (from your position delta) and offscreen cleanup — so the gunship/frigate model is "move, then `super`." Set `offscreen_mode` in `_ready()` to match how the enemy leaves (`FREE_ANY_EDGE`, `FREE_OPPOSITE_SIDE`, or `NONE` to stay until killed).
+
+> **`display_scale` is NOT a transform.** It only scales explosion/debris VFX in `EnemyBase`, and roster `size` only drives hp/shield/bounty/speed — neither resizes the sprite. Enemies render at the scene's native scale; size a sprite by drawing it, not by scaling the node. See Doc 06.
 
 ---
 

@@ -156,6 +156,16 @@
 
 ---
 
+### Sprites render at native 1× — never scale them up
+
+**The rule:** All enemy, player, and projectile sprites are shown at their **native 1× scale**. Don't add a node `scale` (or any upscaling) to make a small sprite "read bigger" — if it needs to be bigger, that's an art change. Some sprites are intentionally **long/non-square** (e.g. 32×64, 16×32); that aspect ratio is deliberate, not a mistake to "fix."
+
+**Why:** The art is hand-drawn at the exact resolution it displays at; combined with nearest-neighbor filtering, 1× keeps it crisp. Upscaling reintroduces the blur/chunkiness the pixel art was tuned to avoid. Note `display_scale` on `enemy_base` is only a VFX/explosion-count hint — it is **not** a node transform and does not resize the sprite (Doc 03 → bespoke-enemy recipe).
+
+**How:** Leave node `scale = (1,1)`; size the collision shape to the sprite's native pixel dimensions (long sprites get long hitboxes).
+
+---
+
 ### New Part pattern (extend Part → slot_type → apply + unapply)
 
 **The rule:** New Parts extend `Part`, set `slot_type` in `_init`, override `apply(ship)` (additive + record delta) and `unapply(ship)` (reverse), and register in `PartFactory`.

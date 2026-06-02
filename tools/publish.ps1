@@ -7,12 +7,12 @@ param(
 # project never used C#. If web export ever silently no-ops again, first
 # check that this binary path still exists and matches the editor in use.
 $ErrorActionPreference = 'Stop'
-$STANDALONE_GODOT = 'C:\Users\Cody\Downloads\Godot_v4.6.3-stable_win64.exe\Godot_v4.6.3-stable_win64.exe'
-$BUTLER = 'C:\Users\Cody\Downloads\butler-windows-amd64\windows-amd64\butler.exe'
+$STANDALONE_GODOT = 'E:\tools\Godot_v4.6.3\Godot_v4.6.3-stable_win64.exe'
+$BUTLER = 'E:\tools\butler\butler.exe'
 $REPO = Split-Path -Parent $PSScriptRoot
-$OUT_DIR = Join-Path (Split-Path -Parent $REPO) 'Starblasters_html'
+$OUT_DIR = Join-Path (Split-Path -Parent $REPO) 'Starblaster_html'
 $OUT_HTML = Join-Path $OUT_DIR 'index.html'
-$CHANNEL = 'cswendrowski/starblaster:html'
+$CHANNEL = 'tikibones/starblaster:html'
 
 if (-not (Test-Path $STANDALONE_GODOT)) { throw "Standalone Godot not found at $STANDALONE_GODOT" }
 if (-not (Test-Path $BUTLER)) { throw "butler not found at $BUTLER" }
