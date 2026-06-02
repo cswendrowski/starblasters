@@ -262,16 +262,16 @@ func _build_ui() -> void:
 	_status_label = Label.new()
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status_label.custom_minimum_size = Vector2(88, 0)
-	_status_label.add_theme_font_size_override("font_size", 6)
 	UiTheme.style_label(_status_label, UiTheme.LabelKind.CAPTION)
+	_status_label.add_theme_font_size_override("font_size", 6)
 	left_vb.add_child(_status_label)
 
 	# Preview label — shows stats for the currently-selected (not yet applied) part.
 	_preview_label = Label.new()
 	_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_preview_label.custom_minimum_size = Vector2(88, 0)
-	_preview_label.add_theme_font_size_override("font_size", 6)
 	UiTheme.style_label(_preview_label, UiTheme.LabelKind.CAPTION)
+	_preview_label.add_theme_font_size_override("font_size", 6)
 	left_vb.add_child(_preview_label)
 
 	# Right gutter hosts the live HUD (installed via _install_hud after
@@ -300,8 +300,11 @@ func _make_panel(pos: Vector2, size: Vector2) -> PanelContainer:
 func _add_caption(parent: Node, text: String) -> void:
 	var l := Label.new()
 	l.text = text
-	l.add_theme_font_size_override("font_size", 6)
 	UiTheme.style_label(l, UiTheme.LabelKind.CAPTION)
+	# Native font size AFTER style_label so it wins — the hangar still renders
+	# at native 480 (full HD conversion deferred to the dev-menu pass), so the
+	# HD theme/UiTheme sizes must not bleed in here.
+	l.add_theme_font_size_override("font_size", 6)
 	parent.add_child(l)
 
 
@@ -309,8 +312,10 @@ func _add_button(parent: Node, text: String, cb: Callable) -> void:
 	var b := Button.new()
 	b.text = text
 	b.custom_minimum_size = Vector2(0, 9)
+	# Compact native padding + size AFTER styling so the HD theme doesn't blow
+	# the button out of the narrow native gutter (hangar is still native).
+	UiTheme.style_button(b, true, 3)
 	b.add_theme_font_size_override("font_size", 7)
-	UiTheme.style_button(b, true)
 	b.pressed.connect(cb)
 	parent.add_child(b)
 

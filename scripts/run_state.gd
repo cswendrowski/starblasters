@@ -323,9 +323,16 @@ const ALL_SECTOR_MODIFIERS := [
 # guessed default — surface in tuner if it matters.
 const POI_NULL_MODIFIER_CHANCE: float = 0.4
 
-# Outpost-density post-roll clamp. Designer (Cody 2026-05-24): "2-3 per sector,
-# rarely 1 or 4, super rarely 0." Hard-clamp to [2,4] is the simplest robust fix
-# — converts overflow OUTPOST→COMBAT and underflow COMBAT→OUTPOST.
+# Outpost-density rules. Designer (Cody 2026-05-24): "2-3 per sector, rarely 1
+# or 4, super rarely 0." Two unified constraints enforced together by
+# _enforce_outpost_rules (Roman 2026-06-02 — the per-row cap is the recurring
+# "multiple stations in one row" fix):
+#   1. PER ROW (each star system): at most OUTPOST_MAX_PER_ROW outposts.
+#   2. PER SECTOR (all 3 rows): total in [OUTPOST_MIN_PER_SECTOR, OUTPOST_MAX_PER_SECTOR].
+# With 3 rows × max 1/row the sector total can never exceed 3, so the per-sector
+# MAX is effectively a safety rail; the MIN drives promotion. Promotion only
+# targets rows that have NO outpost yet, so it can never re-introduce a duplicate.
+const OUTPOST_MAX_PER_ROW: int = 1
 const OUTPOST_MIN_PER_SECTOR: int = 2
 const OUTPOST_MAX_PER_SECTOR: int = 4
 
@@ -363,9 +370,10 @@ func start_new_sector(sector_idx: int, seed_value: int) -> void:
 			"boss": boss,
 			"pois": pois,
 		})
-	# Post-roll outpost-count clamp. Operates on the assembled rows array so a
-	# combat→outpost (or outpost→combat) conversion shows up in the cache.
-	_clamp_outpost_density(rows, rng)
+	# Post-roll outpost rules: cap one station per row, then clamp the sector
+	# total into range. Operates on the assembled rows array so every conversion
+	# shows up in the cache.
+	_enforce_outpost_rules(rows, rng)
 	sector_map_cache = {
 		"sector_idx": sector_idx,
 		"seed": seed_value,
@@ -391,38 +399,68 @@ func _pick_sector_modifiers(rng: RandomNumberGenerator, count: int) -> Array:
 	return picks
 
 
-# Post-roll outpost clamp. Walks every POI in `rows`, converts to keep total
-# outpost count in [OUTPOST_MIN_PER_SECTOR, OUTPOST_MAX_PER_SECTOR]. Conversion
-# preserves position + id, only rewrites node_type (and clears hazard_subtype
-# when promoting from HAZARD, though we only convert COMBAT↔OUTPOST here).
-func _clamp_outpost_density(rows: Array, rng: RandomNumberGenerator) -> void:
-	var all_pois: Array = []
+# Unified outpost rules, applied to the assembled `rows` array so every
+# conversion lands in the cache. Two passes, in order:
+#   1. PER-ROW CAP — within each row, demote all but OUTPOST_MAX_PER_ROW outposts
+#      back to COMBAT. This is the fix for "multiple stations in one row": the
+#      per-POI type roll in _gen_row_pois has no row awareness, so a row can roll
+#      OUTPOST 2-3 times; here we keep one (random) and convert the rest.
+#   2. PER-SECTOR COUNT — clamp the surviving sector total into
+#      [OUTPOST_MIN_PER_SECTOR, OUTPOST_MAX_PER_SECTOR]. Underflow promotes a
+#      random COMBAT, but ONLY in a row that has no outpost yet, so promotion can
+#      never re-create a duplicate. Overflow (only reachable if MAX < #rows)
+#      demotes a random outpost.
+# Conversion preserves position + id, only rewrites node_type (and clears
+# hazard_subtype when promoting, though we only convert COMBAT↔OUTPOST here).
+func _enforce_outpost_rules(rows: Array, rng: RandomNumberGenerator) -> void:
+	# Pass 1 — per-row cap.
+	for row in rows:
+		var row_outposts: Array = []
+		for poi in row.pois:
+			if int(poi.node_type) == int(SectorNodeType.OUTPOST):
+				row_outposts.append(poi)
+		while row_outposts.size() > OUTPOST_MAX_PER_ROW:
+			var idx: int = rng.randi() % row_outposts.size()
+			var victim = row_outposts[idx]
+			row_outposts.remove_at(idx)
+			victim.node_type = int(SectorNodeType.COMBAT)
+
+	# Pass 2 — per-sector count clamp.
+	var outposts: Array = []
 	for row in rows:
 		for poi in row.pois:
-			all_pois.append(poi)
-	var outposts: Array = []
-	var combats: Array = []
-	for poi in all_pois:
-		match int(poi.node_type):
-			int(SectorNodeType.OUTPOST):
+			if int(poi.node_type) == int(SectorNodeType.OUTPOST):
 				outposts.append(poi)
-			int(SectorNodeType.COMBAT):
-				combats.append(poi)
-	# Underflow: promote random COMBATs to OUTPOST.
-	while outposts.size() < OUTPOST_MIN_PER_SECTOR and combats.size() > 0:
-		var idx: int = rng.randi() % combats.size()
-		var victim = combats[idx]
-		combats.remove_at(idx)
+
+	# Underflow: promote a random COMBAT in an outpost-free row.
+	while outposts.size() < OUTPOST_MIN_PER_SECTOR:
+		# Gather COMBAT candidates only from rows that have no outpost yet, so the
+		# per-row cap (pass 1) is preserved.
+		var candidates: Array = []
+		for row in rows:
+			var has_outpost: bool = false
+			for poi in row.pois:
+				if int(poi.node_type) == int(SectorNodeType.OUTPOST):
+					has_outpost = true
+					break
+			if has_outpost:
+				continue
+			for poi in row.pois:
+				if int(poi.node_type) == int(SectorNodeType.COMBAT):
+					candidates.append(poi)
+		if candidates.is_empty():
+			break
+		var victim = candidates[rng.randi() % candidates.size()]
 		victim.node_type = int(SectorNodeType.OUTPOST)
 		victim.hazard_subtype = ""
 		outposts.append(victim)
-	# Overflow: demote random OUTPOSTs to COMBAT.
+
+	# Overflow safety rail (only reachable if OUTPOST_MAX_PER_SECTOR < row count).
 	while outposts.size() > OUTPOST_MAX_PER_SECTOR:
 		var idx: int = rng.randi() % outposts.size()
 		var victim = outposts[idx]
 		outposts.remove_at(idx)
 		victim.node_type = int(SectorNodeType.COMBAT)
-		combats.append(victim)
 
 
 # Per-row POI generation. Picks 2-4 POIs at cell-snapped x-positions
@@ -757,6 +795,17 @@ func cycle_primary() -> void:
 		_last_non_blaster_idx = active_cannon_idx
 		active_cannon_idx = 0
 	loadout_snapshot[_SlotTypes.SlotType.CANNON] = cannon_pool[active_cannon_idx]
+
+
+# Set the active primary to a specific cannon_pool index (Manage Ship screen).
+# No-op on out-of-range. Keeps loadout_snapshot + the swap-toggle state in sync.
+func set_active_cannon(idx: int) -> void:
+	if idx < 0 or idx >= cannon_pool.size():
+		return
+	active_cannon_idx = idx
+	if idx != 0:
+		_last_non_blaster_idx = idx
+	loadout_snapshot[_SlotTypes.SlotType.CANNON] = cannon_pool[idx]
 
 
 # Look up an owned cannon by display_name. Returns the cannon_pool index

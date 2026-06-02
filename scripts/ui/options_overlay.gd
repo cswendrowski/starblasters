@@ -44,49 +44,51 @@ func _ready() -> void:
 
 func _build_ui() -> void:
 	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.70)
+	# Near-opaque: the overlay can sit over the live (paused) game, and Roman
+	# wants menus to read as solid HD screens rather than see-through.
+	dim.color = Color(0.02, 0.03, 0.06, 0.94)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(dim)
 
-	# Panel parented directly to the CanvasLayer (NOT a CenterContainer) so
-	# we can scale it down to fit the 480×270 render resolution. CenterContainer
-	# positions by UNSCALED minimum size, so a scaled child wouldn't re-center
-	# — we center manually in _fit_panel() instead. Roman: "Options screen is
-	# too big — limit it to the render resolution, scale down as necessary."
+	# Panel parented directly to the CanvasLayer so _fit_panel() can size +
+	# center it manually. We do NOT scale the panel (scaling a Control desyncs
+	# its child click rects from the visual). The overlay renders at HD
+	# (1920×1080) — it inherits the content scale of whatever opened it (every
+	# caller is an HD screen), so there's ample room and no scrolling needed.
 	var panel := PanelContainer.new()
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = UiTheme.COLOR_PANEL_BG
 	sb.border_color = UiTheme.COLOR_ACCENT_DIM
 	sb.set_border_width_all(2)
-	sb.content_margin_left = 12
-	sb.content_margin_right = 12
-	sb.content_margin_top = 10
-	sb.content_margin_bottom = 10
+	sb.content_margin_left = 28
+	sb.content_margin_right = 28
+	sb.content_margin_top = 22
+	sb.content_margin_bottom = 22
 	panel.add_theme_stylebox_override("panel", sb)
 	add_child(panel)
 	_options_panel = panel
 
 	var outer := VBoxContainer.new()
-	outer.add_theme_constant_override("separation", 8)
+	outer.add_theme_constant_override("separation", 16)
 	panel.add_child(outer)
 
 	var header := Label.new()
 	header.text = "OPTIONS"
 	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	UiTheme.style_label(header, UiTheme.LabelKind.HEADER)
+	UiTheme.style_label(header, UiTheme.LabelKind.TITLE)
 	outer.add_child(header)
 
 	outer.add_child(_make_separator())
 
 	var columns := HBoxContainer.new()
-	columns.add_theme_constant_override("separation", 16)
+	columns.add_theme_constant_override("separation", 48)
 	outer.add_child(columns)
 
 	# --- Left column: Audio + Display ---
 	var left := VBoxContainer.new()
-	left.custom_minimum_size = Vector2(200, 0)
-	left.add_theme_constant_override("separation", 6)
+	left.custom_minimum_size = Vector2(460, 0)
+	left.add_theme_constant_override("separation", 12)
 	columns.add_child(left)
 
 	var audio_lbl := Label.new()
@@ -127,6 +129,7 @@ func _build_ui() -> void:
 	UiTheme.style_label(font_label, UiTheme.LabelKind.BODY)
 	font_row.add_child(font_label)
 	var font_btn := OptionButton.new()
+	font_btn.add_theme_font_override("font", UiTheme.menu_font())
 	font_btn.add_item("Pixel Operator")
 	font_btn.add_item("Pixelify Sans (TTF)")
 	font_btn.select(0 if String(_settings().font_style) == "pixel" else 1)
@@ -135,8 +138,8 @@ func _build_ui() -> void:
 
 	# --- Right column: Controls ---
 	var right := VBoxContainer.new()
-	right.custom_minimum_size = Vector2(200, 0)
-	right.add_theme_constant_override("separation", 6)
+	right.custom_minimum_size = Vector2(460, 0)
+	right.add_theme_constant_override("separation", 12)
 	columns.add_child(right)
 
 	var ctrl_lbl := Label.new()
@@ -151,22 +154,22 @@ func _build_ui() -> void:
 
 	var back := Button.new()
 	back.text = "Back"
-	back.custom_minimum_size = Vector2(120, 22)
-	UiTheme.style_button(back, true)
+	back.custom_minimum_size = Vector2(260, 60)
+	UiTheme.style_button(back)
 	back.pressed.connect(_on_back)
 	var back_center := CenterContainer.new()
 	back_center.add_child(back)
 	outer.add_child(back_center)
 
 	# Containers report their final size only after a layout pass, so defer
-	# the scale-to-fit until the panel has resolved its natural size.
+	# the fit-and-center until the panel has resolved its natural size.
 	call_deferred("_fit_panel")
 
 
-# Scale the panel down (never up) so it fits inside the 480×270 internal
-# render resolution, then center it manually. Done after layout because a
-# PanelContainer's size is unknown until its children are measured. Re-run
-# safe (idempotent) — resets scale before measuring.
+# Size the panel to fit inside the viewport (capped, never scaled) and center
+# it. Done after layout because a PanelContainer's size is unknown until its
+# children are measured. Capping never scales, so click rects stay 1:1 with
+# the visuals. Re-run safe (idempotent).
 func _fit_panel() -> void:
 	if _options_panel == null or not is_instance_valid(_options_panel):
 		return
@@ -177,15 +180,9 @@ func _fit_panel() -> void:
 	var natural: Vector2 = _options_panel.get_combined_minimum_size()
 	if natural.x <= 0.0 or natural.y <= 0.0:
 		natural = _options_panel.size
-	var s: float = 1.0
-	if natural.x > avail.x:
-		s = min(s, avail.x / natural.x)
-	if natural.y > avail.y:
-		s = min(s, avail.y / natural.y)
-	_options_panel.scale = Vector2(s, s)
-	_options_panel.size = natural
-	# Center the scaled panel in the viewport.
-	_options_panel.position = (vp - natural * s) * 0.5
+	_options_panel.size = Vector2(minf(natural.x, avail.x), minf(natural.y, avail.y))
+	_options_panel.position = ((vp - _options_panel.size) * 0.5).round()
+	UiTheme.assert_inside_viewport(self)
 
 
 const _ACTION_LABELS := {
@@ -210,7 +207,7 @@ func _add_rebind_row(parent: VBoxContainer, action_name: String) -> void:
 	UiTheme.style_label(lbl, UiTheme.LabelKind.BODY)
 	row.add_child(lbl)
 	var btn := Button.new()
-	btn.custom_minimum_size = Vector2(80, 18)
+	btn.custom_minimum_size = Vector2(180, 48)
 	btn.text = _key_label_for(action_name)
 	UiTheme.style_button(btn)
 	btn.pressed.connect(func(): _start_rebind(action_name, btn))
@@ -266,11 +263,11 @@ func _make_separator() -> Control:
 
 func _add_slider_row(parent: VBoxContainer, label_text: String, initial: float, on_changed: Callable) -> HSlider:
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
+	row.add_theme_constant_override("separation", 16)
 	parent.add_child(row)
 	var lbl := Label.new()
 	lbl.text = label_text
-	lbl.custom_minimum_size = Vector2(96, 0)
+	lbl.custom_minimum_size = Vector2(200, 0)
 	UiTheme.style_label(lbl, UiTheme.LabelKind.BODY)
 	row.add_child(lbl)
 	var slider := HSlider.new()
@@ -279,11 +276,12 @@ func _add_slider_row(parent: VBoxContainer, label_text: String, initial: float, 
 	slider.step = 0.01
 	slider.value = initial
 	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	slider.custom_minimum_size = Vector2(80, 14)
+	slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	slider.custom_minimum_size = Vector2(180, 28)
 	slider.value_changed.connect(on_changed)
 	row.add_child(slider)
 	var pct := Label.new()
-	pct.custom_minimum_size = Vector2(32, 0)
+	pct.custom_minimum_size = Vector2(64, 0)
 	pct.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	pct.text = "%d%%" % int(round(initial * 100.0))
 	UiTheme.style_label(pct, UiTheme.LabelKind.CAPTION)

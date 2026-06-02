@@ -83,13 +83,42 @@ Similarly, these near-duplicate greens should consolidate to the sector-map `COL
 
 ## Font
 
-| Use case | Face | Size |
-|---|---|---|
-| HUD labels (pips, bounty, weapons) | `PixelOperator.ttf` | 7 pt |
-| In-game captions | `PixelOperator.ttf` | 10 pt (`FONT_SIZE_CAPTION`) |
-| Body text | `PixelOperator.ttf` | 12 pt (`FONT_SIZE_BODY`) |
-| Buttons | `PixelOperator.ttf` | 14 pt (`FONT_SIZE_BUTTON`) |
-| Headers | `PixelOperator.ttf` | 16 pt (`FONT_SIZE_HEADER`) |
-| Titles | `PixelOperator.ttf` | 28 pt (`FONT_SIZE_TITLE`) |
+Face: `PixelOperator.ttf` (default). Alternative `PixelifySans.ttf` is a
+user-preference swap (Options menu). Both live in `res://graphics/fonts/`.
 
-Alternative face `PixelifySans.ttf` is available as a user-preference swap (Options menu). Both live in `res://graphics/fonts/`.
+**Two render variants of PixelOperator (2026-06-02):**
+- **Crisp** (`UiTheme.active_font`, antialiasing OFF) — the native 480×270 HUD,
+  which is nearest-upscaled 4× by the canvas stretch. AA-off + upscale = the hard
+  pixel look. Also the project theme's runtime `default_font`.
+- **Smooth** (`UiTheme.menu_font`, gray antialiasing) — HD (1920×1080) menus,
+  which render the font at 1:1 with no upscale. AA-off at HD makes non-grid sizes
+  render jagged, so menus use the antialiased variant for clean text at any size.
+  `style_label` / `style_button` route through it; bespoke menu labels (e.g.
+  `outpost._style_label`) and non-themed controls (the Options font picker) set it
+  explicitly so they don't fall back to the crisp default.
+
+**Two rendering contexts (2026-06-02 HD-UI move):**
+
+- **Clickable menus** now render on an HD overlay (1920×1080 content scale, via
+  `HdScreen`/`HdViewportScope`), so they use the HD menu sizes below. These are
+  the `UiTheme.FONT_SIZE_*` constants — the single source of truth.
+- **In-combat HUD** (pips, bounty, weapons, wave banner) still renders at the
+  native 480×270 viewport and keeps its small native sizes, set explicitly at
+  each call site (it does NOT read `FONT_SIZE_*`).
+
+| Use case | Context | Size |
+|---|---|---|
+| HUD labels (pips, bounty, weapons) | native 480 HUD | 7 pt (explicit per call site) |
+| Captions | HD menus | 16 pt (`FONT_SIZE_CAPTION`) |
+| Body text | HD menus | 22 pt (`FONT_SIZE_BODY`) |
+| Buttons | HD menus | 26 pt (`FONT_SIZE_BUTTON`) |
+| Headers | HD menus | 30 pt (`FONT_SIZE_HEADER`) |
+| Titles | HD menus | 48 pt (`FONT_SIZE_TITLE`) |
+
+The shop (`outpost.gd`) is a dense 3-column HD screen and keeps its own tighter
+`FS_*` constants (title 36 / header 24 / body 18 / caption 14) so the columns
+don't overflow; the rest of the menus use the `UiTheme.FONT_SIZE_*` scale above.
+
+Native pre-HD menu sizes (kept for reference; the hangar + dev tools still use
+them pending their own HD pass): caption 10, body 12, button 14, header 16,
+title 28.

@@ -95,12 +95,14 @@ const PANEL_BORDER := Color(0.35, 0.55, 0.75, 0.85)
 const PANEL_BG_WEAPON := Color(0.10, 0.05, 0.12, 0.65)
 const PANEL_BG_UPGRADE := Color(0.05, 0.08, 0.14, 0.65)
 const PANEL_BG_SERVICE := Color(0.05, 0.10, 0.08, 0.65)
-const FS_TITLE := 36
-const FS_HEADER := 24
-const FS_BODY := 18
-const FS_CAPTION := 14
-const FS_STATUS := 18
-const FS_STATUS_VALUE := 22
+# Aligned to the UiTheme HD scale (docs/ui_color_reference.md) so the shop reads
+# at the same size as every other menu. The 600px columns have room for it.
+const FS_TITLE := UiTheme.FONT_SIZE_TITLE        # 48
+const FS_HEADER := UiTheme.FONT_SIZE_HEADER      # 30
+const FS_BODY := UiTheme.FONT_SIZE_BODY          # 22
+const FS_CAPTION := UiTheme.FONT_SIZE_CAPTION    # 16
+const FS_STATUS := UiTheme.FONT_SIZE_CAPTION     # 16
+const FS_STATUS_VALUE := UiTheme.FONT_SIZE_BODY  # 22
 
 var _weapon_offers: Array = []   # [{part, cost, sold}]
 var _upgrade_offers: Array = []  # [{key, name, desc, next_mk, cost, sold}]
@@ -129,11 +131,10 @@ var _hd_scope: HdViewportScope = null
 
 
 func _ready() -> void:
-	# HD overlay (matches shipyard V3 / sector_map_hd pattern). RAII scope
-	# auto-restores native scale on scene exit. _on_leave forces it earlier
-	# so the next scene doesn't render at HD during the transition.
-	_hd_scope = HdViewportScope.attach(self, Vector2i(HD_W, HD_H))
-	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# HD (1920×1080) overlay via the shared HD base. RAII scope auto-restores
+	# native scale on scene exit; _on_leave drops it earlier (once the fade
+	# covers) so the next native scene doesn't flash an HD blow-up.
+	_hd_scope = HdScreen.enter(self)
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("outpost")
 	# Auto-restore on visit. Designer policy (Roman 2026-05-25):
@@ -363,6 +364,7 @@ func _make_weapon_card(offer: Dictionary) -> Control:
 	var buy_btn := Button.new()
 	buy_btn.custom_minimum_size = Vector2(160, 56)
 	buy_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	UiTheme.style_button(buy_btn)
 	buy_btn.add_theme_font_size_override("font_size", FS_BODY)
 	var sold: bool = offer.get("sold", false)
 	if sold:
@@ -436,6 +438,7 @@ func _make_upgrade_card(offer: Dictionary) -> Control:
 	var buy_btn := Button.new()
 	buy_btn.custom_minimum_size = Vector2(160, 56)
 	buy_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	UiTheme.style_button(buy_btn)
 	buy_btn.add_theme_font_size_override("font_size", FS_BODY)
 	var sold: bool = offer.get("sold", false)
 	if sold:
@@ -504,6 +507,7 @@ func _build_services() -> void:
 
 	_refresh_btn = Button.new()
 	_refresh_btn.custom_minimum_size = Vector2(0, 48)
+	UiTheme.style_button(_refresh_btn)
 	_refresh_btn.add_theme_font_size_override("font_size", FS_BODY)
 	_refresh_btn.pressed.connect(_on_refresh_stock.bind(_refresh_btn))
 	_update_refresh_btn_label()
@@ -512,6 +516,7 @@ func _build_services() -> void:
 	var leave_btn := Button.new()
 	leave_btn.text = Strings.OUTPOST_BTN_LEAVE
 	leave_btn.custom_minimum_size = Vector2(0, 56)
+	UiTheme.style_button(leave_btn)
 	leave_btn.add_theme_font_size_override("font_size", FS_HEADER)
 	leave_btn.pressed.connect(_on_leave)
 	_services_box.add_child(leave_btn)
@@ -523,6 +528,7 @@ func _build_services() -> void:
 func _make_service_button(label_text: String, cost: int, handler: Callable, kind: String) -> Button:
 	var btn := Button.new()
 	btn.custom_minimum_size = Vector2(0, 48)
+	UiTheme.style_button(btn)
 	btn.add_theme_font_size_override("font_size", FS_BODY)
 	btn.set_meta("kind", kind)
 	btn.set_meta("base_label", label_text)
@@ -564,6 +570,7 @@ func _make_storage_row(part, idx: int) -> Control:
 
 	var equip_btn := Button.new()
 	equip_btn.text = Strings.OUTPOST_BTN_EQUIP
+	UiTheme.style_button(equip_btn)
 	equip_btn.add_theme_font_size_override("font_size", FS_CAPTION)
 	equip_btn.pressed.connect(_on_equip_stored.bind(idx))
 	row.add_child(equip_btn)
@@ -571,6 +578,7 @@ func _make_storage_row(part, idx: int) -> Control:
 	var sell_value: int = _sell_value_for(part)
 	var sell_btn := Button.new()
 	sell_btn.text = Strings.OUTPOST_BTN_SELL % sell_value
+	UiTheme.style_button(sell_btn)
 	sell_btn.add_theme_font_size_override("font_size", FS_CAPTION)
 	sell_btn.pressed.connect(_on_sell_stored.bind(idx, sell_value))
 	row.add_child(sell_btn)
@@ -1023,9 +1031,8 @@ func _on_leave() -> void:
 
 
 func _drop_hd_scope() -> void:
-	if _hd_scope != null and is_instance_valid(_hd_scope):
-		_hd_scope.free()
-		_hd_scope = null
+	HdScreen.drop(_hd_scope)
+	_hd_scope = null
 
 
 # ---- Status panel refresh -------------------------------------------------
@@ -1366,6 +1373,9 @@ func _card_style_tier(tier_color: Color) -> StyleBoxFlat:
 
 
 func _style_label(lbl: Label, font_size: int, color: Color) -> void:
+	# Smooth HD menu face — without this the label falls back to the project
+	# theme's crisp (AA-off) default, which renders jagged at HD 1:1.
+	lbl.add_theme_font_override("font", UiTheme.menu_font())
 	lbl.add_theme_font_size_override("font_size", font_size)
 	lbl.add_theme_color_override("font_color", color)
 	lbl.add_theme_constant_override("outline_size", 2)

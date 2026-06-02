@@ -20,6 +20,7 @@ const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
 # don't have to edit the .tscn (which triggers the scene-cache bind trap).
 var test_hazard_btn: Button = null
 var _test_hazard_modal: CanvasLayer = null
+var _hd_scope: HdViewportScope = null
 @onready var title_label: Label = $Center/VBox/Title
 @onready var version_label: Label = $VersionLabel if has_node("VersionLabel") else null
 @onready var center: CenterContainer = $Center
@@ -27,7 +28,12 @@ var _test_hazard_modal: CanvasLayer = null
 
 
 func _ready() -> void:
+	# Render the menu at HD (1920×1080) for clear, roomy layout. Scope frees
+	# with the scene; SceneTransition keeps the screen black during the swap
+	# so the native combat scene we hand off to doesn't flash an HD blow-up.
+	_hd_scope = HdScreen.enter(self)
 	_fix_center_anchors()
+	_host_ui_on_canvaslayer()
 	_install_backdrop()
 	_style_title()
 	_add_subtitle()
@@ -49,6 +55,9 @@ func _ready() -> void:
 	_install_codex_button()
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("menu")
+	# Debug-only: warn if any menu Control spills past the 480×270 viewport
+	# (deferred so the layout pass has resolved). No-op in release.
+	UiTheme.assert_inside_viewport.call_deferred(self)
 
 
 # The packed scene's CenterContainer doesn't actually center because its
@@ -70,6 +79,23 @@ func _fix_center_anchors() -> void:
 	center.grow_vertical = Control.GROW_DIRECTION_BOTH
 
 
+# Move the interactive UI onto a CanvasLayer. Root-canvas Controls under the
+# runtime HD content_scale swap can show an input-vs-visual offset (the menu's
+# hover/click landed off the buttons); CanvasLayer-hosted UI — like the outpost,
+# options, pause — is immune. This brings the main menu in line with them.
+func _host_ui_on_canvaslayer() -> void:
+	if center == null:
+		return
+	var ui_layer := CanvasLayer.new()
+	ui_layer.name = "MenuUI"
+	add_child(ui_layer)
+	center.reparent(ui_layer)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.position = Vector2.ZERO
+	if version_label != null and is_instance_valid(version_label):
+		version_label.reparent(ui_layer)
+
+
 func _install_backdrop() -> void:
 	# Spawn the same parallax setup the combat scene uses. Slower planet drift
 	# so the menu's planet doesn't blow past — this is the lobby, not a level.
@@ -81,8 +107,10 @@ func _install_backdrop() -> void:
 	bd.set("warp_streak_count", 8)
 	bd.set("warp_streak_speed", 432.0)
 	bd.set("asteroid_presence", 0.5)
-	add_child(bd)
-	move_child(bd, 0)
+	# The parallax backdrop renders in native 480×270; this menu is HD. Show it
+	# via a native SubViewport upscaled 4× (nearest) so it fills the screen the
+	# same way combat's canvas stretch does — see HdScreen.add_upscaled_backdrop.
+	HdScreen.add_upscaled_backdrop(self, bd)
 
 
 func _style_title() -> void:
@@ -104,9 +132,17 @@ func _add_subtitle() -> void:
 
 
 func _style_buttons() -> void:
+	# HD layout: the .tscn sizes (160×22, VBox 160) assume the old 480 canvas;
+	# widen for 1920×1080 so the centered button stack reads at HD scale.
+	if vbox != null:
+		vbox.custom_minimum_size = Vector2(460, 0)
+		vbox.add_theme_constant_override("separation", 14)
 	var btns: Array = [continue_btn, new_game_btn, options_btn, credits_btn, test_bed_btn, exit_btn]
 	for b in btns:
+		if b == null:
+			continue
 		UiTheme.style_button(b, true)  # dense — menu has 5+ buttons
+		b.custom_minimum_size = Vector2(460, 64)
 	# Test bed keeps its distinct green to mark it as a dev shortcut.
 	if test_bed_btn != null:
 		test_bed_btn.add_theme_color_override("font_color", UiTheme.COLOR_GREEN)
@@ -118,9 +154,9 @@ func _style_version() -> void:
 	var v = ProjectSettings.get_setting("application/config/version", "?")
 	version_label.text = "v%s" % v
 	UiTheme.style_label(version_label, UiTheme.LabelKind.CAPTION)
-	# CAPTION is 10pt — version label was unreadable on the web build
-	# (Roman 2026-05-18 "0.1.31 or 0.1.91"). Bump to 14pt and brighten.
-	version_label.add_theme_font_size_override("font_size", 14)
+	# Brighten + bump so the version reads clearly at HD scale (Roman
+	# 2026-05-18 wanted it legible on the web build).
+	version_label.add_theme_font_size_override("font_size", 24)
 	version_label.add_theme_color_override("font_color", Color(0.95, 0.98, 1.0, 1.0))
 
 
@@ -203,69 +239,53 @@ func _install_codex_button() -> void:
 func _show_test_hazard_modal() -> void:
 	if _test_hazard_modal != null and is_instance_valid(_test_hazard_modal):
 		return
-	var layer := CanvasLayer.new()
-	layer.layer = 80
-	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.6)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	dim.mouse_filter = Control.MOUSE_FILTER_STOP
-	layer.add_child(dim)
-	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	layer.add_child(center)
-	var panel := VBoxContainer.new()
-	panel.custom_minimum_size = Vector2(440, 280)
-	panel.add_theme_constant_override("separation", 16)
-	center.add_child(panel)
+	# Shared modal scaffold (dim + centered panel). Picks scroll the hazard
+	# list so it fits the 480×270 viewport regardless of how many are listed.
+	var m := UiTheme.make_modal(80, Vector2(520, 0))
+	var vbox: VBoxContainer = m["vbox"]
+	vbox.add_theme_constant_override("separation", 12)
+
 	var header := Label.new()
 	header.text = "TEST HAZARD"
 	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	UiTheme.style_label(header, UiTheme.LabelKind.HEADER)
-	header.material = UiTheme.make_holo_material(UiTheme.HoloPreset.TITLE)
-	panel.add_child(header)
+	vbox.add_child(header)
 	var body := Label.new()
 	body.text = "Which hazard do you want to drop into?"
 	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	UiTheme.style_label(body, UiTheme.LabelKind.BODY)
-	panel.add_child(body)
-	var minefield_btn := Button.new()
-	minefield_btn.text = "Minefield"
-	minefield_btn.custom_minimum_size = Vector2(320, 50)
-	UiTheme.style_button(minefield_btn)
-	minefield_btn.pressed.connect(_on_test_hazard_pick.bind("minefield"))
-	panel.add_child(minefield_btn)
-	var asteroid_btn := Button.new()
-	asteroid_btn.text = "Asteroid Field"
-	asteroid_btn.custom_minimum_size = Vector2(320, 50)
-	UiTheme.style_button(asteroid_btn)
-	asteroid_btn.pressed.connect(_on_test_hazard_pick.bind("asteroid_field"))
-	panel.add_child(asteroid_btn)
-	var roster_btn := Button.new()
-	roster_btn.text = "New Enemy Roster"
-	roster_btn.custom_minimum_size = Vector2(320, 50)
-	UiTheme.style_button(roster_btn)
-	roster_btn.pressed.connect(_on_test_hazard_pick.bind("roster_test"))
-	panel.add_child(roster_btn)
-	var drone_btn := Button.new()
-	drone_btn.text = "Firecore Drone Showcase"
-	drone_btn.custom_minimum_size = Vector2(320, 50)
-	UiTheme.style_button(drone_btn)
-	drone_btn.pressed.connect(_on_test_hazard_pick.bind("firecore_drone_showcase"))
-	panel.add_child(drone_btn)
-	var cruiser_btn := Button.new()
-	cruiser_btn.text = "Missile Cruiser Showcase"
-	cruiser_btn.custom_minimum_size = Vector2(320, 50)
-	UiTheme.style_button(cruiser_btn)
-	cruiser_btn.pressed.connect(_on_test_hazard_pick.bind("missile_cruiser_showcase"))
-	panel.add_child(cruiser_btn)
-	var cancel_btn := Button.new()
-	cancel_btn.text = "Cancel"
-	cancel_btn.custom_minimum_size = Vector2(320, 40)
-	UiTheme.style_button(cancel_btn, true)
+	vbox.add_child(body)
+
+	# Hazard picks in a height-capped scroll so the list never overflows.
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.custom_minimum_size = Vector2(0, 560)
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_child(scroll)
+	var picks := VBoxContainer.new()
+	picks.add_theme_constant_override("separation", 6)
+	picks.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(picks)
+
+	var hazards := [
+		["Minefield", "minefield"],
+		["Asteroid Field", "asteroid_field"],
+		["New Enemy Roster", "roster_test"],
+		["Firecore Drone Showcase", "firecore_drone_showcase"],
+		["Missile Cruiser Showcase", "missile_cruiser_showcase"],
+	]
+	for h in hazards:
+		var btn := UiTheme.make_button(h[0])
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.pressed.connect(_on_test_hazard_pick.bind(h[1]))
+		picks.add_child(btn)
+
+	var cancel_btn := UiTheme.make_button("Cancel", true)
 	cancel_btn.pressed.connect(_close_test_hazard_modal)
-	panel.add_child(cancel_btn)
-	add_child(layer)
-	_test_hazard_modal = layer
+	vbox.add_child(cancel_btn)
+
+	add_child(m["layer"])
+	_test_hazard_modal = m["layer"]
 
 
 func _close_test_hazard_modal() -> void:

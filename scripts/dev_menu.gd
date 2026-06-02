@@ -11,9 +11,13 @@ const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 var _test_hazard_modal: CanvasLayer = null
 var _vbox: VBoxContainer = null
 var _grid: GridContainer = null
+var _hd_scope: HdViewportScope = null
 
 
 func _ready() -> void:
+	# Dev menu renders at HD (1920×1080) like the player-facing menus, so the
+	# UiTheme HD fonts/buttons size correctly instead of blowing up at native.
+	_hd_scope = HdScreen.enter(self)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_install_dark_background()
 	_build_ui()
@@ -46,7 +50,7 @@ func _build_ui() -> void:
 	pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(pad)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 6)
+	v.add_theme_constant_override("separation", 14)
 	pad.add_child(v)
 	_vbox = v
 
@@ -54,7 +58,6 @@ func _build_ui() -> void:
 	title.text = "DEV MENU"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	UiTheme.style_label(title, UiTheme.LabelKind.TITLE)
-	title.add_theme_font_size_override("font_size", 18)
 	v.add_child(title)
 
 	var subtitle := Label.new()
@@ -67,8 +70,8 @@ func _build_ui() -> void:
 
 	var grid := GridContainer.new()
 	grid.columns = 3
-	grid.add_theme_constant_override("h_separation", 5)
-	grid.add_theme_constant_override("v_separation", 4)
+	grid.add_theme_constant_override("h_separation", 16)
+	grid.add_theme_constant_override("v_separation", 12)
 	v.add_child(grid)
 	_grid = grid
 
@@ -82,6 +85,7 @@ func _build_ui() -> void:
 	_add_button("[ Movement Lab ]", _on_movement_lab, true)
 	_add_button("[ Parallax Tuner ]", _on_parallax_tuner, true)
 	_add_button("[ Asteroid Lab ]", _on_asteroid_lab, true)
+	_add_button("[ Sector Map HD Lab ]", _on_sector_map_hd_lab, true)
 	# Test launchers
 	_add_button("[ Test Combat ]", _on_test_combat, true)
 	_add_button("[ Hangar ]", _on_hangar, true)
@@ -92,7 +96,7 @@ func _build_ui() -> void:
 	# Back button stays in the outer VBox so it spans both columns.
 	var back := Button.new()
 	back.text = "Back"
-	back.custom_minimum_size = Vector2(140, 16)
+	back.custom_minimum_size = Vector2(300, 56)
 	UiTheme.style_button(back, true)
 	back.pressed.connect(_on_back)
 	v.add_child(back)
@@ -101,7 +105,7 @@ func _build_ui() -> void:
 func _add_button(text: String, cb: Callable, dev_green: bool) -> void:
 	var btn := Button.new()
 	btn.text = text
-	btn.custom_minimum_size = Vector2(86, 14)  # smaller per 2026-05-21 to fit 3-wide grid
+	btn.custom_minimum_size = Vector2(300, 56)
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	UiTheme.style_button(btn, true)
 	if dev_green:
@@ -166,6 +170,10 @@ func _on_hangar() -> void:
 
 func _on_ui_plotter() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/ui_plotter.tscn")
+
+
+func _on_sector_map_hd_lab() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/sector_map_hd_lab.tscn")
 
 
 # Unified Test Combat launcher (Cody 2026-05-19): one modal that fans

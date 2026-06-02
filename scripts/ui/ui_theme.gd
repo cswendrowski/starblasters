@@ -31,12 +31,16 @@ const COLOR_PANEL_BG   := Color(0.05, 0.07, 0.11, 0.82) # menu panels — near-b
 const COLOR_HOLO := COLOR_ACCENT
 
 # ----- Font sizes --------------------------------------------------------
-# 320×400 res rework — font sizes scaled for the smaller canvas.
-const FONT_SIZE_TITLE   := 28
-const FONT_SIZE_HEADER  := 16
-const FONT_SIZE_BODY    := 12
-const FONT_SIZE_BUTTON  := 14
-const FONT_SIZE_CAPTION := 10
+# HD UI sizes (2026-06-02). All clickable menus render at 1920×1080 (content
+# scale swapped per-screen via HdScreen/HdViewportScope), so 1 logical px = 1
+# screen px and fonts are sized for that canvas. The in-combat 480×270 HUD does
+# NOT use these — every native text surface (wave banner, score counter, the
+# one main.tscn label) sets its own explicit size, so retuning here is safe.
+const FONT_SIZE_TITLE   := 48
+const FONT_SIZE_HEADER  := 30
+const FONT_SIZE_BODY    := 22
+const FONT_SIZE_BUTTON  := 26
+const FONT_SIZE_CAPTION := 16
 
 # ----- Font face ---------------------------------------------------------
 # Two faces are preloaded so the player can swap via the Options menu
@@ -52,22 +56,44 @@ const FONT_TTF = preload("res://graphics/fonts/PixelifySans.ttf")
 # Pixel Operator if Settings hasn't been loaded yet (which would only
 # happen during very early scene boot, before autoloads).
 #
-# For Pixel Operator we force antialiasing/subpixel/hinting off at
-# runtime so the bitmap font renders pixel-perfect even if the import
-# cache shipped with antialiasing enabled. Cached so the per-call cost
-# is one dictionary lookup.
+# TWO Pixel Operator variants:
+#  - CRISP (antialiasing/subpixel/hinting off) — for the native 480×270 HUD,
+#    which is nearest-upscaled 4× by the canvas stretch. AA-off + upscale =
+#    the intended hard pixel look.
+#  - SMOOTH (gray antialiasing) — for HD (1920×1080) menus, which render the
+#    font at 1:1 (no upscale). AA-off at HD makes non-grid-aligned sizes
+#    (22, 26, 30, 18, 36…) render jagged/uneven — the "distorted" menu text.
+#    Light AA smooths the letterforms so any size reads cleanly at HD.
+# Both cached so the per-call cost is one lookup.
 static var _pixel_font_crisp: FontFile = null
+static var _pixel_font_smooth: FontFile = null
 
+# Crisp face for the native HUD + the project theme default (so unstyled
+# controls and the in-combat HUD keep the hard pixel look).
 static func active_font() -> Font:
 	if Engine.is_editor_hint():
 		return _get_pixel_crisp()
-	var settings = null
-	var tree := Engine.get_main_loop() as SceneTree
-	if tree and tree.root and tree.root.has_node("Settings"):
-		settings = tree.root.get_node("Settings")
-	if settings and "font_style" in settings and String(settings.font_style) == "ttf":
+	if _font_is_ttf():
 		return FONT_TTF
 	return _get_pixel_crisp()
+
+
+# Smooth face for HD menus. Routed through by style_label/style_button so every
+# themed menu control gets clean text at HD. TTF (Pixelify Sans) is already
+# smooth, so it's returned as-is when selected.
+static func menu_font() -> Font:
+	if _font_is_ttf():
+		return FONT_TTF
+	return _get_pixel_smooth()
+
+
+static func _font_is_ttf() -> bool:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree and tree.root and tree.root.has_node("Settings"):
+		var settings = tree.root.get_node("Settings")
+		if settings and "font_style" in settings:
+			return String(settings.font_style) == "ttf"
+	return false
 
 
 static func _get_pixel_crisp() -> FontFile:
@@ -78,6 +104,16 @@ static func _get_pixel_crisp() -> FontFile:
 	_pixel_font_crisp.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
 	_pixel_font_crisp.hinting = TextServer.HINTING_NONE
 	return _pixel_font_crisp
+
+
+static func _get_pixel_smooth() -> FontFile:
+	if _pixel_font_smooth != null:
+		return _pixel_font_smooth
+	_pixel_font_smooth = FONT_PIXEL.duplicate()
+	_pixel_font_smooth.antialiasing = TextServer.FONT_ANTIALIASING_GRAY
+	_pixel_font_smooth.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
+	_pixel_font_smooth.hinting = TextServer.HINTING_NONE
+	return _pixel_font_smooth
 
 # ----- Label kinds -------------------------------------------------------
 enum LabelKind {
@@ -113,21 +149,13 @@ static func make_holo_material(_preset: int = HoloPreset.OVERLAY) -> ShaderMater
 	return null
 
 
-# Apply the canonical button look — flat dark fill, bright accent border,
-# brighter border on hover/press, dim on disabled. Idempotent. `dense`
-# shrinks vertical padding for in-game / pause menus.
-static func style_button(btn: Button, dense: bool = false) -> void:
-	if btn == null:
-		return
-	btn.add_theme_font_override("font", active_font())
-	btn.add_theme_font_size_override("font_size", FONT_SIZE_BUTTON)
-	btn.add_theme_color_override("font_color", COLOR_TEXT)
-	btn.add_theme_color_override("font_hover_color", COLOR_WHITE)
-	btn.add_theme_color_override("font_pressed_color", COLOR_ACCENT)
-	btn.add_theme_color_override("font_focus_color", COLOR_WHITE)
-	btn.add_theme_color_override("font_disabled_color", COLOR_DISABLED)
-	btn.flat = false
-
+# Build the canonical button stylebox set — flat dark fill, bright accent
+# border, brighter on hover/press, dim on disabled. `dense` shrinks the
+# vertical padding for in-game / pause menus. Returned as a dict keyed by
+# Button state name so both style_button() (per-control overrides) and the
+# project Theme.tres generator (tools/build_ui_theme.gd) share one source
+# of truth — change the look here and both follow.
+static func button_styleboxes(dense: bool = false, pad_h: int = 20) -> Dictionary:
 	var pad_v: int = 6 if dense else 10
 
 	var sb := StyleBoxFlat.new()
@@ -138,8 +166,8 @@ static func style_button(btn: Button, dense: bool = false) -> void:
 	sb.corner_radius_top_right = 3
 	sb.corner_radius_bottom_left = 3
 	sb.corner_radius_bottom_right = 3
-	sb.content_margin_left = 20
-	sb.content_margin_right = 20
+	sb.content_margin_left = pad_h
+	sb.content_margin_right = pad_h
 	sb.content_margin_top = pad_v
 	sb.content_margin_bottom = pad_v
 
@@ -155,11 +183,121 @@ static func style_button(btn: Button, dense: bool = false) -> void:
 	sb_disabled.bg_color = Color(0.06, 0.08, 0.11, 0.7)
 	sb_disabled.border_color = Color(0.25, 0.30, 0.35, 0.6)
 
-	btn.add_theme_stylebox_override("normal", sb)
-	btn.add_theme_stylebox_override("hover", sb_hover)
-	btn.add_theme_stylebox_override("pressed", sb_pressed)
-	btn.add_theme_stylebox_override("focus", sb_hover)
-	btn.add_theme_stylebox_override("disabled", sb_disabled)
+	return {
+		"normal": sb,
+		"hover": sb_hover,
+		"pressed": sb_pressed,
+		"focus": sb_hover,
+		"disabled": sb_disabled,
+	}
+
+
+# Apply the canonical button look. Idempotent. `dense` shrinks vertical
+# padding for in-game / pause menus.
+#
+# NOTE: with the project Theme.tres registered, plain Buttons already get
+# this look for free. This helper remains for (a) the `dense` variant and
+# (b) callers that want explicit control; the per-control overrides simply
+# win over the theme default, so calling it is always safe. `pad_h` shrinks
+# the horizontal padding for dense surfaces (e.g. the shop's compact cards),
+# where the default 20px would balloon small buttons past their card width.
+static func style_button(btn: Button, dense: bool = false, pad_h: int = 20) -> void:
+	if btn == null:
+		return
+	btn.add_theme_font_override("font", menu_font())
+	btn.add_theme_font_size_override("font_size", FONT_SIZE_BUTTON)
+	btn.add_theme_color_override("font_color", COLOR_TEXT)
+	btn.add_theme_color_override("font_hover_color", COLOR_WHITE)
+	btn.add_theme_color_override("font_pressed_color", COLOR_ACCENT)
+	btn.add_theme_color_override("font_focus_color", COLOR_WHITE)
+	btn.add_theme_color_override("font_disabled_color", COLOR_DISABLED)
+	btn.flat = false
+
+	var boxes := button_styleboxes(dense, pad_h)
+	btn.add_theme_stylebox_override("normal", boxes["normal"])
+	btn.add_theme_stylebox_override("hover", boxes["hover"])
+	btn.add_theme_stylebox_override("pressed", boxes["pressed"])
+	btn.add_theme_stylebox_override("focus", boxes["focus"])
+	btn.add_theme_stylebox_override("disabled", boxes["disabled"])
+
+
+# ----- Shared control kit -------------------------------------------------
+# Thin factories for the patterns every menu rebuilds by hand. Route new UI
+# through these so a button is always built + styled the same way.
+
+# A styled Button in one call. With the project Theme registered, a plain
+# Button already looks right, but make_button() guarantees it (incl. the
+# `dense` variant) and gives callers one obvious entry point.
+static func make_button(text: String, dense: bool = false) -> Button:
+	var b := Button.new()
+	b.text = text
+	style_button(b, dense)
+	return b
+
+
+# Label + horizontal-fill control on one row ("Fullscreen   [x]"). Appends
+# the row to `parent` and returns it. `label_w` pins the label column so
+# stacked rows align; 0 lets it size to content + EXPAND_FILL.
+static func make_labeled_row(parent: Node, label_text: String, control: Control, label_w: int = 0) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var lbl := Label.new()
+	lbl.text = label_text
+	if label_w > 0:
+		lbl.custom_minimum_size = Vector2(label_w, 0)
+	else:
+		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	style_label(lbl, LabelKind.BODY)
+	row.add_child(lbl)
+	row.add_child(control)
+	parent.add_child(row)
+	return row
+
+
+# A labelled 0..1 HSlider row with a live "%d%%" readout. Mirrors the
+# options-overlay slider; appends to `parent` and returns the HSlider.
+static func make_slider_row(parent: Node, label_text: String, initial: float, on_changed: Callable, label_w: int = 96) -> HSlider:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	parent.add_child(row)
+	var lbl := Label.new()
+	lbl.text = label_text
+	lbl.custom_minimum_size = Vector2(label_w, 0)
+	style_label(lbl, LabelKind.BODY)
+	row.add_child(lbl)
+	var slider := HSlider.new()
+	slider.min_value = 0.0
+	slider.max_value = 1.0
+	slider.step = 0.01
+	slider.value = initial
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	slider.custom_minimum_size = Vector2(80, 14)
+	slider.value_changed.connect(on_changed)
+	row.add_child(slider)
+	var pct := Label.new()
+	pct.custom_minimum_size = Vector2(32, 0)
+	pct.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	pct.text = "%d%%" % int(round(initial * 100.0))
+	style_label(pct, LabelKind.CAPTION)
+	row.add_child(pct)
+	slider.value_changed.connect(func(v: float):
+		pct.text = "%d%%" % int(round(v * 100.0))
+	)
+	return slider
+
+
+# ----- Runtime font swap --------------------------------------------------
+# The project Theme.tres carries a static default_font, but the player can
+# toggle Pixel Operator ↔ Pixelify Sans live via Options. A static .tres
+# can't follow that, so we push the active face into the in-memory project
+# theme's `default_font`; theme change propagates to every Control that
+# hasn't set its own font override. Call at boot (Settings._ready) and on
+# every font toggle (Settings.set_font_style). Cheap + idempotent.
+static func apply_font_to_default_theme() -> void:
+	var th := ThemeDB.get_project_theme()
+	if th != null:
+		th.default_font = active_font()
 
 
 # Convenience: style any Label according to one of the LabelKind presets.
@@ -167,7 +305,7 @@ static func style_button(btn: Button, dense: bool = false) -> void:
 static func style_label(lbl: Label, kind: int = LabelKind.BODY) -> void:
 	if lbl == null:
 		return
-	lbl.add_theme_font_override("font", active_font())
+	lbl.add_theme_font_override("font", menu_font())
 	match kind:
 		LabelKind.TITLE:
 			lbl.add_theme_font_size_override("font_size", FONT_SIZE_TITLE)

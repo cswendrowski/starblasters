@@ -43,6 +43,11 @@ func _ready() -> void:
 	_apply_audio()
 	_apply_window()
 	_apply_keybinds()
+	# Push the saved font face into the project theme so every Control picks
+	# it up (and so Pixel Operator renders crisp — AA/hinting forced off in
+	# UiTheme.active_font()). Deferred: the project theme may not be loaded
+	# into ThemeDB yet during autoload init.
+	call_deferred("_apply_font")
 
 
 func load_from_disk() -> void:
@@ -105,8 +110,13 @@ func set_fullscreen(on: bool) -> void:
 func set_font_style(style: String) -> void:
 	# Only "pixel" and "ttf" are valid. Anything else falls back to pixel.
 	font_style = style if style == "ttf" else "pixel"
+	_apply_font()
 	save_to_disk()
 	settings_changed.emit()
+
+
+func _apply_font() -> void:
+	UiTheme.apply_font_to_default_theme()
 
 
 func set_autofire(on: bool) -> void:

@@ -18,9 +18,12 @@ const SECTOR_MAP_SCENE := SectorMapRoute.SECTOR_MAP_SCENE
 static var _sprite_cache: Dictionary = {}
 
 var _shared_mat: ShaderMaterial = null
+var _hd_scope: HdViewportScope = null
 
 func _ready() -> void:
 	layer = 90
+	_hd_scope = HdScreen.enter(self)
+	_layout_hd()
 	_build_material()
 	# Painted sector backdrop so the cleared screen reads as the same
 	# meta-state as the sector map / main menu (Roman, 2026-05-17).
@@ -38,6 +41,30 @@ func _ready() -> void:
 
 func _build_material() -> void:
 	_shared_mat = UiTheme.make_holo_material(UiTheme.HoloPreset.OVERLAY)
+
+
+# The .tscn lays its title/list/bottom bands out in absolute pixels for the old
+# 480×270 canvas. Rescale them for the 1920×1080 HD viewport so the title isn't
+# clipped and the bottom button band has room. Fonts come from populate()'s
+# UiTheme.style_label calls (HD), which override the .tscn font_size values.
+func _layout_hd() -> void:
+	var root := $Root as Control
+	root.offset_left = 60.0
+	root.offset_top = 40.0
+	root.offset_right = -60.0
+	root.offset_bottom = -40.0
+	($Root/Title as Control).offset_bottom = 96.0
+	var list := $Root/List as Control
+	# Inset so the tally rows read as a centered table instead of stretching
+	# name-left / value-right across the full 1920 width.
+	list.offset_left = 660.0
+	list.offset_right = -660.0
+	list.offset_top = 150.0
+	list.offset_bottom = 760.0
+	list.add_theme_constant_override("separation", 12)
+	var bottom := $Root/Bottom as Control
+	bottom.offset_top = -190.0
+	bottom.add_theme_constant_override("separation", 18)
 
 
 func _install_backdrop() -> void:
@@ -83,6 +110,7 @@ func populate(enemy_stats: Dictionary, total_bounty: int, hide_tally: bool = fal
 
 	btn.material = null
 	_style_outline_button(btn)
+	btn.custom_minimum_size = Vector2(300, 64)
 	# Re-label when this is a Test Hazard run so the player knows the button
 	# bounces them to the main menu, not a sector map (which doesn't exist
 	# for a test launch).
@@ -200,14 +228,13 @@ func _build_row(scene_path: String, stats: Dictionary) -> Control:
 	# doesn't overflow the right edge of the 320-wide viewport (Roman,
 	# 2026-05-17 playtest: "number killed and bounty value is too far
 	# right and off screen").
-	row.add_theme_constant_override("separation", 6)
+	row.add_theme_constant_override("separation", 16)
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	# Sprite preview — render the actual enemy scene into a tiny SubViewport.
-	# Bumped from 36 -> 22 with the sprite scaled down half-size inside it
-	# so the enemy art reads centered instead of clipping.
-	var preview: Control = _build_scene_preview(scene_path, 22)
+	# Sprite preview — render the actual enemy scene into a SubViewport.
+	var preview: Control = _build_scene_preview(scene_path, 48)
 	row.add_child(preview)
-	# Name + kills
+	# Name + kills. HD body size + smooth menu font (the crisp face renders
+	# jagged at HD 1:1). Sizes standardized to docs/ui_color_reference.md.
 	var name_str := scene_path.get_file().get_basename()
 	if name_str.begins_with("enemy_"):
 		name_str = name_str.substr(6)
@@ -215,12 +242,10 @@ func _build_row(scene_path: String, stats: Dictionary) -> Control:
 	preview.material = _shared_mat
 	var counts := Label.new()
 	counts.text = "%s  %d/%d" % [name_str, stats.killed, stats.spawned]
-	counts.add_theme_font_size_override("font_size", 11)
+	counts.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
 	counts.add_theme_color_override("font_color", UiTheme.COLOR_HOLO)
-	counts.add_theme_font_override("font", UiTheme.active_font())
-	# 320-wide viewport - preview (22) - sep (6) - bounty math (~110) -
-	# margins = ~150 left for name/count. Cap so layout doesn't bleed.
-	counts.custom_minimum_size = Vector2(140, 0)
+	counts.add_theme_font_override("font", UiTheme.menu_font())
+	counts.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	counts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	counts.material = _shared_mat
 	row.add_child(counts)
@@ -228,10 +253,11 @@ func _build_row(scene_path: String, stats: Dictionary) -> Control:
 	# a consistent x across rows.
 	var bounty_label := Label.new()
 	bounty_label.text = "%d×%d=%d" % [stats.bounty, stats.killed, stats.total_bounty]
-	bounty_label.add_theme_font_size_override("font_size", 11)
+	bounty_label.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
 	bounty_label.add_theme_color_override("font_color", UiTheme.COLOR_BOUNTY)
-	bounty_label.add_theme_font_override("font", UiTheme.active_font())
-	bounty_label.custom_minimum_size = Vector2(70, 0)
+	bounty_label.add_theme_font_override("font", UiTheme.menu_font())
+	bounty_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	bounty_label.custom_minimum_size = Vector2(180, 0)
 	bounty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	bounty_label.material = _shared_mat
 	row.add_child(bounty_label)

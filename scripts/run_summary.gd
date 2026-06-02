@@ -14,7 +14,11 @@ const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
 @onready var menu_btn: Button = $Center/Panel/Buttons/MenuBtn
 @onready var quit_btn: Button = $Center/Panel/Buttons/QuitBtn
 
+var _hd_scope: HdViewportScope = null
+
 func _ready() -> void:
+	# Render at HD (1920×1080) for a roomy summary card.
+	_hd_scope = HdScreen.enter(self)
 	# Run is over (death or victory) — wipe the resume save so Main Menu's
 	# Resume Patrol doesn't drop the player back into a corpse run.
 	if has_node("/root/Run"):
@@ -58,8 +62,13 @@ func _ready() -> void:
 	if stats_label:
 		UiTheme.style_label(stats_label, UiTheme.LabelKind.BODY)
 		stats_label.material = UiTheme.make_holo_material(UiTheme.HoloPreset.OVERLAY)
+	# Roomy HD card + buttons (the .tscn sizes assume the old 480 canvas).
+	var panel := $Center/Panel
+	if panel is Control:
+		(panel as Control).custom_minimum_size = Vector2(760, 0)
 	for b in [new_game_btn, menu_btn, quit_btn]:
 		UiTheme.style_button(b)
+		b.custom_minimum_size = Vector2(220, 60)
 	new_game_btn.pressed.connect(_new_game)
 	menu_btn.pressed.connect(_to_menu)
 	quit_btn.pressed.connect(_quit)

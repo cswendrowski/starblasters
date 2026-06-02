@@ -76,6 +76,10 @@ func _build_ui() -> void:
 	title.size = Vector2(vp.x, 24)
 	title.position = Vector2(0, 8)
 	UiTheme.style_label(title, UiTheme.LabelKind.HEADER)
+	# Codex still renders at native 480 (live enemy preview = native content;
+	# full HD pass deferred with the dev-menu work). Pin native font sizes
+	# AFTER style_label so the HD theme doesn't blow them up.
+	title.add_theme_font_size_override("font_size", 16)
 	add_child(title)
 	# Left column — scrollable list of encountered enemies.
 	var left := Panel.new()
@@ -106,8 +110,9 @@ func _build_ui() -> void:
 	# Back button.
 	var back := Button.new()
 	back.text = "Back to Menu"
-	UiTheme.style_button(back)
-	back.position = Vector2(8, 370)
+	UiTheme.style_button(back, true, 4)
+	back.add_theme_font_size_override("font_size", 12)
+	back.position = Vector2(8, 232)
 	back.size = Vector2(108, 22)
 	back.pressed.connect(func():
 		SceneTransition.change_scene(get_tree(), "res://scenes/main_menu.tscn")
@@ -130,7 +135,8 @@ func _populate_list() -> void:
 		var row := Button.new()
 		row.text = entry["name"] if encountered else "???"
 		row.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		UiTheme.style_button(row, true)
+		UiTheme.style_button(row, true, 4)
+		row.add_theme_font_size_override("font_size", 12)
 		row.disabled = not encountered
 		if encountered:
 			row.pressed.connect(_on_select.bind(entry))

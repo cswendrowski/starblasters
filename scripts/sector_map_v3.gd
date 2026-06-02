@@ -412,6 +412,14 @@ func _build_pois_from_cache() -> void:
 		var row_end_x: float = rows[r_idx].boss.pos.x
 		if has_node(boss_marker_path_row):
 			row_end_x = (get_node(boss_marker_path_row) as Marker2D).global_position.x
+		# Write the resolved end_x back into the cache so the COMBAT backdrop's
+		# frac math (_compute_poi_stellar / _compute_row_system, keyed off
+		# boss.pos.x) uses the SAME row span the map renders with. Without this,
+		# the map fracs off marker positions while combat fracs off the jittered
+		# cache pos — different frac → _pick_planet_type returns a different planet,
+		# so the level shows a planet/star that belongs to another node/row
+		# (Roman 2026-06-02). Idempotent: re-resolving markers yields the same x.
+		rows[r_idx].boss.pos = Vector2(row_end_x, rows[r_idx].boss.pos.y)
 		var pois: Array = rows[r_idx].pois
 		var planet_seq: int = 0
 		for poi_idx in pois.size():
@@ -422,6 +430,10 @@ func _build_pois_from_cache() -> void:
 			var pos: Vector2 = poi.pos
 			if has_node(poi_marker_path):
 				pos = (get_node(poi_marker_path) as Marker2D).global_position
+			# Persist the resolved position back into the cache — same reason as
+			# the boss end_x writeback above: keeps the combat frac in lockstep
+			# with the map's rendered position.
+			poi.pos = pos
 			var deco_rng := RandomNumberGenerator.new()
 			deco_rng.seed = abs(hash(poi.id))
 			# Object kind: planet/large_ast/cluster. Distribution roughly
@@ -1377,16 +1389,19 @@ func _build_labels() -> void:
 	options_btn.pressed.connect(_open_options)
 	btn_layer.add_child(options_btn)
 
-	# Depart button — bottom center at (256, 256), faded until a node is selected
+	# Depart button — bottom center at (256, 256). Idle: faded + dim border.
+	# Ready (node selected, player can depart): lit + green outline. Roman
+	# 2026-06-02: the green outline reinforces the "you may depart" affordance
+	# beyond the alpha lift alone.
 	_depart_btn = Button.new()
 	_depart_btn.text = "DEPART"
 	_depart_btn.add_theme_font_override("font", FONT)
 	_depart_btn.add_theme_font_size_override("font_size", 9)
 	_depart_btn.custom_minimum_size = Vector2(56, 14)
 	_depart_btn.position = Vector2(228, 248)
-	_depart_btn.modulate.a = 0.3
 	_depart_btn.pressed.connect(_on_depart_pressed)
 	btn_layer.add_child(_depart_btn)
+	_set_depart_ready(false)
 
 
 # ---------------------------------------------------------------------------
@@ -1961,8 +1976,7 @@ func _on_poi_selected(node_id: String) -> void:
 	if is_instance_valid(_selected_node_lbl):
 		_selected_node_lbl.text = poi_name
 		_selected_node_lbl.modulate.a = 1.0
-	if is_instance_valid(_depart_btn):
-		_depart_btn.modulate.a = 1.0
+	_set_depart_ready(true)
 
 
 func _on_boss_selected(node_id: String) -> void:
@@ -1983,8 +1997,30 @@ func _on_boss_selected(node_id: String) -> void:
 	if is_instance_valid(_selected_node_lbl):
 		_selected_node_lbl.text = "BOSS ENCOUNTER"
 		_selected_node_lbl.modulate.a = 1.0
-	if is_instance_valid(_depart_btn):
-		_depart_btn.modulate.a = 1.0
+	_set_depart_ready(true)
+
+
+# Toggle the depart button between idle (faded, dim border) and ready (lit,
+# green outline). "Ready" = a node is selected and the player can depart.
+func _set_depart_ready(ready: bool) -> void:
+	if not is_instance_valid(_depart_btn):
+		return
+	_depart_btn.modulate.a = 1.0 if ready else 0.3
+	var border: Color = UiTheme.COLOR_GREEN if ready else Color(0.30, 0.36, 0.44, 1.0)
+	for state in ["normal", "hover", "pressed", "focus"]:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0.08, 0.11, 0.16, 0.85)
+		sb.border_color = border
+		sb.set_border_width_all(1)
+		sb.corner_radius_top_left = 3
+		sb.corner_radius_top_right = 3
+		sb.corner_radius_bottom_left = 3
+		sb.corner_radius_bottom_right = 3
+		sb.content_margin_left = 4
+		sb.content_margin_right = 4
+		sb.content_margin_top = 2
+		sb.content_margin_bottom = 2
+		_depart_btn.add_theme_stylebox_override(state, sb)
 
 
 func _on_depart_pressed() -> void:
@@ -2105,6 +2141,17 @@ func _show_no_bounty_modal() -> void:
 	var panel := PanelContainer.new()
 	panel.position = Vector2(120, 92)
 	panel.custom_minimum_size = Vector2(240, 86)
+	# Compact native stylebox — without this the panel inherits the HD project
+	# theme (large margins) and the modal blows up on the native sector map.
+	var nb_sb := StyleBoxFlat.new()
+	nb_sb.bg_color = UiTheme.COLOR_PANEL_BG
+	nb_sb.border_color = UiTheme.COLOR_ACCENT_DIM
+	nb_sb.set_border_width_all(1)
+	nb_sb.content_margin_left = 10
+	nb_sb.content_margin_right = 10
+	nb_sb.content_margin_top = 8
+	nb_sb.content_margin_bottom = 8
+	panel.add_theme_stylebox_override("panel", nb_sb)
 	cl.add_child(panel)
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 4)
@@ -2139,6 +2186,9 @@ func _show_no_bounty_modal() -> void:
 	var yes_btn := Button.new()
 	yes_btn.text = "Yes"
 	yes_btn.custom_minimum_size = Vector2(64, 16)
+	# Native sizing — otherwise the HD theme's Button (26px, 20px pad) blows it up.
+	UiTheme.style_button(yes_btn, true, 4)
+	yes_btn.add_theme_font_size_override("font_size", 10)
 	yes_btn.pressed.connect(func():
 		# current_node_id / current_node_type were set in _on_poi_clicked
 		# before this modal opened — just transition.
@@ -2149,6 +2199,8 @@ func _show_no_bounty_modal() -> void:
 	var cancel_btn := Button.new()
 	cancel_btn.text = "Cancel"
 	cancel_btn.custom_minimum_size = Vector2(64, 16)
+	UiTheme.style_button(cancel_btn, true, 4)
+	cancel_btn.add_theme_font_size_override("font_size", 10)
 	cancel_btn.pressed.connect(func():
 		# Roll back the run.current_node_* writes so the player can retry
 		# the click cleanly (or pick a different node).

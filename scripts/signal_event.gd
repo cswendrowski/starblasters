@@ -24,6 +24,7 @@ const Strings = preload("res://scripts/strings.gd")
 
 var _rng: RandomNumberGenerator
 var _current_event: Dictionary = {}
+var _hd_scope: HdViewportScope = null
 
 # Per-event setup state for events that must pre-roll before building choices.
 var _derelict_weapon = null
@@ -31,6 +32,8 @@ var _derelict_price: int = 0
 
 
 func _ready() -> void:
+	_hd_scope = HdScreen.enter(self)
+	_layout_hd()
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("signal")
 	_rng = RandomNumberGenerator.new()
@@ -41,6 +44,29 @@ func _ready() -> void:
 	var events: Array = _events()
 	_current_event = events[_rng.randi() % events.size()]
 	_render()
+	# Debug-only viewport-overflow guard (no-op in release).
+	UiTheme.assert_inside_viewport.call_deferred(self)
+
+
+# The .tscn lays the panel out absolutely (320×220 @ (80,25)) for the old 480
+# canvas. Re-center + size it for the 1920×1080 HD viewport and make the inner
+# VBox fill it. Fonts are set by _render() via UiTheme.style_label (HD sizes),
+# which override the .tscn's native font_size values.
+func _layout_hd() -> void:
+	var panel := $Panel as Control
+	panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	panel.custom_minimum_size = Vector2(980, 640)
+	panel.size = Vector2(980, 640)
+	panel.position = ((get_viewport_rect().size) - panel.size) * 0.5
+	var vbox := $Panel/VBox as Control
+	vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	vbox.offset_left = 40
+	vbox.offset_top = 32
+	vbox.offset_right = -40
+	vbox.offset_bottom = -32
+	vbox.add_theme_constant_override("separation", 20)
+	body_label.custom_minimum_size = Vector2(0, 150)
+	choices_box.add_theme_constant_override("separation", 14)
 
 
 # ---- Event templates ----------------------------------------------------
@@ -871,6 +897,8 @@ func _render() -> void:
 		var b = Button.new()
 		b.text = choice["label"]
 		UiTheme.style_button(b)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.custom_minimum_size = Vector2(0, 56)
 		b.pressed.connect(_on_choice.bind(choice))
 		choices_box.add_child(b)
 
@@ -898,6 +926,8 @@ func _finish_to_sector_map(result_text: String) -> void:
 	var btn := Button.new()
 	btn.text = Strings.BTN_SECTOR_MAP
 	UiTheme.style_button(btn)
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn.custom_minimum_size = Vector2(0, 56)
 	btn.pressed.connect(func():
 		# Mark the signal node done in the V3 sector cache before leaving.
 		# Signal events that escalated into combat/hazard already routed

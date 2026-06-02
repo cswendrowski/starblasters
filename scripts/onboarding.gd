@@ -29,9 +29,13 @@ var _prev_btn: Button
 var _skip_btn: Button
 var _page_label: Label
 var _icons_row: HBoxContainer
+var _hd_scope: HdViewportScope = null
 
 
 func _ready() -> void:
+	# Render at HD (1920×1080) like the other menus. Must precede _build_ui so
+	# get_viewport_rect() reports the HD size the panel centers against.
+	_hd_scope = HdScreen.enter(self)
 	_pages = _build_pages()
 	_build_ui()
 	_render()
@@ -102,17 +106,16 @@ func _build_ui() -> void:
 
 	var panel := Panel.new()
 	panel.add_theme_stylebox_override("panel", UiTheme.make_panel_stylebox())
-	# Panel sized to fit inside the 480×270 viewport with a 10 px margin
-	# top/bottom (was 280×320 — taller than the new viewport, panel top
-	# was clipping above y=0).
-	panel.size = Vector2(360, 250)
-	panel.position = Vector2((vp.x - 360.0) * 0.5, (vp.y - 250.0) * 0.5)
+	# HD-sized card centered in the 1920×1080 viewport.
+	var panel_size := Vector2(980, 680)
+	panel.size = panel_size
+	panel.position = ((vp - panel_size) * 0.5).round()
 	layer.add_child(panel)
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 6)
-	vbox.position = Vector2(10, 10)
-	vbox.size = panel.size - Vector2(20, 20)
+	vbox.add_theme_constant_override("separation", 18)
+	vbox.position = Vector2(48, 36)
+	vbox.size = panel_size - Vector2(96, 72)
 	panel.add_child(vbox)
 
 	_title_label = Label.new()
@@ -127,31 +130,33 @@ func _build_ui() -> void:
 
 	_body_label = Label.new()
 	_body_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_body_label.custom_minimum_size = Vector2(260, 0)
+	_body_label.custom_minimum_size = Vector2(840, 0)
 	_body_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	UiTheme.style_label(_body_label, UiTheme.LabelKind.BODY)
 	vbox.add_child(_body_label)
 
 	_icons_row = HBoxContainer.new()
-	_icons_row.add_theme_constant_override("separation", 24)
+	_icons_row.add_theme_constant_override("separation", 56)
 	_icons_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	vbox.add_child(_icons_row)
 
 	# Bottom row: prev / skip / next.
 	var nav := HBoxContainer.new()
-	nav.add_theme_constant_override("separation", 16)
+	nav.add_theme_constant_override("separation", 32)
 	nav.alignment = BoxContainer.ALIGNMENT_CENTER
 	vbox.add_child(nav)
 
 	_prev_btn = Button.new()
 	_prev_btn.text = Strings.ONBOARDING_BTN_BACK
 	UiTheme.style_button(_prev_btn)
+	_prev_btn.custom_minimum_size = Vector2(200, 60)
 	_prev_btn.pressed.connect(_on_prev)
 	nav.add_child(_prev_btn)
 
 	_skip_btn = Button.new()
 	_skip_btn.text = Strings.ONBOARDING_BTN_SKIP
 	UiTheme.style_button(_skip_btn, true)
+	_skip_btn.custom_minimum_size = Vector2(200, 60)
 	# Dev-shortcut green so it reads as an explicit "I've done this" path
 	# rather than just another nav button next to Back/Next.
 	_skip_btn.add_theme_color_override("font_color", Color(0.55, 1.0, 0.6, 1.0))
@@ -161,6 +166,7 @@ func _build_ui() -> void:
 	_next_btn = Button.new()
 	_next_btn.text = Strings.ONBOARDING_BTN_NEXT
 	UiTheme.style_button(_next_btn)
+	_next_btn.custom_minimum_size = Vector2(200, 60)
 	_next_btn.pressed.connect(_on_next)
 	nav.add_child(_next_btn)
 
@@ -189,7 +195,8 @@ func _add_icon(parent: Container, tex: Texture2D, label: String) -> void:
 	var rect := TextureRect.new()
 	rect.texture = tex
 	rect.stretch_mode = TextureRect.STRETCH_SCALE
-	rect.custom_minimum_size = Vector2(24, 24)
+	rect.custom_minimum_size = Vector2(72, 72)
+	rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	col.add_child(rect)
 	var lbl := Label.new()
