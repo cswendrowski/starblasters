@@ -59,11 +59,22 @@ var _hd_boss_hits: Array = []
 # [{tr, center(HD), radius(HD), icon_rest, rest_tint, hover_tint}]
 var _hover_icons: Array = []
 var _boss_dots: Array = []          # [{pos(HD), color}] — for ring tinting
+# Selection feedback: a green ring at the chosen node + its icon kept lit. On a
+# new selection the old ring cross-fades out and the old icon falls back to its
+# rest alpha (invisible for an uncompleted POI).
+var _selected_ring: Line2D = null
+var _selected_icon_tr: TextureRect = null  # the kept-lit icon (identity-compared)
+var _selected_visual_id: String = ""
 
 
 func _ready() -> void:
 	_hd_scope = HdScreenLib.enter(self)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# The root must be transparent to the mouse so empty-space clicks fall
+	# through to _unhandled_input (HD-native POI/boss hit-testing). A default
+	# STOP root would swallow every click that isn't on a button. Buttons keep
+	# their own STOP filter, so they still receive clicks.
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_build_subviewport_map()
 	_build_overlay()
 	_rehost_to_hd()
@@ -73,6 +84,7 @@ func _build_subviewport_map() -> void:
 	var bg := ColorRect.new()
 	bg.color = Color(0.04, 0.05, 0.08, 1.0)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE  # never swallow node clicks
 	add_child(bg)
 
 	var sub := SubViewport.new()
@@ -324,7 +336,10 @@ func _process(delta: float) -> void:
 		return
 	var m := get_global_mouse_position()
 	for h in _hover_icons:
-		var hovered: bool = m.distance_to(h.center) <= float(h.radius)
+		# The selected node's icon stays lit (treated as permanently hovered) so
+		# the player can see what they've chosen; everything else fades on hover.
+		var is_selected: bool = h.tr == _selected_icon_tr
+		var hovered: bool = is_selected or m.distance_to(h.center) <= float(h.radius)
 		var tgt: Color = h.hover_tint if hovered else h.rest_tint
 		tgt.a = 0.9 if hovered else float(h.icon_rest)
 		h.tr.modulate = (h.tr.modulate as Color).lerp(tgt, delta * 8.0)
@@ -342,6 +357,11 @@ func _rehost_boss_rings() -> void:
 
 
 func _add_hd_ring(center: Vector2, radius: float, color: Color) -> void:
+	_gfx.add_child(_make_ring(center, radius, color))
+
+
+# Build (but don't parent) a circular Line2D ring centered at an HD point.
+func _make_ring(center: Vector2, radius: float, color: Color) -> Line2D:
 	var ring := Line2D.new()
 	var pts := PackedVector2Array()
 	var segs := 44
@@ -351,7 +371,40 @@ func _add_hd_ring(center: Vector2, radius: float, color: Color) -> void:
 	ring.points = pts
 	ring.width = 3.0
 	ring.default_color = color
+	return ring
+
+
+# Paint selection feedback at the chosen node: a green ring (sized to match the
+# boss progress rings) that fades in, plus keeping the node's icon lit. A new
+# selection cross-fades the old ring out and releases the old icon back to its
+# rest alpha. `hd_pos` is the node center in HD space.
+func _select_visual(id: String, hd_pos: Vector2) -> void:
+	if id == _selected_visual_id:
+		return  # re-click of the already-selected node — leave its ring as-is
+	_selected_visual_id = id
+	# Cross-fade the previous ring out.
+	if _selected_ring != null and is_instance_valid(_selected_ring):
+		_fade_and_free_ring(_selected_ring)
+	# New ring, faded in from transparent.
+	var ring := _make_ring(hd_pos, BOSS_RING_RADIUS, Color(COLOR_NODE_GREEN.r, COLOR_NODE_GREEN.g, COLOR_NODE_GREEN.b, 0.9))
+	ring.modulate.a = 0.0
 	_gfx.add_child(ring)
+	_selected_ring = ring
+	var tw := ring.create_tween()
+	tw.tween_property(ring, "modulate:a", 1.0, 0.2)
+	# Keep this node's icon lit (matched by HD center). The old icon, no longer
+	# the selected one, drifts back to its rest alpha in _process.
+	_selected_icon_tr = null
+	for h in _hover_icons:
+		if (h.center as Vector2).distance_to(hd_pos) < 2.0:
+			_selected_icon_tr = h.tr
+			break
+
+
+func _fade_and_free_ring(ring: Line2D) -> void:
+	var tw := ring.create_tween()
+	tw.tween_property(ring, "modulate:a", 0.0, 0.2)
+	tw.tween_callback(ring.queue_free)
 
 
 func _build_hd_hit_regions() -> void:
@@ -381,12 +434,18 @@ func _unhandled_input(event: InputEvent) -> void:
 				if _map.has_method("_on_poi_selected"):
 					_map._on_poi_selected(String(hit.id))
 				_after_select()
+				# Only paint the selection ring if the map actually took it (the
+				# node wasn't already completed); _selected_node_id reflects that.
+				if _selected_id() == String(hit.id):
+					_select_visual(String(hit.id), hit.pos)
 				return
 		for b in _hd_boss_hits:
 			if m.distance_to(b.pos) <= float(b.radius):
 				if _map.has_method("_on_boss_selected"):
 					_map._on_boss_selected(String(b.id))
 				_after_select()
+				if _selected_id() == String(b.id):
+					_select_visual(String(b.id), b.pos)
 				return
 
 
@@ -442,4 +501,7 @@ func _open_manage_ship() -> void:
 func _open_options() -> void:
 	var OptionsOverlay := load("res://scripts/ui/options_overlay.gd")
 	if OptionsOverlay:
-		OptionsOverlay.open(self)
+		# The sector map is the one screen with no separate pause menu, so its
+		# Options is where "Exit to Main Menu" belongs (leaving here is safe —
+		# the run is saved on every map visit; Resume Patrol drops back here).
+		OptionsOverlay.open(self, true)

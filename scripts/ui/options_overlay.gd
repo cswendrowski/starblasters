@@ -1,10 +1,17 @@
 extends CanvasLayer
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
+const SceneTransition = preload("res://scripts/scene_transition.gd")
 const NODE_NAME := "OptionsOverlay"
+const MAIN_MENU_SCENE := "res://scenes/main_menu.tscn"
+
+# Set true by callers that want an "Exit to Main Menu" button in the overlay —
+# currently only the sector map, which has no separate pause menu of its own.
+# Must be set BEFORE the overlay enters the tree (before _ready builds the UI).
+var _show_exit_to_menu: bool = false
 
 
-static func open(parent: Node) -> CanvasLayer:
+static func open(parent: Node, show_exit_to_menu: bool = false) -> CanvasLayer:
 	if parent == null:
 		return null
 	var root: Node = parent.get_tree().root if parent.is_inside_tree() else parent
@@ -14,6 +21,7 @@ static func open(parent: Node) -> CanvasLayer:
 			return n
 	var overlay := load("res://scripts/ui/options_overlay.gd").new() as CanvasLayer
 	overlay.name = NODE_NAME
+	overlay._show_exit_to_menu = show_exit_to_menu
 	root.add_child(overlay)
 	return overlay
 
@@ -152,13 +160,24 @@ func _build_ui() -> void:
 
 	outer.add_child(_make_separator())
 
+	var btn_row := HBoxContainer.new()
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	btn_row.add_theme_constant_override("separation", 16)
+	if _show_exit_to_menu:
+		var exit_btn := Button.new()
+		exit_btn.text = "Exit to Main Menu"
+		exit_btn.custom_minimum_size = Vector2(300, 60)
+		UiTheme.style_button(exit_btn)
+		exit_btn.pressed.connect(_on_exit_to_menu)
+		btn_row.add_child(exit_btn)
 	var back := Button.new()
 	back.text = "Back"
 	back.custom_minimum_size = Vector2(260, 60)
 	UiTheme.style_button(back)
 	back.pressed.connect(_on_back)
+	btn_row.add_child(back)
 	var back_center := CenterContainer.new()
-	back_center.add_child(back)
+	back_center.add_child(btn_row)
 	outer.add_child(back_center)
 
 	# Containers report their final size only after a layout pass, so defer
@@ -321,3 +340,11 @@ func _rebuild_ui() -> void:
 
 func _on_back() -> void:
 	queue_free()
+
+
+func _on_exit_to_menu() -> void:
+	# Tear down this overlay first — it's parented to the tree root (a sibling of
+	# the scene), so a scene swap wouldn't free it otherwise and it'd linger over
+	# the main menu. The transition's black cover hides the teardown.
+	queue_free()
+	SceneTransition.change_scene(get_tree(), MAIN_MENU_SCENE)
