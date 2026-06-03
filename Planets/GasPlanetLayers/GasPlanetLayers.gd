@@ -19,8 +19,12 @@ func set_seed(sd):
 	$Ring.material.set_shader_parameter("seed", converted_seed)
 
 func set_rotates(r):
-	$GasLayers.material.set_shader_parameter("rotation", r)
-	$Ring.material.set_shader_parameter("rotation", r+0.7)
+	# sector_map_v3 / galaxy_backdrop call this with a bool. Coerce to float so
+	# the third-party asset's `r + 0.7` on the ring doesn't error on bool+float
+	# (mirrors the BlackHole fix — Roman, 2026-05-17: smoke-harness/console noise).
+	var rf: float = (1.0 if r else 0.0) if typeof(r) == TYPE_BOOL else float(r)
+	$GasLayers.material.set_shader_parameter("rotation", rf)
+	$Ring.material.set_shader_parameter("rotation", rf + 0.7)
 
 func update_time(t):
 	$GasLayers.material.set_shader_parameter("time", t * get_multiplier($GasLayers.material) * 0.004)
