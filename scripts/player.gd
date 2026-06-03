@@ -13,7 +13,15 @@ var invincible: bool = false
 
 # ---- Stats (mutated by equipped Parts) ----
 # Base values; Parts add on top. Gives a sane floor even with no parts equipped.
-var speed: float = 100.0  # 320×400 res — 20% reduction from 125 (2026-05-27)
+const ClarityRules = preload("res://scripts/clarity.gd")
+# Base move speed = 2 px/frame (120 px/s). Engine parts add ~1 px/f (60 px/s)
+# per Mk (caps the build at ~Mk.6 = 8 px/f); effective speed is clamped to the
+# 8 px/f readability ceiling at the movement step below. (was flat 100)
+var speed: float = 120.0
+# Player velocity this frame (px/s). Bullets inherit the component of this
+# along their fire direction so the stream keeps constant spacing instead of
+# compressing when you fly toward the shots (Doppler). See fire_primary.
+var _move_velocity: Vector2 = Vector2.ZERO
 var cooldown: float = 0.15
 var bullet_damage: int = 1
 # Spread fire knobs — used by the Spread Cannon Part. Default 1 bullet
@@ -579,7 +587,11 @@ func _process(delta: float) -> void:
 	# Movement is delta-scaled (framerate-independent). Clamp the step to a
 	# 30fps-equivalent ceiling so a frame hitch / huge delta can't teleport the
 	# ship across the playfield (matches enemy_core's delta cap). Roman 2026-06-01.
-	position += input * speed * speed_multiplier * focus_mult * minf(delta, 1.0 / 30.0)
+	# Clamp effective speed (engine/wing parts can stack past it) to the 8 px/f
+	# readability ceiling so the ship stays controllable; focus slows below it.
+	var eff_speed: float = minf(speed * speed_multiplier, ClarityRules.ABS_MAX_SPEED)
+	_move_velocity = input * eff_speed * focus_mult
+	position += _move_velocity * minf(delta, 1.0 / 30.0)
 	position = Playfield.clamp_pos(position, 8.0)
 	# Autofire toggle (Settings.autofire) latches primary fire on so
 	# players don't have to hold the button. Holding still works
@@ -859,6 +871,12 @@ func fire_primary() -> void:
 			spawn_offset = Vector2(side_x, -8)
 			muzzle_pos = global_position + Vector2(side_x, -10)
 			_tandem_side = 1 - _tandem_side
+		# Doppler fix: add the player's velocity along this bullet's fire
+		# direction so flying toward the shots keeps the stream spacing
+		# constant instead of bunching it. Forward component only (never
+		# negative) so descending fast can't slow/reverse a slow bullet.
+		if "speed" in b:
+			b.speed += maxf(0.0, _move_velocity.dot(dir))
 		b.start(position + spawn_offset, dir)
 	# Drone Bits piggyback the primary fire — one extra bullet from each
 	# drone's position, fired straight up. Uses drone_bits_bullet_scene

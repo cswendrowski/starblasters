@@ -7,6 +7,10 @@ extends Resource
 @export var description: String = ""
 @export var slot_type: int = -1  # SlotTypes.SlotType
 @export_range(1, 9) var mark: int = 1
+# Highest Mk this part can reach. Default 9; parts that cap earlier (e.g.
+# engines top out at Mk.6 = 8 px/f move speed) override this. Upgrade offers
+# and mark rolls respect it so the shop/events never push a part past its cap.
+@export_range(1, 9) var max_mark: int = 9
 
 # Mk.1 = 1x, Mk.2 = 2x, ... Mk.9 = 9x (per design doc).
 func mark_multiplier() -> float:

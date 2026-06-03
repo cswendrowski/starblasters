@@ -871,16 +871,22 @@ func _upgrade_random_part() -> String:
 	var pool: Array = []
 	for slot_key in run.loadout_snapshot.keys():
 		var p = run.loadout_snapshot[slot_key]
-		if p != null and "mark" in p and int(p.mark) < 9:
+		if p != null and "mark" in p and int(p.mark) < _part_max_mark(p):
 			pool.append(p)
 	for p in run.inventory:
-		if p != null and "mark" in p and int(p.mark) < 9:
+		if p != null and "mark" in p and int(p.mark) < _part_max_mark(p):
 			pool.append(p)
 	if pool.is_empty():
 		return ""
 	var pick = pool[_rng.randi() % pool.size()]
-	pick.mark = clampi(int(pick.mark) + 1, 1, 9)
+	pick.mark = clampi(int(pick.mark) + 1, 1, _part_max_mark(pick))
 	return _part_label(pick)
+
+
+# A part's Mk ceiling — engines cap at 6, everything else at 9. Older parts
+# without the field fall back to 9.
+func _part_max_mark(p) -> int:
+	return int(p.max_mark) if (p != null and "max_mark" in p) else 9
 
 
 # ---- Rendering ---------------------------------------------------------

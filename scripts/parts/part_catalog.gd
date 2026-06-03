@@ -77,7 +77,7 @@ static func roll_random_part(rng: RandomNumberGenerator):
 	var mark: int = 1 + (rng.randi() % 3)
 	if rng.randi() % 4 == 0:
 		mark += rng.randi() % 3
-	mark = clampi(mark, 1, 9)
+	mark = clampi(mark, 1, part.max_mark)
 	part.mark = mark
 	return part
 
@@ -95,7 +95,7 @@ static func roll_for_slot(rng: RandomNumberGenerator, slot: int, mark: int):
 	var part = _make_by_name(pick["factory"], pick["slot"])
 	if part == null:
 		return null
-	part.mark = clampi(mark, 1, 9)
+	part.mark = clampi(mark, 1, part.max_mark)
 	return part
 
 
