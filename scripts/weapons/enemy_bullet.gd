@@ -11,7 +11,7 @@ const TrailFX = preload("res://scripts/trail_fx.gd")
 func _init() -> void:
 	target_group = "player"
 	velocity_dir = Vector2(0, 1)
-	speed = 200.0
+	speed = 60.0
 
 
 func _apply_visuals() -> void:

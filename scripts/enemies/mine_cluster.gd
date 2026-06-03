@@ -6,7 +6,7 @@ extends "res://scripts/enemies/enemy_base.gd"
 
 # Default to 4 bomblets per Roman's 2026-05-18 mine pass; mega cluster
 # overrides to 8 via the enemy_mine_cluster_smart.tscn instance.
-@export var drift_speed: float = 179.0  # +15% per Roman 2026-05-27 (was 156.0)
+@export var drift_speed: float = 180.0  # +15% per Roman 2026-05-27 (was 156.0)
 @export var damage_on_collide: int = 2
 @export var bomblet_scene: PackedScene
 @export var bomblet_count: int = 4

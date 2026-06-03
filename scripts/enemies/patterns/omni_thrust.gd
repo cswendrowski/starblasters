@@ -11,7 +11,7 @@ extends "res://scripts/enemies/movement_pattern.gd"
 #     into the playfield edge.
 #   - Face the player every frame (enemy.rotation overridden here).
 
-@export var max_speed: float = 128.0
+@export var max_speed: float = 120.0
 @export var accel: float = 540.0
 # Harassment tuning (Roman 2026-05-18 "more player harassment"): closer
 # stand-off range, faster juke flips, slightly punchier strafe.

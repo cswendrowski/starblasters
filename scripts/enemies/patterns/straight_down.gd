@@ -2,7 +2,7 @@ extends "res://scripts/enemies/movement_pattern.gd"
 
 # Constant vertical descent + optional sideways drift.
 # 320×400 res rework: halved.
-@export var speed: float = 100.0
+@export var speed: float = 120.0
 @export var drift_x: float = 0.0
 
 

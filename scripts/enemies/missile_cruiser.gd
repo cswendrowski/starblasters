@@ -56,7 +56,7 @@ const MidDepthPresentation = preload("res://scripts/effects/mid_depth_presentati
 # Roman 2026-05-31: HALVED 50 -> 25 so the cruiser dwells ~2x longer on-screen
 # (more salvos). The derived ceiling (~66) still exceeds 25, so the
 # guarantee-a-salvo-lands derivation is unchanged and just has more headroom.
-@export var traverse_speed: float = 25.0
+@export var traverse_speed: float = 60.0
 # When true, clamp traverse_speed so the on-screen dwell comfortably exceeds
 # one mark->fire->explode cycle (so the explosions LAND on-screen).
 @export var derive_speed_from_cycle: bool = true

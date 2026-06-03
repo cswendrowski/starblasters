@@ -180,7 +180,7 @@ func _recover_return(dive_x: float) -> void:
 	# Spawn boss at the bottom of the chosen column and race upward.
 	var vp: Vector2 = get_viewport_rect().size
 	global_position = Vector2(dive_x, vp.y + 32.0)
-	var climb_speed: float = 280.0
+	var climb_speed: float = 300.0
 	var target_y: float = boss_hover_y
 	var dist: float = max(0.0, global_position.y - target_y)
 	var climb_dur: float = dist / climb_speed

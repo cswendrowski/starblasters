@@ -11,7 +11,7 @@
 [sub_resource type="Resource" id="MovePattern_inst"]
 script = ExtResource("10_mov")
 hover_y = 70.0
-enter_speed = 140.0
+enter_speed = 120.0
 loiter_time = 1.8
 exit_accel = 600.0
 exit_max_speed = 420.0

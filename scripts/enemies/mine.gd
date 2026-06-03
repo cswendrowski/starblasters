@@ -6,7 +6,7 @@ extends "res://scripts/enemies/enemy_base.gd"
 # explodes on player contact. Bullet hits damage it normally; no chase
 # behavior — that's the Smart Mine's job now.
 
-@export var drift_speed: float = 90.0  # +15% per Roman 2026-05-27 (was 78.0)
+@export var drift_speed: float = 120.0  # +15% per Roman 2026-05-27 (was 78.0)
 @export var damage_on_collide: int = 2
 
 var _velocity: Vector2 = Vector2.ZERO

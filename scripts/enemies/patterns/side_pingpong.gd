@@ -10,7 +10,7 @@ extends "res://scripts/enemies/movement_pattern.gd"
 # moving right) or -1 (entering from the right, moving left). Set by
 # Roster.make_movement per spawn so the wave can alternate sides.
 
-@export var speed: float = 250.0
+@export var speed: float = 240.0
 @export var travel_y: float = 80.0
 @export var cycles_min: int = 1
 @export var cycles_max: int = 6

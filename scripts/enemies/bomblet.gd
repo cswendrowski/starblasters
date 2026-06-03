@@ -15,7 +15,7 @@ extends "res://scripts/enemies/enemy_base.gd"
 @export var damage_on_collide: int = 1
 # 320×400 res rework — speeds + radii halved.
 @export var descent_speed: float = 180.0
-@export var lateral_jitter_speed: float = 110.0
+@export var lateral_jitter_speed: float = 120.0
 @export var jitter_cadence: float = 0.18
 @export var lifetime: float = 8.0
 const BOMBLET_AVOID_RADIUS := 14.0
@@ -24,7 +24,7 @@ const BOMBLET_NEIGHBOUR_CAP := 4
 const BOMBLET_GROUP := "bomblets"
 @export var smart: bool = false
 @export var homing_accel: float = 360.0
-@export var homing_max_speed: float = 190.0
+@export var homing_max_speed: float = 180.0
 # Smart bomblets only pursue when the player crosses inside this range
 # (Roman, 2026-05-18 mine pass: smart bomblet "holds its position in
 # space but pursues the player if they come within 16 pixels").

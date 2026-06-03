@@ -8,7 +8,7 @@ size = Vector2(6, 16)
 
 [node name="Bullet" type="Area2D" unique_id=1062005731]
 script = ExtResource("1_hvscr")
-speed = 500
+speed = 120
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1228754949]
 texture = ExtResource("2_hvtex")

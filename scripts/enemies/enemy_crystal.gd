@@ -32,7 +32,7 @@ const SLOW_MIN_SPEED: float = 35.0    # don't crawl to literal 0 mid-band
 const FISHTAIL_TIME: float = 0.4      # brief: ~0.4s decel + rotate
 const ROT_LERP_RATE: float = 8.0      # rad/s lerp factor for aim turn
 const FIRE_PAUSE: float = 0.18        # brief delay so the fire frame reads
-const EXIT_SPEED: float = 260.0       # final straight-down exit speed
+const EXIT_SPEED: float = 240.0       # final straight-down exit speed
 
 var _phase: int = Phase.DIVE_DOWN
 var _phase_t: float = 0.0

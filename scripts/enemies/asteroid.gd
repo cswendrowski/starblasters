@@ -5,7 +5,7 @@ extends "res://scripts/enemies/enemy_base.gd"
 
 # 320×400 res rework — speeds halved. Roman 2026-06-02: +20% (55 → 66) for the
 # denser/faster asteroid-field hazard pass.
-@export var drift_speed: float = 66.0
+@export var drift_speed: float = 60.0
 @export var drift_x: float = 0.0
 @export var damage_on_collide: int = 2
 

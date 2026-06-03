@@ -12,7 +12,7 @@ extends "res://scripts/enemies/movement_pattern.gd"
 #   - Sinusoidal micro-weave on top of the yaw to break up linear paths.
 
 @export var min_speed: float = 72.0
-@export var max_speed: float = 160.0
+@export var max_speed: float = 180.0
 @export var accel: float = 60.0               # how fast speed adjusts toward the target speed
 # Yaw rate at min_speed (degrees/sec). At max_speed, this gets multiplied
 # by `turn_speed_falloff`.

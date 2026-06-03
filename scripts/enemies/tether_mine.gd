@@ -19,7 +19,7 @@ extends "res://scripts/enemies/enemy_base.gd"
 enum Phase { TRAVELING, ARRIVING, ACTIVE }
 
 # Travel
-@export var travel_speed: float = 90.0
+@export var travel_speed: float = 120.0
 @export var arrival_threshold: float = 4.0
 
 # Activation transition
@@ -29,7 +29,7 @@ enum Phase { TRAVELING, ARRIVING, ACTIVE }
 @export var pull_strength: float = 1100.0
 @export var pull_radius: float = 140.0
 @export var player_pull_multiplier: float = 0.35
-@export var max_extra_speed: float = 600.0
+@export var max_extra_speed: float = 480.0
 
 # Active phase duration (matches old black_hole_lifetime).
 @export var active_duration: float = 4.5

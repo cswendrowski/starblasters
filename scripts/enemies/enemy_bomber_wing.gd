@@ -29,7 +29,7 @@ const TURRET_BULLET_TEX = preload("res://graphics/projectiles/tracer-yellow.png"
 # --- Shape / stats ------------------------------------------------------
 @export var shield_charges_max: int = 2
 @export var hover_y: float = 110.0
-@export var enter_speed: float = 45.0
+@export var enter_speed: float = 60.0
 @export var sway_amplitude: float = 8.0
 @export var sway_period: float = 7.0
 @export var formation_drift_pct: float = 0.35

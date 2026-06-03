@@ -12,7 +12,7 @@ func _init() -> void:
 	velocity_dir = Vector2(0, -1)
 	# Bumped 175 -> 600 per Roman 2026-05-17 playtest: "MG bullets need to
 	# be much faster". Tracer aesthetic supports the higher speed.
-	speed = 600.0
+	speed = 360.0
 	# Warm yellow tracer — matches the gun_tracer strip.
 	impact_color = Color(1.0, 0.92, 0.5, 1.0)
 	impact_kind = 0  # SMOKE

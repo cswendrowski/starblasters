@@ -44,7 +44,7 @@ enum Phase { APPROACH, FIRE, BREAKOFF }
 
 # --- Tunables (first-pass; Roman will tune) ----------------------------
 # Travel speed. Faster than chaff, slower than the Dart (top_dive = 260).
-@export var travel_speed: float = 210.0
+@export var travel_speed: float = 240.0
 # How sharply the heading can turn toward the desired direction (deg/sec).
 # This is what makes the arcs smooth — lower = lazier, wider banks.
 @export var turn_rate_deg: float = 160.0

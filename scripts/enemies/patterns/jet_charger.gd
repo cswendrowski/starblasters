@@ -11,7 +11,7 @@ enum Phase { CRUISE, TURN, CHARGE }
 
 @export var cruise_speed: float = 88.0
 @export var slow_speed: float = 24.0
-@export var charge_speed: float = 208.0
+@export var charge_speed: float = 180.0
 @export var cruise_duration: float = 1.8       # seconds before forcing a turn
 @export var aim_tolerance_deg: float = 8.0     # how close to on-target before charge
 

@@ -12,6 +12,7 @@ var speed: float = 0.0
 var anchor: Node2D = null
 var follow_anchor: bool = false
 const _DEFAULT_BULLET = preload("res://scenes/projectiles/enemy_bullet.tscn")
+const ClarityRules = preload("res://scripts/clarity.gd")
 var bullet_scene: PackedScene = _DEFAULT_BULLET
 
 # Pattern-driven slots.
@@ -103,12 +104,18 @@ func _apply_sector_speed_scale(pattern: Resource) -> void:
 		if int(prop.get("type", -1)) != TYPE_FLOAT:
 			continue
 		var n: String = str(prop.get("name", ""))
-		var is_speed: bool = n == "speed" or n == "accel" or n == "drift_x" \
-			or n.ends_with("_speed") or n.ends_with("_accel")
-		if not is_speed:
+		var is_accel: bool = n == "accel" or n.ends_with("_accel")
+		var is_speed: bool = n == "speed" or n.ends_with("_speed")
+		var is_drift: bool = n == "drift_x"
+		if not (is_speed or is_accel or is_drift):
 			continue
-		var current: float = float(pattern.get(n))
-		pattern.set(n, current * scale_factor)
+		var scaled: float = float(pattern.get(n)) * scale_factor
+		if is_speed:
+			# Keep late-game movement readable: clamp the scaled speed at the
+			# 8 px/f ceiling and snap to a whole-px/frame rung so it has an
+			# even cadence under pixel-snap. (accel/drift scale unclamped.)
+			scaled = ClarityRules.snap_to_rung(minf(scaled, ClarityRules.ABS_MAX_SPEED))
+		pattern.set(n, scaled)
 
 
 func _start_anchored(pos: Vector2) -> void:

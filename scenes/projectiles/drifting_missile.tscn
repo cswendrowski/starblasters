@@ -8,6 +8,7 @@ size = Vector2(6, 8.5)
 
 [node name="DriftingMissile" type="Area2D" unique_id=618994227 groups=["enemies"]]
 script = ExtResource("1_script")
+homing_max_speed = 240.0
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=450670839]
 modulate = Color(1, 0.85, 0.7, 1)

@@ -38,7 +38,7 @@ size = Vector2(4, 14)
 
 [node name="EnemyBullet" unique_id=1887349845 instance=ExtResource("1_base")]
 variant = ExtResource("2_variant")
-speed = 300.0
+speed = 180.0
 max_lifetime = 3.0
 impact_color = Color(0.266667, 1, 1, 1)
 

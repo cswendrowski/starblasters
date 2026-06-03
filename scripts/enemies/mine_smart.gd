@@ -14,7 +14,7 @@ extends "res://scripts/enemies/enemy_base.gd"
 #   - Bullet hit while dormant (any non-lethal hit)
 #   - Player within `proximity_trigger` pixels
 
-@export var drift_speed: float = 69.0  # +15% per Roman 2026-05-27 (was 60.0)
+@export var drift_speed: float = 60.0  # +15% per Roman 2026-05-27 (was 60.0)
 @export var chase_accel: float = 360.0
 @export var chase_max_speed: float = 180.0
 @export var damage_on_collide: int = 2

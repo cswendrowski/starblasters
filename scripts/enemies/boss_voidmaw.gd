@@ -12,7 +12,7 @@ const BlackHoleScene = preload("res://scenes/hazards/black_hole.tscn")
 
 @export var bh_radius: float = 64.0
 @export var bh_pull: float = 700.0
-@export var bh_drift_speed: float = 40.0  # px/s downward
+@export var bh_drift_speed: float = 60.0  # px/s downward
 
 var _phase2: bool = false
 var _live_holes: Array = []

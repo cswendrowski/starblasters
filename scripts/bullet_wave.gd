@@ -19,7 +19,7 @@ var _hits_left: int = 0
 func _init() -> void:
 	target_group = "enemies"
 	velocity_dir = Vector2(0, -1)
-	speed = 550.0
+	speed = 120.0
 
 
 func _ready() -> void:

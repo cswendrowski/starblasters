@@ -9,7 +9,7 @@
 
 [sub_resource type="Resource" id="MovePattern_inst"]
 script = ExtResource("10_mov")
-speed = 55.0
+speed = 60.0
 drift_x = 22.0
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hit"]

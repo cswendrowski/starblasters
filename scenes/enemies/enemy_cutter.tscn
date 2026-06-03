@@ -11,7 +11,7 @@ size = Vector2(44, 36)
 
 [sub_resource type="Resource" id="MovePattern_inst"]
 script = ExtResource("4_mov")
-speed = 250.0
+speed = 240.0
 travel_y = 80.0
 cycles_min = 1
 cycles_max = 6

@@ -32,7 +32,7 @@ height = 16.0
 
 [node name="EnemyBullet" unique_id=824186809 instance=ExtResource("1_base")]
 variant = ExtResource("2_variant")
-speed = 200.0
+speed = 60.0
 max_lifetime = 2.5
 impact_color = Color(0.666667, 0.266667, 1, 1)
 

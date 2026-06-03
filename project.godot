@@ -21,6 +21,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 config/name="Starblaster"
 config/version="0.1.111"
 run/main_scene="res://scenes/main_menu.tscn"
+run/max_fps=60
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://Mini Pixel Pack 3/UI objects/Player_life_icon (16 x 16).png"
 
