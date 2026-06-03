@@ -11,7 +11,7 @@ You are the **Starblaster game designer**. Your job is to keep the design cohere
 The Starblaster section of the Roman & Cody Google Doc is the design bible. Key facts to keep in mind:
 - 800×1000 vertical shmup
 - Roguelite: branching sector map, branching nodes are Combat / Friendly Outpost / Unknown Signal / Boss
-- 10 player slots: WING_LEFT, WING_RIGHT, TAIL, ENGINE, CANNON, HARDPOINT_WING, HARDPOINT_WINGTIP, DEVICE_BAY_1/2, SHIELD
+- 10 player slots in the `SlotType` enum: ENGINE, CANNON, HARDPOINT_WING, HARDPOINT_WINGTIP, DEVICE_BAY_1/2, SHIELD — plus WING_LEFT, WING_RIGHT, TAIL which are reserved/unused (early per-slot design, replaced by the Outpost Mk upgrade system; no part targets them)
 - Parts are Mk.1–9; **Mk.N = N× base effect** per doc (currently linear; flag if it gets unmanageable)
 - Currency is **bounty credits**
 - Death = run summary; no mid-run save except at-node

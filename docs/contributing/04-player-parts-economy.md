@@ -87,9 +87,9 @@ Each ship has **10 slots** (see `scripts/weapons/SlotTypes.gd`):
 |------|---------|--------------|
 | ENGINE | Movement speed | `BasicEngine` (Mk scales speed bonus) |
 | CANNON | Primary weapon | Energy Blaster, Machinegun, Rotary Laser |
-| SHIELD | Hull protection | Standard Shield (applies shield bonus, now unused since shield upgrades moved to the Outpost) |
-| WING_LEFT, WING_RIGHT | Passive bonuses | Reactive Wings (damage boost when low on hull) |
-| TAIL | Passive bonuses | Basic Tail |
+| SHIELD | Hull protection | (reserved — shield upgrades moved to the Outpost Mk system; no part targets this slot) |
+| WING_LEFT, WING_RIGHT | — | (reserved — early per-slot design, replaced by the Outpost Mk upgrade system; no part targets these) |
+| TAIL | — | (reserved — same as the wing slots; no part targets it) |
 | HARDPOINT_WING | Secondary weapon | Seeking Missile, Rocket Pod, Particle Beam |
 | HARDPOINT_WINGTIP | Alternate secondary | (expansion slot) |
 | DEVICE_BAY_1, DEVICE_BAY_2 | Special abilities | Smart Bomb, Phase Shift, Hyper Mode |
