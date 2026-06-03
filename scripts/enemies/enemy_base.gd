@@ -90,6 +90,23 @@ enum OffscreenMode { CYCLE_BOTTOM, FREE_ANY_EDGE, FREE_OPPOSITE_SIDE, NONE }
 # but still want the ship VFX. (Previously both were gated on auto_rotate,
 # which silently stripped these effects from every fixed-facing ship.)
 @export var has_ship_vfx: bool = true
+
+# --- Identity (combat overhaul, Roman 2026-06-03) ---
+# Canonical enemy identity. INERT today: declared so the spawn materializer,
+# the lane conductor (tier -> render-plane), and a future RunStats accumulator
+# can read structured fields instead of scene_path string-matching. Populated
+# progressively (tier/category first, faction with the faction system). Bespoke
+# scenes (bosses, asteroids, mines) may self-declare these in their .tscn.
+# See docs/combat_construction_plan_2026-06-03.md §7.1.
+enum Category { UNKNOWN, CHAFF, ELITE, MINE, ASTEROID, BOSS, PROJECTILE }
+@export var chassis: StringName = &""       # silhouette = behavior (e.g. &"dart")
+@export var faction: StringName = &""        # color = stat/posture (e.g. &"military")
+@export var tier: int = -1                   # Roster.Tier rank; -1 = unset
+@export var category: Category = Category.UNKNOWN
+# Render plane / altitude bucket. 0 = on the deck (default = current draw order).
+# Free-movers/bosses/crossers map to a higher plane in M2 (lane spec §1.10).
+@export var render_plane: int = 0
+
 # Allow this enemy to leave through the screen sides without being
 # clamped back into the playfield. Patterns (side_traverse, side_cut,
 # advance_retreat, top_dive) set this to true. Declared on the base so
