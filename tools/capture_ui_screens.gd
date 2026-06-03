@@ -29,6 +29,7 @@ const SHOTS := [
 	["outpost", "res://scenes/outpost.tscn", 0.6],
 	["sector_map", "res://scenes/sector_map_v3.tscn", 0.8],
 	["sector_map_hd_lab", "res://scenes/dev/sector_map_hd_lab.tscn", 1.0],
+	["sector_map_hd", "res://scenes/sector_map_hd.tscn", 1.0],
 	["manage_ship", "res://scenes/manage_ship.tscn", 0.6],
 	["run_summary", "res://scenes/run_summary.tscn", 0.5],
 	["cleared_summary", "res://scenes/cleared_summary.tscn", 3.0],

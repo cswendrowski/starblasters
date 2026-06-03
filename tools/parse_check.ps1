@@ -19,6 +19,7 @@ $scenes = @(
   'res://scenes/dev/asteroid_lab.tscn',
   'res://scenes/dev/ui_plotter.tscn',
   'res://scenes/dev/sector_map_hd_lab.tscn',
+  'res://scenes/sector_map_hd.tscn',
   'res://scenes/sector_map.tscn',
   'res://scenes/outpost.tscn',
   'res://scenes/manage_ship.tscn',

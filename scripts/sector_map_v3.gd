@@ -141,6 +141,15 @@ var _asteroid_pixels: Array = []
 var _fx_rng: RandomNumberGenerator
 
 # Per-POI click hit-region entry: {id, pos, radius, on_press: Callable}
+# Embedded mode: the HD host (sector_map_hd.gd) instances this map into a
+# SubViewport and owns ALL the chrome — buttons, input, scene transitions — in
+# a 1920×1080 overlay. When embedded we skip building our own bottom buttons,
+# skip the global clear-color tint (the host's SubViewport owns its bg), and
+# skip _unhandled_input transitions (the host drives selection via the public
+# _on_poi_selected / _on_boss_selected / _on_depart_pressed API). The host sets
+# this true after instantiate() but BEFORE add_child(), so _ready sees it.
+var _embedded: bool = false
+
 var _selected_node_id: String = ""
 var _selected_is_boss: bool = false
 var _selected_node_lbl: Label = null
@@ -162,7 +171,11 @@ var _cur_row_idx: int = 0
 
 
 func _ready() -> void:
-	RenderingServer.set_default_clear_color(BG_COLOR)
+	# When embedded in the HD host's SubViewport, our _draw() already paints an
+	# opaque BG_COLOR rect over the whole 480×270 surface, so we must NOT touch
+	# the global clear color (that would tint the entire 1920×1080 window).
+	if not _embedded:
+		RenderingServer.set_default_clear_color(BG_COLOR)
 	_fx_rng = RandomNumberGenerator.new()
 	_fx_rng.seed = randi()
 	if has_node("/root/Music"):
@@ -1363,6 +1376,11 @@ func _build_labels() -> void:
 	_selected_node_lbl.modulate.a = 0.0
 	add_child(_selected_node_lbl)
 
+	# Bottom buttons: skipped entirely when embedded — the HD host renders its
+	# own crisp 1920×1080 buttons at the same marker anchors × 4.
+	if _embedded:
+		return
+
 	# Bottom buttons on their own CanvasLayer so mouse events reach them
 	var btn_layer := CanvasLayer.new()
 	btn_layer.name = "BottomBtnLayer"
@@ -1376,7 +1394,7 @@ func _build_labels() -> void:
 	manage_btn.add_theme_font_size_override("font_size", 9)
 	manage_btn.custom_minimum_size = Vector2(76, 14)
 	manage_btn.position = Vector2(26, 248)
-	manage_btn.pressed.connect(_show_manage_ship_modal)
+	manage_btn.pressed.connect(_goto_manage_ship_scene)
 	btn_layer.add_child(manage_btn)
 
 	# Options button — bottom right at (448, 256)
@@ -1930,13 +1948,11 @@ func _draw() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# Embedded: the HD host owns all input (HD-native hit-testing + Esc) and
+	# this map lives in a gui-disabled SubViewport that never sees clicks anyway.
+	if _embedded:
+		return
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
-		# Manage-Ship modal takes priority on Esc — close it without opening
-		# the options overlay. Falls through to options when modal absent.
-		if get_node_or_null(_MS_MODAL_NAME) != null:
-			_close_manage_ship_modal()
-			get_viewport().set_input_as_handled()
-			return
 		# Esc opens the options overlay; never ends the run.
 		var OptionsOverlay := load("res://scripts/ui/options_overlay.gd")
 		if OptionsOverlay:
@@ -1944,12 +1960,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		# Block POI/boss clicks when the Manage Ship modal is open. The modal's
-		# dim ColorRect already absorbs the event via MOUSE_FILTER_STOP, but
-		# Node2D._unhandled_input can still fire if the Control tree doesn't
-		# consume it first — belt-and-suspenders so a buried POI never fires.
-		if get_node_or_null(_MS_MODAL_NAME) != null:
-			return
 		var mp: Vector2 = get_local_mouse_position()
 		# Try POIs first (smaller hit-radius, more numerous).
 		for hit in _poi_hits:
@@ -2038,6 +2048,15 @@ func _open_options() -> void:
 		OptionsOverlay.open(self)
 
 
+# Manage Ship now lives in the full-screen HD scene (manage_ship.tscn) rather
+# than an in-map modal. Used by the native fallback button; the HD host wires
+# its own MANAGE SHIP button to the same scene with the right return target.
+func _goto_manage_ship_scene() -> void:
+	if has_node("/root/Run"):
+		get_node("/root/Run").set_meta("manage_ship_return", SectorMapRoute.SECTOR_MAP_SCENE)
+	SceneTransition.change_scene(get_tree(), "res://scenes/manage_ship.tscn")
+
+
 func _on_poi_clicked(node_id: String) -> void:
 	var run := get_node("/root/Run")
 	var poi = run.find_sector_node(node_id)
@@ -2069,14 +2088,10 @@ func _on_poi_clicked(node_id: String) -> void:
 		int(SectorNode.NodeType.COMBAT):
 			SceneTransition.change_scene(get_tree(), COMBAT_SCENE)
 		int(SectorNode.NodeType.OUTPOST):
-			# Designer ask (Cody 2026-05-24): block outpost entry with 0
-			# bounty — show a Yes/Cancel modal so the player doesn't burn
-			# the node by accident. Visiting is still allowed (refill
-			# services can be free), so we don't hard-stop the launch.
-			if int(run.bounty) <= 0:
-				_show_no_bounty_modal()
-			else:
-				SceneTransition.change_scene(get_tree(), OUTPOST_SCENE)
+			# Zero-bounty entry is no longer gated by a modal — the HD host
+			# surfaces a "no bounty to spend" warning over the selected-node
+			# label at selection time (visiting is allowed; refills can be free).
+			SceneTransition.change_scene(get_tree(), OUTPOST_SCENE)
 		int(SectorNode.NodeType.SIGNAL):
 			SceneTransition.change_scene(get_tree(), SIGNAL_SCENE)
 		int(SectorNode.NodeType.HAZARD):
@@ -2116,249 +2131,6 @@ func _on_boss_clicked(node_id: String) -> void:
 	SceneTransition.change_scene(get_tree(), BOSS_SCENE)
 
 
-# ---------------------------------------------------------------------------
-# Zero-bounty outpost guard modal (Cody 2026-05-24)
-# ---------------------------------------------------------------------------
-# Renders an inline confirmation panel on a dedicated CanvasLayer so it sits
-# above the parallax content. "Yes" enters the outpost (refills can be free).
-# "Cancel" tears the modal down and returns the player to the map.
-
-const _NB_MODAL_NAME := "NoBountyModal"
-
-func _show_no_bounty_modal() -> void:
-	if get_node_or_null(_NB_MODAL_NAME) != null:
-		return  # already open
-	var cl := CanvasLayer.new()
-	cl.name = _NB_MODAL_NAME
-	cl.layer = 50
-	add_child(cl)
-	# Dim backdrop blocks clicks on POIs underneath.
-	var dim := ColorRect.new()
-	dim.color = Color(0.0, 0.0, 0.0, 0.55)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.mouse_filter = Control.MOUSE_FILTER_STOP
-	cl.add_child(dim)
-	var panel := PanelContainer.new()
-	panel.position = Vector2(120, 92)
-	panel.custom_minimum_size = Vector2(240, 86)
-	# Compact native stylebox — without this the panel inherits the HD project
-	# theme (large margins) and the modal blows up on the native sector map.
-	var nb_sb := StyleBoxFlat.new()
-	nb_sb.bg_color = UiTheme.COLOR_PANEL_BG
-	nb_sb.border_color = UiTheme.COLOR_ACCENT_DIM
-	nb_sb.set_border_width_all(1)
-	nb_sb.content_margin_left = 10
-	nb_sb.content_margin_right = 10
-	nb_sb.content_margin_top = 8
-	nb_sb.content_margin_bottom = 8
-	panel.add_theme_stylebox_override("panel", nb_sb)
-	cl.add_child(panel)
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 4)
-	panel.add_child(vbox)
-	var title := Label.new()
-	title.text = "NO BOUNTY"
-	var title_ls := LabelSettings.new()
-	title_ls.font = FONT
-	title_ls.font_size = 11
-	title_ls.font_color = UiTheme.COLOR_BOUNTY
-	title_ls.outline_size = 1
-	title_ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
-	title.label_settings = title_ls
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(title)
-	var body := Label.new()
-	body.text = "You have no bounty to spend.\nVisit the outpost anyway?"
-	var body_ls := LabelSettings.new()
-	body_ls.font = FONT
-	body_ls.font_size = 9
-	body_ls.font_color = Color(0.85, 0.92, 1.0, 1.0)
-	body_ls.outline_size = 1
-	body_ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
-	body.label_settings = body_ls
-	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	vbox.add_child(body)
-	var row := HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 8)
-	vbox.add_child(row)
-	var yes_btn := Button.new()
-	yes_btn.text = "Yes"
-	yes_btn.custom_minimum_size = Vector2(64, 16)
-	# Native sizing — otherwise the HD theme's Button (26px, 20px pad) blows it up.
-	UiTheme.style_button(yes_btn, true, 4)
-	yes_btn.add_theme_font_size_override("font_size", 10)
-	yes_btn.pressed.connect(func():
-		# current_node_id / current_node_type were set in _on_poi_clicked
-		# before this modal opened — just transition.
-		_close_no_bounty_modal()
-		SceneTransition.change_scene(get_tree(), OUTPOST_SCENE)
-	)
-	row.add_child(yes_btn)
-	var cancel_btn := Button.new()
-	cancel_btn.text = "Cancel"
-	cancel_btn.custom_minimum_size = Vector2(64, 16)
-	UiTheme.style_button(cancel_btn, true, 4)
-	cancel_btn.add_theme_font_size_override("font_size", 10)
-	cancel_btn.pressed.connect(func():
-		# Roll back the run.current_node_* writes so the player can retry
-		# the click cleanly (or pick a different node).
-		var run := get_node("/root/Run")
-		run.current_node_id = ""
-		run.current_node_type = -1
-		run.current_hazard_subtype = ""
-		_close_no_bounty_modal()
-	)
-	row.add_child(cancel_btn)
-
-
-func _close_no_bounty_modal() -> void:
-	var m := get_node_or_null(_NB_MODAL_NAME)
-	if m != null:
-		m.queue_free()
-
-
-# ---------------------------------------------------------------------------
-# Manage Ship modal — full loadout inspector + equip-swap UI
-# ---------------------------------------------------------------------------
-# Reads Run state (loadout_snapshot, weapon_storage, inventory, hull/shield/
-# super/ammo balances, mk levels) and renders a centered modal on a high
-# CanvasLayer. Equip buttons reuse Run.equip_part so the displacement rules
-# match the outpost path exactly. Modal stays open across multiple swaps;
-# only Close (or Esc) tears it down. Dim ColorRect blocks underlying POI
-# clicks; _unhandled_input has an additional guard for Node2D ordering.
-
-const _MS_MODAL_NAME := "ManageShipModal"
-const _MS_PANEL_SIZE := Vector2(420.0, 220.0)
-const _MS_PANEL_ORIGIN := Vector2((480.0 - 420.0) * 0.5, (270.0 - 220.0) * 0.5)
-
-# Slot ordering for the "Equipped Loadout" section. Only the four
-# player-swappable slots are listed — wings / tail / engine / shield are
-# fixed by the chassis and never swap mid-run.
-const _MS_LOADOUT_SLOTS := [
-	{"slot": SlotTypes.SlotType.CANNON,         "label": "PRIMARY"},
-	{"slot": SlotTypes.SlotType.HARDPOINT_WING, "label": "SECONDARY"},
-	{"slot": SlotTypes.SlotType.DEVICE_BAY_1,   "label": "SUPER"},
-]
-
-const _MS_UPGRADE_KEYS := [
-	{"key": "hull_mk",            "name": "Hull"},
-	{"key": "armor_mk",           "name": "Armor"},
-	{"key": "thrusters_mk",       "name": "Thrusters"},
-	{"key": "self_repair_mk",     "name": "Self-Repair"},
-	{"key": "shield_cap_mk",      "name": "Shield Cap"},
-	{"key": "shield_recharge_mk", "name": "Shield Regen"},
-]
-
-
-func _show_manage_ship_modal() -> void:
-	if get_node_or_null(_MS_MODAL_NAME) != null:
-		return
-	var cl := CanvasLayer.new()
-	cl.name = _MS_MODAL_NAME
-	cl.layer = 50
-	add_child(cl)
-	# Dim backdrop — blocks POI clicks underneath via MOUSE_FILTER_STOP.
-	var dim := ColorRect.new()
-	dim.color = Color(0.0, 0.0, 0.0, 0.55)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.mouse_filter = Control.MOUSE_FILTER_STOP
-	cl.add_child(dim)
-	var panel := PanelContainer.new()
-	panel.name = "Panel"
-	panel.position = _MS_PANEL_ORIGIN
-	panel.custom_minimum_size = _MS_PANEL_SIZE
-	panel.size = _MS_PANEL_SIZE
-	# Increase panel opacity by 15% over the Godot default (~0.70 → 0.85).
-	var ms_sb := StyleBoxFlat.new()
-	ms_sb.bg_color = Color(0.12, 0.12, 0.16, 0.85)
-	ms_sb.corner_radius_top_left = 3
-	ms_sb.corner_radius_top_right = 3
-	ms_sb.corner_radius_bottom_left = 3
-	ms_sb.corner_radius_bottom_right = 3
-	ms_sb.content_margin_left = 6
-	ms_sb.content_margin_right = 6
-	ms_sb.content_margin_top = 4
-	ms_sb.content_margin_bottom = 4
-	panel.add_theme_stylebox_override("panel", ms_sb)
-	cl.add_child(panel)
-	_render_manage_ship_contents(panel)
-
-
-func _close_manage_ship_modal() -> void:
-	var m := get_node_or_null(_MS_MODAL_NAME)
-	if m != null:
-		m.queue_free()
-
-
-# Rebuilds the modal panel contents from scratch — called after every
-# equip-swap so loadout + storage stay in sync with Run.
-func _render_manage_ship_contents(panel: PanelContainer) -> void:
-	for child in panel.get_children():
-		child.queue_free()
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 3)
-	panel.add_child(vbox)
-	# Title row.
-	var title := Label.new()
-	title.text = "MANAGE SHIP"
-	title.label_settings = _ms_label_settings(11, UiTheme.COLOR_BOUNTY)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(title)
-	if not has_node("/root/Run"):
-		var err := Label.new()
-		err.text = "Run state unavailable."
-		err.label_settings = _ms_label_settings(9, Color(1.0, 0.5, 0.5, 1.0))
-		vbox.add_child(err)
-		return
-	var run := get_node("/root/Run")
-	_ms_add_status_section(vbox, run)
-	_ms_add_separator(vbox)
-	_ms_add_loadout_section(vbox, run, panel)
-	_ms_add_separator(vbox)
-	_ms_add_upgrades_section(vbox, run)
-	_ms_add_separator(vbox)
-	_ms_add_storage_section(vbox, run, panel)
-	_ms_add_separator(vbox)
-	# Close.
-	var close_row := HBoxContainer.new()
-	close_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	vbox.add_child(close_row)
-	var close_btn := Button.new()
-	close_btn.text = "Close"
-	close_btn.add_theme_font_override("font", FONT)
-	close_btn.add_theme_font_size_override("font_size", 9)
-	close_btn.custom_minimum_size = Vector2(72, 14)
-	close_btn.pressed.connect(_close_manage_ship_modal)
-	close_row.add_child(close_btn)
-
-
-func _ms_label_settings(size: int, color: Color) -> LabelSettings:
-	var ls := LabelSettings.new()
-	ls.font = FONT
-	ls.font_size = size
-	ls.font_color = color
-	ls.outline_size = 1
-	ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
-	return ls
-
-
-func _ms_add_separator(vbox: VBoxContainer) -> void:
-	var sep := ColorRect.new()
-	sep.color = Color(0.30, 0.38, 0.55, 0.4)
-	sep.custom_minimum_size = Vector2(0, 1)
-	vbox.add_child(sep)
-
-
-func _ms_add_status_section(vbox: VBoxContainer, run) -> void:
-	var lbl := Label.new()
-	lbl.text = _ms_build_status_bits_text(run)
-	lbl.label_settings = _ms_label_settings(9, Color(0.85, 0.92, 1.0, 1.0))
-	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(lbl)
-
-
 # Shared status string used by both the Manage Ship modal and the sector map
 # header row, so the two never drift apart. Designer wants Hull/Shield/Bounty
 # (+ Super + ammo when present) visible at a glance without opening the modal.
@@ -2373,163 +2145,3 @@ func _ms_build_status_bits_text(run) -> String:
 	if int(run.secondary_ammo) >= 0 and int(run.secondary_ammo_max) > 0:
 		bits.append("2nd %d/%d" % [int(run.secondary_ammo), int(run.secondary_ammo_max)])
 	return "  ".join(bits)
-
-
-func _ms_add_loadout_section(vbox: VBoxContainer, run, panel: PanelContainer) -> void:
-	for entry in _MS_LOADOUT_SLOTS:
-		var slot: int = int(entry["slot"])
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 6)
-		vbox.add_child(row)
-		var name_lbl := Label.new()
-		name_lbl.text = String(entry["label"])
-		name_lbl.label_settings = _ms_label_settings(9, Color(0.65, 0.78, 0.95, 1.0))
-		name_lbl.custom_minimum_size = Vector2(70, 0)
-		row.add_child(name_lbl)
-		var equipped = run.loadout_snapshot.get(slot, null)
-		# Name + description stacked so the player sees what the equipped part
-		# actually does without leaving the modal. Description is dim/gray so the
-		# name remains the dominant read.
-		var info := VBoxContainer.new()
-		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		info.add_theme_constant_override("separation", 0)
-		row.add_child(info)
-		var part_lbl := Label.new()
-		if equipped == null:
-			part_lbl.text = "— (empty)"
-			part_lbl.label_settings = _ms_label_settings(9, Color(0.55, 0.60, 0.70, 1.0))
-		else:
-			part_lbl.text = _ms_part_name(equipped)
-			part_lbl.label_settings = _ms_label_settings(9, Color(0.95, 0.97, 1.0, 1.0))
-		info.add_child(part_lbl)
-		var desc_text: String = _ms_part_description(equipped)
-		if desc_text != "":
-			var desc_lbl := Label.new()
-			desc_lbl.text = desc_text
-			desc_lbl.label_settings = _ms_label_settings(8, Color(0.65, 0.72, 0.82, 1.0))
-			desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			desc_lbl.custom_minimum_size = Vector2(_MS_PANEL_SIZE.x - 100.0, 0)
-			info.add_child(desc_lbl)
-
-
-func _ms_part_name(part) -> String:
-	if part == null:
-		return "—"
-	var nm: String = String(part.get("display_name")) if "display_name" in part else "Part"
-	var mk: int = int(part.get("mark")) if "mark" in part else 0
-	if mk > 0:
-		return "Mk.%d %s" % [mk, nm]
-	return nm
-
-
-# Pull the part's description line for the modal sub-label. Returns "" when
-# absent so the caller can skip the row entirely instead of rendering an
-# empty Label.
-func _ms_part_description(part) -> String:
-	if part == null:
-		return ""
-	if "description" in part:
-		return String(part.get("description"))
-	return ""
-
-
-func _ms_add_upgrades_section(vbox: VBoxContainer, run) -> void:
-	var parts: Array = []
-	for u in _MS_UPGRADE_KEYS:
-		var key: String = String(u["key"])
-		var lvl: int = int(run.get(key))
-		if lvl > 0:
-			parts.append("%s Mk %d" % [u["name"], lvl])
-	var lbl := Label.new()
-	if parts.is_empty():
-		lbl.text = "Upgrades: none"
-		lbl.label_settings = _ms_label_settings(9, Color(0.55, 0.60, 0.70, 1.0))
-	else:
-		lbl.text = "Upgrades: " + ", ".join(parts)
-		lbl.label_settings = _ms_label_settings(9, Color(0.85, 0.92, 1.0, 1.0))
-	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	lbl.custom_minimum_size = Vector2(_MS_PANEL_SIZE.x - 16.0, 0)
-	vbox.add_child(lbl)
-
-
-func _ms_add_storage_section(vbox: VBoxContainer, run, panel: PanelContainer) -> void:
-	var hdr := Label.new()
-	hdr.text = "STORED EQUIPMENT"
-	hdr.label_settings = _ms_label_settings(9, Color(0.65, 0.78, 0.95, 1.0))
-	vbox.add_child(hdr)
-	# Both arrays are valid sources of swappable parts. weapon_storage holds
-	# displaced weapons from outpost / modal swaps; inventory is Junk Trader
-	# cargo. Keep them distinct in the model — we record which array each row
-	# came from so equip removes from the right one.
-	var rows_added: int = 0
-	for i in range(run.weapon_storage.size()):
-		_ms_add_storage_row(vbox, panel, run.weapon_storage[i], i, "weapon_storage")
-		rows_added += 1
-	for i in range(run.inventory.size()):
-		_ms_add_storage_row(vbox, panel, run.inventory[i], i, "inventory")
-		rows_added += 1
-	if rows_added == 0:
-		var empty := Label.new()
-		empty.text = "  (no carried equipment)"
-		empty.label_settings = _ms_label_settings(9, Color(0.55, 0.60, 0.70, 1.0))
-		vbox.add_child(empty)
-
-
-func _ms_add_storage_row(vbox: VBoxContainer, panel: PanelContainer, part, idx: int, source: String) -> void:
-	if part == null:
-		return
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
-	vbox.add_child(row)
-	# Stack name + description so the player can see what each stored part
-	# does at a glance, mirroring the loadout section above.
-	var info := VBoxContainer.new()
-	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	info.add_theme_constant_override("separation", 0)
-	info.custom_minimum_size = Vector2(180, 0)
-	row.add_child(info)
-	var name_lbl := Label.new()
-	name_lbl.text = _ms_part_name(part)
-	name_lbl.label_settings = _ms_label_settings(9, Color(0.95, 0.97, 1.0, 1.0))
-	info.add_child(name_lbl)
-	var desc_text: String = _ms_part_description(part)
-	if desc_text != "":
-		var desc_lbl := Label.new()
-		desc_lbl.text = desc_text
-		desc_lbl.label_settings = _ms_label_settings(8, Color(0.65, 0.72, 0.82, 1.0))
-		desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		desc_lbl.custom_minimum_size = Vector2(180, 0)
-		info.add_child(desc_lbl)
-	var slot_lbl := Label.new()
-	slot_lbl.text = SlotTypes.slot_name(int(part.slot_type))
-	slot_lbl.label_settings = _ms_label_settings(8, Color(0.65, 0.78, 0.95, 1.0))
-	slot_lbl.custom_minimum_size = Vector2(120, 0)
-	row.add_child(slot_lbl)
-	var equip_btn := Button.new()
-	equip_btn.text = "Equip"
-	equip_btn.add_theme_font_override("font", FONT)
-	equip_btn.add_theme_font_size_override("font_size", 8)
-	equip_btn.custom_minimum_size = Vector2(48, 14)
-	equip_btn.pressed.connect(_ms_on_equip_stored.bind(idx, source, panel))
-	row.add_child(equip_btn)
-
-
-func _ms_on_equip_stored(idx: int, source: String, panel: PanelContainer) -> void:
-	if not has_node("/root/Run"):
-		return
-	var run := get_node("/root/Run")
-	var arr: Array
-	match source:
-		"weapon_storage": arr = run.weapon_storage
-		"inventory":      arr = run.inventory
-		_: return
-	if idx < 0 or idx >= arr.size():
-		return
-	var picked = arr[idx]
-	arr.remove_at(idx)
-	# Run.equip_part displaces the currently-equipped same-slot part into
-	# weapon_storage — do NOT manually push the previous part here.
-	run.equip_part(picked)
-	# Rebuild the modal so loadout + storage rows reflect the new state.
-	_render_manage_ship_contents(panel)
