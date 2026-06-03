@@ -84,6 +84,10 @@ func _ready() -> void:
 	# hand-authored facing the player), and don't use EnemyBase's engine
 	# attachment — boss .tscns carry their own art.
 	auto_rotate = false
+	# Bosses carry bespoke art + their own presentation; opt out of the shared
+	# ship VFX (ground shadow + damage-overlay shader) to avoid doubling with
+	# boss-specific effects and to keep large hand-authored sprites untouched.
+	has_ship_vfx = false
 	offscreen_mode = OffscreenMode.NONE
 	# Run-wide boss HP escalation: each boss defeated this run grants +5% max
 	# HP to every subsequent boss (designer Roman, 2026-05-31). Applied here —

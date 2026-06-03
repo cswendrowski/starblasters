@@ -227,3 +227,21 @@ For star fields specifically, the V3 procedural approach (random `ColorRect` pos
 - This is `auto_rotate = false` territory — you own `rotation`, so the base auto-rotate (which faces *movement*) stays out of the way.
 
 **Examples:** `enemy_gunship.gd` (hull rotates to player, rockets fire along facing), `enemy_beam_shooter.gd` (hull rotates, beam exits the front maw).
+
+---
+
+## Fire only when the nose is on target (nose-aim ray gate)
+
+**Pattern:** For a "head-on pass" — an enemy that should shoot *forward* only when it's actually lined up on the player, not squirt bullets sideways while the hull faces elsewhere — gate firing on a **ray cast from the nose**. The three helpers live on `enemy_base.gd`, so every enemy inherits them:
+
+- `nose_dir()` → world-space unit vector the sprite's NOSE (top / local `-Y`) points along. Reads live `global_rotation`, so it works whether the enemy `auto_rotate`s to its heading or drives `rotation` itself.
+- `nose_ray_hits(target, radius, max_range = 0.0)` → true when a forward ray from the nose passes within `radius` of `target` (treated as a circle). Reads as *"if I fire straight ahead right now, the shot goes through `target`."* `max_range` (along the nose) optionally bounds engagement distance.
+- `nose_ray_hits_player(radius, max_range = 0.0)` → the same, on the player.
+
+**The contract:** fire **forward along `nose_dir()`**, gated by `if nose_ray_hits_player(radius): fire()`. When the gate passes, "forward" and "at the target" coincide, so the bullets read correctly and connect. The geometry self-scales with distance (precise far away, forgiving up close), unlike a fixed angular cone.
+
+**Why a ray, not a locked aim vector:** locking the shot direction at the player while the hull curves *past* (the Strafer's no-collision offset) makes bullets fly out the side of a hull that's pointed elsewhere — visually wrong. The ray ties the trigger to the *facing*, so firing stops the instant the arc sweeps the nose off the player.
+
+**Tuning knob:** the hit `radius` is how fat the target is (player is ~7px half-width). Bigger = fires sooner / more forgiving; smaller = must be dead-on. Pair it with the enemy's turn rate + any lateral offset to shape the firing window.
+
+**Example:** `enemy_strafer.gd` (gated burst on a head-on pass; motion still follows the offset strafe point, firing follows the nose).

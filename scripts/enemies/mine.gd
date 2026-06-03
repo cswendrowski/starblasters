@@ -18,6 +18,7 @@ func _ready() -> void:
 	bounty_value = 1
 	display_scale = 1.0
 	auto_rotate = false  # mines don't have a "forward"
+	has_ship_vfx = false  # no ground shadow / damage-overlay — mines explode, not fray
 	offscreen_mode = OffscreenMode.NONE
 	super._ready()
 	if has_node("Sprite2D"):

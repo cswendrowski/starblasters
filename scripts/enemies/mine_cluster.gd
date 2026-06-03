@@ -27,6 +27,7 @@ func _ready() -> void:
 	bounty_value = 0
 	display_scale = 1.0
 	auto_rotate = false
+	has_ship_vfx = false  # no ground shadow / damage-overlay — mines explode, not fray
 	offscreen_mode = OffscreenMode.NONE
 	super._ready()
 	_pulse_phase = randf() * TAU

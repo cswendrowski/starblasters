@@ -79,6 +79,17 @@ enum OffscreenMode { CYCLE_BOTTOM, FREE_ANY_EDGE, FREE_OPPOSITE_SIDE, NONE }
 # Mines, bomblets, asteroids set this to false in their _ready — they
 # don't have a "front" in the same sense.
 @export var auto_rotate: bool = true
+# Whether this enemy gets the "ship" presentation VFX: the parallax ground
+# shadow + the damage-overlay shader (sprite darkens/frays as HP drops).
+# Defaults true — every ship qualifies. NON-ships opt out: mines, bomblets,
+# and asteroids set this false (they explode on death rather than visibly
+# degrading, and have no hull to cast a ship shadow). Bosses also opt out —
+# their .tscns carry bespoke art + their own presentation. This is a SEPARATE
+# axis from auto_rotate: ships that drive their own facing (gunship's lateral
+# sweep, turrets, cruisers, the aim-at-player beamer) keep auto_rotate=false
+# but still want the ship VFX. (Previously both were gated on auto_rotate,
+# which silently stripped these effects from every fixed-facing ship.)
+@export var has_ship_vfx: bool = true
 # Allow this enemy to leave through the screen sides without being
 # clamped back into the playfield. Patterns (side_traverse, side_cut,
 # advance_retreat, top_dive) set this to true. Declared on the base so
@@ -138,17 +149,17 @@ func _ready() -> void:
 		var spr := $Sprite2D as Sprite2D
 		if spr and spr.flip_v:
 			spr.flip_v = false
-	# Engine flame trail. Same gate as auto_rotate — ships need it,
-	# mines/asteroids/bomblets don't.
-	if auto_rotate:
+	# Engine flame trail. Ship-only — gated on has_ship_vfx (NOT auto_rotate,
+	# which is about facing): a fixed-facing ship still wants its presentation.
+	if has_ship_vfx:
 		# Engine-flame glow disabled 2026-05-30 pending a unified engine-effect
 		# overhaul (Roman) — EnemyEngineFxScript stays preloaded for reuse.
-		# Ground-shadow on the top parallax layer. Same gate (ships only).
+		# Ground-shadow on the top parallax layer.
 		ParallaxShadowScript.attach(self)
 	# Damage overlay shader (Roman, 2026-05-18): darken + fray the sprite
-	# as health drops. Only applied to ships (auto_rotate gate) — mines,
-	# asteroids, bomblets explode on death rather than scaling damage.
-	if auto_rotate and has_node("Sprite2D"):
+	# as health drops. Ships only (has_ship_vfx gate) — mines, asteroids,
+	# bomblets explode on death rather than scaling damage.
+	if has_ship_vfx and has_node("Sprite2D"):
 		_install_damage_material($Sprite2D)
 
 
@@ -392,6 +403,41 @@ func all_muzzle_pos() -> Array:
 		if m != null:
 			out.append(m.global_position)
 	return out
+
+
+# ---- Nose aiming (shared facing-gated fire) ----------------------------
+# Standard helper for "fire only when my nose is actually pointed at the
+# target," so an enemy does a proper head-on pass instead of squirting bullets
+# sideways while the hull faces elsewhere. Used by the Strafer; reusable by any
+# enemy whose sprite has a meaningful front (the sprite TOP / local -Y is the
+# nose, per the project's sprite convention).
+
+# World-space unit vector the sprite's NOSE points along. Works whether the
+# enemy auto-rotates to its heading or drives `rotation` itself (turrets, the
+# aim-at-player gunship) — it reads the live rotation either way.
+func nose_dir() -> Vector2:
+	return Vector2.UP.rotated(global_rotation)
+
+# Ray-from-nose hit test: true when a ray cast forward from the nose passes
+# within `radius` of `target` (target treated as a circle). Reads as: "if I
+# fire straight ahead RIGHT NOW, the shot goes through `target`." Gate firing on
+# this — when it's true, "forward" and "at the target" coincide, so bullets fly
+# out the nose and still connect. `max_range` (px, measured ALONG the nose)
+# optionally bounds engagement distance; pass <= 0 to disable the range cap.
+func nose_ray_hits(target: Vector2, radius: float, max_range: float = 0.0) -> bool:
+	var to_t: Vector2 = target - global_position
+	var fwd: Vector2 = nose_dir()
+	var ahead: float = to_t.dot(fwd)
+	if ahead <= 0.0:
+		return false                              # target is behind the nose
+	if max_range > 0.0 and ahead > max_range:
+		return false                              # beyond engagement range
+	return (to_t - fwd * ahead).length() <= radius  # perpendicular miss <= radius
+
+# Convenience wrapper: is the nose lined up on the player?
+func nose_ray_hits_player(radius: float, max_range: float = 0.0) -> bool:
+	var p := find_player() as Node2D
+	return p != null and nose_ray_hits(p.global_position, radius, max_range)
 
 
 # Per-frame offscreen check + optional sprite auto-rotation. Subclasses

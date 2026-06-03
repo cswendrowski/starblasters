@@ -14,9 +14,16 @@ extends "res://scripts/enemies/enemy_base.gd"
 #   The curve therefore carries the strafer PAST the player and out the
 #   opposite side — it never aims at the body, so even flying straight it
 #   misses. The FIRE transition triggers on range to the PLAYER (well before
-#   the strafer reaches the offset point), and during FIRE the AIM is locked at
-#   the player while the VELOCITY keeps following the strafe point. So: aim = at
-#   player (locked), motion = past player.
+#   the strafer reaches the offset point), and the VELOCITY keeps following the
+#   strafe point. So motion = past player.
+#
+# Head-on firing (Roman, 2026-06-03): a shot only releases when the nose is
+#   actually lined up on the player — gated by a ray from the nose
+#   (EnemyBase.nose_ray_hits_player). Bullets fire FORWARD along the nose, so
+#   when the gate passes, forward == at-player and the tracers connect. As the
+#   arc bends the hull toward the strafe point the nose leaves the player and
+#   firing stops, producing a genuine head-on pass instead of bullets squirting
+#   sideways. This is the shared, reusable nose-aim gate — see enemy_base.gd.
 #
 # Crossing geometry: strafe-side and exit-bias are tied to ENTRY-X (left entry
 # → strafe on the player's right + exit right; right entry → mirror), so a
@@ -59,6 +66,16 @@ enum Phase { APPROACH, FIRE, BREAKOFF }
 @export var burst_count: int = 6
 @export var burst_interval: float = 0.1333
 @export var bullet_speed: float = 300.0   # tracer-style: fast + flat
+# Head-on firing gate: a shot only releases when a ray from the nose passes
+# within this radius of the player (player ~7px half-width, so this is a few px
+# of slack). Bullets fire FORWARD along the nose — when the ray's on the player,
+# forward == at-player, so they connect. Bigger = more forgiving / fires sooner;
+# smaller = must be dead-on. See EnemyBase.nose_ray_hits_player.
+@export var nose_aim_radius: float = 10.0
+# Max time spent in the FIRE phase before breaking off regardless of how many
+# shots landed — so a strafer that never lines up still peels away instead of
+# loitering. The burst also ends early once burst_count shots are fired.
+@export var fire_window: float = 1.2
 # Total attack runs before the strafer leaves the battle entirely. Roman's
 # "recycle up to 3 times" is ambiguous (3-total vs 1+3); defaulting to 3
 # TOTAL passes — exported so Roman can bump to 4 if he meant 1+3.
@@ -69,7 +86,7 @@ var _vel: Vector2 = Vector2(0, 1)
 var _approach_t: float = 0.0
 var _shots_fired: int = 0
 var _shot_timer: float = 0.0
-var _fire_dir: Vector2 = Vector2(0, 1)      # locked aim at the player
+var _fire_t: float = 0.0                     # time elapsed in the FIRE phase
 var _pass_index: int = 0                    # how many runs started so far
 
 # --- Per-instance variety (seeded per pass in _begin_pass) -------------
@@ -190,55 +207,54 @@ func _process_approach(dt: float) -> void:
 	var target: Vector2 = _strafe_point()
 	_vel = _steer(target - global_position, dt)
 	position += _vel * dt
-	# Transition to FIRE on range to the PLAYER (or timeout). Range is checked
-	# against the player, while steering targets the offset strafe point — so
-	# we trip fire_range well before reaching the strafe point and never close
-	# to collision distance.
+	# Engage when the player is in range (or on the anti-stall timeout). We also
+	# engage the moment the nose lines up on the player within range, so an early
+	# head-on alignment isn't wasted waiting for the range trip. Steering still
+	# targets the offset strafe point, so we never close to collision distance.
 	var player := find_player() as Node2D
 	var in_range: bool = player != null \
 		and global_position.distance_to(player.global_position) <= fire_range
-	if in_range or _approach_t >= approach_timeout:
+	if in_range or nose_ray_hits_player(nose_aim_radius, fire_range) \
+			or _approach_t >= approach_timeout:
 		_enter_fire()
 
 
 func _enter_fire() -> void:
 	_phase = Phase.FIRE
 	_shots_fired = 0
-	_shot_timer = 0.0
-	# Lock the AIM direction at the player now (so shots don't spin wildly as
-	# we keep moving). Motion stays on the strafe point — decoupled.
-	var player := find_player() as Node2D
-	if player != null:
-		var to_p: Vector2 = player.global_position - global_position
-		if to_p.length_squared() > 1.0:
-			_fire_dir = to_p.normalized()
-		else:
-			_fire_dir = _vel.normalized()
-	else:
-		_fire_dir = _vel.normalized()
-	# First shot on phase entry.
-	_fire_one()
+	_shot_timer = 0.0   # 0 → first aligned frame fires immediately
+	_fire_t = 0.0
+	# No locked aim and no unconditional first shot: every shot is gated on the
+	# nose ray being on the player and fires FORWARD along the nose (see
+	# _process_fire / _fire_one). Motion still follows the strafe point.
 
 
 func _process_fire(dt: float) -> void:
 	# Keep steering toward the SAME strafe point so the flight continues PAST
-	# the player while the burst plays — aim is locked (_fire_dir), motion is
-	# not.
+	# the player while the burst plays — motion follows the strafe point, firing
+	# is gated on facing.
 	var target: Vector2 = _strafe_point()
 	_vel = _steer(target - global_position, dt)
 	position += _vel * dt
-	if _shots_fired >= burst_count:
-		_enter_breakoff()
-		return
+	_fire_t += dt
+	# Head-on gate: release a shot (forward, along the nose) only while the
+	# nose ray is actually on the player, paced at burst_interval.
 	_shot_timer -= dt
-	if _shot_timer <= 0.0:
+	if _shots_fired < burst_count and _shot_timer <= 0.0 \
+			and nose_ray_hits_player(nose_aim_radius):
 		_fire_one()
+	# Break off once the burst is spent OR the fire window elapses (so a strafer
+	# that never lines up still peels away instead of loitering).
+	if _shots_fired >= burst_count or _fire_t >= fire_window:
+		_enter_breakoff()
 
 
 func _fire_one() -> void:
 	# Alternate MuzzleL/MuzzleR via the shared enemy_base helper (reads LIVE
 	# marker global_position, cycles per-instance index → L/R/L/R). Shots fly
-	# along the locked aim dir, NOT the current motion dir.
+	# FORWARD along the nose — the fire gate guarantees the nose is on the player
+	# at this moment, so forward == at-player and the tracers connect.
+	var dir: Vector2 = nose_dir()
 	var spawn_pos: Vector2 = next_muzzle_pos() if has_muzzles() else global_position
 	var b = BulletScene.instantiate()
 	if "speed" in b:
@@ -246,12 +262,12 @@ func _fire_one() -> void:
 	# Spawn under root so the bullet survives the strafer's queue_free.
 	get_tree().root.add_child(b)
 	if b.has_method("start"):
-		b.start(spawn_pos, _fire_dir)
+		b.start(spawn_pos, dir)
 	else:
 		b.global_position = spawn_pos
-	# Pink muzzle flash at the firing marker, pointed along the locked aim.
+	# Pink muzzle flash at the firing marker, pointed along the nose.
 	if has_muzzles():
-		MuzzleFx.play_enemy(spawn_pos, _fire_dir, get_tree().root)
+		MuzzleFx.play_enemy(spawn_pos, dir, get_tree().root)
 	if has_node("EnemyShoot"):
 		$EnemyShoot.play()
 	_shots_fired += 1

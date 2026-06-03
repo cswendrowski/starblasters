@@ -55,12 +55,17 @@ var _ship_rotation: float = 0.0  # current rotation toward player
 func _ready() -> void:
 	max_health    = 12
 	bounty_value  = 30
-	# Facing (Roman 2026-06-01): use the shared movement-based turning (sprite
-	# top = front, faces its travel direction) like every other enemy. The
-	# aim_at_player variant drives its OWN facing via _update_ship_aim, so it
-	# opts OUT of auto-rotate to avoid the two fighting over `rotation`. Firing
-	# is untouched either way — rockets/bullets keep their existing directions.
-	auto_rotate   = not aim_at_player
+	# Facing: the gunship is a HOVERING firing platform — it sweeps laterally
+	# while raining rockets down and tracking the player with its guns. It must
+	# NOT bank into its travel like a fighter, or it ends up pointing fully
+	# sideways during the firing sweep (Roman 2026-06-03: "turning sideways to
+	# fire, odd-looking and incorrect"). So it keeps a fixed facing — no
+	# auto-rotate — for both the aim-down and aim-at-player variants (the latter
+	# drives its own rotation via _update_ship_aim). It is still a SHIP, so it
+	# keeps the ship VFX (ground shadow + damage overlay) via has_ship_vfx,
+	# which defaults true — that gate is now decoupled from auto_rotate.
+	# Firing is untouched: rockets fire down, bullets track the player.
+	auto_rotate   = false
 	display_scale = 1.0
 	super._ready()
 	# Default single starting X: centre of playfield

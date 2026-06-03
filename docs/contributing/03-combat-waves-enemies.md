@@ -183,7 +183,8 @@ All enemies in the "enemies" group descend from a two-tier hierarchy:
 - `explode()` — death VFX (debris, burn, explosion)
 - `died` signal — emitted on death with bounty value
 - Auto-rotate the sprite to face velocity direction (driven by `auto_rotate` bool)
-- Engine flame + parallax shadow + damage overlay shader (auto-applied if `auto_rotate=true`)
+- Engine flame + parallax shadow + damage overlay shader (auto-applied if `has_ship_vfx=true` — the default; mines/asteroids/bomblets and bosses opt out). This is a SEPARATE axis from `auto_rotate`: a fixed-facing ship (gunship, turret, the aim-at-player beamer) keeps `auto_rotate=false` but still gets the ship VFX.
+- Nose-aim firing gate: `nose_dir()` + `nose_ray_hits(target, radius, max_range)` / `nose_ray_hits_player(...)` — fire forward only when the sprite's nose is actually lined up on the target (used by the Strafer for a head-on pass)
 - Off-screen cleanup (mode: CYCLE_BOTTOM / FREE_ANY_EDGE / FREE_OPPOSITE_SIDE / NONE)
 - Muzzle marker system — resolves Marker2D children named `Muzzle*` / `cannon_*` for bullet origins + flashes
 - Shield rings (decorative visual; does NOT gate health — shield is a CHARGE pool for the player)
@@ -193,6 +194,7 @@ All enemies in the "enemies" group descend from a two-tier hierarchy:
 @export var max_health: int = 1
 @export var bounty_value: int = 5
 @export var auto_rotate: bool = true           # face velocity direction
+@export var has_ship_vfx: bool = true          # ship shadow + damage overlay; non-ships opt out
 @export var is_hazard: bool = false            # mines/asteroids skip wave clear gates
 @export var offscreen_mode: int = CYCLE_BOTTOM # behavior when off-screen
 ```
@@ -234,7 +236,7 @@ When an enemy spawns, its movement pattern is duplicated and speed-scaled by +5%
 Some enemies extend `EnemyBase` directly, not `enemy_core`. They own complex multi-phase behavior that can't be expressed as a single movement + shoot pair:
 
 - **Burner** — two ships beam-linked, descend together, die together
-- **Strafer** — three-phase: home in, fire 6-round burst, veer off
+- **Strafer** — three-phase: home in, fire a burst, veer off. Firing is gated on the nose-aim ray (`nose_ray_hits_player`) so it only shoots on a genuine head-on pass, not while the hull is angled past you
 - **Firecore Drone** — rings of orbiting projectiles that auto-fire
 - **Gunship / Frigate / Beamer / Bomber** — arrive → settle → sweep/hold while firing a signature weapon (rockets, perpendicular broadside, swept beam, rear tail-turret)
 
