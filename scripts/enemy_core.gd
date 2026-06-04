@@ -278,7 +278,10 @@ func _on_shoot_timer_timeout() -> void:
 	if shoot_pattern == null:
 		return
 	if _cycling or not _on_playfield():
-		$ShootTimer.wait_time = randf_range(fire_interval_min, fire_interval_max)
+		# Zone-gated enemies fast-poll here too (not just in the zone check below),
+		# so a slow enemy still above the playfield margin doesn't get bumped onto
+		# the long random interval and fire late once it's finally low.
+		$ShootTimer.wait_time = 0.15 if fire_zone_gated else randf_range(fire_interval_min, fire_interval_max)
 		$ShootTimer.start()
 		return
 	# Firing zones (bridge §1.8-1.9): hold fire above the engagement band (just
