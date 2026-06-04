@@ -89,7 +89,14 @@ func _start_with_pattern(pos: Vector2) -> void:
 	# Phase-driven enemies (fire_on_phase != "") use the pattern's event
 	# instead of the random timer, so we skip starting it.
 	if shoot_pattern != null and has_node("ShootTimer") and fire_on_phase == "":
-		$ShootTimer.wait_time = randf_range(fire_interval_min, fire_interval_max)
+		# Zone-gated enemies arm a short first poll so the FIRST shot lands as soon
+		# as they enter the engagement band (the gate fast-polls until then). The
+		# long random interval would otherwise delay the first shot until they've
+		# descended near the bottom. Subsequent shots re-arm on the normal interval.
+		if fire_zone_gated:
+			$ShootTimer.wait_time = 0.2
+		else:
+			$ShootTimer.wait_time = randf_range(fire_interval_min, fire_interval_max)
 		$ShootTimer.start()
 
 
