@@ -43,24 +43,21 @@ func _init() -> void:
 		log.append("FAIL slice waves=%d (expected 3)" % score.waves.size())
 	else:
 		var w0 = score.waves[0]
-		if w0.phrases.size() != 3:
-			log.append("FAIL w0 phrases=%d (expected 3)" % w0.phrases.size())
-		else:
-			if w0.phrases[0].kind != Phrase.Kind.FORMATION or w0.phrases[0].shape != &"wall":
-				log.append("FAIL w0p0 not a wall FORMATION")
-			elif w0.phrases[0].specs[0].movement_override == null:
-				log.append("FAIL wall spec missing lane_path movement override")
-			if w0.phrases[1].kind != Phrase.Kind.FILLER:
-				log.append("FAIL w0p1 not FILLER")
-			if w0.phrases[2].kind != Phrase.Kind.BREATHER:
-				log.append("FAIL w0p2 not BREATHER")
+		if w0.phrases[0].kind != Phrase.Kind.FORMATION or w0.phrases[0].shape != &"wall":
+			log.append("FAIL w0p0 not a wall FORMATION")
+		elif w0.phrases[0].specs[0].movement_override == null:
+			log.append("FAIL wall spec missing lane_path movement override")
+		var kinds: Dictionary = {}
 		for ph in w0.phrases:
+			kinds[ph.kind] = true
 			for sp in ph.specs:
 				if sp.enemy_scene == null:
 					log.append("FAIL formation spec has null enemy_scene")
 			for sp in ph.pool:
 				if sp.enemy_scene == null:
 					log.append("FAIL filler pool spec has null enemy_scene")
+		if not (kinds.has(Phrase.Kind.FILLER) and kinds.has(Phrase.Kind.BREATHER)):
+			log.append("FAIL w0 missing FILLER/BREATHER phrase")
 
 	dir.free()
 

@@ -24,11 +24,12 @@ const LP_STRAIGHT := 0
 const LP_WEAVE := 1
 
 
-static func _lane_path(shape_int: int, down: float = 120.0) -> Resource:
+static func _lane_path(shape_int: int, down: float = 120.0, weave_lanes: float = 1.0) -> Resource:
 	var LanePath := load("res://scripts/enemies/patterns/lane_path.gd")
 	var lp = LanePath.new()
 	lp.shape = shape_int
 	lp.down_speed = down
+	lp.weave_lanes = weave_lanes
 	return lp
 
 
@@ -82,20 +83,28 @@ static func _wave(banner: String, phrases: Array) -> ScoreWave:
 static func build() -> CombatScore:
 	var score := CombatScore.new()
 	score.level_name = "Combat Slice"
-	# Wave 1 — a WALL of drifters (one safe gap to thread), darts trickling, exhale.
+	# Slow drifter chaff for filler — descends BELOW formation speed (90 < 120) so
+	# it trails the formation instead of overtaking it (playtest fix). Darts are
+	# reaction-testers, reserved for the pincer formation, not chaff.
+	# Each wave: FORMATION -> short breather (formation clears the entry band) ->
+	# FILLER bridge -> longer exhale before the next wave.
+	# Wave 1 — a WALL of drifters (one safe gap to thread).
 	score.waves.append(_wave("WALL", [
-		_formation(&"wall", [_spec(DRIFTER, 6, 0.2, _lane_path(LP_STRAIGHT))]),
-		_filler([_spec(DART, 1)], 2.0, 6),
-		_breather(1.5),
+		_formation(&"wall", [_spec(DRIFTER, 6, 0.2, _lane_path(LP_STRAIGHT, 120.0))]),
+		_breather(0.7),
+		_filler([_spec(DRIFTER, 1, 0.2, _lane_path(LP_STRAIGHT, 90.0))], 1.5, 6),
+		_breather(1.2),
 	]))
-	# Wave 2 — a PINCER of darts converging from the edges, filler, exhale.
+	# Wave 2 — a PINCER of darts converging from the edges (deliberate pressure).
 	score.waves.append(_wave("PINCER", [
-		_formation(&"pincer", [_spec(DART, 6, 0.2, _lane_path(LP_STRAIGHT))]),
-		_filler([_spec(DART, 1)], 2.5, 8),
-		_breather(1.5),
+		_formation(&"pincer", [_spec(DART, 6, 0.2, _lane_path(LP_STRAIGHT, 120.0))]),
+		_breather(0.7),
+		_filler([_spec(DRIFTER, 1, 0.2, _lane_path(LP_STRAIGHT, 90.0))], 1.5, 8),
+		_breather(1.2),
 	]))
-	# Wave 3 — a spread SWEEP finale of weaving drifters (alternate-anchor lanes).
+	# Wave 3 — a SWEEP finale: big, slow weaves (commit to dodging) that also
+	# keep the screen visually busy. (lane_path WEAVE, amplitude 2 lanes, slow.)
 	score.waves.append(_wave("SWEEP", [
-		_formation(&"spread", [_spec(DRIFTER, 10, 0.15, _lane_path(LP_WEAVE))]),
+		_formation(&"spread", [_spec(DRIFTER, 10, 0.2, _lane_path(LP_WEAVE, 80.0, 2.0))]),
 	]))
 	return score
