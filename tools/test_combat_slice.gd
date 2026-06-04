@@ -48,6 +48,8 @@ func _init() -> void:
 		else:
 			if w0.phrases[0].kind != Phrase.Kind.FORMATION or w0.phrases[0].shape != &"wall":
 				log.append("FAIL w0p0 not a wall FORMATION")
+			elif w0.phrases[0].specs[0].movement_override == null:
+				log.append("FAIL wall spec missing lane_path movement override")
 			if w0.phrases[1].kind != Phrase.Kind.FILLER:
 				log.append("FAIL w0p1 not FILLER")
 			if w0.phrases[2].kind != Phrase.Kind.BREATHER:
