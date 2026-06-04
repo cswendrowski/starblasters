@@ -175,13 +175,15 @@ static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, l
 	var waves: Array = []
 	var used: Array = []  # entries already used in this level (variety)
 	var base_counts: Array = []  # base_count parallel to waves, for budget scaling
+	var prev_movement: String = ""  # previous wave's movement archetype (anti-repetition)
 	for i in n_waves:
 		# Wave 0 is never mixed (calm intro). Otherwise roll P(mix).
 		var mix: bool = i > 0 and _should_intermingle(level_index, sector_depth, rng)
 		if mix:
-			var pair: Array = _pick_pair(rng, sector_depth, level_index, used)
+			var pair: Array = _pick_pair(rng, sector_depth, level_index, used, prev_movement)
 			used.append(pair[0])
 			used.append(pair[1])
+			prev_movement = str(pair[1].get("movement", ""))
 			var sub_a = _make_wave_spec(rng, pair[0], sector_depth, level_index, i)
 			var sub_b = _make_wave_spec(rng, pair[1], sector_depth, level_index, i)
 			# Density formula: count_each = max(2, round(base_count * 0.5)).
@@ -226,8 +228,9 @@ static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, l
 			base_counts.append(base_a)
 			base_counts.append(base_b)
 		else:
-			var entry: Dictionary = _pick_entry(rng, sector_depth, level_index, used)
+			var entry: Dictionary = _pick_entry(rng, sector_depth, level_index, used, PackedStringArray(), Roster.Tier.RARE, prev_movement)
 			used.append(entry)
+			prev_movement = str(entry.get("movement", ""))
 			var w = _make_wave_spec(rng, entry, sector_depth, level_index, i)
 			# First wave gets the "ENGAGE" / sector announce; later waves silent so
 			# we don't pop banner after banner on a single level.
@@ -256,8 +259,8 @@ static func _should_intermingle(level_index: int, sector_depth: int, rng: Random
 # first pick was RARE (max one Rare per mixed wave). Affinity bias: if the
 # resulting pair isn't in WAVE_AFFINITY, with 50% chance re-roll the second
 # pick once. Returns [first, second].
-static func _pick_pair(rng: RandomNumberGenerator, sector_depth: int, level_index: int, used: Array) -> Array:
-	var first: Dictionary = _pick_entry(rng, sector_depth, level_index, used)
+static func _pick_pair(rng: RandomNumberGenerator, sector_depth: int, level_index: int, used: Array, avoid_movement: String = "") -> Array:
+	var first: Dictionary = _pick_entry(rng, sector_depth, level_index, used, PackedStringArray(), Roster.Tier.RARE, avoid_movement)
 	var first_tags: PackedStringArray = PackedStringArray(first.get("conflict_tags", []))
 	var tier_cap: int = Roster.Tier.RARE
 	if int(first.get("tier", Roster.Tier.COMMON)) == Roster.Tier.RARE:
@@ -343,7 +346,7 @@ static func _make_boss_wave(boss_entry: Dictionary) -> WaveSpec:
 # boss lead-in waves to avoid chaff that overlaps the boss's pressure
 # signature. If the filter empties the pool, falls back to the unfiltered
 # pool so we never softlock generation.
-static func _pick_entry(rng: RandomNumberGenerator, sector_depth: int, level_index: int, exclude: Array, exclude_tags: PackedStringArray = PackedStringArray(), max_tier: int = Roster.Tier.RARE) -> Dictionary:
+static func _pick_entry(rng: RandomNumberGenerator, sector_depth: int, level_index: int, exclude: Array, exclude_tags: PackedStringArray = PackedStringArray(), max_tier: int = Roster.Tier.RARE, avoid_movement: String = "") -> Dictionary:
 	var tier := _roll_tier(rng, sector_depth, level_index)
 	if tier > max_tier:
 		tier = max_tier
@@ -388,6 +391,16 @@ static func _pick_entry(rng: RandomNumberGenerator, sector_depth: int, level_ind
 			fresh.append(e)
 	if not fresh.is_empty():
 		pool = fresh
+	# Anti-repetition: avoid back-to-back same movement archetype (e.g. a run of
+	# "fast_straight" dart+bomb_drone rushes). Prefer a different archetype; keep
+	# the full pool if that's all that's available (small shallow pools).
+	if avoid_movement != "":
+		var varied: Array = []
+		for e in pool:
+			if str(e.get("movement", "")) != avoid_movement:
+				varied.append(e)
+		if not varied.is_empty():
+			pool = varied
 	return pool[rng.randi() % pool.size()]
 
 
