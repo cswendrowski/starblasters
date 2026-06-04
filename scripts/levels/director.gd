@@ -1,13 +1,17 @@
 extends Node
 
-# Drives enemy spawning for the current level. Conductor v0 (combat overhaul):
-# the incoming LevelData is lifted to a CombatScore via ScoreAdapter, then
-# flattened back to its ordered WaveSpec sequence so this faithful-port walk
-# reproduces the legacy behavior on the new pipeline (spawns on a timer; emits
-# level_cleared when all waves are spawned AND the "enemies" group is empty).
-# Later conductor versions walk the Wave->Phrase structure natively (density-
-# gated streaming dispatch, lane placement). See
-# docs/combat_construction_plan_2026-06-03.md §3.
+# Drives enemy spawning for the current level. Conductor v1 (combat overhaul,
+# streaming): the incoming LevelData is lifted to a CombatScore via ScoreAdapter,
+# then flattened to its ordered WaveSpec sequence. Dispatch is STREAMING:
+#   - spawning is gated by a concurrency cap (max_concurrent) so on-screen
+#     density can never exceed it by construction (bridge §1.2);
+#   - there is NO per-wave clear-gate — a wave advances as soon as its spawn
+#     budget is spent, so the 5-8 waves blend into one continuous stream;
+#   - banners are non-blocking markers — spawning no longer halts for the banner.
+# level_cleared still fires when all waves are spawned AND the "enemies" group is
+# empty. Later versions walk the Wave->Phrase structure natively (formations as
+# bursts, filler, breathers) + lane placement. See
+# docs/combat_construction_plan_2026-06-03.md §3 and the bridge §1.
 
 signal enemy_died(value: int, scene_path: String)
 signal enemy_spawned(scene_path: String, bounty_value: int)
@@ -25,6 +29,14 @@ const POST_CLEAR_GRACE: float = 0.2
 
 @export var level: Resource  # LevelData
 @export var auto_start: bool = false
+# Streaming concurrency cap (bridge §1.2 / composition guide §9). On-screen
+# non-hazard density never exceeds this. Provisional 14; depth-ramp (12->16) and
+# the lane/free-plane split land in v2. Counts recyclers (an on-screen body);
+# recycling-vs-cap is a tracked open item (construction §6).
+@export var max_concurrent: int = 14
+# Minimum gap between spawns regardless of cap headroom — stops a fast-killing
+# player from machine-gunning fresh spawns (wave §1.2).
+const ANTI_BURST_FLOOR: float = 0.20
 
 var _running: bool = false
 var _wave_index: int = -1
@@ -74,6 +86,20 @@ func _flatten_specs(score: Resource) -> Array:
 						out.append(sp)
 	return out
 
+
+# Count of live, non-hazard enemies on screen — the concurrency-cap measure.
+# Includes recyclers (they occupy screen space); excludes is_hazard terrain
+# (mines/asteroids keep their own bespoke pacing, uncapped in v1).
+func _alive_count() -> int:
+	var n: int = 0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e):
+			continue
+		if "is_hazard" in e and e.is_hazard:
+			continue
+		n += 1
+	return n
+
 func _advance_to_next_wave() -> void:
 	_wave_index += 1
 	if _wave_index >= _specs.size():
@@ -87,13 +113,12 @@ func _advance_to_next_wave() -> void:
 	var announce: String = ""
 	if "announce_text" in wave:
 		announce = wave.announce_text
+	# Banners are non-blocking markers now (bridge §1.1): emit and keep going —
+	# spawning no longer halts for the banner to fade. Only the wave's own small
+	# spawn_delay is respected so the stream blends across waves.
 	wave_started.emit(_wave_index, _specs.size(), is_silent, announce)
-	# Announced waves wait for the banner to clear before spawning. Silent
-	# sub-waves just respect their own spawn_delay (typically short).
-	var delay: float = wave.spawn_delay
-	if not is_silent:
-		delay = max(delay, BANNER_HOLD + POST_BANNER_GRACE)
-	await get_tree().create_timer(delay).timeout
+	if wave.spawn_delay > 0.0:
+		await get_tree().create_timer(wave.spawn_delay).timeout
 	if not _running:
 		return
 	_spawn_index = 0
@@ -103,16 +128,15 @@ func _spawn_next(wave: Resource) -> void:
 	if not _running:
 		return
 	if _spawn_index >= wave.count:
-		# Wave done spawning — wait until the playfield is clear of enemies
-		# (including cycling ones), then a beat, before advancing. Silent
-		# sub-waves skip this so they chain straight into the next batch.
-		var is_silent: bool = false
-		if "silent" in wave:
-			is_silent = wave.silent
-		if not is_silent:
-			_wait_for_clear_then_advance()
-		else:
-			_advance_to_next_wave()
+		# Streaming: no clear-gate. As soon as this wave's spawn budget is spent
+		# we advance, so the 5-8 waves blend into one continuous stream.
+		_advance_to_next_wave()
+		return
+	# Density gate (bridge §1.2): hold spawning while the screen is at the
+	# concurrency cap, so on-screen density can never exceed it by construction.
+	while _running and _alive_count() >= max_concurrent:
+		await get_tree().create_timer(0.1).timeout
+	if not _running:
 		return
 	_spawn_enemy(wave, _spawn_index)
 	_spawn_index += 1
@@ -123,21 +147,9 @@ func _spawn_next(wave: Resource) -> void:
 	if wave.formation == 5 and _spawn_index < wave.count and (_spawn_index % 2) == 1:
 		_spawn_enemy(wave, _spawn_index)
 		_spawn_index += 1
-	await get_tree().create_timer(wave.spawn_interval).timeout
+	await get_tree().create_timer(maxf(wave.spawn_interval, ANTI_BURST_FLOOR)).timeout
 	_spawn_next(wave)
 
-
-func _wait_for_clear_then_advance() -> void:
-	# Poll the enemies group on a short interval. When empty + the cleared
-	# grace beat has elapsed, advance.
-	while _running and _live_combatants_present(true):
-		await get_tree().create_timer(0.2).timeout
-	if not _running:
-		return
-	await get_tree().create_timer(POST_CLEAR_GRACE).timeout
-	if not _running:
-		return
-	_advance_to_next_wave()
 
 func _spawn_enemy(wave: Resource, index: int) -> void:
 	if wave.enemy_scene == null:
