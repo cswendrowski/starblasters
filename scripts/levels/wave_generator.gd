@@ -597,4 +597,23 @@ static func _stable_seed(sector_depth: int, level_index: int, is_boss: bool) -> 
 	var s: int = sector_depth * 100003
 	s += level_index * 7919
 	s += 5 if is_boss else 0
+	# Fold in the run seed so the SAME node rolls a different comp each patrol,
+	# while staying reproducible WITHIN a run (a node retry is identical). See
+	# wave_streaming spec §7.2 / bridge §5 (content deterministic per run+node).
+	# Mixed with a large multiplier (not added) so even small/structured run seeds
+	# produce well-separated RNG streams; run_seed 0 (tools) is a no-op.
+	s ^= _run_seed() * 2654435761
 	return s
+
+
+# The current run's seed (0 if no run is active, e.g. in headless tool runs, so
+# tools stay deterministic). Static-safe: reads the Run autoload via the tree.
+static func _run_seed() -> int:
+	var ml := Engine.get_main_loop()
+	if ml is SceneTree:
+		var run = (ml as SceneTree).root.get_node_or_null("Run")
+		if run != null:
+			var v = run.get("run_seed")
+			if v != null:
+				return int(v)
+	return 0
