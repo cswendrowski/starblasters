@@ -44,6 +44,7 @@ var _spawn_index: int = 0
 var _check_clear: bool = false
 var _score: Resource = null   # CombatScore (adapter output)
 var _specs: Array = []        # flattened WaveSpec sequence the v0 walk consumes
+var _last_lane: int = -1      # last lane chosen by _pick_lane (alternate-anchor)
 
 func start_level(new_level: Resource = null) -> void:
 	if new_level != null:
@@ -99,6 +100,46 @@ func _alive_count() -> int:
 			continue
 		n += 1
 	return n
+
+
+# Lane selection for TOP spawns (conductor v2): alternate-anchor — prefer the
+# side opposite the previous spawn (Toaplan rhythm, composition guide §3),
+# among lanes not currently occupied near the entry band so the stream spreads
+# across the 7 lanes and forces player movement.
+func _pick_lane() -> int:
+	var occupied: Array = _occupied_lanes()
+	var candidates: Array = []
+	for i in Lanes.COUNT:
+		if not occupied.has(i):
+			candidates.append(i)
+	if candidates.is_empty():
+		for i in Lanes.COUNT:
+			candidates.append(i)
+	if _last_lane >= 0:
+		var want_high: bool = _last_lane < Lanes.COUNT / 2
+		var side: Array = candidates.filter(
+			func(i): return (i >= Lanes.COUNT / 2) == want_high)
+		if not side.is_empty():
+			candidates = side
+	var pick: int = candidates[randi() % candidates.size()]
+	_last_lane = pick
+	return pick
+
+
+# Lanes currently holding a non-hazard enemy in the top entry band, so a fresh
+# spawn doesn't stack directly onto one.
+func _occupied_lanes() -> Array:
+	var out: Array = []
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or not (e is Node2D):
+			continue
+		if "is_hazard" in e and e.is_hazard:
+			continue
+		if e.position.y <= 40.0:
+			var ln: int = Lanes.nearest_lane(e.position.x)
+			if not out.has(ln):
+				out.append(ln)
+	return out
 
 func _advance_to_next_wave() -> void:
 	_wave_index += 1
@@ -214,44 +255,21 @@ func _spawn_enemy(wave: Resource, index: int) -> void:
 	# Compute spawn x based on formation. Spawn x is confined to the
 	# playfield band (Playfield.X_MIN..X_MAX), not the full viewport,
 	# so the side gutters stay clear.
-	var pad: float = wave.formation_padding
-	var x_min: float = Playfield.X_MIN + pad
-	var usable_w: float = Playfield.W - pad * 2.0
+	# Conductor v2: lanes are the spawn-anchor grid (scripts/lanes.gd). TOP
+	# formations (0-3) are placed on a lane via alternate-anchor selection
+	# (Toaplan rhythm, composition guide §3); the enemy then moves per its OWN
+	# pattern from that lane. SIDE (4) and TANDEM (5) keep bespoke placement.
 	var x := 0.0
 	var pos: Vector2
 	match wave.formation:
-		0: # TOP_LEFT_TO_RIGHT
-			var t: float = 0.0
-			if wave.count > 1:
-				t = float(index) / float(wave.count - 1)
-			x = x_min + usable_w * t
-			pos = Vector2(x, wave.spawn_y)
-		1: # TOP_RIGHT_TO_LEFT
-			var t: float = 0.0
-			if wave.count > 1:
-				t = float(index) / float(wave.count - 1)
-			x = x_min + usable_w * (1.0 - t)
-			pos = Vector2(x, wave.spawn_y)
-		2: # TOP_RANDOM
-			x = x_min + randf() * usable_w
-			pos = Vector2(x, wave.spawn_y)
-		3: # TOP_CENTER_OUT
-			var center: float = Playfield.CENTER.x
-			var step: float = usable_w / maxf(1.0, float(wave.count))
-			var offset: float = (float(index) - float(wave.count - 1) * 0.5) * step
-			x = center + offset
-			pos = Vector2(x, wave.spawn_y)
-		5: # TOP_TANDEM_PAIRS — two streams in concert, offset ±tandem_offset_x from CENTER.
-			# Even index = left member; odd index = right member of the pair.
-			# Both pair members share wave.movement_override (parameters: amplitude,
-			# frequency, mirrored). enemy_core duplicates per spawn so per-instance
-			# state (_t, _start_x) stays separate, but identical params + same spawn
-			# tick = lockstep motion.
+		5: # TOP_TANDEM_PAIRS — two streams in concert, ±tandem_offset_x from CENTER.
+			# enemy_core duplicates the pattern per spawn so per-instance state
+			# stays separate; identical params + same tick = lockstep motion.
 			var center: float = Playfield.CENTER.x
 			var side: int = -1 if (index % 2) == 0 else 1
 			x = center + float(side) * wave.tandem_offset_x
 			pos = Vector2(x, wave.spawn_y)
-		4: # SIDE_ALTERNATING — alternate sides per spawn; pattern direction is set to match.
+		4: # SIDE_ALTERNATING — alternate sides per spawn; pattern direction matches.
 			var side: int = 1 if (index % 2) == 0 else -1
 			if side > 0:
 				x = Playfield.X_MIN - 12.0
@@ -263,9 +281,9 @@ func _spawn_enemy(wave: Resource, index: int) -> void:
 				var mv_dup: Resource = enemy.movement.duplicate()
 				mv_dup.direction = side
 				enemy.movement = mv_dup
-		_:
-			x = x_min + randf() * usable_w
-			pos = Vector2(x, wave.spawn_y)
+		_: # TOP formations (0-3) -> lane-based spawn placement
+			var lane: int = _pick_lane()
+			pos = Vector2(Lanes.lane_center(lane), wave.spawn_y)
 	# Make the enemy a child of our parent (typically Main) so it lives in the world
 	var parent = get_parent()
 	parent.add_child(enemy)
