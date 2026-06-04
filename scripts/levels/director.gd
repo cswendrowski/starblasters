@@ -1,8 +1,13 @@
 extends Node
 
-# Drives enemy spawning for the current level. Reads a LevelData resource,
-# walks its waves, spawns enemies on a timer, and emits level_cleared when
-# all waves are spawned AND no enemies remain in the "enemies" group.
+# Drives enemy spawning for the current level. Conductor v0 (combat overhaul):
+# the incoming LevelData is lifted to a CombatScore via ScoreAdapter, then
+# flattened back to its ordered WaveSpec sequence so this faithful-port walk
+# reproduces the legacy behavior on the new pipeline (spawns on a timer; emits
+# level_cleared when all waves are spawned AND the "enemies" group is empty).
+# Later conductor versions walk the Wave->Phrase structure natively (density-
+# gated streaming dispatch, lane placement). See
+# docs/combat_construction_plan_2026-06-03.md §3.
 
 signal enemy_died(value: int, scene_path: String)
 signal enemy_spawned(scene_path: String, bounty_value: int)
@@ -25,12 +30,22 @@ var _running: bool = false
 var _wave_index: int = -1
 var _spawn_index: int = 0
 var _check_clear: bool = false
+var _score: Resource = null   # CombatScore (adapter output)
+var _specs: Array = []        # flattened WaveSpec sequence the v0 walk consumes
 
 func start_level(new_level: Resource = null) -> void:
 	if new_level != null:
 		level = new_level
 	if level == null or level.waves.is_empty():
 		push_warning("WaveDirector: no level / no waves")
+		return
+	# Conductor v0 (faithful port): route the level through the new score
+	# pipeline (LevelData -> CombatScore), then flatten back to the ordered
+	# WaveSpec sequence so the walk reproduces today's behavior exactly.
+	_score = ScoreAdapter.from_level_data(level)
+	_specs = _flatten_specs(_score)
+	if _specs.is_empty():
+		push_warning("WaveDirector: score has no spawnable phrases")
 		return
 	_running = true
 	_wave_index = -1
@@ -42,20 +57,37 @@ func stop() -> void:
 	_running = false
 	_check_clear = false
 
+
+# Flatten a CombatScore back to its ordered WaveSpec sequence. The adapter
+# preserves order and carries each spec losslessly, so this reconstructs the
+# original flat wave order (each FORMATION phrase contributes its spec(s)).
+# FILLER/BREATHER aren't produced by the adapter and are ignored in v0.
+func _flatten_specs(score: Resource) -> Array:
+	var out: Array = []
+	if score == null:
+		return out
+	for w in score.waves:
+		for ph in w.phrases:
+			if ph.kind == Phrase.Kind.FORMATION:
+				for sp in ph.specs:
+					if sp != null:
+						out.append(sp)
+	return out
+
 func _advance_to_next_wave() -> void:
 	_wave_index += 1
-	if _wave_index >= level.waves.size():
+	if _wave_index >= _specs.size():
 		_running = false
 		_check_clear = true  # start watching for clear
 		return
-	var wave: Resource = level.waves[_wave_index]
+	var wave: Resource = _specs[_wave_index]
 	var is_silent: bool = false
 	if "silent" in wave:
 		is_silent = wave.silent
 	var announce: String = ""
 	if "announce_text" in wave:
 		announce = wave.announce_text
-	wave_started.emit(_wave_index, level.waves.size(), is_silent, announce)
+	wave_started.emit(_wave_index, _specs.size(), is_silent, announce)
 	# Announced waves wait for the banner to clear before spawning. Silent
 	# sub-waves just respect their own spawn_delay (typically short).
 	var delay: float = wave.spawn_delay
