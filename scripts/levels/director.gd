@@ -1,17 +1,19 @@
 extends Node
 
-# Drives enemy spawning for the current level. Conductor v1 (combat overhaul,
+# Drives enemy spawning for the current level. Conductor v3 (combat overhaul,
 # streaming): the incoming LevelData is lifted to a CombatScore via ScoreAdapter,
-# then flattened to its ordered WaveSpec sequence. Dispatch is STREAMING:
+# then flattened to ordered phrase steps. Dispatch is STREAMING:
 #   - spawning is gated by a concurrency cap (max_concurrent) so on-screen
 #     density can never exceed it by construction (bridge §1.2);
 #   - there is NO per-wave clear-gate — a wave advances as soon as its spawn
 #     budget is spent, so the 5-8 waves blend into one continuous stream;
 #   - banners are non-blocking markers — spawning no longer halts for the banner.
-# level_cleared still fires when all waves are spawned AND the "enemies" group is
-# empty. Later versions walk the Wave->Phrase structure natively (formations as
-# bursts, filler, breathers) + lane placement. See
-# docs/combat_construction_plan_2026-06-03.md §3 and the bridge §1.
+# level_cleared still fires when all phrases are dispatched AND the "enemies"
+# group is empty. Conductor v3 walks the Wave->Phrase structure natively,
+# dispatching FORMATION / FILLER / BREATHER (v2 lane placement applies to TOP
+# spawns). On legacy-adapted content (all FORMATION) this matches v2; FILLER and
+# BREATHER appear in authored content. See
+# docs/combat_construction_plan_2026-06-03.md §3 and the bridge §1-2.
 
 signal enemy_died(value: int, scene_path: String)
 signal enemy_spawned(scene_path: String, bounty_value: int)
@@ -39,11 +41,11 @@ const POST_CLEAR_GRACE: float = 0.2
 const ANTI_BURST_FLOOR: float = 0.20
 
 var _running: bool = false
-var _wave_index: int = -1
-var _spawn_index: int = 0
 var _check_clear: bool = false
 var _score: Resource = null   # CombatScore (adapter output)
-var _specs: Array = []        # flattened WaveSpec sequence the v0 walk consumes
+var _steps: Array = []        # flattened phrase steps (phrase + wave context)
+var _step_idx: int = -1
+var _wave_total: int = 0
 var _last_lane: int = -1      # last lane chosen by _pick_lane (alternate-anchor)
 
 func start_level(new_level: Resource = null) -> void:
@@ -52,39 +54,50 @@ func start_level(new_level: Resource = null) -> void:
 	if level == null or level.waves.is_empty():
 		push_warning("WaveDirector: no level / no waves")
 		return
-	# Conductor v0 (faithful port): route the level through the new score
-	# pipeline (LevelData -> CombatScore), then flatten back to the ordered
-	# WaveSpec sequence so the walk reproduces today's behavior exactly.
-	_score = ScoreAdapter.from_level_data(level)
-	_specs = _flatten_specs(_score)
-	if _specs.is_empty():
-		push_warning("WaveDirector: score has no spawnable phrases")
+	# Lift legacy LevelData -> CombatScore, then perform it. (WaveGen v2 will emit
+	# a CombatScore directly and call start_score.)
+	start_score(ScoreAdapter.from_level_data(level))
+
+
+# Perform a CombatScore: flatten to ordered phrase steps (each carries its wave
+# context for the banner) and walk them, dispatching FORMATION/FILLER/BREATHER.
+func start_score(score: Resource) -> void:
+	_score = score
+	if _score == null or _score.waves.is_empty():
+		push_warning("WaveDirector: empty score")
+		return
+	_wave_total = _score.waves.size()
+	_steps = _build_steps(_score)
+	if _steps.is_empty():
+		push_warning("WaveDirector: score has no phrases")
 		return
 	_running = true
-	_wave_index = -1
-	_spawn_index = 0
+	_step_idx = -1
 	_check_clear = false
-	_advance_to_next_wave()
+	_last_lane = -1
+	_advance_step()
 
 func stop() -> void:
 	_running = false
 	_check_clear = false
 
 
-# Flatten a CombatScore back to its ordered WaveSpec sequence. The adapter
-# preserves order and carries each spec losslessly, so this reconstructs the
-# original flat wave order (each FORMATION phrase contributes its spec(s)).
-# FILLER/BREATHER aren't produced by the adapter and are ignored in v0.
-func _flatten_specs(score: Resource) -> Array:
+# Flatten a CombatScore into an ordered list of phrase "steps". Each step is the
+# phrase plus its wave context (index + whether it opens the wave, so the banner
+# fires once per ScoreWave). Order across waves is preserved.
+func _build_steps(score: Resource) -> Array:
 	var out: Array = []
 	if score == null:
 		return out
-	for w in score.waves:
-		for ph in w.phrases:
-			if ph.kind == Phrase.Kind.FORMATION:
-				for sp in ph.specs:
-					if sp != null:
-						out.append(sp)
+	for wi in score.waves.size():
+		var w: Resource = score.waves[wi]
+		for pi in w.phrases.size():
+			out.append({
+				"phrase": w.phrases[pi],
+				"wave_idx": wi,
+				"is_wave_start": pi == 0,
+				"banner": w.banner,
+			})
 	return out
 
 
@@ -141,60 +154,99 @@ func _occupied_lanes() -> Array:
 				out.append(ln)
 	return out
 
-func _advance_to_next_wave() -> void:
-	_wave_index += 1
-	if _wave_index >= _specs.size():
+func _advance_step() -> void:
+	_step_idx += 1
+	if _step_idx >= _steps.size():
 		_running = false
-		_check_clear = true  # start watching for clear
+		_check_clear = true   # all phrases dispatched; watch for clear
 		return
-	var wave: Resource = _specs[_wave_index]
-	var is_silent: bool = false
-	if "silent" in wave:
-		is_silent = wave.silent
-	var announce: String = ""
-	if "announce_text" in wave:
-		announce = wave.announce_text
-	# Banners are non-blocking markers now (bridge §1.1): emit and keep going —
-	# spawning no longer halts for the banner to fade. Only the wave's own small
-	# spawn_delay is respected so the stream blends across waves.
-	wave_started.emit(_wave_index, _specs.size(), is_silent, announce)
-	if wave.spawn_delay > 0.0:
-		await get_tree().create_timer(wave.spawn_delay).timeout
-	if not _running:
-		return
-	_spawn_index = 0
-	_spawn_next(wave)
+	var st: Dictionary = _steps[_step_idx]
+	# Non-blocking banner once per ScoreWave (bridge §1.1): emit and keep going.
+	if st["is_wave_start"]:
+		wave_started.emit(int(st["wave_idx"]), _wave_total, false, String(st["banner"]))
+	var ph: Resource = st["phrase"]
+	match ph.kind:
+		Phrase.Kind.FORMATION:
+			_dispatch_formation(ph)
+		Phrase.Kind.FILLER:
+			_dispatch_filler(ph)
+		Phrase.Kind.BREATHER:
+			_dispatch_breather(ph)
+		_:
+			_advance_step()
 
-func _spawn_next(wave: Resource) -> void:
-	if not _running:
+
+# FORMATION: spawn the phrase's spec group(s), cap-gated, at each spec's cadence
+# (tandem pairs spawn their mirrored partner on the same tick). On legacy-adapted
+# content this reproduces the v2 trickle; authored small formations burst.
+func _dispatch_formation(ph: Resource) -> void:
+	for sp in ph.specs:
+		if sp == null:
+			continue
+		var i: int = 0
+		while i < sp.count:
+			if not _running:
+				return
+			while _running and _alive_count() >= max_concurrent:
+				await get_tree().create_timer(0.1).timeout
+			if not _running:
+				return
+			_spawn_enemy(sp, i)
+			i += 1
+			# Tandem partner on the same tick (formation 5), mirrored X.
+			if sp.formation == 5 and i < sp.count and (i % 2) == 1:
+				_spawn_enemy(sp, i)
+				i += 1
+			await get_tree().create_timer(maxf(sp.spawn_interval, ANTI_BURST_FLOOR)).timeout
+	_advance_step()
+
+
+# FILLER: trickle single enemies from the pool, cap-gated, until the stop
+# condition. Supports until="duration" (until_value seconds) and "budget"
+# (until_value enemies); anything else trickles for a short default window.
+func _dispatch_filler(ph: Resource) -> void:
+	if ph.pool.is_empty():
+		_advance_step()
 		return
-	if _spawn_index >= wave.count:
-		# Streaming: no clear-gate. As soon as this wave's spawn budget is spent
-		# we advance, so the 5-8 waves blend into one continuous stream.
-		_advance_to_next_wave()
-		return
-	# Density gate (bridge §1.2): hold spawning while the screen is at the
-	# concurrency cap, so on-screen density can never exceed it by construction.
-	while _running and _alive_count() >= max_concurrent:
+	var elapsed: float = 0.0
+	var spawned: int = 0
+	var dur_limit: float = ph.until_value if ph.until == &"duration" else 3.0
+	var budget_limit: int = int(ph.until_value) if ph.until == &"budget" else -1
+	while _running:
+		if budget_limit >= 0 and spawned >= budget_limit:
+			break
+		if budget_limit < 0 and elapsed >= dur_limit:
+			break
+		while _running and _alive_count() >= max_concurrent:
+			await get_tree().create_timer(0.1).timeout
+			elapsed += 0.1
+		if not _running:
+			return
+		var sp: Resource = ph.pool[randi() % ph.pool.size()]
+		if sp != null:
+			_spawn_enemy(sp, spawned)
+			spawned += 1
+		var gap: float = maxf(1.0 / maxf(ph.rate, 0.01), ANTI_BURST_FLOOR)
+		await get_tree().create_timer(gap).timeout
+		elapsed += gap
+	_advance_step()
+
+
+# BREATHER: hold spawning for `duration` seconds, or until the screen drains to
+# alive_floor if set. The readability exhale between intense waves (bridge §2.3).
+func _dispatch_breather(ph: Resource) -> void:
+	var elapsed: float = 0.0
+	while _running and elapsed < ph.duration:
+		if ph.alive_floor >= 0 and _alive_count() <= ph.alive_floor:
+			break
 		await get_tree().create_timer(0.1).timeout
-	if not _running:
-		return
-	_spawn_enemy(wave, _spawn_index)
-	_spawn_index += 1
-	# Tandem pairs: spawn the partner immediately at mirrored X so the two
-	# streams move in concert. Count is assumed even by the wave generator;
-	# if odd, the trailing lone enemy spawns solo at CENTER - offset (its
-	# index % 2 == 0 slot).
-	if wave.formation == 5 and _spawn_index < wave.count and (_spawn_index % 2) == 1:
-		_spawn_enemy(wave, _spawn_index)
-		_spawn_index += 1
-	await get_tree().create_timer(maxf(wave.spawn_interval, ANTI_BURST_FLOOR)).timeout
-	_spawn_next(wave)
+		elapsed += 0.1
+	_advance_step()
 
 
 func _spawn_enemy(wave: Resource, index: int) -> void:
 	if wave.enemy_scene == null:
-		push_warning("WaveDirector: wave %d has no enemy_scene" % _wave_index)
+		push_warning("WaveDirector: spec has no enemy_scene")
 		return
 	var enemy = wave.enemy_scene.instantiate()
 	# 320×400 internal resolution rework (Roman, 2026-05-17): sprites render
