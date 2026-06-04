@@ -271,3 +271,29 @@ surfaced (Roman):
   conductor to pick hook direction per spawn lane (toward/away from center).
 - **[cap] Depth-ramp not wired.** `max_concurrent` is flat 14; ramp 12→16 by depth
   (comp guide §9). The ceiling is clarity (480×270 + 8px/f), and it's tunable.
+
+---
+
+## 9. Current status (2026-06-04)
+
+**Merged to `main`:** conductor v0–v3 (streaming cap + blended waves + lane spawn
+placement + phrase-native FORMATION/FILLER/BREATHER + wall/pincer shapes),
+`lane_path` movement (STRAIGHT/WEAVE/HOOK/STEP), firing zones (engagement-band
+gating + first-shot-on-entry + no-fire-when-dying + recycle re-fire), enemy
+identity/render_plane hooks, Combat Slice dev showcase.
+
+**On branch `combat-m5` (pushed, not merged):**
+- ✅ Wave count → 5–8, depth-scaled
+- ✅ Budget allocator → ~140–350 enemies (`_level_budget`/`_apply_budget`; chaff
+  scaled, elites stay rolled)
+- ✅ Breathers every 2nd wave (in the adapter)
+- ✅ Anti-repetition (avoid back-to-back same `movement` archetype)
+- ✅ Run-seed folded into `_stable_seed` (nodes vary per patrol)
+
+**Next:** elite/heavy punctuation · difficulty curve (elite fraction + cap
+12→16) · widen the shallow opener pool (§4.1 — only 3 chaff types at sector 1).
+Then merge `combat-m5` → `main`.
+
+**Test harness:** `tools/test_*.gd` headless (`godot --headless --script
+res://tools/test_X.gd` → writes `tools/_X_result.txt`); `tools/parse_check.ps1`
+after edits. Gotchas captured in user memory (`combat-overhaul-status.md`).
