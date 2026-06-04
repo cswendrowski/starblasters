@@ -2,11 +2,12 @@ class_name Phrase
 extends Resource
 
 # The atomic dispatch unit inside a Wave (combat bridge §0/§2). Replaces the
-# flat WaveSpec.count batch model. A Phrase is one of three kinds; the conductor
-# (M4) reads them in order and realizes placement/paths/deconfliction.
+# flat WaveSpec.count batch model as the COMPOSITION/SCHEDULING layer — but it
+# composes ON TOP of WaveSpec, which stays the materialization descriptor that
+# director._spawn_enemy consumes (what enemy + count + overrides). The conductor
+# decides WHEN (dispatch) and WHERE (lane), then materializes via a WaveSpec.
 #
-# This is INERT data scaffolding (M3): nothing consumes a Phrase yet. The exact
-# field shape will harden as the conductor is built against it. See
+# INERT scaffolding (M3) until the conductor consumes it (M4). See
 # docs/combat_lane_wave_bridge_2026-06-03.md §2.
 
 enum Kind { FORMATION, FILLER, BREATHER }
@@ -15,20 +16,19 @@ enum Kind { FORMATION, FILLER, BREATHER }
 
 # --- FORMATION: a composed group spawned as a coordinated burst (§2.1). ---
 @export_group("Formation")
-# Each member is a Dictionary: { chassis: StringName, tier: int,
-# faction: StringName, count: int }. (Loose for now; may harden into a
-# FormationMember Resource once the conductor consumes it.)
-@export var members: Array = []
-# Formation-pattern id (V, wall, pincer, checkerboard, every-other, echelon…),
-# expressed by the conductor in RELATIVE lane offsets so it anchors + mirrors.
-@export var shape: StringName = &""
+# Array of WaveSpec resources (one per enemy type in the group; .count each).
+# WaveSpec is the existing materialization descriptor (scripts/levels/wave_def.gd).
+@export var specs: Array = []
+# Lane-relative formation layout id (V, wall, pincer, every-other, echelon…),
+# resolved by the conductor and anchored + mirrored. During the adapter era it
+# also carries lifted legacy Formation ids (left_to_right, center_out, …).
+@export var shape: StringName = &"top_spread"
 @export var entry: StringName = &"top"        # "top" | "side"
 @export var lane_anchor_hint: int = -1        # -1 = conductor chooses anchor
 
 # --- FILLER: connective single-enemy trickle between formations (§2.2). ---
 @export_group("Filler")
-# Weighted pool, each entry: { chassis, tier, faction, weight }.
-@export var pool: Array = []
+@export var pool: Array = []                   # Array of WaveSpec resources to trickle from
 @export var rate: float = 1.0                  # target trickle (enemies/sec), cap-gated
 @export var until: StringName = &"headroom"    # "duration" | "budget" | "headroom"
 @export var until_value: float = 0.0           # seconds or budget-share, per `until`

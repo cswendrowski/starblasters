@@ -246,3 +246,28 @@ this neighborhood; don't make a special trip.
 Player shots-fired (`player.gd` fire), damage-taken (`Player.damaged` exists),
 bounty-spent (outpost), locations/stations/signals visited (sector map), unique
 weapons used (loadout). Our work never touches these — do **not** bolt them on here.
+
+---
+
+## 8. Playtest-driven refinements (Combat Slice feedback, 2026-06-04)
+
+Slice playtest confirmed conductor v0–v3 + shapes working. Open refinements
+surfaced (Roman):
+
+- **[conductor] Speed-aware / clear-time pacing.** Phrases advance on spawn-count,
+  not on whether prior enemies have cleared — so a faster unit (dart) overruns a
+  slower formation. The conductor should reason about clear-time (speed × screen
+  distance) to pace phrases. *Interim slice fix:* filler uses a slower `lane_path`
+  + a breather gap so it trails the formation instead of overtaking it.
+- **[firing] Path-phase firing model — NEXT conductor-side milestone.** Enemies
+  fire on their default random timers ("too late"). Implement path-phase firing
+  (e.g. fire at 30%/70% of the path) + the shared beat (bridge §1.8).
+- **[roster] Enemy role taxonomy.** Dart + bomb_drone are *reaction-testers*
+  (direct-challenge role), NOT chaff/filler — fast units that overtake and demand
+  reaction. WaveGen v2 should assign roles (popcorn/pressure/area-denial/
+  direct-challenge, comp guide §2) and keep fast units out of filler pools.
+- **[shapes] `lane_path` HOOK for forced lane commitment.** WEAVE = visual
+  distraction (keep); HOOK (move-to-lane-and-hold) forces a commit. Needs the
+  conductor to pick hook direction per spawn lane (toward/away from center).
+- **[cap] Depth-ramp not wired.** `max_concurrent` is flat 14; ramp 12→16 by depth
+  (comp guide §9). The ceiling is clarity (480×270 + 8px/f), and it's tunable.

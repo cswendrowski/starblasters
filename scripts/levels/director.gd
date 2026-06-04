@@ -1,8 +1,19 @@
 extends Node
 
-# Drives enemy spawning for the current level. Reads a LevelData resource,
-# walks its waves, spawns enemies on a timer, and emits level_cleared when
-# all waves are spawned AND no enemies remain in the "enemies" group.
+# Drives enemy spawning for the current level. Conductor v3 (combat overhaul,
+# streaming): the incoming LevelData is lifted to a CombatScore via ScoreAdapter,
+# then flattened to ordered phrase steps. Dispatch is STREAMING:
+#   - spawning is gated by a concurrency cap (max_concurrent) so on-screen
+#     density can never exceed it by construction (bridge §1.2);
+#   - there is NO per-wave clear-gate — a wave advances as soon as its spawn
+#     budget is spent, so the 5-8 waves blend into one continuous stream;
+#   - banners are non-blocking markers — spawning no longer halts for the banner.
+# level_cleared still fires when all phrases are dispatched AND the "enemies"
+# group is empty. Conductor v3 walks the Wave->Phrase structure natively,
+# dispatching FORMATION / FILLER / BREATHER (v2 lane placement applies to TOP
+# spawns). On legacy-adapted content (all FORMATION) this matches v2; FILLER and
+# BREATHER appear in authored content. See
+# docs/combat_construction_plan_2026-06-03.md §3 and the bridge §1-2.
 
 signal enemy_died(value: int, scene_path: String)
 signal enemy_spawned(scene_path: String, bounty_value: int)
@@ -20,11 +31,22 @@ const POST_CLEAR_GRACE: float = 0.2
 
 @export var level: Resource  # LevelData
 @export var auto_start: bool = false
+# Streaming concurrency cap (bridge §1.2 / composition guide §9). On-screen
+# non-hazard density never exceeds this. Provisional 14; depth-ramp (12->16) and
+# the lane/free-plane split land in v2. Counts recyclers (an on-screen body);
+# recycling-vs-cap is a tracked open item (construction §6).
+@export var max_concurrent: int = 14
+# Minimum gap between spawns regardless of cap headroom — stops a fast-killing
+# player from machine-gunning fresh spawns (wave §1.2).
+const ANTI_BURST_FLOOR: float = 0.20
 
 var _running: bool = false
-var _wave_index: int = -1
-var _spawn_index: int = 0
 var _check_clear: bool = false
+var _score: Resource = null   # CombatScore (adapter output)
+var _steps: Array = []        # flattened phrase steps (phrase + wave context)
+var _step_idx: int = -1
+var _wave_total: int = 0
+var _last_lane: int = -1      # last lane chosen by _pick_lane (alternate-anchor)
 
 func start_level(new_level: Resource = null) -> void:
 	if new_level != null:
@@ -32,84 +54,266 @@ func start_level(new_level: Resource = null) -> void:
 	if level == null or level.waves.is_empty():
 		push_warning("WaveDirector: no level / no waves")
 		return
+	# Lift legacy LevelData -> CombatScore, then perform it. (WaveGen v2 will emit
+	# a CombatScore directly and call start_score.)
+	start_score(ScoreAdapter.from_level_data(level))
+
+
+# Perform a CombatScore: flatten to ordered phrase steps (each carries its wave
+# context for the banner) and walk them, dispatching FORMATION/FILLER/BREATHER.
+func start_score(score: Resource) -> void:
+	_score = score
+	if _score == null or _score.waves.is_empty():
+		push_warning("WaveDirector: empty score")
+		return
+	_wave_total = _score.waves.size()
+	_steps = _build_steps(_score)
+	if _steps.is_empty():
+		push_warning("WaveDirector: score has no phrases")
+		return
 	_running = true
-	_wave_index = -1
-	_spawn_index = 0
+	_step_idx = -1
 	_check_clear = false
-	_advance_to_next_wave()
+	_last_lane = -1
+	_advance_step()
 
 func stop() -> void:
 	_running = false
 	_check_clear = false
 
-func _advance_to_next_wave() -> void:
-	_wave_index += 1
-	if _wave_index >= level.waves.size():
+
+# Flatten a CombatScore into an ordered list of phrase "steps". Each step is the
+# phrase plus its wave context (index + whether it opens the wave, so the banner
+# fires once per ScoreWave). Order across waves is preserved.
+func _build_steps(score: Resource) -> Array:
+	var out: Array = []
+	if score == null:
+		return out
+	for wi in score.waves.size():
+		var w: Resource = score.waves[wi]
+		for pi in w.phrases.size():
+			out.append({
+				"phrase": w.phrases[pi],
+				"wave_idx": wi,
+				"is_wave_start": pi == 0,
+				"banner": w.banner,
+			})
+	return out
+
+
+# Count of live, non-hazard enemies on screen — the concurrency-cap measure.
+# Includes recyclers (they occupy screen space); excludes is_hazard terrain
+# (mines/asteroids keep their own bespoke pacing, uncapped in v1).
+func _alive_count() -> int:
+	var n: int = 0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e):
+			continue
+		if "is_hazard" in e and e.is_hazard:
+			continue
+		n += 1
+	return n
+
+
+# Lane selection for TOP spawns (conductor v2): alternate-anchor — prefer the
+# side opposite the previous spawn (Toaplan rhythm, composition guide §3),
+# among lanes not currently occupied near the entry band so the stream spreads
+# across the 7 lanes and forces player movement.
+func _pick_lane() -> int:
+	var occupied: Array = _occupied_lanes()
+	var candidates: Array = []
+	for i in Lanes.COUNT:
+		if not occupied.has(i):
+			candidates.append(i)
+	if candidates.is_empty():
+		for i in Lanes.COUNT:
+			candidates.append(i)
+	if _last_lane >= 0:
+		var want_high: bool = _last_lane < Lanes.COUNT / 2
+		var side: Array = candidates.filter(
+			func(i): return (i >= Lanes.COUNT / 2) == want_high)
+		if not side.is_empty():
+			candidates = side
+	var pick: int = candidates[randi() % candidates.size()]
+	_last_lane = pick
+	return pick
+
+
+# Lanes currently holding a non-hazard enemy in the top entry band, so a fresh
+# spawn doesn't stack directly onto one.
+func _occupied_lanes() -> Array:
+	var out: Array = []
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or not (e is Node2D):
+			continue
+		if "is_hazard" in e and e.is_hazard:
+			continue
+		if e.position.y <= 40.0:
+			var ln: int = Lanes.nearest_lane(e.position.x)
+			if not out.has(ln):
+				out.append(ln)
+	return out
+
+func _advance_step() -> void:
+	_step_idx += 1
+	if _step_idx >= _steps.size():
 		_running = false
-		_check_clear = true  # start watching for clear
+		_check_clear = true   # all phrases dispatched; watch for clear
 		return
-	var wave: Resource = level.waves[_wave_index]
-	var is_silent: bool = false
-	if "silent" in wave:
-		is_silent = wave.silent
-	var announce: String = ""
-	if "announce_text" in wave:
-		announce = wave.announce_text
-	wave_started.emit(_wave_index, level.waves.size(), is_silent, announce)
-	# Announced waves wait for the banner to clear before spawning. Silent
-	# sub-waves just respect their own spawn_delay (typically short).
-	var delay: float = wave.spawn_delay
-	if not is_silent:
-		delay = max(delay, BANNER_HOLD + POST_BANNER_GRACE)
-	await get_tree().create_timer(delay).timeout
-	if not _running:
-		return
-	_spawn_index = 0
-	_spawn_next(wave)
-
-func _spawn_next(wave: Resource) -> void:
-	if not _running:
-		return
-	if _spawn_index >= wave.count:
-		# Wave done spawning — wait until the playfield is clear of enemies
-		# (including cycling ones), then a beat, before advancing. Silent
-		# sub-waves skip this so they chain straight into the next batch.
-		var is_silent: bool = false
-		if "silent" in wave:
-			is_silent = wave.silent
-		if not is_silent:
-			_wait_for_clear_then_advance()
-		else:
-			_advance_to_next_wave()
-		return
-	_spawn_enemy(wave, _spawn_index)
-	_spawn_index += 1
-	# Tandem pairs: spawn the partner immediately at mirrored X so the two
-	# streams move in concert. Count is assumed even by the wave generator;
-	# if odd, the trailing lone enemy spawns solo at CENTER - offset (its
-	# index % 2 == 0 slot).
-	if wave.formation == 5 and _spawn_index < wave.count and (_spawn_index % 2) == 1:
-		_spawn_enemy(wave, _spawn_index)
-		_spawn_index += 1
-	await get_tree().create_timer(wave.spawn_interval).timeout
-	_spawn_next(wave)
+	var st: Dictionary = _steps[_step_idx]
+	# Non-blocking banner once per ScoreWave (bridge §1.1): emit and keep going.
+	if st["is_wave_start"]:
+		wave_started.emit(int(st["wave_idx"]), _wave_total, false, String(st["banner"]))
+	var ph: Resource = st["phrase"]
+	match ph.kind:
+		Phrase.Kind.FORMATION:
+			_dispatch_formation(ph)
+		Phrase.Kind.FILLER:
+			_dispatch_filler(ph)
+		Phrase.Kind.BREATHER:
+			_dispatch_breather(ph)
+		_:
+			_advance_step()
 
 
-func _wait_for_clear_then_advance() -> void:
-	# Poll the enemies group on a short interval. When empty + the cleared
-	# grace beat has elapsed, advance.
-	while _running and _live_combatants_present(true):
-		await get_tree().create_timer(0.2).timeout
-	if not _running:
+# FORMATION: spawn the phrase's spec group(s), cap-gated, at each spec's cadence
+# (tandem pairs spawn their mirrored partner on the same tick). On legacy-adapted
+# content this reproduces the v2 trickle; authored small formations burst.
+func _dispatch_formation(ph: Resource) -> void:
+	# Shaped formations (wall/pincer) spawn their members across specific lanes
+	# as a near-simultaneous burst ("sent whole", composition guide §2-3).
+	if ph.shape == &"wall" or ph.shape == &"pincer":
+		await _dispatch_shaped(ph)
+		_advance_step()
 		return
-	await get_tree().create_timer(POST_CLEAR_GRACE).timeout
-	if not _running:
-		return
-	_advance_to_next_wave()
+	# Default (spread): per-member alternate-anchor lane at each spec's cadence;
+	# preserves tandem/side placement via spec.formation.
+	for sp in ph.specs:
+		if sp == null:
+			continue
+		var i: int = 0
+		while i < sp.count:
+			if not _running:
+				return
+			while _running and _alive_count() >= max_concurrent:
+				await get_tree().create_timer(0.1).timeout
+			if not _running:
+				return
+			_spawn_enemy(sp, i)
+			i += 1
+			# Tandem partner on the same tick (formation 5), mirrored X.
+			if sp.formation == 5 and i < sp.count and (i % 2) == 1:
+				_spawn_enemy(sp, i)
+				i += 1
+			await get_tree().create_timer(maxf(sp.spawn_interval, ANTI_BURST_FLOOR)).timeout
+	_advance_step()
 
-func _spawn_enemy(wave: Resource, index: int) -> void:
+
+# Spawn a shaped formation's members across computed lanes as a quick burst.
+func _dispatch_shaped(ph: Resource) -> void:
+	var members: Array = []
+	for sp in ph.specs:
+		if sp == null:
+			continue
+		for _k in sp.count:
+			members.append(sp)
+	if members.is_empty():
+		return
+	var lanes: Array = _formation_lanes(ph.shape, members.size())
+	for idx in members.size():
+		if not _running:
+			return
+		while _running and _alive_count() >= max_concurrent:
+			await get_tree().create_timer(0.1).timeout
+		if not _running:
+			return
+		_spawn_enemy(members[idx], idx, int(lanes[idx]))
+		await get_tree().create_timer(0.06).timeout
+
+
+# Lane layout for a shaped formation of n members.
+#   wall   — fill lanes leaving one randomized safe gap (then wrap if n is big).
+#   pincer — alternate inward from both edges: 0, 6, 1, 5, 2, 4, 3 ...
+#   else   — spread via alternate-anchor _pick_lane per member.
+func _formation_lanes(shape: StringName, n: int) -> Array:
+	var out: Array = []
+	match shape:
+		&"wall":
+			var gap: int = randi() % Lanes.COUNT
+			for i in Lanes.COUNT:
+				if i != gap and out.size() < n:
+					out.append(i)
+			var j: int = 0
+			while out.size() < n:
+				out.append(j % Lanes.COUNT)
+				j += 1
+		&"pincer":
+			var lo: int = 0
+			var hi: int = Lanes.COUNT - 1
+			var from_left: bool = true
+			while out.size() < n:
+				if lo > hi:
+					lo = 0
+					hi = Lanes.COUNT - 1
+				if from_left:
+					out.append(lo)
+					lo += 1
+				else:
+					out.append(hi)
+					hi -= 1
+				from_left = not from_left
+		_:
+			for _i in n:
+				out.append(_pick_lane())
+	return out
+
+
+# FILLER: trickle single enemies from the pool, cap-gated, until the stop
+# condition. Supports until="duration" (until_value seconds) and "budget"
+# (until_value enemies); anything else trickles for a short default window.
+func _dispatch_filler(ph: Resource) -> void:
+	if ph.pool.is_empty():
+		_advance_step()
+		return
+	var elapsed: float = 0.0
+	var spawned: int = 0
+	var dur_limit: float = ph.until_value if ph.until == &"duration" else 3.0
+	var budget_limit: int = int(ph.until_value) if ph.until == &"budget" else -1
+	while _running:
+		if budget_limit >= 0 and spawned >= budget_limit:
+			break
+		if budget_limit < 0 and elapsed >= dur_limit:
+			break
+		while _running and _alive_count() >= max_concurrent:
+			await get_tree().create_timer(0.1).timeout
+			elapsed += 0.1
+		if not _running:
+			return
+		var sp: Resource = ph.pool[randi() % ph.pool.size()]
+		if sp != null:
+			_spawn_enemy(sp, spawned)
+			spawned += 1
+		var gap: float = maxf(1.0 / maxf(ph.rate, 0.01), ANTI_BURST_FLOOR)
+		await get_tree().create_timer(gap).timeout
+		elapsed += gap
+	_advance_step()
+
+
+# BREATHER: hold spawning for `duration` seconds, or until the screen drains to
+# alive_floor if set. The readability exhale between intense waves (bridge §2.3).
+func _dispatch_breather(ph: Resource) -> void:
+	var elapsed: float = 0.0
+	while _running and elapsed < ph.duration:
+		if ph.alive_floor >= 0 and _alive_count() <= ph.alive_floor:
+			break
+		await get_tree().create_timer(0.1).timeout
+		elapsed += 0.1
+	_advance_step()
+
+
+func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1) -> void:
 	if wave.enemy_scene == null:
-		push_warning("WaveDirector: wave %d has no enemy_scene" % _wave_index)
+		push_warning("WaveDirector: spec has no enemy_scene")
 		return
 	var enemy = wave.enemy_scene.instantiate()
 	# 320×400 internal resolution rework (Roman, 2026-05-17): sprites render
@@ -163,6 +367,10 @@ func _spawn_enemy(wave: Resource, index: int) -> void:
 	# builds its rings in _ready()). Guarded so other enemies ignore it.
 	if wave.ring_count_override >= 0 and "ring_count" in enemy:
 		enemy.ring_count = wave.ring_count_override
+	# Conducted enemies fire in the engagement band (bridge §1.8-1.9): hold fire
+	# on entry, cease fire once low. Guarded so non-enemy_core types skip it.
+	if "fire_zone_gated" in enemy:
+		enemy.fire_zone_gated = true
 	# Sector modifiers — applied last so they stack on top of wave overrides.
 	var _run = get_node_or_null("/root/Run")
 	if _run and "sector_modifiers" in _run and not _run.sector_modifiers.is_empty():
@@ -170,58 +378,35 @@ func _spawn_enemy(wave: Resource, index: int) -> void:
 	# Compute spawn x based on formation. Spawn x is confined to the
 	# playfield band (Playfield.X_MIN..X_MAX), not the full viewport,
 	# so the side gutters stay clear.
-	var pad: float = wave.formation_padding
-	var x_min: float = Playfield.X_MIN + pad
-	var usable_w: float = Playfield.W - pad * 2.0
+	# Lanes are the spawn-anchor grid (scripts/lanes.gd). A lane_override (from a
+	# shaped formation) forces a specific lane; otherwise TOP formations (0-3) use
+	# alternate-anchor selection and SIDE (4)/TANDEM (5) keep bespoke placement.
 	var x := 0.0
 	var pos: Vector2
-	match wave.formation:
-		0: # TOP_LEFT_TO_RIGHT
-			var t: float = 0.0
-			if wave.count > 1:
-				t = float(index) / float(wave.count - 1)
-			x = x_min + usable_w * t
-			pos = Vector2(x, wave.spawn_y)
-		1: # TOP_RIGHT_TO_LEFT
-			var t: float = 0.0
-			if wave.count > 1:
-				t = float(index) / float(wave.count - 1)
-			x = x_min + usable_w * (1.0 - t)
-			pos = Vector2(x, wave.spawn_y)
-		2: # TOP_RANDOM
-			x = x_min + randf() * usable_w
-			pos = Vector2(x, wave.spawn_y)
-		3: # TOP_CENTER_OUT
-			var center: float = Playfield.CENTER.x
-			var step: float = usable_w / maxf(1.0, float(wave.count))
-			var offset: float = (float(index) - float(wave.count - 1) * 0.5) * step
-			x = center + offset
-			pos = Vector2(x, wave.spawn_y)
-		5: # TOP_TANDEM_PAIRS — two streams in concert, offset ±tandem_offset_x from CENTER.
-			# Even index = left member; odd index = right member of the pair.
-			# Both pair members share wave.movement_override (parameters: amplitude,
-			# frequency, mirrored). enemy_core duplicates per spawn so per-instance
-			# state (_t, _start_x) stays separate, but identical params + same spawn
-			# tick = lockstep motion.
-			var center: float = Playfield.CENTER.x
-			var side: int = -1 if (index % 2) == 0 else 1
-			x = center + float(side) * wave.tandem_offset_x
-			pos = Vector2(x, wave.spawn_y)
-		4: # SIDE_ALTERNATING — alternate sides per spawn; pattern direction is set to match.
-			var side: int = 1 if (index % 2) == 0 else -1
-			if side > 0:
-				x = Playfield.X_MIN - 12.0
-			else:
-				x = Playfield.X_MAX + 12.0
-			pos = Vector2(x, wave.spawn_y)
-			# Per-instance direction override; duplicate so siblings don't share state.
-			if "movement" in enemy and enemy.movement != null and "direction" in enemy.movement:
-				var mv_dup: Resource = enemy.movement.duplicate()
-				mv_dup.direction = side
-				enemy.movement = mv_dup
-		_:
-			x = x_min + randf() * usable_w
-			pos = Vector2(x, wave.spawn_y)
+	if lane_override >= 0:
+		pos = Vector2(Lanes.lane_center(lane_override), wave.spawn_y)
+	else:
+		match wave.formation:
+			5: # TOP_TANDEM_PAIRS — two streams in concert, ±tandem_offset_x from CENTER.
+				var center: float = Playfield.CENTER.x
+				var side: int = -1 if (index % 2) == 0 else 1
+				x = center + float(side) * wave.tandem_offset_x
+				pos = Vector2(x, wave.spawn_y)
+			4: # SIDE_ALTERNATING — alternate sides per spawn; pattern direction matches.
+				var side: int = 1 if (index % 2) == 0 else -1
+				if side > 0:
+					x = Playfield.X_MIN - 12.0
+				else:
+					x = Playfield.X_MAX + 12.0
+				pos = Vector2(x, wave.spawn_y)
+				# Per-instance direction override; duplicate so siblings don't share.
+				if "movement" in enemy and enemy.movement != null and "direction" in enemy.movement:
+					var mv_dup: Resource = enemy.movement.duplicate()
+					mv_dup.direction = side
+					enemy.movement = mv_dup
+			_: # TOP formations (0-3) -> alternate-anchor lane placement
+				var lane: int = _pick_lane()
+				pos = Vector2(Lanes.lane_center(lane), wave.spawn_y)
 	# Make the enemy a child of our parent (typically Main) so it lives in the world
 	var parent = get_parent()
 	parent.add_child(enemy)
