@@ -88,6 +88,7 @@ func _build_ui() -> void:
 	_add_button("[ Sector Map HD Lab ]", _on_sector_map_hd_lab, true)
 	# Test launchers
 	_add_button("[ Test Combat ]", _on_test_combat, true)
+	_add_button("[ Combat Slice ]", _on_combat_slice, true)
 	_add_button("[ Hangar ]", _on_hangar, true)
 	_add_button("[ UI Plotter ]", _on_ui_plotter, true)
 
@@ -157,6 +158,18 @@ func _on_test_level() -> void:
 			run.new_run()
 		run.test_mode_active = true
 		run.set_meta("custom_level_path", TEST_LEVEL_PATH)
+	SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
+
+
+func _on_combat_slice() -> void:
+	# Vertical-slice showcase of the composed combat model (formations + filler +
+	# breathers + lanes). main.gd routes start_score(CombatSlice.build()).
+	if has_node("/root/Run"):
+		var run = get_node("/root/Run")
+		if run.has_method("new_run"):
+			run.new_run()
+		run.test_mode_active = true
+		run.set_meta("combat_slice", true)
 	SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
 
 

@@ -549,7 +549,13 @@ func _run_intro(is_boss: bool) -> void:
 		player.controls_enabled = true
 	playing = true
 	# WaveDirector emits wave_started immediately, so the banner shows then.
-	wave_director.start_level(_current_level)
+	# Dev "Combat Slice": route a hand-authored CombatScore (formations + filler +
+	# breathers) through the conductor instead of the generated level. Single-shot.
+	if has_node("/root/Run") and get_node("/root/Run").get_meta("combat_slice", false):
+		get_node("/root/Run").remove_meta("combat_slice")
+		wave_director.start_score(CombatSlice.build())
+	else:
+		wave_director.start_level(_current_level)
 	# Spawn the unattackable background Missile Cruiser now that the Backdrop +
 	# player + camera all exist (deferred from level selection).
 	if _want_missile_cruiser:

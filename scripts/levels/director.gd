@@ -180,6 +180,14 @@ func _advance_step() -> void:
 # (tandem pairs spawn their mirrored partner on the same tick). On legacy-adapted
 # content this reproduces the v2 trickle; authored small formations burst.
 func _dispatch_formation(ph: Resource) -> void:
+	# Shaped formations (wall/pincer) spawn their members across specific lanes
+	# as a near-simultaneous burst ("sent whole", composition guide §2-3).
+	if ph.shape == &"wall" or ph.shape == &"pincer":
+		await _dispatch_shaped(ph)
+		_advance_step()
+		return
+	# Default (spread): per-member alternate-anchor lane at each spec's cadence;
+	# preserves tandem/side placement via spec.formation.
 	for sp in ph.specs:
 		if sp == null:
 			continue
@@ -199,6 +207,65 @@ func _dispatch_formation(ph: Resource) -> void:
 				i += 1
 			await get_tree().create_timer(maxf(sp.spawn_interval, ANTI_BURST_FLOOR)).timeout
 	_advance_step()
+
+
+# Spawn a shaped formation's members across computed lanes as a quick burst.
+func _dispatch_shaped(ph: Resource) -> void:
+	var members: Array = []
+	for sp in ph.specs:
+		if sp == null:
+			continue
+		for _k in sp.count:
+			members.append(sp)
+	if members.is_empty():
+		return
+	var lanes: Array = _formation_lanes(ph.shape, members.size())
+	for idx in members.size():
+		if not _running:
+			return
+		while _running and _alive_count() >= max_concurrent:
+			await get_tree().create_timer(0.1).timeout
+		if not _running:
+			return
+		_spawn_enemy(members[idx], idx, int(lanes[idx]))
+		await get_tree().create_timer(0.06).timeout
+
+
+# Lane layout for a shaped formation of n members.
+#   wall   — fill lanes leaving one randomized safe gap (then wrap if n is big).
+#   pincer — alternate inward from both edges: 0, 6, 1, 5, 2, 4, 3 ...
+#   else   — spread via alternate-anchor _pick_lane per member.
+func _formation_lanes(shape: StringName, n: int) -> Array:
+	var out: Array = []
+	match shape:
+		&"wall":
+			var gap: int = randi() % Lanes.COUNT
+			for i in Lanes.COUNT:
+				if i != gap and out.size() < n:
+					out.append(i)
+			var j: int = 0
+			while out.size() < n:
+				out.append(j % Lanes.COUNT)
+				j += 1
+		&"pincer":
+			var lo: int = 0
+			var hi: int = Lanes.COUNT - 1
+			var from_left: bool = true
+			while out.size() < n:
+				if lo > hi:
+					lo = 0
+					hi = Lanes.COUNT - 1
+				if from_left:
+					out.append(lo)
+					lo += 1
+				else:
+					out.append(hi)
+					hi -= 1
+				from_left = not from_left
+		_:
+			for _i in n:
+				out.append(_pick_lane())
+	return out
 
 
 # FILLER: trickle single enemies from the pool, cap-gated, until the stop
@@ -244,7 +311,7 @@ func _dispatch_breather(ph: Resource) -> void:
 	_advance_step()
 
 
-func _spawn_enemy(wave: Resource, index: int) -> void:
+func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1) -> void:
 	if wave.enemy_scene == null:
 		push_warning("WaveDirector: spec has no enemy_scene")
 		return
@@ -307,35 +374,35 @@ func _spawn_enemy(wave: Resource, index: int) -> void:
 	# Compute spawn x based on formation. Spawn x is confined to the
 	# playfield band (Playfield.X_MIN..X_MAX), not the full viewport,
 	# so the side gutters stay clear.
-	# Conductor v2: lanes are the spawn-anchor grid (scripts/lanes.gd). TOP
-	# formations (0-3) are placed on a lane via alternate-anchor selection
-	# (Toaplan rhythm, composition guide §3); the enemy then moves per its OWN
-	# pattern from that lane. SIDE (4) and TANDEM (5) keep bespoke placement.
+	# Lanes are the spawn-anchor grid (scripts/lanes.gd). A lane_override (from a
+	# shaped formation) forces a specific lane; otherwise TOP formations (0-3) use
+	# alternate-anchor selection and SIDE (4)/TANDEM (5) keep bespoke placement.
 	var x := 0.0
 	var pos: Vector2
-	match wave.formation:
-		5: # TOP_TANDEM_PAIRS — two streams in concert, ±tandem_offset_x from CENTER.
-			# enemy_core duplicates the pattern per spawn so per-instance state
-			# stays separate; identical params + same tick = lockstep motion.
-			var center: float = Playfield.CENTER.x
-			var side: int = -1 if (index % 2) == 0 else 1
-			x = center + float(side) * wave.tandem_offset_x
-			pos = Vector2(x, wave.spawn_y)
-		4: # SIDE_ALTERNATING — alternate sides per spawn; pattern direction matches.
-			var side: int = 1 if (index % 2) == 0 else -1
-			if side > 0:
-				x = Playfield.X_MIN - 12.0
-			else:
-				x = Playfield.X_MAX + 12.0
-			pos = Vector2(x, wave.spawn_y)
-			# Per-instance direction override; duplicate so siblings don't share state.
-			if "movement" in enemy and enemy.movement != null and "direction" in enemy.movement:
-				var mv_dup: Resource = enemy.movement.duplicate()
-				mv_dup.direction = side
-				enemy.movement = mv_dup
-		_: # TOP formations (0-3) -> lane-based spawn placement
-			var lane: int = _pick_lane()
-			pos = Vector2(Lanes.lane_center(lane), wave.spawn_y)
+	if lane_override >= 0:
+		pos = Vector2(Lanes.lane_center(lane_override), wave.spawn_y)
+	else:
+		match wave.formation:
+			5: # TOP_TANDEM_PAIRS — two streams in concert, ±tandem_offset_x from CENTER.
+				var center: float = Playfield.CENTER.x
+				var side: int = -1 if (index % 2) == 0 else 1
+				x = center + float(side) * wave.tandem_offset_x
+				pos = Vector2(x, wave.spawn_y)
+			4: # SIDE_ALTERNATING — alternate sides per spawn; pattern direction matches.
+				var side: int = 1 if (index % 2) == 0 else -1
+				if side > 0:
+					x = Playfield.X_MIN - 12.0
+				else:
+					x = Playfield.X_MAX + 12.0
+				pos = Vector2(x, wave.spawn_y)
+				# Per-instance direction override; duplicate so siblings don't share.
+				if "movement" in enemy and enemy.movement != null and "direction" in enemy.movement:
+					var mv_dup: Resource = enemy.movement.duplicate()
+					mv_dup.direction = side
+					enemy.movement = mv_dup
+			_: # TOP formations (0-3) -> alternate-anchor lane placement
+				var lane: int = _pick_lane()
+				pos = Vector2(Lanes.lane_center(lane), wave.spawn_y)
 	# Make the enemy a child of our parent (typically Main) so it lives in the world
 	var parent = get_parent()
 	parent.add_child(enemy)
