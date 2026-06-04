@@ -39,8 +39,8 @@ func _init() -> void:
 
 	# --- slice structure ---
 	var score = CombatSlice.build()
-	if score.waves.size() != 3:
-		log.append("FAIL slice waves=%d (expected 3)" % score.waves.size())
+	if score.waves.size() != 4:
+		log.append("FAIL slice waves=%d (expected 4)" % score.waves.size())
 	else:
 		var w0 = score.waves[0]
 		if w0.phrases[0].kind != Phrase.Kind.FORMATION or w0.phrases[0].shape != &"wall":

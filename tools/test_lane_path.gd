@@ -74,6 +74,26 @@ func _init() -> void:
 		_say("FAIL straight descent y=%.2f" % es.position.y); fails += 1
 	es.free()
 
+	# STEP: hold the anchor lane, then hop to the adjacent lane (dir +1 from lane 2).
+	var pstep = LanePath.new()
+	pstep.shape = LanePath.Shape.STEP
+	pstep.down_speed = 60.0
+	pstep.hold_time = 0.2
+	pstep.step_time = 0.1
+	pstep.step_lanes = 1
+	var est := Node2D.new()
+	est.position = Vector2(Lanes.lane_center(2), 0.0)
+	pstep.on_start(est)
+	_tick(pstep, est, 6)    # 0.1s < hold_time -> still holding lane 2
+	if absf(est.position.x - Lanes.lane_center(2)) > 1.0:
+		_say("FAIL step did not hold lane 2 x=%.2f" % est.position.x); fails += 1
+	# Hop 2->3 completes ~frame 18; lane-3 hold runs ~frames 18-29. Sample at ~24
+	# (6 + 18) so we catch it settled on lane 3 before it ping-pongs onward.
+	_tick(pstep, est, 18)
+	if absf(est.position.x - Lanes.lane_center(3)) > 1.0:
+		_say("FAIL step did not hop to lane 3 x=%.2f" % est.position.x); fails += 1
+	est.free()
+
 	if fails == 0:
 		_say("LANE_PATH TEST: PASS")
 	else:

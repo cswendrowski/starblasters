@@ -19,9 +19,10 @@ extends RefCounted
 const DART := "res://scenes/enemies/enemy_dart.tscn"
 const DRIFTER := "res://scenes/enemies/enemy_drifter.tscn"
 
-# lane_path.gd Shape enum order: 0 = STRAIGHT, 1 = WEAVE, 2 = HOOK.
+# lane_path.gd Shape enum order: 0 = STRAIGHT, 1 = WEAVE, 2 = HOOK, 3 = STEP.
 const LP_STRAIGHT := 0
 const LP_WEAVE := 1
+const LP_STEP := 3
 
 
 static func _lane_path(shape_int: int, down: float = 120.0, weave_lanes: float = 1.0) -> Resource:
@@ -30,6 +31,18 @@ static func _lane_path(shape_int: int, down: float = 120.0, weave_lanes: float =
 	lp.shape = shape_int
 	lp.down_speed = down
 	lp.weave_lanes = weave_lanes
+	return lp
+
+
+static func _step_path(down: float = 70.0, hold: float = 1.0, step_t: float = 0.3, lanes: int = 1, pingpong: bool = true) -> Resource:
+	var LanePath := load("res://scripts/enemies/patterns/lane_path.gd")
+	var lp = LanePath.new()
+	lp.shape = LP_STEP
+	lp.down_speed = down
+	lp.hold_time = hold
+	lp.step_time = step_t
+	lp.step_lanes = lanes
+	lp.step_pingpong = pingpong
 	return lp
 
 
@@ -102,9 +115,13 @@ static func build() -> CombatScore:
 		_filler([_spec(DRIFTER, 1, 0.2, _lane_path(LP_STRAIGHT, 90.0))], 1.5, 8),
 		_breather(1.2),
 	]))
-	# Wave 3 — a SWEEP finale: big, slow weaves (commit to dodging) that also
-	# keep the screen visually busy. (lane_path WEAVE, amplitude 2 lanes, slow.)
+	# Wave 3 — SWEEP: the original gentle weave (visual busyness / distraction).
 	score.waves.append(_wave("SWEEP", [
-		_formation(&"spread", [_spec(DRIFTER, 10, 0.2, _lane_path(LP_WEAVE, 80.0, 2.0))]),
+		_formation(&"spread", [_spec(DRIFTER, 10, 0.2, _lane_path(LP_WEAVE, 120.0, 1.0))]),
+	]))
+	# Wave 4 — STEP: slow hold-then-hop drifters (ping-pong between adjacent lanes)
+	# that force you to commit to a lane and re-read as they camp + relocate.
+	score.waves.append(_wave("STEP", [
+		_formation(&"spread", [_spec(DRIFTER, 8, 0.25, _step_path(70.0, 1.0, 0.3, 1, true))]),
 	]))
 	return score
