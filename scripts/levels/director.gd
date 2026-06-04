@@ -367,6 +367,10 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1) -> void:
 	# builds its rings in _ready()). Guarded so other enemies ignore it.
 	if wave.ring_count_override >= 0 and "ring_count" in enemy:
 		enemy.ring_count = wave.ring_count_override
+	# Conducted enemies fire in the engagement band (bridge §1.8-1.9): hold fire
+	# on entry, cease fire once low. Guarded so non-enemy_core types skip it.
+	if "fire_zone_gated" in enemy:
+		enemy.fire_zone_gated = true
 	# Sector modifiers — applied last so they stack on top of wave overrides.
 	var _run = get_node_or_null("/root/Run")
 	if _run and "sector_modifiers" in _run and not _run.sector_modifiers.is_empty():

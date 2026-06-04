@@ -33,6 +33,11 @@ var _pattern: Resource = null
 # ShootTimer for patterns that have a meaningful "shoot here" beat
 # (Hover hold, Skirmisher hold). Empty = legacy timer-only firing.
 @export var fire_on_phase: String = ""
+# Firing-zone gating (bridge §1.8-1.9): when true, only fire while inside the
+# engagement Y-band (Zones) — hold fire just after spawn (entry band) and cease
+# fire once low (departure band, committed to leaving). The director enables this
+# for the enemies it spawns; bosses/bespoke firing are unaffected.
+@export var fire_zone_gated: bool = false
 
 # Cycling state — enemy is currently flying back up through parallax.
 var _cycling: bool = false
@@ -267,6 +272,13 @@ func _on_shoot_timer_timeout() -> void:
 		return
 	if _cycling or not _on_playfield():
 		$ShootTimer.wait_time = randf_range(fire_interval_min, fire_interval_max)
+		$ShootTimer.start()
+		return
+	# Firing zones (bridge §1.8-1.9): hold fire above the engagement band (just
+	# spawned) and cease fire below it (committed to leaving). Poll quickly while
+	# outside so the first shot lands promptly on entering engagement.
+	if fire_zone_gated and not Zones.in_engagement(position.y):
+		$ShootTimer.wait_time = 0.15
 		$ShootTimer.start()
 		return
 	if fire_only_on_target and not _nose_on_player():
