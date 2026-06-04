@@ -135,12 +135,46 @@ static func _wave_count_for(sector_depth: int, level_index: int) -> int:
 	return clampi(5 + level_index + (sector_depth - 1), 5, 8)
 
 
+# Level enemy budget (M5): the soft total headcount the level streams toward (the
+# conductor caps how many are on screen at once). Opener ~140 -> mature ~300 ->
+# deep ceiling 350. Composition wins ties. TUNE via tools/test_budget.gd.
+static func _level_budget(sector_depth: int, level_index: int) -> int:
+	return clampi(int(round(140.0 + 25.0 * level_index + 35.0 * (sector_depth - 1))), 140, 350)
+
+
+# Scale the level's CHAFF waves so the total approaches the budget, leaving elite
+# (low base_count) waves at their rolled counts so elites stay rare. base_counts
+# is parallel to waves. Replaces the old per-wave count ceiling as the volume
+# driver — chaff fills whatever budget the elites don't.
+static func _apply_budget(waves: Array, base_counts: Array, sector_depth: int, level_index: int) -> void:
+	if waves.is_empty():
+		return
+	var target: int = _level_budget(sector_depth, level_index)
+	var elite_total: int = 0
+	var chaff_idx: Array = []
+	var chaff_raw: int = 0
+	for i in waves.size():
+		var base: int = (int(base_counts[i]) if i < base_counts.size() else 4)
+		if base >= 4:
+			chaff_idx.append(i)
+			chaff_raw += int(waves[i].count)
+		else:
+			elite_total += int(waves[i].count)
+	if chaff_idx.is_empty() or chaff_raw <= 0:
+		return
+	var chaff_budget: int = maxi(0, target - elite_total)
+	var scale: float = float(chaff_budget) / float(chaff_raw)
+	for i in chaff_idx:
+		waves[i].count = maxi(2, int(round(float(waves[i].count) * scale)))
+
+
 # Combat level. Rolls _wave_count_for(level_index) waves, each populated by
 # a roll against the depth-weighted rarity table.
 static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, level_index: int) -> Array:
 	var n_waves: int = _wave_count_for(sector_depth, level_index)
 	var waves: Array = []
 	var used: Array = []  # entries already used in this level (variety)
+	var base_counts: Array = []  # base_count parallel to waves, for budget scaling
 	for i in n_waves:
 		# Wave 0 is never mixed (calm intro). Otherwise roll P(mix).
 		var mix: bool = i > 0 and _should_intermingle(level_index, sector_depth, rng)
@@ -189,6 +223,8 @@ static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, l
 				sub_a.announce_text = ""
 			waves.append(sub_a)
 			waves.append(sub_b)
+			base_counts.append(base_a)
+			base_counts.append(base_b)
 		else:
 			var entry: Dictionary = _pick_entry(rng, sector_depth, level_index, used)
 			used.append(entry)
@@ -200,6 +236,8 @@ static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, l
 			else:
 				w.silent = false  # banner each wave so player can pace
 			waves.append(w)
+			base_counts.append(int(entry.get("base_count", 4)))
+	_apply_budget(waves, base_counts, sector_depth, level_index)
 	return waves
 
 
