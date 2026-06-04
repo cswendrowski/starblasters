@@ -128,16 +128,17 @@ static func build(sector_depth: int, level_index_in_sector: int, is_boss: bool) 
 	return level
 
 
-# Wave count target for a given level index. First node = 2, then +1 per
-# subsequent combat node, soft-capped at 5 to keep run length reasonable.
-static func _wave_count_for(level_index: int) -> int:
-	return clamp(2 + level_index, 2, 5)
+# Wave count target. 5-8 waves per level (streaming model, M5): the conductor
+# blends them into one continuous stream, so more waves = a longer, fuller level.
+# Base 5, +1 per node into the sector and +1 per sector depth, soft-capped at 8.
+static func _wave_count_for(sector_depth: int, level_index: int) -> int:
+	return clampi(5 + level_index + (sector_depth - 1), 5, 8)
 
 
 # Combat level. Rolls _wave_count_for(level_index) waves, each populated by
 # a roll against the depth-weighted rarity table.
 static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, level_index: int) -> Array:
-	var n_waves: int = _wave_count_for(level_index)
+	var n_waves: int = _wave_count_for(sector_depth, level_index)
 	var waves: Array = []
 	var used: Array = []  # entries already used in this level (variety)
 	for i in n_waves:
