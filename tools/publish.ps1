@@ -31,6 +31,11 @@ if ($LASTEXITCODE -ne 0) { throw "parse_check failed - refusing to publish a bui
 $proj = Join-Path $REPO 'project.godot'
 (Get-Content $proj -Raw) -replace 'config/version="[^"]+"', "config/version=`"$Version`"" | Set-Content $proj -Encoding utf8
 
+# Godot's exporter writes into OUT_DIR but does NOT create it — a missing dir
+# makes the export a silent no-op (no index.pck). Ensure it exists (first publish
+# on a fresh machine hits this).
+if (-not (Test-Path $OUT_DIR)) { New-Item -ItemType Directory -Force $OUT_DIR | Out-Null }
+
 # Capture mtime BEFORE export so we can detect a silent no-op.
 $pckPath = Join-Path $OUT_DIR 'index.pck'
 $mtimeBefore = if (Test-Path $pckPath) { (Get-Item $pckPath).LastWriteTimeUtc.Ticks } else { 0 }
