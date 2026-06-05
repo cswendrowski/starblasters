@@ -96,7 +96,9 @@ const ENTRIES := [
 		"recycle": 0,
 		"hp_override": 1, "bounty_override": 5,
 		# Dart — the canonical first-encounter chaff. Always available.
-		"unlock_sector": 0, "unlock_depth": 0, "weight": 1.4, "chaff": true,
+		# wall: fast chaff arrives as a chunked, gap-shifting wall (not a trickle) so
+		# a big dart wave keeps end-of-node momentum (construction §8).
+		"unlock_sector": 0, "unlock_depth": 0, "weight": 1.4, "chaff": true, "wall": true,
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_bomb_drone.tscn",
@@ -108,7 +110,8 @@ const ENTRIES := [
 		"recycle": 0,
 		"hp_override": 1, "bounty_override": 5,
 		# Bomb drone — basic dive chaff. Always available alongside Dart.
-		"unlock_sector": 0, "unlock_depth": 0, "weight": 1.0, "chaff": true,
+		# wall: dives as a chunked wall like Dart (construction §8).
+		"unlock_sector": 0, "unlock_depth": 0, "weight": 1.0, "chaff": true, "wall": true,
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_drifter.tscn",

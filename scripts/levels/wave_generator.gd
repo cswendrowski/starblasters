@@ -651,6 +651,13 @@ static func _make_wave_spec(rng: RandomNumberGenerator, entry: Dictionary, secto
 	w.spawn_interval = 0.4 + rng.randf_range(0.0, 0.25)
 	w.spawn_delay = 0.5 + 0.6 * float(wave_index_in_level)
 	w.formation = rng.randi() % 4
+	# Fast-chaff WALL (construction §8): entries tagged `wall: true` (dart/bomb_drone)
+	# arrive as a chunked, gap-shifting wall instead of a one-at-a-time spread trickle
+	# that goes sparse and kills end-of-node momentum. Computed here, applied AFTER the
+	# tandem/force rolls below so it isn't stomped (force_formation still wins). Only
+	# affects SINGLE waves built here — mixed sub-waves keep their opposite-side spread
+	# (halved counts there don't trickle). Boss lead-ins are exempt.
+	var want_wall: bool = bool(entry.get("wall", false)) and not is_boss_leadin
 	w.movement_override = Roster.make_movement(entry)
 	# S-curve mirror coin-flip — designer 2026-05-24: top-down traversing
 	# patterns should support mirrored variants for variety. Coin-flip here
@@ -677,7 +684,7 @@ static func _make_wave_spec(rng: RandomNumberGenerator, entry: Dictionary, secto
 		"straight", "firecore_straight", "drifter_straight",
 		"fast_straight", "s_curve",
 	]
-	if tandem_eligible and not is_boss_leadin and level_index >= 2 and rng.randf() < 0.25:
+	if tandem_eligible and not want_wall and not is_boss_leadin and level_index >= 2 and rng.randf() < 0.25:
 		w.formation = WaveSpec.Formation.TOP_TANDEM_PAIRS
 		if (w.count % 2) == 1:
 			w.count += 1
@@ -687,6 +694,11 @@ static func _make_wave_spec(rng: RandomNumberGenerator, entry: Dictionary, secto
 	# after that path stomps formation. force_even_count guarantees no lone
 	# trailing member (a lone burner just descends + leaves, but pairs are intent).
 	_apply_force_formation(w, entry)
+	# WALL wins over the random spread + tandem roll, but force_formation (Burner's
+	# tandem beam-pair) is explicit and takes precedence — apply WALL only when nothing
+	# was force-set.
+	if want_wall and not entry.has("force_formation"):
+		w.formation = WaveSpec.Formation.WALL
 	var sp: Resource = Roster.make_shoot(entry)
 	if sp != null:
 		w.shoot_pattern_override = sp
@@ -712,7 +724,7 @@ static func _apply_force_formation(w: WaveSpec, entry: Dictionary) -> void:
 	if not entry.has("force_formation"):
 		return
 	var ff: int = int(entry["force_formation"])
-	if ff < 0 or ff > int(WaveSpec.Formation.TOP_TANDEM_PAIRS):
+	if ff < 0 or ff > int(WaveSpec.Formation.PINCER):
 		return
 	w.formation = ff
 	if bool(entry.get("force_even_count", false)) and (w.count % 2) == 1:

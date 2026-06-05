@@ -41,6 +41,13 @@ const POST_CLEAR_GRACE: float = 0.2
 # Minimum gap between spawns regardless of cap headroom — stops a fast-killing
 # player from machine-gunning fresh spawns (wave §1.2).
 const ANTI_BURST_FLOOR: float = 0.20
+# WALL dispatch (construction §8): a wall arrives as successive ROWS. Each row fills
+# all but WALL_GAP_LANES lanes (the gap shifts row-to-row so the safe lane moves),
+# members within a row spawn on a tight stagger, and WALL_ROW_BEAT pauses between
+# rows so each reads as a distinct "pick a gap" beat instead of one mega-burst.
+const WALL_GAP_LANES: int = 2       # lanes left open per row (7 lanes -> rows of ~5)
+const WALL_ROW_BEAT: float = 0.55   # pause between successive wall rows
+const WALL_MEMBER_STAGGER: float = 0.05  # intra-row spawn stagger (near-simultaneous)
 # Grace beat after the player gains control before the first wave dispatches, so
 # the level doesn't open the instant the slide-in ends.
 @export var start_grace: float = 1.2
@@ -192,9 +199,15 @@ func _advance_step() -> void:
 # (tandem pairs spawn their mirrored partner on the same tick). On legacy-adapted
 # content this reproduces the v2 trickle; authored small formations burst.
 func _dispatch_formation(ph: Resource) -> void:
-	# Shaped formations (wall/pincer) spawn their members across specific lanes
-	# as a near-simultaneous burst ("sent whole", composition guide §2-3).
-	if ph.shape == &"wall" or ph.shape == &"pincer":
+	# WALL: chunk into SUCCESSIVE rows (each leaving 1-2 shifting gap lanes, a beat
+	# between rows) so a big fast-chaff wave reads as "pick a gap, NOW" repeated,
+	# not a one-at-a-time spread trickle (construction §8, dart-trickle bug).
+	if ph.shape == &"wall":
+		await _dispatch_wall(ph)
+		_advance_step()
+		return
+	# PINCER: near-simultaneous burst across edge-inward lanes ("sent whole").
+	if ph.shape == &"pincer":
 		await _dispatch_shaped(ph)
 		_advance_step()
 		return
@@ -241,6 +254,77 @@ func _dispatch_shaped(ph: Resource) -> void:
 			return
 		_spawn_enemy(members[idx], idx, int(lanes[idx]))
 		await get_tree().create_timer(0.06).timeout
+
+
+# WALL: spawn members as successive rows across the lanes. Each row leaves
+# WALL_GAP_LANES open (the gap shifts off the previous row so the player must
+# re-position), members spawn on a tight stagger, and a beat separates rows. A
+# count-N wall becomes ceil(N / row_size) readable walls instead of one burst.
+func _dispatch_wall(ph: Resource) -> void:
+	var members: Array = []
+	for sp in ph.specs:
+		if sp == null:
+			continue
+		for _k in sp.count:
+			members.append(sp)
+	if members.is_empty():
+		return
+	var row_size: int = maxi(1, Lanes.COUNT - WALL_GAP_LANES)
+	var prev_gaps: Array = []
+	var idx: int = 0
+	while idx < members.size():
+		if not _running:
+			return
+		# Cap-gate before each row so a wall never blows past the concurrency cap.
+		while _running and _alive_count() >= max_concurrent:
+			await get_tree().create_timer(0.1).timeout
+		if not _running:
+			return
+		var n_this: int = mini(row_size, members.size() - idx)
+		var lanes: Array = _wall_row_lanes(n_this, prev_gaps)
+		# Record this row's gaps so the next row shifts off them.
+		prev_gaps = []
+		for i in Lanes.COUNT:
+			if not lanes.has(i):
+				prev_gaps.append(i)
+		for k in n_this:
+			if not _running:
+				return
+			_spawn_enemy(members[idx], idx, int(lanes[k]))
+			idx += 1
+			await get_tree().create_timer(WALL_MEMBER_STAGGER).timeout
+		# Beat between rows (only if more remain).
+		if idx < members.size():
+			await get_tree().create_timer(WALL_ROW_BEAT).timeout
+
+
+# Choose the n filled lanes for one wall row. The (COUNT - n) gap lanes are picked
+# to differ from `avoid_gaps` (the previous row's gaps) where possible, so the safe
+# lane moves between rows. Returns the filled lanes ascending.
+func _wall_row_lanes(n: int, avoid_gaps: Array) -> Array:
+	var gap_count: int = clampi(Lanes.COUNT - n, 0, Lanes.COUNT)
+	var pool: Array = []
+	for i in Lanes.COUNT:
+		pool.append(i)
+	pool.shuffle()
+	var gaps: Array = []
+	# First pass: gaps NOT used by the previous row (shift the safe lane).
+	for ln in pool:
+		if gaps.size() >= gap_count:
+			break
+		if not avoid_gaps.has(ln):
+			gaps.append(ln)
+	# Top up if we couldn't avoid enough (e.g. tiny lane count).
+	for ln in pool:
+		if gaps.size() >= gap_count:
+			break
+		if not gaps.has(ln):
+			gaps.append(ln)
+	var lanes: Array = []
+	for i in Lanes.COUNT:
+		if not gaps.has(i):
+			lanes.append(i)
+	return lanes
 
 
 # Lane layout for a shaped formation of n members.

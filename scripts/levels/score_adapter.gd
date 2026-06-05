@@ -78,4 +78,6 @@ static func _shape_id(spec: Resource) -> StringName:
 		3: return &"center_out"
 		4: return &"side_alternating"
 		5: return &"tandem_pairs"
+		6: return &"wall"
+		7: return &"pincer"
 		_: return &"top_spread"
