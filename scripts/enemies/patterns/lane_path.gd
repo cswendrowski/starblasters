@@ -140,6 +140,10 @@ func _step_update(delta: float) -> float:
 	return x
 
 
+func path_phase_capable() -> bool:
+	return true  # every shape descends at down_speed; band-Y is monotonic
+
+
 func _next_step_lane() -> int:
 	var cand: int = _cur_lane + _step_dir * maxi(1, step_lanes)
 	if cand < 0 or cand >= Lanes.COUNT:

@@ -34,6 +34,15 @@ func compute_step(_enemy, _delta: float) -> Vector2:
 	return Vector2.ZERO
 
 
+# Whether this pattern descends MONOTONICALLY through the playfield, so the enemy
+# can fire by path progress (band-Y) instead of a random timer — "path-phase
+# firing" (construction plan §8). Default false. Monotonic descenders override
+# true; patterns that reverse vertically (advance/retreat) or hold a position
+# (loiter) must NOT, since band-Y progress isn't monotonic for them.
+func path_phase_capable() -> bool:
+	return false
+
+
 # Legacy entry point. Internally routes through compute_step so old
 # callers (or patterns that still mutate enemy.position directly inside
 # overridden on_process) keep working during migration. Once everything

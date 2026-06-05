@@ -38,6 +38,15 @@ var _pattern: Resource = null
 # fire once low (departure band, committed to leaving). The director enables this
 # for the enemies it spawns; bosses/bespoke firing are unaffected.
 @export var fire_zone_gated: bool = false
+# Path-phase firing (construction §8): fractions [0,1] of engagement-band progress
+# (Zones.band_progress) at which to fire — e.g. [0.35, 0.75] fires twice during the
+# descent, at fixed screen positions, instead of on the random ShootTimer (which
+# fired "too late"). MUST be ascending. Non-empty disables the timer. Auto-populated
+# in _start_with_pattern for monotonic descenders (path_phase_capable patterns) that
+# have a weapon and no fire_on_phase; a scene/roster may set it explicitly to override.
+@export var fire_path_phases: PackedFloat32Array = PackedFloat32Array()
+const DEFAULT_PATH_PHASES := PackedFloat32Array([0.35, 0.75])
+var _phase_fire_idx: int = 0  # next phase index to fire (advances as the enemy descends)
 
 # Cycling state — enemy is currently flying back up through parallax.
 var _cycling: bool = false
@@ -82,13 +91,21 @@ func _start_with_pattern(pos: Vector2) -> void:
 		_pattern.phase_entered.connect(_on_movement_phase_entered)
 	if _pattern.has_method("on_start"):
 		_pattern.on_start(self)
+	# Path-phase firing (§8): a monotonic descender with a weapon fires by band-Y
+	# progress instead of the random timer. Auto-enable when the pattern supports it
+	# and nothing more specific is configured (explicit phases, or a fire_on_phase
+	# event). A pre-set fire_path_phases (scene/roster) is respected as-is.
+	if shoot_pattern != null and fire_on_phase == "" and fire_path_phases.is_empty() \
+			and _pattern.has_method("path_phase_capable") and _pattern.path_phase_capable():
+		fire_path_phases = DEFAULT_PATH_PHASES.duplicate()
+	_phase_fire_idx = 0
 	# Only arm the shoot timer if the enemy *can* shoot. A null shoot_pattern
 	# means this enemy has no weapon — don't let a timer fire bullets via
 	# the legacy bullet_scene fallback. Roman, 2026-05-17: minelayer/mine
 	# carriers should not shoot.
-	# Phase-driven enemies (fire_on_phase != "") use the pattern's event
-	# instead of the random timer, so we skip starting it.
-	if shoot_pattern != null and has_node("ShootTimer") and fire_on_phase == "":
+	# Phase-driven (fire_on_phase) and path-phase (fire_path_phases) enemies fire on
+	# their own triggers, so we skip the random timer for them.
+	if shoot_pattern != null and has_node("ShootTimer") and fire_on_phase == "" and fire_path_phases.is_empty():
 		# Zone-gated enemies arm a short first poll so the FIRST shot lands as soon
 		# as they enter the engagement band (the gate fast-polls until then). The
 		# long random interval would otherwise delay the first shot until they've
@@ -161,6 +178,7 @@ func _process(delta: float) -> void:
 			_clamp_to_sides()
 			_offscreen_cleanup_check()
 			_apply_auto_rotation()
+			_check_path_phase_fire()
 		return
 	if follow_anchor and anchor != null:
 		position = start_pos + anchor.position
@@ -256,7 +274,11 @@ func _start_cycle() -> void:
 	_rot_init = false
 	set_deferred("monitorable", true)
 	set_deferred("monitoring", true)
-	if has_node("ShootTimer") and fire_on_phase == "":
+	# Re-arm firing for the next pass. Path-phase enemies just reset their phase
+	# index (they re-fire by band progress on the new descent); timer enemies re-arm
+	# the ShootTimer with the same short first-poll as spawn.
+	_phase_fire_idx = 0
+	if has_node("ShootTimer") and fire_on_phase == "" and fire_path_phases.is_empty():
 		# Same short first-poll as spawn (zone-gated) so a recycled enemy fires
 		# again on its next engagement pass, not late on the long interval.
 		$ShootTimer.wait_time = 0.2 if fire_zone_gated else randf_range(fire_interval_min, fire_interval_max)
@@ -306,6 +328,30 @@ func _on_shoot_timer_timeout() -> void:
 	shoot_pattern.fire(self)
 	$ShootTimer.wait_time = randf_range(fire_interval_min, fire_interval_max)
 	$ShootTimer.start()
+	if has_node("EnemyShoot"):
+		$EnemyShoot.play()
+
+
+# Path-phase firing (§8): called each movement frame. Fires one shot each time the
+# enemy descends past the next configured band-progress fraction, so shots land at
+# fixed screen positions during the pass (telegraph-friendly, never "too late") and
+# a descending formation volleys together at the same Y line. Phases must be
+# ascending; max phase < 1.0 means firing naturally ceases before the departure band.
+func _check_path_phase_fire() -> void:
+	if fire_path_phases.is_empty() or _phase_fire_idx >= fire_path_phases.size():
+		return
+	if _dying or _cycling or shoot_pattern == null:
+		return
+	if not _on_playfield():
+		return
+	if Zones.band_progress(position.y) < fire_path_phases[_phase_fire_idx]:
+		return
+	# Crossed the next phase line. If nose-gated and not aligned, wait WITHOUT
+	# consuming the phase so the shot still lands once the nose comes around.
+	if fire_only_on_target and not _nose_on_player():
+		return
+	_phase_fire_idx += 1
+	shoot_pattern.fire(self)
 	if has_node("EnemyShoot"):
 		$EnemyShoot.play()
 
