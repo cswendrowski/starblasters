@@ -49,6 +49,27 @@ if ($failed.Count -gt 0) {
   }
   exit 1
 }
+
+# Booting the scenes above only parses scripts reachable AT LOAD TIME. Scripts that
+# are instantiated dynamically at RUNTIME (enemy_core via wave.enemy_scene.instantiate(),
+# bosses, projectiles, effects) are NOT covered, so a parse error there ships silently
+# (2026-06-04: enemy_core const bug -> zero enemies, yet parse_check passed). Compile
+# EVERY .gd so runtime-only scripts are gated too.
+Write-Output "------"
+Write-Output "Compiling all .gd scripts (runtime-only coverage)..."
+# Gate on OUTPUT, not exit code: Godot's exit code is unreliable for --script runs
+# (shutdown noise from editor plugins, same reason publish.ps1 mtime-validates instead
+# of checking exit). Mirror the scene loop's proven 2>&1 + Select-String approach.
+# Caveat: best-effort — Godot's on-disk script cache can mask a freshly broken source
+# until the editor reimports it; the editor-open dev workflow (the common case) is caught.
+$compileOut = & $STANDALONE --path $REPO --headless --script res://tools/compile_check.gd 2>&1
+$compileErr = $compileOut | Select-String -Pattern 'COMPILE FAIL|Failed to load script|Parse Error|SCRIPT ERROR'
+if ($compileErr) {
+  Write-Output "SCRIPT COMPILE CHECK FAILED - a .gd has a parse error:"
+  foreach ($e in ($compileErr | Select-Object -First 5)) { Write-Output "    $e" }
+  exit 1
+}
+
 Write-Output "------"
 Write-Output "All scenes parse-clean."
 exit 0

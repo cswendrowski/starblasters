@@ -1,4 +1,4 @@
-extends "res://scripts/enemies/enemy_base.gd"
+﻿extends "res://scripts/enemies/enemy_base.gd"
 
 # Pattern-driven regular enemy. Adds movement_pattern + shoot_pattern slots
 # on top of EnemyBase, plus the legacy "anchor follow" path used when no
@@ -23,7 +23,7 @@ var _pattern: Resource = null
 @export var fire_interval_min: float = 1.2
 @export var fire_interval_max: float = 2.5
 # Gate the shoot timer on "is my nose pointed at the player". Set by the
-# Viper enemy (Roman, 2026-05-18) — uses dot(facing, dir_to_player) >=
+# Viper enemy (Roman, 2026-05-18) â€” uses dot(facing, dir_to_player) >=
 # cos(fire_aim_tol_deg) before firing. When false, the timer continues
 # polling but no bullet is emitted until alignment.
 @export var fire_only_on_target: bool = false
@@ -33,22 +33,25 @@ var _pattern: Resource = null
 # ShootTimer for patterns that have a meaningful "shoot here" beat
 # (Hover hold, Skirmisher hold). Empty = legacy timer-only firing.
 @export var fire_on_phase: String = ""
-# Firing-zone gating (bridge §1.8-1.9): when true, only fire while inside the
-# engagement Y-band (Zones) — hold fire just after spawn (entry band) and cease
+# Firing-zone gating (bridge Â§1.8-1.9): when true, only fire while inside the
+# engagement Y-band (Zones) â€” hold fire just after spawn (entry band) and cease
 # fire once low (departure band, committed to leaving). The director enables this
 # for the enemies it spawns; bosses/bespoke firing are unaffected.
 @export var fire_zone_gated: bool = false
-# Path-phase firing (construction §8): fractions [0,1] of engagement-band progress
-# (Zones.band_progress) at which to fire — e.g. [0.35, 0.75] fires twice during the
+# Path-phase firing (construction Â§8): fractions [0,1] of engagement-band progress
+# (Zones.band_progress) at which to fire â€” e.g. [0.35, 0.75] fires twice during the
 # descent, at fixed screen positions, instead of on the random ShootTimer (which
 # fired "too late"). MUST be ascending. Non-empty disables the timer. Auto-populated
 # in _start_with_pattern for monotonic descenders (path_phase_capable patterns) that
 # have a weapon and no fire_on_phase; a scene/roster may set it explicitly to override.
 @export var fire_path_phases: PackedFloat32Array = PackedFloat32Array()
-const DEFAULT_PATH_PHASES := PackedFloat32Array([0.35, 0.75])
+# Plain Array const (a PackedFloat32Array(...) constructor is NOT a constant
+# expression â€” it fails to parse the whole script). Converted to a packed array at
+# the assignment site below.
+const DEFAULT_PATH_PHASES := [0.35, 0.75]
 var _phase_fire_idx: int = 0  # next phase index to fire (advances as the enemy descends)
 
-# Cycling state — enemy is currently flying back up through parallax.
+# Cycling state â€” enemy is currently flying back up through parallax.
 var _cycling: bool = false
 var _cycle_tween: Tween = null
 var _pre_cycle_scale: Vector2 = Vector2.ONE
@@ -81,7 +84,7 @@ func _start_with_pattern(pos: Vector2) -> void:
 	position = pos
 	_pattern = movement.duplicate()
 	# Sector speed scaling (Cody, 2026-05-24): +5% per cleared sector, capped
-	# at 2× (so sector 21+ tops out). Applied once per spawn on the duplicated
+	# at 2Ã— (so sector 21+ tops out). Applied once per spawn on the duplicated
 	# pattern resource so siblings don't share state. Scales any @export float
 	# whose name is `speed`, `accel`, `drift_x`, or ends in `_speed`/`_accel`.
 	_apply_sector_speed_scale(_pattern)
@@ -91,16 +94,16 @@ func _start_with_pattern(pos: Vector2) -> void:
 		_pattern.phase_entered.connect(_on_movement_phase_entered)
 	if _pattern.has_method("on_start"):
 		_pattern.on_start(self)
-	# Path-phase firing (§8): a monotonic descender with a weapon fires by band-Y
+	# Path-phase firing (Â§8): a monotonic descender with a weapon fires by band-Y
 	# progress instead of the random timer. Auto-enable when the pattern supports it
 	# and nothing more specific is configured (explicit phases, or a fire_on_phase
 	# event). A pre-set fire_path_phases (scene/roster) is respected as-is.
 	if shoot_pattern != null and fire_on_phase == "" and fire_path_phases.is_empty() \
 			and _pattern.has_method("path_phase_capable") and _pattern.path_phase_capable():
-		fire_path_phases = DEFAULT_PATH_PHASES.duplicate()
+		fire_path_phases = PackedFloat32Array(DEFAULT_PATH_PHASES)
 	_phase_fire_idx = 0
 	# Only arm the shoot timer if the enemy *can* shoot. A null shoot_pattern
-	# means this enemy has no weapon — don't let a timer fire bullets via
+	# means this enemy has no weapon â€” don't let a timer fire bullets via
 	# the legacy bullet_scene fallback. Roman, 2026-05-17: minelayer/mine
 	# carriers should not shoot.
 	# Phase-driven (fire_on_phase) and path-phase (fire_path_phases) enemies fire on
@@ -169,7 +172,7 @@ func _process(delta: float) -> void:
 		# movement is driven by tween, not the pattern.
 		if not _cycling:
 			# Cap delta so a hitch frame can't teleport the enemy a
-			# screen's worth in a single step. 1/30s = ~33ms — generous
+			# screen's worth in a single step. 1/30s = ~33ms â€” generous
 			# enough to soak normal frame variance, tight enough that a
 			# 500-ms stall produces a 33-ms move, not a 500-ms move.
 			var safe_delta: float = min(delta, 1.0 / 30.0)
@@ -191,8 +194,8 @@ func _process(delta: float) -> void:
 # Keep the enemy inside the horizontal playfield (Roman: enemies shouldn't
 # leave via the sides unless a specific behavior requires it). Patterns
 # opt out by setting `allow_side_exit` on the enemy.
-# Bumped 16 → 40 so sprites stay fully on-screen instead of clipping the
-# edge (sprites are ~48 px wide after 2× display × 3× world). Roman,
+# Bumped 16 â†’ 40 so sprites stay fully on-screen instead of clipping the
+# edge (sprites are ~48 px wide after 2Ã— display Ã— 3Ã— world). Roman,
 # 2026-05-16: enemy patterns should avoid colliding with the sides.
 const SIDE_MARGIN := 14.0
 func _clamp_to_sides() -> void:
@@ -229,12 +232,12 @@ func _start_cycle() -> void:
 	visible = false
 	# Cody, 2026-05-18: "Ships looping back around in the background could
 	# be brought up in speed, there's a lot of dead time waiting for them."
-	# Pre-cycle hold trimmed 1.0-2.0s → 0.4-0.9s.
+	# Pre-cycle hold trimmed 1.0-2.0s â†’ 0.4-0.9s.
 	var delay: float = randf_range(0.4, 0.9)
 	await get_tree().create_timer(delay).timeout
 	if not is_instance_valid(self):
 		return
-	# Pick a re-entry x inside the playfield band, not the full viewport —
+	# Pick a re-entry x inside the playfield band, not the full viewport â€”
 	# otherwise the cycle dropped enemies into the side gutters where the
 	# player can't shoot back. 22 px inset keeps the sprite fully inside
 	# the band edges (Roman, 2026-05-19).
@@ -245,12 +248,12 @@ func _start_cycle() -> void:
 	_pre_cycle_scale = scale
 	_pre_cycle_modulate = modulate
 	# Parallax-pass: shrink to 45% size, push toward parallax tint. NO
-	# scale.y flip — auto_rotate handles orientation, so we rotate the
+	# scale.y flip â€” auto_rotate handles orientation, so we rotate the
 	# ship to face UP (the direction it's flying during the fly-back)
 	# instead of mirroring its scale.
 	scale = Vector2(_pre_cycle_scale.x * 0.45, _pre_cycle_scale.y * 0.45)
 	modulate = Color(0.75, 0.85, 1.0, 0.55)
-	# Face up — sprites are drawn pointing up, so rotation = 0 means
+	# Face up â€” sprites are drawn pointing up, so rotation = 0 means
 	# they point along their travel direction during the fly-back.
 	rotation = 0.0
 	_rot_init = true
@@ -259,7 +262,7 @@ func _start_cycle() -> void:
 	if _cycle_tween and _cycle_tween.is_valid():
 		_cycle_tween.kill()
 	_cycle_tween = create_tween()
-	# Fly-back tween 3.5s → 1.8s so the cycle reads as a quick zip,
+	# Fly-back tween 3.5s â†’ 1.8s so the cycle reads as a quick zip,
 	# not a leisurely parade (Cody, 2026-05-18).
 	_cycle_tween.tween_property(self, "position:y", -20.0, 1.8).set_trans(Tween.TRANS_LINEAR)
 	await _cycle_tween.finished
@@ -312,7 +315,7 @@ func _on_shoot_timer_timeout() -> void:
 		$ShootTimer.wait_time = 0.15 if fire_zone_gated else randf_range(fire_interval_min, fire_interval_max)
 		$ShootTimer.start()
 		return
-	# Firing zones (bridge §1.8-1.9): hold fire above the engagement band (just
+	# Firing zones (bridge Â§1.8-1.9): hold fire above the engagement band (just
 	# spawned) and cease fire below it (committed to leaving). Poll quickly while
 	# outside so the first shot lands promptly on entering engagement.
 	if fire_zone_gated and not Zones.in_engagement(position.y):
@@ -332,7 +335,7 @@ func _on_shoot_timer_timeout() -> void:
 		$EnemyShoot.play()
 
 
-# Path-phase firing (§8): called each movement frame. Fires one shot each time the
+# Path-phase firing (Â§8): called each movement frame. Fires one shot each time the
 # enemy descends past the next configured band-progress fraction, so shots land at
 # fixed screen positions during the pass (telegraph-friendly, never "too late") and
 # a descending formation volleys together at the same Y line. Phases must be
@@ -382,7 +385,7 @@ func _nose_on_player() -> bool:
 	var to_p: Vector2 = player.global_position - global_position
 	if to_p.length_squared() < 1.0:
 		return false
-	# Sprite faces +Y at rotation=0 → forward derived from rotation - PI/2.
+	# Sprite faces +Y at rotation=0 â†’ forward derived from rotation - PI/2.
 	var rot: float = rotation - PI * 0.5
 	var fwd: Vector2 = Vector2(cos(rot), sin(rot))
 	return fwd.dot(to_p.normalized()) >= cos(deg_to_rad(fire_aim_tol_deg))
@@ -398,3 +401,9 @@ func _on_playfield() -> bool:
 		and p.x <= screensize.x - PF_MARGIN \
 		and p.y >= PF_MARGIN \
 		and p.y <= screensize.y - PF_MARGIN
+
+
+
+
+
+
