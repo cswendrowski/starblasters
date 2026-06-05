@@ -50,6 +50,11 @@ var _pattern: Resource = null
 # the assignment site below.
 const DEFAULT_PATH_PHASES := [0.35, 0.75]
 var _phase_fire_idx: int = 0  # next phase index to fire (advances as the enemy descends)
+# Shared beat (Beat): when true, a path-phase shot doesn't fire the instant it crosses
+# its phase line - it quantizes to the next global beat (Beat.next_beat_time) so enemies
+# across formations volley together. Set false to fire immediately on the phase line.
+@export var fire_beat_synced: bool = true
+var _beat_fire_at: float = -1.0  # engine-clock time a pending beat-synced shot fires (-1 = none)
 
 # Cycling state â€” enemy is currently flying back up through parallax.
 var _cycling: bool = false
@@ -102,6 +107,7 @@ func _start_with_pattern(pos: Vector2) -> void:
 			and _pattern.has_method("path_phase_capable") and _pattern.path_phase_capable():
 		fire_path_phases = PackedFloat32Array(DEFAULT_PATH_PHASES)
 	_phase_fire_idx = 0
+	_beat_fire_at = -1.0
 	# Only arm the shoot timer if the enemy *can* shoot. A null shoot_pattern
 	# means this enemy has no weapon â€” don't let a timer fire bullets via
 	# the legacy bullet_scene fallback. Roman, 2026-05-17: minelayer/mine
@@ -281,6 +287,7 @@ func _start_cycle() -> void:
 	# index (they re-fire by band progress on the new descent); timer enemies re-arm
 	# the ShootTimer with the same short first-poll as spawn.
 	_phase_fire_idx = 0
+	_beat_fire_at = -1.0
 	if has_node("ShootTimer") and fire_on_phase == "" and fire_path_phases.is_empty():
 		# Same short first-poll as spawn (zone-gated) so a recycled enemy fires
 		# again on its next engagement pass, not late on the long interval.
@@ -341,6 +348,13 @@ func _on_shoot_timer_timeout() -> void:
 # a descending formation volleys together at the same Y line. Phases must be
 # ascending; max phase < 1.0 means firing naturally ceases before the departure band.
 func _check_path_phase_fire() -> void:
+	# 1) Release a pending beat-synced shot once its global beat arrives. Checked
+	# first + unconditionally so the last queued shot still fires after the final
+	# phase line is crossed (idx exhausted).
+	if _beat_fire_at >= 0.0 and Beat.now() >= _beat_fire_at:
+		_beat_fire_at = -1.0
+		_do_path_shot()
+	# 2) Detect crossing the next phase line.
 	if fire_path_phases.is_empty() or _phase_fire_idx >= fire_path_phases.size():
 		return
 	if _dying or _cycling or shoot_pattern == null:
@@ -349,11 +363,21 @@ func _check_path_phase_fire() -> void:
 		return
 	if Zones.band_progress(position.y) < fire_path_phases[_phase_fire_idx]:
 		return
-	# Crossed the next phase line. If nose-gated and not aligned, wait WITHOUT
-	# consuming the phase so the shot still lands once the nose comes around.
+	_phase_fire_idx += 1
+	if fire_beat_synced:
+		# Quantize to the shared tempo so cross-formation shots collapse into a volley.
+		_beat_fire_at = Beat.next_beat_time(Beat.now())
+	else:
+		_do_path_shot()
+
+
+# Fire one path-phase shot, re-checking the live guards (the beat-synced path defers
+# the shot, so the enemy may have started dying / left the band by the time it fires).
+func _do_path_shot() -> void:
+	if _dying or _cycling or shoot_pattern == null or not _on_playfield():
+		return
 	if fire_only_on_target and not _nose_on_player():
 		return
-	_phase_fire_idx += 1
 	shoot_pattern.fire(self)
 	if has_node("EnemyShoot"):
 		$EnemyShoot.play()
