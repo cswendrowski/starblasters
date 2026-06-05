@@ -181,7 +181,8 @@ them interesting (revises wave §10.5 / bridge open item). `Levels.build_*`
   metrics.
 - **M6 — Variety/faction/telegraph/tuner layers:** intro schedule, faction tint,
   unified telegraph (bridge §6), the single combat tuner (bridge §8), pooling
-  (finding §0.7).
+  (finding §0.7). **Split: M6a modular enemy refactor → M6b faction layer (§10)** —
+  composable behavior is the prerequisite that makes factions cheap.
 
 ---
 
@@ -199,6 +200,11 @@ them interesting (revises wave §10.5 / bridge open item). `Levels.build_*`
 **Still open (content/curve — needed by M5/M6, not M0–M4):** formation roster, the
 `B` soft-band curve + per-wave phrase mix + elite-fraction curve, intro schedule,
 recycling-vs-cap accounting, node-type roster rework (bridge §9).
+
+**Deferred architecture (post-M5, pre-faction — §10):** modular enemy model
+(chassis + movement repertoire + weapon set + signature + faction), which means
+**re-classing enemies as compositions** rather than bespoke monoliths. Logged §10;
+slotted as M6a before the faction layer.
 
 ---
 
@@ -271,3 +277,100 @@ surfaced (Roman):
   conductor to pick hook direction per spawn lane (toward/away from center).
 - **[cap] Depth-ramp not wired.** `max_concurrent` is flat 14; ramp 12→16 by depth
   (comp guide §9). The ceiling is clarity (480×270 + 8px/f), and it's tunable.
+
+---
+
+## 9. Current status (2026-06-04)
+
+**Merged to `main`:** conductor v0–v3 (streaming cap + blended waves + lane spawn
+placement + phrase-native FORMATION/FILLER/BREATHER + wall/pincer shapes),
+`lane_path` movement (STRAIGHT/WEAVE/HOOK/STEP), firing zones (engagement-band
+gating + first-shot-on-entry + no-fire-when-dying + recycle re-fire), enemy
+identity/render_plane hooks, Combat Slice dev showcase.
+
+**On branch `combat-m5` (pushed, not merged):**
+- ✅ Wave count → 5–8, depth-scaled
+- ✅ Budget allocator → ~140–350 enemies (`_level_budget`/`_apply_budget`; chaff
+  scaled, elites stay rolled)
+- ✅ Breathers every 2nd wave (in the adapter)
+- ✅ Anti-repetition (avoid back-to-back same `movement` archetype)
+- ✅ Run-seed folded into `_stable_seed` (nodes vary per patrol)
+- ✅ Cap depth-ramp wired: `WaveGen.cap_for(sd, li)` → director `max_concurrent`
+  12→16 (main.gd, standard + boss)
+- ✅ Opener pool widened: firecore + strafer → `unlock_depth 0` (5 chaff types at
+  sector 1; was 3, 2 of them identical fast_straight)
+- ✅ **Heavy beats** (replaces the earlier "elite punctuation" sketch): every node
+  ends on a **CODA** (boss-substitute cap; shape single/escort/formation by depth),
+  node 2+ adds a **MIDPOINT anchor**. Driven by new `heavy_class` roster tags
+  (`anchor`=32px, `capital`=64px); sector ramp falls out of unlock gating
+  (S1 = 32px anchors, S2+ = 64px capitals). Tests: `test_heavy_beats.gd`.
+
+**Next:** live-patrol playtest (producer-side — NOT the Combat Slice) → tune the
+heavy-density curve if deep nodes feel too heavy → merge `combat-m5` → `main`. Then
+**M6a modular enemy refactor (§10) → M6b factions.**
+
+**Test harness:** `tools/test_*.gd` headless (`godot --headless --script
+res://tools/test_X.gd` → writes `tools/_X_result.txt`); `tools/parse_check.ps1`
+after edits. Gotchas captured in user memory (`combat-overhaul-status.md`).
+
+---
+
+## 10. Modular enemy architecture (post-M5 foundation for factions) — Roman, 2026-06-04
+
+**Idea:** stop classing enemies as bespoke monoliths. Treat an enemy as a
+*composition* of orthogonal, swappable parts, so behaviors **overlap across chassis**
+and new variants become **data, not code**:
+
+- **Chassis** — silhouette + stats + hitbox + size class (the 16/32/64px read; ties
+  to `heavy_class`). The "what it looks like / how much it soaks."
+- **Movement repertoire** — a shared, *tagged* library a chassis may draw from:
+  drift, strafe, weave, charge/dive, hold-lane, omni-harry, side-traverse, … (the
+  `lane_path` STRAIGHT/WEAVE/HOOK/STEP set is the seed of this library).
+- **Weapon / shoot set** — shared, swappable (single / aimed / spread / burst /
+  beam / none).
+- **Signature** — the one thing a chassis does that nothing else does (strafer's
+  weave-strafe pass, firecore_drone's death ring-release, burner's beam-pair,
+  bomber's tail-gun hold). The **only** part that stays bespoke.
+- **Faction** — a stat/posture modifier layered over the whole composition (M6).
+
+**Roman's worked examples (the target behavior):**
+- drifter / firecore / strafer all share drift + strafe + weave + charge; strafer
+  keeps its weave-strafe as a *signature*.
+- hover / beamer / gunship can all "hold a lane, fire downward."
+- sapper / beamer / gunship can all go "omni, harry the player directly."
+→ implies each **chassis declares a permitted movement/weapon set**, and the
+generator (or a faction) picks within it. Variety explodes **combinatorially, with
+zero new art**.
+
+**Why this is sequenced where it is:** factions (M6) are only cheap **if behavior is
+composable** — a faction should be "this chassis + movement + weapon, tinted and
+tuned," not a fresh script. So this refactor is the **foundation the faction layer
+sits on**, best tackled immediately before it.
+
+**What it requires (the "rethink classing"):**
+- `enemy_core` **already** has `movement` + `shoot` Resource slots — composition is
+  half-built. The gap is the **bespoke monoliths** (strafer, burner, gunship,
+  frigate, bomber, beam_shooter, firecore_drone, firecore_cruiser) that own
+  locomotion + weapons inline with `movement: null, shoot: null`.
+- Refactor path: extract each monolith's locomotion into reusable movement patterns;
+  promote the genuinely-unique remainder to a new **`signature: Resource` slot** (a
+  third behavior axis on `enemy_core`). Honor CLAUDE.md's rule — bespoke only for
+  what truly can't be a pattern (multi-phase state machines, continuous-effect
+  weapons), now expressed as a signature Resource rather than a whole enemy script.
+- Roster entries evolve from a fixed `movement`/`shoot` string into
+  `{chassis, allowed_movements[], allowed_weapons[], signature, tier,
+  size/heavy_class, faction-eligibility}`. `Roster.make_movement/make_shoot`
+  generalize to "seed-pick from the chassis's allowed set."
+- Migration is **incremental + independently testable**: convert one monolith at a
+  time onto the slot system; each conversion is "same enemy, now composed."
+
+**Milestone slotting:** split M6 into **M6a (modular enemy refactor) → M6b (faction
+layer)** — the refactor is the enabler. Do **not** start mid-M5: it touches the very
+enemy scripts the producer is still being tuned against. Begin **after `combat-m5`
+merges** and live-patrol pacing has settled.
+
+**Watch-outs:** don't over-abstract (a signature used by exactly one chassis is fine
+as a bespoke Resource — that's the point of the slot); keep the `movement_pattern`
+contract (`on_start` / `compute_step → delta`) unchanged so existing patterns drop
+in untouched; movement-speed exports still need the `_speed` suffix for sector-scale
++ the clarity clamp.

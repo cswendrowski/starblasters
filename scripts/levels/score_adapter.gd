@@ -22,6 +22,7 @@ static func from_level_data(level: Resource) -> CombatScore:
 		score.level_name = level.level_name
 	var waves: Array = (level.waves if "waves" in level else [])
 	var current: ScoreWave = null
+	var wave_count: int = 0
 	for spec in waves:
 		if spec == null:
 			continue
@@ -29,9 +30,15 @@ static func from_level_data(level: Resource) -> CombatScore:
 		# A non-silent wave (or the very first wave) opens a new ScoreWave;
 		# silent sub-waves attach as further phrases of the current one.
 		if current == null or not is_silent:
+			# Pacing: close the previous wave with a breather every Nth wave so a
+			# high-volume level rises and releases instead of one unbroken stream.
+			# (Interim in the adapter; WaveGen v2 will author breathers natively.)
+			if current != null and wave_count % BREATHER_EVERY == 0:
+				current.phrases.append(_breather())
 			current = ScoreWave.new()
 			current.banner = (spec.announce_text if "announce_text" in spec else "")
 			score.waves.append(current)
+			wave_count += 1
 		var ph := Phrase.new()
 		ph.kind = Phrase.Kind.FORMATION
 		ph.specs = [spec]
@@ -39,6 +46,18 @@ static func from_level_data(level: Resource) -> CombatScore:
 		ph.entry = (&"side" if _is_side(spec) else &"top")
 		current.phrases.append(ph)
 	return score
+
+
+# Insert a breather after every Nth wave (pacing — see from_level_data).
+const BREATHER_EVERY: int = 2
+
+
+static func _breather() -> Phrase:
+	var ph := Phrase.new()
+	ph.kind = Phrase.Kind.BREATHER
+	ph.duration = 2.0       # max exhale
+	ph.alive_floor = 5      # ...or end early once the screen drains to this
+	return ph
 
 
 static func _is_side(spec: Resource) -> bool:

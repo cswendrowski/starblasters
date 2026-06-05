@@ -78,10 +78,12 @@ const ENTRIES := [
 		# reads as active without becoming a wall. Keeps min<max jitter so
 		# volleys desync. First-pass — tune in playtest.
 		"fire_min": 1.4, "fire_max": 2.3,
-		# Firecore is a shooting common — basic but not the very first thing the
-		# player sees. Unlocks one combat node into any sector. (Was S2/D5, which
-		# under live depth gating was effectively unreachable on a 3-node sector.)
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": true,
+		# Firecore is a shooting common — a gentle diagonal popper. Pulled to the
+		# sector-1 opener (unlock_depth 0) on 2026-06-04 to widen the shallow opener
+		# pool (was only dart/bomb_drone/drifter — 3 types, 2 identical fast_straight).
+		# Its slow fire (1.4-2.3s) + low weight keep the opener readable while adding
+		# a 3rd movement archetype + the first taste of return fire. (Was S2/D5.)
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.7, "chaff": true,
 		"conflict_tags": ["aimed_or_spread"],
 	},
 	{
@@ -133,9 +135,9 @@ const ENTRIES := [
 		# bee-lines for the bottom. Bespoke self-driving enemy (owns its
 		# 3-phase locomotion + the marker-alternating burst), so movement +
 		# shoot are null like burner/firecore_drone/firecore_cruiser.
-		# Classed COMMON but gated a node into the sector (it shoots, unlike
-		# Dart) so the opener stays calm. hp_override kept in sync with the
-		# script's max_health (2). First-pass weight/gating — tune in playtest.
+		# Classed COMMON. Now an opener-eligible shooter (see unlock note below).
+		# hp_override kept in sync with the script's max_health (2). First-pass
+		# weight/gating — tune in playtest.
 		"scene": "res://scenes/enemies/enemy_strafer.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
@@ -143,7 +145,10 @@ const ENTRIES := [
 		"shoot": null,      # handles own marker-alternating burst
 		"base_count": 4,
 		"hp_override": 2, "bounty_override": 8,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.9, "chaff": true,
+		# Pulled to the sector-1 opener (unlock_depth 0) on 2026-06-04 with firecore
+		# to widen the shallow opener pool. Low weight (0.9) keeps its head-on burst
+		# pass from dominating the calm opening.
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.9, "chaff": true,
 		"conflict_tags": ["aimed_or_spread"],
 	},
 	{
@@ -225,6 +230,7 @@ const ENTRIES := [
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_frigate.tscn",
+		"heavy_class": "anchor",  # 32px-wide (tall) — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
 		# Bespoke broadside gunner (enemy_frigate.gd) — self-drives (two arrival
@@ -236,9 +242,10 @@ const ENTRIES := [
 		"shoot": null,
 		"hp_override": 28,
 		"base_count": 3,
-		# Frigate — tough broadside warship. Gate so it doesn't show up in the
-		# very first sector opener; appears sector 1, two nodes in.
-		"unlock_sector": 1, "unlock_depth": 2,
+		# Frigate — tough broadside warship; the canonical mid-mission presence anchor
+		# (Roman 2026-06-04: "descend the screen and have a presence"). Pulled to
+		# unlock_depth 1 so it's eligible the moment the midpoint beat starts (node 2).
+		"unlock_sector": 1, "unlock_depth": 1,
 	},
 	# TODO: Replace cutter with a new horizontal strafe enemy that crosses the screen cleanly
 	#{
@@ -274,6 +281,7 @@ const ENTRIES := [
 	# + self-beams, so movement/shoot are null.
 	{
 		"scene": "res://scenes/enemies/enemy_beam_shooter.tscn",
+		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
 		"movement": null,
@@ -288,6 +296,7 @@ const ENTRIES := [
 	# flips the aim_at_player export. Slightly deeper gate than the aim-down one.
 	{
 		"scene": "res://scenes/enemies/enemy_beamer_tracker.tscn",
+		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
 		"movement": null,
@@ -299,17 +308,22 @@ const ENTRIES := [
 	# Gunship single: one ship sweeps left↔right, fires 3 salvos, exits.
 	{
 		"scene": "res://scenes/enemies/enemy_gunship.tscn",
+		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
 		"movement": "loiter",
 		"shoot": null,
 		"base_count": 1,
 		"no_scale": true,  # count must stay fixed; role logic requires exact N
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8,
+		# Heavy-beat presence anchor — pulled to unlock_depth 0 (Roman 2026-06-04) so
+		# sector-1 codas have a presence-holder beyond the (now untagged) interceptor.
+		# Loiter-gunner = good mid-mission presence.
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.8,
 	},
 	# Gunship duo: two ships sweep in opposite directions.
 	{
 		"scene": "res://scenes/enemies/enemy_gunship.tscn",
+		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
 		"movement": "loiter",
@@ -321,6 +335,7 @@ const ENTRIES := [
 	# Gunship trio: three ships in fixed spread formation.
 	{
 		"scene": "res://scenes/enemies/enemy_gunship.tscn",
+		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
 		"movement": "loiter",
@@ -338,6 +353,7 @@ const ENTRIES := [
 	# escalation threat.
 	{
 		"scene": "res://scenes/enemies/enemy_bomber.tscn",
+		"heavy_class": "anchor",  # 32px-wide (tall) — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "large", "tags": ["tough"],
 		"movement": null,
@@ -350,6 +366,7 @@ const ENTRIES := [
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_bomber.tscn",
+		"heavy_class": "anchor",  # 32px-wide (tall) — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "large", "tags": ["tough"],
 		"movement": null,
@@ -400,6 +417,9 @@ const ENTRIES := [
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_interceptor.tscn",
+		# NOT heavy-beat tagged (Roman 2026-06-04): top_dive is a transient
+		# dive-through, not a presence-holding anchor. Stays a normal RARE dive squad
+		# (reaction-test / direct-challenge). Heavy beats want descend-and-hold types.
 		"tier": Tier.RARE,
 		"size": "medium", "tags": ["tough"],
 		"movement": "top_dive",
@@ -409,6 +429,7 @@ const ENTRIES := [
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_bulwark.tscn",
+		"heavy_class": "capital",  # 64px-wide (placeholder art) — coda capital pool
 		"tier": Tier.RARE,
 		"size": "large", "tags": [],
 		"movement": "bulwark_drift",
@@ -419,6 +440,7 @@ const ENTRIES := [
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_cruiser.tscn",
+		"heavy_class": "capital",  # 64px-wide (placeholder art) — coda capital pool
 		"tier": Tier.RARE,
 		"size": "large", "tags": [],
 		"movement": "loiter",
@@ -428,6 +450,7 @@ const ENTRIES := [
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_drone_carrier.tscn",
+		"heavy_class": "capital",  # 64px-wide (placeholder art) — coda capital pool
 		"tier": Tier.RARE,
 		"size": "large", "tags": [],
 		"movement": "loiter",
@@ -438,6 +461,7 @@ const ENTRIES := [
 	},
 	{
 		"scene": "res://scenes/enemies/enemy_firecore_cruiser.tscn",
+		"heavy_class": "capital",  # 64px-wide — coda capital pool (boss-substitute)
 		"tier": Tier.RARE,
 		"size": "huge", "tags": ["tough"],
 		"movement": null,   # handles own movement
@@ -527,6 +551,35 @@ static func entries_eligible(tier: int, sector_idx: int, sector_depth: int) -> A
 	var out: Array = []
 	for e in ENTRIES:
 		if int(e["tier"]) != tier:
+			continue
+		if int(e.get("unlock_sector", 0)) > sector_idx:
+			continue
+		if int(e.get("unlock_depth", 0)) > sector_depth:
+			continue
+		out.append(e)
+	return out
+
+
+# INVARIANT (Roman 2026-06-04): heavy beats want PRESENCE — types that descend the
+# screen and hold (loiter-gunners, broadside warships, slow descenders). Transient
+# dive-throughs (interceptor/top_dive) are deliberately NOT heavy_class-tagged; they
+# stay normal RARE rolls. So every anchor/capital entry should read as a presence
+# anchor, not a fly-by.
+#
+# Depth-gated HEAVY pool (M5, heavy-beat structure). Returns entries tagged with
+# `heavy_class` (== "anchor" for 32px-wide silhouettes, "capital" for 64px-wide)
+# that are unlocked at the given progression coordinate. The wave generator's
+# midpoint anchor pulls "anchor"; the closing coda prefers "capital" (falls back to
+# "anchor" when no capital is unlocked yet — e.g. all of sector 1). Spans tiers on
+# purpose: heavies live across UNCOMMON (frigate/gunship/bomber/beamers) and RARE
+# (interceptor/cruiser/bulwark/drone_carrier/firecore_cruiser). Same unlock rules as
+# entries_eligible (absent threshold => 0 => always-available).
+#   sector_idx   <- WaveGen.build's sector_depth (1-based)
+#   sector_depth <- WaveGen.build's level_index  (0-based combat node)
+static func heavies_eligible(heavy_class: String, sector_idx: int, sector_depth: int) -> Array:
+	var out: Array = []
+	for e in ENTRIES:
+		if String(e.get("heavy_class", "")) != heavy_class:
 			continue
 		if int(e.get("unlock_sector", 0)) > sector_idx:
 			continue

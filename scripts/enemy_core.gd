@@ -257,7 +257,9 @@ func _start_cycle() -> void:
 	set_deferred("monitorable", true)
 	set_deferred("monitoring", true)
 	if has_node("ShootTimer") and fire_on_phase == "":
-		$ShootTimer.wait_time = randf_range(fire_interval_min, fire_interval_max)
+		# Same short first-poll as spawn (zone-gated) so a recycled enemy fires
+		# again on its next engagement pass, not late on the long interval.
+		$ShootTimer.wait_time = 0.2 if fire_zone_gated else randf_range(fire_interval_min, fire_interval_max)
 		$ShootTimer.start()
 	if _pattern and _pattern.has_method("on_start"):
 		_pattern.on_start(self)
@@ -270,6 +272,10 @@ func _on_timer_timeout() -> void:
 
 
 func _on_shoot_timer_timeout() -> void:
+	# Dead enemies don't shoot: explode() sets _dying before the ~0.5s death
+	# animation, during which the timer could otherwise fire a phantom shot.
+	if _dying:
+		return
 	# Hard requirements before any bullet leaves the muzzle:
 	#   - not parallax-cycling
 	#   - fully inside the playfield
@@ -305,6 +311,8 @@ func _on_shoot_timer_timeout() -> void:
 
 
 func _on_movement_phase_entered(phase_name: String) -> void:
+	if _dying:
+		return
 	if fire_on_phase == "" or phase_name != fire_on_phase:
 		return
 	if shoot_pattern == null:
