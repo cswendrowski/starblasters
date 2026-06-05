@@ -276,7 +276,24 @@ surfaced (Roman):
   distraction (keep); HOOK (move-to-lane-and-hold) forces a commit. Needs the
   conductor to pick hook direction per spawn lane (toward/away from center).
 - **[cap] Depth-ramp not wired.** `max_concurrent` is flat 14; ramp 12→16 by depth
-  (comp guide §9). The ceiling is clarity (480×270 + 8px/f), and it's tunable.
+  (comp guide §9). The ceiling is clarity (480×270 + 8px/f), and it's tunable. *(DONE
+  2026-06-04: `WaveGen.cap_for` → `max_concurrent` in main.gd.)*
+- **[shapes] Production fast-chaff waves can't form WALLS — they trickle.** (Roman,
+  live test 0.1.113: a big dart wave near the tail of node 2 is sparse + lasts ~13s,
+  killing end-of-level momentum.) Root cause: the producer sets
+  `WaveSpec.formation = randi()%4`, which `ScoreAdapter._shape_id` maps to spread
+  shapes (left_to_right/right_to_left/random/center_out) → the conductor's SPREAD
+  path spawns one-at-a-time at `spawn_interval`. The wall machinery
+  (`_dispatch_shaped` + `_formation_lanes(&"wall")`) EXISTS but is only reachable
+  from hand-authored scores, not the WaveGen→adapter seam. **Fix (two parts):**
+  (1) bridge the seam — add a WALL (and PINCER) value to `WaveSpec.Formation` +
+  `ScoreAdapter._shape_id` so the producer can request a wall; have WaveGen tag fast
+  chaff (dart/bomb_drone) waves as WALL. (2) Make wall dispatch chunk a large wave
+  into SUCCESSIVE walls (rows of ~5 across the 7 lanes leaving **1–2 gap lanes**,
+  a beat between walls) instead of one mega-burst that wraps lanes — so it reads as
+  "pick a gap, NOW" repeated, not a fill. Pairs with the role-taxonomy item (darts
+  are direct-challenge, not filler). Touches the conductor hot path → playtest the
+  whole roster after.
 
 ---
 
