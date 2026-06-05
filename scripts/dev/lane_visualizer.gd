@@ -61,8 +61,11 @@ var _pattern_idx: int = 0
 var _readout: Label = null
 var _conductor_panel: VBoxContainer = null
 var _pattern_panel: VBoxContainer = null
-var _sector_spin: SpinBox = null
-var _level_spin: SpinBox = null
+var _sector_val: int = 1
+var _level_val: int = 0
+var _sector_btn: Button = null
+var _level_btn: Button = null
+var _pattern_lbl: Label = null
 
 # Live conductor stats (driven by director signals).
 var _last_banner: String = "-"
@@ -206,49 +209,46 @@ func _build_ui() -> void:
 	lv.add_child(_conductor_panel)
 	_add_caption(_conductor_panel, "SCORE")
 	_add_button(_conductor_panel, "Combat Slice", func(): _run_score(CombatSlice.build()))
+	# Sector / Level as compact cycle buttons (SpinBox chrome is HD-sized).
 	var sl_row := HBoxContainer.new()
-	sl_row.add_theme_constant_override("separation", 3)
+	sl_row.add_theme_constant_override("separation", 2)
 	_conductor_panel.add_child(sl_row)
-	_add_mini_label(sl_row, "S")
-	_sector_spin = _make_spin(1, 9, 1)
-	sl_row.add_child(_sector_spin)
-	_add_mini_label(sl_row, "L")
-	_level_spin = _make_spin(0, 8, 0)
-	sl_row.add_child(_level_spin)
+	_sector_btn = _add_button(sl_row, "S:1", _cycle_sector)
+	_level_btn = _add_button(sl_row, "L:0", _cycle_level)
 	_add_button(_conductor_panel, "Run WaveGen", _on_run_wavegen)
 	_add_button(_conductor_panel, "Restart", _on_restart)
-	_add_button(_conductor_panel, "Stop / Clear", func(): _clear_world())
+	_add_button(_conductor_panel, "Clear", func(): _clear_world())
 
 	# Pattern sub-panel.
 	_pattern_panel = VBoxContainer.new()
-	_pattern_panel.add_theme_constant_override("separation", 3)
+	_pattern_panel.add_theme_constant_override("separation", 2)
 	lv.add_child(_pattern_panel)
 	_add_caption(_pattern_panel, "PATTERN")
-	var opt := OptionButton.new()
-	opt.add_theme_font_override("font", UiTheme.active_font())
-	opt.add_theme_font_size_override("font_size", SZ_BODY)
-	opt.clip_text = true
-	opt.fit_to_longest_item = false  # don't size the control to the longest pattern name
-	for p in PATTERNS:
-		opt.add_item(str(p[0]))
-	# The dropdown is a PopupMenu that otherwise inherits the project HD theme
-	# (giant at native 480) — style it to the native size too.
-	var pop := opt.get_popup()
-	pop.add_theme_font_override("font", UiTheme.active_font())
-	pop.add_theme_font_size_override("font_size", SZ_BODY)
-	opt.item_selected.connect(func(idx: int): _pattern_idx = idx)
-	_pattern_panel.add_child(opt)
+	# Prev / name / next (OptionButton's dropdown chrome is HD-sized).
+	var pr := HBoxContainer.new()
+	pr.add_theme_constant_override("separation", 2)
+	_pattern_panel.add_child(pr)
+	_add_fixed_button(pr, "<", func(): _cycle_pattern(-1), 16)
+	_pattern_lbl = _new_label(str(PATTERNS[0][0]), UiTheme.COLOR_TEXT, SZ_BODY)
+	_pattern_lbl.clip_text = true
+	_pattern_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_pattern_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pr.add_child(_pattern_lbl)
+	_add_fixed_button(pr, ">", func(): _cycle_pattern(1), 16)
 	_add_button(_pattern_panel, "Spawn row", func(): _spawn_pattern_row())
 	_add_button(_pattern_panel, "Spawn one", func(): _spawn_pattern_one())
 	_add_button(_pattern_panel, "Clear", func(): _clear_world())
 
 	lv.add_child(_sep())
 
-	# Overlay toggles (shared).
+	# Overlay toggles (shared) — toggle buttons (CheckBox chrome is HD-sized).
 	_add_caption(lv, "OVERLAYS")
-	_add_check(lv, "Lanes", _show_lanes, func(v: bool): _show_lanes = v; _refresh_overlay())
-	_add_check(lv, "Zones", _show_zones, func(v: bool): _show_zones = v; _refresh_overlay())
-	_add_check(lv, "Numbers", _show_numbers, func(v: bool): _show_numbers = v; _refresh_overlay())
+	var ov := HBoxContainer.new()
+	ov.add_theme_constant_override("separation", 2)
+	lv.add_child(ov)
+	_add_toggle(ov, "Lane", _show_lanes, func(p: bool): _show_lanes = p; _refresh_overlay())
+	_add_toggle(ov, "Zone", _show_zones, func(p: bool): _show_zones = p; _refresh_overlay())
+	_add_toggle(ov, "Num", _show_numbers, func(p: bool): _show_numbers = p; _refresh_overlay())
 
 	lv.add_child(_sep())
 	_add_button(lv, "Back", _on_back)
@@ -288,9 +288,23 @@ func _set_mode(m: String) -> void:
 # ---------------------------------------------------------------- conductor mode
 
 func _on_run_wavegen() -> void:
-	var sd: int = int(_sector_spin.value)
-	var li: int = int(_level_spin.value)
-	_run_score(WaveGen.build_score(sd, li, false))
+	_run_score(WaveGen.build_score(_sector_val, _level_val, false))
+
+
+func _cycle_sector() -> void:
+	_sector_val = _sector_val % 9 + 1   # 1..9 wrap
+	_sector_btn.text = "S:%d" % _sector_val
+
+
+func _cycle_level() -> void:
+	_level_val = (_level_val + 1) % 9   # 0..8 wrap
+	_level_btn.text = "L:%d" % _level_val
+
+
+func _cycle_pattern(dir: int) -> void:
+	_pattern_idx = (_pattern_idx + dir + PATTERNS.size()) % PATTERNS.size()
+	_pattern_lbl.text = str(PATTERNS[_pattern_idx][0])
+	_update_readout()
 
 
 func _run_score(score) -> void:
@@ -407,10 +421,12 @@ func _update_readout() -> void:
 # (UiTheme.active_font), UiTheme palette, 1px dark outline, small native sizes.
 # UiTheme's named font-size constants are HD (16-48) — this is a NATIVE 480 tool,
 # so it uses small literal sizes like the HUD, but the face + colors conform.
-const SZ_HEADER := 8
+# All panel UI conforms to ONE size — the right-panel tooltip size (Roman). Kept as
+# named consts (= same value) so call sites stay readable.
+const SZ_HEADER := 7
 const SZ_BODY := 7
-const SZ_CAPTION := 6
-const SZ_READOUT := 9   # right panel — slightly larger for readability
+const SZ_CAPTION := 7
+const SZ_READOUT := 7
 
 
 func _style_label(l: Label, color: Color, size: int) -> void:
@@ -462,23 +478,6 @@ func _add_caption(parent: Node, text: String) -> void:
 	parent.add_child(_new_label(text, UiTheme.COLOR_FAINT, SZ_CAPTION))
 
 
-func _add_mini_label(parent: Node, text: String) -> void:
-	var l := _new_label(text, UiTheme.COLOR_TEXT, SZ_BODY)
-	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	parent.add_child(l)
-
-
-func _make_spin(lo: int, hi: int, val: int) -> SpinBox:
-	var s := SpinBox.new()
-	s.min_value = lo
-	s.max_value = hi
-	s.value = val
-	s.custom_minimum_size = Vector2(40, 0)
-	s.add_theme_font_override("font", UiTheme.active_font())
-	s.add_theme_font_size_override("font_size", SZ_BODY)
-	return s
-
-
 func _native_button_stylebox(bg: Color) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = bg
@@ -491,11 +490,7 @@ func _native_button_stylebox(bg: Color) -> StyleBoxFlat:
 	return sb
 
 
-func _add_button(parent: Node, text: String, cb: Callable) -> void:
-	var b := Button.new()
-	b.text = text
-	b.custom_minimum_size = Vector2(0, 12)
-	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+func _style_button(b: Button) -> void:
 	b.clip_text = true  # long labels clip instead of widening the fixed panel
 	b.add_theme_font_override("font", UiTheme.active_font())
 	b.add_theme_font_size_override("font_size", SZ_BODY)
@@ -507,21 +502,46 @@ func _add_button(parent: Node, text: String, cb: Callable) -> void:
 	b.add_theme_stylebox_override("normal", _native_button_stylebox(Color(0.08, 0.11, 0.16, 0.9)))
 	b.add_theme_stylebox_override("hover", _native_button_stylebox(Color(0.12, 0.17, 0.24, 0.95)))
 	b.add_theme_stylebox_override("pressed", _native_button_stylebox(Color(0.06, 0.09, 0.13, 1.0)))
+
+
+func _add_button(parent: Node, text: String, cb: Callable) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.custom_minimum_size = Vector2(0, 12)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_style_button(b)
 	b.pressed.connect(cb)
 	parent.add_child(b)
+	return b
 
 
-func _add_check(parent: Node, text: String, on: bool, cb: Callable) -> void:
-	var c := CheckBox.new()
-	c.text = text
-	c.button_pressed = on
-	c.add_theme_font_override("font", UiTheme.active_font())
-	c.add_theme_font_size_override("font_size", SZ_BODY)
-	c.add_theme_color_override("font_color", UiTheme.COLOR_TEXT)
-	c.add_theme_color_override("font_outline_color", UiTheme.COLOR_OUTLINE)
-	c.add_theme_constant_override("outline_size", 1)
-	c.toggled.connect(cb)
-	parent.add_child(c)
+func _add_fixed_button(parent: Node, text: String, cb: Callable, w: float) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.custom_minimum_size = Vector2(w, 12)
+	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_style_button(b)
+	b.pressed.connect(cb)
+	parent.add_child(b)
+	return b
+
+
+# Toggle button — active state shows an accent stylebox (CheckBox chrome is HD-sized,
+# so toggles are styled buttons instead).
+func _add_toggle(parent: Node, text: String, on: bool, cb: Callable) -> void:
+	var b := Button.new()
+	b.text = text
+	b.toggle_mode = true
+	b.button_pressed = on
+	b.custom_minimum_size = Vector2(0, 12)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_style_button(b)
+	b.add_theme_color_override("font_color", UiTheme.COLOR_FAINT)  # dim when off
+	var on_sb := _native_button_stylebox(Color(0.20, 0.34, 0.50, 0.95))
+	on_sb.border_color = UiTheme.COLOR_ACCENT
+	b.add_theme_stylebox_override("pressed", on_sb)  # toggled-on appearance
+	b.toggled.connect(cb)
+	parent.add_child(b)
 
 
 func _on_back() -> void:
