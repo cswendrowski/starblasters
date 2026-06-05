@@ -309,6 +309,11 @@ with `has_node("/root/...")` (absent in headless).
   conductor selects **(faction + behavior) → hull**. The shared layer is the machinery
   (behaviors/patterns/components/size-stats), NOT enemy scenes. Resolves home-vs-exclusive:
   not a runtime overlay on a neutral core — each faction has its own version of a slot.
+- ✅ **STREAMLINE PASS** (§19, Roman 2026-06-05): (A) behavior = movement pattern (one concept,
+  `patterns[]`); (B) components collapse to **Shield + Emitter** (beams/contact → weapons);
+  (C) faction = pure data `{components, stat_mults, weapon_mults, tint}`; (D) **drop `tier`**;
+  (E) **drop `role`** as an enemy axis. Authoritative axis list is §19; it supersedes the
+  scattered framings in §3/§8/§9/§13 (→ §17 consolidation).
 - 🟡 **Faction roster seeds** (§12.0): the home assignments seed each faction's roster;
   Roman-stated set recorded; unlisted homes proposed (?) pending redline; supremacy-empty +
   corporate-overload flagged.
@@ -899,6 +904,62 @@ current model — they should be reconciled before the doc is treated as final:
 - §9.2 "swappable weapon as core axis" is demoted by §16.
 Recommend a single consolidation pass to collapse §8/§10/§12 into one coherent
 faction-roster + size + behavior + composer spec once the §12 redline lands.
+**The consolidation target is §19 (streamlined model)** — rewrite §3/§8/§9/§13 to match it
+(behavior=pattern, Shield+Emitter only, faction-as-data, no tier/role).
+
+---
+
+## 19. STREAMLINED MODEL — LOCKED (Roman, 2026-06-05)
+
+A review-driven simplification. **This is the authoritative axis list; it supersedes the
+scattered/earlier framings in §3/§8/§9/§13** (which the §17 consolidation should rewrite to
+match). Net effect: leaner AND more extensible, no lost function.
+
+### 19.1 Final axes (minimal)
+- **Chassis = size-class** → stats/hitbox: tiny(8)/small(16)/medium(32)/large(64)/elite(128)/
+  boss(256). No `tier`, no `role` (see 19.4).
+- **Pattern (= behavior)** — a behavior IS a named movement pattern with its fire-window built
+  in (path-phase / on-phase / sustained are pattern properties, already how `enemy_core`
+  works). **(A)** Chassis declare `patterns: [...]` (the old `behaviors[]`/`allowed_movements[]`,
+  now one concept). The conductor requests a pattern; the faction table resolves it to a hull.
+  Hybrids = composite patterns (enter/exit phases). Removes the separate "behavior" layer.
+- **Weapon** — hull-owned `{projectile, rate, fire-pattern}`. Beams + contact-detonate are
+  **weapon types**, not components (see 19.2).
+- **Components — just TWO: `Shield` + `Emitter`. (B)**
+  - `Shield` — participates in the damage pipeline (regen pool, charges). The one defensive comp.
+  - `Emitter` — **emit a payload on a trigger**, parameterized:
+    `{payload ∈ {drone, turret, mine, firecore, bullet_ring}, trigger ∈ {start, timer, death},
+    count, cadence, chance}`. Collapses Spawner / CarriedTurrets / Dropper / DropFirecore /
+    DeathEffect-ring into one. A new "drops/spawns X" enemy = DATA, not a new component.
+    (Keep the payload set a small explicit enum — not an arbitrary-scene god-object.)
+- **Faction = pure DATA. (C)** `faction = {hull_roster, modifier:{components:[...],
+  stat_mults:{}, weapon_mults:{}}, tint, lore_name}`. Examples: corporate
+  `{components:[Shield]}` · zealot `{components:[Emitter(firecore,death,chance)]}` · privateer
+  `{stat_mults:{hp:2}}` · supremacy `{weapon_mults:{rate:0.6}}`. A new faction or a rebalance =
+  a data edit, ZERO code.
+
+### 19.2 The composer (unchanged shape, smaller inputs)
+`(size, pattern, count, pacing)` → faction table `(size, pattern) → hull` → apply the faction
+modifier (data) → spawn. Determinism via run-seed RNG when multiple hulls match.
+
+### 19.3 Authored vocabulary (the whole surface)
+**size-class · pattern(=behavior) · weapon · {Shield, Emitter} · faction-data.** That's it —
+small surface, large variety.
+
+### 19.4 Dropped axes (D/E — confirmed redundant)
+- **`tier` (COMMON/UNCOMMON/RARE) → DROP.** Bounty/threat = size-class; availability =
+  depth/sector unlock + faction pool; "which size when" = composer pacing. (Replaces the
+  producer's `_roll_tier` / `RARITY_BOUNTY_MULT` / `entries_eligible(tier)` in the rewrite.)
+- **`role` (popcorn/anchor/…) → DROP as an enemy axis.** Derivable from (size, pattern);
+  pacing INTENT (filler vs threat) lives in the composer's beat decisions, not a per-enemy tag.
+
+### 19.5 Extensibility that falls out
+- **Emitter** → new emit-behaviors are data.
+- **Faction-as-data** → new factions are data.
+- **Elite events reuse the M5 heavy-beat scheduler** (coda/midpoint beats) drawn from each
+  faction's elite pool — no new scheduling system.
+- **Components on `enemy_base`** → bosses can later opt into `Shield`/`Emitter` (shields,
+  minion-spawning) without the behavior/composer system.
 
 ---
 
