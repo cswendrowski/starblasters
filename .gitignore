@@ -21,6 +21,10 @@ export_credentials.cfg
 # Capture artifacts (Anvil/Claude screencaps + GIFs)
 /captures/
 
+# Sim output dumps (regenerable; the sim_*.gd tools are tracked, their text output isn't)
+sim_out.txt
+sim_stream_out.txt
+
 # OS / IDE
 Thumbs.db
 .DS_Store
