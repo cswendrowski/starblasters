@@ -138,11 +138,8 @@ func _draw_overlay() -> void:
 func _build_overlay_labels() -> void:
 	# Lane-number labels at the top of each lane (absolute coords).
 	for i in Lanes.COUNT:
-		var lbl := Label.new()
+		var lbl := _new_label(str(i), UiTheme.COLOR_ACCENT, SZ_CAPTION)
 		lbl.name = "lane_num_%d" % i
-		lbl.text = str(i)
-		lbl.add_theme_font_size_override("font_size", 6)
-		lbl.add_theme_color_override("font_color", Color(0.6, 0.8, 1.0, 0.7))
 		lbl.position = Vector2(Lanes.lane_center(i) - 3.0, 1.0)
 		_overlay.add_child(lbl)
 	# Zone captions on the right edge of the band.
@@ -152,10 +149,7 @@ func _build_overlay_labels() -> void:
 
 
 func _add_zone_caption(text: String, y: float, col: Color) -> void:
-	var lbl := Label.new()
-	lbl.text = text
-	lbl.add_theme_font_size_override("font_size", 6)
-	lbl.add_theme_color_override("font_color", col)
+	var lbl := _new_label(text, col, SZ_CAPTION)
 	lbl.position = Vector2(Playfield.X_MAX - 22.0, y - 4.0)
 	_overlay.add_child(lbl)
 
@@ -195,11 +189,7 @@ func _build_ui() -> void:
 	lv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	left.add_child(lv)
 
-	var header := Label.new()
-	header.text = "LANE / PATTERN VIS"
-	header.add_theme_font_size_override("font_size", 7)
-	header.add_theme_color_override("font_color", UiTheme.COLOR_ACCENT)
-	lv.add_child(header)
+	lv.add_child(_new_label("LANE / PATTERN VIS", UiTheme.COLOR_ACCENT, SZ_HEADER))
 
 	# Mode toggle.
 	var mode_row := HBoxContainer.new()
@@ -235,7 +225,8 @@ func _build_ui() -> void:
 	lv.add_child(_pattern_panel)
 	_add_caption(_pattern_panel, "PATTERN")
 	var opt := OptionButton.new()
-	opt.add_theme_font_size_override("font_size", 7)
+	opt.add_theme_font_override("font", UiTheme.active_font())
+	opt.add_theme_font_size_override("font_size", SZ_BODY)
 	for p in PATTERNS:
 		opt.add_item(str(p[0]))
 	opt.item_selected.connect(func(idx: int): _pattern_idx = idx)
@@ -263,16 +254,11 @@ func _build_ui() -> void:
 	rv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right.add_child(rv)
 	_add_caption(rv, "LIVE")
-	_readout = Label.new()
-	_readout.add_theme_font_size_override("font_size", 6)
-	_readout.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	_readout = _new_label("", UiTheme.COLOR_TEXT, SZ_CAPTION)
 	_readout.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_readout.custom_minimum_size = Vector2(126, 0)
 	rv.add_child(_readout)
-	var hint := Label.new()
-	hint.text = "Drag mouse = player.\nGreen band = fire zone."
-	hint.add_theme_font_size_override("font_size", 6)
-	hint.add_theme_color_override("font_color", Color(0.55, 0.65, 0.8))
+	var hint := _new_label("Drag mouse = player.\nGreen band = fire zone.", UiTheme.COLOR_FAINT, SZ_CAPTION)
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.custom_minimum_size = Vector2(126, 0)
 	rv.add_child(hint)
@@ -410,13 +396,36 @@ func _update_readout() -> void:
 
 
 # ---------------------------------------------------------------- UI helpers
+# Conforms to the in-game HUD convention (ui.gd._make_label): crisp pixel font
+# (UiTheme.active_font), UiTheme palette, 1px dark outline, small native sizes.
+# UiTheme's named font-size constants are HD (16-48) — this is a NATIVE 480 tool,
+# so it uses small literal sizes like the HUD, but the face + colors conform.
+const SZ_HEADER := 8
+const SZ_BODY := 7
+const SZ_CAPTION := 6
+
+
+func _style_label(l: Label, color: Color, size: int) -> void:
+	l.add_theme_font_override("font", UiTheme.active_font())
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", color)
+	l.add_theme_color_override("font_outline_color", UiTheme.COLOR_OUTLINE)
+	l.add_theme_constant_override("outline_size", 1)
+
+
+func _new_label(text: String, color: Color, size: int) -> Label:
+	var l := Label.new()
+	l.text = text
+	_style_label(l, color, size)
+	return l
+
 
 func _make_panel(pos: Vector2, sz: Vector2) -> PanelContainer:
 	var p := PanelContainer.new()
 	p.position = pos
 	p.size = sz
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.05, 0.07, 0.11, 0.9)
+	sb.bg_color = UiTheme.COLOR_PANEL_BG
 	sb.border_color = UiTheme.COLOR_ACCENT_DIM
 	sb.set_border_width_all(1)
 	sb.content_margin_left = 3
@@ -432,20 +441,13 @@ func _sep() -> HSeparator:
 
 
 func _add_caption(parent: Node, text: String) -> void:
-	var lbl := Label.new()
-	lbl.text = text
-	lbl.add_theme_font_size_override("font_size", 6)
-	lbl.add_theme_color_override("font_color", Color(0.55, 0.7, 0.9))
-	parent.add_child(lbl)
+	parent.add_child(_new_label(text, UiTheme.COLOR_FAINT, SZ_CAPTION))
 
 
 func _add_mini_label(parent: Node, text: String) -> void:
-	var lbl := Label.new()
-	lbl.text = text
-	lbl.add_theme_font_size_override("font_size", 7)
-	lbl.add_theme_color_override("font_color", Color(0.8, 0.9, 1.0))
-	lbl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	parent.add_child(lbl)
+	var l := _new_label(text, UiTheme.COLOR_TEXT, SZ_BODY)
+	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	parent.add_child(l)
 
 
 func _make_spin(lo: int, hi: int, val: int) -> SpinBox:
@@ -454,17 +456,38 @@ func _make_spin(lo: int, hi: int, val: int) -> SpinBox:
 	s.max_value = hi
 	s.value = val
 	s.custom_minimum_size = Vector2(40, 0)
-	s.add_theme_font_size_override("font_size", 7)
+	s.add_theme_font_override("font", UiTheme.active_font())
+	s.add_theme_font_size_override("font_size", SZ_BODY)
 	return s
+
+
+func _native_button_stylebox(bg: Color) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg
+	sb.border_color = UiTheme.COLOR_ACCENT_DIM
+	sb.set_border_width_all(1)
+	sb.content_margin_left = 3
+	sb.content_margin_right = 3
+	sb.content_margin_top = 1
+	sb.content_margin_bottom = 1
+	return sb
 
 
 func _add_button(parent: Node, text: String, cb: Callable) -> void:
 	var b := Button.new()
 	b.text = text
 	b.custom_minimum_size = Vector2(0, 12)
-	b.add_theme_font_size_override("font_size", 7)
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	UiTheme.style_button(b, true)
+	b.add_theme_font_override("font", UiTheme.active_font())
+	b.add_theme_font_size_override("font_size", SZ_BODY)
+	b.add_theme_color_override("font_color", UiTheme.COLOR_ACCENT)
+	b.add_theme_color_override("font_hover_color", UiTheme.COLOR_TEXT)
+	b.add_theme_color_override("font_pressed_color", UiTheme.COLOR_TEXT)
+	b.add_theme_color_override("font_outline_color", UiTheme.COLOR_OUTLINE)
+	b.add_theme_constant_override("outline_size", 1)
+	b.add_theme_stylebox_override("normal", _native_button_stylebox(Color(0.08, 0.11, 0.16, 0.9)))
+	b.add_theme_stylebox_override("hover", _native_button_stylebox(Color(0.12, 0.17, 0.24, 0.95)))
+	b.add_theme_stylebox_override("pressed", _native_button_stylebox(Color(0.06, 0.09, 0.13, 1.0)))
 	b.pressed.connect(cb)
 	parent.add_child(b)
 
@@ -473,7 +496,11 @@ func _add_check(parent: Node, text: String, on: bool, cb: Callable) -> void:
 	var c := CheckBox.new()
 	c.text = text
 	c.button_pressed = on
-	c.add_theme_font_size_override("font_size", 7)
+	c.add_theme_font_override("font", UiTheme.active_font())
+	c.add_theme_font_size_override("font_size", SZ_BODY)
+	c.add_theme_color_override("font_color", UiTheme.COLOR_TEXT)
+	c.add_theme_color_override("font_outline_color", UiTheme.COLOR_OUTLINE)
+	c.add_theme_constant_override("outline_size", 1)
 	c.toggled.connect(cb)
 	parent.add_child(c)
 
