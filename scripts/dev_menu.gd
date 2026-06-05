@@ -83,6 +83,7 @@ func _build_ui() -> void:
 	_add_button("[ Shipyard ]", _on_shipyard, true)
 	# Tuners / labs
 	_add_button("[ Movement Lab ]", _on_movement_lab, true)
+	_add_button("[ Lane Visualizer ]", _on_lane_visualizer, true)
 	_add_button("[ Parallax Tuner ]", _on_parallax_tuner, true)
 	_add_button("[ Asteroid Lab ]", _on_asteroid_lab, true)
 	_add_button("[ Sector Map HD Lab ]", _on_sector_map_hd_lab, true)
@@ -123,6 +124,10 @@ func _on_shipyard() -> void:
 
 func _on_movement_lab() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/movement_lab.tscn")
+
+
+func _on_lane_visualizer() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/lane_visualizer.tscn")
 
 
 func _on_wave_editor() -> void:

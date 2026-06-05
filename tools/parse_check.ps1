@@ -13,6 +13,7 @@ $scenes = @(
   'res://scenes/dev_menu.tscn',
   'res://scenes/dev/shipyard.tscn',
   'res://scenes/dev/movement_lab.tscn',
+  'res://scenes/dev/lane_visualizer.tscn',
   'res://scenes/dev/movement_test.tscn',
   'res://scenes/dev/parallax_tuner.tscn',
   'res://scenes/dev/ui_designer.tscn',
