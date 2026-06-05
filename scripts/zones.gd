@@ -13,3 +13,11 @@ const DEPARTURE_START: float = 195.0   # at/below this Y = departure band (cease
 
 static func in_engagement(y: float) -> bool:
 	return y >= ENTRY_END and y < DEPARTURE_START
+
+
+# Normalized progress through the engagement band: 0.0 at the entry edge (top),
+# 1.0 at the departure edge (bottom), clamped. Path-phase firing (enemy_core
+# fire_path_phases) fires when this crosses configured fractions, so a descending
+# enemy shoots at fixed points in its pass instead of on a random timer.
+static func band_progress(y: float) -> float:
+	return clampf((y - ENTRY_END) / (DEPARTURE_START - ENTRY_END), 0.0, 1.0)

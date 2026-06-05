@@ -12,3 +12,7 @@ func on_start(_enemy) -> void:
 
 func compute_step(_enemy, delta: float) -> Vector2:
 	return Vector2(drift_x, speed) * delta
+
+
+func path_phase_capable() -> bool:
+	return true  # pure descent — band-Y is monotonic
