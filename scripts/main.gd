@@ -18,6 +18,9 @@ var _boss_hooked: Node = null
 # Per-enemy-type stats: scene_path → {"spawned": int, "killed": int, "bounty": int, "total_bounty": int}
 var _enemy_stats: Dictionary = {}
 var _current_level = null
+# The CombatScore the conductor performs (M5 native emission): built from
+# _current_level at the producer chokepoint in new_game(), then start_score()'d.
+var _current_score = null
 # Missile Cruiser (unattackable background mortar ship): when true, spawn it
 # into the Backdrop world AFTER the intro completes. Set by the showcase
 # subtype or the Run.set_meta("missile_cruiser", true) one-shot trigger.
@@ -373,6 +376,7 @@ func new_game() -> void:
 	bounty = 0
 	_enemy_stats.clear()
 	_current_level = null
+	_current_score = null
 	_asteroids_killed_this_level = 0
 	if has_node("/root/Run"):
 		bounty = get_node("/root/Run").bounty
@@ -500,6 +504,13 @@ func new_game() -> void:
 			# delay/respawn scheduled above for the same standard-combat node).
 			_missile_cruiser_delay = 0.0
 			_missile_cruiser_respawn = false
+	# Producer chokepoint (M5 native emission, finding §0.9): every LevelData
+	# originates above; lift it to the CombatScore the conductor performs HERE, at the
+	# producer boundary, instead of the director doing it transiently in start_level.
+	# Combat/boss/hazard/custom all converge here. (The dev Combat Slice authors its
+	# own score in _run_intro and bypasses this.)
+	if _current_level != null:
+		_current_score = ScoreAdapter.from_level_data(_current_level)
 	_run_intro(is_boss)
 
 # ---- Intro sequence -----------------------------------------------------
@@ -556,7 +567,11 @@ func _run_intro(is_boss: bool) -> void:
 	if has_node("/root/Run") and get_node("/root/Run").get_meta("combat_slice", false):
 		get_node("/root/Run").remove_meta("combat_slice")
 		wave_director.start_score(CombatSlice.build())
+	elif _current_score != null:
+		# Native path (M5): the producer chokepoint already built the CombatScore.
+		wave_director.start_score(_current_score)
 	else:
+		# Fallback for any LevelData that skipped the chokepoint (defensive).
 		wave_director.start_level(_current_level)
 	# Spawn the unattackable background Missile Cruiser now that the Backdrop +
 	# player + camera all exist (deferred from level selection).

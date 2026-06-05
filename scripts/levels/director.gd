@@ -54,13 +54,15 @@ var _wave_total: int = 0
 var _last_lane: int = -1      # last lane chosen by _pick_lane (alternate-anchor)
 
 func start_level(new_level: Resource = null) -> void:
+	# COMPAT SHIM (M5 native emission): production now emits a CombatScore at the
+	# producer chokepoint (main.gd) and calls start_score directly. This remains for
+	# LevelData-holding callers — dev tools + the director v0-v2 tests — lifting via
+	# the shared builder. New code should call start_score(WaveGen.build_score(...)).
 	if new_level != null:
 		level = new_level
 	if level == null or level.waves.is_empty():
 		push_warning("WaveDirector: no level / no waves")
 		return
-	# Lift legacy LevelData -> CombatScore, then perform it. (WaveGen v2 will emit
-	# a CombatScore directly and call start_score.)
 	start_score(ScoreAdapter.from_level_data(level))
 
 
