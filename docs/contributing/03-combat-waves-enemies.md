@@ -25,10 +25,10 @@ main.gd new_game()
     ├─ WaveGeneratorV2.build_combat(...)
     │  [dev Wave Tester tool — when tuning]
     │
-    └─ Levels.build_minefield_level() / build_asteroid_field_level()
-       [hazard nodes — minefields, asteroids]
+    └─ Levels.build_minefield_score() / build_asteroid_field_score()
+       [hazard nodes — minefields, asteroids; phrase-native CombatScore]
 
-    ↓ (level is a LevelData resource)
+    ↓ (combat/boss/custom → LevelData; hazards → CombatScore directly)
     
 wave_director.start_level(_current_level)
     ↓ (iterates waves)
@@ -87,8 +87,10 @@ main.gd _on_level_cleared()
 2. **Manual wave authoring via Wave Editor** — development.
    The `wave_editor.gd` dev tool (Dev Menu → Wave Editor) lets you author individual waves by hand, test them in-game, and save to `resources/waves/`. Never ships to players.
 
-3. **`Levels.build_minefield_level()` / `build_asteroid_field_level()`** — hazards.
-   Hardcoded hazard nodes (minefields, asteroids). Not spawned by the wave generator; called directly when the sector map rolls a hazard node.
+3. **`Levels.build_minefield_score()` / `build_asteroid_field_score()`** — hazards.
+   Hardcoded hazard nodes (minefields, asteroids). Phrase-native `CombatScore`s (lane-shaped
+   wall/pincer/spread drops + breathers) run through the same conductor; called directly when
+   the sector map rolls a hazard node.
 
 ---
 

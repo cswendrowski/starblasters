@@ -155,6 +155,13 @@ mixes), but they run through the **same conductor** so the lane system + dispatc
 them interesting (revises wave §10.5 / bridge open item). `Levels.build_*`
 (`levels_v2.gd`) get rewritten to emit phrase-structured scores.
 
+**DONE (2026-06-05):** `build_minefield_score()` / `build_asteroid_field_score()` emit
+phrase-native `CombatScore`s (lane-shaped WALL/PINCER/SPREAD drops + BREATHERs, one banner)
+routed via `main.gd` `_current_score`; the old `formation_padding` template catalog (which the
+conductor lane-snapped away) is retired. Mines/asteroids self-drift, so no movement_override.
+Tests: `tools/test_hazard_score.gd` (well-formed) + `tools/test_hazard_run.gd` (streams via the
+real director). Open knob: hazards stay excluded from the concurrency cap (terrain pacing).
+
 ---
 
 ## 5. Build order (each milestone independently testable)

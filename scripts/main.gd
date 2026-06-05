@@ -431,7 +431,10 @@ func new_game() -> void:
 		wave_director.max_concurrent = WaveGen.cap_for(sd, li)
 	elif is_hazard:
 		if hazard_subtype == "asteroid_field":
-			_current_level = Levels.build_asteroid_field_level()
+			# Hazards are now phrase-native CombatScores (lane-shaped drops +
+			# breathers); set _current_score directly so the chokepoint below
+			# (which only adapts a LevelData) leaves it untouched.
+			_current_score = Levels.build_asteroid_field_score()
 		elif hazard_subtype == "roster_test":
 			_current_level = Levels.build_roster_test()
 		elif hazard_subtype == "firecore_drone_showcase":
@@ -444,7 +447,7 @@ func new_game() -> void:
 			_want_missile_cruiser = true
 			_missile_cruiser_respawn = true
 		else:
-			_current_level = Levels.build_minefield_level()
+			_current_score = Levels.build_minefield_score()
 	else:
 		# Custom-level shortcut: dev menu's "Test Level" stashes the .tres
 		# path on Run; load it directly so designers can iterate on a

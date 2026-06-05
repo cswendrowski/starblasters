@@ -66,6 +66,37 @@ static func _burst(count: int, interval: float) -> Resource:
 	sp.burst_interval = interval
 	return sp
 
+
+# --- Hazard score helpers (lane-native, phrase-structured) --------------------
+# Hazards (mines/asteroids) are first-class CombatScores now: shaped FORMATION
+# drops (wall/pincer/spread) the conductor dispatches with real lane placement,
+# separated by BREATHERs. mines/asteroids self-drift (their own _process), so no
+# movement_override is needed — they fall straight down from their spawn lane.
+static func _haz_spec(scene, count: int, interval: float, formation: int) -> Resource:
+	var sp = WaveSpec.new()
+	sp.enemy_scene = scene
+	sp.count = count
+	sp.spawn_interval = interval
+	sp.spawn_delay = 0.0
+	sp.formation = formation
+	return sp
+
+
+static func _formation_phrase(shape: StringName, spec: Resource) -> Phrase:
+	var ph := Phrase.new()
+	ph.kind = Phrase.Kind.FORMATION
+	ph.shape = shape          # &"wall" / &"pincer" / &"top_spread"
+	ph.specs = [spec]
+	return ph
+
+
+static func _breather_phrase(dur: float) -> Phrase:
+	var ph := Phrase.new()
+	ph.kind = Phrase.Kind.BREATHER
+	ph.duration = dur
+	ph.alive_floor = -1       # pure-hazard levels have 0 combatants; -1 = wait full duration
+	return ph
+
 static func build_level_1_1():
 	# WAVE 1: firecore single-shot intro
 	var w1 = WaveSpec.new()
@@ -258,33 +289,11 @@ static func build_boss_level():
 	return level
 
 
-# Hazard: Minefield. One big wave of mines drifting straight down. Engineered
-# gaps via TOP_LEFT_TO_RIGHT spacing so the player can weave through if they
-# don't want to shoot every one.
-# Mine-hazard wave pattern catalog (Roman, 2026-05-18 mine pass).
-#
-# Six pattern templates; build_minefield_level() picks 3 at random and
-# layers in a small "variant sprinkle" pass so 1-20% of mines get
-# replaced with a random non-basic type. ~5% of the time the whole
-# hazard rolls a single variant type instead of basic.
-#
-# Each template is a Callable that returns Array[WaveSpec]; the first
-# wave in the returned list is the "lead" (announce_text-eligible),
-# the rest are silent follow-ups.
-
-# Pattern table; entries are method names on this script.
-const HAZARD_PATTERNS := [
-	"_pattern_dense_sweep",
-	"_pattern_counter_sweep",
-	"_pattern_pincer",
-	"_pattern_drip",
-	"_pattern_wall_burst",
-	"_pattern_centerout_spiral",
-	"_pattern_diamond",
-	"_pattern_checkerboard",
-	"_pattern_rings",
-	"_pattern_scatter",
-]
+# Hazard: Minefield — phrase-native CombatScore. Lane-shaped mine drops
+# (wall/pincer/spread) the conductor dispatches with real lane placement, paced by
+# breathers so the player can weave through. See build_minefield_score below. (The
+# old formation_padding template catalog was retired 2026-06-05 — the conductor
+# lane-snaps placement, so the padding-geometry shapes no longer applied.)
 
 # Variant pool (everything except basic).
 const VARIANT_SCENES := [
@@ -292,300 +301,70 @@ const VARIANT_SCENES := [
 ]
 
 
-static func build_minefield_level():
+static func build_minefield_score() -> CombatScore:
 	var rng = RandomNumberGenerator.new()
 	rng.randomize()
-	# Dev override: minefield tester can force a specific mine type.
-	# Roman 2026-05-18. Consumed once.
+	# Mine-type selection (preserved): dev forced type / 5% single-variant field /
+	# basic + a variant sprinkle.
 	var forced_type: String = ""
 	if Engine.get_main_loop() and Engine.get_main_loop().root.has_node("Run"):
 		var run = Engine.get_main_loop().root.get_node("Run")
 		if run.has_meta("minefield_mine_type"):
 			forced_type = String(run.get_meta("minefield_mine_type"))
 			run.remove_meta("minefield_mine_type")
-	# 5% chance to make the whole minefield a single variant type instead
-	# of basic mines. Otherwise basic + sprinkles.
-	var single_type_roll: float = rng.randf()
 	var base_scene = MineScene
 	if forced_type != "":
 		match forced_type:
-			"basic":
-				base_scene = MineScene
-			"smart":
-				base_scene = _scene_by_name("MineSmartScene")
-			"shielded":
-				base_scene = _scene_by_name("MineShieldScene")
-			"cluster":
-				base_scene = _scene_by_name("MineClusterScene")
-			"mega":
-				base_scene = _scene_by_name("MineClusterSmartScene")
-			# "mixed" leaves the random logic below intact.
-	elif single_type_roll < 0.05:
+			"basic": base_scene = MineScene
+			"smart": base_scene = _scene_by_name("MineSmartScene")
+			"shielded": base_scene = _scene_by_name("MineShieldScene")
+			"cluster": base_scene = _scene_by_name("MineClusterScene")
+			"mega": base_scene = _scene_by_name("MineClusterSmartScene")
+			# "mixed" falls through to basic + sprinkle.
+	elif rng.randf() < 0.05:
 		base_scene = _scene_by_name(VARIANT_SCENES[rng.randi() % VARIANT_SCENES.size()])
 
-	# Pick 3 distinct pattern templates.
-	var indices = []
-	while indices.size() < 3:
-		var i: int = rng.randi() % HAZARD_PATTERNS.size()
-		if not indices.has(i):
-			indices.append(i)
+	# Lane-native mine beats. WALL = successive rows leaving shifting gap lanes to
+	# thread; PINCER = edge-inward burst; SPREAD = a lane-scattered drip. A BREATHER
+	# between beats lets the player weave through before the next drop. Pick 3.
+	var beats := [
+		{"shape": &"wall",       "count": 15, "interval": 0.12},
+		{"shape": &"wall",       "count": 12, "interval": 0.16},
+		{"shape": &"pincer",     "count": 10, "interval": 0.14},
+		{"shape": &"top_spread", "count": 16, "interval": 0.30},
+		{"shape": &"wall",       "count": 18, "interval": 0.12},
+	]
+	var order := []
+	for i in beats.size():
+		order.append(i)
+	for i in range(order.size() - 1, 0, -1):  # Fisher-Yates shuffle
+		var j: int = rng.randi() % (i + 1)
+		var t = order[i]; order[i] = order[j]; order[j] = t
 
-	var waves: Array = []
-	var first: bool = true
-	var stagger: float = 0.5
-	for idx in indices:
-		var name: String = HAZARD_PATTERNS[idx]
-		var pattern_waves: Array = _invoke_pattern(name, base_scene, stagger, first)
-		for w in pattern_waves:
-			waves.append(w)
-		# Inter-pattern breath. Was 4.0s, which read as "long dead gap" — and
-		# combined with sequential wave scheduling produced 60+s minefields
-		# (Cody, 2026-05-19 playtest: "minefield is very long, long gaps").
-		stagger += 0.6
-		first = false
+	var wave := ScoreWave.new()
+	wave.banner = "MINEFIELD DETECTED"
+	var total_basic: int = 0
+	for k in 3:
+		var b: Dictionary = beats[order[k]]
+		var form_id: int = 2 if b["shape"] == &"top_spread" else 0
+		wave.phrases.append(_formation_phrase(b["shape"],
+			_haz_spec(base_scene, int(b["count"]), float(b["interval"]), form_id)))
+		total_basic += int(b["count"])
+		if k < 2:
+			wave.phrases.append(_breather_phrase(1.1))
 
-	# Variant sprinkle: 1-20% of total mines as a separate variant wave.
-	# Roman, 2026-05-18: "should be a chance for some percentage (1 to 20%)
-	# of mines to be replaced with random other mine types."
+	# Variant sprinkle: a final small lane-scatter of a random non-basic mine type
+	# (1-20% of the basic total), only when the field is basic.
 	if base_scene == MineScene:
-		var total_basic: int = 0
-		for w in waves:
-			total_basic += int(w.count)
-		var variant_pct: float = rng.randf_range(0.01, 0.20)
-		var variant_total: int = max(1, int(round(float(total_basic) * variant_pct)))
-		# Pick a single variant type for this sprinkle pass so the pattern
-		# reads as "mostly basic with N shielded mines mixed in".
 		var sprinkle_scene = _scene_by_name(VARIANT_SCENES[rng.randi() % VARIANT_SCENES.size()])
-		var sprinkle = WaveSpec.new()
-		sprinkle.enemy_scene = sprinkle_scene
-		sprinkle.count = variant_total
-		sprinkle.spawn_interval = max(0.5, 6.0 / float(variant_total))
-		sprinkle.spawn_delay = 1.2
-		sprinkle.formation = 2  # TOP_RANDOM
-		sprinkle.silent = true
-		waves.append(sprinkle)
+		var vcount: int = max(1, int(round(float(total_basic) * rng.randf_range(0.01, 0.20))))
+		wave.phrases.append(_breather_phrase(1.0))
+		wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(sprinkle_scene, vcount, 0.35, 2)))
 
-	var level = LevelData.new()
-	level.level_name = "Minefield"
-	level.waves = waves
-	return level
-
-
-# ---- Pattern templates --------------------------------------------------
-# Each pattern returns Array[WaveSpec]. `lead` controls whether the first
-# wave carries the MINEFIELD DETECTED announce.
-
-# Roman, 2026-05-18 hazard pass: "each wave should be as tall as the
-# screen in terms of mines present". Mine drift_speed is ~65 px/s and
-# the 400-px playfield takes ~6s to traverse. To keep the screen full
-# top-to-bottom, each pattern emits its mines over ~5-6s with multiple
-# sub-waves layered through the run.
-
-static func _pattern_dense_sweep(scene, delay: float, lead: bool) -> Array:
-	var waves: Array = []
-	var rows: int = 4
-	for i in rows:
-		var w = WaveSpec.new()
-		w.enemy_scene = scene
-		w.count = 8
-		w.spawn_interval = 0.42
-		# Lead row carries the banner-gated start delay; subsequent rows
-		# chain immediately (director runs waves sequentially, so any
-		# non-zero spawn_delay here stacks as dead time between rows).
-		w.spawn_delay = delay if i == 0 else 0.0
-		w.formation = 0 if i % 2 == 0 else 1
-		w.formation_padding = 48.0
-		w.silent = i > 0 or not lead
-		if lead and i == 0:
-			w.announce_text = "MINEFIELD DETECTED"
-		waves.append(w)
-	return waves
-
-
-static func _pattern_counter_sweep(scene, delay: float, lead: bool) -> Array:
-	var waves: Array = []
-	for i in 4:
-		var w = WaveSpec.new()
-		w.enemy_scene = scene
-		w.count = 8
-		w.spawn_interval = 0.42
-		w.spawn_delay = delay if i == 0 else 0.0
-		w.formation = 1 if i % 2 == 0 else 0
-		w.formation_padding = 48.0
-		w.silent = i > 0 or not lead
-		if lead and i == 0:
-			w.announce_text = "MINEFIELD DETECTED"
-		waves.append(w)
-	return waves
-
-
-# Two short rows from left and right edges fired simultaneously; the gap
-# in the middle is the safe path.
-static func _pattern_pincer(scene, delay: float, lead: bool) -> Array:
-	var left = WaveSpec.new()
-	left.enemy_scene = scene
-	left.count = 5
-	left.spawn_interval = 0.35
-	left.spawn_delay = delay
-	left.formation = 0  # left-to-right
-	left.formation_padding = 32.0
-	if lead:
-		left.announce_text = "MINEFIELD DETECTED"
-	else:
-		left.silent = true
-	var right = WaveSpec.new()
-	right.enemy_scene = scene
-	right.count = 5
-	right.spawn_interval = 0.35
-	# Right wave chains immediately after left so the pincer reads as a
-	# 1-2 punch rather than a 4s pause apart.
-	right.spawn_delay = 0.0
-	right.formation = 1  # right-to-left
-	right.formation_padding = 32.0
-	right.silent = true
-	return [left, right]
-
-
-# Sparse but long random drip — many mines, slow individual intervals,
-# placed via TOP_RANDOM. Player can carve a path; precision dodging needed.
-static func _pattern_drip(scene, delay: float, lead: bool) -> Array:
-	var w = WaveSpec.new()
-	w.enemy_scene = scene
-	w.count = 30
-	w.spawn_interval = 0.4
-	w.spawn_delay = delay
-	w.formation = 2  # TOP_RANDOM
-	if lead:
-		w.announce_text = "MINEFIELD DETECTED"
-	else:
-		w.silent = true
-	return [w]
-
-
-# Quick wall of mines all at once, then a long pause for the next pattern.
-static func _pattern_wall_burst(scene, delay: float, lead: bool) -> Array:
-	var waves: Array = []
-	for i in 3:
-		var w = WaveSpec.new()
-		w.enemy_scene = scene
-		w.count = 10
-		w.spawn_interval = 0.12
-		# Lead wave waits for the banner; the next two walls chain straight
-		# in. A short breath would still feel like 1.4s of "nothing".
-		w.spawn_delay = delay if i == 0 else 0.3
-		w.formation = 0
-		w.formation_padding = 28.0
-		w.silent = i > 0 or not lead
-		if lead and i == 0:
-			w.announce_text = "MINEFIELD DETECTED"
-		waves.append(w)
-	return waves
-
-
-# Center-out fan: mines radiate outward from center top.
-static func _pattern_centerout_spiral(scene, delay: float, lead: bool) -> Array:
-	var w = WaveSpec.new()
-	w.enemy_scene = scene
-	w.count = 10
-	w.spawn_interval = 0.4
-	w.spawn_delay = delay
-	w.formation = 3  # TOP_CENTER_OUT
-	w.formation_padding = 36.0
-	if lead:
-		w.announce_text = "MINEFIELD DETECTED"
-	else:
-		w.silent = true
-	return [w]
-
-
-static func _invoke_pattern(name: String, scene, delay: float, lead: bool) -> Array:
-	match name:
-		"_pattern_dense_sweep":       return _pattern_dense_sweep(scene, delay, lead)
-		"_pattern_counter_sweep":     return _pattern_counter_sweep(scene, delay, lead)
-		"_pattern_pincer":            return _pattern_pincer(scene, delay, lead)
-		"_pattern_drip":              return _pattern_drip(scene, delay, lead)
-		"_pattern_wall_burst":        return _pattern_wall_burst(scene, delay, lead)
-		"_pattern_centerout_spiral":  return _pattern_centerout_spiral(scene, delay, lead)
-		"_pattern_diamond":           return _pattern_diamond(scene, delay, lead)
-		"_pattern_checkerboard":      return _pattern_checkerboard(scene, delay, lead)
-		"_pattern_rings":             return _pattern_rings(scene, delay, lead)
-		"_pattern_scatter":           return _pattern_scatter(scene, delay, lead)
-	return []
-
-
-# Diamond: outer-in-outer rows along the X axis (wide → narrow → wide),
-# producing a diamond shape as the rows drift down the screen.
-static func _pattern_diamond(scene, delay: float, lead: bool) -> Array:
-	var waves: Array = []
-	var widths = [80.0, 56.0, 32.0, 56.0, 80.0]
-	for i in widths.size():
-		var w = WaveSpec.new()
-		w.enemy_scene = scene
-		w.count = 6
-		w.spawn_interval = 0.32
-		w.spawn_delay = delay if i == 0 else 0.0
-		w.formation = 3  # TOP_CENTER_OUT
-		w.formation_padding = float(widths[i])
-		w.silent = i > 0 or not lead
-		if lead and i == 0:
-			w.announce_text = "MINEFIELD DETECTED"
-		waves.append(w)
-	return waves
-
-
-# Checkerboard: alternating wide/narrow spaced rows offset across X.
-static func _pattern_checkerboard(scene, delay: float, lead: bool) -> Array:
-	var waves: Array = []
-	for i in 5:
-		var w = WaveSpec.new()
-		w.enemy_scene = scene
-		w.count = 6
-		w.spawn_interval = 0.5
-		w.spawn_delay = delay if i == 0 else 0.0
-		w.formation = 0 if i % 2 == 0 else 1
-		w.formation_padding = 48.0
-		w.silent = i > 0 or not lead
-		if lead and i == 0:
-			w.announce_text = "MINEFIELD DETECTED"
-		waves.append(w)
-	return waves
-
-
-# Rings: TOP_CENTER_OUT pulses with growing then shrinking padding,
-# producing a "concentric circle" feel as the mines descend.
-static func _pattern_rings(scene, delay: float, lead: bool) -> Array:
-	var waves: Array = []
-	var rings = [30.0, 60.0, 90.0, 60.0, 30.0]
-	for i in rings.size():
-		var w = WaveSpec.new()
-		w.enemy_scene = scene
-		w.count = 5
-		w.spawn_interval = 0.28
-		w.spawn_delay = delay if i == 0 else 0.0
-		w.formation = 3
-		w.formation_padding = float(rings[i])
-		w.silent = i > 0 or not lead
-		if lead and i == 0:
-			w.announce_text = "MINEFIELD DETECTED"
-		waves.append(w)
-	return waves
-
-
-# Pure random scatter — many slow-trickle rows of TOP_RANDOM placement.
-static func _pattern_scatter(scene, delay: float, lead: bool) -> Array:
-	var waves: Array = []
-	for i in 5:
-		var w = WaveSpec.new()
-		w.enemy_scene = scene
-		w.count = 6
-		w.spawn_interval = 0.45
-		w.spawn_delay = delay if i == 0 else 0.0
-		w.formation = 2  # TOP_RANDOM
-		w.silent = i > 0 or not lead
-		if lead and i == 0:
-			w.announce_text = "MINEFIELD DETECTED"
-		waves.append(w)
-	return waves
+	var score := CombatScore.new()
+	score.level_name = "Minefield"
+	score.waves = [wave]
+	return score
 
 
 static func _scene_by_name(s: String):
@@ -605,37 +384,24 @@ static func _scene_by_name(s: String):
 # almost doubled, plus a tighter spawn interval — combined with the
 # parallax-side asteroid_presence boost in galaxy_backdrop, the field
 # should feel busy at every depth.
-static func build_asteroid_field_level():
-	# Roman 2026-06-02: +30% density (counts ×1.3, spawn intervals ×0.7 for a
-	# tighter, busier field) and +20% asteroid speed (drift_speed in asteroid.gd).
-	var w1 = WaveSpec.new()
-	w1.enemy_scene = AsteroidScene
-	w1.count = 29
-	w1.spawn_interval = 0.29
-	w1.spawn_delay = 0.5
-	w1.formation = 2  # TOP_RANDOM
-	w1.announce_text = "COLLISION WARNING"
-
-	var w2 = WaveSpec.new()
-	w2.enemy_scene = AsteroidScene
-	w2.count = 23
-	w2.spawn_interval = 0.34
-	w2.spawn_delay = 0.4
-	w2.silent = true
-	w2.formation = 2
-
-	var w3 = WaveSpec.new()
-	w3.enemy_scene = AsteroidScene
-	w3.count = 21
-	w3.spawn_interval = 0.39
-	w3.spawn_delay = 0.4
-	w3.silent = true
-	w3.formation = 2
-
-	var level = LevelData.new()
-	level.level_name = "Asteroid Field"
-	level.waves = [w1, w2, w3]
-	return level
+static func build_asteroid_field_score() -> CombatScore:
+	# Busy continuous field — lane-scattered drops with a light ebb, plus one "wall
+	# of rock" beat for a denser moment. Asteroids self-drift with a little x-wander
+	# (asteroid.gd), placed on lanes via the spread/wall dispatch. Density tuned to
+	# the prior field (~90 rocks) but now lane-shaped + paced.
+	var wave := ScoreWave.new()
+	wave.banner = "COLLISION WARNING"
+	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 26, 0.28, 2)))
+	wave.phrases.append(_breather_phrase(0.6))
+	wave.phrases.append(_formation_phrase(&"wall", _haz_spec(AsteroidScene, 14, 0.16, 0)))
+	wave.phrases.append(_breather_phrase(0.6))
+	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 24, 0.30, 2)))
+	wave.phrases.append(_breather_phrase(0.5))
+	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 20, 0.32, 2)))
+	var score := CombatScore.new()
+	score.level_name = "Asteroid Field"
+	score.waves = [wave]
+	return score
 
 
 # Test roster: showcases the 7 new enemies in sequence. Each wave introduces

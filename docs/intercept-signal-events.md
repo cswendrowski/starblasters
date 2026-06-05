@@ -90,7 +90,7 @@ Citations from the codebase investigation (2026-05-31).
 - `WaveSpec` (`scripts/levels/wave_def.gd`): `enemy_scene`, `count`, `spawn_interval`, `spawn_delay`, `formation`, `silent`, `announce_text`, per-wave overrides (`max_health`, `movement_override`, etc.).
 - `LevelData` (`scripts/levels/level_def.gd`): `waves: Array`, `level_name`.
 - `director.gd`: walks `level.waves`; **`silent` waves chain immediately** (no banner/clear-wait, `:77-83`); announced waves wait for clear; level clears when all waves spawned AND no live combatants (`:280-297`). Signals `enemy_died`, `enemy_spawned`, `wave_started`, `level_cleared`.
-- Minefield builder: `levels_v2.gd::build_minefield_level()` (`:294`) — mines ARE the waves; reads `Run.get_meta("minefield_mine_type")`. Model for the hybrid level.
+- Minefield builder: `levels_v2.gd::build_minefield_score()` — a phrase-native `CombatScore` (lane-shaped mine drops + breathers); reads `Run.get_meta("minefield_mine_type")`. Model for the hybrid level.
 
 **Sector map** — `scripts/run_state.gd`, `scripts/sector_map_v3.gd`, `scripts/sector_node.gd`
 - POI = `{ id, node_type: int, hazard_subtype: String, pos, completed: bool, modifiers }` (`run_state.gd:128-159`).
