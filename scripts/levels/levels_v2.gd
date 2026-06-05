@@ -324,15 +324,16 @@ static func build_minefield_score() -> CombatScore:
 	elif rng.randf() < 0.05:
 		base_scene = _scene_by_name(VARIANT_SCENES[rng.randi() % VARIANT_SCENES.size()])
 
-	# Lane-native mine beats. WALL = successive rows leaving shifting gap lanes to
-	# thread; PINCER = edge-inward burst; SPREAD = a lane-scattered drip. A BREATHER
-	# between beats lets the player weave through before the next drop. Pick 3.
+	# Lane-native mine beats — combat-level density, rapid succession. WALL =
+	# successive rows leaving shifting gap lanes to thread; PINCER = edge-inward
+	# burst; SPREAD = a tight lane-scatter. Short BREATHERs keep walls coming fast so
+	# the player must commit to weaving a gap OR shooting through. Pick 4 of 5.
 	var beats := [
-		{"shape": &"wall",       "count": 15, "interval": 0.12},
-		{"shape": &"wall",       "count": 12, "interval": 0.16},
-		{"shape": &"pincer",     "count": 10, "interval": 0.14},
-		{"shape": &"top_spread", "count": 16, "interval": 0.30},
-		{"shape": &"wall",       "count": 18, "interval": 0.12},
+		{"shape": &"wall",       "count": 20, "interval": 0.10},
+		{"shape": &"wall",       "count": 18, "interval": 0.10},
+		{"shape": &"pincer",     "count": 14, "interval": 0.10},
+		{"shape": &"top_spread", "count": 24, "interval": 0.16},
+		{"shape": &"wall",       "count": 22, "interval": 0.10},
 	]
 	var order := []
 	for i in beats.size():
@@ -344,14 +345,15 @@ static func build_minefield_score() -> CombatScore:
 	var wave := ScoreWave.new()
 	wave.banner = "MINEFIELD DETECTED"
 	var total_basic: int = 0
-	for k in 3:
+	var beat_count: int = 4   # rapid succession of dense drops
+	for k in beat_count:
 		var b: Dictionary = beats[order[k]]
 		var form_id: int = 2 if b["shape"] == &"top_spread" else 0
 		wave.phrases.append(_formation_phrase(b["shape"],
 			_haz_spec(base_scene, int(b["count"]), float(b["interval"]), form_id)))
 		total_basic += int(b["count"])
-		if k < 2:
-			wave.phrases.append(_breather_phrase(1.1))
+		if k < beat_count - 1:
+			wave.phrases.append(_breather_phrase(0.4))
 
 	# Variant sprinkle: a final small lane-scatter of a random non-basic mine type
 	# (1-20% of the basic total), only when the field is basic.
@@ -391,13 +393,15 @@ static func build_asteroid_field_score() -> CombatScore:
 	# the prior field (~90 rocks) but now lane-shaped + paced.
 	var wave := ScoreWave.new()
 	wave.banner = "COLLISION WARNING"
-	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 26, 0.28, 2)))
-	wave.phrases.append(_breather_phrase(0.6))
-	wave.phrases.append(_formation_phrase(&"wall", _haz_spec(AsteroidScene, 14, 0.16, 0)))
-	wave.phrases.append(_breather_phrase(0.6))
-	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 24, 0.30, 2)))
-	wave.phrases.append(_breather_phrase(0.5))
-	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 20, 0.32, 2)))
+	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 32, 0.18, 2)))
+	wave.phrases.append(_breather_phrase(0.35))
+	wave.phrases.append(_formation_phrase(&"wall", _haz_spec(AsteroidScene, 20, 0.10, 0)))
+	wave.phrases.append(_breather_phrase(0.35))
+	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 30, 0.18, 2)))
+	wave.phrases.append(_breather_phrase(0.3))
+	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 28, 0.18, 2)))
+	wave.phrases.append(_breather_phrase(0.3))
+	wave.phrases.append(_formation_phrase(&"wall", _haz_spec(AsteroidScene, 18, 0.10, 0)))
 	var score := CombatScore.new()
 	score.level_name = "Asteroid Field"
 	score.waves = [wave]
