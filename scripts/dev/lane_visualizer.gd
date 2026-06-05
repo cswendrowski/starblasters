@@ -181,13 +181,13 @@ func _build_player_marker() -> void:
 # ---------------------------------------------------------------- UI panels
 
 func _build_ui() -> void:
-	# Left gutter — controls.
-	var left := _make_panel(Vector2(0, 0), Vector2(132, 270))
+	# Left gutter — controls. 128 wide so it stays clear of the band (x>=132).
+	var left := _make_panel(Vector2(0, 0), Vector2(128, 270))
 	add_child(left)
 	var lv := VBoxContainer.new()
-	lv.add_theme_constant_override("separation", 3)
-	lv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lv.add_theme_constant_override("separation", 2)
 	left.add_child(lv)
+	_fill_panel(lv)
 
 	lv.add_child(_new_label("LANE / PATTERN VIS", UiTheme.COLOR_ACCENT, SZ_HEADER))
 
@@ -227,8 +227,15 @@ func _build_ui() -> void:
 	var opt := OptionButton.new()
 	opt.add_theme_font_override("font", UiTheme.active_font())
 	opt.add_theme_font_size_override("font_size", SZ_BODY)
+	opt.clip_text = true
+	opt.fit_to_longest_item = false  # don't size the control to the longest pattern name
 	for p in PATTERNS:
 		opt.add_item(str(p[0]))
+	# The dropdown is a PopupMenu that otherwise inherits the project HD theme
+	# (giant at native 480) — style it to the native size too.
+	var pop := opt.get_popup()
+	pop.add_theme_font_override("font", UiTheme.active_font())
+	pop.add_theme_font_size_override("font_size", SZ_BODY)
 	opt.item_selected.connect(func(idx: int): _pattern_idx = idx)
 	_pattern_panel.add_child(opt)
 	_add_button(_pattern_panel, "Spawn row", func(): _spawn_pattern_row())
@@ -251,16 +258,16 @@ func _build_ui() -> void:
 	add_child(right)
 	var rv := VBoxContainer.new()
 	rv.add_theme_constant_override("separation", 3)
-	rv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right.add_child(rv)
+	_fill_panel(rv)
 	_add_caption(rv, "LIVE")
-	_readout = _new_label("", UiTheme.COLOR_TEXT, SZ_CAPTION)
+	_readout = _new_label("", UiTheme.COLOR_TEXT, SZ_READOUT)
 	_readout.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_readout.custom_minimum_size = Vector2(126, 0)
+	_readout.custom_minimum_size = Vector2(124, 0)
 	rv.add_child(_readout)
-	var hint := _new_label("Drag mouse = player.\nGreen band = fire zone.", UiTheme.COLOR_FAINT, SZ_CAPTION)
+	var hint := _new_label("Drag mouse = player.\nGreen band = fire zone.", UiTheme.COLOR_FAINT, SZ_BODY)
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hint.custom_minimum_size = Vector2(126, 0)
+	hint.custom_minimum_size = Vector2(124, 0)
 	rv.add_child(hint)
 
 
@@ -403,6 +410,7 @@ func _update_readout() -> void:
 const SZ_HEADER := 8
 const SZ_BODY := 7
 const SZ_CAPTION := 6
+const SZ_READOUT := 9   # right panel — slightly larger for readability
 
 
 func _style_label(l: Label, color: Color, size: int) -> void:
@@ -420,20 +428,30 @@ func _new_label(text: String, color: Color, size: int) -> Label:
 	return l
 
 
-func _make_panel(pos: Vector2, sz: Vector2) -> PanelContainer:
-	var p := PanelContainer.new()
+# Fixed-size clipped Panel (NOT PanelContainer, which auto-grows to its content's
+# min width and spilled into the playfield band). Children are anchored to fill it
+# via _fill_panel, and buttons clip_text, so long labels never widen the panel.
+func _make_panel(pos: Vector2, sz: Vector2) -> Panel:
+	var p := Panel.new()
 	p.position = pos
 	p.size = sz
+	p.clip_contents = true
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = UiTheme.COLOR_PANEL_BG
 	sb.border_color = UiTheme.COLOR_ACCENT_DIM
 	sb.set_border_width_all(1)
-	sb.content_margin_left = 3
-	sb.content_margin_right = 3
-	sb.content_margin_top = 3
-	sb.content_margin_bottom = 3
 	p.add_theme_stylebox_override("panel", sb)
 	return p
+
+
+# Anchor a control to fill its parent Panel with a small inset.
+func _fill_panel(c: Control) -> void:
+	c.anchor_right = 1.0
+	c.anchor_bottom = 1.0
+	c.offset_left = 3
+	c.offset_top = 3
+	c.offset_right = -3
+	c.offset_bottom = -3
 
 
 func _sep() -> HSeparator:
@@ -478,6 +496,7 @@ func _add_button(parent: Node, text: String, cb: Callable) -> void:
 	b.text = text
 	b.custom_minimum_size = Vector2(0, 12)
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.clip_text = true  # long labels clip instead of widening the fixed panel
 	b.add_theme_font_override("font", UiTheme.active_font())
 	b.add_theme_font_size_override("font_size", SZ_BODY)
 	b.add_theme_color_override("font_color", UiTheme.COLOR_ACCENT)
