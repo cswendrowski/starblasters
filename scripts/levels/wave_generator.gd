@@ -142,6 +142,15 @@ static func _level_budget(sector_depth: int, level_index: int) -> int:
 	return clampi(int(round(140.0 + 25.0 * level_index + 35.0 * (sector_depth - 1))), 140, 350)
 
 
+# Streaming concurrency cap (M5, bridge §1.2/§8): the on-screen non-hazard density
+# ceiling the conductor enforces. The budget (above) is the TOTAL the level streams
+# toward; this cap is the RATE — how many of that total are alive at once. Ramps
+# 12 (shallow opener, stays readable) -> 16 (deep) with +1 per node and +1 per
+# sector. The director consumes this via main.gd; default export is the fallback.
+static func cap_for(sector_depth: int, level_index: int) -> int:
+	return clampi(12 + level_index + (sector_depth - 1), 12, 16)
+
+
 # Scale the level's CHAFF waves so the total approaches the budget, leaving elite
 # (low base_count) waves at their rolled counts so elites stay rare. base_counts
 # is parallel to waves. Replaces the old per-wave count ceiling as the volume
@@ -176,7 +185,35 @@ static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, l
 	var used: Array = []  # entries already used in this level (variety)
 	var base_counts: Array = []  # base_count parallel to waves, for budget scaling
 	var prev_movement: String = ""  # previous wave's movement archetype (anti-repetition)
+	# Heavy beats (M5, Roman 2026-06-04): every node ends on a CODA (the node's
+	# boss-substitute cap — combat nodes don't get real bosses); node 2+ also gets a
+	# MIDPOINT anchor where a 32px-class heavy "shows itself" mid-level. Both pull
+	# from the roster's heavy_class pools (anchor=32px, capital=64px). This gives the
+	# big-silhouette presence/pressure that pure-chaff early nodes were missing.
+	var midpoint_idx: int = n_waves / 2
+	var coda_idx: int = n_waves - 1
 	for i in n_waves:
+		# Closing coda — always the final wave. Shape (single / formation / escort)
+		# rolls by depth; capital-class preferred from node 2 (falls back to anchor
+		# when no capital is unlocked, i.e. all of sector 1). Appends 1-2 specs.
+		if i == coda_idx:
+			_build_coda(rng, sector_depth, level_index, used, waves, base_counts, i)
+			prev_movement = ""  # heavy beat resets the chaff anti-repeat chain
+			continue
+		# Midpoint anchor — node 2+ only (the opener keeps just its closing beat). A
+		# single 32px-class heavy as a pressure anchor, not the cap.
+		if i == midpoint_idx and level_index >= 1:
+			var anchor: Dictionary = _pick_heavy(rng, sector_depth, level_index, used, false)
+			if not anchor.is_empty():
+				used.append(anchor)
+				prev_movement = str(anchor.get("movement", ""))
+				var wa = _make_wave_spec(rng, anchor, sector_depth, level_index, i)
+				wa.count = clampi(int(wa.count), 1, 2)  # an anchor, not the cap
+				wa.silent = false
+				waves.append(wa)
+				base_counts.append(int(anchor.get("base_count", 4)))
+				continue
+			# No heavy available — fall through to a normal chaff wave at this index.
 		# Wave 0 is never mixed (calm intro). Otherwise roll P(mix).
 		var mix: bool = i > 0 and _should_intermingle(level_index, sector_depth, rng)
 		if mix:
@@ -242,6 +279,99 @@ static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, l
 			base_counts.append(int(entry.get("base_count", 4)))
 	_apply_budget(waves, base_counts, sector_depth, level_index)
 	return waves
+
+
+# Pick a heavy for a beat (midpoint or coda). prefer_capital orders the two pools:
+# the coda (node 2+) prefers 64px capitals; the midpoint always wants a 32px anchor.
+# Falls back across classes, then to the generic RARE/tough pool (_pick_elite), so a
+# beat never drops. Prefers an entry not already used this level.
+static func _pick_heavy(rng: RandomNumberGenerator, sector_depth: int, level_index: int, exclude: Array, prefer_capital: bool) -> Dictionary:
+	var order: Array = (["capital", "anchor"] if prefer_capital else ["anchor", "capital"])
+	for cls in order:
+		var pool: Array = Roster.heavies_eligible(cls, sector_depth, level_index)
+		if pool.is_empty():
+			continue
+		var fresh: Array = []
+		for e in pool:
+			if not exclude.has(e):
+				fresh.append(e)
+		if not fresh.is_empty():
+			pool = fresh
+		return pool[rng.randi() % pool.size()]
+	return _pick_elite(rng, sector_depth, level_index, exclude)
+
+
+# Coda shape, scaled by depth (all three are valid — Roman 2026-06-04). Opener is a
+# clean single cap; mid nodes mix single/escort; deep nodes lean formation/escort.
+#   "single"    — a tight priority target (1-2 heavies)
+#   "formation" — 2-3 heavies, conductor staggers them across lanes
+#   "escort"    — a heavy anchoring a small chaff support swarm (mini-setpiece)
+static func _coda_shape(rng: RandomNumberGenerator, level_index: int) -> String:
+	if level_index == 0:
+		return "single"
+	if level_index <= 2:
+		return "single" if rng.randf() < 0.5 else "escort"
+	if level_index <= 4:
+		return "escort" if rng.randf() < 0.5 else "formation"
+	return "escort" if rng.randf() < 0.4 else "formation"
+
+
+# Build the closing coda and append its spec(s) + base_count(s) to the level. The
+# coda is the node's boss-substitute: a bannered heavy beat that caps the stream.
+# Low base_count keeps coda heavies out of chaff budget-scaling (they stay discrete);
+# an escort's chaff sub-wave DOES scale. Mutates used/waves/base_counts in place.
+static func _build_coda(rng: RandomNumberGenerator, sector_depth: int, level_index: int, used: Array, waves: Array, base_counts: Array, wave_index: int) -> void:
+	# Prefer 64px capitals once past the run's very first node, OR anywhere in
+	# sector 2+ (where capitals unlock) — so deeper play leans on big silhouettes.
+	# Sector 1 has no capitals, so this still resolves to anchors there.
+	var prefer_capital: bool = level_index >= 1 or sector_depth >= 2
+	var heavy: Dictionary = _pick_heavy(rng, sector_depth, level_index, used, prefer_capital)
+	if heavy.is_empty():
+		# Absolute fallback — never drop the cap.
+		heavy = _pick_entry(rng, sector_depth, level_index, used, PackedStringArray(), Roster.Tier.RARE)
+	used.append(heavy)
+	var shape: String = _coda_shape(rng, level_index)
+	var w = _make_wave_spec(rng, heavy, sector_depth, level_index, wave_index)
+	w.silent = false  # the coda always banners — it's the node's finale
+	if shape == "formation":
+		w.count = clampi(int(w.count), 2, 3)  # a staggered cluster of heavies
+	else:
+		w.count = clampi(int(w.count), 1, 2)  # tight priority target
+	waves.append(w)
+	base_counts.append(int(heavy.get("base_count", 4)))
+	if shape == "escort":
+		# Add a small chaff escort streaming in alongside the heavy.
+		var escort_excl: Array = used.duplicate()
+		var chaff: Dictionary = _pick_entry(rng, sector_depth, level_index, escort_excl, PackedStringArray(), Roster.Tier.COMMON)
+		used.append(chaff)
+		var cw = _make_wave_spec(rng, chaff, sector_depth, level_index, wave_index)
+		cw.silent = true  # one banner for the coda; the escort is mute
+		cw.spawn_delay = w.spawn_delay
+		cw.spawn_interval = w.spawn_interval * 1.2  # interleave with the heavy
+		waves.append(cw)
+		base_counts.append(int(chaff.get("base_count", 4)))
+
+
+# Pick a heavy from the generic RARE/tough fallback pool (used when no heavy_class
+# entry is unlocked at this coordinate). Prefers the depth-eligible RARE pool;
+# failing that, tough/large UNCOMMONs. Prefers an unused entry. {} if none exist.
+static func _pick_elite(rng: RandomNumberGenerator, sector_depth: int, level_index: int, exclude: Array) -> Dictionary:
+	var pool: Array = Roster.entries_eligible(Roster.Tier.RARE, sector_depth, level_index)
+	if pool.is_empty():
+		for e in Roster.entries_eligible(Roster.Tier.UNCOMMON, sector_depth, level_index):
+			var tags: Array = e.get("tags", [])
+			var size: String = String(e.get("size", "medium"))
+			if "tough" in tags or size == "large" or size == "huge":
+				pool.append(e)
+	if pool.is_empty():
+		return {}
+	var fresh: Array = []
+	for e in pool:
+		if not exclude.has(e):
+			fresh.append(e)
+	if not fresh.is_empty():
+		pool = fresh
+	return pool[rng.randi() % pool.size()]
 
 
 # Returns true if this wave should be a mixed two-enemy wave.
@@ -468,7 +598,11 @@ static func _make_wave_spec(rng: RandomNumberGenerator, entry: Dictionary, secto
 		# _build_boss_waves for the final lead-in). Mixed-wave 0.5× halving is
 		# applied by _build_combat_waves AFTER this returns, so mixed waves are
 		# still smaller than singles but proportionally larger than before the bump.
-		if not is_boss_leadin and base > 1:
+		# CHAFF-ONLY (Roman 2026-06-04): gate to `chaff:true` entries. The bump was
+		# always meant for chaff; once frigate/gunship were pulled earlier for
+		# heavy-beat variety, applying +50% to a base-3 heavy ballooned it into a
+		# 6-ship wall. Heavies now keep their designed counts.
+		if not is_boss_leadin and base > 1 and bool(entry.get("chaff", false)):
 			count = int(ceil(float(count) * 1.5))
 	# Per-sector chaff bonus (designer 2026-05-24 economy pass): COMMONs get
 	# +1 enemy per sector beyond the first (S1=+0, S2=+1, S3=+2). UNCOMMON +

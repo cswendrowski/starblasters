@@ -20,7 +20,7 @@ func _init() -> void:
 	var leaked: int = 0
 	for _i in 80:
 		var e = WG._pick_entry(rng, 1, 0, [], PackedStringArray(), 2, "fast_straight")  # 2 = Tier.RARE (no cap)
-		if String(e.get("movement", "")) == "fast_straight":
+		if str(e.get("movement", "")) == "fast_straight":
 			leaked += 1
 	if leaked > 0:
 		lines.append("FAIL avoid leaked fast_straight %d/80" % leaked); fails += 1
@@ -30,7 +30,7 @@ func _init() -> void:
 	var seen: int = 0
 	for _i in 80:
 		var e2 = WG._pick_entry(rng, 1, 0, [])
-		if String(e2.get("movement", "")) == "fast_straight":
+		if str(e2.get("movement", "")) == "fast_straight":
 			seen += 1
 	if seen == 0:
 		lines.append("FAIL control: fast_straight never appeared without avoid"); fails += 1

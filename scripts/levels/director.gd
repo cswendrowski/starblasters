@@ -32,9 +32,11 @@ const POST_CLEAR_GRACE: float = 0.2
 @export var level: Resource  # LevelData
 @export var auto_start: bool = false
 # Streaming concurrency cap (bridge §1.2 / composition guide §9). On-screen
-# non-hazard density never exceeds this. Provisional 14; depth-ramp (12->16) and
-# the lane/free-plane split land in v2. Counts recyclers (an on-screen body);
-# recycling-vs-cap is a tracked open item (construction §6).
+# non-hazard density never exceeds this. Depth-ramped 12->16 per level by
+# main.gd via WaveGen.cap_for(sd, li); this export is the fallback for content
+# that doesn't set it (hazards/custom/slice). The lane/free-plane split lands
+# later. Counts recyclers (an on-screen body); recycling-vs-cap is a tracked
+# open item (construction §6).
 @export var max_concurrent: int = 14
 # Minimum gap between spawns regardless of cap headroom — stops a fast-killing
 # player from machine-gunning fresh spawns (wave §1.2).

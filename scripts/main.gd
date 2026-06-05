@@ -424,6 +424,7 @@ func new_game() -> void:
 			sd = get_node("/root/Run").sectors_cleared + 1
 			li = get_node("/root/Run").combats_in_sector
 		_current_level = WaveGen.build(sd, li, true)
+		wave_director.max_concurrent = WaveGen.cap_for(sd, li)
 	elif is_hazard:
 		if hazard_subtype == "asteroid_field":
 			_current_level = Levels.build_asteroid_field_level()
@@ -462,6 +463,7 @@ func new_game() -> void:
 				sd = get_node("/root/Run").sectors_cleared + 1
 				li = get_node("/root/Run").combats_in_sector
 			_current_level = WaveGen.build(sd, li, false)
+			wave_director.max_concurrent = WaveGen.cap_for(sd, li)
 			# Rare ambient encounter: roll for a mid-level Missile Cruiser
 			# fly-through. STANDARD combat nodes only (we're in the generator
 			# sub-branch, so not boss/hazard/custom). Chance scales with sector
