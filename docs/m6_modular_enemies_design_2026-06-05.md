@@ -446,6 +446,9 @@ These two refine the M6a axes so the faction layer (§8) and the conductor can d
   selection into a **role-and-faction-aware pool query**.
 
 ### 9.2 First-class, swappable weapons (the "weapons drive what they do" goal)
+> **Spec'd separately:** `docs/weapons_system_2026-06-05.md` — the standalone weapon
+> spec (payloads incl. beams/lob, timing-vs-content split, faction/sector tuning,
+> authoring checklist). Use that when establishing weapons any enemy can carry.
 - Promote weapons to a `Weapon` Resource (evolve `shoot_pattern`) that **owns the full
   firing identity**: `projectile` (bullet_variant/scene) + `fire_rate` (interval) +
   `fire_pattern` (single/aimed/spread/burst/beam) + telegraph.
