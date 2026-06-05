@@ -175,10 +175,15 @@ them interesting (revises wave §10.5 / bridge open item). `Levels.build_*`
   lifted structure transparently — **no gameplay change**, just the new data spine.
 - **M4 — Conductor/dispatcher (behind flag):** the §3 brain. Density-gated dispatch,
   JIT reservation placement, cap budgets, new level-complete. A/B vs legacy walk.
-- **M5 — Budget allocator + curve + hazards:** WaveGen v2 → `CombatScore`;
-  composition-first soft-band budget (bridge §4); **convert `Levels.build_*` hazard
-  builders to emit `CombatScore`** (§4.1); extend `sim_wavegen.gd` for phrase/variety
-  metrics.
+- **M5 — Budget allocator + curve + hazards: ✅ DONE (2026-06-04).** Composition-first
+  soft-band budget + difficulty curve + heavy beats (merged). **Native emission:**
+  `WaveGen.build_score()` emits `CombatScore`; the producer chokepoint (`main.gd`
+  new_game) lifts every level (combat/boss/hazard/custom) and `start_score`s it, so
+  the director no longer transiently lifts `LevelData` on the production path
+  (`start_level` is now a compat shim; `ScoreAdapter` is the shared producer-side
+  builder, kept as the DRY assembly home). `build()`/`start_level`/`from_level_data`
+  retained for tests + `sim_wavegen`. (`sim_wavegen` phrase/variety metrics live in the
+  other session.)
 - **M6 — Variety/faction/telegraph/tuner layers:** intro schedule, faction tint,
   unified telegraph (bridge §6), the single combat tuner (bridge §8), pooling
   (finding §0.7). **Split: M6a modular enemy refactor → M6b faction layer (§10)** —
@@ -305,26 +310,22 @@ placement + phrase-native FORMATION/FILLER/BREATHER + wall/pincer shapes),
 gating + first-shot-on-entry + no-fire-when-dying + recycle re-fire), enemy
 identity/render_plane hooks, Combat Slice dev showcase.
 
-**On branch `combat-m5` (pushed, not merged):**
-- ✅ Wave count → 5–8, depth-scaled
-- ✅ Budget allocator → ~140–350 enemies (`_level_budget`/`_apply_budget`; chaff
-  scaled, elites stay rolled)
-- ✅ Breathers every 2nd wave (in the adapter)
-- ✅ Anti-repetition (avoid back-to-back same `movement` archetype)
-- ✅ Run-seed folded into `_stable_seed` (nodes vary per patrol)
-- ✅ Cap depth-ramp wired: `WaveGen.cap_for(sd, li)` → director `max_concurrent`
-  12→16 (main.gd, standard + boss)
-- ✅ Opener pool widened: firecore + strafer → `unlock_depth 0` (5 chaff types at
-  sector 1; was 3, 2 of them identical fast_straight)
-- ✅ **Heavy beats** (replaces the earlier "elite punctuation" sketch): every node
-  ends on a **CODA** (boss-substitute cap; shape single/escort/formation by depth),
-  node 2+ adds a **MIDPOINT anchor**. Driven by new `heavy_class` roster tags
-  (`anchor`=32px, `capital`=64px); sector ramp falls out of unlock gating
-  (S1 = 32px anchors, S2+ = 64px capitals). Tests: `test_heavy_beats.gd`.
+**M5 producer — ALL merged to `main`:** 5–8 depth-scaled waves; budget allocator
+(~140–350, `_level_budget`/`_apply_budget`); breathers; anti-repetition; run-seed
+variety; cap depth-ramp 12→16 (`WaveGen.cap_for`); widened opener (firecore+strafer →
+`unlock_depth 0`); **heavy beats** (per-node CODA cap + node-2 MIDPOINT, `heavy_class`
+anchor/capital, sector ramp); **native CombatScore emission** (`WaveGen.build_score` +
+producer-chokepoint `start_score`; adapter→shared builder, `start_level`→compat shim).
 
-**Next:** live-patrol playtest (producer-side — NOT the Combat Slice) → tune the
-heavy-density curve if deep nodes feel too heavy → merge `combat-m5` → `main`. Then
-**M6a modular enemy refactor (§10) → M6b factions.**
+**Firing model — merged to `main`:** path-phase firing (band-Y phases) + shared beat
+(`scripts/beat.gd`, cross-formation volley quantization).
+
+**Shipped:** itch `0.1.113`.
+
+**Next:** **M6a modular enemy refactor (§10) → M6b factions.** Queued §8 refinements:
+fast-chaff WALL dispatch (dart-trickle bug — now a small WaveSpec.Formation+adapter
+addition on the native seam), speed-aware/clear-time pacing, role taxonomy, lane_path
+HOOK.
 
 **Test harness:** `tools/test_*.gd` headless (`godot --headless --script
 res://tools/test_X.gd` → writes `tools/_X_result.txt`); `tools/parse_check.ps1`

@@ -3,10 +3,14 @@ extends RefCounted
 
 # Lifts a flat LevelData (Array of WaveSpec) into a CombatScore (Wave -> Phrase).
 #
-# TRANSIENT (bridge §4): exists during the branch build so existing producers
-# (WaveGen v1, the hazard/showcase builders in levels_v2.gd) can run through the
-# new conductor unchanged. The END STATE converts producers to emit CombatScore
-# natively (M5) and this adapter goes away.
+# Shared producer-side score BUILDER (M5 native emission, 2026-06-04). Originally a
+# transient director-side lift; now the producers own emission and call this:
+# WaveGen.build_score(), the main.gd producer chokepoint (combat/boss/hazard/custom),
+# and dev-tool LevelData paths. The conductor performs the CombatScore via start_score
+# and no longer lifts LevelData itself on the production path (director.start_level is
+# now just a compat shim for LevelData-holding callers). Kept (not deleted) because a
+# single LevelData->CombatScore builder is the DRY home for this assembly; M6's native
+# phrase authoring (walls/filler/faction/telegraph) grows in WaveGen.build_score on top.
 #
 # Faithful, lossless lift: each WaveSpec becomes one FORMATION phrase wrapping
 # that spec (so director._spawn_enemy still materializes it identically); the

@@ -114,6 +114,8 @@ const BOSS_ROSTER := [
 
 
 # Public entry point. Returns a fully-built LevelData.
+# (Kept as the flat artifact for tests + sim_wavegen + LevelData-manipulating callers
+# like the Bounty Board extra-waves and the dev "Test Level" .tres path.)
 static func build(sector_depth: int, level_index_in_sector: int, is_boss: bool) -> LevelData:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = _stable_seed(sector_depth, level_index_in_sector, is_boss)
@@ -126,6 +128,16 @@ static func build(sector_depth: int, level_index_in_sector: int, is_boss: bool) 
 		level.level_name = "Sector %d — %d" % [sector_depth, level_index_in_sector + 1]
 		level.waves = _build_combat_waves(rng, sector_depth, level_index_in_sector)
 	return level
+
+
+# Native CombatScore emission (M5 end-state). The producer-side score the conductor
+# performs directly via WaveDirector.start_score, instead of the director lifting flat
+# LevelData through ScoreAdapter at runtime. Same content as build(), assembled into
+# the Wave->Phrase structure by the shared score builder. THIS is the seam M6 enriches
+# (faction tints, telegraphs, native wall/filler authoring) — author phrases here
+# rather than inferring them from flat WaveSpecs.
+static func build_score(sector_depth: int, level_index_in_sector: int, is_boss: bool) -> CombatScore:
+	return ScoreAdapter.from_level_data(build(sector_depth, level_index_in_sector, is_boss))
 
 
 # Wave count target. 5-8 waves per level (streaming model, M5): the conductor
