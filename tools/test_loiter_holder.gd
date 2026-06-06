@@ -23,7 +23,9 @@ func _fail(msg: String) -> void:
 func _run_variant(key: String, expect_y: float) -> void:
 	var e := Node2D.new()
 	root.add_child(e)
-	e.position = Vector2(240, 0)   # spawn at top of band
+	# Spawn at y=12 — matches the visualizer "Spawn row" + a short-entry case so
+	# the high variant (hold y=50, only 38px down) exercises the entry floor.
+	e.position = Vector2(240, 12)
 	var m = Roster.make_movement({"movement": key})
 	m.on_start(e)
 

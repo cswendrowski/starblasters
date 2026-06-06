@@ -26,6 +26,12 @@ extends "res://scripts/enemies/movement_pattern.gd"
 @export var enter_accel: float = 180.0
 @export var enter_decel: float = 220.0
 @export var decel_dist: float = 40.0
+# Floor for the eased approach speed so a SHORT entry (e.g. the high variant, only
+# ~38px to hover_y — under decel_dist) still arrives crisply instead of crawling in
+# at a few px/s. Without this the arrival speed ~= the bob speed and the jiggle
+# reads as a slow drift, not a distinct settle-then-bob. (Roman 06-06: "high
+# doesn't have its jiggle".) Same Zeno guard the Skirmisher uses.
+@export var enter_min_speed: float = 40.0
 
 # Hold-jiggle: a small bob (vertical) + sway (horizontal) so the hold reads alive.
 # Kept tiny so the Holder stays in its lane and remains shootable.
@@ -85,7 +91,8 @@ func compute_step(enemy, delta: float) -> Vector2:
 				_enter_hold(enemy)
 				return Vector2(0, snap)
 			# Far → accelerate toward cruise; near → decelerate for the approach.
-			var target_vel: float = enter_speed * clampf(dist / decel_dist, 0.0, 1.0)
+			# Floored so a short entry arrives crisply (see enter_min_speed).
+			var target_vel: float = maxf(enter_speed * clampf(dist / decel_dist, 0.0, 1.0), enter_min_speed)
 			var rate: float = enter_accel if target_vel > _enter_vel else enter_decel
 			_enter_vel = move_toward(_enter_vel, target_vel, rate * delta)
 			_enter_vel = maxf(_enter_vel, 0.0)
