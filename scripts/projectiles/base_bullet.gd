@@ -34,6 +34,16 @@ class_name BaseBullet
 @export var velocity_dir: Vector2 = Vector2(0, -1)
 @export var max_lifetime: float = 5.0
 @export var guided: bool = false
+# Projectile-movement axis (M6a.2). These are the bullet's OWN movement knobs,
+# seeded from the variant in _apply_variant() (so variant-authored movement is
+# unchanged) but settable by the firing layer (a Weapon) AFTER spawn to drive
+# homing/wobble independent of the variant's visuals. _process reads these, not the
+# variant — so faction/weapon multipliers and the boss tracker/plasma restore route
+# through here. homing_rate = deg/s turn toward the target group; wobble = perpendicular
+# sine (amplitude px, frequency Hz).
+@export var homing_rate: float = 0.0
+@export var wobble_amplitude: float = 0.0
+@export var wobble_frequency: float = 0.0
 # Impact effect kind (Roman, 2026-05-17 sprite pass). SMOKE for small
 # energy/MG/laser bolts; EXPLOSIVE for missiles, rockets, cannon rounds,
 # bomblets — see scripts/effects/impact_fx.gd::ImpactKind.
@@ -165,8 +175,11 @@ func _apply_variant() -> void:
 	if variant.telegraph_flash:
 		_do_telegraph_flash()
 
-	# --- wobble flag ---
-	if variant.wobble_amplitude > 0.0:
+	# --- movement axis (seed from variant; the firing layer may override post-spawn) ---
+	homing_rate = variant.homing_rate
+	wobble_amplitude = variant.wobble_amplitude
+	wobble_frequency = variant.wobble_frequency
+	if wobble_amplitude > 0.0:
 		_wobble_active = true
 
 
@@ -211,34 +224,54 @@ func _process(delta: float) -> void:
 		return
 	_t += delta
 
-	# Homing: steer velocity_dir toward player at homing_rate deg/s.
-	if variant != null and variant.homing_rate > 0.0:
-		var tree := get_tree()
-		if tree != null:
-			var player: Node = tree.get_first_node_in_group("player")
-			if player != null and player is Node2D:
-				var to_player: Vector2 = (player as Node2D).global_position - global_position
-				if to_player.length_squared() > 0.0001:
-					var target_dir: Vector2 = to_player.normalized()
-					var max_turn: float = deg_to_rad(variant.homing_rate) * delta
-					velocity_dir = velocity_dir.rotated(
-						clampf(velocity_dir.angle_to(target_dir), -max_turn, max_turn)
-					)
-					rotation = velocity_dir.angle() + PI * 0.5
+	# Homing: steer velocity_dir toward the nearest node in target_group at
+	# homing_rate deg/s. Target-group-aware (enemy bullets home the player; player
+	# bullets could home enemies) — reads the bullet's own homing_rate (set from the
+	# variant, or overridden by the firing layer).
+	if homing_rate > 0.0:
+		var target: Node2D = _homing_target()
+		if target != null:
+			var to_t: Vector2 = target.global_position - global_position
+			if to_t.length_squared() > 0.0001:
+				var target_dir: Vector2 = to_t.normalized()
+				var max_turn: float = deg_to_rad(homing_rate) * delta
+				velocity_dir = velocity_dir.rotated(
+					clampf(velocity_dir.angle_to(target_dir), -max_turn, max_turn)
+				)
+				rotation = velocity_dir.angle() + PI * 0.5
 
 	# Advance canonical (non-wobble) position.
 	_base_position += velocity_dir * speed * delta
 
 	# Wobble: offset perpendicular to velocity_dir, re-derived each frame.
-	if _wobble_active and variant != null and variant.wobble_amplitude > 0.0:
+	if wobble_amplitude > 0.0:
 		var perp: Vector2 = Vector2(-velocity_dir.y, velocity_dir.x)
-		var offset: float = sin(_t * variant.wobble_frequency * TAU) * variant.wobble_amplitude
+		var offset: float = sin(_t * wobble_frequency * TAU) * wobble_amplitude
 		global_position = _base_position + perp * offset
 	else:
 		global_position = _base_position
 
 	if _t >= max_lifetime or _is_offscreen():
 		queue_free()
+
+
+# Nearest live node in target_group (homing only — runs per-frame for homing
+# bullets, which are rare). For enemy bullets (target_group "player") this is the
+# single player; for player bullets ("enemies") it's the nearest enemy.
+func _homing_target() -> Node2D:
+	var tree := get_tree()
+	if tree == null:
+		return null
+	var best: Node2D = null
+	var best_d: float = INF
+	for n in tree.get_nodes_in_group(target_group):
+		if not is_instance_valid(n) or not (n is Node2D):
+			continue
+		var d: float = (n as Node2D).global_position.distance_squared_to(global_position)
+		if d < best_d:
+			best_d = d
+			best = n
+	return best
 
 
 func _is_offscreen() -> bool:

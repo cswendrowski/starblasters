@@ -439,6 +439,8 @@ func new_game() -> void:
 			_current_level = Levels.build_roster_test()
 		elif hazard_subtype == "firecore_drone_showcase":
 			_current_level = Levels.build_firecore_drone_showcase()
+		elif hazard_subtype == "beam_showcase":
+			_current_level = Levels.build_beam_showcase()
 		elif hazard_subtype == "missile_cruiser_showcase":
 			_current_level = Levels.build_missile_cruiser_showcase()
 			# Showcase: spawn the (unattackable, non-wave) cruiser into the world

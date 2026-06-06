@@ -175,3 +175,56 @@ burst / beam variants) derive from. Each = `enemy_bullet.tscn` shell + the paylo
 > The baseline weapons use today's `single_shot` shoot-pattern (which already owns
 > `bullet_scene` + `bullet_variant` + `fire_interval`). When the unified **Weapon
 > resource** (top of this doc) is built, these slot in as its `single` baselines unchanged.
+
+---
+
+## Beam system design (M6a.2 step 4) — research-informed, 2026-06-06
+
+Roman commissioned a genre + internal audit before building beam tech. Findings + the
+locked decisions below.
+
+### Genre takeaways (enemy/boss beams)
+- Archetypes that matter for ENEMIES: **sustained** (held DPS line, pierces),
+  **aimed/tracking** (rate-limited so it stays dodgeable), **sweeping/rotating**, and
+  the boss **safe-gap wall**. Charge / lock-on / homing-whip / wave / bounce are
+  player power-fantasies — not enemy needs.
+- **Fairness contract (universal):** `windup (thin warning line) → charge glow → fire
+  (thick lethal beam)`, in a **reserved danger color** never reused for friendly FX,
+  with a real reaction window + a dodgeable gap/sweep. Instant full-length no-warning
+  hitscan is the classic UNFAIR feeling — always gate behind the windup.
+- **Hit detection (genre std):** raycast for length → truncate the drawn beam at the
+  hit point → tick DPS on what it overlaps; explicit pierce rules.
+
+### Internal audit (the pain)
+7+ bespoke beams, ZERO shared code. The 4-layer Line2D stack is copy-pasted 3×
+(Beamer/Burner/Turret), `_dist_point_to_segment` verbatim 3×, the DPS-accumulator
+drip 3×, the windup→fire FSM 2–3×, the telegraph alpha-pulse verbatim 3× —
+~250–300 duplicated lines across the three enemy beams alone. Outliers are different
+mechanics in the same coat: Spinwright (ColorRect+Area2D safe-gap), Sapper (shield
+drain), Tether (physics pull), Aegis (cosmetic link), Player (Parts-driven particle,
+damages enemies, pierce-then-stop).
+
+### LOCKED DECISIONS (Roman, 2026-06-06)
+1. **Architecture: a shared `BeamEmitter` node component, config-driven** (mirrors
+   `enemy_turret`). STATE (Line2D refs, timers, dmg accumulator) on the NODE; CONFIG
+   (per-phase durations, layer width/color table, reach, width, dps, aim mode, colors)
+   as data the Weapon's `beam` fire_pattern hands it. Resolves "Resources can't hold
+   per-enemy state" and DELETES the ~250–300 dup lines (the 3 enemy beams become thin
+   configs).
+2. **Hit detection: raycast/shapecast + truncate + DPS-tick** (NOT the copy-pasted
+   segment math). Width-aware region query → DPS overlapped targets up to the nearest
+   blocker; supports pierce / first-blocker-stop (the player beam already wants this).
+3. **Telegraph contract codified into the emitter** so every beam is fair by
+   construction (windup→warn→fire, reserved danger color, dodgeable).
+4. **Scope = the 3 enemy Line2D beams NOW** (Beamer/Burner/Turret → BeamEmitter
+   configs; wire the `beam` fire_pattern any enemy_core can carry). Outliers (boss
+   sweep, sapper, tether, aegis, player) LEFT BESPOKE — different mechanics; they can
+   share the visual helper later. Player beam NOT folded yet.
+
+### BeamEmitter knobs (the config surface)
+Per-phase durations (idle/windup/firing/cooldown) + cycle mode (loop-to-idle /
+loop-to-windup / fire-once-leave / hold); reach; width; layer table
+(width/color/alpha/blend per line); dps + hit radius/band; aim mode
+(fixed / aimed_once-locked / aimed_tracking-rate-limited / sweep); rotation/sweep
+rate; emitter offset; telegraph style + danger color; pierce mode; target group +
+blocker mask (for truncation).

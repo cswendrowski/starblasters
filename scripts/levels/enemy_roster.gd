@@ -214,6 +214,9 @@ const ENTRIES := [
 		"movement": "lane_weave",
 		"shoot": "aimed",
 		"bullet_variant": BV_PlasmaOrb,
+		# M6a.2: restore the plasma-orb wobble via the FIRING LAYER (not the bullet
+		# .tres). Matches the boss plasma signature (amp 8 / freq 3).
+		"wobble_amplitude": 8.0, "wobble_frequency": 3.0,
 		"base_count": 2,
 		"fire_min": 1.4, "fire_max": 2.2,
 		"hp_override": 2, "bounty_override": 10,
@@ -829,4 +832,10 @@ static func make_shoot(entry: Dictionary) -> Resource:
 			pattern = s
 	if pattern != null:
 		pattern.bullet_variant = entry.get("bullet_variant", null)
+		# Projectile-movement axis (M6a.2): the firing layer drives homing/wobble, not
+		# the bullet .tres. An entry opts its weapon into movement via these keys (e.g.
+		# the Weaver's plasma orb wobbles). Faction/sector can later multiply them.
+		pattern.homing_rate = entry.get("homing_rate", 0.0)
+		pattern.wobble_amplitude = entry.get("wobble_amplitude", 0.0)
+		pattern.wobble_frequency = entry.get("wobble_frequency", 0.0)
 	return pattern

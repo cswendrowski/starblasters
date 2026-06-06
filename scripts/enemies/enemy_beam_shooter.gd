@@ -1,55 +1,42 @@
 extends EnemyBase
 class_name EnemyBeamShooter
 
-# Beamer — beam specialist modelled on the gunship's "arrive, settle, sweep"
-# rhythm. Roman 2026-06-01 rework (was a two-ship "pair dance").
+# Beamer — beam specialist modelled on the gunship's "arrive, settle, sweep" rhythm.
+# Descends to a settle band, then sweeps left↔right while a BeamEmitter runs a
+# telegraph → fire → cooldown cycle from its emitter marker.
 #
-# It descends to a settle band, then sweeps left↔right while running a
-# telegraph → fire → cooldown beam cycle from its BeamEmitter marker. The beam
-# is a 4-layer Line2D stack (outer glow / mid / bright core), 10 px at its
-# widest, matching the core style of the other enemy beams.
+# AIMING IS BY ROTATING THE HULL (gunship-style): the beam always exits the sprite's
+# FRONT (local -Y) and the whole ship turns so the front points where it fires. The
+# BeamEmitter draws LOCAL_FORWARD, so the hull's rotation aims it for free.
 #
-# AIMING IS DONE BY ROTATING THE HULL (gunship-style), NOT by steering the beam
-# vector. The beam always fires straight out the sprite's FRONT (the emitter
-# "maw" between the claws → local -Y), and the whole ship turns so that front
-# points where it wants to fire. Two variants via the `aim_at_player` export
-# (one scene per variant in the roster, like the gunship's role scenes):
-#   false  — the hull faces straight DOWN; the sweep rakes the beam across.
-#   true   — the hull smoothly ROTATES to track the player while sweeping; the
-#            beam exits the front toward them. Rotation is speed-limited so the
-#            track stays dodgeable.
+# Three aim behaviors (Roman 2026-06-06):
+#   SWEEP — face straight down; the left↔right sweep rakes the beam.
+#   CHASE — continuously rotate to track the player (turn rate kept slightly below the
+#           player's so they can stay ahead — never a guaranteed hit).
+#   LOCK  — track the player BETWEEN shots, but freeze rotation while the beam is
+#           committed (telegraph + fire), then re-aim. Gives an evade window. Same idea
+#           as the beam turret/cruiser (which locks its aim at windup).
 #
-# Bespoke (extends EnemyBase): the beam bypasses the shoot_pattern system, so
-# the roster entries use shoot: null and the director leaves firing to us.
+# M6a.2 step 4b: the bespoke 4-layer Line2D + windup→fire FSM + segment-distance
+# damage (~120 lines) were replaced by a single configured BeamEmitter node. This
+# script now owns ONLY locomotion + aiming; the beam is the shared component.
 
-@export var aim_at_player: bool = false
+const BeamEmitter = preload("res://scripts/enemies/beam_emitter.gd")
+
+enum AimBehavior { SWEEP, CHASE, LOCK }
+@export var aim_behavior: int = AimBehavior.SWEEP
 
 enum GState { ENTER, ACTIVE }
-enum BeamState { IDLE, WINDUP, FIRING, COOLDOWN }
 
 # --- Locomotion ----------------------------------------------------------
 const SETTLE_Y    := 58.0
 const ENTER_SPEED := 170.0
 const SWEEP_SPEED := 42.0
 const SWEEP_MARGIN := 22.0   # keep the hull off the gutter edges
-const ROTATION_SPEED := 1.8  # rad/s hull turn rate (player-tracking variant)
+# rad/s hull turn rate (CHASE/LOCK). Kept below a focused player's turn-around so a
+# CHASE beamer can be out-run (Roman 2026-06-06: reduced from 1.8).
+const ROTATION_SPEED := 1.3
 
-# --- Beam cycle ----------------------------------------------------------
-const IDLE_DURATION     := 0.9
-const WINDUP_DURATION   := 1.3
-const FIRING_DURATION   := 1.1
-const COOLDOWN_DURATION := 1.5
-
-# --- Beam damage ---------------------------------------------------------
-const BEAM_DPS   := 3.0
-const BEAM_REACH := 320.0
-const HIT_RADIUS := 8.0
-
-# --- Beam visuals (widest layer = 10 px) ---------------------------------
-const W_OUTER := 10.0
-const W_MID   := 6.0
-const W_CORE  := 3.5
-const W_TELE  := 1.5
 # Forward (nose) direction in the sprite's LOCAL frame — the beam exits here.
 const FWD_LOCAL := Vector2(0.0, -1.0)
 
@@ -58,19 +45,10 @@ const SPACING_RADIUS := 32.0
 const PUSH_STRENGTH  := 60.0
 
 var _state: int = GState.ENTER
-var _beam_state: int = BeamState.IDLE
-var _state_timer: float = 0.0
-var _beam_t: float = 0.0
-
 var _sweep_dir: int = 1
 var _target_x: float = 0.0
 var _emitter_local: Vector2 = Vector2(0.0, -8.0)  # the "maw" at the sprite front
-
-var _dmg_accum: float = 0.0
-var _beam_outer: Line2D = null
-var _beam_mid: Line2D = null
-var _beam_core: Line2D = null
-var _beam_telegraph: Line2D = null
+var _beam: Node = null
 
 
 func _ready() -> void:
@@ -82,12 +60,22 @@ func _ready() -> void:
 	var em := get_node_or_null("BeamEmitter") as Marker2D
 	if em != null:
 		_emitter_local = em.position
-	# Start already pointing down (front/maw toward the player below) so it isn't
-	# born facing up; the per-frame _face_target then tracks from here.
+	# Start already pointing down (front/maw toward the player below).
 	rotation = PI
 	# Sweep outward from spawn side so a pair fans apart rather than overlapping.
 	_sweep_dir = -1 if global_position.x < Playfield.CENTER.x else 1
 	_target_x = (Playfield.X_MIN + SWEEP_MARGIN) if _sweep_dir < 0 else (Playfield.X_MAX - SWEEP_MARGIN)
+	# The shared beam — LOCAL_FORWARD so the hull's rotation aims it. Same cadence,
+	# reach, dps + default purple/orange/yellow layers as the old bespoke beam.
+	_beam = BeamEmitter.new()
+	_beam.configure({
+		"idle_time": 0.9, "windup_time": 1.3, "firing_time": 1.1, "cooldown_time": 1.5,
+		"cycle": BeamEmitter.Cycle.LOOP_IDLE, "autostart": false,
+		"endpoint": BeamEmitter.Endpoint.RAY, "aim_mode": BeamEmitter.AimMode.LOCAL_FORWARD,
+		"forward_local": FWD_LOCAL, "reach": 320.0, "dps": 3.0, "hit_radius": 8.0,
+		"emitter_offset": _emitter_local, "target_group": "player",
+	})
+	add_child(_beam)
 
 
 func _process(delta: float) -> void:
@@ -99,30 +87,42 @@ func _process(delta: float) -> void:
 			if global_position.y >= SETTLE_Y:
 				global_position.y = SETTLE_Y
 				_state = GState.ACTIVE
+				if _beam != null:
+					_beam.begin()   # start firing only once settled
 		GState.ACTIVE:
 			_do_sweep(delta)
-			_tick_beam_state(delta)
 	_face_target(delta)
 	_repel_siblings(delta)
 	super._process(delta)
 
 
-# Rotate the hull so its front (FWD_LOCAL) points at the aim target — straight
-# down for the aim-down variant, or smoothly toward the player for the tracker.
-# Speed-limited so tracking stays dodgeable. The beam (a child of the hull) is
-# carried along, so it always exits the front.
+# Rotate the hull so its front (FWD_LOCAL) points at the aim target. The beam (a child
+# of the hull) is carried along, so it always exits the front. Behavior:
+#   SWEEP — always face down. CHASE — always track the player. LOCK — track only when
+#   the beam is NOT committed (held during telegraph + fire, then re-aims).
 func _face_target(delta: float) -> void:
 	var dir: Vector2 = Vector2.DOWN
-	if aim_at_player:
-		var player := find_player()
-		if player != null:
-			var d: Vector2 = player.global_position - global_position
-			if d.length_squared() > 1.0:
-				dir = d.normalized()
-	# rotation r such that FWD_LOCAL.rotated(r) == dir.
+	match aim_behavior:
+		AimBehavior.SWEEP:
+			dir = Vector2.DOWN
+		AimBehavior.CHASE:
+			dir = _player_dir()
+		AimBehavior.LOCK:
+			if _beam != null and is_instance_valid(_beam) and _beam.is_committed():
+				return   # rotation frozen while committed — the evade window
+			dir = _player_dir()
 	var target_rot: float = atan2(dir.x, -dir.y)
 	var diff: float = angle_difference(rotation, target_rot)
 	rotation += clampf(diff, -ROTATION_SPEED * delta, ROTATION_SPEED * delta)
+
+
+func _player_dir() -> Vector2:
+	var player := find_player()
+	if player != null:
+		var d: Vector2 = player.global_position - global_position
+		if d.length_squared() > 1.0:
+			return d.normalized()
+	return Vector2.DOWN
 
 
 func _do_sweep(delta: float) -> void:
@@ -146,123 +146,3 @@ func _repel_siblings(delta: float) -> void:
 		if dist < SPACING_RADIUS and dist > 0.001:
 			global_position += diff.normalized() * PUSH_STRENGTH * delta
 	global_position = Playfield.clamp_pos(global_position, 8.0)
-
-
-# ---------------------------------------------------------------------------
-# Beam cycle
-# ---------------------------------------------------------------------------
-func _tick_beam_state(delta: float) -> void:
-	_beam_t += delta
-	_state_timer += delta
-	match _beam_state:
-		BeamState.IDLE:
-			_hide_all_beam_lines()
-			if _state_timer >= IDLE_DURATION:
-				_enter_windup()
-		BeamState.WINDUP:
-			_ensure_beam_visuals()
-			_set_beam_layers_visible(false, false, false, true)
-			var a: float = sin(_beam_t * TAU * 2.0) * 0.2 + 0.5
-			if _beam_telegraph:
-				var c := _beam_telegraph.default_color
-				c.a = a
-				_beam_telegraph.default_color = c
-				_update_line_points(_beam_telegraph)
-			if _state_timer >= WINDUP_DURATION:
-				_enter_firing()
-		BeamState.FIRING:
-			_ensure_beam_visuals()
-			_set_beam_layers_visible(true, true, true, false)
-			_update_line_points(_beam_outer)
-			_update_line_points(_beam_mid)
-			_update_line_points(_beam_core)
-			_apply_beam_damage(delta)
-			if _state_timer >= FIRING_DURATION:
-				_enter_cooldown()
-		BeamState.COOLDOWN:
-			_hide_all_beam_lines()
-			if _state_timer >= COOLDOWN_DURATION:
-				_beam_state = BeamState.IDLE
-				_state_timer = 0.0
-
-
-func _enter_windup() -> void:
-	_beam_state = BeamState.WINDUP
-	_state_timer = 0.0
-
-
-func _enter_firing() -> void:
-	_beam_state = BeamState.FIRING
-	_state_timer = 0.0
-
-
-func _enter_cooldown() -> void:
-	_beam_state = BeamState.COOLDOWN
-	_state_timer = 0.0
-	_dmg_accum = 0.0
-
-
-func _ensure_beam_visuals() -> void:
-	if _beam_outer and is_instance_valid(_beam_outer):
-		return
-	_beam_outer     = _make_line(Color(0.65, 0.15, 1.0, 0.55), W_OUTER)
-	_beam_mid       = _make_line(Color(1.0, 0.5, 0.1, 0.85),  W_MID)
-	_beam_core      = _make_line(Color(1.0, 0.95, 0.35, 1.0), W_CORE)
-	_beam_telegraph = _make_line(Color(1.0, 0.95, 0.35, 0.5), W_TELE)
-	add_child.call_deferred(_beam_outer)
-	add_child.call_deferred(_beam_mid)
-	add_child.call_deferred(_beam_core)
-	add_child.call_deferred(_beam_telegraph)
-
-
-func _make_line(color: Color, width: float) -> Line2D:
-	var l := Line2D.new()
-	l.default_color = color
-	l.width = width
-	l.begin_cap_mode = Line2D.LINE_CAP_ROUND
-	l.end_cap_mode   = Line2D.LINE_CAP_ROUND
-	l.z_index = 4
-	l.visible = false
-	return l
-
-
-# The lines are children of the hull, so they're authored in LOCAL space and
-# the hull's rotation aims them. The beam always runs from the emitter straight
-# out the front (FWD_LOCAL); turning the ship turns the beam.
-func _update_line_points(line: Line2D) -> void:
-	if line == null or not is_instance_valid(line):
-		return
-	line.points = PackedVector2Array([_emitter_local, _emitter_local + FWD_LOCAL * BEAM_REACH])
-
-
-func _set_beam_layers_visible(outer: bool, mid: bool, core: bool, telegraph: bool) -> void:
-	if _beam_outer     and is_instance_valid(_beam_outer):     _beam_outer.visible     = outer
-	if _beam_mid       and is_instance_valid(_beam_mid):       _beam_mid.visible       = mid
-	if _beam_core      and is_instance_valid(_beam_core):      _beam_core.visible      = core
-	if _beam_telegraph and is_instance_valid(_beam_telegraph): _beam_telegraph.visible = telegraph
-
-
-func _hide_all_beam_lines() -> void:
-	_set_beam_layers_visible(false, false, false, false)
-
-
-func _apply_beam_damage(delta: float) -> void:
-	var player := find_player()
-	if player == null:
-		return
-	var seg_start: Vector2 = to_global(_emitter_local)
-	var seg_end: Vector2 = to_global(_emitter_local + FWD_LOCAL * BEAM_REACH)
-	if _dist_point_to_segment(player.global_position, seg_start, seg_end) <= HIT_RADIUS:
-		_dmg_accum += BEAM_DPS * delta
-		while _dmg_accum >= 1.0:
-			player.take_damage(1)
-			_dmg_accum -= 1.0
-
-
-static func _dist_point_to_segment(pt: Vector2, a: Vector2, b: Vector2) -> float:
-	var ab := b - a
-	var len_sq := ab.length_squared()
-	if len_sq < 0.0001:
-		return pt.distance_to(a)
-	var t := clampf((pt - a).dot(ab) / len_sq, 0.0, 1.0)
-	return pt.distance_to(a + ab * t)
