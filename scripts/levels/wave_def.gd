@@ -7,7 +7,7 @@ extends Resource
 # values let WaveGen tag fast-chaff waves so they arrive as readable walls (rows with
 # 1-2 gap lanes) instead of a one-at-a-time spread trickle. See ScoreAdapter._shape_id
 # + director._dispatch_wall.
-enum Formation { TOP_LEFT_TO_RIGHT, TOP_RIGHT_TO_LEFT, TOP_RANDOM, TOP_CENTER_OUT, SIDE_ALTERNATING, TOP_TANDEM_PAIRS, WALL, PINCER }
+enum Formation { TOP_LEFT_TO_RIGHT, TOP_RIGHT_TO_LEFT, TOP_RANDOM, TOP_CENTER_OUT, SIDE_ALTERNATING, TOP_TANDEM_PAIRS, WALL, PINCER, STEP_WALL }
 
 @export var enemy_scene: PackedScene
 @export var count: int = 6
