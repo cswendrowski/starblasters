@@ -37,6 +37,7 @@ const FirecoreDroneScene = preload("res://scenes/enemies/enemy_firecore_drone.ts
 # Beam enemies (M6a.2 beam showcase).
 const BeamerScene = preload("res://scenes/enemies/enemy_beam_shooter.tscn")
 const BeamerTrackerScene = preload("res://scenes/enemies/enemy_beamer_tracker.tscn")
+const BeamerLockScene = preload("res://scenes/enemies/enemy_beamer_lock.tscn")
 const BurnerScene = preload("res://scenes/enemies/enemy_burner.tscn")
 const CruiserScene = preload("res://scenes/enemies/enemy_cruiser.tscn")
 const SideTraverse = preload("res://scripts/enemies/patterns/side_traverse.gd")
@@ -615,7 +616,16 @@ static func build_beam_showcase():
 	w2.spawn_delay = 6.0
 	w2.formation = 0
 	w2.formation_padding = 60.0
-	w2.announce_text = "BEAMER — TRACK"
+	w2.announce_text = "BEAMER — CHASE"
+
+	var wlock = WaveSpec.new()
+	wlock.enemy_scene = BeamerLockScene
+	wlock.count = 2
+	wlock.spawn_interval = 0.6
+	wlock.spawn_delay = 6.0
+	wlock.formation = 0
+	wlock.formation_padding = 60.0
+	wlock.announce_text = "BEAMER — LOCK"
 
 	var w3 = WaveSpec.new()
 	w3.enemy_scene = BurnerScene
@@ -636,5 +646,5 @@ static func build_beam_showcase():
 
 	var level = LevelData.new()
 	level.level_name = "Beam Enemies Showcase"
-	level.waves = [w1, w2, w3, w4]
+	level.waves = [w1, w2, wlock, w3, w4]
 	return level

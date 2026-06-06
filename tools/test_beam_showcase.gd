@@ -26,16 +26,17 @@ func _process(_dt: float) -> bool:
 	var lvl = Levels.build_beam_showcase()
 	if lvl == null or not ("waves" in lvl):
 		_fail("build_beam_showcase returned no level")
-	elif lvl.waves.size() != 4:
-		_fail("expected 4 waves, got %d" % lvl.waves.size())
+	elif lvl.waves.size() != 5:
+		_fail("expected 5 waves, got %d" % lvl.waves.size())
 	else:
 		var want := [
 			"res://scenes/enemies/enemy_beam_shooter.tscn",
 			"res://scenes/enemies/enemy_beamer_tracker.tscn",
+			"res://scenes/enemies/enemy_beamer_lock.tscn",
 			"res://scenes/enemies/enemy_burner.tscn",
 			"res://scenes/enemies/enemy_cruiser.tscn",
 		]
-		for i in 4:
+		for i in want.size():
 			if lvl.waves[i].enemy_scene == null or lvl.waves[i].enemy_scene.resource_path != want[i]:
 				_fail("wave %d wrong scene" % i)
 
@@ -61,7 +62,7 @@ func _process(_dt: float) -> bool:
 	var burner = load("res://scenes/enemies/enemy_burner.tscn").instantiate()
 	world.add_child(burner)
 
-	_lines.append("showcase 4 waves ok ; beamer/tracker/cruiser instantiated clean")
+	_lines.append("showcase 5 waves ok ; beamer/tracker/lock/cruiser instantiated clean")
 	_lines.append("BEAM SHOWCASE: " + ("PASS" if _fails == 0 else "FAIL (%d)" % _fails))
 	var f := FileAccess.open(RESULT, FileAccess.WRITE)
 	if f != null:

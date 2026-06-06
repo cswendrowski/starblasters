@@ -103,6 +103,12 @@ func is_firing() -> bool:
 	return _phase == Phase.FIRING
 
 
+# True while the beam is committed to its shot (telegraph + lethal). Hull-aimed beams
+# (the Beamer LOCK behavior) hold their rotation during this window, then re-aim.
+func is_committed() -> bool:
+	return _phase == Phase.WINDUP or _phase == Phase.FIRING
+
+
 # --- MANUAL drive (host owns timing) ---
 func show_telegraph() -> void:
 	if _phase != Phase.WINDUP:

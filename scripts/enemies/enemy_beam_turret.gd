@@ -10,6 +10,12 @@ class_name EnemyBeamTurret
 
 const BeamEmitter = preload("res://scripts/enemies/beam_emitter.gd")
 
+# Aim behavior (Roman 2026-06-06), shared with the Beamer: LOCK = snapshot aim at
+# windup and hold (the classic turret/cruiser feel); CHASE = track the player while
+# firing (rate-limited so they can stay ahead).
+enum AimBehavior { LOCK, CHASE }
+@export var aim_behavior: int = AimBehavior.LOCK
+
 var _beam: Node = null
 
 
@@ -19,13 +25,14 @@ func _ready() -> void:
 	auto_rotate  = false
 	display_scale = 0.5
 	super._ready()
+	var mode: int = BeamEmitter.AimMode.TRACKING if aim_behavior == AimBehavior.CHASE else BeamEmitter.AimMode.LOCKED
 	_beam = BeamEmitter.new()
 	_beam.configure({
 		# IDLE 2 -> WINDUP 3 -> FIRING 2 -> COOLDOWN 3, then loop back to WINDUP
 		# (skip idle on repeat, as the bespoke turret did).
 		"idle_time": 2.0, "windup_time": 3.0, "firing_time": 2.0, "cooldown_time": 3.0,
 		"cycle": BeamEmitter.Cycle.LOOP_WINDUP, "autostart": true,
-		"endpoint": BeamEmitter.Endpoint.RAY, "aim_mode": BeamEmitter.AimMode.LOCKED,
+		"endpoint": BeamEmitter.Endpoint.RAY, "aim_mode": mode, "tracking_rate": 1.3,
 		"reach": 300.0, "dps": 3.0, "hit_radius": 8.0, "emitter_offset": Vector2.ZERO,
 		"target_group": "player",
 		# Narrower than the Beamer: outer 8 / mid 5 / core 2, telegraph 1.
