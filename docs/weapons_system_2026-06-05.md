@@ -10,10 +10,10 @@ Parent: `m6_modular_enemies_design_2026-06-05.md` §9.2 (first-class weapons) + 
 > **⚠ Known regression (from the projectile pass):** baked bullet movement was stripped,
 > so `tracker` (Conductor) lost homing and `plasma_orb` (Howler / Voidmaw /
 > Firecore-Cruiser) lost wobble — those enemies fire straight now. `base_bullet.gd` still
-> *supports* the flags; fix options (Roman's call): (a) **boss-specific homing/wobble
-> variants** so the shared standard bullets stay pure [recommended], or (b) re-enable the
-> flags on the shared `.tres` [contradicts the pure-bullet intent], or (c) re-add via the
-> firing-layer **projectile-movement axis** once the Weapon layer lands.
+> *supports* the flags. **DECISION (Roman, 2026-06-05): defer** — re-add homing/wobble via
+> the firing-layer **projectile-movement axis** when the Weapon layer (M6a.2) lands; the
+> affected bosses fire straight until then. → That axis is now a **required M6a.2
+> deliverable** (see "Migration note" + m6 §6 M6a.2).
 
 ## Purpose
 
@@ -96,6 +96,10 @@ it actually fires; the weapon supplies the *content*.
 - Do it as part of the M6 component/Weapon plumbing milestone (§6 M6a.2),
   **behavior-preserving first** (wrap the existing shoot_patterns), then add beam/lob
   payloads + the faction/sector multipliers.
+- **Required in M6a.2 — projectile-movement axis** (`homing` / `wobble` on the weapon or
+  its payload) to **restore the boss tracker/plasma signatures** the projectile pass
+  stripped (the deferred regression above). `base_bullet.gd` already supports the flags, so
+  the weapon layer just needs to drive them.
 
 ---
 

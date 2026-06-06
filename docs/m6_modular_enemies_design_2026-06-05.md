@@ -249,7 +249,9 @@ with `has_node("/root/...")` (absent in headless).
 - **M6a.2 — Component framework + Weapon/role plumbing (inert):** `components:
   Array[Resource]` on `enemy_base`/`enemy_core` + hook fan-out + the `_spawn_enemy` guarded
   write + WaveSpec/producer plumbing; **Weapon consolidation** (§9.2 — wrap existing
-  shoot_patterns behavior-preserving, fire-rate single-sourced); **role/`allowed_movements`
+  shoot_patterns behavior-preserving, fire-rate single-sourced, **+ a projectile-movement
+  axis (homing/wobble)** to restore the boss tracker/plasma signatures the 2026-06-05
+  projectile pass stripped — `base_bullet.gd` still supports the flags); **role/`allowed_movements`
   schema** on roster entries (§9.1). All inert — nothing sets components/roles yet.
 - **M6a.3 — Core roster curation + faction tagging (content pass, §10):** DRAFT tagging
   table → Roman redlines → the lean core set + per-enemy faction verdicts that drive
