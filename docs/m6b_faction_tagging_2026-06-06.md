@@ -18,6 +18,25 @@ behaviors, §14.1 existing→behaviors) into ONE table to mark up.
 
 ---
 
+## ✅ REDLINE RESOLVED (Roman, 2026-06-06)
+1. **cutter → privateer** (confirmed) — universal small Crosser.
+2. **Keep all assigned homes.** **sapper: OUT of chaff → a RARE corporate encounter** (evasive
+   + dangerous in its own right) — bump its spawn rarity, NOT chaff. The other aggressive small
+   units (skirmisher, strafer, interceptor) stay **corporate**, treated as their faction's own
+   (verdict → **E**, not freely universal).
+3. **crystal → keep as a universal Holder** (assign a faction + tune behavior later; no retire).
+4. **Sizes stand** (sprite-read based) for now.
+5. **spitter rename: GO** (firecore popper → `spitter`).
+6. **Pool model OK as a stopgap.** **END-STATE DIRECTION (Roman):** drop the universal core —
+   each faction gets its OWN unit set; the ONLY thing truly "universal" is **adding privateer
+   units into another faction's pool**. The faction-gap unit backlog (→ TODO.md, logged
+   2026-06-06) is the path there. Until those units exist, the universal core stands in.
+
+The master table below reflects these resolutions (cutter=privateer/U, sapper=E+RARE,
+skirmisher/strafer/interceptor=E, crystal=U Holder).
+
+---
+
 ## Master table (all 25 production enemies)
 
 | Enemy | Home | Size | Behaviors[] | Verdict | Note |
