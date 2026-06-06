@@ -59,6 +59,16 @@ in the Lane Visualizer. Parent: `m6_modular_enemies_design_2026-06-05.md` §4/§
 3. ✅ **top_dive** — CULL (curved straight; interceptor → Diver/Slider).
 4. ✅ **Row choreography** — in scope, sequenced as P2 (after the per-pattern P1 fixes).
 
+## Progress
+- ✅ **side_traverse → Crosser off-screen entry** (666c6bf). Awaiting Roman's eyeball.
+- ✅ **loiter → Holder** (958882f): hold-jiggle (bob+sway), true ease-IN, low/mid/high
+  hold band via `loiter_{low,mid,high}` roster keys; base `loiter` keeps the deep hold
+  (existing users untouched). Visualizer shows all three. test_loiter_holder.gd PASS.
+  Awaiting Roman's eyeball.
+- ⬜ P1 remaining: advance_retreat easing+exit; slow_advance → slow Diver; cull top_dive;
+  weave_narrow; weave-row edge-lane exclusion (really P2 conductor work); terminology
+  renames (cosmetic — batched last so visualizer labels + roster keys move together).
+
 ## Phased plan (after the opens)
 - **P1 — terminology + cheap fixes:** renames; weave-row edge-lane exclusion; weave_narrow;
   loiter smoothing + jiggle + low/mid/high; advance_retreat easing + exit; slow_advance →
