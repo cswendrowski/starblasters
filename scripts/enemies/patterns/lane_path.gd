@@ -58,6 +58,17 @@ enum Shape { STRAIGHT, WEAVE, HOOK, STEP }
 @export var step_lanes: int = 1             # lanes per hop (1 = adjacent)
 @export var step_repeat: bool = true        # keep hopping (false = one hop then hold)
 @export var step_pingpong: bool = true      # reverse at edges (false = advance + clamp)
+# Coordinated row step (P2d): when true the lateral offset is a SHARED, deterministic
+# sequence (not a per-lane self-step) so a whole ROW shifts in unison — the gap
+# relocates as one. The conductor stamps the same step_offset_lo/hi + step_start_dir
+# + timing on every member; identical inputs + a same-frame spawn => identical motion,
+# preserving relative spacing (no merges, so the lane free-check is unnecessary). The
+# offset is anchor-relative (lanes), oscillating in [lo, hi] which the conductor sizes
+# so EVERY member stays on the board.
+@export var step_synced: bool = false
+@export var step_offset_lo: int = 0
+@export var step_offset_hi: int = 0
+@export var step_start_dir: int = 1
 
 var _t: float = 0.0
 var _anchor_x: float = 0.0
@@ -140,7 +151,11 @@ func compute_step(enemy, delta: float) -> Vector2:
 				var eased: float = u * u * (3.0 - 2.0 * u)  # smoothstep ease-in-out
 				target_x = _anchor_x + sign_x * float(shift_lanes) * Lanes.PITCH * eased
 		Shape.STEP:
-			target_x = _step_update(enemy, delta)
+			if step_synced:
+				# Coordinated row step: shared anchor-relative offset (lanes -> px).
+				target_x = _anchor_x + _synced_offset(_t) * Lanes.PITCH
+			else:
+				target_x = _step_update(enemy, delta)
 		_:
 			target_x = _anchor_x
 	return Vector2(target_x - enemy.position.x, down_speed * delta)
@@ -198,6 +213,41 @@ func _hook_target_free(enemy, sign_x: float) -> bool:
 	if target == _anchor_lane:
 		return true
 	return LaneTraffic.is_lane_free(enemy.get_tree(), target, enemy.position.y, enemy)
+
+
+# Coordinated row step (P2d): the shared, anchor-relative lateral offset (in lanes)
+# at time t. Holds at 0 for hold_time, then hops one lane per (hold_time+step_time)
+# cycle, reflecting within [lo, hi]. Deterministic & stateless, so every row member
+# fed the same params + clock produces the SAME offset -> the row shifts in unison.
+func _synced_offset(t: float) -> float:
+	if step_offset_hi <= step_offset_lo:
+		return 0.0
+	if t < hold_time:
+		return 0.0
+	var cyc: float = hold_time + step_time
+	var te: float = t - hold_time
+	var k: int = int(floor(te / cyc))
+	var frac: float = te - float(k) * cyc
+	var before: float = float(_fold_offset(k))
+	var after: float = float(_fold_offset(k + 1))
+	if frac < step_time:
+		var u: float = clampf(frac / maxf(step_time, 0.0001), 0.0, 1.0)
+		return lerpf(before, after, u * u * (3.0 - 2.0 * u))  # smoothstep
+	return after
+
+
+# Integer offset after n hops: a reflected walk on [lo, hi] starting at 0 (the anchor,
+# always inside the range since lo<=0<=hi) stepping by step_start_dir. Closed-form
+# triangle fold — no per-frame simulation.
+func _fold_offset(n: int) -> int:
+	var rng: int = step_offset_hi - step_offset_lo
+	if rng <= 0:
+		return step_offset_lo
+	var x: int = step_start_dir * n
+	var m: int = posmod(x - step_offset_lo, 2 * rng)
+	if m <= rng:
+		return step_offset_lo + m
+	return step_offset_lo + (2 * rng - m)
 
 
 func path_phase_capable() -> bool:

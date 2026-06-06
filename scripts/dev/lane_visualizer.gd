@@ -244,6 +244,7 @@ func _build_ui() -> void:
 	_add_fixed_button(pr, ">", func(): _cycle_pattern(1), 16)
 	_add_button(_pattern_panel, "Spawn row", func(): _spawn_pattern_row())
 	_add_button(_pattern_panel, "Spawn one", func(): _spawn_pattern_one())
+	_add_button(_pattern_panel, "Step wall", func(): _spawn_step_wall())
 	_add_button(_pattern_panel, "Clear", func(): _clear_world())
 
 	lv.add_child(_sep())
@@ -369,6 +370,33 @@ func _spawn_pattern_row() -> void:
 
 func _spawn_pattern_one() -> void:
 	_make_dummy(Vector2(Lanes.lane_center(3), 12.0))
+	_update_readout()
+
+
+# P2d: spawn a COORDINATED step wall — a contiguous block leaving one edge gap, all
+# members sharing synced-STEP params (same offset bounds/dir/timing, same-frame), so
+# they shift in unison and the gap relocates. Mirrors director._dispatch_step_wall.
+func _spawn_step_wall() -> void:
+	_clear_dummies()
+	var n: int = Lanes.COUNT - 1            # fill all but one edge lane
+	var start_lane: int = 0                 # left block, gap on the right
+	var lo: int = -start_lane               # = 0
+	var hi: int = (Lanes.COUNT - 1) - (start_lane + n - 1)  # room to shift right
+	for i in n:
+		var p = LanePath.new()
+		p.shape = LanePath.Shape.STEP
+		p.step_synced = true
+		p.step_offset_lo = lo
+		p.step_offset_hi = hi
+		p.step_start_dir = 1
+		p.hold_time = 0.9
+		p.step_time = 0.35
+		p.down_speed = 80.0
+		var d := PatternDummy.new()
+		d.pattern = p
+		d.position = Vector2(Lanes.lane_center(start_lane + i), 24.0)
+		_world.add_child(d)
+		_dummies.append(d)
 	_update_readout()
 
 

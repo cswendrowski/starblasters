@@ -226,6 +226,13 @@ func _dispatch_formation(ph: Resource) -> void:
 		await _dispatch_shaped(ph)
 		_advance_step()
 		return
+	# STEP_WALL: a coordinated stepping row — fills all but one edge lane, spawns in
+	# one frame with shared synced-STEP params, then shifts in UNISON so the gap
+	# relocates (P2d, react-to-the-new-gap).
+	if ph.shape == &"step_wall":
+		await _dispatch_step_wall(ph)
+		_advance_step()
+		return
 	# Default (spread): per-member alternate-anchor lane at each spec's cadence;
 	# preserves tandem/side placement via spec.formation.
 	for sp in ph.specs:
@@ -311,6 +318,55 @@ func _dispatch_wall(ph: Resource) -> void:
 		# Beat between rows (only if more remain).
 		if idx < members.size():
 			await get_tree().create_timer(WALL_ROW_BEAT).timeout
+
+
+# STEP_WALL: spawn a coordinated stepping row (P2d). The row fills a contiguous block
+# of lanes leaving the opposite edge open, all members spawn in ONE frame with the
+# SAME synced-STEP params (offset bounds sized so the whole block stays on-board, a
+# shared start direction toward the gap), so they step in unison and the gap relocates.
+func _dispatch_step_wall(ph: Resource) -> void:
+	var members: Array = []
+	for sp in ph.specs:
+		if sp == null:
+			continue
+		for _k in sp.count:
+			members.append(sp)
+	if members.is_empty():
+		return
+	# Cap-gate before the row (one cohesive burst).
+	while _running and _alive_count() >= max_concurrent:
+		await get_tree().create_timer(0.1).timeout
+	if not _running:
+		return
+	var layout: Dictionary = _step_wall_layout(members.size())
+	var lanes: Array = layout["lanes"]
+	var sync: Dictionary = {"lo": layout["lo"], "hi": layout["hi"], "dir": layout["dir"]}
+	# Spawn the whole row in this frame (no stagger) so their step clocks align.
+	for i in lanes.size():
+		if not _running:
+			return
+		_spawn_enemy(members[i], i, int(lanes[i]), sync)
+
+
+# Lane layout + shared offset bounds for a step wall of n members: a contiguous block
+# at one (random) edge leaving the other open; offset bounds [lo,hi] keep the whole
+# block on-board; dir shifts toward the open edge. n is capped at COUNT-1 so there is
+# always a gap to shift into.
+func _step_wall_layout(n: int) -> Dictionary:
+	n = clampi(n, 1, Lanes.COUNT - 1)
+	var left_block: bool = randf() < 0.5
+	var start_lane: int = 0 if left_block else (Lanes.COUNT - n)
+	var lanes: Array = []
+	for i in n:
+		lanes.append(start_lane + i)
+	var min_l: int = int(lanes[0])
+	var max_l: int = int(lanes[lanes.size() - 1])
+	return {
+		"lanes": lanes,
+		"lo": -min_l,
+		"hi": (Lanes.COUNT - 1) - max_l,
+		"dir": 1 if left_block else -1,
+	}
 
 
 # Choose the n filled lanes for one wall row. The (COUNT - n) gap lanes are picked
@@ -422,7 +478,7 @@ func _dispatch_breather(ph: Resource) -> void:
 	_advance_step()
 
 
-func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1) -> void:
+func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync: Dictionary = {}) -> void:
 	if wave.enemy_scene == null:
 		push_warning("WaveDirector: spec has no enemy_scene")
 		return
@@ -453,6 +509,16 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1) -> void:
 		var mv_cross: Resource = enemy.movement.duplicate()
 		mv_cross.travel_y = _crosser_travel_y(mv_cross.travel_y, index)
 		enemy.movement = mv_cross
+	# STEP_WALL (P2d): stamp the shared synced-STEP params so the row steps in unison.
+	# Duplicate per instance; the anchor lane comes from lane_override.
+	if not step_sync.is_empty() and "movement" in enemy and enemy.movement != null \
+			and "step_synced" in enemy.movement:
+		var mv_sync: Resource = enemy.movement.duplicate()
+		mv_sync.step_synced = true
+		mv_sync.step_offset_lo = int(step_sync["lo"])
+		mv_sync.step_offset_hi = int(step_sync["hi"])
+		mv_sync.step_start_dir = int(step_sync["dir"])
+		enemy.movement = mv_sync
 	# Pattern-claimed intervals are step 1 (pattern owns its rhythm), wave
 	# overrides win as step 2. Final precedence: wave > pattern > .tscn
 	# default. Works regardless of how shoot_pattern landed on the enemy
