@@ -702,11 +702,12 @@ static func make_movement(entry: Dictionary) -> Resource:
 			m.direction = 1 if randf() < 0.5 else -1
 			return m
 		"advance_retreat":
-			# Skirmisher — aimed-fire pacing slowed. 180→150 adv, 260→220
-			# ret, 0.6→0.8 hold.
+			# Skirmisher — slowed again (Roman 2026-06-06: "should be slower",
+			# was hard-stopping). 150→100 adv, 220→130 ret, hold 0.8. Eased
+			# endpoints + jiggle + smooth up-exit live in the pattern.
 			var m = AdvanceRetreat.new()
-			m.advance_speed = 150.0
-			m.retreat_speed = 220.0
+			m.advance_speed = 100.0
+			m.retreat_speed = 130.0
 			m.hold_time = 0.8
 			return m
 		"side_traverse":

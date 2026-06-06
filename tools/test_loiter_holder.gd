@@ -58,10 +58,12 @@ func _run_variant(key: String, expect_y: float) -> void:
 	var spread: float = ymax - ymin
 	if spread < 0.5:
 		_fail("%s: hold is frozen (y spread %.2f)" % [key, spread])
-	if spread > 12.0:
+	if spread > 14.0:
 		_fail("%s: hold jiggle too wild (y spread %.2f)" % [key, spread])
-	if absf((ymin + ymax) * 0.5 - expect_y) > 4.0:
-		_fail("%s: jiggle not centered on hover_y (mid %.1f vs %.0f)" % [key, (ymin + ymax) * 0.5, expect_y])
+	# Per-instance random phase gives a small DC bias (<= jiggle_amp_y), so the
+	# hold center varies a few px around hover_y by design — allow it.
+	if absf((ymin + ymax) * 0.5 - expect_y) > 5.0:
+		_fail("%s: jiggle not centered near hover_y (mid %.1f vs %.0f)" % [key, (ymin + ymax) * 0.5, expect_y])
 
 	# EXIT: after loiter_time, must move downward and accelerate.
 	var tt := 0.0
@@ -84,6 +86,39 @@ func _run_variant(key: String, expect_y: float) -> void:
 	e.queue_free()
 
 
+func _test_row_desync() -> void:
+	# Spawn a ROW of Holders, tick them in lockstep into the hold, then confirm
+	# their hold positions differ (randomized jiggle, not lockstep). Roman 06-06.
+	var es: Array = []
+	for i in 6:
+		var e := Node2D.new()
+		root.add_child(e)
+		e.position = Vector2(240, 0)
+		var m = Roster.make_movement({"movement": "loiter_mid"})
+		m.on_start(e)
+		es.append({"e": e, "m": m})
+	# tick everyone identically into the hold (entry ~0.5s; loiter_time 3s) and
+	# sample mid-hold at frame ~120 (2s) — BEFORE they exit (after which they'd
+	# descend identically again).
+	for f in 120:
+		for d in es:
+			d["e"].position += d["m"].compute_step(d["e"], DT)
+	# Sample positions; at least some must differ in x OR y.
+	var ys: Array = []
+	var xs: Array = []
+	for d in es:
+		ys.append(d["e"].position.y)
+		xs.append(d["e"].position.x)
+	var y_spread: float = ys.max() - ys.min()
+	var x_spread: float = xs.max() - xs.min()
+	if y_spread < 0.5 and x_spread < 0.5:
+		_fail("row desync: all Holders identical (y_spread %.3f x_spread %.3f)" % [y_spread, x_spread])
+	else:
+		_lines.append("row desync ok: y_spread=%.2f x_spread=%.2f across 6" % [y_spread, x_spread])
+	for d in es:
+		d["e"].queue_free()
+
+
 func _process(_dt: float) -> bool:
 	if _done:
 		return true
@@ -91,6 +126,7 @@ func _process(_dt: float) -> bool:
 	_run_variant("loiter_mid", 90.0)
 	_run_variant("loiter_low", 130.0)
 	_run_variant("loiter", 130.0)  # back-compat: deep hold
+	_test_row_desync()
 	_lines.append("LOITER HOLDER: " + ("PASS" if _fails == 0 else "FAIL (%d)" % _fails))
 	var f := FileAccess.open(RESULT, FileAccess.WRITE)
 	if f != null:

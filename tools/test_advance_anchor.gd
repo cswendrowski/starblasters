@@ -36,19 +36,20 @@ func _test_skirmisher() -> void:
 	var saw_retreat := false
 	var max_x_dev := 0.0
 	var t := 0.0
-	# run until EXIT or timeout.
-	while t < 12.0 and m._phase != 3:  # EXIT
+	# run until EXIT or timeout. Phase enum: ADVANCE0 HOLD1 RETREAT2 PREP3 EXIT4.
+	while t < 12.0 and m._phase != 4:  # EXIT
 		var s: Vector2 = m.compute_step(e, DT)
 		e.position += s
 		t += DT
-		if s.y > 0.0: saw_advance = true
-		if s.y < 0.0: saw_retreat = true
+		if m._phase == 0 and s.y > 0.0: saw_advance = true   # real advance, not jiggle
+		if m._phase == 2 and s.y < 0.0: saw_retreat = true   # real retreat, not jiggle
 		max_x_dev = maxf(max_x_dev, absf(e.position.x - start_x))
 
 	if not saw_advance: _fail("skirmisher: never advanced")
 	if not saw_retreat: _fail("skirmisher: never retreated")
-	if max_x_dev > 0.01: _fail("skirmisher: drifted in x (%.3f)" % max_x_dev)
-	if m._phase != 3:
+	# Hold/prep jiggle adds small lateral motion by design; only flag gross drift.
+	if max_x_dev > 9.0: _fail("skirmisher: x drift too large (%.3f)" % max_x_dev)
+	if m._phase != 4:
 		_fail("skirmisher: never reached EXIT")
 	else:
 		# EXIT: must move UP and accelerate.
