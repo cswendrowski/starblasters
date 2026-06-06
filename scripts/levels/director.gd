@@ -20,6 +20,8 @@ signal enemy_spawned(scene_path: String, bounty_value: int)
 signal wave_started(wave_index: int, wave_count: int, silent: bool, announce_text: String)
 signal level_cleared
 
+const FactionsC = preload("res://scripts/levels/factions.gd")
+
 # Banner fade-in+hold+fade-out budget. Director waits this long before the
 # first enemy of an ANNOUNCED wave so spawns never overlap the WAVE alert.
 const BANNER_HOLD: float = 1.9  # Roman 2026-06-01: halved inter-wave windows
@@ -563,6 +565,13 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 	var _run = get_node_or_null("/root/Run")
 	if _run and "sector_modifiers" in _run and not _run.sector_modifiers.is_empty():
 		_apply_sector_modifiers(enemy, _run.sector_modifiers)
+	# M6b faction overlay: theme + modify every spawn with the level's faction (Shield /
+	# firecore-drop / tough / fast-fire + tint). Applied BEFORE add_child so enemy_base
+	# dups the attached components. Privateer sprinkles in as an interloper by chance.
+	if _run != null and _run.has_meta("active_faction"):
+		var pf: int = int(_run.get_meta("active_faction", -1))
+		if pf >= 0:
+			FactionsC.apply(FactionsC.effective_faction_for_spawn(pf), enemy)
 	# Compute spawn x based on formation. Spawn x is confined to the
 	# playfield band (Playfield.X_MIN..X_MAX), not the full viewport,
 	# so the side gutters stay clear.

@@ -28,6 +28,68 @@ const FIRECORE_HAZARD_PATH := "res://scenes/enemies/firecore_hazard.tscn"
 
 enum Id { SUPREMACY, PRIVATEER, CORPORATE, ZEALOT }
 
+# Per-enemy faction tag (from the §12 redline, docs/m6b_faction_tagging_2026-06-06.md).
+# `home` = the faction that owns the art/identity. `universal` = a core hull that, as a
+# stopgap, overlays into ANY faction's level (themed by the modifier+tint); exclusives
+# appear only in their home faction. Pool restriction: an enemy is allowed in faction F
+# if universal OR home == F. (END-STATE: drop universals, each faction owns its set.)
+const ENEMY_TAGS := {
+	"res://scenes/enemies/enemy_dart.tscn": {"home": Id.PRIVATEER, "universal": true},
+	"res://scenes/enemies/enemy_drifter.tscn": {"home": Id.ZEALOT, "universal": true},
+	"res://scenes/enemies/enemy_firecore.tscn": {"home": Id.ZEALOT, "universal": true},
+	"res://scenes/enemies/enemy_bomb_drone.tscn": {"home": Id.SUPREMACY, "universal": true},
+	"res://scenes/enemies/enemy_weaver.tscn": {"home": Id.CORPORATE, "universal": true},
+	"res://scenes/enemies/enemy_hover.tscn": {"home": Id.CORPORATE, "universal": true},
+	"res://scenes/enemies/enemy_crystal.tscn": {"home": Id.SUPREMACY, "universal": true},
+	"res://scenes/enemies/enemy_cutter.tscn": {"home": Id.PRIVATEER, "universal": true},
+	"res://scenes/enemies/enemy_bomber.tscn": {"home": Id.CORPORATE, "universal": true},
+	"res://scenes/enemies/enemy_cruiser.tscn": {"home": Id.SUPREMACY, "universal": true},
+	"res://scenes/enemies/enemy_minelayer.tscn": {"home": Id.PRIVATEER, "universal": false},
+	"res://scenes/enemies/enemy_skirmisher.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/enemy_sapper.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/enemy_strafer.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/enemy_interceptor.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/enemy_hunter_drone.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/enemy_bulwark.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/enemy_gunship.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/enemy_drone_carrier.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/enemy_firecore_drone.tscn": {"home": Id.ZEALOT, "universal": false},
+	"res://scenes/enemies/enemy_firecore_cruiser.tscn": {"home": Id.ZEALOT, "universal": false},
+	"res://scenes/enemies/enemy_beam_shooter.tscn": {"home": Id.ZEALOT, "universal": false},
+	"res://scenes/enemies/enemy_beamer_tracker.tscn": {"home": Id.ZEALOT, "universal": false},
+	"res://scenes/enemies/enemy_burner.tscn": {"home": Id.ZEALOT, "universal": false},
+	"res://scenes/enemies/enemy_frigate.tscn": {"home": Id.SUPREMACY, "universal": false},
+}
+
+
+# True if `scene_path` may appear in faction F's level (universal OR home == F). Untagged
+# enemies are allowed everywhere (safe default — e.g. mines/asteroids/bosses/hazards).
+static func allowed_in(scene_path: String, faction: int) -> bool:
+	if faction < 0:
+		return true
+	var t: Variant = ENEMY_TAGS.get(scene_path, null)
+	if t == null:
+		return true
+	return bool(t.get("universal", false)) or int(t.get("home", -1)) == faction
+
+
+# Deterministic primary faction for a combat level (sector progression + run-seed).
+static func pick_for_level(sector_depth: int, level_index: int, run_seed: int) -> int:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(run_seed) + sector_depth * 101 + level_index * 17
+	return rng.randi() % 4
+
+
+# Privateer is THE overlay faction (§8): its tough units sprinkle into other factions'
+# levels. MVP = re-theme a spawn as a privateer interloper (tough + green) by chance.
+# (The full "secondary pool DRAW" of an actual privateer unit is a later refinement.)
+const PRIVATEER_OVERLAY_CHANCE := 0.12
+
+static func effective_faction_for_spawn(primary: int) -> int:
+	if primary != Id.PRIVATEER and primary >= 0 and randf() < PRIVATEER_OVERLAY_CHANCE:
+		return Id.PRIVATEER
+	return primary
+
 
 static func id_key(id: int) -> String:
 	match id:
