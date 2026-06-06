@@ -41,6 +41,24 @@ const TopDive = preload("res://scripts/enemies/patterns/top_dive.gd")
 const BeelinePlayer = preload("res://scripts/enemies/patterns/beeline_player.gd")
 const BulwarkDrift = preload("res://scripts/enemies/patterns/bulwark_drift.gd")
 const LanePath = preload("res://scripts/enemies/patterns/lane_path.gd")
+const Factions = preload("res://scripts/levels/factions.gd")
+
+# Faction pool filter (M6b): set by WaveGen.build for the duration of one generation so
+# the eligibility pools draw only enemies allowed in the active faction (universal OR
+# home == faction). -1 = no filter. Scoped to a single synchronous build call.
+static var _faction_filter: int = -1
+
+static func set_faction_filter(faction: int) -> void:
+	_faction_filter = faction
+
+
+# Restrict a pool to the active faction; never softlock — if the filter empties it,
+# return the unfiltered pool.
+static func _faction_filtered(pool: Array) -> Array:
+	if _faction_filter < 0:
+		return pool
+	var f: Array = pool.filter(func(e): return Factions.allowed_in(str(e.get("scene", "")), _faction_filter))
+	return f if not f.is_empty() else pool
 
 const SingleShot = preload("res://scripts/enemies/shoot_patterns/single_shot.gd")
 const AimedShot = preload("res://scripts/enemies/shoot_patterns/aimed_fire.gd")
@@ -568,7 +586,7 @@ static func entries_eligible(tier: int, sector_idx: int, sector_depth: int) -> A
 		if int(e.get("unlock_depth", 0)) > sector_depth:
 			continue
 		out.append(e)
-	return out
+	return _faction_filtered(out)
 
 
 # INVARIANT (Roman 2026-06-04): heavy beats want PRESENCE — types that descend the
@@ -597,7 +615,7 @@ static func heavies_eligible(heavy_class: String, sector_idx: int, sector_depth:
 		if int(e.get("unlock_depth", 0)) > sector_depth:
 			continue
 		out.append(e)
-	return out
+	return _faction_filtered(out)
 
 
 static func entry_for_scene(scene_path: String) -> Dictionary:

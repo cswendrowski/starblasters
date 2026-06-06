@@ -2,6 +2,7 @@ extends Node2D
 
 const Levels = preload("res://scripts/levels/levels_v2.gd")
 const WaveGen = preload("res://scripts/levels/wave_generator.gd")
+const Factions = preload("res://scripts/levels/factions.gd")
 const SectorNode = preload("res://scripts/sector_node.gd")
 const WaveBannerScene = preload("res://scenes/hud/wave_banner.tscn")
 const SceneTransition = preload("res://scripts/scene_transition.gd")
@@ -378,6 +379,10 @@ func new_game() -> void:
 	_current_level = null
 	_current_score = null
 	_asteroids_killed_this_level = 0
+	# M6b: clear any prior level's faction so boss/hazard/custom levels carry none;
+	# the standard-combat branch sets it for this level (read per spawn by the director).
+	if has_node("/root/Run"):
+		get_node("/root/Run").set_meta("active_faction", -1)
 	if has_node("/root/Run"):
 		bounty = get_node("/root/Run").bounty
 	_bounty_at_combat_start = bounty
@@ -468,10 +473,16 @@ func new_game() -> void:
 			# in a sector = 2 waves / 1 type; deepens from there.
 			var sd: int = 1
 			var li: int = 0
+			var faction: int = -1
 			if has_node("/root/Run"):
-				sd = get_node("/root/Run").sectors_cleared + 1
-				li = get_node("/root/Run").combats_in_sector
-			_current_level = WaveGen.build(sd, li, false)
+				var rsd = get_node("/root/Run")
+				sd = rsd.sectors_cleared + 1
+				li = rsd.combats_in_sector
+				# M6b: pick this level's primary faction (deterministic per sector/node/
+				# run-seed) and stash it so the director overlays it on every spawn.
+				faction = Factions.pick_for_level(sd, li, int(rsd.run_seed))
+				rsd.set_meta("active_faction", faction)
+			_current_level = WaveGen.build(sd, li, false, faction)
 			wave_director.max_concurrent = WaveGen.cap_for(sd, li)
 			# Rare ambient encounter: roll for a mid-level Missile Cruiser
 			# fly-through. STANDARD combat nodes only (we're in the generator

@@ -1,0 +1,20 @@
+[gd_scene load_steps=4 format=3 uid="uid://cfirecorehz001"]
+
+[ext_resource type="Script" uid="uid://cv6x715oayd1j" path="res://scripts/enemies/firecore_hazard.gd" id="1_scr"]
+[ext_resource type="SpriteFrames" uid="uid://dy3zlfcrz1ealt" path="res://resources/enemies/zealot_firecore_frames.tres" id="2_frames"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_fc"]
+size = Vector2(6, 6)
+
+[node name="FirecoreHazard" type="Area2D" groups=["enemies"]]
+script = ExtResource("1_scr")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+sprite_frames = ExtResource("2_frames")
+animation = &"default"
+autoplay = "default"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_fc")
+
+[connection signal="area_entered" from="." to="." method="_on_area_entered"]

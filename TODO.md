@@ -148,6 +148,38 @@ Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" fl
 - [ ] **`scenes/sector_map.tscn` orphan** — pre-existing, no V suffix, referenced by `feature_showcase.gd` + `tools/parse_check.ps1`. Clean once safe. (Source: memory `project_sector_map_v3.md` §Known open issue 3)
 - [ ] **`SmokeTrail.new(palette)` factory** — consolidate `damage_smoke_trail.gd` + `missile_smoke_trail.gd` (~90% shared code) once a third smoke emitter appears. Not urgent. (Source: `docs/redundancy_audit_2026-05-21.md` §Particle effects)
 
+## Faction gap units — sprites/enemies to commission (M6b, 2026-06-06)
+
+End-state (Roman): each faction owns its FULL unit set; drop the universal-core stopgap.
+The only thing truly cross-faction is **adding privateer units into another faction's pool**.
+Below = the per-faction slots NOT yet covered by a faction-OWNED hull (currently filled by a
+universal-core overlay). Each entry = **role / behavior @ size**. Get sprites worked up, then
+they become data on the existing chassis/behavior/component/Weapon machinery (new art only).
+Full context + the coverage matrix: `docs/m6b_faction_tagging_2026-06-06.md`.
+
+- [ ] **supremacy (Crimson Supremacy — faster fire)** — leans aggressive; highest priority.
+  - small **Weaver**, small **Drifter**, small **Crosser**
+  - a **direct-challenge / aggressive** unit (Skirmisher or Charger @ small) — on-identity
+  - a **Sweeper** (medium/elite) and an **elite** event piece
+  - (owns already: Diver=bomb_drone, Holder=crystal, Anchor=frigate, capital=cruiser)
+- [ ] **zealot (Evantian Theocracy — drops firecore)**
+  - small **Weaver**, small **Holder**
+  - a **Skirmisher / direct-challenge** @ small
+  - a non-elite **Anchor** @ medium and a non-elite **capital** @ large
+  - (owns already: Diver=spitter, Drifter=drifter, pressure=firecore_drone, Sweeper/elites=beamers/burner/firecore_cruiser)
+- [ ] **privateer (Vertarine Armada — tough; the overlay faction)** — can stay leaner (it mixes into others), but for pure privateer levels:
+  - small **Weaver**, small **Holder**
+  - a **pressure / Skirmisher** @ small
+  - a **medium Anchor** and a **large capital**
+  - an **elite** event piece
+  - (owns already: Diver=dart, Crosser=cutter/minelayer, Dropper=minelayer)
+- [ ] **corporate (UltraGalactic — shielded)** — best covered; minor:
+  - its OWN small **Diver** + small **Drifter** (currently borrows universal dart/drifter)
+  - (owns already: Weaver, Holder=hover, Skirmisher, Harrier=sapper[rare], Striker=hunter_drone/strafer, Slider/Dropper=interceptor, Anchor=bomber, capital=bulwark, elites=gunship/drone_carrier)
+
+Also pending art/rename housekeeping: **spitter** (firecore popper rename, §12.5); a
+**privateer/supremacy** large-capital silhouette if cruiser shouldn't be shared.
+
 ## Already-done (since this list was captured)
 
 - Wave editor with full CRUD + playtest + state persistence.
