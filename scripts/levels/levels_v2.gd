@@ -34,6 +34,11 @@ const InterceptorScene = preload("res://scenes/enemies/enemy_interceptor.tscn")
 const HunterDroneScene = preload("res://scenes/enemies/enemy_hunter_drone.tscn")
 const BulwarkScene = preload("res://scenes/enemies/enemy_bulwark.tscn")
 const FirecoreDroneScene = preload("res://scenes/enemies/enemy_firecore_drone.tscn")
+# Beam enemies (M6a.2 beam showcase).
+const BeamerScene = preload("res://scenes/enemies/enemy_beam_shooter.tscn")
+const BeamerTrackerScene = preload("res://scenes/enemies/enemy_beamer_tracker.tscn")
+const BurnerScene = preload("res://scenes/enemies/enemy_burner.tscn")
+const CruiserScene = preload("res://scenes/enemies/enemy_cruiser.tscn")
 const SideTraverse = preload("res://scripts/enemies/patterns/side_traverse.gd")
 const SlowAdvance = preload("res://scripts/enemies/patterns/slow_advance.gd")
 const TopDive = preload("res://scripts/enemies/patterns/top_dive.gd")
@@ -585,4 +590,51 @@ static func build_missile_cruiser_showcase():
 	var level = LevelData.new()
 	level.level_name = "Missile Cruiser Showcase"
 	level.waves = [w1, w2]
+	return level
+
+
+# BEAM showcase (M6a.2 step 4) — every converted beam enemy in sequence so the
+# unified BeamEmitter can be eyeballed in live play: Beamer sweep (aim-down), Beamer
+# track (aim-player), Burner pair (segment beam between two ships), Beam Turret
+# (cruiser host, locked beam). Low counts so each reads clearly; the Beamers never
+# self-despawn (offscreen_mode NONE), so the level holds until the player clears it.
+static func build_beam_showcase():
+	var w1 = WaveSpec.new()
+	w1.enemy_scene = BeamerScene
+	w1.count = 2
+	w1.spawn_interval = 0.6
+	w1.spawn_delay = 0.5
+	w1.formation = 0  # TOP_LEFT_TO_RIGHT
+	w1.formation_padding = 60.0
+	w1.announce_text = "BEAMER — SWEEP"
+
+	var w2 = WaveSpec.new()
+	w2.enemy_scene = BeamerTrackerScene
+	w2.count = 2
+	w2.spawn_interval = 0.6
+	w2.spawn_delay = 6.0
+	w2.formation = 0
+	w2.formation_padding = 60.0
+	w2.announce_text = "BEAMER — TRACK"
+
+	var w3 = WaveSpec.new()
+	w3.enemy_scene = BurnerScene
+	w3.count = 2
+	w3.spawn_interval = 0.1   # near-simultaneous so the pair adopts each other
+	w3.spawn_delay = 6.0
+	w3.formation = 5  # TOP_TANDEM_PAIRS — Burners must arrive as a pair
+	w3.tandem_offset_x = 70.0
+	w3.announce_text = "BURNER PAIR"
+
+	var w4 = WaveSpec.new()
+	w4.enemy_scene = CruiserScene
+	w4.count = 1
+	w4.spawn_interval = 0.5
+	w4.spawn_delay = 6.0
+	w4.formation = 3  # TOP_CENTER_OUT
+	w4.announce_text = "BEAM TURRET"
+
+	var level = LevelData.new()
+	level.level_name = "Beam Enemies Showcase"
+	level.waves = [w1, w2, w3, w4]
 	return level

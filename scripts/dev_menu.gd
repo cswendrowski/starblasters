@@ -255,6 +255,17 @@ func _on_test_combat() -> void:
 		_on_boss_fight()
 	)
 	panel.add_child(boss_btn)
+	# Beam-enemy showcase (M6a.2): a live combat slice of all converted beam
+	# enemies (Beamer sweep/track, Burner pair, Beam Turret) for eyeballing.
+	var beam_btn := Button.new()
+	beam_btn.text = "Beam Enemies (showcase)"
+	beam_btn.custom_minimum_size = Vector2(180, 18)
+	UiTheme.style_button(beam_btn)
+	beam_btn.pressed.connect(func():
+		_close_test_hazard_modal()
+		_launch_hazard("beam_showcase")
+	)
+	panel.add_child(beam_btn)
 	var cancel_btn := Button.new()
 	cancel_btn.text = "Cancel"
 	cancel_btn.custom_minimum_size = Vector2(140, 16)
