@@ -682,16 +682,15 @@ static func make_movement(entry: Dictionary) -> Resource:
 			m.mirrored = randf() < 0.5
 			return m
 		"lane_drift":
-			# Drifter (m6 §13) — gentle lane-to-lane slide, one lane at a time, only
-			# when the target lane is clear (P2 lane-awareness). Holds, slides, holds.
+			# Drifter (m6 §13) — a single SLOW lane-to-lane slide timed to the fire
+			# zone (Roman 2026-06-06): holds the spawn lane through entry, starts
+			# sliding as it crosses into the fire zone, and is fully in the adjacent
+			# lane by the band bottom. Lane-aware (commits only if the target is free).
 			var m = LanePath.new()
-			m.shape = LanePath.Shape.STEP
+			m.shape = LanePath.Shape.HOOK
+			m.zone_timed = true
+			m.shift_lanes = 1
 			m.down_speed = 110.0
-			m.hold_time = 1.2
-			m.step_time = 0.45
-			m.step_lanes = 1
-			m.step_repeat = true
-			m.step_pingpong = true
 			m.mirrored = randf() < 0.5
 			return m
 		"lane_shift":

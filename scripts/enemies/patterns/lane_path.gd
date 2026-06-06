@@ -40,6 +40,13 @@ enum Shape { STRAIGHT, WEAVE, HOOK, STEP }
 @export var shift_lanes: int = 0            # signed lane delta for the one-way hook
 @export var shift_delay: float = 0.0        # s to hold the spawn lane before hooking
 @export var shift_duration: float = 0.8     # s the hook transition takes
+# Drifter mode (Roman 2026-06-06): drive the hook off the ENGAGEMENT BAND instead
+# of a timer — hold the spawn lane through entry, start sliding as the enemy crosses
+# into the fire zone, and be fully in the destination lane by the band's bottom
+# (Zones.band_progress 0->1). Yields a slow, fire-zone-spanning drift. The commit
+# free-check still applies (and may delay the commit; the slide then spans the
+# remaining band so it still lands by the bottom). Shift_delay/duration are ignored.
+@export var zone_timed: bool = false
 
 @export_group("Weave")
 @export var weave_lanes: float = 1.0        # swing amplitude in lanes (+/-)
@@ -58,6 +65,11 @@ var _anchor_x: float = 0.0
 # clear (P2 lane-awareness). Until committed the enemy holds its spawn lane.
 var _hook_committed: bool = false
 var _hook_start_t: float = 0.0
+var _hook_commit_bp: float = 0.0   # band_progress at commit (zone_timed remap origin)
+# Latest band_progress at which a zone-timed Drifter will still start a slide — past
+# this there isn't enough band left to land in the new lane gracefully, so it rides
+# its lane straight down instead.
+const ZONE_COMMIT_MAX: float = 0.7
 # STEP state
 var _anchor_lane: int = 0
 var _cur_lane: int = 0
@@ -87,6 +99,7 @@ func on_start(enemy) -> void:
 	_stepped_once = false
 	_hook_committed = false
 	_hook_start_t = 0.0
+	_hook_commit_bp = 0.0
 
 
 func compute_step(enemy, delta: float) -> Vector2:
@@ -102,12 +115,28 @@ func compute_step(enemy, delta: float) -> Vector2:
 			# clear, then lock a one-way commit (P2 lane-awareness). If the target
 			# never clears the enemy simply rides its spawn lane down — no collision.
 			if not _hook_committed:
-				if _t >= shift_delay and _hook_target_free(enemy, sign_x):
+				# Drifter (zone_timed): commit once inside the fire zone (band_progress
+				# in (0, ZONE_COMMIT_MAX)). Shifter (timer): commit after shift_delay.
+				var ready: bool
+				if zone_timed:
+					var bp: float = Zones.band_progress(enemy.position.y)
+					ready = bp > 0.0 and bp < ZONE_COMMIT_MAX
+				else:
+					ready = _t >= shift_delay
+				if ready and _hook_target_free(enemy, sign_x):
 					_hook_committed = true
+					_hook_commit_bp = Zones.band_progress(enemy.position.y)
 					_hook_start_t = _t
 				target_x = _anchor_x  # straight until committed
 			else:
-				var u: float = clampf((_t - _hook_start_t) / maxf(shift_duration, 0.0001), 0.0, 1.0)
+				var u: float
+				if zone_timed:
+					# Slide spans from the commit point to the band bottom, so even a
+					# delayed commit still lands in the new lane by the fire-zone exit.
+					var bp2: float = Zones.band_progress(enemy.position.y)
+					u = clampf((bp2 - _hook_commit_bp) / maxf(1.0 - _hook_commit_bp, 0.0001), 0.0, 1.0)
+				else:
+					u = clampf((_t - _hook_start_t) / maxf(shift_duration, 0.0001), 0.0, 1.0)
 				var eased: float = u * u * (3.0 - 2.0 * u)  # smoothstep ease-in-out
 				target_x = _anchor_x + sign_x * float(shift_lanes) * Lanes.PITCH * eased
 		Shape.STEP:

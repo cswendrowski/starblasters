@@ -82,7 +82,49 @@ func _test_shifter() -> void:
 	m2.queue_free(); occ.queue_free()
 
 
-func _test_drifter() -> void:
+func _tick_to_y(m: Node2D, p, target_y: float, occ: Node2D = null) -> void:
+	var guard := 0
+	while m.position.y < target_y and guard < 4000:
+		m.position += p.compute_step(m, DT)
+		if occ != null:
+			occ.position.y = m.position.y   # occupant rides alongside (stays blocking)
+		guard += 1
+
+
+func _test_drifter_zone() -> void:
+	# Zone-timed Drifter (HOOK + zone_timed): holds the spawn lane through the entry
+	# band, slides across the fire zone, lands in the adjacent lane by the band bottom.
+	var m := _mover(2, 0.0)
+	var p = LanePath.new()
+	p.shape = LanePath.Shape.HOOK
+	p.zone_timed = true
+	p.shift_lanes = 1
+	p.down_speed = 120.0
+	p.on_start(m)
+	_tick_to_y(m, p, 30.0)   # still in the entry band (Zones.ENTRY_END = 40)
+	if _lane_of(m) != 2:
+		_fail("drifter(zone) should hold lane 2 in the entry band (lane=%d)" % _lane_of(m))
+	_tick_to_y(m, p, 200.0)  # past the fire-zone bottom (Zones.DEPARTURE_START = 195)
+	if _lane_of(m) != 3:
+		_fail("drifter(zone) should be in lane 3 by the fire-zone exit (lane=%d)" % _lane_of(m))
+
+	# blocked the whole way (occupant rides alongside in lane 3) -> never slides.
+	var m2 := _mover(2, 0.0)
+	var occ := _occupant(3, 0.0)
+	var p2 = LanePath.new()
+	p2.shape = LanePath.Shape.HOOK
+	p2.zone_timed = true
+	p2.shift_lanes = 1
+	p2.down_speed = 120.0
+	p2.on_start(m2)
+	_tick_to_y(m2, p2, 200.0, occ)
+	if _lane_of(m2) != 2:
+		_fail("drifter(zone, blocked) should hold lane 2 (lane=%d)" % _lane_of(m2))
+	_lines.append("drifter(zone) ok: held entry -> lane3 by exit; blocked -> held")
+	m.queue_free(); m2.queue_free(); occ.queue_free()
+
+
+func _test_stepper() -> void:
 	# free target -> hops off lane 2 (step_dir is +1 from lane 2)
 	var m := _mover(2, 60.0)
 	var p = LanePath.new()
@@ -114,7 +156,7 @@ func _test_drifter() -> void:
 	_tick(m2, p2, 90)
 	if _lane_of(m2) == 2:
 		_fail("drifter(cleared) should have hopped off lane 2")
-	_lines.append("drifter ok: free->hop, blocked->held->hop")
+	_lines.append("stepper(STEP) ok: free->hop, blocked->held->hop")
 	m2.queue_free(); occ.queue_free()
 
 
@@ -123,7 +165,8 @@ func _process(_dt: float) -> bool:
 		return true
 	_done = true
 	_test_shifter()
-	_test_drifter()
+	_test_drifter_zone()
+	_test_stepper()
 	_lines.append("LANE CHANGERS: " + ("PASS" if _fails == 0 else "FAIL (%d)" % _fails))
 	var f := FileAccess.open(RESULT, FileAccess.WRITE)
 	if f != null:
