@@ -40,6 +40,7 @@ const SidePingpong = preload("res://scripts/enemies/patterns/side_pingpong.gd")
 const TopDive = preload("res://scripts/enemies/patterns/top_dive.gd")
 const BeelinePlayer = preload("res://scripts/enemies/patterns/beeline_player.gd")
 const BulwarkDrift = preload("res://scripts/enemies/patterns/bulwark_drift.gd")
+const LanePath = preload("res://scripts/enemies/patterns/lane_path.gd")
 
 const SingleShot = preload("res://scripts/enemies/shoot_patterns/single_shot.gd")
 const AimedShot = preload("res://scripts/enemies/shoot_patterns/aimed_fire.gd")
@@ -668,6 +669,41 @@ static func make_movement(entry: Dictionary) -> Resource:
 			m.down_speed = 160.0
 			m.amplitude = 110.0
 			m.frequency = 1.2
+			return m
+		"lane_weave":
+			# Weaver (m6 §13, lane_path engine) — wobble WITHIN its own lane while
+			# descending. Lane-confined: ~10px swing < half lane width (12), never
+			# crosses into a neighbor. (P2: lane_path is the production lateral engine.)
+			var m = LanePath.new()
+			m.shape = LanePath.Shape.WEAVE
+			m.down_speed = 120.0
+			m.weave_lanes = 0.32
+			m.weave_frequency = 0.9
+			m.mirrored = randf() < 0.5
+			return m
+		"lane_drift":
+			# Drifter (m6 §13) — gentle lane-to-lane slide, one lane at a time, only
+			# when the target lane is clear (P2 lane-awareness). Holds, slides, holds.
+			var m = LanePath.new()
+			m.shape = LanePath.Shape.STEP
+			m.down_speed = 110.0
+			m.hold_time = 1.2
+			m.step_time = 0.45
+			m.step_lanes = 1
+			m.step_repeat = true
+			m.step_pingpong = true
+			m.mirrored = randf() < 0.5
+			return m
+		"lane_shift":
+			# Shifter (m6 §13) — descend, then a one-way COMMIT to an adjacent lane
+			# (only if free), then hold the destination. The HOOK = Shifter decision.
+			var m = LanePath.new()
+			m.shape = LanePath.Shape.HOOK
+			m.down_speed = 120.0
+			m.shift_lanes = 1
+			m.shift_delay = 0.6
+			m.shift_duration = 0.7
+			m.mirrored = randf() < 0.5
 			return m
 		"loiter", "loiter_low", "loiter_mid", "loiter_high":
 			# Holder (m6 §13). Hover into the fire band, hold with a gentle

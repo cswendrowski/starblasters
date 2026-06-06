@@ -28,6 +28,8 @@ extends "res://scripts/enemies/movement_pattern.gd"
 #               hold_time, step_time, step_lanes (1 = adjacent), step_repeat (keep
 #               hopping vs one hop), step_pingpong (reverse at edges vs advance).
 
+const LaneTraffic = preload("res://scripts/lane_traffic.gd")
+
 enum Shape { STRAIGHT, WEAVE, HOOK, STEP }
 
 @export var shape: Shape = Shape.STRAIGHT
@@ -52,6 +54,10 @@ enum Shape { STRAIGHT, WEAVE, HOOK, STEP }
 
 var _t: float = 0.0
 var _anchor_x: float = 0.0
+# HOOK (Shifter) state: the commit is one-way and gated on the target lane being
+# clear (P2 lane-awareness). Until committed the enemy holds its spawn lane.
+var _hook_committed: bool = false
+var _hook_start_t: float = 0.0
 # STEP state
 var _anchor_lane: int = 0
 var _cur_lane: int = 0
@@ -79,6 +85,8 @@ func on_start(enemy) -> void:
 	_step_phase = 0
 	_phase_t = 0.0
 	_stepped_once = false
+	_hook_committed = false
+	_hook_start_t = 0.0
 
 
 func compute_step(enemy, delta: float) -> Vector2:
@@ -90,11 +98,20 @@ func compute_step(enemy, delta: float) -> Vector2:
 			var amp: float = _clamp_amp(absf(weave_lanes) * Lanes.PITCH)
 			target_x = _anchor_x + sign_x * sin(_t * weave_frequency * TAU) * amp
 		Shape.HOOK:
-			var u: float = clampf((_t - shift_delay) / maxf(shift_duration, 0.0001), 0.0, 1.0)
-			var eased: float = u * u * (3.0 - 2.0 * u)  # smoothstep ease-in-out
-			target_x = _anchor_x + sign_x * float(shift_lanes) * Lanes.PITCH * eased
+			# Shifter: hold the spawn lane until shift_delay AND the target lane is
+			# clear, then lock a one-way commit (P2 lane-awareness). If the target
+			# never clears the enemy simply rides its spawn lane down — no collision.
+			if not _hook_committed:
+				if _t >= shift_delay and _hook_target_free(enemy, sign_x):
+					_hook_committed = true
+					_hook_start_t = _t
+				target_x = _anchor_x  # straight until committed
+			else:
+				var u: float = clampf((_t - _hook_start_t) / maxf(shift_duration, 0.0001), 0.0, 1.0)
+				var eased: float = u * u * (3.0 - 2.0 * u)  # smoothstep ease-in-out
+				target_x = _anchor_x + sign_x * float(shift_lanes) * Lanes.PITCH * eased
 		Shape.STEP:
-			target_x = _step_update(delta)
+			target_x = _step_update(enemy, delta)
 		_:
 			target_x = _anchor_x
 	return Vector2(target_x - enemy.position.x, down_speed * delta)
@@ -114,19 +131,21 @@ func _clamp_amp(amp: float) -> float:
 # STEP: hold the current lane for hold_time, then hop step_lanes toward _step_dir
 # over step_time (smoothstep), then hold again. step_pingpong reverses at the lane
 # bounds; otherwise it advances and clamps. step_repeat=false does a single hop.
-func _step_update(delta: float) -> float:
+func _step_update(enemy, delta: float) -> float:
 	_phase_t += delta
 	if _step_phase == 0:  # holding
 		if _phase_t >= hold_time and (step_repeat or not _stepped_once):
 			var nxt: int = _next_step_lane()
-			if nxt != _cur_lane:
+			# Drifter: only slide if the target lane is clear (P2 lane-awareness);
+			# otherwise hold this lane and re-check next cycle.
+			if nxt != _cur_lane and LaneTraffic.is_lane_free(enemy.get_tree(), nxt, enemy.position.y, enemy):
 				_from_x = Lanes.lane_center(_cur_lane)
 				_to_x = Lanes.lane_center(nxt)
 				_next_lane = nxt
 				_step_phase = 1
 				_phase_t = 0.0
 			else:
-				_phase_t = 0.0  # nowhere to hop; keep holding
+				_phase_t = 0.0  # nowhere to hop / blocked; keep holding
 		return Lanes.lane_center(_cur_lane)
 	# hopping
 	var u: float = clampf(_phase_t / maxf(step_time, 0.0001), 0.0, 1.0)
@@ -138,6 +157,18 @@ func _step_update(delta: float) -> float:
 		_step_phase = 0
 		_phase_t = 0.0
 	return x
+
+
+# Shifter target-lane free check: the lane this hook would commit to (anchor +
+# signed shift), clamped to the board. Free when no other enemy holds it near the
+# enemy's current Y. shift_lanes == 0 is trivially free (no move).
+func _hook_target_free(enemy, sign_x: float) -> bool:
+	if shift_lanes == 0:
+		return true
+	var target: int = Lanes.clamp_lane(_anchor_lane + int(round(sign_x * float(shift_lanes))))
+	if target == _anchor_lane:
+		return true
+	return LaneTraffic.is_lane_free(enemy.get_tree(), target, enemy.position.y, enemy)
 
 
 func path_phase_capable() -> bool:
