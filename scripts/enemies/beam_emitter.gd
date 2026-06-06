@@ -20,7 +20,10 @@ extends Node2D
 # danger color, no damage until FIRING.
 
 enum Phase { OFF, IDLE, WINDUP, FIRING, COOLDOWN }
-enum Cycle { LOOP_IDLE, LOOP_WINDUP, ONCE, HOLD }   # how the FSM repeats
+# How the FSM repeats. MANUAL = no auto-advance; the host drives the phase via
+# show_telegraph()/show_fire()/cease() (for hosts with their own state machine, e.g.
+# the Burner's pairing/settle logic). The emitter still owns visuals + damage.
+enum Cycle { LOOP_IDLE, LOOP_WINDUP, ONCE, HOLD, MANUAL }
 enum Endpoint { RAY, SEGMENT }                       # beam geometry
 enum AimMode { LOCAL_FORWARD, LOCKED, TRACKING, SWEEP }
 
@@ -82,7 +85,13 @@ func configure(cfg: Dictionary) -> void:
 
 
 func begin() -> void:
-	_set_phase(Phase.IDLE if cycle != Cycle.HOLD else Phase.WINDUP)
+	match cycle:
+		Cycle.HOLD:
+			_set_phase(Phase.WINDUP)
+		Cycle.MANUAL:
+			_set_phase(Phase.IDLE)   # hidden until the host drives it
+		_:
+			_set_phase(Phase.IDLE)
 
 
 func stop() -> void:
@@ -92,6 +101,21 @@ func stop() -> void:
 
 func is_firing() -> bool:
 	return _phase == Phase.FIRING
+
+
+# --- MANUAL drive (host owns timing) ---
+func show_telegraph() -> void:
+	if _phase != Phase.WINDUP:
+		_set_phase(Phase.WINDUP)
+
+func show_fire() -> void:
+	if _phase != Phase.FIRING:
+		_set_phase(Phase.FIRING)
+
+func cease() -> void:
+	_hide_all()
+	if _phase != Phase.IDLE:
+		_set_phase(Phase.IDLE)
 
 
 # SEGMENT mode: the host sets the two world endpoints each frame (e.g. the Burner's
@@ -119,6 +143,17 @@ func _process(delta: float) -> void:
 	_t += delta
 	_beam_t += delta
 	_update_aim(delta)
+	# MANUAL: render + damage for the host-set phase, but never auto-advance.
+	if cycle == Cycle.MANUAL:
+		match _phase:
+			Phase.WINDUP:
+				_show_telegraph_only()
+			Phase.FIRING:
+				_show_lethal()
+				_apply_damage(delta)
+			_:
+				_hide_all()
+		return
 	match _phase:
 		Phase.IDLE:
 			_hide_all()
@@ -136,10 +171,13 @@ func _process(delta: float) -> void:
 		Phase.COOLDOWN:
 			_hide_all()
 			if _t >= cooldown_time:
-				if cycle == Cycle.ONCE:
-					stop()
-				else:
-					_set_phase(Phase.IDLE)
+				match cycle:
+					Cycle.ONCE:
+						stop()
+					Cycle.LOOP_WINDUP:
+						_enter_windup()   # re-arm without the idle pause
+					_:
+						_set_phase(Phase.IDLE)   # LOOP_IDLE
 
 
 func _enter_windup() -> void:
@@ -152,11 +190,10 @@ func _enter_windup() -> void:
 
 
 func _enter_after_firing() -> void:
+	# Cooldown ALWAYS follows firing; the cycle decides what comes after cooldown
+	# (loop to idle, loop straight to windup, or stop). See the COOLDOWN case.
 	_dmg_accum = 0.0
-	if cycle == Cycle.LOOP_WINDUP:
-		_enter_windup()
-	else:   # LOOP_IDLE / ONCE
-		_set_phase(Phase.COOLDOWN)
+	_set_phase(Phase.COOLDOWN)
 
 
 # ---------------------------------------------------------------- aim
