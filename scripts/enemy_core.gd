@@ -188,11 +188,13 @@ func _process(delta: float) -> void:
 			_offscreen_cleanup_check()
 			_apply_auto_rotation()
 			_check_path_phase_fire()
+			_tick_components(safe_delta)
 		return
 	if follow_anchor and anchor != null:
 		position = start_pos + anchor.position
 	position.y += speed * delta
 	_clamp_to_sides()
+	_tick_components(delta)
 	if position.y > screensize.y + 32:
 		start(start_pos)
 
@@ -295,6 +297,7 @@ func _start_cycle() -> void:
 		$ShootTimer.start()
 	if _pattern and _pattern.has_method("on_start"):
 		_pattern.on_start(self)
+	_components_start()  # re-fire component on_start for the new pass (no-op if none)
 
 
 # enemy.tscn template wires MoveTimer/ShootTimer to legacy callbacks.

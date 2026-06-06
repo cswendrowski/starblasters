@@ -53,6 +53,9 @@ const SHIELD_SHADER = preload("res://graphics/sci_fi_shield.gdshader")
 #                        live inside the playfield).
 
 signal died(value: int)
+# Emitted when hull health changes (combat overhaul M6a.1). INERT scaffolding for a
+# future shared HP bar / RunStats; bosses keep their own hull_changed. Emit on change.
+signal health_changed(current: int, max: int)
 
 enum OffscreenMode { CYCLE_BOTTOM, FREE_ANY_EDGE, FREE_OPPOSITE_SIDE, NONE }
 
@@ -107,6 +110,17 @@ enum Category { UNKNOWN, CHAFF, ELITE, MINE, ASTEROID, BOSS, PROJECTILE }
 # Free-movers/bosses/crossers map to a higher plane in M2 (lane spec §1.10).
 @export var render_plane: int = 0
 
+# --- Behavior components (combat overhaul M6a.1, m6 design §3/§19) ---
+# A list of small Resources (Shield, Emitter, DeathEffect, …) — the third composition
+# axis. Duplicated per-instance at spawn; enemy_base fans out on_start/on_hit/on_death/
+# on_leave, enemy_core ticks on_process. INERT until something assigns it (conversions,
+# faction overlays) — an empty list is a no-op on every hook.
+# UNTYPED `Array` on purpose: the materializer/roster assign this programmatically, and
+# assigning an untyped array literal to a typed `Array[Resource]` export is a RUNTIME
+# crash in GDScript (not caught by parse_check). Untyped = any assignment is safe.
+@export var components: Array = []
+var _components: Array = []
+
 # Allow this enemy to leave through the screen sides without being
 # clamped back into the playfield. Patterns (side_traverse, side_cut,
 # advance_retreat, top_dive) set this to true. Declared on the base so
@@ -156,6 +170,12 @@ func _ready() -> void:
 	# enemy that was instantiated from script without a scene.
 	if not is_in_group("enemies"):
 		add_to_group("enemies")
+	# Behavior components: duplicate per-instance, then fire on_start AFTER the spawner
+	# positions us (deferred so it lands after start(pos), uniformly for every enemy
+	# type). No-op while components is empty.
+	_init_components()
+	if not _components.is_empty():
+		call_deferred("_components_start")
 	# Legacy enemy .tscns use Sprite2D.flip_v = true to point art "down" at
 	# the player. With auto-rotation now driving direction, the flip causes
 	# sprites to render backward (sprite is flipped, then rotated 180° to
@@ -233,8 +253,16 @@ func take_hit(damage: int = 1) -> bool:
 			else:
 				ShieldSfx2.play_hit(get_tree().root, global_position)
 		return false
-	var effective_dmg: int = max(1, int(round(float(damage) * (1.0 - damage_reduction))))
+	# Behavior components participate in the damage pipeline (Shield / armor / reflect)
+	# before the hull subtraction; on_hit returns the REMAINING damage (m6 §3.1). No-op
+	# while components is empty.
+	var routed: int = _components_hit(damage)
+	if routed <= 0:
+		hit()
+		return false
+	var effective_dmg: int = max(1, int(round(float(routed) * (1.0 - damage_reduction))))
 	health -= effective_dmg
+	health_changed.emit(health, max_health)
 	# Push the new health ratio into the damage shader so the sprite
 	# darkens + frays as it takes damage (Roman, 2026-05-18).
 	_update_damage_visual()
@@ -263,6 +291,7 @@ func explode() -> void:
 	_dying = true
 	set_deferred("monitorable", false)
 	died.emit(bounty_value)
+	_components_death()
 	# Explosions are always 1× scale; bigger enemies just get MORE blasts
 	# with random jitter (Roman 2026-05-18). 16-px chaff = 1, 48-px boss-
 	# class = ~4-5, clamped to a sane upper bound.
@@ -365,6 +394,57 @@ func find_player() -> Node:
 	for n in get_tree().get_nodes_in_group("player"):
 		return n
 	return null
+
+
+# ---- Behavior components (M6a.1) ---------------------------------------
+# Duplicate authored components per-instance + fan out lifecycle events. Hooks are
+# duck-typed (a component need only implement what it uses). enemy_core ticks
+# on_process via _tick_components(); event hooks fire for every enemy type.
+func _init_components() -> void:
+	_components = []
+	for c in components:
+		if c != null:
+			_components.append(c.duplicate())
+
+
+func _components_start() -> void:
+	if _dying:
+		return
+	for c in _components:
+		if c.has_method("on_start"):
+			c.on_start(self)
+
+
+func _tick_components(delta: float) -> void:
+	if _dying:
+		return
+	for c in _components:
+		if c.has_method("on_process"):
+			c.on_process(self, delta)
+
+
+# Route incoming damage through each component's on_hit; returns the damage remaining
+# after absorption/reduction (<=0 = fully absorbed).
+func _components_hit(damage: int) -> int:
+	var d: int = damage
+	for c in _components:
+		if c.has_method("on_hit"):
+			d = int(c.on_hit(self, d))
+			if d <= 0:
+				return 0
+	return d
+
+
+func _components_death() -> void:
+	for c in _components:
+		if c.has_method("on_death"):
+			c.on_death(self)
+
+
+func _components_leave() -> void:
+	for c in _components:
+		if c.has_method("on_leave"):
+			c.on_leave(self)
 
 
 # ---- Muzzle resolution -------------------------------------------------
@@ -538,6 +618,7 @@ func _leave() -> void:
 	if _dying:
 		return
 	_dying = true
+	_components_leave()
 	queue_free()
 
 

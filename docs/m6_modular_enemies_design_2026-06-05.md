@@ -185,6 +185,15 @@ factory builds the Resources (parity-first: a fixed list per enemy); `WaveSpec` 
 Timing note: components build their child nodes in `on_start` (called after `add_child`),
 which dissolves `firecore_drone`'s "set ring_count before add_child" constraint.
 
+**BUILT (M6a.1, commit pending):** the framework is live + inert in `enemy_base`
+(`components: Array` untyped — typed `Array[Resource]` crashes on untyped assignment;
+`health_changed` signal; `on_start` deferred-after-positioning; damage routes through
+`_components_hit`; `on_death`/`on_leave` fan out from `explode()`/`_leave()`) + `enemy_core`
+(`_tick_components` each frame + recycle re-fire). Verified: `tools/test_components_framework.gd`.
+**Caveat:** enemies that OVERRIDE `explode()`/`_leave()` WITHOUT calling super (`mine`,
+`firecore_cruiser`, …) won't fan out `on_death`/`on_leave` — route those through
+`_components_death()`/`_components_leave()` when they get components at conversion.
+
 ### 3.2 Base-layer prerequisites (do FIRST, inert)
 1. **HP unify** (§1.2 resolution): add `signal health_changed(cur,max)` to `enemy_base`;
    land the `Shield` component; retire bulwark/boss parallel `hull` → base `health`.
