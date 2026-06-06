@@ -65,9 +65,20 @@ in the Lane Visualizer. Parent: `m6_modular_enemies_design_2026-06-05.md` §4/§
   hold band via `loiter_{low,mid,high}` roster keys; base `loiter` keeps the deep hold
   (existing users untouched). Visualizer shows all three. test_loiter_holder.gd PASS.
   Awaiting Roman's eyeball.
-- ⬜ P1 remaining: advance_retreat easing+exit; slow_advance → slow Diver; cull top_dive;
-  weave_narrow; weave-row edge-lane exclusion (really P2 conductor work); terminology
-  renames (cosmetic — batched last so visualizer labels + roster keys move together).
+- ✅ **advance_retreat → Skirmisher** (12a3610): eased endpoints (accel out / decel into
+  each turn, floored so the snap lands) + EXIT = accelerate up & off (requests
+  FREE_ANY_EDGE so the up-leaver despawns). Awaiting eyeball.
+- ✅ **slow_advance → Anchor** (12a3610): dropped the sine x-drift; slow STRAIGHT descent
+  for big hulls (roster key uses deep hold_y = pure descent; on-screen hold_y still
+  station-keeps for a patrol). Awaiting eyeball.
+- ⚠️ **top_dive cull — RECLASSIFIED as a conversion, not a P1 tweak.** top_dive.gd is the
+  embedded movement Resource in enemy_dart.tscn + enemy_bomb_drone.tscn AND used by
+  levels_v2:481 + the interceptor roster key. "Cull" is the taxonomy call (it's a curved
+  Diver/Slider); the file-level fold (repoint those call sites to a Slider) belongs with
+  the enemy conversions (M6a.5+). Don't delete the file in isolation.
+- ⬜ P1 remaining: weave_narrow (lane_path shape/variant — solo-testable); weave-row
+  edge-lane exclusion (really P2 conductor work); terminology renames (cosmetic — batched
+  last so visualizer labels + roster keys move together).
 
 ## Phased plan (after the opens)
 - **P1 — terminology + cheap fixes:** renames; weave-row edge-lane exclusion; weave_narrow;
