@@ -118,7 +118,9 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/enemy_drifter.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "drifter_straight",
+		# P2: Drifter behavior -> lane_path engine. Slow fire-zone-timed slide to an
+		# adjacent lane (was drifter_straight: a fixed lateral wobble via StraightDown).
+		"movement": "lane_drift",
 		"shoot": "single_diagonal",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 4,
@@ -207,7 +209,9 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/enemy_weaver.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "s_curve",
+		# P2: Weaver behavior -> lane_path engine. In-lane wobble (lane-confined) under
+		# its aimed fire (was s_curve: a free swing wider than the band, always clamped).
+		"movement": "lane_weave",
 		"shoot": "aimed",
 		"bullet_variant": BV_PlasmaOrb,
 		"base_count": 2,
