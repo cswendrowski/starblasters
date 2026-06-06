@@ -686,10 +686,12 @@ static func make_movement(entry: Dictionary) -> Resource:
 			m.exit_max_speed = 480.0
 			return m
 		"slow_advance":
-			# Frigate — enter_speed 35→60 so it actually reaches hold_y
-			# before the player kills it.
+			# Anchor (m6 §13) — a slow, steady straight descent for big hulls.
+			# hold_y past the bottom = pure slow Diver (no station-keep); the
+			# old side-slide is gone. enter_speed 35→60 (it must close distance).
 			var m = SlowAdvance.new()
 			m.enter_speed = 60.0
+			m.hold_y = 280.0
 			return m
 		"side_cut":
 			# Cutter — identity is "snaps across screen". 130→160 enter,
