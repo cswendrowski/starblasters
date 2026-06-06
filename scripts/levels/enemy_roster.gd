@@ -40,6 +40,7 @@ const SidePingpong = preload("res://scripts/enemies/patterns/side_pingpong.gd")
 const TopDive = preload("res://scripts/enemies/patterns/top_dive.gd")
 const BeelinePlayer = preload("res://scripts/enemies/patterns/beeline_player.gd")
 const BulwarkDrift = preload("res://scripts/enemies/patterns/bulwark_drift.gd")
+const LanePath = preload("res://scripts/enemies/patterns/lane_path.gd")
 
 const SingleShot = preload("res://scripts/enemies/shoot_patterns/single_shot.gd")
 const AimedShot = preload("res://scripts/enemies/shoot_patterns/aimed_fire.gd")
@@ -117,7 +118,9 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/enemy_drifter.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "drifter_straight",
+		# P2: Drifter behavior -> lane_path engine. Slow fire-zone-timed slide to an
+		# adjacent lane (was drifter_straight: a fixed lateral wobble via StraightDown).
+		"movement": "lane_drift",
 		"shoot": "single_diagonal",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 4,
@@ -206,7 +209,9 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/enemy_weaver.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "s_curve",
+		# P2: Weaver behavior -> lane_path engine. In-lane wobble (lane-confined) under
+		# its aimed fire (was s_curve: a free swing wider than the band, always clamped).
+		"movement": "lane_weave",
 		"shoot": "aimed",
 		"bullet_variant": BV_PlasmaOrb,
 		"base_count": 2,
@@ -668,6 +673,40 @@ static func make_movement(entry: Dictionary) -> Resource:
 			m.down_speed = 160.0
 			m.amplitude = 110.0
 			m.frequency = 1.2
+			return m
+		"lane_weave":
+			# Weaver (m6 §13, lane_path engine) — wobble WITHIN its own lane while
+			# descending. Lane-confined: ~10px swing < half lane width (12), never
+			# crosses into a neighbor. (P2: lane_path is the production lateral engine.)
+			var m = LanePath.new()
+			m.shape = LanePath.Shape.WEAVE
+			m.down_speed = 120.0
+			m.weave_lanes = 0.32
+			m.weave_frequency = 0.9
+			m.mirrored = randf() < 0.5
+			return m
+		"lane_drift":
+			# Drifter (m6 §13) — a single SLOW lane-to-lane slide timed to the fire
+			# zone (Roman 2026-06-06): holds the spawn lane through entry, starts
+			# sliding as it crosses into the fire zone, and is fully in the adjacent
+			# lane by the band bottom. Lane-aware (commits only if the target is free).
+			var m = LanePath.new()
+			m.shape = LanePath.Shape.HOOK
+			m.zone_timed = true
+			m.shift_lanes = 1
+			m.down_speed = 110.0
+			m.mirrored = randf() < 0.5
+			return m
+		"lane_shift":
+			# Shifter (m6 §13) — descend, then a one-way COMMIT to an adjacent lane
+			# (only if free), then hold the destination. The HOOK = Shifter decision.
+			var m = LanePath.new()
+			m.shape = LanePath.Shape.HOOK
+			m.down_speed = 120.0
+			m.shift_lanes = 1
+			m.shift_delay = 0.6
+			m.shift_duration = 0.7
+			m.mirrored = randf() < 0.5
 			return m
 		"loiter", "loiter_low", "loiter_mid", "loiter_high":
 			# Holder (m6 §13). Hover into the fire band, hold with a gentle

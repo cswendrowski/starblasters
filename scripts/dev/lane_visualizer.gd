@@ -46,6 +46,11 @@ const PATTERNS := [
 	["top_dive", "roster", "top_dive"],
 	["beeline", "roster", "beeline"],
 	["side_traverse", "roster", "side_traverse"],
+	# P2 lane-aware production patterns (lane_path engine). Spawn a ROW to see the
+	# lane-occupancy free-check: Drifters/Shifters avoid merging into an occupied lane.
+	["Weaver (in-lane)", "roster", "lane_weave"],
+	["Drifter (lane->lane)", "roster", "lane_drift"],
+	["Shifter (commit)", "roster", "lane_shift"],
 ]
 
 var _world: Node2D = null
@@ -571,6 +576,9 @@ class PatternDummy extends Node2D:
 
 	func _ready() -> void:
 		_spawn = position
+		# Join the "enemies" group so LaneTraffic occupancy queries see this dummy —
+		# lets lane-aware patterns (Drifter/Shifter) avoid each other in a spawned row.
+		add_to_group("enemies")
 		var body := Polygon2D.new()
 		body.polygon = PackedVector2Array([
 			Vector2(0, -6), Vector2(-5, 5), Vector2(0, 2), Vector2(5, 5)])

@@ -48,6 +48,14 @@ const ANTI_BURST_FLOOR: float = 0.20
 const WALL_GAP_LANES: int = 2       # lanes left open per row (7 lanes -> rows of ~5)
 const WALL_ROW_BEAT: float = 0.55   # pause between successive wall rows
 const WALL_MEMBER_STAGGER: float = 0.05  # intra-row spawn stagger (near-simultaneous)
+# Crosser height-stagger (P2 row choreography): a horizontal crosser (movement with
+# a `travel_y` field, e.g. side_traverse) would otherwise have every member ride the
+# SAME latitude and rear-end its siblings. Spread successive crossers across
+# CROSSER_STAGGER_BANDS latitudes (CROSSER_STAGGER_STEP apart) so a stream reads as
+# distinct passes at different heights. Kept in the upper band so crossers stay a
+# top-of-screen threat (4 bands * 26 = 78px spread, base ~80 -> ~80..158).
+const CROSSER_STAGGER_BANDS: int = 4
+const CROSSER_STAGGER_STEP: float = 26.0
 # Grace beat after the player gains control before the first wave dispatches, so
 # the level doesn't open the instant the slide-in ends.
 @export var start_grace: float = 1.2
@@ -156,6 +164,13 @@ func _pick_lane() -> int:
 	var pick: int = candidates[randi() % candidates.size()]
 	_last_lane = pick
 	return pick
+
+
+# Staggered travel-y for the index-th crosser in a dispatch (P2 row choreography):
+# spread across CROSSER_STAGGER_BANDS latitudes so consecutive crossers (and
+# opposite-direction siblings) ride different heights instead of overlapping.
+func _crosser_travel_y(base: float, index: int) -> float:
+	return base + float(index % CROSSER_STAGGER_BANDS) * CROSSER_STAGGER_STEP
 
 
 # Lanes currently holding a non-hazard enemy in the top entry band, so a fresh
@@ -430,6 +445,14 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1) -> void:
 	# Behavior components (m6 §3): set before add_child so enemy_base._ready dupes them.
 	if not wave.components_override.is_empty() and "components" in enemy:
 		enemy.components = wave.components_override
+	# Crosser height-stagger (P2 row choreography): a horizontal crosser (its
+	# movement has a `travel_y`) rides a per-index latitude so a stream doesn't
+	# overlap. Duplicate first so siblings don't share the mutated resource (the
+	# formation-4 direction dup below preserves this via duplicate()).
+	if "movement" in enemy and enemy.movement != null and "travel_y" in enemy.movement:
+		var mv_cross: Resource = enemy.movement.duplicate()
+		mv_cross.travel_y = _crosser_travel_y(mv_cross.travel_y, index)
+		enemy.movement = mv_cross
 	# Pattern-claimed intervals are step 1 (pattern owns its rhythm), wave
 	# overrides win as step 2. Final precedence: wave > pattern > .tscn
 	# default. Works regardless of how shoot_pattern landed on the enemy
