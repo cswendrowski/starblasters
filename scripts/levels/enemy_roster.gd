@@ -669,21 +669,29 @@ static func make_movement(entry: Dictionary) -> Resource:
 			m.amplitude = 110.0
 			m.frequency = 1.2
 			return m
-		"loiter":
-			# Hover etc. Exit accel/max trimmed (was 600/700) so a player
-			# drifting upward isn't rammed by an exiting Hover.
+		"loiter", "loiter_low", "loiter_mid", "loiter_high":
+			# Holder (m6 §13). Hover into the fire band, hold with a gentle
+			# bob/sway, then accelerate away. Exit accel/max trimmed (was
+			# 600/700) so a player drifting upward isn't rammed by an exit.
+			# low/mid/high pick the hold band (deeper = more pressure). Base
+			# "loiter" keeps the historical deep hold for back-compat.
 			var m = Loiter.new()
-			m.hover_y = 240.0
+			match entry.get("movement", "loiter"):
+				"loiter_high": m.hover_y = 50.0
+				"loiter_mid": m.hover_y = 90.0
+				_: m.hover_y = 130.0   # loiter / loiter_low — deep hold
 			m.enter_speed = 180.0
 			m.loiter_time = 3.0
 			m.exit_accel = 400.0
 			m.exit_max_speed = 480.0
 			return m
 		"slow_advance":
-			# Frigate — enter_speed 35→60 so it actually reaches hold_y
-			# before the player kills it.
+			# Anchor (m6 §13) — a slow, steady straight descent for big hulls.
+			# hold_y past the bottom = pure slow Diver (no station-keep); the
+			# old side-slide is gone. enter_speed 35→60 (it must close distance).
 			var m = SlowAdvance.new()
 			m.enter_speed = 60.0
+			m.hold_y = 280.0
 			return m
 		"side_cut":
 			# Cutter — identity is "snaps across screen". 130→160 enter,
@@ -694,11 +702,12 @@ static func make_movement(entry: Dictionary) -> Resource:
 			m.direction = 1 if randf() < 0.5 else -1
 			return m
 		"advance_retreat":
-			# Skirmisher — aimed-fire pacing slowed. 180→150 adv, 260→220
-			# ret, 0.6→0.8 hold.
+			# Skirmisher — slowed again (Roman 2026-06-06: "should be slower",
+			# was hard-stopping). 150→100 adv, 220→130 ret, hold 0.8. Eased
+			# endpoints + jiggle + smooth up-exit live in the pattern.
 			var m = AdvanceRetreat.new()
-			m.advance_speed = 150.0
-			m.retreat_speed = 220.0
+			m.advance_speed = 100.0
+			m.retreat_speed = 130.0
 			m.hold_time = 0.8
 			return m
 		"side_traverse":
