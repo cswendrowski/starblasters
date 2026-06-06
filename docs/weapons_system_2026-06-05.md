@@ -1,8 +1,19 @@
 # Weapons — Shared, Swappable Firing System (minor spec)
 
-Status: **design spec, not built.** Parent: `m6_modular_enemies_design_2026-06-05.md`
-§9.2 (first-class weapons) + §19 (distilled composer). Companion to the existing
-`scripts/enemies/shoot_patterns/` code, which this evolves into.
+Status: **base index BUILT (2026-06-05, commit `0939e94`)** — the 8 projectile
+variants + 8 baseline `weapon_*.tres` exist (see the Index sections below). The
+**swappable Weapon-resource layer** (beam/lob payloads, single-sourced rate,
+faction/sector multipliers, projectile-movement axis) is **still to build** (M6a.2).
+Parent: `m6_modular_enemies_design_2026-06-05.md` §9.2 (first-class weapons) + §19
+(distilled composer). Companion to `scripts/enemies/shoot_patterns/`, which this evolves into.
+
+> **⚠ Known regression (from the projectile pass):** baked bullet movement was stripped,
+> so `tracker` (Conductor) lost homing and `plasma_orb` (Howler / Voidmaw /
+> Firecore-Cruiser) lost wobble — those enemies fire straight now. `base_bullet.gd` still
+> *supports* the flags; fix options (Roman's call): (a) **boss-specific homing/wobble
+> variants** so the shared standard bullets stay pure [recommended], or (b) re-enable the
+> flags on the shared `.tres` [contradicts the pure-bullet intent], or (c) re-add via the
+> firing-layer **projectile-movement axis** once the Weapon layer lands.
 
 ## Purpose
 
