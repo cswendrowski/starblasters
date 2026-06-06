@@ -68,6 +68,12 @@ in the Lane Visualizer. Parent: `m6_modular_enemies_design_2026-06-05.md` §4/§
 - ✅ **advance_retreat → Skirmisher** (12a3610): eased endpoints (accel out / decel into
   each turn, floored so the snap lands) + EXIT = accelerate up & off (requests
   FREE_ANY_EDGE so the up-leaver despawns). Awaiting eyeball.
+- ✅ **Round 2 (Roman 06-06, 561534f):** Holder jiggle RANDOMIZED per instance (phase +
+  freq jitter) → a row desyncs instead of lockstep (each enemy_core enemy already gets a
+  duplicated _pattern, so randf() in on_start is independent). Skirmisher: slower
+  (100/130), hold no longer a dead stop (jiggle), and the EXIT hitch fixed — final cycle is
+  HOLD → PREP (wind-up jiggle) → EXIT accelerating up FROM REST (was retreat→snap→re-accel,
+  a velocity discontinuity). Both holds use absolute repositioning (anchor+offset) = no drift.
 - ✅ **slow_advance → Anchor** (12a3610): dropped the sine x-drift; slow STRAIGHT descent
   for big hulls (roster key uses deep hold_y = pure descent; on-screen hold_y still
   station-keeps for a patrol). Awaiting eyeball.
