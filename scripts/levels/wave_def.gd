@@ -26,6 +26,10 @@ enum Formation { TOP_LEFT_TO_RIGHT, TOP_RIGHT_TO_LEFT, TOP_RANDOM, TOP_CENTER_OU
 # Negative ints / null means "don't override; use the scene's default".
 @export var movement_override: Resource = null
 @export var shoot_pattern_override: Resource = null
+# Behavior components to attach to each spawned enemy (m6 §3 component framework).
+# Untyped Array — assigning a typed Array[Resource] from an untyped source is a runtime
+# crash. Empty = none. Built by Roster.make_components(); applied in director._spawn_enemy.
+@export var components_override: Array = []
 @export var fire_interval_min: float = -1.0
 @export var fire_interval_max: float = -1.0
 @export var max_health: int = -1

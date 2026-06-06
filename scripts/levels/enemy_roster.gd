@@ -727,6 +727,20 @@ static func make_movement(entry: Dictionary) -> Resource:
 	return StraightDown.new()
 
 
+# Build the behavior components for an entry (m6 §3 component framework). Forward-
+# compatible: an entry may list pre-built EnemyComponent resources under "components";
+# faction overlays + a future key->script table extend this. Returns [] until enemies
+# declare components, so the whole pipeline is inert today.
+static func make_components(entry: Dictionary) -> Array:
+	var out: Array = []
+	var listed: Variant = entry.get("components", [])
+	if listed is Array:
+		for c in listed:
+			if c != null:
+				out.append(c)
+	return out
+
+
 static func make_shoot(entry: Dictionary) -> Resource:
 	var kind: Variant = entry.get("shoot", null)
 	if kind == null:

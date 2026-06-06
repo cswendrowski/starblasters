@@ -427,6 +427,9 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1) -> void:
 		enemy.movement = wave.movement_override
 	if wave.shoot_pattern_override != null and "shoot_pattern" in enemy:
 		enemy.shoot_pattern = wave.shoot_pattern_override
+	# Behavior components (m6 §3): set before add_child so enemy_base._ready dupes them.
+	if not wave.components_override.is_empty() and "components" in enemy:
+		enemy.components = wave.components_override
 	# Pattern-claimed intervals are step 1 (pattern owns its rhythm), wave
 	# overrides win as step 2. Final precedence: wave > pattern > .tscn
 	# default. Works regardless of how shoot_pattern landed on the enemy
