@@ -85,3 +85,78 @@ it actually fires; the weapon supplies the *content*.
 - Do it as part of the M6 component/Weapon plumbing milestone (§6 M6a.2),
   **behavior-preserving first** (wrap the existing shoot_patterns), then add beam/lob
   payloads + the faction/sector multipliers.
+
+---
+
+## Index: Enemy Projectiles
+
+All eight enemy "bullets" are the **same shell** — `scenes/projectiles/enemy_bullet.tscn`
+— plus a **`BulletVariant`** payload (`data/bullets/*.tres`) applied at fire time
+(`_apply_variant()` sets speed, damage, hitbox, sprite/anim, and any baked movement).
+The per-type `.tscn` (`enemy_bullet_spread.tscn`, etc.) are **orphaned/legacy** — not
+referenced anywhere; the live definitions are the variants below.
+
+| bullet (sprite id) | sprite png | variant `.tres` | speed px/f | dmg | hitbox | baked movement |
+|---|---|---|---:|---:|---|---|
+| `enemy_bullet` | `enemy_bullet` | `basic` | 2 | 1 | 6×6 | — |
+| `enemy_bullet_small` | `enemy_bullet_small` | `spread_pellet` | 3 | 1 | 5×5 | — |
+| `enemy_bullet_large` | `enemy_bullet_large` | `heavy_slug` | 1 | 2 | 10×10 | telegraph flash, explosive impact |
+| `enemy_bullet_wave` | `enemy_bullet_wave` | `plasma_orb` | 1 | 1 | 8×8 | — |
+| `enemy_bullet_laser` | `enemy_laser` | `laser_bolt` | 7 | 1 | 3×8 | — |
+| `enemy_bullet_cannon` | `enemy_cannon` | `burst_round` | 4 | 1 | 5×5 | short life (1.5s) |
+| `enemy_bullet_diamond` | `enemy_bullet_diamond` | `tracker` | 3 | 1 | 6×6 | — |
+| `enemy_bullet_tracer` | `enemy_tracer` | `aimed_sniper` | 5 | 1 | 4×6 | random start frame |
+
+**Rockets / missiles** (separate scripts, not the shared shell):
+
+| projectile | sprite png | script | speed px/f | dmg | notes |
+|---|---|---|---:|---:|---|
+| `enemy_rocket` | `rocket` | `enemy_rocket.gd` | 3 | 2 | explosive, shoot-down-able (1 HP), smoke trail + engine flare |
+| `enemy_rocket_large` | `rocket_large` | `enemy_rocket.gd` | 1 | 2 | as above, larger |
+| `drifting_missile` | `missile` | `base_missile.gd` | 2 (cruise) | — | drift → ignite → home; Minelayer drop |
+| `drifting_missile_large` | `missile_large` | `base_missile.gd` | 1 (cruise) | — | as above, larger |
+
+> **Pure projectiles.** Speeds are on the 2026-06 spec (above) and all baked movement
+> has been removed — `diamond`'s homing and `wave`'s wobble are gone, so every bullet now
+> travels straight at constant speed. Movement is the firing/behavior layer's job.
+> ⚠ **Side effect:** Conductor (tracker), Howler/Voidmaw/Firecore-Cruiser (plasma) share
+> these variants and have **lost their homing/wobble** — re-add it on those enemies via the
+> firing/movement layer when it lands.
+
+## Index: Enemy Weapons
+
+### Baseline weapons — `resources/patterns/shoot/weapon_*.tres`
+
+One straight-firing `single_shot` weapon per bullet (`fire_pattern = single`,
+`aim = straight_down`). These are the **baselines** offshoot weapons (spread / aimed /
+burst / beam variants) derive from. Each = `enemy_bullet.tscn` shell + the payload below.
+
+| weapon `.tres` | payload bullet | rate (s) |
+|---|---|---|
+| `weapon_bullet` | `enemy_bullet` (`basic`) | 1.0–1.8 |
+| `weapon_bullet_small` | `enemy_bullet_small` (`spread_pellet`) | 0.9–1.6 |
+| `weapon_bullet_large` | `enemy_bullet_large` (`heavy_slug`) | 1.6–2.6 |
+| `weapon_bullet_wave` | `enemy_bullet_wave` (`plasma_orb`) | 1.4–2.4 |
+| `weapon_bullet_laser` | `enemy_bullet_laser` (`laser_bolt`) | 0.8–1.4 |
+| `weapon_bullet_cannon` | `enemy_bullet_cannon` (`burst_round`) | 1.0–1.8 |
+| `weapon_bullet_diamond` | `enemy_bullet_diamond` (`tracker`) | 1.1–1.9 |
+| `weapon_bullet_tracer` | `enemy_bullet_tracer` (`aimed_sniper`) | 0.9–1.6 |
+
+### Pattern primitives (shape building-blocks) — `resources/patterns/shoot/`
+
+| resource | fire_pattern | aim | notes |
+|---|---|---|---|
+| `single_shot` | single | straight_down | base; payload set by roster/enemy |
+| `aimed_fire` | aimed | at_player | leads the player |
+| `pair_shot` | single ×2 | straight_down | twin muzzle |
+| `spread_shot_3` | spread | straight_down | 3-fan |
+| `spread_shot_7` | spread | straight_down | 7-fan |
+
+### Bespoke beams (not yet folded in — see §19)
+
+`beam_shooter`, `burner` — continuous beam (telegraph → fire → cooldown). Target: a
+`beam` fire_pattern any enemy can carry.
+
+> The baseline weapons use today's `single_shot` shoot-pattern (which already owns
+> `bullet_scene` + `bullet_variant` + `fire_interval`). When the unified **Weapon
+> resource** (top of this doc) is built, these slot in as its `single` baselines unchanged.

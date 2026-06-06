@@ -8,7 +8,7 @@ size = Vector2(6, 8)
 
 [node name="EnemyRocket" type="Area2D" unique_id=484008050 groups=["bullets", "enemies"]]
 script = ExtResource("1_script")
-speed = 300.0
+speed = 180.0
 damage = 2
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=622124442]

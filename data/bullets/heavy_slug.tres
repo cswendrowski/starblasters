@@ -5,7 +5,7 @@
 
 [resource]
 script = ExtResource("1_variant")
-speed = 160.0
+speed = 60.0
 damage = 2
 lifetime = 5.0
 hitbox_size = Vector2(10, 10)
