@@ -15,6 +15,7 @@ extends "res://scripts/enemies/shoot_patterns/shoot_pattern.gd"
 # timer in enemy_core); the weapon owns fire CONTENT. Any behavior × any weapon.
 
 const Playfield = preload("res://scripts/playfield.gd")
+const BeamEmitterC = preload("res://scripts/enemies/beam_emitter.gd")
 
 enum FirePattern { SINGLE, AIMED, SPREAD, BURST, BEAM, LOB }
 enum Aim { STRAIGHT_DOWN, TOWARD_CENTER, AT_PLAYER }
@@ -36,6 +37,42 @@ enum Aim { STRAIGHT_DOWN, TOWARD_CENTER, AT_PLAYER }
 # Movement axis (homing/wobble) is inherited from shoot_pattern and applied inside
 # _spawn_bullet — the weapon-driven homing/wobble that restores boss/enemy
 # signatures and that faction/sector multipliers scale.
+
+# Beam config (fire_pattern == BEAM). A beam is CONTINUOUS, not a per-shot fire() —
+# enemy_core attaches a BeamEmitter from make_beam_config() instead of arming the
+# shoot timer. The shared BeamEmitter owns the visuals/FSM/damage; these are its knobs.
+@export_group("Beam")
+@export var beam_idle: float = 0.9
+@export var beam_windup: float = 1.3
+@export var beam_firing: float = 1.1
+@export var beam_cooldown: float = 1.5
+@export var beam_reach: float = 320.0
+@export var beam_dps: float = 3.0
+@export var beam_hit_radius: float = 8.0
+@export var beam_aim_mode: int = BeamEmitterC.AimMode.LOCAL_FORWARD
+@export var beam_cycle: int = BeamEmitterC.Cycle.LOOP_IDLE
+@export var beam_emitter_offset: Vector2 = Vector2(0, -8)
+@export var beam_forward_local: Vector2 = Vector2(0, -1)
+@export var beam_tracking_rate: float = 1.8
+@export var beam_sweep_rate: float = 0.0
+
+
+func is_beam() -> bool:
+	return fire_pattern == FirePattern.BEAM
+
+
+# The BeamEmitter.configure() dict for this weapon's beam. enemy_core uses it to
+# attach a per-enemy beam emitter (continuous, so no shoot-timer arming).
+func make_beam_config() -> Dictionary:
+	return {
+		"idle_time": beam_idle, "windup_time": beam_windup, "firing_time": beam_firing,
+		"cooldown_time": beam_cooldown, "cycle": beam_cycle, "autostart": true,
+		"endpoint": BeamEmitterC.Endpoint.RAY, "aim_mode": beam_aim_mode,
+		"forward_local": beam_forward_local, "tracking_rate": beam_tracking_rate,
+		"sweep_rate": beam_sweep_rate, "reach": beam_reach, "dps": beam_dps,
+		"hit_radius": beam_hit_radius, "emitter_offset": beam_emitter_offset,
+		"target_group": "player",
+	}
 
 
 func fire(enemy) -> void:
