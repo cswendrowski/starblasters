@@ -33,13 +33,9 @@ enum Aim { STRAIGHT_DOWN, TOWARD_CENTER, AT_PLAYER }
 @export var burst_count: int = 3
 @export var burst_interval: float = 0.12
 
-# Projectile-movement axis (M6a.2). >0 overrides the payload variant's movement on
-# every spawned bullet — the weapon-driven homing/wobble that restores boss/enemy
+# Movement axis (homing/wobble) is inherited from shoot_pattern and applied inside
+# _spawn_bullet — the weapon-driven homing/wobble that restores boss/enemy
 # signatures and that faction/sector multipliers scale.
-@export_group("Movement axis")
-@export var homing_rate: float = 0.0
-@export var wobble_amplitude: float = 0.0
-@export var wobble_frequency: float = 0.0
 
 
 func fire(enemy) -> void:
@@ -73,8 +69,8 @@ func _aim_dir(enemy) -> Vector2:
 
 
 func _fire_bullet(enemy, dir: Vector2) -> void:
-	var b = _spawn_bullet(enemy, dir, payload)
-	_apply_axis(b)
+	# _spawn_bullet applies the inherited movement axis to the bullet.
+	_spawn_bullet(enemy, dir, payload)
 
 
 func _fire_spread(enemy) -> void:

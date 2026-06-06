@@ -17,6 +17,12 @@ class_name EnemyTurret
 @export var bullet_variant: BulletVariant = null
 @export var bullet_speed: float = 160.0
 @export var enabled: bool = true
+# Projectile-movement axis (M6a.2): the turret is a firing emitter, so it drives
+# homing/wobble on its bullets the same way shoot_pattern does — independent of the
+# bullet .tres. >0 overrides the variant's seed.
+@export var homing_rate: float = 0.0
+@export var wobble_amplitude: float = 0.0
+@export var wobble_frequency: float = 0.0
 
 var _turret_rot: float = 0.0
 var _fire_t: float = 0.0
@@ -110,6 +116,13 @@ func _shoot() -> void:
 			b.speed = bullet_speed
 		elif "velocity" in b:
 			b.velocity = fire_dir * bullet_speed
+	# Movement axis — drive homing/wobble post-spawn (after _apply_variant seeded),
+	# so the firing layer (turret) owns movement, not the bullet .tres.
+	if homing_rate > 0.0 and "homing_rate" in b:
+		b.homing_rate = homing_rate
+	if wobble_amplitude > 0.0 and "wobble_amplitude" in b:
+		b.wobble_amplitude = wobble_amplitude
+		b.wobble_frequency = wobble_frequency
 	if has_mz:
 		var MuzzleFx = load("res://scripts/effects/muzzle_fx.gd")
 		MuzzleFx.play_enemy(spawn_pos, fire_dir, get_tree().root)

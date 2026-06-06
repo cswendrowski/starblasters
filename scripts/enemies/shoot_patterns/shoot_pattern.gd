@@ -22,9 +22,32 @@ const MuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
 @export var fire_interval_min: float = -1.0
 @export var fire_interval_max: float = -1.0
 
+# Projectile-movement axis (M6a.2) — drive homing/wobble on every bullet this
+# pattern spawns, INDEPENDENT of the payload variant's visuals. >0 overrides the
+# variant's seeded movement (the variant is the default; the firing layer wins).
+# This is where the "movement is the firing layer's job" decision lives: a plasma
+# orb wobbles because its WEAPON says so, not because the bullet .tres bakes it.
+# Faction/sector multipliers scale these. Inherited by Weapon + all subclasses.
+@export var homing_rate: float = 0.0
+@export var wobble_amplitude: float = 0.0
+@export var wobble_frequency: float = 0.0
+
 
 func fire(_enemy) -> void:
 	pass
+
+
+# Stamp the movement axis onto a freshly spawned bullet. Only overrides when the
+# pattern specifies a value (>0), so a payload variant's own movement is preserved
+# when the pattern leaves the axis at 0.
+func _apply_axis(b) -> void:
+	if b == null:
+		return
+	if homing_rate > 0.0 and "homing_rate" in b:
+		b.homing_rate = homing_rate
+	if wobble_amplitude > 0.0 and "wobble_amplitude" in b:
+		b.wobble_amplitude = wobble_amplitude
+		b.wobble_frequency = wobble_frequency
 
 
 # Spawn one bullet at the enemy with the given direction. Caller owns
@@ -53,8 +76,9 @@ func _spawn_bullet(enemy, dir: Vector2, bv = null):
 		b.position = spawn_pos
 	if has_mz:
 		MuzzleFx.play_enemy(spawn_pos, dir, enemy.get_tree().root)
-	# Return the spawned bullet so the firing layer (a Weapon) can drive the
-	# projectile-movement axis (homing/wobble) on it after _ready/_apply_variant.
+	# Drive the projectile-movement axis (homing/wobble) — applied after
+	# _ready/_apply_variant so the pattern's axis overrides the variant's seed.
+	_apply_axis(b)
 	return b
 
 

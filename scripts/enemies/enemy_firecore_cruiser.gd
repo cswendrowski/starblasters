@@ -63,6 +63,10 @@ func _build_turret() -> void:
 	_turret_node.aim_tolerance_deg = 11.5
 	_turret_node.bullet_speed      = 160.0
 	_turret_node.bullet_variant    = PlasmaOrbVariant
+	# M6a.2: restore the plasma-orb wobble via the firing layer (the turret), not the
+	# bullet .tres. Matches the boss plasma signature (amp 8 / freq 3).
+	_turret_node.wobble_amplitude  = 8.0
+	_turret_node.wobble_frequency  = 3.0
 	var s := Sprite2D.new()
 	s.texture = HookTurretTex
 	s.modulate = Color.html("9350ad")
