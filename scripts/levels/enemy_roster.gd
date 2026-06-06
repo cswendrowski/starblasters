@@ -669,11 +669,17 @@ static func make_movement(entry: Dictionary) -> Resource:
 			m.amplitude = 110.0
 			m.frequency = 1.2
 			return m
-		"loiter":
-			# Hover etc. Exit accel/max trimmed (was 600/700) so a player
-			# drifting upward isn't rammed by an exiting Hover.
+		"loiter", "loiter_low", "loiter_mid", "loiter_high":
+			# Holder (m6 §13). Hover into the fire band, hold with a gentle
+			# bob/sway, then accelerate away. Exit accel/max trimmed (was
+			# 600/700) so a player drifting upward isn't rammed by an exit.
+			# low/mid/high pick the hold band (deeper = more pressure). Base
+			# "loiter" keeps the historical deep hold for back-compat.
 			var m = Loiter.new()
-			m.hover_y = 240.0
+			match entry.get("movement", "loiter"):
+				"loiter_high": m.hover_y = 50.0
+				"loiter_mid": m.hover_y = 90.0
+				_: m.hover_y = 130.0   # loiter / loiter_low — deep hold
 			m.enter_speed = 180.0
 			m.loiter_time = 3.0
 			m.exit_accel = 400.0
