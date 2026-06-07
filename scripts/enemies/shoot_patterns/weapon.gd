@@ -132,15 +132,5 @@ func _fire_burst(enemy) -> void:
 			return
 		_fire_bullet(enemy, dir)
 
-
-# Drive the projectile-movement axis onto a freshly spawned bullet. Only overrides
-# when the weapon specifies a value (>0), so a payload variant's own movement is
-# preserved when the weapon leaves the axis at 0.
-func _apply_axis(b) -> void:
-	if b == null:
-		return
-	if homing_rate > 0.0 and "homing_rate" in b:
-		b.homing_rate = homing_rate
-	if wobble_amplitude > 0.0 and "wobble_amplitude" in b:
-		b.wobble_amplitude = wobble_amplitude
-		b.wobble_frequency = wobble_frequency
+# (_apply_axis is inherited from shoot_pattern and applied inside _spawn_bullet — the
+# duplicate override here was dead, removed per the M6 review.)

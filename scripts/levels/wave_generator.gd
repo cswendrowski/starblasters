@@ -118,7 +118,10 @@ const BOSS_ROSTER := [
 # like the Bounty Board extra-waves and the dev "Test Level" .tres path.)
 static func build(sector_depth: int, level_index_in_sector: int, is_boss: bool, faction: int = -1) -> LevelData:
 	# M6b: restrict the enemy pool to the active faction (universal + faction homes) for
-	# the duration of this synchronous build. -1 = no faction (boss/hazard/legacy).
+	# the duration of this synchronous build. -1 = no faction (boss/hazard/legacy). Save +
+	# restore the prior filter (review P2) instead of hard-clearing, so a nested build()
+	# can't wipe an outer build's filter.
+	var _prev_faction: int = Roster.get_faction_filter()
 	Roster.set_faction_filter(faction)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = _stable_seed(sector_depth, level_index_in_sector, is_boss)
@@ -130,7 +133,7 @@ static func build(sector_depth: int, level_index_in_sector: int, is_boss: bool, 
 	else:
 		level.level_name = "Sector %d — %d" % [sector_depth, level_index_in_sector + 1]
 		level.waves = _build_combat_waves(rng, sector_depth, level_index_in_sector)
-	Roster.set_faction_filter(-1)   # clear so it never leaks into another build
+	Roster.set_faction_filter(_prev_faction)   # restore (nested-build safe)
 	return level
 
 

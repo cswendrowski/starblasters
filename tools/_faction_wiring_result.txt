@@ -1,2 +1,2 @@
-corp pool size=17 ; zealot level waves=8 leaked=0
+corp pool size=17 ; zealot level waves=11 leaked=0
 FACTION WIRING: PASS

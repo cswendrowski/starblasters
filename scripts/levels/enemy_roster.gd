@@ -52,6 +52,10 @@ static func set_faction_filter(faction: int) -> void:
 	_faction_filter = faction
 
 
+static func get_faction_filter() -> int:
+	return _faction_filter
+
+
 # Restrict a pool to the active faction. STRICT — returns the filtered set even when
 # empty (the WaveGen pickers degrade to the faction's COMMON universals, which are
 # always unlocked, and the heavy/elite pickers handle empty gracefully). An earlier
@@ -724,6 +728,9 @@ static func make_movement(entry: Dictionary) -> Resource:
 		"lane_shift":
 			# Shifter (m6 §13) — descend, then a one-way COMMIT to an adjacent lane
 			# (only if free), then hold the destination. The HOOK = Shifter decision.
+			# NOTE (review): available behavior with NO live enemy home yet — no roster
+			# ENTRY uses "lane_shift". Eyeballed in the visualizer; assign it to a faction
+			# unit when one wants the Shifter behavior (like step_wall, ready not wired).
 			var m = LanePath.new()
 			m.shape = LanePath.Shape.HOOK
 			m.down_speed = 120.0

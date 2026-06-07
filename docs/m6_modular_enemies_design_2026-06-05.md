@@ -349,7 +349,7 @@ which is the payoff of sequencing the refactor first.
 
 | id (internal) | Display / lore name | Mechanic | Implementation |
 |---|---|---|---|
-| `supremacy` | **Crimson Supremacy** | faster fire | **fire-rate multiplier on the Weapon** (§9), not a per-enemy bool |
+| `supremacy` | **Crimson Supremacy** | faster fire **+ faster projectiles** (Roman, 2026-06-06) | **weapon_mods on the Weapon** (§9): fire_rate_mult 0.7 **+ bullet_speed_mult 1.25** (speed clamped to the clarity ceiling), not a per-enemy bool |
 | `privateer` | **Vertarine Armada** | tough + mixes in | `tough` stat modifier (2× HP); the one faction that **overlays** others |
 | `corporate` | **UltraGalactic Concerns** | shielded | every spawn gets the **`Shield` component** (§3 regen shield) |
 | `zealot` | **Evantian Theocracy** | drops firecore | every spawn gets a **`DropFirecore` component** |
@@ -626,9 +626,14 @@ Residual presence gap: a *lighter* composable 32px anchor may still be wanted (t
 | `beamer_tracker` | corporate (UltraGalactic) | anchor | tracking beam platform |
 | `frigate` | privateer | anchor | broadside merc warship |
 | `burner` | privateer | pressure | beam-pair merc duo |
-| `strafer` | supremacy | direct-challenge | head-on aggressive MG pass |
-| `interceptor` | supremacy | direct-challenge | dive-squad reaction test |
-| `sapper` | supremacy | direct-challenge | aggressive shield-harrier |
+| `strafer` | ~~supremacy~~ **corporate** | direct-challenge | head-on aggressive MG pass |
+| `interceptor` | ~~supremacy~~ **corporate** | direct-challenge | dive-squad reaction test |
+| `sapper` | ~~supremacy~~ **corporate** (RARE) | direct-challenge | aggressive shield-harrier |
+
+> **SUPERSEDED (Roman redline, 2026-06-06 — see `m6b_faction_tagging_2026-06-06.md`):** strafer /
+> interceptor / sapper are **corporate** (sapper a rare encounter, not chaff), per §12.0 FINAL HOMES.
+> The code (`factions.gd` ENEMY_TAGS) matches this; the supremacy entries above are kept struck-through
+> for history only.
 
 ### 12.3 RETIRE (redundant once core + overlays exist)
 - `bomb_drone` — NOT retired (Roman 2026-06-05): retained as a **Diver reskin of dart** →

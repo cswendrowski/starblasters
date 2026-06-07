@@ -5,9 +5,10 @@ extends Object
 # The modifier rides ENTIRELY on the M6a component framework (§3) + the M6a.2 Weapon
 # axes — no new per-faction machinery, which was the payoff of sequencing those first.
 #
-# INERT until the producer/conductor picks a faction per level and populates the
-# pools: nothing calls apply() yet, and core_pool/exclusives are empty pending the
-# §12 content-tagging redline.
+# LIVE: the producer picks a faction per level (main.gd / WaveGen.build), restricts the
+# pool (Roster faction filter via ENEMY_TAGS + allowed_in), and the director calls
+# apply() per spawn. core_pool/exclusives in data() stay [] — pool restriction is driven
+# by ENEMY_TAGS, not those lists (kept for reference / the end-state per-faction sets).
 #
 # Preload-referenced, NOT a global class_name (a new class_name isn't registered in
 # headless --script until the cache regenerates; the director + tests would hit it).
@@ -22,8 +23,8 @@ extends Object
 
 const ShieldComponent = preload("res://scripts/enemies/components/shield_component.gd")
 const EmitterComponent = preload("res://scripts/enemies/components/emitter_component.gd")
-# Zealot's firecore lane-hazard drop payload — the scene is a later slice; until it
-# exists the Emitter carries a null payload (inert, no crash).
+# Zealot's firecore lane-hazard drop payload (the zealot DropFirecore Emitter spawns it
+# on death). The ResourceLoader.exists guard in build_components stays as a safety net.
 const FIRECORE_HAZARD_PATH := "res://scenes/enemies/firecore_hazard.tscn"
 
 enum Id { SUPREMACY, PRIVATEER, CORPORATE, ZEALOT }
