@@ -50,6 +50,22 @@ func _always_drops(n: Node) -> bool:
 	return false
 
 
+const FIRECORE_PATH := "res://scenes/enemies/firecore_hazard.tscn"
+
+# Count DEATH emitters that drop a firecore (baked guaranteed + overlay chance both).
+func _count_firecore_drops(n: Node) -> int:
+	if not ("components" in n):
+		return 0
+	var c := 0
+	for comp in n.components:
+		if comp == null:
+			continue
+		if "trigger" in comp and "payload" in comp and int(comp.trigger) == 2 \
+				and comp.payload != null and str(comp.payload.resource_path) == FIRECORE_PATH:
+			c += 1
+	return c
+
+
 func _process(_dt: float) -> bool:
 	if _done:
 		return true
@@ -135,6 +151,22 @@ func _process(_dt: float) -> bool:
 			_fail("%s should be zealot-exclusive" % p)
 	if "res://scenes/enemies/core/enemy_drifter.tscn" in Factions.ENEMY_TAGS:
 		_fail("enemy_drifter.tscn should be retired from ENEMY_TAGS")
+
+	# --- 6b) Overlay does not stack onto a guaranteed firecore dropper --------
+	# apply(ZEALOT) adds a CHANCE firecore drop — but NOT to enemies that already
+	# bake a GUARANTEED one (retro/run/helix). manta (no baked drop) still gets it.
+	var r3 = load(RETRO).instantiate()
+	root.add_child(r3)
+	Factions.apply(Factions.Id.ZEALOT, r3)
+	if _count_firecore_drops(r3) != 1:
+		_fail("retro should have exactly 1 firecore drop after overlay (got %d)" % _count_firecore_drops(r3))
+	r3.free()
+	var m3 = load(MANTA).instantiate()
+	root.add_child(m3)
+	Factions.apply(Factions.Id.ZEALOT, m3)
+	if _count_firecore_drops(m3) != 1:
+		_fail("manta (no baked drop) should get the overlay firecore (got %d)" % _count_firecore_drops(m3))
+	m3.free()
 
 	# --- 7) Helix movement variants in roster ---------------------------------
 	var helix_moves: Array = []

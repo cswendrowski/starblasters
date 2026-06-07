@@ -203,4 +203,31 @@ static func apply(id: int, enemy) -> void:
 	var comps: Array = build_components(id)
 	if not comps.is_empty() and "components" in enemy:
 		var existing: Array = (enemy.components if enemy.components is Array else [])
-		enemy.components = existing + comps
+		# Don't stack the zealot overlay's CHANCE firecore drop onto an enemy that
+		# already bakes a GUARANTEED firecore drop (retro/run/helix) — a guaranteed
+		# drop doesn't need the extra roll (Roman 2026-06-07). Drop the overlay's
+		# firecore emitter in that case; other overlay components still apply.
+		var bakes_firecore: bool = false
+		for c in existing:
+			if _is_firecore_drop(c):
+				bakes_firecore = true
+				break
+		var to_add: Array = []
+		for c in comps:
+			if bakes_firecore and _is_firecore_drop(c):
+				continue
+			to_add.append(c)
+		enemy.components = existing + to_add
+
+
+# True if `c` is an Emitter that drops a firecore hazard on death — used to avoid
+# stacking the zealot overlay's chance-drop onto an enemy that bakes a guaranteed one.
+static func _is_firecore_drop(c) -> bool:
+	if c == null:
+		return false
+	if not ("payload" in c and "trigger" in c):
+		return false
+	if c.payload == null:
+		return false
+	return int(c.trigger) == EmitterComponent.Trigger.DEATH \
+		and str(c.payload.resource_path) == FIRECORE_HAZARD_PATH
