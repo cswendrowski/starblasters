@@ -157,25 +157,27 @@ universal-core overlay). Each entry = **role / behavior @ size**. Get sprites wo
 they become data on the existing chassis/behavior/component/Weapon machinery (new art only).
 Full context + the coverage matrix: `docs/m6b_faction_tagging_2026-06-06.md`.
 
-- [ ] **supremacy (Crimson Supremacy — faster fire)** — leans aggressive; highest priority.
-  - small **Weaver**, small **Drifter**, small **Crosser**
-  - a **direct-challenge / aggressive** unit (Skirmisher or Charger @ small) — on-identity
-  - a **Sweeper** (medium/elite) and an **elite** event piece
-  - (owns already: Diver=bomb_drone, Holder=crystal, Anchor=frigate, capital=cruiser)
+> **STATUS 2026-06-07 (post-M6c):** three faction art packs + the gunship/interceptor
+> move landed. Per-faction OWNED-exclusive counts now (on top of the 10 shared universal
+> hulls): **supremacy 4, zealot 8, corporate 8, privateer 9.** ✓ = now covered by a
+> faction-owned hull; remaining bullets still need art.
+
+- [ ] **supremacy (Crimson Supremacy — faster fire)**
+  - ✓ Charger (rush), ✓ Sweeper (plasma), ✓ Anchor (push — replaced frigate), ✓ fighter+Weaver (hotrod, dive/straight/weave; replaced strafer)
+  - STILL: dedicated small **Drifter**, dedicated small **Crosser**, an **elite** event piece
+  - (owns: Diver=bomb_drone, Holder=crystal, capital=cruiser, + rush/hotrod/plasma/push)
 - [ ] **zealot (Evantian Theocracy — drops firecore)**
-  - small **Weaver**, small **Holder**
-  - a **Skirmisher / direct-challenge** @ small
-  - a non-elite **Anchor** @ medium and a non-elite **capital** @ large
-  - (owns already: Diver=spitter, Drifter=drifter, pressure=firecore_drone, Sweeper/elites=beamers/burner/firecore_cruiser)
-- [ ] **privateer (Vertarine Armada — tough; the overlay faction)** — can stay leaner (it mixes into others), but for pure privateer levels:
-  - small **Weaver**, small **Holder**
-  - a **pressure / Skirmisher** @ small
-  - a **medium Anchor** and a **large capital**
-  - an **elite** event piece
-  - (owns already: Diver=dart, Crosser=cutter/minelayer, Dropper=minelayer)
-- [ ] **corporate (UltraGalactic — shielded)** — best covered; minor:
-  - its OWN small **Diver** + small **Drifter** (currently borrows universal dart/drifter)
-  - (owns already: Weaver, Holder=hover, Skirmisher, Harrier=sapper[rare], Striker=hunter_drone/strafer, Slider/Dropper=interceptor, Anchor=bomber, capital=bulwark, elites=gunship/drone_carrier)
+  - ✓ Holder + Skirmisher (retro), ✓ Drifter (manta — replaced drifter), ✓ Weaver-ish (run, unarmed weave), ✓ Crosser/pusher (sword)
+  - STILL: a **non-elite Anchor @ medium**, a **non-elite capital @ large** (helix/beamers/burner are all RARE elites; sword is small)
+  - (owns: Diver=spitter, pressure=firecore_drone(bloom), elite-capital=firecore_cruiser(helix), Sweepers=beamers, elite=burner, + retro/run/sword/manta)
+- [ ] **privateer (Vertarine Armada — tough; the overlay faction)**
+  - ✓ Weaver (green), ✓ medium Anchor (cannon / rocket / gunship), ✓ pressure (pulse), ✓ Dropper (drop), ✓ omni gunship + hold/weave/shift/skirmish variants
+  - STILL: small **Holder** + small **Skirmisher** (only MEDIUM exist), a **large capital**, an **elite** event piece
+  - (owns: Diver=dart, Crosser=cutter, Dropper=minelayer, Slider=interceptor[moved in], + green/gray/drop/cannon/pulse/gunship/rocket)
+- [ ] **corporate (UltraGalactic — shielded)**
+  - ✓ own Diver (gray), ✓ own chaff Weaver+Dropper (curve/drop), ✓ re-skinned Holder (hold — replaced hover)
+  - **NEW GAPS from the M6c moves:** interceptor (Slider) + gunship (elite) LEFT for privateer; strafer (Striker) retired for supremacy hotrod. Corporate keeps Striker=hunter_drone, capital=bulwark, elite=drone_carrier — but lost its **Slider** role and one **elite**.
+  - (owns: Weaver, Holder=hold, Skirmisher, Harrier=sapper[rare], Striker=hunter_drone, Anchor=bomber, capital=bulwark, elite=drone_carrier, + gray/curve/drop)
 
 Also pending art/rename housekeeping: **spitter** (firecore popper rename, §12.5); a
 **privateer/supremacy** large-capital silhouette if cruiser shouldn't be shared.
