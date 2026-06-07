@@ -19,6 +19,7 @@ func _ready() -> void:
 	display_scale = 1.0
 	auto_rotate = false  # asteroids tumble, they don't have a "front"
 	has_ship_vfx = false  # no ground shadow / damage-overlay — asteroids shatter, not fray
+	wants_outline = false  # asteroids carry their own procgen outline
 	offscreen_mode = OffscreenMode.NONE
 	super._ready()
 	# Freespace Miner signal event sets a per-asteroid bonus bounty for one

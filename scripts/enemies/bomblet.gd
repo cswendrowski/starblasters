@@ -53,6 +53,7 @@ func _ready() -> void:
 	# and the engine flame; they're not ships.
 	auto_rotate = false
 	has_ship_vfx = false  # no ground shadow / damage-overlay — bomblets explode, not fray
+	wants_outline = false  # mine munitions are projectile-class, excepted
 	# Bomblets don't parallax-cycle; they cap at the bottom edge and
 	# despawn cleanly. NONE keeps EnemyBase's per-frame check out of the
 	# way — this script does its own edge handling for bounce + despawn.

@@ -269,27 +269,126 @@ const ENTRIES := [
 		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.7, "chaff": true,
 		"conflict_tags": ["dumb_shot"],
 	},
+	# Hotrod (M6c, Roman art 2026-06-07) — REPLACES the Strafer. Supremacy fast
+	# fighter (enemy_core) firing ALTERNATING tracers from its two muzzles (single
+	# shot cycles L/R). Dive / straight / weave variants. enemy_strafer.tscn retired
+	# from the tag table. Was corporate + bespoke 3-phase; now supremacy + pattern.
 	{
-		# Strafer (Roman, 2026-05-31). Chaff fighter doing head-on passes:
-		# homes from the top, fires a 6-shot tracer burst at the MG cannon's
-		# base ROF (alternating L/R muzzle markers), then veers off and
-		# bee-lines for the bottom. Bespoke self-driving enemy (owns its
-		# 3-phase locomotion + the marker-alternating burst), so movement +
-		# shoot are null like burner/firecore_drone/firecore_cruiser.
-		# Classed COMMON. Now an opener-eligible shooter (see unlock note below).
-		# hp_override kept in sync with the script's max_health (2). First-pass
-		# weight/gating — tune in playtest.
-		"scene": "res://scenes/enemies/factions/corporate/enemy_strafer.tscn",
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_hotrod.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": null,   # handles own 3-phase locomotion
-		"shoot": null,      # handles own marker-alternating burst
+		"movement": "top_dive",
+		"shoot": "single",
+		"bullet_variant": BV_SpreadPellet,
 		"base_count": 4,
 		"hp_override": 2, "bounty_override": 8,
-		# Pulled to the sector-1 opener (unlock_depth 0) on 2026-06-04 with firecore
-		# to widen the shallow opener pool. Low weight (0.9) keeps its head-on burst
-		# pass from dominating the calm opening.
 		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.9, "chaff": true,
+		"conflict_tags": ["aimed_or_spread"],
+	},
+	{
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_hotrod.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "fast_straight",
+		"shoot": "single",
+		"bullet_variant": BV_SpreadPellet,
+		"base_count": 4,
+		"hp_override": 2, "bounty_override": 8,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": true,
+		"conflict_tags": ["aimed_or_spread"],
+	},
+	{
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_hotrod.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "lane_weave",
+		"shoot": "single",
+		"bullet_variant": BV_SpreadPellet,
+		"base_count": 3,
+		"hp_override": 2, "bounty_override": 8,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": true,
+		"conflict_tags": ["aimed_or_spread", "wide_dodge"],
+	},
+	# Rush (M6c, supremacy) — fast aggressive fighter firing 3-shot bursts of small
+	# bullets from two muzzles (±8). Dive / weave / charge (beeline) variants.
+	{
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_rush.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "top_dive",
+		"shoot": "burst",
+		"bullet_variant": BV_SpreadPellet,
+		"base_count": 3,
+		"hp_override": 2, "bounty_override": 12,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"conflict_tags": ["aimed_or_spread"],
+	},
+	{
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_rush.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "lane_weave",
+		"shoot": "burst",
+		"bullet_variant": BV_SpreadPellet,
+		"base_count": 3,
+		"hp_override": 2, "bounty_override": 12,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": true,
+		"conflict_tags": ["aimed_or_spread", "wide_dodge"],
+	},
+	{
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_rush.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "beeline",   # charge straight at the player
+		"shoot": "burst",
+		"bullet_variant": BV_SpreadPellet,
+		"base_count": 2,
+		"hp_override": 2, "bounty_override": 12,
+		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.6, "chaff": true,
+		"conflict_tags": ["aimed_or_spread"],
+	},
+	# Plasma (M6c, supremacy) — NEW medium plasma gunner (the beam shooters stay).
+	# Fires aimed wobbling plasma orbs from two muzzles; hold / weave / slide variants.
+	{
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_plasma.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": [],
+		"movement": "loiter_mid",
+		"shoot": "aimed",
+		"bullet_variant": BV_PlasmaOrb,
+		"wobble_amplitude": 8.0, "wobble_frequency": 3.0,
+		"base_count": 2,
+		"fire_min": 1.6, "fire_max": 2.4,
+		"hp_override": 8, "bounty_override": 18,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"conflict_tags": ["aimed_or_spread", "demands_focus"],
+	},
+	{
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_plasma.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": [],
+		"movement": "lane_weave",
+		"shoot": "aimed",
+		"bullet_variant": BV_PlasmaOrb,
+		"wobble_amplitude": 8.0, "wobble_frequency": 3.0,
+		"base_count": 2,
+		"fire_min": 1.6, "fire_max": 2.4,
+		"hp_override": 8, "bounty_override": 18,
+		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.7, "chaff": true,
+		"conflict_tags": ["aimed_or_spread"],
+	},
+	{
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_plasma.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": [],
+		"movement": "side_traverse",   # slide across
+		"shoot": "aimed",
+		"bullet_variant": BV_PlasmaOrb,
+		"wobble_amplitude": 8.0, "wobble_frequency": 3.0,
+		"base_count": 2,
+		"fire_min": 1.6, "fire_max": 2.4,
+		"hp_override": 8, "bounty_override": 18,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.6, "chaff": true,
 		"conflict_tags": ["aimed_or_spread"],
 	},
 	{
@@ -469,24 +568,43 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 2, "weight": 0.9, "chaff": true,
 		"conflict_tags": ["demands_focus"],
 	},
+	# Push (M6c, Roman art 2026-06-07) — REPLACES the Frigate. Supremacy lane pusher
+	# (enemy_push.gd, enemy_core) with TWO player-tracking dome turrets firing cannon
+	# slugs (aimed, no lead; fast traverse punishes sitting still). Movement from the
+	# roster slot: slow descent / mid descent / slow horizontal cross. Stays the
+	# tough mid-mission presence anchor. enemy_frigate.tscn retired from the tags.
 	{
-		"scene": "res://scenes/enemies/factions/supremacy/enemy_frigate.tscn",
-		"heavy_class": "anchor",  # 32px-wide (tall) — midpoint/coda heavy-beat pool
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_push.tscn",
+		"heavy_class": "anchor",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
-		# Bespoke broadside gunner (enemy_frigate.gd) — self-drives (two arrival
-		# modes) and self-fires a perpendicular broadside, so movement/shoot are
-		# null. hp_override makes it a genuine bullet-sponge: compose_stats feeds
-		# max_health to the director, which is what the hull actually uses (the
-		# script's _ready value is overwritten on spawn).
-		"movement": null,
+		"movement": "slow_advance",   # slow straight descent
+		"shoot": null,                # bespoke twin turrets
+		"hp_override": 28,
+		"base_count": 2,
+		"unlock_sector": 1, "unlock_depth": 1,
+	},
+	{
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_push.tscn",
+		"heavy_class": "anchor",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": ["tough"],
+		"movement": "firecore_straight",   # mid-speed straight descent
 		"shoot": null,
 		"hp_override": 28,
-		"base_count": 3,
-		# Frigate — tough broadside warship; the canonical mid-mission presence anchor
-		# (Roman 2026-06-04: "descend the screen and have a presence"). Pulled to
-		# unlock_depth 1 so it's eligible the moment the midpoint beat starts (node 2).
-		"unlock_sector": 1, "unlock_depth": 1,
+		"base_count": 2,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.8,
+	},
+	{
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_push.tscn",
+		"heavy_class": "anchor",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": ["tough"],
+		"movement": "side_traverse",   # slow horizontal cross, lobbing shots
+		"shoot": null,
+		"hp_override": 28,
+		"base_count": 2,
+		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.7,
 	},
 	# TODO: Replace cutter with a new horizontal strafe enemy that crosses the screen cleanly
 	#{

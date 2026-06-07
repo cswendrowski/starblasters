@@ -100,6 +100,14 @@ enum OffscreenMode { CYCLE_BOTTOM, FREE_ANY_EDGE, FREE_OPPOSITE_SIDE, NONE }
 # which silently stripped these effects from every fixed-facing ship.)
 @export var has_ship_vfx: bool = true
 
+# 1px black outline on the hull (Roman 2026-06-07) — the "shootable foreground"
+# read, extended from asteroids to every enemy SHIP. Default on; opt OUT for the
+# exceptions (firecores, mine munitions, asteroids-have-their-own). Missiles /
+# rockets / projectiles aren't EnemyBase so they're excluded by construction; the
+# glow-mask is a separate node, not the hull "Sprite2D", so it's untouched.
+# enemy_core hides the outline while an enemy is recycling / faux-parallax.
+@export var wants_outline: bool = true
+
 # --- Identity (combat overhaul, Roman 2026-06-03) ---
 # Canonical enemy identity. INERT today: declared so the spawn materializer,
 # the lane conductor (tier -> render-plane), and a future RunStats accumulator
@@ -204,8 +212,15 @@ func _ready() -> void:
 	# bomblets explode on death rather than scaling damage.
 	if has_ship_vfx and has_node("Sprite2D"):
 		_install_damage_material($Sprite2D)
+	# 1px black hull outline (Roman 2026-06-07). Separate behind-node (NOT a
+	# material on the hull — that slot holds the damage shader, and the hull is a
+	# 2-frame sheet). Only the visible hull "Sprite2D" is outlined; the glow-mask
+	# and any decorative cores are other nodes. Opt-out via wants_outline.
+	if wants_outline and has_node("Sprite2D") and $Sprite2D.visible:
+		_OutlineFx.apply($Sprite2D)
 
 
+const _OutlineFx = preload("res://scripts/effects/outline_fx.gd")
 var _damage_material: ShaderMaterial = null
 var _shield_ring: ColorRect = null
 var _shield_mat: ShaderMaterial = null
@@ -319,6 +334,12 @@ func explode() -> void:
 	if parent == null:
 		parent = get_tree().root
 	_spawn_debris(parent, global_position, display_scale)
+	# Fade the non-body overlay sprites (glow mask, hull outline, decorative
+	# cores) FAST so they don't outlive the disintegrating body — otherwise a
+	# bright glow map / outline hangs in the air for the ~0.5s death window after
+	# the hull starts burning (Roman 2026-06-07). The body itself disintegrates
+	# via the burn shader below, not a fade.
+	_fade_death_overlays()
 	if has_node("Sprite2D"):
 		BurnFxScript.apply_burn($Sprite2D, 0.45)
 	if has_node("ParticleExplode"):
@@ -332,6 +353,20 @@ func explode() -> void:
 		SfxCls.play_node_detached($EnemyDie)
 	await get_tree().create_timer(0.5).timeout
 	queue_free()
+
+
+# Fade out the overlay sprites that AREN'T the burning hull — glow mask, the 1px
+# outline, and any decorative firecore cores — so none of them linger after death.
+# Fast (0.15s) so they're gone almost immediately while the body disintegrates.
+func _fade_death_overlays() -> void:
+	const OVERLAY_FADE := 0.15
+	for child in get_children():
+		if not (child is CanvasItem):
+			continue
+		var nm: String = String(child.name)
+		if nm == "GlowMask" or nm == "Outline" or nm.begins_with("FirecoreCore"):
+			var tw := create_tween()
+			tw.tween_property(child, "modulate:a", 0.0, OVERLAY_FADE)
 
 
 func _spawn_debris(parent: Node, world_pos: Vector2, scale_factor: float) -> void:
