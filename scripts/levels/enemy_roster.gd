@@ -79,6 +79,8 @@ const BV_SpreadPellet = preload("res://data/bullets/spread_pellet.tres")
 const BV_AimedSniper  = preload("res://data/bullets/aimed_sniper.tres")
 const BV_BurstRound   = preload("res://data/bullets/burst_round.tres")
 const BV_PlasmaOrb    = preload("res://data/bullets/plasma_orb.tres")
+const BV_HeavySlug    = preload("res://data/bullets/heavy_slug.tres")
+const BV_DropPellet   = preload("res://data/bullets/drop_pellet.tres")
 
 # Each entry: scene path + movement_factory + shoot_factory + tier + suggested
 # counts per wave at the entry-level (modest end of the scaling).
@@ -198,6 +200,56 @@ const ENTRIES := [
 		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.6, "chaff": true,
 	},
 
+	# --- Privateer chaff (M6c, Roman art 2026-06-07) ----------------------
+	# Privateer-exclusive (universal=false in factions.ENEMY_TAGS) — these only
+	# roll in privateer levels, fleshing out the faction's own set. All three use
+	# enemy_core directly (movement + shoot driven by the roster slots; no bespoke
+	# scripts). Two-frame sprite: frame 0 hull + frame 1 emissive glow (GlowMask).
+	{
+		# Green — privateer weaving chaff (no weapon). lane_weave gives it an
+		# in-lane wobble so it reads distinct from the straight-diving Dart/Gray.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_s_green.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "lane_weave",
+		"shoot": null,
+		"base_count": 6,
+		"recycle": 0,
+		"hp_override": 1, "bounty_override": 5,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.1, "chaff": true, "wall": true,
+	},
+	{
+		# Gray — privateer straight-diver chaff (no weapon). The faction's plain
+		# fast descender; pairs with Green as the basic privateer opener fodder.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_s_gray.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "fast_straight",
+		"shoot": null,
+		"base_count": 8,
+		"recycle": 0,
+		"hp_override": 1, "bounty_override": 5,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "chaff": true, "wall": true,
+	},
+	{
+		# Drop — privateer caltrop-layer. Descends steadily and DROPS a trail of
+		# slow drop_pellets behind itself (rear muzzles at ±6). Firing is path-phase
+		# (5 fixed band positions baked on the scene, NOT the timer) so the trail
+		# lands at even screen heights regardless of fire_interval. The pellets crawl
+		# down at 45 px/s — far slower than the 180 px/s descent — so they hang in
+		# the lane behind the dropper as a lingering hazard.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_s_drop.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "firecore_straight",
+		"shoot": "single",
+		"bullet_variant": BV_DropPellet,
+		"base_count": 4,
+		"hp_override": 1, "bounty_override": 8,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"conflict_tags": ["dumb_shot"],
+	},
+
 	# --- UNCOMMON ---------------------------------------------------------
 	{
 		# Burner — beam pair (Roman, 2026-05-31). Bespoke self-driving enemy:
@@ -309,6 +361,44 @@ const ENTRIES := [
 		# Skirmisher — aggressive aimed-fire advance/retreat. Sector 2, one node
 		# in. (Was D3 — pulled to D1 so it's reachable on a short sector.)
 		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"conflict_tags": ["aimed_or_spread", "demands_focus"],
+	},
+
+	# --- Privateer medium gunners (M6c, Roman art 2026-06-07) -------------
+	# Privateer-exclusive holding-platform gunners. enemy_core + roster slots,
+	# no bespoke scripts. Both hold a band and fire on the ShootTimer (loiter is
+	# not path-phase, so fire_min/max drive the cadence).
+	{
+		# Cannon — artillery platform. Holds the mid band and lobs slow, heavy
+		# cannon shells (heavy_slug: 60 px/s, 2 dmg) straight down from alternating
+		# muzzles (cannon_left/right at ±6). Slow, telegraphed, punishing if ignored.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_cannon.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": [],
+		"movement": "loiter_mid",
+		"shoot": "single",
+		"bullet_variant": BV_HeavySlug,
+		"base_count": 2,
+		"fire_min": 1.4, "fire_max": 2.0,
+		"hp_override": 8, "bounty_override": 18,
+		"unlock_sector": 1, "unlock_depth": 2, "weight": 0.8, "chaff": true,
+		"conflict_tags": ["demands_focus"],
+	},
+	{
+		# Pulse — plasma gunner. Holds a deep band and fires AIMED plasma orbs
+		# (wobble 8/3, the plasma signature) from two muzzles (±8). Aimed + wobble
+		# makes it the privateer pressure unit that demands active dodging.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_pulse.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": [],
+		"movement": "loiter_high",
+		"shoot": "aimed",
+		"bullet_variant": BV_PlasmaOrb,
+		"wobble_amplitude": 8.0, "wobble_frequency": 3.0,
+		"base_count": 2,
+		"fire_min": 1.6, "fire_max": 2.4,
+		"hp_override": 8, "bounty_override": 18,
+		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.7, "chaff": true,
 		"conflict_tags": ["aimed_or_spread", "demands_focus"],
 	},
 
