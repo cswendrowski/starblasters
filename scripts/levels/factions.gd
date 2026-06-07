@@ -36,23 +36,35 @@ enum Id { SUPREMACY, PRIVATEER, CORPORATE, ZEALOT }
 # if universal OR home == F. (END-STATE: drop universals, each faction owns its set.)
 const ENEMY_TAGS := {
 	"res://scenes/enemies/core/enemy_dart.tscn": {"home": Id.PRIVATEER, "universal": true},
-	"res://scenes/enemies/core/enemy_drifter.tscn": {"home": Id.ZEALOT, "universal": true},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_manta.tscn": {"home": Id.ZEALOT, "universal": true},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_retro.tscn": {"home": Id.ZEALOT, "universal": false},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_run.tscn": {"home": Id.ZEALOT, "universal": false},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_sword.tscn": {"home": Id.ZEALOT, "universal": false},
 	"res://scenes/enemies/core/enemy_spitter.tscn": {"home": Id.ZEALOT, "universal": true},
 	"res://scenes/enemies/core/enemy_bomb_drone.tscn": {"home": Id.SUPREMACY, "universal": true},
 	"res://scenes/enemies/core/enemy_weaver.tscn": {"home": Id.CORPORATE, "universal": true},
-	"res://scenes/enemies/core/enemy_hover.tscn": {"home": Id.CORPORATE, "universal": true},
+	"res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn": {"home": Id.CORPORATE, "universal": true},
+	"res://scenes/enemies/factions/corporate/enemy_c_s_gray.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/factions/corporate/enemy_c_s_curve.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/factions/corporate/enemy_c_s_drop.tscn": {"home": Id.CORPORATE, "universal": false},
 	"res://scenes/enemies/core/enemy_crystal.tscn": {"home": Id.SUPREMACY, "universal": true},
 	"res://scenes/enemies/core/enemy_cutter.tscn": {"home": Id.PRIVATEER, "universal": true},
 	"res://scenes/enemies/core/enemy_bomber.tscn": {"home": Id.CORPORATE, "universal": true},
 	"res://scenes/enemies/core/enemy_cruiser.tscn": {"home": Id.SUPREMACY, "universal": true},
 	"res://scenes/enemies/factions/privateer/enemy_minelayer.tscn": {"home": Id.PRIVATEER, "universal": false},
+	"res://scenes/enemies/factions/privateer/enemy_p_s_green.tscn": {"home": Id.PRIVATEER, "universal": false},
+	"res://scenes/enemies/factions/privateer/enemy_p_s_gray.tscn": {"home": Id.PRIVATEER, "universal": false},
+	"res://scenes/enemies/factions/privateer/enemy_p_s_drop.tscn": {"home": Id.PRIVATEER, "universal": false},
+	"res://scenes/enemies/factions/privateer/enemy_p_m_cannon.tscn": {"home": Id.PRIVATEER, "universal": false},
+	"res://scenes/enemies/factions/privateer/enemy_p_m_pulse.tscn": {"home": Id.PRIVATEER, "universal": false},
 	"res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn": {"home": Id.CORPORATE, "universal": false},
 	"res://scenes/enemies/factions/corporate/enemy_sapper.tscn": {"home": Id.CORPORATE, "universal": false},
 	"res://scenes/enemies/factions/corporate/enemy_strafer.tscn": {"home": Id.CORPORATE, "universal": false},
-	"res://scenes/enemies/factions/corporate/enemy_interceptor.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/factions/privateer/enemy_interceptor.tscn": {"home": Id.PRIVATEER, "universal": false},
 	"res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn": {"home": Id.CORPORATE, "universal": false},
 	"res://scenes/enemies/factions/corporate/enemy_bulwark.tscn": {"home": Id.CORPORATE, "universal": false},
-	"res://scenes/enemies/factions/corporate/enemy_gunship.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/factions/privateer/enemy_gunship.tscn": {"home": Id.PRIVATEER, "universal": false},
+	"res://scenes/enemies/factions/privateer/enemy_rocket.tscn": {"home": Id.PRIVATEER, "universal": false},
 	"res://scenes/enemies/factions/corporate/enemy_drone_carrier.tscn": {"home": Id.CORPORATE, "universal": false},
 	"res://scenes/enemies/factions/zealot/enemy_firecore_drone.tscn": {"home": Id.ZEALOT, "universal": false},
 	"res://scenes/enemies/factions/zealot/enemy_firecore_cruiser.tscn": {"home": Id.ZEALOT, "universal": false},
@@ -191,4 +203,31 @@ static func apply(id: int, enemy) -> void:
 	var comps: Array = build_components(id)
 	if not comps.is_empty() and "components" in enemy:
 		var existing: Array = (enemy.components if enemy.components is Array else [])
-		enemy.components = existing + comps
+		# Don't stack the zealot overlay's CHANCE firecore drop onto an enemy that
+		# already bakes a GUARANTEED firecore drop (retro/run/helix) — a guaranteed
+		# drop doesn't need the extra roll (Roman 2026-06-07). Drop the overlay's
+		# firecore emitter in that case; other overlay components still apply.
+		var bakes_firecore: bool = false
+		for c in existing:
+			if _is_firecore_drop(c):
+				bakes_firecore = true
+				break
+		var to_add: Array = []
+		for c in comps:
+			if bakes_firecore and _is_firecore_drop(c):
+				continue
+			to_add.append(c)
+		enemy.components = existing + to_add
+
+
+# True if `c` is an Emitter that drops a firecore hazard on death — used to avoid
+# stacking the zealot overlay's chance-drop onto an enemy that bakes a guaranteed one.
+static func _is_firecore_drop(c) -> bool:
+	if c == null:
+		return false
+	if not ("payload" in c and "trigger" in c):
+		return false
+	if c.payload == null:
+		return false
+	return int(c.trigger) == EmitterComponent.Trigger.DEATH \
+		and str(c.payload.resource_path) == FIRECORE_HAZARD_PATH

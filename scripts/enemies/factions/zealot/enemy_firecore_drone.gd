@@ -8,6 +8,11 @@ class_name EnemyFirecoreDrone
 # enemy_bullet flying radially OUTWARD from the drone, so death releases
 # expanding concentric bullet waves the player must dodge.
 #
+# Shot variation (Roman 2026-06-07, "bloom" re-skin): rings alternate between
+# STANDARD and SMALL bullets — odd-indexed rings render + release at SMALL_SCALE
+# (smaller visual AND hitbox, since scaling the Area2D scales its collision too),
+# so the concentric waves read as mixed-calibre instead of uniform.
+#
 # Bespoke self-driving enemy (no movement/shoot Resource slots) — extends
 # enemy_base.gd directly like enemy_firecore_cruiser. Rings are built in
 # _ready() from `ring_count`, so anything configuring ring_count (capture
@@ -33,6 +38,8 @@ const RING_SPEED_FALLOFF: float = 0.7
 const RELEASE_SPEED: float = 140.0
 # Slow constant downward descent (px/s).
 const DESCENT_SPEED: float = 40.0
+# Visual+hitbox scale for the SMALL bullet rings (odd ring indices).
+const SMALL_SCALE: float = 0.6
 # ---------------------------------------------------------------------------
 
 const RingBulletTex = preload("res://graphics/projectiles/enemy_bullet.png")
@@ -72,6 +79,8 @@ func _build_rings() -> void:
 		var spin_sign: float = -1.0 if (ring % 2 == 1) else 1.0
 		var speed: float = RING_SPEED_BASE * pow(RING_SPEED_FALLOFF, float(ring)) * spin_sign
 		var phase_base: float = randf() * TAU
+		# Alternate ring calibre: odd rings are SMALL (standard / small variation).
+		var small: bool = (ring % 2 == 1)
 		for i in range(bullet_count):
 			var angle: float = phase_base + TAU * (float(i) / float(bullet_count))
 			var spr := Sprite2D.new()
@@ -80,6 +89,8 @@ func _build_rings() -> void:
 			spr.hframes = 3
 			spr.frame = randi() % 3
 			spr.z_index = 1
+			if small:
+				spr.scale = Vector2(SMALL_SCALE, SMALL_SCALE)
 			spr.position = Vector2.from_angle(angle) * radius
 			add_child(spr)
 			_ring_bullets.append({
@@ -87,6 +98,7 @@ func _build_rings() -> void:
 				"radius": radius,
 				"angle": angle,
 				"speed": speed,
+				"small": small,
 			})
 
 
@@ -146,5 +158,9 @@ func _release_rings() -> void:
 			b.global_position = bullet_world
 		if "speed" in b:
 			b.speed = RELEASE_SPEED
+		# Small rings release small bullets — scale the Area2D so the visual AND
+		# the collision shrink together (set after start(), which sets pos/rot).
+		if rb.get("small", false):
+			b.scale = Vector2(SMALL_SCALE, SMALL_SCALE)
 		node.queue_free()
 	_ring_bullets.clear()

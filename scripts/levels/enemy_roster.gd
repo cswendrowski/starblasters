@@ -41,6 +41,7 @@ const TopDive = preload("res://scripts/enemies/patterns/top_dive.gd")
 const BeelinePlayer = preload("res://scripts/enemies/patterns/beeline_player.gd")
 const BulwarkDrift = preload("res://scripts/enemies/patterns/bulwark_drift.gd")
 const LanePath = preload("res://scripts/enemies/patterns/lane_path.gd")
+const OmniThrust = preload("res://scripts/enemies/patterns/omni_thrust.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
 
 # Faction pool filter (M6b): set by WaveGen.build for the duration of one generation so
@@ -79,6 +80,8 @@ const BV_SpreadPellet = preload("res://data/bullets/spread_pellet.tres")
 const BV_AimedSniper  = preload("res://data/bullets/aimed_sniper.tres")
 const BV_BurstRound   = preload("res://data/bullets/burst_round.tres")
 const BV_PlasmaOrb    = preload("res://data/bullets/plasma_orb.tres")
+const BV_HeavySlug    = preload("res://data/bullets/heavy_slug.tres")
+const BV_DropPellet   = preload("res://data/bullets/drop_pellet.tres")
 
 # Each entry: scene path + movement_factory + shoot_factory + tier + suggested
 # counts per wave at the entry-level (modest end of the scaling).
@@ -140,13 +143,15 @@ const ENTRIES := [
 		"unlock_sector": 0, "unlock_depth": 0, "weight": 1.0, "chaff": true, "wall": true,
 	},
 	{
-		"scene": "res://scenes/enemies/core/enemy_drifter.tscn",
+		# Manta (M6c, Roman art 2026-06-07) — REPLACES the Drifter. Same role/slot
+		# (basic drifting chaff shooter) on the new zealot two-frame sprite, but
+		# fires from a single CENTRAL muzzle (straight) rather than the diagonal
+		# popper. Stays a zealot UNIVERSAL (enemy_drifter.tscn retired from tags).
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_manta.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		# P2: Drifter behavior -> lane_path engine. Slow fire-zone-timed slide to an
-		# adjacent lane (was drifter_straight: a fixed lateral wobble via StraightDown).
 		"movement": "lane_drift",
-		"shoot": "single_diagonal",
+		"shoot": "single",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 4,
 		# Fire-rate pass (2026-05-30, Roman): was ~2.4-3.2s (slowest shooter).
@@ -157,6 +162,111 @@ const ENTRIES := [
 		# Drifter — basic chaff (slow drifting shooter). Always available so the
 		# sector-1/depth-0 opener has a couple of distinct basic types.
 		"unlock_sector": 0, "unlock_depth": 0, "weight": 1.2, "chaff": true,
+		"conflict_tags": ["dumb_shot"],
+	},
+
+	# --- Zealot core units (M6c, Roman art 2026-06-07) --------------------
+	# Zealot-exclusive enemy_core ships carrying a decorative firecore (glowing
+	# center) and a baked DropFirecore component (ALWAYS drop a firecore on death,
+	# count 1 — the faction overlay may add a chance of a second). "Retro" is the
+	# hover/skirmisher gunner; "Run" is the unarmed runner. Each appears under a
+	# few movements for variety.
+	{
+		# Run (straight) — unarmed firecore-runner; basic descent.
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_run.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "fast_straight",
+		"shoot": null,
+		"base_count": 6,
+		"recycle": 0,
+		"hp_override": 1, "bounty_override": 6,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "chaff": true, "wall": true,
+	},
+	{
+		# Run (weave) — unarmed firecore-runner; lane weave.
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_run.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "lane_weave",
+		"shoot": null,
+		"base_count": 5,
+		"recycle": 0,
+		"hp_override": 1, "bounty_override": 6,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.9, "chaff": true,
+	},
+	{
+		# Retro (hover) — firecore hover-gunner, aimed fire from a central muzzle.
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_retro.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "loiter_mid",
+		"shoot": "aimed",
+		"bullet_variant": BV_Basic,
+		"base_count": 2,
+		"fire_min": 1.6, "fire_max": 2.4,
+		"hp_override": 2, "bounty_override": 14,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"conflict_tags": ["aimed_or_spread", "demands_focus"],
+	},
+	{
+		# Retro (skirmish) — firecore skirmisher, advance/retreat aimed fire.
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_retro.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "advance_retreat",
+		"shoot": "aimed",
+		"bullet_variant": BV_Basic,
+		"base_count": 3,
+		"fire_min": 0.9, "fire_max": 1.3,
+		"hp_override": 2, "bounty_override": 14,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.7, "chaff": true,
+		"conflict_tags": ["aimed_or_spread", "demands_focus"],
+	},
+	{
+		# Retro (drift) — firecore drifting gunner.
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_retro.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "lane_drift",
+		"shoot": "aimed",
+		"bullet_variant": BV_Basic,
+		"base_count": 3,
+		"fire_min": 1.4, "fire_max": 2.0,
+		"hp_override": 2, "bounty_override": 14,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": true,
+		"conflict_tags": ["aimed_or_spread"],
+	},
+	# Sword (M6c, Roman art 2026-06-07) — zealot medium-speed LANE PUSHER. A long,
+	# narrow hull with multiple cycling muzzles (frigate-style) + a rear firecore.
+	# Fires shots as it goes: the advance variant pops at fixed band positions
+	# (path-phase, since it's a monotonic descent); the cross variant rakes the lane
+	# on the timer while traversing. Zealot-exclusive enemy_core.
+	{
+		# Sword (advance) — pushes straight down a lane firing forward.
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_sword.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "firecore_straight",
+		"shoot": "single",
+		"bullet_variant": BV_SpreadPellet,
+		"base_count": 3,
+		"hp_override": 2, "bounty_override": 12,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"conflict_tags": ["dumb_shot"],
+	},
+	{
+		# Sword (cross) — crosses horizontally raking shots down the lanes it passes.
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_sword.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "side_traverse",
+		"shoot": "single",
+		"bullet_variant": BV_SpreadPellet,
+		"base_count": 2,
+		"fire_min": 0.5, "fire_max": 0.9,
+		"hp_override": 2, "bounty_override": 12,
+		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.7, "chaff": true,
 		"conflict_tags": ["dumb_shot"],
 	},
 	{
@@ -196,6 +306,98 @@ const ENTRIES := [
 		# Hunter Drone — kamikaze threat; deeper-common. Appears from sector 2,
 		# a node or two in. (Was D4 — unreachable on short sectors; pulled to D1.)
 		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.6, "chaff": true,
+	},
+
+	# --- Privateer chaff (M6c, Roman art 2026-06-07) ----------------------
+	# Privateer-exclusive (universal=false in factions.ENEMY_TAGS) — these only
+	# roll in privateer levels, fleshing out the faction's own set. All three use
+	# enemy_core directly (movement + shoot driven by the roster slots; no bespoke
+	# scripts). Two-frame sprite: frame 0 hull + frame 1 emissive glow (GlowMask).
+	{
+		# Green — privateer weaving chaff (no weapon). lane_weave gives it an
+		# in-lane wobble so it reads distinct from the straight-diving Dart/Gray.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_s_green.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "lane_weave",
+		"shoot": null,
+		"base_count": 6,
+		"recycle": 0,
+		"hp_override": 1, "bounty_override": 5,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.1, "chaff": true, "wall": true,
+	},
+	{
+		# Gray — privateer straight-diver chaff (no weapon). The faction's plain
+		# fast descender; pairs with Green as the basic privateer opener fodder.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_s_gray.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "fast_straight",
+		"shoot": null,
+		"base_count": 8,
+		"recycle": 0,
+		"hp_override": 1, "bounty_override": 5,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "chaff": true, "wall": true,
+	},
+	{
+		# Drop — privateer caltrop-layer. Descends steadily and DROPS a trail of
+		# slow drop_pellets behind itself (rear muzzles at ±6). Firing is path-phase
+		# (5 fixed band positions baked on the scene, NOT the timer) so the trail
+		# lands at even screen heights regardless of fire_interval. The pellets crawl
+		# down at 45 px/s — far slower than the 180 px/s descent — so they hang in
+		# the lane behind the dropper as a lingering hazard.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_s_drop.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "firecore_straight",
+		"shoot": "single",
+		"bullet_variant": BV_DropPellet,
+		"base_count": 4,
+		"hp_override": 1, "bounty_override": 8,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"conflict_tags": ["dumb_shot"],
+	},
+
+	# --- Corporate chaff (M6c, Roman art 2026-06-07) ----------------------
+	# Corporate-exclusive (universal=false) mirror of the privateer chaff pack —
+	# enemy_core, no bespoke scripts, two-frame hull+glow sprites. Gives corp its
+	# own basic fodder alongside the universal Hold gunner.
+	{
+		# Corp Gray — straight-diver chaff (no weapon). Corp's plain fast descender.
+		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_gray.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "fast_straight",
+		"shoot": null,
+		"base_count": 8,
+		"recycle": 0,
+		"hp_override": 1, "bounty_override": 5,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "chaff": true, "wall": true,
+	},
+	{
+		# Corp Curve — weaving chaff (no weapon), lane-confined wobble.
+		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_curve.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "lane_weave",
+		"shoot": null,
+		"base_count": 6,
+		"recycle": 0,
+		"hp_override": 1, "bounty_override": 5,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.1, "chaff": true, "wall": true,
+	},
+	{
+		# Corp Drop — caltrop-layer; drops a path-phase trail of slow drop_pellets.
+		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_drop.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "firecore_straight",
+		"shoot": "single",
+		"bullet_variant": BV_DropPellet,
+		"base_count": 4,
+		"hp_override": 1, "bounty_override": 8,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"conflict_tags": ["dumb_shot"],
 	},
 
 	# --- UNCOMMON ---------------------------------------------------------
@@ -251,7 +453,11 @@ const ENTRIES := [
 		"conflict_tags": ["aimed_or_spread", "wide_dodge"],
 	},
 	{
-		"scene": "res://scenes/enemies/core/enemy_hover.tscn",
+		# Hold (M6c, Roman art 2026-06-07) — REPLACES the corp Hover. Same role
+		# (loitering gunner that demands focus, fires on the "hold" phase) on the
+		# new two-frame corp sprite (hull + glow). Stays a corporate UNIVERSAL so
+		# every faction keeps a loiter-gunner; the old enemy_hover.tscn is retired.
+		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "loiter",
@@ -260,7 +466,6 @@ const ENTRIES := [
 		"base_count": 2,
 		"fire_min": 1.6, "fire_max": 2.4,
 		"hp_override": 2, "bounty_override": 12,
-		# Hover — loitering gunner that demands focus. Sector 1, two nodes in.
 		"unlock_sector": 1, "unlock_depth": 2, "weight": 0.9, "chaff": true,
 		"conflict_tags": ["demands_focus"],
 	},
@@ -312,6 +517,44 @@ const ENTRIES := [
 		"conflict_tags": ["aimed_or_spread", "demands_focus"],
 	},
 
+	# --- Privateer medium gunners (M6c, Roman art 2026-06-07) -------------
+	# Privateer-exclusive holding-platform gunners. enemy_core + roster slots,
+	# no bespoke scripts. Both hold a band and fire on the ShootTimer (loiter is
+	# not path-phase, so fire_min/max drive the cadence).
+	{
+		# Cannon — artillery platform. Holds the mid band and lobs slow, heavy
+		# cannon shells (heavy_slug: 60 px/s, 2 dmg) straight down from alternating
+		# muzzles (cannon_left/right at ±6). Slow, telegraphed, punishing if ignored.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_cannon.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": [],
+		"movement": "loiter_mid",
+		"shoot": "single",
+		"bullet_variant": BV_HeavySlug,
+		"base_count": 2,
+		"fire_min": 1.4, "fire_max": 2.0,
+		"hp_override": 8, "bounty_override": 18,
+		"unlock_sector": 1, "unlock_depth": 2, "weight": 0.8, "chaff": true,
+		"conflict_tags": ["demands_focus"],
+	},
+	{
+		# Pulse — plasma gunner. Holds a deep band and fires AIMED plasma orbs
+		# (wobble 8/3, the plasma signature) from two muzzles (±8). Aimed + wobble
+		# makes it the privateer pressure unit that demands active dodging.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_pulse.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": [],
+		"movement": "loiter_high",
+		"shoot": "aimed",
+		"bullet_variant": BV_PlasmaOrb,
+		"wobble_amplitude": 8.0, "wobble_frequency": 3.0,
+		"base_count": 2,
+		"fire_min": 1.6, "fire_max": 2.4,
+		"hp_override": 8, "bounty_override": 18,
+		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.7, "chaff": true,
+		"conflict_tags": ["aimed_or_spread", "demands_focus"],
+	},
+
 	# Beamer (aim-DOWN sweeper): descends, then sweeps L↔R firing a straight-down
 	# beam that rakes across the band. Bespoke (enemy_beam_shooter.gd) self-drives
 	# + self-beams, so movement/shoot are null.
@@ -341,44 +584,98 @@ const ENTRIES := [
 		"unlock_sector": 2, "unlock_depth": 2, "weight": 0.7,
 		"conflict_tags": ["beamshooter"],
 	},
-	# Gunship single: one ship sweeps left↔right, fires 3 salvos, exits.
+	# Omni Gunship (M6c divergence rework, Roman 2026-06-07): roams with vector
+	# thrust (omni), harassing with hull-muzzle tracer bursts + wingtip cannon
+	# slugs. Bespoke firing (enemy_gunship.gd, now enemy_core); movement is the
+	# omni pattern, so it's a self-roaming presence — formation roles are gone.
+	# Single / duo entries give 1 or 2 roamers; no trio (omni roamers don't form up).
 	{
-		"scene": "res://scenes/enemies/factions/corporate/enemy_gunship.tscn",
+		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
 		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
-		"movement": "loiter",
-		"shoot": null,
+		"movement": "omni",
+		"shoot": null,   # bespoke tracer + cannon firing
 		"base_count": 1,
-		"no_scale": true,  # count must stay fixed; role logic requires exact N
-		# Heavy-beat presence anchor — pulled to unlock_depth 0 (Roman 2026-06-04) so
-		# sector-1 codas have a presence-holder beyond the (now untagged) interceptor.
-		# Loiter-gunner = good mid-mission presence.
+		"no_scale": true,
 		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.8,
 	},
-	# Gunship duo: two ships sweep in opposite directions.
 	{
-		"scene": "res://scenes/enemies/factions/corporate/enemy_gunship.tscn",
+		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
 		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
-		"movement": "loiter",
+		"movement": "omni",
 		"shoot": null,
 		"base_count": 2,
-		"no_scale": true,  # exact 2
+		"no_scale": true,
 		"unlock_sector": 2, "unlock_depth": 2, "weight": 0.9,
 	},
-	# Gunship trio: three ships in fixed spread formation.
+	# Gunship movement variants (Roman 2026-06-07): the same omni-Gunship scene
+	# wired to OTHER movements so the generator + conductor have more ways to field
+	# it — a medium tracer/cannon gunner that can hold, shift lanes, weave, or
+	# skirmish. Firing is identical (enemy_gunship.gd is movement-agnostic); only
+	# the movement slot differs. chaff:true + no heavy_class so these roll as regular
+	# mid-tier picks (and the lane variants feed the conductor's lane choreography),
+	# distinct from the no_scale anchor omni entries above. Modest weights — variety,
+	# not a flood.
 	{
-		"scene": "res://scenes/enemies/factions/corporate/enemy_gunship.tscn",
+		# Gunship (hold) — descends and holds the mid band like a loiter gunner.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": ["tough"],
+		"movement": "loiter_mid",
+		"shoot": null,
+		"base_count": 2,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.5, "chaff": true,
+		"conflict_tags": ["demands_focus"],
+	},
+	{
+		# Gunship (weave) — lane-confined weave; a heavier weaver in a lane wave.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": ["tough"],
+		"movement": "lane_weave",
+		"shoot": null,
+		"base_count": 3,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.5, "chaff": true,
+	},
+	{
+		# Gunship (shift) — one-way commit to an adjacent lane, then holds it.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": ["tough"],
+		"movement": "lane_shift",
+		"shoot": null,
+		"base_count": 3,
+		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.5, "chaff": true,
+	},
+	{
+		# Gunship (skirmish) — aggressive advance/retreat, raking on the hold.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": ["tough"],
+		"movement": "advance_retreat",
+		"shoot": null,
+		"base_count": 2,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5, "chaff": true,
+		"conflict_tags": ["demands_focus"],
+	},
+	# Rocket Gunship (M6c, Roman 2026-06-07): the divergent dupe. SLOW drift hull
+	# (movement from the roster slot) that lobs rocket salvos from its launch rack
+	# + rakes tracers from its hull muzzles. Bespoke firing (enemy_rocket.gd,
+	# enemy_core). A deliberate presence anchor, contrast to the omni Gunship.
+	{
+		"scene": "res://scenes/enemies/factions/privateer/enemy_rocket.tscn",
 		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
-		"movement": "loiter",
-		"shoot": null,
-		"base_count": 3,
-		"no_scale": true,  # exact 3
-		"unlock_sector": 3, "unlock_depth": 2, "weight": 0.7,
+		"movement": "lane_drift",
+		"shoot": null,   # bespoke rocket + tracer firing
+		"hp_override": 14,
+		"base_count": 1,
+		"no_scale": true,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.7,
 	},
 	# Bomber wing — large, tough rear-gunners that descend slowly and hold,
 	# raking the chasing player with tail turrets. Bespoke (enemy_bomber.gd):
@@ -452,7 +749,7 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 0,
 	},
 	{
-		"scene": "res://scenes/enemies/factions/corporate/enemy_interceptor.tscn",
+		"scene": "res://scenes/enemies/factions/privateer/enemy_interceptor.tscn",
 		# NOT heavy-beat tagged (Roman 2026-06-04): top_dive is a transient
 		# dive-through, not a presence-holding anchor. Stays a normal RARE dive squad
 		# (reaction-test / direct-challenge). Heavy beats want descend-and-hold types.
@@ -495,20 +792,47 @@ const ENTRIES := [
 		# Drone carrier — top-tier elite, latest of the standard rares.
 		"unlock_sector": 3, "unlock_depth": 0,
 	},
+	# Firecore Cruiser "Helix" (M6c rework, Roman 2026-06-07): a slow zealot capital
+	# with a player-tracking hook-turret BEAM + two glowing cores, dropping firecores
+	# on death. Now enemy_core: movement comes from the roster slot (clamped to ~1px/f
+	# in the script), giving it several ways to arrive — cross (side_traverse), hold
+	# (loiter), drift (lane_drift). shift/advance can be added later. Bespoke beam +
+	# baked DropFirecore (count 2). RARE capital, kept scarce by the tier-roll.
 	{
 		"scene": "res://scenes/enemies/factions/zealot/enemy_firecore_cruiser.tscn",
-		"heavy_class": "capital",  # 64px-wide — coda capital pool (boss-substitute)
+		"heavy_class": "capital",
 		"tier": Tier.RARE,
 		"size": "huge", "tags": ["tough"],
-		"movement": null,   # handles own movement
-		"shoot": null,      # handles own shooting
+		"movement": "side_traverse",  # cross the screen
+		"shoot": null,                # bespoke beam turret
 		"base_count": 1,
 		"no_scale": true,
 		"hp_override": 32, "bounty_override": 100,
-		# huge firecore elite — sector 2+, a node in. (Was D6 — unreachable on a
-		# short sector; pulled to D1 so it's actually reachable once gated by
-		# sector. The RARE tier-roll still keeps it scarce.)
 		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.6,
+	},
+	{
+		"scene": "res://scenes/enemies/factions/zealot/enemy_firecore_cruiser.tscn",
+		"heavy_class": "capital",
+		"tier": Tier.RARE,
+		"size": "huge", "tags": ["tough"],
+		"movement": "loiter",  # descend + hold
+		"shoot": null,
+		"base_count": 1,
+		"no_scale": true,
+		"hp_override": 32, "bounty_override": 100,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5,
+	},
+	{
+		"scene": "res://scenes/enemies/factions/zealot/enemy_firecore_cruiser.tscn",
+		"heavy_class": "capital",
+		"tier": Tier.RARE,
+		"size": "huge", "tags": ["tough"],
+		"movement": "lane_drift",  # slow lane drift
+		"shoot": null,
+		"base_count": 1,
+		"no_scale": true,
+		"hp_override": 32, "bounty_override": 100,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5,
 	},
 	{
 		# Firecore Drone (Roman, 2026-05-31). Small + tough; descends slowly
@@ -728,9 +1052,7 @@ static func make_movement(entry: Dictionary) -> Resource:
 		"lane_shift":
 			# Shifter (m6 §13) — descend, then a one-way COMMIT to an adjacent lane
 			# (only if free), then hold the destination. The HOOK = Shifter decision.
-			# NOTE (review): available behavior with NO live enemy home yet — no roster
-			# ENTRY uses "lane_shift". Eyeballed in the visualizer; assign it to a faction
-			# unit when one wants the Shifter behavior (like step_wall, ready not wired).
+			# Live as of 2026-06-07: the Gunship (shift) roster variant uses this.
 			var m = LanePath.new()
 			m.shape = LanePath.Shape.HOOK
 			m.down_speed = 120.0
@@ -803,6 +1125,11 @@ static func make_movement(entry: Dictionary) -> Resource:
 			# Bulwark drift is out of scope here — separate Bulwark turret
 			# task will retune it.
 			return BulwarkDrift.new()
+		"omni":
+			# Omni-thrust vector roamer (Gunship, Sapper). Holds a stand-off range
+			# from the player and strafes to dodge while facing them. Defaults are
+			# the tuned harassment values; the bespoke firing rides on top.
+			return OmniThrust.new()
 	return StraightDown.new()
 
 

@@ -1,41 +1,38 @@
-[gd_scene load_steps=11 format=3 uid="uid://87ugqj0btwfp"]
+[gd_scene load_steps=12 format=3 uid="uid://bzretro00001"]
 
-[ext_resource type="Script" path="res://scripts/enemies/factions/zealot/enemy_firecore_cruiser.gd" id="1_script"]
-[ext_resource type="Texture2D" uid="uid://ck8u8cikyq06h" path="res://graphics/enemies/enemy_z_m_helix.png" id="2_tex"]
+[ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemy_core.gd" id="1_core"]
+[ext_resource type="Texture2D" uid="uid://dh8noop5cyxlb" path="res://graphics/enemies/enemy_z_s_retro.png" id="2_tex"]
 [ext_resource type="Script" uid="uid://bj8dc3ktx8bt1" path="res://scripts/enemies/patterns/straight_down.gd" id="3_mov"]
 [ext_resource type="Script" uid="uid://5imwobncfuhu" path="res://scripts/enemies/components/emitter_component.gd" id="4_emit"]
 [ext_resource type="PackedScene" uid="uid://cfirecorehz001" path="res://scenes/enemies/firecore_hazard.tscn" id="5_fc"]
 [ext_resource type="PackedScene" uid="uid://bfirecorecore0" path="res://scenes/enemies/firecore_core.tscn" id="6_corevis"]
-[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="7_die"]
+[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="7_shoot"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="8_die"]
 
 [sub_resource type="Resource" id="MovePattern"]
 script = ExtResource("3_mov")
-speed = 60.0
+speed = 130.0
 drift_x = 0.0
 
 [sub_resource type="Resource" id="DropFirecore"]
 script = ExtResource("4_emit")
 payload = ExtResource("5_fc")
 trigger = 2
-count = 2
+count = 1
 cadence = 2.0
 chance = 1.0
-spread = 8.0
+spread = 0.0
 attach_to_enemy = false
 
 [sub_resource type="RectangleShape2D" id="Hit"]
-size = Vector2(16, 32)
+size = Vector2(16, 16)
 
-[node name="EnemyFirecoreCruiser" type="Area2D" groups=["enemies"]]
-script = ExtResource("1_script")
+[node name="Enemy" type="Area2D" groups=["enemies"]]
+script = ExtResource("1_core")
 movement = SubResource("MovePattern")
 components = [SubResource("DropFirecore")]
 
-[node name="FirecoreCoreTop" parent="." instance=ExtResource("6_corevis")]
-position = Vector2(0, -8)
-
-[node name="FirecoreCoreBot" parent="." instance=ExtResource("6_corevis")]
-position = Vector2(0, 8)
+[node name="FirecoreCore" parent="." instance=ExtResource("6_corevis")]
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("2_tex")
@@ -49,5 +46,20 @@ frame = 1
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("Hit")
 
+[node name="MoveTimer" type="Timer" parent="."]
+one_shot = true
+
+[node name="ShootTimer" type="Timer" parent="."]
+one_shot = true
+
+[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("7_shoot")
+
 [node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
-stream = ExtResource("7_die")
+stream = ExtResource("8_die")
+
+[node name="Muzzle" type="Marker2D" parent="."]
+position = Vector2(0, 6)
+
+[connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
+[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

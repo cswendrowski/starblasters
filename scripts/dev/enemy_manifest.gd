@@ -25,7 +25,7 @@ const ENEMIES: Array = [
 	"res://scenes/enemies/factions/supremacy/enemy_frigate.tscn",
 	"res://scenes/enemies/core/enemy_hover.tscn",
 	"res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn",
-	"res://scenes/enemies/factions/corporate/enemy_interceptor.tscn",
+	"res://scenes/enemies/factions/privateer/enemy_interceptor.tscn",
 	"res://scenes/enemies/enemy_mine.tscn",
 	"res://scenes/enemies/enemy_mine_cluster.tscn",
 	"res://scenes/enemies/enemy_mine_cluster_smart.tscn",

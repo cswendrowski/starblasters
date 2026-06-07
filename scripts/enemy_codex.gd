@@ -28,7 +28,7 @@ const ENTRIES = [
 	{"path": "res://scenes/enemies/factions/supremacy/enemy_frigate.tscn",  "name": "Frigate",  "tier": "Uncommon", "blurb": "Slow advance, burst fire, tough hull."},
 	{"path": "res://scenes/enemies/core/enemy_crystal.tscn",  "name": "Crystal",  "tier": "Rare"},
 	{"path": "res://scenes/enemies/factions/privateer/enemy_minelayer.tscn", "name": "Minelayer", "tier": "Rare"},
-	{"path": "res://scenes/enemies/factions/corporate/enemy_interceptor.tscn", "name": "Interceptor", "tier": "Rare"},
+	{"path": "res://scenes/enemies/factions/privateer/enemy_interceptor.tscn", "name": "Interceptor", "tier": "Rare"},
 	{"path": "res://scenes/enemies/factions/corporate/enemy_bulwark.tscn",  "name": "Bulwark",  "tier": "Rare"},
 	{"path": "res://scenes/enemies/boss.tscn",            "name": "Commander",  "tier": "Boss"},
 	{"path": "res://scenes/enemies/boss_reaver.tscn",     "name": "Lash",       "tier": "Boss"},

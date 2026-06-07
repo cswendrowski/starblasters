@@ -594,7 +594,7 @@ func _demo_enemy_roster_sheet() -> void:
 		# RARE
 		{"path": "res://scenes/enemies/core/enemy_crystal.tscn",  "name": "Crystal",  "tier": "Rare"},
 		{"path": "res://scenes/enemies/factions/privateer/enemy_minelayer.tscn", "name": "Minelayer", "tier": "Rare"},
-		{"path": "res://scenes/enemies/factions/corporate/enemy_interceptor.tscn", "name": "Interceptor", "tier": "Rare"},
+		{"path": "res://scenes/enemies/factions/privateer/enemy_interceptor.tscn", "name": "Interceptor", "tier": "Rare"},
 		{"path": "res://scenes/enemies/factions/corporate/enemy_bulwark.tscn",  "name": "Bulwark",  "tier": "Rare"},
 		# BOSS
 		{"path": "res://scenes/enemies/boss.tscn",            "name": "Commander",  "tier": "Boss"},

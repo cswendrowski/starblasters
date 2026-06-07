@@ -1,0 +1,54 @@
+[gd_scene load_steps=8 format=3 uid="uid://bcorpdrop0001"]
+
+[ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemy_core.gd" id="1_core"]
+[ext_resource type="Texture2D" uid="uid://c5mkvidvtb4j1" path="res://graphics/enemies/enemy_c_s_drop.png" id="2_tex"]
+[ext_resource type="Script" uid="uid://bj8dc3ktx8bt1" path="res://scripts/enemies/patterns/straight_down.gd" id="3_mov"]
+[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="4_shoot"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="5_die"]
+
+[sub_resource type="Resource" id="MovePattern"]
+script = ExtResource("3_mov")
+speed = 180.0
+drift_x = 0.0
+
+[sub_resource type="RectangleShape2D" id="Hit"]
+size = Vector2(16, 16)
+
+[node name="Enemy" type="Area2D" groups=["enemies"]]
+script = ExtResource("1_core")
+movement = SubResource("MovePattern")
+fire_path_phases = PackedFloat32Array(0.15, 0.3, 0.45, 0.6, 0.75)
+fire_beat_synced = false
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+hframes = 2
+
+[node name="GlowMask" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+hframes = 2
+frame = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("Hit")
+
+[node name="MoveTimer" type="Timer" parent="."]
+one_shot = true
+
+[node name="ShootTimer" type="Timer" parent="."]
+one_shot = true
+
+[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("4_shoot")
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("5_die")
+
+[node name="MuzzleL" type="Marker2D" parent="."]
+position = Vector2(-6, -6)
+
+[node name="MuzzleR" type="Marker2D" parent="."]
+position = Vector2(6, -6)
+
+[connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
+[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

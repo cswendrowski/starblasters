@@ -197,7 +197,7 @@ func _warm_up_explosion() -> void:
 		"res://scenes/enemies/factions/supremacy/enemy_frigate.tscn",
 		"res://scenes/enemies/core/enemy_cutter.tscn",
 		"res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn",
-		"res://scenes/enemies/factions/corporate/enemy_interceptor.tscn",
+		"res://scenes/enemies/factions/privateer/enemy_interceptor.tscn",
 		"res://scenes/enemies/factions/privateer/enemy_minelayer.tscn",
 		"res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn",
 		"res://scenes/enemies/boss.tscn",
