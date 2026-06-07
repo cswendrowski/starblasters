@@ -653,9 +653,18 @@ func _apply_sector_modifiers(enemy: Node, modifiers: Array) -> void:
 				if "damage_reduction" in enemy:
 					enemy.damage_reduction = max(enemy.damage_reduction, 0.20)
 			"aggressive":
+				# Faster fire AND faster projectiles (M6b weapon scaling).
 				if enemy.has_node("ShootTimer"):
 					var st: Timer = enemy.get_node("ShootTimer")
 					st.wait_time = max(0.05, st.wait_time * 0.90)
+				if "bullet_speed_mult" in enemy:
+					enemy.bullet_speed_mult *= 1.15
+			"armed":
+				# Heavier, slightly faster shots (M6b weapon scaling).
+				if "bullet_damage_mult" in enemy:
+					enemy.bullet_damage_mult *= 1.3
+				if "bullet_speed_mult" in enemy:
+					enemy.bullet_speed_mult *= 1.1
 			"wanted":
 				if "bounty_value" in enemy:
 					enemy.bounty_value = int(enemy.bounty_value * 1.20)
