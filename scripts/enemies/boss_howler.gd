@@ -19,7 +19,7 @@ extends "res://scripts/enemies/boss_base.gd"
 #                    +30deg rotation per fire, enrage flash + 4.0 shake,
 #                    reinforcement wave on entry.
 
-const DartScene = preload("res://scenes/enemies/enemy_dart.tscn")
+const DartScene = preload("res://scenes/enemies/core/enemy_dart.tscn")
 
 var _ring_offset_deg: float = 0.0
 var _ring_step_deg: float = 0.0

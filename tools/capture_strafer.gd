@@ -14,7 +14,7 @@ const FPS: int = 24
 const DURATION: float = 9.0     # long enough to see multiple recycles
 const FRAME_TIME: float = 1.0 / float(FPS)
 const PLAYER_SCENE := preload("res://scenes/player/player.tscn")
-const STRAFER_SCENE := preload("res://scenes/enemies/enemy_strafer.tscn")
+const STRAFER_SCENE := preload("res://scenes/enemies/factions/corporate/enemy_strafer.tscn")
 
 
 func _initialize() -> void:

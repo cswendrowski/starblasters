@@ -5,7 +5,7 @@ extends SceneTree
 # returns null viewport textures). Run:
 #   godot --path . -s tools/capture_burner_pair.gd
 
-const BURNER := "res://scenes/enemies/enemy_burner.tscn"
+const BURNER := "res://scenes/enemies/factions/zealot/enemy_burner.tscn"
 const OUT_DIR := "res://captures/burner_pair"
 const FPS := 24
 const DURATION := 4.0

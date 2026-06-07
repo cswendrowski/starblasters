@@ -1,0 +1,28 @@
+[gd_scene load_steps=4 format=3 uid="uid://bminlay000001"]
+
+[ext_resource type="Script" path="res://scripts/enemies/factions/privateer/minelayer.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://caqj0ui6esqux" path="res://graphics/enemies/enemy_minelayer.png" id="2_tex"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
+size = Vector2(16, 32)
+
+[node name="Enemy" type="Area2D" groups=["enemies"]]
+script = ExtResource("1_script")
+max_health = 12
+bounty_value = 40
+display_scale = 1.0
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_1")
+
+[node name="ShootTimer" type="Timer" parent="."]
+one_shot = true
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("3_die")
+
+[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

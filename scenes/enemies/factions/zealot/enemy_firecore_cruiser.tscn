@@ -1,0 +1,60 @@
+[gd_scene format=3 uid="uid://87ugqj0btwfp"]
+
+[ext_resource type="Script" path="res://scripts/enemies/factions/zealot/enemy_firecore_cruiser.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://dys10yoi061nc" path="res://graphics/enemies/firecore_cruiser.png" id="2_tex"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_frame0"]
+atlas = ExtResource("2_tex")
+region = Rect2(0, 0, 16, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_frame1"]
+atlas = ExtResource("2_tex")
+region = Rect2(16, 0, 16, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_frame2"]
+atlas = ExtResource("2_tex")
+region = Rect2(32, 0, 16, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_frame3"]
+atlas = ExtResource("2_tex")
+region = Rect2(48, 0, 16, 32)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_fly"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_frame0")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_frame1")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_frame2")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_frame3")
+}],
+"loop": true,
+"name": &"fly",
+"speed": 8.0
+}]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
+size = Vector2(16, 32)
+
+[node name="EnemyFirecoreCruiser" type="Area2D" unique_id=1725499720 groups=["enemies"]]
+script = ExtResource("1_script")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1094324916]
+sprite_frames = SubResource("SpriteFrames_fly")
+animation = &"fly"
+autoplay = "fly"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=80024406]
+shape = SubResource("RectangleShape2D_1")
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=991527633]
+stream = ExtResource("3_die")
+
+[node name="turret_mount" type="Marker2D" parent="." unique_id=1971658688]

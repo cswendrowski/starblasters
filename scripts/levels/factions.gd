@@ -34,31 +34,31 @@ enum Id { SUPREMACY, PRIVATEER, CORPORATE, ZEALOT }
 # appear only in their home faction. Pool restriction: an enemy is allowed in faction F
 # if universal OR home == F. (END-STATE: drop universals, each faction owns its set.)
 const ENEMY_TAGS := {
-	"res://scenes/enemies/enemy_dart.tscn": {"home": Id.PRIVATEER, "universal": true},
-	"res://scenes/enemies/enemy_drifter.tscn": {"home": Id.ZEALOT, "universal": true},
-	"res://scenes/enemies/enemy_firecore.tscn": {"home": Id.ZEALOT, "universal": true},
-	"res://scenes/enemies/enemy_bomb_drone.tscn": {"home": Id.SUPREMACY, "universal": true},
-	"res://scenes/enemies/enemy_weaver.tscn": {"home": Id.CORPORATE, "universal": true},
-	"res://scenes/enemies/enemy_hover.tscn": {"home": Id.CORPORATE, "universal": true},
-	"res://scenes/enemies/enemy_crystal.tscn": {"home": Id.SUPREMACY, "universal": true},
-	"res://scenes/enemies/enemy_cutter.tscn": {"home": Id.PRIVATEER, "universal": true},
-	"res://scenes/enemies/enemy_bomber.tscn": {"home": Id.CORPORATE, "universal": true},
-	"res://scenes/enemies/enemy_cruiser.tscn": {"home": Id.SUPREMACY, "universal": true},
-	"res://scenes/enemies/enemy_minelayer.tscn": {"home": Id.PRIVATEER, "universal": false},
-	"res://scenes/enemies/enemy_skirmisher.tscn": {"home": Id.CORPORATE, "universal": false},
-	"res://scenes/enemies/enemy_sapper.tscn": {"home": Id.CORPORATE, "universal": false},
-	"res://scenes/enemies/enemy_strafer.tscn": {"home": Id.CORPORATE, "universal": false},
-	"res://scenes/enemies/enemy_interceptor.tscn": {"home": Id.CORPORATE, "universal": false},
-	"res://scenes/enemies/enemy_hunter_drone.tscn": {"home": Id.CORPORATE, "universal": false},
-	"res://scenes/enemies/enemy_bulwark.tscn": {"home": Id.CORPORATE, "universal": false},
-	"res://scenes/enemies/enemy_gunship.tscn": {"home": Id.CORPORATE, "universal": false},
-	"res://scenes/enemies/enemy_drone_carrier.tscn": {"home": Id.CORPORATE, "universal": false},
-	"res://scenes/enemies/enemy_firecore_drone.tscn": {"home": Id.ZEALOT, "universal": false},
-	"res://scenes/enemies/enemy_firecore_cruiser.tscn": {"home": Id.ZEALOT, "universal": false},
-	"res://scenes/enemies/enemy_beam_shooter.tscn": {"home": Id.ZEALOT, "universal": false},
-	"res://scenes/enemies/enemy_beamer_tracker.tscn": {"home": Id.ZEALOT, "universal": false},
-	"res://scenes/enemies/enemy_burner.tscn": {"home": Id.ZEALOT, "universal": false},
-	"res://scenes/enemies/enemy_frigate.tscn": {"home": Id.SUPREMACY, "universal": false},
+	"res://scenes/enemies/core/enemy_dart.tscn": {"home": Id.PRIVATEER, "universal": true},
+	"res://scenes/enemies/core/enemy_drifter.tscn": {"home": Id.ZEALOT, "universal": true},
+	"res://scenes/enemies/core/enemy_spitter.tscn": {"home": Id.ZEALOT, "universal": true},
+	"res://scenes/enemies/core/enemy_bomb_drone.tscn": {"home": Id.SUPREMACY, "universal": true},
+	"res://scenes/enemies/core/enemy_weaver.tscn": {"home": Id.CORPORATE, "universal": true},
+	"res://scenes/enemies/core/enemy_hover.tscn": {"home": Id.CORPORATE, "universal": true},
+	"res://scenes/enemies/core/enemy_crystal.tscn": {"home": Id.SUPREMACY, "universal": true},
+	"res://scenes/enemies/core/enemy_cutter.tscn": {"home": Id.PRIVATEER, "universal": true},
+	"res://scenes/enemies/core/enemy_bomber.tscn": {"home": Id.CORPORATE, "universal": true},
+	"res://scenes/enemies/core/enemy_cruiser.tscn": {"home": Id.SUPREMACY, "universal": true},
+	"res://scenes/enemies/factions/privateer/enemy_minelayer.tscn": {"home": Id.PRIVATEER, "universal": false},
+	"res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/factions/corporate/enemy_sapper.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/factions/corporate/enemy_strafer.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/factions/corporate/enemy_interceptor.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/factions/corporate/enemy_bulwark.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/factions/corporate/enemy_gunship.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/factions/corporate/enemy_drone_carrier.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/factions/zealot/enemy_firecore_drone.tscn": {"home": Id.ZEALOT, "universal": false},
+	"res://scenes/enemies/factions/zealot/enemy_firecore_cruiser.tscn": {"home": Id.ZEALOT, "universal": false},
+	"res://scenes/enemies/factions/zealot/enemy_beam_shooter.tscn": {"home": Id.ZEALOT, "universal": false},
+	"res://scenes/enemies/factions/zealot/enemy_beamer_tracker.tscn": {"home": Id.ZEALOT, "universal": false},
+	"res://scenes/enemies/factions/zealot/enemy_burner.tscn": {"home": Id.ZEALOT, "universal": false},
+	"res://scenes/enemies/factions/supremacy/enemy_frigate.tscn": {"home": Id.SUPREMACY, "universal": false},
 }
 
 
@@ -160,9 +160,9 @@ static func apply(id: int, enemy) -> void:
 	if enemy == null:
 		return
 	var d: Dictionary = data(id)
-	# Tint (instant visual read).
-	if enemy is CanvasItem:
-		enemy.modulate = d.get("tint", Color.WHITE)
+	# Faction TINT is no longer applied (Roman 2026-06-06): per-faction SPRITES convey
+	# faction identity, so a runtime modulate would just wash out the art. The `tint`
+	# field stays in data() for reference (codex/UI) but is not stamped on the enemy.
 	# Stat mods — tough HP (privateer).
 	var sm: Dictionary = d.get("stat_mods", {})
 	var hp_mult: float = float(sm.get("hp_mult", 1.0))

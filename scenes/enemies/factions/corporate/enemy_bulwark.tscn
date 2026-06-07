@@ -1,0 +1,23 @@
+[gd_scene load_steps=4 format=3 uid="uid://bbulwrk000001"]
+
+[ext_resource type="Script" path="res://scripts/enemies/factions/corporate/bulwark.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://graphics/extra-ships/tiny_ship11.png" id="2_tex"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
+size = Vector2(36, 26)
+
+[node name="Enemy" type="Area2D" groups=["enemies"]]
+script = ExtResource("1_script")
+max_health = 8
+bounty_value = 75
+display_scale = 1.0
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_1")
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("3_die")

@@ -126,8 +126,8 @@ func _capture(sname: String, scene_path: String, settle: float) -> void:
 		await process_frame
 		# Sample tally so the screen shows real content.
 		var stats := {
-			"res://scenes/enemies/enemy_dart.tscn": {"spawned": 12, "killed": 12, "bounty": 5, "total_bounty": 60},
-			"res://scenes/enemies/enemy_cruiser.tscn": {"spawned": 3, "killed": 3, "bounty": 40, "total_bounty": 120},
+			"res://scenes/enemies/core/enemy_dart.tscn": {"spawned": 12, "killed": 12, "bounty": 5, "total_bounty": 60},
+			"res://scenes/enemies/core/enemy_cruiser.tscn": {"spawned": 3, "killed": 3, "bounty": 40, "total_bounty": 120},
 		}
 		if inst.has_method("populate"):
 			inst.populate(stats, 180, false, false)

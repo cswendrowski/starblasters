@@ -1,0 +1,2 @@
+helper ys=[80.0, 106.0, 132.0, 158.0, 80.0, 106.0, 132.0, 158.0] ; spawned distinct latitudes=4
+CROSSER STAGGER: PASS

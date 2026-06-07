@@ -1,0 +1,2 @@
+showcase 5 waves ok ; beamer/tracker/lock/cruiser instantiated clean
+BEAM SHOWCASE: PASS

@@ -1,0 +1,2 @@
+beam attached=true ; target hits=20
+BEAM WEAPON: PASS

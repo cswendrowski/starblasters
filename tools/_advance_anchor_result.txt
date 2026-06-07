@@ -1,0 +1,3 @@
+skirmisher ok: exit dy -0.12 -> -1.98, max_x_dev=5.482
+anchor ok: straight descent, max_x_dev=0.000, reached y=270 in 4.5s
+ADVANCE/ANCHOR: PASS

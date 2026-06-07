@@ -8,7 +8,7 @@ const OUT_DIR := "res://captures/firecore_cruiser"
 const FPS: int = 12
 const DURATION: float = 7.0
 const FRAME_TIME: float = 1.0 / float(FPS)
-const CRUISER_SCENE := preload("res://scenes/enemies/enemy_firecore_cruiser.tscn")
+const CRUISER_SCENE := preload("res://scenes/enemies/factions/zealot/enemy_firecore_cruiser.tscn")
 
 
 class _DummyPlayer extends Node2D:

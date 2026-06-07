@@ -30,11 +30,11 @@ func _process(_dt: float) -> bool:
 		_fail("expected 5 waves, got %d" % lvl.waves.size())
 	else:
 		var want := [
-			"res://scenes/enemies/enemy_beam_shooter.tscn",
-			"res://scenes/enemies/enemy_beamer_tracker.tscn",
-			"res://scenes/enemies/enemy_beamer_lock.tscn",
-			"res://scenes/enemies/enemy_burner.tscn",
-			"res://scenes/enemies/enemy_cruiser.tscn",
+			"res://scenes/enemies/factions/zealot/enemy_beam_shooter.tscn",
+			"res://scenes/enemies/factions/zealot/enemy_beamer_tracker.tscn",
+			"res://scenes/enemies/factions/zealot/enemy_beamer_lock.tscn",
+			"res://scenes/enemies/factions/zealot/enemy_burner.tscn",
+			"res://scenes/enemies/core/enemy_cruiser.tscn",
 		]
 		for i in want.size():
 			if lvl.waves[i].enemy_scene == null or lvl.waves[i].enemy_scene.resource_path != want[i]:
@@ -43,15 +43,15 @@ func _process(_dt: float) -> bool:
 	# 2) each beam enemy instantiates + _ready runs clean (BeamEmitter wiring)
 	var world := Node2D.new()
 	root.add_child(world)
-	var beamer = load("res://scenes/enemies/enemy_beam_shooter.tscn").instantiate()
+	var beamer = load("res://scenes/enemies/factions/zealot/enemy_beam_shooter.tscn").instantiate()
 	world.add_child(beamer)
 	if not ("_beam" in beamer) or beamer._beam == null:
 		_fail("Beamer did not create its BeamEmitter in _ready")
-	var tracker = load("res://scenes/enemies/enemy_beamer_tracker.tscn").instantiate()
+	var tracker = load("res://scenes/enemies/factions/zealot/enemy_beamer_tracker.tscn").instantiate()
 	world.add_child(tracker)
 	if not ("_beam" in tracker) or tracker._beam == null:
 		_fail("Beamer-tracker did not create its BeamEmitter in _ready")
-	var cruiser = load("res://scenes/enemies/enemy_cruiser.tscn").instantiate()
+	var cruiser = load("res://scenes/enemies/core/enemy_cruiser.tscn").instantiate()
 	world.add_child(cruiser)
 	cruiser._spawn_turrets()   # cruiser defers this; force it so we can verify synchronously
 	if not ("_beam_turret" in cruiser) or cruiser._beam_turret == null:
@@ -59,7 +59,7 @@ func _process(_dt: float) -> bool:
 	elif not ("_beam" in cruiser._beam_turret) or cruiser._beam_turret._beam == null:
 		_fail("Beam turret did not create its BeamEmitter in _ready")
 	# Burner: _ready does NOT make a beam (created on telegraph) — just no crash.
-	var burner = load("res://scenes/enemies/enemy_burner.tscn").instantiate()
+	var burner = load("res://scenes/enemies/factions/zealot/enemy_burner.tscn").instantiate()
 	world.add_child(burner)
 
 	_lines.append("showcase 5 waves ok ; beamer/tracker/lock/cruiser instantiated clean")

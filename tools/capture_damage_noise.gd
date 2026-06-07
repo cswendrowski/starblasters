@@ -9,7 +9,7 @@ const OUT_DIR := "res://captures/damage_noise"
 const FPS: int = 10
 const FRAME_TIME: float = 1.0 / float(FPS)
 const NUM_FRAMES: int = 20
-const SPRITE_SCENE := preload("res://scenes/enemies/enemy_hover.tscn")
+const SPRITE_SCENE := preload("res://scenes/enemies/core/enemy_hover.tscn")
 const NOISE_TEXTURE := preload("res://resources/noise_damage.tres")
 const EDGE_DISTANCE_MAP := preload("res://resources/edge_distance_flat.tres")
 

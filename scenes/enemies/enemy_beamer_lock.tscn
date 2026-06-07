@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://cbeamaim000002"]
-
-[ext_resource type="PackedScene" uid="uid://dhxx56fkbx465" path="res://scenes/enemies/enemy_beam_shooter.tscn" id="1_base"]
-
-[node name="EnemyBeamShooter" instance=ExtResource("1_base")]
-aim_behavior = 2

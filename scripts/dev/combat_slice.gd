@@ -16,8 +16,8 @@ extends RefCounted
 # design before the producer-side WaveGen v2. See
 # docs/combat_construction_plan_2026-06-03.md.
 
-const DART := "res://scenes/enemies/enemy_dart.tscn"
-const DRIFTER := "res://scenes/enemies/enemy_drifter.tscn"
+const DART := "res://scenes/enemies/core/enemy_dart.tscn"
+const DRIFTER := "res://scenes/enemies/core/enemy_drifter.tscn"
 
 # lane_path.gd Shape enum order: 0 = STRAIGHT, 1 = WEAVE, 2 = HOOK, 3 = STEP.
 const LP_STRAIGHT := 0

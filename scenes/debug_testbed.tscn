@@ -438,7 +438,7 @@ max_value = 6.0
 step = 0.05
 value = 3.0
 metadata/ship_name = "Firecore"
-metadata/scene_path = "res://scenes/enemies/enemy_firecore.tscn"
+metadata/scene_path = "res://scenes/enemies/core/enemy_spitter.tscn"
 
 [node name="Row_Drifter" type="VBoxContainer" parent="Tabs/Ships"]
 layout_mode = 2
@@ -456,7 +456,7 @@ max_value = 6.0
 step = 0.05
 value = 2.5
 metadata/ship_name = "Drifter"
-metadata/scene_path = "res://scenes/enemies/enemy_drifter.tscn"
+metadata/scene_path = "res://scenes/enemies/core/enemy_drifter.tscn"
 
 [node name="Row_Crystal" type="VBoxContainer" parent="Tabs/Ships"]
 layout_mode = 2
@@ -474,7 +474,7 @@ max_value = 6.0
 step = 0.05
 value = 1.6
 metadata/ship_name = "Crystal"
-metadata/scene_path = "res://scenes/enemies/enemy_crystal.tscn"
+metadata/scene_path = "res://scenes/enemies/core/enemy_crystal.tscn"
 
 [node name="Row_Dart" type="VBoxContainer" parent="Tabs/Ships"]
 layout_mode = 2
@@ -492,7 +492,7 @@ max_value = 6.0
 step = 0.05
 value = 1.5
 metadata/ship_name = "Dart"
-metadata/scene_path = "res://scenes/enemies/enemy_dart.tscn"
+metadata/scene_path = "res://scenes/enemies/core/enemy_dart.tscn"
 
 [node name="Row_Hover" type="VBoxContainer" parent="Tabs/Ships"]
 layout_mode = 2
@@ -510,7 +510,7 @@ max_value = 6.0
 step = 0.05
 value = 2.0
 metadata/ship_name = "Hover"
-metadata/scene_path = "res://scenes/enemies/enemy_hover.tscn"
+metadata/scene_path = "res://scenes/enemies/core/enemy_hover.tscn"
 
 [node name="Row_Boss" type="VBoxContainer" parent="Tabs/Ships"]
 layout_mode = 2

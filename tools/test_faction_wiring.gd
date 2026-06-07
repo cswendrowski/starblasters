@@ -38,8 +38,8 @@ func _process(_dt: float) -> bool:
 	_done = true
 
 	# allowed_in
-	var dart := "res://scenes/enemies/enemy_dart.tscn"          # universal
-	var fcd := "res://scenes/enemies/enemy_firecore_drone.tscn" # zealot exclusive
+	var dart := "res://scenes/enemies/core/enemy_dart.tscn"          # universal
+	var fcd := "res://scenes/enemies/factions/zealot/enemy_firecore_drone.tscn" # zealot exclusive
 	if not Factions.allowed_in(dart, Factions.Id.CORPORATE):
 		_fail("universal dart not allowed in corporate")
 	if Factions.allowed_in(fcd, Factions.Id.CORPORATE):

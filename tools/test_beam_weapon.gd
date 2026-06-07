@@ -29,7 +29,7 @@ func _process(_dt: float) -> bool:
 	var world := Node2D.new()
 	root.add_child(world)
 
-	var dart = load("res://scenes/enemies/enemy_dart.tscn").instantiate()
+	var dart = load("res://scenes/enemies/core/enemy_dart.tscn").instantiate()
 	dart.auto_rotate = false                  # beam enemies don't spin (would flip forward)
 	var mv = StraightDown.new(); mv.speed = 0.0
 	dart.movement = mv
