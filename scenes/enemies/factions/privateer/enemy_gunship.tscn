@@ -1,14 +1,20 @@
-[gd_scene format=3 uid="uid://do5iinq73mlki"]
+[gd_scene load_steps=8 format=3 uid="uid://do5iinq73mlki"]
 
 [ext_resource type="Script" uid="uid://bsrm7tpjdmbds" path="res://scripts/enemies/factions/privateer/enemy_gunship.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://dx4rekb1q8gka" path="res://graphics/enemies/enemy_p_m_gunship.png" id="2_mkb1a"]
-[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="4_die"]
+[ext_resource type="Script" uid="uid://impp5iwmt1e8" path="res://scripts/enemies/patterns/omni_thrust.gd" id="3_mov"]
+[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="4_shoot"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="5_die"]
+
+[sub_resource type="Resource" id="MovePattern"]
+script = ExtResource("3_mov")
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
 size = Vector2(30, 32)
 
 [node name="EnemyGunship" type="Area2D" unique_id=1892792395 groups=["enemies"]]
 script = ExtResource("1_script")
+movement = SubResource("MovePattern")
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=946980638]
 texture = ExtResource("2_mkb1a")
@@ -23,30 +29,21 @@ frame = 1
 position = Vector2(0, -1)
 shape = SubResource("RectangleShape2D_1")
 
+[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("4_shoot")
+
 [node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1769718148]
 position = Vector2(2, -5)
-stream = ExtResource("4_die")
-
-[node name="launch_point1" type="Marker2D" parent="." unique_id=242605704]
-position = Vector2(-13, 0)
-
-[node name="launch_point2" type="Marker2D" parent="." unique_id=272832707]
-position = Vector2(-11, 0)
-
-[node name="launch_point3" type="Marker2D" parent="." unique_id=57515568]
-position = Vector2(-9, 0)
-
-[node name="launch_point4" type="Marker2D" parent="." unique_id=1568513781]
-position = Vector2(9, 0)
-
-[node name="launch_point5" type="Marker2D" parent="." unique_id=339914658]
-position = Vector2(11, 0)
-
-[node name="launch_point6" type="Marker2D" parent="." unique_id=1666567492]
-position = Vector2(13, 0)
+stream = ExtResource("5_die")
 
 [node name="MuzzleL" type="Marker2D" parent="." unique_id=238332679]
 position = Vector2(-4, -10)
 
 [node name="MuzzleR" type="Marker2D" parent="." unique_id=1736183934]
 position = Vector2(4, -10)
+
+[node name="CannonL" type="Marker2D" parent="."]
+position = Vector2(-8, 0)
+
+[node name="CannonR" type="Marker2D" parent="."]
+position = Vector2(8, 0)
