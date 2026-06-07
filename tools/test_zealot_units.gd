@@ -17,6 +17,7 @@ const RETRO := "res://scenes/enemies/factions/zealot/enemy_z_s_retro.tscn"
 const RUN := "res://scenes/enemies/factions/zealot/enemy_z_s_run.tscn"
 const BLOOM := "res://scenes/enemies/factions/zealot/enemy_firecore_drone.tscn"
 const HELIX := "res://scenes/enemies/factions/zealot/enemy_firecore_cruiser.tscn"
+const SWORD := "res://scenes/enemies/factions/zealot/enemy_z_s_sword.tscn"
 
 var _lines: Array = []
 var _fails := 0
@@ -114,10 +115,20 @@ func _process(_dt: float) -> bool:
 		_fail("helix did not clamp movement to ~1px/f (got %.0f)" % helix._pattern.speed)
 	helix.free()
 
+	# --- 5b) Sword: multiple muzzles + rear core, no death-drop ---------------
+	var sword := _inst(SWORD)
+	if sword.all_muzzle_pos().size() < 2:
+		_fail("sword should have multiple muzzles (got %d)" % sword.all_muzzle_pos().size())
+	if not _has(sword, "FirecoreCore"):
+		_fail("sword missing rear FirecoreCore")
+	if _always_drops(sword):
+		_fail("sword core is decorative — should NOT bake a death firecore drop")
+	sword.free()
+
 	# --- 6) Faction tags ------------------------------------------------------
 	if not Factions.allowed_in(MANTA, Factions.Id.SUPREMACY):
 		_fail("manta should be universal (allowed everywhere)")
-	for p in [RETRO, RUN]:
+	for p in [RETRO, RUN, SWORD]:
 		if not Factions.allowed_in(p, Factions.Id.ZEALOT):
 			_fail("%s should be allowed in zealot" % p)
 		if Factions.allowed_in(p, Factions.Id.CORPORATE):

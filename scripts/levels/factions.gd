@@ -39,6 +39,7 @@ const ENEMY_TAGS := {
 	"res://scenes/enemies/factions/zealot/enemy_z_s_manta.tscn": {"home": Id.ZEALOT, "universal": true},
 	"res://scenes/enemies/factions/zealot/enemy_z_s_retro.tscn": {"home": Id.ZEALOT, "universal": false},
 	"res://scenes/enemies/factions/zealot/enemy_z_s_run.tscn": {"home": Id.ZEALOT, "universal": false},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_sword.tscn": {"home": Id.ZEALOT, "universal": false},
 	"res://scenes/enemies/core/enemy_spitter.tscn": {"home": Id.ZEALOT, "universal": true},
 	"res://scenes/enemies/core/enemy_bomb_drone.tscn": {"home": Id.SUPREMACY, "universal": true},
 	"res://scenes/enemies/core/enemy_weaver.tscn": {"home": Id.CORPORATE, "universal": true},

@@ -237,6 +237,38 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": true,
 		"conflict_tags": ["aimed_or_spread"],
 	},
+	# Sword (M6c, Roman art 2026-06-07) — zealot medium-speed LANE PUSHER. A long,
+	# narrow hull with multiple cycling muzzles (frigate-style) + a rear firecore.
+	# Fires shots as it goes: the advance variant pops at fixed band positions
+	# (path-phase, since it's a monotonic descent); the cross variant rakes the lane
+	# on the timer while traversing. Zealot-exclusive enemy_core.
+	{
+		# Sword (advance) — pushes straight down a lane firing forward.
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_sword.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "firecore_straight",
+		"shoot": "single",
+		"bullet_variant": BV_SpreadPellet,
+		"base_count": 3,
+		"hp_override": 2, "bounty_override": 12,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"conflict_tags": ["dumb_shot"],
+	},
+	{
+		# Sword (cross) — crosses horizontally raking shots down the lanes it passes.
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_sword.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "side_traverse",
+		"shoot": "single",
+		"bullet_variant": BV_SpreadPellet,
+		"base_count": 2,
+		"fire_min": 0.5, "fire_max": 0.9,
+		"hp_override": 2, "bounty_override": 12,
+		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.7, "chaff": true,
+		"conflict_tags": ["dumb_shot"],
+	},
 	{
 		# Strafer (Roman, 2026-05-31). Chaff fighter doing head-on passes:
 		# homes from the top, fires a 6-shot tracer burst at the MG cannon's
