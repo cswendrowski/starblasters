@@ -12,6 +12,11 @@ extends Resource
 
 const MuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
 const Clarity = preload("res://scripts/clarity.gd")
+# Ceiling on an enemy bullet's final damage after weapon multipliers (faction +
+# sector compound via *=). Guard rail so a late-sector + 'armed' + future damage
+# faction can't stack into a one-shot. Heaviest base today (heavy_slug=2) × armed
+# (1.3) = ~3, so 4 leaves headroom without capping existing content.
+const ENEMY_BULLET_DAMAGE_CAP := 4
 
 @export var bullet_scene: PackedScene
 
@@ -86,7 +91,7 @@ func _spawn_bullet(enemy, dir: Vector2, bv = null):
 	if "bullet_speed_mult" in enemy and float(enemy.bullet_speed_mult) != 1.0 and "speed" in b:
 		b.speed = minf(b.speed * float(enemy.bullet_speed_mult), Clarity.ABS_MAX_SPEED)
 	if "bullet_damage_mult" in enemy and float(enemy.bullet_damage_mult) != 1.0 and "damage" in b:
-		b.damage = maxi(1, int(round(float(b.damage) * float(enemy.bullet_damage_mult))))
+		b.damage = clampi(int(round(float(b.damage) * float(enemy.bullet_damage_mult))), 1, ENEMY_BULLET_DAMAGE_CAP)
 	return b
 
 

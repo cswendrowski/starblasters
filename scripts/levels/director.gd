@@ -326,6 +326,10 @@ func _dispatch_wall(ph: Resource) -> void:
 # of lanes leaving the opposite edge open, all members spawn in ONE frame with the
 # SAME synced-STEP params (offset bounds sized so the whole block stays on-board, a
 # shared start direction toward the gap), so they step in unison and the gap relocates.
+# NOTE (review): DEV-ONLY live — only the Lane Visualizer emits Formation.STEP_WALL;
+# wave_generator caps forced formations at PINCER, so production never reaches this path
+# yet. The synced-STEP machinery (lane_path STEP group + _synced_offset) is ready for a
+# producer to author step walls when wanted.
 func _dispatch_step_wall(ph: Resource) -> void:
 	var members: Array = []
 	for sp in ph.specs:
@@ -653,10 +657,14 @@ func _apply_sector_modifiers(enemy: Node, modifiers: Array) -> void:
 				if "damage_reduction" in enemy:
 					enemy.damage_reduction = max(enemy.damage_reduction, 0.20)
 			"aggressive":
-				# Faster fire AND faster projectiles (M6b weapon scaling).
-				if enemy.has_node("ShootTimer"):
-					var st: Timer = enemy.get_node("ShootTimer")
-					st.wait_time = max(0.05, st.wait_time * 0.90)
+				# Faster fire AND faster projectiles (M6b weapon scaling). Scale the
+				# SINGLE-SOURCED fire_interval (review P1): tweaking $ShootTimer.wait_time
+				# was a no-op — enemy_core re-arms wait_time from fire_interval on every
+				# shot, clobbering it.
+				if "fire_interval_min" in enemy:
+					enemy.fire_interval_min *= 0.85
+				if "fire_interval_max" in enemy:
+					enemy.fire_interval_max *= 0.85
 				if "bullet_speed_mult" in enemy:
 					enemy.bullet_speed_mult *= 1.15
 			"armed":

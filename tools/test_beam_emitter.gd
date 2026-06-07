@@ -28,8 +28,11 @@ func _target(pos: Vector2) -> Node2D:
 	return n
 
 
+const HostScript := preload("res://tools/_beam_host.gd")
+
 func _emitter(host_pos: Vector2, cfg: Dictionary) -> Node:
 	var host := Node2D.new()
+	host.set_script(HostScript)   # has _dying/_cycling for the host-state guard
 	host.position = host_pos
 	root.add_child(host)
 	var e = BeamEmitter.new()
@@ -103,6 +106,28 @@ func _process(_dt: float) -> bool:
 	if far.hits != 0:
 		_fail("pierce=false: far target took damage (%d) — beam should truncate at nearest" % far.hits)
 	_free_group(); e3.get_parent().free()
+
+	# --- host-state guard (review P0): dying / cycling host => NO beam damage ---
+	for flag in ["_dying", "_cycling"]:
+		var tg := _target(Vector2(240, 120))
+		var e4 = _emitter(Vector2(240, 40), {
+			"idle_time": 0.02, "windup_time": 0.02, "firing_time": 1.0, "cooldown_time": 0.1,
+			"aim_mode": BeamEmitter.AimMode.LOCAL_FORWARD, "forward_local": Vector2(0, 1),
+			"reach": 200.0, "dps": 40.0, "hit_radius": 8.0, "emitter_offset": Vector2.ZERO,
+			"target_group": "player",
+		})
+		# tick into FIRING + land some damage, then flip the host flag and keep ticking.
+		for i in 10:
+			e4._process(DT)
+		var hits_at_flag: int = tg.hits
+		if hits_at_flag <= 0:
+			_fail("guard setup: beam dealt no damage before %s (test invalid)" % flag)
+		e4.get_parent().set(flag, true)   # host now dying / cycling
+		for i in 30:
+			e4._process(DT)
+		if tg.hits != hits_at_flag:
+			_fail("beam kept dealing damage while host %s (%d -> %d)" % [flag, hits_at_flag, tg.hits])
+		_free_group(); e4.get_parent().free()
 
 	_lines.append("BEAM EMITTER: " + ("PASS" if _fails == 0 else "FAIL (%d)" % _fails))
 	var f := FileAccess.open(RESULT, FileAccess.WRITE)

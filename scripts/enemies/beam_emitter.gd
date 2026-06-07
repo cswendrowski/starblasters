@@ -146,6 +146,16 @@ func _set_phase(p: int) -> void:
 func _process(delta: float) -> void:
 	if _phase == Phase.OFF:
 		return
+	# Host-state guard (review P0): suppress the beam entirely while the host enemy is
+	# dying (explode() runs a ~0.5s death anim during which a still-firing beam would
+	# land lethal hits) or parallax-cycling (the host is hidden but the geometry-based
+	# damage would otherwise deal INVISIBLE damage). The emitter is a child of the host,
+	# so get_parent() is it. Freezes the FSM (no _t advance) → clean pause + auto-resume
+	# when cycling ends. Covers Beamer/Burner + enemy_core beam-weapon hosts uniformly.
+	var host := get_parent()
+	if host != null and (("_dying" in host and host._dying) or ("_cycling" in host and host._cycling)):
+		_hide_all()
+		return
 	_t += delta
 	_beam_t += delta
 	_update_aim(delta)
