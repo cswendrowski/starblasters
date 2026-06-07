@@ -11,6 +11,7 @@ extends Resource
 # the "spaced burst" timing with recursive awaits.
 
 const MuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
+const Clarity = preload("res://scripts/clarity.gd")
 
 @export var bullet_scene: PackedScene
 
@@ -79,6 +80,13 @@ func _spawn_bullet(enemy, dir: Vector2, bv = null):
 	# Drive the projectile-movement axis (homing/wobble) — applied after
 	# _ready/_apply_variant so the pattern's axis overrides the variant's seed.
 	_apply_axis(b)
+	# Weapon multipliers (M6b faction/sector): scale the bullet's speed (clamped to the
+	# clarity ceiling so a buff can't strobe) and damage. Applied after _apply_variant
+	# set the baselines.
+	if "bullet_speed_mult" in enemy and float(enemy.bullet_speed_mult) != 1.0 and "speed" in b:
+		b.speed = minf(b.speed * float(enemy.bullet_speed_mult), Clarity.ABS_MAX_SPEED)
+	if "bullet_damage_mult" in enemy and float(enemy.bullet_damage_mult) != 1.0 and "damage" in b:
+		b.damage = maxi(1, int(round(float(b.damage) * float(enemy.bullet_damage_mult))))
 	return b
 
 

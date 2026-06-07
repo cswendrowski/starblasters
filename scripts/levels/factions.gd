@@ -107,7 +107,7 @@ static func data(id: int) -> Dictionary:
 			return {
 				"id": "supremacy", "lore_name": "Crimson Supremacy",
 				"core_pool": [], "exclusives": [], "overlay": false,
-				"stat_mods": {}, "weapon_mods": {"fire_rate_mult": 0.7},
+				"stat_mods": {}, "weapon_mods": {"fire_rate_mult": 0.7, "bullet_speed_mult": 1.25},
 				"modifier_components": [], "tint": Color(1.0, 0.45, 0.45),
 			}
 		Id.PRIVATEER:
@@ -170,7 +170,9 @@ static func apply(id: int, enemy) -> void:
 		enemy.max_health = int(round(float(enemy.max_health) * hp_mult))
 		if "health" in enemy:
 			enemy.health = enemy.max_health
-	# Weapon mods — faster fire (supremacy): smaller interval = faster.
+	# Weapon mods. Faster fire (supremacy): smaller interval = faster. Projectile
+	# speed/damage mults COMPOUND onto the per-enemy fields (*=) so they stack with
+	# sector modifiers; shoot_pattern applies them (speed clamped) to each bullet.
 	var wm: Dictionary = d.get("weapon_mods", {})
 	var fr: float = float(wm.get("fire_rate_mult", 1.0))
 	if fr != 1.0:
@@ -178,6 +180,12 @@ static func apply(id: int, enemy) -> void:
 			enemy.fire_interval_min *= fr
 		if "fire_interval_max" in enemy:
 			enemy.fire_interval_max *= fr
+	var bsm: float = float(wm.get("bullet_speed_mult", 1.0))
+	if bsm != 1.0 and "bullet_speed_mult" in enemy:
+		enemy.bullet_speed_mult *= bsm
+	var bdm: float = float(wm.get("bullet_damage_mult", 1.0))
+	if bdm != 1.0 and "bullet_damage_mult" in enemy:
+		enemy.bullet_damage_mult *= bdm
 	# Modifier components — Shield (corporate) / DropFirecore Emitter (zealot).
 	var comps: Array = build_components(id)
 	if not comps.is_empty() and "components" in enemy:

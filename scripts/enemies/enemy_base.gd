@@ -63,6 +63,12 @@ enum OffscreenMode { CYCLE_BOTTOM, FREE_ANY_EDGE, FREE_OPPOSITE_SIDE, NONE }
 @export var bounty_value: int = 5
 @export var max_shield: int = 0
 @export var shield_ring_size: float = 28.0
+# Weapon multipliers (M6b): per-enemy scalars applied to spawned bullets by
+# shoot_pattern (faction weapon_mods + sector modifiers compound into these — they
+# *= , not = ). bullet_speed clamps to the clarity ceiling at spawn. fire-rate is a
+# separate axis (the fire_interval scaling on enemy_core).
+@export var bullet_speed_mult: float = 1.0
+@export var bullet_damage_mult: float = 1.0
 # Hazards (mines, bomblets, asteroids) should not gate wave clear —
 # they're terrain, not combatants (Cody, 2026-05-18). Wave director
 # filters the "enemies" group by this flag when checking for empty.
