@@ -17,9 +17,9 @@ const FPS: int = 30
 const DURATION: float = 4.0
 const FRAME_TIME: float = 1.0 / float(FPS)
 
-const DRIFTER := preload("res://scenes/enemies/enemy_drifter.tscn")
-const SKIRMISHER := preload("res://scenes/enemies/enemy_skirmisher.tscn")
-const HOVER := preload("res://scenes/enemies/enemy_hover.tscn")
+const DRIFTER := preload("res://scenes/enemies/core/enemy_drifter.tscn")
+const SKIRMISHER := preload("res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn")
+const HOVER := preload("res://scenes/enemies/core/enemy_hover.tscn")
 
 
 func _initialize() -> void:

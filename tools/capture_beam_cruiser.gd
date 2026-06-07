@@ -9,7 +9,7 @@ const OUT_DIR := "res://captures/beam_cruiser"
 const FPS: int = 30
 const DURATION: float = 11.0
 const FRAME_TIME: float = 1.0 / float(FPS)
-const CRUISER_SCENE := preload("res://scenes/enemies/enemy_cruiser.tscn")
+const CRUISER_SCENE := preload("res://scenes/enemies/core/enemy_cruiser.tscn")
 
 
 # Dummy player for turret targeting

@@ -10,7 +10,7 @@ const OUT_DIR := "res://captures/beam_shooter"
 const FPS: int = 30
 const DURATION: float = 9.0
 const FRAME_TIME: float = 1.0 / float(FPS)
-const BEAM_SHOOTER_SCENE := preload("res://scenes/enemies/enemy_beam_shooter.tscn")
+const BEAM_SHOOTER_SCENE := preload("res://scenes/enemies/factions/zealot/enemy_beam_shooter.tscn")
 
 
 func _initialize() -> void:

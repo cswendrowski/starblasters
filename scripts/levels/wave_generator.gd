@@ -44,15 +44,15 @@ const WAVE_INTERMINGLE_PROBS := [0.0, 0.30, 0.55, 0.75, 0.85]
 # rolled pair is on this table, accept it immediately. Otherwise re-roll
 # the second pick once with 50% chance. Scene-path keyed.
 const WAVE_AFFINITY := {
-	"res://scenes/enemies/enemy_minelayer.tscn": ["res://scenes/enemies/enemy_hunter_drone.tscn"],
-	"res://scenes/enemies/enemy_hunter_drone.tscn": ["res://scenes/enemies/enemy_minelayer.tscn"],
-	"res://scenes/enemies/enemy_drifter.tscn": ["res://scenes/enemies/enemy_dart.tscn", "res://scenes/enemies/enemy_weaver.tscn"],
-	"res://scenes/enemies/enemy_dart.tscn": ["res://scenes/enemies/enemy_drifter.tscn"],
-	"res://scenes/enemies/enemy_skirmisher.tscn": ["res://scenes/enemies/enemy_spitter.tscn"],
-	"res://scenes/enemies/enemy_spitter.tscn": ["res://scenes/enemies/enemy_skirmisher.tscn"],
-	"res://scenes/enemies/enemy_cutter.tscn": ["res://scenes/enemies/enemy_hover.tscn"],
-	"res://scenes/enemies/enemy_hover.tscn": ["res://scenes/enemies/enemy_cutter.tscn"],
-	"res://scenes/enemies/enemy_weaver.tscn": ["res://scenes/enemies/enemy_drifter.tscn"],
+	"res://scenes/enemies/factions/privateer/enemy_minelayer.tscn": ["res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn"],
+	"res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn": ["res://scenes/enemies/factions/privateer/enemy_minelayer.tscn"],
+	"res://scenes/enemies/core/enemy_drifter.tscn": ["res://scenes/enemies/core/enemy_dart.tscn", "res://scenes/enemies/core/enemy_weaver.tscn"],
+	"res://scenes/enemies/core/enemy_dart.tscn": ["res://scenes/enemies/core/enemy_drifter.tscn"],
+	"res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn": ["res://scenes/enemies/core/enemy_spitter.tscn"],
+	"res://scenes/enemies/core/enemy_spitter.tscn": ["res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn"],
+	"res://scenes/enemies/core/enemy_cutter.tscn": ["res://scenes/enemies/core/enemy_hover.tscn"],
+	"res://scenes/enemies/core/enemy_hover.tscn": ["res://scenes/enemies/core/enemy_cutter.tscn"],
+	"res://scenes/enemies/core/enemy_weaver.tscn": ["res://scenes/enemies/core/enemy_drifter.tscn"],
 }
 
 # Per-wave HP bonus from prior wave-clears within the current sector. Each

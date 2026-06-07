@@ -88,7 +88,7 @@ const BV_PlasmaOrb    = preload("res://data/bullets/plasma_orb.tres")
 const ENTRIES := [
 	# --- COMMON -----------------------------------------------------------
 	{
-		"scene": "res://scenes/enemies/enemy_spitter.tscn",
+		"scene": "res://scenes/enemies/core/enemy_spitter.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "firecore_straight",
@@ -109,7 +109,7 @@ const ENTRIES := [
 		"conflict_tags": ["aimed_or_spread"],
 	},
 	{
-		"scene": "res://scenes/enemies/enemy_dart.tscn",
+		"scene": "res://scenes/enemies/core/enemy_dart.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "fast_straight",
@@ -123,7 +123,7 @@ const ENTRIES := [
 		"unlock_sector": 0, "unlock_depth": 0, "weight": 1.4, "chaff": true, "wall": true,
 	},
 	{
-		"scene": "res://scenes/enemies/enemy_bomb_drone.tscn",
+		"scene": "res://scenes/enemies/core/enemy_bomb_drone.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "fast_straight",
@@ -136,7 +136,7 @@ const ENTRIES := [
 		"unlock_sector": 0, "unlock_depth": 0, "weight": 1.0, "chaff": true, "wall": true,
 	},
 	{
-		"scene": "res://scenes/enemies/enemy_drifter.tscn",
+		"scene": "res://scenes/enemies/core/enemy_drifter.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		# P2: Drifter behavior -> lane_path engine. Slow fire-zone-timed slide to an
@@ -165,7 +165,7 @@ const ENTRIES := [
 		# Classed COMMON. Now an opener-eligible shooter (see unlock note below).
 		# hp_override kept in sync with the script's max_health (2). First-pass
 		# weight/gating — tune in playtest.
-		"scene": "res://scenes/enemies/enemy_strafer.tscn",
+		"scene": "res://scenes/enemies/factions/corporate/enemy_strafer.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": null,   # handles own 3-phase locomotion
@@ -179,7 +179,7 @@ const ENTRIES := [
 		"conflict_tags": ["aimed_or_spread"],
 	},
 	{
-		"scene": "res://scenes/enemies/enemy_hunter_drone.tscn",
+		"scene": "res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "beeline",
@@ -207,7 +207,7 @@ const ENTRIES := [
 		# Burner rolls (single OR mixed wave) — see wave_generator._make_wave_spec
 		# and the mixed-wave re-apply in _build_combat_waves. (Roman, 2026-05-31:
 		# rolls as a normal UNCOMMON now, wired into production waves.)
-		"scene": "res://scenes/enemies/enemy_burner.tscn",
+		"scene": "res://scenes/enemies/factions/zealot/enemy_burner.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
 		"movement": null,   # handles own movement
@@ -227,7 +227,7 @@ const ENTRIES := [
 		"force_even_count": true,
 	},
 	{
-		"scene": "res://scenes/enemies/enemy_weaver.tscn",
+		"scene": "res://scenes/enemies/core/enemy_weaver.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		# P2: Weaver behavior -> lane_path engine. In-lane wobble (lane-confined) under
@@ -247,7 +247,7 @@ const ENTRIES := [
 		"conflict_tags": ["aimed_or_spread", "wide_dodge"],
 	},
 	{
-		"scene": "res://scenes/enemies/enemy_hover.tscn",
+		"scene": "res://scenes/enemies/core/enemy_hover.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "loiter",
@@ -261,7 +261,7 @@ const ENTRIES := [
 		"conflict_tags": ["demands_focus"],
 	},
 	{
-		"scene": "res://scenes/enemies/enemy_frigate.tscn",
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_frigate.tscn",
 		"heavy_class": "anchor",  # 32px-wide (tall) — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
@@ -281,7 +281,7 @@ const ENTRIES := [
 	},
 	# TODO: Replace cutter with a new horizontal strafe enemy that crosses the screen cleanly
 	#{
-	#	"scene": "res://scenes/enemies/enemy_cutter.tscn",
+	#	"scene": "res://scenes/enemies/core/enemy_cutter.tscn",
 	#	"tier": Tier.UNCOMMON,
 	#	"size": "small", "tags": [],
 	#	"movement": "side_cut",
@@ -293,7 +293,7 @@ const ENTRIES := [
 	#	"conflict_tags": ["dumb_shot"],
 	#},
 	{
-		"scene": "res://scenes/enemies/enemy_skirmisher.tscn",
+		"scene": "res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "advance_retreat",
@@ -312,7 +312,7 @@ const ENTRIES := [
 	# beam that rakes across the band. Bespoke (enemy_beam_shooter.gd) self-drives
 	# + self-beams, so movement/shoot are null.
 	{
-		"scene": "res://scenes/enemies/enemy_beam_shooter.tscn",
+		"scene": "res://scenes/enemies/factions/zealot/enemy_beam_shooter.tscn",
 		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
@@ -327,7 +327,7 @@ const ENTRIES := [
 	# beam onto the player's position — it sweeps AND aims. Inherited scene that
 	# flips the aim_at_player export. Slightly deeper gate than the aim-down one.
 	{
-		"scene": "res://scenes/enemies/enemy_beamer_tracker.tscn",
+		"scene": "res://scenes/enemies/factions/zealot/enemy_beamer_tracker.tscn",
 		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
@@ -339,7 +339,7 @@ const ENTRIES := [
 	},
 	# Gunship single: one ship sweeps left↔right, fires 3 salvos, exits.
 	{
-		"scene": "res://scenes/enemies/enemy_gunship.tscn",
+		"scene": "res://scenes/enemies/factions/corporate/enemy_gunship.tscn",
 		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
@@ -354,7 +354,7 @@ const ENTRIES := [
 	},
 	# Gunship duo: two ships sweep in opposite directions.
 	{
-		"scene": "res://scenes/enemies/enemy_gunship.tscn",
+		"scene": "res://scenes/enemies/factions/corporate/enemy_gunship.tscn",
 		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
@@ -366,7 +366,7 @@ const ENTRIES := [
 	},
 	# Gunship trio: three ships in fixed spread formation.
 	{
-		"scene": "res://scenes/enemies/enemy_gunship.tscn",
+		"scene": "res://scenes/enemies/factions/corporate/enemy_gunship.tscn",
 		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
@@ -384,7 +384,7 @@ const ENTRIES := [
 	# Extra bounty for the bullet-sponge HP. Gated to sector 2 as a heavier
 	# escalation threat.
 	{
-		"scene": "res://scenes/enemies/enemy_bomber.tscn",
+		"scene": "res://scenes/enemies/core/enemy_bomber.tscn",
 		"heavy_class": "anchor",  # 32px-wide (tall) — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "large", "tags": ["tough"],
@@ -397,7 +397,7 @@ const ENTRIES := [
 		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.35,
 	},
 	{
-		"scene": "res://scenes/enemies/enemy_bomber.tscn",
+		"scene": "res://scenes/enemies/core/enemy_bomber.tscn",
 		"heavy_class": "anchor",  # 32px-wide (tall) — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "large", "tags": ["tough"],
@@ -412,7 +412,7 @@ const ENTRIES := [
 
 	# --- RARE -------------------------------------------------------------
 	{
-		"scene": "res://scenes/enemies/enemy_sapper.tscn",
+		"scene": "res://scenes/enemies/factions/corporate/enemy_sapper.tscn",
 		"tier": Tier.RARE,
 		"size": "small", "tags": [],
 		"movement": "omni",
@@ -428,7 +428,7 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 0,
 	},
 	{
-		"scene": "res://scenes/enemies/enemy_crystal.tscn",
+		"scene": "res://scenes/enemies/core/enemy_crystal.tscn",
 		"tier": Tier.RARE,
 		"size": "medium", "tags": [],
 		"movement": "loiter",
@@ -439,7 +439,7 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 0,
 	},
 	{
-		"scene": "res://scenes/enemies/enemy_minelayer.tscn",
+		"scene": "res://scenes/enemies/factions/privateer/enemy_minelayer.tscn",
 		"tier": Tier.RARE,
 		"size": "large", "tags": [],
 		"movement": "side_traverse",
@@ -448,7 +448,7 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 0,
 	},
 	{
-		"scene": "res://scenes/enemies/enemy_interceptor.tscn",
+		"scene": "res://scenes/enemies/factions/corporate/enemy_interceptor.tscn",
 		# NOT heavy-beat tagged (Roman 2026-06-04): top_dive is a transient
 		# dive-through, not a presence-holding anchor. Stays a normal RARE dive squad
 		# (reaction-test / direct-challenge). Heavy beats want descend-and-hold types.
@@ -460,7 +460,7 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 0,
 	},
 	{
-		"scene": "res://scenes/enemies/enemy_bulwark.tscn",
+		"scene": "res://scenes/enemies/factions/corporate/enemy_bulwark.tscn",
 		"heavy_class": "capital",  # 64px-wide (placeholder art) — coda capital pool
 		"tier": Tier.RARE,
 		"size": "large", "tags": [],
@@ -471,7 +471,7 @@ const ENTRIES := [
 		"unlock_sector": 2, "unlock_depth": 0,
 	},
 	{
-		"scene": "res://scenes/enemies/enemy_cruiser.tscn",
+		"scene": "res://scenes/enemies/core/enemy_cruiser.tscn",
 		"heavy_class": "capital",  # 64px-wide (placeholder art) — coda capital pool
 		"tier": Tier.RARE,
 		"size": "large", "tags": [],
@@ -481,7 +481,7 @@ const ENTRIES := [
 		"unlock_sector": 2, "unlock_depth": 0,
 	},
 	{
-		"scene": "res://scenes/enemies/enemy_drone_carrier.tscn",
+		"scene": "res://scenes/enemies/factions/corporate/enemy_drone_carrier.tscn",
 		"heavy_class": "capital",  # 64px-wide (placeholder art) — coda capital pool
 		"tier": Tier.RARE,
 		"size": "large", "tags": [],
@@ -492,7 +492,7 @@ const ENTRIES := [
 		"unlock_sector": 3, "unlock_depth": 0,
 	},
 	{
-		"scene": "res://scenes/enemies/enemy_firecore_cruiser.tscn",
+		"scene": "res://scenes/enemies/factions/zealot/enemy_firecore_cruiser.tscn",
 		"heavy_class": "capital",  # 64px-wide — coda capital pool (boss-substitute)
 		"tier": Tier.RARE,
 		"size": "huge", "tags": ["tough"],
@@ -516,7 +516,7 @@ const ENTRIES := [
 		# — self-manages its rings so default formation/count is fine (no even-count
 		# requirement). Keep hp_override in sync with the script's max_health (10)
 		# so the codex matches.
-		"scene": "res://scenes/enemies/enemy_firecore_drone.tscn",
+		"scene": "res://scenes/enemies/factions/zealot/enemy_firecore_drone.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": null,   # handles own movement

@@ -1,0 +1,64 @@
+[gd_scene load_steps=7 format=3 uid="uid://c8drnfrdrn001"]
+
+[ext_resource type="Script" path="res://scripts/enemies/factions/zealot/enemy_firecore_drone.gd" id="1_drone"]
+[ext_resource type="Texture2D" uid="uid://bdgnh26dmbrwf" path="res://graphics/enemies/drone_firecore.png" id="2_sprite"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_drone"]
+size = Vector2(16, 16)
+
+[sub_resource type="Animation" id="Animation_reset"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Sprite2D:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [0]
+}
+
+[sub_resource type="Animation" id="Animation_spin"]
+resource_name = "spin"
+length = 1.0
+loop_mode = 1
+step = 0.25
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Sprite2D:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.25, 0.5, 0.75),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 1,
+"values": [0, 1, 2, 3]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_drone"]
+_data = {
+&"RESET": SubResource("Animation_reset"),
+&"spin": SubResource("Animation_spin")
+}
+
+[node name="EnemyFirecoreDrone" type="Area2D" groups=["enemies"]]
+script = ExtResource("1_drone")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_sprite")
+hframes = 4
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_drone")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries/ = SubResource("AnimationLibrary_drone")
+autoplay = &"spin"
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("3_die")

@@ -9,7 +9,7 @@ const FPS: int = 12
 const DURATION: float = 4.0           # 1.5s orbit + ~2.5s after death
 const KILL_FRAME: int = 18            # ~1.5s in (18/12)
 const FRAME_TIME: float = 1.0 / float(FPS)
-const DroneScene := preload("res://scenes/enemies/enemy_firecore_drone.tscn")
+const DroneScene := preload("res://scenes/enemies/factions/zealot/enemy_firecore_drone.tscn")
 
 
 func _initialize() -> void:

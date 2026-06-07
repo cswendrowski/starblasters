@@ -35,14 +35,14 @@ func _process(_dt: float) -> bool:
 		lines.append("FAIL _shape_id(PINCER) != &pincer"); fails += 1
 
 	# 2) Fast chaff tagged wall.
-	for path in ["res://scenes/enemies/enemy_dart.tscn", "res://scenes/enemies/enemy_bomb_drone.tscn"]:
+	for path in ["res://scenes/enemies/core/enemy_dart.tscn", "res://scenes/enemies/core/enemy_bomb_drone.tscn"]:
 		var e: Dictionary = Roster.entry_for_scene(path)
 		if e.is_empty() or not bool(e.get("wall", false)):
 			lines.append("FAIL %s not tagged wall" % path); fails += 1
 
 	# 3) _make_wave_spec stamps WALL on a wall-tagged wave, robustly across seeds
 	#    (the random spread + 25% tandem roll must never win for a wall entry).
-	var dart: Dictionary = Roster.entry_for_scene("res://scenes/enemies/enemy_dart.tscn")
+	var dart: Dictionary = Roster.entry_for_scene("res://scenes/enemies/core/enemy_dart.tscn")
 	var wall_count: int = 0
 	for seed in range(40):
 		var rng := RandomNumberGenerator.new()
@@ -55,7 +55,7 @@ func _process(_dt: float) -> bool:
 		lines.append("FAIL dart wall stamp held only %d/40 seeds" % wall_count); fails += 1
 
 	# Sanity: a non-wall chaff entry (drifter) is NOT forced to wall.
-	var drifter: Dictionary = Roster.entry_for_scene("res://scenes/enemies/enemy_drifter.tscn")
+	var drifter: Dictionary = Roster.entry_for_scene("res://scenes/enemies/core/enemy_drifter.tscn")
 	if not drifter.is_empty():
 		var rng2 := RandomNumberGenerator.new()
 		rng2.seed = 7

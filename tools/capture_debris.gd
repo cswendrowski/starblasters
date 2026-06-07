@@ -7,8 +7,8 @@ const OUT_DIR := "res://captures/debris"
 const FPS: int = 24
 const DURATION: float = 2.2
 const FRAME_TIME: float = 1.0 / float(FPS)
-const SMALL_SCENE := "res://scenes/enemies/enemy_dart.tscn"
-const LARGE_SCENE := "res://scenes/enemies/enemy_frigate.tscn"
+const SMALL_SCENE := "res://scenes/enemies/core/enemy_dart.tscn"
+const LARGE_SCENE := "res://scenes/enemies/factions/supremacy/enemy_frigate.tscn"
 
 
 func _initialize() -> void:

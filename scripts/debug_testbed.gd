@@ -51,12 +51,12 @@ const LIVE_PROPS = [
 const SHOWCASE_LIST = [
 	# Row 1 (y=720) — Player + small enemies
 	["res://scenes/player/player.tscn",          "Player",   Vector2( 80, 720), 3.0],
-	["res://scenes/enemies/enemy_spitter.tscn", "Firecore", Vector2(180, 720), 3.0],
-	["res://scenes/enemies/enemy_drifter.tscn",  "Drifter",  Vector2(280, 720), 2.5],
+	["res://scenes/enemies/core/enemy_spitter.tscn", "Firecore", Vector2(180, 720), 3.0],
+	["res://scenes/enemies/core/enemy_drifter.tscn",  "Drifter",  Vector2(280, 720), 2.5],
 	# Row 2 (y=815) — medium enemies
-	["res://scenes/enemies/enemy_crystal.tscn",  "Crystal",  Vector2( 80, 815), 1.6],
-	["res://scenes/enemies/enemy_dart.tscn",     "Dart",     Vector2(180, 815), 1.5],
-	["res://scenes/enemies/enemy_hover.tscn",    "Hover",    Vector2(280, 815), 2.0],
+	["res://scenes/enemies/core/enemy_crystal.tscn",  "Crystal",  Vector2( 80, 815), 1.6],
+	["res://scenes/enemies/core/enemy_dart.tscn",     "Dart",     Vector2(180, 815), 1.5],
+	["res://scenes/enemies/core/enemy_hover.tscn",    "Hover",    Vector2(280, 815), 2.0],
 	# Row 3 (y=920) — boss alone at full in-game scale
 	["res://scenes/enemies/boss.tscn",           "Boss",     Vector2(230, 920), 3.0],
 ]

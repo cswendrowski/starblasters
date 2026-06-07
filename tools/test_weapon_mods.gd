@@ -32,7 +32,7 @@ func _clear() -> void:
 
 
 func _dart():
-	var d = load("res://scenes/enemies/enemy_dart.tscn").instantiate()
+	var d = load("res://scenes/enemies/core/enemy_dart.tscn").instantiate()
 	root.add_child(d)
 	d.position = Vector2(240, 60)
 	return d

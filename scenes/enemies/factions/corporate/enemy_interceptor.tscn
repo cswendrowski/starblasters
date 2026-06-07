@@ -1,0 +1,33 @@
+[gd_scene format=3 uid="uid://bintcp0000001"]
+
+[ext_resource type="Script" uid="uid://da5afv404n26y" path="res://scripts/enemies/factions/corporate/interceptor.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://cafs1ugue88nx" path="res://graphics/enemies/enemy_inteceptor.png" id="2_61u2j"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
+size = Vector2(32, 32)
+
+[node name="Enemy" type="Area2D" unique_id=500156123 groups=["enemies"]]
+script = ExtResource("1_script")
+max_health = 10
+bounty_value = 35
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1303453757]
+texture = ExtResource("2_61u2j")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1322859870]
+shape = SubResource("RectangleShape2D_1")
+
+[node name="ShootTimer" type="Timer" parent="." unique_id=1448296041]
+one_shot = true
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1824585227]
+stream = ExtResource("3_die")
+
+[node name="MissileL" type="Marker2D" parent="." unique_id=379551227]
+position = Vector2(-10, 2)
+
+[node name="MissileR" type="Marker2D" parent="." unique_id=1745160504]
+position = Vector2(10, 2)
+
+[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

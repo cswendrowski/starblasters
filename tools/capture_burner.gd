@@ -8,7 +8,7 @@ const OUT_DIR := "res://captures/burner"
 const FPS: int = 30
 const DURATION: float = 7.0
 const FRAME_TIME: float = 1.0 / float(FPS)
-const BURNER_SCENE := preload("res://scenes/enemies/enemy_burner.tscn")
+const BURNER_SCENE := preload("res://scenes/enemies/factions/zealot/enemy_burner.tscn")
 
 
 func _initialize() -> void:
