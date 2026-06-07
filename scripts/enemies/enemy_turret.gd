@@ -23,7 +23,12 @@ class_name EnemyTurret
 @export var homing_rate: float = 0.0
 @export var wobble_amplitude: float = 0.0
 @export var wobble_frequency: float = 0.0
+# Barrel-recoil animation (Roman 2026-06-07): when the turret's barrel Sprite2D is
+# a multi-frame strip (frame 0 idle, 1..N-1 recoil), flick through the recoil frames
+# on each shot then snap back to idle. 0 = no recoil (single-frame barrels unaffected).
+@export var recoil_frames: int = 0
 
+var _barrel: Sprite2D = null
 var _turret_rot: float = 0.0
 var _fire_t: float = 0.0
 var _next_interval: float = 2.0
@@ -37,6 +42,11 @@ func _ready() -> void:
 	var p := get_parent()
 	if p and not p.tree_exiting.is_connected(queue_free):
 		p.tree_exiting.connect(queue_free)
+	# Barrel = first child Sprite2D (the visual the builder added). Used for recoil.
+	for c in get_children():
+		if c is Sprite2D:
+			_barrel = c
+			break
 
 
 func _process(delta: float) -> void:
@@ -83,6 +93,8 @@ func _try_fire() -> void:
 	_fire_t = 0.0
 	_next_interval = randf_range(fire_interval_min, fire_interval_max)
 	_shoot()
+	if recoil_frames > 0:
+		_recoil()
 	if lock_to_fire:
 		_locked = true
 		_lock_t = lock_duration
@@ -126,6 +138,19 @@ func _shoot() -> void:
 	if has_mz:
 		var MuzzleFx = load("res://scripts/effects/muzzle_fx.gd")
 		MuzzleFx.play_enemy(spawn_pos, fire_dir, get_tree().root)
+
+
+# Flick the barrel through its recoil frames (1 -> max -> back to idle 0) on a shot.
+func _recoil() -> void:
+	if _barrel == null or not is_instance_valid(_barrel) or _barrel.hframes < 2:
+		return
+	var last: int = mini(recoil_frames, _barrel.hframes - 1)
+	_barrel.frame = 1
+	var tw := create_tween()
+	tw.tween_interval(0.04)
+	tw.tween_callback(func(): if is_instance_valid(_barrel): _barrel.frame = last)
+	tw.tween_interval(0.07)
+	tw.tween_callback(func(): if is_instance_valid(_barrel): _barrel.frame = 0)
 
 
 func find_player() -> Node:

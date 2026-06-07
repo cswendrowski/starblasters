@@ -12,6 +12,7 @@ const BV_PlasmaOrb := preload("res://data/bullets/plasma_orb.tres")
 const RUSH := "res://scenes/enemies/factions/supremacy/enemy_s_s_rush.tscn"
 const HOTROD := "res://scenes/enemies/factions/supremacy/enemy_s_s_hotrod.tscn"
 const PLASMA := "res://scenes/enemies/factions/supremacy/enemy_s_m_plasma.tscn"
+const PUSH := "res://scenes/enemies/factions/supremacy/enemy_s_m_push.tscn"
 
 var _lines: Array = []
 var _fails := 0
@@ -65,6 +66,30 @@ func _process(_dt: float) -> bool:
 			_fail("%s should be supremacy-exclusive" % p)
 	if "res://scenes/enemies/factions/corporate/enemy_strafer.tscn" in Factions.ENEMY_TAGS:
 		_fail("strafer should be retired from ENEMY_TAGS")
+
+	# --- Push: twin recoil turrets, no hull muzzles, frigate retired ----------
+	var push := _inst(PUSH)
+	var turrets := 0
+	for c in push.get_children():
+		if "recoil_frames" in c:
+			turrets += 1
+			if int(c.recoil_frames) <= 0:
+				_fail("push turret should have recoil_frames > 0")
+			var dome: Sprite2D = null
+			for cc in c.get_children():
+				if cc is Sprite2D:
+					dome = cc
+			if dome == null or dome.hframes != 3:
+				_fail("push turret missing 3-frame dome barrel")
+	if turrets != 2:
+		_fail("push should build 2 turrets (got %d)" % turrets)
+	if push.get_node_or_null("GlowMask") == null:
+		_fail("push missing GlowMask")
+	if push.has_muzzles():
+		_fail("push should have NO hull muzzles (each turret fires from its own pos)")
+	push.free()
+	if "res://scenes/enemies/factions/supremacy/enemy_frigate.tscn" in Factions.ENEMY_TAGS:
+		_fail("frigate should be retired from ENEMY_TAGS")
 
 	# --- Death-overlay fade wiring -------------------------------------------
 	var rush := _inst(RUSH)

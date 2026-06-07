@@ -73,7 +73,7 @@ const ENEMY_TAGS := {
 	"res://scenes/enemies/factions/zealot/enemy_beam_shooter.tscn": {"home": Id.ZEALOT, "universal": false},
 	"res://scenes/enemies/factions/zealot/enemy_beamer_tracker.tscn": {"home": Id.ZEALOT, "universal": false},
 	"res://scenes/enemies/factions/zealot/enemy_burner.tscn": {"home": Id.ZEALOT, "universal": false},
-	"res://scenes/enemies/factions/supremacy/enemy_frigate.tscn": {"home": Id.SUPREMACY, "universal": false},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_push.tscn": {"home": Id.SUPREMACY, "universal": false},
 }
 
 

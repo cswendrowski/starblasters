@@ -568,24 +568,43 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 2, "weight": 0.9, "chaff": true,
 		"conflict_tags": ["demands_focus"],
 	},
+	# Push (M6c, Roman art 2026-06-07) — REPLACES the Frigate. Supremacy lane pusher
+	# (enemy_push.gd, enemy_core) with TWO player-tracking dome turrets firing cannon
+	# slugs (aimed, no lead; fast traverse punishes sitting still). Movement from the
+	# roster slot: slow descent / mid descent / slow horizontal cross. Stays the
+	# tough mid-mission presence anchor. enemy_frigate.tscn retired from the tags.
 	{
-		"scene": "res://scenes/enemies/factions/supremacy/enemy_frigate.tscn",
-		"heavy_class": "anchor",  # 32px-wide (tall) — midpoint/coda heavy-beat pool
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_push.tscn",
+		"heavy_class": "anchor",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
-		# Bespoke broadside gunner (enemy_frigate.gd) — self-drives (two arrival
-		# modes) and self-fires a perpendicular broadside, so movement/shoot are
-		# null. hp_override makes it a genuine bullet-sponge: compose_stats feeds
-		# max_health to the director, which is what the hull actually uses (the
-		# script's _ready value is overwritten on spawn).
-		"movement": null,
+		"movement": "slow_advance",   # slow straight descent
+		"shoot": null,                # bespoke twin turrets
+		"hp_override": 28,
+		"base_count": 2,
+		"unlock_sector": 1, "unlock_depth": 1,
+	},
+	{
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_push.tscn",
+		"heavy_class": "anchor",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": ["tough"],
+		"movement": "firecore_straight",   # mid-speed straight descent
 		"shoot": null,
 		"hp_override": 28,
-		"base_count": 3,
-		# Frigate — tough broadside warship; the canonical mid-mission presence anchor
-		# (Roman 2026-06-04: "descend the screen and have a presence"). Pulled to
-		# unlock_depth 1 so it's eligible the moment the midpoint beat starts (node 2).
-		"unlock_sector": 1, "unlock_depth": 1,
+		"base_count": 2,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.8,
+	},
+	{
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_push.tscn",
+		"heavy_class": "anchor",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": ["tough"],
+		"movement": "side_traverse",   # slow horizontal cross, lobbing shots
+		"shoot": null,
+		"hp_override": 28,
+		"base_count": 2,
+		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.7,
 	},
 	# TODO: Replace cutter with a new horizontal strafe enemy that crosses the screen cleanly
 	#{

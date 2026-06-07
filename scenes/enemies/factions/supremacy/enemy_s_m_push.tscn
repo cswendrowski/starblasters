@@ -1,0 +1,42 @@
+[gd_scene load_steps=5 format=3 uid="uid://bspush0000001"]
+
+[ext_resource type="Script" path="res://scripts/enemies/factions/supremacy/enemy_push.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://bicbjdr5c40tc" path="res://graphics/enemies/enemy_s_m_push.png" id="2_tex"]
+[ext_resource type="Script" uid="uid://bj8dc3ktx8bt1" path="res://scripts/enemies/patterns/straight_down.gd" id="3_mov"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="4_die"]
+
+[sub_resource type="Resource" id="MovePattern"]
+script = ExtResource("3_mov")
+speed = 60.0
+drift_x = 0.0
+
+[sub_resource type="RectangleShape2D" id="Hit"]
+size = Vector2(32, 64)
+
+[node name="Enemy" type="Area2D" groups=["enemies"]]
+script = ExtResource("1_script")
+movement = SubResource("MovePattern")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+hframes = 2
+
+[node name="GlowMask" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+hframes = 2
+frame = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("Hit")
+
+[node name="MoveTimer" type="Timer" parent="."]
+one_shot = true
+
+[node name="ShootTimer" type="Timer" parent="."]
+one_shot = true
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("4_die")
+
+[connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
+[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]
