@@ -88,7 +88,7 @@ const BV_PlasmaOrb    = preload("res://data/bullets/plasma_orb.tres")
 const ENTRIES := [
 	# --- COMMON -----------------------------------------------------------
 	{
-		"scene": "res://scenes/enemies/enemy_firecore.tscn",
+		"scene": "res://scenes/enemies/enemy_spitter.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "firecore_straight",

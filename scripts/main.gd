@@ -180,7 +180,7 @@ func _warm_up_explosion() -> void:
 	# texture is a separate shader compile) so the first death of each
 	# enemy type doesn't stall the frame.
 	var enemy_scenes = [
-		"res://scenes/enemies/enemy_firecore.tscn",
+		"res://scenes/enemies/enemy_spitter.tscn",
 		"res://scenes/enemies/enemy_drifter.tscn",
 		"res://scenes/enemies/enemy_crystal.tscn",
 		"res://scenes/enemies/enemy_dart.tscn",

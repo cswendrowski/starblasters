@@ -36,7 +36,7 @@ enum Id { SUPREMACY, PRIVATEER, CORPORATE, ZEALOT }
 const ENEMY_TAGS := {
 	"res://scenes/enemies/enemy_dart.tscn": {"home": Id.PRIVATEER, "universal": true},
 	"res://scenes/enemies/enemy_drifter.tscn": {"home": Id.ZEALOT, "universal": true},
-	"res://scenes/enemies/enemy_firecore.tscn": {"home": Id.ZEALOT, "universal": true},
+	"res://scenes/enemies/enemy_spitter.tscn": {"home": Id.ZEALOT, "universal": true},
 	"res://scenes/enemies/enemy_bomb_drone.tscn": {"home": Id.SUPREMACY, "universal": true},
 	"res://scenes/enemies/enemy_weaver.tscn": {"home": Id.CORPORATE, "universal": true},
 	"res://scenes/enemies/enemy_hover.tscn": {"home": Id.CORPORATE, "universal": true},

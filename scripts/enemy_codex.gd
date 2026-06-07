@@ -18,7 +18,7 @@ const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const ENTRIES = [
 	{"path": "res://scenes/enemies/enemy_dart.tscn",     "name": "Dart",     "tier": "Common", "blurb": "Pure movement, no fire. Teaches you to shoot proactively."},
 	{"path": "res://scenes/enemies/enemy_drifter.tscn",  "name": "Drifter",  "tier": "Common", "blurb": "Halves into +drift / -drift squads. Easy spacing puzzle."},
-	{"path": "res://scenes/enemies/enemy_firecore.tscn", "name": "Firecore", "tier": "Common", "blurb": "Lazy single-shot chaff. Punish first, sweep second."},
+	{"path": "res://scenes/enemies/enemy_spitter.tscn", "name": "Firecore", "tier": "Common", "blurb": "Lazy single-shot chaff. Punish first, sweep second."},
 	{"path": "res://scenes/enemies/enemy_hunter_drone.tscn", "name": "Hunter Drone", "tier": "Common", "blurb": "Beelines at the player. Don't let it catch up."},
 	{"path": "res://scenes/enemies/enemy_cutter.tscn",   "name": "Cutter",   "tier": "Uncommon", "blurb": "Side-entry strafer. Alternates flanks, fires fast and exits."},
 	{"path": "res://scenes/enemies/enemy_weaver.tscn",   "name": "Weaver",   "tier": "Uncommon", "blurb": "Paired center-out arc with aimed shots."},

@@ -21,7 +21,7 @@ const ENEMIES: Array = [
 	"res://scenes/enemies/enemy_cutter.tscn",
 	"res://scenes/enemies/enemy_dart.tscn",
 	"res://scenes/enemies/enemy_drifter.tscn",
-	"res://scenes/enemies/enemy_firecore.tscn",
+	"res://scenes/enemies/enemy_spitter.tscn",
 	"res://scenes/enemies/enemy_frigate.tscn",
 	"res://scenes/enemies/enemy_hover.tscn",
 	"res://scenes/enemies/enemy_hunter_drone.tscn",

@@ -46,7 +46,7 @@ const TIER_BY_PATH := {
 	"res://scenes/enemies/boss_conductor.tscn": "Boss",
 	"res://scenes/enemies/enemy_dart.tscn": "Common",
 	"res://scenes/enemies/enemy_drifter.tscn": "Common",
-	"res://scenes/enemies/enemy_firecore.tscn": "Common",
+	"res://scenes/enemies/enemy_spitter.tscn": "Common",
 	"res://scenes/enemies/enemy_hunter_drone.tscn": "Common",
 	"res://scenes/enemies/enemy_cutter.tscn": "Uncommon",
 	"res://scenes/enemies/enemy_frigate.tscn": "Uncommon",

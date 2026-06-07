@@ -9,7 +9,7 @@ extends Node2D
 const PLAYER = preload("res://scenes/player/player.tscn")
 const ENEMY_DART = preload("res://scenes/enemies/enemy_dart.tscn")
 const ENEMY_DRIFTER = preload("res://scenes/enemies/enemy_drifter.tscn")
-const ENEMY_FIRECORE = preload("res://scenes/enemies/enemy_firecore.tscn")
+const ENEMY_FIRECORE = preload("res://scenes/enemies/enemy_spitter.tscn")
 const BOSS = preload("res://scenes/enemies/boss.tscn")
 const BLACK_HOLE = preload("res://scenes/hazards/black_hole.tscn")
 const WAVE_BANNER = preload("res://scenes/hud/wave_banner.tscn")
@@ -276,7 +276,7 @@ func _demo_level_outro() -> void:
 				main_inst._enemy_stats = {
 					"res://scenes/enemies/enemy_dart.tscn": {"spawned": 14, "killed": 12, "bounty": 5, "total_bounty": 60},
 					"res://scenes/enemies/enemy_drifter.tscn": {"spawned": 8, "killed": 7, "bounty": 8, "total_bounty": 56},
-					"res://scenes/enemies/enemy_firecore.tscn": {"spawned": 4, "killed": 4, "bounty": 25, "total_bounty": 100},
+					"res://scenes/enemies/enemy_spitter.tscn": {"spawned": 4, "killed": 4, "bounty": 25, "total_bounty": 100},
 				}
 				main_inst.bounty = 325
 			# Trigger the outro
@@ -557,7 +557,7 @@ func _demo_codex() -> void:
 	if has_node("/root/Run"):
 		var run = get_node("/root/Run")
 		for path in [
-			"res://scenes/enemies/enemy_firecore.tscn",
+			"res://scenes/enemies/enemy_spitter.tscn",
 			"res://scenes/enemies/enemy_drifter.tscn",
 			"res://scenes/enemies/enemy_dart.tscn",
 			"res://scenes/enemies/enemy_hunter_drone.tscn",
@@ -581,7 +581,7 @@ func _demo_enemy_roster_sheet() -> void:
 	# the roster reference image Roman asked for 2026-05-16.
 	const ROSTER = [
 		# COMMON
-		{"path": "res://scenes/enemies/enemy_firecore.tscn", "name": "Firecore", "tier": "Common"},
+		{"path": "res://scenes/enemies/enemy_spitter.tscn", "name": "Firecore", "tier": "Common"},
 		{"path": "res://scenes/enemies/enemy_drifter.tscn",  "name": "Drifter",  "tier": "Common"},
 		{"path": "res://scenes/enemies/enemy_dart.tscn",     "name": "Dart",     "tier": "Common"},
 		{"path": "res://scenes/enemies/enemy_hunter_drone.tscn", "name": "Hunter Drone", "tier": "Common"},
