@@ -7,6 +7,7 @@ extends Control
 
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
+const Factions = preload("res://scripts/levels/factions.gd")
 
 var _test_hazard_modal: CanvasLayer = null
 var _vbox: VBoxContainer = null
@@ -255,6 +256,16 @@ func _on_test_combat() -> void:
 		_on_boss_fight()
 	)
 	panel.add_child(boss_btn)
+	# Faction... (M6b): force a specific faction so all four can be eyeballed on demand.
+	var faction_btn := Button.new()
+	faction_btn.text = "Faction..."
+	faction_btn.custom_minimum_size = Vector2(180, 18)
+	UiTheme.style_button(faction_btn)
+	faction_btn.pressed.connect(func():
+		_close_test_hazard_modal()
+		_on_test_faction()
+	)
+	panel.add_child(faction_btn)
 	# Beam-enemy showcase (M6a.2): a live combat slice of all converted beam
 	# enemies (Beamer sweep/track, Burner pair, Beam Turret) for eyeballing.
 	var beam_btn := Button.new()
@@ -352,6 +363,58 @@ func _launch_hazard(subtype: String) -> void:
 		run.test_mode_active = true
 		run.current_hazard_subtype = subtype
 		run.current_node_type = 5  # SectorNode.NodeType.HAZARD
+	SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
+
+
+# Faction picker (M6b) — force a specific faction onto a standard combat level so all
+# four can be eyeballed on demand (otherwise the faction is deterministic per level).
+func _on_test_faction() -> void:
+	if _test_hazard_modal != null and is_instance_valid(_test_hazard_modal):
+		return
+	var layer := CanvasLayer.new()
+	layer.layer = 80
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.6)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.add_child(dim)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(center)
+	var panel := VBoxContainer.new()
+	panel.custom_minimum_size = Vector2(200, 150)
+	panel.add_theme_constant_override("separation", 10)
+	center.add_child(panel)
+	var header := Label.new()
+	header.text = "FORCE FACTION"
+	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	UiTheme.style_label(header, UiTheme.LabelKind.HEADER)
+	panel.add_child(header)
+	for fid in [Factions.Id.SUPREMACY, Factions.Id.PRIVATEER, Factions.Id.CORPORATE, Factions.Id.ZEALOT]:
+		var btn := Button.new()
+		btn.text = String(Factions.data(fid).get("lore_name", "Faction %d" % fid))
+		btn.custom_minimum_size = Vector2(180, 18)
+		UiTheme.style_button(btn)
+		btn.pressed.connect(_launch_faction.bind(fid))
+		panel.add_child(btn)
+	var cancel_btn := Button.new()
+	cancel_btn.text = "Cancel"
+	cancel_btn.custom_minimum_size = Vector2(140, 16)
+	UiTheme.style_button(cancel_btn, true)
+	cancel_btn.pressed.connect(_close_test_hazard_modal)
+	panel.add_child(cancel_btn)
+	add_child(layer)
+	_test_hazard_modal = layer
+
+
+func _launch_faction(faction_id: int) -> void:
+	_close_test_hazard_modal()
+	if has_node("/root/Run"):
+		var run = get_node("/root/Run")
+		run.new_run()
+		run.test_mode_active = true
+		run.current_node_type = 0  # SectorNode.NodeType.COMBAT
+		run.set_meta("forced_faction", faction_id)
 	SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
 
 
