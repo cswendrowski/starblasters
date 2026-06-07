@@ -504,6 +504,56 @@ const ENTRIES := [
 		"no_scale": true,
 		"unlock_sector": 2, "unlock_depth": 2, "weight": 0.9,
 	},
+	# Gunship movement variants (Roman 2026-06-07): the same omni-Gunship scene
+	# wired to OTHER movements so the generator + conductor have more ways to field
+	# it — a medium tracer/cannon gunner that can hold, shift lanes, weave, or
+	# skirmish. Firing is identical (enemy_gunship.gd is movement-agnostic); only
+	# the movement slot differs. chaff:true + no heavy_class so these roll as regular
+	# mid-tier picks (and the lane variants feed the conductor's lane choreography),
+	# distinct from the no_scale anchor omni entries above. Modest weights — variety,
+	# not a flood.
+	{
+		# Gunship (hold) — descends and holds the mid band like a loiter gunner.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": ["tough"],
+		"movement": "loiter_mid",
+		"shoot": null,
+		"base_count": 2,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.5, "chaff": true,
+		"conflict_tags": ["demands_focus"],
+	},
+	{
+		# Gunship (weave) — lane-confined weave; a heavier weaver in a lane wave.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": ["tough"],
+		"movement": "lane_weave",
+		"shoot": null,
+		"base_count": 3,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.5, "chaff": true,
+	},
+	{
+		# Gunship (shift) — one-way commit to an adjacent lane, then holds it.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": ["tough"],
+		"movement": "lane_shift",
+		"shoot": null,
+		"base_count": 3,
+		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.5, "chaff": true,
+	},
+	{
+		# Gunship (skirmish) — aggressive advance/retreat, raking on the hold.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": ["tough"],
+		"movement": "advance_retreat",
+		"shoot": null,
+		"base_count": 2,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5, "chaff": true,
+		"conflict_tags": ["demands_focus"],
+	},
 	# Rocket Gunship (M6c, Roman 2026-06-07): the divergent dupe. SLOW drift hull
 	# (movement from the roster slot) that lobs rocket salvos from its launch rack
 	# + rakes tracers from its hull muzzles. Bespoke firing (enemy_rocket.gd,
@@ -868,9 +918,7 @@ static func make_movement(entry: Dictionary) -> Resource:
 		"lane_shift":
 			# Shifter (m6 §13) — descend, then a one-way COMMIT to an adjacent lane
 			# (only if free), then hold the destination. The HOOK = Shifter decision.
-			# NOTE (review): available behavior with NO live enemy home yet — no roster
-			# ENTRY uses "lane_shift". Eyeballed in the visualizer; assign it to a faction
-			# unit when one wants the Shifter behavior (like step_wall, ready not wired).
+			# Live as of 2026-06-07: the Gunship (shift) roster variant uses this.
 			var m = LanePath.new()
 			m.shape = LanePath.Shape.HOOK
 			m.down_speed = 120.0

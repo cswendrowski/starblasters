@@ -88,6 +88,22 @@ func _process(_dt: float) -> bool:
 		if got != want[p]:
 			_fail("%s movement = %s, want %s" % [p, got, want[p]])
 
+	# --- 3b) Gunship movement variants --------------------------------------
+	# The one Gunship scene should appear under several movements (omni + the
+	# hold/weave/shift/skirmish variants) so the conductor has more uses for it.
+	var gun_moves: Array = []
+	for e in Roster.ENTRIES:
+		if str(e.get("scene", "")) != GUNSHIP:
+			continue
+		var mv = Roster.make_movement(e)
+		if mv == null:
+			_fail("gunship entry has null movement (%s)" % str(e.get("movement", "?")))
+		else:
+			gun_moves.append(str(e.get("movement", "")))
+	for needed in ["omni", "loiter_mid", "lane_weave", "lane_shift", "advance_retreat"]:
+		if not (needed in gun_moves):
+			_fail("gunship missing movement variant '%s'" % needed)
+
 	# --- 4) Faction tags ----------------------------------------------------
 	# Corp gray/curve/drop = corporate-exclusive.
 	for p in [C_GRAY, C_CURVE, C_DROP]:
