@@ -334,6 +334,12 @@ func explode() -> void:
 	if parent == null:
 		parent = get_tree().root
 	_spawn_debris(parent, global_position, display_scale)
+	# Fade the non-body overlay sprites (glow mask, hull outline, decorative
+	# cores) FAST so they don't outlive the disintegrating body — otherwise a
+	# bright glow map / outline hangs in the air for the ~0.5s death window after
+	# the hull starts burning (Roman 2026-06-07). The body itself disintegrates
+	# via the burn shader below, not a fade.
+	_fade_death_overlays()
 	if has_node("Sprite2D"):
 		BurnFxScript.apply_burn($Sprite2D, 0.45)
 	if has_node("ParticleExplode"):
@@ -347,6 +353,20 @@ func explode() -> void:
 		SfxCls.play_node_detached($EnemyDie)
 	await get_tree().create_timer(0.5).timeout
 	queue_free()
+
+
+# Fade out the overlay sprites that AREN'T the burning hull — glow mask, the 1px
+# outline, and any decorative firecore cores — so none of them linger after death.
+# Fast (0.15s) so they're gone almost immediately while the body disintegrates.
+func _fade_death_overlays() -> void:
+	const OVERLAY_FADE := 0.15
+	for child in get_children():
+		if not (child is CanvasItem):
+			continue
+		var nm: String = String(child.name)
+		if nm == "GlowMask" or nm == "Outline" or nm.begins_with("FirecoreCore"):
+			var tw := create_tween()
+			tw.tween_property(child, "modulate:a", 0.0, OVERLAY_FADE)
 
 
 func _spawn_debris(parent: Node, world_pos: Vector2, scale_factor: float) -> void:
