@@ -433,7 +433,7 @@ const ENTRIES := [
 	},
 	# Gunship single: one ship sweeps left↔right, fires 3 salvos, exits.
 	{
-		"scene": "res://scenes/enemies/factions/corporate/enemy_gunship.tscn",
+		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
 		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
@@ -448,7 +448,7 @@ const ENTRIES := [
 	},
 	# Gunship duo: two ships sweep in opposite directions.
 	{
-		"scene": "res://scenes/enemies/factions/corporate/enemy_gunship.tscn",
+		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
 		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
@@ -460,7 +460,7 @@ const ENTRIES := [
 	},
 	# Gunship trio: three ships in fixed spread formation.
 	{
-		"scene": "res://scenes/enemies/factions/corporate/enemy_gunship.tscn",
+		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
 		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
@@ -542,7 +542,7 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 0,
 	},
 	{
-		"scene": "res://scenes/enemies/factions/corporate/enemy_interceptor.tscn",
+		"scene": "res://scenes/enemies/factions/privateer/enemy_interceptor.tscn",
 		# NOT heavy-beat tagged (Roman 2026-06-04): top_dive is a transient
 		# dive-through, not a presence-holding anchor. Stays a normal RARE dive squad
 		# (reaction-test / direct-challenge). Heavy beats want descend-and-hold types.

@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://bintcp0000001"]
 
-[ext_resource type="Script" uid="uid://da5afv404n26y" path="res://scripts/enemies/factions/corporate/interceptor.gd" id="1_script"]
-[ext_resource type="Texture2D" uid="uid://cafs1ugue88nx" path="res://graphics/enemies/enemy_inteceptor.png" id="2_61u2j"]
+[ext_resource type="Script" uid="uid://da5afv404n26y" path="res://scripts/enemies/factions/privateer/interceptor.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://b3eicnxjy2o0r" path="res://graphics/enemies/enemy_p_m_intercept.png" id="2_61u2j"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
@@ -14,6 +14,12 @@ bounty_value = 35
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1303453757]
 texture = ExtResource("2_61u2j")
+hframes = 2
+
+[node name="GlowMask" type="Sprite2D" parent="."]
+texture = ExtResource("2_61u2j")
+hframes = 2
+frame = 1
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1322859870]
 shape = SubResource("RectangleShape2D_1")

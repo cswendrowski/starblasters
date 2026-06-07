@@ -55,7 +55,7 @@ const TIER_BY_PATH := {
 	"res://scenes/enemies/core/enemy_weaver.tscn": "Uncommon",
 	"res://scenes/enemies/factions/corporate/enemy_bulwark.tscn": "Rare",
 	"res://scenes/enemies/core/enemy_crystal.tscn": "Rare",
-	"res://scenes/enemies/factions/corporate/enemy_interceptor.tscn": "Rare",
+	"res://scenes/enemies/factions/privateer/enemy_interceptor.tscn": "Rare",
 	"res://scenes/enemies/factions/privateer/enemy_minelayer.tscn": "Rare",
 	"res://scenes/enemies/enemy_asteroid.tscn": "Hazard",
 	"res://scenes/enemies/enemy_mine.tscn": "Hazard",

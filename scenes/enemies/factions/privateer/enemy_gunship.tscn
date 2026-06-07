@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://do5iinq73mlki"]
 
-[ext_resource type="Script" uid="uid://bsrm7tpjdmbds" path="res://scripts/enemies/factions/corporate/enemy_gunship.gd" id="1_script"]
-[ext_resource type="Texture2D" uid="uid://dih82q3kootj3" path="res://graphics/enemies/enemy_gunship.png" id="2_mkb1a"]
+[ext_resource type="Script" uid="uid://bsrm7tpjdmbds" path="res://scripts/enemies/factions/privateer/enemy_gunship.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://dx4rekb1q8gka" path="res://graphics/enemies/enemy_p_m_gunship.png" id="2_mkb1a"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="4_die"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
@@ -12,6 +12,12 @@ script = ExtResource("1_script")
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=946980638]
 texture = ExtResource("2_mkb1a")
+hframes = 2
+
+[node name="GlowMask" type="Sprite2D" parent="."]
+texture = ExtResource("2_mkb1a")
+hframes = 2
+frame = 1
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=490208667]
 position = Vector2(0, -1)
