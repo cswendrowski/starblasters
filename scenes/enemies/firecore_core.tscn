@@ -1,0 +1,13 @@
+[gd_scene load_steps=3 format=3 uid="uid://bfirecorecore0"]
+
+[ext_resource type="Script" path="res://scripts/enemies/firecore_core.gd" id="1_core"]
+[ext_resource type="SpriteFrames" uid="uid://dy3zlfcrz1ealt" path="res://resources/enemies/zealot_firecore_frames.tres" id="2_frames"]
+
+[node name="FirecoreCore" type="Node2D"]
+z_index = -1
+script = ExtResource("1_core")
+
+[node name="Core" type="AnimatedSprite2D" parent="."]
+sprite_frames = ExtResource("2_frames")
+animation = &"default"
+autoplay = "default"

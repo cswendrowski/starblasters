@@ -36,7 +36,9 @@ enum Id { SUPREMACY, PRIVATEER, CORPORATE, ZEALOT }
 # if universal OR home == F. (END-STATE: drop universals, each faction owns its set.)
 const ENEMY_TAGS := {
 	"res://scenes/enemies/core/enemy_dart.tscn": {"home": Id.PRIVATEER, "universal": true},
-	"res://scenes/enemies/core/enemy_drifter.tscn": {"home": Id.ZEALOT, "universal": true},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_manta.tscn": {"home": Id.ZEALOT, "universal": true},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_retro.tscn": {"home": Id.ZEALOT, "universal": false},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_run.tscn": {"home": Id.ZEALOT, "universal": false},
 	"res://scenes/enemies/core/enemy_spitter.tscn": {"home": Id.ZEALOT, "universal": true},
 	"res://scenes/enemies/core/enemy_bomb_drone.tscn": {"home": Id.SUPREMACY, "universal": true},
 	"res://scenes/enemies/core/enemy_weaver.tscn": {"home": Id.CORPORATE, "universal": true},

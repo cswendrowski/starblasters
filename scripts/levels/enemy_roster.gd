@@ -143,13 +143,15 @@ const ENTRIES := [
 		"unlock_sector": 0, "unlock_depth": 0, "weight": 1.0, "chaff": true, "wall": true,
 	},
 	{
-		"scene": "res://scenes/enemies/core/enemy_drifter.tscn",
+		# Manta (M6c, Roman art 2026-06-07) — REPLACES the Drifter. Same role/slot
+		# (basic drifting chaff shooter) on the new zealot two-frame sprite, but
+		# fires from a single CENTRAL muzzle (straight) rather than the diagonal
+		# popper. Stays a zealot UNIVERSAL (enemy_drifter.tscn retired from tags).
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_manta.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		# P2: Drifter behavior -> lane_path engine. Slow fire-zone-timed slide to an
-		# adjacent lane (was drifter_straight: a fixed lateral wobble via StraightDown).
 		"movement": "lane_drift",
-		"shoot": "single_diagonal",
+		"shoot": "single",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 4,
 		# Fire-rate pass (2026-05-30, Roman): was ~2.4-3.2s (slowest shooter).
@@ -161,6 +163,79 @@ const ENTRIES := [
 		# sector-1/depth-0 opener has a couple of distinct basic types.
 		"unlock_sector": 0, "unlock_depth": 0, "weight": 1.2, "chaff": true,
 		"conflict_tags": ["dumb_shot"],
+	},
+
+	# --- Zealot core units (M6c, Roman art 2026-06-07) --------------------
+	# Zealot-exclusive enemy_core ships carrying a decorative firecore (glowing
+	# center) and a baked DropFirecore component (ALWAYS drop a firecore on death,
+	# count 1 — the faction overlay may add a chance of a second). "Retro" is the
+	# hover/skirmisher gunner; "Run" is the unarmed runner. Each appears under a
+	# few movements for variety.
+	{
+		# Run (straight) — unarmed firecore-runner; basic descent.
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_run.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "fast_straight",
+		"shoot": null,
+		"base_count": 6,
+		"recycle": 0,
+		"hp_override": 1, "bounty_override": 6,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "chaff": true, "wall": true,
+	},
+	{
+		# Run (weave) — unarmed firecore-runner; lane weave.
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_run.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "lane_weave",
+		"shoot": null,
+		"base_count": 5,
+		"recycle": 0,
+		"hp_override": 1, "bounty_override": 6,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.9, "chaff": true,
+	},
+	{
+		# Retro (hover) — firecore hover-gunner, aimed fire from a central muzzle.
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_retro.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "loiter_mid",
+		"shoot": "aimed",
+		"bullet_variant": BV_Basic,
+		"base_count": 2,
+		"fire_min": 1.6, "fire_max": 2.4,
+		"hp_override": 2, "bounty_override": 14,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"conflict_tags": ["aimed_or_spread", "demands_focus"],
+	},
+	{
+		# Retro (skirmish) — firecore skirmisher, advance/retreat aimed fire.
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_retro.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "advance_retreat",
+		"shoot": "aimed",
+		"bullet_variant": BV_Basic,
+		"base_count": 3,
+		"fire_min": 0.9, "fire_max": 1.3,
+		"hp_override": 2, "bounty_override": 14,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.7, "chaff": true,
+		"conflict_tags": ["aimed_or_spread", "demands_focus"],
+	},
+	{
+		# Retro (drift) — firecore drifting gunner.
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_retro.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "lane_drift",
+		"shoot": "aimed",
+		"bullet_variant": BV_Basic,
+		"base_count": 3,
+		"fire_min": 1.4, "fire_max": 2.0,
+		"hp_override": 2, "bounty_override": 14,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": true,
+		"conflict_tags": ["aimed_or_spread"],
 	},
 	{
 		# Strafer (Roman, 2026-05-31). Chaff fighter doing head-on passes:
@@ -685,20 +760,47 @@ const ENTRIES := [
 		# Drone carrier — top-tier elite, latest of the standard rares.
 		"unlock_sector": 3, "unlock_depth": 0,
 	},
+	# Firecore Cruiser "Helix" (M6c rework, Roman 2026-06-07): a slow zealot capital
+	# with a player-tracking hook-turret BEAM + two glowing cores, dropping firecores
+	# on death. Now enemy_core: movement comes from the roster slot (clamped to ~1px/f
+	# in the script), giving it several ways to arrive — cross (side_traverse), hold
+	# (loiter), drift (lane_drift). shift/advance can be added later. Bespoke beam +
+	# baked DropFirecore (count 2). RARE capital, kept scarce by the tier-roll.
 	{
 		"scene": "res://scenes/enemies/factions/zealot/enemy_firecore_cruiser.tscn",
-		"heavy_class": "capital",  # 64px-wide — coda capital pool (boss-substitute)
+		"heavy_class": "capital",
 		"tier": Tier.RARE,
 		"size": "huge", "tags": ["tough"],
-		"movement": null,   # handles own movement
-		"shoot": null,      # handles own shooting
+		"movement": "side_traverse",  # cross the screen
+		"shoot": null,                # bespoke beam turret
 		"base_count": 1,
 		"no_scale": true,
 		"hp_override": 32, "bounty_override": 100,
-		# huge firecore elite — sector 2+, a node in. (Was D6 — unreachable on a
-		# short sector; pulled to D1 so it's actually reachable once gated by
-		# sector. The RARE tier-roll still keeps it scarce.)
 		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.6,
+	},
+	{
+		"scene": "res://scenes/enemies/factions/zealot/enemy_firecore_cruiser.tscn",
+		"heavy_class": "capital",
+		"tier": Tier.RARE,
+		"size": "huge", "tags": ["tough"],
+		"movement": "loiter",  # descend + hold
+		"shoot": null,
+		"base_count": 1,
+		"no_scale": true,
+		"hp_override": 32, "bounty_override": 100,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5,
+	},
+	{
+		"scene": "res://scenes/enemies/factions/zealot/enemy_firecore_cruiser.tscn",
+		"heavy_class": "capital",
+		"tier": Tier.RARE,
+		"size": "huge", "tags": ["tough"],
+		"movement": "lane_drift",  # slow lane drift
+		"shoot": null,
+		"base_count": 1,
+		"no_scale": true,
+		"hp_override": 32, "bounty_override": 100,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5,
 	},
 	{
 		# Firecore Drone (Roman, 2026-05-31). Small + tough; descends slowly
