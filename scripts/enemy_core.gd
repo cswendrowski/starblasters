@@ -72,6 +72,14 @@ func is_recycling() -> bool:
 	return _cycling
 
 
+# Toggle the hull outline node (added by EnemyBase via OutlineFx) — dropped while
+# recycling so a faux-parallax fly-back doesn't carry the "shootable" outline.
+func _set_outline_visible(v: bool) -> void:
+	var o := get_node_or_null("Outline")
+	if o != null:
+		o.visible = v
+
+
 func _ready() -> void:
 	super._ready()
 	# Oblique drop-shadow under the enemy sprite.
@@ -256,6 +264,9 @@ func _start_cycle() -> void:
 		$ShootTimer.stop()
 	set_deferred("monitorable", false)
 	set_deferred("monitoring", false)
+	# Drop the hull outline for the whole fly-back: a recycling ship reads as
+	# faux-parallax (shrunk + tinted), and parallax objects don't get the outline.
+	_set_outline_visible(false)
 	visible = false
 	# Cody, 2026-05-18: "Ships looping back around in the background could
 	# be brought up in speed, there's a lot of dead time waiting for them."
@@ -297,6 +308,7 @@ func _start_cycle() -> void:
 		return
 	scale = _pre_cycle_scale
 	modulate = _pre_cycle_modulate
+	_set_outline_visible(true)   # back on the gameplay layer — restore the outline
 	start_pos = position
 	_cycling = false
 	# Reset the auto-rotate position tracker so the first post-cycle

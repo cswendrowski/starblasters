@@ -27,6 +27,7 @@ func _ready() -> void:
 	display_scale = 1.0
 	auto_rotate = false     # an ember has no "forward"
 	has_ship_vfx = false    # no ground shadow / damage-overlay — it explodes, not frays
+	wants_outline = false  # firecores are excepted from the hull outline
 	offscreen_mode = OffscreenMode.NONE
 	super._ready()
 	var spr := _sprite()
