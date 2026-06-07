@@ -481,6 +481,10 @@ func new_game() -> void:
 				# M6b: pick this level's primary faction (deterministic per sector/node/
 				# run-seed) and stash it so the director overlays it on every spawn.
 				faction = Factions.pick_for_level(sd, li, int(rsd.run_seed))
+				# Dev override: Test Combat -> Faction... forces a specific faction so all
+				# four can be eyeballed on demand (persists across levels until cleared).
+				if rsd.has_meta("forced_faction"):
+					faction = int(rsd.get_meta("forced_faction", faction))
 				rsd.set_meta("active_faction", faction)
 			_current_level = WaveGen.build(sd, li, false, faction)
 			wave_director.max_concurrent = WaveGen.cap_for(sd, li)

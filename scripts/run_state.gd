@@ -232,6 +232,11 @@ func new_run() -> void:
 	# menu can't drop the player back into the old state if they bail before
 	# the first sector map entry rewrites the save.
 	clear_save()
+	# Dev faction override is one-run-scoped — clear it so a real New Game never
+	# inherits a forced faction from a prior dev session (the dev launcher re-sets
+	# it AFTER calling new_run). active_faction is per-level, also cleared.
+	remove_meta("forced_faction")
+	remove_meta("active_faction")
 	bounty = 0
 	enemies_killed = 0
 	max_bounty_earned = 0
