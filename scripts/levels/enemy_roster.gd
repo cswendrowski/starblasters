@@ -52,13 +52,16 @@ static func set_faction_filter(faction: int) -> void:
 	_faction_filter = faction
 
 
-# Restrict a pool to the active faction; never softlock — if the filter empties it,
-# return the unfiltered pool.
+# Restrict a pool to the active faction. STRICT — returns the filtered set even when
+# empty (the WaveGen pickers degrade to the faction's COMMON universals, which are
+# always unlocked, and the heavy/elite pickers handle empty gracefully). An earlier
+# "fall back to the UNFILTERED pool" leaked other factions' exclusives whenever a
+# faction's tier-pool was empty at a depth (gunship showing in every faction at sd=1)
+# — DO NOT reintroduce it.
 static func _faction_filtered(pool: Array) -> Array:
 	if _faction_filter < 0:
 		return pool
-	var f: Array = pool.filter(func(e): return Factions.allowed_in(str(e.get("scene", "")), _faction_filter))
-	return f if not f.is_empty() else pool
+	return pool.filter(func(e): return Factions.allowed_in(str(e.get("scene", "")), _faction_filter))
 
 const SingleShot = preload("res://scripts/enemies/shoot_patterns/single_shot.gd")
 const AimedShot = preload("res://scripts/enemies/shoot_patterns/aimed_fire.gd")

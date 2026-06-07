@@ -414,6 +414,12 @@ func _launch_faction(faction_id: int) -> void:
 		run.new_run()
 		run.test_mode_active = true
 		run.current_node_type = 0  # SectorNode.NodeType.COMBAT
+		# Launch at a RICH depth (sd=3, li=2): at the shallowest coord only the
+		# universal commons are unlocked, so every faction looks identical — depth is
+		# where the faction-exclusive enemies (beamers, bulwark, frigate, firecore_*)
+		# come online and the rosters actually diverge.
+		run.sectors_cleared = 2     # -> sector_depth = 3
+		run.combats_in_sector = 2   # -> level_index = 2
 		run.set_meta("forced_faction", faction_id)
 	SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
 

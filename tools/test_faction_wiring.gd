@@ -75,6 +75,19 @@ func _process(_dt: float) -> bool:
 	if Roster._faction_filter != -1:
 		_fail("Roster faction filter not cleared after build (%d)" % Roster._faction_filter)
 
+	# REGRESSION (2026-06-06): the empty-pool fallback leaked other factions' exclusives
+	# at SHALLOW depth (gunship in every faction at sd=1). Build at the shallowest coord
+	# for each faction and assert zero leaks.
+	for fid in [Factions.Id.SUPREMACY, Factions.Id.PRIVATEER, Factions.Id.CORPORATE, Factions.Id.ZEALOT]:
+		var shallow = WaveGen.build(1, 0, false, fid)
+		var forb := _forbidden_for(fid)
+		for w in shallow.waves:
+			if w == null or w.enemy_scene == null:
+				continue
+			if w.enemy_scene.resource_path in forb:
+				_fail("faction %d shallow(1,0) leaked %s" % [fid, w.enemy_scene.resource_path.get_file()])
+				break
+
 	# pick_for_level deterministic
 	var a := Factions.pick_for_level(2, 1, 12345)
 	var b := Factions.pick_for_level(2, 1, 12345)
