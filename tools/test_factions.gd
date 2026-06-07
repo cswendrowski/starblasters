@@ -49,8 +49,9 @@ func _process(_dt: float) -> bool:
 	Factions.apply(Factions.Id.SUPREMACY, s)
 	if not is_equal_approx(s.fire_interval_min, fmin * 0.7):
 		_fail("supremacy fire_interval_min %.3f != %.3f (×0.7)" % [s.fire_interval_min, fmin * 0.7])
-	if s.modulate == Color.WHITE:
-		_fail("supremacy tint not applied")
+	# Tint is intentionally NOT applied (art conveys faction) — modulate stays default.
+	if s.modulate != Color.WHITE:
+		_fail("supremacy modulate should be untouched (tint dropped), got %s" % str(s.modulate))
 	s.free()
 
 	# privateer: 2x HP
