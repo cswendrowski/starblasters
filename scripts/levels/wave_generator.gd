@@ -211,6 +211,11 @@ static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, l
 	# big-silhouette presence/pressure that pure-chaff early nodes were missing.
 	var midpoint_idx: int = n_waves / 2
 	var coda_idx: int = n_waves - 1
+	# Second anchor beat (Roman 2026-06-08: "midpoint heavies should be more common") —
+	# a 2nd 32px anchor ~3/4 through on longer levels so heavies (push etc.) show up
+	# more than once. Only when it lands on its own wave (>=5 waves, distinct from
+	# midpoint + coda).
+	var second_anchor_idx: int = (n_waves * 3) / 4
 	for i in n_waves:
 		# Closing coda — always the final wave. Shape (single / formation / escort)
 		# rolls by depth; capital-class preferred from node 2 (falls back to anchor
@@ -233,6 +238,19 @@ static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, l
 				base_counts.append(int(anchor.get("base_count", 4)))
 				continue
 			# No heavy available — fall through to a normal chaff wave at this index.
+		# Second anchor beat (longer levels) — another midpoint heavy ~3/4 through.
+		if i == second_anchor_idx and i != midpoint_idx and n_waves >= 5 and level_index >= 1:
+			var anchor2: Dictionary = _pick_heavy(rng, sector_depth, level_index, used, false)
+			if not anchor2.is_empty():
+				used.append(anchor2)
+				prev_movement = str(anchor2.get("movement", ""))
+				var wa2 = _make_wave_spec(rng, anchor2, sector_depth, level_index, i)
+				wa2.count = clampi(int(wa2.count), 1, 2)
+				wa2.silent = false
+				waves.append(wa2)
+				base_counts.append(int(anchor2.get("base_count", 4)))
+				continue
+			# No heavy available — fall through to a normal chaff wave.
 		# Wave 0 is never mixed (calm intro). Otherwise roll P(mix).
 		var mix: bool = i > 0 and _should_intermingle(level_index, sector_depth, rng)
 		if mix:
