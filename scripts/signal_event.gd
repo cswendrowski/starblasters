@@ -853,12 +853,14 @@ func _bounty() -> int:
 
 
 func _sell_price(part) -> int:
-	# 20% of the cannon-buy formula (same rule as outpost._sell_value_for —
-	# Roman 2026-05-25 economy pass: no more resale arbitrage between venues).
-	# Mk.1 = 11, Mk.5 = 39, Mk.9 = 67. Floor of 5 so a Mk.1 still pays out.
+	# 10% of the cannon-buy formula — MUST match outpost._sell_value_for so there's
+	# no resale arbitrage between venues (Roman 2026-05-25 pass set both venues
+	# symmetric; the 2026-06-01 2x cannon-price bump dropped outpost to 0.1 but left
+	# this site at 0.2, reopening the arbitrage — realigned to 0.1 here, 2026-06-08).
+	# Floor of 5 so a Mk.1 still pays out.
 	var m: int = int(part.mark) if part and "mark" in part else 1
 	var buy_cost: int = 58 + 35 * (m - 1)  # mirrors outpost CANNON_BASE_COST / CANNON_COST_PER_MK
-	return max(5, int(0.2 * float(buy_cost)))
+	return max(5, int(0.1 * float(buy_cost)))
 
 
 func _part_label(part) -> String:
