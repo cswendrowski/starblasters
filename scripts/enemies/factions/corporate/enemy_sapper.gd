@@ -25,10 +25,10 @@ var _beam_core: Line2D = null
 
 
 func _ready() -> void:
-	# Set stats BEFORE super._ready() so the base class sees max_shield = 3
-	# and calls _setup_shield_ring() automatically (same pattern as bosses).
+	# Set stats BEFORE super._ready() so the base class sees max_shield and calls
+	# _setup_shield_ring() automatically (same pattern as bosses).
 	max_health = 2
-	max_shield = 3
+	max_shield = 2   # double-shielded (Roman 2026-06-08; was 3)
 	shield_ring_size = 22.0
 	bounty_value = 20
 	auto_rotate = true

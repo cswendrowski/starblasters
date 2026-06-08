@@ -96,13 +96,27 @@ const BV_DropPellet   = preload("res://data/bullets/drop_pellet.tres")
 const ENTRIES := [
 	# --- COMMON -----------------------------------------------------------
 	{
-		# Shiv (M6c, Roman 2026-06-07) — zealot Dart-equivalent: a CHARGER (cruise in,
-		# turn to aim, dive at the player), NO weapon, drops a firecore (baked on scene).
-		# Takes the retired spitter's opener slot (spitter unified into enemy_z_s_run).
+		# Shiv (charger) — zealot Dart-equivalent that cruises in, turns to aim, dives.
+		# CHARGE-at-player movers come in small groups (Roman 2026-06-08): base_count 6 +
+		# no_scale so the charge wave never exceeds 6. NO weapon, baked firecore drop.
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_shiv.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "jet_charger",
+		"shoot": null,
+		"base_count": 6,
+		"no_scale": true,
+		"recycle": 0,
+		"hp_override": 1, "bounty_override": 5,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.7, "chaff": true,
+	},
+	{
+		# Shiv (straight) — the same hull as plain fast-down chaff (Roman 2026-06-08:
+		# "shivs can also fast down, straight down"). Full-count diver, no charge cap.
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_shiv.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "fast_straight",
 		"shoot": null,
 		"base_count": 8,
 		"recycle": 0,
@@ -246,6 +260,7 @@ const ENTRIES := [
 		"shoot": "single",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 3,
+		"recycle": 0,   # exit at the bottom, don't recycle-loop (Roman 2026-06-08)
 		"hp_override": 2, "bounty_override": 12,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
 		"conflict_tags": ["dumb_shot"],
@@ -338,6 +353,7 @@ const ENTRIES := [
 		"shoot": "burst",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 2,
+		"no_scale": true,   # beeline/charge waves stay small (Roman 2026-06-08: cap 1-6)
 		"hp_override": 2, "bounty_override": 12,
 		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.6, "chaff": true,
 		"conflict_tags": ["aimed_or_spread"],
@@ -390,6 +406,7 @@ const ENTRIES := [
 		"movement": "beeline",
 		"shoot": null,
 		"base_count": 4,
+		"no_scale": true,   # beeline kamikaze waves stay small (Roman 2026-06-08: cap 1-6)
 		# Hunter Drones are kamikaze threats, not bounty piñatas — pay
 		# mine-equivalent value (1) so killing one doesn't reward more
 		# than dodging an asteroid/mine of the same threat profile.
@@ -441,9 +458,13 @@ const ENTRIES := [
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "firecore_straight",
-		"shoot": "single",
+		# Burst-once then exit (Roman 2026-06-08): a single 4-shot burst at one band
+		# position (scene fire_path_phases = [0.4]), recycle 0 = leave, don't loop.
+		# TODO(M6c r2): +2 shots per depth increment (director-driven burst_count).
+		"shoot": "burst", "burst_count": 4,
 		"bullet_variant": BV_DropPellet,
 		"base_count": 4,
+		"recycle": 0,
 		"hp_override": 1, "bounty_override": 8,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
 		"conflict_tags": ["dumb_shot"],
@@ -480,14 +501,16 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.2, "chaff": true, "wall": true,
 	},
 	{
-		# Corp Drop — caltrop-layer; drops a path-phase trail of slow drop_pellets.
+		# Corp Drop — burst-once dropper (Roman 2026-06-08): one 4-shot burst at band
+		# 0.4 then exit (recycle 0). TODO(M6c r2): +2 shots per depth increment.
 		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_drop.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "firecore_straight",
-		"shoot": "single",
+		"shoot": "burst", "burst_count": 4,
 		"bullet_variant": BV_DropPellet,
 		"base_count": 4,
+		"recycle": 0,
 		"hp_override": 1, "bounty_override": 8,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
 		"conflict_tags": ["dumb_shot"],
@@ -1203,11 +1226,13 @@ static func make_movement(entry: Dictionary) -> Resource:
 			return m
 		"slow_advance":
 			# Anchor (m6 §13) — a slow, steady straight descent for big hulls.
-			# hold_y past the bottom = pure slow Diver (no station-keep); the
-			# old side-slide is gone. enter_speed 35→60 (it must close distance).
+			# hold_y must sit PAST the offscreen cull (viewport 270 + margin) or the
+			# hull station-keeps in the dead zone — off-screen but un-culled — and
+			# never exits (Roman 2026-06-08: sword/large enemies "not exiting"). 320 is
+			# below the cull threshold-crossing point so it descends fully off + exits.
 			var m = SlowAdvance.new()
 			m.enter_speed = 60.0
-			m.hold_y = 280.0
+			m.hold_y = 320.0
 			return m
 		"side_cut":
 			# Cutter — identity is "snaps across screen". 130→160 enter,
@@ -1300,7 +1325,7 @@ static func make_shoot(entry: Dictionary) -> Resource:
 		"burst":
 			var s = BurstShot.new()
 			s.bullet_scene = EnemyBullet
-			s.burst_count = 3
+			s.burst_count = int(entry.get("burst_count", 3))
 			s.burst_interval = 0.18
 			pattern = s
 		"spread5":

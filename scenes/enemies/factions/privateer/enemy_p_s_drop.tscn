@@ -16,7 +16,7 @@ size = Vector2(16, 15.8125)
 [node name="Enemy" type="Area2D" unique_id=409189472 groups=["enemies"]]
 script = ExtResource("1_core")
 movement = SubResource("MovePattern")
-fire_path_phases = PackedFloat32Array(0.15, 0.3, 0.45, 0.6, 0.75)
+fire_path_phases = PackedFloat32Array(0.4)
 fire_beat_synced = false
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1638692464]
