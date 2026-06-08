@@ -30,11 +30,9 @@ const RARITY_BOUNTY_MULT := {
 }
 
 const StraightDown = preload("res://scripts/enemies/patterns/straight_down.gd")
-const SCurve = preload("res://scripts/enemies/patterns/s_curve.gd")
 const Loiter = preload("res://scripts/enemies/patterns/loiter.gd")
 const SlowAdvance = preload("res://scripts/enemies/patterns/slow_advance.gd")
 const SideCut = preload("res://scripts/enemies/patterns/side_cut.gd")
-const AdvanceRetreat = preload("res://scripts/enemies/patterns/advance_retreat.gd")
 const SideTraverse = preload("res://scripts/enemies/patterns/side_traverse.gd")
 const SidePingpong = preload("res://scripts/enemies/patterns/side_pingpong.gd")
 const TopDive = preload("res://scripts/enemies/patterns/top_dive.gd")
@@ -1175,13 +1173,6 @@ static func make_movement(entry: Dictionary) -> Resource:
 			var m = StraightDown.new()
 			m.speed = 180.0
 			return m
-		"drifter_straight":
-			# Drifter — slow descent (110) with ±15 lateral drift so it
-			# doesn't read as a Firecore clone. TOS ~2.5s.
-			var m = StraightDown.new()
-			m.speed = 110.0
-			m.drift_x = 15.0 if randf() < 0.5 else -15.0
-			return m
 		"fast_straight":
 			# Dart/chaff — 300 (5 px/f). Was 360 (6 px/f = the reflex rung); pulled down
 			# a rung so common chaff stays readable (Roman 2026-06-07: ">6 px/f is a
@@ -1200,14 +1191,6 @@ static func make_movement(entry: Dictionary) -> Resource:
 			# Lane charger (Roman 2026-06-08) — slow telegraphed entry, then accelerate
 			# hard once in the firing zone and rush the exit. Defaults live on the pattern.
 			return LaneCharge.new()
-		"s_curve":
-			# Weaver carries aimed fire — slow carriage so the player can
-			# read the lead. 220→160 down, freq 1.6→1.2, amp 160→110.
-			var m = SCurve.new()
-			m.down_speed = 160.0
-			m.amplitude = 110.0
-			m.frequency = 1.2
-			return m
 		"lane_weave":
 			# Weaver (m6 §13, lane_path engine) — wobble WITHIN its own lane while
 			# descending. Lane-confined: ~10px swing < half lane width (12), never
@@ -1243,6 +1226,17 @@ static func make_movement(entry: Dictionary) -> Resource:
 			m.shift_duration = 0.7
 			m.mirrored = randf() < 0.5
 			return m
+		"dive_return":
+			# Dropper dive (Roman 2026-06-08, replaces the old straight-line HOOK feel):
+			# dive down a lane, curve into the adjacent lane at the fire-zone midpoint, then
+			# climb back up and off the top. For missile/rocket droppers — drop the volley
+			# on the way down, then turn and burn off-screen.
+			var m = LanePath.new()
+			m.shape = LanePath.Shape.DIVE_RETURN
+			m.down_speed = 140.0
+			m.shift_lanes = 1
+			m.mirrored = randf() < 0.5
+			return m
 		"loiter", "loiter_low", "loiter_mid", "loiter_high":
 			# Holder (m6 §13). Hover into the fire band, hold with a gentle
 			# bob/sway, then accelerate away. Exit accel/max trimmed (was
@@ -1259,12 +1253,13 @@ static func make_movement(entry: Dictionary) -> Resource:
 			m.exit_accel = 400.0
 			m.exit_max_speed = 480.0
 			return m
-		"slow_advance":
-			# Anchor (m6 §13) — a slow, steady straight descent for big hulls.
+		"slow_advance", "advance_retreat":
+			# Anchor (m6 §13) — a slow, steady straight descent. Roman 2026-06-08:
+			# collapsed advance_retreat into slow_advance (they read the same; the slow
+			# straight descent looks better), so both keys now produce this one motion.
 			# hold_y must sit PAST the offscreen cull (viewport 270 + margin) or the
-			# hull station-keeps in the dead zone — off-screen but un-culled — and
-			# never exits (Roman 2026-06-08: sword/large enemies "not exiting"). 320 is
-			# below the cull threshold-crossing point so it descends fully off + exits.
+			# hull station-keeps in the dead zone — off-screen but un-culled — and never
+			# exits. 320 is below the cull threshold-crossing point so it descends fully off.
 			var m = SlowAdvance.new()
 			m.enter_speed = 60.0
 			m.hold_y = 320.0
@@ -1277,15 +1272,6 @@ static func make_movement(entry: Dictionary) -> Resource:
 			m.cut_speed = 250.0
 			m.direction = 1 if randf() < 0.5 else -1
 			return m
-		"advance_retreat":
-			# Skirmisher — slowed again (Roman 2026-06-06: "should be slower",
-			# was hard-stopping). 150→100 adv, 220→130 ret, hold 0.8. Eased
-			# endpoints + jiggle + smooth up-exit live in the pattern.
-			var m = AdvanceRetreat.new()
-			m.advance_speed = 100.0
-			m.retreat_speed = 130.0
-			m.hold_time = 0.8
-			return m
 		"side_traverse":
 			# Minelayer — 55→75 so TOS is ~6s instead of ~9s.
 			var m = SideTraverse.new()
@@ -1293,10 +1279,10 @@ static func make_movement(entry: Dictionary) -> Resource:
 			m.direction = 1 if randf() < 0.5 else -1
 			return m
 		"top_dive":
-			# Interceptor — 270→220 to differentiate from Dart by trajectory,
-			# not raw speed.
+			# Interceptor (Roman 2026-06-08) — horizontal entry across the top, then turn
+			# and dive into a lane. dive_speed differentiates by trajectory, not raw speed.
 			var m = TopDive.new()
-			m.speed = 220.0
+			m.dive_speed = 220.0
 			return m
 		"beeline":
 			# Hunter Drone — should threaten, not connect. 230→190 hunt,

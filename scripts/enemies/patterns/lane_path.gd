@@ -30,7 +30,12 @@ extends "res://scripts/enemies/movement_pattern.gd"
 
 const LaneTraffic = preload("res://scripts/lane_traffic.gd")
 
-enum Shape { STRAIGHT, WEAVE, HOOK, STEP }
+#   DIVE_RETURN — dive down a lane; at the fire-zone midpoint, curve into the adjacent
+#               lane (shift_lanes) AND reverse the descent to climb back UP and off the
+#               top. For missile/rocket droppers: drop the volley on the way down, then
+#               turn and burn off-screen. Sets FREE_ANY_EDGE in on_start so the top exit
+#               frees the enemy (the default CYCLE_BOTTOM never watches the top edge).
+enum Shape { STRAIGHT, WEAVE, HOOK, STEP, DIVE_RETURN }
 
 @export var shape: Shape = Shape.STRAIGHT
 @export var down_speed: float = 120.0       # px/s descent (rung 2). Clarity-clamped.
@@ -47,6 +52,10 @@ enum Shape { STRAIGHT, WEAVE, HOOK, STEP }
 # free-check still applies (and may delay the commit; the slide then spans the
 # remaining band so it still lands by the bottom). Shift_delay/duration are ignored.
 @export var zone_timed: bool = false
+
+@export_group("Dive-Return")
+@export var return_trigger_bp: float = 0.5  # band_progress (0..1) at which the dive turns back up
+@export var return_curve_time: float = 0.6  # seconds the lateral curve into the adjacent lane takes
 
 @export_group("Weave")
 @export var weave_lanes: float = 1.0        # swing amplitude in lanes (+/-)
@@ -72,6 +81,10 @@ enum Shape { STRAIGHT, WEAVE, HOOK, STEP }
 
 var _t: float = 0.0
 var _anchor_x: float = 0.0
+# DIVE_RETURN state: dive until the trigger, then curve to the adjacent lane + climb back up.
+var _return_started: bool = false
+var _return_t: float = 0.0
+var _return_anchor_x: float = 0.0
 # HOOK (Shifter) state: the commit is one-way and gated on the target lane being
 # clear (P2 lane-awareness). Until committed the enemy holds its spawn lane.
 var _hook_committed: bool = false
@@ -111,6 +124,13 @@ func on_start(enemy) -> void:
 	_hook_committed = false
 	_hook_start_t = 0.0
 	_hook_commit_bp = 0.0
+	_return_started = false
+	_return_t = 0.0
+	_return_anchor_x = _anchor_x
+	# DIVE_RETURN climbs back up and off the TOP — switch to FREE_ANY_EDGE so the top exit
+	# frees the enemy (CYCLE_BOTTOM never watches the top edge). 1 = OffscreenMode.FREE_ANY_EDGE.
+	if shape == Shape.DIVE_RETURN:
+		enemy.offscreen_mode = 1
 
 
 func compute_step(enemy, delta: float) -> Vector2:
@@ -150,6 +170,22 @@ func compute_step(enemy, delta: float) -> Vector2:
 					u = clampf((_t - _hook_start_t) / maxf(shift_duration, 0.0001), 0.0, 1.0)
 				var eased: float = u * u * (3.0 - 2.0 * u)  # smoothstep ease-in-out
 				target_x = _anchor_x + sign_x * float(shift_lanes) * Lanes.PITCH * eased
+		Shape.DIVE_RETURN:
+			# Dive straight down until the fire-zone midpoint, then curve into the adjacent
+			# lane while climbing back UP and off the top. Returns its own full step (the
+			# trailing return statement only covers the lateral-X shapes), since the vertical
+			# direction reverses here.
+			if not _return_started:
+				if Zones.band_progress(enemy.position.y) >= return_trigger_bp:
+					_return_started = true
+					_return_t = 0.0
+					_return_anchor_x = enemy.position.x
+				return Vector2(0.0, down_speed * delta)   # dive down
+			_return_t += delta
+			var ru: float = clampf(_return_t / maxf(return_curve_time, 0.0001), 0.0, 1.0)
+			var reased: float = ru * ru * (3.0 - 2.0 * ru)  # smoothstep
+			var rtx: float = _return_anchor_x + sign_x * float(maxi(1, shift_lanes)) * Lanes.PITCH * reased
+			return Vector2(rtx - enemy.position.x, -down_speed * delta)  # curve + climb out the top
 		Shape.STEP:
 			if step_synced:
 				# Coordinated row step: shared anchor-relative offset (lanes -> px).
