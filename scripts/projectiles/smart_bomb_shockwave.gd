@@ -80,17 +80,29 @@ func _damage_enemy(e) -> void:
 		if e.has_method("take_hit"):
 			e.take_hit(_damage)
 		return
-	# Non-boss: strip shields, then deal full damage through take_hit so hull/
-	# health bookkeeping + death VFX + bounty run normally for every enemy kind.
-	# Simple per-pip shield (chaff `max_shield`):
+	# POOL shield (sapper banked-steal, ShieldComponent.Mode.POOL): the wave does NOT
+	# auto-strip it. It chews the banked damage pool and deals only the remainder to hull,
+	# bypassing the enemy's take_hit so the sapper's "redirect damage to the player" never
+	# fires for a panic bomb. Net: a well-fed sapper (pool >= our damage) survives; a
+	# starved one dies. (No POOL shields exist until the sapper migration lands — forward
+	# compatible; see docs/shield_unification_2026-06-08.md.)
+	var pool = _find_pool_shield(e)
+	if pool != null:
+		var remainder: int = int(pool.on_hit(e, _damage))
+		if remainder > 0:
+			_deal_hull(e, remainder)
+		return
+	# Otherwise: strip shields, then deal full damage through take_hit so hull/health
+	# bookkeeping + death VFX + bounty run normally for every enemy kind.
+	# Simple per-pip shield (chaff `max_shield`, legacy — inert once the unification lands):
 	if "shield" in e:
 		e.shield = 0
-	# Charge-shields (ShieldComponent: corporate faction, bulwark, sapper, and the
-	# universal crystal in corporate levels). The damage pipeline reads the per-instance
-	# RUNTIME array `_components` (enemy_base dups the authored `components` template into
-	# it in _ready), so zeroing `components` alone was a no-op — the live shield kept its
-	# charges and absorbed the bomb. Zero `_charges` on every ShieldComponent in the
-	# runtime array (and the template, harmless) so the wave truly ignores shields.
+	# Charge-shields (ShieldComponent.Mode.CHARGE: corporate faction, bulwark, bomber, and
+	# the universal crystal in corporate levels). The damage pipeline reads the per-instance
+	# RUNTIME array `_components` (enemy_base dups the authored `components` template into it
+	# in _ready), so zeroing `components` alone was a no-op — the live shield kept its charges
+	# and absorbed the bomb. Zero `_charges` on every CHARGE ShieldComponent so the wave
+	# truly ignores shields.
 	for arr_name in ["_components", "components"]:
 		if arr_name in e and e.get(arr_name) is Array:
 			for comp in e.get(arr_name):
@@ -98,6 +110,28 @@ func _damage_enemy(e) -> void:
 					comp._charges = 0
 	if e.has_method("take_hit"):
 		e.take_hit(_damage)
+
+
+# A ShieldComponent in POOL mode (the sapper's banked-steal shield), or null.
+func _find_pool_shield(e):
+	if "_components" in e and e._components is Array:
+		for comp in e._components:
+			if comp != null and comp.has_method("is_pool") and comp.is_pool():
+				return comp
+	return null
+
+
+# Deal damage straight to hull, bypassing take_hit (and thus any bespoke take_hit
+# redirect), running the normal death pipeline if it's fatal.
+func _deal_hull(e, dmg: int) -> void:
+	if "health" in e:
+		e.health -= dmg
+		if "max_health" in e and e.has_signal("health_changed"):
+			e.health_changed.emit(e.health, e.max_health)
+		if e.health < 1 and e.has_method("explode"):
+			e.explode()
+	elif e.has_method("take_hit"):
+		e.take_hit(dmg)
 
 
 func _draw() -> void:
