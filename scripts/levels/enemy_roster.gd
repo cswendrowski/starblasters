@@ -628,6 +628,7 @@ const ENTRIES := [
 		"shoot": null,                # bespoke twin turrets
 		"hp_override": 28,
 		"base_count": 2,
+		"recycle": 0,                 # larger lane anchor — exit at bottom, don't loop (Roman 2026-06-08)
 		"unlock_sector": 1, "unlock_depth": 1,
 	},
 	{
@@ -639,6 +640,7 @@ const ENTRIES := [
 		"shoot": null,
 		"hp_override": 28,
 		"base_count": 2,
+		"recycle": 0,                       # anchor — exit at bottom, don't loop (Roman 2026-06-08)
 		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.8,
 	},
 	{
@@ -650,6 +652,7 @@ const ENTRIES := [
 		"shoot": null,
 		"hp_override": 28,
 		"base_count": 2,
+		"recycle": 0,                   # anchor — exit, don't loop (Roman 2026-06-08)
 		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.7,
 	},
 	# TODO: Replace cutter with a new horizontal strafe enemy that crosses the screen cleanly

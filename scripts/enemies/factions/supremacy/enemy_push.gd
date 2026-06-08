@@ -16,6 +16,9 @@ extends "res://scripts/enemy_core.gd"
 # auto_rotate = false: a turret platform must NOT bank into its travel, or the hull
 # rotation would fight each turret's independent aim (the turret sets a world-space
 # aim angle as its LOCAL rotation, which is only correct on an unrotated hull).
+# Because auto_rotate is off, the hull can't auto-face its travel direction either,
+# so the SCENE points it down via Sprite2D.flip_v = true (art is authored nose-up).
+# The Engine*/Turret* markers are mirrored to match the flipped art (Roman 2026-06-08).
 
 const EnemyTurretC = preload("res://scripts/enemies/enemy_turret.gd")
 const DomeTex = preload("res://graphics/enemies/turret_s_dome.png")
