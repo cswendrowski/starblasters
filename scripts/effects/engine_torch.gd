@@ -48,12 +48,11 @@ var activate_below: float = ACTIVATE_BELOW_DEFAULT
 const FLAME_SIZE_MIN := Vector2(0.0, 0.25)
 const FLAME_SIZE_MAX := Vector2(0.4, 1.0)
 
-# Flame opacity (shader `alpha` uniform) scales with damage severity so a
-# barely-damaged ship shows a near-transparent flame and a near-dead ship
-# shows the full warm torch. Previously `alpha` was left at the shader
-# default (0.95) regardless of damage — the binary "worst appearance on
-# the first pip" Roman flagged 2026-05-29.
-const ALPHA_MIN: float = 0.10
+# Flame opacity (shader `alpha` uniform). Roman 2026-06-08: the flame stays
+# fully opaque at every damage level — it's gated on/off by visibility, so when
+# it appears it should read solid, not fade in transparent on the first pip. The
+# severity read is carried by flame SIZE instead. (Earlier this lerped from a
+# faint ALPHA_MIN, which made the first-pip flame look half-there.)
 const ALPHA_MAX: float = 0.95
 
 # Severity easing exponent. >1 keeps the bottom of the range subtle (light
@@ -114,8 +113,10 @@ static func attach_to_player(player: Node2D, nozzle: Vector2 = NOZZLE_OFFSET_DEF
 	# the 50% activation threshold, full size as hull → 0. Updated in
 	# _on_hull_changed.
 	mat.set_shader_parameter("size", FLAME_SIZE_MIN)
-	# Start faint; severity ramp in _on_hull_changed drives this up.
-	mat.set_shader_parameter("alpha", ALPHA_MIN)
+	# Fully opaque whenever the flame is visible (Roman 2026-06-08): the flame is
+	# gated on/off by visibility, so when it shows it should read solid rather than
+	# fading in transparent on the first pip. Only the SIZE ramps with severity.
+	mat.set_shader_parameter("alpha", ALPHA_MAX)
 	# Per-instance randomization (Roman 2026-06-08): without this every torch
 	# shares the same TIME + hash pattern and animates in identical lockstep.
 	# A random time-phase + seed makes each flame look its own.
@@ -155,7 +156,9 @@ func _on_hull_changed(max_hull, hull) -> void:
 	var severity: float = pow(ramp, SEVERITY_EXP)
 	if _mat != null:
 		_mat.set_shader_parameter("size", FLAME_SIZE_MIN.lerp(FLAME_SIZE_MAX, severity))
-		_mat.set_shader_parameter("alpha", lerp(ALPHA_MIN, ALPHA_MAX, severity))
+		# Alpha stays fully opaque at every damage level (Roman 2026-06-08) — the
+		# flame's presence/scale carries the severity read, not its transparency.
+		_mat.set_shader_parameter("alpha", ALPHA_MAX)
 	var is_damaged: bool = damage_level >= activate_below
 	# Threshold-crossing into damage: punch an impact flash at the engine
 	# nozzle, then fade the flame in shortly after so the visual reads as
