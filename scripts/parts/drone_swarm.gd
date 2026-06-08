@@ -134,7 +134,13 @@ func deploy(ship) -> Array:
 		# not on a wing-halfspan ring); angle_seed still seeds the boids fan-out
 		# so they spread apart immediately after.
 		drone.position = ship.global_position
-		tree.root.call_deferred("add_child", drone)
+		# Honor the ship's bullet_parent (the Hangar's SubViewport world) so drones
+		# render + collide in the same space as the player; else tree.root per
+		# convention (live game leaves bullet_parent null).
+		var drone_parent: Node = tree.root
+		if "bullet_parent" in ship and ship.bullet_parent != null:
+			drone_parent = ship.bullet_parent
+		drone_parent.call_deferred("add_child", drone)
 		drone.call_deferred("bind_player", ship, angle_seed)
 		spawned.append(drone)
 	# Drones just appear — no explosion/flash VFX (Roman 2026-05-29).

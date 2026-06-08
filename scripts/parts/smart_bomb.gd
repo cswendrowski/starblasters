@@ -50,7 +50,14 @@ func activate(ship) -> void:
 	var damage: int = _damage_at_mark(int(mark))
 	var wave := ShockwaveScript.new()
 	wave.configure(damage, ship.global_position)
-	tree.root.call_deferred("add_child", wave)
+	# Spawn into the ship's bullet_parent if it has one (the Hangar routes bullets
+	# into its SubViewport world so they share the dummy's space) — else tree.root
+	# per convention. Without this the shockwave lands in the main viewport at the
+	# player's 480-coords => top-left of the screen in the bench.
+	var wave_parent: Node = tree.root
+	if "bullet_parent" in ship and ship.bullet_parent != null:
+		wave_parent = ship.bullet_parent
+	wave_parent.call_deferred("add_child", wave)
 	# Punch.
 	_camera_trauma(ship, 0.7)
 	# Bomb detonation SFX — reuse the explosion clip so the panic-button reads.

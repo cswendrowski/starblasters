@@ -13,25 +13,13 @@ const HitFlashFx = preload("res://scripts/effects/hit_flash_fx.gd")
 const DPS_WINDOW := 5.0  # seconds
 
 var _hit_log: Array = []  # Array of [time_sec: float, damage: int]
-var _dps_label: Label = null
 
 
 func _ready() -> void:
 	area_entered.connect(_on_area_entered)
-	_dps_label = Label.new()
-	_dps_label.name = "DpsLabel"
-	_dps_label.text = "DPS: 0.0"
-	_dps_label.position = Vector2(-20, -22)
-	_dps_label.size = Vector2(40, 8)
-	_dps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_dps_label.add_theme_font_size_override("font_size", 6)
-	_dps_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3, 1.0))
-	add_child(_dps_label)
-
-
-func _process(_delta: float) -> void:
-	if _dps_label:
-		_dps_label.text = "DPS: %.1f" % get_dps()
+	# No in-viewport DPS label: a 6px font in the 480 SubViewport is an unreadable
+	# blur once upscaled 4×. The Hangar's right HD panel polls get_dps() and shows
+	# it big + crisp instead (Roman 2026-06-08).
 
 
 # Windowed DPS: prunes events older than DPS_WINDOW, sums remaining damage,

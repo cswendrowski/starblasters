@@ -41,8 +41,8 @@ const FS_CAPTION := 15
 
 # HD overlay layout (1920×1080). Translucent panels float over the
 # fullscreen playspace.
-const RAIL_W := 360
-const INFO_W := 360
+const RAIL_W := 490
+const INFO_W := 490
 const MARGIN := 20
 const HEADER_H := 56
 const PANEL_BG := Color(0.0, 0.0, 0.0, 0.55)
@@ -85,6 +85,7 @@ var _status_label: Label = null
 
 var _selected_slot: int = SlotTypes.SlotType.CANNON
 var _slot_factories: Array = []   # factory names for the currently-shown slot
+var _unlimited_ammo: bool = false  # when on, top off primary + secondary ammo every frame
 
 # Right panel (live status) labels.
 var _dps_lbl: Label = null
@@ -102,11 +103,16 @@ var _status_t: float = 0.0
 # ---- Lifecycle -----------------------------------------------------------
 
 func _ready() -> void:
-	# HD attach — but only when this scene is the live current_scene. The
-	# feature_showcase previews the hangar as a *child* of the showcase
-	# scene; attaching there would swap the global content_scale out from
-	# under the showcase. RAII scope auto-restores on exit.
-	if get_tree().current_scene == self:
+	# HD attach — but NOT when previewed as a child inside another scene (the
+	# feature_showcase hosts the hangar as a *child*; attaching there would swap
+	# the global content_scale out from under the showcase). Gate on "are we the
+	# window's scene root" via get_parent() == root, NOT current_scene == self:
+	# under SceneTransition.change_scene_to_file the new scene's _ready runs
+	# DURING add_child, BEFORE current_scene is reassigned — so the old guard was
+	# false on a real launch, the scope never attached, content_scale stayed
+	# 480×270, and the full-rect playspace rendered tiny in the top-left. RAII
+	# scope auto-restores on exit.
+	if get_parent() == get_tree().root:
 		_hd_scope = HdViewportScope.attach(self)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_playspace()
@@ -151,6 +157,19 @@ func _build_playspace() -> void:
 	# is fine: the player self-drives off the GLOBAL Input singleton, not viewport
 	# GUI events (verified: it fires + hits the dummy through this path).
 	_preview_vp = HdScreen.add_upscaled_backdrop(self, root, Vector2i(480, 270))
+
+	# 2D AUDIO in the SubViewport: AudioStreamPlayer2D only outputs when its
+	# viewport has an enabled 2D listener. The player's per-ship audio nodes
+	# (MgLoop / RotaryLaserShoot / ShootSound) live inside _world, so without a
+	# listener the machinegun / rotary laser / auto-laser were SILENT (the blaster
+	# is audible only because it plays at get_tree().root). Enable the SubViewport
+	# as a listener + drop an AudioListener2D at the playfield centre.
+	_preview_vp.audio_listener_enable_2d = true
+	var listener := AudioListener2D.new()
+	listener.name = "AudioListener"
+	listener.position = Vector2(Playfield.CENTER.x, Playfield.CENTER.y)
+	_world.add_child(listener)
+	listener.make_current()
 
 	_spawn_dummy_target()
 	_spawn_player()
@@ -331,6 +350,13 @@ func _build_left_rail(parent: CanvasLayer) -> void:
 	clear_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn_row.add_child(clear_btn)
 
+	var ammo_chk := CheckButton.new()
+	ammo_chk.text = "Unlimited Ammo"
+	ammo_chk.add_theme_font_override("font", UiTheme.active_font())
+	ammo_chk.add_theme_font_size_override("font_size", FS_BODY)
+	ammo_chk.toggled.connect(func(on: bool): _unlimited_ammo = on)
+	vbox.add_child(ammo_chk)
+
 	_status_label = _make_label("", FS_CAPTION, UiTheme.COLOR_FAINT)
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status_label.custom_minimum_size = Vector2(RAIL_W - 32, 0)
@@ -412,6 +438,13 @@ func _build_info_panel(parent: CanvasLayer) -> void:
 # ---- Status refresh ------------------------------------------------------
 
 func _process(delta: float) -> void:
+	# Unlimited ammo: top off EVERY frame (not on the 0.1s status cadence) so
+	# metered weapons never visibly deplete or stutter on the ammo gate.
+	if _unlimited_ammo and _player != null and is_instance_valid(_player):
+		if "ammo" in _player and int(_player.ammo) >= 0:
+			_player.ammo = int(_player.ammo_max)
+		if "secondary_ammo" in _player and int(_player.secondary_ammo) >= 0:
+			_player.secondary_ammo = int(_player.secondary_ammo_max)
 	_status_t += delta
 	if _status_t >= STATUS_REFRESH:
 		_status_t = 0.0
@@ -707,10 +740,13 @@ func _set_status(msg: String) -> void:
 
 
 func _on_back() -> void:
-	if _hd_scope != null and is_instance_valid(_hd_scope):
-		_hd_scope.free()
-		_hd_scope = null
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev_menu.tscn")
+	# Drop the HD scope only once the fade-to-black covers the screen (on_covered),
+	# NOT eagerly here — freeing it now restores content_scale to 480×270 while the
+	# HD-laid-out hangar is still visible during the fade-out, blowing it up (the
+	# "zoomed-in menu on leave" frame). HdScreen.drop is idempotent + null-safe.
+	var scope := _hd_scope
+	_hd_scope = null
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev_menu.tscn", func(): HdScreen.drop(scope))
 
 
 func _input(event: InputEvent) -> void:
