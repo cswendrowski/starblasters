@@ -37,6 +37,74 @@ landed. Grouped by effort.
   don't surface in headless runs. NEED: the recurring list from the editor Output/Debugger
   panel → then fix per-site or demote noise types in `project.godot [debug] gdscript/warnings`.
 
+## M6c polish backlog — round 2 (scoped 2026-06-08)
+
+### Enemies
+- [ ] **Drop enemies (p_s_drop / c_s_drop) — burst-once, no recycle.** Should NOT recycle;
+  fire a single 4-shot burst, then exit. Deeper-run drops gain more shots (e.g. +2 per depth
+  increment) but still ONE burst then leave. (roster `recycle: 0` + a one-burst shoot config +
+  depth-scaled shot count)
+- [ ] **Sapper is double-shielded.** Give the sapper 2 shield charges. (`enemy_sapper` / shield component)
+
+### Bullets / weapons
+- [ ] **Weapon-library audit** — confirm EVERY enemy fires via the new Weapon/BulletVariant
+  library, not a bespoke holdover. Some projectiles read as wrong speed / old sprite. Sweep
+  enemy scripts for hand-rolled bullet spawns + off-library variants.
+- [ ] **Tracer art hframes/masking** — tracer sprites render doubled with an offset glow;
+  check hframes + frame masking on the tracer textures (`enemy_tracer` / `tracer-*` + variants).
+
+### Patterns (director / wave-gen)
+- [ ] **Minefield hazard = real wave numerics + dense navigable patterns.** Same enemy counts
+  as a normal wave; dense waves with patterns demanding careful navigation / focus-threading /
+  shoot-through. (`scripts/levels/levels_v2.gd` minefield + director)
+- [ ] **p_s_green waves over-rely on curves** — add variation.
+- [ ] **Conductor must not repeat patterns** — if reused, reverse them on alternating waves or
+  mix with lane patterning (L→R, R→L, in/out sweeps). (`director.gd` conductor choreography)
+- [ ] **Bomb-drone waves too thin again** — come as walls with dodge gaps the player must enter,
+  not 1–2 stragglers. (shared with round-1 "cohesive chaff waves")
+- [ ] **Mix-and-match lane patterns** — different lanes running different patterns in one wave
+  for visual texture.
+- [ ] **Beeline group cap** — beeline enemies (shiv etc.) limited to 1–6 per wave. Apply to ALL
+  beeline enemies. (wave-gen count clamp by movement)
+- [ ] **Shiv also fast-down / straight-down** — add straight-dive variants alongside the charger.
+- [ ] **New CHARGER behavior** — enter the lane SLOWLY, then on reaching the firing zone rapidly
+  ACCELERATE and rush the exit. (new `scripts/enemies/patterns/` movement, zone-timed accel)
+- [ ] **Large enemies not exiting at the bottom** — sword (and likely all large enemies) don't
+  despawn off the bottom; need to travel further off-screen before the offscreen cull fires.
+  (offscreen margin scaled by sprite size in enemy_base)
+
+### Recycling
+- [ ] **Recycling breaks composed formations.** Recycled units re-enter as noise, devolving
+  pincer/wall patterns. The conductor must handle recycling: route recycled enemies into the
+  NEXT wave pool / a fresh intervening pattern / fold them into the ongoing wave, so composed
+  patterns stay intact. (`director.gd` + `enemy_core` recycle hook)
+- [ ] **Unified pseudo-mid recycle layer.** Commit to a single core recycling layer modeled on
+  the missile_cruiser's pseudo-parallax layer (same shading + placement), so ALL recycling
+  enemies look consistent. (factor missile_cruiser's pseudo-parallax into a shared mechanism)
+
+### Background (likely separate scope)
+- [ ] **Per-row planets are static** — each sector row should feed the backdrop the correct,
+  VARIED planets with dynamic placement; currently it renders the same planets/composition each
+  time. (`scripts/galaxy_backdrop.gd` per-row celestial selection)
+
+### Sector Map (likely separate scope)
+- [ ] **Planet-kit range not exercised** — map generates the same planets/asteroids in the same
+  order each run; ensure the full range of planet-kit types + colors/seeds is sampled.
+- [ ] **Node placement not randomized** — nodes appear biased to the left; randomize properly.
+- [ ] **Boss ring progress missing** — the boss ring no longer shows unlock progress from node
+  completion. Restore it.
+- [ ] **Retire the old sector map entirely** — a hazard-map round-trip returned to the OLD
+  sector-map UI. No loop-backs to the old style should remain.
+- [ ] **Signal events not randomized** — all roll the same; randomize the outcome chances + the
+  rewards. (`scripts/signal_event.gd`)
+
+### Audio (likely separate scope)
+- [ ] **Music must keep cycling** — long levels play to the end then fall silent; loop/continue.
+- [ ] **Intensity ramp** — start low-intensity, build as waves progress; the main (high-intensity)
+  theme on the final 2 waves when a level has ≥5 waves. (`scripts/music_manager.gd`)
+- [ ] **Same-frame sound overrun** — mass simultaneous deaths (super bomb etc.) get extremely
+  loud; offset/duck/limit same-frame explosions (voice cap or per-frame volume scaling).
+
 
 ## Controls + Player
 
