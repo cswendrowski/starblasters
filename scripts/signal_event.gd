@@ -58,7 +58,7 @@ func _ready() -> void:
 	else:
 		_rng.randomize()
 	var events: Array = _events()
-	_current_event = events[_rng.randi() % events.size()]
+	_current_event = _pick_event(events)
 	_render()
 	# Debug-only viewport-overflow guard (no-op in release).
 	UiTheme.assert_inside_viewport.call_deferred(self)
@@ -168,7 +168,37 @@ func _events() -> Array:
 				},
 			],
 		})
+	# Phase C: attach data-schema metadata (id + weight) for weighted selection.
+	# The asteroid-only Miner event is gated by the conditional append above;
+	# weights tune rarity (rarer payoff events appear less often).
+	var ev_meta := [
+		["ambush", 1.0], ["nano_cloud", 1.0], ["junk_trader", 1.0],
+		["wreck", 1.0], ["salvage", 1.0], ["derelict", 0.8],
+		["inspection", 0.8], ["experimental", 0.7], ["bounty_board", 0.7],
+		["freespace_miner", 1.0],
+	]
+	for i in range(mini(list.size(), ev_meta.size())):
+		list[i]["id"] = String(ev_meta[i][0])
+		list[i]["weight"] = float(ev_meta[i][1])
 	return list
+
+
+# Weighted event pick (Phase C) — replaces uniform random. The asteroid-only
+# Miner event is gated by the catalog's conditional append; weights tune rarity.
+func _pick_event(list: Array) -> Dictionary:
+	if list.is_empty():
+		return {}
+	var total: float = 0.0
+	for e in list:
+		total += float(e.get("weight", 1.0))
+	if total <= 0.0:
+		return list[_rng.randi() % list.size()]
+	var r: float = _rng.randf() * total
+	for e in list:
+		r -= float(e.get("weight", 1.0))
+		if r <= 0.0:
+			return e
+	return list[list.size() - 1]
 
 
 # Salvage Cache — abandoned cargo container drifting in the void. The
@@ -254,7 +284,7 @@ func _do_derelict_iff() -> void:
 func _do_derelict_tag() -> void:
 	var award: int = 75 + _rng.randi() % 26
 	_apply_bounty(award)
-	_finish_to_sector_map(Strings.OUTCOME_DERELICT_TAG)
+	_finish_to_sector_map(Strings.OUTCOME_DERELICT_TAG, ETone.GOOD)
 
 
 # Directly stow a weapon into Run.inventory without a swap modal, then
@@ -306,7 +336,7 @@ func _do_inspection_run() -> void:
 	match roll:
 		0:
 			_apply_hull_delta(-1)
-			_finish_to_sector_map(Strings.OUTCOME_INSPECTION_RUN_DAMAGE)
+			_finish_to_sector_map(Strings.OUTCOME_INSPECTION_RUN_DAMAGE, ETone.BAD)
 		1:
 			if has_node("/root/Run"):
 				get_node("/root/Run").combat_intro = "interceptor_chase"
@@ -492,7 +522,7 @@ func _do_ambush_evade() -> void:
 		_finish_to_sector_map(Strings.OUTCOME_AMBUSH_EVADE_CLEAN)
 	else:
 		_apply_hull_delta(-1)
-		_finish_to_sector_map(Strings.OUTCOME_AMBUSH_EVADE_HIT)
+		_finish_to_sector_map(Strings.OUTCOME_AMBUSH_EVADE_HIT, ETone.BAD)
 
 
 # Nano Cloud: 25% damage / 50% repair / 10% upgrade / 15% ammo. The ammo
@@ -506,12 +536,12 @@ func _do_nano_cloud() -> void:
 	if roll < 0.25:
 		var dmg := 2 + _rng.randi() % 2  # 2-3 hull
 		_apply_hull_delta(-dmg)
-		_finish_to_sector_map(Strings.OUTCOME_NANO_DAMAGE % dmg)
+		_finish_to_sector_map(Strings.OUTCOME_NANO_DAMAGE % dmg, ETone.BAD)
 		return
 	if roll < 0.85:
 		var rep := 2 + _rng.randi() % 3  # 2-4 hull
 		_apply_hull_delta(rep)
-		_finish_to_sector_map(Strings.OUTCOME_NANO_REPAIR % rep)
+		_finish_to_sector_map(Strings.OUTCOME_NANO_REPAIR % rep, ETone.GOOD)
 		return
 	if roll < 0.95:
 		var part_label: String = _upgrade_random_part()
@@ -527,7 +557,7 @@ func _do_nano_cloud() -> void:
 	else:
 		var rep2 := 2 + _rng.randi() % 3
 		_apply_hull_delta(rep2)
-		_finish_to_sector_map(Strings.OUTCOME_NANO_REPAIR % rep2)
+		_finish_to_sector_map(Strings.OUTCOME_NANO_REPAIR % rep2, ETone.GOOD)
 
 
 # Junk Trader: sell an uninstalled inventory part.
@@ -578,7 +608,7 @@ func _do_junk_repair() -> void:
 		return
 	_apply_bounty(-30)
 	_apply_hull_delta(3)
-	_finish_to_sector_map(Strings.OUTCOME_JUNK_REPAIRED)
+	_finish_to_sector_map(Strings.OUTCOME_JUNK_REPAIRED, ETone.GOOD)
 
 
 # Junk Trader: cheap ammo top-up. Adds 500 rounds for 15 bounty. Only
@@ -619,7 +649,7 @@ func _do_wreck_claim_bounty() -> void:
 	var stats: Dictionary = EnemyRoster.compose_stats(entry)
 	var value: int = max(1, int(stats.get("bounty_value", 5)))
 	_apply_bounty(value)
-	_finish_to_sector_map(Strings.OUTCOME_WRECK_BOUNTY % value)
+	_finish_to_sector_map(Strings.OUTCOME_WRECK_BOUNTY % value, ETone.GOOD)
 
 
 # Scavenge weapon — same swap modal flow as Salvage Cache: roll one of
@@ -715,7 +745,7 @@ func _salvage_outcome_upgrade() -> void:
 	var new_mk: int = int(run.get(key)) + 1
 	run.set(key, new_mk)
 	var label: String = String(_SALVAGE_UPGRADE_LABELS.get(key, key))
-	_finish_to_sector_map(Strings.OUTCOME_SALVAGE_UPGRADE % [label, new_mk])
+	_finish_to_sector_map(Strings.OUTCOME_SALVAGE_UPGRADE % [label, new_mk], ETone.GOOD)
 
 
 # Roll a weapon at >= current Mk in either CANNON or HARDPOINT_WING slot,
