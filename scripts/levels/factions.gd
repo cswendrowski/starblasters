@@ -57,7 +57,6 @@ const ENEMY_TAGS := {
 	"res://scenes/enemies/factions/privateer/enemy_p_s_drop.tscn": {"home": Id.PRIVATEER, "universal": false},
 	"res://scenes/enemies/factions/privateer/enemy_p_m_cannon.tscn": {"home": Id.PRIVATEER, "universal": false},
 	"res://scenes/enemies/factions/privateer/enemy_p_m_pulse.tscn": {"home": Id.PRIVATEER, "universal": false},
-	"res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn": {"home": Id.CORPORATE, "universal": false},
 	"res://scenes/enemies/factions/corporate/enemy_sapper.tscn": {"home": Id.CORPORATE, "universal": false},
 	"res://scenes/enemies/factions/supremacy/enemy_s_s_hotrod.tscn": {"home": Id.SUPREMACY, "universal": false},
 	"res://scenes/enemies/factions/supremacy/enemy_s_s_rush.tscn": {"home": Id.SUPREMACY, "universal": false},

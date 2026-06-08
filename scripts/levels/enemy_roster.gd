@@ -615,7 +615,11 @@ const ENTRIES := [
 	#	"conflict_tags": ["dumb_shot"],
 	#},
 	{
-		"scene": "res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn",
+		# Hold (skirmish) — the Skirmisher's behavior UNIFIED onto the corp hold scene
+		# (Roman 2026-06-07: hold has the complete/correct markers now). Aggressive
+		# aimed-fire advance/retreat, double-muzzle (the muzzle resolver cycles hold's
+		# MuzzleL/R). The hold (loiter) entry above is kept too. enemy_skirmisher retired.
+		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "advance_retreat",
@@ -624,8 +628,6 @@ const ENTRIES := [
 		"base_count": 3,
 		"fire_min": 0.7, "fire_max": 1.1,
 		"hp_override": 2, "bounty_override": 15,
-		# Skirmisher — aggressive aimed-fire advance/retreat. Sector 2, one node
-		# in. (Was D3 — pulled to D1 so it's reachable on a short sector.)
 		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.8, "chaff": true,
 		"conflict_tags": ["aimed_or_spread", "demands_focus"],
 	},
