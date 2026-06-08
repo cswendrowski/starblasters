@@ -1,7 +1,7 @@
 # Signal Event Screen — Redesign Proposal
 
-**Date:** 2026-06-08 · **Status:** Approved by Roman. **Phase A SHIPPED** (commit on
-`m6c-polish-r2`); Phases B + C pending. Decisions: (1) stow-only found parts, (2) Engage/Fight
+**Date:** 2026-06-08 · **Status:** Approved by Roman. **Phases A + B SHIPPED** (commits on
+`m6c-polish-r2`); Phase C pending. Decisions: (1) stow-only found parts, (2) Engage/Fight
 confirm with event-supplied flavor + fallback, (3) rely on RESOLVE text (combat_intro stays inert),
 (4) phasing approved.
 
@@ -9,6 +9,14 @@ confirm with event-supplied flavor + fallback, (3) rely on RESOLVE text (combat_
 weapons stow to cargo, named (swap modal removed); the four combat/hazard drops now resolve to a
 flavor line + an Engage/Enter-the-Field launch button (`_finish_to_launch`) instead of a silent
 `change_scene`. Strings added to `strings.gd`.
+
+**Phase B done (verified headless):** a single resolver (`_resolve` over an `_make_outcome` value
+object) is the only resolution path — every choice routes through it via the now-thin
+`_finish_to_sector_map` / `_finish_to_launch` wrappers (no handler churn). It renders the RESOLVE
+state consistently: result text (tone-colored via `_apply_tone`), an optional **acquired-item card**
+("Acquired: <name>" + stow hint), and the right continue/launch button. Item handoff is centralized —
+the resolver stows a granted Part to cargo and cards it; grant sites pass `grant` instead of
+hand-appending. Tone plumbing in (grants = GOOD); the full per-outcome tone pass lands with Phase C.
 **Files:** `scripts/signal_event.gd`, `scenes/signal_event.tscn`, `scripts/signal_event_builder.gd`
 (unused scaffolding), `scripts/run_state.gd`.
 
