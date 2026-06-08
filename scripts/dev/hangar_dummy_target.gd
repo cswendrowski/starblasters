@@ -29,7 +29,15 @@ func _ready() -> void:
 	add_child(_dps_label)
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
+	if _dps_label:
+		_dps_label.text = "DPS: %.1f" % get_dps()
+
+
+# Windowed DPS: prunes events older than DPS_WINDOW, sums remaining damage,
+# divides by the window length. Single source of truth for both the on-sprite
+# label and external readouts (the Hangar test bench polls this).
+func get_dps() -> float:
 	var now := Time.get_ticks_msec() / 1000.0
 	var cutoff := now - DPS_WINDOW
 	# Prune events older than the window.
@@ -43,9 +51,13 @@ func _process(delta: float) -> void:
 	var total_dmg := 0
 	for entry in _hit_log:
 		total_dmg += int(entry[1])
-	var dps := float(total_dmg) / DPS_WINDOW
-	if _dps_label:
-		_dps_label.text = "DPS: %.1f" % dps
+	return float(total_dmg) / DPS_WINDOW
+
+
+# Clear the hit log so the windowed DPS reads 0 immediately. Used by the
+# Hangar's "Reset DPS" button between weapon tests.
+func reset_dps() -> void:
+	_hit_log.clear()
 
 
 func _on_area_entered(area: Area2D) -> void:
