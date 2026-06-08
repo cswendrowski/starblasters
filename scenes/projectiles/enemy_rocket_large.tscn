@@ -8,8 +8,8 @@ size = Vector2(6, 16)
 
 [node name="EnemyRocket" type="Area2D" unique_id=484008050 groups=["bullets", "enemies"]]
 script = ExtResource("1_nkarw")
-speed = 60.0
-damage = 2
+drift_speed = 60.0
+homing_max_speed = 60.0
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=622124442]
 texture = ExtResource("2_nkarw")
@@ -20,5 +20,3 @@ shape = SubResource("RectangleShape2D_1")
 
 [node name="exhaust_point" type="Marker2D" parent="." unique_id=1207878151]
 position = Vector2(0, 8)
-
-[connection signal="area_entered" from="." to="." method="_on_area_entered"]

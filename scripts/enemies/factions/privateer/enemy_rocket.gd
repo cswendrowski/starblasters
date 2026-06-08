@@ -22,7 +22,6 @@ const MuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
 # --- Rocket salvo -------------------------------------------------------
 const SALVO_SIZE     := 3      # rockets per salvo
 const SALVO_INTERVAL := 1.8    # seconds between salvos
-const ROCKET_SPEED   := 280.0  # px/s (fallback if the rocket has no start())
 const ROCKET_SPREAD_DEG := 12.0
 const ROCKET_RACK    := 6      # launch_point1..6
 
@@ -78,14 +77,9 @@ func _fire_rocket() -> void:
 	var spread: float = deg_to_rad(randf_range(-ROCKET_SPREAD_DEG, ROCKET_SPREAD_DEG))
 	var dir: Vector2 = Vector2(0, 1).rotated(spread)
 	var r = ROCKET_SCENE.instantiate()
+	r.initial_dir = dir              # launch heading — set BEFORE add_child (BaseMissile._ready reads it)
 	get_tree().root.add_child(r)
-	if r.has_method("start"):
-		r.start(pos, dir)
-	elif "velocity" in r:
-		r.position = pos
-		r.velocity = dir * ROCKET_SPEED
-	else:
-		r.position = pos
+	r.start(pos)
 
 
 # Tracer burst from alternating hull muzzles, aimed at the player.

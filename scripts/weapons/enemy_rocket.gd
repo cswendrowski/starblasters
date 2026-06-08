@@ -1,74 +1,24 @@
-extends "res://scripts/projectiles/base_bullet.gd"
+extends "res://scripts/projectiles/base_missile.gd"
 class_name EnemyRocket
 
-# Enemy rocket fired by the Gunship. Compared with generic enemy_bullet:
-#   - Heads downward at higher speed
-#   - Deals 2 damage on contact
-#   - Can be shot down by player bullets (1 HP, is in "enemies" group)
-#   - is_hazard = true so dead rockets don't gate wave-clear
-#   - Explodes visually but deals NO damage when destroyed by player fire
-
-const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
-const MissileSmokeTrail = preload("res://scripts/effects/missile_smoke_trail.gd")
-const EngineFlareCls := preload("res://scripts/effects/engine_flare.gd")
-const ANIM_FPS := 12.0
-
-var health: int = 1
-var is_hazard: bool = true  # don't gate wave-clear (director.gd checks this)
-var _anim_frame_t := 0.0
-
-
-func _init() -> void:
-	target_group = "player"
-	velocity_dir = Vector2(0, 1)
-	speed = 280.0
-	damage = 2
-	max_lifetime = 4.0
-	impact_kind = 1  # EXPLOSIVE
+# Enemy rocket — a DUMB-FIRE (no homing) configuration of the shared BaseMissile
+# (Roman 2026-06-08 unify). All the engine-flare / smoke-trail / shoot-down /
+# velocity-rotation / explosive-impact wiring now comes from BaseMissile; this is
+# only the rocket-specific config. Fires straight immediately (no drop-and-coast),
+# deals 2 on contact, can be shot down (1 HP).
+#
+# Per-rocket speed lives in the SCENE: a dumb rocket flies at a constant speed, so
+# the scenes set drift_speed == homing_max_speed (180 standard / 60 large). Callers
+# set `initial_dir` (the launch heading) BEFORE add_child, then call start(pos).
 
 
 func _ready() -> void:
-	add_to_group("enemies")
+	target_group = "player"   # damages the player side on contact
+	dumb_fire = true          # straight-line thrust along initial_dir, never homes
+	flame_trail = true        # rear smoke trail (built by BaseMissile)
+	drift_time = 0.0          # ignite on frame 0 — no backward drop
+	damage_on_contact = 2
+	is_hazard = true          # don't gate wave-clear (director skips hazards)
+	has_ship_vfx = false      # a projectile, not a ship: no hull outline / damage overlay / shadow
 	super._ready()
-	# Rotate sprite to face travel direction (downward). New asymmetric rocket
-	# art has the nose at the top of the sheet; + PI*0.5 makes the sprite's
-	# "up" point along the velocity vector (matching base_missile.gd convention).
-	rotation = velocity_dir.angle() + PI * 0.5
-	# Engine flare at the exhaust marker. Enemy rockets fire immediately
-	# (no drift), so the flare is visible from spawn — no ignition gate.
-	var exhaust: Node2D = get_node_or_null("exhaust_point")
-	if exhaust != null:
-		var flare: Sprite2D = EngineFlareCls.new()
-		exhaust.add_child.call_deferred(flare)
-	# Attach the smoke trail with downward drift flipped (rocket travels
-	# downward; without flip the trail drifts further down = in front of the
-	# rocket instead of behind it). Emit from the exhaust marker when present.
-	var trail: MissileSmokeTrail = MissileSmokeTrail.new()
-	trail.flip_drift = true
-	get_tree().root.call_deferred("add_child", trail)
-	var emitter: Node2D = exhaust if exhaust != null else self
-	trail.call_deferred("attach_to", emitter)
-
-
-func _process(delta: float) -> void:
-	# base_bullet drives movement in _process — must call super or the rocket
-	# sits still (regression fix 2026-05-30: the thruster frame loop override
-	# was eating the movement step).
-	super._process(delta)
-	# Thruster frame loop (no-op for single-frame sheets)
-	if has_node("Sprite2D"):
-		var sprite: Sprite2D = $Sprite2D
-		if sprite.hframes > 1:
-			_anim_frame_t += delta
-			sprite.frame = int(_anim_frame_t * ANIM_FPS) % sprite.hframes
-
-
-# Called by player bullets via _apply_enemy_hit → area.take_hit(damage).
-# We don't need to apply incoming damage (1-shot regardless), just die.
-func take_hit(_dmg: int = 1) -> void:
-	if _killed:
-		return
-	_killed = true
-	# Small silent explosion — no player damage, just visual pop.
-	ExplosionFx.play(global_position, 0.5, false)
-	queue_free()
+	bounty_value = 0          # shooting one down awards nothing (BaseMissile defaults to 5)

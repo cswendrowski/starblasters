@@ -44,9 +44,10 @@ func _fire_rockets() -> void:
 	var flashing: bool = has_muzzles()
 	for spawn_pos in spawns:
 		var rocket = EnemyRocket.instantiate()
+		rocket.initial_dir = down        # launch heading — set BEFORE add_child (_ready reads it)
 		get_tree().root.add_child(rocket)
 		rocket.scale = Vector2(1.5, 1.5)
-		rocket.start(spawn_pos, down)
+		rocket.start(spawn_pos)
 		if flashing:
 			MuzzleFx.play_enemy(spawn_pos, down, get_tree().root)
 	# One launch whoosh per volley from the universal rocket pool.
