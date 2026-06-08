@@ -76,6 +76,22 @@ project, spawned crystal + control + shielded enemy, fired the wave):
   (32 HP) survives the 18-dmg wave — arguably correct since the overlay makes it "tough." If you want
   the wave to ignore the privateer HP buff too, that's a small tuning change; say the word.
 
+### 2026-06-08 — Shield unification (foundation + spec) (`b5c9adf`)
+Roman: unify the enemy shield systems. Investigation found **four** split systems (simple
+`max_shield`, ShieldComponent, bespoke bulwark/bomber regen, one-off mine/Aegis). The three you named
+were split: sector-modifier + roster "shielded" tag → **simple** shield; corporate faction →
+**ShieldComponent** (they can even stack on one enemy). Decisions: **spec it, combat session builds**
+the cross-file migration; **chaff shields don't regen**.
+- **Built (cleanly mine, verified headless):** `ShieldComponent` gains CHARGE (per-hit; `regen_interval
+  <= 0` = no regen) + POOL (the sapper's banked **damage** pool — absorbs an amount, grows via
+  `bank()`, never regens) modes, backward-compatible. Smart bomb is POOL-aware: strips CHARGE shields
+  (ignore-shields), but chews the sapper's POOL and bypasses its `take_hit` redirect — so a well-fed
+  sapper (pool ≥ 18) survives, a starved one dies. Test: fed sapper(22) lives, starved(10/8hp) dies,
+  3-charge shield stripped+dies.
+- **Handed to combat session** (`docs/shield_unification_2026-06-08.md`): rewire `director.gd` spawn
+  paths + retire `enemy_base` simple shield + migrate bulwark/bomber/mine/sapper onto ShieldComponent.
+  Their files (enemy_base/director/roster/enemy scripts), so it's their build per the spec.
+
 ## Decisions I need from you
 
 1. **`main.gd:802` old-sector-map round-trip** — the asteroid-hazard exit loads the raw

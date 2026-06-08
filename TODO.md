@@ -73,6 +73,17 @@ landed. Grouped by effort.
   despawn off the bottom; need to travel further off-screen before the offscreen cull fires.
   (offscreen margin scaled by sprite size in enemy_base)
 
+### Shields (combat session — spec ready)
+- [ ] **Unify enemy shield systems onto `ShieldComponent`** — four split systems today (simple
+  `enemy_base.max_shield`, ShieldComponent, bespoke bulwark/bomber regen, one-off mine/Aegis); the
+  data-driven sources are split (sector-mod + roster "shielded" → simple shield; corporate →
+  component) and can stack. Foundation is BUILT (lead 2026-06-08, `b5c9adf`): `ShieldComponent` now
+  has CHARGE (no-regen when `regen_interval<=0`) + POOL (sapper banked-damage) modes, and the smart
+  bomb is POOL-aware. REMAINING (combat session — touches `enemy_base`/`director`/`enemy_roster` +
+  enemy scripts): rewire the two `director.gd` spawn paths to attach a ShieldComponent, retire the
+  simple `max_shield`, migrate bulwark/bomber/mine/sapper onto it (sapper → POOL + steal→`bank()`).
+  Full spec + file:line: `docs/shield_unification_2026-06-08.md`. Boss Aegis stays bespoke.
+
 ### Recycling
 - [ ] **Recycling breaks composed formations.** Recycled units re-enter as noise, devolving
   pincer/wall patterns. The conductor must handle recycling: route recycled enemies into the
