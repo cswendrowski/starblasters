@@ -1,7 +1,7 @@
 # Signal Event Screen — Redesign Proposal
 
-**Date:** 2026-06-08 · **Status:** Approved by Roman. **Phases A + B SHIPPED** (commits on
-`m6c-polish-r2`); Phase C pending. Decisions: (1) stow-only found parts, (2) Engage/Fight
+**Date:** 2026-06-08 · **Status:** ✅ COMPLETE — **Phases A + B + C all SHIPPED** (commits on
+`m6c-polish-r2`). Decisions: (1) stow-only found parts, (2) Engage/Fight
 confirm with event-supplied flavor + fallback, (3) rely on RESOLVE text (combat_intro stays inert),
 (4) phasing approved.
 
@@ -17,6 +17,15 @@ state consistently: result text (tone-colored via `_apply_tone`), an optional **
 ("Acquired: <name>" + stow hint), and the right continue/launch button. Item handoff is centralized —
 the resolver stows a granted Part to cargo and cards it; grant sites pass `grant` instead of
 hand-appending. Tone plumbing in (grants = GOOD); the full per-outcome tone pass lands with Phase C.
+
+**Phase C done (verified headless):** events gain `id` + `weight`; selection is weighted
+(`_pick_event`) instead of uniform — rarer payoff events appear less often, and the asteroid-only
+Miner stays gated by the catalog's conditional append. Per-outcome tone pass: damage = BAD (red),
+gains = GOOD (green). The redesign is complete — events are data-schema-tagged, every choice routes
+through the single resolver into a consistent RESOLVE state with named item cards + combat confirms,
+and item names/handoff are fixed. Future authoring: extend the catalog with `id`/`weight` + a resolve
+that returns through `_finish_to_sector_map`/`_finish_to_launch`. A dev launcher (Test Combat →
+"All-Signal Sector") forces a full sector of signal POIs for testing.
 **Files:** `scripts/signal_event.gd`, `scenes/signal_event.tscn`, `scripts/signal_event_builder.gd`
 (unused scaffolding), `scripts/run_state.gd`.
 
