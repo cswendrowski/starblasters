@@ -282,9 +282,14 @@ var _mg_loop_player: AudioStreamPlayer2D = null
 var _mg_end_player: AudioStreamPlayer2D = null
 var _mg_firing: bool = false
 
-# Rotary Laser audio — charge → loop → release-shot.
+# Rotary Laser audio — spin-up charge, then a rapid random "pew" per shot while
+# firing (replaces the old sustained loop). The fire rate is ~20/s (base_cooldown
+# 0.05), so the per-shot SFX is throttled to a sane cadence and the player node
+# is polyphonic so the pews overlap cleanly.
 const RL_CHARGE_DURATION: float = 0.4
+const RL_SHOOT_SFX_MIN_MS: int = 80     # min gap between rotary shoot pews
 var _rl_shoot_streams: Array = []
+var _rl_shoot_last_ms: int = 0
 var _rl_charging: bool = false
 var _rl_charged: bool = false
 var _rl_charge_t: float = 0.0
@@ -428,6 +433,9 @@ func _setup_mg_audio() -> void:
 		load("res://Sound/weapons/player/rotary_laser_shoot_5.ogg"),
 		load("res://Sound/weapons/player/rotary_laser_shoot_6.ogg"),
 	]
+	# Polyphonic so rapid-fire pews overlap instead of cutting each other off.
+	if _rl_shoot_player_node:
+		_rl_shoot_player_node.max_polyphony = 4
 	_pb_charge_player = get_node_or_null("ParticleBeamCharge")
 	_pb_loop_player = get_node_or_null("ParticleBeamLoop")
 	_pb_stop_player = get_node_or_null("ParticleBeamStop")
@@ -438,15 +446,24 @@ func _setup_mg_audio() -> void:
 
 
 func _rl_stop() -> void:
-	var was_charged := _rl_charged
 	_rl_charging = false
 	_rl_charged = false
 	_rl_charge_t = 0.0
 	if _rl_charge_player and _rl_charge_player.playing:
 		_rl_charge_player.stop()
-	if was_charged and is_alive and _rl_shoot_player_node and not _rl_shoot_streams.is_empty():
-		_rl_shoot_player_node.stream = _rl_shoot_streams[randi() % _rl_shoot_streams.size()]
-		_rl_shoot_player_node.play()
+
+
+# One rapid random rotary "pew", throttled so the ~20/s fire rate doesn't spawn a
+# voice per shot. Played from the polyphonic RotaryLaserShoot node (SFX bus).
+func _play_rotary_shoot_sfx() -> void:
+	if _rl_shoot_player_node == null or _rl_shoot_streams.is_empty() or not is_alive:
+		return
+	var now: int = Time.get_ticks_msec()
+	if now - _rl_shoot_last_ms < RL_SHOOT_SFX_MIN_MS:
+		return
+	_rl_shoot_last_ms = now
+	_rl_shoot_player_node.stream = _rl_shoot_streams[randi() % _rl_shoot_streams.size()]
+	_rl_shoot_player_node.play()
 
 
 func stop_all_weapon_audio() -> void:
@@ -820,6 +837,10 @@ func fire_primary() -> void:
 		return
 	can_shoot = false
 	$GunCooldown.start()
+	# Rotary Laser firing sound: a rapid random pew per shot (the old sustained
+	# loop's replacement), throttled so the ~20/s fire rate doesn't spam voices.
+	if weapon_style == WS.WeaponStyle.ROTARY_LASER:
+		_play_rotary_shoot_sfx()
 	# Cobalt 2026-05-21 follow-up: emit from the top-center of the player
 	# sprite, slightly AHEAD of the ship (above the top edge). Ship is
 	# 16×16 centered; top edge sits at local Y=-8, so (-0, -10) is two
