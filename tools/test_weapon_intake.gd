@@ -10,9 +10,9 @@ const RESULT := "res://tools/_weapon_intake_result.txt"
 const WaveGen := preload("res://scripts/levels/wave_generator.gd")
 const DirectorScript := preload("res://scripts/levels/director.gd")
 
-const WEAPONS := ["weapon_bullet", "weapon_bullet_small", "weapon_bullet_large",
-	"weapon_bullet_wave", "weapon_bullet_laser", "weapon_bullet_cannon",
-	"weapon_bullet_diamond", "weapon_bullet_tracer"]
+const WEAPONS := ["enemy_blaster", "enemy_blaster_small", "enemy_blaster_large",
+	"enemy_wave_cannon", "enemy_laser_cannon", "enemy_cannon",
+	"enemy_diamond_gun", "weapon_mg_tracer", "weapon_mg"]
 const BULLETS := ["basic", "spread_pellet", "heavy_slug", "plasma_orb",
 	"laser_bolt", "burst_round", "tracker", "aimed_sniper"]
 

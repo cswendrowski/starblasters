@@ -105,11 +105,7 @@ it actually fires; the weapon supplies the *content*.
 
 ## Index: Enemy Projectiles
 
-All eight enemy "bullets" are the **same shell** — `scenes/projectiles/enemy_bullet.tscn`
-— plus a **`BulletVariant`** payload (`data/bullets/*.tres`) applied at fire time
-(`_apply_variant()` sets speed, damage, hitbox, sprite/anim, and any baked movement).
-The per-type `.tscn` (`enemy_bullet_spread.tscn`, etc.) are **orphaned/legacy** — not
-referenced anywhere; the live definitions are the variants below.
+All bullets should have their own scene set up using their own sprite and shader. They should utilize a central bullet script.
 
 | bullet (sprite id) | sprite png | variant `.tres` | speed px/f | dmg | hitbox | baked movement |
 |---|---|---|---:|---:|---|---|
@@ -123,13 +119,14 @@ referenced anywhere; the live definitions are the variants below.
 | `enemy_bullet_tracer` | `enemy_tracer` | `aimed_sniper` | 5 | 1 | 4×6 | random start frame |
 
 **Rockets / missiles** (separate scripts, not the shared shell):
+Missiles and rockets should have a central missile projectile script that they all use for general consistency, with each missile/rocket building off that.
 
 | projectile | sprite png | script | speed px/f | dmg | notes |
 |---|---|---|---:|---:|---|
 | `enemy_rocket` | `rocket` | `enemy_rocket.gd` | 3 | 2 | explosive, shoot-down-able (1 HP), smoke trail + engine flare |
 | `enemy_rocket_large` | `rocket_large` | `enemy_rocket.gd` | 1 | 2 | as above, larger |
-| `drifting_missile` | `missile` | `base_missile.gd` | 2 (cruise) | — | drift → ignite → home; Minelayer drop |
-| `drifting_missile_large` | `missile_large` | `base_missile.gd` | 1 (cruise) | — | as above, larger |
+| `drifting_missile` | `missile` | `base_missile.gd` | 2 (cruise) | — | drift → ignite → home; **Interceptor** drop (also Aegis boss salvo) |
+| `drifting_missile_large` | `missile_large` | `base_missile.gd` | 1 (cruise) | — | as above, larger (scene exists; not yet wired to an enemy) |
 
 > **Pure projectiles.** Speeds are on the 2026-06 spec (above) and all baked movement
 > has been removed — `diamond`'s homing and `wave`'s wobble are gone, so every bullet now
@@ -142,30 +139,42 @@ referenced anywhere; the live definitions are the variants below.
 
 ### Baseline weapons — `resources/patterns/shoot/weapon_*.tres`
 
-One straight-firing `single_shot` weapon per bullet (`fire_pattern = single`,
-`aim = straight_down`). These are the **baselines** offshoot weapons (spread / aimed /
+These are the **baselines** offshoot weapons (spread / aimed /
 burst / beam variants) derive from. Each = `enemy_bullet.tscn` shell + the payload below.
 
 | weapon `.tres` | payload bullet | rate (s) |
 |---|---|---|
-| `weapon_bullet` | `enemy_bullet` (`basic`) | 1.0–1.8 |
-| `weapon_bullet_small` | `enemy_bullet_small` (`spread_pellet`) | 0.9–1.6 |
-| `weapon_bullet_large` | `enemy_bullet_large` (`heavy_slug`) | 1.6–2.6 |
-| `weapon_bullet_wave` | `enemy_bullet_wave` (`plasma_orb`) | 1.4–2.4 |
-| `weapon_bullet_laser` | `enemy_bullet_laser` (`laser_bolt`) | 0.8–1.4 |
-| `weapon_bullet_cannon` | `enemy_bullet_cannon` (`burst_round`) | 1.0–1.8 |
-| `weapon_bullet_diamond` | `enemy_bullet_diamond` (`tracker`) | 1.1–1.9 |
-| `weapon_bullet_tracer` | `enemy_bullet_tracer` (`aimed_sniper`) | 0.9–1.6 |
+| `enemy_blaster` | `enemy_bullet` (`basic`) | 1.0–1.8 |
+| `enemy_blaster_small` | `enemy_bullet_small` | 0.9–1.6 |
+| `enemy_blaster_large` | `enemy_bullet_large` | 1.6–2.6 |
+| `enemy_wave_cannon` | `enemy_bullet_wave` | 1.4–2.4 |
+| `enemy_laser_cannon` | `enemy_bullet_laser` | 0.8–1.4 |
+| `enemy_cannon` | `enemy_bullet_cannon` | 1.0–1.8 |
+| `enemy_diamond_gun` | `enemy_bullet_diamond` | 1.1–1.9 |
+| `weapon_mg_tracer` | `enemy_bullet_tracer` | 0.9–1.6 |
+| `weapon_mg` | `enemy_bullet_small` | 0.9–1.6 |
 
 ### Pattern primitives (shape building-blocks) — `resources/patterns/shoot/`
+
+It should be assumed that most patterns
 
 | resource | fire_pattern | aim | notes |
 |---|---|---|---|
 | `single_shot` | single | straight_down | base; payload set by roster/enemy |
-| `aimed_fire` | aimed | at_player | leads the player |
+| `burst_shot_x` | burst | straight_down | x = numbers of shots the enemy should fire |
+| `burst_shot_3` | burst | straight_down | fires 3 shots|
+| `burst_shot_5` | burst | straight_down | fires 5 shots|
 | `pair_shot` | single ×2 | straight_down | twin muzzle |
 | `spread_shot_3` | spread | straight_down | 3-fan |
 | `spread_shot_7` | spread | straight_down | 7-fan |
+
+### Turret Behavior
+For enemies with the ability to aim themselves at the player, such as turrets or omni_move enemies, or bomber tail gunners, they have an additional aiming behavior.
+
+| aim | fire_pattern | aim | notes |
+|---|---|---|---|
+| `aimed_wild` | any | at_player | doesn't lead the player|
+| `aimed_lead` | any | at_player | leads the player |
 
 ### Bespoke beams (not yet folded in — see §19)
 
