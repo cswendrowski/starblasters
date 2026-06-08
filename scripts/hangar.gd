@@ -55,10 +55,14 @@ const WEAPON_GROUPS := [
 	{"name": "Super",     "slot": SlotTypes.SlotType.DEVICE_BAY_1},
 ]
 
-# Quick-equip supers (DEVICE_BAY_1) by display name. These ARE the "mode
-# modules" today — the design-only Mode/stance system is realized by these
-# three. Resolved to factory names at build time via PartCatalog.
-const SUPER_NAMES := ["Smart Bomb", "Hyper Mode", "Phase Shift"]
+# The dedicated SUPER is Smart Bomb (the permanent panic button), set in the
+# Super slot. Hyper Mode + Phase Shift are MODE modules that replace the base
+# Focus stance — set in the Mode row, NOT the Super slot (Roman 2026-06-08).
+# (The true Super/Mode SLOT split is the unbuilt supers-spec refactor; all three
+# are still DEVICE_BAY_1 parts mechanically, so a Mode shares the super slot here
+# and equipping one displaces Smart Bomb — fine for a test bench.)
+const MODE_NAMES := ["Focus", "Hyper Mode", "Phase Shift"]   # Focus = base (no part)
+const MODE_PART_NAMES := ["Hyper Mode", "Phase Shift"]       # filtered OUT of the Super slot list
 
 const STATUS_REFRESH := 0.1  # seconds between right-panel rebuilds
 
@@ -120,41 +124,33 @@ func _ready() -> void:
 # ---- Playspace (fills the whole window) --------------------------------
 
 func _build_playspace() -> void:
-	var sub_container := SubViewportContainer.new()
-	sub_container.stretch = true
-	sub_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	sub_container.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	# Don't eat input meant for the UI overlay above.
-	sub_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(sub_container)
-
-	_preview_vp = SubViewport.new()
-	_preview_vp.size = Vector2i(480, 270)
-	_preview_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	_preview_vp.transparent_bg = false
-	# The player reads input itself; let the subviewport see global input so
-	# WASD / shoot reach it (handle_input_locally false routes events from the
-	# parent viewport's Input singleton, which Input.is_action_* uses anyway).
-	_preview_vp.handle_input_locally = false
-	sub_container.add_child(_preview_vp)
-
+	# Native 480x270 playspace upscaled to fill the whole HD window via the
+	# blessed pattern (HdScreen.add_upscaled_backdrop — same as the main menu's
+	# backdrop): a 480x270 SubViewport drawn by a full-rect STRETCH_SCALE+nearest
+	# TextureRect. Keeps all Playfield.X_MIN coords native; the wrong size was the
+	# old SubViewportContainer(stretch=true) which RESIZED the viewport to 1920x1080
+	# and left the 480-coord content tiny in the top-left.
+	var root := Node2D.new()
+	root.name = "Playspace"
 	# Gutter dim + brighter playfield band, matching the real frame.
 	var gutter := ColorRect.new()
 	gutter.color = Color(0.04, 0.05, 0.08, 1.0)
 	gutter.size = Vector2(480, 270)
-	_preview_vp.add_child(gutter)
+	root.add_child(gutter)
 	var band := ColorRect.new()
 	band.color = Color(0.07, 0.09, 0.13, 1.0)
 	band.position = Vector2(Playfield.X_MIN, 0)
 	band.size = Vector2(Playfield.W, Playfield.H)
-	_preview_vp.add_child(band)
-
+	root.add_child(band)
 	# World node — bullets + dummy + player all live here so they share a
-	# coordinate space and collide. This is the node we hand to the player's
-	# bullet_parent.
+	# coordinate space and collide. This is the node we hand to bullet_parent.
 	_world = Node2D.new()
 	_world.name = "World"
-	_preview_vp.add_child(_world)
+	root.add_child(_world)
+	# Upscale 480x270 -> the HD window. Returns the SubViewport. gui_disable_input
+	# is fine: the player self-drives off the GLOBAL Input singleton, not viewport
+	# GUI events (verified: it fires + hits the dummy through this path).
+	_preview_vp = HdScreen.add_upscaled_backdrop(self, root, Vector2i(480, 270))
 
 	_spawn_dummy_target()
 	_spawn_player()
@@ -388,26 +384,29 @@ func _build_info_panel(parent: CanvasLayer) -> void:
 	vbox.add_child(_equip_lbl)
 	vbox.add_child(HSeparator.new())
 
-	# Mode modules (supers).
-	vbox.add_child(_make_label("MODE MODULES", FS_HEADER, UiTheme.COLOR_ACCENT))
-	var super_row := HBoxContainer.new()
-	super_row.add_theme_constant_override("separation", 6)
-	vbox.add_child(super_row)
-	for super_name in SUPER_NAMES:
-		var b := _make_button(super_name, _on_quick_super.bind(super_name))
+	# MODE — the stance modules that replace base Focus (Focus / Hyper / Phase).
+	# Separate from the Super (Smart Bomb) per the supers design.
+	vbox.add_child(_make_label("MODE  (replaces Focus)", FS_HEADER, UiTheme.COLOR_ACCENT))
+	var mode_row := HBoxContainer.new()
+	mode_row.add_theme_constant_override("separation", 6)
+	vbox.add_child(mode_row)
+	for mode_name in MODE_NAMES:
+		var b := _make_button(mode_name, _on_quick_mode.bind(mode_name))
 		b.add_theme_font_size_override("font_size", FS_CAPTION)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		super_row.add_child(b)
+		mode_row.add_child(b)
+	vbox.add_child(_make_label("(Hyper/Phase activate with X / shoot_nose; Focus = hold Shift)", FS_CAPTION, UiTheme.COLOR_FAINT))
+	# SUPER — the dedicated panic button (Smart Bomb), set in the Super slot.
+	vbox.add_child(_make_label("SUPER", FS_HEADER, UiTheme.COLOR_ACCENT))
 	var fire_row := HBoxContainer.new()
 	fire_row.add_theme_constant_override("separation", 10)
 	vbox.add_child(fire_row)
-	var fire_btn := _make_button("Fire Super", _on_fire_super)
+	var fire_btn := _make_button("Fire Super (X)", _on_fire_super)
 	fire_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	fire_row.add_child(fire_btn)
 	var refill_btn := _make_button("Refill Super", _on_refill_super)
 	refill_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	fire_row.add_child(refill_btn)
-	vbox.add_child(_make_label("(also fires with X / shoot_nose)", FS_CAPTION, UiTheme.COLOR_FAINT))
 
 
 # ---- Status refresh ------------------------------------------------------
@@ -570,25 +569,33 @@ func _on_damage_player() -> void:
 	_refresh_status()
 
 
-func _on_quick_super(super_name: String) -> void:
-	var factory := _super_factory_for(super_name)
+func _on_quick_mode(mode_name: String) -> void:
+	var loadout = _live_loadout()
+	if mode_name == "Focus":
+		# Base Focus stance = no mode module equipped (clear DEVICE_BAY_1).
+		Run.unequip_slot(SlotTypes.SlotType.DEVICE_BAY_1)
+		if loadout != null:
+			loadout.unequip(SlotTypes.SlotType.DEVICE_BAY_1)
+		_set_status("Mode: Focus (base) — hold Shift")
+		_refresh_status()
+		return
+	var factory := _super_factory_for(mode_name)
 	if factory == "":
-		_set_status("No super: %s" % super_name)
+		_set_status("No mode: %s" % mode_name)
 		return
 	var part = PartCatalog._make_by_name(factory, SlotTypes.SlotType.DEVICE_BAY_1)
 	if part == null:
-		_set_status("PartCatalog null for %s" % super_name)
+		_set_status("PartCatalog null for %s" % mode_name)
 		return
 	part.mark = int(_mark_slider.value)
 	Run.equip_part(part)
-	var loadout = _live_loadout()
 	if loadout != null:
 		loadout.equip(SlotTypes.SlotType.DEVICE_BAY_1, part)
 	# Top off charges so it can be test-fired immediately.
 	if "max_super_charges" in _player:
 		_player.super_charges = int(_player.max_super_charges)
 		_player.super_charges_changed.emit(int(_player.super_charges), int(_player.max_super_charges))
-	_set_status("Super: %s Mk.%d" % [super_name, int(part.mark)])
+	_set_status("Mode: %s Mk.%d  (activate with X)" % [mode_name, int(part.mark)])
 	_refresh_status()
 
 
@@ -627,20 +634,30 @@ func _parts_for_slot(slot: int) -> Array:
 	var out: Array = []
 	var seen: Dictionary = {}
 	for entry in pool:
-		if int(entry["slot"]) == slot:
-			var f: String = String(entry["factory"])
-			if not seen.has(f):
-				out.append(f)
-				seen[f] = true
+		if int(entry["slot"]) != slot:
+			continue
+		var f: String = String(entry["factory"])
+		if seen.has(f):
+			continue
+		# The Super slot lists the dedicated super (Smart Bomb) only — Hyper Mode
+		# and Phase Shift are MODE modules, set in the Mode row, not this slot.
+		if slot == SlotTypes.SlotType.DEVICE_BAY_1 \
+				and _display_name_for_factory(f, slot) in MODE_PART_NAMES:
+			continue
+		out.append(f)
+		seen[f] = true
 	return out
 
 
-# Resolve a super display name (e.g. "Smart Bomb") to its factory function
-# name within the DEVICE_BAY_1 pool. Empty string if not found.
-func _super_factory_for(super_name: String) -> String:
-	for f in _parts_for_slot(SlotTypes.SlotType.DEVICE_BAY_1):
-		if _display_name_for_factory(f, SlotTypes.SlotType.DEVICE_BAY_1).to_lower() == super_name.to_lower():
-			return f
+# Resolve a DEVICE_BAY_1 display name (Smart Bomb / Hyper Mode / Phase Shift) to
+# its factory. Searches the FULL pool, not the Super-slot-filtered list (which
+# hides the Mode parts), so modes resolve too. Empty string if not found.
+func _super_factory_for(display_name: String) -> String:
+	for entry in PartCatalog._all_pool():
+		if int(entry["slot"]) == SlotTypes.SlotType.DEVICE_BAY_1:
+			var f := String(entry["factory"])
+			if _display_name_for_factory(f, SlotTypes.SlotType.DEVICE_BAY_1).to_lower() == display_name.to_lower():
+				return f
 	return ""
 
 
