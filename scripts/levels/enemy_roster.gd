@@ -42,6 +42,7 @@ const BeelinePlayer = preload("res://scripts/enemies/patterns/beeline_player.gd"
 const BulwarkDrift = preload("res://scripts/enemies/patterns/bulwark_drift.gd")
 const LanePath = preload("res://scripts/enemies/patterns/lane_path.gd")
 const OmniThrust = preload("res://scripts/enemies/patterns/omni_thrust.gd")
+const JetCharger = preload("res://scripts/enemies/patterns/jet_charger.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
 
 # Faction pool filter (M6b): set by WaveGen.build for the duration of one generation so
@@ -95,13 +96,13 @@ const BV_DropPellet   = preload("res://data/bullets/drop_pellet.tres")
 const ENTRIES := [
 	# --- COMMON -----------------------------------------------------------
 	{
-		# Shiv (M6c, Roman 2026-06-07) — zealot Dart-equivalent: fast diver, NO weapon,
-		# drops a firecore (baked DropFirecore on the scene). Takes the retired spitter's
-		# opener slot (spitter unified into enemy_z_s_run; enemy_spitter.tscn untagged).
+		# Shiv (M6c, Roman 2026-06-07) — zealot Dart-equivalent: a CHARGER (cruise in,
+		# turn to aim, dive at the player), NO weapon, drops a firecore (baked on scene).
+		# Takes the retired spitter's opener slot (spitter unified into enemy_z_s_run).
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_shiv.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "fast_straight",
+		"movement": "jet_charger",
 		"shoot": null,
 		"base_count": 8,
 		"recycle": 0,
@@ -236,11 +237,12 @@ const ENTRIES := [
 	# (path-phase, since it's a monotonic descent); the cross variant rakes the lane
 	# on the timer while traversing. Zealot-exclusive enemy_core.
 	{
-		# Sword (advance) — pushes straight down a lane firing forward.
+		# Sword (advance) — SLOW lane pusher (Roman 2026-06-07: was far too fast at
+		# firecore_straight/180; slow_advance is ~1 px/f). Pushes straight down firing.
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_sword.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "firecore_straight",
+		"movement": "slow_advance",
 		"shoot": "single",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 3,
@@ -842,7 +844,9 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/core/enemy_crystal.tscn",
 		"tier": Tier.RARE,
 		"size": "medium", "tags": [],
-		"movement": "loiter",
+		# High hold (Roman 2026-06-07: crystal was coming too far down) — hovers in the
+		# upper band instead of the deep "loiter" hold.
+		"movement": "loiter_high",
 		"shoot": "spread5",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 2,
@@ -1123,10 +1127,18 @@ static func make_movement(entry: Dictionary) -> Resource:
 			m.drift_x = 15.0 if randf() < 0.5 else -15.0
 			return m
 		"fast_straight":
-			# Dart — 360 (was 480). 480 reaction-test variant is filed as a
-			# separate "Sprint Dart" TODO in TODO.md.
+			# Dart/chaff — 300 (5 px/f). Was 360 (6 px/f = the reflex rung); pulled down
+			# a rung so common chaff stays readable (Roman 2026-06-07: ">6 px/f is a
+			# reflex test, keep rare + mid/late). Sector scaling can still creep it up.
 			var m = StraightDown.new()
-			m.speed = 360.0
+			m.speed = 300.0
+			return m
+		"jet_charger":
+			# Charger (z_s_shiv) — cruise in, turn to aim, then CHARGE/dive at the player.
+			# Speeds kept on the rung scale (cruise ~1.5 px/f, charge 3 px/f).
+			var m = JetCharger.new()
+			m.cruise_speed = 90.0
+			m.charge_speed = 180.0
 			return m
 		"s_curve":
 			# Weaver carries aimed fire — slow carriage so the player can
