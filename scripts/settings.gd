@@ -191,3 +191,20 @@ func _apply_audio() -> void:
 func _apply_window() -> void:
 	var mode := DisplayServer.WINDOW_MODE_FULLSCREEN if fullscreen else DisplayServer.WINDOW_MODE_WINDOWED
 	DisplayServer.window_set_mode(mode)
+	if fullscreen:
+		# Fullscreen cursor-offset fix (desktop only): the window is born WINDOWED
+		# (no window/size/mode in project.godot) then switched to fullscreen here.
+		# That windowed->fullscreen transition can leave the OS-cursor -> viewport
+		# input transform offset by the former title-bar/frame (clicks land ~a
+		# button below the cursor). Re-assert on the next idle frame: snap the
+		# window to its screen's origin (so no windowed position/frame is inherited)
+		# which forces the input transform to recompute. Web has no native frame,
+		# so it's unaffected and this no-ops there.
+		_fix_fullscreen_offset.call_deferred()
+
+
+func _fix_fullscreen_offset() -> void:
+	if DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_FULLSCREEN:
+		return
+	var scr := DisplayServer.window_get_current_screen()
+	DisplayServer.window_set_position(DisplayServer.screen_get_position(scr))
