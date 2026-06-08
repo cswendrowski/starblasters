@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://iqys12s5srvb"]
 
 [ext_resource type="Script" uid="uid://cr84xrjml35ar" path="res://scripts/weapons/enemy_bullet.gd" id="1_gk4vk"]
-[ext_resource type="Texture2D" path="res://graphics/projectiles/enemy_bullet.png" id="1_iqbiy"]
+[ext_resource type="Texture2D" uid="uid://cijshrc6qqd2q" path="res://graphics/projectiles/enemy_bullet.png" id="1_iqbiy"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_ua1nk"]
 atlas = ExtResource("1_iqbiy")
@@ -33,7 +33,7 @@ animations = [{
 }]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ruvs5"]
-size = Vector2(6, 6)
+size = Vector2(7.75, 7.875)
 
 [node name="EnemyBullet" type="Area2D" unique_id=937251871 groups=["bullets"]]
 script = ExtResource("1_gk4vk")
@@ -43,7 +43,6 @@ sprite_frames = SubResource("SpriteFrames_aappp")
 autoplay = "default"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=834368476]
-visible = false
 shape = SubResource("RectangleShape2D_ruvs5")
 
 [node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="." unique_id=928703863]

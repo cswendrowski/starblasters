@@ -26,8 +26,9 @@ animations = [{
 "speed": 8.0
 }]
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_trk"]
-size = Vector2(6, 6)
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_4bs03"]
+radius = 6.0
+height = 16.0
 
 [node name="EnemyBullet" unique_id=824186809 instance=ExtResource("1_base")]
 variant = ExtResource("2_variant")
@@ -37,7 +38,6 @@ impact_color = Color(0.666667, 0.266667, 1, 1)
 
 [node name="AnimatedSprite2D" parent="." index="0" unique_id=791917356]
 sprite_frames = SubResource("SpriteFrames_trk")
-frame_progress = 0.0
 
 [node name="CollisionShape2D" parent="." index="1" unique_id=834368476]
-shape = SubResource("RectangleShape2D_trk")
+shape = SubResource("CapsuleShape2D_4bs03")
