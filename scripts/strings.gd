@@ -232,6 +232,12 @@ const HAZARD_FLAVOR_MINER := "You throw in with the mining crew. Time to earn yo
 
 # Salvaged weapon stowed to cargo (stow-only handoff — equip later at your ship).
 const OUTCOME_SALVAGE_STOWED := "Salvaged %s — stowed in your cargo hold. Equip it at your ship."
+# Phase B: the acquired-item card names the part, so the result line stays generic.
+const OUTCOME_SALVAGE_STOWED_GENERIC := "You pry a working weapon free and stow it in your cargo hold."
+
+# Acquired-item card (Phase B resolver — shown whenever an event grants a part).
+const CARD_ACQUIRED := "Acquired: %s"
+const CARD_STOWED_HINT := "Stowed in cargo — equip it at your ship."
 
 
 # ===========================================================================

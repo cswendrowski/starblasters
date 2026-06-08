@@ -30,6 +30,15 @@ var _hd_scope: HdViewportScope = null
 var _derelict_weapon = null
 var _derelict_price: int = 0
 
+# Event resolution model (Phase B, docs/signal_event_redesign_2026-06-08.md).
+# Every choice resolves into ONE Outcome that the single _resolve() renders: the
+# always-present result text (tone-colored), an optional acquired-item card, and
+# the right continue/launch button. Makes outcome text + item handoff structural.
+enum EState { PRESENT, RESOLVE }
+enum ENext { SECTOR_MAP, COMBAT }   # COMBAT covers hazard — both load main.tscn
+enum ETone { NEUTRAL, GOOD, BAD }
+var _state: int = EState.PRESENT
+
 
 func _ready() -> void:
 	_hd_scope = HdScreen.enter(self)
@@ -252,9 +261,8 @@ func _do_derelict_tag() -> void:
 # finish to the sector map with the given flavor text. The derelict event
 # always stows (no choice) per the spec.
 func _offer_weapon_stow(weapon, flavor: String) -> void:
-	if has_node("/root/Run") and weapon != null:
-		get_node("/root/Run").inventory.append(weapon)
-	_finish_to_sector_map(flavor)
+	# The resolver stows the granted part into cargo + shows the named card.
+	_finish_to_sector_map(flavor, ETone.GOOD, weapon)
 
 
 # ---- Event 2: Corporate Inspection --------------------------------------
@@ -737,10 +745,9 @@ func _salvage_outcome_weapon() -> void:
 		# If we drew a lower Mk than the player's current part, snap up.
 		if "mark" in new_part and int(new_part.mark) < current_mark:
 			new_part.mark = current_mark
-		# Stow-only handoff (Roman 2026-06-08): found weapons go straight to the
-		# cargo hold, named, to equip later at the ship (no in-event swap).
-		run.inventory.append(new_part)
-		_finish_to_sector_map(Strings.OUTCOME_SALVAGE_STOWED % _part_label(new_part))
+		# Stow-only handoff: the resolver stows the granted part + shows the
+		# named acquired-item card; equip later at the ship.
+		_finish_to_sector_map(Strings.OUTCOME_SALVAGE_STOWED_GENERIC, ETone.GOOD, new_part)
 		return
 	_finish_to_sector_map(Strings.OUTCOME_SALVAGE_NO_WEAPONS)
 
@@ -902,50 +909,98 @@ func _on_choice(choice: Dictionary) -> void:
 		action.call(self)
 
 
-# Roman, 2026-05-16: when an event resolves, swap the choices for the
-# result summary and let the player click "Sector Map" to advance — same
-# rhythm as a level-cleared screen. No auto-timeout.
-func _finish_to_sector_map(result_text: String) -> void:
-	# Replace body with the outcome so the player sees what their choice did.
-	if result_text != "":
-		body_label.text = result_text
-	# Drop existing choice buttons and offer a single Sector Map continue.
+# ---- Resolution (single sink, Phase B) ---------------------------------
+
+# Build an Outcome value object. `text` = the always-present "what happened" line;
+# `grant` = a Part stowed into cargo + shown as a named acquired-item card; `next`
+# = where the continue button goes; `tone` color-codes the result.
+func _make_outcome(text: String, tone: int = ETone.NEUTRAL, grant = null, next: int = ENext.SECTOR_MAP, btn: String = "") -> Dictionary:
+	return {"text": text, "tone": tone, "grant": grant, "next": next, "btn": btn}
+
+
+# The single resolver — renders the RESOLVE state. Every choice ends here, so
+# outcome text + item handoff + the continue/launch button are always consistent.
+func _resolve(outcome: Dictionary) -> void:
+	_state = EState.RESOLVE
+	# Centralized item handoff: stow a granted part into the cargo hold.
+	var grant = outcome.get("grant", null)
+	if grant != null and has_node("/root/Run"):
+		get_node("/root/Run").inventory.append(grant)
+	# Result text (always shown) + tone color.
+	var text: String = String(outcome.get("text", ""))
+	if text != "":
+		body_label.text = text
+	_apply_tone(body_label, int(outcome.get("tone", ETone.NEUTRAL)))
+	# Swap the choice row for the resolution: optional item card + one button.
 	for c in choices_box.get_children():
 		c.queue_free()
+	if grant != null:
+		choices_box.add_child(_make_item_card(grant))
+	var nxt: int = int(outcome.get("next", ENext.SECTOR_MAP))
 	var btn := Button.new()
-	btn.text = Strings.BTN_SECTOR_MAP
 	UiTheme.style_button(btn)
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn.custom_minimum_size = Vector2(0, 56)
-	btn.pressed.connect(func():
-		# Mark the signal node done in the V3 sector cache before leaving.
-		# Signal events that escalated into combat/hazard already routed
-		# through main.gd's mark_node_completed; this covers the plain
-		# choice-only exit path.
-		if has_node("/root/Run"):
-			var run := get_node("/root/Run")
-			if String(run.current_node_id) != "":
-				run.mark_node_completed(String(run.current_node_id))
-		SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE)
-	)
+	if nxt == ENext.COMBAT:
+		var bt: String = String(outcome.get("btn", ""))
+		btn.text = bt if bt != "" else Strings.BTN_ENGAGE
+		btn.pressed.connect(func():
+			SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
+		)
+	else:
+		btn.text = Strings.BTN_SECTOR_MAP
+		btn.pressed.connect(_on_continue_sector_map)
 	choices_box.add_child(btn)
 
 
-# Combat / hazard drops are never silent (Roman 2026-06-08): show the event's
-# flavor (or COMBAT_FLAVOR_DEFAULT) and a single launch button that performs the
-# transition. The Run-side setup (combat_intro / hazard meta) is done by the
-# caller BEFORE this; the button just loads combat. The event supplies the
-# flavor + (optionally) the button label.
+func _on_continue_sector_map() -> void:
+	# Mark the signal node done in the V3 sector cache before leaving. Events that
+	# escalated into combat/hazard route through main.gd's mark_node_completed;
+	# this covers the choice-only exit path.
+	if has_node("/root/Run"):
+		var run := get_node("/root/Run")
+		if String(run.current_node_id) != "":
+			run.mark_node_completed(String(run.current_node_id))
+	SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE)
+
+
+func _apply_tone(label: Label, tone: int) -> void:
+	var col: Color = UiTheme.COLOR_TEXT
+	if tone == ETone.GOOD:
+		col = UiTheme.COLOR_GREEN
+	elif tone == ETone.BAD:
+		col = UiTheme.COLOR_DANGER
+	label.add_theme_color_override("font_color", col)
+
+
+# A small "acquired item" card — name + stow hint — so found parts are always
+# named consistently (the outpost-offer-card analog).
+func _make_item_card(part) -> Control:
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel", UiTheme.make_panel_stylebox())
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 2)
+	card.add_child(vb)
+	var name_lbl := Label.new()
+	name_lbl.text = Strings.CARD_ACQUIRED % _part_label(part)
+	UiTheme.style_label(name_lbl, UiTheme.LabelKind.HEADER)
+	vb.add_child(name_lbl)
+	var sub := Label.new()
+	sub.text = Strings.CARD_STOWED_HINT
+	UiTheme.style_label(sub, UiTheme.LabelKind.CAPTION)
+	vb.add_child(sub)
+	return card
+
+
+# ---- Resolution wrappers (existing handlers call these) -----------------
+
+# Resolve to the sector map with outcome text (+ optional tone + granted part).
+func _finish_to_sector_map(result_text: String, tone: int = ETone.NEUTRAL, grant = null) -> void:
+	_resolve(_make_outcome(result_text, tone, grant, ENext.SECTOR_MAP))
+
+
+# Resolve to a combat/hazard launch — flavor + an Engage/Enter button. Run-side
+# setup (combat_intro / hazard meta) is done by the caller first.
 func _finish_to_launch(flavor_text: String = "", btn_text: String = "") -> void:
-	body_label.text = flavor_text if flavor_text != "" else Strings.COMBAT_FLAVOR_DEFAULT
-	for c in choices_box.get_children():
-		c.queue_free()
-	var btn := Button.new()
-	btn.text = btn_text if btn_text != "" else Strings.BTN_ENGAGE
-	UiTheme.style_button(btn)
-	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	btn.custom_minimum_size = Vector2(0, 56)
-	btn.pressed.connect(func():
-		SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
-	)
-	choices_box.add_child(btn)
+	var t: String = flavor_text if flavor_text != "" else Strings.COMBAT_FLAVOR_DEFAULT
+	_resolve(_make_outcome(t, ETone.NEUTRAL, null, ENext.COMBAT, btn_text))
