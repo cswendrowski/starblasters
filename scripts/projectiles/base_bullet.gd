@@ -103,15 +103,11 @@ func _apply_variant() -> void:
 	impact_color = variant.impact_color
 
 	# --- hitbox ---
-	var cshape: CollisionShape2D = get_node_or_null("CollisionShape2D") as CollisionShape2D
-	if cshape != null and cshape.shape != null:
-		# Duplicate to avoid mutating the shared SubResource across all instances.
-		var sh: Shape2D = cshape.shape.duplicate()
-		cshape.shape = sh
-		if sh is RectangleShape2D:
-			(sh as RectangleShape2D).size = variant.hitbox_size
-		elif sh is CircleShape2D:
-			(sh as CircleShape2D).radius = variant.hitbox_size.x * 0.5
+	# The per-bullet SCENE owns its collision shape now (Roman 2026-06-08: "I've updated the
+	# projectile scenes with correct hitboxes"). The variant no longer overrides it — every
+	# indexed bullet scene carries its own authored hitbox, so forcing variant.hitbox_size
+	# here just clobbered the scene value (e.g. the cannon's 6x16 -> 5x5). hitbox_size stays
+	# on BulletVariant for reference/data but is not applied.
 
 	# --- visuals ---
 	if variant.sprite_frames != null:

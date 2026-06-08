@@ -5,8 +5,8 @@ extends "res://scripts/enemy_core.gd"
 # A vector-thrust harasser: it roams the playfield holding a stand-off range
 # from the player (movement = "omni", omni_thrust pattern from the roster slot)
 # while working two weapons:
-#   - TRACERS: fast bullets from the two hull muzzles (MuzzleL/MuzzleR),
-#     alternating L/R, aimed at the player, fired in short bursts.
+#   - MG: enemy_mg bullets from the two hull muzzles (MuzzleL/MuzzleR),
+#     alternating L/R, aimed at the player, in 3-shot bursts.
 #   - CANNON: slow heavy slugs from the WINGTIP mounts (CannonL/CannonR at
 #     x = -8 / +8), fired straight down as area denial.
 #
@@ -20,14 +20,14 @@ extends "res://scripts/enemy_core.gd"
 # installs the damage shader on "Sprite2D" only, so the glow stays bright.
 
 const BULLET_SCENE = preload("res://scenes/projectiles/enemy_bullet.tscn")
+const MG_BULLET = preload("res://scenes/projectiles/enemy_bullet_small.tscn")  # the enemy_mg bullet
 const CANNON_SLUG = preload("res://data/bullets/heavy_slug.tres")
 const MuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
 
-# --- Tracer burst (hull muzzles) ----------------------------------------
-const BURST_SIZE     := 5      # tracers per burst
-const BURST_DELAY    := 0.1    # seconds between tracers in a burst
+# --- MG burst (hull muzzles) --------------------------------------------
+const BURST_SIZE     := 3      # enemy_mg 3-shot burst (Roman 2026-06-08)
+const BURST_DELAY    := 0.1    # seconds between shots in a burst
 const BURST_COOLDOWN := 2.0    # seconds between bursts
-const TRACER_SPEED   := 300.0  # px/s
 
 # --- Wingtip cannon -----------------------------------------------------
 const CANNON_INTERVAL := 2.4   # seconds between wingtip salvos (both fire together)
@@ -84,13 +84,14 @@ func _fire_tracer() -> void:
 	var pos: Vector2 = mz.global_position if mz else global_position
 	var player := find_player()
 	var dir: Vector2 = (player.global_position - pos).normalized() if player else Vector2(0, 1)
-	var b = BULLET_SCENE.instantiate()
-	b.speed = TRACER_SPEED
+	# Fire the enemy_mg bullet (spread_pellet → enemy_bullet_small), aimed, in 3-shot bursts
+	# (Roman 2026-06-08). The scene carries its own speed/sprite via its embedded variant.
+	var b = MG_BULLET.instantiate()
 	get_tree().root.add_child(b)
 	if b.has_method("start"):
 		b.start(pos, dir)
 	MuzzleFx.play_enemy(pos, dir, get_tree().root)
-	# Rapid alternating-muzzle tracers → machine-gun pool.
+	# Rapid alternating-muzzle MG fire → machine-gun pool.
 	EnemySfxC.play_for(self, "enemy_mg")
 
 
