@@ -2,6 +2,8 @@ extends Control
 
 # Codex — a faction-organized, game-data-driven reference the player browses to
 # learn about the things they've encountered. (Rebuilt 2026-06-08, Roman.)
+# HD 1920×1080 layout (style guide): sector_bg backdrop, CanvasLayer-hosted UI,
+# container layout, UiTheme LabelKind typography (no native font pins).
 #
 # Navigation (left column): the four factions + Bosses + the Starblaster (player).
 # Selecting a faction shows its codex entry + a roster of its enemies (discovered
@@ -26,19 +28,22 @@ const EnemyStrings = preload("res://scripts/enemy_strings.gd")
 const CodexStrings = preload("res://scripts/codex_strings.gd")
 
 const PLAYER_SCENE := "res://scenes/player/player.tscn"
-const SPIN_SPEED := 0.5   # rad/s — slow turntable
+const SPIN_SPEED := 0.5      # rad/s — slow turntable
+const PREVIEW_SCALE := 4.0   # native pixel sprite shown crisp at HD (nearest)
 const TIER_NAMES := ["Common", "Uncommon", "Rare"]
 
+var _hd_scope: HdViewportScope = null
 var _cats: Array = []          # [{kind, fid?, key?}]
 var _sel_cat: int = 0
 var _view: String = "list"     # "list" | "detail"
 var _detail_path: String = ""
-var _right_root: Control = null
+var _right_root: VBoxContainer = null
 var _nav_buttons: Array = []
 var _preview_spin: Node2D = null
 
 
 func _ready() -> void:
+	_hd_scope = HdScreen.enter(self)
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("menu")
 	_cats = []
@@ -55,66 +60,102 @@ func _process(delta: float) -> void:
 		_preview_spin.rotation += delta * SPIN_SPEED
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+		_to_menu()
+		get_viewport().set_input_as_handled()
+
+
 # ---- Static frame --------------------------------------------------------
 
 func _build_ui() -> void:
-	var vp: Vector2 = get_viewport_rect().size
-	size = vp
-	var bg := ColorRect.new()
-	bg.color = Color(0.03, 0.05, 0.10, 1.0)
-	bg.size = vp
+	# Sector backdrop (mirrors run_summary.gd).
+	var bg := TextureRect.new()
+	bg.texture = load("res://graphics/ui/sector_bg.png")
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	bg.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
+	move_child(bg, 0)
+
+	# UI on a CanvasLayer (mirrors manage_ship.gd) — immune to the HD input offset.
+	var ui_layer := CanvasLayer.new()
+	ui_layer.layer = 5
+	ui_layer.name = "CodexUI"
+	add_child(ui_layer)
+
+	var margin := MarginContainer.new()
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	for side in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
+		margin.add_theme_constant_override(side, 48)
+	ui_layer.add_child(margin)
+
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 18)
+	margin.add_child(outer)
+
 	var title := Label.new()
 	title.text = "CODEX"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.size = Vector2(vp.x, 22)
-	title.position = Vector2(0, 6)
-	UiTheme.style_label(title, UiTheme.LabelKind.HEADER)
-	title.add_theme_font_size_override("font_size", 16)
-	add_child(title)
-	# Left nav column.
-	var left := Panel.new()
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	UiTheme.style_label(title, UiTheme.LabelKind.TITLE)
+	outer.add_child(title)
+
+	var body := HBoxContainer.new()
+	body.add_theme_constant_override("separation", 24)
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	outer.add_child(body)
+
+	# Left nav column (fixed width).
+	var left := PanelContainer.new()
 	left.add_theme_stylebox_override("panel", UiTheme.make_panel_stylebox())
-	left.size = Vector2(118, 226)
-	left.position = Vector2(8, 30)
-	add_child(left)
+	left.custom_minimum_size = Vector2(440, 0)
+	left.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.add_child(left)
 	var nav := VBoxContainer.new()
-	nav.add_theme_constant_override("separation", 3)
-	nav.position = Vector2(6, 6)
-	nav.size = Vector2(106, 214)
+	nav.add_theme_constant_override("separation", 8)
+	nav.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	left.add_child(nav)
 	_nav_buttons = []
 	for i in _cats.size():
 		var b := Button.new()
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		UiTheme.style_button(b, true, 4)
-		b.add_theme_font_size_override("font_size", 11)
-		b.custom_minimum_size = Vector2(106, 20)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		UiTheme.style_button(b)
 		b.pressed.connect(_show_category.bind(i))
 		nav.add_child(b)
 		_nav_buttons.append(b)
-	# Right content panel + a root we rebuild on navigation.
-	var right := Panel.new()
-	right.add_theme_stylebox_override("panel", UiTheme.make_panel_stylebox())
-	right.size = Vector2(340, 226)
-	right.position = Vector2(132, 30)
-	add_child(right)
-	_right_root = Control.new()
-	_right_root.position = Vector2(6, 6)
-	_right_root.size = right.size - Vector2(12, 12)
-	right.add_child(_right_root)
-	# Back-to-menu (bottom-left under the nav).
+	# Spacer pushes Back to the bottom of the nav column.
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	nav.add_child(spacer)
 	var back := Button.new()
 	back.text = "Back to Menu"
-	UiTheme.style_button(back, true, 4)
-	back.add_theme_font_size_override("font_size", 11)
-	back.position = Vector2(8, vp.y - 22)
-	back.size = Vector2(118, 18)
-	back.pressed.connect(func():
-		SceneTransition.change_scene(get_tree(), "res://scenes/main_menu.tscn")
-	)
-	add_child(back)
+	back.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	UiTheme.style_button(back)
+	back.pressed.connect(_to_menu)
+	nav.add_child(back)
+
+	# Right content column (rebuilt on navigation).
+	var right := PanelContainer.new()
+	right.add_theme_stylebox_override("panel", UiTheme.make_panel_stylebox())
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.add_child(right)
+	_right_root = VBoxContainer.new()
+	_right_root.add_theme_constant_override("separation", 12)
+	_right_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_right_root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right.add_child(_right_root)
+
 	_refresh_nav_labels()
+	UiTheme.assert_inside_viewport.call_deferred(self)
+
+
+func _to_menu() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/main_menu.tscn")
 
 
 # ---- Navigation ----------------------------------------------------------
@@ -138,12 +179,10 @@ func _refresh_nav_labels() -> void:
 		var b: Button = _nav_buttons[i]
 		var cat: Dictionary = _cats[i]
 		var label := _category_label(cat)
-		# Faction/Bosses show a discovered count.
 		if cat.kind == "faction" or cat.kind == "bosses":
 			var paths := _category_paths(cat)
-			label += "  %d/%d" % [_discovered_count(paths), paths.size()]
+			label += "   %d/%d" % [_discovered_count(paths), paths.size()]
 		b.text = label
-		# Selection highlight via font color.
 		var col: Color = UiTheme.COLOR_ACCENT if i == _sel_cat else UiTheme.COLOR_TEXT
 		b.add_theme_color_override("font_color", col)
 
@@ -166,48 +205,33 @@ func _render_right() -> void:
 
 
 func _render_category_list(cat: Dictionary) -> void:
-	var w: float = _right_root.size.x
-	var y := 2.0
-	# Header (faction name in its tint, or "Bosses").
-	var header := _label(_category_label(cat), UiTheme.LabelKind.HEADER, 13)
-	header.position = Vector2(4, y)
-	header.size = Vector2(w - 8, 16)
+	var header := _label(_category_label(cat), UiTheme.LabelKind.HEADER)
 	if cat.kind == "faction":
 		header.add_theme_color_override("font_color", _faction_tint(cat.fid))
 	_right_root.add_child(header)
-	y += 18
-	# Faction codex blurb.
 	if cat.kind == "faction":
-		var blurb := _label(CodexStrings.faction_codex(cat.key), UiTheme.LabelKind.BODY, 10)
-		blurb.position = Vector2(4, y)
-		blurb.size = Vector2(w - 8, 44)
+		var blurb := _label(CodexStrings.faction_codex(cat.key), UiTheme.LabelKind.BODY)
 		blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_right_root.add_child(blurb)
-		y += 48
-	# Roster sub-header.
 	var paths := _category_paths(cat)
-	var sub := _label("ROSTER  (%d/%d discovered)" % [_discovered_count(paths), paths.size()], UiTheme.LabelKind.CAPTION, 9)
-	sub.position = Vector2(4, y)
-	sub.size = Vector2(w - 8, 12)
+	var sub := _label("ROSTER   (%d/%d discovered)" % [_discovered_count(paths), paths.size()], UiTheme.LabelKind.CAPTION)
 	_right_root.add_child(sub)
-	y += 14
-	# Scrollable roster list.
+	# Scrollable roster.
 	var scroll := ScrollContainer.new()
-	scroll.position = Vector2(4, y)
-	scroll.size = Vector2(w - 8, _right_root.size.y - y - 2)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_right_root.add_child(scroll)
 	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 2)
+	vb.add_theme_constant_override("separation", 4)
 	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(vb)
 	for path in paths:
-		var discovered: bool = _is_discovered(path)
 		var row := Button.new()
 		row.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		UiTheme.style_button(row, true, 4)
-		row.add_theme_font_size_override("font_size", 11)
-		row.custom_minimum_size = Vector2(w - 24, 18)
-		if discovered:
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		UiTheme.style_button(row)
+		if _is_discovered(path):
 			row.text = EnemyStrings.display_name(path)
 			row.pressed.connect(_show_enemy.bind(path))
 		else:
@@ -217,58 +241,58 @@ func _render_category_list(cat: Dictionary) -> void:
 
 
 func _render_enemy_detail(path: String) -> void:
-	var w: float = _right_root.size.x
-	# Back to the category roster.
 	var back := Button.new()
 	back.text = "<  %s" % _category_label(_cats[_sel_cat])
-	UiTheme.style_button(back, true, 4)
-	back.add_theme_font_size_override("font_size", 10)
-	back.position = Vector2(2, 2)
-	back.size = Vector2(120, 16)
+	back.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	UiTheme.style_button(back)
 	back.pressed.connect(_show_category.bind(_sel_cat))
 	_right_root.add_child(back)
-	# Rotating sprite preview, centered in the upper area.
-	_add_preview(path, "Sprite2D", "GlowMask", -1, Vector2(w * 0.5, 70))
+	# Rotating sprite preview.
+	_add_preview(path, "Sprite2D", "GlowMask", -1)
 	# Name.
-	var name_lbl := _label(EnemyStrings.display_name(path), UiTheme.LabelKind.HEADER, 14)
-	name_lbl.position = Vector2(4, 112)
-	name_lbl.size = Vector2(w - 8, 18)
+	var name_lbl := _label(EnemyStrings.display_name(path), UiTheme.LabelKind.HEADER)
 	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_right_root.add_child(name_lbl)
-	# Classification line.
-	var cls := _label(_classification(path), UiTheme.LabelKind.CAPTION, 9)
-	cls.position = Vector2(4, 130)
-	cls.size = Vector2(w - 8, 12)
+	# Classification.
+	var cls := _label(_classification(path), UiTheme.LabelKind.CAPTION)
 	cls.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cls.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_right_root.add_child(cls)
-	# Codex blurb.
-	var blurb := _label(EnemyStrings.codex_entry(path), UiTheme.LabelKind.BODY, 10)
-	blurb.position = Vector2(6, 146)
-	blurb.size = Vector2(w - 12, _right_root.size.y - 148)
-	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_right_root.add_child(blurb)
+	# Codex blurb (scrollable).
+	_add_blurb(EnemyStrings.codex_entry(path))
 
 
 func _render_starblaster() -> void:
-	var w: float = _right_root.size.x
-	var header := _label(CodexStrings.STARBLASTER["name"], UiTheme.LabelKind.HEADER, 14)
-	header.position = Vector2(4, 4)
-	header.size = Vector2(w - 8, 18)
+	var header := _label(CodexStrings.STARBLASTER["name"], UiTheme.LabelKind.HEADER)
 	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_theme_color_override("font_color", UiTheme.COLOR_ACCENT)
 	_right_root.add_child(header)
-	# The player's ship — forward-facing frame, rotating.
-	_add_preview(PLAYER_SCENE, "Ship", "", 1, Vector2(w * 0.5, 78))
-	var blurb := _label(CodexStrings.STARBLASTER["codex"], UiTheme.LabelKind.BODY, 10)
-	blurb.position = Vector2(6, 130)
-	blurb.size = Vector2(w - 12, _right_root.size.y - 132)
+	_add_preview(PLAYER_SCENE, "Ship", "", 1)
+	_add_blurb(CodexStrings.STARBLASTER["codex"])
+
+
+func _add_blurb(text: String) -> void:
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_right_root.add_child(scroll)
+	var blurb := _label(text, UiTheme.LabelKind.BODY)
 	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_right_root.add_child(blurb)
+	blurb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(blurb)
 
 
 # ---- Sprite preview (hull + glowmap + dropshadow, no other shaders) -------
 
-func _add_preview(scene_path: String, hull_name: String, glow_name: String, frame_override: int, center: Vector2) -> void:
+func _add_preview(scene_path: String, hull_name: String, glow_name: String, frame_override: int) -> void:
+	# A fixed-size stage the rotating Node2D parents into, centered.
+	var stage := Control.new()
+	stage.custom_minimum_size = Vector2(0, 320)
+	stage.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_right_root.add_child(stage)
 	var packed = load(scene_path)
 	if packed == null:
 		return
@@ -283,12 +307,14 @@ func _add_preview(scene_path: String, hull_name: String, glow_name: String, fram
 		inst.free()
 		return
 	var holder := Node2D.new()
-	holder.position = center
-	_right_root.add_child(holder)
+	holder.scale = Vector2(PREVIEW_SCALE, PREVIEW_SCALE)
+	stage.add_child(holder)
+	# Re-center the holder once the stage has a resolved width.
+	_center_holder.call_deferred(holder, stage)
 	# Static dropshadow — hull silhouette, dark, offset, behind.
 	var shadow := _clone_sprite(hull, frame_override)
 	shadow.modulate = Color(0, 0, 0, 0.32)
-	shadow.position = Vector2(4, 5)
+	shadow.position = Vector2(3, 4)
 	shadow.z_index = -2
 	holder.add_child(shadow)
 	# Rotating hull (+ glowmap on top).
@@ -299,6 +325,11 @@ func _add_preview(scene_path: String, hull_name: String, glow_name: String, fram
 		spin.add_child(_clone_sprite(glow, -1))
 	_preview_spin = spin
 	inst.free()
+
+
+func _center_holder(holder: Node2D, stage: Control) -> void:
+	if is_instance_valid(holder) and is_instance_valid(stage):
+		holder.position = Vector2(stage.size.x * 0.5, stage.custom_minimum_size.y * 0.5)
 
 
 func _grab_named_or_first_sprite(inst, preferred: String) -> Sprite2D:
@@ -395,7 +426,7 @@ func _classification(path: String) -> String:
 		var sz := String(e.get("size", ""))
 		if sz != "":
 			parts.append(sz.capitalize())
-	return "  ·  ".join(parts)
+	return "   ·   ".join(parts)
 
 
 func _faction_tint(fid: int) -> Color:
@@ -403,9 +434,8 @@ func _faction_tint(fid: int) -> Color:
 	return d.get("tint", UiTheme.COLOR_TEXT)
 
 
-func _label(text: String, kind: int, font_size: int) -> Label:
+func _label(text: String, kind: int) -> Label:
 	var l := Label.new()
 	l.text = text
 	UiTheme.style_label(l, kind)
-	l.add_theme_font_size_override("font_size", font_size)
 	return l

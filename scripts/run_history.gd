@@ -1,66 +1,99 @@
 extends Control
 
 # Run History — a dated list of past runs (Run.load_run_history()), reached from
-# the main menu. Native 480 layout mirroring the enemy codex (no live preview):
-# a scrollable list of past-run rows, most recent first, + a Back button.
+# the main menu. HD 1920×1080 layout: sector_bg backdrop, full-page scrollable
+# list, Back button.
 
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 
 var _list_vbox: VBoxContainer = null
+var _hd_scope: HdViewportScope = null
 
 
 func _ready() -> void:
+	_hd_scope = HdScreen.enter(self)
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("menu")
 	_build_ui()
 
 
 func _build_ui() -> void:
-	var vp: Vector2 = get_viewport_rect().size
-	size = vp
-	# Backdrop.
-	var bg := ColorRect.new()
-	bg.color = Color(0.03, 0.05, 0.10, 1.0)
-	bg.size = vp
+	# Sector backdrop (mirrors run_summary.gd).
+	var bg := TextureRect.new()
+	bg.texture = load("res://graphics/ui/sector_bg.png")
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	bg.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
+	move_child(bg, 0)
+
+	# All UI on layer 5 (mirrors manage_ship.gd).
+	var ui_layer := CanvasLayer.new()
+	ui_layer.layer = 5
+	ui_layer.name = "RunHistoryUI"
+	add_child(ui_layer)
+
+	# Outer margin + vertical layout.
+	var margin := MarginContainer.new()
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 48)
+	margin.add_theme_constant_override("margin_right", 48)
+	margin.add_theme_constant_override("margin_top", 36)
+	margin.add_theme_constant_override("margin_bottom", 36)
+	ui_layer.add_child(margin)
+
+	var outer_vbox := VBoxContainer.new()
+	outer_vbox.add_theme_constant_override("separation", 20)
+	outer_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	outer_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	margin.add_child(outer_vbox)
+
 	# Title.
 	var title := Label.new()
 	title.text = "RUN HISTORY"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.size = Vector2(vp.x, 24)
-	title.position = Vector2(0, 8)
-	UiTheme.style_label(title, UiTheme.LabelKind.HEADER)
-	# Native 480 render (mirrors codex) — pin font size after style_label so the
-	# HD theme doesn't blow it up.
-	title.add_theme_font_size_override("font_size", 16)
-	add_child(title)
-	# Scrollable list panel.
-	var panel := Panel.new()
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	UiTheme.style_label(title, UiTheme.LabelKind.TITLE)
+	outer_vbox.add_child(title)
+
+	# Scrollable list panel fills the remaining vertical space.
+	var panel := PanelContainer.new()
 	panel.add_theme_stylebox_override("panel", UiTheme.make_panel_stylebox())
-	panel.size = Vector2(vp.x - 16.0, vp.y - 78.0)
-	panel.position = Vector2(8, 36)
-	add_child(panel)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	outer_vbox.add_child(panel)
+
+	var panel_vbox := VBoxContainer.new()
+	panel_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	panel.add_child(panel_vbox)
+
 	var scroll := ScrollContainer.new()
-	scroll.size = panel.size - Vector2(12, 12)
-	scroll.position = Vector2(6, 6)
-	panel.add_child(scroll)
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	panel_vbox.add_child(scroll)
+
 	_list_vbox = VBoxContainer.new()
-	_list_vbox.add_theme_constant_override("separation", 3)
+	_list_vbox.add_theme_constant_override("separation", 8)
 	_list_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(_list_vbox)
+
 	_populate()
+
 	# Back button.
 	var back := Button.new()
 	back.text = "Back to Menu"
-	UiTheme.style_button(back, true, 4)
-	back.add_theme_font_size_override("font_size", 12)
-	back.position = Vector2(8, vp.y - 30.0)
-	back.size = Vector2(120, 22)
+	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	UiTheme.style_button(back)
 	back.pressed.connect(func():
 		SceneTransition.change_scene(get_tree(), "res://scenes/main_menu.tscn")
 	)
-	add_child(back)
+	outer_vbox.add_child(back)
+
+	UiTheme.assert_inside_viewport.call_deferred(self)
 
 
 func _populate() -> void:
@@ -73,7 +106,6 @@ func _populate() -> void:
 		var empty := Label.new()
 		empty.text = "No runs recorded yet. Fly a patrol!"
 		UiTheme.style_label(empty, UiTheme.LabelKind.BODY)
-		empty.add_theme_font_size_override("font_size", 12)
 		_list_vbox.add_child(empty)
 		return
 	# Most recent first.
@@ -84,7 +116,6 @@ func _populate() -> void:
 		var row := Label.new()
 		row.text = _format_row(rec)
 		UiTheme.style_label(row, UiTheme.LabelKind.BODY)
-		row.add_theme_font_size_override("font_size", 11)
 		_list_vbox.add_child(row)
 
 
@@ -98,3 +129,9 @@ func _format_row(rec: Dictionary) -> String:
 	return "%s   %s   ·   Sector %d   ·   %d kills   ·   %d bosses   ·   %d bounty" % [
 		date, outcome, sectors, kills, bosses, bounty
 	]
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+		SceneTransition.change_scene(get_tree(), "res://scenes/main_menu.tscn")
+		get_viewport().set_input_as_handled()
