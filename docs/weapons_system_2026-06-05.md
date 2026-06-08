@@ -1,19 +1,38 @@
 # Weapons — Shared, Swappable Firing System (minor spec)
 
-Status: **base index BUILT (2026-06-05, commit `0939e94`)** — the 8 projectile
-variants + 8 baseline `weapon_*.tres` exist (see the Index sections below). The
-**swappable Weapon-resource layer** (beam/lob payloads, single-sourced rate,
-faction/sector multipliers, projectile-movement axis) is **still to build** (M6a.2).
+Status: **spec-aligned through Phase 3a (2026-06-08).** The 2026-06-08 alignment pass
+brought the code in line with this (updated) spec. Done:
+- **Phase 0** (`b5e4e32`) — baseline `weapon_*.tres` renamed to spec names (`enemy_blaster`,
+  `enemy_*_cannon`, `enemy_diamond_gun`, `weapon_mg_tracer`, +`weapon_mg`); `burst_shot_3/5`
+  primitives added; `tracker` hitbox fixed (capsule → 6×6).
+- **Phase 1** (`803b432`) — twin-muzzle `pair_shot`; `aimed_wild`/`aimed_lead` aiming
+  primitives; `enemy_turret` gained a `lead_factor` (target-leading) knob.
+- **Phase 2** (`5507d22`, `4a29e36`) — per-bullet scenes renamed to the `bullet (sprite id)`
+  column; `bullet_catalog.gd` maps each variant → its indexed scene and `_spawn_bullet`
+  routes through it, so production weapons fire the indexed scenes (own sprite/shader/hitbox);
+  the old Mini Pixel "Enemy_projectile" art is fully retired (unreferenced).
+- **Phase 3a** (`82a4631`) — enemy rockets unified onto `base_missile` (`dumb_fire`),
+  deleting the duplicated flare/smoke/shoot-down/rotation wiring. `missile_cruiser` stays
+  bespoke — it's the **Lob / AoE** archetype, not a contact missile.
+
+**Deferred (Phase 3b, optional — Roman 2026-06-08, option C):** making `weapon.gd` the *sole*
+production firing class (the roster still builds patterns via `make_shoot`) and
+**single-sourcing the fire rate**. The rate authoring is intentionally layered
+(.tscn → shoot_pattern → roster `fire_min/max` → wave → faction mult → director ramp) and
+resolves to one runtime field; it is working-as-designed, not a bug. **3b-A** (convert
+`make_shoot` to emit unified `weapon.gd` instances, behaviour-preserving) is the recommended
+future step IF roster-assigned beams/lobs/lead-aim are wanted on production enemies; **3b-B**
+(strip the rate layers) is *not* recommended — it dismantles working balance systems.
+
 Parent: `m6_modular_enemies_design_2026-06-05.md` §9.2 (first-class weapons) + §19
 (distilled composer). Companion to `scripts/enemies/shoot_patterns/`, which this evolves into.
 
-> **⚠ Known regression (from the projectile pass):** baked bullet movement was stripped,
-> so `tracker` (Conductor) lost homing and `plasma_orb` (Howler / Voidmaw /
-> Firecore-Cruiser) lost wobble — those enemies fire straight now. `base_bullet.gd` still
-> *supports* the flags. **DECISION (Roman, 2026-06-05): defer** — re-add homing/wobble via
-> the firing-layer **projectile-movement axis** when the Weapon layer (M6a.2) lands; the
-> affected bosses fire straight until then. → That axis is now a **required M6a.2
-> deliverable** (see "Migration note" + m6 §6 M6a.2).
+> **Projectile-movement axis (homing/wobble) — resolved.** The firing-layer axis
+> (`homing_rate`/`wobble_amplitude`/`wobble_frequency` on `shoot_pattern`/`weapon`, applied
+> in `_spawn_bullet`) is live: CHAFF that wants movement opts in via roster keys (e.g. the
+> Weaver's `plasma_orb` wobble). **Bosses are deliberately left OFF (Roman 2026-06-08)** —
+> the Conductor/Howler/Voidmaw/Firecore signatures stay straight-firing by design; do not
+> re-add homing/wobble to bosses.
 
 ## Purpose
 
@@ -96,10 +115,9 @@ it actually fires; the weapon supplies the *content*.
 - Do it as part of the M6 component/Weapon plumbing milestone (§6 M6a.2),
   **behavior-preserving first** (wrap the existing shoot_patterns), then add beam/lob
   payloads + the faction/sector multipliers.
-- **Required in M6a.2 — projectile-movement axis** (`homing` / `wobble` on the weapon or
-  its payload) to **restore the boss tracker/plasma signatures** the projectile pass
-  stripped (the deferred regression above). `base_bullet.gd` already supports the flags, so
-  the weapon layer just needs to drive them.
+- **Projectile-movement axis — DONE.** `homing`/`wobble` live on `shoot_pattern`/`weapon`
+  and apply in `_spawn_bullet`; chaff opts in via roster keys (Weaver plasma wobble).
+  **Bosses are intentionally left straight-firing (Roman 2026-06-08) — do not re-add.**
 
 ---
 
