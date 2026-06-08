@@ -42,6 +42,22 @@ git branch -d m6c-noncombat-polish
 (Or push the branch as its own remote: `git push -u origin m6c-noncombat-polish` — won't touch main.)
 I did **not** push anything. The other session's 7 commits stay on `m6c-polish-r2`, untouched.
 
+### 2026-06-08 — Smart Bomb rework (`f38653e`)
+Reworked Smart Bomb from an instant screen-wide damage loop into a released **traveling shockwave**
+per your spec: player white-flash → expanding radial ring from the player at 8 px/f (480 px/s) that
+sweeps fully off-screen. New `scripts/projectiles/smart_bomb_shockwave.gd` + reworked
+`smart_bomb.gd activate()`. Ignores shields (zeros simple-shield + ShieldComponent charges then
+`take_hit`); one-shots any large non-tough enemy (16 HP) or smaller incl. shielded chaff; tough/huge/
+bosses survive; bosses bitten through the normal path so phase gates hold. Death-bomb auto-fire
+preserved (`_invuln_t`). **Visual confirmed in-game by you.**
+
+- Damage tuning (18 + 5/Mk, kill-≤16hp, shield-ignore) is mine — visual's confirmed, but if you want,
+  confirm the **kill thresholds feel right in play** (does it spare tough-large as intended, clear
+  shielded chaff, etc.). Easy to retune the number.
+- This is a **5th commit on `m6c-polish-r2` not yet in the isolated `m6c-noncombat-polish` branch**
+  (which I froze at the docs commit). Say the word and I'll cherry-pick it into that branch too.
+- Your `tools/capture_smart_bomb.{gd,ps1}` are still untracked — left them for you to keep or commit.
+
 ## Decisions I need from you
 
 1. **`main.gd:802` old-sector-map round-trip** — the asteroid-hazard exit loads the raw
