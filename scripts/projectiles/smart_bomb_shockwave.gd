@@ -82,12 +82,20 @@ func _damage_enemy(e) -> void:
 		return
 	# Non-boss: strip shields, then deal full damage through take_hit so hull/
 	# health bookkeeping + death VFX + bounty run normally for every enemy kind.
+	# Simple per-pip shield (chaff `max_shield`):
 	if "shield" in e:
 		e.shield = 0
-	if "components" in e and e.components is Array:
-		for comp in e.components:
-			if comp != null and "_charges" in comp:
-				comp._charges = 0
+	# Charge-shields (ShieldComponent: corporate faction, bulwark, sapper, and the
+	# universal crystal in corporate levels). The damage pipeline reads the per-instance
+	# RUNTIME array `_components` (enemy_base dups the authored `components` template into
+	# it in _ready), so zeroing `components` alone was a no-op — the live shield kept its
+	# charges and absorbed the bomb. Zero `_charges` on every ShieldComponent in the
+	# runtime array (and the template, harmless) so the wave truly ignores shields.
+	for arr_name in ["_components", "components"]:
+		if arr_name in e and e.get(arr_name) is Array:
+			for comp in e.get(arr_name):
+				if comp != null and "_charges" in comp:
+					comp._charges = 0
 	if e.has_method("take_hit"):
 		e.take_hit(_damage)
 
