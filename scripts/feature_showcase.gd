@@ -286,7 +286,7 @@ func _demo_level_outro() -> void:
 func _demo_sector_map() -> void:
 	# Instance the sector map scene so we capture the procgen graph with the
 	# new icons in place.
-	var sm_scene := load("res://scenes/sector_map.tscn")
+	var sm_scene := load("res://scenes/sector_map_hd.tscn")
 	if sm_scene == null:
 		return
 	var sm = sm_scene.instantiate()
@@ -484,7 +484,7 @@ func _demo_menu_to_sector_transition() -> void:
 	# the SceneTransition flow manually: instance menu, fade-to-black, swap
 	# to sector map, fade-from-black.
 	var menu_scene = load("res://scenes/main_menu.tscn")
-	var sector_scene = load("res://scenes/sector_map.tscn")
+	var sector_scene = load("res://scenes/sector_map_hd.tscn")
 	if menu_scene == null or sector_scene == null:
 		return
 	var menu = menu_scene.instantiate()

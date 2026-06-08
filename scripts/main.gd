@@ -799,7 +799,10 @@ func _run_outro() -> void:
 		var run_skip = get_node("/root/Run")
 		if run_skip.current_node_type == SectorNode.NodeType.HAZARD \
 				and String(run_skip.current_hazard_subtype) == "asteroid_field":
-			SceneTransition.change_scene(get_tree(), "res://scenes/sector_map_v3.tscn")
+			# Route through the HD host (SectorMapRoute), not the raw inner map — loading
+			# sector_map_v3.tscn directly was the "old sector map" round-trip after an
+			# asteroid hazard (Roman 2026-06-08).
+			SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE)
 			return
 	# Mount the cleared summary on top of the black overlay.
 	var summary = ClearedSummaryScene.instantiate()
