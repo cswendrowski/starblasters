@@ -53,6 +53,7 @@ func _ready() -> void:
 		test_bed_btn.visible = false
 	_install_dev_menu_button()
 	_install_codex_button()
+	_install_run_history_button()
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("menu")
 	# Debug-only: warn if any menu Control spills past the 480×270 viewport
@@ -192,7 +193,7 @@ func _on_options() -> void:
 	OptionsOverlay.open(self)
 
 func _on_credits() -> void:
-	pass  # Placeholder
+	SceneTransition.change_scene(get_tree(), "res://scenes/credits.tscn")
 
 func _on_exit() -> void:
 	get_tree().quit()
@@ -227,6 +228,22 @@ func _install_codex_button() -> void:
 	btn.pressed.connect(func():
 		var SceneTransition = load("res://scripts/scene_transition.gd")
 		SceneTransition.change_scene(get_tree(), "res://scenes/enemy_codex.tscn")
+	)
+	vbox.add_child(btn)
+	if exit_btn != null:
+		vbox.move_child(btn, exit_btn.get_index())
+
+
+# Run History — main-menu entry into the dated past-runs list. Player-facing;
+# placed just above Exit, next to the Codex entry.
+func _install_run_history_button() -> void:
+	var btn := Button.new()
+	btn.text = "Run History"
+	btn.custom_minimum_size = Vector2(160, 22)
+	UiTheme.style_button(btn)
+	btn.pressed.connect(func():
+		var SceneTransition = load("res://scripts/scene_transition.gd")
+		SceneTransition.change_scene(get_tree(), "res://scenes/run_history.tscn")
 	)
 	vbox.add_child(btn)
 	if exit_btn != null:

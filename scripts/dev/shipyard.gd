@@ -29,7 +29,7 @@ const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const EnemyManifest = preload("res://scripts/dev/enemy_manifest.gd")
 const EnemyRoster = preload("res://scripts/levels/enemy_roster.gd")
-const EnemyCodex = preload("res://scripts/enemy_codex.gd")
+const EnemyStrings = preload("res://scripts/enemy_strings.gd")
 const HangarDummy = preload("res://scripts/dev/hangar_dummy_target.gd")
 const Playfield = preload("res://scripts/playfield.gd")
 const PLAYER_SPRITE = preload("res://Mini Pixel Pack 3/Player ship/Player_ship (16 x 16).png")
@@ -391,14 +391,8 @@ func _apply_filter() -> void:
 
 
 func _display_name(path: String) -> String:
-	# Prefer codex display name when present, else fall back to filename.
-	for e in EnemyCodex.ENTRIES:
-		if String(e.get("path", "")) == path:
-			return String(e.get("name", ""))
-	var nm := path.get_file().get_basename()
-	if nm.begins_with("enemy_"):
-		nm = nm.substr(6)
-	return nm.capitalize()
+	# Single source of truth: enemy_strings (display name, derived fallback).
+	return EnemyStrings.display_name(path)
 
 
 # Pull a small icon from the enemy scene's first Sprite2D texture so the
@@ -521,10 +515,7 @@ func _roster_entry(path: String) -> Dictionary:
 
 
 func _codex_blurb(path: String) -> String:
-	for e in EnemyCodex.ENTRIES:
-		if String(e.get("path", "")) == path:
-			return String(e.get("blurb", ""))
-	return ""
+	return EnemyStrings.codex_entry(path)
 
 
 # ---- Back --------------------------------------------------------------
