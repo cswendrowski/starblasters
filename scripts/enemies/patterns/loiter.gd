@@ -54,12 +54,19 @@ var _phase_x: float = 0.0
 var _phase_y: float = 0.0
 var _freq_mul_x: float = 1.0
 var _freq_mul_y: float = 1.0
+# Auto-rotate is SUPPRESSED during the jiggle hold (Roman 2026-06-08): the tiny
+# bob/sway deltas would snap the hull to face sideways/up ("turn the wrong way").
+# We freeze facing during LOITERING and restore the enemy's normal auto_rotate on
+# EXIT so it turns to its depart heading. _orig_auto_rotate remembers the setting.
+var _orig_auto_rotate: bool = true
 
 
 func on_start(enemy) -> void:
 	_phase = Phase.ENTERING
 	_timer = 0.0
 	_exit_speed = 0.0
+	if "auto_rotate" in enemy:
+		_orig_auto_rotate = bool(enemy.auto_rotate)
 	# Ease IN: start at a fraction of cruise and accelerate up (not a hard pop-in).
 	_enter_vel = enter_speed * 0.3
 	_hold_t = 0.0
@@ -107,6 +114,9 @@ func compute_step(enemy, delta: float) -> Vector2:
 			if _timer >= loiter_time:
 				_phase = Phase.EXITING
 				_exit_speed = enter_speed
+				# Restore auto_rotate so the hull turns to its (downward) depart heading.
+				if "auto_rotate" in enemy:
+					enemy.auto_rotate = _orig_auto_rotate
 				phase_entered.emit("exit")
 				# Return to the anchor cleanly so the exit starts from hover_y.
 				return _anchor - enemy.position
@@ -125,4 +135,7 @@ func _enter_hold(enemy) -> void:
 	_enter_vel = 0.0
 	# Anchor = where the ship ends up THIS frame (x unchanged, y snapped to hover_y).
 	_anchor = Vector2(enemy.position.x, hover_y)
+	# Freeze facing during the jiggle hold so the bob/sway can't snap-rotate the hull.
+	if "auto_rotate" in enemy:
+		enemy.auto_rotate = false
 	phase_entered.emit("hold")
