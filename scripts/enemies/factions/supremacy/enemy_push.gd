@@ -13,12 +13,12 @@ extends "res://scripts/enemy_core.gd"
 # the marker is. No hull Muzzle markers on purpose: each turret then fires from its
 # OWN position (has_muzzles() == false) rather than sharing a single parent muzzle.
 #
-# auto_rotate = false: a turret platform must NOT bank into its travel, or the hull
-# rotation would fight each turret's independent aim (the turret sets a world-space
-# aim angle as its LOCAL rotation, which is only correct on an unrotated hull).
-# Because auto_rotate is off, the hull can't auto-face its travel direction either,
-# so the SCENE points it down via Sprite2D.flip_v = true (art is authored nose-up).
-# The Engine*/Turret* markers are mirrored to match the flipped art (Roman 2026-06-08).
+# auto_rotate = true: the hull turns to face its travel direction (art is authored
+# nose-up; auto-rotation points it down as it descends and rotates the Engine*/Turret*
+# markers with it, so exhaust + turrets stay on their hull features without flipping the
+# sprite). The turrets aim in WORLD space relative to the parent's rotation (EnemyTurret
+# subtracts parent.global_rotation), so a rotated hull no longer fights their aim
+# (Roman 2026-06-08).
 
 const EnemyTurretC = preload("res://scripts/enemies/enemy_turret.gd")
 const DomeTex = preload("res://graphics/enemies/turret_s_dome.png")
@@ -28,7 +28,7 @@ const CannonSlug = preload("res://data/bullets/heavy_slug.tres")
 func _ready() -> void:
 	max_health = 28
 	bounty_value = 25
-	auto_rotate = false
+	auto_rotate = true
 	super._ready()
 	for mount in find_children("Turret*", "Marker2D", true, false):
 		_build_turret(mount)

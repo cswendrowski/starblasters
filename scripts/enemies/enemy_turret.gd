@@ -76,7 +76,12 @@ func _process(delta: float) -> void:
 			target_rot = _clamp_to_arc(target_rot, center, deg_to_rad(arc_deg * 0.5))
 	var diff := angle_difference(_turret_rot, target_rot)
 	_turret_rot += clamp(diff, -rotation_speed * delta, rotation_speed * delta)
-	rotation = _turret_rot
+	# _turret_rot is a WORLD-space aim angle (atan2 to the player). `rotation` is
+	# LOCAL to the parent, so subtract the parent's world rotation to keep the
+	# turret's GLOBAL facing on target even when the hull is auto-rotated to face
+	# its travel direction (Roman 2026-06-08). On an unrotated hull global_rotation
+	# is 0, so this is a no-op for fixed-facing platforms (gunship, cruiser, etc.).
+	rotation = _turret_rot - p.global_rotation
 	_fire_t += delta
 	_try_fire()
 

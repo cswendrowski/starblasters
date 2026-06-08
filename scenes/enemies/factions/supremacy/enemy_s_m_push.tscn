@@ -19,41 +19,39 @@ movement = SubResource("MovePattern")
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1600621428]
 texture = ExtResource("2_tex")
 hframes = 2
-flip_v = true
 
 [node name="GlowMask" type="Sprite2D" parent="." unique_id=1711695760]
 texture = ExtResource("2_tex")
 hframes = 2
 frame = 1
-flip_v = true
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1496869312]
-position = Vector2(0, 0.5)
+position = Vector2(0, -0.5)
 shape = SubResource("Hit")
 
 [node name="EngineL" type="Marker2D" parent="CollisionShape2D" unique_id=1348105926]
-position = Vector2(-10, -28)
+position = Vector2(-10, 28)
 
 [node name="EngineL2" type="Marker2D" parent="CollisionShape2D" unique_id=1355414774]
-position = Vector2(-12, -30)
+position = Vector2(-12, 30)
 
 [node name="EngineL3" type="Marker2D" parent="CollisionShape2D" unique_id=2125309005]
-position = Vector2(-7, -30)
+position = Vector2(-7, 30)
 
 [node name="EngineR" type="Marker2D" parent="CollisionShape2D" unique_id=384316647]
-position = Vector2(10, -28)
+position = Vector2(10, 28)
 
 [node name="EngineR2" type="Marker2D" parent="CollisionShape2D" unique_id=1291569759]
-position = Vector2(8, -30)
+position = Vector2(8, 30)
 
 [node name="EngineR3" type="Marker2D" parent="CollisionShape2D" unique_id=628381918]
-position = Vector2(13, -30)
+position = Vector2(13, 30)
 
 [node name="Turret1" type="Marker2D" parent="CollisionShape2D" unique_id=711387776]
-position = Vector2(0, 22)
+position = Vector2(0, -22)
 
 [node name="Turret2" type="Marker2D" parent="CollisionShape2D" unique_id=1602098251]
-position = Vector2(0, 4)
+position = Vector2(0, -4)
 
 [node name="MoveTimer" type="Timer" parent="." unique_id=1975128440]
 one_shot = true
