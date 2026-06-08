@@ -121,6 +121,14 @@ the cross-file migration; **chaff shields don't regen**.
   `enemy_strings.gd` (and the faction/Starblaster text in `codex_strings.gd`) and the codex updates
   automatically. **Needs your eyeball in-game** (rotation feel, layout, glow read).
 
+### 2026-06-08 — Codex / Credits / Run History → HD standard
+Per your note, converted all three off native-480 onto the HD UI standard + style guide (mirroring
+`manage_ship`/`run_summary`): `HdScreen.enter` (1920×1080), `sector_bg.png` backdrop, CanvasLayer-host,
+container layout (no absolute pixels), `UiTheme` LabelKind typography with **all native font-pins
+removed** + UiTheme color consts, Esc-to-back, `assert_inside_viewport`. Codex sprite shown crisp via
+4× nearest scale (no SubViewport needed for a lone Sprite2D). Data wiring preserved; verified headless
+(boot clean + codex grouping/preview intact). **Still wants your in-game eyeball** for layout/feel.
+
 ## ⚠️ Decisions I need from you
 
 **Git: a commit got mislabeled (my mistake).** My first run-history commit's `git add` aborted on a
