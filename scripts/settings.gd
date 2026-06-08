@@ -189,22 +189,16 @@ func _apply_audio() -> void:
 
 
 func _apply_window() -> void:
-	var mode := DisplayServer.WINDOW_MODE_FULLSCREEN if fullscreen else DisplayServer.WINDOW_MODE_WINDOWED
+	# Fullscreen cursor-offset bug (desktop only): the window is born WINDOWED
+	# (no window/size/mode in project.godot) WITH a title bar, then switched to
+	# fullscreen here. Borderless WINDOW_MODE_FULLSCREEN inherited the former
+	# windowed title-bar/client area as a CONSTANT downward offset in the OS-cursor
+	# -> viewport input transform (verified: constant everywhere, at native
+	# 1920x1080 @ 100% where the stretch transform is identity, so it's a pure
+	# vertical translation, not scaling/letterbox; snapping the window position
+	# did NOT clear it — the offset is in the input event transform, not position).
+	# EXCLUSIVE_FULLSCREEN takes the display mode directly with no window-frame /
+	# client concept, so there's no title-bar offset to inherit. Web has no native
+	# frame and is unaffected either way.
+	var mode := DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN if fullscreen else DisplayServer.WINDOW_MODE_WINDOWED
 	DisplayServer.window_set_mode(mode)
-	if fullscreen:
-		# Fullscreen cursor-offset fix (desktop only): the window is born WINDOWED
-		# (no window/size/mode in project.godot) then switched to fullscreen here.
-		# That windowed->fullscreen transition can leave the OS-cursor -> viewport
-		# input transform offset by the former title-bar/frame (clicks land ~a
-		# button below the cursor). Re-assert on the next idle frame: snap the
-		# window to its screen's origin (so no windowed position/frame is inherited)
-		# which forces the input transform to recompute. Web has no native frame,
-		# so it's unaffected and this no-ops there.
-		_fix_fullscreen_offset.call_deferred()
-
-
-func _fix_fullscreen_offset() -> void:
-	if DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_FULLSCREEN:
-		return
-	var scr := DisplayServer.window_get_current_screen()
-	DisplayServer.window_set_position(DisplayServer.screen_get_position(scr))
