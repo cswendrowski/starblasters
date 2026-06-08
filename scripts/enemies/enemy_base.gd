@@ -61,6 +61,9 @@ enum OffscreenMode { CYCLE_BOTTOM, FREE_ANY_EDGE, FREE_OPPOSITE_SIDE, NONE }
 
 @export var max_health: int = 1
 @export var bounty_value: int = 5
+# INERT (shield_unification_2026-06-08.md): the simple charge-shield is retired in favour
+# of ShieldComponent. Nothing in the live spawn path sets max_shield anymore; `shield`
+# (below) is kept only as a harmless target for smart_bomb's legacy shield-strip guard.
 @export var max_shield: int = 0
 @export var shield_ring_size: float = 28.0
 # Weapon multipliers (M6b): per-enemy scalars applied to spawned bullets by
@@ -175,7 +178,6 @@ var screensize: Vector2 = Vector2(800, 1000)
 func _ready() -> void:
 	screensize = get_viewport_rect().size
 	health = max_health
-	shield = max_shield
 	# Allow rapid $EnemyShoot.play() calls to overlap so each shot is
 	# audible to completion (Roman feedback 2026-05-23). $EnemyDie is
 	# handled separately in explode() via Sfx.play_node_detached.
@@ -186,8 +188,6 @@ func _ready() -> void:
 	SfxCls.route_children_to_sfx(self)
 	if has_node("EnemyShoot"):
 		SfxCls.ensure_polyphony($EnemyShoot, 4)
-	if max_shield > 0:
-		_setup_shield_ring()
 	# Defensive group registration. Every enemy .tscn already declares
 	# `groups=["enemies"]` on its root; this is the safety net for any
 	# enemy that was instantiated from script without a scene.
@@ -312,20 +312,9 @@ func _flash_hit() -> void:
 func take_hit(damage: int = 1) -> bool:
 	if _dying:
 		return false
-	if shield > 0:
-		shield -= 1
-		_pulse_shield_hit()
-		var HitFlashFxShield = load("res://scripts/effects/hit_flash_fx.gd")
-		if has_node("Sprite2D"):
-			HitFlashFxShield.flash($Sprite2D, HitFlashFxShield.FLASH_SHIELD)
-		var ShieldSfx2 = load("res://scripts/effects/shield_sfx.gd")
-		if ShieldSfx2:
-			if shield <= 0:
-				ShieldSfx2.play_break(get_tree().root, global_position)
-				_set_shield_alpha(0.0, 0.25)
-			else:
-				ShieldSfx2.play_hit(get_tree().root, global_position)
-		return false
+	# Shields are unified onto ShieldComponent (shield_unification_2026-06-08.md): the
+	# simple max_shield/shield charge is retired, so all hits flow through the component
+	# pipeline (_components_hit) where a ShieldComponent — if present — absorbs them.
 	# White flash on every non-shield hit (Roman 2026-06-08). Ships carry the damage
 	# material in their only material slot, so the flash rides ON that material; other
 	# enemies use the standalone hit_flash shader.
@@ -720,45 +709,8 @@ func _leave() -> void:
 	queue_free()
 
 
-# ---- Shield ring helpers (used when max_shield > 0) --------------------
-
-func _setup_shield_ring() -> void:
-	_shield_mat = ShaderMaterial.new()
-	_shield_mat.shader = SHIELD_SHADER
-	_shield_mat.set_shader_parameter("alpha", 0.85)
-	_shield_mat.set_shader_parameter("hit_strength", 0.0)
-	_shield_ring = ColorRect.new()
-	_shield_ring.name = "ShieldRing"
-	_shield_ring.color = Color(1, 1, 1, 1)
-	_shield_ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_shield_ring.size = Vector2(shield_ring_size, shield_ring_size)
-	_shield_ring.position = -_shield_ring.size * 0.5
-	_shield_ring.material = _shield_mat
-	_shield_ring.z_index = 1
-	add_child(_shield_ring)
-
-
-func _set_shield_alpha(target: float, duration: float) -> void:
-	if _shield_mat == null:
-		return
-	if _shield_alpha_tween and _shield_alpha_tween.is_valid():
-		_shield_alpha_tween.kill()
-	if duration <= 0.0:
-		_shield_mat.set_shader_parameter("alpha", target)
-		return
-	var current: float = float(_shield_mat.get_shader_parameter("alpha"))
-	_shield_alpha_tween = create_tween()
-	_shield_alpha_tween.tween_method(func(v): _shield_mat.set_shader_parameter("alpha", v), current, target, duration)
-
-
-func _pulse_shield_hit() -> void:
-	if _shield_mat == null:
-		return
-	if _shield_hit_tween and _shield_hit_tween.is_valid():
-		_shield_hit_tween.kill()
-	_shield_mat.set_shader_parameter("hit_strength", 1.0)
-	_shield_hit_tween = create_tween()
-	_shield_hit_tween.tween_method(
-		func(v): _shield_mat.set_shader_parameter("hit_strength", v),
-		1.0, 0.0, 0.35
-	).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+# ---- Shield ring helpers — RETIRED (shield_unification_2026-06-08.md) ---
+# The simple max_shield/shield charge + its ring are gone; shields are now a
+# ShieldComponent (which carries its own ring). The `_shield_*` vars + SHIELD_SHADER
+# const are retained only because the UNWIRED legacy enemy_bomber_wing.gd still draws
+# its own ring through them; nothing in the live spawn path sets max_shield anymore.

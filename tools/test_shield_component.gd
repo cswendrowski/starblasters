@@ -29,7 +29,7 @@ func _process(dt: float) -> bool:
 	if _phase == 0:
 		var world := Node2D.new()
 		root.add_child(world)
-		var dart = load("res://scenes/enemies/core/enemy_dart.tscn").instantiate()
+		var dart = load("res://scenes/enemies/factions/privateer/enemy_dart.tscn").instantiate()
 		var mv = StraightDown.new(); mv.speed = 0.0
 		dart.movement = mv
 		var sc = ShieldComp.new()

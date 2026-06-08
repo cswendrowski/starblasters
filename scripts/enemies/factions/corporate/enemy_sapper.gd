@@ -25,11 +25,18 @@ var _beam_core: Line2D = null
 
 
 func _ready() -> void:
-	# Set stats BEFORE super._ready() so the base class sees max_shield and calls
-	# _setup_shield_ring() automatically (same pattern as bosses).
 	max_health = 2
-	max_shield = 2   # double-shielded (Roman 2026-06-08; was 3)
-	shield_ring_size = 22.0
+	# Unified shield (shield_unification_2026-06-08.md): the sapper is the one POOL-mode
+	# shield — a banked DAMAGE pool that grows past its initial capacity as it steals the
+	# player's charges (bank()), and the only shield that can tank a whole damage amount
+	# (so a well-fed sapper survives a smart bomb). Appended BEFORE super._ready() so
+	# _init_components dups it.
+	var sh := ShieldComponent.new()
+	sh.mode = ShieldComponent.Mode.POOL
+	sh.capacity = 2   # initial pool (was the double-shielded max_shield)
+	sh.ring_size = 22.0
+	# Reassign (not append) — @export Array defaults are shared across instances.
+	components = components + [sh]
 	bounty_value = 20
 	auto_rotate = true
 	display_scale = 1.0
@@ -84,7 +91,19 @@ func _tick_drain(player: Node, delta: float) -> void:
 		_drain_accum -= 1.0
 		if "shield" in player and player.shield > 0:
 			player.shield -= 1
-			shield = min(shield + 1, max_shield)
+			# Bank the stolen charge into the POOL shield — it accumulates PAST the
+			# initial capacity, so a sapper that's been feeding can out-tank a bomb.
+			var pool = _pool_shield()
+			if pool != null:
+				pool.bank(1.0)
+
+
+# The live POOL-mode ShieldComponent (dup'd into _components at spawn), or null.
+func _pool_shield():
+	for c in _components:
+		if c != null and c.has_method("is_pool") and c.is_pool():
+			return c
+	return null
 
 
 func _restore_shield_regen(player: Node) -> void:

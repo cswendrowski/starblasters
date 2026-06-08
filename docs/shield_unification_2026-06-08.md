@@ -1,10 +1,19 @@
 # Enemy Shield Unification — Spec
 
 **Date:** 2026-06-08
-**Status:** Spec for the combat/enemies session to execute. The lead session has built the
-foundation (`ShieldComponent` modes + the smart-bomb interaction); the spawn-path rewiring and
-per-enemy migrations below are the combat session's to land (they own `enemy_base.gd`, `director.gd`,
-`enemy_roster.gd`, and the enemy scripts).
+**Status:** ✅ IMPLEMENTED (2026-06-08). Foundation (`ShieldComponent` CHARGE/POOL modes +
+smart-bomb interaction) was built by the lead session; the spawn-path rewiring + per-enemy
+migrations below are landed. Deviations from the spec, both deliberate:
+- **enemy_bomber_wing.gd left bespoke** — it is UNWIRED dead code (preserved for a future
+  wing-event overhaul that will re-fit it), so migrating it is churn that'll be redone. The
+  base shield *vars* (`_shield_mat`/`_shield_ring`/`SHIELD_SHADER`) are retained solely so it
+  still compiles; nothing in the live path uses them.
+- **enemy_base simple shield made INERT, not deleted** — the consumption branch, `_ready`
+  setup, and ring-helper methods are removed; the `max_shield`/`shield` fields + ring vars
+  remain inert (spec allows "gone *or inert*") because the dead bomber-wing references them.
+Verified: `tools/test_shield_component.gd` (absorb/deplete/regen pipeline) +
+`tools/test_bomb_shields.gd` (CHARGE killed, POOL sapper survives iff pool ≥ bomb dmg) both PASS;
+38/38 enemy scenes instantiate; combat boots clean.
 
 ## Why
 

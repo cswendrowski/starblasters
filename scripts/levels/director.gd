@@ -21,6 +21,7 @@ signal wave_started(wave_index: int, wave_count: int, silent: bool, announce_tex
 signal level_cleared
 
 const FactionsC = preload("res://scripts/levels/factions.gd")
+const ShieldComponentC = preload("res://scripts/enemies/components/shield_component.gd")
 
 # Banner fade-in+hold+fade-out budget. Director waits this long before the
 # first enemy of an ANNOUNCED wave so spawns never overlap the WAVE alert.
@@ -552,9 +553,8 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 			enemy.health = enemy.max_health
 	if wave.bounty_value > 0 and "bounty_value" in enemy:
 		enemy.bounty_value = wave.bounty_value
-	if wave.shield_charges > 0 and "max_shield" in enemy:
-		enemy.max_shield = wave.shield_charges
-		enemy.shield = wave.shield_charges
+	# wave.shield_charges is applied below as a ShieldComponent (after the faction overlay),
+	# not the retired simple max_shield (shield_unification_2026-06-08.md).
 	if wave.recycle_passes >= -1 and "recycle_passes" in enemy:
 		enemy.recycle_passes = wave.recycle_passes
 	# Firecore Drone ring count — set before add_child() below (the drone
@@ -576,6 +576,11 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 		var pf: int = int(_run.get_meta("active_faction", -1))
 		if pf >= 0:
 			FactionsC.apply(FactionsC.effective_faction_for_spawn(pf), enemy)
+	# Data-driven shields (shield_unification_2026-06-08.md): roster "shielded" tag +
+	# sector "shielded" modifier both produce a ShieldComponent. Done AFTER the faction
+	# overlay so a sector boost lands on an existing corporate component instead of
+	# stacking a parallel shield. Before add_child so _init_components dups it.
+	_resolve_shields(enemy, wave, _run)
 	# Compute spawn x based on formation. Spawn x is confined to the
 	# playfield band (Playfield.X_MIN..X_MAX), not the full viewport,
 	# so the side gutters stay clear.
@@ -640,16 +645,10 @@ func _apply_sector_modifiers(enemy: Node, modifiers: Array) -> void:
 	for mod in modifiers:
 		match mod:
 			"shielded":
-				if "max_shield" in enemy:
-					if enemy.max_shield == 0:
-						enemy.max_shield = 1
-						if "shield" in enemy:
-							enemy.shield = 1
-					else:
-						var boosted := ceilf(enemy.max_shield * 1.5)
-						enemy.max_shield = int(boosted)
-						if "shield" in enemy:
-							enemy.shield = int(boosted)
+				# Handled in _resolve_shields() (after the faction overlay) so the boost
+				# lands on an existing ShieldComponent instead of stacking a parallel one
+				# (shield_unification_2026-06-08.md). No-op here.
+				pass
 			"armored":
 				if "damage_reduction" in enemy:
 					enemy.damage_reduction = max(enemy.damage_reduction, 0.10)
@@ -679,6 +678,46 @@ func _apply_sector_modifiers(enemy: Node, modifiers: Array) -> void:
 			"fleeing":
 				if "recycle_passes" in enemy:
 					enemy.recycle_passes = 0
+
+
+# Attach/boost a ShieldComponent for data-driven shields (shield_unification_2026-06-08.md).
+# Runs after the faction overlay + sector modifiers, before add_child (so _init_components
+# dups the result). Both sources BOOST an existing CHARGE component (e.g. corporate) when
+# present rather than stacking a parallel shield; chaff/sector shields never regenerate.
+func _resolve_shields(enemy: Node, wave, run) -> void:
+	if not ("components" in enemy and enemy.components is Array):
+		return
+	var charge = _find_charge_shield(enemy)
+	# Roster "shielded" tag (wave.shield_charges).
+	if wave.shield_charges > 0:
+		if charge != null:
+			charge.capacity = maxi(charge.capacity, wave.shield_charges)
+		else:
+			charge = ShieldComponentC.new()
+			charge.mode = ShieldComponentC.Mode.CHARGE
+			charge.capacity = wave.shield_charges
+			charge.regen_interval = 0.0   # chaff shields don't regenerate
+			# Reassign (not append) — @export Array defaults are shared across instances.
+			enemy.components = enemy.components + [charge]
+	# Sector "shielded" modifier → +1 charge on the (possibly just-added) component.
+	if run != null and "sector_modifiers" in run and run.sector_modifiers.has("shielded"):
+		if charge != null:
+			charge.capacity += 1
+		else:
+			var sc = ShieldComponentC.new()
+			sc.mode = ShieldComponentC.Mode.CHARGE
+			sc.capacity = 1
+			sc.regen_interval = 0.0
+			enemy.components = enemy.components + [sc]
+
+
+# First CHARGE-mode ShieldComponent in the enemy's authored components (pre-dup), or null.
+func _find_charge_shield(enemy):
+	for c in enemy.components:
+		if c != null and c is ShieldComponentC and c.mode == ShieldComponentC.Mode.CHARGE:
+			return c
+	return null
+
 
 func _process(_delta: float) -> void:
 	if _check_clear:
