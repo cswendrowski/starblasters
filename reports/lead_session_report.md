@@ -68,6 +68,23 @@ stay clear of those. My buckets:
 
    I've already shipped the one unambiguous economy **bug**: resale arbitrage (see log).
 
+5. **Moon/planet drift on long combats (>~226s)** — the TODO calls this a "desync," but in the live
+   V4 backdrop the planet and its moons are both children of `LayerPlanet` sharing one `offset.y`
+   scroll, so they *can't* desync. The real behavior: the whole planet+moons group drifts off the
+   bottom and never wraps, emptying the sky on long fights (now more common with ≥5-wave levels).
+   **Your call:** (a) wrap/re-enter from top, (b) hold at the bottom edge, or (c) leave as-is
+   (you've "passed" the planet). I didn't guess — tell me which and I'll implement.
+
+### Items I'm treating as the OTHER session's / blocked (not touching):
+- `director.gd`, `main.gd`, `wave_generator.gd`, `enemy_*`, bosses, `projectiles/`, enemy
+  shoot-patterns — the combat-arena + bullets/weapons scope. Economy hooks that live in `main.gd`
+  (combat/hazard clear bonus) and `director.gd` (`dangerous` bounty) I'll hand over or coordinate.
+- **385 editor GDScript warnings** — I can't see the editor's analyzer output headless. If you paste
+  the recurring list from the Output/Debugger panel, I'll fix per-site or demote noise categories in
+  `project.godot [debug] gdscript/warnings`.
+- **Tuner-driven items** (dynamic animated nebula, V3 parallax color sliders + blend-mode dropdown)
+  — these want the parallax tuner + your eye per the human-iterated workflow; ready when you are.
+
 ## Testing I need you to do
 
 These changes are verified parse-clean + headless-boot-clean, but the following are visual/feel and
@@ -144,3 +161,24 @@ in-my-territory fixes; everything requiring a designer number is in the Decision
 - **Supers Bug A + Bug C** — not code bugs (see Decisions #3); left as designer calls.
 
 Testing for you: confirm Drone Swarm drones now emerge from the ship center on deploy.
+
+### 2026-06-08 — Batch 2 committed (`024a117`) + backlog annotated
+Committed the economy/player fixes. Annotated `TODO.md` (my sections only) to reflect reality:
+checked off the 11 items I completed, marked 4 stale/already-shipped doc items, and re-diagnosed 3
+(moon "desync", Phase Shift "no-op", sprite banking) that turned out not to be code bugs.
+
+**Session status — where things stand:**
+- **Shipped + verified (parse-clean, headless-clean):** audio cycling/ramp/voice-cap; sector-map
+  planet variety + node placement + boss-ring progress + signal-event randomization; live-backdrop
+  node variety; resale-arbitrage fix; Drone Swarm emit point; dead-code cull (8 shaders +
+  capture_shadow cluster + 24 result dumps). Two commits: `c36a044`, `024a117`.
+- **Needs your eyeball in-game:** everything in "Testing I need you to do" above (audio + sector map
+  are visual/feel — I can't exercise them headless).
+- **Needs your decision:** the Decisions list above (sector-map route one-liner, economy balance
+  numbers, supers design calls, moon-drift behavior). I'll implement immediately once you call them.
+- **Blocked on you / other session:** the 385-warning list (needs editor output), tuner-driven
+  visual items (nebula, parallax sliders), and the combat-arena/bullets files the other session owns.
+
+I've worked through the unambiguous, in-my-lane backlog. The remaining items are decision-blocked or
+need your editor/tuner — so I'm pausing here for your input rather than guessing at design intent.
+Nothing is pushed (per your note, pushes are yours to approve). Ready to pick up whatever you greenlight.
