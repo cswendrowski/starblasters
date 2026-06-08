@@ -182,3 +182,18 @@ checked off the 11 items I completed, marked 4 stale/already-shipped doc items, 
 I've worked through the unambiguous, in-my-lane backlog. The remaining items are decision-blocked or
 need your editor/tuner — so I'm pausing here for your input rather than guessing at design intent.
 Nothing is pushed (per your note, pushes are yours to approve). Ready to pick up whatever you greenlight.
+
+### 2026-06-08 — Rolled two design specs into TODO + ACE hold noted
+Per your ask, read `docs/run_summary_scope_2026-06-01.md` and `docs/supers_modes_modules_2026-06-05.md`
+and added both as new TODO sections (neither was present as actionable items before):
+- **End-of-run summary + run history + run timer** — phased (RunStats core → instrumentation →
+  victory path → history index), with the note that most hooks live in `player.gd`/`enemy_base.gd`/
+  `main.gd` (shared/combat-arena files — coordinate before instrumenting).
+- **Supers/Modes/Modules taxonomy refactor** — the 4-bucket restructure, stance triangle, Mode Energy
+  spine, focus-save dual-hitbox, bay UI/HUD, outpost economy, the defensive-systems reify refactor,
+  and the ~10-module passive roster.
+- **ACE combo system — HELD per your directive.** It only surfaces as the *preferred* recharge driver
+  (Driver A) for the supers stances; the spec is explicitly built to ship on Driver B (self-contained
+  kill-streak) without it. I marked the ace-chain coupling ON HOLD in the supers section and did NOT
+  scope it as actionable. No standalone "ACE combo" TODO item existed to flip (it lives in
+  `economy_spec_2026-06-03.md` §2.2 as a locked-but-unbuilt model).
