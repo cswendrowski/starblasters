@@ -85,7 +85,9 @@ func _populate() -> void:
 	if run_node:
 		var rs := 12345 if not "run_seed" in run_node else int(run_node.run_seed)
 		var sc := 0 if not "sectors_cleared" in run_node else int(run_node.sectors_cleared)
-		seed_val = rs + sc * 9973
+		var node_id: String = run_node.get("current_node_id") if "current_node_id" in run_node else ""
+		var node_hash := hash(node_id) if node_id != "" else 0
+		seed_val = rs + sc * 9973 + node_hash
 	rng.seed = abs(seed_val)
 
 	# Planet

@@ -1,2 +1,0 @@
-fold ok ; unison=true ; offset range 0.00..2.00
-STEP WALL: PASS

@@ -437,18 +437,23 @@ func _build_pois_from_cache() -> void:
 		var planet_seq: int = 0
 		for poi_idx in pois.size():
 			var poi = pois[poi_idx]
-			# Resolve this POI's display position from its Marker2D so moving
-			# the marker in the scene editor repositions ALL visuals + hit regions.
-			var poi_marker_path: String = "star_%d/row_%d_poi_%d" % [r_idx + 1, r_idx + 1, poi_idx + 1]
+			# Use the cache's already-randomized POI position (run_state._gen_row_pois
+			# distributes POI X evenly with jitter into poi.pos). The old code
+			# OVERRODE this with fixed scene Marker2D positions, mapping POI index i
+			# -> marker i+1 and always filling markers 1..count from the LEFT, so a
+			# 3-POI row clustered into the leftmost 3 of 5 markers (Roman, left-bias
+			# bug). Reading poi.pos directly spreads them as generated AND keeps the
+			# click Area2D / hover icon aligned (both derive from this same `pos`).
+			# The cache already holds the randomized value, so no writeback is needed
+			# and the combat frac (keyed off poi.pos) stays in lockstep with the map.
 			var pos: Vector2 = poi.pos
-			if has_node(poi_marker_path):
-				pos = (get_node(poi_marker_path) as Marker2D).global_position
-			# Persist the resolved position back into the cache — same reason as
-			# the boss end_x writeback above: keeps the combat frac in lockstep
-			# with the map's rendered position.
-			poi.pos = pos
 			var deco_rng := RandomNumberGenerator.new()
-			deco_rng.seed = abs(hash(poi.id))
+			# Mix run_seed so the same grid-slot id varies decoration across runs
+			# while staying stable WITHIN a run. Must match every combat-derive
+			# site that re-seeds from poi.id (see _compute_poi_stellar :629,
+			# _compute_row_system :772) and the moon RNG (:578) / planet appearance
+			# (:684,:783,:889) — all xor run_seed identically.
+			deco_rng.seed = abs(hash(poi.id) ^ run.run_seed)
 			# Object kind: planet/large_ast/cluster. Distribution roughly
 			# matches the dev v3 random pick (uniform across 3 types).
 			var obj_kind: int = deco_rng.randi() % 3
@@ -486,13 +491,10 @@ func _build_pois_from_cache() -> void:
 			if not poi.completed and int(poi.node_type) != int(SectorNode.NodeType.BOSS):
 				var poi_name_seed: int = abs(hash(poi.id)) ^ 0x3F7A1C2B
 				var poi_name: String = _generate_poi_name(int(poi.node_type), poi_name_seed, String(poi.get("hazard_subtype", "")))
-				# Use child label Marker2D position from the scene.
-				var label_marker_path := "star_%d/row_%d_poi_%d/row_%d_label_%d" % [r_idx + 1, r_idx + 1, poi_idx + 1, r_idx + 1, poi_idx + 1]
-				if has_node(label_marker_path):
-					var marker: Marker2D = get_node(label_marker_path)
-					_make_label(poi_name, marker.global_position, Color(0.75, 0.85, 1.0, 1.0))
-				else:
-					_make_label(poi_name, Vector2(pos.x, pos.y + 14.0), Color(0.75, 0.85, 1.0, 1.0))
+				# Anchor the name to the POI's randomized pos (not the fixed label
+				# Marker2D) so it tracks the icon now that we no longer snap POIs to
+				# scene markers (Fix 2). 14px below the icon, matching the old fallback.
+				_make_label(poi_name, Vector2(pos.x, pos.y + 14.0), Color(0.75, 0.85, 1.0, 1.0))
 			_poi_hits.append({
 				"id":     String(poi.id),
 				"pos":    pos,
@@ -574,8 +576,10 @@ const SYSTEM_BACKDROP_ENABLED := true
 # combat backdrop can re-derive the same moon descriptors without having
 # to replay the entire V3 spawn sequence.
 func _make_moon_rng(poi_id: String) -> RandomNumberGenerator:
+	var run := get_node("/root/Run")
 	var r := RandomNumberGenerator.new()
-	r.seed = abs(hash(poi_id) ^ 0x9E3779B9)
+	# Mix run_seed for cross-run variety (same id, same run -> same moons).
+	r.seed = abs((hash(poi_id) ^ 0x9E3779B9) ^ run.run_seed)
 	return r
 
 
@@ -626,7 +630,9 @@ func _compute_poi_stellar(poi: Dictionary, row_idx: int) -> Dictionary:
 	var rows: Array = run.sector_map_cache.get("rows", [])
 	var row_end_x: float = float(rows[row_idx].boss.pos.x) if row_idx < rows.size() else 416.0
 	var deco_rng := RandomNumberGenerator.new()
-	deco_rng.seed = abs(hash(poi.id))
+	# Mix run_seed — MUST match the map-render seed in _build_pois_from_cache
+	# (:451) so obj_kind/px/planet_type combat-derive in lockstep with the map.
+	deco_rng.seed = abs(hash(poi.id) ^ run.run_seed)
 	var obj_kind: int = deco_rng.randi() % 3
 	var planet_idx: int = -1
 	var planet_type: int = -1
@@ -681,7 +687,10 @@ func _compute_poi_stellar(poi: Dictionary, row_idx: int) -> Dictionary:
 		"obj_kind":         obj_kind,
 		"planet_idx":       planet_idx,
 		"planet_type":      planet_type,
-		"planet_seed":      abs(hash(poi.id)),
+		# Planet PIXEL appearance seed. MUST equal _spawn_planet's psd (:889) so
+		# the map planet and the combat planet look identical. Mixed with run_seed
+		# in lockstep with psd.
+		"planet_seed":      abs(hash(poi.id) ^ run.run_seed),
 		"has_asteroids":    has_asteroids,
 		"asteroid_density": asteroid_density,
 		"moons":            moons,
@@ -769,7 +778,9 @@ func _compute_row_system(current_poi: Dictionary, row_idx: int) -> Array:
 	var planets: Array = []
 	for p in pois:
 		var deco_rng := RandomNumberGenerator.new()
-		deco_rng.seed = abs(hash(p.id))
+		# Mix run_seed — same form as the map-render seed (:451) so the staged
+		# row-system planets match the map's per-POI planet_type.
+		deco_rng.seed = abs(hash(p.id) ^ run.run_seed)
 		var obj_kind: int = deco_rng.randi() % 3          # step 1 (matches map :423)
 		if obj_kind != OBJ_PLANET:
 			continue
@@ -780,7 +791,8 @@ func _compute_row_system(current_poi: Dictionary, row_idx: int) -> Array:
 		planets.append({
 			"kind":        "planet",
 			"planet_idx":  p_idx,
-			"planet_seed": abs(hash(p.id)),
+			# Pixel appearance seed — must match _spawn_planet psd (:889), xor run_seed.
+			"planet_seed": abs(hash(p.id) ^ run.run_seed),
 			"frac":        p_frac,
 			"scale":       _stage_scale(current_frac, p_frac),
 			"star_color":  star_color,
@@ -885,8 +897,10 @@ func _spawn_planet(center: Vector2, display_px: float, type_idx: int, row_idx: i
 	_duplicate_materials(p)
 	if p.has_method("set_pixels"):  p.set_pixels(display_px)
 	# Deterministic per-node appearance so the combat backdrop can reproduce
-	# this exact planet from the stored planet_seed in current_stellar.
-	var psd: int = abs(hash(poi_id)) if poi_id != "" else rng.randi()
+	# this exact planet from the stored planet_seed in current_stellar. Mix
+	# run_seed in lockstep with the planet_seed returned by _compute_poi_stellar
+	# (:684) / _compute_row_system (:783) so map and combat planets match.
+	var psd: int = abs(hash(poi_id) ^ get_node("/root/Run").run_seed) if poi_id != "" else rng.randi()
 	if p.has_method("set_seed"):    p.set_seed(psd % 100000)
 	seed(psd)
 	if p.has_method("randomize_colors"): p.randomize_colors()

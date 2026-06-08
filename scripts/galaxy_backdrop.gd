@@ -38,7 +38,6 @@ const ASTEROID_SCENE = "res://Planets/Asteroids/Asteroid.tscn"
 const STARFIELD_SHADER = "res://graphics/starfield.gdshader"
 const NEBULA_SHADER = "res://graphics/nebula.gdshader"
 const NEBULA2_SHADER = "res://graphics/nebula2.gdshader"
-const STARSTUFF_SHADER = "res://graphics/starstuff.gdshader"
 const SPACE_COLORSCHEME = "res://SpaceBG/Colorscheme.tres"
 
 const PLANET_DRIFT_MULT_SLOW := 0.18
