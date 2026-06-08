@@ -173,6 +173,15 @@ static func build_components(id: int) -> Array:
 static func apply(id: int, enemy) -> void:
 	if enemy == null:
 		return
+	# Faction bonuses apply ONLY to units whose HOME is this faction (Roman 2026-06-08):
+	# universals + foreign units that appear in the level get NO overlay. So a privateer-home
+	# dart in a corporate level is not corpo-shielded, and a faction's buffs never leak onto
+	# other factions' units sharing the level. Untagged spawns (mines/asteroids/bosses) get
+	# nothing either.
+	var fpath: String = String(enemy.scene_file_path) if "scene_file_path" in enemy else ""
+	var ftag: Variant = ENEMY_TAGS.get(fpath, null)
+	if ftag == null or int(ftag.get("home", -1)) != id:
+		return
 	var d: Dictionary = data(id)
 	# Faction TINT is no longer applied (Roman 2026-06-06): per-faction SPRITES convey
 	# faction identity, so a runtime modulate would just wash out the art. The `tint`

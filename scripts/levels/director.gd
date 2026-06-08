@@ -575,7 +575,11 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 	if _run != null and _run.has_meta("active_faction"):
 		var pf: int = int(_run.get_meta("active_faction", -1))
 		if pf >= 0:
-			FactionsC.apply(FactionsC.effective_faction_for_spawn(pf), enemy)
+			# Apply the LEVEL faction; FactionsC.apply only overlays units whose home IS that
+			# faction (Roman 2026-06-08), so bonuses never leak onto universals / other-faction
+			# units in the level. (Dropped the privateer-interloper re-theme — it re-themed
+			# arbitrary spawns, which contradicts faction-scoped bonuses.)
+			FactionsC.apply(pf, enemy)
 	# Data-driven shields (shield_unification_2026-06-08.md): roster "shielded" tag +
 	# sector "shielded" modifier both produce a ShieldComponent. Done AFTER the faction
 	# overlay so a sector boost lands on an existing corporate component instead of

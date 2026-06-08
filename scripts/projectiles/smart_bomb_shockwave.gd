@@ -15,6 +15,8 @@ extends Node2D
 #     shield logic stays intact (the wave never one-shots them anyway).
 
 const ClarityRules = preload("res://scripts/clarity.gd")
+const BaseMissileC = preload("res://scripts/projectiles/base_missile.gd")
+const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
 
 # Leading-edge travel speed — the 8 px/frame motion-clarity ceiling.
 const SPEED: float = ClarityRules.ABS_MAX_SPEED   # 480 px/s
@@ -56,9 +58,15 @@ func _sweep() -> void:
 	var tree := get_tree()
 	if tree == null:
 		return
-	# Damage every enemy the leading edge has newly reached.
+	# Damage every enemy the leading edge has newly reached. Missiles/rockets are
+	# PROJECTILES, not combatants — destroy them on contact instead of running them
+	# through the enemy damage path (Roman 2026-06-08).
 	for e in tree.get_nodes_in_group("enemies"):
 		if e == null or not is_instance_valid(e):
+			continue
+		if e is BaseMissileC:
+			if e.global_position.distance_to(global_position) <= _radius:
+				_destroy_missile(e)
 			continue
 		var id: int = e.get_instance_id()
 		if _hit.has(id):
@@ -66,11 +74,14 @@ func _sweep() -> void:
 		if e.global_position.distance_to(global_position) <= _radius:
 			_hit[id] = true
 			_damage_enemy(e)
-	# Cancel enemy bullets inside the wave.
+	# Cancel projectiles inside the wave: enemy bullets (queue_free) + any missile/rocket
+	# that's tagged into "bullets" too. Missiles already handled in the enemies pass above,
+	# so skip BaseMissile here to avoid a double pop.
 	for b in tree.get_nodes_in_group("bullets"):
-		if b != null and is_instance_valid(b):
-			if b.global_position.distance_to(global_position) <= _radius:
-				b.queue_free()
+		if b == null or not is_instance_valid(b) or b is BaseMissileC:
+			continue
+		if b.global_position.distance_to(global_position) <= _radius:
+			b.queue_free()
 
 
 func _damage_enemy(e) -> void:
@@ -92,24 +103,22 @@ func _damage_enemy(e) -> void:
 		if remainder > 0:
 			_deal_hull(e, remainder)
 		return
-	# Otherwise: strip shields, then deal full damage through take_hit so hull/health
-	# bookkeeping + death VFX + bounty run normally for every enemy kind.
-	# Simple per-pip shield (chaff `max_shield`, legacy — inert once the unification lands):
-	if "shield" in e:
-		e.shield = 0
-	# Charge-shields (ShieldComponent.Mode.CHARGE: corporate faction, bulwark, bomber, and
-	# the universal crystal in corporate levels). The damage pipeline reads the per-instance
-	# RUNTIME array `_components` (enemy_base dups the authored `components` template into it
-	# in _ready), so zeroing `components` alone was a no-op — the live shield kept its charges
-	# and absorbed the bomb. Zero `_charges` on every CHARGE ShieldComponent so the wave
-	# truly ignores shields.
-	for arr_name in ["_components", "components"]:
-		if arr_name in e and e.get(arr_name) is Array:
-			for comp in e.get(arr_name):
-				if comp != null and "_charges" in comp:
-					comp._charges = 0
-	if e.has_method("take_hit"):
-		e.take_hit(_damage)
+	# Everyone else: deal damage straight to HULL, bypassing take_hit. This is what makes the
+	# bomb IGNORE SHIELDS — a CHARGE ShieldComponent (corporate / bulwark / mine / chaff /
+	# sector) is never consumed because the hit never reaches the component pipeline. The
+	# normal death pipeline (explode -> bounty + VFX) still runs when it's fatal.
+	# (Previously this stripped _charges then routed through take_hit; bypassing entirely is
+	# robust against any shield variant — fixes the post-unification corpo-shield regression.)
+	_deal_hull(e, _damage)
+
+
+# Destroy a missile/rocket the wave swept over — a small pop, then free. They're 1-HP
+# ordnance, so the bomb clears them outright rather than damaging them as combatants.
+func _destroy_missile(m) -> void:
+	if not is_instance_valid(m):
+		return
+	ExplosionFx.play(m.global_position, 0.4, false)
+	m.queue_free()
 
 
 # A ShieldComponent in POOL mode (the sapper's banked-steal shield), or null.

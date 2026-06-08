@@ -35,11 +35,13 @@ func activate(ship) -> void:
 	var tree: SceneTree = ship.get_tree()
 	if tree == null:
 		return
-	# Brief invuln so the bomb resolves before the next hit lands. Also lets the
-	# Touhou death-bomb hook in player.take_damage save the player from a fatal
-	# hit (that path checks _invuln_t > 0 after fire_super to grant survival).
+	# Invuln for the FULL on-screen lifetime of the shockwave (Roman 2026-06-08): the player
+	# stays invincible while the wave is sweeping, not just a brief 0.6s. Also lets the
+	# Touhou death-bomb hook in player.take_damage save the player from a fatal hit (that
+	# path checks _invuln_t > 0 after fire_super to grant survival).
 	if "_invuln_t" in ship:
-		ship._invuln_t = max(ship._invuln_t, 0.6)
+		var wave_dur: float = ShockwaveScript.MAX_RADIUS / ShockwaveScript.SPEED
+		ship._invuln_t = max(ship._invuln_t, wave_dur + 0.1)
 	# 1. Flash the player white.
 	if ship.has_node("Ship"):
 		HitFlashFx.flash(ship.get_node("Ship"), HitFlashFx.FLASH_WHITE, 0.14)
