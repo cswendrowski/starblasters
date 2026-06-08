@@ -8,6 +8,7 @@ extends Control
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
+const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
 
 var _test_hazard_modal: CanvasLayer = null
 var _vbox: VBoxContainer = null
@@ -277,6 +278,17 @@ func _on_test_combat() -> void:
 		_launch_hazard("beam_showcase")
 	)
 	panel.add_child(beam_btn)
+	# All-Signal Sector — launch a sector map where every POI is a Signal Event,
+	# for testing the signal-event screen (Roman 2026-06-08).
+	var signal_btn := Button.new()
+	signal_btn.text = "All-Signal Sector"
+	signal_btn.custom_minimum_size = Vector2(180, 18)
+	UiTheme.style_button(signal_btn)
+	signal_btn.pressed.connect(func():
+		_close_test_hazard_modal()
+		_on_all_signal_sector()
+	)
+	panel.add_child(signal_btn)
 	var cancel_btn := Button.new()
 	cancel_btn.text = "Cancel"
 	cancel_btn.custom_minimum_size = Vector2(140, 16)
@@ -422,6 +434,18 @@ func _launch_faction(faction_id: int) -> void:
 		run.combats_in_sector = 2   # -> level_index = 2
 		run.set_meta("forced_faction", faction_id)
 	SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
+
+
+# Launch a sector map where EVERY POI is a Signal Event, for testing the signal
+# screen. The force_all_signal meta is read by run_state._gen_row_pois when the
+# sector cache builds on map entry, and cleared by the next new_run(). Bosses are
+# a separate row, untouched — click the signal POIs directly.
+func _on_all_signal_sector() -> void:
+	if has_node("/root/Run"):
+		var run = get_node("/root/Run")
+		run.new_run()
+		run.set_meta("force_all_signal", true)  # AFTER new_run (new_run clears metas)
+	SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE)
 
 
 # Mine type sub-modal — Roman 2026-05-18.

@@ -279,6 +279,7 @@ func new_run() -> void:
 	# it AFTER calling new_run). active_faction is per-level, also cleared.
 	remove_meta("forced_faction")
 	remove_meta("active_faction")
+	remove_meta("force_all_signal")  # dev all-signal-sector flag (re-set after new_run by the launcher)
 	bounty = 0
 	enemies_killed = 0
 	max_bounty_earned = 0
@@ -530,6 +531,11 @@ func _gen_row_pois(rng: RandomNumberGenerator, sector_idx: int, row_idx: int, an
 	var pois: Array = []
 	for i in range(positions.size()):
 		var node_type: int = _roll_poi_type(rng)
+		# Dev: force every POI to a Signal Event for testing the signal screen
+		# (set via the Test Combat "All-Signal Sector" launcher). Bosses are a
+		# separate row, untouched. One-run-scoped — cleared in new_run().
+		if has_meta("force_all_signal"):
+			node_type = int(SectorNodeType.SIGNAL)
 		var hazard_sub: String = ""
 		if node_type == int(SectorNodeType.HAZARD):
 			hazard_sub = "minefield" if rng.randi() % 2 == 0 else "asteroid_field"
