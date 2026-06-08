@@ -219,6 +219,20 @@ const OUTCOME_SWAP_STOWED := "Stowed %s in cargo."
 # Continue button after any event resolves.
 const BTN_SECTOR_MAP := "Sector Map"
 
+# Combat/hazard launch confirmation — events never drop silently into combat. The
+# resolve panel shows the event's flavor (or COMBAT_FLAVOR_DEFAULT) + a launch
+# button. Phase A of the signal-event redesign (docs/signal_event_redesign_2026-06-08.md).
+const BTN_ENGAGE := "Engage"
+const BTN_ENTER_FIELD := "Enter the Field"
+const COMBAT_FLAVOR_DEFAULT := "Hostiles inbound — weapons hot."
+const COMBAT_FLAVOR_AMBUSH := "Raiders drop out of the dark with weapons already charged. No talking your way out of this one."
+const COMBAT_FLAVOR_INSPECTION_RUN := "You slam the throttle. The inspectors don't take kindly to runners — an interceptor peels off to chase you down."
+const COMBAT_FLAVOR_INSPECTION_FIGHT := "You charge weapons instead of complying. The inspection cutter answers in kind."
+const HAZARD_FLAVOR_MINER := "You throw in with the mining crew. Time to earn your cut working the asteroid field."
+
+# Salvaged weapon stowed to cargo (stow-only handoff — equip later at your ship).
+const OUTCOME_SALVAGE_STOWED := "Salvaged %s — stowed in your cargo hold. Equip it at your ship."
+
 
 # ===========================================================================
 # OUTPOST  (outpost.gd)

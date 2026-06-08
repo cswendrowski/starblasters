@@ -302,7 +302,7 @@ func _do_inspection_run() -> void:
 		1:
 			if has_node("/root/Run"):
 				get_node("/root/Run").combat_intro = "interceptor_chase"
-			SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
+			_finish_to_launch(Strings.COMBAT_FLAVOR_INSPECTION_RUN)
 		_:
 			_finish_to_sector_map(Strings.OUTCOME_INSPECTION_RUN_ESCAPE)
 
@@ -310,7 +310,7 @@ func _do_inspection_run() -> void:
 func _do_inspection_fight() -> void:
 	if has_node("/root/Run"):
 		get_node("/root/Run").combat_intro = "inspection_fight"
-	SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
+	_finish_to_launch(Strings.COMBAT_FLAVOR_INSPECTION_FIGHT)
 
 
 # ---- Event 3: Experimental Tech -----------------------------------------
@@ -475,9 +475,8 @@ func _wreck_ammo_option_available() -> bool:
 # fighters flying up through the parallax (wired in main.gd later).
 func _do_ambush_combat() -> void:
 	if has_node("/root/Run"):
-		var run := get_node("/root/Run")
-		run.combat_intro = "fly_up_from_below"
-	SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
+		get_node("/root/Run").combat_intro = "fly_up_from_below"
+	_finish_to_launch(Strings.COMBAT_FLAVOR_AMBUSH)
 
 
 func _do_ambush_evade() -> void:
@@ -738,44 +737,12 @@ func _salvage_outcome_weapon() -> void:
 		# If we drew a lower Mk than the player's current part, snap up.
 		if "mark" in new_part and int(new_part.mark) < current_mark:
 			new_part.mark = current_mark
-		_offer_weapon_swap(slot, current, new_part)
+		# Stow-only handoff (Roman 2026-06-08): found weapons go straight to the
+		# cargo hold, named, to equip later at the ship (no in-event swap).
+		run.inventory.append(new_part)
+		_finish_to_sector_map(Strings.OUTCOME_SALVAGE_STOWED % _part_label(new_part))
 		return
 	_finish_to_sector_map(Strings.OUTCOME_SALVAGE_NO_WEAPONS)
-
-
-# Replace the choice row with a Swap / Keep modal — single-screen, no scene
-# change. Outcome resolves via _finish_to_sector_map either way.
-func _offer_weapon_swap(slot: int, current_part, new_part) -> void:
-	if not has_node("/root/Run"):
-		_finish_to_sector_map(Strings.OUTCOME_SALVAGE_NO_RUN)
-		return
-	var slot_name: String = Strings.PART_SLOT_NAME_PRIMARY if slot == int(Slots.SlotType.CANNON) else Strings.PART_SLOT_NAME_SECONDARY
-	var new_label: String = _part_label(new_part)
-	var current_label: String = _part_label(current_part) if current_part != null else Strings.PART_SLOT_EMPTY
-	body_label.text = Strings.EVENT_SWAP_BODY % [new_label, slot_name, current_label]
-	for c in choices_box.get_children():
-		c.queue_free()
-	var swap_btn := Button.new()
-	swap_btn.text = Strings.EVENT_SWAP_BTN % new_label
-	UiTheme.style_button(swap_btn)
-	swap_btn.pressed.connect(func():
-		var run := get_node("/root/Run")
-		# Move the displaced part to inventory if there was one.
-		if current_part != null:
-			run.inventory.append(current_part)
-		run.loadout_snapshot[slot] = new_part
-		_finish_to_sector_map(Strings.OUTCOME_SWAP_EQUIPPED % [new_label, slot_name])
-	)
-	choices_box.add_child(swap_btn)
-	var keep_btn := Button.new()
-	keep_btn.text = Strings.EVENT_SWAP_KEEP % new_label
-	UiTheme.style_button(keep_btn)
-	keep_btn.pressed.connect(func():
-		var run := get_node("/root/Run")
-		run.inventory.append(new_part)
-		_finish_to_sector_map(Strings.OUTCOME_SWAP_STOWED % new_label)
-	)
-	choices_box.add_child(keep_btn)
 
 
 func _has_metered_weapons() -> bool:
@@ -821,7 +788,7 @@ func _do_freespace_miner() -> void:
 		run.current_hazard_subtype = "asteroid_field"
 		run.asteroid_bonus_bounty = 0
 		run.set_meta("asteroid_miners_event", true)
-	SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
+	_finish_to_launch(Strings.HAZARD_FLAVOR_MINER, Strings.BTN_ENTER_FIELD)
 
 
 # ---- Helpers ------------------------------------------------------------
@@ -866,7 +833,14 @@ func _sell_price(part) -> int:
 func _part_label(part) -> String:
 	if part == null:
 		return Strings.PART_LABEL_UNKNOWN
-	var n: String = part.get_class()
+	# Human-readable name comes from the Part's display_name (matches the outpost +
+	# manage_ship). get_class() returns the engine/script base class ("Resource"),
+	# which is what produced the garbage salvaged-item names (Roman 2026-06-08).
+	var n: String = ""
+	if "display_name" in part and str(part.display_name) != "":
+		n = str(part.display_name)
+	else:
+		n = part.get_class()
 	if "mark" in part:
 		return Strings.PART_LABEL_FORMAT % [int(part.mark), n]
 	return n
@@ -953,5 +927,25 @@ func _finish_to_sector_map(result_text: String) -> void:
 			if String(run.current_node_id) != "":
 				run.mark_node_completed(String(run.current_node_id))
 		SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE)
+	)
+	choices_box.add_child(btn)
+
+
+# Combat / hazard drops are never silent (Roman 2026-06-08): show the event's
+# flavor (or COMBAT_FLAVOR_DEFAULT) and a single launch button that performs the
+# transition. The Run-side setup (combat_intro / hazard meta) is done by the
+# caller BEFORE this; the button just loads combat. The event supplies the
+# flavor + (optionally) the button label.
+func _finish_to_launch(flavor_text: String = "", btn_text: String = "") -> void:
+	body_label.text = flavor_text if flavor_text != "" else Strings.COMBAT_FLAVOR_DEFAULT
+	for c in choices_box.get_children():
+		c.queue_free()
+	var btn := Button.new()
+	btn.text = btn_text if btn_text != "" else Strings.BTN_ENGAGE
+	UiTheme.style_button(btn)
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn.custom_minimum_size = Vector2(0, 56)
+	btn.pressed.connect(func():
+		SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
 	)
 	choices_box.add_child(btn)
