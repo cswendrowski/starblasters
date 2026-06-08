@@ -298,9 +298,9 @@ Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" fl
 ### Weapons / Architecture (`docs/weapon_architecture_2026-05-24.md`)
 
 - [ ] **`scripts/bullet.gd` + `scripts/bullet_wave.gd` live at `scripts/` root** — siblings are in `scripts/projectiles/`. Move + update `.tscn` paths. (Source: `docs/weapon_architecture_2026-05-24.md` §5)
-- [ ] **`drone_bits.apply()` doesn't snapshot prior `ship.drone_bits` array** — practical impact low (swarm drones self-manage lifecycle), flagged for designer awareness. (Source: commit `2083c59` open flag)
+- [x] **`drone_bits.apply()` doesn't snapshot prior `ship.drone_bits` array** — DONE (lead 2026-06-08, `85bf63c`). apply() snapshots, unapply() restores. (Impact nil today; contract now symmetric.)
 - [ ] **Heavy Blaster cooldown lerp 0.20 → 0.18 per Mk** — tiny per-Mk drift introduced by refactor; can be reverted by setting constant `0.20`. (Source: commit `2083c59` open flag)
-- [ ] **basic_blaster + spread_cannon snapshot/restore asymmetry** — set `weapon_style`/`fire_sfx_kind` without symmetric restore in `unapply`. (Source: commit `2083c59` open follow-up)
+- [x] **basic_blaster + spread_cannon snapshot/restore asymmetry** — STALE (verified lead 2026-06-08). The `weapon_part` base already snapshots + restores `weapon_style`/`fire_sfx_kind` via `_all_snapshot_keys()`; no asymmetry in current code. Closing.
 - [ ] **`drone_bits.tres` + `drone_swarm.tres` stale defaults** — open in editor, re-save against current `.gd` defaults so Weapon Editor doesn't surface stale values. (Source: `docs/redundancy_audit_2026-05-21.md` §Weapons action items)
 - [ ] **Weapon mounts: per-Part `fire_offset: Vector2`** — so wing-mounted vs nose-mounted weapons don't all spawn at `(0,-10)`. (Source: `docs/weapon_architecture_2026-05-24.md` §4 item 5)
 - [ ] **`burst_shot.tres` — author designer instance** — `scripts/enemies/shoot_patterns/burst_shot.gd` has no `.tres` companion. (Source: `docs/redundancy_audit_2026-05-21.md` §Enemy shoot patterns)
@@ -343,10 +343,10 @@ coordinate with the combat session before instrumenting those hot paths.
   is reached only on death today; final-sector clear funnels through the endless-mode prompt. Need a
   real patrol-complete flow + screen, and `RunStats` must snapshot into history at BOTH exit points
   (death AND victory) before reset. This is also where the run timer's stop-on-victory wires in.
-- [ ] **Phase 4 — dated run-history index (~½–1 day, self-contained).** Append `{date, outcome,
-  kills, bounty, sectors, time, …}` to a `user://` JSON array on each run-end (same pattern as
-  `enemy_codex.json`); main-menu entry via the existing `_install_codex_button()` injection; the only
-  real work is the history-list UI scene.
+- [x] **Phase 4 — dated run-history index** — DONE (lead 2026-06-08, `1c86ba2`). `user://run_history.json`
+  (capped to last 50) written on the death flow from stats Run already tracks; "Run History" main-menu
+  button → `scenes/run_history.tscn` list. Victory hook will call the same `record_run_history()` once
+  a patrol-complete path exists (Phase 3).
 
 ## Supers / Modes / Modules taxonomy refactor (rolled in 2026-06-08)
 

@@ -92,6 +92,19 @@ the cross-file migration; **chaff shields don't regen**.
   paths + retire `enemy_base` simple shield + migrate bulwark/bomber/mine/sapper onto ShieldComponent.
   Their files (enemy_base/director/roster/enemy scripts), so it's their build per the spec.
 
+### 2026-06-08 — Tackled items 1–4 (`1c86ba2`, `85bf63c`)
+- **#4 Run-history index** (`1c86ba2`) — dated past-runs list off the main menu, using stats `Run`
+  already tracks (no new instrumentation). JSON persistence in `run_state` (mirrors codex channel),
+  death-flow record hook in `run_summary` (guarded vs showcase captures), `run_history.gd`/`.tscn`
+  list scene, main-menu button. Verified headless (record→load round-trips; scene boots clean).
+- **#1 Weapon-Part fixes** (`85bf63c`) — `drone_bits` apply/unapply made symmetric. The
+  basic_blaster/spread_cannon "asymmetry" was STALE (the `weapon_part` base already
+  snapshots/restores `weapon_style`+`fire_sfx_kind`) — no bug.
+- **#3 Dead `visited_nodes` read** (`85bf63c`) — removed from `galaxy_backdrop.gd` (always 0); seed
+  formula arithmetically identical.
+- **#2 Economy doc re-audit** (`85bf63c`) — status note flagging the items that have since shipped so
+  triage doesn't re-litigate them.
+
 ## Decisions I need from you
 
 1. **`main.gd:802` old-sector-map round-trip** — the asteroid-hazard exit loads the raw
