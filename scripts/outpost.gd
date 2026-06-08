@@ -587,7 +587,9 @@ func _make_storage_row(part, idx: int) -> Control:
 
 # Sell price — 10% of the cannon-buy formula. Designer call (Roman 2026-05-25):
 # old 50% sell-back let players resale-arbitrage and over-buy with no risk.
-# 20% means re-rolling stock is an expensive mistake, not a free do-over.
+# 10% (post-2026-06-01 2x cannon-price bump) means re-rolling stock is an
+# expensive mistake, not a free do-over. signal_event._sell_price mirrors this
+# exact rate so neither venue is the better place to dump parts.
 # Floor of 5 so a Mk.1 part still gives the player something for the click.
 func _sell_value_for(part) -> int:
 	var mk: int = int(part.mark) if "mark" in part else 1

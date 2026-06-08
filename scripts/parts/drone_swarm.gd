@@ -130,7 +130,10 @@ func deploy(ship) -> Array:
 		# Spread drones evenly around the player on spawn so they don't
 		# stack into a single pixel; boids separation keeps them apart after.
 		var angle_seed: float = TAU * float(i) / float(max(1, n))
-		drone.position = ship.global_position + Vector2(cos(angle_seed), sin(angle_seed)) * SPAWN_RADIUS
+		# Emit from the player CENTER (Roman: drones should spawn at the ship,
+		# not on a wing-halfspan ring); angle_seed still seeds the boids fan-out
+		# so they spread apart immediately after.
+		drone.position = ship.global_position
 		tree.root.call_deferred("add_child", drone)
 		drone.call_deferred("bind_player", ship, angle_seed)
 		spawned.append(drone)
