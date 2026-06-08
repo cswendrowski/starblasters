@@ -58,6 +58,24 @@ preserved (`_invuln_t`). **Visual confirmed in-game by you.**
   (which I froze at the docs commit). Say the word and I'll cherry-pick it into that branch too.
 - Your `tools/capture_smart_bomb.{gd,ps1}` are still untracked — left them for you to keep or commit.
 
+### 2026-06-08 — Smart Bomb: crystal "ignores bomb" → shield-strip bug (`bf462c6`)
+Roman: the crystal ignores the smart bomb. Root-caused via a headless behavioral test (booted real
+project, spawned crystal + control + shielded enemy, fired the wave):
+- The crystal at 8 HP **dies** fine — no crystal-specific immunity. Real cause: my shockwave's
+  shield-strip zeroed `_charges` on `enemy.components` (the **authored template**), but `enemy_base`
+  duplicates that into a per-instance **runtime** array `_components` in `_ready`, and the damage
+  pipeline reads `_components`. So the live `ShieldComponent` kept its charges and absorbed the bomb.
+- **Class of affected enemies** (the "find others with the same issue"): everything with a
+  `ShieldComponent` — corporate-faction units, bulwark, sapper, shielded bosses, and the crystal
+  (it's `universal:true`, so it spawns in corporate levels and gets the corporate shield overlay).
+  Simple per-pip chaff shields (`enemy_base.shield`) were already stripped; only the component shield
+  was missed.
+- **Fix** (contained to my `smart_bomb_shockwave.gd`): zero `_charges` on the runtime `_components`.
+  Verified headless — a 3-charge shielded enemy now dies to one pass; unshielded enemies still die.
+- **Minor note (no action):** privateer-overlaid enemies are 2× HP, so a privateer large-non-tough
+  (32 HP) survives the 18-dmg wave — arguably correct since the overlay makes it "tough." If you want
+  the wave to ignore the privateer HP buff too, that's a small tuning change; say the word.
+
 ## Decisions I need from you
 
 1. **`main.gd:802` old-sector-map round-trip** — the asteroid-hazard exit loads the raw
