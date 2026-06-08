@@ -47,7 +47,7 @@ func setup(enemy: Node2D, markers: Array) -> void:
 		line.joint_mode = Line2D.LINE_JOINT_ROUND
 		line.begin_cap_mode = Line2D.LINE_CAP_ROUND
 		line.end_cap_mode = Line2D.LINE_CAP_ROUND
-		line.z_index = -2          # behind the hull (and its outline)
+		line.z_index = -1          # behind the hull but OVER the outline (z -2)
 		line.z_as_relative = false
 		var mat := CanvasItemMaterial.new()
 		mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD   # glowy exhaust
@@ -80,7 +80,7 @@ func _process(delta: float) -> void:
 			ages.pop_front()
 		if not _emitting:
 			continue
-		var mk: Marker2D = _markers[i]
+		var mk: Node2D = _markers[i]
 		if mk == null or not is_instance_valid(mk):
 			continue
 		line.add_point(mk.global_position)

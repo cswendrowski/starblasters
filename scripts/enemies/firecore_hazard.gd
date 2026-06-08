@@ -34,8 +34,9 @@ func _ready() -> void:
 	if spr != null:
 		if spr is AnimatedSprite2D:
 			(spr as AnimatedSprite2D).play("default")
-		# Bright yellow diffuse glow behind the ember (shared shader-halo tech).
-		GlowShaderFx.apply(spr, GLOW_COLOR)
+		# Bright yellow diffuse glow — double brightness + size so firecores pop
+		# (Roman 2026-06-07). The engine trail comes from the scene's Engine marker.
+		GlowShaderFx.apply(spr, GLOW_COLOR, 2.0, 2.0)
 
 
 func _sprite() -> CanvasItem:
