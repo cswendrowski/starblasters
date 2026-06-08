@@ -189,16 +189,14 @@ func _apply_audio() -> void:
 
 
 func _apply_window() -> void:
-	# Fullscreen cursor-offset bug (desktop only): the window is born WINDOWED
-	# (no window/size/mode in project.godot) WITH a title bar, then switched to
-	# fullscreen here. Borderless WINDOW_MODE_FULLSCREEN inherited the former
-	# windowed title-bar/client area as a CONSTANT downward offset in the OS-cursor
-	# -> viewport input transform (verified: constant everywhere, at native
-	# 1920x1080 @ 100% where the stretch transform is identity, so it's a pure
-	# vertical translation, not scaling/letterbox; snapping the window position
-	# did NOT clear it — the offset is in the input event transform, not position).
-	# EXCLUSIVE_FULLSCREEN takes the display mode directly with no window-frame /
-	# client concept, so there's no title-bar offset to inherit. Web has no native
-	# frame and is unaffected either way.
-	var mode := DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN if fullscreen else DisplayServer.WINDOW_MODE_WINDOWED
+	# Cursor-offset bug ROOT CAUSE (diagnosed via the F9 overlay): the 1920x1080
+	# WINDOWED window + title bar overflows a 1920x1080 screen, so Windows shrinks
+	# the client to ~1920x1061 while content_scale stays 1920x1080 -> the content is
+	# squished to 0.982 + pillarboxed (origin ~17), which desyncs the cursor mapping
+	# (the offset was windowed-only; fullscreen at 1920x1080 == content maps 1:1 and
+	# was always clean). FIX: window/size/borderless=true in project.godot removes
+	# the title bar so the 1920x1080 client fits the screen exactly even windowed.
+	# So plain borderless WINDOW_MODE_FULLSCREEN is fine again (and EXCLUSIVE made
+	# alt-tab worse — reverted).
+	var mode := DisplayServer.WINDOW_MODE_FULLSCREEN if fullscreen else DisplayServer.WINDOW_MODE_WINDOWED
 	DisplayServer.window_set_mode(mode)
