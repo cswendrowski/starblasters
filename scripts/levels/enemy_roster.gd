@@ -31,6 +31,7 @@ const RARITY_BOUNTY_MULT := {
 
 const StraightDown = preload("res://scripts/enemies/patterns/straight_down.gd")
 const Loiter = preload("res://scripts/enemies/patterns/loiter.gd")
+const PatternEligibility = preload("res://scripts/levels/pattern_eligibility.gd")
 const SlowAdvance = preload("res://scripts/enemies/patterns/slow_advance.gd")
 const SideCut = preload("res://scripts/enemies/patterns/side_cut.gd")
 const SideTraverse = preload("res://scripts/enemies/patterns/side_traverse.gd")
@@ -1160,7 +1161,11 @@ static func compose_stats(entry: Dictionary) -> Dictionary:
 # Build a fresh movement-pattern Resource for an entry. Each spawned enemy
 # duplicates this so the pattern can keep per-instance state.
 static func make_movement(entry: Dictionary) -> Resource:
-	match entry.get("movement", "straight"):
+	# Resolve the movement KEY via the eligibility matrix: the entry's own movement (identity)
+	# unless it opts into variety ("vary": true) — then a flat-random eligible key. Behavior-
+	# preserving until eligibility is expanded + an entry opts in (pattern_eligibility.gd).
+	var key: String = PatternEligibility.resolve(entry)
+	match key:
 		"straight":
 			# Generic chaff descent (Burner). Firecore + Drifter have their
 			# own keys after the 2026-05-24 speed pass.
@@ -1244,7 +1249,7 @@ static func make_movement(entry: Dictionary) -> Resource:
 			# low/mid/high pick the hold band (deeper = more pressure). Base
 			# "loiter" keeps the historical deep hold for back-compat.
 			var m = Loiter.new()
-			match entry.get("movement", "loiter"):
+			match key:
 				"loiter_high": m.hover_y = 50.0
 				"loiter_mid": m.hover_y = 90.0
 				_: m.hover_y = 130.0   # loiter / loiter_low — deep hold

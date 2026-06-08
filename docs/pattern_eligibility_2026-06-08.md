@@ -1,7 +1,10 @@
-# Pattern Eligibility — Spec (designed, not built)
+# Pattern Eligibility — Spec
 
 **Date:** 2026-06-08
-**Status:** Design for combat-session execution. React before code. Realizes the M6 vision of
+**Status:** **Phase 1 BUILT (2026-06-08)** — `scripts/levels/pattern_eligibility.gd` (seeded from the
+roster) + `make_movement` resolves the movement key through it; behavior-preserving (no entry opts
+into `vary` yet). Leans locked: per-entry `"vary"`, flat-random among eligible, one shared universal
+set. Phases 2 (tool tab) + 3 (expand) remain. Design below. Realizes the M6 vision of
 behavior as a swappable axis: a central, tool-edited matrix of which **movement patterns** each
 enemy may take, that the conductor draws from — instead of each roster entry hard-coding one
 movement. Decisions locked with Roman (2026-06-08): per-enemy authoring view (no 40×15 grid);
