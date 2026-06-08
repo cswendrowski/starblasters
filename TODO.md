@@ -86,8 +86,8 @@ Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" fl
 
 ### Bosses (`docs/boss_proposals_2026-05-24.md`)
 
-- [ ] **Boss roster gaps — Spinwright + Conductor** — proposal's 7-boss roster ships 5 of 7 (`boss.gd` Commander, `boss_reaver.gd` → Lash, `boss_sentinel.gd` → Aegis, `boss_howler.gd`, `boss_voidmaw.gd`). Missing: **Spinwright** (transforming ring + beam-sweep, S2-3) and **Conductor** (final, mirror/predictive + transforming, S3 row-3). No `boss_spinwright*` / `boss_conductor*` files on disk. (Source: `docs/boss_proposals_2026-05-24.md` §4)
-- [ ] **Tethered-orbit movement resource** — Conductor needs a `scripts/enemies/patterns/` movement resource (~50 lines) for satellites mirroring player X. (Source: `docs/boss_proposals_2026-05-24.md` §4 Conductor)
+- [x] **Boss roster gaps — Spinwright + Conductor — DONE (verified 2026-06-07).** The 7-boss roster is COMPLETE and live: `boss.gd` (Commander), `boss_reaver` (Lash), `boss_sentinel`/`boss_aegis` (Aegis), `boss_howler`, `boss_voidmaw`, `boss_spinwright`, `boss_conductor` — all with `scenes/enemies/boss_*.tscn` + wired into `wave_generator._pick_boss`, `run_state._pick_row_bosses`, and the dev menu. (Source: `docs/boss_proposals_2026-05-24.md` §4)
+- [x] **Tethered-orbit movement — DONE (verified 2026-06-07).** The Conductor's two satellites mirror player X + orbit via `scripts/enemies/conductor_satellite.gd` (bespoke satellite script, not a `patterns/` movement resource — same end behavior). (Source: `docs/boss_proposals_2026-05-24.md` §4 Conductor)
 - [ ] **Biome reskins per boss** — palette + one attack tweak variants to double visual variety once base roster ships. (Source: `docs/boss_proposals_2026-05-24.md` §5)
 - [ ] **Shared boss-enrage VFX helper** — phase-transition flash + screen-shake helper so HP-gate transitions read consistently across bosses. (Source: `docs/boss_proposals_2026-05-24.md` §6 open question 6)
 - [ ] **Boss `conflict_tags` "never-pair" enforcement** — Voidmaw shouldn't pair with Commander; Howler shouldn't pair with Reaver/Lash; etc. (Source: `docs/boss_proposals_2026-05-24.md` §6 open question 4)
