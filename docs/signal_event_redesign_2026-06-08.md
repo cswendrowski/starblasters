@@ -1,6 +1,14 @@
 # Signal Event Screen — Redesign Proposal
 
-**Date:** 2026-06-08 · **Status:** Proposal for Roman's review (not built).
+**Date:** 2026-06-08 · **Status:** Approved by Roman. **Phase A SHIPPED** (commit on
+`m6c-polish-r2`); Phases B + C pending. Decisions: (1) stow-only found parts, (2) Engage/Fight
+confirm with event-supplied flavor + fallback, (3) rely on RESOLVE text (combat_intro stays inert),
+(4) phasing approved.
+
+**Phase A done (verified headless):** `_part_label` uses `display_name` (name bug fixed); salvaged
+weapons stow to cargo, named (swap modal removed); the four combat/hazard drops now resolve to a
+flavor line + an Engage/Enter-the-Field launch button (`_finish_to_launch`) instead of a silent
+`change_scene`. Strings added to `strings.gd`.
 **Files:** `scripts/signal_event.gd`, `scenes/signal_event.tscn`, `scripts/signal_event_builder.gd`
 (unused scaffolding), `scripts/run_state.gd`.
 
