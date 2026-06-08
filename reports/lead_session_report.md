@@ -16,6 +16,32 @@ stay clear of those. My buckets:
 
 ---
 
+## ⭐ Isolated merge candidate — ready for you (2026-06-08)
+
+Per your call, my 4 commits are cherry-picked onto a **clean branch off `origin/main`**, isolated from
+the other session's 7 commits. Built in a **separate git worktree** so it didn't disturb the shared
+tree / the live other session.
+
+- **Worktree:** `../sb-noncombat-wt`  (sibling of the repo, i.e. `E:\Godot-Projects\sb-noncombat-wt`)
+- **Branch:** `m6c-noncombat-polish` (= `origin/main` + my 4 commits, **conflict-free**, upstream
+  unset so a push can't accidentally target `main`)
+- **Commits:** `c1b74e7` audio/sector-map/backdrop/dead-code · `71127d6` economy+drone · `50b7b63`
+  backlog annotate · `70588f2` docs roll-in
+- **Verified:** content-identical to my shared-branch work (the only diff vs the shared tip is the
+  *absence* of the other session's files); **headless boot exit 0, zero script/parse errors** on the
+  clean base (after a one-time asset import — a fresh worktree has no `.godot/imported/` cache).
+
+**When you've playtested the eyeball items and want it in `main`:**
+```
+# from the main repo (E:\Godot-Projects\starblasters), when YOU'RE on/ready to update main:
+git merge --ff-only m6c-noncombat-polish      # fast-forwards main onto my 4 commits
+# then push main yourself, and clean up:
+git worktree remove ../sb-noncombat-wt
+git branch -d m6c-noncombat-polish
+```
+(Or push the branch as its own remote: `git push -u origin m6c-noncombat-polish` — won't touch main.)
+I did **not** push anything. The other session's 7 commits stay on `m6c-polish-r2`, untouched.
+
 ## Decisions I need from you
 
 1. **`main.gd:802` old-sector-map round-trip** — the asteroid-hazard exit loads the raw
