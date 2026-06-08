@@ -24,7 +24,21 @@ func _process(_dt: float) -> bool:
 		sz = (cs.shape as RectangleShape2D).size
 	if sz != Vector2(6, 16):
 		lines.append("FAIL cannon hitbox %s != (6, 16)" % str(sz)); fails += 1
-	lines.append("cannon: speed=%d hitbox=%s" % [int(round(b.speed)), str(sz)])
+	# random_frame: the cannon picks ONE random frame and stops (not animated), so the static
+	# glow snapshot matches the shown frame. Confirm it's stopped on a valid frame.
+	var asp = b.get_node_or_null("AnimatedSprite2D")
+	var playing = true
+	var frame_idx = -1
+	if asp != null:
+		playing = asp.is_playing()
+		frame_idx = asp.frame
+	if playing:
+		lines.append("FAIL cannon is animating (random_frame should stop it)"); fails += 1
+	if frame_idx < 0 or frame_idx > 1:
+		lines.append("FAIL cannon frame %d out of range" % frame_idx); fails += 1
+	var glow = b.get_node_or_null("ShaderGlow")
+	lines.append("cannon: speed=%d hitbox=%s frame=%d playing=%s glow=%s" % [
+		int(round(b.speed)), str(sz), frame_idx, str(playing), ("yes" if glow != null else "no")])
 	lines.append("CANNON BULLET: " + ("PASS" if fails == 0 else "FAIL (%d)" % fails))
 	var f := FileAccess.open(RESULT, FileAccess.WRITE)
 	if f != null:
