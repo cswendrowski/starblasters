@@ -25,6 +25,9 @@ export_credentials.cfg
 sim_out.txt
 sim_stream_out.txt
 
+# Test-harness PASS-marker dumps (written by tools/test_*.gd, never read by anything)
+tools/_*_result.txt
+
 # OS / IDE
 Thumbs.db
 .DS_Store

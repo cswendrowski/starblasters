@@ -13,11 +13,8 @@ extends Node2D
 # Above all of it:
 #   6. ColorCorrection — scene-wide tint + blend mode overlay
 #
-# Each content slot's children sit inside a CanvasGroup with the
-# parallax_tint shader so per-layer tinting (driven by the tuner) actually
-# applies — Parallax2D in Godot 4.3 doesn't reliably propagate modulate to
-# tiled repeat draws. The shader is multiplicative (tints the art) rather
-# than replacing (which the old silhouette pass did).
+# Each content slot's children sit inside a CanvasGroup so per-layer
+# tinting (driven by the tuner) applies via modulate propagation.
 #
 # Content slot fills via populate_layer():
 #   - "asteroid_few"  — sparse asteroid scatter
@@ -28,9 +25,7 @@ extends Node2D
 #   - "debris"        — placeholder (no asset yet)
 
 const ASTEROID_SCENE = "res://Planets/Asteroids/Asteroid.tscn"
-const NEBULA_SHADER = preload("res://graphics/nebula.gdshader")
 const NEBULA2_SHADER = preload("res://graphics/nebula2.gdshader")
-const TINT_SHADER = preload("res://graphics/parallax_tint.gdshader")
 const SPACE_COLORSCHEME = "res://SpaceBG/Colorscheme.tres"
 const PLANET_SCENES := [
 	"res://Planets/LavaWorld/LavaWorld.tscn",

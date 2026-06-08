@@ -135,15 +135,28 @@ func _make_player(name: String) -> AudioStreamPlayer:
 
 
 func _on_player_finished(p: AudioStreamPlayer) -> void:
-	# Only react when this player is the currently-active one AND the
-	# crossfade machinery didn't already take over. The swap in
-	# _on_crossfade_done calls stop() on the previous active, which does NOT
-	# emit `finished`, so this only fires on a genuine end-of-stream miss.
-	if _walk_frozen or _crossfading or _context == CTX_SILENT:
+	# Safety net: fires when a track ends without the _process lookahead
+	# catching it (e.g. ogg reported length 0, or a frame was skipped).
+	# _on_crossfade_done calls stop() — not play-to-end — on the outgoing
+	# player, so `finished` here always means a genuine end-of-stream miss.
+	#
+	# Guard rules:
+	#   CTX_SILENT   — intentionally no music; never re-arm.
+	#   _crossfading — a new track is already fading in; let it land, then
+	#                  its own end-of-track path will continue the loop.
+	#   Wrong player — finished was from _next (fading out), not _active.
+	# _walk_frozen intentionally does NOT suppress re-arming: freezing the
+	# intensity-walk should stop escalation, not cause permanent silence.
+	if _context == CTX_SILENT:
+		return
+	if _crossfading:
 		return
 	if p != _active or _active_set == "":
 		return
-	var next_idx: int = _pick_next_idx()
+	# Re-arm: continue at current intensity (stay on same idx while frozen,
+	# or walk normally when unfrozen — _pick_next_idx respects _walk_frozen
+	# indirectly via _combat_target_idx not advancing while frozen).
+	var next_idx: int = _active_idx if _walk_frozen else _pick_next_idx()
 	_crossfade_to(_active_set, next_idx, FADE_LEN)
 
 
@@ -175,15 +188,24 @@ func set_context(context: String, options: Dictionary = {}) -> void:
 func set_combat_progress(wave_idx: int, total_waves: int, has_boss: bool) -> void:
 	# Roman, 2026-05-16: intensity ramps at the *middle* of the wave list,
 	# not gradually. Main stays gated until the boss actually spawns; without
-	# a boss combat caps at Intensity_2.
-	#   First half → Intensity_1 (0)
-	#   Second half → Intensity_2 (1)
-	#   Main (2)  → only via notify_boss_spawned()
+	# a boss combat caps at Intensity_2 — except on long levels (≥5 waves)
+	# where the final 2 waves lift to Main to give the ending extra energy.
+	#
+	# wave_idx is 0-based (director emits wi from score.waves iteration).
+	#
+	#   First half                        → Intensity_1 (0)
+	#   Second half                       → Intensity_2 (1)
+	#   Final 2 waves on ≥5-wave level    → Main (2), _allow_main lifted
+	#   Main (2) on shorter levels        → only via notify_boss_spawned()
 	if total_waves <= 0:
+		return
+	if total_waves >= 5 and wave_idx >= total_waves - 2:
+		_allow_main = true
+		_combat_target_idx = 2
 		return
 	var midpoint: int = int(floor(float(total_waves) / 2.0))
 	var target: int = 0 if wave_idx < midpoint else 1
-	_allow_main = false  # combat: Main is boss-only
+	_allow_main = false  # combat: Main is boss-only below the final-2 threshold
 	_combat_target_idx = target
 
 

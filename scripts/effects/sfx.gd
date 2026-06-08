@@ -23,6 +23,18 @@ class_name Sfx
 
 const DEFAULT_POLYPHONY: int = 4
 
+# Per-frame voice limiter: tracks how many one-shots have fired in the current
+# physics frame so that mass simultaneous deaths (smart-bomb, formation wipe)
+# don't stack at full volume and blow out the mix. After VOICE_SOFT_CAP voices
+# in a frame each additional voice is attenuated by VOICE_ATTN_STEP dB
+# (floored at VOICE_FLOOR_DB). Allocation-free: only two module-level scalars.
+const VOICE_SOFT_CAP: int = 4
+const VOICE_ATTN_STEP: float = 2.5   # dB reduction per extra voice above cap
+const VOICE_FLOOR_DB: float = -18.0  # never attenuate below this
+
+static var _frame_no: int = -1
+static var _frame_voices: int = 0
+
 
 static func play_one_shot(stream: AudioStream, world_pos, volume_db: float = 0.0, pitch_scale: float = 1.0) -> void:
 	if stream == null:
@@ -33,6 +45,16 @@ static func play_one_shot(stream: AudioStream, world_pos, volume_db: float = 0.0
 	var root: Node = (tree as SceneTree).root
 	if root == null:
 		return
+	# Per-frame voice limiter: attenuate voices beyond VOICE_SOFT_CAP that
+	# fire in the same physics frame (mass-kill volume spike prevention).
+	var cur_frame: int = Engine.get_physics_frames()
+	if cur_frame != _frame_no:
+		_frame_no = cur_frame
+		_frame_voices = 0
+	_frame_voices += 1
+	if _frame_voices > VOICE_SOFT_CAP:
+		var excess: int = _frame_voices - VOICE_SOFT_CAP
+		volume_db = maxf(volume_db - VOICE_ATTN_STEP * excess, VOICE_FLOOR_DB)
 	if world_pos is Vector2:
 		var p := AudioStreamPlayer2D.new()
 		p.stream = stream

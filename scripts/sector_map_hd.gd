@@ -346,18 +346,72 @@ func _process(delta: float) -> void:
 
 
 func _rehost_boss_rings() -> void:
-	# Hide the inner ring node, then draw crisp HD rings at each boss dot,
-	# tinted to match the dot's lock-state color (green available / red locked).
+	# Hide the inner V3 ring node, then draw crisp HD PROGRESS rings at each boss.
+	# Mirrors sector_map_v3._draw_boss_rings (~:1187): a filled arc from 12-o'clock
+	# spanning done/total of the row's POIs, plus a dim remainder. Iterates
+	# _boss_entries (carries row_idx + pos + lock state) rather than _boss_dots so
+	# each ring is matched to the correct row's completion count.
 	var ringnode = _map.get("_boss_ring_node")
 	if ringnode != null and is_instance_valid(ringnode):
 		ringnode.visible = false
-	for d in _boss_dots:
-		var c: Color = d.color
-		_add_hd_ring(d.pos, BOSS_RING_RADIUS, Color(c.r, c.g, c.b, 0.85))
+	var run = get_node("/root/Run")
+	var rows: Array = run.sector_map_cache.get("rows", [])
+	var entries = _map.get("_boss_entries")
+	if entries == null:
+		return
+	for b in entries:
+		var row_idx: int = int(b.get("row_idx", -1))
+		if row_idx < 0 or row_idx >= rows.size():
+			continue
+		var center: Vector2 = (b.get("pos", Vector2.ZERO) as Vector2) * SCALE
+		# done/total — computed exactly like _draw_boss_rings (:1200-1208).
+		var pois: Array = rows[row_idx].pois
+		var total: int = pois.size()
+		if total <= 0:
+			continue
+		var done: int = 0
+		for poi in pois:
+			if poi.completed:
+				done += 1
+		# Tint: green when the boss is available (all POIs done) / defeated, red
+		# while locked — matches the V3 boss-dot lock-state coloring.
+		var available: bool = bool(b.get("unlocked", false)) or bool(b.get("defeated", false))
+		var base: Color = COLOR_NODE_GREEN if available else COLOR_WARN
+		var filled := Color(base.r, base.g, base.b, 0.85)
+		var unfilled := Color(base.r, base.g, base.b, 0.22)
+		_add_hd_progress_ring(center, BOSS_RING_RADIUS, float(done) / float(total), filled, unfilled)
 
 
 func _add_hd_ring(center: Vector2, radius: float, color: Color) -> void:
 	_gfx.add_child(_make_ring(center, radius, color))
+
+
+# Parent a two-arc progress ring: a filled arc from 12-o'clock spanning
+# `fill_frac` of the circle + a dim remainder. fill_frac in [0,1].
+func _add_hd_progress_ring(center: Vector2, radius: float, fill_frac: float, filled: Color, unfilled: Color) -> void:
+	var f: float = clampf(fill_frac, 0.0, 1.0)
+	var start_angle: float = -PI * 0.5            # 12-o'clock (matches V3 :1212)
+	var fill_end: float = start_angle + f * TAU
+	if f > 0.0:
+		_gfx.add_child(_make_arc(center, radius, start_angle, fill_end, filled))
+	if f < 1.0:
+		_gfx.add_child(_make_arc(center, radius, fill_end, start_angle + TAU, unfilled))
+
+
+# Build (but don't parent) a Line2D arc from `a0` to `a1` (radians) at an HD point.
+func _make_arc(center: Vector2, radius: float, a0: float, a1: float, color: Color) -> Line2D:
+	var arc := Line2D.new()
+	var pts := PackedVector2Array()
+	# Scale segment count with arc length so partial arcs stay smooth (44 segs / full circle).
+	var span: float = absf(a1 - a0)
+	var segs: int = maxi(2, int(ceil(44.0 * span / TAU)))
+	for i in range(segs + 1):
+		var a: float = lerpf(a0, a1, float(i) / float(segs))
+		pts.append(center + Vector2(cos(a), sin(a)) * radius)
+	arc.points = pts
+	arc.width = 3.0
+	arc.default_color = color
+	return arc
 
 
 # Build (but don't parent) a circular Line2D ring centered at an HD point.

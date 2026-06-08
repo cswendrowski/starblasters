@@ -1,4 +1,0 @@
-shifter ok: free->3, blocked->held->3
-drifter(zone) ok: held entry -> lane3 by exit; blocked -> held
-stepper(STEP) ok: free->hop, blocked->held->hop
-LANE CHANGERS: PASS

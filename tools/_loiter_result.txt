@@ -1,6 +1,0 @@
-loiter_high ok: hold~y=49 spread=4.54
-loiter_mid ok: hold~y=93 spread=6.00
-loiter_low ok: hold~y=133 spread=5.74
-loiter ok: hold~y=132 spread=6.00
-row desync ok: y_spread=5.85 x_spread=6.83 across 6
-LOITER HOLDER: PASS

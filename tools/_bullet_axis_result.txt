@@ -1,2 +1,0 @@
-homing dir.x=0.940 ; wobble dev=8.00 ; variant-seeded homing=77 wobble=5
-BULLET MOVEMENT AXIS: PASS

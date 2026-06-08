@@ -38,7 +38,14 @@ func _ready() -> void:
 		get_node("/root/Music").set_context("signal")
 	_rng = RandomNumberGenerator.new()
 	if has_node("/root/Run"):
-		_rng.seed = get_node("/root/Run").run_seed + get_node("/root/Run").visited_nodes.size() * 31
+		# Seed off the per-node id (set before this scene loads) so each signal
+		# node rolls a distinct template/outcome, while staying deterministic on
+		# revisit within a run. The old seed used visited_nodes.size(), but that
+		# counter is never incremented (Run.mark_node_visited is dead), so it was
+		# always 0 -> the seed collapsed to a constant run_seed and EVERY signal
+		# event picked the same template (Roman).
+		var run = get_node("/root/Run")
+		_rng.seed = run.run_seed ^ hash(run.current_node_id)
 	else:
 		_rng.randomize()
 	var events: Array = _events()
