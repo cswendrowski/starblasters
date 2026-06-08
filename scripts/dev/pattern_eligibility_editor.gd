@@ -153,6 +153,7 @@ func _set_preview(key: String) -> void:
 	d.hframes = int(tex_info.get("hframes", 1))
 	d.position = Vector2(Lanes.lane_center(3), 16.0)
 	_world.add_child(d)
+	_preview = d   # track it so the NEXT _set_preview frees this one (else dummies pile up)
 	if _status_lbl:
 		_status_lbl.text = "preview: " + key
 

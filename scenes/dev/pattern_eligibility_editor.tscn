@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://b8pateligedit01"]
+[gd_scene format=3 uid="uid://bdwbr1d0gltnk"]
 
 [ext_resource type="Script" path="res://scripts/dev/pattern_eligibility_editor.gd" id="1_pateleg"]
 
