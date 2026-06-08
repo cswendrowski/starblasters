@@ -1,10 +1,15 @@
 # Pattern Eligibility — Spec
 
 **Date:** 2026-06-08
-**Status:** **Phase 1 BUILT (2026-06-08)** — `scripts/levels/pattern_eligibility.gd` (seeded from the
-roster) + `make_movement` resolves the movement key through it; behavior-preserving (no entry opts
-into `vary` yet). Leans locked: per-entry `"vary"`, flat-random among eligible, one shared universal
-set. Phases 2 (tool tab) + 3 (expand) remain. Design below. Realizes the M6 vision of
+**Status:** **Phases 1 + 2 BUILT (2026-06-08).** P1: `scripts/levels/pattern_eligibility.gd` (seeded
+from the roster) + `make_movement` resolves the movement key through it; behavior-preserving (no entry
+opts into `vary` yet). P2: standalone dev tool `scenes/dev/pattern_eligibility_editor.tscn` (Dev Menu
+→ Pattern Eligibility) — faction filter → enemy nav → identity cycle + eligible checklist + live sprite
+preview; Save → `user://tuners/pattern_eligibility.json`, Export → paste-ready DATA const (clipboard +
+file) for the committed `pattern_eligibility.gd`. (Built standalone, not as a lane-viz tab, to avoid a
+concurrent UI bug-hunt.) Leans locked: per-entry `"vary"`, flat-random among eligible, one shared
+universal set. Phase 3 (expand eligibility + opt enemies into vary) remains. Design below. Realizes
+the M6 vision of
 behavior as a swappable axis: a central, tool-edited matrix of which **movement patterns** each
 enemy may take, that the conductor draws from — instead of each roster entry hard-coding one
 movement. Decisions locked with Roman (2026-06-08): per-enemy authoring view (no 40×15 grid);

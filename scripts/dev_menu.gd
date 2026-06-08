@@ -80,6 +80,7 @@ func _build_ui() -> void:
 	# Authoring tools
 	_add_button("[ Wave Editor ]", _on_wave_editor, true)
 	_add_button("[ Movement Patterns ]", _on_movement_pattern_editor, true)
+	_add_button("[ Pattern Eligibility ]", _on_pattern_eligibility, true)
 	_add_button("[ Shoot Patterns ]", _on_shoot_pattern_editor, true)
 	_add_button("[ Weapons ]", _on_weapon_editor, true)
 	_add_button("[ Shipyard ]", _on_shipyard, true)
@@ -138,6 +139,10 @@ func _on_wave_editor() -> void:
 
 func _on_movement_pattern_editor() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/movement_pattern_editor.tscn")
+
+
+func _on_pattern_eligibility() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/pattern_eligibility_editor.tscn")
 
 
 func _on_shoot_pattern_editor() -> void:
