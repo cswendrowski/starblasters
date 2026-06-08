@@ -425,8 +425,9 @@ const ENTRIES := [
 	# enemy_core directly (movement + shoot driven by the roster slots; no bespoke
 	# scripts). Two-frame sprite: frame 0 hull + frame 1 emissive glow (GlowMask).
 	{
-		# Green — privateer weaving chaff (no weapon). lane_weave gives it an
-		# in-lane wobble so it reads distinct from the straight-diving Dart/Gray.
+		# Green (weave) — privateer chaff. lane_weave wobble. Weight dropped 1.1->0.7 so
+		# green waves aren't "heavy on curves" (Roman 2026-06-08) — the drift + straight
+		# variants below add variety.
 		"scene": "res://scenes/enemies/factions/privateer/enemy_p_s_green.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
@@ -435,7 +436,31 @@ const ENTRIES := [
 		"base_count": 6,
 		"recycle": 0,
 		"hp_override": 1, "bounty_override": 5,
-		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.1, "chaff": true, "wall": true,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.7, "chaff": true, "wall": true,
+	},
+	{
+		# Green (drift) — slow lane-to-lane slide variant for wave variety.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_s_green.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "lane_drift",
+		"shoot": null,
+		"base_count": 5,
+		"recycle": 0,
+		"hp_override": 1, "bounty_override": 5,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.6, "chaff": true,
+	},
+	{
+		# Green (straight) — plain fast diver variant for wave variety.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_s_green.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "fast_straight",
+		"shoot": null,
+		"base_count": 6,
+		"recycle": 0,
+		"hp_override": 1, "bounty_override": 5,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.6, "chaff": true, "wall": true,
 	},
 	{
 		# Gray — privateer straight-diver chaff (no weapon). The faction's plain
