@@ -162,18 +162,15 @@ var _last_planet_idx: int = -1
 func _ready() -> void:
 	var sector_num: int = 0
 	var seed_val: int = 0
-	var visit_count: int = 0
 	var node_id: String = ""
 	if has_node("/root/Run"):
 		var run := get_node("/root/Run")
 		sector_num = run.sectors_cleared
 		seed_val = run.run_seed
-		visit_count = run.visited_nodes.size()
 		node_id = run.current_node_id
 	# Per-scene RNG so spawn positions/random planet pick differ per node visit
-	var step: int = max(visit_count - 1, 0)
 	var rng := RandomNumberGenerator.new()
-	rng.seed = seed_val + step * 1009 + sector_num * 9973
+	rng.seed = seed_val + sector_num * 9973
 	# Planet pick: the sector node carries its own planet_idx in
 	# Run.current_stellar — read that first so the combat backdrop matches
 	# what the player saw on the sector map. Falls back to a random roll

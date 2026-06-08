@@ -22,6 +22,8 @@ const ShieldDroneScene = preload("res://scenes/player/shield_drone.tscn")
 @export var orbit_speed: float = 2.4
 
 var _spawned_drones: Array = []
+var _prev_drone_bits: Array = []
+var _had_prev_drone_bits: bool = false
 
 
 func _init() -> void:
@@ -34,8 +36,10 @@ func apply(ship) -> void:
 	_spawn_drones(ship)
 	# Clear any drone_bits primary-piggyback hook left over from the old
 	# design — fire_primary checks this array, and we don't want shield
-	# drones contributing extra bullets.
+	# drones contributing extra bullets. Snapshot first so unapply can restore.
 	if "drone_bits" in ship:
+		_prev_drone_bits = ship.drone_bits.duplicate()
+		_had_prev_drone_bits = true
 		ship.drone_bits = []
 
 
@@ -45,7 +49,12 @@ func unapply(ship) -> void:
 			d.queue_free()
 	_spawned_drones.clear()
 	if "drone_bits" in ship:
-		ship.drone_bits = []
+		if _had_prev_drone_bits:
+			ship.drone_bits = _prev_drone_bits
+		else:
+			ship.drone_bits = []
+	_prev_drone_bits = []
+	_had_prev_drone_bits = false
 
 
 func _spawn_drones(ship) -> void:
