@@ -141,6 +141,16 @@ never committed then — I've now committed them properly (new commit). The othe
   top would be far more disruptive than a cosmetically-wrong message. Want me to leave it (rec) or do
   something? I've switched to pathspec-limited commits (`git commit -- <paths>`) so it can't recur.
 
+## 📌 Pinned / parked (revisit later)
+
+- **Optional authored node-slot layout for the sector map.** POI placement is currently *procedural*
+  (`run_state._gen_row_pois` — even spacing + jitter, which fixed the left-bias). The old per-POI
+  `row_N_poi_M` markers in `sector_map_v3.tscn` are now dead/ignored. If you want **hand-placed node
+  slots** back (a fixed template per row the generator fills), the plan is: add an optional marker-slot
+  path the gen *shuffles* enemies/events into — giving authored positions while keeping distribution
+  un-biased. (Star/boss/label markers in `sector_map_v3.tscn` ARE still live — edit those to move
+  stars/bosses/labels.) — Pinned 2026-06-08 at Roman's request.
+
 ## Decisions I need from you
 
 1. **`main.gd:802` old-sector-map round-trip** — the asteroid-hazard exit loads the raw

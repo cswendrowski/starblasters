@@ -101,6 +101,11 @@ landed. Grouped by effort.
   planet parity holds). Per-row variety now keys off run + node identity. NEEDS EYEBALL across runs.
 
 ### Sector Map (likely separate scope)
+- [ ] **(PINNED 2026-06-08) Optional authored node-slot layout** — POI placement is now procedural
+  (`run_state._gen_row_pois`); the per-POI `row_N_poi_M` markers in `sector_map_v3.tscn` are dead.
+  If hand-placed node slots are wanted back, add an optional marker-slot path the generator shuffles
+  into (authored positions + un-biased distribution). Star/boss/label markers are still live. Deferred
+  at Roman's request — "I might."
 - [x] **Planet-kit range not exercised** — DONE (lead 2026-06-08, `c36a044`). Every per-POI
   deco/planet/moon seed in `sector_map_v3.gd` now xors `run_seed` (all sites in lockstep so the map
   planet still matches the combat planet). Varies across runs, stable within a run. NEEDS EYEBALL.
