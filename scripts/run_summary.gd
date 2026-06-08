@@ -22,7 +22,13 @@ func _ready() -> void:
 	# Run is over (death or victory) — wipe the resume save so Main Menu's
 	# Resume Patrol doesn't drop the player back into a corpse run.
 	if has_node("/root/Run"):
-		get_node("/root/Run").clear_save()
+		var _run = get_node("/root/Run")
+		_run.clear_save()
+		# Append this run to the dated history index — but only on the REAL death
+		# flow (this scene IS the current scene), not when run_summary is instanced
+		# under a Node2D for showcase capture (which would log a bogus 0-stat run).
+		if get_tree().current_scene == self:
+			_run.record_run_history("died")
 	# Force the root + Center to fill the viewport, regardless of parent.
 	# When this scene is loaded by change_scene_to_file Godot auto-fills,
 	# but when instanced under a Node2D (showcase capture) it stays 0x0.

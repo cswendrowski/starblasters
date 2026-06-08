@@ -205,6 +205,48 @@ func _load_codex() -> void:
 		for p in parsed:
 			encountered_enemies[String(p)] = true
 
+
+# ---- Run history persistence ------------------------------------------
+# Dated index of past runs (separate JSON channel from the .tres resume save).
+# Uses only already-accumulated Run stats — no new instrumentation.
+const HISTORY_SAVE_PATH := "user://run_history.json"
+const HISTORY_MAX_ENTRIES := 50
+
+# Append a record of the just-ended run. Call on run-end (death now; victory when
+# that path exists) BEFORE new_run() resets the stats.
+func record_run_history(outcome: String) -> void:
+	var record := {
+		"date": Time.get_datetime_string_from_system(false, true),
+		"outcome": outcome,
+		"kills": int(enemies_killed),
+		"boss_kills": int(bosses_defeated),
+		"sectors": int(sectors_cleared),
+		"bounty": int(max_bounty_earned),
+		"distance": int(run_distance),
+		"seed": int(run_seed),
+	}
+	var hist: Array = load_run_history()
+	hist.append(record)
+	# Cap to the most recent N so the file can't grow without bound.
+	if hist.size() > HISTORY_MAX_ENTRIES:
+		hist = hist.slice(hist.size() - HISTORY_MAX_ENTRIES, hist.size())
+	var f := FileAccess.open(HISTORY_SAVE_PATH, FileAccess.WRITE)
+	if f == null:
+		return
+	f.store_string(JSON.stringify(hist))
+
+
+func load_run_history() -> Array:
+	if not FileAccess.file_exists(HISTORY_SAVE_PATH):
+		return []
+	var f := FileAccess.open(HISTORY_SAVE_PATH, FileAccess.READ)
+	if f == null:
+		return []
+	var parsed = JSON.parse_string(f.get_as_text())
+	if parsed is Array:
+		return parsed
+	return []
+
 # ── Sector modifier query helpers ──────────────────────────────────────────
 # Single seam for asking "is modifier X active on the current combat?". Any
 # gameplay site (enemy stat tweak, spawn-chance hook, payout, etc.) should
