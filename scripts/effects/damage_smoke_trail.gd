@@ -176,26 +176,45 @@ func _clear_line() -> void:
 	_point_t.clear()
 
 
-# Build a 64×16 grayscale noise texture (white spots on alpha=0). Tiled
+# Build a 128×16 grayscale noise texture (white billows on alpha=0). Tiled
 # along the Line2D's length, it modulates the strip's solid color so the
 # trail reads as billowy smoke rather than a uniform band.
+#
+# Roman 2026-06-08: the old texture multiplied sin(x)·cos(y), which is a
+# separable grid — it produced regular vertical/horizontal STRIPES with hard
+# dark streaks rather than organic smoke. Rebuilt on FastNoiseLite fBm. To kill
+# the tiling seam (the texture repeats along the whole trail), the X axis is
+# sampled around a CIRCLE in 3D noise space so the left and right edges meet
+# seamlessly; Y (across the strip width) is sampled linearly and feathered.
 static func _build_noise_texture() -> Texture2D:
-	const W: int = 64
+	const W: int = 128
 	const H: int = 16
+	# Loop radius for the seamless X-wrap (bigger = more billows along length).
+	const LOOP_RADIUS: float = 3.0
+	const Y_SCALE: float = 0.18   # variation across the strip width
 	var img := Image.create(W, H, false, Image.FORMAT_RGBA8)
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 0xBEEF
+	var noise := FastNoiseLite.new()
+	noise.seed = 0xBEEF
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+	noise.fractal_octaves = 3          # extra octaves = smoother, more detailed billows
+	noise.frequency = 1.0              # coords are scaled manually below
 	for y in H:
 		for x in W:
-			# Smooth value-noise-ish: blend a low-frequency wave with
-			# random spots so the texture has both structure and grain.
-			var base: float = 0.6 + 0.4 * sin(float(x) * 0.35) * cos(float(y) * 0.6)
-			var grain: float = rng.randf_range(0.6, 1.0)
-			# Edges of the strip (top/bottom of texture) feather to 0 so
-			# the line's outer pixels are soft rather than hard-cut.
+			# Sample on a circle in (nx, ny) so x=0 and x=W meet without a seam.
+			var ang: float = TAU * float(x) / float(W)
+			var nx: float = cos(ang) * LOOP_RADIUS
+			var ny: float = sin(ang) * LOOP_RADIUS
+			var nz: float = float(y) * Y_SCALE
+			var n: float = noise.get_noise_3d(nx, ny, nz)   # -1..1
+			# Map to 0..1 and lift contrast a touch so billows read as billows,
+			# not flat grey, but without the old hard black streaks.
+			var base: float = clamp((0.5 + 0.5 * n) * 1.15, 0.0, 1.0)
+			# Edges of the strip (top/bottom of texture) feather to 0 so the
+			# line's outer pixels are soft rather than hard-cut.
 			var v: float = float(y) / float(H - 1)
 			var feather: float = 1.0 - pow(abs(v - 0.5) * 2.0, 2.4)
 			feather = clamp(feather, 0.0, 1.0)
-			var a: float = clamp(base * grain * feather, 0.0, 1.0)
+			var a: float = clamp(base * feather, 0.0, 1.0)
 			img.set_pixel(x, y, Color(1.0, 1.0, 1.0, a))
 	return ImageTexture.create_from_image(img)

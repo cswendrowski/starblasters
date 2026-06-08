@@ -116,6 +116,11 @@ static func attach_to_player(player: Node2D, nozzle: Vector2 = NOZZLE_OFFSET_DEF
 	mat.set_shader_parameter("size", FLAME_SIZE_MIN)
 	# Start faint; severity ramp in _on_hull_changed drives this up.
 	mat.set_shader_parameter("alpha", ALPHA_MIN)
+	# Per-instance randomization (Roman 2026-06-08): without this every torch
+	# shares the same TIME + hash pattern and animates in identical lockstep.
+	# A random time-phase + seed makes each flame look its own.
+	mat.set_shader_parameter("timeOffset", randf_range(0.0, 1000.0))
+	mat.set_shader_parameter("seedOffset", randf_range(0.0, 100.0))
 	torch.material = mat
 	torch._mat = mat
 	torch._player = player

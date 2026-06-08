@@ -284,6 +284,26 @@ func _update_damage_visual() -> void:
 	_damage_material.set_shader_parameter("sensitivity", lvl)
 
 
+# White hit-flash. On ships the damage material owns the sprite's material slot, so we
+# drive its flash_strength uniform (and the per-hit damage update lands during the flash
+# for a seamless reveal). Enemies without a damage material use the standalone flash.
+func _flash_hit() -> void:
+	if _dying:
+		return
+	if _damage_material != null:
+		_damage_material.set_shader_parameter("flash_strength", 1.0)
+		var mat := _damage_material
+		var tw := create_tween()
+		tw.tween_method(
+			func(v: float):
+				if is_instance_valid(mat):
+					mat.set_shader_parameter("flash_strength", v),
+			1.0, 0.0, 0.12)
+	elif has_node("Sprite2D"):
+		var HF = load("res://scripts/effects/hit_flash_fx.gd")
+		HF.flash($Sprite2D, HF.FLASH_WHITE)
+
+
 # ---- Bullet hit pipeline -----------------------------------------------
 
 # Single damage entry point. Returns true if the hit was fatal so callers
@@ -306,6 +326,10 @@ func take_hit(damage: int = 1) -> bool:
 			else:
 				ShieldSfx2.play_hit(get_tree().root, global_position)
 		return false
+	# White flash on every non-shield hit (Roman 2026-06-08). Ships carry the damage
+	# material in their only material slot, so the flash rides ON that material; other
+	# enemies use the standalone hit_flash shader.
+	_flash_hit()
 	# Behavior components participate in the damage pipeline (Shield / armor / reflect)
 	# before the hull subtraction; on_hit returns the REMAINING damage (m6 §3.1). No-op
 	# while components is empty.

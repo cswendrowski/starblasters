@@ -30,7 +30,10 @@ static func _material() -> ShaderMaterial:
 		_mat = ShaderMaterial.new()
 		_mat.shader = OUTLINE_SHADER
 		_mat.set_shader_parameter("clr", Color(0, 0, 0, 1))
-		_mat.set_shader_parameter("type", 2)        # 2 = square (8-neighbour)
+		# Match the asteroid outline (Roman 2026-06-08, "asteroid settings are correct"):
+		# the asteroid procgen shader uses a 4-NEIGHBOUR 1px black outline, so ships use
+		# type 1 (4-neighbour) too — was type 2 (8-neighbour) which read heavier on corners.
+		_mat.set_shader_parameter("type", 1)
 		_mat.set_shader_parameter("thickness", 1.0)
 	return _mat
 

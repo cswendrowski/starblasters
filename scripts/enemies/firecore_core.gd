@@ -12,7 +12,6 @@ extends Node2D
 # scene mid-instantiation and fail. Author the wrapper under the hull (z_index -1).
 
 const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
-const EngineTrailFx = preload("res://scripts/effects/engine_trail_fx.gd")
 const GLOW_COLOR := Color(1.0, 0.95, 0.2)   # bright yellow diffuse glow
 
 
@@ -22,7 +21,7 @@ func _ready() -> void:
 		spr.play("default")
 		# Double brightness + size so firecores really pop (Roman 2026-06-07).
 		GlowShaderFx.apply(spr, GLOW_COLOR, 2.0, 2.0)
-	# Yellow engine trail off the core so it streaks as the enemy moves.
-	var trail = EngineTrailFx.new()
-	add_child(trail)
-	trail.setup(self, [self])
+	# NOTE: no engine trail here (Roman 2026-06-08). The decorative core sits at the
+	# CENTER of every ship that carries one, so a trail off it gave every such enemy a
+	# spurious central streak. The standalone firecore HAZARD gets its trail from an
+	# Engine marker in its own scene instead.

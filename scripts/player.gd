@@ -354,13 +354,15 @@ func _ready() -> void:
 	# Oblique drop-shadow under the ship sprite (code-only; no .tscn edits).
 	var ShadowFx = load("res://scripts/shadow_fx.gd")
 	ShadowFx.attach_shadow($Ship)
-	# Engine glow under the booster animation so the thrust reads as a
-	# light source. Cyan-blue to match the booster art.
-	var GlowFx = load("res://scripts/effects/glow_fx.gd")
+	# Engine glow under the booster animation so the thrust reads as a light
+	# source. Cyan-blue to match the booster art. Roman 2026-06-08: dropped the
+	# old radial GradientTexture2D glow (glow_fx.attach_glow — a hard-edged 2D
+	# gradient blob) in favour of the shared shader bloom, which fades a diffuse
+	# halo off the booster sprite's own silhouette.
 	if $Ship.has_node("Boosters"):
-		var booster: Node2D = $Ship.get_node("Boosters") as Node2D
-		var glow = GlowFx.attach_glow($Ship, Color(0.45, 0.85, 1.0), 1.2, 0.75)
-		glow.position = booster.position
+		var booster: CanvasItem = $Ship.get_node("Boosters") as CanvasItem
+		if booster != null:
+			GlowShaderFx.apply(booster, Color(0.45, 0.85, 1.0))
 	# Remember the scene's default exhaust lifetime so focus mode can double it
 	# and restore the exact baseline on release.
 	if $Ship.has_node("GPUParticles2D"):

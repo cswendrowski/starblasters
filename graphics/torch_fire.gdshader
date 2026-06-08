@@ -25,6 +25,14 @@ uniform float pixelSize : hint_range(0.001, 0.1) = 0.015;
 uniform float alpha : hint_range(0.0, 1.0) = 0.95;
 uniform float flickerStrength : hint_range(0.0, 0.5) = 0.15;
 
+// Per-instance time + spatial seed (Roman 2026-06-08). Every torch shared one
+// material/TIME, so all flames animated in perfect lockstep and looked identical.
+// timeOffset desyncs the animation phase; seedOffset shifts the particle hash
+// pattern so two flames don't share the same spark/ember layout. Both set per
+// instance by engine_torch.gd.
+uniform float timeOffset = 0.0;
+uniform float seedOffset = 0.0;
+
 // =============================================================================
 // COLOR & HUE UNIFORMS
 // =============================================================================
@@ -111,7 +119,7 @@ vec3 Simulate(vec2 uv, float t) {
 	vec3 res = vec3(0.0);
 	for (float i = 0.0; i < particleCount; i++) {
 		float ct = fract(t + (i + 1.0) / particleCount);
-		float seed = Hash1((i + 1.0) * (t - ct));
+		float seed = Hash1((i + 1.0) * (t - ct) + seedOffset * 53.13);
 		vec2 dir = vec2(0.0, size.y);
 		dir.x += windForce;
 		dir.x += (cos(t * seed) * sin(ct * fireShiftFrequency)) * mix(0.0, fireShift, log(ct));
@@ -171,7 +179,7 @@ void fragment() {
 
 	vec2 pixelated_frag = floor(frag_coords / pixelSize) * pixelSize;
 
-	float base_time = TIME + 100.0;
+	float base_time = TIME + 100.0 + timeOffset;
 
 	vec3 fire_color = Simulate(pixelated_frag, base_time * speed);
 	vec3 spark_color = SimulateSparks(pixelated_frag, base_time);
