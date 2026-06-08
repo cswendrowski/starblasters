@@ -57,7 +57,7 @@ const _NO_COLOR := Color(0, 0, 0, -1.0)  # sentinel: scanned, nothing usable
 # AnimatedSprite2D. If `color_override.a > 0` that color is used directly;
 # otherwise the color is auto-derived from the host's texture. Returns the
 # glow node, or null if no glow could be made (no derivable color / no texture).
-static func apply(host: CanvasItem, color_override: Color = Color(0, 0, 0, 0)) -> CanvasItem:
+static func apply(host: CanvasItem, color_override: Color = Color(0, 0, 0, 0), intensity_mult: float = 1.0, halo_mult: float = 1.0) -> CanvasItem:
 	if host == null:
 		return null
 
@@ -89,8 +89,9 @@ static func apply(host: CanvasItem, color_override: Color = Color(0, 0, 0, 0)) -
 			tex_h = tex_h / float(s2d_for_size.vframes)
 	if tex_w <= 0.0 or tex_h <= 0.0:
 		return null
-	var sx: float = (tex_w + 2.0 * HALO_PX) / tex_w
-	var sy: float = (tex_h + 2.0 * HALO_PX) / tex_h
+	var halo_px: float = HALO_PX * halo_mult
+	var sx: float = (tex_w + 2.0 * halo_px) / tex_w
+	var sy: float = (tex_h + 2.0 * halo_px) / tex_h
 
 	# --- glow node ---
 	# The glow node is ALWAYS a plain Sprite2D carrying a SINGLE-FRAME texture
@@ -129,7 +130,7 @@ static func apply(host: CanvasItem, color_override: Color = Color(0, 0, 0, 0)) -
 	# It varies per aspect ratio, so it MUST be part of the material cache key —
 	# sharing one material across different-aspect bullets would mis-size the
 	# bloom (a thin bolt's scale leaking onto a round orb, etc.).
-	glow.material = _get_material(color, Vector2(sx, sy))
+	glow.material = _get_material(color, Vector2(sx, sy), intensity_mult)
 
 	# Parent behind the host's own sprite. The host is the Sprite2D /
 	# AnimatedSprite2D; add the glow as its sibling under the host's parent so
@@ -192,14 +193,14 @@ static func _host_texture(host: CanvasItem) -> Texture2D:
 # quad_scale (the per-axis upscale of this quad) IS a shader uniform and varies
 # by sprite aspect ratio, so it belongs in the key: bullets that share both a
 # color AND an aspect-derived scale share one material.
-static func _get_material(color: Color, quad_scale: Vector2) -> ShaderMaterial:
-	var key: String = "%s|%.3f|%.3f" % [color.to_html(true), quad_scale.x, quad_scale.y]
+static func _get_material(color: Color, quad_scale: Vector2, intensity_mult: float = 1.0) -> ShaderMaterial:
+	var key: String = "%s|%.3f|%.3f|%.2f" % [color.to_html(true), quad_scale.x, quad_scale.y, intensity_mult]
 	if _mat_cache.has(key):
 		return _mat_cache[key]
 	var mat := ShaderMaterial.new()
 	mat.shader = GLOW_SHADER
 	mat.set_shader_parameter("glow_color", color)
-	mat.set_shader_parameter("intensity", INTENSITY)
+	mat.set_shader_parameter("intensity", INTENSITY * intensity_mult)
 	mat.set_shader_parameter("blur_px", BLUR_PX)
 	mat.set_shader_parameter("falloff", FALLOFF)
 	mat.set_shader_parameter("quad_scale", quad_scale)

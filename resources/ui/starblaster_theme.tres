@@ -1,6 +1,6 @@
-[gd_resource type="Theme" format=3]
+[gd_resource type="Theme" format=3 uid="uid://dlmd6488u5dva"]
 
-[ext_resource type="FontFile" path="res://graphics/fonts/PixelOperator.ttf" id="1_et0qi"]
+[ext_resource type="FontFile" uid="uid://da377e6y8gadk" path="res://graphics/fonts/PixelOperator.ttf" id="1_et0qi"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_et0qi"]
 content_margin_left = 20.0

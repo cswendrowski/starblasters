@@ -1,6 +1,6 @@
-[gd_scene load_steps=5 format=3 uid="uid://bspush0000001"]
+[gd_scene format=3 uid="uid://bspush0000001"]
 
-[ext_resource type="Script" path="res://scripts/enemies/factions/supremacy/enemy_push.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://b0sn18mjsb3u6" path="res://scripts/enemies/factions/supremacy/enemy_push.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://bicbjdr5c40tc" path="res://graphics/enemies/enemy_s_m_push.png" id="2_tex"]
 [ext_resource type="Script" uid="uid://bj8dc3ktx8bt1" path="res://scripts/enemies/patterns/straight_down.gd" id="3_mov"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="4_die"]
@@ -8,34 +8,58 @@
 [sub_resource type="Resource" id="MovePattern"]
 script = ExtResource("3_mov")
 speed = 60.0
-drift_x = 0.0
 
 [sub_resource type="RectangleShape2D" id="Hit"]
-size = Vector2(32, 64)
+size = Vector2(30, 63)
 
-[node name="Enemy" type="Area2D" groups=["enemies"]]
+[node name="Enemy" type="Area2D" unique_id=1312047450 groups=["enemies"]]
 script = ExtResource("1_script")
 movement = SubResource("MovePattern")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1600621428]
 texture = ExtResource("2_tex")
 hframes = 2
 
-[node name="GlowMask" type="Sprite2D" parent="."]
+[node name="GlowMask" type="Sprite2D" parent="." unique_id=1711695760]
 texture = ExtResource("2_tex")
 hframes = 2
 frame = 1
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1496869312]
+position = Vector2(0, -0.5)
 shape = SubResource("Hit")
 
-[node name="MoveTimer" type="Timer" parent="."]
+[node name="EngineL" type="Marker2D" parent="CollisionShape2D" unique_id=1348105926]
+position = Vector2(-10, 28)
+
+[node name="EngineL2" type="Marker2D" parent="CollisionShape2D" unique_id=1355414774]
+position = Vector2(-12, 30)
+
+[node name="EngineL3" type="Marker2D" parent="CollisionShape2D" unique_id=2125309005]
+position = Vector2(-7, 30)
+
+[node name="EngineR" type="Marker2D" parent="CollisionShape2D" unique_id=384316647]
+position = Vector2(10, 28)
+
+[node name="EngineR2" type="Marker2D" parent="CollisionShape2D" unique_id=1291569759]
+position = Vector2(8, 30)
+
+[node name="EngineR3" type="Marker2D" parent="CollisionShape2D" unique_id=628381918]
+position = Vector2(13, 30)
+
+[node name="Turret1" type="Marker2D" parent="CollisionShape2D" unique_id=711387776]
+position = Vector2(0, -22)
+
+[node name="Turret2" type="Marker2D" parent="CollisionShape2D" unique_id=1602098251]
+position = Vector2(0, -4)
+
+[node name="MoveTimer" type="Timer" parent="." unique_id=1975128440]
 one_shot = true
 
-[node name="ShootTimer" type="Timer" parent="."]
+[node name="ShootTimer" type="Timer" parent="." unique_id=1173289907]
 one_shot = true
 
-[node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=557651409]
 stream = ExtResource("4_die")
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]

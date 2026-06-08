@@ -1,62 +1,70 @@
-[gd_scene load_steps=9 format=3 uid="uid://bzsword00001"]
+[gd_scene format=3 uid="uid://b0sword00001"]
 
 [ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemy_core.gd" id="1_core"]
 [ext_resource type="Texture2D" uid="uid://xscbsw2doqjm" path="res://graphics/enemies/enemy_z_s_sword.png" id="2_tex"]
 [ext_resource type="Script" uid="uid://bj8dc3ktx8bt1" path="res://scripts/enemies/patterns/straight_down.gd" id="3_mov"]
-[ext_resource type="PackedScene" uid="uid://bfirecorecore0" path="res://scenes/enemies/firecore_core.tscn" id="4_corevis"]
+[ext_resource type="PackedScene" uid="uid://uoof4kuon0td" path="res://scenes/enemies/factions/zealot/firecore_core.tscn" id="4_corevis"]
 [ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="5_shoot"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="6_die"]
 
 [sub_resource type="Resource" id="MovePattern"]
 script = ExtResource("3_mov")
 speed = 150.0
-drift_x = 0.0
 
 [sub_resource type="RectangleShape2D" id="Hit"]
-size = Vector2(16, 16)
+size = Vector2(16, 32)
 
-[node name="Enemy" type="Area2D" groups=["enemies"]]
+[node name="Enemy" type="Area2D" unique_id=354957993 groups=["enemies"]]
 script = ExtResource("1_core")
 movement = SubResource("MovePattern")
 
-[node name="FirecoreCore" parent="." instance=ExtResource("4_corevis")]
+[node name="FirecoreCore" parent="." unique_id=655469713 instance=ExtResource("4_corevis")]
 position = Vector2(0, -5)
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=869068400]
 texture = ExtResource("2_tex")
 hframes = 2
 
-[node name="GlowMask" type="Sprite2D" parent="."]
+[node name="GlowMask" type="Sprite2D" parent="." unique_id=721256683]
 texture = ExtResource("2_tex")
 hframes = 2
 frame = 1
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=207114364]
 shape = SubResource("Hit")
 
-[node name="MoveTimer" type="Timer" parent="."]
+[node name="MoveTimer" type="Timer" parent="." unique_id=1380023245]
 one_shot = true
 
-[node name="ShootTimer" type="Timer" parent="."]
+[node name="ShootTimer" type="Timer" parent="." unique_id=674172378]
 one_shot = true
 
-[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="."]
+[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="." unique_id=892052681]
 stream = ExtResource("5_shoot")
 
-[node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=6464871]
 stream = ExtResource("6_die")
 
-[node name="Muzzle1" type="Marker2D" parent="."]
-position = Vector2(-4, 6)
+[node name="MuzzleF" type="Marker2D" parent="." unique_id=1860679479]
+position = Vector2(0, -14)
 
-[node name="Muzzle2" type="Marker2D" parent="."]
-position = Vector2(-1, 7)
+[node name="Muzzle1" type="Marker2D" parent="." unique_id=1042893244]
+position = Vector2(0, -10)
 
-[node name="Muzzle3" type="Marker2D" parent="."]
-position = Vector2(1, 7)
+[node name="Muzzle2" type="Marker2D" parent="." unique_id=1266181458]
+position = Vector2(0, -6)
 
-[node name="Muzzle4" type="Marker2D" parent="."]
-position = Vector2(4, 6)
+[node name="Muzzle3" type="Marker2D" parent="." unique_id=1316847226]
+position = Vector2(0, -2)
+
+[node name="Muzzle4" type="Marker2D" parent="." unique_id=950605999]
+position = Vector2(0, 2)
+
+[node name="EngineL" type="Marker2D" parent="." unique_id=1578016475]
+position = Vector2(-4, 14)
+
+[node name="EngineR" type="Marker2D" parent="." unique_id=1371445725]
+position = Vector2(4, 14)
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
 [connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

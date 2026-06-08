@@ -265,9 +265,10 @@ func _start_cycle() -> void:
 		$ShootTimer.stop()
 	set_deferred("monitorable", false)
 	set_deferred("monitoring", false)
-	# Drop the hull outline for the whole fly-back: a recycling ship reads as
-	# faux-parallax (shrunk + tinted), and parallax objects don't get the outline.
+	# Drop the hull outline + engine exhaust for the whole fly-back: a recycling ship
+	# reads as faux-parallax (shrunk + tinted), which shouldn't carry either effect.
 	_set_outline_visible(false)
+	set_engine_trail_emitting(false)
 	visible = false
 	# Cody, 2026-05-18: "Ships looping back around in the background could
 	# be brought up in speed, there's a lot of dead time waiting for them."
@@ -309,7 +310,8 @@ func _start_cycle() -> void:
 		return
 	scale = _pre_cycle_scale
 	modulate = _pre_cycle_modulate
-	_set_outline_visible(true)   # back on the gameplay layer — restore the outline
+	_set_outline_visible(true)        # back on the gameplay layer — restore the outline
+	set_engine_trail_emitting(true)   # ...and the engine exhaust
 	start_pos = position
 	_cycling = false
 	# Reset the auto-rotate position tracker so the first post-cycle

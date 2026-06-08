@@ -174,5 +174,11 @@ stream = ExtResource("5_die")
 [node name="Muzzle" type="Marker2D" parent="." unique_id=1625331717]
 position = Vector2(0, -4)
 
+[node name="EngineL" type="Marker2D" parent="." unique_id=1040219365]
+position = Vector2(-3, 6)
+
+[node name="EngineR" type="Marker2D" parent="." unique_id=1630195758]
+position = Vector2(3, 6)
+
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
 [connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3 uid="uid://bcorpdrop0001"]
+[gd_scene format=3 uid="uid://bcorpdrop0001"]
 
 [ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemy_core.gd" id="1_core"]
 [ext_resource type="Texture2D" uid="uid://c5mkvidvtb4j1" path="res://graphics/enemies/enemy_c_s_drop.png" id="2_tex"]
@@ -9,46 +9,51 @@
 [sub_resource type="Resource" id="MovePattern"]
 script = ExtResource("3_mov")
 speed = 180.0
-drift_x = 0.0
 
 [sub_resource type="RectangleShape2D" id="Hit"]
 size = Vector2(16, 16)
 
-[node name="Enemy" type="Area2D" groups=["enemies"]]
+[node name="Enemy" type="Area2D" unique_id=748951902 groups=["enemies"]]
 script = ExtResource("1_core")
 movement = SubResource("MovePattern")
 fire_path_phases = PackedFloat32Array(0.15, 0.3, 0.45, 0.6, 0.75)
 fire_beat_synced = false
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1366210150]
 texture = ExtResource("2_tex")
 hframes = 2
 
-[node name="GlowMask" type="Sprite2D" parent="."]
+[node name="GlowMask" type="Sprite2D" parent="." unique_id=1495705610]
 texture = ExtResource("2_tex")
 hframes = 2
 frame = 1
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=193890827]
 shape = SubResource("Hit")
 
-[node name="MoveTimer" type="Timer" parent="."]
+[node name="MoveTimer" type="Timer" parent="." unique_id=613420345]
 one_shot = true
 
-[node name="ShootTimer" type="Timer" parent="."]
+[node name="ShootTimer" type="Timer" parent="." unique_id=1199834209]
 one_shot = true
 
-[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="."]
+[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="." unique_id=763800004]
 stream = ExtResource("4_shoot")
 
-[node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=99033013]
 stream = ExtResource("5_die")
 
-[node name="MuzzleL" type="Marker2D" parent="."]
-position = Vector2(-6, -6)
+[node name="MuzzleL" type="Marker2D" parent="." unique_id=786021423]
+position = Vector2(-5, 4)
 
-[node name="MuzzleR" type="Marker2D" parent="."]
-position = Vector2(6, -6)
+[node name="MuzzleR" type="Marker2D" parent="." unique_id=1649975901]
+position = Vector2(5, 4)
+
+[node name="EngineL" type="Marker2D" parent="." unique_id=984030359]
+position = Vector2(-2, 6)
+
+[node name="EngineR" type="Marker2D" parent="." unique_id=972461263]
+position = Vector2(2, 6)
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
 [connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

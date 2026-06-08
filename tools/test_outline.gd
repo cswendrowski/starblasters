@@ -7,9 +7,9 @@ extends SceneTree
 
 const RESULT := "res://tools/_outline_result.txt"
 
-const SHIP := "res://scenes/enemies/core/enemy_dart.tscn"            # single-frame hull
+const SHIP := "res://scenes/enemies/factions/privateer/enemy_dart.tscn"   # single-frame hull
 const SHIP_GLOW := "res://scenes/enemies/factions/privateer/enemy_p_s_green.tscn"  # 2-frame hull+glow
-const FIRECORE := "res://scenes/enemies/firecore_hazard.tscn"        # excepted
+const FIRECORE := "res://scenes/enemies/factions/zealot/firecore_hazard.tscn"        # excepted
 const BOMBLET := "res://scenes/enemies/bomblet.tscn"                 # excepted (if present)
 
 var _lines: Array = []

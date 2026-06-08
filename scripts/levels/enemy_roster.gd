@@ -42,6 +42,7 @@ const BeelinePlayer = preload("res://scripts/enemies/patterns/beeline_player.gd"
 const BulwarkDrift = preload("res://scripts/enemies/patterns/bulwark_drift.gd")
 const LanePath = preload("res://scripts/enemies/patterns/lane_path.gd")
 const OmniThrust = preload("res://scripts/enemies/patterns/omni_thrust.gd")
+const JetCharger = preload("res://scripts/enemies/patterns/jet_charger.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
 
 # Faction pool filter (M6b): set by WaveGen.build for the duration of one generation so
@@ -95,28 +96,21 @@ const BV_DropPellet   = preload("res://data/bullets/drop_pellet.tres")
 const ENTRIES := [
 	# --- COMMON -----------------------------------------------------------
 	{
-		"scene": "res://scenes/enemies/core/enemy_spitter.tscn",
+		# Shiv (M6c, Roman 2026-06-07) — zealot Dart-equivalent: a CHARGER (cruise in,
+		# turn to aim, dive at the player), NO weapon, drops a firecore (baked on scene).
+		# Takes the retired spitter's opener slot (spitter unified into enemy_z_s_run).
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_shiv.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "firecore_straight",
-		"shoot": "single_diagonal",
-		"bullet_variant": BV_SpreadPellet,
-		"base_count": 6,
-		# Fire-rate pass (2026-05-30, Roman): chaff was firing every ~2.0-3.5s
-		# and felt passive. Tightened to ~1.4-2.3s (~35% faster) so firecore
-		# reads as active without becoming a wall. Keeps min<max jitter so
-		# volleys desync. First-pass — tune in playtest.
-		"fire_min": 1.4, "fire_max": 2.3,
-		# Firecore is a shooting common — a gentle diagonal popper. Pulled to the
-		# sector-1 opener (unlock_depth 0) on 2026-06-04 to widen the shallow opener
-		# pool (was only dart/bomb_drone/drifter — 3 types, 2 identical fast_straight).
-		# Its slow fire (1.4-2.3s) + low weight keep the opener readable while adding
-		# a 3rd movement archetype + the first taste of return fire. (Was S2/D5.)
-		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.7, "chaff": true,
-		"conflict_tags": ["aimed_or_spread"],
+		"movement": "jet_charger",
+		"shoot": null,
+		"base_count": 8,
+		"recycle": 0,
+		"hp_override": 1, "bounty_override": 5,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "chaff": true, "wall": true,
 	},
 	{
-		"scene": "res://scenes/enemies/core/enemy_dart.tscn",
+		"scene": "res://scenes/enemies/factions/privateer/enemy_dart.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "fast_straight",
@@ -243,11 +237,12 @@ const ENTRIES := [
 	# (path-phase, since it's a monotonic descent); the cross variant rakes the lane
 	# on the timer while traversing. Zealot-exclusive enemy_core.
 	{
-		# Sword (advance) — pushes straight down a lane firing forward.
+		# Sword (advance) — SLOW lane pusher (Roman 2026-06-07: was far too fast at
+		# firecore_straight/180; slow_advance is ~1 px/f). Pushes straight down firing.
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_sword.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "firecore_straight",
+		"movement": "slow_advance",
 		"shoot": "single",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 3,
@@ -356,7 +351,6 @@ const ENTRIES := [
 		"movement": "loiter_mid",
 		"shoot": "aimed",
 		"bullet_variant": BV_PlasmaOrb,
-		"wobble_amplitude": 8.0, "wobble_frequency": 3.0,
 		"base_count": 2,
 		"fire_min": 1.6, "fire_max": 2.4,
 		"hp_override": 8, "bounty_override": 18,
@@ -370,7 +364,6 @@ const ENTRIES := [
 		"movement": "lane_weave",
 		"shoot": "aimed",
 		"bullet_variant": BV_PlasmaOrb,
-		"wobble_amplitude": 8.0, "wobble_frequency": 3.0,
 		"base_count": 2,
 		"fire_min": 1.6, "fire_max": 2.4,
 		"hp_override": 8, "bounty_override": 18,
@@ -384,7 +377,6 @@ const ENTRIES := [
 		"movement": "side_traverse",   # slide across
 		"shoot": "aimed",
 		"bullet_variant": BV_PlasmaOrb,
-		"wobble_amplitude": 8.0, "wobble_frequency": 3.0,
 		"base_count": 2,
 		"fire_min": 1.6, "fire_max": 2.4,
 		"hp_override": 8, "bounty_override": 18,
@@ -474,16 +466,18 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "chaff": true, "wall": true,
 	},
 	{
-		# Corp Curve — weaving chaff (no weapon), lane-confined wobble.
-		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_curve.tscn",
+		# Corp Dart (M6c, Roman 2026-06-07) — corporate version of the Dart: same fast
+		# diver role, new corp art, NO shield (faction_shield_exempt on the scene keeps
+		# the corporate overlay from shielding it). Replaces curve as corp's basic diver.
+		"scene": "res://scenes/enemies/factions/corporate/enemy_c_dart.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "lane_weave",
+		"movement": "fast_straight",
 		"shoot": null,
-		"base_count": 6,
+		"base_count": 8,
 		"recycle": 0,
 		"hp_override": 1, "bounty_override": 5,
-		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.1, "chaff": true, "wall": true,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.2, "chaff": true, "wall": true,
 	},
 	{
 		# Corp Drop — caltrop-layer; drops a path-phase trail of slow drop_pellets.
@@ -532,17 +526,18 @@ const ENTRIES := [
 		"force_even_count": true,
 	},
 	{
-		"scene": "res://scenes/enemies/core/enemy_weaver.tscn",
+		# Corp Weaver — was the universal-core enemy_weaver, now UNIFIED onto the corp
+		# enemy_c_s_curve sprite (Roman 2026-06-07): corporate-exclusive lane-weave
+		# aimed-plasma gunner. The old no-shoot c_s_curve chaff entry is retired into this
+		# (curve now carries muzzles). enemy_weaver.tscn retired from the tag table.
+		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_curve.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		# P2: Weaver behavior -> lane_path engine. In-lane wobble (lane-confined) under
-		# its aimed fire (was s_curve: a free swing wider than the band, always clamped).
 		"movement": "lane_weave",
 		"shoot": "aimed",
 		"bullet_variant": BV_PlasmaOrb,
 		# M6a.2: restore the plasma-orb wobble via the FIRING LAYER (not the bullet
 		# .tres). Matches the boss plasma signature (amp 8 / freq 3).
-		"wobble_amplitude": 8.0, "wobble_frequency": 3.0,
 		"base_count": 2,
 		"fire_min": 1.4, "fire_max": 2.2,
 		"hp_override": 2, "bounty_override": 10,
@@ -620,7 +615,11 @@ const ENTRIES := [
 	#	"conflict_tags": ["dumb_shot"],
 	#},
 	{
-		"scene": "res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn",
+		# Hold (skirmish) — the Skirmisher's behavior UNIFIED onto the corp hold scene
+		# (Roman 2026-06-07: hold has the complete/correct markers now). Aggressive
+		# aimed-fire advance/retreat, double-muzzle (the muzzle resolver cycles hold's
+		# MuzzleL/R). The hold (loiter) entry above is kept too. enemy_skirmisher retired.
+		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "advance_retreat",
@@ -629,8 +628,6 @@ const ENTRIES := [
 		"base_count": 3,
 		"fire_min": 0.7, "fire_max": 1.1,
 		"hp_override": 2, "bounty_override": 15,
-		# Skirmisher — aggressive aimed-fire advance/retreat. Sector 2, one node
-		# in. (Was D3 — pulled to D1 so it's reachable on a short sector.)
 		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.8, "chaff": true,
 		"conflict_tags": ["aimed_or_spread", "demands_focus"],
 	},
@@ -665,7 +662,6 @@ const ENTRIES := [
 		"movement": "loiter_high",
 		"shoot": "aimed",
 		"bullet_variant": BV_PlasmaOrb,
-		"wobble_amplitude": 8.0, "wobble_frequency": 3.0,
 		"base_count": 2,
 		"fire_min": 1.6, "fire_max": 2.4,
 		"hp_override": 8, "bounty_override": 18,
@@ -850,7 +846,9 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/core/enemy_crystal.tscn",
 		"tier": Tier.RARE,
 		"size": "medium", "tags": [],
-		"movement": "loiter",
+		# High hold (Roman 2026-06-07: crystal was coming too far down) — hovers in the
+		# upper band instead of the deep "loiter" hold.
+		"movement": "loiter_high",
 		"shoot": "spread5",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 2,
@@ -1131,10 +1129,18 @@ static func make_movement(entry: Dictionary) -> Resource:
 			m.drift_x = 15.0 if randf() < 0.5 else -15.0
 			return m
 		"fast_straight":
-			# Dart — 360 (was 480). 480 reaction-test variant is filed as a
-			# separate "Sprint Dart" TODO in TODO.md.
+			# Dart/chaff — 300 (5 px/f). Was 360 (6 px/f = the reflex rung); pulled down
+			# a rung so common chaff stays readable (Roman 2026-06-07: ">6 px/f is a
+			# reflex test, keep rare + mid/late). Sector scaling can still creep it up.
 			var m = StraightDown.new()
-			m.speed = 360.0
+			m.speed = 300.0
+			return m
+		"jet_charger":
+			# Charger (z_s_shiv) — cruise in, turn to aim, then CHARGE/dive at the player.
+			# Speeds kept on the rung scale (cruise ~1.5 px/f, charge 3 px/f).
+			var m = JetCharger.new()
+			m.cruise_speed = 90.0
+			m.charge_speed = 180.0
 			return m
 		"s_curve":
 			# Weaver carries aimed fire — slow carriage so the player can

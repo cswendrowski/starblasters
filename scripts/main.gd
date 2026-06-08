@@ -652,7 +652,7 @@ func _run_intro(is_boss: bool) -> void:
 # scene's "Backdrop" Node2D (above parallax, below ships, world space) — same
 # seam as boss_base.add_world_node_above_backdrop. World coords == playfield
 # coords because the combat camera is centred on (240,135).
-const MISSILE_CRUISER_SCENE := preload("res://scenes/enemies/missile_cruiser.tscn")
+const MISSILE_CRUISER_SCENE := preload("res://scenes/enemies/core/missile_cruiser.tscn")
 const MidDepthPresentation = preload("res://scripts/effects/mid_depth_presentation.gd")
 
 

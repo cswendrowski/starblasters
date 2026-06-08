@@ -8,7 +8,6 @@
 
 config_version=5
 
-
 [animation]
 
 compatibility/default_parent_skeleton_in_mesh_instance_3d=true
@@ -21,10 +20,6 @@ run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
 run/max_fps=60
 config/icon="res://Mini Pixel Pack 3/UI objects/Player_life_icon (16 x 16).png"
-
-[audio]
-
-buses/default_bus_layout="res://default_bus_layout.tres"
 
 [autoload]
 
@@ -128,7 +123,3 @@ renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_s3tc_bptc=true
 textures/vram_compression/import_etc2_astc=true
 2d/snap/snap_2d_transforms_to_pixel=true
-
-
-
-

@@ -35,10 +35,13 @@ func _process(_dt: float) -> bool:
 	_done = true
 
 	# --- Muzzles + glow on all three -----------------------------------------
-	for p in [RUSH, HOTROD, PLASMA]:
+	# rush + hotrod fire from two alternating muzzles; plasma fires from one central
+	# muzzle (Roman's scene pass). All carry a glow mask.
+	var want_muzzles := {RUSH: 2, HOTROD: 2, PLASMA: 1}
+	for p in want_muzzles:
 		var n := _inst(p)
-		if n.all_muzzle_pos().size() != 2:
-			_fail("%s should have 2 muzzles (got %d)" % [p, n.all_muzzle_pos().size()])
+		if n.all_muzzle_pos().size() != int(want_muzzles[p]):
+			_fail("%s should have %d muzzle(s) (got %d)" % [p, want_muzzles[p], n.all_muzzle_pos().size()])
 		if n.get_node_or_null("GlowMask") == null:
 			_fail("%s missing GlowMask" % p)
 		n.free()
@@ -67,10 +70,10 @@ func _process(_dt: float) -> bool:
 	if "res://scenes/enemies/factions/corporate/enemy_strafer.tscn" in Factions.ENEMY_TAGS:
 		_fail("strafer should be retired from ENEMY_TAGS")
 
-	# --- Push: twin recoil turrets, no hull muzzles, frigate retired ----------
+	# --- Push: marker-mounted recoil turrets, no hull muzzles, frigate retired -
 	var push := _inst(PUSH)
 	var turrets := 0
-	for c in push.get_children():
+	for c in push.find_children("*", "", true, false):   # turrets mount on Turret* markers
 		if "recoil_frames" in c:
 			turrets += 1
 			if int(c.recoil_frames) <= 0:
@@ -82,7 +85,10 @@ func _process(_dt: float) -> bool:
 			if dome == null or dome.hframes != 3:
 				_fail("push turret missing 3-frame dome barrel")
 	if turrets != 2:
-		_fail("push should build 2 turrets (got %d)" % turrets)
+		_fail("push should build 2 turrets on its Turret markers (got %d)" % turrets)
+	# Push has Engine* markers → gets the shared engine trail.
+	if push._engine_trail == null:
+		_fail("push (has Engine markers) should get an engine trail")
 	if push.get_node_or_null("GlowMask") == null:
 		_fail("push missing GlowMask")
 	if push.has_muzzles():

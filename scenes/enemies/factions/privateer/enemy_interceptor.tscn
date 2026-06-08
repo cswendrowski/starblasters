@@ -5,7 +5,7 @@
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
-size = Vector2(32, 32)
+size = Vector2(30, 32)
 
 [node name="Enemy" type="Area2D" unique_id=500156123 groups=["enemies"]]
 script = ExtResource("1_script")
@@ -16,7 +16,7 @@ bounty_value = 35
 texture = ExtResource("2_61u2j")
 hframes = 2
 
-[node name="GlowMask" type="Sprite2D" parent="."]
+[node name="GlowMask" type="Sprite2D" parent="." unique_id=1648538547]
 texture = ExtResource("2_61u2j")
 hframes = 2
 frame = 1
@@ -35,5 +35,8 @@ position = Vector2(-10, 2)
 
 [node name="MissileR" type="Marker2D" parent="." unique_id=1745160504]
 position = Vector2(10, 2)
+
+[node name="EngineWide" type="Marker2D" parent="." unique_id=517128381]
+position = Vector2(0, 14)
 
 [connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

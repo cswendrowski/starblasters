@@ -12,6 +12,7 @@ extends Node2D
 # scene mid-instantiation and fail. Author the wrapper under the hull (z_index -1).
 
 const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
+const EngineTrailFx = preload("res://scripts/effects/engine_trail_fx.gd")
 const GLOW_COLOR := Color(1.0, 0.95, 0.2)   # bright yellow diffuse glow
 
 
@@ -19,4 +20,9 @@ func _ready() -> void:
 	var spr := $Core as AnimatedSprite2D
 	if spr != null:
 		spr.play("default")
-		GlowShaderFx.apply(spr, GLOW_COLOR)
+		# Double brightness + size so firecores really pop (Roman 2026-06-07).
+		GlowShaderFx.apply(spr, GLOW_COLOR, 2.0, 2.0)
+	# Yellow engine trail off the core so it streaks as the enemy moves.
+	var trail = EngineTrailFx.new()
+	add_child(trail)
+	trail.setup(self, [self])

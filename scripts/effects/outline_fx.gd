@@ -49,6 +49,8 @@ static func apply(host: Sprite2D) -> Sprite2D:
 	o.texture = tex
 	o.material = _material()
 	o.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	o.z_index = -2          # behind the hull AND below the engine trail (z -1)
+	o.z_as_relative = true
 	o.centered = host.centered
 	o.flip_h = host.flip_h
 	o.flip_v = host.flip_v

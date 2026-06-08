@@ -266,6 +266,12 @@ hframes = 4
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=680700562]
 shape = SubResource("RectangleShape2D_hit")
 
+[node name="EngineL" type="Marker2D" parent="CollisionShape2D" unique_id=1074436276]
+position = Vector2(-5, 5)
+
+[node name="EngineR" type="Marker2D" parent="CollisionShape2D" unique_id=2101852852]
+position = Vector2(5, 5)
+
 [node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=2133586243]
 libraries/ = SubResource("AnimationLibrary_lib")
 autoplay = &"bounce"

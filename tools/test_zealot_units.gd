@@ -11,7 +11,7 @@ const Roster := preload("res://scripts/levels/enemy_roster.gd")
 const Factions := preload("res://scripts/levels/factions.gd")
 const StraightDown := preload("res://scripts/enemies/patterns/straight_down.gd")
 
-const CORE := "res://scenes/enemies/firecore_core.tscn"
+const CORE := "res://scenes/enemies/factions/zealot/firecore_core.tscn"
 const MANTA := "res://scenes/enemies/factions/zealot/enemy_z_s_manta.tscn"
 const RETRO := "res://scenes/enemies/factions/zealot/enemy_z_s_retro.tscn"
 const RUN := "res://scenes/enemies/factions/zealot/enemy_z_s_run.tscn"
@@ -50,7 +50,7 @@ func _always_drops(n: Node) -> bool:
 	return false
 
 
-const FIRECORE_PATH := "res://scenes/enemies/firecore_hazard.tscn"
+const FIRECORE_PATH := "res://scenes/enemies/factions/zealot/firecore_hazard.tscn"
 
 # Count DEATH emitters that drop a firecore (baked guaranteed + overlay chance both).
 func _count_firecore_drops(n: Node) -> int:
@@ -141,10 +141,8 @@ func _process(_dt: float) -> bool:
 		_fail("sword core is decorative — should NOT bake a death firecore drop")
 	sword.free()
 
-	# --- 6) Faction tags ------------------------------------------------------
-	if not Factions.allowed_in(MANTA, Factions.Id.SUPREMACY):
-		_fail("manta should be universal (allowed everywhere)")
-	for p in [RETRO, RUN, SWORD]:
+	# --- 6) Faction tags (all zealot-exclusive now; manta no longer universal) -
+	for p in [MANTA, RETRO, RUN, SWORD]:
 		if not Factions.allowed_in(p, Factions.Id.ZEALOT):
 			_fail("%s should be allowed in zealot" % p)
 		if Factions.allowed_in(p, Factions.Id.CORPORATE):

@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="BulletVariant" format=3]
 
 [ext_resource type="Script" path="res://scripts/projectiles/bullet_variant.gd" id="1_variant"]
-[ext_resource type="Texture2D" path="res://graphics/projectiles/enemy_bullet_large.png" id="2_tex"]
+[ext_resource type="Texture2D" path="res://graphics/projectiles/enemy_cannon.png" id="2_tex"]
 
 [resource]
 script = ExtResource("1_variant")

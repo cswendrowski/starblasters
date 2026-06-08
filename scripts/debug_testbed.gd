@@ -55,7 +55,7 @@ const SHOWCASE_LIST = [
 	["res://scenes/enemies/core/enemy_drifter.tscn",  "Drifter",  Vector2(280, 720), 2.5],
 	# Row 2 (y=815) — medium enemies
 	["res://scenes/enemies/core/enemy_crystal.tscn",  "Crystal",  Vector2( 80, 815), 1.6],
-	["res://scenes/enemies/core/enemy_dart.tscn",     "Dart",     Vector2(180, 815), 1.5],
+	["res://scenes/enemies/factions/privateer/enemy_dart.tscn",     "Dart",     Vector2(180, 815), 1.5],
 	["res://scenes/enemies/core/enemy_hover.tscn",    "Hover",    Vector2(280, 815), 2.0],
 	# Row 3 (y=920) — boss alone at full in-game scale
 	["res://scenes/enemies/boss.tscn",           "Boss",     Vector2(230, 920), 3.0],
