@@ -43,6 +43,7 @@ const BulwarkDrift = preload("res://scripts/enemies/patterns/bulwark_drift.gd")
 const LanePath = preload("res://scripts/enemies/patterns/lane_path.gd")
 const OmniThrust = preload("res://scripts/enemies/patterns/omni_thrust.gd")
 const JetCharger = preload("res://scripts/enemies/patterns/jet_charger.gd")
+const LaneCharge = preload("res://scripts/enemies/patterns/lane_charge.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
 
 # Faction pool filter (M6b): set by WaveGen.build for the duration of one generation so
@@ -96,13 +97,13 @@ const BV_DropPellet   = preload("res://data/bullets/drop_pellet.tres")
 const ENTRIES := [
 	# --- COMMON -----------------------------------------------------------
 	{
-		# Shiv (charger) — zealot Dart-equivalent that cruises in, turns to aim, dives.
-		# CHARGE-at-player movers come in small groups (Roman 2026-06-08): base_count 6 +
-		# no_scale so the charge wave never exceeds 6. NO weapon, baked firecore drop.
+		# Shiv (charger) — zealot Dart-equivalent: slow telegraphed entry, then accelerates
+		# hard in the firing zone and rushes the exit (lane_charge). CHARGE movers come in
+		# small groups (Roman 2026-06-08): base_count 6 + no_scale, cap 6. Baked firecore.
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_shiv.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "jet_charger",
+		"movement": "lane_charge",
 		"shoot": null,
 		"base_count": 6,
 		"no_scale": true,
@@ -1159,12 +1160,16 @@ static func make_movement(entry: Dictionary) -> Resource:
 			m.speed = 300.0
 			return m
 		"jet_charger":
-			# Charger (z_s_shiv) — cruise in, turn to aim, then CHARGE/dive at the player.
-			# Speeds kept on the rung scale (cruise ~1.5 px/f, charge 3 px/f).
+			# Cruise-in / turn-to-aim / charge jet (legacy charger). Speeds on the rung
+			# scale (cruise ~1.5 px/f, charge 3 px/f).
 			var m = JetCharger.new()
 			m.cruise_speed = 90.0
 			m.charge_speed = 180.0
 			return m
+		"lane_charge":
+			# Lane charger (Roman 2026-06-08) — slow telegraphed entry, then accelerate
+			# hard once in the firing zone and rush the exit. Defaults live on the pattern.
+			return LaneCharge.new()
 		"s_curve":
 			# Weaver carries aimed fire — slow carriage so the player can
 			# read the lead. 220→160 down, freq 1.6→1.2, amp 160→110.
