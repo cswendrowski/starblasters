@@ -68,7 +68,10 @@ func _ready() -> void:
 	start_button.hide()
 	# Warmup must defer — at _ready() the SceneTree is still building the
 	# initial scene, so add_child fails with "busy setting up children".
-	call_deferred("_warm_up_explosion")
+	# Deferring also means new_game() (line below) has already built
+	# _current_level by the time the warmup runs, so it can warm the level's
+	# real enemy/weapon set rather than a stale hardcoded list.
+	call_deferred("_warm_up_level")
 	# Volume slider lives in the pause/options menu now, not the main HUD.
 	if has_node("CanvasLayer/Volume"):
 		$CanvasLayer/Volume.visible = false
@@ -163,88 +166,116 @@ func _install_playfield_frame() -> void:
 	frame.add_theme_stylebox_override("panel", sb)
 	frame_layer.add_child(frame)
 
-func _warm_up_explosion() -> void:
-	# The first-kill freeze is the burn shader compiling against each
-	# enemy's specific Sprite2D texture + the explosion's CPU particles
-	# first-time init. Pre-compile ALL hot-path resources up-front by
-	# applying burn to every enemy's sprite and firing a few explosions.
-	var WARM_DIR = Vector2(-9999, -9999)
+# Every gameplay shader. Under gl_compatibility a shader PROGRAM compiles the
+# first frame any material using it is drawn, so the first bullet impact / first
+# shot / first damage-tell each cost a frame spike. Compilation is per-program
+# (not per-material-instance), so we can pre-pay it on a throwaway ColorRect
+# instead of needing to reproduce the gameplay event that normally triggers it.
+# This is what closes the hit_flash / torch / shield holes the old enemy-only
+# warmup left open.
+const _WARMUP_SHADERS := [
+	"res://graphics/hit_flash.gdshader",       # first bullet impact
+	"res://graphics/pixelated_burn.gdshader",  # first death
+	"res://graphics/damage_noise.gdshader",    # enemy damage overlay
+	"res://graphics/sci_fi_shield.gdshader",   # first shielded enemy / player shield
+	"res://graphics/torch_fire.gdshader",      # first hull-loss damage tell
+	"res://scripts/effects/glow_halo.gdshader",# bullet glow
+	"res://shaders/outline_1px.gdshader",      # enemy hull outline
+]
+
+func _warm_up_level() -> void:
+	# Two-part, level-driven warmup, run deferred during the intro fly-in
+	# (playing == false) so it's free cover, and spread across frames so the
+	# warmup itself never produces the spike it's meant to prevent.
+	#   A) Compile every gameplay shader program directly (ColorRect dummies).
+	#   B) Pre-instantiate THIS level's actual enemy/boss scenes + the player's
+	#      equipped projectiles off-screen so their textures upload to VRAM and
+	#      burn/explosion CPU particles initialise before the first spawn/shot.
+	if not is_inside_tree():
+		return
+	var WARM_DIR := Vector2(-9999, -9999)
 	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
 	var BurnFx = load("res://scripts/burn_fx.gd")
-	# Pre-fire one explosion to compile the shader path. All explosions are
-	# 1× now (Roman 2026-05-18) so we only need one warmup variant.
+	var to_free: Array = []
+
+	# --- A: direct shader-program compile ---
+	# A bare ColorRect carrying the ShaderMaterial issues one draw call, which
+	# is all gl_compatibility needs to compile the program. modulate.a ~ 0 keeps
+	# it invisible but still drawn (a hidden node skips the draw pass and would
+	# never compile — the lingering-hitch trap from the earlier passes).
+	for sp in _WARMUP_SHADERS:
+		var shader = load(sp)
+		if shader == null:
+			continue
+		var rect := ColorRect.new()
+		rect.size = Vector2(8, 8)
+		rect.position = WARM_DIR
+		var mat := ShaderMaterial.new()
+		mat.shader = shader
+		rect.material = mat
+		rect.modulate = Color(1, 1, 1, 0.001)
+		rect.set_meta("warmup_only", true)
+		get_tree().root.add_child(rect)
+		to_free.append(rect)
+
+	# Pre-fire one explosion to init the CPU-particle path (all explosions 1×
+	# since Roman 2026-05-18, so a single warmup variant suffices).
 	var warm_explosion = ExplosionFx.play(WARM_DIR, 1.0, true)
 	if warm_explosion:
 		warm_explosion.modulate = Color(1, 1, 1, 0.001)
-	# Burn-compile each enemy's authored Sprite2D texture (each unique
-	# texture is a separate shader compile) so the first death of each
-	# enemy type doesn't stall the frame.
-	var enemy_scenes = [
-		"res://scenes/enemies/core/enemy_spitter.tscn",
-		"res://scenes/enemies/core/enemy_drifter.tscn",
-		"res://scenes/enemies/core/enemy_crystal.tscn",
-		"res://scenes/enemies/core/enemy_dart.tscn",
-		"res://scenes/enemies/core/enemy_weaver.tscn",
-		"res://scenes/enemies/core/enemy_hover.tscn",
-		"res://scenes/enemies/enemy_mine.tscn",
-		"res://scenes/enemies/enemy_mine_shield.tscn",
-		"res://scenes/enemies/enemy_mine_cluster.tscn",
-		"res://scenes/enemies/enemy_mine_cluster_smart.tscn",
-		"res://scenes/enemies/enemy_bomblet.tscn",
-		"res://scenes/enemies/enemy_asteroid.tscn",
-		"res://scenes/enemies/core/enemy_bomber.tscn",
-		"res://scenes/enemies/factions/corporate/enemy_bulwark.tscn",
-		"res://scenes/enemies/factions/supremacy/enemy_frigate.tscn",
-		"res://scenes/enemies/core/enemy_cutter.tscn",
-		"res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn",
-		"res://scenes/enemies/factions/privateer/enemy_interceptor.tscn",
-		"res://scenes/enemies/factions/privateer/enemy_minelayer.tscn",
-		"res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn",
-		"res://scenes/enemies/boss.tscn",
-		"res://scenes/enemies/boss_reaver.tscn",
-		"res://scenes/enemies/boss_sentinel.tscn",
-		"res://scenes/enemies/boss_howler.tscn",
-		"res://scenes/enemies/boss_voidmaw.tscn",
-		"res://scenes/enemies/boss_spinwright.tscn",
-		"res://scenes/enemies/boss_conductor.tscn",
-	]
-	var to_free: Array = []
-	for path in enemy_scenes:
-		var ps = load(path)
-		if ps == null:
+		warm_explosion.set_meta("warmup_only", true)
+
+	# --- B: pre-instantiate the level's real content ---
+	# Dedup the scene set from the live wave plan (covers faction variants +
+	# boss exactly as they'll spawn) plus the player's equipped projectiles
+	# (the old warmup only ever covered the stock bullet, so a non-default
+	# weapon's first shot compiled its glow live).
+	var scene_paths := {
+		"res://scenes/projectiles/bullet.tscn": true,        # stock player bullet
+		"res://scenes/projectiles/enemy_bullet.tscn": true,  # shared enemy bullet
+	}
+	if _current_level != null and "waves" in _current_level:
+		for w in _current_level.waves:
+			if w != null and w.enemy_scene is PackedScene:
+				scene_paths[w.enemy_scene.resource_path] = true
+	if player and is_instance_valid(player):
+		for ps in [player.bullet_scene, player.secondary_bullet_scene]:
+			if ps is PackedScene:
+				scene_paths[ps.resource_path] = true
+
+	# Instantiate in small batches, yielding a frame between them so a big
+	# roster never stalls. Off-screen, drawn (alpha ~0) for VRAM upload, with
+	# process disabled so nothing ticks or fires.
+	var batch := 0
+	for path in scene_paths.keys():
+		if not is_inside_tree():
+			break
+		var ps2 = load(path)
+		if ps2 == null:
 			continue
-		var inst = ps.instantiate()
+		var inst = ps2.instantiate()
 		inst.process_mode = Node.PROCESS_MODE_DISABLED
-		# Visible=true (off-screen) so the shader actually compiles. Hidden
-		# nodes skip the draw pass under gl_compatibility, so a `visible=false`
-		# warmup never triggers the compile we're trying to pre-pay for — that
-		# was the lingering first-kill hitch after the earlier passes.
 		inst.visible = true
-		inst.modulate = Color(1, 1, 1, 0.001)  # invisible but still drawn
+		inst.modulate = Color(1, 1, 1, 0.001)
 		inst.position = WARM_DIR
 		inst.set_meta("warmup_only", true)
 		get_tree().root.add_child(inst)
-		# If the enemy has a Sprite2D, compile burn against its texture.
 		var sprite = inst.get_node_or_null("Sprite2D")
 		if sprite and sprite is Sprite2D:
 			BurnFx.apply_burn(sprite, 0.05)
 		to_free.append(inst)
-	# Bullet materials.
-	var pb = preload("res://scenes/projectiles/bullet.tscn").instantiate()
-	pb.position = WARM_DIR
-	get_tree().root.add_child(pb)
-	to_free.append(pb)
-	var eb = preload("res://scenes/projectiles/enemy_bullet.tscn").instantiate()
-	eb.position = WARM_DIR
-	get_tree().root.add_child(eb)
-	to_free.append(eb)
-	# Free everything one frame later — by then the shaders have compiled
-	# and the materials are cached in the rendering server.
-	get_tree().create_timer(0.25).timeout.connect(func():
-		for n in to_free:
-			if is_instance_valid(n):
-				n.queue_free()
-	)
+		batch += 1
+		if batch % 3 == 0:
+			await get_tree().process_frame
+
+	# Let the last batch draw once (compile + upload) before teardown.
+	if not is_inside_tree():
+		return
+	await get_tree().process_frame
+	await get_tree().process_frame
+	for n in to_free:
+		if is_instance_valid(n):
+			n.queue_free()
 
 
 func _on_wave_started(idx: int, total: int, silent: bool, announce_text: String = "") -> void:
