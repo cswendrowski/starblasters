@@ -27,7 +27,10 @@ const Playfield = preload("res://scripts/playfield.gd")
 # Single shared site so all bosses pick it up; tunable here.
 const BASE_HP_MULT: float = 1.5
 
-signal health_changed(cur: int, max: int)
+# health_changed is INHERITED from EnemyBase (signal health_changed(current, max)) —
+# do NOT redeclare it here (a duplicate parent member is a parse error that the class
+# cache only catches when the parent loads first, so it surfaced intermittently in the
+# --import/--script passes). boss_base's health_changed.emit(...) calls use the inherited one.
 signal phase_changed(old_idx: int, new_idx: int, phase_name: String)
 
 # ---- Designer-tunable @exports -----------------------------------------
