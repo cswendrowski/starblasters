@@ -12,6 +12,7 @@ extends Resource
 
 const MuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
 const Clarity = preload("res://scripts/clarity.gd")
+const BulletCatalog = preload("res://scripts/projectiles/bullet_catalog.gd")
 # Ceiling on an enemy bullet's final damage after weapon multipliers (faction +
 # sector compound via *=). Guard rail so a late-sector + 'armed' + future damage
 # faction can't stack into a one-shot. Heaviest base today (heavy_slug=2) × armed
@@ -63,9 +64,17 @@ func _apply_axis(b) -> void:
 # Optional `bv` (BulletVariant) is applied before start() so the variant
 # can override speed, damage, hitbox, and visuals at spawn time.
 func _spawn_bullet(enemy, dir: Vector2, bv = null, spawn_override = null):
-	if bullet_scene == null:
+	# Resolve the payload's canonical per-bullet scene (weapons spec "Index: Enemy
+	# Projectiles"): a variant with an indexed scene spawns THAT scene (its own
+	# sprite/shader/hitbox); otherwise fall back to this pattern's bullet_scene.
+	var scene: PackedScene = bullet_scene
+	if bv != null:
+		var mapped: PackedScene = BulletCatalog.scene_for(bv)
+		if mapped != null:
+			scene = mapped
+	if scene == null:
 		return null
-	var b = bullet_scene.instantiate()
+	var b = scene.instantiate()
 	if bv != null and "variant" in b:
 		b.variant = bv
 	enemy.get_tree().root.add_child(b)
