@@ -2,6 +2,42 @@
 
 Captured from Cody's 2026-05-19 punch list. Ordered roughly by leverage.
 
+## M6c polish backlog (scoped 2026-06-07)
+
+Remaining from Roman's batch after the engine-trail / reorg / weapon-fix / shader passes
+landed. Grouped by effort.
+
+**Bespoke per-enemy fixes (small, need eyeball):**
+- [ ] **s_s_rush movement-based facing** — auto_rotate is on by default but Roman reports
+  it's not facing its travel. Eyeball: not turning at all / faces down / spins? Likely an
+  auto_rotate seed or the Engine-marker-under-CollisionShape transform. (`enemy_s_s_rush.tscn`)
+- [ ] **z_s_sword firing** — currently generic `single`; wants a Frigate-style **broadside**
+  (perpendicular while crossing), **muzzle cycling** across its 4 markers, and a **faster
+  projectile**. Needs a small bespoke shoot (like `enemy_frigate.gd`'s broadside). Movement
+  already slowed. (`enemy_z_s_sword`)
+- [ ] **retro/hold turn-during-jiggle** — loiter pattern turns the hull the wrong way during
+  the jiggle hold. Add an auto_rotate suppression during the HOLD phase + a moderate-speed
+  turn on DEPART. (`scripts/enemies/patterns/loiter.gd` + enemy_core auto_rotate gate)
+
+**Wave/pattern work (larger, director + wave-gen):**
+- [ ] **Cohesive chaff waves** — bomb-drone/dart waves are too long + sparse. Want
+  multi-layered walls, tightly-spaced walls with navigable lane gaps, L→R (and R→L) sweeps,
+  and inward→out / outward→in patterns. (`scripts/levels/director.gd` + `wave_generator.gd`)
+- [ ] **Speed audit to the 1–8 px/f rungs** — `fast_straight` done (→300); audit every other
+  movement key + sector scaling so nothing common sits past 6 px/f. >6 px/f = reflex tier:
+  rare, mid/late only. (`enemy_roster.make_movement` + `enemy_core` sector scale + `clarity.gd`)
+- [ ] **Midpoint heavies more common** — bump the push/anchor heavy-beat frequency.
+  (`wave_generator` heavy-beat weighting)
+- [ ] **No-recycle + denser packing for high-count chaff** — bomb-drone/hotrod waves should
+  not recycle and should arrive in tighter packs. (roster `recycle: 0` + wave-gen density)
+
+**Cleanup:**
+- [ ] **385 editor GDScript warnings** — `.gdignore`'d the PixelPlanetsSource sample already.
+  The rest are the editor's analyzer warnings (unused params, shadowing, narrowing, etc.) that
+  don't surface in headless runs. NEED: the recurring list from the editor Output/Debugger
+  panel → then fix per-site or demote noise types in `project.godot [debug] gdscript/warnings`.
+
+
 ## Controls + Player
 
 - [x] **Rebind to genre conventions** — `5d36dcc`. Z+Space = primary, C = secondary, X = super, Shift = focus, Q/E weapon swap.

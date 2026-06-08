@@ -1,7 +1,7 @@
 [gd_scene load_steps=4 format=3 uid="uid://bminlay000001"]
 
 [ext_resource type="Script" path="res://scripts/enemies/factions/privateer/minelayer.gd" id="1_script"]
-[ext_resource type="Texture2D" uid="uid://caqj0ui6esqux" path="res://graphics/enemies/enemy_minelayer.png" id="2_tex"]
+[ext_resource type="Texture2D" uid="uid://fyf6irwbhriq" path="res://graphics/enemies/enemy_p_s_minelayer.png" id="2_tex"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
@@ -15,6 +15,12 @@ display_scale = 1.0
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("2_tex")
+hframes = 2
+
+[node name="GlowMask" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+hframes = 2
+frame = 1
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_1")
