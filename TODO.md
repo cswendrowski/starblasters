@@ -83,27 +83,41 @@ landed. Grouped by effort.
   enemies look consistent. (factor missile_cruiser's pseudo-parallax into a shared mechanism)
 
 ### Background (likely separate scope)
-- [ ] **Per-row planets are static** — each sector row should feed the backdrop the correct,
-  VARIED planets with dynamic placement; currently it renders the same planets/composition each
-  time. (`scripts/galaxy_backdrop.gd` per-row celestial selection)
+- [x] **Per-row planets are static** — DONE (lead 2026-06-08, `c36a044`). Live backdrop is the V4
+  coordinator (`scripts/parallax/backdrop_coordinator.gd`), NOT `galaxy_backdrop.gd`. Folded
+  `current_node_id` into the coordinator RNG so each node's decorative composition varies, and mixed
+  `run_seed` into every per-POI planet/deco seed in `sector_map_v3.gd` (in lockstep so map↔combat
+  planet parity holds). Per-row variety now keys off run + node identity. NEEDS EYEBALL across runs.
 
 ### Sector Map (likely separate scope)
-- [ ] **Planet-kit range not exercised** — map generates the same planets/asteroids in the same
-  order each run; ensure the full range of planet-kit types + colors/seeds is sampled.
-- [ ] **Node placement not randomized** — nodes appear biased to the left; randomize properly.
-- [ ] **Boss ring progress missing** — the boss ring no longer shows unlock progress from node
-  completion. Restore it.
-- [ ] **Retire the old sector map entirely** — a hazard-map round-trip returned to the OLD
-  sector-map UI. No loop-backs to the old style should remain.
-- [ ] **Signal events not randomized** — all roll the same; randomize the outcome chances + the
-  rewards. (`scripts/signal_event.gd`)
+- [x] **Planet-kit range not exercised** — DONE (lead 2026-06-08, `c36a044`). Every per-POI
+  deco/planet/moon seed in `sector_map_v3.gd` now xors `run_seed` (all sites in lockstep so the map
+  planet still matches the combat planet). Varies across runs, stable within a run. NEEDS EYEBALL.
+- [x] **Node placement not randomized** — DONE (lead 2026-06-08, `c36a044`). Dropped the fixed
+  Marker2D override in `_build_pois_from_cache` that always filled markers 1..count from the left;
+  POIs now use the already-jittered cache pos (icon + click + label aligned). NEEDS EYEBALL.
+- [x] **Boss ring progress missing** — DONE (lead 2026-06-08, `c36a044`). The HD host
+  (`sector_map_hd.gd`) was drawing a solid full ring; now draws a partial completion arc per row
+  from POI `completed` counts. NEEDS EYEBALL.
+- [~] **Retire the old sector map entirely** — PARTIAL (lead 2026-06-08). All routes go through the
+  HD host EXCEPT `main.gd:802` (asteroid-hazard exit) which still loads raw `sector_map_v3.tscn`.
+  One-line fix DEFERRED — `main.gd` is the parallel session's file; need a coordination call (see
+  reports/lead_session_report.md Decisions #1). Legacy `scenes/sector_map.tscn` deletion also
+  deferred (still used by `feature_showcase.gd` + `parse_check.ps1`).
+- [x] **Signal events not randomized** — DONE (lead 2026-06-08, `c36a044`). Seed was
+  `run_seed + visited_nodes.size()*31`, but `visited_nodes` is dead (always 0) so every event rolled
+  identically. Re-seeded off `current_node_id`. NEEDS EYEBALL (different nodes → different outcomes).
 
 ### Audio (likely separate scope)
-- [ ] **Music must keep cycling** — long levels play to the end then fall silent; loop/continue.
-- [ ] **Intensity ramp** — start low-intensity, build as waves progress; the main (high-intensity)
-  theme on the final 2 waves when a level has ≥5 waves. (`scripts/music_manager.gd`)
-- [ ] **Same-frame sound overrun** — mass simultaneous deaths (super bomb etc.) get extremely
-  loud; offset/duck/limit same-frame explosions (voice cap or per-frame volume scaling).
+- [x] **Music must keep cycling** — DONE (lead 2026-06-08, `c36a044`). Hardened the `finished`
+  safety-net in `music_manager.gd` so an ending track re-arms even while the intensity-walk is frozen
+  (continues current intensity); only CTX_SILENT / in-flight crossfade suppress it. NEEDS EYEBALL.
+- [x] **Intensity ramp** — DONE (lead 2026-06-08, `c36a044`). Levels with ≥5 waves lift to the Main
+  theme on the final 2 waves (the `wave_started → set_combat_progress` pipe already existed in
+  `main.gd`, no director edit needed). NEEDS EYEBALL.
+- [x] **Same-frame sound overrun** — DONE (lead 2026-06-08, `c36a044`). Per-frame voice limiter at
+  the `Sfx.play_one_shot` chokepoint: beyond a 4-voice soft cap, attenuate ~2.5 dB/voice (floor
+  −18 dB) so mass smart-bomb deaths don't blow out. NEEDS EYEBALL (tell me if it's now too quiet).
 
 
 ## Controls + Player
@@ -163,9 +177,20 @@ landed. Grouped by effort.
 
 - [ ] **Dynamic animated nebula** — adjust nebula to be dynamic, animated, noise-based, and seamless. Current V3 nebula uses `nebula2.gdshader` (domain-warped + filaments, scroll_offset driven from layer accumulated scroll). May need new shaders for a fully animated swirl. Build prototype + capture for review.
 - [ ] **V3 parallax color correction + adjustment sliders not working** — Brightness / Contrast / Colorization in the tuner aren't tinting V3 layers reliably. After the CanvasGroup removal we're on per-child modulate via the tuner's fallback path; need to confirm whether modulate IS being written and whether Parallax2D propagates it through tiled draws in Godot 4.3. **Also add a blend-mode dropdown** for the per-layer color system (Mix / Add / Multiply / Screen).
-- [ ] **Phase Shift + Focus supers not working** — investigate why both super actions are no-op when triggered. Verify the super_part hook + activate() path.
-- [ ] **Drone Swarm super emit point** — drones should emit from the player center on activation (currently spawn at the wing-halfspan offset).
-- [ ] **Direction-based player sprite rotation** — the player ship sprite used to rotate based on horizontal input direction; this seems to have been lost in the horizontal-rework branch. Restore the frame-swap / rotation behaviour.
+- [~] **Phase Shift + Focus supers not working** — RE-DIAGNOSED (lead 2026-06-08, NOT a code bug).
+  The `fire_super` → `super_part.activate()` path is sound and shared with the working Smart Bomb.
+  (a) There is NO "Focus super" module — "Focus" is the held-Shift focus *mode*; the TODO conflates
+  them. (b) Phase Shift IS wired correctly but is invisible-by-design (i-frames + bullet-clear, no
+  damage/fire-boost) so it reads as no-op when fired with nothing incoming. DESIGN CALL: build a
+  Focus super? add a stronger Phase Shift activation tell? (see reports/lead_session_report.md).
+- [x] **Drone Swarm super emit point** — DONE (lead 2026-06-08, `024a117`). Drones spawned on a 16px
+  ring off-center; now emit from `ship.global_position` (player center), keeping `angle_seed` for the
+  post-spawn boids fan-out. (Note: Drone Swarm migrated SUPER→SECONDARY on 2026-05-30.)
+- [~] **Direction-based player sprite rotation** — RE-DIAGNOSED (lead 2026-06-08). The banking
+  frame-swap is ALREADY present and live (`player.gd:569-578`: frame 0/1/2 on horizontal input +
+  matching booster anim). If it's not visibly banking, the regression is in the `Ship` 3-frame strip
+  ART (frames may be visually identical), not the code. PLEASE CONFIRM the strip has distinct
+  left/forward/right frames; if so, close this.
 
 ## Enemy rework backlog 2026-05-24
 
@@ -213,12 +238,21 @@ Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" fl
 - [ ] **Boss bounty share is 72% (P3)** — combat nodes earn ~3× less than bosses. Either nerf boss payouts or add a combat-clear bonus (+20) / hazard-clear bonus (+25). (Source: `docs/economy_2026-05-24.md` §3 P3, §5)
 - [ ] **Mk-Gating: asymmetric cannon vs upgrade caps** — Upgrade cap `min(9, 2 + sector*2)`, Cannon cap `min(9, sector*3)` so Mk 9 cannons become the run's identity moment. Currently both share `sector + 3`. (Source: `docs/economy_2026-05-24.md` §4)
 - [ ] **Boss-clear unlock bumps** — each row-boss kill bumps remaining outpost Mk-cap floor in that sector. (Source: `docs/economy_2026-05-24.md` §4(b))
-- [ ] **Smart Bomb auto-bomb has no economy cost (P10)** — free auto-bomb on lethal hit + free outpost refill. Pick a cost. (Source: `docs/economy_2026-05-24.md` §3 P10)
+- [x] **Smart Bomb auto-bomb has no economy cost (P10)** — STALE (verified lead 2026-06-08). The
+  death-bomb consumes a charge (`player.gd:1504`) and outpost refill now costs 120
+  (`outpost.gd:55`); the free auto-refill-on-visit was removed. Each death-save effectively costs
+  ~120 bounty. Closing as already-costed (reopen only if 120/charge feels too cheap — a balance #).
 - [ ] **`wanted` / `dangerous` POI bounty multipliers** — modifier tags now generate (#76 shipped) but bounty effect (`wanted` +30%, `dangerous` +50%) not yet wired in. (Source: `docs/economy_2026-05-24.md` §5)
 - [ ] **Outpost density too high (~3/sector)** — consider 1 outpost + 1 Junk Trader signal/sector to feel scarcer + more decisive. (Source: `docs/economy_2026-05-24.md` §5)
 - [ ] **Asteroid 0-bounty default** — hazards are bounty deserts. Default `+1/asteroid` or flat hazard-completion bonus. (Source: `docs/economy_2026-05-24.md` §5)
-- [ ] **Hull formula Mk-9 cliff** — `max_hull = 20 if Mk≥9 else 10+Mk` has odd cap jump; replace with `10 + 2*hull_mk` or `10 + 3*hull_mk`. (Source: `docs/economy_2026-05-24.md` §5)
-- [ ] **Resale arbitrage** — outpost cannon 50%, signal-event part 30% (now 20% per #75?). Verify rates symmetric; otherwise player picks the better venue. (Source: `docs/economy_2026-05-24.md` §3 P6)
+- [x] **Hull formula Mk-9 cliff** — STALE (verified lead 2026-06-08). The doc's `20 if Mk≥9 else
+  10+Mk` is not in code; actual is `max_hull = 2 + min(hull_mk, 8)` (`player.gd:1661`, ratio 3.3×,
+  in-band) with Mk.9 giving a repair discount instead of a pip. The proposed `10 + 2*hull_mk` would
+  make Mk.9 = 28 pips — do NOT apply. Closing as already-resolved.
+- [x] **Resale arbitrage** — DONE (lead 2026-06-08, `024a117`). Found outpost at 10% but
+  signal-event at 20% (the 2026-06-01 2× cannon-price bump dropped outpost to 0.1 and missed the
+  signal site, reopening the arbitrage). Realigned signal to 0.1; fixed the stale "20%" comments.
+  Both venues now symmetric — neither is the better dump spot.
 - [ ] **Manage Ship modal PartTier badges + 20% sell UI** — modal not yet using the shared `part_tier.gd` helper or the 20% resale. (Source: commit `cd71f44` open flag)
 - [ ] **Outpost density hard clamp → probabilistic** — current sim: 2 outposts 51%, 3 outposts 23%, 4 outposts 26%; 0/1/5+ blocked. Designer flagged need for "rarely 1, super rarely 0" tail. (Source: commit `cd71f44` open flag)
 
@@ -227,13 +261,28 @@ Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" fl
 - [ ] **Dynamic animated nebula** — already in Cobalt 2026-05-21 backlog above; keep.
 - [ ] **V3 parallax color sliders not working + blend-mode dropdown** — already in Cobalt 2026-05-21 backlog above; keep.
 - [ ] **Galaxy Backdrop V3 missing debris sprite** — `scripts/parallax/galaxy_backdrop_v3.gd:392` `# TODO — needs a debris sprite`. (Source: `scripts/parallax/galaxy_backdrop_v3.gd:392`)
-- [ ] **Moon vs planet wrap-around desync on >226s combats** — pre-existing flag carried across multiple agents. (Source: commits `2083c59` / `1532071` open flags)
-- [ ] **`current_stellar` cleared per POI click** — combat backdrop will look uniform across a sector. Eyeball + decide. (Source: memory `project_sector_map_v3.md` §Known open issue 2)
-- [ ] **Shadow shaders cluster — retire prototypes** — `graphics/masked_shadow.gdshader`, `graphics/topdown_shadow_outofbounds.gdshader`, `graphics/drop_shadow_canvas_group.gdshader` + 6 `tools/capture_shadow_*` drivers (a/b/iterate/mask/ray/test) are capture-only prototypes; oblique-shadow won. (Source: `docs/redundancy_audit_2026-05-21.md` §Shadow shaders — confirmed still on disk 2026-05-25)
-- [ ] **Parallax shader cluster — retire** — `graphics/parallax_silhouette.gdshader`, `graphics/parallax_tint.gdshader` (+ `TINT_SHADER` preload const in `scripts/parallax/galaxy_backdrop_v3.gd`); both unused after V3 CanvasGroup removal. (Source: `docs/redundancy_audit_2026-05-21.md` §Parallax shaders — confirmed still on disk 2026-05-25)
-- [ ] **`starstuff.gdshader` retire pending confirmation** — legacy fallback for V1's `use_starstuff` @export (default false). (Source: `docs/redundancy_audit_2026-05-21.md` §Parallax shaders)
-- [ ] **Audit `particle_trail.gdshader` + `bloom.gdshader` references** — not preloaded anywhere visible; confirm via scene materials or retire. (Source: `docs/redundancy_audit_2026-05-21.md` §Other shaders)
-- [ ] **NEBULA_SHADER preload dead in V3** — V3 uses NEBULA2; the V1 shader preload in `galaxy_backdrop_v3.gd` is dead in V3 specifically. (Source: `docs/redundancy_audit_2026-05-21.md` §Summary)
+- [~] **Moon vs planet wrap-around desync on >226s combats** — RE-DIAGNOSED (lead 2026-06-08, NOT a
+  desync). In the LIVE V4 path, the planet AND its moons are both children of `LayerPlanet` sharing
+  one `offset.y` scroll (`layer_planet.gd:404,466`) — they CANNOT desync. The "desync" was the
+  retired V1/V3 code's separate accumulators. Real live behavior: the whole planet+moons group drifts
+  off the bottom and never wraps, so the sky empties on >~226s combats. DESIGN CALL: wrap/re-enter,
+  hold at edge, or leave as-is? (see reports/lead_session_report.md). No fix made — needs your call.
+- [~] **`current_stellar` cleared per POI click** — likely MOOT after the planet-variety seed work
+  (`c36a044`): each node now derives a distinct, stable `current_stellar`, so the combat backdrop no
+  longer looks uniform across a sector. EYEBALL to confirm, then close.
+- [x] **Shadow shaders cluster — retire prototypes** — DONE (lead 2026-06-08, `c36a044`). Deleted
+  `masked_shadow`/`topdown_shadow_outofbounds`/`drop_shadow_canvas_group` shaders + all six
+  `capture_shadow_*` drivers (+ `.uid`/`.ps1` + `capture_shadow_compare.ps1`). Zero live refs.
+- [x] **Parallax shader cluster — retire** — DONE (lead 2026-06-08, `c36a044`). Removed the dead
+  `TINT_SHADER` const from `galaxy_backdrop_v3.gd` and deleted `parallax_tint.gdshader` +
+  `parallax_silhouette.gdshader` (+ `.uid`).
+- [x] **`starstuff.gdshader` retire** — DONE (lead 2026-06-08, `c36a044`). Removed the unused
+  `STARSTUFF_SHADER` const from `galaxy_backdrop.gd` and deleted the shader (the separate
+  `SpaceBG/StarStuff.gdshader` is untouched).
+- [x] **Audit `particle_trail.gdshader` + `bloom.gdshader` references** — DONE (lead 2026-06-08,
+  `c36a044`). Confirmed zero refs (by path AND UID) → both deleted.
+- [x] **NEBULA_SHADER preload dead in V3** — DONE (lead 2026-06-08, `c36a044`). Removed the dead
+  `NEBULA_SHADER` const (V3 uses NEBULA2); left the `nebula.gdshader` file (V1 may use it).
 
 ### Weapons / Architecture (`docs/weapon_architecture_2026-05-24.md`)
 
