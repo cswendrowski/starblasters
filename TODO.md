@@ -301,6 +301,84 @@ Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" fl
 - [ ] **`scenes/sector_map.tscn` orphan** — pre-existing, no V suffix, referenced by `feature_showcase.gd` + `tools/parse_check.ps1`. Clean once safe. (Source: memory `project_sector_map_v3.md` §Known open issue 3)
 - [ ] **`SmokeTrail.new(palette)` factory** — consolidate `damage_smoke_trail.gd` + `missile_smoke_trail.gd` (~90% shared code) once a third smoke emitter appears. Not urgent. (Source: `docs/redundancy_audit_2026-05-21.md` §Particle effects)
 
+## End-of-run summary + run history + run timer (rolled in 2026-06-08)
+
+Full scoping in `docs/run_summary_scope_2026-06-01.md` (re-audited 2026-06-05). Status: **scoped,
+not built — no stats instrumentation has landed.** Splits into a cheap core + an expensive tail.
+NOTE: most hooks live in `player.gd` / `enemy_base.gd` / `main.gd` — shared / combat-arena files;
+coordinate with the combat session before instrumenting those hot paths.
+
+- [ ] **Phase 1 — `RunStats` core (~½–1 day, ship first).** Add a run-wide stats accumulator on the
+  `Run` autoload; reset it in `new_run()` alongside the other run-scoped fields. Surface Tier-1 stats
+  that already have signals: **damage taken** (shield vs hull, off `Player.damaged` 0/1), **bounty
+  gained** (off `Run.record_kill()`), **asteroids destroyed** (roll up `_asteroids_killed_this_level`
+  instead of resetting). Redo the death summary (`run_summary.gd`) to show them. Reuses
+  `cleared_summary.gd`'s per-enemy-type tally + sprite previews. Proves the `RunStats` pattern before
+  touching hot paths.
+- [ ] **Run Timer (fold into Phase 1 — near-zero marginal).** `run_time_seconds` on `Run`, **active
+  combat time only** (recommended): a pausable delta-accumulator keyed on `playing` auto-excludes
+  intro/outro/pause/map/shop/transitions. Zero in `new_run()`, accumulate in `_on_level_cleared`,
+  flush in `_on_player_died`. Persist via `RunSave` (`_SAVE_FIELDS` + a `@export` mirror — both sides
+  or it's silently dropped). Optional per-level breakdown into `RunStats`. **Open call:** also show
+  wall-clock total (B), or active-only (A)? Stop-on-victory point doesn't exist yet (see Phase 3).
+- [ ] **Phase 2 — new instrumentation (~1–1.5 days).** Tier-2/3 hooks with no signal today:
+  **shots fired** (hook `player.gd` fire fns — hot path, no per-shot alloc), **shots hit / accuracy**
+  (hook `enemy_base.gd take_hit`; counting model LOCKED = per-projectile-spawned, multi-hit can
+  exceed 100%), **bounty spent** (single choke-point over the outpost's bare `run.bounty -=`),
+  **mines cleared** (via kill path / scene_path), **locations/stations/signals visited** (via reliable
+  `mark_node_completed` + node-type counting — the V3 map bypasses `mark_node_visited`), **unique
+  weapons used** (net-new hook on active-cannon change/fire).
+- [ ] **Phase 3 — victory / "patrol complete" path (~½ day).** NET-NEW code path: `run_summary.tscn`
+  is reached only on death today; final-sector clear funnels through the endless-mode prompt. Need a
+  real patrol-complete flow + screen, and `RunStats` must snapshot into history at BOTH exit points
+  (death AND victory) before reset. This is also where the run timer's stop-on-victory wires in.
+- [ ] **Phase 4 — dated run-history index (~½–1 day, self-contained).** Append `{date, outcome,
+  kills, bounty, sectors, time, …}` to a `user://` JSON array on each run-end (same pattern as
+  `enemy_codex.json`); main-menu entry via the existing `_install_codex_button()` injection; the only
+  real work is the history-list UI scene.
+
+## Supers / Modes / Modules taxonomy refactor (rolled in 2026-06-08)
+
+Full spec in `docs/supers_modes_modules_2026-06-05.md`. Status: **design settled, not built;
+magnitudes are an economy-sim/playtest job.** Consolidates the player-ship layer into 4 buckets
+(**Super / Secondary / Module / Upgrade**), collapses the 3 device-slot supers into one permanent
+panic-button super + a one-of-three **stance** system on Shift, driven by a new **Mode Energy**
+resource. **NOTE (Roman 2026-06-08): the ACE-chain is ON HOLD — build the stance recharge on Driver
+B (self-contained kill-streak) per §7; do NOT scope the ace-chain coupling (Driver A) as actionable.**
+This refactor supersedes the "Phase Shift + Focus supers" re-diagnosis above (Phase → stance Module
+w/ no bullet-clear; Focus → default stance).
+
+- [ ] **Bucket/slot restructure.** Super = fixed Smart Bomb on X (+ death-bomb, paid charges); a
+  dedicated **Mode/stance slot** on Shift; **4 passive Module slots**; Upgrades stay abstract `Run`
+  Mk buys. Reuses reserved `SlotTypes` enums (`DEVICE_BAY_2`, `SHIELD`, wing slots) — no new slot
+  infra, the super→secondary migration (`drone_swarm.gd`) proves the `Part` pattern.
+- [ ] **Stance triangle (Focus | Phase | Hyper), one on Shift.** Focus = default-equipped (new-player
+  floor): 0.55× speed + hitbox dot, refuels on focus-saves. Phase = intangible reposition, can't fire,
+  **no bullet-clear** (differentiates from Bomb), floor-driven. Hyper = primary ignores ammo + fire
+  rate +10%, kill-driven. Convert Hyper + Phase from supers → stance Modules; Focus from baseline
+  modal → stance.
+- [ ] **Mode Energy resource + recharge spine.** Passive **time floor** (always, skill-free — tune for
+  the worst player FIRST, §6) + stance-flavored **accelerator** (skill-driven). Pluggable drive value
+  `D`: **Driver B (kill-streak, build NOW)**; Driver A (ace-chain) is the later swap — ON HOLD. Focus
+  is driver-agnostic (refuels on focus-saves regardless). Caps: Hyper uptime < ~40%, focus-save ≤1/0.5s.
+- [ ] **Focus-save dual-hitbox detection** — a second larger Area2D counts bullet pass-throughs
+  between focused/unfocused hitboxes as "saves" during focus only; net-new, capped.
+- [ ] **Mode bay UI + HUD.** Mode bay swap/upgrade screen; two separate gauges (Super pips = existing;
+  Mode Energy = bespoke per-stance bar: Focus continuous, Phase/Hyper segmented pips, shared anchor).
+- [ ] **Outpost economy.** Mode Energy is earned-not-bought. Sell **Mode Capacity** + **Mode Regen**
+  (floor only — NEVER the accelerator/maxBoost, the runaway lever); stance modules bought/swapped/
+  upgraded between nodes, priced like parts. Each stance is a `Part` with Mk.1–9 scaling its effect.
+- [ ] **The one real refactor — reify defensive systems as Modules.** Move Shield / Hull Regen / Hull
+  Plating from abstract `Run` int Mk-keys into passive Part Resources (or cheaper: keep as `Run` ints
+  but PRESENT them in the bay). Shield becomes a default-equipped passive (dropping it = deliberate
+  glass-cannon). OPEN DECISION: reify vs present; 4 vs 3 passive slots.
+- [ ] **Passive-module roster (~10 picks for ~3 free slots).** Shield Core (default), Repair Nanites,
+  Ablative Plating (deterministic every-Nth, not RNG), Intercept Drones, Splinter Rounds, Targeting
+  Computer (crit), Overclock Core (fire ramp), Overcharge Core (+dmg/−shield), Adrenal Surge
+  (low-hull scaling), Tractor Coil (pickup magnet), Siphon Core (kills → shield charge, **never Mode
+  Energy**). Each adds a *mechanic*, Mk.1–9 scalable. Full roster + cut list + build archetypes in
+  spec §15.
+
 ## Faction gap units — sprites/enemies to commission (M6b, 2026-06-06)
 
 End-state (Roman): each faction owns its FULL unit set; drop the universal-core stopgap.
