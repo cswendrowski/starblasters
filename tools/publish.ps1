@@ -27,9 +27,14 @@ $checkScript = Join-Path $PSScriptRoot 'parse_check.ps1'
 & $checkScript
 if ($LASTEXITCODE -ne 0) { throw "parse_check failed - refusing to publish a build that won't run." }
 
-# Update project.godot version
+# Update project.godot version.
+# Write UTF-8 WITHOUT a BOM. PowerShell 5.1's `Set-Content -Encoding utf8`
+# prepends a BOM (EF BB BF); Godot then round-trips it into mojibake
+# `"<BOM>config_version"=5` keys that accumulated on every publish. Use .NET
+# to write BOM-less UTF-8 so the version bump stays clean.
 $proj = Join-Path $REPO 'project.godot'
-(Get-Content $proj -Raw) -replace 'config/version="[^"]+"', "config/version=`"$Version`"" | Set-Content $proj -Encoding utf8
+$projText = (Get-Content $proj -Raw) -replace 'config/version="[^"]+"', "config/version=`"$Version`""
+[System.IO.File]::WriteAllText($proj, $projText, (New-Object System.Text.UTF8Encoding $false))
 
 # Godot's exporter writes into OUT_DIR but does NOT create it — a missing dir
 # makes the export a silent no-op (no index.pck). Ensure it exists (first publish
