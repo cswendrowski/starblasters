@@ -292,6 +292,7 @@ const ENTRIES := [
 		"shoot": "single",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 4,
+		"recycle": 0,   # high-count chaff shouldn't recycle (Roman 2026-06-08)
 		"hp_override": 2, "bounty_override": 8,
 		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.9, "chaff": true,
 		"conflict_tags": ["aimed_or_spread"],
@@ -304,6 +305,7 @@ const ENTRIES := [
 		"shoot": "single",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 4,
+		"recycle": 0,
 		"hp_override": 2, "bounty_override": 8,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": true,
 		"conflict_tags": ["aimed_or_spread"],
@@ -316,6 +318,7 @@ const ENTRIES := [
 		"shoot": "single",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 3,
+		"recycle": 0,
 		"hp_override": 2, "bounty_override": 8,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": true,
 		"conflict_tags": ["aimed_or_spread", "wide_dodge"],
