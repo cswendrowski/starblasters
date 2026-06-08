@@ -105,6 +105,34 @@ the cross-file migration; **chaff shields don't regen**.
 - **#2 Economy doc re-audit** (`85bf63c`) — status note flagging the items that have since shipped so
   triage doesn't re-litigate them.
 
+### 2026-06-08 — Codex rebuild + Credits + a git mishap to flag
+- **Codex rebuilt** (faction-organized, game-data-driven). Left nav = 4 factions + Bosses +
+  Starblaster (placeholder). Faction → codex entry + roster (discovered named, rest "???", X/Y
+  count). Enemy → slowly-rotating sprite (hull + glowmap + dropshadow, NO other shaders) + name +
+  classification + blurb. Pulls 100% from game data (Factions/EnemyStrings/EnemyRoster/Run/scene
+  sprites). New `codex_strings.gd` holds faction display names + faction/Starblaster codex
+  PLACEHOLDERS for you to fill. Repointed `shipyard.gd` off the removed `EnemyCodex.ENTRIES`.
+- **Credits screen** built + wired (`_on_credits` was an empty stub): Design — Roman & Cody;
+  Testers — Stacey, Cody, Nath, Pao, Kyle, Doug, Ellen.
+- Verified headless: codex/credits/menu boot clean; faction grouping (7/11/10/10), 7 bosses,
+  enemy + Starblaster previews build, classification reads e.g. "Crimson Supremacy / Common / Small".
+- **NOTE — enemy names/blurbs are placeholders** in `enemy_strings.gd` (mostly "TBD" + scene-stem
+  names like "p_s_green"). The codex pulls those verbatim per your "from the game" directive — fill
+  `enemy_strings.gd` (and the faction/Starblaster text in `codex_strings.gd`) and the codex updates
+  automatically. **Needs your eyeball in-game** (rotation feel, layout, glow read).
+
+## ⚠️ Decisions I need from you
+
+**Git: a commit got mislabeled (my mistake).** My first run-history commit's `git add` aborted on a
+non-existent `.uid` pathspec (silenced by `2>/dev/null`), so the commit captured the **other session's
+already-staged bullet renames** under my "Run history" message (`1c86ba2`). My run-history files were
+never committed then — I've now committed them properly (new commit). The other session has since built
+3 more commits on top of `1c86ba2`, so:
+- **Recommendation: leave `1c86ba2` as-is.** The bullet renames ARE correctly committed (just under a
+  wrong message); rewriting shared-branch history with the other session active + commits stacked on
+  top would be far more disruptive than a cosmetically-wrong message. Want me to leave it (rec) or do
+  something? I've switched to pathspec-limited commits (`git commit -- <paths>`) so it can't recur.
+
 ## Decisions I need from you
 
 1. **`main.gd:802` old-sector-map round-trip** — the asteroid-hazard exit loads the raw
