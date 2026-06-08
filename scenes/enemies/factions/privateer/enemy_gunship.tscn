@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3 uid="uid://do5iinq73mlki"]
+[gd_scene format=3 uid="uid://do5iinq73mlki"]
 
 [ext_resource type="Script" uid="uid://bsrm7tpjdmbds" path="res://scripts/enemies/factions/privateer/enemy_gunship.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://dx4rekb1q8gka" path="res://graphics/enemies/enemy_p_m_gunship.png" id="2_mkb1a"]
@@ -10,7 +10,7 @@
 script = ExtResource("3_mov")
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
-size = Vector2(30, 32)
+size = Vector2(22, 30)
 
 [node name="EnemyGunship" type="Area2D" unique_id=1892792395 groups=["enemies"]]
 script = ExtResource("1_script")
@@ -20,7 +20,7 @@ movement = SubResource("MovePattern")
 texture = ExtResource("2_mkb1a")
 hframes = 2
 
-[node name="GlowMask" type="Sprite2D" parent="."]
+[node name="GlowMask" type="Sprite2D" parent="." unique_id=660050478]
 texture = ExtResource("2_mkb1a")
 hframes = 2
 frame = 1
@@ -29,11 +29,10 @@ frame = 1
 position = Vector2(0, -1)
 shape = SubResource("RectangleShape2D_1")
 
-[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="."]
+[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="." unique_id=1326644344]
 stream = ExtResource("4_shoot")
 
 [node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1769718148]
-position = Vector2(2, -5)
 stream = ExtResource("5_die")
 
 [node name="MuzzleL" type="Marker2D" parent="." unique_id=238332679]
@@ -42,8 +41,14 @@ position = Vector2(-4, -10)
 [node name="MuzzleR" type="Marker2D" parent="." unique_id=1736183934]
 position = Vector2(4, -10)
 
-[node name="CannonL" type="Marker2D" parent="."]
-position = Vector2(-8, 0)
+[node name="CannonL" type="Marker2D" parent="." unique_id=583365172]
+position = Vector2(-10, -1)
 
-[node name="CannonR" type="Marker2D" parent="."]
-position = Vector2(8, 0)
+[node name="CannonR" type="Marker2D" parent="." unique_id=1897157010]
+position = Vector2(10, -1)
+
+[node name="EngineL" type="Marker2D" parent="." unique_id=883381051]
+position = Vector2(-3, 12)
+
+[node name="EngineR" type="Marker2D" parent="." unique_id=264567258]
+position = Vector2(3, 12)

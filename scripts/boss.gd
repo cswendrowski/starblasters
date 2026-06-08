@@ -50,7 +50,7 @@ func _ready() -> void:
 	super._ready()
 	# Fallback minion config (wave director can override via @export).
 	if minion_scene == null:
-		minion_scene = load("res://scenes/enemies/core/enemy_dart.tscn")
+		minion_scene = load("res://scenes/enemies/factions/privateer/enemy_dart.tscn")
 	if minion_movement == null:
 		var Straight = load("res://scripts/enemies/patterns/straight_down.gd")
 		var mv = Straight.new()

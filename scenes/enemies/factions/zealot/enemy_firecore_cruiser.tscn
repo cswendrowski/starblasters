@@ -1,53 +1,50 @@
-[gd_scene load_steps=11 format=3 uid="uid://87ugqj0btwfp"]
+[gd_scene format=3 uid="uid://87ugqj0btwfp"]
 
 [ext_resource type="Script" path="res://scripts/enemies/factions/zealot/enemy_firecore_cruiser.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://ck8u8cikyq06h" path="res://graphics/enemies/enemy_z_m_helix.png" id="2_tex"]
 [ext_resource type="Script" uid="uid://bj8dc3ktx8bt1" path="res://scripts/enemies/patterns/straight_down.gd" id="3_mov"]
 [ext_resource type="Script" uid="uid://5imwobncfuhu" path="res://scripts/enemies/components/emitter_component.gd" id="4_emit"]
-[ext_resource type="PackedScene" uid="uid://cfirecorehz001" path="res://scenes/enemies/firecore_hazard.tscn" id="5_fc"]
-[ext_resource type="PackedScene" uid="uid://bfirecorecore0" path="res://scenes/enemies/firecore_core.tscn" id="6_corevis"]
+[ext_resource type="PackedScene" uid="uid://dxfppn7uceaea" path="res://scenes/enemies/factions/zealot/firecore_hazard.tscn" id="5_fc"]
+[ext_resource type="PackedScene" uid="uid://uoof4kuon0td" path="res://scenes/enemies/factions/zealot/firecore_core.tscn" id="6_corevis"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="7_die"]
 
 [sub_resource type="Resource" id="MovePattern"]
 script = ExtResource("3_mov")
 speed = 60.0
-drift_x = 0.0
 
 [sub_resource type="Resource" id="DropFirecore"]
 script = ExtResource("4_emit")
 payload = ExtResource("5_fc")
-trigger = 2
 count = 2
-cadence = 2.0
-chance = 1.0
 spread = 8.0
-attach_to_enemy = false
 
 [sub_resource type="RectangleShape2D" id="Hit"]
 size = Vector2(16, 32)
 
-[node name="EnemyFirecoreCruiser" type="Area2D" groups=["enemies"]]
+[node name="EnemyFirecoreCruiser" type="Area2D" unique_id=1597328774 groups=["enemies"]]
 script = ExtResource("1_script")
 movement = SubResource("MovePattern")
 components = [SubResource("DropFirecore")]
 
-[node name="FirecoreCoreTop" parent="." instance=ExtResource("6_corevis")]
+[node name="FirecoreCoreTop" parent="." unique_id=1848099877 instance=ExtResource("6_corevis")]
 position = Vector2(0, -8)
 
-[node name="FirecoreCoreBot" parent="." instance=ExtResource("6_corevis")]
+[node name="FirecoreCoreBot" parent="." unique_id=520045624 instance=ExtResource("6_corevis")]
 position = Vector2(0, 8)
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1742375993]
 texture = ExtResource("2_tex")
 hframes = 2
 
-[node name="GlowMask" type="Sprite2D" parent="."]
+[node name="GlowMask" type="Sprite2D" parent="." unique_id=1664876094]
 texture = ExtResource("2_tex")
 hframes = 2
 frame = 1
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=539471388]
 shape = SubResource("Hit")
 
-[node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=329974719]
 stream = ExtResource("7_die")
+
+[node name="Turret" type="Marker2D" parent="." unique_id=591032924]

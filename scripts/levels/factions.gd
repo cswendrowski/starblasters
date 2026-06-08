@@ -25,7 +25,7 @@ const ShieldComponent = preload("res://scripts/enemies/components/shield_compone
 const EmitterComponent = preload("res://scripts/enemies/components/emitter_component.gd")
 # Zealot's firecore lane-hazard drop payload (the zealot DropFirecore Emitter spawns it
 # on death). The ResourceLoader.exists guard in build_components stays as a safety net.
-const FIRECORE_HAZARD_PATH := "res://scenes/enemies/firecore_hazard.tscn"
+const FIRECORE_HAZARD_PATH := "res://scenes/enemies/factions/zealot/firecore_hazard.tscn"
 
 enum Id { SUPREMACY, PRIVATEER, CORPORATE, ZEALOT }
 
@@ -35,14 +35,14 @@ enum Id { SUPREMACY, PRIVATEER, CORPORATE, ZEALOT }
 # appear only in their home faction. Pool restriction: an enemy is allowed in faction F
 # if universal OR home == F. (END-STATE: drop universals, each faction owns its set.)
 const ENEMY_TAGS := {
-	"res://scenes/enemies/core/enemy_dart.tscn": {"home": Id.PRIVATEER, "universal": true},
+	"res://scenes/enemies/factions/privateer/enemy_dart.tscn": {"home": Id.PRIVATEER, "universal": true},
 	"res://scenes/enemies/factions/zealot/enemy_z_s_manta.tscn": {"home": Id.ZEALOT, "universal": true},
 	"res://scenes/enemies/factions/zealot/enemy_z_s_retro.tscn": {"home": Id.ZEALOT, "universal": false},
 	"res://scenes/enemies/factions/zealot/enemy_z_s_run.tscn": {"home": Id.ZEALOT, "universal": false},
 	"res://scenes/enemies/factions/zealot/enemy_z_s_sword.tscn": {"home": Id.ZEALOT, "universal": false},
-	"res://scenes/enemies/core/enemy_spitter.tscn": {"home": Id.ZEALOT, "universal": true},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_shiv.tscn": {"home": Id.ZEALOT, "universal": false},
 	"res://scenes/enemies/core/enemy_bomb_drone.tscn": {"home": Id.SUPREMACY, "universal": true},
-	"res://scenes/enemies/core/enemy_weaver.tscn": {"home": Id.CORPORATE, "universal": true},
+	"res://scenes/enemies/factions/corporate/enemy_c_dart.tscn": {"home": Id.CORPORATE, "universal": false},
 	"res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn": {"home": Id.CORPORATE, "universal": true},
 	"res://scenes/enemies/factions/corporate/enemy_c_s_gray.tscn": {"home": Id.CORPORATE, "universal": false},
 	"res://scenes/enemies/factions/corporate/enemy_c_s_curve.tscn": {"home": Id.CORPORATE, "universal": false},
@@ -214,10 +214,15 @@ static func apply(id: int, enemy) -> void:
 			if _is_firecore_drop(c):
 				bakes_firecore = true
 				break
+		# Per-enemy opt-out of the corporate Shield overlay (e.g. c_dart — a corporate
+		# dart that shouldn't be shielded). Roman 2026-06-07.
+		var no_shield: bool = ("faction_shield_exempt" in enemy) and bool(enemy.faction_shield_exempt)
 		var to_add: Array = []
 		for c in comps:
 			if bakes_firecore and _is_firecore_drop(c):
 				continue
+			if no_shield and ("capacity" in c) and not ("payload" in c):
+				continue   # skip the shield component for exempt enemies
 			to_add.append(c)
 		enemy.components = existing + to_add
 

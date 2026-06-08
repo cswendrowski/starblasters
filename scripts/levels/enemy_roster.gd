@@ -95,28 +95,21 @@ const BV_DropPellet   = preload("res://data/bullets/drop_pellet.tres")
 const ENTRIES := [
 	# --- COMMON -----------------------------------------------------------
 	{
-		"scene": "res://scenes/enemies/core/enemy_spitter.tscn",
+		# Shiv (M6c, Roman 2026-06-07) — zealot Dart-equivalent: fast diver, NO weapon,
+		# drops a firecore (baked DropFirecore on the scene). Takes the retired spitter's
+		# opener slot (spitter unified into enemy_z_s_run; enemy_spitter.tscn untagged).
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_shiv.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "firecore_straight",
-		"shoot": "single_diagonal",
-		"bullet_variant": BV_SpreadPellet,
-		"base_count": 6,
-		# Fire-rate pass (2026-05-30, Roman): chaff was firing every ~2.0-3.5s
-		# and felt passive. Tightened to ~1.4-2.3s (~35% faster) so firecore
-		# reads as active without becoming a wall. Keeps min<max jitter so
-		# volleys desync. First-pass — tune in playtest.
-		"fire_min": 1.4, "fire_max": 2.3,
-		# Firecore is a shooting common — a gentle diagonal popper. Pulled to the
-		# sector-1 opener (unlock_depth 0) on 2026-06-04 to widen the shallow opener
-		# pool (was only dart/bomb_drone/drifter — 3 types, 2 identical fast_straight).
-		# Its slow fire (1.4-2.3s) + low weight keep the opener readable while adding
-		# a 3rd movement archetype + the first taste of return fire. (Was S2/D5.)
-		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.7, "chaff": true,
-		"conflict_tags": ["aimed_or_spread"],
+		"movement": "fast_straight",
+		"shoot": null,
+		"base_count": 8,
+		"recycle": 0,
+		"hp_override": 1, "bounty_override": 5,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "chaff": true, "wall": true,
 	},
 	{
-		"scene": "res://scenes/enemies/core/enemy_dart.tscn",
+		"scene": "res://scenes/enemies/factions/privateer/enemy_dart.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "fast_straight",
@@ -474,16 +467,18 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "chaff": true, "wall": true,
 	},
 	{
-		# Corp Curve — weaving chaff (no weapon), lane-confined wobble.
-		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_curve.tscn",
+		# Corp Dart (M6c, Roman 2026-06-07) — corporate version of the Dart: same fast
+		# diver role, new corp art, NO shield (faction_shield_exempt on the scene keeps
+		# the corporate overlay from shielding it). Replaces curve as corp's basic diver.
+		"scene": "res://scenes/enemies/factions/corporate/enemy_c_dart.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "lane_weave",
+		"movement": "fast_straight",
 		"shoot": null,
-		"base_count": 6,
+		"base_count": 8,
 		"recycle": 0,
 		"hp_override": 1, "bounty_override": 5,
-		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.1, "chaff": true, "wall": true,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.2, "chaff": true, "wall": true,
 	},
 	{
 		# Corp Drop — caltrop-layer; drops a path-phase trail of slow drop_pellets.
@@ -532,11 +527,13 @@ const ENTRIES := [
 		"force_even_count": true,
 	},
 	{
-		"scene": "res://scenes/enemies/core/enemy_weaver.tscn",
+		# Corp Weaver — was the universal-core enemy_weaver, now UNIFIED onto the corp
+		# enemy_c_s_curve sprite (Roman 2026-06-07): corporate-exclusive lane-weave
+		# aimed-plasma gunner. The old no-shoot c_s_curve chaff entry is retired into this
+		# (curve now carries muzzles). enemy_weaver.tscn retired from the tag table.
+		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_curve.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		# P2: Weaver behavior -> lane_path engine. In-lane wobble (lane-confined) under
-		# its aimed fire (was s_curve: a free swing wider than the band, always clamped).
 		"movement": "lane_weave",
 		"shoot": "aimed",
 		"bullet_variant": BV_PlasmaOrb,

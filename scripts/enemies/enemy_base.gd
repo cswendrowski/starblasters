@@ -108,6 +108,11 @@ enum OffscreenMode { CYCLE_BOTTOM, FREE_ANY_EDGE, FREE_OPPOSITE_SIDE, NONE }
 # enemy_core hides the outline while an enemy is recycling / faux-parallax.
 @export var wants_outline: bool = true
 
+# Opt out of the corporate faction's Shield overlay (Roman 2026-06-07): a corporate
+# unit that should NOT be shielded (e.g. the corporate dart c_dart) sets this true.
+# Checked in Factions.apply when adding the corporate shield component.
+@export var faction_shield_exempt: bool = false
+
 # --- Identity (combat overhaul, Roman 2026-06-03) ---
 # Canonical enemy identity. INERT today: declared so the spawn materializer,
 # the lane conductor (tier -> render-plane), and a future RunStats accumulator
@@ -222,10 +227,33 @@ func _ready() -> void:
 	# and any decorative cores are other nodes. Opt-out via wants_outline.
 	if wants_outline and has_node("Sprite2D") and $Sprite2D.visible:
 		_OutlineFx.apply($Sprite2D)
+	# Yellow engine trail (Roman 2026-06-07): any enemy that places Engine* markers
+	# (Engine / EngineL / EngineR / EngineL2 ... anywhere in its scene) gets a trailing
+	# exhaust streak per marker via the shared EngineTrailFx — no per-enemy code.
+	_attach_engine_trail()
 
 
 const _OutlineFx = preload("res://scripts/effects/outline_fx.gd")
+const _EngineTrailFx = preload("res://scripts/effects/engine_trail_fx.gd")
+var _engine_trail: Node = null
 var _damage_material: ShaderMaterial = null
+
+
+# Find Engine* markers (recursive — they may sit under CollisionShape2D) and attach a
+# shared yellow trail. No-op when the enemy has no engine markers.
+func _attach_engine_trail() -> void:
+	var markers: Array = find_children("Engine*", "Marker2D", true, false)
+	if markers.is_empty():
+		return
+	_engine_trail = _EngineTrailFx.new()
+	add_child(_engine_trail)
+	_engine_trail.setup(self, markers)
+
+
+# Pause/resume the engine exhaust (recycle = faux-parallax, death = stop emitting).
+func set_engine_trail_emitting(v: bool) -> void:
+	if _engine_trail != null and is_instance_valid(_engine_trail):
+		_engine_trail.set_emitting(v)
 var _shield_ring: ColorRect = null
 var _shield_mat: ShaderMaterial = null
 var _shield_alpha_tween: Tween = null
@@ -344,6 +372,7 @@ func explode() -> void:
 	# the hull starts burning (Roman 2026-06-07). The body itself disintegrates
 	# via the burn shader below, not a fade.
 	_fade_death_overlays()
+	set_engine_trail_emitting(false)   # stop exhaust; the streak ages out on its own
 	if has_node("Sprite2D"):
 		BurnFxScript.apply_burn($Sprite2D, 0.45)
 	if has_node("ParticleExplode"):

@@ -1,6 +1,6 @@
-[gd_scene load_steps=8 format=3 uid="uid://brockgun00001"]
+[gd_scene format=3 uid="uid://brockgun00001"]
 
-[ext_resource type="Script" path="res://scripts/enemies/factions/privateer/enemy_rocket.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://dmt2lknnsra34" path="res://scripts/enemies/factions/privateer/enemy_rocket.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://c1h77tstw0b04" path="res://graphics/enemies/enemy_p_m_rocket.png" id="2_tex"]
 [ext_resource type="Script" uid="uid://bj8dc3ktx8bt1" path="res://scripts/enemies/patterns/straight_down.gd" id="3_mov"]
 [ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="4_shoot"]
@@ -9,55 +9,53 @@
 [sub_resource type="Resource" id="MovePattern"]
 script = ExtResource("3_mov")
 speed = 110.0
-drift_x = 0.0
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
-size = Vector2(30, 32)
+size = Vector2(28, 30)
 
-[node name="EnemyRocket" type="Area2D" groups=["enemies"]]
+[node name="EnemyRocket" type="Area2D" unique_id=1335940938 groups=["enemies"]]
 script = ExtResource("1_script")
 movement = SubResource("MovePattern")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=247426113]
 texture = ExtResource("2_tex")
 hframes = 2
 
-[node name="GlowMask" type="Sprite2D" parent="."]
+[node name="GlowMask" type="Sprite2D" parent="." unique_id=1240601840]
 texture = ExtResource("2_tex")
 hframes = 2
 frame = 1
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=956392822]
 position = Vector2(0, -1)
 shape = SubResource("RectangleShape2D_1")
 
-[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="."]
+[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="." unique_id=2126590504]
 stream = ExtResource("4_shoot")
 
-[node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
-position = Vector2(2, -5)
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1102927823]
 stream = ExtResource("5_die")
 
-[node name="launch_point1" type="Marker2D" parent="."]
+[node name="launch_point1" type="Marker2D" parent="." unique_id=2100281992]
 position = Vector2(-13, 0)
 
-[node name="launch_point2" type="Marker2D" parent="."]
+[node name="launch_point2" type="Marker2D" parent="." unique_id=72891183]
 position = Vector2(-11, 0)
 
-[node name="launch_point3" type="Marker2D" parent="."]
+[node name="launch_point3" type="Marker2D" parent="." unique_id=1229333107]
 position = Vector2(-9, 0)
 
-[node name="launch_point4" type="Marker2D" parent="."]
+[node name="launch_point4" type="Marker2D" parent="." unique_id=1940807632]
 position = Vector2(9, 0)
 
-[node name="launch_point5" type="Marker2D" parent="."]
+[node name="launch_point5" type="Marker2D" parent="." unique_id=1413001144]
 position = Vector2(11, 0)
 
-[node name="launch_point6" type="Marker2D" parent="."]
+[node name="launch_point6" type="Marker2D" parent="." unique_id=250427084]
 position = Vector2(13, 0)
 
-[node name="MuzzleL" type="Marker2D" parent="."]
+[node name="MuzzleL" type="Marker2D" parent="." unique_id=2096420780]
 position = Vector2(-4, -10)
 
-[node name="MuzzleR" type="Marker2D" parent="."]
+[node name="MuzzleR" type="Marker2D" parent="." unique_id=1058626351]
 position = Vector2(4, -10)

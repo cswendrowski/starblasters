@@ -7,7 +7,7 @@ extends Node2D
 # When no capture flags are present, runs interactively for vibe-checks.
 
 const PLAYER = preload("res://scenes/player/player.tscn")
-const ENEMY_DART = preload("res://scenes/enemies/core/enemy_dart.tscn")
+const ENEMY_DART = preload("res://scenes/enemies/factions/privateer/enemy_dart.tscn")
 const ENEMY_DRIFTER = preload("res://scenes/enemies/core/enemy_drifter.tscn")
 const ENEMY_FIRECORE = preload("res://scenes/enemies/core/enemy_spitter.tscn")
 const BOSS = preload("res://scenes/enemies/boss.tscn")
@@ -274,7 +274,7 @@ func _demo_level_outro() -> void:
 			# Fake some enemy stats so the cleared screen has rows to show.
 			if "_enemy_stats" in main_inst:
 				main_inst._enemy_stats = {
-					"res://scenes/enemies/core/enemy_dart.tscn": {"spawned": 14, "killed": 12, "bounty": 5, "total_bounty": 60},
+					"res://scenes/enemies/factions/privateer/enemy_dart.tscn": {"spawned": 14, "killed": 12, "bounty": 5, "total_bounty": 60},
 					"res://scenes/enemies/core/enemy_drifter.tscn": {"spawned": 8, "killed": 7, "bounty": 8, "total_bounty": 56},
 					"res://scenes/enemies/core/enemy_spitter.tscn": {"spawned": 4, "killed": 4, "bounty": 25, "total_bounty": 100},
 				}
@@ -559,7 +559,7 @@ func _demo_codex() -> void:
 		for path in [
 			"res://scenes/enemies/core/enemy_spitter.tscn",
 			"res://scenes/enemies/core/enemy_drifter.tscn",
-			"res://scenes/enemies/core/enemy_dart.tscn",
+			"res://scenes/enemies/factions/privateer/enemy_dart.tscn",
 			"res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn",
 			"res://scenes/enemies/core/enemy_hover.tscn",
 			"res://scenes/enemies/factions/supremacy/enemy_frigate.tscn",
@@ -583,7 +583,7 @@ func _demo_enemy_roster_sheet() -> void:
 		# COMMON
 		{"path": "res://scenes/enemies/core/enemy_spitter.tscn", "name": "Firecore", "tier": "Common"},
 		{"path": "res://scenes/enemies/core/enemy_drifter.tscn",  "name": "Drifter",  "tier": "Common"},
-		{"path": "res://scenes/enemies/core/enemy_dart.tscn",     "name": "Dart",     "tier": "Common"},
+		{"path": "res://scenes/enemies/factions/privateer/enemy_dart.tscn",     "name": "Dart",     "tier": "Common"},
 		{"path": "res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn", "name": "Hunter Drone", "tier": "Common"},
 		# UNCOMMON
 		{"path": "res://scenes/enemies/core/enemy_weaver.tscn",   "name": "Weaver",   "tier": "Uncommon"},

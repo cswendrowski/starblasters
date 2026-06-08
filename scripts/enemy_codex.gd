@@ -16,7 +16,7 @@ const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 
 # Static lookup: every enemy scene → display name + entry hint.
 const ENTRIES = [
-	{"path": "res://scenes/enemies/core/enemy_dart.tscn",     "name": "Dart",     "tier": "Common", "blurb": "Pure movement, no fire. Teaches you to shoot proactively."},
+	{"path": "res://scenes/enemies/factions/privateer/enemy_dart.tscn",     "name": "Dart",     "tier": "Common", "blurb": "Pure movement, no fire. Teaches you to shoot proactively."},
 	{"path": "res://scenes/enemies/core/enemy_drifter.tscn",  "name": "Drifter",  "tier": "Common", "blurb": "Halves into +drift / -drift squads. Easy spacing puzzle."},
 	{"path": "res://scenes/enemies/core/enemy_spitter.tscn", "name": "Firecore", "tier": "Common", "blurb": "Lazy single-shot chaff. Punish first, sweep second."},
 	{"path": "res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn", "name": "Hunter Drone", "tier": "Common", "blurb": "Beelines at the player. Don't let it catch up."},

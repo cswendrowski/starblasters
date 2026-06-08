@@ -19,7 +19,7 @@ bounty_value = 20
 texture = ExtResource("2_tex")
 hframes = 2
 
-[node name="EngineGlow" type="Sprite2D" parent="." unique_id=1261168617]
+[node name="GlowMask" type="Sprite2D" parent="." unique_id=1261168617]
 modulate = Color(1.3, 1.3, 1.3, 1)
 material = SubResource("CanvasItemMaterial_glow")
 texture = ExtResource("2_tex")

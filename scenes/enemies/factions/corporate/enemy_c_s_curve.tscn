@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3 uid="uid://bcorpcurve001"]
+[gd_scene format=3 uid="uid://bcorpcurve001"]
 
 [ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemy_core.gd" id="1_core"]
 [ext_resource type="Texture2D" uid="uid://cou7tan1defmr" path="res://graphics/enemies/enemy_c_s_curve.png" id="2_tex"]
@@ -8,35 +8,50 @@
 [sub_resource type="Resource" id="MovePattern"]
 script = ExtResource("3_mov")
 speed = 180.0
-drift_x = 0.0
 
 [sub_resource type="RectangleShape2D" id="Hit"]
-size = Vector2(16, 16)
+size = Vector2(16, 15.97926)
 
-[node name="Enemy" type="Area2D" groups=["enemies"]]
+[node name="Enemy" type="Area2D" unique_id=1602659639 groups=["enemies"]]
 script = ExtResource("1_core")
 movement = SubResource("MovePattern")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=633201591]
 texture = ExtResource("2_tex")
 hframes = 2
 
-[node name="GlowMask" type="Sprite2D" parent="."]
+[node name="GlowMask" type="Sprite2D" parent="." unique_id=1531320166]
 texture = ExtResource("2_tex")
 hframes = 2
 frame = 1
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1533805145]
+position = Vector2(0, 0.010396731)
+scale = Vector2(1.0115279, 1.0025992)
 shape = SubResource("Hit")
 
-[node name="MoveTimer" type="Timer" parent="."]
+[node name="MoveTimer" type="Timer" parent="." unique_id=2138472634]
 one_shot = true
 
-[node name="ShootTimer" type="Timer" parent="."]
+[node name="ShootTimer" type="Timer" parent="." unique_id=1120492575]
 one_shot = true
 
-[node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=175444521]
 stream = ExtResource("4_die")
+
+[node name="MuzzleL" type="Marker2D" parent="." unique_id=2086433922]
+position = Vector2(-3, -5)
+
+[node name="MuzzleR" type="Marker2D" parent="." unique_id=1235242972]
+position = Vector2(3, -5.21875)
+
+[node name="EngineL" type="Marker2D" parent="." unique_id=1338099703]
+position = Vector2(-5, 5.4218674)
+scale = Vector2(1, 12.542187)
+
+[node name="EngineR" type="Marker2D" parent="." unique_id=862005083]
+position = Vector2(5, 5)
+scale = Vector2(1, 12.542187)
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
 [connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]
