@@ -349,7 +349,6 @@ const ENTRIES := [
 		"movement": "loiter_mid",
 		"shoot": "aimed",
 		"bullet_variant": BV_PlasmaOrb,
-		"wobble_amplitude": 8.0, "wobble_frequency": 3.0,
 		"base_count": 2,
 		"fire_min": 1.6, "fire_max": 2.4,
 		"hp_override": 8, "bounty_override": 18,
@@ -363,7 +362,6 @@ const ENTRIES := [
 		"movement": "lane_weave",
 		"shoot": "aimed",
 		"bullet_variant": BV_PlasmaOrb,
-		"wobble_amplitude": 8.0, "wobble_frequency": 3.0,
 		"base_count": 2,
 		"fire_min": 1.6, "fire_max": 2.4,
 		"hp_override": 8, "bounty_override": 18,
@@ -377,7 +375,6 @@ const ENTRIES := [
 		"movement": "side_traverse",   # slide across
 		"shoot": "aimed",
 		"bullet_variant": BV_PlasmaOrb,
-		"wobble_amplitude": 8.0, "wobble_frequency": 3.0,
 		"base_count": 2,
 		"fire_min": 1.6, "fire_max": 2.4,
 		"hp_override": 8, "bounty_override": 18,
@@ -539,7 +536,6 @@ const ENTRIES := [
 		"bullet_variant": BV_PlasmaOrb,
 		# M6a.2: restore the plasma-orb wobble via the FIRING LAYER (not the bullet
 		# .tres). Matches the boss plasma signature (amp 8 / freq 3).
-		"wobble_amplitude": 8.0, "wobble_frequency": 3.0,
 		"base_count": 2,
 		"fire_min": 1.4, "fire_max": 2.2,
 		"hp_override": 2, "bounty_override": 10,
@@ -662,7 +658,6 @@ const ENTRIES := [
 		"movement": "loiter_high",
 		"shoot": "aimed",
 		"bullet_variant": BV_PlasmaOrb,
-		"wobble_amplitude": 8.0, "wobble_frequency": 3.0,
 		"base_count": 2,
 		"fire_min": 1.6, "fire_max": 2.4,
 		"hp_override": 8, "bounty_override": 18,
