@@ -5,7 +5,7 @@
 [ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="4_shoot"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="5_die"]
 [ext_resource type="Script" uid="uid://bw15n4h1hqg0e" path="res://scripts/enemies/patterns/advance_retreat.gd" id="10_mov"]
-[ext_resource type="Resource" path="res://resources/patterns/shoot/aimed_fire.tres" id="11_shoot"]
+[ext_resource type="Resource" path="res://resources/patterns/shoot/aimed_wild.tres" id="11_shoot"]
 
 [sub_resource type="Resource" id="MovePattern_inst"]
 script = ExtResource("10_mov")

@@ -1,8 +1,9 @@
 [gd_resource type="Resource" load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://scripts/enemies/shoot_patterns/pair_shot.gd" id="1_pr"]
+[ext_resource type="Script" path="res://scripts/enemies/shoot_patterns/aimed_fire.gd" id="1_af"]
 [ext_resource type="PackedScene" uid="uid://iqys12s5srvb" path="res://scenes/projectiles/enemy_bullet.tscn" id="2_b"]
 
 [resource]
-script = ExtResource("1_pr")
+script = ExtResource("1_af")
 bullet_scene = ExtResource("2_b")
+lead_factor = 0.2

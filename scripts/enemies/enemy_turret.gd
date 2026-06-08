@@ -16,6 +16,10 @@ const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
 @export var fire_interval_min: float = 2.0
 @export var fire_interval_max: float = 2.0
 @export var aim_tolerance_deg: float = 11.0
+# Target leading (spec "aimed_lead", Roman 2026-06-08): 0 = aim at the player's
+# CURRENT position ("aimed_wild"); >0 leads by player.velocity × lead_factor
+# seconds, so a moving player gets shot ahead of. ~0.2 reads as a competent gunner.
+@export var lead_factor: float = 0.0
 @export var bullet_variant: BulletVariant = null
 @export var bullet_speed: float = 160.0
 @export var enabled: bool = true
@@ -69,7 +73,7 @@ func _process(delta: float) -> void:
 	var player := find_player()
 	var target_rot: float = _turret_rot
 	if player:
-		var dir: Vector2 = (player.global_position - global_position).normalized()
+		var dir: Vector2 = (_aim_point(player) - global_position).normalized()
 		target_rot = atan2(dir.y, dir.x) + PI * 0.5
 		if arc_deg > 0.0:
 			var center: float = p.global_rotation + deg_to_rad(rest_angle_deg)
@@ -92,7 +96,7 @@ func _try_fire() -> void:
 	var player := find_player()
 	if player == null:
 		return
-	var dir: Vector2 = (player.global_position - global_position).normalized()
+	var dir: Vector2 = (_aim_point(player) - global_position).normalized()
 	var target_rot: float = atan2(dir.y, dir.x) + PI * 0.5
 	if abs(angle_difference(_turret_rot, target_rot)) > deg_to_rad(aim_tolerance_deg):
 		# Not aimed yet — do NOT reset _fire_t; check again next frame.
@@ -161,6 +165,16 @@ func _recoil() -> void:
 	tw.tween_callback(func(): if is_instance_valid(_barrel): _barrel.frame = last)
 	tw.tween_interval(0.07)
 	tw.tween_callback(func(): if is_instance_valid(_barrel): _barrel.frame = 0)
+
+
+# World point to aim at: the player's current position, optionally led by
+# velocity × lead_factor (spec aimed_wild vs aimed_lead). Falls back to the raw
+# position when the player has no `velocity` to predict from.
+func _aim_point(player: Node) -> Vector2:
+	var p: Vector2 = player.global_position
+	if lead_factor > 0.0 and "velocity" in player:
+		p += player.velocity * lead_factor
+	return p
 
 
 func find_player() -> Node:

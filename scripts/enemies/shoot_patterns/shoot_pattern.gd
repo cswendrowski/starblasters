@@ -62,7 +62,7 @@ func _apply_axis(b) -> void:
 # enemy_bullet.tscn) so this helper does not need to set it.
 # Optional `bv` (BulletVariant) is applied before start() so the variant
 # can override speed, damage, hitbox, and visuals at spawn time.
-func _spawn_bullet(enemy, dir: Vector2, bv = null):
+func _spawn_bullet(enemy, dir: Vector2, bv = null, spawn_override = null):
 	if bullet_scene == null:
 		return null
 	var b = bullet_scene.instantiate()
@@ -74,13 +74,19 @@ func _spawn_bullet(enemy, dir: Vector2, bv = null):
 	# A pink muzzle flash plays at each muzzle in the fire direction. Un-
 	# muzzled enemies (crystal spread, frigate burst) fall back to origin
 	# and do NOT flash — only marker-equipped enemies get the flash.
+	# `spawn_override` (a Vector2) pins the spawn to an exact world point — used by
+	# pair_shot to fire one bullet from EACH muzzle in the same volley.
 	var has_mz: bool = enemy.has_method("has_muzzles") and enemy.has_muzzles()
-	var spawn_pos: Vector2 = enemy.next_muzzle_pos() if has_mz else enemy.global_position
+	var spawn_pos: Vector2
+	if spawn_override != null:
+		spawn_pos = spawn_override
+	else:
+		spawn_pos = enemy.next_muzzle_pos() if has_mz else enemy.global_position
 	if b.has_method("start"):
 		b.start(spawn_pos, dir)
 	else:
 		b.position = spawn_pos
-	if has_mz:
+	if has_mz or spawn_override != null:
 		MuzzleFx.play_enemy(spawn_pos, dir, enemy.get_tree().root)
 	# Drive the projectile-movement axis (homing/wobble) — applied after
 	# _ready/_apply_variant so the pattern's axis overrides the variant's seed.
