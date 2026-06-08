@@ -17,6 +17,9 @@ var master_volume: float = 1.0
 # exists; the property is still honored by music_manager via its own
 # scaling.
 var music_volume: float = 1.0
+# Sound effects (SFX bus, linear 0..1). All non-music audio routes through
+# the SFX bus (see scripts/effects/* + the player/enemy audio nodes).
+var sfx_volume: float = 1.0
 # Screen shake intensity multiplier (0 disables shake entirely; 1 = stock).
 var shake_scale: float = 1.0
 # Fullscreen window mode (false = windowed, the project default).
@@ -57,6 +60,7 @@ func load_from_disk() -> void:
 		return
 	master_volume = float(cfg.get_value("audio", "master_volume", master_volume))
 	music_volume = float(cfg.get_value("audio", "music_volume", music_volume))
+	sfx_volume = float(cfg.get_value("audio", "sfx_volume", sfx_volume))
 	shake_scale = float(cfg.get_value("video", "shake_scale", shake_scale))
 	fullscreen = bool(cfg.get_value("video", "fullscreen", fullscreen))
 	font_style = String(cfg.get_value("video", "font_style", font_style))
@@ -73,6 +77,7 @@ func save_to_disk() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("audio", "master_volume", master_volume)
 	cfg.set_value("audio", "music_volume", music_volume)
+	cfg.set_value("audio", "sfx_volume", sfx_volume)
 	cfg.set_value("video", "shake_scale", shake_scale)
 	cfg.set_value("video", "fullscreen", fullscreen)
 	cfg.set_value("video", "font_style", font_style)
@@ -91,6 +96,12 @@ func set_master_volume(v: float) -> void:
 
 func set_music_volume(v: float) -> void:
 	music_volume = clamp(v, 0.0, 1.0)
+	_apply_audio()
+	save_to_disk()
+	settings_changed.emit()
+
+func set_sfx_volume(v: float) -> void:
+	sfx_volume = clamp(v, 0.0, 1.0)
 	_apply_audio()
 	save_to_disk()
 	settings_changed.emit()
@@ -172,6 +183,9 @@ func _apply_audio() -> void:
 	var music_idx := AudioServer.get_bus_index("Music")
 	if music_idx >= 0:
 		AudioServer.set_bus_volume_db(music_idx, linear_to_db(max(music_volume, 0.0001)))
+	var sfx_idx := AudioServer.get_bus_index("SFX")
+	if sfx_idx >= 0:
+		AudioServer.set_bus_volume_db(sfx_idx, linear_to_db(max(sfx_volume, 0.0001)))
 
 
 func _apply_window() -> void:

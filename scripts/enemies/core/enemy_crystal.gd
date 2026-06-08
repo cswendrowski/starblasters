@@ -156,8 +156,7 @@ func _run_fire(delta: float, after_phase: int) -> void:
 		_fired_this_phase = true
 		if shoot_pattern != null:
 			shoot_pattern.fire(self)
-		if has_node("EnemyShoot"):
-			$EnemyShoot.play()
+			EnemySfxC.play_for(self)
 	if _phase_t >= FIRE_PAUSE:
 		_phase_t = 0.0
 		_fired_this_phase = false

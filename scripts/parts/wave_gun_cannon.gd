@@ -36,7 +36,8 @@ func _init() -> void:
 
 
 func _fire_sfx_kind() -> int:
-	return WS.FireSfxKind.PULSE
+	# Default (Mk.1-4, small wave). _apply_visuals swaps to WAVE_BIG at Mk.5+.
+	return WS.FireSfxKind.WAVE
 
 
 func _snapshot_keys() -> Array:
@@ -78,7 +79,9 @@ func _scene_for_mark(at_mark: int) -> PackedScene:
 # @export write so a .tres-pinned scene doesn't bypass the Mk.5 switch.
 func _apply_visuals(ship) -> void:
 	ship.weapon_style = _weapon_style()
-	ship.fire_sfx_kind = _fire_sfx_kind()
+	# The fire sound tracks the projectile: Mk.5+ fires the large wave
+	# (see _scene_for_mark) and gets the beefier wave_big_shoot clips.
+	ship.fire_sfx_kind = WS.FireSfxKind.WAVE_BIG if int(mark) >= 5 else WS.FireSfxKind.WAVE
 
 
 func _max_hits_for_mark(at_mark: int) -> int:

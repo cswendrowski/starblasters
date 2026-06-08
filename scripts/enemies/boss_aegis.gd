@@ -300,6 +300,8 @@ func _drop_missile_salvo() -> void:
 			m.start(spawn_pos)
 		else:
 			m.global_position = spawn_pos
+	# One launch report per salvo from the universal missile pool.
+	WeaponSfx.play(get_tree().root, global_position, "missile")
 
 
 func _on_boss_death() -> void:

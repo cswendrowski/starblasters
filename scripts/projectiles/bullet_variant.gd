@@ -28,6 +28,11 @@ class_name BulletVariant
 # Audio — null = default blip
 @export var sfx: AudioStream = null
 
+# Enemy fire-sound class. "" → the default enemy_blaster pool. Set to
+# "enemy_mg" on small-bullet / tracer payloads so they fire the machine-gun
+# clips instead (EnemySfx routes off this; see scripts/effects/enemy_sfx.gd).
+@export var enemy_sfx_kind: String = ""
+
 # Behavior knobs — zero defaults mean no extra cost for dumb bullets
 @export var homing_rate: float = 0.0         # degrees/sec turn toward player
 @export var wobble_amplitude: float = 0.0    # px lateral to dir

@@ -66,6 +66,9 @@ func _tick_rockets(delta: float) -> void:
 	_salvo_t = SALVO_INTERVAL
 	for _i in SALVO_SIZE:
 		_fire_rocket()
+	# One launch whoosh per salvo from the universal rocket pool (shared with
+	# the player's rockets). Per-salvo, not per-rocket, to keep it readable.
+	WeaponSfx.play(get_tree().root, global_position, "rocket")
 
 
 func _fire_rocket() -> void:
@@ -117,5 +120,5 @@ func _fire_tracer() -> void:
 	if b.has_method("start"):
 		b.start(pos, dir)
 	MuzzleFx.play_enemy(pos, dir, get_tree().root)
-	if has_node("EnemyShoot"):
-		$EnemyShoot.play()
+	# Rapid wing-muzzle tracers → machine-gun pool.
+	EnemySfxC.play_for(self, "enemy_mg")

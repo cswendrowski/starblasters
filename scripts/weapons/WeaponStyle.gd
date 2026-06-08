@@ -60,7 +60,9 @@ enum FireSfxKind {
 	NONE,           # Explicit fallback to player's $ShootSound (e.g. Auto Laser placeholder)
 	BLASTER_SMALL,  # base + spread blaster (SMALL_CLIPS pool)
 	BLASTER_LARGE,  # heavy blaster (LARGE_CLIPS pool)
-	PULSE,          # wave gun (PULSE_CLIPS pool)
+	PULSE,          # generic pulse (PULSE_CLIPS pool)
+	WAVE,           # wave gun Mk.1-4, small projectile (WAVE_CLIPS pool)
+	WAVE_BIG,       # wave gun Mk.5+, large projectile (WAVE_BIG_CLIPS pool)
 	MACHINEGUN,     # reserved — MG currently routes via weapon_style audio loop
 	ROTARY_LASER,   # reserved — rotary currently routes via weapon_style audio loop
 	BEAM,           # reserved — placeholder for future beam SFX
@@ -78,6 +80,8 @@ static func sfx_kind_string(k: int) -> String:
 		FireSfxKind.BLASTER_SMALL: return "blaster_small"
 		FireSfxKind.BLASTER_LARGE: return "blaster_large"
 		FireSfxKind.PULSE: return "pulse"
+		FireSfxKind.WAVE: return "wave"
+		FireSfxKind.WAVE_BIG: return "wave_big"
 		FireSfxKind.MACHINEGUN: return "machinegun"
 		FireSfxKind.ROTARY_LASER: return "rotary_laser"
 		FireSfxKind.BEAM: return "beam"

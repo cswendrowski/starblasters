@@ -14,6 +14,7 @@ var follow_anchor: bool = false
 const _DEFAULT_BULLET = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const ClarityRules = preload("res://scripts/clarity.gd")
 const BeamEmitterC = preload("res://scripts/enemies/beam_emitter.gd")
+const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
 var bullet_scene: PackedScene = _DEFAULT_BULLET
 var _beam: Node = null   # per-enemy BeamEmitter when shoot_pattern is a beam weapon
 
@@ -372,8 +373,7 @@ func _on_shoot_timer_timeout() -> void:
 	shoot_pattern.fire(self)
 	$ShootTimer.wait_time = randf_range(fire_interval_min, fire_interval_max)
 	$ShootTimer.start()
-	if has_node("EnemyShoot"):
-		$EnemyShoot.play()
+	EnemySfxC.play_for(self)
 
 
 # Path-phase firing (Â§8): called each movement frame. Fires one shot each time the
@@ -413,8 +413,7 @@ func _do_path_shot() -> void:
 	if fire_only_on_target and not _nose_on_player():
 		return
 	shoot_pattern.fire(self)
-	if has_node("EnemyShoot"):
-		$EnemyShoot.play()
+	EnemySfxC.play_for(self)
 
 
 func _on_movement_phase_entered(phase_name: String) -> void:
@@ -429,8 +428,7 @@ func _on_movement_phase_entered(phase_name: String) -> void:
 	if fire_only_on_target and not _nose_on_player():
 		return
 	shoot_pattern.fire(self)
-	if has_node("EnemyShoot"):
-		$EnemyShoot.play()
+	EnemySfxC.play_for(self)
 
 
 # True when the body's forward vector is within fire_aim_tol_deg of the

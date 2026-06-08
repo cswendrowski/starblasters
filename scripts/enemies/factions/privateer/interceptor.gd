@@ -43,6 +43,8 @@ func _drop_missile() -> void:
 		m.start(global_position)
 	else:
 		m.global_position = global_position
+	# Universal missile launch sound (shared with the player's seeking missiles).
+	WeaponSfx.play(get_tree().root, global_position, "missile")
 
 
 # Override the cycle hook from enemy_core so interceptors stay gone after

@@ -175,6 +175,10 @@ func _ready() -> void:
 	# audible to completion (Roman feedback 2026-05-23). $EnemyDie is
 	# handled separately in explode() via Sfx.play_node_detached.
 	var SfxCls = load("res://scripts/effects/sfx.gd")
+	# Route scene-embedded SFX (EnemyShoot/EnemyDie) onto the SFX bus so the
+	# Options "Sound Volume" slider controls them. Covers bosses too (boss_base
+	# extends this and plays $EnemyDie directly).
+	SfxCls.route_children_to_sfx(self)
 	if has_node("EnemyShoot"):
 		SfxCls.ensure_polyphony($EnemyShoot, 4)
 	if max_shield > 0:

@@ -123,7 +123,7 @@ func _ready() -> void:
 func _make_player(name: String) -> AudioStreamPlayer:
 	var p := AudioStreamPlayer.new()
 	p.name = name
-	p.bus = "Master"
+	p.bus = "Music"
 	p.volume_db = SILENT_DB
 	# Safety net: the per-frame lookahead (line ~215) is the primary path for
 	# end-of-track handoff, but if it misses (frame skip, oddly-reported

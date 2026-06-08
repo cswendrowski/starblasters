@@ -16,3 +16,4 @@ glow_color = Color(0.266667, 1, 1, 0.5)
 impact_kind = 0
 impact_color = Color(0.266667, 1, 1, 1)
 random_frame = true
+enemy_sfx_kind = "enemy_mg"

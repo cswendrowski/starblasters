@@ -46,6 +46,7 @@ extends "res://scripts/enemies/enemy_base.gd"
 const Playfield = preload("res://scripts/playfield.gd")
 const BulletScene = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const MuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
+const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
 
 enum Phase { APPROACH, FIRE, BREAKOFF }
 
@@ -268,8 +269,7 @@ func _fire_one() -> void:
 	# Pink muzzle flash at the firing marker, pointed along the nose.
 	if has_muzzles():
 		MuzzleFx.play_enemy(spawn_pos, dir, get_tree().root)
-	if has_node("EnemyShoot"):
-		$EnemyShoot.play()
+	EnemySfxC.play_for(self)
 	_shots_fired += 1
 	_shot_timer = burst_interval
 

@@ -12,6 +12,7 @@ static func play_at(world_pos: Vector2, volume_db: float = -4.0) -> void:
 	var p := AudioStreamPlayer2D.new()
 	p.stream = EXPLOSION_SFX
 	p.volume_db = volume_db
+	p.bus = "SFX"
 	p.global_position = world_pos
 	Engine.get_main_loop().root.add_child(p)
 	p.play()

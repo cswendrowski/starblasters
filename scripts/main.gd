@@ -703,7 +703,7 @@ func _play_exit_thruster_sfx() -> void:
 		return
 	var p = AudioStreamPlayer.new()
 	p.stream = stream
-	p.bus = "Master"
+	p.bus = "SFX"
 	p.autoplay = false
 	add_child(p)
 	p.play()

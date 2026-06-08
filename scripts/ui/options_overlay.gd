@@ -30,6 +30,7 @@ var _options_panel: PanelContainer = null
 
 var _master_slider: HSlider = null
 var _music_slider: HSlider = null
+var _sfx_slider: HSlider = null
 var _shake_slider: HSlider = null
 var _fullscreen_check: CheckButton = null
 
@@ -106,6 +107,7 @@ func _build_ui() -> void:
 
 	_master_slider = _add_slider_row(left, "Master Volume", _settings().master_volume, _on_master_changed)
 	_music_slider  = _add_slider_row(left, "Music Volume",  _settings().music_volume,  _on_music_changed)
+	_sfx_slider    = _add_slider_row(left, "Sound Volume",  _settings().sfx_volume,    _on_sfx_changed)
 	_shake_slider  = _add_slider_row(left, "Screen Shake",  _settings().shake_scale,   _on_shake_changed)
 
 	left.add_child(_make_separator())
@@ -317,6 +319,10 @@ func _on_master_changed(v: float) -> void:
 
 func _on_music_changed(v: float) -> void:
 	_settings().set_music_volume(v)
+
+
+func _on_sfx_changed(v: float) -> void:
+	_settings().set_sfx_volume(v)
 
 
 func _on_shake_changed(v: float) -> void:

@@ -54,6 +54,7 @@ signal phase_changed(old_idx: int, new_idx: int, phase_name: String)
 # `BossPhase.make(...)`.
 const BossPhase = preload("res://scripts/enemies/boss_phase.gd")
 const MidDepthPresentation = preload("res://scripts/effects/mid_depth_presentation.gd")
+const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
 @export var phases: Array[Resource] = []
 
 # ---- Phase state machine -----------------------------------------------
@@ -259,6 +260,7 @@ func _on_shoot_timer_timeout() -> void:
 	# charge releases.
 	if not _charging and shoot_pattern != null:
 		shoot_pattern.fire(self)
+		EnemySfxC.play_for(self)
 	if has_node("ShootTimer"):
 		$ShootTimer.wait_time = randf_range(fire_interval_min, fire_interval_max)
 		$ShootTimer.start()

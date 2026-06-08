@@ -21,6 +21,7 @@ class_name EnemyBomber
 
 const BULLET_SCENE = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const MuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
+const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
 
 enum BState { ENTER, HOLD }
 
@@ -174,8 +175,7 @@ func _update_tail_turret(delta: float) -> void:
 	elif "velocity_dir" in b:
 		b.velocity_dir = dir
 	MuzzleFx.play_enemy(spawn_pos, dir, get_tree().root)
-	if has_node("EnemyShoot"):
-		$EnemyShoot.play()
+	EnemySfxC.play_for(self)
 
 
 # Free the world-parented contrails when we die (they outlive the hull node).

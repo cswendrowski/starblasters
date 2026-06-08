@@ -47,6 +47,7 @@ static func _play(parent: Node, world_pos, clip: AudioStream, volume_db: float) 
 		var p := AudioStreamPlayer2D.new()
 		p.stream = clip
 		p.volume_db = volume_db
+		p.bus = "SFX"
 		p.global_position = world_pos
 		parent.add_child(p)
 		p.play()
@@ -55,6 +56,7 @@ static func _play(parent: Node, world_pos, clip: AudioStream, volume_db: float) 
 		var p := AudioStreamPlayer.new()
 		p.stream = clip
 		p.volume_db = volume_db
+		p.bus = "SFX"
 		parent.add_child(p)
 		p.play()
 		p.finished.connect(p.queue_free)

@@ -25,6 +25,10 @@ config/features=PackedStringArray("4.6", "Forward Plus")
 run/max_fps=60
 config/icon="res://Mini Pixel Pack 3/UI objects/Player_life_icon (16 x 16).png"
 
+[audio]
+
+buses/default_bus_layout="res://default_bus_layout.tres"
+
 [autoload]
 
 Run="*res://scripts/run_state.gd"

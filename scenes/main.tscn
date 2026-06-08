@@ -93,9 +93,11 @@ noise = SubResource("FastNoiseLite_uf0tv")
 
 [node name="BGM" type="AudioStreamPlayer2D" parent="."]
 stream = ExtResource("8_b2fep")
+bus = &"Music"
 
 [node name="End" type="AudioStreamPlayer2D" parent="."]
 stream = ExtResource("9_jpgor")
+bus = &"SFX"
 
 [node name="WaveDirector" type="Node" parent="."]
 script = ExtResource("11_jjei3")

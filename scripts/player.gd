@@ -289,7 +289,6 @@ var _rl_charging: bool = false
 var _rl_charged: bool = false
 var _rl_charge_t: float = 0.0
 var _rl_charge_player: AudioStreamPlayer2D = null
-var _rl_loop_player: AudioStreamPlayer2D = null
 var _rl_shoot_player_node: AudioStreamPlayer2D = null
 
 # Particle Beam audio — charge → loop → stop (tap-fire skips loop+stop).
@@ -395,7 +394,7 @@ func _setup_mg_audio() -> void:
 	# (ffmpeg `lowpass=f=4000`). The `-LP.ogg` files are committed alongside
 	# the originals. pitch_scale is dialed back closer to neutral now that the
 	# muffle character comes from the filter instead of pitch.
-	var loop_stream: AudioStream = load("res://Sound/weapons/Machinegun-Loop-LP.ogg")
+	var loop_stream: AudioStream = load("res://Sound/weapons/player/Machinegun-Loop-LP.ogg")
 	if loop_stream is AudioStreamOggVorbis:
 		(loop_stream as AudioStreamOggVorbis).loop = true
 	_mg_loop_player = AudioStreamPlayer2D.new()
@@ -403,31 +402,32 @@ func _setup_mg_audio() -> void:
 	_mg_loop_player.stream = loop_stream
 	_mg_loop_player.volume_db = -3.0
 	_mg_loop_player.pitch_scale = 0.92
+	_mg_loop_player.bus = "SFX"
 	add_child(_mg_loop_player)
 
-	var end_stream: AudioStream = load("res://Sound/weapons/Machinegun-End-LP.ogg")
+	var end_stream: AudioStream = load("res://Sound/weapons/player/Machinegun-End-LP.ogg")
 	_mg_end_player = AudioStreamPlayer2D.new()
 	_mg_end_player.name = "MgEnd"
 	_mg_end_player.stream = end_stream
 	_mg_end_player.volume_db = -3.0
 	_mg_end_player.pitch_scale = 0.92
+	_mg_end_player.bus = "SFX"
 	add_child(_mg_end_player)
+	# Route the scene-embedded weapon SFX nodes (ShootSound, CannonShoot,
+	# Rotary/ParticleBeam, etc.) onto the SFX bus for the Options sound slider.
+	var SfxCls = load("res://scripts/effects/sfx.gd")
+	SfxCls.route_children_to_sfx(self)
 	# Rotary Laser audio nodes come from the player scene.
 	_rl_charge_player = get_node_or_null("RotaryLaserCharge")
-	_rl_loop_player = get_node_or_null("RotaryLaserLoop")
 	_rl_shoot_player_node = get_node_or_null("RotaryLaserShoot")
 	_rl_shoot_streams = [
-		load("res://Sound/weapons/rotary_laser_shoot_1.ogg"),
-		load("res://Sound/weapons/rotary_laser_shoot_2.ogg"),
-		load("res://Sound/weapons/rotary_laser_shoot_3.ogg"),
-		load("res://Sound/weapons/rotary_laser_shoot_4.ogg"),
-		load("res://Sound/weapons/rotary_laser_shoot_5.ogg"),
-		load("res://Sound/weapons/rotary_laser_shoot_6.ogg"),
+		load("res://Sound/weapons/player/rotary_laser_shoot_1.ogg"),
+		load("res://Sound/weapons/player/rotary_laser_shoot_2.ogg"),
+		load("res://Sound/weapons/player/rotary_laser_shoot_3.ogg"),
+		load("res://Sound/weapons/player/rotary_laser_shoot_4.ogg"),
+		load("res://Sound/weapons/player/rotary_laser_shoot_5.ogg"),
+		load("res://Sound/weapons/player/rotary_laser_shoot_6.ogg"),
 	]
-	if _rl_loop_player:
-		var ls: AudioStream = _rl_loop_player.stream
-		if ls is AudioStreamOggVorbis:
-			(ls as AudioStreamOggVorbis).loop = true
 	_pb_charge_player = get_node_or_null("ParticleBeamCharge")
 	_pb_loop_player = get_node_or_null("ParticleBeamLoop")
 	_pb_stop_player = get_node_or_null("ParticleBeamStop")
@@ -444,8 +444,6 @@ func _rl_stop() -> void:
 	_rl_charge_t = 0.0
 	if _rl_charge_player and _rl_charge_player.playing:
 		_rl_charge_player.stop()
-	if _rl_loop_player and _rl_loop_player.playing:
-		_rl_loop_player.stop()
 	if was_charged and is_alive and _rl_shoot_player_node and not _rl_shoot_streams.is_empty():
 		_rl_shoot_player_node.stream = _rl_shoot_streams[randi() % _rl_shoot_streams.size()]
 		_rl_shoot_player_node.play()
@@ -456,8 +454,6 @@ func stop_all_weapon_audio() -> void:
 		_mg_loop_player.stop()
 	if _rl_charge_player and is_instance_valid(_rl_charge_player):
 		_rl_charge_player.stop()
-	if _rl_loop_player and is_instance_valid(_rl_loop_player):
-		_rl_loop_player.stop()
 	if _pb_loop_player and is_instance_valid(_pb_loop_player):
 		_pb_loop_player.stop()
 
@@ -634,8 +630,6 @@ func _process(delta: float) -> void:
 				if _rl_charge_t >= RL_CHARGE_DURATION:
 					_rl_charging = false
 					_rl_charged = true
-					if _rl_loop_player:
-						_rl_loop_player.play()
 	elif _mg_firing:
 		_mg_firing = false
 		if _mg_loop_player and _mg_loop_player.playing:
@@ -801,8 +795,6 @@ func die() -> void:
 	_rl_charged = false
 	if _rl_charge_player and _rl_charge_player.playing:
 		_rl_charge_player.stop()
-	if _rl_loop_player and _rl_loop_player.playing:
-		_rl_loop_player.stop()
 	if _pb_loop_player and is_instance_valid(_pb_loop_player):
 		_pb_loop_player.stop()
 	$Death.play()

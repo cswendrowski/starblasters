@@ -90,8 +90,8 @@ func _fire_tracer() -> void:
 	if b.has_method("start"):
 		b.start(pos, dir)
 	MuzzleFx.play_enemy(pos, dir, get_tree().root)
-	if has_node("EnemyShoot"):
-		$EnemyShoot.play()
+	# Rapid alternating-muzzle tracers → machine-gun pool.
+	EnemySfxC.play_for(self, "enemy_mg")
 
 
 # Both wingtip cannons fire a slow heavy slug straight down (area denial).
@@ -100,6 +100,8 @@ func _tick_cannon(delta: float) -> void:
 	if _cannon_t > 0.0:
 		return
 	_cannon_t = CANNON_INTERVAL
+	# Heavy wingtip slugs → default blaster pool (one report per volley).
+	EnemySfxC.play_for(self, "enemy_blaster")
 	for nm in ["CannonL", "CannonR"]:
 		var mz := get_node_or_null(nm) as Marker2D
 		if mz == null:

@@ -49,3 +49,5 @@ func _fire_rockets() -> void:
 		rocket.start(spawn_pos, down)
 		if flashing:
 			MuzzleFx.play_enemy(spawn_pos, down, get_tree().root)
+	# One launch whoosh per volley from the universal rocket pool.
+	WeaponSfx.play(get_tree().root, global_position, "rocket")

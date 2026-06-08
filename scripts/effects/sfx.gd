@@ -38,6 +38,7 @@ static func play_one_shot(stream: AudioStream, world_pos, volume_db: float = 0.0
 		p.stream = stream
 		p.volume_db = volume_db
 		p.pitch_scale = pitch_scale
+		p.bus = "SFX"
 		p.global_position = world_pos
 		root.add_child(p)
 		p.play()
@@ -47,6 +48,7 @@ static func play_one_shot(stream: AudioStream, world_pos, volume_db: float = 0.0
 		p.stream = stream
 		p.volume_db = volume_db
 		p.pitch_scale = pitch_scale
+		p.bus = "SFX"
 		root.add_child(p)
 		p.play()
 		p.finished.connect(p.queue_free)
@@ -67,6 +69,19 @@ static func play_node_detached(node) -> void:
 	if node is Node2D:
 		pos = (node as Node2D).global_position
 	play_one_shot(stream, pos, vol)
+
+
+# Route every AudioStreamPlayer(2D) child of `parent` onto the "SFX" bus so the
+# Options "Sound Volume" slider controls them. Scene-embedded SFX nodes (the
+# player's weapon sounds, each enemy's EnemyShoot/EnemyDie, bosses) default to
+# Master otherwise. Called from player._ready + enemy_base._ready so we don't
+# have to hand-edit a `bus =` into ~50 enemy .tscn files.
+static func route_children_to_sfx(parent) -> void:
+	if parent == null:
+		return
+	for c in parent.get_children():
+		if c is AudioStreamPlayer or c is AudioStreamPlayer2D:
+			c.bus = "SFX"
 
 
 static func ensure_polyphony(player, n: int = DEFAULT_POLYPHONY) -> void:

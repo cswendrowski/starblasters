@@ -45,6 +45,7 @@ const SMALL_SCALE: float = 0.6
 const RingBulletTex = preload("res://graphics/projectiles/enemy_bullet.png")
 const EnemyBulletScene = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const BV_Basic = preload("res://data/bullets/basic.tres")
+const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
 
 # One orbiting visual: its Sprite2D node, its ring index, base angle (phase),
 # orbit radius, and signed angular speed.
@@ -163,4 +164,7 @@ func _release_rings() -> void:
 		if rb.get("small", false):
 			b.scale = Vector2(SMALL_SCALE, SMALL_SCALE)
 		node.queue_free()
+	# One blaster report per ring release (basic bullets), not per pellet.
+	if not _ring_bullets.is_empty():
+		EnemySfxC.play_for(self, "enemy_blaster")
 	_ring_bullets.clear()

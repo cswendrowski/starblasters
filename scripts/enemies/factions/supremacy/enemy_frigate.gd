@@ -28,6 +28,7 @@ class_name EnemyFrigate
 
 const BULLET_SCENE = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const MuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
+const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
 
 enum Mode { TOP_DESCENT, SIDE_CROSS }
 
@@ -138,8 +139,7 @@ func _fire_gun(prefix: String, dir: Vector2) -> void:
 	elif "velocity_dir" in b:
 		b.velocity_dir = dir
 	MuzzleFx.play_enemy(spawn_pos, dir, get_tree().root)
-	if has_node("EnemyShoot"):
-		$EnemyShoot.play()
+	EnemySfxC.play_for(self)
 
 
 # X-only repulsion from other frigates within SEPARATION_RADIUS so a top-band

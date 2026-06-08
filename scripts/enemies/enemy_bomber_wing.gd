@@ -25,6 +25,7 @@ extends "res://scripts/enemies/enemy_base.gd"
 
 const BulletScene = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const TURRET_BULLET_TEX = preload("res://graphics/projectiles/tracer-yellow.png")
+const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
 
 # --- Shape / stats ------------------------------------------------------
 @export var shield_charges_max: int = 2
@@ -214,6 +215,8 @@ func _fire_turret(idx: int, dist_to_player: float) -> void:
 	if spr:
 		spr.texture = TURRET_BULLET_TEX
 		spr.rotation = fire_angle + PI * 0.5
+	# Yellow tracer turrets → machine-gun pool.
+	EnemySfxC.play_for(self, "enemy_mg")
 
 
 # Death: keep some forward momentum, darken to black overlay, slow to a

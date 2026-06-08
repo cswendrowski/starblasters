@@ -289,6 +289,8 @@ func _launch_next_missile() -> void:
 	)
 	_world_parent().add_child(missile)
 	_missiles_remaining += 1
+	# Universal missile launch sound (shared with the player's seeking missiles).
+	WeaponSfx.play(get_tree().root, launch, "missile")
 	# Each missile calls back when it detonates so we know the salvo is done.
 	missile.detonated.connect(_on_missile_detonated)
 

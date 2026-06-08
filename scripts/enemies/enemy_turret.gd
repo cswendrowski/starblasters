@@ -1,6 +1,8 @@
 extends Node2D
 class_name EnemyTurret
 
+const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
+
 # Reusable aiming + firing component. Add as a child of any enemy node.
 # Handles player tracking, arc clamping, post-shot rotation lock, and
 # bullet spawning. The parent only needs to expose find_player() or be
@@ -138,6 +140,9 @@ func _shoot() -> void:
 	if has_mz:
 		var MuzzleFx = load("res://scripts/effects/muzzle_fx.gd")
 		MuzzleFx.play_enemy(spawn_pos, fire_dir, get_tree().root)
+	# Fire sound — classified off this turret's own bullet_variant (small/tracer
+	# → enemy_mg, else enemy_blaster). Positional at the muzzle.
+	EnemySfxC.play(get_tree().root, spawn_pos, EnemySfxC.kind_for(self))
 
 
 # Flick the barrel through its recoil frames (1 -> max -> back to idle 0) on a shot.
