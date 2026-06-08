@@ -252,30 +252,29 @@ const ENTRIES := [
 	# (path-phase, since it's a monotonic descent); the cross variant rakes the lane
 	# on the timer while traversing. Zealot-exclusive enemy_core.
 	{
-		# Sword (advance) — SLOW lane pusher (Roman 2026-06-07: was far too fast at
-		# firecore_straight/180; slow_advance is ~1 px/f). Pushes straight down firing.
+		# Sword (advance) — SLOW lane pusher with a bespoke rolling broadside
+		# (enemy_sword.gd cycles the body muzzles firing down). shoot null = the script
+		# fires. recycle 0 = exit at bottom.
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_sword.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "slow_advance",
-		"shoot": "single",
-		"bullet_variant": BV_SpreadPellet,
+		"shoot": null,
 		"base_count": 3,
-		"recycle": 0,   # exit at the bottom, don't recycle-loop (Roman 2026-06-08)
+		"recycle": 0,
 		"hp_override": 2, "bounty_override": 12,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
 		"conflict_tags": ["dumb_shot"],
 	},
 	{
-		# Sword (cross) — crosses horizontally raking shots down the lanes it passes.
+		# Sword (cross) — crosses horizontally; the rolling broadside (firing down) reads
+		# as a perpendicular curtain raking the lanes it passes. Bespoke firing.
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_sword.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "side_traverse",
-		"shoot": "single",
-		"bullet_variant": BV_SpreadPellet,
+		"shoot": null,
 		"base_count": 2,
-		"fire_min": 0.5, "fire_max": 0.9,
 		"hp_override": 2, "bounty_override": 12,
 		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.7, "chaff": true,
 		"conflict_tags": ["dumb_shot"],
