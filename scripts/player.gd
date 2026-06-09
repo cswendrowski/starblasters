@@ -727,6 +727,10 @@ func _process(delta: float) -> void:
 		# Runs every frame: ticks the active-wave countdown AND handles the
 		# deploy press (gated internally so re-deploy is blocked while live).
 		_tick_deploy(delta)
+	elif secondary_mode == WS.SecondaryMode.SALVO:
+		# Swarm Launcher: press fires a salvo, then a flat cooldown. Gated on
+		# the shared _secondary_t cooldown (ticked above) + ammo. Phase-blocked.
+		_tick_salvo()
 	elif sec_held:
 		fire_secondary()
 	# Super weapon (X by default, single-tap, consumes a charge). Stub
@@ -1357,6 +1361,33 @@ func _end_deploy() -> void:
 	_drones_active = false
 	_deploy_timer = 0.0
 	secondary_timer_changed.emit(0.0, false)
+
+
+# Swarm Launcher (SecondaryMode.SALVO): one press fires a fire-and-forget salvo of
+# homing missiles, consumes one ammo, then a flat cooldown before the next. Gated on
+# the shared _secondary_t cooldown (ticked toward secondary_cooldown every frame) +
+# ammo. Phase-locked (no offense while phased). The Part's fire_salvo() owns the
+# spawn + distinct-target assignment; the missiles are fire-and-forget (not tracked).
+func _tick_salvo() -> void:
+	if not is_alive or _phase_t > 0.0:
+		return
+	if not Input.is_action_just_pressed("shoot2"):
+		return
+	if secondary_ammo == 0:
+		return
+	if _secondary_t < secondary_cooldown:
+		return  # still cooling down
+	var part = _secondary_part()
+	if part == null or not part.has_method("fire_salvo"):
+		return
+	if not part.fire_salvo(self):
+		return
+	_secondary_t = 0.0  # restart the cooldown
+	if secondary_ammo > 0:
+		secondary_ammo -= 1
+		secondary_ammo_changed.emit(secondary_ammo, secondary_ammo_max)
+		if has_node("/root/Run"):
+			get_node("/root/Run").secondary_ammo = secondary_ammo
 
 
 # Resolve the equipped secondary Part (HARDPOINT_WING) so DEPLOY can call

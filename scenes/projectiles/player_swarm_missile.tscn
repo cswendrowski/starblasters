@@ -1,0 +1,31 @@
+[gd_scene format=3 uid="uid://swarmmissile0001"]
+
+[ext_resource type="Script" path="res://scripts/projectiles/swarm_missile.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://graphics/projectiles/energy_bolt_small.png" id="2_tex"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
+size = Vector2(4, 4)
+
+[node name="PlayerSwarmMissile" type="Area2D"]
+z_index = -1
+script = ExtResource("1_script")
+target_group = "enemies"
+drift_time = 0.05
+drift_speed = 60.0
+homing_accel = 720.0
+homing_max_speed = 360.0
+speed_lock_mult = 1.0
+lock_accel_mult = 1.5
+damage_on_contact = 4
+fuse = 4.0
+flame_trail = true
+initial_dir = Vector2(0, -1)
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_1")
+
+[node name="exhaust_point" type="Marker2D" parent="."]
+position = Vector2(0, 2)

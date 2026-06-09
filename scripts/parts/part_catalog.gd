@@ -24,6 +24,7 @@ const ParticleBeam = preload("res://scripts/parts/particle_beam.gd")
 const SidePods = preload("res://scripts/parts/side_pods.gd")
 const DroneBits = preload("res://scripts/parts/drone_bits.gd")
 const DroneSwarm = preload("res://scripts/parts/drone_swarm.gd")
+const SwarmLauncher = preload("res://scripts/parts/swarm_launcher.gd")
 const BulletDefault = preload("res://scenes/projectiles/bullet.tscn")
 const BulletHeavy = preload("res://scenes/projectiles/bullet_heavy.tscn")
 const BulletMinigun = preload("res://scenes/projectiles/bullet_minigun.tscn")
@@ -34,6 +35,7 @@ const BulletAutoLaser = preload("res://scenes/projectiles/bullet_auto_laser.tscn
 const PlayerRocket = preload("res://scenes/projectiles/player_rocket.tscn")
 const PlayerSeekingMissile = preload("res://scenes/projectiles/player_seeking_missile.tscn")
 const PlayerSeekingMissileLarge = preload("res://scenes/projectiles/player_seeking_missile_large.tscn")
+const PlayerSwarmMissile = preload("res://scenes/projectiles/player_swarm_missile.tscn")
 
 # Pool entries: [factory_callable, slot_for_factory]
 # Slot is used for the WING_LEFT vs WING_RIGHT disambiguation only.
@@ -70,6 +72,7 @@ static func _all_pool() -> Array:
 		# Roman 2026-05-30: Combat Drones converted SUPER -> SECONDARY; now
 		# equips in the HARDPOINT_WING slot and fires on shoot2 (deploy).
 		{"factory": "_make_drone_swarm", "slot": Slots.SlotType.HARDPOINT_WING},
+		{"factory": "_make_swarm_launcher", "slot": Slots.SlotType.HARDPOINT_WING},
 	]
 
 static func roll_random_part(rng: RandomNumberGenerator):
@@ -152,6 +155,8 @@ static func _make_by_name(name: String, slot: int):
 			return _build_weapon("res://resources/weapons/drone_bits.tres", DroneBits, BulletDefault)
 		"_make_drone_swarm":
 			return _build_weapon("res://resources/weapons/drone_swarm.tres", DroneSwarm, null)
+		"_make_swarm_launcher":
+			return _build_weapon("res://resources/weapons/swarm_launcher.tres", SwarmLauncher, PlayerSwarmMissile)
 	return null
 
 

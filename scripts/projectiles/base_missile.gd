@@ -181,17 +181,9 @@ func _process(delta: float) -> void:
 			# keep their original behavior.
 			var p: Node = null
 			if target_group == "enemies" and not dumb_fire:
-				# Player seeking missile: one-shot lock behavior
-				if not _locked:
-					# Looking for initial target acquisition
-					p = _find_homing_target_in_cone(fwd)
-					if p and is_instance_valid(p):
-						_locked = true
-						_locked_target = p
-				elif _locked_target != null and is_instance_valid(_locked_target):
-					# Locked and target still valid: track it
-					p = _locked_target
-				# else: locked but target is gone → fly straight, p stays null
+				# Player seeking missile: one-shot lock behavior (overridable —
+				# the Swarm missile subclasses this for assigned-target + re-acquire).
+				p = _resolve_player_target(fwd)
 			else:
 				# Enemy missiles and rockets: use original re-acquire logic
 				p = _find_homing_target_in_cone(fwd) if not _locked else _find_homing_target()
@@ -363,6 +355,22 @@ func _find_homing_target_in_cone(fwd: Vector2):
 	if prefer_large:
 		return best_large
 	return best
+
+
+# Player seeking-missile target resolution (default = one-shot lock: acquire the
+# first in-cone target, then track it; fly straight when it's gone). Returns the
+# node to home, or null to fly straight. Subclasses (swarm_missile) override this
+# for assigned-target + re-acquire-on-death behavior. Behavior-preserving extract.
+func _resolve_player_target(fwd: Vector2) -> Node:
+	if not _locked:
+		var p: Node = _find_homing_target_in_cone(fwd)
+		if p and is_instance_valid(p):
+			_locked = true
+			_locked_target = p
+		return p
+	if _locked_target != null and is_instance_valid(_locked_target):
+		return _locked_target
+	return null
 
 
 # True if `n` is a boss — i.e. its script chain includes boss_base.gd.

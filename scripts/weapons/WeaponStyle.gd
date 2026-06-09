@@ -46,6 +46,10 @@ enum SecondaryMode {
 	           # Re-deploy is blocked while a wave is live. Duration countdown
 	           # + active gate + ammo decrement live in player._tick_deploy;
 	           # the Part's deploy() spawns + returns the drone nodes.
+	SALVO,     # fire-and-forget salvo (Swarm Launcher): one press fires N homing
+	           # missiles, consumes one ammo, then a flat cooldown (secondary_cooldown)
+	           # before the next salvo. The Part's fire_salvo() owns the spawn +
+	           # distinct-target assignment; player._tick_salvo gates on cooldown+ammo.
 }
 
 
