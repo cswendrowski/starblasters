@@ -152,11 +152,8 @@ var super_part: Resource = null
 var super_charges: int = 0
 var max_super_charges: int = 3
 signal super_charges_changed(value: int, maximum: int)
-# Hyper Mode timer — when > 0, fire_primary triggers every frame
-# regardless of GunCooldown, and damage is multiplied. Driven by the
-# Hyper super weapon's activate(); ticks down in _process.
-var _hyper_t: float = 0.0
-const HYPER_DAMAGE_MULT := 2.0
+# (Hyper is a SHIFT_MODE stance now, not a super — its runtime lives below with
+# the other Shift-Mode state. See `active_mode` / _tick_hyper_mode.)
 # Exported so player.tscn can assign a fallback bullet; parts override at runtime.
 @export var bullet_scene: PackedScene
 @export var super_scene: PackedScene
@@ -243,6 +240,30 @@ signal focus_charge_changed(charge: float, max_charge: float)
 enum ShiftMode { FOCUS, PHASE, HYPER }
 var active_mode: int = ShiftMode.FOCUS
 var mode_part: Resource = null
+
+# --- Hyper mode runtime (active_mode == HYPER) ---
+# A Focus-style bar (seconds of uptime). Drains while overdriving, recharges only
+# while idle, and can ONLY (re)engage when FULL. While active: primary +fire-rate,
+# unlimited primary ammo, +Mk damage. Tunables pulled from the mode part on equip.
+var hyper_charge: float = 4.0
+var hyper_charge_max: float = 4.0
+var _hyper_active: bool = false
+var hyper_fire_bonus: float = 0.10
+var hyper_damage_mult: float = 1.0
+var hyper_recharge_rate: float = 0.8
+signal hyper_charge_changed(charge: float, max_charge: float, active: bool)
+
+# --- Phase mode runtime (active_mode == PHASE) ---
+# Press Shift to phase out: brief intangibility (no incoming damage, no offense),
+# consuming one charge. Charges refill by KILLING enemies (on_enemy_killed), not by
+# time. Tunables pulled from the mode part on equip.
+var phase_charges: int = 2
+var phase_charges_max: int = 2
+var phase_duration: float = 1.5
+var phase_kills_per_charge: int = 4
+var _phase_t: float = 0.0
+var _phase_kill_count: int = 0
+signal phase_charges_changed(charges: int, max_charges: int)
 
 var can_shoot: bool = true
 var is_alive: bool = true
@@ -557,11 +578,6 @@ func _process(delta: float) -> void:
 	# weapon recharges in the background and a tap fires immediately
 	# whenever it's ready.
 	_secondary_t = min(_secondary_t + delta, secondary_cooldown)
-	if _hyper_t > 0.0:
-		_hyper_t = max(0.0, _hyper_t - delta)
-		# While hyper is active, bypass GunCooldown so primary fires every
-		# frame. Damage gets scaled inside fire_primary below.
-		can_shoot = true
 	if not controls_enabled:
 		# Ship still animates "forward" so it reads as actively flying during
 		# the intro slide-in / outro fly-out cinematic.
@@ -592,8 +608,8 @@ func _process(delta: float) -> void:
 	# Charge-gated: focus deactivates when charge hits 0; recharges 2s
 	# after release.
 	# Focus is one of three Shift modes — only run the Focus stance when it's the
-	# active mode. Phase/Hyper handle the Shift input via their own runtime (Phase 2);
-	# until then a non-Focus mode simply no-ops on Shift.
+	# active mode. Hyper/Phase handle the same Shift input via their own runtime
+	# (_tick_hyper_mode / _tick_phase_mode, below).
 	var want_focus: bool = active_mode == ShiftMode.FOCUS and Input.is_action_pressed("focus") and focus_charge > 0.0
 	# Drain charge while focused.
 	if want_focus:
@@ -606,6 +622,9 @@ func _process(delta: float) -> void:
 		elif focus_charge < focus_charge_max:
 			focus_charge = min(focus_charge_max, focus_charge + FOCUS_REGEN_RATE * delta)
 			focus_charge_changed.emit(focus_charge, focus_charge_max)
+	# Hyper / Phase share the `focus` (Shift) action — tick their runtime here.
+	_tick_hyper_mode(delta)
+	_tick_phase_mode(delta)
 	var focused: bool = want_focus
 	var focus_mult: float = FOCUS_FACTOR if focused else 1.0
 	_update_focus_dot(focused)
@@ -636,6 +655,10 @@ func _process(delta: float) -> void:
 		var s = get_node("/root/Settings")
 		if "autofire" in s and s.autofire:
 			fire_held = true
+	# Phase mode: while phased out the player is intangible AND cannot hit bullets
+	# or enemies — lock off primary offense (secondary is gated below).
+	if _phase_t > 0.0:
+		fire_held = false
 	# Primary swap (Weapons Phase 1, Q): flip between blaster (cannon_pool[0])
 	# and the last-used replacement primary. Re-applies the new active cannon
 	# to the ship so bullet_scene / cooldown / damage all swap atomically.
@@ -686,22 +709,103 @@ func _process(delta: float) -> void:
 				get_node("/root/Run").ammo = ammo
 	# Secondary fire (C by default, hold-fire). Beam mode is held-tick
 	# per-frame; bullet mode spawns a projectile per cooldown window.
+	# Phase mode locks off secondary offense too (still ticks cooldowns via the
+	# tick fns; just no fire). DEPLOY keeps ticking its active-wave countdown but
+	# won't accept a new deploy press while phased (handled in _tick_deploy).
+	var sec_held: bool = Input.is_action_pressed("shoot2") and _phase_t <= 0.0
 	if secondary_mode == WS.SecondaryMode.BEAM:
-		var holding: bool = Input.is_action_pressed("shoot2")
-		_tick_beam(holding, delta)
+		_tick_beam(sec_held, delta)
 	elif secondary_mode == WS.SecondaryMode.BURST:
-		var burst_held: bool = Input.is_action_pressed("shoot2")
-		_tick_burst(burst_held, delta)
+		_tick_burst(sec_held, delta)
 	elif secondary_mode == WS.SecondaryMode.DEPLOY:
 		# Runs every frame: ticks the active-wave countdown AND handles the
 		# deploy press (gated internally so re-deploy is blocked while live).
 		_tick_deploy(delta)
-	elif Input.is_action_pressed("shoot2"):
+	elif sec_held:
 		fire_secondary()
 	# Super weapon (X by default, single-tap, consumes a charge). Stub
 	# until DEVICE_BAY slot Parts implement themselves.
 	if Input.is_action_just_pressed("shoot_nose"):
 		fire_super()
+
+# ---- Shift modes (Hyper / Phase) ----------------------------------------
+# Focus lives inline in _process; Hyper + Phase share the same `focus` (Shift) action
+# but have their own resource models. Design: docs/shift_mode_system_2026-06-08.md.
+
+# Called by ModePart.apply/unapply when the equipped Shift mode changes. Pulls the
+# part's Mk-scaled tunables and resets runtime state.
+func _on_mode_changed() -> void:
+	_hyper_active = false
+	_phase_t = 0.0
+	if active_mode == ShiftMode.HYPER and mode_part != null:
+		if mode_part.has_method("fire_bonus_at_mark"):
+			hyper_fire_bonus = mode_part.fire_bonus_at_mark(int(mode_part.mark))
+		if mode_part.has_method("damage_mult_at_mark"):
+			hyper_damage_mult = mode_part.damage_mult_at_mark(int(mode_part.mark))
+		if "bar_seconds" in mode_part:
+			hyper_charge_max = float(mode_part.bar_seconds)
+		if "recharge_per_sec" in mode_part:
+			hyper_recharge_rate = float(mode_part.recharge_per_sec)
+		hyper_charge = hyper_charge_max  # start full / ready
+		hyper_charge_changed.emit(hyper_charge, hyper_charge_max, false)
+	elif active_mode == ShiftMode.PHASE and mode_part != null:
+		if mode_part.has_method("charges_at_mark"):
+			phase_charges_max = int(mode_part.charges_at_mark(int(mode_part.mark)))
+		if mode_part.has_method("duration_at_mark"):
+			phase_duration = float(mode_part.duration_at_mark(int(mode_part.mark)))
+		if "kills_per_charge" in mode_part:
+			phase_kills_per_charge = int(mode_part.kills_per_charge)
+		phase_charges = phase_charges_max  # start full
+		_phase_kill_count = 0
+		phase_charges_changed.emit(phase_charges, phase_charges_max)
+
+
+# Hyper: held Shift drains the bar (+fire/ammo/dmg while active); release/empty ends
+# it; recharges only while idle; can ONLY (re)engage from a FULL bar (no tapping).
+func _tick_hyper_mode(delta: float) -> void:
+	if active_mode != ShiftMode.HYPER:
+		return
+	var holding: bool = Input.is_action_pressed("focus")
+	if _hyper_active:
+		hyper_charge = max(0.0, hyper_charge - delta)  # drain 1/s
+		if hyper_charge <= 0.0 or not holding:
+			_hyper_active = false
+		hyper_charge_changed.emit(hyper_charge, hyper_charge_max, _hyper_active)
+	else:
+		if hyper_charge < hyper_charge_max:
+			hyper_charge = min(hyper_charge_max, hyper_charge + hyper_recharge_rate * delta)
+			hyper_charge_changed.emit(hyper_charge, hyper_charge_max, false)
+		if holding and hyper_charge >= hyper_charge_max:
+			_hyper_active = true
+			hyper_charge_changed.emit(hyper_charge, hyper_charge_max, true)
+
+
+# Phase: PRESS Shift to phase out — intangible (no incoming damage) + offense locked
+# for phase_duration, costs one charge. Charges refill via on_enemy_killed (kills).
+func _tick_phase_mode(delta: float) -> void:
+	if active_mode != ShiftMode.PHASE:
+		return
+	if _phase_t > 0.0:
+		_phase_t = max(0.0, _phase_t - delta)
+		_invuln_t = max(_invuln_t, _phase_t)  # intangible for the whole window
+	if Input.is_action_just_pressed("focus") and _phase_t <= 0.0 and phase_charges > 0:
+		phase_charges -= 1
+		_phase_t = phase_duration
+		_invuln_t = max(_invuln_t, phase_duration)
+		phase_charges_changed.emit(phase_charges, phase_charges_max)
+
+
+# Phase refills charges by killing enemies. Wired from main._on_enemy_died (the
+# bounty-award hook) so only player-caused kills count — off-screen departs don't.
+func on_enemy_killed() -> void:
+	if active_mode != ShiftMode.PHASE or phase_charges >= phase_charges_max:
+		return
+	_phase_kill_count += 1
+	if _phase_kill_count >= phase_kills_per_charge:
+		_phase_kill_count = 0
+		phase_charges = min(phase_charges_max, phase_charges + 1)
+		phase_charges_changed.emit(phase_charges, phase_charges_max)
+
 
 # ---- Damage pipeline ----
 # Shield is an HP pool — full bullet damage absorbed, no overflow to hull.
@@ -836,6 +940,8 @@ func die() -> void:
 func fire_primary() -> void:
 	if not can_shoot or bullet_scene == null:
 		return
+	if _phase_t > 0.0:
+		return  # phased out — no offense
 	# Weapons Phase 1: every non-blaster primary is metered. Active cannon
 	# index 0 == blaster (infinite); anything else has a magazine that lives
 	# on the Part instance in Run.cannon_pool[active_cannon_idx].current_ammo.
@@ -850,7 +956,12 @@ func fire_primary() -> void:
 	if weapon_style == WS.WeaponStyle.ROTARY_LASER and not _rl_charged:
 		return
 	can_shoot = false
-	$GunCooldown.start()
+	# Hyper mode: primary fires +hyper_fire_bonus faster (shorter cooldown) while
+	# active. start(time) overrides this one cycle without changing wait_time.
+	if _hyper_active and active_mode == ShiftMode.HYPER and hyper_fire_bonus > 0.0:
+		$GunCooldown.start($GunCooldown.wait_time / (1.0 + hyper_fire_bonus))
+	else:
+		$GunCooldown.start()
 	# Rotary Laser firing sound: a rapid random pew per shot (the old sustained
 	# loop's replacement), throttled so the ~20/s fire rate doesn't spam voices.
 	if weapon_style == WS.WeaponStyle.ROTARY_LASER:
@@ -876,11 +987,11 @@ func fire_primary() -> void:
 		_bullet_parent().add_child(b)
 		# Propagate the equipped cannon's damage to the bullet so per-Part /
 		# per-Mark scaling actually reaches the take_hit call.
-		# Hyper Mode doubles damage for its duration.
+		# Hyper mode adds its Mk damage multiplier (even-Mk stacks) while active.
 		if "damage" in b:
 			var dmg: int = bullet_damage
-			if _hyper_t > 0.0:
-				dmg = int(round(float(bullet_damage) * HYPER_DAMAGE_MULT))
+			if _hyper_active and active_mode == ShiftMode.HYPER:
+				dmg = int(round(float(bullet_damage) * hyper_damage_mult))
 			b.damage = dmg
 		# Per-cannon overrides (Wave Gun speed + pierce, etc). Sentinel
 		# < 0 / <= 0 leaves the bullet scene's own export default alone.
@@ -950,7 +1061,9 @@ func fire_primary() -> void:
 	# hits 0, snap to the blaster and re-apply on the next frame so the
 	# WeaponPart.apply/unapply snapshot cycle happens cleanly outside the
 	# fire loop.
-	if _is_replacement_primary_active() and ammo > 0:
+	if _is_replacement_primary_active() and ammo > 0 \
+			and not (_hyper_active and active_mode == ShiftMode.HYPER):
+		# (Hyper mode grants unlimited primary ammo while active — skip decrement.)
 		ammo -= 1
 		ammo_changed.emit(ammo)
 		# Mirror to the active cannon Part so the magazine survives swap-out.

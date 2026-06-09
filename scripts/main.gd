@@ -326,6 +326,10 @@ func _on_enemy_died(value: int, scene_path: String) -> void:
 	bounty += value
 	if has_node("/root/Run"):
 		get_node("/root/Run").record_kill(value)
+	# Phase Shift mode refills its charges on player-caused kills — this hook fires
+	# only on real deaths (same path as bounty), so off-screen departs don't count.
+	if is_instance_valid(player) and player.has_method("on_enemy_killed"):
+		player.on_enemy_killed()
 	$CanvasLayer/UI.update_score(bounty)
 	$Camera2D.add_trauma(0.25)
 	if scene_path != "" and _enemy_stats.has(scene_path):
