@@ -91,16 +91,23 @@ landed. Grouped by effort.
   (`1ba0692` "Unify enemy shields onto ShieldComponent (CHARGE/POOL); bulwark/mine/sapper migrated"
   + `d973c31` smart bomb ignores all shields). Boss Aegis stays bespoke as specced.
 
-### Recycling
-- [ ] **Recycling breaks composed formations.** Recycled units re-enter as noise, devolving
-  pincer/wall patterns. The conductor must handle recycling: route recycled enemies into the
-  NEXT wave pool / a fresh intervening pattern / fold them into the ongoing wave, so composed
-  patterns stay intact. (`director.gd` + `enemy_core` recycle hook)
-- [ ] **Unified pseudo-mid recycle layer.** Commit to a single core recycling layer modeled on
-  the missile_cruiser's pseudo-parallax layer (same shading + placement), so ALL recycling
-  enemies look consistent. (factor missile_cruiser's pseudo-parallax into a shared mechanism)
-  - _2026-06-08: BOTH STILL OPEN — untouched by the migration (the migration only set
-    `recycle_passes` per-enemy; the unified recycle-layer + formation-aware re-entry are unbuilt)._
+### Recycling — Pillar 2 (spec: `docs/recycling_system_pillar2_2026-06-04.md`)
+**Pillar 1 + the recycle-delay bug fix SHIPPED (`8f99dd0`)**: `mid_depth_presentation.gd` + the
+side-exit cleanup fix. Pillar 2 (the central controller) + its tuner are unbuilt. Build order per
+the doc: **RecycleTuner dev scene FIRST** (recycle budget / fly-back scale / tint / hold are 3+
+live knobs — JSON persist + Copy-GDScript), then the controller tuned against it. Regression
+surface = the whole roster → playtest-only verification.
+- [ ] **RecycleTuner dev scene** (prerequisite) — `scripts/dev/` tuner for the recycle budget +
+  fly-back look, registered in `dev_menu.gd`.
+- [ ] **`RecycleController` helper** (preload-const, not `class_name`) — owns offscreen→recycle
+  decisioning + ONE timing budget (replacing the scattered `0.4–0.9` hold + fixed `1.8s` tween),
+  with the fly-back ghost reusing `MidDepthPresentation` instead of hardcoded scale/tint.
+  `enemy_base._offscreen_cleanup_check` + `enemy_core._start_cycle` delegate to it; preserve
+  `is_recycling()` / `recycle_passes` / `fleeing`. (= "unified pseudo-mid recycle layer".)
+- [ ] **Formation-aware re-entry** — the conductor routes recycled units into the next wave pool /
+  a fresh intervening pattern so composed pincer/wall patterns don't devolve into noise. (Combat
+  session note 2026-06-08: migration only set `recycle_passes` per-enemy; this + the controller
+  are both unbuilt.)
 
 ### Background (likely separate scope)
 - [x] **Per-row planets are static** — DONE (lead 2026-06-08, `c36a044`). Live backdrop is the V4
@@ -355,10 +362,13 @@ Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" fl
 
 ## End-of-run summary + run history + run timer (rolled in 2026-06-08)
 
-Full scoping in `docs/run_summary_scope_2026-06-01.md` (re-audited 2026-06-05). Status: **scoped,
-not built — no stats instrumentation has landed.** Splits into a cheap core + an expensive tail.
-NOTE: most hooks live in `player.gd` / `enemy_base.gd` / `main.gd` — shared / combat-arena files;
-coordinate with the combat session before instrumenting those hot paths.
+Full scoping in `docs/run_summary_scope_2026-06-01.md` (re-audited 2026-06-05). Status: **Phase 4
+(dated run-history index) DONE (`1c86ba2`); Phases 1–3 + the run timer still NOT built — no stats
+instrumentation has landed** (re-confirmed 2026-06-08: the outpost-hub work did NOT add the
+bounty-spend choke-point Phase 2 needs — the outpost still does bare `run.bounty -=` in several
+places). Splits into a cheap core + an expensive tail. NOTE: most hooks live in
+`player.gd` / `enemy_base.gd` / `main.gd` — shared / combat-arena files; coordinate with the combat
+session before instrumenting those hot paths.
 
 - [ ] **Phase 1 — `RunStats` core (~½–1 day, ship first).** Add a run-wide stats accumulator on the
   `Run` autoload; reset it in `new_run()` alongside the other run-scoped fields. Surface Tier-1 stats
@@ -407,17 +417,40 @@ Shift, with per-mode resources, HUD meter, outpost purchase + signal-event finds
 - [x] **Mode HUD + outpost economy** — DONE. HUD mode meter (`db19a58`); modes bought at outposts
   (`2eb2c35`) + found via the Stance Module Cache signal event (`9b55e47`).
 
-REMAINING — the **passive-module layer** (separate from stances; NOT built):
-- [ ] **Reify defensive systems as Modules.** Move Shield / Hull Regen / Hull
-  Plating from abstract `Run` int Mk-keys into passive Part Resources (or cheaper: keep as `Run` ints
-  but PRESENT them in the bay). Shield becomes a default-equipped passive (dropping it = deliberate
-  glass-cannon). OPEN DECISION: reify vs present; 4 vs 3 passive slots.
-- [ ] **Passive-module roster (~10 picks for ~3 free slots).** Shield Core (default), Repair Nanites,
-  Ablative Plating (deterministic every-Nth, not RNG), Intercept Drones, Splinter Rounds, Targeting
-  Computer (crit), Overclock Core (fire ramp), Overcharge Core (+dmg/−shield), Adrenal Surge
-  (low-hull scaling), Tractor Coil (pickup magnet), Siphon Core (kills → shield charge, **never Mode
-  Energy**). Each adds a *mechanic*, Mk.1–9 scalable. Full roster + cut list + build archetypes in
-  spec §15.
+REMAINING — the **PASSIVE-MODULE layer** (the other half of `supers_modes_modules_2026-06-05.md` §2,
+§12–13, §15; the stance half above is built). Modules = a 4-slot bay of automatic (no-input) Parts
+that ADD a mechanic (vs Upgrades, which refine a number). Shield is default-equipped → real choice =
+**3 of the rest** (or 4 if you go shieldless). All `Part` + `apply/unapply` + Mk.1–9 — no new part
+infra needed (the SHIFT_MODE slot work proves the pattern; reserved `DEVICE_BAY_2`/`SHIELD`/wing
+enums absorb the bay slots). Net-new = the bay UI + the reify refactor + the roster.
+
+- [ ] **A. Passive-module bay infrastructure** — a 4-slot module axis (separate from the stance slot),
+  on the reserved `SlotTypes` enums; a `ModulePart` base (automatic apply/unapply, Mk.1–9); bay
+  swap/buy/upgrade UI at outposts + Manage Ship + a HUD readout of equipped modules.
+- [ ] **B. Reify defensive systems as Modules** — Shield / Hull Regen (`self_repair_mk`) / Hull
+  Plating (`hull_plating_mk`) from abstract `Run` int Mk-keys → passive Part Resources (OPEN: reify
+  vs. keep `Run`-ints but *present* in the bay; cheaper). Shield = default-equipped (dropping it =
+  deliberate glass-cannon). `shield_cap_mk` stays an Upgrade scaling the Shield module's capacity.
+- [ ] **C. Classification moves** — Intercept Drones (the ablative non-firing "Shield Drones",
+  `e6c42a6`) HARDPOINT_WING-secondary → passive Module; Ammo Pods (pure +ammo%) → Upgrade per the §1
+  corollary (a number, not a mechanic).
+- [ ] **D. The roster (§15) — ~10 picks for ~3 free slots** (4 def / 3 off / 3 risk-utility). Each
+  adds a *mechanic*, Mk.1–9. Suggested additions:
+  - [ ] **Shield Core** *(default)* — charge-pool shield (the reified Shield from B).
+  - [ ] **Repair Nanites** — regen 1 hull pip / N s, only after M s undamaged, caps at max−1 (gated).
+  - [ ] **Ablative Plating** — absorb every Nth hull hit (DETERMINISTIC, not RNG).
+  - [ ] **Intercept Drones** — orbiting ablative drones block bullets, X hits each (the reified C).
+  - [ ] **Splinter Rounds** — kills burst short-range shrapnel hitting neighbors (keep brief/short).
+  - [ ] **Targeting Computer** — % crit on primary (×2 dmg + distinct flash; coordinate vfx-author).
+  - [ ] **Overclock Core** — sustained fire ramps fire-rate, resets on release (cap the ramp).
+  - [ ] **Overcharge Core** — +damage %, −1 max shield charge (risk-reward).
+  - [ ] **Adrenal Surge** — fire/damage scale up as hull drops, peak at 1 hull.
+  - [ ] **Tractor Coil** — auto-collect + pull bounty/pickups in a radius.
+  - [ ] **Siphon Core** — kills restore a sliver of SHIELD charge (**NEVER Mode Energy** — runaway lever).
+  - Cut/hold (don't re-add lightly): Auto-Dodge, Scavenger (→Upgrade), Reflector/Thorns, Last Stand
+    (redundant w/ death-bomb), Threat Sensor, Piercing Core (Wave Gun identity), Auto-Turret.
+- [ ] **E. Build-archetype sanity check** (§15) — Fortress / Aggro-clear / Glass-Cannon / Economist
+  should each be a real, distinct build once the bay + roster land (the proof the 4 slots "sing").
 
 ## Faction gap units — sprites/enemies to commission (M6b, 2026-06-06)
 
