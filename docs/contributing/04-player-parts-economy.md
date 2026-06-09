@@ -10,7 +10,7 @@ This doc covers the **player ship**, **upgrade system** (`Part`s), and the **eco
 
 All player statistics begin at zero. The ship has no hardcoded fire rate, damage, speed, or hull — every stat comes from the **Parts** you equip via `PlayerLoadout`.
 
-When the player starts a run, `player.gd` loads a default starting loadout (main engine, energy blaster cannon, smart bomb super) and then layers on any Parts the player bought from the shop between scenes. So a ship with no parts would have zero speed and zero damage — it wouldn't be able to move or shoot. This design lets Parts be purely **additive**: when you equip a Part, you add to the ship's stats; when you remove it, you subtract.
+When the player starts a run, `player.gd` loads a default starting loadout (main engine, energy blaster cannon, smart bomb super, Focus shift-mode) and then layers on any Parts the player bought from the shop between scenes. So a ship with no parts would have zero speed and zero damage — it wouldn't be able to move or shoot. This design lets Parts be purely **additive**: when you equip a Part, you add to the ship's stats; when you remove it, you subtract.
 
 Read `scripts/player.gd` to see the stat declarations:
 - `speed` (pixels/second, affected by `speed_multiplier`)
@@ -92,7 +92,8 @@ Each ship has **10 slots** (see `scripts/weapons/SlotTypes.gd`):
 | TAIL | — | (reserved — same as the wing slots; no part targets it) |
 | HARDPOINT_WING | Secondary weapon | Seeking Missile, Rocket Pod, Particle Beam |
 | HARDPOINT_WINGTIP | Alternate secondary | (expansion slot) |
-| DEVICE_BAY_1, DEVICE_BAY_2 | Special abilities | Smart Bomb, Phase Shift, Hyper Mode |
+| DEVICE_BAY_1, DEVICE_BAY_2 | Super (panic button, X) | Smart Bomb — the **only** super |
+| SHIFT_MODE | Shift stance (Shift) | Focus (default), Phase, Hyper — `ModePart`s; one occupies the slot, swapped at outposts. See `docs/shift_mode_system_2026-06-08.md`. |
 
 A Part's `slot_type` is set in its `_init()` — if you get this wrong, the shop won't route it to the right slot.
 

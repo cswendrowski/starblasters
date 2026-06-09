@@ -1,7 +1,16 @@
 # Shift-Mode System — Design + Development Scope
 
 **Date:** 2026-06-08
-**Status:** ✅ design settled (Roman, 2026-06-08) · ⛔ not built · magnitudes first-pass (tuner job)
+**Status:** ✅ design settled · ✅ BUILT (Phases 1–5, 2026-06-08) · magnitudes first-pass (tuner job)
+
+**Build status (2026-06-08):** Phases 1–5 landed + headless-verified
+(`tools/test_shift_mode_phase{1,2,4}.gd`, `test_shift_mode_hud.gd`).
+- ✅ P1 slot + ModeParts · ✅ P2 Hyper/Phase runtime · ✅ P3 HUD meter ·
+  ✅ P4 outpost purchase · ✅ P5 Hangar slot + docs.
+- ⏳ **Remaining:** signal-event mode *finds* (needs an event-design call — new
+  "stance module cache" vs broaden a salvage event); magnitude tuning (first-pass
+  numbers in §3, do via the Hangar); and Roman's in-combat **visual** verification
+  (HUD meter, mode feel) — blocked until combat boots (`bulwark.gd` other-session WIP).
 **Supersedes:** `docs/supers_modes_modules_2026-06-05.md` (the "Mode Energy" spec) — that
 doc's complexity (a separate earned Mode-Energy gauge, ace-chain coupling, focus-save
 dual-hitbox, unified recharge spine) is **dropped** in favor of the simpler per-mode
