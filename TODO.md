@@ -152,8 +152,8 @@ landed. Grouped by effort.
 - [x] **Secondary fire pipeline + shuffle missile/rocket to HARDPOINT_WING** — `278066e`.
 - [x] **Spread Cannon** — `83cd9f5`. Fans bullets, Mk adds bullets.
 - [x] **Smart Bomb** — `b9e3458`, `ee904d9`. Screen-clear + heavy damage + 0.6s invuln.
-- [x] **Hyper Mode** — `073a709`. 3 s supercharged primary + invuln.
-- [x] **Phase Shift** — `073a709`. 2 s invuln + bullet cancel.
+- [x] **Hyper Mode** — `073a709` (SUPERSEDED 2026-06-08 → now a Shift stance, not a super; see the Shift-Mode section).
+- [x] **Phase Shift** — `073a709` (SUPERSEDED 2026-06-08 → now a Shift stance, no bullet-clear; see the Shift-Mode section).
 - [x] **Particle Beam (secondary)** — `0c0042e`, `cffbc25`, `446f5c2`, `dad6669`. Continuous beam, pierces chaff, stops on tough/boss. Width scales per Mk; 3-layer halo/main/core visual.
 - [x] **Side Pods (secondary)** — `cff4d38`. Multi-pod forward fire, Mk adds pods (2 → 8).
 - [x] **Drone Bits (secondary)** — `7981440`. Gradius Options — companion drones piggyback primary fire.
@@ -187,8 +187,9 @@ landed. Grouped by effort.
 
 - [ ] **Shipyard stat editor / sprite picker** — full unit authoring tool (edit HP, bounty, speed, hitbox, sprite per enemy in-game). Deferred — bigger UI refactor than this pass. Godot inspector on enemy `.tscn` is the authoritative path until then.
 - [ ] **Gamepad rebind in-app** — keyboard rebind UI persists across sessions, but gamepad button reassignment still requires editing `project.godot`.
-- [ ] **WaveGeneratorV2 + scene removal** — V2 wave path is now unreachable from the dev menu but the script + scene + dev/wave_tester.tscn remain on disk. Safe to delete once nothing in the runtime path references it (main.gd's `wave_v2_knobs` meta branch is dead code).
-- [ ] **Old Ship Sizer scene + script** — left on disk after the Shipyard merge; unreachable from the dev menu. Same cleanup posture as V2 wave.
+- [x] **WaveGeneratorV2 + scene removal** — DONE (files already deleted: `wave_generator_v2.gd` +
+  `dev/wave_tester.gd`/`.tscn` gone; no `wave_v2_knobs` references remain in code).
+- [x] **Old Ship Sizer scene + script** — DONE (`dev/ship_sizer.gd`/`.tscn` gone).
 - [ ] **Drone autonomy** — current Drone Bits + Drone Swarm drones only fire when the player fires primary (piggyback model). Truly independent target acquisition + cadence is a follow-up if the feel warrants. [PARTIAL: 2026-05-21 — Drone Swarm now autonomous, picks bosses then nearest enemy, fires basic blaster (commit `e6c42a6`). Drone Bits was redesigned into Shield Drones (ablative, non-firing) in the same commit.]
 
 ## Cobalt 2026-05-21 backlog
@@ -247,17 +248,25 @@ Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" fl
 
 ### Economy (`docs/economy_2026-05-24.md`)
 
-- [ ] **Mk power asymmetry (P2)** — weapons scale 7-9× across Mk1-9; hull caps at 1.8×. Proposal: flatten `mark_multiplier()` to `1 + 0.25*(mark-1)` and raise base damage to compensate; hull `10 + 2*hull_mk`. (Source: `docs/economy_2026-05-24.md` §1.6, §4)
-- [ ] **Boss bounty share is 72% (P3)** — combat nodes earn ~3× less than bosses. Either nerf boss payouts or add a combat-clear bonus (+20) / hazard-clear bonus (+25). (Source: `docs/economy_2026-05-24.md` §3 P3, §5)
-- [ ] **Mk-Gating: asymmetric cannon vs upgrade caps** — Upgrade cap `min(9, 2 + sector*2)`, Cannon cap `min(9, sector*3)` so Mk 9 cannons become the run's identity moment. Currently both share `sector + 3`. (Source: `docs/economy_2026-05-24.md` §4)
-- [ ] **Boss-clear unlock bumps** — each row-boss kill bumps remaining outpost Mk-cap floor in that sector. (Source: `docs/economy_2026-05-24.md` §4(b))
+- [~] **Mk power asymmetry (P2)** — PARKED awaiting Roman's go (call sheet #1, elaborated 2026-06-08).
+  The doc proposal is WRONG — `mark_multiplier()` is NOT the cannon-damage path; cannon damage is the
+  per-cannon additive `base_damage + (mark-1)*dmg_per_mark`. The real flattening = re-key each
+  cannon's two numbers to a ~3× ceiling (feel-defining; hand to part-author once Roman signs off).
+- [x] **Boss bounty share (P3)** — boss bounty flattened to **500** each (call sheet #2, `9845725`).
+  Broader rebalance (combat-clear bonus etc.) parked per Roman ("leave the econ edits to that for now").
+- [x] **Mk-Gating** — SUPERSEDED by the boss-driven cap (#5): shop Mk cap is now `min(9, 3 + 3×bosses
+  defeated)` (`9845725`), replacing the sector-based formula. Cannon/upgrade no longer split.
+- [x] **Boss-clear unlock bumps** — DONE via the boss-driven Mk cap above (each boss +3).
 - [x] **Smart Bomb auto-bomb has no economy cost (P10)** — STALE (verified lead 2026-06-08). The
   death-bomb consumes a charge (`player.gd:1504`) and outpost refill now costs 120
   (`outpost.gd:55`); the free auto-refill-on-visit was removed. Each death-save effectively costs
   ~120 bounty. Closing as already-costed (reopen only if 120/charge feels too cheap — a balance #).
-- [ ] **`wanted` / `dangerous` POI bounty multipliers** — modifier tags now generate (#76 shipped) but bounty effect (`wanted` +30%, `dangerous` +50%) not yet wired in. (Source: `docs/economy_2026-05-24.md` §5)
-- [ ] **Outpost density too high (~3/sector)** — consider 1 outpost + 1 Junk Trader signal/sector to feel scarcer + more decisive. (Source: `docs/economy_2026-05-24.md` §5)
-- [ ] **Asteroid 0-bounty default** — hazards are bounty deserts. Default `+1/asteroid` or flat hazard-completion bonus. (Source: `docs/economy_2026-05-24.md` §5)
+- [x] **`wanted` / `dangerous` POI bounty multipliers** — CLOSED (Roman call sheet #6: "no bonus
+  bounty"). `wanted` already gives +20% via the director; `dangerous` stays damage-only. Instead, the
+  active sector modifiers are now SHOWN to the player in the outpost (#6, `daa8594`).
+- [x] **Outpost density** — SUPERSEDED by the outpost-hub redesign (#4): outposts are no longer POIs
+  at all (a persistent sector-map button), so per-sector density is moot.
+- [x] **Asteroid 0-bounty default** — DONE: flat **+25** hazard-clear bounty (call sheet #3, `aa5a85a`).
 - [x] **Hull formula Mk-9 cliff** — STALE (verified lead 2026-06-08). The doc's `20 if Mk≥9 else
   10+Mk` is not in code; actual is `max_hull = 2 + min(hull_mk, 8)` (`player.gd:1661`, ratio 3.3×,
   in-band) with Mk.9 giving a repair discount instead of a pip. The proposed `10 + 2*hull_mk` would
@@ -267,19 +276,17 @@ Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" fl
   signal site, reopening the arbitrage). Realigned signal to 0.1; fixed the stale "20%" comments.
   Both venues now symmetric — neither is the better dump spot.
 - [ ] **Manage Ship modal PartTier badges + 20% sell UI** — modal not yet using the shared `part_tier.gd` helper or the 20% resale. (Source: commit `cd71f44` open flag)
-- [ ] **Outpost density hard clamp → probabilistic** — current sim: 2 outposts 51%, 3 outposts 23%, 4 outposts 26%; 0/1/5+ blocked. Designer flagged need for "rarely 1, super rarely 0" tail. (Source: commit `cd71f44` open flag)
+- [x] **Outpost density hard clamp → probabilistic** — SUPERSEDED by the outpost-hub redesign (#4):
+  outposts are a sector-map button now, not POIs, so there's no per-sector outpost count to tune.
 
 ### Visual / VFX
 
 - [ ] **Dynamic animated nebula** — already in Cobalt 2026-05-21 backlog above; keep.
 - [ ] **V3 parallax color sliders not working + blend-mode dropdown** — already in Cobalt 2026-05-21 backlog above; keep.
 - [ ] **Galaxy Backdrop V3 missing debris sprite** — `scripts/parallax/galaxy_backdrop_v3.gd:392` `# TODO — needs a debris sprite`. (Source: `scripts/parallax/galaxy_backdrop_v3.gd:392`)
-- [~] **Moon vs planet wrap-around desync on >226s combats** — RE-DIAGNOSED (lead 2026-06-08, NOT a
-  desync). In the LIVE V4 path, the planet AND its moons are both children of `LayerPlanet` sharing
-  one `offset.y` scroll (`layer_planet.gd:404,466`) — they CANNOT desync. The "desync" was the
-  retired V1/V3 code's separate accumulators. Real live behavior: the whole planet+moons group drifts
-  off the bottom and never wraps, so the sky empties on >~226s combats. DESIGN CALL: wrap/re-enter,
-  hold at edge, or leave as-is? (see reports/lead_session_report.md). No fix made — needs your call.
+- [x] **Moon/planet drift off the bottom on long combats** — DONE (call sheet #10, `9845725`).
+  Roman's call: ~4 min to drift fully off-screen, no wrap. Retuned the planet layer `scroll_rate`
+  0.025 → 0.03 (planet layer only; global drift + other parallax untouched). NEEDS EYEBALL.
 - [~] **`current_stellar` cleared per POI click** — likely MOOT after the planet-variety seed work
   (`c36a044`): each node now derives a distinct, stable `current_stellar`, so the combat backdrop no
   longer looks uniform across a sector. EYEBALL to confirm, then close.
@@ -309,9 +316,8 @@ Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" fl
 
 ### Dev tools
 
-- [ ] **WaveGeneratorV2 + `scenes/dev/wave_tester.tscn` removal** — already in Follow-ups above; keep.
-- [ ] **Old Ship Sizer scene + script** — already in Follow-ups above; keep.
-- [ ] **`scenes/sector_map.tscn` orphan** — pre-existing, no V suffix, referenced by `feature_showcase.gd` + `tools/parse_check.ps1`. Clean once safe. (Source: memory `project_sector_map_v3.md` §Known open issue 3)
+- [x] **WaveGeneratorV2 + Ship Sizer removal** — DONE (files gone; see Follow-ups above).
+- [ ] **`scenes/sector_map.tscn` orphan** — pre-existing V1 map, referenced by `feature_showcase.gd` + `tools/parse_check.ps1`. Roman: "leave it for now, flag for cleanup later." (Source: memory `project_sector_map_v3.md` §Known open issue 3)
 - [ ] **`SmokeTrail.new(palette)` factory** — consolidate `damage_smoke_trail.gd` + `missile_smoke_trail.gd` (~90% shared code) once a third smoke emitter appears. Not urgent. (Source: `docs/redundancy_audit_2026-05-21.md` §Particle effects)
 
 ## End-of-run summary + run history + run timer (rolled in 2026-06-08)
@@ -352,36 +358,24 @@ coordinate with the combat session before instrumenting those hot paths.
 
 ## Supers / Modes / Modules taxonomy refactor (rolled in 2026-06-08)
 
-Full spec in `docs/supers_modes_modules_2026-06-05.md`. Status: **design settled, not built;
-magnitudes are an economy-sim/playtest job.** Consolidates the player-ship layer into 4 buckets
-(**Super / Secondary / Module / Upgrade**), collapses the 3 device-slot supers into one permanent
-panic-button super + a one-of-three **stance** system on Shift, driven by a new **Mode Energy**
-resource. **NOTE (Roman 2026-06-08): the ACE-chain is ON HOLD — build the stance recharge on Driver
-B (self-contained kill-streak) per §7; do NOT scope the ace-chain coupling (Driver A) as actionable.**
-This refactor supersedes the "Phase Shift + Focus supers" re-diagnosis above (Phase → stance Module
-w/ no bullet-clear; Focus → default stance).
+**STANCE part = BUILT** (`docs/shift_mode_system_2026-06-08.md`, `0ef66ad`..`9b55e47` + `9845725`).
+One permanent Super (Smart Bomb, X) + a one-of-three stance slot (Focus default / Phase / Hyper) on
+Shift, with per-mode resources, HUD meter, outpost purchase + signal-event finds. The old
+`docs/supers_modes_modules_2026-06-05.md` (Mode-Energy gauge / ace-chain) is SUPERSEDED.
 
-- [ ] **Bucket/slot restructure.** Super = fixed Smart Bomb on X (+ death-bomb, paid charges); a
-  dedicated **Mode/stance slot** on Shift; **4 passive Module slots**; Upgrades stay abstract `Run`
-  Mk buys. Reuses reserved `SlotTypes` enums (`DEVICE_BAY_2`, `SHIELD`, wing slots) — no new slot
-  infra, the super→secondary migration (`drone_swarm.gd`) proves the `Part` pattern.
-- [ ] **Stance triangle (Focus | Phase | Hyper), one on Shift.** Focus = default-equipped (new-player
-  floor): 0.55× speed + hitbox dot, refuels on focus-saves. Phase = intangible reposition, can't fire,
-  **no bullet-clear** (differentiates from Bomb), floor-driven. Hyper = primary ignores ammo + fire
-  rate +10%, kill-driven. Convert Hyper + Phase from supers → stance Modules; Focus from baseline
-  modal → stance.
-- [ ] **Mode Energy resource + recharge spine.** Passive **time floor** (always, skill-free — tune for
-  the worst player FIRST, §6) + stance-flavored **accelerator** (skill-driven). Pluggable drive value
-  `D`: **Driver B (kill-streak, build NOW)**; Driver A (ace-chain) is the later swap — ON HOLD. Focus
-  is driver-agnostic (refuels on focus-saves regardless). Caps: Hyper uptime < ~40%, focus-save ≤1/0.5s.
-- [ ] **Focus-save dual-hitbox detection** — a second larger Area2D counts bullet pass-throughs
-  between focused/unfocused hitboxes as "saves" during focus only; net-new, capped.
-- [ ] **Mode bay UI + HUD.** Mode bay swap/upgrade screen; two separate gauges (Super pips = existing;
-  Mode Energy = bespoke per-stance bar: Focus continuous, Phase/Hyper segmented pips, shared anchor).
-- [ ] **Outpost economy.** Mode Energy is earned-not-bought. Sell **Mode Capacity** + **Mode Regen**
-  (floor only — NEVER the accelerator/maxBoost, the runaway lever); stance modules bought/swapped/
-  upgraded between nodes, priced like parts. Each stance is a `Part` with Mk.1–9 scaling its effect.
-- [ ] **The one real refactor — reify defensive systems as Modules.** Move Shield / Hull Regen / Hull
+- [x] **Super / stance-slot restructure** — DONE. Smart Bomb is the only super (DEVICE_BAY_1); a real
+  SHIFT_MODE slot holds Focus/Phase/Hyper as ModeParts.
+- [x] **Stance triangle (Focus | Phase | Hyper) on Shift** — DONE. Focus default; Phase = intangible
+  reposition, no bullet-clear, kill-earned charges + blue glow tell; Hyper = +10% fire + unlimited
+  ammo on a full-gated bar. Mk scaling per the design doc.
+- [x] **Mode resource + recharge** — DONE, simpler than the old Mode-Energy spec: Phase charges refill
+  on kills, Hyper bar recharges idle (gated to full). Mode-Energy gauge / dual-hitbox focus-save /
+  ace-chain coupling were DROPPED.
+- [x] **Mode HUD + outpost economy** — DONE. HUD mode meter (`db19a58`); modes bought at outposts
+  (`2eb2c35`) + found via the Stance Module Cache signal event (`9b55e47`).
+
+REMAINING — the **passive-module layer** (separate from stances; NOT built):
+- [ ] **Reify defensive systems as Modules.** Move Shield / Hull Regen / Hull
   Plating from abstract `Run` int Mk-keys into passive Part Resources (or cheaper: keep as `Run` ints
   but PRESENT them in the bay). Shield becomes a default-equipped passive (dropping it = deliberate
   glass-cannon). OPEN DECISION: reify vs present; 4 vs 3 passive slots.
