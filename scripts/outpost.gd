@@ -55,11 +55,6 @@ const PRIMARY_REFILL_COST := 100
 const SUPER_REFILL_COST := 120
 const CANNON_BASE_COST := 116
 const CANNON_COST_PER_MK := 70
-# Refresh stock pricing — doubles per use within the same visit. Cap at
-# 7 doublings so the ceiling is 10 << 7 = 1280 bounty (designer call,
-# Roman 2026-05-24: "double per use" — capped to avoid runaway numbers).
-const REFRESH_BASE_COST := 10
-const REFRESH_MAX_DOUBLINGS := 7
 # Mark distribution: roll picks from sector_index + 3 max, with weighting
 # that favors the middle of the available range and tapers at the high end.
 const MK_HIGH_OFFSET := 3
@@ -124,12 +119,6 @@ var _services_box: VBoxContainer = null
 var _storage_box: VBoxContainer = null
 var _toast_label: Label = null
 var _toast_tween: Tween = null
-var _refresh_btn: Button = null
-# Bumped by Refresh Stock so re-rolling produces different offers (the
-# deterministic seed is otherwise stable across calls in the same visit).
-# Also drives exponential refresh pricing — cost doubles each use, capped
-# at REFRESH_MAX_DOUBLINGS so it caps at 10 << 7 = 1280 bounty.
-var _refresh_count: int = 0
 var _hd_scope: HdViewportScope = null
 
 
@@ -151,7 +140,7 @@ func _ready() -> void:
 		var run := get_node("/root/Run")
 		if "max_shield" in run and "current_shield" in run and int(run.max_shield) > 0:
 			run.current_shield = int(run.max_shield)
-	_roll_offers()
+	_load_or_roll_offers()
 	_build_ui()
 	if has_node("/root/Run"):
 		get_node("/root/Run").bounty_changed.connect(_on_bounty_changed)
@@ -508,14 +497,7 @@ func _build_services() -> void:
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_services_box.add_child(spacer)
 
-	_refresh_btn = Button.new()
-	_refresh_btn.custom_minimum_size = Vector2(0, 48)
-	UiTheme.style_button(_refresh_btn)
-	_refresh_btn.add_theme_font_size_override("font_size", FS_BODY)
-	_refresh_btn.pressed.connect(_on_refresh_stock.bind(_refresh_btn))
-	_update_refresh_btn_label()
-	_services_box.add_child(_refresh_btn)
-
+	# (Refresh-stock button removed 2026-06-08 — stock now re-rolls only on boss kill.)
 	var leave_btn := Button.new()
 	leave_btn.text = Strings.OUTPOST_BTN_LEAVE
 	leave_btn.custom_minimum_size = Vector2(0, 56)
@@ -603,16 +585,30 @@ func _sell_value_for(part) -> int:
 
 # ---- Offer rolls ----------------------------------------------------------
 
+# Persistent-hub stock: keep the Run-persisted offers across visits and only re-roll
+# on a boss refresh (Run.outpost_needs_refresh) or the first-ever visit (empty stock).
+# The offers array is shared with Run by reference, so "sold" flags persist too.
+func _load_or_roll_offers() -> void:
+	if not has_node("/root/Run"):
+		_roll_offers()
+		return
+	var run := get_node("/root/Run")
+	var have_stock: bool = not (run.outpost_weapon_offers.is_empty() and run.outpost_upgrade_offers.is_empty())
+	if run.outpost_needs_refresh or not have_stock:
+		_roll_offers()
+		run.outpost_weapon_offers = _weapon_offers
+		run.outpost_upgrade_offers = _upgrade_offers
+		run.outpost_needs_refresh = false
+	else:
+		_weapon_offers = run.outpost_weapon_offers
+		_upgrade_offers = run.outpost_upgrade_offers
+
+
 func _roll_offers() -> void:
-	# Per-visit randomization. Roman 2026-05-25: "each outpost should be
-	# randomized when visited" — drop the deterministic run_seed mix so the
-	# same node id revisited (or two outposts in the same sector) reroll
-	# clean. _refresh_count is irrelevant once we randomize, but keep the
-	# call so refreshes still touch the rng state explicitly.
+	# Fresh roll of the weapon + upgrade columns — called on the first outpost visit
+	# and on each boss-kill refresh (flagged by Run.on_boss_defeated).
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
-	if _refresh_count > 0:
-		rng.seed = rng.seed ^ (_refresh_count * 101)
 
 	# Shop Mk cap is boss-kill driven (Roman 2026-06-08): starts at 3, +3 per boss
 	# defeated this run, so 2 boss kills opens Mk9. Run-wide count (Run.bosses_defeated),
@@ -844,10 +840,13 @@ func _on_repair(btn: Button) -> void:
 		return
 	if int(run.current_hull) >= int(run.max_hull):
 		return
+	if int(run.repair_charges) <= 0:
+		return  # outpost out of repair charges (refresh at next boss)
 	var cost: int = _hull_repair_cost()
 	if int(run.bounty) < cost:
 		return
 	run.bounty -= cost
+	run.repair_charges -= 1
 	run.current_hull = clampi(int(run.current_hull) + 1, 0, int(run.max_hull))
 	_refresh_status_panel()
 
@@ -932,12 +931,15 @@ func _on_primary_ammo_refill(btn: Button) -> void:
 		return
 	if int(active.current_ammo) >= cap:
 		return
+	if int(run.ammo_restock_charges) <= 0:
+		return  # outpost out of ammo restocks (refresh at next boss)
 	var cost: int = PRIMARY_REFILL_COST
 	if "refill_cost_override" in active and int(active.refill_cost_override) >= 0:
 		cost = int(active.refill_cost_override)
 	if int(run.bounty) < cost:
 		return
 	run.bounty -= cost
+	run.ammo_restock_charges -= 1
 	active.current_ammo = cap
 	# Mirror to Run.ammo + player.ammo so HUD updates immediately on return.
 	run.ammo = cap
@@ -954,12 +956,15 @@ func _on_secondary_ammo_refill(btn: Button) -> void:
 	var missing: int = int(run.secondary_ammo_max) - int(run.secondary_ammo)
 	if missing <= 0:
 		return
+	if int(run.ammo_restock_charges) <= 0:
+		return  # outpost out of ammo restocks (refresh at next boss)
 	var result: Array = _ammo_refill_partial(int(run.bounty), missing)
 	var rounds: int = int(result[0])
 	var cost: int = int(result[1])
 	if rounds <= 0:
 		return
 	run.bounty -= cost
+	run.ammo_restock_charges -= 1
 	run.secondary_ammo = clampi(int(run.secondary_ammo) + rounds, 0, int(run.secondary_ammo_max))
 	_show_toast(Strings.TOAST_SECONDARY_REFILLED % [rounds, cost])
 	_refresh_status_panel()
@@ -980,42 +985,6 @@ func _on_super_refill(btn: Button) -> void:
 	run.bounty -= SUPER_REFILL_COST
 	run.super_charges = clampi(int(run.super_charges) + 1, 0, int(run.max_super_charges))
 	_refresh_status_panel()
-
-
-func _on_refresh_stock(btn: Button) -> void:
-	# Reroll the weapon + upgrade columns. Cost doubles per use within the
-	# same outpost visit — keeps re-rolling from being a strict gain over
-	# leaving + re-entering, and the ramp punishes spam.
-	var cost: int = _current_refresh_cost()
-	if not has_node("/root/Run") or int(_run_bounty()) < cost:
-		return
-	var run := get_node("/root/Run")
-	run.bounty -= cost
-	_refresh_count += 1
-	_roll_offers()
-	_render_weapon_offers()
-	_render_upgrade_offers()
-	_update_refresh_btn_label()
-	_refresh_status_panel()
-
-
-# Current refresh price: REFRESH_BASE_COST * 2^uses, capped at
-# REFRESH_MAX_DOUBLINGS doublings so the price plateaus rather than
-# running away after many refreshes.
-func _current_refresh_cost() -> int:
-	var doublings: int = mini(_refresh_count, REFRESH_MAX_DOUBLINGS)
-	return REFRESH_BASE_COST << doublings
-
-
-func _update_refresh_btn_label() -> void:
-	if _refresh_btn == null:
-		return
-	var cost: int = _current_refresh_cost()
-	if _refresh_count >= REFRESH_MAX_DOUBLINGS:
-		_refresh_btn.text = Strings.OUTPOST_BTN_REFRESH_MAX % cost
-	else:
-		_refresh_btn.text = Strings.OUTPOST_BTN_REFRESH % cost
-	_refresh_btn.disabled = _run_bounty() < cost
 
 
 func _on_leave() -> void:
@@ -1091,7 +1060,6 @@ func _refresh_status_panel() -> void:
 
 	_refresh_services()
 	_refresh_card_affordability()
-	_update_refresh_btn_label()
 
 
 func _on_bounty_changed(_value) -> void:
@@ -1155,9 +1123,13 @@ func _apply_service_button_state(btn: Button) -> void:
 				btn.disabled = true
 				btn.text = Strings.SERVICE_STATE_HULL_FULL
 				return
+			if int(run.repair_charges) <= 0:
+				btn.disabled = true
+				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SOLD_OUT]
+				return
 			var repair_cost: int = _hull_repair_cost()
 			btn.disabled = _run_bounty() < repair_cost
-			btn.text = "%s  (%d)" % [base_label, repair_cost]
+			btn.text = "%s  (%d) ·%d left" % [base_label, repair_cost, int(run.repair_charges)]
 		"shield":
 			if run == null or int(run.max_shield) <= 0:
 				btn.disabled = true
@@ -1201,11 +1173,15 @@ func _apply_service_button_state(btn: Button) -> void:
 				btn.disabled = true
 				btn.text = Strings.SERVICE_STATE_AMMO_FULL % base_label
 				return
+			if int(run.ammo_restock_charges) <= 0:
+				btn.disabled = true
+				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SOLD_OUT]
+				return
 			var pcost: int = PRIMARY_REFILL_COST
 			if "refill_cost_override" in active and int(active.refill_cost_override) >= 0:
 				pcost = int(active.refill_cost_override)
 			btn.disabled = _run_bounty() < pcost
-			btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_REFILL_COST % pcost]
+			btn.text = "%s  %s ·%d left" % [base_label, Strings.SERVICE_SUFFIX_REFILL_COST % pcost, int(run.ammo_restock_charges)]
 		"secondary_ammo":
 			if run == null or int(run.secondary_ammo) < 0 or int(run.secondary_ammo_max) <= 0:
 				btn.disabled = true
@@ -1215,6 +1191,10 @@ func _apply_service_button_state(btn: Button) -> void:
 			if smiss <= 0:
 				btn.disabled = true
 				btn.text = Strings.SERVICE_STATE_AMMO_FULL % base_label
+				return
+			if int(run.ammo_restock_charges) <= 0:
+				btn.disabled = true
+				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SOLD_OUT]
 				return
 			var sfull: int = _ammo_refill_cost(smiss)
 			var saff: Array = _ammo_refill_partial(_run_bounty(), smiss)

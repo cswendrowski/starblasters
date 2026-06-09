@@ -283,6 +283,7 @@ const SERVICE_SUPER_CHARGE := "Super Charge  +1"
 
 const SERVICE_SUFFIX_NO_SHIP := "(no ship)"
 const SERVICE_STATE_HULL_FULL := "Hull Full"
+const SERVICE_SOLD_OUT := "— OUT (refresh at next boss)"
 const SERVICE_SUFFIX_NO_SHIELD := "(no shield)"
 const SERVICE_STATE_SHIELDS_FULL := "Shields Full"
 const SERVICE_SUFFIX_FREE := "(FREE)"
