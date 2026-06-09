@@ -88,6 +88,16 @@ var sectors_cleared: int = 0
 # boss_base.explode() (guarded by the boss's _dying flag).
 var bosses_defeated: int = 0
 var used_boss_scenes: Array = []  # scene paths used in prior sectors; prevents cross-sector repeats
+# Outpost-as-persistent-hub state (Roman 2026-06-08). The outpost is reached from a
+# sector-map button (not a POI); its stock + service charges persist across visits and
+# REFRESH on boss kill (re-roll stock + +1d6 to each charge pool). Repair/ammo are
+# charge-limited: 2d6 each at run start, consumed per use. Charges + refresh flag are
+# saved; the rolled offers are in-memory only (re-roll on app restart — cheap).
+var repair_charges: int = 0
+var ammo_restock_charges: int = 0
+var outpost_needs_refresh: bool = false
+var outpost_weapon_offers: Array = []   # [{part, cost, sold}] — in-memory, set by outpost
+var outpost_upgrade_offers: Array = []  # [{key, name, desc, next_mk, cost, sold}]
 # Combat nodes (non-boss, non-hazard) completed since the start of the
 # current sector. Drives wave_generator scaling. Resets to 0 when a new
 # sector begins (endless mode).
@@ -287,6 +297,12 @@ func new_run() -> void:
 	sectors_cleared = 0
 	bosses_defeated = 0
 	combats_in_sector = 0
+	# Outpost hub: seed 2d6 repair + 2d6 ammo-restock charges; stock rolls on first visit.
+	repair_charges = _roll_dice(2, 6)
+	ammo_restock_charges = _roll_dice(2, 6)
+	outpost_needs_refresh = false
+	outpost_weapon_offers = []
+	outpost_upgrade_offers = []
 	visited_nodes = []
 	used_boss_scenes = []
 	current_node_id = ""
@@ -322,6 +338,26 @@ func new_run() -> void:
 	# Seed default Energy Blaster + Smart Bomb so meta scenes see the same
 	# loadout the combat scene will apply via PartFactory.default_starting_loadout.
 	_seed_default_loadout_snapshot()
+
+
+# Roll N dice of S sides (e.g. _roll_dice(2,6) = 2d6). Non-deterministic — outpost
+# charges aren't seed-critical (the old per-visit stock used randomize() too).
+func _roll_dice(n: int, sides: int) -> int:
+	var total: int = 0
+	for _i in n:
+		total += 1 + (randi() % sides)
+	return total
+
+
+# Called when a boss is defeated (from boss_base.explode). Bumps the run-wide boss
+# count AND refreshes the outpost: +1d6 to each service-charge pool and flags the
+# stock to re-roll on the next visit (boss-gated shop progression, Roman 2026-06-08).
+func on_boss_defeated() -> void:
+	bosses_defeated += 1
+	repair_charges += _roll_dice(1, 6)
+	ammo_restock_charges += _roll_dice(1, 6)
+	outpost_needs_refresh = true
+
 
 func record_kill(value: int) -> void:
 	enemies_killed += 1
@@ -941,6 +977,7 @@ const _SAVE_FIELDS := [
 	"shield_cap_mk", "shield_recharge_mk", "hull_plating_mk",
 	"sector_map_cache",
 	"cannon_pool", "active_cannon_idx",
+	"repair_charges", "ammo_restock_charges", "outpost_needs_refresh",
 ]
 
 

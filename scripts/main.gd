@@ -373,6 +373,13 @@ func _on_level_cleared() -> void:
 				"The miners thank you for the help, and transfer your share of credits over. (+%d)" % miner_payout
 			)
 			run.remove_meta("asteroid_miners_event")
+		# Hazard-clear bounty (Roman 2026-06-08): hazard fields (asteroid/minefield)
+		# otherwise pay 0 per-kill bounty — a flat +25 on clear so they're worth running.
+		if run.current_node_type == SectorNode.NodeType.HAZARD:
+			bounty += 25
+			run.bounty += 25
+			$CanvasLayer/UI.update_score(bounty)
+			run.set_meta("post_combat_banner", "Hazard field cleared. (+25)")
 		# Consume per-run flags so they don't leak into the next level.
 		run.asteroid_bonus_bounty = 0
 		run.combat_intro = ""

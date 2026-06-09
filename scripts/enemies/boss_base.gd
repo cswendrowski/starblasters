@@ -210,7 +210,11 @@ func explode() -> void:
 	# (reaver overrides explode() but calls super, so it routes through here
 	# too). Guarded for autoload-less dev/test scenes. Explicit type, no `:=`.
 	var run: Node = get_node_or_null("/root/Run")
-	if run != null and "bosses_defeated" in run:
+	if run != null and run.has_method("on_boss_defeated"):
+		# Bumps bosses_defeated AND refreshes the outpost hub (+1d6 charges, re-roll
+		# stock on next visit). See run_state.on_boss_defeated (Roman 2026-06-08).
+		run.on_boss_defeated()
+	elif run != null and "bosses_defeated" in run:
 		run.bosses_defeated = int(run.bosses_defeated) + 1
 	died.emit(bounty_value)
 	# NOTE: do NOT call Run.sector_complete() here — that's the V2-era
