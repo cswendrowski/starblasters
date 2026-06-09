@@ -64,9 +64,11 @@ const REFRESH_MAX_DOUBLINGS := 7
 # that favors the middle of the available range and tapers at the high end.
 const MK_HIGH_OFFSET := 3
 
-# Weapons column slot weights: cannon dominates (it's primary), with
-# secondary + super as occasional offers. 4 cannon / 2 secondary / 2 super
-# = 8 weights; rolled with replacement for the 5-card weapons column.
+# Weapons column slot weights: cannon dominates (it's primary), with secondary,
+# super, and Shift-mode swaps as occasional offers. 4 cannon / 2 secondary /
+# 1 super (Smart Bomb, the lone DEVICE_BAY_1) / 2 mode (Phase|Hyper) = 9 weights;
+# rolled with replacement for the 5-card weapons column. SHIFT_MODE offers roll
+# Phase/Hyper (Focus is default-only, not in the pool) + price as weapons.
 const WEAPON_SLOT_WEIGHTS := [
 	SlotTypes.SlotType.CANNON,
 	SlotTypes.SlotType.CANNON,
@@ -75,7 +77,8 @@ const WEAPON_SLOT_WEIGHTS := [
 	SlotTypes.SlotType.HARDPOINT_WING,
 	SlotTypes.SlotType.HARDPOINT_WING,
 	SlotTypes.SlotType.DEVICE_BAY_1,
-	SlotTypes.SlotType.DEVICE_BAY_1,
+	SlotTypes.SlotType.SHIFT_MODE,
+	SlotTypes.SlotType.SHIFT_MODE,
 ]
 const WEAPONS_COLUMN_COUNT := 5
 const UPGRADES_COLUMN_COUNT := 3
@@ -1285,6 +1288,7 @@ func _slot_short_name(slot: int) -> String:
 		SlotTypes.SlotType.CANNON: return Strings.SLOT_NAME_PRIMARY
 		SlotTypes.SlotType.HARDPOINT_WING: return Strings.SLOT_NAME_SECONDARY
 		SlotTypes.SlotType.DEVICE_BAY_1: return Strings.SLOT_NAME_SUPER
+		SlotTypes.SlotType.SHIFT_MODE: return Strings.SLOT_NAME_MODE
 		SlotTypes.SlotType.SHIELD: return Strings.SLOT_NAME_SHIELD
 		SlotTypes.SlotType.ENGINE: return Strings.SLOT_NAME_ENGINE
 		SlotTypes.SlotType.TAIL: return Strings.SLOT_NAME_TAIL
@@ -1298,6 +1302,7 @@ func _slot_color(slot: int) -> Color:
 		SlotTypes.SlotType.CANNON: return Color(1.0, 0.78, 0.45)
 		SlotTypes.SlotType.HARDPOINT_WING: return Color(0.55, 0.85, 1.0)
 		SlotTypes.SlotType.DEVICE_BAY_1: return Color(1.0, 0.55, 0.95)
+		SlotTypes.SlotType.SHIFT_MODE: return Color(0.7, 0.55, 1.0)
 	return Color(0.75, 0.80, 0.85)
 
 
