@@ -35,7 +35,7 @@ const BulletAutoLaser = preload("res://scenes/projectiles/bullet_auto_laser.tscn
 const PlayerRocket = preload("res://scenes/projectiles/player_rocket.tscn")
 const PlayerSeekingMissile = preload("res://scenes/projectiles/player_seeking_missile.tscn")
 const PlayerSeekingMissileLarge = preload("res://scenes/projectiles/player_seeking_missile_large.tscn")
-const PlayerSwarmMissile = preload("res://scenes/projectiles/player_swarm_missile.tscn")
+const PlayerSwarmMissile = preload("res://scenes/projectiles/bullet_swarm.tscn")
 
 # Pool entries: [factory_callable, slot_for_factory]
 # Slot is used for the WING_LEFT vs WING_RIGHT disambiguation only.

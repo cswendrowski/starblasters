@@ -9,7 +9,7 @@ extends "res://scripts/parts/secondary_weapon.gd"
 # Design: docs/swarm_launcher_secondary_2026-06-08.md.
 
 const WSsl = preload("res://scripts/weapons/WeaponStyle.gd")
-const SwarmMissileScene = preload("res://scenes/projectiles/player_swarm_missile.tscn")
+const SwarmMissileScene = preload("res://scenes/projectiles/bullet_swarm.tscn")
 
 @export var base_ammo: int = 6
 
