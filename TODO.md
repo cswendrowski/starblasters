@@ -11,6 +11,9 @@ landed. Grouped by effort.
 - [ ] **s_s_rush movement-based facing** — auto_rotate is on by default but Roman reports
   it's not facing its travel. Eyeball: not turning at all / faces down / spins? Likely an
   auto_rotate seed or the Engine-marker-under-CollisionShape transform. (`enemy_s_s_rush.tscn`)
+  - _2026-06-08: STILL OPEN. 96733b8/cb3a807 fixed the **push** enemy's turret facing — unrelated.
+    s_s_rush itself untouched. (Note: its `.tscn` embeds `straight_down(240)` but the matrix
+    overrides it to `hunt_beeline` in real waves; check facing under BeelinePlayer.)_
 - [x] **z_s_sword firing** — DONE (combat session, `35712ff` "sword rolling broadside firing").
 - [x] **retro/hold turn-during-jiggle** — DONE (combat session, `cdf4b3a` "loiter holders don't turn
   the wrong way during the jiggle").
@@ -19,9 +22,14 @@ landed. Grouped by effort.
 - [ ] **Cohesive chaff waves** — bomb-drone/dart waves are too long + sparse. Want
   multi-layered walls, tightly-spaced walls with navigable lane gaps, L→R (and R→L) sweeps,
   and inward→out / outward→in patterns. (`scripts/levels/director.gd` + `wave_generator.gd`)
+  - _2026-06-08: STILL OPEN. STEP-wall-with-gap exists (lane_path STEP + director step_wall);
+    the broader wall/sweep composition is unbuilt beyond the hotrod no-recycle subitem._
 - [ ] **Speed audit to the 1–8 px/f rungs** — `fast_straight` done (→300); audit every other
   movement key + sector scaling so nothing common sits past 6 px/f. >6 px/f = reflex tier:
   rare, mid/late only. (`enemy_roster.make_movement` + `enemy_core` sector scale + `clarity.gd`)
+  - _2026-06-08: PARTIAL. The straight family is now rung-named in make_movement:
+    crawl 60 / slow 120 / medium 180 / fast 300 / reflex 360 (the overhaul). A full per-enemy
+    sweep (loiter exit speeds, side_dive 300, etc.) + the "chaff −1 rung" pass is still open._
 - [x] **Midpoint heavies more common** — DONE (combat session, `f7c2038` "midpoint heavies more
   common (second anchor beat on long levels)").
 - [x] **No-recycle + denser packing for high-count chaff** — DONE (combat session, `af9bb58`
@@ -40,20 +48,37 @@ landed. Grouped by effort.
 - [ ] **Weapon-library audit** — confirm EVERY enemy fires via the new Weapon/BulletVariant
   library, not a bespoke holdover. Some projectiles read as wrong speed / old sprite. Sweep
   enemy scripts for hand-rolled bullet spawns + off-library variants.
+  - _2026-06-08: LARGELY DONE via the migration — the known hand-rolled holdouts were removed:
+    strafer (→ "nose" Weapon), bomber tail gun (→ arc-gated EnemyTurret), beam shooter (already
+    shared BeamEmitter), frigate retired (→ BROADSIDE). BulletVariant library is in use everywhere
+    (see B2 below). REMAINING gap = **Weapons 3b**: the bulk still fire via the legacy
+    SingleShot/AimedShot/SpreadShot/BurstShot classes, not the unified `Weapon` resource. A formal
+    grep-sweep for any last hand-rolled spawns is still worthwhile._
 - [ ] **Tracer art hframes/masking** — tracer sprites render doubled with an offset glow;
   check hframes + frame masking on the tracer textures (`enemy_tracer` / `tracer-*` + variants).
+  - _2026-06-08: STILL OPEN — not touched by the migration (art/shader bug)._
 
 ### Patterns (director / wave-gen)
 - [ ] **Minefield hazard = real wave numerics + dense navigable patterns.** Same enemy counts
   as a normal wave; dense waves with patterns demanding careful navigation / focus-threading /
   shoot-through. (`scripts/levels/levels_v2.gd` minefield + director)
+  - _2026-06-08: PREP DONE. mine/mine_shielded → enemy_core + straight_down; smart-mine → enemy_core
+    + proximity_chase (all conductor-spawnable now). REMAINING = the actual upgrade: levels_v2
+    minefield wave numerics + dense navigable patterns (still `_haz_spec` formations)._
 - [x] **p_s_green waves over-rely on curves** — DONE (combat session, `ab1b7e2` "p_s_green wave variety (drift + straight variants, less weave)").
 - [ ] **Conductor must not repeat patterns** — if reused, reverse them on alternating waves or
   mix with lane patterning (L→R, R→L, in/out sweeps). (`director.gd` conductor choreography)
+  - _2026-06-08: SUBSTRATE only. The eligibility matrix gives per-enemy identity + eligible set +
+    a per-entry `vary` flag (flat-random among eligible). The no-repeat / reverse-on-alternating-
+    waves ENFORCEMENT is NOT built — the conductor doesn't yet track/avoid recent patterns._
 - [ ] **Bomb-drone waves too thin again** — come as walls with dodge gaps the player must enter,
   not 1–2 stragglers. (shared with round-1 "cohesive chaff waves")
+  - _2026-06-08: STILL OPEN (shares status with "Cohesive chaff waves" above)._
 - [ ] **Mix-and-match lane patterns** — different lanes running different patterns in one wave
   for visual texture.
+  - _2026-06-08: PARTIAL. Different enemy TYPES in a wave already run their own matrix identities,
+    so mixed waves get mixed patterns for free. Same-type-different-lanes variety needs the
+    eligibility `vary` flag opted-in (no entry uses it yet) + conductor lane assignment._
 - [x] **Beeline group cap** — DONE (combat session, `d70fd37` "beeline cap").
 - [x] **Shiv also fast-down / straight-down** — DONE (combat session, `d70fd37` "shiv" + `4d5fb48` "shiv charger").
 - [x] **New CHARGER behavior** (enter slowly → accelerate-out rush) — DONE (combat session, `5627b67`
@@ -74,6 +99,8 @@ landed. Grouped by effort.
 - [ ] **Unified pseudo-mid recycle layer.** Commit to a single core recycling layer modeled on
   the missile_cruiser's pseudo-parallax layer (same shading + placement), so ALL recycling
   enemies look consistent. (factor missile_cruiser's pseudo-parallax into a shared mechanism)
+  - _2026-06-08: BOTH STILL OPEN — untouched by the migration (the migration only set
+    `recycle_passes` per-enemy; the unified recycle-layer + formation-aware re-entry are unbuilt)._
 
 ### Background (likely separate scope)
 - [x] **Per-row planets are static** — DONE (lead 2026-06-08, `c36a044`). Live backdrop is the V4
@@ -194,9 +221,21 @@ landed. Grouped by effort.
 ## Enemy rework backlog 2026-05-24
 
 - [ ] **480-speed Dart reaction-test variant** ("Sprint Dart") — distinct enemy for late-game; reuses Dart sprite + faster movement (~480 px/s), no shoot. Spun off from the 2026-05-24 speed pass where Dart was dropped from 480 → 360 for fair-play; the 480 tier still wants to exist as a deliberate reaction test.
-- [ ] **Per-enemy-class loiter timing** — Beam Shooter / Gunship / Crystal / Cruiser / Drone Carrier currently share the identical `enter 110 / hold 3 / exit accel 300 max 350` cadence on the `Loiter` pattern. Fold into a per-enemy-class rework like chaff got (medium tier ~130 / 3 / 400-450; large tier ~90 / 4 / 280 per the §3 doc). Out of scope of the 2026-05-24 speed pass.
-- [ ] **Bullet library refactor (B2)** — replace the single `enemy_bullet.tscn` + 200 px/s baseline with a roster of bullet variants (dumb 220 / aimed 300 / heavy 180 / fast 240) selectable per shoot_pattern. Doc audit §3 + §1 reference bands. Cheapest path is a `bullet_speed` @export on `shoot_pattern.gd` honored in `_spawn_bullet`, but designer prefers a real bullet-resource roster rather than a single override knob.
-- [ ] **Bulwark drift retune** — bulwark_drift currently 25/36/0.35; doc §3 proposes 50/50/0.45. Folded into a separate Bulwark-turret pass alongside the shielding rework.
+  - _2026-06-08: STILL OPEN — not built (note: `straight_reflex` = 360 now exists as a make_movement key, the building block for it)._
+- [ ] ~~**Per-enemy-class loiter timing**~~ — _SUPERSEDED 2026-06-08._ The listed enemies all left the
+  shared `Loiter` cadence in the bespoke-enemy migration: Crystal → `pendulum`, Cruiser & Drone Carrier
+  → `drift`, Beam Shooter → `beam_sweep`/`drift`, Gunship → `hunt_omni`. None are on Loiter anymore, so
+  the shared-cadence concern is moot for them. (Loiter is still used by other holders — p_m_cannon
+  loiter_mid, p_m_pulse loiter_high, etc. — if a per-class loiter pass is still wanted, re-scope to those.)
+- [x] **Bullet library refactor (B2)** — _DONE._ 10 `BulletVariant` `.tres` (Basic/Aimed Sniper/Heavy
+  Slug/Spread Pellet/Plasma Orb/Tracker/Burst Round/Fast Pellet/Laser Bolt/Drop Pellet) +
+  `BulletCatalog.scene_for()` map each variant to its own per-bullet scene; `shoot_pattern._spawn_bullet`
+  resolves it, so every roster shoot_pattern fires a library variant (not the single 200 px/s scene).
+  **Remaining gap = Weapons 3b**: the legacy SingleShot/AimedShot/SpreadShot/BurstShot classes still
+  exist alongside the unified `Weapon` resource — full unification onto `Weapon` is the open piece.
+- [ ] ~~**Bulwark drift retune**~~ — _SUPERSEDED 2026-06-08._ `bulwark_drift` (25/36/0.35) was retired;
+  the Bulwark now rides the new shared `drift` pattern (hover 90 / jiggle 6px / speed 1.4, randomized
+  per instance). Re-author against `drift.gd` if a retune is still wanted.
 
 ## Hazard rework backlog 2026-05-24
 
@@ -220,16 +259,23 @@ Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" fl
 - [ ] **Shared boss-enrage VFX helper** — phase-transition flash + screen-shake helper so HP-gate transitions read consistently across bosses. (Source: `docs/boss_proposals_2026-05-24.md` §6 open question 6)
 - [ ] **Boss `conflict_tags` "never-pair" enforcement** — Voidmaw shouldn't pair with Commander; Howler shouldn't pair with Reaver/Lash; etc. (Source: `docs/boss_proposals_2026-05-24.md` §6 open question 4)
 - [ ] **Bosses with omni-strafe** — designer-flagged variation idea, currently deferred. (Source: task list #12)
+  - _2026-06-08: all three boss-polish items STILL OPEN — bosses were intentionally untouched by the
+    bespoke-enemy migration._
 
 ### Enemies / Bullets
 
-- [ ] **Bullet library refactor (B2)** — `BulletVariant` Resource + 7 variants (Basic/Aimed Sniper/Heavy Slug/Spread Pellet/Plasma Orb/Tracker/Burst Round); APT sprite list ready. Currently every enemy bullet is one scene at 200 px/s. (Source: `docs/bullet_library_2026-05-24.md`; task #17 deferred. Already in Enemy rework backlog above — keeping single citation.)
+- [x] **Bullet library refactor (B2)** — _DONE (2026-06-08 confirm)._ `BulletVariant` Resource + 10 variants shipped (the 7 specced + Fast Pellet/Laser Bolt/Drop Pellet), `BulletCatalog.scene_for()` maps each to its own scene, used by `shoot_pattern._spawn_bullet`. Open piece is **Weapons 3b** (unify the legacy shoot classes onto `Weapon`). (Source: `docs/bullet_library_2026-05-24.md`. See the Enemy-rework B2 entry above for detail.)
 - [ ] **Boss bullet primitives accept `bullet_variant`** — `boss_base.fire_aimed_burst` / `fire_ring` default to Basic; add optional variant param. (Source: `docs/bullet_library_2026-05-24.md` §6 open question 4)
 - [ ] **Wave-gen `bullet_variant_override` knob** — themed waves force all enemies to fire variant X. Add if themed waves land. (Source: `docs/bullet_library_2026-05-24.md` §6 open question 2)
 - [ ] **Per-pattern `bullet_speed` override** — `@export var bullet_speed: float = -1.0` on `shoot_pattern.gd` honored in `_spawn_bullet`. Cheapest path before the full bullet-library refactor; aimed shots want 300 not 200. (Source: `docs/enemy_speeds_2026-05-24.md` §3, §5)
 - [ ] **Chaff-speed sector scaling** — `+5%/sector` cap `+25%` if player damage already scales. (Source: `docs/enemy_speeds_2026-05-24.md` §5 open question 4)
 - [ ] **`AimedShot.lead_factor` on Skirmisher** — flip from 0 to ~0.15 for "experienced gunner" feel without raising bullet speed. (Source: `docs/enemy_speeds_2026-05-24.md` §4)
+  - _2026-06-08: STILL OPEN. Note `EnemyTurret.lead_factor` + `Weapon.lead_factor` (AT_PLAYER) already
+    exist as the knob; the old "Skirmisher" maps to the new `skirmish_*` movement — re-target this to
+    whichever enemy carries the aimed weapon._
 - [ ] **Hunter Drone kamikaze bounty cancel** — `enemy_roster.gd:97` lists 5 bounty; `enemy_hunter_drone.gd` says "no bounty for kamikaze hit" — verify the cancel-on-hit path actually fires. (Source: `docs/economy_2026-05-24.md` §5)
+  - _2026-06-08: STILL NEEDS EYEBALL. Confirmed the OFF-SCREEN path uses `_leave()` (no `died` signal,
+    no bounty). The PLAYER-HIT kamikaze path's bounty-cancel was not re-verified this pass._
 
 ### Economy (`docs/economy_2026-05-24.md`)
 
@@ -298,6 +344,8 @@ Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" fl
 - [ ] **`drone_bits.tres` + `drone_swarm.tres` stale defaults** — open in editor, re-save against current `.gd` defaults so Weapon Editor doesn't surface stale values. (Source: `docs/redundancy_audit_2026-05-21.md` §Weapons action items)
 - [ ] **Weapon mounts: per-Part `fire_offset: Vector2`** — so wing-mounted vs nose-mounted weapons don't all spawn at `(0,-10)`. (Source: `docs/weapon_architecture_2026-05-24.md` §4 item 5)
 - [ ] **`burst_shot.tres` — author designer instance** — `scripts/enemies/shoot_patterns/burst_shot.gd` has no `.tres` companion. (Source: `docs/redundancy_audit_2026-05-21.md` §Enemy shoot patterns)
+  - _2026-06-08: STILL OPEN — not authored. (Bears on Weapons 3b: if BurstShot folds into `Weapon`'s
+    BURST fire_pattern, this `.tres` may be moot — decide during the 3b unification.)_
 
 ### Dev tools
 
