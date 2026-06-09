@@ -22,8 +22,7 @@ const BossScene = preload("res://scenes/enemies/boss.tscn")
 const BossSweep = preload("res://scripts/enemies/patterns/boss_sweep.gd")
 const MineScene = preload("res://scenes/enemies/enemy_mine.tscn")
 const MineShieldScene = preload("res://scenes/enemies/enemy_mine_shield.tscn")
-const MineClusterScene = preload("res://scenes/enemies/enemy_mine_cluster.tscn")
-const MineClusterSmartScene = preload("res://scenes/enemies/enemy_mine_cluster_smart.tscn")  # Mega Cluster
+const MineGravityScene = preload("res://scenes/enemies/enemy_mine_gravity.tscn")  # replaces Cluster + Mega Cluster
 const MineSmartScene = preload("res://scenes/enemies/enemy_mine_smart.tscn")
 const MineArmoredScene = preload("res://scenes/enemies/enemy_mine_armored.tscn")  # 4 HP
 const AsteroidScene = preload("res://scenes/enemies/enemy_asteroid.tscn")
@@ -304,7 +303,7 @@ static func build_boss_level():
 
 # Variant pool (everything except basic).
 const VARIANT_SCENES := [
-	"MineShieldScene", "MineClusterScene", "MineClusterSmartScene", "MineSmartScene", "MineArmoredScene",
+	"MineShieldScene", "MineGravityScene", "MineSmartScene", "MineArmoredScene",
 ]
 
 
@@ -325,8 +324,7 @@ static func build_minefield_score() -> CombatScore:
 			"basic": base_scene = MineScene
 			"smart": base_scene = _scene_by_name("MineSmartScene")
 			"shielded": base_scene = _scene_by_name("MineShieldScene")
-			"cluster": base_scene = _scene_by_name("MineClusterScene")
-			"mega": base_scene = _scene_by_name("MineClusterSmartScene")
+			"gravity", "cluster", "mega": base_scene = _scene_by_name("MineGravityScene")
 			"armored": base_scene = _scene_by_name("MineArmoredScene")
 			# "mixed" falls through to basic + sprinkle.
 	elif rng.randf() < 0.05:
@@ -389,8 +387,7 @@ static func _scene_by_name(s: String):
 	match s:
 		"MineScene": return MineScene
 		"MineShieldScene": return MineShieldScene
-		"MineClusterScene": return MineClusterScene
-		"MineClusterSmartScene": return MineClusterSmartScene
+		"MineGravityScene": return MineGravityScene
 		"MineSmartScene": return MineSmartScene
 		"MineArmoredScene": return MineArmoredScene
 	return MineScene

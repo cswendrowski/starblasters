@@ -1,0 +1,19 @@
+[gd_scene load_steps=4 format=3 uid="uid://cminegrav0001"]
+
+[ext_resource type="Script" path="res://scripts/enemies/gravity_mine.gd" id="1_grav_scr"]
+[ext_resource type="Texture2D" uid="uid://g42khwsghltr" path="res://graphics/mines/enemy_mine_gravity.png" id="2_grav_tex"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_grav"]
+size = Vector2(16, 16)
+
+[node name="EnemyMineGravity" type="Area2D" groups=["enemies"]]
+script = ExtResource("1_grav_scr")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_grav_tex")
+hframes = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_grav")
+
+[connection signal="area_entered" from="." to="." method="_on_area_entered"]

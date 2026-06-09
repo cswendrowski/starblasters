@@ -41,6 +41,9 @@ var _lateral_target: float = 0.0
 var _jitter_timer: float = 0.0
 var _age: float = 0.0
 var _pulse_phase: float = 0.0
+# Orbiting mode (Gravity Mine): the parent mine drives this bomblet's position while it rings the
+# mine; its own drift/lifetime are suspended until release(velocity) hands it a free velocity.
+var _orbiting: bool = false
 
 
 func _ready() -> void:
@@ -90,8 +93,26 @@ func launch(pos: Vector2, dir: Vector2, speed: float) -> void:
 	_lateral_target = nudge.x
 
 
+# Gravity Mine: keep this bomblet inert (parent positions it on the orbit ring).
+func set_orbiting(on: bool) -> void:
+	_orbiting = on
+
+
+# Gravity Mine: free the bomblet on the mine's death with a directly-set velocity (the mine's
+# drift + the bomblet's tangential orbit velocity), so it inherits its motion + rotation.
+func release(velocity: Vector2) -> void:
+	_orbiting = false
+	_age = 0.0
+	_velocity = velocity
+	_lateral_target = velocity.x
+
+
 func _process(delta: float) -> void:
 	if _dying:
+		return
+	if _orbiting:
+		# Parent mine owns position; just keep the live-munition pulse going.
+		_pulse_vfx()
 		return
 	_age += delta
 	if _age >= lifetime:
