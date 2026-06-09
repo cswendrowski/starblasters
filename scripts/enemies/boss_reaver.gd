@@ -28,7 +28,7 @@ var _dive_variation_idx: int = 0
 
 func _ready() -> void:
 	max_health = 140
-	bounty_value = 200
+	bounty_value = 500
 	display_scale = 1.0
 	boss_hover_y = 56.0
 	# ShootTimer is suppressed by our hand-rolled rotation, but keep cadence

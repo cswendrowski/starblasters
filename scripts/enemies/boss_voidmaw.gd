@@ -20,7 +20,7 @@ var _live_holes: Array = []
 
 func _ready() -> void:
 	max_health = 220
-	bounty_value = 300
+	bounty_value = 500
 	display_scale = 1.0
 	boss_hover_y = 60.0
 	fire_interval_min = 2.0

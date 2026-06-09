@@ -5,7 +5,7 @@
 [node name="LayerPlanet" type="CanvasLayer"]
 layer = -8
 script = ExtResource("1_planet")
-scroll_rate = 0.025
+scroll_rate = 0.03
 
 [node name="CanvasModulate" type="CanvasModulate" parent="."]
 color = Color(1, 1, 1, 1)

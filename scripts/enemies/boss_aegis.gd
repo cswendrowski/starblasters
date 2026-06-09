@@ -46,7 +46,7 @@ var _shield_disrupt_flashing: bool = false
 
 func _ready() -> void:
 	max_health = 240
-	bounty_value = 350
+	bounty_value = 500
 	display_scale = 1.0
 	boss_hover_y = 56.0
 	fire_interval_min = 1.5

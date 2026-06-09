@@ -14,7 +14,7 @@ var _t: float = 0.0
 
 func _ready() -> void:
 	max_health = 260
-	bounty_value = 350
+	bounty_value = 500
 	display_scale = 1.0
 	boss_hover_y = 70.0
 	fire_interval_min = 5.0

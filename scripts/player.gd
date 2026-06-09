@@ -219,6 +219,7 @@ const FOCUS_TRAIL_LEN := 18
 # glow aura, and the engine exhaust doubles in length. (Roman 2026-05-30.)
 const FOCUS_SHIP_ALPHA := 0.55                 # ship opacity while focused
 const FOCUS_GLOW_COLOR := Color(0.5, 0.9, 1.0) # cool cyan focus aura
+const PHASE_GLOW_COLOR := Color(0.2, 0.5, 1.0) # bright blue phase-out aura (no dot/trail)
 const FOCUS_EXHAUST_LIFETIME := 0.5            # 2x the scene default (0.25)
 const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
 var _focus_glow: CanvasItem = null
@@ -263,6 +264,8 @@ var phase_duration: float = 1.5
 var phase_kills_per_charge: int = 4
 var _phase_t: float = 0.0
 var _phase_kill_count: int = 0
+var _phase_glow: CanvasItem = null   # bright-blue diffuse aura while phased
+var _phase_was_active: bool = false
 signal phase_charges_changed(charges: int, max_charges: int)
 # Emitted when the equipped Shift mode changes — the HUD swaps its meter (Focus/
 # Hyper bar vs Phase charge readout) on this.
@@ -791,6 +794,7 @@ func _tick_hyper_mode(delta: float) -> void:
 # for phase_duration, costs one charge. Charges refill via on_enemy_killed (kills).
 func _tick_phase_mode(delta: float) -> void:
 	if active_mode != ShiftMode.PHASE:
+		_set_phase_glow(false)
 		return
 	if _phase_t > 0.0:
 		_phase_t = max(0.0, _phase_t - delta)
@@ -800,6 +804,23 @@ func _tick_phase_mode(delta: float) -> void:
 		_phase_t = phase_duration
 		_invuln_t = max(_invuln_t, phase_duration)
 		phase_charges_changed.emit(phase_charges, phase_charges_max)
+	# Bright-blue diffuse glow while phased (the Phase "tell" — no dot/trail).
+	_set_phase_glow(_phase_t > 0.0)
+
+
+# Edge-triggered: spawn/free the blue phase aura behind the ship (reuses the
+# focus glow shader). Create-once on enter, free on exit — no per-frame churn.
+func _set_phase_glow(on: bool) -> void:
+	if on == _phase_was_active:
+		return
+	_phase_was_active = on
+	if on:
+		if has_node("Ship") and (_phase_glow == null or not is_instance_valid(_phase_glow)):
+			_phase_glow = GlowShaderFx.apply($Ship, PHASE_GLOW_COLOR)
+	else:
+		if _phase_glow != null and is_instance_valid(_phase_glow):
+			_phase_glow.queue_free()
+		_phase_glow = null
 
 
 # Phase refills charges by killing enemies. Wired from main._on_enemy_died (the

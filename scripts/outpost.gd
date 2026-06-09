@@ -614,13 +614,11 @@ func _roll_offers() -> void:
 	if _refresh_count > 0:
 		rng.seed = rng.seed ^ (_refresh_count * 101)
 
-	var sector_idx: int = _current_sector()
-	# Boss-clear cap bump: each row-boss already killed in this sector raises
-	# the outpost's Mk floor. Encourages clearing the sector instead of
-	# beelining bosses; rewards the player who actually risked the boss
-	# fight with better stock at the next outpost they hit.
-	var bosses_killed: int = _bosses_killed_in_sector()
-	var max_mk_for_sector: int = mini(MAX_MK, sector_idx + MK_HIGH_OFFSET + bosses_killed)
+	# Shop Mk cap is boss-kill driven (Roman 2026-06-08): starts at 3, +3 per boss
+	# defeated this run, so 2 boss kills opens Mk9. Run-wide count (Run.bosses_defeated),
+	# not per-sector — bosses are the progression gate for the whole run.
+	var bosses_killed: int = int(get_node("/root/Run").bosses_defeated) if has_node("/root/Run") else 0
+	var max_mk_for_sector: int = mini(MAX_MK, 3 + 3 * bosses_killed)
 
 	# Upgrades: 3 distinct rolls, skip maxed keys. The card shows the Mk
 	# the player will be at AFTER buying — i.e. current_mk + 1 — so the

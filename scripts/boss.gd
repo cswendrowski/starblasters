@@ -40,7 +40,7 @@ var _tether_timer: Timer = null
 
 func _ready() -> void:
 	max_health = 160
-	bounty_value = 300
+	bounty_value = 500
 	display_scale = 1.0
 	# Two-phase fight gated at 50% HP. Phase 0 is the implicit start.
 	phases = [

@@ -37,7 +37,7 @@ var _var_sniper: BulletVariant = null  # sniper shot (slot 3) — upgrades in P2
 
 func _ready() -> void:
 	max_health = 180
-	bounty_value = 250
+	bounty_value = 500
 	display_scale = 1.0
 	boss_hover_y = 60.0
 	fire_interval_min = 1.4
