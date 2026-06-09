@@ -454,10 +454,8 @@ func start_new_sector(sector_idx: int, seed_value: int) -> void:
 			"boss": boss,
 			"pois": pois,
 		})
-	# Post-roll outpost rules: cap one station per row, then clamp the sector
-	# total into range. Operates on the assembled rows array so every conversion
-	# shows up in the cache.
-	_enforce_outpost_rules(rows, rng)
+	# (Outpost POI rules removed 2026-06-08 — outposts are a sector-map hub button,
+	# not POIs, so the per-row cap + min-promotion no longer apply.)
 	sector_map_cache = {
 		"sector_idx": sector_idx,
 		"seed": seed_value,
@@ -668,12 +666,12 @@ func _pick_row_bosses(sector_idx: int, rng: RandomNumberGenerator, prior_bosses:
 
 
 func _roll_poi_type(rng: RandomNumberGenerator) -> int:
-	# Same weights as the dev v3 _pick_node_type, mapped to enum ints.
-	# combat 4/9, outpost 2/9, hazard 2/9, signal 1/9
+	# Outposts are NO LONGER POIs (reached via the sector-map "Visit Outpost" button,
+	# Roman 2026-06-08) — dropped from the procedural pool. Re-weighted to
+	# combat 5/9, hazard 2/9, signal 2/9.
 	var r: int = rng.randi() % 9
-	if r < 4: return int(SectorNodeType.COMBAT)
-	if r < 6: return int(SectorNodeType.OUTPOST)
-	if r < 8: return int(SectorNodeType.HAZARD)
+	if r < 5: return int(SectorNodeType.COMBAT)
+	if r < 7: return int(SectorNodeType.HAZARD)
 	return int(SectorNodeType.SIGNAL)
 
 
