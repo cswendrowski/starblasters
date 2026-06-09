@@ -28,3 +28,8 @@ stream = ExtResource("3_shoot")
 
 [node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1616671660]
 stream = ExtResource("4_die")
+
+[node name="ShootTimer" type="Timer" parent="."]
+one_shot = true
+
+[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

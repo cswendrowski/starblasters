@@ -40,6 +40,10 @@ const Skirmish = preload("res://scripts/enemies/patterns/skirmish.gd")
 const LanePath = preload("res://scripts/enemies/patterns/lane_path.gd")
 const OmniThrust = preload("res://scripts/enemies/patterns/omni_thrust.gd")
 const LaneCharge = preload("res://scripts/enemies/patterns/lane_charge.gd")
+const Pendulum = preload("res://scripts/enemies/patterns/pendulum.gd")
+const StrafeRun = preload("res://scripts/enemies/patterns/strafe_run.gd")
+const ProximityChase = preload("res://scripts/enemies/patterns/proximity_chase.gd")
+const Weapon = preload("res://scripts/enemies/shoot_patterns/weapon.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
 
 # Faction pool filter (M6b): set by WaveGen.build for the duration of one generation so
@@ -274,6 +278,21 @@ const ENTRIES := [
 		"hp_override": 2, "bounty_override": 12,
 		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.7, "chaff": true,
 		"conflict_tags": ["dumb_shot"],
+	},
+	# Strafer (REVIVED + on-lane migration 2026-06-08): corporate fast fighter on enemy_core.
+	# StrafeRun pass beside the player + the "nose" weapon (Aim.FORWARD, fire_only_on_target) —
+	# the ray-nose strafe, now reusable. Was bespoke + retired; re-added as an UNCOMMON harasser.
+	{
+		"scene": "res://scenes/enemies/factions/corporate/enemy_strafer.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "strafe_run",
+		"shoot": "nose",
+		"bullet_variant": BV_SpreadPellet,
+		"base_count": 2,
+		"hp_override": 2, "bounty_override": 10,
+		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.5,
+		"conflict_tags": ["aimed_or_spread"],
 	},
 	# Hotrod (M6c, Roman art 2026-06-07) — REPLACES the Strafer. Supremacy fast
 	# fighter (enemy_core) firing ALTERNATING tracers from its two muzzles (single
@@ -1281,6 +1300,15 @@ static func make_movement(entry: Dictionary) -> Resource:
 		"hunt_omni":
 			# Omni-thrust vector roamer — holds stand-off range + strafes (was omni).
 			return OmniThrust.new()
+		"pendulum":
+			# Dual-band vertical ping-pong diver w/ aim-fire dwell (ported from crystal).
+			return Pendulum.new()
+		"strafe_run":
+			# Capped-turn strafing pass beside the player (ported from strafer).
+			return StrafeRun.new()
+		"proximity_chase":
+			# Drift straight until near the player, then activate a chase (smart mine/bomblet).
+			return ProximityChase.new()
 	# Default: a readable medium straight.
 	return _straight(180.0)
 
@@ -1356,6 +1384,19 @@ static func make_shoot(entry: Dictionary) -> Resource:
 			s.bullet_count = 5
 			s.spread_degrees = 36.0
 			pattern = s
+		"nose":
+			# Unified Weapon firing along the nose (Aim.FORWARD). Pair the host with
+			# auto_rotate + fire_only_on_target so it strafes the player (the strafer).
+			# Early-return: Weapon uses `payload` (not the legacy `bullet_variant`).
+			var w = Weapon.new()
+			w.fire_pattern = Weapon.FirePattern.SINGLE
+			w.aim = Weapon.Aim.FORWARD
+			w.bullet_scene = EnemyBullet
+			w.payload = entry.get("bullet_variant", null)
+			w.homing_rate = entry.get("homing_rate", 0.0)
+			w.wobble_amplitude = entry.get("wobble_amplitude", 0.0)
+			w.wobble_frequency = entry.get("wobble_frequency", 0.0)
+			return w
 	if pattern != null:
 		pattern.bullet_variant = entry.get("bullet_variant", null)
 		# Projectile-movement axis (M6a.2): the firing layer drives homing/wobble, not

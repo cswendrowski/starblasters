@@ -18,10 +18,11 @@ extends Object
 const DATA := {
 	"res://scenes/enemies/core/enemy_bomb_drone.tscn": {"identity": "straight_fast", "eligible": ["straight_fast"]},
 	"res://scenes/enemies/core/enemy_cruiser.tscn": {"identity": "loiter_low", "eligible": ["loiter_low"]},
-	"res://scenes/enemies/core/enemy_crystal.tscn": {"identity": "loiter_high", "eligible": ["loiter_high"]},
+	"res://scenes/enemies/core/enemy_crystal.tscn": {"identity": "pendulum", "eligible": ["pendulum"]},
 	"res://scenes/enemies/factions/corporate/enemy_bulwark.tscn": {"identity": "drift_mid", "eligible": ["drift_mid"]},
 	"res://scenes/enemies/factions/corporate/enemy_c_dart.tscn": {"identity": "straight_fast", "eligible": ["straight_fast"]},
 	"res://scenes/enemies/factions/corporate/enemy_c_s_curve.tscn": {"identity": "lane_weave", "eligible": ["lane_weave"]},
+	"res://scenes/enemies/factions/corporate/enemy_strafer.tscn": {"identity": "strafe_run", "eligible": ["strafe_run"]},
 	"res://scenes/enemies/factions/corporate/enemy_c_s_drop.tscn": {"identity": "straight_medium", "eligible": ["straight_medium"]},
 	"res://scenes/enemies/factions/corporate/enemy_c_s_gray.tscn": {"identity": "straight_fast", "eligible": ["straight_fast"]},
 	"res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn": {"identity": "skirmish_loop", "eligible": ["loiter_low", "skirmish_loop"]},

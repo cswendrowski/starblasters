@@ -16,7 +16,7 @@ func _init() -> void:
 		"straight_charge", "skirmish_loop", "skirmish_figure8", "drift_low", "drift_mid", "drift_high",
 		"loiter_low", "loiter_mid", "loiter_high", "lane_weave", "lane_drift", "lane_shift",
 		"lane_hook", "lane_cut", "side_turn", "side_dive", "side_traverse",
-		"hunt_beeline", "hunt_omni",
+		"hunt_beeline", "hunt_omni", "pendulum", "strafe_run", "proximity_chase",
 	]
 	for k in live:
 		var m = Roster.make_movement({"movement": k})
