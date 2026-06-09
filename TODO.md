@@ -11,13 +11,9 @@ landed. Grouped by effort.
 - [ ] **s_s_rush movement-based facing** — auto_rotate is on by default but Roman reports
   it's not facing its travel. Eyeball: not turning at all / faces down / spins? Likely an
   auto_rotate seed or the Engine-marker-under-CollisionShape transform. (`enemy_s_s_rush.tscn`)
-- [ ] **z_s_sword firing** — currently generic `single`; wants a Frigate-style **broadside**
-  (perpendicular while crossing), **muzzle cycling** across its 4 markers, and a **faster
-  projectile**. Needs a small bespoke shoot (like `enemy_frigate.gd`'s broadside). Movement
-  already slowed. (`enemy_z_s_sword`)
-- [ ] **retro/hold turn-during-jiggle** — loiter pattern turns the hull the wrong way during
-  the jiggle hold. Add an auto_rotate suppression during the HOLD phase + a moderate-speed
-  turn on DEPART. (`scripts/enemies/patterns/loiter.gd` + enemy_core auto_rotate gate)
+- [x] **z_s_sword firing** — DONE (combat session, `35712ff` "sword rolling broadside firing").
+- [x] **retro/hold turn-during-jiggle** — DONE (combat session, `cdf4b3a` "loiter holders don't turn
+  the wrong way during the jiggle").
 
 **Wave/pattern work (larger, director + wave-gen):**
 - [ ] **Cohesive chaff waves** — bomb-drone/dart waves are too long + sparse. Want
@@ -26,10 +22,10 @@ landed. Grouped by effort.
 - [ ] **Speed audit to the 1–8 px/f rungs** — `fast_straight` done (→300); audit every other
   movement key + sector scaling so nothing common sits past 6 px/f. >6 px/f = reflex tier:
   rare, mid/late only. (`enemy_roster.make_movement` + `enemy_core` sector scale + `clarity.gd`)
-- [ ] **Midpoint heavies more common** — bump the push/anchor heavy-beat frequency.
-  (`wave_generator` heavy-beat weighting)
-- [ ] **No-recycle + denser packing for high-count chaff** — bomb-drone/hotrod waves should
-  not recycle and should arrive in tighter packs. (roster `recycle: 0` + wave-gen density)
+- [x] **Midpoint heavies more common** — DONE (combat session, `f7c2038` "midpoint heavies more
+  common (second anchor beat on long levels)").
+- [x] **No-recycle + denser packing for high-count chaff** — DONE (combat session, `af9bb58`
+  "hotrod no-recycle (high-count chaff)").
 
 **Cleanup:**
 - [x] **385 editor GDScript warnings** — CLEARED (Roman 2026-06-08: "largely handled, we can clear this").
@@ -37,11 +33,8 @@ landed. Grouped by effort.
 ## M6c polish backlog — round 2 (scoped 2026-06-08)
 
 ### Enemies
-- [ ] **Drop enemies (p_s_drop / c_s_drop) — burst-once, no recycle.** Should NOT recycle;
-  fire a single 4-shot burst, then exit. Deeper-run drops gain more shots (e.g. +2 per depth
-  increment) but still ONE burst then leave. (roster `recycle: 0` + a one-burst shoot config +
-  depth-scaled shot count)
-- [ ] **Sapper is double-shielded.** Give the sapper 2 shield charges. (`enemy_sapper` / shield component)
+- [x] **Drop enemies — burst-once, no recycle.** DONE (combat session, `d70fd37` behavior batch — "drops").
+- [x] **Sapper is double-shielded.** DONE (combat session, `d70fd37` "sapper shield").
 
 ### Bullets / weapons
 - [ ] **Weapon-library audit** — confirm EVERY enemy fires via the new Weapon/BulletVariant
@@ -54,32 +47,24 @@ landed. Grouped by effort.
 - [ ] **Minefield hazard = real wave numerics + dense navigable patterns.** Same enemy counts
   as a normal wave; dense waves with patterns demanding careful navigation / focus-threading /
   shoot-through. (`scripts/levels/levels_v2.gd` minefield + director)
-- [ ] **p_s_green waves over-rely on curves** — add variation.
+- [x] **p_s_green waves over-rely on curves** — DONE (combat session, `ab1b7e2` "p_s_green wave variety (drift + straight variants, less weave)").
 - [ ] **Conductor must not repeat patterns** — if reused, reverse them on alternating waves or
   mix with lane patterning (L→R, R→L, in/out sweeps). (`director.gd` conductor choreography)
 - [ ] **Bomb-drone waves too thin again** — come as walls with dodge gaps the player must enter,
   not 1–2 stragglers. (shared with round-1 "cohesive chaff waves")
 - [ ] **Mix-and-match lane patterns** — different lanes running different patterns in one wave
   for visual texture.
-- [ ] **Beeline group cap** — beeline enemies (shiv etc.) limited to 1–6 per wave. Apply to ALL
-  beeline enemies. (wave-gen count clamp by movement)
-- [ ] **Shiv also fast-down / straight-down** — add straight-dive variants alongside the charger.
-- [ ] **New CHARGER behavior** — enter the lane SLOWLY, then on reaching the firing zone rapidly
-  ACCELERATE and rush the exit. (new `scripts/enemies/patterns/` movement, zone-timed accel)
-- [ ] **Large enemies not exiting at the bottom** — sword (and likely all large enemies) don't
-  despawn off the bottom; need to travel further off-screen before the offscreen cull fires.
-  (offscreen margin scaled by sprite size in enemy_base)
+- [x] **Beeline group cap** — DONE (combat session, `d70fd37` "beeline cap").
+- [x] **Shiv also fast-down / straight-down** — DONE (combat session, `d70fd37` "shiv" + `4d5fb48` "shiv charger").
+- [x] **New CHARGER behavior** (enter slowly → accelerate-out rush) — DONE (combat session, `5627b67`
+  "new lane_charge behavior (slow telegraph -> accelerate-out rush)").
+- [x] **Large enemies not exiting at the bottom** — DONE (combat session, `d70fd37` "large exit").
 
 ### Shields (combat session — spec ready)
-- [ ] **Unify enemy shield systems onto `ShieldComponent`** — four split systems today (simple
-  `enemy_base.max_shield`, ShieldComponent, bespoke bulwark/bomber regen, one-off mine/Aegis); the
-  data-driven sources are split (sector-mod + roster "shielded" → simple shield; corporate →
-  component) and can stack. Foundation is BUILT (lead 2026-06-08, `b5c9adf`): `ShieldComponent` now
-  has CHARGE (no-regen when `regen_interval<=0`) + POOL (sapper banked-damage) modes, and the smart
-  bomb is POOL-aware. REMAINING (combat session — touches `enemy_base`/`director`/`enemy_roster` +
-  enemy scripts): rewire the two `director.gd` spawn paths to attach a ShieldComponent, retire the
-  simple `max_shield`, migrate bulwark/bomber/mine/sapper onto it (sapper → POOL + steal→`bank()`).
-  Full spec + file:line: `docs/shield_unification_2026-06-08.md`. Boss Aegis stays bespoke.
+- [x] **Unify enemy shield systems onto `ShieldComponent`** — DONE. Foundation by lead (`b5c9adf`:
+  CHARGE no-regen + POOL sapper modes + smart-bomb POOL awareness); migration by combat session
+  (`1ba0692` "Unify enemy shields onto ShieldComponent (CHARGE/POOL); bulwark/mine/sapper migrated"
+  + `d973c31` smart bomb ignores all shields). Boss Aegis stays bespoke as specced.
 
 ### Recycling
 - [ ] **Recycling breaks composed formations.** Recycled units re-enter as noise, devolving
