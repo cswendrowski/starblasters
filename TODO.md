@@ -112,11 +112,16 @@ landed. Grouped by effort.
 - [x] **Boss ring progress missing** — DONE (lead 2026-06-08, `c36a044`). The HD host
   (`sector_map_hd.gd`) was drawing a solid full ring; now draws a partial completion arc per row
   from POI `completed` counts. NEEDS EYEBALL.
-- [~] **Retire the old sector map entirely** — PARTIAL (lead 2026-06-08). All routes go through the
-  HD host EXCEPT `main.gd:802` (asteroid-hazard exit) which still loads raw `sector_map_v3.tscn`.
-  One-line fix DEFERRED — `main.gd` is the parallel session's file; need a coordination call (see
-  reports/lead_session_report.md Decisions #1). Legacy `scenes/sector_map.tscn` deletion also
-  deferred (still used by `feature_showcase.gd` + `parse_check.ps1`).
+- [x] **Retire the old sector map entirely** — DONE (the `main.gd` asteroid-hazard exit already
+  routes through the HD host via `SectorMapRoute.SECTOR_MAP_SCENE` — verified 2026-06-08). Legacy
+  `scenes/sector_map.tscn` deletion still DEFERRED (Roman: "leave it for now, flag for cleanup
+  later" — still used by `feature_showcase.gd` + `parse_check.ps1`).
+- [x] **Outpost-as-persistent-hub redesign** — DONE (lead 2026-06-08, `aa5a85a`..`daa8594`). Roman's
+  call sheet #4/#6: outposts are no longer POIs — a "Visit Outpost" sector-map button (above Manage
+  Ship; player status line cut) opens a persistent hub. Stock persists across visits + re-rolls on
+  boss kill; repair + ammo are charge-limited (2d6 each, +1d6/boss, "·N left" / sold-out); the
+  refresh-stock button is gone; active sector modifiers are shown in the outpost. Shop Mk cap is
+  boss-driven (3 + 3×bosses). NEEDS EYEBALL in-game (button placement, hub flow, charge feel).
 - [x] **Signal events not randomized** — DONE (lead 2026-06-08, `c36a044`). Seed was
   `run_seed + visited_nodes.size()*31`, but `visited_nodes` is dead (always 0) so every event rolled
   identically. Re-seeded off `current_node_id`. NEEDS EYEBALL (different nodes → different outcomes).
