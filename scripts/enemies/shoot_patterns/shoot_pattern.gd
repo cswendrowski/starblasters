@@ -77,7 +77,14 @@ func _spawn_bullet(enemy, dir: Vector2, bv = null, spawn_override = null):
 	var b = scene.instantiate()
 	if bv != null and "variant" in b:
 		b.variant = bv
-	enemy.get_tree().root.add_child(b)
+	# Spawn into the enemy's OWN container (its parent) rather than the window root, so bullets
+	# share the enemy's coordinate space and survive its queue_free. In combat that's the main
+	# scene (identical to the old root); in a SubViewport bench/hangar it's the preview world,
+	# which keeps bullets in the playfield instead of the window's top-left corner.
+	var bullet_parent: Node = enemy.get_parent()
+	if bullet_parent == null:
+		bullet_parent = enemy.get_tree().root
+	bullet_parent.add_child(b)
 	# Spawn at the next muzzle marker when the enemy has them (cycling
 	# index alternates two-muzzle enemies); else the enemy center as before.
 	# A pink muzzle flash plays at each muzzle in the fire direction. Un-
@@ -96,7 +103,7 @@ func _spawn_bullet(enemy, dir: Vector2, bv = null, spawn_override = null):
 	else:
 		b.position = spawn_pos
 	if has_mz or spawn_override != null:
-		MuzzleFx.play_enemy(spawn_pos, dir, enemy.get_tree().root)
+		MuzzleFx.play_enemy(spawn_pos, dir, bullet_parent)
 	# Drive the projectile-movement axis (homing/wobble) — applied after
 	# _ready/_apply_variant so the pattern's axis overrides the variant's seed.
 	_apply_axis(b)
