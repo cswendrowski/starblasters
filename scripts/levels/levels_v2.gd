@@ -25,6 +25,7 @@ const MineShieldScene = preload("res://scenes/enemies/enemy_mine_shield.tscn")
 const MineGravityScene = preload("res://scenes/enemies/enemy_mine_gravity.tscn")  # replaces Cluster + Mega Cluster
 const MineSmartScene = preload("res://scenes/enemies/enemy_mine_smart.tscn")
 const MineArmoredScene = preload("res://scenes/enemies/enemy_mine_armored.tscn")  # 4 HP
+const MineTetherScene = preload("res://scenes/enemies/enemy_mine_tether.tscn")  # non-boss tether, 4 HP
 const AsteroidScene = preload("res://scenes/enemies/enemy_asteroid.tscn")
 const FrigateScene = preload("res://scenes/enemies/factions/supremacy/enemy_frigate.tscn")
 const CutterScene = preload("res://scenes/enemies/core/enemy_cutter.tscn")
@@ -303,7 +304,7 @@ static func build_boss_level():
 
 # Variant pool (everything except basic).
 const VARIANT_SCENES := [
-	"MineShieldScene", "MineGravityScene", "MineSmartScene", "MineArmoredScene",
+	"MineShieldScene", "MineGravityScene", "MineSmartScene", "MineArmoredScene", "MineTetherScene",
 ]
 
 
@@ -326,6 +327,7 @@ static func build_minefield_score() -> CombatScore:
 			"shielded": base_scene = _scene_by_name("MineShieldScene")
 			"gravity", "cluster", "mega": base_scene = _scene_by_name("MineGravityScene")
 			"armored": base_scene = _scene_by_name("MineArmoredScene")
+			"tether": base_scene = _scene_by_name("MineTetherScene")
 			# "mixed" falls through to basic + sprinkle.
 	elif rng.randf() < 0.05:
 		base_scene = _scene_by_name(VARIANT_SCENES[rng.randi() % VARIANT_SCENES.size()])
@@ -390,6 +392,7 @@ static func _scene_by_name(s: String):
 		"MineGravityScene": return MineGravityScene
 		"MineSmartScene": return MineSmartScene
 		"MineArmoredScene": return MineArmoredScene
+		"MineTetherScene": return MineTetherScene
 	return MineScene
 
 

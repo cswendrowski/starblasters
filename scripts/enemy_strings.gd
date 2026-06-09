@@ -38,6 +38,7 @@ const STRINGS := {
 	"res://scenes/enemies/enemy_mine_shield.tscn": {"name": "Shielded Mine", "codex": "TBD"},
 	"res://scenes/enemies/enemy_mine_smart.tscn": {"name": "Smart Mine", "codex": "TBD"},
 	"res://scenes/enemies/enemy_mine_armored.tscn": {"name": "Armored Mine", "codex": "TBD"},
+	"res://scenes/enemies/enemy_mine_tether.tscn": {"name": "Tether Mine", "codex": "TBD"},
 	"res://scenes/enemies/enemy_shield_pylon.tscn": {"name": "Shield Drone", "codex": "TBD"},
 	"res://scenes/enemies/factions/corporate/enemy_bulwark.tscn": {"name": "bulwark", "codex": "TBD"},
 	"res://scenes/enemies/factions/corporate/enemy_c_dart.tscn": {"name": "c_dart", "codex": "TBD"},

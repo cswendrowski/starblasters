@@ -16,7 +16,17 @@ extends "res://scripts/enemies/enemy_base.gd"
 #   F1 = transition (brief, during ARRIVING),
 #   F2 = active (during ACTIVE / beam phase).
 
-enum Phase { TRAVELING, ARRIVING, ACTIVE }
+const GravityGlow = preload("res://scripts/effects/gravity_glow.gd")
+
+# DORMANT is the non-boss minefield variant's resting phase (drift down, glow off) until the player
+# crosses into tether_range; then it fades its glow in and grabs (ARRIVING -> ACTIVE). The boss
+# (Commander-thrown) skips DORMANT and starts TRAVELING.
+enum Phase { DORMANT, TRAVELING, ARRIVING, ACTIVE }
+
+# Non-boss variant (minefield hazard): begins DORMANT, activates on player proximity, 4 HP.
+@export var non_boss: bool = false
+@export var tether_range: float = 90.0    # non-boss: player distance that wakes it
+@export var dormant_drift: float = 60.0   # non-boss: descent speed while dormant
 
 # Travel
 @export var travel_speed: float = 120.0
@@ -43,7 +53,7 @@ const BEAM_AMPLITUDE_PX: float = 5.0
 const BEAM_FREQUENCY: float = 8.0      # radians per second (animates squiggle)
 const BEAM_SEGMENTS: int = 24
 const BEAM_WIDTH: float = 2.0
-const BEAM_COLOR: Color = Color(1.0, 0.2, 0.2, 0.95)
+const BEAM_COLOR: Color = Color(0.78, 0.231, 1.0, 0.95)   # #c73bff (gravity)
 
 var _phase: int = Phase.TRAVELING
 var _phase_t: float = 0.0
@@ -51,10 +61,11 @@ var _target: Vector2 = Vector2.ZERO
 var _active_t: float = 0.0
 var _beam_t: float = 0.0
 var _fading: bool = false
+var _glow = null   # GravityGlow — glowmask fades in before the grab
 
 
 func _ready() -> void:
-	max_health = 6
+	max_health = 4 if non_boss else 6   # non-boss matches the Armored Mine
 	is_hazard = true
 	bounty_value = 0
 	display_scale = 1.0
@@ -64,32 +75,42 @@ func _ready() -> void:
 	super._ready()
 	if has_node("Sprite2D"):
 		$Sprite2D.frame = 0
+		# #c73bff gravity glow, starting OFF — fades in before the mine activates + grabs.
+		_glow = GravityGlow.new()
+		add_child(_glow)
+		_glow.setup($Sprite2D, GravityGlow.GRAVITY_COLOR, 0.0)
+	if non_boss:
+		_phase = Phase.DORMANT
 
 
-# Boss calls start(spawn_pos, target_pos). Falls back to the EnemyBase
-# convention if a caller passes only one arg.
+# Boss calls start(spawn_pos, target_pos). The non-boss minefield variant gets start(pos) (one arg)
+# and stays DORMANT until the player nears.
 func start(pos: Vector2, target: Vector2 = Vector2.INF) -> void:
 	position = pos
-	if target == Vector2.INF:
-		_target = pos
-	else:
-		_target = target
-	_phase = Phase.TRAVELING
+	_target = pos if target == Vector2.INF else target
+	_phase = Phase.DORMANT if non_boss else Phase.TRAVELING
 
 
 func _process(delta: float) -> void:
 	if _dying or _fading:
 		return
 	match _phase:
+		Phase.DORMANT:
+			# Non-boss: drift down, glow off, until the player crosses into tether_range.
+			position.y += dormant_drift * delta
+			if position.y > screensize.y + 24.0:
+				queue_free()
+				return
+			var pl := find_player()
+			if pl != null and is_instance_valid(pl) \
+					and global_position.distance_to((pl as Node2D).global_position) <= tether_range:
+				_enter_arriving()
 		Phase.TRAVELING:
 			var to_target: Vector2 = _target - position
 			var dist: float = to_target.length()
 			if dist <= arrival_threshold or dist <= travel_speed * delta:
 				position = _target
-				_phase = Phase.ARRIVING
-				_phase_t = 0.0
-				if has_node("Sprite2D"):
-					$Sprite2D.frame = 1
+				_enter_arriving()
 			else:
 				position += to_target / dist * travel_speed * delta
 		Phase.ARRIVING:
@@ -98,14 +119,21 @@ func _process(delta: float) -> void:
 				_phase = Phase.ACTIVE
 				_active_t = 0.0
 				_beam_t = 0.0
-				if has_node("Sprite2D"):
-					$Sprite2D.frame = 2
 		Phase.ACTIVE:
 			_active_t += delta
 			_beam_t += delta
 			queue_redraw()
 			if _active_t >= active_duration:
 				_begin_fade_out()
+
+
+# Enter the brief pre-grab transition: fade the glowmask in (it was OFF while traveling/dormant)
+# over transition_time, THEN ACTIVE starts the pull + beam.
+func _enter_arriving() -> void:
+	_phase = Phase.ARRIVING
+	_phase_t = 0.0
+	if _glow != null and is_instance_valid(_glow):
+		_glow.fade_in(transition_time)
 
 
 func _physics_process(delta: float) -> void:
@@ -160,6 +188,9 @@ func _draw() -> void:
 		var amp: float = sin(_beam_t * BEAM_FREQUENCY + float(i) * 0.6) * BEAM_AMPLITUDE_PX * taper
 		var pt: Vector2 = dir * (length * u) + perp * amp
 		points.push_back(pt)
+	# Diffuse #c73bff glow: a wide, faint underlay beneath the crisp beam.
+	draw_polyline(points, Color(BEAM_COLOR.r, BEAM_COLOR.g, BEAM_COLOR.b, 0.28), BEAM_WIDTH * 3.0)
+	draw_polyline(points, Color(BEAM_COLOR.r, BEAM_COLOR.g, BEAM_COLOR.b, 0.5), BEAM_WIDTH * 1.8)
 	draw_polyline(points, BEAM_COLOR, BEAM_WIDTH)
 
 
