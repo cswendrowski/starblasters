@@ -12,8 +12,11 @@ extends Node2D
 #
 # Tunables on the @export are the most likely things you'd want to tweak.
 
-const FRAMES: int = 8
-const STRIP = preload("res://graphics/explosion.png")
+# Strip + frame count are settable so variant scenes can swap the artwork (e.g.
+# explosion_small_circle.tscn = the 16px / 9-frame circle). Defaults = the
+# original 8-frame explosion.png so existing callers are unchanged.
+@export var strip: Texture2D = preload("res://graphics/explosion.png")
+@export var frames: int = 8
 
 @export var base_scale: float = 1.0
 @export var frame_duration: float = 0.07  # ~0.56s for 8 frames
@@ -69,8 +72,8 @@ func _spawn_secondaries() -> void:
 
 func _make_explosion_sprite(offset: Vector2, sc: float, delay: float) -> Dictionary:
 	var sprite := Sprite2D.new()
-	sprite.texture = STRIP
-	sprite.hframes = FRAMES
+	sprite.texture = strip
+	sprite.hframes = frames
 	sprite.frame = 0
 	sprite.position = offset
 	sprite.scale = Vector2(sc, sc)
@@ -80,8 +83,8 @@ func _make_explosion_sprite(offset: Vector2, sc: float, delay: float) -> Diction
 	# Additive glow halo behind the sprite — a soft white tint at high
 	# brightness so the first few frames "punch" before fading.
 	var halo := Sprite2D.new()
-	halo.texture = STRIP
-	halo.hframes = FRAMES
+	halo.texture = strip
+	halo.hframes = frames
 	halo.frame = 0
 	halo.position = offset
 	halo.scale = Vector2(sc * 1.35, sc * 1.35)
@@ -343,7 +346,7 @@ func _apply_frame_to_all() -> void:
 			s.visible = false
 			continue
 		var local_frame: int = int(local_time / frame_duration)
-		if local_frame >= FRAMES:
+		if local_frame >= frames:
 			s.visible = false
 			# Halo also hides
 			var idx_done: int = _sprites.find(entry)

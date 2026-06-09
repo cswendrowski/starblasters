@@ -8,12 +8,27 @@ extends Node
 
 const EXPLOSION_SCENE = preload("res://scenes/effects/explosion.tscn")
 
+# Named death-explosion variants. The enemy dev tool / enemy_base.explosion_variant
+# select by name; scene_for() resolves it (unknown name -> default). Add new
+# variant scenes here.
+const VARIANTS := {
+	"default": EXPLOSION_SCENE,
+	"small_circle": preload("res://scenes/effects/explosion_small_circle.tscn"),
+}
+
+static func variant_names() -> Array:
+	return VARIANTS.keys()
+
+static func scene_for(variant: String) -> PackedScene:
+	return VARIANTS.get(variant, EXPLOSION_SCENE)
+
 # `parent` lets a caller spawn the blast into a specific container (e.g. the
 # hangar's SubViewport world) instead of the window root — needed so effects
 # land in the same coordinate space as the thing that blew up. Defaults to the
 # window root (combat), preserving prior behavior.
-static func play(world_pos: Vector2, scale: float = 1.0, with_light: bool = true, parent: Node = null) -> Node2D:
-	var inst: Node2D = EXPLOSION_SCENE.instantiate()
+static func play(world_pos: Vector2, scale: float = 1.0, with_light: bool = true, parent: Node = null, scene: PackedScene = null) -> Node2D:
+	var src: PackedScene = scene if scene != null else EXPLOSION_SCENE
+	var inst: Node2D = src.instantiate()
 	inst.global_position = world_pos
 	if "base_scale" in inst:
 		inst.base_scale = scale
@@ -30,18 +45,18 @@ static func play(world_pos: Vector2, scale: float = 1.0, with_light: bool = true
 # staggered timing so larger enemies read as "many simultaneous blasts"
 # rather than one oversized one (Roman 2026-05-18). All blasts are at
 # native 1× scale.
-static func burst(world_pos: Vector2, count: int = 1, jitter_radius: float = 10.0, stagger: float = 0.06, parent: Node = null) -> void:
+static func burst(world_pos: Vector2, count: int = 1, jitter_radius: float = 10.0, stagger: float = 0.06, parent: Node = null, scene: PackedScene = null) -> void:
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree == null:
 		return
 	for i in count:
 		var delay: float = float(i) * stagger
 		if delay <= 0.001:
-			_spawn_one(world_pos, jitter_radius, parent)
+			_spawn_one(world_pos, jitter_radius, parent, scene)
 		else:
-			tree.create_timer(delay).timeout.connect(_spawn_one.bind(world_pos, jitter_radius, parent))
+			tree.create_timer(delay).timeout.connect(_spawn_one.bind(world_pos, jitter_radius, parent, scene))
 
 
-static func _spawn_one(world_pos: Vector2, jitter_radius: float, parent: Node = null) -> void:
+static func _spawn_one(world_pos: Vector2, jitter_radius: float, parent: Node = null, scene: PackedScene = null) -> void:
 	var off := Vector2(randf_range(-jitter_radius, jitter_radius), randf_range(-jitter_radius, jitter_radius))
-	play(world_pos + off, 1.0, true, parent)
+	play(world_pos + off, 1.0, true, parent, scene)

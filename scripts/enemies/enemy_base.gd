@@ -77,6 +77,9 @@ enum OffscreenMode { CYCLE_BOTTOM, FREE_ANY_EDGE, FREE_OPPOSITE_SIDE, NONE }
 # filters the "enemies" group by this flag when checking for empty.
 @export var is_hazard: bool = false
 @export var display_scale: float = 1.0
+# Death-explosion variant (ExplosionFx.VARIANTS key — "default" / "small_circle" / …).
+# The enemy dev tool + per-enemy scenes set this; explode() resolves it to a scene.
+@export var explosion_variant: String = "default"
 @export var offscreen_mode: int = OffscreenMode.CYCLE_BOTTOM
 # Engine flame color override. Default warm-orange; missile-like enemies
 # (Dart) use yellow per Roman 2026-05-18. Alpha is honored.
@@ -367,11 +370,12 @@ func explode() -> void:
 	# it's `_world`, which keeps the blasts over the ship instead of the window's
 	# top-left corner.
 	var fx_parent: Node = _fx_parent()
+	var ex_scene: PackedScene = ExplosionFxScript.scene_for(explosion_variant)
 	var blast_count: int = clampi(int(round(max(1.0, display_scale * 1.4))), 1, 6)
 	if blast_count <= 1:
-		ExplosionFxScript.play(global_position, 1.0, true, fx_parent)
+		ExplosionFxScript.play(global_position, 1.0, true, fx_parent, ex_scene)
 	else:
-		ExplosionFxScript.burst(global_position, blast_count, 12.0 * max(1.0, display_scale * 0.6), 0.06, fx_parent)
+		ExplosionFxScript.burst(global_position, blast_count, 12.0 * max(1.0, display_scale * 0.6), 0.06, fx_parent, ex_scene)
 	# Settling dust supplement (Roman 2026-05-24): 1px gray particles
 	# scattering radially with downward gravity. Count scales with size
 	# (8/16/32/64). Fires alongside the debris strip, not instead of it.
