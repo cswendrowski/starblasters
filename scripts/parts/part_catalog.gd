@@ -16,6 +16,8 @@ const SeekingMissileCannon = preload("res://scripts/parts/seeking_missile_cannon
 const AntiShipMissileCannon = preload("res://scripts/parts/anti_ship_missile_cannon.gd")
 const SpreadCannon = preload("res://scripts/parts/spread_cannon.gd")
 const SmartBomb = preload("res://scripts/parts/smart_bomb.gd")
+# Shift-Mode parts (SHIFT_MODE slot) — Focus is the default; Phase/Hyper swap in.
+const FocusMode = preload("res://scripts/parts/focus_mode.gd")
 const HyperMode = preload("res://scripts/parts/hyper_mode.gd")
 const PhaseShift = preload("res://scripts/parts/phase_shift.gd")
 const ParticleBeam = preload("res://scripts/parts/particle_beam.gd")
@@ -54,8 +56,10 @@ static func _all_pool() -> Array:
 		{"factory": "_make_anti_ship_missile", "slot": Slots.SlotType.HARDPOINT_WING},
 		{"factory": "_make_spread_cannon", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_smart_bomb", "slot": Slots.SlotType.DEVICE_BAY_1},
-		{"factory": "_make_hyper_mode", "slot": Slots.SlotType.DEVICE_BAY_1},
-		{"factory": "_make_phase_shift", "slot": Slots.SlotType.DEVICE_BAY_1},
+		# Shift-Mode swap-ins (SHIFT_MODE slot, on Shift). Focus is the default
+		# mode (equipped at run start), so it is NOT in the roll/shop pool.
+		{"factory": "_make_phase_shift", "slot": Slots.SlotType.SHIFT_MODE},
+		{"factory": "_make_hyper_mode", "slot": Slots.SlotType.SHIFT_MODE},
 		{"factory": "_make_particle_beam", "slot": Slots.SlotType.HARDPOINT_WING},
 		{"factory": "_make_side_pods", "slot": Slots.SlotType.HARDPOINT_WING},
 		# Cobalt 2026-05-21: Drone Bits (secondary shield drones) sidelined
@@ -132,10 +136,14 @@ static func _make_by_name(name: String, slot: int):
 			return _build_weapon("res://resources/weapons/spread_cannon.tres", SpreadCannon, BulletDefault)
 		"_make_smart_bomb":
 			return _build_weapon("res://resources/weapons/smart_bomb.tres", SmartBomb, null)
+		# Mode parts are pure-script (no .tres) — their stats are code-authored
+		# Mk getters, not weapon-editor .tres fields.
+		"_make_focus_mode":
+			return FocusMode.new()
 		"_make_hyper_mode":
-			return _build_weapon("res://resources/weapons/hyper_mode.tres", HyperMode, null)
+			return HyperMode.new()
 		"_make_phase_shift":
-			return _build_weapon("res://resources/weapons/phase_shift.tres", PhaseShift, null)
+			return PhaseShift.new()
 		"_make_particle_beam":
 			return _build_weapon("res://resources/weapons/particle_beam.tres", ParticleBeam, null)
 		"_make_side_pods":

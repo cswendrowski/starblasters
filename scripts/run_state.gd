@@ -697,6 +697,7 @@ const _SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
 const _PartFactory = preload("res://scripts/parts/part_factory.gd")
 const _BasicBlasterCannon = preload("res://scripts/parts/basic_blaster_cannon.gd")
 const _SmartBomb = preload("res://scripts/parts/smart_bomb.gd")
+const _FocusMode = preload("res://scripts/parts/focus_mode.gd")
 const _BulletDefault = preload("res://scenes/projectiles/bullet.tscn")
 
 
@@ -726,6 +727,8 @@ func _seed_default_loadout_snapshot() -> void:
 	# so the Manage Ship modal's "Super x/y" reads correctly on a fresh run.
 	max_super_charges = _super_charges_from_part(super_part)
 	super_charges = max_super_charges
+	# Shift-Mode slot starts with Focus (default stance) so meta scenes show it.
+	loadout_snapshot[_SlotTypes.SlotType.SHIFT_MODE] = _FocusMode.new()
 
 
 # Derive the max super charges a DEVICE_BAY_1 part would grant at its current

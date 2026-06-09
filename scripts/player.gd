@@ -235,6 +235,15 @@ const FOCUS_REGEN_DELAY := 2.0   # seconds after release before regen starts
 
 signal focus_charge_changed(charge: float, max_charge: float)
 
+# Shift-Mode slot (Focus / Phase / Hyper). The equipped ModePart sets `mode_part`
+# + `active_mode` in apply(); `active_mode` dispatches the `focus` (Shift) input in
+# _process. Default FOCUS so an empty/absent mode slot still behaves as base Focus.
+# Mirror of ModePart.Mode — KEEP IN SYNC: 0=FOCUS, 1=PHASE, 2=HYPER.
+# Design: docs/shift_mode_system_2026-06-08.md.
+enum ShiftMode { FOCUS, PHASE, HYPER }
+var active_mode: int = ShiftMode.FOCUS
+var mode_part: Resource = null
+
 var can_shoot: bool = true
 var is_alive: bool = true
 # Equipped CANNON style. See scripts/weapons/WeaponStyle.gd for the
@@ -582,7 +591,10 @@ func _process(delta: float) -> void:
 	# dodging + show the hitbox dot so the player sees their collider.
 	# Charge-gated: focus deactivates when charge hits 0; recharges 2s
 	# after release.
-	var want_focus: bool = Input.is_action_pressed("focus") and focus_charge > 0.0
+	# Focus is one of three Shift modes — only run the Focus stance when it's the
+	# active mode. Phase/Hyper handle the Shift input via their own runtime (Phase 2);
+	# until then a non-Focus mode simply no-ops on Shift.
+	var want_focus: bool = active_mode == ShiftMode.FOCUS and Input.is_action_pressed("focus") and focus_charge > 0.0
 	# Drain charge while focused.
 	if want_focus:
 		focus_charge = max(0.0, focus_charge - FOCUS_DRAIN_RATE * delta)

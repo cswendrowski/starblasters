@@ -55,14 +55,16 @@ const WEAPON_GROUPS := [
 	{"name": "Super",     "slot": SlotTypes.SlotType.DEVICE_BAY_1},
 ]
 
-# The dedicated SUPER is Smart Bomb (the permanent panic button), set in the
-# Super slot. Hyper Mode + Phase Shift are MODE modules that replace the base
-# Focus stance — set in the Mode row, NOT the Super slot (Roman 2026-06-08).
-# (The true Super/Mode SLOT split is the unbuilt supers-spec refactor; all three
-# are still DEVICE_BAY_1 parts mechanically, so a Mode shares the super slot here
-# and equipping one displaces Smart Bomb — fine for a test bench.)
-const MODE_NAMES := ["Focus", "Hyper Mode", "Phase Shift"]   # Focus = base (no part)
-const MODE_PART_NAMES := ["Hyper Mode", "Phase Shift"]       # filtered OUT of the Super slot list
+# SUPER = Smart Bomb only (the permanent panic button), in DEVICE_BAY_1. The Shift
+# MODES (Focus / Hyper / Phase) are a separate real axis in the SHIFT_MODE slot,
+# activated on Shift — set in the Mode row. (Shift-Mode system Phase 1, 2026-06-08;
+# docs/shift_mode_system_2026-06-08.md.)
+const MODE_NAMES := ["Focus", "Hyper Mode", "Phase"]
+const MODE_FACTORIES := {
+	"Focus": "_make_focus_mode",
+	"Hyper Mode": "_make_hyper_mode",
+	"Phase": "_make_phase_shift",
+}
 
 const STATUS_REFRESH := 0.1  # seconds between right-panel rebuilds
 
@@ -492,6 +494,12 @@ func _refresh_equipped_label() -> void:
 			lines.append("%s: %s Mk.%d" % [label, dn, int(part.mark)])
 		else:
 			lines.append("%s: (empty)" % label)
+	# Shift-Mode slot (separate axis from the weapon groups above).
+	var mode = loadout.get_part(SlotTypes.SlotType.SHIFT_MODE) if loadout != null else null
+	if mode != null:
+		lines.append("Mode: %s Mk.%d" % [String(mode.display_name), int(mode.mark)])
+	else:
+		lines.append("Mode: Focus")
 	_equip_lbl.text = "\n".join(lines)
 
 	# Theoretical DPS for the equipped cannon (reference next to measured).
@@ -603,32 +611,22 @@ func _on_damage_player() -> void:
 
 
 func _on_quick_mode(mode_name: String) -> void:
+	# Equip the chosen stance into the real SHIFT_MODE slot (Focus / Hyper / Phase),
+	# activated on Shift. Focus is a real default mode part now (not "unequip").
 	var loadout = _live_loadout()
-	if mode_name == "Focus":
-		# Base Focus stance = no mode module equipped (clear DEVICE_BAY_1).
-		Run.unequip_slot(SlotTypes.SlotType.DEVICE_BAY_1)
-		if loadout != null:
-			loadout.unequip(SlotTypes.SlotType.DEVICE_BAY_1)
-		_set_status("Mode: Focus (base) — hold Shift")
-		_refresh_status()
-		return
-	var factory := _super_factory_for(mode_name)
+	var factory: String = String(MODE_FACTORIES.get(mode_name, ""))
 	if factory == "":
 		_set_status("No mode: %s" % mode_name)
 		return
-	var part = PartCatalog._make_by_name(factory, SlotTypes.SlotType.DEVICE_BAY_1)
+	var part = PartCatalog._make_by_name(factory, SlotTypes.SlotType.SHIFT_MODE)
 	if part == null:
 		_set_status("PartCatalog null for %s" % mode_name)
 		return
 	part.mark = int(_mark_slider.value)
 	Run.equip_part(part)
 	if loadout != null:
-		loadout.equip(SlotTypes.SlotType.DEVICE_BAY_1, part)
-	# Top off charges so it can be test-fired immediately.
-	if "max_super_charges" in _player:
-		_player.super_charges = int(_player.max_super_charges)
-		_player.super_charges_changed.emit(int(_player.super_charges), int(_player.max_super_charges))
-	_set_status("Mode: %s Mk.%d  (activate with X)" % [mode_name, int(part.mark)])
+		loadout.equip(SlotTypes.SlotType.SHIFT_MODE, part)
+	_set_status("Mode: %s Mk.%d  (Shift)" % [mode_name, int(part.mark)])
 	_refresh_status()
 
 
@@ -672,26 +670,9 @@ func _parts_for_slot(slot: int) -> Array:
 		var f: String = String(entry["factory"])
 		if seen.has(f):
 			continue
-		# The Super slot lists the dedicated super (Smart Bomb) only — Hyper Mode
-		# and Phase Shift are MODE modules, set in the Mode row, not this slot.
-		if slot == SlotTypes.SlotType.DEVICE_BAY_1 \
-				and _display_name_for_factory(f, slot) in MODE_PART_NAMES:
-			continue
 		out.append(f)
 		seen[f] = true
 	return out
-
-
-# Resolve a DEVICE_BAY_1 display name (Smart Bomb / Hyper Mode / Phase Shift) to
-# its factory. Searches the FULL pool, not the Super-slot-filtered list (which
-# hides the Mode parts), so modes resolve too. Empty string if not found.
-func _super_factory_for(display_name: String) -> String:
-	for entry in PartCatalog._all_pool():
-		if int(entry["slot"]) == SlotTypes.SlotType.DEVICE_BAY_1:
-			var f := String(entry["factory"])
-			if _display_name_for_factory(f, SlotTypes.SlotType.DEVICE_BAY_1).to_lower() == display_name.to_lower():
-				return f
-	return ""
 
 
 # Authoritative display_name from the Part itself, falling back to the
