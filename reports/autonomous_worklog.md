@@ -24,6 +24,40 @@ _(things verified headless but wanting an in-game eyeball or a design call)_
   blurbs read well + the layout. **Icon gap:** modes / super / particle-beam / drones have no
   projectile sprite, so they show name + blurb only — want little icons commissioned for those?
 
+## 🔧 Bug-hunt fixes applied (2026-06-09)
+Three parallel design-reviewer sweeps → triaged → **8 safe high-value fixes applied & verified**
+(parse-check clean, regression suite green: run_stats / swarm_launcher / shift_mode_phase2 /
+outpost_hub_services all PASS, combat boot exit 0). Full triage incl. 18 deferred items +
+verified-clean list in `reports/code_review_findings_2026-06-09.md`. Fixes:
+1. `main.gd` — minelayer no longer miscounted as a cleared mine (precise basename match).
+2. `player.gd` — Hyper keeps a dry replacement primary firing (unlimited-ammo gap).
+3. `player.gd` — death-bomb guarantees its own survival i-frame (latent fragility).
+4. `base_missile.gd` — drop `and "hull" in area` silent-fallthrough; gate on method only.
+5. `swarm_launcher.gd` — clear stale `secondary_bullet_scene` on apply.
+6. `player.gd` — `die()` frees the Phase glow node.
+7. `signal_event.gd` — `_apply_bounty` routes spends through `spend_bounty` (run-summary accuracy).
+8. `main.gd` — corrected misleading run-timer comment + flagged latent double-count trap.
+Deferred (in the report, NOT touched): run-gen seed determinism (combat lane / design call),
+perf items (→ perf-runner), beam-SFX leak, sell-back tally, Mk-reseed-ammo, manage_ship dead rows,
+outpost aliasing, swarm `.tres` parity, equip_part lint.
+
+## 📊 Status (2026-06-09)
+Completed the cleanly-buildable, no-decision, lead-lane items: **Swarm Launcher**, **Run Summary
+Phase 1+2(partial)**, **Armory tab**, + verified/closed several stale TODOs (Heavy Blaster, boss
+never-pair, Mk-cap, planet drift, etc.). The TODO's remaining items now need **Roman** (passive-module
+architecture + reify decision, cannon Mk-flattening), **art** (faction sprites, item icons),
+**playtest/feel** (s_s_rush, tracer, chaff walls, fire_offset), or are the **combat session's active
+lane** (conductor no-repeat, wave-pattern composition — leaving to them to avoid stepping on their
+in-flight work). → **Pivoted to the code-review + bug-hunt** per Roman's fallback instruction; report
+at `reports/code_review_findings_2026-06-09.md`.
+
+### Big item explicitly deferred — Passive-Module layer
+The marquee remaining lead-lane feature, BUT blocked on design/architecture calls I shouldn't make
+blind: (1) the slot model — the doc's "4 reserved-enum slots" (DEVICE_BAY_2/SHIELD/wings) conflicts
+with "pick any 4 modules" (typed slots ≠ a free bay); needs a `Run.modules: Array` vs typed-slots
+call. (2) reify-vs-present Shield (a deep, playtest-heavy refactor of the damage pipeline). (3) the
+roster magnitudes are all feel-tuning. Recommend Roman settle (1)+(2) then I build it in phases.
+
 ## ⏸️ Deferred (need Roman) — not blocking other work
 - **RecycleController (Pillar 2)** — playtest-heavy (regression surface = whole roster); needs the
   RecycleTuner + Roman's feel pass. Building the tuner is fine; the controller tuning is his.

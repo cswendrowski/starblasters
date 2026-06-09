@@ -333,8 +333,10 @@ func _on_enemy_died(value: int, scene_path: String) -> void:
 	if has_node("/root/Run"):
 		var _r = get_node("/root/Run")
 		_r.record_kill(value)
-		# Run-summary Phase 2: count cleared mines (scene path carries the type).
-		if scene_path != "" and scene_path.contains("mine"):
+		# Run-summary Phase 2: count cleared mines (by scene basename). Precise match
+		# so the privateer "enemy_minelayer" SHIP isn't counted as a mine.
+		var _fn: String = scene_path.get_file()
+		if (_fn.begins_with("enemy_mine") and not _fn.begins_with("enemy_minelayer")) or _fn.begins_with("tether_mine"):
 			_r.stat_add("mines_cleared", 1)
 	# Phase Shift mode refills its charges on player-caused kills — this hook fires
 	# only on real deaths (same path as bounty), so off-screen departs don't count.
@@ -355,8 +357,12 @@ func _on_enemy_died(value: int, scene_path: String) -> void:
 func _process(delta: float) -> void:
 	# Run timer (Phase 1): accumulate ACTIVE combat seconds only. main is
 	# PROCESS_MODE_PAUSABLE so paused time auto-excludes; `playing` is false during
-	# intro/outro/transitions, so those are excluded too. Committed to Run on
-	# level-clear / death.
+	# the intro (set true at level start) so intro is excluded. _level_time is
+	# committed to Run + zeroed in _on_level_cleared (BEFORE the outro), so any
+	# outro/transition seconds that accumulate afterward are discarded by the next
+	# level's reset rather than committed. NOTE: if a second commit point is ever
+	# added (e.g. on sector-map entry), gate this on a "level live" flag to avoid
+	# double-counting the outro.
 	if playing:
 		_level_time += delta
 

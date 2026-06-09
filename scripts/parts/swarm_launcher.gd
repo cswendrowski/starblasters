@@ -47,6 +47,10 @@ func _apply_visuals(ship) -> void:
 		ship.secondary_mode = _secondary_mode()
 	if "secondary_cooldown" in ship:
 		ship.secondary_cooldown = base_cooldown
+	# SALVO spawns its own missiles in fire_salvo; clear any prior secondary's
+	# bullet scene so stale state doesn't linger on the ship.
+	if "secondary_bullet_scene" in ship:
+		ship.secondary_bullet_scene = null
 	# Seed ammo (6); survives scene changes via the Run snapshot like other secondaries.
 	if ship.has_method("set_secondary_ammo"):
 		var seeded: int = base_ammo

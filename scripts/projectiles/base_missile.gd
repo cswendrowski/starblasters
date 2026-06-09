@@ -417,8 +417,10 @@ func _on_area_entered(area: Area2D) -> void:
 	if not area.is_in_group(target_group):
 		return
 	if target_group == "player":
-		# Enemy missile hitting player.
-		if area.has_method("take_damage") and "hull" in area:
+		# Enemy missile hitting player. Gate on the method only (not a `hull`
+		# property) so a player-group target that exposes take_damage but not hull
+		# isn't silently passed through — matches base_bullet's contact contract.
+		if area.has_method("take_damage"):
 			area.take_damage(damage_on_contact)
 			explode()
 	else:

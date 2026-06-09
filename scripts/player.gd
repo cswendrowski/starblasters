@@ -877,7 +877,11 @@ func take_damage(amount: int) -> void:
 		# Already at zero pips — kill hit. Super-bomb fires first if available.
 		if super_charges > 0 and super_part != null:
 			fire_super()
-			# Super sets _invuln_t; if so, we survive this hit.
+			# Touhou death-bomb: firing the super on a LETHAL hit must save the
+			# player. Don't depend on the part to set _invuln_t — guarantee a
+			# survival i-frame here so the charge is never spent for nothing.
+			# (Smart Bomb already sets a longer window; max() keeps the longer.)
+			_invuln_t = maxf(_invuln_t, SHIELD_INVULN_SECONDS)
 			if _invuln_t > 0.0:
 				return
 		damaged.emit(1)
@@ -948,6 +952,7 @@ func die() -> void:
 	if not is_alive:
 		return
 	is_alive = false
+	_set_phase_glow(false)  # clean up the Phase aura if we die mid-blink
 	hide()
 	died.emit()
 	$ShieldRegenTimer.stop()
@@ -978,10 +983,12 @@ func fire_primary() -> void:
 	# index 0 == blaster (infinite); anything else has a magazine that lives
 	# on the Part instance in Run.cannon_pool[active_cannon_idx].current_ammo.
 	# The player's `ammo` field mirrors that for HUD/SFX gating.
-	if _is_replacement_primary_active() and ammo == 0:
+	if _is_replacement_primary_active() and ammo == 0 \
+			and not (_hyper_active and active_mode == ShiftMode.HYPER):
 		# Out of ammo on a non-blaster — snap back to blaster (defensive;
 		# normally happens at the moment ammo hits 0 below). Skip this
-		# shot; next fire will use the blaster.
+		# shot; next fire will use the blaster. SKIPPED while Hyper is active —
+		# Hyper grants unlimited ammo, so a dry replacement keeps firing.
 		_snap_to_blaster_and_reapply()
 		return
 	# Rotary Laser: also charge-gated.

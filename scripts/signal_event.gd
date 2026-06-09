@@ -878,8 +878,15 @@ func _do_freespace_miner() -> void:
 # ---- Helpers ------------------------------------------------------------
 
 func _apply_bounty(delta: int) -> void:
-	if has_node("/root/Run"):
-		get_node("/root/Run").bounty += delta
+	if not has_node("/root/Run"):
+		return
+	var run = get_node("/root/Run")
+	# Route negative deltas (fines / IFF purchases) through spend_bounty so the
+	# run-summary "bounty spent" stat is accurate; positive deltas are plain income.
+	if delta < 0:
+		run.spend_bounty(-delta)
+	else:
+		run.bounty += delta
 
 
 func _apply_hull_delta(delta: int) -> void:
