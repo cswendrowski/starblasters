@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://bmineh0a00001"]
 
 [ext_resource type="Script" uid="uid://dedawobba5oax" path="res://scripts/enemies/mine.gd" id="1_mine_scr"]
-[ext_resource type="Texture2D" uid="uid://dyaui0d17wj4e" path="res://graphics/mines/mine_basic.png" id="2_mine_tex"]
+[ext_resource type="Texture2D" uid="uid://bgvjja72purj3" path="res://graphics/mines/enemy_mine.png" id="2_mine_tex"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_mine"]
 size = Vector2(16, 16)

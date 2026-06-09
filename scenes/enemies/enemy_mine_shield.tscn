@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://bmineshld0001"]
 
 [ext_resource type="Script" uid="uid://c2ock6xqtmmsq" path="res://scripts/enemies/mine_shielded.gd" id="1_mshs"]
-[ext_resource type="Texture2D" uid="uid://h8o80c44wgt4" path="res://graphics/mines/mine_shielded.png" id="2_mshtex"]
+[ext_resource type="Texture2D" uid="uid://b5xoppt8g3s66" path="res://graphics/mines/enemy_mine_shielded.png" id="2_mshtex"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_mshld"]
 size = Vector2(14, 14)
@@ -11,7 +11,7 @@ script = ExtResource("1_mshs")
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=105826158]
 texture = ExtResource("2_mshtex")
-hframes = 3
+hframes = 4
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1068763516]
 shape = SubResource("RectangleShape2D_mshld")

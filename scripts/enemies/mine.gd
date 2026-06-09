@@ -10,10 +10,13 @@ const StraightDown = preload("res://scripts/enemies/patterns/straight_down.gd")
 
 @export var drift_speed: float = 120.0
 @export var damage_on_collide: int = 2
+# Hull HP, overridable per scene so variants reuse this script: basic = 2, the
+# Armored mine (enemy_mine_armored.tscn) sets 4. Set BEFORE super._ready().
+@export var hull_hp: int = 2
 
 
 func _ready() -> void:
-	max_health = 2
+	max_health = hull_hp
 	is_hazard = true
 	bounty_value = 1
 	display_scale = 1.0

@@ -1,16 +1,19 @@
 extends "res://scripts/enemy_core.gd"
 
-# Shielded Mine (on-lane migration 2026-06-08). Identical to a basic mine once the shield breaks;
-# the shield is a per-hit ShieldComponent absorber. Now extends enemy_core + the shared
-# StraightDown pattern (conductor-handled, minefield-upgrade prep). The minefield producer doesn't
-# inject a movement_override, so the pattern is defaulted here; recycle_passes = 0 frees it off the
-# bottom. Explode-on-contact + the shield are unchanged.
+# Shielded Mine (on-lane migration 2026-06-08; 4-frame activation 2026-06-09). Identical to a basic
+# mine once the shield breaks; the shield is a per-hit ShieldComponent absorber. Extends enemy_core
+# + the shared StraightDown pattern. recycle_passes = 0 frees it off the bottom.
+#
+# Sprite strip (16×16 ea, 4 frames): F0 dormant, F1/F2 transition, F3 active. The mine spawns
+# DORMANT + UNSHIELDED, plays the F0→F3 transition over `activate_time`, then the shield ACTIVATES
+# at F3 — a brief window to kill it before it shields (Roman 2026-06-09).
 
 const StraightDown = preload("res://scripts/enemies/patterns/straight_down.gd")
 
 @export var drift_speed: float = 120.0
 @export var damage_on_collide: int = 2
 @export var shield_health: int = 2
+@export var activate_time: float = 0.5   # F0→F3 transition before the shield raises
 
 
 func _ready() -> void:
@@ -21,23 +24,50 @@ func _ready() -> void:
 	auto_rotate = false
 	has_ship_vfx = false
 	recycle_passes = 0
-	# Sit on the shielded frame (skip the F0/F1 activation pageant). Set BEFORE super._ready()
-	# so the drop-shadow enemy_core attaches mirrors the shielded frame.
+	# Start DORMANT on F0 (unshielded). Set BEFORE super._ready() so the drop-shadow mirrors it.
 	if has_node("Sprite2D"):
-		$Sprite2D.hframes = 3
-		$Sprite2D.frame = 2
-	# No-regen CHARGE ShieldComponent (its own 24px ring), up from spawn. Appended BEFORE
-	# super._ready() so _init_components dups it. Reassign (not append) — shared @export default.
+		$Sprite2D.hframes = 4
+		$Sprite2D.frame = 0
+	# No-regen CHARGE ShieldComponent (its own 24px ring), DOWN at spawn — raise_shield() at F3.
 	var sh := ShieldComponent.new()
 	sh.capacity = shield_health
 	sh.regen_interval = 0.0
 	sh.ring_size = 24.0
+	sh.start_inactive = true
 	components = components + [sh]
 	if movement == null:
 		var m := StraightDown.new()
 		m.speed = drift_speed
 		movement = m
 	super._ready()
+	_begin_activation()
+
+
+# Animate F0→F1→F2→F3 over activate_time, then raise the shield at F3.
+func _begin_activation() -> void:
+	var step: float = maxf(activate_time, 0.0001) / 3.0
+	var tw := create_tween()
+	tw.tween_interval(step)
+	tw.tween_callback(func(): _set_mine_frame(1))
+	tw.tween_interval(step)
+	tw.tween_callback(func(): _set_mine_frame(2))
+	tw.tween_interval(step)
+	tw.tween_callback(_activate_shield)
+
+
+func _set_mine_frame(f: int) -> void:
+	if not _dying and has_node("Sprite2D"):
+		$Sprite2D.frame = f
+
+
+func _activate_shield() -> void:
+	if _dying:
+		return
+	_set_mine_frame(3)
+	for c in _components:
+		if c is ShieldComponent:
+			c.raise_shield()
+			break
 
 
 func explode() -> void:

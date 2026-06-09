@@ -1,0 +1,19 @@
+[gd_scene load_steps=4 format=3 uid="uid://cminearmor001"]
+
+[ext_resource type="Script" uid="uid://dedawobba5oax" path="res://scripts/enemies/mine.gd" id="1_marm_scr"]
+[ext_resource type="Texture2D" uid="uid://xjghauxkv58v" path="res://graphics/mines/enemy_mine_armored.png" id="2_marm_tex"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_marm"]
+size = Vector2(16, 16)
+
+[node name="EnemyMineArmored" type="Area2D" groups=["enemies"]]
+script = ExtResource("1_marm_scr")
+hull_hp = 4
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_marm_tex")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_marm")
+
+[connection signal="area_entered" from="." to="." method="_on_area_entered"]

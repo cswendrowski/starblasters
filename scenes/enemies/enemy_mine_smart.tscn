@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://bminesmrt001"]
 
 [ext_resource type="Script" uid="uid://c5sfuwpiolbut" path="res://scripts/enemies/mine_smart.gd" id="1_smine"]
-[ext_resource type="Texture2D" uid="uid://r37t1joxoq3r" path="res://graphics/mines/mine_smart.png" id="2_smtex"]
+[ext_resource type="Texture2D" uid="uid://37bnvqljfgxy" path="res://graphics/mines/enemy_mine_smart.png" id="2_smtex"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_smart"]
 size = Vector2(16, 16)
@@ -11,7 +11,7 @@ script = ExtResource("1_smine")
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1064359297]
 texture = ExtResource("2_smtex")
-hframes = 3
+hframes = 4
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=240949741]
 shape = SubResource("RectangleShape2D_smart")

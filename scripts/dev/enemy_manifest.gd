@@ -30,6 +30,8 @@ const ENEMIES: Array = [
 	"res://scenes/enemies/enemy_mine_cluster.tscn",
 	"res://scenes/enemies/enemy_mine_cluster_smart.tscn",
 	"res://scenes/enemies/enemy_mine_shield.tscn",
+	"res://scenes/enemies/enemy_mine_smart.tscn",
+	"res://scenes/enemies/enemy_mine_armored.tscn",
 	"res://scenes/enemies/factions/privateer/enemy_minelayer.tscn",
 	"res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn",
 	"res://scenes/enemies/core/enemy_weaver.tscn",

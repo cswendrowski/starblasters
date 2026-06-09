@@ -57,7 +57,16 @@ func _process(_d: float) -> bool:
 	else:
 		lines.append("smart mine armed + chasing (y=%.0f)" % sm.position.y)
 
-	# Smart bomblet: spawn near player → engages.
+	# Armored mine: reuses mine.gd with hull_hp=4.
+	var am = load("res://scenes/enemies/enemy_mine_armored.tscn").instantiate()
+	root.add_child(am)
+	am.start(Vector2(Lanes.lane_center(1), 16.0))
+	if int(am.max_health) != 4:
+		lines.append("FAIL armored mine HP %d != 4" % int(am.max_health)); fails += 1
+	else:
+		lines.append("armored mine ok (HP=4)")
+
+	# Smart bomblet (base bomblet + smart flag): spawn near player → engages.
 	var bl = load("res://scenes/enemies/enemy_bomblet.tscn").instantiate()
 	bl.smart = true
 	root.add_child(bl)

@@ -27,6 +27,10 @@ enum Mode { CHARGE, POOL }
 @export var capacity: int = 3
 @export var regen_interval: float = 6.0   # seconds to regenerate one CHARGE; <= 0 = no regen
 @export var ring_size: float = 32.0
+# Spawn with the shield DOWN (0 charges / empty pool) and raise it later via
+# raise_shield(). Used by the Shielded Mine: a transition pageant plays, then the
+# shield activates — a brief window to kill it unshielded.
+@export var start_inactive: bool = false
 
 var _charges: int = 0
 var _pool: float = 0.0   # POOL mode: banked damage capacity
@@ -37,13 +41,27 @@ var _hit_tween: Tween = null
 
 
 func on_start(enemy) -> void:
-	if mode == Mode.POOL:
+	if start_inactive:
+		_pool = 0.0
+		_charges = 0
+	elif mode == Mode.POOL:
 		_pool = float(capacity)
 	else:
 		_charges = capacity
 	_regen_t = 0.0
 	if _ring == null or not is_instance_valid(_ring):
 		_build_ring(enemy)
+	_update_visual()
+
+
+# Raise a start_inactive shield to full (the Shielded Mine calls this when its
+# activation transition completes). Safe to call any time.
+func raise_shield() -> void:
+	if mode == Mode.POOL:
+		_pool = float(capacity)
+	else:
+		_charges = capacity
+	_regen_t = 0.0
 	_update_visual()
 
 

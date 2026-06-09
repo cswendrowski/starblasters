@@ -9,7 +9,8 @@ extends "res://scripts/enemy_core.gd"
 # explode + the bullet-hit arm are unchanged. recycle_passes = 0 frees a dormant mine off the
 # bottom (a chasing mine homes to the player, so it stays on-screen).
 #
-# Sprite strip (16×16 ea): F0 dormant, F1 transition, F2 active.
+# Sprite strip (16×16 ea, 4 frames): F0 dormant, F1/F2 transition (play before it can move/chase),
+# F3 active (Roman 2026-06-09).
 
 const ProximityChase = preload("res://scripts/enemies/patterns/proximity_chase.gd")
 
@@ -32,6 +33,7 @@ func _ready() -> void:
 	has_ship_vfx = false
 	recycle_passes = 0
 	if has_node("Sprite2D"):
+		$Sprite2D.hframes = 4
 		$Sprite2D.frame = 0
 	if movement == null:
 		var m := ProximityChase.new()
@@ -45,13 +47,18 @@ func _ready() -> void:
 
 
 # The ProximityChase pattern emits these as it activates — swap the sprite frame.
+# 4-frame strip: transition plays F1 then F2 across the transition window, armed = F3.
 func _on_movement_phase_entered(phase_name: String) -> void:
 	if not has_node("Sprite2D"):
 		return
 	if phase_name == "transition":
 		$Sprite2D.frame = 1
+		# Advance to the 2nd transition frame partway through the transition window.
+		var tw := create_tween()
+		tw.tween_interval(maxf(transition_time, 0.0001) * 0.5)
+		tw.tween_callback(func(): if is_instance_valid(self) and not _armed and not _dying and has_node("Sprite2D"): $Sprite2D.frame = 2)
 	elif phase_name == "armed":
-		$Sprite2D.frame = 2
+		$Sprite2D.frame = 3
 		_armed = true
 
 
