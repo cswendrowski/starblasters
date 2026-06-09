@@ -13,13 +13,17 @@ const Playfield = preload("res://scripts/playfield.gd")
 @export var hover_y: float = 90.0
 @export var enter_speed: float = 60.0
 @export var jiggle_px: float = 6.0
-@export var jiggle_speed: float = 1.4
+# Jiggle speed matched to the Loiter holder's bob (Roman 2026-06-09: drift was
+# jiggling far too fast). Loiter uses freq_y 0.6 Hz / freq_x 0.35 Hz; with drift's
+# Y term running at _spd * 1.3, _spd 0.45 lands Y ~= 0.585 Hz and X ~= 0.45 Hz, in
+# the loiter band. Both formulas are sin(t * speed * TAU), so the units line up.
+@export var jiggle_speed: float = 0.45
 
 var _held: bool = false
 var _hold: Vector2 = Vector2.ZERO
 var _t: float = 0.0
 var _phase: float = 0.0     # per-instance phase offset (radians)
-var _spd: float = 1.4       # per-instance jiggle speed (jiggle_speed * random factor)
+var _spd: float = 0.45      # per-instance jiggle speed (jiggle_speed * random factor)
 
 
 func on_start(_enemy) -> void:

@@ -174,10 +174,11 @@ func compute_step(enemy, delta: float) -> Vector2:
 				var eased: float = u * u * (3.0 - 2.0 * u)  # smoothstep ease-in-out
 				target_x = _anchor_x + sign_x * float(shift_lanes) * Lanes.PITCH * eased
 		Shape.DIVE_RETURN:
-			# Dive straight down until the fire-zone midpoint, then curve into the adjacent
-			# lane while climbing back UP and off the top. Returns its own full step (the
-			# trailing return statement only covers the lateral-X shapes), since the vertical
-			# direction reverses here.
+			# Dive straight down until the fire-zone midpoint, then a SMOOTH rounded U-turn:
+			# ease the lateral into the adjacent lane AND ease the vertical velocity from
+			# +down through 0 to -down so the descent ROUNDS into a climb instead of snapping
+			# direction in one frame (Roman 2026-06-09: "needs a smooth, rounded turn, not a
+			# sharp sudden change"). Apex (vy = 0) lands at reased = 0.5.
 			if not _return_started:
 				if Zones.band_progress(enemy.position.y) >= return_trigger_bp:
 					_return_started = true
@@ -188,7 +189,8 @@ func compute_step(enemy, delta: float) -> Vector2:
 			var ru: float = clampf(_return_t / maxf(return_curve_time, 0.0001), 0.0, 1.0)
 			var reased: float = ru * ru * (3.0 - 2.0 * ru)  # smoothstep
 			var rtx: float = _return_anchor_x + sign_x * float(maxi(1, shift_lanes)) * Lanes.PITCH * reased
-			return Vector2(rtx - enemy.position.x, -down_speed * delta)  # curve + climb out the top
+			var rvy: float = lerpf(down_speed, -down_speed, reased)  # +down -> 0 -> -down
+			return Vector2(rtx - enemy.position.x, rvy * delta)
 		Shape.LANE_CUT:
 			# Dive down until the fire-zone midpoint, then a rounded turn LEFT/RIGHT and run
 			# HORIZONTALLY off the side (like DIVE_RETURN but exiting a side, not climbing up).
