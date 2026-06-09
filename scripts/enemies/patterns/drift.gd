@@ -3,6 +3,10 @@ extends "res://scripts/enemies/movement_pattern.gd"
 # Drift (Roman 2026-06-08, reworked from bulwark_drift): slowly descend to a hold height, then a
 # jiggled drift in place within the lane (a tank / holder). drift_low/mid/high pick the height
 # (same bands as the loiter patterns). Persistent hold — it doesn't exit on its own.
+#
+# Per-instance RANDOMIZED (Roman 2026-06-08): each enemy seeds its own phase offset + a small
+# jiggle-speed variation in on_start, so a row of drifters wanders out of sync instead of
+# lock-stepping (the pattern Resource is duplicated per enemy, so on_start runs per instance).
 
 const Playfield = preload("res://scripts/playfield.gd")
 
@@ -14,11 +18,15 @@ const Playfield = preload("res://scripts/playfield.gd")
 var _held: bool = false
 var _hold: Vector2 = Vector2.ZERO
 var _t: float = 0.0
+var _phase: float = 0.0     # per-instance phase offset (radians)
+var _spd: float = 1.4       # per-instance jiggle speed (jiggle_speed * random factor)
 
 
 func on_start(_enemy) -> void:
 	_held = false
 	_t = 0.0
+	_phase = randf() * TAU
+	_spd = jiggle_speed * randf_range(0.82, 1.18)   # desync frequency too, so they drift apart
 
 
 func compute_step(enemy, delta: float) -> Vector2:
@@ -30,9 +38,10 @@ func compute_step(enemy, delta: float) -> Vector2:
 			_held = true
 			_hold = Vector2(enemy.position.x, hover_y)
 		return Vector2(0.0, sy)
-	# Jiggled drift around the hold point (two desynced sines per axis = organic wander).
-	var tx: float = _hold.x + sin(_t * jiggle_speed * TAU) * jiggle_px \
-		+ sin(_t * jiggle_speed * 0.6) * jiggle_px * 0.4
-	var ty: float = _hold.y + cos(_t * jiggle_speed * 1.3 * TAU) * jiggle_px * 0.5
+	# Jiggled drift around the hold point (two desynced sines per axis = organic wander), each
+	# offset by the per-instance phase so neighbouring drifters don't move identically.
+	var tx: float = _hold.x + sin(_t * _spd * TAU + _phase) * jiggle_px \
+		+ sin(_t * _spd * 0.6 + _phase) * jiggle_px * 0.4
+	var ty: float = _hold.y + cos(_t * _spd * 1.3 * TAU + _phase * 1.7) * jiggle_px * 0.5
 	tx = clampf(tx, Playfield.X_MIN + 6.0, Playfield.X_MAX - 6.0)
 	return Vector2(tx - enemy.position.x, ty - enemy.position.y)
