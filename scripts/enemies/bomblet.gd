@@ -23,6 +23,8 @@ const BOMBLET_AVOID_STRENGTH := 140.0
 const BOMBLET_NEIGHBOUR_CAP := 4
 const BOMBLET_GROUP := "bomblets"
 const ProximityChase = preload("res://scripts/enemies/patterns/proximity_chase.gd")
+const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
+const HELD_GLOW_COLOR := Color(0.78, 0.231, 1.0)   # #c73bff — matches the Gravity Mine glowmask
 
 @export var smart: bool = false
 @export var homing_accel: float = 360.0
@@ -44,6 +46,7 @@ var _pulse_phase: float = 0.0
 # Orbiting mode (Gravity Mine): the parent mine drives this bomblet's position while it rings the
 # mine; its own drift/lifetime are suspended until release(velocity) hands it a free velocity.
 var _orbiting: bool = false
+var _held_glow = null   # #c73bff diffuse glow while held by the Gravity Mine; cleared on release
 
 
 func _ready() -> void:
@@ -93,18 +96,38 @@ func launch(pos: Vector2, dir: Vector2, speed: float) -> void:
 	_lateral_target = nudge.x
 
 
-# Gravity Mine: keep this bomblet inert (parent positions it on the orbit ring).
+# Gravity Mine: keep this bomblet inert (parent positions it on the orbit ring) + carry the
+# #c73bff held-glow while ringed.
 func set_orbiting(on: bool) -> void:
 	_orbiting = on
+	if on:
+		_attach_held_glow()
+	else:
+		_clear_held_glow()
 
 
 # Gravity Mine: free the bomblet on the mine's death with a directly-set velocity (the mine's
-# drift + the bomblet's tangential orbit velocity), so it inherits its motion + rotation.
+# drift + the bomblet's tangential orbit velocity), so it inherits its motion + rotation. The
+# held-glow is disabled on release.
 func release(velocity: Vector2) -> void:
 	_orbiting = false
 	_age = 0.0
 	_velocity = velocity
 	_lateral_target = velocity.x
+	_clear_held_glow()
+
+
+func _attach_held_glow() -> void:
+	if _held_glow != null and is_instance_valid(_held_glow):
+		return
+	if has_node("Sprite2D"):
+		_held_glow = GlowShaderFx.apply($Sprite2D, HELD_GLOW_COLOR)
+
+
+func _clear_held_glow() -> void:
+	if _held_glow != null and is_instance_valid(_held_glow):
+		_held_glow.queue_free()
+	_held_glow = null
 
 
 func _process(delta: float) -> void:
