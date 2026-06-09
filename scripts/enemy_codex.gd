@@ -26,6 +26,9 @@ const Factions = preload("res://scripts/levels/factions.gd")
 const EnemyRoster = preload("res://scripts/levels/enemy_roster.gd")
 const EnemyStrings = preload("res://scripts/enemy_strings.gd")
 const CodexStrings = preload("res://scripts/codex_strings.gd")
+const ArmoryStrings = preload("res://scripts/armory_strings.gd")
+const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
+const SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
 
 const PLAYER_SCENE := "res://scenes/player/player.tscn"
 const SPIN_SPEED := 0.5      # rad/s — slow turntable
@@ -51,6 +54,11 @@ func _ready() -> void:
 		_cats.append({"kind": "faction", "fid": fid, "key": Factions.id_key(fid)})
 	_cats.append({"kind": "bosses"})
 	_cats.append({"kind": "starblaster"})
+	# Armory — the player's own kit, one category per slot class.
+	_cats.append({"kind": "armory", "label": "Primary Cannons", "slot": SlotTypes.SlotType.CANNON})
+	_cats.append({"kind": "armory", "label": "Secondaries", "slot": SlotTypes.SlotType.HARDPOINT_WING})
+	_cats.append({"kind": "armory", "label": "Super", "slot": SlotTypes.SlotType.DEVICE_BAY_1})
+	_cats.append({"kind": "armory", "label": "Shift Modes", "slot": SlotTypes.SlotType.SHIFT_MODE})
 	_build_ui()
 	_show_category(0)
 
@@ -198,6 +206,11 @@ func _render_right() -> void:
 	var cat: Dictionary = _cats[_sel_cat]
 	if cat.kind == "starblaster":
 		_render_starblaster()
+	elif cat.kind == "armory":
+		if _view == "detail":
+			_render_item_detail(cat, _detail_path)
+		else:
+			_render_armory_list(cat)
 	elif _view == "detail":
 		_render_enemy_detail(_detail_path)
 	else:
@@ -271,6 +284,76 @@ func _render_starblaster() -> void:
 	_right_root.add_child(header)
 	_add_preview(PLAYER_SCENE, "Ship", "", 1)
 	_add_blurb(CodexStrings.STARBLASTER["codex"])
+
+
+# ---- Armory (the player's own kit) ---------------------------------------
+
+func _armory_factories(cat: Dictionary) -> Array:
+	var out: Array = []
+	for entry in PartCatalog._all_pool():
+		if int(entry["slot"]) == int(cat.slot):
+			out.append(String(entry["factory"]))
+	# Focus mode is default-equipped (not in the roll pool) — list it anyway.
+	if int(cat.slot) == int(SlotTypes.SlotType.SHIFT_MODE):
+		out.push_front("_make_focus_mode")
+	return out
+
+
+func _render_armory_list(cat: Dictionary) -> void:
+	var header := _label(String(cat.label), UiTheme.LabelKind.HEADER)
+	header.add_theme_color_override("font_color", UiTheme.COLOR_ACCENT)
+	_right_root.add_child(header)
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_right_root.add_child(scroll)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(vb)
+	for factory in _armory_factories(cat):
+		var part = PartCatalog._make_by_name(factory, int(cat.slot))
+		var row := Button.new()
+		row.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		UiTheme.style_button(row)
+		row.text = String(part.display_name) if part != null else factory
+		row.pressed.connect(_show_item.bind(factory))
+		vb.add_child(row)
+
+
+func _show_item(factory: String) -> void:
+	_detail_path = factory
+	_view = "detail"
+	_render_right()
+
+
+func _render_item_detail(cat: Dictionary, factory: String) -> void:
+	var back := Button.new()
+	back.text = "<  %s" % String(cat.label)
+	back.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	UiTheme.style_button(back)
+	back.pressed.connect(_show_category.bind(_sel_cat))
+	_right_root.add_child(back)
+	var part = PartCatalog._make_by_name(factory, int(cat.slot))
+	# Preview the projectile sprite if the item has one (cannons / missiles). Modes,
+	# the super, the beam + drones have no projectile sprite → name + blurb only (art TBD).
+	if part != null and "bullet_scene" in part and part.bullet_scene != null:
+		_add_preview(part.bullet_scene.resource_path, "Sprite2D", "", -1)
+	var nm: String = String(part.display_name) if part != null else factory
+	var name_lbl := _label(nm, UiTheme.LabelKind.HEADER)
+	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_right_root.add_child(name_lbl)
+	var cls := _label(String(cat.label), UiTheme.LabelKind.CAPTION)
+	cls.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cls.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_right_root.add_child(cls)
+	var blurb: String = ArmoryStrings.codex_for(factory)
+	if blurb == "" and part != null:
+		blurb = String(part.description)
+	_add_blurb(blurb)
 
 
 func _add_blurb(text: String) -> void:
@@ -369,6 +452,7 @@ func _category_label(cat: Dictionary) -> String:
 		"faction":   return CodexStrings.faction_name(cat.key)
 		"bosses":    return "Bosses"
 		"starblaster": return CodexStrings.STARBLASTER["name"]
+		"armory":    return String(cat.label)
 	return "?"
 
 
