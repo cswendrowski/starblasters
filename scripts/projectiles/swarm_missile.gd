@@ -11,7 +11,7 @@ extends "res://scripts/projectiles/base_missile.gd"
 # Design: docs/swarm_launcher_secondary_2026-06-08.md.
 
 const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
-const GLOW_COLOR := Color(1.0, 0.6, 0.1)  # yellow-orange
+const GLOW_COLOR := Color(1.0, 1.0, 0.0)  # #FFFF00 pure yellow
 
 # 1×1 white pixel, tinted per-frame via the core sprite's modulate. Built once and
 # shared across every missile in a salvo (no per-instance Image allocation).
@@ -66,11 +66,12 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	super._process(delta)
-	# Bright yellow-orange flicker on the core pixel (orange <-> yellow-orange).
+	# Brightness flicker on the core pixel, hue pinned to pure yellow (#FFFF00 at
+	# peak, dimming to a darker yellow — no hue shift).
 	if not _dying and _core != null and is_instance_valid(_core):
 		_flicker_t += delta
-		var f: float = 0.6 + 0.4 * absf(sin(_flicker_t * 28.0))
-		_core.modulate = Color(1.0, 0.45 + 0.35 * f, 0.1, 1.0)
+		var f: float = 0.7 + 0.3 * absf(sin(_flicker_t * 28.0))
+		_core.modulate = Color(f, f, 0.0, 1.0)
 
 
 # Lazily build (and cache) the shared 1×1 white pixel texture.
