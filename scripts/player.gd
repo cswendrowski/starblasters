@@ -395,7 +395,6 @@ func _ready() -> void:
 	start()
 
 const ENGINE_GLOW_COLOR := Color(0.0, 0.827, 1.0)   # #00d3ff (engine glowmask + trails)
-const EngineFxCls = preload("res://scripts/effects/enemy_engine_fx.gd")
 
 
 # Wire up the new ship-art layers (Roman 2026-06-09): engine glowmask tint, the two #00d3ff
@@ -409,14 +408,49 @@ func _setup_ship_visuals() -> void:
 		var gmat := CanvasItemMaterial.new()
 		gmat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 		gm.material = gmat
-	# Engine trails at the two markers — same #00d3ff, sorted ABOVE the ship sprites.
+	# Engine trails at the two markers — thin #00d3ff exhaust streaks (NOT the big gradient
+	# flame), sorted ABOVE the ship sprites.
 	for mk in ["EngineL", "EngineR"]:
 		if has_node(mk):
-			var trail := EngineFxCls.attach(get_node(mk), ENGINE_GLOW_COLOR, 0.7)
-			if trail != null:
-				trail.z_as_relative = false
-				trail.z_index = 1
+			get_node(mk).add_child(_make_engine_trail())
 	_apply_livery_color()
+
+
+# Thin downward exhaust streak in the engine colour. CPUParticles2D (gl_compatibility-safe);
+# normal blend (no additive bloom — that read as a "large glow").
+func _make_engine_trail() -> CPUParticles2D:
+	var p := CPUParticles2D.new()
+	p.z_index = 1
+	p.z_as_relative = false
+	p.amount = 14
+	p.lifetime = 0.35
+	p.local_coords = false          # trail in world space behind the moving ship
+	p.direction = Vector2(0, 1)     # exhaust streams down (ship flies up)
+	p.spread = 6.0
+	p.initial_velocity_min = 45.0
+	p.initial_velocity_max = 85.0
+	p.gravity = Vector2.ZERO
+	p.scale_amount_min = 0.8
+	p.scale_amount_max = 1.4
+	var sc := Curve.new()
+	sc.add_point(Vector2(0.0, 1.0))
+	sc.add_point(Vector2(1.0, 0.0))
+	p.scale_amount_curve = sc
+	p.texture = _engine_trail_texture()
+	var grad := Gradient.new()
+	grad.colors = PackedColorArray([ENGINE_GLOW_COLOR, Color(ENGINE_GLOW_COLOR.r, ENGINE_GLOW_COLOR.g, ENGINE_GLOW_COLOR.b, 0.0)])
+	grad.offsets = PackedFloat32Array([0.0, 1.0])
+	p.color_ramp = grad
+	return p
+
+
+static var _trail_tex: Texture2D = null
+static func _engine_trail_texture() -> Texture2D:
+	if _trail_tex == null:
+		var img := Image.create(2, 2, false, Image.FORMAT_RGBA8)
+		img.fill(Color.WHITE)
+		_trail_tex = ImageTexture.create_from_image(img)
+	return _trail_tex
 
 
 # Livery recolor: randomize the shader tint per patrol (deterministic off run_seed so it's
@@ -1088,6 +1122,8 @@ func fire_primary() -> void:
 		var dir := Vector2(sin(angle), -cos(angle))
 		var b: Node = bullet_scene.instantiate()
 		_bullet_parent().add_child(b)
+		if b is Node2D:
+			(b as Node2D).z_index = -1   # render under the player sprite (Roman 2026-06-09)
 		# Propagate the equipped cannon's damage to the bullet so per-Part /
 		# per-Mark scaling actually reaches the take_hit call.
 		# Hyper mode adds its Mk damage multiplier (even-Mk stacks) while active.
@@ -1135,24 +1171,18 @@ func fire_primary() -> void:
 				if "damage" in db:
 					db.damage = drone_bits_damage
 				db.start(drone.global_position + Vector2(0, -4))
-	# Style-specific muzzle FX + per-shot SFX.
+	# Unified player muzzle flash (Roman 2026-06-09): bottom-anchored, ~1 frame, diffuse glow,
+	# above the bullets. Colour rules: Auto Laser + Rotary = pure blue; machinegun cannon =
+	# bright orange; everything else = the engine glow colour.
 	var MuzzleFx = load("res://scripts/effects/muzzle_fx.gd")
-	if weapon_style == WS.WeaponStyle.MACHINEGUN:
-		MuzzleFx.play(muzzle_pos, self)  # flash parented to player
-	elif weapon_style == WS.WeaponStyle.ROTARY_LASER:
-		MuzzleFx.play_rotary_laser(muzzle_pos, self)
-	else:
-		# Auto Laser et al. piggyback the rotary laser muzzle flash even
-		# though they're ENERGY-style (no ammo/charge gate). Branch on
-		# the explicit flag so we don't have to expand WeaponStyle.
-		if use_rotary_laser_muzzle:
-			MuzzleFx.play_rotary_laser(muzzle_pos, self)
-		else:
-			MuzzleFx.play_energy(muzzle_pos, self)
-		# Per-shot cannon SFX, dispatched by the equipped cannon's
-		# fire_sfx_kind enum. NONE explicitly falls through to the legacy
-		# ShootSound (e.g., Auto Laser — placeholder until dedicated SFX
-		# land). See WS.FireSfxKind / WS.sfx_kind_string.
+	var flash_color: Color = ENGINE_GLOW_COLOR
+	if weapon_style == WS.WeaponStyle.ROTARY_LASER or use_rotary_laser_muzzle:
+		flash_color = Color(0.2, 0.45, 1.0)        # pure blue
+	elif weapon_style == WS.WeaponStyle.MACHINEGUN:
+		flash_color = Color(1.0, 0.5, 0.1)         # bright orange (cannon)
+	MuzzleFx.play_player(muzzle_pos, self, flash_color, weapon_style == WS.WeaponStyle.MACHINEGUN)
+	# Per-shot cannon SFX for the energy/auto-laser styles (machinegun + rotary carry their own).
+	if weapon_style != WS.WeaponStyle.MACHINEGUN and weapon_style != WS.WeaponStyle.ROTARY_LASER:
 		var WeaponSfx = load("res://scripts/effects/weapon_sfx.gd")
 		if WeaponSfx and fire_sfx_kind != WS.FireSfxKind.NONE:
 			WeaponSfx.play(get_tree().root, global_position, WS.sfx_kind_string(fire_sfx_kind))

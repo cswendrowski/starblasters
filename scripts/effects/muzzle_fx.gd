@@ -176,6 +176,47 @@ static func play_enemy(world_pos: Vector2, dir: Vector2, root: Node) -> void:
 	tw.tween_callback(flash.queue_free)
 
 
+const GlowFxM = preload("res://scripts/effects/glow_shader_fx.gd")
+
+
+# Unified player muzzle flash (Roman 2026-06-09 player pass): the flash strip is BOTTOM-anchored to
+# the muzzle marker (its base sits on the marker, extends forward), tinted `color` with a matching
+# DIFFUSE glow, rendered ABOVE the bullets (which now render under the ship), and it lasts ~a frame.
+# `with_smoke_shell` adds the machinegun smoke + shell casing.
+static func play_player(world_pos: Vector2, host: Node, color: Color, with_smoke_shell: bool = false) -> void:
+	var parent: Node = host if host != null else Engine.get_main_loop().root
+	var local_pos: Vector2 = world_pos
+	if host != null and host is Node2D:
+		local_pos = world_pos - (host as Node2D).global_position
+	# Bottom-anchor: shift the centred 16px flash up by 8 so its bottom edge sits on the marker.
+	local_pos += Vector2(0, -8)
+	var flash := Sprite2D.new()
+	flash.texture = MUZZLE_STRIP
+	flash.hframes = MUZZLE_STRIP_HFRAMES
+	flash.frame = randi() % MUZZLE_STRIP_HFRAMES
+	flash.position = local_pos
+	flash.modulate = color
+	flash.z_index = 6   # above the player bullets (they render at z -1) + the ship
+	var fmat := CanvasItemMaterial.new()
+	fmat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	flash.material = fmat
+	parent.add_child(flash)
+	# Diffuse glow in the same colour (its own sibling node — free it with the flash).
+	var glow: CanvasItem = GlowFxM.apply(flash, color)
+	# Last ~a frame, then gone (no lingering fade).
+	var tw := flash.create_tween()
+	tw.tween_interval(0.045)
+	tw.tween_callback(func():
+		if is_instance_valid(flash):
+			flash.queue_free()
+		if glow != null and is_instance_valid(glow):
+			glow.queue_free())
+	if with_smoke_shell:
+		var fx_root: Node = host.get_parent() if (host != null and host.get_parent() != null) else Engine.get_main_loop().root
+		_spawn_smoke(fx_root, world_pos)
+		_spawn_shell(fx_root, world_pos)
+
+
 static func _spawn_flash(parent: Node, world_pos: Vector2, use_local: bool = false) -> void:
 	# Yellow-orange glow halo + random-frame strip. When `parent` is a
 	# Node2D (host = player), the positions are local to the host so the
