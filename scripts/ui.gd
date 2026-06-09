@@ -52,6 +52,15 @@ var _threat_light: Sprite2D = null
 var _ann: Sprite2D = null
 
 var _focus_bar_fill: ColorRect = null
+# Shift-Mode meter (reuses the focus bar slot — modes are mutually exclusive).
+# The label + bar swap by active mode: Focus/Hyper show a charge bar; Phase shows
+# its discrete charge count (x/y) on the same bar.
+var _mode_label: Label = null
+var _ui_active_mode: int = 0  # 0=FOCUS, 1=PHASE, 2=HYPER
+const _MODE_COL_FOCUS := Color(0.4, 0.7, 1.0, 0.9)
+const _MODE_COL_HYPER := Color(1.0, 0.6, 0.2, 0.9)
+const _MODE_COL_HYPER_ON := Color(1.0, 0.85, 0.35, 1.0)
+const _MODE_COL_PHASE := Color(0.7, 0.45, 1.0, 0.9)
 
 var _player_ref = null
 var _wave_spawning: bool = false
@@ -413,6 +422,12 @@ func bind_player(player) -> void:
 		player.super_charges_changed.connect(_on_super_charges_changed)
 	if player.has_signal("focus_charge_changed") and not player.focus_charge_changed.is_connected(_on_focus_charge_changed):
 		player.focus_charge_changed.connect(_on_focus_charge_changed)
+	if player.has_signal("hyper_charge_changed") and not player.hyper_charge_changed.is_connected(_on_hyper_charge_changed):
+		player.hyper_charge_changed.connect(_on_hyper_charge_changed)
+	if player.has_signal("phase_charges_changed") and not player.phase_charges_changed.is_connected(_on_phase_charges_changed):
+		player.phase_charges_changed.connect(_on_phase_charges_changed)
+	if player.has_signal("mode_changed") and not player.mode_changed.is_connected(_on_mode_changed_ui):
+		player.mode_changed.connect(_on_mode_changed_ui)
 	if player.has_signal("damaged") and not player.damaged.is_connected(_on_player_damaged):
 		player.damaged.connect(_on_player_damaged)
 
@@ -427,6 +442,9 @@ func bind_player(player) -> void:
 		_on_focus_charge_changed(float(player.focus_charge), float(player.focus_charge_max))
 
 	_install_focus_bar()
+	# Seed the mode meter to the player's current Shift mode.
+	if "active_mode" in player:
+		_on_mode_changed_ui(int(player.active_mode))
 	_refresh_weapon_names()
 
 	var director = get_node_or_null("/root/Main/WaveDirector")
@@ -447,7 +465,8 @@ func _install_focus_bar() -> void:
 	if _focus_bar_fill != null and is_instance_valid(_focus_bar_fill):
 		return
 	var c := _hud_root_node
-	c.add_child(_make_label(_mpos("focus_label", Vector2(8, 247)), "FOCUS", Color(0.5, 0.75, 1.0, 0.85), 7))
+	_mode_label = _make_label(_mpos("focus_label", Vector2(8, 247)), "FOCUS", Color(0.5, 0.75, 1.0, 0.85), 7)
+	c.add_child(_mode_label)
 	var bg := ColorRect.new()
 	bg.color = Color(0.1, 0.15, 0.3, 0.7)
 	bg.position = _mpos("focus_bar", Vector2(8, 256))
@@ -467,9 +486,56 @@ func _install_focus_bar() -> void:
 # ---------------------------------------------------------------------------
 
 func _on_focus_charge_changed(charge: float, max_charge: float) -> void:
-	if _focus_bar_fill == null:
+	# Focus regen ticks in every mode (the reserve sits full while Hyper/Phase are
+	# equipped) — only drive the bar when Focus is the active mode, else it'd
+	# clobber the Hyper/Phase meter.
+	if _focus_bar_fill == null or _ui_active_mode != 0:
 		return
 	_focus_bar_fill.size.x = float(BAR_W) * clamp(charge / max(1.0, max_charge), 0.0, 1.0)
+
+
+func _on_hyper_charge_changed(charge: float, max_charge: float, active: bool) -> void:
+	if _focus_bar_fill == null or _ui_active_mode != 2:
+		return
+	_focus_bar_fill.size.x = float(BAR_W) * clamp(charge / max(1.0, max_charge), 0.0, 1.0)
+	_focus_bar_fill.color = _MODE_COL_HYPER_ON if active else _MODE_COL_HYPER
+	if _mode_label != null:
+		_mode_label.text = "HYPER" if not active else "HYPER ▶"
+
+
+func _on_phase_charges_changed(charges: int, max_charges: int) -> void:
+	if _focus_bar_fill == null or _ui_active_mode != 1:
+		return
+	# Phase is discrete charges — show the count on the label, bar as the fraction.
+	_focus_bar_fill.size.x = float(BAR_W) * clamp(float(charges) / max(1.0, float(max_charges)), 0.0, 1.0)
+	if _mode_label != null:
+		_mode_label.text = "PHASE %d/%d" % [charges, max_charges]
+
+
+# Swap the mode meter (label text + bar colour) when the equipped Shift mode
+# changes, then refresh it from the player's current resource value.
+func _on_mode_changed_ui(mode: int) -> void:
+	_ui_active_mode = mode
+	if _mode_label == null or _focus_bar_fill == null:
+		return
+	var p = _player_ref
+	match mode:
+		1:  # PHASE
+			_mode_label.add_theme_color_override("font_color", Color(0.82, 0.62, 1.0, 0.9))
+			_focus_bar_fill.color = _MODE_COL_PHASE
+			if p != null and "phase_charges" in p:
+				_on_phase_charges_changed(int(p.phase_charges), int(p.phase_charges_max))
+		2:  # HYPER
+			_mode_label.add_theme_color_override("font_color", Color(1.0, 0.75, 0.4, 0.9))
+			_focus_bar_fill.color = _MODE_COL_HYPER
+			if p != null and "hyper_charge" in p:
+				_on_hyper_charge_changed(float(p.hyper_charge), float(p.hyper_charge_max), bool(p._hyper_active))
+		_:  # FOCUS
+			_mode_label.text = "FOCUS"
+			_mode_label.add_theme_color_override("font_color", Color(0.5, 0.75, 1.0, 0.85))
+			_focus_bar_fill.color = _MODE_COL_FOCUS
+			if p != null and "focus_charge" in p:
+				_on_focus_charge_changed(float(p.focus_charge), float(p.focus_charge_max))
 
 
 func _on_player_damaged(_amount: int) -> void:

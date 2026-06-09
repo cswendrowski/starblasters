@@ -264,6 +264,9 @@ var phase_kills_per_charge: int = 4
 var _phase_t: float = 0.0
 var _phase_kill_count: int = 0
 signal phase_charges_changed(charges: int, max_charges: int)
+# Emitted when the equipped Shift mode changes — the HUD swaps its meter (Focus/
+# Hyper bar vs Phase charge readout) on this.
+signal mode_changed(active_mode: int)
 
 var can_shoot: bool = true
 var is_alive: bool = true
@@ -737,6 +740,7 @@ func _process(delta: float) -> void:
 func _on_mode_changed() -> void:
 	_hyper_active = false
 	_phase_t = 0.0
+	mode_changed.emit(active_mode)
 	if active_mode == ShiftMode.HYPER and mode_part != null:
 		if mode_part.has_method("fire_bonus_at_mark"):
 			hyper_fire_bonus = mode_part.fire_bonus_at_mark(int(mode_part.mark))
@@ -758,6 +762,9 @@ func _on_mode_changed() -> void:
 		phase_charges = phase_charges_max  # start full
 		_phase_kill_count = 0
 		phase_charges_changed.emit(phase_charges, phase_charges_max)
+	else:
+		# FOCUS (or no mode part) — refresh the focus bar.
+		focus_charge_changed.emit(focus_charge, focus_charge_max)
 
 
 # Hyper: held Shift drains the bar (+fire/ammo/dmg while active); release/empty ends
