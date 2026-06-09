@@ -1601,6 +1601,13 @@ func _tick_beam(holding: bool, delta: float) -> void:
 			if _pb_charge_player and _pb_charge_player.playing:
 				_pb_charge_player.stop()
 		_tick_beam_flash(delta)
+		# Safety net: the _tick_beam_flash call above can complete a WARMUP→HOLD
+		# transition on the very frame we release, starting _pb_loop_player (1501)
+		# before _beam_active is ever set — so the _beam_active stop above would
+		# miss it and the loop SFX would play indefinitely. Guarantee it's stopped
+		# on any release.
+		if _pb_loop_player and _pb_loop_player.playing:
+			_pb_loop_player.stop()
 		return
 	# Holding. If no flash yet, kick off WARMUP.
 	if _beam_flash == null or not is_instance_valid(_beam_flash):

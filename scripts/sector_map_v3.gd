@@ -302,8 +302,17 @@ func _advance_if_complete() -> void:
 	if run.is_sector_complete():
 		run.sectors_cleared += 1
 		run.combats_in_sector = 0
-		run.run_seed = randi()
-		run.start_new_sector(run.sectors_cleared + 1, run.run_seed)
+		# Deterministic per-sector seed (matches _ensure_sector_cache:291) so a
+		# regen of the same sector reproduces the same layout + boss picks, and
+		# run_seed stays stable for the whole run. Was `run_seed = randi()`, which
+		# clobbered the seed mid-run AND disagreed with the _ensure formula — a
+		# regen then picked DIFFERENT bosses, which got appended to used_boss_scenes
+		# too, double-consuming the boss pool (toward forced cross-sector repeats).
+		# With a consistent seed the same-sector re-roll yields the same bosses, so
+		# start_new_sector's dedup append (:494) is a no-op. (Endless-mode pool
+		# depletion is handled separately in _pick_row_bosses.)
+		var seed_value: int = run.run_seed + run.sectors_cleared
+		run.start_new_sector(run.sectors_cleared + 1, seed_value)
 
 
 func _process(delta: float) -> void:
