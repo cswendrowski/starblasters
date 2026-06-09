@@ -32,10 +32,7 @@ landed. Grouped by effort.
   not recycle and should arrive in tighter packs. (roster `recycle: 0` + wave-gen density)
 
 **Cleanup:**
-- [ ] **385 editor GDScript warnings** — `.gdignore`'d the PixelPlanetsSource sample already.
-  The rest are the editor's analyzer warnings (unused params, shadowing, narrowing, etc.) that
-  don't surface in headless runs. NEED: the recurring list from the editor Output/Debugger
-  panel → then fix per-site or demote noise types in `project.godot [debug] gdscript/warnings`.
+- [x] **385 editor GDScript warnings** — CLEARED (Roman 2026-06-08: "largely handled, we can clear this").
 
 ## M6c polish backlog — round 2 (scoped 2026-06-08)
 
@@ -193,20 +190,15 @@ landed. Grouped by effort.
 
 - [ ] **Dynamic animated nebula** — adjust nebula to be dynamic, animated, noise-based, and seamless. Current V3 nebula uses `nebula2.gdshader` (domain-warped + filaments, scroll_offset driven from layer accumulated scroll). May need new shaders for a fully animated swirl. Build prototype + capture for review.
 - [ ] **V3 parallax color correction + adjustment sliders not working** — Brightness / Contrast / Colorization in the tuner aren't tinting V3 layers reliably. After the CanvasGroup removal we're on per-child modulate via the tuner's fallback path; need to confirm whether modulate IS being written and whether Parallax2D propagates it through tiled draws in Godot 4.3. **Also add a blend-mode dropdown** for the per-layer color system (Mix / Add / Multiply / Screen).
-- [~] **Phase Shift + Focus supers not working** — RE-DIAGNOSED (lead 2026-06-08, NOT a code bug).
-  The `fire_super` → `super_part.activate()` path is sound and shared with the working Smart Bomb.
-  (a) There is NO "Focus super" module — "Focus" is the held-Shift focus *mode*; the TODO conflates
-  them. (b) Phase Shift IS wired correctly but is invisible-by-design (i-frames + bullet-clear, no
-  damage/fire-boost) so it reads as no-op when fired with nothing incoming. DESIGN CALL: build a
-  Focus super? add a stronger Phase Shift activation tell? (see reports/lead_session_report.md).
+- [x] **Phase Shift + Focus supers not working** — RESOLVED by the Shift-Mode rebuild (2026-06-08,
+  `0ef66ad`..`9b55e47`). Hyper + Phase are no longer supers — they're SHIFT_MODE stances on Shift
+  (Focus default), Smart Bomb is the only super. Phase now has a bright-blue glow tell (`9845725`).
+  See `docs/shift_mode_system_2026-06-08.md`.
 - [x] **Drone Swarm super emit point** — DONE (lead 2026-06-08, `024a117`). Drones spawned on a 16px
   ring off-center; now emit from `ship.global_position` (player center), keeping `angle_seed` for the
   post-spawn boids fan-out. (Note: Drone Swarm migrated SUPER→SECONDARY on 2026-05-30.)
-- [~] **Direction-based player sprite rotation** — RE-DIAGNOSED (lead 2026-06-08). The banking
-  frame-swap is ALREADY present and live (`player.gd:569-578`: frame 0/1/2 on horizontal input +
-  matching booster anim). If it's not visibly banking, the regression is in the `Ship` 3-frame strip
-  ART (frames may be visually identical), not the code. PLEASE CONFIRM the strip has distinct
-  left/forward/right frames; if so, close this.
+- [x] **Direction-based player sprite rotation** — CONFIRMED FINE (Roman 2026-06-08): the banking
+  frame-swap (`player.gd` 3-frame strip on horizontal input) is visibly banking in-game. Closed.
 
 ## Enemy rework backlog 2026-05-24
 
