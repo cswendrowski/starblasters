@@ -370,7 +370,11 @@ places). Splits into a cheap core + an expensive tail. NOTE: most hooks live in
 `player.gd` / `enemy_base.gd` / `main.gd` — shared / combat-arena files; coordinate with the combat
 session before instrumenting those hot paths.
 
-- [ ] **Phase 1 — `RunStats` core (~½–1 day, ship first).** Add a run-wide stats accumulator on the
+- [x] **Phase 1 — `RunStats` core + Run Timer** — DONE (lead autonomous, `aedc7a1`). `run_stats` +
+  `run_time_seconds` on Run (reset/persisted/in history record); tallied off existing signals
+  (Player.damaged, record_kill, asteroid counter); active-combat timer keyed on `playing`; death
+  screen shows Time/Bosses/Bounty/Damage(shield·hull)/Asteroids. _(orig scope below; Phases 2/3 open.)_
+- [~] **Phase 1 — `RunStats` core (~½–1 day, ship first).** Add a run-wide stats accumulator on the
   `Run` autoload; reset it in `new_run()` alongside the other run-scoped fields. Surface Tier-1 stats
   that already have signals: **damage taken** (shield vs hull, off `Player.damaged` 0/1), **bounty
   gained** (off `Run.record_kill()`), **asteroids destroyed** (roll up `_asteroids_killed_this_level`

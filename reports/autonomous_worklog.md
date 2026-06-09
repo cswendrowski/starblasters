@@ -15,6 +15,10 @@ _(things verified headless but wanting an in-game eyeball or a design call)_
   re-acquire on kill, 3s cooldown / 6 ammo. **Art is a placeholder** — reused `energy_bolt_small.png`
   (8px) tinted yellow-orange + a glow + trail; swap for dedicated art if you want. The "tight turn
   arc" has no explicit knob (it's homing_accel-vs-speed) — tell me if it should turn tighter/looser.
+- **Run Summary Phase 1 + Run Timer** — the death screen now shows Time / Bosses / Bounty earned /
+  Damage taken (shield·hull) / Asteroids. Verify the numbers read right after a real run, and that
+  the **timer** (active-combat only — excludes map/shop/pause/intro/outro) feels right. Stats also
+  land in the run-history record (the per-run detail).
 
 ## ⏸️ Deferred (need Roman) — not blocking other work
 - **RecycleController (Pillar 2)** — playtest-heavy (regression surface = whole roster); needs the
@@ -35,3 +39,11 @@ subclasses it for assigned-target + re-acquire-on-death), the secondary pipeline
 the shared missile trail, and existing projectile art. Distinct-target round-robin + re-acquire are
 the only net-new logic. Headless-verified (registration, Mk 4/6/20, mode/ammo/cooldown, distinct
 targeting + round-robin, ammo/cooldown via input). Combat + parse clean. → flagged for Roman's feel/art pass.
+
+### 2026-06-09 — Run Summary Phase 1 + Run Timer ✅ (`aedc7a1`)
+Built the cheap Tier-1 core from `docs/run_summary_scope_2026-06-01.md`: a `run_stats` accumulator +
+`run_time_seconds` on Run (reset/persisted), tallying off signals that ALREADY exist (Player.damaged
+0/1, Run.record_kill, the asteroid counter) — no hot-path allocation. Active-combat timer keyed on
+`playing` (pausable node auto-excludes dead time). Death screen + run-history record show the stats.
+Headless-verified end to end. Phases 2 (shots/accuracy/spent/visits) + 3 (victory path) remain.
+
