@@ -13,6 +13,7 @@ extends "res://scripts/enemy_core.gd"
 # F3 active (Roman 2026-06-09).
 
 const ProximityChase = preload("res://scripts/enemies/patterns/proximity_chase.gd")
+const MineBlinker = preload("res://scripts/effects/mine_blinker.gd")
 
 @export var drift_speed: float = 180.0     # dormant descent (straight_medium)
 @export var chase_accel: float = 360.0
@@ -44,6 +45,7 @@ func _ready() -> void:
 		m.chase_max_speed = chase_max_speed
 		movement = m
 	super._ready()
+	add_child(MineBlinker.new())   # 2px flashing red centre dot + glow
 
 
 # The ProximityChase pattern emits these as it activates — swap the sprite frame.

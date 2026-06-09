@@ -9,6 +9,7 @@ extends "res://scripts/enemy_core.gd"
 # at F3 — a brief window to kill it before it shields (Roman 2026-06-09).
 
 const StraightDown = preload("res://scripts/enemies/patterns/straight_down.gd")
+const MineBlinker = preload("res://scripts/effects/mine_blinker.gd")
 
 @export var drift_speed: float = 120.0
 @export var damage_on_collide: int = 2
@@ -40,6 +41,7 @@ func _ready() -> void:
 		m.speed = drift_speed
 		movement = m
 	super._ready()
+	add_child(MineBlinker.new())   # 2px flashing red centre dot + glow
 	_begin_activation()
 
 

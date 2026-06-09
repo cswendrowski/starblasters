@@ -6,6 +6,8 @@ extends "res://scripts/enemies/enemy_base.gd"
 
 # Default to 4 bomblets per Roman's 2026-05-18 mine pass; mega cluster
 # overrides to 8 via the enemy_mine_cluster_smart.tscn instance.
+const MineBlinker = preload("res://scripts/effects/mine_blinker.gd")
+
 @export var drift_speed: float = 180.0  # +15% per Roman 2026-05-27 (was 156.0)
 @export var damage_on_collide: int = 2
 @export var bomblet_scene: PackedScene
@@ -36,6 +38,7 @@ func _ready() -> void:
 	if has_node("Sprite2D"):
 		var ShadowFx = load("res://scripts/shadow_fx.gd")
 		ShadowFx.attach_shadow($Sprite2D)
+	add_child(MineBlinker.new())   # 2px flashing red centre dot + glow
 
 
 func start(pos: Vector2) -> void:

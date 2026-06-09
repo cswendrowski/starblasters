@@ -363,13 +363,21 @@ static func build_minefield_score() -> CombatScore:
 		if k < beat_count - 1:
 			wave.phrases.append(_breather_phrase(0.4))
 
-	# Variant sprinkle: a final small lane-scatter of a random non-basic mine type
-	# (1-20% of the basic total), only when the field is basic.
+	# Variant sprinkle: a final lane-scatter mixing the non-basic mine types into a basic
+	# field (Roman 2026-06-09 — now that the new mine art/types are in, every minefield shows
+	# them off). TWO distinct random variants (shielded / smart / cluster / mega) ...
 	if base_scene == MineScene:
-		var sprinkle_scene = _scene_by_name(VARIANT_SCENES[rng.randi() % VARIANT_SCENES.size()])
+		var pool: Array = VARIANT_SCENES.duplicate()
+		for i in range(pool.size() - 1, 0, -1):   # shuffle so the two picks are distinct
+			var j: int = rng.randi() % (i + 1)
+			var t = pool[i]; pool[i] = pool[j]; pool[j] = t
 		var vcount: int = max(1, int(round(float(total_basic) * rng.randf_range(0.01, 0.20))))
 		wave.phrases.append(_breather_phrase(1.0))
-		wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(sprinkle_scene, vcount, 0.35, 2)))
+		wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(_scene_by_name(pool[0]), vcount, 0.35, 2)))
+		wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(_scene_by_name(pool[1]), max(1, vcount / 2), 0.4, 2)))
+		# ... PLUS a few Armored mines (4 HP) as tougher must-dodge anchors — the new mine type.
+		var acount: int = max(2, int(round(float(total_basic) * 0.06)))
+		wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(MineArmoredScene, acount, 0.4, 2)))
 
 	var score := CombatScore.new()
 	score.level_name = "Minefield"

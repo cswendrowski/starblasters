@@ -7,6 +7,7 @@ extends "res://scripts/enemy_core.gd"
 # it FREE off the bottom (no parallax fly-back). Explode-on-contact is unchanged.
 
 const StraightDown = preload("res://scripts/enemies/patterns/straight_down.gd")
+const MineBlinker = preload("res://scripts/effects/mine_blinker.gd")
 
 @export var drift_speed: float = 120.0
 @export var damage_on_collide: int = 2
@@ -28,6 +29,7 @@ func _ready() -> void:
 		m.speed = drift_speed
 		movement = m
 	super._ready()
+	add_child(MineBlinker.new())   # 2px flashing red centre dot + glow
 
 
 func hit() -> void:
