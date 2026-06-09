@@ -834,9 +834,9 @@ func equip_part(part) -> void:
 			# Seed current_ammo on the new cannon from its per-mark formula
 			# so the first equip has a fresh magazine.
 			if part.has_method("ammo_at_mark") and "current_ammo" in part and "ammo_max" in part:
-				var seed: int = int(part.ammo_at_mark(int(part.mark)))
-				part.current_ammo = seed
-				part.ammo_max = seed
+				var seed_ammo: int = int(part.ammo_at_mark(int(part.mark)))
+				part.current_ammo = seed_ammo
+				part.ammo_max = seed_ammo
 			cannon_pool.append(part)
 			active_cannon_idx = cannon_pool.size() - 1
 			_last_non_blaster_idx = active_cannon_idx
@@ -853,14 +853,14 @@ func equip_part(part) -> void:
 		# BulletSecondary subclasses. Honor both shapes so this works for
 		# the new bullet/beam Parts and any legacy Part still exposing
 		# @export base_ammo.
-		var ammo: int = -1
+		var sec_ammo: int = -1
 		if part.has_method("_base_ammo"):
-			ammo = int(part._base_ammo())
+			sec_ammo = int(part._base_ammo())
 		elif "base_ammo" in part:
-			ammo = int(part.base_ammo)
-		if ammo > 0:
-			secondary_ammo = ammo
-			secondary_ammo_max = ammo
+			sec_ammo = int(part.base_ammo)
+		if sec_ammo > 0:
+			secondary_ammo = sec_ammo
+			secondary_ammo_max = sec_ammo
 		else:
 			secondary_ammo = -1
 			secondary_ammo_max = -1
