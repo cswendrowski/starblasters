@@ -331,7 +331,11 @@ func _on_enemy_died(value: int, scene_path: String) -> void:
 				value = int(ceil(float(value) * float(run.get_meta("bounty_type_bonus_mult", 1.0))))
 	bounty += value
 	if has_node("/root/Run"):
-		get_node("/root/Run").record_kill(value)
+		var _r = get_node("/root/Run")
+		_r.record_kill(value)
+		# Run-summary Phase 2: count cleared mines (scene path carries the type).
+		if scene_path != "" and scene_path.contains("mine"):
+			_r.stat_add("mines_cleared", 1)
 	# Phase Shift mode refills its charges on player-caused kills — this hook fires
 	# only on real deaths (same path as bounty), so off-screen departs don't count.
 	if is_instance_valid(player) and player.has_method("on_enemy_killed"):

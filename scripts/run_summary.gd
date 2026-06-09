@@ -89,12 +89,14 @@ func _render() -> void:
 	if has_node("/root/Run"):
 		var run = get_node("/root/Run")
 		var st: Dictionary = run.run_stats if "run_stats" in run else {}
-		text = "Time: %s\nEnemies destroyed: %d\nBosses defeated: %d\nSectors cleared: %d\nBounty earned: %d\nDamage taken: %d shield · %d hull\nAsteroids destroyed: %d\nDistance: %d" % [
+		text = "Time: %s\nEnemies destroyed: %d\nBosses defeated: %d\nSectors cleared: %d\nBounty earned: %d\nBounty spent: %d\nDamage taken: %d shield · %d hull\nAsteroids destroyed: %d\nMines cleared: %d\nDistance: %d" % [
 			_fmt_time(run.run_time_seconds if "run_time_seconds" in run else 0.0),
 			run.enemies_killed, run.bosses_defeated, run.sectors_cleared,
 			int(st.get("bounty_gained", run.max_bounty_earned)),
+			int(st.get("bounty_spent", 0)),
 			int(st.get("damage_shield", 0)), int(st.get("damage_hull", 0)),
-			int(st.get("asteroids", 0)), int(run.run_distance)
+			int(st.get("asteroids", 0)), int(st.get("mines_cleared", 0)),
+			int(run.run_distance)
 		]
 	else:
 		text = "No run data."

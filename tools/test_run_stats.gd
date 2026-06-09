@@ -22,6 +22,13 @@ func _run() -> void:
 	_assert(int(run.run_stats["damage_hull"]) == 3, "stat_add accumulates (3)")
 	run.record_kill(50)
 	_assert(int(run.run_stats["bounty_gained"]) == 50, "record_kill tallies bounty_gained")
+	# Phase 2: bounty-spend choke-point + mines.
+	run.bounty = 1000
+	run.spend_bounty(120)
+	_assert(int(run.bounty) == 880, "spend_bounty subtracts (880)")
+	_assert(int(run.run_stats["bounty_spent"]) == 120, "spend_bounty tallies (120)")
+	run.stat_add("mines_cleared", 3)
+	_assert(int(run.run_stats["mines_cleared"]) == 3, "mines_cleared tallies (3)")
 	run.run_time_seconds = 125.0
 	run.stat_add("asteroids", 7)
 	run.record_run_history("died")
@@ -29,6 +36,8 @@ func _run() -> void:
 	var last: Dictionary = hist[hist.size() - 1]
 	_assert(int(last.get("time", -1)) == 125, "history record carries time")
 	_assert(int(last.get("asteroids", -1)) == 7, "history record carries asteroids")
+	_assert(int(last.get("bounty_spent", -1)) == 120, "history record carries bounty_spent")
+	_assert(int(last.get("mines_cleared", -1)) == 3, "history record carries mines_cleared")
 	_assert(last.has("damage_shield") and last.has("damage_hull"), "history record carries damage stats")
 
 	# --- B. Death screen renders the stats ---
@@ -40,6 +49,8 @@ func _run() -> void:
 	_assert(txt.contains("Time: 2:05"), "summary shows formatted time (2:05) — got: %s" % txt.split("\n")[0])
 	_assert(txt.contains("Damage taken:"), "summary shows damage taken")
 	_assert(txt.contains("Bounty earned:"), "summary shows bounty earned")
+	_assert(txt.contains("Bounty spent:"), "summary shows bounty spent")
+	_assert(txt.contains("Mines cleared:"), "summary shows mines cleared")
 	rs.free()
 	await process_frame
 

@@ -241,9 +241,11 @@ func record_run_history(outcome: String) -> void:
 		# Run-summary Phase 1 stats (so the history detail can surface them).
 		"time": int(run_time_seconds),
 		"bounty_gained": int(run_stats.get("bounty_gained", 0)),
+		"bounty_spent": int(run_stats.get("bounty_spent", 0)),
 		"damage_shield": int(run_stats.get("damage_shield", 0)),
 		"damage_hull": int(run_stats.get("damage_hull", 0)),
 		"asteroids": int(run_stats.get("asteroids", 0)),
+		"mines_cleared": int(run_stats.get("mines_cleared", 0)),
 	}
 	var hist: Array = load_run_history()
 	hist.append(record)
@@ -305,7 +307,8 @@ func new_run() -> void:
 	max_bounty_earned = 0
 	run_distance = 0.0
 	run_time_seconds = 0.0
-	run_stats = {"damage_shield": 0, "damage_hull": 0, "bounty_gained": 0, "asteroids": 0}
+	run_stats = {"damage_shield": 0, "damage_hull": 0, "bounty_gained": 0, "asteroids": 0,
+		"bounty_spent": 0, "mines_cleared": 0}
 	sectors_cleared = 0
 	bosses_defeated = 0
 	combats_in_sector = 0
@@ -382,6 +385,13 @@ func record_kill(value: int) -> void:
 # Run-summary stat accumulator (Phase 1). Additive into run_stats; missing keys seed 0.
 func stat_add(key: String, n: int) -> void:
 	run_stats[key] = int(run_stats.get(key, 0)) + n
+
+
+# Bounty-spend choke-point (Phase 2): subtract bounty AND tally what was spent.
+# All outpost/shop/event purchases route through here so "bounty spent" is exact.
+func spend_bounty(amount: int) -> void:
+	bounty -= amount           # setter fires bounty_changed
+	stat_add("bounty_spent", amount)
 
 func mark_node_visited(node_id: String) -> void:
 	if not visited_nodes.has(node_id):

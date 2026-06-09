@@ -650,7 +650,7 @@ func _do_junk_ammo() -> void:
 	if int(run.bounty) < _JUNK_AMMO_COST:
 		_finish_to_sector_map(Strings.OUTCOME_JUNK_AMMO_BROKE % _JUNK_AMMO_COST)
 		return
-	run.bounty -= _JUNK_AMMO_COST
+	run.spend_bounty(_JUNK_AMMO_COST)
 	run.ammo = int(run.ammo) + _JUNK_AMMO_AMOUNT
 	_finish_to_sector_map(Strings.OUTCOME_JUNK_AMMO_LOADED % [_JUNK_AMMO_COST, _JUNK_AMMO_AMOUNT])
 

@@ -739,7 +739,7 @@ func _on_buy_upgrade(offer: Dictionary, btn: Button) -> void:
 	var cost: int = int(offer["cost"])
 	if int(run.bounty) < cost:
 		return
-	run.bounty -= cost
+	run.spend_bounty(cost)
 	var key: String = String(offer["key"])
 	run.set(key, _current_mk(key) + 1)
 	# Hull upgrade: the new pip arrives FILLED. Without this, max_hull grows
@@ -772,7 +772,7 @@ func _on_buy_weapon(offer: Dictionary, btn: Button) -> void:
 	var cost: int = int(offer["cost"])
 	if int(run.bounty) < cost:
 		return
-	run.bounty -= cost
+	run.spend_bounty(cost)
 	_apply_part_to_player(offer["part"])
 	offer["sold"] = true
 	btn.text = Strings.OUTPOST_BTN_EQUIPPED
@@ -851,7 +851,7 @@ func _on_repair(btn: Button) -> void:
 	var cost: int = _hull_repair_cost()
 	if int(run.bounty) < cost:
 		return
-	run.bounty -= cost
+	run.spend_bounty(cost)
 	run.repair_charges -= 1
 	run.current_hull = clampi(int(run.current_hull) + 1, 0, int(run.max_hull))
 	_refresh_status_panel()
@@ -944,7 +944,7 @@ func _on_primary_ammo_refill(btn: Button) -> void:
 		cost = int(active.refill_cost_override)
 	if int(run.bounty) < cost:
 		return
-	run.bounty -= cost
+	run.spend_bounty(cost)
 	run.ammo_restock_charges -= 1
 	active.current_ammo = cap
 	# Mirror to Run.ammo + player.ammo so HUD updates immediately on return.
@@ -969,7 +969,7 @@ func _on_secondary_ammo_refill(btn: Button) -> void:
 	var cost: int = int(result[1])
 	if rounds <= 0:
 		return
-	run.bounty -= cost
+	run.spend_bounty(cost)
 	run.ammo_restock_charges -= 1
 	run.secondary_ammo = clampi(int(run.secondary_ammo) + rounds, 0, int(run.secondary_ammo_max))
 	_show_toast(Strings.TOAST_SECONDARY_REFILLED % [rounds, cost])
@@ -988,7 +988,7 @@ func _on_super_refill(btn: Button) -> void:
 		return
 	if int(run.super_charges) >= int(run.max_super_charges):
 		return
-	run.bounty -= SUPER_REFILL_COST
+	run.spend_bounty(SUPER_REFILL_COST)
 	run.super_charges = clampi(int(run.super_charges) + 1, 0, int(run.max_super_charges))
 	_refresh_status_panel()
 
