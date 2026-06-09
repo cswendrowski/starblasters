@@ -58,7 +58,16 @@ existing enemy codex (4 categories: Primary / Secondary / Super / Modes) reusing
 sprite preview + blurb machinery. Items with a projectile sprite show it; modes/super/beam show name
 + blurb (icons TBD — art). Headless-verified. → flagged for Roman's eyeball + the icon-art gap.
 
+### 2026-06-09 — Run Summary Phase 2 (partial) ✅ (`74aba2f`)
+The clean, well-defined Phase 2 stats: a `Run.spend_bounty()` choke-point (routed all 7 outpost +
+signal purchase sites) → exact **bounty spent**, and **mines cleared** off the kill scene_path. Both
+on the death screen + history record. Deferred the murky ones (shots/accuracy — ambiguous model +
+riskiest hot-path hook; visited; unique-weapons) + Phase 3 (victory path). Headless-verified.
+
 ### 2026-06-09 — small reconciliations
+- **Boss conflict_tags never-pair** — was already fully built (`_BOSS_CONFLICTS` + `_pick_row_bosses`
+  greedy skip); VERIFIED via `tools/test_boss_pairing.gd` (0 forbidden pairs, sectors 2/3). Closed.
+  Noted the sector-1 pool-size caveat (3 bosses / 3 slots → unavoidable pairs by design) for Roman.
 - **Heavy Blaster cooldown** TODO closed as STALE (the 0.28→0.18 Mk scaling is by-design now, not the
-  drift the item described — no change). _(no commit; TODO-only.)_
+  drift the item described — no change). _(TODO-only.)_
 

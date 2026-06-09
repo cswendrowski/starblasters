@@ -264,7 +264,11 @@ Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" fl
 - [x] **Tethered-orbit movement — DONE (verified 2026-06-07).** The Conductor's two satellites mirror player X + orbit via `scripts/enemies/conductor_satellite.gd` (bespoke satellite script, not a `patterns/` movement resource — same end behavior). (Source: `docs/boss_proposals_2026-05-24.md` §4 Conductor)
 - [ ] **Biome reskins per boss** — palette + one attack tweak variants to double visual variety once base roster ships. (Source: `docs/boss_proposals_2026-05-24.md` §5)
 - [ ] **Shared boss-enrage VFX helper** — phase-transition flash + screen-shake helper so HP-gate transitions read consistently across bosses. (Source: `docs/boss_proposals_2026-05-24.md` §6 open question 6)
-- [ ] **Boss `conflict_tags` "never-pair" enforcement** — Voidmaw shouldn't pair with Commander; Howler shouldn't pair with Reaver/Lash; etc. (Source: `docs/boss_proposals_2026-05-24.md` §6 open question 4)
+- [x] **Boss `conflict_tags` "never-pair" enforcement** — DONE (already implemented; verified lead
+  2026-06-09, `tools/test_boss_pairing.gd`). `run_state._BOSS_CONFLICTS` + the greedy skip in
+  `_pick_row_bosses` produce 0 forbidden pairs in sectors 2/3 over 60 seeds each. (Caveat: sector 1's
+  pool is exactly 3 bosses for 3 slots, so its pairs are pool-limited by design — relax/expand the
+  sector-1 pool if that's unwanted; a balance call, not a bug.)
 - [ ] **Bosses with omni-strafe** — designer-flagged variation idea, currently deferred. (Source: task list #12)
   - _2026-06-08: all three boss-polish items STILL OPEN — bosses were intentionally untouched by the
     bespoke-enemy migration._
