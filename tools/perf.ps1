@@ -14,9 +14,13 @@
 #   .\tools\perf.ps1 -Lint                          # static grep mode
 $ErrorActionPreference = 'Stop'
 
-$MONO_GODOT       = 'C:\Users\Cody\Downloads\Godot_v4.3-stable_mono_win64\Godot_v4.3-stable_mono_win64\Godot.exe'
-$STANDALONE_GODOT = 'C:\Users\Cody\Downloads\PortalSDK(3)\Godot_v4.4.1-stable_win64.exe'
-$GODOT = if ($UseStandalone) { $STANDALONE_GODOT } else { $MONO_GODOT }
+# Godot 4.6.3 standalone (no Mono) — single binary for everything; matches
+# tools/parse_check.ps1 + tools/publish.ps1. Update all three if it moves.
+# The project consolidated off the old 4.3-mono / 4.4.1-standalone split on
+# 2026-05-26, so -UseStandalone is now a no-op kept only for call-site compat.
+$STANDALONE_GODOT = 'E:\tools\Godot_v4.6.3\Godot_v4.6.3-stable_win64.exe'
+$MONO_GODOT       = $STANDALONE_GODOT
+$GODOT = $STANDALONE_GODOT
 
 $scriptDir = $PSScriptRoot
 if (-not $scriptDir) { $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path }
@@ -48,11 +52,15 @@ if ($Lint) {
     $blocks = [regex]::Matches($content, '(?ms)^func _(?:physics_)?process\([^\)]*\)[^\n]*\n((?:[ \t]+[^\n]*\n)+)')
     foreach ($b in $blocks) {
       $body = $b.Groups[1].Value
-      $bodyStart = $b.Index + $b.Groups[1].Index
+      # .NET regex Group.Index is ALREADY absolute within $content, so adding
+      # $b.Index double-counted the match offset and pushed $abs past the end of
+      # the string -> Substring() threw ArgumentOutOfRangeException. Use the
+      # group's absolute index directly.
+      $bodyStart = $b.Groups[1].Index
       $rx = [regex]::Matches($body, $pattern)
       foreach ($m in $rx) {
-        # Translate offset back to a line number.
-        $abs = $bodyStart + $m.Index
+        # Translate offset back to a line number (clamp defensively).
+        $abs = [Math]::Min($bodyStart + $m.Index, $content.Length)
         $line = ($content.Substring(0, $abs) -split "`n").Count
         $null = $warnings.Add([pscustomobject]@{File=$file; Line=$line; Pattern=$why; Match=$m.Value.Trim()})
       }
