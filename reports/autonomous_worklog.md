@@ -19,6 +19,10 @@ _(things verified headless but wanting an in-game eyeball or a design call)_
   Damage taken (shield·hull) / Asteroids. Verify the numbers read right after a real run, and that
   the **timer** (active-combat only — excludes map/shop/pause/intro/outro) feels right. Stats also
   land in the run-history record (the per-run detail).
+- **Armory tab (Codex)** — open Codex from the main menu; the 4 new categories (Primary / Secondaries /
+  Super / Shift Modes) list your kit with a rotating projectile preview + a codex blurb. Verify the
+  blurbs read well + the layout. **Icon gap:** modes / super / particle-beam / drones have no
+  projectile sprite, so they show name + blurb only — want little icons commissioned for those?
 
 ## ⏸️ Deferred (need Roman) — not blocking other work
 - **RecycleController (Pillar 2)** — playtest-heavy (regression surface = whole roster); needs the
@@ -46,4 +50,15 @@ Built the cheap Tier-1 core from `docs/run_summary_scope_2026-06-01.md`: a `run_
 0/1, Run.record_kill, the asteroid counter) — no hot-path allocation. Active-combat timer keyed on
 `playing` (pausable node auto-excludes dead time). Death screen + run-history record show the stats.
 Headless-verified end to end. Phases 2 (shots/accuracy/spent/visits) + 3 (victory path) remain.
+
+### 2026-06-09 — Armory tab + item codex strings ✅ (`518443a`)
+Centralized the genuinely-missing content: codex BLURBS for all ~21 player items in a new
+`armory_strings.gd` (mirror approach — names stay on the parts), and folded an **Armory** into the
+existing enemy codex (4 categories: Primary / Secondary / Super / Modes) reusing its nav + rotating-
+sprite preview + blurb machinery. Items with a projectile sprite show it; modes/super/beam show name
++ blurb (icons TBD — art). Headless-verified. → flagged for Roman's eyeball + the icon-art gap.
+
+### 2026-06-09 — small reconciliations
+- **Heavy Blaster cooldown** TODO closed as STALE (the 0.28→0.18 Mk scaling is by-design now, not the
+  drift the item described — no change). _(no commit; TODO-only.)_
 

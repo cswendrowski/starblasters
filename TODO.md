@@ -346,7 +346,10 @@ Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" fl
 
 - [ ] **`scripts/bullet.gd` + `scripts/bullet_wave.gd` live at `scripts/` root** — siblings are in `scripts/projectiles/`. Move + update `.tscn` paths. (Source: `docs/weapon_architecture_2026-05-24.md` §5)
 - [x] **`drone_bits.apply()` doesn't snapshot prior `ship.drone_bits` array** — DONE (lead 2026-06-08, `85bf63c`). apply() snapshots, unapply() restores. (Impact nil today; contract now symmetric.)
-- [ ] **Heavy Blaster cooldown lerp 0.20 → 0.18 per Mk** — tiny per-Mk drift introduced by refactor; can be reverted by setting constant `0.20`. (Source: commit `2083c59` open flag)
+- [x] **Heavy Blaster cooldown lerp** — STALE (lead 2026-06-09). Code now intentionally scales
+  cooldown **0.28 → 0.18** Mk1→Mk9 (a deliberate "faster at top tier" cadence, per the script
+  comments) — NOT the "0.20→0.18 drift" this item described. Reverting to constant 0.20 would remove
+  the intended scaling. Closing as already-by-design.
 - [x] **basic_blaster + spread_cannon snapshot/restore asymmetry** — STALE (verified lead 2026-06-08). The `weapon_part` base already snapshots + restores `weapon_style`/`fire_sfx_kind` via `_all_snapshot_keys()`; no asymmetry in current code. Closing.
 - [ ] **`drone_bits.tres` + `drone_swarm.tres` stale defaults** — open in editor, re-save against current `.gd` defaults so Weapon Editor doesn't surface stale values. (Source: `docs/redundancy_audit_2026-05-21.md` §Weapons action items)
 - [ ] **Weapon mounts: per-Part `fire_offset: Vector2`** — so wing-mounted vs nose-mounted weapons don't all spawn at `(0,-10)`. (Source: `docs/weapon_architecture_2026-05-24.md` §4 item 5)
@@ -458,7 +461,11 @@ enums absorb the bay slots). Net-new = the bay UI + the reify refactor + the ros
 
 ## New features scoped (2026-06-08)
 
-- [ ] **Weapon/Item String Expansion + Armory tab** — every player item (primary cannon / secondary /
+- [x] **Weapon/Item String Expansion + Armory tab** — DONE (lead autonomous, `518443a`). `armory_strings.gd`
+  (codex blurbs for ~21 items, mirror approach) + an Armory folded into the codex (4 slot categories,
+  rotating preview + blurb). Modes/super/beam show name+blurb only — placeholder-icon gap flagged for
+  Roman. Headless-verified. _(orig scope below.)_
+- [~] **Weapon/Item String Expansion + Armory tab** — every player item (primary cannon / secondary /
   super / Shift mode / passive module) needs a centralized **display name + codex blurb**, plus a new
   **Armory codex tab** (mirror the enemy codex: slow-rotating sprite + dropshadow + glowmap, name,
   blurb — pulled from the game). Today all part names/descriptions are hardcoded inline in each part's
