@@ -52,6 +52,7 @@ const MISSILE_CRUISER_SPAWN_DELAY: float = 4.0         # KNOB: seconds into the 
 # clear payout (5 bounty per) can apply. Reset on new_game(); only spent
 # when Run.has_meta("asteroid_miners_event").
 var _asteroids_killed_this_level: int = 0
+var _level_time: float = 0.0   # active-combat seconds this level (run-timer accumulator)
 # Suppress the wave banner during the intro so it doesn't double up with the
 # scripted "WAVE 1" alert we fire at the end of the slide-in.
 var _suppress_wave_banner: bool = false
@@ -89,6 +90,11 @@ func _ready() -> void:
 		wave_director.level_cleared.connect(_on_level_cleared)
 	if not wave_director.wave_started.is_connected(_on_wave_started):
 		wave_director.wave_started.connect(_on_wave_started)
+	# Run-summary Phase 1: tally damage taken (shield vs hull) off the existing
+	# Player.damaged signal (0 = shield-absorbed, 1 = hull-loss).
+	if player and is_instance_valid(player) and player.has_signal("damaged"):
+		if not player.damaged.is_connected(_on_player_damaged_stat):
+			player.damaged.connect(_on_player_damaged_stat)
 	get_tree().node_added.connect(_on_node_added_to_tree)
 	# Wire the HUD to the player so it can react to damage/death.
 	if $CanvasLayer/UI.has_method("bind_player") and player and is_instance_valid(player):
@@ -342,6 +348,22 @@ func _on_enemy_died(value: int, scene_path: String) -> void:
 	if scene_path == "res://scenes/enemies/enemy_asteroid.tscn":
 		_asteroids_killed_this_level += 1
 
+func _process(delta: float) -> void:
+	# Run timer (Phase 1): accumulate ACTIVE combat seconds only. main is
+	# PROCESS_MODE_PAUSABLE so paused time auto-excludes; `playing` is false during
+	# intro/outro/transitions, so those are excluded too. Committed to Run on
+	# level-clear / death.
+	if playing:
+		_level_time += delta
+
+
+# Tally a damage event for the run summary: 0 = shield absorbed, 1+ = hull loss.
+func _on_player_damaged_stat(amount: int) -> void:
+	if not has_node("/root/Run"):
+		return
+	get_node("/root/Run").stat_add("damage_shield" if amount == 0 else "damage_hull", 1)
+
+
 func _on_level_cleared() -> void:
 	if has_node("/root/Run"):
 		var run = get_node("/root/Run")
@@ -380,6 +402,11 @@ func _on_level_cleared() -> void:
 			run.bounty += 25
 			$CanvasLayer/UI.update_score(bounty)
 			run.set_meta("post_combat_banner", "Hazard field cleared. (+25)")
+		# Run-summary Phase 1: roll this level's active-combat time + asteroid count
+		# into the run-wide accumulators before the per-level counters reset.
+		run.run_time_seconds += _level_time
+		run.stat_add("asteroids", _asteroids_killed_this_level)
+		_level_time = 0.0
 		# Consume per-run flags so they don't leak into the next level.
 		run.asteroid_bonus_bounty = 0
 		run.combat_intro = ""
@@ -394,6 +421,10 @@ func _on_level_cleared() -> void:
 
 func _on_player_died() -> void:
 	playing = false
+	# Run-summary: flush the partial level's active time into the run total.
+	if has_node("/root/Run"):
+		get_node("/root/Run").run_time_seconds += _level_time
+	_level_time = 0.0
 	$BGM.playing = false
 	if has_node("/root/Music"):
 		get_node("/root/Music").stop(0.8)
@@ -623,6 +654,7 @@ func _run_intro(is_boss: bool) -> void:
 	if player and is_instance_valid(player):
 		player.controls_enabled = true
 	playing = true
+	_level_time = 0.0  # start this level's run-timer accumulator
 	# WaveDirector emits wave_started immediately, so the banner shows then.
 	# Dev "Combat Slice": route a hand-authored CombatScore (formations + filler +
 	# breathers) through the conductor instead of the generated level. Single-shot.

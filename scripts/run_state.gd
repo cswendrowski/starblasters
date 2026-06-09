@@ -107,6 +107,10 @@ var combats_in_sector: int = 0
 var enemies_killed: int = 0
 var max_bounty_earned: int = 0
 var run_distance: float = 0.0
+# Run-summary stats (Phase 1 — docs/run_summary_scope_2026-06-01.md). Cheap Tier-1
+# tallies + an active-combat run timer. run_stats keys grow in Phase 2.
+var run_time_seconds: float = 0.0
+var run_stats: Dictionary = {}
 
 # Random seed for reproducible runs (sector map + shop rolls).
 var run_seed: int = 0
@@ -234,6 +238,12 @@ func record_run_history(outcome: String) -> void:
 		"bounty": int(max_bounty_earned),
 		"distance": int(run_distance),
 		"seed": int(run_seed),
+		# Run-summary Phase 1 stats (so the history detail can surface them).
+		"time": int(run_time_seconds),
+		"bounty_gained": int(run_stats.get("bounty_gained", 0)),
+		"damage_shield": int(run_stats.get("damage_shield", 0)),
+		"damage_hull": int(run_stats.get("damage_hull", 0)),
+		"asteroids": int(run_stats.get("asteroids", 0)),
 	}
 	var hist: Array = load_run_history()
 	hist.append(record)
@@ -294,6 +304,8 @@ func new_run() -> void:
 	enemies_killed = 0
 	max_bounty_earned = 0
 	run_distance = 0.0
+	run_time_seconds = 0.0
+	run_stats = {"damage_shield": 0, "damage_hull": 0, "bounty_gained": 0, "asteroids": 0}
 	sectors_cleared = 0
 	bosses_defeated = 0
 	combats_in_sector = 0
@@ -364,6 +376,12 @@ func record_kill(value: int) -> void:
 	bounty += value
 	if bounty > max_bounty_earned:
 		max_bounty_earned = bounty
+	stat_add("bounty_gained", value)
+
+
+# Run-summary stat accumulator (Phase 1). Additive into run_stats; missing keys seed 0.
+func stat_add(key: String, n: int) -> void:
+	run_stats[key] = int(run_stats.get(key, 0)) + n
 
 func mark_node_visited(node_id: String) -> void:
 	if not visited_nodes.has(node_id):
@@ -976,6 +994,7 @@ const _SAVE_FIELDS := [
 	"sector_map_cache",
 	"cannon_pool", "active_cannon_idx",
 	"repair_charges", "ammo_restock_charges", "outpost_needs_refresh",
+	"run_time_seconds", "run_stats",
 ]
 
 

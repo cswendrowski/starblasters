@@ -88,12 +88,22 @@ func _render() -> void:
 	var text := ""
 	if has_node("/root/Run"):
 		var run = get_node("/root/Run")
-		text = "Enemies destroyed: %d\nSectors cleared: %d\nMax bounty: %d\nDistance: %d" % [
-			run.enemies_killed, run.sectors_cleared, run.max_bounty_earned, int(run.run_distance)
+		var st: Dictionary = run.run_stats if "run_stats" in run else {}
+		text = "Time: %s\nEnemies destroyed: %d\nBosses defeated: %d\nSectors cleared: %d\nBounty earned: %d\nDamage taken: %d shield · %d hull\nAsteroids destroyed: %d\nDistance: %d" % [
+			_fmt_time(run.run_time_seconds if "run_time_seconds" in run else 0.0),
+			run.enemies_killed, run.bosses_defeated, run.sectors_cleared,
+			int(st.get("bounty_gained", run.max_bounty_earned)),
+			int(st.get("damage_shield", 0)), int(st.get("damage_hull", 0)),
+			int(st.get("asteroids", 0)), int(run.run_distance)
 		]
 	else:
 		text = "No run data."
 	stats_label.text = text
+
+
+func _fmt_time(secs: float) -> String:
+	var s: int = int(secs)
+	return "%d:%02d" % [s / 60, s % 60]
 
 func _new_game() -> void:
 	if has_node("/root/Run"):
