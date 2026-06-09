@@ -452,6 +452,29 @@ enums absorb the bay slots). Net-new = the bay UI + the reify refactor + the ros
 - [ ] **E. Build-archetype sanity check** (§15) — Fortress / Aggro-clear / Glass-Cannon / Economist
   should each be a real, distinct build once the bay + roster land (the proof the 4 slots "sing").
 
+## New features scoped (2026-06-08)
+
+- [ ] **Weapon/Item String Expansion + Armory tab** — every player item (primary cannon / secondary /
+  super / Shift mode / passive module) needs a centralized **display name + codex blurb**, plus a new
+  **Armory codex tab** (mirror the enemy codex: slow-rotating sprite + dropshadow + glowmap, name,
+  blurb — pulled from the game). Today all part names/descriptions are hardcoded inline in each part's
+  `_init`, none from a strings file. New `scripts/armory_strings.gd` (mirror `codex_strings.gd`
+  convention) + categories/render branches in `enemy_codex.gd` + reuse `_add_preview`. ⚠️ modes /
+  super / particle-beam have **no projectile sprite** → need placeholder icons. Scope + build surface
+  + open decisions (strings authoritative vs mirror; icon art; tab granularity):
+  **`docs/armory_string_expansion_2026-06-08.md`**.
+
+- [ ] **New Secondary — Swarm Launcher** — HARDPOINT_WING salvo of seeking missiles: **4 dmg** each,
+  **4 missiles at Mk.1 (+2/Mk)**, prefer **distinct targets** (else all chase one; **re-acquire on
+  target death**; fly on + explode **harmlessly** if none), **6 px/f** with a **tight turn arc**,
+  bright **yellow-orange flickering pixel + diffuse glow + trail**, **6 ammo / 1 per salvo / 3s
+  cooldown**. The two net-new bits = **distinct-target assignment** (round-robin; no helper exists)
+  + **re-target-on-death** on a Swarm-specific missile subclass (current player missiles clump on
+  nearest + fly straight on death). Everything else builds on `base_missile` + the secondary pipeline
+  (DEPLOY-style own-spawn, or a new `SALVO` mode for the 3s cooldown). ⚠️ set `speed_lock_mult = 1.0`
+  (else 6 px/f → 12 px/f post-lock, over the 480 ceiling). Full spec + build plan:
+  **`docs/swarm_launcher_secondary_2026-06-08.md`**.
+
 ## Faction gap units — sprites/enemies to commission (M6b, 2026-06-06)
 
 End-state (Roman): each faction owns its FULL unit set; drop the universal-core stopgap.
