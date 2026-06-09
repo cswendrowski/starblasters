@@ -1,19 +1,20 @@
-extends EnemyBase
+extends "res://scripts/enemy_core.gd"
 class_name EnemyDroneCarrier
+
+# Drone carrier — holds high, releases hunter drones, then retreats UP once its drone budget is
+# spent. On-lane migration 2026-06-08: enter→settle→drift is now the shared Drift pattern (matrix
+# assigns drift_high). The spent→leave-upward exit stays bespoke (a state-triggered exit the
+# pattern vocabulary doesn't cover) — when _leaving, _process climbs out instead of drifting.
+# Drone release is unchanged (drones are independent, parented to the scene root).
 
 const DRONE_SCENE = preload("res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn")
 const BeelinePlayer = preload("res://scripts/enemies/patterns/beeline_player.gd")
+const Drift = preload("res://scripts/enemies/patterns/drift.gd")
 
 const MAX_DRONES_TOTAL := 10
 const ACTIVE_TARGET    := 3
-const SETTLE_Y         := 55.0
-const ENTER_SPEED      := 70.0
-const DRIFT_RANGE      := 50.0
-const DRIFT_FREQ       := 0.15
+const LEAVE_SPEED      := 105.0   # upward retreat once spent (was ENTER_SPEED * 1.5)
 
-var _settled: bool = false
-var _drift_t: float = 0.0
-var _drift_origin: float = 0.0
 var _total_released: int = 0
 var _active_drones: int = 0
 var _leaving: bool = false
@@ -24,6 +25,10 @@ func _ready() -> void:
 	bounty_value  = 40
 	auto_rotate   = false
 	display_scale = 1.5
+	if movement == null:
+		var d := Drift.new()
+		d.hover_y = 55.0
+		movement = d
 	super._ready()
 	call_deferred("_release_initial_drones")
 
@@ -39,9 +44,6 @@ func _release_drone() -> void:
 	var d = DRONE_SCENE.instantiate()
 	get_tree().root.add_child(d)
 	d.global_position = global_position + Vector2(randf_range(-20, 20), 0)
-	# Hunter drone extends enemy_core — assign a beeline movement pattern and
-	# call start() so it actually chases the player. Without this the drone
-	# instantiates with no pattern and sits still (Roman/advisor 2026-05-22).
 	d.movement = BeelinePlayer.new()
 	d.start(d.global_position)
 	d.connect("died", _on_drone_died)
@@ -58,25 +60,16 @@ func _on_drone_died(_value: int) -> void:
 
 
 func _process(delta: float) -> void:
-	if _dying:
-		return
-	_drift_t += delta
-	if not _settled:
-		global_position.y += ENTER_SPEED * delta
-		if global_position.y >= SETTLE_Y:
-			global_position.y = SETTLE_Y
-			_settled = true
-			_drift_origin = global_position.x
-	elif _leaving:
-		global_position.y -= ENTER_SPEED * 1.5 * delta
-		if global_position.y < -80:
+	# Spent → climb out the top (bespoke exit; the Drift pattern only holds). Otherwise the
+	# pattern drives enter→settle→hold via enemy_core.
+	if _leaving and not _dying:
+		global_position.y -= LEAVE_SPEED * delta
+		if global_position.y < -80.0:
 			queue_free()
-	else:
-		global_position.x = _drift_origin + sin(_drift_t * DRIFT_FREQ * TAU) * DRIFT_RANGE
+		return
 	super._process(delta)
 
 
 func explode() -> void:
-	# Drones already released into the scene root are independent — do NOT
-	# kill them when the carrier dies. The player still has to deal with them.
+	# Released drones are independent — do NOT kill them when the carrier dies.
 	super.explode()
