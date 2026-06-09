@@ -11,7 +11,7 @@ const SCREENS := [
 	{"name": "dev_04_parallax_tuner",    "scene": "res://scenes/dev/parallax_tuner.tscn",     "settle": 0.8},
 	{"name": "dev_05_resolution_preview","scene": "res://scenes/dev/resolution_preview.tscn", "settle": 0.8},
 	{"name": "dev_06_shield_pips_demo",  "scene": "res://scenes/dev/shield_pips_demo.tscn",   "settle": 0.6},
-	{"name": "dev_07_shipyard",          "scene": "res://scenes/dev/shipyard.tscn",           "settle": 0.8},
+	{"name": "dev_07_enemy_bench",       "scene": "res://scenes/dev/enemy_bench.tscn",        "settle": 0.8},
 	{"name": "dev_08_debug_testbed",     "scene": "res://scenes/debug_testbed.tscn",          "settle": 0.8},
 	{"name": "dev_09_hangar",            "scene": "res://scenes/hangar.tscn",                 "settle": 0.8},
 	{"name": "dev_10_enemy_codex",       "scene": "res://scenes/enemy_codex.tscn",            "settle": 0.8},

@@ -11,7 +11,7 @@ $scenes = @(
   'res://scenes/main.tscn',
   'res://scenes/main_menu.tscn',
   'res://scenes/dev_menu.tscn',
-  'res://scenes/dev/shipyard.tscn',
+  'res://scenes/dev/enemy_bench.tscn',
   'res://scenes/dev/movement_lab.tscn',
   'res://scenes/dev/lane_visualizer.tscn',
   'res://scenes/dev/pattern_eligibility_editor.tscn',

@@ -83,7 +83,7 @@ func _build_ui() -> void:
 	_add_button("[ Pattern Eligibility ]", _on_pattern_eligibility, true)
 	_add_button("[ Shoot Patterns ]", _on_shoot_pattern_editor, true)
 	_add_button("[ Weapons ]", _on_weapon_editor, true)
-	_add_button("[ Shipyard ]", _on_shipyard, true)
+	_add_button("[ Enemy Bench ]", _on_enemy_bench, true)
 	# Tuners / labs
 	_add_button("[ Movement Lab ]", _on_movement_lab, true)
 	_add_button("[ Lane Visualizer ]", _on_lane_visualizer, true)
@@ -121,8 +121,8 @@ func _add_button(text: String, cb: Callable, dev_green: bool) -> void:
 
 # ---- Button handlers ----
 
-func _on_shipyard() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev/shipyard.tscn")
+func _on_enemy_bench() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/enemy_bench.tscn")
 
 
 func _on_movement_lab() -> void:
