@@ -17,8 +17,11 @@ extends "res://scripts/enemies/shoot_patterns/shoot_pattern.gd"
 const Playfield = preload("res://scripts/playfield.gd")
 const BeamEmitterC = preload("res://scripts/enemies/beam_emitter.gd")
 
-enum FirePattern { SINGLE, AIMED, SPREAD, BURST, BEAM, LOB }
-enum Aim { STRAIGHT_DOWN, TOWARD_CENTER, AT_PLAYER }
+enum FirePattern { SINGLE, AIMED, SPREAD, BURST, BEAM, LOB, BROADSIDE }
+# FORWARD (Roman 2026-06-08): fire along the enemy's NOSE (its facing / global_rotation),
+# extracted from the strafer/crystal nose-ray firing. Pair with enemy_core.fire_only_on_target
+# (the _nose_on_player gate) so the forward shot only releases when lined up on the player.
+enum Aim { STRAIGHT_DOWN, TOWARD_CENTER, AT_PLAYER, FORWARD }
 
 @export var fire_pattern: FirePattern = FirePattern.SINGLE
 @export var payload: BulletVariant = null
@@ -33,6 +36,14 @@ enum Aim { STRAIGHT_DOWN, TOWARD_CENTER, AT_PLAYER }
 @export_group("Burst")
 @export var burst_count: int = 3
 @export var burst_interval: float = 0.12
+
+# BROADSIDE (Roman 2026-06-08, salvaged from the retired frigate): each fire() emits ONE
+# gun out the player-facing flank (the hull's local ±X normal with the larger dot toward the
+# player), cycling GunLeft1..N / GunRight1..N markers so successive timer ticks ripple down
+# the hull. The per-instance cycle counter lives on the enemy (set_meta), since a Weapon
+# Resource is shared. Set the enemy's fire_interval to the per-gun beat (frigate used ~0.34s).
+@export_group("Broadside")
+@export var broadside_guns: int = 5
 
 # Movement axis (homing/wobble) is inherited from shoot_pattern and applied inside
 # _spawn_bullet — the weapon-driven homing/wobble that restores boss/enemy
@@ -85,6 +96,8 @@ func fire(enemy) -> void:
 			_fire_spread(enemy)
 		FirePattern.BURST:
 			_fire_burst(enemy)
+		FirePattern.BROADSIDE:
+			_fire_broadside(enemy)
 		FirePattern.BEAM:
 			pass  # continuous — driven by tick() (beam fold, later sub-step)
 		FirePattern.LOB:
@@ -98,6 +111,9 @@ func _aim_dir(enemy) -> Vector2:
 	match aim:
 		Aim.AT_PLAYER:
 			return _aim_at_player(enemy, lead_factor)
+		Aim.FORWARD:
+			# Along the enemy's nose. Mirrors enemy_base.nose_dir() (Vector2.UP rotated by facing).
+			return Vector2.UP.rotated(enemy.global_rotation)
 		Aim.TOWARD_CENTER:
 			var sign_x: float = -1.0 if enemy.global_position.x > Playfield.CENTER.x else 1.0
 			return Vector2(0, 1).rotated(deg_to_rad(aim_angle_deg) * sign_x)
@@ -121,6 +137,27 @@ func _fire_spread(enemy) -> void:
 	var start: float = -total * 0.5
 	for i in n:
 		_fire_bullet(enemy, base_dir.rotated(start + step * float(i)))
+
+
+# Rolling broadside: fire ONE gun out the player-facing flank, cycling markers so each
+# call ripples to the next gun. Flank = the hull-local ±X normal with the larger dot toward
+# the player; shots go straight out that normal (a naval broadside, NOT aimed at the player).
+func _fire_broadside(enemy) -> void:
+	var to_player: Vector2 = _aim_at_player(enemy)   # normalized dir (or straight-down fallback)
+	var left_n: Vector2 = Vector2(-1.0, 0.0).rotated(enemy.global_rotation)
+	var right_n: Vector2 = Vector2(1.0, 0.0).rotated(enemy.global_rotation)
+	var use_right: bool = right_n.dot(to_player) >= left_n.dot(to_player)
+	var fire_dir: Vector2 = right_n if use_right else left_n
+	var prefix: String = "GunRight" if use_right else "GunLeft"
+	var n: int = maxi(1, broadside_guns)
+	var gun: int = int(enemy.get_meta("_broadside_gun", 0)) % n
+	# Spawn from the per-gun marker when the hull has one; else the hull centre.
+	var spawn_pos = null
+	var m = enemy.get_node_or_null(prefix + str(gun + 1))
+	if m != null:
+		spawn_pos = m.global_position
+	_spawn_bullet(enemy, fire_dir, payload, spawn_pos)
+	enemy.set_meta("_broadside_gun", (gun + 1) % n)
 
 
 func _fire_burst(enemy) -> void:

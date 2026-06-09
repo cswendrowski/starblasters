@@ -11,6 +11,11 @@ const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
 @export var rotation_speed: float = 2.0          # rad/s
 @export var arc_deg: float = 0.0                  # 0 = unlimited; ±arc_deg/2 around rest_angle_deg
 @export var rest_angle_deg: float = 0.0           # arc centre in local parent space (deg)
+# Arc GATING (Roman 2026-06-08, extracted from the bomber tail gunner): when true and
+# arc_deg > 0, the turret HOLDS FIRE while the player is outside the arc (a rear/flank
+# gunner with a true blind spot), instead of the default behavior which clamps the aim to
+# the arc edge and keeps shooting. The barrel still rotates/clamps toward the player.
+@export var arc_gate: bool = false
 @export var lock_to_fire: bool = false            # freeze rotation for lock_duration after each shot
 @export var lock_duration: float = 0.4            # seconds rotation is locked after firing
 @export var fire_interval_min: float = 2.0
@@ -98,6 +103,14 @@ func _try_fire() -> void:
 		return
 	var dir: Vector2 = (_aim_point(player) - global_position).normalized()
 	var target_rot: float = atan2(dir.y, dir.x) + PI * 0.5
+	# Arc gate: a blind-spot gunner holds fire when the player is outside its cone (the
+	# RAW aim, before the _process arc-clamp). The barrel may sit at the arc edge; no shot.
+	if arc_gate and arc_deg > 0.0:
+		var p := get_parent()
+		if p != null:
+			var center: float = p.global_rotation + deg_to_rad(rest_angle_deg)
+			if abs(angle_difference(center, target_rot)) > deg_to_rad(arc_deg * 0.5):
+				return
 	if abs(angle_difference(_turret_rot, target_rot)) > deg_to_rad(aim_tolerance_deg):
 		# Not aimed yet — do NOT reset _fire_t; check again next frame.
 		return
