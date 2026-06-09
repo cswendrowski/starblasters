@@ -43,6 +43,7 @@ const LaneCharge = preload("res://scripts/enemies/patterns/lane_charge.gd")
 const Pendulum = preload("res://scripts/enemies/patterns/pendulum.gd")
 const StrafeRun = preload("res://scripts/enemies/patterns/strafe_run.gd")
 const ProximityChase = preload("res://scripts/enemies/patterns/proximity_chase.gd")
+const BeamSweep = preload("res://scripts/enemies/patterns/beam_sweep.gd")
 const Weapon = preload("res://scripts/enemies/shoot_patterns/weapon.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
 
@@ -1309,6 +1310,9 @@ static func make_movement(entry: Dictionary) -> Resource:
 		"proximity_chase":
 			# Drift straight until near the player, then activate a chase (smart mine/bomblet).
 			return ProximityChase.new()
+		"beam_sweep":
+			# Descend to a band, then rake L↔R (beam shooter SWEEP locomotion).
+			return BeamSweep.new()
 	# Default: a readable medium straight.
 	return _straight(180.0)
 
@@ -1397,6 +1401,16 @@ static func make_shoot(entry: Dictionary) -> Resource:
 			w.wobble_amplitude = entry.get("wobble_amplitude", 0.0)
 			w.wobble_frequency = entry.get("wobble_frequency", 0.0)
 			return w
+		"broadside":
+			# Rolling naval broadside out the player-facing flank (salvaged from the frigate).
+			# Host needs GunLeft1..N / GunRight1..N markers; set fire_interval to the per-gun
+			# beat (~0.34s) so successive ticks ripple down the hull. Early-return (uses payload).
+			var wb = Weapon.new()
+			wb.fire_pattern = Weapon.FirePattern.BROADSIDE
+			wb.bullet_scene = EnemyBullet
+			wb.payload = entry.get("bullet_variant", null)
+			wb.broadside_guns = int(entry.get("broadside_guns", 5))
+			return wb
 	if pattern != null:
 		pattern.bullet_variant = entry.get("bullet_variant", null)
 		# Projectile-movement axis (M6a.2): the firing layer drives homing/wobble, not

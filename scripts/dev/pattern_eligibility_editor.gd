@@ -29,7 +29,7 @@ const MOVEMENT_KEYS := [
 	"lane_weave", "lane_drift", "lane_shift", "lane_hook", "lane_cut",
 	"side_turn", "side_dive", "side_traverse",
 	"hunt_beeline", "hunt_omni",
-	"pendulum", "strafe_run", "proximity_chase",
+	"pendulum", "strafe_run", "proximity_chase", "beam_sweep",
 ]
 
 # Legacy/retired movement keys → their current replacement. Applied when loading the

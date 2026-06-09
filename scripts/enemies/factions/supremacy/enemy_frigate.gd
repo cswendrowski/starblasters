@@ -1,6 +1,11 @@
 extends EnemyBase
 class_name EnemyFrigate
 
+# RETIRED (2026-06-08): not in the roster or faction tags — replaced by Push. Its signature
+# rolling broadside was salvaged into the reusable weapon system: Weapon.FirePattern.BROADSIDE
+# + the make_shoot "broadside" kind (see scripts/enemies/shoot_patterns/weapon.gd:_fire_broadside
+# and enemy_roster.make_shoot). This bespoke script is kept only for reference; nothing spawns it.
+#
 # Frigate — tough broadside gunner. Roman 2026-06-01 rework.
 #
 # A slow, heavily-armoured warship that presents a BROADSIDE: it fires a
