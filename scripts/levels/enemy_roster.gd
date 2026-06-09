@@ -32,16 +32,14 @@ const RARITY_BOUNTY_MULT := {
 const StraightDown = preload("res://scripts/enemies/patterns/straight_down.gd")
 const Loiter = preload("res://scripts/enemies/patterns/loiter.gd")
 const PatternEligibility = preload("res://scripts/levels/pattern_eligibility.gd")
-const SlowAdvance = preload("res://scripts/enemies/patterns/slow_advance.gd")
-const SideCut = preload("res://scripts/enemies/patterns/side_cut.gd")
 const SideTraverse = preload("res://scripts/enemies/patterns/side_traverse.gd")
-const SidePingpong = preload("res://scripts/enemies/patterns/side_pingpong.gd")
+const SideTurn = preload("res://scripts/enemies/patterns/side_turn.gd")
 const TopDive = preload("res://scripts/enemies/patterns/top_dive.gd")
 const BeelinePlayer = preload("res://scripts/enemies/patterns/beeline_player.gd")
-const BulwarkDrift = preload("res://scripts/enemies/patterns/bulwark_drift.gd")
+const Drift = preload("res://scripts/enemies/patterns/drift.gd")
+const Skirmish = preload("res://scripts/enemies/patterns/skirmish.gd")
 const LanePath = preload("res://scripts/enemies/patterns/lane_path.gd")
 const OmniThrust = preload("res://scripts/enemies/patterns/omni_thrust.gd")
-const JetCharger = preload("res://scripts/enemies/patterns/jet_charger.gd")
 const LaneCharge = preload("res://scripts/enemies/patterns/lane_charge.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
 
@@ -1166,36 +1164,32 @@ static func make_movement(entry: Dictionary) -> Resource:
 	# preserving until eligibility is expanded + an entry opts in (pattern_eligibility.gd).
 	var key: String = PatternEligibility.resolve(entry)
 	match key:
-		"straight":
-			# Generic chaff descent (Burner). Firecore + Drifter have their
-			# own keys after the 2026-05-24 speed pass.
-			var m = StraightDown.new()
-			m.speed = 220.0
-			return m
-		"firecore_straight":
-			# Firecore — slowed from 220 to 180 so it sits between Drifter
-			# (110) and the dive tier (Dart 360). Mid-band fodder.
-			var m = StraightDown.new()
-			m.speed = 180.0
-			return m
-		"fast_straight":
-			# Dart/chaff — 300 (5 px/f). Was 360 (6 px/f = the reflex rung); pulled down
-			# a rung so common chaff stays readable (Roman 2026-06-07: ">6 px/f is a
-			# reflex test, keep rare + mid/late). Sector scaling can still creep it up.
-			var m = StraightDown.new()
-			m.speed = 300.0
-			return m
-		"jet_charger":
-			# Cruise-in / turn-to-aim / charge jet (legacy charger). Speeds on the rung
-			# scale (cruise ~1.5 px/f, charge 3 px/f).
-			var m = JetCharger.new()
-			m.cruise_speed = 90.0
-			m.charge_speed = 180.0
-			return m
-		"lane_charge":
-			# Lane charger (Roman 2026-06-08) — slow telegraphed entry, then accelerate
-			# hard once in the firing zone and rush the exit. Defaults live on the pattern.
+		# --- STRAIGHT family (named by speed; rungs of 60 px/s = 1 px/f), Roman 2026-06-08 ---
+		"straight_crawl":
+			return _straight(60.0)    # 1 px/f (was slow_advance)
+		"straight_slow":
+			return _straight(120.0)   # 2 px/f
+		"straight_medium":
+			return _straight(180.0)   # 3 px/f (was firecore_straight / generic straight)
+		"straight_fast":
+			return _straight(300.0)   # 5 px/f (was fast_straight)
+		"straight_reflex":
+			return _straight(360.0)   # 6 px/f (reflex rung)
+		"straight_charge":
+			# Slow telegraphed entry, then accelerate hard in the fire zone (was lane_charge).
 			return LaneCharge.new()
+		# --- SKIRMISH loops (replaces the broken advance_retreat) ---
+		"skirmish_loop":
+			return _skirmish(Skirmish.Shape.LOOP)
+		"skirmish_figure8":
+			return _skirmish(Skirmish.Shape.FIGURE8)
+		# --- DRIFT (tank hold + jiggle; heights match loiter), was bulwark_drift ---
+		"drift_low":
+			return _drift(130.0)
+		"drift_mid":
+			return _drift(90.0)
+		"drift_high":
+			return _drift(50.0)
 		"lane_weave":
 			# Weaver (m6 §13, lane_path engine) — wobble WITHIN its own lane while
 			# descending. Lane-confined: ~10px swing < half lane width (12), never
@@ -1231,18 +1225,24 @@ static func make_movement(entry: Dictionary) -> Resource:
 			m.shift_duration = 0.7
 			m.mirrored = randf() < 0.5
 			return m
-		"dive_return":
-			# Dropper dive (Roman 2026-06-08, replaces the old straight-line HOOK feel):
-			# dive down a lane, curve into the adjacent lane at the fire-zone midpoint, then
-			# climb back up and off the top. For missile/rocket droppers — drop the volley
-			# on the way down, then turn and burn off-screen.
+		"lane_hook":
+			# Down a lane, curve into the adjacent lane at the fire-zone midpoint, then climb
+			# back up and off the TOP. For droppers — drop the volley, then turn and burn.
 			var m = LanePath.new()
 			m.shape = LanePath.Shape.DIVE_RETURN
 			m.down_speed = 140.0
 			m.shift_lanes = 1
 			m.mirrored = randf() < 0.5
 			return m
-		"loiter", "loiter_low", "loiter_mid", "loiter_high":
+		"lane_cut":
+			# Down a lane, curve LEFT/RIGHT at the fire-zone midpoint, then run horizontally
+			# off the side (Roman 2026-06-08).
+			var m = LanePath.new()
+			m.shape = LanePath.Shape.LANE_CUT
+			m.down_speed = 160.0
+			m.mirrored = randf() < 0.5
+			return m
+		"loiter_low", "loiter_mid", "loiter_high":
 			# Holder (m6 §13). Hover into the fire band, hold with a gentle
 			# bob/sway, then accelerate away. Exit accel/max trimmed (was
 			# 600/700) so a player drifting upward isn't rammed by an exit.
@@ -1258,54 +1258,56 @@ static func make_movement(entry: Dictionary) -> Resource:
 			m.exit_accel = 400.0
 			m.exit_max_speed = 480.0
 			return m
-		"slow_advance", "advance_retreat":
-			# Anchor (m6 §13) — a slow, steady straight descent. Roman 2026-06-08:
-			# collapsed advance_retreat into slow_advance (they read the same; the slow
-			# straight descent looks better), so both keys now produce this one motion.
-			# hold_y must sit PAST the offscreen cull (viewport 270 + margin) or the
-			# hull station-keeps in the dead zone — off-screen but un-culled — and never
-			# exits. 320 is below the cull threshold-crossing point so it descends fully off.
-			var m = SlowAdvance.new()
-			m.enter_speed = 60.0
-			m.hold_y = 320.0
-			return m
-		"side_cut":
-			# Cutter — identity is "snaps across screen". 130→160 enter,
-			# 210→250 cut.
-			var m = SideCut.new()
-			m.enter_speed = 160.0
-			m.cut_speed = 250.0
-			m.direction = 1 if randf() < 0.5 else -1
+		"side_turn":
+			# Advance horizontally in, rounded-turn down into the lane, descend to exit.
+			return SideTurn.new()
+		"side_dive":
+			# Like side_turn but a swift descent (Roman 2026-06-08).
+			var m = SideTurn.new()
+			m.down_speed = 300.0
+			m.advance_time = 0.45
 			return m
 		"side_traverse":
-			# Minelayer — 55→75 so TOS is ~6s instead of ~9s.
+			# Slow horizontal cross (Minelayer).
 			var m = SideTraverse.new()
 			m.speed = 75.0
 			m.direction = 1 if randf() < 0.5 else -1
 			return m
 		"top_dive":
-			# Interceptor (Roman 2026-06-08) — horizontal entry across the top, then turn
-			# and dive into a lane. dive_speed differentiates by trajectory, not raw speed.
+			# Horizontal entry across the top, then turn and dive into a lane.
 			var m = TopDive.new()
 			m.dive_speed = 220.0
 			return m
-		"beeline":
-			# Hunter Drone — should threaten, not connect. 230→190 hunt,
-			# 360→280 accel.
+		"hunt_beeline":
+			# Player-tracking pursuit — threatens, shouldn't connect (was beeline).
 			var m = BeelinePlayer.new()
 			m.max_speed = 190.0
 			m.accel = 280.0
 			return m
-		"bulwark_drift":
-			# Bulwark drift is out of scope here — separate Bulwark turret
-			# task will retune it.
-			return BulwarkDrift.new()
-		"omni":
-			# Omni-thrust vector roamer (Gunship, Sapper). Holds a stand-off range
-			# from the player and strafes to dodge while facing them. Defaults are
-			# the tuned harassment values; the bespoke firing rides on top.
+		"hunt_omni":
+			# Omni-thrust vector roamer — holds stand-off range + strafes (was omni).
 			return OmniThrust.new()
-	return StraightDown.new()
+	# Default: a readable medium straight.
+	return _straight(180.0)
+
+
+# --- make_movement helpers (Roman 2026-06-08 pattern overhaul) ---
+static func _straight(speed: float) -> Resource:
+	var m = StraightDown.new()
+	m.speed = speed
+	return m
+
+
+static func _skirmish(shape: int) -> Resource:
+	var m = Skirmish.new()
+	m.shape = shape
+	return m
+
+
+static func _drift(hover_y: float) -> Resource:
+	var m = Drift.new()
+	m.hover_y = hover_y
+	return m
 
 
 # Build the behavior components for an entry (m6 §3 component framework). Forward-

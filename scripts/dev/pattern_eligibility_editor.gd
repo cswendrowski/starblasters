@@ -20,13 +20,15 @@ const Factions = preload("res://scripts/levels/factions.gd")
 const SAVE_PATH := "user://tuners/pattern_eligibility.json"
 const EXPORT_PATH := "user://tuners/pattern_eligibility_export.txt"
 
-# The offerable movement keys (make_movement cases; culled s_curve/drifter_straight omitted).
+# The offerable movement keys (the 2026-06-08 make_movement pattern set).
 const MOVEMENT_KEYS := [
-	"straight", "firecore_straight", "fast_straight", "jet_charger", "lane_charge",
-	"lane_weave", "lane_drift", "lane_shift", "dive_return",
-	"loiter", "loiter_low", "loiter_mid", "loiter_high",
-	"slow_advance", "advance_retreat", "side_cut", "side_traverse",
-	"top_dive", "beeline", "bulwark_drift", "omni",
+	"straight_crawl", "straight_slow", "straight_medium", "straight_fast", "straight_reflex", "straight_charge",
+	"skirmish_loop", "skirmish_figure8",
+	"drift_low", "drift_mid", "drift_high",
+	"loiter_low", "loiter_mid", "loiter_high",
+	"lane_weave", "lane_drift", "lane_shift", "lane_hook", "lane_cut",
+	"side_turn", "side_dive", "side_traverse",
+	"top_dive", "hunt_beeline", "hunt_omni",
 ]
 
 const FACTION_FILTERS := ["All", "Sup", "Priv", "Corp", "Zealot"]

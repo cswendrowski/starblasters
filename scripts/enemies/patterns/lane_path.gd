@@ -33,9 +33,11 @@ const LaneTraffic = preload("res://scripts/lane_traffic.gd")
 #   DIVE_RETURN — dive down a lane; at the fire-zone midpoint, curve into the adjacent
 #               lane (shift_lanes) AND reverse the descent to climb back UP and off the
 #               top. For missile/rocket droppers: drop the volley on the way down, then
-#               turn and burn off-screen. Sets FREE_ANY_EDGE in on_start so the top exit
-#               frees the enemy (the default CYCLE_BOTTOM never watches the top edge).
-enum Shape { STRAIGHT, WEAVE, HOOK, STEP, DIVE_RETURN }
+#               turn and burn off-screen. The "lane_hook" production key. Sets FREE_ANY_EDGE
+#               in on_start so the top exit frees the enemy (CYCLE_BOTTOM never watches the top).
+#   LANE_CUT  — dive down a lane; at the fire-zone midpoint, curve LEFT/RIGHT and run
+#               HORIZONTALLY off the side. The "lane_cut" key. Also FREE_ANY_EDGE.
+enum Shape { STRAIGHT, WEAVE, HOOK, STEP, DIVE_RETURN, LANE_CUT }
 
 @export var shape: Shape = Shape.STRAIGHT
 @export var down_speed: float = 120.0       # px/s descent (rung 2). Clarity-clamped.
@@ -127,9 +129,10 @@ func on_start(enemy) -> void:
 	_return_started = false
 	_return_t = 0.0
 	_return_anchor_x = _anchor_x
-	# DIVE_RETURN climbs back up and off the TOP — switch to FREE_ANY_EDGE so the top exit
-	# frees the enemy (CYCLE_BOTTOM never watches the top edge). 1 = OffscreenMode.FREE_ANY_EDGE.
-	if shape == Shape.DIVE_RETURN:
+	# DIVE_RETURN climbs back up off the TOP, LANE_CUT runs off the SIDE — both need
+	# FREE_ANY_EDGE so the exit frees the enemy (CYCLE_BOTTOM only watches bottom/side).
+	# 1 = OffscreenMode.FREE_ANY_EDGE.
+	if shape == Shape.DIVE_RETURN or shape == Shape.LANE_CUT:
 		enemy.offscreen_mode = 1
 
 
@@ -186,6 +189,18 @@ func compute_step(enemy, delta: float) -> Vector2:
 			var reased: float = ru * ru * (3.0 - 2.0 * ru)  # smoothstep
 			var rtx: float = _return_anchor_x + sign_x * float(maxi(1, shift_lanes)) * Lanes.PITCH * reased
 			return Vector2(rtx - enemy.position.x, -down_speed * delta)  # curve + climb out the top
+		Shape.LANE_CUT:
+			# Dive down until the fire-zone midpoint, then a rounded turn LEFT/RIGHT and run
+			# HORIZONTALLY off the side (like DIVE_RETURN but exiting a side, not climbing up).
+			if not _return_started:
+				if Zones.band_progress(enemy.position.y) >= return_trigger_bp:
+					_return_started = true
+					_return_t = 0.0
+				return Vector2(0.0, down_speed * delta)   # dive down
+			_return_t += delta
+			var cu: float = clampf(_return_t / maxf(return_curve_time, 0.0001), 0.0, 1.0)
+			var cang: float = lerpf(0.0, PI * 0.5, cu * cu * (3.0 - 2.0 * cu))  # 0=down..PI/2=horizontal
+			return Vector2(sign_x * sin(cang) * down_speed * delta, cos(cang) * down_speed * delta)
 		Shape.STEP:
 			if step_synced:
 				# Coordinated row step: shared anchor-relative offset (lanes -> px).

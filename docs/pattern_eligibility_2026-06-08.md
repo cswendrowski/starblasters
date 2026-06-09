@@ -2,8 +2,14 @@
 
 **Date:** 2026-06-08
 **Status:** **Phases 1 + 2 BUILT (2026-06-08).** P1: `scripts/levels/pattern_eligibility.gd` (seeded
-from the roster) + `make_movement` resolves the movement key through it; behavior-preserving (no entry
-opts into `vary` yet). P2: standalone dev tool `scenes/dev/pattern_eligibility_editor.tscn` (Dev Menu
+from the roster) + `make_movement` resolves the movement key through it. **`resolve()` is now
+MATRIX-AUTHORITATIVE** (changed 2026-06-08 with the pattern-set overhaul): a non-`vary` entry gets the
+scene's matrix *identity* (not the roster entry's `movement`), so the eligibility tool actually controls
+each enemy's movement; unmapped scenes still fall back to the entry's own `movement`. This supersedes the
+original "behavior-preserving" lean — multi-entry scenes collapse to their single matrix identity, which
+is what lets Roman fix assignments entirely in the tool. The DATA matrix + `make_movement` keys were
+remapped to the 2026-06-08 pattern set (`straight_*` by speed, `skirmish_*`, `drift_*`, `hunt_*`,
+`side_turn/dive`, `lane_hook/cut`). P2: standalone dev tool `scenes/dev/pattern_eligibility_editor.tscn` (Dev Menu
 → Pattern Eligibility) — faction filter → enemy nav → identity cycle + eligible checklist + live sprite
 preview; Save → `user://tuners/pattern_eligibility.json`, Export → paste-ready DATA const (clipboard +
 file) for the committed `pattern_eligibility.gd`. (Built standalone, not as a lane-viz tab, to avoid a
