@@ -1344,12 +1344,6 @@ func _build_labels() -> void:
 		sector_name = SectorNameGen.generate(seed_value)
 		run.sector_map_cache["sector_name"] = sector_name
 
-	var ls := LabelSettings.new()
-	ls.font = FONT; ls.font_size = 9
-	ls.font_color    = Color(0.85, 0.92, 1.0, 0.95)
-	ls.outline_size  = 1
-	ls.outline_color = Color(0.0, 0.0, 0.0, 1.0)
-
 # Sector header label — centered at top at (256, 16)
 	var patrol_count: int = 0
 	var rows: Array = run.sector_map_cache.get("rows", [])
@@ -1363,15 +1357,10 @@ func _build_labels() -> void:
 	else:
 		_make_label(sector_header_text, Vector2(240.0, 8.0), Color(0.85, 0.92, 1.0, 1.0))
 
-	# Player status — bottom left at (64, 232)
-	var status_lbl := Label.new()
-	status_lbl.text = _ms_build_status_bits_text(run)
-	status_lbl.label_settings = ls
-	status_lbl.position = Vector2(4.0, 230.0)
-	status_lbl.size = Vector2(120.0, 14.0)
-	status_lbl.z_index = 10
-	status_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(status_lbl)
+	# (Player status line removed 2026-06-08 — the same Hull/Shield/Bounty/Super/ammo
+	# readout lives in the Manage Ship panel. The bottom-left slot is now free for the
+	# Visit Outpost + Manage Ship buttons. _ms_build_status_bits_text is kept — it's
+	# still used by manage_ship.gd.)
 
 	# Selected node label — bottom center at (256, 232)
 	var sel_ls := LabelSettings.new()

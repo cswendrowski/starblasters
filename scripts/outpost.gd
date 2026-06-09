@@ -988,10 +988,9 @@ func _on_super_refill(btn: Button) -> void:
 
 
 func _on_leave() -> void:
-	if has_node("/root/Run"):
-		var run := get_node("/root/Run")
-		if String(run.current_node_id) != "":
-			run.mark_node_completed(String(run.current_node_id))
+	# Outpost is a persistent hub (reached from the sector-map button), NOT a POI —
+	# leaving it must NOT mark any node completed (it would wrongly clear whatever
+	# node_id the last combat/POI left behind). Just return to the map.
 	# Drop the HD scope only once the fade-to-black FULLY covers the screen
 	# (via the on_covered callback), NOT before the fade. Freeing it early
 	# restored content_scale_size to 480×270 while the HD-laid-out outpost

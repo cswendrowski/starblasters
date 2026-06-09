@@ -14,6 +14,9 @@ position = Vector2(64, 232)
 [node name="manage_ship_button" type="Marker2D" parent="." unique_id=344181871]
 position = Vector2(64, 256)
 
+[node name="visit_outpost_button" type="Marker2D" parent="." unique_id=1771553902]
+position = Vector2(64, 240)
+
 [node name="options_button" type="Marker2D" parent="." unique_id=2014244365]
 position = Vector2(448, 256)
 

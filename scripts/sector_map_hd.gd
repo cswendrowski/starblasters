@@ -23,6 +23,7 @@ const HdScreenLib := preload("res://scripts/ui/hd_screen.gd")
 const SectorNode := preload("res://scripts/sector_node.gd")
 const SECTOR_MAP_SCENE := preload("res://scenes/sector_map_v3.tscn")
 const MANAGE_SHIP_SCENE := "res://scenes/manage_ship.tscn"
+const OUTPOST_SCENE := "res://scenes/outpost.tscn"
 const SELF_SCENE := "res://scenes/sector_map_hd.tscn"
 const NODE_STRIP := preload("res://graphics/ui/sector_nodes.png")
 # Higher-res glyphs (white-on-transparent) — crisper than the 32px strip tiles
@@ -118,6 +119,11 @@ func _build_overlay() -> void:
 	_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_overlay)
+
+	var visit := UiTheme.make_button("VISIT OUTPOST")
+	_place_at_marker(visit, "visit_outpost_button", Vector2(260, 64))
+	visit.pressed.connect(_open_outpost)
+	_overlay.add_child(visit)
 
 	var manage := UiTheme.make_button("MANAGE SHIP")
 	_place_at_marker(manage, "manage_ship_button", Vector2(260, 64))
@@ -550,6 +556,13 @@ func _open_manage_ship() -> void:
 	if run != null:
 		run.set_meta("manage_ship_return", SELF_SCENE)
 	SceneTransition.change_scene(get_tree(), MANAGE_SHIP_SCENE)
+
+
+# Visit the persistent outpost hub (Roman 2026-06-08). The outpost reads only Run
+# stats + its persisted stock/charges; it returns to the sector map on Leave (via
+# SectorMapRoute, already SELF_SCENE). No node-state is set — it's not a POI.
+func _open_outpost() -> void:
+	SceneTransition.change_scene(get_tree(), OUTPOST_SCENE)
 
 
 func _open_options() -> void:
