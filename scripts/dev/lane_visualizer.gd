@@ -29,28 +29,44 @@ const LanePath = preload("res://scripts/enemies/patterns/lane_path.gd")
 # Movement patterns offered in PATTERN mode. ["label", kind, arg]
 #   kind "lane"   → arg = lane_path Shape int (0 STRAIGHT / 1 WEAVE / 2 HOOK / 3 STEP)
 #   kind "roster" → arg = EnemyRoster.make_movement key (real production tuning)
+# Roster keys are the 2026-06-08 pattern set (see enemy_roster.make_movement).
 const PATTERNS := [
 	["lane STRAIGHT", "lane", 0],
 	["lane WEAVE", "lane", 1],
 	["lane HOOK", "lane", 2],
 	["lane STEP", "lane", 3],
-	["straight_down", "roster", "straight"],
-	["drifter", "roster", "drifter_straight"],
-	["fast (dart)", "roster", "fast_straight"],
-	["s_curve", "roster", "s_curve"],
-	["loiter (Holder low)", "roster", "loiter_low"],
-	["Holder mid", "roster", "loiter_mid"],
-	["Holder high", "roster", "loiter_high"],
-	["slow_advance", "roster", "slow_advance"],
-	["advance_retreat", "roster", "advance_retreat"],
-	["top_dive", "roster", "top_dive"],
-	["beeline", "roster", "beeline"],
-	["side_traverse", "roster", "side_traverse"],
-	# P2 lane-aware production patterns (lane_path engine). Spawn a ROW to see the
+	# straight_* by speed rung (crawl 60 → reflex 360)
+	["straight_crawl", "roster", "straight_crawl"],
+	["straight_slow", "roster", "straight_slow"],
+	["straight_medium", "roster", "straight_medium"],
+	["straight_fast", "roster", "straight_fast"],
+	["straight_reflex", "roster", "straight_reflex"],
+	["straight_charge", "roster", "straight_charge"],
+	# skirmish loops (replaces advance_retreat)
+	["skirmish_loop", "roster", "skirmish_loop"],
+	["skirmish_figure8", "roster", "skirmish_figure8"],
+	# drift-in-lane (was bulwark_drift), by hover height
+	["drift_low", "roster", "drift_low"],
+	["drift_mid", "roster", "drift_mid"],
+	["drift_high", "roster", "drift_high"],
+	# loiter (Holder), by hover height
+	["loiter_low", "roster", "loiter_low"],
+	["loiter_mid", "roster", "loiter_mid"],
+	["loiter_high", "roster", "loiter_high"],
+	# lane-aware production patterns (lane_path engine). Spawn a ROW to see the
 	# lane-occupancy free-check: Drifters/Shifters avoid merging into an occupied lane.
-	["Weaver (in-lane)", "roster", "lane_weave"],
-	["Drifter (lane->lane)", "roster", "lane_drift"],
-	["Shifter (commit)", "roster", "lane_shift"],
+	["lane_weave (in-lane)", "roster", "lane_weave"],
+	["lane_drift (lane->lane)", "roster", "lane_drift"],
+	["lane_shift (commit)", "roster", "lane_shift"],
+	["lane_hook (drop-return)", "roster", "lane_hook"],
+	["lane_cut (curve-exit)", "roster", "lane_cut"],
+	# side approaches
+	["side_turn", "roster", "side_turn"],
+	["side_dive", "roster", "side_dive"],
+	["side_traverse", "roster", "side_traverse"],
+	# player-hunters
+	["hunt_beeline", "roster", "hunt_beeline"],
+	["hunt_omni", "roster", "hunt_omni"],
 ]
 
 var _world: Node2D = null

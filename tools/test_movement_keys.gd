@@ -15,7 +15,7 @@ func _init() -> void:
 		"straight_crawl", "straight_slow", "straight_medium", "straight_fast", "straight_reflex",
 		"straight_charge", "skirmish_loop", "skirmish_figure8", "drift_low", "drift_mid", "drift_high",
 		"loiter_low", "loiter_mid", "loiter_high", "lane_weave", "lane_drift", "lane_shift",
-		"lane_hook", "lane_cut", "side_turn", "side_dive", "side_traverse", "top_dive",
+		"lane_hook", "lane_cut", "side_turn", "side_dive", "side_traverse",
 		"hunt_beeline", "hunt_omni",
 	]
 	for k in live:
@@ -27,7 +27,7 @@ func _init() -> void:
 	# Removed / culled keys must fall to the StraightDown default (no crash).
 	var dead := ["s_curve", "drifter_straight", "jet_charger", "side_cut", "loiter", "slow_advance",
 		"advance_retreat", "omni", "beeline", "bulwark_drift", "fast_straight", "firecore_straight",
-		"dive_return", "lane_charge", "straight"]
+		"dive_return", "lane_charge", "straight", "top_dive"]
 	for k in dead:
 		var m = Roster.make_movement({"movement": k})
 		var nm := String(m.get_script().resource_path).get_file() if m and m.get_script() else "null"

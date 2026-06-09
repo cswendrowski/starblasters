@@ -1,29 +1,29 @@
-extends "res://scripts/enemies/enemy_base.gd"
+extends "res://scripts/enemy_core.gd"
 
-# Bulwark v2 (Roman 2026-05-18 redesign). Slow, chunky, shielded enemy
-# that holds the center of the screen as a barrier. Uncommon-tough class
-# with 2× the normal shield charges and self-regenerating shield (like
-# the player). Inertial-thrust movement aimed at the screen center, not
-# the player. Weak weapon — it's a tank, not a damage dealer.
+# Bulwark v2 (Roman 2026-05-18 redesign; on-lane migration 2026-06-08). Slow,
+# chunky, shielded enemy that holds a lane in the upper band as a barrier.
+# Uncommon-tough class with 2× the normal shield charges and self-regenerating
+# shield (like the player). Weak weapon — it's a tank, not a damage dealer.
+#
+# MOVEMENT: now on the lane system (extends enemy_core). The conductor assigns it
+# a movement pattern via the eligibility matrix (drift_mid: descend to hover then
+# jiggle-hold in its lane). The old bespoke inertial-thrust-to-screen-center was
+# replaced by the shared Drift pattern — a lane-relative hold reads as a barrier
+# wherever the conductor places it, and keeps it on the modular movement axis.
 #
 # Sprite: tiny_ship11 at 1× scale (set in scene). Shield ring matches
 # the player's shield visual so the player understands "this thing eats
 # bullets the same way I do."
 
+const Drift = preload("res://scripts/enemies/patterns/drift.gd")
+
 # --- Stats --------------------------------------------------------------
+# NOTE: fire_interval_min/max are inherited from enemy_core (don't redeclare — that's a
+# parse error). They drive enemy_core's ShootTimer, but this enemy fires via its EnemyTurret
+# child instead, so we just set them in _ready and forward them to the turret.
 @export var shield_charges_max: int = 4        # 2× uncommon-tough baseline
 @export var shield_recharge_interval: float = 6.0
-@export var fire_interval_min: float = 2.3
-@export var fire_interval_max: float = 3.2
 @export var bullet_speed: float = 180.0
-
-# --- Movement (inertial drift toward screen center) ---------------------
-@export var move_speed_max: float = 60.0
-@export var accel: float = 90.0
-@export var center_target: Vector2 = Vector2(240, 90)
-@export var arrive_radius: float = 12.0
-
-var _vel: Vector2 = Vector2.ZERO
 
 signal hull_changed(max_hull, hull)
 
@@ -33,8 +33,18 @@ func _ready() -> void:
 		max_health = 8        # uncommon-tough HP
 	if bounty_value <= 0:
 		bounty_value = 75
-	auto_rotate = false
-	offscreen_mode = OffscreenMode.NONE
+	fire_interval_min = 2.3   # turret fire cadence (inherited enemy_core fields)
+	fire_interval_max = 3.2
+	auto_rotate = false       # the turret aims; the hull holds a fixed facing
+	offscreen_mode = OffscreenMode.NONE   # a barrier holds its lane; never recycles
+	# Fallback movement when spawned outside the conductor (dev tools / direct
+	# instantiation). In production the director overwrites this with the matrix's
+	# assigned pattern (drift_mid). Guarantees movement != null so enemy_core never
+	# falls into the legacy anchor path (this scene has no MoveTimer/ShootTimer).
+	if movement == null:
+		var d := Drift.new()
+		d.hover_y = 90.0
+		movement = d
 	# Unified shield (shield_unification_2026-06-08.md): a regenerating CHARGE
 	# ShieldComponent (its own ring) replaces the old bespoke _shield/ring/regen.
 	# Appended BEFORE super._ready() so _init_components dups it per-instance.
@@ -79,21 +89,5 @@ func take_hit(damage: int = 1) -> bool:
 	hull_changed.emit(max_health, health)
 	return was_killed
 
-
-func _process(delta: float) -> void:
-	if _dying:
-		return
-	# Bulwark extends enemy_base (not enemy_core), so it must tick components itself —
-	# this drives the ShieldComponent's regen (shield_unification_2026-06-08.md).
-	_tick_components(delta)
-	# Inertial thrust toward the center. Decelerates as it nears the
-	# target so it settles without overshoot — chunky and deliberate.
-	var to_target: Vector2 = center_target - position
-	var dist: float = to_target.length()
-	var desired_vel: Vector2 = Vector2.ZERO
-	if dist > arrive_radius:
-		desired_vel = to_target.normalized() * move_speed_max
-	_vel = _vel.move_toward(desired_vel, accel * delta)
-	position += _vel * delta
-	# Shield regeneration is owned by the ShieldComponent (on_process). EnemyTurret child
-	# handles aiming + firing.
+# Movement + component ticking are owned by enemy_core._process (drives the Drift
+# pattern + ShieldComponent regen). The EnemyTurret child handles aiming + firing.

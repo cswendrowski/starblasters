@@ -14,7 +14,18 @@ remapped to the 2026-06-08 pattern set (`straight_*` by speed, `skirmish_*`, `dr
 preview; Save → `user://tuners/pattern_eligibility.json`, Export → paste-ready DATA const (clipboard +
 file) for the committed `pattern_eligibility.gd`. (Built standalone, not as a lane-viz tab, to avoid a
 concurrent UI bug-hunt.) Leans locked: per-entry `"vary"`, flat-random among eligible, one shared
-universal set. Phase 3 (expand eligibility + opt enemies into vary) remains. Design below. Realizes
+universal set. Phase 3 (expand eligibility + opt enemies into vary) remains.
+
+**Editor fixes (2026-06-08, post-overhaul):** (1) the live preview now builds the LITERAL selected
+key — `_set_preview` calls `make_movement({"movement": key})` WITHOUT a `scene`, since passing a scene
+routes through the matrix-authoritative `resolve()` which would ignore the clicked key and return the
+enemy's identity. (2) `_load_data` canonicalizes through a `KEY_REMAP` table + filters to live
+`MOVEMENT_KEYS`, so a stale `user://tuners` JSON saved before the overhaul no longer surfaces retired
+identities (e.g. `omni`, `bulwark_drift`, `top_dive`); retired keys remap to their replacement and
+unknown keys are dropped. (3) `top_dive` RETIRED — `side_dive` (rounded side-entry turn into the lane
+dive) does the same maneuver better and fits the `side_*` scheme; matrix + roster repointed.
+
+Design below. Realizes
 the M6 vision of
 behavior as a swappable axis: a central, tool-edited matrix of which **movement patterns** each
 enemy may take, that the conductor draws from — instead of each roster entry hard-coding one

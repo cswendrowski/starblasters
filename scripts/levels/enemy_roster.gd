@@ -34,7 +34,6 @@ const Loiter = preload("res://scripts/enemies/patterns/loiter.gd")
 const PatternEligibility = preload("res://scripts/levels/pattern_eligibility.gd")
 const SideTraverse = preload("res://scripts/enemies/patterns/side_traverse.gd")
 const SideTurn = preload("res://scripts/enemies/patterns/side_turn.gd")
-const TopDive = preload("res://scripts/enemies/patterns/top_dive.gd")
 const BeelinePlayer = preload("res://scripts/enemies/patterns/beeline_player.gd")
 const Drift = preload("res://scripts/enemies/patterns/drift.gd")
 const Skirmish = preload("res://scripts/enemies/patterns/skirmish.gd")
@@ -284,7 +283,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_hotrod.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "top_dive",
+		"movement": "side_dive",
 		"shoot": "single",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 4,
@@ -325,7 +324,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_rush.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "top_dive",
+		"movement": "side_dive",
 		"shoot": "burst",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 3,
@@ -922,7 +921,7 @@ const ENTRIES := [
 		# (reaction-test / direct-challenge). Heavy beats want descend-and-hold types.
 		"tier": Tier.RARE,
 		"size": "medium", "tags": ["tough"],
-		"movement": "top_dive",
+		"movement": "side_dive",
 		"shoot": null,
 		"base_count": 3,
 		"unlock_sector": 1, "unlock_depth": 0,
@@ -1272,11 +1271,6 @@ static func make_movement(entry: Dictionary) -> Resource:
 			var m = SideTraverse.new()
 			m.speed = 75.0
 			m.direction = 1 if randf() < 0.5 else -1
-			return m
-		"top_dive":
-			# Horizontal entry across the top, then turn and dive into a lane.
-			var m = TopDive.new()
-			m.dive_speed = 220.0
 			return m
 		"hunt_beeline":
 			# Player-tracking pursuit — threatens, shouldn't connect (was beeline).

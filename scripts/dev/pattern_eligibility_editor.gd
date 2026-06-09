@@ -28,8 +28,31 @@ const MOVEMENT_KEYS := [
 	"loiter_low", "loiter_mid", "loiter_high",
 	"lane_weave", "lane_drift", "lane_shift", "lane_hook", "lane_cut",
 	"side_turn", "side_dive", "side_traverse",
-	"top_dive", "hunt_beeline", "hunt_omni",
+	"hunt_beeline", "hunt_omni",
 ]
+
+# Legacy/retired movement keys → their current replacement. Applied when loading the
+# committed matrix + any saved JSON so stale identities/eligible entries (from before the
+# 2026-06-08 pattern overhaul) surface as the new keys instead of vanishing or showing a
+# retired name. Anything not here and not in MOVEMENT_KEYS is dropped on load.
+const KEY_REMAP := {
+	"fast_straight": "straight_fast",
+	"firecore_straight": "straight_medium",
+	"slow_advance": "straight_crawl",
+	"lane_charge": "straight_charge",
+	"bulwark_drift": "drift_mid",
+	"loiter": "loiter_low",
+	"advance_retreat": "skirmish_loop",
+	"dive_return": "lane_hook",
+	"omni": "hunt_omni",
+	"beeline": "hunt_beeline",
+	"top_dive": "side_dive",
+	"straight": "straight_medium",
+	"drifter_straight": "straight_slow",
+	"s_curve": "lane_weave",
+	"jet_charger": "straight_fast",
+	"side_cut": "side_dive",
+}
 
 const FACTION_FILTERS := ["All", "Sup", "Priv", "Corp", "Zealot"]
 const FACTION_HOME := {"Sup": 0, "Priv": 1, "Corp": 2, "Zealot": 3}  # Factions.Id order
@@ -69,12 +92,13 @@ func _ready() -> void:
 # ---------------------------------------------------------------- data
 
 func _load_data() -> void:
-	# Start from the committed matrix, then overlay any saved iteration JSON.
+	# Start from the committed matrix, then overlay any saved iteration JSON. Both pass
+	# through _canon (legacy-key remap) + a MOVEMENT_KEYS filter so retired keys never surface.
 	for scene in PatternEligibility.DATA.keys():
 		var rec: Dictionary = PatternEligibility.DATA[scene]
 		_data[scene] = {
-			"identity": str(rec.get("identity", "")),
-			"eligible": (rec.get("eligible", []) as Array).duplicate(),
+			"identity": _canon(str(rec.get("identity", ""))),
+			"eligible": _canon_list(rec.get("eligible", [])),
 		}
 	if FileAccess.file_exists(SAVE_PATH):
 		var f := FileAccess.open(SAVE_PATH, FileAccess.READ)
@@ -85,11 +109,38 @@ func _load_data() -> void:
 				for scene in parsed.keys():
 					if _data.has(scene) and parsed[scene] is Dictionary:
 						var p: Dictionary = parsed[scene]
-						_data[scene]["identity"] = str(p.get("identity", _data[scene]["identity"]))
+						# Only accept a saved identity that canonicalizes to a live key; otherwise
+						# keep the committed one (so a retired saved identity doesn't blank out).
+						var sid: String = _canon(str(p.get("identity", "")))
+						if sid != "":
+							_data[scene]["identity"] = sid
 						if p.get("eligible", null) is Array:
-							_data[scene]["eligible"] = (p["eligible"] as Array).duplicate()
+							_data[scene]["eligible"] = _canon_list(p["eligible"])
+	# Identity must always be in its own eligible set.
+	for scene in _data.keys():
+		var ident: String = str(_data[scene]["identity"])
+		var elig: Array = _data[scene]["eligible"]
+		if ident != "" and not (ident in elig):
+			elig.append(ident)
+			_data[scene]["eligible"] = elig
 	_scenes = _data.keys()
 	_scenes.sort()
+
+
+# Map a possibly-legacy movement key to its current name; "" if it isn't a live key.
+func _canon(key: String) -> String:
+	var k: String = str(KEY_REMAP.get(key, key))
+	return k if k in MOVEMENT_KEYS else ""
+
+
+# Canonicalize + filter a list of keys to live keys, de-duplicated, order-preserving.
+func _canon_list(keys: Array) -> Array:
+	var out: Array = []
+	for k in keys:
+		var c: String = _canon(str(k))
+		if c != "" and not (c in out):
+			out.append(c)
+	return out
 
 
 func _home_of(scene: String) -> int:
@@ -145,7 +196,11 @@ func _set_preview(key: String) -> void:
 	var scene: String = _current_scene()
 	if scene == "" or key == "":
 		return
-	var pat: Resource = EnemyRoster.make_movement({"movement": key, "scene": scene})
+	# Build the LITERAL key, NOT the matrix-resolved one. make_movement() resolves through
+	# PatternEligibility, which is matrix-authoritative — passing "scene" would make it ignore
+	# `key` and return the enemy's identity, so the preview never reflected the clicked behavior.
+	# Omitting "scene" makes resolve() fall back to the requested movement key.
+	var pat: Resource = EnemyRoster.make_movement({"movement": key})
 	if pat == null:
 		return
 	var tex_info: Dictionary = _enemy_texture(scene)
