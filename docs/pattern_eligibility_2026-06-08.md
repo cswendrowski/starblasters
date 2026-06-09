@@ -1,5 +1,21 @@
 # Pattern Eligibility — Spec
 
+**Bespoke-enemy migration (2026-06-08):** a large pass moved most bespoke-movement enemies onto
+enemy_core + the movement-pattern system, and extracted their firing into the shared weapon system.
+- **Weapon system additions** (`weapon.gd`/`enemy_turret.gd`): `Aim.FORWARD` (fire along the nose),
+  `FirePattern.BROADSIDE` (rolling player-facing flank ripple, salvaged from the frigate),
+  `EnemyTurret.arc_gate` (blind-spot gunner that holds fire outside its cone). New `make_shoot`
+  kinds: `"nose"`, `"broadside"`.
+- **New movement patterns**: `pendulum` (crystal's dual-band dive-aim-fire), `strafe_run` (strafer's
+  capped-turn pass), `proximity_chase` (smart mine/bomblet drift→proximity→chase), `beam_sweep`
+  (beam shooter descend→rake). All in `make_movement` + `MOVEMENT_KEYS`.
+- **Migrated to enemy_core**: bulwark, crystal, strafer (revived), bomber, cruiser, drone_carrier,
+  mine, mine_shielded, mine_smart, beam shooter (+tracker/lock). Smart bomblet uses `proximity_chase`
+  but stays bespoke for its flocking munition layer.
+- **Left bespoke** (intentional): tether_mine (pulls the player), enemy_burner (paired beam),
+  mine_cluster/firecore_hazard/firecore_drone/asteroids (payload timing), conductor/boss appendages,
+  turret sub-units, missile_cruiser. **Frigate retired** (broadside salvaged to BROADSIDE).
+
 **Date:** 2026-06-08
 **Status:** **Phases 1 + 2 BUILT (2026-06-08).** P1: `scripts/levels/pattern_eligibility.gd` (seeded
 from the roster) + `make_movement` resolves the movement key through it. **`resolve()` is now
