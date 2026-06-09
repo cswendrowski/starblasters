@@ -140,7 +140,9 @@ var _smoke_trail: Node = null
 
 func _build_trail_line() -> void:
 	_smoke_trail = MissileSmokeTrailCls.new()
-	get_tree().root.call_deferred("add_child", _smoke_trail)
+	# Spawn into this missile's own container (window root in combat, the hangar
+	# SubViewport world in the preview) so the trail shares its coordinate space.
+	_fx_parent().call_deferred("add_child", _smoke_trail)
 	# Defer attach_to until the trail's _ready has set up its Line2D.
 	# Emit from the exhaust marker when present so smoke leaves the rear.
 	var emitter: Node2D = _exhaust_point if _exhaust_point != null else self
@@ -473,6 +475,6 @@ func explode() -> void:
 	# orange/yellow) so the flash reads as ignition.
 	var ImpactFxCls = load("res://scripts/effects/impact_fx.gd")
 	if ImpactFxCls:
-		ImpactFxCls.spawn(get_tree().root, global_position, Color(1.0, 0.65, 0.25, 1.0), 1)
+		ImpactFxCls.spawn(_fx_parent(), global_position, Color(1.0, 0.65, 0.25, 1.0), 1)
 	# Fall through to EnemyBase.explode for the standard die-emit + VFX.
 	super.explode()

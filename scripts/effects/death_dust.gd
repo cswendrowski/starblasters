@@ -52,17 +52,21 @@ static func count_for_scale(scale_factor: float) -> int:
 	return 8
 
 
-static func play(world_pos: Vector2, scale_factor: float = 1.0) -> void:
-	play_with_count(world_pos, count_for_scale(scale_factor))
+# `parent` lets a caller place the dust in a specific container (e.g. the hangar
+# SubViewport world) so it shares the coordinate space of the thing that died;
+# defaults to the current scene / window root (combat behavior).
+static func play(world_pos: Vector2, scale_factor: float = 1.0, parent: Node = null) -> void:
+	play_with_count(world_pos, count_for_scale(scale_factor), parent)
 
 
-static func play_with_count(world_pos: Vector2, count: int) -> void:
+static func play_with_count(world_pos: Vector2, count: int, parent: Node = null) -> void:
 	if count <= 0:
 		return
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree == null:
 		return
-	var parent: Node = tree.current_scene
+	if parent == null or not is_instance_valid(parent):
+		parent = tree.current_scene
 	if parent == null:
 		parent = tree.root
 	var tex := _white_dot()

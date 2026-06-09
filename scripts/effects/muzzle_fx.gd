@@ -37,14 +37,18 @@ const ENEMY_MUZZLE_STRIP_HFRAMES := 3
 
 static func play(world_pos: Vector2, host: Node = null) -> void:
 	var root = Engine.get_main_loop().root
-	# Flash parents under the host (player) when supplied so it inherits
-	# the ship's transform and renders on the same canvas (the star_flash
-	# beam windup uses this same pattern and renders correctly). Smoke +
-	# shell stay at scene root since they outlive the player frame and
-	# drift through world space.
+	# Smoke + shell must outlive the player frame, so they parent to the host's
+	# CONTAINER (not the host itself) rather than the window root — that keeps
+	# them in the player's coordinate space (the hangar runs the player inside a
+	# SubViewport world; window-root parenting put the puffs in the top-left
+	# corner). In combat the host's parent is the main scene, identical space to
+	# the old root parenting. Flash parents under the host (local) as before.
+	var fx_root: Node = root
+	if host != null and host.get_parent() != null:
+		fx_root = host.get_parent()
 	_spawn_flash(host if host != null else root, world_pos, host != null)
-	_spawn_smoke(root, world_pos)
-	_spawn_shell(root, world_pos)
+	_spawn_smoke(fx_root, world_pos)
+	_spawn_shell(fx_root, world_pos)
 
 
 # Energy Blaster muzzle FX — blue additive flash, no smoke, no shell. Used

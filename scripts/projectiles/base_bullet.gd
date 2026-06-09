@@ -303,7 +303,7 @@ func _apply_enemy_hit(area: Area2D) -> void:
 			HitFlashFxB.flash(sprite_b, HitFlashFxB.FLASH_SHIELD)
 		var ShieldSfxB = load("res://scripts/effects/shield_sfx.gd")
 		if ShieldSfxB:
-			ShieldSfxB.play_hit(get_tree().root, global_position)
+			ShieldSfxB.play_hit(_fx_parent(), global_position)
 		_finish_hit(area)
 		return
 	# Standard hit: white flash + unified take_hit damage call.
@@ -333,13 +333,22 @@ func _apply_player_hit(area: Area2D) -> void:
 
 # Default: one-shot. Override to drill through multiple enemies (e.g.
 # bullet_wave's multi-hit behavior).
+# The container a hit effect should spawn into: this bullet's own parent, so it
+# shares the bullet's coordinate space and outlives its queue_free. In combat
+# that's the window root (bullets parent there); in the hangar SubViewport
+# preview it's `_world`. Falls back to root if somehow unparented.
+func _fx_parent() -> Node:
+	var p: Node = get_parent()
+	return p if (p != null and is_instance_valid(p)) else get_tree().root
+
+
 func _finish_hit(_target: Node) -> void:
-	# Drop an impact effect at the hit position before the bullet frees.
-	# Parented to the tree root so the effect outlives the bullet's
-	# queue_free this frame.
+	# Drop an impact effect at the hit position before the bullet frees, parented
+	# to the bullet's own container so it outlives the queue_free this frame AND
+	# renders in the right space (window-root in combat, SubViewport in hangar).
 	var ImpactFxCls = load("res://scripts/effects/impact_fx.gd")
 	if ImpactFxCls:
-		ImpactFxCls.spawn(get_tree().root, global_position, impact_color, impact_kind)
+		ImpactFxCls.spawn(_fx_parent(), global_position, impact_color, impact_kind)
 	_kill()
 
 

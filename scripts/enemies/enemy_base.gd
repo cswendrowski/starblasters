@@ -361,24 +361,28 @@ func explode() -> void:
 	# Explosions are always 1× scale; bigger enemies just get MORE blasts
 	# with random jitter (Roman 2026-05-18). 16-px chaff = 1, 48-px boss-
 	# class = ~4-5, clamped to a sane upper bound.
+	# Spawn all death VFX into THIS node's own container (get_parent) so they
+	# share its coordinate space. In combat that's the main scene (identical to
+	# the old root/current_scene parenting); in the hangar's SubViewport preview
+	# it's `_world`, which keeps the blasts over the ship instead of the window's
+	# top-left corner.
+	var fx_parent: Node = _fx_parent()
 	var blast_count: int = clampi(int(round(max(1.0, display_scale * 1.4))), 1, 6)
 	if blast_count <= 1:
-		ExplosionFxScript.play(global_position, 1.0)
+		ExplosionFxScript.play(global_position, 1.0, true, fx_parent)
 	else:
-		ExplosionFxScript.burst(global_position, blast_count, 12.0 * max(1.0, display_scale * 0.6), 0.06)
+		ExplosionFxScript.burst(global_position, blast_count, 12.0 * max(1.0, display_scale * 0.6), 0.06, fx_parent)
 	# Settling dust supplement (Roman 2026-05-24): 1px gray particles
 	# scattering radially with downward gravity. Count scales with size
 	# (8/16/32/64). Fires alongside the debris strip, not instead of it.
 	# For boss-class enemies (display_scale large enough to trigger the
 	# multi-blast cascade above) the bigger count bucket gives each blast
 	# a corresponding dust puff feel without per-blast wiring.
-	DeathDustScript.play(global_position, display_scale)
-	# Debris scatter (Roman 2026-05-18). Parent under scene root so the
-	# pieces survive the enemy's queue_free at the end of explode().
-	var parent: Node = get_tree().current_scene
-	if parent == null:
-		parent = get_tree().root
-	_spawn_debris(parent, global_position, display_scale)
+	DeathDustScript.play(global_position, display_scale, fx_parent)
+	# Debris scatter (Roman 2026-05-18). Parent under the same container so the
+	# pieces survive the enemy's queue_free at the end of explode() AND render in
+	# the correct space (window-root in combat, SubViewport world in the hangar).
+	_spawn_debris(fx_parent, global_position, display_scale)
 	# Fade the non-body overlay sprites (glow mask, hull outline, decorative
 	# cores) FAST so they don't outlive the disintegrating body — otherwise a
 	# bright glow map / outline hangs in the air for the ~0.5s death window after
@@ -413,6 +417,17 @@ func _fade_death_overlays() -> void:
 		if nm == "GlowMask" or nm == "Outline" or nm.begins_with("FirecoreCore"):
 			var tw := create_tween()
 			tw.tween_property(child, "modulate:a", 0.0, OVERLAY_FADE)
+
+
+# The container death VFX (explosions, dust, debris) should spawn into: this
+# node's own parent, so they share its coordinate space and outlive its
+# queue_free. Falls back to current_scene / root if somehow unparented.
+func _fx_parent() -> Node:
+	var p: Node = get_parent()
+	if p != null and is_instance_valid(p):
+		return p
+	var cs: Node = get_tree().current_scene
+	return cs if cs != null else get_tree().root
 
 
 func _spawn_debris(parent: Node, world_pos: Vector2, scale_factor: float) -> void:
