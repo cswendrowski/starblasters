@@ -1,15 +1,15 @@
-extends "res://scripts/enemies/enemy_base.gd"
+extends "res://scripts/enemy_core.gd"
 
-# Basic mine (Roman, 2026-05-18 mine pass: "Use mine_basic, it's a basic
-# mine that explodes on contact with the player. This is the most common
-# mine type, no frills, no special features"). Drifts straight down,
-# explodes on player contact. Bullet hits damage it normally; no chase
-# behavior — that's the Smart Mine's job now.
+# Basic mine (Roman 2026-05-18; on-lane migration 2026-06-08). Drifts straight down, explodes on
+# player contact. Now extends enemy_core and moves via the shared StraightDown pattern so the
+# conductor handles it like any other formation (minefield-upgrade prep). The minefield producer
+# does NOT inject a movement_override, so the pattern is defaulted here. recycle_passes = 0 makes
+# it FREE off the bottom (no parallax fly-back). Explode-on-contact is unchanged.
 
-@export var drift_speed: float = 120.0  # +15% per Roman 2026-05-27 (was 78.0)
+const StraightDown = preload("res://scripts/enemies/patterns/straight_down.gd")
+
+@export var drift_speed: float = 120.0
 @export var damage_on_collide: int = 2
-
-var _velocity: Vector2 = Vector2.ZERO
 
 
 func _ready() -> void:
@@ -17,38 +17,22 @@ func _ready() -> void:
 	is_hazard = true
 	bounty_value = 1
 	display_scale = 1.0
-	auto_rotate = false  # mines don't have a "forward"
-	has_ship_vfx = false  # no ground shadow / damage-overlay — mines explode, not fray
-	offscreen_mode = OffscreenMode.NONE
+	auto_rotate = false       # mines don't have a "forward"
+	has_ship_vfx = false      # no engine flame / damage-overlay — mines explode, not fray
+	recycle_passes = 0        # off the bottom = free, never parallax-cycle
+	if movement == null:
+		var m := StraightDown.new()
+		m.speed = drift_speed
+		movement = m
 	super._ready()
-	if has_node("Sprite2D"):
-		var ShadowFx = load("res://scripts/shadow_fx.gd")
-		ShadowFx.attach_shadow($Sprite2D)
-
-
-func start(pos: Vector2) -> void:
-	position = pos
-	_velocity = Vector2(0.0, drift_speed)
-
-
-func _process(delta: float) -> void:
-	if _dying:
-		return
-	position += _velocity * delta
-	# Despawn off the bottom.
-	if position.y > screensize.y + 32.0:
-		queue_free()
 
 
 func hit() -> void:
-	# Standard bullet hit — flash, no behavior change. EnemyBase.take_hit
-	# already routes lethal hits through explode().
 	if has_node("ParticleHit"):
 		$ParticleHit.restart()
 
 
-# Mine-specific death VFX — larger explosion + sfx + burn — overrides the
-# default EnemyBase.explode.
+# Mine-specific death VFX — larger explosion + sfx + burn — overrides EnemyBase.explode.
 func explode() -> void:
 	if _dying:
 		return

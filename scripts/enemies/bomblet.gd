@@ -22,14 +22,19 @@ const BOMBLET_AVOID_RADIUS := 14.0
 const BOMBLET_AVOID_STRENGTH := 140.0
 const BOMBLET_NEIGHBOUR_CAP := 4
 const BOMBLET_GROUP := "bomblets"
+const ProximityChase = preload("res://scripts/enemies/patterns/proximity_chase.gd")
+
 @export var smart: bool = false
 @export var homing_accel: float = 360.0
 @export var homing_max_speed: float = 180.0
-# Smart bomblets only pursue when the player crosses inside this range
-# (Roman, 2026-05-18 mine pass: smart bomblet "holds its position in
-# space but pursues the player if they come within 16 pixels").
+# Smart bomblets pursue when the player crosses inside this range. On-lane migration
+# 2026-06-08: the SMART path now drives the shared ProximityChase pattern — dormant it drifts
+# straight_medium (per Roman: "straight_medium otherwise"), then engages + chases on proximity.
+# The munition layer (neighbour repulsion, lifetime, pulse, launch kick, edge bounce) stays
+# bespoke here — it's flocking/projectile behavior the movement-pattern model doesn't cover.
 @export var smart_engage_range: float = 100.0
 var _smart_engaged: bool = false
+var _chase = null   # ProximityChase instance for the smart path
 
 var _velocity: Vector2 = Vector2.ZERO
 var _lateral_target: float = 0.0
@@ -63,6 +68,14 @@ func _ready() -> void:
 	_velocity = Vector2(randf_range(-32.0, 32.0), descent_speed)
 	_lateral_target = randf_range(-lateral_jitter_speed, lateral_jitter_speed)
 	add_to_group(BOMBLET_GROUP)
+	if smart:
+		# Shared proximity-chase: drift straight_medium → engage → relentless chase.
+		_chase = ProximityChase.new()
+		_chase.drift_speed = descent_speed
+		_chase.proximity = smart_engage_range
+		_chase.chase_accel = homing_accel
+		_chase.chase_max_speed = homing_max_speed
+		_chase.on_start(self)
 
 
 func start(pos: Vector2) -> void:
@@ -84,21 +97,12 @@ func _process(delta: float) -> void:
 	if _age >= lifetime:
 		explode()
 		return
-	if smart:
-		# Smart bomblets hold position until the player crosses the engage
-		# range; once engaged they pursue indefinitely (relentless).
-		var p := find_player()
-		if p and is_instance_valid(p):
-			var to_p: Vector2 = p.global_position - global_position
-			var d: float = to_p.length()
-			if not _smart_engaged and d <= smart_engage_range:
-				_smart_engaged = true
-			if _smart_engaged and d > 0.1:
-				var dir: Vector2 = to_p.normalized()
-				_velocity = _velocity.move_toward(dir * homing_max_speed, homing_accel * delta)
-			elif not _smart_engaged:
-				# Decay velocity so the bomblet holds station.
-				_velocity = _velocity.move_toward(Vector2.ZERO, homing_accel * delta * 0.4)
+	_pulse_vfx()
+	if smart and _chase != null:
+		# Shared ProximityChase drives drift→engage→chase (incl. its own edge bounce).
+		position += _chase.compute_step(self, delta)
+		position += _neighbour_push() * delta   # flocking as a positional shove
+		_smart_engaged = _chase.is_armed()
 	else:
 		_jitter_timer -= delta
 		if _jitter_timer <= 0.0:
@@ -106,25 +110,28 @@ func _process(delta: float) -> void:
 			_lateral_target = randf_range(-lateral_jitter_speed, lateral_jitter_speed)
 		_velocity.x = lerp(_velocity.x, _lateral_target, clamp(delta * 5.0, 0.0, 1.0))
 		_velocity.y = lerp(_velocity.y, descent_speed, clamp(delta * 2.5, 0.0, 1.0))
-	_apply_neighbour_repulsion(delta)
+		_velocity += _neighbour_push() * delta
+		position += _velocity * delta
+		# Bounce off the playfield band edges (not the 480-px viewport).
+		var margin: float = 4.0
+		if position.x < Playfield.X_MIN + margin and _velocity.x < 0.0:
+			position.x = Playfield.X_MIN + margin
+			_velocity.x = -_velocity.x * 0.85
+		elif position.x > Playfield.X_MAX - margin and _velocity.x > 0.0:
+			position.x = Playfield.X_MAX - margin
+			_velocity.x = -_velocity.x * 0.85
+	# Despawn off top/bottom — silent leaver.
+	if position.y > screensize.y + 24.0 or position.y < -24.0:
+		queue_free()
+
+
+func _pulse_vfx() -> void:
 	# Pulse red so it reads as "live munition".
 	if has_node("Sprite2D"):
 		var t: float = Time.get_ticks_msec() / 1000.0
 		var pulse: float = 0.5 + 0.5 * sin(t * 6.0 + _pulse_phase)
 		var k: float = 1.0 + 0.9 * pulse
 		$Sprite2D.modulate = Color(k, 0.6, 0.55, 1.0)
-	position += _velocity * delta
-	# Bounce off the playfield band edges (not the 480-px viewport).
-	var margin: float = 4.0
-	if position.x < Playfield.X_MIN + margin and _velocity.x < 0.0:
-		position.x = Playfield.X_MIN + margin
-		_velocity.x = -_velocity.x * 0.85
-	elif position.x > Playfield.X_MAX - margin and _velocity.x > 0.0:
-		position.x = Playfield.X_MAX - margin
-		_velocity.x = -_velocity.x * 0.85
-	# Despawn off top/bottom — silent leaver.
-	if position.y > screensize.y + 24.0 or position.y < -24.0:
-		queue_free()
 
 
 # Bomblets explode silently softer than the parent mine — quieter audio,
@@ -156,9 +163,10 @@ func hit() -> void:
 	explode()
 
 
-func _apply_neighbour_repulsion(delta: float) -> void:
+# Boid-style spacing force from nearby bomblets (pure vector; callers integrate it).
+func _neighbour_push() -> Vector2:
 	if _dying:
-		return
+		return Vector2.ZERO
 	var checked: int = 0
 	var push: Vector2 = Vector2.ZERO
 	for other in get_tree().get_nodes_in_group(BOMBLET_GROUP):
@@ -172,8 +180,7 @@ func _apply_neighbour_repulsion(delta: float) -> void:
 		checked += 1
 		if checked >= BOMBLET_NEIGHBOUR_CAP:
 			break
-	if push != Vector2.ZERO:
-		_velocity += push * delta
+	return push
 
 
 func _on_area_entered(area: Area2D) -> void:

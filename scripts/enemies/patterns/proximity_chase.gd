@@ -32,6 +32,20 @@ func on_start(_enemy) -> void:
 	_vel = Vector2(0.0, drift_speed)
 
 
+# Force activation regardless of proximity (e.g. the smart mine is shot while dormant).
+func force_activate() -> void:
+	if _ph != Ph.DRIFT:
+		return
+	_ph = Ph.TRANSITION
+	_t = 0.0
+	_vel = Vector2.ZERO
+	phase_entered.emit("transition")
+
+
+func is_armed() -> bool:
+	return _ph == Ph.CHASE
+
+
 func compute_step(enemy, delta: float) -> Vector2:
 	match _ph:
 		Ph.DRIFT:

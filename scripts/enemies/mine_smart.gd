@@ -1,32 +1,26 @@
-extends "res://scripts/enemies/enemy_base.gd"
+extends "res://scripts/enemy_core.gd"
 
-# Smart Mine (Roman, 2026-05-18 mine pass): "uses mine_smart and appears
-# as frame 1 when dormant. When shot, plays F2 then F3, upon F3 it
-# begins aggressively flying toward the player. It also activates if
-# the player comes within 16 pixels of it. Slow, but relentless."
+# Smart Mine (Roman 2026-05-18; on-lane migration 2026-06-08). Drifts straight down (a plain
+# medium descent) until the player comes within range, then transitions and flies relentlessly at
+# them. Also arms if shot while dormant.
 #
-# Sprite is a 3-frame strip (16×16 each, 48×16 total):
-#   F0 = dormant
-#   F1 = transition (shown briefly when activating)
-#   F2 = active / chasing
+# MOVEMENT now on the lane system: the ProximityChase pattern owns drift→proximity→chase and
+# emits phase_entered("transition"/"armed") so this script swaps the 3-frame sprite. The contact
+# explode + the bullet-hit arm are unchanged. recycle_passes = 0 frees a dormant mine off the
+# bottom (a chasing mine homes to the player, so it stays on-screen).
 #
-# Activation triggers:
-#   - Bullet hit while dormant (any non-lethal hit)
-#   - Player within `proximity_trigger` pixels
+# Sprite strip (16×16 ea): F0 dormant, F1 transition, F2 active.
 
-@export var drift_speed: float = 60.0  # +15% per Roman 2026-05-27 (was 60.0)
+const ProximityChase = preload("res://scripts/enemies/patterns/proximity_chase.gd")
+
+@export var drift_speed: float = 180.0     # dormant descent (straight_medium)
 @export var chase_accel: float = 360.0
 @export var chase_max_speed: float = 180.0
 @export var damage_on_collide: int = 2
 @export var proximity_trigger: float = 80.0
-# Frame-by-frame transition timing once activation fires.
 @export var transition_time: float = 0.18
 
-enum Phase { DORMANT, TRANSITIONING, CHASING }
-
-var _phase: int = Phase.DORMANT
-var _phase_t: float = 0.0
-var _velocity: Vector2 = Vector2.ZERO
+var _armed: bool = false
 
 
 func _ready() -> void:
@@ -35,72 +29,38 @@ func _ready() -> void:
 	bounty_value = 2
 	display_scale = 1.0
 	auto_rotate = false
-	has_ship_vfx = false  # no ground shadow / damage-overlay — mines explode, not fray
-	offscreen_mode = OffscreenMode.NONE
-	super._ready()
+	has_ship_vfx = false
+	recycle_passes = 0
 	if has_node("Sprite2D"):
 		$Sprite2D.frame = 0
-		var ShadowFx = load("res://scripts/shadow_fx.gd")
-		ShadowFx.attach_shadow($Sprite2D)
+	if movement == null:
+		var m := ProximityChase.new()
+		m.drift_speed = drift_speed
+		m.proximity = proximity_trigger
+		m.transition_time = transition_time
+		m.chase_accel = chase_accel
+		m.chase_max_speed = chase_max_speed
+		movement = m
+	super._ready()
 
 
-func start(pos: Vector2) -> void:
-	position = pos
-	_velocity = Vector2(0.0, drift_speed)
-
-
-func _process(delta: float) -> void:
-	if _dying:
+# The ProximityChase pattern emits these as it activates — swap the sprite frame.
+func _on_movement_phase_entered(phase_name: String) -> void:
+	if not has_node("Sprite2D"):
 		return
-	match _phase:
-		Phase.DORMANT:
-			# Proximity trigger.
-			var p := find_player()
-			if p and is_instance_valid(p):
-				if global_position.distance_to(p.global_position) <= proximity_trigger:
-					_begin_activation()
-		Phase.TRANSITIONING:
-			_phase_t += delta
-			# Show F1 for transition_time, then snap to F2 and chase.
-			if has_node("Sprite2D"):
-				$Sprite2D.frame = 1
-			if _phase_t >= transition_time:
-				_phase = Phase.CHASING
-				if has_node("Sprite2D"):
-					$Sprite2D.frame = 2
-		Phase.CHASING:
-			var p_c := find_player()
-			if p_c and is_instance_valid(p_c):
-				var dir: Vector2 = (p_c.global_position - global_position).normalized()
-				_velocity = _velocity.move_toward(dir * chase_max_speed, chase_accel * delta)
-	position += _velocity * delta
-	# Don't sail off the playfield band while chasing.
-	if position.x < Playfield.X_MIN + 4.0 and _velocity.x < 0.0:
-		position.x = Playfield.X_MIN + 4.0
-		_velocity.x = -_velocity.x * 0.5
-	elif position.x > Playfield.X_MAX - 4.0 and _velocity.x > 0.0:
-		position.x = Playfield.X_MAX - 4.0
-		_velocity.x = -_velocity.x * 0.5
-	# Despawn off the bottom only when dormant — once chasing, stick
-	# around until destroyed or contact.
-	if _phase == Phase.DORMANT and position.y > screensize.y + 32.0:
-		queue_free()
+	if phase_name == "transition":
+		$Sprite2D.frame = 1
+	elif phase_name == "armed":
+		$Sprite2D.frame = 2
+		_armed = true
 
 
 func hit() -> void:
 	# Any bullet hit while dormant arms the mine.
-	if _phase == Phase.DORMANT:
-		_begin_activation()
+	if _pattern != null and _pattern.has_method("force_activate"):
+		_pattern.force_activate()
 	if has_node("ParticleHit"):
 		$ParticleHit.restart()
-
-
-func _begin_activation() -> void:
-	if _phase != Phase.DORMANT:
-		return
-	_phase = Phase.TRANSITIONING
-	_phase_t = 0.0
-	_velocity = Vector2.ZERO  # halt drift while spinning up
 
 
 func explode() -> void:
@@ -110,8 +70,8 @@ func explode() -> void:
 	set_deferred("monitorable", false)
 	died.emit(bounty_value)
 	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
-	# Chasing smart mines pop with a 2nd jitter blast; otherwise single 1×.
-	if _phase == Phase.CHASING:
+	# Armed/chasing mines pop with a 2nd jitter blast; dormant a single 1×.
+	if _armed:
 		ExplosionFx.burst(global_position, 2, 6.0, 0.05)
 	else:
 		ExplosionFx.play(global_position, 1.0)
