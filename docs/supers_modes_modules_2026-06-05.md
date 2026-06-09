@@ -1,7 +1,14 @@
 # Supers, Modes, Modules & Upgrades — Classification + Mode-Energy Design Spec
 
-Status: **design / not built.** Architecture and structure are settled;
-magnitudes are first-pass and an `economy-sim` / playtest job.
+> ⛔ **SUPERSEDED (2026-06-08) by `docs/shift_mode_system_2026-06-08.md`.**
+> Roman simplified the mode design: **one super only (Smart Bomb)**, and a **SHIFT_MODE slot**
+> (Focus default; Phase/Hyper swap-ins) with **per-mode resources** — Phase = kill-earned
+> charges, Hyper = a full-gated Focus-style bar. The **Mode-Energy gauge, the unified recharge
+> spine, the ace-chain coupling, and the focus-save dual-hitbox in this doc are DROPPED.** The
+> Super/Secondary/Module/Upgrade *classification* below is still useful background, but the
+> mode mechanics here are obsolete — follow the new doc.
+
+Status: **SUPERSEDED — see banner above.** ~~design / not built; magnitudes first-pass.~~
 
 Context: Starblaster's "supers" layer is semi-neglected — three supers share one
 device slot, "Focus" is a separate baseline modal, and hull/shield/regen/plating
