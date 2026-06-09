@@ -284,6 +284,22 @@ const SERVICE_SUPER_CHARGE := "Super Charge  +1"
 const SERVICE_SUFFIX_NO_SHIP := "(no ship)"
 const SERVICE_STATE_HULL_FULL := "Hull Full"
 const SERVICE_SOLD_OUT := "— OUT (refresh at next boss)"
+
+# Sector-modifier display (key -> player-facing "Name (effect)"). Keys are
+# run_state.ALL_SECTOR_MODIFIERS. Shown in the outpost so the player can see the
+# active sector theme (Roman 2026-06-08).
+const MODIFIER_LABELS := {
+	"wanted": "Wanted (+20% bounty)",
+	"armored": "Armored (tougher enemies)",
+	"heavily_armored": "Heavily Armored (much tougher)",
+	"shielded": "Shielded (enemy shields)",
+	"aggressive": "Aggressive (faster fire)",
+	"dangerous": "Dangerous (2x damage to you)",
+	"fleeing": "Fleeing (enemies don't recycle)",
+	"cruiser_support": "Cruiser Support (rare heavy)",
+}
+const SECTOR_MODIFIERS_LABEL := "SECTOR: %s"
+const SECTOR_MODIFIERS_NONE := "SECTOR: standard conditions"
 const SERVICE_SUFFIX_NO_SHIELD := "(no shield)"
 const SERVICE_STATE_SHIELDS_FULL := "Shields Full"
 const SERVICE_SUFFIX_FREE := "(FREE)"

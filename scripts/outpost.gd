@@ -113,6 +113,7 @@ var _mg_ammo_lbl: Label = null
 var _sec_ammo_lbl: Label = null
 var _super_value_lbl: Label = null
 var _loadout_lbl: Label = null
+var _modifiers_lbl: Label = null
 var _weapons_box: VBoxContainer = null
 var _upgrades_box: VBoxContainer = null
 var _services_box: VBoxContainer = null
@@ -201,6 +202,11 @@ func _build_status_panel(parent: CanvasLayer) -> void:
 	_loadout_lbl.text = ""
 	_style_label(_loadout_lbl, FS_CAPTION, Color(0.62, 0.72, 0.82))
 	title_v.add_child(_loadout_lbl)
+	# Active sector modifiers (so the player sees the theme they're fighting in).
+	_modifiers_lbl = Label.new()
+	_modifiers_lbl.text = ""
+	_style_label(_modifiers_lbl, FS_CAPTION, Color(0.95, 0.72, 0.55))
+	title_v.add_child(_modifiers_lbl)
 	h.add_child(title_v)
 
 	# Stat blocks.
@@ -1056,6 +1062,8 @@ func _refresh_status_panel() -> void:
 		_bounty_value_lbl.text = "%d" % int(run.bounty)
 	if _loadout_lbl:
 		_loadout_lbl.text = _format_loadout_line(run)
+	if _modifiers_lbl:
+		_modifiers_lbl.text = _format_sector_modifiers(run)
 
 	_refresh_services()
 	_refresh_card_affordability()
@@ -1292,6 +1300,22 @@ func _format_loadout_line(run) -> String:
 	var sup = run.loadout_snapshot.get(SlotTypes.SlotType.DEVICE_BAY_1, null)
 	parts.append(Strings.LOADOUT_SUPER % _short_part_text(sup))
 	return "   ".join(parts)
+
+
+# The active sector-wide modifiers, as a player-facing line for the status bar.
+# Reads the sector theme pool (sector_map_cache.sector_modifiers) — the whole-sector
+# conditions, not the per-combat list. (#6, Roman 2026-06-08.)
+func _format_sector_modifiers(run) -> String:
+	var mods: Array = []
+	if "sector_map_cache" in run and run.sector_map_cache is Dictionary:
+		mods = run.sector_map_cache.get("sector_modifiers", [])
+	if mods.is_empty():
+		return Strings.SECTOR_MODIFIERS_NONE
+	var labels: Array[String] = []
+	for k in mods:
+		var key := String(k)
+		labels.append(String(Strings.MODIFIER_LABELS.get(key, key.capitalize())))
+	return Strings.SECTOR_MODIFIERS_LABEL % "   ·   ".join(labels)
 
 
 func _short_part_text(part) -> String:
