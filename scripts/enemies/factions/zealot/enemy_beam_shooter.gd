@@ -2,8 +2,9 @@ extends "res://scripts/enemy_core.gd"
 class_name EnemyBeamShooter
 
 # Beamer — beam specialist. On-lane migration 2026-06-08: LOCOMOTION is now on the lane system.
-# The SWEEP variant uses the BeamSweep movement pattern (descend → rake L↔R); the CHASE/LOCK
-# tracker variant uses Drift (descend → hold). The beam itself is already the shared BeamEmitter
+# The SWEEP variant uses the LoiterSweep movement pattern (descend → rake L↔R; renamed from
+# "beam_sweep" 2026-06-09); the CHASE/LOCK tracker variant uses Drift (descend → hold). The beam
+# itself is already the shared BeamEmitter
 # (M6a.2). What stays bespoke is the hull-AIM (the beam exits the sprite front, so the hull turns
 # to aim) — genuinely special: LOCK freezes rotation while the beam is committed.
 #
@@ -13,7 +14,7 @@ class_name EnemyBeamShooter
 #   LOCK  — track between shots, freeze while the beam is committed (an evade window).
 
 const BeamEmitter = preload("res://scripts/enemies/beam_emitter.gd")
-const BeamSweep = preload("res://scripts/enemies/patterns/beam_sweep.gd")
+const LoiterSweep = preload("res://scripts/enemies/patterns/loiter_sweep.gd")
 const Drift = preload("res://scripts/enemies/patterns/drift.gd")
 
 enum AimBehavior { SWEEP, CHASE, LOCK }
@@ -40,11 +41,11 @@ func _ready() -> void:
 	if em != null:
 		_emitter_local = em.position
 	rotation = PI                             # front/maw toward the player below
-	# Locomotion fallback (the matrix assigns beam_sweep / drift_high). SWEEP rakes; the
+	# Locomotion fallback (the matrix assigns loiter_sweep / drift_high). SWEEP rakes; the
 	# tracker variants hold and aim.
 	if movement == null:
 		if aim_behavior == AimBehavior.SWEEP:
-			var m := BeamSweep.new()
+			var m := LoiterSweep.new()
 			m.settle_y = SETTLE_Y
 			movement = m
 		else:
@@ -65,7 +66,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	super._process(delta)        # movement pattern (BeamSweep / Drift) + components
+	super._process(delta)        # movement pattern (LoiterSweep / Drift) + components
 	if _dying:
 		return
 	# Start the beam once settled (works for both the sweep + hold movements).

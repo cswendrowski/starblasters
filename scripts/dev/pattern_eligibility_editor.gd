@@ -29,7 +29,7 @@ const MOVEMENT_KEYS := [
 	"lane_weave", "lane_drift", "lane_shift", "lane_hook", "lane_cut",
 	"side_turn", "side_dive", "side_traverse",
 	"hunt_beeline", "hunt_omni",
-	"pendulum", "strafe_run", "proximity_chase", "beam_sweep",
+	"pendulum", "proximity_chase", "loiter_sweep",
 ]
 
 # Legacy/retired movement keys → their current replacement. Applied when loading the
@@ -53,6 +53,8 @@ const KEY_REMAP := {
 	"s_curve": "lane_weave",
 	"jet_charger": "straight_fast",
 	"side_cut": "side_dive",
+	"beam_sweep": "loiter_sweep",   # renamed 2026-06-09 (behavior unchanged)
+	# (strafe_run intentionally absent — strafer retired 2026-06-09; saved entries drop on load)
 }
 
 const FACTION_FILTERS := ["All", "Sup", "Priv", "Corp", "Zealot"]

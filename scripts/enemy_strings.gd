@@ -50,7 +50,6 @@ const STRINGS := {
 	"res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn": {"name": "hunter_drone", "codex": "TBD"},
 	"res://scenes/enemies/factions/corporate/enemy_sapper.tscn": {"name": "sapper", "codex": "TBD"},
 	"res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn": {"name": "skirmisher", "codex": "TBD"},
-	"res://scenes/enemies/factions/corporate/enemy_strafer.tscn": {"name": "strafer", "codex": "TBD"},
 	"res://scenes/enemies/factions/privateer/enemy_dart.tscn": {"name": "dart", "codex": "TBD"},
 	"res://scenes/enemies/factions/privateer/enemy_gunship.tscn": {"name": "gunship", "codex": "TBD"},
 	"res://scenes/enemies/factions/privateer/enemy_interceptor.tscn": {"name": "interceptor", "codex": "TBD"},

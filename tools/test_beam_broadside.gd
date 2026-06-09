@@ -26,7 +26,7 @@ func _process(_d: float) -> bool:
 	# Beam shooter (SWEEP): descends to ~58, attaches a beam, sweeps.
 	var bs = load("res://scenes/enemies/factions/zealot/enemy_beam_shooter.tscn").instantiate()
 	root.add_child(bs)
-	bs.movement = Roster.make_movement({"movement": "beam_sweep"})
+	bs.movement = Roster.make_movement({"movement": "loiter_sweep"})
 	bs.start(Vector2(Lanes.lane_center(2), 8.0))
 	for _i in range(120):
 		if is_instance_valid(bs): bs._process(dt)

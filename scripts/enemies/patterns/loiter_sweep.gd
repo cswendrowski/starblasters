@@ -1,9 +1,9 @@
 extends "res://scripts/enemies/movement_pattern.gd"
 
-# Beam Sweep (Roman 2026-06-08, ported from enemy_beam_shooter locomotion): descend to a settle
-# band, then rake left↔right across the playfield at a steady speed. Movement-only — the host
-# keeps its (shared BeamEmitter) beam + hull-aim. Persistent (never exits). Emits
-# phase_entered("settled") once it reaches the band.
+# Loiter Sweep (Roman 2026-06-08, ported from enemy_beam_shooter locomotion; renamed from
+# "beam_sweep" 2026-06-09 — behavior unchanged): descend to a settle band, then rake left↔right
+# across the playfield at a steady speed. Movement-only — the host keeps its (shared BeamEmitter)
+# beam + hull-aim. Persistent (never exits). Emits phase_entered("settled") once it reaches the band.
 
 const Playfield = preload("res://scripts/playfield.gd")
 

@@ -41,9 +41,8 @@ const LanePath = preload("res://scripts/enemies/patterns/lane_path.gd")
 const OmniThrust = preload("res://scripts/enemies/patterns/omni_thrust.gd")
 const LaneCharge = preload("res://scripts/enemies/patterns/lane_charge.gd")
 const Pendulum = preload("res://scripts/enemies/patterns/pendulum.gd")
-const StrafeRun = preload("res://scripts/enemies/patterns/strafe_run.gd")
 const ProximityChase = preload("res://scripts/enemies/patterns/proximity_chase.gd")
-const BeamSweep = preload("res://scripts/enemies/patterns/beam_sweep.gd")
+const LoiterSweep = preload("res://scripts/enemies/patterns/loiter_sweep.gd")
 const Weapon = preload("res://scripts/enemies/shoot_patterns/weapon.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
 
@@ -280,21 +279,8 @@ const ENTRIES := [
 		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.7, "chaff": true,
 		"conflict_tags": ["dumb_shot"],
 	},
-	# Strafer (REVIVED + on-lane migration 2026-06-08): corporate fast fighter on enemy_core.
-	# StrafeRun pass beside the player + the "nose" weapon (Aim.FORWARD, fire_only_on_target) —
-	# the ray-nose strafe, now reusable. Was bespoke + retired; re-added as an UNCOMMON harasser.
-	{
-		"scene": "res://scenes/enemies/factions/corporate/enemy_strafer.tscn",
-		"tier": Tier.UNCOMMON,
-		"size": "small", "tags": [],
-		"movement": "strafe_run",
-		"shoot": "nose",
-		"bullet_variant": BV_SpreadPellet,
-		"base_count": 2,
-		"hp_override": 2, "bounty_override": 10,
-		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.5,
-		"conflict_tags": ["aimed_or_spread"],
-	},
+	# (Strafer retired 2026-06-09 — its StrafeRun pass is superseded by the Hotrod below; the
+	# enemy_strafer scene/script + the strafe_run pattern were removed.)
 	# Hotrod (M6c, Roman art 2026-06-07) — REPLACES the Strafer. Supremacy fast
 	# fighter (enemy_core) firing ALTERNATING tracers from its two muzzles (single
 	# shot cycles L/R). Dive / straight / weave variants. enemy_strafer.tscn retired
@@ -1304,15 +1290,13 @@ static func make_movement(entry: Dictionary) -> Resource:
 		"pendulum":
 			# Dual-band vertical ping-pong diver w/ aim-fire dwell (ported from crystal).
 			return Pendulum.new()
-		"strafe_run":
-			# Capped-turn strafing pass beside the player (ported from strafer).
-			return StrafeRun.new()
 		"proximity_chase":
 			# Drift straight until near the player, then activate a chase (smart mine/bomblet).
 			return ProximityChase.new()
-		"beam_sweep":
-			# Descend to a band, then rake L↔R (beam shooter SWEEP locomotion).
-			return BeamSweep.new()
+		"loiter_sweep":
+			# Descend to a band, then rake L↔R (beam shooter SWEEP locomotion). Renamed from
+			# "beam_sweep" 2026-06-09 — behavior unchanged.
+			return LoiterSweep.new()
 	# Default: a readable medium straight.
 	return _straight(180.0)
 
