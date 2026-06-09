@@ -71,7 +71,17 @@ they own the fix** (or Roman confirms the reseed intent).
   offers are ever serialized. Suggest `equip_part(part.duplicate())`.
 - **`swarm_launcher.tres`** doesn't exist (code-only authorship, like the mode parts) — fine, but it's
   the only secondary without weapon-editor `.tres` parity. Author one if designer tuning is wanted.
-- **Lint:** `run_state.equip_part` shadows the member `ammo` + the builtin `seed()` with locals.
+- ~~**Lint:** `run_state.equip_part` shadows the member `ammo` + the builtin `seed()`.~~ **FIXED**
+  (`e2a8ff9`) — renamed to `sec_ammo` / `seed_ammo`.
+
+---
+
+## Investigated, NOT done — too risky to do blind (no playtester / no push)
+- **`scripts/bullet.gd` + `scripts/bullet_wave.gd` root-misplacement** (TODO §Weapons/Architecture):
+  these belong in `scripts/projectiles/`, BUT they're load-bearing — referenced by `player.tscn`, the
+  whole `bullet*.tscn` / `bullet_wave*.tscn` family, and many shoot `.tres`. Relocating means rewriting
+  dozens of `.tscn`/`.uid` paths; a single missed UID silently breaks the core projectile spawn, with
+  no playtester to catch it. Defer to a session that can push + playtest.
 
 ---
 

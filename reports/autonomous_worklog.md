@@ -49,7 +49,12 @@ architecture + reify decision, cannon Mk-flattening), **art** (faction sprites, 
 **playtest/feel** (s_s_rush, tracer, chaff walls, fire_offset), or are the **combat session's active
 lane** (conductor no-repeat, wave-pattern composition — leaving to them to avoid stepping on their
 in-flight work). → **Pivoted to the code-review + bug-hunt** per Roman's fallback instruction; report
-at `reports/code_review_findings_2026-06-09.md`.
+at `reports/code_review_findings_2026-06-09.md`. **Bug-hunt closed out**: 8 fixes + 1 lint cleanup
+applied & verified (`c2711d0`, `e2a8ff9`); the rest of the review's findings are triaged into the
+report (deferred-for-Roman / combat-lane / perf-runner / too-risky-blind). At the principled stopping
+point — every remaining TODO item is gated on a Roman decision, art, a playtest/eyeball, the combat
+session's active lane, or a push I can't make. Holding here rather than spraying speculative refactors
+into load-bearing combat code with no playtester.
 
 ### Big item explicitly deferred — Passive-Module layer
 The marquee remaining lead-lane feature, BUT blocked on design/architecture calls I shouldn't make
