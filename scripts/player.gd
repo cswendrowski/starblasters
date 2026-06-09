@@ -1158,9 +1158,7 @@ func fire_primary() -> void:
 			WeaponSfx.play(get_tree().root, global_position, WS.sfx_kind_string(fire_sfx_kind))
 		elif has_node("ShootSound"):
 			$ShootSound.play()
-	var tween := create_tween().set_parallel(false)
-	tween.tween_property($Ship, "position:y", 1, 0.1)
-	tween.tween_property($Ship, "position:y", 0, 0.05)
+	# (Removed the on-fire ship kick-back nudge — Roman 2026-06-09.)
 	# Weapons Phase 1: every non-blaster primary deducts ONE ammo per fire.
 	# The blaster (cannon_pool[0]) has ammo == -1 and is skipped. When ammo
 	# hits 0, snap to the blaster and re-apply on the next frame so the
