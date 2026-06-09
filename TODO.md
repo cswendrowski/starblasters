@@ -464,7 +464,10 @@ enums absorb the bay slots). Net-new = the bay UI + the reify refactor + the ros
   + open decisions (strings authoritative vs mirror; icon art; tab granularity):
   **`docs/armory_string_expansion_2026-06-08.md`**.
 
-- [ ] **New Secondary — Swarm Launcher** — HARDPOINT_WING salvo of seeking missiles: **4 dmg** each,
+- [x] **New Secondary — Swarm Launcher** — DONE (lead autonomous, `4405b29`). Built per the spec doc;
+  headless-verified (distinct-target round-robin, re-acquire-on-death, Mk 4/6/20, 6 ammo / 3s cd).
+  Placeholder art (energy_bolt_small tinted) + feel pass flagged for Roman. _(orig spec below)_
+- [~] **New Secondary — Swarm Launcher** — HARDPOINT_WING salvo of seeking missiles: **4 dmg** each,
   **4 missiles at Mk.1 (+2/Mk)**, prefer **distinct targets** (else all chase one; **re-acquire on
   target death**; fly on + explode **harmlessly** if none), **6 px/f** with a **tight turn arc**,
   bright **yellow-orange flickering pixel + diffuse glow + trail**, **6 ammo / 1 per salvo / 3s
