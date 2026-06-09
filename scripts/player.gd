@@ -220,10 +220,8 @@ const FOCUS_TRAIL_LEN := 18
 const FOCUS_SHIP_ALPHA := 0.55                 # ship opacity while focused
 const FOCUS_GLOW_COLOR := Color(0.5, 0.9, 1.0) # cool cyan focus aura
 const PHASE_GLOW_COLOR := Color(0.2, 0.5, 1.0) # bright blue phase-out aura (no dot/trail)
-const FOCUS_EXHAUST_LIFETIME := 0.5            # 2x the scene default (0.25)
 const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
 var _focus_glow: CanvasItem = null
-var _exhaust_base_lifetime: float = 0.25
 var focus_charge: float = 10.0
 var focus_charge_max: float = 10.0
 var _focus_regen_delay: float = 0.0
@@ -390,22 +388,88 @@ func _ready() -> void:
 	# Oblique drop-shadow under the ship sprite (code-only; no .tscn edits).
 	var ShadowFx = load("res://scripts/shadow_fx.gd")
 	ShadowFx.attach_shadow($Ship)
-	# Engine glow under the booster animation so the thrust reads as a light
-	# source. Cyan-blue to match the booster art. Roman 2026-06-08: dropped the
-	# old radial GradientTexture2D glow (glow_fx.attach_glow — a hard-edged 2D
-	# gradient blob) in favour of the shared shader bloom, which fades a diffuse
-	# halo off the booster sprite's own silhouette.
-	if $Ship.has_node("Boosters"):
-		var booster: CanvasItem = $Ship.get_node("Boosters") as CanvasItem
-		if booster != null:
-			GlowShaderFx.apply(booster, Color(0.45, 0.85, 1.0))
-	# Remember the scene's default exhaust lifetime so focus mode can double it
-	# and restore the exact baseline on release.
-	if $Ship.has_node("GPUParticles2D"):
-		var exhaust: GPUParticles2D = $Ship.get_node("GPUParticles2D") as GPUParticles2D
-		if exhaust != null:
-			_exhaust_base_lifetime = exhaust.lifetime
+	# New ship layers (Roman 2026-06-09 player-art pass): GlowMask = engine glowmask (#00d3ff,
+	# fades to half on move-back); Livery = shader-recolored decoration (random per-patrol tint);
+	# EngineL/R = engine-trail markers (#00d3ff trails, above the sprites).
+	_setup_ship_visuals()
 	start()
+
+const ENGINE_GLOW_COLOR := Color(0.0, 0.827, 1.0)   # #00d3ff (engine glowmask + trails)
+const EngineFxCls = preload("res://scripts/effects/enemy_engine_fx.gd")
+
+
+# Wire up the new ship-art layers (Roman 2026-06-09): engine glowmask tint, the two #00d3ff
+# engine trails, and the per-patrol livery recolor.
+func _setup_ship_visuals() -> void:
+	# Engine glowmask — additive #00d3ff so it reads as emissive. Its alpha is driven in
+	# _process (half opacity while moving back).
+	if has_node("Ship") and $Ship.has_node("GlowMask"):
+		var gm: Sprite2D = $Ship.get_node("GlowMask")
+		gm.modulate = ENGINE_GLOW_COLOR
+		var gmat := CanvasItemMaterial.new()
+		gmat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		gm.material = gmat
+	# Engine trails at the two markers — same #00d3ff, sorted ABOVE the ship sprites.
+	for mk in ["EngineL", "EngineR"]:
+		if has_node(mk):
+			var trail := EngineFxCls.attach(get_node(mk), ENGINE_GLOW_COLOR, 0.7)
+			if trail != null:
+				trail.z_as_relative = false
+				trail.z_index = 1
+	_apply_livery_color()
+
+
+# Livery recolor: randomize the shader tint per patrol (deterministic off run_seed so it's
+# stable within a run); default pure red when there's no run.
+func _apply_livery_color() -> void:
+	if not (has_node("Ship") and $Ship.has_node("Livery")):
+		return
+	var lv: Sprite2D = $Ship.get_node("Livery")
+	if lv.material == null:
+		return
+	lv.material = lv.material.duplicate()   # don't mutate the shared scene sub-resource
+	var col := Color(1.0, 0.0, 0.0)         # #ff0000 default
+	if has_node("/root/Run"):
+		var rng := RandomNumberGenerator.new()
+		rng.seed = int(get_node("/root/Run").run_seed)
+		col = Color.from_hsv(rng.randf(), rng.randf_range(0.7, 1.0), rng.randf_range(0.85, 1.0))
+	lv.material.set_shader_parameter("tint_color", col)
+
+
+# Bank all three ship layers together — body + livery + glowmask share the 3-frame strip.
+func _set_bank_frame(f: int) -> void:
+	if not has_node("Ship"):
+		return
+	$Ship.frame = f
+	if $Ship.has_node("Livery"):
+		($Ship.get_node("Livery") as Sprite2D).frame = f
+	if $Ship.has_node("GlowMask"):
+		($Ship.get_node("GlowMask") as Sprite2D).frame = f
+
+
+# Engine glowmask opacity: eases to 0.5 while moving back (down), 1.0 otherwise.
+var _engine_glow_a: float = 1.0
+func _update_engine_glow(moving_back: bool, delta: float) -> void:
+	if not (has_node("Ship") and $Ship.has_node("GlowMask")):
+		return
+	var target: float = 0.5 if moving_back else 1.0
+	_engine_glow_a = move_toward(_engine_glow_a, target, delta * 6.0)
+	var gm: Sprite2D = $Ship.get_node("GlowMask")
+	gm.modulate.a = _engine_glow_a
+
+
+# Offset of a scene marker (e.g. "Ship/Muzzle") relative to the player centre, with a fallback
+# if the marker is missing. Used so weapons fire from the authored markers, not hardcoded offsets.
+func _muzzle_offset(node_path: String, fallback: Vector2) -> Vector2:
+	var m: Node = get_node_or_null(node_path)
+	if m == null or not (m is Node2D):
+		return fallback
+	return to_local((m as Node2D).global_position)
+
+
+# Toggles the wing a single-missile secondary launches from (alternates L/R per shot).
+var _secondary_wing: int = 0
+
 
 func _setup_smoke_trail() -> void:
 	# Sprite-based smoke trail (DamageSmokeTrail spawns one Sprite2D per puff,
@@ -587,8 +651,7 @@ func _process(delta: float) -> void:
 	if not controls_enabled:
 		# Ship still animates "forward" so it reads as actively flying during
 		# the intro slide-in / outro fly-out cinematic.
-		$Ship.frame = 1
-		$Ship/Boosters.animation = "forward"
+		_set_bank_frame(1)
 		# Stop any in-flight machinegun audio so the loop doesn't keep
 		# brrrt'ing while the player is flying off-screen at level end
 		# (Roman, 2026-05-16: "make sure to stop them shooting").
@@ -601,14 +664,13 @@ func _process(delta: float) -> void:
 		return
 	var input := Input.get_vector("left", "right", "up", "down")
 	if input.x > 0:
-		$Ship.frame = 2
-		$Ship/Boosters.animation = "right"
+		_set_bank_frame(2)
 	elif input.x < 0:
-		$Ship.frame = 0
-		$Ship/Boosters.animation = "left"
+		_set_bank_frame(0)
 	else:
-		$Ship.frame = 1
-		$Ship/Boosters.animation = "forward"
+		_set_bank_frame(1)
+	# Engine glowmask dims to half opacity while moving BACK (down); full bright otherwise.
+	_update_engine_glow(input.y > 0.0, delta)
 	# Focus mode (Shift, by convention): ⅔-ish speed for precision
 	# dodging + show the hitbox dot so the player sees their collider.
 	# Charge-gated: focus deactivates when charge hits 0; recharges 2s
@@ -1009,7 +1071,9 @@ func fire_primary() -> void:
 	# sprite, slightly AHEAD of the ship (above the top edge). Ship is
 	# 16×16 centered; top edge sits at local Y=-8, so (-0, -10) is two
 	# pixels ahead of the leading edge.
-	var muzzle_pos: Vector2 = global_position + Vector2(0, -10)
+	# Primary fires from the scene's Muzzle marker (Roman 2026-06-09 marker pass).
+	var muzzle_off: Vector2 = _muzzle_offset("Ship/Muzzle", Vector2(0, -8))
+	var muzzle_pos: Vector2 = global_position + muzzle_off
 	# Spread support — Spread Cannon Part sets bullet_spread_count > 1.
 	# Default 1 fires straight up exactly as before. For N > 1, fan the
 	# bullets out across bullet_spread_degrees, centred straight up.
@@ -1042,11 +1106,13 @@ func fire_primary() -> void:
 		# on each shot. Only applies to single-shot cannons (count == 1).
 		# Slide the muzzle flash position with the spawn so the rotary
 		# laser flash sits over the bolt, not at center.
-		var spawn_offset: Vector2 = Vector2(0, -8)
+		var spawn_offset: Vector2 = muzzle_off
 		if fire_tandem_alternating and count == 1:
-			var side_x: float = -6.0 if _tandem_side == 0 else 6.0
-			spawn_offset = Vector2(side_x, -8)
-			muzzle_pos = global_position + Vector2(side_x, -10)
+			# Auto Laser fires from the wing muzzle markers, alternating L/R.
+			var wing: String = "Ship/MuzzleWingL" if _tandem_side == 0 else "Ship/MuzzleWingR"
+			var fallback := Vector2(-4.0 if _tandem_side == 0 else 4.0, -2.0)
+			spawn_offset = _muzzle_offset(wing, fallback)
+			muzzle_pos = global_position + spawn_offset
 			_tandem_side = 1 - _tandem_side
 		# Doppler fix: add the player's velocity along this bullet's fire
 		# direction so flying toward the shots keeps the stream spacing
@@ -1222,9 +1288,15 @@ func fire_secondary() -> void:
 			b.damage = secondary_damage
 		if secondary_homing and "guided" in b:
 			b.guided = true
-		# Wing-offset spawn position so multi-pod fire reads as
-		# "wingtip muzzles" rather than a stack of nose-mounted bolts.
-		b.start(position + Vector2(offset_x, -10))
+		# Single-missile secondaries (seeker / anti-ship) launch from the wing markers,
+		# alternating L/R. Multi-pod (Side Pods) keep their fanned offsets.
+		if count == 1:
+			var wing: String = "Ship/LaunchWingL" if _secondary_wing == 0 else "Ship/LaunchWingR"
+			var fallback := Vector2(-6.0 if _secondary_wing == 0 else 6.0, 1.0)
+			b.start(position + _muzzle_offset(wing, fallback))
+			_secondary_wing = 1 - _secondary_wing
+		else:
+			b.start(position + Vector2(offset_x, -10))
 	var WeaponSfxSec = load("res://scripts/effects/weapon_sfx.gd")
 	if WeaponSfxSec:
 		var kind: String = "missile" if secondary_homing else "rocket"
@@ -1285,7 +1357,9 @@ func _tick_burst(held: bool, delta: float) -> void:
 func _spawn_burst_rocket() -> void:
 	if secondary_bullet_scene == null:
 		return
-	var offset_x: float = secondary_burst_port_offset if _burst_port_right else -secondary_burst_port_offset
+	# Rocket Pod launches from the alternating wing markers.
+	var wing: String = "Ship/LaunchWingR" if _burst_port_right else "Ship/LaunchWingL"
+	var fallback := Vector2(secondary_burst_port_offset if _burst_port_right else -secondary_burst_port_offset, 0.0)
 	_burst_port_right = not _burst_port_right
 	var b: Node = secondary_bullet_scene.instantiate()
 	_bullet_parent().add_child(b)
@@ -1293,7 +1367,7 @@ func _spawn_burst_rocket() -> void:
 		b.damage_on_contact = secondary_damage
 	if "damage" in b:
 		b.damage = secondary_damage
-	b.start(position + Vector2(offset_x, 0))
+	b.start(position + _muzzle_offset(wing, fallback))
 	var WeaponSfxBurst = load("res://scripts/effects/weapon_sfx.gd")
 	if WeaponSfxBurst:
 		WeaponSfxBurst.play(get_tree().root, global_position, "rocket")
@@ -1471,7 +1545,7 @@ func _begin_beam_flash() -> void:
 	s.texture = BEAM_FLASH_TEX
 	s.hframes = BEAM_FLASH_HFRAMES
 	s.frame = 0
-	s.position = Vector2(0, -10)  # muzzle
+	s.position = _muzzle_offset("Ship/Muzzle", Vector2(0, -8))  # the muzzle marker
 	s.z_index = 7  # over halo(4)/line(5)/core(6)
 	add_child(s)
 	_beam_flash = s
@@ -1786,22 +1860,13 @@ func _focus_visuals_enter() -> void:
 	# sibling at z_index -1). apply() returns a typed CanvasItem.
 	if _focus_glow == null or not is_instance_valid(_focus_glow):
 		_focus_glow = GlowShaderFx.apply($Ship, FOCUS_GLOW_COLOR)
-	# Double the engine exhaust lifetime → ~2x trail length (velocity is fixed).
-	if $Ship.has_node("GPUParticles2D"):
-		var exhaust: GPUParticles2D = $Ship.get_node("GPUParticles2D") as GPUParticles2D
-		if exhaust != null:
-			exhaust.lifetime = FOCUS_EXHAUST_LIFETIME
 
 
-# Focus-exit: free the glow aura and restore the engine exhaust to baseline.
+# Focus-exit: free the glow aura.
 func _focus_visuals_exit() -> void:
 	if _focus_glow != null and is_instance_valid(_focus_glow):
 		_focus_glow.queue_free()
 	_focus_glow = null
-	if has_node("Ship") and $Ship.has_node("GPUParticles2D"):
-		var exhaust: GPUParticles2D = $Ship.get_node("GPUParticles2D") as GPUParticles2D
-		if exhaust != null:
-			exhaust.lifetime = _exhaust_base_lifetime
 
 
 func _play_focus_sound(_starting: bool) -> void:

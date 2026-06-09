@@ -36,18 +36,18 @@ func shoot():
 	if not current_weapon is PackedScene:
 		return
 	var p = current_weapon.instantiate()
-	var casing_spawn_point: Marker2D = $"../Gun_Nose_Eject"
+	var casing_spawn_point: Marker2D = $"../Muzzle/Gun_Nose_Eject"
 	var particle_instance = casing_particle_scene.instantiate()
 	particle_instance.global_position = casing_spawn_point.global_position
 	get_tree().current_scene.add_child(particle_instance)
 	particle_instance.emitting = true
-	var flash_spawn_point: Marker2D = $"../Gun_Nose"
+	var flash_spawn_point: Marker2D = $"../Muzzle"
 	var flash_instance = flash_particle_scene.instantiate()
 	flash_instance.global_position = flash_spawn_point.global_position
 	get_tree().current_scene.add_child(flash_instance)
 	flash_instance.emitting = true
 	get_tree().root.add_child(p)
-	p.transform =$"../Gun_Nose".global_transform
+	p.transform =$"../Muzzle".global_transform
 	$"../../MinigunCooldown".start()
 	$"../../ShootMinigun".pitch_scale = randf_range(0.98, 1.02)
 	$"../../ShootMinigun".play()
@@ -55,5 +55,5 @@ func shoot():
 	#get_tree().root.add_child(b)
 	#b.start(position + Vector2(0, -8))
 	#var tween = create_tween().set_parallel(false)
-	#tween.tween_property($"../Gun_Nose", "position:y", 1, 0.1)
-	#tween.tween_property($"../Gun_Nose", "position:y", 0, 0.05)
+	#tween.tween_property($"../Muzzle", "position:y", 1, 0.1)
+	#tween.tween_property($"../Muzzle", "position:y", 0, 0.05)
