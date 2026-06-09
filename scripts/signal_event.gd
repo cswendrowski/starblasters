@@ -152,6 +152,7 @@ func _events() -> Array:
 		_make_inspection_event(),
 		_make_experimental_event(),
 		_make_bounty_board_event(),
+		_make_stance_cache_event(),
 	]
 	if is_asteroid_field:
 		list.append({
@@ -175,6 +176,7 @@ func _events() -> Array:
 		["ambush", 1.0], ["nano_cloud", 1.0], ["junk_trader", 1.0],
 		["wreck", 1.0], ["salvage", 1.0], ["derelict", 0.8],
 		["inspection", 0.8], ["experimental", 0.7], ["bounty_board", 0.7],
+		["stance_cache", 0.6],
 		["freespace_miner", 1.0],
 	]
 	for i in range(mini(list.size(), ev_meta.size())):
@@ -217,6 +219,26 @@ func _make_salvage_cache_event() -> Dictionary:
 			{
 				"label": Strings.CHOICE_SALVAGE_LEAVE,
 				"action": func(s): s._finish_to_sector_map(Strings.OUTCOME_SALVAGE_LEAVE),
+			},
+		],
+	}
+
+
+# Stance Module Cache — a drifting pod holding a Shift-mode module (Phase/Hyper).
+# The only signal event that grants a SHIFT_MODE part; modes are otherwise bought at
+# outposts. Stows through the standard grant path. (docs/shift_mode_system_2026-06-08.md.)
+func _make_stance_cache_event() -> Dictionary:
+	return {
+		"title": Strings.EVENT_STANCE_TITLE,
+		"body": Strings.EVENT_STANCE_BODY,
+		"choices": [
+			{
+				"label": Strings.CHOICE_STANCE_SALVAGE,
+				"action": func(s): s._do_stance_cache(),
+			},
+			{
+				"label": Strings.CHOICE_STANCE_LEAVE,
+				"action": func(s): s._finish_to_sector_map(Strings.OUTCOME_STANCE_LEAVE),
 			},
 		],
 	}
@@ -780,6 +802,31 @@ func _salvage_outcome_weapon() -> void:
 		_finish_to_sector_map(Strings.OUTCOME_SALVAGE_STOWED_GENERIC, ETone.GOOD, new_part)
 		return
 	_finish_to_sector_map(Strings.OUTCOME_SALVAGE_NO_WEAPONS)
+
+
+# Roll a Shift-mode module (Phase or Hyper) and stow it. Prefers a module the player
+# isn't already running (reroll once) so the find is a real new option, and snaps the
+# Mk up to the player's current mode so it's never a downgrade.
+func _do_stance_cache() -> void:
+	if not has_node("/root/Run"):
+		_finish_to_sector_map(Strings.OUTCOME_STANCE_NO_RUN)
+		return
+	var run := get_node("/root/Run")
+	var current = run.loadout_snapshot.get(Slots.SlotType.SHIFT_MODE, null)
+	var current_mark: int = int(current.mark) if current != null and "mark" in current else 1
+	var current_name: String = String(current.display_name) if current != null and "display_name" in current else ""
+	var part = PartCatalog.roll_for_slot(_rng, Slots.SlotType.SHIFT_MODE, current_mark)
+	# Prefer a different module than the one equipped (reroll once).
+	if part != null and "display_name" in part and String(part.display_name) == current_name:
+		var alt = PartCatalog.roll_for_slot(_rng, Slots.SlotType.SHIFT_MODE, current_mark)
+		if alt != null and "display_name" in alt and String(alt.display_name) != current_name:
+			part = alt
+	if part == null:
+		_finish_to_sector_map(Strings.OUTCOME_STANCE_NO_RUN)
+		return
+	if "mark" in part and int(part.mark) < current_mark:
+		part.mark = current_mark
+	_finish_to_sector_map(Strings.OUTCOME_STANCE_STOWED % String(part.display_name), ETone.GOOD, part)
 
 
 func _has_metered_weapons() -> bool:

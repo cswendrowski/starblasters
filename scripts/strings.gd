@@ -235,6 +235,15 @@ const OUTCOME_SALVAGE_STOWED := "Salvaged %s — stowed in your cargo hold. Equi
 # Phase B: the acquired-item card names the part, so the result line stays generic.
 const OUTCOME_SALVAGE_STOWED_GENERIC := "You pry a working weapon free and stow it in your cargo hold."
 
+# Stance Module Cache (signal event) — the find-a-Shift-mode-module beat.
+const EVENT_STANCE_TITLE := "Drifting Module Pod"
+const EVENT_STANCE_BODY := "A maneuvering-systems pod tumbles in the wreckage, cradle still warm — a stance module, intact and salvageable."
+const CHOICE_STANCE_SALVAGE := "Pry the module loose"
+const CHOICE_STANCE_LEAVE := "Leave it tumbling"
+const OUTCOME_STANCE_STOWED := "Salvaged a %s module — stowed in your cargo hold. Equip it at your ship."
+const OUTCOME_STANCE_LEAVE := "You let the pod drift on into the dark."
+const OUTCOME_STANCE_NO_RUN := "The pod's cradle is empty."
+
 # Acquired-item card (Phase B resolver — shown whenever an event grants a part).
 const CARD_ACQUIRED := "Acquired: %s"
 const CARD_STOWED_HINT := "Stowed in cargo — equip it at your ship."
