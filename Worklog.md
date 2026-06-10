@@ -271,6 +271,14 @@ unit-tested.
 - **O** Renderer pivot — HELD for attended session.
 
 ## Running log
+- 2026-06-10 — **MERGED + PUSHED**: `worklist-2026-06-10` merged into main (`0927c83`), both pushed
+  to origin. **Renderer pivot built** on branch `renderer-pivot` (`8f7a941`): forward_plus,
+  Windows-only publish pipeline (preset → `../Starblaster_win/Starblaster.exe`, butler channel
+  `:windows`), CLAUDE.md updated, bogus custom-template field cleared. Verified: gate 266/266, boot
+  clean, LOCAL test export produced a working 152MB exe. NOT pushed to itch. **Roman: restart the
+  editor** (renderer changes need a relaunch) and eyeball — glow first (main.tscn Environment
+  intensity 0.6 was tuned under GL; Forward+ usually renders glow stronger), then particles,
+  additive effects, outlines, and a full combat. Merge `renderer-pivot` when it looks right.
 - 2026-06-10 — **Playtest round 2 fixes** (`15b60b0`/`57c00e2`/`51d4313`):
   (1) **Frozen/unkillable firecores** — task J's `var scene :=` off an untyped load() killed the
   whole firecore script at runtime. Fixed; `test_firecore_repro` proves both spawn paths move + die.
