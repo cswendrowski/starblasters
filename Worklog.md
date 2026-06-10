@@ -145,6 +145,15 @@ Legend: ⮕ reuse/extend target. ⚠ risk/needs-eyeball. 🔧 dev-tool opportuni
 ---
 
 ## Needs-Roman (eyeball / playtest / decisions) — running
+**Music + HUD (cluster F+G):**
+- **Music ramp** logic tested (PASS): I1 open → I2 first wave → Main past wave 4 → ramp down on clear;
+  +1 permanent step per boss (via Run.bosses_defeated floor). Eyeball/ear: confirm it ramps in real
+  combat (the prompt-crossfade is new) and the per-boss escalation feels right.
+- **HUD weapon light** flash-on-regen / darken-on-empty — eyeball (logic sound, can't see it).
+- **HUD ∞ glyph fix:** the missing-char "out of ammo" box was the ∞ infinity symbol (not in the pixel
+  font). Infinite ammo now shows **blank**. Tell me if you want an explicit infinite indicator (I'd add
+  a small sprite glyph or a font with ∞).
+
 **Outpost (cluster E) — eyeball card layout/copy:** All 7 done (subagent + my safeguard fix). Eyeball:
 the dynamic stat line format on cards (computed from part curves, e.g. "dmg 5 · 1.5/s"), the rarity-
 colored name + type subtitle ("Blaster"/"Primary Weapon"/"Secondary Weapon"/"Super"/"Mode"), and the
@@ -208,6 +217,7 @@ unit-tested.
 - **O** Renderer pivot — HELD for attended session.
 
 ## Running log
+- 2026-06-10 — **Cluster F+G Music+HUD DONE** (`3760e89`). Music ramp rewired (prompt crossfade + per-boss floor, test PASS); HUD weapon-light flash/darken + ∞-glyph fix. See Needs-Roman.
 - 2026-06-10 — **Cluster E Outpost UX DONE** (`e224405` subagent + `be986fa` my safeguard-bug fix).
   7 tasks: Blaster/Primary disambiguation, rarity-colored name, type subtitle (drop "Tier"), one-of-each
   move-to-hold safeguard, "Defeat boss to restock" label, own-better no-dupe roll filter, dynamic stat
