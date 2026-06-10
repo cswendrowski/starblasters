@@ -9,11 +9,18 @@ extends Node
 # Idempotent material attach: first call installs the ShaderMaterial; later
 # calls reuse it. Concurrent flashes kill the previous tween so a rapid-fire
 # barrage stays bright instead of stuttering back to baseline.
+#
+# A hit reads as a HARD, COMPLETE white pop: the silhouette is held fully white
+# (flash_strength = 1.0) for one rendered frame, THEN decays to baseline. The
+# old version eased down from 1.0 from frame zero, so the very first frame was
+# already a partial pink-ish tint and the punch was mushy.
 
 const HIT_FLASH_SHADER = preload("res://graphics/hit_flash.gdshader")
 const FLASH_WHITE := Color(1.0, 1.0, 1.0, 1.0)
 const FLASH_SHIELD := Color(0.55, 0.95, 1.0, 1.0)  # matches sci_fi_shield cyan
 const META_KEY := "hit_flash_state"
+# One frame at 60 fps — the full-white hold before the flash decays.
+const HOLD := 1.0 / 60.0
 
 
 static func flash(target: CanvasItem, color: Color = FLASH_WHITE, duration: float = 0.12) -> void:
@@ -40,6 +47,9 @@ static func flash(target: CanvasItem, color: Color = FLASH_WHITE, duration: floa
 		if prev != null and prev is Tween and prev.is_valid():
 			prev.kill()
 	var tw := target.create_tween()
+	# Hold the silhouette fully white for one frame (strength stays at the 1.0
+	# we just set), THEN decay to baseline — a hard, complete white pop.
+	tw.tween_interval(HOLD)
 	tw.tween_method(
 		func(v): mat.set_shader_parameter("flash_strength", v),
 		1.0, 0.0, duration

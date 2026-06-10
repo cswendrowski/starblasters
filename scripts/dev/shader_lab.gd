@@ -3,10 +3,13 @@ extends Control
 # Shader Lab (Roman 2026-06-10) — fire the NEW shader effects in the native
 # 480×270 SubViewport and compare them against what's in-game today, without
 # the GIF-capture loop:
-#   Embers  — graphics/ember_spray.gdshader burst (click the playfield to fire)
-#   Shields — sci_fi_shield ring (current) vs hex_shield (new) side by side
-#   Glow    — glow_halo per-sprite bloom (current) vs screen_glow overlay (new)
-#   Gallery — every other shader in the project on a test quad / ship sprite
+#   Embers     — ember_spray burst (cool-down) + the inverted heat-up variant
+#   Shields    — sci_fi_shield ring (current) vs hex_shield (new) side by side
+#   Glow       — glow_halo per-sprite bloom (current) vs screen_glow overlay,
+#                showcased on ENEMY BULLETS
+#   Modes      — Focus / Phase / Hyper player-mode tells, replicated
+#   Explosions — both explosion styles (default + small-circle), replayable
+#   Gallery    — every other shader in the project on a test quad / sprite
 # Right rail = knobs per mode, persisted to user://tuners/shader_lab.json +
 # Copy GDScript (tuner contract). Esc / Back returns to the dev menu.
 
@@ -15,12 +18,31 @@ const SceneTransition = preload("res://scripts/scene_transition.gd")
 const Playfield = preload("res://scripts/playfield.gd")
 const EmberFx = preload("res://scripts/effects/ember_fx.gd")
 const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
+const OutlineFx = preload("res://scripts/effects/outline_fx.gd")
 const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
 const PLAYER_SPRITE = preload("res://Mini Pixel Pack 3/Player ship/Player_ship (16 x 16).png")
 
 const SCI_FI_SHIELD: Shader = preload("res://graphics/sci_fi_shield.gdshader")
 const HEX_SHIELD: Shader = preload("res://graphics/hex_shield.gdshader")
 const SCREEN_GLOW: Shader = preload("res://graphics/screen_glow.gdshader")
+
+# Player-mode tells (mirrors the constants in player.gd so the lab matches the
+# game — keep in sync if those change).
+const FOCUS_GLOW_COLOR := Color(0.5, 0.9, 1.0)
+const FOCUS_SHIP_TINT := Color(0.5, 0.7, 1.0, 0.55)
+const PHASE_GLOW_COLOR := Color(0.2, 0.5, 1.0)
+const HYPER_OUTLINE_COLOR := Color(1.0, 0.5, 0.0)
+const PHASE_AI_INTERVAL := 0.06
+const PHASE_AI_LIFETIME := 0.34
+
+# Enemy bullet sprites for the glow showcase: {texture path, hframes}.
+const BULLETS := [
+	{"name": "Plasma orb", "path": "res://graphics/projectiles/enemy_bullet.png", "frames": 3},
+	{"name": "Pellet", "path": "res://graphics/projectiles/enemy_bullet_small.png", "frames": 3},
+	{"name": "Tracer", "path": "res://graphics/projectiles/enemy_tracer.png", "frames": 3},
+	{"name": "Cannon slug", "path": "res://graphics/projectiles/enemy_cannon.png", "frames": 2},
+	{"name": "Wave orb", "path": "res://graphics/projectiles/enemy_bullet_wave.png", "frames": 4},
+]
 
 const SAVE_PATH := "user://tuners/shader_lab.json"
 
@@ -37,7 +59,7 @@ const PANEL_BORDER := Color(0.35, 0.55, 0.75, 0.85)
 # Gallery ship targets are zoomed for INSPECTION only — in-game sprites stay 1×.
 const GALLERY_SPRITE_ZOOM := 3.0
 
-const MODES := ["Embers", "Shields", "Glow", "Gallery"]
+const MODES := ["Embers", "Shields", "Glow", "Modes", "Explosions", "Gallery"]
 
 const KNOBS := {
 	"Embers": [
@@ -72,6 +94,8 @@ const KNOBS := {
 		{"key": "intensity", "label": "Intensity", "min": 0.0, "max": 4.0, "step": 0.1, "def": 1.2},
 		{"key": "max_lod", "label": "Radius (mip levels)", "min": 1.0, "max": 6.0, "step": 1.0, "def": 4.0},
 	],
+	"Modes": [],
+	"Explosions": [],
 	"Gallery": [],
 }
 
@@ -127,6 +151,23 @@ var _orb_t: float = 0.0
 var _gallery_idx: int = 0
 var _gallery_mat: ShaderMaterial = null
 var _gallery_pulse_btn: Button = null
+var _ember_inverted: bool = false
+
+# Player-modes showcase state.
+var _pm_ship: Node2D = null
+var _pm_glow: CanvasItem = null
+var _pm_outline: Sprite2D = null
+var _pm_dot: Node2D = null
+var _pm_mode: String = "off"
+var _pm_home: Vector2 = Vector2.ZERO
+var _pm_t: float = 0.0
+var _pm_phase_acc: float = 0.0
+var _pm_hyper_t: float = 0.0
+var _pm_status: Label = null
+
+# Explosions showcase: replay-loop timer.
+var _expl_acc: float = 0.0
+var _expl_auto: bool = true
 
 
 func _ready() -> void:
@@ -210,7 +251,7 @@ func _build_overlay() -> void:
 
 	# Left rail: mode list.
 	var ly := HEADER_H + MARGIN + 24
-	var lh := 4 * 52 + 60
+	var lh := MODES.size() * 52 + 60
 	_ui.add_child(_panel(Vector2(MARGIN, ly), Vector2(RAIL_W, lh)))
 	var lbl := _label("Mode", FS_CAPTION, UiTheme.COLOR_FAINT)
 	lbl.position = Vector2(MARGIN + 14, ly + 10)
@@ -280,6 +321,12 @@ func _set_mode(idx: int) -> void:
 	_orb = null
 	_gallery_mat = null
 	_gallery_pulse_btn = null
+	_pm_ship = null
+	_pm_glow = null
+	_pm_outline = null
+	_pm_dot = null
+	_pm_status = null
+	_pm_mode = "off"
 	match MODES[_mode]:
 		"Embers":
 			_enter_embers()
@@ -287,6 +334,10 @@ func _set_mode(idx: int) -> void:
 			_enter_shields()
 		"Glow":
 			_enter_glow()
+		"Modes":
+			_enter_modes()
+		"Explosions":
+			_enter_explosions()
 		"Gallery":
 			_enter_gallery()
 
@@ -296,6 +347,13 @@ func _set_mode(idx: int) -> void:
 func _enter_embers() -> void:
 	_knob_box.add_child(_label("Ember Spray (NEW)", FS_BODY, UiTheme.COLOR_ACCENT))
 	_knob_box.add_child(_label("Click the playfield to fire at the cursor.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	var inv := CheckButton.new()
+	inv.text = "Inverted ramp (heat-up)"
+	inv.button_pressed = _ember_inverted
+	inv.add_theme_font_override("font", UiTheme.active_font())
+	inv.add_theme_font_size_override("font_size", FS_BODY)
+	inv.toggled.connect(func(v: bool): _ember_inverted = v)
+	_knob_box.add_child(inv)
 	_add_action("Fire Burst", func(): _fire_embers(Vector2(Playfield.CENTER.x, 170.0)))
 	_add_action("Fire + Explosion", func():
 		var pos := Vector2(Playfield.CENTER.x, 170.0)
@@ -321,6 +379,7 @@ func _fire_embers(pos: Vector2) -> void:
 		"cool_bias": float(v["cool_bias"]),
 		"fade_start": float(v["fade_start"]),
 		"lifetime_rand": float(v["lifetime_rand"]),
+		"inverted": _ember_inverted,
 	})
 
 
@@ -380,15 +439,21 @@ func _apply_shield_knobs() -> void:
 # ---- Glow mode -------------------------------------------------------------
 
 func _enter_glow() -> void:
-	var y := 130.0
-	var raw_pos := Vector2(Playfield.CENTER.x - 70.0, y)
-	var halo_pos := Vector2(Playfield.CENTER.x, y)
-	var orb_pos := Vector2(Playfield.CENTER.x + 70.0, y)
+	# Two rows of enemy bullets: top row RAW, bottom row with the per-sprite
+	# glow_halo bloom — so you can read the bloom against the bare sprite for
+	# each bullet type. Plus a bright orb for the screen-glow overlay to bloom.
+	var n := BULLETS.size()
+	var spacing := 38.0
+	var x0 := Playfield.CENTER.x - (n - 1) * spacing * 0.5
+	var raw_y := 95.0
+	var glow_y := 150.0
+	for i in n:
+		var bx := x0 + i * spacing
+		_make_bullet(Vector2(bx, raw_y), BULLETS[i])
+		var lit := _make_bullet(Vector2(bx, glow_y), BULLETS[i])
+		GlowShaderFx.apply(lit.get_node("Bullet"))
 
-	_make_ship(raw_pos)
-	var halo_ship := _make_ship(halo_pos)
-	GlowShaderFx.apply(halo_ship.get_node("Ship"), Color(0.2, 0.83, 1.0))
-
+	var orb_pos := Vector2(Playfield.CENTER.x, 215.0)
 	_orb = Sprite2D.new()
 	_orb.texture = _orb_texture()
 	var add_mat := CanvasItemMaterial.new()
@@ -408,12 +473,12 @@ func _enter_glow() -> void:
 	_stage.add_child(_glow_rect)
 	_apply_glow_knobs()
 
-	_hd_note("RAW", raw_pos + Vector2(-6.0, 14.0))
-	_hd_note("HALO (CURRENT)", halo_pos + Vector2(-20.0, 14.0))
-	_hd_note("BRIGHT ORB", orb_pos + Vector2(-14.0, 22.0))
+	_hd_note("RAW BULLETS", Vector2(x0 - 16.0, raw_y - 22.0))
+	_hd_note("+ GLOW HALO (CURRENT)", Vector2(x0 - 16.0, glow_y + 16.0))
+	_hd_note("BRIGHT ORB", orb_pos + Vector2(-16.0, 16.0))
 
 	_knob_box.add_child(_label("Screen Glow (NEW)", FS_BODY, UiTheme.COLOR_ACCENT))
-	_knob_box.add_child(_label("Whole-screen mip-pyramid bloom vs the\nper-sprite glow_halo on the middle ship.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_knob_box.add_child(_label("Whole-screen mip-pyramid bloom vs the\nper-sprite glow_halo on the bullet row.", FS_CAPTION, UiTheme.COLOR_FAINT))
 	var chk := CheckButton.new()
 	chk.text = "Screen glow ON"
 	chk.button_pressed = true
@@ -438,10 +503,161 @@ func _apply_glow_knobs() -> void:
 	_glow_mat.set_shader_parameter("max_lod", int(v["max_lod"]))
 
 
+# ---- Player Modes mode -----------------------------------------------------
+
+func _enter_modes() -> void:
+	_pm_home = Vector2(Playfield.CENTER.x, 135.0)
+	_pm_ship = _make_ship(_pm_home)
+
+	_hd_note("PLAYER MODE TELLS", _pm_home + Vector2(-34.0, -34.0))
+
+	_knob_box.add_child(_label("Player Modes", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("The Shift-stance visual tells, as replicated\nin player.gd (glow/tint/outline/ghosts).", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_pm_status = _label("Mode: off", FS_CAPTION, UiTheme.COLOR_BOUNTY)
+	_knob_box.add_child(_pm_status)
+	_add_action("Off", func(): _set_player_mode("off"))
+	_add_action("Focus  (cyan glow + tint + hit dot)", func(): _set_player_mode("focus"))
+	_add_action("Phase  (blue glow + afterimage ghosts)", func(): _set_player_mode("phase"))
+	_add_action("Hyper  (pulsing orange outline)", func(): _set_player_mode("hyper"))
+	_set_player_mode("focus")
+
+
+func _set_player_mode(m: String) -> void:
+	_clear_player_fx()
+	_pm_mode = m
+	_pm_t = 0.0
+	_pm_phase_acc = 0.0
+	_pm_hyper_t = 0.0
+	if _pm_ship == null or not is_instance_valid(_pm_ship):
+		return
+	_pm_ship.position = _pm_home
+	var ship: Sprite2D = _pm_ship.get_node("Ship")
+	ship.modulate = Color(1, 1, 1, 1)
+	match m:
+		"focus":
+			ship.modulate = FOCUS_SHIP_TINT
+			_pm_glow = GlowShaderFx.apply(ship, FOCUS_GLOW_COLOR)
+			_pm_dot = _make_focus_dot(ship)
+		"phase":
+			_pm_glow = GlowShaderFx.apply(ship, PHASE_GLOW_COLOR)
+		"hyper":
+			_pm_outline = OutlineFx.apply(ship, HYPER_OUTLINE_COLOR)
+	if _pm_status != null and is_instance_valid(_pm_status):
+		_pm_status.text = "Mode: %s" % m
+
+
+func _clear_player_fx() -> void:
+	for n in [_pm_glow, _pm_outline, _pm_dot]:
+		if n != null and is_instance_valid(n):
+			n.queue_free()
+	_pm_glow = null
+	_pm_outline = null
+	_pm_dot = null
+
+
+func _make_focus_dot(ship: Sprite2D) -> Node2D:
+	var dot := Node2D.new()
+	dot.name = "FocusDot"
+	dot.z_index = 100
+	var rect := ColorRect.new()
+	rect.color = Color(1, 1, 1, 0.95)
+	rect.size = Vector2(4, 4)
+	rect.position = Vector2(-2, -2)
+	dot.add_child(rect)
+	ship.add_child(dot)
+	return dot
+
+
+func _spawn_phase_ghost() -> void:
+	if _pm_ship == null or not is_instance_valid(_pm_ship):
+		return
+	var src: Sprite2D = _pm_ship.get_node("Ship")
+	var g := Sprite2D.new()
+	g.texture = src.texture
+	g.hframes = src.hframes
+	g.vframes = src.vframes
+	g.frame = src.frame
+	g.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	g.global_position = src.global_position
+	g.modulate = Color(PHASE_GLOW_COLOR.r, PHASE_GLOW_COLOR.g, PHASE_GLOW_COLOR.b, 0.55)
+	g.z_index = -1
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	g.material = m
+	_stage.add_child(g)
+	var tw := create_tween()
+	tw.tween_property(g, "modulate:a", 0.0, PHASE_AI_LIFETIME)
+	tw.tween_callback(g.queue_free)
+
+
+func _tick_modes(delta: float) -> void:
+	if _pm_ship == null or not is_instance_valid(_pm_ship):
+		return
+	_pm_t += delta
+	if _pm_mode == "phase":
+		# Drift the ship so the afterimage ghosts visibly trail (in game the
+		# ghosts trail because the player is moving).
+		_pm_ship.position = _pm_home + Vector2(cos(_pm_t * 2.4), sin(_pm_t * 1.5)) * 42.0
+		_pm_phase_acc += delta
+		while _pm_phase_acc >= PHASE_AI_INTERVAL:
+			_pm_phase_acc -= PHASE_AI_INTERVAL
+			_spawn_phase_ghost()
+	elif _pm_mode == "hyper" and _pm_outline != null and is_instance_valid(_pm_outline):
+		# Pulse the orange outline (player.gd ramps the rate as the bar empties;
+		# here a steady ~4 Hz is enough to read the tell).
+		_pm_hyper_t += delta
+		_pm_outline.self_modulate.a = 0.30 + 0.70 * (0.5 + 0.5 * sin(_pm_hyper_t * TAU * 4.0))
+
+
+# ---- Explosions mode -------------------------------------------------------
+
+func _enter_explosions() -> void:
+	_expl_acc = 0.0
+	_hd_note("DEFAULT", Vector2(Playfield.CENTER.x - 66.0, 70.0))
+	_hd_note("SMALL CIRCLE", Vector2(Playfield.CENTER.x + 28.0, 70.0))
+
+	_knob_box.add_child(_label("Explosions", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("Both styles at native 1× scale (sprites are\n1:1 pixel-accurate — no upscaled halo).", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_add_action("Replay Both", _replay_explosions)
+	_add_action("Replay Default", func(): _play_explosion("default", Vector2(Playfield.CENTER.x - 48.0, 130.0)))
+	_add_action("Replay Small Circle", func(): _play_explosion("small_circle", Vector2(Playfield.CENTER.x + 48.0, 130.0)))
+	var auto := CheckButton.new()
+	auto.text = "Auto-replay loop"
+	auto.button_pressed = _expl_auto
+	auto.add_theme_font_override("font", UiTheme.active_font())
+	auto.add_theme_font_size_override("font_size", FS_BODY)
+	auto.toggled.connect(func(v: bool): _expl_auto = v)
+	_knob_box.add_child(auto)
+	_replay_explosions()
+
+
+func _replay_explosions() -> void:
+	_play_explosion("default", Vector2(Playfield.CENTER.x - 48.0, 130.0))
+	_play_explosion("small_circle", Vector2(Playfield.CENTER.x + 48.0, 130.0))
+
+
+func _play_explosion(variant: String, pos: Vector2) -> void:
+	ExplosionFx.play(pos, 1.0, true, _stage, ExplosionFx.scene_for(variant), false)
+
+
+func _tick_explosions(delta: float) -> void:
+	if not _expl_auto:
+		return
+	_expl_acc += delta
+	if _expl_acc >= 1.4:
+		_expl_acc = 0.0
+		_replay_explosions()
+
+
 func _process(delta: float) -> void:
 	if _orb != null and is_instance_valid(_orb):
 		_orb_t += delta
 		_orb.position = _orb_home + Vector2(cos(_orb_t * 2.0), sin(_orb_t * 2.0)) * 18.0
+	match MODES[_mode]:
+		"Modes":
+			_tick_modes(delta)
+		"Explosions":
+			_tick_explosions(delta)
 
 
 # Bright white-core radial orb — gives the screen glow something hot to bloom.
@@ -496,8 +712,8 @@ func _show_gallery(idx: int) -> void:
 	var center := Vector2(Playfield.CENTER.x, 135.0)
 
 	if String(e["mode"]) == "glowfx":
-		var ship := _make_ship(center)
-		GlowShaderFx.apply(ship.get_node("Ship"), Color(0.2, 0.83, 1.0))
+		var bullet := _make_bullet(center, BULLETS[0])
+		GlowShaderFx.apply(bullet.get_node("Bullet"))
 	else:
 		var shader: Shader = load(String(e["path"]))
 		var mat := ShaderMaterial.new()
@@ -637,6 +853,22 @@ func _make_ship(pos: Vector2) -> Node2D:
 	return n
 
 
+# An enemy-bullet sprite (frame 0 of its strip) under a Node2D, so GlowShaderFx
+# can attach a sibling halo. `spec` = a BULLETS entry {path, frames}.
+func _make_bullet(pos: Vector2, spec: Dictionary) -> Node2D:
+	var n := Node2D.new()
+	n.position = pos
+	var s := Sprite2D.new()
+	s.name = "Bullet"
+	s.texture = load(String(spec["path"]))
+	s.hframes = int(spec["frames"])
+	s.frame = 0
+	s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	n.add_child(s)
+	_stage.add_child(n)
+	return n
+
+
 func _add_ring(ship: Node2D, shader: Shader, size_px: float) -> Dictionary:
 	var rect := ColorRect.new()
 	rect.size = Vector2(size_px, size_px)
@@ -693,6 +925,10 @@ func _on_copy() -> void:
 			txt = _snippet_shields()
 		"Glow":
 			txt = _snippet_glow()
+		"Modes":
+			txt = _snippet_modes()
+		"Explosions":
+			txt = _snippet_explosions()
 		"Gallery":
 			var e: Dictionary = GALLERY[_gallery_idx]
 			txt = "# Shader Lab gallery — %s\n# %s\n" % [e["name"], e["path"]]
@@ -710,7 +946,27 @@ func _snippet_embers() -> String:
 	t += "\t\"spread_deg\": %.1f, \"speed_min\": %.1f, \"speed_max\": %.1f,\n" % [float(v["spread_deg"]), float(v["speed_min"]), float(v["speed_max"])]
 	t += "\t\"drag\": %.2f, \"gravity\": %.1f, \"streak_sec\": %.3f,\n" % [float(v["drag"]), float(v["gravity"]), float(v["streak_sec"])]
 	t += "\t\"cool_bias\": %.2f, \"fade_start\": %.2f, \"lifetime_rand\": %.2f,\n" % [float(v["cool_bias"]), float(v["fade_start"]), float(v["lifetime_rand"])]
+	t += "\t\"inverted\": %s,\n" % ("true" if _ember_inverted else "false")
 	t += "})\n"
+	return t
+
+
+func _snippet_modes() -> String:
+	var t := "# Shader Lab — player-mode tells live in scripts/player.gd:\n"
+	t += "#   Focus: $Ship.modulate = Color(0.5,0.7,1.0,0.55)\n"
+	t += "#          GlowShaderFx.apply($Ship, Color(0.5,0.9,1.0)) + 4px hit dot\n"
+	t += "#   Phase: GlowShaderFx.apply($Ship, Color(0.2,0.5,1.0)) + additive ghosts\n"
+	t += "#   Hyper: OutlineFx.apply($Ship, Color(1.0,0.5,0.0)) pulsing alpha\n"
+	t += "# This mode is a read-only showcase; tune the source constants in player.gd.\n"
+	return t
+
+
+func _snippet_explosions() -> String:
+	var t := "# Shader Lab — explosions (scripts/effects/explosion_fx.gd)\n"
+	t += "ExplosionFx.play(global_position, 1.0)                              # default\n"
+	t += "ExplosionFx.play(global_position, 1.0, true, null,\n"
+	t += "\tExplosionFx.scene_for(\"small_circle\"))                          # small circle\n"
+	t += "# Sprites render at native 1× (halo matched to core, no upscale).\n"
 	return t
 
 

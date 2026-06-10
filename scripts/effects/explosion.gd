@@ -80,14 +80,17 @@ func _make_explosion_sprite(offset: Vector2, sc: float, delay: float) -> Diction
 	sprite.rotation = randf() * TAU
 	sprite.visible = delay <= 0.0
 	add_child(sprite)
-	# Additive glow halo behind the sprite — a soft white tint at high
-	# brightness so the first few frames "punch" before fading.
+	# Additive glow halo OVER the sprite — a warm overbright tint so the first
+	# few frames "punch" before fading. Kept at the SAME scale as the core
+	# (Roman 2026-06-10: explosion sprites stay 1:1 pixel-accurate, never
+	# upscaled) — at matched scale it's a pure additive brightness boost on the
+	# exact pixels, not an enlarged blurry copy.
 	var halo := Sprite2D.new()
 	halo.texture = strip
 	halo.hframes = frames
 	halo.frame = 0
 	halo.position = offset
-	halo.scale = Vector2(sc * 1.35, sc * 1.35)
+	halo.scale = Vector2(sc, sc)
 	halo.rotation = sprite.rotation
 	halo.visible = delay <= 0.0
 	halo.self_modulate = Color(1.6, 1.4, 0.9, 0.55)
