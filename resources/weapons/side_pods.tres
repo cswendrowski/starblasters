@@ -1,7 +1,7 @@
-[gd_resource type="Resource" load_steps=3 format=3]
+[gd_resource type="Resource" format=3]
 
-[ext_resource type="Script" path="res://scripts/parts/side_pods.gd" id="1_sp"]
-[ext_resource type="PackedScene" uid="uid://ce2sbgdju6rp7" path="res://scenes/projectiles/bullet.tscn" id="2_b"]
+[ext_resource type="Script" uid="uid://dg5drcn8vr04w" path="res://scripts/parts/side_pods.gd" id="1_sp"]
+[ext_resource type="PackedScene" uid="uid://ce2sbgdju6rp7" path="res://scenes/projectiles/bullet_blaster.tscn" id="2_b"]
 
 [resource]
 script = ExtResource("1_sp")

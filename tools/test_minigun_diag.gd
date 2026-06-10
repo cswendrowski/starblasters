@@ -72,9 +72,9 @@ func _process(_dt: float) -> void:
 		var ac_bullet := "null"
 		if ac != null and "bullet_scene" in ac and ac.bullet_scene != null:
 			ac_bullet = String(ac.bullet_scene.resource_path)
-		_lines.append("autocannon bullet_scene: %s (expect bullet_minigun)" % ac_bullet)
-		if not ac_bullet.contains("bullet_minigun"):
-			_lines.append("FAIL autocannon not using the machinegun projectile"); fails += 1
+		_lines.append("autocannon bullet_scene: %s (expect bullet_autocannon)" % ac_bullet)
+		if not ac_bullet.contains("bullet_autocannon"):
+			_lines.append("FAIL autocannon not using its own projectile"); fails += 1
 		_lines.append("MINIGUN/AUTOCANNON DIAG: " + ("PASS" if fails == 0 else "FAIL (%d)" % fails))
 		_finish()
 

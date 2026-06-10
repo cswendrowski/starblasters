@@ -169,7 +169,7 @@ func _demo_bullet_trails() -> void:
 	_spawn_enemy(Vector2(200, 280), ENEMY_DART)
 	_spawn_enemy(Vector2(600, 280), ENEMY_DART)
 	# Fire player bullets in a stream so the cyan trail is visible all the way up.
-	var bullet_scene := preload("res://scenes/projectiles/bullet.tscn")
+	var bullet_scene := preload("res://scenes/projectiles/bullet_blaster.tscn")
 	for i in 16:
 		get_tree().create_timer(0.15 + i * 0.18).timeout.connect(func():
 			var b = bullet_scene.instantiate()
@@ -326,7 +326,7 @@ func _demo_lighting_showcase() -> void:
 	# new projectile glows and the engine glow are clearly visible.
 	var main_inst = MAIN_SCENE.instantiate()
 	add_child(main_inst)
-	var player_bullet := preload("res://scenes/projectiles/bullet.tscn")
+	var player_bullet := preload("res://scenes/projectiles/bullet_blaster.tscn")
 	var enemy_bullet := preload("res://scenes/projectiles/enemy_bullet.tscn")
 	# Fire a steady player bullet stream so the cyan halo + engine glow read.
 	for i in 30:

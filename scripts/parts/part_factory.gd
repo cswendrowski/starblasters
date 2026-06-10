@@ -5,7 +5,7 @@ const BasicEngine = preload("res://scripts/parts/basic_engine.gd")
 const BasicBlasterCannon = preload("res://scripts/parts/basic_blaster_cannon.gd")
 const SmartBomb = preload("res://scripts/parts/smart_bomb.gd")
 const FocusMode = preload("res://scripts/parts/focus_mode.gd")
-const BulletDefault = preload("res://scenes/projectiles/bullet.tscn")
+const BulletDefault = preload("res://scenes/projectiles/bullet_blaster.tscn")
 
 # Weapon Editor parity — if a designer saves resources/weapons/<name>.tres
 # with tweaked values, we load that instance instead of the hardcoded

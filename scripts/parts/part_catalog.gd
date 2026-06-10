@@ -27,9 +27,10 @@ const SidePods = preload("res://scripts/parts/side_pods.gd")
 const DroneBits = preload("res://scripts/parts/drone_bits.gd")
 const DroneSwarm = preload("res://scripts/parts/drone_swarm.gd")
 const SwarmLauncher = preload("res://scripts/parts/swarm_launcher.gd")
-const BulletDefault = preload("res://scenes/projectiles/bullet.tscn")
-const BulletHeavy = preload("res://scenes/projectiles/bullet_heavy.tscn")
+const BulletDefault = preload("res://scenes/projectiles/bullet_blaster.tscn")
+const BulletHeavy = preload("res://scenes/projectiles/bullet_blaster_heavy.tscn")
 const BulletMinigun = preload("res://scenes/projectiles/bullet_minigun.tscn")
+const BulletAutocannon = preload("res://scenes/projectiles/bullet_autocannon.tscn")
 const BulletRotaryLaser = preload("res://scenes/projectiles/bullet_rotary_laser.tscn")
 const BulletWave = preload("res://scenes/projectiles/bullet_wave.tscn")
 const BulletLaser = preload("res://scenes/projectiles/bullet_laser.tscn")
@@ -121,10 +122,10 @@ static func _make_by_name(name: String, slot: int):
 		"_make_heavy_blaster":
 			return _build_weapon("res://resources/weapons/heavy_blaster.tres", HeavyBlaster, BulletHeavy)
 		"_make_autocannon":
-			# Autocannon replaces the Machinegun and KEEPS its projectile (bullet_minigun.tscn — what
-			# machinegun.tres sets). The old `AutocannonCannon.new()` left bullet_scene null, so the
-			# ship kept the BLASTER bullet (Roman 2026-06-10). _build_weapon's fallback sets it.
-			return _build_weapon("res://resources/weapons/autocannon.tres", AutocannonCannon, BulletMinigun)
+			# Autocannon fires its OWN projectile, bullet_autocannon.tscn (Roman 2026-06-10 rename;
+			# distinct from the minigun's). The old AutocannonCannon.new() left bullet_scene null so
+			# the ship kept the BLASTER bullet; _build_weapon's fallback assigns the right one.
+			return _build_weapon("res://resources/weapons/autocannon.tres", AutocannonCannon, BulletAutocannon)
 		"_make_minigun":
 			return _build_weapon("res://resources/weapons/minigun.tres", MinigunCannon, BulletMinigun)
 		"_make_rotary_laser":

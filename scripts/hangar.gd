@@ -1,11 +1,14 @@
 extends Control
 
-# Hangar V5 — HD Test Bench (Roman 2026-06-08 rework).
+# Hangar V6 — HD Test Bench (Roman 2026-06-08 rework; playspace rebuilt 2026-06-10).
 #
-# Mirrors the Shipyard's proven HD three-zone + SubViewport skeleton
-# (scripts/dev/shipyard.gd), but flips the roles: instead of spawning
-# enemies that attack a dummy player, the LIVE player ship sits in a
-# native 480×270 SubViewport firing at a stationary dummy target.
+# Mirrors the live Enemy Bench's proven SubViewportContainer skeleton
+# (scripts/dev/enemy_bench.gd), but flips the roles: instead of a driven dummy
+# player that enemies attack, the LIVE player ship sits in a native 480×270
+# SubViewport firing at a stationary dummy target. The earlier HdScreen
+# ViewportTexture playspace mis-composited the player's bullets + muzzle flash
+# (green muzzle / missing bullets); the SubViewportContainer draws the in-
+# viewport canvas directly, fixing it (Roman "rip it out and redo entirely").
 #
 # Layout (1920×1080 HD; gameplay SubViewport 480×270 stretched to fill):
 #   ┌──────────────────────────────────────────────────────────────────┐
@@ -132,40 +135,52 @@ func _ready() -> void:
 # ---- Playspace (fills the whole window) --------------------------------
 
 func _build_playspace() -> void:
-	# Native 480x270 playspace upscaled to fill the whole HD window via the
-	# blessed pattern (HdScreen.add_upscaled_backdrop — same as the main menu's
-	# backdrop): a 480x270 SubViewport drawn by a full-rect STRETCH_SCALE+nearest
-	# TextureRect. Keeps all Playfield.X_MIN coords native; the wrong size was the
-	# old SubViewportContainer(stretch=true) which RESIZED the viewport to 1920x1080
-	# and left the 480-coord content tiny in the top-left.
-	var root := Node2D.new()
-	root.name = "Playspace"
+	# REBUILT 2026-06-10 (Roman "rip it out and redo entirely"). The native 480×270 sim is rendered
+	# by a SubViewportContainer — the SAME proven pattern the live Enemy Bench uses
+	# (scripts/dev/enemy_bench.gd). The previous HdScreen.add_upscaled_backdrop path drew the
+	# viewport through an intermediate ViewportTexture/TextureRect, which composited the player's
+	# additive muzzle flash + bullets wrong (the "green muzzle / missing bullets" bug). A
+	# SubViewportContainer draws the viewport's own canvas directly, so additive blends + shader
+	# glows + Area2D bullet collisions all work — exactly as they do in combat and the Enemy Bench.
+	#
+	# The window content_scale is already swapped to 1920×1080 by HdViewportScope (in _ready); the
+	# full-rect container fills it and upscales the 480×270 viewport with nearest filtering. The
+	# viewport stays 480×270 so every Playfield.* coordinate the player/bullets use is native.
+	var sub_container := SubViewportContainer.new()
+	sub_container.stretch = true
+	sub_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	sub_container.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	sub_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(sub_container)
+
+	_preview_vp = SubViewport.new()
+	_preview_vp.size = Vector2i(480, 270)
+	_preview_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	# The player + dummy self-drive off the GLOBAL Input singleton, so the viewport doesn't need
+	# local GUI input. (handle_input_locally false = it never steals the overlay's button clicks.)
+	_preview_vp.handle_input_locally = false
+	sub_container.add_child(_preview_vp)
+
 	# Gutter dim + brighter playfield band, matching the real frame.
 	var gutter := ColorRect.new()
 	gutter.color = Color(0.04, 0.05, 0.08, 1.0)
 	gutter.size = Vector2(480, 270)
-	root.add_child(gutter)
+	_preview_vp.add_child(gutter)
 	var band := ColorRect.new()
 	band.color = Color(0.07, 0.09, 0.13, 1.0)
 	band.position = Vector2(Playfield.X_MIN, 0)
 	band.size = Vector2(Playfield.W, Playfield.H)
-	root.add_child(band)
-	# World node — bullets + dummy + player all live here so they share a
-	# coordinate space and collide. This is the node we hand to bullet_parent.
+	_preview_vp.add_child(band)
+
+	# World node — dummy + player + bullets all live here so they share one coordinate space and
+	# collide (the SubViewport has its own 2D physics space). This is the node handed to bullet_parent.
 	_world = Node2D.new()
 	_world.name = "World"
-	root.add_child(_world)
-	# Upscale 480x270 -> the HD window. Returns the SubViewport. gui_disable_input
-	# is fine: the player self-drives off the GLOBAL Input singleton, not viewport
-	# GUI events (verified: it fires + hits the dummy through this path).
-	_preview_vp = HdScreen.add_upscaled_backdrop(self, root, Vector2i(480, 270))
+	_preview_vp.add_child(_world)
 
-	# 2D AUDIO in the SubViewport: AudioStreamPlayer2D only outputs when its
-	# viewport has an enabled 2D listener. The player's per-ship audio nodes
-	# (MgLoop / RotaryLaserShoot / ShootSound) live inside _world, so without a
-	# listener the machinegun / rotary laser / auto-laser were SILENT (the blaster
-	# is audible only because it plays at get_tree().root). Enable the SubViewport
-	# as a listener + drop an AudioListener2D at the playfield centre.
+	# 2D AUDIO in the SubViewport: AudioStreamPlayer2D only outputs when its viewport has an enabled
+	# 2D listener. The player's per-ship audio nodes live inside _world, so without a listener the
+	# machinegun / rotary laser / auto-laser are silent. Enable it + drop a listener at playfield centre.
 	_preview_vp.audio_listener_enable_2d = true
 	var listener := AudioListener2D.new()
 	listener.name = "AudioListener"

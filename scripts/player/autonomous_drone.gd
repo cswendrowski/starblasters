@@ -17,7 +17,7 @@ class_name AutonomousDrone
 # (Roman 2026-05-30 — Combat Drones converted from a super to a deploy
 # secondary; the old drone_swarm.gd cleanup timer was replaced).
 
-const BULLET_SCENE = preload("res://scenes/projectiles/bullet.tscn")
+const BULLET_SCENE = preload("res://scenes/projectiles/bullet_blaster.tscn")
 
 const TETHER_RADIUS := 20.0
 const MOVE_SPEED := 140.0

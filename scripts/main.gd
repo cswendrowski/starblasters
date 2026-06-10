@@ -282,7 +282,7 @@ func _warm_up_level() -> void:
 	# (the old warmup only ever covered the stock bullet, so a non-default
 	# weapon's first shot compiled its glow live).
 	var scene_paths := {
-		"res://scenes/projectiles/bullet.tscn": true,        # stock player bullet
+		"res://scenes/projectiles/bullet_blaster.tscn": true,        # stock player bullet
 		"res://scenes/projectiles/enemy_bullet.tscn": true,  # shared enemy bullet
 	}
 	if _current_level != null and "waves" in _current_level:

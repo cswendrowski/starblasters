@@ -808,7 +808,7 @@ const _PartFactory = preload("res://scripts/parts/part_factory.gd")
 const _BasicBlasterCannon = preload("res://scripts/parts/basic_blaster_cannon.gd")
 const _SmartBomb = preload("res://scripts/parts/smart_bomb.gd")
 const _FocusMode = preload("res://scripts/parts/focus_mode.gd")
-const _BulletDefault = preload("res://scenes/projectiles/bullet.tscn")
+const _BulletDefault = preload("res://scenes/projectiles/bullet_blaster.tscn")
 
 
 # Seed loadout_snapshot with the same Mk.1 defaults PartFactory.default_starting_loadout
