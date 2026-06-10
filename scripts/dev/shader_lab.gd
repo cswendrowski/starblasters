@@ -101,7 +101,6 @@ const GALLERY := [
 var _hd_scope: HdViewportScope = null
 
 # Playspace.
-var _sub_container: SubViewportContainer = null
 var _preview_vp: SubViewport = null
 var _stage: Node2D = null
 
@@ -152,32 +151,30 @@ func _init_values() -> void:
 # ---- Playspace -----------------------------------------------------------
 
 func _build_playspace() -> void:
-	_sub_container = SubViewportContainer.new()
-	_sub_container.stretch = true
-	_sub_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_sub_container.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	_sub_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_sub_container)
-
-	_preview_vp = SubViewport.new()
-	_preview_vp.size = Vector2i(480, 270)
-	_preview_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	_preview_vp.handle_input_locally = false
-	_sub_container.add_child(_preview_vp)
+	# Native 480×270 SubViewport upscaled to fill the HD window via the blessed
+	# pattern (HdScreen.add_upscaled_backdrop — full-rect STRETCH_SCALE+nearest
+	# TextureRect). Keeps all Playfield coords native. The earlier
+	# SubViewportContainer(stretch=true) RESIZED the viewport to 1920×1080 and
+	# left the 480-coord stage content tiny in the top-left corner — the same
+	# bug the hangar/shipyard hit (see hangar.gd _build_playspace).
+	var root := Node2D.new()
+	root.name = "Playspace"
 
 	var gutter := ColorRect.new()
 	gutter.color = Color(0.04, 0.05, 0.08, 1.0)
 	gutter.size = Vector2(480, 270)
-	_preview_vp.add_child(gutter)
+	root.add_child(gutter)
 	var band := ColorRect.new()
 	band.color = Color(0.07, 0.09, 0.13, 1.0)
 	band.position = Vector2(Playfield.X_MIN, 0)
 	band.size = Vector2(Playfield.W, Playfield.H)
-	_preview_vp.add_child(band)
+	root.add_child(band)
 
 	_stage = Node2D.new()
 	_stage.name = "Stage"
-	_preview_vp.add_child(_stage)
+	root.add_child(_stage)
+
+	_preview_vp = HdScreen.add_upscaled_backdrop(self, root, Vector2i(480, 270))
 
 
 # ---- Overlay UI ----------------------------------------------------------
@@ -763,11 +760,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	if MODES[_mode] != "Embers":
 		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		var sz := _sub_container.size
-		if sz.x <= 0.0 or sz.y <= 0.0:
+		# The playspace fills the HD logical viewport; map the HD mouse position
+		# back into native 480×270 stage coords.
+		var vp := get_viewport_rect().size
+		if vp.x <= 0.0 or vp.y <= 0.0:
 			return
-		var local := _sub_container.get_local_mouse_position()
-		var pos := Vector2(local.x / sz.x * 480.0, local.y / sz.y * 270.0)
+		var gmp := get_global_mouse_position()
+		var pos := Vector2(gmp.x / vp.x * 480.0, gmp.y / vp.y * 270.0)
 		if pos.x >= Playfield.X_MIN and pos.x <= Playfield.X_MAX and pos.y >= 0.0 and pos.y <= 270.0:
 			_fire_embers(pos)
 
