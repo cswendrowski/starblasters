@@ -7,7 +7,8 @@ const BasicEngine = preload("res://scripts/parts/basic_engine.gd")
 const BasicBlasterCannon = preload("res://scripts/parts/basic_blaster_cannon.gd")
 const HeavyBlaster = preload("res://scripts/parts/heavy_blaster.gd")
 const VectoringEngine = preload("res://scripts/parts/vectoring_engine.gd")
-const MachinegunCannon = preload("res://scripts/parts/machinegun_cannon.gd")
+const AutocannonCannon = preload("res://scripts/parts/autocannon_cannon.gd")
+const MinigunCannon = preload("res://scripts/parts/minigun_cannon.gd")
 const RotaryLaserCannon = preload("res://scripts/parts/rotary_laser_cannon.gd")
 const WaveGunCannon = preload("res://scripts/parts/wave_gun_cannon.gd")
 const LaserBeamCannon = preload("res://scripts/parts/laser_beam_cannon.gd")
@@ -45,7 +46,8 @@ static func _all_pool() -> Array:
 		{"factory": "_make_vectoring_engine", "slot": Slots.SlotType.ENGINE},
 		{"factory": "_make_basic_blaster", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_heavy_blaster", "slot": Slots.SlotType.CANNON},
-		{"factory": "_make_machinegun", "slot": Slots.SlotType.CANNON},
+		{"factory": "_make_autocannon", "slot": Slots.SlotType.CANNON},
+		{"factory": "_make_minigun", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_rotary_laser", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_wave_gun", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_laser_beam", "slot": Slots.SlotType.CANNON},
@@ -116,8 +118,10 @@ static func _make_by_name(name: String, slot: int):
 			return _build_weapon("res://resources/weapons/energy_blaster.tres", BasicBlasterCannon, BulletDefault)
 		"_make_heavy_blaster":
 			return _build_weapon("res://resources/weapons/heavy_blaster.tres", HeavyBlaster, BulletHeavy)
-		"_make_machinegun":
-			return _build_weapon("res://resources/weapons/machinegun.tres", MachinegunCannon, BulletMinigun)
+		"_make_autocannon":
+			return AutocannonCannon.new()  # Autocannon uses same bullet as MG, but is a separate weapon type
+		"_make_minigun":
+			return _build_weapon("res://resources/weapons/minigun.tres", MinigunCannon, BulletMinigun)
 		"_make_rotary_laser":
 			return _build_weapon("res://resources/weapons/rotary_laser.tres", RotaryLaserCannon, BulletRotaryLaser)
 		"_make_wave_gun":

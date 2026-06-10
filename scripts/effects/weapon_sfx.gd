@@ -50,6 +50,31 @@ const SPREAD_CLIPS := [
 	preload("res://Sound/weapons/player/spread_shoot_5.ogg"),
 	preload("res://Sound/weapons/player/spread_shoot_6.ogg"),
 ]
+const AUTOCANNON_CLIPS := [
+	preload("res://Sound/weapons/player/autocannon_shoot_01.ogg"),
+	preload("res://Sound/weapons/player/autocannon_shoot_02.ogg"),
+	preload("res://Sound/weapons/player/autocannon_shoot_03.ogg"),
+	preload("res://Sound/weapons/player/autocannon_shoot_04.ogg"),
+	preload("res://Sound/weapons/player/autocannon_shoot_05.ogg"),
+	preload("res://Sound/weapons/player/autocannon_shoot_06.ogg"),
+	preload("res://Sound/weapons/player/autocannon_shoot_07.ogg"),
+	preload("res://Sound/weapons/player/autocannon_shoot_08.ogg"),
+	preload("res://Sound/weapons/player/autocannon_shoot_09.ogg"),
+]
+const MINIGUN_CLIPS := [
+	preload("res://Sound/weapons/player/minigun_shoot_01.ogg"),
+	preload("res://Sound/weapons/player/minigun_shoot_02.ogg"),
+	preload("res://Sound/weapons/player/minigun_shoot_03.ogg"),
+	preload("res://Sound/weapons/player/minigun_shoot_04.ogg"),
+	preload("res://Sound/weapons/player/minigun_shoot_05.ogg"),
+	preload("res://Sound/weapons/player/minigun_shoot_06.ogg"),
+	preload("res://Sound/weapons/player/minigun_shoot_07.ogg"),
+	preload("res://Sound/weapons/player/minigun_shoot_08.ogg"),
+	preload("res://Sound/weapons/player/minigun_shoot_09.ogg"),
+	preload("res://Sound/weapons/player/minigun_shoot_10.ogg"),
+	preload("res://Sound/weapons/player/minigun_shoot_11.ogg"),
+	preload("res://Sound/weapons/player/minigun_shoot_12.ogg"),
+]
 # Rocket + missile live in the universal/ folder — shared by player AND enemies.
 const ROCKET_CLIPS := [
 	preload("res://Sound/weapons/universal/rocket_launch_1.ogg"),
@@ -78,6 +103,10 @@ static func play(parent: Node, world_pos, kind: String) -> void:
 			pool = AUTOLASER_CLIPS
 		"spread":
 			pool = SPREAD_CLIPS
+		"autocannon":
+			pool = AUTOCANNON_CLIPS
+		"minigun":
+			pool = MINIGUN_CLIPS
 		"rocket":
 			pool = ROCKET_CLIPS
 		"missile":
