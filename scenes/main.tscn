@@ -18,7 +18,8 @@
 [sub_resource type="Environment" id="Environment_glow"]
 background_mode = 3
 glow_enabled = true
-glow_intensity = 0.6
+glow_intensity = 0.8
+glow_strength = 0.7
 glow_hdr_threshold = 0.0
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_uf0tv"]

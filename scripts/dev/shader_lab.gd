@@ -258,14 +258,20 @@ func _build_playspace() -> void:
 	var root := Node2D.new()
 	root.name = "Playspace"
 
+	# Background fills sit at a deeply NEGATIVE z so they never occlude effects
+	# that legitimately draw behind their host sprite — the phase glow (z -1),
+	# hyper outline (z -2) and phase ghosts (z -1) were rendering BEHIND an
+	# opaque z=0 band and showing nothing (Roman 2026-06-10).
 	var gutter := ColorRect.new()
 	gutter.color = Color(0.04, 0.05, 0.08, 1.0)
 	gutter.size = Vector2(480, 270)
+	gutter.z_index = -101
 	root.add_child(gutter)
 	var band := ColorRect.new()
 	band.color = Color(0.07, 0.09, 0.13, 1.0)
 	band.position = Vector2(Playfield.X_MIN, 0)
 	band.size = Vector2(Playfield.W, Playfield.H)
+	band.z_index = -100
 	root.add_child(band)
 
 	_stage = Node2D.new()
