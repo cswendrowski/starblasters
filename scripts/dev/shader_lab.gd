@@ -129,10 +129,10 @@ const KNOBS := {
 		{"key": "details_opacity", "label": "Details opacity", "min": 0.0, "max": 1.0, "step": 0.02, "def": 0.2},
 	],
 	"Disintegrate": [
-		{"key": "borderWidth", "label": "Border width", "min": 0.02, "max": 0.5, "step": 0.01, "def": 0.18},
-		{"key": "burnMult", "label": "Burn noise", "min": 0.0, "max": 1.0, "step": 0.02, "def": 0.34},
-		{"key": "pixel_size", "label": "Pixel size", "min": 0.005, "max": 0.1, "step": 0.005, "def": 0.04},
-		{"key": "blend_steps", "label": "Blend steps", "min": 2.0, "max": 12.0, "step": 1.0, "def": 6.0},
+		{"key": "borderWidth", "label": "Border width", "min": 0.02, "max": 0.5, "step": 0.01, "def": 0.3},
+		{"key": "burnMult", "label": "Burn noise", "min": 0.0, "max": 1.0, "step": 0.02, "def": 0.5},
+		{"key": "pixel_size", "label": "Pixel size", "min": 0.005, "max": 0.1, "step": 0.005, "def": 0.05},
+		{"key": "blend_steps", "label": "Blend steps", "min": 2.0, "max": 12.0, "step": 1.0, "def": 12.0},
 		{"key": "duration", "label": "Burn duration (s)", "min": 0.2, "max": 2.0, "step": 0.05, "def": 0.45},
 	],
 	"Explosions": [],
@@ -213,6 +213,12 @@ var _env: Environment = null
 # Damage / Disintegrate tuner state.
 var _dmg_mat: ShaderMaterial = null
 var _burn_mat: ShaderMaterial = null
+# Tunable damage-overlay colours (defaults = damage_noise.gdshader defaults).
+var _dmg_colors := {
+	"replace_color": Color(0.0, 0.0, 0.0, 1.0),
+	"edge_color": Color(0.984, 0.949, 0.212, 1.0),
+	"details_color": Color(0.85, 0.45, 0.05, 1.0),
+}
 
 # Explosions showcase: replay-loop timer.
 var _expl_acc: float = 0.0
@@ -825,10 +831,27 @@ func _enter_damage() -> void:
 
 	_hd_note("DAMAGE OVERLAY", Vector2(Playfield.CENTER.x - 36.0, 90.0))
 	_knob_box.add_child(_label("Damage Overlay", FS_BODY, UiTheme.COLOR_ACCENT))
-	_knob_box.add_child(_label("graphics/damage_noise.gdshader. In game,\nsensitivity = 1 − health/max (0 → ~0.75).", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_knob_box.add_child(_label("graphics/damage_noise.gdshader. In game,\nsensitivity ramps 0 (full HP) → 0.6 (1 HP).", FS_CAPTION, UiTheme.COLOR_FAINT))
 	_add_action("Flash Hit", func(): _pulse_param(_dmg_mat, "flash_strength", 1.0, 0.0, 0.12))
 	_knob_box.add_child(HSeparator.new())
 	_build_knobs("Damage")
+	_knob_box.add_child(HSeparator.new())
+	_knob_box.add_child(_label("Colors", FS_BODY, UiTheme.COLOR_ACCENT))
+	_add_color_picker("Replace (burnt-out)", "replace_color")
+	_add_color_picker("Edge (dissolve glow)", "edge_color")
+	_add_color_picker("Details", "details_color")
+
+
+func _add_color_picker(caption: String, key: String) -> void:
+	_knob_box.add_child(_label(caption, FS_CAPTION, UiTheme.COLOR_FAINT))
+	var btn := ColorPickerButton.new()
+	btn.color = _dmg_colors[key]
+	btn.edit_alpha = false
+	btn.custom_minimum_size = Vector2(0, 34)
+	btn.color_changed.connect(func(c: Color):
+		_dmg_colors[key] = c
+		_apply_damage_knobs())
+	_knob_box.add_child(btn)
 
 
 func _apply_damage_knobs() -> void:
@@ -839,6 +862,9 @@ func _apply_damage_knobs() -> void:
 	_dmg_mat.set_shader_parameter("max_strength", float(v["max_strength"]))
 	_dmg_mat.set_shader_parameter("edge_bias_strength", float(v["edge_bias_strength"]))
 	_dmg_mat.set_shader_parameter("details_opacity", float(v["details_opacity"]))
+	_dmg_mat.set_shader_parameter("replace_color", _dmg_colors["replace_color"])
+	_dmg_mat.set_shader_parameter("edge_color", _dmg_colors["edge_color"])
+	_dmg_mat.set_shader_parameter("details_color", _dmg_colors["details_color"])
 
 
 # ---- Disintegrate (burn-away) tuner ----------------------------------------
@@ -1181,9 +1207,14 @@ func _hd_note(text: String, preview_pos: Vector2) -> void:
 
 func _on_save() -> void:
 	DirAccess.make_dir_recursive_absolute("user://tuners")
+	var out: Dictionary = _values.duplicate(true)
+	var cols := {}
+	for k in _dmg_colors:
+		cols[k] = (_dmg_colors[k] as Color).to_html(false)
+	out["DamageColors"] = cols
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f != null:
-		f.store_string(JSON.stringify(_values, "\t"))
+		f.store_string(JSON.stringify(out, "\t"))
 		f.close()
 	_note.text = "Saved %s" % SAVE_PATH
 
@@ -1202,6 +1233,10 @@ func _load_saved() -> void:
 			for key in _values[mode]:
 				if saved.has(key):
 					_values[mode][key] = float(saved[key])
+		var cols: Dictionary = data.get("DamageColors", {})
+		for k in _dmg_colors:
+			if cols.has(k):
+				_dmg_colors[k] = Color(String(cols[k]))
 
 
 func _on_copy() -> void:
@@ -1290,6 +1325,9 @@ func _snippet_damage() -> String:
 	t += "mat.set_shader_parameter(\"max_strength\", %.2f)\n" % float(v["max_strength"])
 	t += "mat.set_shader_parameter(\"edge_bias_strength\", %.2f)\n" % float(v["edge_bias_strength"])
 	t += "mat.set_shader_parameter(\"details_opacity\", %.2f)\n" % float(v["details_opacity"])
+	for k in _dmg_colors:
+		var c: Color = _dmg_colors[k]
+		t += "mat.set_shader_parameter(\"%s\", Color(%.3f, %.3f, %.3f))\n" % [k, c.r, c.g, c.b]
 	return t
 
 

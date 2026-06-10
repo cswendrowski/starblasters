@@ -49,10 +49,13 @@ static func apply_burn(sprite: CanvasItem, duration: float = 0.5, custom_color: 
 	mat.set_shader_parameter("colorCurve", _curve_tex)
 	mat.set_shader_parameter("position", Vector2(0.5, 0.5))
 	mat.set_shader_parameter("radius", 0.0)
-	mat.set_shader_parameter("borderWidth", 0.18)
-	mat.set_shader_parameter("burnMult", 0.34)
-	mat.set_shader_parameter("pixel_size", 0.04)
-	mat.set_shader_parameter("blend_steps", 6.0)
+	# Tuned in the Shader Lab (Disintegrate), 2026-06-10. `duration` (the radius
+	# sweep speed, saved as 1.0) stays a per-caller pacing value — callers pass
+	# their own (enemy_base 0.45) so deaths stay snappy; only the LOOK is intaken.
+	mat.set_shader_parameter("borderWidth", 0.3)
+	mat.set_shader_parameter("burnMult", 0.5)
+	mat.set_shader_parameter("pixel_size", 0.05)
+	mat.set_shader_parameter("blend_steps", 12.0)
 	if custom_color.a > 0.0:
 		mat.set_shader_parameter("burnColor", custom_color)
 	sprite.material = mat

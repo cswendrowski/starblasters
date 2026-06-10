@@ -283,9 +283,10 @@ func _update_damage_visual() -> void:
 		return
 	if max_health <= 0:
 		return
-	# 0 at full health → 1 at zero health. Capped slightly under 1 so the
-	# sprite still reads on the frame before explode() fires.
-	var lvl: float = clamp(1.0 - float(health) / float(max_health), 0.0, 0.75)
+	# Ramp the damage overlay linearly in MISSING health: 0 at full HP, 0.6 at
+	# 1 HP (Roman 2026-06-10). Denominator guards a 1-HP enemy from /0.
+	var denom: float = maxf(float(max_health) - 1.0, 1.0)
+	var lvl: float = clampf(0.6 * (float(max_health) - float(health)) / denom, 0.0, 0.6)
 	_damage_material.set_shader_parameter("sensitivity", lvl)
 
 
