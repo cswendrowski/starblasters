@@ -20,28 +20,32 @@ extends Node
 const OUTLINE_SHADER: Shader = preload("res://shaders/outline_1px.gdshader")
 const PAD := 1   # transparent border (px) so the 1px ring always has room to draw
 
-static var _mat: ShaderMaterial = null
+# Cache: color hex -> ShaderMaterial. Default black for every enemy/player hull; a colored variant
+# (e.g. orange) is used by the Hyper-mode pulsing outline.
+static var _mat_cache: Dictionary = {}
 # Cache: "<texid>:<frame>:<hf>x<vf>" -> padded single-frame ImageTexture.
 static var _tex_cache: Dictionary = {}
 
 
-static func _material() -> ShaderMaterial:
-	if _mat == null:
-		_mat = ShaderMaterial.new()
-		_mat.shader = OUTLINE_SHADER
-		_mat.set_shader_parameter("clr", Color(0, 0, 0, 1))
-		# Match the asteroid outline (Roman 2026-06-08, "asteroid settings are correct"):
-		# the asteroid procgen shader uses a 4-NEIGHBOUR 1px black outline, so ships use
-		# type 1 (4-neighbour) too — was type 2 (8-neighbour) which read heavier on corners.
-		_mat.set_shader_parameter("type", 1)
-		_mat.set_shader_parameter("thickness", 1.0)
-	return _mat
+static func _material(clr: Color = Color(0, 0, 0, 1)) -> ShaderMaterial:
+	var key: String = clr.to_html(true)
+	if _mat_cache.has(key):
+		return _mat_cache[key]
+	var m := ShaderMaterial.new()
+	m.shader = OUTLINE_SHADER
+	m.set_shader_parameter("clr", clr)
+	# Match the asteroid outline (Roman 2026-06-08, "asteroid settings are correct"):
+	# the asteroid procgen shader uses a 4-NEIGHBOUR 1px outline, so ships use type 1 too.
+	m.set_shader_parameter("type", 1)
+	m.set_shader_parameter("thickness", 1.0)
+	_mat_cache[key] = m
+	return m
 
 
-# Attach a 1px black outline behind `host` (a Sprite2D). Returns the outline node,
-# or null if no frame image could be read. Safe to call in _ready (the node is
-# added to the host's PARENT, which by then exists for a scene child).
-static func apply(host: Sprite2D) -> Sprite2D:
+# Attach a 1px outline behind `host` (a Sprite2D). `clr` defaults to black (the universal hull
+# outline); pass a colour for special outlines (Hyper-mode orange pulse). Returns the outline node,
+# or null if no frame image could be read. Safe to call in _ready.
+static func apply(host: Sprite2D, clr: Color = Color(0, 0, 0, 1)) -> Sprite2D:
 	if host == null or host.texture == null:
 		return null
 	var tex: Texture2D = _padded_frame(host)
@@ -50,7 +54,7 @@ static func apply(host: Sprite2D) -> Sprite2D:
 	var o := Sprite2D.new()
 	o.name = "Outline"
 	o.texture = tex
-	o.material = _material()
+	o.material = _material(clr)
 	o.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	o.z_index = -2          # behind the hull AND below the engine trail (z -1)
 	o.z_as_relative = true

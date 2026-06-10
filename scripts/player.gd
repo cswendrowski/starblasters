@@ -251,6 +251,12 @@ var hyper_fire_bonus: float = 0.10
 var hyper_damage_mult: float = 1.0
 var hyper_recharge_rate: float = 0.8
 signal hyper_charge_changed(charge: float, max_charge: float, active: bool)
+# Hyper "tell": a pulsing orange outline that speeds up as the bar runs out (Roman 2026-06-10).
+var _hyper_outline: Sprite2D = null
+var _hyper_pulse_t: float = 0.0
+const HYPER_OUTLINE_COLOR := Color(1.0, 0.5, 0.0)   # orange
+const HYPER_PULSE_HZ_SLOW: float = 2.0              # pulses/sec at full charge
+const HYPER_PULSE_HZ_FAST: float = 9.0             # pulses/sec as it empties
 
 # --- Phase mode runtime (active_mode == PHASE) ---
 # Press Shift to phase out: brief intangibility (no incoming damage, no offense),
@@ -258,12 +264,16 @@ signal hyper_charge_changed(charge: float, max_charge: float, active: bool)
 # time. Tunables pulled from the mode part on equip.
 var phase_charges: int = 2
 var phase_charges_max: int = 2
-var phase_duration: float = 1.5
+var phase_duration: float = 3.0
 var phase_kills_per_charge: int = 4
 var _phase_t: float = 0.0
 var _phase_kill_count: int = 0
 var _phase_glow: CanvasItem = null   # bright-blue diffuse aura while phased
 var _phase_was_active: bool = false
+# Fading blue after-image ghosts while phased (Roman 2026-06-10).
+var _phase_ai_acc: float = 0.0
+const PHASE_AI_INTERVAL: float = 0.06   # seconds between ghosts
+const PHASE_AI_LIFETIME: float = 0.34   # ghost fade-out time
 signal phase_charges_changed(charges: int, max_charges: int)
 # Emitted when the equipped Shift mode changes — the HUD swaps its meter (Focus/
 # Hyper bar vs Phase charge readout) on this.
@@ -955,6 +965,7 @@ func _on_mode_changed() -> void:
 # it; recharges only while idle; can ONLY (re)engage from a FULL bar (no tapping).
 func _tick_hyper_mode(delta: float) -> void:
 	if active_mode != ShiftMode.HYPER:
+		_clear_hyper_outline()
 		return
 	var holding: bool = Input.is_action_pressed("focus")
 	if _hyper_active:
@@ -969,6 +980,38 @@ func _tick_hyper_mode(delta: float) -> void:
 		if holding and hyper_charge >= hyper_charge_max:
 			_hyper_active = true
 			hyper_charge_changed.emit(hyper_charge, hyper_charge_max, true)
+	# Pulsing orange outline tell — faster as the bar runs out.
+	if _hyper_active:
+		_update_hyper_outline(delta)
+	else:
+		_clear_hyper_outline()
+
+
+const _OutlineFxCls = preload("res://scripts/effects/outline_fx.gd")
+
+func _update_hyper_outline(delta: float) -> void:
+	if _hyper_outline == null or not is_instance_valid(_hyper_outline):
+		if not has_node("Ship"):
+			return
+		_hyper_outline = _OutlineFxCls.apply($Ship, HYPER_OUTLINE_COLOR)
+		if _hyper_outline != null:
+			_hyper_outline.z_index = -1   # above the black hull outline (-2), below the ship (0)
+		_hyper_pulse_t = 0.0
+	if _hyper_outline == null or not is_instance_valid(_hyper_outline):
+		return
+	# Pulse frequency rises from SLOW→FAST as the bar empties.
+	var frac: float = 0.0
+	if hyper_charge_max > 0.0:
+		frac = clampf(1.0 - hyper_charge / hyper_charge_max, 0.0, 1.0)
+	var hz: float = lerpf(HYPER_PULSE_HZ_SLOW, HYPER_PULSE_HZ_FAST, frac)
+	_hyper_pulse_t += delta * hz
+	_hyper_outline.modulate.a = 0.30 + 0.70 * (0.5 + 0.5 * sin(_hyper_pulse_t * TAU))
+
+
+func _clear_hyper_outline() -> void:
+	if _hyper_outline != null and is_instance_valid(_hyper_outline):
+		_hyper_outline.queue_free()
+	_hyper_outline = null
 
 
 # Phase: PRESS Shift to phase out — intangible (no incoming damage) + offense locked
@@ -980,13 +1023,49 @@ func _tick_phase_mode(delta: float) -> void:
 	if _phase_t > 0.0:
 		_phase_t = max(0.0, _phase_t - delta)
 		_invuln_t = max(_invuln_t, _phase_t)  # intangible for the whole window
+		# Fading blue after-image ghosts as the ship moves.
+		_phase_ai_acc += delta
+		if _phase_ai_acc >= PHASE_AI_INTERVAL:
+			_phase_ai_acc = 0.0
+			_spawn_phase_afterimage()
 	if Input.is_action_just_pressed("focus") and _phase_t <= 0.0 and phase_charges > 0:
 		phase_charges -= 1
 		_phase_t = phase_duration
 		_invuln_t = max(_invuln_t, phase_duration)
+		_phase_ai_acc = PHASE_AI_INTERVAL  # drop a ghost immediately on entry
 		phase_charges_changed.emit(phase_charges, phase_charges_max)
 	# Bright-blue diffuse glow while phased (the Phase "tell" — no dot/trail).
 	_set_phase_glow(_phase_t > 0.0)
+
+
+# Spawn a fading blue ghost of the ship body at its current pose. Parented to the combat world (not
+# the player) so it stays put while the ship flies on, then fades + frees itself.
+func _spawn_phase_afterimage() -> void:
+	if not has_node("Ship"):
+		return
+	var ship := $Ship as Sprite2D
+	if ship == null or ship.texture == null:
+		return
+	var ghost := Sprite2D.new()
+	ghost.texture = ship.texture
+	ghost.hframes = ship.hframes
+	ghost.vframes = ship.vframes
+	ghost.frame = ship.frame
+	ghost.flip_h = ship.flip_h
+	ghost.flip_v = ship.flip_v
+	ghost.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	ghost.global_position = ship.global_position
+	ghost.rotation = global_rotation
+	ghost.z_index = -1
+	ghost.modulate = Color(PHASE_GLOW_COLOR.r, PHASE_GLOW_COLOR.g, PHASE_GLOW_COLOR.b, 0.55)
+	var mat := CanvasItemMaterial.new()
+	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD   # glowy blue ghost
+	ghost.material = mat
+	var host: Node = get_parent() if get_parent() != null else get_tree().root
+	host.add_child(ghost)
+	var tw := ghost.create_tween()
+	tw.tween_property(ghost, "modulate:a", 0.0, PHASE_AI_LIFETIME)
+	tw.tween_callback(ghost.queue_free)
 
 
 # Edge-triggered: spawn/free the blue phase aura behind the ship (reuses the
@@ -1025,6 +1104,17 @@ func take_damage(amount: int) -> void:
 	if invincible:
 		return
 	if not is_alive or amount <= 0:
+		return
+	# Phase mode: while phased the player absorbs incoming enemy fire instead of taking it —
+	# each absorbed hit restores 1 shield point (capped). The bullet that called this still frees
+	# itself, so it reads as "absorbed". (Roman 2026-06-10 phase rework.)
+	if _phase_t > 0.0:
+		if shield < max_shield:
+			set_shield(min(max_shield, shield + 1))
+			_pulse_shield_ring()
+			if has_node("Ship"):
+				var HitFlashFx2 = load("res://scripts/effects/hit_flash_fx.gd")
+				HitFlashFx2.flash($Ship, HitFlashFx2.FLASH_SHIELD)
 		return
 	# "dangerous" sector modifier doubles all incoming enemy damage.
 	# Per-sector difficulty scaler: incoming damage scales × (1 + 0.05 × sectors_cleared).
@@ -1130,6 +1220,8 @@ func die() -> void:
 		return
 	is_alive = false
 	_set_phase_glow(false)  # clean up the Phase aura if we die mid-blink
+	_clear_hyper_outline()  # and the Hyper pulse outline
+	_hyper_active = false
 	hide()
 	died.emit()
 	$ShieldRegenTimer.stop()
