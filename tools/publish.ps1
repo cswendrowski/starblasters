@@ -1,67 +1,59 @@
 param(
   [Parameter(Mandatory=$true)][string]$Version
 )
-# Web export + butler push for Starblasters.
-# Single-binary setup (2026-05-26 consolidation): editor + export both run
-# the same standalone Godot 4.6.3. We dropped the 4.3 Mono editor since the
-# project never used C#. If web export ever silently no-ops again, first
-# check that this binary path still exists and matches the editor in use.
+# WINDOWS export + butler push for Starblaster (renderer pivot 2026-06-10: Forward+ renderer,
+# Windows-only distribution — the old Web/html pipeline is retired; the Web preset remains in
+# export_presets.cfg but is no longer published).
+# Single-binary setup (2026-05-26 consolidation): editor + export both run the same standalone
+# Godot 4.6.3. If the export ever silently no-ops, first check this binary path still exists and
+# matches the editor in use.
 $ErrorActionPreference = 'Stop'
 $STANDALONE_GODOT = 'E:\tools\Godot_v4.6.3\Godot_v4.6.3-stable_win64.exe'
 $BUTLER = 'E:\tools\butler\butler.exe'
 $REPO = Split-Path -Parent $PSScriptRoot
-$OUT_DIR = Join-Path (Split-Path -Parent $REPO) 'Starblaster_html'
-$OUT_HTML = Join-Path $OUT_DIR 'index.html'
-$CHANNEL = 'tikibones/starblaster:html'
+$OUT_DIR = Join-Path (Split-Path -Parent $REPO) 'Starblaster_win'
+$OUT_EXE = Join-Path $OUT_DIR 'Starblaster.exe'
+$CHANNEL = 'tikibones/starblaster:windows'
 
 if (-not (Test-Path $STANDALONE_GODOT)) { throw "Standalone Godot not found at $STANDALONE_GODOT" }
 if (-not (Test-Path $BUTLER)) { throw "butler not found at $BUTLER" }
 
-# HARD GATE: every user-reachable scene must parse-clean on the same Godot
-# version we're about to export with. With the single-binary consolidation
-# this is now belt-and-braces (editor == exporter), but the audit still
-# catches scripts that reference autoloads/classes only seeded by the
-# editor's class cache.
+# HARD GATE: every user-reachable scene must parse-clean (plus the fail-closed all-scripts compile
+# stage) on the same Godot version we're about to export with.
 Write-Output "Running parse_check across all user-reachable scenes..."
 $checkScript = Join-Path $PSScriptRoot 'parse_check.ps1'
 & $checkScript
 if ($LASTEXITCODE -ne 0) { throw "parse_check failed - refusing to publish a build that won't run." }
 
 # Update project.godot version.
-# Write UTF-8 WITHOUT a BOM. PowerShell 5.1's `Set-Content -Encoding utf8`
-# prepends a BOM (EF BB BF); Godot then round-trips it into mojibake
-# `"<BOM>config_version"=5` keys that accumulated on every publish. Use .NET
-# to write BOM-less UTF-8 so the version bump stays clean.
+# Write UTF-8 WITHOUT a BOM. PowerShell 5.1's `Set-Content -Encoding utf8` prepends a BOM
+# (EF BB BF); Godot then round-trips it into mojibake keys. Use .NET to write BOM-less UTF-8.
 $proj = Join-Path $REPO 'project.godot'
 $projText = (Get-Content $proj -Raw) -replace 'config/version="[^"]+"', "config/version=`"$Version`""
 [System.IO.File]::WriteAllText($proj, $projText, (New-Object System.Text.UTF8Encoding $false))
 
-# Godot's exporter writes into OUT_DIR but does NOT create it — a missing dir
-# makes the export a silent no-op (no index.pck). Ensure it exists (first publish
-# on a fresh machine hits this).
+# Godot's exporter writes into OUT_DIR but does NOT create it — a missing dir makes the export a
+# silent no-op. Ensure it exists.
 if (-not (Test-Path $OUT_DIR)) { New-Item -ItemType Directory -Force $OUT_DIR | Out-Null }
 
-# Capture mtime BEFORE export so we can detect a silent no-op.
-$pckPath = Join-Path $OUT_DIR 'index.pck'
-$mtimeBefore = if (Test-Path $pckPath) { (Get-Item $pckPath).LastWriteTimeUtc.Ticks } else { 0 }
+# Capture mtime BEFORE export so we can detect a silent no-op. The preset embeds the pck in the
+# exe (binary_format/embed_pck=true), so the exe IS the build artifact.
+$mtimeBefore = if (Test-Path $OUT_EXE) { (Get-Item $OUT_EXE).LastWriteTimeUtc.Ticks } else { 0 }
 
-Write-Output "Exporting Web (v$Version) ..."
+Write-Output "Exporting Windows (v$Version, Forward+) ..."
 # PowerShell 5.1 treats stderr from native exes as terminating errors under
-# ErrorActionPreference=Stop. The Godot export writes harmless warnings (e.g.
-# "Detected another project.godot at ...PixelPlanetsSource") to stderr, which
-# would abort the publish even on a successful export. Swap policy locally to
-# Continue and rely on the mtime check below to validate success.
+# ErrorActionPreference=Stop; the Godot export writes harmless warnings to stderr. Swap policy
+# locally to Continue and rely on the mtime check below to validate success.
 $prevPref = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
-& $STANDALONE_GODOT --path $REPO --headless --export-release "Web" $OUT_HTML 2>&1 | Out-Null
+& $STANDALONE_GODOT --path $REPO --headless --export-release "Starblaster" $OUT_EXE 2>&1 | Out-Null
 $ErrorActionPreference = $prevPref
-# Godot exits non-zero on shutdown noise from editor plugins even on success.
-# Do not check exit code - verify the output mtime advanced instead.
+# Godot exits non-zero on shutdown noise even on success — verify the artifact instead.
 
-if (-not (Test-Path $pckPath)) { throw "Export produced no index.pck (preset failed silently)." }
-$mtimeAfter = (Get-Item $pckPath).LastWriteTimeUtc.Ticks
+if (-not (Test-Path $OUT_EXE)) { throw "Export produced no Starblaster.exe (preset failed silently)." }
+$mtimeAfter = (Get-Item $OUT_EXE).LastWriteTimeUtc.Ticks
 if ($mtimeAfter -le $mtimeBefore) {
-  throw "index.pck mtime did not advance (export was a no-op). Did the editor build mismatch the export target?"
+  throw "Starblaster.exe mtime did not advance (export was a no-op). Check export templates for 4.6.3."
 }
 
 Write-Output "Pushing to itch ..."
