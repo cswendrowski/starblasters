@@ -145,6 +145,15 @@ Legend: ⮕ reuse/extend target. ⚠ risk/needs-eyeball. 🔧 dev-tool opportuni
 ---
 
 ## Needs-Roman (eyeball / playtest / decisions) — running
+**Weapons (cluster B):**
+- **Enemy cannon "glow on entire sprite" — needs your eyeball.** Hard numbers from `test_cannon_render`:
+  both cannon bullets (burst_round + heavy_slug) now ANIMATE (playing=true), slice to 16×16, and the
+  ShaderGlow node's texture is **16×16 = one frame, NOT the 32px whole sheet**. So in code the glow IS
+  the chosen frame. If you still see "whole sprite," it's likely the diffuse HALO (HALO_PX=7 → ~30px
+  glow around a 16px bullet, ~2× sprite size) reading as oversized — easy to shrink `HALO_PX` or add a
+  per-bullet `halo_mult` if you confirm. The "not animated / random frame" symptoms are fixed.
+- **Rotary Mk.5+** swaps to the Auto Laser bolt sprite — verify the visual at Mk.5 in-game.
+
 **Audio (cluster A) — listen-test:**
 - Explosion distance bands are tunable consts in `explosion_sfx.gd`: `NEAR_DIST=62`, `FAR_DIST=168` px
   (close/medium/distant), plus per-band volume. Tune by ear.
