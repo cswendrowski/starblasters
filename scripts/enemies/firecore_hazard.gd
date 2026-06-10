@@ -75,7 +75,9 @@ func explode() -> void:
 	set_deferred("monitorable", false)
 	died.emit(bounty_value)
 	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
-	var scene := ExplosionFx.scene_for("ball")
+	# Explicit type — `:=` can't infer from an untyped load() result, and the inference failure
+	# kills the WHOLE script at runtime (frozen, unkillable firecores; Roman 2026-06-10).
+	var scene: PackedScene = ExplosionFx.scene_for("ball")
 	ExplosionFx.play(global_position, 1.0, true, null, scene)
 	var MineSfx = load("res://scripts/effects/mine_sfx.gd")
 	MineSfx.play_at(global_position)

@@ -17,10 +17,10 @@
 [ext_resource type="PackedScene" uid="uid://dxumspm4c6yeg" path="res://scenes/effects/shell_eject_small.tscn" id="10_1x2k1"]
 [ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="10_65dxt"]
 [ext_resource type="PackedScene" uid="uid://qy4pikt4sjwk" path="res://scenes/effects/muzzleflash_small.tscn" id="11_02uoo"]
-[ext_resource type="AudioStream" uid="uid://rlimik0xgrhw" path="res://Sound/weapons/player/rotary_laser_charge.ogg" id="11_rlchg"]
-[ext_resource type="AudioStream" uid="uid://pbjpgk1gmsog" path="res://Sound/weapons/player/particle_charge.ogg" id="12_pbchg"]
-[ext_resource type="AudioStream" uid="uid://pbbf3bpemtwc" path="res://Sound/weapons/player/particle_loop.ogg" id="12_pbloop"]
-[ext_resource type="AudioStream" uid="uid://pbke0xmkwmkr" path="res://Sound/weapons/player/particle_stop.ogg" id="12_pbstop"]
+[ext_resource type="AudioStream" uid="uid://d2ikeqix24rd0" path="res://Sound/weapons/player/rotary_laser_charge.ogg" id="11_rlchg"]
+[ext_resource type="AudioStream" uid="uid://cbm6ryhnxrbak" path="res://Sound/weapons/player/particle_charge.ogg" id="12_pbchg"]
+[ext_resource type="AudioStream" uid="uid://c0e6ya05udjiy" path="res://Sound/weapons/player/particle_loop.ogg" id="12_pbloop"]
+[ext_resource type="AudioStream" uid="uid://cwcws8bbvlyjg" path="res://Sound/weapons/player/particle_stop.ogg" id="12_pbstop"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_cnsyf"]
 shader = ExtResource("5_007i1")

@@ -569,7 +569,10 @@ func _on_apply_part() -> void:
 	# Route through canonical Run.equip_part so secondary ammo + super charges
 	# get seeded and any displaced same-slot part lands in weapon_storage. Then
 	# mirror onto the LIVE Player's Loadout so the test-fire reflects it now.
-	Run.equip_part(part)
+	# (/root path, not the bare `Run` identifier — bare autoload names fail to compile
+	# in autoload-free contexts like compile_check; house convention.)
+	if has_node("/root/Run"):
+		get_node("/root/Run").equip_part(part)
 	var loadout = _live_loadout()
 	if loadout != null:
 		loadout.equip(_selected_slot, part)
@@ -578,7 +581,8 @@ func _on_apply_part() -> void:
 
 
 func _on_clear_slot() -> void:
-	Run.unequip_slot(_selected_slot)
+	if has_node("/root/Run"):
+		get_node("/root/Run").unequip_slot(_selected_slot)
 	var loadout = _live_loadout()
 	if loadout != null and loadout.has_method("unequip"):
 		loadout.unequip(_selected_slot)
@@ -623,7 +627,8 @@ func _on_quick_mode(mode_name: String) -> void:
 		_set_status("PartCatalog null for %s" % mode_name)
 		return
 	part.mark = int(_mark_slider.value)
-	Run.equip_part(part)
+	if has_node("/root/Run"):
+		get_node("/root/Run").equip_part(part)
 	if loadout != null:
 		loadout.equip(SlotTypes.SlotType.SHIFT_MODE, part)
 	_set_status("Mode: %s Mk.%d  (Shift)" % [mode_name, int(part.mark)])
