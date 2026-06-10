@@ -271,6 +271,14 @@ unit-tested.
 - **O** Renderer pivot — HELD for attended session.
 
 ## Running log
+- 2026-06-10 — **Playtest hotfixes** (`1c229a4`, from Roman's first hands-on): (1) primary fire was
+  broken for every style except Autocannon/Minigun — the weapons rework folded the per-frame
+  fire_primary() into the style branches; restored the unconditional call (fire_primary self-gates),
+  spin-up stays the only suppression, and added `test_fire_primary` (boots combat, holds shoot,
+  asserts the blaster spawns bullets) as a permanent guard. (2) "old explosion sounds on death" =
+  the legacy per-scene `$EnemyDie` clip, still played by enemy_base/boss_base over the new distance
+  system — both play sites retired; deaths now sound only via Close/Medium/Distant. The inert
+  EnemyDie nodes remain in 54 enemy scenes — **cleanup candidate**.
 - 2026-06-10 — **Post-session code review (7 finder angles × verify) + fixes** (`bcd6e18`/`f874d74`/`2337c87`).
   7 confirmed correctness bugs in the overnight work, all fixed: (1) Autocannon per-shot SFX never
   played (gate excluded the MG family wholesale); (2) zealot firecore routing missed the faction-
