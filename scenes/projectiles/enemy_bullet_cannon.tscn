@@ -37,7 +37,7 @@ impact_color = Color(1, 0.2, 0.2, 1)
 
 [node name="AnimatedSprite2D" parent="." index="0" unique_id=791917356]
 sprite_frames = SubResource("SpriteFrames_bst")
+frame_progress = 0.0
 
 [node name="CollisionShape2D" parent="." index="1" unique_id=834368476]
-visible = true
 shape = SubResource("Shape_bst")

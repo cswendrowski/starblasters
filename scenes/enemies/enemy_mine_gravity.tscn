@@ -1,19 +1,35 @@
-[gd_scene load_steps=4 format=3 uid="uid://cminegrav0001"]
+[gd_scene format=3 uid="uid://cminegrav0001"]
 
-[ext_resource type="Script" path="res://scripts/enemies/gravity_mine.gd" id="1_grav_scr"]
+[ext_resource type="Script" uid="uid://vybslw12n18w" path="res://scripts/enemies/gravity_mine.gd" id="1_grav_scr"]
 [ext_resource type="Texture2D" uid="uid://g42khwsghltr" path="res://graphics/mines/enemy_mine_gravity.png" id="2_grav_tex"]
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_grav"]
-size = Vector2(16, 16)
+[sub_resource type="Environment" id="Environment_v7qjq"]
+background_mode = 3
+glow_enabled = true
+glow_intensity = 4.0
+glow_hdr_threshold = 0.0
+adjustment_enabled = true
 
-[node name="EnemyMineGravity" type="Area2D" groups=["enemies"]]
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_grav"]
+size = Vector2(12, 12)
+
+[node name="EnemyMineGravity" type="Area2D" unique_id=899763229 groups=["enemies"]]
 script = ExtResource("1_grav_scr")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=769036781]
 texture = ExtResource("2_grav_tex")
 hframes = 2
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="GlowMask" type="Sprite2D" parent="." unique_id=1126872944]
+texture = ExtResource("2_grav_tex")
+hframes = 2
+frame = 1
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="GlowMask" unique_id=1571890679]
+environment = SubResource("Environment_v7qjq")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=687313573]
+visible = false
 shape = SubResource("RectangleShape2D_grav")
 
 [connection signal="area_entered" from="." to="." method="_on_area_entered"]

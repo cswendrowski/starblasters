@@ -128,12 +128,13 @@ fire_on_phase = "hold"
 texture = ExtResource("2_tex")
 hframes = 2
 
-[node name="GlowMask" type="Sprite2D" parent="." unique_id=1411661805]
+[node name="GlowMask" type="Sprite2D" parent="." unique_id=1297939729]
 texture = ExtResource("2_tex")
 hframes = 2
 frame = 1
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1286003294]
+visible = false
 shape = SubResource("RectangleShape2D_2bskn")
 
 [node name="MoveTimer" type="Timer" parent="." unique_id=1184835287]
