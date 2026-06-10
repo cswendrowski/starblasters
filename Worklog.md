@@ -145,6 +145,12 @@ Legend: ⮕ reuse/extend target. ⚠ risk/needs-eyeball. 🔧 dev-tool opportuni
 ---
 
 ## Needs-Roman (eyeball / playtest / decisions) — running
+**Outpost (cluster E) — eyeball card layout/copy:** All 7 done (subagent + my safeguard fix). Eyeball:
+the dynamic stat line format on cards (computed from part curves, e.g. "dmg 5 · 1.5/s"), the rarity-
+colored name + type subtitle ("Blaster"/"Primary Weapon"/"Secondary Weapon"/"Super"/"Mode"), and the
+"Defeat boss to restock." header label. Logic (own-better roll filter, dup-equipped move-to-hold) is
+unit-tested.
+
 **Phase / Hyper (cluster D) — eyeball the visuals:**
 - **Phase** now: 3s, invuln, offense locked, **absorbs enemy bullets → +1 shield each** (mechanics
   tested PASS), blue aura + **fading blue after-image ghosts** (new). Eyeball the after-image look
@@ -202,6 +208,10 @@ Legend: ⮕ reuse/extend target. ⚠ risk/needs-eyeball. 🔧 dev-tool opportuni
 - **O** Renderer pivot — HELD for attended session.
 
 ## Running log
+- 2026-06-10 — **Cluster E Outpost UX DONE** (`e224405` subagent + `be986fa` my safeguard-bug fix).
+  7 tasks: Blaster/Primary disambiguation, rarity-colored name, type subtitle (drop "Tier"), one-of-each
+  move-to-hold safeguard, "Defeat boss to restock" label, own-better no-dupe roll filter, dynamic stat
+  cards. Caught + fixed a copy-not-move inventory bug in the safeguard. Tests PASS.
 - 2026-06-10 — **Cluster D Phase/Hyper DONE** (`77d4356`). Phase: 3s + bullet-absorb→shield +
   after-images; Hyper: pulsing orange outline (outline_fx now supports a colour). Mechanics tested
   (`test_phase_hyper` PASS); visuals → Needs-Roman.
