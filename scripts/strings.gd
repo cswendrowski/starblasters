@@ -30,7 +30,7 @@ const ONBOARDING_SHIELD_REGEN_TITLE := "Shield Regen"
 const ONBOARDING_SHIELD_REGEN_BODY := "Shields regenerate automatically a couple of seconds after the last hit.\n\nIf you can avoid taking damage for a few seconds your shield will start to come back. Upgrades can increase the capacity and recharge rate."
 
 const ONBOARDING_BOUNTY_TITLE := "Bounty Economy"
-const ONBOARDING_BOUNTY_BODY := "Defeat enemies to earn Bounty Credits — your in-patrol currency. Your total displays at the top-right of the HUD.\n\nVisit Outposts to spend Bounty on parts, weapons, repairs, and ammo. As you progress deeper into the patrol, Outpost prices increase — but the quality of available gear gets better too, rewarding deeper runs.\n\nSurvive your run and you'll keep any Bounty you didn't spend. Use it to upgrade your ship before your next patrol."
+const ONBOARDING_BOUNTY_BODY := "Defeat enemies to earn Bounty Credits — your in-patrol currency. Your total displays at the top-right of the HUD.\n\nVisit Outposts to spend Bounty on parts, weapons, repairs, and ammo. As you progress deeper into the patrol, Outpost prices increase — but the quality of available gear gets better too, rewarding deeper runs.\n\nBounty doesn't carry over — each patrol starts fresh. Spend it while you're out there: an upgrade in your hold beats credits you'll never bank."
 
 const ONBOARDING_WAVES_TITLE := "Waves"
 const ONBOARDING_WAVES_BODY := "Combat levels are split into waves. A banner pops at the start of each: WAVE 1 / 7, WAVE 2 / 7, and so on.\n\nMid-level, the wave count tells you how close you are to clearing. The last two waves of every level are the toughest — keep something in reserve."

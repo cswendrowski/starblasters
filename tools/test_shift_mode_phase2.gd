@@ -54,8 +54,9 @@ func _run() -> void:
 	await process_frame
 
 	# Unlimited ammo while active: give a metered primary, engage, fire, ammo holds.
-	# (Use the machinegun cannon as a metered primary.)
-	_equip_cannon("_make_machinegun", 1, loadout)
+	# (Minigun = metered primary that fires immediately — the retired Machinegun factory is
+	# gone, and the Autocannon's 1.5s spin-up would outlast this test's ~0.5s fire window.)
+	_equip_cannon("_make_minigun", 1, loadout)
 	# Top the bar so we can engage, then fire under Hyper.
 	player.hyper_charge = player.hyper_charge_max
 	await process_frame
@@ -75,10 +76,10 @@ func _run() -> void:
 		print("[test] (skipped ammo check — machinegun ammo unavailable: %d)" % ammo_before)
 
 	# ===== PHASE =====
-	_equip("_make_phase_shift", 1, loadout)  # Mk1: 1.5s / 2 charges
+	_equip("_make_phase_shift", 1, loadout)  # Mk1: 3.0s / 2 charges (Roman 2026-06-10: 3s window)
 	_assert(int(player.active_mode) == 1, "active_mode == PHASE")
 	_assert_eq(int(player.phase_charges), 2, "Phase starts with 2 charges")
-	_assert_eqf(player.phase_duration, 1.5, "Phase duration 1.5s (Mk1)")
+	_assert_eqf(player.phase_duration, 3.0, "Phase duration 3.0s (Mk1)")
 
 	# Press Shift -> phase out: charge spent, intangible, offense locked.
 	Input.action_press("focus")

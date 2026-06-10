@@ -1564,13 +1564,21 @@ func _should_roll_weapon(slot: int, part_name: String, offered_mk: int) -> bool:
 						return false  # Reject: player owns (in storage) same or higher.
 		return true
 
-	# For CANNON, check cannon_pool.
+	# For CANNON, check cannon_pool AND weapon_storage — displaced/stowed cannons land in the
+	# hold (the dup-equipped safeguard puts them there), and a cannon in the hold must block
+	# same-or-lower-mark re-rolls just like any owned item (review fix 2026-06-10).
 	if "cannon_pool" in run:
 		for c in run.cannon_pool:
-			if String(c.display_name) == part_name:
+			if c != null and String(c.display_name) == part_name:
 				var owned_mk: int = int(c.mark) if "mark" in c else 1
 				if offered_mk <= owned_mk:
 					return false  # Reject: player owns same or higher.
+	if "weapon_storage" in run:
+		for stored in run.weapon_storage:
+			if stored != null and String(stored.display_name) == part_name:
+				var stored_mk: int = int(stored.mark) if "mark" in stored else 1
+				if offered_mk <= stored_mk:
+					return false  # Reject: player owns (in hold) same or higher.
 
 	return true
 

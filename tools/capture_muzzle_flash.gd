@@ -40,11 +40,13 @@ func _run() -> void:
 	await create_timer(0.1).timeout
 	player.position = Vector2(240, 180)
 	if player.has_node("Loadout"):
-		var part = PartCatalog._make_by_name("_make_machinegun", SlotTypes.SlotType.CANNON)
+		# Minigun: same MG-family muzzle flash + shell eject, fires immediately (the retired
+		# Machinegun factory is gone; the Autocannon's 1.5s spin-up would outlast this 1.4s capture).
+		var part = PartCatalog._make_by_name("_make_minigun", SlotTypes.SlotType.CANNON)
 		if part:
 			part.mark = 3
 			player.get_node("Loadout").equip(SlotTypes.SlotType.CANNON, part)
-	# Ensure the machinegun has ammo so it keeps firing.
+	# Ensure the gun has ammo so it keeps firing.
 	if "ammo" in player:
 		player.ammo = 999
 	Input.action_press("shoot")
