@@ -182,12 +182,11 @@ func _ready() -> void:
 	screensize = get_viewport_rect().size
 	health = max_health
 	# Allow rapid $EnemyShoot.play() calls to overlap so each shot is
-	# audible to completion (Roman feedback 2026-05-23). $EnemyDie is
-	# handled separately in explode() via Sfx.play_node_detached.
+	# audible to completion (Roman feedback 2026-05-23). ($EnemyDie is retired —
+	# deaths sound via the distance-based ExplosionSfx in explode(); see there.)
 	var SfxCls = load("res://scripts/effects/sfx.gd")
-	# Route scene-embedded SFX (EnemyShoot/EnemyDie) onto the SFX bus so the
-	# Options "Sound Volume" slider controls them. Covers bosses too (boss_base
-	# extends this and plays $EnemyDie directly).
+	# Route scene-embedded SFX (EnemyShoot etc.) onto the SFX bus so the
+	# Options "Sound Volume" slider controls them.
 	SfxCls.route_children_to_sfx(self)
 	if has_node("EnemyShoot"):
 		SfxCls.ensure_polyphony($EnemyShoot, 4)
@@ -315,6 +314,11 @@ func _flash_hit() -> void:
 func take_hit(damage: int = 1) -> bool:
 	if _dying:
 		return false
+	# Off-screen / recycling enemies are not valid targets — a bullet or bomb wave shouldn't kill an
+	# enemy that's mid-parallax-flyback or fully off the screen (Roman 2026-06-10). They re-arm as
+	# targets the moment they re-enter. (Bullets route here; the smart-bomb wave guards separately.)
+	if is_recycling() or is_fully_offscreen():
+		return false
 	# Shields are unified onto ShieldComponent (shield_unification_2026-06-08.md): the
 	# simple max_shield/shield charge is retired, so all hits flow through the component
 	# pipeline (_components_hit) where a ShieldComponent — if present — absorbs them.
@@ -361,6 +365,15 @@ func explode() -> void:
 	set_deferred("monitorable", false)
 	died.emit(bounty_value)
 	_components_death()
+	# Firecore-dropper explosion routing (Roman 2026-06-10): any enemy CARRYING a
+	# firecore-tagged emitter (zealot in-scene components AND the zealot faction overlay
+	# added at spawn) plays the "ball" explosion when it dies WITHOUT dropping a core, and
+	# the normal explosion when a core drops. Detected off the tagged component itself —
+	# not scene metadata — so the faction-overlay path routes correctly (review fix
+	# 2026-06-10; the old has_meta check missed overlay-only droppers). Must run AFTER
+	# _components_death() fires the emitters.
+	if _has_emitter_tagged("firecore"):
+		explosion_variant = "default" if did_emit_tagged("firecore") else "ball"
 	# Explosions are always 1× scale; bigger enemies just get MORE blasts
 	# with random jitter (Roman 2026-05-18). 16-px chaff = 1, 48-px boss-
 	# class = ~4-5, clamped to a sane upper bound.
@@ -398,13 +411,10 @@ func explode() -> void:
 		BurnFxScript.apply_burn($Sprite2D, 0.45)
 	if has_node("ParticleExplode"):
 		$ParticleExplode.restart()
-	if has_node("EnemyDie"):
-		# Detach the death SFX from the dying enemy so it plays to
-		# completion instead of clipping when queue_free() fires below
-		# (Roman feedback 2026-05-23). Sfx.play_node_detached re-parents
-		# under root.
-		var SfxCls = load("res://scripts/effects/sfx.gd")
-		SfxCls.play_node_detached($EnemyDie)
+	# Death audio: the scene-embedded $EnemyDie clip is RETIRED (Roman 2026-06-10 — "wire up the
+	# new explosion sounds, retire the old ones"). Deaths now sound exclusively through the
+	# distance-based ExplosionSfx fired by the ExplosionFx.play/burst calls above; playing the
+	# old clip here buried the new ones. The EnemyDie nodes remain in the scenes (inert).
 	await get_tree().create_timer(0.5).timeout
 	queue_free()
 
@@ -504,6 +514,16 @@ func is_recycling() -> bool:
 	return false
 
 
+# True when the enemy is fully outside the visible viewport (by offscreen_margin on any edge) — used
+# to reject hits on enemies that aren't on screen (entry-band above the top, exited below/side).
+func is_fully_offscreen() -> bool:
+	if not is_inside_tree():
+		return false
+	var vp: Vector2 = get_viewport_rect().size
+	var m: float = offscreen_margin
+	return position.y < -m or position.y > vp.y + m or position.x < -m or position.x > vp.x + m
+
+
 # Cheap player lookup. Returns null if the player isn't in the scene tree
 # yet (very early in level start) or has been freed (post-death).
 func find_player() -> Node:
@@ -561,6 +581,26 @@ func _components_leave() -> void:
 	for c in _components:
 		if c.has_method("on_leave"):
 			c.on_leave(self)
+
+
+# True if this enemy CARRIES a tagged EmitterComponent (e.g. "firecore") — regardless of
+# whether it has emitted. Drives the dropper-explosion routing in explode().
+func _has_emitter_tagged(tag: String) -> bool:
+	for c in _components:
+		if "tag" in c and "payload" in c and String(c.get("tag", "")) == tag:
+			return true
+	return false
+
+
+# Check if a tagged EmitterComponent (e.g. "firecore") successfully emitted on_death.
+# Used by the explosion-variant routing. (on_death always writes _last_emit_succeeded
+# fresh — true on a successful roll, false otherwise — so this is never stale.)
+func did_emit_tagged(tag: String) -> bool:
+	for c in _components:
+		if "tag" in c and "payload" in c and "_last_emit_succeeded" in c:
+			if String(c.get("tag", "")) == tag and bool(c.get("_last_emit_succeeded", false)):
+				return true
+	return false
 
 
 # ---- Muzzle resolution -------------------------------------------------

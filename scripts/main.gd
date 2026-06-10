@@ -116,14 +116,18 @@ func _ready() -> void:
 # (safe — same as _install_playfield_frame's add_child(self)); re-wires the three signals the
 # .tscn hard-wired off the old Player node, then reassigns the `player` member.
 func _install_chosen_player() -> void:
+	# get_node, NOT the bare `Run` identifier — bare autoload names fail to COMPILE in contexts
+	# where autoloads aren't registered (-s tools, compile_check), which is why the whole codebase
+	# uses the /root path (house convention; gate-hardening find 2026-06-10).
 	if not has_node("/root/Run"):
 		return
-	var variant: int = int(Run.ship_variant)
+	var run = get_node("/root/Run")
+	var variant: int = int(run.ship_variant)
 	if variant == 0:
 		return   # baked Player is already ship A
 	if not (player and is_instance_valid(player)):
 		return
-	var scene: PackedScene = load(Run.player_scene_path())
+	var scene: PackedScene = load(run.player_scene_path())
 	if scene == null:
 		return
 	var idx: int = player.get_index()
@@ -263,7 +267,7 @@ func _warm_up_level() -> void:
 
 	# Pre-fire one explosion to init the CPU-particle path (all explosions 1×
 	# since Roman 2026-05-18, so a single warmup variant suffices).
-	var warm_explosion = ExplosionFx.play(WARM_DIR, 1.0, true)
+	var warm_explosion = ExplosionFx.play(WARM_DIR, 1.0, true, null, null, false)  # silent warmup
 	if warm_explosion:
 		warm_explosion.modulate = Color(1, 1, 1, 0.001)
 		warm_explosion.set_meta("warmup_only", true)
@@ -412,6 +416,9 @@ func _on_player_damaged_stat(amount: int) -> void:
 
 
 func _on_level_cleared() -> void:
+	# Decompress the music to Intensity_1 the moment the level clears (Roman 2026-06-10 ramp).
+	if has_node("/root/Music"):
+		get_node("/root/Music").ramp_down()
 	if has_node("/root/Run"):
 		var run = get_node("/root/Run")
 		# Bump the per-sector combat count, but only for actual combat nodes —

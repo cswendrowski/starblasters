@@ -30,8 +30,9 @@ func _cooldown_for_mark(at_mark: int) -> float:
 	return 0.162 / pow(1.1, clampf(float(at_mark - 1), 0.0, 8.0))
 
 
-# Default _fire_sfx_kind() returns NONE; default _weapon_style() returns ENERGY.
-# Both correct for Auto Laser — no overrides needed.
+# Default _weapon_style() returns ENERGY (correct for Auto Laser). Fire SFX = the new autolaser set.
+func _fire_sfx_kind() -> int:
+	return WS.FireSfxKind.AUTOLASER
 
 
 func _snapshot_keys() -> Array:

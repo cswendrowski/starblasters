@@ -449,6 +449,17 @@ const TOTAL_SECTORS: int = 3
 #                          Run.cruiser_encounter_chance_mult)
 # When adding a modifier, register it here and implement its effect either in
 # the director or at a dedicated site (and note it above).
+# ============================================================================
+# SECTOR MODIFIERS — DISABLED, FLAGGED FOR RE-EVAL (Roman 2026-06-10).
+# Pulled from rolling AND application pending a redesign pass. Flip this flag to
+# re-enable the whole system: POI generation (_gen_row_pois), the node-entry
+# assignment (sector_map_v3 -> Run.sector_modifiers), and through them every
+# downstream effect (director._apply_sector_modifiers per-enemy tweaks, the
+# player's "dangerous" 2x damage, cruiser_support encounter boost, the outpost
+# modifier readout). The vocabulary + effect wiring below is intentionally kept.
+# ============================================================================
+const SECTOR_MODIFIERS_ENABLED: bool = false
+
 const ALL_SECTOR_MODIFIERS := [
 	"wanted", "armored", "heavily_armored", "shielded",
 	"aggressive", "dangerous", "fleeing", "cruiser_support",
@@ -636,10 +647,14 @@ func _gen_row_pois(rng: RandomNumberGenerator, sector_idx: int, row_idx: int, an
 		# Per-POI modifier: chance to be null, else roll one from the FULL modifier range
 		# (Roman 2026-06-09 — was drawing from a tiny per-sector pool, which made early sectors
 		# show the same single modifier on every POI). Independent per-POI roll → a sector now
-		# shows the full variety. Same RNG-call count as before, so positions/bosses are unchanged.
+		# shows the full variety. The rng calls run UNCONDITIONALLY (even while the system is
+		# disabled) so the RNG-call count — and therefore positions/bosses — never shifts with
+		# the SECTOR_MODIFIERS_ENABLED flag.
 		var poi_mods: Array = []
-		if rng.randf() >= POI_NULL_MODIFIER_CHANCE:
-			poi_mods = [ALL_SECTOR_MODIFIERS[rng.randi() % ALL_SECTOR_MODIFIERS.size()]]
+		var _mod_roll: float = rng.randf()
+		var _mod_pick: int = rng.randi() % ALL_SECTOR_MODIFIERS.size()
+		if SECTOR_MODIFIERS_ENABLED and _mod_roll >= POI_NULL_MODIFIER_CHANCE:
+			poi_mods = [ALL_SECTOR_MODIFIERS[_mod_pick]]
 		pois.append({
 			"id": "s%d_r%d_p%d" % [sector_idx, row_idx, i],
 			"node_type": node_type,

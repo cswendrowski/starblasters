@@ -24,15 +24,7 @@ const LARGE_CLIPS := [
 	preload("res://Sound/weapons/player/blaster_large_3.ogg"),
 	preload("res://Sound/weapons/player/blaster_large_4.ogg"),
 ]
-const PULSE_CLIPS := [
-	preload("res://Sound/weapons/player/pulse_1.ogg"),
-	preload("res://Sound/weapons/player/pulse_2.ogg"),
-	preload("res://Sound/weapons/player/pulse_3.ogg"),
-	preload("res://Sound/weapons/player/pulse_4.ogg"),
-	preload("res://Sound/weapons/player/pulse_5.ogg"),
-]
-# Wave Gun. WAVE = Mk.1-4 small projectile; WAVE_BIG = Mk.5+ large wave
-# (wave_gun_cannon picks the kind by mark in _apply_visuals).
+# Wave Gun — single set for all marks (Roman 2026-06-09: no more Mk.5 swap).
 const WAVE_CLIPS := [
 	preload("res://Sound/weapons/player/wave_shoot_1.ogg"),
 	preload("res://Sound/weapons/player/wave_shoot_2.ogg"),
@@ -41,13 +33,47 @@ const WAVE_CLIPS := [
 	preload("res://Sound/weapons/player/wave_shoot_5.ogg"),
 	preload("res://Sound/weapons/player/wave_shoot_6.ogg"),
 ]
-const WAVE_BIG_CLIPS := [
-	preload("res://Sound/weapons/player/wave_big_shoot_1.ogg"),
-	preload("res://Sound/weapons/player/wave_big_shoot_2.ogg"),
-	preload("res://Sound/weapons/player/wave_big_shoot_3.ogg"),
-	preload("res://Sound/weapons/player/wave_big_shoot_4.ogg"),
-	preload("res://Sound/weapons/player/wave_big_shoot_5.ogg"),
-	preload("res://Sound/weapons/player/wave_big_shoot_6.ogg"),
+const AUTOLASER_CLIPS := [
+	preload("res://Sound/weapons/player/autolaser_shoot_1.ogg"),
+	preload("res://Sound/weapons/player/autolaser_shoot_2.ogg"),
+	preload("res://Sound/weapons/player/autolaser_shoot_3.ogg"),
+	preload("res://Sound/weapons/player/autolaser_shoot_4.ogg"),
+	preload("res://Sound/weapons/player/autolaser_shoot_5.ogg"),
+	preload("res://Sound/weapons/player/autolaser_shoot_6.ogg"),
+	preload("res://Sound/weapons/player/autolaser_shoot_7.ogg"),
+]
+const SPREAD_CLIPS := [
+	preload("res://Sound/weapons/player/spread_shoot_1.ogg"),
+	preload("res://Sound/weapons/player/spread_shoot_2.ogg"),
+	preload("res://Sound/weapons/player/spread_shoot_3.ogg"),
+	preload("res://Sound/weapons/player/spread_shoot_4.ogg"),
+	preload("res://Sound/weapons/player/spread_shoot_5.ogg"),
+	preload("res://Sound/weapons/player/spread_shoot_6.ogg"),
+]
+const AUTOCANNON_CLIPS := [
+	preload("res://Sound/weapons/player/autocannon_shoot_01.ogg"),
+	preload("res://Sound/weapons/player/autocannon_shoot_02.ogg"),
+	preload("res://Sound/weapons/player/autocannon_shoot_03.ogg"),
+	preload("res://Sound/weapons/player/autocannon_shoot_04.ogg"),
+	preload("res://Sound/weapons/player/autocannon_shoot_05.ogg"),
+	preload("res://Sound/weapons/player/autocannon_shoot_06.ogg"),
+	preload("res://Sound/weapons/player/autocannon_shoot_07.ogg"),
+	preload("res://Sound/weapons/player/autocannon_shoot_08.ogg"),
+	preload("res://Sound/weapons/player/autocannon_shoot_09.ogg"),
+]
+const MINIGUN_CLIPS := [
+	preload("res://Sound/weapons/player/minigun_shoot_01.ogg"),
+	preload("res://Sound/weapons/player/minigun_shoot_02.ogg"),
+	preload("res://Sound/weapons/player/minigun_shoot_03.ogg"),
+	preload("res://Sound/weapons/player/minigun_shoot_04.ogg"),
+	preload("res://Sound/weapons/player/minigun_shoot_05.ogg"),
+	preload("res://Sound/weapons/player/minigun_shoot_06.ogg"),
+	preload("res://Sound/weapons/player/minigun_shoot_07.ogg"),
+	preload("res://Sound/weapons/player/minigun_shoot_08.ogg"),
+	preload("res://Sound/weapons/player/minigun_shoot_09.ogg"),
+	preload("res://Sound/weapons/player/minigun_shoot_10.ogg"),
+	preload("res://Sound/weapons/player/minigun_shoot_11.ogg"),
+	preload("res://Sound/weapons/player/minigun_shoot_12.ogg"),
 ]
 # Rocket + missile live in the universal/ folder — shared by player AND enemies.
 const ROCKET_CLIPS := [
@@ -71,12 +97,16 @@ static func play(parent: Node, world_pos, kind: String) -> void:
 			pool = SMALL_CLIPS
 		"blaster_large":
 			pool = LARGE_CLIPS
-		"pulse":
-			pool = PULSE_CLIPS
 		"wave":
 			pool = WAVE_CLIPS
-		"wave_big":
-			pool = WAVE_BIG_CLIPS
+		"autolaser":
+			pool = AUTOLASER_CLIPS
+		"spread":
+			pool = SPREAD_CLIPS
+		"autocannon":
+			pool = AUTOCANNON_CLIPS
+		"minigun":
+			pool = MINIGUN_CLIPS
 		"rocket":
 			pool = ROCKET_CLIPS
 		"missile":

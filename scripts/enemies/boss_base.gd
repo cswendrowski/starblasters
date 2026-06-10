@@ -245,8 +245,8 @@ func explode() -> void:
 		BurnFx.apply_burn($Sprite2D, 1.2)
 	if has_node("AnimationPlayer") and $AnimationPlayer.has_animation("explode"):
 		$AnimationPlayer.play("explode")
-	if has_node("EnemyDie"):
-		$EnemyDie.play()
+	# Old $EnemyDie clip retired (Roman 2026-06-10) — the boss death burst above sounds through
+	# the distance-based ExplosionSfx like every other death.
 	health_changed.emit(0, max_health)
 	await get_tree().create_timer(1.3).timeout
 	queue_free()

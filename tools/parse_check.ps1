@@ -58,18 +58,29 @@ if ($failed.Count -gt 0) {
 # EVERY .gd so runtime-only scripts are gated too.
 Write-Output "------"
 Write-Output "Compiling all .gd scripts (runtime-only coverage)..."
-# Gate on OUTPUT, not exit code: Godot's exit code is unreliable for --script runs
-# (shutdown noise from editor plugins, same reason publish.ps1 mtime-validates instead
-# of checking exit). Mirror the scene loop's proven 2>&1 + Select-String approach.
-# Caveat: best-effort — Godot's on-disk script cache can mask a freshly broken source
-# until the editor reimports it; the editor-open dev workflow (the common case) is caught.
-$compileOut = & $STANDALONE --path $REPO --headless --script res://tools/compile_check.gd 2>&1
-$compileErr = $compileOut | Select-String -Pattern 'COMPILE FAIL|Failed to load script|Parse Error|SCRIPT ERROR'
-if ($compileErr) {
-  Write-Output "SCRIPT COMPILE CHECK FAILED - a .gd has a parse error:"
-  foreach ($e in ($compileErr | Select-Object -First 5)) { Write-Output "    $e" }
+# Gate on a RESULT FILE, fail-closed (2026-06-10): the win64 GUI-subsystem exe drops console
+# output non-deterministically under redirection, so the old grep-the-output gate silently
+# PASSED a hard parse error (the frozen-firecore bug shipped through a green gate).
+# compile_check.gd writes tools/_compile_check_result.txt with an explicit VERDICT; a missing
+# file means the check never ran = FAIL.
+$resultFile = Join-Path $REPO 'tools\_compile_check_result.txt'
+if (Test-Path $resultFile) { Remove-Item $resultFile -Force }
+# NO stderr redirection here: under $ErrorActionPreference='Stop', PS 5.1 wraps a native exe's
+# stderr lines (even benign Godot WARNINGs) into terminating ErrorRecords when 2>&1 is piped,
+# killing this script mid-gate. The verdict comes from the result FILE, not the output.
+& $STANDALONE --path $REPO --headless -s res://tools/compile_check.gd | Out-Null
+if (-not (Test-Path $resultFile)) {
+  Write-Output "SCRIPT COMPILE CHECK FAILED - compile_check.gd produced no result file (did not run)."
   exit 1
 }
+$resultLines = Get-Content $resultFile
+$verdict = $resultLines | Select-String -Pattern '^VERDICT: PASS'
+if (-not $verdict) {
+  Write-Output "SCRIPT COMPILE CHECK FAILED - a .gd has a parse error:"
+  foreach ($e in ($resultLines | Select-Object -First 8)) { Write-Output "    $e" }
+  exit 1
+}
+Write-Output ($resultLines | Select-Object -First 1)
 
 Write-Output "------"
 Write-Output "All scenes parse-clean."

@@ -10,7 +10,7 @@ extends "res://scripts/parts/mode_part.gd"
 #   even Mk (2,4,6,8) -> +1.0s duration; odd Mk >1 (3,5,7,9) -> +1 max charge.
 # Design: docs/shift_mode_system_2026-06-08.md §3.2. Numbers first-pass (tuner job).
 
-@export var base_duration: float = 1.5     # seconds of intangibility per activation
+@export var base_duration: float = 3.0     # seconds of intangibility per activation (Roman 2026-06-10: 3s window)
 @export var base_charges: int = 2
 @export var duration_per_step: float = 1.0  # +1s per even Mk
 @export var kills_per_charge: int = 4       # enemy kills to earn one charge back
@@ -20,7 +20,7 @@ func _init() -> void:
 	super._init()
 	mode_id = Mode.PHASE
 	display_name = "Phase"
-	description = "Tap Shift to phase out — brief intangibility, no offense, no bullet-clear. Charges refill by killing enemies."
+	description = "Tap Shift to phase out for 3s — invulnerable, no offense; absorbs enemy bullets, each restoring 1 shield. Charges refill by killing enemies."
 
 
 # Even Mk (2,4,6,8) each add +1s. Cumulative adds at Mk M = floor(M/2).

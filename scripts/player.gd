@@ -251,6 +251,12 @@ var hyper_fire_bonus: float = 0.10
 var hyper_damage_mult: float = 1.0
 var hyper_recharge_rate: float = 0.8
 signal hyper_charge_changed(charge: float, max_charge: float, active: bool)
+# Hyper "tell": a pulsing orange outline that speeds up as the bar runs out (Roman 2026-06-10).
+var _hyper_outline: Sprite2D = null
+var _hyper_pulse_t: float = 0.0
+const HYPER_OUTLINE_COLOR := Color(1.0, 0.5, 0.0)   # orange
+const HYPER_PULSE_HZ_SLOW: float = 2.0              # pulses/sec at full charge
+const HYPER_PULSE_HZ_FAST: float = 9.0             # pulses/sec as it empties
 
 # --- Phase mode runtime (active_mode == PHASE) ---
 # Press Shift to phase out: brief intangibility (no incoming damage, no offense),
@@ -258,12 +264,17 @@ signal hyper_charge_changed(charge: float, max_charge: float, active: bool)
 # time. Tunables pulled from the mode part on equip.
 var phase_charges: int = 2
 var phase_charges_max: int = 2
-var phase_duration: float = 1.5
+var phase_duration: float = 3.0
 var phase_kills_per_charge: int = 4
 var _phase_t: float = 0.0
 var _phase_kill_count: int = 0
 var _phase_glow: CanvasItem = null   # bright-blue diffuse aura while phased
 var _phase_was_active: bool = false
+# Fading blue after-image ghosts while phased (Roman 2026-06-10).
+var _phase_ai_acc: float = 0.0
+var _ghost_add_mat: CanvasItemMaterial = null   # shared additive material for all ghosts
+const PHASE_AI_INTERVAL: float = 0.06   # seconds between ghosts
+const PHASE_AI_LIFETIME: float = 0.34   # ghost fade-out time
 signal phase_charges_changed(charges: int, max_charges: int)
 # Emitted when the equipped Shift mode changes — the HUD swaps its meter (Focus/
 # Hyper bar vs Phase charge readout) on this.
@@ -315,6 +326,22 @@ var _shield_hit_tween: Tween = null
 var _mg_loop_player: AudioStreamPlayer2D = null
 var _mg_end_player: AudioStreamPlayer2D = null
 var _mg_firing: bool = false
+
+# Autocannon audio — start sound (1.5s spin-up), then regular fire, stop sound on release.
+# _ac_spin_t counts up from 0 to AC_SPIN_TIME (1.5s); fire is suppressed until elapsed.
+const AC_SPIN_TIME: float = 1.5
+var _ac_start_player: AudioStreamPlayer2D = null
+var _ac_stop_player: AudioStreamPlayer2D = null
+var _ac_spin_t: float = 0.0
+var _ac_spinning: bool = false
+
+# Minigun audio — per-shot SFX routed via WeaponSfx (minigun_shoot clips).
+# Stop sound plays when firing ends (interruptible — restarting fire cancels it).
+var _mg_stop_player: AudioStreamPlayer2D = null
+# Minigun hot-path preloads — _fire_minigun_hitscan runs ~20/s; no per-shot load() (review 2026-06-10).
+const _MinigunMuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
+const _MinigunWeaponSfx = preload("res://scripts/effects/weapon_sfx.gd")
+var _mg_stop_pending: bool = false
 
 # Rotary Laser audio — spin-up charge, then a rapid random "pew" per shot while
 # firing (replaces the old sustained loop). The fire rate is ~20/s (base_cooldown
@@ -380,6 +407,8 @@ func _ready() -> void:
 					loadout.equip(int(slot), part)
 	_setup_shield_ring()
 	_setup_mg_audio()
+	_setup_ac_audio()
+	_setup_mg_stop_audio()
 	_setup_smoke_trail()
 	# Ground shadow on the top parallax layer (Roman, 2026-05-16: ships
 	# cast a drop shadow on first-layer parallax objects).
@@ -577,6 +606,37 @@ func _setup_mg_audio() -> void:
 			(pls as AudioStreamOggVorbis).loop = true
 
 
+func _setup_ac_audio() -> void:
+	# Autocannon: start sound during spin-up (1.5s), then regular fire,
+	# stop sound when firing ends.
+	var start_stream: AudioStream = load("res://Sound/weapons/player/autocannon_start.ogg")
+	_ac_start_player = AudioStreamPlayer2D.new()
+	_ac_start_player.name = "AutocannonStart"
+	_ac_start_player.stream = start_stream
+	_ac_start_player.volume_db = -3.0
+	_ac_start_player.bus = "SFX"
+	add_child(_ac_start_player)
+
+	var stop_stream: AudioStream = load("res://Sound/weapons/player/autocannon_stop.ogg")
+	_ac_stop_player = AudioStreamPlayer2D.new()
+	_ac_stop_player.name = "AutocannonStop"
+	_ac_stop_player.stream = stop_stream
+	_ac_stop_player.volume_db = -3.0
+	_ac_stop_player.bus = "SFX"
+	add_child(_ac_stop_player)
+
+
+func _setup_mg_stop_audio() -> void:
+	# Minigun stop sound (plays when firing ends, interruptible if firing resumes).
+	var stop_stream: AudioStream = load("res://Sound/weapons/player/minigun_stop.ogg")
+	_mg_stop_player = AudioStreamPlayer2D.new()
+	_mg_stop_player.name = "MinigunStop"
+	_mg_stop_player.stream = stop_stream
+	_mg_stop_player.volume_db = -3.0
+	_mg_stop_player.bus = "SFX"
+	add_child(_mg_stop_player)
+
+
 func _rl_stop() -> void:
 	_rl_charging = false
 	_rl_charged = false
@@ -601,6 +661,12 @@ func _play_rotary_shoot_sfx() -> void:
 func stop_all_weapon_audio() -> void:
 	if _mg_loop_player and is_instance_valid(_mg_loop_player):
 		_mg_loop_player.stop()
+	if _ac_start_player and is_instance_valid(_ac_start_player):
+		_ac_start_player.stop()
+	if _ac_stop_player and is_instance_valid(_ac_stop_player):
+		_ac_stop_player.stop()
+	if _mg_stop_player and is_instance_valid(_mg_stop_player):
+		_mg_stop_player.stop()
 	if _rl_charge_player and is_instance_valid(_rl_charge_player):
 		_rl_charge_player.stop()
 	if _pb_loop_player and is_instance_valid(_pb_loop_player):
@@ -763,10 +829,34 @@ func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("primary_swap"):
 		_swap_active_primary()
 	if fire_held:
-		fire_primary()
+		# EVERY style fires through fire_primary each held frame — it self-gates on
+		# GunCooldown/can_shoot, ammo, the rotary charge (not _rl_charged -> no-op), and routes
+		# MINIGUN to its hitscan internally. The AUTOCANNON spin-up is the ONLY style whose fire
+		# is suppressed up front. (Regression fix 2026-06-10: the weapons rework had folded this
+		# call INTO the style branches, so the blaster/heavy/wave/spread/auto-laser/MG/rotary —
+		# every style without its own branch-side call — stopped firing entirely.)
+		if weapon_style == WS.WeaponStyle.AUTOCANNON:
+			if ammo != 0 and is_alive:
+				if not _ac_spinning:
+					# Start spinning: play start sound and begin the 1.5s delay.
+					_ac_spinning = true
+					_ac_spin_t = 0.0
+					if _ac_start_player and not _ac_start_player.playing:
+						_ac_start_player.play()
+				else:
+					_ac_spin_t += delta
+				# Only fire once spin-up is complete.
+				if _ac_spin_t >= AC_SPIN_TIME:
+					fire_primary()
+		else:
+			fire_primary()
+		# ---- Firing audio/state machines (separate from the fire call) ----
+		# Minigun: cancel any pending stop sound — we're still firing.
+		if weapon_style == WS.WeaponStyle.MINIGUN:
+			_mg_stop_pending = false
 		# MG audio loop only when the machinegun is the equipped CANNON
 		# AND there's still ammo. Energy blaster fire is silent.
-		if weapon_style == WS.WeaponStyle.MACHINEGUN and ammo != 0 and not _mg_firing and is_alive:
+		elif weapon_style == WS.WeaponStyle.MACHINEGUN and ammo != 0 and not _mg_firing and is_alive:
 			_mg_firing = true
 			if _mg_loop_player and not _mg_loop_player.playing:
 				_mg_loop_player.play()
@@ -782,12 +872,31 @@ func _process(delta: float) -> void:
 				if _rl_charge_t >= RL_CHARGE_DURATION:
 					_rl_charging = false
 					_rl_charged = true
-	elif _mg_firing:
-		_mg_firing = false
-		if _mg_loop_player and _mg_loop_player.playing:
-			_mg_loop_player.stop()
-		if _mg_end_player and is_alive and weapon_style == WS.WeaponStyle.MACHINEGUN:
-			_mg_end_player.play()
+	else:
+		# Fire released.
+		# Autocannon: stop spinning, play stop sound. The reset runs for ANY current style —
+		# a Q-swap mid-hold changes weapon_style before release, and gating the reset on
+		# AUTOCANNON orphaned _ac_spinning=true (review fix 2026-06-10: re-equipping then
+		# skipped the 1.5s spin-up entirely). The stop SOUND still only plays when the
+		# autocannon is the active style.
+		if _ac_spinning:
+			_reset_autocannon_spin()
+			if _ac_stop_player and is_alive and weapon_style == WS.WeaponStyle.AUTOCANNON:
+				_ac_stop_player.play()
+		# Minigun: schedule stop sound to play (will be cancelled if fire resumes).
+		# Independent `if` (not elif off the AC reset) so a mid-hold swap still stops cleanly.
+		if weapon_style == WS.WeaponStyle.MINIGUN:
+			if not _mg_stop_pending and is_alive:
+				_mg_stop_pending = true
+				if _mg_stop_player and not _mg_stop_player.playing:
+					_mg_stop_player.play()
+		# Machinegun release: stop loop, play end sound.
+		elif _mg_firing:
+			_mg_firing = false
+			if _mg_loop_player and _mg_loop_player.playing:
+				_mg_loop_player.stop()
+			if _mg_end_player and is_alive and weapon_style == WS.WeaponStyle.MACHINEGUN:
+				_mg_end_player.play()
 	if not fire_held and (_rl_charging or _rl_charged):
 		_rl_stop()
 	# Stop rotary laser loop if ammo runs out while charged.
@@ -870,6 +979,7 @@ func _on_mode_changed() -> void:
 # it; recharges only while idle; can ONLY (re)engage from a FULL bar (no tapping).
 func _tick_hyper_mode(delta: float) -> void:
 	if active_mode != ShiftMode.HYPER:
+		_clear_hyper_outline()
 		return
 	var holding: bool = Input.is_action_pressed("focus")
 	if _hyper_active:
@@ -884,6 +994,38 @@ func _tick_hyper_mode(delta: float) -> void:
 		if holding and hyper_charge >= hyper_charge_max:
 			_hyper_active = true
 			hyper_charge_changed.emit(hyper_charge, hyper_charge_max, true)
+	# Pulsing orange outline tell — faster as the bar runs out.
+	if _hyper_active:
+		_update_hyper_outline(delta)
+	else:
+		_clear_hyper_outline()
+
+
+const _OutlineFxCls = preload("res://scripts/effects/outline_fx.gd")
+
+func _update_hyper_outline(delta: float) -> void:
+	if _hyper_outline == null or not is_instance_valid(_hyper_outline):
+		if not has_node("Ship"):
+			return
+		_hyper_outline = _OutlineFxCls.apply($Ship, HYPER_OUTLINE_COLOR)
+		if _hyper_outline != null:
+			_hyper_outline.z_index = -1   # above the black hull outline (-2), below the ship (0)
+		_hyper_pulse_t = 0.0
+	if _hyper_outline == null or not is_instance_valid(_hyper_outline):
+		return
+	# Pulse frequency rises from SLOW→FAST as the bar empties.
+	var frac: float = 0.0
+	if hyper_charge_max > 0.0:
+		frac = clampf(1.0 - hyper_charge / hyper_charge_max, 0.0, 1.0)
+	var hz: float = lerpf(HYPER_PULSE_HZ_SLOW, HYPER_PULSE_HZ_FAST, frac)
+	_hyper_pulse_t += delta * hz
+	_hyper_outline.modulate.a = 0.30 + 0.70 * (0.5 + 0.5 * sin(_hyper_pulse_t * TAU))
+
+
+func _clear_hyper_outline() -> void:
+	if _hyper_outline != null and is_instance_valid(_hyper_outline):
+		_hyper_outline.queue_free()
+	_hyper_outline = null
 
 
 # Phase: PRESS Shift to phase out — intangible (no incoming damage) + offense locked
@@ -895,13 +1037,52 @@ func _tick_phase_mode(delta: float) -> void:
 	if _phase_t > 0.0:
 		_phase_t = max(0.0, _phase_t - delta)
 		_invuln_t = max(_invuln_t, _phase_t)  # intangible for the whole window
+		# Fading blue after-image ghosts as the ship moves.
+		_phase_ai_acc += delta
+		if _phase_ai_acc >= PHASE_AI_INTERVAL:
+			_phase_ai_acc = 0.0
+			_spawn_phase_afterimage()
 	if Input.is_action_just_pressed("focus") and _phase_t <= 0.0 and phase_charges > 0:
 		phase_charges -= 1
 		_phase_t = phase_duration
 		_invuln_t = max(_invuln_t, phase_duration)
+		_phase_ai_acc = PHASE_AI_INTERVAL  # drop a ghost immediately on entry
 		phase_charges_changed.emit(phase_charges, phase_charges_max)
 	# Bright-blue diffuse glow while phased (the Phase "tell" — no dot/trail).
 	_set_phase_glow(_phase_t > 0.0)
+
+
+# Spawn a fading blue ghost of the ship body at its current pose. Parented to the combat world (not
+# the player) so it stays put while the ship flies on, then fades + frees itself.
+func _spawn_phase_afterimage() -> void:
+	if not has_node("Ship"):
+		return
+	var ship := $Ship as Sprite2D
+	if ship == null or ship.texture == null:
+		return
+	var ghost := Sprite2D.new()
+	ghost.texture = ship.texture
+	ghost.hframes = ship.hframes
+	ghost.vframes = ship.vframes
+	ghost.frame = ship.frame
+	ghost.flip_h = ship.flip_h
+	ghost.flip_v = ship.flip_v
+	ghost.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	ghost.global_position = ship.global_position
+	ghost.rotation = global_rotation
+	ghost.z_index = -1
+	ghost.modulate = Color(PHASE_GLOW_COLOR.r, PHASE_GLOW_COLOR.g, PHASE_GLOW_COLOR.b, 0.55)
+	# Shared additive material — ghosts spawn every 0.06s; one cached material serves them all
+	# (alpha rides on per-node modulate, so sharing is safe). (Review 2026-06-10.)
+	if _ghost_add_mat == null:
+		_ghost_add_mat = CanvasItemMaterial.new()
+		_ghost_add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD   # glowy blue ghost
+	ghost.material = _ghost_add_mat
+	var host: Node = get_parent() if get_parent() != null else get_tree().root
+	host.add_child(ghost)
+	var tw := ghost.create_tween()
+	tw.tween_property(ghost, "modulate:a", 0.0, PHASE_AI_LIFETIME)
+	tw.tween_callback(ghost.queue_free)
 
 
 # Edge-triggered: spawn/free the blue phase aura behind the ship (reuses the
@@ -940,6 +1121,17 @@ func take_damage(amount: int) -> void:
 	if invincible:
 		return
 	if not is_alive or amount <= 0:
+		return
+	# Phase mode: while phased the player absorbs incoming enemy fire instead of taking it —
+	# each absorbed hit restores 1 shield point (capped). The bullet that called this still frees
+	# itself, so it reads as "absorbed". (Roman 2026-06-10 phase rework.)
+	if _phase_t > 0.0:
+		if shield < max_shield:
+			set_shield(min(max_shield, shield + 1))
+			_pulse_shield_ring()
+			if has_node("Ship"):
+				var HitFlashFx2 = load("res://scripts/effects/hit_flash_fx.gd")
+				HitFlashFx2.flash($Ship, HitFlashFx2.FLASH_SHIELD)
 		return
 	# "dangerous" sector modifier doubles all incoming enemy damage.
 	# Per-sector difficulty scaler: incoming damage scales × (1 + 0.05 × sectors_cleared).
@@ -1045,6 +1237,8 @@ func die() -> void:
 		return
 	is_alive = false
 	_set_phase_glow(false)  # clean up the Phase aura if we die mid-blink
+	_clear_hyper_outline()  # and the Hyper pulse outline
+	_hyper_active = false
 	hide()
 	died.emit()
 	$ShieldRegenTimer.stop()
@@ -1066,7 +1260,27 @@ func die() -> void:
 # ---- Fire paths ----
 # Primary fire is driven by the CANNON slot Part. Secondary fire will be
 # driven by hardpoint/device parts (Phase 2+); for now it's a hook only.
+func _is_mg_family(style: int) -> bool:
+	# Returns true for Machinegun, Autocannon, and Minigun — weapons that share
+	# the orange muzzle flash and smoke+shell eject visuals.
+	return style == WS.WeaponStyle.MACHINEGUN or style == WS.WeaponStyle.AUTOCANNON or style == WS.WeaponStyle.MINIGUN
+
+
 func fire_primary() -> void:
+	# Minigun is hitscan, not projectile-based — special handling.
+	if weapon_style == WS.WeaponStyle.MINIGUN:
+		if not can_shoot:
+			return
+		if _phase_t > 0.0:
+			return  # phased out — no offense
+		if _is_replacement_primary_active() and ammo == 0 \
+				and not (_hyper_active and active_mode == ShiftMode.HYPER):
+			_snap_to_blaster_and_reapply()
+			return
+		# Minigun: hitscan damage instead of bullet spawn.
+		_fire_minigun_hitscan()
+		return
+
 	if not can_shoot or bullet_scene == null:
 		return
 	if _phase_t > 0.0:
@@ -1168,17 +1382,22 @@ func fire_primary() -> void:
 					db.damage = drone_bits_damage
 				db.start(drone.global_position + Vector2(0, -4))
 	# Unified player muzzle flash (Roman 2026-06-09): bottom-anchored, ~1 frame, diffuse glow,
-	# above the bullets. Colour rules: Auto Laser + Rotary = pure blue; machinegun cannon =
-	# bright orange; everything else = the engine glow colour.
+	# above the bullets. Colour rules: Auto Laser + Rotary = pure blue; MG family (machinegun,
+	# autocannon, minigun) = bright orange; everything else = the engine glow colour.
 	var MuzzleFx = load("res://scripts/effects/muzzle_fx.gd")
 	var flash_color: Color = ENGINE_GLOW_COLOR
 	if weapon_style == WS.WeaponStyle.ROTARY_LASER or use_rotary_laser_muzzle:
 		flash_color = Color(0.2, 0.45, 1.0)        # pure blue
-	elif weapon_style == WS.WeaponStyle.MACHINEGUN:
+	elif _is_mg_family(weapon_style):
 		flash_color = Color(1.0, 0.5, 0.1)         # bright orange (cannon)
-	MuzzleFx.play_player(muzzle_pos, self, flash_color, weapon_style == WS.WeaponStyle.MACHINEGUN)
-	# Per-shot cannon SFX for the energy/auto-laser styles (machinegun + rotary carry their own).
-	if weapon_style != WS.WeaponStyle.MACHINEGUN and weapon_style != WS.WeaponStyle.ROTARY_LASER:
+	MuzzleFx.play_player(muzzle_pos, self, flash_color, _is_mg_family(weapon_style))
+	# Per-shot cannon SFX. Excluded styles carry their OWN audio elsewhere: MACHINEGUN = the
+	# _mg_loop_player loop, MINIGUN = its bespoke _fire_minigun_hitscan call, ROTARY_LASER = the
+	# per-shot pew system. AUTOCANNON deliberately falls through here — its autocannon_shoot_*
+	# clips play per shot via fire_sfx_kind (review fix 2026-06-10: the old _is_mg_family gate
+	# silenced it entirely between the start/stop sounds).
+	if weapon_style != WS.WeaponStyle.MACHINEGUN and weapon_style != WS.WeaponStyle.MINIGUN \
+			and weapon_style != WS.WeaponStyle.ROTARY_LASER:
 		var WeaponSfx = load("res://scripts/effects/weapon_sfx.gd")
 		if WeaponSfx and fire_sfx_kind != WS.FireSfxKind.NONE:
 			WeaponSfx.play(get_tree().root, global_position, WS.sfx_kind_string(fire_sfx_kind))
@@ -1208,6 +1427,104 @@ func fire_primary() -> void:
 			call_deferred("_snap_to_blaster_and_reapply")
 
 
+func _fire_minigun_hitscan() -> void:
+	# Minigun hitscan: find the first enemy in the vertical column above the
+	# player and damage it. Draws a minigun_tracer sprite as feedback.
+	can_shoot = false
+	if _hyper_active and active_mode == ShiftMode.HYPER and hyper_fire_bonus > 0.0:
+		$GunCooldown.start($GunCooldown.wait_time / (1.0 + hyper_fire_bonus))
+	else:
+		$GunCooldown.start()
+
+	# Get muzzle position for muzzle flash.
+	var muzzle_off: Vector2 = _muzzle_offset("Ship/Muzzle", Vector2(0, -8))
+	var muzzle_pos: Vector2 = global_position + muzzle_off
+
+	# Orange muzzle flash + smoke + shell (like machinegun). Const preloads — this runs ~20/s.
+	var flash_color: Color = Color(1.0, 0.5, 0.1)  # bright orange
+	_MinigunMuzzleFx.play_player(muzzle_pos, self, flash_color, true)  # true = with_smoke_shell
+
+	# Fire SFX — minigun_shoot clips routed via WeaponSfx.
+	_MinigunWeaponSfx.play(get_tree().root, global_position, WS.sfx_kind_string(fire_sfx_kind))
+
+	# Hitscan: the FIRST valid enemy in the vertical column above the player. Single pass
+	# (max-by-Y, no array+sort — 20 shots/sec hot path). Skips dying / recycling /
+	# fully-offscreen enemies: the take_hit guard makes those immune, so targeting them would
+	# let an untargetable parallax fly-back ghost absorb the column while live enemies behind
+	# it go unhit (review fix 2026-06-10).
+	const HITSCAN_HALF_WIDTH: float = 6.0  # pixels from player center to column edge
+	var tree := get_tree()
+	if tree != null:
+		var target: Node2D = null
+		var best_y: float = -INF
+		for e in tree.get_nodes_in_group("enemies"):
+			if not is_instance_valid(e) or not (e is Node2D):
+				continue
+			# Skip enemies below the player or outside the column.
+			if e.global_position.y > global_position.y:
+				continue
+			if absf(e.global_position.x - global_position.x) > HITSCAN_HALF_WIDTH:
+				continue
+			# Skip untargetable enemies (mirrors enemy_base.take_hit's immunity guard).
+			if e.get("_dying") == true:
+				continue
+			if e.has_method("is_recycling") and e.is_recycling():
+				continue
+			if e.has_method("is_fully_offscreen") and e.is_fully_offscreen():
+				continue
+			if e.global_position.y > best_y:
+				best_y = e.global_position.y
+				target = e
+
+		if target != null:
+			# Apply damage to the first enemy.
+			if target.has_method("take_hit"):
+				var dmg: int = bullet_damage
+				if _hyper_active and active_mode == ShiftMode.HYPER:
+					dmg = int(round(float(bullet_damage) * hyper_damage_mult))
+				target.take_hit(dmg)
+
+			# Draw tracer sprite from muzzle to target.
+			_draw_minigun_tracer(muzzle_pos, target.global_position)
+
+	# Deduct ammo.
+	if _is_replacement_primary_active() and ammo > 0 \
+			and not (_hyper_active and active_mode == ShiftMode.HYPER):
+		ammo -= 1
+		ammo_changed.emit(ammo)
+		if has_node("/root/Run"):
+			var run = get_node("/root/Run")
+			run.ammo = ammo
+			var active = run.get_active_cannon()
+			if active != null and "current_ammo" in active:
+				active.current_ammo = ammo
+		if ammo == 0:
+			call_deferred("_snap_to_blaster_and_reapply")
+
+
+func _draw_minigun_tracer(from_pos: Vector2, to_pos: Vector2) -> void:
+	# Draw a minigun_tracer sprite from the muzzle to the hit point as feedback.
+	# The tracer is a short streak that fades out quickly.
+	const TRACER_TEX = preload("res://graphics/projectiles/minigun_tracer.png")
+	var tracer := Sprite2D.new()
+	tracer.texture = TRACER_TEX
+	tracer.centered = true
+	tracer.global_position = (from_pos + to_pos) * 0.5
+	tracer.scale = Vector2(1.0, 1.0)
+	tracer.z_index = 2
+	# Angle the tracer toward the target.
+	var diff = to_pos - from_pos
+	if diff.length() > 0.01:
+		tracer.rotation = diff.angle()
+	var parent: Node = get_parent() if get_parent() != null else get_tree().root
+	parent.add_child(tracer)
+
+	# Fade and disappear over ~0.1s.
+	var tw := tracer.create_tween()
+	tw.tween_property(tracer, "modulate:a", 0.0, 0.08)
+	tw.tween_callback(tracer.queue_free)
+
+
 # True when active_cannon_idx != 0 (non-blaster). Centralizes the "is
 # this a metered/replacement primary?" check so fire_primary and the
 # swap path stay in agreement (no silent fallbacks).
@@ -1229,6 +1546,16 @@ func _snap_to_blaster_and_reapply() -> void:
 	_reapply_active_cannon()
 
 
+# Clear the Autocannon spin-up state (flag + timer + start sound). Called on fire-release and on
+# every cannon re-apply (Q-swap / ammo-empty blaster snap) so a mid-hold weapon change can never
+# orphan _ac_spinning=true and let a later re-equip skip the 1.5s spin-up (review fix 2026-06-10).
+func _reset_autocannon_spin() -> void:
+	_ac_spinning = false
+	_ac_spin_t = 0.0
+	if _ac_start_player and is_instance_valid(_ac_start_player) and _ac_start_player.playing:
+		_ac_start_player.stop()
+
+
 # Re-apply whatever Run.get_active_cannon() points at to the player ship.
 # The loadout's equip() runs unapply on the prior CANNON part (restoring
 # its snapshot) then apply on the new one. Safe to call any time outside
@@ -1240,6 +1567,8 @@ func _reapply_active_cannon() -> void:
 	var active = run.get_active_cannon()
 	if active == null:
 		return
+	# The cannon (and thus weapon_style) is about to change — drop any in-flight spin-up.
+	_reset_autocannon_spin()
 	const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 	loadout.equip(Slots.SlotType.CANNON, active)
 

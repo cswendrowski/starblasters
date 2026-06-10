@@ -32,6 +32,7 @@ const LOADOUT_SLOTS := [
 	{"slot": SlotTypes.SlotType.CANNON, "label": "PRIMARY", "color": Color(1.0, 0.78, 0.45)},
 	{"slot": SlotTypes.SlotType.HARDPOINT_WING, "label": "SECONDARY", "color": Color(0.55, 0.85, 1.0)},
 	{"slot": SlotTypes.SlotType.DEVICE_BAY_1, "label": "SUPER", "color": Color(1.0, 0.55, 0.95)},
+	{"slot": SlotTypes.SlotType.SHIFT_MODE, "label": "SHIFT MODE", "color": Color(0.55, 1.0, 0.70)},
 ]
 const UPGRADE_KEYS := [
 	{"key": "hull_mk", "name": "Hull"},
@@ -224,8 +225,8 @@ func _render_loadout() -> void:
 				_loadout_box.add_child(_make_card("PRIMARY", Color(0.55, 1.0, 0.50), pool[i], "ACTIVE", Callable(), true))
 			else:
 				_loadout_box.add_child(_make_card("PRIMARY", primary_color, pool[i], "Set Active", _on_set_active.bind(i)))
-	# SECONDARY + SUPER are single slots.
-	for entry in [LOADOUT_SLOTS[1], LOADOUT_SLOTS[2]]:
+	# SECONDARY + SUPER + SHIFT_MODE are single slots.
+	for entry in [LOADOUT_SLOTS[1], LOADOUT_SLOTS[2], LOADOUT_SLOTS[3]]:
 		var part = run.loadout_snapshot.get(int(entry["slot"]), null)
 		_loadout_box.add_child(_make_card(String(entry["label"]), entry["color"], part))
 

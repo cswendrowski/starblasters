@@ -45,6 +45,9 @@ var _sup_ammo_lbl: Label = null
 
 var _light_blaster: Sprite2D = null
 var _light_pri: Sprite2D = null
+# Weapon-light ammo state animation (Roman 2026-06-10): flash while regenerating, darken when empty.
+var _wlight_t: float = 0.0
+const WLIGHT_FLASH_HZ: float = 3.0
 var _light_sec: Sprite2D = null
 var _light_sup: Sprite2D = null
 var _fire_light: Sprite2D = null
@@ -582,8 +585,10 @@ func _refresh_weapon_names() -> void:
 func _on_ammo_changed(value: int) -> void:
 	if _pri_ammo_lbl == null:
 		return
-	# Always show the count, incl. 0 (Roman). -1 = infinite (Energy Blaster) → ∞.
-	_pri_ammo_lbl.text = "∞" if value < 0 else "%d" % value
+	# Always show the count, incl. 0 (Roman). -1 = infinite (Energy Blaster) → blank: the pixel font
+	# has no ∞ glyph (rendered as a missing-char box), and a non-depleting weapon reads fine with no
+	# number (Roman 2026-06-10 glyph fix). Log: if you want an explicit infinite indicator say so.
+	_pri_ammo_lbl.text = "" if value < 0 else "%d" % value
 	_refresh_weapon_names()
 
 
@@ -595,8 +600,8 @@ func _on_secondary_ammo_changed(value: int, _maximum: int) -> void:
 	if _sec_timer_active:
 		return
 	if _sec_ammo_lbl:
-		# Always show the count, incl. 0 (Roman). -1 = infinite/none → ∞.
-		_sec_ammo_lbl.text = "∞" if value < 0 else "%d" % value
+		# Always show the count, incl. 0. -1 = infinite/none → blank (no ∞ glyph in the pixel font).
+		_sec_ammo_lbl.text = "" if value < 0 else "%d" % value
 
 
 # Combat Drones deploy timer. While active, the secondary ammo slot shows the
@@ -676,7 +681,7 @@ func _action_key_label(action: String) -> String:
 	return ""
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if has_node("/root/Run"):
 		var run = get_node("/root/Run")
 		var blaster_active: bool = int(run.active_cannon_idx) == 0
@@ -687,6 +692,22 @@ func _process(_delta: float) -> void:
 		# _light_pri: on when a non-blaster cannon is selected
 		if _light_pri:
 			_light_pri.frame = 0 if blaster_active else 1
+			# Ammo-state tell on the active replacement primary (autolaser/rotary/etc.):
+			#   no ammo      → darkened
+			#   regenerating → flashing (below max + has a recharge rate)
+			#   otherwise    → steady
+			var lit := Color(1, 1, 1, 1)
+			if not blaster_active and _player_ref != null and is_instance_valid(_player_ref):
+				var p_ammo: int = int(_player_ref.ammo) if "ammo" in _player_ref else -1
+				var p_max: int = int(_player_ref.ammo_max) if "ammo_max" in _player_ref else 0
+				var p_rech: float = float(_player_ref.ammo_recharge_rate) if "ammo_recharge_rate" in _player_ref else 0.0
+				if p_ammo == 0:
+					lit = Color(1, 1, 1, 0.22)              # darkened — out of ammo
+				elif p_ammo > 0 and p_ammo < p_max and p_rech > 0.0:
+					_wlight_t += delta
+					var a: float = 0.35 + 0.65 * (0.5 + 0.5 * sin(_wlight_t * WLIGHT_FLASH_HZ * TAU))
+					lit = Color(1, 1, 1, a)                 # flashing — regenerating
+			_light_pri.self_modulate = lit
 
 		var sec_ok: bool = false
 		if "loadout_snapshot" in run and run.loadout_snapshot is Dictionary:

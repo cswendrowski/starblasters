@@ -14,6 +14,12 @@ extends SceneTree
 # broken source until reimport; the common case (editor reimports the broken save)
 # is caught. Run: godot --headless --script res://tools/compile_check.gd
 
+# Result FILE (not just stdout): the win64 GUI-subsystem Godot exe drops console output
+# non-deterministically under redirection on Windows, which let a broken script ship through a
+# green gate (2026-06-10: firecore_hazard type-inference error froze firecores in prod while
+# parse_check passed). parse_check.ps1 now reads this file and FAILS CLOSED if it's absent.
+const RESULT_PATH := "res://tools/_compile_check_result.txt"
+
 func _init() -> void:
 	var failed: Array = []
 	var total: int = 0
@@ -33,11 +39,23 @@ func _init() -> void:
 				elif entry.ends_with(".gd"):
 					total += 1
 					var s = load(p)
-					if s == null or not (s is GDScript):
+					# A parse-broken .gd can STILL come back as a non-null GDScript resource —
+					# the compile failure only shows as can_instantiate() == false. Checking
+					# null alone passed broken scripts (the 2026-06-10 firecore bug).
+					if s == null or not (s is GDScript) or not (s as GDScript).can_instantiate():
 						failed.append(p)
 			entry = dir.get_next()
 		dir.list_dir_end()
 	for f in failed:
 		printerr("COMPILE FAIL: ", f)
 	print("COMPILE CHECK: %d scripts checked, %d failed" % [total, failed.size()])
+	var lines: PackedStringArray = []
+	lines.append("COMPILE CHECK: %d scripts checked, %d failed" % [total, failed.size()])
+	for f in failed:
+		lines.append("COMPILE FAIL: %s" % f)
+	lines.append("VERDICT: " + ("PASS" if failed.is_empty() else "FAIL"))
+	var fa := FileAccess.open(RESULT_PATH, FileAccess.WRITE)
+	if fa != null:
+		fa.store_string("\n".join(lines))
+		fa.close()
 	quit(0 if failed.is_empty() else 1)

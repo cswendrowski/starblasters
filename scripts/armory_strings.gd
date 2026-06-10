@@ -15,7 +15,8 @@ const CODEX := {
 	# --- Primary cannons (CANNON) ---
 	"_make_basic_blaster": "Standard-issue energy repeater. Infinite ammo and a dependable cadence — the permanent spine of every loadout.",
 	"_make_heavy_blaster": "Slow, heavy energy slugs that hit hard per shot. The cadence quickens at high Mk for a punishing top-tier rhythm.",
-	"_make_machinegun": "A high-rate kinetic stream. Metered ammo, devastating uptime — hold the trigger down and keep the lane swept.",
+	"_make_autocannon": "A spin-up kinetic cannon — a beat of barrel-wind, then a high-rate stream. Metered ammo, devastating uptime once it's turning.",
+	"_make_minigun": "A hitscan bullet hose at full rotary speed. Chews the first hull in its lane the instant the trigger drops — metered ammo, instant gratification.",
 	"_make_rotary_laser": "A spun-up laser repeater: a brief charge, then a relentless cascade of bolts.",
 	"_make_wave_gun": "Fires a widening energy wave that pierces chaff. Mk broadens it into a screen-spanning sweep.",
 	"_make_laser_beam": "Auto Laser — alternating twin energy bolts from the nose. Steady, no-ammo precision fire.",

@@ -85,6 +85,12 @@ func _sweep() -> void:
 
 
 func _damage_enemy(e) -> void:
+	# Off-screen / recycling enemies aren't valid targets — the panic bomb clears what's ON screen,
+	# not an enemy mid-parallax-flyback or already gone off an edge (Roman 2026-06-10).
+	if e.has_method("is_recycling") and e.is_recycling():
+		return
+	if e.has_method("is_fully_offscreen") and e.is_fully_offscreen():
+		return
 	# Bosses: bite via the normal path so phase/shield gates fire correctly.
 	var path: String = String(e.scene_file_path) if "scene_file_path" in e else ""
 	if path.find("boss") != -1:
@@ -117,7 +123,7 @@ func _damage_enemy(e) -> void:
 func _destroy_missile(m) -> void:
 	if not is_instance_valid(m):
 		return
-	ExplosionFx.play(m.global_position, 0.4, false)
+	ExplosionFx.play(m.global_position, 0.4, false, null, null, false)  # silent — smart bomb has its own detonation SFX
 	m.queue_free()
 
 

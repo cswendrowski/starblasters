@@ -17,6 +17,7 @@ script = ExtResource("4_emit")
 payload = ExtResource("5_fc")
 count = 2
 spread = 8.0
+tag = "firecore"
 
 [sub_resource type="RectangleShape2D" id="Hit"]
 size = Vector2(16, 32)

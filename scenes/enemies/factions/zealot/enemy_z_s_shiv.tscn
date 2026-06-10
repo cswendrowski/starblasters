@@ -15,6 +15,7 @@ speed = 180.0
 [sub_resource type="Resource" id="DropFirecore"]
 script = ExtResource("4_2vuo2")
 payload = ExtResource("3_pdgt1")
+tag = "firecore"
 
 [sub_resource type="RectangleShape2D" id="Hit"]
 size = Vector2(16.375, 16)

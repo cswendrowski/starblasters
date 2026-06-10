@@ -4,6 +4,13 @@ extends "res://scripts/parts/metered_primary.gd"
 # (20 shots/sec), limited ammo (120 base + 30/Mk), recharges at 3 shots/sec
 # when not firing. Pairs with the ROTARY_LASER weapon_style branch in player.gd.
 # No outpost refill — natural recharge makes sold refills redundant.
+#
+# Mk.5+ projectile swap (Roman 2026-06-10): from Mk.5 the rotary fires the Auto Laser bolt sprite
+# (same bullet.gd, same speed 480) — damage / rate-of-fire / ammo are unchanged, only the projectile
+# art changes. Mk.1-4 keep the rotary bolt.
+
+const BulletRotaryLaser = preload("res://scenes/projectiles/bullet_rotary_laser.tscn")
+const BulletAutoLaser = preload("res://scenes/projectiles/bullet_auto_laser.tscn")
 
 
 func _init() -> void:
@@ -46,3 +53,7 @@ func _apply_visuals(ship) -> void:
 	# Overwrite ammo_max after super (super writes base_ammo = 120 flat).
 	if "ammo_max" in ship:
 		ship.ammo_max = ammo_at_mark(int(mark))
+	# Mk.5+ swaps to the Auto Laser bolt sprite (cosmetic — same speed/damage/RoF). Set after super
+	# so it overrides the .tres-pinned rotary bullet that primary_weapon._apply_visuals just wrote.
+	if "bullet_scene" in ship:
+		ship.bullet_scene = BulletAutoLaser if int(mark) >= 5 else BulletRotaryLaser

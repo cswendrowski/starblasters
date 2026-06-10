@@ -18,10 +18,10 @@ extends Object
 
 # Page titles and bodies.
 const ONBOARDING_CONTROLS_TITLE := "Controls"
-const ONBOARDING_CONTROLS_BODY := "Arrow Keys — move.\nSpace / Z — fire primary cannon.\nC — fire secondary hardpoint weapon.\nX — super weapon (limited charges).\nShift — Focus mode: slower precise movement; shows your hitbox.\nQ — swap between primary cannons (if you own more than one).\nEsc — pause."
+const ONBOARDING_CONTROLS_BODY := "Arrow Keys / WASD — move.\nSpace / Z — fire primary cannon.\nC — fire secondary hardpoint weapon.\nX — super weapon (limited charges).\nShift — activate Shift Mode (Focus / Phase / Hyper): each grants different benefits.\nQ — swap between primary cannons (if you own more than one).\nEsc — pause."
 
 const ONBOARDING_PARTS_TITLE := "Parts & Marks"
-const ONBOARDING_PARTS_BODY := "Your ship and its weapons can receive upgrades during a patrol.\n\nEvery part has a Mark — Mk.1 through Mk.9. Higher Mk = stronger: more damage, more speed, deeper shield pool. Mk values are stamped on the part card.\n\nOutposts sell upgraded marks of parts you already own; pick up doubles to climb the curve."
+const ONBOARDING_PARTS_BODY := "Your ship can be upgraded with new parts and weapon improvements during patrols. Visit Outposts to buy new gear, or pick up parts from defeated enemies.\n\nEvery part has a Mark level from Mk.1 to Mk.9. Higher Mk = stronger: more damage, more durability, better stats. Acquire duplicate parts to upgrade their Mark level.\n\nSpend Bounty Credits at Outposts to buy parts and upgrades. Different shops offer different inventories — explore to find the best deals."
 
 const ONBOARDING_SHIELDS_TITLE := "Shields & Hull"
 const ONBOARDING_SHIELDS_BODY := "Your ship has two layers of integrity.\n\nThe SHIELD bar at the top absorbs incoming fire. When it runs out, your HULL becomes vulnerable.\n\nAt start you can sustain three hits before you're put into a danger state, if you take another hit while in this danger state your ship is gone and your patrol ends. You can repair our hull at outposts."
@@ -29,17 +29,17 @@ const ONBOARDING_SHIELDS_BODY := "Your ship has two layers of integrity.\n\nThe 
 const ONBOARDING_SHIELD_REGEN_TITLE := "Shield Regen"
 const ONBOARDING_SHIELD_REGEN_BODY := "Shields regenerate automatically a couple of seconds after the last hit.\n\nIf you can avoid taking damage for a few seconds your shield will start to come back. Upgrades can increase the capacity and recharge rate."
 
-const ONBOARDING_BOUNTY_TITLE := "Bounty"
-const ONBOARDING_BOUNTY_BODY := "Every enemy you destroy awards Bounty Credits. You can see your running total at the top-right of the HUD.\n\nSpend bounty at friendly Outposts on new parts and hull repairs, or with Junk Traders for sketchier deals. Survive deeper into a run and the prices climb — but so do quality of things being sold."
+const ONBOARDING_BOUNTY_TITLE := "Bounty Economy"
+const ONBOARDING_BOUNTY_BODY := "Defeat enemies to earn Bounty Credits — your in-patrol currency. Your total displays at the top-right of the HUD.\n\nVisit Outposts to spend Bounty on parts, weapons, repairs, and ammo. As you progress deeper into the patrol, Outpost prices increase — but the quality of available gear gets better too, rewarding deeper runs.\n\nBounty doesn't carry over — each patrol starts fresh. Spend it while you're out there: an upgrade in your hold beats credits you'll never bank."
 
 const ONBOARDING_WAVES_TITLE := "Waves"
 const ONBOARDING_WAVES_BODY := "Combat levels are split into waves. A banner pops at the start of each: WAVE 1 / 7, WAVE 2 / 7, and so on.\n\nMid-level, the wave count tells you how close you are to clearing. The last two waves of every level are the toughest — keep something in reserve."
 
 const ONBOARDING_SECTOR_MAP_TITLE := "Sector Map"
-const ONBOARDING_SECTOR_MAP_BODY := "Your patrol covers three sectors. Each sector is comprised of three star systems, each with a series of locations you can tackle in any order you choose. Clearing all the nodes on a path opens up that system's boss for attack.\n\nAfter the last boss in the sector is beaten the next sector opens. Clear all three to complete the patrol."
+const ONBOARDING_SECTOR_MAP_BODY := "Your patrol covers three sectors. Each sector has three star systems, each with missions you can tackle in any order.\n\nClear all nodes in a system to unlock that system's Boss. Defeat the Boss to finish the sector. Clear all three sectors to complete your patrol.\n\nBetween missions, visit Outposts to buy upgrades and repairs, or use the Manage Ship button to organize your loadout."
 
-const ONBOARDING_NODE_TYPES_TITLE := "Node Types"
-const ONBOARDING_NODE_TYPES_BODY := "Combat — fight waves of enemies for bounty.\nOutpost — spend bounty on parts, ammo, and hull repairs.\nSignal — unknown contact; random event with reward and risk.\nHazard — fly through a dangerous field of mines or asteroids.\nBoss — the sector commander. Defeat it to advance."
+const ONBOARDING_NODE_TYPES_TITLE := "Location Types"
+const ONBOARDING_NODE_TYPES_BODY := "Combat — defeat waves of enemies to earn Bounty.\nOutpost — a safe hub where you can buy parts, upgrades, repairs, and ammo using your Bounty. Also visit the Manage Ship screen to equip and organize your loadout.\nSignal — mysterious contact; a random event that offers rewards or risks.\nHazard — navigate through dangerous fields (mines or asteroids). Destructible but hazardous.\nBoss — the sector's commander. Defeat it to clear the sector and advance."
 
 const ONBOARDING_MISSION_TITLE := "Mission Briefing"
 const ONBOARDING_MISSION_BODY := "Your mission is to patrol three sectors, hunting down Supremacy slavers and corporate privateers lurking there. Each one you take out is worth bounty, and each bounty will help you take the next one down a little more easily. Search the systems, tally up kills, and eventually you'll learn where the worst of them are. Eliminate them, for the good of the galaxy and your accounts.\n\nGood luck, Starblaster!"
@@ -364,6 +364,17 @@ const SLOT_NAME_TAIL := "TAIL"
 const SLOT_NAME_WING_L := "WING L"
 const SLOT_NAME_WING_R := "WING R"
 const SLOT_NAME_PART := "PART"
+
+# Type labels (task #1, #3: distinguish Blaster from Primary Weapon).
+const TYPE_NAME_BLASTER := "Blaster"
+const TYPE_NAME_PRIMARY_WEAPON := "Primary Weapon"
+const TYPE_NAME_SECONDARY_WEAPON := "Secondary Weapon"
+const TYPE_NAME_SUPER := "Super"
+const TYPE_NAME_MODE := "Mode"
+const TYPE_NAME_UPGRADE := "Upgrade"
+
+# Status bar label (task #5).
+const OUTPOST_RESTOCK_HINT := "Defeat boss to restock."
 
 # Loadout line format strings.
 const LOADOUT_PRIMARY := "PRI: %s"

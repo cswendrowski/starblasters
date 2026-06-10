@@ -2,6 +2,16 @@
 
 Captured from Cody's 2026-05-19 punch list. Ordered roughly by leverage.
 
+> **2026-06-10 batch:** the overnight worklist run (branch `worklist-2026-06-10`, ~30 commits)
+> landed: Minigun + Autocannon (Machinegun retired from the pool), full audio rewire (new weapon/
+> outpost SFX + distance-based explosions, old death clip retired), music intensity ramp rework
+> (+permanent per-boss step), the 7-item outpost UX overhaul, Phase/Hyper mode implementations,
+> HUD weapon-light/ammo fixes, zealot ball-explosion routing, enemy-bench recycle tagging,
+> manage-ship shift modes, onboarding refresh, off-screen-enemy hit immunity, Omni no-fly fix —
+> plus post-playtest hotfixes and a hardened fail-closed parse gate. Per-item log + commits +
+> the eyeball checklist: **`Worklog.md`**. Remaining worklist items: **`Worklist.md`**.
+> **Sector modifiers are PULLED** (kill-switch in run_state) pending re-eval — see below.
+
 ## M6c polish backlog (scoped 2026-06-07)
 
 Remaining from Roman's batch after the engine-trail / reorg / weapon-fix / shader passes
@@ -97,6 +107,10 @@ side-exit cleanup fix. Pillar 2 (the central controller) + its tuner are unbuilt
 the doc: **RecycleTuner dev scene FIRST** (recycle budget / fly-back scale / tint / hold are 3+
 live knobs — JSON persist + Copy-GDScript), then the controller tuned against it. Regression
 surface = the whole roster → playtest-only verification.
+_2026-06-10: prereq tooling landed — the Enemy Bench now has per-enemy recycle/passes/flee-chance
+tagging knobs (`a58f908`). Controller + tuner + roster migration still unbuilt; ALSO note the new
+off-screen hit-immunity guard (`d313dd4`) keys off `is_recycling()`/`is_fully_offscreen()` — the
+RecycleController must preserve those contracts._
 - [ ] **RecycleTuner dev scene** (prerequisite) — `scripts/dev/` tuner for the recycle budget +
   fly-back look, registered in `dev_menu.gd`.
 - [ ] **`RecycleController` helper** (preload-const, not `class_name`) — owns offscreen→recycle
@@ -149,9 +163,11 @@ surface = the whole roster → playtest-only verification.
 - [x] **Music must keep cycling** — DONE (lead 2026-06-08, `c36a044`). Hardened the `finished`
   safety-net in `music_manager.gd` so an ending track re-arms even while the intensity-walk is frozen
   (continues current intensity); only CTX_SILENT / in-flight crossfade suppress it. NEEDS EYEBALL.
-- [x] **Intensity ramp** — DONE (lead 2026-06-08, `c36a044`). Levels with ≥5 waves lift to the Main
-  theme on the final 2 waves (the `wave_started → set_combat_progress` pipe already existed in
-  `main.gd`, no director edit needed). NEEDS EYEBALL.
+- [x] **Intensity ramp** — SUPERSEDED (lead 2026-06-10, `3760e89`): full ramp rework — combat opens
+  at the per-run floor, FIRST wave lifts to I2, past wave 4 lifts to Main, level-clear ramps down to
+  I1, boss pins Main, and the floor rises +1 PERMANENTLY per boss beaten (Run.bosses_defeated).
+  Crossfades promptly now (the old version only took effect at track end — the "not ramping" bug).
+  NEEDS EAR-TEST in real combat.
 - [x] **Same-frame sound overrun** — DONE (lead 2026-06-08, `c36a044`). Per-frame voice limiter at
   the `Sfx.play_one_shot` chokepoint: beyond a 4-voice soft cap, attenuate ~2.5 dB/voice (floor
   −18 dB) so mass smart-bomb deaths don't blow out. NEEDS EYEBALL (tell me if it's now too quiet).
@@ -303,9 +319,10 @@ Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" fl
   death-bomb consumes a charge (`player.gd:1504`) and outpost refill now costs 120
   (`outpost.gd:55`); the free auto-refill-on-visit was removed. Each death-save effectively costs
   ~120 bounty. Closing as already-costed (reopen only if 120/charge feels too cheap — a balance #).
-- [x] **`wanted` / `dangerous` POI bounty multipliers** — CLOSED (Roman call sheet #6: "no bonus
-  bounty"). `wanted` already gives +20% via the director; `dangerous` stays damage-only. Instead, the
-  active sector modifiers are now SHOWN to the player in the outpost (#6, `daa8594`).
+- [x] **`wanted` / `dangerous` POI bounty multipliers** — CLOSED, then SUPERSEDED 2026-06-10:
+  **sector modifiers are PULLED entirely** (Roman — kill-switch `Run.SECTOR_MODIFIERS_ENABLED =
+  false` gates rolling AND application, `51d4313`; vocabulary + director/player effect wiring kept
+  inert). **FLAGGED FOR RE-EVAL + REIMPLEMENTATION** as its own design pass.
 - [x] **Outpost density** — SUPERSEDED by the outpost-hub redesign (#4): outposts are no longer POIs
   at all (a persistent sector-map button), so per-sector density is moot.
 - [x] **Asteroid 0-bounty default** — DONE: flat **+25** hazard-clear bounty (call sheet #3, `aa5a85a`).
@@ -318,6 +335,9 @@ Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" fl
   signal site, reopening the arbitrage). Realigned signal to 0.1; fixed the stale "20%" comments.
   Both venues now symmetric — neither is the better dump spot.
 - [ ] **Manage Ship modal PartTier badges + 20% sell UI** — modal not yet using the shared `part_tier.gd` helper or the 20% resale. (Source: commit `cd71f44` open flag)
+  - _2026-06-10: the modal DID gain the SHIFT_MODE slot row (`db41620`); tier badges + sell UI still
+    open. Consider mirroring the outpost's new rarity-colored-name + type-label + dynamic-stat-line
+    treatment (`e224405`) instead of badges when this gets picked up._
 - [x] **Outpost density hard clamp → probabilistic** — SUPERSEDED by the outpost-hub redesign (#4):
   outposts are a sector-map button now, not POIs, so there's no per-sector outpost count to tune.
 

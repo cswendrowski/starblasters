@@ -22,8 +22,10 @@ enum Trigger { START, TIMER, DEATH }
 @export var chance: float = 1.0           # probability per emit (0-1)
 @export var spread: float = 0.0           # px: random positional scatter around the enemy
 @export var attach_to_enemy: bool = false  # true = child of enemy (turrets ride along)
+@export var tag: String = ""              # optional identifier (e.g. "firecore" for zealots)
 
 var _t: float = 0.0
+var _last_emit_succeeded: bool = false    # track if the last emission fired
 
 
 func on_start(enemy) -> void:
@@ -44,7 +46,10 @@ func on_process(enemy, delta: float) -> void:
 
 func on_death(enemy) -> void:
 	if trigger == Trigger.DEATH and _roll():
+		_last_emit_succeeded = true
 		_emit(enemy)
+	else:
+		_last_emit_succeeded = false
 
 
 func _roll() -> bool:
