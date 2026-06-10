@@ -145,7 +145,18 @@ Legend: ⮕ reuse/extend target. ⚠ risk/needs-eyeball. 🔧 dev-tool opportuni
 ---
 
 ## Needs-Roman (eyeball / playtest / decisions) — running
-- _(to be filled during execution)_
+**Audio (cluster A) — listen-test:**
+- Explosion distance bands are tunable consts in `explosion_sfx.gd`: `NEAR_DIST=62`, `FAR_DIST=168` px
+  (close/medium/distant), plus per-band volume. Tune by ear.
+- **Silenced on purpose** (flag if you want them back): boot warmup blast, smart-bomb per-kill
+  mini-explosions (smart bomb has its own detonation cue), and bomblet swarm pops (4–8 at once would
+  wall up close booms). Bomblets currently make NO explosion sound — say if they need a quiet pop.
+- Outpost: shield/primary-ammo/secondary-ammo/super **refills reuse the `repair` cue** as a generic
+  "service rendered" sound (only equip/unequip/upgrade/repair clips exist). Free shield refill is silent.
+- `mine_sfx.gd` is now a **no-op** (old SFX_explosion1.wav retired); the redundant `MineSfx.play_at`
+  call sites (mine/mine_shielded/mine_smart/gravity_mine/firecore/bomblet) are dead — sweep later.
+- "Incoming weapon sounds": interpreted as the enemy `enemy_blaster_*` / `enemy_mg_*` ogg (enemy fire,
+  wired via `enemy_sfx`). If you meant a distinct player "incoming" alert set, point me at the files.
 
 ## Locked execution sequence (Q4: follow proposed order)
 1. **P0** Import & housekeeping (rename explosion SFX, gitignore desktop.ini, sidecar hygiene).
@@ -160,6 +171,11 @@ Legend: ⮕ reuse/extend target. ⚠ risk/needs-eyeball. 🔧 dev-tool opportuni
 - **O** Renderer pivot — HELD for attended session.
 
 ## Running log
+- 2026-06-10 — **Cluster A audio rewire DONE** (`09229a7`). New SFX wired: Auto Laser + Spread Cannon
+  fire sounds; smart-bomb sweetener; outpost equip/unequip/upgrade/repair (new `outpost_sfx.gd`);
+  distance-based explosion system (new `explosion_sfx.gd`, Close/Medium/Distant → `ExplosionFx`).
+  Retired SFX_explosion1.wav. `test_audio_sfx` PASS. See Needs-Roman for listen-test tuning.
+  _(Note for self: commit multi-line messages via Bash `git commit -F -` heredoc — PowerShell mangles them.)_
 - 2026-06-10 — **P0 import DONE** (`3272c0e`, branch `worklist-2026-06-10`). Renamed 80 explosion clips
   (vendor prefix stripped), imported all new `.ogg` + `minigun_tracer.png`, gitignored `desktop.ini`.
   Un-broke the build: enemy fire SFX `.wav`→`.ogg`; retired dead `PULSE` pool + `WAVE_BIG` (wave gun
