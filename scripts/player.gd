@@ -1390,7 +1390,10 @@ func fire_primary() -> void:
 		flash_color = Color(0.2, 0.45, 1.0)        # pure blue
 	elif _is_mg_family(weapon_style):
 		flash_color = Color(1.0, 0.5, 0.1)         # bright orange (cannon)
-	MuzzleFx.play_player(muzzle_pos, self, flash_color, _is_mg_family(weapon_style))
+	# Autocannon (+ legacy Machinegun) eject the LARGE shell casing; everything else with a shell
+	# (none, currently) uses the small one. The Minigun's small shell is on its own hitscan path.
+	var _large_shell: bool = weapon_style == WS.WeaponStyle.AUTOCANNON or weapon_style == WS.WeaponStyle.MACHINEGUN
+	MuzzleFx.play_player(muzzle_pos, self, flash_color, _is_mg_family(weapon_style), _large_shell)
 	# Per-shot cannon SFX. Excluded styles carry their OWN audio elsewhere: MACHINEGUN = the
 	# _mg_loop_player loop, MINIGUN = its bespoke _fire_minigun_hitscan call, ROTARY_LASER = the
 	# per-shot pew system. AUTOCANNON deliberately falls through here — its autocannon_shoot_*
@@ -1440,9 +1443,10 @@ func _fire_minigun_hitscan() -> void:
 	var muzzle_off: Vector2 = _muzzle_offset("Ship/Muzzle", Vector2(0, -8))
 	var muzzle_pos: Vector2 = global_position + muzzle_off
 
-	# Orange muzzle flash + smoke + shell (like machinegun). Const preloads — this runs ~20/s.
+	# Orange muzzle flash + smoke + SMALL shell (Roman 2026-06-10 — minigun uses the small casing,
+	# autocannon the large). Const preloads — this runs ~20/s.
 	var flash_color: Color = Color(1.0, 0.5, 0.1)  # bright orange
-	_MinigunMuzzleFx.play_player(muzzle_pos, self, flash_color, true)  # true = with_smoke_shell
+	_MinigunMuzzleFx.play_player(muzzle_pos, self, flash_color, true, false)  # with_smoke_shell, small shell
 
 	# Fire SFX — minigun_shoot clips routed via WeaponSfx.
 	_MinigunWeaponSfx.play(get_tree().root, global_position, WS.sfx_kind_string(fire_sfx_kind))
@@ -1452,7 +1456,9 @@ func _fire_minigun_hitscan() -> void:
 	# fully-offscreen enemies: the take_hit guard makes those immune, so targeting them would
 	# let an untargetable parallax fly-back ghost absorb the column while live enemies behind
 	# it go unhit (review fix 2026-06-10).
-	const HITSCAN_HALF_WIDTH: float = 6.0  # pixels from player center to column edge
+	# Column WIDTH (Roman 2026-06-10): a 6px half-width almost never lined up with a streaming
+	# enemy, so the gun read as "no damage". ~enemy-width column makes the bullet-hose usable.
+	const HITSCAN_HALF_WIDTH: float = 11.0  # pixels from player center to column edge
 	var tree := get_tree()
 	if tree != null:
 		var target: Node2D = null
@@ -1476,16 +1482,16 @@ func _fire_minigun_hitscan() -> void:
 				best_y = e.global_position.y
 				target = e
 
-		if target != null:
-			# Apply damage to the first enemy.
-			if target.has_method("take_hit"):
-				var dmg: int = bullet_damage
-				if _hyper_active and active_mode == ShiftMode.HYPER:
-					dmg = int(round(float(bullet_damage) * hyper_damage_mult))
-				target.take_hit(dmg)
-
-			# Draw tracer sprite from muzzle to target.
-			_draw_minigun_tracer(muzzle_pos, target.global_position)
+		# Beam end: the hit point if we found a target, else straight up off the top of the screen.
+		# The bullet-stream tracer ALWAYS draws (Roman 2026-06-10: "no bullet stream effect" — it used
+		# to only draw on a hit, so between hits nothing showed).
+		var beam_end_y: float = best_y if target != null else -8.0
+		_draw_minigun_tracer(muzzle_pos, Vector2(muzzle_pos.x, beam_end_y))
+		if target != null and target.has_method("take_hit"):
+			var dmg: int = bullet_damage
+			if _hyper_active and active_mode == ShiftMode.HYPER:
+				dmg = int(round(float(bullet_damage) * hyper_damage_mult))
+			target.take_hit(dmg)
 
 	# Deduct ammo.
 	if _is_replacement_primary_active() and ammo > 0 \
@@ -1502,27 +1508,26 @@ func _fire_minigun_hitscan() -> void:
 			call_deferred("_snap_to_blaster_and_reapply")
 
 
-func _draw_minigun_tracer(from_pos: Vector2, to_pos: Vector2) -> void:
-	# Draw a minigun_tracer sprite from the muzzle to the hit point as feedback.
-	# The tracer is a short streak that fades out quickly.
-	const TRACER_TEX = preload("res://graphics/projectiles/minigun_tracer.png")
-	var tracer := Sprite2D.new()
-	tracer.texture = TRACER_TEX
-	tracer.centered = true
-	tracer.global_position = (from_pos + to_pos) * 0.5
-	tracer.scale = Vector2(1.0, 1.0)
-	tracer.z_index = 2
-	# Angle the tracer toward the target.
-	var diff = to_pos - from_pos
-	if diff.length() > 0.01:
-		tracer.rotation = diff.angle()
-	var parent: Node = get_parent() if get_parent() != null else get_tree().root
-	parent.add_child(tracer)
+const _MINIGUN_TRACER_TEX = preload("res://graphics/projectiles/minigun_tracer.png")
 
-	# Fade and disappear over ~0.1s.
-	var tw := tracer.create_tween()
-	tw.tween_property(tracer, "modulate:a", 0.0, 0.08)
-	tw.tween_callback(tracer.queue_free)
+func _draw_minigun_tracer(from_pos: Vector2, to_pos: Vector2) -> void:
+	# The "beam of bullets" (Roman): a Line2D from muzzle to the hit point (or off the top), tiling
+	# the minigun_tracer sprite along its length so it reads as a STREAM of bullets, not a single
+	# streak. A fresh fading beam each shot (~20/s) overlaps into a shimmering continuous stream.
+	var beam := Line2D.new()
+	beam.width = float(_MINIGUN_TRACER_TEX.get_width())
+	beam.texture = _MINIGUN_TRACER_TEX
+	beam.texture_mode = Line2D.LINE_TEXTURE_TILE
+	beam.z_index = 2
+	beam.z_as_relative = false
+	beam.add_point(from_pos)
+	beam.add_point(to_pos)
+	var parent: Node = get_parent() if get_parent() != null else get_tree().root
+	parent.add_child(beam)
+	# Fade and disappear quickly.
+	var tw := beam.create_tween()
+	tw.tween_property(beam, "modulate:a", 0.0, 0.07)
+	tw.tween_callback(beam.queue_free)
 
 
 # True when active_cannon_idx != 0 (non-blaster). Centralizes the "is

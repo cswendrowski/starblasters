@@ -121,7 +121,10 @@ static func _make_by_name(name: String, slot: int):
 		"_make_heavy_blaster":
 			return _build_weapon("res://resources/weapons/heavy_blaster.tres", HeavyBlaster, BulletHeavy)
 		"_make_autocannon":
-			return AutocannonCannon.new()  # Autocannon uses same bullet as MG, but is a separate weapon type
+			# Autocannon replaces the Machinegun and KEEPS its projectile (bullet_minigun.tscn — what
+			# machinegun.tres sets). The old `AutocannonCannon.new()` left bullet_scene null, so the
+			# ship kept the BLASTER bullet (Roman 2026-06-10). _build_weapon's fallback sets it.
+			return _build_weapon("res://resources/weapons/autocannon.tres", AutocannonCannon, BulletMinigun)
 		"_make_minigun":
 			return _build_weapon("res://resources/weapons/minigun.tres", MinigunCannon, BulletMinigun)
 		"_make_rotary_laser":

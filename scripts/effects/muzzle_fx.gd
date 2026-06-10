@@ -12,7 +12,8 @@ extends Node
 #   const MuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
 #   MuzzleFx.play(muzzle_world_pos)
 
-const SHELL_TEX = preload("res://graphics/2x1-shell.png")
+const SHELL_TEX = preload("res://graphics/2x1-shell.png")        # small casing (minigun)
+const SHELL_TEX_LARGE = preload("res://graphics/3x1-shell.png")  # large casing (autocannon / machinegun)
 const ShellCasing = preload("res://scripts/effects/shell_casing.gd")
 # Machinegun muzzle-flash strip (Cobalt 2026-05-21). 5 frames of 16×16;
 # _spawn_flash picks a random frame each fire so consecutive shots don't
@@ -183,7 +184,7 @@ const GlowFxM = preload("res://scripts/effects/glow_shader_fx.gd")
 # the muzzle marker (its base sits on the marker, extends forward), tinted `color` with a matching
 # DIFFUSE glow, rendered ABOVE the bullets (which now render under the ship), and it lasts ~a frame.
 # `with_smoke_shell` adds the machinegun smoke + shell casing.
-static func play_player(world_pos: Vector2, host: Node, color: Color, with_smoke_shell: bool = false) -> void:
+static func play_player(world_pos: Vector2, host: Node, color: Color, with_smoke_shell: bool = false, large_shell: bool = false) -> void:
 	var parent: Node = host if host != null else Engine.get_main_loop().root
 	var local_pos: Vector2 = world_pos
 	if host != null and host is Node2D:
@@ -214,7 +215,7 @@ static func play_player(world_pos: Vector2, host: Node, color: Color, with_smoke
 	if with_smoke_shell:
 		var fx_root: Node = host.get_parent() if (host != null and host.get_parent() != null) else Engine.get_main_loop().root
 		_spawn_smoke(fx_root, world_pos)
-		_spawn_shell(fx_root, world_pos)
+		_spawn_shell(fx_root, world_pos, large_shell)
 
 
 static func _spawn_flash(parent: Node, world_pos: Vector2, use_local: bool = false) -> void:
@@ -306,9 +307,9 @@ static func _spawn_smoke(root: Node, world_pos: Vector2) -> void:
 	)
 
 
-static func _spawn_shell(root: Node, world_pos: Vector2) -> void:
+static func _spawn_shell(root: Node, world_pos: Vector2, large: bool = false) -> void:
 	var shell := Sprite2D.new()
-	shell.texture = SHELL_TEX
+	shell.texture = SHELL_TEX_LARGE if large else SHELL_TEX
 	# Half size of the prior pass (Roman). Native pixel scale.
 	shell.scale = Vector2(1.0, 1.0)
 	# Spawn further back along the ship body, still right side. The previous
