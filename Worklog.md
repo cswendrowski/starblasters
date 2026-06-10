@@ -145,6 +145,16 @@ Legend: ⮕ reuse/extend target. ⚠ risk/needs-eyeball. 🔧 dev-tool opportuni
 ---
 
 ## Needs-Roman (eyeball / playtest / decisions) — running
+**Phase / Hyper (cluster D) — eyeball the visuals:**
+- **Phase** now: 3s, invuln, offense locked, **absorbs enemy bullets → +1 shield each** (mechanics
+  tested PASS), blue aura + **fading blue after-image ghosts** (new). Eyeball the after-image look
+  (interval 0.06s / fade 0.34s — tunable). Note: take_damage treats ALL incoming damage while phased
+  as absorption (+1 shield), not just bullets — fine thematically, flag if you want bullets-only.
+- **Hyper**: **pulsing orange outline** that speeds up as the bar empties (SLOW 2Hz → FAST 9Hz).
+  The orange outline is built from the ship's frame at hyper-start and doesn't rebuild on banking, so
+  its silhouette can be slightly stale mid-bank — minor; tell me if it reads wrong and I'll rebuild it
+  per-frame like the black outline.
+
 **New weapons (cluster B) — playtest the FEEL (can't verify unattended):**
 - **Autocannon** (replaces Machinegun in the pool): 1.5s spin-up (start sound) before it fires, stop
   sound on release; re-press = full re-spin. `AC_SPIN_TIME` in player.gd is the tunable. Same bullets/
@@ -192,6 +202,9 @@ Legend: ⮕ reuse/extend target. ⚠ risk/needs-eyeball. 🔧 dev-tool opportuni
 - **O** Renderer pivot — HELD for attended session.
 
 ## Running log
+- 2026-06-10 — **Cluster D Phase/Hyper DONE** (`77d4356`). Phase: 3s + bullet-absorb→shield +
+  after-images; Hyper: pulsing orange outline (outline_fx now supports a colour). Mechanics tested
+  (`test_phase_hyper` PASS); visuals → Needs-Roman.
 - 2026-06-10 — **Cluster B weapons DONE**. Rotary Mk.5+ bolt swap + gunship heavy_slug frame_count fix
   (`7eb22da`, me). Minigun (hitscan) + Autocannon (spin-up, replaces MG) built by code-editor subagent
   (`4cf8ef7`/`d2fc258`/`4d6e4b3`/`44ec2af`), reviewed + verified: parse-clean, boot exit 0, all weapon
