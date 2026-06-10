@@ -20,8 +20,9 @@ var _enemy: Node2D = null
 var _emitting: bool = true
 
 
-# Build one world-space trail line per engine marker. Call right after add_child.
-func setup(enemy: Node2D, markers: Array) -> void:
+# Build one world-space trail line per engine marker. Call right after add_child. `color` lets a
+# non-enemy host (the player) reuse this exact trail style in a different hue.
+func setup(enemy: Node2D, markers: Array, color: Color = TRAIL_COLOR) -> void:
 	_enemy = enemy
 	_markers = markers
 	var root: Node = get_tree().current_scene
@@ -30,7 +31,7 @@ func setup(enemy: Node2D, markers: Array) -> void:
 	for _m in markers:
 		var line := Line2D.new()
 		line.width = HEAD_WIDTH
-		line.default_color = TRAIL_COLOR
+		line.default_color = color
 		# Width tapers thin at the tail, full at the head (engine).
 		var curve := Curve.new()
 		curve.add_point(Vector2(0.0, 0.15))
@@ -40,8 +41,8 @@ func setup(enemy: Node2D, markers: Array) -> void:
 		var grad := Gradient.new()
 		grad.offsets = PackedFloat32Array([0.0, 1.0])
 		grad.colors = PackedColorArray([
-			Color(TRAIL_COLOR.r, TRAIL_COLOR.g, TRAIL_COLOR.b, 0.0),
-			Color(TRAIL_COLOR.r, TRAIL_COLOR.g, TRAIL_COLOR.b, 0.9),
+			Color(color.r, color.g, color.b, 0.0),
+			Color(color.r, color.g, color.b, 0.9),
 		])
 		line.gradient = grad
 		line.joint_mode = Line2D.LINE_JOINT_ROUND

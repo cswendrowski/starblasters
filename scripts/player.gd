@@ -408,49 +408,35 @@ func _setup_ship_visuals() -> void:
 		var gmat := CanvasItemMaterial.new()
 		gmat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 		gm.material = gmat
-	# Engine trails at the two markers — thin #00d3ff exhaust streaks (NOT the big gradient
-	# flame), sorted ABOVE the ship sprites.
+	# 1px black outline on the ship body — same outline_fx shader/look the enemies get. Rebuilt on
+	# bank since the body is a 3-frame strip (the outline is a single padded frame).
+	_rebuild_outline()
+	# Engine trails — the SAME style as enemy engines (engine_trail_fx Line2D streak), but in the
+	# engine colour (#00d3ff) instead of the enemy yellow.
+	var markers: Array = []
 	for mk in ["EngineL", "EngineR"]:
 		if has_node(mk):
-			get_node(mk).add_child(_make_engine_trail())
+			markers.append(get_node(mk))
+	if not markers.is_empty():
+		var EngineTrailFx = preload("res://scripts/effects/engine_trail_fx.gd")
+		var trail = EngineTrailFx.new()
+		add_child(trail)
+		trail.setup(self, markers, ENGINE_GLOW_COLOR)
 	_apply_livery_color()
 
 
-# Thin downward exhaust streak in the engine colour. CPUParticles2D (gl_compatibility-safe);
-# normal blend (no additive bloom — that read as a "large glow").
-func _make_engine_trail() -> CPUParticles2D:
-	var p := CPUParticles2D.new()
-	p.z_index = 1
-	p.z_as_relative = false
-	p.amount = 14
-	p.lifetime = 0.35
-	p.local_coords = false          # trail in world space behind the moving ship
-	p.direction = Vector2(0, 1)     # exhaust streams down (ship flies up)
-	p.spread = 6.0
-	p.initial_velocity_min = 45.0
-	p.initial_velocity_max = 85.0
-	p.gravity = Vector2.ZERO
-	p.scale_amount_min = 0.8
-	p.scale_amount_max = 1.4
-	var sc := Curve.new()
-	sc.add_point(Vector2(0.0, 1.0))
-	sc.add_point(Vector2(1.0, 0.0))
-	p.scale_amount_curve = sc
-	p.texture = _engine_trail_texture()
-	var grad := Gradient.new()
-	grad.colors = PackedColorArray([ENGINE_GLOW_COLOR, Color(ENGINE_GLOW_COLOR.r, ENGINE_GLOW_COLOR.g, ENGINE_GLOW_COLOR.b, 0.0)])
-	grad.offsets = PackedFloat32Array([0.0, 1.0])
-	p.color_ramp = grad
-	return p
-
-
-static var _trail_tex: Texture2D = null
-static func _engine_trail_texture() -> Texture2D:
-	if _trail_tex == null:
-		var img := Image.create(2, 2, false, Image.FORMAT_RGBA8)
-		img.fill(Color.WHITE)
-		_trail_tex = ImageTexture.create_from_image(img)
-	return _trail_tex
+var _outline = null
+var _outline_frame: int = -1
+# (Re)build the body outline for the current bank frame. The padded single-frame texture is cached
+# per (texture, frame) in outline_fx, so a rebuild is just a fresh Sprite2D node.
+func _rebuild_outline() -> void:
+	if not has_node("Ship"):
+		return
+	if _outline != null and is_instance_valid(_outline):
+		_outline.queue_free()
+	var OutlineFx = preload("res://scripts/effects/outline_fx.gd")
+	_outline = OutlineFx.apply($Ship)
+	_outline_frame = $Ship.frame
 
 
 # Livery recolor: randomize the shader tint per patrol (deterministic off run_seed so it's
@@ -479,6 +465,8 @@ func _set_bank_frame(f: int) -> void:
 		($Ship.get_node("Livery") as Sprite2D).frame = f
 	if $Ship.has_node("GlowMask"):
 		($Ship.get_node("GlowMask") as Sprite2D).frame = f
+	if f != _outline_frame:
+		_rebuild_outline()
 
 
 # Engine glowmask opacity: eases to 0.5 while moving back (down), 1.0 otherwise.

@@ -37,14 +37,6 @@ animations = [{
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ruvs5"]
 size = Vector2(7.75, 7.875)
 
-[sub_resource type="Environment" id="Environment_np37p"]
-background_mode = 3
-glow_enabled = true
-glow_intensity = 2.0
-glow_hdr_threshold = 0.0
-adjustment_enabled = true
-adjustment_contrast = 1.25
-
 [node name="EnemyBullet" type="Area2D" unique_id=937251871 groups=["bullets"]]
 script = ExtResource("1_gk4vk")
 
@@ -60,9 +52,6 @@ shape = SubResource("RectangleShape2D_ruvs5")
 
 [node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="." unique_id=928703863]
 visible = false
-
-[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=302923101]
-environment = SubResource("Environment_np37p")
 
 [connection signal="area_entered" from="." to="." method="_on_area_entered"]
 [connection signal="screen_exited" from="VisibleOnScreenNotifier2D" to="." method="_on_visible_on_screen_notifier_2d_screen_exited"]

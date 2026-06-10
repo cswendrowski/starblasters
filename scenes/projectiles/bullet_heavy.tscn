@@ -3,13 +3,6 @@
 [ext_resource type="Script" uid="uid://bceocec1lcdrt" path="res://scripts/projectiles/bullet_heavy.gd" id="1_hvscr"]
 [ext_resource type="Texture2D" uid="uid://crb8v5dl2odom" path="res://graphics/projectiles/blaster_heavy.png" id="2_hvtex"]
 
-[sub_resource type="Environment" id="Environment_djw7b"]
-background_mode = 3
-glow_enabled = true
-glow_intensity = 2.0
-glow_hdr_threshold = 0.0
-adjustment_enabled = true
-
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_heavy"]
 size = Vector2(6, 16)
 
@@ -19,9 +12,6 @@ speed = 120
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1228754949]
 texture = ExtResource("2_hvtex")
-
-[node name="WorldEnvironment" type="WorldEnvironment" parent="Sprite2D" unique_id=256298344]
-environment = SubResource("Environment_djw7b")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1281268116]
 visible = false
