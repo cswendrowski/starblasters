@@ -3,13 +3,15 @@ extends Control
 # Shader Lab (Roman 2026-06-10) — fire the NEW shader effects in the native
 # 480×270 SubViewport and compare them against what's in-game today, without
 # the GIF-capture loop:
-#   Embers     — ember_spray burst (cool-down) + the inverted heat-up variant
-#   Shields    — sci_fi_shield ring (current) vs hex_shield (new) side by side
-#   Glow       — glow_halo per-sprite bloom (current) vs screen_glow overlay,
-#                showcased on ENEMY BULLETS
-#   Modes      — Focus / Phase / Hyper player-mode tells, replicated
-#   Explosions — both explosion styles (default + small-circle), replayable
-#   Gallery    — every other shader in the project on a test quad / sprite
+#   Embers      — ember_spray burst, ramp = normal / inverted / smoke-tail
+#   Shields     — sci_fi_shield ring (current) vs hex_shield (new) side by side
+#   Glow        — diffuse glow_halo (current) vs screen_glow (new) on bullets
+#   Bloom Env   — the Godot WorldEnvironment glow (main.tscn's combat bloom)
+#   Modes       — Focus / Phase / Hyper player-mode tells (moving ship)
+#   Damage      — damage_noise overlay tuner (enemy hull erosion)
+#   Disintegrate— pixelated_burn tuner (death burn-away)
+#   Explosions  — default / small-circle / small→default combo, replayable
+#   Gallery     — every other shader in the project on a test quad / sprite
 # Right rail = knobs per mode, persisted to user://tuners/shader_lab.json +
 # Copy GDScript (tuner contract). Esc / Back returns to the dev menu.
 
@@ -20,11 +22,21 @@ const EmberFx = preload("res://scripts/effects/ember_fx.gd")
 const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
 const OutlineFx = preload("res://scripts/effects/outline_fx.gd")
 const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
-const PLAYER_SPRITE = preload("res://Mini Pixel Pack 3/Player ship/Player_ship (16 x 16).png")
+
+# Live player ship sheet (3-hframe banking sheet; middle frame = level flight).
+# We crop the middle frame into a standalone single-frame texture so shader UVs
+# span 0..1 cleanly — see _ship_texture().
+const PLAYER_BODY_PATH := "res://graphics/player/player_ship_a_body.png"
 
 const SCI_FI_SHIELD: Shader = preload("res://graphics/sci_fi_shield.gdshader")
 const HEX_SHIELD: Shader = preload("res://graphics/hex_shield.gdshader")
 const SCREEN_GLOW: Shader = preload("res://graphics/screen_glow.gdshader")
+const DAMAGE_SHADER: Shader = preload("res://graphics/damage_noise.gdshader")
+const BURN_SHADER: Shader = preload("res://graphics/pixelated_burn.gdshader")
+
+# Real in-game damage-overlay resources (so the tuner matches enemy_base.gd).
+const DAMAGE_NOISE_TEX_PATH := "res://resources/noise_damage.tres"
+const DAMAGE_EDGE_TEX_PATH := "res://resources/edge_distance_flat.tres"
 
 # Player-mode tells (mirrors the constants in player.gd so the lab matches the
 # game — keep in sync if those change).
@@ -34,6 +46,9 @@ const PHASE_GLOW_COLOR := Color(0.2, 0.5, 1.0)
 const HYPER_OUTLINE_COLOR := Color(1.0, 0.5, 0.0)
 const PHASE_AI_INTERVAL := 0.06
 const PHASE_AI_LIFETIME := 0.34
+const FOCUS_TRAIL_LEN := 18
+const HYPER_PULSE_HZ_SLOW := 2.0
+const HYPER_PULSE_HZ_FAST := 9.0
 
 # Enemy bullet sprites for the glow showcase: {texture path, hframes}.
 const BULLETS := [
@@ -59,7 +74,9 @@ const PANEL_BORDER := Color(0.35, 0.55, 0.75, 0.85)
 # Gallery ship targets are zoomed for INSPECTION only — in-game sprites stay 1×.
 const GALLERY_SPRITE_ZOOM := 3.0
 
-const MODES := ["Embers", "Shields", "Glow", "Modes", "Explosions", "Gallery"]
+const MODES := ["Embers", "Shields", "Glow", "Bloom Env", "Modes", "Damage", "Disintegrate", "Explosions", "Gallery"]
+
+const EMBER_VARIANTS := ["normal", "inverted", "smoke"]
 
 const KNOBS := {
 	"Embers": [
@@ -89,12 +106,31 @@ const KNOBS := {
 		{"key": "dome", "label": "Dome warp", "min": 0.0, "max": 1.0, "step": 0.05, "def": 0.65},
 	],
 	"Glow": [
-		{"key": "threshold", "label": "Threshold", "min": 0.0, "max": 1.0, "step": 0.02, "def": 0.6},
-		{"key": "knee", "label": "Knee", "min": 0.01, "max": 0.5, "step": 0.01, "def": 0.2},
-		{"key": "intensity", "label": "Intensity", "min": 0.0, "max": 4.0, "step": 0.1, "def": 1.2},
-		{"key": "max_lod", "label": "Radius (mip levels)", "min": 1.0, "max": 6.0, "step": 1.0, "def": 4.0},
+		{"key": "threshold", "label": "Screen-glow threshold", "min": 0.0, "max": 1.0, "step": 0.02, "def": 0.6},
+		{"key": "knee", "label": "Screen-glow knee", "min": 0.01, "max": 0.5, "step": 0.01, "def": 0.2},
+		{"key": "intensity", "label": "Screen-glow intensity", "min": 0.0, "max": 4.0, "step": 0.1, "def": 1.2},
+		{"key": "max_lod", "label": "Screen-glow radius (mips)", "min": 1.0, "max": 6.0, "step": 1.0, "def": 4.0},
+	],
+	"Bloom Env": [
+		{"key": "glow_intensity", "label": "Glow intensity", "min": 0.0, "max": 4.0, "step": 0.05, "def": 0.6},
+		{"key": "glow_strength", "label": "Glow strength", "min": 0.0, "max": 2.0, "step": 0.05, "def": 1.0},
+		{"key": "glow_bloom", "label": "Glow bloom", "min": 0.0, "max": 1.0, "step": 0.02, "def": 0.0},
+		{"key": "glow_hdr_threshold", "label": "HDR threshold", "min": 0.0, "max": 2.0, "step": 0.05, "def": 0.0},
 	],
 	"Modes": [],
+	"Damage": [
+		{"key": "sensitivity", "label": "Sensitivity (dmg)", "min": 0.0, "max": 1.0, "step": 0.02, "def": 0.4},
+		{"key": "max_strength", "label": "Max strength", "min": 0.0, "max": 1.0, "step": 0.02, "def": 0.6},
+		{"key": "edge_bias_strength", "label": "Edge bias", "min": 0.0, "max": 1.0, "step": 0.02, "def": 0.4},
+		{"key": "details_opacity", "label": "Details opacity", "min": 0.0, "max": 1.0, "step": 0.02, "def": 0.2},
+	],
+	"Disintegrate": [
+		{"key": "borderWidth", "label": "Border width", "min": 0.02, "max": 0.5, "step": 0.01, "def": 0.18},
+		{"key": "burnMult", "label": "Burn noise", "min": 0.0, "max": 1.0, "step": 0.02, "def": 0.34},
+		{"key": "pixel_size", "label": "Pixel size", "min": 0.005, "max": 0.1, "step": 0.005, "def": 0.04},
+		{"key": "blend_steps", "label": "Blend steps", "min": 2.0, "max": 12.0, "step": 1.0, "def": 6.0},
+		{"key": "duration", "label": "Burn duration (s)", "min": 0.2, "max": 2.0, "step": 0.05, "def": 0.45},
+	],
 	"Explosions": [],
 	"Gallery": [],
 }
@@ -151,13 +187,15 @@ var _orb_t: float = 0.0
 var _gallery_idx: int = 0
 var _gallery_mat: ShaderMaterial = null
 var _gallery_pulse_btn: Button = null
-var _ember_inverted: bool = false
+var _ember_variant: String = "normal"
 
 # Player-modes showcase state.
 var _pm_ship: Node2D = null
 var _pm_glow: CanvasItem = null
 var _pm_outline: Sprite2D = null
 var _pm_dot: Node2D = null
+var _pm_trail: Line2D = null
+var _pm_trail_pts: PackedVector2Array = PackedVector2Array()
 var _pm_mode: String = "off"
 var _pm_home: Vector2 = Vector2.ZERO
 var _pm_t: float = 0.0
@@ -165,9 +203,18 @@ var _pm_phase_acc: float = 0.0
 var _pm_hyper_t: float = 0.0
 var _pm_status: Label = null
 
+# Bloom Env (WorldEnvironment glow) state.
+var _env: Environment = null
+
+# Damage / Disintegrate tuner state.
+var _dmg_mat: ShaderMaterial = null
+var _burn_mat: ShaderMaterial = null
+
 # Explosions showcase: replay-loop timer.
 var _expl_acc: float = 0.0
 var _expl_auto: bool = true
+
+static var _ship_tex: Texture2D = null
 
 
 func _ready() -> void:
@@ -325,8 +372,13 @@ func _set_mode(idx: int) -> void:
 	_pm_glow = null
 	_pm_outline = null
 	_pm_dot = null
+	_pm_trail = null
+	_pm_trail_pts = PackedVector2Array()
 	_pm_status = null
 	_pm_mode = "off"
+	_env = null
+	_dmg_mat = null
+	_burn_mat = null
 	match MODES[_mode]:
 		"Embers":
 			_enter_embers()
@@ -334,8 +386,14 @@ func _set_mode(idx: int) -> void:
 			_enter_shields()
 		"Glow":
 			_enter_glow()
+		"Bloom Env":
+			_enter_bloom_env()
 		"Modes":
 			_enter_modes()
+		"Damage":
+			_enter_damage()
+		"Disintegrate":
+			_enter_disintegrate()
 		"Explosions":
 			_enter_explosions()
 		"Gallery":
@@ -347,13 +405,16 @@ func _set_mode(idx: int) -> void:
 func _enter_embers() -> void:
 	_knob_box.add_child(_label("Ember Spray (NEW)", FS_BODY, UiTheme.COLOR_ACCENT))
 	_knob_box.add_child(_label("Click the playfield to fire at the cursor.", FS_CAPTION, UiTheme.COLOR_FAINT))
-	var inv := CheckButton.new()
-	inv.text = "Inverted ramp (heat-up)"
-	inv.button_pressed = _ember_inverted
-	inv.add_theme_font_override("font", UiTheme.active_font())
-	inv.add_theme_font_size_override("font_size", FS_BODY)
-	inv.toggled.connect(func(v: bool): _ember_inverted = v)
-	_knob_box.add_child(inv)
+	_knob_box.add_child(_label("Ramp", FS_CAPTION, UiTheme.COLOR_FAINT))
+	var ramp_dd := OptionButton.new()
+	ramp_dd.add_theme_font_override("font", UiTheme.active_font())
+	ramp_dd.add_theme_font_size_override("font_size", FS_BODY)
+	ramp_dd.custom_minimum_size = Vector2(0, 34)
+	for vn in EMBER_VARIANTS:
+		ramp_dd.add_item(String(vn))
+	ramp_dd.select(maxi(0, EMBER_VARIANTS.find(_ember_variant)))
+	ramp_dd.item_selected.connect(func(i: int): _ember_variant = String(EMBER_VARIANTS[i]))
+	_knob_box.add_child(ramp_dd)
 	_add_action("Fire Burst", func(): _fire_embers(Vector2(Playfield.CENTER.x, 170.0)))
 	_add_action("Fire + Explosion", func():
 		var pos := Vector2(Playfield.CENTER.x, 170.0)
@@ -379,7 +440,7 @@ func _fire_embers(pos: Vector2) -> void:
 		"cool_bias": float(v["cool_bias"]),
 		"fade_start": float(v["fade_start"]),
 		"lifetime_rand": float(v["lifetime_rand"]),
-		"inverted": _ember_inverted,
+		"variant": _ember_variant,
 	})
 
 
@@ -439,30 +500,24 @@ func _apply_shield_knobs() -> void:
 # ---- Glow mode -------------------------------------------------------------
 
 func _enter_glow() -> void:
-	# Two rows of enemy bullets: top row RAW, bottom row with the per-sprite
-	# glow_halo bloom — so you can read the bloom against the bare sprite for
-	# each bullet type. Plus a bright orb for the screen-glow overlay to bloom.
+	# A/B the two CUSTOM glow shaders on identical enemy-bullet columns:
+	#   LEFT  — diffuse per-sprite glow_halo (CURRENT in-game glow)
+	#   RIGHT — bare bullets bloomed by the screen_glow overlay (NEW)
+	# No WorldEnvironment here — the renderer-bloom comparison lives in Bloom Env.
 	var n := BULLETS.size()
-	var spacing := 38.0
-	var x0 := Playfield.CENTER.x - (n - 1) * spacing * 0.5
-	var raw_y := 95.0
-	var glow_y := 150.0
+	var spacing := 26.0
+	var col_h := (n - 1) * spacing
+	var y0 := 135.0 - col_h * 0.5
+	var left_x := Playfield.CENTER.x - 44.0
+	var right_x := Playfield.CENTER.x + 44.0
 	for i in n:
-		var bx := x0 + i * spacing
-		_make_bullet(Vector2(bx, raw_y), BULLETS[i])
-		var lit := _make_bullet(Vector2(bx, glow_y), BULLETS[i])
-		GlowShaderFx.apply(lit.get_node("Bullet"))
+		var y := y0 + i * spacing
+		var diff := _make_bullet(Vector2(left_x, y), BULLETS[i])
+		GlowShaderFx.apply(diff.get_node("Bullet"))   # diffuse halo
+		_make_bullet(Vector2(right_x, y), BULLETS[i])  # bare → screen_glow blooms it
 
-	var orb_pos := Vector2(Playfield.CENTER.x, 215.0)
-	_orb = Sprite2D.new()
-	_orb.texture = _orb_texture()
-	var add_mat := CanvasItemMaterial.new()
-	add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	_orb.material = add_mat
-	_orb_home = orb_pos
-	_orb.position = orb_pos
-	_stage.add_child(_orb)
-
+	# Full-viewport screen-glow overlay (blooms everything bright, incl. the
+	# right column). Toggle to read the right column with vs without it.
 	_glow_rect = ColorRect.new()
 	_glow_rect.size = Vector2(480, 270)
 	_glow_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -473,12 +528,11 @@ func _enter_glow() -> void:
 	_stage.add_child(_glow_rect)
 	_apply_glow_knobs()
 
-	_hd_note("RAW BULLETS", Vector2(x0 - 16.0, raw_y - 22.0))
-	_hd_note("+ GLOW HALO (CURRENT)", Vector2(x0 - 16.0, glow_y + 16.0))
-	_hd_note("BRIGHT ORB", orb_pos + Vector2(-16.0, 16.0))
+	_hd_note("DIFFUSE (glow_halo, CURRENT)", Vector2(left_x - 52.0, y0 - 22.0))
+	_hd_note("SCREEN GLOW (NEW)", Vector2(right_x - 30.0, y0 - 22.0))
 
-	_knob_box.add_child(_label("Screen Glow (NEW)", FS_BODY, UiTheme.COLOR_ACCENT))
-	_knob_box.add_child(_label("Whole-screen mip-pyramid bloom vs the\nper-sprite glow_halo on the bullet row.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_knob_box.add_child(_label("Glow: diffuse vs screen", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("LEFT column = per-sprite glow_halo (current).\nRIGHT column = bare bullets bloomed by the\nscreen_glow overlay (toggle below).", FS_CAPTION, UiTheme.COLOR_FAINT))
 	var chk := CheckButton.new()
 	chk.text = "Screen glow ON"
 	chk.button_pressed = true
@@ -488,7 +542,6 @@ func _enter_glow() -> void:
 		if _glow_rect != null:
 			_glow_rect.visible = v)
 	_knob_box.add_child(chk)
-	_add_action("Fire Embers (current knobs)", func(): _fire_embers(Vector2(Playfield.CENTER.x, 200.0)))
 	_knob_box.add_child(HSeparator.new())
 	_build_knobs("Glow")
 
@@ -512,13 +565,13 @@ func _enter_modes() -> void:
 	_hd_note("PLAYER MODE TELLS", _pm_home + Vector2(-34.0, -34.0))
 
 	_knob_box.add_child(_label("Player Modes", FS_BODY, UiTheme.COLOR_ACCENT))
-	_knob_box.add_child(_label("The Shift-stance visual tells, as replicated\nin player.gd (glow/tint/outline/ghosts).", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_knob_box.add_child(_label("The Shift-stance tells, matched to player.gd:\nFocus = slow + cyan glow + tint + trail + dot,\nPhase = blue glow + additive ghosts,\nHyper = ramping orange outline pulse.\nShip weaves so trail/ghosts read.", FS_CAPTION, UiTheme.COLOR_FAINT))
 	_pm_status = _label("Mode: off", FS_CAPTION, UiTheme.COLOR_BOUNTY)
 	_knob_box.add_child(_pm_status)
 	_add_action("Off", func(): _set_player_mode("off"))
-	_add_action("Focus  (cyan glow + tint + hit dot)", func(): _set_player_mode("focus"))
-	_add_action("Phase  (blue glow + afterimage ghosts)", func(): _set_player_mode("phase"))
-	_add_action("Hyper  (pulsing orange outline)", func(): _set_player_mode("hyper"))
+	_add_action("Focus", func(): _set_player_mode("focus"))
+	_add_action("Phase", func(): _set_player_mode("phase"))
+	_add_action("Hyper", func(): _set_player_mode("hyper"))
 	_set_player_mode("focus")
 
 
@@ -528,6 +581,7 @@ func _set_player_mode(m: String) -> void:
 	_pm_t = 0.0
 	_pm_phase_acc = 0.0
 	_pm_hyper_t = 0.0
+	_pm_trail_pts = PackedVector2Array()
 	if _pm_ship == null or not is_instance_valid(_pm_ship):
 		return
 	_pm_ship.position = _pm_home
@@ -537,6 +591,7 @@ func _set_player_mode(m: String) -> void:
 		"focus":
 			ship.modulate = FOCUS_SHIP_TINT
 			_pm_glow = GlowShaderFx.apply(ship, FOCUS_GLOW_COLOR)
+			_pm_trail = _make_focus_trail()
 			_pm_dot = _make_focus_dot(ship)
 		"phase":
 			_pm_glow = GlowShaderFx.apply(ship, PHASE_GLOW_COLOR)
@@ -547,12 +602,13 @@ func _set_player_mode(m: String) -> void:
 
 
 func _clear_player_fx() -> void:
-	for n in [_pm_glow, _pm_outline, _pm_dot]:
+	for n in [_pm_glow, _pm_outline, _pm_dot, _pm_trail]:
 		if n != null and is_instance_valid(n):
 			n.queue_free()
 	_pm_glow = null
 	_pm_outline = null
 	_pm_dot = null
+	_pm_trail = null
 
 
 func _make_focus_dot(ship: Sprite2D) -> Node2D:
@@ -566,6 +622,23 @@ func _make_focus_dot(ship: Sprite2D) -> Node2D:
 	dot.add_child(rect)
 	ship.add_child(dot)
 	return dot
+
+
+# Cyan motion trail behind the focused ship (player.gd: Line2D width 2, round
+# joints/caps, z 99, gradient transparent-tail → cyan head, parented to world).
+func _make_focus_trail() -> Line2D:
+	var t := Line2D.new()
+	t.width = 2.0
+	t.joint_mode = Line2D.LINE_JOINT_ROUND
+	t.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	t.end_cap_mode = Line2D.LINE_CAP_ROUND
+	t.z_index = 99
+	var g := Gradient.new()
+	g.set_color(0, Color(0.4, 0.7, 1.0, 0.0))
+	g.set_color(1, Color(0.4, 0.7, 1.0, 0.8))
+	t.gradient = g
+	_stage.add_child(t)
+	return t
 
 
 func _spawn_phase_ghost() -> void:
@@ -594,33 +667,55 @@ func _tick_modes(delta: float) -> void:
 	if _pm_ship == null or not is_instance_valid(_pm_ship):
 		return
 	_pm_t += delta
-	if _pm_mode == "phase":
-		# Drift the ship so the afterimage ghosts visibly trail (in game the
-		# ghosts trail because the player is moving).
-		_pm_ship.position = _pm_home + Vector2(cos(_pm_t * 2.4), sin(_pm_t * 1.5)) * 42.0
-		_pm_phase_acc += delta
-		while _pm_phase_acc >= PHASE_AI_INTERVAL:
-			_pm_phase_acc -= PHASE_AI_INTERVAL
-			_spawn_phase_ghost()
-	elif _pm_mode == "hyper" and _pm_outline != null and is_instance_valid(_pm_outline):
-		# Pulse the orange outline (player.gd ramps the rate as the bar empties;
-		# here a steady ~4 Hz is enough to read the tell).
-		_pm_hyper_t += delta
-		_pm_outline.self_modulate.a = 0.30 + 0.70 * (0.5 + 0.5 * sin(_pm_hyper_t * TAU * 4.0))
+	if _pm_mode == "off":
+		return
+	# Weave within the playfield band so the trail / ghosts read (Focus is also
+	# slowed 0.55 in game — reflected by the gentler weave speed).
+	var speed := 1.0 if _pm_mode != "focus" else 0.55
+	var p := _pm_home + Vector2(sin(_pm_t * 1.7 * speed) * 60.0, sin(_pm_t * 1.15 * speed + 0.6) * 28.0)
+	p.x = clampf(p.x, Playfield.X_MIN + 10.0, Playfield.X_MAX - 10.0)
+	_pm_ship.position = p
+
+	match _pm_mode:
+		"focus":
+			if _pm_trail != null and is_instance_valid(_pm_trail):
+				_pm_trail_pts.append(_pm_ship.position)
+				while _pm_trail_pts.size() > FOCUS_TRAIL_LEN:
+					_pm_trail_pts.remove_at(0)
+				_pm_trail.points = _pm_trail_pts
+		"phase":
+			_pm_phase_acc += delta
+			while _pm_phase_acc >= PHASE_AI_INTERVAL:
+				_pm_phase_acc -= PHASE_AI_INTERVAL
+				_spawn_phase_ghost()
+		"hyper":
+			if _pm_outline != null and is_instance_valid(_pm_outline):
+				# Pulse frequency ramps slow→fast like the bar emptying (player.gd
+				# lerps HZ_SLOW→HZ_FAST with depletion; a sawtooth fakes that here).
+				var frac: float = fmod(_pm_t * 0.25, 1.0)
+				var hz: float = lerpf(HYPER_PULSE_HZ_SLOW, HYPER_PULSE_HZ_FAST, frac)
+				_pm_hyper_t += delta * hz
+				_pm_outline.self_modulate.a = 0.30 + 0.70 * (0.5 + 0.5 * sin(_pm_hyper_t * TAU))
 
 
 # ---- Explosions mode -------------------------------------------------------
 
+const EXPL_X := [-72.0, 0.0, 72.0]
+
+
 func _enter_explosions() -> void:
 	_expl_acc = 0.0
-	_hd_note("DEFAULT", Vector2(Playfield.CENTER.x - 66.0, 70.0))
-	_hd_note("SMALL CIRCLE", Vector2(Playfield.CENTER.x + 28.0, 70.0))
+	var cx := Playfield.CENTER.x
+	_hd_note("DEFAULT", Vector2(cx + EXPL_X[0] - 22.0, 70.0))
+	_hd_note("SMALL", Vector2(cx + EXPL_X[1] - 16.0, 70.0))
+	_hd_note("SMALL→DEFAULT", Vector2(cx + EXPL_X[2] - 34.0, 70.0))
 
 	_knob_box.add_child(_label("Explosions", FS_BODY, UiTheme.COLOR_ACCENT))
-	_knob_box.add_child(_label("Both styles at native 1× scale (sprites are\n1:1 pixel-accurate — no upscaled halo).", FS_CAPTION, UiTheme.COLOR_FAINT))
-	_add_action("Replay Both", _replay_explosions)
-	_add_action("Replay Default", func(): _play_explosion("default", Vector2(Playfield.CENTER.x - 48.0, 130.0)))
-	_add_action("Replay Small Circle", func(): _play_explosion("small_circle", Vector2(Playfield.CENTER.x + 48.0, 130.0)))
+	_knob_box.add_child(_label("All styles at native 1× (sprites 1:1 pixel-\naccurate). 3rd = small-circle spark blooming\ninto the full default boom.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_add_action("Replay All", _replay_explosions)
+	_add_action("Replay Default", func(): _play_explosion("default", _expl_pos(0)))
+	_add_action("Replay Small Circle", func(): _play_explosion("small_circle", _expl_pos(1)))
+	_add_action("Replay Small→Default", func(): _play_explosion("small_then_default", _expl_pos(2)))
 	var auto := CheckButton.new()
 	auto.text = "Auto-replay loop"
 	auto.button_pressed = _expl_auto
@@ -631,9 +726,14 @@ func _enter_explosions() -> void:
 	_replay_explosions()
 
 
+func _expl_pos(i: int) -> Vector2:
+	return Vector2(Playfield.CENTER.x + EXPL_X[i], 135.0)
+
+
 func _replay_explosions() -> void:
-	_play_explosion("default", Vector2(Playfield.CENTER.x - 48.0, 130.0))
-	_play_explosion("small_circle", Vector2(Playfield.CENTER.x + 48.0, 130.0))
+	_play_explosion("default", _expl_pos(0))
+	_play_explosion("small_circle", _expl_pos(1))
+	_play_explosion("small_then_default", _expl_pos(2))
 
 
 func _play_explosion(variant: String, pos: Vector2) -> void:
@@ -644,9 +744,160 @@ func _tick_explosions(delta: float) -> void:
 	if not _expl_auto:
 		return
 	_expl_acc += delta
-	if _expl_acc >= 1.4:
+	if _expl_acc >= 1.6:
 		_expl_acc = 0.0
 		_replay_explosions()
+
+
+# ---- Bloom Env mode (WorldEnvironment glow) --------------------------------
+
+func _enter_bloom_env() -> void:
+	# A real Godot WorldEnvironment glow (the same renderer bloom main.tscn uses
+	# for combat) on a SubViewport — broken out from the custom glow shaders so
+	# it can be tuned independently. Bright bullets + orb give it something to
+	# bloom.
+	var n := BULLETS.size()
+	var spacing := 30.0
+	var x0 := Playfield.CENTER.x - (n - 1) * spacing * 0.5
+	for i in n:
+		_make_bullet(Vector2(x0 + i * spacing, 110.0), BULLETS[i])
+
+	var orb_pos := Vector2(Playfield.CENTER.x, 180.0)
+	_orb = Sprite2D.new()
+	_orb.texture = _orb_texture()
+	var add_mat := CanvasItemMaterial.new()
+	add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	_orb.material = add_mat
+	_orb_home = orb_pos
+	_orb.position = orb_pos
+	_stage.add_child(_orb)
+
+	var we := WorldEnvironment.new()
+	_env = Environment.new()
+	_env.background_mode = Environment.BG_CANVAS
+	_env.glow_enabled = true
+	we.environment = _env
+	_stage.add_child(we)
+	_apply_bloom_env_knobs()
+
+	_hd_note("WORLD-ENV GLOW (combat bloom)", Vector2(x0 - 40.0, 86.0))
+	_knob_box.add_child(_label("Bloom Env (WorldEnvironment)", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("The renderer's built-in 2D glow — the same\nnode main.tscn uses (intensity 0.6, threshold 0).\nThis is NOT a shader; it bloates everything\nbright in the viewport.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_knob_box.add_child(HSeparator.new())
+	_build_knobs("Bloom Env")
+
+
+func _apply_bloom_env_knobs() -> void:
+	if _env == null:
+		return
+	var v: Dictionary = _values["Bloom Env"]
+	_env.glow_intensity = float(v["glow_intensity"])
+	_env.glow_strength = float(v["glow_strength"])
+	_env.glow_bloom = float(v["glow_bloom"])
+	_env.glow_hdr_threshold = float(v["glow_hdr_threshold"])
+
+
+# ---- Damage tuner ----------------------------------------------------------
+
+func _enter_damage() -> void:
+	# damage_noise.gdshader (enemy hull erosion) on the ship, using the REAL
+	# in-game noise + edge-distance resources so the tuner matches enemy_base.gd.
+	var ship := _make_ship(Vector2(Playfield.CENTER.x, 135.0))
+	var spr: Sprite2D = ship.get_node("Ship")
+	spr.scale = Vector2(3, 3)   # inspection zoom (in-game it's 1×)
+	_dmg_mat = ShaderMaterial.new()
+	_dmg_mat.shader = DAMAGE_SHADER
+	_dmg_mat.set_shader_parameter("noise_texture", load(DAMAGE_NOISE_TEX_PATH))
+	_dmg_mat.set_shader_parameter("edge_distance_map", load(DAMAGE_EDGE_TEX_PATH))
+	_dmg_mat.set_shader_parameter("noise_seed", 17.0)
+	spr.material = _dmg_mat
+	_apply_damage_knobs()
+
+	_hd_note("DAMAGE OVERLAY", Vector2(Playfield.CENTER.x - 36.0, 90.0))
+	_knob_box.add_child(_label("Damage Overlay", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("graphics/damage_noise.gdshader. In game,\nsensitivity = 1 − health/max (0 → ~0.75).", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_add_action("Flash Hit", func(): _pulse_param(_dmg_mat, "flash_strength", 1.0, 0.0, 0.12))
+	_knob_box.add_child(HSeparator.new())
+	_build_knobs("Damage")
+
+
+func _apply_damage_knobs() -> void:
+	if _dmg_mat == null:
+		return
+	var v: Dictionary = _values["Damage"]
+	_dmg_mat.set_shader_parameter("sensitivity", float(v["sensitivity"]))
+	_dmg_mat.set_shader_parameter("max_strength", float(v["max_strength"]))
+	_dmg_mat.set_shader_parameter("edge_bias_strength", float(v["edge_bias_strength"]))
+	_dmg_mat.set_shader_parameter("details_opacity", float(v["details_opacity"]))
+
+
+# ---- Disintegrate (burn-away) tuner ----------------------------------------
+
+func _enter_disintegrate() -> void:
+	# pixelated_burn.gdshader — the death burn-away (in game: BurnFx.apply_burn,
+	# radius 0→1.6 over 0.45s). Tune the look, hit Burn to replay the sweep.
+	_expl_acc = 0.0
+	var ship := _make_ship(Vector2(Playfield.CENTER.x, 135.0))
+	var spr: Sprite2D = ship.get_node("Ship")
+	spr.scale = Vector2(3, 3)
+	_burn_mat = ShaderMaterial.new()
+	_burn_mat.shader = BURN_SHADER
+	_burn_mat.set_shader_parameter("noiseTexture", _build_gallery_texture("noise"))
+	_burn_mat.set_shader_parameter("colorCurve", _build_gallery_texture("fire_ramp"))
+	_burn_mat.set_shader_parameter("position", Vector2(0.5, 0.5))
+	_burn_mat.set_shader_parameter("radius", 0.0)
+	spr.material = _burn_mat
+	_apply_disintegrate_knobs()
+
+	_hd_note("BURN-AWAY", Vector2(Playfield.CENTER.x - 26.0, 90.0))
+	_knob_box.add_child(_label("Disintegrate (burn-away)", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("graphics/pixelated_burn.gdshader. In game,\nBurnFx.apply_burn sweeps radius 0→1.6.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_add_action("Burn", _replay_burn)
+	var auto := CheckButton.new()
+	auto.text = "Auto-replay loop"
+	auto.button_pressed = _expl_auto
+	auto.add_theme_font_override("font", UiTheme.active_font())
+	auto.add_theme_font_size_override("font_size", FS_BODY)
+	auto.toggled.connect(func(v: bool): _expl_auto = v)
+	_knob_box.add_child(auto)
+	_knob_box.add_child(HSeparator.new())
+	_build_knobs("Disintegrate")
+	_replay_burn()
+
+
+func _apply_disintegrate_knobs() -> void:
+	if _burn_mat == null:
+		return
+	var v: Dictionary = _values["Disintegrate"]
+	_burn_mat.set_shader_parameter("borderWidth", float(v["borderWidth"]))
+	_burn_mat.set_shader_parameter("burnMult", float(v["burnMult"]))
+	_burn_mat.set_shader_parameter("pixel_size", float(v["pixel_size"]))
+	_burn_mat.set_shader_parameter("blend_steps", float(v["blend_steps"]))
+
+
+func _replay_burn() -> void:
+	if _burn_mat == null:
+		return
+	var dur: float = float(_values["Disintegrate"]["duration"])
+	_pulse_param(_burn_mat, "radius", 0.0, 1.6, dur)
+
+
+func _tick_disintegrate(delta: float) -> void:
+	if not _expl_auto:
+		return
+	_expl_acc += delta
+	if _expl_acc >= float(_values["Disintegrate"]["duration"]) + 0.6:
+		_expl_acc = 0.0
+		_replay_burn()
+
+
+# Tween a shader uniform from→to over `time` on `mat`.
+func _pulse_param(mat: ShaderMaterial, param: String, from: float, to: float, time: float) -> void:
+	if mat == null:
+		return
+	mat.set_shader_parameter(param, from)
+	var tw := create_tween()
+	tw.tween_method(func(x: float): mat.set_shader_parameter(param, x), from, to, time)
 
 
 func _process(delta: float) -> void:
@@ -658,6 +909,8 @@ func _process(delta: float) -> void:
 			_tick_modes(delta)
 		"Explosions":
 			_tick_explosions(delta)
+		"Disintegrate":
+			_tick_disintegrate(delta)
 
 
 # Bright white-core radial orb — gives the screen glow something hot to bloom.
@@ -733,7 +986,7 @@ func _show_gallery(idx: int) -> void:
 			_stage.add_child(rect)
 		else:
 			var s := Sprite2D.new()
-			s.texture = PLAYER_SPRITE
+			s.texture = _ship_texture()
 			s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 			s.scale = Vector2(GALLERY_SPRITE_ZOOM, GALLERY_SPRITE_ZOOM)
 			s.position = center
@@ -827,6 +1080,12 @@ func _apply_live() -> void:
 			_apply_shield_knobs()
 		"Glow":
 			_apply_glow_knobs()
+		"Bloom Env":
+			_apply_bloom_env_knobs()
+		"Damage":
+			_apply_damage_knobs()
+		"Disintegrate":
+			_apply_disintegrate_knobs()
 
 
 func _add_action(text: String, cb: Callable) -> void:
@@ -846,11 +1105,30 @@ func _make_ship(pos: Vector2) -> Node2D:
 	n.position = pos
 	var s := Sprite2D.new()
 	s.name = "Ship"
-	s.texture = PLAYER_SPRITE
+	s.texture = _ship_texture()
 	s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	n.add_child(s)
 	_stage.add_child(n)
 	return n
+
+
+# The live player ship's MIDDLE hframe (level flight), cropped into a standalone
+# single-frame texture so it shows just the neutral pose AND shader UVs span
+# 0..1 cleanly. Cached.
+static func _ship_texture() -> Texture2D:
+	if _ship_tex != null and is_instance_valid(_ship_tex):
+		return _ship_tex
+	var src: Texture2D = load(PLAYER_BODY_PATH)
+	if src == null:
+		return null
+	var img: Image = src.get_image()
+	if img == null:
+		return null
+	var fw: int = img.get_width() / 3   # 3-hframe banking sheet
+	var fh: int = img.get_height()
+	var mid: Image = img.get_region(Rect2i(fw, 0, fw, fh))  # frame 1 = level flight
+	_ship_tex = ImageTexture.create_from_image(mid)
+	return _ship_tex
 
 
 # An enemy-bullet sprite (frame 0 of its strip) under a Node2D, so GlowShaderFx
@@ -925,8 +1203,14 @@ func _on_copy() -> void:
 			txt = _snippet_shields()
 		"Glow":
 			txt = _snippet_glow()
+		"Bloom Env":
+			txt = _snippet_bloom_env()
 		"Modes":
 			txt = _snippet_modes()
+		"Damage":
+			txt = _snippet_damage()
+		"Disintegrate":
+			txt = _snippet_disintegrate()
 		"Explosions":
 			txt = _snippet_explosions()
 		"Gallery":
@@ -946,7 +1230,7 @@ func _snippet_embers() -> String:
 	t += "\t\"spread_deg\": %.1f, \"speed_min\": %.1f, \"speed_max\": %.1f,\n" % [float(v["spread_deg"]), float(v["speed_min"]), float(v["speed_max"])]
 	t += "\t\"drag\": %.2f, \"gravity\": %.1f, \"streak_sec\": %.3f,\n" % [float(v["drag"]), float(v["gravity"]), float(v["streak_sec"])]
 	t += "\t\"cool_bias\": %.2f, \"fade_start\": %.2f, \"lifetime_rand\": %.2f,\n" % [float(v["cool_bias"]), float(v["fade_start"]), float(v["lifetime_rand"])]
-	t += "\t\"inverted\": %s,\n" % ("true" if _ember_inverted else "false")
+	t += "\t\"variant\": \"%s\",\n" % _ember_variant
 	t += "})\n"
 	return t
 
@@ -966,7 +1250,47 @@ func _snippet_explosions() -> String:
 	t += "ExplosionFx.play(global_position, 1.0)                              # default\n"
 	t += "ExplosionFx.play(global_position, 1.0, true, null,\n"
 	t += "\tExplosionFx.scene_for(\"small_circle\"))                          # small circle\n"
+	t += "ExplosionFx.play(global_position, 1.0, true, null,\n"
+	t += "\tExplosionFx.scene_for(\"small_then_default\"))                    # spark → big boom\n"
 	t += "# Sprites render at native 1× (halo matched to core, no upscale).\n"
+	return t
+
+
+func _snippet_bloom_env() -> String:
+	var v: Dictionary = _values["Bloom Env"]
+	var t := "# Shader Lab — WorldEnvironment glow (matches main.tscn combat bloom)\n"
+	t += "var we := WorldEnvironment.new()\n"
+	t += "var env := Environment.new()\n"
+	t += "env.background_mode = Environment.BG_CANVAS\n"
+	t += "env.glow_enabled = true\n"
+	t += "env.glow_intensity = %.2f\n" % float(v["glow_intensity"])
+	t += "env.glow_strength = %.2f\n" % float(v["glow_strength"])
+	t += "env.glow_bloom = %.2f\n" % float(v["glow_bloom"])
+	t += "env.glow_hdr_threshold = %.2f\n" % float(v["glow_hdr_threshold"])
+	t += "we.environment = env\n"
+	t += "add_child(we)\n"
+	return t
+
+
+func _snippet_damage() -> String:
+	var v: Dictionary = _values["Damage"]
+	var t := "# Shader Lab — damage overlay (graphics/damage_noise.gdshader)\n"
+	t += "# In game enemy_base installs this + drives sensitivity = 1 - health/max.\n"
+	t += "mat.set_shader_parameter(\"sensitivity\", %.2f)\n" % float(v["sensitivity"])
+	t += "mat.set_shader_parameter(\"max_strength\", %.2f)\n" % float(v["max_strength"])
+	t += "mat.set_shader_parameter(\"edge_bias_strength\", %.2f)\n" % float(v["edge_bias_strength"])
+	t += "mat.set_shader_parameter(\"details_opacity\", %.2f)\n" % float(v["details_opacity"])
+	return t
+
+
+func _snippet_disintegrate() -> String:
+	var v: Dictionary = _values["Disintegrate"]
+	var t := "# Shader Lab — disintegrate / burn-away (graphics/pixelated_burn.gdshader)\n"
+	t += "# In game: BurnFx.apply_burn(sprite, %.2f) sweeps radius 0 -> 1.6.\n" % float(v["duration"])
+	t += "mat.set_shader_parameter(\"borderWidth\", %.2f)\n" % float(v["borderWidth"])
+	t += "mat.set_shader_parameter(\"burnMult\", %.2f)\n" % float(v["burnMult"])
+	t += "mat.set_shader_parameter(\"pixel_size\", %.3f)\n" % float(v["pixel_size"])
+	t += "mat.set_shader_parameter(\"blend_steps\", %.1f)\n" % float(v["blend_steps"])
 	return t
 
 

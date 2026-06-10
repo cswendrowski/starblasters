@@ -12,9 +12,15 @@ extends Node
 # Spawn under get_tree().root (projectile convention) or any node that
 # outlives the burst; the emitter frees itself when the burst finishes.
 
-const EMBER_SHADER: Shader = preload("res://graphics/ember_spray.gdshader")
-# Inverted-ramp variant: embers heat UP (char → white-hot) instead of cooling.
-const EMBER_SHADER_INVERTED: Shader = preload("res://graphics/ember_spray_inverted.gdshader")
+# Three ramp variants, picked via the "variant" param:
+#   "normal" — white-hot cooling to char, then fade (ember_spray)
+#   "inverted" — char heating UP to white-hot (ember_spray_inverted)
+#   "smoke" — cools to char, then lingers as dim smoke for a long tail
+const EMBER_SHADERS := {
+	"normal": preload("res://graphics/ember_spray.gdshader"),
+	"inverted": preload("res://graphics/ember_spray_inverted.gdshader"),
+	"smoke": preload("res://graphics/ember_spray_smoke.gdshader"),
+}
 
 const DEFAULTS := {
 	"amount": 28,
@@ -30,7 +36,7 @@ const DEFAULTS := {
 	"cool_bias": 0.55,
 	"fade_start": 0.78,
 	"lifetime_rand": 0.4,
-	"inverted": false, # true = use the heat-up ramp (ember_spray_inverted)
+	"variant": "normal", # "normal" | "inverted" | "smoke"
 }
 
 static var _pixel_tex: Texture2D = null
@@ -53,7 +59,7 @@ static func spray(parent: Node, pos: Vector2, direction: Vector2 = Vector2.UP, p
 	p.position = pos
 
 	var mat := ShaderMaterial.new()
-	mat.shader = EMBER_SHADER_INVERTED if bool(v["inverted"]) else EMBER_SHADER
+	mat.shader = EMBER_SHADERS.get(String(v["variant"]), EMBER_SHADERS["normal"])
 	mat.set_shader_parameter("direction_angle", direction.angle())
 	mat.set_shader_parameter("spread_deg", float(v["spread_deg"]))
 	mat.set_shader_parameter("speed_min", float(v["speed_min"]))
