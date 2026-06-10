@@ -182,12 +182,11 @@ func _ready() -> void:
 	screensize = get_viewport_rect().size
 	health = max_health
 	# Allow rapid $EnemyShoot.play() calls to overlap so each shot is
-	# audible to completion (Roman feedback 2026-05-23). $EnemyDie is
-	# handled separately in explode() via Sfx.play_node_detached.
+	# audible to completion (Roman feedback 2026-05-23). ($EnemyDie is retired —
+	# deaths sound via the distance-based ExplosionSfx in explode(); see there.)
 	var SfxCls = load("res://scripts/effects/sfx.gd")
-	# Route scene-embedded SFX (EnemyShoot/EnemyDie) onto the SFX bus so the
-	# Options "Sound Volume" slider controls them. Covers bosses too (boss_base
-	# extends this and plays $EnemyDie directly).
+	# Route scene-embedded SFX (EnemyShoot etc.) onto the SFX bus so the
+	# Options "Sound Volume" slider controls them.
 	SfxCls.route_children_to_sfx(self)
 	if has_node("EnemyShoot"):
 		SfxCls.ensure_polyphony($EnemyShoot, 4)
@@ -412,13 +411,10 @@ func explode() -> void:
 		BurnFxScript.apply_burn($Sprite2D, 0.45)
 	if has_node("ParticleExplode"):
 		$ParticleExplode.restart()
-	if has_node("EnemyDie"):
-		# Detach the death SFX from the dying enemy so it plays to
-		# completion instead of clipping when queue_free() fires below
-		# (Roman feedback 2026-05-23). Sfx.play_node_detached re-parents
-		# under root.
-		var SfxCls = load("res://scripts/effects/sfx.gd")
-		SfxCls.play_node_detached($EnemyDie)
+	# Death audio: the scene-embedded $EnemyDie clip is RETIRED (Roman 2026-06-10 — "wire up the
+	# new explosion sounds, retire the old ones"). Deaths now sound exclusively through the
+	# distance-based ExplosionSfx fired by the ExplosionFx.play/burst calls above; playing the
+	# old clip here buried the new ones. The EnemyDie nodes remain in the scenes (inert).
 	await get_tree().create_timer(0.5).timeout
 	queue_free()
 

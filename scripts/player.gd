@@ -829,24 +829,31 @@ func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("primary_swap"):
 		_swap_active_primary()
 	if fire_held:
-		# Autocannon: spin-up gate — suppress fire_primary until spin-up completes.
-		if weapon_style == WS.WeaponStyle.AUTOCANNON and ammo != 0 and is_alive:
-			if not _ac_spinning:
-				# Start spinning: play start sound and begin the 1.5s delay.
-				_ac_spinning = true
-				_ac_spin_t = 0.0
-				if _ac_start_player and not _ac_start_player.playing:
-					_ac_start_player.play()
-			else:
-				# Accumulate spin time.
-				_ac_spin_t += delta
-			# Only fire once spin-up is complete.
-			if _ac_spin_t >= AC_SPIN_TIME:
-				fire_primary()
-		# Minigun: fires immediately (no spin-up), stop sound plays on release.
-		elif weapon_style == WS.WeaponStyle.MINIGUN and ammo != 0 and is_alive:
+		# EVERY style fires through fire_primary each held frame — it self-gates on
+		# GunCooldown/can_shoot, ammo, the rotary charge (not _rl_charged -> no-op), and routes
+		# MINIGUN to its hitscan internally. The AUTOCANNON spin-up is the ONLY style whose fire
+		# is suppressed up front. (Regression fix 2026-06-10: the weapons rework had folded this
+		# call INTO the style branches, so the blaster/heavy/wave/spread/auto-laser/MG/rotary —
+		# every style without its own branch-side call — stopped firing entirely.)
+		if weapon_style == WS.WeaponStyle.AUTOCANNON:
+			if ammo != 0 and is_alive:
+				if not _ac_spinning:
+					# Start spinning: play start sound and begin the 1.5s delay.
+					_ac_spinning = true
+					_ac_spin_t = 0.0
+					if _ac_start_player and not _ac_start_player.playing:
+						_ac_start_player.play()
+				else:
+					_ac_spin_t += delta
+				# Only fire once spin-up is complete.
+				if _ac_spin_t >= AC_SPIN_TIME:
+					fire_primary()
+		else:
 			fire_primary()
-			_mg_stop_pending = false  # Cancel any pending stop sound since we're still firing.
+		# ---- Firing audio/state machines (separate from the fire call) ----
+		# Minigun: cancel any pending stop sound — we're still firing.
+		if weapon_style == WS.WeaponStyle.MINIGUN:
+			_mg_stop_pending = false
 		# MG audio loop only when the machinegun is the equipped CANNON
 		# AND there's still ammo. Energy blaster fire is silent.
 		elif weapon_style == WS.WeaponStyle.MACHINEGUN and ammo != 0 and not _mg_firing and is_alive:
