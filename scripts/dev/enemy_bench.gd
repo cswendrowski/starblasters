@@ -71,6 +71,9 @@ var _fire_dd: OptionButton = null
 var _aim_dd: OptionButton = null
 var _payload_dd: OptionButton = null
 var _explosion_dd: OptionButton = null
+var _recycle_chk: CheckButton = null
+var _recycle_passes_spin: SpinBox = null
+var _recycle_chance_spin: SpinBox = null
 
 # Persisted per-scene settings.
 var _saved: Dictionary = {}
@@ -237,6 +240,26 @@ func _build_right_panel(ui: CanvasLayer) -> void:
 	_explosion_dd.item_selected.connect(func(_i): _apply_explosion_live())
 
 	vbox.add_child(HSeparator.new())
+	vbox.add_child(_label("Recycle Behavior", FS_BODY, UiTheme.COLOR_ACCENT))
+
+	# Can recycle checkbox
+	vbox.add_child(_label("Can recycle", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_recycle_chk = CheckButton.new()
+	_recycle_chk.button_pressed = true
+	_recycle_chk.add_theme_font_override("font", UiTheme.active_font())
+	_recycle_chk.add_theme_font_size_override("font_size", FS_BODY)
+	_recycle_chk.toggled.connect(func(_v): _apply_recycle_live())
+	vbox.add_child(_recycle_chk)
+
+	# Recycle passes spinbox
+	_recycle_passes_spin = _spinbox(vbox, "Recycle passes", 1, 10, 1)
+	_recycle_passes_spin.value_changed.connect(func(_v): _apply_recycle_live())
+
+	# Chance to recycle vs flee slider
+	_recycle_chance_spin = _spinbox(vbox, "Recycle chance (0=flee, 1=recycle)", 0, 1, 0.1)
+	_recycle_chance_spin.value_changed.connect(func(_v): _apply_recycle_live())
+
+	vbox.add_child(HSeparator.new())
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	vbox.add_child(row)
@@ -266,6 +289,20 @@ func _dropdown(vbox: VBoxContainer, caption: String, items) -> OptionButton:
 		dd.add_item(String(it))
 	vbox.add_child(dd)
 	return dd
+
+
+func _spinbox(vbox: VBoxContainer, caption: String, min_v: float, max_v: float, step: float) -> SpinBox:
+	vbox.add_child(_label(caption, FS_CAPTION, UiTheme.COLOR_FAINT))
+	var sb := SpinBox.new()
+	sb.add_theme_font_override("font", UiTheme.active_font())
+	sb.add_theme_font_size_override("font_size", FS_BODY)
+	sb.custom_minimum_size = Vector2(0, 34)
+	sb.min_value = min_v
+	sb.max_value = max_v
+	sb.step = step
+	sb.value = min_v
+	vbox.add_child(sb)
+	return sb
 
 
 # ---- List / selection ----------------------------------------------------
@@ -368,6 +405,23 @@ func _apply_explosion_live() -> void:
 		_current_enemy.explosion_variant = ExplosionFx.variant_names()[_explosion_dd.selected]
 
 
+func _apply_recycle_live() -> void:
+	if _current_enemy == null or not is_instance_valid(_current_enemy):
+		return
+	if not "recycle_passes" in _current_enemy:
+		return
+	if not _recycle_chk.button_pressed:
+		# Can't recycle = flee behavior
+		_current_enemy.recycle_passes = 0
+	else:
+		# Can recycle: use the spinbox value, unless chance says flee
+		var chance: float = float(_recycle_chance_spin.value)
+		if randf() < chance:
+			_current_enemy.recycle_passes = int(_recycle_passes_spin.value)
+		else:
+			_current_enemy.recycle_passes = 0  # flee
+
+
 func _clear_enemy() -> void:
 	if _current_enemy != null and is_instance_valid(_current_enemy):
 		_current_enemy.queue_free()
@@ -419,6 +473,12 @@ func _load_settings_into_editors() -> void:
 	_select_text(_aim_dd, String(s.get("aim", "STRAIGHT_DOWN")), AIMS)
 	_select_text(_payload_dd, String(s.get("payload", "Basic")), PAYLOADS.keys())
 	_select_text(_explosion_dd, String(s.get("explosion", "default")), ExplosionFx.variant_names())
+	if _recycle_chk:
+		_recycle_chk.button_pressed = bool(s.get("can_recycle", true))
+	if _recycle_passes_spin:
+		_recycle_passes_spin.value = int(s.get("recycle_passes", 1))
+	if _recycle_chance_spin:
+		_recycle_chance_spin.value = float(s.get("recycle_chance", 1.0))
 
 
 func _select_text(dd: OptionButton, text: String, pool) -> void:
@@ -432,6 +492,9 @@ func _current_settings() -> Dictionary:
 		"aim": AIMS[_aim_dd.selected],
 		"payload": String(PAYLOADS.keys()[_payload_dd.selected]),
 		"explosion": ExplosionFx.variant_names()[_explosion_dd.selected],
+		"can_recycle": _recycle_chk.button_pressed,
+		"recycle_passes": int(_recycle_passes_spin.value),
+		"recycle_chance": float(_recycle_chance_spin.value),
 	}
 
 
@@ -470,6 +533,11 @@ func _on_copy() -> void:
 	txt += "w.payload = %s\n" % payload_const
 	txt += "enemy.shoot_pattern = w\n"
 	txt += "enemy.explosion_variant = \"%s\"\n" % s["explosion"]
+	txt += "# Recycle behavior:\n"
+	if s["can_recycle"]:
+		txt += "enemy.recycle_passes = %d  # %.1f chance to recycle\n" % [s["recycle_passes"], s["recycle_chance"]]
+	else:
+		txt += "enemy.recycle_passes = 0  # flee (no recycle)\n"
 	DisplayServer.clipboard_set(txt)
 	if _pattern_lbl:
 		_pattern_lbl.text = "Copied GDScript to clipboard"
