@@ -566,27 +566,53 @@ func _on_apply_part() -> void:
 		_set_status("PartCatalog null for %s" % factory)
 		return
 	part.mark = int(_mark_slider.value)
-	# Route through canonical Run.equip_part so secondary ammo + super charges
-	# get seeded and any displaced same-slot part lands in weapon_storage. Then
-	# mirror onto the LIVE Player's Loadout so the test-fire reflects it now.
-	# (/root path, not the bare `Run` identifier — bare autoload names fail to compile
-	# in autoload-free contexts like compile_check; house convention.)
-	if has_node("/root/Run"):
-		get_node("/root/Run").equip_part(part)
-	var loadout = _live_loadout()
-	if loadout != null:
-		loadout.equip(_selected_slot, part)
+	if _selected_slot == SlotTypes.SlotType.CANNON:
+		# TEST-BENCH cannon equip. Do NOT route through Run.equip_part — that is
+		# the outpost ACQUIRE flow: it appends the part to cannon_pool and sets a
+		# NON-ZERO active_cannon_idx, which makes fire_primary treat the cannon as
+		# a metered REPLACEMENT. In the bench that meant: the weapon reverted to
+		# the blaster the instant ammo hit 0, the pool bloated across Applies, and
+		# the pool copy desynced from the live-applied part (wrong Mk/ammo). For a
+		# bench we want the chosen cannon to just fire, forever, with its own
+		# stats. Keep active_cannon_idx 0 (blaster firing path = infinite, no
+		# revert) and apply the part LIVE so its style/damage/bullet take effect.
+		if has_node("/root/Run"):
+			get_node("/root/Run").active_cannon_idx = 0
+		var loadout_c = _live_loadout()
+		if loadout_c != null:
+			loadout_c.equip(SlotTypes.SlotType.CANNON, part)
+	else:
+		# Secondary / Super: Run.equip_part just writes loadout_snapshot + seeds
+		# secondary ammo / super charges (no pool indirection), then mirror onto
+		# the LIVE Loadout so the test-fire reflects it now. (/root path, not the
+		# bare `Run` identifier — bare autoload names fail to compile in
+		# autoload-free contexts like compile_check; house convention.)
+		if has_node("/root/Run"):
+			get_node("/root/Run").equip_part(part)
+		var loadout = _live_loadout()
+		if loadout != null:
+			loadout.equip(_selected_slot, part)
 	_set_status("Equipped %s Mk.%d" % [_display_name_for_factory(factory, _selected_slot), int(part.mark)])
 	_refresh_status()
 
 
 func _on_clear_slot() -> void:
-	if has_node("/root/Run"):
-		get_node("/root/Run").unequip_slot(_selected_slot)
-	var loadout = _live_loadout()
-	if loadout != null and loadout.has_method("unequip"):
-		loadout.unequip(_selected_slot)
-	_set_status("Cleared %s" % SlotTypes.slot_name(_selected_slot))
+	if _selected_slot == SlotTypes.SlotType.CANNON:
+		# A ship always has a primary — "clear" reverts to the permanent blaster
+		# (cannon_pool[0]) rather than leaving an empty cannon slot. Reuse the
+		# player's own reapply so weapon_style / bullet_scene / ammo all revert.
+		if has_node("/root/Run"):
+			get_node("/root/Run").active_cannon_idx = 0
+		if _player != null and is_instance_valid(_player) and _player.has_method("_reapply_active_cannon"):
+			_player._reapply_active_cannon()
+		_set_status("Reverted to Blaster")
+	else:
+		if has_node("/root/Run"):
+			get_node("/root/Run").unequip_slot(_selected_slot)
+		var loadout = _live_loadout()
+		if loadout != null and loadout.has_method("unequip"):
+			loadout.unequip(_selected_slot)
+		_set_status("Cleared %s" % SlotTypes.slot_name(_selected_slot))
 	_refresh_part_list()
 	_refresh_status()
 
