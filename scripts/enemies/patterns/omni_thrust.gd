@@ -55,6 +55,10 @@ func compute_step(enemy, delta: float) -> Vector2:
 	var vp: Vector2 = enemy.get_viewport_rect().size
 	var x_lo: float = Playfield.X_MIN
 	var x_hi: float = Playfield.X_MAX
+	# Bottom bound = the no-fly line (engagement band's departure edge), NOT the screen edge — so the
+	# Omni harasser stays in the firing zone and never sinks into the dead space below the player where
+	# it can't be shot (Roman 2026-06-10). It exits via the normal recycle/offscreen path, not by diving.
+	var no_fly_y: float = Zones.DEPARTURE_START
 	var lookahead: float = 22.0
 	if enemy.position.x < x_lo + playfield_margin + lookahead and _strafe_dir < 0:
 		_strafe_dir = 1
@@ -99,7 +103,7 @@ func compute_step(enemy, delta: float) -> Vector2:
 		push_dir.x -= 1.0
 	if enemy.position.y < avoid_band:
 		push_dir.y += 1.0
-	elif enemy.position.y > vp.y - avoid_band:
+	elif enemy.position.y > no_fly_y - avoid_band:
 		push_dir.y -= 1.0
 	if push_dir != Vector2.ZERO:
 		# Blend factor: 0 at avoid_band, 1 at the wall.
@@ -108,7 +112,7 @@ func compute_step(enemy, delta: float) -> Vector2:
 			avoid_band
 		)
 		var dy: float = min(
-			abs(enemy.position.y - 0.0) if push_dir.y > 0 else (vp.y - enemy.position.y) if push_dir.y < 0 else avoid_band,
+			abs(enemy.position.y - 0.0) if push_dir.y > 0 else (no_fly_y - enemy.position.y) if push_dir.y < 0 else avoid_band,
 			avoid_band
 		)
 		var nearest: float = min(dx if push_dir.x != 0 else avoid_band, dy if push_dir.y != 0 else avoid_band)
@@ -124,7 +128,7 @@ func compute_step(enemy, delta: float) -> Vector2:
 		_vel.x = 0.0
 	if enemy.position.y <= playfield_margin and _vel.y < 0.0:
 		_vel.y = 0.0
-	elif enemy.position.y >= vp.y - playfield_margin and _vel.y > 0.0:
+	elif enemy.position.y >= no_fly_y and _vel.y > 0.0:
 		_vel.y = 0.0
 
 	# Face the player. (Sprite is authored facing up, so +PI/2 brings the

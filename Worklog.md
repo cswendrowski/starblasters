@@ -145,6 +145,20 @@ Legend: ⮕ reuse/extend target. ⚠ risk/needs-eyeball. 🔧 dev-tool opportuni
 ---
 
 ## Needs-Roman (eyeball / playtest / decisions) — running
+**Patterns (cluster H) — 1 fixed, 2 need your repro:**
+- **Omni movement — FIXED.** Now bounds its bottom to the no-fly line (`Zones.DEPARTURE_START` = 195,
+  the engagement band's departure edge) instead of the screen bottom (270), so it stays in the firing
+  zone and never sinks into the dead space below the player. Eyeball that it harasses well within the band.
+- **Lane Hook — needs your repro.** "lane_hook" = the DIVE_RETURN shape; I verified its exit IS configured
+  correctly (sets `OffscreenMode.FREE_ANY_EDGE`, dives to band-midpoint, smooth U-turn, climbs out the TOP,
+  frees). I couldn't reproduce a failure in code. **What's the symptom** — stalls mid-climb? exits the wrong
+  edge? recycles instead of leaving? — and I'll fix it precisely (didn't want to blind-edit working code).
+- **Supremacy Push globbing — needs your repro / a steer.** The director HAS lane-spread (`_pick_lane`) +
+  crosser height-stagger (`_crosser_travel_y`), but the push "anchor" heavy enemies appear to bypass them.
+  The proper fix (route push descenders through one-per-lane + crossers through the latitude stagger) is in
+  complex shared director code where a blind change risks roster-wide regressions. Confirm it's the
+  side_traverse (crossing) variant globbing vs the descenders, and I'll route just those through the spread.
+
 **Music + HUD (cluster F+G):**
 - **Music ramp** logic tested (PASS): I1 open → I2 first wave → Main past wave 4 → ramp down on clear;
   +1 permanent step per boss (via Run.bosses_defeated floor). Eyeball/ear: confirm it ramps in real
