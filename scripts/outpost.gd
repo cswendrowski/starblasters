@@ -708,7 +708,10 @@ func _roll_offers() -> void:
 					picked_mk = owned_mk + 1
 					if "mark" in part:
 						part.mark = picked_mk
-			var key: String = "%d:%d:%s" % [slot, picked_mk, part_name]
+			# Dedupe by ITEM NAME alone (Roman 2026-06-10: "each item generated should be
+			# different") — the old slot:mk:name key let the same weapon appear at several
+			# marks in one shop (e.g. three Auto Lasers at Mk 3/2/1).
+			var key: String = part_name
 			if seen.has(key):
 				continue
 			# Task #6b: Own-better filter — reject if owned at same or higher mark.
