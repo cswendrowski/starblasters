@@ -49,6 +49,10 @@ const PHASE_AI_LIFETIME := 0.34
 const FOCUS_TRAIL_LEN := 18
 const HYPER_PULSE_HZ_SLOW := 2.0
 const HYPER_PULSE_HZ_FAST := 9.0
+# Modes ship is zoomed for inspection (native ship is 16px — the phase glow
+# halo and the 1px hyper outline are invisible at 1×). Same idea as the
+# Damage/Disintegrate tuners.
+const MODE_ZOOM := 3.0
 
 # Enemy bullet sprites for the glow showcase: {texture path, hframes}.
 const BULLETS := [
@@ -565,8 +569,9 @@ func _apply_glow_knobs() -> void:
 func _enter_modes() -> void:
 	_pm_home = Vector2(Playfield.CENTER.x, 135.0)
 	_pm_ship = _make_ship(_pm_home)
+	_pm_ship.scale = Vector2(MODE_ZOOM, MODE_ZOOM)
 
-	_hd_note("PLAYER MODE TELLS", _pm_home + Vector2(-34.0, -34.0))
+	_hd_note("PLAYER MODE TELLS (3x)", _pm_home + Vector2(-40.0, -46.0))
 
 	_knob_box.add_child(_label("Player Modes", FS_BODY, UiTheme.COLOR_ACCENT))
 	_knob_box.add_child(_label("The Shift-stance tells, matched to player.gd:\nFocus = slow + cyan glow + tint + trail + dot,\nPhase = blue glow + additive ghosts,\nHyper = ramping orange outline pulse.\nShip weaves so trail/ghosts read.", FS_CAPTION, UiTheme.COLOR_FAINT))
@@ -656,6 +661,7 @@ func _spawn_phase_ghost() -> void:
 	g.frame = src.frame
 	g.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	g.global_position = src.global_position
+	g.scale = _pm_ship.scale   # match the zoomed ship
 	g.modulate = Color(PHASE_GLOW_COLOR.r, PHASE_GLOW_COLOR.g, PHASE_GLOW_COLOR.b, 0.55)
 	g.z_index = -1
 	var m := CanvasItemMaterial.new()
