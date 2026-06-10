@@ -1515,9 +1515,13 @@ func _draw_minigun_tracer(from_pos: Vector2, to_pos: Vector2) -> void:
 	# the minigun_tracer sprite along its length so it reads as a STREAM of bullets, not a single
 	# streak. A fresh fading beam each shot (~20/s) overlaps into a shimmering continuous stream.
 	var beam := Line2D.new()
-	beam.width = float(_MINIGUN_TRACER_TEX.get_width())
+	beam.width = 3.0   # the minigun_tracer.png is 3×8; a 3px-wide line (Roman 2026-06-10)
 	beam.texture = _MINIGUN_TRACER_TEX
 	beam.texture_mode = Line2D.LINE_TEXTURE_TILE
+	# TILE only repeats if the CanvasItem's texture_repeat is ENABLED — without this the single
+	# 3×8 frame stretched the whole beam instead of tiling. NEAREST keeps the pixel art crisp.
+	beam.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+	beam.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	beam.z_index = 2
 	beam.z_as_relative = false
 	beam.add_point(from_pos)
