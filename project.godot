@@ -15,7 +15,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="Starblaster"
-config/version="0.1.114"
+config/version="0.1.115"
 run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
 run/max_fps=60
@@ -32,9 +32,9 @@ Settings="*res://scripts/settings.gd"
 
 window/size/viewport_width=480
 window/size/viewport_height=270
+window/size/borderless=true
 window/size/window_width_override=1920
 window/size/window_height_override=1080
-window/size/borderless=true
 window/stretch/mode="canvas_items"
 
 [editor_plugins]
