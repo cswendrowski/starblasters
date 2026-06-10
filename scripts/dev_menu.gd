@@ -89,6 +89,7 @@ func _build_ui() -> void:
 	_add_button("[ Lane Visualizer ]", _on_lane_visualizer, true)
 	_add_button("[ Parallax Tuner ]", _on_parallax_tuner, true)
 	_add_button("[ Asteroid Lab ]", _on_asteroid_lab, true)
+	_add_button("[ Shader Lab ]", _on_shader_lab, true)
 	_add_button("[ Sector Map HD Lab ]", _on_sector_map_hd_lab, true)
 	# Test launchers
 	_add_button("[ Test Combat ]", _on_test_combat, true)
@@ -127,6 +128,10 @@ func _on_enemy_bench() -> void:
 
 func _on_movement_lab() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/movement_lab.tscn")
+
+
+func _on_shader_lab() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/shader_lab.tscn")
 
 
 func _on_lane_visualizer() -> void:

@@ -19,6 +19,7 @@ $scenes = @(
   'res://scenes/dev/parallax_tuner.tscn',
   'res://scenes/dev/ui_designer.tscn',
   'res://scenes/dev/asteroid_lab.tscn',
+  'res://scenes/dev/shader_lab.tscn',
   'res://scenes/dev/ui_plotter.tscn',
   'res://scenes/dev/sector_map_hd_lab.tscn',
   'res://scenes/sector_map_hd.tscn',
