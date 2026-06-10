@@ -173,40 +173,46 @@ func set_context(context: String, options: Dictionary = {}) -> void:
 	var set_name: String = options.get("set_name", "")
 	if set_name == "" or not _sets.has(set_name):
 		set_name = _pick_set_for(context)
-	# Starting intensity: contexts that random-walk begin at 0; combat starts
-	# at 0; boss pins to 2 (Main).
-	_combat_target_idx = 0
-	_allow_main = (context != CTX_COMBAT)  # only combat gates Main
+	# Starting intensity: random-walk contexts begin at 0; boss pins Main (2); combat opens at the
+	# per-run intensity FLOOR (0 normally, +1 step per boss already beaten this run — permanent ramp).
 	var start_idx: int = 0
 	if context == CTX_BOSS:
 		start_idx = 2
+	elif context == CTX_COMBAT:
+		start_idx = _combat_floor()
+	_combat_target_idx = start_idx
+	_allow_main = (context != CTX_COMBAT) or start_idx >= 2  # only combat gates Main (until floor hits it)
 	_active_set = set_name
 	_active_idx = start_idx
 	_crossfade_to(set_name, start_idx, FADE_LEN)
 
 
-func set_combat_progress(wave_idx: int, total_waves: int, has_boss: bool) -> void:
-	# Roman, 2026-05-16: intensity ramps at the *middle* of the wave list,
-	# not gradually. Main stays gated until the boss actually spawns; without
-	# a boss combat caps at Intensity_2 — except on long levels (≥5 waves)
-	# where the final 2 waves lift to Main to give the ending extra energy.
-	#
-	# wave_idx is 0-based (director emits wi from score.waves iteration).
-	#
-	#   First half                        → Intensity_1 (0)
-	#   Second half                       → Intensity_2 (1)
-	#   Final 2 waves on ≥5-wave level    → Main (2), _allow_main lifted
-	#   Main (2) on shorter levels        → only via notify_boss_spawned()
+# Per-run combat intensity FLOOR: rises one step per boss beaten (Run.bosses_defeated), capped at
+# Main. Resets automatically on a new run (bosses_defeated resets). 0/1/2.
+func _combat_floor() -> int:
+	var run = get_node_or_null("/root/Run")
+	if run != null and "bosses_defeated" in run:
+		return clampi(int(run.bosses_defeated), 0, 2)
+	return 0
+
+
+func set_combat_progress(wave_idx: int, total_waves: int, _has_boss: bool) -> void:
+	# Roman 2026-06-10 ramp rules (the old midpoint walk "didn't ramp" because it only took effect at
+	# the next track-end). Combat opens at the per-run floor (I1 normally); the FIRST wave lifts to
+	# Intensity_2; PAST WAVE 4 (wave_idx >= 4 → the 5th wave on) lifts to Main. A boss pins Main via
+	# set_context("boss"). The change crossfades PROMPTLY, not at track end. wave_idx is 0-based.
 	if total_waves <= 0:
 		return
-	if total_waves >= 5 and wave_idx >= total_waves - 2:
-		_allow_main = true
-		_combat_target_idx = 2
-		return
-	var midpoint: int = int(floor(float(total_waves) / 2.0))
-	var target: int = 0 if wave_idx < midpoint else 1
-	_allow_main = false  # combat: Main is boss-only below the final-2 threshold
+	var target: int = 1                  # any wave arriving → Intensity_2
+	if wave_idx >= 4:
+		target = 2                       # past wave 4 → Main
+	target = maxi(target, _combat_floor())   # permanent per-boss floor
 	_combat_target_idx = target
+	_allow_main = (target >= 2)
+	# Ramp now (don't wait for the current track to finish) when the intensity actually changes.
+	if _context == CTX_COMBAT and _active_idx != target and _active_set != "":
+		_active_idx = target
+		_crossfade_to(_active_set, target, FADE_LEN)
 
 
 func notify_boss_spawned() -> void:

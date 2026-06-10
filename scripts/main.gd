@@ -412,6 +412,9 @@ func _on_player_damaged_stat(amount: int) -> void:
 
 
 func _on_level_cleared() -> void:
+	# Decompress the music to Intensity_1 the moment the level clears (Roman 2026-06-10 ramp).
+	if has_node("/root/Music"):
+		get_node("/root/Music").ramp_down()
 	if has_node("/root/Run"):
 		var run = get_node("/root/Run")
 		# Bump the per-sector combat count, but only for actual combat nodes —
