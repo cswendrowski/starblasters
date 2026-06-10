@@ -24,15 +24,7 @@ const LARGE_CLIPS := [
 	preload("res://Sound/weapons/player/blaster_large_3.ogg"),
 	preload("res://Sound/weapons/player/blaster_large_4.ogg"),
 ]
-const PULSE_CLIPS := [
-	preload("res://Sound/weapons/player/pulse_1.ogg"),
-	preload("res://Sound/weapons/player/pulse_2.ogg"),
-	preload("res://Sound/weapons/player/pulse_3.ogg"),
-	preload("res://Sound/weapons/player/pulse_4.ogg"),
-	preload("res://Sound/weapons/player/pulse_5.ogg"),
-]
-# Wave Gun. WAVE = Mk.1-4 small projectile; WAVE_BIG = Mk.5+ large wave
-# (wave_gun_cannon picks the kind by mark in _apply_visuals).
+# Wave Gun — single set for all marks (Roman 2026-06-09: no more Mk.5 swap).
 const WAVE_CLIPS := [
 	preload("res://Sound/weapons/player/wave_shoot_1.ogg"),
 	preload("res://Sound/weapons/player/wave_shoot_2.ogg"),
@@ -40,14 +32,6 @@ const WAVE_CLIPS := [
 	preload("res://Sound/weapons/player/wave_shoot_4.ogg"),
 	preload("res://Sound/weapons/player/wave_shoot_5.ogg"),
 	preload("res://Sound/weapons/player/wave_shoot_6.ogg"),
-]
-const WAVE_BIG_CLIPS := [
-	preload("res://Sound/weapons/player/wave_big_shoot_1.ogg"),
-	preload("res://Sound/weapons/player/wave_big_shoot_2.ogg"),
-	preload("res://Sound/weapons/player/wave_big_shoot_3.ogg"),
-	preload("res://Sound/weapons/player/wave_big_shoot_4.ogg"),
-	preload("res://Sound/weapons/player/wave_big_shoot_5.ogg"),
-	preload("res://Sound/weapons/player/wave_big_shoot_6.ogg"),
 ]
 # Rocket + missile live in the universal/ folder — shared by player AND enemies.
 const ROCKET_CLIPS := [
@@ -71,12 +55,8 @@ static func play(parent: Node, world_pos, kind: String) -> void:
 			pool = SMALL_CLIPS
 		"blaster_large":
 			pool = LARGE_CLIPS
-		"pulse":
-			pool = PULSE_CLIPS
 		"wave":
 			pool = WAVE_CLIPS
-		"wave_big":
-			pool = WAVE_BIG_CLIPS
 		"rocket":
 			pool = ROCKET_CLIPS
 		"missile":

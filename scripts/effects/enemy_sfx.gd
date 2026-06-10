@@ -17,22 +17,22 @@ class_name EnemySfx
 # auto-freeing on `finished`. That gives natural polyphony for rapid fire.
 
 const BLASTER_CLIPS := [
-	preload("res://Sound/weapons/enemy/enemy_blaster_1.wav"),
-	preload("res://Sound/weapons/enemy/enemy_blaster_2.wav"),
-	preload("res://Sound/weapons/enemy/enemy_blaster_3.wav"),
-	preload("res://Sound/weapons/enemy/enemy_blaster_4.wav"),
-	preload("res://Sound/weapons/enemy/enemy_blaster_5.wav"),
-	preload("res://Sound/weapons/enemy/enemy_blaster_6.wav"),
-	preload("res://Sound/weapons/enemy/enemy_blaster_7.wav"),
-	preload("res://Sound/weapons/enemy/enemy_blaster_8.wav"),
+	preload("res://Sound/weapons/enemy/enemy_blaster_1.ogg"),
+	preload("res://Sound/weapons/enemy/enemy_blaster_2.ogg"),
+	preload("res://Sound/weapons/enemy/enemy_blaster_3.ogg"),
+	preload("res://Sound/weapons/enemy/enemy_blaster_4.ogg"),
+	preload("res://Sound/weapons/enemy/enemy_blaster_5.ogg"),
+	preload("res://Sound/weapons/enemy/enemy_blaster_6.ogg"),
+	preload("res://Sound/weapons/enemy/enemy_blaster_7.ogg"),
+	preload("res://Sound/weapons/enemy/enemy_blaster_8.ogg"),
 ]
 const MG_CLIPS := [
-	preload("res://Sound/weapons/enemy/enemy_mg_1.wav"),
-	preload("res://Sound/weapons/enemy/enemy_mg_2.wav"),
-	preload("res://Sound/weapons/enemy/enemy_mg_3.wav"),
-	preload("res://Sound/weapons/enemy/enemy_mg_4.wav"),
-	preload("res://Sound/weapons/enemy/enemy_mg_5.wav"),
-	preload("res://Sound/weapons/enemy/enemy_mg_6.wav"),
+	preload("res://Sound/weapons/enemy/enemy_mg_1.ogg"),
+	preload("res://Sound/weapons/enemy/enemy_mg_2.ogg"),
+	preload("res://Sound/weapons/enemy/enemy_mg_3.ogg"),
+	preload("res://Sound/weapons/enemy/enemy_mg_4.ogg"),
+	preload("res://Sound/weapons/enemy/enemy_mg_5.ogg"),
+	preload("res://Sound/weapons/enemy/enemy_mg_6.ogg"),
 ]
 
 const DEFAULT_KIND := "enemy_blaster"

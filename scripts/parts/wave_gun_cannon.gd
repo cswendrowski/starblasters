@@ -79,9 +79,9 @@ func _scene_for_mark(at_mark: int) -> PackedScene:
 # @export write so a .tres-pinned scene doesn't bypass the Mk.5 switch.
 func _apply_visuals(ship) -> void:
 	ship.weapon_style = _weapon_style()
-	# The fire sound tracks the projectile: Mk.5+ fires the large wave
-	# (see _scene_for_mark) and gets the beefier wave_big_shoot clips.
-	ship.fire_sfx_kind = WS.FireSfxKind.WAVE_BIG if int(mark) >= 5 else WS.FireSfxKind.WAVE
+	# Single wave audio set for every mark now (Roman 2026-06-09: no Mk.5 audio swap).
+	# The projectile still upgrades at Mk.5 (_scene_for_mark) — only the sound is unified.
+	ship.fire_sfx_kind = WS.FireSfxKind.WAVE
 
 
 func _max_hits_for_mark(at_mark: int) -> int:
