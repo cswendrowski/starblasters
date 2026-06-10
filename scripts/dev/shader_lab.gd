@@ -255,8 +255,33 @@ func _build_playspace() -> void:
 	# SubViewportContainer(stretch=true) RESIZED the viewport to 1920×1080 and
 	# left the 480-coord stage content tiny in the top-left corner — the same
 	# bug the hangar/shipyard hit (see hangar.gd _build_playspace).
-	var root := Node2D.new()
-	root.name = "Playspace"
+	# Render via a SubViewportContainer that draws the viewport canvas DIRECTLY,
+	# with a 4× content root so the 480-authored coords fill the stretched
+	# 1920×1080 viewport at HIGH resolution. The earlier add_upscaled_backdrop
+	# path rendered at native 480×270 then NEAREST-upscaled 4× through a
+	# ViewportTexture — which both BLOCKED/blurred the diffuse glow_halo AND
+	# mis-composited additive blends (the same bug the hangar V6 hit). At 1920-res
+	# the glow's LINEAR filter stays smooth while pixel-art sprites keep their own
+	# NEAREST crispness — matching the game's canvas_items look (Roman 2026-06-10).
+	var sub_container := SubViewportContainer.new()
+	sub_container.stretch = true
+	sub_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	sub_container.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	sub_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(sub_container)
+
+	_preview_vp = SubViewport.new()
+	_preview_vp.size = Vector2i(480, 270)  # stretch=true resizes this to 1920×1080
+	_preview_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_preview_vp.handle_input_locally = false
+	_preview_vp.use_hdr_2d = true  # screen_glow + bloom-env modes need HDR
+	sub_container.add_child(_preview_vp)
+
+	# 4× content root — 480-authored coords map onto the 1920×1080 viewport at HD.
+	var hi := Node2D.new()
+	hi.name = "HiRes"
+	hi.scale = Vector2(4, 4)
+	_preview_vp.add_child(hi)
 
 	# Background fills sit at a deeply NEGATIVE z so they never occlude effects
 	# that legitimately draw behind their host sprite — the phase glow (z -1),
@@ -266,23 +291,17 @@ func _build_playspace() -> void:
 	gutter.color = Color(0.04, 0.05, 0.08, 1.0)
 	gutter.size = Vector2(480, 270)
 	gutter.z_index = -101
-	root.add_child(gutter)
+	hi.add_child(gutter)
 	var band := ColorRect.new()
 	band.color = Color(0.07, 0.09, 0.13, 1.0)
 	band.position = Vector2(Playfield.X_MIN, 0)
 	band.size = Vector2(Playfield.W, Playfield.H)
 	band.z_index = -100
-	root.add_child(band)
+	hi.add_child(band)
 
 	_stage = Node2D.new()
 	_stage.name = "Stage"
-	root.add_child(_stage)
-
-	_preview_vp = HdScreen.add_upscaled_backdrop(self, root, Vector2i(480, 270))
-	# HDR 2D so the screen_glow shader + WorldEnvironment bloom actually work in
-	# this SubViewport (the project setting only covers the root viewport; a
-	# manually-built SubViewport needs it set explicitly).
-	_preview_vp.use_hdr_2d = true
+	hi.add_child(_stage)
 
 
 # ---- Overlay UI ----------------------------------------------------------
