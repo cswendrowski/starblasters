@@ -1511,21 +1511,26 @@ func _fire_minigun_hitscan() -> void:
 const _MINIGUN_TRACER_TEX = preload("res://graphics/projectiles/minigun_tracer.png")
 
 func _draw_minigun_tracer(from_pos: Vector2, to_pos: Vector2) -> void:
-	# The "beam of bullets" (Roman): a Line2D from muzzle to the hit point (or off the top), tiling
-	# the minigun_tracer sprite along its length so it reads as a STREAM of bullets, not a single
-	# streak. A fresh fading beam each shot (~20/s) overlaps into a shimmering continuous stream.
-	var beam := Line2D.new()
-	beam.width = 3.0   # the minigun_tracer.png is 3×8; a 3px-wide line (Roman 2026-06-10)
+	# The "beam of bullets" (Roman): the minigun_tracer (3×8) tiled VERTICALLY up the column as
+	# distinct 8px-tall bullets. A REGION-tiled Sprite2D keeps the sprite UPRIGHT — a Line2D maps the
+	# texture's width along the beam and would squish the 8px height across the 3px width. The region
+	# is the full beam length and the texture repeats to fill it, so the 8px frame is the tile period.
+	# The beam is vertical (the caller passes a straight-up endpoint). Fresh fading beam per shot
+	# (~20/s) reads as a continuous stream.
+	var top_y: float = minf(from_pos.y, to_pos.y)
+	var length: float = absf(from_pos.y - to_pos.y)
+	if length < 1.0:
+		return
+	var beam := Sprite2D.new()
 	beam.texture = _MINIGUN_TRACER_TEX
-	beam.texture_mode = Line2D.LINE_TEXTURE_TILE
-	# TILE only repeats if the CanvasItem's texture_repeat is ENABLED — without this the single
-	# 3×8 frame stretched the whole beam instead of tiling. NEAREST keeps the pixel art crisp.
-	beam.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
-	beam.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	beam.centered = false
+	beam.region_enabled = true
+	beam.region_rect = Rect2(0.0, 0.0, 3.0, length)   # 3px wide × full length; texture tiles to fill it
+	beam.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED   # required for the region to TILE (not clamp)
+	beam.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST   # crisp pixels
+	beam.position = Vector2(from_pos.x - 1.5, top_y)  # 3px wide, centred on the column x
 	beam.z_index = 2
 	beam.z_as_relative = false
-	beam.add_point(from_pos)
-	beam.add_point(to_pos)
 	var parent: Node = get_parent() if get_parent() != null else get_tree().root
 	parent.add_child(beam)
 	# Fade and disappear quickly.
