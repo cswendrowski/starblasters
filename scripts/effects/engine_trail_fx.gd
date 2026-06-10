@@ -18,13 +18,20 @@ var _lines: Array = []        # Array[Line2D], parallel to _markers (world-space
 var _point_t: Array = []      # Array[Array[float]], point ages per line
 var _enemy: Node2D = null
 var _emitting: bool = true
+# Downward exhaust drift (px/s). Enemies leave 0 — they physically translate, so their motion
+# streaks the trail on its own. The PLAYER hovers (the world scrolls past it, not vice-versa), so
+# without a drift its points pile up behind the ship and read as nothing; a downward drift makes
+# the exhaust stream back into a visible plume, matching the enemy streak style.
+var _drift: float = 0.0
 
 
 # Build one world-space trail line per engine marker. Call right after add_child. `color` lets a
-# non-enemy host (the player) reuse this exact trail style in a different hue.
-func setup(enemy: Node2D, markers: Array, color: Color = TRAIL_COLOR) -> void:
+# non-enemy host (the player) reuse this exact trail style in a different hue; `drift` streams the
+# exhaust downward for a hovering host (see _drift).
+func setup(enemy: Node2D, markers: Array, color: Color = TRAIL_COLOR, drift: float = 0.0) -> void:
 	_enemy = enemy
 	_markers = markers
+	_drift = drift
 	var root: Node = get_tree().current_scene
 	if root == null:
 		root = get_tree().root
@@ -79,6 +86,13 @@ func _process(delta: float) -> void:
 		while ages.size() > 0 and float(ages[0]) >= POINT_LIFETIME:
 			line.remove_point(0)
 			ages.pop_front()
+		# Stream already-emitted points downward (engine exhaust drifting back). No-op for enemies
+		# (drift 0). Applied in the line's local space, which is identity-to-world (lines parent to
+		# the combat scene root), so +Y is screen-down.
+		if _drift != 0.0:
+			var dy: float = _drift * delta
+			for j in line.get_point_count():
+				line.set_point_position(j, line.get_point_position(j) + Vector2(0.0, dy))
 		if not _emitting:
 			continue
 		var mk: Node2D = _markers[i]

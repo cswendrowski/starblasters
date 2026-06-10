@@ -395,6 +395,7 @@ func _ready() -> void:
 	start()
 
 const ENGINE_GLOW_COLOR := Color(0.0, 0.827, 1.0)   # #00d3ff (engine glowmask + trails)
+const PLAYER_TRAIL_DRIFT := 160.0                    # px/s downward exhaust drift (hovering plume)
 
 
 # Wire up the new ship-art layers (Roman 2026-06-09): engine glowmask tint, the two #00d3ff
@@ -420,7 +421,9 @@ func _setup_ship_visuals() -> void:
 		var EngineTrailFx = preload("res://scripts/effects/engine_trail_fx.gd")
 		var trail = EngineTrailFx.new()
 		add_child(trail)
-		trail.setup(self, markers, ENGINE_GLOW_COLOR)
+		# Drift the exhaust downward: the player hovers (the world scrolls past), so without it the
+		# trail piles up behind the ship and is invisible. ~160 px/s reads as a steady blue plume.
+		trail.setup(self, markers, ENGINE_GLOW_COLOR, PLAYER_TRAIL_DRIFT)
 	_apply_livery_color()
 
 
