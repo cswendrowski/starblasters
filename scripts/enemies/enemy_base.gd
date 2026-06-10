@@ -315,6 +315,11 @@ func _flash_hit() -> void:
 func take_hit(damage: int = 1) -> bool:
 	if _dying:
 		return false
+	# Off-screen / recycling enemies are not valid targets — a bullet or bomb wave shouldn't kill an
+	# enemy that's mid-parallax-flyback or fully off the screen (Roman 2026-06-10). They re-arm as
+	# targets the moment they re-enter. (Bullets route here; the smart-bomb wave guards separately.)
+	if is_recycling() or is_fully_offscreen():
+		return false
 	# Shields are unified onto ShieldComponent (shield_unification_2026-06-08.md): the
 	# simple max_shield/shield charge is retired, so all hits flow through the component
 	# pipeline (_components_hit) where a ShieldComponent — if present — absorbs them.
@@ -502,6 +507,16 @@ func _spawn_debris_piece(parent: Node, world_pos: Vector2, scale_factor: float) 
 # ends with a recycler still on-screen. (Roman 2026-06-01)
 func is_recycling() -> bool:
 	return false
+
+
+# True when the enemy is fully outside the visible viewport (by offscreen_margin on any edge) — used
+# to reject hits on enemies that aren't on screen (entry-band above the top, exited below/side).
+func is_fully_offscreen() -> bool:
+	if not is_inside_tree():
+		return false
+	var vp: Vector2 = get_viewport_rect().size
+	var m: float = offscreen_margin
+	return position.y < -m or position.y > vp.y + m or position.x < -m or position.x > vp.x + m
 
 
 # Cheap player lookup. Returns null if the player isn't in the scene tree
