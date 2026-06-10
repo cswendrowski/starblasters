@@ -145,7 +145,19 @@ Legend: ⮕ reuse/extend target. ⚠ risk/needs-eyeball. 🔧 dev-tool opportuni
 ---
 
 ## Needs-Roman (eyeball / playtest / decisions) — running
-**Weapons (cluster B):**
+**New weapons (cluster B) — playtest the FEEL (can't verify unattended):**
+- **Autocannon** (replaces Machinegun in the pool): 1.5s spin-up (start sound) before it fires, stop
+  sound on release; re-press = full re-spin. `AC_SPIN_TIME` in player.gd is the tunable. Same bullets/
+  damage/scaling/orange-muzzle/shell as the old MG. _Edge: if ammo hits 0 while held, the stop sound
+  waits until you release — minor._
+- **Minigun** (new): hitscan, ~20/s (rotary rate), hits the FIRST enemy in a **±6px column** straight up,
+  flat 5 dmg, MG muzzle/shell + minigun_tracer. **Two tuning items I flagged (not blind-tweaked):**
+  (1) the tracer only draws when it HITS something — you may want the bullet-stream tracer to always
+  show while firing; (2) the ±6px column tests enemy *center* (ignores enemy width) so it can feel like
+  it misses wide enemies — widening to `±6 + enemy_half_width` would help. Say the word and I'll adjust.
+- Machinegun Cannon is **retired from the roll/shop pool** (its assets remain for Autocannon/Minigun).
+
+**Weapons (cluster B) — cannon/rotary:**
 - **Enemy cannon "glow on entire sprite" — needs your eyeball.** Hard numbers from `test_cannon_render`:
   both cannon bullets (burst_round + heavy_slug) now ANIMATE (playing=true), slice to 16×16, and the
   ShaderGlow node's texture is **16×16 = one frame, NOT the 32px whole sheet**. So in code the glow IS
@@ -180,6 +192,11 @@ Legend: ⮕ reuse/extend target. ⚠ risk/needs-eyeball. 🔧 dev-tool opportuni
 - **O** Renderer pivot — HELD for attended session.
 
 ## Running log
+- 2026-06-10 — **Cluster B weapons DONE**. Rotary Mk.5+ bolt swap + gunship heavy_slug frame_count fix
+  (`7eb22da`, me). Minigun (hitscan) + Autocannon (spin-up, replaces MG) built by code-editor subagent
+  (`4cf8ef7`/`d2fc258`/`4d6e4b3`/`44ec2af`), reviewed + verified: parse-clean, boot exit 0, all weapon
+  tests PASS. Firing-state review confirmed spin-up gate + hitscan are structurally correct. Feel/timing
+  + the two minigun tuning items in Needs-Roman await playtest.
 - 2026-06-10 — **Cluster A audio rewire DONE** (`09229a7`). New SFX wired: Auto Laser + Spread Cannon
   fire sounds; smart-bomb sweetener; outpost equip/unequip/upgrade/repair (new `outpost_sfx.gd`);
   distance-based explosion system (new `explosion_sfx.gd`, Close/Medium/Distant → `ExplosionFx`).
