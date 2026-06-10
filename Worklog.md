@@ -271,6 +271,19 @@ unit-tested.
 - **O** Renderer pivot — HELD for attended session.
 
 ## Running log
+- 2026-06-10 — **EM Torpedo / wreck polish pass** (`4a320b0`, from Roman's first eyeball): (1) torpedo
+  detonates on enemy contact OR at the fire-zone top (Zones.ENTRY_END=40); (2) mid-depth recession
+  (scale to 0.72 ≈ half the recycle shrink + slight darken) is now a core wreck-layer function;
+  (3) black outline FADES out as the hull recedes (was vanishing instantly); (4) enemy motion is
+  preserved into the wreck then curves into a fall with an eased-in tumble (new per-frame velocity
+  track in enemy_core); (5) EM-killed hulls show heavy damage (sensitivity 0.75) instead of pure
+  white — the white was the hit-flash tween freezing when the enemy freed mid-flash; also drops the
+  ground shadow. **Open call for Roman:** the literal `depth_tint` mid-depth SHADER can't coexist with
+  the damage-overlay shader (one material slot, and #5 needs damage) — so depth here is scale + the
+  layer's near-grade modulate. If you want the depth_tint look specifically, it's mutually exclusive
+  with the heavy-damage look and we pick one. **NOTE:** another session is editing shader_lab.gd /
+  ember_fx (broken WIP in the tree) — the parse gate shows 1 compile fail (their file); all my files
+  compile clean (274 checked, 1 fail = shader_lab). Left their files untouched + unstaged.
 - 2026-06-10 — **wreck_layer + EM Torpedo BUILT (test-gated)** (`9d99405`, local on main, unpushed).
   World-space wreck layer (graded to the near parallax band, created empty every combat) + a new
   HARDPOINT_WING secondary, the EM Torpedo: large dumb-fire rocket → blue-yellow chain-lightning
