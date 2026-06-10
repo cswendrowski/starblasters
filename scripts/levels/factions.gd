@@ -161,6 +161,10 @@ static func build_components(id: int) -> Array:
 			em.trigger = EmitterComponent.Trigger.DEATH
 			em.count = 1
 			em.chance = 0.35   # drops a firecore by chance on death (§8)
+			# Tag drives the death-explosion routing (enemy_base.explode: firecore dropped ->
+			# normal explosion, no drop -> ball). Without it the overlay path misclassified
+			# every faction-driven drop (review fix 2026-06-10).
+			em.tag = "firecore"
 			if ResourceLoader.exists(FIRECORE_HAZARD_PATH):
 				em.payload = load(FIRECORE_HAZARD_PATH)
 			out.append(em)

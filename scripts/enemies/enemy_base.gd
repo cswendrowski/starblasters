@@ -366,12 +366,15 @@ func explode() -> void:
 	set_deferred("monitorable", false)
 	died.emit(bounty_value)
 	_components_death()
-	# Zealot enemies with firecore drops: use "ball" explosion if no firecore was
-	# dropped, else "default". Check this AFTER _components_death() fires the emitters.
-	if did_emit_tagged("firecore"):
-		explosion_variant = "default"
-	elif explosion_variant == "default" and has_meta("may_drop_firecore"):
-		explosion_variant = "ball"
+	# Firecore-dropper explosion routing (Roman 2026-06-10): any enemy CARRYING a
+	# firecore-tagged emitter (zealot in-scene components AND the zealot faction overlay
+	# added at spawn) plays the "ball" explosion when it dies WITHOUT dropping a core, and
+	# the normal explosion when a core drops. Detected off the tagged component itself —
+	# not scene metadata — so the faction-overlay path routes correctly (review fix
+	# 2026-06-10; the old has_meta check missed overlay-only droppers). Must run AFTER
+	# _components_death() fires the emitters.
+	if _has_emitter_tagged("firecore"):
+		explosion_variant = "default" if did_emit_tagged("firecore") else "ball"
 	# Explosions are always 1× scale; bigger enemies just get MORE blasts
 	# with random jitter (Roman 2026-05-18). 16-px chaff = 1, 48-px boss-
 	# class = ~4-5, clamped to a sane upper bound.
@@ -584,8 +587,18 @@ func _components_leave() -> void:
 			c.on_leave(self)
 
 
+# True if this enemy CARRIES a tagged EmitterComponent (e.g. "firecore") — regardless of
+# whether it has emitted. Drives the dropper-explosion routing in explode().
+func _has_emitter_tagged(tag: String) -> bool:
+	for c in _components:
+		if "tag" in c and "payload" in c and String(c.get("tag", "")) == tag:
+			return true
+	return false
+
+
 # Check if a tagged EmitterComponent (e.g. "firecore") successfully emitted on_death.
-# Used by zealot enemies to decide explosion variant.
+# Used by the explosion-variant routing. (on_death always writes _last_emit_succeeded
+# fresh — true on a successful roll, false otherwise — so this is never stale.)
 func did_emit_tagged(tag: String) -> bool:
 	for c in _components:
 		if "tag" in c and "payload" in c and "_last_emit_succeeded" in c:

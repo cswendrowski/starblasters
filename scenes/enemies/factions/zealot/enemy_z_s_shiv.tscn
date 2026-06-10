@@ -24,7 +24,6 @@ size = Vector2(16.375, 16)
 script = ExtResource("1_85tob")
 movement = SubResource("MovePattern")
 components = [SubResource("DropFirecore")]
-metadata/may_drop_firecore = true
 
 [node name="FirecoreCore" parent="." unique_id=1518576690 instance=ExtResource("5_38u3h")]
 
