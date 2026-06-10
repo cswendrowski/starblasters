@@ -123,3 +123,4 @@ renderer/rendering_method="forward_plus"
 textures/vram_compression/import_s3tc_bptc=true
 textures/vram_compression/import_etc2_astc=true
 2d/snap/snap_2d_transforms_to_pixel=true
+viewport/hdr_2d=true

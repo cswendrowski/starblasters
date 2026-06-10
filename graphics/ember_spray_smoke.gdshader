@@ -1,15 +1,19 @@
 shader_type particles;
 
-// Ember spray — SMOKE-TAIL variant (Roman 2026-06-10). Same launch + cooling
-// as ember_spray.gdshader, but instead of fading out shortly after charring,
-// each ember drops to a dim smoke grey and LINGERS for most of its (longer)
-// life, slowly fading — so the spray leaves a hanging tail of smoke after the
-// fire dies. Drag bleeds the velocity so the late smoke reads as a drifting
-// dot, not a streak.
+// Ember spray — SMOKE-TAIL variant (Roman 2026-06-10, reworked).
+// Each ember is a streak that behaves in two phases over its life:
 //
-// Two phases over life:
-//   [0 .. cool_end]  burn  — white → yellow → orange → red → char, alpha ~1
-//   [cool_end .. 1]  smoke — dim grey, alpha smoke_alpha fading slowly to 0
+//   TRAVEL  (life < travel_frac): the leading tip flies outward, WHITE-HOT the
+//           whole way, full alpha. The stretched streak is the trail and it
+//           persists (doesn't fade) for the entire travel.
+//   SETTLE  (life >= travel_frac): the tip has reached its endpoint — velocity
+//           is zeroed and the streak FREEZES in place (its basis is simply left
+//           untouched). Only NOW does the colour fade off white through
+//           yellow → orange → red → char → smoke, and the whole frozen trail
+//           fades out together.
+//
+// So: white tip for all of travel, colours only after the endpoint, and the
+// trail lasts until the tip lands and then fades as one.
 
 uniform float direction_angle = -1.570796; // radians; -PI/2 = screen-up
 uniform float spread_deg : hint_range(0.0, 180.0) = 35.0;
@@ -19,17 +23,16 @@ uniform float drag : hint_range(0.0, 10.0) = 2.6;
 uniform float gravity_y = 30.0;
 uniform float streak_sec : hint_range(0.0, 0.2) = 0.05;
 uniform float thickness = 1.0;
-uniform float cool_bias : hint_range(0.0, 1.0) = 0.55;
 uniform float lifetime_rand : hint_range(0.0, 1.0) = 0.4;
-// Life fraction at which the ember has fully charred and the smoke phase begins.
-// Small value = short flame, long smoke tail.
-uniform float cool_end : hint_range(0.1, 0.9) = 0.34;
-// Smoke colour + how opaque the lingering smoke starts (it fades to 0 by death).
+// Fraction of life spent travelling (white) before the tip lands and settles.
+uniform float travel_frac : hint_range(0.1, 0.95) = 0.5;
+// Where in the settle phase the trail starts fading (0 = fade immediately).
+uniform float fade_hold : hint_range(0.0, 0.9) = 0.15;
+// Smoke grey the char drifts toward at the very end.
 uniform vec3 smoke_color : source_color = vec3(0.10, 0.095, 0.09);
-uniform float smoke_alpha : hint_range(0.0, 1.0) = 0.42;
 
-// fade_start kept for API parity with the other ember variants (unused detail
-// here — the smoke phase owns the long fade).
+// kept for API parity with the other variants (unused here)
+uniform float cool_bias : hint_range(0.0, 1.0) = 0.55;
 uniform float fade_start : hint_range(0.0, 1.0) = 0.78;
 
 uniform float stop_yellow = 0.16;
@@ -55,6 +58,7 @@ float rand01(inout uint seed) {
 	return float(seed % uint(65536)) / 65535.0;
 }
 
+// White → yellow → orange → red → char.
 vec3 ramp(float t) {
 	if (t < stop_yellow) {
 		return mix(C_WHITE, C_YELLOW, t / max(stop_yellow, 0.001));
@@ -96,28 +100,25 @@ void process() {
 		ACTIVE = false;
 	}
 
-	VELOCITY.xy *= max(0.0, 1.0 - drag * DELTA);
-	VELOCITY.y += gravity_y * DELTA;
-
-	float cool_rate = mix(1.0, mix(0.7, 1.6, CUSTOM.x), cool_bias);
-	vec3 col;
-	float a;
-	if (life < cool_end) {
-		// Burn: cool white → char over the short flame phase.
-		float ct = clamp((life / max(cool_end, 0.001)) * cool_rate, 0.0, 1.0);
-		col = ramp(ct);
-		a = 1.0;
+	if (life < travel_frac) {
+		// TRAVEL: keep flying, white-hot, opaque. Streak stretched by velocity.
+		VELOCITY.xy *= max(0.0, 1.0 - drag * DELTA);
+		VELOCITY.y += gravity_y * DELTA;
+		float spd = length(VELOCITY.xy);
+		vec2 dir = (spd > 0.5) ? VELOCITY.xy / spd : vec2(1.0, 0.0);
+		float len_px = max(thickness, spd * streak_sec);
+		TRANSFORM[0].xyz = vec3(dir * (len_px * 0.5), 0.0);
+		TRANSFORM[1].xyz = vec3(vec2(-dir.y, dir.x) * (thickness * 0.5), 0.0);
+		COLOR = vec4(C_WHITE, 1.0);
 	} else {
-		// Smoke: dim grey lingering, slow linear fade across the long tail.
-		float st = (life - cool_end) / max(1.0 - cool_end, 0.001);
-		col = smoke_color;
-		a = smoke_alpha * (1.0 - st);
+		// SETTLE: the tip has reached its endpoint. Stop dead and leave the
+		// streak basis (TRANSFORM[0]/[1]) frozen — the trail holds its shape.
+		// Now run the colour ramp off white and fade the whole trail out.
+		VELOCITY = vec3(0.0);
+		float sp = clamp((life - travel_frac) / max(1.0 - travel_frac, 0.001), 0.0, 1.0);
+		vec3 col = ramp(sp);
+		col = mix(col, smoke_color, smoothstep(0.7, 1.0, sp));
+		float a = 1.0 - smoothstep(fade_hold, 1.0, sp);
+		COLOR = vec4(col, a);
 	}
-	COLOR = vec4(col, a);
-
-	float spd = length(VELOCITY.xy);
-	vec2 dir = (spd > 0.5) ? VELOCITY.xy / spd : vec2(1.0, 0.0);
-	float len_px = max(thickness, spd * streak_sec);
-	TRANSFORM[0].xyz = vec3(dir * (len_px * 0.5), 0.0);
-	TRANSFORM[1].xyz = vec3(vec2(-dir.y, dir.x) * (thickness * 0.5), 0.0);
 }

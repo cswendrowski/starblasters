@@ -263,6 +263,10 @@ func _build_playspace() -> void:
 	root.add_child(_stage)
 
 	_preview_vp = HdScreen.add_upscaled_backdrop(self, root, Vector2i(480, 270))
+	# HDR 2D so the screen_glow shader + WorldEnvironment bloom actually work in
+	# this SubViewport (the project setting only covers the root viewport; a
+	# manually-built SubViewport needs it set explicitly).
+	_preview_vp.use_hdr_2d = true
 
 
 # ---- Overlay UI ----------------------------------------------------------
