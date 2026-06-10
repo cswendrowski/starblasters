@@ -49,6 +49,16 @@ func fade_in(duration: float = 0.5) -> void:
 	tw.tween_method(set_glow_alpha, _alpha, 1.0, maxf(duration, 0.01))
 
 
+# Kill the glow instantly on mine death — hide the additive mask + halo so they
+# don't linger over the explosion. (enemy_base's _fade_death_overlays calls this
+# for any GravityGlow child.)
+func stop() -> void:
+	if _mask != null and is_instance_valid(_mask):
+		_mask.visible = false
+	if _halo != null and is_instance_valid(_halo):
+		_halo.visible = false
+
+
 func _apply_alpha() -> void:
 	if _mask != null and is_instance_valid(_mask):
 		_mask.modulate = Color(_color.r, _color.g, _color.b, _alpha)

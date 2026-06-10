@@ -44,6 +44,7 @@ func explode() -> void:
 	_dying = true
 	set_deferred("monitorable", false)
 	died.emit(bounty_value)
+	_fade_death_overlays()   # drop glow-mask / outline / centre-blink instantly so only the body burns
 	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
 	ExplosionFx.play(global_position, 1.0)
 	var MineSfx = load("res://scripts/effects/mine_sfx.gd")

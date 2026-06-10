@@ -24,16 +24,16 @@ func _process(_dt: float) -> bool:
 		sz = (cs.shape as RectangleShape2D).size
 	if sz != Vector2(6, 16):
 		lines.append("FAIL cannon hitbox %s != (6, 16)" % str(sz)); fails += 1
-	# random_frame: the cannon picks ONE random frame and stops (not animated), so the static
-	# glow snapshot matches the shown frame. Confirm it's stopped on a valid frame.
+	# random_frame=false (Roman 2026-06-09): the cannon ANIMATES its 2-frame loop (was wrongly
+	# frozen on a random frame). Confirm it's playing on a valid frame; the glow node frame-crops.
 	var asp = b.get_node_or_null("AnimatedSprite2D")
-	var playing = true
+	var playing = false
 	var frame_idx = -1
 	if asp != null:
 		playing = asp.is_playing()
 		frame_idx = asp.frame
-	if playing:
-		lines.append("FAIL cannon is animating (random_frame should stop it)"); fails += 1
+	if not playing:
+		lines.append("FAIL cannon is not animating (random_frame=false should play it)"); fails += 1
 	if frame_idx < 0 or frame_idx > 1:
 		lines.append("FAIL cannon frame %d out of range" % frame_idx); fails += 1
 	var glow = b.get_node_or_null("ShaderGlow")

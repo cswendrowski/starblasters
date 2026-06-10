@@ -113,6 +113,7 @@ func explode() -> void:
 	_dying = true
 	set_deferred("monitorable", false)
 	died.emit(bounty_value)
+	_fade_death_overlays()   # drop glow-mask / gravity glow / outline / centre-blink instantly
 	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
 	ExplosionFx.burst(global_position, 2, 8.0, 0.05)
 	var MineSfx = load("res://scripts/effects/mine_sfx.gd")

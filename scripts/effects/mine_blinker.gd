@@ -56,6 +56,17 @@ func _process(delta: float) -> void:
 		_glow.modulate = Color(1.0, 1.0, 1.0, a)
 
 
+# Kill the blink instantly on mine death — hide the dot + glow and stop the
+# per-frame pulse so neither lingers over the explosion. (enemy_base's
+# _fade_death_overlays calls this for any MineBlinker child.)
+func stop() -> void:
+	set_process(false)
+	if _dot != null and is_instance_valid(_dot):
+		_dot.visible = false
+	if _glow != null and is_instance_valid(_glow):
+		_glow.visible = false
+
+
 func _find_player() -> Node2D:
 	var tree := get_tree()
 	if tree == null:

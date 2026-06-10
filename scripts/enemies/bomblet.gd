@@ -186,6 +186,7 @@ func explode() -> void:
 	_dying = true
 	set_deferred("monitorable", false)
 	died.emit(bounty_value)
+	_clear_held_glow()   # if shot while orbiting a Gravity Mine, drop the #c73bff glow instantly
 	# Explosive impact flash (Roman, 2026-05-17 sprite pass) layered on
 	# top of the existing fiery explosion for the warhead detonation read.
 	var ImpactFxCls = load("res://scripts/effects/impact_fx.gd")

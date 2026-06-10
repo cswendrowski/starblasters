@@ -412,9 +412,19 @@ func explode() -> void:
 # Fade out the overlay sprites that AREN'T the burning hull — glow mask, the 1px
 # outline, and any decorative firecore cores — so none of them linger after death.
 # Fast (0.15s) so they're gone almost immediately while the body disintegrates.
+const _MineBlinkerScript = preload("res://scripts/effects/mine_blinker.gd")
+const _GravityGlowScript = preload("res://scripts/effects/gravity_glow.gd")
+
 func _fade_death_overlays() -> void:
 	const OVERLAY_FADE := 0.15
 	for child in get_children():
+		# Effect nodes that own multiple sub-visuals + per-frame logic (mine centre
+		# blink, gravity glow) can't be killed by a single modulate tween — stop()
+		# them instantly so neither lingers over the explosion.
+		var scr: Script = child.get_script()
+		if scr == _MineBlinkerScript or scr == _GravityGlowScript:
+			child.stop()
+			continue
 		if not (child is CanvasItem):
 			continue
 		var nm: String = String(child.name)

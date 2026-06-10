@@ -81,6 +81,7 @@ func explode() -> void:
 	# Free the shield ring instantly so it doesn't linger over the explosion (this explode()
 	# doesn't call super.explode(), so fire the component death hook by hand).
 	_components_death()
+	_fade_death_overlays()   # drop outline / centre-blink instantly so only the body burns
 	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
 	ExplosionFx.play(global_position, 1.0)
 	var MineSfx = load("res://scripts/effects/mine_sfx.gd")

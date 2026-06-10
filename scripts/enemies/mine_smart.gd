@@ -78,6 +78,7 @@ func explode() -> void:
 	_dying = true
 	set_deferred("monitorable", false)
 	died.emit(bounty_value)
+	_fade_death_overlays()   # drop outline / centre-blink instantly so only the body burns
 	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
 	# Armed/chasing mines pop with a 2nd jitter blast; dormant a single 1×.
 	if _armed:
