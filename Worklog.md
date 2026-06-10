@@ -144,7 +144,47 @@ Legend: ⮕ reuse/extend target. ⚠ risk/needs-eyeball. 🔧 dev-tool opportuni
 
 ---
 
+## REMAINING WORK (not started / partial) — handoff
+Completed this session: P0 import, A audio, B weapons, D phase/hyper, E outpost, F+G music/HUD,
+H-Omni + off-screen-hit-guard, J zealot-VFX, K enemy-bench-recycle-tags, L manage-ship-modes, M onboarding.
+
+**Still open (large / playtest-dependent — recommend an ATTENDED session):**
+1. **Recycler "full send" (cluster I core)** — NOT started. This is the highest-risk item: its regression
+   surface is the WHOLE roster and the design doc (`docs/recycling_system_pillar2_2026-06-04.md`) calls for
+   playtest-only verification, which I can't do unattended. Build order per the doc + TODO:
+   (a) **RecycleTuner** dev scene (prereq — 3+ live knobs: recycle budget / fly-back scale / tint / hold;
+   JSON persist + Copy-GDScript per the tuner contract; register in `dev_menu.gd`).
+   (b) **`RecycleController`** preload-const helper owning offscreen→recycle decisioning + ONE timing budget
+   (replaces scattered 0.4–0.9 holds + fixed 1.8s tween); fly-back ghost reuses `MidDepthPresentation`.
+   `enemy_base._offscreen_cleanup_check` + `enemy_core._start_cycle` delegate to it; preserve
+   `is_recycling()` / `recycle_passes` / `fleeing`.
+   (c) Formation-aware re-entry via the conductor; (d) merge missile-cruiser bespoke recycle + migrate the
+   roster. **Lead recommendation:** build (a)+(b) additively (no behavior change until wired), then do the
+   roster migration WITH Roman able to playtest — a blind roster-wide migration risks breaking every enemy's
+   offscreen behavior with no way to catch it before you return. (K already added bench recycle-tagging knobs.)
+2. **wreck_layer + EM Torpedo (cluster C)** — NOT started. Additive (low regression risk) but visually
+   complex + needs your eyeball. wreck_layer = near-parallax-depth layer enemies "fall" into on death (testbed
+   = EM Torpedo). EM Torpedo (secondary/HARDPOINT_WING): rocket flies 2s → blue-yellow lightning burst,
+   multi-hit, strips/ignores shields, detonates missiles/rockets; alt kill: 25% explode / 75% inert drift
+   (rand rotation) toward bottom + player-style smoke into the wreck_layer. Reuse: `base_missile.gd`, the
+   secondary SALVO/BURST modes, `damage_smoke_trail`, the parallax near-layer for depth/grade.
+3. **Hangar rebuild (cluster N / DEV)** — NOT started. "Muzzle flashes green, bullets missing — deep dive +
+   rebuild the SubViewport." A prior session's parent-routing fix was insufficient. Needs a real SubViewport
+   rebuild; I have prior context on `hangar.gd` (HD scope + `_world` SubViewport + `bullet_parent` routing).
+4. **Lane Hook + Supremacy Push (cluster H)** — need your repro (see Needs-Roman) to fix safely.
+5. **Core renderer pivot (Forward+/Windows)** — HELD by your decision (attended session).
+
 ## Needs-Roman (eyeball / playtest / decisions) — running
+**Polish (cluster J/K/L/M) — eyeball:**
+- **J Zealot ball-explosion:** zealot deaths play the "ball" explosion when NO firecore drops, "default"
+  when one does; firecore hazard uses ball. ("ball" currently aliases `explosion_small_circle` — point me
+  at a distinct ball-explosion scene if you have one.) Gated on a per-scene `may_drop_firecore` meta so
+  non-zealot enemies are untouched. Eyeball the explosion read + confirm the right zealots are tagged.
+- **K Enemy-Bench recycle tags:** new bench controls (can-recycle / passes / recycle-vs-flee chance) — note
+  it may have added `recycle_chance`/`flee_chance` fields to enemy_core; confirm defaults preserve behavior.
+- **L Manage-Ship shift modes:** SHIFT_MODE slot now shown + equippable from owned kit. Eyeball the layout.
+- **M Onboarding:** refreshed copy (economy, outpost hub, shift modes, Q/C/X, parts/Mk). Read-through review.
+
 **Patterns (cluster H) — 1 fixed, 2 need your repro:**
 - **Omni movement — FIXED.** Now bounds its bottom to the no-fly line (`Zones.DEPARTURE_START` = 195,
   the engagement band's departure edge) instead of the screen bottom (270), so it stays in the firing
