@@ -84,6 +84,7 @@ Press the **Dev Menu** button on the main menu to reach `scenes/dev_menu.tscn`. 
 - [ Movement Lab ]
 - [ Parallax Tuner ]
 - [ Asteroid Lab ]
+- [ Shader Lab ] (fire/compare shader effects — embers, shields, glow, full gallery)
 
 **Test launchers** (play-test specific scenarios):
 - [ Test Combat ] (custom level, hazard, or boss)
