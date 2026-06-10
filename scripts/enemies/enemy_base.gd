@@ -242,6 +242,10 @@ const _OutlineFx = preload("res://scripts/effects/outline_fx.gd")
 const _EngineTrailFx = preload("res://scripts/effects/engine_trail_fx.gd")
 var _engine_trail: Node = null
 var _damage_material: ShaderMaterial = null
+# The hit-flash tween. Tracked so _die_as_wreck can KILL it before reparenting the hull — otherwise
+# its first idle-step (the burst hits during physics) re-snaps the already-reparented wreck to white
+# flash_strength after _die_as_wreck zeroed it (Roman 2026-06-10 white-carryover fix).
+var _flash_tween: Tween = null
 
 
 # Find Engine* markers (recursive — they may sit under CollisionShape2D) and attach a
@@ -299,8 +303,10 @@ func _flash_hit() -> void:
 	if _damage_material != null:
 		_damage_material.set_shader_parameter("flash_strength", 1.0)
 		var mat := _damage_material
-		var tw := create_tween()
-		tw.tween_method(
+		if _flash_tween != null and _flash_tween.is_valid():
+			_flash_tween.kill()
+		_flash_tween = create_tween()
+		_flash_tween.tween_method(
 			func(v: float):
 				if is_instance_valid(mat):
 					mat.set_shader_parameter("flash_strength", v),
@@ -363,14 +369,14 @@ func hit() -> void:
 func explode() -> void:
 	if _dying:
 		return
-	# Wreck-drift death style (Roman 2026-06-10) — the EM Torpedo tags lethal hits with
-	# meta "death_style"="wreck". Most such kills (75%) go inert and fall into the wreck layer
-	# instead of exploding; the other 25% explode normally. Only engages when a wreck layer exists,
-	# so normal play (and the 25% roll) falls straight through to the standard explosion below.
-	if has_meta("death_style") and String(get_meta("death_style")) == "wreck":
+	# Disabled-wreck death style (Roman 2026-06-10) — the EM Torpedo tags lethal hits with
+	# meta "death_style"="disabled". Most such kills (80%) go inert and fall into the wreck layer as
+	# a burning, smoking, disabled hull; the other 20% explode normally. Only engages when a wreck
+	# layer exists, so normal play (and the 20% roll) falls straight through to the explosion below.
+	if has_meta("death_style") and String(get_meta("death_style")) == "disabled":
 		remove_meta("death_style")
 		var wlayer: Node = get_tree().get_first_node_in_group("wreck_layer") if is_inside_tree() else null
-		if wlayer != null and is_instance_valid(wlayer) and randf() >= 0.25:
+		if wlayer != null and is_instance_valid(wlayer) and randf() >= 0.20:
 			_die_as_wreck(wlayer)
 			return
 	if _shield_ring and is_instance_valid(_shield_ring):
@@ -433,11 +439,15 @@ func explode() -> void:
 	queue_free()
 
 
-# Wreck-drift death (Roman 2026-06-10): instead of exploding, steal this enemy's hull Sprite2D into
-# the wreck layer as an inert, slowly-tumbling, smoke-trailing wreck that "falls" into the backdrop.
-# Still counts as a kill (died.emit fires) so bounty + level-clear are unaffected. All the enemy's
-# other nodes (engine trail, outline, glow, shadow, collision) are freed with the body.
+# Disabled-wreck death (Roman 2026-06-10): instead of exploding, steal this enemy's hull Sprite2D
+# into the wreck layer as a DISABLED hull — heavy-damaged, on fire + smoking (the player's damage
+# tells), tumbling and falling into the backdrop, until it reaches the exit zone and either explodes
+# or drops off-screen (decided in wreck_drift). Still counts as a kill (died.emit fires) so bounty +
+# level-clear are unaffected. The enemy's other nodes free with the body; the visible ones we want
+# to carry (outline, glow) are reparented onto the hull so they can fade/flicker out.
 const _WreckDriftScript = preload("res://scripts/effects/wreck_drift.gd")
+const _EngineTorchScript = preload("res://scripts/effects/engine_torch.gd")
+const _DamageSmokeScript = preload("res://scripts/effects/damage_smoke_trail.gd")
 static var _wreck_seq: int = 0
 
 func _die_as_wreck(wlayer: Node) -> void:
@@ -452,9 +462,11 @@ func _die_as_wreck(wlayer: Node) -> void:
 		queue_free()
 		return
 	var s: Node2D = spr
-	# Heavy-damage look, NOT pure white (Roman 2026-06-10): kill the hit-flash (its tween is owned by
-	# this enemy, which is about to free — it would otherwise freeze flash_strength=1 = white) and
-	# crank the damage-overlay fray to its max so the wreck reads as a battered hull.
+	# Heavy-damage look, NOT pure white (Roman 2026-06-10): KILL the hit-flash tween (it would
+	# otherwise run its first idle-step after this and re-snap the reparented wreck to white) then
+	# zero the flash and crank the damage-overlay fray to max so the wreck reads as a battered hull.
+	if _flash_tween != null and _flash_tween.is_valid():
+		_flash_tween.kill()
 	if s.material is ShaderMaterial:
 		var m: ShaderMaterial = s.material
 		m.set_shader_parameter("flash_strength", 0.0)
@@ -480,18 +492,63 @@ func _die_as_wreck(wlayer: Node) -> void:
 	# vanishing the instant the enemy frees (Roman 2026-06-10). It's a sibling on the enemy today.
 	var outline: Node = get_node_or_null("Outline")
 	if outline != null and outline is Node2D:
+		var o_gpos: Vector2 = (outline as Node2D).global_position
 		remove_child(outline)
 		s.add_child(outline)
 		var ol: Node2D = outline
-		ol.position = Vector2.ZERO
-		ol.rotation = 0.0
+		ol.global_position = o_gpos
+		ol.rotation = grot
 		ol.z_index = -2
 		var otw: Tween = ol.create_tween()
 		otw.tween_property(ol, "modulate:a", 0.0, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 		otw.tween_callback(ol.queue_free)
+	# Glowmap: enemies with a GlowMask FLICKER it then fade it out as they disable (Roman 2026-06-10).
+	# Carry it onto the hull so it tracks the fall, then run a brief flicker -> fade.
+	var glow: Node = get_node_or_null("GlowMask")
+	if glow != null and glow is Node2D:
+		var g_gpos: Vector2 = (glow as Node2D).global_position
+		remove_child(glow)
+		s.add_child(glow)
+		var gl: Node2D = glow
+		gl.global_position = g_gpos
+		var gtw: Tween = gl.create_tween()
+		# Flicker: a few quick dim/bright stutters, then fade out.
+		for _i in 3:
+			gtw.tween_property(gl, "modulate:a", 0.15, 0.05)
+			gtw.tween_property(gl, "modulate:a", 0.9, 0.05)
+		gtw.tween_property(gl, "modulate:a", 0.0, 0.3)
+		gtw.tween_callback(gl.queue_free)
+	# Player-style damage tells: fire + dark smoke, both respecting the wreck's motion.
+	_attach_disabled_tells(s)
 	_WreckDriftScript.attach(s, init_vel, _wreck_seq)
 	_wreck_seq += 1
 	queue_free()
+
+
+# Attach the player's damage FIRE (engine torch) + dark SMOKE trail to a disabled wreck hull, both
+# forced on (the hull has no hull_changed signal to drive them). The torch reads the hull's position
+# delta for its wind lean and the smoke trails in world space, so both respect the wreck's motion.
+func _attach_disabled_tells(s: Node2D) -> void:
+	# Fire — a strong, motion-leaning flame off the hull.
+	var torch = _EngineTorchScript.attach_to_player(s, Vector2(0, 2), 0.0)
+	if torch != null and is_instance_valid(torch):
+		torch.visible = true
+		if "_mat" in torch and torch._mat != null:
+			torch._mat.set_shader_parameter("size", Vector2(0.4, 1.0))   # full flame (EngineTorch.FLAME_SIZE_MAX)
+	# Smoke — the player's dark damage column, forced to full severity. drift_sign -1 trails it up/behind
+	# the falling hull.
+	var smoke = _DamageSmokeScript.new()
+	if "activate_below" in smoke:
+		smoke.activate_below = 0.0
+	if "drift_sign" in smoke:
+		smoke.drift_sign = -1.0
+	s.add_child(smoke)
+	if smoke.has_method("set_player"):
+		smoke.set_player(s)
+	# No hull signal fired, so force the "fully damaged" state the emit gate + visuals key off.
+	smoke._damage_level = 1.0
+	smoke._severity = 1.0
+	smoke._sample_interval = 0.06
 
 
 # Fade out the overlay sprites that AREN'T the burning hull — glow mask, the 1px

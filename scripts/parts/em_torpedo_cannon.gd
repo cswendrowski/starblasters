@@ -19,7 +19,10 @@ func _init() -> void:
 
 
 func _base_ammo() -> int:
-	return 6
+	# UNLIMITED for the test-combat phase (Roman 2026-06-10) — the torpedo is test-gated (not in the
+	# shop pool), so -1 = unmetered everywhere it can currently appear = the dev Test-Combat button.
+	# Give it a real magazine here when it's promoted to a live shop weapon.
+	return -1
 
 
 func _homing() -> bool:

@@ -49,11 +49,12 @@ static func detonate(tree: SceneTree, world_pos: Vector2, radius: float, damage:
 			e.explode()
 			continue
 		# Regular enemy: strip shields, then deal damage that bypasses them. Tag lethal hits so the
-		# death routes to the wreck-drift presentation.
+		# death routes to the disabled-wreck presentation (enemy_base.explode rolls 20% explode /
+		# 80% disabled from there).
 		if e.has_method("break_shields"):
 			e.break_shields()
 		if "health" in e and int(e.get("health")) <= damage and e.has_method("set_meta"):
-			e.set_meta("death_style", "wreck")
+			e.set_meta("death_style", "disabled")
 		if e.has_method("take_hit"):
 			e.take_hit(damage)
 
