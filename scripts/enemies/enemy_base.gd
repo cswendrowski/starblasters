@@ -278,6 +278,12 @@ func _install_damage_material(spr: Sprite2D) -> void:
 	mat.set_shader_parameter("noise_texture", _DamageNoiseTex)
 	mat.set_shader_parameter("edge_distance_map", _DamageEdgeTex)
 	mat.set_shader_parameter("noise_seed", float(randi() % 999))
+	# Shader-Lab-tuned look (Roman 2026-06-10). sensitivity stays HP-driven (see
+	# _update_damage_visual); these are the static appearance params + colours.
+	mat.set_shader_parameter("max_strength", 0.9)
+	mat.set_shader_parameter("edge_bias_strength", 0.2)
+	mat.set_shader_parameter("edge_color", Color("494e55"))
+	mat.set_shader_parameter("details_color", Color("cbcbcb"))
 	spr.material = mat
 	_damage_material = mat
 
@@ -369,15 +375,23 @@ func hit() -> void:
 func explode() -> void:
 	if _dying:
 		return
-	# Disabled-wreck death style (Roman 2026-06-10) — the EM Torpedo tags lethal hits with
-	# meta "death_style"="disabled". Most such kills (80%) go inert and fall into the wreck layer as
-	# a burning, smoking, disabled hull; the other 20% explode normally. Only engages when a wreck
-	# layer exists, so normal play (and the 20% roll) falls straight through to the explosion below.
-	if has_meta("death_style") and String(get_meta("death_style")) == "disabled":
+	# Two SEPARATE disabled-wreck death styles (Roman 2026-06-10), both routing the hull into the
+	# wreck layer as a burning, smoking, falling disabled wreck. They differ only in trigger + exit
+	# resolution; both require a wreck layer (else they fall through to the normal explosion below):
+	#   1. EM-TORP DISABLE — meta "death_style"="disabled_em" (set by the EM burst). 20% explode now
+	#      / 80% disable; disabled hulls just DROP off-screen at the exit zone (exit chance 0.0).
+	#   2. GENERAL DISABLE MODE — for NON-EM deaths, opted in via Run meta "disable_deaths". The kill
+	#      always disables, and at the exit zone 70% explode / 30% fall off (exit chance 0.70).
+	if has_meta("death_style") and String(get_meta("death_style")) == "disabled_em":
 		remove_meta("death_style")
-		var wlayer: Node = get_tree().get_first_node_in_group("wreck_layer") if is_inside_tree() else null
-		if wlayer != null and is_instance_valid(wlayer) and randf() >= 0.20:
-			_die_as_wreck(wlayer)
+		var wlayer_em: Node = get_tree().get_first_node_in_group("wreck_layer") if is_inside_tree() else null
+		if wlayer_em != null and is_instance_valid(wlayer_em) and randf() >= 0.20:
+			_die_as_wreck(wlayer_em, 0.0)
+			return
+	elif _should_general_disable():
+		var wlayer_g: Node = get_tree().get_first_node_in_group("wreck_layer")
+		if wlayer_g != null and is_instance_valid(wlayer_g):
+			_die_as_wreck(wlayer_g, 0.70)
 			return
 	if _shield_ring and is_instance_valid(_shield_ring):
 		_shield_ring.visible = false
@@ -446,11 +460,27 @@ func explode() -> void:
 # level-clear are unaffected. The enemy's other nodes free with the body; the visible ones we want
 # to carry (outline, glow) are reparented onto the hull so they can fade/flicker out.
 const _WreckDriftScript = preload("res://scripts/effects/wreck_drift.gd")
-const _EngineTorchScript = preload("res://scripts/effects/engine_torch.gd")
-const _DamageSmokeScript = preload("res://scripts/effects/damage_smoke_trail.gd")
 static var _wreck_seq: int = 0
 
-func _die_as_wreck(wlayer: Node) -> void:
+
+# True when this enemy should use the GENERAL disable death (Roman 2026-06-10): opted in via the Run
+# meta "disable_deaths" (a test/showcase flag for now; future triggers — a part, a hazard — set the
+# same meta). Only real ships qualify — hazards (mines/asteroids) and non-ship units are excluded.
+func _should_general_disable() -> bool:
+	if is_hazard or not has_ship_vfx:
+		return false
+	if not has_node("Sprite2D"):
+		return false
+	if not is_inside_tree():
+		return false
+	var run: Node = get_node_or_null("/root/Run")
+	return run != null and run.has_meta("disable_deaths") and bool(run.get_meta("disable_deaths"))
+
+# Reparent this enemy's hull into the wreck layer as a disabled, burning, falling wreck. WreckDrift
+# owns the fire/smoke tells + motion + the exit-zone resolution; `exit_explode_chance` is the fraction
+# that explode (vs fall off-screen) at the exit zone — EM-torp disable passes 0.0, the general disable
+# mode passes 0.70.
+func _die_as_wreck(wlayer: Node, exit_explode_chance: float) -> void:
 	_dying = true
 	set_deferred("monitorable", false)
 	set_deferred("monitoring", false)
@@ -471,11 +501,16 @@ func _die_as_wreck(wlayer: Node) -> void:
 		var m: ShaderMaterial = s.material
 		m.set_shader_parameter("flash_strength", 0.0)
 		m.set_shader_parameter("sensitivity", 0.75)
-	# Capture transform + motion BEFORE reparenting.
+	# Capture transform + motion + emit points (engine markers + hull centre, in world space) BEFORE
+	# reparenting; convert to hull-local after.
 	var gpos: Vector2 = s.global_position
 	var grot: float = s.global_rotation
 	var gscl: Vector2 = s.global_scale
 	var init_vel: Vector2 = _last_move_vel
+	var emit_worlds: Array = [s.global_position]   # hull centre
+	for mk in find_children("Engine*", "Marker2D", true, false):
+		if mk is Node2D:
+			emit_worlds.append((mk as Node2D).global_position)
 	# A falling wreck shouldn't cast a ground shadow — the shadow is a child of the sprite, so it
 	# would ride along; drop it.
 	var sh: Node = s.get_node_or_null("ObliqueShadow")
@@ -488,6 +523,9 @@ func _die_as_wreck(wlayer: Node) -> void:
 	s.rotation = grot
 	s.global_scale = gscl
 	s.z_index = 0
+	var emit_local: Array = []
+	for w in emit_worlds:
+		emit_local.append(s.to_local(w))
 	# Carry the black outline along as a child so it can FADE OUT as the hull recedes, instead of
 	# vanishing the instant the enemy frees (Roman 2026-06-10). It's a sibling on the enemy today.
 	var outline: Node = get_node_or_null("Outline")
@@ -518,37 +556,11 @@ func _die_as_wreck(wlayer: Node) -> void:
 			gtw.tween_property(gl, "modulate:a", 0.9, 0.05)
 		gtw.tween_property(gl, "modulate:a", 0.0, 0.3)
 		gtw.tween_callback(gl.queue_free)
-	# Player-style damage tells: fire + dark smoke, both respecting the wreck's motion.
-	_attach_disabled_tells(s)
-	_WreckDriftScript.attach(s, init_vel, _wreck_seq)
+	# WreckDrift owns the fire/smoke tells (emitted from a random engine marker / centre) + motion +
+	# the exit-zone resolution.
+	_WreckDriftScript.attach(s, init_vel, _wreck_seq, exit_explode_chance, emit_local)
 	_wreck_seq += 1
 	queue_free()
-
-
-# Attach the player's damage FIRE (engine torch) + dark SMOKE trail to a disabled wreck hull, both
-# forced on (the hull has no hull_changed signal to drive them). The torch reads the hull's position
-# delta for its wind lean and the smoke trails in world space, so both respect the wreck's motion.
-func _attach_disabled_tells(s: Node2D) -> void:
-	# Fire — a strong, motion-leaning flame off the hull.
-	var torch = _EngineTorchScript.attach_to_player(s, Vector2(0, 2), 0.0)
-	if torch != null and is_instance_valid(torch):
-		torch.visible = true
-		if "_mat" in torch and torch._mat != null:
-			torch._mat.set_shader_parameter("size", Vector2(0.4, 1.0))   # full flame (EngineTorch.FLAME_SIZE_MAX)
-	# Smoke — the player's dark damage column, forced to full severity. drift_sign -1 trails it up/behind
-	# the falling hull.
-	var smoke = _DamageSmokeScript.new()
-	if "activate_below" in smoke:
-		smoke.activate_below = 0.0
-	if "drift_sign" in smoke:
-		smoke.drift_sign = -1.0
-	s.add_child(smoke)
-	if smoke.has_method("set_player"):
-		smoke.set_player(s)
-	# No hull signal fired, so force the "fully damaged" state the emit gate + visuals key off.
-	smoke._damage_level = 1.0
-	smoke._severity = 1.0
-	smoke._sample_interval = 0.06
 
 
 # Fade out the overlay sprites that AREN'T the burning hull — glow mask, the 1px

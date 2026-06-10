@@ -56,6 +56,7 @@ var _severity: float = 0.0   # eased 0..1, drives opacity + emission rate
 var _line: Line2D = null
 var _sample_t: float = 0.0
 var _point_t: Array = []
+var _finishing: bool = false   # one-shot guard for the fade-out when the host disappears
 
 
 func _ready() -> void:
@@ -135,7 +136,18 @@ func _on_hull_changed(max_hull, hull) -> void:
 
 func _process(delta: float) -> void:
 	if _player == null or not is_instance_valid(_player):
-		_clear_line()
+		# Host gone (e.g. a wreck hull that exploded / fell off): FADE the trail out over time rather
+		# than popping it (Roman 2026-06-10 — "smoke should fade out"). One-shot. The Line2D lives at
+		# the scene root (independent of the host), so it survives to finish the tween.
+		if not _finishing:
+			_finishing = true
+			if _line and is_instance_valid(_line):
+				var line: Line2D = _line
+				_line = null
+				var tw := line.create_tween()
+				tw.tween_property(line, "modulate:a", 0.0, 0.7).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+				tw.tween_callback(line.queue_free)
+			queue_free()
 		return
 	_age_points(delta)
 	if _damage_level < activate_below:

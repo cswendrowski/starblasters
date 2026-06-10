@@ -452,6 +452,10 @@ func _launch_em_torpedo_test() -> void:
 		# Shallow depth = lots of soft chaff to vaporize so the wreck-drift reads clearly.
 		run.sectors_cleared = 1
 		run.combats_in_sector = 0
+		# Enable the GENERAL disable death for non-EM kills too, so ONE test shows BOTH styles: the
+		# player's PRIMARY kills disable + resolve 70/30 at the exit zone, while EM-torp kills use the
+		# EM disable (20/80, drop off-screen). (Roman 2026-06-10 — the two are separate death styles.)
+		run.set_meta("disable_deaths", true)
 		# Equip the EM Torpedo into the wing secondary so it's live from wave 1. The player's _ready()
 		# overlays Run.loadout_snapshot, so equipping before the scene change is enough — no main.gd
 		# edit needed. Mk.3 for a punchier burst while testing.
