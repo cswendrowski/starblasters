@@ -2081,7 +2081,9 @@ func _on_poi_clicked(node_id: String) -> void:
 	run.current_hazard_subtype = String(poi.get("hazard_subtype", ""))
 	# Copy per-POI modifiers into Run.sector_modifiers so director.gd /
 	# player.gd pick them up at combat start. Empty array == no modifier.
-	run.sector_modifiers = (poi.get("modifiers", []) as Array).duplicate()
+	# Gated on the kill-switch (Roman 2026-06-10: modifiers pulled pending re-eval) so even a
+	# stale cache/save that already carries modifiers can't apply them.
+	run.sector_modifiers = (poi.get("modifiers", []) as Array).duplicate() if run.SECTOR_MODIFIERS_ENABLED else []
 	# Find this POI's row so the descriptor inherits the right star color.
 	var rows: Array = run.sector_map_cache.get("rows", [])
 	var poi_row_idx: int = 0
@@ -2131,7 +2133,8 @@ func _on_boss_clicked(node_id: String) -> void:
 	run.current_hazard_subtype = ""
 	# Bosses currently carry no modifiers (boss entry's "modifiers" is []),
 	# but copy through for forward-compat with future boss-modifier wiring.
-	run.sector_modifiers = (boss.get("modifiers", []) as Array).duplicate()
+	# Same kill-switch gate as the POI path (modifiers pulled pending re-eval).
+	run.sector_modifiers = (boss.get("modifiers", []) as Array).duplicate() if run.SECTOR_MODIFIERS_ENABLED else []
 	# Boss arenas don't have a planet/asteroid of their own — just tint with
 	# the row's star color so the fight still feels rooted on the chosen line.
 	run.current_stellar = _compute_boss_stellar(row_idx)
