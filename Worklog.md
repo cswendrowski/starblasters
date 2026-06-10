@@ -271,6 +271,18 @@ unit-tested.
 - **O** Renderer pivot — HELD for attended session.
 
 ## Running log
+- 2026-06-10 — **Playtest round 2 fixes** (`15b60b0`/`57c00e2`/`51d4313`):
+  (1) **Frozen/unkillable firecores** — task J's `var scene :=` off an untyped load() killed the
+  whole firecore script at runtime. Fixed; `test_firecore_repro` proves both spawn paths move + die.
+  **The bigger find:** the parse gate was a FALSE PASS (win64 GUI exe drops console output under
+  redirection + load() returns non-null for broken scripts) — hardened to a fail-closed result-file
+  VERDICT + can_instantiate(). The strict gate then exposed 2 more hidden compile failures (bare
+  `Run.` identifiers, mine) — fixed to the /root convention; also patched 4 stale ogg UIDs.
+  (2) **Outpost dupes at different marks** — dedup key was slot:mk:name; now item NAME alone.
+  (3) **Sector modifiers PULLED** — `Run.SECTOR_MODIFIERS_ENABLED = false` kill-switch gates
+  generation (rng-stream-stable, so re-enabling won't reshuffle maps) AND node-entry application
+  (stale-save-proof). Vocabulary + effect wiring kept for the re-eval. **FLAGGED FOR RE-EVAL /
+  REIMPLEMENT LATER** per Roman. `test_modifiers_off` PASS.
 - 2026-06-10 — **Playtest hotfixes** (`1c229a4`, from Roman's first hands-on): (1) primary fire was
   broken for every style except Autocannon/Minigun — the weapons rework folded the per-frame
   fire_primary() into the style branches; restored the unconditional call (fire_primary self-gates),
