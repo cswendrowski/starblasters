@@ -15,6 +15,7 @@ const LaserBeamCannon = preload("res://scripts/parts/laser_beam_cannon.gd")
 const RocketPodCannon = preload("res://scripts/parts/rocket_pod_cannon.gd")
 const SeekingMissileCannon = preload("res://scripts/parts/seeking_missile_cannon.gd")
 const AntiShipMissileCannon = preload("res://scripts/parts/anti_ship_missile_cannon.gd")
+const EmTorpedoCannon = preload("res://scripts/parts/em_torpedo_cannon.gd")
 const SpreadCannon = preload("res://scripts/parts/spread_cannon.gd")
 const SmartBomb = preload("res://scripts/parts/smart_bomb.gd")
 # Shift-Mode parts (SHIFT_MODE slot) — Focus is the default; Phase/Hyper swap in.
@@ -36,6 +37,7 @@ const BulletAutoLaser = preload("res://scenes/projectiles/bullet_auto_laser.tscn
 const PlayerRocket = preload("res://scenes/projectiles/player_rocket.tscn")
 const PlayerSeekingMissile = preload("res://scenes/projectiles/player_seeking_missile.tscn")
 const PlayerSeekingMissileLarge = preload("res://scenes/projectiles/player_seeking_missile_large.tscn")
+const PlayerEmTorpedo = preload("res://scenes/projectiles/player_em_torpedo.tscn")
 const PlayerSwarmMissile = preload("res://scenes/projectiles/bullet_swarm.tscn")
 
 # Pool entries: [factory_callable, slot_for_factory]
@@ -139,6 +141,11 @@ static func _make_by_name(name: String, slot: int):
 			return _build_weapon("res://resources/weapons/seeking_missile.tres", SeekingMissileCannon, PlayerSeekingMissile)
 		"_make_anti_ship_missile":
 			return _build_weapon("res://resources/weapons/anti_ship_missile.tres", AntiShipMissileCannon, PlayerSeekingMissileLarge)
+		"_make_em_torpedo":
+			# No .tres yet (test-only weapon, not in the shop pool) — _build_weapon falls back to the
+			# script. Deliberately ABSENT from _all_pool() so it can't roll in live runs (Roman
+			# 2026-06-10: ship behind the dev Test-Combat entry until the wreck layer is validated).
+			return _build_weapon("res://resources/weapons/em_torpedo.tres", EmTorpedoCannon, PlayerEmTorpedo)
 		"_make_spread_cannon":
 			return _build_weapon("res://resources/weapons/spread_cannon.tres", SpreadCannon, BulletDefault)
 		"_make_smart_bomb":

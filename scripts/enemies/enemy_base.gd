@@ -359,6 +359,16 @@ func hit() -> void:
 func explode() -> void:
 	if _dying:
 		return
+	# Wreck-drift death style (Roman 2026-06-10) — the EM Torpedo tags lethal hits with
+	# meta "death_style"="wreck". Most such kills (75%) go inert and fall into the wreck layer
+	# instead of exploding; the other 25% explode normally. Only engages when a wreck layer exists,
+	# so normal play (and the 25% roll) falls straight through to the standard explosion below.
+	if has_meta("death_style") and String(get_meta("death_style")) == "wreck":
+		remove_meta("death_style")
+		var wlayer: Node = get_tree().get_first_node_in_group("wreck_layer") if is_inside_tree() else null
+		if wlayer != null and is_instance_valid(wlayer) and randf() >= 0.25:
+			_die_as_wreck(wlayer)
+			return
 	if _shield_ring and is_instance_valid(_shield_ring):
 		_shield_ring.visible = false
 	_dying = true
@@ -416,6 +426,40 @@ func explode() -> void:
 	# distance-based ExplosionSfx fired by the ExplosionFx.play/burst calls above; playing the
 	# old clip here buried the new ones. The EnemyDie nodes remain in the scenes (inert).
 	await get_tree().create_timer(0.5).timeout
+	queue_free()
+
+
+# Wreck-drift death (Roman 2026-06-10): instead of exploding, steal this enemy's hull Sprite2D into
+# the wreck layer as an inert, slowly-tumbling, smoke-trailing wreck that "falls" into the backdrop.
+# Still counts as a kill (died.emit fires) so bounty + level-clear are unaffected. All the enemy's
+# other nodes (engine trail, outline, glow, shadow, collision) are freed with the body.
+const _WreckDriftScript = preload("res://scripts/effects/wreck_drift.gd")
+static var _wreck_seq: int = 0
+
+func _die_as_wreck(wlayer: Node) -> void:
+	_dying = true
+	set_deferred("monitorable", false)
+	set_deferred("monitoring", false)
+	died.emit(bounty_value)        # kill still counts toward bounty + level-clear
+	_components_death()
+	set_engine_trail_emitting(false)
+	var spr: Node = get_node_or_null("Sprite2D")
+	if spr != null and spr is Node2D and is_instance_valid(wlayer):
+		var s: Node2D = spr
+		# Freeze any in-flight hit-flash so the wreck doesn't strobe white as it falls.
+		if s.material is ShaderMaterial:
+			(s.material as ShaderMaterial).set_shader_parameter("flash_strength", 0.0)
+		var gpos: Vector2 = s.global_position
+		var grot: float = s.global_rotation
+		var gscl: Vector2 = s.global_scale
+		remove_child(s)
+		wlayer.add_child(s)
+		s.global_position = gpos
+		s.rotation = grot
+		s.scale = gscl
+		s.z_index = 0
+		_WreckDriftScript.attach(s, _wreck_seq)
+		_wreck_seq += 1
 	queue_free()
 
 
@@ -575,6 +619,15 @@ func _components_death() -> void:
 	for c in _components:
 		if c.has_method("on_death"):
 			c.on_death(self)
+
+
+# Strip every ShieldComponent down to zero (the EM Torpedo burst calls this before applying its
+# shield-ignoring damage). Also drops the legacy simple max_shield charge. (Roman 2026-06-10.)
+func break_shields() -> void:
+	shield = 0
+	for c in _components:
+		if c.has_method("break_shield"):
+			c.break_shield()
 
 
 func _components_leave() -> void:

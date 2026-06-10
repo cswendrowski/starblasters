@@ -9,6 +9,8 @@ const SceneTransition = preload("res://scripts/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
 const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
+const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
+const SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
 
 var _test_hazard_modal: CanvasLayer = null
 var _vbox: VBoxContainer = null
@@ -288,6 +290,17 @@ func _on_test_combat() -> void:
 		_launch_hazard("beam_showcase")
 	)
 	panel.add_child(beam_btn)
+	# EM Torpedo + Wreck Layer test (Roman 2026-06-10): start a combat with the EM Torpedo equipped
+	# from wave 1 so the lightning burst + inert wreck-drift kills can be eyeballed. Fire with C.
+	var torpedo_btn := Button.new()
+	torpedo_btn.text = "EM Torpedo + Wreck Test"
+	torpedo_btn.custom_minimum_size = Vector2(180, 18)
+	UiTheme.style_button(torpedo_btn)
+	torpedo_btn.pressed.connect(func():
+		_close_test_hazard_modal()
+		_launch_em_torpedo_test()
+	)
+	panel.add_child(torpedo_btn)
 	# All-Signal Sector — launch a sector map where every POI is a Signal Event,
 	# for testing the signal-event screen (Roman 2026-06-08).
 	var signal_btn := Button.new()
@@ -427,6 +440,27 @@ func _on_test_faction() -> void:
 	panel.add_child(cancel_btn)
 	add_child(layer)
 	_test_hazard_modal = layer
+
+
+func _launch_em_torpedo_test() -> void:
+	_close_test_hazard_modal()
+	if has_node("/root/Run"):
+		var run = get_node("/root/Run")
+		run.new_run()
+		run.test_mode_active = true
+		run.current_node_type = 0  # SectorNode.NodeType.COMBAT
+		# Shallow depth = lots of soft chaff to vaporize so the wreck-drift reads clearly.
+		run.sectors_cleared = 1
+		run.combats_in_sector = 0
+		# Equip the EM Torpedo into the wing secondary so it's live from wave 1. The player's _ready()
+		# overlays Run.loadout_snapshot, so equipping before the scene change is enough — no main.gd
+		# edit needed. Mk.3 for a punchier burst while testing.
+		var torp = PartCatalog._make_by_name("_make_em_torpedo", SlotTypes.SlotType.HARDPOINT_WING)
+		if torp != null:
+			if "mark" in torp:
+				torp.mark = 3
+			run.equip_part(torp)
+	SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
 
 
 func _launch_faction(faction_id: int) -> void:

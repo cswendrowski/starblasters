@@ -76,6 +76,10 @@ func _ready() -> void:
 	# _current_level by the time the warmup runs, so it can warm the level's
 	# real enemy/weapon set rather than a stale hardcoded list.
 	call_deferred("_warm_up_level")
+	# Wreck layer (Roman 2026-06-10): the inert-drift death presentation (currently fed only by the
+	# EM Torpedo). Created empty every combat — harmless if nothing uses it. Deferred so the Backdrop
+	# coordinator has populated + graded the near parallax layer we match against.
+	call_deferred("_ensure_wreck_layer")
 	# Volume slider lives in the pause/options menu now, not the main HUD.
 	if has_node("CanvasLayer/Volume"):
 		$CanvasLayer/Volume.visible = false
@@ -751,6 +755,13 @@ func _run_intro(is_boss: bool) -> void:
 # coords because the combat camera is centred on (240,135).
 const MISSILE_CRUISER_SCENE := preload("res://scenes/enemies/core/missile_cruiser.tscn")
 const MidDepthPresentation = preload("res://scripts/effects/mid_depth_presentation.gd")
+const WreckLayerScript = preload("res://scripts/effects/wreck_layer.gd")
+
+
+# Create the wreck layer above the backdrop (idempotent). Enemies that die via the wreck-drift
+# death style reparent their hull sprite into it. See scripts/effects/wreck_layer.gd.
+func _ensure_wreck_layer() -> void:
+	WreckLayerScript.ensure(self)
 
 
 # Roll the rare in-level encounter. `sector_depth` is sectors_cleared + 1 (the

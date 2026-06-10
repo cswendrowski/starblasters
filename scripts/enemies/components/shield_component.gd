@@ -65,6 +65,15 @@ func raise_shield() -> void:
 	_update_visual()
 
 
+# Instantly drop the shield to zero (charges + pool) and refresh the ring visual. Used by the EM
+# Torpedo burst, which STRIPS shields before applying its (shield-ignoring) damage (Roman 2026-06-10).
+func break_shield() -> void:
+	_charges = 0
+	_pool = 0.0
+	_regen_t = 0.0
+	_update_visual()
+
+
 # Bank stolen shield into the POOL (sapper steal). No-op in CHARGE mode.
 func bank(amount: float) -> void:
 	if mode != Mode.POOL:
