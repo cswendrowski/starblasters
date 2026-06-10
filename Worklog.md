@@ -271,6 +271,22 @@ unit-tested.
 - **O** Renderer pivot — HELD for attended session.
 
 ## Running log
+- 2026-06-10 — **Post-session code review (7 finder angles × verify) + fixes** (`bcd6e18`/`f874d74`/`2337c87`).
+  7 confirmed correctness bugs in the overnight work, all fixed: (1) Autocannon per-shot SFX never
+  played (gate excluded the MG family wholesale); (2) zealot firecore routing missed the faction-
+  overlay drop path (untagged emitter → wrong explosion; detection now keys off the tagged component,
+  scene meta removed); (3) Autocannon spin-state leaked across Q-swaps (reset now in
+  _reapply_active_cannon + release); (4) minigun hitscan targeted immune recycling/off-screen enemies
+  (now skipped, + hot-path cleanup: preloads, single-pass select, shared ghost material); (5) outpost
+  CANNON roll filter ignored the hold (weapon_storage now scanned); (6) onboarding falsely claimed
+  bounty persists across runs (rewritten); (7) two tools null-dereffed on the retired _make_machinegun
+  (→ _make_minigun; armory blurbs re-keyed; stale 1.5s phase assertion → 3.0s). test_shift_mode_phase2
+  now runs ALL PASS (was crashing). **Deferred cleanups (flagged, not fixed — refactor-class):**
+  outpost `_stats_display_for_part` duplicates hangar `_stats_for_part` (extract one shared helper);
+  player.gd is accreting per-weapon firing/audio state machines (5 now — consider a per-style handler
+  the Part owns); outpost part identity rides display_name string compares (consider an is_permanent
+  flag). Verified-clean during review: music ramp, smart-bomb audio (no doubling), safeguard pool
+  edges, outline name-collision.
 - 2026-06-10 — **Cluster F+G Music+HUD DONE** (`3760e89`). Music ramp rewired (prompt crossfade + per-boss floor, test PASS); HUD weapon-light flash/darken + ∞-glyph fix. See Needs-Roman.
 - 2026-06-10 — **Cluster E Outpost UX DONE** (`e224405` subagent + `be986fa` my safeguard-bug fix).
   7 tasks: Blaster/Primary disambiguation, rarity-colored name, type subtitle (drop "Tier"), one-of-each
