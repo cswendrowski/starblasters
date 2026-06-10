@@ -115,6 +115,25 @@ var run_stats: Dictionary = {}
 # Random seed for reproducible runs (sector map + shop rolls).
 var run_seed: int = 0
 
+# ---- Ship choice (per-patrol; picked in the ship-select modal at new-patrol start) ----
+# ship_variant: 0 = A (default), 1 = B, 2 = C. Selects which player scene combat instantiates.
+# livery_color: the player-chosen hull livery tint; only honored when livery_chosen is true,
+# otherwise player.gd falls back to its run_seed-derived random tint (dev / non-modal entry).
+var ship_variant: int = 0
+var livery_color: Color = Color(1.0, 0.0, 0.0)
+var livery_chosen: bool = false
+
+const PLAYER_SCENES := [
+	"res://scenes/player/player.tscn",
+	"res://scenes/player/player_b.tscn",
+	"res://scenes/player/player_c.tscn",
+]
+
+
+# Scene path for the chosen player ship variant (clamped to the known set).
+func player_scene_path() -> String:
+	return PLAYER_SCENES[clampi(ship_variant, 0, PLAYER_SCENES.size() - 1)]
+
 # ---- Persistent upgrades (outpost purchases) --------------------------
 # Mk 0..9 per category. Applied to the player at combat start via
 # player.apply_run_upgrades(). Increasing the Mk is the only path the
@@ -344,6 +363,11 @@ func new_run() -> void:
 	ammo = -1
 	secondary_ammo = -1
 	secondary_ammo_max = -1
+	# Ship choice resets to default A / unchosen livery; the ship-select modal re-sets these
+	# AFTER new_run() (same post-new_run pattern as the dev forced_faction override).
+	ship_variant = 0
+	livery_color = Color(1.0, 0.0, 0.0)
+	livery_chosen = false
 	run_seed = randi()
 	# Reset super-weapon state — player._ready will repopulate via the
 	# equipped Smart Bomb's apply(). Seeded below so meta-scene reads
@@ -1008,6 +1032,7 @@ const _SAVE_FIELDS := [
 	"ammo", "secondary_ammo", "secondary_ammo_max",
 	"visited_nodes", "sectors_cleared", "bosses_defeated", "combats_in_sector", "used_boss_scenes",
 	"enemies_killed", "max_bounty_earned", "run_distance", "run_seed",
+	"ship_variant", "livery_color", "livery_chosen",
 	"hull_mk", "armor_mk", "thrusters_mk", "self_repair_mk",
 	"shield_cap_mk", "shield_recharge_mk", "hull_plating_mk",
 	"sector_map_cache",

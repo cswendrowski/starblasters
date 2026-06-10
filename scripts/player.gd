@@ -413,10 +413,9 @@ func _setup_ship_visuals() -> void:
 	_rebuild_outline()
 	# Engine trails — the SAME style as enemy engines (engine_trail_fx Line2D streak), but in the
 	# engine colour (#00d3ff) instead of the enemy yellow.
-	var markers: Array = []
-	for mk in ["EngineL", "EngineR"]:
-		if has_node(mk):
-			markers.append(get_node(mk))
+	# Find every engine marker (any "Engine*" Marker2D): ship A has a single "Engine",
+	# ships B/C have "EngineL" + "EngineR" — one trail per marker, no per-variant code.
+	var markers: Array = find_children("Engine*", "Marker2D", true, false)
 	if not markers.is_empty():
 		var EngineTrailFx = preload("res://scripts/effects/engine_trail_fx.gd")
 		var trail = EngineTrailFx.new()
@@ -450,9 +449,15 @@ func _apply_livery_color() -> void:
 	lv.material = lv.material.duplicate()   # don't mutate the shared scene sub-resource
 	var col := Color(1.0, 0.0, 0.0)         # #ff0000 default
 	if has_node("/root/Run"):
-		var rng := RandomNumberGenerator.new()
-		rng.seed = int(get_node("/root/Run").run_seed)
-		col = Color.from_hsv(rng.randf(), rng.randf_range(0.7, 1.0), rng.randf_range(0.85, 1.0))
+		var run := get_node("/root/Run")
+		if run.livery_chosen:
+			# Player picked a livery in the ship-select modal — honor it exactly.
+			col = run.livery_color
+		else:
+			# No explicit choice (dev / non-modal entry): deterministic random tint off run_seed.
+			var rng := RandomNumberGenerator.new()
+			rng.seed = int(run.run_seed)
+			col = Color.from_hsv(rng.randf(), rng.randf_range(0.7, 1.0), rng.randf_range(0.85, 1.0))
 	lv.material.set_shader_parameter("tint_color", col)
 
 

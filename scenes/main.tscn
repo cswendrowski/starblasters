@@ -1,7 +1,6 @@
-[gd_scene load_steps=16 format=3 uid="uid://b8exv6qda8frv"]
+[gd_scene format=3 uid="uid://b8exv6qda8frv"]
 
-[ext_resource type="Script" path="res://scripts/main.gd" id="1_017ve"]
-[ext_resource type="PackedScene" uid="uid://dlqpfn4jxbpg3" path="res://scenes/parallax/backdrop_coordinator.tscn" id="coord_v4"]
+[ext_resource type="Script" uid="uid://bybfw31n0vl5e" path="res://scripts/main.gd" id="1_017ve"]
 [ext_resource type="PackedScene" uid="uid://b54c7ad6cogrm" path="res://scenes/ui.tscn" id="2_rh4g5"]
 [ext_resource type="Texture2D" uid="uid://cr7usmfo6apt8" path="res://Mini Pixel Pack 3/UI objects/GAME_OVER (72 x 8).png" id="3_kgptm"]
 [ext_resource type="Texture2D" uid="uid://o6gwbftsnc8c" path="res://Mini Pixel Pack 3/UI objects/START (48 x 8).png" id="4_3to3k"]
@@ -9,37 +8,37 @@
 [ext_resource type="Texture2D" uid="uid://0p6so5w0mcjw" path="res://Mini Pixel Pack 3/UI objects/bar_background.png" id="6_bt3es"]
 [ext_resource type="PackedScene" uid="uid://b32476hejmrnj" path="res://scenes/player/player.tscn" id="6_t4pur"]
 [ext_resource type="Texture2D" uid="uid://bf8xo3kqj5h54" path="res://Mini Pixel Pack 3/UI objects/bar_foreground.png" id="7_01cyq"]
-[ext_resource type="Script" path="res://scripts/Camera2D.gd" id="7_c8ll8"]
+[ext_resource type="Script" uid="uid://bwllhemo3vuul" path="res://scripts/Camera2D.gd" id="7_c8ll8"]
 [ext_resource type="AudioStream" uid="uid://b7nve8782ffvy" path="res://Sound/RetroActionLoop1.ogg" id="8_b2fep"]
 [ext_resource type="AudioStream" uid="uid://drcetuq4ylxow" path="res://Sound/Stinger_Fail1.wav" id="9_jpgor"]
-[ext_resource type="Script" path="res://scripts/levels/director.gd" id="11_jjei3"]
+[ext_resource type="Script" uid="uid://1gko6fgpckm8" path="res://scripts/levels/director.gd" id="11_jjei3"]
 [ext_resource type="PackedScene" uid="uid://b2t4ltiewu7fw" path="res://scenes/pause_menu.tscn" id="12_yw3xl"]
-
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_uf0tv"]
+[ext_resource type="PackedScene" uid="uid://dlqpfn4jxbpg3" path="res://scenes/parallax/backdrop_coordinator.tscn" id="coord_v4"]
 
 [sub_resource type="Environment" id="Environment_glow"]
 background_mode = 3
 glow_enabled = true
-glow_intensity = 2.0
+glow_intensity = 0.6
 glow_hdr_threshold = 0.0
-adjustment_enabled = true
 
-[node name="Main" type="Node2D"]
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_uf0tv"]
+
+[node name="Main" type="Node2D" unique_id=130473408]
 script = ExtResource("1_017ve")
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1783262279]
 environment = SubResource("Environment_glow")
 
-[node name="CanvasLayer" type="CanvasLayer" parent="."]
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=9597594]
 
-[node name="UI" parent="CanvasLayer" instance=ExtResource("2_rh4g5")]
+[node name="UI" parent="CanvasLayer" unique_id=2092835201 instance=ExtResource("2_rh4g5")]
 anchors_preset = 0
 anchor_right = 0.0
 offset_right = 152.0
 offset_bottom = 24.0
 grow_horizontal = 1
 
-[node name="CenterContainer" type="CenterContainer" parent="CanvasLayer"]
+[node name="CenterContainer" type="CenterContainer" parent="CanvasLayer" unique_id=896058142]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -47,18 +46,18 @@ grow_horizontal = 2
 grow_vertical = 2
 pivot_offset = Vector2(160, 200)
 
-[node name="GameOver" type="TextureRect" parent="CanvasLayer/CenterContainer"]
+[node name="GameOver" type="TextureRect" parent="CanvasLayer/CenterContainer" unique_id=1287015305]
 layout_mode = 2
 texture = ExtResource("3_kgptm")
 
-[node name="Start" type="TextureButton" parent="CanvasLayer/CenterContainer"]
+[node name="Start" type="TextureButton" parent="CanvasLayer/CenterContainer" unique_id=2006587315]
 layout_mode = 2
 size_flags_horizontal = 4
 texture_normal = ExtResource("4_3to3k")
 
-[node name="Volume" parent="CanvasLayer" instance=ExtResource("5_2mma3")]
+[node name="Volume" parent="CanvasLayer" unique_id=512539416 instance=ExtResource("5_2mma3")]
 
-[node name="BossHpBar" type="TextureProgressBar" parent="CanvasLayer"]
+[node name="BossHpBar" type="TextureProgressBar" parent="CanvasLayer" unique_id=1477846569]
 visible = false
 modulate = Color(1, 0.4, 0.3, 1)
 custom_minimum_size = Vector2(384, 8)
@@ -76,7 +75,7 @@ stretch_margin_bottom = 3
 texture_under = ExtResource("6_bt3es")
 texture_progress = ExtResource("7_01cyq")
 
-[node name="BossLabel" type="Label" parent="CanvasLayer"]
+[node name="BossLabel" type="Label" parent="CanvasLayer" unique_id=1753131047]
 visible = false
 custom_minimum_size = Vector2(384, 10)
 offset_left = 48.0
@@ -88,31 +87,31 @@ theme_override_font_sizes/font_size = 8
 text = "SECTOR COMMANDER"
 horizontal_alignment = 1
 
-[node name="Backdrop" parent="." instance=ExtResource("coord_v4")]
+[node name="Backdrop" parent="." unique_id=519582671 instance=ExtResource("coord_v4")]
 drift_speed = 50.0
 
-[node name="Player" parent="." instance=ExtResource("6_t4pur")]
+[node name="Player" parent="." unique_id=1846889269 instance=ExtResource("6_t4pur")]
 position = Vector2(160, 320)
 
-[node name="Camera2D" type="Camera2D" parent="."]
+[node name="Camera2D" type="Camera2D" parent="." unique_id=525490598]
 position = Vector2(240, 135)
 script = ExtResource("7_c8ll8")
 noise = SubResource("FastNoiseLite_uf0tv")
 
-[node name="EnemyAnchor" type="Node2D" parent="."]
+[node name="EnemyAnchor" type="Node2D" parent="." unique_id=850931792]
 
-[node name="BGM" type="AudioStreamPlayer2D" parent="."]
+[node name="BGM" type="AudioStreamPlayer2D" parent="." unique_id=40243084]
 stream = ExtResource("8_b2fep")
 bus = &"Music"
 
-[node name="End" type="AudioStreamPlayer2D" parent="."]
+[node name="End" type="AudioStreamPlayer2D" parent="." unique_id=2084659824]
 stream = ExtResource("9_jpgor")
 bus = &"SFX"
 
-[node name="WaveDirector" type="Node" parent="."]
+[node name="WaveDirector" type="Node" parent="." unique_id=462987033]
 script = ExtResource("11_jjei3")
 
-[node name="PauseMenu" parent="." instance=ExtResource("12_yw3xl")]
+[node name="PauseMenu" parent="." unique_id=677151441 instance=ExtResource("12_yw3xl")]
 
 [connection signal="pressed" from="CanvasLayer/CenterContainer/Start" to="." method="_on_start_pressed"]
 [connection signal="died" from="Player" to="." method="_on_player_died"]

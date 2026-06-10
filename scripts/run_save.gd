@@ -45,6 +45,12 @@ extends Resource
 @export var run_distance: float = 0.0
 @export var run_seed: int = 0
 
+# Ship choice (per-patrol; picked in the ship-select modal). Persisted so a resumed patrol
+# keeps the same hull + livery the player chose.
+@export var ship_variant: int = 0
+@export var livery_color: Color = Color(1.0, 0.0, 0.0)
+@export var livery_chosen: bool = false
+
 @export var hull_mk: int = 0
 @export var armor_mk: int = 0
 @export var thrusters_mk: int = 0

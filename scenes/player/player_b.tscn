@@ -1,29 +1,29 @@
-[gd_scene format=3 uid="uid://b32476hejmrnj"]
+[gd_scene format=3 uid="uid://uq40ogrhhy0i"]
 
-[ext_resource type="Script" uid="uid://bvobhlwg6dhui" path="res://scripts/player.gd" id="1_4pouc"]
-[ext_resource type="PackedScene" uid="uid://ce2sbgdju6rp7" path="res://scenes/projectiles/bullet.tscn" id="2_6pkbm"]
-[ext_resource type="PackedScene" uid="uid://c5te1ekoxw700" path="res://scenes/projectiles/bullet_heavy.tscn" id="3_qal1l"]
-[ext_resource type="Texture2D" uid="uid://8xlunrqnsdvm" path="res://graphics/player/player_ship_a_body.png" id="4_cnsyf"]
-[ext_resource type="Shader" uid="uid://cakr26sn2n1b3" path="res://scenes/player/livery_color.gdshader" id="5_007i1"]
-[ext_resource type="Texture2D" uid="uid://dy4fq55vrktdj" path="res://graphics/player/player_ship_a_livery.png" id="6_6cv16"]
-[ext_resource type="AudioStream" uid="uid://b3ly44akrfjnx" path="res://Sound/SFX_shot8.wav" id="7_0ksjw"]
-[ext_resource type="PackedScene" uid="uid://dionbws2gpfnd" path="res://scenes/shield.tscn" id="7_hq860"]
-[ext_resource type="Texture2D" uid="uid://d15ky04wf8lto" path="res://graphics/player/player_ship_a_engines.png" id="7_j4nxn"]
-[ext_resource type="AudioStream" uid="uid://7woqbofpv2f4" path="res://Sound/SFX_explosion1.wav" id="9_b1qs2"]
-[ext_resource type="Script" uid="uid://c8m8l655ht3ho" path="res://scenes/player_weapon_changer.gd" id="9_ptdv3"]
-[ext_resource type="AudioStream" uid="uid://dqjwv5lcwapki" path="res://Sound/SFX_hit&damage9.wav" id="9_qdso2"]
-[ext_resource type="AudioStream" uid="uid://bgsdyxqmgbntp" path="res://Sound/SFX_wrong&malus6.wav" id="9_y3jdr"]
-[ext_resource type="AudioStream" uid="uid://dcat8ema0o6ak" path="res://Sound/SFX_powerUp9.wav" id="10_0el21"]
-[ext_resource type="PackedScene" uid="uid://dxumspm4c6yeg" path="res://scenes/effects/shell_eject_small.tscn" id="10_1x2k1"]
-[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="10_65dxt"]
-[ext_resource type="PackedScene" uid="uid://qy4pikt4sjwk" path="res://scenes/effects/muzzleflash_small.tscn" id="11_02uoo"]
-[ext_resource type="AudioStream" uid="uid://rlimik0xgrhw" path="res://Sound/weapons/player/rotary_laser_charge.ogg" id="11_rlchg"]
-[ext_resource type="AudioStream" uid="uid://pbjpgk1gmsog" path="res://Sound/weapons/player/particle_charge.ogg" id="12_pbchg"]
-[ext_resource type="AudioStream" uid="uid://pbbf3bpemtwc" path="res://Sound/weapons/player/particle_loop.ogg" id="12_pbloop"]
-[ext_resource type="AudioStream" uid="uid://pbke0xmkwmkr" path="res://Sound/weapons/player/particle_stop.ogg" id="12_pbstop"]
+[ext_resource type="Script" uid="uid://bvobhlwg6dhui" path="res://scripts/player.gd" id="1_7uec1"]
+[ext_resource type="PackedScene" uid="uid://ce2sbgdju6rp7" path="res://scenes/projectiles/bullet.tscn" id="2_j5w27"]
+[ext_resource type="PackedScene" uid="uid://c5te1ekoxw700" path="res://scenes/projectiles/bullet_heavy.tscn" id="3_wps4g"]
+[ext_resource type="Texture2D" uid="uid://batel2u2bqxtq" path="res://graphics/player/player_ship_b_body.png" id="4_7uec1"]
+[ext_resource type="Shader" uid="uid://cakr26sn2n1b3" path="res://scenes/player/livery_color.gdshader" id="5_lfp0d"]
+[ext_resource type="Texture2D" uid="uid://2bjt0u2qgpq6" path="res://graphics/player/player_ship_b_livery.png" id="6_j5w27"]
+[ext_resource type="Texture2D" uid="uid://d3auxeep7q008" path="res://graphics/player/player_ship_b_engines.png" id="7_wps4g"]
+[ext_resource type="PackedScene" uid="uid://dionbws2gpfnd" path="res://scenes/shield.tscn" id="8_ha8dd"]
+[ext_resource type="Script" uid="uid://c8m8l655ht3ho" path="res://scenes/player_weapon_changer.gd" id="9_i18jy"]
+[ext_resource type="PackedScene" uid="uid://dxumspm4c6yeg" path="res://scenes/effects/shell_eject_small.tscn" id="10_oe3dm"]
+[ext_resource type="PackedScene" uid="uid://qy4pikt4sjwk" path="res://scenes/effects/muzzleflash_small.tscn" id="11_vxf1h"]
+[ext_resource type="AudioStream" uid="uid://dqjwv5lcwapki" path="res://Sound/SFX_hit&damage9.wav" id="12_q4luc"]
+[ext_resource type="AudioStream" uid="uid://b3ly44akrfjnx" path="res://Sound/SFX_shot8.wav" id="13_20ofo"]
+[ext_resource type="AudioStream" uid="uid://7woqbofpv2f4" path="res://Sound/SFX_explosion1.wav" id="14_t8q88"]
+[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="15_lji8t"]
+[ext_resource type="AudioStream" uid="uid://dcat8ema0o6ak" path="res://Sound/SFX_powerUp9.wav" id="16_tvrwh"]
+[ext_resource type="AudioStream" uid="uid://bgsdyxqmgbntp" path="res://Sound/SFX_wrong&malus6.wav" id="17_b0s65"]
+[ext_resource type="AudioStream" uid="uid://rlimik0xgrhw" path="res://Sound/weapons/player/rotary_laser_charge.ogg" id="18_fuuq6"]
+[ext_resource type="AudioStream" uid="uid://pbjpgk1gmsog" path="res://Sound/weapons/player/particle_charge.ogg" id="19_14aq4"]
+[ext_resource type="AudioStream" uid="uid://pbbf3bpemtwc" path="res://Sound/weapons/player/particle_loop.ogg" id="20_nx3te"]
+[ext_resource type="AudioStream" uid="uid://pbke0xmkwmkr" path="res://Sound/weapons/player/particle_stop.ogg" id="21_1g8du"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_cnsyf"]
-shader = ExtResource("5_007i1")
+shader = ExtResource("5_lfp0d")
 shader_parameter/tint_color = Color(1, 0, 0, 1)
 shader_parameter/opacity = 0.800000038
 
@@ -59,35 +59,35 @@ scale_curve = SubResource("CurveTexture_yabdq")
 color_ramp = SubResource("GradientTexture1D_cjbju")
 
 [node name="Player" type="Area2D" unique_id=1536830273]
-script = ExtResource("1_4pouc")
-bullet_scene = ExtResource("2_6pkbm")
-heavy_scene = ExtResource("3_qal1l")
+script = ExtResource("1_7uec1")
+bullet_scene = ExtResource("2_j5w27")
+heavy_scene = ExtResource("3_wps4g")
 
 [node name="Ship" type="Sprite2D" parent="." unique_id=16642258]
-texture = ExtResource("4_cnsyf")
+texture = ExtResource("4_7uec1")
 hframes = 3
 frame = 1
 
 [node name="Livery" type="Sprite2D" parent="Ship" unique_id=2071794664]
 material = SubResource("ShaderMaterial_cnsyf")
-texture = ExtResource("6_6cv16")
+texture = ExtResource("6_j5w27")
 hframes = 3
 frame = 1
 
 [node name="GlowMask" type="Sprite2D" parent="Ship" unique_id=2077275859]
-texture = ExtResource("7_j4nxn")
+texture = ExtResource("7_wps4g")
 hframes = 3
 frame = 1
 
-[node name="Shield" parent="Ship" unique_id=1634052579 instance=ExtResource("7_hq860")]
+[node name="Shield" parent="Ship" unique_id=1634052579 instance=ExtResource("8_ha8dd")]
 visible = false
 scale = Vector2(1, 1.00602)
 
 [node name="MuzzleWingL" type="Marker2D" parent="Ship" unique_id=1720238274]
-position = Vector2(-3, -2)
+position = Vector2(-4, -1)
 
 [node name="MuzzleWingR" type="Marker2D" parent="Ship" unique_id=820020244]
-position = Vector2(3, -2)
+position = Vector2(4, -1)
 
 [node name="LaunchWingL" type="Marker2D" parent="Ship" unique_id=1492219921]
 position = Vector2(-6, 3)
@@ -103,9 +103,9 @@ position = Vector2(1, 3)
 
 [node name="PlayerWeaponChanger" type="Node2D" parent="Ship" unique_id=1496218143]
 visible = false
-script = ExtResource("9_ptdv3")
-casing_particle_scene = ExtResource("10_1x2k1")
-flash_particle_scene = ExtResource("11_02uoo")
+script = ExtResource("9_i18jy")
+casing_particle_scene = ExtResource("10_oe3dm")
+flash_particle_scene = ExtResource("11_vxf1h")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=649184006]
 visible = false
@@ -123,40 +123,40 @@ wait_time = 2.0
 autostart = true
 
 [node name="ShootMinigun" type="AudioStreamPlayer2D" parent="." unique_id=1742104969]
-stream = ExtResource("9_qdso2")
+stream = ExtResource("12_q4luc")
 volume_db = -8.0
 
 [node name="ShootSound" type="AudioStreamPlayer2D" parent="." unique_id=180717552]
-stream = ExtResource("7_0ksjw")
+stream = ExtResource("13_20ofo")
 
 [node name="CannonShoot" type="AudioStreamPlayer2D" parent="." unique_id=1560732301]
-stream = ExtResource("9_b1qs2")
+stream = ExtResource("14_t8q88")
 
 [node name="SuperShoot" type="AudioStreamPlayer2D" parent="." unique_id=635771662]
-stream = ExtResource("10_65dxt")
+stream = ExtResource("15_lji8t")
 
 [node name="BulletHit" type="AudioStreamPlayer2D" parent="." unique_id=1574456737]
-stream = ExtResource("9_qdso2")
+stream = ExtResource("12_q4luc")
 
 [node name="ShieldUp" type="AudioStreamPlayer2D" parent="." unique_id=20336153]
-stream = ExtResource("10_0el21")
+stream = ExtResource("16_tvrwh")
 
 [node name="Death" type="AudioStreamPlayer2D" parent="." unique_id=997250907]
-stream = ExtResource("9_y3jdr")
+stream = ExtResource("17_b0s65")
 
 [node name="RotaryLaserCharge" type="AudioStreamPlayer2D" parent="." unique_id=933156384]
-stream = ExtResource("11_rlchg")
+stream = ExtResource("18_fuuq6")
 
 [node name="RotaryLaserShoot" type="AudioStreamPlayer2D" parent="." unique_id=362393074]
 
 [node name="ParticleBeamCharge" type="AudioStreamPlayer2D" parent="." unique_id=1723686632]
-stream = ExtResource("12_pbchg")
+stream = ExtResource("19_14aq4")
 
 [node name="ParticleBeamLoop" type="AudioStreamPlayer2D" parent="." unique_id=1614614612]
-stream = ExtResource("12_pbloop")
+stream = ExtResource("20_nx3te")
 
 [node name="ParticleBeamStop" type="AudioStreamPlayer2D" parent="." unique_id=1465568312]
-stream = ExtResource("12_pbstop")
+stream = ExtResource("21_1g8du")
 
 [node name="ImpactParticle" type="GPUParticles2D" parent="." unique_id=1780426325]
 emitting = false
@@ -167,8 +167,11 @@ explosiveness = 1.0
 randomness = 1.0
 process_material = SubResource("ParticleProcessMaterial_ulur3")
 
-[node name="Engine" type="Marker2D" parent="." unique_id=854711842]
-position = Vector2(0, 6)
+[node name="EngineL" type="Marker2D" parent="." unique_id=1495778554]
+position = Vector2(-4, 5)
+
+[node name="EngineR" type="Marker2D" parent="." unique_id=854711842]
+position = Vector2(4, 5)
 
 [connection signal="area_entered" from="." to="." method="_on_area_entered"]
 [connection signal="timeout" from="GunCooldown" to="." method="_on_gun_cooldown_timeout"]

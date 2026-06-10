@@ -65,6 +65,9 @@ var _suppress_wave_banner: bool = false
 @onready var boss_label: Label = $CanvasLayer/BossLabel if has_node("CanvasLayer/BossLabel") else null
 
 func _ready() -> void:
+	# Swap the baked default ship (A) for the player's chosen variant BEFORE any player wiring
+	# below runs — reassigns `player` so the damage/HUD hookups (and new_game) use the new node.
+	_install_chosen_player()
 	game_over.hide()
 	start_button.hide()
 	# Warmup must defer — at _ready() the SceneTree is still building the
@@ -105,6 +108,40 @@ func _ready() -> void:
 		boss_label.visible = false
 	_install_playfield_frame()
 	new_game()
+
+
+# Replace the scene's baked default Player (ship A) with the variant the player chose in the
+# ship-select modal (Run.ship_variant: 0=A / 1=B / 2=C). No-op for variant 0 — the baked node
+# already IS ship A, so most runs skip the swap entirely. Adds the new node to Main during _ready
+# (safe — same as _install_playfield_frame's add_child(self)); re-wires the three signals the
+# .tscn hard-wired off the old Player node, then reassigns the `player` member.
+func _install_chosen_player() -> void:
+	if not has_node("/root/Run"):
+		return
+	var variant: int = int(Run.ship_variant)
+	if variant == 0:
+		return   # baked Player is already ship A
+	if not (player and is_instance_valid(player)):
+		return
+	var scene: PackedScene = load(Run.player_scene_path())
+	if scene == null:
+		return
+	var idx: int = player.get_index()
+	var pos: Vector2 = player.position
+	player.free()   # immediate (not queue_free) so the "Player" name frees for the new node
+	var np: Node = scene.instantiate()
+	np.name = "Player"
+	add_child(np)
+	move_child(np, idx)
+	if np is Node2D:
+		(np as Node2D).position = pos
+	# Re-create the connections the .tscn baked onto the old Player node.
+	np.died.connect(_on_player_died)
+	if has_node("CanvasLayer/UI"):
+		var ui := $CanvasLayer/UI
+		np.hull_changed.connect(ui.update_hull)
+		np.shield_changed.connect(ui.update_shield)
+	player = np
 
 
 # Light-blue card-style outline around the 216×270 playfield, plus a

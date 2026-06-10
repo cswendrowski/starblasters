@@ -181,12 +181,25 @@ func _on_continue() -> void:
 	SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE)
 
 func _on_new_game() -> void:
+	# New patrol opens the ship-select modal FIRST (pick hull + livery). Only on "Begin Patrol"
+	# do we reset the run, write the choice, and transition. New game then funnels through
+	# onboarding before the sector map (the onboarding "Begin Run" / "Skip" jump to the map).
+	var ShipSelect = load("res://scripts/ui/ship_select_overlay.gd")
+	var def_v: int = 0
+	var def_c: Color = Color(0.90, 0.16, 0.16)
 	if has_node("/root/Run"):
-		get_node("/root/Run").new_run()
-	# New game funnels through onboarding before the sector map (Roman,
-	# 2026-05-16). The onboarding screen's "Begin Run" / "Skip" both jump
-	# the player to the sector map.
-	SceneTransition.change_scene(get_tree(), "res://scenes/onboarding.tscn")
+		var run = get_node("/root/Run")
+		def_v = int(run.ship_variant)
+		if run.livery_chosen:
+			def_c = run.livery_color
+	ShipSelect.open(self, def_v, def_c, func(variant: int, color: Color):
+		if has_node("/root/Run"):
+			var run = get_node("/root/Run")
+			run.new_run()
+			run.ship_variant = variant
+			run.livery_color = color
+			run.livery_chosen = true
+		SceneTransition.change_scene(get_tree(), "res://scenes/onboarding.tscn"))
 
 func _on_options() -> void:
 	var OptionsOverlay = load("res://scripts/ui/options_overlay.gd")
