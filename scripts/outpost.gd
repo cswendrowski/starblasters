@@ -142,6 +142,8 @@ func _ready() -> void:
 		var run := get_node("/root/Run")
 		if "max_shield" in run and "current_shield" in run and int(run.max_shield) > 0:
 			run.current_shield = int(run.max_shield)
+		# Task #4: dedupe equipped items — one of each.
+		_ensure_no_duplicate_equipped(run)
 	_load_or_roll_offers()
 	_build_ui()
 	if has_node("/root/Run"):
@@ -221,6 +223,17 @@ func _build_status_panel(parent: CanvasLayer) -> void:
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	h.add_child(spacer)
+
+	# Task #5: "Defeat boss to restock" hint (upper-right).
+	var restock_hint := Label.new()
+	restock_hint.text = Strings.OUTPOST_RESTOCK_HINT
+	_style_label(restock_hint, FS_CAPTION, Color(0.88, 0.72, 0.55))
+	h.add_child(restock_hint)
+
+	# Small gap before bounty block.
+	var tiny_gap := Control.new()
+	tiny_gap.custom_minimum_size = Vector2(16, 0)
+	h.add_child(tiny_gap)
 
 	_bounty_value_lbl = _make_stat_block(h, Strings.OUTPOST_STAT_BOUNTY, Color(0.95, 0.86, 0.45))
 
@@ -341,16 +354,26 @@ func _make_weapon_card(offer: Dictionary) -> Control:
 	v.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	row.add_child(v)
 
+	# Task #2: item name in rarity color. Task #3: type name instead of tier badge.
 	var name_lbl := Label.new()
 	name_lbl.text = part.get_display() if part.has_method("get_display") else String(part.display_name)
-	_style_label(name_lbl, FS_BODY, Color(0.95, 0.95, 0.95))
+	_style_label(name_lbl, FS_BODY, tier["color"])  # Rarity color on the name itself.
 	v.add_child(name_lbl)
-	# Tier badge — color-coded label so player can size up a card at a glance.
-	# Matches the card border tint (set above via _card_style_tier).
-	var tier_lbl := Label.new()
-	tier_lbl.text = PartTier.tier_label(part_mk)
-	_style_label(tier_lbl, FS_CAPTION, tier["color"])
-	v.add_child(tier_lbl)
+
+	# Type label (Primary Weapon / Blaster / Secondary / Super / Mode).
+	var type_lbl := Label.new()
+	type_lbl.text = _type_name_for_part(part, int(part.slot_type))
+	_style_label(type_lbl, FS_CAPTION, Color(0.72, 0.78, 0.85))  # Neutral gray.
+	v.add_child(type_lbl)
+
+	# Task #7: Dynamic stat line computed from the part's curves.
+	var stats_text: String = _stats_display_for_part(part, part_mk)
+	if not stats_text.is_empty():
+		var stats_lbl := Label.new()
+		stats_lbl.text = stats_text
+		_style_label(stats_lbl, FS_CAPTION, Color(0.62, 0.80, 0.92))  # Stats in a cooler tone.
+		v.add_child(stats_lbl)
+
 	var desc_lbl := Label.new()
 	desc_lbl.text = String(part.description)
 	desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -412,20 +435,23 @@ func _make_upgrade_card(offer: Dictionary) -> Control:
 	v.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	row.add_child(v)
 
+	# Task #2: upgrade name in rarity color.
 	var name_lbl := Label.new()
 	name_lbl.text = "%s  Mk.%d" % [offer["name"], next_mk]
-	_style_label(name_lbl, FS_BODY, Color(0.95, 0.95, 0.95))
+	_style_label(name_lbl, FS_BODY, tier["color"])  # Rarity color on the name.
 	v.add_child(name_lbl)
-	# Tier badge — same scheme as weapons. Reads the Mk the player gets
-	# AFTER buying, so a Mk.6 → Mk.7 upgrade shows "Tier IV - Improved".
-	var tier_lbl := Label.new()
-	tier_lbl.text = PartTier.tier_label(next_mk)
-	_style_label(tier_lbl, FS_CAPTION, tier["color"])
-	v.add_child(tier_lbl)
+
+	# Show current Mk and the delta (if applicable).
+	var current_mk: int = _current_mk(offer["key"])
+	var delta_mk: int = next_mk - current_mk
 	var current_lbl := Label.new()
-	current_lbl.text = "Currently Mk.%d" % _current_mk(offer["key"])
+	if delta_mk > 0:
+		current_lbl.text = "Mk.%d → Mk.%d" % [current_mk, next_mk]
+	else:
+		current_lbl.text = "Currently Mk.%d" % current_mk
 	_style_label(current_lbl, FS_CAPTION, Color(0.62, 0.72, 0.82))
 	v.add_child(current_lbl)
+
 	var desc_lbl := Label.new()
 	desc_lbl.text = String(offer["desc"])
 	desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -647,9 +673,10 @@ func _roll_offers() -> void:
 
 	# Weapons: WEAPONS_COLUMN_COUNT cards. Slot weighted 50/25/25 via
 	# WEAPON_SLOT_WEIGHTS; mark via the triangular roll capped at sector+3.
-	# Dedupe by (slot, mark, name) — Roman 2026-05-25: "shop should not
-	# offer repeats". Bounded reroll so we don't loop forever if the catalog
-	# can't fill 5 unique slots at the current sector cap.
+	# Task #6a: Dedupe within the offer roll itself (no repeating items).
+	# Task #6b: Own-better filter — don't roll an item the player owns unless
+	#   it's at least +1 Mark higher than what they own. Bounded reroll so we
+	#   don't loop forever if the catalog can't fill 5 unique slots at the cap.
 	_weapon_offers.clear()
 	var seen: Dictionary = {}
 	for i in WEAPONS_COLUMN_COUNT:
@@ -683,6 +710,9 @@ func _roll_offers() -> void:
 						part.mark = picked_mk
 			var key: String = "%d:%d:%s" % [slot, picked_mk, part_name]
 			if seen.has(key):
+				continue
+			# Task #6b: Own-better filter — reject if owned at same or higher mark.
+			if not _should_roll_weapon(slot, part_name, picked_mk):
 				continue
 			seen[key] = true
 			picked = part
@@ -1397,3 +1427,168 @@ func _style_label(lbl: Label, font_size: int, color: Color) -> void:
 	lbl.add_theme_color_override("font_color", color)
 	lbl.add_theme_constant_override("outline_size", 2)
 	lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+
+
+# ---- Task #1, #3: Type label mapping (Blaster vs Primary Weapon) --------
+
+# Determines if a cannon part is the permanent Energy Blaster.
+# The Blaster is always Run.cannon_pool[0] and has display_name "Energy Blaster".
+func _is_energy_blaster(part) -> bool:
+	if part == null:
+		return false
+	return String(part.display_name) == "Energy Blaster"
+
+
+# Maps slot_type to a player-facing type name (task #3).
+# Primary cannons split into "Blaster" (the permanent one) vs "Primary Weapon" (replaceable).
+func _type_name_for_part(part, slot: int) -> String:
+	if slot == SlotTypes.SlotType.CANNON:
+		if _is_energy_blaster(part):
+			return Strings.TYPE_NAME_BLASTER
+		return Strings.TYPE_NAME_PRIMARY_WEAPON
+	match slot:
+		SlotTypes.SlotType.HARDPOINT_WING:
+			return Strings.TYPE_NAME_SECONDARY_WEAPON
+		SlotTypes.SlotType.DEVICE_BAY_1:
+			return Strings.TYPE_NAME_SUPER
+		SlotTypes.SlotType.SHIFT_MODE:
+			return Strings.TYPE_NAME_MODE
+		_:
+			return Strings.SLOT_NAME_PART
+	return Strings.SLOT_NAME_PART
+
+
+# Task #4: Ensure only one of each distinct item is equipped.
+# Runs on outpost open. Scans loadout_snapshot + cannon_pool for duplicates;
+# keeps the higher-mark copy equipped, moves excess to weapon_storage.
+func _ensure_no_duplicate_equipped(run) -> void:
+	if not run or not ("loadout_snapshot" in run):
+		return
+
+	var loadout = run.loadout_snapshot
+	var seen: Dictionary = {}  # display_name -> (slot, mark, original_index_in_pool)
+
+	# First pass: identify duplicates.
+	var to_displace: Array = []  # Items to move to storage
+
+	# Check all slots except CANNON (we'll handle it specially).
+	for slot in SlotTypes.ALL_SLOTS:
+		if slot == SlotTypes.SlotType.CANNON:
+			continue
+		var part = loadout.get(slot, null)
+		if part == null:
+			continue
+		var name: String = String(part.display_name)
+		var mark: int = int(part.mark) if "mark" in part else 1
+		if seen.has(name):
+			# Duplicate! Keep the higher-mark one, displace the lower.
+			var prev = seen[name]
+			if mark < prev["mark"]:
+				# Current is lower — displace it.
+				to_displace.append(part)
+			else:
+				# Current is higher — displace the previous.
+				var prev_part = loadout.get(prev["slot"], null)
+				if prev_part:
+					to_displace.append(prev_part)
+				seen[name] = {"slot": slot, "mark": mark}
+		else:
+			seen[name] = {"slot": slot, "mark": mark}
+
+	# Cannon_pool is special: [0] is blaster (permanent), [1..N] are replaceable.
+	# Check for duplicates across the pool.
+	if "cannon_pool" in run and run.cannon_pool is Array:
+		var cannon_seen: Dictionary = {}  # display_name -> array of (idx, mark)
+		for i in range(run.cannon_pool.size()):
+			var c = run.cannon_pool[i]
+			if c == null:
+				continue
+			var name: String = String(c.display_name)
+			if not cannon_seen.has(name):
+				cannon_seen[name] = []
+			cannon_seen[name].append({"idx": i, "mark": int(c.mark) if "mark" in c else 1})
+
+		# For each name with duplicates, keep the highest-mark one, displace the rest.
+		for name in cannon_seen.keys():
+			var entries = cannon_seen[name]
+			if entries.size() > 1:
+				# Sort by mark descending.
+				entries.sort_custom(func(a, b): return int(a["mark"]) > int(b["mark"]))
+				# Keep the first (highest mark), displace the rest.
+				for j in range(1, entries.size()):
+					var idx = entries[j]["idx"]
+					if idx < run.cannon_pool.size():
+						var c = run.cannon_pool[idx]
+						if c and idx != 0:  # Never displace the blaster at [0].
+							to_displace.append(c)
+
+	# Move displaced items to weapon_storage.
+	for item in to_displace:
+		if not ("weapon_storage" in run):
+			run.weapon_storage = []
+		if item not in run.weapon_storage:
+			run.weapon_storage.append(item)
+
+
+# Task #6b: Own-better filter — determine if a weapon offer is acceptable.
+# Returns true if the player doesn't own this item, OR owns it but at a LOWER mark.
+func _should_roll_weapon(slot: int, part_name: String, offered_mk: int) -> bool:
+	if not has_node("/root/Run"):
+		return true
+	var run := get_node("/root/Run")
+
+	# Check loadout_snapshot for non-CANNON slots.
+	if slot != SlotTypes.SlotType.CANNON:
+		var equipped = run.loadout_snapshot.get(slot, null)
+		if equipped != null and String(equipped.display_name) == part_name:
+			var owned_mk: int = int(equipped.mark) if "mark" in equipped else 1
+			if offered_mk <= owned_mk:
+				return false  # Reject: player owns same or higher.
+		# Check weapon_storage too.
+		if "weapon_storage" in run:
+			for stored in run.weapon_storage:
+				if String(stored.display_name) == part_name:
+					var stored_mk: int = int(stored.mark) if "mark" in stored else 1
+					if offered_mk <= stored_mk:
+						return false  # Reject: player owns (in storage) same or higher.
+		return true
+
+	# For CANNON, check cannon_pool.
+	if "cannon_pool" in run:
+		for c in run.cannon_pool:
+			if String(c.display_name) == part_name:
+				var owned_mk: int = int(c.mark) if "mark" in c else 1
+				if offered_mk <= owned_mk:
+					return false  # Reject: player owns same or higher.
+
+	return true
+
+
+# Task #7: Compute dynamic stats for a part at a given mark.
+# Mirrors hangar.gd _stats_for_part but returns a compact display string.
+func _stats_display_for_part(part, mk: int) -> String:
+	if part == null:
+		return ""
+	mk = clampi(mk, 1, 9)
+	var dmg: int = 0
+	if "base_damage" in part:
+		var base: int = int(part.base_damage)
+		var per_mk: int = int(part.dmg_per_mark) if "dmg_per_mark" in part else 0
+		dmg = base + per_mk * max(0, mk - 1)
+	var rof: float = 0.0
+	if "base_cooldown" in part:
+		var cooldown: float = float(part.base_cooldown)
+		rof = (1.0 / cooldown) if cooldown > 0.0 else 0.0
+	var ammo: int = -1
+	if part.has_method("_base_ammo"):
+		ammo = int(part._base_ammo())
+
+	# Format: "dmg N · rof N/s" or "dmg N · ammo N" depending on what's available.
+	var parts: Array[String] = []
+	if dmg > 0:
+		parts.append("dmg %d" % dmg)
+	if rof > 0.0:
+		parts.append("%.1f/s" % rof)
+	elif ammo >= 0:
+		parts.append("ammo %d" % ammo)
+	return " · ".join(parts) if not parts.is_empty() else ""

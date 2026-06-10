@@ -365,6 +365,17 @@ const SLOT_NAME_WING_L := "WING L"
 const SLOT_NAME_WING_R := "WING R"
 const SLOT_NAME_PART := "PART"
 
+# Type labels (task #1, #3: distinguish Blaster from Primary Weapon).
+const TYPE_NAME_BLASTER := "Blaster"
+const TYPE_NAME_PRIMARY_WEAPON := "Primary Weapon"
+const TYPE_NAME_SECONDARY_WEAPON := "Secondary Weapon"
+const TYPE_NAME_SUPER := "Super"
+const TYPE_NAME_MODE := "Mode"
+const TYPE_NAME_UPGRADE := "Upgrade"
+
+# Status bar label (task #5).
+const OUTPOST_RESTOCK_HINT := "Defeat boss to restock."
+
 # Loadout line format strings.
 const LOADOUT_PRIMARY := "PRI: %s"
 const LOADOUT_SECONDARY := "SEC: %s"
