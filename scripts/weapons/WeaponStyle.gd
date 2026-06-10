@@ -17,6 +17,8 @@ enum WeaponStyle {
 	MACHINEGUN,    # MG ammo + brrrt audio loop path
 	ROTARY_LASER,  # charge-up + ammo path
 	BEAM,          # reserved for hit-scan primaries (currently secondary)
+	AUTOCANNON,    # spin-up cannon with start/stop sounds
+	MINIGUN,       # rapid hitscan energy cannon
 }
 
 static func style_name(s: int) -> String:
@@ -72,6 +74,8 @@ enum FireSfxKind {
 	BEAM,           # reserved — placeholder for future beam SFX
 	AUTOLASER,      # Auto Laser (AUTOLASER_CLIPS pool)
 	SPREAD,         # Spread Cannon (SPREAD_CLIPS pool)
+	AUTOCANNON,     # Autocannon (AUTOCANNON_CLIPS pool)
+	MINIGUN,        # Minigun (MINIGUN_CLIPS pool)
 }
 
 
@@ -93,4 +97,6 @@ static func sfx_kind_string(k: int) -> String:
 		FireSfxKind.BEAM: return "beam"
 		FireSfxKind.AUTOLASER: return "autolaser"
 		FireSfxKind.SPREAD: return "spread"
+		FireSfxKind.AUTOCANNON: return "autocannon"
+		FireSfxKind.MINIGUN: return "minigun"
 		_: return ""
