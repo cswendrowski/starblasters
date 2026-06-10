@@ -193,9 +193,9 @@ func explode() -> void:
 	if ImpactFxCls:
 		ImpactFxCls.spawn(get_tree().root, global_position, Color(1.0, 0.55, 0.2, 1.0), 1)
 	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
-	ExplosionFx.play(global_position, 1.0)
-	var MineSfx = load("res://scripts/effects/mine_sfx.gd")
-	MineSfx.play_at(global_position, -6.0)
+	# Silent explosion SFX — bomblets are tiny + released in swarms (4-8 from a gravity mine);
+	# the distance system would stack a wall of close booms. The parent mine's death covers the cue.
+	ExplosionFx.play(global_position, 1.0, true, null, null, false)
 	if has_node("Sprite2D"):
 		var BurnFx = load("res://scripts/burn_fx.gd")
 		BurnFx.apply_burn($Sprite2D, 0.25)

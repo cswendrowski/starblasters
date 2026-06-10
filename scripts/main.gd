@@ -263,7 +263,7 @@ func _warm_up_level() -> void:
 
 	# Pre-fire one explosion to init the CPU-particle path (all explosions 1×
 	# since Roman 2026-05-18, so a single warmup variant suffices).
-	var warm_explosion = ExplosionFx.play(WARM_DIR, 1.0, true)
+	var warm_explosion = ExplosionFx.play(WARM_DIR, 1.0, true, null, null, false)  # silent warmup
 	if warm_explosion:
 		warm_explosion.modulate = Color(1, 1, 1, 0.001)
 		warm_explosion.set_meta("warmup_only", true)

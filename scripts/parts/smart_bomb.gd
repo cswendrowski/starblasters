@@ -13,6 +13,10 @@ extends "res://scripts/parts/super_part.gd"
 
 const ShockwaveScript = preload("res://scripts/projectiles/smart_bomb_shockwave.gd")
 const HitFlashFx = preload("res://scripts/effects/hit_flash_fx.gd")
+const _DETONATE_CLIPS := [
+	preload("res://Sound/weapons/player/smart_bomb_sweetener_1.ogg"),
+	preload("res://Sound/weapons/player/smart_bomb_sweetener_2.ogg"),
+]
 
 # Tuned so Mk.1 (18) one-shots a large non-tough enemy (16 HP) and everything
 # smaller; per-Mk growth lets late Marks bite tough/huge harder without ever
@@ -60,9 +64,9 @@ func activate(ship) -> void:
 	wave_parent.call_deferred("add_child", wave)
 	# Punch.
 	_camera_trauma(ship, 0.7)
-	# Bomb detonation SFX — reuse the explosion clip so the panic-button reads.
-	var ExplosionSfx = preload("res://Sound/SFX_explosion1.wav")
-	Sfx.play_one_shot(ExplosionSfx, ship.global_position, -2.0)
+	# Bomb detonation SFX — dedicated smart-bomb sweetener (Roman 2026-06-09).
+	var clip: AudioStream = _DETONATE_CLIPS[randi() % _DETONATE_CLIPS.size()]
+	Sfx.play_one_shot(clip, ship.global_position, -2.0)
 
 
 func _damage_at_mark(at_mark: int) -> int:

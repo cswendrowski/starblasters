@@ -33,6 +33,23 @@ const WAVE_CLIPS := [
 	preload("res://Sound/weapons/player/wave_shoot_5.ogg"),
 	preload("res://Sound/weapons/player/wave_shoot_6.ogg"),
 ]
+const AUTOLASER_CLIPS := [
+	preload("res://Sound/weapons/player/autolaser_shoot_1.ogg"),
+	preload("res://Sound/weapons/player/autolaser_shoot_2.ogg"),
+	preload("res://Sound/weapons/player/autolaser_shoot_3.ogg"),
+	preload("res://Sound/weapons/player/autolaser_shoot_4.ogg"),
+	preload("res://Sound/weapons/player/autolaser_shoot_5.ogg"),
+	preload("res://Sound/weapons/player/autolaser_shoot_6.ogg"),
+	preload("res://Sound/weapons/player/autolaser_shoot_7.ogg"),
+]
+const SPREAD_CLIPS := [
+	preload("res://Sound/weapons/player/spread_shoot_1.ogg"),
+	preload("res://Sound/weapons/player/spread_shoot_2.ogg"),
+	preload("res://Sound/weapons/player/spread_shoot_3.ogg"),
+	preload("res://Sound/weapons/player/spread_shoot_4.ogg"),
+	preload("res://Sound/weapons/player/spread_shoot_5.ogg"),
+	preload("res://Sound/weapons/player/spread_shoot_6.ogg"),
+]
 # Rocket + missile live in the universal/ folder — shared by player AND enemies.
 const ROCKET_CLIPS := [
 	preload("res://Sound/weapons/universal/rocket_launch_1.ogg"),
@@ -57,6 +74,10 @@ static func play(parent: Node, world_pos, kind: String) -> void:
 			pool = LARGE_CLIPS
 		"wave":
 			pool = WAVE_CLIPS
+		"autolaser":
+			pool = AUTOLASER_CLIPS
+		"spread":
+			pool = SPREAD_CLIPS
 		"rocket":
 			pool = ROCKET_CLIPS
 		"missile":

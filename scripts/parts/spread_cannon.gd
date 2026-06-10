@@ -24,7 +24,7 @@ func _init() -> void:
 
 
 func _fire_sfx_kind() -> int:
-	return WS.FireSfxKind.BLASTER_SMALL
+	return WS.FireSfxKind.SPREAD
 
 
 func _snapshot_keys() -> Array:

@@ -160,6 +160,10 @@ Legend: ⮕ reuse/extend target. ⚠ risk/needs-eyeball. 🔧 dev-tool opportuni
 - **O** Renderer pivot — HELD for attended session.
 
 ## Running log
+- 2026-06-10 — **P0 import DONE** (`3272c0e`, branch `worklist-2026-06-10`). Renamed 80 explosion clips
+  (vendor prefix stripped), imported all new `.ogg` + `minigun_tracer.png`, gitignored `desktop.ini`.
+  Un-broke the build: enemy fire SFX `.wav`→`.ogg`; retired dead `PULSE` pool + `WAVE_BIG` (wave gun
+  drops the Mk.5 *audio* swap, keeps the projectile swap). parse_check clean, boot exit 0.
 - 2026-06-10: Reviewed Worklist + TODO + docs + new-asset set. Authored plan. Decisions: renderer **held**;
   Autocannon **replaces** Machinegun; recycler **full send**; **proposed sequence** confirmed. Sequence locked
   above. Awaiting Roman's explicit "go" before touching code/assets.

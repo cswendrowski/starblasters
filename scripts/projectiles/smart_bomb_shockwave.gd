@@ -117,7 +117,7 @@ func _damage_enemy(e) -> void:
 func _destroy_missile(m) -> void:
 	if not is_instance_valid(m):
 		return
-	ExplosionFx.play(m.global_position, 0.4, false)
+	ExplosionFx.play(m.global_position, 0.4, false, null, null, false)  # silent — smart bomb has its own detonation SFX
 	m.queue_free()
 
 

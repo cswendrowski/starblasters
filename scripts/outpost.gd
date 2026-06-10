@@ -23,6 +23,7 @@ const SceneTransition = preload("res://scripts/scene_transition.gd")
 const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const Strings = preload("res://scripts/strings.gd")
+const OutpostSfx = preload("res://scripts/effects/outpost_sfx.gd")
 
 const UPGRADES := [
 	{"key": "hull_mk",          "name": Strings.UPGRADE_HULL_NAME,          "desc": Strings.UPGRADE_HULL_DESC},
@@ -759,6 +760,7 @@ func _on_buy_upgrade(offer: Dictionary, btn: Button) -> void:
 	offer["sold"] = true
 	btn.text = Strings.OUTPOST_BTN_PURCHASED
 	btn.disabled = true
+	OutpostSfx.play("upgrade")
 	_refresh_status_panel()
 	_show_toast(Strings.TOAST_UPGRADE_PURCHASED)
 
@@ -777,6 +779,7 @@ func _on_buy_weapon(offer: Dictionary, btn: Button) -> void:
 	offer["sold"] = true
 	btn.text = Strings.OUTPOST_BTN_EQUIPPED
 	btn.disabled = true
+	OutpostSfx.play("equip")
 	_render_storage()
 	_refresh_status_panel()
 	_show_toast(Strings.TOAST_EQUIPPED)
@@ -812,6 +815,7 @@ func _on_equip_stored(idx: int) -> void:
 	# currently-equipped same-slot part back into storage — do NOT push
 	# it manually here (would double-append).
 	_apply_part_to_player(picked)
+	OutpostSfx.play("equip")
 	_render_storage()
 	_refresh_status_panel()
 	_show_toast(Strings.TOAST_EQUIPPED)
@@ -825,6 +829,7 @@ func _on_sell_stored(idx: int, sell_value: int) -> void:
 		return
 	run.weapon_storage.remove_at(idx)
 	run.bounty += sell_value
+	OutpostSfx.play("unequip")
 	_render_storage()
 	_refresh_status_panel()
 
@@ -854,6 +859,7 @@ func _on_repair(btn: Button) -> void:
 	run.spend_bounty(cost)
 	run.repair_charges -= 1
 	run.current_hull = clampi(int(run.current_hull) + 1, 0, int(run.max_hull))
+	OutpostSfx.play("repair")
 	_refresh_status_panel()
 
 
@@ -949,6 +955,7 @@ func _on_primary_ammo_refill(btn: Button) -> void:
 	active.current_ammo = cap
 	# Mirror to Run.ammo + player.ammo so HUD updates immediately on return.
 	run.ammo = cap
+	OutpostSfx.play("repair")
 	_show_toast(Strings.TOAST_PRIMARY_REFILLED)
 	_refresh_status_panel()
 
@@ -972,6 +979,7 @@ func _on_secondary_ammo_refill(btn: Button) -> void:
 	run.spend_bounty(cost)
 	run.ammo_restock_charges -= 1
 	run.secondary_ammo = clampi(int(run.secondary_ammo) + rounds, 0, int(run.secondary_ammo_max))
+	OutpostSfx.play("repair")
 	_show_toast(Strings.TOAST_SECONDARY_REFILLED % [rounds, cost])
 	_refresh_status_panel()
 
@@ -990,6 +998,7 @@ func _on_super_refill(btn: Button) -> void:
 		return
 	run.spend_bounty(SUPER_REFILL_COST)
 	run.super_charges = clampi(int(run.super_charges) + 1, 0, int(run.max_super_charges))
+	OutpostSfx.play("repair")
 	_refresh_status_panel()
 
 
