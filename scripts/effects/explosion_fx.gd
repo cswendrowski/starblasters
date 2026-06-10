@@ -15,6 +15,7 @@ const ExplosionSfx = preload("res://scripts/effects/explosion_sfx.gd")
 const VARIANTS := {
 	"default": EXPLOSION_SCENE,
 	"small_circle": preload("res://scenes/effects/explosion_small_circle.tscn"),
+	"ball": preload("res://scenes/effects/explosion_small_circle.tscn"),  # zealot enemies
 }
 
 static func variant_names() -> Array:

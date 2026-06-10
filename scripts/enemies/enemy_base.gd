@@ -366,6 +366,12 @@ func explode() -> void:
 	set_deferred("monitorable", false)
 	died.emit(bounty_value)
 	_components_death()
+	# Zealot enemies with firecore drops: use "ball" explosion if no firecore was
+	# dropped, else "default". Check this AFTER _components_death() fires the emitters.
+	if did_emit_tagged("firecore"):
+		explosion_variant = "default"
+	elif explosion_variant == "default" and has_meta("may_drop_firecore"):
+		explosion_variant = "ball"
 	# Explosions are always 1× scale; bigger enemies just get MORE blasts
 	# with random jitter (Roman 2026-05-18). 16-px chaff = 1, 48-px boss-
 	# class = ~4-5, clamped to a sane upper bound.
@@ -576,6 +582,16 @@ func _components_leave() -> void:
 	for c in _components:
 		if c.has_method("on_leave"):
 			c.on_leave(self)
+
+
+# Check if a tagged EmitterComponent (e.g. "firecore") successfully emitted on_death.
+# Used by zealot enemies to decide explosion variant.
+func did_emit_tagged(tag: String) -> bool:
+	for c in _components:
+		if "tag" in c and "payload" in c and "_last_emit_succeeded" in c:
+			if String(c.get("tag", "")) == tag and bool(c.get("_last_emit_succeeded", false)):
+				return true
+	return false
 
 
 # ---- Muzzle resolution -------------------------------------------------

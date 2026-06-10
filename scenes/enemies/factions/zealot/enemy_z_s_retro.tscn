@@ -16,6 +16,7 @@ speed = 130.0
 [sub_resource type="Resource" id="DropFirecore"]
 script = ExtResource("4_emit")
 payload = ExtResource("5_fc")
+tag = "firecore"
 
 [sub_resource type="RectangleShape2D" id="Hit"]
 size = Vector2(14, 14.5)
@@ -24,6 +25,7 @@ size = Vector2(14, 14.5)
 script = ExtResource("1_core")
 movement = SubResource("MovePattern")
 components = [SubResource("DropFirecore")]
+metadata/may_drop_firecore = true
 
 [node name="FirecoreCore" parent="." unique_id=424529390 instance=ExtResource("6_corevis")]
 

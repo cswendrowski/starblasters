@@ -75,7 +75,8 @@ func explode() -> void:
 	set_deferred("monitorable", false)
 	died.emit(bounty_value)
 	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
-	ExplosionFx.play(global_position, 1.0)
+	var scene := ExplosionFx.scene_for("ball")
+	ExplosionFx.play(global_position, 1.0, true, null, scene)
 	var MineSfx = load("res://scripts/effects/mine_sfx.gd")
 	MineSfx.play_at(global_position)
 	await get_tree().create_timer(0.4).timeout

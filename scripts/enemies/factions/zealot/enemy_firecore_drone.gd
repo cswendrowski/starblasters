@@ -132,6 +132,8 @@ func explode() -> void:
 	if _dying:
 		return
 	_release_rings()
+	# Always use ball explosion for the drone (it's a firecore carrier)
+	explosion_variant = "ball"
 	super.explode()
 
 
