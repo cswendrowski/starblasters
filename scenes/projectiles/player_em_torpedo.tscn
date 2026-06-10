@@ -22,7 +22,7 @@ initial_dir = Vector2(0, -1)
 burst_radius = 72.0
 burst_max_targets = 8
 burst_damage = 6
-detonate_y = 50.0
+detonate_y = 40.0
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("2_emt")

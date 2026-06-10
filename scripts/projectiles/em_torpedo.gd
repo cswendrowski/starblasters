@@ -16,7 +16,10 @@ const EmBurstFx = preload("res://scripts/effects/em_burst_fx.gd")
 @export var burst_radius: float = 72.0
 @export var burst_max_targets: int = 8
 @export var burst_damage: int = 6        # fallback; `damage` (Mk-scaled, set by fire_secondary) wins if > 0
-@export var detonate_y: float = 50.0     # burst once the nose climbs to here (top of the play band)
+# Burst once the nose climbs to the top of the FIRE ZONE (Zones.ENTRY_END = 40) — i.e. it detonates
+# among the front-line enemies if it didn't hit one on the way up. Tunable; set very negative to
+# rely purely on contact + fuse.
+@export var detonate_y: float = 40.0
 
 # fire_secondary writes secondary_damage here (`if "damage" in b`). Mk-scaled via the Part's knobs;
 # overrides burst_damage when positive so the torpedo scales with mark.
@@ -24,18 +27,22 @@ var damage: int = 0
 
 
 func _process(delta: float) -> void:
-	# Burst at the top of the play area (among the front line) before the fuse fires. Only after
-	# ignition so it doesn't pop the instant it spawns.
+	# Detonate at the top of the fire zone (among the front line) if it didn't already hit an enemy.
+	# Only after ignition so it doesn't pop the instant it spawns.
 	if not _dying and _ignited and global_position.y <= detonate_y:
 		explode()
 		return
 	super._process(delta)
 
 
-# Fly-through: no contact detonation. The torpedo is a thrown payload that bursts at its detonation
-# point, not on the first hull it grazes.
-func _on_area_entered(_area: Area2D) -> void:
-	pass
+# Detonate on contact with an enemy (Roman 2026-06-10) OR at the top of the fire zone (the _process
+# check above), whichever comes first. Enemy ordnance is in the "enemies" group too, which is fine —
+# the burst chain-detonates it anyway.
+func _on_area_entered(area: Area2D) -> void:
+	if _dying or area == self:
+		return
+	if area.is_in_group("enemies"):
+		explode()
 
 
 # Ignore stray bullet hits — it's a heavy payload, not popped early into a normal missile poof.

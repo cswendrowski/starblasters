@@ -212,6 +212,8 @@ func _process(delta: float) -> void:
 			var safe_delta: float = min(delta, 1.0 / 30.0)
 			var step: Vector2 = _pattern.compute_step(self, safe_delta)
 			position += step
+			if safe_delta > 0.0:
+				_last_move_vel = step / safe_delta   # px/s — for wreck-drift motion preservation
 			_clamp_to_sides()
 			_offscreen_cleanup_check()
 			_apply_auto_rotation()

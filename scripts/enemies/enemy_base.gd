@@ -170,6 +170,9 @@ var recycle_passes: int = -1   # -1 = unlimited (matches current default behavio
 var damage_reduction: float = 0.0  # 0.0–1.0; set by sector modifiers (armored/heavily_armored)
 var _dying: bool = false
 var _last_position: Vector2 = Vector2.ZERO
+# Recent world velocity (px/s), updated each movement frame. Read by _die_as_wreck so a wreck
+# preserves the enemy's motion at the moment of death before drifting into the fall (Roman 2026-06-10).
+var _last_move_vel: Vector2 = Vector2.ZERO
 var _rot_init: bool = false
 
 # Cached viewport size — used by subclasses for off-screen checks and side
@@ -444,22 +447,49 @@ func _die_as_wreck(wlayer: Node) -> void:
 	_components_death()
 	set_engine_trail_emitting(false)
 	var spr: Node = get_node_or_null("Sprite2D")
-	if spr != null and spr is Node2D and is_instance_valid(wlayer):
-		var s: Node2D = spr
-		# Freeze any in-flight hit-flash so the wreck doesn't strobe white as it falls.
-		if s.material is ShaderMaterial:
-			(s.material as ShaderMaterial).set_shader_parameter("flash_strength", 0.0)
-		var gpos: Vector2 = s.global_position
-		var grot: float = s.global_rotation
-		var gscl: Vector2 = s.global_scale
-		remove_child(s)
-		wlayer.add_child(s)
-		s.global_position = gpos
-		s.rotation = grot
-		s.scale = gscl
-		s.z_index = 0
-		_WreckDriftScript.attach(s, _wreck_seq)
-		_wreck_seq += 1
+	if spr == null or not (spr is Node2D) or not is_instance_valid(wlayer):
+		queue_free()
+		return
+	var s: Node2D = spr
+	# Heavy-damage look, NOT pure white (Roman 2026-06-10): kill the hit-flash (its tween is owned by
+	# this enemy, which is about to free — it would otherwise freeze flash_strength=1 = white) and
+	# crank the damage-overlay fray to its max so the wreck reads as a battered hull.
+	if s.material is ShaderMaterial:
+		var m: ShaderMaterial = s.material
+		m.set_shader_parameter("flash_strength", 0.0)
+		m.set_shader_parameter("sensitivity", 0.75)
+	# Capture transform + motion BEFORE reparenting.
+	var gpos: Vector2 = s.global_position
+	var grot: float = s.global_rotation
+	var gscl: Vector2 = s.global_scale
+	var init_vel: Vector2 = _last_move_vel
+	# A falling wreck shouldn't cast a ground shadow — the shadow is a child of the sprite, so it
+	# would ride along; drop it.
+	var sh: Node = s.get_node_or_null("ObliqueShadow")
+	if sh != null:
+		sh.queue_free()
+	# Reparent the hull into the wreck layer (world transform preserved).
+	remove_child(s)
+	wlayer.add_child(s)
+	s.global_position = gpos
+	s.rotation = grot
+	s.global_scale = gscl
+	s.z_index = 0
+	# Carry the black outline along as a child so it can FADE OUT as the hull recedes, instead of
+	# vanishing the instant the enemy frees (Roman 2026-06-10). It's a sibling on the enemy today.
+	var outline: Node = get_node_or_null("Outline")
+	if outline != null and outline is Node2D:
+		remove_child(outline)
+		s.add_child(outline)
+		var ol: Node2D = outline
+		ol.position = Vector2.ZERO
+		ol.rotation = 0.0
+		ol.z_index = -2
+		var otw: Tween = ol.create_tween()
+		otw.tween_property(ol, "modulate:a", 0.0, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		otw.tween_callback(ol.queue_free)
+	_WreckDriftScript.attach(s, init_vel, _wreck_seq)
+	_wreck_seq += 1
 	queue_free()
 
 
