@@ -1461,72 +1461,83 @@ func _type_name_for_part(part, slot: int) -> String:
 # Task #4: Ensure only one of each distinct item is equipped.
 # Runs on outpost open. Scans loadout_snapshot + cannon_pool for duplicates;
 # keeps the higher-mark copy equipped, moves excess to weapon_storage.
-func _ensure_no_duplicate_equipped(run) -> void:
+static func _ensure_no_duplicate_equipped(run) -> void:
 	if not run or not ("loadout_snapshot" in run):
 		return
 
 	var loadout = run.loadout_snapshot
-	var seen: Dictionary = {}  # display_name -> (slot, mark, original_index_in_pool)
+	var to_displace: Array = []  # parts actually REMOVED from their equipped slot/pool
 
-	# First pass: identify duplicates.
-	var to_displace: Array = []  # Items to move to storage
-
-	# Check all slots except CANNON (we'll handle it specially).
+	# --- Non-CANNON slots --- (each slot holds one part; a dup = same item name across two slots).
+	# Keep the higher-mark copy, ERASE the lower from its slot.
+	var seen: Dictionary = {}  # display_name -> {slot, mark}
 	for slot in SlotTypes.ALL_SLOTS:
 		if slot == SlotTypes.SlotType.CANNON:
 			continue
 		var part = loadout.get(slot, null)
 		if part == null:
 			continue
-		var name: String = String(part.display_name)
+		var pname: String = String(part.display_name)
 		var mark: int = int(part.mark) if "mark" in part else 1
-		if seen.has(name):
-			# Duplicate! Keep the higher-mark one, displace the lower.
-			var prev = seen[name]
-			if mark < prev["mark"]:
-				# Current is lower — displace it.
+		if seen.has(pname):
+			var prev = seen[pname]
+			if mark < int(prev["mark"]):
+				# Current is the lower-mark dup — remove it from its slot.
+				loadout.erase(slot)
 				to_displace.append(part)
 			else:
-				# Current is higher — displace the previous.
+				# Current is higher — remove the previous, keep current.
 				var prev_part = loadout.get(prev["slot"], null)
-				if prev_part:
+				loadout.erase(prev["slot"])
+				if prev_part != null:
 					to_displace.append(prev_part)
-				seen[name] = {"slot": slot, "mark": mark}
+				seen[pname] = {"slot": slot, "mark": mark}
 		else:
-			seen[name] = {"slot": slot, "mark": mark}
+			seen[pname] = {"slot": slot, "mark": mark}
 
-	# Cannon_pool is special: [0] is blaster (permanent), [1..N] are replaceable.
-	# Check for duplicates across the pool.
+	# --- CANNON pool --- [0] is the permanent Blaster (always kept). For each name keep the single
+	# highest-mark entry; REBUILD the pool without the dups, and remap active_cannon_idx.
 	if "cannon_pool" in run and run.cannon_pool is Array:
-		var cannon_seen: Dictionary = {}  # display_name -> array of (idx, mark)
-		for i in range(run.cannon_pool.size()):
-			var c = run.cannon_pool[i]
+		var pool: Array = run.cannon_pool
+		var keep_idx_for_name: Dictionary = {}  # name -> index to keep
+		for i in range(pool.size()):
+			var c = pool[i]
 			if c == null:
 				continue
-			var name: String = String(c.display_name)
-			if not cannon_seen.has(name):
-				cannon_seen[name] = []
-			cannon_seen[name].append({"idx": i, "mark": int(c.mark) if "mark" in c else 1})
+			var cname: String = String(c.display_name)
+			var cmk: int = int(c.mark) if "mark" in c else 1
+			if i == 0:
+				keep_idx_for_name[cname] = 0   # blaster slot always wins
+			elif not keep_idx_for_name.has(cname):
+				keep_idx_for_name[cname] = i
+			else:
+				var ki: int = int(keep_idx_for_name[cname])
+				if ki != 0:  # never replace the kept-blaster choice
+					var kmk: int = int(pool[ki].mark) if "mark" in pool[ki] else 1
+					if cmk > kmk:
+						keep_idx_for_name[cname] = i
+		var keep_indices: Dictionary = {}
+		for nm in keep_idx_for_name.keys():
+			keep_indices[int(keep_idx_for_name[nm])] = true
+		var active: int = int(run.active_cannon_idx) if "active_cannon_idx" in run else 0
+		var new_pool: Array = []
+		var new_active: int = 0
+		for i in range(pool.size()):
+			if keep_indices.has(i):
+				if i == active:
+					new_active = new_pool.size()
+				new_pool.append(pool[i])
+			elif pool[i] != null:
+				to_displace.append(pool[i])  # removed dup
+		run.cannon_pool = new_pool
+		if "active_cannon_idx" in run:
+			run.active_cannon_idx = clampi(new_active, 0, max(0, new_pool.size() - 1))
 
-		# For each name with duplicates, keep the highest-mark one, displace the rest.
-		for name in cannon_seen.keys():
-			var entries = cannon_seen[name]
-			if entries.size() > 1:
-				# Sort by mark descending.
-				entries.sort_custom(func(a, b): return int(a["mark"]) > int(b["mark"]))
-				# Keep the first (highest mark), displace the rest.
-				for j in range(1, entries.size()):
-					var idx = entries[j]["idx"]
-					if idx < run.cannon_pool.size():
-						var c = run.cannon_pool[idx]
-						if c and idx != 0:  # Never displace the blaster at [0].
-							to_displace.append(c)
-
-	# Move displaced items to weapon_storage.
+	# --- Move the removed dups to the hold (dedup the hold itself). ---
+	if not ("weapon_storage" in run) or run.weapon_storage == null:
+		run.weapon_storage = []
 	for item in to_displace:
-		if not ("weapon_storage" in run):
-			run.weapon_storage = []
-		if item not in run.weapon_storage:
+		if item != null and item not in run.weapon_storage:
 			run.weapon_storage.append(item)
 
 
