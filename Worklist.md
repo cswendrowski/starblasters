@@ -23,7 +23,10 @@ re-bases all visual work and can't be validated headless — schedule as its own
   roster → wants live playtest during the migration.
 - **wreck_layer** — near-parallax-depth layer enemies "fall" into on death; same color grading as
   the near layer. EM Torpedo is the testbed; if it reads well, expand to more death styles (e.g. the
-  bomber encounter). NOT STARTED.
+  bomber encounter). **BUILT 2026-06-10 (`9d99405`, test-gated)** — world-space layer graded to the
+  near band; enemies route into it via a generic `death_style="wreck"` intercept in
+  `enemy_base.explode()`, so wiring the bomber encounter later is just tagging those kills. NEEDS
+  EYEBALL (see Worklog).
 
 ### Patterns
 - **Lane Hook is not leaving the play area properly.** NEEDS REPRO — the code-side exit config
@@ -41,13 +44,15 @@ re-bases all visual work and can't be validated headless — schedule as its own
   and rebuild it so the live-fire bench works. NOT STARTED (prior parent-routing fix insufficient).
 
 ### New Secondary Weapons
-- **EM Torpedo** — NOT STARTED (blocked-ish on wreck_layer, which it testbeds):
-  When fired it sends out a large rocket (use the associated rocket projectile) that flies forward
-  for two seconds then erupts into a burst of blue-yellow lightning that hits multiple enemies.
-  Strips and ignores shields, and causes rockets/missiles to explode. Alternate kill effect:
-  enemies have a 25% chance of exploding, and a 75% chance of becoming inert and drifting (with
-  slight, randomized rotation) toward the bottom of the screen while trailing smoke (same smoke
-  effect as the player, but respecting parent motion) — into the wreck_layer.
+- **EM Torpedo** — **BUILT 2026-06-10 (`9d99405`, test-gated, NOT in shop pool)**. Large dumb-fire
+  rocket → blue-yellow chain-lightning burst; strips/ignores shields, chain-detonates enemy
+  ordnance, 25% explode / 75% wreck-drift kills. Behind Test Combat → "EM Torpedo + Wreck Test"
+  (fire with C). Deltas from the original spec, flagged for Roman's call: (a) bursts at the TOP of
+  the play band (detonate_y) rather than a literal 2s forward flight — the 270px field is too short
+  for 2s of travel; fuse=2.0 is a backstop. (b) Wreck smoke uses MissileSmokeTrail (the world-space
+  "copy of the player damage-smoke"); swap to the darker DamageSmokeTrail palette if you want it to
+  match the player's exactly. To promote to live: add `_make_em_torpedo` to `part_catalog._all_pool`
+  + author `resources/weapons/em_torpedo.tres`. NEEDS EYEBALL/feel pass (see Worklog).
 
 ### Pulled / parked
 - **Sector modifiers** — PULLED 2026-06-10 per Roman (kill-switch `Run.SECTOR_MODIFIERS_ENABLED =

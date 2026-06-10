@@ -271,6 +271,18 @@ unit-tested.
 - **O** Renderer pivot — HELD for attended session.
 
 ## Running log
+- 2026-06-10 — **wreck_layer + EM Torpedo BUILT (test-gated)** (`9d99405`, local on main, unpushed).
+  World-space wreck layer (graded to the near parallax band, created empty every combat) + a new
+  HARDPOINT_WING secondary, the EM Torpedo: large dumb-fire rocket → blue-yellow chain-lightning
+  burst that strips/ignores shields, chain-detonates enemy ordnance, and routes 75% of kills to
+  inert wreck-drift (gravity fall + slight tumble + world-space smoke), 25% normal explosion.
+  Shipped behind **Test Combat → "EM Torpedo + Wreck Test"** (NOT in the shop pool). Fire with C.
+  Verified headless (new test_em_torpedo + firecore/fire-primary regressions). **NEEDS ROMAN
+  EYEBALL:** lightning burst look, inert-drift fall/tumble feel, wreck-layer depth/grading vs the
+  near parallax, and the burst point (detonate_y=50 → bursts near the top among the front line).
+  **Tunables:** exports on `player_em_torpedo.tscn` (burst_radius 72, burst_max_targets 8, detonate_y
+  50, fuse 2.0) + consts in `wreck_drift.gd` (fall/gravity/spin/lifetime) and `em_burst_fx.gd` (arc
+  colors). Built directly on main (HEAD was on main post-renderer-merge) — say if you want it branched.
 - 2026-06-10 — **MERGED + PUSHED**: `worklist-2026-06-10` merged into main (`0927c83`), both pushed
   to origin. **Renderer pivot built** on branch `renderer-pivot` (`8f7a941`): forward_plus,
   Windows-only publish pipeline (preset → `../Starblaster_win/Starblaster.exe`, butler channel
