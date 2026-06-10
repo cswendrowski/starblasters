@@ -484,11 +484,19 @@ func start_new_sector(sector_idx: int, seed_value: int) -> void:
 		})
 	# (Outpost POI rules removed 2026-06-08 — outposts are a sector-map hub button,
 	# not POIs, so the per-row cap + min-promotion no longer apply.)
+	# sector_modifiers (for the outpost display) = the DISTINCT modifiers actually present on the
+	# sector's POIs, so the readout matches what the player will encounter.
+	var active_mods: Array = []
+	for row in rows:
+		for poi in row.get("pois", []):
+			for m in poi.get("modifiers", []):
+				if not active_mods.has(m):
+					active_mods.append(m)
 	sector_map_cache = {
 		"sector_idx": sector_idx,
 		"seed": seed_value,
 		"sector_name": SectorNameGenerator.generate(seed_value),
-		"sector_modifiers": sector_mod_pool,
+		"sector_modifiers": active_mods,
 		"rows": rows,
 	}
 	for bs in boss_scenes:
@@ -576,7 +584,7 @@ func _enforce_outpost_rules(rows: Array, rng: RandomNumberGenerator) -> void:
 # Per-row POI generation. Picks 2-4 POIs at cell-snapped x-positions
 # between PLANET_START_X (128) and the boss column (448). Types follow
 # the dev v3 weights: combat-heavy, sprinkled outpost/hazard/signal.
-func _gen_row_pois(rng: RandomNumberGenerator, sector_idx: int, row_idx: int, anchor: Vector2, sector_mod_pool: Array = []) -> Array:
+func _gen_row_pois(rng: RandomNumberGenerator, sector_idx: int, row_idx: int, anchor: Vector2, _sector_mod_pool: Array = []) -> Array:
 	const CELL_PX: float = 16.0
 	const POI_X_MIN: float = 128.0
 	const POI_X_MAX: float = 432.0  # one cell short of boss column (448)
@@ -601,12 +609,13 @@ func _gen_row_pois(rng: RandomNumberGenerator, sector_idx: int, row_idx: int, an
 		var hazard_sub: String = ""
 		if node_type == int(SectorNodeType.HAZARD):
 			hazard_sub = "minefield" if rng.randi() % 2 == 0 else "asteroid_field"
-		# Per-POI modifier: chance to be null, else pick one from the sector pool.
-		# Stored as Array[String] so the director can apply zero or more without
-		# branching on null. Empty array == no modifier.
+		# Per-POI modifier: chance to be null, else roll one from the FULL modifier range
+		# (Roman 2026-06-09 — was drawing from a tiny per-sector pool, which made early sectors
+		# show the same single modifier on every POI). Independent per-POI roll → a sector now
+		# shows the full variety. Same RNG-call count as before, so positions/bosses are unchanged.
 		var poi_mods: Array = []
-		if not sector_mod_pool.is_empty() and rng.randf() >= POI_NULL_MODIFIER_CHANCE:
-			poi_mods = [sector_mod_pool[rng.randi() % sector_mod_pool.size()]]
+		if rng.randf() >= POI_NULL_MODIFIER_CHANCE:
+			poi_mods = [ALL_SECTOR_MODIFIERS[rng.randi() % ALL_SECTOR_MODIFIERS.size()]]
 		pois.append({
 			"id": "s%d_r%d_p%d" % [sector_idx, row_idx, i],
 			"node_type": node_type,
