@@ -52,8 +52,9 @@ static func from_level_data(level: Resource) -> CombatScore:
 	return score
 
 
-# Insert a breather after every Nth wave (pacing — see from_level_data).
-const BREATHER_EVERY: int = 2
+# Insert a breather after every Nth wave (pacing — see from_level_data). 1 = a breather between
+# EVERY wave (Roman 2026-06-10: each 3-sub-wave wave gets its own exhale to avoid run-on waves).
+const BREATHER_EVERY: int = 1
 
 
 static func _breather() -> Phrase:

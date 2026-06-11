@@ -196,124 +196,68 @@ static func _apply_budget(waves: Array, base_counts: Array, sector_depth: int, l
 		waves[i].count = maxi(2, int(round(float(waves[i].count) * scale)))
 
 
-# Combat level. Rolls _wave_count_for(level_index) waves, each populated by
-# a roll against the depth-weighted rarity table.
+# Combat level (Roman 2026-06-10 restructure): exactly 5 WAVES, each broken into 3 sub-wave
+# compositions that flow continuously, then a BREATHER before the next wave (avoids the old 5-8
+# run-on stream). Per wave:
+#   START  — a sweeping chaff entry; NON-silent, so it opens a new ScoreWave (the wave banner).
+#   MIDDLE — the bulk; another chaff type, opposite sweep. Silent (attaches to the wave).
+#   END    — the capstone: a heavy anchor that "shows itself" (or the boss-substitute heavy on the
+#            final wave); falls back to a tight chaff wall when no heavy is unlocked. Silent.
+# The score adapter groups each START+MIDDLE+END trio into ONE ScoreWave (silent-chaining) and
+# injects a breather between waves (ScoreAdapter.BREATHER_EVERY == 1). Budget scaling fills the
+# chaff sub-waves to the level headcount; heavies (low base_count) stay discrete.
+const COMBAT_WAVE_COUNT: int = 5
+
 static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, level_index: int) -> Array:
-	var n_waves: int = _wave_count_for(sector_depth, level_index)
 	var waves: Array = []
-	var used: Array = []  # entries already used in this level (variety)
-	var base_counts: Array = []  # base_count parallel to waves, for budget scaling
-	var prev_movement: String = ""  # previous wave's movement archetype (anti-repetition)
-	# Heavy beats (M5, Roman 2026-06-04): every node ends on a CODA (the node's
-	# boss-substitute cap — combat nodes don't get real bosses); node 2+ also gets a
-	# MIDPOINT anchor where a 32px-class heavy "shows itself" mid-level. Both pull
-	# from the roster's heavy_class pools (anchor=32px, capital=64px). This gives the
-	# big-silhouette presence/pressure that pure-chaff early nodes were missing.
-	var midpoint_idx: int = n_waves / 2
-	var coda_idx: int = n_waves - 1
-	# Second anchor beat (Roman 2026-06-08: "midpoint heavies should be more common") —
-	# a 2nd 32px anchor ~3/4 through on longer levels so heavies (push etc.) show up
-	# more than once. Only when it lands on its own wave (>=5 waves, distinct from
-	# midpoint + coda).
-	var second_anchor_idx: int = (n_waves * 3) / 4
-	for i in n_waves:
-		# Closing coda — always the final wave. Shape (single / formation / escort)
-		# rolls by depth; capital-class preferred from node 2 (falls back to anchor
-		# when no capital is unlocked, i.e. all of sector 1). Appends 1-2 specs.
-		if i == coda_idx:
-			_build_coda(rng, sector_depth, level_index, used, waves, base_counts, i)
-			prev_movement = ""  # heavy beat resets the chaff anti-repeat chain
-			continue
-		# Midpoint anchor — node 2+ only (the opener keeps just its closing beat). A
-		# single 32px-class heavy as a pressure anchor, not the cap.
-		if i == midpoint_idx and level_index >= 1:
-			var anchor: Dictionary = _pick_heavy(rng, sector_depth, level_index, used, false)
-			if not anchor.is_empty():
-				used.append(anchor)
-				prev_movement = str(anchor.get("movement", ""))
-				var wa = _make_wave_spec(rng, anchor, sector_depth, level_index, i)
-				wa.count = clampi(int(wa.count), 1, 2)  # an anchor, not the cap
-				wa.silent = false
-				waves.append(wa)
-				base_counts.append(int(anchor.get("base_count", 4)))
-				continue
-			# No heavy available — fall through to a normal chaff wave at this index.
-		# Second anchor beat (longer levels) — another midpoint heavy ~3/4 through.
-		if i == second_anchor_idx and i != midpoint_idx and n_waves >= 5 and level_index >= 1:
-			var anchor2: Dictionary = _pick_heavy(rng, sector_depth, level_index, used, false)
-			if not anchor2.is_empty():
-				used.append(anchor2)
-				prev_movement = str(anchor2.get("movement", ""))
-				var wa2 = _make_wave_spec(rng, anchor2, sector_depth, level_index, i)
-				wa2.count = clampi(int(wa2.count), 1, 2)
-				wa2.silent = false
-				waves.append(wa2)
-				base_counts.append(int(anchor2.get("base_count", 4)))
-				continue
-			# No heavy available — fall through to a normal chaff wave.
-		# Wave 0 is never mixed (calm intro). Otherwise roll P(mix).
-		var mix: bool = i > 0 and _should_intermingle(level_index, sector_depth, rng)
-		if mix:
-			var pair: Array = _pick_pair(rng, sector_depth, level_index, used, prev_movement)
-			used.append(pair[0])
-			used.append(pair[1])
-			prev_movement = str(pair[1].get("movement", ""))
-			var sub_a = _make_wave_spec(rng, pair[0], sector_depth, level_index, i)
-			var sub_b = _make_wave_spec(rng, pair[1], sector_depth, level_index, i)
-			# Density formula: count_each = max(2, round(base_count * 0.5)).
-			# Exception: base_count == 1 (Rare-tier solo enemies) — keep full count
-			# on both sub-waves for the intentional late-wave threat spike.
-			var base_a: int = int(pair[0].get("base_count", 4))
-			var base_b: int = int(pair[1].get("base_count", 4))
-			# no_scale entries (e.g. gunship trio) must not be halved — their
-			# role assignment logic depends on the exact count being preserved.
-			if base_a > 1 and not bool(pair[0].get("no_scale", false)):
-				sub_a.count = maxi(2, int(round(float(sub_a.count) * 0.5)))
-			if base_b > 1 and not bool(pair[1].get("no_scale", false)):
-				sub_b.count = maxi(2, int(round(float(sub_b.count) * 0.5)))
-			# Opposite formations so streams come from opposite sides.
-			# 50/50 which side leads.
-			if rng.randf() < 0.5:
-				sub_a.formation = WaveSpec.Formation.TOP_LEFT_TO_RIGHT
-				sub_b.formation = WaveSpec.Formation.TOP_RIGHT_TO_LEFT
-			else:
-				sub_a.formation = WaveSpec.Formation.TOP_RIGHT_TO_LEFT
-				sub_b.formation = WaveSpec.Formation.TOP_LEFT_TO_RIGHT
-			# The opposite-formation stomp above would override a forced tandem
-			# formation (Burner). Re-apply per-entry force_formation so a Burner
-			# picked into a mixed wave still spawns as TOP_TANDEM_PAIRS with an
-			# even count and every member gets a beam partner.
-			_apply_force_formation(sub_a, pair[0])
-			_apply_force_formation(sub_b, pair[1])
-			# Both sub-waves share spawn_delay (already set by _make_wave_spec from
-			# wave_index_in_level); second sub-wave's stream is stretched 1.3× so
-			# the two streams interleave instead of stacking.
-			sub_b.spawn_delay = sub_a.spawn_delay
-			# Stretch sub_b's stream relative to sub_a so they interleave
-			# instead of stacking. Use sub_a's interval as the anchor.
-			sub_b.spawn_interval = sub_a.spawn_interval * 1.3
-			# One banner per logical wave — sub_b is silent.
-			sub_b.announce_text = ""
-			sub_b.silent = true
-			if i == 0:
-				sub_a.announce_text = ""
-			waves.append(sub_a)
-			waves.append(sub_b)
-			base_counts.append(base_a)
-			base_counts.append(base_b)
+	var base_counts: Array = []
+	var used: Array = []
+	for i in COMBAT_WAVE_COUNT:
+		var lead_lr: bool = (i % 2 == 0)
+		var is_finale: bool = (i == COMBAT_WAVE_COUNT - 1)
+		# START — light chaff entry; opens the wave (banner).
+		var e_start: Dictionary = _pick_entry(rng, sector_depth, level_index, used, PackedStringArray(), Roster.Tier.UNCOMMON, "")
+		used.append(e_start)
+		var s_start = _make_wave_spec(rng, e_start, sector_depth, level_index, i)
+		s_start.formation = WaveSpec.Formation.TOP_LEFT_TO_RIGHT if lead_lr else WaveSpec.Formation.TOP_RIGHT_TO_LEFT
+		s_start.silent = false        # opens a new ScoreWave -> one banner per wave
+		s_start.announce_text = ""    # default "WAVE n / 5"
+		s_start.spawn_delay = 0.5
+		_apply_force_formation(s_start, e_start)
+		waves.append(s_start); base_counts.append(int(e_start.get("base_count", 4)))
+		# MIDDLE — the bulk; opposite sweep, anti-repeat on the start's movement.
+		var e_mid: Dictionary = _pick_entry(rng, sector_depth, level_index, used, PackedStringArray(), Roster.Tier.RARE, str(e_start.get("movement", "")))
+		used.append(e_mid)
+		var s_mid = _make_wave_spec(rng, e_mid, sector_depth, level_index, i)
+		s_mid.formation = WaveSpec.Formation.TOP_RIGHT_TO_LEFT if lead_lr else WaveSpec.Formation.TOP_LEFT_TO_RIGHT
+		s_mid.silent = true
+		s_mid.spawn_delay = 0.35
+		_apply_force_formation(s_mid, e_mid)
+		waves.append(s_mid); base_counts.append(int(e_mid.get("base_count", 4)))
+		# END — the capstone. A heavy on the finale (always) and ~60% of waves 1-3; else a chaff wall.
+		var want_heavy: bool = is_finale or (i >= 1 and rng.randf() < 0.6)
+		var heavy: Dictionary = {}
+		if want_heavy:
+			var prefer_capital: bool = is_finale and (level_index >= 1 or sector_depth >= 2)
+			heavy = _pick_heavy(rng, sector_depth, level_index, used, prefer_capital)
+		if not heavy.is_empty():
+			used.append(heavy)
+			var s_end = _make_wave_spec(rng, heavy, sector_depth, level_index, i)
+			s_end.count = clampi(int(s_end.count), 1, (3 if is_finale else 2))
+			s_end.formation = WaveSpec.Formation.TOP_CENTER_OUT
+			s_end.silent = true
+			s_end.spawn_delay = 0.35
+			waves.append(s_end); base_counts.append(int(heavy.get("base_count", 4)))
 		else:
-			var entry: Dictionary = _pick_entry(rng, sector_depth, level_index, used, PackedStringArray(), Roster.Tier.RARE, prev_movement)
-			used.append(entry)
-			prev_movement = str(entry.get("movement", ""))
-			var w = _make_wave_spec(rng, entry, sector_depth, level_index, i)
-			# First wave gets the "ENGAGE" / sector announce; later waves silent so
-			# we don't pop banner after banner on a single level.
-			if i == 0:
-				w.announce_text = ""  # uses default "WAVE 1 / N"
-			else:
-				w.silent = false  # banner each wave so player can pace
-			waves.append(w)
-			base_counts.append(int(entry.get("base_count", 4)))
+			# No heavy unlocked (early sector 1) — a tight chaff wall caps the wave.
+			var e_end: Dictionary = _pick_entry(rng, sector_depth, level_index, used, PackedStringArray(), Roster.Tier.COMMON, "")
+			used.append(e_end)
+			var s_end2 = _make_wave_spec(rng, e_end, sector_depth, level_index, i)
+			s_end2.formation = WaveSpec.Formation.WALL if lead_lr else WaveSpec.Formation.PINCER
+			s_end2.silent = true
+			s_end2.spawn_delay = 0.35
+			_apply_force_formation(s_end2, e_end)
+			waves.append(s_end2); base_counts.append(int(e_end.get("base_count", 4)))
 	_apply_budget(waves, base_counts, sector_depth, level_index)
 	return waves
 
