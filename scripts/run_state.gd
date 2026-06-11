@@ -652,15 +652,42 @@ func _gen_row_pois(rng: RandomNumberGenerator, sector_idx: int, row_idx: int, an
 		var _mod_pick: int = rng.randi() % ALL_SECTOR_MODIFIERS.size()
 		if SECTOR_MODIFIERS_ENABLED and _mod_roll >= POI_NULL_MODIFIER_CHANCE:
 			poi_mods = [ALL_SECTOR_MODIFIERS[_mod_pick]]
+		var poi_id: String = "s%d_r%d_p%d" % [sector_idx, row_idx, i]
 		pois.append({
-			"id": "s%d_r%d_p%d" % [sector_idx, row_idx, i],
+			"id": poi_id,
 			"node_type": node_type,
 			"hazard_subtype": hazard_sub,
 			"pos": Vector2(positions[i], anchor.y),
 			"completed": false,
 			"modifiers": poi_mods,
+			# M6b: faction is now a PROPERTY OF THE NODE (Roman 2026-06-11), assigned
+			# deterministically per-POI so the sector map can color each combat node's
+			# decoration by the faction the player will actually fight there. COMBAT
+			# nodes only; -1 (none) for outpost/signal/hazard/boss. Seeded off run_seed
+			# ^ hash(id) so it DOESN'T consume the shared `rng` (which would shift
+			# positions/bosses — see the modifier-roll note above).
+			"faction": _faction_for_poi(poi_id) if node_type == int(SectorNodeType.COMBAT) else -1,
 		})
 	return pois
+
+
+# Deterministic per-node faction (0-3, matching Factions.Id). Uses its own RNG
+# seeded from run_seed ^ hash(poi_id) so node faction is stable across map rebuilds
+# and independent of visit order, without perturbing the sector-gen rng.
+func _faction_for_poi(poi_id: String) -> int:
+	var r := RandomNumberGenerator.new()
+	r.seed = int(run_seed) ^ abs(hash(poi_id))
+	return r.randi() % 4
+
+
+# Look up a cached POI's assigned faction by node id (-1 if not found / non-combat).
+# main.gd reads this so the combat the player enters matches the map's decoration.
+func get_node_faction(node_id: String) -> int:
+	for row in sector_map_cache.get("rows", []):
+		for poi in row.get("pois", []):
+			if String(poi.get("id", "")) == node_id:
+				return int(poi.get("faction", -1))
+	return -1
 
 
 # Per-sector boss roster + never-pair rules. Sector 3 row-3 is always the

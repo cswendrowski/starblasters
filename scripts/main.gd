@@ -612,9 +612,13 @@ func new_game() -> void:
 				var rsd = get_node("/root/Run")
 				sd = rsd.sectors_cleared + 1
 				li = rsd.combats_in_sector
-				# M6b: pick this level's primary faction (deterministic per sector/node/
-				# run-seed) and stash it so the director overlays it on every spawn.
-				faction = Factions.pick_for_level(sd, li, int(rsd.run_seed))
+				# M6b: faction is now stored ON the combat node (assigned at cache build)
+				# so the map decoration and the actual fight agree (Roman 2026-06-11).
+				# Read the current node's faction; fall back to the legacy per-level pick
+				# if the node carries none (e.g. a node from an older cache).
+				faction = rsd.get_node_faction(rsd.current_node_id)
+				if faction < 0:
+					faction = Factions.pick_for_level(sd, li, int(rsd.run_seed))
 				# Dev override: Test Combat -> Faction... forces a specific faction so all
 				# four can be eyeballed on demand (persists across levels until cleared).
 				if rsd.has_meta("forced_faction"):
