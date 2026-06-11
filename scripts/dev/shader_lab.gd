@@ -3,9 +3,10 @@ extends Control
 # Shader Lab (Roman 2026-06-10) — fire the NEW shader effects in the native
 # 480×270 SubViewport and compare them against what's in-game today, without
 # the GIF-capture loop:
-#   Embers      — ember_spray burst, ramp = normal / inverted / smoke-tail
+#   Embers      — ember_spray burst, normal / inverted, tunable colour ramp
+#   Smoke       — SmokeTrailFx smoke trail (light → dark), tunable colours
 #   Shields     — sci_fi_shield ring (current) vs hex_shield (new) side by side
-#   Glow        — diffuse glow_halo (current) vs screen_glow (new) on bullets
+#   Glow        — diffuse glow_halo (per-sprite) on enemy bullets
 #   Bloom Env   — the Godot WorldEnvironment glow (main.tscn's combat bloom)
 #   Modes       — Focus / Phase / Hyper player-mode tells (moving ship)
 #   Damage      — damage_noise overlay tuner (enemy hull erosion)
@@ -30,9 +31,9 @@ const PLAYER_BODY_PATH := "res://graphics/player/player_ship_a_body.png"
 
 const SCI_FI_SHIELD: Shader = preload("res://graphics/sci_fi_shield.gdshader")
 const HEX_SHIELD: Shader = preload("res://graphics/hex_shield.gdshader")
-const SCREEN_GLOW: Shader = preload("res://graphics/screen_glow.gdshader")
 const DAMAGE_SHADER: Shader = preload("res://graphics/damage_noise.gdshader")
 const BURN_SHADER: Shader = preload("res://graphics/pixelated_burn.gdshader")
+const SMOKE_TRAIL_FX = preload("res://scripts/effects/smoke_trail_fx.gd")
 
 # Real in-game damage-overlay resources (so the tuner matches enemy_base.gd).
 const DAMAGE_NOISE_TEX_PATH := "res://resources/noise_damage.tres"
@@ -78,7 +79,7 @@ const PANEL_BORDER := Color(0.35, 0.55, 0.75, 0.85)
 # Gallery ship targets are zoomed for INSPECTION only — in-game sprites stay 1×.
 const GALLERY_SPRITE_ZOOM := 3.0
 
-const MODES := ["Embers", "Shields", "Glow", "Bloom Env", "Modes", "Damage", "Disintegrate", "Explosions", "Gallery"]
+const MODES := ["Embers", "Smoke", "Shields", "Glow", "Bloom Env", "Modes", "Damage", "Disintegrate", "Explosions", "Gallery"]
 
 const EMBER_VARIANTS := ["normal", "inverted"]
 
@@ -109,12 +110,19 @@ const KNOBS := {
 		{"key": "flicker", "label": "Cell flicker", "min": 0.0, "max": 1.0, "step": 0.05, "def": 0.35},
 		{"key": "dome", "label": "Dome warp", "min": 0.0, "max": 1.0, "step": 0.05, "def": 0.65},
 	],
-	"Glow": [
-		{"key": "threshold", "label": "Screen-glow threshold", "min": 0.0, "max": 1.0, "step": 0.02, "def": 0.6},
-		{"key": "knee", "label": "Screen-glow knee", "min": 0.01, "max": 0.5, "step": 0.01, "def": 0.2},
-		{"key": "intensity", "label": "Screen-glow intensity", "min": 0.0, "max": 4.0, "step": 0.1, "def": 1.2},
-		{"key": "max_lod", "label": "Screen-glow radius (mips)", "min": 1.0, "max": 6.0, "step": 1.0, "def": 4.0},
+	"Smoke": [
+		{"key": "amount", "label": "Particles", "min": 4.0, "max": 96.0, "step": 1.0, "def": 26.0},
+		{"key": "lifetime", "label": "Lifetime (s)", "min": 0.3, "max": 3.0, "step": 0.05, "def": 1.1},
+		{"key": "speed_min", "label": "Speed min", "min": 0.0, "max": 80.0, "step": 1.0, "def": 6.0},
+		{"key": "speed_max", "label": "Speed max", "min": 0.0, "max": 120.0, "step": 1.0, "def": 22.0},
+		{"key": "gravity", "label": "Gravity (rise<0)", "min": -60.0, "max": 60.0, "step": 1.0, "def": -8.0},
+		{"key": "scale_min", "label": "Scale min", "min": 0.1, "max": 3.0, "step": 0.05, "def": 0.5},
+		{"key": "scale_max", "label": "Scale max", "min": 0.1, "max": 3.0, "step": 0.05, "def": 1.0},
+		{"key": "scale_grow", "label": "Grow ×", "min": 0.5, "max": 5.0, "step": 0.1, "def": 2.4},
+		{"key": "spread_deg", "label": "Spread (deg)", "min": 0.0, "max": 180.0, "step": 1.0, "def": 18.0},
+		{"key": "spin_deg", "label": "Spin (deg)", "min": 0.0, "max": 180.0, "step": 1.0, "def": 40.0},
 	],
+	"Glow": [],
 	"Bloom Env": [
 		{"key": "glow_intensity", "label": "Glow intensity", "min": 0.0, "max": 4.0, "step": 0.05, "def": 0.6},
 		{"key": "glow_strength", "label": "Glow strength", "min": 0.0, "max": 2.0, "step": 0.05, "def": 1.0},
@@ -194,6 +202,12 @@ var _gallery_pulse_btn: Button = null
 var _ember_variant: String = "normal"
 # Tunable ember colour ramp: [{ "color": Color, "offset": float }, ...].
 var _ember_stops: Array = []
+
+# Smoke-trail showcase state.
+var _smoke_host: Node2D = null
+var _smoke_trail: GPUParticles2D = null
+var _smoke_t: float = 0.0
+var _smoke_colors := {"start_color": Color("bfc8c3"), "end_color": Color("100c08")}
 
 # Player-modes showcase state.
 var _pm_ship: Node2D = null
@@ -421,9 +435,13 @@ func _set_mode(idx: int) -> void:
 	_env = null
 	_dmg_mat = null
 	_burn_mat = null
+	_smoke_host = null
+	_smoke_trail = null
 	match MODES[_mode]:
 		"Embers":
 			_enter_embers()
+		"Smoke":
+			_enter_smoke()
 		"Shields":
 			_enter_shields()
 		"Glow":
@@ -548,6 +566,75 @@ func _fire_embers(pos: Vector2) -> void:
 	})
 
 
+# ---- Smoke trail mode ------------------------------------------------------
+
+func _enter_smoke() -> void:
+	_smoke_t = 0.0
+	_smoke_host = Node2D.new()
+	_smoke_host.position = Vector2(Playfield.CENTER.x, 135.0)
+	# Small bright marker so the emit point reads as the host moves.
+	var mk := Sprite2D.new()
+	mk.texture = _orb_texture()
+	mk.scale = Vector2(0.4, 0.4)
+	var add_mat := CanvasItemMaterial.new()
+	add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	mk.material = add_mat
+	mk.z_index = 5
+	_smoke_host.add_child(mk)
+	_stage.add_child(_smoke_host)
+	_rebuild_smoke()
+
+	_hd_note("SMOKE TRAIL", Vector2(Playfield.CENTER.x - 30.0, 56.0))
+	_knob_box.add_child(_label("Smoke Trail", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("Born light → darkens + fades as it ages. The\nhost weaves so the trail reads. Drop a sprite at\ngraphics/effects/smoke_trail.png to use real art.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_add_smoke_color("Start  (fresh)", "start_color")
+	_add_smoke_color("End  (aged)", "end_color")
+	_knob_box.add_child(HSeparator.new())
+	_build_knobs("Smoke")
+
+
+func _add_smoke_color(caption: String, key: String) -> void:
+	_knob_box.add_child(_label(caption, FS_CAPTION, UiTheme.COLOR_FAINT))
+	var cp := ColorPickerButton.new()
+	cp.color = _smoke_colors[key]
+	cp.edit_alpha = false
+	cp.custom_minimum_size = Vector2(0, 34)
+	cp.color_changed.connect(func(c: Color):
+		_smoke_colors[key] = c
+		_rebuild_smoke())
+	_knob_box.add_child(cp)
+
+
+func _rebuild_smoke() -> void:
+	if _smoke_host == null or not is_instance_valid(_smoke_host):
+		return
+	if _smoke_trail != null and is_instance_valid(_smoke_trail):
+		_smoke_trail.queue_free()
+	var v: Dictionary = _values["Smoke"]
+	_smoke_trail = SMOKE_TRAIL_FX.trail(_smoke_host, Vector2.ZERO, {
+		"amount": int(v["amount"]),
+		"lifetime": float(v["lifetime"]),
+		"speed_min": float(v["speed_min"]),
+		"speed_max": float(v["speed_max"]),
+		"gravity": float(v["gravity"]),
+		"scale_min": float(v["scale_min"]),
+		"scale_max": float(v["scale_max"]),
+		"scale_grow": float(v["scale_grow"]),
+		"spread_deg": float(v["spread_deg"]),
+		"spin_deg": float(v["spin_deg"]),
+		"start_color": _smoke_colors["start_color"],
+		"end_color": _smoke_colors["end_color"],
+	})
+
+
+func _tick_smoke(delta: float) -> void:
+	if _smoke_host == null or not is_instance_valid(_smoke_host):
+		return
+	_smoke_t += delta
+	_smoke_host.position = Vector2(Playfield.CENTER.x, 135.0) \
+		+ Vector2(sin(_smoke_t * 1.5) * 70.0, sin(_smoke_t * 1.0 + 0.6) * 38.0)
+
+
 # ---- Shields mode ----------------------------------------------------------
 
 func _enter_shields() -> void:
@@ -604,60 +691,21 @@ func _apply_shield_knobs() -> void:
 # ---- Glow mode -------------------------------------------------------------
 
 func _enter_glow() -> void:
-	# A/B the two CUSTOM glow shaders on identical enemy-bullet columns:
-	#   LEFT  — diffuse per-sprite glow_halo (CURRENT in-game glow)
-	#   RIGHT — bare bullets bloomed by the screen_glow overlay (NEW)
-	# No WorldEnvironment here — the renderer-bloom comparison lives in Bloom Env.
+	# Showcase the in-game DIFFUSE glow — the per-sprite glow_halo bloom — on a
+	# centred column of enemy bullets. (The screen_glow / 2D-glow overlay was
+	# dropped here: it wasn't working. The renderer bloom lives in Bloom Env.)
 	var n := BULLETS.size()
-	var spacing := 26.0
+	var spacing := 30.0
 	var col_h := (n - 1) * spacing
 	var y0 := 135.0 - col_h * 0.5
-	var left_x := Playfield.CENTER.x - 44.0
-	var right_x := Playfield.CENTER.x + 44.0
+	var cx := Playfield.CENTER.x
 	for i in n:
-		var y := y0 + i * spacing
-		var diff := _make_bullet(Vector2(left_x, y), BULLETS[i])
-		GlowShaderFx.apply(diff.get_node("Bullet"))   # diffuse halo
-		_make_bullet(Vector2(right_x, y), BULLETS[i])  # bare → screen_glow blooms it
+		var b := _make_bullet(Vector2(cx, y0 + i * spacing), BULLETS[i])
+		GlowShaderFx.apply(b.get_node("Bullet"))
 
-	# Full-viewport screen-glow overlay (blooms everything bright, incl. the
-	# right column). Toggle to read the right column with vs without it.
-	_glow_rect = ColorRect.new()
-	_glow_rect.size = Vector2(480, 270)
-	_glow_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_glow_rect.z_index = 100
-	_glow_mat = ShaderMaterial.new()
-	_glow_mat.shader = SCREEN_GLOW
-	_glow_rect.material = _glow_mat
-	_stage.add_child(_glow_rect)
-	_apply_glow_knobs()
-
-	_hd_note("DIFFUSE (glow_halo, CURRENT)", Vector2(left_x - 52.0, y0 - 22.0))
-	_hd_note("SCREEN GLOW (NEW)", Vector2(right_x - 30.0, y0 - 22.0))
-
-	_knob_box.add_child(_label("Glow: diffuse vs screen", FS_BODY, UiTheme.COLOR_ACCENT))
-	_knob_box.add_child(_label("LEFT column = per-sprite glow_halo (current).\nRIGHT column = bare bullets bloomed by the\nscreen_glow overlay (toggle below).", FS_CAPTION, UiTheme.COLOR_FAINT))
-	var chk := CheckButton.new()
-	chk.text = "Screen glow ON"
-	chk.button_pressed = true
-	chk.add_theme_font_override("font", UiTheme.active_font())
-	chk.add_theme_font_size_override("font_size", FS_BODY)
-	chk.toggled.connect(func(v: bool):
-		if _glow_rect != null:
-			_glow_rect.visible = v)
-	_knob_box.add_child(chk)
-	_knob_box.add_child(HSeparator.new())
-	_build_knobs("Glow")
-
-
-func _apply_glow_knobs() -> void:
-	if _glow_mat == null:
-		return
-	var v: Dictionary = _values["Glow"]
-	_glow_mat.set_shader_parameter("threshold", float(v["threshold"]))
-	_glow_mat.set_shader_parameter("knee", float(v["knee"]))
-	_glow_mat.set_shader_parameter("intensity", float(v["intensity"]))
-	_glow_mat.set_shader_parameter("max_lod", int(v["max_lod"]))
+	_hd_note("DIFFUSE GLOW (glow_halo)", Vector2(cx - 58.0, y0 - 22.0))
+	_knob_box.add_child(_label("Diffuse Glow", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("Per-sprite glow_halo on each enemy bullet —\nthe current in-game glow.", FS_CAPTION, UiTheme.COLOR_FAINT))
 
 
 # ---- Player Modes mode -----------------------------------------------------
@@ -1033,6 +1081,8 @@ func _process(delta: float) -> void:
 	match MODES[_mode]:
 		"Modes":
 			_tick_modes(delta)
+		"Smoke":
+			_tick_smoke(delta)
 		"Explosions":
 			_tick_explosions(delta)
 		"Disintegrate":
@@ -1202,10 +1252,10 @@ func _fmt(v: float, step: float) -> String:
 
 func _apply_live() -> void:
 	match MODES[_mode]:
+		"Smoke":
+			_rebuild_smoke()
 		"Shields":
 			_apply_shield_knobs()
-		"Glow":
-			_apply_glow_knobs()
 		"Bloom Env":
 			_apply_bloom_env_knobs()
 		"Damage":
@@ -1343,6 +1393,8 @@ func _on_copy() -> void:
 	match MODES[_mode]:
 		"Embers":
 			txt = _snippet_embers()
+		"Smoke":
+			txt = _snippet_smoke()
 		"Shields":
 			txt = _snippet_shields()
 		"Glow":
@@ -1384,6 +1436,23 @@ func _snippet_embers() -> String:
 		cs.append("Color(%.3f, %.3f, %.3f)" % [c.r, c.g, c.b])
 		os.append("%.2f" % float(s["offset"]))
 	t += "\t\"gradient\": EmberFx.build_ramp([%s], [%s]),\n" % [", ".join(cs), ", ".join(os)]
+	t += "})\n"
+	return t
+
+
+func _snippet_smoke() -> String:
+	var v: Dictionary = _values["Smoke"]
+	var sc: Color = _smoke_colors["start_color"]
+	var ec: Color = _smoke_colors["end_color"]
+	var t := "# Shader Lab — smoke trail\n"
+	t += "# const SmokeTrailFx = preload(\"res://scripts/effects/smoke_trail_fx.gd\")\n"
+	t += "# Add the returned emitter as a child of a moving node for a trail.\n"
+	t += "SmokeTrailFx.trail(get_tree().root, global_position, {\n"
+	t += "\t\"amount\": %d, \"lifetime\": %.2f,\n" % [int(v["amount"]), float(v["lifetime"])]
+	t += "\t\"speed_min\": %.1f, \"speed_max\": %.1f, \"gravity\": %.1f,\n" % [float(v["speed_min"]), float(v["speed_max"]), float(v["gravity"])]
+	t += "\t\"scale_min\": %.2f, \"scale_max\": %.2f, \"scale_grow\": %.2f,\n" % [float(v["scale_min"]), float(v["scale_max"]), float(v["scale_grow"])]
+	t += "\t\"spread_deg\": %.1f, \"spin_deg\": %.1f,\n" % [float(v["spread_deg"]), float(v["spin_deg"])]
+	t += "\t\"start_color\": Color(\"%s\"), \"end_color\": Color(\"%s\"),\n" % [sc.to_html(false), ec.to_html(false)]
 	t += "})\n"
 	return t
 
@@ -1468,20 +1537,10 @@ func _snippet_shields() -> String:
 
 
 func _snippet_glow() -> String:
-	var v: Dictionary = _values["Glow"]
-	var t := "# Shader Lab — screen glow overlay (last child of the gameplay viewport)\n"
-	t += "var glow_rect := ColorRect.new()\n"
-	t += "glow_rect.size = Vector2(480, 270)\n"
-	t += "glow_rect.z_index = 100\n"
-	t += "glow_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE\n"
-	t += "var m := ShaderMaterial.new()\n"
-	t += "m.shader = preload(\"res://graphics/screen_glow.gdshader\")\n"
-	t += "m.set_shader_parameter(\"threshold\", %.2f)\n" % float(v["threshold"])
-	t += "m.set_shader_parameter(\"knee\", %.2f)\n" % float(v["knee"])
-	t += "m.set_shader_parameter(\"intensity\", %.2f)\n" % float(v["intensity"])
-	t += "m.set_shader_parameter(\"max_lod\", %d)\n" % int(v["max_lod"])
-	t += "glow_rect.material = m\n"
-	t += "add_child(glow_rect)\n"
+	var t := "# Shader Lab — diffuse glow (per-sprite glow_halo bloom)\n"
+	t += "# const GlowShaderFx = preload(\"res://scripts/effects/glow_shader_fx.gd\")\n"
+	t += "GlowShaderFx.apply(sprite)              # auto-derive colour\n"
+	t += "GlowShaderFx.apply(sprite, override)    # force a glow colour\n"
 	return t
 
 
