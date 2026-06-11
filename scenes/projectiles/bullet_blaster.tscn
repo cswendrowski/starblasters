@@ -4,7 +4,7 @@
 [ext_resource type="Texture2D" uid="uid://d0sbbmhciwb5r" path="res://graphics/projectiles/blaster_light.png" id="2_48g2p"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_j08f7"]
-size = Vector2(6, 8)
+size = Vector2(4, 8)
 
 [node name="Bullet" type="Area2D" unique_id=1503090168]
 script = ExtResource("1_w8sj3")
@@ -14,7 +14,6 @@ speed = 240
 texture = ExtResource("2_48g2p")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1535630795]
-visible = false
 shape = SubResource("RectangleShape2D_j08f7")
 
 [node name="CollisionShape2D2" type="CollisionShape2D" parent="." unique_id=664028604]
