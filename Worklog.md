@@ -137,3 +137,21 @@ above), non-adjacent lane stays −20 (free), chaff height 14 (not gated). Comba
 horizontal-CROSS case (`side_traverse`) still rides the existing index-based crosser-stagger (26px step <
 63px); a tall-crosser gap bump is left for a follow-up if Roman sees cross-globbing in play.
 **NEEDS ROMAN:** playtest a supremacy push wave — confirm cruisers arrive with clear/lagged neighbours.
+
+---
+
+## [done] Focus mode: real 1px central hitbox + teal dot/trail — branch `wl-session-2026-06-11`
+
+**Spec:** focus mode isn't disabling the hitbox / swapping to a small one; want a CENTRAL 1px hitbox (not
+2×2), bright teal (shield color), with a thin long many-segment teal trail.
+**Cause:** focus only drew a *visual* 4×4 white dot — the actual collider never changed, so focusing gave
+no real dodge benefit.
+**Fix (`player.gd`):**
+- REAL hitbox swap: on focus-enter the full `$CollisionShape2D` is disabled and a new 1px central
+  `FocusHitbox` (RectangleShape2D 1×1) is enabled (deferred — collider `disabled` can't change
+  mid-physics); restored on release.
+- Dot → 1×1 (was 4×4), bright teal `Color(0.35,0.85,1.0)` (= shield color).
+- Trail → same teal, width 1 (thin), `FOCUS_TRAIL_LEN` 18→36 (long, ample segments).
+**Verified headless:** focus ON → main collider disabled + 1px FocusHitbox enabled (size 1,1); focus OFF →
+restored; dot 1×1 teal. Gate clean.
+**NEEDS ROMAN:** feel — confirm the tiny hitbox actually lets you thread bullets, and the teal dot/trail look.

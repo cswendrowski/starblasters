@@ -219,10 +219,14 @@ var speed_multiplier: float = 1.0
 # of normal speed for precision dodging. Cave / Touhou convention; ~2/3.
 const FOCUS_FACTOR := 0.55
 var _focus_dot: Node2D = null
+# Real 1px central collision swapped in while focused (the main hitbox is disabled).
+var _focus_hitbox: CollisionShape2D = null
+# Bright teal = the shield color (hex_shield.gdshader) — for the focus dot + trail.
+const FOCUS_DOT_COLOR := Color(0.35, 0.85, 1.0, 1.0)
 var _focus_was_active: bool = false
 var _focus_trail: Line2D = null
 var _focus_trail_history: PackedVector2Array = PackedVector2Array()
-const FOCUS_TRAIL_LEN := 18
+const FOCUS_TRAIL_LEN := 36   # long trail, ample segments (Roman 2026-06-11)
 # Focus-mode visual presence: ship goes semi-transparent, gains a soft diffuse
 # glow aura, and the engine exhaust doubles in length. (Roman 2026-05-30.)
 const FOCUS_SHIP_ALPHA := 0.55                 # ship opacity while focused
@@ -2062,22 +2066,25 @@ func _update_focus_dot(visible: bool) -> void:
 		_focus_dot = Node2D.new()
 		_focus_dot.name = "FocusDot"
 		var dot := ColorRect.new()
-		dot.size = Vector2(4, 4)
-		dot.position = Vector2(-2, -2)
-		dot.color = Color(1, 1, 1, 0.95)
+		# A single CENTRAL pixel (Roman 2026-06-11: 1px, not 2x2), bright teal.
+		dot.size = Vector2(1, 1)
+		dot.position = Vector2(-0.5, -0.5)
+		dot.color = FOCUS_DOT_COLOR
 		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_focus_dot.add_child(dot)
 		_focus_dot.z_index = 100
 		add_child(_focus_dot)
 	_focus_dot.visible = visible
-	# Edge-triggered sound + glow aura + doubled exhaust. Create-once on enter,
-	# free/restore on exit — no per-frame node churn.
+	# Edge-triggered sound + glow aura + doubled exhaust + the REAL hitbox swap.
+	# Create-once on enter, free/restore on exit — no per-frame node churn.
 	if visible and not _focus_was_active:
 		_play_focus_sound(true)
 		_focus_visuals_enter()
+		_set_focus_hitbox(true)
 	elif not visible and _focus_was_active:
 		_play_focus_sound(false)
 		_focus_visuals_exit()
+		_set_focus_hitbox(false)
 	_focus_was_active = visible
 	# Blue tint + semi-transparency while focused. Per-frame is idempotent and
 	# harmless; the modulate alpha now actually renders because hit_flash.gdshader
@@ -2092,14 +2099,15 @@ func _update_focus_dot(visible: bool) -> void:
 	if visible:
 		if _focus_trail == null or not is_instance_valid(_focus_trail):
 			_focus_trail = Line2D.new()
-			_focus_trail.width = 2.0
+			_focus_trail.width = 1.0   # thin (Roman 2026-06-11)
 			_focus_trail.joint_mode = Line2D.LINE_JOINT_ROUND
 			_focus_trail.begin_cap_mode = Line2D.LINE_CAP_ROUND
 			_focus_trail.end_cap_mode = Line2D.LINE_CAP_ROUND
 			_focus_trail.z_index = 99
+			# Same bright teal as the dot, fading to transparent at the tail.
 			var grad := Gradient.new()
-			grad.set_color(0, Color(0.4, 0.7, 1.0, 0.0))
-			grad.set_color(1, Color(0.4, 0.7, 1.0, 0.8))
+			grad.set_color(0, Color(FOCUS_DOT_COLOR.r, FOCUS_DOT_COLOR.g, FOCUS_DOT_COLOR.b, 0.0))
+			grad.set_color(1, Color(FOCUS_DOT_COLOR.r, FOCUS_DOT_COLOR.g, FOCUS_DOT_COLOR.b, 0.85))
 			_focus_trail.gradient = grad
 			get_parent().add_child(_focus_trail)
 			_focus_trail_history.clear()
@@ -2115,6 +2123,23 @@ func _update_focus_dot(visible: bool) -> void:
 			_focus_trail.queue_free()
 			_focus_trail = null
 		_focus_trail_history.clear()
+
+
+# Swap the player's collider while focused: disable the full ship hitbox and enable
+# a 1px CENTRAL one (Touhou-style focus). Deferred — a collider's `disabled` can't
+# change mid-physics-callback. Restored on focus release. (Roman 2026-06-11.)
+func _set_focus_hitbox(active: bool) -> void:
+	if _focus_hitbox == null:
+		_focus_hitbox = CollisionShape2D.new()
+		_focus_hitbox.name = "FocusHitbox"
+		var r := RectangleShape2D.new()
+		r.size = Vector2(1, 1)   # 1px, centred on the ship origin
+		_focus_hitbox.shape = r
+		_focus_hitbox.disabled = true
+		add_child(_focus_hitbox)
+	if has_node("CollisionShape2D"):
+		$CollisionShape2D.set_deferred("disabled", active)
+	_focus_hitbox.set_deferred("disabled", not active)
 
 
 # Focus-enter: spawn the diffuse glow aura behind the ship sprite and double
