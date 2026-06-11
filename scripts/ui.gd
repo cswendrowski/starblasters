@@ -550,21 +550,12 @@ func _refresh_weapon_names() -> void:
 	if not has_node("/root/Run"):
 		return
 	var run = get_node("/root/Run")
-	# PRI row (2nd primary slot): the non-blaster cannon the player can swap
-	# to with [shoot]/Q/E. cannon_pool[0] is ALWAYS the permanent Energy
-	# Blaster (run_state) — so a non-blaster is equipped iff the pool has more
-	# than one entry. Read it from the pool directly, NOT get_active_cannon():
-	# that returns the blaster whenever the blaster is the active selection,
-	# which would falsely echo "Energy Blaster" into this slot (Roman: 2nd
-	# primary should read EMPTY unless a non-blaster is equipped).
+	# PRI row: the single active primary cannon (single-active model 2026-06-11 —
+	# no more Q-swap 2nd-primary slot). Shows whatever primary is equipped.
 	if _pri_name_lbl:
-		var non_blaster = null
-		if "cannon_pool" in run and run.cannon_pool is Array and run.cannon_pool.size() > 1:
-			# Last entry = most-recently-equipped non-blaster, matching
-			# cycle_primary's default target (cannon_pool.size() - 1).
-			non_blaster = run.cannon_pool[run.cannon_pool.size() - 1]
-		if non_blaster != null and "display_name" in non_blaster:
-			_pri_name_lbl.text = String(non_blaster.display_name)
+		var active_cannon = run.get_active_cannon()
+		if active_cannon != null and "display_name" in active_cannon:
+			_pri_name_lbl.text = String(active_cannon.display_name)
 		else:
 			_pri_name_lbl.text = "—"
 	if "loadout_snapshot" in run and run.loadout_snapshot is Dictionary:
@@ -684,7 +675,9 @@ func _action_key_label(action: String) -> String:
 func _process(delta: float) -> void:
 	if has_node("/root/Run"):
 		var run = get_node("/root/Run")
-		var blaster_active: bool = int(run.active_cannon_idx) == 0
+		# "blaster" light = the active primary is an infinite blaster; "pri" light
+		# = a metered cannon is active (single-active model 2026-06-11).
+		var blaster_active: bool = run.is_active_cannon_infinite()
 
 		if _light_blaster:
 			_light_blaster.frame = 1 if blaster_active else 0
@@ -720,7 +713,7 @@ func _process(delta: float) -> void:
 			_light_sup.frame = 1 if _super_charge_count > 0 else 0
 
 	if _blaster_status_lbl:
-		var blaster_on: bool = has_node("/root/Run") and int(get_node("/root/Run").active_cannon_idx) == 0
+		var blaster_on: bool = has_node("/root/Run") and get_node("/root/Run").is_active_cannon_infinite()
 		_blaster_status_lbl.text = "STANDBY" if not blaster_on else ("FIRING" if Input.is_action_pressed("shoot") else "READY")
 
 	# --- Threat light (state-tracked to avoid restarting tween every frame) ---

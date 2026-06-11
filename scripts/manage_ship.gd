@@ -211,20 +211,14 @@ func _render_loadout() -> void:
 	if not has_node("/root/Run"):
 		return
 	var run = get_node("/root/Run")
-	# PRIMARY can hold more than one owned cannon (cannon_pool). Show every owned
-	# primary: the active one gets an ACTIVE badge, the others a "Set Active"
-	# button. cannon_pool[0] is the permanent Energy Blaster.
-	var pool: Array = run.cannon_pool
-	var active: int = int(run.active_cannon_idx)
+	# Single-active model: ONE primary on the ship (the active cannon). Other
+	# owned primaries live in the hold (OWNED KIT) and equip by swapping the
+	# active one back to the hold. cannon_pool is kept as a 1-element array.
+	var active_cannon = run.get_active_cannon()
 	var primary_color: Color = LOADOUT_SLOTS[0]["color"]
-	if pool.is_empty():
-		_loadout_box.add_child(_make_card("PRIMARY", primary_color, run.loadout_snapshot.get(int(SlotTypes.SlotType.CANNON), null)))
-	else:
-		for i in range(pool.size()):
-			if i == active:
-				_loadout_box.add_child(_make_card("PRIMARY", Color(0.55, 1.0, 0.50), pool[i], "ACTIVE", Callable(), true))
-			else:
-				_loadout_box.add_child(_make_card("PRIMARY", primary_color, pool[i], "Set Active", _on_set_active.bind(i)))
+	if active_cannon == null:
+		active_cannon = run.loadout_snapshot.get(int(SlotTypes.SlotType.CANNON), null)
+	_loadout_box.add_child(_make_card("PRIMARY", Color(0.55, 1.0, 0.50), active_cannon, "ACTIVE", Callable(), true))
 	# SECONDARY + SUPER + SHIFT_MODE are single slots.
 	for entry in [LOADOUT_SLOTS[1], LOADOUT_SLOTS[2], LOADOUT_SLOTS[3]]:
 		var part = run.loadout_snapshot.get(int(entry["slot"]), null)
@@ -365,13 +359,6 @@ func _on_equip(idx: int, source: String) -> void:
 	var picked = arr[idx]
 	arr.remove_at(idx)
 	run.equip_part(picked)  # displaces same-slot part back into storage
-	_render_all()
-
-
-func _on_set_active(idx: int) -> void:
-	if not has_node("/root/Run"):
-		return
-	get_node("/root/Run").set_active_cannon(idx)
 	_render_all()
 
 

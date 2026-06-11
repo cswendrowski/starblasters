@@ -697,11 +697,12 @@ func _roll_offers() -> void:
 			# IS upgradeable, so the same rule applies to it.
 			if slot == SlotTypes.SlotType.CANNON and has_node("/root/Run"):
 				var run := get_node("/root/Run")
-				var owned_idx: int = -1
-				if run.has_method("find_owned_cannon_by_name"):
-					owned_idx = int(run.find_owned_cannon_by_name(part_name))
-				if owned_idx >= 0:
-					var owned_mk: int = int(run.cannon_pool[owned_idx].mark)
+				# Owned = active OR in the hold (single-active model). Bump the
+				# offer +1 Mk so re-offering a stowed cannon doesn't duplicate it.
+				var owned_mk: int = -1
+				if run.has_method("owned_cannon_mark"):
+					owned_mk = int(run.owned_cannon_mark(part_name))
+				if owned_mk >= 0:
 					if owned_mk >= max_mk_for_sector or owned_mk >= MAX_MK:
 						# Cap reached — try a different cannon next attempt.
 						continue
@@ -964,7 +965,7 @@ func _on_primary_ammo_refill(btn: Button) -> void:
 	if not has_node("/root/Run"):
 		return
 	var run := get_node("/root/Run")
-	if int(run.active_cannon_idx) == 0:
+	if run.is_active_cannon_infinite():
 		return
 	var active = run.get_active_cannon()
 	if active == null or not ("current_ammo" in active) or not ("ammo_max" in active):
@@ -1076,9 +1077,9 @@ func _refresh_status_panel() -> void:
 		else:
 			_shield_value_lbl.text = "—"
 	if _mg_ammo_lbl:
-		# Weapons Phase 1: PRIMARY label reads active cannon. Blaster shows
-		# infinity; replacement primaries show current/max from the Part.
-		if int(run.active_cannon_idx) == 0:
+		# PRIMARY label reads active cannon. Infinite blasters show infinity;
+		# metered cannons show current/max from the Part.
+		if run.is_active_cannon_infinite():
 			_mg_ammo_lbl.text = "∞"
 		else:
 			var active = run.get_active_cannon()
@@ -1200,7 +1201,7 @@ func _apply_service_button_state(btn: Button) -> void:
 				btn.disabled = true
 				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_NO_RUN]
 				return
-			if int(run.active_cannon_idx) == 0:
+			if run.is_active_cannon_infinite():
 				btn.disabled = true
 				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_BLASTER_INFINITE]
 				return

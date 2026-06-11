@@ -823,11 +823,9 @@ func _process(delta: float) -> void:
 	# or enemies — lock off primary offense (secondary is gated below).
 	if _phase_t > 0.0:
 		fire_held = false
-	# Primary swap (Weapons Phase 1, Q): flip between blaster (cannon_pool[0])
-	# and the last-used replacement primary. Re-applies the new active cannon
-	# to the ship so bullet_scene / cooldown / damage all swap atomically.
-	if Input.is_action_just_pressed("primary_swap"):
-		_swap_active_primary()
+	# Primary Q-cycle retired (2026-06-11 single-active model): the ship carries
+	# one active primary; swapping happens at the outpost / ship-manager, sending
+	# the old one to the hold. The `primary_swap` action is now unused for cannons.
 	if fire_held:
 		# EVERY style fires through fire_primary each held frame — it self-gates on
 		# GunCooldown/can_shoot, ammo, the rotary charge (not _rl_charged -> no-op), and routes
@@ -1285,16 +1283,15 @@ func fire_primary() -> void:
 		return
 	if _phase_t > 0.0:
 		return  # phased out — no offense
-	# Weapons Phase 1: every non-blaster primary is metered. Active cannon
-	# index 0 == blaster (infinite); anything else has a magazine that lives
-	# on the Part instance in Run.cannon_pool[active_cannon_idx].current_ammo.
-	# The player's `ammo` field mirrors that for HUD/SFX gating.
+	# Metered primary out of ammo. Single-active model (2026-06-11): a REGEN
+	# cannon (laser: ammo_recharge_rate > 0) just can't fire until it recharges —
+	# it must NOT revert (there's no Q-cycle to get back). A NON-regen cannon
+	# (minigun) reverts to an owned blaster. Hyper grants unlimited ammo, so a
+	# dry metered weapon keeps firing while Hyper is active.
 	if _is_replacement_primary_active() and ammo == 0 \
 			and not (_hyper_active and active_mode == ShiftMode.HYPER):
-		# Out of ammo on a non-blaster — snap back to blaster (defensive;
-		# normally happens at the moment ammo hits 0 below). Skip this
-		# shot; next fire will use the blaster. SKIPPED while Hyper is active —
-		# Hyper grants unlimited ammo, so a dry replacement keeps firing.
+		if ammo_recharge_rate > 0.0:
+			return  # regen cannon: pause until it recharges, stay equipped
 		_snap_to_blaster_and_reapply()
 		return
 	# Rotary Laser: also charge-gated.
@@ -1539,14 +1536,11 @@ func _draw_minigun_tracer(from_pos: Vector2, to_pos: Vector2) -> void:
 	tw.tween_callback(beam.queue_free)
 
 
-# True when active_cannon_idx != 0 (non-blaster). Centralizes the "is
-# this a metered/replacement primary?" check so fire_primary and the
-# swap path stay in agreement (no silent fallbacks).
+# True when the active primary is a METERED cannon (carries ammo). Infinite
+# blasters (Energy/Heavy/Twin) seed ammo_max = -1. Single-active model
+# (2026-06-11): the discriminator is "does it meter ammo", not the pool index.
 func _is_replacement_primary_active() -> bool:
-	if not has_node("/root/Run"):
-		return false
-	var run = get_node("/root/Run")
-	return int(run.active_cannon_idx) != 0
+	return ammo_max > 0
 
 
 # Snap the active cannon back to cannon_pool[0] (blaster) and re-apply it
@@ -1556,7 +1550,9 @@ func _snap_to_blaster_and_reapply() -> void:
 	if not has_node("/root/Run"):
 		return
 	var run = get_node("/root/Run")
-	run.swap_to_blaster()
+	# Single-active model: pull an owned blaster out of the hold (the dry cannon
+	# goes to the hold, refillable later). No permanent slot-0 blaster anymore.
+	run.revert_to_blaster()
 	_reapply_active_cannon()
 
 
@@ -1585,18 +1581,6 @@ func _reapply_active_cannon() -> void:
 	_reset_autocannon_spin()
 	const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 	loadout.equip(Slots.SlotType.CANNON, active)
-
-
-# Toggle the active primary. Q-bound; routes to Run.cycle_primary() and
-# re-applies. No-op if the player only owns the blaster.
-func _swap_active_primary() -> void:
-	if not has_node("/root/Run"):
-		return
-	var run = get_node("/root/Run")
-	if int(run.cannon_pool.size()) <= 1:
-		return
-	run.cycle_primary()
-	_reapply_active_cannon()
 
 
 # Ammo setter for the CANNON Part to plumb its starting ammo. Public so
