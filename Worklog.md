@@ -211,3 +211,19 @@ loadout cards already showed Blaster/Primary. Note: the outpost offer pill uses 
   RANDOM faction rather than the row/sector's actual faction. If you want them keyed to the real faction
   present, that data needs threading into `sector_map_cache` first — flag it and I'll wire it.
   Verified headless: 11 ships spawned, 5 tinted (~50%); sector_map_hd boots clean.
+
+## [done] MISC: missing muzzleflashes + damage-fx randomization — branch `wl-session-2026-06-11`
+- **Muzzleflashes** — primaries already flashed (`fire_primary` → `play_player`); the SECONDARY roster
+  (missiles / rockets / salvo) fired with NONE. Added a warm launch flash (`_secondary_muzzle`) at every
+  secondary spawn: `fire_secondary` (both wing + fanned), `_tick_burst` (rocket pod), `_tick_salvo` (swarm).
+  Beams already had their own star-flash; deploy/super aren't gun-fire.
+- **Damage fire + smoke randomization** — was a single fixed point at the engine nozzle. Now
+  `_setup_smoke_trail` picks a RANDOM anchor per run (sprite centre / engine / a wing launch marker) for the
+  first fire+smoke pair, and adds a SECOND pair at a different anchor that fades in at ~50% hull
+  (`_attach_damage_point`, `_damage_fx_points`). The smoke uses its `emit_local`; the torch its nozzle (+
+  burst flashes at that anchor now, not the fixed engine).
+- **Fire shader no longer widens** — `engine_torch` FLAME_SIZE x is now constant (0.22); only the HEIGHT
+  ramps with severity.
+- Verified headless: 2 smoke + 2 torch damage points at distinct anchors (activate_below 0.01 / 0.5);
+  combat boots clean. **NEEDS ROMAN:** eyeball the placement/feel of the randomized fire+smoke + the
+  secondary launch flashes.

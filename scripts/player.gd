@@ -539,23 +539,47 @@ func _muzzle_offset(node_path: String, fallback: Vector2) -> Vector2:
 var _secondary_wing: int = 0
 
 
+var _damage_fx_seq: int = 0
+
 func _setup_smoke_trail() -> void:
-	# Sprite-based smoke trail (DamageSmokeTrail spawns one Sprite2D per puff,
-	# tweens it downward + fading). Simpler and more reliable than the
-	# CPUParticles2D approach which silently failed to render.
+	# Damage fire + smoke appear at a RANDOM point each run — sprite centre, an engine
+	# marker, or a wing launch marker — and a SECOND point fades in as damage deepens
+	# (Roman 2026-06-11). The fire shader no longer widens with damage (engine_torch).
+	var pts := _damage_fx_points()
+	if pts.is_empty():
+		return
+	_attach_damage_point(pts[0], 0.01)        # first point: shows on the first pip lost
+	if pts.size() > 1:
+		_attach_damage_point(pts[1], 0.5)     # second point: shows at ~50% hull
+
+
+# Candidate damage-tell anchors (player-local), shuffled: centre + engine + wings.
+func _damage_fx_points() -> Array:
+	var pts := [
+		Vector2(0.0, 0.0),
+		_muzzle_offset("Engine", Vector2(0.0, 6.0)),
+		_muzzle_offset("Ship/LaunchWingL", Vector2(-6.0, 3.0)),
+		_muzzle_offset("Ship/LaunchWingR", Vector2(6.0, 3.0)),
+	]
+	pts.shuffle()
+	return pts
+
+
+# One fire (EngineTorch) + smoke (DamageSmokeTrail) pair at a local anchor, gated to
+# appear below the given hull fraction.
+func _attach_damage_point(local: Vector2, below: float) -> void:
 	var TrailCls = preload("res://scripts/effects/damage_smoke_trail.gd")
 	var trail = TrailCls.new()
-	trail.name = "DamageSmokeTrail"
-	# Activate at any pip loss (hull spec 2026-05-26): player uses 0.01 so
-	# even losing 1 of 3 pips (damage_level ≈ 0.33) triggers the effects.
-	trail.activate_below = 0.01
+	trail.name = "DamageSmokeTrail_%d" % _damage_fx_seq
+	trail.activate_below = below
+	trail.emit_local = local
 	add_child(trail)
 	trail.set_player(self)
-	# Procedural torch fire on the engine nozzle (Roman 2026-05-18). Reads
-	# horizontal velocity each frame and pipes it into the shader's
-	# windForce so the flame leans opposite the direction of travel.
 	var EngineTorchCls = preload("res://scripts/effects/engine_torch.gd")
-	EngineTorchCls.attach_to_player(self, EngineTorchCls.NOZZLE_OFFSET_DEFAULT, 0.01)
+	var torch = EngineTorchCls.attach_to_player(self, local, below)
+	if torch != null:
+		torch.name = "EngineTorch_%d" % _damage_fx_seq
+	_damage_fx_seq += 1
 
 
 func _setup_mg_audio() -> void:
@@ -1530,6 +1554,15 @@ func set_secondary_ammo(value: int, maximum: int = -1) -> void:
 		run.secondary_ammo = secondary_ammo
 		run.secondary_ammo_max = secondary_ammo_max
 
+# Small warm launch flash for secondary weapons (missiles / rockets / pods), which
+# previously fired with NO muzzle flash (Roman 2026-06-11: "muzzleflashes missing
+# from most weapons"). No smoke/shell — secondaries are launches, not gun fire.
+func _secondary_muzzle(world_pos: Vector2) -> void:
+	var MuzzleFx = load("res://scripts/effects/muzzle_fx.gd")
+	if MuzzleFx:
+		MuzzleFx.play_player(world_pos, self, Color(1.0, 0.8, 0.4), false, false)
+
+
 func fire_secondary() -> void:
 	# HARDPOINT_WING Parts (Seeking Missile, Rocket Pod, Side Pods) write
 	# to secondary_bullet_scene / cooldown / damage / pod_count in their
@@ -1564,10 +1597,14 @@ func fire_secondary() -> void:
 		if count == 1:
 			var wing: String = "Ship/LaunchWingL" if _secondary_wing == 0 else "Ship/LaunchWingR"
 			var fallback := Vector2(-6.0 if _secondary_wing == 0 else 6.0, 1.0)
-			b.start(position + _muzzle_offset(wing, fallback))
+			var sp1: Vector2 = _muzzle_offset(wing, fallback)
+			b.start(position + sp1)
+			_secondary_muzzle(global_position + sp1)
 			_secondary_wing = 1 - _secondary_wing
 		else:
-			b.start(position + Vector2(offset_x, -10))
+			var sp2 := Vector2(offset_x, -10)
+			b.start(position + sp2)
+			_secondary_muzzle(global_position + sp2)
 	var WeaponSfxSec = load("res://scripts/effects/weapon_sfx.gd")
 	if WeaponSfxSec:
 		var kind: String = "missile" if secondary_homing else "rocket"
@@ -1638,7 +1675,9 @@ func _spawn_burst_rocket() -> void:
 		b.damage_on_contact = secondary_damage
 	if "damage" in b:
 		b.damage = secondary_damage
-	b.start(position + _muzzle_offset(wing, fallback))
+	var sp_burst: Vector2 = _muzzle_offset(wing, fallback)
+	b.start(position + sp_burst)
+	_secondary_muzzle(global_position + sp_burst)
 	var WeaponSfxBurst = load("res://scripts/effects/weapon_sfx.gd")
 	if WeaponSfxBurst:
 		WeaponSfxBurst.play(get_tree().root, global_position, "rocket")
@@ -1734,6 +1773,7 @@ func _tick_salvo() -> void:
 		return
 	if not part.fire_salvo(self):
 		return
+	_secondary_muzzle(global_position + _muzzle_offset("Ship/Muzzle", Vector2(0, -8)))
 	_secondary_t = 0.0  # restart the cooldown
 	if secondary_ammo > 0:
 		secondary_ammo -= 1
