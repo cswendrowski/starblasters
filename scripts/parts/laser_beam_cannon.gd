@@ -13,12 +13,9 @@ func _init() -> void:
 	super._init()
 	display_name = "Auto Laser"
 	description = "Alternating left/right tandem bolts. Mk.1: 200 ammo, recharges 3/sec. Each Mk adds 30 ammo and slightly tightens cadence."
-	base_damage = 3
-	dmg_per_mark = 0  # damage is fixed; cooldown scales via callable
-	base_cooldown = 0.162
-	base_ammo = 200
-	ammo_recharge_rate = 3.0
-	no_outpost_refill = true
+	# Stats live in resources/weapons/laser_beam.tres (single source of truth).
+	# NOTE: cadence + ammo curves are hardcoded in _cooldown_for_mark / ammo_at_mark
+	# below (curve SHAPE = behavior); the .tres base_cooldown/base_ammo mirror Mk.1.
 
 
 func ammo_at_mark(mk: int) -> int:

@@ -29,8 +29,7 @@ func _init() -> void:
 	super._init()
 	display_name = "Smart Bomb"
 	description = "Releases a shockwave that ignores shields and clears large non-tough enemies. Limited charges, refill at outposts."
-	base_charges = 3
-	charges_per_mark = 1
+	# Stats live in resources/weapons/smart_bomb.tres (single source of truth).
 
 
 func activate(ship) -> void:

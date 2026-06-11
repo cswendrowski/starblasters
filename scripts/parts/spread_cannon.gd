@@ -18,9 +18,7 @@ func _init() -> void:
 	super._init()
 	display_name = "Spread Cannon"
 	description = "Fans bullets in a forward arc. Each pair of Mks adds another bullet."
-	base_damage = 2
-	dmg_per_mark = 0
-	base_cooldown = 0.30
+	# Stats live in resources/weapons/spread_cannon.tres (single source of truth).
 
 
 func _fire_sfx_kind() -> int:

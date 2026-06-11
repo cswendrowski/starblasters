@@ -9,9 +9,7 @@ func _init() -> void:
 	super._init()
 	display_name = "Energy Blaster"
 	description = "Standard issue energy cannon. Unlimited ammo."
-	base_damage = 2
-	dmg_per_mark = 2
-	base_cooldown = 0.22
+	# Stats live in resources/weapons/energy_blaster.tres (single source of truth).
 
 
 func _fire_sfx_kind() -> int:

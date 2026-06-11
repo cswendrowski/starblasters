@@ -1,12 +1,12 @@
-[gd_resource type="Resource" load_steps=3 format=3]
+[gd_resource type="Resource" format=3]
 
 [ext_resource type="Script" path="res://scripts/parts/rocket_pod_cannon.gd" id="1_w"]
-[ext_resource type="PackedScene" uid="uid://bplyrkt0001" path="res://scenes/projectiles/player_rocket.tscn" id="2_b"]
+[ext_resource type="PackedScene" path="res://scenes/projectiles/player_rocket.tscn" id="2_b"]
 
 [resource]
 script = ExtResource("1_w")
-mark = 1
 bullet_scene = ExtResource("2_b")
 base_damage = 8
-dmg_per_mark = 0
 base_cooldown = 0.55
+display_name = ""
+slot_type = 5

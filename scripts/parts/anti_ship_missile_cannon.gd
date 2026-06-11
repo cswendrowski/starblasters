@@ -27,9 +27,7 @@ func _init() -> void:
 	super._init()
 	display_name = "Anti-Ship Missile"
 	description = "Heavy seeker that locks the largest enemy and one-shots it. Slow, low ammo. Secondary."
-	base_damage = 32
-	dmg_per_mark = 0
-	base_cooldown = 0.75
+	# Stats live in resources/weapons/anti_ship_missile.tres (single source of truth).
 
 
 func _base_ammo() -> int:

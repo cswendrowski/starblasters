@@ -1,9 +1,8 @@
-[gd_resource type="Resource" load_steps=2 format=3]
+[gd_resource type="Resource" format=3]
 
 [ext_resource type="Script" path="res://scripts/parts/drone_swarm.gd" id="1_ds"]
 
 [resource]
 script = ExtResource("1_ds")
-mark = 1
-base_charges = 1
-charges_per_mark = 1
+display_name = ""
+slot_type = 5

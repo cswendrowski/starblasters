@@ -17,12 +17,7 @@ func _init() -> void:
 	super._init()
 	display_name = "Rotary Laser"
 	description = "Rapid-fire energy cannon. Mk.1: 120 ammo, recharges 3/sec. Each Mk adds 30 ammo."
-	base_damage = 1
-	dmg_per_mark = 0
-	base_cooldown = 0.05
-	base_ammo = 120
-	ammo_recharge_rate = 3.0
-	no_outpost_refill = true
+	# Stats live in resources/weapons/rotary_laser.tres (single source of truth).
 
 
 func ammo_at_mark(mk: int) -> int:

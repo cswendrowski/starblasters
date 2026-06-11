@@ -1,13 +1,13 @@
 [gd_resource type="Resource" format=3]
 
-[ext_resource type="Script" uid="uid://bdq8dkvsb5ipn" path="res://scripts/parts/heavy_blaster.gd" id="1_w"]
-[ext_resource type="PackedScene" uid="uid://c5te1ekoxw700" path="res://scenes/projectiles/bullet_blaster_heavy.tscn" id="2_bullet"]
+[ext_resource type="Script" path="res://scripts/parts/heavy_blaster.gd" id="1_w"]
+[ext_resource type="PackedScene" path="res://scenes/projectiles/bullet_blaster_heavy.tscn" id="2_bullet"]
 
 [resource]
 script = ExtResource("1_w")
-mark = 1
+bullet_scene = ExtResource("2_bullet")
 base_damage = 6
 dmg_per_mark = 3
 base_cooldown = 0.4
-cooldown_at_mk9 = 0.3
-bullet_scene = ExtResource("2_bullet")
+display_name = ""
+slot_type = 4

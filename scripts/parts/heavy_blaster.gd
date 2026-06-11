@@ -20,9 +20,7 @@ func _init() -> void:
 	super._init()
 	display_name = "Heavy Blaster"
 	description = "Blaster replacement: slow, slow-moving shots that hit very hard. Unlimited ammo."
-	base_damage = 6
-	dmg_per_mark = 3
-	base_cooldown = 0.40
+	# Stats live in resources/weapons/heavy_blaster.tres (single source of truth).
 
 
 func _fire_sfx_kind() -> int:

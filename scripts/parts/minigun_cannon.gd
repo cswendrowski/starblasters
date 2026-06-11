@@ -16,11 +16,7 @@ func _init() -> void:
 	super._init()
 	display_name = "Minigun"
 	description = "Rapid-fire bullet hose — a dense stream of light rounds. Mk.1: 1000 rounds; Mk.9: ~4300 rounds."
-	base_damage = 1
-	dmg_per_mark = 0
-	base_cooldown = 0.04
-	base_ammo = 1000
-	refill_cost_override = 100
+	# Stats live in resources/weapons/minigun.tres (single source of truth).
 
 
 func _weapon_style() -> int:

@@ -19,12 +19,7 @@ func _init() -> void:
 	super._init()
 	display_name = "Quad Lasers"
 	description = "Fires four parallel laser bolts at once for wide coverage. Mk.1: 90 ammo, regen 2.5/sec; +20 ammo per Mk."
-	base_damage = 1
-	dmg_per_mark = 0
-	base_cooldown = 0.12
-	base_ammo = 90
-	ammo_recharge_rate = 2.5
-	no_outpost_refill = true
+	# Stats live in resources/weapons/quad_lasers.tres (single source of truth).
 	if bullet_scene == null:
 		bullet_scene = BulletRotaryLaser
 

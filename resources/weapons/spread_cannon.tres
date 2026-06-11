@@ -1,16 +1,12 @@
 [gd_resource type="Resource" format=3]
 
-[ext_resource type="Script" uid="uid://cqxqy5ot7duni" path="res://scripts/parts/spread_cannon.gd" id="1_w"]
-[ext_resource type="PackedScene" uid="uid://ce2sbgdju6rp7" path="res://scenes/projectiles/bullet_blaster.tscn" id="2_b"]
+[ext_resource type="Script" path="res://scripts/parts/spread_cannon.gd" id="1_w"]
+[ext_resource type="PackedScene" path="res://scenes/projectiles/bullet_blaster.tscn" id="2_b"]
 
 [resource]
 script = ExtResource("1_w")
-mark = 1
 bullet_scene = ExtResource("2_b")
 base_damage = 2
-dmg_per_mark = 0
-base_cooldown = 0.30
-base_bullet_count = 3
-bullets_per_mark = 2
-max_bullets = 9
-spread_degrees = 30.0
+base_cooldown = 0.3
+display_name = ""
+slot_type = 4

@@ -14,9 +14,7 @@ func _init() -> void:
 	super._init()
 	display_name = "Twin Blaster"
 	description = "Woven twin-stream blaster — rapid, light bolts that alternate across the muzzle. Unlimited ammo."
-	base_damage = 2
-	dmg_per_mark = 1
-	base_cooldown = 0.12
+	# Stats live in resources/weapons/twin_blaster.tres (single source of truth).
 	if bullet_scene == null:
 		bullet_scene = BulletMedium
 

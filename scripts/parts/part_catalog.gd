@@ -194,13 +194,18 @@ static func _build_weapon(tres_path: String, fallback_script: Script, bullet_fal
 		if loaded != null:
 			weapon = loaded.duplicate()
 	if weapon == null:
+		# Centralization (2026-06-11): weapon STATS now live ONLY in the .tres (single
+		# source of truth — the scripts no longer set base_damage/cooldown/ammo in
+		# _init). A missing .tres therefore yields a SCHEMA-DEFAULT (often zero-stat)
+		# weapon — a packaging bug, not an acceptable fallback. Fail loudly so it's
+		# caught in dev; still return an instance so the game doesn't hard-crash.
+		push_error("WeaponData: missing .tres '%s' — weapon stats live in the .tres now. Returning a schema-default (likely zero-stat) instance." % tres_path)
 		weapon = fallback_script.new()
-	# Godot does NOT call _init() on Resources loaded from disk; the .tres files
-	# don't persist display_name / description / slot_type (only the stat
-	# @exports). Without this, loaded weapons stay at base defaults
-	# (display_name="Unnamed Part", description="", slot_type=-1). slot_type=-1
-	# is the load-bearing one — it makes Run.equip_part route to slot -1, so
-	# the part doesn't reach its real slot and the player can't fire it.
+	# Godot does NOT call _init() on Resources loaded from disk. The .tres persist the
+	# stat @exports + slot_type, but NOT display_name / description (kept code-owned
+	# via _init). This stamp refills those identity fields from a fresh instance so a
+	# loaded weapon shows its real name (and back-fills slot_type for any legacy .tres
+	# that saved -1).
 	if fallback_script != null:
 		var defaults = fallback_script.new()
 		if "display_name" in weapon and (weapon.display_name == "" or weapon.display_name == "Unnamed Part"):

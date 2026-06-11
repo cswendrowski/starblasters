@@ -31,13 +31,8 @@ func _init() -> void:
 	super._init()
 	display_name = "Rocket Pod"
 	description = "Burst-fire rockets from twin wing ports. Heavy hit, lead your shots. Secondary."
-	# base_damage is the Mk1 per-rocket damage. 8 × 2 rockets = 16 = the HP
-	# of a tough common enemy (cruiser / drone carrier / bomber), so the
-	# base 2-rocket cycle reliably kills one. .tres overrides this; the
-	# damage Callable reads self.base_damage so the .tres value wins.
-	base_damage = 8
-	dmg_per_mark = 0   # damage scales via the Mk Callable, not linear per-mark
-	base_cooldown = 0.55
+	# Stats live in resources/weapons/rocket_pod.tres (single source of truth).
+	# base_damage = Mk1 per-rocket damage (the damage Callable reads self.base_damage).
 
 
 func _base_ammo() -> int:

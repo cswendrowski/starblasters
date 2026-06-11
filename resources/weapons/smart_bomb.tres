@@ -1,11 +1,11 @@
-[gd_resource type="Resource" load_steps=2 format=3]
+[gd_resource type="Resource" format=3]
 
 [ext_resource type="Script" path="res://scripts/parts/smart_bomb.gd" id="1_sb"]
 
 [resource]
 script = ExtResource("1_sb")
-mark = 1
-base_charges = 3
-charges_per_mark = 1
 base_damage = 25
 dmg_per_mark = 10
+base_charges = 3
+display_name = ""
+slot_type = 7

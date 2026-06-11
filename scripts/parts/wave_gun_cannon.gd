@@ -30,9 +30,7 @@ func _init() -> void:
 	super._init()
 	display_name = "Wave Gun"
 	description = "Pierces enemies in a line. Mk.1 fires a small slow wave (dmg 4); Mk.9 punches a wide multi-hit pulse (dmg 12, fast)."
-	base_damage = 4
-	dmg_per_mark = 0  # not used — _mk_knobs encodes the curve directly
-	base_cooldown = 0.708
+	# Stats live in resources/weapons/wave_gun.tres (single source of truth).
 
 
 func _fire_sfx_kind() -> int:
