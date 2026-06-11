@@ -9,8 +9,45 @@ Captured from Cody's 2026-05-19 punch list. Ordered roughly by leverage.
 > HUD weapon-light/ammo fixes, zealot ball-explosion routing, enemy-bench recycle tagging,
 > manage-ship shift modes, onboarding refresh, off-screen-enemy hit immunity, Omni no-fly fix —
 > plus post-playtest hotfixes and a hardened fail-closed parse gate. Per-item log + commits +
-> the eyeball checklist: **`Worklog.md`**. Remaining worklist items: **`Worklist.md`**.
+> the eyeball checklist: **`Worklog.md`**.
+>
+> **2026-06-11 session** (pushed to `origin/main`): DEV-tool cleanup (7 retired), Enemy Bench rework,
+> Weapon Lab (3-tab HD bench), the HD play-area fixes (SubViewport HDR-2D parity + background z-order
+> — closes the hangar "green muzzle / missing bullets"), Forward+ renderer locked in, and the
+> Blaster-Replacement + weapons batch. The Worklist has been **cleared**; its still-open items are
+> consolidated in **"Carried from Worklist (2026-06-11)"** immediately below.
 > **Sector modifiers are PULLED** (kill-switch in run_state) pending re-eval — see below.
+
+## Carried from Worklist (2026-06-11)
+
+The Worklist was cleared this session. Items below were the active worklist; statuses updated.
+
+**Still open** (detailed specs live in the deeper TODO sections — pointers given):
+- [ ] **Recycler — Pillar 2** — NOT STARTED. RecycleTuner dev scene first, then `RecycleController`,
+  then roster migration. Full build order under **"Recycling — Pillar 2"** below
+  (spec: `docs/recycling_system_pillar2_2026-06-04.md`). Prereq tooling (Enemy-Bench recycle/passes/
+  flee tagging) landed 2026-06-10. Regression surface = whole roster → playtest-only.
+- [ ] **Lane Hook not leaving the play area** — NEEDS REPRO. Code-side exit config verified correct
+  (DIVE_RETURN frees on any edge after the U-turn climb); need the in-game symptom (stalls mid-climb?
+  exits the wrong edge? recycles instead of leaving?). (`scripts/enemies/patterns/lane_path.gd`)
+- [ ] **Supremacy Push globbing** — NEEDS STEER. Want controlled numbers (one to a lane / one per
+  crossing). The push anchors bypass the existing lane-spread + crosser stagger; confirm whether the
+  descenders stack or the side_traverse crossers overlap, then route just those through the spread.
+- [ ] **wreck_layer** — BUILT 2026-06-10 (`9d99405`, test-gated); EM Torpedo is the testbed. NEEDS
+  EYEBALL. Expand to more death styles (e.g. the bomber encounter) if it reads well — just tag those
+  kills with `death_style="wreck"`.
+- [ ] **EM Torpedo** — BUILT; electric-ball ring detonation reworked 2026-06-11 (`34b33be`). NEEDS
+  FEEL PASS. NOT in the shop pool yet — promote by adding `_make_em_torpedo` to `part_catalog._all_pool`
+  + authoring `resources/weapons/em_torpedo.tres`. (Behind Test Combat → "EM Torpedo + Wreck Test", fire C.)
+- [ ] **Sector modifiers** — PULLED (kill-switch `Run.SECTOR_MODIFIERS_ENABLED = false` gates rolling +
+  application; vocabulary + effect wiring kept). **FLAGGED FOR RE-EVAL + REIMPLEMENT.**
+
+**Done this session** (were on the Worklist):
+- [x] **Forward+ renderer + Windows-only build** — pivoted and locked in (non-negotiable per Roman 2026-06-11).
+- [x] **Hangar "green muzzle / missing bullets"** — root-caused + fixed. Two stacked bugs: the play-area
+  SubViewport rendered LDR under the now-HDR-2D root (additive blends composited wrong), and the opaque
+  background sat at z=0 over the z=-1 bullets + glow halos. Fix = `use_hdr_2d` parity + background on a
+  CanvasLayer behind the gameplay. Both guarded + documented (`docs/godot-patterns.md` "HD SubViewport host").
 
 ## M6c polish backlog (scoped 2026-06-07)
 
