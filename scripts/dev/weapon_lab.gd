@@ -163,15 +163,21 @@ func _build_playspace() -> void:
 	_preview_vp.use_hdr_2d = bool(ProjectSettings.get_setting("rendering/viewport/hdr_2d", false))
 	sub_container.add_child(_preview_vp)
 
+	# Opaque background → on a CanvasLayer BEHIND the gameplay. Bullets + glow halos render at
+	# z_index=-1; a z=0 band in the same canvas would hide them. (Roman 2026-06-11; see hangar.gd.)
+	var bg_layer := CanvasLayer.new()
+	bg_layer.name = "Backdrop"
+	bg_layer.layer = -1
+	_preview_vp.add_child(bg_layer)
 	var gutter := ColorRect.new()
 	gutter.color = Color(0.04, 0.05, 0.08, 1.0)
 	gutter.size = Vector2(480, 270)
-	_preview_vp.add_child(gutter)
+	bg_layer.add_child(gutter)
 	var band := ColorRect.new()
 	band.color = Color(0.07, 0.09, 0.13, 1.0)
 	band.position = Vector2(Playfield.X_MIN, 0)
 	band.size = Vector2(Playfield.W, Playfield.H)
-	_preview_vp.add_child(band)
+	bg_layer.add_child(band)
 
 	_world = Node2D.new()
 	_world.name = "World"

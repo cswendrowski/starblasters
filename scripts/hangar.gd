@@ -177,15 +177,25 @@ func _build_playspace() -> void:
 	sub_container.add_child(_preview_vp)
 
 	# Gutter dim + brighter playfield band, matching the real frame.
+	# CRITICAL (Roman 2026-06-11, "no bullets / bare muzzle colour"): these are OPAQUE and must live on
+	# a CanvasLayer BEHIND the gameplay. Player bullets render at z_index=-1 ("under the ship", player.gd)
+	# and muzzle/bullet GLOW halos are z_index=-1 too (glow_shader_fx.gd). If the band sits at the default
+	# z=0 in the SAME canvas as the gameplay, every z=-1 thing draws BEHIND the opaque band → bullets
+	# vanish + the muzzle flash loses its colored glow halo (reads as "wrong colour"). In combat the
+	# backdrop is on a lower layer for exactly this reason; mirror that here.
+	var bg_layer := CanvasLayer.new()
+	bg_layer.name = "Backdrop"
+	bg_layer.layer = -1
+	_preview_vp.add_child(bg_layer)
 	var gutter := ColorRect.new()
 	gutter.color = Color(0.04, 0.05, 0.08, 1.0)
 	gutter.size = Vector2(480, 270)
-	_preview_vp.add_child(gutter)
+	bg_layer.add_child(gutter)
 	var band := ColorRect.new()
 	band.color = Color(0.07, 0.09, 0.13, 1.0)
 	band.position = Vector2(Playfield.X_MIN, 0)
 	band.size = Vector2(Playfield.W, Playfield.H)
-	_preview_vp.add_child(band)
+	bg_layer.add_child(band)
 
 	# World node — dummy + player + bullets all live here so they share one coordinate space and
 	# collide (the SubViewport has its own 2D physics space). This is the node handed to bullet_parent.
