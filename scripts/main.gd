@@ -464,6 +464,9 @@ func _on_level_cleared() -> void:
 		# into the run-wide accumulators before the per-level counters reset.
 		run.run_time_seconds += _level_time
 		run.stat_add("asteroids", _asteroids_killed_this_level)
+		# Stash this level's clear-time for the cleared summary header (worklist
+		# #37) before the accumulator resets.
+		run.set_meta("last_combat_clear_time", _level_time)
 		_level_time = 0.0
 		# Consume per-run flags so they don't leak into the next level.
 		run.asteroid_bonus_bounty = 0

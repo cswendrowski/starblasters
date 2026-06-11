@@ -101,8 +101,20 @@ func populate(enemy_stats: Dictionary, total_bounty: int, hide_tally: bool = fal
 		total_label.text = "TOTAL BOUNTY: %d" % total_bounty
 		UiTheme.style_label(total_label, UiTheme.LabelKind.BOUNTY)
 		total_label.material = _shared_mat
+		# Header line: clear-time + total enemies destroyed this combat (worklist
+		# #37). Clear-time comes from main.gd via Run meta; kills are summed from
+		# the tally so the two always agree.
+		_install_clear_header(title, enemy_stats)
+		# Sort rows largest-threat first (descending per-kill bounty, a stable
+		# proxy for chassis size) so cruisers/elites head the list and chaff
+		# trails — replaces the old alphabetical order (worklist #37).
 		var keys: Array = enemy_stats.keys()
-		keys.sort()
+		keys.sort_custom(func(a, b):
+			var ba: int = int(enemy_stats[a].get("bounty", 0))
+			var bb: int = int(enemy_stats[b].get("bounty", 0))
+			if ba == bb:
+				return String(a) < String(b)
+			return ba > bb)
 		for path in keys:
 			var row := _build_row(path, enemy_stats[path])
 			list.add_child(row)
@@ -146,6 +158,48 @@ func populate(enemy_stats: Dictionary, total_bounty: int, hide_tally: bool = fal
 		tw0.tween_interval(0.4)
 		tw0.tween_property(endless_buttons[0], "modulate:a", 1.0, 0.25)
 	_play_reveal(title, rows, total_label if not hide_tally else null, reveal_btn)
+
+
+# A small subtitle under the title: "Cleared in M:SS  ·  N destroyed". Clear-time
+# is the active-combat seconds main.gd stashed in Run meta; N is summed from the
+# tally. Added as a sibling right after the Title so it rides the reveal fade.
+func _install_clear_header(title: Label, enemy_stats: Dictionary) -> void:
+	var total_killed: int = 0
+	for s in enemy_stats.values():
+		total_killed += int(s.get("killed", 0))
+	var secs: float = 0.0
+	if has_node("/root/Run"):
+		secs = float(get_node("/root/Run").get_meta("last_combat_clear_time", 0.0))
+	var hdr := Label.new()
+	hdr.name = "ClearHeader"
+	hdr.text = "Cleared in %s   ·   %d destroyed" % [_fmt_mmss(secs), total_killed]
+	hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hdr.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	hdr.add_theme_color_override("font_color", UiTheme.COLOR_HOLO)
+	hdr.add_theme_font_override("font", UiTheme.menu_font())
+	hdr.material = _shared_mat
+	# Root is a plain Control with absolutely-positioned children, so place the
+	# header explicitly in the gap between the title (bottom 96 from _layout_hd)
+	# and the list (top 150) rather than relying on flow layout.
+	var title_parent := title.get_parent() as Control
+	hdr.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	hdr.anchor_right = 1.0
+	hdr.offset_left = 0.0
+	hdr.offset_right = 0.0
+	hdr.offset_top = 104.0
+	hdr.offset_bottom = 140.0
+	title_parent.add_child(hdr)
+	title_parent.move_child(hdr, title.get_index() + 1)
+	# Ride the reveal: fade in just after the title (which reveals first).
+	hdr.modulate.a = 0.0
+	var tw := create_tween()
+	tw.tween_interval(0.2)
+	tw.tween_property(hdr, "modulate:a", 1.0, 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+
+func _fmt_mmss(secs: float) -> String:
+	var s: int = int(round(secs))
+	return "%d:%02d" % [s / 60, s % 60]
 
 
 # Build a horizontal row with [ Main Menu ] and [ Next Sector ] buttons under
