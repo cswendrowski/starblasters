@@ -26,6 +26,13 @@ const EmBurstFx = preload("res://scripts/effects/em_burst_fx.gd")
 var damage: int = 0
 
 
+func _ready() -> void:
+	# Warm the burst's noise textures while the torpedo flies (it detonates ~2s later), so the first
+	# electric ring isn't dim during the async NoiseTexture2D generation.
+	EmBurstFx.prewarm()
+	super._ready()
+
+
 func _process(delta: float) -> void:
 	# Detonate at the top of the fire zone (among the front line) if it didn't already hit an enemy.
 	# Only after ignition so it doesn't pop the instant it spawns.
