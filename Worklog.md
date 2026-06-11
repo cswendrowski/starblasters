@@ -114,3 +114,26 @@ await-gated shots can't progress in a harness (shot 1 fires fine). Low-risk: the
 `play_for` enemy_core uses.
 **NEEDS ROMAN:** hear a burst weapon (e.g. a BURST-pattern enemy) fire its sound on every round; confirm
 the rung-clamped speed tuner + save in Weapon Lab.
+
+---
+
+## [done] Supremacy Push: cruiser lane-gapping (anchor descent-stagger) — branch `wl-session-2026-06-11`
+
+**Spec:** the large push cruiser globs — want lane gaps + staggered arrival. Adjacent lanes clear when a
+cruiser arrives, OR a full enemy-length passes before an adjacent lane gets a cruiser; same-lane / horizontal-
+cross cruisers need a full enemy-length between them.
+**Cause:** push anchors spawn via the director's default lane-pick, whose occupancy check
+(`_occupied_lanes`) only looks at the y≤40 entry band and never checks adjacent lanes — so a descending
+63px cruiser stops blocking its lane (and never blocked neighbours).
+**Fix:** new **anchor descent-stagger** in `director.gd`. A "cruiser" = any enemy taller than
+`ANCHOR_MIN_HEIGHT` (40px; push is 30×63). On spawn, `_anchor_stagger_y` raises the spawn-y so the cruiser
+sits at least one full enemy-length (height + 8px) above any cruiser already in its lane OR an adjacent lane
+— it descends later, so neighbours are clear/fully-passed on arrival. Reads live positions (`start()` sets
+them synchronously), so it gates same-dispatch siblings AND cruisers lingering from earlier waves. Chaff
+(height < 40) is untouched.
+**Verified headless:** height(push)=63; same-lane −20→−91, adjacent-lane −20→−91 (both held a full length
+above), non-adjacent lane stays −20 (free), chaff height 14 (not gated). Combat boots clean.
+**Note / partial:** production push almost always DESCENDS (`straight_crawl`), which this fixes. The
+horizontal-CROSS case (`side_traverse`) still rides the existing index-based crosser-stagger (26px step <
+63px); a tall-crosser gap bump is left for a follow-up if Roman sees cross-globbing in play.
+**NEEDS ROMAN:** playtest a supremacy push wave — confirm cruisers arrive with clear/lagged neighbours.

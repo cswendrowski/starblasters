@@ -59,6 +59,12 @@ const WALL_MEMBER_STAGGER: float = 0.05  # intra-row spawn stagger (near-simulta
 # top-of-screen threat (4 bands * 26 = 78px spread, base ~80 -> ~80..158).
 const CROSSER_STAGGER_BANDS: int = 4
 const CROSSER_STAGGER_STEP: float = 26.0
+# Anchor (cruiser) lane-gapping (Roman 2026-06-11): a descending cruiser is held a
+# full enemy-length above any cruiser already in its lane OR an adjacent lane, so
+# neighbours are clear / fully-passed on arrival instead of globbing. Only enemies
+# taller than ANCHOR_MIN_HEIGHT count as cruisers for this gate.
+const ANCHOR_MIN_HEIGHT: float = 40.0
+const ANCHOR_GAP_PAD: float = 8.0
 # Grace beat after the player gains control before the first wave dispatches, so
 # the level doesn't open the instant the slide-in ends.
 @export var start_grace: float = 1.2
@@ -190,6 +196,45 @@ func _occupied_lanes() -> Array:
 			if not out.has(ln):
 				out.append(ln)
 	return out
+
+# Vertical extent of an enemy from its first RectangleShape2D collision (× scale).
+# Used to tell "cruiser" (tall) from chaff and to size the lane-gap.
+func _enemy_height(e) -> float:
+	var scale_y: float = float(e.display_scale) if (e != null and "display_scale" in e) else 1.0
+	var shape := _first_rect_shape(e)
+	if shape != null:
+		return shape.size.y * scale_y
+	return 16.0
+
+func _first_rect_shape(n: Node) -> RectangleShape2D:
+	for c in n.get_children():
+		if c is CollisionShape2D and (c as CollisionShape2D).shape is RectangleShape2D:
+			return (c as CollisionShape2D).shape as RectangleShape2D
+		var deep := _first_rect_shape(c)
+		if deep != null:
+			return deep
+	return null
+
+
+# Raise a cruiser's spawn y so it sits at least one full enemy-length above any
+# cruiser already in its lane or an adjacent lane — descending later, so neighbours
+# never glob. Reads live positions (start() sets them synchronously), so it gates
+# both same-dispatch siblings and cruisers lingering from earlier waves.
+func _anchor_stagger_y(lane: int, base_y: float, height: float) -> float:
+	var gap: float = height + ANCHOR_GAP_PAD
+	var sy: float = base_y
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or not (e is Node2D):
+			continue
+		if "is_hazard" in e and e.is_hazard:
+			continue
+		if _enemy_height(e) < ANCHOR_MIN_HEIGHT:
+			continue   # only other cruisers gate us
+		if absi(Lanes.nearest_lane(e.position.x) - lane) > 1:
+			continue   # same + adjacent lanes only
+		sy = minf(sy, e.position.y - gap)
+	return sy
+
 
 func _advance_step() -> void:
 	_step_idx += 1
@@ -616,7 +661,13 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 					enemy.movement = mv_dup
 			_: # TOP formations (0-3) -> alternate-anchor lane placement
 				var lane: int = _pick_lane()
-				pos = Vector2(Lanes.lane_center(lane), wave.spawn_y)
+				var sy: float = wave.spawn_y
+				# Cruisers (tall anchors) don't glob: hold this one a full enemy-length
+				# above any cruiser already in its lane or an adjacent lane.
+				var h: float = _enemy_height(enemy)
+				if h >= ANCHOR_MIN_HEIGHT:
+					sy = _anchor_stagger_y(lane, sy, h)
+				pos = Vector2(Lanes.lane_center(lane), sy)
 	# Make the enemy a child of our parent (typically Main) so it lives in the world
 	var parent = get_parent()
 	parent.add_child(enemy)
