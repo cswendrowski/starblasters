@@ -43,7 +43,13 @@ var _to_y: float = 0.0
 var _entry_x: float = 0.0
 
 
+var _hd_scope: HdViewportScope = null
+
 func _ready() -> void:
+	# Render at HD (1920×1080) instead of the cramped 480×270 native viewport, so the
+	# knob rail + preview are actually usable (Roman 2026-06-11). Freed with the scene.
+	_hd_scope = HdViewportScope.attach(self)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_seed_from_config()
 	_build_ui()
 	_build_preview()

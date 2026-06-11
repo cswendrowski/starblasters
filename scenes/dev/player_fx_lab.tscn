@@ -2,5 +2,9 @@
 
 [ext_resource type="Script" path="res://scripts/dev/player_fx_lab.gd" id="1_pfxl"]
 
-[node name="PlayerFxLab" type="Node2D"]
+[node name="PlayerFxLab" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
 script = ExtResource("1_pfxl")
