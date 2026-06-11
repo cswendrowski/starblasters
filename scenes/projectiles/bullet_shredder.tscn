@@ -1,0 +1,20 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/projectiles/bullet_shredder.gd" id="1_shr"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_shr"]
+radius = 3.0
+
+[node name="BulletShredder" type="Area2D"]
+script = ExtResource("1_shr")
+speed = 300
+damage = 1
+max_lifetime = 1.6
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_shr")
+
+[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="."]
+
+[connection signal="area_entered" from="." to="." method="_on_area_entered"]
+[connection signal="screen_exited" from="VisibleOnScreenNotifier2D" to="." method="_on_visible_on_screen_notifier_2d_screen_exited"]

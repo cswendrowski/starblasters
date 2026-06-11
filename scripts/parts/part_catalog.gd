@@ -19,6 +19,7 @@ const SeekingMissileCannon = preload("res://scripts/parts/seeking_missile_cannon
 const AntiShipMissileCannon = preload("res://scripts/parts/anti_ship_missile_cannon.gd")
 const EmTorpedoCannon = preload("res://scripts/parts/em_torpedo_cannon.gd")
 const SpreadCannon = preload("res://scripts/parts/spread_cannon.gd")
+const ShredderCannon = preload("res://scripts/parts/shredder_cannon.gd")
 const SmartBomb = preload("res://scripts/parts/smart_bomb.gd")
 # Shift-Mode parts (SHIFT_MODE slot) — Focus is the default; Phase/Hyper swap in.
 const FocusMode = preload("res://scripts/parts/focus_mode.gd")
@@ -37,6 +38,7 @@ const BulletRotaryLaser = preload("res://scenes/projectiles/bullet_rotary_laser.
 const BulletWave = preload("res://scenes/projectiles/bullet_wave.tscn")
 const BulletMedium = preload("res://scenes/projectiles/bullet_blaster_medium.tscn")
 const BulletAutoLaser = preload("res://scenes/projectiles/bullet_auto_laser.tscn")
+const BulletShredder = preload("res://scenes/projectiles/bullet_shredder.tscn")
 const PlayerRocket = preload("res://scenes/projectiles/player_rocket.tscn")
 const PlayerSeekingMissile = preload("res://scenes/projectiles/player_seeking_missile.tscn")
 const PlayerSeekingMissileLarge = preload("res://scenes/projectiles/player_seeking_missile_large.tscn")
@@ -66,6 +68,7 @@ static func _all_pool() -> Array:
 		# projectile, prefers/one-shots the largest enemy, half ammo.
 		{"factory": "_make_anti_ship_missile", "slot": Slots.SlotType.HARDPOINT_WING},
 		{"factory": "_make_spread_cannon", "slot": Slots.SlotType.CANNON},
+		{"factory": "_make_shredder", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_smart_bomb", "slot": Slots.SlotType.DEVICE_BAY_1},
 		# Shift-Mode swap-ins (SHIFT_MODE slot, on Shift). Focus is the default
 		# mode (equipped at run start), so it is NOT in the roll/shop pool.
@@ -160,6 +163,8 @@ static func _make_by_name(name: String, slot: int):
 			return _build_weapon("res://resources/weapons/em_torpedo.tres", EmTorpedoCannon, PlayerEmTorpedo)
 		"_make_spread_cannon":
 			return _build_weapon("res://resources/weapons/spread_cannon.tres", SpreadCannon, BulletDefault)
+		"_make_shredder":
+			return _build_weapon("res://resources/weapons/shredder.tres", ShredderCannon, BulletShredder)
 		"_make_smart_bomb":
 			return _build_weapon("res://resources/weapons/smart_bomb.tres", SmartBomb, null)
 		# Mode parts are pure-script (no .tres) — their stats are code-authored
