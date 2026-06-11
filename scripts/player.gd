@@ -566,14 +566,20 @@ func _setup_smoke_trail() -> void:
 		_attach_damage_point(pts[1], 0.5)     # second point: shows at ~50% hull
 
 
-# Candidate damage-tell anchors (player-local), shuffled: centre + engine + wings.
+# Candidate damage-tell anchors (player-local), shuffled: centre + REAL engine + wing
+# markers. Fixed 2026-06-11: was `_muzzle_offset("Engine", ...)` (an exact-path lookup)
+# which only matched ship A's single "Engine" marker — ships B/C use EngineL/EngineR
+# and silently fell back to a generic offset, so the fire/smoke didn't sit on a real
+# marker. Now finds every Engine* / LaunchWing* marker recursively, on any ship.
 func _damage_fx_points() -> Array:
-	var pts := [
-		Vector2(0.0, 0.0),
-		_muzzle_offset("Engine", Vector2(0.0, 6.0)),
-		_muzzle_offset("Ship/LaunchWingL", Vector2(-6.0, 3.0)),
-		_muzzle_offset("Ship/LaunchWingR", Vector2(6.0, 3.0)),
-	]
+	var pts := [Vector2(0.0, 0.0)]   # sprite centre — always valid
+	for m in find_children("Engine*", "Marker2D", true, false):
+		if m is Node2D:
+			pts.append(to_local((m as Node2D).global_position))
+	for wm in ["LaunchWingL", "LaunchWingR"]:
+		var n := find_child(wm, true, false)
+		if n is Node2D:
+			pts.append(to_local((n as Node2D).global_position))
 	pts.shuffle()
 	return pts
 
@@ -2390,6 +2396,10 @@ func apply_run_upgrades() -> void:
 	var _shield_bonus := 2 if run.shield_cap_mk >= 9 else 0
 	max_shield = 10 + int(run.shield_cap_mk) * 2 + _shield_bonus
 	# shield_recharge_mk retired — regen is now always 1/sec after 5s delay.
+	# Re-emit so the damage tells (fire/smoke) re-evaluate their activation FRACTION
+	# (1 - hull/max_hull) against the NEW max_hull whenever upgrades change it — not just
+	# in start()'s emit (Roman 2026-06-11: max-hp changes weren't being picked up).
+	hull_changed.emit(max_hull, hull)
 
 
 # Self Repair heal moved to sector_map_v3 return (spec 2026-05-26).
