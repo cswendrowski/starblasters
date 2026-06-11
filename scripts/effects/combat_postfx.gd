@@ -4,8 +4,8 @@ extends CanvasLayer
 # rect over the playfield (X 132-348) carrying combat_postfx.gdshader:
 #   * D3 chromatic aberration — polled from the player while an aggressive Shift-mode
 #     is engaged (hyper overcharge / phase dash).
-#   * D2 radial ripple — `ping_ripple(world_pos, strength)` (called via the "post_fx"
-#     group by big explosions / boss slams) kicks an expanding ring of UV warp.
+#   * D1 heat-haze shimmer tracking the player's exhaust.
+# (The D2 radial ripple was removed 2026-06-11 — Roman: didn't look great.)
 # Lives at layer 2: above gameplay + glass (which it may warp subtly) but BELOW the
 # HUD (5) and outline (10), so UI stays crisp.
 
@@ -13,9 +13,6 @@ const BAND_X_MIN := 132.0
 const BAND_X_MAX := 348.0
 const VP := Vector2(480.0, 270.0)
 
-# Ripple ring expansion speed (UV/sec) + how fast a ping's strength decays.
-const RIPPLE_SPEED := 1.4
-const RIPPLE_DECAY := 2.0
 # Aberration eases toward the player's requested amount at this rate (no snapping).
 const ABERR_LERP := 8.0
 
@@ -23,8 +20,6 @@ var _player: Node2D = null
 var _rect: ColorRect = null
 var _mat: ShaderMaterial = null
 
-var _ripple_radius: float = 0.0
-var _ripple_strength: float = 0.0
 var _aberration: float = 0.0
 
 
@@ -65,29 +60,10 @@ func _process(delta: float) -> void:
 	else:
 		_mat.set_shader_parameter("haze_strength", 0.0)
 
-	# D2: expand + decay the active ripple.
-	if _ripple_strength > 0.001:
-		_ripple_radius += RIPPLE_SPEED * delta
-		_ripple_strength = move_toward(_ripple_strength, 0.0, RIPPLE_DECAY * delta)
-		_mat.set_shader_parameter("ripple_radius", _ripple_radius)
-		_mat.set_shader_parameter("ripple_strength", _ripple_strength)
-
-
-# Kick a ripple centered on a world position (called via call_group("post_fx", ...)).
-# strength ~0.6-1.2 reads well; big bosses can push higher.
-func ping_ripple(world_pos: Vector2, strength: float = 1.0) -> void:
-	var uv := _world_to_screen_uv(world_pos)
-	_ripple_radius = 0.0
-	_ripple_strength = clampf(strength, 0.0, 2.0)
-	_mat.set_shader_parameter("ripple_center", uv)
-	_mat.set_shader_parameter("ripple_radius", 0.0)
-	_mat.set_shader_parameter("ripple_width", 0.06)
-	_mat.set_shader_parameter("ripple_strength", _ripple_strength)
-
 
 func _world_to_screen_uv(world_pos: Vector2) -> Vector2:
 	# Combat renders at the internal 480x270; map world → screen UV via the canvas
-	# transform so the ripple centers where the explosion actually was.
+	# transform so the haze disc tracks the player's exhaust on screen.
 	var ct := get_viewport().get_canvas_transform()
 	var screen_px: Vector2 = ct * world_pos
 	return Vector2(screen_px.x / VP.x, screen_px.y / VP.y)
