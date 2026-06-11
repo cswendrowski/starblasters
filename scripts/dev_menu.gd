@@ -88,6 +88,7 @@ func _build_ui() -> void:
 	_add_button("[ Parallax Tuner ]", _on_parallax_tuner, true)
 	_add_button("[ Asteroid Lab ]", _on_asteroid_lab, true)
 	_add_button("[ Shader Lab ]", _on_shader_lab, true)
+	_add_button("[ Recycle Tuner ]", _on_recycle_tuner, true)
 	# Test launchers (Combat Slice / UI Plotter retired 2026-06-11)
 	_add_button("[ Test Combat ]", _on_test_combat, true)
 	_add_button("[ Hangar ]", _on_hangar, true)
@@ -123,6 +124,10 @@ func _on_enemy_bench() -> void:
 
 func _on_shader_lab() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/shader_lab.tscn")
+
+
+func _on_recycle_tuner() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/recycle_tuner.tscn")
 
 
 func _on_lane_visualizer() -> void:

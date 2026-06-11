@@ -15,6 +15,7 @@ const _DEFAULT_BULLET = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const ClarityRules = preload("res://scripts/clarity.gd")
 const BeamEmitterC = preload("res://scripts/enemies/beam_emitter.gd")
 const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
+const RecycleController = preload("res://scripts/effects/recycle_controller.gd")
 var bullet_scene: PackedScene = _DEFAULT_BULLET
 var _beam: Node = null   # per-enemy BeamEmitter when shoot_pattern is a beam weapon
 
@@ -272,10 +273,14 @@ func _start_cycle() -> void:
 	_set_outline_visible(false)
 	set_engine_trail_emitting(false)
 	visible = false
+	# Recycle timing + look now flow from RecycleController (worklist #33): a single
+	# tunable owner whose DEFAULTS equal the old hardcoded numbers, so behavior is
+	# unchanged until Roman tunes via the RecycleTuner dev scene.
+	var rcfg: Dictionary = RecycleController.config()
 	# Cody, 2026-05-18: "Ships looping back around in the background could
 	# be brought up in speed, there's a lot of dead time waiting for them."
-	# Pre-cycle hold trimmed 1.0-2.0s â†’ 0.4-0.9s.
-	var delay: float = randf_range(0.4, 0.9)
+	# Pre-cycle hold trimmed 1.0-2.0s â†’ 0.4-0.9s (now cfg.hold_min/max).
+	var delay: float = randf_range(float(rcfg.hold_min), float(rcfg.hold_max))
 	await get_tree().create_timer(delay).timeout
 	if not is_instance_valid(self):
 		return
@@ -283,8 +288,9 @@ func _start_cycle() -> void:
 	# otherwise the cycle dropped enemies into the side gutters where the
 	# player can't shoot back. 22 px inset keeps the sprite fully inside
 	# the band edges (Roman, 2026-05-19).
-	var x_min: float = Playfield.X_MIN + 22.0
-	var x_max: float = Playfield.X_MAX - 22.0
+	var inset: float = float(rcfg.entry_inset)
+	var x_min: float = Playfield.X_MIN + inset
+	var x_max: float = Playfield.X_MAX - inset
 	var entry_x: float = randf_range(x_min, x_max)
 	position = Vector2(entry_x, screensize.y + 12.0)
 	_pre_cycle_scale = scale
@@ -293,8 +299,9 @@ func _start_cycle() -> void:
 	# scale.y flip â€” auto_rotate handles orientation, so we rotate the
 	# ship to face UP (the direction it's flying during the fly-back)
 	# instead of mirroring its scale.
-	scale = Vector2(_pre_cycle_scale.x * 0.45, _pre_cycle_scale.y * 0.45)
-	modulate = Color(0.75, 0.85, 1.0, 0.55)
+	var fly_scale: float = float(rcfg.fly_scale)
+	scale = Vector2(_pre_cycle_scale.x * fly_scale, _pre_cycle_scale.y * fly_scale)
+	modulate = RecycleController.tint(rcfg)
 	# Face up â€” sprites are drawn pointing up, so rotation = 0 means
 	# they point along their travel direction during the fly-back.
 	rotation = 0.0
@@ -305,8 +312,8 @@ func _start_cycle() -> void:
 		_cycle_tween.kill()
 	_cycle_tween = create_tween()
 	# Fly-back tween 3.5s â†’ 1.8s so the cycle reads as a quick zip,
-	# not a leisurely parade (Cody, 2026-05-18).
-	_cycle_tween.tween_property(self, "position:y", -20.0, 1.8).set_trans(Tween.TRANS_LINEAR)
+	# not a leisurely parade (Cody, 2026-05-18). Duration/target now cfg-driven.
+	_cycle_tween.tween_property(self, "position:y", float(rcfg.fly_target_y), float(rcfg.fly_time)).set_trans(Tween.TRANS_LINEAR)
 	await _cycle_tween.finished
 	if not is_instance_valid(self):
 		return
