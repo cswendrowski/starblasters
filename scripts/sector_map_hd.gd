@@ -135,6 +135,15 @@ func _build_overlay() -> void:
 	options.pressed.connect(_open_options)
 	_overlay.add_child(options)
 
+	# Codex button — directly ABOVE Options (Roman 2026-06-11). Returns to THIS
+	# map on leave (not the main menu) via the codex_return meta.
+	var codex := UiTheme.make_button("CODEX")
+	codex.custom_minimum_size = Vector2(220, 64)
+	codex.size = Vector2(220, 64)
+	codex.position = options.position - Vector2(0, 64 + 10)
+	codex.pressed.connect(_open_codex)
+	_overlay.add_child(codex)
+
 	_depart_btn = UiTheme.make_button("DEPART")
 	_place_at_marker(_depart_btn, "selected_node_label/depart_button", Vector2(220, 64))
 	_depart_btn.disabled = true
@@ -563,6 +572,14 @@ func _open_manage_ship() -> void:
 # SectorMapRoute, already SELF_SCENE). No node-state is set — it's not a POI.
 func _open_outpost() -> void:
 	SceneTransition.change_scene(get_tree(), OUTPOST_SCENE)
+
+
+func _open_codex() -> void:
+	# Codex normally returns to the main menu; flag it to come back to THIS map.
+	var run := get_node_or_null("/root/Run")
+	if run != null:
+		run.set_meta("codex_return", SELF_SCENE)
+	SceneTransition.change_scene(get_tree(), "res://scenes/enemy_codex.tscn")
 
 
 func _open_options() -> void:

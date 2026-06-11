@@ -44,6 +44,12 @@ const COLOR_NODE_GREEN := Color(0.55, 1.0, 0.50, 1.0)
 const COLOR_BOSS_RED   := Color(1.0, 0.30, 0.25, 1.0)
 const PLANET_LETTERS   := ["b", "c", "d", "e", "f", "g"]
 const ASTEROID_SCENE   = preload("res://Planets/Asteroids/Asteroid.tscn")
+const DecoShipScript   = preload("res://scripts/deco_ship.gd")
+# Faction tints for the decorative ships (Roman 2026-06-11). corpo = #5b6ee1.
+const DECO_FACTION_COLORS := {
+	"zealot": Color("a85cc5"), "privateer": Color("4b692f"),
+	"supremacy": Color("ac3232"), "corpo": Color("5b6ee1"),
+}
 
 const CELL  := 16
 const COLS  := 30
@@ -199,6 +205,7 @@ func _ready() -> void:
 	_build_bosses_from_cache()
 	_build_stars()
 	_build_labels()
+	_spawn_deco_ships()
 	_show_post_combat_banner()
 
 
@@ -513,6 +520,57 @@ func _build_pois_from_cache() -> void:
 				"radius": 14.0,
 				"kind":   "poi",
 			})
+
+
+# Decorative drifting ships (Roman 2026-06-11). Scattered across the chart's POI
+# bounding box; ~50% tinted a faction color. NOTE: the chart has no per-area faction
+# data, so the tinted ones pick a RANDOM faction (build-to-spec — flag if you want
+# them keyed to the row/sector faction). Privateer occasionally accents another tint
+# (the "30% faction / 20% privateer" rule, approximated without per-area data).
+func _spawn_deco_ships() -> void:
+	var run := get_node_or_null("/root/Run")
+	if run == null:
+		return
+	var rows: Array = run.sector_map_cache.get("rows", [])
+	if rows.is_empty():
+		return
+	# Bounding box of all POI + boss positions = the chart's content region.
+	var mn := Vector2(INF, INF)
+	var mx := Vector2(-INF, -INF)
+	for r in rows:
+		for poi in r.pois:
+			mn = mn.min(poi.pos)
+			mx = mx.max(poi.pos)
+		mn = mn.min(r.boss.pos)
+		mx = mx.max(r.boss.pos)
+	mn -= Vector2(48, 48)
+	mx += Vector2(48, 48)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = abs(int(run.run_seed) ^ 0x5417BEEF)
+	var n: int = 8 + rng.randi() % 5   # 8–12 ships
+	for i in n:
+		var spr := Sprite2D.new()
+		spr.set_script(DecoShipScript)
+		spr.texture = load("res://graphics/extra-ships/ship_%d.png" % (1 + rng.randi() % 6))
+		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		spr.position = Vector2(rng.randf_range(mn.x, mx.x), rng.randf_range(mn.y, mx.y))
+		spr.bounds = Rect2(mn, mx - mn)
+		var ang: float = rng.randf_range(0.0, TAU)
+		spr.velocity = Vector2(cos(ang), sin(ang)) * rng.randf_range(3.0, 7.0)
+		spr.rotation = ang + PI * 0.5   # nose along travel
+		spr.scale = Vector2.ONE * rng.randf_range(0.55, 0.9)
+		spr.z_index = -3   # behind POIs / labels, above the star field
+		if rng.randf() < 0.5:
+			spr.modulate = _deco_faction_color(rng)
+		add_child(spr)
+
+
+func _deco_faction_color(rng: RandomNumberGenerator) -> Color:
+	var keys := ["zealot", "privateer", "supremacy", "corpo"]
+	var c: Color = DECO_FACTION_COLORS[keys[rng.randi() % keys.size()]]
+	if c != DECO_FACTION_COLORS["privateer"] and rng.randf() < 0.25:
+		c = c.lerp(DECO_FACTION_COLORS["privateer"], 0.4)   # privateer accent
+	return c
 
 
 func _pick_planet_type(rng: RandomNumberGenerator, frac: float) -> int:

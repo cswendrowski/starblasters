@@ -187,3 +187,27 @@ Rationale: every verifiable / logic / foundational item is landed + tested. The 
 visual tuning (no headless verification possible this run), large architecture (Recycler, clear-screens),
 or an ambiguous missing-feature (#40 deco ships). Those are higher-quality with Roman's eyeball/direction
 than churned blind. Branch is local only — no pushes (awaiting approval).
+
+---
+
+# Continuation: "do everything on the list" (2026-06-11)
+
+## [done] Weapons: rename Cannon category → "Blaster" — branch `wl-session-2026-06-11`
+`SlotTypes.slot_name(CANNON)` "Cannon" → "Blaster". `manage_ship._slot_short` now reads cannon-slot parts
+as **Blaster** (infinite) vs **Primary** (metered) by `ammo_at_mark()`, matching the two-slot model. HUD +
+loadout cards already showed Blaster/Primary. Note: the outpost offer pill uses `Strings.SLOT_NAME_PRIMARY`
+(a slot-level constant, can't see the part) — left as-is.
+
+## [done] Sector map: codex button + faction-tinted deco ships — branch `wl-session-2026-06-11`
+- **Codex button** added directly above OPTIONS on the HD sector map. `_open_codex` sets a one-shot
+  `codex_return` meta; `enemy_codex._to_menu` honors it → leaving the codex returns to the sector map
+  instead of the main menu. (Opened from the menu it still returns to the menu.)
+- **Deco ships** (the "color 50% of the pixel decoration ships" line): these did NOT exist, so I built a
+  decorative drifting-ship layer — `scripts/deco_ship.gd` (slow wrap-drift) spawned by
+  `sector_map_v3._spawn_deco_ships`: 8–12 small `extra-ships/ship_N` sprites scattered across the chart's
+  POI bounding box, ~50% tinted a faction color (Zealot #a85cc5 / Privateer #4b692f / Supremacy #ac3232 /
+  Corpo #5b6ee1), with an occasional privateer accent.
+  **JUDGMENT CALL / NEEDS ROMAN:** the chart has **no per-area faction data**, so the tinted ships pick a
+  RANDOM faction rather than the row/sector's actual faction. If you want them keyed to the real faction
+  present, that data needs threading into `sector_map_cache` first — flag it and I'll wire it.
+  Verified headless: 11 ships spawned, 5 tinted (~50%); sector_map_hd boots clean.
