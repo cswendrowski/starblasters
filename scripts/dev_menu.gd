@@ -79,25 +79,18 @@ func _build_ui() -> void:
 	v.add_child(grid)
 	_grid = grid
 
-	# Authoring tools
-	_add_button("[ Wave Editor ]", _on_wave_editor, true)
-	_add_button("[ Movement Patterns ]", _on_movement_pattern_editor, true)
+	# Authoring tools (Wave Editor / Movement+Shoot Pattern editors retired 2026-06-11)
 	_add_button("[ Pattern Eligibility ]", _on_pattern_eligibility, true)
-	_add_button("[ Shoot Patterns ]", _on_shoot_pattern_editor, true)
 	_add_button("[ Weapons ]", _on_weapon_editor, true)
 	_add_button("[ Enemy Bench ]", _on_enemy_bench, true)
-	# Tuners / labs
-	_add_button("[ Movement Lab ]", _on_movement_lab, true)
+	# Tuners / labs (Movement Lab / Sector Map HD Lab retired 2026-06-11)
 	_add_button("[ Lane Visualizer ]", _on_lane_visualizer, true)
 	_add_button("[ Parallax Tuner ]", _on_parallax_tuner, true)
 	_add_button("[ Asteroid Lab ]", _on_asteroid_lab, true)
 	_add_button("[ Shader Lab ]", _on_shader_lab, true)
-	_add_button("[ Sector Map HD Lab ]", _on_sector_map_hd_lab, true)
-	# Test launchers
+	# Test launchers (Combat Slice / UI Plotter retired 2026-06-11)
 	_add_button("[ Test Combat ]", _on_test_combat, true)
-	_add_button("[ Combat Slice ]", _on_combat_slice, true)
 	_add_button("[ Hangar ]", _on_hangar, true)
-	_add_button("[ UI Plotter ]", _on_ui_plotter, true)
 
 	v.add_child(HSeparator.new())
 
@@ -128,10 +121,6 @@ func _on_enemy_bench() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/enemy_bench.tscn")
 
 
-func _on_movement_lab() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev/movement_lab.tscn")
-
-
 func _on_shader_lab() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/shader_lab.tscn")
 
@@ -140,20 +129,8 @@ func _on_lane_visualizer() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/lane_visualizer.tscn")
 
 
-func _on_wave_editor() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev/wave_editor.tscn")
-
-
-func _on_movement_pattern_editor() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev/movement_pattern_editor.tscn")
-
-
 func _on_pattern_eligibility() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/pattern_eligibility_editor.tscn")
-
-
-func _on_shoot_pattern_editor() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev/shoot_pattern_editor.tscn")
 
 
 func _on_weapon_editor() -> void:
@@ -180,18 +157,6 @@ func _on_test_level() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
 
 
-func _on_combat_slice() -> void:
-	# Vertical-slice showcase of the composed combat model (formations + filler +
-	# breathers + lanes). main.gd routes start_score(CombatSlice.build()).
-	if has_node("/root/Run"):
-		var run = get_node("/root/Run")
-		if run.has_method("new_run"):
-			run.new_run()
-		run.test_mode_active = true
-		run.set_meta("combat_slice", true)
-	SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
-
-
 func _on_parallax_tuner() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/parallax_tuner.tscn")
 
@@ -200,12 +165,6 @@ func _on_hangar() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/hangar.tscn")
 
 
-func _on_ui_plotter() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev/ui_plotter.tscn")
-
-
-func _on_sector_map_hd_lab() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev/sector_map_hd_lab.tscn")
 
 
 # Unified Test Combat launcher (Cody 2026-05-19): one modal that fans

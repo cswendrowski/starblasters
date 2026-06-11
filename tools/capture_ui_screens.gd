@@ -28,7 +28,6 @@ const SHOTS := [
 	["signal_event", "res://scenes/signal_event.tscn", 0.5],
 	["outpost", "res://scenes/outpost.tscn", 0.6],
 	["sector_map", "res://scenes/sector_map_v3.tscn", 0.8],
-	["sector_map_hd_lab", "res://scenes/dev/sector_map_hd_lab.tscn", 1.0],
 	["sector_map_hd", "res://scenes/sector_map_hd.tscn", 1.0],
 	["manage_ship", "res://scenes/manage_ship.tscn", 0.6],
 	["run_summary", "res://scenes/run_summary.tscn", 0.5],
@@ -88,7 +87,7 @@ func _seed_run() -> void:
 func _run() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(BASE))
 	_seed_run()
-	# Optional subset: pass screen names after `--` (e.g. `-- sector_map_hd_lab`)
+	# Optional subset: pass screen names after `--` (e.g. `-- hangar`)
 	# to capture only those — avoids re-rendering every screen when iterating on one.
 	var only := PackedStringArray(OS.get_cmdline_user_args())
 	for shot in SHOTS:
