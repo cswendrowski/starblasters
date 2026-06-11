@@ -18,10 +18,15 @@ const Playfield = preload("res://scripts/playfield.gd")
 # Y term running at _spd * 1.3, _spd 0.45 lands Y ~= 0.585 Hz and X ~= 0.45 Hz, in
 # the loiter band. Both formulas are sin(t * speed * TAU), so the units line up.
 @export var jiggle_speed: float = 0.45
+# Seconds to EASE the jiggle up from zero amplitude once the hold point is reached (Roman 2026-06-10:
+# the descend->jiggle transition was a hard pop). smoothstep ramp; at the hold instant the offset is
+# exactly 0 (amplitude 0), so there's no snap regardless of where the sines happen to be.
+@export var jiggle_ease_in: float = 0.8
 
 var _held: bool = false
 var _hold: Vector2 = Vector2.ZERO
 var _t: float = 0.0
+var _hold_t: float = 0.0    # seconds since the hold point was reached (drives the jiggle ease-in)
 var _phase: float = 0.0     # per-instance phase offset (radians)
 var _spd: float = 0.45      # per-instance jiggle speed (jiggle_speed * random factor)
 
@@ -29,6 +34,7 @@ var _spd: float = 0.45      # per-instance jiggle speed (jiggle_speed * random f
 func on_start(_enemy) -> void:
 	_held = false
 	_t = 0.0
+	_hold_t = 0.0
 	_phase = randf() * TAU
 	_spd = jiggle_speed * randf_range(0.82, 1.18)   # desync frequency too, so they drift apart
 
@@ -40,12 +46,18 @@ func compute_step(enemy, delta: float) -> Vector2:
 		if enemy.position.y + sy >= hover_y:
 			sy = hover_y - enemy.position.y
 			_held = true
+			_hold_t = 0.0
 			_hold = Vector2(enemy.position.x, hover_y)
 		return Vector2(0.0, sy)
 	# Jiggled drift around the hold point (two desynced sines per axis = organic wander), each
-	# offset by the per-instance phase so neighbouring drifters don't move identically.
-	var tx: float = _hold.x + sin(_t * _spd * TAU + _phase) * jiggle_px \
+	# offset by the per-instance phase so neighbouring drifters don't move identically. The whole
+	# offset ramps in via smoothstep so it grows from the hold point rather than popping to full.
+	_hold_t += delta
+	var ramp: float = smoothstep(0.0, jiggle_ease_in, _hold_t)
+	var jx: float = sin(_t * _spd * TAU + _phase) * jiggle_px \
 		+ sin(_t * _spd * 0.6 + _phase) * jiggle_px * 0.4
-	var ty: float = _hold.y + cos(_t * _spd * 1.3 * TAU + _phase * 1.7) * jiggle_px * 0.5
+	var jy: float = cos(_t * _spd * 1.3 * TAU + _phase * 1.7) * jiggle_px * 0.5
+	var tx: float = _hold.x + jx * ramp
+	var ty: float = _hold.y + jy * ramp
 	tx = clampf(tx, Playfield.X_MIN + 6.0, Playfield.X_MAX - 6.0)
 	return Vector2(tx - enemy.position.x, ty - enemy.position.y)
