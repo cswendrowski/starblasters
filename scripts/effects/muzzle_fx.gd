@@ -229,7 +229,7 @@ static func eject_brass(parent: Node, world_pos: Vector2) -> void:
 	px.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	# Brass with per-shot colour variation.
 	px.modulate = Color(randf_range(0.72, 0.92), randf_range(0.52, 0.70), randf_range(0.12, 0.30), 1.0)
-	px.position = world_pos + Vector2(6.0, 2.0)   # eject port: right side, midship
+	px.position = world_pos   # caller passes the ship's casing-eject marker position
 	px.z_index = 4
 	px.set_script(ShellCasing)
 	parent.add_child(px)

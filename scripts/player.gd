@@ -44,9 +44,10 @@ var _tandem_side: int = 0
 # twin stream). 0 = off. Distinct from fire_tandem_alternating (wing markers) —
 # this offsets the single Cannon marker laterally instead.
 var primary_lateral_alternate: float = 0.0
-# Quad Lasers: when non-empty, the primary fires one bolt per x-offset, all PARALLEL
-# (straight up) at muzzle_x + offset. Overrides the spread fan + tandem/lateral.
-var primary_parallel_offsets: PackedFloat32Array = PackedFloat32Array()
+# Quad Lasers: when non-empty, the primary fires one bolt per offset, all PARALLEL
+# (straight up) at muzzle + offset (Vector2, so outer bolts can sit lower). Overrides
+# the spread fan + tandem/lateral.
+var primary_parallel_offsets: PackedVector2Array = PackedVector2Array()
 # Use the rotary laser muzzle FX in place of the default energy muzzle.
 # Set by cannons (Auto Laser) that want the rotary laser flash without
 # being on the ROTARY_LASER ammo/charge path.
@@ -1348,8 +1349,8 @@ func fire_primary() -> void:
 		# laser flash sits over the bolt, not at center.
 		var spawn_offset: Vector2 = muzzle_off
 		if parallel:
-			# Quad Lasers: parallel bolt at muzzle_x + this offset (muzzle flash stays centred).
-			spawn_offset = muzzle_off + Vector2(primary_parallel_offsets[i], 0.0)
+			# Quad Lasers: parallel bolt at muzzle + this (x,y) offset (muzzle flash stays centred).
+			spawn_offset = muzzle_off + primary_parallel_offsets[i]
 		elif fire_tandem_alternating and count == 1:
 			# Auto Laser fires from the wing muzzle markers, alternating L/R.
 			var wing: String = "Ship/MuzzleWingL" if _tandem_side == 0 else "Ship/MuzzleWingR"
@@ -1402,7 +1403,9 @@ func fire_primary() -> void:
 	MuzzleFx.play_player(muzzle_pos, self, flash_color, _smoke_shell, _large_shell)
 	if _is_minigun:
 		var _fx_parent: Node = get_parent() if get_parent() != null else get_tree().root
-		MuzzleFx.eject_brass(_fx_parent, muzzle_pos)
+		# Casings eject from the ship's casing-eject marker (Roman 2026-06-11).
+		var eject_off: Vector2 = _muzzle_offset("Ship/Muzzle/Gun_Nose_Eject", Vector2(1.0, -5.0))
+		MuzzleFx.eject_brass(_fx_parent, global_position + eject_off)
 	# Per-shot cannon SFX. Excluded styles carry their OWN audio elsewhere: MACHINEGUN = the
 	# _mg_loop_player loop, ROTARY_LASER = the per-shot pew system. MINIGUN now fires projectiles
 	# through this path, so its MINIGUN_CLIPS play per shot via fire_sfx_kind (Roman 2026-06-11).

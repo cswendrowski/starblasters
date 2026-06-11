@@ -9,9 +9,10 @@ extends "res://scripts/parts/metered_primary.gd"
 # skips the rotary charge-up — the rotary LOOK comes from use_rotary_laser_muzzle.
 
 const BulletRotaryLaser = preload("res://scenes/projectiles/bullet_rotary_laser.tscn")
-# ±1px around each wing muzzle (≈±4) → 4 parallel lanes. (Not const: a packed
-# array literal isn't a constant expression in GDScript.)
-static var QUAD_OFFSETS := PackedFloat32Array([-5.0, -3.0, 3.0, 5.0])
+# 4 parallel lanes. Roman 2026-06-11: widened the outermost by ±2 (now ±7) so the
+# bolts read more distinct, and dropped those outer emit points 2px lower.
+# (Not const: a packed array literal isn't a constant expression in GDScript.)
+static var QUAD_OFFSETS := PackedVector2Array([Vector2(-7.0, 2.0), Vector2(-3.0, 0.0), Vector2(3.0, 0.0), Vector2(7.0, 2.0)])
 
 
 func _init() -> void:

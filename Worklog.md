@@ -79,3 +79,19 @@ child): `engine_trail_fx` (`enemy.get_parent()`, deferred add to dodge the spawn
 `docs/godot-patterns.md` with the boot-and-assert-`get_viewport()` guard.
 **Verified headless:** hangar engine-trail Line2Ds = 2 in the SubViewport, 0 strays in the window; combat
 boots with no trail/"parent busy" errors. Gate 271.
+
+---
+
+## [partial] Weapons polish: minigun + quad offsets — branch `wl-session-2026-06-11`
+
+**Spec (Weapons section):** minigun — slightly lower ROF (better gapping, less audio overrun), gray pixel
+casing smoke, casing origin = the ship's casing-eject marker, damage → 1/bullet. Quad — widen offsets by
+±2 (more distinct), drop the outermost emit points 2px.
+**Done:** minigun damage 4→1, cooldown 0.0333→0.04 (30→25 shots/s, ~9.6px pitch). Casings now eject from
+the `Ship/Muzzle/Gun_Nose_Eject` marker (was a hardcoded +6,+2). Brass trail smoke is gray
+(Color(0.6,0.6,0.62)). Quad offsets → `PackedVector2Array` so the outermost can drop: now
+`(-7,2),(-3,0),(3,0),(7,2)` (outer widened ±5→±7 + 2px lower). Verified headless: quad 4 bolts at
+x=-7,-3,3,7; minigun dmg 1, cd 0.04.
+**STILL OPEN under this item:** the **DPS research report** (audit all weapons base + max mark, armory-health
+recommendations) — deferred to a dedicated research pass; report-only, no auto-rebalance.
+**NEEDS ROMAN:** feel of the new minigun ROF/damage + casing origin, and the quad spread distinctness.
