@@ -827,9 +827,11 @@ func _process(delta: float) -> void:
 	# or enemies — lock off primary offense (secondary is gated below).
 	if _phase_t > 0.0:
 		fire_held = false
-	# Primary Q-cycle retired (2026-06-11 single-active model): the ship carries
-	# one active primary; swapping happens at the outpost / ship-manager, sending
-	# the old one to the hold. The `primary_swap` action is now unused for cannons.
+	# Primary swap (Q): toggle which equipped cannon FIRES — the unlimited Blaster
+	# (fallback) or the acquired Primary gun. Re-applies the new active cannon so
+	# bullet_scene / cooldown / damage / SFX swap atomically. No-op if no primary.
+	if Input.is_action_just_pressed("primary_swap"):
+		_swap_active_primary()
 	if fire_held:
 		# EVERY style fires through fire_primary each held frame — it self-gates on
 		# GunCooldown/can_shoot, ammo, the rotary charge (not _rl_charged -> no-op), and routes
@@ -1443,16 +1445,27 @@ func _is_replacement_primary_active() -> bool:
 	return ammo_max > 0
 
 
-# Snap the active cannon back to cannon_pool[0] (blaster) and re-apply it
-# through the loadout system so bullet_scene / cooldown / damage / SFX all
-# revert. Called when ammo hits 0 OR when the player presses primary_swap.
+# Set the firing cannon to the Blaster (slot 0) and re-apply it through the
+# loadout so bullet_scene / cooldown / damage / SFX revert. Called when a
+# non-regen Primary runs dry — the Primary STAYS equipped in slot 1 (refill +
+# Q back). Two-slot model (2026-06-11).
 func _snap_to_blaster_and_reapply() -> void:
 	if not has_node("/root/Run"):
 		return
 	var run = get_node("/root/Run")
-	# Single-active model: pull an owned blaster out of the hold (the dry cannon
-	# goes to the hold, refillable later). No permanent slot-0 blaster anymore.
-	run.revert_to_blaster()
+	run.swap_to_blaster()
+	_reapply_active_cannon()
+
+
+# Q toggle: switch the firing cannon between the Blaster and the Primary. No-op
+# when only the Blaster is equipped.
+func _swap_active_primary() -> void:
+	if not has_node("/root/Run"):
+		return
+	var run = get_node("/root/Run")
+	if int(run.cannon_pool.size()) <= 1:
+		return
+	run.cycle_primary()
 	_reapply_active_cannon()
 
 
