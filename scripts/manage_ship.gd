@@ -408,6 +408,12 @@ func _part_description(part) -> String:
 func _slot_short(part) -> String:
 	if part == null:
 		return "PART"
+	# Cannon-slot weapons read as Blaster (infinite) vs Primary (metered) — the
+	# two-slot model (2026-06-11), not the generic slot name.
+	if int(part.slot_type) == int(SlotTypes.SlotType.CANNON):
+		if part.has_method("ammo_at_mark"):
+			var mk: int = int(part.mark) if "mark" in part else 1
+			return "Blaster" if int(part.ammo_at_mark(mk)) < 0 else "Primary"
 	return SlotTypes.slot_name(int(part.slot_type))
 
 

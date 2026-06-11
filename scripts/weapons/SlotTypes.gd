@@ -22,7 +22,7 @@ static func slot_name(slot):
 		1: return "Wing (Right)"
 		2: return "Tail"
 		3: return "Engine"
-		4: return "Cannon"
+		4: return "Blaster"
 		5: return "Wing Hardpoint"
 		6: return "Wingtip Hardpoint"
 		7: return "Device Bay 1"
