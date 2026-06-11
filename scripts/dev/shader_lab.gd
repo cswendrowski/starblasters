@@ -80,7 +80,7 @@ const GALLERY_SPRITE_ZOOM := 3.0
 
 const MODES := ["Embers", "Shields", "Glow", "Bloom Env", "Modes", "Damage", "Disintegrate", "Explosions", "Gallery"]
 
-const EMBER_VARIANTS := ["normal", "inverted", "smoke"]
+const EMBER_VARIANTS := ["normal", "inverted"]
 
 const KNOBS := {
 	"Embers": [
@@ -192,6 +192,8 @@ var _gallery_idx: int = 0
 var _gallery_mat: ShaderMaterial = null
 var _gallery_pulse_btn: Button = null
 var _ember_variant: String = "normal"
+# Tunable ember colour ramp: [{ "color": Color, "offset": float }, ...].
+var _ember_stops: Array = []
 
 # Player-modes showcase state.
 var _pm_ship: Node2D = null
@@ -232,6 +234,7 @@ func _ready() -> void:
 		_hd_scope = HdViewportScope.attach(self)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_init_values()
+	_init_ember_stops()
 	_load_saved()
 	_build_playspace()
 	_build_overlay()
@@ -461,6 +464,67 @@ func _enter_embers() -> void:
 		_fire_embers(pos))
 	_knob_box.add_child(HSeparator.new())
 	_build_knobs("Embers")
+	# Colour-ramp editor: a stop = colour + offset (t=0 hottest → t=1 charred;
+	# the inverted variant plays it in reverse).
+	_knob_box.add_child(HSeparator.new())
+	_knob_box.add_child(_label("Colour Ramp", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("Each row = colour @ offset (0 hottest → 1 char).", FS_CAPTION, UiTheme.COLOR_FAINT))
+	for i in _ember_stops.size():
+		_add_ember_stop_row(i)
+	_add_action("Reset ramp", _reset_ember_ramp)
+
+
+func _init_ember_stops() -> void:
+	_ember_stops.clear()
+	for i in EmberFx.DEFAULT_RAMP_COLORS.size():
+		_ember_stops.append({
+			"color": EmberFx.DEFAULT_RAMP_COLORS[i],
+			"offset": float(EmberFx.DEFAULT_RAMP_OFFSETS[i]),
+		})
+
+
+func _add_ember_stop_row(i: int) -> void:
+	var stop: Dictionary = _ember_stops[i]
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var cp := ColorPickerButton.new()
+	cp.color = stop["color"]
+	cp.edit_alpha = false
+	cp.custom_minimum_size = Vector2(70, 32)
+	cp.color_changed.connect(func(c: Color): _ember_stops[i]["color"] = c)
+	row.add_child(cp)
+	var off_lbl := _label("@%.2f" % float(stop["offset"]), FS_CAPTION, UiTheme.COLOR_FAINT)
+	off_lbl.custom_minimum_size = Vector2(56, 0)
+	row.add_child(off_lbl)
+	var sl := HSlider.new()
+	sl.min_value = 0.0
+	sl.max_value = 1.0
+	sl.step = 0.01
+	sl.value = float(stop["offset"])
+	sl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sl.value_changed.connect(func(v: float):
+		_ember_stops[i]["offset"] = v
+		off_lbl.text = "@%.2f" % v)
+	row.add_child(sl)
+	_knob_box.add_child(row)
+
+
+# Build a GradientTexture1D from the current stops (sorted by offset so the
+# gradient is well-formed even if the sliders cross).
+func _build_ember_ramp() -> GradientTexture1D:
+	var sorted: Array = _ember_stops.duplicate()
+	sorted.sort_custom(func(a, b): return float(a["offset"]) < float(b["offset"]))
+	var colors: Array = []
+	var offsets: Array = []
+	for s in sorted:
+		colors.append(s["color"])
+		offsets.append(float(s["offset"]))
+	return EmberFx.build_ramp(colors, offsets)
+
+
+func _reset_ember_ramp() -> void:
+	_init_ember_stops()
+	_set_mode(_mode)  # rebuild the rail to show the reset colours/offsets
 
 
 func _fire_embers(pos: Vector2) -> void:
@@ -480,6 +544,7 @@ func _fire_embers(pos: Vector2) -> void:
 		"fade_start": float(v["fade_start"]),
 		"lifetime_rand": float(v["lifetime_rand"]),
 		"variant": _ember_variant,
+		"gradient": _build_ember_ramp(),
 	})
 
 
@@ -1237,6 +1302,10 @@ func _on_save() -> void:
 	for k in _dmg_colors:
 		cols[k] = (_dmg_colors[k] as Color).to_html(false)
 	out["DamageColors"] = cols
+	var stops := []
+	for s in _ember_stops:
+		stops.append({"color": (s["color"] as Color).to_html(false), "offset": float(s["offset"])})
+	out["EmberGradient"] = stops
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f != null:
 		f.store_string(JSON.stringify(out, "\t"))
@@ -1262,6 +1331,11 @@ func _load_saved() -> void:
 		for k in _dmg_colors:
 			if cols.has(k):
 				_dmg_colors[k] = Color(String(cols[k]))
+		var stops: Array = data.get("EmberGradient", [])
+		if stops.size() >= 2:
+			_ember_stops.clear()
+			for s in stops:
+				_ember_stops.append({"color": Color(String(s["color"])), "offset": float(s["offset"])})
 
 
 func _on_copy() -> void:
@@ -1301,6 +1375,15 @@ func _snippet_embers() -> String:
 	t += "\t\"drag\": %.2f, \"gravity\": %.1f, \"streak_sec\": %.3f,\n" % [float(v["drag"]), float(v["gravity"]), float(v["streak_sec"])]
 	t += "\t\"cool_bias\": %.2f, \"fade_start\": %.2f, \"lifetime_rand\": %.2f,\n" % [float(v["cool_bias"]), float(v["fade_start"]), float(v["lifetime_rand"])]
 	t += "\t\"variant\": \"%s\",\n" % _ember_variant
+	var sorted: Array = _ember_stops.duplicate()
+	sorted.sort_custom(func(a, b): return float(a["offset"]) < float(b["offset"]))
+	var cs := PackedStringArray()
+	var os := PackedStringArray()
+	for s in sorted:
+		var c: Color = s["color"]
+		cs.append("Color(%.3f, %.3f, %.3f)" % [c.r, c.g, c.b])
+		os.append("%.2f" % float(s["offset"]))
+	t += "\t\"gradient\": EmberFx.build_ramp([%s], [%s]),\n" % [", ".join(cs), ", ".join(os)]
 	t += "})\n"
 	return t
 
