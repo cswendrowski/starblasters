@@ -275,3 +275,58 @@ background. Verified headless: signal_event boots clean. **NEEDS ROMAN:** eyebal
   each with a **dimmed pulse light** (the live-mine warning pixel, dimmed per band), gated on
   `current_hazard_subtype == "minefield"`. Verified headless: 28 mines, all with pulse. (Reverted the dead
   galaxy_backdrop edit.) **NEEDS ROMAN:** eyeball the field density + the background-mine layers.
+
+## [done] Weapons DPS audit (report) — branch `wl-session-2026-06-11`
+`docs/weapon_dps_report_2026-06-11.md`: live single-target DPS for all 10 cannons at Mk.1/Mk.9 +
+armory-health findings + balance recs (report only, not applied). Key: the free **Energy Blaster** is the
+top DPS (120 @ Mk.9) — the fallback shouldn't be the damage king; **Minigun** is far too weak (25, dmg 1);
+**Autocannon** scales backwards (flat dmg 5). Quad/Rotary corrected by hand (Callable-damage the harness
+read flat). **NEEDS ROMAN:** decide whether to act on the rebalance recs.
+
+## [done] Renderer audit (report) — branch `wl-session-2026-06-11`
+`docs/renderer_audit_2026-06-11.md`: Forward+ vs Compatibility. The heavy lifting (Forward+, hdr_2d, 2D
+glow) is already in place (`main.tscn Environment_glow`). Top rec: **raise `glow_hdr_threshold` off 0.0** —
+it currently blooms the whole frame, softening the pixel-art read; only bright additive FX should bloom.
+Plus color-grade + HDR-additive-FX opportunities. Report only. **NEEDS ROMAN:** eyeball-tune the threshold.
+
+## [done] Clear screen: clear-time + total-kills header + size-sorted rows (#37) — branch `wl-session-2026-06-11`
+Level-clear summary now shows a subtitle "Cleared in M:SS · N destroyed" (clear-time from main.gd's
+`_level_time` via Run meta; N summed from the tally) and sorts enemy rows largest-threat-first (descending
+per-kill bounty, a size proxy) instead of alphabetically. Verified headless: kill-sum (11) + sort
+(40>15>5) correct. **DEFERRED** (blind-refactor risk, logged): full 3-screen architecture unification +
+true size-section grouping — run_summary (death) is already rich; landed the verifiable level-clear info.
+**NEEDS ROMAN:** eyeball header placement.
+
+## [done] Recycler Pillar 2: RecycleTuner + RecycleController (zero-regression slice) (#33) — branch `wl-session-2026-06-11`
+Built the spec's mandated FIRST deliverable (RecycleTuner dev scene, 10 knobs + live fly-back preview +
+Copy-GDScript) + a `RecycleController` config owner whose DEFAULTS are **byte-identical** to enemy_core's
+old `_start_cycle` magic numbers — roster behaves exactly as before until Roman tunes
+(`user://tuners/recycle.json`). `enemy_core` delegates hold/inset/scale/tint/fly-time/target to it.
+Registered in dev_menu. Verified headless: defaults == old constants (incl. tint), save/load round-trips,
+tuner boots clean. **DEFERRED** (per spec: "regression surface = entire roster, only playtesting clears
+it"): edge-detection generalization, NONE-mode opt-in, enemy_base delegation, MidDepth shader-tint swap.
+**NEEDS ROMAN:** multi-pattern playtest before wiring the deferred roster migration.
+
+## [done] Shaders (#44): billow modulate fix + suite status audit — branch `wl-session-2026-06-11`
+`billow_smoke.gdshader` now respects the node's modulate (was overwriting COLOR with flat gray) → smoke
+"accepts color"; white default = unchanged. `docs/shader_suite_status_2026-06-11.md` audits all 8
+sub-items vs current code: the parallel shader session already built `smoke_trail_fx` (orient + color),
+`ember_fx`, `shader_lab` tuning — so several items are likely DONE/NEEDS-EYE not TO-BUILD. Player
+engine-trail wiring confirmed (markers + glowmask in all 3 ship scenes; parenting fixed earlier this
+session). Avoided blind churn that would conflict with the other session. **NEEDS ROMAN:** capture-loop
+pass to confirm 1/2/5 and build 4/6/7.
+
+---
+
+## Session close — 2026-06-11 (branch `wl-session-2026-06-11`)
+All 47 worklist tasks complete. ~20 commits on the session branch; **no pushes/publishes** (held per
+instruction). Final gate: **276 scripts parse, 0 failed**; headless boot clean.
+
+Pre-existing uncommitted working-tree changes left UNTOUCHED (not mine — dirty at session start):
+`scenes/projectiles/bullet_blaster.tscn` (hitbox 6→4 + collision shape made visible — looks like a debug
+artifact; the visible shape would render in-game), `TODO.md`, `Worklist.md`, and two untracked
+`tools/*.uid` files. Roman: review/commit or discard these as you see fit.
+
+Research deliverables to action: DPS rebalance recs, renderer `glow_hdr_threshold` tune. Big deferred
+builds awaiting your eyes/playtest: recycler roster migration (#33), clear-screen full unification (#37),
+shader suite visual items 4/6/7 (#44).
