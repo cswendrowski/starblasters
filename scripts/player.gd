@@ -1434,9 +1434,22 @@ func fire_primary() -> void:
 		$GunCooldown.start($GunCooldown.wait_time / (1.0 + hyper_fire_bonus))
 	else:
 		$GunCooldown.start()
-	# Pulse Laser: hitscan beam from the nose, then bail (no bullet spawn).
+	# Pulse Laser: hitscan beam from the nose, consume one ammo, then bail (no bullet
+	# spawn). It's a metered REGEN laser, so when dry it PAUSES + recharges (the ammo==0
+	# gate above) rather than snapping to the blaster — hence no _snap call here. Hyper
+	# grants unlimited ammo. (Reaching here means the ammo gate already passed: ammo>0.)
 	if _is_pulse:
 		_fire_pulse_laser()
+		if _is_replacement_primary_active() and ammo > 0 \
+				and not (_hyper_active and active_mode == ShiftMode.HYPER):
+			ammo -= 1
+			ammo_changed.emit(ammo)
+			if has_node("/root/Run"):
+				var run = get_node("/root/Run")
+				run.ammo = ammo
+				var active = run.get_active_cannon()
+				if active != null and "current_ammo" in active:
+					active.current_ammo = ammo
 		return
 	# Rotary Laser firing sound: a rapid random pew per shot (the old sustained
 	# loop's replacement), throttled so the ~20/s fire rate doesn't spam voices.

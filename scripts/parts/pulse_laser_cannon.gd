@@ -1,4 +1,4 @@
-extends "res://scripts/parts/primary_weapon.gd"
+extends "res://scripts/parts/metered_primary.gd"
 
 # Pulse Laser — a rapid 1px HITSCAN beam from the nose muzzle (Roman 2026-06-11).
 # 2 damage per shot, fires fast. Stays pinpoint for the first `pulse_accuracy_window`
@@ -6,9 +6,12 @@ extends "res://scripts/parts/primary_weapon.gd"
 # tints pure white → blue (#000fd8) as it spreads. Dispersion recovers at 2°/sec when
 # not firing. Mk adds +2 shots to the perfect-accuracy window (Mk.1=10 … Mk.9=26).
 #
-# Unlimited ammo (it's a laser) → BLASTER category: ammo_at_mark() == -1 routes it to
-# the infinite blaster slot. The hitscan + dispersion state + beam visual live in
-# player.gd under the PULSE_LASER weapon_style. Stats: resources/weapons/pulse_laser.tres.
+# Metered REGEN laser (Roman 2026-06-11 follow-up): 100 ammo, standard laser regen
+# (3/sec, no outpost refill) — a PRIMARY-slot weapon, not a blaster. Ammo is flat
+# across Marks (the Mk identity is the accuracy window). When dry it pauses + recharges
+# rather than reverting (the regen-cannon path in player.fire_primary). The hitscan +
+# dispersion state + beam visual live in player.gd under the PULSE_LASER weapon_style.
+# Stats: resources/weapons/pulse_laser.tres.
 
 const WSp = preload("res://scripts/weapons/WeaponStyle.gd")
 
@@ -19,13 +22,12 @@ const WSp = preload("res://scripts/weapons/WeaponStyle.gd")
 func _init() -> void:
 	super._init()
 	display_name = "Pulse Laser"
-	description = "Rapid 1px hitscan beam from the nose. Pinpoint at first, then spreads (white→blue) the longer you hold; eases back when you let off. Mk widens the accurate window. Unlimited ammo."
+	description = "Rapid 1px hitscan beam from the nose. Pinpoint at first, then spreads (white→blue) the longer you hold; eases back when you let off. Mk widens the accurate window. 100 ammo, recharges 3/sec."
 	# Stats live in resources/weapons/pulse_laser.tres (single source of truth).
 
 
-# BLASTER category: unlimited ammo (lasers don't meter). -1 routes to cannon_pool[0].
-func ammo_at_mark(_mk: int) -> int:
-	return -1
+# Ammo is flat across Marks (metered_primary returns base_ammo) — the Mk upgrade is
+# the accuracy window, not magazine size.
 
 
 func _weapon_style() -> int:
