@@ -155,3 +155,35 @@ no real dodge benefit.
 **Verified headless:** focus ON → main collider disabled + 1px FocusHitbox enabled (size 1,1); focus OFF →
 restored; dot 1×1 teal. Gate clean.
 **NEEDS ROMAN:** feel — confirm the tiny hitbox actually lets you thread bullets, and the teal dot/trail look.
+
+---
+
+## Session checkpoint (2026-06-11) — 7 items done, remainder triaged
+
+**Done this run (branch `wl-session-2026-06-11`, 7 commits, all gated + headless-verified):**
+1. Weapons two-slot Blaster+Primary revert (Q-swap, auto-revert, sellable hold).
+2. Main-menu version label (HD clip fix).
+3. Hangar upper-left-corner fx (4th SubViewport trap: host-parent fx).
+4. Weapon polish: minigun ROF/dmg/casing-marker, quad ±7 + 2px-drop offsets.
+5. Enemy weapons: per-shot burst SFX + rung-clamped bullet-speed tuner (Weapon Lab).
+6. Supremacy Push: anchor descent-stagger (no cruiser globbing).
+7. Focus mode: real 1px central hitbox + teal dot/trail.
+
+**Stopped + flagged for a focused/attended pass** (large, visual-eyeball, ambiguous, or research):
+- **#40 Sector map** — the codex button is trivial, BUT "color 50% of the pixel decoration ships" found
+  NO deco ships on the map (node dressing = pulse-glows + glitter; the small ship sprites are only used in
+  hangar/weapon-lab). This is a NEW feature (spawn decorative ships, then tint) — needs a call on what the
+  ships are / how many / where before building. **NEEDS ROMAN: clarify the deco-ship system.**
+- **#33 Recycler — Pillar 2** — big architectural (RecycleTuner + RecycleController + roster migration);
+  spec-driven but regression surface = whole roster → wants playtest iteration. Best as its own block.
+- **#37 Clear/defeat screens unification** — large UI rework; needs design eyeball ("make them look nice").
+- **#44 Shader suite** (8 sub-items) + **#43 damage-fx randomization / missing muzzleflashes** +
+  **#41 wreck-layer feedback** + **#38 asteroid VFX** + **#36 signal-event backdrop** — all visual,
+  build-to-spec but need eyeball to tune.
+- **#39 Mine hazards → 300-enemy density** — wave-gen rework; needs playtest for the density feel.
+- **#32 Renderer audit** + **#45 DPS report** — research deliverables; report-only.
+
+Rationale: every verifiable / logic / foundational item is landed + tested. The remainder is dominated by
+visual tuning (no headless verification possible this run), large architecture (Recycler, clear-screens),
+or an ambiguous missing-feature (#40 deco ships). Those are higher-quality with Roman's eyeball/direction
+than churned blind. Branch is local only — no pushes (awaiting approval).
