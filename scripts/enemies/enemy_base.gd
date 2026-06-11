@@ -441,8 +441,11 @@ func explode() -> void:
 	# via the burn shader below, not a fade.
 	_fade_death_overlays()
 	set_engine_trail_emitting(false)   # stop exhaust; the streak ages out on its own
+	# (helper _burn_origin_uv defined below picks the marker the burn starts from.)
 	if has_node("Sprite2D"):
-		BurnFxScript.apply_burn($Sprite2D, 0.45)
+		# Burn starts from a random hardpoint marker (engine/turret/muzzle) so the body
+		# dissolves from a believable point, not always the centre (Roman 2026-06-11).
+		BurnFxScript.apply_burn($Sprite2D, 0.45, Color(0, 0, 0, 0), _burn_origin_uv())
 	if has_node("ParticleExplode"):
 		$ParticleExplode.restart()
 	# Death audio: the scene-embedded $EnemyDie clip is RETIRED (Roman 2026-06-10 — "wire up the
@@ -461,6 +464,28 @@ func explode() -> void:
 # to carry (outline, glow) are reparented onto the hull so they can fade/flicker out.
 const _WreckDriftScript = preload("res://scripts/effects/wreck_drift.gd")
 static var _wreck_seq: int = 0
+
+
+# Pick a random hardpoint marker (engine / muzzle / turret / cannon) and return its UV
+# on the Sprite2D, so the death burn (pixelated_burn `position`) starts from that point
+# instead of always the centre (Roman 2026-06-11). Falls back to centre if no markers.
+func _burn_origin_uv() -> Vector2:
+	if not has_node("Sprite2D"):
+		return Vector2(0.5, 0.5)
+	var spr: Sprite2D = $Sprite2D
+	if spr.texture == null:
+		return Vector2(0.5, 0.5)
+	var markers: Array = []
+	for pat in ["Engine*", "Muzzle*", "cannon_*", "Turret*"]:
+		for m in find_children(pat, "Marker2D", true, false):
+			if m is Node2D:
+				markers.append(m)
+	if markers.is_empty():
+		return Vector2(0.5, 0.5)
+	var mk: Node2D = markers[randi() % markers.size()]
+	var lp: Vector2 = spr.to_local(mk.global_position)
+	var uv: Vector2 = Vector2(0.5, 0.5) + lp / spr.texture.get_size()
+	return uv.clamp(Vector2(0.05, 0.05), Vector2(0.95, 0.95))
 
 
 # True when this enemy should use the GENERAL disable death (Roman 2026-06-10): opted in via the Run

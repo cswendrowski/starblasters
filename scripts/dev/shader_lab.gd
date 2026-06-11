@@ -1047,6 +1047,33 @@ func _enter_disintegrate() -> void:
 	auto.add_theme_font_size_override("font_size", FS_BODY)
 	auto.toggled.connect(func(v: bool): _expl_auto = v)
 	_knob_box.add_child(auto)
+	# Burn COLOUR (burnColor) — tune the burning-edge hue (Roman 2026-06-11).
+	_knob_box.add_child(_label("Burn colour", FS_CAPTION, UiTheme.COLOR_FAINT))
+	var cp := ColorPickerButton.new()
+	cp.color = Color(1.0, 0.5, 0.1)
+	cp.edit_alpha = false
+	cp.custom_minimum_size = Vector2(0, 34)
+	cp.color_changed.connect(func(c: Color):
+		if _burn_mat != null:
+			_burn_mat.set_shader_parameter("burnColor", c))
+	_knob_box.add_child(cp)
+	# Burn ORIGIN (position) — where the dissolve starts. In game, enemy_base picks a
+	# random engine/turret/muzzle marker; here, presets to preview off-centre burns.
+	_knob_box.add_child(_label("Burn origin", FS_CAPTION, UiTheme.COLOR_FAINT))
+	var origins := {
+		"Center": Vector2(0.5, 0.5), "Top": Vector2(0.5, 0.15), "Bottom": Vector2(0.5, 0.85),
+		"Left": Vector2(0.2, 0.5), "Right": Vector2(0.8, 0.5),
+	}
+	var od := OptionButton.new()
+	for k in origins.keys():
+		od.add_item(String(k))
+	od.add_theme_font_override("font", UiTheme.active_font())
+	od.add_theme_font_size_override("font_size", FS_BODY)
+	od.item_selected.connect(func(i: int):
+		if _burn_mat != null:
+			_burn_mat.set_shader_parameter("position", origins[origins.keys()[i]])
+		_replay_burn())
+	_knob_box.add_child(od)
 	_knob_box.add_child(HSeparator.new())
 	_build_knobs("Disintegrate")
 	_replay_burn()
