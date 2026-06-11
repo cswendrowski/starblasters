@@ -15,7 +15,7 @@ const WSsh = preload("res://scripts/weapons/WeaponStyle.gd")
 const BulletShredder = preload("res://scenes/projectiles/bullet_shredder.tscn")
 
 @export var base_bullet_count: int = 6
-@export var spread_degrees: float = 25.0
+@export var spread_degrees: float = 17.0   # narrowed from 25 (Roman 2026-06-11)
 
 
 func _init() -> void:
@@ -37,6 +37,7 @@ func _snapshot_keys() -> Array:
 	var keys: Array = super._snapshot_keys()
 	keys.append("bullet_spread_count")
 	keys.append("bullet_spread_degrees")
+	keys.append("bullet_spread_random")   # restored to false when swapped away
 	return keys
 
 
@@ -67,6 +68,9 @@ func _apply_visuals(ship) -> void:
 	super._apply_visuals(ship)
 	if "ammo_max" in ship:
 		ship.ammo_max = ammo_at_mark(int(mark))
+	# Shotgun: randomize each pellet's angle in the cone (snapshotted → restored on swap).
+	if "bullet_spread_random" in ship:
+		ship.bullet_spread_random = true
 
 
 # Editor DPS readout — total per-shot damage accounts for the pellet fan.

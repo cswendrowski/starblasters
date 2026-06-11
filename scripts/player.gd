@@ -29,6 +29,9 @@ var bullet_damage: int = 1
 # bullet_spread_count > 1 + bullet_spread_degrees > 0.
 var bullet_spread_count: int = 1
 var bullet_spread_degrees: float = 0.0
+# When true, the spread fan fires each bullet at a RANDOM angle within the cone (a real
+# shotgun) instead of evenly spaced. Shredder sets this; Scatter Blaster leaves it false.
+var bullet_spread_random: bool = false
 # Pulse Laser (PULSE_LASER weapon_style, Roman 2026-06-11): a 1px HITSCAN beam from the
 # nose that stays pinpoint for `pulse_accuracy_window` shots, then accrues +1° dispersion
 # per shot (cap PULSE_MAX_DISPERSION), decaying when idle. The beam tints white→blue as
@@ -36,7 +39,6 @@ var bullet_spread_degrees: float = 0.0
 var pulse_accuracy_window: int = 10
 var _pulse_dispersion: float = 0.0       # current cone WIDTH in degrees
 var _pulse_shot_count: int = 0           # shots fired in the current sustained burst
-var _pulse_fired_this_frame: bool = false
 const PULSE_MAX_DISPERSION: float = 20.0
 const PULSE_DISPERSION_DECAY: float = 2.0       # deg/sec recovered when not firing
 const PULSE_RANGE: float = 320.0                # beam reach (px)
@@ -792,13 +794,6 @@ func _process(delta: float) -> void:
 		return
 	if _invuln_t > 0.0:
 		_invuln_t = max(0.0, _invuln_t - delta)
-	# Pulse Laser: when not firing this frame, recover dispersion + reset the burst's
-	# accuracy window. _pulse_fired_this_frame is set by _fire_pulse_laser, cleared here.
-	if not _pulse_fired_this_frame:
-		if _pulse_dispersion > 0.0:
-			_pulse_dispersion = maxf(0.0, _pulse_dispersion - PULSE_DISPERSION_DECAY * delta)
-		_pulse_shot_count = 0
-	_pulse_fired_this_frame = false
 	# Secondary cooldown ticks every frame regardless of input — so the
 	# weapon recharges in the background and a tap fires immediately
 	# whenever it's ready.
@@ -882,6 +877,15 @@ func _process(delta: float) -> void:
 	# or enemies — lock off primary offense (secondary is gated below).
 	if _phase_t > 0.0:
 		fire_held = false
+	# Pulse Laser dispersion: it ACCRUES while the trigger is HELD (in _fire_pulse_laser).
+	# RELEASING the trigger recovers spread (PULSE_DISPERSION_DECAY °/s) + resets the
+	# accuracy-window counter. Keyed on fire_held — NOT on whether a shot landed this
+	# exact frame — so the sparse cadence (a shot every few frames) doesn't reset the
+	# burst between shots (Roman 2026-06-11 fix: dispersion + colour weren't building).
+	if not (fire_held and weapon_style == WS.WeaponStyle.PULSE_LASER):
+		if _pulse_dispersion > 0.0:
+			_pulse_dispersion = maxf(0.0, _pulse_dispersion - PULSE_DISPERSION_DECAY * delta)
+		_pulse_shot_count = 0
 	# Primary swap (Q): toggle which equipped cannon FIRES — the unlimited Blaster
 	# (fallback) or the acquired Primary gun. Re-applies the new active cannon so
 	# bullet_scene / cooldown / damage / SFX swap atomically. No-op if no primary.
@@ -1342,7 +1346,6 @@ func _is_mg_family(style: int) -> bool:
 # current dispersion cone. Damages the nearest enemy along the beam, draws the glowing
 # beam, and accrues dispersion past the accuracy window. (Roman 2026-06-11.)
 func _fire_pulse_laser() -> void:
-	_pulse_fired_this_frame = true
 	var origin: Vector2 = global_position + _muzzle_offset("Ship/Muzzle", Vector2(0, -8))
 	# Straight up ± a random angle inside the dispersion cone (full width = dispersion).
 	var half: float = deg_to_rad(_pulse_dispersion) * 0.5
@@ -1479,8 +1482,13 @@ func fire_primary() -> void:
 	for i in range(count):
 		var angle: float = 0.0
 		if not parallel and count > 1:
-			var t: float = float(i) / float(count - 1)
-			angle = -spread_rad * 0.5 + spread_rad * t
+			if bullet_spread_random:
+				# Shotgun spread (Shredder): each pellet a RANDOM angle inside the cone,
+				# not an even fan (Roman 2026-06-11).
+				angle = randf_range(-spread_rad * 0.5, spread_rad * 0.5)
+			else:
+				var t: float = float(i) / float(count - 1)
+				angle = -spread_rad * 0.5 + spread_rad * t
 		# 0 angle = straight up. (sin(a), -cos(a)) rotates around the up axis.
 		var dir := Vector2(sin(angle), -cos(angle))
 		var b: Node = bullet_scene.instantiate()
