@@ -126,6 +126,9 @@ func _build_playspace() -> void:
 	_preview_vp.size = Vector2i(480, 270)   # initial; stretch_shrink=4 keeps it here each layout pass
 	_preview_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_preview_vp.handle_input_locally = false
+	# HDR-2D parity: match the project's hdr_2d root or additive blends (enemy muzzle flashes /
+	# bullet glow) composite in the wrong colour space. (Roman 2026-06-11; docs/godot-patterns.md.)
+	_preview_vp.use_hdr_2d = bool(ProjectSettings.get_setting("rendering/viewport/hdr_2d", false))
 	sub_container.add_child(_preview_vp)
 
 	var gutter := ColorRect.new()

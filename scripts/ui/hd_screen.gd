@@ -53,6 +53,12 @@ static func make_play_subviewport(host: Node, native_size: Vector2i = NATIVE, sh
 	vp.size = native_size
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	vp.handle_input_locally = false
+	# CRITICAL (Roman 2026-06-11, "no bullets / wrong muzzle colour" regression): a SubViewport
+	# defaults use_hdr_2d=FALSE, but the project root viewport is hdr_2d=true. A gameplay play area
+	# that stays LDR while the root is HDR composites every ADDITIVE blend (muzzle flashes, bullet
+	# glow halos, explosions) in the wrong colour space — flashes tint wrong and faint glows wash
+	# out to nothing. Mirror the project's 2D-HDR mode so the dev play area matches combat exactly.
+	vp.use_hdr_2d = bool(ProjectSettings.get_setting("rendering/viewport/hdr_2d", false))
 	container.add_child(vp)
 	return vp
 
@@ -65,6 +71,11 @@ static func verify_native_subviewport(vp: SubViewport, host_name: String = "") -
 		return
 	if vp.size != NATIVE:
 		push_error("HD SubViewport host '%s' MISCONFIGURED: viewport is %s, expected %s — the play area will render in the corner. Set SubViewportContainer.stretch_shrink=4 (use HdScreen.make_play_subviewport). See docs/godot-patterns.md." % [host_name, vp.size, NATIVE])
+	# HDR-2D parity: a gameplay play area must match the root's 2D-HDR mode or additive blends
+	# (muzzle flashes / bullet glow) composite in the wrong colour space. (Roman 2026-06-11.)
+	var want_hdr: bool = bool(ProjectSettings.get_setting("rendering/viewport/hdr_2d", false))
+	if vp.use_hdr_2d != want_hdr:
+		push_error("HD SubViewport host '%s' HDR MISMATCH: use_hdr_2d=%s but project hdr_2d=%s — muzzle/bullet glow will composite wrong. Set vp.use_hdr_2d to match. See docs/godot-patterns.md." % [host_name, vp.use_hdr_2d, want_hdr])
 
 
 # Attach the HD content-scale scope to `host`. For Control roots, also set

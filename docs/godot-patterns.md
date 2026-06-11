@@ -281,3 +281,22 @@ don't "fix" a screen by copying one that uses a 4× content node — that diverg
 building — it pushes a loud `ERROR: ... MISCONFIGURED` to the console if the viewport isn't 480×270
 (i.e. the regression returned). Cheap regression check: boot any host scene headless
 (`godot --headless <scene.tscn> --quit-after 5`) and grep the output for `MISCONFIGURED`.
+
+### Second trap on the same host: HDR-2D parity (`use_hdr_2d`)
+
+**Symptom:** muzzle flashes tinted wrong + bullets/glows "missing" in the hangar/weapon-lab/enemy-bench
+play area, while combat looks correct. **Cause:** the project root viewport is `rendering/viewport/hdr_2d
+= true` (Forward+ pivot, 2026-06-10), but **a `SubViewport` defaults `use_hdr_2d = FALSE`**. An LDR play
+area under an HDR root composites every **additive** blend (muzzle flash, bullet glow halo, explosions)
+in the wrong colour space — flashes shift hue and faint glows wash out to nothing. The node graph is
+fine (bullets spawn, `visible=true`, in-frame) — it's purely a render-colour-space mismatch, so it reads
+as "no bullets".
+
+**Fix:** the play-area SubViewport must mirror the project's 2D-HDR mode:
+```gdscript
+vp.use_hdr_2d = bool(ProjectSettings.get_setting("rendering/viewport/hdr_2d", false))
+```
+`HdScreen.make_play_subviewport()` now bakes this in, and `verify_native_subviewport()` also pushes a
+loud `HDR MISMATCH` error if a hand-rolled host forgets it. Hand-rolled hosts (hangar / enemy_bench /
+weapon_lab) set it right after `render_target_update_mode`. This is renderer-space, NOT the renderer
+choice — Forward+ stays; the SubViewport just has to match the root it composites into.
