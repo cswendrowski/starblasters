@@ -7,16 +7,18 @@ extends "res://scripts/parts/metered_primary.gd"
 # above the player, with a minigun_tracer sprite drawn as visual feedback.
 # Uses Machinegun Cannon's muzzle flash + shell eject (orange + smoke + shell).
 
-@export var cooldown_at_mk9: float = 0.05  # Match Rotary Laser rate (20 shots/sec)
+# 30 shots/sec. At bullet speed 240 px/s that's an 8px shot pitch — a 4px gap
+# between the 4px-tall minigun bullets (Roman 2026-06-11 projectile conversion).
+@export var cooldown_at_mk9: float = 0.0333
 
 
 func _init() -> void:
 	super._init()
 	display_name = "Minigun"
-	description = "Rapid hitscan energy cannon. Mk.1: 1000 rounds at 1200 RPM. Mk.9: ~4300 rounds. Fires instantly on press."
-	base_damage = 5
+	description = "Rapid-fire bullet hose — a dense stream of light rounds. Mk.1: 1000 rounds; Mk.9: ~4300 rounds."
+	base_damage = 4
 	dmg_per_mark = 0
-	base_cooldown = 0.05
+	base_cooldown = 0.0333
 	base_ammo = 1000
 	refill_cost_override = 100
 
@@ -31,7 +33,7 @@ func _fire_sfx_kind() -> int:
 
 func _mk_knobs() -> Dictionary:
 	return {
-		"bullet_damage": [5, 5],  # fixed
+		"bullet_damage": [4, 4],  # fixed
 		"cooldown": [base_cooldown, cooldown_at_mk9],
 	}
 

@@ -218,6 +218,57 @@ static func play_player(world_pos: Vector2, host: Node, color: Color, with_smoke
 		_spawn_shell(fx_root, world_pos, large_shell)
 
 
+# Minigun ejection (Roman 2026-06-11): a single brass-coloured PIXEL flicked out the
+# right side (with slight per-shot colour variation), trailing a thin 1px wisp of gun
+# smoke. Replaces the shell casing + smoke puff for the minigun's rapid bullet hose.
+static func eject_brass(parent: Node, world_pos: Vector2) -> void:
+	if parent == null:
+		return
+	var px := Sprite2D.new()
+	px.texture = _solid_pixel_texture(1)   # 1px source; ShellCasing scales it 2×→1× as it falls
+	px.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	# Brass with per-shot colour variation.
+	px.modulate = Color(randf_range(0.72, 0.92), randf_range(0.52, 0.70), randf_range(0.12, 0.30), 1.0)
+	px.position = world_pos + Vector2(6.0, 2.0)   # eject port: right side, midship
+	px.z_index = 4
+	px.set_script(ShellCasing)
+	parent.add_child(px)
+	# Thin trailing gun-smoke wisp (1px particles, world-space → leaves a trail).
+	var trail := CPUParticles2D.new()
+	trail.amount = 6
+	trail.lifetime = 0.3
+	trail.local_coords = false
+	trail.emission_shape = CPUParticles2D.EMISSION_SHAPE_POINT
+	trail.direction = Vector2(0, -1)
+	trail.spread = 18.0
+	trail.gravity = Vector2.ZERO
+	trail.initial_velocity_min = 3.0
+	trail.initial_velocity_max = 9.0
+	trail.scale_amount_min = 1.0
+	trail.scale_amount_max = 1.0
+	trail.texture = _solid_pixel_texture(1)
+	var grad := Gradient.new()
+	grad.colors = PackedColorArray([Color(0.6, 0.6, 0.62, 0.45), Color(0.4, 0.4, 0.42, 0.0)])
+	grad.offsets = PackedFloat32Array([0.0, 1.0])
+	trail.color_ramp = grad
+	px.add_child(trail)
+	# Out the right side + falling; small tumble.
+	var v := Vector2(randf_range(40.0, 70.0), randf_range(120.0, 200.0))
+	px.call_deferred("launch", v, randf_range(-8.0, 8.0))
+
+
+# Cached solid-white square ImageTexture of `sz`×`sz` px (tint via modulate).
+static var _pixel_tex_cache: Dictionary = {}
+static func _solid_pixel_texture(sz: int) -> Texture2D:
+	if _pixel_tex_cache.has(sz):
+		return _pixel_tex_cache[sz]
+	var img := Image.create(sz, sz, false, Image.FORMAT_RGBA8)
+	img.fill(Color(1, 1, 1, 1))
+	var t := ImageTexture.create_from_image(img)
+	_pixel_tex_cache[sz] = t
+	return t
+
+
 static func _spawn_flash(parent: Node, world_pos: Vector2, use_local: bool = false) -> void:
 	# Yellow-orange glow halo + random-frame strip. When `parent` is a
 	# Node2D (host = player), the positions are local to the host so the

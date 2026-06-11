@@ -1,18 +1,17 @@
 [gd_scene format=3 uid="uid://c17fgxy5q2og2"]
 
 [ext_resource type="Script" uid="uid://dvd757ob5r5v2" path="res://scenes/projectiles/bullet_minigun.gd" id="1_dy0fe"]
-[ext_resource type="Texture2D" uid="uid://bgntracer01" path="res://graphics/projectiles/gun_tracer.png" id="2_tracer"]
+[ext_resource type="Texture2D" uid="uid://hxj0kqud1bwa" path="res://graphics/projectiles/minigun_tracer.png" id="2_7syfv"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hit"]
-size = Vector2(4, 14)
+size = Vector2(2, 4)
 
 [node name="Bullet_Minigun" type="Area2D" unique_id=1921940008]
 script = ExtResource("1_dy0fe")
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=826429187]
-rotation = -1.5707964
-texture = ExtResource("2_tracer")
-hframes = 3
+texture = ExtResource("2_7syfv")
+hframes = 2
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1254382976]
 shape = SubResource("RectangleShape2D_hit")

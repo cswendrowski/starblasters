@@ -62,9 +62,11 @@ func _wave_damage_for_mark(at_mark: int) -> int:
 	return 3 + clampf(at_mark, 1, 9)
 
 
-func _cooldown_for_mark(at_mark: int) -> float:
-	# Compound reduction: 0.708 / 1.15^(mk-1). Mk.1=0.708s (~+20% fire rate), Mk.9≈0.25s.
-	return 0.708 / pow(1.15, clampf(float(at_mark - 1), 0.0, 8.0))
+func _cooldown_for_mark(_at_mark: int) -> float:
+	# FLAT ROF (Roman 2026-06-11): every mark fires at the old Mk.9 cadence
+	# (0.708 / 1.15^8 ≈ 0.231s). Damage / projectile speed / pierce / sprite still
+	# scale per mark — only the fire rate is flattened to the fast end.
+	return 0.708 / pow(1.15, 8.0)
 
 
 func _scene_for_mark(at_mark: int) -> PackedScene:
