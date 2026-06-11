@@ -160,14 +160,19 @@ func _fire_broadside(enemy) -> void:
 	enemy.set_meta("_broadside_gun", (gun + 1) % n)
 
 
+const _EnemySfx = preload("res://scripts/effects/enemy_sfx.gd")
+
 func _fire_burst(enemy) -> void:
 	var dir: Vector2 = _aim_dir(enemy)
-	_fire_bullet(enemy, dir)
+	_fire_bullet(enemy, dir)   # shot 1's SFX is played by enemy_core after fire() returns
 	for i in range(1, maxi(1, burst_count)):
 		await enemy.get_tree().create_timer(burst_interval).timeout
 		if not is_instance_valid(enemy):
 			return
 		_fire_bullet(enemy, dir)
+		# Each subsequent burst shot fires its OWN sound (Roman 2026-06-11: enemy
+		# weapons should play their fire sound on every shot, bursts included).
+		_EnemySfx.play_for(enemy)
 
 # (_apply_axis is inherited from shoot_pattern and applied inside _spawn_bullet — the
 # duplicate override here was dead, removed per the M6 review.)

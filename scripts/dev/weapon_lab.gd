@@ -603,7 +603,22 @@ func _build_object_form(vbox: VBoxContainer, obj: Object) -> void:
 		var val = obj.get(pname)
 		match ptype:
 			TYPE_INT, TYPE_FLOAT:
-				if hint == PROPERTY_HINT_ENUM:
+				if pname == "speed":
+					# Bullet speed is RUNG-CLAMPED to the 1–8 px/frame scale (Roman
+					# 2026-06-11): only multiples of 60 px/s (rung 1=60 … rung 8=480).
+					vbox.add_child(_label("speed  (rung 1–8 → px/s)", FS_CAPTION, UiTheme.COLOR_FAINT))
+					var rsb := SpinBox.new()
+					rsb.add_theme_font_override("font", UiTheme.active_font())
+					rsb.add_theme_font_size_override("font_size", FS_BODY)
+					rsb.custom_minimum_size = Vector2(0, 32)
+					rsb.min_value = 60.0    # rung 1
+					rsb.max_value = 480.0   # rung 8 (the readability ceiling)
+					rsb.step = 60.0         # one rung
+					rsb.value = clampf(roundf(float(val) / 60.0) * 60.0, 60.0, 480.0)
+					rsb.value_changed.connect(func(v):
+						obj.set("speed", clampf(roundf(v / 60.0) * 60.0, 60.0, 480.0)))
+					vbox.add_child(rsb)
+				elif hint == PROPERTY_HINT_ENUM:
 					var opts := hint_str.split(",")
 					var dd := _dropdown(vbox, pname, opts)
 					dd.select(clampi(int(val), 0, opts.size() - 1))

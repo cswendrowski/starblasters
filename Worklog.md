@@ -95,3 +95,22 @@ x=-7,-3,3,7; minigun dmg 1, cd 0.04.
 **STILL OPEN under this item:** the **DPS research report** (audit all weapons base + max mark, armory-health
 recommendations) — deferred to a dedicated research pass; report-only, no auto-rebalance.
 **NEEDS ROMAN:** feel of the new minigun ROF/damage + casing origin, and the quad spread distinctness.
+
+---
+
+## [done] Enemy weapons: burst-fire SFX + bullet-speed rung tuner — branch `wl-session-2026-06-11`
+
+**Spec:** (1) enemy weapons play their fire sound on every shot, including bursts. (2) In the most suitable
+dev menu, let me adjust + save bullet speeds, clamped to round rungs 1–8.
+**Done:**
+- (1) `weapon._fire_burst` now plays `EnemySfx.play_for(enemy)` on each SUBSEQUENT burst shot (shot 1's
+  sound is already played by `enemy_core` after `fire()` returns). So a 3-round burst fires 3 sounds.
+- (2) Weapon Lab → Bullets tab: the `speed` field is now a **rung-clamped** SpinBox (min 60 / max 480 /
+  step 60 = rungs 1–8; the Clarity `RUNG_STEP`/`MAX_PXF` ceiling). Saving the variant `.tres` (existing
+  Save button) persists it. Other bullet fields keep the free spinbox.
+**Verified:** gate clean; weapon_lab boots clean (rung control builds). Burst per-shot *audio* needs
+real-time to confirm — headless SceneTreeTimers don't advance across `process_frame`, so the burst's
+await-gated shots can't progress in a harness (shot 1 fires fine). Low-risk: the added call is the exact
+`play_for` enemy_core uses.
+**NEEDS ROMAN:** hear a burst weapon (e.g. a BURST-pattern enemy) fire its sound on every round; confirm
+the rung-clamped speed tuner + save in Weapon Lab.
