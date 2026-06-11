@@ -81,7 +81,7 @@ func _build_ui() -> void:
 
 	# Authoring tools (Wave Editor / Movement+Shoot Pattern editors retired 2026-06-11)
 	_add_button("[ Pattern Eligibility ]", _on_pattern_eligibility, true)
-	_add_button("[ Weapons ]", _on_weapon_editor, true)
+	_add_button("[ Weapon Lab ]", _on_weapon_lab, true)
 	_add_button("[ Enemy Bench ]", _on_enemy_bench, true)
 	# Tuners / labs (Movement Lab / Sector Map HD Lab retired 2026-06-11)
 	_add_button("[ Lane Visualizer ]", _on_lane_visualizer, true)
@@ -133,8 +133,8 @@ func _on_pattern_eligibility() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/pattern_eligibility_editor.tscn")
 
 
-func _on_weapon_editor() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev/weapon_editor.tscn")
+func _on_weapon_lab() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/weapon_lab.tscn")
 
 
 # Load resources/levels/test_level.tres and launch combat with it. Designers

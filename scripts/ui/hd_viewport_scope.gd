@@ -8,8 +8,8 @@ extends Node
 # the host scene is freed, so a missed cleanup or a crash mid-transition
 # can't leave the next native-scale scene rendering at 1920×1080.
 #
-# Replaces five hand-rolled save/restore blocks (outpost / shipyard /
-# parallax_tuner / pattern_editor_base / wave_editor) that were leak
+# Replaces the hand-rolled save/restore blocks (outpost / shipyard /
+# parallax_tuner / the retired pattern/wave editors) that were leak
 # risks if _exit_tree didn't run cleanly.
 #
 # Usage:
