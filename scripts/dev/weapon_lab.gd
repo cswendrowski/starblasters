@@ -104,6 +104,19 @@ var _p_mark_lbl: Label = null
 var _p_info: RichTextLabel = null
 var _p_bullet_tex: TextureRect = null
 
+# Player-weapon STAT TUNING (Roman 2026-06-11): editable stat spinboxes on the live
+# ship + a Save that writes user://tuners/player_weapons.json — which the integrator
+# (tools/apply_player_weapon_tunes.gd) catches and writes into the weapons' .tres.
+const PLAYER_WEAPONS_CFG := "user://tuners/player_weapons.json"
+# Runtime/identity fields to hide from the stat editors (not designer-tunable stats).
+const _STAT_SKIP := ["mark", "max_mark", "current_ammo", "ammo_max", "slot_type"]
+var _p_part = null                      # the live Part instance currently tuned
+var _p_slot: int = -1
+var _p_factory: String = ""
+var _p_stat_box: VBoxContainer = null   # holds one row per tunable stat
+var _p_stat_status: Label = null
+var _p_overrides: Dictionary = {}       # factory -> {stat: value}, persisted to disk
+
 # Enemy tab widgets.
 var _e_fire_dd: OptionButton = null
 var _e_aim_dd: OptionButton = null
@@ -136,6 +149,7 @@ func _ready() -> void:
 	_build_overlay()
 	await get_tree().process_frame
 	HdScreen.verify_native_subviewport(_preview_vp, "Weapon Lab")
+	_load_player_overrides()   # tuned stats persist across sessions
 	_select_tab(Tab.PLAYER)
 	_refresh_player_list()
 
@@ -352,6 +366,23 @@ func _build_player_tab(ui: CanvasLayer) -> void:
 	panel.add_child(_label("Bullet sprite", FS_CAPTION, UiTheme.COLOR_FAINT))
 	_p_bullet_tex = _tex_rect(panel)
 
+	# Live stat tuning (Roman 2026-06-11).
+	panel.add_child(HSeparator.new())
+	panel.add_child(_label("STATS — edit live, then Save", FS_CAPTION, UiTheme.COLOR_ACCENT))
+	_p_stat_box = VBoxContainer.new()
+	_p_stat_box.add_theme_constant_override("separation", 4)
+	panel.add_child(_p_stat_box)
+	var pbtns := HBoxContainer.new()
+	pbtns.add_theme_constant_override("separation", 8)
+	panel.add_child(pbtns)
+	pbtns.add_child(_button("Save", _save_player_overrides))
+	pbtns.add_child(_button("Reset", _reset_player_stats))
+	pbtns.add_child(_button("Copy .tres", _copy_tres_block))
+	_p_stat_status = _label("", FS_CAPTION, UiTheme.COLOR_FAINT)
+	_p_stat_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_p_stat_status.custom_minimum_size = Vector2(INFO_W - 60, 0)
+	panel.add_child(_p_stat_status)
+
 	_tab_nodes[Tab.PLAYER] = sink
 
 
@@ -376,10 +407,39 @@ func _equip_player() -> void:
 		return
 	var slot: int = int(WEAPON_GROUPS[_p_group_dd.selected]["slot"])
 	var factory: String = _p_factories[sel[0]]
-	var part = PartCatalog._make_by_name(factory, slot)
+	_p_slot = slot
+	_p_factory = factory
+	var part = _build_tuned_part(factory, slot)
 	if part == null:
 		return
+	_p_part = part
+	_equip_part_on_player(part, slot)
+	_refresh_player_info(part)
+	_rebuild_stat_editors(part)
+
+
+# Build a fresh Part with the current Mark + any saved/unsaved stat overrides applied.
+func _build_tuned_part(factory: String, slot: int):
+	var part = PartCatalog._make_by_name(factory, slot)
+	if part == null:
+		return null
 	part.mark = int(_p_mark.value)
+	_apply_overrides_to_part(factory, part)
+	return part
+
+
+# Stamp the tuned override values onto a freshly-built Part (before it's equipped).
+func _apply_overrides_to_part(factory: String, part) -> void:
+	if not _p_overrides.has(factory):
+		return
+	for stat in (_p_overrides[factory] as Dictionary).keys():
+		if stat in part:
+			part.set(stat, _p_overrides[factory][stat])
+
+
+# Equip mechanics, factored out so a stat tweak can re-equip a fresh tuned Part WITHOUT
+# rebuilding the editor widgets (which would steal focus mid-edit).
+func _equip_part_on_player(part, slot: int) -> void:
 	var loadout = _live_loadout()
 	if slot == SlotTypes.SlotType.CANNON:
 		# Bench cannon equip: keep active_cannon_idx 0 (infinite blaster path, no
@@ -399,7 +459,121 @@ func _equip_player() -> void:
 			_player.secondary_ammo = int(_player.secondary_ammo_max)
 		if "super_charges" in _player and "max_super_charges" in _player:
 			_player.super_charges = int(_player.max_super_charges)
-	_refresh_player_info(part)
+
+
+# ---- Player-weapon stat tuning (Roman 2026-06-11) ------------------------
+
+# Numeric/bool @export stats on the Part that are designer-tunable (skips runtime +
+# identity fields). Same surface the .tres single-source-of-truth persists.
+func _tunable_stats(part) -> Array:
+	var out: Array = []
+	for pinfo in part.get_property_list():
+		if not (int(pinfo.usage) & PROPERTY_USAGE_SCRIPT_VARIABLE):
+			continue
+		var n: String = String(pinfo.name)
+		if n.begins_with("_") or n in _STAT_SKIP:
+			continue
+		var t: int = int(pinfo.type)
+		if t == TYPE_INT or t == TYPE_FLOAT or t == TYPE_BOOL:
+			out.append({"name": n, "type": t})
+	return out
+
+
+# Rebuild the stat-editor rows for the equipped Part (one SpinBox/CheckButton each).
+func _rebuild_stat_editors(part) -> void:
+	if _p_stat_box == null:
+		return
+	for c in _p_stat_box.get_children():
+		c.queue_free()
+	for spec in _tunable_stats(part):
+		var stat: String = String(spec["name"])
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		var lbl := _label(stat, FS_CAPTION, UiTheme.COLOR_TEXT)
+		lbl.custom_minimum_size = Vector2(150, 0)
+		row.add_child(lbl)
+		if int(spec["type"]) == TYPE_BOOL:
+			var cb := CheckButton.new()
+			cb.button_pressed = bool(part.get(stat))
+			cb.toggled.connect(func(v): _on_stat_changed(stat, v))
+			row.add_child(cb)
+		else:
+			var sb := SpinBox.new()
+			var is_float: bool = int(spec["type"]) == TYPE_FLOAT
+			sb.step = 0.01 if is_float else 1.0
+			sb.min_value = -9999.0
+			sb.max_value = 99999.0
+			sb.value = float(part.get(stat))
+			sb.custom_minimum_size = Vector2(110, 0)
+			sb.value_changed.connect(func(v): _on_stat_changed(stat, v if is_float else int(round(v))))
+			row.add_child(sb)
+		_p_stat_box.add_child(row)
+
+
+# A stat changed: record the override, re-equip a fresh tuned Part on the live ship so
+# the change is felt immediately (no editor rebuild — keeps focus).
+func _on_stat_changed(stat: String, value) -> void:
+	if not _p_overrides.has(_p_factory):
+		_p_overrides[_p_factory] = {}
+	_p_overrides[_p_factory][stat] = value
+	var part = _build_tuned_part(_p_factory, _p_slot)
+	if part != null:
+		_p_part = part
+		_equip_part_on_player(part, _p_slot)
+		_refresh_player_info(part)
+	if _p_stat_status:
+		_p_stat_status.text = "%s = %s  (unsaved — Save to persist)" % [stat, str(value)]
+
+
+func _reset_player_stats() -> void:
+	_p_overrides.erase(_p_factory)
+	_equip_player()  # full rebuild from the .tres defaults
+	if _p_stat_status:
+		_p_stat_status.text = "Reset %s to .tres defaults." % _p_factory
+
+
+func _save_player_overrides() -> void:
+	DirAccess.make_dir_recursive_absolute("user://tuners")
+	var f := FileAccess.open(PLAYER_WEAPONS_CFG, FileAccess.WRITE)
+	if f == null:
+		if _p_stat_status:
+			_p_stat_status.text = "Save FAILED (can't open file)."
+		return
+	f.store_string(JSON.stringify(_p_overrides, "  ", true))
+	f.close()
+	if _p_stat_status:
+		_p_stat_status.text = "Saved → %s  (run tools/apply_player_weapon_tunes.gd to write the .tres)" % PLAYER_WEAPONS_CFG
+
+
+func _load_player_overrides() -> void:
+	if not FileAccess.file_exists(PLAYER_WEAPONS_CFG):
+		return
+	var f := FileAccess.open(PLAYER_WEAPONS_CFG, FileAccess.READ)
+	if f == null:
+		return
+	var parsed = JSON.parse_string(f.get_as_text())
+	f.close()
+	if parsed is Dictionary:
+		_p_overrides = parsed
+
+
+# Emit the [resource] stat lines for the current weapon's .tres, paste-ready.
+func _copy_tres_block() -> void:
+	if _p_part == null:
+		return
+	var lines := PackedStringArray()
+	lines.append("# Paste into resources/weapons/<%s>.tres [resource] block:" % _p_factory)
+	for spec in _tunable_stats(_p_part):
+		var stat: String = String(spec["name"])
+		var v = _p_part.get(stat)
+		if int(spec["type"]) == TYPE_FLOAT:
+			lines.append("%s = %s" % [stat, String.num(float(v), 4)])
+		else:
+			lines.append("%s = %s" % [stat, str(v)])
+	var txt := "\n".join(lines)
+	DisplayServer.clipboard_set(txt)
+	if _p_stat_status:
+		_p_stat_status.text = "Copied .tres stat block (%d lines)." % lines.size()
 
 
 func _refresh_player_info(part) -> void:
