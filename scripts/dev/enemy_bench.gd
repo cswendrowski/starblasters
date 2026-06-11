@@ -74,9 +74,21 @@ var _explosion_dd: OptionButton = null
 var _recycle_chk: CheckButton = null
 var _recycle_passes_spin: SpinBox = null
 var _recycle_chance_spin: SpinBox = null
+# Stat knobs (live-tuned, persisted, emitted by Copy GDScript).
+var _hp_spin: SpinBox = null
+var _bounty_spin: SpinBox = null
+var _scale_spin: SpinBox = null
+var _bspeed_spin: SpinBox = null
+var _bdmg_spin: SpinBox = null
+# Display strings (editable name + codex, persisted + emitted as an enemy_strings entry).
+var _name_edit: LineEdit = null
+var _codex_edit: TextEdit = null
 
 # Persisted per-scene settings.
 var _saved: Dictionary = {}
+# True while pushing saved values into the editors — suppresses the value_changed
+# respawn storm (SpinBox.value setter emits the signal).
+var _loading: bool = false
 
 
 func _ready() -> void:
@@ -210,11 +222,18 @@ func _build_right_panel(ui: CanvasLayer) -> void:
 	var h := int((1080 - y - MARGIN) * 0.82)
 	ui.add_child(_panel(Vector2(x, y), Vector2(INFO_W, h)))
 
+	# ScrollContainer so the (now longer) editor stack never overflows the panel.
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(x + 16, y + 14)
+	scroll.size = Vector2(INFO_W - 32, h - 28)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	ui.add_child(scroll)
+
 	var vbox := VBoxContainer.new()
-	vbox.position = Vector2(x + 16, y + 14)
-	vbox.size = Vector2(INFO_W - 32, h - 28)
+	vbox.custom_minimum_size = Vector2(INFO_W - 48, 0)
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vbox.add_theme_constant_override("separation", 8)
-	ui.add_child(vbox)
+	scroll.add_child(vbox)
 
 	_name_lbl = _label("—", FS_HEADER, UiTheme.COLOR_ACCENT)
 	vbox.add_child(_name_lbl)
@@ -246,6 +265,38 @@ func _build_right_panel(ui: CanvasLayer) -> void:
 	# Death explosion only matters on death, so apply it live (no respawn).
 	_explosion_dd = _dropdown(vbox, "Death explosion", ExplosionFx.variant_names())
 	_explosion_dd.item_selected.connect(func(_i): _apply_explosion_live())
+
+	vbox.add_child(HSeparator.new())
+	vbox.add_child(_label("Stats", FS_BODY, UiTheme.COLOR_ACCENT))
+	# Stat knobs respawn so the value is live from frame 0 (max_health -> health
+	# in _ready, display_scale -> visual scale). Cheap; matches the weapon flow.
+	_hp_spin = _spinbox(vbox, "Max HP", 1, 9999, 1)
+	_hp_spin.value_changed.connect(func(_v): if not _loading: _spawn_current())
+	_bounty_spin = _spinbox(vbox, "Bounty", 0, 9999, 1)
+	_bounty_spin.value_changed.connect(func(_v): if not _loading: _apply_stats_live())
+	_scale_spin = _spinbox(vbox, "Display scale", 0.25, 6.0, 0.05)
+	_scale_spin.value_changed.connect(func(_v): if not _loading: _spawn_current())
+	_bspeed_spin = _spinbox(vbox, "Bullet speed ×", 0.25, 4.0, 0.05)
+	_bspeed_spin.value_changed.connect(func(_v): if not _loading: _apply_stats_live())
+	_bdmg_spin = _spinbox(vbox, "Bullet damage ×", 0.25, 4.0, 0.05)
+	_bdmg_spin.value_changed.connect(func(_v): if not _loading: _apply_stats_live())
+
+	vbox.add_child(HSeparator.new())
+	vbox.add_child(_label("Display Strings", FS_BODY, UiTheme.COLOR_ACCENT))
+	vbox.add_child(_label("Name", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_name_edit = LineEdit.new()
+	_name_edit.add_theme_font_override("font", UiTheme.active_font())
+	_name_edit.add_theme_font_size_override("font_size", FS_BODY)
+	_name_edit.custom_minimum_size = Vector2(0, 34)
+	_name_edit.text_changed.connect(func(t): if _name_lbl: _name_lbl.text = t)
+	vbox.add_child(_name_edit)
+	vbox.add_child(_label("Codex entry", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_codex_edit = TextEdit.new()
+	_codex_edit.add_theme_font_override("font", UiTheme.active_font())
+	_codex_edit.add_theme_font_size_override("font_size", FS_CAPTION)
+	_codex_edit.custom_minimum_size = Vector2(0, 96)
+	_codex_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	vbox.add_child(_codex_edit)
 
 	vbox.add_child(HSeparator.new())
 	vbox.add_child(_label("Recycle Behavior", FS_BODY, UiTheme.COLOR_ACCENT))
@@ -384,6 +435,7 @@ func _spawn_current() -> void:
 			inst.fire_on_phase = ""    # use the generic ShootTimer cadence
 	if "explosion_variant" in inst:
 		inst.explosion_variant = ExplosionFx.variant_names()[_explosion_dd.selected]
+	_apply_stats_to(inst)   # HP/scale/etc BEFORE _ready so health = max_health from frame 0
 	if inst is Node2D:
 		(inst as Node2D).position = spawn_pos
 	_enemy_layer.add_child(inst)
@@ -411,6 +463,34 @@ func _build_weapon() -> Weapon:
 func _apply_explosion_live() -> void:
 	if _current_enemy != null and is_instance_valid(_current_enemy) and "explosion_variant" in _current_enemy:
 		_current_enemy.explosion_variant = ExplosionFx.variant_names()[_explosion_dd.selected]
+
+
+# Apply the stat-knob values to a (pre-_ready) enemy instance.
+func _apply_stats_to(inst: Node) -> void:
+	if inst == null:
+		return
+	if "max_health" in inst:
+		inst.max_health = int(_hp_spin.value)
+	if "bounty_value" in inst:
+		inst.bounty_value = int(_bounty_spin.value)
+	if "display_scale" in inst:
+		inst.display_scale = float(_scale_spin.value)
+	if "bullet_speed_mult" in inst:
+		inst.bullet_speed_mult = float(_bspeed_spin.value)
+	if "bullet_damage_mult" in inst:
+		inst.bullet_damage_mult = float(_bdmg_spin.value)
+
+
+# Cheap stats (no _ready dependency) applied to the live enemy without a respawn.
+func _apply_stats_live() -> void:
+	if _current_enemy == null or not is_instance_valid(_current_enemy):
+		return
+	if "bounty_value" in _current_enemy:
+		_current_enemy.bounty_value = int(_bounty_spin.value)
+	if "bullet_speed_mult" in _current_enemy:
+		_current_enemy.bullet_speed_mult = float(_bspeed_spin.value)
+	if "bullet_damage_mult" in _current_enemy:
+		_current_enemy.bullet_damage_mult = float(_bdmg_spin.value)
 
 
 func _apply_recycle_live() -> void:
@@ -469,14 +549,16 @@ func _drive_dummy(delta: float) -> void:
 # ---- Info + settings persistence -----------------------------------------
 
 func _refresh_info() -> void:
-	_name_lbl.text = EnemyStrings.display_name(_selected_path)
+	_name_lbl.text = _name_edit.text if (_name_edit and _name_edit.text != "") else EnemyStrings.display_name(_selected_path)
 	var hp: int = int(_current_enemy.max_health) if (_current_enemy and "max_health" in _current_enemy) else 0
 	var bounty: int = int(_current_enemy.bounty_value) if (_current_enemy and "bounty_value" in _current_enemy) else 0
 	_stats_lbl.text = "HP %d   Bounty %d   Eligible: %s" % [hp, bounty, ", ".join(_eligible)]
 
 
 func _load_settings_into_editors() -> void:
+	_loading = true
 	var s: Dictionary = _saved.get(_selected_path, {})
+	var nat: Dictionary = _scene_defaults(_selected_path)   # native scene values = fallbacks
 	_select_text(_fire_dd, String(s.get("fire_pattern", "SINGLE")), FIRE_PATTERNS)
 	_select_text(_aim_dd, String(s.get("aim", "STRAIGHT_DOWN")), AIMS)
 	_select_text(_payload_dd, String(s.get("payload", "Basic")), PAYLOADS.keys())
@@ -487,6 +569,29 @@ func _load_settings_into_editors() -> void:
 		_recycle_passes_spin.value = int(s.get("recycle_passes", 1))
 	if _recycle_chance_spin:
 		_recycle_chance_spin.value = float(s.get("recycle_chance", 1.0))
+	_hp_spin.value = int(s.get("max_health", nat.get("max_health", 1)))
+	_bounty_spin.value = int(s.get("bounty_value", nat.get("bounty_value", 5)))
+	_scale_spin.value = float(s.get("display_scale", nat.get("display_scale", 1.0)))
+	_bspeed_spin.value = float(s.get("bullet_speed_mult", nat.get("bullet_speed_mult", 1.0)))
+	_bdmg_spin.value = float(s.get("bullet_damage_mult", nat.get("bullet_damage_mult", 1.0)))
+	_name_edit.text = String(s.get("name", EnemyStrings.display_name(_selected_path)))
+	_codex_edit.text = String(s.get("codex", EnemyStrings.codex_entry(_selected_path)))
+	_loading = false
+
+
+# Native stat values baked into a scene (so the spinboxes show real defaults, not
+# the @export base). Instantiates once, reads, frees.
+func _scene_defaults(path: String) -> Dictionary:
+	var out := {}
+	var ps := load(path) as PackedScene
+	if ps == null:
+		return out
+	var inst := ps.instantiate()
+	for k in ["max_health", "bounty_value", "display_scale", "bullet_speed_mult", "bullet_damage_mult"]:
+		if k in inst:
+			out[k] = inst.get(k)
+	inst.free()
+	return out
 
 
 func _select_text(dd: OptionButton, text: String, pool) -> void:
@@ -503,6 +608,13 @@ func _current_settings() -> Dictionary:
 		"can_recycle": _recycle_chk.button_pressed,
 		"recycle_passes": int(_recycle_passes_spin.value),
 		"recycle_chance": float(_recycle_chance_spin.value),
+		"max_health": int(_hp_spin.value),
+		"bounty_value": int(_bounty_spin.value),
+		"display_scale": float(_scale_spin.value),
+		"bullet_speed_mult": float(_bspeed_spin.value),
+		"bullet_damage_mult": float(_bdmg_spin.value),
+		"name": _name_edit.text,
+		"codex": _codex_edit.text,
 	}
 
 
@@ -534,18 +646,29 @@ func _load_saved() -> void:
 func _on_copy() -> void:
 	var s := _current_settings()
 	var payload_const: String = "BV_" + String(s["payload"]).replace(" ", "")
-	var txt := "# Enemy Bench — %s\n" % EnemyStrings.display_name(_selected_path)
+	var txt := "# Enemy Bench — %s\n" % String(s["name"])
 	txt += "var w := Weapon.new()\n"
 	txt += "w.fire_pattern = Weapon.FirePattern.%s\n" % s["fire_pattern"]
 	txt += "w.aim = Weapon.Aim.%s\n" % s["aim"]
 	txt += "w.payload = %s\n" % payload_const
 	txt += "enemy.shoot_pattern = w\n"
 	txt += "enemy.explosion_variant = \"%s\"\n" % s["explosion"]
+	txt += "# Stats:\n"
+	txt += "enemy.max_health = %d\n" % s["max_health"]
+	txt += "enemy.bounty_value = %d\n" % s["bounty_value"]
+	txt += "enemy.display_scale = %.2f\n" % s["display_scale"]
+	txt += "enemy.bullet_speed_mult = %.2f\n" % s["bullet_speed_mult"]
+	txt += "enemy.bullet_damage_mult = %.2f\n" % s["bullet_damage_mult"]
 	txt += "# Recycle behavior:\n"
 	if s["can_recycle"]:
 		txt += "enemy.recycle_passes = %d  # %.1f chance to recycle\n" % [s["recycle_passes"], s["recycle_chance"]]
 	else:
 		txt += "enemy.recycle_passes = 0  # flee (no recycle)\n"
+	# Paste-ready enemy_strings.gd STRINGS entry (the name + codex live in a baked
+	# const dict, so this is the handoff back into source).
+	var codex_one_line: String = String(s["codex"]).replace("\n", " ").replace("\"", "'")
+	txt += "\n# -> scripts/enemy_strings.gd STRINGS:\n"
+	txt += "\t\"%s\": {\"name\": \"%s\", \"codex\": \"%s\"},\n" % [_selected_path, String(s["name"]), codex_one_line]
 	DisplayServer.clipboard_set(txt)
 	if _pattern_lbl:
 		_pattern_lbl.text = "Copied GDScript to clipboard"
