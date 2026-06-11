@@ -262,3 +262,16 @@ All six points addressed:
 `current_node_id` + `run_seed`). Light-streak layer OFF (`warp_streak_count = 0`); scroll slowed ~80%
 (`drift_speed` 22 → 4.4) so it reads as a calm animated backdrop, not a level. Replaces the flat panel
 background. Verified headless: signal_event boots clean. **NEEDS ROMAN:** eyeball the backdrop + slow scroll.
+
+## [done] Mine hazards: ~300 density + bomblet clusters + decoration mines — branch `wl-session-2026-06-11`
+- **300 density** — `build_minefield_score` per-beat counts bumped ~1.6× + tighter intervals, ALL beats
+  used (was 4 of 5). Plus 4 **bomblet cluster** beats (new `BombletScene`). Verified headless: total =
+  **318** enemies (was ~90-100). On-screen limits unchanged (Roman OK'd relaxing here — the tight
+  intervals + counts give the density; flag if the concurrent cap throttles it in play).
+- **Decoration mines** — these did NOT render in the live game: `galaxy_backdrop` (where the old
+  `_spawn_background_mines` lived) is DEAD (not attached to any scene); the live backdrop is the V4
+  `backdrop_coordinator`. Ported a self-contained version into the coordinator: new `bg_mine.gd`
+  (down-drift + wrap) + `_spawn_background_mines` spawns 28 mines across 3 depth bands (scale/speed/dim),
+  each with a **dimmed pulse light** (the live-mine warning pixel, dimmed per band), gated on
+  `current_hazard_subtype == "minefield"`. Verified headless: 28 mines, all with pulse. (Reverted the dead
+  galaxy_backdrop edit.) **NEEDS ROMAN:** eyeball the field density + the background-mine layers.

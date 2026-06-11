@@ -21,6 +21,7 @@ const HoverScene = preload("res://scenes/enemies/core/enemy_hover.tscn")
 const BossScene = preload("res://scenes/enemies/boss.tscn")
 const BossSweep = preload("res://scripts/enemies/patterns/boss_sweep.gd")
 const MineScene = preload("res://scenes/enemies/enemy_mine.tscn")
+const BombletScene = preload("res://scenes/enemies/enemy_bomblet.tscn")
 const MineShieldScene = preload("res://scenes/enemies/enemy_mine_shield.tscn")
 const MineGravityScene = preload("res://scenes/enemies/enemy_mine_gravity.tscn")  # replaces Cluster + Mega Cluster
 const MineSmartScene = preload("res://scenes/enemies/enemy_mine_smart.tscn")
@@ -336,12 +337,14 @@ static func build_minefield_score() -> CombatScore:
 	# successive rows leaving shifting gap lanes to thread; PINCER = edge-inward
 	# burst; SPREAD = a tight lane-scatter. Short BREATHERs keep walls coming fast so
 	# the player must commit to weaving a gap OR shooting through. Pick 4 of 5.
+	# Density bumped to ~300 (Roman 2026-06-11: "300 enemy mark like other levels", relax on-screen
+	# limits here). ~1.6× the per-beat counts + tighter intervals; ALL beats used (was 4 of 5).
 	var beats := [
-		{"shape": &"wall",       "count": 20, "interval": 0.10},
-		{"shape": &"wall",       "count": 18, "interval": 0.10},
-		{"shape": &"pincer",     "count": 14, "interval": 0.10},
-		{"shape": &"top_spread", "count": 24, "interval": 0.16},
-		{"shape": &"wall",       "count": 22, "interval": 0.10},
+		{"shape": &"wall",       "count": 32, "interval": 0.08},
+		{"shape": &"wall",       "count": 30, "interval": 0.08},
+		{"shape": &"pincer",     "count": 24, "interval": 0.08},
+		{"shape": &"top_spread", "count": 40, "interval": 0.12},
+		{"shape": &"wall",       "count": 36, "interval": 0.08},
 	]
 	var order := []
 	for i in beats.size():
@@ -353,7 +356,7 @@ static func build_minefield_score() -> CombatScore:
 	var wave := ScoreWave.new()
 	wave.banner = "MINEFIELD DETECTED"
 	var total_basic: int = 0
-	var beat_count: int = 4   # rapid succession of dense drops
+	var beat_count: int = beats.size()   # ALL beats — rapid succession of dense drops (~162 basic)
 	for k in beat_count:
 		var b: Dictionary = beats[order[k]]
 		var form_id: int = 2 if b["shape"] == &"top_spread" else 0
@@ -361,7 +364,11 @@ static func build_minefield_score() -> CombatScore:
 			_haz_spec(base_scene, int(b["count"]), float(b["interval"]), form_id)))
 		total_basic += int(b["count"])
 		if k < beat_count - 1:
-			wave.phrases.append(_breather_phrase(0.4))
+			wave.phrases.append(_breather_phrase(0.35))
+	# Bomblet clusters (Roman 2026-06-11): tight scatter pockets to thread or pop. ~104 bomblets.
+	for c in range(4):
+		wave.phrases.append(_breather_phrase(0.45))
+		wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(BombletScene, 26, 0.10, 2)))
 
 	# Variant sprinkle: a final lane-scatter mixing the non-basic mine types into a basic
 	# field (Roman 2026-06-09 — now that the new mine art/types are in, every minefield shows

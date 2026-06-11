@@ -159,6 +159,54 @@ func _populate() -> void:
 	_apply_tints(planet_idx)
 	_setup_composite(planet_idx)
 
+	# Decorative background mines on minefield levels (Roman 2026-06-11): mine sprites
+	# in 3 depth bands, each carrying a DIMMED pulse light, so the minefield reads as
+	# a layered hazard. Pure decoration — no collision.
+	if run_node and "current_hazard_subtype" in run_node \
+			and String(run_node.current_hazard_subtype) == "minefield":
+		_spawn_background_mines(rng)
+
+
+const BgMineScript = preload("res://scripts/parallax/bg_mine.gd")
+const MINE_BG_TEX := preload("res://graphics/mines/mine_basic.png")
+
+func _spawn_background_mines(rng: RandomNumberGenerator) -> void:
+	var layers := [
+		{"count": 6, "scale": 0.35, "speed": 14.0, "z": -2, "dim": 0.16},
+		{"count": 10, "scale": 0.45, "speed": 24.0, "z": -1, "dim": 0.26},
+		{"count": 12, "scale": 0.55, "speed": 34.0, "z": -1, "dim": 0.34},
+	]
+	for layer in layers:
+		for i in int(layer["count"]):
+			var spr := Sprite2D.new()
+			spr.set_script(BgMineScript)
+			spr.texture = MINE_BG_TEX
+			spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			spr.scale = Vector2.ONE * float(layer["scale"])
+			# 50% multiply overlay so they read as background, never live targets.
+			var mat := CanvasItemMaterial.new()
+			mat.blend_mode = CanvasItemMaterial.BLEND_MODE_MUL
+			spr.material = mat
+			spr.modulate = Color(0.5, 0.5, 0.55, 1.0)
+			spr.position = Vector2(rng.randf_range(-16.0, 496.0), rng.randf_range(-270.0, 270.0))
+			spr.z_index = int(layer["z"])
+			spr.fall_speed = float(layer["speed"])
+			add_child(spr)
+			# Dimmed pulse light (the live-mine warning pixel, dimmed for background).
+			var pulse := ColorRect.new()
+			pulse.size = Vector2(1.5, 1.5)
+			pulse.position = Vector2(-0.75, -0.75)
+			pulse.color = Color(1.0, 0.35, 0.25, 1.0)
+			pulse.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var pmat := CanvasItemMaterial.new()
+			pmat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+			pulse.material = pmat
+			spr.add_child(pulse)
+			var dim: float = float(layer["dim"])
+			var ptw := pulse.create_tween().set_loops()
+			ptw.tween_property(pulse, "modulate:a", dim, rng.randf_range(0.7, 1.2)).set_trans(Tween.TRANS_SINE)
+			ptw.tween_property(pulse, "modulate:a", dim * 0.15, rng.randf_range(0.7, 1.2)).set_trans(Tween.TRANS_SINE)
+
 
 # Render a staged star-system: clear LayerPlanet ONCE, then spawn each body at a
 # frac-derived screen position + scale-derived size. `system` entries are dicts:
