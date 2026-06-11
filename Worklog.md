@@ -227,3 +227,18 @@ loadout cards already showed Blaster/Primary. Note: the outpost offer pill uses 
 - Verified headless: 2 smoke + 2 torch damage points at distinct anchors (activate_below 0.01 / 0.5);
   combat boots clean. **NEEDS ROMAN:** eyeball the placement/feel of the randomized fire+smoke + the
   secondary launch flashes.
+
+## [done] Wreck-layer feedback pass — branch `wl-session-2026-06-11`
+All six points addressed:
+- **Outline fade removed** — `enemy_base._die_as_wreck` no longer carries the black outline onto the wreck
+  and fades it; the outline frees with the enemy (how it was before).
+- **Keep orientation** — the hull already preserved `global_rotation` on reparent; now `wreck_drift` holds
+  the tumble (and lateral drift) until the descent completes, so the wreck keeps its facing while it's
+  still "moving."
+- **More gradual transition** — `SCALE_TIME` 1.0→1.4; a real `DESCENT_TIME` 1.4 stage.
+- **20% speed loss across the transition** — inherited velocity is multiplied by a ramp from 0.99 → 0.80
+  across the descent (1% → 20% slower), while gravity still curves it into the fall.
+- **Drift + rotation only after descent** — both ease in only once `_descent_t` hits 1.0.
+- Bomber-death reference: the descent-then-drift shape now matches that model.
+- Verified headless: mid-descent rotation 0.0 (orientation kept, no tumble) → post-descent rotation 0.147
+  (tumble started). Gate clean. **NEEDS ROMAN:** eyeball the fall feel + timing.

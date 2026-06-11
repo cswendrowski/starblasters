@@ -526,20 +526,8 @@ func _die_as_wreck(wlayer: Node, exit_explode_chance: float) -> void:
 	var emit_local: Array = []
 	for w in emit_worlds:
 		emit_local.append(s.to_local(w))
-	# Carry the black outline along as a child so it can FADE OUT as the hull recedes, instead of
-	# vanishing the instant the enemy frees (Roman 2026-06-10). It's a sibling on the enemy today.
-	var outline: Node = get_node_or_null("Outline")
-	if outline != null and outline is Node2D:
-		var o_gpos: Vector2 = (outline as Node2D).global_position
-		remove_child(outline)
-		s.add_child(outline)
-		var ol: Node2D = outline
-		ol.global_position = o_gpos
-		ol.rotation = grot
-		ol.z_index = -2
-		var otw: Tween = ol.create_tween()
-		otw.tween_property(ol, "modulate:a", 0.0, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-		otw.tween_callback(ol.queue_free)
+	# The black outline is NOT carried onto the wreck (Roman 2026-06-11: "the outline fade can just
+	# be removed, how it was before was fine"). It's a sibling on the enemy and frees with it.
 	# Glowmap: enemies with a GlowMask FLICKER it then fade it out as they disable (Roman 2026-06-10).
 	# Carry it onto the hull so it tracks the fall, then run a brief flicker -> fade.
 	var glow: Node = get_node_or_null("GlowMask")
