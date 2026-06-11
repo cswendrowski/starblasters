@@ -179,10 +179,14 @@ func _trigger_damage_burst() -> void:
 	if _player == null or not is_instance_valid(_player):
 		visible = true
 		return
-	# Spawn the explosive impact flash at the engine pixel in world space.
-	# Parent to scene root so it survives if the player moves/dies.
+	# Spawn the explosive impact flash at the engine pixel in world space. Parent
+	# into the player's OWN container (same viewport) so it survives the player
+	# moving but renders in the right viewport — current_scene put it in the
+	# HD-root scene when the player lives in a SubViewport (Roman 2026-06-11).
 	var burst_pos: Vector2 = _player.to_global(ENGINE_LOCAL)
-	var parent: Node = get_tree().current_scene
+	var parent: Node = _player.get_parent()
+	if parent == null:
+		parent = get_tree().current_scene
 	if parent == null:
 		parent = get_tree().root
 	ImpactFx.spawn(parent, burst_pos, Color(1.0, 0.55, 0.20, 1.0), ImpactFx.ImpactKind.EXPLOSIVE)

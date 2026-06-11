@@ -95,8 +95,16 @@ func _ready() -> void:
 	# along the line's length via Line2D.texture_mode.
 	_line.texture = _build_noise_texture()
 	_line.texture_mode = Line2D.LINE_TEXTURE_TILE
-	# Parent under scene root so the line lives in world space.
-	var p := get_tree().current_scene
+	# Parent the world-space line into the host's container (same viewport). This
+	# node is a child of the host (player), so get_parent() is the host and its
+	# parent is the world node. current_scene put it in the HD-root scene when the
+	# host lives in a SubViewport → upper-left corner (Roman 2026-06-11; see
+	# docs/godot-patterns.md "SubViewport-hosted fx must parent to the host's world").
+	var p: Node = null
+	if get_parent() != null and get_parent().get_parent() != null:
+		p = get_parent().get_parent()
+	else:
+		p = get_tree().current_scene
 	if p == null:
 		p = get_tree().root
 	p.call_deferred("add_child", _line)

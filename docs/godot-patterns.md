@@ -316,3 +316,22 @@ occluded) and the muzzle flash lost its coloured glow halo, leaving the bare add
 z-indices in the gameplay layer (including `z=-1`) render above it — mirroring how combat keeps its
 backdrop on a lower layer. Do NOT add background ColorRects as plain children of the play SubViewport at
 z=0. Lesson: when a play-area's content can be `z < 0`, its background can't be a z=0 sibling.
+
+### Fourth trap: SubViewport-hosted fx must parent to the host's WORLD, not the scene root
+
+**Symptom:** "effects appear in the upper-left corner" of the hangar / weapon-lab — engine trails, damage
+smoke, engine-torch bursts render at the top-left instead of on the ship. Recurs whenever a new world-space
+fx is added. **Cause:** world-space fx (Line2D trails, impact flashes) that must NOT inherit the host's
+rotation are parented to `get_tree().current_scene` or `get_tree().root` so they live in "world space."
+That's fine in combat (the whole game is one native-480 viewport) but WRONG when the host lives in a
+**SubViewport**: `current_scene` is the HD-root Control (1920×1080) and `root` is the HD window viewport, so
+the fx renders at the host's native coords (~240,240) inside the 1920×1080 canvas → the upper-left corner.
+
+**Fix / rule:** a world-space fx attached to a host parents to **the host's OWN parent**
+(`host.get_parent()`) — same viewport as the host, but a sibling (not a child) so it still doesn't inherit
+the host's rotation. NEVER `get_tree().current_scene` / `get_tree().root` for host-attached fx. Fixed in
+`engine_trail_fx.setup` (`enemy.get_parent()`), `damage_smoke_trail._ready` (`get_parent().get_parent()` —
+the node is a child of the host), `engine_torch._trigger_damage_burst` (`_player.get_parent()`).
+`parallax_shadow` already did this. **Guard:** `bullet`/projectile fx already use `_fx_parent()` =
+`get_parent()` — follow that convention for any new host-attached effect. Quick check: boot the hangar
+headless and assert every `Line2D` reports `get_viewport() == _preview_vp` (0 strays in the window).

@@ -61,3 +61,21 @@ holds both; flag if you want the shop UI split too.
 **Fix:** `main_menu._style_version` now sizes a real HD box (PRESET_BOTTOM_RIGHT, 222×38, 18px right /
 14px bottom margin), right-aligned + vertically centered. Verified headless: `v0.1.116` renders at
 (1680,1028)–(1902,1066), fully on-screen. Low risk; eyeball at your leisure.
+
+---
+
+## [done] Hangar: upper-left corner effects (recurring) — branch `wl-session-2026-06-11`
+
+**Spec:** effects still appear in the upper-left corner not rendering with everything else; find/fix/guard.
+**Cause (the recurring class):** world-space fx attached to the player (engine trails, damage smoke,
+engine-torch burst) parented to `get_tree().current_scene` / `root` to avoid inheriting the host's
+rotation. Fine in combat (one native-480 viewport) but in a SubViewport the scene root is the HD-root
+Control (1920×1080), so the fx rendered at the host's native coords (~240,240) inside the 1920×1080 canvas
+= the upper-left corner.
+**Fix:** host-attached world-space fx now parent to **the host's OWN parent** (same viewport, sibling not
+child): `engine_trail_fx` (`enemy.get_parent()`, deferred add to dodge the spawn-frame "parent busy"),
+`damage_smoke_trail` (`get_parent().get_parent()`), `engine_torch` burst (`_player.get_parent()`).
+`parallax_shadow` already did this. Documented as the **fourth HD-SubViewport trap** in
+`docs/godot-patterns.md` with the boot-and-assert-`get_viewport()` guard.
+**Verified headless:** hangar engine-trail Line2Ds = 2 in the SubViewport, 0 strays in the window; combat
+boots with no trail/"parent busy" errors. Gate 271.
