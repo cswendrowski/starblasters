@@ -1,0 +1,15 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/parts/quad_lasers.gd" id="1_w"]
+[ext_resource type="PackedScene" uid="uid://bhumpxm8yt321" path="res://scenes/projectiles/bullet_rotary_laser.tscn" id="2_bullet"]
+
+[resource]
+script = ExtResource("1_w")
+mark = 1
+base_damage = 1
+dmg_per_mark = 0
+base_cooldown = 0.12
+base_ammo = 90
+ammo_recharge_rate = 2.5
+no_outpost_refill = true
+bullet_scene = ExtResource("2_bullet")

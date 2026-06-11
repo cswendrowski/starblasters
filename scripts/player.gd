@@ -44,6 +44,9 @@ var _tandem_side: int = 0
 # twin stream). 0 = off. Distinct from fire_tandem_alternating (wing markers) —
 # this offsets the single Cannon marker laterally instead.
 var primary_lateral_alternate: float = 0.0
+# Quad Lasers: when non-empty, the primary fires one bolt per x-offset, all PARALLEL
+# (straight up) at muzzle_x + offset. Overrides the spread fan + tandem/lateral.
+var primary_parallel_offsets: PackedFloat32Array = PackedFloat32Array()
 # Use the rotary laser muzzle FX in place of the default energy muzzle.
 # Set by cannons (Auto Laser) that want the rotary laser flash without
 # being on the ROTARY_LASER ammo/charge path.
@@ -1322,11 +1325,14 @@ func fire_primary() -> void:
 	# Spread support — Spread Cannon Part sets bullet_spread_count > 1.
 	# Default 1 fires straight up exactly as before. For N > 1, fan the
 	# bullets out across bullet_spread_degrees, centred straight up.
-	var count: int = max(1, bullet_spread_count)
+	# Quad Lasers fire one bolt per parallel x-offset (all straight up); otherwise
+	# the spread-fan path (default 1 = single straight-up shot).
+	var parallel: bool = primary_parallel_offsets.size() > 0
+	var count: int = primary_parallel_offsets.size() if parallel else max(1, bullet_spread_count)
 	var spread_rad: float = deg_to_rad(bullet_spread_degrees)
 	for i in range(count):
 		var angle: float = 0.0
-		if count > 1:
+		if not parallel and count > 1:
 			var t: float = float(i) / float(count - 1)
 			angle = -spread_rad * 0.5 + spread_rad * t
 		# 0 angle = straight up. (sin(a), -cos(a)) rotates around the up axis.
@@ -1354,7 +1360,10 @@ func fire_primary() -> void:
 		# Slide the muzzle flash position with the spawn so the rotary
 		# laser flash sits over the bolt, not at center.
 		var spawn_offset: Vector2 = muzzle_off
-		if fire_tandem_alternating and count == 1:
+		if parallel:
+			# Quad Lasers: parallel bolt at muzzle_x + this offset (muzzle flash stays centred).
+			spawn_offset = muzzle_off + Vector2(primary_parallel_offsets[i], 0.0)
+		elif fire_tandem_alternating and count == 1:
 			# Auto Laser fires from the wing muzzle markers, alternating L/R.
 			var wing: String = "Ship/MuzzleWingL" if _tandem_side == 0 else "Ship/MuzzleWingR"
 			var fallback := Vector2(-4.0 if _tandem_side == 0 else 4.0, -2.0)

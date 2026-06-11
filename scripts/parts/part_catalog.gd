@@ -7,6 +7,7 @@ const BasicEngine = preload("res://scripts/parts/basic_engine.gd")
 const BasicBlasterCannon = preload("res://scripts/parts/basic_blaster_cannon.gd")
 const HeavyBlaster = preload("res://scripts/parts/heavy_blaster.gd")
 const TwinBlaster = preload("res://scripts/parts/twin_blaster.gd")
+const QuadLasers = preload("res://scripts/parts/quad_lasers.gd")
 const VectoringEngine = preload("res://scripts/parts/vectoring_engine.gd")
 const AutocannonCannon = preload("res://scripts/parts/autocannon_cannon.gd")
 const MinigunCannon = preload("res://scripts/parts/minigun_cannon.gd")
@@ -54,6 +55,7 @@ static func _all_pool() -> Array:
 		{"factory": "_make_autocannon", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_minigun", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_rotary_laser", "slot": Slots.SlotType.CANNON},
+		{"factory": "_make_quad_lasers", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_wave_gun", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_laser_beam", "slot": Slots.SlotType.CANNON},
 		# Cody 2026-05-19: missile/rocket weapons live in HARDPOINT_WING
@@ -134,6 +136,8 @@ static func _make_by_name(name: String, slot: int):
 			return _build_weapon("res://resources/weapons/minigun.tres", MinigunCannon, BulletMinigun)
 		"_make_rotary_laser":
 			return _build_weapon("res://resources/weapons/rotary_laser.tres", RotaryLaserCannon, BulletRotaryLaser)
+		"_make_quad_lasers":
+			return _build_weapon("res://resources/weapons/quad_lasers.tres", QuadLasers, BulletRotaryLaser)
 		"_make_wave_gun":
 			# Bullet fallback is null — WaveGunCannon picks small vs large per
 			# Mk inside apply(). Forcing a single bullet here would override
