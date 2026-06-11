@@ -14,6 +14,11 @@ var bounty: int = 0
 # to compute what was earned in THIS combat/hazard only. Read by the
 # cleared summary (e.g. asteroid mining miners-thank-you line).
 var _bounty_at_combat_start: int = 0
+# Combat screen-space sweeteners (renderer-polish D, 2026-06-11): post-fx band
+# (chromatic aberration + explosion ripple) + the low-hull danger pulse. Created
+# once, wired to the live player each combat in new_game().
+var _postfx: CanvasLayer = null
+var _danger: CanvasLayer = null
 var playing: bool = false
 var _boss_hooked: Node = null
 # Per-enemy-type stats: scene_path → {"spawned": int, "killed": int, "bounty": int, "total_bounty": int}
@@ -507,6 +512,26 @@ func _on_player_died() -> void:
 	await get_tree().create_timer(1.4).timeout
 	SceneTransition.change_scene(get_tree(), "res://scenes/run_summary.tscn")
 
+# Create the combat screen-space overlays once + (re)wire them to the live player.
+# Safe to call every combat: the nodes are built lazily, and the danger-pulse hull
+# hook guards against a double-connect when the player persists across levels.
+func _ensure_combat_overlays() -> void:
+	if _postfx == null or not is_instance_valid(_postfx):
+		var PostFx = load("res://scripts/effects/combat_postfx.gd")
+		_postfx = PostFx.new()
+		_postfx.name = "CombatPostFx"
+		add_child(_postfx)
+	if _danger == null or not is_instance_valid(_danger):
+		var Danger = load("res://scripts/effects/danger_pulse.gd")
+		_danger = Danger.new()
+		_danger.name = "DangerPulse"
+		add_child(_danger)
+	if player != null and is_instance_valid(player):
+		_postfx.set_player(player)
+		if not player.hull_changed.is_connected(_danger.on_hull_changed):
+			player.hull_changed.connect(_danger.on_hull_changed)
+
+
 func new_game() -> void:
 	bounty = 0
 	_enemy_stats.clear()
@@ -521,6 +546,7 @@ func new_game() -> void:
 		bounty = get_node("/root/Run").bounty
 	_bounty_at_combat_start = bounty
 	$CanvasLayer/UI.update_score(bounty)
+	_ensure_combat_overlays()
 	if player and is_instance_valid(player):
 		player.start()
 		if has_node("/root/Run"):

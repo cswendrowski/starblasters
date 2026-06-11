@@ -286,7 +286,9 @@ static func _spawn_flash(parent: Node, world_pos: Vector2, use_local: bool = fal
 	glow.texture = _build_flash_texture()
 	glow.position = local_pos
 	glow.scale = Vector2(1.0, 1.0)
-	glow.modulate = Color(1.0, 0.72, 0.28, 1.0)  # yellow-orange
+	# HDR-bright yellow-orange so the muzzle flash clears glow_hdr_threshold=1.0
+	# and blooms (Roman renderer-polish C, 2026-06-11). Was 1.0/0.72/0.28.
+	glow.modulate = Color(1.9, 1.35, 0.5, 1.0)
 	glow.z_index = 4
 	var glow_mat := CanvasItemMaterial.new()
 	glow_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD

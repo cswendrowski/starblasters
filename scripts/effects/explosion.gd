@@ -39,6 +39,12 @@ func _ready() -> void:
 	_spawn_debris()
 	if emit_light:
 		_spawn_light()
+	# D2 (renderer-polish): big booms kick a screen ripple via the post-fx band.
+	# Gated on base_scale so chaff deaths (~1.0) don't spam ripples — only large
+	# enemy/boss explosions (>=1.4) ring the screen, scaled by how big.
+	if base_scale >= 1.4:
+		var strength: float = clampf((base_scale - 1.0) * 0.7, 0.4, 1.6)
+		get_tree().call_group("post_fx", "ping_ripple", global_position, strength)
 	# Set initial frame on all sprites so spawn frame 0 is visible.
 	_apply_frame_to_all()
 	# Hard self-destruct timer. Tight enough that the final smoke frame
@@ -93,7 +99,9 @@ func _make_explosion_sprite(offset: Vector2, sc: float, delay: float) -> Diction
 	halo.scale = Vector2(sc, sc)
 	halo.rotation = sprite.rotation
 	halo.visible = delay <= 0.0
-	halo.self_modulate = Color(1.6, 1.4, 0.9, 0.55)
+	# HDR-bright so the explosion core clears glow_hdr_threshold=1.0 and blooms
+	# (Roman renderer-polish C, 2026-06-11). Was 1.6/1.4/0.9.
+	halo.self_modulate = Color(2.1, 1.8, 1.1, 0.55)
 	# Additive blend = brighter where it overlaps the sprite (bloom-ish).
 	var mat := CanvasItemMaterial.new()
 	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD

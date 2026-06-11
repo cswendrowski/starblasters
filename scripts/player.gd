@@ -976,6 +976,19 @@ func _process(delta: float) -> void:
 # Focus lives inline in _process; Hyper + Phase share the same `focus` (Shift) action
 # but have their own resource models. Design: docs/shift_mode_system_2026-06-08.md.
 
+# Screen post-FX aberration request, read each frame by CombatPostFx (renderer-polish
+# D3, 2026-06-11): the aggressive Shift-modes split the screen channels slightly.
+# Hyper overcharge holds a steady split; a phase dash punches a stronger one that the
+# controller eases back as the dash ends. 0 = no aberration.
+func postfx_aberration() -> float:
+	var a: float = 0.0
+	if _hyper_active:
+		a = maxf(a, 0.0026)
+	if _phase_t > 0.0:
+		a = maxf(a, 0.0045)
+	return a
+
+
 # Called by ModePart.apply/unapply when the equipped Shift mode changes. Pulls the
 # part's Mk-scaled tunables and resets runtime state.
 func _on_mode_changed() -> void:
