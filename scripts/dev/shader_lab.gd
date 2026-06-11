@@ -120,7 +120,7 @@ const KNOBS := {
 		{"key": "scale_max", "label": "Scale max", "min": 0.1, "max": 3.0, "step": 0.05, "def": 1.0},
 		{"key": "scale_grow", "label": "Grow ×", "min": 0.5, "max": 5.0, "step": 0.1, "def": 2.4},
 		{"key": "spread_deg", "label": "Spread (deg)", "min": 0.0, "max": 180.0, "step": 1.0, "def": 18.0},
-		{"key": "spin_deg", "label": "Spin (deg)", "min": 0.0, "max": 180.0, "step": 1.0, "def": 40.0},
+		{"key": "jitter_deg", "label": "Angle jitter (deg)", "min": 0.0, "max": 90.0, "step": 1.0, "def": 18.0},
 	],
 	"Glow": [],
 	"Bloom Env": [
@@ -207,6 +207,7 @@ var _ember_stops: Array = []
 var _smoke_host: Node2D = null
 var _smoke_trail: GPUParticles2D = null
 var _smoke_t: float = 0.0
+var _smoke_orient: bool = true
 var _smoke_colors := {"start_color": Color("bfc8c3"), "end_color": Color("100c08")}
 
 # Player-modes showcase state.
@@ -589,6 +590,15 @@ func _enter_smoke() -> void:
 	_knob_box.add_child(_label("12-frame smoke_pulse sprite, played once per\npuff. Born light → darkens + fades; the host\nweaves so the trail reads.", FS_CAPTION, UiTheme.COLOR_FAINT))
 	_add_smoke_color("Start  (fresh)", "start_color")
 	_add_smoke_color("End  (aged)", "end_color")
+	var ori := CheckButton.new()
+	ori.text = "Orient bottom to motion"
+	ori.button_pressed = _smoke_orient
+	ori.add_theme_font_override("font", UiTheme.active_font())
+	ori.add_theme_font_size_override("font_size", FS_BODY)
+	ori.toggled.connect(func(on: bool):
+		_smoke_orient = on
+		_rebuild_smoke())
+	_knob_box.add_child(ori)
 	_knob_box.add_child(HSeparator.new())
 	_build_knobs("Smoke")
 
@@ -621,7 +631,8 @@ func _rebuild_smoke() -> void:
 		"scale_max": float(v["scale_max"]),
 		"scale_grow": float(v["scale_grow"]),
 		"spread_deg": float(v["spread_deg"]),
-		"spin_deg": float(v["spin_deg"]),
+		"jitter_deg": float(v["jitter_deg"]),
+		"orient": _smoke_orient,
 		"start_color": _smoke_colors["start_color"],
 		"end_color": _smoke_colors["end_color"],
 	})
@@ -1451,7 +1462,7 @@ func _snippet_smoke() -> String:
 	t += "\t\"amount\": %d, \"lifetime\": %.2f,\n" % [int(v["amount"]), float(v["lifetime"])]
 	t += "\t\"speed_min\": %.1f, \"speed_max\": %.1f, \"gravity\": %.1f,\n" % [float(v["speed_min"]), float(v["speed_max"]), float(v["gravity"])]
 	t += "\t\"scale_min\": %.2f, \"scale_max\": %.2f, \"scale_grow\": %.2f,\n" % [float(v["scale_min"]), float(v["scale_max"]), float(v["scale_grow"])]
-	t += "\t\"spread_deg\": %.1f, \"spin_deg\": %.1f,\n" % [float(v["spread_deg"]), float(v["spin_deg"])]
+	t += "\t\"spread_deg\": %.1f, \"jitter_deg\": %.1f, \"orient\": %s,\n" % [float(v["spread_deg"]), float(v["jitter_deg"]), ("true" if _smoke_orient else "false")]
 	t += "\t\"start_color\": Color(\"%s\"), \"end_color\": Color(\"%s\"),\n" % [sc.to_html(false), ec.to_html(false)]
 	t += "})\n"
 	return t

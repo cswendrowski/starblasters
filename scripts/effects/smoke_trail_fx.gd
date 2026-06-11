@@ -16,6 +16,7 @@ extends Node
 # particle plays it once over its life. trail()/puff() use it automatically.
 const SPRITE_PATH := "res://graphics/effects/smoke_pulse.png"
 const SPRITE_HFRAMES := 12
+const EMITTER_SCRIPT := preload("res://scripts/effects/smoke_trail_emitter.gd")
 
 const START_COLOR := Color(0.749, 0.784, 0.765)  # #bfc8c3 — fresh puff
 const END_COLOR := Color(0.063, 0.047, 0.031)    # #100c08 — aged/settled
@@ -32,7 +33,8 @@ const DEFAULTS := {
 	"scale_min": 0.5,
 	"scale_max": 1.0,
 	"scale_grow": 2.4,     # final scale = initial × this
-	"spin_deg": 40.0,
+	"orient": true,        # rotate the sprite's bottom toward the source's motion
+	"jitter_deg": 18.0,    # ± random angle spread on the oriented puffs
 	"start_color": START_COLOR,
 	"end_color": END_COLOR,
 	"peak_alpha": 0.9,
@@ -58,6 +60,9 @@ static func _make(parent: Node, pos: Vector2, params: Dictionary, one_shot: bool
 	v.merge(params, true)
 
 	var p := GPUParticles2D.new()
+	p.set_script(EMITTER_SCRIPT)
+	p.set("orient", bool(v["orient"]))
+	p.set("jitter_deg", float(v["jitter_deg"]))
 	p.name = "SmokeTrail"
 	p.amount = maxi(1, int(v["amount"]))
 	p.lifetime = float(v["lifetime"])
@@ -106,10 +111,13 @@ static func _make(parent: Node, pos: Vector2, params: Dictionary, one_shot: bool
 	var sct := CurveTexture.new()
 	sct.curve = sc
 	m.scale_curve = sct
-	m.angle_min = -float(v["spin_deg"])
-	m.angle_max = float(v["spin_deg"])
-	m.angular_velocity_min = -float(v["spin_deg"])
-	m.angular_velocity_max = float(v["spin_deg"])
+	# Initial angle jitter; the emitter script rewrites angle_min/max each frame
+	# to orient the bottom toward the motion direction (when `orient`). No
+	# continuous spin — the orientation is the point.
+	m.angle_min = -float(v["jitter_deg"])
+	m.angle_max = float(v["jitter_deg"])
+	m.angular_velocity_min = 0.0
+	m.angular_velocity_max = 0.0
 	m.color_ramp = build_ramp(v["start_color"], v["end_color"], float(v["peak_alpha"]))
 	p.process_material = m
 
