@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/dev/player_fx_lab.gd" id="1_pfxl"]
+
+[node name="PlayerFxLab" type="Node2D"]
+script = ExtResource("1_pfxl")
