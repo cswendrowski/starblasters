@@ -8,7 +8,7 @@ size = Vector2(4, 16)
 
 [node name="BulletLaser" type="Area2D" unique_id=1166361325]
 script = ExtResource("1_script")
-speed = 480
+speed = 180
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=282822656]
 texture = ExtResource("2_n8bpe")

@@ -11,21 +11,28 @@ extends "res://scripts/parts/primary_weapon.gd"
 # survives .tres loading (unlike @export which would default to NONE for
 # resource-loaded instances since _init doesn't run).
 
-# Cooldown shrinks by ~35% from Mk.1 → Mk.9 (faster firing at top tier).
-@export var cooldown_at_mk9: float = 0.18
+# Cooldown shrinks from Mk.1 → Mk.9 (faster firing at top tier), but stays slow —
+# this is the hard-hitting BLASTER-REPLACEMENT, not a rapid weapon.
+@export var cooldown_at_mk9: float = 0.30
 
 
 func _init() -> void:
 	super._init()
 	display_name = "Heavy Blaster"
-	description = "Slow firing, hits hard per shot."
-	base_damage = 5
+	description = "Blaster replacement: slow, slow-moving shots that hit very hard. Unlimited ammo."
+	base_damage = 6
 	dmg_per_mark = 3
-	base_cooldown = 0.28
+	base_cooldown = 0.40
 
 
 func _fire_sfx_kind() -> int:
 	return WS.FireSfxKind.BLASTER_LARGE
+
+
+# Heavy Blaster is now an infinite BLASTER REPLACEMENT (Roman 2026-06-11): equipping
+# it sends the old blaster to the hold; it never meters ammo. -1 = infinite.
+func ammo_at_mark(_mk: int) -> int:
+	return -1
 
 
 func _mk_knobs() -> Dictionary:

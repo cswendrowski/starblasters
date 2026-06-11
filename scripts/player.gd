@@ -40,6 +40,10 @@ var bullet_max_hits_override: int = -1
 # _tandem_side toggles 0/1 between shots.
 var fire_tandem_alternating: bool = false
 var _tandem_side: int = 0
+# Twin Blaster: alternate the primary muzzle X by ±this many px each shot (woven
+# twin stream). 0 = off. Distinct from fire_tandem_alternating (wing markers) —
+# this offsets the single Cannon marker laterally instead.
+var primary_lateral_alternate: float = 0.0
 # Use the rotary laser muzzle FX in place of the default energy muzzle.
 # Set by cannons (Auto Laser) that want the rotary laser flash without
 # being on the ROTARY_LASER ammo/charge path.
@@ -1355,6 +1359,12 @@ func fire_primary() -> void:
 			var wing: String = "Ship/MuzzleWingL" if _tandem_side == 0 else "Ship/MuzzleWingR"
 			var fallback := Vector2(-4.0 if _tandem_side == 0 else 4.0, -2.0)
 			spawn_offset = _muzzle_offset(wing, fallback)
+			muzzle_pos = global_position + spawn_offset
+			_tandem_side = 1 - _tandem_side
+		elif primary_lateral_alternate > 0.0 and count == 1:
+			# Twin Blaster: offset the Cannon marker ±N px laterally, alternating each shot.
+			var dx: float = -primary_lateral_alternate if _tandem_side == 0 else primary_lateral_alternate
+			spawn_offset = muzzle_off + Vector2(dx, 0.0)
 			muzzle_pos = global_position + spawn_offset
 			_tandem_side = 1 - _tandem_side
 		# Doppler fix: add the player's velocity along this bullet's fire

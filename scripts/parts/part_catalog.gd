@@ -6,6 +6,7 @@ const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 const BasicEngine = preload("res://scripts/parts/basic_engine.gd")
 const BasicBlasterCannon = preload("res://scripts/parts/basic_blaster_cannon.gd")
 const HeavyBlaster = preload("res://scripts/parts/heavy_blaster.gd")
+const TwinBlaster = preload("res://scripts/parts/twin_blaster.gd")
 const VectoringEngine = preload("res://scripts/parts/vectoring_engine.gd")
 const AutocannonCannon = preload("res://scripts/parts/autocannon_cannon.gd")
 const MinigunCannon = preload("res://scripts/parts/minigun_cannon.gd")
@@ -49,6 +50,7 @@ static func _all_pool() -> Array:
 		{"factory": "_make_vectoring_engine", "slot": Slots.SlotType.ENGINE},
 		{"factory": "_make_basic_blaster", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_heavy_blaster", "slot": Slots.SlotType.CANNON},
+		{"factory": "_make_twin_blaster", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_autocannon", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_minigun", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_rotary_laser", "slot": Slots.SlotType.CANNON},
@@ -121,6 +123,8 @@ static func _make_by_name(name: String, slot: int):
 			return _build_weapon("res://resources/weapons/energy_blaster.tres", BasicBlasterCannon, BulletDefault)
 		"_make_heavy_blaster":
 			return _build_weapon("res://resources/weapons/heavy_blaster.tres", HeavyBlaster, BulletHeavy)
+		"_make_twin_blaster":
+			return _build_weapon("res://resources/weapons/twin_blaster.tres", TwinBlaster, BulletMedium)
 		"_make_autocannon":
 			# Autocannon fires its OWN projectile, bullet_autocannon.tscn (Roman 2026-06-10 rename;
 			# distinct from the minigun's). The old AutocannonCannon.new() left bullet_scene null so
