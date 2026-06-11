@@ -90,6 +90,8 @@ func _ready() -> void:
 	if _list.item_count > 0:
 		_list.select(0)
 		_on_list_select(0)
+	await get_tree().process_frame
+	HdScreen.verify_native_subviewport(_preview_vp, "Enemy Bench")   # guard: catch the corner regression
 
 
 # ---- Playspace -----------------------------------------------------------
@@ -97,13 +99,19 @@ func _ready() -> void:
 func _build_playspace() -> void:
 	var sub_container := SubViewportContainer.new()
 	sub_container.stretch = true
+	# CRITICAL (the recurring "play area in the corner" regression, Roman 2026-06-11): stretch=true
+	# overwrites the child SubViewport.size to container_size / stretch_shrink each layout pass. Under
+	# HdViewportScope the full-rect container is 1920x1080, so the DEFAULT stretch_shrink=1 forces the
+	# viewport to 1920x1080 and the 480-native content renders in a corner. stretch_shrink=4 keeps it
+	# native 480x270, upscaled 4x. Reference: parallax_tuner.gd + docs/godot-patterns.md.
+	sub_container.stretch_shrink = 4
 	sub_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	sub_container.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	sub_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(sub_container)
 
 	_preview_vp = SubViewport.new()
-	_preview_vp.size = Vector2i(480, 270)
+	_preview_vp.size = Vector2i(480, 270)   # initial; stretch_shrink=4 keeps it here each layout pass
 	_preview_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_preview_vp.handle_input_locally = false
 	sub_container.add_child(_preview_vp)

@@ -245,3 +245,39 @@ For star fields specifically, the V3 procedural approach (random `ColorRect` pos
 **Tuning knob:** the hit `radius` is how fat the target is (player is ~7px half-width). Bigger = fires sooner / more forgiving; smaller = must be dead-on. Pair it with the enemy's turn rate + any lateral offset to shape the firing window.
 
 **Example:** `enemy_strafer.gd` (gated burst on a head-on pass; motion still follows the offset strafe point, firing follows the nose).
+
+## HD SubViewport host (the recurring "play area in the corner" regression)
+
+The dev screens with a native 480×270 play area upscaled 4× to fill the 1920×1080 HD window — Hangar,
+Enemy Bench, Shader Lab, Parallax Tuner, Weapon Lab — all use a `SubViewportContainer`. This setup has
+regressed multiple times into the play area rendering tiny in a corner. **Root cause, definitively:**
+
+`SubViewportContainer.stretch = true` **overwrites its child `SubViewport.size` to
+`container_size / stretch_shrink` on every layout pass.** The `subviewport.size = Vector2i(480, 270)`
+you set in code is only an *initial* value the container immediately clobbers. Every HD screen runs
+under `HdViewportScope` (it swaps `window.content_scale_size` to 1920×1080), so a `PRESET_FULL_RECT`
+container measures **1920×1080**. With the **default `stretch_shrink = 1`**, the container forces the
+viewport to 1920×1080 — and 480-native content (Playfield band, sprites) lands in a 480×270 corner of
+a 1920×1080 render target. **The fix is `stretch_shrink = 4`** (1920 / 4 = 480): the viewport renders
+native 480×270 and the container upscales it 4× with nearest filtering.
+
+This is subtle because: (1) the code-set `size = 480×270` *looks* correct but is silently overridden;
+(2) one wrong sibling (Shader Lab) compensated with a 4× content node at 1920-viewport instead, so two
+contradictory "patterns" coexisted and copying the wrong one reintroduced the bug.
+
+**DO:** use the canonical factory — it bakes in `stretch_shrink = 4` so it can't be dropped:
+```gdscript
+_preview_vp = HdScreen.make_play_subviewport(self)   # full-rect container, viewport stays native 480×270
+# ...add content at NATIVE 480 coords to _preview_vp...
+await get_tree().process_frame
+HdScreen.verify_native_subviewport(_preview_vp, "My Screen")   # loud error if it ever regresses
+```
+
+**DON'T:** hand-roll a `SubViewportContainer` with `stretch = true` and forget `stretch_shrink`, and
+don't "fix" a screen by copying one that uses a 4× content node — that diverges the pattern again.
+
+**Reference impl:** `scripts/dev/parallax_tuner.gd` (always had `stretch_shrink = 4`).
+**Guard:** every host calls `HdScreen.verify_native_subviewport(_preview_vp, "<name>")` one frame after
+building — it pushes a loud `ERROR: ... MISCONFIGURED` to the console if the viewport isn't 480×270
+(i.e. the regression returned). Cheap regression check: boot any host scene headless
+(`godot --headless <scene.tscn> --quit-after 5`) and grep the output for `MISCONFIGURED`.

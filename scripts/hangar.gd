@@ -128,6 +128,7 @@ func _ready() -> void:
 	# Run.loadout_snapshot — same loadout a fresh-run player would have.
 	# Wait a frame for that to settle, then mirror it into the picker.
 	await get_tree().process_frame
+	HdScreen.verify_native_subviewport(_preview_vp, "Hangar")   # guard: catch the corner regression
 	_refresh_part_list()
 	_refresh_status()
 
@@ -148,13 +149,21 @@ func _build_playspace() -> void:
 	# viewport stays 480×270 so every Playfield.* coordinate the player/bullets use is native.
 	var sub_container := SubViewportContainer.new()
 	sub_container.stretch = true
+	# CRITICAL (root cause of the recurring "play area in the corner" regression, Roman 2026-06-11):
+	# stretch=true OVERWRITES the child SubViewport.size to container_size / stretch_shrink on every
+	# layout pass — the `_preview_vp.size = 480x270` below is only an initial value it then clobbers.
+	# Under HdViewportScope the full-rect container measures 1920x1080, so the DEFAULT stretch_shrink=1
+	# would force the viewport to 1920x1080 and the 480-native content would render in a 480x270 corner.
+	# stretch_shrink=4 makes it 1920/4 x 1080/4 = 480x270 native, upscaled 4x. See parallax_tuner.gd
+	# (the reference) + docs/godot-patterns.md "HD SubViewport host".
+	sub_container.stretch_shrink = 4
 	sub_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	sub_container.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	sub_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(sub_container)
 
 	_preview_vp = SubViewport.new()
-	_preview_vp.size = Vector2i(480, 270)
+	_preview_vp.size = Vector2i(480, 270)   # initial; stretch_shrink=4 keeps it here each layout pass
 	_preview_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	# The player + dummy self-drive off the GLOBAL Input singleton, so the viewport doesn't need
 	# local GUI input. (handle_input_locally false = it never steals the overlay's button clicks.)

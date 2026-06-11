@@ -254,6 +254,8 @@ func _ready() -> void:
 	_build_playspace()
 	_build_overlay()
 	_set_mode(0)
+	await get_tree().process_frame
+	HdScreen.verify_native_subviewport(_preview_vp, "Shader Lab")   # guard: catch the corner regression
 
 
 func _init_values() -> void:
@@ -281,45 +283,45 @@ func _build_playspace() -> void:
 	# mis-composited additive blends (the same bug the hangar V6 hit). At 1920-res
 	# the glow's LINEAR filter stays smooth while pixel-art sprites keep their own
 	# NEAREST crispness — matching the game's canvas_items look (Roman 2026-06-10).
+	# Unified to the canonical HD SubViewport host (Roman 2026-06-11): stretch_shrink=4 keeps the
+	# SubViewport NATIVE 480×270 (stretch=true otherwise clobbers .size to the container's 1920×1080
+	# every layout pass) and the container upscales it 4×. Replaces the old "viewport at 1920 + a 4×
+	# HiRes content node" variant — same result, but now identical to parallax_tuner / hangar /
+	# enemy_bench so the play area can't regress into the corner. See docs/godot-patterns.md.
 	var sub_container := SubViewportContainer.new()
 	sub_container.stretch = true
+	sub_container.stretch_shrink = 4
 	sub_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	sub_container.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	sub_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(sub_container)
 
 	_preview_vp = SubViewport.new()
-	_preview_vp.size = Vector2i(480, 270)  # stretch=true resizes this to 1920×1080
+	_preview_vp.size = Vector2i(480, 270)   # honored now (stretch_shrink=4)
 	_preview_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_preview_vp.handle_input_locally = false
 	_preview_vp.use_hdr_2d = true  # screen_glow + bloom-env modes need HDR
 	sub_container.add_child(_preview_vp)
 
-	# 4× content root — 480-authored coords map onto the 1920×1080 viewport at HD.
-	var hi := Node2D.new()
-	hi.name = "HiRes"
-	hi.scale = Vector2(4, 4)
-	_preview_vp.add_child(hi)
-
-	# Background fills sit at a deeply NEGATIVE z so they never occlude effects
-	# that legitimately draw behind their host sprite — the phase glow (z -1),
-	# hyper outline (z -2) and phase ghosts (z -1) were rendering BEHIND an
-	# opaque z=0 band and showing nothing (Roman 2026-06-10).
+	# Content lives at NATIVE 480 coords directly in the viewport (no 4× node). Background fills sit
+	# at a deeply NEGATIVE z so they never occlude effects that legitimately draw behind their host
+	# sprite — the phase glow (z -1), hyper outline (z -2) and phase ghosts (z -1) were rendering
+	# BEHIND an opaque z=0 band and showing nothing (Roman 2026-06-10).
 	var gutter := ColorRect.new()
 	gutter.color = Color(0.04, 0.05, 0.08, 1.0)
 	gutter.size = Vector2(480, 270)
 	gutter.z_index = -101
-	hi.add_child(gutter)
+	_preview_vp.add_child(gutter)
 	var band := ColorRect.new()
 	band.color = Color(0.07, 0.09, 0.13, 1.0)
 	band.position = Vector2(Playfield.X_MIN, 0)
 	band.size = Vector2(Playfield.W, Playfield.H)
 	band.z_index = -100
-	hi.add_child(band)
+	_preview_vp.add_child(band)
 
 	_stage = Node2D.new()
 	_stage.name = "Stage"
-	hi.add_child(_stage)
+	_preview_vp.add_child(_stage)
 
 
 # ---- Overlay UI ----------------------------------------------------------
