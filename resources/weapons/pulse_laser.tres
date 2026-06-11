@@ -1,0 +1,10 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/parts/pulse_laser_cannon.gd" id="1_p"]
+
+[resource]
+script = ExtResource("1_p")
+base_damage = 2
+base_cooldown = 0.06
+display_name = ""
+slot_type = 4

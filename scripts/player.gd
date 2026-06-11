@@ -29,6 +29,19 @@ var bullet_damage: int = 1
 # bullet_spread_count > 1 + bullet_spread_degrees > 0.
 var bullet_spread_count: int = 1
 var bullet_spread_degrees: float = 0.0
+# Pulse Laser (PULSE_LASER weapon_style, Roman 2026-06-11): a 1px HITSCAN beam from the
+# nose that stays pinpoint for `pulse_accuracy_window` shots, then accrues +1° dispersion
+# per shot (cap PULSE_MAX_DISPERSION), decaying when idle. The beam tints white→blue as
+# it grows. The Part stamps pulse_accuracy_window per Mk (base 10, +2/Mk).
+var pulse_accuracy_window: int = 10
+var _pulse_dispersion: float = 0.0       # current cone WIDTH in degrees
+var _pulse_shot_count: int = 0           # shots fired in the current sustained burst
+var _pulse_fired_this_frame: bool = false
+const PULSE_MAX_DISPERSION: float = 20.0
+const PULSE_DISPERSION_DECAY: float = 2.0       # deg/sec recovered when not firing
+const PULSE_RANGE: float = 320.0                # beam reach (px)
+const PULSE_HIT_TOLERANCE: float = 7.0          # perpendicular px the 1px beam still hits
+const PULSE_INACCURATE_COLOR := Color(0.0, 0.06, 0.847)  # #000fd8 — fully-dispersed hue
 # Per-cannon bullet overrides (Roman, 2026-05-24). Cannons that need to
 # scale speed/pierce per Mk write these in apply(); fire_primary stamps
 # them onto each spawned bullet. -1 sentinel = "use the bullet scene's
@@ -773,6 +786,13 @@ func _process(delta: float) -> void:
 		return
 	if _invuln_t > 0.0:
 		_invuln_t = max(0.0, _invuln_t - delta)
+	# Pulse Laser: when not firing this frame, recover dispersion + reset the burst's
+	# accuracy window. _pulse_fired_this_frame is set by _fire_pulse_laser, cleared here.
+	if not _pulse_fired_this_frame:
+		if _pulse_dispersion > 0.0:
+			_pulse_dispersion = maxf(0.0, _pulse_dispersion - PULSE_DISPERSION_DECAY * delta)
+		_pulse_shot_count = 0
+	_pulse_fired_this_frame = false
 	# Secondary cooldown ticks every frame regardless of input — so the
 	# weapon recharges in the background and a tap fires immediately
 	# whenever it's ready.
@@ -1312,10 +1332,84 @@ func _is_mg_family(style: int) -> bool:
 	return style == WS.WeaponStyle.MACHINEGUN or style == WS.WeaponStyle.AUTOCANNON or style == WS.WeaponStyle.MINIGUN
 
 
+# Pulse Laser shot: a 1px hitscan beam from the nose at an angle randomized within the
+# current dispersion cone. Damages the nearest enemy along the beam, draws the glowing
+# beam, and accrues dispersion past the accuracy window. (Roman 2026-06-11.)
+func _fire_pulse_laser() -> void:
+	_pulse_fired_this_frame = true
+	var origin: Vector2 = global_position + _muzzle_offset("Ship/Muzzle", Vector2(0, -8))
+	# Straight up ± a random angle inside the dispersion cone (full width = dispersion).
+	var half: float = deg_to_rad(_pulse_dispersion) * 0.5
+	var ang: float = randf_range(-half, half)
+	var dir := Vector2(sin(ang), -cos(ang))
+	var dmg: int = bullet_damage
+	if _hyper_active and active_mode == ShiftMode.HYPER:
+		dmg = int(round(float(bullet_damage) * hyper_damage_mult))
+	var hit := _pulse_hitscan(origin, dir, PULSE_RANGE)
+	var enemy = hit["enemy"]
+	if enemy != null and is_instance_valid(enemy):
+		if enemy.has_method("take_hit"):
+			enemy.take_hit(dmg)
+		elif enemy.has_method("take_damage"):
+			enemy.take_damage(dmg)
+	_spawn_pulse_beam(origin, hit["point"])
+	# Accuracy: pinpoint for the first `pulse_accuracy_window` shots of a burst, then
+	# +1° dispersion per shot up to the cap.
+	_pulse_shot_count += 1
+	if _pulse_shot_count > pulse_accuracy_window:
+		_pulse_dispersion = minf(PULSE_MAX_DISPERSION, _pulse_dispersion + 1.0)
+
+
+# Nearest enemy whose hitbox lies within PULSE_HIT_TOLERANCE px of the beam ray (and
+# ahead of the muzzle). Returns {enemy, point} — point is the hit, or the beam's end.
+func _pulse_hitscan(origin: Vector2, dir: Vector2, max_dist: float) -> Dictionary:
+	var best_enemy = null
+	var best_t: float = max_dist
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not (e is Node2D) or not is_instance_valid(e):
+			continue
+		var to_e: Vector2 = (e as Node2D).global_position - origin
+		var t: float = to_e.dot(dir)
+		if t < 0.0 or t > best_t:
+			continue
+		if (to_e - dir * t).length() <= PULSE_HIT_TOLERANCE:
+			best_t = t
+			best_enemy = e
+	return {"enemy": best_enemy, "point": origin + dir * best_t}
+
+
+# A 1px additive glowing beam from origin→end, tinted white→#000fd8 by dispersion,
+# that flashes briefly and frees. Parents to the player's world (combat scene), NOT
+# the player — beams are world-space and must survive in the right viewport.
+func _spawn_pulse_beam(origin: Vector2, end_pt: Vector2) -> void:
+	var line := Line2D.new()
+	line.width = 1.0
+	var ratio: float = clampf(_pulse_dispersion / PULSE_MAX_DISPERSION, 0.0, 1.0)
+	line.default_color = Color(1.0, 1.0, 1.0).lerp(PULSE_INACCURATE_COLOR, ratio)
+	line.add_point(origin)
+	line.add_point(end_pt)
+	line.z_index = 1
+	line.z_as_relative = false
+	var mat := CanvasItemMaterial.new()
+	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD   # glows (HDR-bright white blooms)
+	line.material = mat
+	var host: Node = get_parent()
+	if host == null:
+		host = self
+	host.add_child(line)
+	var tw := line.create_tween()
+	tw.tween_property(line, "modulate:a", 0.0, 0.06)
+	tw.tween_callback(line.queue_free)
+
+
 func fire_primary() -> void:
 	# Minigun is now projectile-based (Roman 2026-06-11) — fires bullet_minigun
 	# through the normal path below, like the other cannons.
-	if not can_shoot or bullet_scene == null:
+	if not can_shoot:
+		return
+	# Pulse Laser is HITSCAN (no bullet scene) — it bypasses the bullet-spawn path.
+	var _is_pulse: bool = weapon_style == WS.WeaponStyle.PULSE_LASER
+	if bullet_scene == null and not _is_pulse:
 		return
 	if _phase_t > 0.0:
 		return  # phased out — no offense
@@ -1340,6 +1434,10 @@ func fire_primary() -> void:
 		$GunCooldown.start($GunCooldown.wait_time / (1.0 + hyper_fire_bonus))
 	else:
 		$GunCooldown.start()
+	# Pulse Laser: hitscan beam from the nose, then bail (no bullet spawn).
+	if _is_pulse:
+		_fire_pulse_laser()
+		return
 	# Rotary Laser firing sound: a rapid random pew per shot (the old sustained
 	# loop's replacement), throttled so the ~20/s fire rate doesn't spam voices.
 	if weapon_style == WS.WeaponStyle.ROTARY_LASER:

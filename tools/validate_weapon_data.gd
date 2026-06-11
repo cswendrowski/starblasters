@@ -27,6 +27,7 @@ const MAP := {
 	"_make_em_torpedo": "res://resources/weapons/em_torpedo.tres",
 	"_make_spread_cannon": "res://resources/weapons/spread_cannon.tres",
 	"_make_shredder": "res://resources/weapons/shredder.tres",
+	"_make_pulse_laser": "res://resources/weapons/pulse_laser.tres",
 	"_make_smart_bomb": "res://resources/weapons/smart_bomb.tres",
 	"_make_particle_beam": "res://resources/weapons/particle_beam.tres",
 	"_make_drone_bits": "res://resources/weapons/drone_bits.tres",

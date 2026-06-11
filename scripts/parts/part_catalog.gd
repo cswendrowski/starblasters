@@ -20,6 +20,7 @@ const AntiShipMissileCannon = preload("res://scripts/parts/anti_ship_missile_can
 const EmTorpedoCannon = preload("res://scripts/parts/em_torpedo_cannon.gd")
 const SpreadCannon = preload("res://scripts/parts/spread_cannon.gd")
 const ShredderCannon = preload("res://scripts/parts/shredder_cannon.gd")
+const PulseLaserCannon = preload("res://scripts/parts/pulse_laser_cannon.gd")
 const SmartBomb = preload("res://scripts/parts/smart_bomb.gd")
 # Shift-Mode parts (SHIFT_MODE slot) — Focus is the default; Phase/Hyper swap in.
 const FocusMode = preload("res://scripts/parts/focus_mode.gd")
@@ -69,6 +70,7 @@ static func _all_pool() -> Array:
 		{"factory": "_make_anti_ship_missile", "slot": Slots.SlotType.HARDPOINT_WING},
 		{"factory": "_make_spread_cannon", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_shredder", "slot": Slots.SlotType.CANNON},
+		{"factory": "_make_pulse_laser", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_smart_bomb", "slot": Slots.SlotType.DEVICE_BAY_1},
 		# Shift-Mode swap-ins (SHIFT_MODE slot, on Shift). Focus is the default
 		# mode (equipped at run start), so it is NOT in the roll/shop pool.
@@ -165,6 +167,9 @@ static func _make_by_name(name: String, slot: int):
 			return _build_weapon("res://resources/weapons/spread_cannon.tres", SpreadCannon, BulletDefault)
 		"_make_shredder":
 			return _build_weapon("res://resources/weapons/shredder.tres", ShredderCannon, BulletShredder)
+		"_make_pulse_laser":
+			# Hitscan — no bullet scene (null fallback); player.gd renders the beam.
+			return _build_weapon("res://resources/weapons/pulse_laser.tres", PulseLaserCannon, null)
 		"_make_smart_bomb":
 			return _build_weapon("res://resources/weapons/smart_bomb.tres", SmartBomb, null)
 		# Mode parts are pure-script (no .tres) — their stats are code-authored
