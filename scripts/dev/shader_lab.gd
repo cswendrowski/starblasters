@@ -586,7 +586,7 @@ func _enter_smoke() -> void:
 
 	_hd_note("SMOKE TRAIL", Vector2(Playfield.CENTER.x - 30.0, 56.0))
 	_knob_box.add_child(_label("Smoke Trail", FS_BODY, UiTheme.COLOR_ACCENT))
-	_knob_box.add_child(_label("Born light → darkens + fades as it ages. The\nhost weaves so the trail reads. Drop a sprite at\ngraphics/effects/smoke_trail.png to use real art.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_knob_box.add_child(_label("12-frame smoke_pulse sprite, played once per\npuff. Born light → darkens + fades; the host\nweaves so the trail reads.", FS_CAPTION, UiTheme.COLOR_FAINT))
 	_add_smoke_color("Start  (fresh)", "start_color")
 	_add_smoke_color("End  (aged)", "end_color")
 	_knob_box.add_child(HSeparator.new())

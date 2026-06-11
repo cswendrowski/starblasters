@@ -12,8 +12,10 @@ extends Node
 # For a trail behind a moving thing, add the returned emitter as a child of
 # that thing (local_coords = false leaves the puffs behind in world space).
 
-# Drop the smoke sprite here and trail()/puff() will use it automatically.
-const SPRITE_PATH := "res://graphics/effects/smoke_trail.png"
+# Smoke sprite — a 12-frame strip of a puff billowing then dissipating. Each
+# particle plays it once over its life. trail()/puff() use it automatically.
+const SPRITE_PATH := "res://graphics/effects/smoke_pulse.png"
+const SPRITE_HFRAMES := 12
 
 const START_COLOR := Color(0.749, 0.784, 0.765)  # #bfc8c3 — fresh puff
 const END_COLOR := Color(0.063, 0.047, 0.031)    # #100c08 — aged/settled
@@ -33,8 +35,9 @@ const DEFAULTS := {
 	"spin_deg": 40.0,
 	"start_color": START_COLOR,
 	"end_color": END_COLOR,
-	"peak_alpha": 0.65,
+	"peak_alpha": 0.9,
 	"texture": null,       # null = sprite at SPRITE_PATH, else procedural puff
+	"hframes": 0,          # 0 = auto (SPRITE_HFRAMES for the strip, else 1)
 }
 
 static var _puff_tex: Texture2D = null
@@ -62,9 +65,29 @@ static func _make(parent: Node, pos: Vector2, params: Dictionary, one_shot: bool
 	p.explosiveness = 1.0 if one_shot else 0.0
 	p.local_coords = false
 	p.position = pos
+	var using_strip: bool = (v["texture"] == null and ResourceLoader.exists(SPRITE_PATH))
 	p.texture = _resolve_texture(v["texture"])
+	p.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR  # soft smoke, not pixel-crisp
+
+	# Sprite-sheet animation: a multi-frame strip plays once over each particle's
+	# life (frame 0 at birth → last frame at death) via a CanvasItemMaterial.
+	var hf: int = int(v["hframes"])
+	if hf <= 0:
+		hf = SPRITE_HFRAMES if using_strip else 1
+	if hf > 1:
+		var cim := CanvasItemMaterial.new()
+		cim.particles_animation = true
+		cim.particles_anim_h_frames = hf
+		cim.particles_anim_v_frames = 1
+		cim.particles_anim_loop = false
+		p.material = cim
 
 	var m := ParticleProcessMaterial.new()
+	if hf > 1:
+		m.anim_speed_min = 1.0   # one full strip over the lifetime
+		m.anim_speed_max = 1.0
+		m.anim_offset_min = 0.0
+		m.anim_offset_max = 0.0
 	m.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
 	m.emission_sphere_radius = 1.5
 	var a := deg_to_rad(float(v["angle_deg"]))
@@ -104,10 +127,10 @@ static func build_ramp(start_c: Color, end_c: Color, peak_a: float) -> GradientT
 	g.colors = PackedColorArray([
 		Color(start_c.r, start_c.g, start_c.b, 0.0),
 		Color(start_c.r, start_c.g, start_c.b, peak_a),
-		Color(end_c.r, end_c.g, end_c.b, peak_a * 0.5),
+		Color(end_c.r, end_c.g, end_c.b, peak_a),
 		Color(end_c.r, end_c.g, end_c.b, 0.0),
 	])
-	g.offsets = PackedFloat32Array([0.0, 0.15, 0.7, 1.0])
+	g.offsets = PackedFloat32Array([0.0, 0.12, 0.78, 1.0])
 	var t := GradientTexture1D.new()
 	t.gradient = g
 	t.width = 128
