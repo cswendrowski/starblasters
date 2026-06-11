@@ -1,8 +1,10 @@
 extends "res://scripts/parts/primary_weapon.gd"
 
-# Spread Cannon. Fans bullets across an arc instead of stacking them
-# straight up — classic shmup 3-way / spread weapon. Trades single-target
-# DPS for crowd coverage; aim-forgiving against wave formations.
+# Scatter Blaster (formerly Spread Cannon, 2026-06-11). Fans bullets across an arc
+# instead of stacking them straight up — classic shmup 3-way / spread weapon. Trades
+# single-target DPS for crowd coverage; aim-forgiving against wave formations.
+# Now a BLASTER-category weapon: unlimited ammo (ammo_at_mark == -1), so it routes to
+# cannon_pool[0] (the infinite blaster slot) like Energy/Heavy/Twin. Otherwise unchanged.
 #
 # Mk scaling: bullet count grows every 2 Mk (coverage), damage is fixed at 2.
 #   Mk: 1  2  3  4  5  6  7  8  9
@@ -16,9 +18,15 @@ extends "res://scripts/parts/primary_weapon.gd"
 
 func _init() -> void:
 	super._init()
-	display_name = "Spread Cannon"
-	description = "Fans bullets in a forward arc. Each pair of Mks adds another bullet."
+	display_name = "Scatter Blaster"
+	description = "Fans bullets in a forward arc. Each pair of Mks adds another bullet. Unlimited ammo."
 	# Stats live in resources/weapons/spread_cannon.tres (single source of truth).
+
+
+# BLASTER category: unlimited ammo. -1 routes this to the infinite blaster slot
+# (cannon_pool[0]) via Run._is_infinite_cannon, same as Energy/Heavy/Twin.
+func ammo_at_mark(_mk: int) -> int:
+	return -1
 
 
 func _fire_sfx_kind() -> int:
