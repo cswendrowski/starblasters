@@ -50,3 +50,14 @@ primary-buy at the outpost, selling stowed weapons in the ship-manager, HUD blas
 the **category rename to "Blaster"/"Primary"** is reflected in the HUD + ship-manager labels; the shop/Weapon-Lab
 still label the slot generically as "Cannon" (SlotTypes.slot_name) — left as-is since the slot genuinely
 holds both; flag if you want the shop UI split too.
+
+---
+
+## [done] Main screen: version label clipping — branch `wl-session-2026-06-11`
+
+**Spec:** version label has been clipped for ages; get it on screen properly.
+**Cause:** the `.tscn` box is 42×10 px (480-era offsets) but `_style_version` bumps the font to 24 at HD
+(1920×1080), so the text overflowed the box off the bottom-right corner.
+**Fix:** `main_menu._style_version` now sizes a real HD box (PRESET_BOTTOM_RIGHT, 222×38, 18px right /
+14px bottom margin), right-aligned + vertically centered. Verified headless: `v0.1.116` renders at
+(1680,1028)–(1902,1066), fully on-screen. Low risk; eyeball at your leisure.
