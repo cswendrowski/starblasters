@@ -330,3 +330,16 @@ artifact; the visible shape would render in-game), `TODO.md`, `Worklist.md`, and
 Research deliverables to action: DPS rebalance recs, renderer `glow_hdr_threshold` tune. Big deferred
 builds awaiting your eyes/playtest: recycler roster migration (#33), clear-screen full unification (#37),
 shader suite visual items 4/6/7 (#44).
+
+## [done] Sector map: per-combat-node faction glitter (real faction data) — branch `wl-session-2026-06-11`
+Reworked #40 per Roman: faction is now a **property of the combat node**, not visit-order. Each combat POI
+gets a deterministic faction at cache-build (`run_state._faction_for_poi`, seeded `run_seed ^ hash(id)` so
+it doesn't perturb the sector-gen rng) stored in the POI dict; `main.gd` reads
+`Run.get_node_faction(current_node_id)` instead of the old visit-order `pick_for_level`, so **map decoration
+↔ actual fight always agree**. The combat node's glitter (`_add_glitter_zone`) is tinted that faction's
+color (`_faction_color`), mirroring the minefield red-pixel scatter; privateer sprinkles ~12% interloper
+motes. The screen-wide drifting deco ships (the random-tint placeholder) were pulled out; `deco_ship.gd`
+deleted. Verified headless: 9 combat nodes all carry a valid faction (non-combat = -1), deterministic across
+rebuilds, main.gd read path returns the stored faction. 275 scripts parse, 0 failed. **NEEDS ROMAN:**
+eyeball the per-node glitter colors on the chart (supremacy red / privateer green / corpo blue / zealot
+purple) and the privateer-interloper sprinkle density.
