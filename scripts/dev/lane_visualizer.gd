@@ -26,48 +26,25 @@ const CombatSlice = preload("res://scripts/dev/combat_slice.gd")
 const WaveGen = preload("res://scripts/levels/wave_generator.gd")
 const LanePath = preload("res://scripts/enemies/patterns/lane_path.gd")
 
-# Movement patterns offered in PATTERN mode. ["label", kind, arg]
+# Pattern list for PATTERN mode. ["label", kind, arg]
 #   kind "lane"   → arg = lane_path Shape int (0 STRAIGHT / 1 WEAVE / 2 HOOK / 3 STEP)
 #   kind "roster" → arg = EnemyRoster.make_movement key (real production tuning)
-# Roster keys are the 2026-06-08 pattern set (see enemy_roster.make_movement).
-const PATTERNS := [
+# The roster keys are pulled LIVE from pattern_eligibility_editor.MOVEMENT_KEYS (the canonical
+# authored set) at _ready, so this tool never drifts from the real pattern registry the way the old
+# hardcoded list did (it was missing pendulum / proximity_chase / loiter_sweep). Roman 2026-06-10.
+const MovementKeys = preload("res://scripts/dev/pattern_eligibility_editor.gd")
+
+# The 4 raw lane_path shapes, shown first (these aren't roster keys).
+const LANE_SHAPES := [
 	["lane STRAIGHT", "lane", 0],
 	["lane WEAVE", "lane", 1],
 	["lane HOOK", "lane", 2],
 	["lane STEP", "lane", 3],
-	# straight_* by speed rung (crawl 60 → reflex 360)
-	["straight_crawl", "roster", "straight_crawl"],
-	["straight_slow", "roster", "straight_slow"],
-	["straight_medium", "roster", "straight_medium"],
-	["straight_fast", "roster", "straight_fast"],
-	["straight_reflex", "roster", "straight_reflex"],
-	["straight_charge", "roster", "straight_charge"],
-	# skirmish loops (replaces advance_retreat)
-	["skirmish_loop", "roster", "skirmish_loop"],
-	["skirmish_figure8", "roster", "skirmish_figure8"],
-	# drift-in-lane (was bulwark_drift), by hover height
-	["drift_low", "roster", "drift_low"],
-	["drift_mid", "roster", "drift_mid"],
-	["drift_high", "roster", "drift_high"],
-	# loiter (Holder), by hover height
-	["loiter_low", "roster", "loiter_low"],
-	["loiter_mid", "roster", "loiter_mid"],
-	["loiter_high", "roster", "loiter_high"],
-	# lane-aware production patterns (lane_path engine). Spawn a ROW to see the
-	# lane-occupancy free-check: Drifters/Shifters avoid merging into an occupied lane.
-	["lane_weave (in-lane)", "roster", "lane_weave"],
-	["lane_drift (lane->lane)", "roster", "lane_drift"],
-	["lane_shift (commit)", "roster", "lane_shift"],
-	["lane_hook (drop-return)", "roster", "lane_hook"],
-	["lane_cut (curve-exit)", "roster", "lane_cut"],
-	# side approaches
-	["side_turn", "roster", "side_turn"],
-	["side_dive", "roster", "side_dive"],
-	["side_traverse", "roster", "side_traverse"],
-	# player-hunters
-	["hunt_beeline", "roster", "hunt_beeline"],
-	["hunt_omni", "roster", "hunt_omni"],
 ]
+
+# Built in _ready: LANE_SHAPES + one ["key","roster","key"] per live MovementKeys.MOVEMENT_KEYS.
+var _patterns: Array = []
+var _move_buttons: Array = []   # the clickable movement-list buttons (right gutter)
 
 var _world: Node2D = null
 var _overlay: Node2D = null
@@ -102,11 +79,20 @@ func _ready() -> void:
 	if run and run.has_method("new_run"):
 		run.new_run()
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_build_pattern_list()
 	_build_bg()
 	_build_world()
 	_build_player_marker()
 	_build_ui()
 	_refresh_mode_panels()
+
+
+# Pull the live movement set: the 4 lane shapes + every roster key from the eligibility tool's
+# canonical MOVEMENT_KEYS, so the visualizer always matches the real registry.
+func _build_pattern_list() -> void:
+	_patterns = LANE_SHAPES.duplicate(true)
+	for key in MovementKeys.MOVEMENT_KEYS:
+		_patterns.append([str(key), "roster", str(key)])
 
 
 # ---------------------------------------------------------------- world + overlays
@@ -252,7 +238,7 @@ func _build_ui() -> void:
 	pr.add_theme_constant_override("separation", 2)
 	_pattern_panel.add_child(pr)
 	_add_fixed_button(pr, "<", func(): _cycle_pattern(-1), 16)
-	_pattern_lbl = _new_label(str(PATTERNS[0][0]), UiTheme.COLOR_TEXT, SZ_BODY)
+	_pattern_lbl = _new_label(str(_patterns[0][0]), UiTheme.COLOR_TEXT, SZ_BODY)
 	_pattern_lbl.clip_text = true
 	_pattern_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_pattern_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -260,7 +246,6 @@ func _build_ui() -> void:
 	_add_fixed_button(pr, ">", func(): _cycle_pattern(1), 16)
 	_add_button(_pattern_panel, "Spawn row", func(): _spawn_pattern_row())
 	_add_button(_pattern_panel, "Spawn one", func(): _spawn_pattern_one())
-	_add_button(_pattern_panel, "Step wall", func(): _spawn_step_wall())
 	_add_button(_pattern_panel, "Clear", func(): _clear_world())
 
 	lv.add_child(_sep())
@@ -274,25 +259,53 @@ func _build_ui() -> void:
 	_add_toggle(ov, "Zone", _show_zones, func(p: bool): _show_zones = p; _refresh_overlay())
 	_add_toggle(ov, "Num", _show_numbers, func(p: bool): _show_numbers = p; _refresh_overlay())
 
+	# LIVE readout — moved here UNDER the overlay button panel (Roman 2026-06-10) so the right gutter
+	# is free for the movement list.
+	lv.add_child(_sep())
+	_add_caption(lv, "LIVE")
+	_readout = _new_label("", UiTheme.COLOR_TEXT, SZ_READOUT)
+	_readout.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_readout.custom_minimum_size = Vector2(120, 0)
+	lv.add_child(_readout)
+	var hint := _new_label("Drag = player. Green = fire zone.", UiTheme.COLOR_FAINT, SZ_BODY)
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.custom_minimum_size = Vector2(120, 0)
+	lv.add_child(hint)
+
 	lv.add_child(_sep())
 	_add_button(lv, "Back", _on_back)
 
-	# Right gutter — live readout.
+	# Right gutter — the full clickable MOVEMENTS list (mirrors pattern_eligibility_editor's scrollable
+	# button column). Clicking one jumps to PATTERN mode, selects it, and spawns a row — so you can
+	# click through every movement to eyeball it (Roman 2026-06-10).
 	var right := _make_panel(Vector2(348, 0), Vector2(132, 270))
 	add_child(right)
 	var rv := VBoxContainer.new()
-	rv.add_theme_constant_override("separation", 3)
+	rv.add_theme_constant_override("separation", 2)
 	right.add_child(rv)
 	_fill_panel(rv)
-	_add_caption(rv, "LIVE")
-	_readout = _new_label("", UiTheme.COLOR_TEXT, SZ_READOUT)
-	_readout.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_readout.custom_minimum_size = Vector2(124, 0)
-	rv.add_child(_readout)
-	var hint := _new_label("Drag mouse = player.\nGreen band = fire zone.", UiTheme.COLOR_FAINT, SZ_BODY)
-	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hint.custom_minimum_size = Vector2(124, 0)
-	rv.add_child(hint)
+	_add_caption(rv, "MOVEMENTS")
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	rv.add_child(scroll)
+	var listbox := VBoxContainer.new()
+	listbox.add_theme_constant_override("separation", 1)
+	listbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(listbox)
+	_move_buttons = []
+	for i in _patterns.size():
+		var b := Button.new()
+		b.text = str(_patterns[i][0])
+		b.toggle_mode = true
+		b.button_pressed = (i == _pattern_idx)
+		b.custom_minimum_size = Vector2(0, 11)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_style_button(b)
+		var idx: int = i
+		b.pressed.connect(func(): _select_movement(idx))
+		listbox.add_child(b)
+		_move_buttons.append(b)
 
 
 func _refresh_mode_panels() -> void:
@@ -326,9 +339,33 @@ func _cycle_level() -> void:
 
 
 func _cycle_pattern(dir: int) -> void:
-	_pattern_idx = (_pattern_idx + dir + PATTERNS.size()) % PATTERNS.size()
-	_pattern_lbl.text = str(PATTERNS[_pattern_idx][0])
+	_pattern_idx = (_pattern_idx + dir + _patterns.size()) % _patterns.size()
+	_pattern_lbl.text = str(_patterns[_pattern_idx][0])
+	_sync_move_buttons()
 	_update_readout()
+
+
+# Clicking a movement in the right-gutter list: select it, switch to PATTERN mode, spawn a row.
+func _select_movement(idx: int) -> void:
+	if idx < 0 or idx >= _patterns.size():
+		return
+	_pattern_idx = idx
+	if _pattern_lbl:
+		_pattern_lbl.text = str(_patterns[idx][0])
+	_sync_move_buttons()
+	if _mode != "pattern":
+		_mode = "pattern"
+		_clear_world()
+		_refresh_mode_panels()
+	_spawn_pattern_row()
+	_update_readout()
+
+
+# Highlight the selected movement button (no-signal so it doesn't re-fire _select_movement).
+func _sync_move_buttons() -> void:
+	for i in _move_buttons.size():
+		if is_instance_valid(_move_buttons[i]):
+			_move_buttons[i].set_pressed_no_signal(i == _pattern_idx)
 
 
 func _run_score(score) -> void:
@@ -359,7 +396,7 @@ func _on_restart() -> void:
 # ---------------------------------------------------------------- pattern mode
 
 func _make_pattern() -> Resource:
-	var p: Array = PATTERNS[_pattern_idx]
+	var p: Array = _patterns[_pattern_idx]
 	var kind: String = str(p[1])
 	if kind == "lane":
 		var lp = LanePath.new()
@@ -386,33 +423,6 @@ func _spawn_pattern_row() -> void:
 
 func _spawn_pattern_one() -> void:
 	_make_dummy(Vector2(Lanes.lane_center(3), 12.0))
-	_update_readout()
-
-
-# P2d: spawn a COORDINATED step wall — a contiguous block leaving one edge gap, all
-# members sharing synced-STEP params (same offset bounds/dir/timing, same-frame), so
-# they shift in unison and the gap relocates. Mirrors director._dispatch_step_wall.
-func _spawn_step_wall() -> void:
-	_clear_dummies()
-	var n: int = Lanes.COUNT - 1            # fill all but one edge lane
-	var start_lane: int = 0                 # left block, gap on the right
-	var lo: int = -start_lane               # = 0
-	var hi: int = (Lanes.COUNT - 1) - (start_lane + n - 1)  # room to shift right
-	for i in n:
-		var p = LanePath.new()
-		p.shape = LanePath.Shape.STEP
-		p.step_synced = true
-		p.step_offset_lo = lo
-		p.step_offset_hi = hi
-		p.step_start_dir = 1
-		p.hold_time = 0.9
-		p.step_time = 0.35
-		p.down_speed = 80.0
-		var d := PatternDummy.new()
-		d.pattern = p
-		d.position = Vector2(Lanes.lane_center(start_lane + i), 24.0)
-		_world.add_child(d)
-		_dummies.append(d)
 	_update_readout()
 
 
@@ -463,7 +473,7 @@ func _update_readout() -> void:
 		var alive: int = get_tree().get_nodes_in_group("enemies").size()
 		_readout.text = "mode: conductor\nbanner: %s\nalive: %d" % [_last_banner, alive]
 	else:
-		var p: Array = PATTERNS[_pattern_idx]
+		var p: Array = _patterns[_pattern_idx]
 		_readout.text = "mode: pattern\n%s\ndummies: %d" % [str(p[0]), _dummies.size()]
 
 
