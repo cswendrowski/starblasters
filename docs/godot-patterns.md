@@ -300,3 +300,19 @@ vp.use_hdr_2d = bool(ProjectSettings.get_setting("rendering/viewport/hdr_2d", fa
 loud `HDR MISMATCH` error if a hand-rolled host forgets it. Hand-rolled hosts (hangar / enemy_bench /
 weapon_lab) set it right after `render_target_update_mode`. This is renderer-space, NOT the renderer
 choice — Forward+ stays; the SubViewport just has to match the root it composites into.
+
+### Third trap on the same host: background z-order vs `z_index=-1` gameplay
+
+**Symptom:** the SAME "no bullets / bare-coloured muzzle flash" as above, and the HDR fix did NOT cure
+it. **Cause:** the play area's opaque background (the `gutter`/`band` ColorRects) was added directly to
+the SubViewport at the default `z_index = 0`, **in the same canvas as the gameplay**. But player bullets
+render at `z_index = -1` ("under the ship", `player.gd`) and every muzzle/bullet **glow halo** is
+`z_index = -1` too (`glow_shader_fx.gd`). Within one canvas, `z=-1` draws *behind* `z=0` — so the opaque
+band covered every `z=-1` thing: bullets vanished (they're plain visible sprites, in-frame, just
+occluded) and the muzzle flash lost its coloured glow halo, leaving the bare additive sprite. The ship
+(z=0) drew after the band, so it looked fine — which is why "everything else works."
+
+**Fix:** put the opaque background on a `CanvasLayer(layer = -1)` *behind* the gameplay, so ALL
+z-indices in the gameplay layer (including `z=-1`) render above it — mirroring how combat keeps its
+backdrop on a lower layer. Do NOT add background ColorRects as plain children of the play SubViewport at
+z=0. Lesson: when a play-area's content can be `z < 0`, its background can't be a z=0 sibling.
