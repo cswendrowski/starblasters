@@ -40,8 +40,11 @@ enum ETone { NEUTRAL, GOOD, BAD }
 var _state: int = EState.PRESENT
 
 
+const BackdropCoordinatorScene = preload("res://scenes/parallax/backdrop_coordinator.tscn")
+
 func _ready() -> void:
 	_hd_scope = HdScreen.enter(self)
+	_install_backdrop()
 	_layout_hd()
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("signal")
@@ -62,6 +65,18 @@ func _ready() -> void:
 	_render()
 	# Debug-only viewport-overflow guard (no-op in release).
 	UiTheme.assert_inside_viewport.call_deferred(self)
+
+
+# POI-appropriate parallax backdrop (Roman 2026-06-11): the same coordinator combat
+# uses (so the planet/nebula match the node this event sits at, keyed off
+# current_node_id + run_seed), but with the light-streak layer OFF and the scroll
+# slowed ~80% (drift 22 → ~4.4) so it reads as a calm animated backdrop, not a level.
+func _install_backdrop() -> void:
+	var bd := BackdropCoordinatorScene.instantiate()
+	bd.name = "Backdrop"
+	bd.set("drift_speed", 4.4)        # ~20% of the 22.0 default = 80% slower
+	bd.set("warp_streak_count", 0)    # no light-streak (warp) layer
+	HdScreen.add_upscaled_backdrop(self, bd)
 
 
 # The .tscn lays the panel out absolutely (320×220 @ (80,25)) for the old 480

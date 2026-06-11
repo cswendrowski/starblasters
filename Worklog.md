@@ -255,3 +255,10 @@ All six points addressed:
   fade). `asteroid._spawn_shatter` throws 4–6 larger rock fragments + 10–15 1-2px motes on death, all
   harmless. Verified headless: 18 fragments spawn; asteroid loads (shader compiles); gate clean.
   **NEEDS ROMAN:** eyeball the rounder shape (0.4 strength), trail opacity, and shatter spectacle.
+
+## [done] Signal events: POI-appropriate parallax backdrop — branch `wl-session-2026-06-11`
+`signal_event._install_backdrop` now installs the same `backdrop_coordinator` combat uses (via
+`HdScreen.add_upscaled_backdrop`), so the planet/nebula match the node the event sits at (keyed off
+`current_node_id` + `run_seed`). Light-streak layer OFF (`warp_streak_count = 0`); scroll slowed ~80%
+(`drift_speed` 22 → 4.4) so it reads as a calm animated backdrop, not a level. Replaces the flat panel
+background. Verified headless: signal_event boots clean. **NEEDS ROMAN:** eyeball the backdrop + slow scroll.
