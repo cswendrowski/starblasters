@@ -10,6 +10,10 @@ uniform float size = 50.0;
 uniform int octaves : hint_range(0, 20, 1);
 uniform float seed: hint_range(1, 10);
 uniform bool should_dither = true;
+// Roundness (Roman 2026-06-11): blends the SILHOUETTE noise toward its mean so the
+// edge trends circular. 0 = original jagged shape (default — background rocks keep it);
+// hazard rocks set ~0.4. Interior shading detail is unaffected.
+uniform float roundness : hint_range(0.0, 1.0) = 0.0;
 // 1-pixel black outline around the asteroid silhouette (Roman, 2026-05-24:
 // "asteroids didn't pick up the pixel outline shader given"). Sampled at
 // the same pixel grid as the body so the outline is exactly one pixel
@@ -104,8 +108,10 @@ void fragment() {
 	float n2 = fbm(uv * size + (rotate(light_origin, rotation)-0.5) * 0.5);
 	
 	// step noise values to determine where the edge of the asteroid is
-	// step cutoff value depends on distance from center
-	float n_step = step(0.2, n - d);
+	// step cutoff value depends on distance from center. Roundness blends the edge
+	// noise toward its mean (0.5) so the silhouette trends circular (Roman 2026-06-11).
+	float n_edge = mix(n, 0.5, roundness);
+	float n_step = step(0.2, n_edge - d);
 	float n2_step = step(0.2, n2 - d);
 	
 	// with this val we can determine where the shadows should be

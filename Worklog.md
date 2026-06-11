@@ -242,3 +242,16 @@ All six points addressed:
 - Bomber-death reference: the descent-then-drift shape now matches that model.
 - Verified headless: mid-descent rotation 0.0 (orientation kept, no tumble) → post-descent rotation 0.147
   (tumble started). Gate clean. **NEEDS ROMAN:** eyeball the fall feel + timing.
+
+## [done] Asteroid hazards: spacing + rounder + dust trail + dusty explosion — branch `wl-session-2026-06-11`
+- **Spacing** — `build_asteroid_field_score` spawn intervals widened ~1.4× (0.18→0.26, 0.10→0.15) +
+  slightly longer breathers; counts unchanged. Avoidable, not a wall.
+- **Rounder** — added a default-off `roundness` uniform to `Asteroids.gdshader` (blends the silhouette
+  noise toward its mean so the edge trends circular); hazard rocks set 0.4 on their per-instance material,
+  so background/parallax/sector-map rocks (roundness 0) are untouched.
+- **Dust trail** — `asteroid._attach_dust_trail` now draws the trail in the rock's OWN colour at ~30%
+  opacity (was a fixed tan at 0.75; Roman "the current trail is awful").
+- **Dusty explosion** — new `dust_fragment.gd` (inert drifting chunk with a 1px same-colour dust trail +
+  fade). `asteroid._spawn_shatter` throws 4–6 larger rock fragments + 10–15 1-2px motes on death, all
+  harmless. Verified headless: 18 fragments spawn; asteroid loads (shader compiles); gate clean.
+  **NEEDS ROMAN:** eyeball the rounder shape (0.4 strength), trail opacity, and shatter spectacle.

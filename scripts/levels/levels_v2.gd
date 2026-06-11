@@ -408,17 +408,19 @@ static func build_asteroid_field_score() -> CombatScore:
 	# of rock" beat for a denser moment. Asteroids self-drift with a little x-wander
 	# (asteroid.gd), placed on lanes via the spread/wall dispatch. Density tuned to
 	# the prior field (~90 rocks) but now lane-shaped + paced.
+	# Spawn intervals widened ~1.4× (Roman 2026-06-11: same count, but spaced out more
+	# so the field is avoidable, not a wall). Counts unchanged.
 	var wave := ScoreWave.new()
 	wave.banner = "COLLISION WARNING"
-	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 32, 0.18, 2)))
+	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 32, 0.26, 2)))
+	wave.phrases.append(_breather_phrase(0.4))
+	wave.phrases.append(_formation_phrase(&"wall", _haz_spec(AsteroidScene, 20, 0.15, 0)))
+	wave.phrases.append(_breather_phrase(0.4))
+	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 30, 0.26, 2)))
 	wave.phrases.append(_breather_phrase(0.35))
-	wave.phrases.append(_formation_phrase(&"wall", _haz_spec(AsteroidScene, 20, 0.10, 0)))
+	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 28, 0.26, 2)))
 	wave.phrases.append(_breather_phrase(0.35))
-	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 30, 0.18, 2)))
-	wave.phrases.append(_breather_phrase(0.3))
-	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 28, 0.18, 2)))
-	wave.phrases.append(_breather_phrase(0.3))
-	wave.phrases.append(_formation_phrase(&"wall", _haz_spec(AsteroidScene, 18, 0.10, 0)))
+	wave.phrases.append(_formation_phrase(&"wall", _haz_spec(AsteroidScene, 18, 0.15, 0)))
 	var score := CombatScore.new()
 	score.level_name = "Asteroid Field"
 	score.waves = [wave]
