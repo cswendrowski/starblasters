@@ -163,6 +163,14 @@ func _build_ui() -> void:
 
 
 func _to_menu() -> void:
+	# If opened from the sector map (or another screen), return THERE instead of
+	# the main menu (Roman 2026-06-11; one-shot meta set by the opener).
+	var run := get_node_or_null("/root/Run")
+	if run != null and run.has_meta("codex_return"):
+		var dest := String(run.get_meta("codex_return"))
+		run.remove_meta("codex_return")
+		SceneTransition.change_scene(get_tree(), dest)
+		return
 	SceneTransition.change_scene(get_tree(), "res://scenes/main_menu.tscn")
 
 

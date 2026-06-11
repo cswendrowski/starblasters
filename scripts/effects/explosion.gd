@@ -93,7 +93,9 @@ func _make_explosion_sprite(offset: Vector2, sc: float, delay: float) -> Diction
 	halo.scale = Vector2(sc, sc)
 	halo.rotation = sprite.rotation
 	halo.visible = delay <= 0.0
-	halo.self_modulate = Color(1.6, 1.4, 0.9, 0.55)
+	# HDR-bright so the explosion core clears glow_hdr_threshold=1.0 and blooms
+	# (Roman renderer-polish C, 2026-06-11). Was 1.6/1.4/0.9.
+	halo.self_modulate = Color(2.1, 1.8, 1.1, 0.55)
 	# Additive blend = brighter where it overlaps the sprite (bloom-ish).
 	var mat := CanvasItemMaterial.new()
 	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD

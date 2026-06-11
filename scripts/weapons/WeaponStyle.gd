@@ -19,6 +19,7 @@ enum WeaponStyle {
 	BEAM,          # reserved for hit-scan primaries (currently secondary)
 	AUTOCANNON,    # spin-up cannon with start/stop sounds
 	MINIGUN,       # rapid hitscan energy cannon
+	PULSE_LASER,   # rapid 1px hitscan beam from the nose; accumulates dispersion (Roman 2026-06-11)
 }
 
 static func style_name(s: int) -> String:

@@ -1,12 +1,13 @@
 [gd_resource type="Resource" format=3]
 
 [ext_resource type="Script" path="res://scripts/parts/twin_blaster.gd" id="1_w"]
-[ext_resource type="PackedScene" uid="uid://bbullaser001" path="res://scenes/projectiles/bullet_blaster_medium.tscn" id="2_bullet"]
+[ext_resource type="PackedScene" path="res://scenes/projectiles/bullet_blaster_medium.tscn" id="2_bullet"]
 
 [resource]
 script = ExtResource("1_w")
-mark = 1
+bullet_scene = ExtResource("2_bullet")
 base_damage = 2
 dmg_per_mark = 1
 base_cooldown = 0.12
-bullet_scene = ExtResource("2_bullet")
+display_name = ""
+slot_type = 4

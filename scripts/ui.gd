@@ -550,12 +550,12 @@ func _refresh_weapon_names() -> void:
 	if not has_node("/root/Run"):
 		return
 	var run = get_node("/root/Run")
-	# PRI row: the single active primary cannon (single-active model 2026-06-11 —
-	# no more Q-swap 2nd-primary slot). Shows whatever primary is equipped.
+	# PRI row: the equipped PRIMARY gun (cannon_pool[1]) — the Q-swap target,
+	# shown whether or not it's currently the firing weapon (two-slot model 2026-06-11).
 	if _pri_name_lbl:
-		var active_cannon = run.get_active_cannon()
-		if active_cannon != null and "display_name" in active_cannon:
-			_pri_name_lbl.text = String(active_cannon.display_name)
+		var primary = run.get_primary_cannon() if run.has_method("get_primary_cannon") else null
+		if primary != null and "display_name" in primary:
+			_pri_name_lbl.text = String(primary.display_name)
 		else:
 			_pri_name_lbl.text = "—"
 	if "loadout_snapshot" in run and run.loadout_snapshot is Dictionary:

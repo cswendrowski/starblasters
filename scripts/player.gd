@@ -29,6 +29,21 @@ var bullet_damage: int = 1
 # bullet_spread_count > 1 + bullet_spread_degrees > 0.
 var bullet_spread_count: int = 1
 var bullet_spread_degrees: float = 0.0
+# When true, the spread fan fires each bullet at a RANDOM angle within the cone (a real
+# shotgun) instead of evenly spaced. Shredder sets this; Scatter Blaster leaves it false.
+var bullet_spread_random: bool = false
+# Pulse Laser (PULSE_LASER weapon_style, Roman 2026-06-11): a 1px HITSCAN beam from the
+# nose that stays pinpoint for `pulse_accuracy_window` shots, then accrues +1° dispersion
+# per shot (cap PULSE_MAX_DISPERSION), decaying when idle. The beam tints white→blue as
+# it grows. The Part stamps pulse_accuracy_window per Mk (base 10, +2/Mk).
+var pulse_accuracy_window: int = 10
+var _pulse_dispersion: float = 0.0       # current cone WIDTH in degrees
+var _pulse_shot_count: int = 0           # shots fired in the current sustained burst
+const PULSE_MAX_DISPERSION: float = 20.0
+const PULSE_DISPERSION_DECAY: float = 2.0       # deg/sec recovered when not firing
+const PULSE_RANGE: float = 320.0                # beam reach (px)
+const PULSE_HIT_TOLERANCE: float = 7.0          # perpendicular px the 1px beam still hits
+const PULSE_INACCURATE_COLOR := Color(0.0, 0.06, 0.847)  # #000fd8 — fully-dispersed hue
 # Per-cannon bullet overrides (Roman, 2026-05-24). Cannons that need to
 # scale speed/pierce per Mk write these in apply(); fire_primary stamps
 # them onto each spawned bullet. -1 sentinel = "use the bullet scene's
@@ -44,9 +59,10 @@ var _tandem_side: int = 0
 # twin stream). 0 = off. Distinct from fire_tandem_alternating (wing markers) —
 # this offsets the single Cannon marker laterally instead.
 var primary_lateral_alternate: float = 0.0
-# Quad Lasers: when non-empty, the primary fires one bolt per x-offset, all PARALLEL
-# (straight up) at muzzle_x + offset. Overrides the spread fan + tandem/lateral.
-var primary_parallel_offsets: PackedFloat32Array = PackedFloat32Array()
+# Quad Lasers: when non-empty, the primary fires one bolt per offset, all PARALLEL
+# (straight up) at muzzle + offset (Vector2, so outer bolts can sit lower). Overrides
+# the spread fan + tandem/lateral.
+var primary_parallel_offsets: PackedVector2Array = PackedVector2Array()
 # Use the rotary laser muzzle FX in place of the default energy muzzle.
 # Set by cannons (Auto Laser) that want the rotary laser flash without
 # being on the ROTARY_LASER ammo/charge path.
@@ -218,10 +234,14 @@ var speed_multiplier: float = 1.0
 # of normal speed for precision dodging. Cave / Touhou convention; ~2/3.
 const FOCUS_FACTOR := 0.55
 var _focus_dot: Node2D = null
+# Real 1px central collision swapped in while focused (the main hitbox is disabled).
+var _focus_hitbox: CollisionShape2D = null
+# Bright teal = the shield color (hex_shield.gdshader) — for the focus dot + trail.
+const FOCUS_DOT_COLOR := Color(0.35, 0.85, 1.0, 1.0)
 var _focus_was_active: bool = false
 var _focus_trail: Line2D = null
 var _focus_trail_history: PackedVector2Array = PackedVector2Array()
-const FOCUS_TRAIL_LEN := 18
+const FOCUS_TRAIL_LEN := 36   # long trail, ample segments (Roman 2026-06-11)
 # Focus-mode visual presence: ship goes semi-transparent, gains a soft diffuse
 # glow aura, and the engine exhaust doubles in length. (Roman 2026-05-30.)
 const FOCUS_SHIP_ALPHA := 0.55                 # ship opacity while focused
@@ -534,23 +554,53 @@ func _muzzle_offset(node_path: String, fallback: Vector2) -> Vector2:
 var _secondary_wing: int = 0
 
 
+var _damage_fx_seq: int = 0
+
 func _setup_smoke_trail() -> void:
-	# Sprite-based smoke trail (DamageSmokeTrail spawns one Sprite2D per puff,
-	# tweens it downward + fading). Simpler and more reliable than the
-	# CPUParticles2D approach which silently failed to render.
+	# Damage fire + smoke appear at a RANDOM point each run — sprite centre, an engine
+	# marker, or a wing launch marker — and a SECOND point fades in as damage deepens
+	# (Roman 2026-06-11). The fire shader no longer widens with damage (engine_torch).
+	var pts := _damage_fx_points()
+	if pts.is_empty():
+		return
+	_attach_damage_point(pts[0], 0.01)        # first point: shows on the first pip lost
+	if pts.size() > 1:
+		_attach_damage_point(pts[1], 0.5)     # second point: shows at ~50% hull
+
+
+# Candidate damage-tell anchors (player-local), shuffled: centre + REAL engine + wing
+# markers. Fixed 2026-06-11: was `_muzzle_offset("Engine", ...)` (an exact-path lookup)
+# which only matched ship A's single "Engine" marker — ships B/C use EngineL/EngineR
+# and silently fell back to a generic offset, so the fire/smoke didn't sit on a real
+# marker. Now finds every Engine* / LaunchWing* marker recursively, on any ship.
+func _damage_fx_points() -> Array:
+	var pts := [Vector2(0.0, 0.0)]   # sprite centre — always valid
+	for m in find_children("Engine*", "Marker2D", true, false):
+		if m is Node2D:
+			pts.append(to_local((m as Node2D).global_position))
+	for wm in ["LaunchWingL", "LaunchWingR"]:
+		var n := find_child(wm, true, false)
+		if n is Node2D:
+			pts.append(to_local((n as Node2D).global_position))
+	pts.shuffle()
+	return pts
+
+
+# One fire (EngineTorch) + smoke (DamageSmokeTrail) pair at a local anchor, gated to
+# appear below the given hull fraction.
+func _attach_damage_point(local: Vector2, below: float) -> void:
 	var TrailCls = preload("res://scripts/effects/damage_smoke_trail.gd")
 	var trail = TrailCls.new()
-	trail.name = "DamageSmokeTrail"
-	# Activate at any pip loss (hull spec 2026-05-26): player uses 0.01 so
-	# even losing 1 of 3 pips (damage_level ≈ 0.33) triggers the effects.
-	trail.activate_below = 0.01
+	trail.name = "DamageSmokeTrail_%d" % _damage_fx_seq
+	trail.activate_below = below
+	trail.emit_local = local
 	add_child(trail)
 	trail.set_player(self)
-	# Procedural torch fire on the engine nozzle (Roman 2026-05-18). Reads
-	# horizontal velocity each frame and pipes it into the shader's
-	# windForce so the flame leans opposite the direction of travel.
 	var EngineTorchCls = preload("res://scripts/effects/engine_torch.gd")
-	EngineTorchCls.attach_to_player(self, EngineTorchCls.NOZZLE_OFFSET_DEFAULT, 0.01)
+	var torch = EngineTorchCls.attach_to_player(self, local, below)
+	if torch != null:
+		torch.name = "EngineTorch_%d" % _damage_fx_seq
+	_damage_fx_seq += 1
 
 
 func _setup_mg_audio() -> void:
@@ -827,9 +877,20 @@ func _process(delta: float) -> void:
 	# or enemies — lock off primary offense (secondary is gated below).
 	if _phase_t > 0.0:
 		fire_held = false
-	# Primary Q-cycle retired (2026-06-11 single-active model): the ship carries
-	# one active primary; swapping happens at the outpost / ship-manager, sending
-	# the old one to the hold. The `primary_swap` action is now unused for cannons.
+	# Pulse Laser dispersion: it ACCRUES while the trigger is HELD (in _fire_pulse_laser).
+	# RELEASING the trigger recovers spread (PULSE_DISPERSION_DECAY °/s) + resets the
+	# accuracy-window counter. Keyed on fire_held — NOT on whether a shot landed this
+	# exact frame — so the sparse cadence (a shot every few frames) doesn't reset the
+	# burst between shots (Roman 2026-06-11 fix: dispersion + colour weren't building).
+	if not (fire_held and weapon_style == WS.WeaponStyle.PULSE_LASER):
+		if _pulse_dispersion > 0.0:
+			_pulse_dispersion = maxf(0.0, _pulse_dispersion - PULSE_DISPERSION_DECAY * delta)
+		_pulse_shot_count = 0
+	# Primary swap (Q): toggle which equipped cannon FIRES — the unlimited Blaster
+	# (fallback) or the acquired Primary gun. Re-applies the new active cannon so
+	# bullet_scene / cooldown / damage / SFX swap atomically. No-op if no primary.
+	if Input.is_action_just_pressed("primary_swap"):
+		_swap_active_primary()
 	if fire_held:
 		# EVERY style fires through fire_primary each held frame — it self-gates on
 		# GunCooldown/can_shoot, ammo, the rotary charge (not _rl_charged -> no-op), and routes
@@ -944,6 +1005,19 @@ func _process(delta: float) -> void:
 # ---- Shift modes (Hyper / Phase) ----------------------------------------
 # Focus lives inline in _process; Hyper + Phase share the same `focus` (Shift) action
 # but have their own resource models. Design: docs/shift_mode_system_2026-06-08.md.
+
+# Screen post-FX aberration request, read each frame by CombatPostFx (renderer-polish
+# D3, 2026-06-11): the aggressive Shift-modes split the screen channels slightly.
+# Hyper overcharge holds a steady split; a phase dash punches a stronger one that the
+# controller eases back as the dash ends. 0 = no aberration.
+func postfx_aberration() -> float:
+	var a: float = 0.0
+	if _hyper_active:
+		a = maxf(a, 0.0026)
+	if _phase_t > 0.0:
+		a = maxf(a, 0.0045)
+	return a
+
 
 # Called by ModePart.apply/unapply when the equipped Shift mode changes. Pulls the
 # part's Mk-scaled tunables and resets runtime state.
@@ -1268,10 +1342,83 @@ func _is_mg_family(style: int) -> bool:
 	return style == WS.WeaponStyle.MACHINEGUN or style == WS.WeaponStyle.AUTOCANNON or style == WS.WeaponStyle.MINIGUN
 
 
+# Pulse Laser shot: a 1px hitscan beam from the nose at an angle randomized within the
+# current dispersion cone. Damages the nearest enemy along the beam, draws the glowing
+# beam, and accrues dispersion past the accuracy window. (Roman 2026-06-11.)
+func _fire_pulse_laser() -> void:
+	var origin: Vector2 = global_position + _muzzle_offset("Ship/Muzzle", Vector2(0, -8))
+	# Straight up ± a random angle inside the dispersion cone (full width = dispersion).
+	var half: float = deg_to_rad(_pulse_dispersion) * 0.5
+	var ang: float = randf_range(-half, half)
+	var dir := Vector2(sin(ang), -cos(ang))
+	var dmg: int = bullet_damage
+	if _hyper_active and active_mode == ShiftMode.HYPER:
+		dmg = int(round(float(bullet_damage) * hyper_damage_mult))
+	var hit := _pulse_hitscan(origin, dir, PULSE_RANGE)
+	var enemy = hit["enemy"]
+	if enemy != null and is_instance_valid(enemy):
+		if enemy.has_method("take_hit"):
+			enemy.take_hit(dmg)
+		elif enemy.has_method("take_damage"):
+			enemy.take_damage(dmg)
+	_spawn_pulse_beam(origin, hit["point"])
+	# Accuracy: pinpoint for the first `pulse_accuracy_window` shots of a burst, then
+	# +1° dispersion per shot up to the cap.
+	_pulse_shot_count += 1
+	if _pulse_shot_count > pulse_accuracy_window:
+		_pulse_dispersion = minf(PULSE_MAX_DISPERSION, _pulse_dispersion + 1.0)
+
+
+# Nearest enemy whose hitbox lies within PULSE_HIT_TOLERANCE px of the beam ray (and
+# ahead of the muzzle). Returns {enemy, point} — point is the hit, or the beam's end.
+func _pulse_hitscan(origin: Vector2, dir: Vector2, max_dist: float) -> Dictionary:
+	var best_enemy = null
+	var best_t: float = max_dist
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not (e is Node2D) or not is_instance_valid(e):
+			continue
+		var to_e: Vector2 = (e as Node2D).global_position - origin
+		var t: float = to_e.dot(dir)
+		if t < 0.0 or t > best_t:
+			continue
+		if (to_e - dir * t).length() <= PULSE_HIT_TOLERANCE:
+			best_t = t
+			best_enemy = e
+	return {"enemy": best_enemy, "point": origin + dir * best_t}
+
+
+# A 1px additive glowing beam from origin→end, tinted white→#000fd8 by dispersion,
+# that flashes briefly and frees. Parents to the player's world (combat scene), NOT
+# the player — beams are world-space and must survive in the right viewport.
+func _spawn_pulse_beam(origin: Vector2, end_pt: Vector2) -> void:
+	var line := Line2D.new()
+	line.width = 1.0
+	var ratio: float = clampf(_pulse_dispersion / PULSE_MAX_DISPERSION, 0.0, 1.0)
+	line.default_color = Color(1.0, 1.0, 1.0).lerp(PULSE_INACCURATE_COLOR, ratio)
+	line.add_point(origin)
+	line.add_point(end_pt)
+	line.z_index = 1
+	line.z_as_relative = false
+	var mat := CanvasItemMaterial.new()
+	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD   # glows (HDR-bright white blooms)
+	line.material = mat
+	var host: Node = get_parent()
+	if host == null:
+		host = self
+	host.add_child(line)
+	var tw := line.create_tween()
+	tw.tween_property(line, "modulate:a", 0.0, 0.06)
+	tw.tween_callback(line.queue_free)
+
+
 func fire_primary() -> void:
 	# Minigun is now projectile-based (Roman 2026-06-11) — fires bullet_minigun
 	# through the normal path below, like the other cannons.
-	if not can_shoot or bullet_scene == null:
+	if not can_shoot:
+		return
+	# Pulse Laser is HITSCAN (no bullet scene) — it bypasses the bullet-spawn path.
+	var _is_pulse: bool = weapon_style == WS.WeaponStyle.PULSE_LASER
+	if bullet_scene == null and not _is_pulse:
 		return
 	if _phase_t > 0.0:
 		return  # phased out — no offense
@@ -1296,6 +1443,23 @@ func fire_primary() -> void:
 		$GunCooldown.start($GunCooldown.wait_time / (1.0 + hyper_fire_bonus))
 	else:
 		$GunCooldown.start()
+	# Pulse Laser: hitscan beam from the nose, consume one ammo, then bail (no bullet
+	# spawn). It's a metered REGEN laser, so when dry it PAUSES + recharges (the ammo==0
+	# gate above) rather than snapping to the blaster — hence no _snap call here. Hyper
+	# grants unlimited ammo. (Reaching here means the ammo gate already passed: ammo>0.)
+	if _is_pulse:
+		_fire_pulse_laser()
+		if _is_replacement_primary_active() and ammo > 0 \
+				and not (_hyper_active and active_mode == ShiftMode.HYPER):
+			ammo -= 1
+			ammo_changed.emit(ammo)
+			if has_node("/root/Run"):
+				var run = get_node("/root/Run")
+				run.ammo = ammo
+				var active = run.get_active_cannon()
+				if active != null and "current_ammo" in active:
+					active.current_ammo = ammo
+		return
 	# Rotary Laser firing sound: a rapid random pew per shot (the old sustained
 	# loop's replacement), throttled so the ~20/s fire rate doesn't spam voices.
 	if weapon_style == WS.WeaponStyle.ROTARY_LASER:
@@ -1318,8 +1482,13 @@ func fire_primary() -> void:
 	for i in range(count):
 		var angle: float = 0.0
 		if not parallel and count > 1:
-			var t: float = float(i) / float(count - 1)
-			angle = -spread_rad * 0.5 + spread_rad * t
+			if bullet_spread_random:
+				# Shotgun spread (Shredder): each pellet a RANDOM angle inside the cone,
+				# not an even fan (Roman 2026-06-11).
+				angle = randf_range(-spread_rad * 0.5, spread_rad * 0.5)
+			else:
+				var t: float = float(i) / float(count - 1)
+				angle = -spread_rad * 0.5 + spread_rad * t
 		# 0 angle = straight up. (sin(a), -cos(a)) rotates around the up axis.
 		var dir := Vector2(sin(angle), -cos(angle))
 		var b: Node = bullet_scene.instantiate()
@@ -1346,8 +1515,8 @@ func fire_primary() -> void:
 		# laser flash sits over the bolt, not at center.
 		var spawn_offset: Vector2 = muzzle_off
 		if parallel:
-			# Quad Lasers: parallel bolt at muzzle_x + this offset (muzzle flash stays centred).
-			spawn_offset = muzzle_off + Vector2(primary_parallel_offsets[i], 0.0)
+			# Quad Lasers: parallel bolt at muzzle + this (x,y) offset (muzzle flash stays centred).
+			spawn_offset = muzzle_off + primary_parallel_offsets[i]
 		elif fire_tandem_alternating and count == 1:
 			# Auto Laser fires from the wing muzzle markers, alternating L/R.
 			var wing: String = "Ship/MuzzleWingL" if _tandem_side == 0 else "Ship/MuzzleWingR"
@@ -1400,7 +1569,9 @@ func fire_primary() -> void:
 	MuzzleFx.play_player(muzzle_pos, self, flash_color, _smoke_shell, _large_shell)
 	if _is_minigun:
 		var _fx_parent: Node = get_parent() if get_parent() != null else get_tree().root
-		MuzzleFx.eject_brass(_fx_parent, muzzle_pos)
+		# Casings eject from the ship's casing-eject marker (Roman 2026-06-11).
+		var eject_off: Vector2 = _muzzle_offset("Ship/Muzzle/Gun_Nose_Eject", Vector2(1.0, -5.0))
+		MuzzleFx.eject_brass(_fx_parent, global_position + eject_off)
 	# Per-shot cannon SFX. Excluded styles carry their OWN audio elsewhere: MACHINEGUN = the
 	# _mg_loop_player loop, ROTARY_LASER = the per-shot pew system. MINIGUN now fires projectiles
 	# through this path, so its MINIGUN_CLIPS play per shot via fire_sfx_kind (Roman 2026-06-11).
@@ -1443,16 +1614,27 @@ func _is_replacement_primary_active() -> bool:
 	return ammo_max > 0
 
 
-# Snap the active cannon back to cannon_pool[0] (blaster) and re-apply it
-# through the loadout system so bullet_scene / cooldown / damage / SFX all
-# revert. Called when ammo hits 0 OR when the player presses primary_swap.
+# Set the firing cannon to the Blaster (slot 0) and re-apply it through the
+# loadout so bullet_scene / cooldown / damage / SFX revert. Called when a
+# non-regen Primary runs dry — the Primary STAYS equipped in slot 1 (refill +
+# Q back). Two-slot model (2026-06-11).
 func _snap_to_blaster_and_reapply() -> void:
 	if not has_node("/root/Run"):
 		return
 	var run = get_node("/root/Run")
-	# Single-active model: pull an owned blaster out of the hold (the dry cannon
-	# goes to the hold, refillable later). No permanent slot-0 blaster anymore.
-	run.revert_to_blaster()
+	run.swap_to_blaster()
+	_reapply_active_cannon()
+
+
+# Q toggle: switch the firing cannon between the Blaster and the Primary. No-op
+# when only the Blaster is equipped.
+func _swap_active_primary() -> void:
+	if not has_node("/root/Run"):
+		return
+	var run = get_node("/root/Run")
+	if int(run.cannon_pool.size()) <= 1:
+		return
+	run.cycle_primary()
 	_reapply_active_cannon()
 
 
@@ -1510,6 +1692,15 @@ func set_secondary_ammo(value: int, maximum: int = -1) -> void:
 		run.secondary_ammo = secondary_ammo
 		run.secondary_ammo_max = secondary_ammo_max
 
+# Small warm launch flash for secondary weapons (missiles / rockets / pods), which
+# previously fired with NO muzzle flash (Roman 2026-06-11: "muzzleflashes missing
+# from most weapons"). No smoke/shell — secondaries are launches, not gun fire.
+func _secondary_muzzle(world_pos: Vector2) -> void:
+	var MuzzleFx = load("res://scripts/effects/muzzle_fx.gd")
+	if MuzzleFx:
+		MuzzleFx.play_player(world_pos, self, Color(1.0, 0.8, 0.4), false, false)
+
+
 func fire_secondary() -> void:
 	# HARDPOINT_WING Parts (Seeking Missile, Rocket Pod, Side Pods) write
 	# to secondary_bullet_scene / cooldown / damage / pod_count in their
@@ -1544,10 +1735,14 @@ func fire_secondary() -> void:
 		if count == 1:
 			var wing: String = "Ship/LaunchWingL" if _secondary_wing == 0 else "Ship/LaunchWingR"
 			var fallback := Vector2(-6.0 if _secondary_wing == 0 else 6.0, 1.0)
-			b.start(position + _muzzle_offset(wing, fallback))
+			var sp1: Vector2 = _muzzle_offset(wing, fallback)
+			b.start(position + sp1)
+			_secondary_muzzle(global_position + sp1)
 			_secondary_wing = 1 - _secondary_wing
 		else:
-			b.start(position + Vector2(offset_x, -10))
+			var sp2 := Vector2(offset_x, -10)
+			b.start(position + sp2)
+			_secondary_muzzle(global_position + sp2)
 	var WeaponSfxSec = load("res://scripts/effects/weapon_sfx.gd")
 	if WeaponSfxSec:
 		var kind: String = "missile" if secondary_homing else "rocket"
@@ -1618,7 +1813,9 @@ func _spawn_burst_rocket() -> void:
 		b.damage_on_contact = secondary_damage
 	if "damage" in b:
 		b.damage = secondary_damage
-	b.start(position + _muzzle_offset(wing, fallback))
+	var sp_burst: Vector2 = _muzzle_offset(wing, fallback)
+	b.start(position + sp_burst)
+	_secondary_muzzle(global_position + sp_burst)
 	var WeaponSfxBurst = load("res://scripts/effects/weapon_sfx.gd")
 	if WeaponSfxBurst:
 		WeaponSfxBurst.play(get_tree().root, global_position, "rocket")
@@ -1714,6 +1911,7 @@ func _tick_salvo() -> void:
 		return
 	if not part.fire_salvo(self):
 		return
+	_secondary_muzzle(global_position + _muzzle_offset("Ship/Muzzle", Vector2(0, -8)))
 	_secondary_t = 0.0  # restart the cooldown
 	if secondary_ammo > 0:
 		secondary_ammo -= 1
@@ -2046,22 +2244,25 @@ func _update_focus_dot(visible: bool) -> void:
 		_focus_dot = Node2D.new()
 		_focus_dot.name = "FocusDot"
 		var dot := ColorRect.new()
-		dot.size = Vector2(4, 4)
-		dot.position = Vector2(-2, -2)
-		dot.color = Color(1, 1, 1, 0.95)
+		# A single CENTRAL pixel (Roman 2026-06-11: 1px, not 2x2), bright teal.
+		dot.size = Vector2(1, 1)
+		dot.position = Vector2(-0.5, -0.5)
+		dot.color = FOCUS_DOT_COLOR
 		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_focus_dot.add_child(dot)
 		_focus_dot.z_index = 100
 		add_child(_focus_dot)
 	_focus_dot.visible = visible
-	# Edge-triggered sound + glow aura + doubled exhaust. Create-once on enter,
-	# free/restore on exit — no per-frame node churn.
+	# Edge-triggered sound + glow aura + doubled exhaust + the REAL hitbox swap.
+	# Create-once on enter, free/restore on exit — no per-frame node churn.
 	if visible and not _focus_was_active:
 		_play_focus_sound(true)
 		_focus_visuals_enter()
+		_set_focus_hitbox(true)
 	elif not visible and _focus_was_active:
 		_play_focus_sound(false)
 		_focus_visuals_exit()
+		_set_focus_hitbox(false)
 	_focus_was_active = visible
 	# Blue tint + semi-transparency while focused. Per-frame is idempotent and
 	# harmless; the modulate alpha now actually renders because hit_flash.gdshader
@@ -2076,14 +2277,15 @@ func _update_focus_dot(visible: bool) -> void:
 	if visible:
 		if _focus_trail == null or not is_instance_valid(_focus_trail):
 			_focus_trail = Line2D.new()
-			_focus_trail.width = 2.0
+			_focus_trail.width = 1.0   # thin (Roman 2026-06-11)
 			_focus_trail.joint_mode = Line2D.LINE_JOINT_ROUND
 			_focus_trail.begin_cap_mode = Line2D.LINE_CAP_ROUND
 			_focus_trail.end_cap_mode = Line2D.LINE_CAP_ROUND
 			_focus_trail.z_index = 99
+			# Same bright teal as the dot, fading to transparent at the tail.
 			var grad := Gradient.new()
-			grad.set_color(0, Color(0.4, 0.7, 1.0, 0.0))
-			grad.set_color(1, Color(0.4, 0.7, 1.0, 0.8))
+			grad.set_color(0, Color(FOCUS_DOT_COLOR.r, FOCUS_DOT_COLOR.g, FOCUS_DOT_COLOR.b, 0.0))
+			grad.set_color(1, Color(FOCUS_DOT_COLOR.r, FOCUS_DOT_COLOR.g, FOCUS_DOT_COLOR.b, 0.85))
 			_focus_trail.gradient = grad
 			get_parent().add_child(_focus_trail)
 			_focus_trail_history.clear()
@@ -2099,6 +2301,23 @@ func _update_focus_dot(visible: bool) -> void:
 			_focus_trail.queue_free()
 			_focus_trail = null
 		_focus_trail_history.clear()
+
+
+# Swap the player's collider while focused: disable the full ship hitbox and enable
+# a 1px CENTRAL one (Touhou-style focus). Deferred — a collider's `disabled` can't
+# change mid-physics-callback. Restored on focus release. (Roman 2026-06-11.)
+func _set_focus_hitbox(active: bool) -> void:
+	if _focus_hitbox == null:
+		_focus_hitbox = CollisionShape2D.new()
+		_focus_hitbox.name = "FocusHitbox"
+		var r := RectangleShape2D.new()
+		r.size = Vector2(1, 1)   # 1px, centred on the ship origin
+		_focus_hitbox.shape = r
+		_focus_hitbox.disabled = true
+		add_child(_focus_hitbox)
+	if has_node("CollisionShape2D"):
+		$CollisionShape2D.set_deferred("disabled", active)
+	_focus_hitbox.set_deferred("disabled", not active)
 
 
 # Focus-enter: spawn the diffuse glow aura behind the ship sprite and double
@@ -2185,6 +2404,10 @@ func apply_run_upgrades() -> void:
 	var _shield_bonus := 2 if run.shield_cap_mk >= 9 else 0
 	max_shield = 10 + int(run.shield_cap_mk) * 2 + _shield_bonus
 	# shield_recharge_mk retired — regen is now always 1/sec after 5s delay.
+	# Re-emit so the damage tells (fire/smoke) re-evaluate their activation FRACTION
+	# (1 - hull/max_hull) against the NEW max_hull whenever upgrades change it — not just
+	# in start()'s emit (Roman 2026-06-11: max-hp changes weren't being picked up).
+	hull_changed.emit(max_hull, hull)
 
 
 # Self Repair heal moved to sector_map_v3 return (spec 2026-05-26).

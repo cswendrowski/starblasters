@@ -9,9 +9,7 @@ func _init() -> void:
 	super._init()
 	display_name = "Seeking Missile"
 	description = "Tracks the nearest enemy. Slow cadence, heavy damage. Secondary."
-	base_damage = 3
-	dmg_per_mark = 3
-	base_cooldown = 0.75
+	# Stats live in resources/weapons/seeking_missile.tres (single source of truth).
 
 
 func _base_ammo() -> int:

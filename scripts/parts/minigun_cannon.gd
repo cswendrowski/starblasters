@@ -7,20 +7,16 @@ extends "res://scripts/parts/metered_primary.gd"
 # above the player, with a minigun_tracer sprite drawn as visual feedback.
 # Uses Machinegun Cannon's muzzle flash + shell eject (orange + smoke + shell).
 
-# 30 shots/sec. At bullet speed 240 px/s that's an 8px shot pitch — a 4px gap
-# between the 4px-tall minigun bullets (Roman 2026-06-11 projectile conversion).
-@export var cooldown_at_mk9: float = 0.0333
+# 25 shots/sec (Roman 2026-06-11 polish: nudged down from 30 for better bullet
+# gapping + less audio overrun). At speed 240 that's a ~9.6px shot pitch.
+@export var cooldown_at_mk9: float = 0.04
 
 
 func _init() -> void:
 	super._init()
 	display_name = "Minigun"
 	description = "Rapid-fire bullet hose — a dense stream of light rounds. Mk.1: 1000 rounds; Mk.9: ~4300 rounds."
-	base_damage = 4
-	dmg_per_mark = 0
-	base_cooldown = 0.0333
-	base_ammo = 1000
-	refill_cost_override = 100
+	# Stats live in resources/weapons/minigun.tres (single source of truth).
 
 
 func _weapon_style() -> int:
@@ -33,7 +29,7 @@ func _fire_sfx_kind() -> int:
 
 func _mk_knobs() -> Dictionary:
 	return {
-		"bullet_damage": [4, 4],  # fixed
+		"bullet_damage": [1, 1],  # fixed
 		"cooldown": [base_cooldown, cooldown_at_mk9],
 	}
 

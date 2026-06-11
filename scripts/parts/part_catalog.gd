@@ -19,6 +19,8 @@ const SeekingMissileCannon = preload("res://scripts/parts/seeking_missile_cannon
 const AntiShipMissileCannon = preload("res://scripts/parts/anti_ship_missile_cannon.gd")
 const EmTorpedoCannon = preload("res://scripts/parts/em_torpedo_cannon.gd")
 const SpreadCannon = preload("res://scripts/parts/spread_cannon.gd")
+const ShredderCannon = preload("res://scripts/parts/shredder_cannon.gd")
+const PulseLaserCannon = preload("res://scripts/parts/pulse_laser_cannon.gd")
 const SmartBomb = preload("res://scripts/parts/smart_bomb.gd")
 # Shift-Mode parts (SHIFT_MODE slot) — Focus is the default; Phase/Hyper swap in.
 const FocusMode = preload("res://scripts/parts/focus_mode.gd")
@@ -37,6 +39,7 @@ const BulletRotaryLaser = preload("res://scenes/projectiles/bullet_rotary_laser.
 const BulletWave = preload("res://scenes/projectiles/bullet_wave.tscn")
 const BulletMedium = preload("res://scenes/projectiles/bullet_blaster_medium.tscn")
 const BulletAutoLaser = preload("res://scenes/projectiles/bullet_auto_laser.tscn")
+const BulletShredder = preload("res://scenes/projectiles/bullet_shredder.tscn")
 const PlayerRocket = preload("res://scenes/projectiles/player_rocket.tscn")
 const PlayerSeekingMissile = preload("res://scenes/projectiles/player_seeking_missile.tscn")
 const PlayerSeekingMissileLarge = preload("res://scenes/projectiles/player_seeking_missile_large.tscn")
@@ -66,6 +69,8 @@ static func _all_pool() -> Array:
 		# projectile, prefers/one-shots the largest enemy, half ammo.
 		{"factory": "_make_anti_ship_missile", "slot": Slots.SlotType.HARDPOINT_WING},
 		{"factory": "_make_spread_cannon", "slot": Slots.SlotType.CANNON},
+		{"factory": "_make_shredder", "slot": Slots.SlotType.CANNON},
+		{"factory": "_make_pulse_laser", "slot": Slots.SlotType.CANNON},
 		{"factory": "_make_smart_bomb", "slot": Slots.SlotType.DEVICE_BAY_1},
 		# Shift-Mode swap-ins (SHIFT_MODE slot, on Shift). Focus is the default
 		# mode (equipped at run start), so it is NOT in the roll/shop pool.
@@ -160,6 +165,11 @@ static func _make_by_name(name: String, slot: int):
 			return _build_weapon("res://resources/weapons/em_torpedo.tres", EmTorpedoCannon, PlayerEmTorpedo)
 		"_make_spread_cannon":
 			return _build_weapon("res://resources/weapons/spread_cannon.tres", SpreadCannon, BulletDefault)
+		"_make_shredder":
+			return _build_weapon("res://resources/weapons/shredder.tres", ShredderCannon, BulletShredder)
+		"_make_pulse_laser":
+			# Hitscan — no bullet scene (null fallback); player.gd renders the beam.
+			return _build_weapon("res://resources/weapons/pulse_laser.tres", PulseLaserCannon, null)
 		"_make_smart_bomb":
 			return _build_weapon("res://resources/weapons/smart_bomb.tres", SmartBomb, null)
 		# Mode parts are pure-script (no .tres) — their stats are code-authored
@@ -194,13 +204,18 @@ static func _build_weapon(tres_path: String, fallback_script: Script, bullet_fal
 		if loaded != null:
 			weapon = loaded.duplicate()
 	if weapon == null:
+		# Centralization (2026-06-11): weapon STATS now live ONLY in the .tres (single
+		# source of truth — the scripts no longer set base_damage/cooldown/ammo in
+		# _init). A missing .tres therefore yields a SCHEMA-DEFAULT (often zero-stat)
+		# weapon — a packaging bug, not an acceptable fallback. Fail loudly so it's
+		# caught in dev; still return an instance so the game doesn't hard-crash.
+		push_error("WeaponData: missing .tres '%s' — weapon stats live in the .tres now. Returning a schema-default (likely zero-stat) instance." % tres_path)
 		weapon = fallback_script.new()
-	# Godot does NOT call _init() on Resources loaded from disk; the .tres files
-	# don't persist display_name / description / slot_type (only the stat
-	# @exports). Without this, loaded weapons stay at base defaults
-	# (display_name="Unnamed Part", description="", slot_type=-1). slot_type=-1
-	# is the load-bearing one — it makes Run.equip_part route to slot -1, so
-	# the part doesn't reach its real slot and the player can't fire it.
+	# Godot does NOT call _init() on Resources loaded from disk. The .tres persist the
+	# stat @exports + slot_type, but NOT display_name / description (kept code-owned
+	# via _init). This stamp refills those identity fields from a fresh instance so a
+	# loaded weapon shows its real name (and back-fills slot_type for any legacy .tres
+	# that saved -1).
 	if fallback_script != null:
 		var defaults = fallback_script.new()
 		if "display_name" in weapon and (weapon.display_name == "" or weapon.display_name == "Unnamed Part"):

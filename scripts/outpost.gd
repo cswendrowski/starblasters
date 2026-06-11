@@ -965,9 +965,9 @@ func _on_primary_ammo_refill(btn: Button) -> void:
 	if not has_node("/root/Run"):
 		return
 	var run := get_node("/root/Run")
-	if run.is_active_cannon_infinite():
-		return
-	var active = run.get_active_cannon()
+	# Two-slot model: refill targets the equipped PRIMARY (the gun with ammo),
+	# regardless of which weapon is currently firing.
+	var active = run.get_primary_cannon() if run.has_method("get_primary_cannon") else null
 	if active == null or not ("current_ammo" in active) or not ("ammo_max" in active):
 		return
 	if "no_outpost_refill" in active and bool(active.no_outpost_refill):
@@ -1077,18 +1077,13 @@ func _refresh_status_panel() -> void:
 		else:
 			_shield_value_lbl.text = "—"
 	if _mg_ammo_lbl:
-		# PRIMARY label reads active cannon. Infinite blasters show infinity;
-		# metered cannons show current/max from the Part.
-		if run.is_active_cannon_infinite():
-			_mg_ammo_lbl.text = "∞"
+		# PRIMARY label = the equipped Primary gun's ammo (the Blaster is always ∞ and
+		# shown on its own line). No Primary equipped → "—".
+		var pri = run.get_primary_cannon() if run.has_method("get_primary_cannon") else null
+		if pri != null and "current_ammo" in pri and "ammo_max" in pri and int(pri.ammo_max) > 0:
+			_mg_ammo_lbl.text = "%d / %d" % [int(pri.current_ammo), int(pri.ammo_max)]
 		else:
-			var active = run.get_active_cannon()
-			if active != null and "current_ammo" in active and "ammo_max" in active and int(active.ammo_max) > 0:
-				_mg_ammo_lbl.text = "%d / %d" % [int(active.current_ammo), int(active.ammo_max)]
-			elif int(run.ammo) >= 0:
-				_mg_ammo_lbl.text = "%d" % int(run.ammo)
-			else:
-				_mg_ammo_lbl.text = "—"
+			_mg_ammo_lbl.text = "—"
 	if _sec_ammo_lbl:
 		if int(run.secondary_ammo) >= 0 and int(run.secondary_ammo_max) > 0:
 			_sec_ammo_lbl.text = "%d / %d" % [int(run.secondary_ammo), int(run.secondary_ammo_max)]
@@ -1201,12 +1196,9 @@ func _apply_service_button_state(btn: Button) -> void:
 				btn.disabled = true
 				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_NO_RUN]
 				return
-			if run.is_active_cannon_infinite():
-				btn.disabled = true
-				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_BLASTER_INFINITE]
-				return
-			var active = run.get_active_cannon()
+			var active = run.get_primary_cannon() if run.has_method("get_primary_cannon") else null
 			if active == null or not ("current_ammo" in active) or not ("ammo_max" in active):
+				# No Primary equipped (just the unlimited Blaster) → nothing to refill.
 				btn.disabled = true
 				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_NO_PRIMARY_AMMO]
 				return

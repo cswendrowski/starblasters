@@ -44,6 +44,11 @@ const COLOR_NODE_GREEN := Color(0.55, 1.0, 0.50, 1.0)
 const COLOR_BOSS_RED   := Color(1.0, 0.30, 0.25, 1.0)
 const PLANET_LETTERS   := ["b", "c", "d", "e", "f", "g"]
 const ASTEROID_SCENE   = preload("res://Planets/Asteroids/Asteroid.tscn")
+# Faction tints for per-combat-node glitter (Roman 2026-06-11). corpo = #5b6ee1.
+const DECO_FACTION_COLORS := {
+	"zealot": Color("a85cc5"), "privateer": Color("4b692f"),
+	"supremacy": Color("ac3232"), "corpo": Color("5b6ee1"),
+}
 
 const CELL  := 16
 const COLS  := 30
@@ -491,7 +496,7 @@ func _build_pois_from_cache() -> void:
 					if draw_dressing:
 						hover_label = "Belt"
 			if draw_dressing:
-				_add_node_dressing(pos, int(poi.node_type), deco_rng)
+				_add_node_dressing(pos, int(poi.node_type), deco_rng, int(poi.get("faction", -1)))
 				if int(poi.node_type) == int(SectorNode.NodeType.HAZARD) \
 						and String(poi.get("hazard_subtype", "")) == "minefield":
 					_add_minefield_indicators(pos, deco_rng)
@@ -513,6 +518,12 @@ func _build_pois_from_cache() -> void:
 				"radius": 14.0,
 				"kind":   "poi",
 			})
+
+
+# NOTE (Roman 2026-06-11): the drifting decorative ships were pulled out in favor of
+# per-combat-node faction glitter — the faction a node carries now tints its glitter
+# zone (_add_glitter_zone), driven by the cache's per-POI `faction` field. See
+# _faction_color + the combat branch of _add_node_dressing.
 
 
 func _pick_planet_type(rng: RandomNumberGenerator, frac: float) -> int:
@@ -1438,14 +1449,25 @@ func _build_labels() -> void:
 # Hover/label/icon + node-type dressing (mirrors dev v3)
 # ---------------------------------------------------------------------------
 
-func _add_node_dressing(pos: Vector2, node_type: int, rng: RandomNumberGenerator) -> void:
+func _add_node_dressing(pos: Vector2, node_type: int, rng: RandomNumberGenerator, faction: int = -1) -> void:
 	# Map enum int → dressing.
 	#   COMBAT = 0, OUTPOST = 1, SIGNAL = 2, HAZARD = 5 (see sector_node.gd)
 	match node_type:
 		int(SectorNode.NodeType.OUTPOST): _add_pulse_glow(pos, Color(0.35, 0.65, 1.0), rng)
 		int(SectorNode.NodeType.HAZARD):  _add_pulse_glow(pos, Color(1.0,  0.25, 0.20), rng)
 		int(SectorNode.NodeType.SIGNAL):  _add_pulse_glow(pos, Color(1.0,  0.90, 0.15), rng)
-		int(SectorNode.NodeType.COMBAT):  _add_glitter_zone(pos)
+		int(SectorNode.NodeType.COMBAT):  _add_glitter_zone(pos, faction)
+
+
+# Faction int (Factions.Id: SUPREMACY 0 / PRIVATEER 1 / CORPORATE 2 / ZEALOT 3) →
+# decoration color. -1 (no faction) falls back to the neutral whitish glitter.
+func _faction_color(faction: int) -> Color:
+	match faction:
+		0: return DECO_FACTION_COLORS["supremacy"]
+		1: return DECO_FACTION_COLORS["privateer"]
+		2: return DECO_FACTION_COLORS["corpo"]
+		3: return DECO_FACTION_COLORS["zealot"]
+	return Color(0.78, 0.84, 0.92)
 
 
 func _add_pulse_glow(pos: Vector2, color: Color, rng: RandomNumberGenerator) -> void:
@@ -1479,10 +1501,20 @@ func _add_pulse_glow(pos: Vector2, color: Color, rng: RandomNumberGenerator) -> 
 	add_child(dot)
 
 
-func _add_glitter_zone(pos: Vector2) -> void:
+# Combat-node glitter, colored by the node's faction (Roman 2026-06-11): the
+# decorative pixel glitter on a combat node now reads as that faction's color,
+# mirroring how minefield nodes scatter blinking red pixels. faction -1 → neutral.
+func _add_glitter_zone(pos: Vector2, faction: int = -1) -> void:
 	var rect: Rect2 = Rect2(pos.x - 32.0, pos.y - 32.0, 64.0, 64.0)
+	var base_col: Color = _faction_color(faction)
 	var count: int = 7 + _fx_rng.randi() % 5
 	for _k in count:
+		# Privateer is THE overlay faction — sprinkle ~12% privateer-tinted motes
+		# into any non-privateer field (matches Factions' privateer-interloper idea
+		# + the #40 spec's "30% faction / 20% privateer" flavor).
+		var col: Color = base_col
+		if faction >= 0 and faction != 1 and _fx_rng.randf() < 0.12:
+			col = base_col.lerp(DECO_FACTION_COLORS["privateer"], 0.5)
 		_glitter.append({
 			"pos":        Vector2(_fx_rng.randf_range(rect.position.x, rect.end.x),
 								  _fx_rng.randf_range(rect.position.y, rect.end.y)),
@@ -1492,6 +1524,7 @@ func _add_glitter_zone(pos: Vector2) -> void:
 			"brightness": _fx_rng.randf(),
 			"hidden":     false,
 			"timer":      _fx_rng.randf_range(0.3, 2.0),
+			"color":      col,
 		})
 
 
@@ -1943,11 +1976,12 @@ func _disable_celestial_mouse(root: Node) -> void:
 
 func _draw() -> void:
 	draw_rect(Rect2(0, 0, 480, 270), BG_COLOR)
-	# Combat glitter — 1px dots.
+	# Combat glitter — 1px dots, tinted by the node's faction (Roman 2026-06-11).
 	for p in _glitter:
 		if p.brightness > 0.04:
+			var gc: Color = p.get("color", Color(0.78, 0.84, 0.92))
 			draw_rect(Rect2(p.pos, Vector2(1, 1)),
-				Color(0.78, 0.84, 0.92, p.brightness))
+				Color(gc.r, gc.g, gc.b, p.brightness))
 	# Pulsing decorative pixels around asteroids.
 	for px in _asteroid_pixels:
 		var a: float = 0.5 + 0.5 * sin(_time * px.hz * TAU + px.phase)

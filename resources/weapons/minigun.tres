@@ -1,13 +1,14 @@
-[gd_resource type="Resource" load_steps=2 format=3]
+[gd_resource type="Resource" format=3]
 
+[ext_resource type="PackedScene" path="res://scenes/projectiles/bullet_minigun.tscn" id="1_mxfml"]
 [ext_resource type="Script" path="res://scripts/parts/minigun_cannon.gd" id="1_script"]
 
 [resource]
 script = ExtResource("1_script")
-mark = 1
-base_damage = 4
-dmg_per_mark = 0
-base_cooldown = 0.0333
-cooldown_at_mk9 = 0.0333
 base_ammo = 1000
 refill_cost_override = 100
+bullet_scene = ExtResource("1_mxfml")
+base_damage = 1
+base_cooldown = 0.04
+display_name = ""
+slot_type = 4

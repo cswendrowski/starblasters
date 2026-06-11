@@ -45,8 +45,10 @@ var activate_below: float = ACTIVATE_BELOW_DEFAULT
 # damaged range so the flame visibly grows as the player nears death.
 # Roman 2026-05-29: floor dropped from (0, 0.5) to (0, 0.25) so a lightly
 # damaged ship shows only a faint flame, not a half-strength one.
-const FLAME_SIZE_MIN := Vector2(0.0, 0.25)
-const FLAME_SIZE_MAX := Vector2(0.4, 1.0)
+# Roman 2026-06-11: the flame must NOT get WIDER as damage increases — only the
+# HEIGHT ramps with severity. X (width) is held constant; only Y grows.
+const FLAME_SIZE_MIN := Vector2(0.22, 0.25)
+const FLAME_SIZE_MAX := Vector2(0.22, 1.0)
 
 # Flame opacity (shader `alpha` uniform). Roman 2026-06-08: the flame stays
 # fully opaque at every damage level — it's gated on/off by visibility, so when
@@ -77,6 +79,7 @@ var _mat: ShaderMaterial = null
 var _last_pos: Vector2 = Vector2.ZERO
 var _wind: float = 0.0
 var _was_damaged: bool = false   # tracks activate_below threshold crossing
+var _nozzle_local: Vector2 = ENGINE_LOCAL   # where the damage burst flashes
 
 
 static func attach_to_player(player: Node2D, nozzle: Vector2 = NOZZLE_OFFSET_DEFAULT, p_activate_below: float = ACTIVATE_BELOW_DEFAULT) -> ColorRect:
@@ -127,6 +130,7 @@ static func attach_to_player(player: Node2D, nozzle: Vector2 = NOZZLE_OFFSET_DEF
 	torch._player = player
 	torch._last_pos = player.global_position
 	torch.activate_below = p_activate_below
+	torch._nozzle_local = nozzle   # damage burst flashes at THIS anchor, not the fixed engine
 	# Hide until damage threshold met.
 	torch.visible = false
 	if player.has_signal("hull_changed"):
@@ -179,10 +183,14 @@ func _trigger_damage_burst() -> void:
 	if _player == null or not is_instance_valid(_player):
 		visible = true
 		return
-	# Spawn the explosive impact flash at the engine pixel in world space.
-	# Parent to scene root so it survives if the player moves/dies.
-	var burst_pos: Vector2 = _player.to_global(ENGINE_LOCAL)
-	var parent: Node = get_tree().current_scene
+	# Spawn the explosive impact flash at the engine pixel in world space. Parent
+	# into the player's OWN container (same viewport) so it survives the player
+	# moving but renders in the right viewport — current_scene put it in the
+	# HD-root scene when the player lives in a SubViewport (Roman 2026-06-11).
+	var burst_pos: Vector2 = _player.to_global(_nozzle_local)
+	var parent: Node = _player.get_parent()
+	if parent == null:
+		parent = get_tree().current_scene
 	if parent == null:
 		parent = get_tree().root
 	ImpactFx.spawn(parent, burst_pos, Color(1.0, 0.55, 0.20, 1.0), ImpactFx.ImpactKind.EXPLOSIVE)

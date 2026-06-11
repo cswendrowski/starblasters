@@ -1,10 +1,13 @@
-[gd_resource type="Resource" load_steps=2 format=3]
+[gd_resource type="Resource" format=3]
 
+[ext_resource type="PackedScene" path="res://scenes/projectiles/bullet_blaster.tscn" id="1_fisei"]
 [ext_resource type="Script" path="res://scripts/parts/basic_blaster_cannon.gd" id="1_w"]
 
 [resource]
 script = ExtResource("1_w")
-mark = 1
+bullet_scene = ExtResource("1_fisei")
 base_damage = 2
 dmg_per_mark = 2
 base_cooldown = 0.15
+display_name = ""
+slot_type = 4

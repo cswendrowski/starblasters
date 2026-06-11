@@ -4,6 +4,7 @@
 
 [resource]
 script = ExtResource("1_w")
-mark = 1
 base_damage = 4
 base_cooldown = 0.85
+display_name = ""
+slot_type = 4

@@ -32,7 +32,15 @@ func setup(enemy: Node2D, markers: Array, color: Color = TRAIL_COLOR, drift: flo
 	_enemy = enemy
 	_markers = markers
 	_drift = drift
-	var root: Node = get_tree().current_scene
+	# World-space lines parent into the HOST'S OWN parent — same viewport, but a
+	# sibling of the host (not a child) so they don't inherit its rotation. Using
+	# current_scene here put the lines in the HD-root scene when the host lives in
+	# a SubViewport (hangar/weapon-lab), so the trail rendered in the upper-left
+	# corner (Roman 2026-06-11 recurring regression — see docs/godot-patterns.md
+	# "SubViewport-hosted fx must parent to the host's world, not the scene root").
+	var root: Node = enemy.get_parent()
+	if root == null:
+		root = get_tree().current_scene
 	if root == null:
 		root = get_tree().root
 	for _m in markers:
@@ -60,7 +68,11 @@ func setup(enemy: Node2D, markers: Array, color: Color = TRAIL_COLOR, drift: flo
 		var mat := CanvasItemMaterial.new()
 		mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD   # glowy exhaust
 		line.material = mat
-		root.add_child(line)
+		# Deferred: setup() runs during the host's _ready, and `root` (the host's
+		# parent) is mid-add_child of the host itself — a direct add_child would
+		# fail "parent busy". Deferring lands the line one frame later, after the
+		# spawn settles (matches damage_smoke_trail).
+		root.call_deferred("add_child", line)
 		_lines.append(line)
 		_point_t.append([])
 

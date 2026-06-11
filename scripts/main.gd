@@ -14,6 +14,11 @@ var bounty: int = 0
 # to compute what was earned in THIS combat/hazard only. Read by the
 # cleared summary (e.g. asteroid mining miners-thank-you line).
 var _bounty_at_combat_start: int = 0
+# Combat screen-space sweeteners (renderer-polish D, 2026-06-11): post-fx band
+# (chromatic aberration + explosion ripple) + the low-hull danger pulse. Created
+# once, wired to the live player each combat in new_game().
+var _postfx: CanvasLayer = null
+var _danger: CanvasLayer = null
 var playing: bool = false
 var _boss_hooked: Node = null
 # Per-enemy-type stats: scene_path → {"spawned": int, "killed": int, "bounty": int, "total_bounty": int}
@@ -464,6 +469,9 @@ func _on_level_cleared() -> void:
 		# into the run-wide accumulators before the per-level counters reset.
 		run.run_time_seconds += _level_time
 		run.stat_add("asteroids", _asteroids_killed_this_level)
+		# Stash this level's clear-time for the cleared summary header (worklist
+		# #37) before the accumulator resets.
+		run.set_meta("last_combat_clear_time", _level_time)
 		_level_time = 0.0
 		# Consume per-run flags so they don't leak into the next level.
 		run.asteroid_bonus_bounty = 0
@@ -504,6 +512,26 @@ func _on_player_died() -> void:
 	await get_tree().create_timer(1.4).timeout
 	SceneTransition.change_scene(get_tree(), "res://scenes/run_summary.tscn")
 
+# Create the combat screen-space overlays once + (re)wire them to the live player.
+# Safe to call every combat: the nodes are built lazily, and the danger-pulse hull
+# hook guards against a double-connect when the player persists across levels.
+func _ensure_combat_overlays() -> void:
+	if _postfx == null or not is_instance_valid(_postfx):
+		var PostFx = load("res://scripts/effects/combat_postfx.gd")
+		_postfx = PostFx.new()
+		_postfx.name = "CombatPostFx"
+		add_child(_postfx)
+	if _danger == null or not is_instance_valid(_danger):
+		var Danger = load("res://scripts/effects/danger_pulse.gd")
+		_danger = Danger.new()
+		_danger.name = "DangerPulse"
+		add_child(_danger)
+	if player != null and is_instance_valid(player):
+		_postfx.set_player(player)
+		if not player.hull_changed.is_connected(_danger.on_hull_changed):
+			player.hull_changed.connect(_danger.on_hull_changed)
+
+
 func new_game() -> void:
 	bounty = 0
 	_enemy_stats.clear()
@@ -518,6 +546,7 @@ func new_game() -> void:
 		bounty = get_node("/root/Run").bounty
 	_bounty_at_combat_start = bounty
 	$CanvasLayer/UI.update_score(bounty)
+	_ensure_combat_overlays()
 	if player and is_instance_valid(player):
 		player.start()
 		if has_node("/root/Run"):
@@ -609,9 +638,13 @@ func new_game() -> void:
 				var rsd = get_node("/root/Run")
 				sd = rsd.sectors_cleared + 1
 				li = rsd.combats_in_sector
-				# M6b: pick this level's primary faction (deterministic per sector/node/
-				# run-seed) and stash it so the director overlays it on every spawn.
-				faction = Factions.pick_for_level(sd, li, int(rsd.run_seed))
+				# M6b: faction is now stored ON the combat node (assigned at cache build)
+				# so the map decoration and the actual fight agree (Roman 2026-06-11).
+				# Read the current node's faction; fall back to the legacy per-level pick
+				# if the node carries none (e.g. a node from an older cache).
+				faction = rsd.get_node_faction(rsd.current_node_id)
+				if faction < 0:
+					faction = Factions.pick_for_level(sd, li, int(rsd.run_seed))
 				# Dev override: Test Combat -> Faction... forces a specific faction so all
 				# four can be eyeballed on demand (persists across levels until cleared).
 				if rsd.has_meta("forced_faction"):

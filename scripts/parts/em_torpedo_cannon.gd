@@ -13,9 +13,7 @@ func _init() -> void:
 	super._init()
 	display_name = "EM Torpedo"
 	description = "Large rocket that bursts into chain lightning — strips shields, detonates enemy ordnance, leaves wrecks. Secondary."
-	base_damage = 6
-	dmg_per_mark = 2     # burst AoE: Mk1 6 -> Mk9 22 (base_damage + dmg_per_mark*8)
-	base_cooldown = 1.1
+	# Stats live in resources/weapons/em_torpedo.tres (single source of truth).
 
 
 func _base_ammo() -> int:

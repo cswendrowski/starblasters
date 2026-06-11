@@ -18,9 +18,7 @@ func _init() -> void:
 	super._init()
 	display_name = "Swarm Launcher"
 	description = "Releases a salvo of homing micro-missiles that fan out to distinct targets and explode against them. Mk adds 2 missiles. Secondary."
-	base_damage = 4
-	dmg_per_mark = 0
-	base_cooldown = 3.0
+	# Stats live in resources/weapons/swarm_launcher.tres (single source of truth).
 
 
 func _secondary_mode() -> int:

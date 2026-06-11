@@ -211,14 +211,25 @@ func _render_loadout() -> void:
 	if not has_node("/root/Run"):
 		return
 	var run = get_node("/root/Run")
-	# Single-active model: ONE primary on the ship (the active cannon). Other
-	# owned primaries live in the hold (OWNED KIT) and equip by swapping the
-	# active one back to the hold. cannon_pool is kept as a 1-element array.
-	var active_cannon = run.get_active_cannon()
-	var primary_color: Color = LOADOUT_SLOTS[0]["color"]
-	if active_cannon == null:
-		active_cannon = run.loadout_snapshot.get(int(SlotTypes.SlotType.CANNON), null)
-	_loadout_box.add_child(_make_card("PRIMARY", Color(0.55, 1.0, 0.50), active_cannon, "ACTIVE", Callable(), true))
+	# Two-slot model (2026-06-11): BLASTER (slot 0, unlimited fallback) + PRIMARY
+	# (slot 1, optional ammo gun). The active (firing) one gets an ACTIVE badge; the
+	# other a "Set Active" button (the Q swap). Owned spares live in the hold below.
+	var blaster = run.cannon_pool[0] if run.cannon_pool.size() > 0 else run.loadout_snapshot.get(int(SlotTypes.SlotType.CANNON), null)
+	var primary = run.get_primary_cannon() if run.has_method("get_primary_cannon") else null
+	var active_idx: int = int(run.active_cannon_idx)
+	var slot_color: Color = LOADOUT_SLOTS[0]["color"]
+	var active_color := Color(0.55, 1.0, 0.50)
+	if active_idx == 0:
+		_loadout_box.add_child(_make_card("BLASTER", active_color, blaster, "ACTIVE", Callable(), true))
+	else:
+		_loadout_box.add_child(_make_card("BLASTER", slot_color, blaster, "Set Active", _on_set_active.bind(0)))
+	if primary != null:
+		if active_idx == 1:
+			_loadout_box.add_child(_make_card("PRIMARY", active_color, primary, "ACTIVE", Callable(), true))
+		else:
+			_loadout_box.add_child(_make_card("PRIMARY", slot_color, primary, "Set Active", _on_set_active.bind(1)))
+	else:
+		_loadout_box.add_child(_make_card("PRIMARY", slot_color, null))
 	# SECONDARY + SUPER + SHIFT_MODE are single slots.
 	for entry in [LOADOUT_SLOTS[1], LOADOUT_SLOTS[2], LOADOUT_SLOTS[3]]:
 		var part = run.loadout_snapshot.get(int(entry["slot"]), null)
@@ -362,6 +373,13 @@ func _on_equip(idx: int, source: String) -> void:
 	_render_all()
 
 
+func _on_set_active(idx: int) -> void:
+	if not has_node("/root/Run"):
+		return
+	get_node("/root/Run").set_active_cannon(idx)
+	_render_all()
+
+
 func _on_back() -> void:
 	var target := SectorMapRoute.SECTOR_MAP_SCENE
 	if has_node("/root/Run"):
@@ -390,6 +408,12 @@ func _part_description(part) -> String:
 func _slot_short(part) -> String:
 	if part == null:
 		return "PART"
+	# Cannon-slot weapons read as Blaster (infinite) vs Primary (metered) — the
+	# two-slot model (2026-06-11), not the generic slot name.
+	if int(part.slot_type) == int(SlotTypes.SlotType.CANNON):
+		if part.has_method("ammo_at_mark"):
+			var mk: int = int(part.mark) if "mark" in part else 1
+			return "Blaster" if int(part.ammo_at_mark(mk)) < 0 else "Primary"
 	return SlotTypes.slot_name(int(part.slot_type))
 
 

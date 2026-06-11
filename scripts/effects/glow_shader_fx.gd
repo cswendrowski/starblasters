@@ -38,8 +38,11 @@ const HALO_PX: float = 7.0
 const BLUR_PX: float = 4.0
 # Falloff exponent: >1 keeps a brighter core with a faster-fading tail (bloom).
 const FALLOFF: float = 1.6
-# Overall additive brightness of the halo. Subtle but present.
-const INTENSITY: float = 0.55
+# Overall additive brightness of the halo. Bumped 0.55 → 1.2 so the hottest
+# bolt-core pixels push past glow_hdr_threshold=1.0 and bloom, while the soft
+# halo tail stays sub-1.0 and matte — keeps bullets glowing without re-blooming
+# the whole frame (Roman renderer-polish C, 2026-06-11).
+const INTENSITY: float = 1.2
 # Saturation/value gates for "is this pixel a usable, non-white color".
 const MIN_SAT: float = 0.18      # below this = too grey/white to tint with
 const MAX_WHITE_VALUE: float = 0.92  # near-white high-value low-sat = skip

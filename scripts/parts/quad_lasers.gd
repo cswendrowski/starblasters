@@ -9,21 +9,17 @@ extends "res://scripts/parts/metered_primary.gd"
 # skips the rotary charge-up — the rotary LOOK comes from use_rotary_laser_muzzle.
 
 const BulletRotaryLaser = preload("res://scenes/projectiles/bullet_rotary_laser.tscn")
-# ±1px around each wing muzzle (≈±4) → 4 parallel lanes. (Not const: a packed
-# array literal isn't a constant expression in GDScript.)
-static var QUAD_OFFSETS := PackedFloat32Array([-5.0, -3.0, 3.0, 5.0])
+# 4 parallel lanes. Roman 2026-06-11: widened the outermost by ±2 (now ±7) so the
+# bolts read more distinct, and dropped those outer emit points 2px lower.
+# (Not const: a packed array literal isn't a constant expression in GDScript.)
+static var QUAD_OFFSETS := PackedVector2Array([Vector2(-7.0, 2.0), Vector2(-3.0, 0.0), Vector2(3.0, 0.0), Vector2(7.0, 2.0)])
 
 
 func _init() -> void:
 	super._init()
 	display_name = "Quad Lasers"
 	description = "Fires four parallel laser bolts at once for wide coverage. Mk.1: 90 ammo, regen 2.5/sec; +20 ammo per Mk."
-	base_damage = 1
-	dmg_per_mark = 0
-	base_cooldown = 0.12
-	base_ammo = 90
-	ammo_recharge_rate = 2.5
-	no_outpost_refill = true
+	# Stats live in resources/weapons/quad_lasers.tres (single source of truth).
 	if bullet_scene == null:
 		bullet_scene = BulletRotaryLaser
 

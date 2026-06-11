@@ -229,7 +229,7 @@ static func eject_brass(parent: Node, world_pos: Vector2) -> void:
 	px.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	# Brass with per-shot colour variation.
 	px.modulate = Color(randf_range(0.72, 0.92), randf_range(0.52, 0.70), randf_range(0.12, 0.30), 1.0)
-	px.position = world_pos + Vector2(6.0, 2.0)   # eject port: right side, midship
+	px.position = world_pos   # caller passes the ship's casing-eject marker position
 	px.z_index = 4
 	px.set_script(ShellCasing)
 	parent.add_child(px)
@@ -286,7 +286,9 @@ static func _spawn_flash(parent: Node, world_pos: Vector2, use_local: bool = fal
 	glow.texture = _build_flash_texture()
 	glow.position = local_pos
 	glow.scale = Vector2(1.0, 1.0)
-	glow.modulate = Color(1.0, 0.72, 0.28, 1.0)  # yellow-orange
+	# HDR-bright yellow-orange so the muzzle flash clears glow_hdr_threshold=1.0
+	# and blooms (Roman renderer-polish C, 2026-06-11). Was 1.0/0.72/0.28.
+	glow.modulate = Color(1.9, 1.35, 0.5, 1.0)
 	glow.z_index = 4
 	var glow_mat := CanvasItemMaterial.new()
 	glow_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD

@@ -39,7 +39,10 @@ static func _ensure_resources() -> void:
 # Applies the pixelated-burn shader to `sprite` (typically a Sprite2D) and
 # tweens the burn from 0 to full consumption over `duration` seconds.
 # When done, the sprite is hidden so the parent can queue_free safely.
-static func apply_burn(sprite: CanvasItem, duration: float = 0.5, custom_color: Color = Color(0, 0, 0, 0)) -> void:
+# `origin` (sprite UV, 0..1) is where the burn STARTS — default center. Callers can
+# pass a marker's UV (engine / turret / missile-launch) so the body dissolves from that
+# point outward (Roman 2026-06-11). See enemy_base._burn_origin_uv().
+static func apply_burn(sprite: CanvasItem, duration: float = 0.5, custom_color: Color = Color(0, 0, 0, 0), origin: Vector2 = Vector2(0.5, 0.5)) -> void:
 	if sprite == null or not is_instance_valid(sprite):
 		return
 	_ensure_resources()
@@ -47,7 +50,7 @@ static func apply_burn(sprite: CanvasItem, duration: float = 0.5, custom_color: 
 	mat.shader = BURN_SHADER
 	mat.set_shader_parameter("noiseTexture", _noise_tex)
 	mat.set_shader_parameter("colorCurve", _curve_tex)
-	mat.set_shader_parameter("position", Vector2(0.5, 0.5))
+	mat.set_shader_parameter("position", origin)
 	mat.set_shader_parameter("radius", 0.0)
 	# Tuned in the Shader Lab (Disintegrate), 2026-06-10. `duration` (the radius
 	# sweep speed, saved as 1.0) stays a per-caller pacing value — callers pass

@@ -159,6 +159,18 @@ func _style_version() -> void:
 	# 2026-05-18 wanted it legible on the web build).
 	version_label.add_theme_font_size_override("font_size", 24)
 	version_label.add_theme_color_override("font_color", Color(0.95, 0.98, 1.0, 1.0))
+	# CLIPPING FIX (Roman 2026-06-11): the .tscn box is 42×10 px (480-era offsets);
+	# the 24px HD font overflowed it off the bottom-right corner. Size a real HD box
+	# in the bottom-right corner, right+bottom aligned, with margin so it never clips.
+	version_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	version_label.offset_left = -240.0
+	version_label.offset_top = -52.0
+	version_label.offset_right = -18.0
+	version_label.offset_bottom = -14.0
+	version_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	version_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	version_label.clip_text = false
+	version_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 
 
 func _on_test_bed() -> void:

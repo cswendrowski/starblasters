@@ -1,10 +1,8 @@
-[gd_resource type="Resource" load_steps=2 format=3]
+[gd_resource type="Resource" format=3]
 
 [ext_resource type="Script" path="res://scripts/parts/particle_beam.gd" id="1_pb"]
 
 [resource]
 script = ExtResource("1_pb")
-mark = 1
-base_dps = 30.0
-base_width = 6.0
-width_per_mark = 1.0
+display_name = ""
+slot_type = 5

@@ -68,5 +68,9 @@ void fragment() {
 	float r = length(centered) * 2.0;
 	float edge = 1.0 - smoothstep(1.0 - edge_fade, 1.0, r);
 	float alpha = n * edge * life_alpha;
-	COLOR = vec4(smoke_color.rgb, alpha * smoke_color.a);
+	// Respect the node's per-instance modulate (incoming COLOR) so callers can TINT
+	// the smoke instead of every puff reading the flat default gray. Default white
+	// modulate → identical to before (Roman worklist #44: "smoke sprites read gray,
+	// not accepting color").
+	COLOR = vec4(smoke_color.rgb * COLOR.rgb, alpha * smoke_color.a * COLOR.a);
 }

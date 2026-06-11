@@ -29,14 +29,22 @@ const SPIN_MIN := 0.30             # rad/s — "slight" tumble
 const SPIN_MAX := 1.25
 const SPIN_EASE := 2.6             # per-sec rate the tumble eases in from 0 (preserve facing first)
 const WRECK_SCALE := 0.72          # ~half the recycle shrink (recycle goes to 0.45); "reduce slightly"
-const SCALE_TIME := 1.0
+const SCALE_TIME := 1.4            # Roman 2026-06-11: more GRADUAL recession (was 1.0)
+# Descent stage (Roman 2026-06-11): the wreck first DESCENDS keeping its orientation, losing 20% of its
+# inherited speed across the stage (1% → 20%). Lateral drift + tumble only begin AFTER it completes.
+const DESCENT_TIME := 1.4
+const SPEED_LOSS_START := 0.99     # 1% slower at the start of the descent
+const SPEED_LOSS_END := 0.80       # 20% slower by the end
 const RECEDE_DARKEN := 0.9         # subtle per-sprite push into depth (compounds with the layer grade)
 const EXIT_ZONE_Y := 195.0         # Zones.DEPARTURE_START — the "exit zone" where the fate is decided
 const DESPAWN_Y := 320.0           # the fall-off case frees here, below the 270 playfield
 const SAFETY_LIFETIME := 12.0      # backstop free if it somehow never reaches the exit zone
 const VEL_EPS := 4.0               # below this speed the flame keeps its last heading (no jitter)
 
-var _vel: Vector2 = Vector2.ZERO
+var _init_vel: Vector2 = Vector2.ZERO   # inherited living velocity (decays to 80% across the descent)
+var _fall_v: float = 0.0                # gravity-accumulated downward speed
+var _lateral: float = 0.0               # sideways drift, ramps in only AFTER the descent stage
+var _descent_t: float = 0.0             # 0→1 across DESCENT_TIME
 var _drift_x: float = 0.0
 var _spin_target: float = 0.0
 var _spin_cur: float = 0.0
@@ -69,7 +77,7 @@ func _init_drift(init_vel: Vector2, seed_i: int, exit_explode_chance: float, emi
 	var dir: float = 1.0 if (seed_i % 2 == 0) else -1.0
 	_spin_target = dir * (SPIN_MIN + randf() * (SPIN_MAX - SPIN_MIN))
 	_drift_x = dir * randf_range(3.0, 11.0)
-	_vel = init_vel
+	_init_vel = init_vel
 	_exit_explode_chance = exit_explode_chance
 	# Mid-depth recession: smooth scale-down + a subtle darken.
 	var tw := s.create_tween()
@@ -116,18 +124,24 @@ func _process(delta: float) -> void:
 		return
 	var s: Node2D = sprite
 	_t += delta
-	# Curve the preserved velocity into a fall.
-	_vel.y = minf(_vel.y + FALL_GRAVITY * delta, FALL_SPEED_MAX)
-	_vel.x = lerpf(_vel.x, _drift_x, clampf(LATERAL_DAMP * delta, 0.0, 1.0))
-	s.position += _vel * delta
-	# Tumble eases in from 0 so the hull keeps its facing for a beat before slowly turning.
-	_spin_cur = lerpf(_spin_cur, _spin_target, clampf(SPIN_EASE * delta, 0.0, 1.0))
-	s.rotation += _spin_cur * delta
+	_descent_t = minf(_descent_t + delta / DESCENT_TIME, 1.0)
+	# DESCENT stage: keep orientation, lose 20% of the inherited speed across the stage (1% → 20%),
+	# while gravity curves the motion into a fall. Lateral drift + tumble are held until it completes.
+	_fall_v = minf(_fall_v + FALL_GRAVITY * delta, FALL_SPEED_MAX)
+	var speed_mult: float = lerpf(SPEED_LOSS_START, SPEED_LOSS_END, _descent_t)
+	var vel: Vector2 = _init_vel * speed_mult + Vector2(0.0, _fall_v)
+	if _descent_t >= 1.0:
+		# Post-descent: sideways drift + slow tumble ease in.
+		_lateral = lerpf(_lateral, _drift_x, clampf(LATERAL_DAMP * delta, 0.0, 1.0))
+		_spin_cur = lerpf(_spin_cur, _spin_target, clampf(SPIN_EASE * delta, 0.0, 1.0))
+		s.rotation += _spin_cur * delta
+	vel.x += _lateral
+	s.position += vel * delta
 	# Flame burns OPPOSITE the velocity (world-space), independent of the hull's tumble. The torch's
 	# flame points world +Y at torch.global_rotation == PI, so to point it along D = (-vel) we need
 	# torch.global_rotation = PI/2 + D.angle(); subtract the hull rotation for the child-local value.
-	if _torch != null and is_instance_valid(_torch) and _vel.length() >= VEL_EPS:
-		var d: Vector2 = (-_vel).normalized()
+	if _torch != null and is_instance_valid(_torch) and vel.length() >= VEL_EPS:
+		var d: Vector2 = (-vel).normalized()
 		_torch.rotation = d.angle() + PI * 0.5 - s.global_rotation
 	# Decide the wreck's fate at the exit zone.
 	if not _decided and s.global_position.y >= EXIT_ZONE_Y:

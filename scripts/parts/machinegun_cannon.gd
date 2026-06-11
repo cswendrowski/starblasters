@@ -12,11 +12,7 @@ func _init() -> void:
 	super._init()
 	display_name = "Machinegun Cannon"
 	description = "High rate of fire, fixed damage 5. Mk.1: 1000 rounds at 450 RPM. Mk.9: ~4300 rounds at 600 RPM. Refill at outposts (100)."
-	base_damage = 5
-	dmg_per_mark = 0
-	base_cooldown = 0.1333
-	base_ammo = 1000
-	refill_cost_override = 100
+	# Stats live in the subclass .tres (autocannon.tres etc.) — single source of truth.
 
 
 func _weapon_style() -> int:
