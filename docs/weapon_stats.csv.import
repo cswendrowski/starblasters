@@ -1,0 +1,19 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://1g8hb75t5stq"
+
+[deps]
+
+files=["res://docs/weapon_stats.Mk1 Damage.translation", "res://docs/weapon_stats.Mk9 Damage.translation", "res://docs/weapon_stats.Mk1 Cooldown (s).translation", "res://docs/weapon_stats.Mk9 Cooldown (s).translation", "res://docs/weapon_stats.Mk1 Fire Rate (shots/s).translation", "res://docs/weapon_stats.Mk9 Fire Rate (shots/s).translation", "res://docs/weapon_stats.Mk1 Projectiles/shot.translation", "res://docs/weapon_stats.Mk9 Projectiles/shot.translation", "res://docs/weapon_stats.Ammo Mk1.translation", "res://docs/weapon_stats.Ammo Mk9.translation"]
+
+source_file="res://docs/weapon_stats.csv"
+dest_files=["res://docs/weapon_stats.Mk1 Damage.translation", "res://docs/weapon_stats.Mk9 Damage.translation", "res://docs/weapon_stats.Mk1 Cooldown (s).translation", "res://docs/weapon_stats.Mk9 Cooldown (s).translation", "res://docs/weapon_stats.Mk1 Fire Rate (shots/s).translation", "res://docs/weapon_stats.Mk9 Fire Rate (shots/s).translation", "res://docs/weapon_stats.Mk1 Projectiles/shot.translation", "res://docs/weapon_stats.Mk9 Projectiles/shot.translation", "res://docs/weapon_stats.Ammo Mk1.translation", "res://docs/weapon_stats.Ammo Mk9.translation"]
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true

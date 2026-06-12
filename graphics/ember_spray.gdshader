@@ -25,6 +25,10 @@ uniform float fade_start : hint_range(0.0, 1.0) = 0.78;
 uniform float lifetime_rand : hint_range(0.0, 1.0) = 0.4;
 // 0 = cool (gradient read t: white→char as the ember ages); 1 = heat up.
 uniform float invert : hint_range(0.0, 1.0) = 0.0;
+// 1 = SMOKE variant: desaturate + dim the ramp so the streaks read as grey smoke
+// wisps instead of fire (Roman's "ember smoke trail variant"). Pair with a late
+// fade_start so the trail persists until the end of travel.
+uniform float smoke : hint_range(0.0, 1.0) = 0.0;
 // Tunable colour ramp. t=0 = hottest, t=1 = charred. Set by EmberFx.
 uniform sampler2D color_ramp : repeat_disable, filter_linear;
 
@@ -79,7 +83,14 @@ void process() {
 	float cool_rate = mix(1.0, mix(0.7, 1.6, CUSTOM.x), cool_bias);
 	float t = clamp(life * cool_rate, 0.0, 1.0);
 	float a = 1.0 - smoothstep(fade_start, 1.0, life);
-	COLOR = vec4(ramp(t), a);
+	vec3 col = ramp(t);
+	if (smoke > 0.5) {
+		// Desaturate toward luminance + dim → grey smoke wisp (keeps the ramp's
+		// faint warm tint at the head when the ramp starts hot).
+		float g = dot(col, vec3(0.299, 0.587, 0.114));
+		col = mix(col, vec3(g) * 0.6, smoke);
+	}
+	COLOR = vec4(col, a);
 
 	// Stretch the quad along the velocity. The texture is 2 px across, so a
 	// basis-column length of L renders 2·L px → halve the target sizes.

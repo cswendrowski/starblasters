@@ -95,6 +95,7 @@ horizontal_alignment = 1
 
 [node name="Backdrop" parent="." unique_id=519582671 instance=ExtResource("coord_v4")]
 drift_speed = 50.0
+enable_hazard_decor = true
 
 [node name="Player" parent="." unique_id=1846889269 instance=ExtResource("6_t4pur")]
 position = Vector2(160, 320)

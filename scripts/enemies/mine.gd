@@ -45,8 +45,9 @@ func explode() -> void:
 	set_deferred("monitorable", false)
 	died.emit(bounty_value)
 	_fade_death_overlays()   # drop glow-mask / outline / centre-blink instantly so only the body burns
+	# Single circle explosion (Roman 2026-06-11) — not the fiery default blast.
 	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
-	ExplosionFx.play(global_position, 1.0)
+	ExplosionFx.play(global_position, 1.0, true, null, ExplosionFx.scene_for("small_circle"))
 	var MineSfx = load("res://scripts/effects/mine_sfx.gd")
 	MineSfx.play_at(global_position)
 	if has_node("Sprite2D"):

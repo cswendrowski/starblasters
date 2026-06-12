@@ -34,9 +34,10 @@ const WIND_GAIN: float = 0.0024
 # flame across the screen.
 const WIND_SMOOTHING: float = 8.0
 
-# Hull threshold for the flame to be visible. Default 0.5 for enemies
-# (engage at 50% hull). Player overrides this to 0.01 so the torch
-# activates on the first pip lost (hull_changed spec 2026-05-26).
+# Lost-hull FRACTION at which the flame becomes visible: damage_level =
+# 1 - hull/max_hull, gated >= activate_below. 0.5 = half the CURRENT max hull
+# (mod-independent), used by BOTH enemies and the player (Roman 2026-06-11;
+# was a stale 0.01 "first pip", which triggered too early on upgraded hulls).
 const ACTIVATE_BELOW_DEFAULT: float = 0.5
 var activate_below: float = ACTIVATE_BELOW_DEFAULT
 

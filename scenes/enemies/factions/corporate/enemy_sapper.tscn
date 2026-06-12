@@ -14,6 +14,7 @@ size = Vector2(16, 16)
 script = ExtResource("1_script")
 max_health = 2
 bounty_value = 20
+faction_shield_exempt = true
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1920262871]
 texture = ExtResource("2_tex")

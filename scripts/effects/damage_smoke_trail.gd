@@ -10,7 +10,7 @@ class_name DamageSmokeTrail
 const SHADER_PATH := "res://graphics/billow_smoke.gdshader"
 
 const ACTIVATE_BELOW_DEFAULT: float = 0.5  # hull <= 50% → emit (enemy default)
-var activate_below: float = ACTIVATE_BELOW_DEFAULT  # player overrides to 0.01
+var activate_below: float = ACTIVATE_BELOW_DEFAULT  # lost-hull FRACTION; player passes 0.5 (50% of current max)
 # Emission rate scales with damage severity (Roman 2026-05-29): a lightly
 # damaged ship puffs slowly + sparsely, a near-dead ship emits at the fast
 # rate. Interpolated per hull_changed into _sample_interval.

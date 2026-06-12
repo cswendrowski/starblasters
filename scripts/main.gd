@@ -233,7 +233,7 @@ const _WARMUP_SHADERS := [
 	"res://graphics/hit_flash.gdshader",       # first bullet impact
 	"res://graphics/pixelated_burn.gdshader",  # first death
 	"res://graphics/damage_noise.gdshader",    # enemy damage overlay
-	"res://graphics/sci_fi_shield.gdshader",   # first shielded enemy / player shield
+	"res://graphics/hex_shield.gdshader",       # first shielded enemy / player shield
 	"res://graphics/torch_fire.gdshader",      # first hull-loss damage tell
 	"res://scripts/effects/glow_halo.gdshader",# bullet glow
 	"res://shaders/outline_1px.gdshader",      # enemy hull outline

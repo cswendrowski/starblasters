@@ -1,0 +1,47 @@
+[gd_scene format=3]
+
+[ext_resource type="Shader" path="res://graphics/ember_spray.gdshader" id="1_n7g7w"]
+
+[sub_resource type="Gradient" id="Gradient_nc3ok"]
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_lbm7x"]
+gradient = SubResource("Gradient_nc3ok")
+width = 4
+height = 4
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(1, 0.5)
+
+[sub_resource type="Gradient" id="Gradient_rgys8"]
+offsets = PackedFloat32Array(0, 0.16, 0.38, 0.62, 0.85)
+colors = PackedColorArray(1, 1, 1, 1, 0.984, 0.82, 0.184, 1, 1, 0.294, 0, 1, 0.541, 0.063, 0, 1, 0.063, 0.024, 0.02, 1)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_sbail"]
+gradient = SubResource("Gradient_rgys8")
+width = 64
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_361xe"]
+shader = ExtResource("1_n7g7w")
+shader_parameter/direction_angle = -1.5707963267948966
+shader_parameter/spread_deg = 180.0
+shader_parameter/speed_min = 80.0
+shader_parameter/speed_max = 240.0
+shader_parameter/drag = 3.2
+shader_parameter/gravity_y = 70.0
+shader_parameter/streak_sec = 0.05
+shader_parameter/thickness = 1.0
+shader_parameter/cool_bias = 0.0
+shader_parameter/fade_start = 0.95
+shader_parameter/lifetime_rand = 0.4
+shader_parameter/invert = 0.0
+shader_parameter/smoke = 0.0
+shader_parameter/color_ramp = SubResource("GradientTexture1D_sbail")
+
+[node name="ExplosionEmber" type="GPUParticles2D" unique_id=498823634]
+amount = 40
+texture = SubResource("GradientTexture2D_lbm7x")
+lifetime = 0.7
+one_shot = true
+explosiveness = 1.0
+process_material = SubResource("ShaderMaterial_361xe")

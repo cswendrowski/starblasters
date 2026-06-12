@@ -1,0 +1,33 @@
+[gd_scene format=3 uid="uid://d5pckdhrxad4"]
+
+[sub_resource type="Curve" id="Curve_ype1n"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_j2uh5"]
+curve = SubResource("Curve_ype1n")
+
+[sub_resource type="Gradient" id="Gradient_imgqn"]
+offsets = PackedFloat32Array(0, 0.21311475, 0.40983605, 0.6967213, 1)
+colors = PackedColorArray(1, 1, 1, 1, 1, 0.6901961, 0, 1, 1, 0.15294118, 0, 1, 0.4630245, 0.04710319, 1.2032687e-07, 1, 0.3647059, 0.007843138, 0, 1)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_3mqyk"]
+gradient = SubResource("Gradient_imgqn")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_skkv1"]
+lifetime_randomness = 1.0
+particle_flag_rotate_y = true
+radial_velocity_min = -2.2351742e-05
+radial_velocity_max = 49.999977
+gravity = Vector3(0, 0, 0)
+color_ramp = SubResource("GradientTexture1D_3mqyk")
+alpha_curve = SubResource("CurveTexture_j2uh5")
+
+[node name="FireTrail" type="Node2D" unique_id=1912029067]
+
+[node name="GPUParticles2D4" type="GPUParticles2D" parent="." unique_id=1196877967]
+amount = 250
+fract_delta = false
+trail_lifetime = 2.09
+trail_sections = 9
+process_material = SubResource("ParticleProcessMaterial_skkv1")

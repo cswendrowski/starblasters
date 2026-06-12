@@ -765,6 +765,11 @@ func _apply_sector_modifiers(enemy: Node, modifiers: Array) -> void:
 func _resolve_shields(enemy: Node, wave, run) -> void:
 	if not ("components" in enemy and enemy.components is Array):
 		return
+	# faction_shield_exempt = "no generic shield, period" (c_dart wants none; bulwark/sapper
+	# author their OWN shield in _ready, which isn't in `components` yet here — so a data-driven
+	# add would STACK a parallel ring rather than boost it = "doubled up shields", Roman 2026-06-11).
+	if ("faction_shield_exempt" in enemy) and enemy.faction_shield_exempt:
+		return
 	var charge = _find_charge_shield(enemy)
 	# Roster "shielded" tag (wave.shield_charges).
 	if wave.shield_charges > 0:

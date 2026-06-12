@@ -1,0 +1,11 @@
+Weapon,Mk1 Damage,Mk9 Damage,Mk1 Cooldown (s),Mk9 Cooldown (s),Mk1 Fire Rate (shots/s),Mk9 Fire Rate (shots/s),Mk1 Projectiles/shot,Mk9 Projectiles/shot,Ammo Mk1,Ammo Mk9
+Energy Blaster,2,18,0.1500,0.1500,6.67,6.67,1,1,infinite,infinite
+Heavy Blaster,6,30,0.4000,0.3000,2.50,3.33,1,1,infinite,infinite
+Twin Blaster,2,10,0.1200,0.1200,8.33,8.33,1,1,infinite,infinite
+Quad Lasers,1,3,0.1200,0.1200,8.33,8.33,4,4,90,250
+Rotary Laser,1,5,0.0500,0.0500,20.00,20.00,1,1,120,360
+Minigun,1,1,0.0400,0.0400,25.00,25.00,1,1,1000,4299
+Autocannon,5,5,0.1333,0.1000,7.50,10.00,1,1,1000,4299
+Wave Gun,4,12,0.2314,0.2314,4.32,4.32,1,1,250,83
+Spread Cannon,2,2,0.3000,0.3000,3.33,3.33,3,7,500,500
+Auto Laser,3,3,0.1620,0.0756,6.17,13.23,1,1,200,440

@@ -19,21 +19,25 @@ const DAMAGE_NOISE_TEX_PATH := "res://resources/noise_damage.tres"
 const DAMAGE_EDGE_TEX_PATH := "res://resources/edge_distance_flat.tres"
 const TORCH_SHADER = preload("res://graphics/torch_fire.gdshader")
 const BurnFx = preload("res://scripts/burn_fx.gd")
+const SparkTrailFx = preload("res://scripts/effects/spark_trail_fx.gd")
 
 # Tunables (overridable through spawn()'s opts). burn_lead = fraction of life spent
 # tumbling before the burn starts; the burn itself runs `burn_time` (randomized).
 var velocity: Vector2 = Vector2.ZERO
 var gravity: float = 90.0
-var drag: float = 0.6
+var drag: float = 0.7                          # Shader Lab Explosions tune (Roman 2026-06-11)
 var spin: float = 0.0
 var piece_scale: float = 1.0
 var tint: Color = Color(1, 1, 1, 1)
 var burn_time: float = 1.6        # the disintegration sweep duration (randomized per piece)
+var flame_size: Vector2 = Vector2(0.05, 1.05)  # torch flame width/height (Shader Lab Explosions tune)
+var flame_speed: float = 5.0                   # torch flame animation speed (Shader Lab Explosions tune)
 var _forced_frame: int = -1
 
 var _spr: Sprite2D = null
 var _torch: ColorRect = null
-var _ember: CPUParticles2D = null
+var _sparks: Node2D = null              # spark_trail.tscn instance (replaces the old CPUParticles ember)
+var _sparks_parts: GPUParticles2D = null
 var _smoke: Line2D = null
 var _smoke_ages: Array = []
 var _smoke_acc: float = 0.0
@@ -66,8 +70,10 @@ static func spawn(parent: Node, world_pos: Vector2, opts: Dictionary = {}) -> No
 	if opts.has("piece_scale"): d.piece_scale = float(opts["piece_scale"])
 	if opts.has("tint"): d.tint = opts["tint"]
 	if opts.has("frame"): d._forced_frame = int(opts["frame"])
-	# Burn duration randomized per piece (Roman 2026-06-11: 1.25–2.0s).
-	d.burn_time = float(opts.get("burn_time", randf_range(1.25, 2.0)))
+	# Burn duration randomized per piece (Shader Lab Explosions tune 2026-06-11: 1.45–3.0s).
+	d.burn_time = float(opts.get("burn_time", randf_range(1.45, 3.0)))
+	if opts.has("flame_size"): d.flame_size = opts["flame_size"]
+	if opts.has("flame_speed"): d.flame_speed = float(opts["flame_speed"])
 	parent.add_child(d)
 	return d
 
@@ -92,9 +98,18 @@ func _ready() -> void:
 	# Torch flame (the chunk is on fire) — angled along travel each frame.
 	_torch = _make_torch()
 	add_child(_torch)
-	# Hot ember sparks streaming off the back.
-	_ember = _make_ember_trail()
-	add_child(_ember)
+	# Fire-spark trail off the burning chunk (Roman 2026-06-11): the spark_trail.tscn particle
+	# effect replaces the old hand-rolled CPUParticles ember. local_coords = false so the sparks
+	# fly off into world space and trail behind the falling chunk (the old ember's look).
+	_sparks = SparkTrailFx.spawn(self, Vector2.ZERO)
+	_sparks_parts = SparkTrailFx.particles(_sparks)
+	if _sparks_parts != null:
+		_sparks_parts.local_coords = false
+		# Cap the per-chunk spark count: the scene is authored at 250 for a single hero trail,
+		# but debris spawns MANY chunks at once (a wave-clearing bomb → dozens), so the full
+		# count would spike. 60 stays lush at ~4× the old ember. (Player markers keep the full
+		# scene count — they're gated + occasional.) Roman 2026-06-11.
+		_sparks_parts.amount = mini(_sparks_parts.amount, 60)
 	# Dark damage-smoke LINE trail (Roman: use the damage smoke, not a puffy orb).
 	# Parented to OUR container so it renders in the right viewport (combat or a lab).
 	_smoke = _make_smoke_line()
@@ -117,8 +132,7 @@ func _process(delta: float) -> void:
 		if _torch != null and is_instance_valid(_torch):
 			# torch_fire's flame grows "up" (-Y) by default → rotate up onto `back`.
 			_torch.rotation = back.angle() + PI * 0.5
-		if _ember != null and is_instance_valid(_ember):
-			_ember.direction = back
+		# (spark_trail emits radially, so no direction to aim — the sparks fly off all sides.)
 	# Trail the damage smoke from the live chunk position.
 	_sample_smoke(delta)
 	# Kick off the slow disintegration once the tumble has read.
@@ -141,18 +155,27 @@ func _begin_burn() -> void:
 
 func _stop_trails() -> void:
 	_trails_stopped = true
+	# SHRINK + fade the FLAME out rather than letting it blink off (Roman 2026-06-11): the flame
+	# shrinks (shader `size` → ~0) AND fades alpha. The sparks just stop emitting — their live
+	# pixels finish on their own (Roman: don't fade the live sparks). _finish frees ≥0.6s later.
 	if _torch != null and is_instance_valid(_torch):
 		var tw := _torch.create_tween()
-		tw.tween_property(_torch, "modulate:a", 0.0, 0.25)
-	if _ember != null and is_instance_valid(_ember):
-		_ember.emitting = false
+		tw.set_parallel(true)
+		tw.tween_property(_torch, "modulate:a", 0.0, 0.35)
+		var mat := _torch.material as ShaderMaterial
+		if mat != null:
+			tw.tween_method(
+				func(v: float): mat.set_shader_parameter("size", flame_size * v),
+				1.0, 0.05, 0.35)
+	if _sparks_parts != null and is_instance_valid(_sparks_parts):
+		_sparks_parts.emitting = false
 
 
 func _finish() -> void:
 	if _dead:
 		return
 	_dead = true
-	for n in [_ember, _torch, _spr]:
+	for n in [_sparks, _torch, _spr]:
 		if n != null and is_instance_valid(n):
 			n.queue_free()
 	# Let the smoke line dissipate on its own rather than snap out.
@@ -235,10 +258,10 @@ func _make_torch() -> ColorRect:
 	mat.set_shader_parameter("fromColor", Color.html("f06007"))
 	mat.set_shader_parameter("sparkColor", Color.html("ffa435"))
 	mat.set_shader_parameter("smokeColor", Color.html("050505"))
-	mat.set_shader_parameter("speed", 2.6)
+	mat.set_shader_parameter("speed", flame_speed)
 	mat.set_shader_parameter("sparkSpeed", 0.5)
 	mat.set_shader_parameter("aspectRatio", sz.x / sz.y)
-	mat.set_shader_parameter("size", Vector2(0.3, 0.85))
+	mat.set_shader_parameter("size", flame_size)
 	mat.set_shader_parameter("alpha", 0.95)
 	mat.set_shader_parameter("timeOffset", randf_range(0.0, 1000.0))
 	mat.set_shader_parameter("seedOffset", randf_range(0.0, 100.0))
@@ -268,37 +291,6 @@ func _make_damage_material() -> ShaderMaterial:
 	return mat
 
 
-func _make_ember_trail() -> CPUParticles2D:
-	var p := CPUParticles2D.new()
-	p.local_coords = false
-	p.amount = 14
-	p.lifetime = 0.45
-	p.texture = _hot_pixel()
-	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_POINT
-	p.direction = Vector2(0, 1)
-	p.spread = 40.0
-	p.gravity = Vector2(0, 30)
-	p.initial_velocity_min = 18.0
-	p.initial_velocity_max = 60.0
-	p.scale_amount_min = 1.0
-	p.scale_amount_max = 1.0
-	p.z_index = 5
-	p.z_as_relative = false
-	var mat := CanvasItemMaterial.new()
-	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	p.material = mat
-	var g := Gradient.new()
-	g.colors = PackedColorArray([
-		Color(1.6, 1.4, 0.9, 1.0),
-		Color(1.0, 0.55, 0.05, 1.0),
-		Color(0.5, 0.08, 0.0, 0.0),
-	])
-	g.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
-	p.color_ramp = g
-	p.emitting = true
-	return p
-
-
 # The container our world-space trail/smoke parents into: our own parent (combat scene
 # or a dev lab's SubViewport world), so it renders in the same viewport as the chunk.
 func _fx_container() -> Node:
@@ -307,12 +299,3 @@ func _fx_container() -> Node:
 		return p
 	var cs: Node = get_tree().current_scene
 	return cs if cs != null else get_tree().root
-
-
-static var _hot_tex: Texture2D = null
-static func _hot_pixel() -> Texture2D:
-	if _hot_tex == null:
-		var img := Image.create(1, 1, false, Image.FORMAT_RGBA8)
-		img.fill(Color.WHITE)
-		_hot_tex = ImageTexture.create_from_image(img)
-	return _hot_tex

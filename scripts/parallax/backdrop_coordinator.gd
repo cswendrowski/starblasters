@@ -11,6 +11,11 @@ extends Node2D
 @export var pixel_density: float = 1.0
 @export var asteroid_presence: float = 0.65
 @export_range(1.0, 2.0) var asteroid_density_scale: float = 1.0
+# Hazard-node decoration (background mines). OFF by default so the SHARED coordinator
+# (also used by the main menu + signal events) never paints mines from a stale
+# current_hazard_subtype. ONLY the combat backdrop (main.tscn) turns this on, so mines
+# decorate minefield COMBAT and nowhere else (Roman 2026-06-11).
+@export var enable_hazard_decor: bool = false
 
 # Planet-to-tint mapping from V1 PLANET_TINT. Read galaxy_backdrop.gd for the exact colors.
 const PLANET_TINT := {
@@ -161,14 +166,18 @@ func _populate() -> void:
 
 	# Decorative background mines on minefield levels (Roman 2026-06-11): mine sprites
 	# in 3 depth bands, each carrying a DIMMED pulse light, so the minefield reads as
-	# a layered hazard. Pure decoration — no collision.
-	if run_node and "current_hazard_subtype" in run_node \
+	# a layered hazard. Pure decoration — no collision. Combat backdrop only (the flag),
+	# so a stale "minefield" subtype can't leak mines into the menu / signal events.
+	if enable_hazard_decor and run_node and "current_hazard_subtype" in run_node \
 			and String(run_node.current_hazard_subtype) == "minefield":
 		_spawn_background_mines(rng)
 
 
 const BgMineScript = preload("res://scripts/parallax/bg_mine.gd")
-const MINE_BG_TEX := preload("res://graphics/mines/mine_basic.png")
+# Live-mine art (the SAME sprites the gameplay mines use) so the background reads as
+# dimmed, distant versions of the real thing — NOT the retired mine_basic.png (Roman 2026-06-11).
+const MINE_BG_TEX := preload("res://graphics/mines/enemy_mine.png")
+const BOMBLET_BG_TEX := preload("res://graphics/mines/enemy_mine_bomblet.png")
 
 func _spawn_background_mines(rng: RandomNumberGenerator) -> void:
 	var layers := [
@@ -180,14 +189,14 @@ func _spawn_background_mines(rng: RandomNumberGenerator) -> void:
 		for i in int(layer["count"]):
 			var spr := Sprite2D.new()
 			spr.set_script(BgMineScript)
-			spr.texture = MINE_BG_TEX
+			# 35% bomblets for variety (mirrors the live minefield mix).
+			spr.texture = BOMBLET_BG_TEX if (rng.randf() < 0.35) else MINE_BG_TEX
 			spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 			spr.scale = Vector2.ONE * float(layer["scale"])
-			# 50% multiply overlay so they read as background, never live targets.
-			var mat := CanvasItemMaterial.new()
-			mat.blend_mode = CanvasItemMaterial.BLEND_MODE_MUL
-			spr.material = mat
-			spr.modulate = Color(0.5, 0.5, 0.55, 1.0)
+			# Plain MIX blend, dimmed + semi-transparent so they read as distant background.
+			# (The old BLEND_MODE_MUL multiplied the sprite's transparent border to BLACK,
+			# painting a black box around every mine — Roman 2026-06-11.)
+			spr.modulate = Color(0.6, 0.6, 0.66, 0.7)
 			spr.position = Vector2(rng.randf_range(-16.0, 496.0), rng.randf_range(-270.0, 270.0))
 			spr.z_index = int(layer["z"])
 			spr.fall_speed = float(layer["speed"])

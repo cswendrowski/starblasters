@@ -24,6 +24,12 @@ extends Node2D
 @export var debris_count: int = 8
 @export var max_radius: float = 28.0  # how far secondary booms scatter
 @export var emit_light: bool = true
+# Centralized tunables (Roman 2026-06-12): DENSITY scales the number of secondary booms (0 = just
+# the core), GLOW_MULT scales the additive halo + light intensity, SHOCKWAVE (0 = off) adds a
+# universal expanding ring whose reach scales with this value. These are universal to every type.
+@export var density: float = 1.0
+@export var glow_mult: float = 0.9   # Expl. Tuner bake (Roman 2026-06-12)
+@export var shockwave: float = 0.1   # Expl. Tuner bake — subtle ring on every blast
 
 var _frame_timer: float = 0.0
 var _frame: int = 0
@@ -39,6 +45,8 @@ func _ready() -> void:
 	_spawn_debris()
 	if emit_light:
 		_spawn_light()
+	if shockwave > 0.0:
+		_spawn_shockwave()
 	# Set initial frame on all sprites so spawn frame 0 is visible.
 	_apply_frame_to_all()
 	# Hard self-destruct timer. Tight enough that the final smoke frame
@@ -57,8 +65,8 @@ func _spawn_core() -> void:
 
 
 func _spawn_secondaries() -> void:
-	# 1–3 smaller satellites, scattered.
-	var count: int = 1 + (randi() % 3)
+	# 1–3 smaller satellites, scattered — scaled by `density` (0 = core only, higher = more).
+	var count: int = int(round(float(1 + (randi() % 3)) * maxf(0.0, density)))
 	for i in count:
 		var angle: float = randf() * TAU
 		var dist: float = randf_range(max_radius * 0.4, max_radius)
@@ -106,43 +114,18 @@ func _make_explosion_sprite(offset: Vector2, sc: float, delay: float) -> Diction
 	return {"sprite": sprite, "halo": halo}
 
 
+# Sparks + embers now live in editor-tweakable scenes (Roman 2026-06-12): tweak the GPUParticles
+# nodes / process materials in scenes/effects/explosion_spark.tscn + explosion_ember.tscn and the
+# changes apply to every explosion. explosion.gd only overrides the COUNT.
+const SPARK_SCENE = preload("res://scenes/effects/explosion_spark.tscn")
+const EMBER_SCENE = preload("res://scenes/effects/explosion_ember.tscn")
+
 func _spawn_sparks() -> void:
-	# CPUParticles2D instead of GPUParticles2D — avoids gl_compatibility's
-	# spotty support for one_shot + the sub-emitter shader pipeline that
-	# tripped us up earlier. Same look, more reliable on web export.
-	var p := CPUParticles2D.new()
-	p.name = "Sparks"
-	p.amount = spark_count
-	p.lifetime = 0.45
-	p.one_shot = true
-	p.explosiveness = 1.0
-	p.local_coords = false
-	p.texture = _build_spark_texture()
-	# CPUParticles configures fields directly on the node, not via a
-	# ProcessMaterial — the rest of this function fills those in.
-	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_SPHERE
-	p.emission_sphere_radius = 6.0
-	p.direction = Vector2(0, -1)
-	p.spread = 180.0
-	p.initial_velocity_min = 180.0
-	p.initial_velocity_max = 360.0
-	p.gravity = Vector2(0, 80)
-	p.scale_amount_min = 0.6
-	p.scale_amount_max = 1.2
-	var curve = Curve.new()
-	curve.add_point(Vector2(0, 1))
-	curve.add_point(Vector2(1, 0))
-	p.scale_amount_curve = curve
-	var grad = Gradient.new()
-	grad.colors = PackedColorArray([
-		Color(1.0, 1.0, 0.85, 1.0),
-		Color(1.0, 0.55, 0.15, 1.0),
-		Color(0.6, 0.15, 0.05, 0.0),
-	])
-	grad.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
-	p.color_ramp = grad
-	add_child(p)
-	return
+	if spark_count <= 0:
+		return
+	var p: GPUParticles2D = SPARK_SCENE.instantiate()
+	p.amount = maxi(1, spark_count)
+	add_child(p)   # child of the explosion → frees with it
 
 func _spawn_sparks_unused() -> void:
 	var p := GPUParticles2D.new()
@@ -184,38 +167,20 @@ func _spawn_sparks_unused() -> void:
 	add_child(p)
 
 
+# Debris swapped for an EMBER burst (Roman 2026-06-12): the editor-tweakable explosion_ember.tscn
+# (ember_spray particle shader). `debris_count` drives the ember amount. Sprayed into the
+# explosion's PARENT (world space) so the embers outlive the explosion's quick self-free.
 func _spawn_debris() -> void:
 	if debris_count <= 0:
 		return
-	# Same CPU-vs-GPU swap as sparks — gl_compatibility-safe.
-	var p := CPUParticles2D.new()
-	p.name = "Debris"
-	p.amount = debris_count
-	p.lifetime = 0.75
-	p.one_shot = true
-	p.explosiveness = 0.8
-	p.local_coords = false
-	p.texture = _build_debris_texture()
-	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_SPHERE
-	p.emission_sphere_radius = 8.0
-	p.direction = Vector2(0, -1)
-	p.spread = 180.0
-	p.initial_velocity_min = 80.0
-	p.initial_velocity_max = 220.0
-	p.gravity = Vector2(0, 120)
-	p.angular_velocity_min = -540.0
-	p.angular_velocity_max = 540.0
-	p.scale_amount_min = 0.7
-	p.scale_amount_max = 1.1
-	var grad = Gradient.new()
-	grad.colors = PackedColorArray([
-		Color(0.85, 0.6, 0.35, 1.0),
-		Color(0.45, 0.3, 0.15, 0.0),
-	])
-	grad.offsets = PackedFloat32Array([0.0, 1.0])
-	p.color_ramp = grad
-	add_child(p)
-	return
+	var host: Node = get_parent()
+	if host == null or not is_instance_valid(host):
+		host = self
+	var p: GPUParticles2D = EMBER_SCENE.instantiate()
+	p.amount = maxi(4, int(round(float(debris_count) * 4.0)))
+	p.global_position = global_position
+	host.add_child(p)
+	p.finished.connect(p.queue_free)
 
 func _spawn_debris_unused() -> void:
 	var p := GPUParticles2D.new()
@@ -287,6 +252,53 @@ func _spawn_light() -> void:
 	# the explosion artwork additively.
 	_light.z_index = 1
 	add_child(_light)
+
+
+# Universal SHOCKWAVE (Roman 2026-06-12): a bright additive ring that expands outward + fades. Its
+# reach scales with `shockwave` (and base_scale), so a big tuned blast throws a wide pressure ring.
+func _spawn_shockwave() -> void:
+	var ring := Sprite2D.new()
+	ring.name = "Shockwave"
+	ring.texture = _build_ring_texture()
+	ring.position = Vector2.ZERO
+	var mat := CanvasItemMaterial.new()
+	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	ring.material = mat
+	ring.z_index = 2
+	var start_s: float = base_scale * 0.25
+	var end_s: float = base_scale * (1.2 + shockwave * 2.2)   # `shockwave` drives the reach
+	var start_a: float = clampf(0.325 * shockwave, 0.0, 0.5)   # half opacity — subtler ring (Roman 2026-06-12)
+	ring.scale = Vector2(start_s, start_s)
+	ring.self_modulate = Color(1.0, 0.92, 0.72, start_a)
+	add_child(ring)
+	var dur: float = maxf(0.12, frame_duration * float(frames) * 0.65)   # expand over most of the boom
+	# Drive scale + alpha from one progress value so the ring FADES OUT exactly as it reaches the
+	# end of its reach (Roman 2026-06-12): full-bright while expanding, gone by the time it hits
+	# max scale. The fade holds until ~40% of the expansion, then eases out to nothing.
+	var apply := func(t: float) -> void:
+		if not is_instance_valid(ring):
+			return
+		var es: float = 1.0 - pow(1.0 - t, 2.0)               # ease-out expansion
+		ring.scale = Vector2.ONE * lerpf(start_s, end_s, es)
+		ring.self_modulate.a = start_a * (1.0 - smoothstep(0.4, 1.0, t))
+	ring.create_tween().tween_method(apply, 0.0, 1.0, dur)
+
+
+# A thin bright annulus (transparent centre + edge, peak at ~0.8 radius) — the shockwave ring.
+static var _ring_tex: Texture2D = null
+static func _build_ring_texture() -> Texture2D:
+	if _ring_tex == null:
+		var sz := 96
+		var img := Image.create(sz, sz, false, Image.FORMAT_RGBA8)
+		var c := Vector2(sz * 0.5, sz * 0.5)
+		for y in sz:
+			for x in sz:
+				var d: float = Vector2(x + 0.5, y + 0.5).distance_to(c) / (sz * 0.5)
+				var a: float = 1.0 - clampf(absf(d - 0.82) / 0.16, 0.0, 1.0)
+				a = pow(a, 1.5)
+				img.set_pixel(x, y, Color(1.0, 1.0, 1.0, a))
+		_ring_tex = ImageTexture.create_from_image(img)
+	return _ring_tex
 
 
 # Soft white radial gradient — the per-frame color cycle is applied via
@@ -366,7 +378,7 @@ func _apply_frame_to_all() -> void:
 			halo.frame = local_frame
 			halo.visible = true
 			var glow: float = 1.0 - clamp(float(local_frame - 3) / 3.0, 0.0, 1.0)
-			halo.self_modulate.a = 0.65 * glow
+			halo.self_modulate.a = 0.65 * glow * glow_mult
 
 
 func _apply_light() -> void:
@@ -386,7 +398,7 @@ func _apply_light() -> void:
 		col = col.lerp(Color(1, 1, 1, 1), 1.0 - f)
 	# Hold the additive light at ~50% so it warms the scene rather than
 	# blowing it out. Color cycle still drives hue/value above this.
-	col.a *= 0.5
+	col.a *= 0.5 * glow_mult
 	_light.self_modulate = col
 	# Punch the flash: light starts half size on frame 0 and grows to its
 	# full 3× over frame 0→1. After that it holds steady.

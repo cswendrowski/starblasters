@@ -25,23 +25,29 @@ const DEFAULT_RAMP_COLORS := [
 ]
 const DEFAULT_RAMP_OFFSETS := [0.0, 0.16, 0.38, 0.62, 0.85]
 
+# Defaults reflect the Shader Lab Embers tune (Roman 2026-06-11).
 const DEFAULTS := {
-	"amount": 28,
-	"lifetime": 0.9,
-	"explosiveness": 0.85, # <1 staggers spawns: fresh white heads at the origin
-	"spread_deg": 35.0,
-	"speed_min": 110.0,
+	"amount": 96,
+	"lifetime": 2.0,
+	"explosiveness": 0.95, # <1 staggers spawns: fresh white heads at the origin
+	"spread_deg": 48.0,
+	"speed_min": 100.0,
 	"speed_max": 320.0,
-	"drag": 2.6,
-	"gravity": 30.0,
-	"streak_sec": 0.05,
+	"drag": 2.3,
+	"gravity": -25.0,
+	"streak_sec": 0.15,
 	"thickness": 1.0,
-	"cool_bias": 0.55,
-	"fade_start": 0.78,
+	"cool_bias": 0.0,
+	"fade_start": 0.95,
 	"lifetime_rand": 0.4,
-	"variant": "normal",  # "normal" (cool) | "inverted" (heat up)
+	"variant": "normal",  # "normal" (cool) | "inverted" (heat up) | "smoke" (grey wisps)
 	"gradient": null,     # optional GradientTexture1D; null = default ramp
 }
+
+# Smoke-variant overlay: grey wisps that persist until the END of travel. A late
+# fade_start (lifetime-vs-distance decoupling) keeps the tail opaque while the head
+# is still moving, so the trail doesn't fade from the back early (Roman 2026-06-11).
+const SMOKE_FADE_START := 0.92
 
 static var _pixel_tex: Texture2D = null
 static var _default_ramp: GradientTexture1D = null
@@ -74,9 +80,15 @@ static func spray(parent: Node, pos: Vector2, direction: Vector2 = Vector2.UP, p
 	mat.set_shader_parameter("streak_sec", float(v["streak_sec"]))
 	mat.set_shader_parameter("thickness", float(v["thickness"]))
 	mat.set_shader_parameter("cool_bias", float(v["cool_bias"]))
-	mat.set_shader_parameter("fade_start", float(v["fade_start"]))
+	var is_smoke: bool = String(v["variant"]) == "smoke"
+	# Smoke holds its tail until end-of-travel UNLESS the caller overrode fade_start.
+	var fade_start: float = float(v["fade_start"])
+	if is_smoke and not params.has("fade_start"):
+		fade_start = SMOKE_FADE_START
+	mat.set_shader_parameter("fade_start", fade_start)
 	mat.set_shader_parameter("lifetime_rand", float(v["lifetime_rand"]))
 	mat.set_shader_parameter("invert", 1.0 if String(v["variant"]) == "inverted" else 0.0)
+	mat.set_shader_parameter("smoke", 1.0 if is_smoke else 0.0)
 	var ramp: Texture2D = v["gradient"] if v["gradient"] != null else default_ramp()
 	mat.set_shader_parameter("color_ramp", ramp)
 	p.process_material = mat

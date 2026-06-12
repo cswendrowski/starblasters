@@ -26,7 +26,10 @@ const _DamageEdgeTex = preload("res://resources/edge_distance_flat.tres")
 const ExplosionFxScript = preload("res://scripts/effects/explosion_fx.gd")
 const DeathDustScript = preload("res://scripts/effects/death_dust.gd")
 const BurnFxScript = preload("res://scripts/burn_fx.gd")
-const SHIELD_SHADER = preload("res://graphics/sci_fi_shield.gdshader")
+# Dead-code holdover: the simple max_shield charge + its ring are retired (nothing in the
+# live spawn path sets max_shield > 0). Repointed to hex_shield so the only consumer left —
+# the preserved-but-unscened enemy_bomber_wing — matches the committed shield (Roman 2026-06-11).
+const SHIELD_SHADER = preload("res://graphics/hex_shield.gdshader")
 
 # Shared base for everything that joins the "enemies" group — regular
 # pattern-driven ships (via enemy_core), hazards (mines, asteroids,
@@ -278,12 +281,13 @@ func _install_damage_material(spr: Sprite2D) -> void:
 	mat.set_shader_parameter("noise_texture", _DamageNoiseTex)
 	mat.set_shader_parameter("edge_distance_map", _DamageEdgeTex)
 	mat.set_shader_parameter("noise_seed", float(randi() % 999))
-	# Shader-Lab-tuned look (Roman 2026-06-10). sensitivity stays HP-driven (see
+	# Shader-Lab-tuned look (Roman 2026-06-11 Damage tuner). sensitivity stays HP-driven (see
 	# _update_damage_visual); these are the static appearance params + colours.
 	mat.set_shader_parameter("max_strength", 0.9)
-	mat.set_shader_parameter("edge_bias_strength", 0.2)
+	mat.set_shader_parameter("edge_bias_strength", 0.3)
+	mat.set_shader_parameter("details_opacity", 0.1)
 	mat.set_shader_parameter("edge_color", Color("494e55"))
-	mat.set_shader_parameter("details_color", Color("cbcbcb"))
+	mat.set_shader_parameter("details_color", Color("cacaca"))
 	spr.material = mat
 	_damage_material = mat
 

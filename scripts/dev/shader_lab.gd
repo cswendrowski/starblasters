@@ -24,7 +24,24 @@ const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
 const OutlineFx = preload("res://scripts/effects/outline_fx.gd")
 const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
 const ShipDebrisEmber = preload("res://scripts/effects/ship_debris_ember.gd")
-const BurningSmokeFx = preload("res://scripts/effects/burning_smoke_fx.gd")
+const BURNING_TRAIL = preload("res://scenes/effects/burning_trail.tscn")
+const SPARK_TRAIL = preload("res://scenes/effects/spark_trail.tscn")
+const ShipDamageTells = preload("res://scripts/effects/ship_damage_tells.gd")
+const EnemyManifest = preload("res://scripts/dev/enemy_manifest.gd")
+const Factions = preload("res://scripts/levels/factions.gd")
+# Tunable damage-tell suite, tuned PER SIZE category (Roman 2026-06-12).
+const SD_DMG_SCHEMA := [
+	{"key": "max_sens", "label": "Overlay max", "min": 0.0, "max": 1.0, "step": 0.02, "def": 0.85},
+	{"key": "spark_start", "label": "Spark start (dmg %)", "min": 0.0, "max": 0.5, "step": 0.02, "def": 0.12},
+	{"key": "burn_threshold", "label": "Burn threshold (dmg %)", "min": 0.3, "max": 1.0, "step": 0.02, "def": 0.6},
+	{"key": "spark_amount", "label": "Spark amount", "min": 10.0, "max": 250.0, "step": 5.0, "def": 50.0},
+	{"key": "expl_size", "label": "Death expl size", "min": 0.3, "max": 3.0, "step": 0.1, "def": 1.0},
+	{"key": "expl_density", "label": "Death expl density", "min": 0.5, "max": 3.0, "step": 0.1, "def": 1.0},
+	{"key": "expl_shockwave", "label": "Death shockwave", "min": 0.0, "max": 3.0, "step": 0.1, "def": 1.0},
+	{"key": "debris", "label": "Death debris ×", "min": 0.0, "max": 3.0, "step": 0.1, "def": 1.0},
+]
+const SD_SIZES := ["small", "medium", "large"]
+const SD_PATH_SPEED := 52.0   # px/s the ship travels along the rounded-rect path
 
 # Live player ship sheet (3-hframe banking sheet; middle frame = level flight).
 # We crop the middle frame into a standalone single-frame texture so shader UVs
@@ -79,9 +96,9 @@ const PANEL_BORDER := Color(0.35, 0.55, 0.75, 0.85)
 # Gallery ship targets are zoomed for INSPECTION only — in-game sprites stay 1×.
 const GALLERY_SPRITE_ZOOM := 3.0
 
-const MODES := ["Embers", "Smoke", "Glow", "Bloom Env", "Modes", "Damage", "Disintegrate", "Explosions", "Asteroids", "Gallery"]
+const MODES := ["Embers", "Smoke", "Glow", "Bloom Env", "Modes", "Damage", "Disintegrate", "Explosions", "Expl. Tuner", "Ship Dmg", "Asteroids", "Gallery"]
 
-const EMBER_VARIANTS := ["normal", "inverted"]
+const EMBER_VARIANTS := ["normal", "inverted", "smoke"]
 
 const KNOBS := {
 	"Embers": [
@@ -101,18 +118,23 @@ const KNOBS := {
 	],
 	"Smoke": [
 		{"key": "amount", "label": "Particles", "min": 4.0, "max": 96.0, "step": 1.0, "def": 26.0},
-		{"key": "lifetime", "label": "Lifetime (s)", "min": 0.3, "max": 3.0, "step": 0.05, "def": 1.1},
-		{"key": "speed_min", "label": "Speed min", "min": 0.0, "max": 80.0, "step": 1.0, "def": 6.0},
-		{"key": "speed_max", "label": "Speed max", "min": 0.0, "max": 120.0, "step": 1.0, "def": 22.0},
-		{"key": "gravity", "label": "Gravity (rise<0)", "min": -60.0, "max": 60.0, "step": 1.0, "def": -8.0},
-		{"key": "scale_min", "label": "Scale min", "min": 0.1, "max": 3.0, "step": 0.05, "def": 0.5},
-		{"key": "scale_max", "label": "Scale max", "min": 0.1, "max": 3.0, "step": 0.05, "def": 1.0},
-		{"key": "scale_grow", "label": "Grow ×", "min": 0.5, "max": 5.0, "step": 0.1, "def": 2.4},
-		{"key": "spread_deg", "label": "Spread (deg)", "min": 0.0, "max": 180.0, "step": 1.0, "def": 18.0},
-		{"key": "jitter_deg", "label": "Angle jitter (deg)", "min": 0.0, "max": 90.0, "step": 1.0, "def": 18.0},
-		{"key": "orient_offset", "label": "Orient offset (deg)", "min": -180.0, "max": 180.0, "step": 15.0, "def": 0.0},
+		{"key": "lifetime", "label": "Lifetime (s)", "min": 0.3, "max": 4.0, "step": 0.05, "def": 1.6},
+		{"key": "speed_min", "label": "Speed min", "min": 0.0, "max": 80.0, "step": 1.0, "def": 8.0},
+		{"key": "speed_max", "label": "Speed max", "min": 0.0, "max": 120.0, "step": 1.0, "def": 26.0},
+		{"key": "gravity", "label": "Gravity (rise<0)", "min": -60.0, "max": 60.0, "step": 1.0, "def": -10.0},
+		{"key": "damping", "label": "Damping", "min": 0.0, "max": 30.0, "step": 0.5, "def": 8.0},
+		{"key": "scale_min", "label": "Scale min", "min": 0.1, "max": 3.0, "step": 0.05, "def": 0.4},
+		{"key": "scale_max", "label": "Scale max", "min": 0.1, "max": 3.0, "step": 0.05, "def": 0.8},
+		{"key": "scale_grow", "label": "Grow ×", "min": 0.5, "max": 5.0, "step": 0.1, "def": 2.2},
+		{"key": "spread_deg", "label": "Spread (deg)", "min": 0.0, "max": 180.0, "step": 1.0, "def": 22.0},
+		{"key": "spin", "label": "Spin (deg/s)", "min": 0.0, "max": 180.0, "step": 5.0, "def": 40.0},
+		{"key": "randomness", "label": "Randomness", "min": 0.0, "max": 1.0, "step": 0.05, "def": 0.5},
 	],
-	"Glow": [],
+	"Glow": [
+		{"key": "threshold", "label": "Color threshold", "min": 0.0, "max": 2.0, "step": 0.01, "def": 0.45},
+		{"key": "intensity", "label": "Intensity", "min": 0.0, "max": 4.0, "step": 0.05, "def": 1.8},
+		{"key": "opacity", "label": "Opacity", "min": 0.0, "max": 1.0, "step": 0.02, "def": 1.0},
+	],
 	"Bloom Env": [
 		{"key": "glow_intensity", "label": "Glow intensity", "min": 0.0, "max": 4.0, "step": 0.05, "def": 0.6},
 		{"key": "glow_strength", "label": "Glow strength", "min": 0.0, "max": 2.0, "step": 0.05, "def": 1.0},
@@ -133,7 +155,32 @@ const KNOBS := {
 		{"key": "blend_steps", "label": "Blend steps", "min": 2.0, "max": 12.0, "step": 1.0, "def": 12.0},
 		{"key": "duration", "label": "Burn duration (s)", "min": 0.2, "max": 2.0, "step": 0.05, "def": 0.45},
 	],
-	"Explosions": [],
+	"Explosions": [
+		{"key": "count", "label": "Chunk count", "min": 1.0, "max": 12.0, "step": 1.0, "def": 5.0},
+		{"key": "speed_min", "label": "Speed min", "min": 10.0, "max": 200.0, "step": 5.0, "def": 50.0},
+		{"key": "speed_max", "label": "Speed max", "min": 20.0, "max": 300.0, "step": 5.0, "def": 120.0},
+		{"key": "gravity", "label": "Gravity", "min": 0.0, "max": 240.0, "step": 5.0, "def": 90.0},
+		{"key": "drag", "label": "Drag", "min": 0.0, "max": 3.0, "step": 0.05, "def": 0.6},
+		{"key": "scale_min", "label": "Piece scale min", "min": 0.4, "max": 2.0, "step": 0.05, "def": 0.9},
+		{"key": "scale_max", "label": "Piece scale max", "min": 0.4, "max": 2.5, "step": 0.05, "def": 1.4},
+		{"key": "burn_min", "label": "Burn time min (s)", "min": 0.5, "max": 2.5, "step": 0.05, "def": 1.25},
+		{"key": "burn_max", "label": "Burn time max (s)", "min": 0.5, "max": 3.0, "step": 0.05, "def": 2.0},
+		{"key": "flame_w", "label": "Flame width", "min": 0.05, "max": 1.0, "step": 0.05, "def": 0.3},
+		{"key": "flame_h", "label": "Flame height", "min": 0.2, "max": 2.0, "step": 0.05, "def": 0.85},
+		{"key": "flame_speed", "label": "Flame speed", "min": 0.5, "max": 6.0, "step": 0.1, "def": 2.6},
+	],
+	"Expl. Tuner": [
+		{"key": "size", "label": "Size (scale)", "min": 0.2, "max": 5.0, "step": 0.05, "def": 1.5},
+		{"key": "area", "label": "Area (px spread)", "min": 0.0, "max": 80.0, "step": 1.0, "def": 16.0},
+		{"key": "duration", "label": "Duration (s/frame)", "min": 0.02, "max": 0.2, "step": 0.005, "def": 0.07},
+		{"key": "density", "label": "Density (booms)", "min": 1.0, "max": 12.0, "step": 1.0, "def": 3.0},
+		{"key": "stagger", "label": "Stagger (s)", "min": 0.0, "max": 0.4, "step": 0.01, "def": 0.06},
+		{"key": "secondaries", "label": "Per-boom satellites", "min": 0.0, "max": 4.0, "step": 0.25, "def": 1.0},
+		{"key": "glow", "label": "Glow ×", "min": 0.0, "max": 3.0, "step": 0.1, "def": 0.9},
+		{"key": "shockwave", "label": "Shockwave reach", "min": 0.0, "max": 3.0, "step": 0.1, "def": 0.1},
+		{"key": "sparks", "label": "Spark density", "min": 0.0, "max": 3.0, "step": 0.1, "def": 1.0},
+		{"key": "debris", "label": "Ember density", "min": 0.0, "max": 3.0, "step": 0.1, "def": 1.0},
+	],
 	"Asteroids": [],
 	"Gallery": [],
 }
@@ -195,8 +242,18 @@ var _ember_stops: Array = []
 var _smoke_host: Node2D = null
 var _smoke_trail: GPUParticles2D = null
 var _smoke_t: float = 0.0
-var _smoke_orient: bool = true
+var _smoke_follow: bool = true   # stream emission behind the host's motion
 var _smoke_colors := {"start_color": Color("bfc8c3"), "end_color": Color("100c08")}
+
+# glow_effect_2d tuner state — the RIGHT comparison column's materials, live-tuned by the
+# Glow knobs + colour pickers. color1/color2 are the SOURCE colours keyed for emission;
+# glow_color is what those pixels bloom to (× intensity).
+var _glow_fx_mats: Array = []
+var _glow_fx_colors := {
+	"color1": Color(1, 1, 1, 1),
+	"color2": Color(1, 0.85, 0.3, 1),
+	"glow_color": Color(0.4, 0.8, 1.0, 1),
+}
 
 # Player-modes showcase state.
 var _pm_ship: Node2D = null
@@ -228,6 +285,29 @@ var _dmg_colors := {
 # Explosions showcase: replay-loop timer.
 var _expl_acc: float = 0.0
 var _expl_auto: bool = true
+
+# Explosion Tuner (centralized ExplosionFx.play_config) state.
+var _et_type: String = "basic"
+var _et_acc: float = 0.0
+var _et_auto: bool = true
+
+# Ship-Damage panel state.
+var _sd_ship: Node2D = null
+var _sd_tells: Node2D = null
+var _sd_t: float = 0.0
+var _sd_center: Vector2 = Vector2.ZERO
+var _sd_radius: float = 36.0
+var _sd_slider: HSlider = null
+var _sd_label: Label = null
+var _sd_respawn_t: float = -1.0
+var _sd_path: Curve2D = null          # the rounded-rect flight path (vertical, longways)
+var _sd_path_len: float = 0.0
+var _sd_dist: float = 0.0             # distance travelled along the path
+var _sd_size_cat: String = "medium"   # selected size category (small / medium / large)
+var _sd_knob_box: VBoxContainer = null # sub-box for the per-size damage-tell knobs (rebuilt on size change)
+var _sd_suite_label: Label = null     # "Damage-tell suite — <size>" header (updated on size change)
+var _sd_dmg_vals: Dictionary = {}     # size → {key: value}
+var _sd_dead: bool = false            # ship destroyed — stays put until New Ship (no auto-respawn)
 
 static var _ship_tex: Texture2D = null
 
@@ -425,6 +505,11 @@ func _set_mode(idx: int) -> void:
 	_burn_mat = null
 	_smoke_host = null
 	_smoke_trail = null
+	_sd_ship = null
+	_sd_tells = null
+	_sd_slider = null
+	_sd_label = null
+	_sd_respawn_t = -1.0
 	match MODES[_mode]:
 		"Embers":
 			_enter_embers()
@@ -442,6 +527,10 @@ func _set_mode(idx: int) -> void:
 			_enter_disintegrate()
 		"Explosions":
 			_enter_explosions()
+		"Expl. Tuner":
+			_enter_expl_tuner()
+		"Ship Dmg":
+			_enter_ship_dmg()
 		"Asteroids":
 			_enter_asteroids()
 		"Gallery":
@@ -574,16 +663,16 @@ func _enter_smoke() -> void:
 
 	_hd_note("SMOKE TRAIL", Vector2(Playfield.CENTER.x - 30.0, 56.0))
 	_knob_box.add_child(_label("Smoke Trail", FS_BODY, UiTheme.COLOR_ACCENT))
-	_knob_box.add_child(_label("12-frame smoke_pulse sprite, played once per\npuff. Born light → darkens + fades; the host\nweaves so the trail reads.", FS_CAPTION, UiTheme.COLOR_FAINT))
-	_add_smoke_color("Start  (fresh)", "start_color")
-	_add_smoke_color("End  (aged)", "end_color")
+	_knob_box.add_child(_label("Procedural white billow puff, tinted by the\ncolour ramp. Born start-colour → end-colour\nover the trail; grows + tumbles + fades. The\nhost weaves so the trail reads.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_add_smoke_color("Start  (front half)", "start_color")
+	_add_smoke_color("End  (back half)", "end_color")
 	var ori := CheckButton.new()
-	ori.text = "Orient bottom to motion"
-	ori.button_pressed = _smoke_orient
+	ori.text = "Follow motion (stream behind)"
+	ori.button_pressed = _smoke_follow
 	ori.add_theme_font_override("font", UiTheme.active_font())
 	ori.add_theme_font_size_override("font_size", FS_BODY)
 	ori.toggled.connect(func(on: bool):
-		_smoke_orient = on
+		_smoke_follow = on
 		_rebuild_smoke())
 	_knob_box.add_child(ori)
 	_knob_box.add_child(HSeparator.new())
@@ -614,13 +703,14 @@ func _rebuild_smoke() -> void:
 		"speed_min": float(v["speed_min"]),
 		"speed_max": float(v["speed_max"]),
 		"gravity": float(v["gravity"]),
+		"damping": float(v["damping"]),
 		"scale_min": float(v["scale_min"]),
 		"scale_max": float(v["scale_max"]),
 		"scale_grow": float(v["scale_grow"]),
 		"spread_deg": float(v["spread_deg"]),
-		"jitter_deg": float(v["jitter_deg"]),
-		"orient_offset": float(v["orient_offset"]),
-		"orient": _smoke_orient,
+		"spin": float(v["spin"]),
+		"randomness": float(v["randomness"]),
+		"follow_motion": _smoke_follow,
 		"start_color": _smoke_colors["start_color"],
 		"end_color": _smoke_colors["end_color"],
 	})
@@ -659,6 +749,7 @@ func _enter_glow() -> void:
 	env.glow_hdr_threshold = 0.9
 	we.environment = env
 	_stage.add_child(we)
+	_glow_fx_mats.clear()
 	for i in n:
 		var bl := _make_bullet(Vector2(lx, y0 + i * spacing), BULLETS[i])
 		GlowShaderFx.apply(bl.get_node("Bullet"))
@@ -666,19 +757,45 @@ func _enter_glow() -> void:
 		var spr: Sprite2D = br.get_node("Bullet")
 		var m := ShaderMaterial.new()
 		m.shader = GLOW_EFFECT_2D
-		# Key off bright cores (white + warm) → emit a cyan-blue glow ×intensity.
-		m.set_shader_parameter("color1", Color(1, 1, 1, 1))
-		m.set_shader_parameter("color2", Color(1, 0.85, 0.3, 1))
-		m.set_shader_parameter("threshold", 0.45)
-		m.set_shader_parameter("intensity", 1.8)
-		m.set_shader_parameter("opacity", 1.0)
-		m.set_shader_parameter("glow_color", Color(0.4, 0.8, 1.0, 1))
 		spr.material = m
+		_glow_fx_mats.append(m)
+	_apply_glow_fx()   # push the current tuner values into every right-column material
 
 	_hd_note("glow_halo (current)", Vector2(lx - 56.0, y0 - 22.0))
 	_hd_note("glow_effect_2d (new)", Vector2(rx - 18.0, y0 - 22.0))
-	_knob_box.add_child(_label("Glow comparison", FS_BODY, UiTheme.COLOR_ACCENT))
-	_knob_box.add_child(_label("LEFT: current glow_halo (soft halo behind the\nsprite). RIGHT: glow_effect_2d (color-keyed\nin-sprite emission, blooms via WorldEnvironment).", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_knob_box.add_child(_label("glow_effect_2d tuner", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("LEFT: current glow_halo (soft halo behind the\nsprite). RIGHT: glow_effect_2d — tune it below.\nColor1/2 = source colours keyed for emission;\nGlow = what they bloom to (× intensity).", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_add_glow_color("Color 1 (key — bright core)", "color1")
+	_add_glow_color("Color 2 (key — warm core)", "color2")
+	_add_glow_color("Glow color (bloom target)", "glow_color")
+	_knob_box.add_child(HSeparator.new())
+	_build_knobs("Glow")
+
+
+# Push the Glow tuner state (floats + colours) into every right-column material.
+func _apply_glow_fx() -> void:
+	var v: Dictionary = _values["Glow"]
+	for m in _glow_fx_mats:
+		if m == null or not is_instance_valid(m):
+			continue
+		m.set_shader_parameter("color1", _glow_fx_colors["color1"])
+		m.set_shader_parameter("color2", _glow_fx_colors["color2"])
+		m.set_shader_parameter("glow_color", _glow_fx_colors["glow_color"])
+		m.set_shader_parameter("threshold", float(v["threshold"]))
+		m.set_shader_parameter("intensity", float(v["intensity"]))
+		m.set_shader_parameter("opacity", float(v["opacity"]))
+
+
+func _add_glow_color(caption: String, key: String) -> void:
+	_knob_box.add_child(_label(caption, FS_CAPTION, UiTheme.COLOR_FAINT))
+	var cp := ColorPickerButton.new()
+	cp.color = _glow_fx_colors[key]
+	cp.edit_alpha = false
+	cp.custom_minimum_size = Vector2(0, 34)
+	cp.color_changed.connect(func(c: Color):
+		_glow_fx_colors[key] = c
+		_apply_glow_fx())
+	_knob_box.add_child(cp)
 
 
 # ---- Player Modes mode -----------------------------------------------------
@@ -851,10 +968,13 @@ func _enter_explosions() -> void:
 		var pos := Vector2(Playfield.CENTER.x, 120.0)
 		ExplosionFx.play(pos, 1.5, true, _stage)
 		_fire_ember_debris(pos))
+	_knob_box.add_child(_label("Debris fire tuner (re-fire to apply):", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_build_knobs("Explosions")
 	_knob_box.add_child(HSeparator.new())
-	_knob_box.add_child(_label("Burning Smoke (NEW, from expl. frames)", FS_BODY, UiTheme.COLOR_ACCENT))
-	_knob_box.add_child(_label("A comet built from the explosion atlas: head =\nframe 0 (fire), tail = final frame (smoke). Fire\nsegments bloom; the tail dissipates.", FS_CAPTION, UiTheme.COLOR_FAINT))
-	_add_action("Streak Burning Smoke", _fire_burning_smoke)
+	_knob_box.add_child(_label("Burning Trail (particle effect)", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("scenes/effects/burning_trail.tscn — GPUParticles2D\nthat plays the explosion strip per puff (fire →\nsmoke), spins + grows. Drifts down so the trail\nreads (local_coords forced off for the preview).", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_add_action("Burning Trail", func(): _fire_burning_trail(false))
+	_add_action("Burning Trail + Sparks", func(): _fire_burning_trail(true))
 	var auto := CheckButton.new()
 	auto.text = "Auto-replay loop"
 	auto.button_pressed = _expl_auto
@@ -882,29 +1002,48 @@ func _play_explosion(variant: String, pos: Vector2) -> void:
 # Spawn a small fan of ember-debris hero chunks scattering out + down from `pos`
 # (the explosion-sweetener preview).
 func _fire_ember_debris(pos: Vector2) -> void:
-	for i in 5:
+	var v: Dictionary = _values["Explosions"]
+	for i in int(v["count"]):
 		# Bias the burst to the lower hemisphere like the enemy_base debris scatter.
 		var ang := randf_range(0.15, PI - 0.15)
-		var spd := randf_range(50.0, 120.0)
+		var spd := randf_range(float(v["speed_min"]), float(v["speed_max"]))
 		ShipDebrisEmber.spawn(_stage, pos, {
 			"velocity": Vector2(cos(ang), sin(ang)) * spd,
 			"spin": randf_range(-6.0, 6.0),
-			"piece_scale": randf_range(0.9, 1.4),
-			"lifetime": randf_range(1.5, 2.1),
+			"piece_scale": randf_range(float(v["scale_min"]), float(v["scale_max"])),
+			"gravity": float(v["gravity"]),
+			"drag": float(v["drag"]),
+			"burn_time": randf_range(float(v["burn_min"]), float(v["burn_max"])),
+			"flame_size": Vector2(float(v["flame_w"]), float(v["flame_h"])),
+			"flame_speed": float(v["flame_speed"]),
 		})
 
 
-# Streak a few burning-smoke comets across the playfield from the top.
-func _fire_burning_smoke() -> void:
+# Drift a few burning_trail.tscn particle emitters down across the playfield so the trail reads.
+# with_sparks adds a spark_trail.tscn on each emitter (the "burning trail + sparks" variant).
+func _fire_burning_trail(with_sparks: bool) -> void:
 	for i in 3:
+		var inst: Node2D = BURNING_TRAIL.instantiate()
 		var start := Vector2(Playfield.CENTER.x + (i - 1) * 44.0, 70.0)
+		inst.position = start
+		# Leave the puffs behind in world space so it reads as a TRAIL as the host moves
+		# (lab preview convenience — bake local_coords=false into the .tscn to keep it).
+		var parts := inst.get_node_or_null("GPUParticles2D")
+		if parts != null:
+			parts.local_coords = false
+		if with_sparks:
+			# Spark trail riding the same emitter (child at origin → sparks fly off the head).
+			var sp: Node2D = SPARK_TRAIL.instantiate()
+			inst.add_child(sp)
+			for c in sp.get_children():
+				if c is GPUParticles2D:
+					c.local_coords = false
+		_stage.add_child(inst)
 		var vel := Vector2(randf_range(-20.0, 20.0), randf_range(55.0, 85.0))
-		BurningSmokeFx.spawn(_stage, start, vel, {
-			"segment_count": 14,
-			"spacing": 6.0,
-			"seg_scale": 0.9,
-			"lifetime": 1.6,
-		})
+		var tw := inst.create_tween()
+		tw.tween_property(inst, "position", start + vel * 2.0, 2.0)
+		tw.tween_interval(1.2)   # let the last puffs finish their life before freeing
+		tw.tween_callback(inst.queue_free)
 
 
 func _tick_explosions(delta: float) -> void:
@@ -914,6 +1053,328 @@ func _tick_explosions(delta: float) -> void:
 	if _expl_acc >= 1.6:
 		_expl_acc = 0.0
 		_replay_explosions()
+
+
+# ---- Explosion Tuner mode --------------------------------------------------
+# Drives the centralized ExplosionFx.play_config — one config (size / area / duration / density /
+# type / glow / shockwave / sparks / debris) tuned live, Copy-GDScript emits the config dict.
+
+func _enter_expl_tuner() -> void:
+	_et_acc = 0.0
+	_knob_box.add_child(_label("Explosion Tuner", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("The centralized ExplosionFx.play_config —\ntune every aspect, then Copy GDScript to bake\nthe config. Universal glow + shockwave ride\nevery type.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	# Type selector (basic / ball).
+	_knob_box.add_child(_label("Type", FS_CAPTION, UiTheme.COLOR_FAINT))
+	var type_dd := OptionButton.new()
+	type_dd.add_theme_font_override("font", UiTheme.active_font())
+	type_dd.add_theme_font_size_override("font_size", FS_BODY)
+	type_dd.custom_minimum_size = Vector2(0, 34)
+	var et_types := ["basic", "ball", "mixed"]
+	for tn in et_types:
+		type_dd.add_item(tn)
+	type_dd.select(maxi(0, et_types.find(_et_type)))
+	type_dd.item_selected.connect(func(i: int): _et_type = String(et_types[i]))
+	_knob_box.add_child(type_dd)
+	_add_action("▶ Play Explosion", func(): _fire_expl_tuner(Vector2(Playfield.CENTER.x, 135.0)))
+	var auto := CheckButton.new()
+	auto.text = "Auto-replay loop"
+	auto.button_pressed = _et_auto
+	auto.add_theme_font_override("font", UiTheme.active_font())
+	auto.add_theme_font_size_override("font_size", FS_BODY)
+	auto.toggled.connect(func(v: bool): _et_auto = v)
+	_knob_box.add_child(auto)
+	_knob_box.add_child(HSeparator.new())
+	_build_knobs("Expl. Tuner")
+	_fire_expl_tuner(Vector2(Playfield.CENTER.x, 135.0))
+
+
+func _expl_tuner_cfg() -> Dictionary:
+	var v: Dictionary = _values["Expl. Tuner"]
+	return {
+		"type": _et_type,
+		"size": float(v["size"]), "area": float(v["area"]), "duration": float(v["duration"]),
+		"density": float(v["density"]), "stagger": float(v["stagger"]), "secondaries": float(v["secondaries"]),
+		"glow": float(v["glow"]), "shockwave": float(v["shockwave"]),
+		"sparks": float(v["sparks"]), "debris": float(v["debris"]),
+	}
+
+
+func _fire_expl_tuner(pos: Vector2) -> void:
+	ExplosionFx.play_config(pos, _expl_tuner_cfg(), _stage)
+
+
+func _tick_expl_tuner(delta: float) -> void:
+	if not _et_auto:
+		return
+	_et_acc += delta
+	if _et_acc >= 1.8:
+		_et_acc = 0.0
+		_fire_expl_tuner(Vector2(Playfield.CENTER.x, 135.0))
+
+
+# ---- Ship Damage mode ------------------------------------------------------
+# A random enemy ship circles the playfield; the Damage slider drives ShipDamageTells, which
+# escalates the battle-damage tells (overlay → spark trails per marker → burning trail →
+# disintegrate + explode at 100%). Bigger ships carry more markers, so they escalate more.
+
+func _enter_ship_dmg() -> void:
+	_sd_center = Vector2(Playfield.CENTER.x, 135.0)
+	_sd_t = 0.0
+	_sd_dist = 0.0
+	_sd_respawn_t = -1.0
+	_init_sd_dmg_vals()
+	_build_sd_path()
+	_knob_box.add_child(_label("Ship Damage Tells", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("A live enemy flies a rounded rectangle. Drag\nDamage to escalate the tells; tune the suite per\nSIZE below. Engine trails + glow masks intact.\n(Re-spawn to apply suite changes.)", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_knob_box.add_child(_label("Enemy size", FS_CAPTION, UiTheme.COLOR_FAINT))
+	var size_dd := OptionButton.new()
+	size_dd.add_theme_font_override("font", UiTheme.active_font())
+	size_dd.add_theme_font_size_override("font_size", FS_BODY)
+	size_dd.custom_minimum_size = Vector2(0, 34)
+	for sn in SD_SIZES:
+		size_dd.add_item(String(sn).capitalize())
+	size_dd.select(maxi(0, SD_SIZES.find(_sd_size_cat)))
+	size_dd.item_selected.connect(func(i: int):
+		_sd_size_cat = String(SD_SIZES[i])
+		if _sd_suite_label != null and is_instance_valid(_sd_suite_label):
+			_sd_suite_label.text = "Damage-tell suite — %s" % _sd_size_cat.capitalize()
+		_rebuild_sd_dmg_knobs()
+		_spawn_sd_ship())
+	_knob_box.add_child(size_dd)
+	_add_action("New Ship", _spawn_sd_ship)
+	_knob_box.add_child(_label("Damage", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_sd_slider = HSlider.new()
+	_sd_slider.min_value = 0.0
+	_sd_slider.max_value = 1.0
+	_sd_slider.step = 0.01
+	_sd_slider.value = 0.0
+	_sd_slider.custom_minimum_size = Vector2(0, 30)
+	_sd_slider.value_changed.connect(_on_sd_damage)
+	_knob_box.add_child(_sd_slider)
+	_sd_label = _label("0%", FS_CAPTION, UiTheme.COLOR_BOUNTY)
+	_knob_box.add_child(_sd_label)
+	_knob_box.add_child(HSeparator.new())
+	_sd_suite_label = _label("Damage-tell suite — %s" % _sd_size_cat.capitalize(), FS_CAPTION, UiTheme.COLOR_ACCENT)
+	_knob_box.add_child(_sd_suite_label)
+	_sd_knob_box = VBoxContainer.new()
+	_sd_knob_box.add_theme_constant_override("separation", 6)
+	_knob_box.add_child(_sd_knob_box)
+	_rebuild_sd_dmg_knobs()
+	_spawn_sd_ship()
+
+
+func _init_sd_dmg_vals() -> void:
+	if not _sd_dmg_vals.is_empty():
+		return
+	for sz in SD_SIZES:
+		var d := {}
+		for def in SD_DMG_SCHEMA:
+			d[String(def["key"])] = float(def["def"])
+		_sd_dmg_vals[sz] = d
+	# Differentiated per-size baselines so the suite visibly shifts out of the box (small = subtler,
+	# large = more dramatic). These are just starting points — tune each from here.
+	_sd_dmg_vals["small"].merge({"spark_amount": 30.0, "expl_size": 0.8, "expl_density": 1.0, "expl_shockwave": 0.6, "debris": 0.7}, true)
+	_sd_dmg_vals["large"].merge({"spark_amount": 90.0, "expl_size": 1.3, "expl_density": 1.4, "expl_shockwave": 1.5, "debris": 1.4}, true)
+
+
+func _rebuild_sd_dmg_knobs() -> void:
+	if _sd_knob_box == null or not is_instance_valid(_sd_knob_box):
+		return
+	for c in _sd_knob_box.get_children():
+		c.queue_free()
+	var vals: Dictionary = _sd_dmg_vals[_sd_size_cat]
+	for def in SD_DMG_SCHEMA:
+		var key := String(def["key"])
+		var row_lbl := _label("%s: %s" % [def["label"], _fmt(float(vals[key]), float(def["step"]))], FS_CAPTION, UiTheme.COLOR_FAINT)
+		_sd_knob_box.add_child(row_lbl)
+		var sl := HSlider.new()
+		sl.min_value = float(def["min"])
+		sl.max_value = float(def["max"])
+		sl.step = float(def["step"])
+		sl.value = float(vals[key])
+		sl.custom_minimum_size = Vector2(0, 24)
+		sl.value_changed.connect(func(v: float):
+			vals[key] = v
+			row_lbl.text = "%s: %s" % [def["label"], _fmt(v, float(def["step"]))])
+		_sd_knob_box.add_child(sl)
+
+
+func _sd_dmg_cfg() -> Dictionary:
+	return (_sd_dmg_vals.get(_sd_size_cat, {}) as Dictionary).duplicate()
+
+
+func _sd_size_category(sc: float) -> String:
+	if sc < 1.15:
+		return "small"
+	if sc < 1.9:
+		return "medium"
+	return "large"
+
+
+# A vertical rounded-rectangle flight path (longways top→bottom), arc-length sampled by Curve2D.
+func _build_sd_path() -> void:
+	_sd_path = Curve2D.new()
+	var c := _sd_center
+	var hw := 30.0   # half-width (narrow)
+	var hh := 84.0   # half-height (tall)
+	var r := 24.0
+	r = minf(r, minf(hw, hh))
+	var trc := c + Vector2(hw - r, -(hh - r))
+	var brc := c + Vector2(hw - r, hh - r)
+	var blc := c + Vector2(-(hw - r), hh - r)
+	var tlc := c + Vector2(-(hw - r), -(hh - r))
+	var seg := 12   # denser corner arcs → smoother circuit
+	var pts := PackedVector2Array()
+	pts.append(c + Vector2(-(hw - r), -hh))
+	pts.append(c + Vector2(hw - r, -hh))
+	for i in range(1, seg + 1):
+		pts.append(trc + Vector2(cos(lerpf(-PI * 0.5, 0.0, float(i) / seg)), sin(lerpf(-PI * 0.5, 0.0, float(i) / seg))) * r)
+	pts.append(c + Vector2(hw, hh - r))
+	for i in range(1, seg + 1):
+		pts.append(brc + Vector2(cos(lerpf(0.0, PI * 0.5, float(i) / seg)), sin(lerpf(0.0, PI * 0.5, float(i) / seg))) * r)
+	pts.append(c + Vector2(-(hw - r), hh))
+	for i in range(1, seg + 1):
+		pts.append(blc + Vector2(cos(lerpf(PI * 0.5, PI, float(i) / seg)), sin(lerpf(PI * 0.5, PI, float(i) / seg))) * r)
+	pts.append(c + Vector2(-hw, -(hh - r)))
+	for i in range(1, seg + 1):
+		pts.append(tlc + Vector2(cos(lerpf(PI, PI * 1.5, float(i) / seg)), sin(lerpf(PI, PI * 1.5, float(i) / seg))) * r)
+	for p in pts:
+		_sd_path.add_point(p)
+	_sd_path.add_point(pts[0])   # close the loop
+	_sd_path_len = _sd_path.get_baked_length()
+
+
+func _spawn_sd_ship() -> void:
+	if _sd_ship != null and is_instance_valid(_sd_ship):
+		_sd_ship.queue_free()
+	_sd_ship = null
+	_sd_tells = null
+	_sd_respawn_t = -1.0
+	_sd_dead = false
+	_sd_t = 0.0
+	if _sd_slider != null:
+		_sd_slider.set_value_no_signal(0.0)
+	if _sd_label != null:
+		_sd_label.text = "0%"
+	_sd_dist = 0.0
+	# Pull from the LIVE faction roster (every spawnable enemy), not the curated dev manifest.
+	var pool: Array = []
+	for p in Factions.ENEMY_TAGS.keys():
+		var pp := String(p)
+		if ResourceLoader.exists(pp):
+			pool.append(pp)
+	if pool.is_empty():
+		return
+	# Pick a ship MATCHING the selected size category. Measure IN-TREE (after _ready) — many enemies
+	# set their sprite scale/texture in _ready, so a detached measure mis-sizes them and the wrong
+	# ship spawns. Add → freeze → measure; keep on a match (last attempt accepts anything), else free.
+	var ship: Node2D = null
+	var sprite: Sprite2D = null
+	var size_scale: float = 1.0
+	for attempt in 10:
+		var path := String(pool[randi() % pool.size()])
+		var inst: Node2D = load(path).instantiate()
+		_stage.add_child(inst)        # run _ready so the sprite/scale are final
+		_freeze_node(inst)
+		if inst.is_in_group("enemies"):
+			inst.remove_from_group("enemies")
+		var spr := _find_body_sprite(inst)
+		var sc := _ship_size_scale(inst, spr)
+		if _sd_size_category(sc) == _sd_size_cat or attempt == 9:
+			ship = inst
+			sprite = spr
+			size_scale = sc
+			break
+		inst.queue_free()
+	if ship == null:
+		return
+	# (engine trails keep running per _freeze_node; glow masks render — the dummy looks like a live ship.)
+	ship.position = (_sd_path.sample_baked(0.0) if _sd_path != null and _sd_path_len > 0.0 else _sd_center)
+	# Start already facing along the path so it doesn't snap-turn on the first frame.
+	if _sd_path != null and _sd_path_len > 0.0:
+		var d0: Vector2 = _sd_path.sample_baked(12.0, true) - ship.position
+		if d0.length() > 0.01:
+			ship.rotation = d0.angle() + PI * 0.5
+	_sd_ship = ship
+	# Damage-tells controller, configured by the SELECTED size's tuned suite + its measured scale.
+	var tells: Node2D = ShipDamageTells.new()
+	ship.add_child(tells)
+	tells.setup(ship, sprite, size_scale, _sd_dmg_cfg())
+	tells.destroyed.connect(_on_sd_destroyed)
+	_sd_tells = tells
+
+
+func _on_sd_damage(v: float) -> void:
+	if _sd_label != null:
+		_sd_label.text = "%d%%" % int(round(v * 100.0))
+	if _sd_tells != null and is_instance_valid(_sd_tells):
+		_sd_tells.set_damage(v)
+
+
+func _on_sd_destroyed() -> void:
+	# Ship died — leave it disintegrating in place. The New Ship button spawns the next one
+	# (Roman 2026-06-12: no auto-respawn).
+	_sd_dead = true
+
+
+func _tick_ship_dmg(delta: float) -> void:
+	if _sd_dead:
+		return
+	if _sd_ship != null and is_instance_valid(_sd_ship) and _sd_path != null and _sd_path_len > 0.0:
+		_sd_dist += SD_PATH_SPEED * delta
+		if _sd_dist >= _sd_path_len:
+			_sd_dist -= _sd_path_len
+		_sd_ship.position = _sd_path.sample_baked(_sd_dist, true)
+		# Smooth facing: aim along the path's TANGENT (a look-ahead point, stable regardless of the
+		# tiny per-frame step), EASED so corners don't snap. The old frame-delta angle was noisy on
+		# sub-pixel steps, which read as jitter (Roman 2026-06-12).
+		var ahead: Vector2 = _sd_path.sample_baked(fmod(_sd_dist + 12.0, _sd_path_len), true)
+		var dir: Vector2 = ahead - _sd_ship.position
+		if dir.length() > 0.01:
+			var target_rot: float = dir.angle() + PI * 0.5
+			_sd_ship.rotation = lerp_angle(_sd_ship.rotation, target_rot, clampf(delta * 9.0, 0.0, 1.0))
+
+
+# Size metric from the body sprite's on-screen dimensions (robust across enemies that don't
+# set display_scale). ~16px chaff ≈ 1.0; a big frigate ≈ 2+. Drives the debris count.
+func _ship_size_scale(ship: Node, sprite: Sprite2D) -> float:
+	if sprite != null and is_instance_valid(sprite) and sprite.texture != null:
+		var fsz: Vector2 = sprite.texture.get_size()
+		if sprite.hframes > 1:
+			fsz.x /= float(sprite.hframes)
+		if sprite.vframes > 1:
+			fsz.y /= float(sprite.vframes)
+		var px: float = maxf(fsz.x, fsz.y) * maxf(absf(sprite.scale.x), absf(sprite.scale.y))
+		return clampf(px / 16.0, 0.6, 3.5)
+	if "display_scale" in ship:
+		return clampf(float(ship.display_scale), 0.6, 3.5)
+	return 1.0
+
+
+func _freeze_node(n: Node) -> void:
+	# Stop movement / aiming / shooting, but KEEP cosmetic engine-trail emitters running so the
+	# frozen dummy still shows its exhaust (Roman 2026-06-12). Glow masks are static sprites and
+	# render regardless. Timers (shooting) are always stopped.
+	if n is Timer:
+		(n as Timer).stop()
+	var scr: Variant = n.get_script()
+	var is_trail: bool = scr != null and String(scr.resource_path).ends_with("engine_trail_fx.gd")
+	if not is_trail:
+		n.set_process(false)
+		n.set_physics_process(false)
+	for c in n.get_children():
+		_freeze_node(c)
+
+
+# The ship's body Sprite2D — prefer the conventional "Sprite2D", else the first one found.
+func _find_body_sprite(ship: Node) -> Sprite2D:
+	var s := ship.get_node_or_null("Sprite2D")
+	if s is Sprite2D:
+		return s
+	for c in ship.find_children("*", "Sprite2D", true, false):
+		if c is Sprite2D:
+			return c as Sprite2D
+	return null
 
 
 # ---- Asteroids mode --------------------------------------------------------
@@ -1178,6 +1639,10 @@ func _process(delta: float) -> void:
 			_tick_smoke(delta)
 		"Explosions":
 			_tick_explosions(delta)
+		"Expl. Tuner":
+			_tick_expl_tuner(delta)
+		"Ship Dmg":
+			_tick_ship_dmg(delta)
 		"Disintegrate":
 			_tick_disintegrate(delta)
 		"Asteroids":
@@ -1347,6 +1812,8 @@ func _fmt(v: float, step: float) -> String:
 
 func _apply_live() -> void:
 	match MODES[_mode]:
+		"Glow":
+			_apply_glow_fx()
 		"Smoke":
 			_rebuild_smoke()
 		"Bloom Env":
@@ -1432,10 +1899,16 @@ func _on_save() -> void:
 	for k in _dmg_colors:
 		cols[k] = (_dmg_colors[k] as Color).to_html(false)
 	out["DamageColors"] = cols
+	var glow_cols := {}
+	for gk in _glow_fx_colors:
+		glow_cols[gk] = (_glow_fx_colors[gk] as Color).to_html(false)
+	out["GlowColors"] = glow_cols
 	var stops := []
 	for s in _ember_stops:
 		stops.append({"color": (s["color"] as Color).to_html(false), "offset": float(s["offset"])})
 	out["EmberGradient"] = stops
+	if not _sd_dmg_vals.is_empty():
+		out["ShipDmgSizes"] = _sd_dmg_vals
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f != null:
 		f.store_string(JSON.stringify(out, "\t"))
@@ -1461,11 +1934,24 @@ func _load_saved() -> void:
 		for k in _dmg_colors:
 			if cols.has(k):
 				_dmg_colors[k] = Color(String(cols[k]))
+		var gcols: Dictionary = data.get("GlowColors", {})
+		for gk in _glow_fx_colors:
+			if gcols.has(gk):
+				_glow_fx_colors[gk] = Color(String(gcols[gk]))
 		var stops: Array = data.get("EmberGradient", [])
 		if stops.size() >= 2:
 			_ember_stops.clear()
 			for s in stops:
 				_ember_stops.append({"color": Color(String(s["color"])), "offset": float(s["offset"])})
+		var sds: Dictionary = data.get("ShipDmgSizes", {})
+		if not sds.is_empty():
+			_sd_dmg_vals = {}
+			for sz in SD_SIZES:
+				var d := {}
+				for def in SD_DMG_SCHEMA:
+					var key := String(def["key"])
+					d[key] = float((sds.get(sz, {}) as Dictionary).get(key, def["def"]))
+				_sd_dmg_vals[sz] = d
 
 
 func _on_copy() -> void:
@@ -1487,6 +1973,10 @@ func _on_copy() -> void:
 			txt = _snippet_disintegrate()
 		"Explosions":
 			txt = _snippet_explosions()
+		"Expl. Tuner":
+			txt = _snippet_expl_tuner()
+		"Ship Dmg":
+			txt = _snippet_ship_dmg()
 		"Asteroids":
 			txt = "# Shader Lab — gameplay asteroid hazard (scenes/enemies/enemy_asteroid.tscn)\n# var a = load(\"res://scenes/enemies/enemy_asteroid.tscn\").instantiate()\n# parent.add_child(a); a.start(pos)   # then a.explode() for the dusty shatter\n"
 		"Gallery":
@@ -1529,9 +2019,9 @@ func _snippet_smoke() -> String:
 	t += "# Add the returned emitter as a child of a moving node for a trail.\n"
 	t += "SmokeTrailFx.trail(get_tree().root, global_position, {\n"
 	t += "\t\"amount\": %d, \"lifetime\": %.2f,\n" % [int(v["amount"]), float(v["lifetime"])]
-	t += "\t\"speed_min\": %.1f, \"speed_max\": %.1f, \"gravity\": %.1f,\n" % [float(v["speed_min"]), float(v["speed_max"]), float(v["gravity"])]
+	t += "\t\"speed_min\": %.1f, \"speed_max\": %.1f, \"gravity\": %.1f, \"damping\": %.1f,\n" % [float(v["speed_min"]), float(v["speed_max"]), float(v["gravity"]), float(v["damping"])]
 	t += "\t\"scale_min\": %.2f, \"scale_max\": %.2f, \"scale_grow\": %.2f,\n" % [float(v["scale_min"]), float(v["scale_max"]), float(v["scale_grow"])]
-	t += "\t\"spread_deg\": %.1f, \"jitter_deg\": %.1f, \"orient\": %s,\n" % [float(v["spread_deg"]), float(v["jitter_deg"]), ("true" if _smoke_orient else "false")]
+	t += "\t\"spread_deg\": %.1f, \"spin\": %.1f, \"randomness\": %.2f, \"follow_motion\": %s,\n" % [float(v["spread_deg"]), float(v["spin"]), float(v["randomness"]), ("true" if _smoke_follow else "false")]
 	t += "\t\"start_color\": Color(\"%s\"), \"end_color\": Color(\"%s\"),\n" % [sc.to_html(false), ec.to_html(false)]
 	t += "})\n"
 	return t
@@ -1555,6 +2045,45 @@ func _snippet_explosions() -> String:
 	t += "ExplosionFx.play(global_position, 1.0, true, null,\n"
 	t += "\tExplosionFx.scene_for(\"small_then_default\"))                    # spark → big boom\n"
 	t += "# Sprites render at native 1× (halo matched to core, no upscale).\n"
+	t += "#\n# Ember-debris sweetener — the FIRE on each chunk (tuned values):\n"
+	var v: Dictionary = _values["Explosions"]
+	t += "# const ShipDebrisEmber = preload(\"res://scripts/effects/ship_debris_ember.gd\")\n"
+	t += "for i in %d:\n" % int(v["count"])
+	t += "\tvar ang := randf_range(0.15, PI - 0.15)\n"
+	t += "\tShipDebrisEmber.spawn(parent, pos, {\n"
+	t += "\t\t\"velocity\": Vector2(cos(ang), sin(ang)) * randf_range(%.0f, %.0f),\n" % [float(v["speed_min"]), float(v["speed_max"])]
+	t += "\t\t\"spin\": randf_range(-6.0, 6.0),\n"
+	t += "\t\t\"piece_scale\": randf_range(%.2f, %.2f),\n" % [float(v["scale_min"]), float(v["scale_max"])]
+	t += "\t\t\"gravity\": %.0f, \"drag\": %.2f,\n" % [float(v["gravity"]), float(v["drag"])]
+	t += "\t\t\"burn_time\": randf_range(%.2f, %.2f),\n" % [float(v["burn_min"]), float(v["burn_max"])]
+	t += "\t\t\"flame_size\": Vector2(%.2f, %.2f), \"flame_speed\": %.1f,\n" % [float(v["flame_w"]), float(v["flame_h"]), float(v["flame_speed"])]
+	t += "\t})\n"
+	return t
+
+
+func _snippet_ship_dmg() -> String:
+	# Emit the per-size damage-tell suite — paste into ShipDamageTells per size, or bake the
+	# numbers into a size→cfg table on enemy_base.
+	var t := "# Shader Lab — damage-tell suite per size (ShipDamageTells.setup cfg)\n"
+	for sz in SD_SIZES:
+		var vals: Dictionary = _sd_dmg_vals.get(sz, {})
+		t += "var dmg_cfg_%s := {\n" % sz
+		for def in SD_DMG_SCHEMA:
+			var key := String(def["key"])
+			t += "\t\"%s\": %s,\n" % [key, _fmt(float(vals.get(key, def["def"])), float(def["step"]))]
+		t += "}\n"
+	return t
+
+
+func _snippet_expl_tuner() -> String:
+	var v: Dictionary = _values["Expl. Tuner"]
+	var t := "# Shader Lab — centralized explosion (scripts/effects/explosion_fx.gd)\n"
+	t += "ExplosionFx.play_config(world_pos, {\n"
+	t += "\t\"type\": \"%s\",\n" % _et_type
+	t += "\t\"size\": %.2f, \"area\": %.0f, \"duration\": %.3f,\n" % [float(v["size"]), float(v["area"]), float(v["duration"])]
+	t += "\t\"density\": %d, \"stagger\": %.2f, \"secondaries\": %.2f,\n" % [int(v["density"]), float(v["stagger"]), float(v["secondaries"])]
+	t += "\t\"glow\": %.2f, \"shockwave\": %.2f, \"sparks\": %.2f, \"debris\": %.2f,\n" % [float(v["glow"]), float(v["shockwave"]), float(v["sparks"]), float(v["debris"])]
+	t += "}, parent)\n"
 	return t
 
 
@@ -1600,10 +2129,22 @@ func _snippet_disintegrate() -> String:
 
 
 func _snippet_glow() -> String:
-	var t := "# Shader Lab — diffuse glow (per-sprite glow_halo bloom)\n"
-	t += "# const GlowShaderFx = preload(\"res://scripts/effects/glow_shader_fx.gd\")\n"
-	t += "GlowShaderFx.apply(sprite)              # auto-derive colour\n"
-	t += "GlowShaderFx.apply(sprite, override)    # force a glow colour\n"
+	var v: Dictionary = _values["Glow"]
+	var c1: Color = _glow_fx_colors["color1"]
+	var c2: Color = _glow_fx_colors["color2"]
+	var gc: Color = _glow_fx_colors["glow_color"]
+	var t := "# Shader Lab — glow_effect_2d (color-keyed in-sprite emission; needs a\n"
+	t += "# WorldEnvironment with glow_enabled to bloom). For the soft behind-sprite\n"
+	t += "# halo instead, use GlowShaderFx.apply(sprite).\n"
+	t += "var m := ShaderMaterial.new()\n"
+	t += "m.shader = preload(\"res://graphics/glow_effect_2d.gdshader\")\n"
+	t += "m.set_shader_parameter(\"color1\", Color(%.3f, %.3f, %.3f))\n" % [c1.r, c1.g, c1.b]
+	t += "m.set_shader_parameter(\"color2\", Color(%.3f, %.3f, %.3f))\n" % [c2.r, c2.g, c2.b]
+	t += "m.set_shader_parameter(\"glow_color\", Color(%.3f, %.3f, %.3f))\n" % [gc.r, gc.g, gc.b]
+	t += "m.set_shader_parameter(\"threshold\", %.2f)\n" % float(v["threshold"])
+	t += "m.set_shader_parameter(\"intensity\", %.2f)\n" % float(v["intensity"])
+	t += "m.set_shader_parameter(\"opacity\", %.2f)\n" % float(v["opacity"])
+	t += "sprite.material = m\n"
 	return t
 
 

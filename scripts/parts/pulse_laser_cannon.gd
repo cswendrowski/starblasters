@@ -15,7 +15,7 @@ extends "res://scripts/parts/metered_primary.gd"
 
 const WSp = preload("res://scripts/weapons/WeaponStyle.gd")
 
-@export var base_accuracy_window: int = 10
+@export var base_accuracy_window: int = 6   # Weapon Lab tune (Roman 2026-06-11; was 10)
 @export var accuracy_window_per_mark: int = 2
 
 

@@ -609,6 +609,12 @@ func _attach_damage_point(local: Vector2, below: float) -> void:
 	var torch = EngineTorchCls.attach_to_player(self, local, below)
 	if torch != null:
 		torch.name = "EngineTorch_%d" % _damage_fx_seq
+	# Fire-spark trail at the same marker (Roman 2026-06-11), gated on the same hull
+	# threshold as the torch/smoke so all three damage tells appear together.
+	var SparkTrailCls = preload("res://scripts/effects/spark_trail_fx.gd")
+	var sparks = SparkTrailCls.attach_to_player(self, local, below)
+	if sparks != null:
+		sparks.name = "SparkTrail_%d" % _damage_fx_seq
 	_damage_fx_seq += 1
 
 

@@ -41,6 +41,21 @@ const DESPAWN_Y := 320.0           # the fall-off case frees here, below the 270
 const SAFETY_LIFETIME := 12.0      # backstop free if it somehow never reaches the exit zone
 const VEL_EPS := 4.0               # below this speed the flame keeps its last heading (no jitter)
 
+# Live tunables — default to the consts above; the Sequence Lab overrides them via attach()'s cfg
+# (production callers pass no cfg → identical behavior). Keys mirror the const names, lowercased.
+var _fall_gravity: float = FALL_GRAVITY
+var _fall_speed_max: float = FALL_SPEED_MAX
+var _lateral_damp: float = LATERAL_DAMP
+var _spin_min: float = SPIN_MIN
+var _spin_max: float = SPIN_MAX
+var _spin_ease: float = SPIN_EASE
+var _wreck_scale: float = WRECK_SCALE
+var _scale_time: float = SCALE_TIME
+var _descent_time: float = DESCENT_TIME
+var _speed_loss_start: float = SPEED_LOSS_START
+var _speed_loss_end: float = SPEED_LOSS_END
+var _recede_darken: float = RECEDE_DARKEN
+
 var _init_vel: Vector2 = Vector2.ZERO   # inherited living velocity (decays to 80% across the descent)
 var _fall_v: float = 0.0                # gravity-accumulated downward speed
 var _lateral: float = 0.0               # sideways drift, ramps in only AFTER the descent stage
@@ -59,14 +74,34 @@ var _torch: Node = null            # EngineTorch (child of the hull) — oriente
 # velocity at death. `seed_i` (a counter) varies spin/drift direction. `exit_explode_chance` decides
 # the exit-zone fate. `emit_points` are hull-LOCAL emit positions (engine markers + centre) to pick
 # the fire/smoke origin from.
-static func attach(sprite: Node2D, init_vel: Vector2, seed_i: int, exit_explode_chance: float, emit_points: Array) -> void:
+static func attach(sprite: Node2D, init_vel: Vector2, seed_i: int, exit_explode_chance: float, emit_points: Array, cfg: Dictionary = {}) -> void:
 	if sprite == null or not is_instance_valid(sprite):
 		return
 	var ctrl := Node.new()
 	ctrl.set_script(load("res://scripts/effects/wreck_drift.gd"))
 	ctrl.name = "WreckDrift"
 	sprite.add_child(ctrl)
+	(ctrl as Node)._apply_cfg(cfg)
 	(ctrl as Node)._init_drift(init_vel, seed_i, exit_explode_chance, emit_points)
+
+
+# Override the default tunables from a config dict (Sequence Lab). Unknown / missing keys keep
+# their const defaults, so an empty cfg is a no-op.
+func _apply_cfg(cfg: Dictionary) -> void:
+	if cfg.is_empty():
+		return
+	_fall_gravity = float(cfg.get("fall_gravity", _fall_gravity))
+	_fall_speed_max = float(cfg.get("fall_speed_max", _fall_speed_max))
+	_lateral_damp = float(cfg.get("lateral_damp", _lateral_damp))
+	_spin_min = float(cfg.get("spin_min", _spin_min))
+	_spin_max = float(cfg.get("spin_max", _spin_max))
+	_spin_ease = float(cfg.get("spin_ease", _spin_ease))
+	_wreck_scale = float(cfg.get("wreck_scale", _wreck_scale))
+	_scale_time = float(cfg.get("scale_time", _scale_time))
+	_descent_time = float(cfg.get("descent_time", _descent_time))
+	_speed_loss_start = float(cfg.get("speed_loss_start", _speed_loss_start))
+	_speed_loss_end = float(cfg.get("speed_loss_end", _speed_loss_end))
+	_recede_darken = float(cfg.get("recede_darken", _recede_darken))
 
 
 func _init_drift(init_vel: Vector2, seed_i: int, exit_explode_chance: float, emit_points: Array) -> void:
@@ -75,14 +110,14 @@ func _init_drift(init_vel: Vector2, seed_i: int, exit_explode_chance: float, emi
 		return
 	var s: Node2D = sprite
 	var dir: float = 1.0 if (seed_i % 2 == 0) else -1.0
-	_spin_target = dir * (SPIN_MIN + randf() * (SPIN_MAX - SPIN_MIN))
+	_spin_target = dir * (_spin_min + randf() * (_spin_max - _spin_min))
 	_drift_x = dir * randf_range(3.0, 11.0)
 	_init_vel = init_vel
 	_exit_explode_chance = exit_explode_chance
 	# Mid-depth recession: smooth scale-down + a subtle darken.
 	var tw := s.create_tween()
-	tw.tween_property(s, "scale", s.scale * WRECK_SCALE, SCALE_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	s.modulate = Color(s.modulate.r * RECEDE_DARKEN, s.modulate.g * RECEDE_DARKEN, s.modulate.b * RECEDE_DARKEN, s.modulate.a)
+	tw.tween_property(s, "scale", s.scale * _wreck_scale, _scale_time).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	s.modulate = Color(s.modulate.r * _recede_darken, s.modulate.g * _recede_darken, s.modulate.b * _recede_darken, s.modulate.a)
 	# Pick a random emit point (engine marker or hull centre) for the fire + smoke combo.
 	var emit: Vector2 = Vector2.ZERO
 	if not emit_points.is_empty():
@@ -124,16 +159,16 @@ func _process(delta: float) -> void:
 		return
 	var s: Node2D = sprite
 	_t += delta
-	_descent_t = minf(_descent_t + delta / DESCENT_TIME, 1.0)
+	_descent_t = minf(_descent_t + delta / _descent_time, 1.0)
 	# DESCENT stage: keep orientation, lose 20% of the inherited speed across the stage (1% → 20%),
 	# while gravity curves the motion into a fall. Lateral drift + tumble are held until it completes.
-	_fall_v = minf(_fall_v + FALL_GRAVITY * delta, FALL_SPEED_MAX)
-	var speed_mult: float = lerpf(SPEED_LOSS_START, SPEED_LOSS_END, _descent_t)
+	_fall_v = minf(_fall_v + _fall_gravity * delta, _fall_speed_max)
+	var speed_mult: float = lerpf(_speed_loss_start, _speed_loss_end, _descent_t)
 	var vel: Vector2 = _init_vel * speed_mult + Vector2(0.0, _fall_v)
 	if _descent_t >= 1.0:
 		# Post-descent: sideways drift + slow tumble ease in.
-		_lateral = lerpf(_lateral, _drift_x, clampf(LATERAL_DAMP * delta, 0.0, 1.0))
-		_spin_cur = lerpf(_spin_cur, _spin_target, clampf(SPIN_EASE * delta, 0.0, 1.0))
+		_lateral = lerpf(_lateral, _drift_x, clampf(_lateral_damp * delta, 0.0, 1.0))
+		_spin_cur = lerpf(_spin_cur, _spin_target, clampf(_spin_ease * delta, 0.0, 1.0))
 		s.rotation += _spin_cur * delta
 	vel.x += _lateral
 	s.position += vel * delta

@@ -15,7 +15,7 @@ const WSsh = preload("res://scripts/weapons/WeaponStyle.gd")
 const BulletShredder = preload("res://scenes/projectiles/bullet_shredder.tscn")
 
 @export var base_bullet_count: int = 6
-@export var spread_degrees: float = 17.0   # narrowed from 25 (Roman 2026-06-11)
+@export var spread_degrees: float = 12.0   # Weapon Lab tune (Roman 2026-06-11; was 17)
 
 
 func _init() -> void:

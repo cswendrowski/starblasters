@@ -22,8 +22,8 @@ const BulletWaveLarge = preload("res://scenes/projectiles/bullet_wave_large.tscn
 # Mk.9 endpoints (Mk.1 reads from base_*). Exposed for .tres tuning.
 @export var damage_at_mk9: int = 12
 @export var cooldown_at_mk9: float = 0.30
-@export var bullet_speed_at_mk1: float = 300.0
-@export var bullet_speed_at_mk9: float = 600.0
+@export var bullet_speed_at_mk1: float = 600.0   # Weapon Lab tune (Roman 2026-06-11): fast at Mk.1,
+@export var bullet_speed_at_mk9: float = 300.0   # slowing to Mk.9 (bigger waves travel slower)
 
 
 func _init() -> void:

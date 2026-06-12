@@ -18,6 +18,7 @@ const HangarDummy = preload("res://scripts/dev/hangar_dummy_target.gd")
 const Playfield = preload("res://scripts/playfield.gd")
 const Weapon = preload("res://scripts/enemies/shoot_patterns/weapon.gd")
 const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
+const Factions = preload("res://scripts/levels/factions.gd")
 const PLAYER_SPRITE = preload("res://Mini Pixel Pack 3/Player ship/Player_ship (16 x 16).png")
 
 const SAVE_PATH := "user://tuners/enemy_bench.json"
@@ -31,6 +32,11 @@ const PAYLOADS := {
 	"Plasma Orb": EnemyRoster.BV_PlasmaOrb, "Heavy Slug": EnemyRoster.BV_HeavySlug,
 	"Drop Pellet": EnemyRoster.BV_DropPellet,
 }
+
+# Faction filter tabs (Roman 2026-06-12). "All" + the 4 factions + Core (universal chaff) +
+# Hazards (mines/asteroid) + Bosses. Group is derived from the scene PATH (folder), not the
+# ENEMY_TAGS home, so untagged hazards/bosses bucket cleanly and a universal chaff stays under Core.
+const FACTION_GROUPS := ["All", "Core", "Supremacy", "Privateer", "Corporate", "Zealot", "Hazards", "Bosses"]
 
 const FS_TITLE := 40
 const FS_HEADER := 24
@@ -56,7 +62,9 @@ var _respawn_timer: Timer = null
 
 # Enemy list.
 var _list: ItemList = null
-var _paths: Array = []
+var _paths: Array = []                # currently-shown (faction-filtered) subset
+var _all_paths: Array = []            # complete enemy set, before faction filtering
+var _faction_filter: String = "All"
 var _selected_path: String = ""
 
 # Pattern cycling.
@@ -215,9 +223,28 @@ func _build_left_rail(ui: CanvasLayer) -> void:
 	lbl.position = Vector2(x + 14, y + 10)
 	ui.add_child(lbl)
 
+	# Faction filter "tabs" — a wrapping row of mutually-exclusive toggles (a TabBar would
+	# overflow the 300px rail with 8 groups). Picking one re-filters the list below.
+	var flow := HFlowContainer.new()
+	flow.position = Vector2(x + 14, y + 32)
+	flow.size = Vector2(RAIL_W - 28, 92)
+	var grp := ButtonGroup.new()
+	for g in FACTION_GROUPS:
+		var b := Button.new()
+		b.text = g
+		b.toggle_mode = true
+		b.button_group = grp
+		b.focus_mode = Control.FOCUS_NONE
+		b.add_theme_font_size_override("font_size", FS_CAPTION)
+		if String(g) == _faction_filter:
+			b.button_pressed = true
+		b.pressed.connect(_on_faction_filter.bind(String(g)))
+		flow.add_child(b)
+	ui.add_child(flow)
+
 	_list = ItemList.new()
-	_list.position = Vector2(x + 14, y + 36)
-	_list.size = Vector2(RAIL_W - 28, h - 50)
+	_list.position = Vector2(x + 14, y + 132)
+	_list.size = Vector2(RAIL_W - 28, h - 146)
 	_list.add_theme_font_override("font", UiTheme.active_font())
 	_list.add_theme_font_size_override("font_size", FS_BODY)
 	_list.fixed_icon_size = Vector2i(28, 28)
@@ -376,12 +403,59 @@ func _spinbox(vbox: VBoxContainer, caption: String, min_v: float, max_v: float, 
 # ---- List / selection ----------------------------------------------------
 
 func _load_list() -> void:
+	# Complete enemy set = the curated dev manifest (bosses/mines/asteroid/core) UNION every
+	# faction-tagged enemy (the manifest was missing the per-faction roster). Deduped + sorted.
+	_all_paths.clear()
+	var seen := {}
+	for src in [EnemyManifest.paths(), Factions.ENEMY_TAGS.keys()]:
+		for p in src:
+			var s := String(p)
+			if not seen.has(s):
+				seen[s] = true
+				_all_paths.append(s)
+	_all_paths.sort()
+	_rebuild_list(false)
+
+
+# Re-populate the list from _all_paths, keeping only the active faction group. select_first
+# auto-selects the top entry (true on a tab change; false during initial _ready, which selects).
+func _rebuild_list(select_first: bool) -> void:
 	_paths.clear()
-	for p in EnemyManifest.paths():
-		_paths.append(String(p))
-	_paths.sort()
+	_list.clear()
+	for p in _all_paths:
+		if _faction_filter == "All" or _group_of(String(p)) == _faction_filter:
+			_paths.append(p)
 	for p in _paths:
 		_list.add_item(EnemyStrings.display_name(p), _icon_for(p))
+	if select_first and _list.item_count > 0:
+		_list.select(0)
+		_on_list_select(0)
+
+
+func _on_faction_filter(group: String) -> void:
+	_faction_filter = group
+	_rebuild_list(true)
+
+
+# Faction bucket from the scene PATH. Faction-folder wins over the "mine"/"asteroid" keywords so the
+# privateer minelayer (a ship that lays mines) stays under Privateer, not Hazards.
+func _group_of(path: String) -> String:
+	var p := path.to_lower()
+	if p.contains("/factions/supremacy/"): return "Supremacy"
+	if p.contains("/factions/privateer/"): return "Privateer"
+	if p.contains("/factions/corporate/"): return "Corporate"
+	if p.contains("/factions/zealot/"): return "Zealot"
+	if p.contains("/core/"): return "Core"
+	if p.contains("boss"): return "Bosses"
+	if p.contains("mine") or p.contains("asteroid") or p.contains("bomblet"): return "Hazards"
+	return "Core"
+
+
+# Mines are contact / cluster hazards — they must never carry a weapon, even though they extend
+# enemy_core (which owns the shoot_pattern slot). The minelayer is a ship, not a mine.
+func _is_mine(path: String) -> bool:
+	var p := path.to_lower()
+	return p.contains("mine") and not p.contains("minelayer")
 
 
 func _icon_for(path: String) -> Texture2D:
@@ -411,6 +485,11 @@ func _on_list_select(idx: int) -> void:
 		_eligible = [idk] if idk != "" else ["straight_medium"]
 	_pattern_idx = 0
 	_load_settings_into_editors()
+	# Mines can't be equipped — grey out the weapon editors so it's clear they stay silent.
+	var mine := _is_mine(_selected_path)
+	if _fire_dd: _fire_dd.disabled = mine
+	if _aim_dd: _aim_dd.disabled = mine
+	if _payload_dd: _payload_dd.disabled = mine
 	_spawn_current()
 
 
@@ -439,9 +518,12 @@ func _spawn_current() -> void:
 		key = String(_eligible[_pattern_idx])
 		inst.movement = EnemyRoster.make_movement({"movement": key})
 	if "shoot_pattern" in inst:
-		inst.shoot_pattern = _build_weapon()
-		if "fire_on_phase" in inst:
-			inst.fire_on_phase = ""    # use the generic ShootTimer cadence
+		if _is_mine(_selected_path):
+			inst.shoot_pattern = null   # mines never fire — keep the slot empty
+		else:
+			inst.shoot_pattern = _build_weapon()
+			if "fire_on_phase" in inst:
+				inst.fire_on_phase = ""    # use the generic ShootTimer cadence
 	if "explosion_variant" in inst:
 		inst.explosion_variant = ExplosionFx.variant_names()[_explosion_dd.selected]
 	_apply_stats_to(inst)   # HP/scale/etc BEFORE _ready so health = max_health from frame 0

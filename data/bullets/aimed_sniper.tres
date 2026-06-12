@@ -6,14 +6,12 @@
 [resource]
 script = ExtResource("1_variant")
 speed = 300.0
-damage = 1
 lifetime = 3.0
 hitbox_size = Vector2(4, 6)
 static_texture = ExtResource("2_tex")
 frame_count = 3
 fps = 10.0
-glow_color = Color(0.266667, 1, 1, 0.5)
-impact_kind = 0
+glow_color = Color(0.6378174, 0, 0.81640625, 0.5019608)
 impact_color = Color(0.266667, 1, 1, 1)
-random_frame = true
 enemy_sfx_kind = "enemy_mg"
+random_frame = true

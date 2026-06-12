@@ -17,7 +17,7 @@ extends Node
 
 const HIT_FLASH_SHADER = preload("res://graphics/hit_flash.gdshader")
 const FLASH_WHITE := Color(1.0, 1.0, 1.0, 1.0)
-const FLASH_SHIELD := Color(0.55, 0.95, 1.0, 1.0)  # matches sci_fi_shield cyan
+const FLASH_SHIELD := Color(0.55, 0.95, 1.0, 1.0)  # cyan shield-hit flash (hex_shield palette)
 const META_KEY := "hit_flash_state"
 # One frame at 60 fps — the full-white hold before the flash decays.
 const HOLD := 1.0 / 60.0

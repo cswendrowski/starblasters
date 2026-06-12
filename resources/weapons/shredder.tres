@@ -7,7 +7,7 @@
 script = ExtResource("1_s")
 bullet_scene = ExtResource("2_b")
 base_damage = 1
-base_cooldown = 0.35
+base_cooldown = 0.2
 base_ammo = 60
 display_name = ""
 slot_type = 4

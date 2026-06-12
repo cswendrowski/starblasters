@@ -191,15 +191,11 @@ func explode() -> void:
 	set_deferred("monitorable", false)
 	died.emit(bounty_value)
 	_clear_held_glow()   # if shot while orbiting a Gravity Mine, drop the #c73bff glow instantly
-	# Explosive impact flash (Roman, 2026-05-17 sprite pass) layered on
-	# top of the existing fiery explosion for the warhead detonation read.
-	var ImpactFxCls = load("res://scripts/effects/impact_fx.gd")
-	if ImpactFxCls:
-		ImpactFxCls.spawn(get_tree().root, global_position, Color(1.0, 0.55, 0.2, 1.0), 1)
+	# Single circle explosion (Roman 2026-06-11) — dropped the layered impact-flash + fiery
+	# blast for a clean one-circle pop. Silent: bomblets release in swarms (4-8 from a gravity
+	# mine); the distance system would stack a wall of close booms. Parent mine covers the cue.
 	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
-	# Silent explosion SFX — bomblets are tiny + released in swarms (4-8 from a gravity mine);
-	# the distance system would stack a wall of close booms. The parent mine's death covers the cue.
-	ExplosionFx.play(global_position, 1.0, true, null, null, false)
+	ExplosionFx.play(global_position, 1.0, true, null, ExplosionFx.scene_for("small_circle"), false)
 	if has_node("Sprite2D"):
 		var BurnFx = load("res://scripts/burn_fx.gd")
 		BurnFx.apply_burn($Sprite2D, 0.25)
