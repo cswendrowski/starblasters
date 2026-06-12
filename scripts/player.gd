@@ -67,6 +67,9 @@ var primary_parallel_offsets: PackedVector2Array = PackedVector2Array()
 # Set by cannons (Auto Laser) that want the rotary laser flash without
 # being on the ROTARY_LASER ammo/charge path.
 var use_rotary_laser_muzzle: bool = false
+# Set by the Shredder so it gets the autocannon muzzle look (orange flash + smoke +
+# small shell casing) despite firing on the ENERGY/spread path (Roman 2026-06-11).
+var use_autocannon_muzzle: bool = false
 # Secondary fire pipeline — HARDPOINT_WING Part assigns these on apply()
 # (Seeking Missile, Rocket Pod, future Side Pods / Drone Bits). Separate
 # from the primary cannon's bullet_scene / cooldown / damage so the two
@@ -343,7 +346,7 @@ var loadout
 # ---- Sci-Fi Shield FX ----
 # Code-only ring sprite (no .tscn edit). Sits as a child of Player so it
 # follows the ship; bullets still spawn at root.
-const SHIELD_SHADER = preload("res://graphics/sci_fi_shield.gdshader")
+const SHIELD_SHADER = preload("res://graphics/hex_shield.gdshader")  # committed (Roman 2026-06-11)
 var _shield_ring: ColorRect = null
 var _shield_mat: ShaderMaterial = null
 var _shield_alpha_tween: Tween = null
@@ -373,8 +376,10 @@ var _mg_stop_pending: bool = false
 # is polyphonic so the pews overlap cleanly.
 const RL_CHARGE_DURATION: float = 0.4
 const RL_SHOOT_SFX_MIN_MS: int = 80     # min gap between rotary shoot pews
+const PULSE_SHOOT_SFX_MIN_MS: int = 80  # min gap between pulse shoot clips (~16/s fire)
 var _rl_shoot_streams: Array = []
 var _rl_shoot_last_ms: int = 0
+var _pulse_shoot_last_ms: int = 0
 var _rl_charging: bool = false
 var _rl_charged: bool = false
 var _rl_charge_t: float = 0.0
@@ -563,9 +568,13 @@ func _setup_smoke_trail() -> void:
 	var pts := _damage_fx_points()
 	if pts.is_empty():
 		return
-	_attach_damage_point(pts[0], 0.01)        # first point: shows on the first pip lost
+	# Damage tells START at 50% damage of the CURRENT max hull, regardless of hull
+	# modifiers (Roman 2026-06-11). activate_below is a damage FRACTION (1 - hull/max),
+	# so 0.5 = half the current max no matter how many pips that is — fixing the old
+	# 0.01 ("first pip"), which on a bigger max hull triggered far sooner than half.
+	_attach_damage_point(pts[0], 0.5)         # first point: shows at 50% hull lost
 	if pts.size() > 1:
-		_attach_damage_point(pts[1], 0.5)     # second point: shows at ~50% hull
+		_attach_damage_point(pts[1], 0.78)    # second point: deepens further toward death
 
 
 # Candidate damage-tell anchors (player-local), shuffled: centre + REAL engine + wing
@@ -1362,6 +1371,22 @@ func _fire_pulse_laser() -> void:
 		elif enemy.has_method("take_damage"):
 			enemy.take_damage(dmg)
 	_spawn_pulse_beam(origin, hit["point"])
+	# Energy muzzle flash at the nose (Roman 2026-06-11: "muzzleflashes missing from
+	# most weapons" — Pulse Laser was the last fire path with none). The rotary-laser
+	# flash is the cyan-blue energy variant with a ~0.04s fade, matching the beam's
+	# energy look and the weapon's rapid cadence.
+	var MuzzleFx = load("res://scripts/effects/muzzle_fx.gd")
+	if MuzzleFx:
+		MuzzleFx.play_rotary_laser(origin, self)
+	# Pulse fire SFX (Roman 2026-06-11): this fire path returns before the shared
+	# per-shot SFX block, so play the pulse_laser_shoot_* pool here directly. Throttled
+	# like the rotary laser — at ~16/s a voice-per-shot would machine-gun the clips.
+	var pulse_now: int = Time.get_ticks_msec()
+	if pulse_now - _pulse_shoot_last_ms >= PULSE_SHOOT_SFX_MIN_MS:
+		_pulse_shoot_last_ms = pulse_now
+		var WeaponSfx = load("res://scripts/effects/weapon_sfx.gd")
+		if WeaponSfx:
+			WeaponSfx.play(get_tree().root, global_position, "pulse")
 	# Accuracy: pinpoint for the first `pulse_accuracy_window` shots of a burst, then
 	# +1° dispersion per shot up to the cap.
 	_pulse_shot_count += 1
@@ -1391,6 +1416,25 @@ func _pulse_hitscan(origin: Vector2, dir: Vector2, max_dist: float) -> Dictionar
 # that flashes briefly and frees. Parents to the player's world (combat scene), NOT
 # the player — beams are world-space and must survive in the right viewport.
 func _spawn_pulse_beam(origin: Vector2, end_pt: Vector2) -> void:
+	var host: Node = get_parent()
+	if host == null:
+		host = self
+	# Outer glow — a wider #0012ff additive line UNDER the core beam (Roman 2026-06-11).
+	var glow := Line2D.new()
+	glow.width = 3.0
+	glow.default_color = Color(0.0, 0.07, 1.0, 0.45)   # #0012ff
+	glow.add_point(origin)
+	glow.add_point(end_pt)
+	glow.z_index = 0
+	glow.z_as_relative = false
+	var gmat := CanvasItemMaterial.new()
+	gmat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	glow.material = gmat
+	host.add_child(glow)
+	var gtw := glow.create_tween()
+	gtw.tween_property(glow, "modulate:a", 0.0, 0.06)
+	gtw.tween_callback(glow.queue_free)
+	# Core beam — 1px, white -> #000fd8 by dispersion (the inner progression stays).
 	var line := Line2D.new()
 	line.width = 1.0
 	var ratio: float = clampf(_pulse_dispersion / PULSE_MAX_DISPERSION, 0.0, 1.0)
@@ -1402,9 +1446,6 @@ func _spawn_pulse_beam(origin: Vector2, end_pt: Vector2) -> void:
 	var mat := CanvasItemMaterial.new()
 	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD   # glows (HDR-bright white blooms)
 	line.material = mat
-	var host: Node = get_parent()
-	if host == null:
-		host = self
 	host.add_child(line)
 	var tw := line.create_tween()
 	tw.tween_property(line, "modulate:a", 0.0, 0.06)
@@ -1558,14 +1599,15 @@ func fire_primary() -> void:
 	var flash_color: Color = ENGINE_GLOW_COLOR
 	if weapon_style == WS.WeaponStyle.ROTARY_LASER or use_rotary_laser_muzzle:
 		flash_color = Color(0.2, 0.45, 1.0)        # pure blue
-	elif _is_mg_family(weapon_style):
+	elif _is_mg_family(weapon_style) or use_autocannon_muzzle:
 		flash_color = Color(1.0, 0.5, 0.1)         # bright orange (cannon)
 	# Shell casing size: legacy Machinegun uses the LARGE casing; the Autocannon is back
 	# on the SMALL casing (Roman 2026-06-11). Minigun ejects a brass PIXEL (+ thin smoke
 	# trail) instead of a casing — so it skips the shell+smoke, then ejects brass below.
+	# The Shredder (use_autocannon_muzzle) rides the autocannon's small-shell + smoke look.
 	var _large_shell: bool = weapon_style == WS.WeaponStyle.MACHINEGUN
 	var _is_minigun: bool = weapon_style == WS.WeaponStyle.MINIGUN
-	var _smoke_shell: bool = _is_mg_family(weapon_style) and not _is_minigun
+	var _smoke_shell: bool = (_is_mg_family(weapon_style) and not _is_minigun) or use_autocannon_muzzle
 	MuzzleFx.play_player(muzzle_pos, self, flash_color, _smoke_shell, _large_shell)
 	if _is_minigun:
 		var _fx_parent: Node = get_parent() if get_parent() != null else get_tree().root
@@ -1698,7 +1740,9 @@ func set_secondary_ammo(value: int, maximum: int = -1) -> void:
 func _secondary_muzzle(world_pos: Vector2) -> void:
 	var MuzzleFx = load("res://scripts/effects/muzzle_fx.gd")
 	if MuzzleFx:
-		MuzzleFx.play_player(world_pos, self, Color(1.0, 0.8, 0.4), false, false)
+		# flip_v + z=-3: the launch flash points the other way and renders UNDER the
+		# player, matching the wing-launched secondaries (Roman 2026-06-11).
+		MuzzleFx.play_player(world_pos, self, Color(1.0, 0.8, 0.4), false, false, true, -3)
 
 
 func fire_secondary() -> void:

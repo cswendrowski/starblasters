@@ -22,6 +22,11 @@ const RESET_THRESHOLD := 340.0
 # Use the actual ASTEROID_SCENE path from galaxy_backdrop.gd
 const ASTEROID_SCENE = "res://Planets/Asteroids/Asteroid.tscn"
 const SPACE_COLORSCHEME := "res://SpaceBG/Colorscheme.tres"
+# Background mine decoration uses the NEW mine art (graphics/mines/, the live-mine
+# sprites) — NOT the old graphics/enemy-mine*.png (Roman 2026-06-11).
+const BG_MINE_TEX := "res://graphics/mines/enemy_mine.png"
+const BG_BOMBLET_TEX := "res://graphics/mines/enemy_mine_bomblet.png"
+const MineBlinker = preload("res://scripts/effects/mine_blinker.gd")
 
 var _objects: Array = []
 var _nebula_rect: ColorRect = null
@@ -193,12 +198,22 @@ func _spawn_nebula() -> void:
 func _spawn_bg_mines() -> void:
 	if _local_rng == null:
 		return
+	var mine_tex = load(BG_MINE_TEX)
+	var bomblet_tex = load(BG_BOMBLET_TEX)
 	for _i in mine_count:
 		var s := Sprite2D.new()
+		# New mine art (a clean transparent sprite — no black box / pixel outline).
+		s.texture = bomblet_tex if (_local_rng.randf() < 0.35) else mine_tex
+		s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		s.position = Vector2(_local_rng.randf_range(80, 400), _local_rng.randf_range(-270, 0))
-		s.scale = Vector2(0.4, 0.4)
-		s.modulate = Color(0.5, 0.5, 0.5, 0.7)
+		s.scale = Vector2(0.7, 0.7)
+		s.modulate = Color(0.62, 0.62, 0.66, 0.7)   # dimmed — decoration, not a live mine
 		add_child(s)
+		# Dimmed pixel pulse light so the field reads as live-but-distant (round-1
+		# worklist: "their pixel pulse light as well, albeit dimmed"). Not an enemy.
+		var blink = MineBlinker.new()
+		blink.modulate = Color(1, 1, 1, 0.4)
+		s.add_child(blink)
 		_objects.append({"node": s, "size": 8.0})
 
 

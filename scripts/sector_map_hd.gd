@@ -125,8 +125,12 @@ func _build_overlay() -> void:
 	visit.pressed.connect(_open_outpost)
 	_overlay.add_child(visit)
 
+	# Manage Ship sits directly below Visit Outpost at the SAME 64+10 vertical spacing
+	# as the Codex/Options pair (Roman 2026-06-11) instead of its own marker.
 	var manage := UiTheme.make_button("MANAGE SHIP")
-	_place_at_marker(manage, "manage_ship_button", Vector2(260, 64))
+	manage.custom_minimum_size = Vector2(260, 64)
+	manage.size = Vector2(260, 64)
+	manage.position = visit.position + Vector2(0, 64 + 10)
 	manage.pressed.connect(_open_manage_ship)
 	_overlay.add_child(manage)
 

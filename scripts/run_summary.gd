@@ -6,6 +6,7 @@ extends Control
 
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
+const SummaryUi = preload("res://scripts/ui/summary_ui.gd")
 const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
 
 @onready var title_label: Label = $Center/Panel/VBox/Title
@@ -49,15 +50,8 @@ func _ready() -> void:
 	# as the main menu / cleared screen (Roman, 2026-05-17).
 	if $Bg:
 		$Bg.color = Color(0, 0, 0, 0)
-	var bg := TextureRect.new()
-	bg.name = "SummaryBg"
-	bg.texture = load("res://graphics/ui/sector_bg.png")
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	bg.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(bg)
-	move_child(bg, 0)
+	# Shared sector-bg installer (same look as menu / sector map / level-clear screen).
+	SummaryUi.install_backdrop(self)
 	new_game_btn.text = "New Patrol"
 	menu_btn.text = "Main Menu"
 	quit_btn.text = "Quit"
@@ -104,8 +98,7 @@ func _render() -> void:
 
 
 func _fmt_time(secs: float) -> String:
-	var s: int = int(secs)
-	return "%d:%02d" % [s / 60, s % 60]
+	return SummaryUi.fmt_mmss(secs)
 
 func _new_game() -> void:
 	# Same ship-select modal as the main menu's New Patrol, then straight to the sector map

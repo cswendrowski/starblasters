@@ -34,6 +34,7 @@ const DEFAULTS := {
 	"scale_max": 1.0,
 	"scale_grow": 2.4,     # final scale = initial × this
 	"orient": true,        # rotate the sprite's bottom toward the source's motion
+	"orient_offset": 0.0,  # tunable angle offset (sign/convention fix — see emitter)
 	"jitter_deg": 18.0,    # ± random angle spread on the oriented puffs
 	"start_color": START_COLOR,
 	"end_color": END_COLOR,
@@ -62,6 +63,7 @@ static func _make(parent: Node, pos: Vector2, params: Dictionary, one_shot: bool
 	var p := GPUParticles2D.new()
 	p.set_script(EMITTER_SCRIPT)
 	p.set("orient", bool(v["orient"]))
+	p.set("orient_offset", float(v["orient_offset"]))
 	p.set("jitter_deg", float(v["jitter_deg"]))
 	p.name = "SmokeTrail"
 	p.amount = maxi(1, int(v["amount"]))

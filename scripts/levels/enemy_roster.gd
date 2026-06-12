@@ -1273,11 +1273,16 @@ static func make_movement(entry: Dictionary) -> Resource:
 			m.advance_time = 0.45
 			return m
 		"side_traverse":
-			# Slow horizontal cross (Minelayer).
-			var m = SideTraverse.new()
-			m.speed = 75.0
-			m.direction = 1 if randf() < 0.5 else -1
-			return m
+			# Slow horizontal cross (Minelayer). Base now randomizes its latitude band
+			# (Roman 2026-06-11: expanded into high/mid/low). Explicit *_high/_mid/_low
+			# keys force a specific band.
+			return _side_traverse([50.0, 90.0, 128.0][randi() % 3])
+		"side_traverse_high":
+			return _side_traverse(50.0)
+		"side_traverse_mid":
+			return _side_traverse(90.0)
+		"side_traverse_low":
+			return _side_traverse(128.0)
 		"hunt_beeline":
 			# Player-tracking pursuit — threatens, shouldn't connect (was beeline).
 			var m = BeelinePlayer.new()
@@ -1286,7 +1291,10 @@ static func make_movement(entry: Dictionary) -> Resource:
 			return m
 		"hunt_omni":
 			# Omni-thrust vector roamer — holds stand-off range + strafes (was omni).
-			return OmniThrust.new()
+			# Leaves after a few passes instead of harassing forever (Roman 2026-06-11).
+			var omt = OmniThrust.new()
+			omt.max_passes = 3
+			return omt
 		"pendulum":
 			# Dual-band vertical ping-pong diver w/ aim-fire dwell (ported from crystal).
 			return Pendulum.new()
@@ -1317,6 +1325,14 @@ static func _skirmish(shape: int) -> Resource:
 static func _drift(hover_y: float) -> Resource:
 	var m = Drift.new()
 	m.hover_y = hover_y
+	return m
+
+
+static func _side_traverse(travel_y: float) -> Resource:
+	var m = SideTraverse.new()
+	m.travel_y = travel_y
+	m.speed = 75.0
+	m.direction = 1 if randf() < 0.5 else -1
 	return m
 
 

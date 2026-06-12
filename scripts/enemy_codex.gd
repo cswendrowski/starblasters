@@ -55,7 +55,7 @@ func _ready() -> void:
 	_cats.append({"kind": "bosses"})
 	_cats.append({"kind": "starblaster"})
 	# Armory — the player's own kit, one category per slot class.
-	_cats.append({"kind": "armory", "label": "Primary Cannons", "slot": SlotTypes.SlotType.CANNON})
+	_cats.append({"kind": "armory", "label": "Blasters", "slot": SlotTypes.SlotType.CANNON})
 	_cats.append({"kind": "armory", "label": "Secondaries", "slot": SlotTypes.SlotType.HARDPOINT_WING})
 	_cats.append({"kind": "armory", "label": "Super", "slot": SlotTypes.SlotType.DEVICE_BAY_1})
 	_cats.append({"kind": "armory", "label": "Shift Modes", "slot": SlotTypes.SlotType.SHIFT_MODE})

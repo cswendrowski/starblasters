@@ -32,11 +32,16 @@ func _apply_visuals() -> void:
 
 func _process(delta: float) -> void:
 	super._process(delta)
-	# Brightness flicker, hue pinned to pure yellow (matches swarm_missile.gd).
+	# Pellet decays as it travels: colour ramps white -> yellow -> orange -> red across
+	# its lifespan and the core shrinks toward the end (Roman 2026-06-11).
 	if _core != null and is_instance_valid(_core):
+		var t: float = clampf(_t / maxf(0.01, max_lifetime), 0.0, 1.0)
+		# #ffc800 (amber) -> #ff0000 (red) as it travels (Roman 2026-06-11).
+		var col: Color = Color(1.0, 0.784, 0.0).lerp(Color(1.0, 0.0, 0.0), t)
 		_flicker_t += delta
-		var f: float = 0.7 + 0.3 * absf(sin(_flicker_t * 28.0))
-		_core.modulate = Color(f, f, 0.0, 1.0)
+		var f: float = 0.82 + 0.18 * absf(sin(_flicker_t * 28.0))
+		_core.modulate = Color(col.r * f, col.g * f, col.b * f, 1.0)
+		_core.scale = Vector2.ONE * lerpf(1.0, 0.5, t)
 
 
 static func _pixel_texture() -> Texture2D:

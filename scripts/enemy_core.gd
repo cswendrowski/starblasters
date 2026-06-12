@@ -60,6 +60,11 @@ var _phase_fire_idx: int = 0  # next phase index to fire (advances as the enemy 
 @export var fire_beat_synced: bool = true
 var _beat_fire_at: float = -1.0  # engine-clock time a pending beat-synced shot fires (-1 = none)
 
+# Unit-weighted velocity smoothing (inertia) for patterns that opt in via
+# uses_inertia() — see _process. INERTIA_ACCEL is divided by the unit's size-weight.
+const INERTIA_ACCEL: float = 2400.0
+var _inertial_vel: Vector2 = Vector2.ZERO
+
 # Cycling state â€” enemy is currently flying back up through parallax.
 var _cycling: bool = false
 var _cycle_tween: Tween = null
@@ -212,9 +217,20 @@ func _process(delta: float) -> void:
 			# 500-ms stall produces a 33-ms move, not a 500-ms move.
 			var safe_delta: float = min(delta, 1.0 / 30.0)
 			var step: Vector2 = _pattern.compute_step(self, safe_delta)
-			position += step
-			if safe_delta > 0.0:
-				_last_move_vel = step / safe_delta   # px/s — for wreck-drift motion preservation
+			if _pattern.uses_inertia() and safe_delta > 0.0:
+				# Unit-weighted velocity smoothing (inertia): ease the APPLIED velocity
+				# toward the pattern's desired one so the unit doesn't stop sharply at its
+				# hold/jiggle point. Heavier (bigger display_scale) = laggier (Roman
+				# 2026-06-11). Position-error patterns (drift/loiter) opt in via uses_inertia().
+				var desired_vel: Vector2 = step / safe_delta
+				var weight: float = maxf(0.6, float(display_scale)) if "display_scale" in self else 1.0
+				_inertial_vel = _inertial_vel.move_toward(desired_vel, (INERTIA_ACCEL / weight) * safe_delta)
+				position += _inertial_vel * safe_delta
+				_last_move_vel = _inertial_vel
+			else:
+				position += step
+				if safe_delta > 0.0:
+					_last_move_vel = step / safe_delta   # px/s — for wreck-drift motion preservation
 			_clamp_to_sides()
 			_offscreen_cleanup_check()
 			_apply_auto_rotation()

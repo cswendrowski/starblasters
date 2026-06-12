@@ -34,10 +34,11 @@ func _weapon_style() -> int:
 	return WSp.WeaponStyle.PULSE_LASER
 
 
-# No dedicated pulse SFX yet (the old pulse_* clips were retired) — NONE routes to the
-# player's $ShootSound placeholder. TODO: author a pulse-laser fire clip.
+# Pulse Laser has its own fire path (_fire_pulse_laser) that returns BEFORE the shared
+# per-shot SFX block, so it plays its clip explicitly there. PULSE is set here for
+# semantic correctness / documentation; the shared block is never reached for pulse.
 func _fire_sfx_kind() -> int:
-	return WSp.FireSfxKind.NONE
+	return WSp.FireSfxKind.PULSE
 
 
 func _snapshot_keys() -> Array:

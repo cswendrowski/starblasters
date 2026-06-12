@@ -27,6 +27,20 @@ func assign_target(t: Node) -> void:
 	_assigned_target = t
 
 
+# Swarm hits use a single small-circle explosion with NO debris (Roman 2026-06-11) —
+# overrides base_missile's impact-flash + enemy-style debris death.
+func explode() -> void:
+	if _dying:
+		return
+	_dying = true
+	if _smoke_trail != null and is_instance_valid(_smoke_trail):
+		_smoke_trail.call("attach_to", null)
+		_smoke_trail = null
+	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
+	ExplosionFx.play(global_position, 0.8, false, _fx_parent(), ExplosionFx.scene_for("small_circle"), true)
+	queue_free()
+
+
 # Override the base one-shot-lock: home the assigned target; re-acquire the nearest
 # live enemy when it dies; null (fly straight) only when no enemies remain.
 func _resolve_player_target(_fwd: Vector2) -> Node:
@@ -45,6 +59,10 @@ func _resolve_player_target(_fwd: Vector2) -> Node:
 
 func _ready() -> void:
 	super._ready()
+	# Render UNDER the player (Roman 2026-06-11): the salvo + its launch flashes sit
+	# below the ship so they read as launching from beneath it.
+	z_index = -3
+	z_as_relative = false
 	# Build the 1px bright pixel + diffuse yellow-orange glow AT the Center marker.
 	var center: Node2D = get_node_or_null("Center") as Node2D
 	if center != null:

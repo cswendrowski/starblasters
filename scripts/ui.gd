@@ -48,6 +48,10 @@ var _light_pri: Sprite2D = null
 # Weapon-light ammo state animation (Roman 2026-06-10): flash while regenerating, darken when empty.
 var _wlight_t: float = 0.0
 const WLIGHT_FLASH_HZ: float = 3.0
+# DANGER annunciator flash rate — matches danger_pulse.gd PULSE_HZ so the HUD sprite
+# pulses in time with the low-hull warning overlay (Roman 2026-06-11).
+const ANN_DANGER_PULSE_HZ: float = 1.5
+var _ann_pulse_t: float = 0.0
 var _light_sec: Sprite2D = null
 var _light_sup: Sprite2D = null
 var _fire_light: Sprite2D = null
@@ -673,6 +677,14 @@ func _action_key_label(action: String) -> String:
 
 
 func _process(delta: float) -> void:
+	# DANGER annunciator pulses at the warning-shader rate while hull is critical
+	# (frame 2), holding full alpha otherwise (Roman 2026-06-11).
+	if _ann != null and is_instance_valid(_ann):
+		if _ann.frame == 2:
+			_ann_pulse_t += delta
+			_ann.self_modulate.a = 0.45 + 0.55 * (0.5 + 0.5 * sin(_ann_pulse_t * ANN_DANGER_PULSE_HZ * TAU))
+		else:
+			_ann.self_modulate.a = 1.0
 	if has_node("/root/Run"):
 		var run = get_node("/root/Run")
 		# "blaster" light = the active primary is an infinite blaster; "pri" light

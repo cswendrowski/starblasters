@@ -11,6 +11,10 @@ extends GPUParticles2D
 @export var orient: bool = true
 @export var jitter_deg: float = 18.0
 @export var move_threshold: float = 6.0  # px/s below which we don't re-orient
+# Added to the computed orient angle. The on-screen bottom-toward-motion result was a
+# sign/convention mismatch (Roman); dial this in Shader Lab → Smoke (try +90 / +180 /
+# -90) until the puff base points along motion, then bake the value into the default.
+@export var orient_offset: float = 0.0
 
 var _last_pos: Vector2 = Vector2.ZERO
 var _base_deg: float = 0.0  # 0 = sprite upright (puff billows up from its base)
@@ -36,8 +40,8 @@ func _process(delta: float) -> void:
 	_last_pos = global_position
 	if vel.length() > move_threshold:
 		# The sprite's bottom (+Y) points world-down (angle 90°) at rotation 0;
-		# rotate so it points along the motion direction instead.
-		_base_deg = rad_to_deg(vel.angle()) - 90.0
+		# rotate so it points along the motion direction instead (+ a tunable offset).
+		_base_deg = rad_to_deg(vel.angle()) - 90.0 + orient_offset
 	# Newly-emitted puffs get this angle (± jitter); ones already alive keep theirs.
 	pm.angle_min = _base_deg - jitter_deg
 	pm.angle_max = _base_deg + jitter_deg

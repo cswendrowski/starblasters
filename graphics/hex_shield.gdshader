@@ -31,6 +31,9 @@ uniform float fill_alpha : hint_range(0.0, 0.4) = 0.05;
 uniform float flicker : hint_range(0.0, 1.0) = 0.35;
 // Spherical UV warp strength: 0 = flat grid, 1 = full dome bulge.
 uniform float dome : hint_range(0.0, 1.0) = 0.65;
+// Capsule elongation along Y: 0 = a round bubble; >0 stretches it into a vertical
+// stadium/capsule so it can hug a longer (taller) enemy sprite (Roman 2026-06-11).
+uniform float elongation : hint_range(0.0, 0.85) = 0.0;
 
 float hex_dist(vec2 p) {
 	p = abs(p);
@@ -56,7 +59,14 @@ float hash21(vec2 p) {
 
 void fragment() {
 	vec2 uv = UV - 0.5;
-	float d = length(uv) * 2.0; // 0 centre → 1 bubble edge
+	// Capsule distance field: collapse the central Y segment so the boundary is a
+	// vertical stadium (elongation 0 → q==p → a plain circle, unchanged).
+	vec2 p = uv * 2.0;                       // -1..1
+	float seg = elongation;
+	float rad = max(1.0 - seg, 0.05);
+	vec2 q = p;
+	q.y -= clamp(q.y, -seg, seg);
+	float d = length(q) / rad;               // 0 centre → 1 capsule edge
 
 	if (d > 1.0) {
 		COLOR = vec4(0.0);

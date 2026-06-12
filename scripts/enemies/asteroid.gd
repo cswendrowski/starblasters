@@ -61,9 +61,11 @@ func _ready() -> void:
 		if has_node("/root/Run") and get_node("/root/Run").has_meta("asteroid_base_color"):
 			base = get_node("/root/Run").get_meta("asteroid_base_color")
 		var mx: float = maxf(base.r, maxf(base.g, base.b))
-		base = base * (0.95 / maxf(mx, 0.01))  # normalize brightest channel for pop
+		# Normalize less aggressively + lighten less so the rock isn't washed out
+		# (Roman 2026-06-11: "weird and washed out" — was 0.95 / lightened 0.4).
+		base = base * (0.82 / maxf(mx, 0.01))
 		if visual.has_method("set_colors"):
-			visual.set_colors(PackedColorArray([base.lightened(0.4), base, base.darkened(0.4)]))
+			visual.set_colors(PackedColorArray([base.lightened(0.22), base, base.darkened(0.4)]))
 		# Trend the silhouette rounder (Roman 2026-06-11) — per-instance, so the
 		# background/parallax rocks (roundness 0) are untouched.
 		if inner != null and "material" in inner and inner.material != null:
@@ -71,19 +73,23 @@ func _ready() -> void:
 		if visual.has_method("set_pixels"):
 			visual.set_pixels(visual_size)
 		add_child(visual)
+		_visual = visual
+		_visual_size = visual_size
 		_rock_color = base   # drive the dust trail + shatter particles off the rock's own colour
 	# Light per-spawn rotation jitter so the asteroid field doesn't look
 	# perfectly uniform.
 	rotation = randf_range(-0.3, 0.3)
-	# Dust trail behind the asteroid so target rocks read distinct from
-	# the parallax-layer background asteroids (Roman, 2026-05-18 hazard
-	# pass). Thin Line2D, dust-tan, fades to transparent.
-	_attach_dust_trail()
+	# Trail REMOVED (Roman 2026-06-11: "the trail is awful"). The asteroid now leaves
+	# behind only persistent 1px rock-colour particles (_spawn_drift_debris in _process).
 
 
 var _dust_line: Line2D = null
 var _rock_color: Color = Color(0.48, 0.46, 0.45)   # set from the procgen base colour in _ready
+var _visual: Node = null                           # the procgen rock visual (hidden on explode)
+var _visual_size: float = 50.0
 var _dust_t: float = 0.0
+var _debris_t: float = 0.0
+const AsteroidFragmentScript = preload("res://scripts/effects/asteroid_fragment.gd")
 const DUST_SAMPLE_INTERVAL: float = 0.06
 const DUST_MAX_POINTS: int = 14
 const DUST_LIFETIME: float = 0.85
@@ -117,23 +123,50 @@ func _attach_dust_trail() -> void:
 	_dust_line.joint_mode = Line2D.LINE_JOINT_ROUND
 	_dust_line.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	_dust_line.end_cap_mode = Line2D.LINE_CAP_ROUND
+	# Noise-textured so it reads as billowing smoke, not a flat ribbon (Roman 2026-06-11:
+	# "a noise-based smoke trail the same colour as the asteroid").
+	_dust_line.texture = _dust_noise_texture()
+	_dust_line.texture_mode = Line2D.LINE_TEXTURE_TILE
 	_dust_line.z_index = 4
 	_dust_line.z_as_relative = false
-	var p := get_tree().current_scene
-	if p == null:
-		p = get_tree().root
-	p.add_child(_dust_line)
+	_fx_parent().add_child(_dust_line)
 
 
-func _exit_tree() -> void:
-	# Fade the dust line out instead of leaving a stub behind when the
-	# asteroid leaves play.
-	if _dust_line and is_instance_valid(_dust_line):
-		var line: Line2D = _dust_line
-		_dust_line = null
-		var tw := line.create_tween()
-		tw.tween_property(line, "modulate:a", 0.0, 0.4)
-		tw.tween_callback(line.queue_free)
+# Cached soft noise strip for the smoke trail (feathered top/bottom, grainy).
+static var _dust_noise_tex: Texture2D = null
+static func _dust_noise_texture() -> Texture2D:
+	if _dust_noise_tex != null and is_instance_valid(_dust_noise_tex):
+		return _dust_noise_tex
+	const W := 48
+	const H := 16
+	var img := Image.create(W, H, false, Image.FORMAT_RGBA8)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0x5A57
+	for y in H:
+		for x in W:
+			var base: float = 0.55 + 0.45 * sin(float(x) * 0.4) * cos(float(y) * 0.7)
+			var grain: float = rng.randf_range(0.55, 1.0)
+			var v: float = float(y) / float(H - 1)
+			var feather: float = clampf(1.0 - pow(abs(v - 0.5) * 2.0, 2.2), 0.0, 1.0)
+			img.set_pixel(x, y, Color(1.0, 1.0, 1.0, clampf(base * grain * feather, 0.0, 1.0)))
+	_dust_noise_tex = ImageTexture.create_from_image(img)
+	return _dust_noise_tex
+
+
+# A 1px rock-colour debris mote left behind as the asteroid drifts. Persists FAR longer
+# and drifts STRAIGHT (low drag, mostly-vertical) so the motes linger in a clean line
+# behind the descending rock instead of a trail (Roman 2026-06-11).
+func _spawn_drift_debris() -> void:
+	var m = FragmentScript.new()
+	m.color = _rock_color
+	m.size_px = 1.0
+	m.brightness_jitter = 0.25
+	m.lifetime = randf_range(2.6, 3.8)          # persist far longer
+	m.drag = 0.35                                # low drag → steady straight drift
+	# Slow straight drift roughly opposite the rock's travel so motes linger behind it.
+	m.velocity = Vector2(randf_range(-3.0, 3.0), randf_range(-14.0, -6.0))
+	_fx_parent().add_child(m)
+	m.global_position = global_position + Vector2(randf_range(-5.0, 5.0), randf_range(-4.0, 4.0))
 
 func start(pos: Vector2) -> void:
 	position = pos
@@ -149,14 +182,12 @@ func hit() -> void:
 func _process(delta: float) -> void:
 	position.x += drift_x * delta
 	position.y += drift_speed * delta
-	# Dust trail sampling (Roman, 2026-05-18 asteroid hazard pass).
-	if _dust_line and is_instance_valid(_dust_line):
-		_dust_t -= delta
-		if _dust_t <= 0.0:
-			_dust_t = DUST_SAMPLE_INTERVAL
-			_dust_line.add_point(global_position + Vector2(0, -12))
-			while _dust_line.get_point_count() > DUST_MAX_POINTS:
-				_dust_line.remove_point(0)
+	# Leave behind 1px rock-colour debris as the rock drifts.
+	if not _dying:
+		_debris_t -= delta
+		if _debris_t <= 0.0:
+			_debris_t = randf_range(0.09, 0.18)
+			_spawn_drift_debris()
 	# Reflect horizontal drift at the playfield edges so the asteroid stays
 	# in the gamespace (Roman, 2026-05-16). 0.6 multiplier dampens so it
 	# doesn't ping-pong forever.
@@ -177,45 +208,57 @@ func explode() -> void:
 	_dying = true
 	set_deferred("monitorable", false)
 	died.emit(bounty_value)
-	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
-	# 1× scale; the dust burst below carries the heft for big asteroids.
-	ExplosionFx.play(global_position, 1.0, false)
+	# No fiery explosion for asteroids (Roman 2026-06-11) — a rock shatters into dust +
+	# chunks, it doesn't ignite. The dust burst + fragment-asteroids carry the death.
 	# Chunky dusty death burst (Roman, 2026-05-16). Triple the count + a
 	# longer lifetime so the cloud lingers, plus a chunkier scale.
 	_spawn_dust(global_position, 60, 1.1, 1.2, 2.4)
-	# Dusty shatter (Roman 2026-06-11): inert asteroid fragments + 1-2px rock-colour
-	# motes, each trailing 1px dust. Harmless — pure spectacle.
-	_spawn_shatter()
+	# Replace the starting rock with 3-6 spinning fragment-asteroids dispersing in a
+	# cone along the travel direction + a spray of 1px rock-colour motes (Roman 2026-06-11).
+	_spawn_asteroid_fragments()
+	_spawn_debris_motes()
+	# Remove the starting asteroid immediately — the fragments ARE the rock now.
+	if _visual != null and is_instance_valid(_visual):
+		_visual.visible = false
 	if has_node("Sprite2D"):
-		var BurnFx = load("res://scripts/burn_fx.gd")
-		BurnFx.apply_burn($Sprite2D, 0.5)
-	await get_tree().create_timer(0.55).timeout
+		$Sprite2D.visible = false
+	await get_tree().create_timer(0.5).timeout
 	queue_free()
 
 const FragmentScript = preload("res://scripts/effects/dust_fragment.gd")
 
-# Throw out a few larger inert asteroid fragments + a spray of 1-2px rock-colour
-# motes, each leaving a thin same-colour dust trail. All harmless (Roman 2026-06-11).
-func _spawn_shatter() -> void:
-	var parent: Node = get_tree().current_scene
-	if parent == null:
-		parent = get_tree().root
-	for i in range(4 + randi() % 3):   # larger fragments
-		var f = FragmentScript.new()
-		f.color = _rock_color
-		f.size_px = randf_range(3.0, 5.0)
-		f.lifetime = randf_range(0.8, 1.3)
-		var a1: float = randf_range(0.0, TAU)
-		f.velocity = Vector2(cos(a1), sin(a1)) * randf_range(40.0, 110.0)
-		parent.add_child(f)
-		f.global_position = global_position
-	for i in range(10 + randi() % 6):  # 1-2px motes
+# 3-6 new procgen asteroids (same colour, NEW shapes), spinning, dispersing in a cone
+# along the travel direction, inheriting the drift speed + fading as they recede.
+func _spawn_asteroid_fragments() -> void:
+	var parent: Node = _fx_parent()
+	var travel := Vector2(drift_x, drift_speed)
+	var base_ang: float = travel.angle() if travel.length() > 1.0 else PI * 0.5  # default: down
+	var n: int = 3 + randi() % 4   # 3-6
+	for i in n:
+		var ang: float = base_ang + randf_range(-0.55, 0.55)   # cone around the travel vector
+		var spd: float = randf_range(35.0, 105.0)
+		AsteroidFragmentScript.spawn(parent, global_position, {
+			"velocity": Vector2(cos(ang), sin(ang)) * spd,
+			"down_speed": drift_speed,
+			"spin": randf_range(-3.2, 3.2),
+			"size_px": randf_range(_visual_size * 0.28, _visual_size * 0.48),
+			"color": _rock_color,
+			"lifetime": randf_range(1.4, 2.2),
+		})
+
+
+# A spray of 1px rock-colour motes (Roman: "all just 1px, with brightness variation/
+# jitter so they look like they're moving"), each trailing a thin same-colour dust streak.
+func _spawn_debris_motes() -> void:
+	var parent: Node = _fx_parent()
+	for i in range(14 + randi() % 8):
 		var m = FragmentScript.new()
 		m.color = _rock_color
-		m.size_px = randf_range(1.0, 2.0)
-		m.lifetime = randf_range(0.5, 0.9)
+		m.size_px = 1.0                              # all 1px
+		m.brightness_jitter = 0.35                   # flickers so it reads as moving
+		m.lifetime = randf_range(0.6, 1.1)
 		var a2: float = randf_range(0.0, TAU)
-		m.velocity = Vector2(cos(a2), sin(a2)) * randf_range(60.0, 160.0)
+		m.velocity = Vector2(cos(a2), sin(a2)) * randf_range(60.0, 170.0)
 		parent.add_child(m)
 		m.global_position = global_position
 
@@ -267,7 +310,7 @@ func _spawn_dust(at: Vector2, amount: int = 18, lifetime: float = 0.45, scale_lo
 	])
 	grad.offsets = PackedFloat32Array([0.0, 1.0])
 	dust.color_ramp = grad
-	get_tree().root.add_child(dust)
+	_fx_parent().add_child(dust)
 	dust.global_position = at
 	get_tree().create_timer(lifetime + 0.25).timeout.connect(func():
 		if is_instance_valid(dust):

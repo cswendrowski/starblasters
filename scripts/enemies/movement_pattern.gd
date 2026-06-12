@@ -43,6 +43,15 @@ func path_phase_capable() -> bool:
 	return false
 
 
+# Whether enemy_core should apply UNIT-WEIGHTED velocity smoothing (inertia) to this
+# pattern's steps: the applied velocity eases toward the desired one, scaled by the
+# unit's size-weight, so heavy ships approach/leave a hold point softly instead of
+# snapping (Roman 2026-06-11). Position-error patterns (drift/loiter) opt in; the
+# smoothing lives in the unit (enemy_core), not the pattern.
+func uses_inertia() -> bool:
+	return false
+
+
 # Legacy entry point. Internally routes through compute_step so old
 # callers (or patterns that still mutate enemy.position directly inside
 # overridden on_process) keep working during migration. Once everything

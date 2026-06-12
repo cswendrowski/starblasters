@@ -75,6 +75,16 @@ const MINIGUN_CLIPS := [
 	preload("res://Sound/weapons/player/minigun_shoot_11.ogg"),
 	preload("res://Sound/weapons/player/minigun_shoot_12.ogg"),
 ]
+const PULSE_CLIPS := [
+	preload("res://Sound/weapons/player/pulse_laser_shoot_1.ogg"),
+	preload("res://Sound/weapons/player/pulse_laser_shoot_2.ogg"),
+	preload("res://Sound/weapons/player/pulse_laser_shoot_3.ogg"),
+]
+const SHREDDER_CLIPS := [
+	preload("res://Sound/weapons/player/shredder_shoot_1.ogg"),
+	preload("res://Sound/weapons/player/shredder_shoot_2.ogg"),
+	preload("res://Sound/weapons/player/shredder_shoot_3.ogg"),
+]
 # Rocket + missile live in the universal/ folder — shared by player AND enemies.
 const ROCKET_CLIPS := [
 	preload("res://Sound/weapons/universal/rocket_launch_1.ogg"),
@@ -103,6 +113,10 @@ static func play(parent: Node, world_pos, kind: String) -> void:
 			pool = AUTOLASER_CLIPS
 		"spread":
 			pool = SPREAD_CLIPS
+		"pulse":
+			pool = PULSE_CLIPS
+		"shredder":
+			pool = SHREDDER_CLIPS
 		"autocannon":
 			pool = AUTOCANNON_CLIPS
 		"minigun":

@@ -11,6 +11,7 @@ extends CanvasLayer
 
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
+const SummaryUi = preload("res://scripts/ui/summary_ui.gd")
 const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
 const SECTOR_MAP_SCENE := SectorMapRoute.SECTOR_MAP_SCENE
 
@@ -68,17 +69,8 @@ func _layout_hd() -> void:
 
 
 func _install_backdrop() -> void:
-	# Sector-bg as a fullscreen TextureRect behind everything. Same look
-	# as the main menu / sector map / onboarding.
-	var bg := TextureRect.new()
-	bg.name = "SummaryBg"
-	bg.texture = load("res://graphics/ui/sector_bg.png")
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	bg.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(bg)
-	move_child(bg, 0)
+	# Shared sector-bg installer (same look as menu / sector map / run-end screen).
+	SummaryUi.install_backdrop(self)
 
 func populate(enemy_stats: Dictionary, total_bounty: int, hide_tally: bool = false, was_boss: bool = false) -> void:
 	var title: Label = $Root/Title
@@ -108,17 +100,33 @@ func populate(enemy_stats: Dictionary, total_bounty: int, hide_tally: bool = fal
 		# Sort rows largest-threat first (descending per-kill bounty, a stable
 		# proxy for chassis size) so cruisers/elites head the list and chaff
 		# trails — replaces the old alphabetical order (worklist #37).
-		var keys: Array = enemy_stats.keys()
-		keys.sort_custom(func(a, b):
-			var ba: int = int(enemy_stats[a].get("bounty", 0))
-			var bb: int = int(enemy_stats[b].get("bounty", 0))
-			if ba == bb:
-				return String(a) < String(b)
-			return ba > bb)
-		for path in keys:
-			var row := _build_row(path, enemy_stats[path])
-			list.add_child(row)
-			rows.append(row)
+		# Group the tally into SIZE sections (large -> medium -> small), each with a
+		# header, sorted within by per-kill bounty desc (Roman worklist: "sort by
+		# size, with medium/large in their own section"). Size from the roster via
+		# SummaryUi.section_for_scene; huge folds into LARGE. Headers only show when
+		# more than one section is populated (a single-size combat reads flat).
+		var buckets := {"large": [], "medium": [], "small": []}
+		for path in enemy_stats.keys():
+			buckets[SummaryUi.section_for_scene(path)].append(path)
+		var multi_section: bool = _populated_section_count(buckets) > 1
+		for bucket in SummaryUi.SECTION_ORDER:
+			var paths: Array = buckets[bucket]
+			if paths.is_empty():
+				continue
+			paths.sort_custom(func(a, b):
+				var ba: int = int(enemy_stats[a].get("bounty", 0))
+				var bb: int = int(enemy_stats[b].get("bounty", 0))
+				if ba == bb:
+					return String(a) < String(b)
+				return ba > bb)
+			if multi_section:
+				var hdr := _section_header(SummaryUi.SECTION_TITLE[bucket])
+				list.add_child(hdr)
+				rows.append(hdr)
+			for path in paths:
+				var row := _build_row(path, enemy_stats[path])
+				list.add_child(row)
+				rows.append(row)
 
 	btn.material = null
 	_style_outline_button(btn)
@@ -198,8 +206,7 @@ func _install_clear_header(title: Label, enemy_stats: Dictionary) -> void:
 
 
 func _fmt_mmss(secs: float) -> String:
-	var s: int = int(round(secs))
-	return "%d:%02d" % [s / 60, s % 60]
+	return SummaryUi.fmt_mmss(secs)
 
 
 # Build a horizontal row with [ Main Menu ] and [ Next Sector ] buttons under
@@ -276,6 +283,29 @@ func _play_reveal(title: Label, rows: Array, total_label, btn: Button) -> void:
 		tw.tween_property(e, "modulate:a", 1.0, fade).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
 
+# A section divider ("LARGE" / "MEDIUM" / "SMALL") between size groups in the tally.
+# Centered, accent-coloured, caption-sized — rides the reveal like the rows do.
+func _section_header(text: String) -> Control:
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_CAPTION)
+	lbl.add_theme_color_override("font_color", UiTheme.COLOR_ACCENT)
+	lbl.add_theme_font_override("font", UiTheme.menu_font())
+	lbl.material = _shared_mat
+	return lbl
+
+
+# How many size buckets hold at least one enemy type — decides whether section
+# headers show at all (a single-size combat reads cleaner flat).
+func _populated_section_count(buckets: Dictionary) -> int:
+	var n: int = 0
+	for k in buckets:
+		if not (buckets[k] as Array).is_empty():
+			n += 1
+	return n
+
+
 func _build_row(scene_path: String, stats: Dictionary) -> Control:
 	var row := HBoxContainer.new()
 	# Tighter separation + name/bounty labels capped so the bounty math
@@ -285,7 +315,7 @@ func _build_row(scene_path: String, stats: Dictionary) -> Control:
 	row.add_theme_constant_override("separation", 16)
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	# Sprite preview — render the actual enemy scene into a SubViewport.
-	var preview: Control = _build_scene_preview(scene_path, 48)
+	var preview: Control = SummaryUi.make_enemy_preview(scene_path, 56)
 	row.add_child(preview)
 	# Name + kills. HD body size + smooth menu font (the crisp face renders
 	# jagged at HD 1:1). Sizes standardized to docs/ui_color_reference.md.
@@ -293,7 +323,6 @@ func _build_row(scene_path: String, stats: Dictionary) -> Control:
 	if name_str.begins_with("enemy_"):
 		name_str = name_str.substr(6)
 	name_str = name_str.capitalize()
-	preview.material = _shared_mat
 	var counts := Label.new()
 	counts.text = "%s  %d/%d" % [name_str, stats.killed, stats.spawned]
 	counts.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
@@ -316,38 +345,6 @@ func _build_row(scene_path: String, stats: Dictionary) -> Control:
 	bounty_label.material = _shared_mat
 	row.add_child(bounty_label)
 	return row
-
-
-# Builds a SubViewport-backed preview of the enemy scene. The scene's own
-# AnimationPlayer / RESET track / _ready leaves the Sprite2D on whatever
-# frame it would have at spawn time, and we screenshot exactly that.
-# Pausing process_mode means the enemy doesn't move / shoot / spawn anything
-# while it sits in the viewport.
-func _build_scene_preview(scene_path: String, size: int) -> Control:
-	var packed = load(scene_path)
-	var container := SubViewportContainer.new()
-	container.stretch = true
-	container.custom_minimum_size = Vector2(size, size)
-	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var vp := SubViewport.new()
-	vp.size = Vector2i(size, size)
-	vp.transparent_bg = true
-	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	# Sized so a 16px sprite at 3x = 48px fits in the 36px preview window
-	# centered horizontally + vertically.
-	container.add_child(vp)
-	if packed is PackedScene:
-		var inst = packed.instantiate()
-		# Freeze the enemy entirely — no movement, no shooting, no animation
-		# beyond the RESET pose. Position it in the center of the viewport.
-		inst.process_mode = Node.PROCESS_MODE_DISABLED
-		inst.position = Vector2(float(size) * 0.5, float(size) * 0.5)
-		# Roman, 2026-05-17 playtest: show enemies at HALF size in the
-		# summary so the sprite reads centered without clipping the row.
-		# 16-px native sprite → 8 px effective in the 22-px preview window.
-		inst.scale = Vector2(0.5, 0.5)
-		vp.add_child(inst)
-	return container
 
 
 func _style_outline_button(btn: Button) -> void:

@@ -75,22 +75,44 @@ func fire_salvo(ship) -> bool:
 		return false
 	var n: int = _missiles_at_mark(int(mark))
 	var targets: Array = _sorted_targets(ship)
-	var parent: Node = tree.root
+	# Coroutine (not awaited): ripples the salvo out one missile per frame, alternating
+	# the L/R wing markers (Roman 2026-06-11: a fan effect, not a single burst).
+	_spawn_salvo(ship, n, targets)
+	return true
+
+
+func _spawn_salvo(ship, n: int, targets: Array) -> void:
+	var parent: Node = ship.get_tree().root
 	if "bullet_parent" in ship and ship.bullet_parent != null:
 		parent = ship.bullet_parent
 	for i in n:
+		if not is_instance_valid(ship):
+			return
+		var right: bool = (i % 2) == 1                 # alternate left / right wing
+		var wpos: Vector2 = _wing_pos(ship, right)
 		var m = SwarmMissileScene.instantiate()
 		# Fan the launch heading across ±55° so the salvo spreads before homing.
 		var t: float = 0.5 if n <= 1 else float(i) / float(n - 1)
 		var ang: float = deg_to_rad(lerpf(-55.0, 55.0, t))
 		m.initial_dir = Vector2(sin(ang), -cos(ang))
-		m.position = ship.global_position
+		m.position = wpos
 		# Distinct target per missile (round-robin). Empty list (no enemies) →
 		# the missile flies its heading and detonates harmlessly at fuse.
 		if not targets.is_empty() and m.has_method("assign_target"):
 			m.assign_target(targets[i % targets.size()])
 		parent.call_deferred("add_child", m)
-	return true
+		if ship.has_method("_secondary_muzzle"):
+			ship._secondary_muzzle(wpos)
+		await ship.get_tree().process_frame          # 1-frame pause between each
+
+
+# World position of the L or R wing-launch marker (falls back to the ship origin).
+func _wing_pos(ship, right: bool) -> Vector2:
+	var path: String = "Ship/LaunchWingR" if right else "Ship/LaunchWingL"
+	var mk = ship.get_node_or_null(path)
+	if mk != null and mk is Node2D:
+		return (mk as Node2D).global_position
+	return ship.global_position
 
 
 # Live enemies sorted nearest-first to the ship; bulwark-shielded skipped. Distinct

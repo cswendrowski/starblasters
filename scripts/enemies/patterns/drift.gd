@@ -61,3 +61,9 @@ func compute_step(enemy, delta: float) -> Vector2:
 	var ty: float = _hold.y + jy * ramp
 	tx = clampf(tx, Playfield.X_MIN + 6.0, Playfield.X_MAX - 6.0)
 	return Vector2(tx - enemy.position.x, ty - enemy.position.y)
+
+
+# Opt into unit-weighted inertia so the drift eases into/out of its hold point instead
+# of stopping sharply (Roman 2026-06-11). The smoothing lives in enemy_core.
+func uses_inertia() -> bool:
+	return true

@@ -22,6 +22,7 @@ signal level_cleared
 
 const FactionsC = preload("res://scripts/levels/factions.gd")
 const ShieldComponentC = preload("res://scripts/enemies/components/shield_component.gd")
+const LaneTraffic = preload("res://scripts/lane_traffic.gd")
 
 # Banner fade-in+hold+fade-out budget. Director waits this long before the
 # first enemy of an ANNOUNCED wave so spawns never overlap the WAVE alert.
@@ -155,7 +156,7 @@ func _alive_count() -> int:
 # side opposite the previous spawn (Toaplan rhythm, composition guide §3),
 # among lanes not currently occupied near the entry band so the stream spreads
 # across the 7 lanes and forces player movement.
-func _pick_lane() -> int:
+func _pick_lane(clear_neighbours: bool = false, check_y: float = 0.0, height: float = 0.0) -> int:
 	var occupied: Array = _occupied_lanes()
 	var candidates: Array = []
 	for i in Lanes.COUNT:
@@ -164,6 +165,18 @@ func _pick_lane() -> int:
 	if candidates.is_empty():
 		for i in Lanes.COUNT:
 			candidates.append(i)
+	# Supremacy Push Gap 2 (Roman 2026-06-11): a big cruiser prefers a lane whose
+	# ADJACENT lanes are ALSO clear (full-column check via lane_traffic), so it arrives
+	# with its neighbours open instead of being passively vertical-queued behind one.
+	if clear_neighbours:
+		var win: float = maxf(28.0, height * 0.6)
+		var spread: Array = candidates.filter(func(i):
+			var here: bool = LaneTraffic.is_lane_free(get_tree(), i, check_y, null, win)
+			var left_ok: bool = i == 0 or LaneTraffic.is_lane_free(get_tree(), i - 1, check_y, null, win)
+			var right_ok: bool = i == Lanes.COUNT - 1 or LaneTraffic.is_lane_free(get_tree(), i + 1, check_y, null, win)
+			return here and left_ok and right_ok)
+		if not spread.is_empty():
+			candidates = spread
 	if _last_lane >= 0:
 		var want_high: bool = _last_lane < Lanes.COUNT / 2
 		var side: Array = candidates.filter(
@@ -178,8 +191,8 @@ func _pick_lane() -> int:
 # Staggered travel-y for the index-th crosser in a dispatch (P2 row choreography):
 # spread across CROSSER_STAGGER_BANDS latitudes so consecutive crossers (and
 # opposite-direction siblings) ride different heights instead of overlapping.
-func _crosser_travel_y(base: float, index: int) -> float:
-	return base + float(index % CROSSER_STAGGER_BANDS) * CROSSER_STAGGER_STEP
+func _crosser_travel_y(base: float, index: int, step: float = CROSSER_STAGGER_STEP) -> float:
+	return base + float(index % CROSSER_STAGGER_BANDS) * step
 
 
 # Lanes currently holding a non-hazard enemy in the top entry band, so a fresh
@@ -559,7 +572,15 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 	# formation-4 direction dup below preserves this via duplicate()).
 	if "movement" in enemy and enemy.movement != null and "travel_y" in enemy.movement:
 		var mv_cross: Resource = enemy.movement.duplicate()
-		mv_cross.travel_y = _crosser_travel_y(mv_cross.travel_y, index)
+		# Large anchor-class crossers (cruisers, ~63px) need a height-aware latitude gap
+		# so two horizontally-crossing cruisers don't ride 26px-apart bands and overlap
+		# (Roman 2026-06-11 push-glob fix — the descent variant already gets this via
+		# _anchor_stagger_y; this closes the side_traverse gap). Chaff keeps the tight 26px.
+		var cross_step: float = CROSSER_STAGGER_STEP
+		var h_cross: float = _enemy_height(enemy)
+		if h_cross >= ANCHOR_MIN_HEIGHT:
+			cross_step = h_cross + ANCHOR_GAP_PAD
+		mv_cross.travel_y = _crosser_travel_y(mv_cross.travel_y, index, cross_step)
 		enemy.movement = mv_cross
 	# STEP_WALL (P2d): stamp the shared synced-STEP params so the row steps in unison.
 	# Duplicate per instance; the anchor lane comes from lane_override.
@@ -660,12 +681,14 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 					mv_dup.direction = side
 					enemy.movement = mv_dup
 			_: # TOP formations (0-3) -> alternate-anchor lane placement
-				var lane: int = _pick_lane()
-				var sy: float = wave.spawn_y
-				# Cruisers (tall anchors) don't glob: hold this one a full enemy-length
-				# above any cruiser already in its lane or an adjacent lane.
+				# Cruisers (tall anchors) don't glob: pick a lane whose neighbours are
+				# clear (Gap 2), then hold this one a full enemy-length above any cruiser
+				# already in its lane or an adjacent lane (Gap 1 / _anchor_stagger_y).
 				var h: float = _enemy_height(enemy)
-				if h >= ANCHOR_MIN_HEIGHT:
+				var is_cruiser: bool = h >= ANCHOR_MIN_HEIGHT
+				var lane: int = _pick_lane(is_cruiser, wave.spawn_y, h)
+				var sy: float = wave.spawn_y
+				if is_cruiser:
 					sy = _anchor_stagger_y(lane, sy, h)
 				pos = Vector2(Lanes.lane_center(lane), sy)
 	# Make the enemy a child of our parent (typically Main) so it lives in the world

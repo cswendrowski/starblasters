@@ -21,6 +21,10 @@ export_credentials.cfg
 # Capture artifacts (Anvil/Claude screencaps + GIFs)
 /captures/
 
+# Godot CSV-as-translation import artifacts (docs/weapon_stats.csv is a report,
+# not a real translation source — these regenerate on every project open)
+docs/*.translation
+
 # Sim output dumps (regenerable; the sim_*.gd tools are tracked, their text output isn't)
 sim_out.txt
 sim_stream_out.txt

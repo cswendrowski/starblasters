@@ -124,6 +124,14 @@ func _fade_out() -> void:
 		tw.tween_callback(line.queue_free)
 
 
+# The line lives in the SCENE (not under this node), so when this trail node is freed
+# with its host (a despawned shredder pellet / missile) the line would otherwise be
+# orphaned and persist forever (Roman 2026-06-11: "shredder smoke stacks infinitely").
+# Fade + free it on exit.
+func _exit_tree() -> void:
+	_fade_out()
+
+
 static func _build_noise_texture() -> Texture2D:
 	const W: int = 64
 	const H: int = 16

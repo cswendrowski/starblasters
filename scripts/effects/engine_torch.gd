@@ -47,8 +47,13 @@ var activate_below: float = ACTIVATE_BELOW_DEFAULT
 # damaged ship shows only a faint flame, not a half-strength one.
 # Roman 2026-06-11: the flame must NOT get WIDER as damage increases — only the
 # HEIGHT ramps with severity. X (width) is held constant; only Y grows.
-const FLAME_SIZE_MIN := Vector2(0.22, 0.25)
-const FLAME_SIZE_MAX := Vector2(0.22, 1.0)
+# Baked from Roman's saved Player FX Lab tuner (2026-06-11): narrower (0.05) + taller.
+const FLAME_SIZE_MIN := Vector2(0.05, 0.5)
+const FLAME_SIZE_MAX := Vector2(0.05, 1.5)
+# Live-tunable copies (Player FX Lab torch tuner, 2026-06-11). Default to the
+# consts so behavior is unchanged; the tuner overwrites them on the live torches.
+var flame_size_min: Vector2 = FLAME_SIZE_MIN
+var flame_size_max: Vector2 = FLAME_SIZE_MAX
 
 # Flame opacity (shader `alpha` uniform). Roman 2026-06-08: the flame stays
 # fully opaque at every damage level — it's gated on/off by visibility, so when
@@ -64,7 +69,8 @@ const ALPHA_MAX: float = 0.95
 # 2/3 subtle while letting 1/3 read clearly as critical; squaring (2.0) was
 # too aggressive (1/3 only reached ~0.44 severity). Upgraded hulls (Mk.9 =
 # 9 pips) get finer granularity and reach deeper into the curve.
-const SEVERITY_EXP: float = 1.5
+const SEVERITY_EXP: float = 1.0  # baked from Roman's saved tuner (was 1.5)
+var severity_exp: float = SEVERITY_EXP  # live-tunable (Player FX Lab)
 
 # Severity at/above which the one-shot EXPLOSIVE impact burst fires when
 # crossing into damaged. Below this we just fade the flame in quietly —
@@ -73,6 +79,7 @@ const SEVERITY_EXP: float = 1.5
 # reachable severity is ~0.66, so this fires only when crossing straight
 # to 1 pip on a base ship, or on upgraded (more-pip) hulls. ROMAN'S TO TUNE.
 const BURST_SEVERITY: float = 0.6
+var burst_severity: float = BURST_SEVERITY  # live-tunable (Player FX Lab)
 
 var _player: Node2D = null
 var _mat: ShaderMaterial = null
@@ -87,8 +94,11 @@ static func attach_to_player(player: Node2D, nozzle: Vector2 = NOZZLE_OFFSET_DEF
 	var torch: ColorRect = Script.new()
 	torch.name = "EngineTorch"
 	torch.size = PLUME_SIZE
-	# Position the ColorRect so its top-center sits at the nozzle.
-	torch.position = nozzle - Vector2(PLUME_SIZE.x * 0.5, 0.0)
+	# Position the ColorRect so the FLAME BASE sits exactly on the nozzle/marker. The
+	# flame base (after the 180° flip) is at UV.y=0.25 of the rect = rect.top + PLUME.y*0.25,
+	# so the rect.top must sit PLUME.y*0.25 (8px) ABOVE the marker — without this the flame
+	# rendered ~8px below the marker (Roman 2026-06-11: "fire offset downward heavily").
+	torch.position = nozzle - Vector2(PLUME_SIZE.x * 0.5, PLUME_SIZE.y * 0.25)
 	# Shader flame grows toward the top of its quad (Y-inverted internally).
 	# Without flipping, the tip points BACK at the ship — Roman 2026-05-18.
 	# Rotate 180° around the rect's center so the tip extends downward and
@@ -100,15 +110,14 @@ static func attach_to_player(player: Node2D, nozzle: Vector2 = NOZZLE_OFFSET_DEF
 	torch.z_index = 1   # in front of the ship sprite (Roman 2026-05-18)
 	var mat := ShaderMaterial.new()
 	mat.shader = load(SHADER_PATH)
-	# Roman 2026-05-18 settings: chunky pixels + warm torch palette.
-	mat.set_shader_parameter("pixelSize", 0.08)
+	# Palette + tuning baked from Roman's saved Player FX Lab tuner (2026-06-11).
+	mat.set_shader_parameter("pixelSize", 0.02)
 	mat.set_shader_parameter("toColor", Color.html("894400"))
 	mat.set_shader_parameter("fromColor", Color.html("f06007"))
 	mat.set_shader_parameter("sparkColor", Color.html("ffa435"))
 	mat.set_shader_parameter("smokeColor", Color.html("050505"))
-	# Roman 2026-05-18 tuning pass.
-	mat.set_shader_parameter("speed", 2.5)
-	mat.set_shader_parameter("sparkSpeed", 0.4)
+	mat.set_shader_parameter("speed", 5.0)
+	mat.set_shader_parameter("sparkSpeed", 0.25)
 	# Plume aspect: rect is 24×32 → 0.75. The shader uses this to keep the
 	# fire from squishing on non-square canvases.
 	mat.set_shader_parameter("aspectRatio", PLUME_SIZE.x / PLUME_SIZE.y)
@@ -157,9 +166,9 @@ func _on_hull_changed(max_hull, hull) -> void:
 	# [activate_below, 1.0]. ROMAN'S TO TUNE: the easing exponent and the
 	# MIN floors below decide how quickly the flame ramps up.
 	var ramp: float = clamp((damage_level - activate_below) / (1.0 - activate_below), 0.0, 1.0)
-	var severity: float = pow(ramp, SEVERITY_EXP)
+	var severity: float = pow(ramp, severity_exp)
 	if _mat != null:
-		_mat.set_shader_parameter("size", FLAME_SIZE_MIN.lerp(FLAME_SIZE_MAX, severity))
+		_mat.set_shader_parameter("size", flame_size_min.lerp(flame_size_max, severity))
 		# Alpha stays fully opaque at every damage level (Roman 2026-06-08) — the
 		# flame's presence/scale carries the severity read, not its transparency.
 		_mat.set_shader_parameter("alpha", ALPHA_MAX)
@@ -170,7 +179,7 @@ func _on_hull_changed(max_hull, hull) -> void:
 	# flash for HEAVY hits (severity >= BURST_SEVERITY) — light damage just
 	# fades the faint flame in quietly (Roman 2026-05-29).
 	if is_damaged and not _was_damaged:
-		if severity >= BURST_SEVERITY:
+		if severity >= burst_severity:
 			_trigger_damage_burst()
 		else:
 			visible = true

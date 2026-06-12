@@ -15,7 +15,11 @@ extends "res://scripts/enemies/enemy_base.gd"
 @export var damage_on_collide: int = 1
 # 320×400 res rework — speeds + radii halved.
 @export var descent_speed: float = 180.0
-@export var lateral_jitter_speed: float = 120.0
+# Continuous lateral wiggle. 0 = straight descent (Roman 2026-06-11: bomblets should
+# come in dense walls, not wiggling descents — the wiggle was a cluster-mine carryover).
+# The one-shot scatter on cluster RELEASE still happens via launch(); this only kills
+# the ongoing side-to-side weave.
+@export var lateral_jitter_speed: float = 0.0
 @export var jitter_cadence: float = 0.18
 @export var lifetime: float = 8.0
 const BOMBLET_AVOID_RADIUS := 14.0

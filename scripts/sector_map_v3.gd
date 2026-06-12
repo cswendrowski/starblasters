@@ -1507,14 +1507,28 @@ func _add_pulse_glow(pos: Vector2, color: Color, rng: RandomNumberGenerator) -> 
 func _add_glitter_zone(pos: Vector2, faction: int = -1) -> void:
 	var rect: Rect2 = Rect2(pos.x - 32.0, pos.y - 32.0, 64.0, 64.0)
 	var base_col: Color = _faction_color(faction)
+	var neutral_col := Color(0.78, 0.84, 0.92)   # the default whitish glitter
+	var priv_col: Color = DECO_FACTION_COLORS["privateer"]
+	# Roman worklist (sector map): color ~50% of the motes the node's faction colour,
+	# the rest neutral. Privateer is THE overlay faction: a non-privateer combat node
+	# has a ~12% chance (mirrors Factions.PRIVATEER_OVERLAY_CHANCE) to host privateer
+	# interlopers, in which case the split is 30% faction / 20% privateer / 50% neutral.
+	# (corpo stays blue #5b6ee1; the worklist's corpo #ac3232 reads as a supremacy dup.)
+	var has_interloper: bool = faction >= 0 and faction != 1 and _fx_rng.randf() < 0.12
 	var count: int = 7 + _fx_rng.randi() % 5
 	for _k in count:
-		# Privateer is THE overlay faction — sprinkle ~12% privateer-tinted motes
-		# into any non-privateer field (matches Factions' privateer-interloper idea
-		# + the #40 spec's "30% faction / 20% privateer" flavor).
-		var col: Color = base_col
-		if faction >= 0 and faction != 1 and _fx_rng.randf() < 0.12:
-			col = base_col.lerp(DECO_FACTION_COLORS["privateer"], 0.5)
+		# Per-mote colour: neutral by default; faction (and, on interloper nodes,
+		# privateer) tint a fraction of them per the split above.
+		var col: Color = neutral_col
+		if faction >= 0:
+			var r: float = _fx_rng.randf()
+			if has_interloper:
+				if r < 0.30:
+					col = base_col
+				elif r < 0.50:
+					col = priv_col
+			elif r < 0.50:
+				col = base_col
 		_glitter.append({
 			"pos":        Vector2(_fx_rng.randf_range(rect.position.x, rect.end.x),
 								  _fx_rng.randf_range(rect.position.y, rect.end.y)),

@@ -28,6 +28,10 @@ extends "res://scripts/enemies/movement_pattern.gd"
 # and dives out the bottom. -1 = never leave (chase/attack forever, the old behaviour). Otherwise a
 # duration in SECONDS; on expiry the bottom no-fly clamp is dropped and it accelerates straight down.
 @export var persistence: float = -1.0
+# Pass budget (Roman 2026-06-11): leave for good after this many passes (failed attack
+# runs that ended in a bottom exit + recycle). -1 = unlimited (only `persistence` time
+# governs). Counted on the ENEMY (survives the per-pass on_start reset).
+@export var max_passes: int = -1
 # Base turn rate (rad/s) toward the player, DIVIDED by the unit's size-weight so big ships turn
 # laggier and can't hold a perfect lock (Roman 2026-06-10). The old code snapped rotation instantly.
 @export var turn_rate: float = 5.0
@@ -40,13 +44,22 @@ var _alive_t: float = 0.0   # seconds since spawn (persistence clock)
 var _leaving: bool = false
 
 
-func on_start(_enemy) -> void:
+func on_start(enemy) -> void:
 	_vel = Vector2.ZERO
 	_strafe_dir = 1 if (randf() < 0.5) else -1
 	_strafe_t = 0.0
 	_strafe_period = randf_range(strafe_period_min, strafe_period_max)
 	_alive_t = 0.0
 	_leaving = false
+	# Pass budget: on_start re-runs on every recycle, so count passes on the ENEMY.
+	# Past the budget, disengage AND stop recycling so this re-entry leaves for good.
+	if max_passes >= 0 and enemy != null:
+		var passes: int = int(enemy.get_meta("_omni_passes", 0)) + 1
+		enemy.set_meta("_omni_passes", passes)
+		if passes > max_passes:
+			_leaving = true
+			if "recycle_passes" in enemy:
+				enemy.recycle_passes = 0   # don't fly back — dive out and free
 
 
 # Size-weight from the enemy's display_scale (clamped so small chaff isn't hyper-twitchy). Bigger

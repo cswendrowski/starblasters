@@ -172,7 +172,8 @@ func compute_step(enemy, delta: float) -> Vector2:
 				else:
 					u = clampf((_t - _hook_start_t) / maxf(shift_duration, 0.0001), 0.0, 1.0)
 				var eased: float = u * u * (3.0 - 2.0 * u)  # smoothstep ease-in-out
-				target_x = _anchor_x + sign_x * float(shift_lanes) * Lanes.PITCH * eased
+				# Slide to the inward-guarded destination lane (clamped into the inner band).
+				target_x = _anchor_x + float(_hook_dest_lane(sign_x) - _anchor_lane) * Lanes.PITCH * eased
 		Shape.DIVE_RETURN:
 			# Dive straight down until the fire-zone midpoint, then a SMOOTH rounded U-turn:
 			# ease the lateral into the adjacent lane AND ease the vertical velocity from
@@ -262,10 +263,22 @@ func _step_update(enemy, delta: float) -> float:
 func _hook_target_free(enemy, sign_x: float) -> bool:
 	if shift_lanes == 0:
 		return true
-	var target: int = Lanes.clamp_lane(_anchor_lane + int(round(sign_x * float(shift_lanes))))
+	var target: int = _hook_dest_lane(sign_x)
 	if target == _anchor_lane:
 		return true
 	return LaneTraffic.is_lane_free(enemy.get_tree(), target, enemy.position.y, enemy)
+
+
+# The HOOK/Drifter destination lane, GUARDED inward (Roman 2026-06-11): an enemy on or
+# near an outer lane (0/1 or COUNT-2/COUNT-1) hooks toward centre instead of drifting off
+# the band, and the destination is always clamped into the inner band [1, COUNT-2].
+func _hook_dest_lane(sign_x: float) -> int:
+	var sx: float = sign_x
+	if _anchor_lane <= 1:
+		sx = 1.0                       # left edge → hook right (inward)
+	elif _anchor_lane >= Lanes.COUNT - 2:
+		sx = -1.0                      # right edge → hook left (inward)
+	return clampi(_anchor_lane + int(round(sx * float(shift_lanes))), 1, Lanes.COUNT - 2)
 
 
 # Coordinated row step (P2d): the shared, anchor-relative lateral offset (in lanes)

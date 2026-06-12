@@ -23,14 +23,14 @@ const EmberFx = preload("res://scripts/effects/ember_fx.gd")
 const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
 const OutlineFx = preload("res://scripts/effects/outline_fx.gd")
 const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
+const ShipDebrisEmber = preload("res://scripts/effects/ship_debris_ember.gd")
+const BurningSmokeFx = preload("res://scripts/effects/burning_smoke_fx.gd")
 
 # Live player ship sheet (3-hframe banking sheet; middle frame = level flight).
 # We crop the middle frame into a standalone single-frame texture so shader UVs
 # span 0..1 cleanly — see _ship_texture().
 const PLAYER_BODY_PATH := "res://graphics/player/player_ship_a_body.png"
 
-const SCI_FI_SHIELD: Shader = preload("res://graphics/sci_fi_shield.gdshader")
-const HEX_SHIELD: Shader = preload("res://graphics/hex_shield.gdshader")
 const DAMAGE_SHADER: Shader = preload("res://graphics/damage_noise.gdshader")
 const BURN_SHADER: Shader = preload("res://graphics/pixelated_burn.gdshader")
 const SMOKE_TRAIL_FX = preload("res://scripts/effects/smoke_trail_fx.gd")
@@ -79,7 +79,7 @@ const PANEL_BORDER := Color(0.35, 0.55, 0.75, 0.85)
 # Gallery ship targets are zoomed for INSPECTION only — in-game sprites stay 1×.
 const GALLERY_SPRITE_ZOOM := 3.0
 
-const MODES := ["Embers", "Smoke", "Shields", "Glow", "Bloom Env", "Modes", "Damage", "Disintegrate", "Explosions", "Gallery"]
+const MODES := ["Embers", "Smoke", "Glow", "Bloom Env", "Modes", "Damage", "Disintegrate", "Explosions", "Asteroids", "Gallery"]
 
 const EMBER_VARIANTS := ["normal", "inverted"]
 
@@ -99,17 +99,6 @@ const KNOBS := {
 		{"key": "fade_start", "label": "Fade start (life %)", "min": 0.4, "max": 0.95, "step": 0.01, "def": 0.78},
 		{"key": "lifetime_rand", "label": "Lifetime jitter", "min": 0.0, "max": 1.0, "step": 0.05, "def": 0.4},
 	],
-	"Shields": [
-		{"key": "ring_px", "label": "Bubble size (px)", "min": 16.0, "max": 96.0, "step": 2.0, "def": 30.0},
-		{"key": "cells", "label": "Hex cells across", "min": 2.0, "max": 24.0, "step": 0.5, "def": 7.0},
-		{"key": "scroll_x", "label": "Scroll X", "min": -0.3, "max": 0.3, "step": 0.01, "def": 0.08},
-		{"key": "scroll_y", "label": "Scroll Y", "min": -0.3, "max": 0.3, "step": 0.01, "def": 0.05},
-		{"key": "line_width", "label": "Line width", "min": 0.02, "max": 0.45, "step": 0.01, "def": 0.12},
-		{"key": "rim_power", "label": "Rim power", "min": 0.5, "max": 6.0, "step": 0.1, "def": 2.2},
-		{"key": "fill_alpha", "label": "Fill alpha", "min": 0.0, "max": 0.4, "step": 0.01, "def": 0.05},
-		{"key": "flicker", "label": "Cell flicker", "min": 0.0, "max": 1.0, "step": 0.05, "def": 0.35},
-		{"key": "dome", "label": "Dome warp", "min": 0.0, "max": 1.0, "step": 0.05, "def": 0.65},
-	],
 	"Smoke": [
 		{"key": "amount", "label": "Particles", "min": 4.0, "max": 96.0, "step": 1.0, "def": 26.0},
 		{"key": "lifetime", "label": "Lifetime (s)", "min": 0.3, "max": 3.0, "step": 0.05, "def": 1.1},
@@ -121,6 +110,7 @@ const KNOBS := {
 		{"key": "scale_grow", "label": "Grow ×", "min": 0.5, "max": 5.0, "step": 0.1, "def": 2.4},
 		{"key": "spread_deg", "label": "Spread (deg)", "min": 0.0, "max": 180.0, "step": 1.0, "def": 18.0},
 		{"key": "jitter_deg", "label": "Angle jitter (deg)", "min": 0.0, "max": 90.0, "step": 1.0, "def": 18.0},
+		{"key": "orient_offset", "label": "Orient offset (deg)", "min": -180.0, "max": 180.0, "step": 15.0, "def": 0.0},
 	],
 	"Glow": [],
 	"Bloom Env": [
@@ -144,6 +134,7 @@ const KNOBS := {
 		{"key": "duration", "label": "Burn duration (s)", "min": 0.2, "max": 2.0, "step": 0.05, "def": 0.45},
 	],
 	"Explosions": [],
+	"Asteroids": [],
 	"Gallery": [],
 }
 
@@ -188,9 +179,6 @@ var _mode: int = 0
 var _values: Dictionary = {}
 
 # Mode-specific refs (nulled on every mode switch).
-var _scifi_mat: ShaderMaterial = null
-var _hex_mat: ShaderMaterial = null
-var _hex_rect: ColorRect = null
 var _glow_mat: ShaderMaterial = null
 var _glow_rect: ColorRect = null
 var _orb: Sprite2D = null
@@ -419,9 +407,6 @@ func _set_mode(idx: int) -> void:
 		c.queue_free()
 	for c in _mode_overlay.get_children():
 		c.queue_free()
-	_scifi_mat = null
-	_hex_mat = null
-	_hex_rect = null
 	_glow_mat = null
 	_glow_rect = null
 	_orb = null
@@ -445,8 +430,6 @@ func _set_mode(idx: int) -> void:
 			_enter_embers()
 		"Smoke":
 			_enter_smoke()
-		"Shields":
-			_enter_shields()
 		"Glow":
 			_enter_glow()
 		"Bloom Env":
@@ -459,6 +442,8 @@ func _set_mode(idx: int) -> void:
 			_enter_disintegrate()
 		"Explosions":
 			_enter_explosions()
+		"Asteroids":
+			_enter_asteroids()
 		"Gallery":
 			_enter_gallery()
 
@@ -634,6 +619,7 @@ func _rebuild_smoke() -> void:
 		"scale_grow": float(v["scale_grow"]),
 		"spread_deg": float(v["spread_deg"]),
 		"jitter_deg": float(v["jitter_deg"]),
+		"orient_offset": float(v["orient_offset"]),
 		"orient": _smoke_orient,
 		"start_color": _smoke_colors["start_color"],
 		"end_color": _smoke_colors["end_color"],
@@ -648,77 +634,51 @@ func _tick_smoke(delta: float) -> void:
 		+ Vector2(sin(_smoke_t * 1.5) * 70.0, sin(_smoke_t * 1.0 + 0.6) * 38.0)
 
 
-# ---- Shields mode ----------------------------------------------------------
-
-func _enter_shields() -> void:
-	var y := 150.0
-	var left := Vector2(Playfield.CENTER.x - 50.0, y)
-	var right := Vector2(Playfield.CENTER.x + 50.0, y)
-
-	var old_ship := _make_ship(left)
-	var old_ring := _add_ring(old_ship, SCI_FI_SHIELD, 26.0)
-	_scifi_mat = old_ring["mat"]
-
-	var new_ship := _make_ship(right)
-	var new_ring := _add_ring(new_ship, HEX_SHIELD, float(_values["Shields"]["ring_px"]))
-	_hex_mat = new_ring["mat"]
-	_hex_rect = new_ring["rect"]
-	_apply_shield_knobs()
-
-	_hd_note("SCI-FI (CURRENT)", left + Vector2(-22.0, 18.0))
-	_hd_note("HEX (NEW)", right + Vector2(-14.0, 18.0))
-
-	_knob_box.add_child(_label("Hex Shield (NEW)", FS_BODY, UiTheme.COLOR_ACCENT))
-	_add_action("Pulse Hit (both)", _pulse_shields)
-	_knob_box.add_child(HSeparator.new())
-	_build_knobs("Shields")
-
-
-func _pulse_shields() -> void:
-	for mat in [_scifi_mat, _hex_mat]:
-		if mat == null:
-			continue
-		var m: ShaderMaterial = mat
-		m.set_shader_parameter("hit_strength", 1.0)
-		var tw := create_tween()
-		tw.tween_method(func(v: float): m.set_shader_parameter("hit_strength", v), 1.0, 0.0, 0.45)
-
-
-func _apply_shield_knobs() -> void:
-	if _hex_mat == null:
-		return
-	var v: Dictionary = _values["Shields"]
-	_hex_mat.set_shader_parameter("cells", float(v["cells"]))
-	_hex_mat.set_shader_parameter("scroll", Vector2(float(v["scroll_x"]), float(v["scroll_y"])))
-	_hex_mat.set_shader_parameter("line_width", float(v["line_width"]))
-	_hex_mat.set_shader_parameter("rim_power", float(v["rim_power"]))
-	_hex_mat.set_shader_parameter("fill_alpha", float(v["fill_alpha"]))
-	_hex_mat.set_shader_parameter("flicker", float(v["flicker"]))
-	_hex_mat.set_shader_parameter("dome", float(v["dome"]))
-	if _hex_rect != null:
-		var s := float(v["ring_px"])
-		_hex_rect.size = Vector2(s, s)
-		_hex_rect.position = Vector2(-s / 2.0, -s / 2.0)
-
-
 # ---- Glow mode -------------------------------------------------------------
 
+const GLOW_EFFECT_2D: Shader = preload("res://graphics/glow_effect_2d.gdshader")
+
+
 func _enter_glow() -> void:
-	# Showcase the in-game DIFFUSE glow — the per-sprite glow_halo bloom — on a
-	# centred column of enemy bullets. (The screen_glow / 2D-glow overlay was
-	# dropped here: it wasn't working. The renderer bloom lives in Bloom Env.)
+	# Two columns of enemy bullets side by side (Roman 2026-06-11): LEFT = our current
+	# per-sprite glow_halo (a soft halo BEHIND the sprite); RIGHT = the candidate
+	# glow_effect_2d (color-keyed in-sprite emission, blooming through a WorldEnvironment).
 	var n := BULLETS.size()
 	var spacing := 30.0
 	var col_h := (n - 1) * spacing
 	var y0 := 135.0 - col_h * 0.5
 	var cx := Playfield.CENTER.x
+	var lx := cx - 40.0
+	var rx := cx + 40.0
+	# A WorldEnvironment glow so the color-keyed shader has something to bloom into.
+	var we := WorldEnvironment.new()
+	var env := Environment.new()
+	env.background_mode = Environment.BG_CANVAS
+	env.glow_enabled = true
+	env.glow_intensity = 0.7
+	env.glow_hdr_threshold = 0.9
+	we.environment = env
+	_stage.add_child(we)
 	for i in n:
-		var b := _make_bullet(Vector2(cx, y0 + i * spacing), BULLETS[i])
-		GlowShaderFx.apply(b.get_node("Bullet"))
+		var bl := _make_bullet(Vector2(lx, y0 + i * spacing), BULLETS[i])
+		GlowShaderFx.apply(bl.get_node("Bullet"))
+		var br := _make_bullet(Vector2(rx, y0 + i * spacing), BULLETS[i])
+		var spr: Sprite2D = br.get_node("Bullet")
+		var m := ShaderMaterial.new()
+		m.shader = GLOW_EFFECT_2D
+		# Key off bright cores (white + warm) → emit a cyan-blue glow ×intensity.
+		m.set_shader_parameter("color1", Color(1, 1, 1, 1))
+		m.set_shader_parameter("color2", Color(1, 0.85, 0.3, 1))
+		m.set_shader_parameter("threshold", 0.45)
+		m.set_shader_parameter("intensity", 1.8)
+		m.set_shader_parameter("opacity", 1.0)
+		m.set_shader_parameter("glow_color", Color(0.4, 0.8, 1.0, 1))
+		spr.material = m
 
-	_hd_note("DIFFUSE GLOW (glow_halo)", Vector2(cx - 58.0, y0 - 22.0))
-	_knob_box.add_child(_label("Diffuse Glow", FS_BODY, UiTheme.COLOR_ACCENT))
-	_knob_box.add_child(_label("Per-sprite glow_halo on each enemy bullet —\nthe current in-game glow.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_hd_note("glow_halo (current)", Vector2(lx - 56.0, y0 - 22.0))
+	_hd_note("glow_effect_2d (new)", Vector2(rx - 18.0, y0 - 22.0))
+	_knob_box.add_child(_label("Glow comparison", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("LEFT: current glow_halo (soft halo behind the\nsprite). RIGHT: glow_effect_2d (color-keyed\nin-sprite emission, blooms via WorldEnvironment).", FS_CAPTION, UiTheme.COLOR_FAINT))
 
 
 # ---- Player Modes mode -----------------------------------------------------
@@ -883,6 +843,18 @@ func _enter_explosions() -> void:
 	_add_action("Replay Default", func(): _play_explosion("default", _expl_pos(0)))
 	_add_action("Replay Small Circle", func(): _play_explosion("small_circle", _expl_pos(1)))
 	_add_action("Replay Small→Default", func(): _play_explosion("small_then_default", _expl_pos(2)))
+	_knob_box.add_child(HSeparator.new())
+	_knob_box.add_child(_label("Ember Debris (NEW sweetener)", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("Hero chunks tumble out wearing the damage\nshader, trailing ember sparks + smoke, then\nburn away (trails freed on disintegration).", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_add_action("Fire Ember Debris", func(): _fire_ember_debris(Vector2(Playfield.CENTER.x, 120.0)))
+	_add_action("Boom + Ember Debris", func():
+		var pos := Vector2(Playfield.CENTER.x, 120.0)
+		ExplosionFx.play(pos, 1.5, true, _stage)
+		_fire_ember_debris(pos))
+	_knob_box.add_child(HSeparator.new())
+	_knob_box.add_child(_label("Burning Smoke (NEW, from expl. frames)", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("A comet built from the explosion atlas: head =\nframe 0 (fire), tail = final frame (smoke). Fire\nsegments bloom; the tail dissipates.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_add_action("Streak Burning Smoke", _fire_burning_smoke)
 	var auto := CheckButton.new()
 	auto.text = "Auto-replay loop"
 	auto.button_pressed = _expl_auto
@@ -907,6 +879,34 @@ func _play_explosion(variant: String, pos: Vector2) -> void:
 	ExplosionFx.play(pos, 1.0, true, _stage, ExplosionFx.scene_for(variant), false)
 
 
+# Spawn a small fan of ember-debris hero chunks scattering out + down from `pos`
+# (the explosion-sweetener preview).
+func _fire_ember_debris(pos: Vector2) -> void:
+	for i in 5:
+		# Bias the burst to the lower hemisphere like the enemy_base debris scatter.
+		var ang := randf_range(0.15, PI - 0.15)
+		var spd := randf_range(50.0, 120.0)
+		ShipDebrisEmber.spawn(_stage, pos, {
+			"velocity": Vector2(cos(ang), sin(ang)) * spd,
+			"spin": randf_range(-6.0, 6.0),
+			"piece_scale": randf_range(0.9, 1.4),
+			"lifetime": randf_range(1.5, 2.1),
+		})
+
+
+# Streak a few burning-smoke comets across the playfield from the top.
+func _fire_burning_smoke() -> void:
+	for i in 3:
+		var start := Vector2(Playfield.CENTER.x + (i - 1) * 44.0, 70.0)
+		var vel := Vector2(randf_range(-20.0, 20.0), randf_range(55.0, 85.0))
+		BurningSmokeFx.spawn(_stage, start, vel, {
+			"segment_count": 14,
+			"spacing": 6.0,
+			"seg_scale": 0.9,
+			"lifetime": 1.6,
+		})
+
+
 func _tick_explosions(delta: float) -> void:
 	if not _expl_auto:
 		return
@@ -914,6 +914,59 @@ func _tick_explosions(delta: float) -> void:
 	if _expl_acc >= 1.6:
 		_expl_acc = 0.0
 		_replay_explosions()
+
+
+# ---- Asteroids mode --------------------------------------------------------
+# The gameplay hazard rock (scenes/enemies/enemy_asteroid.tscn) — procgen silhouette,
+# dust trail, and the dusty shatter + burst on explode. Spawned into _stage so the
+# asteroid's _fx_parent() routes all its particles into THIS SubViewport (the old
+# Player FX Lab spawned the procgen VISUAL — no explode() — into a SubViewport while
+# the fx went to the window root; both bugs fixed 2026-06-11).
+
+const ASTEROID_ENEMY_SCENE := "res://scenes/enemies/enemy_asteroid.tscn"
+
+
+func _enter_asteroids() -> void:
+	_expl_acc = 0.0
+	_hd_note("ASTEROID HAZARD FX", Vector2(Playfield.CENTER.x - 44.0, 56.0))
+	_knob_box.add_child(_label("Asteroids", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("Gameplay hazard rock: procgen silhouette,\n30%-opacity dust trail, and the dusty shatter\n(inert fragments + rock-colour motes) + burst\non explode.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_add_action("Explode", func(): _spawn_asteroid(true))
+	_add_action("Drift", func(): _spawn_asteroid(false))
+	var auto := CheckButton.new()
+	auto.text = "Auto-replay explode"
+	auto.button_pressed = _expl_auto
+	auto.add_theme_font_override("font", UiTheme.active_font())
+	auto.add_theme_font_size_override("font_size", FS_BODY)
+	auto.toggled.connect(func(v: bool): _expl_auto = v)
+	_knob_box.add_child(auto)
+	_spawn_asteroid(true)
+
+
+func _spawn_asteroid(do_explode: bool) -> void:
+	var scn: PackedScene = load(ASTEROID_ENEMY_SCENE)
+	if scn == null:
+		return
+	var a = scn.instantiate()
+	_stage.add_child(a)
+	if do_explode:
+		a.position = Vector2(Playfield.CENTER.x, 120.0)
+		await get_tree().process_frame
+		if is_instance_valid(a) and a.has_method("explode"):
+			a.explode()
+	else:
+		a.position = Vector2(randf_range(Playfield.X_MIN + 30.0, Playfield.X_MAX - 30.0), 20.0)
+		if a.has_method("start"):
+			a.start(a.position)
+
+
+func _tick_asteroids(delta: float) -> void:
+	if not _expl_auto:
+		return
+	_expl_acc += delta
+	if _expl_acc >= 1.8:
+		_expl_acc = 0.0
+		_spawn_asteroid(true)
 
 
 # ---- Bloom Env mode (WorldEnvironment glow) --------------------------------
@@ -1127,6 +1180,8 @@ func _process(delta: float) -> void:
 			_tick_explosions(delta)
 		"Disintegrate":
 			_tick_disintegrate(delta)
+		"Asteroids":
+			_tick_asteroids(delta)
 
 
 # Bright white-core radial orb — gives the screen glow something hot to bloom.
@@ -1294,8 +1349,6 @@ func _apply_live() -> void:
 	match MODES[_mode]:
 		"Smoke":
 			_rebuild_smoke()
-		"Shields":
-			_apply_shield_knobs()
 		"Bloom Env":
 			_apply_bloom_env_knobs()
 		"Damage":
@@ -1363,19 +1416,6 @@ func _make_bullet(pos: Vector2, spec: Dictionary) -> Node2D:
 	return n
 
 
-func _add_ring(ship: Node2D, shader: Shader, size_px: float) -> Dictionary:
-	var rect := ColorRect.new()
-	rect.size = Vector2(size_px, size_px)
-	rect.position = Vector2(-size_px / 2.0, -size_px / 2.0)
-	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var mat := ShaderMaterial.new()
-	mat.shader = shader
-	mat.set_shader_parameter("alpha", 1.0)
-	rect.material = mat
-	ship.add_child(rect)
-	return {"rect": rect, "mat": mat}
-
-
 # Annotation over the preview: preview coords × 4 = HD coords.
 func _hd_note(text: String, preview_pos: Vector2) -> void:
 	var l := _label(text, FS_CAPTION, UiTheme.COLOR_BOUNTY)
@@ -1435,8 +1475,6 @@ func _on_copy() -> void:
 			txt = _snippet_embers()
 		"Smoke":
 			txt = _snippet_smoke()
-		"Shields":
-			txt = _snippet_shields()
 		"Glow":
 			txt = _snippet_glow()
 		"Bloom Env":
@@ -1449,6 +1487,8 @@ func _on_copy() -> void:
 			txt = _snippet_disintegrate()
 		"Explosions":
 			txt = _snippet_explosions()
+		"Asteroids":
+			txt = "# Shader Lab — gameplay asteroid hazard (scenes/enemies/enemy_asteroid.tscn)\n# var a = load(\"res://scenes/enemies/enemy_asteroid.tscn\").instantiate()\n# parent.add_child(a); a.start(pos)   # then a.explode() for the dusty shatter\n"
 		"Gallery":
 			var e: Dictionary = GALLERY[_gallery_idx]
 			txt = "# Shader Lab gallery — %s\n# %s\n" % [e["name"], e["path"]]
@@ -1556,23 +1596,6 @@ func _snippet_disintegrate() -> String:
 	t += "mat.set_shader_parameter(\"burnMult\", %.2f)\n" % float(v["burnMult"])
 	t += "mat.set_shader_parameter(\"pixel_size\", %.3f)\n" % float(v["pixel_size"])
 	t += "mat.set_shader_parameter(\"blend_steps\", %.1f)\n" % float(v["blend_steps"])
-	return t
-
-
-func _snippet_shields() -> String:
-	var v: Dictionary = _values["Shields"]
-	var s := float(v["ring_px"])
-	var t := "# Shader Lab — hex shield (drop-in for sci_fi_shield drivers:\n"
-	t += "# swap the SHIELD_SHADER preload in player.gd / shield_component.gd)\n"
-	t += "# ring ColorRect size: %d×%d (offset %.1f, %.1f)\n" % [int(s), int(s), -s / 2.0, -s / 2.0]
-	t += "mat.shader = preload(\"res://graphics/hex_shield.gdshader\")\n"
-	t += "mat.set_shader_parameter(\"cells\", %.1f)\n" % float(v["cells"])
-	t += "mat.set_shader_parameter(\"scroll\", Vector2(%.2f, %.2f))\n" % [float(v["scroll_x"]), float(v["scroll_y"])]
-	t += "mat.set_shader_parameter(\"line_width\", %.2f)\n" % float(v["line_width"])
-	t += "mat.set_shader_parameter(\"rim_power\", %.1f)\n" % float(v["rim_power"])
-	t += "mat.set_shader_parameter(\"fill_alpha\", %.2f)\n" % float(v["fill_alpha"])
-	t += "mat.set_shader_parameter(\"flicker\", %.2f)\n" % float(v["flicker"])
-	t += "mat.set_shader_parameter(\"dome\", %.2f)\n" % float(v["dome"])
 	return t
 
 

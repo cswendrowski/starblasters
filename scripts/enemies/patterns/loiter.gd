@@ -128,6 +128,12 @@ func compute_step(enemy, delta: float) -> Vector2:
 	return Vector2.ZERO
 
 
+# Opt into unit-weighted inertia so the loiter eases into/out of its hover point instead
+# of snapping (Roman 2026-06-11). The smoothing lives in enemy_core.
+func uses_inertia() -> bool:
+	return true
+
+
 func _enter_hold(enemy) -> void:
 	_phase = Phase.LOITERING
 	_timer = 0.0

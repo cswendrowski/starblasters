@@ -129,10 +129,10 @@ static func play_rotary_laser(world_pos: Vector2, host: Node = null) -> void:
 	flash.texture = ROTARY_LASER_STRIP
 	flash.hframes = ROTARY_LASER_STRIP_HFRAMES
 	flash.frame = randi() % ROTARY_LASER_STRIP_HFRAMES
-	if use_local:
-		flash.position = world_pos - (host as Node2D).global_position
-	else:
-		flash.position = world_pos
+	# Bottom-anchor on the marker (shift the centred 16px flash up 8) so the flash sits
+	# at the nose muzzle, not centred over it (Roman 2026-06-11, pulse laser).
+	var fpos: Vector2 = (world_pos - (host as Node2D).global_position) if use_local else world_pos
+	flash.position = fpos + Vector2(0, -8)
 	flash.scale = Vector2(1.0, 1.0)
 	flash.z_index = 5
 	parent.add_child(flash)
@@ -184,20 +184,22 @@ const GlowFxM = preload("res://scripts/effects/glow_shader_fx.gd")
 # the muzzle marker (its base sits on the marker, extends forward), tinted `color` with a matching
 # DIFFUSE glow, rendered ABOVE the bullets (which now render under the ship), and it lasts ~a frame.
 # `with_smoke_shell` adds the machinegun smoke + shell casing.
-static func play_player(world_pos: Vector2, host: Node, color: Color, with_smoke_shell: bool = false, large_shell: bool = false) -> void:
+static func play_player(world_pos: Vector2, host: Node, color: Color, with_smoke_shell: bool = false, large_shell: bool = false, flip_v: bool = false, z: int = 6) -> void:
 	var parent: Node = host if host != null else Engine.get_main_loop().root
 	var local_pos: Vector2 = world_pos
 	if host != null and host is Node2D:
 		local_pos = world_pos - (host as Node2D).global_position
-	# Bottom-anchor: shift the centred 16px flash up by 8 so its bottom edge sits on the marker.
-	local_pos += Vector2(0, -8)
+	# Anchor the flash's BASE on the marker: normally the bottom edge (shift up 8); when
+	# flipped vertically (secondary launches fire the other way) the TOP edge instead.
+	local_pos += Vector2(0, 8 if flip_v else -8)
 	var flash := Sprite2D.new()
 	flash.texture = MUZZLE_STRIP
 	flash.hframes = MUZZLE_STRIP_HFRAMES
 	flash.frame = randi() % MUZZLE_STRIP_HFRAMES
+	flash.flip_v = flip_v
 	flash.position = local_pos
 	flash.modulate = color
-	flash.z_index = 6   # above the player bullets (they render at z -1) + the ship
+	flash.z_index = z   # 6 = above bullets+ship; negative = under the player (secondaries)
 	var fmat := CanvasItemMaterial.new()
 	fmat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	flash.material = fmat

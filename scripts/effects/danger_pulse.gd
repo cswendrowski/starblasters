@@ -7,9 +7,11 @@ extends CanvasLayer
 # warning always reads.
 
 const VP := Vector2(480.0, 270.0)
-# How far in from the left the gradient reaches, and its peak/idle alpha.
-const REACH_PX := 150.0
-const PULSE_HZ := 2.2
+# How far in from the left the gradient reaches, and its peak/idle alpha. Confined to
+# the left glass gutter (X 0-132) so it doesn't overrun the playfield (Roman 2026-06-11:
+# "stay inside the left panel, don't overrun the play space").
+const REACH_PX := 132.0
+const PULSE_HZ := 1.5         # slightly slower pulse (was 2.2)
 const ALPHA_MIN := 0.10
 const ALPHA_MAX := 0.34
 const DANGER_COLOR := Color(1.0, 0.12, 0.12)
@@ -42,7 +44,9 @@ func _ready() -> void:
 	_rect.size = Vector2(REACH_PX, VP.y)
 	_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var mat := CanvasItemMaterial.new()
-	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD   # glows over the dark gutter
+	# MIX (not ADD) so the red sits cleanly behind the HUD elements in the gutter
+	# instead of glow-blowing them out (Roman 2026-06-11).
+	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_MIX
 	_rect.material = mat
 	_rect.modulate.a = 0.0
 	add_child(_rect)

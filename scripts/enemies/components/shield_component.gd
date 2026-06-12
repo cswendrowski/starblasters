@@ -11,7 +11,7 @@ extends EnemyComponent
 # is per-hit pips with no regen and is consumed in take_hit BEFORE components. This one
 # regenerates and carries its own ring visual. An enemy uses one or the other, not both.
 
-const SHIELD_SHADER = preload("res://graphics/sci_fi_shield.gdshader")
+const SHIELD_SHADER = preload("res://graphics/hex_shield.gdshader")  # committed (Roman 2026-06-11)
 const HitFlashFx = preload("res://scripts/effects/hit_flash_fx.gd")
 
 # The single shared enemy shield (shield_unification_2026-06-08.md). Two modes:

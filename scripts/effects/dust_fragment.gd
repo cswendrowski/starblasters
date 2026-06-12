@@ -8,6 +8,11 @@ var velocity: Vector2 = Vector2.ZERO
 var color: Color = Color(0.6, 0.55, 0.5)
 var size_px: float = 2.0
 var lifetime: float = 0.9
+# Per-frame brightness flicker (0 = none). A 1px mote that jitters brightness reads as
+# moving even when nearly still (Roman 2026-06-11: "brightness variation/jitter").
+var brightness_jitter: float = 0.0
+# Per-second velocity bleed. Low = a steady straight drift (persistent asteroid motes).
+var drag: float = 1.2
 
 var _t: float = 0.0
 var _rect: ColorRect = null
@@ -32,7 +37,11 @@ func _ready() -> void:
 	_trail.gradient = g
 	_trail.z_index = 3
 	_trail.z_as_relative = false
-	var p: Node = get_tree().current_scene
+	# Parent the trail to OUR OWN container (combat scene, or a dev lab's SubViewport
+	# world) so it renders in the same viewport as the fragment — not the window root.
+	var p: Node = get_parent()
+	if p == null:
+		p = get_tree().current_scene
 	if p == null:
 		p = get_tree().root
 	p.add_child(_trail)
@@ -41,14 +50,17 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_t += delta
 	position += velocity * delta
-	velocity *= maxf(0.0, 1.0 - 1.2 * delta)   # drag
+	velocity *= maxf(0.0, 1.0 - drag * delta)   # drag
 	if _rect != null:
-		_rect.modulate.a = clampf(1.0 - _t / lifetime, 0.0, 1.0)
+		var a: float = clampf(1.0 - _t / lifetime, 0.0, 1.0)
+		var j: float = 1.0 + (randf_range(-brightness_jitter, brightness_jitter) if brightness_jitter > 0.0 else 0.0)
+		_rect.modulate = Color(j, j, j, a)
 	_sample -= delta
 	if _sample <= 0.0 and _trail != null and is_instance_valid(_trail):
 		_sample = 0.04
 		_trail.add_point(global_position)
-		while _trail.get_point_count() > 8:
+		# Longer streak that fades out along its tail (gradient head→transparent tail).
+		while _trail.get_point_count() > 16:
 			_trail.remove_point(0)
 	if _t >= lifetime:
 		if _trail != null and is_instance_valid(_trail):

@@ -167,7 +167,7 @@ RecycleController must preserve those contracts._
   `run_seed` into every per-POI planet/deco seed in `sector_map_v3.gd` (in lockstep so map↔combat
   planet parity holds). Per-row variety now keys off run + node identity. NEEDS EYEBALL across runs.
 
-### Sector Map (likely separate scope)
+### Sector Map
 - [ ] **(PINNED 2026-06-08) Optional authored node-slot layout** — POI placement is now procedural
   (`run_state._gen_row_pois`); the per-POI `row_N_poi_M` markers in `sector_map_v3.tscn` are dead.
   If hand-placed node slots are wanted back, add an optional marker-slot path the generator shuffles

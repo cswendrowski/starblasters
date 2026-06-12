@@ -67,7 +67,7 @@ enum FireSfxKind {
 	NONE,           # Explicit fallback to player's $ShootSound (e.g. Auto Laser placeholder)
 	BLASTER_SMALL,  # base + spread blaster (SMALL_CLIPS pool)
 	BLASTER_LARGE,  # heavy blaster (LARGE_CLIPS pool)
-	PULSE,          # RETIRED (pulse_* clips removed) — kept for enum ordinal stability
+	PULSE,          # Pulse Laser (PULSE_CLIPS pool, revived 2026-06-11)
 	WAVE,           # wave gun, all marks now (WAVE_CLIPS pool)
 	WAVE_BIG,       # RETIRED (wave gun dropped the Mk.5 audio swap) — kept for ordinal stability
 	MACHINEGUN,     # reserved — MG currently routes via weapon_style audio loop
@@ -77,6 +77,7 @@ enum FireSfxKind {
 	SPREAD,         # Spread Cannon (SPREAD_CLIPS pool)
 	AUTOCANNON,     # Autocannon (AUTOCANNON_CLIPS pool)
 	MINIGUN,        # Minigun (MINIGUN_CLIPS pool)
+	SHREDDER,       # Shredder Cannon (SHREDDER_CLIPS pool, 2026-06-11)
 }
 
 
@@ -100,4 +101,5 @@ static func sfx_kind_string(k: int) -> String:
 		FireSfxKind.SPREAD: return "spread"
 		FireSfxKind.AUTOCANNON: return "autocannon"
 		FireSfxKind.MINIGUN: return "minigun"
+		FireSfxKind.SHREDDER: return "shredder"
 		_: return ""

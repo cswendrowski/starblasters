@@ -28,9 +28,9 @@ func _init() -> void:
 
 # _weapon_style inherits the default (ENERGY) — the spread FAN is driven by
 # bullet_spread_count, not the style (same as the Scatter Blaster). Style only
-# routes SFX, and the fire-SFX kind below gives it the spread audio.
+# routes SFX, and the fire-SFX kind below gives it its dedicated shredder audio.
 func _fire_sfx_kind() -> int:
-	return WSsh.FireSfxKind.SPREAD
+	return WSsh.FireSfxKind.SHREDDER
 
 
 func _snapshot_keys() -> Array:
@@ -38,6 +38,7 @@ func _snapshot_keys() -> Array:
 	keys.append("bullet_spread_count")
 	keys.append("bullet_spread_degrees")
 	keys.append("bullet_spread_random")   # restored to false when swapped away
+	keys.append("use_autocannon_muzzle")  # autocannon muzzle look (restored on swap)
 	return keys
 
 
@@ -71,6 +72,9 @@ func _apply_visuals(ship) -> void:
 	# Shotgun: randomize each pellet's angle in the cone (snapshotted → restored on swap).
 	if "bullet_spread_random" in ship:
 		ship.bullet_spread_random = true
+	# Autocannon muzzle look (orange flash + smoke + small shell) for the Shredder.
+	if "use_autocannon_muzzle" in ship:
+		ship.use_autocannon_muzzle = true
 
 
 # Editor DPS readout — total per-shot damage accounts for the pellet fan.

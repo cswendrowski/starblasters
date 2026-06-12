@@ -365,10 +365,11 @@ static func build_minefield_score() -> CombatScore:
 		total_basic += int(b["count"])
 		if k < beat_count - 1:
 			wave.phrases.append(_breather_phrase(0.35))
-	# Bomblet clusters (Roman 2026-06-11): tight scatter pockets to thread or pop. ~104 bomblets.
+	# Bomblet WALLS (Roman 2026-06-11): dense straight-descending walls to weave/shoot
+	# through, NOT scattered wiggling pockets (form_id 0 = wall). ~104 bomblets.
 	for c in range(4):
 		wave.phrases.append(_breather_phrase(0.45))
-		wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(BombletScene, 26, 0.10, 2)))
+		wave.phrases.append(_formation_phrase(&"wall", _haz_spec(BombletScene, 26, 0.10, 0)))
 
 	# Variant sprinkle: a final lane-scatter mixing the non-basic mine types into a basic
 	# field (Roman 2026-06-09 — now that the new mine art/types are in, every minefield shows

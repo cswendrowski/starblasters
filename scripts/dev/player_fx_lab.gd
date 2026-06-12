@@ -1,22 +1,64 @@
 extends Control
 
-# Player FX Lab (Roman 2026-06-11; HD-overhauled). Runs the live player ship through
-# hull damage levels so the damage tells — engine fire (engine_torch), damage smoke
-# (damage_smoke_trail), and the damage overlay — can be SEEN applying at each level,
-# and verifies they react to max-HP changes. Also triggers the asteroid explosion +
-# dust/smoke trail.
+# Player FX Lab (Roman 2026-06-11; HD-overhauled, then torch-tuner pass). Runs the
+# live player ship through hull damage levels so the damage tells — engine fire
+# (engine_torch), damage smoke (damage_smoke_trail), and the damage overlay — can be
+# SEEN applying at each level, and verifies they react to max-HP changes.
+#
+# Right rail = a LIVE TORCH TUNER (colors + size + behaviour knobs, applied to the
+# player's attached torches each change) with Save + Copy GDScript (the tuner
+# contract). Left rail = ship pick + hull sliders + a MARKER-DOTS toggle that drops
+# 1px colour dots on the sprite-centre / engine / wing markers so you can see exactly
+# where the tells should spawn.
 #
 # Renders the WORLD in a native 480×270 SubViewport (crisp, hdr_2d-parity, fx parent to
-# the player's parent = the viewport) upscaled to fill HD, with an HD CanvasLayer UI
-# overlay — so the controls are usable at 1920×1080 (was cramped at native res).
+# the player's parent = the viewport) upscaled to fill HD, with an HD CanvasLayer UI.
 
-const AsteroidScene = preload("res://Planets/Asteroids/Asteroid.tscn")
 const SceneTransition = preload("res://scripts/scene_transition.gd")
+const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 
 const SHIPS := [
 	"res://scenes/player/player.tscn",
 	"res://scenes/player/player_b.tscn",
 	"res://scenes/player/player_c.tscn",
+]
+
+const SAVE_PATH := "user://tuners/player_fx_lab.json"
+
+# Torch knob schema: shader-uniform colours + scalar sliders + torch-instance knobs.
+# def values mirror engine_torch.gd's defaults so an untouched lab == the game look.
+const TORCH_COLORS := {
+	"fromColor": Color(0.941, 0.376, 0.027),   # f06007
+	"toColor": Color(0.537, 0.267, 0.0),       # 894400
+	"sparkColor": Color(1.0, 0.643, 0.208),    # ffa435
+	"smokeColor": Color(0.020, 0.020, 0.020),  # 050505
+}
+const TORCH_SLIDERS := [
+	{"key": "pixelSize", "label": "Pixel size", "min": 0.02, "max": 0.2, "step": 0.005, "def": 0.08},
+	{"key": "speed", "label": "Flame speed", "min": 0.5, "max": 6.0, "step": 0.1, "def": 2.5},
+	{"key": "sparkSpeed", "label": "Spark speed", "min": 0.0, "max": 2.0, "step": 0.05, "def": 0.4},
+	{"key": "flame_width", "label": "Flame width", "min": 0.05, "max": 0.6, "step": 0.01, "def": 0.22},
+	{"key": "flame_h_min", "label": "Height @ light dmg", "min": 0.05, "max": 1.0, "step": 0.01, "def": 0.25},
+	{"key": "flame_h_max", "label": "Height @ near-death", "min": 0.3, "max": 1.5, "step": 0.01, "def": 1.0},
+	{"key": "severity_exp", "label": "Severity easing exp", "min": 0.5, "max": 3.0, "step": 0.05, "def": 1.5},
+	{"key": "burst_severity", "label": "Burst threshold", "min": 0.0, "max": 1.0, "step": 0.02, "def": 0.6},
+	{"key": "activate_below", "label": "Activate below dmg", "min": 0.0, "max": 1.0, "step": 0.01, "def": 0.01},
+]
+
+# Hex shield tuner (moved here from the Shader Lab, Roman 2026-06-11) — tunes the
+# hex_shield bubble live on the actual player ship.
+const HEX_SHIELD := preload("res://graphics/hex_shield.gdshader")
+const SHIELD_SLIDERS := [
+	{"key": "ring_px", "label": "Bubble size (px)", "min": 16.0, "max": 96.0, "step": 2.0, "def": 30.0},
+	{"key": "cells", "label": "Hex cells across", "min": 2.0, "max": 24.0, "step": 0.5, "def": 7.0},
+	{"key": "scroll_x", "label": "Scroll X", "min": -0.3, "max": 0.3, "step": 0.01, "def": 0.08},
+	{"key": "scroll_y", "label": "Scroll Y", "min": -0.3, "max": 0.3, "step": 0.01, "def": 0.05},
+	{"key": "line_width", "label": "Line width", "min": 0.02, "max": 0.45, "step": 0.01, "def": 0.12},
+	{"key": "rim_power", "label": "Rim power", "min": 0.5, "max": 6.0, "step": 0.1, "def": 2.2},
+	{"key": "fill_alpha", "label": "Fill alpha", "min": 0.0, "max": 0.4, "step": 0.01, "def": 0.05},
+	{"key": "flicker", "label": "Cell flicker", "min": 0.0, "max": 1.0, "step": 0.05, "def": 0.35},
+	{"key": "dome", "label": "Dome warp", "min": 0.0, "max": 1.0, "step": 0.05, "def": 0.65},
+	{"key": "elongation", "label": "Capsule elongation", "min": 0.0, "max": 0.85, "step": 0.05, "def": 0.0},
 ]
 
 var _hd_scope: HdViewportScope = null
@@ -25,6 +67,18 @@ var _player: Node2D = null
 var _hull_slider: HSlider = null
 var _maxhull_slider: HSlider = null
 var _readout: Label = null
+
+# Tuner state.
+var _torch_colors: Dictionary = {}
+var _torch_vals: Dictionary = {}
+var _markers_on: bool = false
+var _marker_dots: Array = []
+# Shield tuner state.
+var _shield_vals: Dictionary = {}
+var _shield_color := Color(0.35, 0.85, 1.0)
+var _shield_rect: ColorRect = null
+var _shield_mat: ShaderMaterial = null
+var _shield_on: bool = false
 
 
 func _ready() -> void:
@@ -35,15 +89,27 @@ func _ready() -> void:
 	bg.color = Color(0.05, 0.06, 0.09)
 	bg.size = Vector2(480, 270)
 	_world.add_child(bg)
+	_init_tuner_defaults()
+	_load_saved()
 	_build_ui()
 	_spawn_player(0)
 	await get_tree().process_frame
 	HdScreen.verify_native_subviewport(_world, "Player FX Lab")
 
 
+func _init_tuner_defaults() -> void:
+	for k in TORCH_COLORS:
+		_torch_colors[k] = TORCH_COLORS[k]
+	for d in TORCH_SLIDERS:
+		_torch_vals[d["key"]] = float(d["def"])
+	for d in SHIELD_SLIDERS:
+		_shield_vals[d["key"]] = float(d["def"])
+
+
 func _spawn_player(idx: int) -> void:
 	if _player != null and is_instance_valid(_player):
 		_player.queue_free()
+	_marker_dots.clear()
 	var scn: PackedScene = load(SHIPS[clampi(idx, 0, SHIPS.size() - 1)])
 	_player = scn.instantiate()
 	_world.add_child(_player)
@@ -56,7 +122,11 @@ func _spawn_player(idx: int) -> void:
 		_player.invincible = true
 	await get_tree().process_frame
 	_sync_sliders_from_player()
+	_apply_torch_knobs()
 	_apply_hull()
+	_attach_shield()
+	if _markers_on:
+		_rebuild_marker_dots()
 
 
 func _sync_sliders_from_player() -> void:
@@ -85,27 +155,151 @@ func _apply_hull() -> void:
 		_readout.text = "Hull %d / %d   (damage %d%%)" % [h, mh, int(round(frac * 100.0))]
 
 
-func _explode_asteroid() -> void:
-	var a = AsteroidScene.instantiate()
-	_world.add_child(a)
-	a.position = Vector2(240.0, 110.0)
-	await get_tree().process_frame
-	if a.has_method("explode"):
-		a.explode()
+# ---- Torch tuner -----------------------------------------------------------
+
+func _torches() -> Array:
+	if _player == null or not is_instance_valid(_player):
+		return []
+	# NOTE the wildcard: player.gd names the torches "EngineTorch_0"/"EngineTorch_1"
+	# (a per-point suffix), so a bare "EngineTorch" pattern matched NOTHING and the
+	# tuner was a silent no-op (Roman: "torch tuner tunes the shield hit particles,
+	# not the torch") — it never reached the torch material at all.
+	return _player.find_children("EngineTorch*", "", true, false)
 
 
-func _drift_asteroid() -> void:
-	var a = AsteroidScene.instantiate()
-	_world.add_child(a)
-	a.position = Vector2(randf_range(170.0, 310.0), 20.0)
+# Push the current knob values onto every live EngineTorch, then re-apply hull so the
+# size lerp (which reads flame_size_min/max) recomputes immediately.
+func _apply_torch_knobs() -> void:
+	var w: float = float(_torch_vals["flame_width"])
+	for t in _torches():
+		if t == null or not is_instance_valid(t):
+			continue
+		var mat = t.material
+		if mat is ShaderMaterial:
+			for k in _torch_colors:
+				mat.set_shader_parameter(k, _torch_colors[k])
+			mat.set_shader_parameter("pixelSize", float(_torch_vals["pixelSize"]))
+			mat.set_shader_parameter("speed", float(_torch_vals["speed"]))
+			mat.set_shader_parameter("sparkSpeed", float(_torch_vals["sparkSpeed"]))
+		if "flame_size_min" in t:
+			t.flame_size_min = Vector2(w, float(_torch_vals["flame_h_min"]))
+		if "flame_size_max" in t:
+			t.flame_size_max = Vector2(w, float(_torch_vals["flame_h_max"]))
+		if "severity_exp" in t:
+			t.severity_exp = float(_torch_vals["severity_exp"])
+		if "burst_severity" in t:
+			t.burst_severity = float(_torch_vals["burst_severity"])
+		if "activate_below" in t:
+			t.activate_below = float(_torch_vals["activate_below"])
+	_apply_hull()
 
+
+# ---- Shield tuner ----------------------------------------------------------
+
+# Attach the hex-shield bubble (ColorRect + shader) onto the live player. Re-created
+# on each respawn (ship swap). Hidden until the "Show shield bubble" toggle is on.
+func _attach_shield() -> void:
+	if _player == null or not is_instance_valid(_player):
+		return
+	if _shield_rect != null and is_instance_valid(_shield_rect):
+		_shield_rect.queue_free()
+	_shield_rect = ColorRect.new()
+	_shield_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_shield_rect.z_index = 20
+	_shield_mat = ShaderMaterial.new()
+	_shield_mat.shader = HEX_SHIELD
+	_shield_mat.set_shader_parameter("alpha", 1.0)
+	_shield_rect.material = _shield_mat
+	_shield_rect.visible = _shield_on
+	_player.add_child(_shield_rect)
+	_apply_shield_knobs()
+
+
+func _apply_shield_knobs() -> void:
+	if _shield_mat == null or not is_instance_valid(_shield_rect):
+		return
+	_shield_mat.set_shader_parameter("cells", float(_shield_vals["cells"]))
+	_shield_mat.set_shader_parameter("scroll", Vector2(float(_shield_vals["scroll_x"]), float(_shield_vals["scroll_y"])))
+	_shield_mat.set_shader_parameter("line_width", float(_shield_vals["line_width"]))
+	_shield_mat.set_shader_parameter("rim_power", float(_shield_vals["rim_power"]))
+	_shield_mat.set_shader_parameter("fill_alpha", float(_shield_vals["fill_alpha"]))
+	_shield_mat.set_shader_parameter("flicker", float(_shield_vals["flicker"]))
+	_shield_mat.set_shader_parameter("dome", float(_shield_vals["dome"]))
+	_shield_mat.set_shader_parameter("elongation", float(_shield_vals["elongation"]))
+	_shield_mat.set_shader_parameter("shield_color", _shield_color)
+	var s := float(_shield_vals["ring_px"])
+	_shield_rect.size = Vector2(s, s)
+	_shield_rect.position = Vector2(-s * 0.5, -s * 0.5)   # centered on the ship origin
+
+
+func _set_shield_visible(on: bool) -> void:
+	_shield_on = on
+	if _shield_rect != null and is_instance_valid(_shield_rect):
+		_shield_rect.visible = on
+
+
+func _pulse_shield() -> void:
+	if _shield_mat == null:
+		return
+	var m := _shield_mat
+	m.set_shader_parameter("hit_strength", 1.0)
+	var tw := create_tween()
+	tw.tween_method(func(v: float): m.set_shader_parameter("hit_strength", v), 1.0, 0.0, 0.45)
+
+
+# ---- Marker dots -----------------------------------------------------------
+
+# 1px colour dots at the sprite centre (magenta), each engine marker (cyan), and each
+# wing-launch marker (yellow) — the candidate anchors the damage tells shuffle among.
+func _rebuild_marker_dots() -> void:
+	for d in _marker_dots:
+		if d != null and is_instance_valid(d):
+			d.queue_free()
+	_marker_dots.clear()
+	if _player == null or not is_instance_valid(_player):
+		return
+	_add_dot(Vector2.ZERO, Color(1, 0, 1), _player)          # sprite centre
+	for m in _player.find_children("Engine*", "Marker2D", true, false):
+		_add_dot(Vector2.ZERO, Color(0, 1, 1), m)             # engine markers (cyan)
+	for nm in ["LaunchWingL", "LaunchWingR"]:
+		var wn := _player.find_child(nm, true, false)
+		if wn != null:
+			_add_dot(Vector2.ZERO, Color(1, 0.9, 0.2), wn)    # wing-launch markers (yellow)
+
+
+# A 1px ColorRect dot centred on `anchor` (child of it so it tracks the marker).
+func _add_dot(local: Vector2, col: Color, anchor: Node) -> void:
+	var dot := ColorRect.new()
+	dot.color = col
+	dot.size = Vector2(1, 1)
+	dot.position = local - Vector2(0.5, 0.5)
+	dot.z_index = 50
+	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	anchor.add_child(dot)
+	_marker_dots.append(dot)
+
+
+func _set_markers(on: bool) -> void:
+	_markers_on = on
+	if on:
+		_rebuild_marker_dots()
+	else:
+		for d in _marker_dots:
+			if d != null and is_instance_valid(d):
+				d.queue_free()
+		_marker_dots.clear()
+
+
+# ---- UI --------------------------------------------------------------------
 
 func _build_ui() -> void:
 	var layer := CanvasLayer.new()
 	add_child(layer)
+
+	# Left control rail.
 	var rail := VBoxContainer.new()
 	rail.position = Vector2(24, 24)
-	rail.add_theme_constant_override("separation", 10)
+	rail.add_theme_constant_override("separation", 8)
 	layer.add_child(rail)
 
 	rail.add_child(_mk_label("PLAYER FX LAB", 26))
@@ -114,33 +308,228 @@ func _build_ui() -> void:
 	for s in ["Ship A", "Ship B", "Ship C"]:
 		dd.add_item(s)
 	dd.item_selected.connect(func(i): _spawn_player(i))
-	dd.custom_minimum_size = Vector2(220, 44)
+	dd.custom_minimum_size = Vector2(220, 40)
 	rail.add_child(dd)
 
-	rail.add_child(_mk_label("Hull (drag to damage)", 18))
+	rail.add_child(_mk_label("Hull (drag to damage)", 16))
 	_hull_slider = _mk_slider(0, 3, 1, 3)
 	_hull_slider.value_changed.connect(func(_v): _apply_hull())
 	rail.add_child(_hull_slider)
 
-	rail.add_child(_mk_label("Max Hull (max-HP test)", 18))
+	rail.add_child(_mk_label("Max Hull (max-HP test)", 16))
 	_maxhull_slider = _mk_slider(1, 10, 1, 3)
 	_maxhull_slider.value_changed.connect(func(_v):
 		_hull_slider.max_value = _maxhull_slider.value
 		_apply_hull())
 	rail.add_child(_maxhull_slider)
 
-	_readout = _mk_label("", 18)
+	_readout = _mk_label("", 16)
 	rail.add_child(_readout)
 
-	var brow := HBoxContainer.new()
-	brow.add_theme_constant_override("separation", 10)
-	rail.add_child(brow)
-	brow.add_child(_mk_button("Explode Asteroid", _explode_asteroid))
-	brow.add_child(_mk_button("Drift Asteroid", _drift_asteroid))
+	var mk_toggle := CheckButton.new()
+	mk_toggle.text = "Marker dots (centre/engine/wing)"
+	mk_toggle.button_pressed = _markers_on
+	mk_toggle.add_theme_font_size_override("font_size", 16)
+	mk_toggle.toggled.connect(_set_markers)
+	rail.add_child(mk_toggle)
+
 	rail.add_child(_mk_button("Back (Esc)", _back))
 
+	# Right knob rail (torch tuner) in a scroll.
+	var panel_w := 430
+	var rx := 1920 - 24 - panel_w
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(rx, 24)
+	scroll.size = Vector2(panel_w, 1080 - 130)
+	layer.add_child(scroll)
+	var kb := VBoxContainer.new()
+	kb.custom_minimum_size = Vector2(panel_w - 24, 0)
+	kb.add_theme_constant_override("separation", 6)
+	scroll.add_child(kb)
 
-func _mk_label(t: String, size: int = 18) -> Label:
+	kb.add_child(_mk_label("TORCH TUNER (live)", 22))
+	kb.add_child(_mk_label("Drag hull down to a damaged state, then tune.\nApplies to the player's live engine torch(es).", 14))
+	for k in ["fromColor", "toColor", "sparkColor", "smokeColor"]:
+		_add_color_row(kb, k)
+	kb.add_child(HSeparator.new())
+	for d in TORCH_SLIDERS:
+		_add_slider_row(kb, d)
+	# Hex shield tuner (moved from the Shader Lab).
+	kb.add_child(HSeparator.new())
+	kb.add_child(_mk_label("HEX SHIELD TUNER (live)", 22))
+	var sh_toggle := CheckButton.new()
+	sh_toggle.text = "Show shield bubble"
+	sh_toggle.button_pressed = _shield_on
+	sh_toggle.add_theme_font_size_override("font_size", 16)
+	sh_toggle.toggled.connect(_set_shield_visible)
+	kb.add_child(sh_toggle)
+	_add_shield_color_row(kb)
+	kb.add_child(_mk_button("Pulse Hit", _pulse_shield))
+	for d in SHIELD_SLIDERS:
+		_add_shield_slider_row(kb, d)
+
+	# Save / Copy row pinned at the bottom.
+	var actions := HBoxContainer.new()
+	actions.position = Vector2(rx, 1080 - 96)
+	actions.add_theme_constant_override("separation", 10)
+	layer.add_child(actions)
+	actions.add_child(_mk_button("Save", _on_save))
+	actions.add_child(_mk_button("Copy GDScript", _on_copy))
+	actions.add_child(_mk_button("Reset", _on_reset))
+
+
+func _add_color_row(parent: VBoxContainer, key: String) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var lbl := _mk_label(key, 15)
+	lbl.custom_minimum_size = Vector2(150, 0)
+	row.add_child(lbl)
+	var cp := ColorPickerButton.new()
+	cp.color = _torch_colors[key]
+	cp.edit_alpha = (key == "smokeColor")
+	cp.custom_minimum_size = Vector2(180, 32)
+	cp.color_changed.connect(func(c: Color):
+		_torch_colors[key] = c
+		_apply_torch_knobs())
+	row.add_child(cp)
+	parent.add_child(row)
+
+
+func _add_slider_row(parent: VBoxContainer, d: Dictionary) -> void:
+	var key: String = d["key"]
+	var lbl := _mk_label("%s   %.3f" % [d["label"], float(_torch_vals[key])], 15)
+	parent.add_child(lbl)
+	var s := HSlider.new()
+	s.min_value = float(d["min"])
+	s.max_value = float(d["max"])
+	s.step = float(d["step"])
+	s.value = float(_torch_vals[key])
+	s.custom_minimum_size = Vector2(panel_slider_w(), 26)
+	s.value_changed.connect(func(v: float):
+		_torch_vals[key] = v
+		lbl.text = "%s   %.3f" % [d["label"], v]
+		_apply_torch_knobs())
+	parent.add_child(s)
+
+
+func _add_shield_color_row(parent: VBoxContainer) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var lbl := _mk_label("shield_color", 15)
+	lbl.custom_minimum_size = Vector2(150, 0)
+	row.add_child(lbl)
+	var cp := ColorPickerButton.new()
+	cp.color = _shield_color
+	cp.edit_alpha = false
+	cp.custom_minimum_size = Vector2(180, 32)
+	cp.color_changed.connect(func(c: Color):
+		_shield_color = c
+		_apply_shield_knobs())
+	row.add_child(cp)
+	parent.add_child(row)
+
+
+func _add_shield_slider_row(parent: VBoxContainer, d: Dictionary) -> void:
+	var key: String = d["key"]
+	var lbl := _mk_label("%s   %.3f" % [d["label"], float(_shield_vals[key])], 15)
+	parent.add_child(lbl)
+	var s := HSlider.new()
+	s.min_value = float(d["min"])
+	s.max_value = float(d["max"])
+	s.step = float(d["step"])
+	s.value = float(_shield_vals[key])
+	s.custom_minimum_size = Vector2(panel_slider_w(), 26)
+	s.value_changed.connect(func(v: float):
+		_shield_vals[key] = v
+		lbl.text = "%s   %.3f" % [d["label"], v]
+		_apply_shield_knobs())
+	parent.add_child(s)
+
+
+func panel_slider_w() -> float:
+	return 390.0
+
+
+# ---- Save / Copy / Reset ---------------------------------------------------
+
+func _on_save() -> void:
+	var data := {
+		"colors": {}, "vals": _torch_vals.duplicate(),
+		"shield": _shield_vals.duplicate(), "shield_color": _shield_color.to_html(false),
+	}
+	for k in _torch_colors:
+		data["colors"][k] = (_torch_colors[k] as Color).to_html(true)
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://tuners"))
+	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify(data, "  "))
+		f.close()
+	if _readout:
+		_readout.text = "Saved torch tuner → %s" % SAVE_PATH
+
+
+func _load_saved() -> void:
+	if not FileAccess.file_exists(SAVE_PATH):
+		return
+	var f := FileAccess.open(SAVE_PATH, FileAccess.READ)
+	if f == null:
+		return
+	var parsed = JSON.parse_string(f.get_as_text())
+	f.close()
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return
+	if parsed.has("colors"):
+		for k in parsed["colors"]:
+			_torch_colors[k] = Color.html(String(parsed["colors"][k]))
+	if parsed.has("vals"):
+		for k in parsed["vals"]:
+			_torch_vals[k] = float(parsed["vals"][k])
+	if parsed.has("shield"):
+		for k in parsed["shield"]:
+			_shield_vals[k] = float(parsed["shield"][k])
+	if parsed.has("shield_color"):
+		_shield_color = Color.html(String(parsed["shield_color"]))
+
+
+func _on_copy() -> void:
+	var lines := []
+	lines.append("# Torch tuner values (Player FX Lab). Paste into engine_torch.gd attach_to_player()")
+	lines.append("# shader params + the flame/severity defaults.")
+	for k in ["fromColor", "toColor", "sparkColor", "smokeColor"]:
+		lines.append('mat.set_shader_parameter("%s", Color.html("%s"))' % [k, (_torch_colors[k] as Color).to_html(true)])
+	lines.append('mat.set_shader_parameter("pixelSize", %.3f)' % float(_torch_vals["pixelSize"]))
+	lines.append('mat.set_shader_parameter("speed", %.2f)' % float(_torch_vals["speed"]))
+	lines.append('mat.set_shader_parameter("sparkSpeed", %.2f)' % float(_torch_vals["sparkSpeed"]))
+	lines.append("const FLAME_SIZE_MIN := Vector2(%.2f, %.2f)" % [float(_torch_vals["flame_width"]), float(_torch_vals["flame_h_min"])])
+	lines.append("const FLAME_SIZE_MAX := Vector2(%.2f, %.2f)" % [float(_torch_vals["flame_width"]), float(_torch_vals["flame_h_max"])])
+	lines.append("const SEVERITY_EXP: float = %.2f" % float(_torch_vals["severity_exp"]))
+	lines.append("const BURST_SEVERITY: float = %.2f" % float(_torch_vals["burst_severity"]))
+	lines.append("# activate_below (player attach arg): %.2f" % float(_torch_vals["activate_below"]))
+	lines.append("")
+	lines.append("# Hex shield (graphics/hex_shield.gdshader) — shield_component.gd / player.gd")
+	lines.append('mat.set_shader_parameter("shield_color", Color.html("%s"))' % _shield_color.to_html(false))
+	lines.append('mat.set_shader_parameter("cells", %.1f)' % float(_shield_vals["cells"]))
+	lines.append('mat.set_shader_parameter("scroll", Vector2(%.2f, %.2f))' % [float(_shield_vals["scroll_x"]), float(_shield_vals["scroll_y"])])
+	lines.append('mat.set_shader_parameter("line_width", %.2f)' % float(_shield_vals["line_width"]))
+	lines.append('mat.set_shader_parameter("rim_power", %.1f)' % float(_shield_vals["rim_power"]))
+	lines.append('mat.set_shader_parameter("fill_alpha", %.2f)' % float(_shield_vals["fill_alpha"]))
+	lines.append('mat.set_shader_parameter("flicker", %.2f)' % float(_shield_vals["flicker"]))
+	lines.append('mat.set_shader_parameter("dome", %.2f)' % float(_shield_vals["dome"]))
+	lines.append("# bubble size (px): %.0f" % float(_shield_vals["ring_px"]))
+	var text := "\n".join(lines)
+	DisplayServer.clipboard_set(text)
+	if _readout:
+		_readout.text = "Copied torch GDScript to clipboard"
+
+
+func _on_reset() -> void:
+	_init_tuner_defaults()
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/player_fx_lab.tscn")
+
+
+# ---- helpers ---------------------------------------------------------------
+
+func _mk_label(t: String, size: int = 16) -> Label:
 	var l := Label.new()
 	l.text = t
 	l.add_theme_font_size_override("font_size", size)
@@ -160,8 +549,8 @@ func _mk_slider(lo: float, hi: float, step: float, val: float) -> HSlider:
 func _mk_button(t: String, cb: Callable) -> Button:
 	var b := Button.new()
 	b.text = t
-	b.add_theme_font_size_override("font_size", 18)
-	b.custom_minimum_size = Vector2(0, 44)
+	b.add_theme_font_size_override("font_size", 16)
+	b.custom_minimum_size = Vector2(0, 40)
 	b.pressed.connect(cb)
 	return b
 

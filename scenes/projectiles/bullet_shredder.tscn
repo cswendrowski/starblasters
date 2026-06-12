@@ -9,7 +9,7 @@ radius = 3.0
 script = ExtResource("1_shr")
 speed = 300
 damage = 1
-max_lifetime = 1.6
+max_lifetime = 0.45
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_shr")

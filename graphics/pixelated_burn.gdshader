@@ -8,7 +8,10 @@ uniform float radius = 0.0;
 uniform float borderWidth = 0.18;
 uniform float burnMult = 0.34;
 uniform sampler2D noiseTexture;
-uniform vec4 burnColor : source_color = vec4(1.0, 0.5, 0.1, 1.0);
+// Tint applied to the burn-edge gradient. White = no-op (the colorCurve ramp shows as
+// authored); a coloured burnColor recolours the burn (Roman 2026-06-11: the picker was
+// dead — the fragment sampled colorCurve and never read burnColor).
+uniform vec4 burnColor : source_color = vec4(1.0, 1.0, 1.0, 1.0);
 uniform float pixel_size = 0.04;
 uniform float blend_steps = 6.0;
 uniform sampler2D colorCurve;
@@ -21,6 +24,6 @@ void fragment() {
 	mask = floor(mask * blend_steps) / blend_steps;
 	vec4 curve_value = texture(colorCurve, vec2(mask, 0.0));
 	float blendMask = pow(mask, 0.1);
-	COLOR.rgb = mix(COLOR.rgb, curve_value.rgb, blendMask);
+	COLOR.rgb = mix(COLOR.rgb, curve_value.rgb * burnColor.rgb, blendMask);
 	COLOR.a *= min(COLOR.a, 1.0 - float(dist < radius));
 }
