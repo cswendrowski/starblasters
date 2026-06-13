@@ -29,14 +29,18 @@ const vec2[8] DIRECTIONS = {
 
 float gtz(float input) { return max(0.0, sign(input)); }
 
-float check(sampler2D tex, vec2 from, vec2 size) {
+// Sample TEXTURE directly here rather than receiving it as a parameter. Passing the built-in
+// sampler `TEXTURE` into a user function trips Godot's custom_samplers codegen check
+// ("!custom_samplers.has(function->arguments[j].tex_builtin)"). gl_compatibility tolerated it;
+// forward_plus (the 2026-06-10 pivot) hard-faults the combat pipeline on it. (Roman 2026-06-12)
+float check(vec2 from, vec2 size) {
 	float result = 0.0;
 	for (int i = 0; i < 4 * type; i++) {
-		result += texture(tex, from + DIRECTIONS[i] * size * thickness).a;
+		result += texture(TEXTURE, from + DIRECTIONS[i] * size * thickness).a;
 	}
 	return gtz(result);
 }
 
 void fragment() {
-	COLOR = mix(COLOR, clr, check(TEXTURE, UV, TEXTURE_PIXEL_SIZE) * (1.0 - gtz(COLOR.a)));
+	COLOR = mix(COLOR, clr, check(UV, TEXTURE_PIXEL_SIZE) * (1.0 - gtz(COLOR.a)));
 }

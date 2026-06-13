@@ -7,7 +7,6 @@ extends "res://scripts/projectiles/base_bullet.gd"
 # primary spread-fire path; this script only adds the cosmetics. Mirrors the look in
 # scripts/projectiles/swarm_missile.gd.
 
-const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
 const MissileSmokeTrail = preload("res://scripts/effects/missile_smoke_trail.gd")
 const GLOW_COLOR := Color(1.0, 1.0, 0.0)  # #FFFF00 — matches the swarm core
 
@@ -23,7 +22,8 @@ func _apply_visuals() -> void:
 	_core.texture = _pixel_texture()
 	_core.modulate = GLOW_COLOR
 	add_child(_core)
-	GlowShaderFx.apply(_core, GLOW_COLOR)
+	# No glow-halo quad — the WorldEnvironment bloom glows the bright yellow core directly
+	# (Roman 2026-06-12, glow-halo redundancy pass).
 	# Same smoke/flame trail fx the swarm missile emits.
 	var trail = MissileSmokeTrail.new()
 	add_child(trail)

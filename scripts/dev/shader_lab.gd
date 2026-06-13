@@ -39,6 +39,9 @@ const SD_DMG_SCHEMA := [
 	{"key": "expl_density", "label": "Death expl density", "min": 0.5, "max": 3.0, "step": 0.1, "def": 1.0},
 	{"key": "expl_shockwave", "label": "Death shockwave", "min": 0.0, "max": 3.0, "step": 0.1, "def": 1.0},
 	{"key": "debris", "label": "Death debris ×", "min": 0.0, "max": 3.0, "step": 0.1, "def": 1.0},
+	{"key": "burn_trails", "label": "Burn trails (#)", "min": 1.0, "max": 4.0, "step": 1.0, "def": 1.0},
+	{"key": "torch_lead", "label": "Torch lead (dmg %, 0=off)", "min": 0.0, "max": 0.3, "step": 0.01, "def": 0.12},
+	{"key": "burn_intro", "label": "Burn intro 0burst/1scale/2rnd", "min": 0.0, "max": 2.0, "step": 1.0, "def": 2.0},
 ]
 const SD_SIZES := ["small", "medium", "large"]
 const SD_PATH_SPEED := 52.0   # px/s the ship travels along the rounded-rect path
@@ -96,7 +99,7 @@ const PANEL_BORDER := Color(0.35, 0.55, 0.75, 0.85)
 # Gallery ship targets are zoomed for INSPECTION only — in-game sprites stay 1×.
 const GALLERY_SPRITE_ZOOM := 3.0
 
-const MODES := ["Embers", "Smoke", "Glow", "Bloom Env", "Modes", "Damage", "Disintegrate", "Explosions", "Expl. Tuner", "Ship Dmg", "Asteroids", "Gallery"]
+const MODES := ["Embers", "Smoke", "Glow", "Bloom Env", "Modes", "Damage", "Disintegrate", "Explosions", "Expl. Tuner", "Ship Dmg", "Nebula", "Asteroids", "Gallery"]
 
 const EMBER_VARIANTS := ["normal", "inverted", "smoke"]
 
@@ -181,9 +184,27 @@ const KNOBS := {
 		{"key": "sparks", "label": "Spark density", "min": 0.0, "max": 3.0, "step": 0.1, "def": 1.0},
 		{"key": "debris", "label": "Ember density", "min": 0.0, "max": 3.0, "step": 0.1, "def": 1.0},
 	],
+	"Nebula": [
+		{"key": "scale", "label": "Scale", "min": 0.5, "max": 8.0, "step": 0.1, "def": 2.5},
+		{"key": "octaves", "label": "Octaves", "min": 1.0, "max": 8.0, "step": 1.0, "def": 5.0},
+		{"key": "density", "label": "Density", "min": 0.0, "max": 2.0, "step": 0.05, "def": 1.0},
+		{"key": "edge", "label": "Edge softness", "min": 0.0, "max": 1.0, "step": 0.02, "def": 0.4},
+		{"key": "warp_strength", "label": "Warp strength", "min": 0.0, "max": 4.0, "step": 0.05, "def": 1.4},
+		{"key": "warp_scale", "label": "Warp scale", "min": 0.2, "max": 4.0, "step": 0.05, "def": 1.0},
+		{"key": "wisp", "label": "Wisp filaments", "min": 0.0, "max": 1.0, "step": 0.02, "def": 0.3},
+		{"key": "swirl", "label": "Swirl speed (anim)", "min": 0.0, "max": 2.0, "step": 0.02, "def": 0.4},
+		{"key": "drift", "label": "Y drift (auto)", "min": 0.0, "max": 0.05, "step": 0.001, "def": 0.004},
+		{"key": "flight", "label": "Flight scroll (sim)", "min": 0.0, "max": 0.5, "step": 0.005, "def": 0.06},
+		{"key": "opacity", "label": "Opacity", "min": 0.0, "max": 1.0, "step": 0.02, "def": 1.0},
+		{"key": "max_alpha", "label": "Max alpha", "min": 0.0, "max": 1.0, "step": 0.02, "def": 0.7},
+		{"key": "pixels", "label": "Pixelation", "min": 0.0, "max": 480.0, "step": 10.0, "def": 200.0},
+	],
 	"Asteroids": [],
 	"Gallery": [],
 }
+
+const NEBULA_SHADER_PATH := "res://graphics/nebula2.gdshader"
+const NEBULA_COLORSCHEME := "res://SpaceBG/Colorscheme.tres"
 
 # Every shader currently in the project that can be shown standalone.
 # mode: "rect" = ColorRect quad, "sprite" = ship sprite, "glowfx" = live
@@ -275,6 +296,10 @@ var _env: Environment = null
 # Damage / Disintegrate tuner state.
 var _dmg_mat: ShaderMaterial = null
 var _burn_mat: ShaderMaterial = null
+
+# Nebula tuner state.
+var _nebula_mat: ShaderMaterial = null
+var _nebula_scroll: float = 0.0   # simulated flight scroll (UV units)
 # Tunable damage-overlay colours (defaults = damage_noise.gdshader defaults).
 var _dmg_colors := {
 	"replace_color": Color(0.0, 0.0, 0.0, 1.0),
@@ -308,6 +333,7 @@ var _sd_knob_box: VBoxContainer = null # sub-box for the per-size damage-tell kn
 var _sd_suite_label: Label = null     # "Damage-tell suite — <size>" header (updated on size change)
 var _sd_dmg_vals: Dictionary = {}     # size → {key: value}
 var _sd_dead: bool = false            # ship destroyed — stays put until New Ship (no auto-respawn)
+var _sd_pool_by_cat: Dictionary = {}  # "small"/"medium"/"large" → [scene paths] (measured once)
 
 static var _ship_tex: Texture2D = null
 
@@ -503,6 +529,7 @@ func _set_mode(idx: int) -> void:
 	_env = null
 	_dmg_mat = null
 	_burn_mat = null
+	_nebula_mat = null
 	_smoke_host = null
 	_smoke_trail = null
 	_sd_ship = null
@@ -531,6 +558,8 @@ func _set_mode(idx: int) -> void:
 			_enter_expl_tuner()
 		"Ship Dmg":
 			_enter_ship_dmg()
+		"Nebula":
+			_enter_nebula()
 		"Asteroids":
 			_enter_asteroids()
 		"Gallery":
@@ -1173,8 +1202,9 @@ func _init_sd_dmg_vals() -> void:
 		_sd_dmg_vals[sz] = d
 	# Differentiated per-size baselines so the suite visibly shifts out of the box (small = subtler,
 	# large = more dramatic). These are just starting points — tune each from here.
-	_sd_dmg_vals["small"].merge({"spark_amount": 30.0, "expl_size": 0.8, "expl_density": 1.0, "expl_shockwave": 0.6, "debris": 0.7}, true)
-	_sd_dmg_vals["large"].merge({"spark_amount": 90.0, "expl_size": 1.3, "expl_density": 1.4, "expl_shockwave": 1.5, "debris": 1.4}, true)
+	_sd_dmg_vals["small"].merge({"spark_amount": 30.0, "expl_size": 0.8, "expl_density": 1.0, "expl_shockwave": 0.6, "debris": 0.7, "burn_trails": 1.0}, true)
+	_sd_dmg_vals["medium"].merge({"burn_trails": 2.0}, true)
+	_sd_dmg_vals["large"].merge({"spark_amount": 90.0, "expl_size": 1.3, "expl_density": 1.4, "expl_shockwave": 1.5, "debris": 1.4, "burn_trails": 3.0}, true)
 
 
 func _rebuild_sd_dmg_knobs() -> void:
@@ -1204,9 +1234,13 @@ func _sd_dmg_cfg() -> Dictionary:
 
 
 func _sd_size_category(sc: float) -> String:
-	if sc < 1.15:
+	# Sprite sizes cluster at ~16px (1.0), ~32px (2.0), and 48-56px (3.0+). Bands chosen so EACH is
+	# populated: small = 16px chaff, medium = 32px mid, large = 48px+ (Roman 2026-06-12). The old
+	# 1.15/1.9 split left MEDIUM empty — every sprite was either 1.0 or ≥2.0 — so the panel fell
+	# through to the wrong-size fallback whenever "medium" was selected.
+	if sc < 1.5:
 		return "small"
-	if sc < 1.9:
+	if sc < 2.5:
 		return "medium"
 	return "large"
 
@@ -1244,6 +1278,29 @@ func _build_sd_path() -> void:
 	_sd_path_len = _sd_path.get_baked_length()
 
 
+# Measure every spawnable faction-roster enemy ONCE (in-tree, so _ready-set scales count) and bucket
+# it into small/medium/large. Cached — built on the first spawn. The categorized pools let the panel
+# always honour the selected size band (or report an empty one) instead of guessing-and-falling-back.
+func _build_sd_pool() -> void:
+	if not _sd_pool_by_cat.is_empty():
+		return
+	for sz in SD_SIZES:
+		_sd_pool_by_cat[sz] = []
+	for p in Factions.ENEMY_TAGS.keys():
+		var path := String(p)
+		if not ResourceLoader.exists(path):
+			continue
+		var inst: Node2D = load(path).instantiate()
+		_stage.add_child(inst)
+		_freeze_node(inst)
+		if inst.is_in_group("enemies"):
+			inst.remove_from_group("enemies")
+		var spr := _find_body_sprite(inst)
+		var cat := _sd_size_category(_ship_size_scale(inst, spr))
+		(_sd_pool_by_cat[cat] as Array).append(path)
+		inst.queue_free()
+
+
 func _spawn_sd_ship() -> void:
 	if _sd_ship != null and is_instance_valid(_sd_ship):
 		_sd_ship.queue_free()
@@ -1257,37 +1314,23 @@ func _spawn_sd_ship() -> void:
 	if _sd_label != null:
 		_sd_label.text = "0%"
 	_sd_dist = 0.0
-	# Pull from the LIVE faction roster (every spawnable enemy), not the curated dev manifest.
-	var pool: Array = []
-	for p in Factions.ENEMY_TAGS.keys():
-		var pp := String(p)
-		if ResourceLoader.exists(pp):
-			pool.append(pp)
-	if pool.is_empty():
+	# Categorize the whole roster ONCE (measured in-tree), then pick ONLY from the selected band.
+	# This replaces the old random-retry-with-fallback, which spawned a wrong-size ship whenever the
+	# band was sparse/empty (Roman 2026-06-12).
+	_build_sd_pool()
+	var band: Array = _sd_pool_by_cat.get(_sd_size_cat, [])
+	if band.is_empty():
+		if _sd_label != null:
+			_sd_label.text = "no %s ship" % _sd_size_cat
 		return
-	# Pick a ship MATCHING the selected size category. Measure IN-TREE (after _ready) — many enemies
-	# set their sprite scale/texture in _ready, so a detached measure mis-sizes them and the wrong
-	# ship spawns. Add → freeze → measure; keep on a match (last attempt accepts anything), else free.
-	var ship: Node2D = null
-	var sprite: Sprite2D = null
-	var size_scale: float = 1.0
-	for attempt in 10:
-		var path := String(pool[randi() % pool.size()])
-		var inst: Node2D = load(path).instantiate()
-		_stage.add_child(inst)        # run _ready so the sprite/scale are final
-		_freeze_node(inst)
-		if inst.is_in_group("enemies"):
-			inst.remove_from_group("enemies")
-		var spr := _find_body_sprite(inst)
-		var sc := _ship_size_scale(inst, spr)
-		if _sd_size_category(sc) == _sd_size_cat or attempt == 9:
-			ship = inst
-			sprite = spr
-			size_scale = sc
-			break
-		inst.queue_free()
-	if ship == null:
-		return
+	var path := String(band[randi() % band.size()])
+	var ship: Node2D = load(path).instantiate()
+	_stage.add_child(ship)            # run _ready so the sprite/scale are final
+	_freeze_node(ship)
+	if ship.is_in_group("enemies"):
+		ship.remove_from_group("enemies")
+	var sprite: Sprite2D = _find_body_sprite(ship)
+	var size_scale: float = _ship_size_scale(ship, sprite)
 	# (engine trails keep running per _freeze_node; glow masks render — the dummy looks like a live ship.)
 	ship.position = (_sd_path.sample_baked(0.0) if _sd_path != null and _sd_path_len > 0.0 else _sd_center)
 	# Start already facing along the path so it doesn't snap-turn on the first frame.
@@ -1344,7 +1387,10 @@ func _ship_size_scale(ship: Node, sprite: Sprite2D) -> float:
 			fsz.x /= float(sprite.hframes)
 		if sprite.vframes > 1:
 			fsz.y /= float(sprite.vframes)
-		var px: float = maxf(fsz.x, fsz.y) * maxf(absf(sprite.scale.x), absf(sprite.scale.y))
+		# GLOBAL scale, not local — display_scale may be applied to the ship ROOT (so the sprite's
+		# own scale stays 1.0 even on a big ship). global_scale composes both (Roman 2026-06-12).
+		var gs: Vector2 = sprite.global_scale
+		var px: float = maxf(fsz.x, fsz.y) * maxf(absf(gs.x), absf(gs.y))
 		return clampf(px / 16.0, 0.6, 3.5)
 	if "display_scale" in ship:
 		return clampf(float(ship.display_scale), 0.6, 3.5)
@@ -1366,15 +1412,81 @@ func _freeze_node(n: Node) -> void:
 		_freeze_node(c)
 
 
-# The ship's body Sprite2D — prefer the conventional "Sprite2D", else the first one found.
+# The ship's body Sprite2D — prefer the conventional "Sprite2D", else the first non-mask Sprite2D
+# (skipping glow / shadow masks, which can differ in size and would mis-measure the hull).
 func _find_body_sprite(ship: Node) -> Sprite2D:
 	var s := ship.get_node_or_null("Sprite2D")
 	if s is Sprite2D:
 		return s
 	for c in ship.find_children("*", "Sprite2D", true, false):
+		var nm := String(c.name).to_lower()
+		if nm.contains("glow") or nm.contains("mask") or nm.contains("shadow"):
+			continue
 		if c is Sprite2D:
 			return c as Sprite2D
 	return null
+
+
+# ---- Nebula mode -----------------------------------------------------------
+# The live backdrop nebula (graphics/nebula2.gdshader, as spawned by layer_stellar._spawn_nebula).
+# Full-screen rect so the whole cloud reads; SWIRL animates the warp field in place, FLIGHT sims the
+# in-game parallax scroll. NOTE: in game it's far dimmer (max_alpha ~0.1-0.2 per band) and currently
+# DISABLED on the live stellar layers — this page is where the dynamic look gets dialed in first.
+
+func _enter_nebula() -> void:
+	_nebula_scroll = 0.0
+	var shader := load(NEBULA_SHADER_PATH) as Shader
+	if shader == null:
+		return
+	_nebula_mat = ShaderMaterial.new()
+	_nebula_mat.shader = shader
+	var cs = load(NEBULA_COLORSCHEME)
+	if cs != null:
+		_nebula_mat.set_shader_parameter("colorscheme", cs)
+	_nebula_mat.set_shader_parameter("seed", 7.0)
+	_nebula_mat.set_shader_parameter("uv_correct", Vector2(1.0, 1.0))
+	_nebula_mat.set_shader_parameter("scroll_offset", Vector2.ZERO)
+	var rect := ColorRect.new()
+	rect.name = "Nebula"
+	rect.size = Vector2(480, 270)
+	rect.position = Vector2.ZERO
+	rect.color = Color(0, 0, 0, 0)
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rect.material = _nebula_mat
+	_stage.add_child(rect)
+	_apply_nebula_knobs()
+
+	_hd_note("NEBULA (backdrop)", Vector2(Playfield.CENTER.x - 30.0, 14.0))
+	_knob_box.add_child(_label("Nebula (backdrop)", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("graphics/nebula2.gdshader — domain-warped FBM\nclouds + wisp filaments. SWIRL animates the warp\nfield in place; FLIGHT sims the parallax scroll. In\ngame it's far dimmer (max α ~0.1-0.2) + currently OFF\non the live layers — dial the look in here first.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_knob_box.add_child(HSeparator.new())
+	_build_knobs("Nebula")
+
+
+func _apply_nebula_knobs() -> void:
+	if _nebula_mat == null:
+		return
+	var v: Dictionary = _values["Nebula"]
+	_nebula_mat.set_shader_parameter("scale", float(v["scale"]))
+	_nebula_mat.set_shader_parameter("octaves", int(v["octaves"]))
+	_nebula_mat.set_shader_parameter("density", float(v["density"]))
+	_nebula_mat.set_shader_parameter("edge_sharpness", float(v["edge"]))
+	_nebula_mat.set_shader_parameter("warp_strength", float(v["warp_strength"]))
+	_nebula_mat.set_shader_parameter("warp_scale", float(v["warp_scale"]))
+	_nebula_mat.set_shader_parameter("wisp_strength", float(v["wisp"]))
+	_nebula_mat.set_shader_parameter("swirl_speed", float(v["swirl"]))
+	_nebula_mat.set_shader_parameter("drift_speed", float(v["drift"]))
+	_nebula_mat.set_shader_parameter("opacity", float(v["opacity"]))
+	_nebula_mat.set_shader_parameter("max_alpha", float(v["max_alpha"]))
+	_nebula_mat.set_shader_parameter("pixels", float(v["pixels"]))
+
+
+func _tick_nebula(delta: float) -> void:
+	if _nebula_mat == null:
+		return
+	# Simulate flight: advance scroll_offset the way layer_stellar drives it in-game (UV units).
+	_nebula_scroll += float(_values["Nebula"]["flight"]) * delta
+	_nebula_mat.set_shader_parameter("scroll_offset", Vector2(0.0, _nebula_scroll))
 
 
 # ---- Asteroids mode --------------------------------------------------------
@@ -1643,6 +1755,8 @@ func _process(delta: float) -> void:
 			_tick_expl_tuner(delta)
 		"Ship Dmg":
 			_tick_ship_dmg(delta)
+		"Nebula":
+			_tick_nebula(delta)
 		"Disintegrate":
 			_tick_disintegrate(delta)
 		"Asteroids":
@@ -1822,6 +1936,8 @@ func _apply_live() -> void:
 			_apply_damage_knobs()
 		"Disintegrate":
 			_apply_disintegrate_knobs()
+		"Nebula":
+			_apply_nebula_knobs()
 
 
 func _add_action(text: String, cb: Callable) -> void:
@@ -1977,6 +2093,8 @@ func _on_copy() -> void:
 			txt = _snippet_expl_tuner()
 		"Ship Dmg":
 			txt = _snippet_ship_dmg()
+		"Nebula":
+			txt = _snippet_nebula()
 		"Asteroids":
 			txt = "# Shader Lab — gameplay asteroid hazard (scenes/enemies/enemy_asteroid.tscn)\n# var a = load(\"res://scenes/enemies/enemy_asteroid.tscn\").instantiate()\n# parent.add_child(a); a.start(pos)   # then a.explode() for the dusty shatter\n"
 		"Gallery":
@@ -2072,6 +2190,24 @@ func _snippet_ship_dmg() -> String:
 			var key := String(def["key"])
 			t += "\t\"%s\": %s,\n" % [key, _fmt(float(vals.get(key, def["def"])), float(def["step"]))]
 		t += "}\n"
+	return t
+
+
+func _snippet_nebula() -> String:
+	var v: Dictionary = _values["Nebula"]
+	var t := "# Shader Lab — nebula (graphics/nebula2.gdshader; in game: layer_stellar._spawn_nebula)\n"
+	t += "mat.set_shader_parameter(\"scale\", %.1f)\n" % float(v["scale"])
+	t += "mat.set_shader_parameter(\"octaves\", %d)\n" % int(v["octaves"])
+	t += "mat.set_shader_parameter(\"density\", %.2f)\n" % float(v["density"])
+	t += "mat.set_shader_parameter(\"edge_sharpness\", %.2f)\n" % float(v["edge"])
+	t += "mat.set_shader_parameter(\"warp_strength\", %.2f)\n" % float(v["warp_strength"])
+	t += "mat.set_shader_parameter(\"warp_scale\", %.2f)\n" % float(v["warp_scale"])
+	t += "mat.set_shader_parameter(\"wisp_strength\", %.2f)\n" % float(v["wisp"])
+	t += "mat.set_shader_parameter(\"swirl_speed\", %.2f)   # NEW — TIME-driven filament swirl\n" % float(v["swirl"])
+	t += "mat.set_shader_parameter(\"drift_speed\", %.3f)\n" % float(v["drift"])
+	t += "mat.set_shader_parameter(\"opacity\", %.2f)\n" % float(v["opacity"])
+	t += "mat.set_shader_parameter(\"max_alpha\", %.2f)   # in game: ~0.1-0.2 per band\n" % float(v["max_alpha"])
+	t += "mat.set_shader_parameter(\"pixels\", %.0f)\n" % float(v["pixels"])
 	return t
 
 

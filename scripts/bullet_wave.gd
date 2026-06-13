@@ -6,8 +6,6 @@ extends "res://scripts/projectiles/base_bullet.gd"
 # tracks "which enemies have already been hit" and only kills the bullet
 # once the per-bullet budget is spent.
 
-const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
-
 # Roman, 2026-05-18 weapon balance: 5 -> 3 so wave can't drill through
 # a whole boss formation in a single shot.
 @export var max_hits: int = 3
@@ -27,10 +25,8 @@ func _ready() -> void:
 	_hits_left = max_hits
 
 
-func _apply_visuals() -> void:
-	# Subtle shader halo, color auto-derived from the wave sprite. Replaces
-	# both the old scene "Glow" children and the procedural GlowFX halo.
-	GlowShaderFx.apply_to_host(self)
+# No per-bullet glow halo — the WorldEnvironment bloom glows the bright wave sprite directly
+# (Roman 2026-06-12, glow-halo redundancy pass).
 
 
 # Override the per-hit consumption: skip enemies we've already tagged,

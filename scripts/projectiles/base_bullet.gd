@@ -84,12 +84,29 @@ func _ready() -> void:
 	if variant != null:
 		_apply_variant()
 	_apply_visuals()
+	_apply_hdr_bloom()
 
 
 # Subclasses override to attach glow / trail. Base is a no-op so a plain
 # bullet still moves+hits without any visual polish.
 func _apply_visuals() -> void:
 	pass
+
+
+# Push the bolt sprite into the HDR range so the combat WorldEnvironment bloom (glow_hdr_threshold
+# = 1.0 in main.tscn) glows it directly — replaces the removed per-bullet glow-halo quad (Roman
+# 2026-06-12). Only the bright bolt pixels exceed 1.0, so transparent edges stay matte: no
+# rectangular halo, no frame-bleed ghost. Gain is one-line tunable. Subclasses with a nested core
+# (swarm_missile) brighten it themselves.
+const BULLET_HDR_GAIN := 1.8
+
+func _apply_hdr_bloom() -> void:
+	for nm in ["Sprite2D", "AnimatedSprite2D", "BulletSprite", "Core"]:
+		var n := get_node_or_null(nm)
+		if n is CanvasItem:
+			var ci := n as CanvasItem
+			var c := ci.self_modulate
+			ci.self_modulate = Color(c.r * BULLET_HDR_GAIN, c.g * BULLET_HDR_GAIN, c.b * BULLET_HDR_GAIN, c.a)
 
 
 # Apply a BulletVariant's stat and visual overrides. Called from _ready()

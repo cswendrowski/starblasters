@@ -11,6 +11,9 @@ extends Node2D
 @export var pixel_density: float = 1.0
 @export var asteroid_presence: float = 0.65
 @export_range(1.0, 2.0) var asteroid_density_scale: float = 1.0
+# Nebula filament churn — TIME-driven swirl applied to any per-POI nebula the stellar config carries
+# (current_stellar.nebula_band/nebula_tint). 0 = static (legacy). Backdrop tune (Roman 2026-06-12).
+@export_range(0.0, 1.0) var nebula_swirl: float = 0.25
 # Hazard-node decoration (background mines). OFF by default so the SHARED coordinator
 # (also used by the main menu + signal events) never paints mines from a stale
 # current_hazard_subtype. ONLY the combat backdrop (main.tscn) turns this on, so mines
@@ -136,8 +139,18 @@ func _populate() -> void:
 	var ast_color: Color = Color(0.9, 0.88, 0.85, 1.0)
 	if run_node != null and run_node.has_meta("asteroid_base_color"):
 		ast_color = run_node.get_meta("asteroid_base_color")
+	# Per-POI nebula (Roman 2026-06-12): the sector map authors a nebula_band/nebula_tint on some
+	# nodes; when present, enable + tint + swirl the stellar layers' procedural nebula. Empty band =
+	# no nebula (most nodes), so it stays an occasional atmospheric beat, not a constant wash.
+	var nebula_band: String = String(stellar.get("nebula_band", ""))
+	var nebula_tint: Color = stellar.get("nebula_tint", Color.WHITE)
 	for layer in _scroll_layers:
 		if layer != null and layer.has_method("populate"):
+			if "nebula_enabled" in layer:
+				layer.set("nebula_enabled", nebula_band != "")
+				if nebula_band != "":
+					layer.set("nebula_tint", nebula_tint)
+					layer.set("nebula_swirl", nebula_swirl)
 			if "asteroid_count" in layer:
 				if has_asteroids:
 					var base_ct: int = int(layer.get("asteroid_count"))

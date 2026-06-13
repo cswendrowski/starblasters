@@ -16,6 +16,8 @@ const RESET_THRESHOLD := 340.0
 @export var nebula_edge: float = 0.4
 @export var nebula_drift: float = 0.004
 @export var nebula_chance: float = 0.7
+@export var nebula_swirl: float = 0.0           # TIME-driven filament churn (0 = static); coordinator drives it
+@export var nebula_tint: Color = Color(1, 1, 1, 1)  # multiplies the cloud colour (per-POI palette)
 @export var pixel_density: float = 1.0
 @export var mine_count: int = 0
 
@@ -165,6 +167,7 @@ func _spawn_nebula() -> void:
 	_nebula_rect.name = "Nebula"
 	_nebula_rect.size = Vector2(480, 270)
 	_nebula_rect.color = Color(0, 0, 0, 0)
+	_nebula_rect.modulate = nebula_tint   # per-POI palette tint multiplies the cloud colour
 	_nebula_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var mat := ShaderMaterial.new()
 	mat.shader = shader
@@ -189,6 +192,7 @@ func _spawn_nebula() -> void:
 		mat.set_shader_parameter("warp_strength", 0.8)
 		mat.set_shader_parameter("warp_scale", 1.0)
 		mat.set_shader_parameter("wisp_strength", 0.2)
+		mat.set_shader_parameter("swirl_speed", nebula_swirl)   # dynamic filament churn
 		mat.set_shader_parameter("opacity", 1.0)
 		mat.set_shader_parameter("scroll_offset", Vector2.ZERO)
 	_nebula_rect.material = mat

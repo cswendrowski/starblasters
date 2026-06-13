@@ -32,6 +32,9 @@ sim_stream_out.txt
 # Test-harness PASS-marker dumps (written by tools/test_*.gd, never read by anything)
 tools/_*_result.txt
 
+# Capture/run stdout logs (regenerable; written by capture + headless runs)
+*.log
+
 # OS / IDE
 Thumbs.db
 .DS_Store

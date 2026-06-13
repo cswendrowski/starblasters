@@ -1,80 +1,140 @@
 # Worklist
 
-_Cleaned 2026-06-11 (round 3): the round-3 feedback batch (shaders, minefield, nebula,
-sector map, weapons, patterns) landed and was verified in code — only genuinely-open items
-remain. Shader tasks are front-loaded (current focus). Most items still want an in-game
-**eyeball pass**._
+_Refreshed 2026-06-12: folded the open items from `TODO.md` into one curated working list, marked the
+2026-06-11/12 VFX batch done, and added the **nebula investigation** (bottom). Deep specs still live in
+`TODO.md` / `docs/` — this is the scannable index, not a re-paste._
 
 ---
 
-## Shaders / VFX
+## In-flight (this session — awaiting eyeball + commit)
+- **`outline_1px` forward_plus crash fix** — removed the `check(sampler2D)` function-param that
+  hard-faulted combat on Forward+; confirm asteroid + normal combat boot clean, then commit.
+- **Progressive burn trails + torch precursors** (`ship_damage_tells.gd`) — multiple trails by ship
+  size, torch→trail handoff, burst/scale-in intros. Tune in Shader Lab → Ship Dmg.
+- **Ship-Dmg size filter fix** — bands re-tuned (small <1.5 / med <2.5 / large), categorized pool
+  (no more wrong-size fallback). Verify each band spawns the right size.
 
-### DONE 2026-06-11 (shader sprint — awaiting eyeball)
-- ✅ **glow_effect_2d tuners** — 3 sliders (threshold/intensity/opacity) + 3 colour pickers
-  (color1/color2/glow) wired live, Copy-GDScript emits the setup, values persist to the tuner JSON.
-- ✅ **Ember-smoke variant** — new "smoke" entry in the Embers menu; shader `smoke` toggle desaturates
-  the streaks to grey wisps; smoke uses a late `fade_start` so the tail holds to end-of-travel.
-- ✅ **Debris-fire tuner** — Explosions tab now has 12 knobs (count/speed/gravity/drag/scale/burn +
-  flame width/height/speed); `flame_size`/`flame_speed` exposed on `ship_debris_ember`; copy snippet.
-- ✅ **Smoke orient-to-motion knob** — already wired end-to-end (Shader Lab knob → `smoke_trail_emitter`).
-- ✅ **Ember lifetime-vs-distance** — `fade_start` is a tunable knob; smoke variant defaults it late (0.92).
-- ✅ **Player damage = 50% current max** — verified correct (both consumers gate on `1-hull/max ≥ 0.5`).
-- ✅ **Enemy damage-tell** — no active enemy fire/smoke (engine flame disabled); shared `engine_torch`
-  fix covers any future re-enable. No-op.
+## Shaders / VFX — DONE 2026-06-11/12 (awaiting eyeball)
+- ✅ Centralized tunable explosion system (`play_config`: size/area/duration/density/type/glow/
+  shockwave) + editor-tweakable ember/spark particle scenes.
+- ✅ Ship damage-tell suite (overlay → marker sparks → burn → disintegrate, per-size tunable).
+- ✅ Smoke trail rebuild + `spark_trail`/`burning_trail`; fire-comet shader scrapped.
+- ✅ Sequence Lab (wreck / bomber / slow-death). Enemy Bench: full roster + faction tabs + mines disarmed.
+- ✅ glow_effect_2d tuners, ember-smoke variant, debris-fire tuner, smoke orient-to-motion.
 
-### Still open
-- ✅ **Smoke trail rebuilt 2026-06-11** — threw out the smoke_pulse strip (couldn't be tinted)
-  and the per-frame angle hacks; clean GPUParticles2D per the canonical recipe (procedural white
-  billow puff, two-tone ramp, real angular-velocity spin, emission follows motion). Awaiting eyeball.
-- ✅ **Fire comet scrapped 2026-06-11** — `burning_smoke_fx.gd` (segmented-atlas comet) + its capture
-  tools deleted; Shader Lab → Explosions now spawns `scenes/effects/burning_trail.tscn` (Roman's
-  GPUParticles2D fire trail) instead. Awaiting eyeball.
+### Still open (eyeball)
+- ✅ **Glow-halo redundancy (DONE 2026-06-12)** — pulled the `GlowShaderFx` halo off all 5 projectiles
+  (player/enemy bullets, wave, shredder, swarm); env bloom glows the bolts directly, which also
+  resolves the bullet glow-ghost residuals. Engines: enemy flame was already disabled (trails carry
+  them); player GlowMask KEPT (Roman's call — it's the emissive source bloom amplifies, not a halo).
+  Coupling: combat `glow_hdr_threshold` is 0.0 today so bolts still bloom; if lever A raises it to ~1.0,
+  brighten bolt sprites HDR-additive (lever C) or they'll stop blooming.
 
-### Eyeball decisions (need Roman)
-- **Glow-halo redundancy.** Try removing the per-object diffuse halo on bullets/engines; if the env
-  bloom reads well enough, drop it.
+## Nebula  *(rework DONE 2026-06-12 — awaiting eyeball; findings at bottom)*
+- ✅ **Dynamic swirl + re-enabled per-POI.** Added `swirl_speed` to `nebula2.gdshader` (TIME-driven
+  warp churn, default 0 = legacy); `sector_map_v3._compute_poi_stellar` now rolls a `nebula_band`/
+  `nebula_tint` on ~40% of nodes; `backdrop_coordinator` enables + tints + swirls the stellar layers
+  from it. Shader Lab → **Nebula** page added for live tuning. Verified wiring end-to-end.
+- **Eyeball + tune:** review the in-combat look (GIF `captures/nebula_live.gif`), then set per-band
+  alpha/density + the coordinator's `nebula_swirl` + `NEBULA_NODE_CHANCE` to taste.
+- **Parallax tuner blend-mode dropdown** *(still open, separate)* — the Brightness/Contrast/Color
+  sliders are VERIFIED WORKING on the live V4 backdrop (the old "not working" note was stale, from the
+  V3/CanvasGroup era). Remaining ask = a Mix/Add/Multiply/Screen blend-mode option for the per-layer
+  color. Non-trivial: `CanvasModulate` is multiply-only, so Add/Screen need a per-layer overlay or a
+  grade shader — scope on its own. (`layer_base.gd` / `parallax_tuner.gd`)
 
 ## Audio
-- **Corpo-wave audio restart.** Against corporate waves the music abruptly stops then restarts when a
-  round starts. (`music_manager.gd` — untouched so far)
+- **Corpo-wave audio restart** — music stops then restarts when a round begins (`music_manager.gd`).
 
 ## Weapons / data
-- **Muzzle-flash-as-scenes refactor.** [suggestion] Establish the muzzle flashes we use as scenes with
-  attach markers, instead of code-spawned per weapon. Optional architecture cleanup.
-- **Dev bullet-speed editor.** Adjust enemy bullet speeds in absolute **rung** terms (1–8 = 60–480
-  px/s, `Clarity`-snapped) and **save** them to `data/bullets/*.tres`. (Enemy Bench today only has a
-  relative ×-multiplier per enemy.)
-- **Codex armory label.** Rename the "Primary Cannons" category header (`enemy_codex.gd:58`) to
-  "Blaster" — the only user-facing "Cannon" string left after the shop/manage-ship rename.
-- **DPS report + `weapon_stats.csv`.** Regenerate to include Shredder + Pulse Laser. Fix the `.import`
-  first (it's `csv_translation`, spawns `.translation` junk) before tracking. Then the (report-only)
-  rebalance decision: Energy Blaster top DPS as the *free* fallback, Minigun far too weak, Autocannon
-  scales backwards.
+- **Weapons 3b** — unify legacy SingleShot/AimedShot/SpreadShot/BurstShot onto the `Weapon` resource
+  (folds in `burst_shot.tres`).
+- **Dev bullet-speed editor** — edit enemy bullet speeds in absolute rungs (1–8 = 60–480 px/s,
+  Clarity-snapped) and **save** to `data/bullets/*.tres`.
+- **Codex label rename** — "Primary Cannons" → "Blaster" (`enemy_codex.gd:58`).
+- **DPS report + `weapon_stats.csv`** — regen for Shredder + Pulse Laser; fix the `.import`
+  (csv_translation → `.translation` junk) first; then the rebalance call (Energy Blaster top DPS as the
+  free fallback, Minigun too weak, Autocannon scales backwards).
+- Smaller bullet knobs: per-pattern `bullet_speed` override, boss primitives accept `bullet_variant`,
+  wave-gen `bullet_variant_override`, chaff-speed sector scaling, `AimedShot.lead_factor`, verify
+  hunter-drone kamikaze bounty-cancel.
+- Architecture/cleanup: Muzzle-flash-as-scenes (optional), per-Part `fire_offset`, re-save
+  `drone_bits.tres`/`drone_swarm.tres`, relocate `scripts/bullet.gd`/`bullet_wave.gd` to `projectiles/`.
+- **Manage Ship modal** — PartTier badges + 20% sell UI.
+
+## Big features (unbuilt)
+- **Passive-Module bay** — 4-slot automatic-module axis + reify shields/regen/plating as Parts +
+  ~10-module roster (Repair Nanites, Ablative Plating, Targeting Computer, Overclock, …). Largest item.
+  (`TODO.md` §Supers/Modes/Modules)
+- **Run summary Phases 2–3 + run timer** — shots/accuracy/bounty-spent instrumentation + the victory
+  "patrol complete" path (Phase 1 + dated history already shipped).
+- **Sector modifiers** — pulled (kill-switched); flagged for re-eval + reimplement.
+- **Recycler — Pillar 2** — RecycleController + RecycleTuner + roster migration (playtest-gated).
+
+## Enemies / waves  *(playtest-gated)*
+- Cohesive chaff waves / bomb-drone walls / minefield real numerics + dense navigable patterns.
+- Conductor no-repeat patterns + mix-and-match lane patterns.
+- Speed audit to the 1–8 rungs (partial). Supremacy Push globbing (active lane selection).
+- s_s_rush movement facing. Tracer doubled-glow art bug. 480-speed "Sprint Dart" variant.
+- Mine hazards → 300-enemy density.
+
+## Bosses
+- Biome reskins per boss. Shared enrage-VFX helper. Bosses with omni-strafe.
+
+## Renderer (`docs/renderer_audit_2026-06-11.md`)
+- ✅ **Lever A** (`glow_hdr_threshold = 1.0`) + ✅ **Lever B** (color grade, contrast 1.08 / sat 1.12)
+  — already LIVE in main.tscn (the audit doc's "0.0" was stale).
+- ◑ **Lever C** (push FX into HDR-additive so they bloom): done for muzzle/explosion (1.9/2.1) +
+  bullets (`base_bullet.BULLET_HDR_GAIN = 1.8`, after the glow-halo removal — **eyeball the gain**).
+  Still want a >1.0 additive pass on **shield ring / beam cores / super flashes / engine GlowMask**.
+- ☐ **Lever D** (screen-space sweeteners): heat-haze behind exhaust, ripple on big booms, damage CA.
+
+## Art-gated (need sprites first)
+- **Faction gap units** — per-faction role holes still on the universal-core stopgap: supremacy
+  (drifter/crosser/elite), zealot (medium anchor / large capital), privateer (small holder/skirmisher,
+  large capital, elite), corporate (slider + elite). (`docs/m6b_faction_tagging_2026-06-06.md`)
+- **Overhaul Asteroid Hazard** — structural pass (bg asteroids overlapping playspace); hazard-slot.
+
+## Cleanup
+- `scenes/sector_map.tscn` orphan (flagged-for-later). `SmokeTrail.new(palette)` factory (not urgent).
+- Shipyard stat editor / sprite picker. Gamepad rebind in-app. Backdrop V3 missing debris sprite.
 
 ---
 
-## Big / playtest-gated
+## Nebula — investigation findings (2026-06-12)
 
-- **Recycler — Pillar 2 (roster migration).** Not started. RecycleController step-2 (timing/look owner,
-  zero-regression defaults) + the recycle dev tuner exist; the deep refactor remains — generalize
-  edge-detection out of `enemy_base`, NONE-mode opt-in, `enemy_base` delegation, MidDepthPresentation
-  shader-tint swap. Regression surface = the whole enemy roster → playtest-only. Spec:
-  `docs/recycling_system_pillar2_2026-06-04.md`.
+**Live path:** combat Backdrop = `backdrop_coordinator.tscn` (coord_v4 in `main.tscn`) →
+`LayerStellarFar/Mid/Near` (`scripts/parallax/layer_stellar.gd`) → `_spawn_nebula()` →
+`graphics/nebula2.gdshader`.
 
-- **Supremacy Push globbing — Gap 2.** Core anti-glob (`_anchor_stagger_y`, descending cruisers) + the
-  horizontal-cross overlap fix (Gap 1, height-aware crosser stagger) landed — **playtest first.**
-  Remaining = make cruiser lane *selection* active (prefer a lane whose neighbours are clear, via
-  `lane_traffic.is_lane_free`/`free_adjacent`) instead of the passive vertical-queue. Feel-dependent.
-  (`director.gd`)
+**Headline — the nebula is DISABLED in combat.** `nebula_enabled = false` in all three
+`scenes/parallax/layers/layer_stellar_*.tscn` (and the script default), and nothing flips it on at
+runtime — the coordinator never reads the `nebula_band`/`nebula_tint` stellar data that `run_state`
+already generates per node. So `_spawn_nebula()` never runs in-game. Git: it was enabled across all 3
+layers (`cb2ed0c`) then turned **off in-editor** (preserved by `caa1f8f`) — i.e. deliberately parked
+pending this rework, which is why the "dynamic animated nebula" item exists.
 
-- **Mine Hazards → 300-enemy mark.** Background decoration + new art + black-box + cross-screen leak are
-  now DONE. Remaining = DENSITY: numerous tight waves to weave/shoot through, bomblet clusters viable,
-  higher per-lane mine/bomblet density (a place we can relax the on-screen enemy cap). (`levels_v2.gd`
-  minefield + `director.gd`) [playtest]
+**The shader is a solid base.** `nebula2.gdshader` = procedural domain-warped FBM (curling-filament IQ
+recipe) + a wisp/filament band + pixelation → seamless, noise-based, pixel-art-safe. Knobs:
+scale/octaves/density/edge/warp_strength/warp_scale/wisp_strength/opacity/max_alpha/drift_speed.
 
-## Renderer (report-only levers — eyeball)
+**Animation today (when enabled):**
+- **Parallax scroll** — `layer_stellar._on_scrolled` holds the rect screen-fixed (`position.y =
+  -offset.y`) and drives the shader's `scroll_offset` from the layer's accumulated `offset.y` → the
+  cloud scrolls past as you fly (3 stellar bands = parallax depth). ✓
+- **Slow internal TIME drift** on Y (`drift_speed 0.004`). ✓ but very subtle.
 
-- Forward+ polish levers from `docs/renderer_audit_2026-06-11.md`: `glow_hdr_threshold` tune,
-  color-grade strength (contrast 1.08 / saturation 1.12), gate heat-haze (D1) to thrust-only, and push
-  more FX into HDR-additive so they bloom (shield ring, beam cores, super flashes). All eyeball calls,
-  none applied.
+**The gap → "fully animated swirl."** The domain-warp FIELD is static in shape — it only TRANSLATES
+(scroll + drift); the filaments never curl/churn/morph in place, so it reads as a frozen texture
+sliding by. Fix is cheap and needs **no new shader**: add a `swirl_speed` uniform to `nebula2.gdshader`
+and feed `TIME` into the domain-warp sample coordinates (and optionally the wisp layer) so the curl
+field evolves over time. Keep it slow (it's a backdrop) to avoid distracting from gameplay.
+
+**Recommended sequence:**
+1. Add TIME-driven swirl to `nebula2.gdshader` (`swirl_speed` uniform on the warp coords).
+2. Re-enable via the coordinator: set `nebula_enabled` + tint per-POI from the existing
+   `nebula_band`/`nebula_tint` stellar config (varies per node, respects the sector palette) rather
+   than a blanket scene flag.
+3. Capture with `tools/capture_nebula2.gd` → GIF for review **before** tuning alpha/density per band
+   (max_alpha is intentionally low — 0.1/0.2/0.15 far/mid/near — so it stays a backdrop).
+4. (Separate) fix the parallax-tuner color sliders + add the blend-mode dropdown.

@@ -3,6 +3,13 @@
 What the Forward+ pivot unlocks for a 480×270 pixel shmup, what's already leveraged, and the open polish
 opportunities. Report only — recommendations not applied except where noted.
 
+> **STATUS 2026-06-12:** levers **A + B are LIVE** in main.tscn — `glow_hdr_threshold = 1.0` (A) and
+> `adjustment_enabled` with contrast 1.08 / saturation 1.12 (B). This doc's "Current state" below
+> (which says threshold 0.0) is stale. Lever **C** is partly done: muzzle/explosion FX are HDR-bright
+> (1.9 / 2.1) and bullets now self-modulate into HDR (`base_bullet.BULLET_HDR_GAIN`, after the
+> glow-halo removal); shield ring / beam cores / super flashes still want a >1.0 additive pass.
+> Lever **D** (heat-haze / screen-ripple) unstarted.
+
 ## Current state (project.godot `[rendering]` + main.tscn)
 - `rendering_method` = **forward_plus** (the line is dropped → engine default Forward+; Windows-only build).
 - `viewport/hdr_2d = true` — 2D renders in a linear RGBA16F buffer; additive blends accumulate in HDR and

@@ -28,6 +28,11 @@ uniform float edge_sharpness : hint_range(0.0, 1.0) = 0.4;
 uniform float warp_strength : hint_range(0.0, 4.0) = 1.4;
 uniform float warp_scale : hint_range(0.2, 4.0) = 1.1;
 
+// TIME-driven swirl — evolves the domain-warp field IN PLACE (the two warp samples drift along
+// different vectors), so the filaments curl/churn over time instead of only translating with the
+// scroll. 0 = static shape (legacy, live default). Keep low — it's a backdrop. (Roman 2026-06-12)
+uniform float swirl_speed : hint_range(0.0, 2.0) = 0.0;
+
 // Wisp layer — narrow-band threshold of a higher-frequency FBM, sells the
 // stringy filaments you see in Hubble photos.
 uniform float wisp_strength : hint_range(0.0, 1.0) = 0.35;
@@ -80,9 +85,12 @@ void fragment() {
 	// vec2 perturbation, then warp the main FBM input by it. Inigo Quilez's
 	// recipe — gives nebulae the swirling/filament look real photos have.
 	int warp_oct = max(octaves - 2, 2);
+	// Animate the two warp samples along DIFFERENT vectors so the displacement field rotates/churns
+	// at each point (curling filaments) rather than rigidly translating. ts=0 → static (legacy).
+	float ts = TIME * swirl_speed;
 	vec2 q = vec2(
-		fbm(nuv * warp_scale, warp_oct),
-		fbm(nuv * warp_scale + vec2(5.2, 1.3), warp_oct)
+		fbm(nuv * warp_scale + vec2(ts * 0.12, ts * 0.10), warp_oct),
+		fbm(nuv * warp_scale + vec2(5.2, 1.3) + vec2(-ts * 0.09, ts * 0.11), warp_oct)
 	);
 	vec2 wuv = nuv + warp_strength * (q - 0.5);
 
@@ -99,7 +107,7 @@ void fragment() {
 	// Wisp pass — narrow-band peak of a higher-octave FBM, adds filament
 	// streaks on top of the soft body. Cheap (one extra FBM call).
 	if (wisp_strength > 0.0) {
-		float n_wisp = fbm(wuv * 3.5 + vec2(2.8, 9.7), max(octaves - 1, 3));
+		float n_wisp = fbm(wuv * 3.5 + vec2(2.8, 9.7) + vec2(ts * 0.15, -ts * 0.08), max(octaves - 1, 3));
 		float wisp_band = smoothstep(0.55, 0.7, n_wisp) - smoothstep(0.7, 0.85, n_wisp);
 		t = clamp(t + wisp_band * wisp_strength, 0.0, 1.0);
 	}

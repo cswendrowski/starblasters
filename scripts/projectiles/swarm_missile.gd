@@ -10,7 +10,6 @@ extends "res://scripts/projectiles/base_missile.gd"
 # the same color, and the smoke trail emits from that same marker.
 # Design: docs/swarm_launcher_secondary_2026-06-08.md.
 
-const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
 const GLOW_COLOR := Color(1.0, 1.0, 0.0)  # #FFFF00 pure yellow
 
 # 1×1 white pixel, tinted per-frame via the core sprite's modulate. Built once and
@@ -70,11 +69,10 @@ func _ready() -> void:
 		_core.name = "Core"
 		_core.texture = _pixel_texture()
 		_core.modulate = GLOW_COLOR
+		# HDR-bright (no halo quad) so the WorldEnvironment bloom (glow_hdr_threshold = 1.0) glows the
+		# yellow core directly — replaces the removed glow halo (Roman 2026-06-12).
+		_core.self_modulate = Color(1.8, 1.8, 1.8, 1.0)
 		center.add_child(_core)
-		# Diffuse glow, color FORCED to yellow-orange so it reads regardless of the
-		# 1px source. For a 1px host the halo math gives a ~15px soft blob behind
-		# the hard pixel core (GlowShaderFx.HALO_PX).
-		GlowShaderFx.apply(_core, GLOW_COLOR)
 	# Emit the smoke trail from the Center marker too. base_missile built it
 	# emitting from the root (no `exhaust_point` node); re-point it to Center.
 	# Deferred so this runs AFTER the base's own deferred attach_to(self).

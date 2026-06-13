@@ -645,6 +645,19 @@ func _get_asteroid_color(row_idx: int) -> Color:
 # Flat descriptor for the combat backdrop. Deterministic per poi.id, no
 # external state. obj_kind / planet_type mirror _build_pois_from_cache so
 # the combat scene's planet matches what the player clicked on the map.
+# Per-POI decorative nebula (Roman 2026-06-12). A minority of nodes carry a procedural nebula in the
+# combat backdrop; the band picks a palette tint. Rolled on a SEPARATE salted rng so it never perturbs
+# the planet/asteroid draw order (determinism with the sector-map render).
+const NEBULA_NODE_CHANCE := 0.4
+const NEBULA_BANDS := [
+	{"name": "nebula_amber",   "tint": Color(0.95, 0.78, 0.50)},
+	{"name": "nebula_cyan",    "tint": Color(0.55, 0.78, 1.00)},
+	{"name": "nebula_magenta", "tint": Color(0.85, 0.58, 1.00)},
+	{"name": "nebula_green",   "tint": Color(0.62, 0.95, 0.68)},
+	{"name": "nebula_crimson", "tint": Color(1.00, 0.55, 0.58)},
+]
+
+
 func _compute_poi_stellar(poi: Dictionary, row_idx: int) -> Dictionary:
 	var run := get_node("/root/Run")
 	var rows: Array = run.sector_map_cache.get("rows", [])
@@ -703,6 +716,15 @@ func _compute_poi_stellar(poi: Dictionary, row_idx: int) -> Dictionary:
 	var sv: Dictionary = _get_star_variant(row_idx)
 	var base_type: int  = sv.base_type_idx
 	var star_color: Color = EXOTIC_GLOW_COLORS[sv.exotic_idx] if sv.exotic_idx >= 0 else STAR_GLOW_COLORS[base_type]
+	# Decorative nebula roll — separate salted rng so it doesn't shift the deco_rng sequence.
+	var neb_rng := RandomNumberGenerator.new()
+	neb_rng.seed = abs(hash(poi.id) ^ run.run_seed ^ 0x4E42)
+	var nebula_band: String = ""
+	var nebula_tint: Color = Color.WHITE
+	if neb_rng.randf() < NEBULA_NODE_CHANCE:
+		var nb: Dictionary = NEBULA_BANDS[neb_rng.randi() % NEBULA_BANDS.size()]
+		nebula_band = String(nb["name"])
+		nebula_tint = nb["tint"]
 	return {
 		"obj_kind":         obj_kind,
 		"planet_idx":       planet_idx,
@@ -713,6 +735,8 @@ func _compute_poi_stellar(poi: Dictionary, row_idx: int) -> Dictionary:
 		"planet_seed":      abs(hash(poi.id) ^ run.run_seed),
 		"has_asteroids":    has_asteroids,
 		"asteroid_density": asteroid_density,
+		"nebula_band":      nebula_band,
+		"nebula_tint":      nebula_tint,
 		"moons":            moons,
 		"star_color":       star_color,
 		"star_cool":        STAR_COOL[base_type],
