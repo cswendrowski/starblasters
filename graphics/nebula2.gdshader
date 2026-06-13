@@ -39,9 +39,27 @@ uniform float wisp_strength : hint_range(0.0, 1.0) = 0.35;
 
 uniform float pixels : hint_range(0.0, 800.0) = 200.0;
 uniform vec2 uv_correct = vec2(1.0);
+// Host rect size in px — lets the pixelation snap to SQUARE, native-pixel-aligned cells (the old
+// uniform-UV snap gave non-square, off-grid cells on the 480×270 rect = glitchy pixelation).
+uniform vec2 rect_size = vec2(480.0, 270.0);
+
+// Integer hash — precision-robust at large/negative coords. The old fract(sin(...)) hash banded once
+// scale × warp × the FBM octave multiplier pushed sample coords into the thousands (sin loses float32
+// precision there), which read as glitchy blocky patches. (Roman 2026-06-12)
+uint _ihash(uint x) {
+	x ^= x >> 16u;
+	x *= 0x7feb352du;
+	x ^= x >> 15u;
+	x *= 0x846ca68bu;
+	x ^= x >> 16u;
+	return x;
+}
 
 float hash(vec2 p) {
-	return fract(sin(dot(p, vec2(127.1, 311.7)) + seed) * 43758.5453);
+	ivec2 ip = ivec2(floor(p));
+	uint h = _ihash(uint(ip.x) * 0x9e3779b9u + uint(ip.y));
+	h ^= uint(seed * 4096.0);
+	return float(_ihash(h)) * (1.0 / 4294967296.0);
 }
 
 float vnoise(vec2 p) {
@@ -68,11 +86,16 @@ float fbm(vec2 p, int oct) {
 }
 
 void fragment() {
-	// Pixelation first — snap UV to the grid so every later sample reads
-	// from the same cell, preserving the chunky aesthetic.
+	// Pixelation first — snap UV to SQUARE cells aligned to the native pixel grid. `pixels` = cells
+	// across the WIDTH; we derive a whole-native-px chunk and apply the SAME chunk on both axes, so
+	// cells stay square on the non-square rect and their edges land on native pixels (the old uniform
+	// `floor(UV*pixels)` gave 2.4×1.35px off-grid cells = the glitchy/weird pixelation).
 	vec2 uv = UV;
 	if (pixels > 1.0) {
-		uv = floor(uv * pixels) / pixels;
+		float chunk = max(1.0, round(rect_size.x / pixels));   // native px per square cell
+		vec2 px = floor(UV * rect_size);
+		px = floor(px / chunk) * chunk;
+		uv = px / rect_size;
 	}
 
 	// External scroll (gameplay-driven) + the legacy time drift on Y.

@@ -205,6 +205,29 @@ const KNOBS := {
 
 const NEBULA_SHADER_PATH := "res://graphics/nebula2.gdshader"
 const NEBULA_COLORSCHEME := "res://SpaceBG/Colorscheme.tres"
+# A/B alternates (godotshaders.com CC0, ported to Godot 4). Selector in the Nebula tab swaps between
+# these so Roman can compare the live nebula2 vs the two candidates.
+const NEBULA_ALT1 := "res://graphics/nebula_alt1.gdshader"
+const NEBULA_ALT2 := "res://graphics/nebula_alt2.gdshader"
+const NEBULA_VARIANT_NAMES := ["Nebula 2 (current)", "Alt A: 2D Nebula", "Alt B: Stars+Clouds"]
+# Per-alt direct-param knobs (set straight onto the material; compare-only, not persisted).
+const NEBULA_ALT1_KNOBS := [
+	{"param": "zoomScale", "label": "Zoom", "min": 1.0, "max": 20.0, "step": 0.5, "def": 6.0},
+	{"param": "timescale", "label": "Time scale", "min": 0.0, "max": 10.0, "step": 0.5, "def": 5.0},
+	{"param": "size", "label": "Star cell", "min": 4.0, "max": 40.0, "step": 1.0, "def": 10.0},
+	{"param": "starscale", "label": "Star scale", "min": 5.0, "max": 60.0, "step": 1.0, "def": 20.0},
+	{"param": "prob", "label": "Star sparsity", "min": 0.9, "max": 1.0, "step": 0.002, "def": 0.98},
+	{"param": "alpha", "label": "Opacity", "min": 0.0, "max": 1.0, "step": 0.02, "def": 1.0},
+]
+const NEBULA_ALT2_KNOBS := [
+	{"param": "brightness", "label": "Brightness", "min": 0.0, "max": 3.0, "step": 0.05, "def": 1.0},
+	{"param": "clouds_resolution", "label": "Cloud zoom", "min": 0.5, "max": 10.0, "step": 0.1, "def": 3.0},
+	{"param": "waveyness", "label": "Waveyness", "min": 0.0, "max": 5.0, "step": 0.05, "def": 0.5},
+	{"param": "fragmentation", "label": "Fragmentation", "min": 0.0, "max": 100.0, "step": 1.0, "def": 7.0},
+	{"param": "distortion", "label": "Distortion", "min": 0.0, "max": 10.0, "step": 0.1, "def": 0.5},
+	{"param": "blur", "label": "Blur/falloff", "min": 0.5, "max": 5.0, "step": 0.05, "def": 1.4},
+	{"param": "alpha", "label": "Opacity", "min": 0.0, "max": 1.0, "step": 0.02, "def": 1.0},
+]
 
 # Every shader currently in the project that can be shown standalone.
 # mode: "rect" = ColorRect quad, "sprite" = ship sprite, "glowfx" = live
@@ -300,6 +323,9 @@ var _burn_mat: ShaderMaterial = null
 # Nebula tuner state.
 var _nebula_mat: ShaderMaterial = null
 var _nebula_scroll: float = 0.0   # simulated flight scroll (UV units)
+var _nebula_rect: ColorRect = null
+var _nebula_variant: int = 0      # 0 = nebula2 (current), 1 = Alt A, 2 = Alt B
+var _nebula_knob_sub: VBoxContainer = null  # variant-specific knob box, rebuilt on switch
 # Tunable damage-overlay colours (defaults = damage_noise.gdshader defaults).
 var _dmg_colors := {
 	"replace_color": Color(0.0, 0.0, 0.0, 1.0),
@@ -530,6 +556,8 @@ func _set_mode(idx: int) -> void:
 	_dmg_mat = null
 	_burn_mat = null
 	_nebula_mat = null
+	_nebula_rect = null
+	_nebula_knob_sub = null
 	_smoke_host = null
 	_smoke_trail = null
 	_sd_ship = null
@@ -1435,36 +1463,125 @@ func _find_body_sprite(ship: Node) -> Sprite2D:
 
 func _enter_nebula() -> void:
 	_nebula_scroll = 0.0
-	var shader := load(NEBULA_SHADER_PATH) as Shader
-	if shader == null:
-		return
-	_nebula_mat = ShaderMaterial.new()
-	_nebula_mat.shader = shader
-	var cs = load(NEBULA_COLORSCHEME)
-	if cs != null:
-		_nebula_mat.set_shader_parameter("colorscheme", cs)
-	_nebula_mat.set_shader_parameter("seed", 7.0)
-	_nebula_mat.set_shader_parameter("uv_correct", Vector2(1.0, 1.0))
-	_nebula_mat.set_shader_parameter("scroll_offset", Vector2.ZERO)
-	var rect := ColorRect.new()
-	rect.name = "Nebula"
-	rect.size = Vector2(480, 270)
-	rect.position = Vector2.ZERO
-	rect.color = Color(0, 0, 0, 0)
-	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	rect.material = _nebula_mat
-	_stage.add_child(rect)
-	_apply_nebula_knobs()
+	_nebula_rect = ColorRect.new()
+	_nebula_rect.name = "Nebula"
+	_nebula_rect.size = Vector2(480, 270)
+	_nebula_rect.position = Vector2.ZERO
+	_nebula_rect.color = Color(0, 0, 0, 0)
+	_nebula_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_stage.add_child(_nebula_rect)
 
-	_hd_note("NEBULA (backdrop)", Vector2(Playfield.CENTER.x - 30.0, 14.0))
-	_knob_box.add_child(_label("Nebula (backdrop)", FS_BODY, UiTheme.COLOR_ACCENT))
-	_knob_box.add_child(_label("graphics/nebula2.gdshader — domain-warped FBM\nclouds + wisp filaments. SWIRL animates the warp\nfield in place; FLIGHT sims the parallax scroll. In\ngame it's far dimmer (max α ~0.1-0.2) + currently OFF\non the live layers — dial the look in here first.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_hd_note("NEBULA (A/B)", Vector2(Playfield.CENTER.x - 24.0, 14.0))
+	_knob_box.add_child(_label("Nebula — shader A/B", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("Live nebula2 vs two godotshaders.com alternates (CC0).\nPick one; knobs rebuild per shader. The alts fill opaque\n(dial Opacity for backdrop feel) and animate on their own.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	var dd := OptionButton.new()
+	dd.add_theme_font_override("font", UiTheme.active_font())
+	dd.add_theme_font_size_override("font_size", FS_BODY)
+	dd.custom_minimum_size = Vector2(0, 34)
+	for n in NEBULA_VARIANT_NAMES:
+		dd.add_item(String(n))
+	dd.select(_nebula_variant)
+	dd.item_selected.connect(_select_nebula_variant)
+	_knob_box.add_child(dd)
 	_knob_box.add_child(HSeparator.new())
-	_build_knobs("Nebula")
+	_nebula_knob_sub = VBoxContainer.new()
+	_nebula_knob_sub.add_theme_constant_override("separation", 2)
+	_knob_box.add_child(_nebula_knob_sub)
+	_select_nebula_variant(_nebula_variant)
+
+
+# Swap the previewed nebula shader + rebuild its knob set. Variant 0 = the live nebula2 (full knobs +
+# scroll sim); 1/2 = the A/B alternates (direct-param knobs, compare-only).
+func _select_nebula_variant(idx: int) -> void:
+	_nebula_variant = idx
+	_nebula_scroll = 0.0
+	if _nebula_knob_sub == null or not is_instance_valid(_nebula_knob_sub):
+		return
+	for c in _nebula_knob_sub.get_children():
+		c.queue_free()
+	_nebula_mat = ShaderMaterial.new()
+	if idx == 0:
+		_nebula_mat.shader = load(NEBULA_SHADER_PATH)
+		var cs = load(NEBULA_COLORSCHEME)
+		if cs != null:
+			_nebula_mat.set_shader_parameter("colorscheme", cs)
+		_nebula_mat.set_shader_parameter("seed", 7.0)
+		_nebula_mat.set_shader_parameter("uv_correct", Vector2(1.0, 1.0))
+		_nebula_mat.set_shader_parameter("scroll_offset", Vector2.ZERO)
+		_nebula_mat.set_shader_parameter("rect_size", Vector2(480.0, 270.0))
+		_nebula_rect.material = _nebula_mat
+		_apply_nebula_knobs()
+		for def in KNOBS["Nebula"]:
+			_add_nebula_v0_knob(def)
+	elif idx == 1:
+		_nebula_mat.shader = load(NEBULA_ALT1)
+		_nebula_rect.material = _nebula_mat
+		for k in NEBULA_ALT1_KNOBS:
+			_add_nebula_param_knob(k)
+	else:
+		_nebula_mat.shader = load(NEBULA_ALT2)
+		_nebula_mat.set_shader_parameter("noise_texture", _nebula_noise_texture())
+		_nebula_rect.material = _nebula_mat
+		var stars := CheckButton.new()
+		stars.text = "Stars on"
+		stars.button_pressed = true
+		stars.add_theme_font_override("font", UiTheme.active_font())
+		stars.add_theme_font_size_override("font_size", FS_CAPTION)
+		stars.toggled.connect(func(v: bool): _nebula_mat.set_shader_parameter("stars_on", v))
+		_nebula_knob_sub.add_child(stars)
+		for k in NEBULA_ALT2_KNOBS:
+			_add_nebula_param_knob(k)
+
+
+# A nebula2 knob (variant 0) — drives _values["Nebula"] + _apply_nebula_knobs, into the sub box.
+func _add_nebula_v0_knob(def: Dictionary) -> void:
+	var key := String(def["key"])
+	var row_lbl := _label("%s: %s" % [def["label"], _fmt(float(_values["Nebula"][key]), float(def["step"]))], FS_CAPTION, UiTheme.COLOR_FAINT)
+	_nebula_knob_sub.add_child(row_lbl)
+	var sl := HSlider.new()
+	sl.min_value = float(def["min"]); sl.max_value = float(def["max"]); sl.step = float(def["step"])
+	sl.value = float(_values["Nebula"][key])
+	sl.custom_minimum_size = Vector2(0, 24)
+	sl.value_changed.connect(func(v: float):
+		_values["Nebula"][key] = v
+		row_lbl.text = "%s: %s" % [def["label"], _fmt(v, float(def["step"]))]
+		_apply_nebula_knobs())
+	_nebula_knob_sub.add_child(sl)
+
+
+# An alt-shader knob — sets the shader param straight onto _nebula_mat (no _values persistence).
+func _add_nebula_param_knob(k: Dictionary) -> void:
+	var param := String(k["param"])
+	var deff := float(k["def"])
+	_nebula_mat.set_shader_parameter(param, deff)
+	var row_lbl := _label("%s: %s" % [k["label"], _fmt(deff, float(k["step"]))], FS_CAPTION, UiTheme.COLOR_FAINT)
+	_nebula_knob_sub.add_child(row_lbl)
+	var sl := HSlider.new()
+	sl.min_value = float(k["min"]); sl.max_value = float(k["max"]); sl.step = float(k["step"])
+	sl.value = deff
+	sl.custom_minimum_size = Vector2(0, 24)
+	sl.value_changed.connect(func(v: float):
+		_nebula_mat.set_shader_parameter(param, v)
+		row_lbl.text = "%s: %s" % [k["label"], _fmt(v, float(k["step"]))])
+	_nebula_knob_sub.add_child(sl)
+
+
+# Seamless noise for Alt B (nebula_alt2 reads RG channels of a tiling noise).
+func _nebula_noise_texture() -> Texture2D:
+	var n := FastNoiseLite.new()
+	n.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	n.frequency = 0.015
+	var t := NoiseTexture2D.new()
+	t.noise = n
+	t.width = 256
+	t.height = 256
+	t.seamless = true
+	t.as_normal_map = false
+	return t
 
 
 func _apply_nebula_knobs() -> void:
-	if _nebula_mat == null:
+	if _nebula_mat == null or _nebula_variant != 0:
 		return
 	var v: Dictionary = _values["Nebula"]
 	_nebula_mat.set_shader_parameter("scale", float(v["scale"]))
@@ -1482,9 +1599,9 @@ func _apply_nebula_knobs() -> void:
 
 
 func _tick_nebula(delta: float) -> void:
-	if _nebula_mat == null:
+	# Only nebula2 (variant 0) needs the flight-scroll sim driven; the alts animate via TIME internally.
+	if _nebula_mat == null or _nebula_variant != 0:
 		return
-	# Simulate flight: advance scroll_offset the way layer_stellar drives it in-game (UV units).
 	_nebula_scroll += float(_values["Nebula"]["flight"]) * delta
 	_nebula_mat.set_shader_parameter("scroll_offset", Vector2(0.0, _nebula_scroll))
 
@@ -2194,6 +2311,19 @@ func _snippet_ship_dmg() -> String:
 
 
 func _snippet_nebula() -> String:
+	# Alts: dump the current live shader params (they're set straight on the material).
+	if _nebula_variant != 0:
+		var path := (NEBULA_ALT1 if _nebula_variant == 1 else NEBULA_ALT2)
+		var knobs: Array = (NEBULA_ALT1_KNOBS if _nebula_variant == 1 else NEBULA_ALT2_KNOBS)
+		var ta := "# Shader Lab — nebula ALT (%s)\n" % NEBULA_VARIANT_NAMES[_nebula_variant]
+		ta += "var mat := ShaderMaterial.new()\n"
+		ta += "mat.shader = preload(\"%s\")\n" % path
+		for k in knobs:
+			var pn := String(k["param"])
+			ta += "mat.set_shader_parameter(\"%s\", %s)\n" % [pn, str(_nebula_mat.get_shader_parameter(pn))]
+		if _nebula_variant == 2:
+			ta += "# Alt B needs a SEAMLESS NoiseTexture2D in `noise_texture`.\n"
+		return ta
 	var v: Dictionary = _values["Nebula"]
 	var t := "# Shader Lab — nebula (graphics/nebula2.gdshader; in game: layer_stellar._spawn_nebula)\n"
 	t += "mat.set_shader_parameter(\"scale\", %.1f)\n" % float(v["scale"])

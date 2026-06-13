@@ -17,6 +17,13 @@ Captured from Cody's 2026-05-19 punch list. Ordered roughly by leverage.
 > Blaster-Replacement + weapons batch. The Worklist has been **cleared**; its still-open items are
 > consolidated in **"Carried from Worklist (2026-06-11)"** immediately below.
 > **Sector modifiers are PULLED** (kill-switch in run_state) pending re-eval — see below.
+>
+> **2026-06-12 session** (`3af593d`, `4f862fd` on main): a VFX/backdrop batch — centralized tunable
+> explosions, ship damage-tell suite + progressive burn trails, smoke/spark/burning-trail rebuild,
+> Sequence Lab, Enemy Bench (full roster + faction tabs + mines disarmed); the **dynamic-nebula** rework
+> (swirl + per-POI re-enable + Shader Lab page + A/B alts); **glow-halo → bloom** (pulled projectile
+> halos, HDR-bright bolts); the **`outline_1px` Forward+ crash fix**; and confirmation that renderer
+> **levers A+B** are already live (lever C partial). Per-item status: **`Worklist.md`** (refreshed).
 
 ## Carried from Worklist (2026-06-11)
 
@@ -266,8 +273,17 @@ RecycleController must preserve those contracts._
 
 ## Cobalt 2026-05-21 backlog
 
-- [ ] **Dynamic animated nebula** — adjust nebula to be dynamic, animated, noise-based, and seamless. Current V3 nebula uses `nebula2.gdshader` (domain-warped + filaments, scroll_offset driven from layer accumulated scroll). May need new shaders for a fully animated swirl. Build prototype + capture for review.
-- [ ] **V3 parallax color correction + adjustment sliders not working** — Brightness / Contrast / Colorization in the tuner aren't tinting V3 layers reliably. After the CanvasGroup removal we're on per-child modulate via the tuner's fallback path; need to confirm whether modulate IS being written and whether Parallax2D propagates it through tiled draws in Godot 4.3. **Also add a blend-mode dropdown** for the per-layer color system (Mix / Add / Multiply / Screen).
+- [x] **Dynamic animated nebula** — DONE 2026-06-12 (`4f862fd`). `nebula2.gdshader` got a `swirl_speed`
+  uniform (TIME-driven domain-warp churn = animated swirl), the nebula is re-ENABLED in combat per-POI
+  (sector_map → coordinator → layer_stellar, from a rolled `nebula_band`/`nebula_tint`), and a Shader
+  Lab → Nebula page tunes it live + A/B's it vs two godotshaders.com alternates (`nebula_alt1/2`,
+  uncommitted). Also fixed the pixelation (square/native-aligned) + replaced the sin-hash (precision
+  banding). FINALIZING: Roman picking the winning shader via the A/B before baking live defaults.
+- [~] **V3 parallax color sliders + blend-mode dropdown** — the Brightness/Contrast/Colorization sliders
+  are VERIFIED WORKING on the live V4 backdrop (per-layer `CanvasModulate` grade in `layer_base`; the
+  "not working" was stale from the V3/CanvasGroup era). REMAINING = the **blend-mode dropdown** (Mix /
+  Add / Multiply / Screen) — non-trivial: CanvasModulate is multiply-only, so Add/Screen need a
+  per-layer overlay or grade shader. (`layer_base.gd` / `parallax_tuner.gd`)
 - [x] **Phase Shift + Focus supers not working** — RESOLVED by the Shift-Mode rebuild (2026-06-08,
   `0ef66ad`..`9b55e47`). Hyper + Phase are no longer supers — they're SHIFT_MODE stances on Shift
   (Focus default), Smart Bomb is the only super. Phase now has a bright-blue glow tell (`9845725`).
@@ -380,8 +396,8 @@ Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" fl
 
 ### Visual / VFX
 
-- [ ] **Dynamic animated nebula** — already in Cobalt 2026-05-21 backlog above; keep.
-- [ ] **V3 parallax color sliders not working + blend-mode dropdown** — already in Cobalt 2026-05-21 backlog above; keep.
+- [x] **Dynamic animated nebula** — DONE 2026-06-12 (`4f862fd`); see the Cobalt backlog entry above for detail.
+- [~] **V3 parallax blend-mode dropdown** — sliders verified working; only the Mix/Add/Mul/Screen blend dropdown remains (see Cobalt entry above).
 - [ ] **Galaxy Backdrop V3 missing debris sprite** — `scripts/parallax/galaxy_backdrop_v3.gd:392` `# TODO — needs a debris sprite`. (Source: `scripts/parallax/galaxy_backdrop_v3.gd:392`)
 - [x] **Moon/planet drift off the bottom on long combats** — DONE (call sheet #10, `9845725`).
   Roman's call: ~4 min to drift fully off-screen, no wrap. Retuned the planet layer `scroll_rate`

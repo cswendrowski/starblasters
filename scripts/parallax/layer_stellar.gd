@@ -195,6 +195,7 @@ func _spawn_nebula() -> void:
 		mat.set_shader_parameter("swirl_speed", nebula_swirl)   # dynamic filament churn
 		mat.set_shader_parameter("opacity", 1.0)
 		mat.set_shader_parameter("scroll_offset", Vector2.ZERO)
+		mat.set_shader_parameter("rect_size", _nebula_rect.size)   # square, native-aligned pixelation
 	_nebula_rect.material = mat
 	add_child(_nebula_rect)
 
