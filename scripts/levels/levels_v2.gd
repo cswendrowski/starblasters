@@ -8,10 +8,9 @@ const LevelData = preload("res://scripts/levels/level_def.gd")
 const StraightDown = preload("res://scripts/enemies/patterns/straight_down.gd")
 const SCurve = preload("res://scripts/enemies/patterns/s_curve.gd")
 const Loiter = preload("res://scripts/enemies/patterns/loiter.gd")
-const SingleShot = preload("res://scripts/enemies/shoot_patterns/single_shot.gd")
-const SpreadShot = preload("res://scripts/enemies/shoot_patterns/spread_shot.gd")
-const AimedShot = preload("res://scripts/enemies/shoot_patterns/aimed_fire.gd")
-const BurstShot = preload("res://scripts/enemies/shoot_patterns/burst_shot.gd")
+# Weapons 3b (2026-06-13): hazard shoot helpers build the unified Weapon (was the legacy
+# SingleShot/SpreadShot/AimedShot/BurstShot classes).
+const Weapon = preload("res://scripts/enemies/shoot_patterns/weapon.gd")
 const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const FirecoreScene = preload("res://scenes/enemies/core/enemy_spitter.tscn")
 const DrifterScene = preload("res://scenes/enemies/core/enemy_drifter.tscn")
@@ -51,24 +50,32 @@ const BeelinePlayer = preload("res://scripts/enemies/patterns/beeline_player.gd"
 const BulwarkDrift = preload("res://scripts/enemies/patterns/bulwark_drift.gd")
 
 static func _single() -> Resource:
-	var sp = SingleShot.new()
+	var sp = Weapon.new()
+	sp.fire_pattern = Weapon.FirePattern.SINGLE
+	sp.aim = Weapon.Aim.STRAIGHT_DOWN
 	sp.bullet_scene = EnemyBullet
 	return sp
 
 static func _spread(count: int, degrees: float) -> Resource:
-	var sp = SpreadShot.new()
+	var sp = Weapon.new()
+	sp.fire_pattern = Weapon.FirePattern.SPREAD
+	sp.aim = Weapon.Aim.STRAIGHT_DOWN
 	sp.bullet_scene = EnemyBullet
-	sp.bullet_count = count
+	sp.spread_count = count
 	sp.spread_degrees = degrees
 	return sp
 
 static func _aimed() -> Resource:
-	var sp = AimedShot.new()
+	var sp = Weapon.new()
+	sp.fire_pattern = Weapon.FirePattern.AIMED
+	sp.aim = Weapon.Aim.AT_PLAYER
 	sp.bullet_scene = EnemyBullet
 	return sp
 
 static func _burst(count: int, interval: float) -> Resource:
-	var sp = BurstShot.new()
+	var sp = Weapon.new()
+	sp.fire_pattern = Weapon.FirePattern.BURST
+	sp.aim = Weapon.Aim.STRAIGHT_DOWN
 	sp.bullet_scene = EnemyBullet
 	sp.burst_count = count
 	sp.burst_interval = interval

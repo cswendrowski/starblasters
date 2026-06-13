@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://bbullaser001"]
 
-[ext_resource type="Script" uid="uid://dnmfi0ia7f020" path="res://scripts/bullet.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://dnmfi0ia7f020" path="res://scripts/projectiles/bullet.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://cgdc263yo2lhy" path="res://graphics/projectiles/blaster_medium.png" id="2_n8bpe"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]

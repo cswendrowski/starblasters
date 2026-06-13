@@ -105,9 +105,10 @@ landed. Grouped by effort.
   - _2026-06-08: LARGELY DONE via the migration — the known hand-rolled holdouts were removed:
     strafer (→ "nose" Weapon), bomber tail gun (→ arc-gated EnemyTurret), beam shooter (already
     shared BeamEmitter), frigate retired (→ BROADSIDE). BulletVariant library is in use everywhere
-    (see B2 below). REMAINING gap = **Weapons 3b**: the bulk still fire via the legacy
-    SingleShot/AimedShot/SpreadShot/BurstShot classes, not the unified `Weapon` resource. A formal
-    grep-sweep for any last hand-rolled spawns is still worthwhile._
+    (see B2 below). REMAINING gap = **Weapons 3b**: ◑ PRODUCERS DONE 2026-06-13 — `make_shoot`/`levels_v2`/
+    `wave_generator` now build the unified `Weapon` (the bulk of enemy firing); the legacy classes survive only
+    in ~6 designer `.tres` + ~5 enemy scenes (the deletion tail). A formal grep-sweep for any last hand-rolled
+    spawns is still worthwhile._
 - [ ] **Tracer art hframes/masking** — tracer sprites render doubled with an offset glow;
   check hframes + frame masking on the tracer textures (`enemy_tracer` / `tracer-*` + variants).
   - _2026-06-08: STILL OPEN — not touched by the migration (art/shader bug)._
@@ -307,8 +308,13 @@ RecycleController must preserve those contracts._
   Slug/Spread Pellet/Plasma Orb/Tracker/Burst Round/Fast Pellet/Laser Bolt/Drop Pellet) +
   `BulletCatalog.scene_for()` map each variant to its own per-bullet scene; `shoot_pattern._spawn_bullet`
   resolves it, so every roster shoot_pattern fires a library variant (not the single 200 px/s scene).
-  **Remaining gap = Weapons 3b**: the legacy SingleShot/AimedShot/SpreadShot/BurstShot classes still
-  exist alongside the unified `Weapon` resource — full unification onto `Weapon` is the open piece.
+  **Weapons 3b** — ◑ PRODUCERS DONE 2026-06-13: `make_shoot` + `levels_v2` + `wave_generator` now build the
+  unified `Weapon` (dir+speed-equivalence proven via `tools/test_weapon_3b_equivalence.gd`; `burst_shot.tres`
+  folded into Weapon BURST = moot; latent `Weapon.TOWARD_CENTER` sign bug fixed). The legacy
+  SingleShot/AimedShot/SpreadShot/BurstShot/PairShot classes still exist — embedded in ~6 designer `.tres`
+  (enemy_blaster/cannon/diamond_gun/laser_cannon/wave_cannon/mg) + ~5 enemy scenes
+  (cutter/drifter/hover/weaver/skirmisher) + `test_wave_darts.tres`. Migrating those + deleting the classes is
+  the remaining (playtest-gated) tail.
 - [ ] ~~**Bulwark drift retune**~~ — _SUPERSEDED 2026-06-08._ `bulwark_drift` (25/36/0.35) was retired;
   the Bulwark now rides the new shared `drift` pattern (hover 90 / jiggle 6px / speed 1.4, randomized
   per instance). Re-author against `drift.gd` if a retune is still wanted.
@@ -345,17 +351,25 @@ Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" fl
 ### Enemies / Bullets
 
 - [x] **Bullet library refactor (B2)** — _DONE (2026-06-08 confirm)._ `BulletVariant` Resource + 10 variants shipped (the 7 specced + Fast Pellet/Laser Bolt/Drop Pellet), `BulletCatalog.scene_for()` maps each to its own scene, used by `shoot_pattern._spawn_bullet`. Open piece is **Weapons 3b** (unify the legacy shoot classes onto `Weapon`). (Source: `docs/bullet_library_2026-05-24.md`. See the Enemy-rework B2 entry above for detail.)
-- [ ] **Boss bullet primitives accept `bullet_variant`** — `boss_base.fire_aimed_burst` / `fire_ring` default to Basic; add optional variant param. (Source: `docs/bullet_library_2026-05-24.md` §6 open question 4)
+- [x] **Boss bullet primitives accept `bullet_variant`** — DONE (already shipped; verified 2026-06-13).
+  `boss_base.fire_aimed_burst` / `fire_aimed_cone` / `fire_ring` all take `variant: BulletVariant = null`
+  and route it through `_spawn_bullet` → `_resolve_variant`. (Source: `docs/bullet_library_2026-05-24.md` §6 open question 4)
 - [ ] **Wave-gen `bullet_variant_override` knob** — themed waves force all enemies to fire variant X. Add if themed waves land. (Source: `docs/bullet_library_2026-05-24.md` §6 open question 2)
-- [ ] **Per-pattern `bullet_speed` override** — `@export var bullet_speed: float = -1.0` on `shoot_pattern.gd` honored in `_spawn_bullet`. Cheapest path before the full bullet-library refactor; aimed shots want 300 not 200. (Source: `docs/enemy_speeds_2026-05-24.md` §3, §5)
+- [x] **Per-pattern `bullet_speed` override** — DONE (Wave 1, 2026-06-13). `@export var bullet_speed: float = -1.0`
+  on `shoot_pattern.gd`, honored in `_spawn_bullet` (replaces the variant baseline BEFORE the faction/sector
+  mult, clamped to the clarity ceiling). `enemy_roster.make_shoot` exposes a `"bullet_speed"` entry key. No
+  enemy opts in yet — wired + ready. (Source: `docs/enemy_speeds_2026-05-24.md` §3, §5)
 - [ ] **Chaff-speed sector scaling** — `+5%/sector` cap `+25%` if player damage already scales. (Source: `docs/enemy_speeds_2026-05-24.md` §5 open question 4)
-- [ ] **`AimedShot.lead_factor` on Skirmisher** — flip from 0 to ~0.15 for "experienced gunner" feel without raising bullet speed. (Source: `docs/enemy_speeds_2026-05-24.md` §4)
-  - _2026-06-08: STILL OPEN. Note `EnemyTurret.lead_factor` + `Weapon.lead_factor` (AT_PLAYER) already
-    exist as the knob; the old "Skirmisher" maps to the new `skirmish_*` movement — re-target this to
-    whichever enemy carries the aimed weapon._
-- [ ] **Hunter Drone kamikaze bounty cancel** — `enemy_roster.gd:97` lists 5 bounty; `enemy_hunter_drone.gd` says "no bounty for kamikaze hit" — verify the cancel-on-hit path actually fires. (Source: `docs/economy_2026-05-24.md` §5)
-  - _2026-06-08: STILL NEEDS EYEBALL. Confirmed the OFF-SCREEN path uses `_leave()` (no `died` signal,
-    no bounty). The PLAYER-HIT kamikaze path's bounty-cancel was not re-verified this pass._
+- [x] **`AimedShot.lead_factor` on Skirmisher** — DONE (Wave 1, 2026-06-13). `make_shoot`'s `"aimed"` branch
+  now honors a `"lead_factor"` entry key; applied 0.15 to the corp aimed-sniper skirmisher (`enemy_c_s_hold`
+  advance/retreat, fires `BV_AimedSniper` — the spiritual "Skirmisher"). 👁 playtest the feel; easy to
+  re-target/tune. (Source: `docs/enemy_speeds_2026-05-24.md` §4)
+- [x] **Hunter Drone kamikaze bounty cancel** — DONE (Wave 1, 2026-06-13). Was BROKEN: the cancel-on-hit
+  path did NOT fire. A contact hit detonated via the drone's `_on_contact` → `explode()` → `died.emit(bounty)`,
+  AND the player's ram (`player._on_area_entered` → `take_hit(6)`) one-shots its 2 HP and also explodes with
+  bounty intact — either way the kamikaze paid out. Fixed by zeroing `bounty_value` in `_on_contact` AND in a
+  `take_hit` override (checks for an overlapping `hull` ship), so whichever path wins the overlap race, the
+  contact kill is worth 0. Off-screen `_leave()` path already paid nothing. (Source: `docs/economy_2026-05-24.md` §5)
 
 ### Economy (`docs/economy_2026-05-24.md`)
 
@@ -421,18 +435,27 @@ Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" fl
 
 ### Weapons / Architecture (`docs/weapon_architecture_2026-05-24.md`)
 
-- [ ] **`scripts/bullet.gd` + `scripts/bullet_wave.gd` live at `scripts/` root** — siblings are in `scripts/projectiles/`. Move + update `.tscn` paths. (Source: `docs/weapon_architecture_2026-05-24.md` §5)
+- [x] **`scripts/bullet.gd` + `scripts/bullet_wave.gd` live at `scripts/` root** — DONE (Wave 1, 2026-06-13).
+  `git mv`'d both (+ their `.uid`) into `scripts/projectiles/`; updated 7 `.tscn` `path=` refs + `bullet_heavy.gd`
+  extends + the contributing doc; ran a Godot `--import` to rebuild the UID cache (the `.tscn` resolve scripts by
+  UID, so the move alone left a stale cache → parse failures until reimport). Parse + headless boot clean.
+  (Source: `docs/weapon_architecture_2026-05-24.md` §5)
 - [x] **`drone_bits.apply()` doesn't snapshot prior `ship.drone_bits` array** — DONE (lead 2026-06-08, `85bf63c`). apply() snapshots, unapply() restores. (Impact nil today; contract now symmetric.)
 - [x] **Heavy Blaster cooldown lerp** — STALE (lead 2026-06-09). Code now intentionally scales
   cooldown **0.28 → 0.18** Mk1→Mk9 (a deliberate "faster at top tier" cadence, per the script
   comments) — NOT the "0.20→0.18 drift" this item described. Reverting to constant 0.20 would remove
   the intended scaling. Closing as already-by-design.
 - [x] **basic_blaster + spread_cannon snapshot/restore asymmetry** — STALE (verified lead 2026-06-08). The `weapon_part` base already snapshots + restores `weapon_style`/`fire_sfx_kind` via `_all_snapshot_keys()`; no asymmetry in current code. Closing.
-- [ ] **`drone_bits.tres` + `drone_swarm.tres` stale defaults** — open in editor, re-save against current `.gd` defaults so Weapon Editor doesn't surface stale values. (Source: `docs/redundancy_audit_2026-05-21.md` §Weapons action items)
+- [x] **`drone_bits.tres` + `drone_swarm.tres` stale defaults** — DONE (Wave 1, 2026-06-13). `drone_bits.tres`
+  held the OLD Gradius-Options numbers (`base_drones=1`, `max_drones=5`) — and since `_build_weapon` loads the
+  `.tres` at runtime (Godot skips `_init` on disk resources), Intercept Drones was actually spawning **1 drone,
+  not the 3** the redesign specifies — fixed to 3/3. `drone_swarm.tres` got explicit `base_charges=1`/
+  `charges_per_mark=1` (matching its `.gd` + the script comment that claims the `.tres` sets them). `slot_type=5`
+  was already correct (= HARDPOINT_WING). (Source: `docs/redundancy_audit_2026-05-21.md` §Weapons action items)
 - [ ] **Weapon mounts: per-Part `fire_offset: Vector2`** — so wing-mounted vs nose-mounted weapons don't all spawn at `(0,-10)`. (Source: `docs/weapon_architecture_2026-05-24.md` §4 item 5)
-- [ ] **`burst_shot.tres` — author designer instance** — `scripts/enemies/shoot_patterns/burst_shot.gd` has no `.tres` companion. (Source: `docs/redundancy_audit_2026-05-21.md` §Enemy shoot patterns)
-  - _2026-06-08: STILL OPEN — not authored. (Bears on Weapons 3b: if BurstShot folds into `Weapon`'s
-    BURST fire_pattern, this `.tres` may be moot — decide during the 3b unification.)_
+- [x] **`burst_shot.tres` — author designer instance** — MOOT (decided 2026-06-13 during Weapons 3b). The
+  roster's burst firing now builds `Weapon` with `FirePattern.BURST` (burst_count/burst_interval), so a
+  standalone `BurstShot` `.tres` is no longer needed. (Source: `docs/redundancy_audit_2026-05-21.md` §Enemy shoot patterns)
 
 ### Dev tools
 

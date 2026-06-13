@@ -50,5 +50,22 @@ func _on_contact(area: Area2D) -> void:
 	if area == self:
 		return
 	if area.has_method("take_damage") and "hull" in area:
+		# Kamikaze rule: only a shoot-down BEFORE contact pays out. Reaching the
+		# player drops the bounty — zeroed here AND in take_hit() below, because
+		# the player's ram (take_hit(6)) may win the overlap race against this
+		# self-destruct and would otherwise award the bounty itself.
+		bounty_value = 0
 		area.take_damage(contact_damage)
 		explode()
+
+
+# The player rams overlapping enemies for take_hit(6) (player._on_area_entered),
+# which one-shots this 2-HP drone. If that ram is the killing blow it's still a
+# contact kill, so drop the bounty to match _on_contact — reaching the player
+# never pays out. A normal bullet hit (player far below) leaves the bounty intact.
+func take_hit(damage: int = 1) -> bool:
+	for a in get_overlapping_areas():
+		if a.has_method("take_damage") and "hull" in a:
+			bounty_value = 0
+			break
+	return super.take_hit(damage)

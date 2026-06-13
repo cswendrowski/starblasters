@@ -70,10 +70,9 @@ static func _faction_filtered(pool: Array) -> Array:
 		return pool
 	return pool.filter(func(e): return Factions.allowed_in(str(e.get("scene", "")), _faction_filter))
 
-const SingleShot = preload("res://scripts/enemies/shoot_patterns/single_shot.gd")
-const AimedShot = preload("res://scripts/enemies/shoot_patterns/aimed_fire.gd")
-const BurstShot = preload("res://scripts/enemies/shoot_patterns/burst_shot.gd")
-const SpreadShot = preload("res://scripts/enemies/shoot_patterns/spread_shot.gd")
+# Legacy shoot-pattern producers (SingleShot/AimedShot/BurstShot/SpreadShot) retired from
+# this file by Weapons 3b (2026-06-13) — make_shoot now builds the unified Weapon. The
+# classes themselves still exist (embedded in designer .tres + a few enemy scenes).
 const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
 
 # Bullet variant resources — wired per entry below.
@@ -681,6 +680,9 @@ const ENTRIES := [
 		"movement": "advance_retreat",
 		"shoot": "aimed",
 		"bullet_variant": BV_AimedSniper,
+		# Experienced gunner: leads the player's velocity a touch (0.15) so sitting
+		# still under its aimed-sniper fire is punished, without raising bullet speed.
+		"lead_factor": 0.15,
 		"base_count": 3,
 		"fire_min": 0.7, "fire_max": 1.1,
 		"hp_override": 2, "bounty_override": 15,
@@ -1354,69 +1356,60 @@ static func make_shoot(entry: Dictionary) -> Resource:
 	var kind: Variant = entry.get("shoot", null)
 	if kind == null:
 		return null
-	var pattern: Resource = null
+	# Weapons 3b (2026-06-13): every roster shoot key builds the unified Weapon resource
+	# — the legacy SingleShot/AimedShot/SpreadShot/BurstShot producers are gone here. The
+	# volley SHAPE is fire_pattern; payload + movement axis + per-pattern speed are the
+	# shared shoot_pattern knobs, set once below. (Behavior-equivalent: SINGLE/AIMED/BURST
+	# are identical to the old classes, SPREAD is the same symmetric fan. nose/broadside
+	# were already Weapon.)
+	var w = Weapon.new()
+	w.bullet_scene = EnemyBullet
 	match kind:
-		"single":
-			var s = SingleShot.new()
-			s.bullet_scene = EnemyBullet
-			pattern = s
-		"single_fast":
-			var s = SingleShot.new()
-			s.bullet_scene = EnemyBullet
-			pattern = s
+		"single", "single_fast":
+			w.fire_pattern = Weapon.FirePattern.SINGLE
+			w.aim = Weapon.Aim.STRAIGHT_DOWN
 		"single_diagonal":
-			# Fires toward the opposite side — left-spawn enemies angle right,
-			# right-spawn enemies angle left. ~30° diagonal.
-			var s = SingleShot.new()
-			s.bullet_scene = EnemyBullet
-			s.aim_angle_deg = 30.0
-			s.aim_toward_center = true
-			pattern = s
+			# Side-spawn chaff angles toward center (left→right-down, right→left-down), ~30°.
+			w.fire_pattern = Weapon.FirePattern.SINGLE
+			w.aim = Weapon.Aim.TOWARD_CENTER
+			w.aim_angle_deg = 30.0
 		"aimed":
-			var s = AimedShot.new()
-			s.bullet_scene = EnemyBullet
-			pattern = s
+			# Optional target-leading ("experienced gunner"): 0 = aim at the player's
+			# current spot; ~0.15 leads by player.velocity (entry opts in).
+			w.fire_pattern = Weapon.FirePattern.AIMED
+			w.aim = Weapon.Aim.AT_PLAYER
+			w.lead_factor = float(entry.get("lead_factor", 0.0))
 		"burst":
-			var s = BurstShot.new()
-			s.bullet_scene = EnemyBullet
-			s.burst_count = int(entry.get("burst_count", 3))
-			s.burst_interval = 0.18
-			pattern = s
+			w.fire_pattern = Weapon.FirePattern.BURST
+			w.aim = Weapon.Aim.STRAIGHT_DOWN
+			w.burst_count = int(entry.get("burst_count", 3))
+			w.burst_interval = 0.18
 		"spread5":
-			var s = SpreadShot.new()
-			s.bullet_scene = EnemyBullet
-			s.bullet_count = 5
-			s.spread_degrees = 36.0
-			pattern = s
+			w.fire_pattern = Weapon.FirePattern.SPREAD
+			w.aim = Weapon.Aim.STRAIGHT_DOWN
+			w.spread_count = 5
+			w.spread_degrees = 36.0
 		"nose":
-			# Unified Weapon firing along the nose (Aim.FORWARD). Pair the host with
-			# auto_rotate + fire_only_on_target so it strafes the player (the strafer).
-			# Early-return: Weapon uses `payload` (not the legacy `bullet_variant`).
-			var w = Weapon.new()
+			# Fire along the nose (Aim.FORWARD). Pair the host with auto_rotate +
+			# fire_only_on_target so it strafes the player (the strafer).
 			w.fire_pattern = Weapon.FirePattern.SINGLE
 			w.aim = Weapon.Aim.FORWARD
-			w.bullet_scene = EnemyBullet
-			w.payload = entry.get("bullet_variant", null)
-			w.homing_rate = entry.get("homing_rate", 0.0)
-			w.wobble_amplitude = entry.get("wobble_amplitude", 0.0)
-			w.wobble_frequency = entry.get("wobble_frequency", 0.0)
-			return w
 		"broadside":
 			# Rolling naval broadside out the player-facing flank (salvaged from the frigate).
 			# Host needs GunLeft1..N / GunRight1..N markers; set fire_interval to the per-gun
-			# beat (~0.34s) so successive ticks ripple down the hull. Early-return (uses payload).
-			var wb = Weapon.new()
-			wb.fire_pattern = Weapon.FirePattern.BROADSIDE
-			wb.bullet_scene = EnemyBullet
-			wb.payload = entry.get("bullet_variant", null)
-			wb.broadside_guns = int(entry.get("broadside_guns", 5))
-			return wb
-	if pattern != null:
-		pattern.bullet_variant = entry.get("bullet_variant", null)
-		# Projectile-movement axis (M6a.2): the firing layer drives homing/wobble, not
-		# the bullet .tres. An entry opts its weapon into movement via these keys (e.g.
-		# the Weaver's plasma orb wobbles). Faction/sector can later multiply them.
-		pattern.homing_rate = entry.get("homing_rate", 0.0)
-		pattern.wobble_amplitude = entry.get("wobble_amplitude", 0.0)
-		pattern.wobble_frequency = entry.get("wobble_frequency", 0.0)
-	return pattern
+			# beat (~0.34s) so successive ticks ripple down the hull.
+			w.fire_pattern = Weapon.FirePattern.BROADSIDE
+			w.broadside_guns = int(entry.get("broadside_guns", 5))
+		_:
+			return null
+	# Payload + shared axis/speed knobs (the roster still keys the payload "bullet_variant").
+	w.payload = entry.get("bullet_variant", null)
+	# Projectile-movement axis (M6a.2): the firing layer drives homing/wobble (e.g. the
+	# Weaver's plasma orb wobbles); faction/sector can later multiply them.
+	w.homing_rate = entry.get("homing_rate", 0.0)
+	w.wobble_amplitude = entry.get("wobble_amplitude", 0.0)
+	w.wobble_frequency = entry.get("wobble_frequency", 0.0)
+	# Absolute per-pattern bullet speed (rung-authored, px/s). -1 leaves the variant's
+	# speed; >0 replaces it before faction/sector scaling.
+	w.bullet_speed = float(entry.get("bullet_speed", -1.0))
+	return w

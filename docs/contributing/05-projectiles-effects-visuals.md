@@ -44,7 +44,7 @@ A `BulletVariant` Resource lets you override bullet behavior at runtime *without
 
 #### Subclass pattern: `_apply_visuals()`
 
-Subclasses (e.g. `scripts/bullet.gd`, `scripts/projectiles/bullet_laser.gd`) override `_apply_visuals()` to attach glow, trails, or other polish. The base is a no-op (`func _apply_visuals() -> void: pass` at line 81–82), so a plain `BaseBullet` instance moves and hits without any visual frills. Example from `scripts/bullet.gd:22–28`:
+Subclasses (e.g. `scripts/projectiles/bullet.gd`, `scripts/projectiles/bullet_laser.gd`) override `_apply_visuals()` to attach glow, trails, or other polish. The base is a no-op (`func _apply_visuals() -> void: pass` at line 81–82), so a plain `BaseBullet` instance moves and hits without any visual frills. Example from `scripts/projectiles/bullet.gd:22–28`:
 
 ```gdscript
 func _apply_visuals() -> void:
@@ -184,7 +184,7 @@ Derives the glow color from the host's texture (the brightest, most-saturated no
 
 **Multi-frame sprite gotcha:** For animated bullets, the glow is **static** (the first frame's silhouette stays as the bullet animates). This is intentional — a 16×16 bullet is too small for per-frame glow ghosting to be imperceptible (see line 105–107). The tradeoff: the halo doesn't pulse with the animation, but it also doesn't ghost neighboring frames into the bloom.
 
-**Usage:** From `scripts/bullet.gd:26`:
+**Usage:** From `scripts/projectiles/bullet.gd:26`:
 ```gdscript
 GlowShaderFx.apply_to_host(self)
 ```

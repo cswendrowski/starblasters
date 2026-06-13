@@ -4,5 +4,7 @@
 
 [resource]
 script = ExtResource("1_ds")
+base_charges = 1
+charges_per_mark = 1
 display_name = ""
 slot_type = 5

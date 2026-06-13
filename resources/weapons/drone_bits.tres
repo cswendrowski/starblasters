@@ -4,7 +4,7 @@
 
 [resource]
 script = ExtResource("1_db")
-base_drones = 1
-max_drones = 5
+base_drones = 3
+max_drones = 3
 display_name = ""
 slot_type = 5

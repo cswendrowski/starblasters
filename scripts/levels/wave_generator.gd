@@ -22,7 +22,8 @@ const Roster = preload("res://scripts/levels/enemy_roster.gd")
 const WaveSpec = preload("res://scripts/levels/wave_def.gd")
 const LevelData = preload("res://scripts/levels/level_def.gd")
 const BossSweep = preload("res://scripts/enemies/patterns/boss_sweep.gd")
-const SpreadShot = preload("res://scripts/enemies/shoot_patterns/spread_shot.gd")
+# Weapons 3b (2026-06-13): the boss sweep config fires via the unified Weapon (was SpreadShot).
+const Weapon = preload("res://scripts/enemies/shoot_patterns/weapon.gd")
 const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
 
 # Per-boss chaff conflict tags. Lead-in waves drop chaff carrying any of
@@ -440,9 +441,11 @@ static func _make_boss_wave(boss_entry: Dictionary) -> WaveSpec:
 	bm.sweep_amplitude = 240.0
 	bm.sweep_frequency = 0.3
 	w_boss.movement_override = bm
-	var bs = SpreadShot.new()
+	var bs = Weapon.new()
+	bs.fire_pattern = Weapon.FirePattern.SPREAD
+	bs.aim = Weapon.Aim.STRAIGHT_DOWN
 	bs.bullet_scene = EnemyBullet
-	bs.bullet_count = 5
+	bs.spread_count = 5
 	bs.spread_degrees = 50.0
 	w_boss.shoot_pattern_override = bs
 	w_boss.fire_interval_min = 0.9

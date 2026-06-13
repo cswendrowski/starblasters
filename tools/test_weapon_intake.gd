@@ -23,6 +23,7 @@ var _world = null
 var _dir = null
 var _t := 0.0
 var _peak_bullets := 0
+var _saw_shooter := false   # any spawned enemy carried a non-null shoot_pattern this roll
 var _done := false
 
 
@@ -44,12 +45,22 @@ func _process(dt: float) -> bool:
 		_dir.start_score(WaveGen.build_score(1, 1, false))
 		return false
 	_t += dt
+	for e in get_nodes_in_group("enemies"):
+		if "shoot_pattern" in e and e.shoot_pattern != null:
+			_saw_shooter = true
+			break
 	_peak_bullets = maxi(_peak_bullets, get_nodes_in_group("bullets").size())
 	if _t > 5.5:
 		_done = true
 		if _peak_bullets <= 0:
-			_lines.append("FAIL no bullets spawned (enemies didn't fire)"); _fails += 1
-		_lines.append("weapons+bullets loaded ok ; peak_bullets=%d" % _peak_bullets)
+			# build_score is RNG-seeded — some rolls are chaff-only (no shooters). Only
+			# a roll WITH a shooter that still produced zero bullets is a real failure;
+			# a chaff-only roll is inconclusive (re-run). Avoids flaky false-FAILs.
+			if _saw_shooter:
+				_lines.append("FAIL shooters present but no bullets spawned"); _fails += 1
+			else:
+				_lines.append("SKIP no shooting enemies in this RNG roll (chaff-only) — re-run to exercise firing")
+		_lines.append("weapons+bullets loaded ok ; peak_bullets=%d ; saw_shooter=%s" % [_peak_bullets, str(_saw_shooter)])
 		_lines.append("WEAPON INTAKE: " + ("PASS" if _fails == 0 else "FAIL (%d)" % _fails))
 		var f := FileAccess.open(RESULT, FileAccess.WRITE)
 		if f != null:

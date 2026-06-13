@@ -115,7 +115,10 @@ func _aim_dir(enemy) -> Vector2:
 			# Along the enemy's nose. Mirrors enemy_base.nose_dir() (Vector2.UP rotated by facing).
 			return Vector2.UP.rotated(enemy.global_rotation)
 		Aim.TOWARD_CENTER:
-			var sign_x: float = -1.0 if enemy.global_position.x > Playfield.CENTER.x else 1.0
+			# Lean toward the playfield center: left-spawn (x < center) angles right-down,
+			# right-spawn angles left-down. Sign corrected 2026-06-13 (was reversed — it
+			# leaned AWAY from center; latent until 3b routed single_diagonal through here).
+			var sign_x: float = 1.0 if enemy.global_position.x > Playfield.CENTER.x else -1.0
 			return Vector2(0, 1).rotated(deg_to_rad(aim_angle_deg) * sign_x)
 		_:
 			return Vector2(0, 1)

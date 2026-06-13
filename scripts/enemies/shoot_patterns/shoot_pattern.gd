@@ -39,6 +39,15 @@ const ENEMY_BULLET_DAMAGE_CAP := 4
 @export var wobble_amplitude: float = 0.0
 @export var wobble_frequency: float = 0.0
 
+# Absolute per-pattern bullet speed (px/s), authored on the 1–8 px/f rung scale
+# (60–480). -1 = "leave the payload variant's speed alone". When >0 it REPLACES
+# the variant's baseline at spawn, BEFORE the enemy's faction/sector
+# bullet_speed_mult compounds — so e.g. an aimed shot can sit at 300 instead of
+# the variant's default 200 without authoring a whole new BulletVariant. Clamped
+# to the clarity ceiling so a high rung can't strobe. (TODO: cheapest path before
+# the full bullet-library speed pass.)
+@export var bullet_speed: float = -1.0
+
 
 func fire(_enemy) -> void:
 	pass
@@ -107,6 +116,11 @@ func _spawn_bullet(enemy, dir: Vector2, bv = null, spawn_override = null):
 	# Drive the projectile-movement axis (homing/wobble) — applied after
 	# _ready/_apply_variant so the pattern's axis overrides the variant's seed.
 	_apply_axis(b)
+	# Per-pattern absolute speed override (rung-authored). Replaces the variant's
+	# baseline so the firing layer owns final speed; runs BEFORE the faction/sector
+	# mult below so that scaling still compounds on top. Clamped to the ceiling.
+	if bullet_speed > 0.0 and "speed" in b:
+		b.speed = minf(bullet_speed, Clarity.ABS_MAX_SPEED)
 	# Weapon multipliers (M6b faction/sector): scale the bullet's speed (clamped to the
 	# clarity ceiling so a buff can't strobe) and damage. Applied after _apply_variant
 	# set the baselines.

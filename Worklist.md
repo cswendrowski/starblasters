@@ -44,15 +44,28 @@ items remain below. Deep specs live in `TODO.md` / `docs/` — this is the scann
 - **Corpo-wave audio restart** — music stops then restarts when a round begins (`music_manager.gd`).
 
 ## Weapons / data
-- **Weapons 3b** — unify legacy SingleShot/AimedShot/SpreadShot/BurstShot onto `Weapon` (+`burst_shot.tres`).
+> **Wave 1 sweep DONE 2026-06-13** (uncommitted, parse + headless-boot clean): relocated
+> `bullet.gd`/`bullet_wave.gd` → `projectiles/` (+ UID-cache reimport); re-saved drone_bits/drone_swarm
+> `.tres` — **Intercept Drones was spawning 1 drone not 3** (stale Gradius-era `base_drones=1`), fixed to
+> 3/3; wired a per-pattern `bullet_speed` override (`shoot_pattern.gd` honors it pre-mult, `make_shoot`
+> exposes a `"bullet_speed"` entry key); wired `AimedShot.lead_factor` through `make_shoot` + gave the corp
+> aimed-sniper skirmisher (`enemy_c_s_hold` advance/retreat) a 0.15 lead; **fixed the hunter-drone kamikaze
+> bounty leak** (awarded bounty on contact via BOTH the self-destruct and the player-ram path — now 0).
+> Codex rename + boss `bullet_variant` were already done (stale items). 👁 playtest: skirmisher lead feel +
+> Intercept-Drones count.
+- **Weapons 3b** — ◑ **PRODUCERS DONE 2026-06-13** (uncommitted): `make_shoot` + `levels_v2` + `wave_generator`
+  now build the unified `Weapon` (the bulk of enemy firing routes through one resource). Verified
+  dir+speed-equivalent to the legacy classes via `tools/test_weapon_3b_equivalence.gd` (PASS) + fixed a latent
+  `Weapon.TOWARD_CENTER` sign bug (aimed away from center; unused until now). `burst_shot.tres` is moot (folded
+  into Weapon BURST). Also de-flaked `test_weapon_intake.gd` (chaff-only RNG rolls now SKIP, not false-FAIL).
+  **REMAINING TAIL** (playtest-gated, separable): the legacy classes can't be deleted yet — still embedded in ~6
+  designer `.tres` (enemy_blaster/cannon/diamond_gun/laser_cannon/wave_cannon/mg) + ~5 enemy scenes
+  (cutter/drifter/hover/weaver/skirmisher) + `test_wave_darts.tres`. Migrate those to `Weapon`, then delete the classes.
 - **Dev bullet-speed editor** — absolute rungs (1–8 = 60–480 px/s), save to `data/bullets/*.tres`.
-- **Codex label rename** — "Primary Cannons" → "Blaster" (`enemy_codex.gd:58`).
 - **DPS report + `weapon_stats.csv`** — regen (Shredder/Pulse Laser), fix the `.import`, then rebalance
   (Energy Blaster top free DPS, Minigun weak, Autocannon scales backwards).
-- Smaller knobs: per-pattern `bullet_speed` override, boss `bullet_variant`, wave-gen variant override,
-  chaff-speed sector scaling, `AimedShot.lead_factor`, verify hunter-drone kamikaze bounty-cancel.
-- Cleanup: muzzle-flash-as-scenes (opt), per-Part `fire_offset`, re-save drone_bits/drone_swarm `.tres`,
-  relocate `scripts/bullet.gd`/`bullet_wave.gd` → `projectiles/`.
+- Smaller knobs (remaining): wave-gen `bullet_variant` override, chaff-speed sector scaling.
+- Cleanup (remaining): muzzle-flash-as-scenes (opt), per-Part `fire_offset`.
 - **Manage Ship modal** — PartTier badges + 20% sell UI.
 
 ## Big features (unbuilt)

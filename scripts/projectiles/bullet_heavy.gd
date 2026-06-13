@@ -1,4 +1,4 @@
-extends "res://scripts/bullet.gd"
+extends "res://scripts/projectiles/bullet.gd"
 
 # Heavy blaster bullet — single-frame static sprite (Roman, 2026-05-24:
 # new blaster_heavy.png is a 6×16 single-frame projectile, not the old

@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://bbulwave0001"]
 
-[ext_resource type="Script" uid="uid://sw6xmop2yaqg" path="res://scripts/bullet_wave.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://sw6xmop2yaqg" path="res://scripts/projectiles/bullet_wave.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://blcy2k86cdtl1" path="res://Mini Pixel Pack 3/Projectiles/Player_donut_shot (16 x 16).png" id="2_tex"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
