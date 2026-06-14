@@ -25,14 +25,11 @@ const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const Strings = preload("res://scripts/strings.gd")
 const OutpostSfx = preload("res://scripts/effects/outpost_sfx.gd")
 
-const UPGRADES := [
-	{"key": "hull_mk",          "name": Strings.UPGRADE_HULL_NAME,          "desc": Strings.UPGRADE_HULL_DESC},
-	{"key": "thrusters_mk",     "name": Strings.UPGRADE_THRUSTERS_NAME,     "desc": Strings.UPGRADE_THRUSTERS_DESC},
-	{"key": "shield_cap_mk",    "name": Strings.UPGRADE_SHIELD_CAP_NAME,    "desc": Strings.UPGRADE_SHIELD_CAP_DESC},
-	# Retired — no longer purchasable. armor_mk + shield_recharge_mk (old); and as of
-	# 2026-06-13 self_repair_mk + hull_plating_mk — those mechanics are now the Repair
-	# Nanites / Ablative Plating MODULES (the bay), so the overlapping upgrades are gone.
-]
+# RETIRED 2026-06-13 — ALL upgrades are now bay MODULES (hull → Reinforced Hull, thrusters
+# → Thrusters, shield capacity → Shield Core's Mk; earlier armor/shield-recharge/self-repair/
+# hull-plating). No purchasable upgrades remain — progression is weapons + modules, which roll
+# in the PARTS column. The upgrades shop column was removed; the Run int fields stay for save compat.
+const UPGRADES := []
 
 const UPGRADE_BASE_COST := 140
 const UPGRADE_COST_PER_MK := 70
@@ -88,7 +85,7 @@ const HD_H := 1080
 const STATUS_H := 96
 const MARGIN := 24
 const COL_GAP := 18
-const COL_WEAPONS_W := 600
+const COL_WEAPONS_W := 920  # widened 2026-06-13 — absorbs the retired upgrades column
 const COL_UPGRADES_W := 600
 const COL_SERVICES_W := 400  # fills remainder; recomputed at build
 const CARD_H := 140
@@ -265,16 +262,12 @@ func _build_columns(parent: CanvasLayer) -> void:
 	var top: float = STATUS_H + MARGIN * 2
 	var height: float = HD_H - top - MARGIN
 	var x: float = MARGIN
-	# Weapons column.
-	_weapons_box = _build_column(parent, Strings.OUTPOST_COL_WEAPONS, PANEL_BG_WEAPON,
+	# Parts column — weapons + supers + shift-modes + MODULES (the upgrades column was
+	# retired 2026-06-13 when the upgrades became modules; everything you equip rolls here).
+	_weapons_box = _build_column(parent, "PARTS", PANEL_BG_WEAPON,
 			x, top, COL_WEAPONS_W, height)
 	_render_weapon_offers()
 	x += COL_WEAPONS_W + COL_GAP
-	# Upgrades column.
-	_upgrades_box = _build_column(parent, Strings.OUTPOST_COL_UPGRADES, PANEL_BG_UPGRADE,
-			x, top, COL_UPGRADES_W, height)
-	_render_upgrade_offers()
-	x += COL_UPGRADES_W + COL_GAP
 	# Services column gets whatever's left.
 	var services_w: float = HD_W - MARGIN - x
 	_services_box = _build_column(parent, Strings.OUTPOST_COL_SERVICES, PANEL_BG_SERVICE,

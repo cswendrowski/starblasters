@@ -95,8 +95,12 @@ items remain below. Deep specs live in `TODO.md` / `docs/` — this is the scann
   also have **codex entries + armory_strings blurbs** (a "Modules" codex tab). **8 modules built**: Shield Core,
   Overcharge, Siphon, Repair Nanites, Ablative Plating, **Targeting Computer** (crit + purple bolts),
   **Overclock Core** (sustained-fire ramp), **Critical System De-Limiter** (fire/dmg scale as hull drops).
-  Tractor Coil cut (no pickup system). Only **Intercept Drones** remains designed-not-built. **Bay is complete.**
-  Module *feel/balance* (Mk numbers) + the purple-crit look are playtest/eyeball-gated — don't tune unprompted.
+  Tractor Coil cut (no pickup system). **Upgrades→modules (2026-06-13):** ALL shop upgrades are now modules —
+  Shield Core's Mk drives shield capacity (folded the shield-cap upgrade), + new **Reinforced Hull**, **Thrusters**,
+  **Shield Capacitor** (regen rate + delay). Outpost UPGRADES column removed (parts column widened, renamed "PARTS");
+  Manage-Ship upgrade display emptied; Salvage Cache grants a module now. Bay bumped to **6**. **11 modules total.**
+  Only **Intercept Drones** remains designed-not-built. **Bay complete.** Module *feel/balance* + purple-crit look +
+  the new shop layout are playtest/eyeball-gated — don't tune unprompted.
 - **Run summary Phases 2–3 + timer** — ✅ **DONE 2026-06-13** (branch `run-summary-2026-06-13`, local/unpushed):
   Phase 2 stats instrumented — **shots fired/hit + accuracy** (per-projectile: `player.fire_primary/secondary`
   + `enemy_base.take_hit`), **locations/signals visited** (`mark_node_completed`), **outpost visits**

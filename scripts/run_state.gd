@@ -32,7 +32,7 @@ var loadout_snapshot: Dictionary = {}
 # interchangeable, so a capped list fits better than scattered enum slots. The default
 # Shield Core occupies one; dropping it frees a slot (glass cannon). The player applies
 # this list at combat start. See docs/passive_module_bay_2026-06-13.md.
-const MODULE_BAY_SIZE := 5
+const MODULE_BAY_SIZE := 6
 var modules: Array = []
 # True once a module bay has been set up (new_run, or load-migration of an old save).
 # Gates the glass-cannon state: only an EXPLICITLY-initialized bay with no Shield Core

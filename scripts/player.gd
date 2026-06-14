@@ -1343,7 +1343,7 @@ func set_shield(value: int) -> void:
 		_shield_in_delay = true
 		if has_node("ShieldRegenTimer"):
 			$ShieldRegenTimer.stop()
-			$ShieldRegenTimer.wait_time = 5.0
+			$ShieldRegenTimer.wait_time = shield_regen_delay  # Shield Capacitor lowers this
 			$ShieldRegenTimer.start()
 	elif shield >= max_shield and has_node("ShieldRegenTimer"):
 		# At cap — halt regen.
@@ -1523,6 +1523,14 @@ const OVERCLOCK_RESET_DELAY := 0.35          # no-fire gap that resets the ramp
 const MODULE_CRIT_COLOR := Color(0.85, 0.45, 1.35)  # purple HDR bolt tint on a crit shot
 var _overclock_ramp: float = 0.0
 var _overclock_idle_t: float = 0.0
+# Converted-from-upgrade modules (Reinforced Hull / Thrusters / Shield Capacitor) — the
+# former hull_mk / thrusters_mk / shield_cap_mk are now bay modules. Default-safe (no
+# module = baseline). shield_regen_* default to the old hardcoded 5.0s delay / 1.0s ticks.
+var module_hull_bonus: int = 0               # Reinforced Hull: +max_hull pips
+var module_hull_repair_discount: float = 0.0 # Reinforced Hull Mk.9 perk
+var module_speed_pct: float = 0.0            # Thrusters: +speed fraction
+var shield_regen_delay: float = 5.0          # Shield Capacitor lowers it (sec before regen begins)
+var shield_regen_interval: float = 1.0       # Shield Capacitor lowers it (sec per +1 charge)
 
 
 # Critical System De-Limiter — fire-rate + damage bonus that scales up as hull drops,
@@ -2547,43 +2555,35 @@ func _on_shield_regen_timer_timeout() -> void:
 		# 5s delay just expired — begin 1/sec regen ticks.
 		_shield_in_delay = false
 		if shield < max_shield:
-			$ShieldRegenTimer.wait_time = 1.0
+			$ShieldRegenTimer.wait_time = shield_regen_interval  # Shield Capacitor lowers this
 			$ShieldRegenTimer.start()
 		return
-	# Regen tick: +1 HP per second.
+	# Regen tick: +1 charge per interval (shield_regen_interval; default 1s).
 	if shield < max_shield:
 		set_shield(shield + 1)
 
 
-# Read upgrade Mks from /root/Run and translate them into runtime stats.
-# Called from start() so every combat scene picks up the latest values.
-#   Hull            base 2 + min(Mk,8) pips; Mk.9 perk = hull repair -30%
-#   Armor Plating   RETIRED — no-op, kept for save compat
-#   Thrusters       +3% speed per Mk
-#   Self Repair     +1 hull on sector map return (gates on mk > 0)
-#   Shield Capacity +2 max shield HP per Mk (base 10)
-#   Shield Recharge RETIRED — regen always 1/sec after 5s delay
+# Translate the module bay + (legacy) Run upgrades into runtime stats. Called from
+# start() so every combat scene picks up the latest values. Hull / Thrusters / Shield
+# Capacity are now MODULES (2026-06-13): their contribution is read off the module_*
+# ship fields the module apply loop set in _ready, NOT Run ints.
+#   Hull            base 2 + Reinforced Hull module pips; its Mk.9 = repair −30%
+#   Thrusters       +speed % from the Thrusters module
+#   Shield          base 10 + Shield Core Mk capacity − Overcharge penalty, gated on the Core
+#   Armor / shield-recharge / self-repair / hull-plating upgrades RETIRED (save-compat fields only)
 func apply_run_upgrades() -> void:
 	if not has_node("/root/Run"):
 		return
 	var run = get_node("/root/Run")
-	# Hull: 2 base + min(Mk, 8) → Mk.1=3, Mk.8=10, Mk.9=10 (Mk.9 perk is repair discount).
-	max_hull = 2 + min(int(run.hull_mk), 8)
-	hull_repair_discount = 0.30 if run.hull_mk >= 9 else 0.0
-	# hull_plating_mk RETIRED 2026-06-13 — its RNG shrug is superseded by the Ablative
-	# Plating MODULE (deterministic every-Nth-hit absorb, module_ablative_n). No shrug from
-	# the upgrade anymore; the field stays in run_state for save compat.
-	hull_shrug_chance = 0.0
-	# armor_mk retired — no DR applied (kept in run_state for save compat).
-	var speed_pct: float = 1.0 + float(run.thrusters_mk) * 0.03
-	speed_multiplier = max(0.3, speed_pct)
-	# Shield: 10 base + 2 per Mk + 2 bonus at Mk.9 → Mk.1=12, Mk.8=26, Mk.9=30.
-	var _shield_bonus := 2 if run.shield_cap_mk >= 9 else 0
-	max_shield = 10 + int(run.shield_cap_mk) * 2 + _shield_bonus
-	# Module bay: Shield Core's Mk bonus + Overcharge's charge penalty, then the
-	# glass-cannon gate — an INITIALIZED bay with no Shield Core means no shield at all.
-	# (Un-initialized bay / pre-bay save reads as shielded; load_from_disk migrates old saves.)
-	max_shield += module_shield_bonus - module_shield_charge_penalty
+	# Hull: 2 base + the Reinforced Hull module's pips. Mk.9 perk = repair discount.
+	max_hull = 2 + module_hull_bonus
+	hull_repair_discount = module_hull_repair_discount
+	hull_shrug_chance = 0.0  # the RNG shrug is the Ablative Plating module now (module_ablative_n)
+	# Speed: baseline + the Thrusters module's bonus.
+	speed_multiplier = max(0.3, 1.0 + module_speed_pct)
+	# Shield: base 10 + the Shield Core's Mk capacity (module_shield_bonus) − Overcharge's
+	# charge penalty, then the glass-cannon gate (initialized bay + no Shield Core = no shield).
+	max_shield = 10 + module_shield_bonus - module_shield_charge_penalty
 	if bool(run.get("bay_initialized")) and not run.has_module("shield_core"):
 		max_shield = 0
 	max_shield = maxi(0, max_shield)

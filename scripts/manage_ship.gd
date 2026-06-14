@@ -40,14 +40,10 @@ const LOADOUT_SLOTS := [
 	{"slot": SlotTypes.SlotType.DEVICE_BAY_1, "label": "SUPER", "color": Color(1.0, 0.55, 0.95)},
 	{"slot": SlotTypes.SlotType.SHIFT_MODE, "label": "SHIFT MODE", "color": Color(0.55, 1.0, 0.70)},
 ]
-# Live, purchasable upgrades only. armor_mk / shield_recharge_mk (old) and
-# self_repair_mk / hull_plating_mk (retired 2026-06-13 — now the Repair Nanites /
-# Ablative Plating MODULES) are dropped from the display.
-const UPGRADE_KEYS := [
-	{"key": "hull_mk", "name": "Hull"},
-	{"key": "thrusters_mk", "name": "Thrusters"},
-	{"key": "shield_cap_mk", "name": "Shield Capacity"},
-]
+# All upgrades retired 2026-06-13 — they're bay MODULES now (Reinforced Hull, Thrusters,
+# Shield Core capacity, etc.), shown in the MODULE BAY row of the loadout column. The
+# old int fields stay in run_state for save compat but are no longer displayed/bought.
+const UPGRADE_KEYS := []
 
 var _loadout_box: VBoxContainer = null
 var _owned_box: VBoxContainer = null

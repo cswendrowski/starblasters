@@ -730,19 +730,10 @@ func _do_wreck_scavenge_ammo() -> void:
 
 # Salvage Cache — three sub-outcomes, weighted. The ammo refill re-rolls
 # itself if the player has no metered weapons so the event isn't wasted.
-# Live upgrades only — retired keys (armor_mk/shield_recharge_mk, and self_repair_mk/
-# hull_plating_mk as of 2026-06-13) are excluded so the Salvage Cache never grants a dud.
-const _SALVAGE_UPGRADE_KEYS := [
-	"hull_mk", "thrusters_mk", "shield_cap_mk",
-]
-const _SALVAGE_UPGRADE_LABELS := {
-	"hull_mk": "Hull",
-	"thrusters_mk": "Thrusters",
-	"shield_cap_mk": "Shield Capacity",
-}
-const _SALVAGE_MK_CAP := 9
+# (The old _SALVAGE_UPGRADE_KEYS/LABELS/MK_CAP were removed 2026-06-13 when all upgrades
+# became modules — the "upgrade" outcome now salvages a random MODULE; see _salvage_outcome_upgrade.)
 
-# 40% +1Mk upgrade, 35% weapon offer, 25% ammo refill.
+# 40% module salvage, 35% weapon offer, 25% ammo refill.
 func _do_salvage_cache(reroll_depth: int = 0) -> void:
 	var roll: float = _rng.randf()
 	if roll < 0.40:
@@ -764,23 +755,22 @@ func _do_salvage_cache(reroll_depth: int = 0) -> void:
 
 
 func _salvage_outcome_upgrade() -> void:
+	# Upgrades retired 2026-06-13 — they're bay MODULES now, so this outcome salvages a
+	# random MODULE and stows it (equip it later in Manage Ship). Mk follows the player's
+	# best equipped module so the grant stays sector-appropriate. Falls back to a weapon.
 	if not has_node("/root/Run"):
 		_finish_to_sector_map(Strings.OUTCOME_SALVAGE_NO_RUN)
 		return
 	var run := get_node("/root/Run")
-	var eligible: Array = []
-	for k in _SALVAGE_UPGRADE_KEYS:
-		if int(run.get(k)) < _SALVAGE_MK_CAP:
-			eligible.append(k)
-	if eligible.is_empty():
-		# All upgrades maxed — try weapon offer instead so the event still pays.
+	var mk: int = 1
+	for m in run.modules:
+		if m != null and "mark" in m:
+			mk = maxi(mk, int(m.mark))
+	var mod = PartCatalog.roll_for_slot(_rng, Slots.SlotType.MODULE, mk)
+	if mod == null:
 		_salvage_outcome_weapon()
 		return
-	var key: String = eligible[_rng.randi() % eligible.size()]
-	var new_mk: int = int(run.get(key)) + 1
-	run.set(key, new_mk)
-	var label: String = String(_SALVAGE_UPGRADE_LABELS.get(key, key))
-	_finish_to_sector_map(Strings.OUTCOME_SALVAGE_UPGRADE % [label, new_mk], ETone.GOOD)
+	_finish_to_sector_map(Strings.OUTCOME_SALVAGE_STOWED_GENERIC, ETone.GOOD, mod)
 
 
 # Roll a weapon at >= current Mk in either CANNON or HARDPOINT_WING slot,

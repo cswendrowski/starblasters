@@ -59,8 +59,8 @@ the refactor safe to land without a playtest breaking survival systems.
 
 ## Module roster
 
-**BUILT (8, 2026-06-13):**
-- **Shield Core** *(default)* — gates the shield (above). Drop = glass cannon.
+**BUILT (11, 2026-06-13). Bay size = 6.**
+- **Shield Core** *(default)* — gates the shield AND its Mk now drives capacity (base 10 + 2/Mk + 4 at Mk.9 → 30; the old shield_cap upgrade folded in). Drop = glass cannon.
 - **Overcharge Core** — +damage % (fire path `module_damage_mult`), −1 max shield charge. Pure stat; default-safe.
 - **Siphon Core** — kills restore a sliver of SHIELD charge (NEVER Mode Energy — spec §8 runaway lever). One kill hook.
 - **Repair Nanites** — gated in-combat hull regen tick (`module_regen_interval`), capped at max−1.
@@ -68,6 +68,13 @@ the refactor safe to land without a playtest breaking survival systems.
 - **Targeting Computer** — primary crit chance (`module_crit_chance`, ×2 dmg) + a purple HDR bolt tint on crit.
 - **Overclock Core** — sustained-fire rate ramp (`module_overclock_max`; ramp/decay on the player), resets on release.
 - **Critical System De-Limiter** — fire-rate + damage scale with hull lost, peaking at 1 hull (`module_delimiter_max`, `_delimiter_bonus()`). (was "Adrenal Surge".)
+- **Reinforced Hull** — +max_hull pips (`module_hull_bonus`, up to +8) + Mk.9 repair discount. (the old Hull upgrade.)
+- **Thrusters** — +move speed % (`module_speed_pct`). (the old Thrusters upgrade.)
+- **Shield Capacitor** — lower shield-regen delay + faster per-charge tick (`shield_regen_delay`/`shield_regen_interval`).
+
+**Upgrades retired entirely (2026-06-13):** hull/thrusters/shield-capacity are the modules above; the
+outpost UPGRADES column was removed (parts column widened + renamed "PARTS"); Manage-Ship upgrade list
+emptied; the Salvage Cache "upgrade" outcome now grants a random MODULE. Run int fields kept for save compat.
 
 **Tail — designed, not built:**
 - Intercept Drones (reuse the sidelined `drone_bits` ablative drones) — the only remaining one.

@@ -14,6 +14,9 @@ const AblativePlating = preload("res://scripts/parts/ablative_plating.gd")
 const TargetingComputer = preload("res://scripts/parts/targeting_computer.gd")
 const OverclockCore = preload("res://scripts/parts/overclock_core.gd")
 const SystemDelimiter = preload("res://scripts/parts/system_delimiter.gd")
+const ReinforcedHull = preload("res://scripts/parts/reinforced_hull.gd")
+const Thrusters = preload("res://scripts/parts/thrusters.gd")
+const ShieldCapacitor = preload("res://scripts/parts/shield_capacitor.gd")
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 
@@ -69,6 +72,18 @@ func _go() -> void:
 	var dl9 = SystemDelimiter.new(); dl9.mark = 9
 	_assert(absf(dl1._max_bonus() - 0.25) < 0.001, "De-Limiter Mk.1 = +25%")
 	_assert(absf(dl9._max_bonus() - 0.75) < 0.001, "De-Limiter Mk.9 = +75%")
+	# Former-upgrade modules.
+	var sc9m = ShieldCore.new(); sc9m.mark = 9
+	_assert(sc9m._capacity_bonus() == 20, "Shield Core Mk.9 capacity bonus = 20 (→ max_shield 30)")
+	var rh1 = ReinforcedHull.new(); rh1.mark = 1
+	var rh9 = ReinforcedHull.new(); rh9.mark = 9
+	_assert(rh1._pips() == 1 and rh9._pips() == 8, "Reinforced Hull Mk.1=+1 / Mk.9=+8 pips")
+	var th1 = Thrusters.new(); th1.mark = 1
+	var th9 = Thrusters.new(); th9.mark = 9
+	_assert(absf(th1._speed_pct() - 0.03) < 0.001 and absf(th9._speed_pct() - 0.27) < 0.001, "Thrusters +3%/Mk → +27% at Mk.9")
+	var cap9 = ShieldCapacitor.new(); cap9.mark = 9
+	_assert(cap9._delay() < 5.0 and cap9._interval() < 1.0, "Shield Capacitor lowers delay (%.1f) + interval (%.2f)" % [cap9._delay(), cap9._interval()])
+	_assert(run.MODULE_BAY_SIZE == 6, "bay size bumped to 6")
 
 	# --- D. Shop roll produces modules (item-gen rules) ---
 	var rng := RandomNumberGenerator.new()
@@ -123,6 +138,24 @@ func _go() -> void:
 	_assert(p._delimiter_bonus() == 0.0, "De-Limiter bonus 0 at full hull")
 	p.hull = 1
 	_assert(p._delimiter_bonus() > 0.0, "De-Limiter bonus > 0 at 1 hull (got %.3f)" % p._delimiter_bonus())
+	# Former-upgrade modules feed the player stats.
+	p.module_hull_bonus = 0
+	var rh5 = ReinforcedHull.new(); rh5.mark = 5; rh5.apply(p)
+	p.apply_run_upgrades()
+	_assert(p.max_hull > 2, "Reinforced Hull raises max_hull above base 2 (got %d)" % p.max_hull)
+	p.module_speed_pct = 0.0
+	Thrusters.new().apply(p)
+	p.apply_run_upgrades()
+	_assert(p.speed_multiplier > 1.0, "Thrusters raises speed_multiplier (got %.2f)" % p.speed_multiplier)
+	p.shield_regen_delay = 5.0; p.shield_regen_interval = 1.0
+	ShieldCapacitor.new().apply(p)
+	_assert(p.shield_regen_delay < 5.0 and p.shield_regen_interval < 1.0, "Shield Capacitor speeds shield regen")
+	# Shield Core Mk drives capacity (folded the old shield_cap upgrade in).
+	p.module_shield_bonus = 0; p.module_shield_charge_penalty = 0
+	run.modules = [ShieldCore.new()]
+	var score9 = ShieldCore.new(); score9.mark = 9; score9.apply(p)
+	p.apply_run_upgrades()
+	_assert(p.max_shield >= 28, "Shield Core Mk.9 → max_shield ~30 (got %d)" % p.max_shield)
 
 	_finish()
 
