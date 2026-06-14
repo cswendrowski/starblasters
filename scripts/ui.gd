@@ -1,7 +1,7 @@
 extends MarginContainer
 
-const HologramHUDCls = preload("res://scripts/hologram_hud.gd")
-const HudLight = preload("res://scripts/hud_light.gd")
+const HologramHUDCls = preload("res://scripts/hud/hologram_hud.gd")
+const HudLight = preload("res://scripts/hud/hud_light.gd")
 
 const DOT_TEX   := "res://graphics/ui/hud_dot_light.png"
 const ANN_TEX   := "res://graphics/ui/hud_annunciator_danger.png"

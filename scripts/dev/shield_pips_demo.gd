@@ -7,7 +7,7 @@ extends Control
 #
 # Used by tools/capture_shield_gif.gd to generate a GIF for Roman.
 
-const ShieldPipsCls = preload("res://scripts/shield_pips_hud.gd")
+const ShieldPipsCls = preload("res://scripts/hud/shield_pips_hud.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 
 # Fake player — a Node with the property/signal surface the pip hud
