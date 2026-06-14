@@ -503,7 +503,9 @@ func _build_pois_from_cache() -> void:
 			# POI name label — skip completed nodes (spent) and BOSS type (handled separately).
 			if not poi.completed and int(poi.node_type) != int(SectorNode.NodeType.BOSS):
 				var poi_name_seed: int = abs(hash(poi.id)) ^ 0x3F7A1C2B
-				var poi_name: String = _generate_poi_name(int(poi.node_type), poi_name_seed, String(poi.get("hazard_subtype", "")))
+				# POI row shows the BODY name (planet, or asteroid for hazards). The event
+				# prefix ("Skirmish at …") moves to the depart panel on selection.
+				var poi_name: String = _poi_body_name(int(poi.node_type), poi_name_seed, String(poi.get("hazard_subtype", "")))
 				# Anchor the name to the POI's randomized pos (not the fixed label
 				# Marker2D) so it tracks the icon now that we no longer snap POIs to
 				# scene markers (Fix 2). 14px below the icon, matching the old fallback.
@@ -1846,65 +1848,42 @@ func _generate_celestial_name(type: String, seed_val: int) -> String:
 
 # Generate a short deterministic name for a POI node.
 # node_type matches SectorNode.NodeType ints. hazard_subtype is "" unless HAZARD.
-func _generate_poi_name(node_type: int, seed_val: int, hazard_subtype: String = "") -> String:
+# POI naming (reworked 2026-06-13): the sector-map POI ROW shows the BODY name — a
+# realistic sci-fi PLANET name for most nodes, an ASTEROID-field name for hazards — and
+# the depart panel adds the node EVENT prefix on selection (e.g. "Skirmish at Centauri
+# III" / "Exclusion Zone NGC-417"). Body + prefix are seeded off the POI id, so they're
+# stable per node and the row body matches the depart label.
+
+# Body name shown on the POI row (planet, or asteroid for hazards).
+func _poi_body_name(node_type: int, seed_val: int, _hazard_subtype: String = "") -> String:
+	var t: String = "asteroid" if node_type == int(SectorNode.NodeType.HAZARD) else "planet"
+	return _generate_celestial_name(t, seed_val)
+
+
+# The node's EVENT prefix (what's happening there). Seeded independently of the body
+# (xor offset) so both are stable but uncorrelated.
+func _poi_event_prefix(node_type: int, seed_val: int, hazard_subtype: String = "") -> String:
 	var rng := RandomNumberGenerator.new()
-	rng.seed = abs(seed_val) % 0x7FFFFFFF
+	rng.seed = (abs(seed_val) ^ 0x5151A3) % 0x7FFFFFFF
 	match node_type:
 		int(SectorNode.NodeType.COMBAT):
-			var style: int = rng.randi() % 3
-			match style:
-				0:
-					# "Contact Keth-3" / "Contact Vorn-7"
-					var p: String = _PN_COMBAT_PREFIXES[rng.randi() % _PN_COMBAT_PREFIXES.size()]
-					var d: String = _PN_COMBAT_DESIGNATORS[rng.randi() % _PN_COMBAT_DESIGNATORS.size()]
-					var s: String = _PN_COMBAT_SUFFIXES[rng.randi() % _PN_COMBAT_SUFFIXES.size()]
-					return "%s %s%s" % [p, d, s]
-				1:
-					# "HD-827" style callsign
-					return "HD-%d" % rng.randi_range(100, 999)
-				_:
-					# "Strike at Alpha-4"
-					var p: String = _PN_COMBAT_PREFIXES[rng.randi() % _PN_COMBAT_PREFIXES.size()]
-					var g: String = _CN_GREEK[rng.randi() % _CN_GREEK.size()]
-					return "%s %s" % [p, g]
+			return _PN_COMBAT_PREFIXES[rng.randi() % _PN_COMBAT_PREFIXES.size()]
 		int(SectorNode.NodeType.OUTPOST):
-			var style: int = rng.randi() % 2
-			match style:
-				0:
-					# "Relay Station 7" / "Depot Crest-4"
-					var p: String = _PN_STATION_PREFIX[rng.randi() % _PN_STATION_PREFIX.size()]
-					var n: int = rng.randi_range(1, 12)
-					return "%s %d" % [p, n]
-				_:
-					# "Waypoint Sigma" / "Anchorage Veil"
-					var p: String = _PN_STATION_PREFIX[rng.randi() % _PN_STATION_PREFIX.size()]
-					var s: String = _PN_STATION_SUFFIX[rng.randi() % _PN_STATION_SUFFIX.size()]
-					return "%s %s" % [p, s]
+			return _PN_STATION_PREFIX[rng.randi() % _PN_STATION_PREFIX.size()]
 		int(SectorNode.NodeType.SIGNAL):
-			var style: int = rng.randi() % 2
-			match style:
-				0:
-					# "Anomaly 94-K" style
-					var p: String = _PN_SIGNAL_PREFIX[rng.randi() % _PN_SIGNAL_PREFIX.size()]
-					var n: int = rng.randi_range(1, 99)
-					var g: String = _CN_GREEK[rng.randi() % _CN_GREEK.size()].left(1)
-					return "%s %d-%s" % [p, n, g]
-				_:
-					# "Signal Veil" / "Ghost Trace Wraith"
-					var p: String = _PN_SIGNAL_PREFIX[rng.randi() % _PN_SIGNAL_PREFIX.size()]
-					var s: String = _PN_SIGNAL_SUFFIX[rng.randi() % _PN_SIGNAL_SUFFIX.size()]
-					return "%s %s" % [p, s]
+			return _PN_SIGNAL_PREFIX[rng.randi() % _PN_SIGNAL_PREFIX.size()]
 		int(SectorNode.NodeType.HAZARD):
 			if hazard_subtype == "minefield":
-				var p: String = _PN_HAZARD_MINE[rng.randi() % _PN_HAZARD_MINE.size()]
-				var s: String = _PN_HAZARD_SUFFIX[rng.randi() % _PN_HAZARD_SUFFIX.size()]
-				return "%s %s" % [p, s]
-			else:
-				# asteroid_field or generic
-				var p: String = _PN_HAZARD_ASTEROID[rng.randi() % _PN_HAZARD_ASTEROID.size()]
-				var s: String = _PN_HAZARD_SUFFIX[rng.randi() % _PN_HAZARD_SUFFIX.size()]
-				return "%s %s" % [p, s]
+				return _PN_HAZARD_MINE[rng.randi() % _PN_HAZARD_MINE.size()]
+			return _PN_HAZARD_ASTEROID[rng.randi() % _PN_HAZARD_ASTEROID.size()]
 	return ""
+
+
+# Full depart-panel label: event prefix + body name (same seed → body matches the row).
+func _poi_event_label(node_type: int, seed_val: int, hazard_subtype: String = "") -> String:
+	var body: String = _poi_body_name(node_type, seed_val, hazard_subtype)
+	var prefix: String = _poi_event_prefix(node_type, seed_val, hazard_subtype)
+	return ("%s %s" % [prefix, body]) if prefix != "" else body
 
 
 # Spawn a small name label near a celestial body. Low opacity so it reads as
@@ -2063,9 +2042,10 @@ func _on_poi_selected(node_id: String) -> void:
 		return
 	_selected_node_id = node_id
 	_selected_is_boss = false
-	# Show mission designation in the bottom panel.
+	# Depart panel shows the EVENT + the body name, e.g. "Skirmish at Centauri III" /
+	# "Exclusion Zone NGC-417" (same seed → the body matches the POI row label).
 	var poi_name_seed: int = abs(hash(node_id)) ^ 0x3F7A1C2B
-	var poi_name: String = _generate_poi_name(int(poi.node_type), poi_name_seed, String(poi.get("hazard_subtype", "")))
+	var poi_name: String = _poi_event_label(int(poi.node_type), poi_name_seed, String(poi.get("hazard_subtype", "")))
 	if is_instance_valid(_selected_node_lbl):
 		_selected_node_lbl.text = poi_name
 		_selected_node_lbl.modulate.a = 1.0
