@@ -4,7 +4,7 @@ extends "res://scripts/projectiles/base_bullet.gd"
 # BaseBullet; this script just sets player-side defaults (heads up,
 # damages enemies) and attaches the cyan glow / optional trail.
 
-const TrailFX = preload("res://scripts/trail_fx.gd")
+const TrailFX = preload("res://scripts/effects/trail_fx.gd")
 
 
 func _init() -> void:

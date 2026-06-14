@@ -117,7 +117,7 @@ func _ready() -> void:
 		$ShootTimer.timeout.connect(_on_shoot_timer_timeout)
 	# Oblique drop-shadow under the boss sprite.
 	if has_node("Sprite2D"):
-		var ShadowFx := load("res://scripts/shadow_fx.gd")
+		var ShadowFx := load("res://scripts/effects/shadow_fx.gd")
 		ShadowFx.attach_shadow($Sprite2D, Vector2(14, 14), 0.5, 2.0)
 	# Initialise the phase machine. Phase 0 enter fires once HP is known.
 	_init_phases()
@@ -241,7 +241,7 @@ func explode() -> void:
 		else:
 			tree.create_timer(delay).timeout.connect(DeathDust.play_with_count.bind(puff_pos, 16))
 	if has_node("Sprite2D"):
-		var BurnFx := load("res://scripts/burn_fx.gd")
+		var BurnFx := load("res://scripts/effects/burn_fx.gd")
 		BurnFx.apply_burn($Sprite2D, 1.2)
 	if has_node("AnimationPlayer") and $AnimationPlayer.has_animation("explode"):
 		$AnimationPlayer.play("explode")

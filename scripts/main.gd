@@ -251,7 +251,7 @@ func _warm_up_level() -> void:
 		return
 	var WARM_DIR := Vector2(-9999, -9999)
 	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
-	var BurnFx = load("res://scripts/burn_fx.gd")
+	var BurnFx = load("res://scripts/effects/burn_fx.gd")
 	var to_free: Array = []
 
 	# --- A: direct shader-program compile ---

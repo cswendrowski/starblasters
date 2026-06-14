@@ -91,7 +91,7 @@ func _ready() -> void:
 	super._ready()
 	# Oblique drop-shadow under the enemy sprite.
 	if has_node("Sprite2D"):
-		var ShadowFx = load("res://scripts/shadow_fx.gd")
+		var ShadowFx = load("res://scripts/effects/shadow_fx.gd")
 		ShadowFx.attach_shadow($Sprite2D)
 
 

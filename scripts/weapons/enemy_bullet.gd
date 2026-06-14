@@ -4,7 +4,7 @@ extends "res://scripts/projectiles/base_bullet.gd"
 # the unified pipeline (BaseBullet handles offscreen kill + damage
 # routing); this script just sets enemy-side defaults and visuals.
 
-const TrailFX = preload("res://scripts/trail_fx.gd")
+const TrailFX = preload("res://scripts/effects/trail_fx.gd")
 
 
 func _init() -> void:

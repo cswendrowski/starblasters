@@ -25,7 +25,7 @@ const _DamageNoiseTex = preload("res://resources/noise_damage.tres")
 const _DamageEdgeTex = preload("res://resources/edge_distance_flat.tres")
 const ExplosionFxScript = preload("res://scripts/effects/explosion_fx.gd")
 const DeathDustScript = preload("res://scripts/effects/death_dust.gd")
-const BurnFxScript = preload("res://scripts/burn_fx.gd")
+const BurnFxScript = preload("res://scripts/effects/burn_fx.gd")
 # Dead-code holdover: the simple max_shield charge + its ring are retired (nothing in the
 # live spawn path sets max_shield > 0). Repointed to hex_shield so the only consumer left —
 # the preserved-but-unscened enemy_bomber_wing — matches the committed shield (Roman 2026-06-11).

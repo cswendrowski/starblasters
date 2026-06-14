@@ -88,7 +88,7 @@ func explode() -> void:
 	var MineSfx = load("res://scripts/effects/mine_sfx.gd")
 	MineSfx.play_at(global_position)
 	if has_node("Sprite2D"):
-		var BurnFx = load("res://scripts/burn_fx.gd")
+		var BurnFx = load("res://scripts/effects/burn_fx.gd")
 		BurnFx.apply_burn($Sprite2D, 0.4)
 	await get_tree().create_timer(0.45).timeout
 	queue_free()

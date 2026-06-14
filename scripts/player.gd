@@ -450,7 +450,7 @@ func _ready() -> void:
 	var ParallaxShadow = load("res://scripts/effects/parallax_shadow.gd")
 	ParallaxShadow.attach(self)
 	# Oblique drop-shadow under the ship sprite (code-only; no .tscn edits).
-	var ShadowFx = load("res://scripts/shadow_fx.gd")
+	var ShadowFx = load("res://scripts/effects/shadow_fx.gd")
 	ShadowFx.attach_shadow($Ship)
 	# New ship layers (Roman 2026-06-09 player-art pass): GlowMask = engine glowmask (#00d3ff,
 	# fades to half on move-back); Livery = shader-recolored decoration (random per-patrol tint);

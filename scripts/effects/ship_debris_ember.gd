@@ -18,7 +18,7 @@ const DAMAGE_SHADER = preload("res://graphics/damage_noise.gdshader")
 const DAMAGE_NOISE_TEX_PATH := "res://resources/noise_damage.tres"
 const DAMAGE_EDGE_TEX_PATH := "res://resources/edge_distance_flat.tres"
 const TORCH_SHADER = preload("res://graphics/torch_fire.gdshader")
-const BurnFx = preload("res://scripts/burn_fx.gd")
+const BurnFx = preload("res://scripts/effects/burn_fx.gd")
 const SparkTrailFx = preload("res://scripts/effects/spark_trail_fx.gd")
 
 # Tunables (overridable through spawn()'s opts). burn_lead = fraction of life spent
