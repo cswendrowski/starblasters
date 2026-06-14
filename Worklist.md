@@ -87,9 +87,11 @@ items remain below. Deep specs live in `TODO.md` / `docs/` — this is the scann
   default + 4 roll). Modules roll in the **outpost** (item-gen rules; purchase → bay, cargo if full) and are
   managed in **Manage Ship** (a MODULE BAY row, Equip-from-cargo / Remove). 23-assert `tools/test_module_bay.gd`
   PASS; parse-clean (297/0); outpost/manage_ship/main boot clean.
-  REMAINING (polish): a HUD module-strip readout; optionally retiring the now-overlapping self_repair/
-  hull_plating *upgrades* (Repair/Ablative coexist with them for now — full retirement needs a save migration).
-  Module *feel/balance* is playtest-gated.
+  **Retired the overlapping upgrades** (2026-06-13): `self_repair_mk` + `hull_plating_mk` are gone from the
+  shop / salvage event / Manage-Ship display + their effects (between-node heal, RNG shrug) — those mechanics
+  are now solely the Repair Nanites / Ablative Plating modules. Fields kept in run_state/RunSave for save compat
+  (the `armor_mk` precedent); also pruned the already-stale `armor_mk`/`shield_recharge_mk` from the salvage
+  list so it never grants a dud. REMAINING (polish): a HUD module-strip readout. Module *feel/balance* is playtest-gated.
 - **Run summary Phases 2–3 + timer** — ✅ **DONE 2026-06-13** (branch `run-summary-2026-06-13`, local/unpushed):
   Phase 2 stats instrumented — **shots fired/hit + accuracy** (per-projectile: `player.fire_primary/secondary`
   + `enemy_base.take_hit`), **locations/signals visited** (`mark_node_completed`), **outpost visits**

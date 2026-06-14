@@ -730,17 +730,15 @@ func _do_wreck_scavenge_ammo() -> void:
 
 # Salvage Cache — three sub-outcomes, weighted. The ammo refill re-rolls
 # itself if the player has no metered weapons so the event isn't wasted.
+# Live upgrades only — retired keys (armor_mk/shield_recharge_mk, and self_repair_mk/
+# hull_plating_mk as of 2026-06-13) are excluded so the Salvage Cache never grants a dud.
 const _SALVAGE_UPGRADE_KEYS := [
-	"hull_mk", "armor_mk", "thrusters_mk",
-	"self_repair_mk", "shield_cap_mk", "shield_recharge_mk",
+	"hull_mk", "thrusters_mk", "shield_cap_mk",
 ]
 const _SALVAGE_UPGRADE_LABELS := {
 	"hull_mk": "Hull",
-	"armor_mk": "Armor",
 	"thrusters_mk": "Thrusters",
-	"self_repair_mk": "Self Repair",
 	"shield_cap_mk": "Shield Capacity",
-	"shield_recharge_mk": "Shield Recharge",
 }
 const _SALVAGE_MK_CAP := 9
 

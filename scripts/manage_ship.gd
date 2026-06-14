@@ -40,14 +40,13 @@ const LOADOUT_SLOTS := [
 	{"slot": SlotTypes.SlotType.DEVICE_BAY_1, "label": "SUPER", "color": Color(1.0, 0.55, 0.95)},
 	{"slot": SlotTypes.SlotType.SHIFT_MODE, "label": "SHIFT MODE", "color": Color(0.55, 1.0, 0.70)},
 ]
+# Live, purchasable upgrades only. armor_mk / shield_recharge_mk (old) and
+# self_repair_mk / hull_plating_mk (retired 2026-06-13 — now the Repair Nanites /
+# Ablative Plating MODULES) are dropped from the display.
 const UPGRADE_KEYS := [
 	{"key": "hull_mk", "name": "Hull"},
-	{"key": "armor_mk", "name": "Armor"},
 	{"key": "thrusters_mk", "name": "Thrusters"},
-	{"key": "self_repair_mk", "name": "Self-Repair"},
 	{"key": "shield_cap_mk", "name": "Shield Capacity"},
-	{"key": "shield_recharge_mk", "name": "Shield Regen"},
-	{"key": "hull_plating_mk", "name": "Hull Plating"},
 ]
 
 var _loadout_box: VBoxContainer = null

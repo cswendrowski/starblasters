@@ -28,10 +28,10 @@ const OutpostSfx = preload("res://scripts/effects/outpost_sfx.gd")
 const UPGRADES := [
 	{"key": "hull_mk",          "name": Strings.UPGRADE_HULL_NAME,          "desc": Strings.UPGRADE_HULL_DESC},
 	{"key": "thrusters_mk",     "name": Strings.UPGRADE_THRUSTERS_NAME,     "desc": Strings.UPGRADE_THRUSTERS_DESC},
-	{"key": "self_repair_mk",   "name": Strings.UPGRADE_SELF_REPAIR_NAME,   "desc": Strings.UPGRADE_SELF_REPAIR_DESC},
 	{"key": "shield_cap_mk",    "name": Strings.UPGRADE_SHIELD_CAP_NAME,    "desc": Strings.UPGRADE_SHIELD_CAP_DESC},
-	{"key": "hull_plating_mk",  "name": Strings.UPGRADE_HULL_PLATING_NAME,  "desc": Strings.UPGRADE_HULL_PLATING_DESC},
-	# armor_mk and shield_recharge_mk retired — no longer purchasable.
+	# Retired — no longer purchasable. armor_mk + shield_recharge_mk (old); and as of
+	# 2026-06-13 self_repair_mk + hull_plating_mk — those mechanics are now the Repair
+	# Nanites / Ablative Plating MODULES (the bay), so the overlapping upgrades are gone.
 ]
 
 const UPGRADE_BASE_COST := 140

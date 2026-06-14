@@ -152,12 +152,12 @@ func player_scene_path() -> String:
 # player.apply_run_upgrades(). Increasing the Mk is the only path the
 # player has to grow these stats — basic parts no longer add hull/shield.
 var hull_mk: int = 0
-var armor_mk: int = 0
+var armor_mk: int = 0           # RETIRED — kept for save compat
 var thrusters_mk: int = 0
-var self_repair_mk: int = 0
+var self_repair_mk: int = 0     # RETIRED 2026-06-13 (→ Repair Nanites module) — save compat only
 var shield_cap_mk: int = 0
-var shield_recharge_mk: int = 0
-var hull_plating_mk: int = 0
+var shield_recharge_mk: int = 0 # RETIRED — kept for save compat
+var hull_plating_mk: int = 0    # RETIRED 2026-06-13 (→ Ablative Plating module) — save compat only
 
 # Stored cannons swapped out at outposts (the new one takes the CANNON
 # slot, the old one moves here). Each entry is a Part resource.

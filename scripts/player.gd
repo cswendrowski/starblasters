@@ -2526,8 +2526,10 @@ func apply_run_upgrades() -> void:
 	# Hull: 2 base + min(Mk, 8) → Mk.1=3, Mk.8=10, Mk.9=10 (Mk.9 perk is repair discount).
 	max_hull = 2 + min(int(run.hull_mk), 8)
 	hull_repair_discount = 0.30 if run.hull_mk >= 9 else 0.0
-	# Shrug chance: 3% per Hull Plating Mk (Mk.1–8) + 6% bonus at Mk.9 → 30% total at Mk.9.
-	hull_shrug_chance = 0.03 * min(run.hull_plating_mk, 8) + (0.06 if run.hull_plating_mk >= 9 else 0.0)
+	# hull_plating_mk RETIRED 2026-06-13 — its RNG shrug is superseded by the Ablative
+	# Plating MODULE (deterministic every-Nth-hit absorb, module_ablative_n). No shrug from
+	# the upgrade anymore; the field stays in run_state for save compat.
+	hull_shrug_chance = 0.0
 	# armor_mk retired — no DR applied (kept in run_state for save compat).
 	var speed_pct: float = 1.0 + float(run.thrusters_mk) * 0.03
 	speed_multiplier = max(0.3, speed_pct)
