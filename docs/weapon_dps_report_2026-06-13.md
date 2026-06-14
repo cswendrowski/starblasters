@@ -68,3 +68,90 @@ weapons** — see caveats.
   point-blank with every pellet landing — realistic single-target is lower.
 - Hyper mode multiplies primary damage/ROF on top of all of this.
 - Re-run `tools/weapon_dps_report.gd` after any weapon `.tres`/Part change to refresh the CSV + table.
+
+---
+
+# Effectiveness beyond raw DPS (2026-06-13)
+
+Raw single-target DPS assumes every shot lands and every Mk is reached. Three real-world factors
+shift the picture (grounded in player bolt speeds + the enemy roster's HP/speed/size). Bolt speeds are
+the live `.tscn`/script values; enemy speeds are the movement rungs (60/120/180/300/360 px/s); enemy
+HP clusters at **1–2** (small chaff, 33 hulls), **8–14** (medium gunners, 20 hulls), **28–32+**
+(large/huge capitals, 9 hulls); fast chaff crosses at **300–360 px/s**.
+
+## A. Bullet speed → accuracy (effective hit-rate)
+
+A bolt slower than a target's *lateral* speed gets out-run — the enemy leaves the firing column before
+the shot arrives. This penalty **flattens against large/slow targets** (a capital at 60–120 px/s with a
+big hitbox is easy to hit with anything), so slow bolts are only punished vs small fast movers.
+
+| Weapon | Bolt speed | Accuracy | Lands reliably on | Discounted vs |
+|---|---|---|---|---|
+| Pulse Laser | **hitscan** | perfect | everything, incl. 360 reflex darts | (decays only if you *hold* fire — beam spreads) |
+| Quad / Rotary / Auto Laser | 480 (8px/f) | very high | fast chaff, crossers, everything | — |
+| Autocannon | 360 | high | fast chaff, mediums | — |
+| Wave Gun | 600→300 | high→mid | lines (pierce); slows as it Mks up | — |
+| Shredder | 300 | mid (pellets fan) | point-blank targets | anything at range / crossing |
+| Energy · Minigun · Scatter | 240 (4px/f) | mid | holders, mediums, slow targets | **fast crossers (300–360 out-run the bolt)** |
+| Twin Blaster | 180 | mid-low | slow / holding targets | movers |
+| Heavy Blaster | 120 (2px/f) | low | **large slow capitals** (easy hit, big payoff) | all fast/small chaff |
+
+**Upshot:** the table's "Energy Blaster = king" assumes hits. At 240 px/s it actually *misses* a chunk
+of the fast-chaff roster, while the lasers (480 / hitscan) keep their full DPS vs everything. Effective
+DPS-vs-the-actual-roster compresses Energy/Heavy down and lifts the lasers up.
+
+## B. Mk reachability — the table is front-loaded in practice
+
+Shop Mk cap = `min(9, 3 + 3×bosses_defeated)` ([outpost.gd:650](../scripts/outpost.gd)). A patrol is
+~3 sectors, ~1 boss each:
+
+| Where you are | Bosses killed | Mk cap you can buy |
+|---|---:|---:|
+| Sector 1 (most of the run) | 0 | **3** |
+| Sector 2 | 1 | 6 |
+| Sector 3 (final) | 2 | 9 |
+
+Upgrades are **random shop offers** over only ~3 refreshes (stock rerolls on boss kill), so committing a
+single weapon to Mk.9 needs the right offers + the bounty + luck — realistically a *final-sector* or
+*endless-mode* outcome. **Players field Mk.1–4 for the bulk of a run.** Re-read the table at "realistic
+Mk":
+
+- **Flat / high-Mk.1 weapons win on value** you can actually field: Autocannon (38 @ Mk.1), Quad (33),
+  Pulse Laser (33 flat), Shredder (30), Minigun (25 flat, never needs upgrades to stay relevant).
+- **Scaling blasters underdeliver until late:** Energy (13 → 120), Heavy (15 → 100), Rotary (20 → 100)
+  are *weak early* and only pay off if you fund them to a Mk most runs never reach. The free Energy
+  Blaster being "too strong" is largely a **Mk.9/endless artifact** — early-run it's one of the weakest.
+
+## C. Role / counter matrix
+
+The CHARGE-shield rule matters here: a shielded enemy loses **one charge per hit regardless of damage**,
+so *hits-per-second* strips shields, not damage-per-shot. High-ROF / multi-projectile weapons gut
+shields; slow big-hit weapons waste damage per charge.
+
+| Weapon | Excels at / counters | Weak against |
+|---|---|---|
+| **Energy Blaster** | mid-HP holders/gunners you can track; clean column once scaled | fast crossers (240 bolt); 1-HP swarms (single lane, overkill); needs Mk |
+| **Heavy Blaster** | large slow capitals + armored (30/hit dwarfs flat armor cuts) | fast small chaff (120 bolt whiffs); swarms |
+| **Twin Blaster** | early generalist, a touch better vs movers than Energy | armored / high-HP (low per-hit) |
+| **Quad Lasers** | walls + crossers (4 fast lanes sweep); charge-shields (4 strips/volley) | lone capitals (only 1 lane hits → ~¼ DPS) |
+| **Rotary Laser** | charge-shields + fast singles (20 fast hits/s); mediums | high-HP capitals (needs Mk; light per-hit) |
+| **Minigun** | **charge-shields (25 hits/s = instant strip)**; 1-HP saturation | anything with HP or armor (dmg 1 → armor guts it); capitals |
+| **Autocannon** | early-game bruiser; mediums (fixed 5/hit clears 2-HP, chunks 8-HP); accurate (360) | late capitals (no scaling); charge-shields (low ROF) |
+| **Wave Gun** | descending columns / lined formations (pierce 4) | spread singles; fast crossers (pierce wasted) |
+| **Scatter Blaster** | spread swarms + crossers (wide free fan); chaff walls | single big targets (fan mostly misses → ~1–2 pellets) |
+| **Auto Laser** | accurate mid-DPS single; fast movers (480) | high-HP targets (mid DPS) |
+| **Shredder** | one tough target at **point-blank** (a capital you close on) or a tight cluster | ranged / spread / fast enemies (pellets fan + miss); zoning |
+| **Pulse Laser** | **fast evasive small chaff** (hitscan never misses); precise sniping | high-HP capitals (dmg 2, no scaling); long held bursts (accuracy decays) |
+
+## Re-prioritized read (vs the raw-DPS findings above)
+
+- **Energy Blaster is less of a problem than the raw table says** — its 120 needs Mk.9 *and* assumes
+  hits at 240 px/s. A nerf is lower-priority; if anything, early-Mk Energy is *under*-powered.
+- **Autocannon's "backwards scaling" is arguably fine by design** — it's an *early* weapon (best Mk.1),
+  and players live in the early-Mk band. Flat damage is the cost of a strong, accurate start.
+- **Minigun's fix is identity, not just numbers** — it's the anti-shield / saturation hose (25 hits/s).
+  Lean into charge-strip / stagger utility rather than only bumping damage.
+- **Pulse Laser's flat DPS is healthy** — hitscan is the answer to the fast evasive chaff every 240-class
+  weapon misses, and flat scaling fits a random-upgrade economy (it never needs a Mk it can't reach).
+- **The fan/pierce weapons (Wave/Quad/Scatter/Shredder) read low single-target but are the wave-clear
+  tier** — their value is the part the DPS table structurally can't show.
