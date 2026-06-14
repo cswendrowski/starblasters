@@ -19,6 +19,8 @@ const Thrusters = preload("res://scripts/parts/thrusters.gd")
 const ShieldCapacitor = preload("res://scripts/parts/shield_capacitor.gd")
 const BackupShieldCapacitor = preload("res://scripts/parts/backup_shield_capacitor.gd")
 const ReflectiveShieldTuning = preload("res://scripts/parts/reflective_shield_tuning.gd")
+const InternalMicroFabricator = preload("res://scripts/parts/internal_micro_fabricator.gd")
+const PassiveEnergyRouters = preload("res://scripts/parts/passive_energy_routers.gd")
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 
@@ -95,6 +97,38 @@ func _go() -> void:
 	var rs9 = ReflectiveShieldTuning.new(); rs9.mark = 9
 	_assert(rs1._n_for(1) == 6, "Reflective Mk.1 = reflect every 6th")
 	_assert(rs9._n_for(9) == 2, "Reflective Mk.9 = reflect every 2nd")
+	# Internal Micro Fabricator — 5% per Mk restock fraction.
+	var mf1 = InternalMicroFabricator.new(); mf1.mark = 1
+	var mf9 = InternalMicroFabricator.new(); mf9.mark = 9
+	_assert(absf(mf1._pct_for(1) - 0.05) < 0.001, "Micro Fabricator Mk.1 = 5%")
+	_assert(absf(mf9._pct_for(9) - 0.45) < 0.001, "Micro Fabricator Mk.9 = 45%")
+	# Passive Energy Routers — idle regen boost 20% → 60%.
+	var er1 = PassiveEnergyRouters.new(); er1.mark = 1
+	var er9 = PassiveEnergyRouters.new(); er9.mark = 9
+	_assert(absf(er1._pct_for(1) - 0.20) < 0.001, "Energy Routers Mk.1 = 20% idle boost")
+	_assert(absf(er9._pct_for(9) - 0.60) < 0.001, "Energy Routers Mk.9 = 60% idle boost")
+	# Restock math: 5% of a 40-round magazine = +2, capped at max. Snapshot/restore the
+	# run pool so the later scene-load section gets a clean cannon_pool back.
+	var _saved_pool = run.cannon_pool
+	var _saved_idx = run.active_cannon_idx
+	var _saved_sec = run.secondary_ammo
+	var _saved_sec_max = run.secondary_ammo_max
+	var dummy = _DummyCannon.new(); dummy.ammo_max = 40; dummy.current_ammo = 10
+	run.cannon_pool = [_DummyCannon.new(), dummy]
+	run.active_cannon_idx = 1
+	run.restock_ammo_fraction(0.05)
+	_assert(dummy.current_ammo == 12, "restock +5%% of 40 → 10→12 (got %d)" % dummy.current_ammo)
+	dummy.current_ammo = 39
+	run.restock_ammo_fraction(0.05)
+	_assert(dummy.current_ammo == 40, "restock caps at ammo_max (got %d)" % dummy.current_ammo)
+	run.secondary_ammo_max = 20; run.secondary_ammo = 5
+	run.restock_ammo_fraction(0.10)
+	_assert(run.secondary_ammo == 7, "restock secondary +10%% of 20 → 5→7 (got %d)" % run.secondary_ammo)
+	# Restore the real run state.
+	run.cannon_pool = _saved_pool
+	run.active_cannon_idx = _saved_idx
+	run.secondary_ammo = _saved_sec
+	run.secondary_ammo_max = _saved_sec_max
 	_assert(run.MODULE_BAY_SIZE == 6, "bay size bumped to 6")
 
 	# --- D. Shop roll produces modules (item-gen rules) ---
@@ -170,6 +204,19 @@ func _go() -> void:
 	p.module_reflect_n = 0
 	ReflectiveShieldTuning.new().apply(p)
 	_assert(p.module_reflect_n > 0, "Reflective Shield sets module_reflect_n (got %d)" % p.module_reflect_n)
+	# Internal Micro Fabricator sets the restock fraction.
+	p.module_ammo_restore_pct = 0.0
+	InternalMicroFabricator.new().apply(p)
+	_assert(p.module_ammo_restore_pct > 0.0, "Micro Fabricator sets module_ammo_restore_pct (got %.3f)" % p.module_ammo_restore_pct)
+	# Passive Energy Routers sets the idle-regen boost + lowers the effective regen when idle.
+	p.module_energy_router_pct = 0.0
+	PassiveEnergyRouters.new().apply(p)
+	_assert(p.module_energy_router_pct > 0.0, "Energy Routers sets module_energy_router_pct (got %.3f)" % p.module_energy_router_pct)
+	p.shield_regen_delay = 5.0; p.shield_regen_interval = 1.0
+	p._shot_recency = 999.0  # idle → boost engaged
+	_assert(p._effective_regen_delay() < 5.0 and p._effective_regen_interval() < 1.0, "Energy Routers cuts regen while idle (delay %.2f / iv %.2f)" % [p._effective_regen_delay(), p._effective_regen_interval()])
+	p._shot_recency = 0.0  # firing → no boost
+	_assert(is_equal_approx(p._effective_regen_delay(), 5.0), "Energy Routers reverts to baseline while firing (got %.2f)" % p._effective_regen_delay())
 	# Shield Core Mk drives capacity (folded the old shield_cap upgrade in).
 	p.module_shield_bonus = 0; p.module_shield_charge_penalty = 0
 	run.modules = [ShieldCore.new()]
@@ -191,3 +238,10 @@ func _assert(cond: bool, msg: String) -> void:
 	else:
 		print("[test] FAIL: " + msg)
 		quit(1)
+
+
+# Minimal stand-in for a metered cannon Part — just the two ammo fields
+# Run.restock_ammo_fraction reads ("current_ammo" in prim / "ammo_max" in prim).
+class _DummyCannon:
+	var current_ammo: int = -1
+	var ammo_max: int = 0

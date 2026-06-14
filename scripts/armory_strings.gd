@@ -53,6 +53,8 @@ const CODEX := {
 	"_make_shield_capacitor": "Recharges your shield faster and sooner — a shorter delay after a hit plus a quicker per-charge tick. With a Shield Core, it makes the shield a renewable resource.",
 	"_make_backup_shield_capacitor": "An emergency cell that fires once per level: the first time your shield drops, it instantly dumps a slice of your max charges back in. 5% at Mk.1, rising 5% per Mk. Buys you one free panic moment a level.",
 	"_make_reflective_shield": "Tunes the shield to bounce back: every Nth bullet it absorbs is reflected into the playfield at the nearest enemy, reusing your primary's bolt. Every 6th hit at Mk.1, tightening to every 2nd at Mk.9. Turns a defensive stance into chip damage.",
+	"_make_micro_fabricator": "An onboard printer that runs between fights: clearing a level restocks a slice of your max primary and secondary ammo — never past the cap. 5% at Mk.1, +5% per Mk. Keeps metered weapons fed without an outpost stop.",
+	"_make_energy_routers": "Reroutes power the moment you stop firing: while the trigger's idle, your shield's regen delay shortens and its charge-ticks come faster. Hold fire and it reverts to the slow baseline. 20% faster idle regen at Mk.1, up to 60% at Mk.9 — pairs naturally with a Shield Capacitor.",
 }
 
 

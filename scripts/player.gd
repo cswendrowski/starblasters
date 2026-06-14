@@ -917,6 +917,12 @@ func _process(delta: float) -> void:
 	# or enemies — lock off primary offense (secondary is gated below).
 	if _phase_t > 0.0:
 		fire_held = false
+	# Passive Energy Routers — track trigger idleness for the shield-regen boost.
+	# fire_held already folds in autofire + phase, so this reads true "shooting" state.
+	if fire_held:
+		_shot_recency = 0.0
+	else:
+		_shot_recency += delta
 	# Pulse Laser dispersion: it ACCRUES while the trigger is HELD (in _fire_pulse_laser).
 	# RELEASING the trigger recovers spread (PULSE_DISPERSION_DECAY °/s) + resets the
 	# accuracy-window counter. Keyed on fire_held — NOT on whether a shot landed this
@@ -1360,7 +1366,7 @@ func set_shield(value: int) -> void:
 		_shield_in_delay = true
 		if has_node("ShieldRegenTimer"):
 			$ShieldRegenTimer.stop()
-			$ShieldRegenTimer.wait_time = shield_regen_delay  # Shield Capacitor lowers this
+			$ShieldRegenTimer.wait_time = _effective_regen_delay()  # Capacitor + Energy Routers lower this
 			$ShieldRegenTimer.start()
 	elif shield >= max_shield and has_node("ShieldRegenTimer"):
 		# At cap — halt regen.
@@ -1587,6 +1593,10 @@ var module_backup_shield_pct: float = 0.0    # Backup Shield Capacitor: % of max
 var _backup_cap_used: bool = false           # once per level — reset in start()
 var module_reflect_n: int = 0                # Reflective Shield Tuning: reflect every Nth absorbed bullet (0 = off)
 var _reflect_hit_count: int = 0
+var module_ammo_restore_pct: float = 0.0     # Internal Micro Fabricator: % max ammo restocked on level clear
+var module_energy_router_pct: float = 0.0    # Passive Energy Routers: regen delay/interval cut while not firing
+var _shot_recency: float = 999.0             # sec since the primary trigger was last held (starts idle)
+const ROUTER_IDLE_GRACE := 0.5               # trigger-idle grace before the Energy Routers boost engages
 
 
 # Critical System De-Limiter — fire-rate + damage bonus that scales up as hull drops,
@@ -2606,17 +2616,40 @@ func _play_hit_sfx() -> void:
 	p.play()
 
 
+# Passive Energy Routers (module): while the trigger has been idle past the grace
+# window, shield regen kicks in sooner AND ticks faster — delay/interval scaled down
+# by module_energy_router_pct. No module / actively firing = the plain values (which
+# the Shield Capacitor may already have lowered).
+func _is_weapon_idle() -> bool:
+	return _shot_recency >= ROUTER_IDLE_GRACE
+
+func _effective_regen_delay() -> float:
+	if module_energy_router_pct > 0.0 and _is_weapon_idle():
+		return maxf(0.1, shield_regen_delay * (1.0 - module_energy_router_pct))
+	return shield_regen_delay
+
+func _effective_regen_interval() -> float:
+	if module_energy_router_pct > 0.0 and _is_weapon_idle():
+		return maxf(0.1, shield_regen_interval * (1.0 - module_energy_router_pct))
+	return shield_regen_interval
+
+
 func _on_shield_regen_timer_timeout() -> void:
 	if _shield_in_delay:
 		# 5s delay just expired — begin 1/sec regen ticks.
 		_shield_in_delay = false
 		if shield < max_shield:
-			$ShieldRegenTimer.wait_time = shield_regen_interval  # Shield Capacitor lowers this
+			$ShieldRegenTimer.wait_time = _effective_regen_interval()  # Capacitor + Energy Routers lower this
 			$ShieldRegenTimer.start()
 		return
 	# Regen tick: +1 charge per interval (shield_regen_interval; default 1s).
 	if shield < max_shield:
 		set_shield(shield + 1)
+		# Energy Routers: re-evaluate the interval each tick so the regen RATE tracks
+		# the trigger — speeds up while idle, slows the moment you open fire.
+		var iv: float = _effective_regen_interval()
+		if not is_equal_approx($ShieldRegenTimer.wait_time, iv):
+			$ShieldRegenTimer.wait_time = iv
 
 
 # Translate the module bay + (legacy) Run upgrades into runtime stats. Called from

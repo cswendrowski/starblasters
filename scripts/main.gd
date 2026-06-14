@@ -483,6 +483,10 @@ func _on_level_cleared() -> void:
 			# return). Save max_shield so the next combat starts fully shielded.
 			run.current_shield = player.max_shield
 			run.max_shield = player.max_shield
+			# Internal Micro Fabricator (module): restock a slice of max ammo on clear,
+			# topping up the persistent primary + secondary pools for the next level.
+			if player.module_ammo_restore_pct > 0.0:
+				run.restock_ammo_fraction(player.module_ammo_restore_pct)
 	_run_outro()
 
 func _on_player_died() -> void:

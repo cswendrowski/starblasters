@@ -1044,6 +1044,32 @@ func get_primary_cannon():
 	return cannon_pool[1] if cannon_pool.size() > 1 else null
 
 
+# Internal Micro Fabricator (module): top up the persistent metered-ammo pools by
+# `pct` of each weapon's max, capped at max. Primary magazine lives on the cannon
+# Part (current_ammo/ammo_max); secondary on secondary_ammo/secondary_ammo_max.
+# Infinite blasters (ammo_max <= 0) and unmetered secondaries (-1) are skipped.
+# ceil() guarantees at least +1 per clear for any metered weapon.
+func restock_ammo_fraction(pct: float) -> void:
+	if pct <= 0.0:
+		return
+	# Primary — the metered cannon (cannon_pool[1]).
+	var prim = get_primary_cannon()
+	if prim != null and "current_ammo" in prim and "ammo_max" in prim:
+		var pmax: int = int(prim.ammo_max)
+		if pmax > 0:
+			var cur: int = int(prim.current_ammo)
+			if cur < 0:
+				cur = pmax
+			var topped: int = mini(pmax, cur + int(ceil(float(pmax) * pct)))
+			prim.current_ammo = topped
+			# Mirror Run.ammo when the primary is the active cannon (live magazine).
+			if active_cannon_idx == 1:
+				ammo = topped
+	# Secondary — Run-persisted pool.
+	if secondary_ammo_max > 0 and secondary_ammo >= 0:
+		secondary_ammo = mini(secondary_ammo_max, secondary_ammo + int(ceil(float(secondary_ammo_max) * pct)))
+
+
 # Replace the BLASTER (slot 0). Old blaster → hold; same-name = mark-bump.
 func _equip_blaster(part) -> void:
 	var pname: String = String(part.display_name)
