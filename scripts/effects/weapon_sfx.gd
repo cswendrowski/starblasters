@@ -12,87 +12,87 @@ class_name WeaponSfx
 # Sound/weapons/ and added to the dictionary below.
 
 const SMALL_CLIPS := [
-	preload("res://Sound/weapons/player/blaster_small_1.ogg"),
-	preload("res://Sound/weapons/player/blaster_small_2.ogg"),
-	preload("res://Sound/weapons/player/blaster_small_3.ogg"),
-	preload("res://Sound/weapons/player/blaster_small_4.ogg"),
-	preload("res://Sound/weapons/player/blaster_small_5.ogg"),
+	preload("res://assets/audio/weapons/player/blaster_small_1.ogg"),
+	preload("res://assets/audio/weapons/player/blaster_small_2.ogg"),
+	preload("res://assets/audio/weapons/player/blaster_small_3.ogg"),
+	preload("res://assets/audio/weapons/player/blaster_small_4.ogg"),
+	preload("res://assets/audio/weapons/player/blaster_small_5.ogg"),
 ]
 const LARGE_CLIPS := [
-	preload("res://Sound/weapons/player/blaster_large_1.ogg"),
-	preload("res://Sound/weapons/player/blaster_large_2.ogg"),
-	preload("res://Sound/weapons/player/blaster_large_3.ogg"),
-	preload("res://Sound/weapons/player/blaster_large_4.ogg"),
+	preload("res://assets/audio/weapons/player/blaster_large_1.ogg"),
+	preload("res://assets/audio/weapons/player/blaster_large_2.ogg"),
+	preload("res://assets/audio/weapons/player/blaster_large_3.ogg"),
+	preload("res://assets/audio/weapons/player/blaster_large_4.ogg"),
 ]
 # Wave Gun — single set for all marks (Roman 2026-06-09: no more Mk.5 swap).
 const WAVE_CLIPS := [
-	preload("res://Sound/weapons/player/wave_shoot_1.ogg"),
-	preload("res://Sound/weapons/player/wave_shoot_2.ogg"),
-	preload("res://Sound/weapons/player/wave_shoot_3.ogg"),
-	preload("res://Sound/weapons/player/wave_shoot_4.ogg"),
-	preload("res://Sound/weapons/player/wave_shoot_5.ogg"),
-	preload("res://Sound/weapons/player/wave_shoot_6.ogg"),
+	preload("res://assets/audio/weapons/player/wave_shoot_1.ogg"),
+	preload("res://assets/audio/weapons/player/wave_shoot_2.ogg"),
+	preload("res://assets/audio/weapons/player/wave_shoot_3.ogg"),
+	preload("res://assets/audio/weapons/player/wave_shoot_4.ogg"),
+	preload("res://assets/audio/weapons/player/wave_shoot_5.ogg"),
+	preload("res://assets/audio/weapons/player/wave_shoot_6.ogg"),
 ]
 const AUTOLASER_CLIPS := [
-	preload("res://Sound/weapons/player/autolaser_shoot_1.ogg"),
-	preload("res://Sound/weapons/player/autolaser_shoot_2.ogg"),
-	preload("res://Sound/weapons/player/autolaser_shoot_3.ogg"),
-	preload("res://Sound/weapons/player/autolaser_shoot_4.ogg"),
-	preload("res://Sound/weapons/player/autolaser_shoot_5.ogg"),
-	preload("res://Sound/weapons/player/autolaser_shoot_6.ogg"),
-	preload("res://Sound/weapons/player/autolaser_shoot_7.ogg"),
+	preload("res://assets/audio/weapons/player/autolaser_shoot_1.ogg"),
+	preload("res://assets/audio/weapons/player/autolaser_shoot_2.ogg"),
+	preload("res://assets/audio/weapons/player/autolaser_shoot_3.ogg"),
+	preload("res://assets/audio/weapons/player/autolaser_shoot_4.ogg"),
+	preload("res://assets/audio/weapons/player/autolaser_shoot_5.ogg"),
+	preload("res://assets/audio/weapons/player/autolaser_shoot_6.ogg"),
+	preload("res://assets/audio/weapons/player/autolaser_shoot_7.ogg"),
 ]
 const SPREAD_CLIPS := [
-	preload("res://Sound/weapons/player/spread_shoot_1.ogg"),
-	preload("res://Sound/weapons/player/spread_shoot_2.ogg"),
-	preload("res://Sound/weapons/player/spread_shoot_3.ogg"),
-	preload("res://Sound/weapons/player/spread_shoot_4.ogg"),
-	preload("res://Sound/weapons/player/spread_shoot_5.ogg"),
-	preload("res://Sound/weapons/player/spread_shoot_6.ogg"),
+	preload("res://assets/audio/weapons/player/spread_shoot_1.ogg"),
+	preload("res://assets/audio/weapons/player/spread_shoot_2.ogg"),
+	preload("res://assets/audio/weapons/player/spread_shoot_3.ogg"),
+	preload("res://assets/audio/weapons/player/spread_shoot_4.ogg"),
+	preload("res://assets/audio/weapons/player/spread_shoot_5.ogg"),
+	preload("res://assets/audio/weapons/player/spread_shoot_6.ogg"),
 ]
 const AUTOCANNON_CLIPS := [
-	preload("res://Sound/weapons/player/autocannon_shoot_01.ogg"),
-	preload("res://Sound/weapons/player/autocannon_shoot_02.ogg"),
-	preload("res://Sound/weapons/player/autocannon_shoot_03.ogg"),
-	preload("res://Sound/weapons/player/autocannon_shoot_04.ogg"),
-	preload("res://Sound/weapons/player/autocannon_shoot_05.ogg"),
-	preload("res://Sound/weapons/player/autocannon_shoot_06.ogg"),
-	preload("res://Sound/weapons/player/autocannon_shoot_07.ogg"),
-	preload("res://Sound/weapons/player/autocannon_shoot_08.ogg"),
-	preload("res://Sound/weapons/player/autocannon_shoot_09.ogg"),
+	preload("res://assets/audio/weapons/player/autocannon_shoot_01.ogg"),
+	preload("res://assets/audio/weapons/player/autocannon_shoot_02.ogg"),
+	preload("res://assets/audio/weapons/player/autocannon_shoot_03.ogg"),
+	preload("res://assets/audio/weapons/player/autocannon_shoot_04.ogg"),
+	preload("res://assets/audio/weapons/player/autocannon_shoot_05.ogg"),
+	preload("res://assets/audio/weapons/player/autocannon_shoot_06.ogg"),
+	preload("res://assets/audio/weapons/player/autocannon_shoot_07.ogg"),
+	preload("res://assets/audio/weapons/player/autocannon_shoot_08.ogg"),
+	preload("res://assets/audio/weapons/player/autocannon_shoot_09.ogg"),
 ]
 const MINIGUN_CLIPS := [
-	preload("res://Sound/weapons/player/minigun_shoot_01.ogg"),
-	preload("res://Sound/weapons/player/minigun_shoot_02.ogg"),
-	preload("res://Sound/weapons/player/minigun_shoot_03.ogg"),
-	preload("res://Sound/weapons/player/minigun_shoot_04.ogg"),
-	preload("res://Sound/weapons/player/minigun_shoot_05.ogg"),
-	preload("res://Sound/weapons/player/minigun_shoot_06.ogg"),
-	preload("res://Sound/weapons/player/minigun_shoot_07.ogg"),
-	preload("res://Sound/weapons/player/minigun_shoot_08.ogg"),
-	preload("res://Sound/weapons/player/minigun_shoot_09.ogg"),
-	preload("res://Sound/weapons/player/minigun_shoot_10.ogg"),
-	preload("res://Sound/weapons/player/minigun_shoot_11.ogg"),
-	preload("res://Sound/weapons/player/minigun_shoot_12.ogg"),
+	preload("res://assets/audio/weapons/player/minigun_shoot_01.ogg"),
+	preload("res://assets/audio/weapons/player/minigun_shoot_02.ogg"),
+	preload("res://assets/audio/weapons/player/minigun_shoot_03.ogg"),
+	preload("res://assets/audio/weapons/player/minigun_shoot_04.ogg"),
+	preload("res://assets/audio/weapons/player/minigun_shoot_05.ogg"),
+	preload("res://assets/audio/weapons/player/minigun_shoot_06.ogg"),
+	preload("res://assets/audio/weapons/player/minigun_shoot_07.ogg"),
+	preload("res://assets/audio/weapons/player/minigun_shoot_08.ogg"),
+	preload("res://assets/audio/weapons/player/minigun_shoot_09.ogg"),
+	preload("res://assets/audio/weapons/player/minigun_shoot_10.ogg"),
+	preload("res://assets/audio/weapons/player/minigun_shoot_11.ogg"),
+	preload("res://assets/audio/weapons/player/minigun_shoot_12.ogg"),
 ]
 const PULSE_CLIPS := [
-	preload("res://Sound/weapons/player/pulse_laser_shoot_1.ogg"),
-	preload("res://Sound/weapons/player/pulse_laser_shoot_2.ogg"),
-	preload("res://Sound/weapons/player/pulse_laser_shoot_3.ogg"),
+	preload("res://assets/audio/weapons/player/pulse_laser_shoot_1.ogg"),
+	preload("res://assets/audio/weapons/player/pulse_laser_shoot_2.ogg"),
+	preload("res://assets/audio/weapons/player/pulse_laser_shoot_3.ogg"),
 ]
 const SHREDDER_CLIPS := [
-	preload("res://Sound/weapons/player/shredder_shoot_1.ogg"),
-	preload("res://Sound/weapons/player/shredder_shoot_2.ogg"),
-	preload("res://Sound/weapons/player/shredder_shoot_3.ogg"),
+	preload("res://assets/audio/weapons/player/shredder_shoot_1.ogg"),
+	preload("res://assets/audio/weapons/player/shredder_shoot_2.ogg"),
+	preload("res://assets/audio/weapons/player/shredder_shoot_3.ogg"),
 ]
 # Rocket + missile live in the universal/ folder — shared by player AND enemies.
 const ROCKET_CLIPS := [
-	preload("res://Sound/weapons/universal/rocket_launch_1.ogg"),
-	preload("res://Sound/weapons/universal/rocket_launch_2.ogg"),
+	preload("res://assets/audio/weapons/universal/rocket_launch_1.ogg"),
+	preload("res://assets/audio/weapons/universal/rocket_launch_2.ogg"),
 ]
 const MISSILE_CLIPS := [
-	preload("res://Sound/weapons/universal/missile_launch_1.ogg"),
-	preload("res://Sound/weapons/universal/missile_launch_2.ogg"),
+	preload("res://assets/audio/weapons/universal/missile_launch_1.ogg"),
+	preload("res://assets/audio/weapons/universal/missile_launch_2.ogg"),
 ]
 
 const VOLUME_DB: float = -4.0

@@ -11,12 +11,12 @@ extends Node
 #   OutpostSfx.play("equip")
 
 const CLIPS := {
-	"equip": [preload("res://Sound/outpost/equip.ogg")],
-	"unequip": [preload("res://Sound/outpost/unequip.ogg")],
-	"upgrade": [preload("res://Sound/outpost/upgrade.ogg")],
+	"equip": [preload("res://assets/audio/outpost/equip.ogg")],
+	"unequip": [preload("res://assets/audio/outpost/unequip.ogg")],
+	"upgrade": [preload("res://assets/audio/outpost/upgrade.ogg")],
 	"repair": [
-		preload("res://Sound/outpost/repair_1.ogg"),
-		preload("res://Sound/outpost/repair_2.ogg"),
+		preload("res://assets/audio/outpost/repair_1.ogg"),
+		preload("res://assets/audio/outpost/repair_2.ogg"),
 	],
 }
 

@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://b0sn18mjsb3u6" path="res://scripts/enemies/factions/supremacy/enemy_push.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://bicbjdr5c40tc" path="res://graphics/enemies/enemy_s_m_push.png" id="2_tex"]
 [ext_resource type="Script" uid="uid://bj8dc3ktx8bt1" path="res://scripts/enemies/patterns/straight_down.gd" id="3_mov"]
-[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="4_die"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="4_die"]
 
 [sub_resource type="Resource" id="MovePattern"]
 script = ExtResource("3_mov")

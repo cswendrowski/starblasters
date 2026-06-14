@@ -14,8 +14,8 @@ extends "res://scripts/parts/super_part.gd"
 const ShockwaveScript = preload("res://scripts/projectiles/smart_bomb_shockwave.gd")
 const HitFlashFx = preload("res://scripts/effects/hit_flash_fx.gd")
 const _DETONATE_CLIPS := [
-	preload("res://Sound/weapons/player/smart_bomb_sweetener_1.ogg"),
-	preload("res://Sound/weapons/player/smart_bomb_sweetener_2.ogg"),
+	preload("res://assets/audio/weapons/player/smart_bomb_sweetener_1.ogg"),
+	preload("res://assets/audio/weapons/player/smart_bomb_sweetener_2.ogg"),
 ]
 
 # Tuned so Mk.1 (18) one-shots a large non-tough enemy (16 HP) and everything

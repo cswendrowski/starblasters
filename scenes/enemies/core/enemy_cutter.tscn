@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/enemies/enemy_core.gd" id="1_script"]
 [ext_resource type="Texture2D" path="res://graphics/extra-ships/tiny_ship20.png" id="2_tex"]
-[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="3_die"]
 [ext_resource type="Script" path="res://scripts/enemies/patterns/side_pingpong.gd" id="4_mov"]
 [ext_resource type="Resource" path="res://resources/patterns/shoot/single_shot.tres" id="5_shoot"]
 

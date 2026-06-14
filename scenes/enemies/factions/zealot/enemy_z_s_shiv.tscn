@@ -6,7 +6,7 @@
 [ext_resource type="Script" uid="uid://5imwobncfuhu" path="res://scripts/enemies/components/emitter_component.gd" id="4_2vuo2"]
 [ext_resource type="PackedScene" uid="uid://uoof4kuon0td" path="res://scenes/enemies/factions/zealot/firecore_core.tscn" id="5_38u3h"]
 [ext_resource type="Texture2D" uid="uid://dbjax5oisterp" path="res://graphics/enemies/enemy_z_s_shiv.png" id="6_85tob"]
-[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="7_njcrr"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="7_njcrr"]
 
 [sub_resource type="Resource" id="MovePattern"]
 script = ExtResource("2_lpb1d")

@@ -10,16 +10,16 @@ class_name ShieldSfx
 # itself when the stream finishes.
 
 const HIT_CLIPS := [
-	preload("res://Sound/shield/Shield_Hit_1.ogg"),
-	preload("res://Sound/shield/Shield_Hit_2.ogg"),
-	preload("res://Sound/shield/Shield_Hit_3.ogg"),
-	preload("res://Sound/shield/Shield_Hit_4.ogg"),
-	preload("res://Sound/shield/Shield_Hit_5.ogg"),
+	preload("res://assets/audio/shield/Shield_Hit_1.ogg"),
+	preload("res://assets/audio/shield/Shield_Hit_2.ogg"),
+	preload("res://assets/audio/shield/Shield_Hit_3.ogg"),
+	preload("res://assets/audio/shield/Shield_Hit_4.ogg"),
+	preload("res://assets/audio/shield/Shield_Hit_5.ogg"),
 ]
 const BREAK_CLIPS := [
-	preload("res://Sound/shield/Shield_Break_1.ogg"),
-	preload("res://Sound/shield/Shield_Break_2.ogg"),
-	preload("res://Sound/shield/Shield_Break_3.ogg"),
+	preload("res://assets/audio/shield/Shield_Break_1.ogg"),
+	preload("res://assets/audio/shield/Shield_Break_2.ogg"),
+	preload("res://assets/audio/shield/Shield_Break_3.ogg"),
 ]
 
 const HIT_VOLUME_DB: float = -2.0

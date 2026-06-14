@@ -3,8 +3,8 @@
 [ext_resource type="Script" uid="uid://bsrm7tpjdmbds" path="res://scripts/enemies/factions/privateer/enemy_gunship.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://dx4rekb1q8gka" path="res://graphics/enemies/enemy_p_m_gunship.png" id="2_mkb1a"]
 [ext_resource type="Script" uid="uid://impp5iwmt1e8" path="res://scripts/enemies/patterns/omni_thrust.gd" id="3_mov"]
-[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="4_shoot"]
-[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="5_die"]
+[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://assets/audio/SFX_shot7.wav" id="4_shoot"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="5_die"]
 
 [sub_resource type="Resource" id="MovePattern"]
 script = ExtResource("3_mov")

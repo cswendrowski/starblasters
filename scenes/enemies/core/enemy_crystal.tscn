@@ -3,8 +3,8 @@
 [ext_resource type="Script" path="res://scripts/enemies/core/enemy_crystal.gd" id="1_0exlg"]
 [ext_resource type="Texture2D" uid="uid://d4deih8dardj0" path="res://graphics/extra-ships/ship_4.png" id="3_g646a"]
 [ext_resource type="Texture2D" uid="uid://dn1edfs6n7tjr" path="res://Mini Pixel Pack 3/Effects/Explosion (16 x 16).png" id="3_jathr"]
-[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="4_gqutq"]
-[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="5_41ijo"]
+[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://assets/audio/SFX_shot7.wav" id="4_gqutq"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="5_41ijo"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_j7632"]
 size = Vector2(48, 48)

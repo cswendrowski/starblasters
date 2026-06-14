@@ -2,8 +2,8 @@
 
 [ext_resource type="Script" uid="uid://bd1l72v0x85xw" path="res://scripts/enemies/core/enemy_bomber.gd" id="1_bomber"]
 [ext_resource type="Texture2D" uid="uid://crrt44bpht5w2" path="res://graphics/enemies/enemy_bomber.png" id="2_uxu1k"]
-[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
-[ext_resource type="AudioStream" uid="uid://bhiuomm0cj0w2" path="res://Sound/SFX_flameShot3b.wav" id="4_shot"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="3_die"]
+[ext_resource type="AudioStream" uid="uid://bhiuomm0cj0w2" path="res://assets/audio/SFX_flameShot3b.wav" id="4_shot"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_bomber"]
 size = Vector2(32, 64)

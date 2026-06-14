@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/enemies/factions/corporate/enemy_drone_carrier.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://bxyyd2dqfyvxb" path="res://graphics/enemies/enemy_placeholder_64x.png" id="2_tex"]
-[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="3_die"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
 size = Vector2(52, 32)

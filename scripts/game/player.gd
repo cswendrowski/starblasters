@@ -189,8 +189,8 @@ signal super_charges_changed(value: int, maximum: int)
 # Pool of hit-flinch SFX rotated each time the player takes a hit. Two
 # variants keep the sound from feeling samey under sustained fire.
 const HIT_SFX_POOL: Array = [
-	preload("res://Sound/SFX_hit&damage3.wav"),
-	preload("res://Sound/SFX_hit&damage9.wav"),
+	preload("res://assets/audio/SFX_hit&damage3.wav"),
+	preload("res://assets/audio/SFX_hit&damage9.wav"),
 ]
 var _hit_sfx_idx: int = 0
 
@@ -635,7 +635,7 @@ func _setup_mg_audio() -> void:
 	# (ffmpeg `lowpass=f=4000`). The `-LP.ogg` files are committed alongside
 	# the originals. pitch_scale is dialed back closer to neutral now that the
 	# muffle character comes from the filter instead of pitch.
-	var loop_stream: AudioStream = load("res://Sound/weapons/player/Machinegun-Loop-LP.ogg")
+	var loop_stream: AudioStream = load("res://assets/audio/weapons/player/Machinegun-Loop-LP.ogg")
 	if loop_stream is AudioStreamOggVorbis:
 		(loop_stream as AudioStreamOggVorbis).loop = true
 	_mg_loop_player = AudioStreamPlayer2D.new()
@@ -646,7 +646,7 @@ func _setup_mg_audio() -> void:
 	_mg_loop_player.bus = "SFX"
 	add_child(_mg_loop_player)
 
-	var end_stream: AudioStream = load("res://Sound/weapons/player/Machinegun-End-LP.ogg")
+	var end_stream: AudioStream = load("res://assets/audio/weapons/player/Machinegun-End-LP.ogg")
 	_mg_end_player = AudioStreamPlayer2D.new()
 	_mg_end_player.name = "MgEnd"
 	_mg_end_player.stream = end_stream
@@ -662,12 +662,12 @@ func _setup_mg_audio() -> void:
 	_rl_charge_player = get_node_or_null("RotaryLaserCharge")
 	_rl_shoot_player_node = get_node_or_null("RotaryLaserShoot")
 	_rl_shoot_streams = [
-		load("res://Sound/weapons/player/rotary_laser_shoot_1.ogg"),
-		load("res://Sound/weapons/player/rotary_laser_shoot_2.ogg"),
-		load("res://Sound/weapons/player/rotary_laser_shoot_3.ogg"),
-		load("res://Sound/weapons/player/rotary_laser_shoot_4.ogg"),
-		load("res://Sound/weapons/player/rotary_laser_shoot_5.ogg"),
-		load("res://Sound/weapons/player/rotary_laser_shoot_6.ogg"),
+		load("res://assets/audio/weapons/player/rotary_laser_shoot_1.ogg"),
+		load("res://assets/audio/weapons/player/rotary_laser_shoot_2.ogg"),
+		load("res://assets/audio/weapons/player/rotary_laser_shoot_3.ogg"),
+		load("res://assets/audio/weapons/player/rotary_laser_shoot_4.ogg"),
+		load("res://assets/audio/weapons/player/rotary_laser_shoot_5.ogg"),
+		load("res://assets/audio/weapons/player/rotary_laser_shoot_6.ogg"),
 	]
 	# Polyphonic so rapid-fire pews overlap instead of cutting each other off.
 	if _rl_shoot_player_node:
@@ -684,7 +684,7 @@ func _setup_mg_audio() -> void:
 func _setup_ac_audio() -> void:
 	# Autocannon: start sound during spin-up (1.5s), then regular fire,
 	# stop sound when firing ends.
-	var start_stream: AudioStream = load("res://Sound/weapons/player/autocannon_start.ogg")
+	var start_stream: AudioStream = load("res://assets/audio/weapons/player/autocannon_start.ogg")
 	_ac_start_player = AudioStreamPlayer2D.new()
 	_ac_start_player.name = "AutocannonStart"
 	_ac_start_player.stream = start_stream
@@ -692,7 +692,7 @@ func _setup_ac_audio() -> void:
 	_ac_start_player.bus = "SFX"
 	add_child(_ac_start_player)
 
-	var stop_stream: AudioStream = load("res://Sound/weapons/player/autocannon_stop.ogg")
+	var stop_stream: AudioStream = load("res://assets/audio/weapons/player/autocannon_stop.ogg")
 	_ac_stop_player = AudioStreamPlayer2D.new()
 	_ac_stop_player.name = "AutocannonStop"
 	_ac_stop_player.stream = stop_stream
@@ -703,7 +703,7 @@ func _setup_ac_audio() -> void:
 
 func _setup_mg_stop_audio() -> void:
 	# Minigun stop sound (plays when firing ends, interruptible if firing resumes).
-	var stop_stream: AudioStream = load("res://Sound/weapons/player/minigun_stop.ogg")
+	var stop_stream: AudioStream = load("res://assets/audio/weapons/player/minigun_stop.ogg")
 	_mg_stop_player = AudioStreamPlayer2D.new()
 	_mg_stop_player.name = "MinigunStop"
 	_mg_stop_player.stream = stop_stream

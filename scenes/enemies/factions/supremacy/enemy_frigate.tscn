@@ -2,8 +2,8 @@
 
 [ext_resource type="Script" uid="uid://dc26l0d3vq7c0" path="res://scripts/enemies/factions/supremacy/enemy_frigate.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://dobx33ndi0rt4" path="res://graphics/enemies/enemy_frigate.png" id="2_7mqtm"]
-[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
-[ext_resource type="AudioStream" uid="uid://bhiuomm0cj0w2" path="res://Sound/SFX_flameShot3b.wav" id="4_shot"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="3_die"]
+[ext_resource type="AudioStream" uid="uid://bhiuomm0cj0w2" path="res://assets/audio/SFX_flameShot3b.wav" id="4_shot"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
 size = Vector2(32, 64)

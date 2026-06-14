@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://dceu2p0qeggb3" path="res://scripts/enemies/bosses/boss_reaver.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://dim35btvoksfp" path="res://graphics/extra-ships/ship_1.png" id="2_tex"]
-[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="3_die"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
 size = Vector2(48, 48)

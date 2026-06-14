@@ -3,8 +3,8 @@
 [ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemies/enemy_core.gd" id="1_rh73e"]
 [ext_resource type="Script" uid="uid://bbr5n16o8e4g0" path="res://scripts/enemies/patterns/top_dive.gd" id="2_irlo5"]
 [ext_resource type="Texture2D" uid="uid://jo0kqikmtqyp" path="res://graphics/enemies/enemy_c_s_dart.png" id="3_glrgp"]
-[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="4_o1m5d"]
-[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="5_0m5tn"]
+[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://assets/audio/SFX_shot7.wav" id="4_o1m5d"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="5_0m5tn"]
 
 [sub_resource type="Resource" id="MovePattern_inst"]
 script = ExtResource("2_irlo5")

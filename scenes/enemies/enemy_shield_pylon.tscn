@@ -6,7 +6,7 @@
 [ext_resource type="Script" uid="uid://d3x2m0dru5n7n" path="res://scripts/enemies/aegis_pylon.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://dxo2261cbxwx0" path="res://graphics/enemies/enemy_shield_pylon.png" id="2_body"]
 [ext_resource type="Texture2D" uid="uid://66uvb8vtaltt" path="res://graphics/enemies/enemy_shield_pylon_orb.png" id="3_orb"]
-[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="4_die"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="4_die"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_pylon"]
 size = Vector2(16, 16)

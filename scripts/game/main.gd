@@ -867,8 +867,8 @@ func _on_missile_cruiser_freed() -> void:
 # 2.5s grace → controls off → HUD flicker out → ship flies up off-screen →
 # black wipe → cleared summary screen.
 const EXIT_THRUSTER_CLIPS := [
-	"res://Sound/exit_thruster_1.ogg",
-	"res://Sound/exit_thruster_2.ogg",
+	"res://assets/audio/exit_thruster_1.ogg",
+	"res://assets/audio/exit_thruster_2.ogg",
 ]
 
 

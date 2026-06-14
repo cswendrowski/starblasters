@@ -44,44 +44,44 @@ const CTX_SILENT := "silent"
 # Track sets — three intensity tiers each.
 var _sets: Dictionary = {
 	SET_GALAXY: [
-		preload("res://Sound/music/Galaxy_Intensity_1.ogg"),
-		preload("res://Sound/music/Galaxy_Intensity_2.ogg"),
-		preload("res://Sound/music/Galaxy_Main.ogg"),
+		preload("res://assets/audio/music/Galaxy_Intensity_1.ogg"),
+		preload("res://assets/audio/music/Galaxy_Intensity_2.ogg"),
+		preload("res://assets/audio/music/Galaxy_Main.ogg"),
 	],
 	SET_CREEP: [
-		preload("res://Sound/music/Creep_Intensity_1.ogg"),
-		preload("res://Sound/music/Creep_Intensity_2.ogg"),
-		preload("res://Sound/music/Creep_Main.ogg"),
+		preload("res://assets/audio/music/Creep_Intensity_1.ogg"),
+		preload("res://assets/audio/music/Creep_Intensity_2.ogg"),
+		preload("res://assets/audio/music/Creep_Main.ogg"),
 	],
 	SET_BREAK: [
-		preload("res://Sound/music/Break_Intensity_1.ogg"),
-		preload("res://Sound/music/Break_Intensity_2.ogg"),
-		preload("res://Sound/music/Break_Main.ogg"),
+		preload("res://assets/audio/music/Break_Intensity_1.ogg"),
+		preload("res://assets/audio/music/Break_Intensity_2.ogg"),
+		preload("res://assets/audio/music/Break_Main.ogg"),
 	],
 	SET_CHUGGA: [
-		preload("res://Sound/music/Chugga_Intensity_1.ogg"),
-		preload("res://Sound/music/Chugga_Intensity_2.ogg"),
-		preload("res://Sound/music/Chugga_Main.ogg"),
+		preload("res://assets/audio/music/Chugga_Intensity_1.ogg"),
+		preload("res://assets/audio/music/Chugga_Intensity_2.ogg"),
+		preload("res://assets/audio/music/Chugga_Main.ogg"),
 	],
 	SET_KNUCKLES: [
-		preload("res://Sound/music/Knuckles_Intensity_1.ogg"),
-		preload("res://Sound/music/Knuckles_Intensity_2.ogg"),
-		preload("res://Sound/music/Knuckles_Main.ogg"),
+		preload("res://assets/audio/music/Knuckles_Intensity_1.ogg"),
+		preload("res://assets/audio/music/Knuckles_Intensity_2.ogg"),
+		preload("res://assets/audio/music/Knuckles_Main.ogg"),
 	],
 	SET_FRIDGE: [
-		preload("res://Sound/music/Fridge_Intensity_1.ogg"),
-		preload("res://Sound/music/Fridge_Intensity_2.ogg"),
-		preload("res://Sound/music/Fridge_Main.ogg"),
+		preload("res://assets/audio/music/Fridge_Intensity_1.ogg"),
+		preload("res://assets/audio/music/Fridge_Intensity_2.ogg"),
+		preload("res://assets/audio/music/Fridge_Main.ogg"),
 	],
 	SET_MINESHAFT: [
-		preload("res://Sound/music/Mineshaft_Intensity_1.ogg"),
-		preload("res://Sound/music/Mineshaft_Intensity_2.ogg"),
-		preload("res://Sound/music/Mineshaft_Main.ogg"),
+		preload("res://assets/audio/music/Mineshaft_Intensity_1.ogg"),
+		preload("res://assets/audio/music/Mineshaft_Intensity_2.ogg"),
+		preload("res://assets/audio/music/Mineshaft_Main.ogg"),
 	],
 	SET_SHADOWRUN: [
-		preload("res://Sound/music/Shadowrun_Intensity_1.ogg"),
-		preload("res://Sound/music/Shadowrun_Intensity_2.ogg"),
-		preload("res://Sound/music/Shadowrun_Main.ogg"),
+		preload("res://assets/audio/music/Shadowrun_Intensity_1.ogg"),
+		preload("res://assets/audio/music/Shadowrun_Intensity_2.ogg"),
+		preload("res://assets/audio/music/Shadowrun_Main.ogg"),
 	],
 }
 

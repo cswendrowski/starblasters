@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://hhuxgtwu2psl" path="res://scripts/enemies/factions/corporate/enemy_sapper.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://cg4a1tsjngjgi" path="res://graphics/enemies/small_sapper.png" id="2_tex"]
-[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="3_die"]
 
 [sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_glow"]
 blend_mode = 1

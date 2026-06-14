@@ -2,8 +2,8 @@
 
 [ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemies/enemy_core.gd" id="1_core"]
 [ext_resource type="Texture2D" uid="uid://oehj7urxkwdg" path="res://graphics/enemies/small_manta.png" id="3_g646a"]
-[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="4_shoot"]
-[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="5_die"]
+[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://assets/audio/SFX_shot7.wav" id="4_shoot"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="5_die"]
 [ext_resource type="Script" uid="uid://bj8dc3ktx8bt1" path="res://scripts/enemies/patterns/straight_down.gd" id="10_mov"]
 [ext_resource type="Resource" uid="uid://br63l373x26od" path="res://resources/patterns/shoot/single_shot.tres" id="11_shoot"]
 

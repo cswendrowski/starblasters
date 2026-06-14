@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://da5afv404n26y" path="res://scripts/enemies/factions/privateer/interceptor.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://b3eicnxjy2o0r" path="res://graphics/enemies/enemy_p_m_intercept.png" id="2_61u2j"]
-[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="3_die"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
 size = Vector2(30, 32)
