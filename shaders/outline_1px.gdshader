@@ -29,18 +29,16 @@ const vec2[8] DIRECTIONS = {
 
 float gtz(float input) { return max(0.0, sign(input)); }
 
-// Sample TEXTURE directly here rather than receiving it as a parameter. Passing the built-in
-// sampler `TEXTURE` into a user function trips Godot's custom_samplers codegen check
-// ("!custom_samplers.has(function->arguments[j].tex_builtin)"). gl_compatibility tolerated it;
-// forward_plus (the 2026-06-10 pivot) hard-faults the combat pipeline on it. (Roman 2026-06-12)
-float check(vec2 from, vec2 size) {
+// The neighbour alpha-sampling is INLINED in fragment() on purpose. `TEXTURE` is a
+// fragment-stage built-in and is NOT a valid identifier inside a user function — referencing
+// it in a helper makes forward_plus (and the headless dummy renderer) fail the WHOLE shader
+// with "Unknown identifier 'TEXTURE'", which silently dropped every enemy/asteroid outline.
+// Passing it as a `sampler2D` param instead trips the custom_samplers codegen check. Inlining
+// is the only form that compiles under forward_plus. (Fix 2026-06-14; prior helper-fn broke it.)
+void fragment() {
 	float result = 0.0;
 	for (int i = 0; i < 4 * type; i++) {
-		result += texture(TEXTURE, from + DIRECTIONS[i] * size * thickness).a;
+		result += texture(TEXTURE, UV + DIRECTIONS[i] * TEXTURE_PIXEL_SIZE * thickness).a;
 	}
-	return gtz(result);
-}
-
-void fragment() {
-	COLOR = mix(COLOR, clr, check(UV, TEXTURE_PIXEL_SIZE) * (1.0 - gtz(COLOR.a)));
+	COLOR = mix(COLOR, clr, gtz(result) * (1.0 - gtz(COLOR.a)));
 }
