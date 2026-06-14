@@ -45,6 +45,7 @@ const SystemDelimiter = preload("res://scripts/parts/system_delimiter.gd")
 const ReinforcedHull = preload("res://scripts/parts/reinforced_hull.gd")
 const Thrusters = preload("res://scripts/parts/thrusters.gd")
 const ShieldCapacitor = preload("res://scripts/parts/shield_capacitor.gd")
+const InterceptDrones = preload("res://scripts/parts/intercept_drones.gd")
 const BulletDefault = preload("res://scenes/projectiles/bullet_blaster.tscn")
 const BulletHeavy = preload("res://scenes/projectiles/bullet_blaster_heavy.tscn")
 const BulletMinigun = preload("res://scenes/projectiles/bullet_minigun.tscn")
@@ -96,7 +97,6 @@ static func _all_pool() -> Array:
 		# while the combined Drone Swarm super is the canonical drone
 		# experience. Roman 2026-05-24: re-enabled — renamed to "Intercept
 		# Drones" and was missing from the hangar roll pool.
-		{"factory": "_make_drone_bits", "slot": Slots.SlotType.HARDPOINT_WING},
 		# Roman 2026-05-30: Combat Drones converted SUPER -> SECONDARY; now
 		# equips in the HARDPOINT_WING slot and fires on shoot2 (deploy).
 		{"factory": "_make_drone_swarm", "slot": Slots.SlotType.HARDPOINT_WING},
@@ -112,6 +112,7 @@ static func _all_pool() -> Array:
 		{"factory": "_make_reinforced_hull", "slot": Slots.SlotType.MODULE},
 		{"factory": "_make_thrusters", "slot": Slots.SlotType.MODULE},
 		{"factory": "_make_shield_capacitor", "slot": Slots.SlotType.MODULE},
+		{"factory": "_make_intercept_drones", "slot": Slots.SlotType.MODULE},
 	]
 
 static func roll_random_part(rng: RandomNumberGenerator):
@@ -238,6 +239,8 @@ static func _make_by_name(name: String, slot: int):
 			return Thrusters.new()
 		"_make_shield_capacitor":
 			return ShieldCapacitor.new()
+		"_make_intercept_drones":
+			return InterceptDrones.new()
 	return null
 
 
