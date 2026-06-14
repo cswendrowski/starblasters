@@ -41,7 +41,8 @@ items remain below. Deep specs live in `TODO.md` / `docs/` — this is the scann
   `CanvasModulate` is multiply-only → needs a per-layer overlay/grade shader).
 
 ## Audio
-- **Corpo-wave audio restart** — music stops then restarts when a round begins (`music_manager.gd`).
+- ~~**Corpo-wave audio restart**~~ — PARKED 2026-06-13 (Roman: drop for now, reopen if it bites in
+  playtesting later). Symptom: music stops then restarts when a round begins (`music_manager.gd`).
 
 ## Weapons / data
 > **Wave 1 sweep DONE 2026-06-13** (uncommitted, parse + headless-boot clean): relocated
