@@ -40,10 +40,6 @@ items remain below. Deep specs live in `TODO.md` / `docs/` — this is the scann
   (old "not working" note was stale); remaining = a Mix/Add/Mul/Screen option (non-trivial:
   `CanvasModulate` is multiply-only → needs a per-layer overlay/grade shader).
 
-## Audio
-- ~~**Corpo-wave audio restart**~~ — PARKED 2026-06-13 (Roman: drop for now, reopen if it bites in
-  playtesting later). Symptom: music stops then restarts when a round begins (`music_manager.gd`).
-
 ## Weapons / data
 > **Wave 1 sweep DONE 2026-06-13** (uncommitted, parse + headless-boot clean): relocated
 > `bullet.gd`/`bullet_wave.gd` → `projectiles/` (+ UID-cache reimport); re-saved drone_bits/drone_swarm
@@ -63,12 +59,12 @@ items remain below. Deep specs live in `TODO.md` / `docs/` — this is the scann
   designer `.tres` (enemy_blaster/cannon/diamond_gun/laser_cannon/wave_cannon/mg) + ~5 enemy scenes
   (cutter/drifter/hover/weaver/skirmisher) + `test_wave_darts.tres`. Migrate those to `Weapon`, then delete the classes.
 - **Dev bullet-speed editor** — absolute rungs (1–8 = 60–480 px/s), save to `data/bullets/*.tres`.
-- **DPS report + `weapon_stats.csv`** — ◑ **REPORT DONE 2026-06-13** (uncommitted): reproducible generator
+- **DPS report + `weapon_stats.csv`** — ✅ **DONE 2026-06-13**: reproducible generator
   `tools/weapon_dps_report.gd` regenerates the CSV from live Part data; added **Shredder** (30→50) + **Pulse
   Laser** (33 flat); caught the **Spread→Scatter-Blaster, now-infinite-ammo** drift; fixed the `.import`
   (`importer="keep"` → no more `.translation` regen). Full table + findings: `docs/weapon_dps_report_2026-06-13.md`.
-  REMAINING = the **rebalance** itself (Energy trim / Minigun buff / Autocannon curve / Pulse-flat? / Scatter-∞?)
-  — surfaced, NOT applied (your call).
+  The **rebalance** (Energy trim / Minigun buff / Autocannon curve / etc.) is **DROPPED 2026-06-13** (Roman —
+  weapons are good as-is; reintroduce off the report if it ever bites).
 - Smaller knobs (remaining): wave-gen `bullet_variant` override, chaff-speed sector scaling.
 - Cleanup (remaining): muzzle-flash-as-scenes (opt), per-Part `fire_offset`.
 - **Manage Ship modal** — ✅ **SELL UI DONE 2026-06-13** (branch `manage-ship-sell-ui-2026-06-13`): spare
