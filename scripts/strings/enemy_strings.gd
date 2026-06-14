@@ -11,13 +11,13 @@ extends Object
 #   EnemyStrings.codex_entry(scene_path)    # -> codex text ("TBD" default)
 
 const STRINGS := {
-	"res://scenes/enemies/boss.tscn": {"name": "boss", "codex": "TBD"},
-	"res://scenes/enemies/boss_conductor.tscn": {"name": "boss_conductor", "codex": "TBD"},
-	"res://scenes/enemies/boss_howler.tscn": {"name": "boss_howler", "codex": "TBD"},
-	"res://scenes/enemies/boss_reaver.tscn": {"name": "boss_reaver", "codex": "TBD"},
-	"res://scenes/enemies/boss_sentinel.tscn": {"name": "boss_sentinel", "codex": "TBD"},
-	"res://scenes/enemies/boss_spinwright.tscn": {"name": "boss_spinwright", "codex": "TBD"},
-	"res://scenes/enemies/boss_voidmaw.tscn": {"name": "boss_voidmaw", "codex": "TBD"},
+	"res://scenes/enemies/bosses/boss.tscn": {"name": "boss", "codex": "TBD"},
+	"res://scenes/enemies/bosses/boss_conductor.tscn": {"name": "boss_conductor", "codex": "TBD"},
+	"res://scenes/enemies/bosses/boss_howler.tscn": {"name": "boss_howler", "codex": "TBD"},
+	"res://scenes/enemies/bosses/boss_reaver.tscn": {"name": "boss_reaver", "codex": "TBD"},
+	"res://scenes/enemies/bosses/boss_sentinel.tscn": {"name": "boss_sentinel", "codex": "TBD"},
+	"res://scenes/enemies/bosses/boss_spinwright.tscn": {"name": "boss_spinwright", "codex": "TBD"},
+	"res://scenes/enemies/bosses/boss_voidmaw.tscn": {"name": "boss_voidmaw", "codex": "TBD"},
 	"res://scenes/enemies/core/enemy_bomb_drone.tscn": {"name": "bomb_drone", "codex": "TBD"},
 	"res://scenes/enemies/core/enemy_bomber.tscn": {"name": "bomber", "codex": "TBD"},
 	"res://scenes/enemies/core/enemy_cruiser.tscn": {"name": "cruiser", "codex": "TBD"},

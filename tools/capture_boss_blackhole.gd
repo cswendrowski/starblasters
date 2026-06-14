@@ -8,7 +8,7 @@ const OUT_DIR := "res://captures/boss_blackhole"
 const FPS: int = 24
 const DURATION: float = 6.5
 const FRAME_TIME: float = 1.0 / float(FPS)
-const BOSS_SCENE := "res://scenes/enemies/boss.tscn"
+const BOSS_SCENE := "res://scenes/enemies/bosses/boss.tscn"
 
 
 func _initialize() -> void:

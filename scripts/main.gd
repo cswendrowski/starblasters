@@ -992,7 +992,7 @@ func _on_node_added_to_tree(n: Node) -> void:
 	var found_boss: bool = false
 	var cur = sc
 	while cur != null:
-		if cur.resource_path == "res://scripts/enemies/boss_base.gd":
+		if cur.resource_path == "res://scripts/enemies/bosses/boss_base.gd":
 			found_boss = true
 			break
 		cur = cur.get_base_script()

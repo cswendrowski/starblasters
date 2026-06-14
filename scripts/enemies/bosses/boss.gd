@@ -1,4 +1,4 @@
-extends "res://scripts/enemies/boss_base.gd"
+extends "res://scripts/enemies/bosses/boss_base.gd"
 
 # Commander — the sector flagship. Mobile sweeper + summoner + area-denial
 # hybrid. Signature attack (2026-05-23 rework): launches a Tether Mine

@@ -1,4 +1,4 @@
-extends "res://scripts/enemies/boss_base.gd"
+extends "res://scripts/enemies/bosses/boss_base.gd"
 
 # The Conductor — sector 3 row-3 finale. Mirror/predictive + multi-part +
 # transforming. Two satellite drones orbit the core, mirror player X, and

@@ -16,7 +16,7 @@ extends Resource
 
 
 static func make(p_name: String, p_threshold: float, p_flash: bool = true, p_shake: float = 0.0) -> Resource:
-	var p = (load("res://scripts/enemies/boss_phase.gd") as GDScript).new()
+	var p = (load("res://scripts/enemies/bosses/boss_phase.gd") as GDScript).new()
 	p.name = p_name
 	p.hp_threshold_pct = p_threshold
 	p.enrage_flash = p_flash

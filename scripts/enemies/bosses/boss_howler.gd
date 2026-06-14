@@ -1,4 +1,4 @@
-extends "res://scripts/enemies/boss_base.gd"
+extends "res://scripts/enemies/bosses/boss_base.gd"
 
 # Howler — sector 1 anchored bullet-hell turret. Stubby gunboat. Identity:
 # anchored turret that cycles through MANY weapons + occasionally calls

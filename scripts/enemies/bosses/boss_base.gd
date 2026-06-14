@@ -16,7 +16,7 @@ extends "res://scripts/enemies/enemy_base.gd"
 #     from the wave director) for their signature attack rotation.
 #
 # main.gd's HP-bar wiring walks the inheritance chain looking for
-# resource_path == "res://scripts/enemies/boss_base.gd" — every boss
+# resource_path == "res://scripts/enemies/bosses/boss_base.gd" — every boss
 # subclass picks up the bar automatically by extending this file.
 
 const Playfield = preload("res://scripts/playfield.gd")
@@ -55,7 +55,7 @@ signal phase_changed(old_idx: int, new_idx: int, phase_name: String)
 # Array of BossPhase resources (path-based, not class_name'd, to avoid
 # global-class-cache ordering on cold boot). Subclasses populate via
 # `BossPhase.make(...)`.
-const BossPhase = preload("res://scripts/enemies/boss_phase.gd")
+const BossPhase = preload("res://scripts/enemies/bosses/boss_phase.gd")
 const MidDepthPresentation = preload("res://scripts/effects/mid_depth_presentation.gd")
 const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
 @export var phases: Array[Resource] = []

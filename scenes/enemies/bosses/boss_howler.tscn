@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://b23l1q338ff6o"]
 
-[ext_resource type="Script" uid="uid://cvmoh1ol0wuio" path="res://scripts/enemies/boss_howler.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://cvmoh1ol0wuio" path="res://scripts/enemies/bosses/boss_howler.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://d31xidevp1ujt" path="res://graphics/extra-ships/ship_2.png" id="2_tex"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
 

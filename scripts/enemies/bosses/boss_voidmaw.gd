@@ -1,4 +1,4 @@
-extends "res://scripts/enemies/boss_base.gd"
+extends "res://scripts/enemies/bosses/boss_base.gd"
 
 # Voidmaw — sector 2 area-denial. Identity: the drifting hole. Stationary
 # boss "exhales" slow-drifting black holes that travel down the playfield

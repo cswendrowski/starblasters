@@ -528,7 +528,7 @@ max_value = 6.0
 step = 0.05
 value = 3.0
 metadata/ship_name = "Boss"
-metadata/scene_path = "res://scenes/enemies/boss.tscn"
+metadata/scene_path = "res://scenes/enemies/bosses/boss.tscn"
 
 [node name="SaveScalesBtn" type="Button" parent="Tabs/Ships"]
 custom_minimum_size = Vector2(220, 36)

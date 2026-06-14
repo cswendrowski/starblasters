@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://caor0fn0rcrym"]
 
-[ext_resource type="Script" uid="uid://dxc722755n316" path="res://scripts/enemies/boss_voidmaw.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://dxc722755n316" path="res://scripts/enemies/bosses/boss_voidmaw.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://bjq1vulykbs7b" path="res://graphics/extra-ships/ship_6.png" id="2_tex"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
 

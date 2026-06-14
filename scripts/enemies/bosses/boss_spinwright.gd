@@ -1,4 +1,4 @@
-extends "res://scripts/enemies/boss_base.gd"
+extends "res://scripts/enemies/bosses/boss_base.gd"
 
 # Spinwright — sector 2-3 transforming beam-sweeper. Identity: ring opens,
 # beam sweeps, the gap moves. Phase 0 the ring deflects player bullets

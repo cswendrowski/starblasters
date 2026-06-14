@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://pneira12v2pc"]
 
-[ext_resource type="Script" uid="uid://counimiosxas6" path="res://scripts/enemies/boss_conductor.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://counimiosxas6" path="res://scripts/enemies/bosses/boss_conductor.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://deqmo34uqv2ja" path="res://graphics/enemies/boss_green_mantis.png" id="2_tex"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
 

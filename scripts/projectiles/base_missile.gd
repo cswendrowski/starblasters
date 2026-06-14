@@ -385,7 +385,7 @@ func _is_boss(n: Node) -> bool:
 		return false
 	var sc: Script = n.get_script()
 	while sc != null:
-		if sc.resource_path == "res://scripts/enemies/boss_base.gd":
+		if sc.resource_path == "res://scripts/enemies/bosses/boss_base.gd":
 			return true
 		sc = sc.get_base_script()
 	return false

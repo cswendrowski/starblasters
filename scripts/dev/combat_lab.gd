@@ -28,13 +28,13 @@ const MINEFIELD_OPTIONS := [
 	["Shielded", "shielded"], ["Cluster", "cluster"], ["Mega Cluster", "mega"],
 ]
 const BOSS_PICKS := [
-	["Commander", "res://scenes/enemies/boss.tscn"],
-	["Lash", "res://scenes/enemies/boss_reaver.tscn"],
-	["Aegis", "res://scenes/enemies/boss_sentinel.tscn"],
-	["Howler", "res://scenes/enemies/boss_howler.tscn"],
-	["Voidmaw", "res://scenes/enemies/boss_voidmaw.tscn"],
-	["Spinwright", "res://scenes/enemies/boss_spinwright.tscn"],
-	["Conductor", "res://scenes/enemies/boss_conductor.tscn"],
+	["Commander", "res://scenes/enemies/bosses/boss.tscn"],
+	["Lash", "res://scenes/enemies/bosses/boss_reaver.tscn"],
+	["Aegis", "res://scenes/enemies/bosses/boss_sentinel.tscn"],
+	["Howler", "res://scenes/enemies/bosses/boss_howler.tscn"],
+	["Voidmaw", "res://scenes/enemies/bosses/boss_voidmaw.tscn"],
+	["Spinwright", "res://scenes/enemies/bosses/boss_spinwright.tscn"],
+	["Conductor", "res://scenes/enemies/bosses/boss_conductor.tscn"],
 ]
 const FACTION_PICKS := [
 	["Auto (deterministic)", -1],

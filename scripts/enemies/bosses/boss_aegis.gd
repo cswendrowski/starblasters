@@ -1,4 +1,4 @@
-extends "res://scripts/enemies/boss_base.gd"
+extends "res://scripts/enemies/bosses/boss_base.gd"
 
 # Aegis (formerly Sentinel) — sector 2-3 multi-part turret. Identity: the
 # pylons. Destructible pylon Area2Ds flank the core; each one projects a

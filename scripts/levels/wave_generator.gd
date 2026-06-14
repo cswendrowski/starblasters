@@ -64,12 +64,12 @@ const BONUS_HP_PER_WAVE: int = 1
 const BONUS_HP_CAP: int = 5
 
 const BOSS_LEADIN_CONFLICTS := {
-	"res://scenes/enemies/boss_voidmaw.tscn": ["dumb_shot", "wide_dodge"],
-	"res://scenes/enemies/boss_howler.tscn": ["aimed_or_spread"],
-	"res://scenes/enemies/boss_reaver.tscn": ["aimed_or_spread"],   # Lash
-	"res://scenes/enemies/boss_sentinel.tscn": ["demands_focus"],   # Aegis
-	"res://scenes/enemies/boss_spinwright.tscn": ["wide_dodge"],
-	"res://scenes/enemies/boss_conductor.tscn": ["demands_focus", "aimed_or_spread"],
+	"res://scenes/enemies/bosses/boss_voidmaw.tscn": ["dumb_shot", "wide_dodge"],
+	"res://scenes/enemies/bosses/boss_howler.tscn": ["aimed_or_spread"],
+	"res://scenes/enemies/bosses/boss_reaver.tscn": ["aimed_or_spread"],   # Lash
+	"res://scenes/enemies/bosses/boss_sentinel.tscn": ["demands_focus"],   # Aegis
+	"res://scenes/enemies/bosses/boss_spinwright.tscn": ["wide_dodge"],
+	"res://scenes/enemies/bosses/boss_conductor.tscn": ["demands_focus", "aimed_or_spread"],
 }
 
 
@@ -77,37 +77,37 @@ const BOSS_LEADIN_CONFLICTS := {
 # seed. Each entry exports its own scene + a label for diagnostics.
 const BOSS_ROSTER := [
 	{
-		"scene": "res://scenes/enemies/boss.tscn",            # Commander (minion + black-hole)
+		"scene": "res://scenes/enemies/bosses/boss.tscn",            # Commander (minion + black-hole)
 		"label": "Commander",
 		"banner": "HIGH VALUE TARGET INCOMING",
 	},
 	{
-		"scene": "res://scenes/enemies/boss_reaver.tscn",     # Lash (dive sweeper)
+		"scene": "res://scenes/enemies/bosses/boss_reaver.tscn",     # Lash (dive sweeper)
 		"label": "Lash",
 		"banner": "LASH INBOUND",
 	},
 	{
-		"scene": "res://scenes/enemies/boss_sentinel.tscn",   # Aegis (multi-part shielded turret)
+		"scene": "res://scenes/enemies/bosses/boss_sentinel.tscn",   # Aegis (multi-part shielded turret)
 		"label": "Aegis",
 		"banner": "AEGIS ENGAGED",
 	},
 	{
-		"scene": "res://scenes/enemies/boss_howler.tscn",     # Howler (anchored ring/burst)
+		"scene": "res://scenes/enemies/bosses/boss_howler.tscn",     # Howler (anchored ring/burst)
 		"label": "Howler",
 		"banner": "HOWLER INBOUND",
 	},
 	{
-		"scene": "res://scenes/enemies/boss_voidmaw.tscn",    # Voidmaw (drifting BHs)
+		"scene": "res://scenes/enemies/bosses/boss_voidmaw.tscn",    # Voidmaw (drifting BHs)
 		"label": "Voidmaw",
 		"banner": "VOIDMAW EMERGES",
 	},
 	{
-		"scene": "res://scenes/enemies/boss_spinwright.tscn", # Spinwright (beam sweep + ring deflect)
+		"scene": "res://scenes/enemies/bosses/boss_spinwright.tscn", # Spinwright (beam sweep + ring deflect)
 		"label": "Spinwright",
 		"banner": "SPINWRIGHT ACTIVE",
 	},
 	{
-		"scene": "res://scenes/enemies/boss_conductor.tscn",  # Conductor (final — satellites + transform)
+		"scene": "res://scenes/enemies/bosses/boss_conductor.tscn",  # Conductor (final — satellites + transform)
 		"label": "Conductor",
 		"banner": "THE CONDUCTOR ARRIVES",
 	},
@@ -718,7 +718,7 @@ static func _pick_boss(rng: RandomNumberGenerator, _sector_depth: int) -> Dictio
 		# Path didn't match the roster — synthesize a minimal entry.
 		return {"scene": forced, "label": "Forced", "banner": "DEV BOSS"}
 	if BOSS_ROSTER.is_empty():
-		return {"scene": "res://scenes/enemies/boss.tscn", "banner": "BOSS"}
+		return {"scene": "res://scenes/enemies/bosses/boss.tscn", "banner": "BOSS"}
 	return BOSS_ROSTER[rng.randi() % BOSS_ROSTER.size()]
 
 

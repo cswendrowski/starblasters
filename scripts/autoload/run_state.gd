@@ -762,13 +762,13 @@ func get_node_faction(node_id: String) -> int:
 #   Lash       never with Howler   (both aggro)
 #   Aegis      never with Spinwright (both long tanks)
 #   Howler     never with Commander (both summon-stationary feel)
-const BOSS_COMMANDER  := "res://scenes/enemies/boss.tscn"
-const BOSS_LASH       := "res://scenes/enemies/boss_reaver.tscn"
-const BOSS_HOWLER     := "res://scenes/enemies/boss_howler.tscn"
-const BOSS_AEGIS      := "res://scenes/enemies/boss_sentinel.tscn"
-const BOSS_VOIDMAW    := "res://scenes/enemies/boss_voidmaw.tscn"
-const BOSS_SPINWRIGHT := "res://scenes/enemies/boss_spinwright.tscn"
-const BOSS_CONDUCTOR  := "res://scenes/enemies/boss_conductor.tscn"
+const BOSS_COMMANDER  := "res://scenes/enemies/bosses/boss.tscn"
+const BOSS_LASH       := "res://scenes/enemies/bosses/boss_reaver.tscn"
+const BOSS_HOWLER     := "res://scenes/enemies/bosses/boss_howler.tscn"
+const BOSS_AEGIS      := "res://scenes/enemies/bosses/boss_sentinel.tscn"
+const BOSS_VOIDMAW    := "res://scenes/enemies/bosses/boss_voidmaw.tscn"
+const BOSS_SPINWRIGHT := "res://scenes/enemies/bosses/boss_spinwright.tscn"
+const BOSS_CONDUCTOR  := "res://scenes/enemies/bosses/boss_conductor.tscn"
 
 const _BOSS_CONFLICTS := {
 	BOSS_COMMANDER:  [BOSS_VOIDMAW, BOSS_HOWLER],

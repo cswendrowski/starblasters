@@ -8,13 +8,13 @@ class_name EnemyManifest
 #
 # When adding a new enemy .tscn, append it here.
 const ENEMIES: Array = [
-	"res://scenes/enemies/boss.tscn",
-	"res://scenes/enemies/boss_reaver.tscn",
-	"res://scenes/enemies/boss_sentinel.tscn",
-	"res://scenes/enemies/boss_howler.tscn",
-	"res://scenes/enemies/boss_voidmaw.tscn",
-	"res://scenes/enemies/boss_spinwright.tscn",
-	"res://scenes/enemies/boss_conductor.tscn",
+	"res://scenes/enemies/bosses/boss.tscn",
+	"res://scenes/enemies/bosses/boss_reaver.tscn",
+	"res://scenes/enemies/bosses/boss_sentinel.tscn",
+	"res://scenes/enemies/bosses/boss_howler.tscn",
+	"res://scenes/enemies/bosses/boss_voidmaw.tscn",
+	"res://scenes/enemies/bosses/boss_spinwright.tscn",
+	"res://scenes/enemies/bosses/boss_conductor.tscn",
 	"res://scenes/enemies/enemy_asteroid.tscn",
 	"res://scenes/enemies/factions/corporate/enemy_bulwark.tscn",
 	"res://scenes/enemies/core/enemy_crystal.tscn",

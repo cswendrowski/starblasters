@@ -1,4 +1,4 @@
-extends "res://scripts/enemies/boss_base.gd"
+extends "res://scripts/enemies/bosses/boss_base.gd"
 
 # Lash (formerly Reaver) — sector 1-2 mobile sweeper / glass cannon.
 # Identity: the dive. P1 strafes in sin^3 arcs with aimed 3-bullet fans;

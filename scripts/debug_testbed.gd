@@ -58,7 +58,7 @@ const SHOWCASE_LIST = [
 	["res://scenes/enemies/factions/privateer/enemy_dart.tscn",     "Dart",     Vector2(180, 815), 1.5],
 	["res://scenes/enemies/core/enemy_hover.tscn",    "Hover",    Vector2(280, 815), 2.0],
 	# Row 3 (y=920) — boss alone at full in-game scale
-	["res://scenes/enemies/boss.tscn",           "Boss",     Vector2(230, 920), 3.0],
+	["res://scenes/enemies/bosses/boss.tscn",           "Boss",     Vector2(230, 920), 3.0],
 ]
 
 var _current_bd = null
