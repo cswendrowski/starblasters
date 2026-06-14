@@ -9,21 +9,29 @@ extends Control
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 
-# Stats already recorded in the history JSON: {label, key}.
+# Stats recorded in the history JSON as plain ints: {label, key}. (Run time,
+# Accuracy, and Damage are formatted/derived — added as computed rows in _show_detail.)
 const RECORDED_STATS := [
 	{"label": "Sectors cleared", "key": "sectors"},
 	{"label": "Enemies destroyed", "key": "kills"},
 	{"label": "Boss kills", "key": "boss_kills"},
 	{"label": "Max bounty", "key": "bounty"},
+	{"label": "Bounty earned", "key": "bounty_gained"},
+	{"label": "Bounty spent", "key": "bounty_spent"},
+	{"label": "Shots fired", "key": "shots_fired"},
+	{"label": "Shots hit", "key": "shots_hit"},
+	{"label": "Unique weapons", "key": "weapons_used"},
+	{"label": "Locations visited", "key": "locations_visited"},
+	{"label": "Outposts visited", "key": "stations_visited"},
+	{"label": "Signals visited", "key": "signals_visited"},
+	{"label": "Asteroids destroyed", "key": "asteroids"},
+	{"label": "Mines cleared", "key": "mines_cleared"},
 	{"label": "Distance", "key": "distance"},
 	{"label": "Run seed", "key": "seed"},
 ]
-# Intended stats not yet instrumented (run_summary_scope_2026-06-01.md Phase 2).
-const PENDING_STATS := [
-	"Run time", "Accuracy", "Damage taken", "Bounty spent",
-	"Asteroids destroyed", "Mines cleared", "Unique enemies", "Unique weapons",
-	"Locations visited",
-]
+# Phase 2 fully instrumented — no remaining placeholders. (Older runs predating a
+# given stat simply read 0 for it.)
+const PENDING_STATS := []
 
 var _hd_scope: HdViewportScope = null
 var _content: VBoxContainer = null   # swapped between the list and a run detail
@@ -158,14 +166,20 @@ func _show_detail(rec: Dictionary) -> void:
 	stats.add_theme_constant_override("separation", 6)
 	stats.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(stats)
+	# Computed / formatted headline rows.
+	_stat_row(stats, "Run time", _fmt_time_h(int(rec.get("time", 0))), false)
+	var sf := int(rec.get("shots_fired", 0))
+	var sh := int(rec.get("shots_hit", 0))
+	_stat_row(stats, "Accuracy", ("%d%%" % int(round(100.0 * float(sh) / float(sf)))) if sf > 0 else "—", false)
+	_stat_row(stats, "Damage taken", "%d shield · %d hull" % [int(rec.get("damage_shield", 0)), int(rec.get("damage_hull", 0))], false)
 	for s in RECORDED_STATS:
 		_stat_row(stats, String(s["label"]), str(int(rec.get(s["key"], 0))), false)
-	# Not-yet-tracked stats — placeholders that fill in as instrumentation lands.
-	var pend_head := _label("NOT YET TRACKED", UiTheme.LabelKind.CAPTION)
-	pend_head.add_theme_color_override("font_color", UiTheme.COLOR_FAINT)
-	stats.add_child(pend_head)
-	for label in PENDING_STATS:
-		_stat_row(stats, label, "—", true)
+	if not PENDING_STATS.is_empty():
+		var pend_head := _label("NOT YET TRACKED", UiTheme.LabelKind.CAPTION)
+		pend_head.add_theme_color_override("font_color", UiTheme.COLOR_FAINT)
+		stats.add_child(pend_head)
+		for label in PENDING_STATS:
+			_stat_row(stats, label, "—", true)
 
 
 func _stat_row(parent: VBoxContainer, label_text: String, value_text: String, pending: bool) -> void:
@@ -207,6 +221,10 @@ func _label(text: String, kind: int) -> Label:
 	l.text = text
 	UiTheme.style_label(l, kind)
 	return l
+
+
+func _fmt_time_h(secs: int) -> String:
+	return "%d:%02d" % [secs / 60, secs % 60]
 
 
 func _to_menu() -> void:

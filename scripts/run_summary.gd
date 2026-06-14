@@ -16,6 +16,9 @@ const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
 @onready var quit_btn: Button = $Center/Panel/Buttons/QuitBtn
 
 var _hd_scope: HdViewportScope = null
+# "died" (default, reached via main.gd) or "victory" (cleared_summary sets the
+# Run meta "run_outcome" on a final-sector clear). Drives the title + history log.
+var _outcome: String = "died"
 
 func _ready() -> void:
 	# Render at HD (1920×1080) for a roomy summary card.
@@ -29,7 +32,12 @@ func _ready() -> void:
 		# flow (this scene IS the current scene), not when run_summary is instanced
 		# under a Node2D for showcase capture (which would log a bogus 0-stat run).
 		if get_tree().current_scene == self:
-			_run.record_run_history("died")
+			# Victory routes through here too (cleared_summary sets the meta); death is
+			# the default. Consume the meta so a later run can't inherit a stale outcome.
+			if _run.has_meta("run_outcome"):
+				_outcome = String(_run.get_meta("run_outcome"))
+				_run.remove_meta("run_outcome")
+			_run.record_run_history(_outcome)
 	# Force the root + Center to fill the viewport, regardless of parent.
 	# When this scene is loaded by change_scene_to_file Godot auto-fills,
 	# but when instanced under a Node2D (showcase capture) it stays 0x0.
@@ -57,6 +65,7 @@ func _ready() -> void:
 	quit_btn.text = "Quit"
 	# Unified styling.
 	if title_label:
+		title_label.text = "PATROL COMPLETE" if _outcome == "victory" else "RUN ENDED"
 		UiTheme.style_label(title_label, UiTheme.LabelKind.TITLE)
 		title_label.material = UiTheme.make_holo_material(UiTheme.HoloPreset.OVERLAY)
 	if stats_label:
@@ -83,12 +92,19 @@ func _render() -> void:
 	if has_node("/root/Run"):
 		var run = get_node("/root/Run")
 		var st: Dictionary = run.run_stats if "run_stats" in run else {}
-		text = "Time: %s\nEnemies destroyed: %d\nBosses defeated: %d\nSectors cleared: %d\nBounty earned: %d\nBounty spent: %d\nDamage taken: %d shield · %d hull\nAsteroids destroyed: %d\nMines cleared: %d\nDistance: %d" % [
+		var sf: int = int(st.get("shots_fired", 0))
+		var sh: int = int(st.get("shots_hit", 0))
+		var acc: String = ("%d%%" % int(round(100.0 * float(sh) / float(sf)))) if sf > 0 else "—"
+		var uniq_weapons: int = int((st.get("weapons_used", {}) as Dictionary).size())
+		text = "Time: %s\nEnemies destroyed: %d\nBosses defeated: %d\nSectors cleared: %d\nBounty earned: %d\nBounty spent: %d\nDamage taken: %d shield · %d hull\nShots: %d fired · %d hit  (%s)\nUnique weapons: %d\nLocations: %d   ·   Outposts: %d   ·   Signals: %d\nAsteroids destroyed: %d\nMines cleared: %d\nDistance: %d" % [
 			_fmt_time(run.run_time_seconds if "run_time_seconds" in run else 0.0),
 			run.enemies_killed, run.bosses_defeated, run.sectors_cleared,
 			int(st.get("bounty_gained", run.max_bounty_earned)),
 			int(st.get("bounty_spent", 0)),
 			int(st.get("damage_shield", 0)), int(st.get("damage_hull", 0)),
+			sf, sh, acc,
+			uniq_weapons,
+			int(st.get("locations_visited", 0)), int(st.get("stations_visited", 0)), int(st.get("signals_visited", 0)),
 			int(st.get("asteroids", 0)), int(st.get("mines_cleared", 0)),
 			int(run.run_distance)
 		]

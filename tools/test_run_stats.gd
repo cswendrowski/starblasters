@@ -17,6 +17,8 @@ func _run() -> void:
 	run.new_run()
 	_assert(run.run_time_seconds == 0.0, "run_time_seconds reset to 0")
 	_assert(int(run.run_stats.get("damage_hull", -1)) == 0, "run_stats reset (damage_hull=0)")
+	_assert(int(run.run_stats.get("shots_fired", -1)) == 0, "shots_fired seeded 0")
+	_assert((run.run_stats.get("weapons_used", null) is Dictionary), "weapons_used seeded as a dict")
 	run.stat_add("damage_hull", 2)
 	run.stat_add("damage_hull", 1)
 	_assert(int(run.run_stats["damage_hull"]) == 3, "stat_add accumulates (3)")
@@ -40,6 +42,25 @@ func _run() -> void:
 	_assert(int(last.get("mines_cleared", -1)) == 3, "history record carries mines_cleared")
 	_assert(last.has("damage_shield") and last.has("damage_hull"), "history record carries damage stats")
 
+	# Phase 2: weapons-used set (idempotent) + new shot/visit stats + victory outcome.
+	run.note_weapon_used("Energy Blaster")
+	run.note_weapon_used("Energy Blaster")   # idempotent — same name doesn't double-count
+	run.note_weapon_used("Rotary Laser")
+	_assert(int((run.run_stats.get("weapons_used", {}) as Dictionary).size()) == 2, "note_weapon_used set-adds unique (2)")
+	run.stat_add("shots_fired", 10)
+	run.stat_add("shots_hit", 7)
+	run.stat_add("locations_visited", 2)
+	run.stat_add("stations_visited", 3)
+	run.record_run_history("victory")
+	var hist2: Array = run.load_run_history()
+	var last2: Dictionary = hist2[hist2.size() - 1]
+	_assert(String(last2.get("outcome", "")) == "victory", "history record carries victory outcome")
+	_assert(int(last2.get("shots_fired", -1)) == 10, "history record carries shots_fired")
+	_assert(int(last2.get("shots_hit", -1)) == 7, "history record carries shots_hit")
+	_assert(int(last2.get("weapons_used", -1)) == 2, "history record carries unique-weapons count (2)")
+	_assert(int(last2.get("locations_visited", -1)) == 2, "history record carries locations_visited")
+	_assert(int(last2.get("stations_visited", -1)) == 3, "history record carries stations_visited")
+
 	# --- B. Death screen renders the stats ---
 	var rs = load("res://scenes/run_summary.tscn").instantiate()
 	root.add_child(rs)   # NOT current_scene → skips record_run_history()
@@ -51,6 +72,9 @@ func _run() -> void:
 	_assert(txt.contains("Bounty earned:"), "summary shows bounty earned")
 	_assert(txt.contains("Bounty spent:"), "summary shows bounty spent")
 	_assert(txt.contains("Mines cleared:"), "summary shows mines cleared")
+	_assert(txt.contains("Shots:"), "summary shows shots/accuracy line")
+	_assert(txt.contains("Unique weapons:"), "summary shows unique weapons")
+	_assert(txt.contains("Locations:"), "summary shows locations/outposts/signals line")
 	rs.free()
 	await process_frame
 

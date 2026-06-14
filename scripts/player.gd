@@ -1458,6 +1458,15 @@ func _spawn_pulse_beam(origin: Vector2, end_pt: Vector2) -> void:
 	tw.tween_callback(line.queue_free)
 
 
+# Cached Run autoload for hot-path stat tallies (run-summary Phase 2) — avoids a
+# per-shot get_node lookup. Run is an autoload, never freed during a session.
+var _run_cache: Node = null
+func _run_ref() -> Node:
+	if _run_cache == null and has_node("/root/Run"):
+		_run_cache = get_node("/root/Run")
+	return _run_cache
+
+
 func fire_primary() -> void:
 	# Minigun is now projectile-based (Roman 2026-06-11) — fires bullet_minigun
 	# through the normal path below, like the other cannons.
@@ -1484,6 +1493,14 @@ func fire_primary() -> void:
 	if weapon_style == WS.WeaponStyle.ROTARY_LASER and not _rl_charged:
 		return
 	can_shoot = false
+	# Run-summary Phase 2: this is the fire COMMIT (a shot is happening this frame).
+	# Note the active weapon once here (covers the pulse + bullet paths); shots_fired is
+	# counted PER-PROJECTILE below (Quad/spread spawn N bolts per trigger).
+	var _rs := _run_ref()
+	if _rs != null:
+		var _ac = _rs.get_active_cannon()
+		if _ac != null and "display_name" in _ac:
+			_rs.note_weapon_used(String(_ac.display_name))
 	# Hyper mode: primary fires +hyper_fire_bonus faster (shorter cooldown) while
 	# active. start(time) overrides this one cycle without changing wait_time.
 	if _hyper_active and active_mode == ShiftMode.HYPER and hyper_fire_bonus > 0.0:
@@ -1496,6 +1513,8 @@ func fire_primary() -> void:
 	# grants unlimited ammo. (Reaching here means the ammo gate already passed: ammo>0.)
 	if _is_pulse:
 		_fire_pulse_laser()
+		if _rs != null:
+			_rs.stat_add("shots_fired", 1)   # one hitscan beam = one shot
 		if _is_replacement_primary_active() and ammo > 0 \
 				and not (_hyper_active and active_mode == ShiftMode.HYPER):
 			ammo -= 1
@@ -1525,6 +1544,8 @@ func fire_primary() -> void:
 	# the spread-fan path (default 1 = single straight-up shot).
 	var parallel: bool = primary_parallel_offsets.size() > 0
 	var count: int = primary_parallel_offsets.size() if parallel else max(1, bullet_spread_count)
+	if _rs != null:
+		_rs.stat_add("shots_fired", count)   # per-projectile (Quad=4, spread fan=N, else 1)
 	var spread_rad: float = deg_to_rad(bullet_spread_degrees)
 	for i in range(count):
 		var angle: float = 0.0
@@ -1768,6 +1789,9 @@ func fire_secondary() -> void:
 		return
 	_secondary_t = 0.0
 	var count: int = max(1, secondary_pod_count)
+	var _rs_sec := _run_ref()
+	if _rs_sec != null:
+		_rs_sec.stat_add("shots_fired", count)   # secondary projectiles (deploy mode returned above)
 	for i in count:
 		var offset_x: float = 0.0
 		if count > 1:

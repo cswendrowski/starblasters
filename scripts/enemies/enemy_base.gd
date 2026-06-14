@@ -339,6 +339,12 @@ func take_hit(damage: int = 1) -> bool:
 	# targets the moment they re-enter. (Bullets route here; the smart-bomb wave guards separately.)
 	if is_recycling() or is_fully_offscreen():
 		return false
+	# Run-summary Phase 2: a shot connected with a valid target (counts even if a shield
+	# absorbs it — the shot still landed). accuracy = shots_hit / shots_fired; pierce/AoE
+	# and the occasional ram/smart-bomb hit can push it past 100% (accepted).
+	var _rs = get_node_or_null("/root/Run")
+	if _rs != null:
+		_rs.stat_add("shots_hit", 1)
 	# Shields are unified onto ShieldComponent (shield_unification_2026-06-08.md): the
 	# simple max_shield/shield charge is retired, so all hits flow through the component
 	# pipeline (_components_hit) where a ShieldComponent — if present — absorbs them.

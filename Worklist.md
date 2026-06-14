@@ -79,7 +79,14 @@ items remain below. Deep specs live in `TODO.md` / `docs/` — this is the scann
 
 ## Big features (unbuilt)
 - **Passive-Module bay** — 4-slot auto-module axis + reify shields/regen/plating + ~10-module roster. Largest.
-- **Run summary Phases 2–3 + timer** — shots/accuracy/bounty-spent instrumentation + victory path.
+- **Run summary Phases 2–3 + timer** — ✅ **DONE 2026-06-13** (branch `run-summary-2026-06-13`, local/unpushed):
+  Phase 2 stats instrumented — **shots fired/hit + accuracy** (per-projectile: `player.fire_primary/secondary`
+  + `enemy_base.take_hit`), **locations/signals visited** (`mark_node_completed`), **outpost visits**
+  (`outpost._ready`), **unique weapons** (`note_weapon_used` set off the active cannon). **Victory path**:
+  `cleared_summary` detects the final-sector clear → routes to a **"PATROL COMPLETE"** run-summary (was
+  death-only; final clear used to loop into the endless map). `run_summary` + `run_history` now show all of
+  it; `test_run_stats.gd` extended (30 asserts PASS). Timer was already built. Phase 1+4 were already done
+  (the scope doc was stale).
 - **Sector modifiers** — pulled (kill-switched); re-eval + reimplement.
 - **Recycler — Pillar 2** — controller + tuner + roster migration (playtest-gated).
 

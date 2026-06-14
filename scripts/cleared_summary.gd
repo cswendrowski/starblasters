@@ -145,9 +145,23 @@ func populate(enemy_stats: Dictionary, total_bounty: int, hide_tally: bool = fal
 	# pick another row.
 	var endless_buttons: Array = []
 	var sector_actually_done: bool = false
+	var patrol_complete: bool = false
 	if was_boss and has_node("/root/Run"):
-		sector_actually_done = get_node("/root/Run").is_sector_complete()
-	if was_boss and sector_actually_done:
+		var _run = get_node("/root/Run")
+		sector_actually_done = _run.is_sector_complete()
+		# Final sector cleared = patrol complete (victory). sectors_cleared is still
+		# PRE-bump here (it only bumps on NEXT SECTOR / the map return), so the
+		# just-cleared sector index is sectors_cleared + 1.
+		patrol_complete = sector_actually_done and int(_run.sectors_cleared) + 1 >= int(_run.TOTAL_SECTORS)
+	if patrol_complete:
+		# VICTORY — the patrol is done. Route to the run summary as a win instead of
+		# looping back into the (endless) next-sector map.
+		title.text = "PATROL COMPLETE"
+		btn.text = "[ VIEW SUMMARY ]"
+		if btn.pressed.is_connected(_on_map_pressed):
+			btn.pressed.disconnect(_on_map_pressed)
+		btn.pressed.connect(_on_victory)
+	elif was_boss and sector_actually_done:
 		btn.visible = false
 		endless_buttons = _install_endless_buttons(btn.get_parent())
 	elif was_boss:
@@ -229,6 +243,18 @@ func _install_endless_buttons(bottom: Node) -> Array:
 	next_btn.pressed.connect(_on_next_sector)
 	row.add_child(next_btn)
 	return [menu_btn, next_btn]
+
+
+# Patrol complete (final sector cleared) — go to the run summary as a VICTORY. The
+# summary reads the "run_outcome" meta to log history + title itself a win.
+func _on_victory() -> void:
+	if has_node("/root/Run"):
+		get_node("/root/Run").set_meta("run_outcome", "victory")
+	var root: Control = $Root
+	var tw = create_tween()
+	tw.tween_property(root, "modulate:a", 0.0, 0.35).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	await tw.finished
+	SceneTransition.change_scene(get_tree(), "res://scenes/run_summary.tscn")
 
 
 # End the run — back to main menu, fresh start next time.

@@ -144,6 +144,10 @@ func _ready() -> void:
 			run.current_shield = int(run.max_shield)
 		# Task #4: dedupe equipped items — one of each.
 		_ensure_no_duplicate_equipped(run)
+		# Run-summary Phase 2: tally this outpost visit (the hub is a sector-map button,
+		# not a POI, so it never flows through mark_node_completed).
+		if run.has_method("stat_add"):
+			run.stat_add("stations_visited", 1)
 	_load_or_roll_offers()
 	_build_ui()
 	if has_node("/root/Run"):

@@ -263,6 +263,13 @@ func record_run_history(outcome: String) -> void:
 		"damage_hull": int(run_stats.get("damage_hull", 0)),
 		"asteroids": int(run_stats.get("asteroids", 0)),
 		"mines_cleared": int(run_stats.get("mines_cleared", 0)),
+		# Phase 2 stats.
+		"shots_fired": int(run_stats.get("shots_fired", 0)),
+		"shots_hit": int(run_stats.get("shots_hit", 0)),
+		"locations_visited": int(run_stats.get("locations_visited", 0)),
+		"stations_visited": int(run_stats.get("stations_visited", 0)),
+		"signals_visited": int(run_stats.get("signals_visited", 0)),
+		"weapons_used": int((run_stats.get("weapons_used", {}) as Dictionary).size()),
 	}
 	var hist: Array = load_run_history()
 	hist.append(record)
@@ -325,7 +332,13 @@ func new_run() -> void:
 	run_distance = 0.0
 	run_time_seconds = 0.0
 	run_stats = {"damage_shield": 0, "damage_hull": 0, "bounty_gained": 0, "asteroids": 0,
-		"bounty_spent": 0, "mines_cleared": 0}
+		"bounty_spent": 0, "mines_cleared": 0,
+		# Phase 2 (run_summary_scope_2026-06-01): per-projectile shots + node visits.
+		# accuracy = shots_hit / shots_fired at display time (pierce/AoE can exceed 100%).
+		"shots_fired": 0, "shots_hit": 0,
+		"locations_visited": 0, "stations_visited": 0, "signals_visited": 0,
+		# weapons_used is a set (name → true); .size() = unique primaries fielded this run.
+		"weapons_used": {}}
 	sectors_cleared = 0
 	bosses_defeated = 0
 	combats_in_sector = 0
@@ -406,6 +419,16 @@ func record_kill(value: int) -> void:
 # Run-summary stat accumulator (Phase 1). Additive into run_stats; missing keys seed 0.
 func stat_add(key: String, n: int) -> void:
 	run_stats[key] = int(run_stats.get(key, 0)) + n
+
+
+# Phase 2: record a primary cannon as "used" this run (set-add; idempotent).
+# run_stats["weapons_used"].size() is the unique-weapons count.
+func note_weapon_used(weapon_name: String) -> void:
+	if weapon_name == "":
+		return
+	var used: Dictionary = run_stats.get("weapons_used", {})
+	used[weapon_name] = true
+	run_stats["weapons_used"] = used
 
 
 # Bounty-spend choke-point (Phase 2): subtract bounty AND tally what was spent.
@@ -793,8 +816,19 @@ func find_sector_node(node_id: String):
 # don't blow up on Test Hazard launches with synthetic ids.
 func mark_node_completed(node_id: String) -> void:
 	var n = find_sector_node(node_id)
-	if n != null:
-		n.completed = true
+	if n == null:
+		return
+	var already: bool = bool(n.get("completed", false))
+	n.completed = true
+	if already:
+		return  # don't double-tally a re-completion
+	# Phase 2 visit tally — combat/hazard = a "location", signal = a "signal".
+	# (Outposts aren't POIs in V3, so "stations" is tallied at outpost entry.)
+	match int(n.get("node_type", -1)):
+		SectorNodeType.COMBAT, SectorNodeType.HAZARD:
+			stat_add("locations_visited", 1)
+		SectorNodeType.SIGNAL:
+			stat_add("signals_visited", 1)
 
 
 # True when every POI on the given row is completed. Drives the boss-lock.
