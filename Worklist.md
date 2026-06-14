@@ -78,7 +78,12 @@ items remain below. Deep specs live in `TODO.md` / `docs/` — this is the scann
   Optional follow-up: mirror the outpost's rarity-name/type/stat-line card treatment (`e224405`).
 
 ## Big features (unbuilt)
-- **Passive-Module bay** — 4-slot auto-module axis + reify shields/regen/plating + ~10-module roster. Largest.
+- **Passive-Module bay** — ◑ **PLAN LOCKED 2026-06-13** (`docs/passive_module_bay_2026-06-13.md`, branch
+  `passive-module-bay-2026-06-13`, local/unpushed). Decisions: **reify** (not present-only), **5 slots**
+  (Shield Core auto-takes one → 4 free / 5 if shieldless). Resolved the slot-model fork (a list-backed
+  `Run.modules` ≤5 + one `MODULE` slot type, not 5 enum singletons) and a **default-safe reify** (no module =
+  today's behavior, so existing saves/shields are unaffected). NOT YET BUILT — it's a focused-session feature
+  (loadout-model change + live survival/save touch points), teed up to build per the doc + playtest the module feel.
 - **Run summary Phases 2–3 + timer** — ✅ **DONE 2026-06-13** (branch `run-summary-2026-06-13`, local/unpushed):
   Phase 2 stats instrumented — **shots fired/hit + accuracy** (per-projectile: `player.fire_primary/secondary`
   + `enemy_base.take_hit`), **locations/signals visited** (`mark_node_completed`), **outpost visits**
