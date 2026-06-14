@@ -13,12 +13,12 @@ extends Control
 # player.position (the ship doesn't self-move without input).
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
 const PlayerScene = preload("res://scenes/player/player.tscn")
 const TargetScript = preload("res://scripts/dev/mount_lab_target.gd")
-const Playfield = preload("res://scripts/playfield.gd")
+const Playfield = preload("res://scripts/systems/playfield.gd")
 
 const SAVE_PATH := "user://tuners/smart_mount_lab.json"
 const FS_HEADER := 22

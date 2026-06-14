@@ -5,7 +5,7 @@ extends SceneTree
 # so the gutters are clearly visible in the capture (the in-game outline
 # currently lives behind the backdrop and doesn't show through).
 
-const _PreloadPlayfield = preload("res://scripts/playfield.gd")
+const _PreloadPlayfield = preload("res://scripts/systems/playfield.gd")
 
 const OUT_DIR := "res://captures/playfield_band"
 const FPS: int = 24

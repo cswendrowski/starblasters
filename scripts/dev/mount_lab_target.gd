@@ -5,7 +5,7 @@ extends Area2D
 # velocity when killed or when it exits the playfield. Lives in the "enemies" group so
 # player.gd `_mount_target()` acquires it and player bullets collide with it.
 
-const Playfield = preload("res://scripts/playfield.gd")
+const Playfield = preload("res://scripts/systems/playfield.gd")
 
 var hp: int = 6
 var speed_scale: float = 1.0   # lab knob — scales drift speed

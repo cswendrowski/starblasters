@@ -31,10 +31,10 @@ extends Control
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const PlayerScene = preload("res://scenes/player/player.tscn")
 const DummyTargetScript = preload("res://scripts/dev/hangar_dummy_target.gd")
-const Playfield = preload("res://scripts/playfield.gd")
+const Playfield = preload("res://scripts/systems/playfield.gd")
 
 # HD font sizes — UiTheme defaults are sized for 480×270; bump for 1080p.
 const FS_TITLE := 40

@@ -4,7 +4,7 @@ extends "res://scripts/enemies/movement_pattern.gd"
 # DOWN into the lane it reaches, then descend to exit the bottom. `side_dive` is the same with a
 # swift descent (high down_speed). A switch-up from the straight horizontal cross.
 
-const Playfield = preload("res://scripts/playfield.gd")
+const Playfield = preload("res://scripts/systems/playfield.gd")
 
 @export var enter_speed: float = 160.0     # horizontal advance speed
 @export var down_speed: float = 180.0      # post-turn descent (side_dive bumps this up)

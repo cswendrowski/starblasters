@@ -6,7 +6,7 @@ extends Control
 # run-summary scope) are shown as "—" placeholders so the detail page is
 # complete and fills in as the hooks land.
 
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 
 # Stats recorded in the history JSON as plain ints: {label, key}. (Run time,

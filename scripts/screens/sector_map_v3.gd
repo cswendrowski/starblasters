@@ -16,8 +16,8 @@ extends Node2D
 #   - Dev affordances (Generate New, click-to-toggle-complete) are gone.
 
 const FONT            = preload("res://graphics/fonts/PixelOperator.ttf")
-const SceneTransition = preload("res://scripts/scene_transition.gd")
-const SectorNode      = preload("res://scripts/sector_node.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
+const SectorNode      = preload("res://scripts/systems/sector_node.gd")
 const SlotTypes       = preload("res://scripts/weapons/SlotTypes.gd")
 const STAR_SCENE      = preload("res://Planets/Star/Star.tscn")
 const PLANET_SCENES   := [

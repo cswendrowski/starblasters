@@ -5,7 +5,7 @@ extends "res://scripts/enemies/movement_pattern.gd"
 # across the playfield at a steady speed. Movement-only — the host keeps its (shared BeamEmitter)
 # beam + hull-aim. Persistent (never exits). Emits phase_entered("settled") once it reaches the band.
 
-const Playfield = preload("res://scripts/playfield.gd")
+const Playfield = preload("res://scripts/systems/playfield.gd")
 
 signal phase_entered(phase_name: String)
 

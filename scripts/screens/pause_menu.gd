@@ -1,6 +1,6 @@
 extends CanvasLayer
 
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 
 @onready var _menu_btn: Button = $Center/VBox/MenuBtn

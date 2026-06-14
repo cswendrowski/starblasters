@@ -22,7 +22,7 @@ signal level_cleared
 
 const FactionsC = preload("res://scripts/levels/factions.gd")
 const ShieldComponentC = preload("res://scripts/enemies/components/shield_component.gd")
-const LaneTraffic = preload("res://scripts/lane_traffic.gd")
+const LaneTraffic = preload("res://scripts/systems/lane_traffic.gd")
 
 # Banner fade-in+hold+fade-out budget. Director waits this long before the
 # first enemy of an ANNOUNCED wave so spawns never overlap the WAVE alert.

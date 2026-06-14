@@ -20,10 +20,10 @@ extends Control
 # host"; the recurring "play area in the corner" regression). Esc / Back → dev menu.
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const PlayerScene = preload("res://scenes/player/player.tscn")
 const DummyTargetScript = preload("res://scripts/dev/hangar_dummy_target.gd")
-const Playfield = preload("res://scripts/playfield.gd")
+const Playfield = preload("res://scripts/systems/playfield.gd")
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
 const WS = preload("res://scripts/weapons/WeaponStyle.gd")

@@ -9,13 +9,13 @@ extends Control
 # contract). Esc / Back returns to the dev menu.
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const EnemyManifest = preload("res://scripts/dev/enemy_manifest.gd")
 const EnemyRoster = preload("res://scripts/levels/enemy_roster.gd")
 const EnemyStrings = preload("res://scripts/strings/enemy_strings.gd")
 const PatternEligibility = preload("res://scripts/levels/pattern_eligibility.gd")
 const HangarDummy = preload("res://scripts/dev/hangar_dummy_target.gd")
-const Playfield = preload("res://scripts/playfield.gd")
+const Playfield = preload("res://scripts/systems/playfield.gd")
 const Weapon = preload("res://scripts/enemies/shoot_patterns/weapon.gd")
 const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
 const Factions = preload("res://scripts/levels/factions.gd")

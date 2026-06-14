@@ -43,7 +43,7 @@ func _hex(hex: String) -> Color:
 func _run() -> void:
 	# Real galaxy backdrop so the smoke trail is being viewed against the
 	# actual playfield (Cody 2026-05-18 "over an actual background").
-	var BackdropScript = load("res://scripts/galaxy_backdrop.gd")
+	var BackdropScript = load("res://scripts/parallax/galaxy_backdrop.gd")
 	var backdrop := Node2D.new()
 	backdrop.name = "Backdrop"
 	backdrop.set_script(BackdropScript)

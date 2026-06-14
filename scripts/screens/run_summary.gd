@@ -4,10 +4,10 @@ extends Control
 # buttons (New Game + Main Menu) + Quit. Code-driven layout to avoid the
 # old .tscn's broken Panel anchors that caused a black-screen-only result.
 
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const SummaryUi = preload("res://scripts/ui/summary_ui.gd")
-const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
+const SectorMapRoute = preload("res://scripts/systems/sector_map_route.gd")
 
 @onready var title_label: Label = $Center/Panel/VBox/Title
 @onready var stats_label: Label = $Center/Panel/VBox/Stats

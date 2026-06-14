@@ -1,7 +1,7 @@
 extends Node2D
 
 const FONT            = preload("res://graphics/fonts/PixelOperator.ttf")
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const STAR_SCENE      = preload("res://Planets/Star/Star.tscn")
 const PLANET_SCENES   := [
 	"res://Planets/LavaWorld/LavaWorld.tscn",

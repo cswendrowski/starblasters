@@ -3,7 +3,7 @@ extends Control
 # Credits screen — reached from the main menu Credits button.
 # HD 1920×1080 layout: centered card on sector_bg backdrop.
 
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 
 var _hd_scope: HdViewportScope = null

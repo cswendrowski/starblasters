@@ -14,7 +14,7 @@ extends Control
 # Renders the WORLD in a native 480×270 SubViewport (crisp, hdr_2d-parity, fx parent to
 # the player's parent = the viewport) upscaled to fill HD, with an HD CanvasLayer UI.
 
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 
 const SHIPS := [

@@ -11,7 +11,7 @@ extends Control
 # Run.loadout_snapshot + applies Run.modules. Cannons/secondaries go through Run.equip_part;
 # modules ride the list via Run.add_module.
 
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")

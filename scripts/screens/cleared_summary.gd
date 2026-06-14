@@ -9,10 +9,10 @@ extends CanvasLayer
 #                                 "total_bounty": int } }
 #   total_bounty: int
 
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const SummaryUi = preload("res://scripts/ui/summary_ui.gd")
-const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
+const SectorMapRoute = preload("res://scripts/systems/sector_map_route.gd")
 const SECTOR_MAP_SCENE := SectorMapRoute.SECTOR_MAP_SCENE
 
 # Cached enemy sprite textures keyed by scene path.

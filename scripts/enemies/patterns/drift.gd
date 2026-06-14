@@ -8,7 +8,7 @@ extends "res://scripts/enemies/movement_pattern.gd"
 # jiggle-speed variation in on_start, so a row of drifters wanders out of sync instead of
 # lock-stepping (the pattern Resource is duplicated per enemy, so on_start runs per instance).
 
-const Playfield = preload("res://scripts/playfield.gd")
+const Playfield = preload("res://scripts/systems/playfield.gd")
 
 @export var hover_y: float = 90.0
 @export var enter_speed: float = 60.0

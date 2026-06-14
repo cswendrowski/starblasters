@@ -8,7 +8,7 @@ extends Control
 #   - Contrast curve (0.5–2.0)
 # Persistence: save/load/copy-snippet for all three dicts (colors, brightness, contrast).
 
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const BackdropCoordinatorScene = preload("res://scenes/parallax/backdrop_coordinator.tscn")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 

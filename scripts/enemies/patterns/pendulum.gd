@@ -9,7 +9,7 @@ extends "res://scripts/enemies/movement_pattern.gd"
 # Movement-only by design: it owns rotation (set auto_rotate=false on the host). The weapon +
 # fire timing live on the weapon axis. Faithful to the crystal's original constants.
 
-const Playfield = preload("res://scripts/playfield.gd")
+const Playfield = preload("res://scripts/systems/playfield.gd")
 
 signal phase_entered(phase_name: String)
 

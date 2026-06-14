@@ -10,7 +10,7 @@ extends Control
 # Reset, Esc-to-close, and a mandatory Copy-GDScript button that emits a paste-ready
 # RecycleController.DEFAULTS literal.
 
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const RecycleController = preload("res://scripts/effects/recycle_controller.gd")
 
 # Knob spec: key, label, min, max, step.

@@ -28,7 +28,7 @@ extends "res://scripts/enemies/movement_pattern.gd"
 #               hold_time, step_time, step_lanes (1 = adjacent), step_repeat (keep
 #               hopping vs one hop), step_pingpong (reverse at edges vs advance).
 
-const LaneTraffic = preload("res://scripts/lane_traffic.gd")
+const LaneTraffic = preload("res://scripts/systems/lane_traffic.gd")
 
 #   DIVE_RETURN — dive down a lane; at the fire-zone midpoint, curve into the adjacent
 #               lane (shift_lanes) AND reverse the descent to climb back UP and off the

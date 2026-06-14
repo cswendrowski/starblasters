@@ -493,7 +493,7 @@ func sector_complete() -> void:
 # completed without touching the map scene. See `sector_map_cache` doc
 # above for the shape.
 
-const SectorNodeType = preload("res://scripts/sector_node.gd").NodeType
+const SectorNodeType = preload("res://scripts/systems/sector_node.gd").NodeType
 const SectorNameGenerator = preload("res://scripts/strings/sector_name_generator.gd")
 
 # Total sectors required to beat the game. Drives the "Sector Patrol X/Y"

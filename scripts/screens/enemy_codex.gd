@@ -20,7 +20,7 @@ extends Control
 #   - discovered? ............................ Run.encountered_enemies
 #   - sprite + glowmap ....................... the enemy scene's Sprite2D + GlowMask
 
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
 const EnemyRoster = preload("res://scripts/levels/enemy_roster.gd")

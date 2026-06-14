@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://bk3v582opu7qy"]
 
-[ext_resource type="Script" path="res://scripts/volume_slider.gd" id="1_waqa1"]
+[ext_resource type="Script" path="res://scripts/ui/volume_slider.gd" id="1_waqa1"]
 
 [node name="Volume" type="HBoxContainer"]
 anchors_preset = 12

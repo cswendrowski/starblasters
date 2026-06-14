@@ -10,10 +10,10 @@ extends Control
 # scene at the end. Callables let each event keep its own logic local
 # instead of growing a giant outcome match() in _on_choice.
 
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
-const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
+const SectorMapRoute = preload("res://scripts/systems/sector_map_route.gd")
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 const EnemyRoster = preload("res://scripts/levels/enemy_roster.gd")
 const Strings = preload("res://scripts/strings/strings.gd")

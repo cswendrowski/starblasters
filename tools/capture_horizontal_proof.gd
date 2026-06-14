@@ -32,7 +32,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	var BackdropScript = load("res://scripts/galaxy_backdrop.gd")
+	var BackdropScript = load("res://scripts/parallax/galaxy_backdrop.gd")
 	var backdrop := Node2D.new()
 	backdrop.name = "Backdrop"
 	backdrop.set_script(BackdropScript)

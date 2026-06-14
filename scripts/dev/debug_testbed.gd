@@ -337,7 +337,7 @@ func _sync_sliders_from_overrides() -> void:
 # --- Misc ---
 
 func _on_back() -> void:
-	var SceneTransition = load("res://scripts/scene_transition.gd")
+	var SceneTransition = load("res://scripts/systems/scene_transition.gd")
 	SceneTransition.change_scene(get_tree(), "res://scenes/main_menu.tscn")
 
 func _on_randomize() -> void:

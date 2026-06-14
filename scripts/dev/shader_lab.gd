@@ -17,8 +17,8 @@ extends Control
 # Copy GDScript (tuner contract). Esc / Back returns to the dev menu.
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
-const SceneTransition = preload("res://scripts/scene_transition.gd")
-const Playfield = preload("res://scripts/playfield.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
+const Playfield = preload("res://scripts/systems/playfield.gd")
 const EmberFx = preload("res://scripts/effects/ember_fx.gd")
 const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
 const OutlineFx = preload("res://scripts/effects/outline_fx.gd")

@@ -3,7 +3,7 @@ extends SceneTree
 # Phase 3: outposts are no longer POIs. Generate several sectors and confirm zero
 # OUTPOST nodes appear in the procedural POI rows.
 
-const SectorNode = preload("res://scripts/sector_node.gd")
+const SectorNode = preload("res://scripts/systems/sector_node.gd")
 
 
 func _initialize() -> void:

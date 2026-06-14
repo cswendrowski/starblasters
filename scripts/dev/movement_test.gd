@@ -8,7 +8,7 @@ extends Control
 # or the offscreen-cycle/leave logic.
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const EnemyManifest = preload("res://scripts/dev/enemy_manifest.gd")
 const EnemyRoster = preload("res://scripts/levels/enemy_roster.gd")
 const BossSweep = preload("res://scripts/enemies/patterns/boss_sweep.gd")

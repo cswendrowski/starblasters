@@ -12,7 +12,7 @@ extends Control
 # dummy ship without converting it to a spline.
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const MANEUVER_DIR := "user://maneuvers"
 
 # Playfield mockup occupies the left chunk of the screen; the right rail is

@@ -1,6 +1,6 @@
 [gd_scene load_steps=4 format=3 uid="uid://b1blkh0le2dhz"]
 
-[ext_resource type="Script" path="res://scripts/black_hole.gd" id="1_bh_scr"]
+[ext_resource type="Script" path="res://scripts/systems/black_hole.gd" id="1_bh_scr"]
 [ext_resource type="Shader" path="res://graphics/black_hole.gdshader" id="2_bh_shd"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_bh1"]

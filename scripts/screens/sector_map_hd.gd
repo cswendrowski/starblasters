@@ -17,10 +17,10 @@ extends Control
 # _on_depart_pressed) and runs its own _ready side-effects (sector gen, hull
 # regen, save, music) exactly once.
 
-const SceneTransition := preload("res://scripts/scene_transition.gd")
+const SceneTransition := preload("res://scripts/systems/scene_transition.gd")
 const UiTheme := preload("res://scripts/ui/ui_theme.gd")
 const HdScreenLib := preload("res://scripts/ui/hd_screen.gd")
-const SectorNode := preload("res://scripts/sector_node.gd")
+const SectorNode := preload("res://scripts/systems/sector_node.gd")
 const SECTOR_MAP_SCENE := preload("res://scenes/sector_map_v3.tscn")
 const MANAGE_SHIP_SCENE := "res://scenes/manage_ship.tscn"
 const OUTPOST_SCENE := "res://scenes/outpost.tscn"

@@ -12,7 +12,7 @@ extends Control
 # Esc returns to the dev menu.
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const PatternEligibility = preload("res://scripts/levels/pattern_eligibility.gd")
 const EnemyRoster = preload("res://scripts/levels/enemy_roster.gd")
 const Factions = preload("res://scripts/levels/factions.gd")

@@ -12,7 +12,7 @@ extends SceneTree
 # Run: godot --headless --script res://tools/test_path_phase.gd
 
 const RESULT := "res://tools/_path_phase_result.txt"
-const Zones := preload("res://scripts/zones.gd")
+const Zones := preload("res://scripts/systems/zones.gd")
 const Base := preload("res://scripts/enemies/movement_pattern.gd")
 const StraightDown := preload("res://scripts/enemies/patterns/straight_down.gd")
 const SCurve := preload("res://scripts/enemies/patterns/s_curve.gd")

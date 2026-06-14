@@ -4,7 +4,7 @@ extends "res://scripts/enemies/movement_pattern.gd"
 # trace a LOOP shape for a few cycles (an in-lane orbit or a multi-lane figure-8), then exit
 # downward. A set of loop shapes — pick via `shape`.
 
-const Playfield = preload("res://scripts/playfield.gd")
+const Playfield = preload("res://scripts/systems/playfield.gd")
 
 enum Shape { LOOP, FIGURE8 }
 

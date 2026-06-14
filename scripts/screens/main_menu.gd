@@ -6,9 +6,9 @@ extends Control
 # bite when we iterate.
 
 const BackdropCoordinatorScene = preload("res://scenes/parallax/backdrop_coordinator.tscn")
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
-const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
+const SectorMapRoute = preload("res://scripts/systems/sector_map_route.gd")
 
 @onready var continue_btn: Button = $Center/VBox/ContinueBtn
 @onready var new_game_btn: Button = $Center/VBox/NewGameBtn
@@ -251,7 +251,7 @@ func _install_codex_button() -> void:
 	btn.custom_minimum_size = Vector2(160, 22)
 	UiTheme.style_button(btn)
 	btn.pressed.connect(func():
-		var SceneTransition = load("res://scripts/scene_transition.gd")
+		var SceneTransition = load("res://scripts/systems/scene_transition.gd")
 		SceneTransition.change_scene(get_tree(), "res://scenes/enemy_codex.tscn")
 	)
 	vbox.add_child(btn)
@@ -267,7 +267,7 @@ func _install_run_history_button() -> void:
 	btn.custom_minimum_size = Vector2(160, 22)
 	UiTheme.style_button(btn)
 	btn.pressed.connect(func():
-		var SceneTransition = load("res://scripts/scene_transition.gd")
+		var SceneTransition = load("res://scripts/systems/scene_transition.gd")
 		SceneTransition.change_scene(get_tree(), "res://scenes/run_history.tscn")
 	)
 	vbox.add_child(btn)

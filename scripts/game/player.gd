@@ -13,7 +13,7 @@ var invincible: bool = false
 
 # ---- Stats (mutated by equipped Parts) ----
 # Base values; Parts add on top. Gives a sane floor even with no parts equipped.
-const ClarityRules = preload("res://scripts/clarity.gd")
+const ClarityRules = preload("res://scripts/systems/clarity.gd")
 # Base move speed = 2 px/frame (120 px/s). Engine parts add ~1 px/f (60 px/s)
 # per Mk (caps the build at ~Mk.6 = 8 px/f); effective speed is clamped to the
 # 8 px/f readability ceiling at the movement step below. (was flat 100)

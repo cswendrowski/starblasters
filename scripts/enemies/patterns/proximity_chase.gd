@@ -9,7 +9,7 @@ extends "res://scripts/enemies/movement_pattern.gd"
 # (smart mine: dormant F0 → transition F1 → armed F2). Movement-only; the contact/explode payload
 # stays on the host.
 
-const Playfield = preload("res://scripts/playfield.gd")
+const Playfield = preload("res://scripts/systems/playfield.gd")
 
 signal phase_entered(phase_name: String)
 

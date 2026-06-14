@@ -7,7 +7,7 @@ extends "res://scripts/enemies/movement_pattern.gd"
 #
 # Host disables the parallax recycle so it leaves for good after one pass.
 
-const Playfield = preload("res://scripts/playfield.gd")
+const Playfield = preload("res://scripts/systems/playfield.gd")
 
 @export var dive_speed: float = 220.0       # straight-down plunge (phase 2)
 @export var enter_speed: float = 180.0      # horizontal sweep speed (phase 1)

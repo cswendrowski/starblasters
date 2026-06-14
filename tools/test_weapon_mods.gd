@@ -11,7 +11,7 @@ const Factions := preload("res://scripts/levels/factions.gd")
 const Weapon := preload("res://scripts/enemies/shoot_patterns/weapon.gd")
 const BulletScene := preload("res://scenes/projectiles/enemy_bullet.tscn")
 const BV := preload("res://scripts/projectiles/bullet_variant.gd")
-const Clarity := preload("res://scripts/clarity.gd")
+const Clarity := preload("res://scripts/systems/clarity.gd")
 
 var _lines: Array = []
 var _fails := 0

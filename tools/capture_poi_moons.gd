@@ -8,7 +8,7 @@ const OUT_DIR := "res://captures/poi_moons"
 const FPS: int = 24
 const DURATION: float = 4.0
 const FRAME_TIME: float = 1.0 / float(FPS)
-const BACKDROP_SCRIPT := preload("res://scripts/galaxy_backdrop.gd")
+const BACKDROP_SCRIPT := preload("res://scripts/parallax/galaxy_backdrop.gd")
 
 
 func _initialize() -> void:

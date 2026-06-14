@@ -6,7 +6,7 @@ extends SceneTree
 # Run: godot --headless --script res://tools/test_beat.gd
 
 const RESULT := "res://tools/_beat_result.txt"
-const Beat := preload("res://scripts/beat.gd")
+const Beat := preload("res://scripts/systems/beat.gd")
 
 
 func _init() -> void:

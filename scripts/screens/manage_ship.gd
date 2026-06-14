@@ -12,8 +12,8 @@ extends Control
 
 const SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
 const PartTier = preload("res://scripts/parts/part_tier.gd")
-const SceneTransition = preload("res://scripts/scene_transition.gd")
-const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
+const SectorMapRoute = preload("res://scripts/systems/sector_map_route.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 
 # ---- HD layout (1920×1080) — mirrors outpost.gd ---------------------------

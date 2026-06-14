@@ -15,7 +15,7 @@ const SpreadShot = preload("res://scripts/enemies/shoot_patterns/spread_shot.gd"
 const BurstShot  = preload("res://scripts/enemies/shoot_patterns/burst_shot.gd")
 const Weapon     = preload("res://scripts/enemies/shoot_patterns/weapon.gd")
 const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
-const Playfield  = preload("res://scripts/playfield.gd")
+const Playfield  = preload("res://scripts/systems/playfield.gd")
 
 const EPS := 0.001
 

@@ -13,7 +13,7 @@ extends Control
 #   - Sliders + fonts ~25% smaller for a tighter rail.
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const PROCGEN_ASTEROID = "res://Planets/Asteroids/Asteroid.tscn"
 
 # Cody's 25%-smaller pass — used by the slider/label rows below.

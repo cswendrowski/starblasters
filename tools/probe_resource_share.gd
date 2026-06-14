@@ -1,6 +1,6 @@
 extends SceneTree
 
-const SectorNode = preload("res://scripts/sector_node.gd")
+const SectorNode = preload("res://scripts/systems/sector_node.gd")
 
 func _initialize() -> void:
 	var a = SectorNode.new()

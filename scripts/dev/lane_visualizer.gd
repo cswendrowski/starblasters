@@ -20,7 +20,7 @@ extends Control
 # (x 132–348) shows the live action. Esc / Back returns to the dev menu.
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const DirectorScript = preload("res://scripts/levels/director.gd")
 const CombatSlice = preload("res://scripts/dev/combat_slice.gd")
 const WaveGen = preload("res://scripts/levels/wave_generator.gd")

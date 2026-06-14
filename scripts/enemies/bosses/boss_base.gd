@@ -19,7 +19,7 @@ extends "res://scripts/enemies/enemy_base.gd"
 # resource_path == "res://scripts/enemies/bosses/boss_base.gd" — every boss
 # subclass picks up the bar automatically by extending this file.
 
-const Playfield = preload("res://scripts/playfield.gd")
+const Playfield = preload("res://scripts/systems/playfield.gd")
 
 # Flat base HP multiplier applied to EVERY boss (designer Roman, 2026-05-31:
 # "bosses die too fast"). Layered ON TOP of the per-boss-defeated +5% run

@@ -1,7 +1,7 @@
 extends CanvasLayer
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const NODE_NAME := "OptionsOverlay"
 const MAIN_MENU_SCENE := "res://scenes/main_menu.tscn"
 

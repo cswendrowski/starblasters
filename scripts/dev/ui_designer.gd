@@ -20,7 +20,7 @@ extends Control
 # so the bars carry meaningful values.
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 # Playfield is globally registered via `class_name Playfield` — no preload needed.
 const UI_SCENE := preload("res://scenes/ui.tscn")
 

@@ -7,9 +7,9 @@ extends Control
 # Six pages, each Next/Prev navigable. The final page's Next sends the player
 # into the sector map.
 
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
-const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
+const SectorMapRoute = preload("res://scripts/systems/sector_map_route.gd")
 const Strings = preload("res://scripts/strings/strings.gd")
 
 # Icons used in the Sector Map page so we explain what the player will see.

@@ -11,8 +11,8 @@ extends Control
 # Mirrors the shader_lab dev-tool skeleton (HD scope, native SubViewport stage, mode rail, knob rail).
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
-const SceneTransition = preload("res://scripts/scene_transition.gd")
-const Playfield = preload("res://scripts/playfield.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
+const Playfield = preload("res://scripts/systems/playfield.gd")
 const EnemyManifest = preload("res://scripts/dev/enemy_manifest.gd")
 
 const SEQUENCES := [

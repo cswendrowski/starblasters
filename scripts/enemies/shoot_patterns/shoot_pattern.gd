@@ -11,7 +11,7 @@ extends Resource
 # the "spaced burst" timing with recursive awaits.
 
 const MuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
-const Clarity = preload("res://scripts/clarity.gd")
+const Clarity = preload("res://scripts/systems/clarity.gd")
 const BulletCatalog = preload("res://scripts/projectiles/bullet_catalog.gd")
 # Ceiling on an enemy bullet's final damage after weapon multipliers (faction +
 # sector compound via *=). Guard rail so a late-sector + 'armed' + future damage

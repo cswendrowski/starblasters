@@ -3,9 +3,9 @@ extends Node2D
 const Levels = preload("res://scripts/levels/levels_v2.gd")
 const WaveGen = preload("res://scripts/levels/wave_generator.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
-const SectorNode = preload("res://scripts/sector_node.gd")
+const SectorNode = preload("res://scripts/systems/sector_node.gd")
 const WaveBannerScene = preload("res://scenes/hud/wave_banner.tscn")
-const SceneTransition = preload("res://scripts/scene_transition.gd")
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const ClearedSummaryScene = preload("res://scenes/cleared_summary.tscn")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 

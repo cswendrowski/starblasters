@@ -14,7 +14,7 @@ extends "res://scripts/enemies/shoot_patterns/shoot_pattern.gd"
 # The behavior (movement pattern) still owns fire TIMING (path-phase / on-hold /
 # timer in enemy_core); the weapon owns fire CONTENT. Any behavior × any weapon.
 
-const Playfield = preload("res://scripts/playfield.gd")
+const Playfield = preload("res://scripts/systems/playfield.gd")
 const BeamEmitterC = preload("res://scripts/enemies/beam_emitter.gd")
 
 enum FirePattern { SINGLE, AIMED, SPREAD, BURST, BEAM, LOB, BROADSIDE }

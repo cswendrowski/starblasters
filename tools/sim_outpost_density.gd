@@ -7,7 +7,7 @@ extends SceneTree
 # Loops N sectors per `sectors_cleared` value, counts outposts per sector and
 # modifiers per POI. Prints histograms for designer verification.
 
-const SectorNodeType = preload("res://scripts/sector_node.gd").NodeType
+const SectorNodeType = preload("res://scripts/systems/sector_node.gd").NodeType
 
 func _init() -> void:
 	# Autoloads aren't registered when running via -s; instantiate Run directly.

@@ -6,7 +6,7 @@ class_name SceneTransition
 # black, swap to new destination scene while black, fade from black."
 #
 # Usage:
-#   const SceneTransition = preload("res://scripts/scene_transition.gd")
+#   const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 #   SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
 
 const FADE_OUT := 0.45

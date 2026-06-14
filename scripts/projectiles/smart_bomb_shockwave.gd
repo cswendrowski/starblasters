@@ -14,7 +14,7 @@ extends Node2D
 #   - Bosses are bitten through the normal take_hit() path so their phase /
 #     shield logic stays intact (the wave never one-shots them anyway).
 
-const ClarityRules = preload("res://scripts/clarity.gd")
+const ClarityRules = preload("res://scripts/systems/clarity.gd")
 const BaseMissileC = preload("res://scripts/projectiles/base_missile.gd")
 const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
 

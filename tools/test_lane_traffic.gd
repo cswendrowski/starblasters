@@ -6,7 +6,7 @@ extends SceneTree
 #   godot --headless --script res://tools/test_lane_traffic.gd
 
 const RESULT := "res://tools/_lane_traffic_result.txt"
-const LaneTraffic := preload("res://scripts/lane_traffic.gd")
+const LaneTraffic := preload("res://scripts/systems/lane_traffic.gd")
 
 var _done := false
 
