@@ -3,7 +3,7 @@ extends SceneTree
 # Armory codex tab: categories registered, factories enumerated per slot, blurbs
 # resolve, and the list/detail render without crashing.
 
-const ArmoryStrings = preload("res://scripts/armory_strings.gd")
+const ArmoryStrings = preload("res://scripts/strings/armory_strings.gd")
 const CodexScene = preload("res://scenes/enemy_codex.tscn")
 const SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
 

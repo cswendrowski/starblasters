@@ -6,7 +6,7 @@
 extends Control
 
 const SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
-const Strings = preload("res://scripts/strings.gd")
+const Strings = preload("res://scripts/strings/strings.gd")
 
 
 # Dummy Part for testing.

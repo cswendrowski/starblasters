@@ -7,7 +7,7 @@ extends Object
 #
 # Preload-referenced, NOT a class_name (headless class-cache safety, matching
 # enemy_strings / factions). Usage:
-#   const CodexStrings = preload("res://scripts/codex_strings.gd")
+#   const CodexStrings = preload("res://scripts/strings/codex_strings.gd")
 #   CodexStrings.faction_name("supremacy")   CodexStrings.faction_codex("supremacy")
 #   CodexStrings.STARBLASTER["name"] / ["codex"]
 

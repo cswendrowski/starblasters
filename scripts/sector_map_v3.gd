@@ -1384,7 +1384,7 @@ func _build_labels() -> void:
 	var total_sectors: int = int(run.TOTAL_SECTORS)
 	var sector_name: String = String(run.sector_map_cache.get("sector_name", ""))
 	if sector_name == "":
-		var SectorNameGen := preload("res://scripts/sector_name_generator.gd")
+		var SectorNameGen := preload("res://scripts/strings/sector_name_generator.gd")
 		var seed_value: int = int(run.sector_map_cache.get("seed", run.run_seed + run.sectors_cleared))
 		sector_name = SectorNameGen.generate(seed_value)
 		run.sector_map_cache["sector_name"] = sector_name

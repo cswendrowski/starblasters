@@ -22,7 +22,7 @@ const PartTier = preload("res://scripts/parts/part_tier.gd")
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
-const Strings = preload("res://scripts/strings.gd")
+const Strings = preload("res://scripts/strings/strings.gd")
 const OutpostSfx = preload("res://scripts/effects/outpost_sfx.gd")
 
 # RETIRED 2026-06-13 — ALL upgrades are now bay MODULES (hull → Reinforced Hull, thrusters

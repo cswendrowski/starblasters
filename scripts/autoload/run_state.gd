@@ -494,7 +494,7 @@ func sector_complete() -> void:
 # above for the shape.
 
 const SectorNodeType = preload("res://scripts/sector_node.gd").NodeType
-const SectorNameGenerator = preload("res://scripts/sector_name_generator.gd")
+const SectorNameGenerator = preload("res://scripts/strings/sector_name_generator.gd")
 
 # Total sectors required to beat the game. Drives the "Sector Patrol X/Y"
 # header in sector_map_v3. Designer-tunable — bump when adding mid/late

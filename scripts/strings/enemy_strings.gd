@@ -6,7 +6,7 @@ extends Object
 #
 # Preload-referenced, NOT a class_name (headless class-cache safety, matching factions /
 # beam_emitter / lane_traffic). Usage:
-#   const EnemyStrings = preload("res://scripts/enemy_strings.gd")
+#   const EnemyStrings = preload("res://scripts/strings/enemy_strings.gd")
 #   EnemyStrings.display_name(scene_path)   # -> display name (derived fallback if unlisted)
 #   EnemyStrings.codex_entry(scene_path)    # -> codex text ("TBD" default)
 

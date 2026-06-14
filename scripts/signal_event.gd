@@ -16,7 +16,7 @@ const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 const EnemyRoster = preload("res://scripts/levels/enemy_roster.gd")
-const Strings = preload("res://scripts/strings.gd")
+const Strings = preload("res://scripts/strings/strings.gd")
 
 @onready var title_label: Label = $Panel/VBox/Title
 @onready var body_label: Label = $Panel/VBox/Body

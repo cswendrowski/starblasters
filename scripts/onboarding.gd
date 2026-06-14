@@ -10,7 +10,7 @@ extends Control
 const SceneTransition = preload("res://scripts/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const SectorMapRoute = preload("res://scripts/sector_map_route.gd")
-const Strings = preload("res://scripts/strings.gd")
+const Strings = preload("res://scripts/strings/strings.gd")
 
 # Icons used in the Sector Map page so we explain what the player will see.
 const ICON_COMBAT = preload("res://graphics/sector/sector-battle.png")
