@@ -71,7 +71,11 @@ items remain below. Deep specs live in `TODO.md` / `docs/` — this is the scann
   — surfaced, NOT applied (your call).
 - Smaller knobs (remaining): wave-gen `bullet_variant` override, chaff-speed sector scaling.
 - Cleanup (remaining): muzzle-flash-as-scenes (opt), per-Part `fire_offset`.
-- **Manage Ship modal** — PartTier badges + 20% sell UI.
+- **Manage Ship modal** — ✅ **SELL UI DONE 2026-06-13** (branch `manage-ship-sell-ui-2026-06-13`): spare
+  parts (weapon_storage + inventory) now show **Equip + Sell** buttons; Sell credits the **10%** resale
+  (TODO said 20% — stale; aligned to the outpost/signal-event 0.1 rate). PartTier badges already existed.
+  Equipped/permanent-blaster aren't sellable (matches outpost). 👁 eyeball the two-button row layout.
+  Optional follow-up: mirror the outpost's rarity-name/type/stat-line card treatment (`e224405`).
 
 ## Big features (unbuilt)
 - **Passive-Module bay** — 4-slot auto-module axis + reify shields/regen/plating + ~10-module roster. Largest.

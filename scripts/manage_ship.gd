@@ -1,10 +1,11 @@
 extends Control
 
 # Manage Ship — full-screen HD ship-management screen, styled to match the shop
-# (outpost). Read/equip only (no buying/selling — that's the outpost). Shows:
+# (outpost). Equip + sell spares (no BUYING — that's the outpost). Shows:
 #   - Status bar: hull / shield / bounty / super (+ ammo) + equipped one-liner.
 #   - LOADOUT column: equipped primary / secondary / super (name + description).
-#   - OWNED KIT column: carried parts (weapon_storage + inventory) with Equip.
+#   - OWNED KIT column: carried parts (weapon_storage + inventory) — Equip + Sell
+#     (10% resale, mirrors the outpost; equipped/permanent-blaster aren't sellable).
 #   - UPGRADES column: owned Mk levels (read-only).
 # Reached from the sector map's Manage Ship button. Return target is read from
 # Run meta "manage_ship_return" (falls back to the live sector map).
@@ -27,6 +28,11 @@ const PANEL_BORDER := Color(0.35, 0.55, 0.75, 0.85)
 const PANEL_BG_LOADOUT := Color(0.05, 0.08, 0.14, 0.65)
 const PANEL_BG_OWNED := Color(0.10, 0.05, 0.12, 0.65)
 const PANEL_BG_UPGRADE := Color(0.05, 0.10, 0.08, 0.65)
+
+# Resale = 10% of the cannon-buy formula — mirrors outpost._sell_value_for /
+# signal_event._sell_price so no venue is the better place to dump spare parts.
+const CANNON_BASE_COST := 116
+const CANNON_COST_PER_MK := 70
 
 const LOADOUT_SLOTS := [
 	{"slot": SlotTypes.SlotType.CANNON, "label": "PRIMARY", "color": Color(1.0, 0.78, 0.45)},
@@ -244,10 +250,16 @@ func _render_owned() -> void:
 	var run = get_node("/root/Run")
 	var any := false
 	for i in range(run.weapon_storage.size()):
-		_owned_box.add_child(_make_card(_slot_short(run.weapon_storage[i]), Color(0.75, 0.82, 0.9), run.weapon_storage[i], "Equip", _on_equip.bind(i, "weapon_storage")))
+		var ws_part = run.weapon_storage[i]
+		_owned_box.add_child(_make_card(_slot_short(ws_part), Color(0.75, 0.82, 0.9), ws_part,
+			"Equip", _on_equip.bind(i, "weapon_storage"), false,
+			"Sell %d" % _sell_value_for(ws_part), _on_sell.bind(i, "weapon_storage")))
 		any = true
 	for i in range(run.inventory.size()):
-		_owned_box.add_child(_make_card(_slot_short(run.inventory[i]), Color(0.75, 0.82, 0.9), run.inventory[i], "Equip", _on_equip.bind(i, "inventory")))
+		var inv_part = run.inventory[i]
+		_owned_box.add_child(_make_card(_slot_short(inv_part), Color(0.75, 0.82, 0.9), inv_part,
+			"Equip", _on_equip.bind(i, "inventory"), false,
+			"Sell %d" % _sell_value_for(inv_part), _on_sell.bind(i, "inventory")))
 		any = true
 	if not any:
 		var lbl := Label.new()
@@ -293,7 +305,9 @@ func _render_upgrades() -> void:
 # A card: slot pill (left) + name/tier/description (center) + optional right
 # element. `right_text` empty → nothing; `right_is_badge` → a static label
 # (e.g. "ACTIVE"); else a button wired to `right_cb` (e.g. "Equip"/"Set Active").
-func _make_card(pill_text: String, pill_color: Color, part, right_text: String = "", right_cb: Callable = Callable(), right_is_badge: bool = false) -> Control:
+# `sell_text`/`sell_cb` add a SECOND right-side button (the Sell action on
+# spare/owned rows) alongside the first.
+func _make_card(pill_text: String, pill_color: Color, part, right_text: String = "", right_cb: Callable = Callable(), right_is_badge: bool = false, sell_text: String = "", sell_cb: Callable = Callable()) -> Control:
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(0, CARD_H)
 	var mk: int = int(part.mark) if (part != null and "mark" in part) else 0
@@ -351,6 +365,13 @@ func _make_card(pill_text: String, pill_color: Color, part, right_text: String =
 			btn.pressed.connect(right_cb)
 			row.add_child(btn)
 
+	if sell_text != "" and sell_cb.is_valid():
+		var sbtn := UiTheme.make_button(sell_text)
+		sbtn.custom_minimum_size = Vector2(150, 56)
+		sbtn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		sbtn.pressed.connect(sell_cb)
+		row.add_child(sbtn)
+
 	return card
 
 
@@ -370,6 +391,34 @@ func _on_equip(idx: int, source: String) -> void:
 	var picked = arr[idx]
 	arr.remove_at(idx)
 	run.equip_part(picked)  # displaces same-slot part back into storage
+	_render_all()
+
+
+# Resale value for a spare part — 10% of its cannon-buy cost (floor 5),
+# identical to the outpost + signal-event rate so no venue is the better dump spot.
+func _sell_value_for(part) -> int:
+	var mk: int = int(part.mark) if (part != null and "mark" in part) else 1
+	var buy_cost: int = CANNON_BASE_COST + (mk - 1) * CANNON_COST_PER_MK
+	return max(5, int(0.1 * float(buy_cost)))
+
+
+# Sell a spare part (weapon_storage / inventory only — never the equipped loadout;
+# the permanent blaster lives on the active loadout and is unsellable). Credits
+# bounty + destroys the part, mirroring outpost._on_sell_stored.
+func _on_sell(idx: int, source: String) -> void:
+	if not has_node("/root/Run"):
+		return
+	var run = get_node("/root/Run")
+	var arr: Array
+	match source:
+		"weapon_storage": arr = run.weapon_storage
+		"inventory": arr = run.inventory
+		_: return
+	if idx < 0 or idx >= arr.size():
+		return
+	var value: int = _sell_value_for(arr[idx])
+	arr.remove_at(idx)
+	run.bounty += value
 	_render_all()
 
 
