@@ -57,19 +57,22 @@ the refactor safe to land without a playtest breaking survival systems.
 | HUD | `scripts/ui.gd` | a small equipped-modules icon strip (net-new; static icons) |
 | Strings | `scripts/strings.gd` / `armory_strings.gd` | module names + codex blurbs |
 
-## Module roster — v1 (cheapest-first, proves the bay) then the tail
+## Module roster
 
-**v1 (build first — Shield Core + 2 cheap, so dropping the Core has a real payoff):**
+**BUILT (5, 2026-06-13):**
 - **Shield Core** *(default)* — gates the shield (above). Drop = glass cannon.
 - **Overcharge Core** — +damage % (fire path `module_damage_mult`), −1 max shield charge. Pure stat; default-safe.
 - **Siphon Core** — kills restore a sliver of SHIELD charge (NEVER Mode Energy — spec §8 runaway lever). One kill hook.
+- **Repair Nanites** — gated in-combat hull regen tick (`module_regen_interval`), capped at max−1.
+- **Ablative Plating** — deterministic every-Nth hull-hit absorb (`module_ablative_n`).
 
-**Tail (each needs a real mechanic / VFX — Increment 2+):**
-- Repair Nanites (gated in-combat regen tick), Ablative Plating (deterministic every-Nth absorb),
-  Intercept Drones (reuse the sidelined `drone_bits` ablative drones), Targeting Computer (crit + flash,
-  coordinate vfx), Overclock Core (sustained-fire ramp), Adrenal Surge (scale vs hull fraction), Tractor Coil.
-- **Cut/hold** (spec §15): Auto-Dodge, Scavenger (→Upgrade), Reflector/Thorns, Last Stand, Threat Sensor,
-  Piercing Core, Auto-Turret.
+**Tail — designed, not built (each needs a real new mechanic / VFX):**
+- Intercept Drones (reuse the sidelined `drone_bits` ablative drones), Targeting Computer (crit + flash,
+  coordinate vfx), Overclock Core (sustained-fire ramp), Adrenal Surge (scale vs hull fraction).
+
+**Cut/hold** (spec §15 + later calls): Auto-Dodge, Scavenger (→Upgrade), Reflector/Thorns, Last Stand,
+Threat Sensor, Piercing Core, Auto-Turret, and **Tractor Coil** — CUT 2026-06-13: it auto-collects/pulls
+*pickups*, but the game has no pickup system (bounty is awarded directly on kill), so it has nothing to do.
 
 ## Build order
 1. **Foundation** — `MODULE` enum, `module_part.gd`, `Run.modules` + save + loadout apply. (Low-risk, parse-verifiable.)
