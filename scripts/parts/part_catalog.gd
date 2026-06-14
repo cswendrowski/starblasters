@@ -31,6 +31,11 @@ const SidePods = preload("res://scripts/parts/side_pods.gd")
 const DroneBits = preload("res://scripts/parts/drone_bits.gd")
 const DroneSwarm = preload("res://scripts/parts/drone_swarm.gd")
 const SwarmLauncher = preload("res://scripts/parts/swarm_launcher.gd")
+# Passive Module bay (MODULE slot). Shield Core is the default-equipped Core (NOT in the
+# roll pool, like Focus); Overcharge/Siphon roll in the shop. See docs/passive_module_bay_2026-06-13.md.
+const ShieldCore = preload("res://scripts/parts/shield_core.gd")
+const OverchargeCore = preload("res://scripts/parts/overcharge_core.gd")
+const SiphonCore = preload("res://scripts/parts/siphon_core.gd")
 const BulletDefault = preload("res://scenes/projectiles/bullet_blaster.tscn")
 const BulletHeavy = preload("res://scenes/projectiles/bullet_blaster_heavy.tscn")
 const BulletMinigun = preload("res://scenes/projectiles/bullet_minigun.tscn")
@@ -87,6 +92,9 @@ static func _all_pool() -> Array:
 		# equips in the HARDPOINT_WING slot and fires on shoot2 (deploy).
 		{"factory": "_make_drone_swarm", "slot": Slots.SlotType.HARDPOINT_WING},
 		{"factory": "_make_swarm_launcher", "slot": Slots.SlotType.HARDPOINT_WING},
+		# Module bay — roll in the shop. Shield Core is default-only (not here), like Focus.
+		{"factory": "_make_overcharge_core", "slot": Slots.SlotType.MODULE},
+		{"factory": "_make_siphon_core", "slot": Slots.SlotType.MODULE},
 	]
 
 static func roll_random_part(rng: RandomNumberGenerator):
@@ -190,6 +198,13 @@ static func _make_by_name(name: String, slot: int):
 			return _build_weapon("res://resources/weapons/drone_swarm.tres", DroneSwarm, null)
 		"_make_swarm_launcher":
 			return _build_weapon("res://resources/weapons/swarm_launcher.tres", SwarmLauncher, PlayerSwarmMissile)
+		# Module bay — pure-script Parts (no .tres; effects are code, not editor stats).
+		"_make_shield_core":
+			return ShieldCore.new()
+		"_make_overcharge_core":
+			return OverchargeCore.new()
+		"_make_siphon_core":
+			return SiphonCore.new()
 	return null
 
 

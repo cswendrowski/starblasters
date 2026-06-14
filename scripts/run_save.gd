@@ -17,6 +17,13 @@ extends Resource
 @export var loadout_snapshot: Dictionary = {}
 @export var inventory: Array = []
 @export var weapon_storage: Array = []
+# Passive Module bay (2026-06-13): up to Run.MODULE_BAY_SIZE ModulePart resources,
+# round-tripped inline like the other Part arrays. module_id/display_name are @exports
+# on the saved instance, so they survive serialization without a back-fill.
+@export var modules: Array = []
+# False on pre-bay saves → load_from_disk migrates them to a default Shield Core so a
+# resumed old run isn't accidentally shieldless. True once a bay has been initialized.
+@export var bay_initialized: bool = false
 
 @export var current_node_id: String = ""
 @export var current_node_type: int = -1

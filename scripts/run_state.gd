@@ -27,6 +27,19 @@ var max_shield: int = 0
 # Loadout snapshot: dict of SlotType (int) -> Part resource
 var loadout_snapshot: Dictionary = {}
 
+# Passive Module bay (2026-06-13): a LIST of equipped ModulePart resources (up to
+# MODULE_BAY_SIZE). Separate from the one-part-per-slot loadout_snapshot — modules are
+# interchangeable, so a capped list fits better than scattered enum slots. The default
+# Shield Core occupies one; dropping it frees a slot (glass cannon). The player applies
+# this list at combat start. See docs/passive_module_bay_2026-06-13.md.
+const MODULE_BAY_SIZE := 5
+var modules: Array = []
+# True once a module bay has been set up (new_run, or load-migration of an old save).
+# Gates the glass-cannon state: only an EXPLICITLY-initialized bay with no Shield Core
+# counts as shieldless — an un-initialized bay (old save / raw dev launch) stays shielded.
+var bay_initialized: bool = false
+const _ShieldCore = preload("res://scripts/parts/shield_core.gd")
+
 # Uninstalled parts the player is carrying (cargo hold). Used by Junk Trader
 # and any future inventory UI. Each entry is a Part resource. The Junk Trader
 # refuses to operate when this is empty.
@@ -387,6 +400,35 @@ func new_run() -> void:
 	# Seed default Energy Blaster + Smart Bomb so meta scenes see the same
 	# loadout the combat scene will apply via PartFactory.default_starting_loadout.
 	_seed_default_loadout_snapshot()
+	# Module bay: every patrol starts with the default Shield Core equipped (drop it
+	# later for a free slot = glass cannon). bay_initialized arms the glass-cannon gate.
+	modules = [_ShieldCore.new()]
+	bay_initialized = true
+
+
+# ---- Module bay helpers (the LIST-backed passive bay) -----------------------
+func has_module(mod_id: String) -> bool:
+	for m in modules:
+		if m != null and "module_id" in m and String(m.module_id) == mod_id:
+			return true
+	return false
+
+
+# Append a module if there's room (≤ MODULE_BAY_SIZE). Returns false if full/null.
+func add_module(part) -> bool:
+	if part == null or modules.size() >= MODULE_BAY_SIZE:
+		return false
+	modules.append(part)
+	return true
+
+
+# Remove + return the module at idx (or null). Caller decides where it goes (sold/cargo).
+func remove_module(idx: int):
+	if idx >= 0 and idx < modules.size():
+		var m = modules[idx]
+		modules.remove_at(idx)
+		return m
+	return null
 
 
 # Roll N dice of S sides (e.g. _roll_dice(2,6) = 2d6). Non-deterministic — outpost
@@ -1198,6 +1240,7 @@ const _SAVE_FIELDS := [
 	"cannon_pool", "active_cannon_idx",
 	"repair_charges", "ammo_restock_charges", "outpost_needs_refresh",
 	"run_time_seconds", "run_stats",
+	"modules", "bay_initialized",
 ]
 
 
@@ -1233,6 +1276,12 @@ func load_from_disk() -> bool:
 		if legacy_cannon != null:
 			cannon_pool = [legacy_cannon]
 		active_cannon_idx = 0
+	# Save migration: pre-bay saves have no module bay (bay_initialized false → modules
+	# loads as []). Seed the default Shield Core so a resumed old run keeps its shield
+	# (an empty bay only means glass-cannon once bay_initialized is true).
+	if not bay_initialized:
+		modules = [_ShieldCore.new()]
+		bay_initialized = true
 	return true
 
 

@@ -434,6 +434,12 @@ func _ready() -> void:
 				var part = run.loadout_snapshot[slot]
 				if part != null:
 					loadout.equip(int(slot), part)
+		# Module bay: apply the equipped modules (the LIST, separate from the pegboard
+		# above) — the unified "apply everything" loop. run_state seeds the default Shield Core.
+		if "modules" in run and run.modules is Array:
+			for m in run.modules:
+				if m != null:
+					m.apply(self)
 	_setup_shield_ring()
 	_setup_mg_audio()
 	_setup_ac_audio()
@@ -1194,6 +1200,16 @@ func _set_phase_glow(on: bool) -> void:
 # Phase refills charges by killing enemies. Wired from main._on_enemy_died (the
 # bounty-award hook) so only player-caused kills count — off-screen departs don't.
 func on_enemy_killed() -> void:
+	# Module bay — Siphon Core: every Nth kill restores one shield charge (no-op unless
+	# a Siphon Core is equipped). Runs regardless of shift mode, so it sits before the
+	# Phase-mode early-return below.
+	if module_siphon_kills_per_charge > 0:
+		_siphon_kill_count += 1
+		if _siphon_kill_count >= module_siphon_kills_per_charge:
+			_siphon_kill_count = 0
+			if shield < max_shield:
+				shield = mini(max_shield, shield + 1)
+				shield_changed.emit()
 	if active_mode != ShiftMode.PHASE or phase_charges >= phase_charges_max:
 		return
 	_phase_kill_count += 1
@@ -1458,6 +1474,16 @@ func _spawn_pulse_beam(origin: Vector2, end_pt: Vector2) -> void:
 	tw.tween_callback(line.queue_free)
 
 
+# Passive Module bay contributions — default-safe (all no-op until a module applies).
+# Set by equipped modules' apply()/unapply(); read in apply_run_upgrades + the fire path.
+# See docs/passive_module_bay_2026-06-13.md.
+var module_shield_bonus: int = 0             # Shield Core: +1 max shield charge per Mk
+var module_damage_mult: float = 1.0          # Overcharge Core: primary-damage multiplier
+var module_shield_charge_penalty: int = 0    # Overcharge Core: −1 max shield charge
+var module_siphon_kills_per_charge: int = 0  # Siphon Core: 0 = off, else kills per +1 charge
+var _siphon_kill_count: int = 0
+
+
 # Cached Run autoload for hot-path stat tallies (run-summary Phase 2) — avoids a
 # per-shot get_node lookup. Run is an autoload, never freed during a session.
 var _run_cache: Node = null
@@ -1570,6 +1596,9 @@ func fire_primary() -> void:
 			var dmg: int = bullet_damage
 			if _hyper_active and active_mode == ShiftMode.HYPER:
 				dmg = int(round(float(bullet_damage) * hyper_damage_mult))
+			# Module bay — Overcharge Core multiplies primary damage (1.0 = no module).
+			if module_damage_mult != 1.0:
+				dmg = int(round(float(dmg) * module_damage_mult))
 			b.damage = dmg
 		# Per-cannon overrides (Wave Gun speed + pierce, etc). Sentinel
 		# < 0 / <= 0 leaves the bullet scene's own export default alone.
@@ -2477,6 +2506,13 @@ func apply_run_upgrades() -> void:
 	# Shield: 10 base + 2 per Mk + 2 bonus at Mk.9 → Mk.1=12, Mk.8=26, Mk.9=30.
 	var _shield_bonus := 2 if run.shield_cap_mk >= 9 else 0
 	max_shield = 10 + int(run.shield_cap_mk) * 2 + _shield_bonus
+	# Module bay: Shield Core's Mk bonus + Overcharge's charge penalty, then the
+	# glass-cannon gate — an INITIALIZED bay with no Shield Core means no shield at all.
+	# (Un-initialized bay / pre-bay save reads as shielded; load_from_disk migrates old saves.)
+	max_shield += module_shield_bonus - module_shield_charge_penalty
+	if bool(run.get("bay_initialized")) and not run.has_module("shield_core"):
+		max_shield = 0
+	max_shield = maxi(0, max_shield)
 	# shield_recharge_mk retired — regen is now always 1/sec after 5s delay.
 	# Re-emit so the damage tells (fire/smoke) re-evaluate their activation FRACTION
 	# (1 - hull/max_hull) against the NEW max_hull whenever upgrades change it — not just
