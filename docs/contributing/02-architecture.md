@@ -25,7 +25,7 @@ The band is **X 132–348**, centered at **X 240, Y 135**. The side gutters (0�
 
 **Rule: use `Playfield`, NOT `get_viewport_rect()`.**
 
-The `Playfield` class (`scripts/playfield.gd:1-30`) exports these constants:
+The `Playfield` class (`scripts/systems/playfield.gd:1-30`) exports these constants:
 
 | Member | Value | Use |
 |--------|-------|-----|
@@ -38,7 +38,7 @@ The `Playfield` class (`scripts/playfield.gd:1-30`) exports these constants:
 | `Playfield.CENTER` | (240, 135) | Playfield center |
 | `Playfield.clamp_pos(p, inset)` | — | Clamp a position to the band (with optional padding) |
 
-**Every script that spawns, moves, or bounds a game object must import `scripts/playfield.gd` and use these constants.** `get_viewport_rect()` returns the full 480 width and will let enemies and the player drift into the HUD gutters—a visual nightmare.
+**Every script that spawns, moves, or bounds a game object must import `scripts/systems/playfield.gd` and use these constants.** `get_viewport_rect()` returns the full 480 width and will let enemies and the player drift into the HUD gutters—a visual nightmare.
 
 Example: clamping the player's position each frame.
 
@@ -70,7 +70,7 @@ An **autoload** is a script that Godot instantiates once and keeps alive for the
 
 In this project, four autoloads are registered in `project.godot:26–31`:
 
-### `Run` (`scripts/run_state.gd`)
+### `Run` (`scripts/autoload/run_state.gd`)
 
 The run-wide **state machine**. Anything that persists across scenes (combat → sector map → outpost → combat) lives here.
 
@@ -91,15 +91,15 @@ The run-wide **state machine**. Anything that persists across scenes (combat →
 
 When combat ends, `main.gd` writes the player's surviving hull and shield back to `Run` so they carry into the next sector. When the player clicks a sector node on the map, `sector_map_v3.gd` writes the node type/ID to `Run` before calling the next scene.
 
-### `Dbg` (`scripts/dbg.gd`)
+### `Dbg` (`scripts/autoload/dbg.gd`)
 
 Debug helpers and dev-time shortcuts. Not relevant to shipped gameplay logic.
 
-### `Music` (`scripts/music_manager.gd`)
+### `Music` (`scripts/autoload/music_manager.gd`)
 
 Context-aware background music. Has a `set_context(string)` method to switch between "menu", "combat", "boss", "sector". Plays the appropriate track and cross-fades between contexts.
 
-### `Settings` (`scripts/settings.gd`)
+### `Settings` (`scripts/autoload/settings.gd`)
 
 Persisted user preferences (audio levels, input rebinds, etc.). Loads from and saves to the user's local store on startup/shutdown.
 
@@ -186,7 +186,7 @@ The loop repeats until the run ends (player death, boss defeated, etc.), at whic
 
 **Three big takeaways:**
 
-1. **Playfield bounds are constants.** Import `scripts/playfield.gd` everywhere you write a position. `get_viewport_rect()` is for backdrop/despawn margins, not gameplay.
+1. **Playfield bounds are constants.** Import `scripts/systems/playfield.gd` everywhere you write a position. `get_viewport_rect()` is for backdrop/despawn margins, not gameplay.
 
 2. **Autoloads are the nervous system.** `Run` threads state through scene changes. When you transition scenes, you're not carrying objects—you're writing to `Run` and letting the next scene read it.
 

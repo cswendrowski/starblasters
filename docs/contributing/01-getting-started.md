@@ -91,7 +91,7 @@ Press the **Dev Menu** button on the main menu to reach `scenes/dev_menu.tscn`. 
 - [ Hangar ]
 - [ EM Torpedo Test ] · [ All-Signal Sector ] (direct one-off launches)
 
-> The exact button set drifts — `scripts/dev_menu.gd` is the source of truth.
+> The exact button set drifts — `scripts/dev/dev_menu.gd` is the source of truth.
 
 ### The "human-iterated, agent-consumed" workflow
 
@@ -185,7 +185,7 @@ See `tools/publish.ps1:1-60` for the implementation.
 
 Read these in full in Doc 06, but here are the five that bite hardest:
 
-1. **Gameplay bounds come from `Playfield`, never the viewport.** Import `scripts/playfield.gd` and use `Playfield.X_MIN`, `X_MAX`, `CENTER`, `clamp_pos`. (Doc 02.)
+1. **Gameplay bounds come from `Playfield`, never the viewport.** Import `scripts/systems/playfield.gd` and use `Playfield.X_MIN`, `X_MAX`, `CENTER`, `clamp_pos`. (Doc 02.)
 2. **Projectiles parent to `get_tree().root`, never to the shooter.** The shooter `queue_free`s and takes its bullets with it. (Doc 05.)
 3. **`parse_check` is not enough — boot the scene headless to verify.** Parse_check false-passes compile errors. (This doc, rule 3 above.)
 4. **Commit `.uid` sidecar files; never hand-edit them.** (Doc 06.)

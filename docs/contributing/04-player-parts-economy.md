@@ -12,7 +12,7 @@ All player statistics begin at zero. The ship has no hardcoded fire rate, damage
 
 When the player starts a run, `player.gd` loads a default starting loadout (main engine, energy blaster cannon, smart bomb super, Focus shift-mode) and then layers on any Parts the player bought from the shop between scenes. So a ship with no parts would have zero speed and zero damage — it wouldn't be able to move or shoot. This design lets Parts be purely **additive**: when you equip a Part, you add to the ship's stats; when you remove it, you subtract.
 
-Read `scripts/player.gd` to see the stat declarations:
+Read `scripts/game/player.gd` to see the stat declarations:
 - `speed` (pixels/second, affected by `speed_multiplier`)
 - `cooldown` (seconds between shots)
 - `bullet_damage` (damage per bullet)
@@ -22,7 +22,7 @@ Read `scripts/player.gd` to see the stat declarations:
 
 ### Shield is an HP pool; Hull is pips
 
-**Shield** ([`scripts/player.gd:166–190`](https://github.com/TODO)) is a **rechargeable HP pool**. When you're hit:
+**Shield** ([`scripts/game/player.gd:166–190`](https://github.com/TODO)) is a **rechargeable HP pool**. When you're hit:
 - If shield > 0: the hit is absorbed fully by the shield (no overflow to hull). Short i-frame of 0.1 seconds so sustained fire drains it normally.
 - If shield = 0: the next hit damages hull (1 pip) and triggers a 0.6-second i-frame.
 
@@ -34,7 +34,7 @@ Shield recharges slowly: 5-second delay after a hit, then 1 point/second until f
 
 Each time you take damage, `take_damage(amount)` applies two modifications:
 
-1. **Sector difficulty scaling** ([`scripts/player.gd:680–687`](https://github.com/TODO)):
+1. **Sector difficulty scaling** ([`scripts/game/player.gd:680–687`](https://github.com/TODO)):
    ```
    incoming_damage = incoming_damage × (1 + 0.05 × sectors_cleared)
    ```
@@ -42,7 +42,7 @@ Each time you take damage, `take_damage(amount)` applies two modifications:
 
 2. **Dangerous sector modifier**: if the sector is marked "dangerous", all incoming damage is doubled (in addition to the scaling above).
 
-**Damage tells** — visual cues that you're hurt — appear once you take any hull damage ([`scripts/player.gd:360–376`](https://github.com/TODO)):
+**Damage tells** — visual cues that you're hurt — appear once you take any hull damage ([`scripts/game/player.gd:360–376`](https://github.com/TODO)):
 - Engine torch: procedural fire on the nozzle (leans opposite your movement direction)
 - Damage smoke trail: drifting smoke puffs
 
@@ -63,7 +63,7 @@ When building UI or special effects, hook these signals on the Player node:
 | `super_charges_changed` | `(value: int, maximum: int)` | Smart bomb or super weapon charges |
 | `focus_charge_changed` | `(charge: float, max_charge: float)` | Focus-mode charge (precision slowdown) |
 
-See `scripts/player.gd` lines 3–9 and 78, 146, 228, 248 for the exact definitions.
+See `scripts/game/player.gd` lines 3–9 and 78, 146, 228, 248 for the exact definitions.
 
 ---
 
@@ -181,7 +181,7 @@ So a cannon at Mk.X costs: `116 + (X - 1) × 70`
 - Mk.5: 116 + 4 × 70 = 396
 - Mk.9: 116 + 8 × 70 = 676
 
-See `scripts/outpost.gd:56–57` for the exact constants.
+See `scripts/screens/outpost.gd:56–57` for the exact constants.
 
 ### Upgrades column pricing
 
@@ -197,11 +197,11 @@ Per upgrade: `140 + (next_mk - 1) × 70`
 - Mk.5→6: 140 + 4 × 70 = 420
 - Max is Mk.9
 
-See `scripts/outpost.gd:27–38` and `36–37` for the upgrade list and costs.
+See `scripts/screens/outpost.gd:27–38` and `36–37` for the upgrade list and costs.
 
 ### Services (hull repair, ammo refill, etc.)
 
-**Hull repair** ([`scripts/outpost.gd:39`](https://github.com/TODO)):
+**Hull repair** ([`scripts/screens/outpost.gd:39`](https://github.com/TODO)):
 ```
 HULL_REPAIR_COST := 250
 ```
@@ -211,11 +211,11 @@ Restores 1 hull pip for 250 bounty. Multiple purchases allowed, up to `max_hull`
 - **Primary (Machinegun) refill**: `PRIMARY_REFILL_COST := 100` bounty refills the active cannon's magazine to full. Energy Blaster (infinite ammo) greys out the button.
 - **Secondary ammo refill**: scales by rounds missing. `AMMO_COST_PER_ROUND := 1.0`, so refilling a 60-round secondary from 0 costs 60 bounty; from 30 costs 30. Partial refills allowed if you can't afford full.
 
-See `scripts/outpost.gd:46–51` and the `_on_primary_ammo_refill()` / `_on_secondary_ammo_refill()` methods for the logic.
+See `scripts/screens/outpost.gd:46–51` and the `_on_primary_ammo_refill()` / `_on_secondary_ammo_refill()` methods for the logic.
 
 **Super charges**: `SUPER_REFILL_COST := 120` per charge. No auto-refill — you **pay** to keep them topped up. This makes supers a real economy decision (is 120 bounty worth firing the super now, or should I save for a weapon upgrade?).
 
-**Refresh stock** ([`scripts/outpost.gd:58–62`](https://github.com/TODO)):
+**Refresh stock** ([`scripts/screens/outpost.gd:58–62`](https://github.com/TODO)):
 ```
 REFRESH_BASE_COST := 10
 REFRESH_MAX_DOUBLINGS := 7
@@ -286,9 +286,9 @@ The outpost will price your Part using the formula:
 cost = BASE_COST + (mk - 1) × COST_PER_MK
 ```
 
-If your Part should be a weapon (CANNON, HARDPOINT_WING, DEVICE_BAY_1), it uses `CANNON_BASE_COST` and `CANNON_COST_PER_MK` (see `scripts/outpost.gd:56–57`). If it's a passive upgrade (WING, TAIL, etc.), check if the outpost has a separate category or if it defaults to weapon pricing.
+If your Part should be a weapon (CANNON, HARDPOINT_WING, DEVICE_BAY_1), it uses `CANNON_BASE_COST` and `CANNON_COST_PER_MK` (see `scripts/screens/outpost.gd:56–57`). If it's a passive upgrade (WING, TAIL, etc.), check if the outpost has a separate category or if it defaults to weapon pricing.
 
-The Mk limit is typically `MAX_MK := 9` (see `scripts/outpost.gd:38`). The shop rolls Mk values up to `sector_index + 3` with weighting that favors the middle of the range (`scripts/outpost.gd:63–65`).
+The Mk limit is typically `MAX_MK := 9` (see `scripts/screens/outpost.gd:38`). The shop rolls Mk values up to `sector_index + 3` with weighting that favors the middle of the range (`scripts/screens/outpost.gd:63–65`).
 
 ### 4. Test the Part
 
@@ -318,7 +318,7 @@ If your Part changes fundamental ship mechanics (like a new secondary fire mode)
 - **Weapons & bullets** — when your Part equips a cannon, it sets `ship.bullet_scene` and `ship.bullet_damage`. See [Doc 05 → Projectiles](05-projectiles-effects-visuals.md) for how bullets inherit those values.
 - **Damage/VFX** — when the player's `hull_changed` signal fires, HUD elements and damage tells respond. See [Doc 05 → Effects](05-projectiles-effects-visuals.md) for the effect helpers.
 - **Enemy tuning** — if your Part makes the player overpowered, enemies scale their HP/spawn rate. That's in [Doc 03 → Combat & Waves](03-combat-waves-enemies.md).
-- **Coordinate space** — if your Part spawns visual effects (drones, beams), use `scripts/playfield.gd` for bounds. See [Doc 02 → Architecture](02-architecture.md).
+- **Coordinate space** — if your Part spawns visual effects (drones, beams), use `scripts/systems/playfield.gd` for bounds. See [Doc 02 → Architecture](02-architecture.md).
 
 ---
 
@@ -326,14 +326,14 @@ If your Part changes fundamental ship mechanics (like a new secondary fire mode)
 
 | File | What's there |
 |------|--------------|
-| `scripts/player.gd` | All player stats, signals, damage logic, shield/hull mechanics. |
+| `scripts/game/player.gd` | All player stats, signals, damage logic, shield/hull mechanics. |
 | `scripts/parts/part.gd` | `Part` base class. Read this first. |
 | `scripts/parts/basic_engine.gd` | Simplest Part example — study this to understand the pattern. |
 | `scripts/parts/part_factory.gd` | How Parts are instantiated and registered. |
 | `scripts/parts/part_catalog.gd` | Master list of buyable Parts and shop weights. |
 | `scripts/weapons/loadout.gd` | `PlayerLoadout` — manages equip/unequip and calls apply/unapply. |
 | `scripts/weapons/SlotTypes.gd` | Slot enum (ENGINE, CANNON, SHIELD, etc.). |
-| `scripts/outpost.gd` | The shop UI, pricing, services. Start at line 27 (UPGRADES const) or line 56 (weapon pricing). |
+| `scripts/screens/outpost.gd` | The shop UI, pricing, services. Start at line 27 (UPGRADES const) or line 56 (weapon pricing). |
 | `docs/economy_2026-05-24.md` | Design doc for pricing and economic balance. |
 | `docs/weapon_mk_progression_2026-05-25.md` | Scaling guidelines for weapons across Mk levels. |
 

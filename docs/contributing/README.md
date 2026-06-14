@@ -101,7 +101,7 @@ never need to hold all of it in your head — find the subsystem, read its doc.
 These are expanded in the docs, but internalize them now:
 
 1. **Gameplay bounds come from `Playfield`, never the viewport.** Import
-   `scripts/playfield.gd` and use `Playfield.X_MIN`/`X_MAX`/`CENTER`/`clamp_pos`.
+   `scripts/systems/playfield.gd` and use `Playfield.X_MIN`/`X_MAX`/`CENTER`/`clamp_pos`.
    `get_viewport_rect()` returns the full 480 width and will let things drift
    into the HUD gutters. (Doc 02.)
 2. **Projectiles parent to `get_tree().root`, never to the shooter** — the

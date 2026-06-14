@@ -16,34 +16,43 @@ tour in `docs/contributing/02-architecture.md` (that's *what the systems are*; t
 ## `scripts/` layout (current)
 - `autoload/` — the 4 singletons in `project.godot [autoload]`: run_state (Run), dbg (Dbg),
   music_manager (Music), settings (Settings).
+- `game/` — core game loop: main (combat), player, ship.
 - `effects/` — ALL visual/audio FX (explosions, trails, muzzle, shaders, sfx wrappers,
   burn/shadow/trail_fx). Static-helper classes called as `Cls.method(...)`.
-- `enemies/` — `enemy_base.gd` + `enemy_core.gd`'s peers; subdirs:
+- `enemies/` — `enemy_base.gd` + `enemy_core.gd` (the composed-enemy base); subdirs:
   `bosses/` (boss.gd + boss_*.gd + boss_base/phase), `core/` (universal chaff/elite),
   `factions/<faction>/` (faction-exclusive), `patterns/` (movement Resources),
   `shoot_patterns/` (weapon Resources), `components/` (EnemyComponent).
-- `hud/` — in-combat HUD widgets: hud_light, hull_pips, shield_pips_hud, hologram_hud,
-  score_counter, wave_banner. (`ui.gd`, the combat-UI root, currently still at root.)
+- `screens/` — player-facing scene scripts: main_menu, outpost, manage_ship, signal_event,
+  cleared_summary, run_summary, run_history, sector_map_v3, sector_map_hd, credits,
+  pause_menu, onboarding, enemy_codex.
+- `systems/` — shared world/runtime systems: playfield, clarity, lanes, lane_traffic, zones,
+  scene_transition(_overlay), sector_node, sector_map_route, black_hole, beat, Camera2D.
+- `hud/` — in-combat HUD: ui.gd (the HUD/UI root) + widgets hud_light, hull_pips,
+  shield_pips_hud, hologram_hud, score_counter, wave_banner.
 - `strings/` — string/codex tables: strings, armory_strings, codex_strings, enemy_strings,
   sector_name_generator.
 - `parts/` — Parts (slotted upgrades + weapons): Part subclasses + PartFactory/PartCatalog.
 - `weapons/` — weapon plumbing: loadout, SlotTypes, WeaponStyle, enemy_bullet/rocket.
 - `projectiles/` — base_bullet/base_missile + concrete projectile scripts.
 - `levels/` — wave_generator, levels_v2, factions (the producer).
-- `parallax/` — backdrop layers.
-- `ui/` — shared UI framework: HdScreen, ui_theme, options_overlay.
-- `dev/` — dev tools/tuners (enemy_bench, combat_lab, smart_mount_lab, parallax_tuner, …).
-- `player/` — player helper scripts.
+- `parallax/` — galaxy_backdrop (coordinator) + backdrop layers.
+- `ui/` — shared UI framework: HdScreen, ui_theme, options_overlay, volume_slider.
+- `dev/` — dev tools/screens (enemy_bench, combat_lab, smart_mount_lab, parallax_tuner,
+  dev_menu, hangar, feature_showcase, debug_testbed, …).
+- `player/` — player helper scripts. `run_save.gd`, run_state etc. → `autoload/`.
 
 ## `scenes/` layout (current)
 Mirrors the above where applicable: `enemies/bosses/`, `enemies/core/`, `enemies/factions/
 <faction>/`, plus flat `enemies/` (sub-units, mines, projectiles), `effects/`,
-`projectiles/`, `parallax/`, `player/`, `hud/`, `dev/`. Top-level scene scripts (main,
-main_menu, outpost, …) currently sit at `scripts/` root (see "Planned" below).
+`projectiles/`, `parallax/`, `player/`, `hud/`, `dev/`. The top-level scene `.tscn` (main,
+main_menu, outpost, …) stay at `scenes/` root; their scripts moved to `screens/`/`game/`.
 
 ## Where does my new file go?
 | Adding… | Script → | Scene → |
 |---|---|---|
+| A menu / flow screen | `scripts/screens/` | `scenes/` root |
+| A shared world/runtime system | `scripts/systems/` | — |
 | An FX (particles/trail/shader/sfx) | `scripts/effects/` | `scenes/effects/` |
 | An enemy (chaff/elite) | `scripts/enemies/{core,factions/<f>}/` | `scenes/enemies/{core,factions/<f>}/` |
 | A boss | `scripts/enemies/bosses/` | `scenes/enemies/bosses/` |
@@ -70,16 +79,16 @@ reorg uses (change-map → move → verify → commit, one batch per commit):
 5. **One batch = one commit** so any batch can be reverted cleanly.
 
 ## Reorg status
-**Done (2026-06-14):** `autoload/`, `effects/` (strays folded in), `strings/`, `hud/`,
-`enemies/bosses/` (scripts + scenes). ~30 files.
+**DONE (2026-06-14) — the `scripts/` root is fully cleared.** All in their own verified
+commits (compile 314/0 + boot each): `autoload/`, `effects/` (strays), `strings/`, `hud/`
+(+ `ui.gd`), `enemies/bosses/` (scripts + scenes), `game/` (main/player/ship/run_save) +
+`enemy_core` → `enemies/`, `screens/` + dev-screens → `dev/`, `systems/` + `galaxy_backdrop`
+→ `parallax/` + `volume_slider` → `ui/`, and `Sound/` → `assets/audio/`.
 
-**Planned next phases** (mapped, not yet executed — higher blast / more subjective):
-- `scripts/game/` ← main, player, ship, enemy_core, run_save
-- `scripts/screens/` ← main_menu, outpost, manage_ship, signal_event, cleared_summary,
-  run_summary, run_history, sector_map_v3, sector_map_hd, hangar, feature_showcase, credits,
-  dev_menu, debug_testbed, pause_menu
-- `scripts/systems/` ← playfield, lanes, lane_traffic, zones, clarity, scene_transition(_overlay),
-  sector_node, sector_map_route, galaxy_backdrop, black_hole, beat, Camera2D, enemy_codex, ui
-- assets: `Sound/` → `assets/audio/` (literal `res://Sound/...` in sfx/music scripts —
-  string-replace), graphics consolidation, `Mini Pixel Pack 3/` → `vendor/`.
-- Orphan cleanup is tracked separately in `docs/file_reorg_audit_2026-06-14.md` (deferred).
+**Remaining (deferred — highest surface / lowest value):**
+- Graphics consolidation: `graphics/` → `assets/graphics/` (+ reshuffle the root PNGs into
+  subdirs). Thousands of `res://graphics/...` literals — do as one mechanical prefix-replace
+  (`res://graphics/` → `res://assets/graphics/`) + the "zero remaining" completeness check.
+- `Mini Pixel Pack 3/` → `vendor/` (mostly vendor art; just the `project.godot` icon path +
+  a few refs — note the **spaces** in the path).
+- Orphan cleanup tracked separately in `docs/file_reorg_audit_2026-06-14.md` (deferred).

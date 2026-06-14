@@ -34,15 +34,16 @@ items remain below. Deep specs live in `TODO.md` / `docs/` — this is the scann
   (configs mirror the code; placeholder radial textures — hand-pass + wire-in pending). Also fixed a
   merge-conflict-corrupted `enemy_smoke_trail.gd.uid`. `ember_fx` uses a ShaderMaterial → tune via
   `explosion_ember.tscn`. Non-particle effects (Line2D/sprite/shader/audio) left alone.
-- ◑ **File-structure reorg — IN PROGRESS (2026-06-14).** Change map: `docs/file_reorg_changemap_2026-06-14.md`;
-  guide: `docs/file-structure.md`. **DONE (5 batches, each its own verified commit):** `scripts/autoload/`
-  (4bd41cd→7b2df4e: effects strays, autoloads, strings, hud, **bosses** → `scripts/enemies/bosses/` +
-  `scenes/enemies/bosses/`). ~30 files; compile 314/0 + boot clean each; boss base-chains verified.
-  **NEXT (mapped, not done):** `scripts/game/` (main/player/ship/enemy_core), `scripts/screens/`
-  (the scene scripts), `scripts/systems/`, and assets (`Sound/`→`assets/audio/`, graphics, vendor pack).
-  **Orphans still deferred** (`docs/file_reorg_audit_2026-06-14.md`). Gotcha: `--import` re-resolves
-  `uid://` but NOT literal `res://` paths / path-only `ext_resource` / runtime `resource_path` compares —
-  grep + verify after every move (see the guide's checklist).
+- ◑ **File-structure reorg — scripts root DONE (2026-06-14).** Change map: `docs/file_reorg_changemap_2026-06-14.md`;
+  guide: `docs/file-structure.md`. **The `scripts/` root is fully cleared** — 9 batches, each its own
+  verified commit (compile 314/0 + boot each): `autoload/`, `effects/` (strays), `strings/`, `hud/` (+`ui`),
+  `enemies/bosses/` (scripts+scenes), `game/` (main/player/ship/run_save) + `enemy_core`→`enemies/`,
+  `screens/` (+ dev-screens→`dev/`), `systems/` (+`galaxy_backdrop`→`parallax/`, `volume_slider`→`ui/`), and
+  `Sound/`→`assets/audio/`. Boss base-chains + resource_path compares re-verified; CLAUDE.md + contributing
+  docs path-refreshed. **REMAINING (deferred — highest surface / lowest value):** `graphics/`→`assets/graphics/`
+  (+ root-PNG reshuffle), `Mini Pixel Pack 3/`→`vendor/`. **Orphans still deferred** (`docs/file_reorg_audit_2026-06-14.md`).
+  Gotcha: `--import` re-resolves `uid://` but NOT literal `res://` paths / path-only `ext_resource` /
+  runtime `resource_path` compares — grep + verify after every move (see the guide's checklist).
 
 ## Uncommitted (current)
 - **Nebula glitch fix** (square native-aligned pixelation + precision-robust integer hash) + **A/B alt

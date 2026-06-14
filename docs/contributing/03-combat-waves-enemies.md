@@ -206,7 +206,7 @@ Bullets call `area.take_hit(damage)` on hit. Returns true if the enemy dies. The
 
 ### Tier 2: `EnemyCore` — Pattern-Driven Ships
 
-`scripts/enemy_core.gd` (extends `EnemyBase`) — adds two Resource slots:
+`scripts/enemies/enemy_core.gd` (extends `EnemyBase`) — adds two Resource slots:
 
 ```gdscript
 @export var movement: Resource = null      # a movement_pattern.gd subclass
@@ -359,7 +359,7 @@ Set the CollisionShape2D to match the sprite bounds exactly. No shrinking for "f
 
 ### Rule: Import `Playfield` for Bounds
 
-Patterns that move enemies side-to-side MUST import `scripts/playfield.gd` and use `Playfield.X_MIN`, `X_MAX`, `CENTER` for clamping. Never `get_viewport_rect()` (returns full 480 width; the playfield is only 216 wide in the center).
+Patterns that move enemies side-to-side MUST import `scripts/systems/playfield.gd` and use `Playfield.X_MIN`, `X_MAX`, `CENTER` for clamping. Never `get_viewport_rect()` (returns full 480 width; the playfield is only 216 wide in the center).
 
 ---
 
@@ -379,7 +379,7 @@ If you needed custom movement (e.g., "spiral while homing"), you'd write a new `
 
 ### Step 2: Create the Scene
 
-Root: **Area2D** (class: `EnemyCore`, scripts: `scripts/enemy_core.gd`), groups: `["enemies"]`, name: `Enemy`
+Root: **Area2D** (class: `EnemyCore`, scripts: `scripts/enemies/enemy_core.gd`), groups: `["enemies"]`, name: `Enemy`
 
 ```
 Enemy (Area2D, EnemyCore)
@@ -397,7 +397,7 @@ Enemy (Area2D, EnemyCore)
 
 In the Inspector, set:
 
-- **Script:** `res://scripts/enemy_core.gd`
+- **Script:** `res://scripts/enemies/enemy_core.gd`
 - **Max Health:** `3` (Swooper has more HP than Dart's 1)
 - **Bounty Value:** `12`
 - **Movement:** Drag `scripts/enemies/patterns/beeline_player.gd` into the slot, or create an instance:

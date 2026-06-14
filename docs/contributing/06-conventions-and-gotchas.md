@@ -74,7 +74,7 @@
 
 ### Gameplay bounds from `Playfield`, never `get_viewport_rect()`
 
-**The rule:** Import `scripts/playfield.gd` and use `Playfield.X_MIN`, `Playfield.X_MAX`, `Playfield.CENTER`, or `Playfield.clamp_pos()` for gameplay bounds. Never call `get_viewport_rect()` for gameplay — it returns the full 480px width.
+**The rule:** Import `scripts/systems/playfield.gd` and use `Playfield.X_MIN`, `Playfield.X_MAX`, `Playfield.CENTER`, or `Playfield.clamp_pos()` for gameplay bounds. Never call `get_viewport_rect()` for gameplay — it returns the full 480px width.
 
 **Why:** The internal viewport is 480×270, but gameplay is constrained to a 216px-wide playfield band (X 132–348) with side gutters for HUD. Using the viewport rect lets entities drift into the glass panels.
 

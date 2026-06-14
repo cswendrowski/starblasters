@@ -195,7 +195,7 @@ GlowShaderFx.apply_to_host(self)
 
 ## Shadows: Oblique drop-shadows on ships & large projectiles
 
-`scripts/shadow_fx.gd:28` provides:
+`scripts/effects/shadow_fx.gd:28` provides:
 
 ```gdscript
 static func attach_shadow(
@@ -214,7 +214,7 @@ Attaches an oblique-shadow Sprite2D (using the `oblique_shadow.gdshader`) as a c
 
 ## Backdrop & Parallax Stack
 
-The backdrop is a per-level layered environment built in `scripts/galaxy_backdrop.gd` and the `scripts/parallax/` folder. It's a **Parallax2D** coordinator with six CanvasLayer children:
+The backdrop is a per-level layered environment built in `scripts/parallax/galaxy_backdrop.gd` and the `scripts/parallax/` folder. It's a **Parallax2D** coordinator with six CanvasLayer children:
 
 1. **Deep sky** — a low-contrast tiled image, drifts slowest
 2. **Starfield** — procedural twinkling stars (shader)
@@ -245,7 +245,7 @@ _apply_pixel_parity(p, actual_size)
 
 ### Parallax backdrop architecture
 
-The backdrop coordinator lives at `scripts/galaxy_backdrop.gd` and uses a `Parallax2D` node (from `addons/parallax2d/`) to drive per-layer scroll rates. Layer depth is controlled via CanvasLayer Z-depths (negative, so they render below gameplay). Material duplication and shader parameters are cached to avoid per-instance waste. See `docs/godot-patterns.md` for CanvasLayer transform limitations and material-sharing gotchas.
+The backdrop coordinator lives at `scripts/parallax/galaxy_backdrop.gd` and uses a `Parallax2D` node (from `addons/parallax2d/`) to drive per-layer scroll rates. Layer depth is controlled via CanvasLayer Z-depths (negative, so they render below gameplay). Material duplication and shader parameters are cached to avoid per-instance waste. See `docs/godot-patterns.md` for CanvasLayer transform limitations and material-sharing gotchas.
 
 ---
 
