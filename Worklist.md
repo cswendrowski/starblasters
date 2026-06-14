@@ -27,6 +27,20 @@ items remain below. Deep specs live in `TODO.md` / `docs/` — this is the scann
 - **Burn trails / torch** — Shader Lab → Ship Dmg. **Ship-Dmg size filter** — confirm bands.
 - **outline crash** — confirm an asteroid hazard + normal combat boot clean.
 
+## Side-tasks 2026-06-14 (local/unpushed)
+- ✅ **Particle round-up** (`f364239`) — every particle effect now has a hand-tunable `.tscn`. An
+  inventory found 6 already had emitter-node scenes; scaffolded GPUParticles2D scenes for the 4
+  code-only ones: `scenes/effects/{smoke_trail, muzzle_smoke, brass_wisp, bullet_trail}.tscn`
+  (configs mirror the code; placeholder radial textures — hand-pass + wire-in pending). Also fixed a
+  merge-conflict-corrupted `enemy_smoke_trail.gd.uid`. `ember_fx` uses a ShaderMaterial → tune via
+  `explosion_ember.tscn`. Non-particle effects (Line2D/sprite/shader/audio) left alone.
+- ☐ **File-structure reorg** — AUDITED + planned, **NOT executed** (Roman deferred while testing).
+  Full report: `docs/file_reorg_audit_2026-06-14.md` (current map + inconsistencies, orphan KEEP/CUT
+  list ~6 scripts / ~87 PNGs / dead scenes incl. 144KB `level_1_1.tscn`, proposed target tree,
+  risk-labeled batches 0–4). Resume there when off the test bench. Load-bearing gotcha: `--import`
+  re-resolves `uid://` but NOT literal `res://` path strings (sfx/music preloads, `extends` paths,
+  4 autoload paths) — grep after every move.
+
 ## Uncommitted (current)
 - **Nebula glitch fix** (square native-aligned pixelation + precision-robust integer hash) + **A/B alt
   shaders** (`nebula_alt1` / `nebula_alt2`, godotshaders CC0) + tab selector. One cohesive nebula
