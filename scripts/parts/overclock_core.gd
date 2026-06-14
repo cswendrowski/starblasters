@@ -1,0 +1,28 @@
+extends "res://scripts/parts/module_part.gd"
+
+# Overclock Core — offensive Module (2026-06-13). Sustained fire RAMPS your rate of fire
+# up to a cap (≈12 shots to full); stop firing for a beat and it resets. Rewards holding
+# the trigger on a target. Default-safe: ship.module_overclock_max (0) is off until applied.
+# The ramp + decay live on the player (OVERCLOCK_RAMP_PER_SHOT / OVERCLOCK_RESET_DELAY).
+#   Mk.1 = +25% at full ramp  →  Mk.9 = +65%.
+
+
+func _init() -> void:
+	super._init()
+	module_id = "overclock_core"
+	display_name = "Overclock Core"
+	description = "Hold fire and your rate-of-fire ramps up; release and it resets. Caps higher each Mk (Mk.1: +25% → Mk.9: +65%)."
+
+
+func _max_bonus() -> float:
+	return 0.25 + 0.05 * float(clampi(int(mark), 1, 9) - 1)
+
+
+func apply(ship) -> void:
+	if "module_overclock_max" in ship:
+		ship.module_overclock_max = maxf(float(ship.module_overclock_max), _max_bonus())
+
+
+func unapply(ship) -> void:
+	if "module_overclock_max" in ship:
+		ship.module_overclock_max = 0.0

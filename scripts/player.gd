@@ -825,6 +825,11 @@ func _process(delta: float) -> void:
 			if _repair_tick_t >= module_regen_interval:
 				_repair_tick_t = 0.0
 				set_hull(mini(max_hull - 1, hull + 1))
+	# Module bay — Overclock Core: the sustained-fire ramp decays to 0 after a no-fire gap.
+	if module_overclock_max > 0.0:
+		_overclock_idle_t += delta
+		if _overclock_idle_t > OVERCLOCK_RESET_DELAY:
+			_overclock_ramp = 0.0
 	# Secondary cooldown ticks every frame regardless of input — so the
 	# weapon recharges in the background and a tap fires immediately
 	# whenever it's ready.
@@ -1510,6 +1515,23 @@ const MODULE_REPAIR_DELAY := 5.0             # seconds undamaged before nanite r
 var _repair_undamaged_t: float = 0.0
 var _repair_tick_t: float = 0.0
 var _ablative_hit_count: int = 0
+var module_crit_chance: float = 0.0          # Targeting Computer: primary crit chance (×2 dmg, purple bolt)
+var module_overclock_max: float = 0.0        # Overclock Core: max sustained-fire rate bonus (0 = off)
+var module_delimiter_max: float = 0.0        # Critical System De-Limiter: max fire+dmg bonus at 1 hull (0 = off)
+const OVERCLOCK_RAMP_PER_SHOT := 0.08        # ramp gained per shot held (≈12 shots to full)
+const OVERCLOCK_RESET_DELAY := 0.35          # no-fire gap that resets the ramp
+const MODULE_CRIT_COLOR := Color(0.85, 0.45, 1.35)  # purple HDR bolt tint on a crit shot
+var _overclock_ramp: float = 0.0
+var _overclock_idle_t: float = 0.0
+
+
+# Critical System De-Limiter — fire-rate + damage bonus that scales up as hull drops,
+# peaking at 1 hull (the "de-limiter" engaging under critical damage). 0 at full hull.
+func _delimiter_bonus() -> float:
+	if module_delimiter_max <= 0.0 or max_hull <= 1:
+		return 0.0
+	var frac: float = clampf(float(max_hull - hull) / float(max_hull - 1), 0.0, 1.0)
+	return module_delimiter_max * frac
 
 
 # Cached Run autoload for hot-path stat tallies (run-summary Phase 2) — avoids a
@@ -1555,10 +1577,22 @@ func fire_primary() -> void:
 		var _ac = _rs.get_active_cannon()
 		if _ac != null and "display_name" in _ac:
 			_rs.note_weapon_used(String(_ac.display_name))
-	# Hyper mode: primary fires +hyper_fire_bonus faster (shorter cooldown) while
-	# active. start(time) overrides this one cycle without changing wait_time.
+	# Module bay — Targeting Computer: roll a crit ONCE per trigger (the whole volley
+	# crits together for a readable purple burst). ×2 damage + purple bolt tint applied below.
+	var _crit_shot: bool = module_crit_chance > 0.0 and randf() < module_crit_chance
+	# Fire-rate bonuses (shorter cooldown), stacked additively: Hyper + Overclock Core
+	# (sustained-fire ramp) + Critical System De-Limiter (scales with hull lost).
+	# start(time) overrides this one cycle's wait_time.
+	var _fire_bonus: float = 0.0
 	if _hyper_active and active_mode == ShiftMode.HYPER and hyper_fire_bonus > 0.0:
-		$GunCooldown.start($GunCooldown.wait_time / (1.0 + hyper_fire_bonus))
+		_fire_bonus += hyper_fire_bonus
+	if module_overclock_max > 0.0:
+		_overclock_ramp = minf(1.0, _overclock_ramp + OVERCLOCK_RAMP_PER_SHOT)
+		_overclock_idle_t = 0.0
+		_fire_bonus += _overclock_ramp * module_overclock_max
+	_fire_bonus += _delimiter_bonus()
+	if _fire_bonus > 0.0:
+		$GunCooldown.start($GunCooldown.wait_time / (1.0 + _fire_bonus))
 	else:
 		$GunCooldown.start()
 	# Pulse Laser: hitscan beam from the nose, consume one ammo, then bail (no bullet
@@ -1627,7 +1661,17 @@ func fire_primary() -> void:
 			# Module bay — Overcharge Core multiplies primary damage (1.0 = no module).
 			if module_damage_mult != 1.0:
 				dmg = int(round(float(dmg) * module_damage_mult))
+			# Critical System De-Limiter: +damage scaling with hull lost (0 at full hull).
+			var _delim: float = _delimiter_bonus()
+			if _delim > 0.0:
+				dmg = int(round(float(dmg) * (1.0 + _delim)))
+			# Targeting Computer: a crit shot hits for ×2.
+			if _crit_shot:
+				dmg *= 2
 			b.damage = dmg
+		# Targeting Computer crit VFX — tint the bolt purple (HDR so the bloom glows it).
+		if _crit_shot and b is CanvasItem:
+			(b as CanvasItem).modulate = MODULE_CRIT_COLOR
 		# Per-cannon overrides (Wave Gun speed + pierce, etc). Sentinel
 		# < 0 / <= 0 leaves the bullet scene's own export default alone.
 		if bullet_speed_override > 0.0 and "speed" in b:

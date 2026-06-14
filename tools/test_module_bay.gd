@@ -11,6 +11,9 @@ const OverchargeCore = preload("res://scripts/parts/overcharge_core.gd")
 const SiphonCore = preload("res://scripts/parts/siphon_core.gd")
 const RepairNanites = preload("res://scripts/parts/repair_nanites.gd")
 const AblativePlating = preload("res://scripts/parts/ablative_plating.gd")
+const TargetingComputer = preload("res://scripts/parts/targeting_computer.gd")
+const OverclockCore = preload("res://scripts/parts/overclock_core.gd")
+const SystemDelimiter = preload("res://scripts/parts/system_delimiter.gd")
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 
@@ -54,6 +57,18 @@ func _go() -> void:
 	var ap9 = AblativePlating.new(); ap9.mark = 9
 	_assert(ap1._every_n() == 6, "Ablative Mk.1 = absorb every 6th hit")
 	_assert(ap9._every_n() == 2, "Ablative Mk.9 = absorb every 2nd hit")
+	var tc1 = TargetingComputer.new(); tc1.mark = 1
+	var tc9 = TargetingComputer.new(); tc9.mark = 9
+	_assert(absf(tc1._crit_chance() - 0.10) < 0.001, "Targeting Computer Mk.1 = 10% crit")
+	_assert(absf(tc9._crit_chance() - 0.30) < 0.001, "Targeting Computer Mk.9 = 30% crit")
+	var ov1 = OverclockCore.new(); ov1.mark = 1
+	var ov9 = OverclockCore.new(); ov9.mark = 9
+	_assert(absf(ov1._max_bonus() - 0.25) < 0.001, "Overclock Mk.1 = +25%")
+	_assert(absf(ov9._max_bonus() - 0.65) < 0.001, "Overclock Mk.9 = +65%")
+	var dl1 = SystemDelimiter.new(); dl1.mark = 1
+	var dl9 = SystemDelimiter.new(); dl9.mark = 9
+	_assert(absf(dl1._max_bonus() - 0.25) < 0.001, "De-Limiter Mk.1 = +25%")
+	_assert(absf(dl9._max_bonus() - 0.75) < 0.001, "De-Limiter Mk.9 = +75%")
 
 	# --- D. Shop roll produces modules (item-gen rules) ---
 	var rng := RandomNumberGenerator.new()
@@ -95,6 +110,19 @@ func _go() -> void:
 	p.module_ablative_n = 0
 	AblativePlating.new().apply(p)
 	_assert(p.module_ablative_n > 0, "Ablative Plating sets module_ablative_n (got %d)" % p.module_ablative_n)
+	p.module_crit_chance = 0.0
+	TargetingComputer.new().apply(p)
+	_assert(p.module_crit_chance > 0.0, "Targeting Computer sets module_crit_chance (got %.3f)" % p.module_crit_chance)
+	p.module_overclock_max = 0.0
+	OverclockCore.new().apply(p)
+	_assert(p.module_overclock_max > 0.0, "Overclock Core sets module_overclock_max (got %.3f)" % p.module_overclock_max)
+	SystemDelimiter.new().apply(p)
+	_assert(p.module_delimiter_max > 0.0, "De-Limiter sets module_delimiter_max (got %.3f)" % p.module_delimiter_max)
+	# De-Limiter bonus scales with hull lost: 0 at full, > 0 when hurt.
+	p.max_hull = 5; p.hull = 5
+	_assert(p._delimiter_bonus() == 0.0, "De-Limiter bonus 0 at full hull")
+	p.hull = 1
+	_assert(p._delimiter_bonus() > 0.0, "De-Limiter bonus > 0 at 1 hull (got %.3f)" % p._delimiter_bonus())
 
 	_finish()
 

@@ -59,16 +59,18 @@ the refactor safe to land without a playtest breaking survival systems.
 
 ## Module roster
 
-**BUILT (5, 2026-06-13):**
+**BUILT (8, 2026-06-13):**
 - **Shield Core** *(default)* — gates the shield (above). Drop = glass cannon.
 - **Overcharge Core** — +damage % (fire path `module_damage_mult`), −1 max shield charge. Pure stat; default-safe.
 - **Siphon Core** — kills restore a sliver of SHIELD charge (NEVER Mode Energy — spec §8 runaway lever). One kill hook.
 - **Repair Nanites** — gated in-combat hull regen tick (`module_regen_interval`), capped at max−1.
 - **Ablative Plating** — deterministic every-Nth hull-hit absorb (`module_ablative_n`).
+- **Targeting Computer** — primary crit chance (`module_crit_chance`, ×2 dmg) + a purple HDR bolt tint on crit.
+- **Overclock Core** — sustained-fire rate ramp (`module_overclock_max`; ramp/decay on the player), resets on release.
+- **Critical System De-Limiter** — fire-rate + damage scale with hull lost, peaking at 1 hull (`module_delimiter_max`, `_delimiter_bonus()`). (was "Adrenal Surge".)
 
-**Tail — designed, not built (each needs a real new mechanic / VFX):**
-- Intercept Drones (reuse the sidelined `drone_bits` ablative drones), Targeting Computer (crit + flash,
-  coordinate vfx), Overclock Core (sustained-fire ramp), Adrenal Surge (scale vs hull fraction).
+**Tail — designed, not built:**
+- Intercept Drones (reuse the sidelined `drone_bits` ablative drones) — the only remaining one.
 
 **Cut/hold** (spec §15 + later calls): Auto-Dodge, Scavenger (→Upgrade), Reflector/Thorns, Last Stand,
 Threat Sensor, Piercing Core, Auto-Turret, and **Tractor Coil** — CUT 2026-06-13: it auto-collects/pulls

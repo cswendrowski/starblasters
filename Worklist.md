@@ -91,9 +91,12 @@ items remain below. Deep specs live in `TODO.md` / `docs/` — this is the scann
   shop / salvage event / Manage-Ship display + their effects (between-node heal, RNG shrug) — those mechanics
   are now solely the Repair Nanites / Ablative Plating modules. Fields kept in run_state/RunSave for save compat
   (the `armor_mk` precedent); also pruned the already-stale `armor_mk`/`shield_recharge_mk` from the salvage
-  list so it never grants a dud. The in-combat HUD module-strip was **declined** (Roman 2026-06-13 — "we can
-  live without it"). **Bay is complete.** Only the module *feel/balance* (Mk numbers, glass-cannon survivability)
-  remains, and that's playtest-gated — don't tune unprompted.
+  list so it never grants a dud. The in-combat HUD module-strip was **declined** (Roman 2026-06-13). Modules
+  also have **codex entries + armory_strings blurbs** (a "Modules" codex tab). **8 modules built**: Shield Core,
+  Overcharge, Siphon, Repair Nanites, Ablative Plating, **Targeting Computer** (crit + purple bolts),
+  **Overclock Core** (sustained-fire ramp), **Critical System De-Limiter** (fire/dmg scale as hull drops).
+  Tractor Coil cut (no pickup system). Only **Intercept Drones** remains designed-not-built. **Bay is complete.**
+  Module *feel/balance* (Mk numbers) + the purple-crit look are playtest/eyeball-gated — don't tune unprompted.
 - **Run summary Phases 2–3 + timer** — ✅ **DONE 2026-06-13** (branch `run-summary-2026-06-13`, local/unpushed):
   Phase 2 stats instrumented — **shots fired/hit + accuracy** (per-projectile: `player.fire_primary/secondary`
   + `enemy_base.take_hit`), **locations/signals visited** (`mark_node_completed`), **outpost visits**

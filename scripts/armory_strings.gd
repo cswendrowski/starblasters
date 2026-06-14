@@ -45,6 +45,9 @@ const CODEX := {
 	"_make_siphon_core": "Bleeds staying power from your kills: every Nth enemy destroyed restores one shield charge — every 10th at Mk.1, down to every 2nd at Mk.9. Aggression as sustain.",
 	"_make_repair_nanites": "Regrows hull mid-fight once you've gone a few seconds undamaged — a pip every 12s, quickening to 4s at Mk.9. Caps just short of full, so it rewards disengaging, not facetanking.",
 	"_make_ablative_plating": "Layered plates shrug off every Nth hull hit outright — no dice, pure rhythm. Every 6th hit at Mk.1, down to every 2nd at Mk.9.",
+	"_make_targeting_computer": "Primary fire gains a crit chance for double damage — crit bolts streak purple so you can read the hit. Crit rate climbs 10% → 30% by Mk.",
+	"_make_overclock_core": "Hold the trigger and your fire-rate winds up to a cap; let off and it spools back down. Rewards sustained pressure on a single target. +25% → +65% at full ramp by Mk.",
+	"_make_system_delimiter": "Strips the safety governors as your hull falls: fire-rate AND damage surge the closer you are to death, maxing at 1 hull — nothing at full health. A comeback weapon. +25% → +75% by Mk.",
 }
 
 

@@ -38,6 +38,9 @@ const OverchargeCore = preload("res://scripts/parts/overcharge_core.gd")
 const SiphonCore = preload("res://scripts/parts/siphon_core.gd")
 const RepairNanites = preload("res://scripts/parts/repair_nanites.gd")
 const AblativePlating = preload("res://scripts/parts/ablative_plating.gd")
+const TargetingComputer = preload("res://scripts/parts/targeting_computer.gd")
+const OverclockCore = preload("res://scripts/parts/overclock_core.gd")
+const SystemDelimiter = preload("res://scripts/parts/system_delimiter.gd")
 const BulletDefault = preload("res://scenes/projectiles/bullet_blaster.tscn")
 const BulletHeavy = preload("res://scenes/projectiles/bullet_blaster_heavy.tscn")
 const BulletMinigun = preload("res://scenes/projectiles/bullet_minigun.tscn")
@@ -99,6 +102,9 @@ static func _all_pool() -> Array:
 		{"factory": "_make_siphon_core", "slot": Slots.SlotType.MODULE},
 		{"factory": "_make_repair_nanites", "slot": Slots.SlotType.MODULE},
 		{"factory": "_make_ablative_plating", "slot": Slots.SlotType.MODULE},
+		{"factory": "_make_targeting_computer", "slot": Slots.SlotType.MODULE},
+		{"factory": "_make_overclock_core", "slot": Slots.SlotType.MODULE},
+		{"factory": "_make_system_delimiter", "slot": Slots.SlotType.MODULE},
 	]
 
 static func roll_random_part(rng: RandomNumberGenerator):
@@ -213,6 +219,12 @@ static func _make_by_name(name: String, slot: int):
 			return RepairNanites.new()
 		"_make_ablative_plating":
 			return AblativePlating.new()
+		"_make_targeting_computer":
+			return TargetingComputer.new()
+		"_make_overclock_core":
+			return OverclockCore.new()
+		"_make_system_delimiter":
+			return SystemDelimiter.new()
 	return null
 
 
