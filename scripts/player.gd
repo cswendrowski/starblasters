@@ -779,6 +779,9 @@ func start() -> void:
 	# Reflective Shield counter starts fresh each combat.
 	_backup_cap_used = false
 	_reflect_hit_count = 0
+	# Smart Mounts: cache the blaster turret config + force the primary active so the
+	# pipeline drives it. Runs after apply_run_upgrades (module flags are set in _ready).
+	_setup_smart_mounts()
 	# Hull loaded from Run.current_hull via start() context (set in apply_run_upgrades).
 	can_shoot = true
 	$GunCooldown.wait_time = cooldown
@@ -923,6 +926,29 @@ func _process(delta: float) -> void:
 		_shot_recency = 0.0
 	else:
 		_shot_recency += delta
+	# --- Smart Mounts: manual-fire routing + auto-turrets ---
+	# A mounted cannon auto-fires; the manual trigger drives the OTHER cannon. Both
+	# mounted = fully hands-off (manual suppressed). The blaster fires via direct-spawn,
+	# the primary via the real fire_primary() pipeline (forced active in _setup_smart_mounts).
+	_blaster_cd_t = maxf(0.0, _blaster_cd_t - delta)
+	var _manual_blaster: bool = false
+	if module_blaster_mount or module_primary_mount:
+		var _has_primary: bool = has_node("/root/Run") and get_node("/root/Run").cannon_pool.size() > 1
+		if module_blaster_mount and module_primary_mount:
+			fire_held = false                         # both auto
+		elif module_primary_mount:
+			_manual_blaster = fire_held               # primary auto; manual trigger = blaster
+			fire_held = false
+		elif module_blaster_mount and not _has_primary:
+			fire_held = false                         # blaster auto, no primary to manual-fire
+	if is_alive and _phase_t <= 0.0:
+		if module_blaster_mount:
+			_update_blaster_mount(delta)
+		if module_primary_mount:
+			_update_primary_mount(delta)
+		if _manual_blaster and _blaster_cd_t <= 0.0:
+			_fire_blaster_bolt(0.0)                    # manual blaster fires straight up
+			_blaster_cd_t = _blaster_cooldown
 	# Pulse Laser dispersion: it ACCRUES while the trigger is HELD (in _fire_pulse_laser).
 	# RELEASING the trigger recovers spread (PULSE_DISPERSION_DECAY °/s) + resets the
 	# accuracy-window counter. Keyed on fire_held — NOT on whether a shot landed this
@@ -935,7 +961,9 @@ func _process(delta: float) -> void:
 	# Primary swap (Q): toggle which equipped cannon FIRES — the unlimited Blaster
 	# (fallback) or the acquired Primary gun. Re-applies the new active cannon so
 	# bullet_scene / cooldown / damage / SFX swap atomically. No-op if no primary.
-	if Input.is_action_just_pressed("primary_swap"):
+	# Smart Mount: Q-swap is locked while a mount is active (the mounted cannon is
+	# auto-turreted; the primary is force-held active so the pipeline drives it).
+	if Input.is_action_just_pressed("primary_swap") and not (module_blaster_mount or module_primary_mount):
 		_swap_active_primary()
 	if fire_held:
 		# EVERY style fires through fire_primary each held frame — it self-gates on
@@ -1519,6 +1547,141 @@ func _nearest_enemy() -> Node2D:
 	return best
 
 
+# ===== Smart Mounts (modules) =====
+
+# Per-combat setup: reset turret state, cache the blaster's fire config, and force the
+# primary active so fire_primary() drives it. Called from start() after apply_run_upgrades.
+func _setup_smart_mounts() -> void:
+	_blaster_aim = 0.0
+	_primary_aim = 0.0
+	_blaster_cd_t = 0.0
+	_primary_mount_ready = true
+	if not (module_blaster_mount or module_primary_mount):
+		return
+	if not has_node("/root/Run"):
+		return
+	var run = get_node("/root/Run")
+	_cache_blaster_config(run)
+	# Force the primary (cannon_pool[1]) active so the pipeline fires it; Q is locked.
+	if run.cannon_pool.size() > 1 and run.active_cannon_idx != 1:
+		run.active_cannon_idx = 1
+		_reapply_active_cannon()
+
+
+# Cache the blaster bolt scene / damage / cooldown from cannon_pool[0] so the direct-spawn
+# turret can fire it even when the primary is the active (loaded) cannon.
+func _cache_blaster_config(run) -> void:
+	_blaster_bullet_scene = bullet_scene                 # fallback: whatever's loaded now
+	_blaster_damage = maxi(1, bullet_damage)
+	_blaster_cooldown = maxf(0.05, $GunCooldown.wait_time)
+	if run.cannon_pool.size() > 0:
+		var bl = run.cannon_pool[0]
+		if bl != null:
+			if "bullet_scene" in bl and bl.bullet_scene != null:
+				_blaster_bullet_scene = bl.bullet_scene
+			if bl.has_method("_effective_damage_at_mark"):
+				_blaster_damage = maxi(1, bl._effective_damage_at_mark(int(bl.mark)))
+			if "base_cooldown" in bl:
+				_blaster_cooldown = maxf(0.05, float(bl.base_cooldown))
+	if _blaster_bullet_scene == null:
+		_blaster_bullet_scene = load("res://scenes/projectiles/bullet_blaster.tscn")
+
+
+# Nearest enemy inside the 120° front arc (±MOUNT_ARC of up) within MOUNT_RANGE, or null.
+func _mount_target():
+	var best = null
+	var best_d: float = MOUNT_RANGE * MOUNT_RANGE
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not (e is Node2D) or not is_instance_valid(e):
+			continue
+		var to_e: Vector2 = (e as Node2D).global_position - global_position
+		# Bearing from the up axis: atan2(x, -y). 0 = straight up, ± toward the sides.
+		if absf(atan2(to_e.x, -to_e.y)) > MOUNT_ARC:
+			continue
+		var d: float = to_e.length_squared()
+		if d < best_d:
+			best_d = d
+			best = e
+	return best
+
+
+# Slew `cur` toward `target` by `rate` rad/s (clamped), returning the new aim.
+func _slew_aim(cur: float, target: float, rate: float, delta: float) -> float:
+	var step: float = maxf(rate, 0.5) * delta
+	var diff: float = target - cur
+	if absf(diff) <= step:
+		return target
+	return cur + signf(diff) * step
+
+
+# Random dispersion in [-disp, disp] rad (0 when disp <= 0).
+func _mount_dispersion(disp: float) -> float:
+	if disp <= 0.0:
+		return 0.0
+	return randf_range(-disp, disp)
+
+
+# Blaster turret: aim toward the nearest in-arc enemy, fire a direct-spawn bolt when lined up.
+func _update_blaster_mount(delta: float) -> void:
+	var tgt = _mount_target()
+	var desired: float = 0.0
+	if tgt != null:
+		var to_e: Vector2 = tgt.global_position - global_position
+		desired = clampf(atan2(to_e.x, -to_e.y), -MOUNT_ARC, MOUNT_ARC)
+	_blaster_aim = _slew_aim(_blaster_aim, desired, module_blaster_traverse, delta)
+	if tgt != null and _blaster_cd_t <= 0.0 and absf(_blaster_aim - desired) <= MOUNT_FIRE_TOLERANCE:
+		_fire_blaster_bolt(_blaster_aim + _mount_dispersion(module_blaster_dispersion))
+		_blaster_cd_t = _blaster_cooldown
+
+
+# Primary turret: aim toward the nearest in-arc enemy, then auto-trigger fire_primary(aim).
+# Regen lasers wait for a FULL recharge between magazines (spec).
+func _update_primary_mount(delta: float) -> void:
+	if not (has_node("/root/Run") and get_node("/root/Run").cannon_pool.size() > 1):
+		return  # no equipped primary to drive
+	var tgt = _mount_target()
+	var desired: float = 0.0
+	if tgt != null:
+		var to_e: Vector2 = tgt.global_position - global_position
+		desired = clampf(atan2(to_e.x, -to_e.y), -MOUNT_ARC, MOUNT_ARC)
+	_primary_aim = _slew_aim(_primary_aim, desired, module_primary_traverse, delta)
+	if tgt == null or absf(_primary_aim - desired) > MOUNT_FIRE_TOLERANCE:
+		return
+	# Regen-laser latch: dump the full magazine, then hold until it has recharged all the
+	# way back ("wait for the ammo to fully regenerate before firing again").
+	if ammo_recharge_rate > 0.0 and ammo_max > 0:
+		if ammo >= ammo_max:
+			_primary_mount_ready = true
+		elif ammo <= 0:
+			_primary_mount_ready = false
+		if not _primary_mount_ready:
+			return
+	fire_primary(_primary_aim + _mount_dispersion(module_primary_dispersion))
+
+
+# Direct-spawn one blaster bolt in `aim` direction (rad, 0 = up). Mirrors the module
+# damage scalars the manual blaster gets (Overcharge / De-Limiter) for parity.
+func _fire_blaster_bolt(aim: float) -> void:
+	if _blaster_bullet_scene == null:
+		return
+	var b: Node = _blaster_bullet_scene.instantiate()
+	_bullet_parent().add_child(b)
+	if b is Node2D:
+		(b as Node2D).z_index = -1
+	if "damage" in b:
+		var dmg: int = _blaster_damage
+		if module_damage_mult != 1.0:
+			dmg = int(round(float(dmg) * module_damage_mult))
+		var _delim: float = _delimiter_bonus()
+		if _delim > 0.0:
+			dmg = int(round(float(dmg) * (1.0 + _delim)))
+		b.damage = maxi(1, dmg)
+	var dir := Vector2(sin(aim), -cos(aim))
+	var muzzle: Vector2 = global_position + _muzzle_offset("Ship/Muzzle", Vector2(0, -8))
+	if b.has_method("start"):
+		b.start(muzzle, dir)
+
+
 # A 1px additive glowing beam from origin→end, tinted white→#000fd8 by dispersion,
 # that flashes briefly and frees. Parents to the player's world (combat scene), NOT
 # the player — beams are world-space and must survive in the right viewport.
@@ -1598,6 +1761,28 @@ var module_energy_router_pct: float = 0.0    # Passive Energy Routers: regen del
 var _shot_recency: float = 999.0             # sec since the primary trigger was last held (starts idle)
 const ROUTER_IDLE_GRACE := 0.5               # trigger-idle grace before the Energy Routers boost engages
 
+# Smart Mounts (modules) — auto-aiming turrets. A mounted cannon fires automatically at
+# the nearest enemy inside a 120° front arc; the unmounted cannon stays manual; both
+# mounted = fully hands-off. Blaster auto-fires via a light direct-spawn path; the primary
+# rides the real fire_primary() pipeline (all weapon styles). Q-swap is locked while any
+# mount is active and the primary is forced active so the pipeline drives it.
+var module_blaster_mount: bool = false
+var module_blaster_traverse: float = 0.0     # rad/s aim slew rate (Mk-scaled)
+var module_blaster_dispersion: float = 0.0   # rad half-spread of shot dispersion (Mk-scaled, lower = tighter)
+var module_primary_mount: bool = false
+var module_primary_traverse: float = 0.0
+var module_primary_dispersion: float = 0.0
+var _blaster_aim: float = 0.0                # current blaster turret aim (rad, 0 = up)
+var _primary_aim: float = 0.0                # current primary turret aim (rad, 0 = up)
+var _blaster_cd_t: float = 0.0               # blaster direct-spawn cooldown countdown
+var _primary_mount_ready: bool = true        # regen-laser latch: fire a full magazine, then wait for full recharge
+var _blaster_bullet_scene: PackedScene = null  # cached blaster (cannon_pool[0]) fire config
+var _blaster_damage: int = 1
+var _blaster_cooldown: float = 0.2
+const MOUNT_ARC := 1.0471975512              # ±60° = 120° front arc (deg_to_rad(60))
+const MOUNT_RANGE := 240.0                   # px target-acquisition radius
+const MOUNT_FIRE_TOLERANCE := 0.1396263402   # fire when aim is within ~8° of the target bearing
+
 
 # Critical System De-Limiter — fire-rate + damage bonus that scales up as hull drops,
 # peaking at 1 hull (the "de-limiter" engaging under critical damage). 0 at full hull.
@@ -1617,9 +1802,11 @@ func _run_ref() -> Node:
 	return _run_cache
 
 
-func fire_primary() -> void:
+func fire_primary(aim_angle: float = 0.0) -> void:
 	# Minigun is now projectile-based (Roman 2026-06-11) — fires bullet_minigun
 	# through the normal path below, like the other cannons.
+	# aim_angle (rad, 0 = straight up) offsets every bolt's direction — the Primary
+	# Smart Mount passes the turret bearing so the pipeline fires toward the target.
 	if not can_shoot:
 		return
 	# Pulse Laser is HITSCAN (no bullet scene) — it bypasses the bullet-spawn path.
@@ -1720,7 +1907,8 @@ func fire_primary() -> void:
 				var t: float = float(i) / float(count - 1)
 				angle = -spread_rad * 0.5 + spread_rad * t
 		# 0 angle = straight up. (sin(a), -cos(a)) rotates around the up axis.
-		var dir := Vector2(sin(angle), -cos(angle))
+		# aim_angle (Smart Mount turret bearing) rotates the whole volley toward the target.
+		var dir := Vector2(sin(angle + aim_angle), -cos(angle + aim_angle))
 		var b: Node = bullet_scene.instantiate()
 		_bullet_parent().add_child(b)
 		if b is Node2D:

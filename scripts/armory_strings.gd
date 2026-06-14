@@ -55,6 +55,8 @@ const CODEX := {
 	"_make_reflective_shield": "Tunes the shield to bounce back: every Nth bullet it absorbs is reflected into the playfield at the nearest enemy, reusing your primary's bolt. Every 6th hit at Mk.1, tightening to every 2nd at Mk.9. Turns a defensive stance into chip damage.",
 	"_make_micro_fabricator": "An onboard printer that runs between fights: clearing a level restocks a slice of your max primary and secondary ammo — never past the cap. 5% at Mk.1, +5% per Mk. Keeps metered weapons fed without an outpost stop.",
 	"_make_energy_routers": "Reroutes power the moment you stop firing: while the trigger's idle, your shield's regen delay shortens and its charge-ticks come faster. Hold fire and it reverts to the slow baseline. 20% faster idle regen at Mk.1, up to 60% at Mk.9 — pairs naturally with a Shield Capacitor.",
+	"_make_blaster_smart_mount": "Slaves your Blaster to a tracking turret: it auto-fires at the nearest enemy in a 120° front arc while you fly + work your Primary by hand. Disables Q-swap to the blaster. Mk speeds the traverse and tightens the spread.",
+	"_make_primary_smart_mount": "Slaves your Primary to a tracking turret: it auto-fires at the nearest enemy in a 120° front arc while you fly + keep your Blaster on manual. Regen lasers hold until fully recharged, then loose a full burst. Disables Q-swap to the primary. Mk speeds traverse + tightens spread. Run both mounts and you never touch the trigger.",
 }
 
 

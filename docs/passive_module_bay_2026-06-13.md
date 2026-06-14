@@ -59,7 +59,7 @@ the refactor safe to land without a playtest breaking survival systems.
 
 ## Module roster
 
-**BUILT (11, 2026-06-13). Bay size = 6.**
+**BUILT (18, 2026-06-13 → 06-14). Bay size = 6.**
 - **Shield Core** *(default)* — gates the shield AND its Mk now drives capacity (base 10 + 2/Mk + 4 at Mk.9 → 30; the old shield_cap upgrade folded in). Drop = glass cannon.
 - **Overcharge Core** — +damage % (fire path `module_damage_mult`), −1 max shield charge. Pure stat; default-safe.
 - **Siphon Core** — kills restore a sliver of SHIELD charge (NEVER Mode Energy — spec §8 runaway lever). One kill hook.
@@ -71,13 +71,23 @@ the refactor safe to land without a playtest breaking survival systems.
 - **Reinforced Hull** — +max_hull pips (`module_hull_bonus`, up to +8) + Mk.9 repair discount. (the old Hull upgrade.)
 - **Thrusters** — +move speed % (`module_speed_pct`). (the old Thrusters upgrade.)
 - **Shield Capacitor** — lower shield-regen delay + faster per-charge tick (`shield_regen_delay`/`shield_regen_interval`).
+- **Intercept Drones** *(2026-06-14)* — migrated off the HARDPOINT_WING secondary to a module. Spinning ablative drones soak bullets; spawn at combat start, respawn each level, gone once destroyed (`intercept_drones.gd`, reuses `shield_drone.tscn`).
+- **Backup Shield Capacitor** *(06-14)* — first shield drop per level restores 5%/Mk of max shield (`module_backup_shield_pct`, `_backup_cap_used` once-per-level latch in the take_damage shield branch).
+- **Reflective Shield Tuning** *(06-14)* — every Nth absorbed bullet bounced back at the nearest enemy (`module_reflect_n`, `_reflect_bullet`); N: 6 at Mk.1 → 2 at Mk.9.
+- **Internal Micro Fabricator** *(06-14)* — clearing a level restocks 5%/Mk of max primary+secondary ammo (`module_ammo_restore_pct` → `Run.restock_ammo_fraction` in `_on_level_cleared`).
+- **Passive Energy Routers** *(06-14)* — while the trigger is idle, shield-regen delay + interval cut by 20%→60% (`module_energy_router_pct`, `_effective_regen_*`, off `_shot_recency`).
+- **Blaster Smart Mount** *(06-14)* — auto-turrets the Blaster onto enemies in a 120° arc; manual Primary stays; Q-locked. Direct-spawn turret (`module_blaster_*`, `_update_blaster_mount`).
+- **Primary Smart Mount** *(06-14)* — auto-turrets the Primary (real fire_primary pipeline + aim); manual Blaster stays; regen lasers wait for full recharge; Q-locked (`module_primary_*`, `_update_primary_mount`). Both mounts = fully hands-off.
 
 **Upgrades retired entirely (2026-06-13):** hull/thrusters/shield-capacity are the modules above; the
 outpost UPGRADES column was removed (parts column widened + renamed "PARTS"); Manage-Ship upgrade list
 emptied; the Salvage Cache "upgrade" outcome now grants a random MODULE. Run int fields kept for save compat.
 
-**Tail — designed, not built:**
-- Intercept Drones (reuse the sidelined `drone_bits` ablative drones) — the only remaining one.
+**Smart Mount feel — first-pass numbers, NEEDS PLAYTEST TUNING (Roman, 2026-06-14):** turret traverse
+(2.5→6.1 rad/s by Mk), dispersion (~10°→2° by Mk), 120° arc, 240px acquisition range, ~8° fire tolerance
+all live in `smart_mount.gd` + the `MOUNT_*` consts in `player.gd`. Known v1 limits: Pulse Laser (hitscan)
++ minigun-hitscan fire axially (the bullet-spawn path takes the aim; their bespoke paths don't yet); a
+non-regen metered primary that runs dry under the turret snaps to the blaster as usual.
 
 **Cut/hold** (spec §15 + later calls): Auto-Dodge, Scavenger (→Upgrade), Reflector/Thorns, Last Stand,
 Threat Sensor, Piercing Core, Auto-Turret, and **Tractor Coil** — CUT 2026-06-13: it auto-collects/pulls

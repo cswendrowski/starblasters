@@ -50,6 +50,8 @@ const BackupShieldCapacitor = preload("res://scripts/parts/backup_shield_capacit
 const ReflectiveShieldTuning = preload("res://scripts/parts/reflective_shield_tuning.gd")
 const InternalMicroFabricator = preload("res://scripts/parts/internal_micro_fabricator.gd")
 const PassiveEnergyRouters = preload("res://scripts/parts/passive_energy_routers.gd")
+const BlasterSmartMount = preload("res://scripts/parts/blaster_smart_mount.gd")
+const PrimarySmartMount = preload("res://scripts/parts/primary_smart_mount.gd")
 const BulletDefault = preload("res://scenes/projectiles/bullet_blaster.tscn")
 const BulletHeavy = preload("res://scenes/projectiles/bullet_blaster_heavy.tscn")
 const BulletMinigun = preload("res://scenes/projectiles/bullet_minigun.tscn")
@@ -121,6 +123,8 @@ static func _all_pool() -> Array:
 		{"factory": "_make_reflective_shield", "slot": Slots.SlotType.MODULE},
 		{"factory": "_make_micro_fabricator", "slot": Slots.SlotType.MODULE},
 		{"factory": "_make_energy_routers", "slot": Slots.SlotType.MODULE},
+		{"factory": "_make_blaster_smart_mount", "slot": Slots.SlotType.MODULE},
+		{"factory": "_make_primary_smart_mount", "slot": Slots.SlotType.MODULE},
 	]
 
 static func roll_random_part(rng: RandomNumberGenerator):
@@ -257,6 +261,10 @@ static func _make_by_name(name: String, slot: int):
 			return InternalMicroFabricator.new()
 		"_make_energy_routers":
 			return PassiveEnergyRouters.new()
+		"_make_blaster_smart_mount":
+			return BlasterSmartMount.new()
+		"_make_primary_smart_mount":
+			return PrimarySmartMount.new()
 	return null
 
 

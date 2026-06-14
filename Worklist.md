@@ -95,8 +95,17 @@ items remain below. Deep specs live in `TODO.md` / `docs/` — this is the scann
   Shield Core's Mk drives shield capacity (folded the shield-cap upgrade), + new **Reinforced Hull**, **Thrusters**,
   **Shield Capacitor** (regen rate + delay). Outpost UPGRADES column removed (parts column widened, renamed "PARTS");
   Manage-Ship upgrade display emptied; Salvage Cache grants a module now. Bay bumped to **6**. **11 modules total.**
-  Only **Intercept Drones** remains designed-not-built. **Bay complete.** Module *feel/balance* + purple-crit look +
-  the new shop layout are playtest/eyeball-gated — don't tune unprompted.
+  **Module batch 2 — ✅ DONE 2026-06-14 (7 more, local/unpushed; commits 95b271d, 71c395a, 053bcbc + smart-mount):**
+  **Intercept Drones** migrated off the secondary slot to a module (carries Mk scaling; respawn each level, gone
+  once destroyed); **Backup Shield Capacitor** (first shield-drop/level restores 5%/Mk); **Reflective Shield Tuning**
+  (every Nth absorbed bullet bounced at nearest enemy); **Internal Micro Fabricator** (level-clear restocks 5%/Mk
+  primary+secondary ammo via `Run.restock_ammo_fraction`); **Passive Energy Routers** (idle = faster shield regen,
+  20→60%); **Blaster + Primary Smart Mounts** (auto-aim turrets, 120° arc, Mk traverse/dispersion, Q-locked, dual-mount
+  = fully hands-off; primary rides the real fire pipeline via `fire_primary(aim)`, regen lasers wait for full recharge).
+  **18 modules total.** `test_module_bay.gd` extended (incl. turret-fire smoke) — ALL PASS; compile 311/0; boot clean.
+  **Smart Mount feel (traverse/dispersion/arc/range) is FIRST-PASS — needs Roman's playtest tuning** (knobs in
+  `smart_mount.gd` + `MOUNT_*` consts in `player.gd`; v1 limit: pulse/minigun-hitscan fire axially). Module
+  *feel/balance* + purple-crit look + the new shop layout are playtest/eyeball-gated — don't tune unprompted.
 - **Run summary Phases 2–3 + timer** — ✅ **DONE 2026-06-13** (branch `run-summary-2026-06-13`, local/unpushed):
   Phase 2 stats instrumented — **shots fired/hit + accuracy** (per-projectile: `player.fire_primary/secondary`
   + `enemy_base.take_hit`), **locations/signals visited** (`mark_node_completed`), **outpost visits**

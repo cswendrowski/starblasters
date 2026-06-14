@@ -21,6 +21,8 @@ const BackupShieldCapacitor = preload("res://scripts/parts/backup_shield_capacit
 const ReflectiveShieldTuning = preload("res://scripts/parts/reflective_shield_tuning.gd")
 const InternalMicroFabricator = preload("res://scripts/parts/internal_micro_fabricator.gd")
 const PassiveEnergyRouters = preload("res://scripts/parts/passive_energy_routers.gd")
+const BlasterSmartMount = preload("res://scripts/parts/blaster_smart_mount.gd")
+const PrimarySmartMount = preload("res://scripts/parts/primary_smart_mount.gd")
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 
@@ -107,6 +109,12 @@ func _go() -> void:
 	var er9 = PassiveEnergyRouters.new(); er9.mark = 9
 	_assert(absf(er1._pct_for(1) - 0.20) < 0.001, "Energy Routers Mk.1 = 20% idle boost")
 	_assert(absf(er9._pct_for(9) - 0.60) < 0.001, "Energy Routers Mk.9 = 60% idle boost")
+	# Smart Mounts — traverse climbs, dispersion tightens with Mk.
+	var bm1 = BlasterSmartMount.new(); bm1.mark = 1
+	var bm9 = BlasterSmartMount.new(); bm9.mark = 9
+	_assert(bm9._traverse_for(9) > bm1._traverse_for(1), "Smart Mount Mk.9 traverses faster than Mk.1")
+	_assert(bm9._dispersion_for(9) < bm1._dispersion_for(1), "Smart Mount Mk.9 dispersion tighter than Mk.1")
+	_assert(BlasterSmartMount.new()._is_blaster() and not PrimarySmartMount.new()._is_blaster(), "mount subclasses route to the right cannon")
 	# Restock math: 5% of a 40-round magazine = +2, capped at max. Snapshot/restore the
 	# run pool so the later scene-load section gets a clean cannon_pool back.
 	var _saved_pool = run.cannon_pool
@@ -217,6 +225,31 @@ func _go() -> void:
 	_assert(p._effective_regen_delay() < 5.0 and p._effective_regen_interval() < 1.0, "Energy Routers cuts regen while idle (delay %.2f / iv %.2f)" % [p._effective_regen_delay(), p._effective_regen_interval()])
 	p._shot_recency = 0.0  # firing → no boost
 	_assert(is_equal_approx(p._effective_regen_delay(), 5.0), "Energy Routers reverts to baseline while firing (got %.2f)" % p._effective_regen_delay())
+	# Smart Mounts set the turret flags + knobs onto the ship.
+	p.module_blaster_mount = false; p.module_blaster_traverse = 0.0; p.module_blaster_dispersion = 0.0
+	BlasterSmartMount.new().apply(p)
+	_assert(p.module_blaster_mount and p.module_blaster_traverse > 0.0 and p.module_blaster_dispersion > 0.0, "Blaster Smart Mount arms the blaster turret")
+	p.module_primary_mount = false; p.module_primary_traverse = 0.0; p.module_primary_dispersion = 0.0
+	PrimarySmartMount.new().apply(p)
+	_assert(p.module_primary_mount and p.module_primary_traverse > 0.0 and p.module_primary_dispersion > 0.0, "Primary Smart Mount arms the primary turret")
+	# _mount_target + a fire_primary(aim) call must not crash with no enemies present.
+	p._setup_smart_mounts()
+	_assert(p._mount_target() == null, "no enemies → _mount_target returns null")
+	p.fire_primary(0.2)  # aimed fire smoke — should not error
+	# Put a dummy enemy straight ahead (in-arc) and tick the blaster turret: it should
+	# acquire the target and fire (cooldown latches > 0). Exercises the full turret path.
+	var foe := Node2D.new()
+	foe.add_to_group("enemies")
+	p.get_tree().root.add_child(foe)
+	foe.global_position = p.global_position + Vector2(0, -100)
+	p.module_blaster_mount = true
+	p.module_blaster_traverse = 10.0
+	p._blaster_cd_t = 0.0
+	_assert(p._mount_target() == foe, "in-arc enemy acquired by _mount_target")
+	p._update_blaster_mount(0.05)
+	_assert(p._blaster_cd_t > 0.0, "blaster turret fired at the in-arc target (cd latched %.2f)" % p._blaster_cd_t)
+	foe.queue_free()
+	p.module_blaster_mount = false
 	# Shield Core Mk drives capacity (folded the old shield_cap upgrade in).
 	p.module_shield_bonus = 0; p.module_shield_charge_penalty = 0
 	run.modules = [ShieldCore.new()]
