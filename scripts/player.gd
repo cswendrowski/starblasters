@@ -926,13 +926,20 @@ func _process(delta: float) -> void:
 		_shot_recency = 0.0
 	else:
 		_shot_recency += delta
-	# --- Smart Mounts: manual-fire routing + auto-turrets ---
-	# A mounted cannon auto-fires; the manual trigger drives the OTHER cannon. Both
-	# mounted = fully hands-off (manual suppressed). The blaster fires via direct-spawn,
-	# the primary via the real fire_primary() pipeline (forced active in _setup_smart_mounts).
+	# --- Smart Mounts: runtime toggle (S), manual-fire routing + auto-turrets ---
+	# When ENABLED a mounted cannon auto-fires (the trigger drives the OTHER cannon; both
+	# mounted = fully hands-off). When DISABLED the turret stands down and the weapon reverts
+	# to a normal manual primary (trigger fires the active cannon, G-swap unlocked). The blaster
+	# fires via direct-spawn, the primary via the real fire_primary() pipeline.
+	if Input.is_action_just_pressed("smart_mount_toggle") and (module_blaster_mount or module_primary_mount):
+		_mounts_enabled = not _mounts_enabled
+		_show_mount_toast(_mounts_enabled)
+		if _mounts_enabled:
+			_setup_smart_mounts()                     # re-force the primary active + re-cache blaster
 	_blaster_cd_t = maxf(0.0, _blaster_cd_t - delta)
 	var _manual_blaster: bool = false
-	if module_blaster_mount or module_primary_mount:
+	var _mounts_on: bool = _mounts_active()
+	if _mounts_on:
 		var _has_primary: bool = has_node("/root/Run") and get_node("/root/Run").cannon_pool.size() > 1
 		if module_blaster_mount and module_primary_mount:
 			fire_held = false                         # both auto
@@ -941,7 +948,7 @@ func _process(delta: float) -> void:
 			fire_held = false
 		elif module_blaster_mount and not _has_primary:
 			fire_held = false                         # blaster auto, no primary to manual-fire
-	if is_alive and _phase_t <= 0.0:
+	if _mounts_on and is_alive and _phase_t <= 0.0:
 		if module_blaster_mount:
 			_update_blaster_mount(delta)
 		if module_primary_mount:
@@ -949,6 +956,7 @@ func _process(delta: float) -> void:
 		if _manual_blaster and _blaster_cd_t <= 0.0:
 			_fire_blaster_bolt(0.0)                    # manual blaster fires straight up
 			_blaster_cd_t = _blaster_cooldown
+	_update_mount_sight(_mounts_on)                   # aiming laser sight (hidden when off)
 	# Pulse Laser dispersion: it ACCRUES while the trigger is HELD (in _fire_pulse_laser).
 	# RELEASING the trigger recovers spread (PULSE_DISPERSION_DECAY °/s) + resets the
 	# accuracy-window counter. Keyed on fire_held — NOT on whether a shot landed this
@@ -961,9 +969,9 @@ func _process(delta: float) -> void:
 	# Primary swap (Q): toggle which equipped cannon FIRES — the unlimited Blaster
 	# (fallback) or the acquired Primary gun. Re-applies the new active cannon so
 	# bullet_scene / cooldown / damage / SFX swap atomically. No-op if no primary.
-	# Smart Mount: Q-swap is locked while a mount is active (the mounted cannon is
-	# auto-turreted; the primary is force-held active so the pipeline drives it).
-	if Input.is_action_just_pressed("primary_swap") and not (module_blaster_mount or module_primary_mount):
+	# Smart Mount: the swap (G) is locked only while a mount is ACTIVE (equipped + enabled) —
+	# toggling the mount off (S) returns normal manual control + swap.
+	if Input.is_action_just_pressed("primary_swap") and not _mounts_active():
 		_swap_active_primary()
 	if fire_held:
 		# EVERY style fires through fire_primary each held frame — it self-gates on
@@ -1656,6 +1664,10 @@ func _update_primary_mount(delta: float) -> void:
 			_primary_mount_ready = false
 		if not _primary_mount_ready:
 			return
+	# Non-regen metered primary run dry: stand down and wait for ammo (an outpost refill) —
+	# the mount does NOT fall back to the blaster (Roman 2026-06-14).
+	if ammo_recharge_rate <= 0.0 and ammo_max > 0 and ammo <= 0:
+		return
 	fire_primary(_primary_aim + _mount_dispersion(module_primary_dispersion))
 
 
@@ -1677,9 +1689,59 @@ func _fire_blaster_bolt(aim: float) -> void:
 			dmg = int(round(float(dmg) * (1.0 + _delim)))
 		b.damage = maxi(1, dmg)
 	var dir := Vector2(sin(aim), -cos(aim))
-	var muzzle: Vector2 = global_position + _muzzle_offset("Ship/Muzzle", Vector2(0, -8))
+	# Muzzle (bullet spawn + flash) rotates with the turret aim so the bolt leaves the
+	# aimed barrel; aim 0 (manual / mount off) = the normal nose.
+	var muzzle: Vector2 = global_position + _muzzle_offset("Ship/Muzzle", Vector2(0, -8)).rotated(aim)
 	if b.has_method("start"):
 		b.start(muzzle, dir)
+	var MuzzleFx = load("res://scripts/effects/muzzle_fx.gd")
+	if MuzzleFx:
+		MuzzleFx.play_energy(muzzle, self, aim)
+
+
+# A mount is ACTIVE when equipped AND the runtime toggle (S) is on.
+func _mounts_active() -> bool:
+	return (module_blaster_mount or module_primary_mount) and _mounts_enabled
+
+
+# Aiming sight line — a teal-green 1px Line2D from the ship center, sorted UNDER the hull,
+# fading to transparent with distance. Follows the active turret's aim (primary-priority)
+# and ends at the locked target, so the player sees where the gun is pointing. Hidden when
+# mounts are off or there's no target in the arc.
+func _update_mount_sight(active: bool) -> void:
+	var aim: float = 0.0
+	var has_aim: bool = false
+	if active and module_primary_mount and has_node("/root/Run") and get_node("/root/Run").cannon_pool.size() > 1:
+		aim = _primary_aim
+		has_aim = true
+	elif active and module_blaster_mount:
+		aim = _blaster_aim
+		has_aim = true
+	var tgt = _mount_target() if has_aim else null
+	if not has_aim or tgt == null:
+		if _mount_sight != null:
+			_mount_sight.visible = false
+		return
+	if _mount_sight == null:
+		_build_mount_sight()
+	_mount_sight.visible = true
+	var dist: float = minf(mount_range, global_position.distance_to((tgt as Node2D).global_position))
+	var dir := Vector2(sin(aim), -cos(aim))
+	_mount_sight.points = PackedVector2Array([Vector2.ZERO, dir * dist])
+
+
+func _build_mount_sight() -> void:
+	_mount_sight = Line2D.new()
+	_mount_sight.width = 1.0
+	_mount_sight.z_index = -2          # under the ship sprite + bullets ("sorted under")
+	_mount_sight.begin_cap_mode = Line2D.LINE_CAP_NONE
+	_mount_sight.end_cap_mode = Line2D.LINE_CAP_NONE
+	_mount_sight.antialiased = false
+	var grad := Gradient.new()
+	grad.offsets = PackedFloat32Array([0.0, 1.0])
+	grad.colors = PackedColorArray([MOUNT_SIGHT_COLOR, Color(MOUNT_SIGHT_COLOR.r, MOUNT_SIGHT_COLOR.g, MOUNT_SIGHT_COLOR.b, 0.0)])
+	_mount_sight.gradient = grad
+	add_child(_mount_sight)
 
 
 # A 1px additive glowing beam from origin→end, tinted white→#000fd8 by dispersion,
@@ -1779,6 +1841,9 @@ var _primary_mount_ready: bool = true        # regen-laser latch: fire a full ma
 var _blaster_bullet_scene: PackedScene = null  # cached blaster (cannon_pool[0]) fire config
 var _blaster_damage: int = 1
 var _blaster_cooldown: float = 0.2
+var _mounts_enabled: bool = true             # runtime on/off (S toggle); off = manual control
+var _mount_sight: Line2D = null              # teal aiming sight line (lazy-built)
+const MOUNT_SIGHT_COLOR := Color(0.2, 1.0, 0.7, 0.85)  # teal-green
 # Tunable turret geometry (the Smart Mount Lab pokes these live; defaults ship in combat).
 var mount_arc: float = 1.0471975512          # ±60° = 120° front arc (deg_to_rad(60))
 var mount_range: float = 240.0               # px target-acquisition radius
@@ -1825,6 +1890,10 @@ func fire_primary(aim_angle: float = 0.0) -> void:
 			and not (_hyper_active and active_mode == ShiftMode.HYPER):
 		if ammo_recharge_rate > 0.0:
 			return  # regen cannon: pause until it recharges, stay equipped
+		# Smart Mount: a turreted primary stands down dry and waits — never falls back to
+		# the blaster (Roman 2026-06-14). Otherwise the normal snap applies.
+		if _mounts_active() and module_primary_mount:
+			return
 		_snap_to_blaster_and_reapply()
 		return
 	# Rotary Laser: also charge-gated.
@@ -1999,7 +2068,10 @@ func fire_primary(aim_angle: float = 0.0) -> void:
 	var _large_shell: bool = weapon_style == WS.WeaponStyle.MACHINEGUN
 	var _is_minigun: bool = weapon_style == WS.WeaponStyle.MINIGUN
 	var _smoke_shell: bool = (_is_mg_family(weapon_style) and not _is_minigun) or use_autocannon_muzzle
-	MuzzleFx.play_player(muzzle_pos, self, flash_color, _smoke_shell, _large_shell)
+	# Smart Mount: rotate the muzzle position + flash around the ship center by the turret
+	# bearing (aim_angle); 0 (manual / mount off) = the normal axial nose flash.
+	var _flash_pos: Vector2 = global_position + (muzzle_pos - global_position).rotated(aim_angle)
+	MuzzleFx.play_player(_flash_pos, self, flash_color, _smoke_shell, _large_shell, false, 6, aim_angle)
 	if _is_minigun:
 		var _fx_parent: Node = get_parent() if get_parent() != null else get_tree().root
 		# Casings eject from the ship's casing-eject marker (Roman 2026-06-11).
@@ -2915,6 +2987,15 @@ const UiTheme := preload("res://scripts/ui/ui_theme.gd")
 var _autofire_toast: CanvasLayer = null
 
 func _show_autofire_toast(on: bool) -> void:
+	_show_center_toast("AUTOFIRE: ON" if on else "AUTOFIRE: OFF")
+
+
+func _show_mount_toast(on: bool) -> void:
+	_show_center_toast("SMART MOUNT: ON" if on else "SMART MOUNT: OFF")
+
+
+# Brief center-top toast (autofire / smart-mount toggles share the one slot).
+func _show_center_toast(text: String) -> void:
 	if _autofire_toast and is_instance_valid(_autofire_toast):
 		_autofire_toast.queue_free()
 		_autofire_toast = null
@@ -2926,14 +3007,14 @@ func _show_autofire_toast(on: bool) -> void:
 	root.add_child(layer)
 	_autofire_toast = layer
 	var lbl := Label.new()
-	lbl.text = "AUTOFIRE: ON" if on else "AUTOFIRE: OFF"
+	lbl.text = text
 	UiTheme.style_label(lbl, UiTheme.LabelKind.HEADER)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	# Drop the label a bit below the top edge so it doesn't clip against
 	# the playfield outline. PRESET_CENTER_TOP anchors at y=0; nudge down.
-	lbl.position = Vector2(-60, 16)
-	lbl.size = Vector2(120, 16)
+	lbl.position = Vector2(-90, 16)
+	lbl.size = Vector2(180, 16)
 	layer.add_child(lbl)
 	var tw := create_tween()
 	tw.tween_interval(0.8)

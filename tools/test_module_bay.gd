@@ -249,7 +249,16 @@ func _go() -> void:
 	p._update_blaster_mount(0.05)
 	_assert(p._blaster_cd_t > 0.0, "blaster turret fired at the in-arc target (cd latched %.2f)" % p._blaster_cd_t)
 	foe.queue_free()
+	# Runtime mount toggle (S): _mounts_active gates equipped + enabled.
+	p.module_blaster_mount = true
+	p._mounts_enabled = true
+	_assert(p._mounts_active(), "mount active when equipped + enabled")
+	p._mounts_enabled = false
+	_assert(not p._mounts_active(), "mount inactive when toggled off")
 	p.module_blaster_mount = false
+	p.module_primary_mount = false
+	p._mounts_enabled = true
+	_assert(not p._mounts_active(), "mount inactive when not equipped")
 	# Shield Core Mk drives capacity (folded the old shield_cap upgrade in).
 	p.module_shield_bonus = 0; p.module_shield_charge_penalty = 0
 	run.modules = [ShieldCore.new()]

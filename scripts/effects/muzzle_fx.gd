@@ -55,7 +55,8 @@ static func play(world_pos: Vector2, host: Node = null) -> void:
 # Energy Blaster muzzle FX — blue additive flash, no smoke, no shell. Used
 # for the default Energy Blaster cannon (Roman, 2026-05-16). Replaces the
 # warm/smokey machinegun look when the equipped CANNON is the blaster.
-static func play_energy(world_pos: Vector2, host: Node = null) -> void:
+static func play_energy(world_pos: Vector2, host: Node = null, rot: float = 0.0) -> void:
+	# `rot` (rad) orients the blaster flash along a turret aim (Smart Mount); 0 = axial.
 	var root = Engine.get_main_loop().root
 	var parent: Node = host if host != null else root
 	var use_local: bool = host != null
@@ -70,6 +71,7 @@ static func play_energy(world_pos: Vector2, host: Node = null) -> void:
 		glow.position = world_pos - (host as Node2D).global_position
 	glow.scale = Vector2(1.05, 1.05)
 	glow.modulate = BLASTER_GLOW_COLOR
+	glow.rotation = rot
 	glow.z_index = 4
 	var glow_mat := CanvasItemMaterial.new()
 	glow_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
@@ -90,6 +92,7 @@ static func play_energy(world_pos: Vector2, host: Node = null) -> void:
 	else:
 		flash.position = world_pos
 	flash.scale = Vector2(1.0, 1.0)  # Cobalt 2026-05-21: pixel-perfect 1×
+	flash.rotation = rot
 	flash.z_index = 5
 	parent.add_child(flash)
 	var tw := flash.create_tween()
@@ -184,20 +187,24 @@ const GlowFxM = preload("res://scripts/effects/glow_shader_fx.gd")
 # the muzzle marker (its base sits on the marker, extends forward), tinted `color` with a matching
 # DIFFUSE glow, rendered ABOVE the bullets (which now render under the ship), and it lasts ~a frame.
 # `with_smoke_shell` adds the machinegun smoke + shell casing.
-static func play_player(world_pos: Vector2, host: Node, color: Color, with_smoke_shell: bool = false, large_shell: bool = false, flip_v: bool = false, z: int = 6) -> void:
+static func play_player(world_pos: Vector2, host: Node, color: Color, with_smoke_shell: bool = false, large_shell: bool = false, flip_v: bool = false, z: int = 6, rot: float = 0.0) -> void:
+	# `rot` (rad) orients the flash along a turret aim — the Smart Mount passes its bearing;
+	# 0 = the normal axial nose flash.
 	var parent: Node = host if host != null else Engine.get_main_loop().root
 	var local_pos: Vector2 = world_pos
 	if host != null and host is Node2D:
 		local_pos = world_pos - (host as Node2D).global_position
 	# Anchor the flash's BASE on the marker: normally the bottom edge (shift up 8); when
 	# flipped vertically (secondary launches fire the other way) the TOP edge instead.
-	local_pos += Vector2(0, 8 if flip_v else -8)
+	# Rotated by `rot` so a turret-aimed flash keeps its base on the barrel.
+	local_pos += Vector2(0, 8 if flip_v else -8).rotated(rot)
 	var flash := Sprite2D.new()
 	flash.texture = MUZZLE_STRIP
 	flash.hframes = MUZZLE_STRIP_HFRAMES
 	flash.frame = randi() % MUZZLE_STRIP_HFRAMES
 	flash.flip_v = flip_v
 	flash.position = local_pos
+	flash.rotation = rot
 	flash.modulate = color
 	flash.z_index = z   # 6 = above bullets+ship; negative = under the player (secondaries)
 	var fmat := CanvasItemMaterial.new()

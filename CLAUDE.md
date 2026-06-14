@@ -29,7 +29,7 @@ Context is the scarce resource. Iteration-heavy work belongs in a dev tuner the 
 
 ## Input map
 
-Actions: `left`/`right`/`up`/`down` (WASD + arrows), `shoot` (Space/Z), `shoot2` (C), `shoot_nose` (X), `focus` (Shift), `primary_swap` (Q), `autofire_toggle` (R). Bindings drift — `project.godot` `[input]` is the source of truth; confirm there before relying on a specific key.
+Actions: `left`/`right`/`up`/`down` (arrow keys), `shoot` (Space/Z), `shoot2` (C), `shoot_nose` (X), `focus` (Shift), `primary_swap` (G), `autofire_toggle` (A), `smart_mount_toggle` (S). Bindings drift — `project.godot` `[input]` is the source of truth; confirm there before relying on a specific key. (Rebindable in `scripts/ui/options_overlay.gd`'s Controls list.)
 
 ## Autoloads (`/root/...`)
 
