@@ -23,10 +23,10 @@ config/icon="res://Mini Pixel Pack 3/UI objects/Player_life_icon (16 x 16).png"
 
 [autoload]
 
-Run="*res://scripts/run_state.gd"
-Dbg="*res://scripts/dbg.gd"
-Music="*res://scripts/music_manager.gd"
-Settings="*res://scripts/settings.gd"
+Run="*res://scripts/autoload/run_state.gd"
+Dbg="*res://scripts/autoload/dbg.gd"
+Music="*res://scripts/autoload/music_manager.gd"
+Settings="*res://scripts/autoload/settings.gd"
 
 [display]
 

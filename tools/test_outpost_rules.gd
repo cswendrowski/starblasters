@@ -18,7 +18,7 @@ func _count(rows: Array, capped: bool) -> int:
 	return total
 
 func _init() -> void:
-	var RunState = load("res://scripts/run_state.gd")
+	var RunState = load("res://scripts/autoload/run_state.gd")
 	var trials := 600
 	var fails := 0
 	var row_dupes := 0

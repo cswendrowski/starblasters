@@ -11,7 +11,7 @@ const SectorNodeType = preload("res://scripts/sector_node.gd").NodeType
 
 func _init() -> void:
 	# Autoloads aren't registered when running via -s; instantiate Run directly.
-	var RunScript = load("res://scripts/run_state.gd")
+	var RunScript = load("res://scripts/autoload/run_state.gd")
 	var Run = RunScript.new()
 	root.add_child(Run)
 	var sample_n: int = 1000
