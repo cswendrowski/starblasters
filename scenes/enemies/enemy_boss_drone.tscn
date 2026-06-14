@@ -6,7 +6,7 @@
 ; enemy_core.gd so the movement/shoot slots are already present and empty.
 ; Stats are set as @export overrides below (the normal core-enemy convention,
 ; NOT the boss "stats in _ready() before super" pattern) — no fallback exprs.
-[ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemy_core.gd" id="1_core"]
+[ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemies/enemy_core.gd" id="1_core"]
 [ext_resource type="Texture2D" uid="uid://br6btvch0he8" path="res://graphics/enemies/enemy_placeholder_16x.png" id="2_tex"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://Sound/SFX_creatureDie4.wav" id="3_die"]
 

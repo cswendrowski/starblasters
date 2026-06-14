@@ -1243,7 +1243,7 @@ func unequip_slot(slot: int) -> void:
 # resources in loadout_snapshot / inventory / weapon_storage round-trip
 # as inline sub-resources without us hand-rolling JSON for every Part type.
 
-const _RunSave = preload("res://scripts/run_save.gd")
+const _RunSave = preload("res://scripts/game/run_save.gd")
 const SAVE_PATH := "user://run_save.tres"
 
 # Fields mirrored to/from RunSave. Kept as a const so save_to_disk and

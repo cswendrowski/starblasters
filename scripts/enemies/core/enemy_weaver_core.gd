@@ -1,4 +1,4 @@
-extends "res://scripts/enemy_core.gd"
+extends "res://scripts/enemies/enemy_core.gd"
 
 # Weaver variant of enemy_core: bullet-based shoot_pattern is disabled;
 # instead fires two rockets (±6 px on X) when crossing Y ≈ 135 (midpoint of

@@ -1,4 +1,4 @@
-extends "res://scripts/enemy_core.gd"
+extends "res://scripts/enemies/enemy_core.gd"
 
 # Smart Mine (Roman 2026-05-18; on-lane migration 2026-06-08). Drifts straight down (a plain
 # medium descent) until the player comes within range, then transitions and flies relentlessly at

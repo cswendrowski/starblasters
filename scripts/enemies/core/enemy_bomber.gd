@@ -1,4 +1,4 @@
-extends "res://scripts/enemy_core.gd"
+extends "res://scripts/enemies/enemy_core.gd"
 class_name EnemyBomber
 
 # Bomber — large, tough rear-gunner. Roman 2026-06-01; on-lane migration 2026-06-08.

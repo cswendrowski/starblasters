@@ -1,4 +1,4 @@
-extends "res://scripts/enemy_core.gd"
+extends "res://scripts/enemies/enemy_core.gd"
 class_name EnemyDroneCarrier
 
 # Drone carrier — holds high, releases hunter drones, then retreats UP once its drone budget is

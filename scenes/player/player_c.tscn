@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://ch5dhghfmnnd2"]
 
-[ext_resource type="Script" uid="uid://bvobhlwg6dhui" path="res://scripts/player.gd" id="1_komns"]
+[ext_resource type="Script" uid="uid://bvobhlwg6dhui" path="res://scripts/game/player.gd" id="1_komns"]
 [ext_resource type="PackedScene" uid="uid://ce2sbgdju6rp7" path="res://scenes/projectiles/bullet_blaster.tscn" id="2_q1pe5"]
 [ext_resource type="PackedScene" uid="uid://c5te1ekoxw700" path="res://scenes/projectiles/bullet_blaster_heavy.tscn" id="3_d3k5i"]
 [ext_resource type="Texture2D" uid="uid://bcvg5ug4y8r02" path="res://graphics/player/player_ship_c_body.png" id="4_komns"]

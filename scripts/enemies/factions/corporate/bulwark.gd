@@ -1,4 +1,4 @@
-extends "res://scripts/enemy_core.gd"
+extends "res://scripts/enemies/enemy_core.gd"
 
 # Bulwark v2 (Roman 2026-05-18 redesign; on-lane migration 2026-06-08). Slow,
 # chunky, shielded enemy that holds a lane in the upper band as a barrier.

@@ -1,4 +1,4 @@
-extends "res://scripts/enemy_core.gd"
+extends "res://scripts/enemies/enemy_core.gd"
 
 # Crystal (Roman 2026-05-24; on-lane migration 2026-06-08; generic-pattern 2026-06-09). On the
 # lane system: it HONORS whatever movement the matrix assigns (loiter_high/mid, etc.) rather than

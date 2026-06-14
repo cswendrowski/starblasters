@@ -1,4 +1,4 @@
-extends "res://scripts/enemy_core.gd"
+extends "res://scripts/enemies/enemy_core.gd"
 
 # Supremacy lane pusher "Push" (M6c, Roman 2026-06-07). REPLACES the Frigate.
 #

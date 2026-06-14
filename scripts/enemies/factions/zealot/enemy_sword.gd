@@ -1,4 +1,4 @@
-extends "res://scripts/enemy_core.gd"
+extends "res://scripts/enemies/enemy_core.gd"
 
 # Sword — zealot lane pusher with a rolling BROADSIDE (Roman 2026-06-08). Cycles its
 # body muzzles (Muzzle1..N down the centerline, via EnemyBase's next_muzzle_pos) firing

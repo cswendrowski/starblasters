@@ -1,4 +1,4 @@
-extends "res://scripts/enemy_core.gd"
+extends "res://scripts/enemies/enemy_core.gd"
 
 # Hunter Drone. Flashes red, beelines for the player (beeline_player
 # movement), explodes on contact dealing hull damage. Doesn't shoot; the

@@ -1,4 +1,4 @@
-extends "res://scripts/enemy_core.gd"
+extends "res://scripts/enemies/enemy_core.gd"
 
 # Gravity Mine (Roman 2026-06-09) — replaces the Cluster + Mega Cluster mines. Drifts down like
 # any mine, ringed by 4/6/8 real Bomblets slowly orbiting it (1 px/f tangential, CW or CCW). The

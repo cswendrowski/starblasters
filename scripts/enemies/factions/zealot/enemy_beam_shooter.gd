@@ -1,4 +1,4 @@
-extends "res://scripts/enemy_core.gd"
+extends "res://scripts/enemies/enemy_core.gd"
 class_name EnemyBeamShooter
 
 # Beamer — beam specialist. On-lane migration 2026-06-08: LOCOMOTION is now on the lane system.

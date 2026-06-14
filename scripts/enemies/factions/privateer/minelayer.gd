@@ -1,4 +1,4 @@
-extends "res://scripts/enemy_core.gd"
+extends "res://scripts/enemies/enemy_core.gd"
 
 # Minelayer. Travels horizontally across the playfield (side_traverse
 # pattern) dropping bomblets in a regular cadence. Multi-hit because it's

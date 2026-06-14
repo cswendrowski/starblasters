@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://bcorphold0001"]
 
-[ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemy_core.gd" id="1_core"]
+[ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemies/enemy_core.gd" id="1_core"]
 [ext_resource type="Texture2D" uid="uid://jp6y7qcxix5o" path="res://graphics/enemies/enemy_c_s_hold.png" id="2_tex"]
 [ext_resource type="Script" uid="uid://c2nnsbxlwvuep" path="res://scripts/enemies/patterns/loiter.gd" id="3_mov"]
 [ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://Sound/SFX_shot7.wav" id="4_shoot"]

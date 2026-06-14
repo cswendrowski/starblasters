@@ -1,4 +1,4 @@
-extends "res://scripts/enemy_core.gd"
+extends "res://scripts/enemies/enemy_core.gd"
 class_name EnemyCruiser
 
 # Large cruiser with three child turrets: one beam turret (center) and two gun turrets (flanks).

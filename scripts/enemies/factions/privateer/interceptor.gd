@@ -1,4 +1,4 @@
-extends "res://scripts/enemy_core.gd"
+extends "res://scripts/enemies/enemy_core.gd"
 
 # Interceptor. Dives top→bottom of the screen quickly (top_dive pattern),
 # dropping homing missiles on the way through. The missiles drift briefly

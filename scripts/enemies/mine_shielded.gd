@@ -1,4 +1,4 @@
-extends "res://scripts/enemy_core.gd"
+extends "res://scripts/enemies/enemy_core.gd"
 
 # Shielded Mine (on-lane migration 2026-06-08; 4-frame activation 2026-06-09). Identical to a basic
 # mine once the shield breaks; the shield is a per-hit ShieldComponent absorber. Extends enemy_core

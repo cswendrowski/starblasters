@@ -1,4 +1,4 @@
-extends "res://scripts/enemy_core.gd"
+extends "res://scripts/enemies/enemy_core.gd"
 
 # Rocket Gunship (privateer). Roman 2026-06-07 — the divergent dupe of the Gunship.
 #
