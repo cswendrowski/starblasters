@@ -39,6 +39,12 @@ const CODEX := {
 	# --- Engines (ENGINE) ---
 	"_make_basic_engine": "Main Engine — your baseline thrust. Mk raises top speed toward the clarity ceiling.",
 	"_make_vectoring_engine": "Vectoring thrusters — crisper handling and a higher speed band.",
+	# --- Passive Modules (MODULE bay — automatic, no-input) ---
+	"_make_shield_core": "Shield Core — powers your charge-pool shield. The bay's default Core; drop it for a free module slot and fly shieldless, a deliberate glass cannon. Mk adds shield charges.",
+	"_make_overcharge_core": "Pushes primary damage harder (+10%, rising to +30% by Mk) at the cost of one max shield charge. Teeth over armor — a natural fit for the shieldless build.",
+	"_make_siphon_core": "Bleeds staying power from your kills: every Nth enemy destroyed restores one shield charge — every 10th at Mk.1, down to every 2nd at Mk.9. Aggression as sustain.",
+	"_make_repair_nanites": "Regrows hull mid-fight once you've gone a few seconds undamaged — a pip every 12s, quickening to 4s at Mk.9. Caps just short of full, so it rewards disengaging, not facetanking.",
+	"_make_ablative_plating": "Layered plates shrug off every Nth hull hit outright — no dice, pure rhythm. Every 6th hit at Mk.1, down to every 2nd at Mk.9.",
 }
 
 

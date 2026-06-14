@@ -59,6 +59,7 @@ func _ready() -> void:
 	_cats.append({"kind": "armory", "label": "Secondaries", "slot": SlotTypes.SlotType.HARDPOINT_WING})
 	_cats.append({"kind": "armory", "label": "Super", "slot": SlotTypes.SlotType.DEVICE_BAY_1})
 	_cats.append({"kind": "armory", "label": "Shift Modes", "slot": SlotTypes.SlotType.SHIFT_MODE})
+	_cats.append({"kind": "armory", "label": "Modules", "slot": SlotTypes.SlotType.MODULE})
 	_build_ui()
 	_show_category(0)
 
@@ -304,6 +305,9 @@ func _armory_factories(cat: Dictionary) -> Array:
 	# Focus mode is default-equipped (not in the roll pool) — list it anyway.
 	if int(cat.slot) == int(SlotTypes.SlotType.SHIFT_MODE):
 		out.push_front("_make_focus_mode")
+	# Shield Core is the default-equipped module (not in the roll pool) — list it too.
+	if int(cat.slot) == int(SlotTypes.SlotType.MODULE):
+		out.push_front("_make_shield_core")
 	return out
 
 
