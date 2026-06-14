@@ -51,6 +51,8 @@ const CODEX := {
 	"_make_reinforced_hull": "Bolts extra plating onto the hull — +1 pip per Mk, up to +8. At Mk.9 repairs also cost 30% less. The bay's basic survivability slot.",
 	"_make_thrusters": "Auxiliary thrusters stacked on your engine — +3% move speed per Mk (to +27%), still capped at the readability ceiling. Dodging room without an engine swap.",
 	"_make_shield_capacitor": "Recharges your shield faster and sooner — a shorter delay after a hit plus a quicker per-charge tick. With a Shield Core, it makes the shield a renewable resource.",
+	"_make_backup_shield_capacitor": "An emergency cell that fires once per level: the first time your shield drops, it instantly dumps a slice of your max charges back in. 5% at Mk.1, rising 5% per Mk. Buys you one free panic moment a level.",
+	"_make_reflective_shield": "Tunes the shield to bounce back: every Nth bullet it absorbs is reflected into the playfield at the nearest enemy, reusing your primary's bolt. Every 6th hit at Mk.1, tightening to every 2nd at Mk.9. Turns a defensive stance into chip damage.",
 }
 
 

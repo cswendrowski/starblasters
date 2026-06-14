@@ -775,6 +775,10 @@ func start() -> void:
 	# and speed_multiplier here so every combat scene picks up the latest state.
 	apply_run_upgrades()
 	shield = max_shield  # combat level starts fully-shielded
+	# Module bay — per-level resets: Backup Shield Capacitor fires once per level; the
+	# Reflective Shield counter starts fresh each combat.
+	_backup_cap_used = false
+	_reflect_hit_count = 0
 	# Hull loaded from Run.current_hull via start() context (set in apply_run_upgrades).
 	can_shoot = true
 	$GunCooldown.wait_time = cooldown
@@ -1275,6 +1279,19 @@ func take_damage(amount: int) -> void:
 		# Shield absorbs full hit — no overflow to hull. Short i-frame only,
 		# so a sustained bullet stream keeps draining the HP pool per hit.
 		set_shield(max(0, shield - amount))
+		# Module bay — Backup Shield Capacitor: the FIRST shield drop in a level dumps in
+		# a % of max shield (once per level). Capped at max_shield.
+		if module_backup_shield_pct > 0.0 and not _backup_cap_used:
+			_backup_cap_used = true
+			var back: int = maxi(1, int(round(float(max_shield) * module_backup_shield_pct)))
+			set_shield(mini(max_shield, shield + back))
+		# Module bay — Reflective Shield Tuning: every Nth absorbed bullet is bounced back
+		# into the playfield at the nearest enemy.
+		if module_reflect_n > 0:
+			_reflect_hit_count += 1
+			if _reflect_hit_count >= module_reflect_n:
+				_reflect_hit_count = 0
+				_reflect_bullet()
 		_invuln_t = SHIELD_HIT_INVULN_SECONDS
 		damaged.emit(0)
 		_pulse_shield_ring()
@@ -1461,6 +1478,41 @@ func _pulse_hitscan(origin: Vector2, dir: Vector2, max_dist: float) -> Dictionar
 	return {"enemy": best_enemy, "point": origin + dir * best_t}
 
 
+# Module bay — Reflective Shield Tuning. Bounces an absorbed bullet back into the
+# playfield as a player bolt aimed at the nearest enemy (straight up if the field is
+# clear). Reuses the equipped primary's bullet scene + damage, so the reflect scales
+# with the build. No-op without a primary cannon (nothing to reflect with).
+func _reflect_bullet() -> void:
+	if bullet_scene == null:
+		return
+	var target: Node2D = _nearest_enemy()
+	var dir := Vector2(0, -1)
+	if target != null:
+		dir = (target.global_position - global_position).normalized()
+	var b: Node = bullet_scene.instantiate()
+	_bullet_parent().add_child(b)
+	if b is Node2D:
+		(b as Node2D).z_index = -1
+	if "damage" in b:
+		b.damage = maxi(1, bullet_damage)
+	if b.has_method("start"):
+		b.start(global_position, dir)
+
+
+# Nearest live enemy Node2D (squared-distance), or null if the field is clear.
+func _nearest_enemy() -> Node2D:
+	var best: Node2D = null
+	var best_d: float = INF
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not (e is Node2D) or not is_instance_valid(e):
+			continue
+		var d: float = global_position.distance_squared_to((e as Node2D).global_position)
+		if d < best_d:
+			best_d = d
+			best = e
+	return best
+
+
 # A 1px additive glowing beam from origin→end, tinted white→#000fd8 by dispersion,
 # that flashes briefly and frees. Parents to the player's world (combat scene), NOT
 # the player — beams are world-space and must survive in the right viewport.
@@ -1531,6 +1583,10 @@ var module_hull_repair_discount: float = 0.0 # Reinforced Hull Mk.9 perk
 var module_speed_pct: float = 0.0            # Thrusters: +speed fraction
 var shield_regen_delay: float = 5.0          # Shield Capacitor lowers it (sec before regen begins)
 var shield_regen_interval: float = 1.0       # Shield Capacitor lowers it (sec per +1 charge)
+var module_backup_shield_pct: float = 0.0    # Backup Shield Capacitor: % of max shield restored on first drop
+var _backup_cap_used: bool = false           # once per level — reset in start()
+var module_reflect_n: int = 0                # Reflective Shield Tuning: reflect every Nth absorbed bullet (0 = off)
+var _reflect_hit_count: int = 0
 
 
 # Critical System De-Limiter — fire-rate + damage bonus that scales up as hull drops,

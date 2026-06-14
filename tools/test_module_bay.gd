@@ -17,6 +17,8 @@ const SystemDelimiter = preload("res://scripts/parts/system_delimiter.gd")
 const ReinforcedHull = preload("res://scripts/parts/reinforced_hull.gd")
 const Thrusters = preload("res://scripts/parts/thrusters.gd")
 const ShieldCapacitor = preload("res://scripts/parts/shield_capacitor.gd")
+const BackupShieldCapacitor = preload("res://scripts/parts/backup_shield_capacitor.gd")
+const ReflectiveShieldTuning = preload("res://scripts/parts/reflective_shield_tuning.gd")
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 
@@ -83,6 +85,16 @@ func _go() -> void:
 	_assert(absf(th1._speed_pct() - 0.03) < 0.001 and absf(th9._speed_pct() - 0.27) < 0.001, "Thrusters +3%/Mk → +27% at Mk.9")
 	var cap9 = ShieldCapacitor.new(); cap9.mark = 9
 	_assert(cap9._delay() < 5.0 and cap9._interval() < 1.0, "Shield Capacitor lowers delay (%.1f) + interval (%.2f)" % [cap9._delay(), cap9._interval()])
+	# Backup Shield Capacitor — 5% per Mk restore fraction.
+	var bsc1 = BackupShieldCapacitor.new(); bsc1.mark = 1
+	var bsc9 = BackupShieldCapacitor.new(); bsc9.mark = 9
+	_assert(absf((bsc1.base_pct + (1 - 1) * bsc1.pct_per_mark) - 0.05) < 0.001, "Backup Capacitor Mk.1 = 5%")
+	_assert(absf((bsc9.base_pct + (9 - 1) * bsc9.pct_per_mark) - 0.45) < 0.001, "Backup Capacitor Mk.9 = 45%")
+	# Reflective Shield Tuning — N (reflect every Nth) lowers with Mk.
+	var rs1 = ReflectiveShieldTuning.new(); rs1.mark = 1
+	var rs9 = ReflectiveShieldTuning.new(); rs9.mark = 9
+	_assert(rs1._n_for(1) == 6, "Reflective Mk.1 = reflect every 6th")
+	_assert(rs9._n_for(9) == 2, "Reflective Mk.9 = reflect every 2nd")
 	_assert(run.MODULE_BAY_SIZE == 6, "bay size bumped to 6")
 
 	# --- D. Shop roll produces modules (item-gen rules) ---
@@ -150,6 +162,14 @@ func _go() -> void:
 	p.shield_regen_delay = 5.0; p.shield_regen_interval = 1.0
 	ShieldCapacitor.new().apply(p)
 	_assert(p.shield_regen_delay < 5.0 and p.shield_regen_interval < 1.0, "Shield Capacitor speeds shield regen")
+	# Backup Shield Capacitor sets the restore fraction onto the ship.
+	p.module_backup_shield_pct = 0.0
+	BackupShieldCapacitor.new().apply(p)
+	_assert(p.module_backup_shield_pct > 0.0, "Backup Capacitor sets module_backup_shield_pct (got %.3f)" % p.module_backup_shield_pct)
+	# Reflective Shield Tuning sets N onto the ship (0 = off).
+	p.module_reflect_n = 0
+	ReflectiveShieldTuning.new().apply(p)
+	_assert(p.module_reflect_n > 0, "Reflective Shield sets module_reflect_n (got %d)" % p.module_reflect_n)
 	# Shield Core Mk drives capacity (folded the old shield_cap upgrade in).
 	p.module_shield_bonus = 0; p.module_shield_charge_penalty = 0
 	run.modules = [ShieldCore.new()]

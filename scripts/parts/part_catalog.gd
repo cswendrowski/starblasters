@@ -46,6 +46,8 @@ const ReinforcedHull = preload("res://scripts/parts/reinforced_hull.gd")
 const Thrusters = preload("res://scripts/parts/thrusters.gd")
 const ShieldCapacitor = preload("res://scripts/parts/shield_capacitor.gd")
 const InterceptDrones = preload("res://scripts/parts/intercept_drones.gd")
+const BackupShieldCapacitor = preload("res://scripts/parts/backup_shield_capacitor.gd")
+const ReflectiveShieldTuning = preload("res://scripts/parts/reflective_shield_tuning.gd")
 const BulletDefault = preload("res://scenes/projectiles/bullet_blaster.tscn")
 const BulletHeavy = preload("res://scenes/projectiles/bullet_blaster_heavy.tscn")
 const BulletMinigun = preload("res://scenes/projectiles/bullet_minigun.tscn")
@@ -113,6 +115,8 @@ static func _all_pool() -> Array:
 		{"factory": "_make_thrusters", "slot": Slots.SlotType.MODULE},
 		{"factory": "_make_shield_capacitor", "slot": Slots.SlotType.MODULE},
 		{"factory": "_make_intercept_drones", "slot": Slots.SlotType.MODULE},
+		{"factory": "_make_backup_shield_capacitor", "slot": Slots.SlotType.MODULE},
+		{"factory": "_make_reflective_shield", "slot": Slots.SlotType.MODULE},
 	]
 
 static func roll_random_part(rng: RandomNumberGenerator):
@@ -241,6 +245,10 @@ static func _make_by_name(name: String, slot: int):
 			return ShieldCapacitor.new()
 		"_make_intercept_drones":
 			return InterceptDrones.new()
+		"_make_backup_shield_capacitor":
+			return BackupShieldCapacitor.new()
+		"_make_reflective_shield":
+			return ReflectiveShieldTuning.new()
 	return null
 
 
