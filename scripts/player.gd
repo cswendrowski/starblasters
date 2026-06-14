@@ -1587,16 +1587,16 @@ func _cache_blaster_config(run) -> void:
 		_blaster_bullet_scene = load("res://scenes/projectiles/bullet_blaster.tscn")
 
 
-# Nearest enemy inside the 120° front arc (±MOUNT_ARC of up) within MOUNT_RANGE, or null.
+# Nearest enemy inside the 120° front arc (±mount_arc of up) within mount_range, or null.
 func _mount_target():
 	var best = null
-	var best_d: float = MOUNT_RANGE * MOUNT_RANGE
+	var best_d: float = mount_range * mount_range
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if not (e is Node2D) or not is_instance_valid(e):
 			continue
 		var to_e: Vector2 = (e as Node2D).global_position - global_position
 		# Bearing from the up axis: atan2(x, -y). 0 = straight up, ± toward the sides.
-		if absf(atan2(to_e.x, -to_e.y)) > MOUNT_ARC:
+		if absf(atan2(to_e.x, -to_e.y)) > mount_arc:
 			continue
 		var d: float = to_e.length_squared()
 		if d < best_d:
@@ -1627,9 +1627,9 @@ func _update_blaster_mount(delta: float) -> void:
 	var desired: float = 0.0
 	if tgt != null:
 		var to_e: Vector2 = tgt.global_position - global_position
-		desired = clampf(atan2(to_e.x, -to_e.y), -MOUNT_ARC, MOUNT_ARC)
+		desired = clampf(atan2(to_e.x, -to_e.y), -mount_arc, mount_arc)
 	_blaster_aim = _slew_aim(_blaster_aim, desired, module_blaster_traverse, delta)
-	if tgt != null and _blaster_cd_t <= 0.0 and absf(_blaster_aim - desired) <= MOUNT_FIRE_TOLERANCE:
+	if tgt != null and _blaster_cd_t <= 0.0 and absf(_blaster_aim - desired) <= mount_fire_tolerance:
 		_fire_blaster_bolt(_blaster_aim + _mount_dispersion(module_blaster_dispersion))
 		_blaster_cd_t = _blaster_cooldown
 
@@ -1643,9 +1643,9 @@ func _update_primary_mount(delta: float) -> void:
 	var desired: float = 0.0
 	if tgt != null:
 		var to_e: Vector2 = tgt.global_position - global_position
-		desired = clampf(atan2(to_e.x, -to_e.y), -MOUNT_ARC, MOUNT_ARC)
+		desired = clampf(atan2(to_e.x, -to_e.y), -mount_arc, mount_arc)
 	_primary_aim = _slew_aim(_primary_aim, desired, module_primary_traverse, delta)
-	if tgt == null or absf(_primary_aim - desired) > MOUNT_FIRE_TOLERANCE:
+	if tgt == null or absf(_primary_aim - desired) > mount_fire_tolerance:
 		return
 	# Regen-laser latch: dump the full magazine, then hold until it has recharged all the
 	# way back ("wait for the ammo to fully regenerate before firing again").
@@ -1779,9 +1779,10 @@ var _primary_mount_ready: bool = true        # regen-laser latch: fire a full ma
 var _blaster_bullet_scene: PackedScene = null  # cached blaster (cannon_pool[0]) fire config
 var _blaster_damage: int = 1
 var _blaster_cooldown: float = 0.2
-const MOUNT_ARC := 1.0471975512              # ±60° = 120° front arc (deg_to_rad(60))
-const MOUNT_RANGE := 240.0                   # px target-acquisition radius
-const MOUNT_FIRE_TOLERANCE := 0.1396263402   # fire when aim is within ~8° of the target bearing
+# Tunable turret geometry (the Smart Mount Lab pokes these live; defaults ship in combat).
+var mount_arc: float = 1.0471975512          # ±60° = 120° front arc (deg_to_rad(60))
+var mount_range: float = 240.0               # px target-acquisition radius
+var mount_fire_tolerance: float = 0.1396263402  # fire when aim is within ~8° of the target bearing
 
 
 # Critical System De-Limiter — fire-rate + damage bonus that scales up as hull drops,

@@ -81,15 +81,17 @@ Press the **Dev Menu** button on the main menu to reach `scenes/dev_menu.tscn`. 
 - [ Shipyard ]
 
 **Tuners / labs** (tweak & iterate live):
-- [ Movement Lab ]
 - [ Parallax Tuner ]
 - [ Asteroid Lab ]
 - [ Shader Lab ] (fire/compare shader effects — embers, shields, glow, full gallery)
+- [ Smart Mount Lab ] (auto-turret tuner — live ship + randomized targets + traverse/dispersion/arc/range knobs, Copy GDScript; `scripts/dev/smart_mount_lab.gd`)
 
 **Test launchers** (play-test specific scenarios):
-- [ Test Combat ] (custom level, hazard, or boss)
+- [ Combat Lab ] (HD screen: configure a ship — primary/secondary/modules + marks — then launch a chosen encounter: combat w/ faction+depth, hazard, boss, beam showcase, or custom level; `scripts/dev/combat_lab.gd`)
 - [ Hangar ]
-- [ UI Plotter ]
+- [ EM Torpedo Test ] · [ All-Signal Sector ] (direct one-off launches)
+
+> The exact button set drifts — `scripts/dev_menu.gd` is the source of truth.
 
 ### The "human-iterated, agent-consumed" workflow
 
