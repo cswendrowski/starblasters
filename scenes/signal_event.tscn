@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://cvhfa8sjwaih6"]
 
-[ext_resource type="Script" path="res://scripts/signal_event.gd" id="1_4o8bv"]
+[ext_resource type="Script" path="res://scripts/screens/signal_event.gd" id="1_4o8bv"]
 
 [node name="SignalEvent" type="Control"]
 layout_mode = 3

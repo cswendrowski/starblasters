@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://b1clrdsummary"]
 
-[ext_resource type="Script" path="res://scripts/cleared_summary.gd" id="1_clr_scr"]
+[ext_resource type="Script" path="res://scripts/screens/cleared_summary.gd" id="1_clr_scr"]
 
 [node name="ClearedSummary" type="CanvasLayer"]
 layer = 90

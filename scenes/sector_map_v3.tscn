@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://cwpdcjwimliyy"]
 
-[ext_resource type="Script" uid="uid://ddwchlvq14dk4" path="res://scripts/sector_map_v3.gd" id="1_sv3live"]
+[ext_resource type="Script" uid="uid://ddwchlvq14dk4" path="res://scripts/screens/sector_map_v3.gd" id="1_sv3live"]
 
 [node name="SectorMapV3" type="Node2D" unique_id=2088483420]
 script = ExtResource("1_sv3live")

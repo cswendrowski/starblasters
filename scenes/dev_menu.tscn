@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://b8devmenu0000"]
 
-[ext_resource type="Script" path="res://scripts/dev_menu.gd" id="1_dvmnu"]
+[ext_resource type="Script" path="res://scripts/dev/dev_menu.gd" id="1_dvmnu"]
 
 [node name="DevMenu" type="Control"]
 layout_mode = 3

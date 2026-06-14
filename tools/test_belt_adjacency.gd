@@ -6,7 +6,7 @@ extends SceneTree
 #
 # Run: Godot --headless --script res://tools/test_belt_adjacency.gd
 
-const SMV3 := preload("res://scripts/sector_map_v3.gd")
+const SMV3 := preload("res://scripts/screens/sector_map_v3.gd")
 
 
 func _make_poi(id: String, x: float, sub: String) -> Dictionary:

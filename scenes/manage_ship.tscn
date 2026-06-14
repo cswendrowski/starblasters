@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/manage_ship.gd" id="1_mship"]
+[ext_resource type="Script" path="res://scripts/screens/manage_ship.gd" id="1_mship"]
 
 [node name="ManageShip" type="Control"]
 layout_mode = 3

@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://bw0nttfjvm4oo"]
 
-[ext_resource type="Script" path="res://scripts/outpost.gd" id="1_ux5h0"]
+[ext_resource type="Script" path="res://scripts/screens/outpost.gd" id="1_ux5h0"]
 
 [node name="Outpost" type="Control"]
 layout_mode = 3

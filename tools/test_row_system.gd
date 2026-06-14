@@ -5,7 +5,7 @@ extends SceneTree
 # false-passes compile errors and the capture used synthetic data, so without
 # this _compute_row_system / _compute_poi_stellar / the boss edit are never run.
 
-const MAP := preload("res://scripts/sector_map_v3.gd")
+const MAP := preload("res://scripts/screens/sector_map_v3.gd")
 
 
 func _init() -> void:

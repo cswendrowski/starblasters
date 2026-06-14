@@ -8,7 +8,7 @@ extends SceneTree
 
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
-const Outpost = preload("res://scripts/outpost.gd")
+const Outpost = preload("res://scripts/screens/outpost.gd")
 
 
 func _initialize() -> void:

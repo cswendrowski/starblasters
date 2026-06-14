@@ -6,7 +6,7 @@ extends SceneTree
 # godot --headless --script res://tools/test_outpost_safeguard.gd
 
 const RESULT := "res://tools/_outpost_safeguard_result.txt"
-const Outpost = preload("res://scripts/outpost.gd")
+const Outpost = preload("res://scripts/screens/outpost.gd")
 
 # Minimal mock part with the fields the safeguard reads.
 class MockPart extends RefCounted:
