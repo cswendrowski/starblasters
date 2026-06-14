@@ -75,6 +75,9 @@ const WEAPON_SLOT_WEIGHTS := [
 	SlotTypes.SlotType.DEVICE_BAY_1,
 	SlotTypes.SlotType.SHIFT_MODE,
 	SlotTypes.SlotType.SHIFT_MODE,
+	# Passive Module bay — modules roll in the shop like any other part (item-gen rules).
+	SlotTypes.SlotType.MODULE,
+	SlotTypes.SlotType.MODULE,
 ]
 const WEAPONS_COLUMN_COUNT := 5
 const UPGRADES_COLUMN_COUNT := 3
@@ -838,7 +841,14 @@ func _apply_part_to_player(part) -> void:
 	# slot-displacement + ammo / super-charges reseed contract.
 	if part == null or not has_node("/root/Run"):
 		return
-	get_node("/root/Run").equip_part(part)
+	var run = get_node("/root/Run")
+	# Module bay parts go into the LIST (Run.modules), not the pegboard. If the bay is
+	# full, the buy drops into cargo (inventory) so it isn't lost — swap it in via Manage Ship.
+	if "slot_type" in part and int(part.slot_type) == SlotTypes.SlotType.MODULE:
+		if not run.add_module(part):
+			run.inventory.append(part)
+		return
+	run.equip_part(part)
 
 
 func _on_equip_stored(idx: int) -> void:
@@ -1318,6 +1328,7 @@ func _slot_short_name(slot: int) -> String:
 		SlotTypes.SlotType.TAIL: return Strings.SLOT_NAME_TAIL
 		SlotTypes.SlotType.WING_LEFT: return Strings.SLOT_NAME_WING_L
 		SlotTypes.SlotType.WING_RIGHT: return Strings.SLOT_NAME_WING_R
+		SlotTypes.SlotType.MODULE: return "Module"
 	return Strings.SLOT_NAME_PART
 
 
@@ -1327,6 +1338,7 @@ func _slot_color(slot: int) -> Color:
 		SlotTypes.SlotType.HARDPOINT_WING: return Color(0.55, 0.85, 1.0)
 		SlotTypes.SlotType.DEVICE_BAY_1: return Color(1.0, 0.55, 0.95)
 		SlotTypes.SlotType.SHIFT_MODE: return Color(0.7, 0.55, 1.0)
+		SlotTypes.SlotType.MODULE: return Color(0.55, 0.95, 0.75)
 	return Color(0.75, 0.80, 0.85)
 
 
@@ -1453,6 +1465,8 @@ func _type_name_for_part(part, slot: int) -> String:
 			return Strings.TYPE_NAME_SUPER
 		SlotTypes.SlotType.SHIFT_MODE:
 			return Strings.TYPE_NAME_MODE
+		SlotTypes.SlotType.MODULE:
+			return "Module"
 		_:
 			return Strings.SLOT_NAME_PART
 	return Strings.SLOT_NAME_PART

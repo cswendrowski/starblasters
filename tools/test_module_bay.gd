@@ -9,6 +9,8 @@ extends SceneTree
 const ShieldCore = preload("res://scripts/parts/shield_core.gd")
 const OverchargeCore = preload("res://scripts/parts/overcharge_core.gd")
 const SiphonCore = preload("res://scripts/parts/siphon_core.gd")
+const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
+const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 
 
 func _initialize() -> void:
@@ -42,6 +44,17 @@ func _go() -> void:
 	var sc9 = SiphonCore.new(); sc9.mark = 9
 	_assert(sc1._kills_per_charge() == 10, "Siphon Mk.1 = every 10 kills")
 	_assert(sc9._kills_per_charge() == 2, "Siphon Mk.9 = every 2 kills")
+
+	# --- D. Shop roll produces modules (item-gen rules) ---
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 12345
+	var got_module := false
+	for _k in range(20):
+		var rolled = PartCatalog.roll_for_slot(rng, Slots.SlotType.MODULE, 3)
+		if rolled != null and int(rolled.slot_type) == Slots.SlotType.MODULE:
+			got_module = true
+			break
+	_assert(got_module, "roll_for_slot(MODULE) produces module parts for the shop")
 
 	# --- C. Player integration (shield gate + damage mult) ---
 	change_scene_to_file("res://scenes/main.tscn")

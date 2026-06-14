@@ -78,12 +78,16 @@ items remain below. Deep specs live in `TODO.md` / `docs/` — this is the scann
   Optional follow-up: mirror the outpost's rarity-name/type/stat-line card treatment (`e224405`).
 
 ## Big features (unbuilt)
-- **Passive-Module bay** — ◑ **PLAN LOCKED 2026-06-13** (`docs/passive_module_bay_2026-06-13.md`, branch
-  `passive-module-bay-2026-06-13`, local/unpushed). Decisions: **reify** (not present-only), **5 slots**
-  (Shield Core auto-takes one → 4 free / 5 if shieldless). Resolved the slot-model fork (a list-backed
-  `Run.modules` ≤5 + one `MODULE` slot type, not 5 enum singletons) and a **default-safe reify** (no module =
-  today's behavior, so existing saves/shields are unaffected). NOT YET BUILT — it's a focused-session feature
-  (loadout-model change + live survival/save touch points), teed up to build per the doc + playtest the module feel.
+- **Passive-Module bay** — ◑ **BUILT 2026-06-13** (branch `passive-module-bay-2026-06-13`, local/unpushed;
+  spec `docs/passive_module_bay_2026-06-13.md`). List-backed (`Run.modules` ≤5 + one `MODULE` tag, NOT the
+  pegboard) + one apply loop alongside the loadout. **Reified Shield Core** (default; drop it = glass cannon,
+  `max_shield 0`; default-safe + old-save migration) + new **Overcharge Core** (+10→30% dmg, −1 charge) +
+  **Siphon Core** (kills restore shield). Modules roll in the **outpost** (item-gen rules; purchase → bay,
+  cargo if full) and are managed in **Manage Ship** (a MODULE BAY row, Equip-from-cargo / Remove). 17-assert
+  `tools/test_module_bay.gd` PASS; parse-clean; outpost/manage_ship/main boot clean.
+  REMAINING (Increment 2): reify Repair Nanites + Ablative Plating (in-combat regen / deterministic absorb —
+  new damage-pipeline mechanics), a HUD module strip, and optionally retiring the now-overlapping
+  self_repair/hull_plating upgrades (needs a save migration). Module *feel/balance* is playtest-gated.
 - **Run summary Phases 2–3 + timer** — ✅ **DONE 2026-06-13** (branch `run-summary-2026-06-13`, local/unpushed):
   Phase 2 stats instrumented — **shots fired/hit + accuracy** (per-projectile: `player.fire_primary/secondary`
   + `enemy_base.take_hit`), **locations/signals visited** (`mark_node_completed`), **outpost visits**

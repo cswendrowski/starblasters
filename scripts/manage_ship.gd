@@ -240,6 +240,15 @@ func _render_loadout() -> void:
 	for entry in [LOADOUT_SLOTS[1], LOADOUT_SLOTS[2], LOADOUT_SLOTS[3]]:
 		var part = run.loadout_snapshot.get(int(entry["slot"]), null)
 		_loadout_box.add_child(_make_card(String(entry["label"]), entry["color"], part))
+	# Passive Module bay (the LIST). Each equipped module gets a Remove button (→ cargo).
+	# Drop the Shield Core to free a slot and fly shieldless (glass cannon).
+	var mod_color := Color(0.55, 0.95, 0.75)
+	var bay_hdr := Label.new()
+	bay_hdr.text = "MODULE BAY  (%d / %d)" % [run.modules.size(), run.MODULE_BAY_SIZE]
+	_slabel(bay_hdr, UiTheme.FONT_SIZE_CAPTION, mod_color)
+	_loadout_box.add_child(bay_hdr)
+	for i in range(run.modules.size()):
+		_loadout_box.add_child(_make_card("MODULE", mod_color, run.modules[i], "Remove", _on_remove_module.bind(i)))
 
 
 func _render_owned() -> void:
@@ -389,8 +398,27 @@ func _on_equip(idx: int, source: String) -> void:
 	if idx < 0 or idx >= arr.size():
 		return
 	var picked = arr[idx]
+	# Module bay parts go to the LIST (Run.modules), not the pegboard — and only if the
+	# bay has room (else leave it in cargo so nothing is lost).
+	if "slot_type" in picked and int(picked.slot_type) == int(SlotTypes.SlotType.MODULE):
+		if run.add_module(picked):
+			arr.remove_at(idx)
+		_render_all()
+		return
 	arr.remove_at(idx)
 	run.equip_part(picked)  # displaces same-slot part back into storage
+	_render_all()
+
+
+# Remove an equipped module from the bay back into cargo (inventory) — re-equip or
+# sell it from OWNED KIT. Dropping the Shield Core leaves you shieldless next combat.
+func _on_remove_module(idx: int) -> void:
+	if not has_node("/root/Run"):
+		return
+	var run = get_node("/root/Run")
+	var m = run.remove_module(idx)
+	if m != null:
+		run.inventory.append(m)
 	_render_all()
 
 
