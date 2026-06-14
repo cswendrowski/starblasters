@@ -815,6 +815,16 @@ func _process(delta: float) -> void:
 		return
 	if _invuln_t > 0.0:
 		_invuln_t = max(0.0, _invuln_t - delta)
+	# Module bay — Repair Nanites: after MODULE_REPAIR_DELAY undamaged, regen +1 hull pip
+	# every module_regen_interval s, gated to max_hull − 1 (can't fully self-heal). No-op
+	# unless a Repair Nanites is equipped (interval 0).
+	if module_regen_interval > 0.0:
+		_repair_undamaged_t += delta
+		if _repair_undamaged_t >= MODULE_REPAIR_DELAY and hull < max_hull - 1:
+			_repair_tick_t += delta
+			if _repair_tick_t >= module_regen_interval:
+				_repair_tick_t = 0.0
+				set_hull(mini(max_hull - 1, hull + 1))
 	# Secondary cooldown ticks every frame regardless of input — so the
 	# weapon recharges in the background and a tap fires immediately
 	# whenever it's ready.
@@ -1252,6 +1262,9 @@ func take_damage(amount: int) -> void:
 	# I-frame window after a shield or hull hit.
 	if _invuln_t > 0.0:
 		return
+	# Module bay — Repair Nanites: any landed hit resets the regen-delay timer.
+	_repair_undamaged_t = 0.0
+	_repair_tick_t = 0.0
 	var HitFlashFx = load("res://scripts/effects/hit_flash_fx.gd")
 	if shield > 0:
 		# Shield absorbs full hit — no overflow to hull. Short i-frame only,
@@ -1283,6 +1296,15 @@ func take_damage(amount: int) -> void:
 	# Shrug: milestone perk — chance to absorb the hit with no pip loss.
 	if hull_shrug_chance > 0.0 and randf() < hull_shrug_chance:
 		return
+	# Module bay — Ablative Plating: deterministically absorb every Nth hull hit (no pip loss).
+	if module_ablative_n > 0:
+		_ablative_hit_count += 1
+		if _ablative_hit_count >= module_ablative_n:
+			_ablative_hit_count = 0
+			if has_node("Ship"):
+				var _af = load("res://scripts/effects/hit_flash_fx.gd")
+				_af.flash($Ship, _af.FLASH_SHIELD)
+			return
 	damaged.emit(1)
 	_invuln_t = SHIELD_INVULN_SECONDS
 	if has_node("Ship"):
@@ -1482,6 +1504,12 @@ var module_damage_mult: float = 1.0          # Overcharge Core: primary-damage m
 var module_shield_charge_penalty: int = 0    # Overcharge Core: −1 max shield charge
 var module_siphon_kills_per_charge: int = 0  # Siphon Core: 0 = off, else kills per +1 charge
 var _siphon_kill_count: int = 0
+var module_regen_interval: float = 0.0       # Repair Nanites: sec per +1 hull pip (0 = off)
+var module_ablative_n: int = 0               # Ablative Plating: absorb every Nth hull hit (0 = off)
+const MODULE_REPAIR_DELAY := 5.0             # seconds undamaged before nanite regen kicks in
+var _repair_undamaged_t: float = 0.0
+var _repair_tick_t: float = 0.0
+var _ablative_hit_count: int = 0
 
 
 # Cached Run autoload for hot-path stat tallies (run-summary Phase 2) — avoids a

@@ -36,6 +36,8 @@ const SwarmLauncher = preload("res://scripts/parts/swarm_launcher.gd")
 const ShieldCore = preload("res://scripts/parts/shield_core.gd")
 const OverchargeCore = preload("res://scripts/parts/overcharge_core.gd")
 const SiphonCore = preload("res://scripts/parts/siphon_core.gd")
+const RepairNanites = preload("res://scripts/parts/repair_nanites.gd")
+const AblativePlating = preload("res://scripts/parts/ablative_plating.gd")
 const BulletDefault = preload("res://scenes/projectiles/bullet_blaster.tscn")
 const BulletHeavy = preload("res://scenes/projectiles/bullet_blaster_heavy.tscn")
 const BulletMinigun = preload("res://scenes/projectiles/bullet_minigun.tscn")
@@ -95,6 +97,8 @@ static func _all_pool() -> Array:
 		# Module bay — roll in the shop. Shield Core is default-only (not here), like Focus.
 		{"factory": "_make_overcharge_core", "slot": Slots.SlotType.MODULE},
 		{"factory": "_make_siphon_core", "slot": Slots.SlotType.MODULE},
+		{"factory": "_make_repair_nanites", "slot": Slots.SlotType.MODULE},
+		{"factory": "_make_ablative_plating", "slot": Slots.SlotType.MODULE},
 	]
 
 static func roll_random_part(rng: RandomNumberGenerator):
@@ -205,6 +209,10 @@ static func _make_by_name(name: String, slot: int):
 			return OverchargeCore.new()
 		"_make_siphon_core":
 			return SiphonCore.new()
+		"_make_repair_nanites":
+			return RepairNanites.new()
+		"_make_ablative_plating":
+			return AblativePlating.new()
 	return null
 
 

@@ -82,12 +82,14 @@ items remain below. Deep specs live in `TODO.md` / `docs/` — this is the scann
   spec `docs/passive_module_bay_2026-06-13.md`). List-backed (`Run.modules` ≤5 + one `MODULE` tag, NOT the
   pegboard) + one apply loop alongside the loadout. **Reified Shield Core** (default; drop it = glass cannon,
   `max_shield 0`; default-safe + old-save migration) + new **Overcharge Core** (+10→30% dmg, −1 charge) +
-  **Siphon Core** (kills restore shield). Modules roll in the **outpost** (item-gen rules; purchase → bay,
-  cargo if full) and are managed in **Manage Ship** (a MODULE BAY row, Equip-from-cargo / Remove). 17-assert
-  `tools/test_module_bay.gd` PASS; parse-clean; outpost/manage_ship/main boot clean.
-  REMAINING (Increment 2): reify Repair Nanites + Ablative Plating (in-combat regen / deterministic absorb —
-  new damage-pipeline mechanics), a HUD module strip, and optionally retiring the now-overlapping
-  self_repair/hull_plating upgrades (needs a save migration). Module *feel/balance* is playtest-gated.
+  **Siphon Core** (kills restore shield), plus defensive reifies **Repair Nanites** (in-combat hull regen,
+  gated to max−1) + **Ablative Plating** (deterministic every-Nth-hull-hit absorb, no RNG). 5 modules (1
+  default + 4 roll). Modules roll in the **outpost** (item-gen rules; purchase → bay, cargo if full) and are
+  managed in **Manage Ship** (a MODULE BAY row, Equip-from-cargo / Remove). 23-assert `tools/test_module_bay.gd`
+  PASS; parse-clean (297/0); outpost/manage_ship/main boot clean.
+  REMAINING (polish): a HUD module-strip readout; optionally retiring the now-overlapping self_repair/
+  hull_plating *upgrades* (Repair/Ablative coexist with them for now — full retirement needs a save migration).
+  Module *feel/balance* is playtest-gated.
 - **Run summary Phases 2–3 + timer** — ✅ **DONE 2026-06-13** (branch `run-summary-2026-06-13`, local/unpushed):
   Phase 2 stats instrumented — **shots fired/hit + accuracy** (per-projectile: `player.fire_primary/secondary`
   + `enemy_base.take_hit`), **locations/signals visited** (`mark_node_completed`), **outpost visits**

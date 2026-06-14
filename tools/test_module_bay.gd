@@ -9,6 +9,8 @@ extends SceneTree
 const ShieldCore = preload("res://scripts/parts/shield_core.gd")
 const OverchargeCore = preload("res://scripts/parts/overcharge_core.gd")
 const SiphonCore = preload("res://scripts/parts/siphon_core.gd")
+const RepairNanites = preload("res://scripts/parts/repair_nanites.gd")
+const AblativePlating = preload("res://scripts/parts/ablative_plating.gd")
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 
@@ -44,6 +46,14 @@ func _go() -> void:
 	var sc9 = SiphonCore.new(); sc9.mark = 9
 	_assert(sc1._kills_per_charge() == 10, "Siphon Mk.1 = every 10 kills")
 	_assert(sc9._kills_per_charge() == 2, "Siphon Mk.9 = every 2 kills")
+	var rn1 = RepairNanites.new(); rn1.mark = 1
+	var rn9 = RepairNanites.new(); rn9.mark = 9
+	_assert(rn1._interval() == 12.0, "Repair Nanites Mk.1 = 12s/pip")
+	_assert(rn9._interval() == 4.0, "Repair Nanites Mk.9 = 4s/pip")
+	var ap1 = AblativePlating.new(); ap1.mark = 1
+	var ap9 = AblativePlating.new(); ap9.mark = 9
+	_assert(ap1._every_n() == 6, "Ablative Mk.1 = absorb every 6th hit")
+	_assert(ap9._every_n() == 2, "Ablative Mk.9 = absorb every 2nd hit")
 
 	# --- D. Shop roll produces modules (item-gen rules) ---
 	var rng := RandomNumberGenerator.new()
@@ -79,6 +89,12 @@ func _go() -> void:
 	p.module_damage_mult = 1.0
 	OverchargeCore.new().apply(p)
 	_assert(p.module_damage_mult > 1.0, "Overcharge raises module_damage_mult (got %.3f)" % p.module_damage_mult)
+	p.module_regen_interval = 0.0
+	RepairNanites.new().apply(p)
+	_assert(p.module_regen_interval > 0.0, "Repair Nanites sets module_regen_interval (got %.1f)" % p.module_regen_interval)
+	p.module_ablative_n = 0
+	AblativePlating.new().apply(p)
+	_assert(p.module_ablative_n > 0, "Ablative Plating sets module_ablative_n (got %d)" % p.module_ablative_n)
 
 	_finish()
 
