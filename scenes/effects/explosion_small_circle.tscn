@@ -1,7 +1,46 @@
-[gd_scene load_steps=3 format=3 uid="uid://cexplsmcirc01"]
+[gd_scene load_steps=10 format=3 uid="uid://cexplsmcirc01"]
 
 [ext_resource type="Script" path="res://scripts/effects/explosion.gd" id="1_expl_scr"]
 [ext_resource type="Texture2D" uid="uid://dvkcmgkc0ttl0" path="res://graphics/effects/explosion_small_circle.png" id="2_strip"]
+
+[sub_resource type="Gradient" id="Gradient_fire"]
+offsets = PackedFloat32Array(0, 0.5, 1)
+colors = PackedColorArray(1, 1, 0.85, 1, 1, 0.55, 0.15, 1, 0.6, 0.15, 0.05, 0)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_fire"]
+gradient = SubResource("Gradient_fire")
+width = 32
+
+[sub_resource type="Gradient" id="Gradient_dot"]
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_dot"]
+gradient = SubResource("Gradient_dot")
+width = 16
+height = 16
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(1, 0.5)
+
+[sub_resource type="Curve" id="Curve_sc"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_sc"]
+curve = SubResource("Curve_sc")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_spark"]
+emission_shape = 1
+emission_sphere_radius = 4.0
+direction = Vector3(0, -1, 0)
+spread = 180.0
+initial_velocity_min = 100.0
+initial_velocity_max = 200.0
+gravity = Vector3(0, 70, 0)
+scale_min = 0.5
+scale_max = 1.0
+scale_curve = SubResource("CurveTexture_sc")
+color_ramp = SubResource("GradientTexture1D_fire")
 
 [node name="ExplosionSmallCircle" type="Node2D"]
 script = ExtResource("1_expl_scr")
@@ -11,3 +50,13 @@ frame_duration = 0.05
 max_radius = 12.0
 spark_count = 10
 debris_count = 3
+
+[node name="SparkParticles" type="GPUParticles2D" parent="."]
+emitting = false
+amount = 10
+texture = SubResource("GradientTexture2D_dot")
+lifetime = 0.4
+one_shot = true
+explosiveness = 1.0
+local_coords = false
+process_material = SubResource("ParticleProcessMaterial_spark")

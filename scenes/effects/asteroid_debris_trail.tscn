@@ -1,0 +1,38 @@
+[gd_scene format=3 uid="uid://bastdebris01"]
+
+[sub_resource type="Gradient" id="Gradient_rock"]
+offsets = PackedFloat32Array(0, 0.7, 1)
+colors = PackedColorArray(0.48, 0.46, 0.45, 0.9, 0.48, 0.46, 0.45, 0.5, 0.48, 0.46, 0.45, 0)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_rock"]
+gradient = SubResource("Gradient_rock")
+width = 32
+
+[sub_resource type="Gradient" id="Gradient_pix"]
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_pix"]
+gradient = SubResource("Gradient_pix")
+width = 2
+height = 2
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_debris"]
+emission_shape = 1
+emission_sphere_radius = 3.0
+direction = Vector3(0, -1, 0)
+spread = 18.0
+initial_velocity_min = 6.0
+initial_velocity_max = 14.0
+gravity = Vector3(0, 0, 0)
+damping_min = 4.0
+damping_max = 4.0
+scale_min = 1.0
+scale_max = 1.0
+color_ramp = SubResource("GradientTexture1D_rock")
+
+[node name="AsteroidDebrisTrail" type="GPUParticles2D"]
+amount = 24
+texture = SubResource("GradientTexture2D_pix")
+lifetime = 3.2
+local_coords = false
+process_material = SubResource("ParticleProcessMaterial_debris")
