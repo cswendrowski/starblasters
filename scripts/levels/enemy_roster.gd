@@ -137,19 +137,9 @@ const ENTRIES := [
 		# a big dart wave keeps end-of-node momentum (construction §8).
 		"unlock_sector": 0, "unlock_depth": 0, "weight": 1.4, "chaff": true, "wall": true,
 	},
-	{
-		"scene": "res://scenes/enemies/core/enemy_bomb_drone.tscn",
-		"tier": Tier.COMMON,
-		"size": "small", "tags": [],
-		"movement": "fast_straight",
-		"shoot": null,
-		"base_count": 6,
-		"recycle": 0,
-		"hp_override": 1, "bounty_override": 5,
-		# Bomb drone — basic dive chaff. Always available alongside Dart.
-		# wall: dives as a chunked wall like Dart (construction §8).
-		"unlock_sector": 0, "unlock_depth": 0, "weight": 1.0, "chaff": true, "wall": true,
-	},
+	# Bomb Drone PULLED 2026-06-14 (Roman — to be reworked). Roster entry removed so it
+	# can't spawn; its factions.gd ENEMY_TAGS tag is removed too. Scene/script/codex/
+	# pattern-eligibility kept intact for the rework — re-add this dict to restore it.
 	{
 		# Manta (M6c, Roman art 2026-06-07) — REPLACES the Drifter. Same role/slot
 		# (basic drifting chaff shooter) on the new zealot two-frame sprite, but
