@@ -1,12 +1,12 @@
 [gd_scene format=3 uid="uid://bsmktrailfx01"]
 
 [sub_resource type="Gradient" id="Gradient_smoke"]
-offsets = PackedFloat32Array(0, 0.15, 0.5, 0.85, 1)
-colors = PackedColorArray(0.749, 0.784, 0.765, 0, 0.749, 0.784, 0.765, 0.55, 0.4, 0.4, 0.4, 0.45, 0.063, 0.047, 0.031, 0.25, 0.063, 0.047, 0.031, 0)
+offsets = PackedFloat32Array(0, 0.06, 0.38, 0.52, 0.92, 1)
+colors = PackedColorArray(0.749, 0.784, 0.765, 0, 0.749, 0.784, 0.765, 0.9, 0.749, 0.784, 0.765, 0.9, 0.063, 0.047, 0.031, 0.9, 0.063, 0.047, 0.031, 0.9, 0.063, 0.047, 0.031, 0)
 
 [sub_resource type="GradientTexture1D" id="GradientTexture1D_smoke"]
 gradient = SubResource("Gradient_smoke")
-width = 64
+width = 128
 
 [sub_resource type="Gradient" id="Gradient_puff"]
 colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0)
@@ -20,7 +20,7 @@ fill_from = Vector2(0.5, 0.5)
 fill_to = Vector2(1, 0.5)
 
 [sub_resource type="Curve" id="Curve_smokescale"]
-_data = [Vector2(0, 0.4), 0.0, 0.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 2.2), 0.0, 0.0, 0, 0]
 point_count = 2
 
 [sub_resource type="CurveTexture" id="CurveTexture_smokescale"]
@@ -45,10 +45,13 @@ scale_max = 0.8
 scale_curve = SubResource("CurveTexture_smokescale")
 color_ramp = SubResource("GradientTexture1D_smoke")
 
-[node name="SmokeTrail" type="GPUParticles2D"]
+[node name="SmokeTrail" type="Node2D"]
+
+[node name="Particles" type="GPUParticles2D" parent="."]
 amount = 26
 texture = SubResource("GradientTexture2D_puff")
 lifetime = 1.6
 randomness = 0.5
 local_coords = false
+texture_filter = 2
 process_material = SubResource("ParticleProcessMaterial_smoke")

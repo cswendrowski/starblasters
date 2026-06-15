@@ -9,7 +9,8 @@ gradient = SubResource("Gradient_msmoke")
 width = 64
 
 [sub_resource type="Gradient" id="Gradient_mdot"]
-colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0)
+offsets = PackedFloat32Array(0, 0.6, 1)
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0.45, 1, 1, 1, 0)
 
 [sub_resource type="GradientTexture2D" id="GradientTexture2D_mdot"]
 gradient = SubResource("Gradient_mdot")
@@ -40,7 +41,9 @@ scale_max = 0.7
 scale_curve = SubResource("CurveTexture_mscale")
 color_ramp = SubResource("GradientTexture1D_msmoke")
 
-[node name="MuzzleSmoke" type="GPUParticles2D"]
+[node name="MuzzleSmoke" type="Node2D"]
+
+[node name="Particles" type="GPUParticles2D" parent="."]
 amount = 5
 texture = SubResource("GradientTexture2D_mdot")
 lifetime = 0.45

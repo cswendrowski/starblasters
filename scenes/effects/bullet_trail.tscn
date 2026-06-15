@@ -9,7 +9,7 @@ gradient = SubResource("Gradient_trail")
 width = 32
 
 [sub_resource type="Gradient" id="Gradient_tdot"]
-offsets = PackedFloat32Array(0, 0.6, 1)
+offsets = PackedFloat32Array(0, 0.5, 1)
 colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0.6, 1, 1, 1, 0)
 
 [sub_resource type="GradientTexture2D" id="GradientTexture2D_tdot"]
@@ -37,7 +37,9 @@ scale_max = 1.0
 scale_curve = SubResource("CurveTexture_tscale")
 color_ramp = SubResource("GradientTexture1D_trail")
 
-[node name="BulletTrail" type="GPUParticles2D"]
+[node name="BulletTrail" type="Node2D"]
+
+[node name="Particles" type="GPUParticles2D" parent="."]
 amount = 64
 texture = SubResource("GradientTexture2D_tdot")
 lifetime = 0.4

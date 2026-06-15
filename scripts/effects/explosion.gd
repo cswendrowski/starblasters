@@ -117,6 +117,11 @@ func _make_explosion_sprite(offset: Vector2, sc: float, delay: float) -> Diction
 # Sparks + embers now live in editor-tweakable scenes (Roman 2026-06-12): tweak the GPUParticles
 # nodes / process materials in scenes/effects/explosion_spark.tscn + explosion_ember.tscn and the
 # changes apply to every explosion. explosion.gd only overrides the COUNT.
+#
+# Structure note (2026-06-14): explosion_ember.tscn is now a Node2D root with the emitter as a
+# child named "Particles" (the standard authoring layout). explosion_spark.tscn is still a bare
+# GPUParticles2D root (Roman has an in-flight hand-pass on it) — when that lands, wrap it the same
+# way and switch _spawn_sparks to the child-fetch form used in _spawn_debris below.
 const SPARK_SCENE = preload("res://scenes/effects/explosion_spark.tscn")
 const EMBER_SCENE = preload("res://scenes/effects/explosion_ember.tscn")
 
@@ -176,11 +181,17 @@ func _spawn_debris() -> void:
 	var host: Node = get_parent()
 	if host == null or not is_instance_valid(host):
 		host = self
-	var p: GPUParticles2D = EMBER_SCENE.instantiate()
+	# Node2D root + "Particles" emitter child (2026-06-14): set the count on the emitter, place
+	# the root, and free the whole wrapper when the burst finishes. The add is DEFERRED: this runs
+	# inside the explosion's own _ready(), during which its parent is still "busy setting up
+	# children" (Godot 4.6) — a direct host.add_child() is silently dropped, so the ember must land
+	# at frame-end instead.
+	var root2d: Node2D = EMBER_SCENE.instantiate()
+	var p: GPUParticles2D = root2d.get_node("Particles")
 	p.amount = maxi(4, int(round(float(debris_count) * 4.0)))
-	p.global_position = global_position
-	host.add_child(p)
-	p.finished.connect(p.queue_free)
+	root2d.global_position = global_position
+	host.add_child.call_deferred(root2d)
+	p.finished.connect(root2d.queue_free)
 
 func _spawn_debris_unused() -> void:
 	var p := GPUParticles2D.new()

@@ -37,7 +37,9 @@ scale_max = 0.5
 scale_curve = SubResource("CurveTexture_ie4by")
 color_ramp = SubResource("GradientTexture1D_wpobi")
 
-[node name="Muzzleflash_small" type="GPUParticles2D" unique_id=1643434707]
+[node name="Muzzleflash_small" type="Node2D"]
+
+[node name="Particles" type="GPUParticles2D" parent="."]
 emitting = false
 amount = 16
 texture = SubResource("GradientTexture2D_4fmc0")

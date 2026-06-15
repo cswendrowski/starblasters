@@ -38,7 +38,9 @@ shader_parameter/invert = 0.0
 shader_parameter/smoke = 0.0
 shader_parameter/color_ramp = SubResource("GradientTexture1D_sbail")
 
-[node name="ExplosionEmber" type="GPUParticles2D" unique_id=498823634]
+[node name="ExplosionEmber" type="Node2D"]
+
+[node name="Particles" type="GPUParticles2D" parent="."]
 amount = 40
 texture = SubResource("GradientTexture2D_lbm7x")
 lifetime = 0.7
