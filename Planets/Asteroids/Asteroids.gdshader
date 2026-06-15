@@ -82,12 +82,17 @@ float crater(vec2 uv) {
 
 // Reproduce just the silhouette test (n_step) at an arbitrary UV. Used
 // by the outline pass to detect "outside this pixel, inside a neighbor."
+// MUST apply the same `roundness` blend the body's n_step uses (fragment(): n_edge =
+// mix(n, 0.5, roundness)) — otherwise the outline traces the RAW jagged silhouette while
+// the body draws the ROUNDED one, so the ring mismatches the edge (the inconsistent-outline
+// regression introduced when roundness was added 2026-06-11). Fix 2026-06-14.
 float silhouette_at(vec2 base_uv) {
 	vec2 uv_s = floor(base_uv * pixels) / pixels;
 	float d_s = distance(uv_s, vec2(0.5));
 	vec2 uv_r = rotate(uv_s, rotation);
 	float n_s = fbm(uv_r * size);
-	return step(0.2, n_s - d_s);
+	float n_edge = mix(n_s, 0.5, roundness);
+	return step(0.2, n_edge - d_s);
 }
 
 void fragment() {

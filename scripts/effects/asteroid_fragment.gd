@@ -67,6 +67,10 @@ func _ready() -> void:
 	if inner != null and "material" in inner and inner.material != null:
 		inner.material.set_shader_parameter("roundness", 0.4)
 		inner.material.set_shader_parameter("draw_outline", false)   # chunks: no pixel outline
+		# Chunks FADE (translucent) — two overlapping dithered translucent rocks interleave
+		# their dither checkerboards into a moiré that reads as inverted/odd colours. The main
+		# hazard rocks are opaque so they're unaffected; smooth-shade the chunks. (Roman 2026-06-14)
+		inner.material.set_shader_parameter("should_dither", false)
 	if _visual.has_method("set_pixels"):
 		_visual.set_pixels(size_px)
 	add_child(_visual)

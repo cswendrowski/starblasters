@@ -9,6 +9,12 @@ extends "res://scripts/enemies/enemy_base.gd"
 @export var drift_x: float = 0.0
 @export var damage_on_collide: int = 2
 
+# Impact jolt (Roman 2026-06-14): halved the player kick (was 50) AND added a short
+# per-player grace so a chain of asteroids can't pinball the ship energetically off one
+# impact. The grace lives on the PLAYER (a meta) so ANY asteroid respects a recent kick.
+const PLAYER_KICK := 25.0
+const JOLT_GRACE_MS := 450
+
 const PROCGEN_ASTEROID = "res://Planets/Asteroids/Asteroid.tscn"
 
 
@@ -270,9 +276,13 @@ func _on_area_entered(area: Area2D) -> void:
 		var to_player: Vector2 = area.global_position - global_position
 		if to_player.length() < 1.0:
 			to_player = Vector2(randf_range(-1, 1), randf_range(-1, 1)).normalized()
-		var push: Vector2 = to_player.normalized() * 50.0
-		# Tween the player away briefly (mimic a kinematic impulse).
-		if area is Node2D:
+		var push: Vector2 = to_player.normalized() * PLAYER_KICK
+		# Tween the player away briefly (mimic a kinematic impulse) — but only if it wasn't
+		# kicked very recently, so successive asteroids don't pinball it. Damage + the
+		# asteroid bounce + dust still happen on every contact.
+		var now: int = Time.get_ticks_msec()
+		if area is Node2D and now - int(area.get_meta("last_asteroid_kick_ms", 0)) >= JOLT_GRACE_MS:
+			area.set_meta("last_asteroid_kick_ms", now)
 			var p2 := area as Node2D
 			var tw = p2.create_tween()
 			tw.tween_property(p2, "position", p2.position + push, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
