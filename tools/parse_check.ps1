@@ -22,7 +22,6 @@ $scenes = @(
   'res://scenes/dev/weapon_lab.tscn',
   'res://scenes/sector_map_hd.tscn',
   'res://scenes/outpost.tscn',
-  'res://scenes/manage_ship.tscn',
   'res://scenes/signal_event.tscn',
   'res://scenes/cleared_summary.tscn',
   'res://scenes/run_summary.tscn',

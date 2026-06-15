@@ -22,7 +22,6 @@ const UiTheme := preload("res://scripts/ui/ui_theme.gd")
 const HdScreenLib := preload("res://scripts/ui/hd_screen.gd")
 const SectorNode := preload("res://scripts/systems/sector_node.gd")
 const SECTOR_MAP_SCENE := preload("res://scenes/sector_map_v3.tscn")
-const MANAGE_SHIP_SCENE := "res://scenes/manage_ship.tscn"
 const OUTPOST_SCENE := "res://scenes/outpost.tscn"
 const SELF_SCENE := "res://scenes/sector_map_hd.tscn"
 const NODE_STRIP := preload("res://graphics/ui/sector_nodes.png")
@@ -125,14 +124,7 @@ func _build_overlay() -> void:
 	visit.pressed.connect(_open_outpost)
 	_overlay.add_child(visit)
 
-	# Manage Ship sits directly below Visit Outpost at the SAME 64+10 vertical spacing
-	# as the Codex/Options pair (Roman 2026-06-11) instead of its own marker.
-	var manage := UiTheme.make_button("MANAGE SHIP")
-	manage.custom_minimum_size = Vector2(260, 64)
-	manage.size = Vector2(260, 64)
-	manage.position = visit.position + Vector2(0, 64 + 10)
-	manage.pressed.connect(_open_manage_ship)
-	_overlay.add_child(manage)
+	# (MANAGE SHIP button retired 2026-06-14 — ship management folded into the at-will outpost.)
 
 	var options := UiTheme.make_button("OPTIONS")
 	_place_at_marker(options, "options_button", Vector2(220, 64))
@@ -562,13 +554,6 @@ func _on_depart() -> void:
 	# relies on.
 	if _map != null and _map.has_method("_on_depart_pressed"):
 		_map._on_depart_pressed()
-
-
-func _open_manage_ship() -> void:
-	var run := get_node_or_null("/root/Run")
-	if run != null:
-		run.set_meta("manage_ship_return", SELF_SCENE)
-	SceneTransition.change_scene(get_tree(), MANAGE_SHIP_SCENE)
 
 
 # Visit the persistent outpost hub (Roman 2026-06-08). The outpost reads only Run

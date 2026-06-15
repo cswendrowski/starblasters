@@ -17,6 +17,16 @@ const JOLT_GRACE_MS := 450
 
 const PROCGEN_ASTEROID = "res://Planets/Asteroids/Asteroid.tscn"
 
+# Authored particle scenes (Roman 2026-06-15) replace the old code-driven asteroid FX:
+#   • DEBRIS_TRAIL_SCENE — drifting trail parented to the live rock (was per-frame 1px motes).
+#   • AsteroidExplosionFx — one-shot death burst (was the _spawn_dust cloud + mote spray).
+# The procgen CHUNKS are RETAINED (_spawn_asteroid_fragments) and now sink into the wreck
+# layer as they exit, instead of fading out in place.
+const DEBRIS_TRAIL_SCENE := preload("res://scenes/effects/asteroid_debris_trail.tscn")
+const AsteroidExplosionFx := preload("res://scripts/effects/asteroid_explosion.gd")
+const WreckLayer := preload("res://scripts/effects/wreck_layer.gd")
+const AsteroidFragmentScript := preload("res://scripts/effects/asteroid_fragment.gd")
+
 
 func _ready() -> void:
 	max_health = 5
@@ -76,103 +86,61 @@ func _ready() -> void:
 		# background/parallax rocks (roundness 0) are untouched.
 		if inner != null and "material" in inner and inner.material != null:
 			inner.material.set_shader_parameter("roundness", 0.4)
+			# Disable dither on the gameplay rock (Roman 2026-06-15). The dither checkerboard
+			# samples RAW UV.y, so it SHIFTS with any motion — reading as "odd colours shifting
+			# as they move" — and HDR-2D + the bigger 44-64px rocks made the stipple a notable
+			# colour overlay. Smooth-shade them; mirrors the same fix already on the chunks
+			# (asteroid_fragment.gd). Background/parallax rocks keep dither (distant + static-ish).
+			inner.material.set_shader_parameter("should_dither", false)
 		if visual.has_method("set_pixels"):
 			visual.set_pixels(visual_size)
 		add_child(visual)
 		_visual = visual
 		_visual_size = visual_size
-		_rock_color = base   # drive the dust trail + shatter particles off the rock's own colour
+		_rock_color = base   # drive the death-burst tint off the rock's own colour
 	# Light per-spawn rotation jitter so the asteroid field doesn't look
 	# perfectly uniform.
 	rotation = randf_range(-0.3, 0.3)
-	# Trail REMOVED (Roman 2026-06-11: "the trail is awful"). The asteroid now leaves
-	# behind only persistent 1px rock-colour particles (_spawn_drift_debris in _process).
+	# Drifting debris trail: the authored asteroid_debris_trail scene, parented to the rock
+	# so its world-space particles linger behind the descending rock (Roman 2026-06-15,
+	# replaces the old per-frame 1px drift motes).
+	_attach_debris_trail()
 
 
-var _dust_line: Line2D = null
 var _rock_color: Color = Color(0.48, 0.46, 0.45)   # set from the procgen base colour in _ready
 var _visual: Node = null                           # the procgen rock visual (hidden on explode)
 var _visual_size: float = 50.0
-var _dust_t: float = 0.0
-var _debris_t: float = 0.0
-const AsteroidFragmentScript = preload("res://scripts/effects/asteroid_fragment.gd")
-const DUST_SAMPLE_INTERVAL: float = 0.06
-const DUST_MAX_POINTS: int = 14
-const DUST_LIFETIME: float = 0.85
+var _trail: Node2D = null                          # attached asteroid_debris_trail scene
 
 
-func _attach_dust_trail() -> void:
-	# Dust trail tuned 2026-05-18: chunkier, dustier, matched to the
-	# asteroid's actual rock palette (medium gray with warm-brown lean,
-	# not desert tan). 3-stop gradient so head is solid puff, middle is
-	# hazy, tail fades out. Width-curve tapers head→tail so it reads as
-	# a billowing dust cloud, not a flat ribbon.
-	_dust_line = Line2D.new()
-	_dust_line.name = "AsteroidDust"
-	_dust_line.width = 6.0
-	# 30%-opacity dust the SAME colour as the rock (Roman 2026-06-11: the old fixed-tan
-	# trail "was awful"). Head ~30% alpha, fading to transparent at the tail.
-	var rc := _rock_color
-	_dust_line.default_color = Color(rc.r, rc.g, rc.b, 0.30)
-	var grad := Gradient.new()
-	grad.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
-	grad.colors = PackedColorArray([
-		Color(rc.r, rc.g, rc.b, 0.30),
-		Color(rc.r, rc.g, rc.b, 0.16),
-		Color(rc.r, rc.g, rc.b, 0.0),
-	])
-	_dust_line.gradient = grad
-	var width_curve := Curve.new()
-	width_curve.add_point(Vector2(0.0, 1.0))
-	width_curve.add_point(Vector2(1.0, 0.30))
-	_dust_line.width_curve = width_curve
-	_dust_line.joint_mode = Line2D.LINE_JOINT_ROUND
-	_dust_line.begin_cap_mode = Line2D.LINE_CAP_ROUND
-	_dust_line.end_cap_mode = Line2D.LINE_CAP_ROUND
-	# Noise-textured so it reads as billowing smoke, not a flat ribbon (Roman 2026-06-11:
-	# "a noise-based smoke trail the same colour as the asteroid").
-	_dust_line.texture = _dust_noise_texture()
-	_dust_line.texture_mode = Line2D.LINE_TEXTURE_TILE
-	_dust_line.z_index = 4
-	_dust_line.z_as_relative = false
-	_fx_parent().add_child(_dust_line)
+# Instantiate the drifting debris-trail scene as a child of the rock. The scene's
+# GPUParticles2D emit in world space, so the emitted particles stay put as the rock
+# descends — forming a trail behind it. Drawn just behind the rock visual.
+func _attach_debris_trail() -> void:
+	_trail = DEBRIS_TRAIL_SCENE.instantiate()
+	add_child(_trail)
+	_trail.position = Vector2.ZERO
+	_trail.z_index = -1
+	# Tint the trail to THIS rock's colour (Roman 2026-06-15). The authored scene ships a
+	# neutral grey gradient; modulate multiplies through to every emitter's particles so the
+	# debris matches the rock (restores the per-rock tint the old code-driven motes had).
+	_trail.modulate = _rock_color
 
 
-# Cached soft noise strip for the smoke trail (feathered top/bottom, grainy).
-static var _dust_noise_tex: Texture2D = null
-static func _dust_noise_texture() -> Texture2D:
-	if _dust_noise_tex != null and is_instance_valid(_dust_noise_tex):
-		return _dust_noise_tex
-	const W := 48
-	const H := 16
-	var img := Image.create(W, H, false, Image.FORMAT_RGBA8)
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 0x5A57
-	for y in H:
-		for x in W:
-			var base: float = 0.55 + 0.45 * sin(float(x) * 0.4) * cos(float(y) * 0.7)
-			var grain: float = rng.randf_range(0.55, 1.0)
-			var v: float = float(y) / float(H - 1)
-			var feather: float = clampf(1.0 - pow(abs(v - 0.5) * 2.0, 2.2), 0.0, 1.0)
-			img.set_pixel(x, y, Color(1.0, 1.0, 1.0, clampf(base * grain * feather, 0.0, 1.0)))
-	_dust_noise_tex = ImageTexture.create_from_image(img)
-	return _dust_noise_tex
+# On death, detach the trail to the fx layer so its already-emitted particles finish their
+# life in world space instead of vanishing when the rock frees; stop emitting new ones.
+func _release_trail() -> void:
+	if _trail == null or not is_instance_valid(_trail):
+		return
+	var fxp: Node = _fx_parent()
+	_trail.reparent(fxp, true)
+	for c in _trail.get_children():
+		if c is GPUParticles2D:
+			(c as GPUParticles2D).emitting = false
+	var t: Node = _trail
+	fxp.get_tree().create_timer(4.6).timeout.connect(t.queue_free)
+	_trail = null
 
-
-# A 1px rock-colour debris mote left behind as the asteroid drifts. Persists FAR longer
-# and drifts STRAIGHT (low drag, mostly-vertical) so the motes linger in a clean line
-# behind the descending rock instead of a trail (Roman 2026-06-11).
-func _spawn_drift_debris() -> void:
-	var m = FragmentScript.new()
-	m.color = _rock_color
-	m.size_px = 1.0
-	m.brightness_jitter = 0.25
-	m.lifetime = randf_range(2.6, 3.8)          # persist far longer
-	m.drag = 0.35                                # low drag → steady straight drift
-	# Slow straight drift roughly opposite the rock's travel so motes linger behind it.
-	m.velocity = Vector2(randf_range(-3.0, 3.0), randf_range(-14.0, -6.0))
-	_fx_parent().add_child(m)
-	m.global_position = global_position + Vector2(randf_range(-5.0, 5.0), randf_range(-4.0, 4.0))
 
 func start(pos: Vector2) -> void:
 	position = pos
@@ -188,12 +156,6 @@ func hit() -> void:
 func _process(delta: float) -> void:
 	position.x += drift_x * delta
 	position.y += drift_speed * delta
-	# Leave behind 1px rock-colour debris as the rock drifts.
-	if not _dying:
-		_debris_t -= delta
-		if _debris_t <= 0.0:
-			_debris_t = randf_range(0.09, 0.18)
-			_spawn_drift_debris()
 	# Reflect horizontal drift at the playfield edges so the asteroid stays
 	# in the gamespace (Roman, 2026-05-16). 0.6 multiplier dampens so it
 	# doesn't ping-pong forever.
@@ -214,15 +176,18 @@ func explode() -> void:
 	_dying = true
 	set_deferred("monitorable", false)
 	died.emit(bounty_value)
-	# No fiery explosion for asteroids (Roman 2026-06-11) — a rock shatters into dust +
-	# chunks, it doesn't ignite. The dust burst + fragment-asteroids carry the death.
-	# Chunky dusty death burst (Roman, 2026-05-16). Triple the count + a
-	# longer lifetime so the cloud lingers, plus a chunkier scale.
-	_spawn_dust(global_position, 60, 1.1, 1.2, 2.4)
-	# Replace the starting rock with 3-6 spinning fragment-asteroids dispersing in a
-	# cone along the travel direction + a spray of 1px rock-colour motes (Roman 2026-06-11).
+	# Release the drifting trail so its particles finish instead of popping.
+	_release_trail()
+	# Authored death burst (Roman 2026-06-15) — replaces the old code dust cloud + mote spray.
+	# No fiery explosion: a rock shatters into dust + chunks, it doesn't ignite. Tinted to the
+	# rock's own colour so the burst matches the rock that shattered.
+	AsteroidExplosionFx.play(_fx_parent(), global_position, _rock_color)
+	# Retain the procgen chunks, but route them into the wreck layer as they exit — the
+	# fragment sinks itself once it reaches the exit zone. main.gd already creates the layer
+	# at combat start; ensure() (idempotent) targets the SCENE ROOT — the node that owns the
+	# "Backdrop" the layer parents above — so it resolves correctly here too.
+	WreckLayer.ensure(get_tree().current_scene)
 	_spawn_asteroid_fragments()
-	_spawn_debris_motes()
 	# Remove the starting asteroid immediately — the fragments ARE the rock now.
 	if _visual != null and is_instance_valid(_visual):
 		_visual.visible = false
@@ -231,10 +196,10 @@ func explode() -> void:
 	await get_tree().create_timer(0.5).timeout
 	queue_free()
 
-const FragmentScript = preload("res://scripts/effects/dust_fragment.gd")
 
 # 3-6 new procgen asteroids (same colour, NEW shapes), spinning, dispersing in a cone
-# along the travel direction, inheriting the drift speed + fading as they recede.
+# along the travel direction, inheriting the drift speed. Each fragment transitions into
+# the wreck layer as it exits (see asteroid_fragment.gd).
 func _spawn_asteroid_fragments() -> void:
 	var parent: Node = _fx_parent()
 	var travel := Vector2(drift_x, drift_speed)
@@ -251,22 +216,6 @@ func _spawn_asteroid_fragments() -> void:
 			"color": _rock_color,
 			"lifetime": randf_range(1.4, 2.2),
 		})
-
-
-# A spray of 1px rock-colour motes (Roman: "all just 1px, with brightness variation/
-# jitter so they look like they're moving"), each trailing a thin same-colour dust streak.
-func _spawn_debris_motes() -> void:
-	var parent: Node = _fx_parent()
-	for i in range(14 + randi() % 8):
-		var m = FragmentScript.new()
-		m.color = _rock_color
-		m.size_px = 1.0                              # all 1px
-		m.brightness_jitter = 0.35                   # flickers so it reads as moving
-		m.lifetime = randf_range(0.6, 1.1)
-		var a2: float = randf_range(0.0, TAU)
-		m.velocity = Vector2(cos(a2), sin(a2)) * randf_range(60.0, 170.0)
-		parent.add_child(m)
-		m.global_position = global_position
 
 
 func _on_area_entered(area: Area2D) -> void:
@@ -295,7 +244,7 @@ func _on_area_entered(area: Area2D) -> void:
 
 # Dusty particle burst. Defaults match the original "bumped into a player"
 # hit; callers tune `amount`/`lifetime`/`scale_lo`/`scale_hi` for hit vs
-# death feel.
+# contact feel. (Death no longer uses this — the explosion scene owns that.)
 func _spawn_dust(at: Vector2, amount: int = 18, lifetime: float = 0.45, scale_lo: float = 0.7, scale_hi: float = 1.3) -> void:
 	var dust := CPUParticles2D.new()
 	dust.amount = amount

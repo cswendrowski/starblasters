@@ -1435,15 +1435,7 @@ func _build_labels() -> void:
 	btn_layer.layer = 6
 	add_child(btn_layer)
 
-	# Manage Ship button — bottom left at (64, 256) minus half button width
-	var manage_btn := Button.new()
-	manage_btn.text = "MANAGE SHIP"
-	manage_btn.add_theme_font_override("font", FONT)
-	manage_btn.add_theme_font_size_override("font_size", 9)
-	manage_btn.custom_minimum_size = Vector2(76, 14)
-	manage_btn.position = Vector2(26, 248)
-	manage_btn.pressed.connect(_goto_manage_ship_scene)
-	btn_layer.add_child(manage_btn)
+	# (MANAGE SHIP fallback button retired 2026-06-14 — folded into the at-will outpost.)
 
 	# Options button — bottom right at (448, 256)
 	var options_btn := Button.new()
@@ -2109,15 +2101,6 @@ func _open_options() -> void:
 	var OptionsOverlay := load("res://scripts/ui/options_overlay.gd")
 	if OptionsOverlay:
 		OptionsOverlay.open(self)
-
-
-# Manage Ship now lives in the full-screen HD scene (manage_ship.tscn) rather
-# than an in-map modal. Used by the native fallback button; the HD host wires
-# its own MANAGE SHIP button to the same scene with the right return target.
-func _goto_manage_ship_scene() -> void:
-	if has_node("/root/Run"):
-		get_node("/root/Run").set_meta("manage_ship_return", SectorMapRoute.SECTOR_MAP_SCENE)
-	SceneTransition.change_scene(get_tree(), "res://scenes/manage_ship.tscn")
 
 
 func _on_poi_clicked(node_id: String) -> void:

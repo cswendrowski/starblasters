@@ -2,13 +2,20 @@ extends Node2D
 
 # AsteroidFragment (Roman 2026-06-11) — a procgen asteroid chunk thrown from a
 # shattered hazard asteroid. New random SHAPE (fresh seed), same colour as the parent,
-# spins, disperses along its launch vector, and inherits the parent's downward drift so
-# it leaves the map at the bottom at the same speed — fading out as it recedes (a
-# stand-in for sinking into the wreck layer).
+# spins, disperses along its launch vector, and inherits the parent's downward drift.
+#
+# Wreck-layer transition (Roman 2026-06-15): the chunk no longer fades out in place as a
+# stand-in. When it reaches the exit zone it SINKS INTO the real wreck layer — reparented
+# (world transform preserved) so it takes the near-band colour grade, recedes a touch, and
+# drifts off-screen BEHIND gameplay. Mirrors wreck_drift's exit-zone seam.
 #
 #   AsteroidFragment.spawn(parent, world_pos, {...}) -> Node2D
 
 const PROCGEN_ASTEROID = "res://Planets/Asteroids/Asteroid.tscn"
+const WRECK_GROUP := "wreck_layer"
+const EXIT_ZONE_Y := 195.0      # mirrors wreck_drift.EXIT_ZONE_Y (Zones.DEPARTURE_START)
+const DESPAWN_Y := 320.0        # below the 270 playfield — free here
+const SAFETY_LIFETIME := 10.0   # backstop free if it never reaches the exit/despawn
 
 var velocity: Vector2 = Vector2.ZERO   # launch (cone) velocity
 var down_speed: float = 60.0           # parent's drift speed — fragment leaves at the same rate
@@ -16,11 +23,12 @@ var drag: float = 1.1                  # bleed the cone velocity so the down-dri
 var spin: float = 0.0                  # rad/s
 var size_px: float = 22.0
 var color: Color = Color(0.5, 0.48, 0.46)
-var lifetime: float = 1.8
+var lifetime: float = 1.8              # kept for spawn() compat; no longer drives a fade
 
 var _t: float = 0.0
 var _visual: Node = null
 var _dead: bool = false
+var _reparented: bool = false
 
 static var _self_script: GDScript = null
 
@@ -67,9 +75,8 @@ func _ready() -> void:
 	if inner != null and "material" in inner and inner.material != null:
 		inner.material.set_shader_parameter("roundness", 0.4)
 		inner.material.set_shader_parameter("draw_outline", false)   # chunks: no pixel outline
-		# Chunks FADE (translucent) — two overlapping dithered translucent rocks interleave
-		# their dither checkerboards into a moiré that reads as inverted/odd colours. The main
-		# hazard rocks are opaque so they're unaffected; smooth-shade the chunks. (Roman 2026-06-14)
+		# Chunks no longer dither (Roman 2026-06-14): two overlapping dithered translucent rocks
+		# moiré into odd colours. Smooth-shade them; the main hazard rocks stay opaque/unaffected.
 		inner.material.set_shader_parameter("should_dither", false)
 	if _visual.has_method("set_pixels"):
 		_visual.set_pixels(size_px)
@@ -84,8 +91,26 @@ func _process(delta: float) -> void:
 	position += (velocity + Vector2(0.0, down_speed)) * delta
 	if _visual is Control:
 		(_visual as Control).rotation += spin * delta
-	# Recede: fade out across the lifetime (sinking into the wreck layer).
-	modulate.a = clampf(1.0 - _t / maxf(0.01, lifetime), 0.0, 1.0)
-	if _t >= lifetime or position.y > 320.0:
+	# Sink into the wreck layer once the chunk reaches the exit zone: it recedes into the
+	# near-band grade and drifts off-screen behind gameplay (replaces the old alpha fade).
+	if not _reparented and global_position.y >= EXIT_ZONE_Y:
+		_sink_into_wreck_layer()
+	if _t >= SAFETY_LIFETIME or global_position.y > DESPAWN_Y:
 		_dead = true
 		queue_free()
+
+
+# Reparent into the wreck layer, preserving the world transform. The layer's modulate
+# applies the near-band colour grade; we also drop to the layer's depth and ease a small
+# scale-down so the recession reads as sinking into the backdrop rather than a hard pop.
+func _sink_into_wreck_layer() -> void:
+	_reparented = true
+	var layer: Node = get_tree().get_first_node_in_group(WRECK_GROUP)
+	if layer == null or not is_instance_valid(layer):
+		return   # no wreck layer (bare/dev scene) — keep drifting off-screen as-is
+	reparent(layer, true)
+	# Drop from the bright foreground z to the layer's depth (above backdrop, below ships).
+	z_as_relative = true
+	z_index = 0
+	var tw := create_tween()
+	tw.tween_property(self, "scale", scale * 0.8, 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)

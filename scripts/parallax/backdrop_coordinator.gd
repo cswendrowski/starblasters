@@ -11,6 +11,11 @@ extends Node2D
 @export var pixel_density: float = 1.0
 @export var asteroid_presence: float = 0.65
 @export_range(1.0, 2.0) var asteroid_density_scale: float = 1.0
+# Force decorative asteroids ON regardless of the node's has_asteroids flag (Roman 2026-06-15).
+# OFF by default (the flag normally gates asteroids to asteroid-field nodes). The SIGNAL EVENT
+# backdrop sets this so events get the same drifting rocks combat has. Count still follows
+# asteroid_density + the per-layer floor.
+@export var force_asteroids: bool = false
 # Nebula filament churn — TIME-driven swirl applied to any per-POI nebula the stellar config carries
 # (current_stellar.nebula_band/nebula_tint). 0 = static (legacy). Backdrop tune (Roman 2026-06-12).
 @export_range(0.0, 1.0) var nebula_swirl: float = 0.25
@@ -133,7 +138,7 @@ func _populate() -> void:
 	# asteroid + mini-asteroid counts to ZERO so nothing spawns — note we must
 	# bypass the maxi(1, ...) floor below, which previously forced >=1 asteroid
 	# per layer regardless of density. Planets / nebula / stars are unaffected.
-	var has_asteroids: bool = bool(stellar.get("has_asteroids", false))
+	var has_asteroids: bool = bool(stellar.get("has_asteroids", false)) or force_asteroids
 	var asteroid_density: float = float(stellar.get("asteroid_density", 0.0))
 	var density_mult: float = (0.5 + asteroid_density) * asteroid_density_scale
 	var ast_color: Color = Color(0.9, 0.88, 0.85, 1.0)

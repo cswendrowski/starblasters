@@ -1,17 +1,6 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://30pfvd66p2ep"]
 
-[ext_resource type="Shader" path="res://graphics/ember_spray.gdshader" id="1_n7g7w"]
-
-[sub_resource type="Gradient" id="Gradient_nc3ok"]
-colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0)
-
-[sub_resource type="GradientTexture2D" id="GradientTexture2D_lbm7x"]
-gradient = SubResource("Gradient_nc3ok")
-width = 4
-height = 4
-fill = 1
-fill_from = Vector2(0.5, 0.5)
-fill_to = Vector2(1, 0.5)
+[ext_resource type="Shader" uid="uid://g433p43x26yp" path="res://graphics/ember_spray.gdshader" id="1_n7g7w"]
 
 [sub_resource type="Gradient" id="Gradient_rgys8"]
 offsets = PackedFloat32Array(0, 0.16, 0.38, 0.62, 0.85)
@@ -38,11 +27,11 @@ shader_parameter/invert = 0.0
 shader_parameter/smoke = 0.0
 shader_parameter/color_ramp = SubResource("GradientTexture1D_sbail")
 
-[node name="ExplosionEmber" type="Node2D"]
+[node name="ExplosionEmber" type="Node2D" unique_id=1665557265]
 
-[node name="Particles" type="GPUParticles2D" parent="."]
+[node name="Particles" type="GPUParticles2D" parent="." unique_id=1053281664]
+emitting = false
 amount = 40
-texture = SubResource("GradientTexture2D_lbm7x")
 lifetime = 0.7
 one_shot = true
 explosiveness = 1.0

@@ -213,6 +213,14 @@ func _pixels_for_size(displayed_size: float) -> float:
 # CRITICAL: must be called AFTER add_child(p) — see commit 7d834da
 func _apply_pixel_parity(p: Node, displayed_size: float) -> float:
 	var px: float = _pixels_for_size(displayed_size)
+	# CRASH FIX (Roman 2026-06-15): normalize inner ColorRect anchors to offset-based (all 0) BEFORE
+	# any size is set. Several PixelPlanets scenes (Galaxy, Star, GasPlanet, Rivers, LandMasses) ship
+	# their ColorRect with anchor_right/bottom = 1.0 (NON-equal opposite anchors). set_pixels and
+	# _reset_colorrect_sizes both assign `.size` on it, which routes through the engine's
+	# anchor-override re-layout — and that intermittently SIGSEGVs when the body is spawned into the
+	# HD backdrop SubViewport (captured Galaxy crash: Galaxy.gd:5 set_pixels -> _apply_pixel_parity).
+	# Equal anchors make every subsequent size assignment a plain set, killing the warning + the crash.
+	_normalize_colorrect_anchors(p)
 	# Prefer the planet asset's own set_pixels(amount) when present —
 	# each variant knows whether sub-shaders need a multiplier (BlackHole
 	# scales the Disk by 3×; GasPlanetLayers Ring similarly). Fallback
@@ -223,6 +231,21 @@ func _apply_pixel_parity(p: Node, displayed_size: float) -> float:
 		_apply_pixels_only(p, px)
 	_reset_colorrect_sizes(p)
 	return px
+
+
+# Reset every ColorRect descendant to offset-based anchors (all four anchors 0). PixelPlanets ships
+# some inner ColorRects with anchor_right/bottom = 1.0; assigning `.size` on a non-equal-anchored
+# Control routes through the engine's size-override re-layout, the source of the backdrop SIGSEGV.
+# _reset_colorrect_sizes (called right after) re-establishes the canonical offset size.
+func _normalize_colorrect_anchors(root: Node) -> void:
+	for child in root.get_children():
+		if child is ColorRect:
+			var cr := child as ColorRect
+			cr.anchor_left = 0.0
+			cr.anchor_top = 0.0
+			cr.anchor_right = 0.0
+			cr.anchor_bottom = 0.0
+		_normalize_colorrect_anchors(child)
 
 
 # Walk ColorRect descendants and reset their `size` to the canonical

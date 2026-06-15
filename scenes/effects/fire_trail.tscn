@@ -1,0 +1,45 @@
+[gd_scene format=3 uid="uid://b4d62aryv2ivr"]
+
+[sub_resource type="Curve" id="Curve_ype1n"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_j2uh5"]
+curve = SubResource("Curve_ype1n")
+
+[sub_resource type="Gradient" id="Gradient_imgqn"]
+offsets = PackedFloat32Array(0, 0.21311475, 0.40163934, 0.6885246, 0.8114754, 1)
+colors = PackedColorArray(1, 0.8901961, 0, 1, 1, 0.3372549, 0, 1, 1, 0.16862746, 0, 1, 0.10980392, 0.039215688, 0.003921569, 1, 0.020895086, 0.0007209974, 0, 1, 1, 0.16862746, 0, 0)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_3mqyk"]
+gradient = SubResource("Gradient_imgqn")
+width = 32
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_skkv1"]
+emission_shape = 6
+emission_ring_axis = Vector3(0, 0, 1)
+emission_ring_height = 1.0
+emission_ring_radius = 1.0
+emission_ring_inner_radius = 0.0
+emission_ring_cone_angle = 90.0
+angle_min = 1.0728835e-05
+angle_max = 365.00003
+direction = Vector3(0, 0, 0)
+spread = 2.0
+initial_velocity_min = 60.0
+initial_velocity_max = 120.0
+gravity = Vector3(0, 0, 0)
+color_ramp = SubResource("GradientTexture1D_3mqyk")
+alpha_curve = SubResource("CurveTexture_j2uh5")
+turbulence_noise_strength = 0.28
+turbulence_noise_scale = 0.17
+
+[node name="FireTrail" type="Node2D" unique_id=1923110164]
+
+[node name="Small Particles" type="GPUParticles2D" parent="." unique_id=1608612071]
+amount = 60
+fixed_fps = 60
+trail_lifetime = 0.09999999999999999
+trail_sections = 4
+trail_section_subdivisions = 2
+process_material = SubResource("ParticleProcessMaterial_skkv1")

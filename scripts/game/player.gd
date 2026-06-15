@@ -456,10 +456,56 @@ func _ready() -> void:
 	# fades to half on move-back); Livery = shader-recolored decoration (random per-patrol tint);
 	# EngineL/R = engine-trail markers (#00d3ff trails, above the sprites).
 	_setup_ship_visuals()
+	_install_damage_material()
 	start()
 
 const ENGINE_GLOW_COLOR := Color(0.0, 0.827, 1.0)   # #00d3ff (engine glowmask + trails)
 const PLAYER_TRAIL_DRIFT := 160.0                    # px/s downward exhaust drift (hovering plume)
+
+# Damage-overlay shader (Roman 2026-06-15): the player now gets the SAME health-driven damage
+# overlay enemies use (enemy_base._install_damage_material) — the hull body darkens + frays as
+# hull drops. Installed on the Ship body sprite; sensitivity ramps with missing hull.
+const DamageOverlayShader = preload("res://graphics/damage_noise.gdshader")
+const _DamageNoiseTex = preload("res://resources/noise_damage.tres")
+const _DamageEdgeTex = preload("res://resources/edge_distance_flat.tres")
+var _damage_material: ShaderMaterial = null
+
+
+func _install_damage_material() -> void:
+	if not has_node("Ship"):
+		return
+	var spr: Sprite2D = $Ship
+	if spr.material != null:
+		return   # don't stomp an existing material
+	var mat := ShaderMaterial.new()
+	mat.shader = DamageOverlayShader
+	mat.set_shader_parameter("sensitivity", 0.0)
+	mat.set_shader_parameter("noise_texture", _DamageNoiseTex)
+	mat.set_shader_parameter("edge_distance_map", _DamageEdgeTex)
+	mat.set_shader_parameter("noise_seed", float(randi() % 999))
+	mat.set_shader_parameter("max_strength", 0.9)
+	mat.set_shader_parameter("edge_bias_strength", 0.3)
+	mat.set_shader_parameter("details_opacity", 0.1)
+	mat.set_shader_parameter("edge_color", Color("494e55"))
+	mat.set_shader_parameter("details_color", Color("cacaca"))
+	spr.material = mat
+	_damage_material = mat
+	if not hull_changed.is_connected(_on_hull_changed_damage):
+		hull_changed.connect(_on_hull_changed_damage)
+	_update_damage_visual()
+
+
+func _on_hull_changed_damage(_max_h, _h) -> void:
+	_update_damage_visual()
+
+
+# Ramp the overlay linearly in MISSING hull (0 at full, 0.6 at 1 hull) — mirrors the enemy formula.
+func _update_damage_visual() -> void:
+	if _damage_material == null or max_hull <= 0:
+		return
+	var denom: float = maxf(float(max_hull) - 1.0, 1.0)
+	var lvl: float = clampf(0.6 * (float(max_hull) - float(hull)) / denom, 0.0, 0.6)
+	_damage_material.set_shader_parameter("sensitivity", lvl)
 
 
 # Wire up the new ship-art layers (Roman 2026-06-09): engine glowmask tint, the two #00d3ff

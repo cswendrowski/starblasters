@@ -1,12 +1,35 @@
 [gd_scene format=3 uid="uid://bastdebris01"]
 
+[sub_resource type="Curve" id="Curve_hxgos"]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.5, 0.20224726), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_wbutr"]
+curve = SubResource("Curve_hxgos")
+
 [sub_resource type="Gradient" id="Gradient_rock"]
-offsets = PackedFloat32Array(0, 0.7, 1)
-colors = PackedColorArray(0.48, 0.46, 0.45, 0.9, 0.48, 0.46, 0.45, 0.5, 0.48, 0.46, 0.45, 0)
+offsets = PackedFloat32Array(0, 0.55, 0.85)
+colors = PackedColorArray(0.67481464, 0.67481464, 0.6748146, 0.9, 0.48, 0.46, 0.45, 0.7, 0.48, 0.46, 0.45, 0)
 
 [sub_resource type="GradientTexture1D" id="GradientTexture1D_rock"]
 gradient = SubResource("Gradient_rock")
 width = 32
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_debris"]
+emission_shape = 1
+emission_sphere_radius = 24.0
+direction = Vector3(0, -1, 0)
+spread = 0.0
+initial_velocity_min = 6.0
+initial_velocity_max = 14.0
+gravity = Vector3(0, 0, 0)
+tangential_accel_min = -2.2351742e-06
+tangential_accel_max = 0.99999774
+damping_min = 1.0
+damping_max = 1.0
+color_ramp = SubResource("GradientTexture1D_rock")
+alpha_curve = SubResource("CurveTexture_wbutr")
+turbulence_noise_scale = 1.0
 
 [sub_resource type="Gradient" id="Gradient_pix"]
 colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 1)
@@ -16,25 +39,94 @@ gradient = SubResource("Gradient_pix")
 width = 1
 height = 1
 
-[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_debris"]
+[sub_resource type="Curve" id="Curve_kv2jh"]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.5, 0.30337083), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_q7doi"]
+curve = SubResource("Curve_kv2jh")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_hxgos"]
+particle_flag_rotate_y = true
 emission_shape = 1
-emission_sphere_radius = 3.0
+emission_sphere_radius = 12.0
 direction = Vector3(0, -1, 0)
-spread = 18.0
+spread = 0.0
 initial_velocity_min = 6.0
 initial_velocity_max = 14.0
+radial_velocity_min = -2.2351742e-05
+radial_velocity_max = 3.9999776
 gravity = Vector3(0, 0, 0)
-damping_min = 2.0
-damping_max = 2.0
-scale_min = 1.0
-scale_max = 1.0
+damping_min = 1.0
+damping_max = 1.0
+scale_min = 2.0
+scale_max = 2.0
 color_ramp = SubResource("GradientTexture1D_rock")
+alpha_curve = SubResource("CurveTexture_q7doi")
+turbulence_noise_scale = 1.0
 
-[node name="AsteroidDebrisTrail" type="Node2D"]
+[sub_resource type="Gradient" id="Gradient_hxgos"]
+offsets = PackedFloat32Array(0, 0.006024096, 1)
+colors = PackedColorArray(0.17641908, 0.17641914, 0.17641884, 1, 0.8114694, 0.81146944, 0.8114694, 0.22891569, 1, 1, 1, 0)
 
-[node name="Particles" type="GPUParticles2D" parent="."]
-amount = 24
-texture = SubResource("GradientTexture2D_pix")
-lifetime = 3.2
-local_coords = false
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_wbutr"]
+gradient = SubResource("Gradient_hxgos")
+width = 24
+height = 24
+use_hdr = true
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(1, 0.5)
+metadata/_snap_enabled = true
+
+[sub_resource type="Curve" id="Curve_aiugg"]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.5, 0.2), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 3
+metadata/_snap_enabled = true
+
+[sub_resource type="CurveTexture" id="CurveTexture_kv2jh"]
+curve = SubResource("Curve_aiugg")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_q7doi"]
+particle_flag_disable_z = true
+emission_shape = 1
+emission_sphere_radius = 24.0
+direction = Vector3(0, -1, 0)
+spread = 0.0
+initial_velocity_min = 6.0
+initial_velocity_max = 14.0
+angular_velocity_min = -1.6093254e-05
+angular_velocity_max = 49.99998
+radial_velocity_min = -2.2351742e-05
+radial_velocity_max = 0.99997765
+gravity = Vector3(0, 0, 0)
+damping_min = 1.0
+damping_max = 1.0
+alpha_curve = SubResource("CurveTexture_kv2jh")
+turbulence_noise_scale = 1.0
+
+[node name="AsteroidDebrisTrail" type="Node2D" unique_id=2059299420]
+
+[node name="Small Particles" type="GPUParticles2D" parent="." unique_id=781042017]
+amount = 30
+lifetime = 4.0
+fixed_fps = 60
+trail_enabled = true
+trail_lifetime = 0.4
 process_material = SubResource("ParticleProcessMaterial_debris")
+
+[node name="Large Particles" type="GPUParticles2D" parent="." unique_id=1816935906]
+amount = 15
+texture = SubResource("GradientTexture2D_pix")
+lifetime = 2.0
+fixed_fps = 60
+trail_lifetime = 0.4
+process_material = SubResource("ParticleProcessMaterial_hxgos")
+
+[node name="Dust" type="GPUParticles2D" parent="." unique_id=87856506]
+amount = 16
+texture = SubResource("GradientTexture2D_wbutr")
+lifetime = 3.0
+fixed_fps = 60
+trail_lifetime = 0.4
+process_material = SubResource("ParticleProcessMaterial_q7doi")

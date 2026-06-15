@@ -88,6 +88,17 @@ const COL_GAP := 18
 const COL_WEAPONS_W := 920  # widened 2026-06-13 — absorbs the retired upgrades column
 const COL_UPGRADES_W := 600
 const COL_SERVICES_W := 400  # fills remainder; recomputed at build
+# 3-column salvage layout (Roman 2026-06-14): SHOP | LOADOUT | SERVICES.
+const COL_SHOP_W := 600
+const COL_LOADOUT_W := 660
+# Standardized card + button sizing (Roman 2026-06-15).
+const MANAGED_CARD_H := 104
+const CARD_BTN_SIZE := Vector2(112, 42)
+const INFO_BTN_SIZE := Vector2(42, 42)
+# Player-portrait damage overlay — same shader/maps the player + enemies use.
+const _DamageShader = preload("res://graphics/damage_noise.gdshader")
+const _DamageNoise = preload("res://resources/noise_damage.tres")
+const _DamageEdge = preload("res://resources/edge_distance_flat.tres")
 const CARD_H := 140
 const PANEL_BG := Color(0.0, 0.0, 0.0, 0.55)
 const PANEL_BORDER := Color(0.35, 0.55, 0.75, 0.85)
@@ -108,6 +119,8 @@ var _upgrade_offers: Array = []  # [{key, name, desc, next_mk, cost, sold}]
 
 # UI refs.
 var _bounty_value_lbl: Label = null
+var _materials_value_lbl: Label = null
+var _module_cap_lbl: Label = null
 var _hull_value_lbl: Label = null
 var _shield_value_lbl: Label = null
 var _mg_ammo_lbl: Label = null
@@ -117,9 +130,15 @@ var _loadout_lbl: Label = null
 var _modifiers_lbl: Label = null
 var _weapons_box: VBoxContainer = null
 var _upgrades_box: VBoxContainer = null
+var _loadout_box: VBoxContainer = null
+var _modules_box: VBoxContainer = null
 var _services_box: VBoxContainer = null
-var _storage_box: VBoxContainer = null
 var _toast_label: Label = null
+# Card UPGRADE state: when true, every card shows its Upgrade button instead of the
+# management buttons (Set Active / Unslot / Equip / Scrap / Remove). Toggled from Services.
+var _upgrade_mode: bool = false
+var _upgrade_toggle_btn: Button = null
+var _damage_portrait_mat: ShaderMaterial = null
 var _toast_tween: Tween = null
 var _hd_scope: HdViewportScope = null
 
@@ -152,6 +171,7 @@ func _ready() -> void:
 	_build_ui()
 	if has_node("/root/Run"):
 		get_node("/root/Run").bounty_changed.connect(_on_bounty_changed)
+		get_node("/root/Run").materials_changed.connect(_on_bounty_changed)
 
 
 # ---- UI scaffold ----------------------------------------------------------
@@ -202,13 +222,9 @@ func _build_status_panel(parent: CanvasLayer) -> void:
 	var title_v := VBoxContainer.new()
 	title_v.add_theme_constant_override("separation", 2)
 	var title := Label.new()
-	title.text = Strings.OUTPOST_TITLE
+	title.text = _outpost_name()
 	_style_label(title, FS_TITLE, Color(0.95, 0.92, 0.78))
 	title_v.add_child(title)
-	_loadout_lbl = Label.new()
-	_loadout_lbl.text = ""
-	_style_label(_loadout_lbl, FS_CAPTION, Color(0.62, 0.72, 0.82))
-	title_v.add_child(_loadout_lbl)
 	# Active sector modifiers (so the player sees the theme they're fighting in).
 	_modifiers_lbl = Label.new()
 	_modifiers_lbl.text = ""
@@ -216,29 +232,17 @@ func _build_status_panel(parent: CanvasLayer) -> void:
 	title_v.add_child(_modifiers_lbl)
 	h.add_child(title_v)
 
-	# Stat blocks.
-	_hull_value_lbl = _make_stat_block(h, Strings.OUTPOST_STAT_HULL)
-	_shield_value_lbl = _make_stat_block(h, Strings.OUTPOST_STAT_SHIELD)
-	_mg_ammo_lbl = _make_stat_block(h, Strings.OUTPOST_STAT_PRIMARY)
-	_sec_ammo_lbl = _make_stat_block(h, Strings.OUTPOST_STAT_SECONDARY)
-	_super_value_lbl = _make_stat_block(h, Strings.OUTPOST_STAT_SUPER)
+	# Player portrait + hull, centered in the bar (Roman 2026-06-15). Ammo / shield / super
+	# readouts moved onto their part cards; hull rides next to the ship.
+	var lsp := Control.new()
+	lsp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(lsp)
+	h.add_child(_build_player_portrait())
+	var rsp := Control.new()
+	rsp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(rsp)
 
-	# Spacer to push bounty right.
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	h.add_child(spacer)
-
-	# Task #5: "Defeat boss to restock" hint (upper-right).
-	var restock_hint := Label.new()
-	restock_hint.text = Strings.OUTPOST_RESTOCK_HINT
-	_style_label(restock_hint, FS_CAPTION, Color(0.88, 0.72, 0.55))
-	h.add_child(restock_hint)
-
-	# Small gap before bounty block.
-	var tiny_gap := Control.new()
-	tiny_gap.custom_minimum_size = Vector2(16, 0)
-	h.add_child(tiny_gap)
-
+	_materials_value_lbl = _make_stat_block(h, Strings.OUTPOST_STAT_MATERIALS, Color(0.55, 0.95, 0.75))
 	_bounty_value_lbl = _make_stat_block(h, Strings.OUTPOST_STAT_BOUNTY, Color(0.95, 0.86, 0.45))
 
 
@@ -262,21 +266,30 @@ func _build_columns(parent: CanvasLayer) -> void:
 	var top: float = STATUS_H + MARGIN * 2
 	var height: float = HD_H - top - MARGIN
 	var x: float = MARGIN
-	# Parts column — weapons + supers + shift-modes + MODULES (the upgrades column was
-	# retired 2026-06-13 when the upgrades became modules; everything you equip rolls here).
-	_weapons_box = _build_column(parent, "PARTS", PANEL_BG_WEAPON,
-			x, top, COL_WEAPONS_W, height)
+	# SHOP — buy higher-mark parts. "Defeat a boss to restock" hint sits right of the title.
+	var restock_hint := Label.new()
+	restock_hint.text = Strings.OUTPOST_RESTOCK_HINT
+	_style_label(restock_hint, FS_CAPTION, Color(0.88, 0.72, 0.55))
+	_weapons_box = _build_column(parent, Strings.OUTPOST_COL_SHOP, PANEL_BG_WEAPON,
+			x, top, COL_SHOP_W, height, restock_hint)
 	_render_weapon_offers()
-	x += COL_WEAPONS_W + COL_GAP
-	# Services column gets whatever's left.
+	x += COL_SHOP_W + COL_GAP
+	# LOADOUT — equipped weapons/mode (unslot + upgrade) + CARGO (equip + scrap).
+	_loadout_box = _build_column(parent, Strings.OUTPOST_COL_LOADOUT, PANEL_BG_UPGRADE,
+			x, top, COL_LOADOUT_W, height)
+	_build_loadout()
+	x += COL_LOADOUT_W + COL_GAP
+	# MODULES + SERVICES — bay occupancy (N / size) sits right of the MODULES title.
+	_module_cap_lbl = Label.new()
+	_style_label(_module_cap_lbl, FS_CAPTION, _slot_color(SlotTypes.SlotType.MODULE))
 	var services_w: float = HD_W - MARGIN - x
-	_services_box = _build_column(parent, Strings.OUTPOST_COL_SERVICES, PANEL_BG_SERVICE,
-			x, top, services_w, height)
+	_services_box = _build_column(parent, Strings.OUTPOST_COL_MODULES, PANEL_BG_SERVICE,
+			x, top, services_w, height, _module_cap_lbl)
 	_build_services()
 
 
 func _build_column(parent: CanvasLayer, title_text: String, bg: Color,
-		x: float, y: float, w: float, h: float) -> VBoxContainer:
+		x: float, y: float, w: float, h: float, header_extra: Control = null) -> VBoxContainer:
 	var panel := PanelContainer.new()
 	panel.position = Vector2(x, y)
 	panel.size = Vector2(w, h)
@@ -290,10 +303,20 @@ func _build_column(parent: CanvasLayer, title_text: String, bg: Color,
 	outer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	panel.add_child(outer)
 
+	# Title row: title (left) + an optional extra widget pinned to the right on the same line.
+	var header_row := HBoxContainer.new()
+	header_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var header := Label.new()
 	header.text = title_text
 	_style_label(header, FS_HEADER, Color(0.85, 0.90, 1.0))
-	outer.add_child(header)
+	header_row.add_child(header)
+	if header_extra != null:
+		var hsp := Control.new()
+		hsp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		header_row.add_child(hsp)
+		header_extra.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		header_row.add_child(header_extra)
+	outer.add_child(header_row)
 
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -337,33 +360,23 @@ func _make_weapon_card(offer: Dictionary) -> Control:
 	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	card.add_child(row)
 
-	# Slot pill (left).
-	var pill := Label.new()
-	pill.text = _slot_short_name(int(part.slot_type))
-	pill.custom_minimum_size = Vector2(96, 0)
-	pill.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	pill.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	pill.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_style_label(pill, FS_CAPTION, _slot_color(int(part.slot_type)))
-	row.add_child(pill)
-
-	# Name + description (center).
+	# Name + subtitle + description (center). No left pill — the category lives in the subtitle
+	# now (Roman 2026-06-14 card refinement).
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 4)
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	v.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	row.add_child(v)
 
-	# Task #2: item name in rarity color. Task #3: type name instead of tier badge.
 	var name_lbl := Label.new()
-	name_lbl.text = part.get_display() if part.has_method("get_display") else String(part.display_name)
-	_style_label(name_lbl, FS_BODY, tier["color"])  # Rarity color on the name itself.
+	name_lbl.text = String(part.display_name)
+	_style_label(name_lbl, FS_BODY + 2, tier["color"])  # Rarity color on the name itself.
 	v.add_child(name_lbl)
 
-	# Type label (Primary Weapon / Blaster / Secondary / Super / Mode).
+	# Subtitle: "Tier <N> <Quality> <Category>".
 	var type_lbl := Label.new()
-	type_lbl.text = _type_name_for_part(part, int(part.slot_type))
-	_style_label(type_lbl, FS_CAPTION, Color(0.72, 0.78, 0.85))  # Neutral gray.
+	type_lbl.text = _card_subtitle(part)
+	_style_label(type_lbl, FS_CAPTION + 2, tier["color"])
 	v.add_child(type_lbl)
 
 	# Task #7: Dynamic stat line computed from the part's curves.
@@ -381,6 +394,16 @@ func _make_weapon_card(offer: Dictionary) -> Control:
 	desc_lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_style_label(desc_lbl, FS_CAPTION, Color(0.72, 0.78, 0.85))
 	v.add_child(desc_lbl)
+
+	# Info "i" button — same part/mark codex as the loadout cards.
+	var info_btn := Button.new()
+	info_btn.text = Strings.OUTPOST_INFO
+	info_btn.custom_minimum_size = INFO_BTN_SIZE
+	info_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	UiTheme.style_button(info_btn)
+	info_btn.add_theme_font_size_override("font_size", FS_BODY)
+	info_btn.pressed.connect(_show_info_popup.bind(part))
+	row.add_child(info_btn)
 
 	# Buy / equipped button (right).
 	var buy_btn := Button.new()
@@ -483,47 +506,45 @@ func _build_services() -> void:
 	for c in _services_box.get_children():
 		c.queue_free()
 
+	# MODULES section — the installed passive bay gets its own section (Roman 2026-06-14).
+	# Re-rendered into _modules_box after every bay/currency change.
+	var mod_scroll := ScrollContainer.new()
+	mod_scroll.custom_minimum_size = Vector2(0, 380)
+	mod_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mod_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_services_box.add_child(mod_scroll)
+	_modules_box = VBoxContainer.new()
+	_modules_box.add_theme_constant_override("separation", 8)
+	_modules_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mod_scroll.add_child(_modules_box)
+	_render_modules()
+
+	_services_box.add_child(HSeparator.new())
+	var svc_hdr := Label.new()
+	svc_hdr.text = Strings.OUTPOST_COL_SERVICES
+	_style_label(svc_hdr, FS_HEADER, Color(0.85, 0.90, 1.0))
+	_services_box.add_child(svc_hdr)
+
 	# Hull Repair.
 	_services_box.add_child(_make_service_button(
 		Strings.SERVICE_HULL_REPAIR, HULL_REPAIR_COST, _on_repair, "repair"))
-	# Shield refill button. Always shows as FREE / Shields Full — the actual
-	# shield restore happened on _ready / will happen at combat start.
-	var shield_btn := _make_service_button(Strings.SERVICE_SHIELD_REFILL, 0, _on_shield_refill, "shield")
-	_services_box.add_child(shield_btn)
-	# Primary ammo refill (CANNON: MG / Rotary Laser). Hidden when the
-	# equipped cannon is unmetered (energy blaster, heavy blaster, etc.) —
-	# _apply_service_button_state hides via disabled+label when ammo == -1.
-	# Cost scales with rounds missing; partial refill allowed if the player
-	# can't afford the full top-up. See _on_primary_ammo_refill.
-	_services_box.add_child(_make_service_button(
-		Strings.SERVICE_PRIMARY_AMMO, 0, _on_primary_ammo_refill, "primary_ammo"))
-	# Secondary ammo refill (HARDPOINT_WING: Rocket Pod / Seeking Missile).
-	# Hidden when no metered secondary is equipped. Same cost-scaled
-	# partial-refill rules as primary.
-	_services_box.add_child(_make_service_button(
-		Strings.SERVICE_SECONDARY_AMMO, 0, _on_secondary_ammo_refill, "secondary_ammo"))
-	# Super charge (per-charge purchase).
-	_services_box.add_child(_make_service_button(
-		Strings.SERVICE_SUPER_CHARGE, SUPER_REFILL_COST, _on_super_refill, "super"))
-
-	# Sell Equipment subsection (storage list).
-	var sep := HSeparator.new()
-	_services_box.add_child(sep)
-	var sell_header := Label.new()
-	sell_header.text = Strings.OUTPOST_SELL_HEADER
-	_style_label(sell_header, FS_CAPTION, Color(0.78, 0.92, 1.0))
-	_services_box.add_child(sell_header)
-
-	var storage_scroll := ScrollContainer.new()
-	storage_scroll.custom_minimum_size = Vector2(0, 220)
-	storage_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	storage_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_services_box.add_child(storage_scroll)
-	_storage_box = VBoxContainer.new()
-	_storage_box.add_theme_constant_override("separation", 6)
-	_storage_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	storage_scroll.add_child(_storage_box)
-	_render_storage()
+	# Restock All — buys ammo/charges for every owned ammo-using part. Per-card "Restock" buttons
+	# live on the individual cards now (Roman 2026-06-15); this is the buy-everything convenience.
+	var restock_all := Button.new()
+	restock_all.text = Strings.OUTPOST_BTN_RESTOCK_ALL
+	restock_all.custom_minimum_size = Vector2(0, 48)
+	UiTheme.style_button(restock_all)
+	restock_all.add_theme_font_size_override("font_size", FS_BODY)
+	restock_all.pressed.connect(_on_restock_all)
+	_services_box.add_child(restock_all)
+	# Upgrade-mode toggle — swaps every card to its Upgrade button (and back).
+	_upgrade_toggle_btn = Button.new()
+	_upgrade_toggle_btn.text = Strings.OUTPOST_BTN_MANAGE_MODE if _upgrade_mode else Strings.OUTPOST_BTN_UPGRADE_MODE
+	_upgrade_toggle_btn.custom_minimum_size = Vector2(0, 48)
+	UiTheme.style_button(_upgrade_toggle_btn)
+	_upgrade_toggle_btn.add_theme_font_size_override("font_size", FS_BODY)
+	_upgrade_toggle_btn.pressed.connect(_on_toggle_upgrade_mode)
+	_services_box.add_child(_upgrade_toggle_btn)
 
 	# Spacer pushes bottom buttons down.
 	var spacer := Control.new()
@@ -556,64 +577,630 @@ func _make_service_button(label_text: String, cost: int, handler: Callable, kind
 	return btn
 
 
-# Render the storage list (sell-back for any stored Part).
-func _render_storage() -> void:
-	if _storage_box == null:
+# ---- Loadout column (folded-in Manage Ship) -------------------------------
+# Equipped weapons / mode (Unslot + Upgrade) + module bay (Remove + Upgrade) + CARGO
+# (owned spares: Equip + Scrap). Re-rendered after every loadout/currency action. Reuses the
+# canonical Run.equip_part / unequip_slot / add_module / remove_module / set_active_cannon /
+# upgrade_part paths so this stays the single source of loadout truth.
+
+func _build_loadout() -> void:
+	_render_loadout_column()
+
+
+func _render_loadout_column() -> void:
+	if _loadout_box == null or not has_node("/root/Run"):
 		return
-	for c in _storage_box.get_children():
+	for c in _loadout_box.get_children():
 		c.queue_free()
-	if not has_node("/root/Run"):
-		return
 	var run := get_node("/root/Run")
-	if run.weapon_storage.is_empty():
-		var lbl := Label.new()
-		lbl.text = Strings.OUTPOST_STORAGE_EMPTY
-		_style_label(lbl, FS_CAPTION, Color(0.55, 0.62, 0.70))
-		_storage_box.add_child(lbl)
-		return
+
+	# Cannons (two-slot Blaster + Primary). Blaster is permanent (no unslot).
+	var blaster = run.cannon_pool[0] if run.cannon_pool.size() > 0 else run.loadout_snapshot.get(SlotTypes.SlotType.CANNON, null)
+	var primary = run.get_primary_cannon() if run.has_method("get_primary_cannon") else null
+	var active_idx: int = int(run.active_cannon_idx)
+	_loadout_box.add_child(_make_managed_card("BLASTER", blaster, _cannon_buttons(blaster, 0, active_idx),
+			_equipped_stats_line(blaster, SlotTypes.SlotType.CANNON)))
+	if primary != null:
+		_loadout_box.add_child(_make_managed_card("PRIMARY", primary, _cannon_buttons(primary, 1, active_idx),
+				_equipped_stats_line(primary, SlotTypes.SlotType.CANNON)))
+	else:
+		_loadout_box.add_child(_make_managed_card("PRIMARY", null, []))
+
+	# Single slots — Secondary / Super / Shift Mode (Unslot + Upgrade).
+	for entry in [
+			{"slot": SlotTypes.SlotType.HARDPOINT_WING, "pill": Strings.SLOT_NAME_SECONDARY},
+			{"slot": SlotTypes.SlotType.DEVICE_BAY_1, "pill": Strings.SLOT_NAME_SUPER},
+			{"slot": SlotTypes.SlotType.SHIFT_MODE, "pill": Strings.SLOT_NAME_MODE}]:
+		var slot: int = int(entry["slot"])
+		var part = run.loadout_snapshot.get(slot, null)
+		_loadout_box.add_child(_make_managed_card(String(entry["pill"]), part, _slot_buttons(part, slot),
+				_equipped_stats_line(part, slot)))
+
+	# (Module bay moved to its own MODULES section in the right column — Roman 2026-06-14.)
+
+	# Cargo — owned spares (weapon_storage + inventory), Equip + Scrap.
+	_loadout_box.add_child(HSeparator.new())
+	var cargo_hdr := Label.new()
+	cargo_hdr.text = Strings.OUTPOST_CARGO_HEADER
+	_style_label(cargo_hdr, FS_HEADER, Color(0.85, 0.90, 1.0))
+	_loadout_box.add_child(cargo_hdr)
+	var any := false
 	for i in range(run.weapon_storage.size()):
-		_storage_box.add_child(_make_storage_row(run.weapon_storage[i], i))
+		var wp = run.weapon_storage[i]
+		_loadout_box.add_child(_make_managed_card(_slot_short_name(int(wp.slot_type)), wp, _cargo_buttons(wp, i, "weapon_storage"),
+				_stats_display_for_part(wp, int(wp.mark) if "mark" in wp else 1)))
+		any = true
+	for i in range(run.inventory.size()):
+		var ip = run.inventory[i]
+		_loadout_box.add_child(_make_managed_card(_slot_short_name(int(ip.slot_type)), ip, _cargo_buttons(ip, i, "inventory"),
+				_stats_display_for_part(ip, int(ip.mark) if "mark" in ip else 1)))
+		any = true
+	if not any:
+		var empty := Label.new()
+		empty.text = Strings.OUTPOST_CARGO_EMPTY
+		_style_label(empty, FS_CAPTION, Color(0.55, 0.62, 0.70))
+		_loadout_box.add_child(empty)
 
 
-func _make_storage_row(part, idx: int) -> Control:
+# Installed passive modules — their own section in the right column (Roman 2026-06-14).
+func _render_modules() -> void:
+	if _modules_box == null or not has_node("/root/Run"):
+		return
+	for c in _modules_box.get_children():
+		c.queue_free()
+	var run := get_node("/root/Run")
+	if _module_cap_lbl != null:
+		_module_cap_lbl.text = "%d / %d" % [run.modules.size(), run.MODULE_BAY_SIZE]
+	if run.modules.is_empty():
+		var empty := Label.new()
+		empty.text = Strings.OUTPOST_MODULES_EMPTY
+		_style_label(empty, FS_CAPTION, Color(0.55, 0.62, 0.70))
+		_modules_box.add_child(empty)
+		return
+	for i in range(run.modules.size()):
+		var m = run.modules[i]
+		var mst: String = _shield_core_stats_line(m) if (m != null and "module_id" in m and String(m.module_id) == "shield_core") else ""
+		_modules_box.add_child(_make_managed_card("MODULE", m, _module_buttons(m, i), mst))
+
+
+# Button-spec builders. Each spec is {text, cb, disabled} for a Button, or {badge} for a label.
+# In UPGRADE MODE every owned card shows ONLY its Upgrade button; otherwise the management
+# buttons (Set Active / Restock / Unslot / Equip / Scrap / Remove).
+func _cannon_buttons(part, idx: int, active_idx: int) -> Array:
+	if part == null:
+		return []
+	if _upgrade_mode:
+		return [_upgrade_button_spec(part)]
+	var btns: Array = []
+	if idx == active_idx:
+		btns.append({"badge": Strings.OUTPOST_BADGE_ACTIVE})
+	else:
+		btns.append({"text": Strings.OUTPOST_BTN_SET_ACTIVE, "cb": _on_set_active.bind(idx)})
+	# Metered primary (slot 1) can be restocked + unslotted; the permanent blaster can't.
+	if idx == 1:
+		if _is_metered(part):
+			btns.append({"text": Strings.OUTPOST_BTN_RESTOCK, "cb": _on_restock_primary})
+		btns.append({"text": Strings.OUTPOST_BTN_UNSLOT, "cb": _on_unslot_primary})
+	return btns
+
+
+func _slot_buttons(part, slot: int) -> Array:
+	if part == null:
+		return []
+	if _upgrade_mode:
+		return [_upgrade_button_spec(part)]
+	var btns: Array = []
+	if slot == SlotTypes.SlotType.HARDPOINT_WING and _secondary_is_metered():
+		btns.append({"text": Strings.OUTPOST_BTN_RESTOCK, "cb": _on_restock_secondary})
+	elif slot == SlotTypes.SlotType.DEVICE_BAY_1:
+		btns.append({"text": Strings.OUTPOST_BTN_RESTOCK, "cb": _on_restock_super})
+	btns.append({"text": Strings.OUTPOST_BTN_UNSLOT, "cb": _on_unslot.bind(slot)})  # always-on
+	return btns
+
+
+func _module_buttons(part, idx: int) -> Array:
+	if part == null:
+		return []
+	if _upgrade_mode:
+		return [_upgrade_button_spec(part)]
+	return [{"text": Strings.OUTPOST_BTN_REMOVE, "cb": _on_remove_module.bind(idx)}]
+
+
+func _cargo_buttons(part, idx: int, source: String) -> Array:
+	if _upgrade_mode:
+		return [_upgrade_button_spec(part)]
+	return [
+		{"text": Strings.OUTPOST_BTN_EQUIP, "cb": _on_equip_owned.bind(idx, source)},
+		{"text": Strings.OUTPOST_BTN_SCRAP % _scrap_value(part), "cb": _on_scrap_owned.bind(idx, source)},
+	]
+
+
+func _is_metered(part) -> bool:
+	return part != null and "ammo_max" in part and int(part.ammo_max) > 0
+
+
+func _secondary_is_metered() -> bool:
+	if not has_node("/root/Run"):
+		return false
+	return int(get_node("/root/Run").secondary_ammo_max) > 0
+
+
+# ---- Card stat lines (ammo / charges / shield) ----------------------------
+# The live ammo for an EQUIPPED ammo-bearing card. Cargo/shop cards show dmg/rof instead.
+func _equipped_stats_line(part, slot: int) -> String:
+	if not has_node("/root/Run"):
+		return ""
+	var run = get_node("/root/Run")
+	match slot:
+		SlotTypes.SlotType.CANNON:
+			if _is_metered(part):
+				return Strings.CARD_STAT_AMMO % [int(part.current_ammo), int(part.ammo_max)]
+			return Strings.CARD_STAT_UNLIMITED
+		SlotTypes.SlotType.HARDPOINT_WING:
+			if int(run.secondary_ammo) >= 0 and int(run.secondary_ammo_max) > 0:
+				return Strings.CARD_STAT_AMMO % [int(run.secondary_ammo), int(run.secondary_ammo_max)]
+		SlotTypes.SlotType.DEVICE_BAY_1:
+			if int(run.max_super_charges) > 0:
+				return Strings.CARD_STAT_CHARGES % [int(run.super_charges), int(run.max_super_charges)]
+	return ""
+
+
+# Shield Core stats: total charges (mark-driven) + base recharge delay / pips-per-second.
+func _shield_core_stats_line(part) -> String:
+	var cap: int = 10
+	if part != null and part.has_method("_capacity_bonus"):
+		cap += int(part._capacity_bonus())
+	return Strings.CARD_STAT_SHIELD % [cap, 5.0, 1.0]
+
+
+# Upgrade button: target Mk + materials + bounty cost, disabled at max Mk or when unaffordable.
+func _upgrade_button_spec(part) -> Dictionary:
+	var run = get_node_or_null("/root/Run")
+	if run == null or not run.can_upgrade_part(part):
+		return {"text": Strings.OUTPOST_BTN_UPGRADE_MAX, "disabled": true}
+	var new_mk: int = int(part.mark) + 1
+	var mats: int = new_mk
+	var bounty_cost: int = _upgrade_bounty_cost(new_mk)
+	var afford: bool = int(run.materials) >= mats and int(run.bounty) >= bounty_cost
+	return {
+		"text": Strings.OUTPOST_BTN_UPGRADE % [new_mk, mats, bounty_cost],
+		"cb": _on_upgrade_part.bind(part),
+		"disabled": not afford,
+	}
+
+
+# A loadout/cargo/module card: name (fills the row) + a "Tier <N> <Quality> <Category>"
+# subtitle + action buttons/badges (right). `slot_label` labels an EMPTY slot only. No left
+# pill — the category lives in the subtitle now (Roman 2026-06-14 card refinement).
+func _make_managed_card(slot_label: String, part, buttons: Array, stats_text: String = "") -> Control:
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(0, MANAGED_CARD_H)
+	var mk: int = int(part.mark) if (part != null and "mark" in part) else 0
+	var tier_color: Color = PartTier.tier_for_mk(mk)["color"] if mk > 0 else Color(0.35, 0.45, 0.60)
+	card.add_theme_stylebox_override("panel", _card_style_tier(tier_color))
+
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
-	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	card.add_child(row)
 
-	var label := Label.new()
-	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	label.text = part.get_display() if part.has_method("get_display") else String(part.display_name)
-	_style_label(label, FS_CAPTION, Color(0.88, 0.92, 0.96))
-	row.add_child(label)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 2)
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	row.add_child(v)
+	var name_lbl := Label.new()
+	name_lbl.text = String(part.display_name) if part != null else (slot_label + " — empty")
+	_style_label(name_lbl, FS_BODY + 2, Color(0.95, 0.95, 0.95) if part != null else Color(0.55, 0.6, 0.7))
+	v.add_child(name_lbl)
+	if part != null and mk > 0:
+		var sub_lbl := Label.new()
+		sub_lbl.text = _card_subtitle(part)
+		_style_label(sub_lbl, FS_CAPTION + 2, PartTier.tier_for_mk(mk)["color"])
+		v.add_child(sub_lbl)
+	if stats_text != "":
+		var st_lbl := Label.new()
+		st_lbl.text = stats_text
+		_style_label(st_lbl, FS_CAPTION, Color(0.62, 0.80, 0.92))
+		v.add_child(st_lbl)
 
-	var equip_btn := Button.new()
-	equip_btn.text = Strings.OUTPOST_BTN_EQUIP
-	UiTheme.style_button(equip_btn)
-	equip_btn.add_theme_font_size_override("font_size", FS_CAPTION)
-	equip_btn.pressed.connect(_on_equip_stored.bind(idx))
-	row.add_child(equip_btn)
+	# Info "i" button — opens the part's stat/mark codex (Roman 2026-06-15). Always available.
+	if part != null:
+		var info := Button.new()
+		info.text = Strings.OUTPOST_INFO
+		info.custom_minimum_size = INFO_BTN_SIZE
+		info.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		UiTheme.style_button(info)
+		info.add_theme_font_size_override("font_size", FS_BODY)
+		info.pressed.connect(_show_info_popup.bind(part))
+		row.add_child(info)
 
-	var sell_value: int = _sell_value_for(part)
-	var sell_btn := Button.new()
-	sell_btn.text = Strings.OUTPOST_BTN_SELL % sell_value
-	UiTheme.style_button(sell_btn)
-	sell_btn.add_theme_font_size_override("font_size", FS_CAPTION)
-	sell_btn.pressed.connect(_on_sell_stored.bind(idx, sell_value))
-	row.add_child(sell_btn)
-	return row
+	for spec in buttons:
+		if spec.has("badge"):
+			var badge := Label.new()
+			badge.text = String(spec["badge"])
+			badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			badge.custom_minimum_size = CARD_BTN_SIZE
+			badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			_style_label(badge, FS_CAPTION, Color(0.55, 1.0, 0.50))
+			row.add_child(badge)
+			continue
+		var btn := Button.new()
+		btn.text = String(spec["text"])
+		btn.custom_minimum_size = CARD_BTN_SIZE
+		btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		UiTheme.style_button(btn)
+		btn.add_theme_font_size_override("font_size", FS_CAPTION)
+		btn.disabled = bool(spec.get("disabled", false))
+		var cb = spec.get("cb", null)
+		if cb is Callable and (cb as Callable).is_valid():
+			btn.pressed.connect(cb)
+		row.add_child(btn)
+	return card
 
 
-# Sell price — 10% of the cannon-buy formula. Designer call (Roman 2026-05-25):
-# old 50% sell-back let players resale-arbitrage and over-buy with no risk.
-# 10% (post-2026-06-01 2x cannon-price bump) means re-rolling stock is an
-# expensive mistake, not a free do-over. signal_event._sell_price mirrors this
-# exact rate so neither venue is the better place to dump parts.
-# Floor of 5 so a Mk.1 part still gives the player something for the click.
-func _sell_value_for(part) -> int:
+# ---- Part info / mark-progression popup (the card "i" button) -------------
+func _show_info_popup(part) -> void:
+	if part == null:
+		return
+	var layer := CanvasLayer.new()
+	layer.layer = 20
+	layer.name = "InfoPopup"
+	add_child(layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0.0, 0.0, 0.0, 0.6)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.gui_input.connect(func(e):
+		if e is InputEventMouseButton and e.pressed:
+			layer.queue_free())
+	layer.add_child(dim)
+	var panel := PanelContainer.new()
+	panel.position = Vector2(HD_W * 0.5 - 380, HD_H * 0.5 - 320)
+	panel.custom_minimum_size = Vector2(760, 640)
+	panel.add_theme_stylebox_override("panel", _panel_style(Color(0.04, 0.06, 0.10, 0.98)))
+	layer.add_child(panel)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 10)
+	panel.add_child(v)
+	var title := Label.new()
+	title.text = String(part.display_name)
+	_style_label(title, FS_HEADER, Color(0.95, 0.92, 0.78))
+	v.add_child(title)
+	if "description" in part and String(part.description) != "":
+		var desc := Label.new()
+		desc.text = String(part.description)
+		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		desc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_style_label(desc, FS_CAPTION + 2, Color(0.78, 0.85, 0.92))
+		v.add_child(desc)
+	v.add_child(HSeparator.new())
+	var hdr := Label.new()
+	hdr.text = Strings.OUTPOST_INFO_PROGRESSION
+	_style_label(hdr, FS_CAPTION + 2, Color(0.62, 0.80, 0.92))
+	v.add_child(hdr)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	v.add_child(scroll)
+	var rows := VBoxContainer.new()
+	rows.add_theme_constant_override("separation", 4)
+	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(rows)
+	var maxmk: int = int(part.max_mark) if "max_mark" in part else 9
+	var cur: int = int(part.mark) if "mark" in part else 1
+	for m in range(1, maxmk + 1):
+		var line: String = _stats_display_for_part(part, m)
+		var t: Dictionary = PartTier.tier_for_mk(m)
+		var marker: String = "▶ " if m == cur else "    "
+		var r := Label.new()
+		r.text = "%sMk.%d  (Tier %s %s)%s" % [marker, m, t["tier"], t["name"], ("   ·   " + line) if line != "" else ""]
+		_style_label(r, FS_CAPTION + 2, Color(0.98, 0.98, 0.85) if m == cur else Color(0.72, 0.78, 0.85))
+		rows.add_child(r)
+	var close := Button.new()
+	close.text = Strings.OUTPOST_INFO_CLOSE
+	close.custom_minimum_size = Vector2(0, 56)
+	UiTheme.style_button(close)
+	close.add_theme_font_size_override("font_size", FS_BODY)
+	close.pressed.connect(func(): layer.queue_free())
+	v.add_child(close)
+
+
+# "Tier <N> <Quality> <Category>" — e.g. "Tier III Refined Primary Weapon" / "Tier I Basic Module".
+func _card_subtitle(part) -> String:
+	if part == null:
+		return ""
 	var mk: int = int(part.mark) if "mark" in part else 1
-	var buy_cost: int = CANNON_BASE_COST + (mk - 1) * CANNON_COST_PER_MK
-	# 0.1 (was 0.2) keeps sell-back constant after the 2x cannon-price bump (Roman 2026-06-01)
-	return max(5, int(0.1 * float(buy_cost)))
+	var t: Dictionary = PartTier.tier_for_mk(mk)
+	var slot: int = int(part.slot_type) if "slot_type" in part else -1
+	# Mk first so an in-band upgrade (e.g. Mk.1->2, both "Tier I Basic") still visibly changes.
+	return "Mk.%d · Tier %s %s %s" % [mk, t["tier"], t["name"], _type_name_for_part(part, slot)]
+
+
+# Scrap value = the item's Mk (1 Material per Mk).
+func _scrap_value(part) -> int:
+	return int(part.mark) if (part != null and "mark" in part) else 1
+
+
+# Upgrade bounty cost = 50% of the new Mk's shop value (the outpost labor fee).
+func _upgrade_bounty_cost(new_mk: int) -> int:
+	return int(floor(0.5 * float(CANNON_BASE_COST + (new_mk - 1) * CANNON_COST_PER_MK)))
+
+
+func _run_materials() -> int:
+	if not has_node("/root/Run"):
+		return 0
+	return int(get_node("/root/Run").materials)
+
+
+# The generated, per-sector-persistent outpost name (set in Run.start_new_sector). Falls back to
+# a generic title for dev launches that skip sector generation.
+func _outpost_name() -> String:
+	if has_node("/root/Run"):
+		var cache = get_node("/root/Run").sector_map_cache
+		if cache is Dictionary:
+			var nm := String(cache.get("outpost_name", ""))
+			if nm != "":
+				return nm
+	return "OUTPOST"
+
+
+# ---- Player portrait (header center) --------------------------------------
+# A static ship portrait: the real body sprite + recolored livery + the damage-overlay shader
+# (no engine glow), rendered in a small SubViewport, with the hull count beside it.
+func _build_player_portrait() -> Control:
+	var box := HBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var sub := SubViewportContainer.new()
+	sub.stretch = true
+	sub.custom_minimum_size = Vector2(80, 80)
+	sub.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	sub.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	var vp := SubViewport.new()
+	vp.size = Vector2i(40, 40)
+	vp.transparent_bg = true
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	sub.add_child(vp)
+	_add_ship_portrait_sprite(vp)
+	box.add_child(sub)
+	var hv := VBoxContainer.new()
+	hv.add_theme_constant_override("separation", 2)
+	hv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var cap := Label.new()
+	cap.text = Strings.OUTPOST_STAT_HULL
+	_style_label(cap, FS_CAPTION, Color(0.55, 0.65, 0.75))
+	hv.add_child(cap)
+	_hull_value_lbl = Label.new()
+	_hull_value_lbl.text = "—"
+	_style_label(_hull_value_lbl, FS_STATUS_VALUE, Color(0.78, 0.92, 1.0))
+	hv.add_child(_hull_value_lbl)
+	box.add_child(hv)
+	return box
+
+
+func _add_ship_portrait_sprite(vp: SubViewport) -> void:
+	var v := "a"
+	if has_node("/root/Run"):
+		v = ["a", "b", "c"][clampi(int(get_node("/root/Run").ship_variant), 0, 2)]
+	var body_tex = load("res://graphics/player/player_ship_%s_body.png" % v)
+	if body_tex == null:
+		return
+	var body := Sprite2D.new()
+	body.texture = body_tex
+	body.hframes = 3
+	body.frame = 1
+	body.position = Vector2(20, 20)
+	body.scale = Vector2(1.6, 1.6)
+	_damage_portrait_mat = _make_portrait_damage_mat()
+	if _damage_portrait_mat != null:
+		body.material = _damage_portrait_mat
+	var livery_tex = load("res://graphics/player/player_ship_%s_livery.png" % v)
+	if livery_tex != null:
+		var lv := Sprite2D.new()
+		lv.texture = livery_tex
+		lv.hframes = 3
+		lv.frame = 1
+		var lmat := ShaderMaterial.new()
+		lmat.shader = load("res://scenes/player/livery_color.gdshader")
+		lmat.set_shader_parameter("tint_color", _portrait_livery_color())
+		lv.material = lmat
+		body.add_child(lv)
+	vp.add_child(body)
+	_update_portrait_damage()
+
+
+func _make_portrait_damage_mat() -> ShaderMaterial:
+	var mat := ShaderMaterial.new()
+	mat.shader = _DamageShader
+	mat.set_shader_parameter("sensitivity", 0.0)
+	mat.set_shader_parameter("noise_texture", _DamageNoise)
+	mat.set_shader_parameter("edge_distance_map", _DamageEdge)
+	mat.set_shader_parameter("noise_seed", float(randi() % 999))
+	mat.set_shader_parameter("max_strength", 0.9)
+	mat.set_shader_parameter("edge_bias_strength", 0.3)
+	mat.set_shader_parameter("details_opacity", 0.1)
+	mat.set_shader_parameter("edge_color", Color("494e55"))
+	mat.set_shader_parameter("details_color", Color("cacaca"))
+	return mat
+
+
+func _update_portrait_damage() -> void:
+	if _damage_portrait_mat == null or not has_node("/root/Run"):
+		return
+	var run = get_node("/root/Run")
+	var mh: int = int(run.max_hull)
+	if mh <= 0:
+		return
+	var denom: float = maxf(float(mh) - 1.0, 1.0)
+	var lvl: float = clampf(0.6 * (float(mh) - float(run.current_hull)) / denom, 0.0, 0.6)
+	_damage_portrait_mat.set_shader_parameter("sensitivity", lvl)
+
+
+func _portrait_livery_color() -> Color:
+	if has_node("/root/Run"):
+		var run = get_node("/root/Run")
+		if bool(run.livery_chosen):
+			return run.livery_color
+	return Color(0.85, 0.25, 0.25)
+
+
+# ---- Loadout action handlers ----------------------------------------------
+
+func _on_set_active(idx: int) -> void:
+	var run = get_node_or_null("/root/Run")
+	if run == null:
+		return
+	run.set_active_cannon(idx)
+	OutpostSfx.play("equip")
+	_render_loadout_column()
+	_refresh_status_panel()
+
+
+func _on_unslot(slot: int) -> void:
+	var run = get_node_or_null("/root/Run")
+	if run == null:
+		return
+	var part = run.loadout_snapshot.get(slot, null)
+	if part == null:
+		return
+	run.weapon_storage.append(part)
+	run.unequip_slot(slot)   # erases slot + zeros secondary ammo / super charges
+	OutpostSfx.play("unequip")
+	_show_toast(Strings.TOAST_UNSLOTTED)
+	_render_loadout_column()
+	_refresh_status_panel()
+
+
+func _on_remove_module(idx: int) -> void:
+	var run = get_node_or_null("/root/Run")
+	if run == null:
+		return
+	var m = run.remove_module(idx)
+	if m != null:
+		run.inventory.append(m)
+	OutpostSfx.play("unequip")
+	_show_toast(Strings.TOAST_UNSLOTTED)
+	_render_loadout_column()
+	_refresh_status_panel()
+
+
+func _on_equip_owned(idx: int, source: String) -> void:
+	var run = get_node_or_null("/root/Run")
+	if run == null:
+		return
+	var arr: Array = _cargo_array(run, source)
+	if idx < 0 or idx >= arr.size():
+		return
+	var picked = arr[idx]
+	# Module → bay list (only if room; else leave it in cargo so nothing is lost).
+	if "slot_type" in picked and int(picked.slot_type) == int(SlotTypes.SlotType.MODULE):
+		if run.add_module(picked):
+			arr.remove_at(idx)
+		OutpostSfx.play("equip")
+		_render_loadout_column()
+		_refresh_status_panel()
+		return
+	arr.remove_at(idx)
+	run.equip_part(picked)   # displaces same-slot part → weapon_storage
+	OutpostSfx.play("equip")
+	_show_toast(Strings.TOAST_EQUIPPED)
+	_render_loadout_column()
+	_refresh_status_panel()
+
+
+func _on_scrap_owned(idx: int, source: String) -> void:
+	var run = get_node_or_null("/root/Run")
+	if run == null:
+		return
+	var arr: Array = _cargo_array(run, source)
+	if idx < 0 or idx >= arr.size():
+		return
+	var value: int = _scrap_value(arr[idx])
+	arr.remove_at(idx)
+	run.add_materials(value)
+	OutpostSfx.play("unequip")
+	_show_toast(Strings.TOAST_SCRAPPED % value)
+	_render_loadout_column()
+	_refresh_status_panel()
+
+
+func _on_upgrade_part(part) -> void:
+	var run = get_node_or_null("/root/Run")
+	if run == null or not run.can_upgrade_part(part):
+		return
+	var new_mk: int = int(part.mark) + 1
+	var mats: int = new_mk
+	var bounty_cost: int = _upgrade_bounty_cost(new_mk)
+	if int(run.materials) < mats or int(run.bounty) < bounty_cost:
+		return
+	run.spend_materials(mats)
+	run.spend_bounty(bounty_cost)
+	run.upgrade_part(part)
+	OutpostSfx.play("upgrade")
+	_show_toast(Strings.TOAST_UPGRADED % int(part.mark))
+	_render_loadout_column()
+	_refresh_status_panel()
+
+
+func _cargo_array(run, source: String) -> Array:
+	match source:
+		"weapon_storage": return run.weapon_storage
+		"inventory": return run.inventory
+	return []
+
+
+# Unslot the metered primary cannon → cargo, reverting to the permanent blaster.
+func _on_unslot_primary() -> void:
+	var run = get_node_or_null("/root/Run")
+	if run == null:
+		return
+	var prim = run.get_primary_cannon()
+	if prim == null:
+		return
+	run.weapon_storage.append(prim)
+	if run.cannon_pool.size() > 1:
+		run.cannon_pool.remove_at(1)
+	run.active_cannon_idx = 0
+	run.loadout_snapshot[SlotTypes.SlotType.CANNON] = run.get_active_cannon()
+	run.ammo = -1   # back to the infinite blaster
+	OutpostSfx.play("unequip")
+	_show_toast(Strings.TOAST_UNSLOTTED)
+	_render_loadout_column()
+	_refresh_status_panel()
+
+
+# Per-card restock wrappers — reuse the service-refill logic (its btn arg is unused).
+func _on_restock_primary() -> void:
+	_on_primary_ammo_refill(null)
+
+func _on_restock_secondary() -> void:
+	_on_secondary_ammo_refill(null)
+
+func _on_restock_super() -> void:
+	_on_super_refill(null)
+
+
+# Restock All — top up the primary + secondary, then buy as many super charges as affordable.
+func _on_restock_all() -> void:
+	_on_primary_ammo_refill(null)
+	_on_secondary_ammo_refill(null)
+	var run = get_node_or_null("/root/Run")
+	if run != null:
+		var guard := 0
+		while int(run.super_charges) < int(run.max_super_charges) and int(run.bounty) >= SUPER_REFILL_COST and guard < 30:
+			_on_super_refill(null)
+			guard += 1
+	_refresh_status_panel()
+
+
+# Toggle the card UPGRADE state (Services button) — cards swap to their Upgrade buttons.
+func _on_toggle_upgrade_mode() -> void:
+	_upgrade_mode = not _upgrade_mode
+	if _upgrade_toggle_btn != null:
+		_upgrade_toggle_btn.text = Strings.OUTPOST_BTN_MANAGE_MODE if _upgrade_mode else Strings.OUTPOST_BTN_UPGRADE_MODE
+	_render_loadout_column()
+	_render_modules()
 
 
 # ---- Offer rolls ----------------------------------------------------------
@@ -810,11 +1397,12 @@ func _on_buy_weapon(offer: Dictionary, btn: Button) -> void:
 		return
 	run.spend_bounty(cost)
 	_apply_part_to_player(offer["part"])
-	offer["sold"] = true
-	btn.text = Strings.OUTPOST_BTN_EQUIPPED
-	btn.disabled = true
+	# Purchased → remove the offer from the SHOP bucket entirely (Roman 2026-06-15), not gray it
+	# out. _weapon_offers is shared by reference with Run.outpost_weapon_offers, so this persists.
+	_weapon_offers.erase(offer)
 	OutpostSfx.play("equip")
-	_render_storage()
+	_render_weapon_offers()
+	_render_loadout_column()
 	_refresh_status_panel()
 	_show_toast(Strings.TOAST_EQUIPPED)
 
@@ -828,51 +1416,34 @@ func _on_buy_weapon(offer: Dictionary, btn: Button) -> void:
 #     reads it back via Run on equip).
 # No live Player exists in a meta scene, so player-side apply runs at
 # next combat via player._ready() → loadout.equip().
+# Buy-equip path (Roman 2026-06-15): only auto-equip into an EMPTY target slot. If the slot is
+# already occupied (or the module bay is full), the bought part goes to cargo (stocks) so the
+# player decides when to swap it in — no silent displacement on purchase.
 func _apply_part_to_player(part) -> void:
-	# Delegates to Run.equip_part so the sector map's Manage Ship modal and the
-	# outpost share one canonical equip path. See Run.equip_part for the
-	# slot-displacement + ammo / super-charges reseed contract.
 	if part == null or not has_node("/root/Run"):
 		return
 	var run = get_node("/root/Run")
-	# Module bay parts go into the LIST (Run.modules), not the pegboard. If the bay is
-	# full, the buy drops into cargo (inventory) so it isn't lost — swap it in via Manage Ship.
-	if "slot_type" in part and int(part.slot_type) == SlotTypes.SlotType.MODULE:
-		if not run.add_module(part):
+	var slot: int = int(part.slot_type) if "slot_type" in part else -1
+	if slot == SlotTypes.SlotType.MODULE:
+		if not run.add_module(part):     # bay full → stocks
 			run.inventory.append(part)
 		return
-	run.equip_part(part)
+	if _buy_slot_occupied(run, part, slot):
+		run.inventory.append(part)       # occupied → stocks; player manages the swap
+	else:
+		run.equip_part(part)             # empty slot → equip directly
 
 
-func _on_equip_stored(idx: int) -> void:
-	if not has_node("/root/Run"):
-		return
-	var run := get_node("/root/Run")
-	if idx < 0 or idx >= run.weapon_storage.size():
-		return
-	var picked = run.weapon_storage[idx]
-	run.weapon_storage.remove_at(idx)
-	# Equip the picked part. _apply_part_to_player handles displacing the
-	# currently-equipped same-slot part back into storage — do NOT push
-	# it manually here (would double-append).
-	_apply_part_to_player(picked)
-	OutpostSfx.play("equip")
-	_render_storage()
-	_refresh_status_panel()
-	_show_toast(Strings.TOAST_EQUIPPED)
-
-
-func _on_sell_stored(idx: int, sell_value: int) -> void:
-	if not has_node("/root/Run"):
-		return
-	var run := get_node("/root/Run")
-	if idx < 0 or idx >= run.weapon_storage.size():
-		return
-	run.weapon_storage.remove_at(idx)
-	run.bounty += sell_value
-	OutpostSfx.play("unequip")
-	_render_storage()
-	_refresh_status_panel()
+# Is the target slot for a freshly-bought part already filled? CANNON uses the two-slot model:
+# an infinite cannon targets the permanent blaster slot (always filled); a metered one targets
+# the optional primary slot.
+func _buy_slot_occupied(run, part, slot: int) -> bool:
+	if slot == SlotTypes.SlotType.CANNON:
+		var infinite: bool = part.has_method("ammo_at_mark") and int(part.ammo_at_mark(int(part.mark))) < 0
+		if infinite:
+			return run.cannon_pool.size() > 0
+		return run.get_primary_cannon() != null
+	return run.loadout_snapshot.get(slot, null) != null
 
 
 func _hull_repair_cost() -> int:
@@ -1105,6 +1676,8 @@ func _refresh_status_panel() -> void:
 			_super_value_lbl.text = "—"
 	if _bounty_value_lbl:
 		_bounty_value_lbl.text = "%d" % int(run.bounty)
+	if _materials_value_lbl:
+		_materials_value_lbl.text = "%d" % int(run.materials)
 	if _loadout_lbl:
 		_loadout_lbl.text = _format_loadout_line(run)
 	if _modifiers_lbl:
@@ -1112,6 +1685,9 @@ func _refresh_status_panel() -> void:
 
 	_refresh_services()
 	_refresh_card_affordability()
+	_render_loadout_column()
+	_render_modules()
+	_update_portrait_damage()
 
 
 func _on_bounty_changed(_value) -> void:

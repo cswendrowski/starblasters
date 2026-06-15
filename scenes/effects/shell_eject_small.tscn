@@ -3,8 +3,8 @@
 [ext_resource type="Texture2D" uid="uid://d07fxm23pq2aj" path="res://graphics/2x1-shell.png" id="2_fvl3v"]
 
 [sub_resource type="Curve" id="Curve_yn8ew"]
-_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(0.751678, 0.505494), -1.32249, -1.32249, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
-point_count = 3
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 2
 
 [sub_resource type="CurveTexture" id="CurveTexture_hjgra"]
 curve = SubResource("Curve_yn8ew")

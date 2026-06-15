@@ -76,6 +76,10 @@ func _install_backdrop() -> void:
 	bd.name = "Backdrop"
 	bd.set("drift_speed", 4.4)        # ~20% of the 22.0 default = 80% slower
 	bd.set("warp_streak_count", 0)    # no light-streak (warp) layer
+	# Signal nodes aren't asteroid-field hazards, so current_stellar.has_asteroids is false and the
+	# coordinator would spawn ZERO drifting rocks. Force them on so the event backdrop gets asteroids
+	# (Roman 2026-06-15). Set before mount — the coordinator reads it in _ready/_populate.
+	bd.set("force_asteroids", true)
 	HdScreen.add_upscaled_backdrop(self, bd)
 
 
@@ -140,16 +144,12 @@ func _events() -> Array:
 			"body": Strings.EVENT_JUNK_TRADER_BODY,
 			"choices": [
 				{
-					"label": Strings.CHOICE_JUNK_SELL,
-					"action": func(s): s._do_junk_sell(),
+					"label": Strings.CHOICE_JUNK_BUY_MATS,
+					"action": func(s): s._do_junk_buy_materials(),
 				},
 				{
-					"label": Strings.CHOICE_JUNK_TRADE,
-					"action": func(s): s._do_junk_trade(),
-				},
-				{
-					"label": Strings.CHOICE_JUNK_REPAIR,
-					"action": func(s): s._do_junk_repair(),
+					"label": Strings.CHOICE_JUNK_SELL_MATS,
+					"action": func(s): s._do_junk_sell_materials(),
 				},
 				{
 					"label": Strings.CHOICE_JUNK_AMMO,
@@ -597,55 +597,39 @@ func _do_nano_cloud() -> void:
 		_finish_to_sector_map(Strings.OUTCOME_NANO_REPAIR % rep2, ETone.GOOD)
 
 
-# Junk Trader: sell an uninstalled inventory part.
-func _do_junk_sell() -> void:
-	if not _has_inventory():
-		_finish_to_sector_map(Strings.OUTCOME_JUNK_NO_CARGO_SELL)
-		return
-	var inv: Array = _inventory()
-	# Pick the first inventory item. Future: present a list to choose.
-	var part = inv.pop_front()
-	var price: int = _sell_price(part)
-	_apply_bounty(price)
-	_finish_to_sector_map(Strings.OUTCOME_JUNK_SOLD % [_part_label(part), price])
+# Junk Trader (Roman 2026-06-14): a traveling Materials merchant. Buys/sells the upgrade
+# currency for bounty + slings cheap ammo. No item scrapping — that's the outpost's job.
+const _JUNK_MATS_BUNDLE := 5
+const _JUNK_MATS_BUY_COST := 200    # 40 bounty / material
+const _JUNK_MATS_SELL_PAY := 75     # 15 bounty / material — modest (< buy), so no arbitrage loop
 
 
-# Junk Trader: trade an inventory part for another same-slot part with a
-# weighted mark-delta roll.
-#   10% -1 mark, 40% same, 30% +1, 20% +2
-func _do_junk_trade() -> void:
-	if not _has_inventory():
-		_finish_to_sector_map(Strings.OUTCOME_JUNK_NO_CARGO_TRADE)
+# Buy a bundle of upgrade materials for bounty (no scrapping needed).
+func _do_junk_buy_materials() -> void:
+	if not has_node("/root/Run"):
+		_finish_to_sector_map(Strings.OUTCOME_JUNK_NO_RUN)
 		return
-	var inv: Array = _inventory()
-	var part = inv.pop_front()
-	var slot: int = part.slot_type
-	var roll: float = _rng.randf()
-	var delta: int = 0
-	if roll < 0.10: delta = -1
-	elif roll < 0.50: delta = 0
-	elif roll < 0.80: delta = 1
-	else: delta = 2
-	var new_mark: int = clampi(int(part.mark) + delta, 1, 9)
-	var new_part = PartCatalog.roll_for_slot(_rng, slot, new_mark)
-	if new_part == null:
-		# No alternative for this slot — give the original back, refund a token.
-		inv.append(part)
-		_finish_to_sector_map(Strings.OUTCOME_JUNK_NO_SLOT)
+	var run := get_node("/root/Run")
+	if int(run.bounty) < _JUNK_MATS_BUY_COST:
+		_finish_to_sector_map(Strings.OUTCOME_JUNK_BUY_BROKE % _JUNK_MATS_BUY_COST)
 		return
-	inv.append(new_part)
-	var sign_s: String = ("+%d" % delta) if delta >= 0 else str(delta)
-	_finish_to_sector_map(Strings.OUTCOME_JUNK_TRADED % [_part_label(part), _part_label(new_part), sign_s])
+	run.spend_bounty(_JUNK_MATS_BUY_COST)
+	run.add_materials(_JUNK_MATS_BUNDLE)
+	_finish_to_sector_map(Strings.OUTCOME_JUNK_BOUGHT_MATS % [_JUNK_MATS_BUY_COST, _JUNK_MATS_BUNDLE], ETone.GOOD)
 
 
-# Junk Trader: repair 3 hull for 30 bounty.
-func _do_junk_repair() -> void:
-	if _bounty() < 30:
-		_finish_to_sector_map(Strings.OUTCOME_JUNK_REPAIR_BROKE)
+# Sell a bundle of materials back for a modest bounty sum.
+func _do_junk_sell_materials() -> void:
+	if not has_node("/root/Run"):
+		_finish_to_sector_map(Strings.OUTCOME_JUNK_NO_RUN)
 		return
-	_apply_bounty(-30)
-	_apply_hull_delta(3)
-	_finish_to_sector_map(Strings.OUTCOME_JUNK_REPAIRED, ETone.GOOD)
+	var run := get_node("/root/Run")
+	if int(run.materials) < _JUNK_MATS_BUNDLE:
+		_finish_to_sector_map(Strings.OUTCOME_JUNK_NO_MATS % _JUNK_MATS_BUNDLE)
+		return
+	run.spend_materials(_JUNK_MATS_BUNDLE)
+	run.bounty += _JUNK_MATS_SELL_PAY
+	_finish_to_sector_map(Strings.OUTCOME_JUNK_SOLD_MATS % [_JUNK_MATS_BUNDLE, _JUNK_MATS_SELL_PAY], ETone.GOOD)
 
 
 # Junk Trader: cheap ammo top-up. Adds 500 rounds for 15 bounty. Only
@@ -725,7 +709,9 @@ func _do_wreck_scavenge_ammo() -> void:
 		# Shouldn't happen — option would have been hidden.
 		_finish_to_sector_map(Strings.OUTCOME_WRECK_AMMO_FULL)
 		return
-	_finish_to_sector_map(Strings.OUTCOME_WRECK_AMMO + ", ".join(parts))
+	# Wrecks always have scrap to strip — a small materials bonus on top of the ammo.
+	var scrap: int = _rng.randi_range(2, 4)
+	_resolve(_make_outcome(Strings.OUTCOME_WRECK_AMMO + ", ".join(parts), ETone.GOOD, null, ENext.SECTOR_MAP, "", scrap))
 
 
 # Salvage Cache — three sub-outcomes, weighted. The ammo refill re-rolls
@@ -736,11 +722,14 @@ func _do_wreck_scavenge_ammo() -> void:
 # 40% module salvage, 35% weapon offer, 25% ammo refill.
 func _do_salvage_cache(reroll_depth: int = 0) -> void:
 	var roll: float = _rng.randf()
-	if roll < 0.40:
+	if roll < 0.35:
 		_salvage_outcome_upgrade()
 		return
-	if roll < 0.75:
+	if roll < 0.65:
 		_salvage_outcome_weapon()
+		return
+	if roll < 0.80:
+		_salvage_outcome_materials()
 		return
 	# Ammo outcome — collapses to a fresh roll if no metered weapons.
 	if not _has_metered_weapons():
@@ -752,6 +741,12 @@ func _do_salvage_cache(reroll_depth: int = 0) -> void:
 		_do_salvage_cache(reroll_depth + 1)
 		return
 	_salvage_outcome_ammo()
+
+
+# Raw salvage — a cache of upgrade materials. No equipment dependency, so it's always valid.
+func _salvage_outcome_materials() -> void:
+	var mats: int = _rng.randi_range(4, 8)
+	_finish_with_materials(Strings.OUTCOME_SALVAGE_MATERIALS % mats, mats)
 
 
 func _salvage_outcome_upgrade() -> void:
@@ -1001,8 +996,8 @@ func _on_choice(choice: Dictionary) -> void:
 # Build an Outcome value object. `text` = the always-present "what happened" line;
 # `grant` = a Part stowed into cargo + shown as a named acquired-item card; `next`
 # = where the continue button goes; `tone` color-codes the result.
-func _make_outcome(text: String, tone: int = ETone.NEUTRAL, grant = null, next: int = ENext.SECTOR_MAP, btn: String = "") -> Dictionary:
-	return {"text": text, "tone": tone, "grant": grant, "next": next, "btn": btn}
+func _make_outcome(text: String, tone: int = ETone.NEUTRAL, grant = null, next: int = ENext.SECTOR_MAP, btn: String = "", materials: int = 0) -> Dictionary:
+	return {"text": text, "tone": tone, "grant": grant, "next": next, "btn": btn, "materials": materials}
 
 
 # The single resolver — renders the RESOLVE state. Every choice ends here, so
@@ -1013,6 +1008,9 @@ func _resolve(outcome: Dictionary) -> void:
 	var grant = outcome.get("grant", null)
 	if grant != null and has_node("/root/Run"):
 		get_node("/root/Run").inventory.append(grant)
+	var mats_grant: int = int(outcome.get("materials", 0))
+	if mats_grant > 0 and has_node("/root/Run"):
+		get_node("/root/Run").add_materials(mats_grant)
 	# Result text (always shown) + tone color.
 	var text: String = String(outcome.get("text", ""))
 	if text != "":
@@ -1023,6 +1021,8 @@ func _resolve(outcome: Dictionary) -> void:
 		c.queue_free()
 	if grant != null:
 		choices_box.add_child(_make_item_card(grant))
+	if mats_grant > 0:
+		choices_box.add_child(_make_materials_card(mats_grant))
 	var nxt: int = int(outcome.get("next", ENext.SECTOR_MAP))
 	var btn := Button.new()
 	UiTheme.style_button(btn)
@@ -1079,11 +1079,35 @@ func _make_item_card(part) -> Control:
 	return card
 
 
+# A "salvaged materials" card — the new-currency analog of _make_item_card.
+func _make_materials_card(n: int) -> Control:
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel", UiTheme.make_panel_stylebox())
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 2)
+	card.add_child(vb)
+	var name_lbl := Label.new()
+	name_lbl.text = Strings.CARD_MATERIALS % n
+	UiTheme.style_label(name_lbl, UiTheme.LabelKind.HEADER)
+	vb.add_child(name_lbl)
+	var sub := Label.new()
+	sub.text = Strings.CARD_MATERIALS_HINT
+	UiTheme.style_label(sub, UiTheme.LabelKind.CAPTION)
+	vb.add_child(sub)
+	return card
+
+
 # ---- Resolution wrappers (existing handlers call these) -----------------
 
 # Resolve to the sector map with outcome text (+ optional tone + granted part).
 func _finish_to_sector_map(result_text: String, tone: int = ETone.NEUTRAL, grant = null) -> void:
 	_resolve(_make_outcome(result_text, tone, grant, ENext.SECTOR_MAP))
+
+
+# Resolve to the sector map granting Materials (the new currency). The resolver shows a
+# "+N materials" card, mirroring the part-grant wrapper.
+func _finish_with_materials(result_text: String, mats: int, tone: int = ETone.GOOD) -> void:
+	_resolve(_make_outcome(result_text, tone, null, ENext.SECTOR_MAP, "", mats))
 
 
 # Resolve to a combat/hazard launch — flavor + an Engage/Enter button. Run-side

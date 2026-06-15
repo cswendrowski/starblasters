@@ -71,7 +71,7 @@ const EVENT_NANO_CLOUD_TITLE := "Drifting Nano Cloud"
 const EVENT_NANO_CLOUD_BODY := "Sensors indicate micro-energy signatures. You squint, and can see a glittering cloud moving like a swarm of bugs. A nano cloud?"
 
 const EVENT_JUNK_TRADER_TITLE := "Junk Trader"
-const EVENT_JUNK_TRADER_BODY := "An old cargo hauler drifts through space, a makeshift drydock bay built into its side. A hacked transponder signal bleats out garbled promises of top quality repairs and exciting deals."
+const EVENT_JUNK_TRADER_BODY := "A battered trade barge idles alongside, cargo nets bulging with stripped salvage. The merchant deals in upgrade materials — buying, selling, and slinging cut-rate ammo to anyone with bounty to spend."
 
 const EVENT_MINER_TITLE := "Freespace Miner"
 const EVENT_MINER_BODY := "Your comms light up as a wandering mining ship calls for your attention: they've found high-value minerals, but the asteroids are too tough for their mining lasers. Proper fighter weapons would crack them."
@@ -110,6 +110,9 @@ const CHOICE_JUNK_TRADE := "Trade a part (random outcome)"
 const CHOICE_JUNK_REPAIR := "Repair hull (-30 bounty, +3 hull)"
 const CHOICE_JUNK_AMMO := "Buy ammo (-15 bounty, +500 rounds)"
 const CHOICE_JUNK_LEAVE := "Leave"
+# Materials-merchant choices (Roman 2026-06-14).
+const CHOICE_JUNK_BUY_MATS := "Buy materials (5 for 200 bounty)"
+const CHOICE_JUNK_SELL_MATS := "Sell materials (5 for 75 bounty)"
 
 const CHOICE_MINER_AGREE := "Agree (asteroid run, +bounty per rock)"
 const CHOICE_MINER_REFUSE := "Refuse"
@@ -159,6 +162,10 @@ const OUTCOME_JUNK_NO_SLOT := "Trader has nothing for that slot."
 const OUTCOME_JUNK_REPAIR_BROKE := "Not enough bounty (need 30)."
 const OUTCOME_JUNK_REPAIRED := "Patched up. -30 bounty, +3 hull"
 const OUTCOME_JUNK_NO_RUN := "Comms dropped."
+const OUTCOME_JUNK_BOUGHT_MATS := "Crates of salvage swapped over: -%d bounty, +%d materials."
+const OUTCOME_JUNK_BUY_BROKE := "Not enough bounty (need %d)."
+const OUTCOME_JUNK_SOLD_MATS := "Offloaded %d materials for a modest +%d bounty."
+const OUTCOME_JUNK_NO_MATS := "You need at least %d materials to deal."
 const OUTCOME_JUNK_NO_AMMO_WEAPON := "No ammo-fed weapon to refill."
 const OUTCOME_JUNK_AMMO_BROKE := "Not enough bounty (need %d)."
 const OUTCOME_JUNK_AMMO_LOADED := "Crates loaded. -%d bounty, +%d rounds"
@@ -234,6 +241,7 @@ const HAZARD_FLAVOR_MINER := "You throw in with the mining crew. Time to earn yo
 const OUTCOME_SALVAGE_STOWED := "Salvaged %s — stowed in your cargo hold. Equip it at your ship."
 # Phase B: the acquired-item card names the part, so the result line stays generic.
 const OUTCOME_SALVAGE_STOWED_GENERIC := "You pry a working weapon free and stow it in your cargo hold."
+const OUTCOME_SALVAGE_MATERIALS := "The cache is packed with raw salvage — you strip %d units of upgrade materials."
 
 # Stance Module Cache (signal event) — the find-a-Shift-mode-module beat.
 const EVENT_STANCE_TITLE := "Drifting Module Pod"
@@ -247,6 +255,8 @@ const OUTCOME_STANCE_NO_RUN := "The pod's cradle is empty."
 # Acquired-item card (Phase B resolver — shown whenever an event grants a part).
 const CARD_ACQUIRED := "Acquired: %s"
 const CARD_STOWED_HINT := "Stowed in cargo — equip it at your ship."
+const CARD_MATERIALS := "Salvaged: +%d materials"
+const CARD_MATERIALS_HINT := "Spend on Mk upgrades at the outpost."
 
 
 # ===========================================================================
@@ -352,6 +362,40 @@ const OUTPOST_BTN_SELL := "Sell +%d"
 const OUTPOST_BTN_LEAVE := "Leave"
 const OUTPOST_BTN_REFRESH := "Refresh Stock (%d)"
 const OUTPOST_BTN_REFRESH_MAX := "Refresh Stock (%d, max)"
+
+# ---- Salvaging & Materials (Roman 2026-06-14) ----
+const OUTPOST_STAT_MATERIALS := "MATERIALS"
+const OUTPOST_COL_SHOP := "SHOP"
+const OUTPOST_COL_LOADOUT := "LOADOUT"
+const OUTPOST_COL_MODULES := "MODULES"
+const OUTPOST_MODULES_EMPTY := "No modules installed."
+const OUTPOST_CARGO_HEADER := "CARGO"
+const OUTPOST_MODULE_BAY := "MODULE BAY  (%d / %d)"
+const OUTPOST_LOADOUT_EMPTY := "Nothing equipped."
+const OUTPOST_CARGO_EMPTY := "No carried equipment."
+const OUTPOST_BTN_SCRAP := "Scrap +%d"
+const OUTPOST_BTN_UNSLOT := "Unslot"
+const OUTPOST_BTN_REMOVE := "Remove"
+const OUTPOST_BTN_SET_ACTIVE := "Set Active"
+const OUTPOST_BADGE_ACTIVE := "ACTIVE"
+# Upgrade button: target Mk, materials cost, bounty cost — e.g. "Mk.2  2 mat·93".
+const OUTPOST_BTN_UPGRADE := "Mk.%d  %d mat·%d"
+const OUTPOST_BTN_UPGRADE_MAX := "Mk.MAX"
+const TOAST_SCRAPPED := "Scrapped  +%d materials"
+const TOAST_UPGRADED := "Upgraded to Mk.%d"
+const TOAST_UNSLOTTED := "Moved to cargo"
+# Card actions + states (Roman 2026-06-15 outpost pass).
+const OUTPOST_INFO := "i"
+const OUTPOST_BTN_RESTOCK := "Restock"
+const OUTPOST_BTN_RESTOCK_ALL := "Restock All"
+const OUTPOST_BTN_UPGRADE_MODE := "Upgrade Mode"
+const OUTPOST_BTN_MANAGE_MODE := "Manage Mode"
+const OUTPOST_INFO_PROGRESSION := "MARK PROGRESSION"
+const OUTPOST_INFO_CLOSE := "Close"
+const CARD_STAT_AMMO := "Ammo  %d / %d"
+const CARD_STAT_CHARGES := "Charges  %d / %d"
+const CARD_STAT_UNLIMITED := "Unlimited"
+const CARD_STAT_SHIELD := "%d charges · %.1fs delay · %.1f/s"
 
 # Slot short names (used in pill labels).
 const SLOT_NAME_PRIMARY := "PRIMARY"

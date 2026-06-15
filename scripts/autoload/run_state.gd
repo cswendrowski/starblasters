@@ -4,6 +4,7 @@ extends Node
 # Survives scene changes; reset by new_run().
 
 signal bounty_changed(value: int)
+signal materials_changed(value: int)
 signal hull_changed(cur: int, max: int)
 signal shield_changed(cur: int, max: int)
 
@@ -12,6 +13,15 @@ var bounty: int = 0:
 	set(v):
 		bounty = max(0, v)
 		bounty_changed.emit(bounty)
+
+# Materials — the salvage/upgrade currency (Roman 2026-06-14). Earned by scrapping spare
+# items (1 per Mk) at the outpost, signal-event drops, and buying from the Junk Trader.
+# Spent (with bounty) on in-place Mk upgrades. Distinct from the slotted Part *items* in
+# loadout_snapshot / inventory / weapon_storage.
+var materials: int = 0:
+	set(v):
+		materials = max(0, v)
+		materials_changed.emit(materials)
 
 # Ship persistence (set from Player when transitioning out of combat)
 var current_hull: int = 0
@@ -340,12 +350,13 @@ func new_run() -> void:
 	remove_meta("active_faction")
 	remove_meta("force_all_signal")  # dev all-signal-sector flag (re-set after new_run by the launcher)
 	bounty = 0
+	materials = 0
 	enemies_killed = 0
 	max_bounty_earned = 0
 	run_distance = 0.0
 	run_time_seconds = 0.0
 	run_stats = {"damage_shield": 0, "damage_hull": 0, "bounty_gained": 0, "asteroids": 0,
-		"bounty_spent": 0, "mines_cleared": 0,
+		"bounty_spent": 0, "mines_cleared": 0, "materials_gained": 0, "materials_spent": 0,
 		# Phase 2 (run_summary_scope_2026-06-01): per-projectile shots + node visits.
 		# accuracy = shots_hit / shots_fired at display time (pierce/AoE can exceed 100%).
 		"shots_fired": 0, "shots_hit": 0,
@@ -479,6 +490,22 @@ func spend_bounty(amount: int) -> void:
 	bounty -= amount           # setter fires bounty_changed
 	stat_add("bounty_spent", amount)
 
+
+# Materials earn/spend choke-points (mirror bounty). add_materials: scrap payouts + signal
+# drops + Junk Trader buys. spend_materials: Mk upgrades + Junk Trader sells.
+func add_materials(amount: int) -> void:
+	if amount <= 0:
+		return
+	materials += amount        # setter fires materials_changed
+	stat_add("materials_gained", amount)
+
+
+func spend_materials(amount: int) -> void:
+	if amount <= 0:
+		return
+	materials -= amount        # setter fires materials_changed
+	stat_add("materials_spent", amount)
+
 func mark_node_visited(node_id: String) -> void:
 	if not visited_nodes.has(node_id):
 		visited_nodes.append(node_id)
@@ -593,6 +620,9 @@ func start_new_sector(sector_idx: int, seed_value: int) -> void:
 		"sector_idx": sector_idx,
 		"seed": seed_value,
 		"sector_name": SectorNameGenerator.generate(seed_value),
+		# Outpost name — generated once per sector (decorrelated seed), persists across all visits
+		# via the cache (Roman 2026-06-15). Reuses the sector name generator's station-flavored pools.
+		"outpost_name": SectorNameGenerator.generate(int(seed_value) ^ 0x9E3779B9),
 		"sector_modifiers": active_mods,
 		"rows": rows,
 	}
@@ -1220,6 +1250,56 @@ func mark_bump_owned_cannon(bump_part) -> void:
 		loadout_snapshot[_SlotTypes.SlotType.CANNON] = owned
 
 
+# ---- In-place Mk upgrade (Materials economy, Roman 2026-06-14) --------------
+# The outpost spends Materials + bounty to raise an OWNED part's Mk by one. Part objects are
+# mutated in place (the same Resource instances held in cannon_pool / loadout_snapshot /
+# modules), so the higher Mk takes effect at the next combat start when the part's apply()
+# re-reads `mark`. CANNON / HARDPOINT_WING / DEVICE_BAY_1 also carry derived Run-side state
+# (magazines, super charges) that apply() doesn't reseed in meta scenes, so we reseed here —
+# mirroring equip_part.
+func can_upgrade_part(part) -> bool:
+	if part == null or not ("mark" in part):
+		return false
+	var maxmk: int = int(part.max_mark) if "max_mark" in part else 9
+	return int(part.mark) < maxmk
+
+
+func upgrade_part(part) -> bool:
+	if not can_upgrade_part(part):
+		return false
+	part.mark = int(part.mark) + 1
+	_reseed_part_mark_state(part)
+	return true
+
+
+# Reseed Run-side derived state after a part's mark changes in place. Mirrors the per-slot
+# seeding equip_part does on a fresh equip. SHIFT_MODE / MODULE need nothing here — their
+# apply() reads `mark` live at combat start.
+func _reseed_part_mark_state(part) -> void:
+	if part == null or not ("slot_type" in part):
+		return
+	match int(part.slot_type):
+		_SlotTypes.SlotType.CANNON:
+			if part.has_method("ammo_at_mark") and "current_ammo" in part and "ammo_max" in part:
+				var mag: int = int(part.ammo_at_mark(int(part.mark)))
+				part.current_ammo = mag
+				part.ammo_max = mag
+				if get_active_cannon() == part:
+					ammo = mag   # mirror the live magazine when upgrading the active cannon
+		_SlotTypes.SlotType.HARDPOINT_WING:
+			var sec_ammo: int = -1
+			if part.has_method("_base_ammo"):
+				sec_ammo = int(part._base_ammo())
+			elif "base_ammo" in part:
+				sec_ammo = int(part.base_ammo)
+			if sec_ammo > 0:
+				secondary_ammo = sec_ammo
+				secondary_ammo_max = sec_ammo
+		_SlotTypes.SlotType.DEVICE_BAY_1:
+			max_super_charges = _super_charges_from_part(part)
+			super_charges = int(max_super_charges)
+
+
 # Inverse of equip_part: clears a slot in loadout_snapshot and zeroes any
 # per-slot side state (secondary ammo, super charges). Unlike equip_part this
 # is an explicit discard — the removed part is NOT pushed into weapon_storage
@@ -1250,7 +1330,7 @@ const SAVE_PATH := "user://run_save.tres"
 # load_from_disk can't drift out of sync — adding a field is a one-line
 # change here + an @export in run_save.gd.
 const _SAVE_FIELDS := [
-	"bounty", "current_hull", "max_hull", "current_shield", "max_shield",
+	"bounty", "materials", "current_hull", "max_hull", "current_shield", "max_shield",
 	"super_charges", "max_super_charges",
 	"loadout_snapshot", "inventory", "weapon_storage",
 	"current_node_id", "current_node_type", "sector_modifiers",

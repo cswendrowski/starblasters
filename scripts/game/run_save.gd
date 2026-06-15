@@ -7,6 +7,7 @@ extends Resource
 # inventory/weapon_storage Parts) round-trip as inline sub-resources.
 
 @export var bounty: int = 0
+@export var materials: int = 0
 @export var current_hull: int = 0
 @export var max_hull: int = 0
 @export var current_shield: int = 0

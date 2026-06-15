@@ -5,6 +5,10 @@ const RESET_THRESHOLD := 340.0
 @export var asteroid_count: int = 4
 @export var asteroid_min_size: float = 12.0
 @export var asteroid_max_size: float = 24.0
+# Power-curve exponent biasing the size roll toward the SMALL end (Roman 2026-06-15). 1.0 = uniform;
+# higher = max-size rocks are rarer (a long tail). Per-layer so the NEAR band can keep a large max
+# while making it rare; far/mid keep the gentle default.
+@export var asteroid_size_pow: float = 1.286
 @export var asteroid_tint: Color = Color(0.9, 0.88, 0.85, 1.0)
 @export var mini_asteroid_count: int = 14
 @export var nebula_enabled: bool = false
@@ -76,7 +80,7 @@ func _spawn_asteroid() -> void:
 	# 1 - 0.8^(1/1.286) = 1 - 0.838 = 0.162, i.e. ~16.2% vs 20% before — a 20%
 	# relative reduction in max-size frequency, redistributed to smaller sizes.
 	# (Mini asteroids in _spawn_mini_asteroid keep their own sizing, untouched.)
-	var size_t: float = pow(_local_rng.randf(), 1.286)
+	var size_t: float = pow(_local_rng.randf(), asteroid_size_pow)
 	var sz := asteroid_min_size + (asteroid_max_size - asteroid_min_size) * size_t
 	# Reset Control anchors to a clean top-left 100×100 box — PlanetKit scenes
 	# ship full-rect anchors that collapse under a CanvasLayer (Node-type) parent.
