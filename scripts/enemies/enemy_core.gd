@@ -426,8 +426,19 @@ func _check_path_phase_fire() -> void:
 		return
 	_phase_fire_idx += 1
 	if fire_beat_synced:
-		# Quantize to the shared tempo so cross-formation shots collapse into a volley.
-		_beat_fire_at = Beat.next_beat_time(Beat.now())
+		# Quantize to the shared tempo so cross-formation shots collapse into a volley —
+		# BUT only when the enemy will still be inside the engagement band when that beat
+		# lands. Fast movers (Hot Rods at 300 px/s) cross the whole 155px band in ~0.5s,
+		# less than the 0.45s beat period, so a deferred shot would fire in (or past) the
+		# departure band — fire NOW instead so the shot lands in-zone. Slow waves still
+		# get their beat-synced volley. (Roman 2026-06-14: "fire properly in the zones even
+		# when moving fast".)
+		var beat_at: float = Beat.next_beat_time(Beat.now())
+		var predicted_y: float = position.y + _last_move_vel.y * maxf(0.0, beat_at - Beat.now())
+		if predicted_y >= Zones.DEPARTURE_START:
+			_do_path_shot()
+		else:
+			_beat_fire_at = beat_at
 	else:
 		_do_path_shot()
 

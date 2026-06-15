@@ -66,6 +66,13 @@ const CROSSER_STAGGER_STEP: float = 26.0
 # taller than ANCHOR_MIN_HEIGHT count as cruisers for this gate.
 const ANCHOR_MIN_HEIGHT: float = 40.0
 const ANCHOR_GAP_PAD: float = 8.0
+# Staggered arrival for LARGE enemies (height >= ANCHOR_MIN_HEIGHT): in a spread formation
+# (e.g. lanes 1/3/5) the next lane's enemy does not arrive until the previous one has
+# descended ANCHOR_ARRIVAL_DEPTH (≈ half its body in the playfield) — so cruisers like the
+# Push trickle in one-at-a-time instead of popping in together (Roman 2026-06-14). Depth-gated
+# (robust to movement speed), with a hard timeout so a non-descending unit never blocks a wave.
+const ANCHOR_ARRIVAL_DEPTH: float = 32.0
+const ARRIVAL_DEPTH_TIMEOUT: float = 2.5
 # Grace beat after the player gains control before the first wave dispatches, so
 # the level doesn't open the instant the slide-in ends.
 @export var start_grace: float = 1.2
@@ -307,14 +314,34 @@ func _dispatch_formation(ph: Resource) -> void:
 				await get_tree().create_timer(0.1).timeout
 			if not _running:
 				return
-			_spawn_enemy(sp, i)
+			var spawned: Node = _spawn_enemy(sp, i)
 			i += 1
 			# Tandem partner on the same tick (formation 5), mirrored X.
 			if sp.formation == 5 and i < sp.count and (i % 2) == 1:
 				_spawn_enemy(sp, i)
 				i += 1
-			await get_tree().create_timer(maxf(sp.spawn_interval, ANTI_BURST_FLOOR)).timeout
+			# Arrival cadence: a LARGE enemy holds the next lane until it's ~half in
+			# (descended ANCHOR_ARRIVAL_DEPTH), so multi-lane cruisers stagger in instead
+			# of arriving together. Everything else keeps the spec's spawn_interval.
+			if is_instance_valid(spawned) and spawned is Node2D and _enemy_height(spawned) >= ANCHOR_MIN_HEIGHT:
+				await _await_arrival_depth(spawned as Node2D)
+			else:
+				await get_tree().create_timer(maxf(sp.spawn_interval, ANTI_BURST_FLOOR)).timeout
 	_advance_step()
+
+
+# Block until `enemy` has descended ANCHOR_ARRIVAL_DEPTH past its spawn Y (≈ half its body
+# into the playfield), so the next lane of a multi-lane large formation arrives staggered.
+# Depth-gated so it's robust to movement speed; hard timeout so a stalled/non-descending
+# unit can never block the wave indefinitely.
+func _await_arrival_depth(enemy: Node2D) -> void:
+	var start_y: float = enemy.position.y
+	var elapsed: float = 0.0
+	while _running and is_instance_valid(enemy) and elapsed < ARRIVAL_DEPTH_TIMEOUT:
+		if enemy.position.y - start_y >= ANCHOR_ARRIVAL_DEPTH:
+			return
+		await get_tree().create_timer(0.05).timeout
+		elapsed += 0.05
 
 
 # Spawn a shaped formation's members across computed lanes as a quick burst.
@@ -543,10 +570,10 @@ func _dispatch_breather(ph: Resource) -> void:
 	_advance_step()
 
 
-func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync: Dictionary = {}) -> void:
+func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync: Dictionary = {}) -> Node:
 	if wave.enemy_scene == null:
 		push_warning("WaveDirector: spec has no enemy_scene")
-		return
+		return null
 	var enemy = wave.enemy_scene.instantiate()
 	# 320×400 internal resolution rework (Roman, 2026-05-17): sprites render
 	# at native 1× by default. Per-ship display_scale overrides still apply
@@ -714,6 +741,8 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 	enemy_spawned.emit(scene_path, bounty_val)
 	if enemy.has_signal("died"):
 		enemy.died.connect(_on_enemy_died.bind(scene_path))
+	return enemy
+
 
 func _on_enemy_died(value: int, scene_path: String) -> void:
 	enemy_died.emit(value, scene_path)
