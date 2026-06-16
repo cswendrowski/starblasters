@@ -70,7 +70,11 @@ func load_from_disk() -> void:
 	var raw_overrides := String(cfg.get_value("controls", "keyboard_overrides", "{}"))
 	var parsed = JSON.parse_string(raw_overrides)
 	if typeof(parsed) == TYPE_DICTIONARY:
-		keyboard_overrides = parsed
+		keyboard_overrides = {}
+		for action_name: String in parsed.keys():
+			var v = parsed[action_name]
+			if v is float or v is int:
+				keyboard_overrides[action_name] = v
 
 
 func save_to_disk() -> void:

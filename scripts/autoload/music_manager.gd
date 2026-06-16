@@ -120,9 +120,9 @@ func _ready() -> void:
 	add_child(_next)
 
 
-func _make_player(name: String) -> AudioStreamPlayer:
+func _make_player(player_name: String) -> AudioStreamPlayer:
 	var p := AudioStreamPlayer.new()
-	p.name = name
+	p.name = player_name
 	p.bus = "Music"
 	p.volume_db = SILENT_DB
 	# Safety net: the per-frame lookahead (line ~215) is the primary path for
