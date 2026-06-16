@@ -367,9 +367,13 @@ func new_run() -> void:
 	sectors_cleared = 0
 	bosses_defeated = 0
 	combats_in_sector = 0
+	# run_seed drives the run's generated state — set it FIRST so the outpost-charge rolls below
+	# derive from it (randi() is the only intentionally-random source; everything else keys off
+	# run_seed for seed-consistent runs).
+	run_seed = randi()
 	# Outpost hub: seed 2d6 repair + 2d6 ammo-restock charges; stock rolls on first visit.
-	repair_charges = _roll_dice(2, 6)
-	ammo_restock_charges = _roll_dice(2, 6)
+	repair_charges = _roll_dice(2, 6, 0)
+	ammo_restock_charges = _roll_dice(2, 6, 1)
 	outpost_needs_refresh = false
 	outpost_weapon_offers = []
 	outpost_upgrade_offers = []
@@ -415,7 +419,6 @@ func new_run() -> void:
 	ship_variant = 0
 	livery_color = Color(1.0, 0.0, 0.0)
 	livery_chosen = false
-	run_seed = randi()
 	# Reset super-weapon state — player._ready will repopulate via the
 	# equipped Smart Bomb's apply(). Seeded below so meta-scene reads
 	# (Manage Ship modal, outpost status bar) match what combat will apply.
@@ -455,12 +458,16 @@ func remove_module(idx: int):
 	return null
 
 
-# Roll N dice of S sides (e.g. _roll_dice(2,6) = 2d6). Non-deterministic — outpost
-# charges aren't seed-critical (the old per-visit stock used randomize() too).
-func _roll_dice(n: int, sides: int) -> int:
+# Roll N dice of S sides (e.g. _roll_dice(2,6,salt) = 2d6), DETERMINISTIC: keyed on run_seed +
+# salt so a replayed seed yields the same outpost charges. Each distinct economy roll passes a
+# distinct salt (boss-refresh rolls fold in bosses_defeated). (Health audit 2026-06-16 — was
+# global randi; outpost charges are now part of seed-consistent runs.)
+func _roll_dice(n: int, sides: int, salt: int) -> int:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = (run_seed * 2654435761) ^ (salt * 40503) ^ 0xD1CE
 	var total: int = 0
 	for _i in n:
-		total += 1 + (randi() % sides)
+		total += 1 + (rng.randi() % sides)
 	return total
 
 
@@ -469,8 +476,8 @@ func _roll_dice(n: int, sides: int) -> int:
 # stock to re-roll on the next visit (boss-gated shop progression, Roman 2026-06-08).
 func on_boss_defeated() -> void:
 	bosses_defeated += 1
-	repair_charges += _roll_dice(1, 6)
-	ammo_restock_charges += _roll_dice(1, 6)
+	repair_charges += _roll_dice(1, 6, 1000 + bosses_defeated)
+	ammo_restock_charges += _roll_dice(1, 6, 2000 + bosses_defeated)
 	outpost_needs_refresh = true
 
 
