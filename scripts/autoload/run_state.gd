@@ -228,6 +228,7 @@ func _ready() -> void:
 	# the starter Energy Blaster + Smart Bomb. Idempotent — new_run() will
 	# call this again on a real run start.
 	_seed_default_loadout_snapshot()
+	_assert_save_surface_synced()
 
 
 # ---- Enemy Codex persistence ------------------------------------------
@@ -375,6 +376,18 @@ func new_run() -> void:
 	visited_nodes = []
 	used_boss_scenes = []
 	current_node_id = ""
+	# Per-node combat context — saved fields (_SAVE_FIELDS) that the sector map rewrites on
+	# each node entry, but new_run() must clear them too: a New Game started right after a
+	# prior run could otherwise read a stale node type / hazard / stellar / bonus on its first
+	# frame before the map overwrites them. forced_boss_scene is a dev/boss-POI handoff that
+	# wave_generator consumes; clearing it here stops a leftover pick leaking into a fresh run.
+	# (Health audit 2026-06-15.)
+	current_node_type = -1
+	current_hazard_subtype = ""
+	current_stellar = {}
+	asteroid_bonus_bounty = 0
+	combat_intro = ""
+	forced_boss_scene = ""
 	sector_modifiers = []
 	loadout_snapshot = {}
 	inventory = []
@@ -1348,6 +1361,27 @@ const _SAVE_FIELDS := [
 	"run_time_seconds", "run_stats",
 	"modules", "bay_initialized",
 ]
+
+
+# Startup guard against save-surface drift: the save/load loops only walk _SAVE_FIELDS, and
+# RunSave only persists its @export vars — so the two lists must stay in lockstep. An @export
+# missing from _SAVE_FIELDS silently never persists; a _SAVE_FIELDS entry with no @export
+# round-trips null. Either is a quiet data-loss bug, so we warn loudly at boot instead.
+# (Health audit 2026-06-15.)
+func _assert_save_surface_synced() -> void:
+	var rs = _RunSave.new()
+	var rs_props := {}
+	for prop in rs.get_property_list():
+		if (int(prop.usage) & PROPERTY_USAGE_SCRIPT_VARIABLE) != 0:
+			rs_props[String(prop.name)] = true
+	var saved := {}
+	for f in _SAVE_FIELDS:
+		saved[f] = true
+		if not rs_props.has(f):
+			push_warning("Run._SAVE_FIELDS has '%s' but RunSave has no matching @export — it round-trips null." % f)
+	for pname in rs_props:
+		if not saved.has(pname):
+			push_warning("Run: RunSave.%s is @export'd but missing from _SAVE_FIELDS — it won't persist." % pname)
 
 
 func has_save_on_disk() -> bool:

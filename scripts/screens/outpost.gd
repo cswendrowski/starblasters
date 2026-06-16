@@ -58,10 +58,10 @@ const CANNON_COST_PER_MK := 70
 const MK_HIGH_OFFSET := 3
 
 # Weapons column slot weights: cannon dominates (it's primary), with secondary,
-# super, and Shift-mode swaps as occasional offers. 4 cannon / 2 secondary /
-# 1 super (Smart Bomb, the lone DEVICE_BAY_1) / 2 mode (Phase|Hyper) = 9 weights;
-# rolled with replacement for the 5-card weapons column. SHIFT_MODE offers roll
-# Phase/Hyper (Focus is default-only, not in the pool) + price as weapons.
+# super, Shift-mode, and passive-module swaps as occasional offers. 4 cannon /
+# 2 secondary / 1 super (Smart Bomb, the lone DEVICE_BAY_1) / 2 mode (Phase|Hyper) /
+# 2 module = 11 weights; rolled with replacement for the 5-card weapons column.
+# SHIFT_MODE offers roll Phase/Hyper (Focus is default-only, not in the pool) + price as weapons.
 const WEAPON_SLOT_WEIGHTS := [
 	SlotTypes.SlotType.CANNON,
 	SlotTypes.SlotType.CANNON,

@@ -2122,10 +2122,14 @@ func _on_poi_clicked(node_id: String) -> void:
 	var rows: Array = run.sector_map_cache.get("rows", [])
 	var poi_row_idx: int = 0
 	for r_idx in rows.size():
+		var found_row := false
 		for p in rows[r_idx].pois:
 			if String(p.id) == node_id:
 				poi_row_idx = r_idx
+				found_row = true
 				break
+		if found_row:
+			break
 	# Stellar descriptor — combat/outpost/signal/hazard backdrops read this so
 	# the scene visually echoes the POI the player clicked.
 	run.current_stellar = _compute_poi_stellar(poi, poi_row_idx)
