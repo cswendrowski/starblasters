@@ -26,11 +26,15 @@ enum Trigger { START, TIMER, DEATH }
 
 var _t: float = 0.0
 var _last_emit_succeeded: bool = false    # track if the last emission fired
+var _started: bool = false                # START fires once per instance, not once per recycle
 
 
 func on_start(enemy) -> void:
 	_t = 0.0
-	if trigger == Trigger.START:
+	# on_start re-runs on every parallax recycle (enemy_core._components_start); a START emit must
+	# fire only ONCE per instance, else a turret/drop stacks a fresh payload each cycle. (Audit 2026-06-15.)
+	if trigger == Trigger.START and not _started:
+		_started = true
 		_emit(enemy)
 
 

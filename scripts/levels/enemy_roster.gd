@@ -1338,7 +1338,12 @@ static func make_components(entry: Dictionary) -> Array:
 	if listed is Array:
 		for c in listed:
 			if c != null:
-				out.append(c)
+				# Duplicate so wave.components_override owns FRESH instances. The roster entry's
+				# component resources are shared module-wide, so a pre-_init mutation (e.g.
+				# director._resolve_shields bumping ShieldComponent.capacity) would otherwise
+				# accumulate on the roster's shared copy across every spawn. Mirrors
+				# Factions.build_components' fresh-per-spawn contract. (Health audit 2026-06-15.)
+				out.append(c.duplicate() if c is Resource else c)
 	return out
 
 
