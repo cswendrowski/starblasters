@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Verify a code change the right way and report it. Use after finishing any code edit — runs parse_check AND a headless scene boot (the step parse_check alone misses), then commits, pushes the working branch, and posts a Discord summary. Invoke whenever work is "done" and needs to be verified + shipped to the working branch.
+description: Verify a code change the right way and report it. Use after finishing any code edit — runs parse_check AND a headless scene boot (the step parse_check alone misses), then commits, pushes the working branch, and reports a summary to the user in the session. Invoke whenever work is "done" and needs to be verified + shipped to the working branch.
 ---
 
 # /ship — verify-and-report loop
@@ -46,7 +46,7 @@ If anything in YOUR change errors, fix and re-verify.
 
 ### 4. Visual change? Capture it.
 If the change is visual, run the **/capture** skill to produce a GIF before
-reporting, so the Discord post shows the result.
+reporting, so the summary can point Roman at the result.
 
 ### 5. Commit (working branch)
 - Stage the changed files **including any `.uid` sidecars** Godot generated
@@ -57,15 +57,13 @@ reporting, so the Discord post shows the result.
 - **NEVER `butler push` / `tools/publish.ps1` here** — publishing to itch needs
   an explicit OK from the maintainer. That's the publish-gate path, not /ship.
 
-### 6. Report to Discord
-- React ✅ on the inbound request message (you should already have reacted 👀 on intake).
-- Reply with a designer-level summary: what changed, the commit SHA, and crucially
+### 6. Report to the user
+Report the result directly in the session — no Discord, no external channels.
+- A designer-level summary: what changed, the commit SHA, and crucially
   **what is verified (compiles + boots) vs. what is playtest-only** (wave feel,
   gameplay tuning, visual judgment can't be headless-verified — say so).
-- Attach the GIF if you captured one. Name any uncertainty.
-- **You own the channel** — never let a subagent post to Discord.
+- Point at the GIF path if you captured one. Name any uncertainty.
 
 ## Notes
 - See memory `feedback_verify_headless_boot` for why parse_check false-passes.
-- See memory `feedback_discord_protocol` for the reaction/reply protocol and
-  `feedback_git_push` for the push-vs-publish rule.
+- See memory `feedback_git_push` for the push-vs-publish rule.

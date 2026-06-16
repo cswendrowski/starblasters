@@ -51,9 +51,9 @@ $palettePath = Join-Path $capturesDir "palette_mc.png"
 
 if (Test-Path $gifPath) { Remove-Item $gifPath -Force }
 
-# Downscale to keep the GIF Discord-friendly (full 1920x1080 @ 16s produced a
+# Downscale to keep the GIF a reasonable size (full 1920x1080 @ 16s produced a
 # ~110MB file). Half-res (960 wide) + 16fps + bayer dithering keeps it readable
-# while landing well under the size cap.
+# while landing well under a sane size budget.
 $scaleFilter = "fps=10,scale=600:-1:flags=lanczos"
 cmd /c "ffmpeg -y -framerate 20 -i $inputPattern -vf `"$scaleFilter,palettegen`" $palettePath" >$null 2>&1
 if (-not (Test-Path $palettePath)) {

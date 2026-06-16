@@ -29,7 +29,7 @@ The part-author agent owns this pattern:
 
 ### 3. Verify + ship
 Run the **/ship** skill: parse_check + headless boot (confirm the Part script
-compiles and the ship can equip it) + commit `.uid`s + push + Discord report.
+compiles and the ship can equip it) + commit `.uid`s + push + report to the user.
 
 ### 4. Balance pass (if it shifts the curve)
 If the Part changes the power/cost curve meaningfully, run the **economy-sim**
@@ -40,5 +40,4 @@ relevant design docs (`docs/economy_2026-05-24.md`,
 ## Notes
 - For a pure data `.tres` Part instance with no new code, the **data-author**
   agent is the lighter path; new behavior needs part-author (code).
-- Never let a subagent post to Discord.
 - Cross-refs: `docs/contributing/04`, the "New Part" convention in `CLAUDE.md`.

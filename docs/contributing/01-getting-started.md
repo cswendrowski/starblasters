@@ -106,7 +106,7 @@ If you're adding a feature that has 3+ numeric knobs (color, size, speed, timing
 3. **For visual mechanics** (explosions, trails, shader effects, parallax behavior), write a one-shot capture script + PowerShell wrapper:
    - `tools/capture_<mechanic>.gd` — loads the mechanic in isolation, renders frames
    - `tools/capture_<mechanic>.ps1` — runs the GDScript, pipes frames to ffmpeg, outputs a GIF to `captures/`
-   - Post the GIF to Discord so the designer can eyeball it; **don't read PNG frames yourself** unless you're debugging a specific bug.
+   - Hand Roman the GIF's `captures/` path so the designer can eyeball it; **don't read PNG frames yourself** unless you're debugging a specific bug. (Discord/external posting is retired.)
 
 See CLAUDE.md "Workflow: human-iterated, agent-consumed" for the full rules — this doc just orients you.
 

@@ -1,13 +1,13 @@
 ---
 name: capture
-description: Produce a GIF of a visual mechanic and post it to Discord in one go. Use whenever you need to show the maintainer a visual change (a new effect, an enemy's motion, a HUD tweak). Scaffolds a one-shot capture script if none exists, runs it through ffmpeg, self-reviews the GIF, and posts with a designer-level caption. Chains the capture-scripter / capture-poster agents.
+description: Produce a GIF of a visual mechanic and save it for review. Use whenever you need to show the maintainer a visual change (a new effect, an enemy's motion, a HUD tweak). Scaffolds a one-shot capture script if none exists, runs it through ffmpeg, self-reviews the GIF, and hands Roman the path with a designer-level note. Chains the capture-scripter / capture-poster agents.
 ---
 
 # /capture — show a visual in one command
 
-The project's visual workflow is capture → GIF → Discord. **Don't read raw PNG
-frames to evaluate a visual** unless actively debugging a specific pixel bug —
-make the GIF and look at that. (Memory `feedback_visual_workflow`.)
+The project's visual workflow is capture → GIF → hand Roman the path. **Don't
+read raw PNG frames to evaluate a visual** unless actively debugging a specific
+pixel bug — make the GIF and look at that. (Memory `feedback_visual_workflow`.)
 
 ## Procedure
 
@@ -34,15 +34,14 @@ Tune the crop fractions to frame the subject (it moves — frame its whole path)
 ### 4. Self-review the GIF (required)
 Read the produced GIF once to confirm it actually shows the thing and isn't
 black/empty/broken (capture warm-up frames are often black — check a mid-action
-frame if the first looks empty). If it's wrong, fix and re-capture — don't post
-a broken GIF.
+frame if the first looks empty). If it's wrong, fix and re-capture — don't hand
+off a broken GIF.
 
-### 5. Post to Discord
-Use the **capture-poster** agent, or post directly via the reply tool with the
-GIF attached. Caption at a designer level: what the change is, and name any
-visual uncertainty ("glow intensity is a first pass — easy to crank up").
+### 5. Hand it off
+The GIF lives in `captures/<name>.gif`. Tell Roman the path in the session, with
+a designer-level note: what the change is, and name any visual uncertainty
+("glow intensity is a first pass — easy to crank up"). Do NOT post to Discord or
+any external channel — that workflow is retired.
 
 ## Notes
-- You own the Discord channel — if you use capture-poster, that agent is the one
-  exception that's allowed to post; any OTHER subagent must never post.
 - Cross-refs: memory `feedback_visual_workflow`, agents capture-scripter / capture-poster.

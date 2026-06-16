@@ -27,9 +27,9 @@ that extends `scripts/enemies/enemy_base.gd` for behavior a pattern genuinely
 can't express (multi-phase state machines, continuous-effect weapons).
 
 ### 3. Sprite
-- If real art was dropped (e.g. in Discord): use the **asset-importer** agent to
-  place it under `graphics/enemies/`, generate the `.import` sidecar + `.uid`,
-  and confirm the `hframes` (width/height ratio).
+- If real art was dropped (e.g. Roman shared new art): use the **asset-importer**
+  agent to place it under `graphics/enemies/`, generate the `.import` sidecar +
+  `.uid`, and confirm the `hframes` (width/height ratio).
 - If it's **placeholder** art: FLAG IT. Do not wire placeholder-art enemies into
   production waves and ship — that hits every tester. Hold, or keep it out of
   live rotation (weight 0 / dev-only), and ask the maintainer. (See memory
@@ -56,10 +56,9 @@ fits the pacing.
 ### 6. Verify + ship
 Run the **/ship** skill: parse_check + headless boot (confirm the scene
 instantiates and the script compiles) + commit the `.uid` sidecars + push +
-Discord report. If the art is placeholder or it's now in live waves, HOLD the
+report to the user. If the art is placeholder or it's now in live waves, HOLD the
 publish and surface that to the maintainer.
 
 ## Notes
-- Never let a subagent post to Discord.
 - Cross-refs: `docs/contributing/03`, memories `feedback_placeholder_in_prod_waves`,
   `feedback_hitbox_rule`, `feedback_auto_rotate_default`.

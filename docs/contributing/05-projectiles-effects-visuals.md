@@ -255,7 +255,7 @@ When you're developing a visual mechanic (a new weapon effect, enemy flame, expl
 
 1. **Write a one-shot capture script** at `tools/capture_<mechanic>.gd` (reference `scripts/dev/wave_tester.gd` for the pattern).
 2. **Create a `.ps1` wrapper** at `tools/capture_<mechanic>.ps1` (run the script, then feed output frames to ffmpeg).
-3. **Post the GIF** to Discord in the dev channel (no PNG frames). Roman or the team reviews and comments.
+3. **Hand off the GIF** by its `captures/` path (no PNG frames). Roman reviews it and comments. (No Discord/external posting — that workflow is retired.)
 4. **Don't read frame-by-frame** unless actively debugging a specific visual bug — that's slow and error-prone. The GIF review is the fast feedback loop.
 
 See Doc 01 for the workflow philosophy.
