@@ -1,8 +1,12 @@
 # Code follow-ups — from the 2026-06-15 doc staleness audit
 
-**Status: OPEN** — code-level items surfaced while remediating the docs (`docs/doc_staleness_audit_2026-06-15.md`).
-These need a code decision/change, not a doc edit. None is urgent; the game runs fine as-is.
-Line references verified 2026-06-15 against the working tree.
+**Status: TRIAGED 2026-06-15** into [`health-audit-2026-06-15.md`](health-audit-2026-06-15.md):
+**#4** folded into the Tier-2 outpost cleanup (worth doing); **#1** and **#2** declined (low value vs.
+cost/risk); **#3** needs no action. See that doc's "Evaluated from `code_followups`" section for rationale.
+Original items retained below for reference.
+
+_Surfaced while remediating the docs (`docs/doc_staleness_audit_2026-06-15.md`). None is urgent; the
+game runs fine as-is. Line references verified 2026-06-15 against the working tree._
 
 ---
 
