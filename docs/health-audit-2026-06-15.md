@@ -28,18 +28,21 @@ Severity = blast radius if it bites. **Urgency ≠ severity**: several HIGH-seve
 - **Tier-3 duplication:** `sector_map` `_setup_celestial_control` (×5) + `_spawn_one_asteroid` (×3) helpers (RNG order preserved — needs a visual sanity-check since headless can't render the map); `run_state` `_make_default_blaster` dedup + `_seed_super_from_part` (×3) + `_seed_secondary_ammo(part, reset_if_none)` (×2, flag preserves the equip-vs-upgrade behavior difference).
 - **Reclassified (no change):** #2 death-bomb — not a bug (`fire_super()` preconditions already match the guard).
 
-**Decisions made (Roman, 2026-06-15):**
-- **Determinism → "Placement too"** — same-seed runs must reproduce placement; `director.gd` dispatch picks + `levels_v2` minefield need a `run_seed`-derived RNG. *(Queued — substantive hot-path change, its own commit.)*
-- **Sector modifiers → KEEP** the dormant subsystem (parked, coming back — do not cut). See [[parked-features-keep]].
-- **Base hull → 2 is intentional** — comments fixed in `player.gd`; behavior unchanged.
+**Decisions made (Roman, 2026-06-15/16):**
+- **Determinism → "Placement too"** → **DONE**: `director.gd` dispatch (lanes/gaps/filler) + `levels_v2` minefield now draw from a `run_seed`-derived RNG seeded per combat node. *Remaining toward FULLY seeded (separate economy pass):* outpost charge rolls (`run_state._roll_dice`) + cosmetic in-combat `randi` (e.g. `enemy_base` burn-UV).
+- **Resume must NOT reroll the outpost** → **DONE**: `outpost_weapon_offers` now persisted (`_SAVE_FIELDS` + `@export`).
+- **Sector modifiers → KEEP** (parked, do not cut). See [[parked-features-keep]].
+- **Base hull → 2 is intentional** — comments fixed; behavior unchanged.
+- **Soft confirms #3 filler-duration / #4 backup-shield / #5 impact_fx / phase-refund → leave as-is** (intended; no code).
+- **`step_wall` + `enemy_sword`→broadside → leave for now.**
 
-**Done (this round):** `director` dead `ignore_recycling` param; outpost `_current_mk`/`_format_loadout_line`/`_short_part_text` (orphaned post-UPGRADES); base-hull comment.
+**Done (latest round):** placement-determinism seeding; outpost-stock persistence; latent seams (`make_components` per-instance dup + emitter-START recycle guard); `director` dead `ignore_recycling` param; orphaned outpost helpers; base-hull comment. `parallax_shadow` NOT gutted (parked feature, kept for consistency).
 
-**Still open — decision-independent:** none of consequence. `parallax_shadow` was NOT gutted — it's a parked flip-to-re-enable feature like the sector-mods subsystem (kept for consistency).
+**Open / deferred:** Tier-4 architecture (player.gd god-object, sector_map stellar split, sector_map_hd coupling — deferred by Roman); the FULLY-seeded economy-RNG pass (outpost charges + cosmetic UV).
 
-**Still needs Roman (lower stakes):** soft confirms #3 filler-duration, #4 backup-shield SFX, #5 impact_fx, phase-refund cap, outpost offers/charges on resume; plus keep/cut on `director` `step_wall` scaffolding and `enemy_sword`→`broadside` (firing-behavior check).
+**Needs in-game verification (headless can't cover):** determinism reproducibility (two same-seed runs); outpost resume round-trip (Array-of-Dict-with-Part save); sector-map Tier-3 visual.
 
-**Next substantive task:** the determinism "placement-too" seeding work.
+**Branch is PR-ready.**
 
 ---
 
