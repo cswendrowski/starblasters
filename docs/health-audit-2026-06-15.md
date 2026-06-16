@@ -29,7 +29,7 @@ Severity = blast radius if it bites. **Urgency ≠ severity**: several HIGH-seve
 - **Reclassified (no change):** #2 death-bomb — not a bug (`fire_super()` preconditions already match the guard).
 
 **Decisions made (Roman, 2026-06-15/16):**
-- **Determinism → "Placement too"** → **DONE**: `director.gd` dispatch (lanes/gaps/filler) + `levels_v2` minefield now draw from a `run_seed`-derived RNG seeded per combat node. *Remaining toward FULLY seeded (separate economy pass):* outpost charge rolls (`run_state._roll_dice`) + cosmetic in-combat `randi` (e.g. `enemy_base` burn-UV).
+- **Determinism → "Placement too" + economy** → **DONE**: `director.gd` dispatch (lanes/gaps/filler) + `levels_v2` minefield + outpost charge rolls (`run_state._roll_dice`, now keyed on `run_seed ^ salt`) all reproduce from the seed. The run's **generated structure** (sector map, content, placement, factions, bosses, economy) is now seed-consistent. *Out of scope by design:* per-combat proc RNG (hull shrug/ablative) and cosmetic FX (`enemy_base` burn-UV) stay on the global stream — event-driven by player actions, not generated structure.
 - **Resume must NOT reroll the outpost** → **DONE**: `outpost_weapon_offers` now persisted (`_SAVE_FIELDS` + `@export`).
 - **Sector modifiers → KEEP** (parked, do not cut). See [[parked-features-keep]].
 - **Base hull → 2 is intentional** — comments fixed; behavior unchanged.
