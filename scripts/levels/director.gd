@@ -327,6 +327,13 @@ func _dispatch_formation(ph: Resource) -> void:
 		await _dispatch_step_wall(ph)
 		_advance_step()
 		return
+	# AUTHORED: an explicit lane layout from the wave pattern editor — each spec is a single
+	# enemy pinned to spec.lane, entering at spec.spawn_delay (row * stagger). Spawned at exact
+	# lanes in ascending-delay order.
+	if ph.shape == &"authored":
+		await _dispatch_authored(ph)
+		_advance_step()
+		return
 	# Default (spread): per-member alternate-anchor lane at each spec's cadence;
 	# preserves tandem/side placement via spec.formation.
 	for sp in ph.specs:
@@ -390,6 +397,35 @@ func _dispatch_shaped(ph: Resource) -> void:
 			return
 		_spawn_enemy(members[idx], idx, int(lanes[idx]))
 		await get_tree().create_timer(0.06).timeout
+
+
+# AUTHORED: an explicitly laid-out formation (wave pattern editor). Each spec is one enemy pinned
+# to spec.lane, entering at spec.spawn_delay (= row * stagger from the editor). Spawn in
+# ascending-delay order at exact lanes (lane_override), cap-gated like the other shapes. A spec
+# with lane < 0 falls back to _spawn_enemy's algorithmic placement.
+func _dispatch_authored(ph: Resource) -> void:
+	var specs: Array = []
+	for sp in ph.specs:
+		if sp != null:
+			specs.append(sp)
+	if specs.is_empty():
+		return
+	specs.sort_custom(func(a, b): return float(a.spawn_delay) < float(b.spawn_delay))
+	var elapsed: float = 0.0
+	for sp in specs:
+		if not _running:
+			return
+		var wait: float = maxf(0.0, float(sp.spawn_delay) - elapsed)
+		if wait > 0.0:
+			await get_tree().create_timer(wait).timeout
+			elapsed += wait
+			if not _running:
+				return
+		while _running and _alive_count() >= max_concurrent:
+			await get_tree().create_timer(0.1).timeout
+		if not _running:
+			return
+		_spawn_enemy(sp, 0, int(sp.lane))
 
 
 # WALL: spawn members as successive rows across the lanes. Each row leaves
