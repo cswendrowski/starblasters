@@ -47,6 +47,9 @@ move it to `docs/archive/` with a banner rather than deleting it.
 
 Everything under [`archive/`](archive/) is superseded/historical — kept for design history only.
 
+**Open code follow-ups** (code decisions surfaced by the doc audit, not doc issues):
+[`code_followups_2026-06-15.md`](code_followups_2026-06-15.md).
+
 ## Ground-truth anchors (verify against code if a doc disagrees)
 
 These are the migrations older docs most often pre-date. If a doc contradicts one of these, the
