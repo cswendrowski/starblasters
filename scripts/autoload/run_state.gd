@@ -962,10 +962,7 @@ const _BulletDefault = preload("res://scenes/projectiles/bullet_blaster.tscn")
 # PartFactory load path so a designer-edited .tres applies here too. Called from
 # new_run() so the snapshot is always populated before any meta scene reads it.
 func _seed_default_loadout_snapshot() -> void:
-	var cannon = _PartFactory._load_or_default(
-		"res://resources/weapons/energy_blaster.tres", _BasicBlasterCannon)
-	if "bullet_scene" in cannon and cannon.bullet_scene == null:
-		cannon.bullet_scene = _BulletDefault
+	var cannon = _make_default_blaster()
 	loadout_snapshot[_SlotTypes.SlotType.CANNON] = cannon
 	# Seed cannon_pool[0] with the same blaster instance — the loadout
 	# snapshot's CANNON entry is a derived view of cannon_pool[active_idx].
@@ -977,8 +974,7 @@ func _seed_default_loadout_snapshot() -> void:
 	# Smart Bomb hasn't run apply() on a player yet (no live player in meta
 	# scenes), so seed super_charges from the part's per-mark formula directly
 	# so the Manage Ship modal's "Super x/y" reads correctly on a fresh run.
-	max_super_charges = _super_charges_from_part(super_part)
-	super_charges = max_super_charges
+	_seed_super_from_part(super_part)
 	# Shift-Mode slot starts with Focus (default stance) so meta scenes show it.
 	loadout_snapshot[_SlotTypes.SlotType.SHIFT_MODE] = _FocusMode.new()
 
@@ -1004,6 +1000,32 @@ func _super_charges_from_part(part) -> int:
 	return 1
 
 
+# Seed Run.secondary_ammo / _max from a HARDPOINT_WING part's per-Mk ammo. Honors both the
+# new `_base_ammo()` method and legacy @export `base_ammo`. reset_if_none: on a fresh equip an
+# unmetered/zero-ammo secondary clears the pool to -1; on an in-place Mk upgrade it leaves the
+# existing pool untouched (an upgrade must never wipe ammo). (Health audit 2026-06-15.)
+func _seed_secondary_ammo(part, reset_if_none: bool) -> void:
+	var sec_ammo: int = -1
+	if part.has_method("_base_ammo"):
+		sec_ammo = int(part._base_ammo())
+	elif "base_ammo" in part:
+		sec_ammo = int(part.base_ammo)
+	if sec_ammo > 0:
+		secondary_ammo = sec_ammo
+		secondary_ammo_max = sec_ammo
+	elif reset_if_none:
+		secondary_ammo = -1
+		secondary_ammo_max = -1
+
+
+# Seed Run.super_charges / max from a DEVICE_BAY_1 part's per-Mk charge formula — the part's
+# apply(ship) only runs at combat start, so meta-scene seeding/re-equip/upgrade need this.
+# (Health audit 2026-06-15.)
+func _seed_super_from_part(part) -> void:
+	max_super_charges = _super_charges_from_part(part)
+	super_charges = int(max_super_charges)
+
+
 func equip_part(part) -> void:
 	if part == null:
 		return
@@ -1019,22 +1041,7 @@ func equip_part(part) -> void:
 		weapon_storage.append(prev)
 	loadout_snapshot[slot] = part
 	if slot == _SlotTypes.SlotType.HARDPOINT_WING:
-		# WeaponPart refactor (2026-05-24) moved ammo declaration from an
-		# @export `base_ammo` to a virtual `_base_ammo()` method on
-		# BulletSecondary subclasses. Honor both shapes so this works for
-		# the new bullet/beam Parts and any legacy Part still exposing
-		# @export base_ammo.
-		var sec_ammo: int = -1
-		if part.has_method("_base_ammo"):
-			sec_ammo = int(part._base_ammo())
-		elif "base_ammo" in part:
-			sec_ammo = int(part.base_ammo)
-		if sec_ammo > 0:
-			secondary_ammo = sec_ammo
-			secondary_ammo_max = sec_ammo
-		else:
-			secondary_ammo = -1
-			secondary_ammo_max = -1
+		_seed_secondary_ammo(part, true)
 	if slot == _SlotTypes.SlotType.DEVICE_BAY_1:
 		# Reseed max_super_charges from the part's per-Mk formula here. The
 		# part's apply(ship) only runs at combat start, so without this any
@@ -1042,8 +1049,7 @@ func equip_part(part) -> void:
 		# leave max_super_charges at whatever the previous super left behind
 		# (or 0 after unequip_slot). See _seed_default_loadout_snapshot for
 		# the same pattern used on first run.
-		max_super_charges = _super_charges_from_part(part)
-		super_charges = int(max_super_charges)
+		_seed_super_from_part(part)
 
 
 # ---- Cannon pool helpers (Weapons Phase 1) -----------------------------
@@ -1300,17 +1306,9 @@ func _reseed_part_mark_state(part) -> void:
 				if get_active_cannon() == part:
 					ammo = mag   # mirror the live magazine when upgrading the active cannon
 		_SlotTypes.SlotType.HARDPOINT_WING:
-			var sec_ammo: int = -1
-			if part.has_method("_base_ammo"):
-				sec_ammo = int(part._base_ammo())
-			elif "base_ammo" in part:
-				sec_ammo = int(part.base_ammo)
-			if sec_ammo > 0:
-				secondary_ammo = sec_ammo
-				secondary_ammo_max = sec_ammo
+			_seed_secondary_ammo(part, false)
 		_SlotTypes.SlotType.DEVICE_BAY_1:
-			max_super_charges = _super_charges_from_part(part)
-			super_charges = int(max_super_charges)
+			_seed_super_from_part(part)
 
 
 # Inverse of equip_part: clears a slot in loadout_snapshot and zeroes any
