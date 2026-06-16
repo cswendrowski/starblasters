@@ -25,9 +25,10 @@ Severity = blast radius if it bites. **Urgency ≠ severity**: several HIGH-seve
 - **Tier-2 dead-code:** outpost UPGRADES column (~200 lines); `explosion` `*_unused` fns + texture builders; `wave_generator` `_build_coda`/`_coda_shape`; `sector_map` name-label fns + 3 commented blocks; `layer_planet` dead `ci_mat`; stale gl_compatibility comments (`explosion`/`trail_fx`). Plus the `explosion` O(n²) `find()` fix.
 - **Perf:** `muzzle_fx` per-shot texture cache; `layer_stellar` per-frame asteroid-node cache.
 - **Safe fixes:** `settings` keybind corruption guard; `music_manager` `Node.name` shadow.
+- **Tier-3 duplication:** `sector_map` `_setup_celestial_control` (×5) + `_spawn_one_asteroid` (×3) helpers (RNG order preserved — needs a visual sanity-check since headless can't render the map); `run_state` `_make_default_blaster` dedup + `_seed_super_from_part` (×3) + `_seed_secondary_ammo(part, reset_if_none)` (×2, flag preserves the equip-vs-upgrade behavior difference).
 - **Reclassified (no change):** #2 death-bomb — not a bug (`fire_super()` preconditions already match the guard).
 
-**Still open — decision-independent** (not yet done): `parallax_shadow` gut-to-gate + `director` dead params (deferred — `class_name`/hot-path care); Tier-3 helper extractions (PixelPlanets `_setup_celestial_control`, sector_map asteroid pipeline, `run_state` reseed/blaster dedup); outpost refresh-debounce; `enemy_sword`→`broadside` shoot key. Also minor: `_format_loadout_line`/`_current_mk` in outpost may now be unused post-UPGRADES-removal.
+**Still open — decision-independent** (not yet done): `parallax_shadow` gut-to-gate + `director` dead params (deferred — `class_name`/hot-path care); outpost refresh-debounce (a timing/behavior change, not pure dedup); `enemy_sword`→`broadside` shoot key (convention drift — hand to data-author). Also minor: `_format_loadout_line`/`_current_mk` in outpost may now be unused post-UPGRADES-removal.
 
 **Still blocked on Roman:** RNG determinism scope; sector-modifier keep/cut; base-hull pips (+ soft confirms #3 filler-duration, #4 backup-shield SFX, #5 impact_fx, phase-refund cap, outpost offers/charges on resume).
 
