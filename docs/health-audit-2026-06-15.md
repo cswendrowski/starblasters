@@ -28,9 +28,18 @@ Severity = blast radius if it bites. **Urgency ≠ severity**: several HIGH-seve
 - **Tier-3 duplication:** `sector_map` `_setup_celestial_control` (×5) + `_spawn_one_asteroid` (×3) helpers (RNG order preserved — needs a visual sanity-check since headless can't render the map); `run_state` `_make_default_blaster` dedup + `_seed_super_from_part` (×3) + `_seed_secondary_ammo(part, reset_if_none)` (×2, flag preserves the equip-vs-upgrade behavior difference).
 - **Reclassified (no change):** #2 death-bomb — not a bug (`fire_super()` preconditions already match the guard).
 
-**Still open — decision-independent** (not yet done): `parallax_shadow` gut-to-gate + `director` dead params (deferred — `class_name`/hot-path care); outpost refresh-debounce (a timing/behavior change, not pure dedup); `enemy_sword`→`broadside` shoot key (convention drift — hand to data-author). Also minor: `_format_loadout_line`/`_current_mk` in outpost may now be unused post-UPGRADES-removal.
+**Decisions made (Roman, 2026-06-15):**
+- **Determinism → "Placement too"** — same-seed runs must reproduce placement; `director.gd` dispatch picks + `levels_v2` minefield need a `run_seed`-derived RNG. *(Queued — substantive hot-path change, its own commit.)*
+- **Sector modifiers → KEEP** the dormant subsystem (parked, coming back — do not cut). See [[parked-features-keep]].
+- **Base hull → 2 is intentional** — comments fixed in `player.gd`; behavior unchanged.
 
-**Still blocked on Roman:** RNG determinism scope; sector-modifier keep/cut; base-hull pips (+ soft confirms #3 filler-duration, #4 backup-shield SFX, #5 impact_fx, phase-refund cap, outpost offers/charges on resume).
+**Done (this round):** `director` dead `ignore_recycling` param; outpost `_current_mk`/`_format_loadout_line`/`_short_part_text` (orphaned post-UPGRADES); base-hull comment.
+
+**Still open — decision-independent:** none of consequence. `parallax_shadow` was NOT gutted — it's a parked flip-to-re-enable feature like the sector-mods subsystem (kept for consistency).
+
+**Still needs Roman (lower stakes):** soft confirms #3 filler-duration, #4 backup-shield SFX, #5 impact_fx, phase-refund cap, outpost offers/charges on resume; plus keep/cut on `director` `step_wall` scaffolding and `enemy_sword`→`broadside` (firing-behavior check).
+
+**Next substantive task:** the determinism "placement-too" seeding work.
 
 ---
 
