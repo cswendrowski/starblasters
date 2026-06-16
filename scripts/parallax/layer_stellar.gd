@@ -136,7 +136,7 @@ func _spawn_asteroid() -> void:
 	var base_rot: float = 0.0
 	if inner != null and inner.material is ShaderMaterial:
 		base_rot = float((inner.material as ShaderMaterial).get_shader_parameter("rotation"))
-	_objects.append({"node": a, "size": sz, "spin": spin, "rot": base_rot, "mini": false})
+	_objects.append({"node": a, "size": sz, "spin": spin, "rot": base_rot, "mini": false, "asteroid": inner})
 
 
 # Build the Asteroids.gdshader `colors` ramp (light → mid → dark) from a single
@@ -256,8 +256,8 @@ func _process(delta: float) -> void:
 		var n: Node = entry.node
 		if not is_instance_valid(n):
 			continue
-		var inner := n.get_node_or_null("Asteroid")
-		if inner != null and inner.material is ShaderMaterial:
+		var inner: Node = entry.get("asteroid")
+		if inner != null and is_instance_valid(inner) and inner.material is ShaderMaterial:
 			entry.rot = float(entry.get("rot", 0.0)) + sp * delta
 			(inner.material as ShaderMaterial).set_shader_parameter("rotation", entry.rot)
 

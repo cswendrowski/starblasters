@@ -182,6 +182,9 @@ static func play_enemy(world_pos: Vector2, dir: Vector2, root: Node) -> void:
 
 const GlowFxM = preload("res://scripts/effects/glow_shader_fx.gd")
 
+static var _flash_tex_cache: Texture2D = null
+static var _smoke_tex_cache: Texture2D = null
+
 
 # Unified player muzzle flash (Roman 2026-06-09 player pass): the flash strip is BOTTOM-anchored to
 # the muzzle marker (its base sits on the marker, extends forward), tinted `color` with a matching
@@ -391,39 +394,43 @@ static func _spawn_shell(root: Node, world_pos: Vector2, large: bool = false) ->
 # 32x32 soft white→transparent radial gradient. The flash sprite uses additive
 # blending so this drives both shape and brightness.
 static func _build_flash_texture() -> Texture2D:
-	var g := Gradient.new()
-	g.colors = PackedColorArray([
-		Color(1, 1, 1, 1),
-		Color(1, 1, 1, 0.55),
-		Color(1, 1, 1, 0.0),
-	])
-	g.offsets = PackedFloat32Array([0.0, 0.45, 1.0])
-	var t := GradientTexture2D.new()
-	t.gradient = g
-	t.width = 32
-	t.height = 32
-	t.fill = GradientTexture2D.FILL_RADIAL
-	t.fill_from = Vector2(0.5, 0.5)
-	t.fill_to = Vector2(1.0, 0.5)
-	return t
+	if _flash_tex_cache == null:
+		var g := Gradient.new()
+		g.colors = PackedColorArray([
+			Color(1, 1, 1, 1),
+			Color(1, 1, 1, 0.55),
+			Color(1, 1, 1, 0.0),
+		])
+		g.offsets = PackedFloat32Array([0.0, 0.45, 1.0])
+		var t := GradientTexture2D.new()
+		t.gradient = g
+		t.width = 32
+		t.height = 32
+		t.fill = GradientTexture2D.FILL_RADIAL
+		t.fill_from = Vector2(0.5, 0.5)
+		t.fill_to = Vector2(1.0, 0.5)
+		_flash_tex_cache = t
+	return _flash_tex_cache
 
 
 # 16x16 softer disc for smoke puffs — slightly chunkier falloff than the
 # flash so individual puffs read as separate gray blobs rather than one
 # continuous fog.
 static func _build_smoke_texture() -> Texture2D:
-	var g := Gradient.new()
-	g.colors = PackedColorArray([
-		Color(1, 1, 1, 1),
-		Color(1, 1, 1, 0.45),
-		Color(1, 1, 1, 0.0),
-	])
-	g.offsets = PackedFloat32Array([0.0, 0.6, 1.0])
-	var t := GradientTexture2D.new()
-	t.gradient = g
-	t.width = 16
-	t.height = 16
-	t.fill = GradientTexture2D.FILL_RADIAL
-	t.fill_from = Vector2(0.5, 0.5)
-	t.fill_to = Vector2(1.0, 0.5)
-	return t
+	if _smoke_tex_cache == null:
+		var g := Gradient.new()
+		g.colors = PackedColorArray([
+			Color(1, 1, 1, 1),
+			Color(1, 1, 1, 0.45),
+			Color(1, 1, 1, 0.0),
+		])
+		g.offsets = PackedFloat32Array([0.0, 0.6, 1.0])
+		var t := GradientTexture2D.new()
+		t.gradient = g
+		t.width = 16
+		t.height = 16
+		t.fill = GradientTexture2D.FILL_RADIAL
+		t.fill_from = Vector2(0.5, 0.5)
+		t.fill_to = Vector2(1.0, 0.5)
+		_smoke_tex_cache = t
+	return _smoke_tex_cache
