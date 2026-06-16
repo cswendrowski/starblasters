@@ -283,57 +283,6 @@ static func _pick_heavy(rng: RandomNumberGenerator, sector_depth: int, level_ind
 	return _pick_elite(rng, sector_depth, level_index, exclude)
 
 
-# Coda shape, scaled by depth (all three are valid — Roman 2026-06-04). Opener is a
-# clean single cap; mid nodes mix single/escort; deep nodes lean formation/escort.
-#   "single"    — a tight priority target (1-2 heavies)
-#   "formation" — 2-3 heavies, conductor staggers them across lanes
-#   "escort"    — a heavy anchoring a small chaff support swarm (mini-setpiece)
-static func _coda_shape(rng: RandomNumberGenerator, level_index: int) -> String:
-	if level_index == 0:
-		return "single"
-	if level_index <= 2:
-		return "single" if rng.randf() < 0.5 else "escort"
-	if level_index <= 4:
-		return "escort" if rng.randf() < 0.5 else "formation"
-	return "escort" if rng.randf() < 0.4 else "formation"
-
-
-# Build the closing coda and append its spec(s) + base_count(s) to the level. The
-# coda is the node's boss-substitute: a bannered heavy beat that caps the stream.
-# Low base_count keeps coda heavies out of chaff budget-scaling (they stay discrete);
-# an escort's chaff sub-wave DOES scale. Mutates used/waves/base_counts in place.
-static func _build_coda(rng: RandomNumberGenerator, sector_depth: int, level_index: int, used: Array, waves: Array, base_counts: Array, wave_index: int) -> void:
-	# Prefer 64px capitals once past the run's very first node, OR anywhere in
-	# sector 2+ (where capitals unlock) — so deeper play leans on big silhouettes.
-	# Sector 1 has no capitals, so this still resolves to anchors there.
-	var prefer_capital: bool = level_index >= 1 or sector_depth >= 2
-	var heavy: Dictionary = _pick_heavy(rng, sector_depth, level_index, used, prefer_capital)
-	if heavy.is_empty():
-		# Absolute fallback — never drop the cap.
-		heavy = _pick_entry(rng, sector_depth, level_index, used, PackedStringArray(), Roster.Tier.RARE)
-	used.append(heavy)
-	var shape: String = _coda_shape(rng, level_index)
-	var w = _make_wave_spec(rng, heavy, sector_depth, level_index, wave_index)
-	w.silent = false  # the coda always banners — it's the node's finale
-	if shape == "formation":
-		w.count = clampi(int(w.count), 2, 3)  # a staggered cluster of heavies
-	else:
-		w.count = clampi(int(w.count), 1, 2)  # tight priority target
-	waves.append(w)
-	base_counts.append(int(heavy.get("base_count", 4)))
-	if shape == "escort":
-		# Add a small chaff escort streaming in alongside the heavy.
-		var escort_excl: Array = used.duplicate()
-		var chaff: Dictionary = _pick_entry(rng, sector_depth, level_index, escort_excl, PackedStringArray(), Roster.Tier.COMMON)
-		used.append(chaff)
-		var cw = _make_wave_spec(rng, chaff, sector_depth, level_index, wave_index)
-		cw.silent = true  # one banner for the coda; the escort is mute
-		cw.spawn_delay = w.spawn_delay
-		cw.spawn_interval = w.spawn_interval * 1.2  # interleave with the heavy
-		waves.append(cw)
-		base_counts.append(int(chaff.get("base_count", 4)))
-
-
 # Pick a heavy from the generic RARE/tough fallback pool (used when no heavy_class
 # entry is unlocked at this coordinate). Prefers the depth-eligible RARE pool;
 # failing that, tough/large UNCOMMONs. Prefers an unused entry. {} if none exist.

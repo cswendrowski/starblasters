@@ -1,12 +1,13 @@
 extends Node
 
 # Particle trail helper. Builds a single GPUParticles2D behind a moving Node2D
-# (bullet) to leave a glowing dot trail. Designed to run on the project's
-# `gl_compatibility` renderer, which does NOT support GPUParticles2D
-# sub-emitters or `emit_subparticle()`. So instead of the godotshaders "zero-
-# gap" sub-emitter dance, this emits at a high steady rate from a single
+# (bullet) to leave a glowing dot trail. Originally designed for the
+# `gl_compatibility` renderer, which did NOT support GPUParticles2D
+# sub-emitters or `emit_subparticle()`. The single-emitter approach (vs the
+# godotshaders "zero-gap" sub-emitter dance) was kept after the forward_plus
+# pivot (2026-06-10) and continues to emit at a high steady rate from a single
 # emitter with `local_coords = false` so dots stay put as the bullet flies on.
-# At amount/lifetime = 64/0.4 the spacing at -1400 px/s is ~9px — visually
+# At amount/lifetime = 64/0.4 the spacing at ~1400 px/s is ~9px — visually
 # continuous when paired with the soft 16px dot texture rendered at scale 6.
 
 # Cached shared resources — built once across all bullets.

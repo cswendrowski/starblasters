@@ -966,10 +966,6 @@ func _spawn_planet(center: Vector2, display_px: float, type_idx: int, row_idx: i
 	# of `rng` got consumed by randomize_colors / set_seed above.
 	var moon_rng: RandomNumberGenerator = _make_moon_rng(poi_id) if poi_id != "" else rng
 	_spawn_moons(center, display_px, moon_rng)
-	# DISABLED: Change 4: planet name label
-# 	var planet_name_seed: int = abs(hash(poi_id)) if poi_id != "" else abs(hash(center))
-# 	var planet_name: String = _generate_celestial_name("planet", planet_name_seed)
-# 	_spawn_celestial_name_label(center, planet_name, display_px * 0.5 + 4.0)
 
 
 func _spawn_large_asteroid(center: Vector2, row_idx: int, rng: RandomNumberGenerator) -> void:
@@ -1008,10 +1004,6 @@ func _spawn_large_asteroid(center: Vector2, row_idx: int, rng: RandomNumberGener
 	})
 	_scatter_asteroid_band(center, rng)
 	_scatter_pulse_pixels(center, PX, rng)
-	# DISABLED: Change 4: asteroid name label
-# 	var ast_name: String = _generate_celestial_name("asteroid", abs(hash(center)))
-# 	_spawn_celestial_name_label(center, ast_name, PX * 0.5 + 4.0)
-# 
 
 func _spawn_asteroid_cluster(center: Vector2, row_idx: int, rng: RandomNumberGenerator) -> void:
 	var count: int = 3 + rng.randi() % 3
@@ -1049,10 +1041,6 @@ func _spawn_asteroid_cluster(center: Vector2, row_idx: int, rng: RandomNumberGen
 		})
 		_scatter_pulse_pixels(Vector2(center.x + ox, center.y + oy), px, rng)
 	_scatter_asteroid_band(center, rng)
-	# DISABLED: Change 4: cluster name label (once per cluster, not per individual rock)
-# 	var cluster_name: String = _generate_celestial_name("cluster", abs(hash(center)) ^ 0xABCD)
-# 	_spawn_celestial_name_label(center, cluster_name, 20.0)
-# 
 
 func _scatter_asteroid_band(center: Vector2, rng: RandomNumberGenerator) -> void:
 	var count: int = 2 + rng.randi() % 3
@@ -1876,51 +1864,6 @@ func _poi_event_label(node_type: int, seed_val: int, hazard_subtype: String = ""
 	var body: String = _poi_body_name(node_type, seed_val, hazard_subtype)
 	var prefix: String = _poi_event_prefix(node_type, seed_val, hazard_subtype)
 	return ("%s %s" % [prefix, body]) if prefix != "" else body
-
-
-# Spawn a small name label near a celestial body. Low opacity so it reads as
-# ambient chart data rather than UI chrome. font_size 7, alpha 0.35.
-func _spawn_celestial_name_label(pos: Vector2, name_text: String, y_offset: float = 8.0) -> void:
-	var ls := LabelSettings.new()
-	ls.font = FONT
-	ls.font_size = 7
-	ls.font_color = Color(0.75, 0.85, 1.0, 1.0)
-	ls.outline_size = 1
-	ls.outline_color = Color(0.0, 0.0, 0.0, 0.8)
-	var lbl := Label.new()
-	lbl.text = name_text
-	lbl.label_settings = ls
-	lbl.modulate.a = 0.35
-	lbl.position = Vector2(pos.x - 24.0, pos.y + y_offset)
-	lbl.z_index = 8
-	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(lbl)
-
-
-# Spawn a tiny POI name label below the POI icon position.
-# Distinct from _spawn_celestial_name_label: slightly smaller (font_size 6)
-# and uses a warmer tint so it reads as a designation rather than a star-chart
-# annotation. Alpha kept at 0.45 — subtle but readable on hover.
-func _spawn_poi_name_label(pos: Vector2, name_text: String) -> void:
-	if name_text == "":
-		return
-	var ls := LabelSettings.new()
-	ls.font = FONT
-	ls.font_size = 6
-	ls.font_color = Color(0.80, 0.90, 0.75, 1.0)
-	ls.outline_size = 1
-	ls.outline_color = Color(0.0, 0.0, 0.0, 0.8)
-	var lbl := Label.new()
-	lbl.text = name_text
-	lbl.label_settings = ls
-	lbl.modulate.a = 0.45
-	# Sit the label 11px below centre — clears the 16px icon footprint (0.5
-	# scale of 32px atlas = 16px half-height) without overlapping the
-	# celestial-body name label that appears above it.
-	lbl.position = Vector2(pos.x - 24.0, pos.y + 11.0)
-	lbl.z_index = 8
-	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(lbl)
 
 
 # Override the asteroid shader's `colors` palette with a 3-tone derived from

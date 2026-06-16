@@ -132,45 +132,6 @@ func _spawn_sparks() -> void:
 	p.amount = maxi(1, spark_count)
 	add_child(p)   # child of the explosion → frees with it
 
-func _spawn_sparks_unused() -> void:
-	var p := GPUParticles2D.new()
-	p.name = "Sparks"
-	p.amount = spark_count
-	p.lifetime = 0.45
-	p.one_shot = true
-	p.explosiveness = 1.0
-	p.local_coords = false
-	p.texture = _build_spark_texture()
-	var m := ParticleProcessMaterial.new()
-	m.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	m.emission_sphere_radius = 6.0
-	m.direction = Vector3(0, -1, 0)
-	m.spread = 180.0
-	m.initial_velocity_min = 180.0
-	m.initial_velocity_max = 360.0
-	m.gravity = Vector3(0, 80, 0)
-	m.scale_min = 0.6
-	m.scale_max = 1.2
-	var curve = Curve.new()
-	curve.add_point(Vector2(0, 1))
-	curve.add_point(Vector2(1, 0))
-	var ct = CurveTexture.new()
-	ct.curve = curve
-	m.scale_curve = ct
-	var grad = Gradient.new()
-	grad.colors = PackedColorArray([
-		Color(1.0, 1.0, 0.85, 1.0),
-		Color(1.0, 0.55, 0.15, 1.0),
-		Color(0.6, 0.15, 0.05, 0.0),
-	])
-	grad.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
-	var ramp = GradientTexture1D.new()
-	ramp.gradient = grad
-	ramp.width = 32
-	m.color_ramp = ramp
-	p.process_material = m
-	add_child(p)
-
 
 # Debris swapped for an EMBER burst (Roman 2026-06-12): the editor-tweakable explosion_ember.tscn
 # (ember_spray particle shader). `debris_count` drives the ember amount. Sprayed into the
@@ -192,54 +153,6 @@ func _spawn_debris() -> void:
 	root2d.global_position = global_position
 	host.add_child.call_deferred(root2d)
 	p.finished.connect(root2d.queue_free)
-
-func _spawn_debris_unused() -> void:
-	var p := GPUParticles2D.new()
-	p.name = "Debris"
-	p.amount = debris_count
-	p.lifetime = 0.75
-	p.one_shot = true
-	p.explosiveness = 0.8
-	p.local_coords = false
-	p.texture = _build_debris_texture()
-	var m := ParticleProcessMaterial.new()
-	m.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	m.emission_sphere_radius = 8.0
-	m.direction = Vector3(0, -1, 0)
-	m.spread = 180.0
-	m.initial_velocity_min = 80.0
-	m.initial_velocity_max = 220.0
-	m.gravity = Vector3(0, 120, 0)
-	m.angular_velocity_min = -540.0
-	m.angular_velocity_max = 540.0
-	m.scale_min = 0.7
-	m.scale_max = 1.1
-	var grad = Gradient.new()
-	grad.colors = PackedColorArray([
-		Color(0.85, 0.6, 0.35, 1.0),
-		Color(0.45, 0.3, 0.15, 0.0),
-	])
-	grad.offsets = PackedFloat32Array([0.0, 1.0])
-	var ramp = GradientTexture1D.new()
-	ramp.gradient = grad
-	ramp.width = 16
-	m.color_ramp = ramp
-	p.process_material = m
-	add_child(p)
-
-
-# Sharp 2x2 white pixel for sparks. CPUParticles2D scale_amount controls rendered size.
-static func _build_spark_texture() -> Texture2D:
-	var img := Image.create(2, 2, false, Image.FORMAT_RGBA8)
-	img.fill(Color.WHITE)
-	return ImageTexture.create_from_image(img)
-
-
-# Sharp 2x2 white pixel for debris. CPUParticles2D scale_amount controls rendered size.
-static func _build_debris_texture() -> Texture2D:
-	var img := Image.create(2, 2, false, Image.FORMAT_RGBA8)
-	img.fill(Color.WHITE)
-	return ImageTexture.create_from_image(img)
 
 
 func _spawn_light() -> void:
@@ -356,8 +269,8 @@ func _process(delta: float) -> void:
 		_frame += 1
 	_apply_frame_to_all()
 	_apply_light()
-	# Cleanup is handled by the 1.6s timer in _ready — don't depend on
-	# `$Sparks.emitting` here, it doesn't flip reliably on gl_compatibility.
+	# Cleanup is handled by the 0.75s timer in _ready — don't depend on
+	# `$Sparks.emitting` for cleanup.
 
 
 func _apply_frame_to_all() -> void:
@@ -366,7 +279,8 @@ func _apply_frame_to_all() -> void:
 	# it hides — Roman's "final frame hangs on the map for several seconds"
 	# was the smoke frame loitering visible until the timer freed the node.
 	var time: float = _frame * frame_duration + _frame_timer
-	for entry in _sprites:
+	for i in _sprites.size():
+		var entry = _sprites[i]
 		var s: Sprite2D = entry["sprite"]
 		var d: float = entry["delay"]
 		var local_time: float = time - d
@@ -377,15 +291,13 @@ func _apply_frame_to_all() -> void:
 		if local_frame >= frames:
 			s.visible = false
 			# Halo also hides
-			var idx_done: int = _sprites.find(entry)
-			if idx_done >= 0 and idx_done < _halos.size():
-				_halos[idx_done].visible = false
+			if i >= 0 and i < _halos.size():
+				_halos[i].visible = false
 			continue
 		s.visible = true
 		s.frame = local_frame
-		var idx: int = _sprites.find(entry)
-		if idx >= 0 and idx < _halos.size():
-			var halo: Sprite2D = _halos[idx]
+		if i >= 0 and i < _halos.size():
+			var halo: Sprite2D = _halos[i]
 			halo.frame = local_frame
 			halo.visible = true
 			var glow: float = 1.0 - clamp(float(local_frame - 3) / 3.0, 0.0, 1.0)

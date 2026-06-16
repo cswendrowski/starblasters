@@ -344,9 +344,6 @@ func _attach_pulse_glow(center: Vector2, diameter: float, color: Color) -> void:
 	mat.shader = PULSE_GLOW_SHADER
 	mat.set_shader_parameter("glow_color", Color(color.r, color.g, color.b, 0.85))
 	rect.material = mat
-	var ci_mat := CanvasItemMaterial.new()
-	ci_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	rect.material = mat  # ShaderMaterial wins, blend lives on the canvas item
 	add_child(rect)
 
 

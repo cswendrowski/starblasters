@@ -29,10 +29,6 @@ const OutpostSfx = preload("res://scripts/effects/outpost_sfx.gd")
 # → Thrusters, shield capacity → Shield Core's Mk; earlier armor/shield-recharge/self-repair/
 # hull-plating). No purchasable upgrades remain — progression is weapons + modules, which roll
 # in the PARTS column. The upgrades shop column was removed; the Run int fields stay for save compat.
-const UPGRADES := []
-
-const UPGRADE_BASE_COST := 140
-const UPGRADE_COST_PER_MK := 70
 const MAX_MK := 9
 const HULL_REPAIR_COST := 250
 # Ammo refill: cost scales with the number of rounds the player is missing,
@@ -77,7 +73,6 @@ const WEAPON_SLOT_WEIGHTS := [
 	SlotTypes.SlotType.MODULE,
 ]
 const WEAPONS_COLUMN_COUNT := 5
-const UPGRADES_COLUMN_COUNT := 3
 
 # ---- HD layout constants (1920×1080) -----------------------------------
 const HD_W := 1920
@@ -86,7 +81,6 @@ const STATUS_H := 96
 const MARGIN := 24
 const COL_GAP := 18
 const COL_WEAPONS_W := 920  # widened 2026-06-13 — absorbs the retired upgrades column
-const COL_UPGRADES_W := 600
 const COL_SERVICES_W := 400  # fills remainder; recomputed at build
 # 3-column salvage layout (Roman 2026-06-14): SHOP | LOADOUT | SERVICES.
 const COL_SHOP_W := 600
@@ -115,21 +109,14 @@ const FS_STATUS := UiTheme.FONT_SIZE_CAPTION     # 16
 const FS_STATUS_VALUE := UiTheme.FONT_SIZE_BODY  # 22
 
 var _weapon_offers: Array = []   # [{part, cost, sold}]
-var _upgrade_offers: Array = []  # [{key, name, desc, next_mk, cost, sold}]
 
 # UI refs.
 var _bounty_value_lbl: Label = null
 var _materials_value_lbl: Label = null
 var _module_cap_lbl: Label = null
 var _hull_value_lbl: Label = null
-var _shield_value_lbl: Label = null
-var _mg_ammo_lbl: Label = null
-var _sec_ammo_lbl: Label = null
-var _super_value_lbl: Label = null
-var _loadout_lbl: Label = null
 var _modifiers_lbl: Label = null
 var _weapons_box: VBoxContainer = null
-var _upgrades_box: VBoxContainer = null
 var _loadout_box: VBoxContainer = null
 var _modules_box: VBoxContainer = null
 var _services_box: VBoxContainer = null
@@ -423,81 +410,6 @@ func _make_weapon_card(offer: Dictionary) -> Control:
 
 	return card
 
-
-# ---- Upgrades column ------------------------------------------------------
-
-func _render_upgrade_offers() -> void:
-	for c in _upgrades_box.get_children():
-		c.queue_free()
-	if _upgrade_offers.is_empty():
-		var lbl := Label.new()
-		lbl.text = Strings.OUTPOST_UPGRADES_MAXED
-		_style_label(lbl, FS_BODY, Color(0.72, 0.72, 0.62))
-		_upgrades_box.add_child(lbl)
-		return
-	for offer in _upgrade_offers:
-		_upgrades_box.add_child(_make_upgrade_card(offer))
-
-
-func _make_upgrade_card(offer: Dictionary) -> Control:
-	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(0, CARD_H)
-	var next_mk: int = int(offer["next_mk"])
-	var tier: Dictionary = PartTier.tier_for_mk(next_mk)
-	card.add_theme_stylebox_override("panel", _card_style_tier(tier["color"]))
-
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 14)
-	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	card.add_child(row)
-
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 4)
-	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	v.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	row.add_child(v)
-
-	# Task #2: upgrade name in rarity color.
-	var name_lbl := Label.new()
-	name_lbl.text = "%s  Mk.%d" % [offer["name"], next_mk]
-	_style_label(name_lbl, FS_BODY, tier["color"])  # Rarity color on the name.
-	v.add_child(name_lbl)
-
-	# Show current Mk and the delta (if applicable).
-	var current_mk: int = _current_mk(offer["key"])
-	var delta_mk: int = next_mk - current_mk
-	var current_lbl := Label.new()
-	if delta_mk > 0:
-		current_lbl.text = "Mk.%d → Mk.%d" % [current_mk, next_mk]
-	else:
-		current_lbl.text = "Currently Mk.%d" % current_mk
-	_style_label(current_lbl, FS_CAPTION, Color(0.62, 0.72, 0.82))
-	v.add_child(current_lbl)
-
-	var desc_lbl := Label.new()
-	desc_lbl.text = String(offer["desc"])
-	desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	desc_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	desc_lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_style_label(desc_lbl, FS_CAPTION, Color(0.72, 0.78, 0.85))
-	v.add_child(desc_lbl)
-
-	var buy_btn := Button.new()
-	buy_btn.custom_minimum_size = Vector2(160, 56)
-	buy_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	UiTheme.style_button(buy_btn)
-	buy_btn.add_theme_font_size_override("font_size", FS_BODY)
-	var sold: bool = offer.get("sold", false)
-	if sold:
-		buy_btn.text = Strings.OUTPOST_BTN_PURCHASED
-		buy_btn.disabled = true
-	else:
-		buy_btn.text = Strings.OUTPOST_BTN_BUY % int(offer["cost"])
-		buy_btn.disabled = _run_bounty() < int(offer["cost"])
-	buy_btn.pressed.connect(_on_buy_upgrade.bind(offer, buy_btn))
-	row.add_child(buy_btn)
-	return card
 
 
 # ---- Services column ------------------------------------------------------
@@ -1213,15 +1125,13 @@ func _load_or_roll_offers() -> void:
 		_roll_offers()
 		return
 	var run := get_node("/root/Run")
-	var have_stock: bool = not (run.outpost_weapon_offers.is_empty() and run.outpost_upgrade_offers.is_empty())
+	var have_stock: bool = not run.outpost_weapon_offers.is_empty()
 	if run.outpost_needs_refresh or not have_stock:
 		_roll_offers()
 		run.outpost_weapon_offers = _weapon_offers
-		run.outpost_upgrade_offers = _upgrade_offers
 		run.outpost_needs_refresh = false
 	else:
 		_weapon_offers = run.outpost_weapon_offers
-		_upgrade_offers = run.outpost_upgrade_offers
 
 
 func _roll_offers() -> void:
@@ -1235,28 +1145,6 @@ func _roll_offers() -> void:
 	# not per-sector — bosses are the progression gate for the whole run.
 	var bosses_killed: int = int(get_node("/root/Run").bosses_defeated) if has_node("/root/Run") else 0
 	var max_mk_for_sector: int = mini(MAX_MK, 3 + 3 * bosses_killed)
-
-	# Upgrades: 3 distinct rolls, skip maxed keys. The card shows the Mk
-	# the player will be at AFTER buying — i.e. current_mk + 1 — so the
-	# advertised number matches what the purchase handler actually
-	# applies (run.set(key, _current_mk(key) + 1) at _on_buy_upgrade).
-	# Pool gating uses max_mk_for_sector (sector-scaled cap), but the
-	# displayed Mk is always exactly +1 over current, never the rolled
-	# fantasy. Fixes "card says Mk 5 but you get Mk 3" (Roman, 2026-05-24).
-	var pool: Array = []
-	for u in UPGRADES:
-		if _current_mk(u["key"]) < max_mk_for_sector:
-			pool.append(u)
-	pool.shuffle()
-	_upgrade_offers.clear()
-	for i in min(UPGRADES_COLUMN_COUNT, pool.size()):
-		var u: Dictionary = pool[i]
-		var next_mk: int = mini(MAX_MK, _current_mk(u["key"]) + 1)
-		var cost: int = UPGRADE_BASE_COST + (next_mk - 1) * UPGRADE_COST_PER_MK
-		_upgrade_offers.append({
-			"key": u["key"], "name": u["name"], "desc": u["desc"],
-			"next_mk": next_mk, "cost": cost, "sold": false,
-		})
 
 	# Weapons: WEAPONS_COLUMN_COUNT cards. Slot weighted 50/25/25 via
 	# WEAPON_SLOT_WEIGHTS; mark via the triangular roll capped at sector+3.
@@ -1352,39 +1240,6 @@ func _current_sector() -> int:
 
 # ---- Purchase handlers ----------------------------------------------------
 
-func _on_buy_upgrade(offer: Dictionary, btn: Button) -> void:
-	if offer.get("sold", false):
-		return
-	if not has_node("/root/Run"):
-		return
-	var run := get_node("/root/Run")
-	var cost: int = int(offer["cost"])
-	if int(run.bounty) < cost:
-		return
-	run.spend_bounty(cost)
-	var key: String = String(offer["key"])
-	run.set(key, _current_mk(key) + 1)
-	# Hull upgrade: the new pip arrives FILLED. Without this, max_hull grows
-	# (via apply_run_upgrades: 2 + min(hull_mk, 8)) while current_hull keeps
-	# its stale value, so next combat the ship reads as damaged (hull <
-	# max_hull) and the engine-torch / smoke damage-tell falsely ignites on
-	# an undamaged ship (Roman: "adding more hull causes the ship to be on
-	# fire"). Bump current_hull by the same delta the upgrade added to
-	# max_hull, clamped to the new max. We do NOT blanket-fill — a genuinely
-	# damaged ship stays damaged (1/2 → buy pip → 1/3, fire still shows).
-	if key == "hull_mk":
-		var new_max_hull: int = 2 + mini(int(run.hull_mk), 8)
-		var hull_delta: int = new_max_hull - int(run.max_hull)
-		run.max_hull = new_max_hull
-		if hull_delta > 0:
-			run.current_hull = clampi(int(run.current_hull) + hull_delta, 0, new_max_hull)
-	offer["sold"] = true
-	btn.text = Strings.OUTPOST_BTN_PURCHASED
-	btn.disabled = true
-	OutpostSfx.play("upgrade")
-	_refresh_status_panel()
-	_show_toast(Strings.TOAST_UPGRADE_PURCHASED)
-
 
 func _on_buy_weapon(offer: Dictionary, btn: Button) -> void:
 	if offer.get("sold", false):
@@ -1474,17 +1329,6 @@ func _on_repair(btn: Button) -> void:
 	OutpostSfx.play("repair")
 	_refresh_status_panel()
 
-
-func _on_shield_refill(btn: Button) -> void:
-	# Free refill — mirrors what player.start() does on next combat anyway.
-	# This exists so the status bar reads "full" before the player leaves.
-	if not has_node("/root/Run"):
-		return
-	var run := get_node("/root/Run")
-	if int(run.max_shield) <= 0:
-		return
-	run.current_shield = int(run.max_shield)
-	_refresh_status_panel()
 
 
 # ---- Cost-scaled partial ammo refills -------------------------------------
@@ -1649,37 +1493,10 @@ func _refresh_status_panel() -> void:
 			_hull_value_lbl.text = "%d / %d" % [int(run.current_hull), int(run.max_hull)]
 		else:
 			_hull_value_lbl.text = "—"
-	if _shield_value_lbl:
-		if int(run.max_shield) > 0:
-			_shield_value_lbl.text = "%d / %d" % [int(run.current_shield), int(run.max_shield)]
-		else:
-			_shield_value_lbl.text = "—"
-	if _mg_ammo_lbl:
-		# PRIMARY label = the equipped Primary gun's ammo (the Blaster is always ∞ and
-		# shown on its own line). No Primary equipped → "—".
-		var pri = run.get_primary_cannon() if run.has_method("get_primary_cannon") else null
-		if pri != null and "current_ammo" in pri and "ammo_max" in pri and int(pri.ammo_max) > 0:
-			_mg_ammo_lbl.text = "%d / %d" % [int(pri.current_ammo), int(pri.ammo_max)]
-		else:
-			_mg_ammo_lbl.text = "—"
-	if _sec_ammo_lbl:
-		if int(run.secondary_ammo) >= 0 and int(run.secondary_ammo_max) > 0:
-			_sec_ammo_lbl.text = "%d / %d" % [int(run.secondary_ammo), int(run.secondary_ammo_max)]
-		elif int(run.secondary_ammo) >= 0:
-			_sec_ammo_lbl.text = "%d" % int(run.secondary_ammo)
-		else:
-			_sec_ammo_lbl.text = "—"
-	if _super_value_lbl:
-		if int(run.max_super_charges) > 0:
-			_super_value_lbl.text = "%d / %d" % [int(run.super_charges), int(run.max_super_charges)]
-		else:
-			_super_value_lbl.text = "—"
 	if _bounty_value_lbl:
 		_bounty_value_lbl.text = "%d" % int(run.bounty)
 	if _materials_value_lbl:
 		_materials_value_lbl.text = "%d" % int(run.materials)
-	if _loadout_lbl:
-		_loadout_lbl.text = _format_loadout_line(run)
 	if _modifiers_lbl:
 		_modifiers_lbl.text = _format_sector_modifiers(run)
 
@@ -1702,14 +1519,6 @@ func _refresh_card_affordability() -> void:
 			if offer.get("sold", false):
 				continue
 			var btn := _find_buy_button(_weapons_box.get_child(i))
-			if btn:
-				btn.disabled = _run_bounty() < int(offer["cost"])
-	if _upgrades_box:
-		for i in range(min(_upgrade_offers.size(), _upgrades_box.get_child_count())):
-			var offer: Dictionary = _upgrade_offers[i]
-			if offer.get("sold", false):
-				continue
-			var btn := _find_buy_button(_upgrades_box.get_child(i))
 			if btn:
 				btn.disabled = _run_bounty() < int(offer["cost"])
 
@@ -1758,17 +1567,6 @@ func _apply_service_button_state(btn: Button) -> void:
 			var repair_cost: int = _hull_repair_cost()
 			btn.disabled = _run_bounty() < repair_cost
 			btn.text = "%s  (%d) ·%d left" % [base_label, repair_cost, int(run.repair_charges)]
-		"shield":
-			if run == null or int(run.max_shield) <= 0:
-				btn.disabled = true
-				btn.text = "%s %s" % [base_label, Strings.SERVICE_SUFFIX_NO_SHIELD]
-				return
-			if int(run.current_shield) >= int(run.max_shield):
-				btn.disabled = true
-				btn.text = Strings.SERVICE_STATE_SHIELDS_FULL
-				return
-			btn.disabled = false
-			btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_FREE]
 		"primary_ammo":
 			# Weapons Phase 1: flat-cost refill on the active replacement
 			# primary. Blaster active → greyed (no ammo to refill). Active
