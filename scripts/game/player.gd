@@ -219,7 +219,11 @@ const SHIELD_INVULN_SECONDS: float = 0.6
 const SHIELD_HIT_INVULN_SECONDS: float = 0.1
 var _invuln_t: float = 0.0
 
-# Hull: pip-based (3 pips base). Loss is always 1 pip per hit (not damage).
+# Hull: pip-based. Loss is always 1 pip per hit (not damage). BASE hull is 2 pips —
+# apply_run_upgrades() sets max_hull = 2 + Reinforced Hull module pips; the `= 3` defaults
+# below are pre-upgrade placeholders, overwritten before combat. (Base 2 is intentional:
+# De-Limiter peaks after one pip lost and the 2nd damage-tell at 0.78 lost-hull never fires
+# until Reinforced Hull deepens the bar. Health audit 2026-06-15.)
 # Hull == 0 → flash pips; next hit fires super-bomb then kills.
 # Roman/spec 2026-05-26 rework.
 var max_hull: int = 3

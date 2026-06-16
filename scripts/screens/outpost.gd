@@ -1672,12 +1672,6 @@ func _show_toast(text: String) -> void:
 
 # ---- Helpers --------------------------------------------------------------
 
-func _current_mk(key: String) -> int:
-	if not has_node("/root/Run"):
-		return 0
-	return int(get_node("/root/Run").get(key))
-
-
 func _run_bounty() -> int:
 	if not has_node("/root/Run"):
 		return 0
@@ -1709,17 +1703,6 @@ func _slot_color(slot: int) -> Color:
 	return Color(0.75, 0.80, 0.85)
 
 
-func _format_loadout_line(run) -> String:
-	var parts: Array[String] = []
-	var cannon = run.loadout_snapshot.get(SlotTypes.SlotType.CANNON, null)
-	parts.append(Strings.LOADOUT_PRIMARY % _short_part_text(cannon))
-	var sec = run.loadout_snapshot.get(SlotTypes.SlotType.HARDPOINT_WING, null)
-	parts.append(Strings.LOADOUT_SECONDARY % _short_part_text(sec))
-	var sup = run.loadout_snapshot.get(SlotTypes.SlotType.DEVICE_BAY_1, null)
-	parts.append(Strings.LOADOUT_SUPER % _short_part_text(sup))
-	return "   ".join(parts)
-
-
 # The active sector-wide modifiers, as a player-facing line for the status bar.
 # Reads the sector theme pool (sector_map_cache.sector_modifiers) — the whole-sector
 # conditions, not the per-combat list. (#6, Roman 2026-06-08.)
@@ -1734,14 +1717,6 @@ func _format_sector_modifiers(run) -> String:
 		var key := String(k)
 		labels.append(String(Strings.MODIFIER_LABELS.get(key, key.capitalize())))
 	return Strings.SECTOR_MODIFIERS_LABEL % "   ·   ".join(labels)
-
-
-func _short_part_text(part) -> String:
-	if part == null:
-		return "—"
-	if part.has_method("get_display"):
-		return String(part.get_display())
-	return String(part.display_name)
 
 
 func _panel_style(bg: Color) -> StyleBoxFlat:

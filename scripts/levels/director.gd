@@ -839,18 +839,13 @@ func _process(_delta: float) -> void:
 
 
 # True if any "enemies"-group node is alive AND not flagged is_hazard.
-# When ignore_recycling is true, also skip enemies reporting is_recycling()
-# (used by the wave-ADVANCE gate so a lone recycler doesn't stall the next
-# wave). The level-clear gate calls with the default (false) → stays strict.
 # Mines / bomblets / asteroids dropped behind a minelayer don't gate
 # wave progression (Cody, 2026-05-18 playtest).
-func _live_combatants_present(ignore_recycling: bool = false) -> bool:
+func _live_combatants_present() -> bool:
 	for n in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(n):
 			continue
 		if "is_hazard" in n and n.is_hazard:
-			continue
-		if ignore_recycling and n.has_method("is_recycling") and n.is_recycling():
 			continue
 		return true
 	return false
