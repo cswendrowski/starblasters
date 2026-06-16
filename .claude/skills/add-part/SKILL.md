@@ -34,8 +34,8 @@ compiles and the ship can equip it) + commit `.uid`s + push + report to the user
 ### 4. Balance pass (if it shifts the curve)
 If the Part changes the power/cost curve meaningfully, run the **economy-sim**
 agent to sanity-check run economics before considering it final. Mention the
-relevant design docs (`docs/economy_2026-05-24.md`,
-`docs/weapon_mk_progression_2026-05-25.md`) for context.
+relevant design docs (`docs/archive/economy_2026-05-24.md`,
+`docs/archive/weapon_mk_progression_2026-05-25.md`) for context.
 
 ## Notes
 - For a pure data `.tres` Part instance with no new code, the **data-author**

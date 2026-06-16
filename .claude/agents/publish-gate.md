@@ -13,19 +13,18 @@ Run these in parallel where possible. Report each as `PASS` / `FAIL` / `SKIP` wi
 
 ### 1. Toolchain
 - `tools/publish.ps1` is the only entry point. If the user is about to run `butler push` directly, **FAIL** and tell them to use the script.
-- `publish.ps1` forces standalone Godot 4.4.1, not Mono. Mono silently fails Web export. Verify the script still pins the standalone path.
+- `publish.ps1` forces standalone Godot 4.6.3 (Windows-only export, forward_plus renderer). Verify the script still pins the standalone path.
 
 ### 2. Build freshness
-- `Classic Shmup.pck` mtime is newer than `shmup-v*.zip` mtime in the repo root. If zip is newer, the publish would ship a stale build → **FAIL**.
-- `Classic Shmup.console.exe` mtime is within 5 minutes of the pck.
+- `Starblaster.exe` (in `../Starblaster_win/`) mtime is from the current export run (verify it was touched by `publish.ps1`). The exe embeds the pck (binary_format/embed_pck=true), so exe mtime = build mtime.
 
 ### 3. Version bump
-- `project.godot` `config/version` line was changed since last publish. Grep for the version string in recent commits or compare to the filename suffix on `shmup-v*.zip`.
+- `project.godot` `config/version` line was changed since last publish. Grep recent commits for the version string to confirm it changed.
 
 ### 4. Known anti-patterns (regression guards)
 - No new `bullet_scene` direct spawn in `scripts/enemies/enemy_core.gd` or subclasses that bypasses `shoot_pattern`. Grep for `bullet_scene.instantiate` outside shoot_pattern files.
-- No new `DirAccess.open("res://...")` for directory scans (breaks in Web builds). Grep for `DirAccess.open("res://`.
-- No `print(` or `breakpoint` statements added to player/enemy/wave_director hot paths (`scripts/player.gd`, `scripts/enemies/*.gd`, `scripts/levels/wave_director.gd`).
+- No new `DirAccess.open("res://...")` for directory scans (embedded pck has read-only `res://`). Grep for `DirAccess.open("res://`.
+- No `print(` or `breakpoint` statements added to player/enemy/director hot paths (`scripts/game/player.gd`, `scripts/enemies/*.gd`, `scripts/levels/director.gd`).
 - No `.tmp` files staged for commit.
 
 ### 5. Asset hygiene
@@ -33,23 +32,22 @@ Run these in parallel where possible. Report each as `PASS` / `FAIL` / `SKIP` wi
 - No `frames_*/` directories left over from GIF capture.
 - All new `.tscn` / `.gd` files have matching `.uid` siblings.
 
-### 6. Web export sanity (if shipping HTML5)
-- `export_presets.cfg` Web preset is enabled.
-- The Web export path in `publish.ps1` references the standalone Godot, not Mono.
+### 6. Channel confirmation
+- Publish is routing to `tikibones/starblaster:windows` (read from publish.ps1 or butler output). Web/HTML5 export is retired as of 2026-06-10.
 
 ## Output format
 
 ```
 PUBLISH GATE: pass | FAIL
 
-[1] Toolchain:       PASS — using publish.ps1, standalone 4.4.1
-[2] Build freshness: FAIL — pck mtime 14:02, zip mtime 14:15 (zip is stale-newer)
-[3] Version bump:    PASS — 0.1.68 → 0.1.69
-[4] Anti-patterns:   PASS
-[5] Asset hygiene:   PASS
-[6] Web export:      SKIP — not a web publish
+[1] Toolchain:         PASS — using publish.ps1, standalone 4.6.3, forward_plus
+[2] Build freshness:   PASS — Starblaster.exe mtime fresh from export
+[3] Version bump:      PASS — 0.1.117 → 0.1.118 (example)
+[4] Anti-patterns:     PASS
+[5] Asset hygiene:     PASS
+[6] Channel confirm:   PASS — tikibones/starblaster:windows
 
-BLOCKERS: rebuild the zip from the current pck before pushing.
+BLOCKERS: none.
 ```
 
 If any line is FAIL, the overall result is FAIL and the user should not push.

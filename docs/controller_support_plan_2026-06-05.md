@@ -49,8 +49,8 @@ discount on the gameplay side.
 
 ### 1.2 Gameplay gaps (small)
 
-- `primary_swap` (Q) and `autofire_toggle` (R) have **no joypad binding** —
-  keyboard-only (`project.godot:111-120`). A controller player cannot swap primary
+- `primary_swap` (G) and `autofire_toggle` (A) have **no joypad binding** —
+  keyboard-only (`project.godot:108-116`). A controller player cannot swap primary
   weapons or toggle autofire. Code already device-agnostic (`scripts/player.gd:601,615`),
   so this is **2 binding entries**, zero code.
 - `focus` is read as a digital bool, not analog strength (`scripts/player.gd:570`).

@@ -35,7 +35,7 @@ Produce exactly two files plus a one-line index entry:
 
 1. `scenes/dev/<name>_tuner.tscn` — the scene tree.
 2. `scripts/dev/<name>_tuner.gd` — the wiring script.
-3. Append a row to `scripts/dev_menu.gd` (or whatever the dev menu uses today) so the tuner is discoverable.
+3. Call `_add_button(...)` in `scripts/dev/dev_menu.gd` to register the tuner in the GridContainer so it's discoverable.
 
 ## Conventions to preserve
 

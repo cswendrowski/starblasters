@@ -32,7 +32,7 @@ The Worklist was cleared this session. Items below were the active worklist; sta
 **Still open** (detailed specs live in the deeper TODO sections — pointers given):
 - [ ] **Recycler — Pillar 2** — NOT STARTED. RecycleTuner dev scene first, then `RecycleController`,
   then roster migration. Full build order under **"Recycling — Pillar 2"** below
-  (spec: `docs/recycling_system_pillar2_2026-06-04.md`). Prereq tooling (Enemy-Bench recycle/passes/
+  (spec: `docs/archive/recycling_system_pillar2_2026-06-04.md`). Prereq tooling (Enemy-Bench recycle/passes/
   flee tagging) landed 2026-06-10. Regression surface = whole roster → playtest-only.
 - [ ] **Lane Hook not leaving the play area** — NEEDS REPRO. Code-side exit config verified correct
   (DIVE_RETURN frees on any edge after the U-turn climb); need the in-game symptom (stalls mid-climb?
@@ -146,7 +146,7 @@ landed. Grouped by effort.
   (`1ba0692` "Unify enemy shields onto ShieldComponent (CHARGE/POOL); bulwark/mine/sapper migrated"
   + `d973c31` smart bomb ignores all shields). Boss Aegis stays bespoke as specced.
 
-### Recycling — Pillar 2 (spec: `docs/recycling_system_pillar2_2026-06-04.md`)
+### Recycling — Pillar 2 (spec: `docs/archive/recycling_system_pillar2_2026-06-04.md`)
 **Pillar 1 + the recycle-delay bug fix SHIPPED (`8f99dd0`)**: `mid_depth_presentation.gd` + the
 side-exit cleanup fix. Pillar 2 (the central controller) + its tuner are unbuilt. Build order per
 the doc: **RecycleTuner dev scene FIRST** (recycle budget / fly-back scale / tint / hold are 3+
@@ -333,12 +333,12 @@ RecycleController must preserve those contracts._
 
 Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" flags, and project memory. Existing entries above not duplicated.
 
-### Bosses (`docs/boss_proposals_2026-05-24.md`)
+### Bosses (`docs/archive/boss_proposals_2026-05-24.md`)
 
-- [x] **Boss roster gaps — Spinwright + Conductor — DONE (verified 2026-06-07).** The 7-boss roster is COMPLETE and live: `boss.gd` (Commander), `boss_reaver` (Lash), `boss_sentinel`/`boss_aegis` (Aegis), `boss_howler`, `boss_voidmaw`, `boss_spinwright`, `boss_conductor` — all with `scenes/enemies/boss_*.tscn` + wired into `wave_generator._pick_boss`, `run_state._pick_row_bosses`, and the dev menu. (Source: `docs/boss_proposals_2026-05-24.md` §4)
-- [x] **Tethered-orbit movement — DONE (verified 2026-06-07).** The Conductor's two satellites mirror player X + orbit via `scripts/enemies/conductor_satellite.gd` (bespoke satellite script, not a `patterns/` movement resource — same end behavior). (Source: `docs/boss_proposals_2026-05-24.md` §4 Conductor)
-- [ ] **Biome reskins per boss** — palette + one attack tweak variants to double visual variety once base roster ships. (Source: `docs/boss_proposals_2026-05-24.md` §5)
-- [ ] **Shared boss-enrage VFX helper** — phase-transition flash + screen-shake helper so HP-gate transitions read consistently across bosses. (Source: `docs/boss_proposals_2026-05-24.md` §6 open question 6)
+- [x] **Boss roster gaps — Spinwright + Conductor — DONE (verified 2026-06-07).** The 7-boss roster is COMPLETE and live: `boss.gd` (Commander), `boss_reaver` (Lash), `boss_sentinel`/`boss_aegis` (Aegis), `boss_howler`, `boss_voidmaw`, `boss_spinwright`, `boss_conductor` — all with `scenes/enemies/boss_*.tscn` + wired into `wave_generator._pick_boss`, `run_state._pick_row_bosses`, and the dev menu. (Source: `docs/archive/boss_proposals_2026-05-24.md` §4)
+- [x] **Tethered-orbit movement — DONE (verified 2026-06-07).** The Conductor's two satellites mirror player X + orbit via `scripts/enemies/conductor_satellite.gd` (bespoke satellite script, not a `patterns/` movement resource — same end behavior). (Source: `docs/archive/boss_proposals_2026-05-24.md` §4 Conductor)
+- [ ] **Biome reskins per boss** — palette + one attack tweak variants to double visual variety once base roster ships. (Source: `docs/archive/boss_proposals_2026-05-24.md` §5)
+- [ ] **Shared boss-enrage VFX helper** — phase-transition flash + screen-shake helper so HP-gate transitions read consistently across bosses. (Source: `docs/archive/boss_proposals_2026-05-24.md` §6 open question 6)
 - [x] **Boss `conflict_tags` "never-pair" enforcement** — DONE (already implemented; verified lead
   2026-06-09, `tools/test_boss_pairing.gd`). `run_state._BOSS_CONFLICTS` + the greedy skip in
   `_pick_row_bosses` produce 0 forbidden pairs in sectors 2/3 over 60 seeds each. (Caveat: sector 1's
@@ -350,28 +350,28 @@ Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" fl
 
 ### Enemies / Bullets
 
-- [x] **Bullet library refactor (B2)** — _DONE (2026-06-08 confirm)._ `BulletVariant` Resource + 10 variants shipped (the 7 specced + Fast Pellet/Laser Bolt/Drop Pellet), `BulletCatalog.scene_for()` maps each to its own scene, used by `shoot_pattern._spawn_bullet`. Open piece is **Weapons 3b** (unify the legacy shoot classes onto `Weapon`). (Source: `docs/bullet_library_2026-05-24.md`. See the Enemy-rework B2 entry above for detail.)
+- [x] **Bullet library refactor (B2)** — _DONE (2026-06-08 confirm)._ `BulletVariant` Resource + 10 variants shipped (the 7 specced + Fast Pellet/Laser Bolt/Drop Pellet), `BulletCatalog.scene_for()` maps each to its own scene, used by `shoot_pattern._spawn_bullet`. Open piece is **Weapons 3b** (unify the legacy shoot classes onto `Weapon`). (Source: `docs/archive/bullet_library_2026-05-24.md`. See the Enemy-rework B2 entry above for detail.)
 - [x] **Boss bullet primitives accept `bullet_variant`** — DONE (already shipped; verified 2026-06-13).
   `boss_base.fire_aimed_burst` / `fire_aimed_cone` / `fire_ring` all take `variant: BulletVariant = null`
-  and route it through `_spawn_bullet` → `_resolve_variant`. (Source: `docs/bullet_library_2026-05-24.md` §6 open question 4)
-- [ ] **Wave-gen `bullet_variant_override` knob** — themed waves force all enemies to fire variant X. Add if themed waves land. (Source: `docs/bullet_library_2026-05-24.md` §6 open question 2)
+  and route it through `_spawn_bullet` → `_resolve_variant`. (Source: `docs/archive/bullet_library_2026-05-24.md` §6 open question 4)
+- [ ] **Wave-gen `bullet_variant_override` knob** — themed waves force all enemies to fire variant X. Add if themed waves land. (Source: `docs/archive/bullet_library_2026-05-24.md` §6 open question 2)
 - [x] **Per-pattern `bullet_speed` override** — DONE (Wave 1, 2026-06-13). `@export var bullet_speed: float = -1.0`
   on `shoot_pattern.gd`, honored in `_spawn_bullet` (replaces the variant baseline BEFORE the faction/sector
   mult, clamped to the clarity ceiling). `enemy_roster.make_shoot` exposes a `"bullet_speed"` entry key. No
-  enemy opts in yet — wired + ready. (Source: `docs/enemy_speeds_2026-05-24.md` §3, §5)
-- [ ] **Chaff-speed sector scaling** — `+5%/sector` cap `+25%` if player damage already scales. (Source: `docs/enemy_speeds_2026-05-24.md` §5 open question 4)
+  enemy opts in yet — wired + ready. (Source: `docs/archive/enemy_speeds_2026-05-24.md` §3, §5)
+- [ ] **Chaff-speed sector scaling** — `+5%/sector` cap `+25%` if player damage already scales. (Source: `docs/archive/enemy_speeds_2026-05-24.md` §5 open question 4)
 - [x] **`AimedShot.lead_factor` on Skirmisher** — DONE (Wave 1, 2026-06-13). `make_shoot`'s `"aimed"` branch
   now honors a `"lead_factor"` entry key; applied 0.15 to the corp aimed-sniper skirmisher (`enemy_c_s_hold`
   advance/retreat, fires `BV_AimedSniper` — the spiritual "Skirmisher"). 👁 playtest the feel; easy to
-  re-target/tune. (Source: `docs/enemy_speeds_2026-05-24.md` §4)
+  re-target/tune. (Source: `docs/archive/enemy_speeds_2026-05-24.md` §4)
 - [x] **Hunter Drone kamikaze bounty cancel** — DONE (Wave 1, 2026-06-13). Was BROKEN: the cancel-on-hit
   path did NOT fire. A contact hit detonated via the drone's `_on_contact` → `explode()` → `died.emit(bounty)`,
   AND the player's ram (`player._on_area_entered` → `take_hit(6)`) one-shots its 2 HP and also explodes with
   bounty intact — either way the kamikaze paid out. Fixed by zeroing `bounty_value` in `_on_contact` AND in a
   `take_hit` override (checks for an overlapping `hull` ship), so whichever path wins the overlap race, the
-  contact kill is worth 0. Off-screen `_leave()` path already paid nothing. (Source: `docs/economy_2026-05-24.md` §5)
+  contact kill is worth 0. Off-screen `_leave()` path already paid nothing. (Source: `docs/archive/economy_2026-05-24.md` §5)
 
-### Economy (`docs/economy_2026-05-24.md`)
+### Economy (`docs/archive/economy_2026-05-24.md`)
 
 - [~] **Mk power asymmetry (P2)** — PARKED awaiting Roman's go (call sheet #1, elaborated 2026-06-08).
   The doc proposal is WRONG — `mark_multiplier()` is NOT the cannon-damage path; cannon damage is the
@@ -401,10 +401,8 @@ Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" fl
   signal-event at 20% (the 2026-06-01 2× cannon-price bump dropped outpost to 0.1 and missed the
   signal site, reopening the arbitrage). Realigned signal to 0.1; fixed the stale "20%" comments.
   Both venues now symmetric — neither is the better dump spot.
-- [ ] **Manage Ship modal PartTier badges + 20% sell UI** — modal not yet using the shared `part_tier.gd` helper or the 20% resale. (Source: commit `cd71f44` open flag)
-  - _2026-06-10: the modal DID gain the SHIFT_MODE slot row (`db41620`); tier badges + sell UI still
-    open. Consider mirroring the outpost's new rarity-colored-name + type-label + dynamic-stat-line
-    treatment (`e224405`) instead of badges when this gets picked up._
+- [x] **Manage Ship modal PartTier badges + 10% sell UI** — modal now using 10% resale. (Source: commit `d16a58d` "Manage Ship modal: add Sell UI for spare parts (10% resale)", 2026-06-13)
+  - _2026-06-10/13: the modal DID gain the SHIFT_MODE slot row (`db41620`) + 10% sell UI + module management (`c59ec58`). Tier badges deferred. — DONE (2026-06-13)_
 - [x] **Outpost density hard clamp → probabilistic** — SUPERSEDED by the outpost-hub redesign (#4):
   outposts are a sector-map button now, not POIs, so there's no per-sector outpost count to tune.
 
@@ -433,13 +431,13 @@ Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" fl
 - [x] **NEBULA_SHADER preload dead in V3** — DONE (lead 2026-06-08, `c36a044`). Removed the dead
   `NEBULA_SHADER` const (V3 uses NEBULA2); left the `nebula.gdshader` file (V1 may use it).
 
-### Weapons / Architecture (`docs/weapon_architecture_2026-05-24.md`)
+### Weapons / Architecture (`docs/archive/weapon_architecture_2026-05-24.md`)
 
 - [x] **`scripts/bullet.gd` + `scripts/bullet_wave.gd` live at `scripts/` root** — DONE (Wave 1, 2026-06-13).
   `git mv`'d both (+ their `.uid`) into `scripts/projectiles/`; updated 7 `.tscn` `path=` refs + `bullet_heavy.gd`
   extends + the contributing doc; ran a Godot `--import` to rebuild the UID cache (the `.tscn` resolve scripts by
   UID, so the move alone left a stale cache → parse failures until reimport). Parse + headless boot clean.
-  (Source: `docs/weapon_architecture_2026-05-24.md` §5)
+  (Source: `docs/archive/weapon_architecture_2026-05-24.md` §5)
 - [x] **`drone_bits.apply()` doesn't snapshot prior `ship.drone_bits` array** — DONE (lead 2026-06-08, `85bf63c`). apply() snapshots, unapply() restores. (Impact nil today; contract now symmetric.)
 - [x] **Heavy Blaster cooldown lerp** — STALE (lead 2026-06-09). Code now intentionally scales
   cooldown **0.28 → 0.18** Mk1→Mk9 (a deliberate "faster at top tier" cadence, per the script
@@ -451,21 +449,21 @@ Captured from research docs (`docs/*.md`), recent commit bodies, agent "Open" fl
   `.tres` at runtime (Godot skips `_init` on disk resources), Intercept Drones was actually spawning **1 drone,
   not the 3** the redesign specifies — fixed to 3/3. `drone_swarm.tres` got explicit `base_charges=1`/
   `charges_per_mark=1` (matching its `.gd` + the script comment that claims the `.tres` sets them). `slot_type=5`
-  was already correct (= HARDPOINT_WING). (Source: `docs/redundancy_audit_2026-05-21.md` §Weapons action items)
-- [ ] **Weapon mounts: per-Part `fire_offset: Vector2`** — so wing-mounted vs nose-mounted weapons don't all spawn at `(0,-10)`. (Source: `docs/weapon_architecture_2026-05-24.md` §4 item 5)
+  was already correct (= HARDPOINT_WING). (Source: `docs/archive/redundancy_audit_2026-05-21.md` §Weapons action items)
+- [ ] **Weapon mounts: per-Part `fire_offset: Vector2`** — so wing-mounted vs nose-mounted weapons don't all spawn at `(0,-10)`. (Source: `docs/archive/weapon_architecture_2026-05-24.md` §4 item 5)
 - [x] **`burst_shot.tres` — author designer instance** — MOOT (decided 2026-06-13 during Weapons 3b). The
   roster's burst firing now builds `Weapon` with `FirePattern.BURST` (burst_count/burst_interval), so a
-  standalone `BurstShot` `.tres` is no longer needed. (Source: `docs/redundancy_audit_2026-05-21.md` §Enemy shoot patterns)
+  standalone `BurstShot` `.tres` is no longer needed. (Source: `docs/archive/redundancy_audit_2026-05-21.md` §Enemy shoot patterns)
 
 ### Dev tools
 
 - [x] **WaveGeneratorV2 + Ship Sizer removal** — DONE (files gone; see Follow-ups above).
 - [ ] **`scenes/sector_map.tscn` orphan** — pre-existing V1 map, referenced by `feature_showcase.gd` + `tools/parse_check.ps1`. Roman: "leave it for now, flag for cleanup later." (Source: memory `project_sector_map_v3.md` §Known open issue 3)
-- [ ] **`SmokeTrail.new(palette)` factory** — consolidate `damage_smoke_trail.gd` + `missile_smoke_trail.gd` (~90% shared code) once a third smoke emitter appears. Not urgent. (Source: `docs/redundancy_audit_2026-05-21.md` §Particle effects)
+- [ ] **`SmokeTrail.new(palette)` factory** — consolidate `damage_smoke_trail.gd` + `missile_smoke_trail.gd` (~90% shared code) once a third smoke emitter appears. Not urgent. (Source: `docs/archive/redundancy_audit_2026-05-21.md` §Particle effects)
 
 ## End-of-run summary + run history + run timer (rolled in 2026-06-08)
 
-Full scoping in `docs/run_summary_scope_2026-06-01.md` (re-audited 2026-06-05). Status: **Phase 4
+Full scoping in `docs/archive/run_summary_scope_2026-06-01.md` (re-audited 2026-06-05). Status: **Phase 4
 (dated run-history index) DONE (`1c86ba2`); Phases 1–3 + the run timer still NOT built — no stats
 instrumentation has landed** (re-confirmed 2026-06-08: the outpost-hub work did NOT add the
 bounty-spend choke-point Phase 2 needs — the outpost still does bare `run.bounty -=` in several
@@ -484,23 +482,23 @@ session before instrumenting those hot paths.
   instead of resetting). Redo the death summary (`run_summary.gd`) to show them. Reuses
   `cleared_summary.gd`'s per-enemy-type tally + sprite previews. Proves the `RunStats` pattern before
   touching hot paths.
-- [ ] **Run Timer (fold into Phase 1 — near-zero marginal).** `run_time_seconds` on `Run`, **active
+- [x] **Run Timer (fold into Phase 1 — near-zero marginal).** `run_time_seconds` on `Run`, **active
   combat time only** (recommended): a pausable delta-accumulator keyed on `playing` auto-excludes
   intro/outro/pause/map/shop/transitions. Zero in `new_run()`, accumulate in `_on_level_cleared`,
   flush in `_on_player_died`. Persist via `RunSave` (`_SAVE_FIELDS` + a `@export` mirror — both sides
   or it's silently dropped). Optional per-level breakdown into `RunStats`. **Open call:** also show
-  wall-clock total (B), or active-only (A)? Stop-on-victory point doesn't exist yet (see Phase 3).
-- [ ] **Phase 2 — new instrumentation (~1–1.5 days).** Tier-2/3 hooks with no signal today:
+  wall-clock total (B), or active-only (A)? Stop-on-victory point doesn't exist yet (see Phase 3). — DONE (2026-06-13)
+- [x] **Phase 2 — new instrumentation (~1–1.5 days).** Tier-2/3 hooks with no signal today:
   **shots fired** (hook `player.gd` fire fns — hot path, no per-shot alloc), **shots hit / accuracy**
   (hook `enemy_base.gd take_hit`; counting model LOCKED = per-projectile-spawned, multi-hit can
   exceed 100%), **bounty spent** (single choke-point over the outpost's bare `run.bounty -=`),
   **mines cleared** (via kill path / scene_path), **locations/stations/signals visited** (via reliable
   `mark_node_completed` + node-type counting — the V3 map bypasses `mark_node_visited`), **unique
-  weapons used** (net-new hook on active-cannon change/fire).
-- [ ] **Phase 3 — victory / "patrol complete" path (~½ day).** NET-NEW code path: `run_summary.tscn`
+  weapons used** (net-new hook on active-cannon change/fire). — DONE (2026-06-13)
+- [x] **Phase 3 — victory / "patrol complete" path (~½ day).** NET-NEW code path: `run_summary.tscn`
   is reached only on death today; final-sector clear funnels through the endless-mode prompt. Need a
   real patrol-complete flow + screen, and `RunStats` must snapshot into history at BOTH exit points
-  (death AND victory) before reset. This is also where the run timer's stop-on-victory wires in.
+  (death AND victory) before reset. This is also where the run timer's stop-on-victory wires in. — DONE (2026-06-13)
 - [x] **Phase 4 — dated run-history index** — DONE (lead 2026-06-08, `1c86ba2`). `user://run_history.json`
   (capped to last 50) written on the death flow from stats Run already tracks; "Run History" main-menu
   button → `scenes/run_history.tscn` list. Victory hook will call the same `record_run_history()` once
@@ -511,7 +509,7 @@ session before instrumenting those hot paths.
 **STANCE part = BUILT** (`docs/shift_mode_system_2026-06-08.md`, `0ef66ad`..`9b55e47` + `9845725`).
 One permanent Super (Smart Bomb, X) + a one-of-three stance slot (Focus default / Phase / Hyper) on
 Shift, with per-mode resources, HUD meter, outpost purchase + signal-event finds. The old
-`docs/supers_modes_modules_2026-06-05.md` (Mode-Energy gauge / ace-chain) is SUPERSEDED.
+`docs/archive/supers_modes_modules_2026-06-05.md` (Mode-Energy gauge / ace-chain) is SUPERSEDED.
 
 - [x] **Super / stance-slot restructure** — DONE. Smart Bomb is the only super (DEVICE_BAY_1); a real
   SHIFT_MODE slot holds Focus/Phase/Hyper as ModeParts.
@@ -531,33 +529,20 @@ that ADD a mechanic (vs Upgrades, which refine a number). Shield is default-equi
 infra needed (the SHIFT_MODE slot work proves the pattern; reserved `DEVICE_BAY_2`/`SHIELD`/wing
 enums absorb the bay slots). Net-new = the bay UI + the reify refactor + the roster.
 
-- [ ] **A. Passive-module bay infrastructure** — a 4-slot module axis (separate from the stance slot),
+- [x] **A. Passive-module bay infrastructure** — a 4-slot module axis (separate from the stance slot),
   on the reserved `SlotTypes` enums; a `ModulePart` base (automatic apply/unapply, Mk.1–9); bay
-  swap/buy/upgrade UI at outposts + Manage Ship + a HUD readout of equipped modules.
-- [ ] **B. Reify defensive systems as Modules** — Shield / Hull Regen (`self_repair_mk`) / Hull
+  swap/buy/upgrade UI at outposts + Manage Ship + a HUD readout of equipped modules. — DONE (2026-06-13)
+- [x] **B. Reify defensive systems as Modules** — Shield / Hull Regen (`self_repair_mk`) / Hull
   Plating (`hull_plating_mk`) from abstract `Run` int Mk-keys → passive Part Resources (OPEN: reify
   vs. keep `Run`-ints but *present* in the bay; cheaper). Shield = default-equipped (dropping it =
-  deliberate glass-cannon). `shield_cap_mk` stays an Upgrade scaling the Shield module's capacity.
-- [ ] **C. Classification moves** — Intercept Drones (the ablative non-firing "Shield Drones",
+  deliberate glass-cannon). `shield_cap_mk` stays an Upgrade scaling the Shield module's capacity. — DONE (2026-06-13)
+- [x] **C. Classification moves** — Intercept Drones (the ablative non-firing "Shield Drones",
   `e6c42a6`) HARDPOINT_WING-secondary → passive Module; Ammo Pods (pure +ammo%) → Upgrade per the §1
-  corollary (a number, not a mechanic).
-- [ ] **D. The roster (§15) — ~10 picks for ~3 free slots** (4 def / 3 off / 3 risk-utility). Each
-  adds a *mechanic*, Mk.1–9. Suggested additions:
-  - [ ] **Shield Core** *(default)* — charge-pool shield (the reified Shield from B).
-  - [ ] **Repair Nanites** — regen 1 hull pip / N s, only after M s undamaged, caps at max−1 (gated).
-  - [ ] **Ablative Plating** — absorb every Nth hull hit (DETERMINISTIC, not RNG).
-  - [ ] **Intercept Drones** — orbiting ablative drones block bullets, X hits each (the reified C).
-  - [ ] **Splinter Rounds** — kills burst short-range shrapnel hitting neighbors (keep brief/short).
-  - [ ] **Targeting Computer** — % crit on primary (×2 dmg + distinct flash; coordinate vfx-author).
-  - [ ] **Overclock Core** — sustained fire ramps fire-rate, resets on release (cap the ramp).
-  - [ ] **Overcharge Core** — +damage %, −1 max shield charge (risk-reward).
-  - [ ] **Adrenal Surge** — fire/damage scale up as hull drops, peak at 1 hull.
-  - [ ] **Tractor Coil** — auto-collect + pull bounty/pickups in a radius.
-  - [ ] **Siphon Core** — kills restore a sliver of SHIELD charge (**NEVER Mode Energy** — runaway lever).
-  - Cut/hold (don't re-add lightly): Auto-Dodge, Scavenger (→Upgrade), Reflector/Thorns, Last Stand
-    (redundant w/ death-bomb), Threat Sensor, Piercing Core (Wave Gun identity), Auto-Turret.
-- [ ] **E. Build-archetype sanity check** (§15) — Fortress / Aggro-clear / Glass-Cannon / Economist
-  should each be a real, distinct build once the bay + roster land (the proof the 4 slots "sing").
+  corollary (a number, not a mechanic). — DONE (2026-06-14)
+- [x] **D. The roster (§15) — ~10 picks for ~3 free slots** (4 def / 3 off / 3 risk-utility). Each
+  adds a *mechanic*, Mk.1–9. **18 modules BUILT (2026-06-13/14):** Shield Core, Overcharge Core, Siphon Core, Repair Nanites, Ablative Plating, Targeting Computer, Overclock Core, Critical System De-Limiter, Reinforced Hull, Thrusters, Shield Capacitor, Intercept Drones, Backup Shield Capacitor, Reflective Shield Tuning, Internal Micro Fabricator, Passive Energy Routers, Blaster Smart Mount, Primary Smart Mount. Tractor Coil CUT (no pickup system). — DONE (2026-06-14)
+- [x] **E. Build-archetype sanity check** (§15) — Fortress / Aggro-clear / Glass-Cannon / Economist
+  should each be a real, distinct build once the bay + roster land (the proof the 4 slots "sing"). — DONE (2026-06-13)
 
 ## New features scoped (2026-06-08)
 
@@ -573,7 +558,7 @@ enums absorb the bay slots). Net-new = the bay UI + the reify refactor + the ros
   convention) + categories/render branches in `enemy_codex.gd` + reuse `_add_preview`. ⚠️ modes /
   super / particle-beam have **no projectile sprite** → need placeholder icons. Scope + build surface
   + open decisions (strings authoritative vs mirror; icon art; tab granularity):
-  **`docs/armory_string_expansion_2026-06-08.md`**.
+  **`docs/archive/armory_string_expansion_2026-06-08.md`**.
 
 - [x] **New Secondary — Swarm Launcher** — DONE (lead autonomous, `4405b29`). Built per the spec doc;
   headless-verified (distinct-target round-robin, re-acquire-on-death, Mk 4/6/20, 6 ammo / 3s cd).
@@ -587,7 +572,7 @@ enums absorb the bay slots). Net-new = the bay UI + the reify refactor + the ros
   nearest + fly straight on death). Everything else builds on `base_missile` + the secondary pipeline
   (DEPLOY-style own-spawn, or a new `SALVO` mode for the 3s cooldown). ⚠️ set `speed_lock_mult = 1.0`
   (else 6 px/f → 12 px/f post-lock, over the 480 ceiling). Full spec + build plan:
-  **`docs/swarm_launcher_secondary_2026-06-08.md`**.
+  **`docs/archive/swarm_launcher_secondary_2026-06-08.md`**.
 
 ## Faction gap units — sprites/enemies to commission (M6b, 2026-06-06)
 

@@ -40,7 +40,7 @@ All bullets export the same base properties:
 
 A `BulletVariant` Resource lets you override bullet behavior at runtime *without writing a new script.* The variant is applied in `_ready()` (before `_apply_visuals()` runs) via `_apply_variant()` at line 74.
 
-**Important gotcha:** Scene-level exports (e.g. setting `speed = 400` in the `.tscn` inspector) do NOT override the variant. The scene properties are there *for inspection in the editor only.* Once `_apply_variant()` runs, it overwrites them. This is by design — the variant is the runtime source of truth. See `docs/bullet_library_2026-05-24.md` (link it in a real doc build) for the full variant catalog and the resource schema.
+**Important gotcha:** Scene-level exports (e.g. setting `speed = 400` in the `.tscn` inspector) do NOT override the variant. The scene properties are there *for inspection in the editor only.* Once `_apply_variant()` runs, it overwrites them. This is by design — the variant is the runtime source of truth. See `docs/archive/bullet_library_2026-05-24.md` (link it in a real doc build) for the full variant catalog and the resource schema.
 
 #### Subclass pattern: `_apply_visuals()`
 
@@ -268,7 +268,7 @@ This is end-to-end: extend a bullet, wire it into a scene, spawn it, verify.
 
 ### Step 1: Create a script (or reuse a variant)
 
-If your bullet is **data-only** (different speed/damage/sprite, same straight-line behavior), the **BulletVariant Resource** system is the target design — see `docs/bullet_library_2026-05-24.md` for the spec (currently deferred, awaiting sprite assets). Today, you'll extend `base_bullet.gd` instead.
+If your bullet is **data-only** (different speed/damage/sprite, same straight-line behavior), the **BulletVariant Resource** system is the target design — see `docs/archive/bullet_library_2026-05-24.md` for the spec (currently deferred, awaiting sprite assets). Today, you'll extend `base_bullet.gd` instead.
 
 If your bullet has **bespoke behavior** (wobble, homing, split-on-death), extend `base_bullet.gd`:
 
@@ -374,4 +374,4 @@ No instance creation, no reference tracking. The effect owns its own lifecycle a
 - **Development workflow & tuner philosophy?** Doc 01 → "The visual iteration loop."
 - **Godot engine quirks** (CanvasLayer transforms, material duplication, multi-frame sprite ghosting)? → `docs/godot-patterns.md`.
 - **Rules & traps** (hitbox philosophy, explosion scale, no silent fallbacks) → Doc 06.
-- **Bullet variant catalog** → `docs/bullet_library_2026-05-24.md`.
+- **Bullet variant catalog** → `docs/archive/bullet_library_2026-05-24.md`.

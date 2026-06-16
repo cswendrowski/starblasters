@@ -1,8 +1,11 @@
 # Work Doc: Two New "Intercept" Signal Events
 
-> **Status:** DRAFT for Roman to review/edit. Not yet implemented.
+> **STATUS: NOT BUILT — Backlog design idea (verified 2026-06-15).**
+> These two intercept events were designed but never implemented. No handlers in the codebase (verified 2026-06-15: no `_do_intercept_*` in signal_event.gd, no `Levels.build_minelayer_hybrid_level`). Keep this doc as a reference for future expansion.
+
+> **Original Status:** DRAFT for Roman to review/edit.
 > **Author:** Claude (from Roman's spec + a codebase investigation). Date: 2026-05-31.
-> **Scope:** Two new unknown-signal events that escalate into bespoke combat and can mutate the sector map on failure/ignore.
+> **Original Scope:** Two new unknown-signal events that escalate into bespoke combat and can mutate the sector map on failure/ignore.
 
 This doc is the design + implementation plan. The **Open Design Decisions** section near the bottom is the part most in need of Roman's edits — everything else hangs off those answers. Proposed defaults are marked _(proposed)_; change them inline.
 

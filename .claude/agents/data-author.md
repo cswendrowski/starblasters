@@ -10,19 +10,19 @@ You are the **Starblaster data author**. You translate designer specs into Godot
 
 ### Enemies
 Inputs: name, sprite, HP, bounty, movement pattern, shoot pattern, fire interval.
-Outputs: a `.tres` referencing `scripts/enemies/enemy_core.gd` (or `drone.gd`) with embedded sub-resources for movement + shoot pattern.
+Outputs: a `.tres` referencing `scripts/enemies/enemy_core.gd` with embedded sub-resources for movement + shoot pattern (or `scripts/enemies/bosses/boss_base.gd` for bosses).
 
 ### Movement patterns
-Outputs: `.tres` extending `scripts/enemies/patterns/<straight_down|s_curve|loiter>.gd` with tuned @export values.
+Outputs: `.tres` extending one of the patterns in `scripts/enemies/patterns/` (e.g. `lane_path`, `loiter`, `boss_sweep`, `straight_down`). See `scripts/enemies/patterns/` for the full current list, as patterns are added iteratively.
 
 ### Shoot patterns
-Outputs: `.tres` extending `scripts/enemies/shoot_patterns/<single|spread|aimed|burst>.gd` with @export values.
+Outputs: `.tres` extending one of the patterns in `scripts/enemies/shoot_patterns/` (e.g. `single`, `spread`, `aimed_fire`, `burst`, `beam`, `weapon`). See `scripts/enemies/shoot_patterns/` for the live set.
 
 ### Parts (Mk.1–9 instances)
-Outputs: `.tres` extending `scripts/parts/basic_*.gd` (or one of the variants in `part_catalog.gd`) with `mark` set.
+Outputs: `.tres` extending a Part subclass (e.g. `Engine`, `WeaponCore`, `PassiveModule`, `ShiftMode`) as registered in `PartFactory` (`scripts/weapons/part_factory.gd`). Set the appropriate `slot_type` and `mark` value.
 
-### Wave specs
-Outputs: `.tres` extending `scripts/levels/wave_spec.gd` with enemy_scene path, count, spawn_interval, formation enum, optional movement_override.
+### Wave definitions
+Outputs: `.tres` extending `scripts/levels/wave_def.gd` with enemy_scene path, count, spawn_interval, formation enum, optional movement_override.
 
 ## Workflow
 
@@ -34,7 +34,7 @@ Outputs: `.tres` extending `scripts/levels/wave_spec.gd` with enemy_scene path, 
 ## Spec template
 
 ```
-TYPE: enemy | movement | shoot | part | wave
+TYPE: enemy | movement | shoot | part | wave_definition
 NAME: <short>
 PATH: res://data/<folder>/<name>.tres
 PROPERTIES:

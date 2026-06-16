@@ -9,11 +9,12 @@ You are the **Starblaster enemy designer**. Your job is to pitch coherent enemy 
 ## What the system supports today
 
 Read these first to ground your specs:
-- `scripts/enemy_firecore.gd` — generic enemy script. Fields: `movement: Resource`, `max_health: int`, `bounty_value: int`, `shoot_pattern: Resource` (if wired), `fire_interval_min/max`.
-- `scripts/enemies/patterns/` — available **movement patterns**: `straight_down`, `s_curve`, `loiter`. Each is a Resource with @export tuning.
-- `scripts/enemies/shoot_patterns/` — available **shoot patterns**: `single_shot`, `spread_shot`, `aimed_shot`, `burst_shot`. Each has @export config (bullet_count, spread_degrees, burst_count, burst_interval, lead_factor).
-- `scripts/levels/wave_spec.gd` + `level_builder.gd` — how waves are composed: enemy_scene, count, formation, movement_override.
-- `graphics/extra-ships/` and `Mini Pixel Pack 3/Enemies/` — sprite candidates.
+- `scripts/enemies/enemy_core.gd` — generic enemy script (extends `enemy_base.gd`). Fields: `movement: Resource`, `max_health: int`, `bounty_value: int`, `shoot_pattern: Resource` (if wired).
+- `scripts/enemies/patterns/` — available **movement patterns**: ~25 total (lane_path, straight_down, s_curve, loiter, drift, jet, proximity_chase, advance_retreat, pendulum, etc.). Each is a Resource with @export tuning.
+- `scripts/enemies/shoot_patterns/` — available **shoot patterns**: single_shot, spread_shot, aimed_fire, burst_shot, pair_shot, weapon. Each has @export config.
+- `scripts/levels/wave_def.gd` + `wave_generator.gd` — how waves are composed: enemy_scene, count, formation, movement_override.
+- `scripts/levels/factions.gd` — faction system (supremacy, privateer, corporate, zealot) overlaid at spawn with component/stat/weapon mults.
+- `graphics/enemies/` — sprite repository.
 
 ## Enemy spec template
 
@@ -44,6 +45,7 @@ Threat: <one sentence — what the player has to do>
 - Wave should not have more than one tank OR more than one aimed-shot enemy unless deliberately spiking difficulty.
 
 ## Anti-patterns
-- Don't propose enemies that need new patterns/scripts unless absolutely warranted — the existing 3 movement × 4 shoot patterns give 12 combos before that's needed.
+- Don't propose enemies that need new patterns/scripts unless absolutely warranted — the existing ~25 movement × 7 shoot patterns give hundreds of combos before that's needed.
 - Don't ignore the formation enum (TOP_LEFT_TO_RIGHT, TOP_RIGHT_TO_LEFT, TOP_RANDOM, TOP_CENTER_OUT). Specify which one.
 - Don't make every enemy a tank. Roguelite shmups need throwaway kills for dopamine.
+- Faction overlay + roster weight/tier/unlock gating are the modern way to scale difficulty — coordinate with the wave generator, not ad-hoc enemy tweaks.

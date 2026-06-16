@@ -1,5 +1,7 @@
 # M6b Faction Tagging — DRAFT for Roman redline (2026-06-06)
 
+**STATUS:** Finalized and populated into `scripts/levels/factions.gd`, which is now the **SOURCE OF TRUTH**. That file has grown past this 25-enemy snapshot (new faction-namespaced units exist). Use the code + this doc as reference for the tagging rationale.
+
 The actionable content artifact that populates `scripts/levels/factions.gd` pools and
 drives the conductor's **(faction, behavior) → hull** selection. Consolidates the
 scattered tagging material (m6 design §8 sizes, §12.0 homes [Roman-locked], §13.1

@@ -1,10 +1,7 @@
 # M6 — Modular Enemies: As-Built Audit + System Design
 
-Status: **design / plot-out** (Roman, 2026-06-05). Supersedes the bolt-on "signature slot"
-sketch in `combat_construction_plan_2026-06-03.md` §10 — that section's instinct was right
-(compose, don't monolith) but the audit shows the unique behaviors are a small set of
-**reusable components**, not one-off signatures, and that two base-layer fixes gate any
-conversion. This doc is the M6 plan of record.
+Status: **✅ BUILT — Plan of record** (Roman, 2026-06-05 design → 2026-06-14+ implementation).
+See CLAUDE.md "Modular enemy system (M6)" for the live system. This doc captures the design reasoning and architecture that shipped.
 
 Parent: `combat_construction_plan_2026-06-03.md` (§10 modular idea, §5 milestones).
 Grounded in a 5-front read-only audit (enemy base/core, monolith inventory, pattern
@@ -537,6 +534,8 @@ the roster edit land together, then `parse_check` + the headless tests gate it.
 ---
 
 ## 12. DRAFT faction-tagging table (Claude — FOR ROMAN REDLINE)
+
+**NOTE:** §12–13 faction tables here are EARLIER DRAFTS. The finalized faction tagging is now in `docs/m6b_faction_tagging_2026-06-06.md` and `scripts/levels/factions.gd` (source of truth), which has grown past this 25-enemy snapshot. Refer to those for the current roster + assignments.
 
 First-pass, mechanically reasoned from the audit. **Faction assignments are guesses for
 the lore/design owner to correct.** Guiding principle: *composable (`enemy_core`) enemies →

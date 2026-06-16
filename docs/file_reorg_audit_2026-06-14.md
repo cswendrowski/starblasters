@@ -1,10 +1,6 @@
 # File-structure reorg — audit & plan (2026-06-14)
 
-Status: **AUDIT ONLY — not executed.** Roman wants to review the orphan list + target
-tree and run the reorg later on his own schedule (deferred while playtesting). This doc is
-the reference for when that happens. Nothing here has been moved or deleted (one exception:
-the corrupted `scripts/effects/enemy_smoke_trail.gd.uid` merge-conflict markers were fixed —
-a standalone bug, committed with the particle round-up).
+Status: **STRUCTURAL REORG EXECUTED (2026-06-14).** See `docs/file-structure.md` (DONE marker confirms it). The **remaining live value** of this audit is §2 — the orphan cleanup backlog, still pending. The file relocation decisions are archived here for reference; the current tree is documented in file-structure.md.
 
 Verified against path + `uid://` references across ~872 source files (`.gd/.tscn/.tres/.godot`).
 

@@ -66,6 +66,7 @@ Per enemy SCENE:
 
 Movement keys are the existing `make_movement` strings (`straight`, `top_dive`, `lane_drift`,
 `lane_weave`, `loiter`, `slow_advance`, `side_traverse`, `beeline`, `omni`, `dive_return`, …).
+**NOTE:** This key list is illustrative; some older keys like `top_dive` were retired/renamed post-spec. The live `MOVEMENT_KEYS` in `scripts/levels/pattern_eligibility.gd` and the code are authoritative.
 
 **Source of truth = committed code, NOT runtime `user://`.** A shipped/web build has no
 `user://` tuner JSON, so the conductor must read baked data. Shape (matches the tuner contract —

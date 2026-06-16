@@ -84,8 +84,8 @@ main.gd _on_level_cleared()
 1. **`WaveGen.build(sector_depth, level_index, is_boss)`** — production.
    Dynamic generator that composes waves from the enemy roster, weighted by rarity and sector depth. Called when entering a standard combat node or a boss arena.
 
-2. **Manual wave authoring via Wave Editor** — development.
-   The `wave_editor.gd` dev tool (Dev Menu → Wave Editor) lets you author individual waves by hand, test them in-game, and save to `resources/waves/`. Never ships to players.
+2. **Manual wave authoring via WaveSpec resources** — development.
+   Waves are authored as data (`WaveSpec`/.tres) and built by `WaveGenerator.build()`. The dedicated Wave Editor dev tool was retired; an authored-pattern editor is **designed but not yet built** (see `docs/wave_pattern_editor_design_2026-06-15.md`).
 
 3. **`Levels.build_minefield_score()` / `build_asteroid_field_score()`** — hazards.
    Hardcoded hazard nodes (minefields, asteroids). Phrase-native `CombatScore`s (lane-shaped

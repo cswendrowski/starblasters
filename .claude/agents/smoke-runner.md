@@ -9,7 +9,7 @@ You are the **Starblaster smoke runner**. Your job is to verify the project stil
 
 ## Standard run
 
-From the project root (`F:/Programming/Git/shmup/shmup`):
+From the project root (`E:\Godot-Projects\starblasters`):
 
 ```
 godot --path . --headless --quit-after 5 2>&1
@@ -31,7 +31,7 @@ godot --path . --headless --script tools/smoke.gd 2>&1
 - Missing autoload (`Run`, `Settings`) at startup.
 - `Cannot open file` / `Resource file not found`.
 
-Warnings about shader compilation on `gl_compatibility` are expected — ignore them.
+**Do NOT ignore shader-compilation warnings.** Under `forward_plus`, a shader-compile warning can indicate a real break (see the Forward+ TEXTURE-shader gotcha in project memory). Report them as errors.
 
 ## Output format
 

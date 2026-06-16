@@ -10,20 +10,18 @@ Welcome. This doc walks you through **engine setup**, **how to run the project**
 
 Starblaster runs on **Godot 4.6.3 standalone** — the single binary that serves as both editor and web exporter. There is no C#/Mono (the project never used C#, and the split Mono editor + 4.4.1 exporter was consolidated on 2026-05-26).
 
-The binary lives at:
-```
-C:\Users\Cody\Downloads\Godot_v4.6.3-stable_win64.exe\Godot_v4.6.3-stable_win64.exe
-```
-
-If you're setting up a fresh machine or the binary moves, update it in **both** of these files:
+The binary path is set in:
 - `tools/parse_check.ps1` (line 2: `$STANDALONE`)
-- `tools/publish.ps1` (line 10: `$STANDALONE_GODOT`)
+- `tools/publish.ps1` (line 11: `$STANDALONE_GODOT`)
+
+Both reference `E:\tools\Godot_v4.6.3\Godot_v4.6.3-stable_win64.exe`. If you need to update it, change both files.
+
 
 ### Opening the project
 
 This is a standard Godot 4 project. Just open the `project.godot` file at the repo root with your Godot editor (or drag the folder into Godot's project manager). No special setup required beyond having the binary above.
 
-**Rendering:** The project uses `renderer = gl_compatibility` (pixel-art optimized). **Internal viewport is 480×270**, displayed at 4× to reach 1920×1080. Gameplay is constrained to a 216-pixel-wide **playfield band** down the middle; the side gutters host the HUD and glass panels. This matters — see Doc 02 and Doc 06 for coordinate-space gotchas.
+**Rendering:** The project uses `renderer = forward_plus` (see `project.godot:20` for the feature flag). **Internal viewport is 480×270**, displayed at 4× to reach 1920×1080. Gameplay is constrained to a 216-pixel-wide **playfield band** down the middle; the side gutters host the HUD and glass panels. This matters — see Doc 02 and Doc 06 for coordinate-space gotchas.
 
 ---
 
@@ -71,27 +69,9 @@ Boot the actual scene headless and grep for error lines. This runs a real GDScri
 
 ### Finding the dev menu
 
-Press the **Dev Menu** button on the main menu to reach `scenes/dev_menu.tscn`. It's a 3-column grid of 11 developer tools:
+Press the **Dev Menu** button on the main menu to reach `scenes/dev_menu.tscn`. It's a 3-column grid of developer tools organized as **Authoring** (wave/pattern/weapon editors), **Tuners** (parallax, asteroid, shader, combat labs), and **Test Launchers** (hangar, signal events, custom levels).
 
-**Authoring tools** (edit definitions):
-- [ Wave Editor ]
-- [ Movement Patterns ]
-- [ Shoot Patterns ]
-- [ Weapons ]
-- [ Shipyard ]
-
-**Tuners / labs** (tweak & iterate live):
-- [ Parallax Tuner ]
-- [ Asteroid Lab ]
-- [ Shader Lab ] (fire/compare shader effects — embers, shields, glow, full gallery)
-- [ Smart Mount Lab ] (auto-turret tuner — live ship + randomized targets + traverse/dispersion/arc/range knobs, Copy GDScript; `scripts/dev/smart_mount_lab.gd`)
-
-**Test launchers** (play-test specific scenarios):
-- [ Combat Lab ] (HD screen: configure a ship — primary/secondary/modules + marks — then launch a chosen encounter: combat w/ faction+depth, hazard, boss, beam showcase, or custom level; `scripts/dev/combat_lab.gd`)
-- [ Hangar ]
-- [ EM Torpedo Test ] · [ All-Signal Sector ] (direct one-off launches)
-
-> The exact button set drifts — `scripts/dev/dev_menu.gd` is the source of truth.
+The exact button set drifts — **read `scripts/dev/dev_menu.gd` for the canonical current list** rather than relying on this doc.
 
 ### The "human-iterated, agent-consumed" workflow
 
@@ -173,11 +153,11 @@ tools/publish.ps1 -Version "0.1.NN"
 This script:
 1. Runs `parse_check.ps1` (gates on all scenes parsing clean)
 2. Bumps `config/version` in `project.godot`
-3. Exports the Web preset to `../Starblasters_html/` (one level up)
-4. Validates the `.pck` file mtime advanced (detects silent no-ops)
-5. Runs `butler push` to the itch.io channel `cswendrowski/starblaster:html`
+3. Exports the **Windows** preset to `../Starblaster_win/` (one level up)
+4. Validates the `.exe` file mtime advanced (detects silent no-ops)
+5. Runs `butler push` to the itch.io channel `tikibones/starblaster:windows`
 
-See `tools/publish.ps1:1-60` for the implementation.
+See `tools/publish.ps1` for the implementation.
 
 ---
 

@@ -3,7 +3,7 @@
 How this project's files are organized + where new ones go. Companion to the architecture
 tour in `docs/contributing/02-architecture.md` (that's *what the systems are*; this is
 *where the files live*). Began 2026-06-14 as a staged reorg (change map:
-`docs/file_reorg_changemap_2026-06-14.md`).
+`docs/archive/file_reorg_changemap_2026-06-14.md`).
 
 ## Principles
 1. **Group by domain, not by type-at-root.** `scripts/` should not be a flat catch-all.
@@ -91,4 +91,4 @@ commits (compile 314/0 + boot each): `autoload/`, `effects/` (strays), `strings/
   (`res://graphics/` → `res://assets/graphics/`) + the "zero remaining" completeness check.
 - `Mini Pixel Pack 3/` → `vendor/` (mostly vendor art; just the `project.godot` icon path +
   a few refs — note the **spaces** in the path).
-- Orphan cleanup tracked separately in `docs/file_reorg_audit_2026-06-14.md` (deferred).
+- Orphan cleanup tracked separately in `docs/archive/file_reorg_audit_2026-06-14.md` (deferred).

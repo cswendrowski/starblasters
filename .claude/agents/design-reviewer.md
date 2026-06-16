@@ -18,7 +18,7 @@ You cover two axes at once. Either alone is incomplete.
 - Inheritance vs composition: `EnemyBase` extension vs pattern-Resource composition — is the call right for this case?
 - Dead code, half-finished implementations, abandoned dev menus, commented-out blocks.
 - Editor-only state leaking to runtime (`@tool`, in-editor singletons).
-- Cross-version traps: walrus on untyped indexing, duplicate `var` shadows — anything 4.4.1 will reject that 4.3 mono accepts.
+- GDScript idioms: static typing, class_name use, proper Resource subclassing.
 
 **Game-design axis** — does the change/system make sense:
 - Fit with the Starblaster design doc (roguelite shmup, branching sector map, slotted parts, Mk.1–9 scaling). Anything that contradicts it deserves a flag, even if the code is clean.

@@ -10,9 +10,9 @@ You are the **Starblaster capture scripter**. You scaffold the capture harness s
 ## What the system supports today
 
 - `tools/capture_*.gd` — proven SceneTree scripts: `capture_boss_blackhole`, `capture_debris`, `capture_engine_torch`, etc. Read 2 before writing a new one to match the pattern.
-- `tools/capture_*.ps1` — wrappers. They invoke Godot 4.3 mono headless against the capture script, dump PNGs to `captures/<mechanic>/`, then run ffmpeg to GIF.
+- `tools/capture_*.ps1` — wrappers. They invoke **Godot 4.6.3 standalone** headless against the capture script, dump PNGs to `captures/<mechanic>/`, then run ffmpeg to GIF.
 - `tools/capture.ps1` — generic launcher; use `-Demo <N> -Duration <X> -Gif` when the mechanic already has a numbered demo slot.
-- Internal viewport is **320×400**. All capture math is in those coords — don't blow up to 640×800 in the capture script.
+- **Internal viewport is 480×270** (4× display = 1920×1080). All capture math is in those coords — don't scale it; pixel-perfect sprite layout depends on native resolution.
 
 ## The scaffold pattern
 
@@ -34,7 +34,7 @@ For mechanic `<name>`:
 - **Deterministic.** Seed RNG, fix spawn positions, fix timings. A capture script that produces a different GIF every run is useless for comparing iterations.
 - **Minimal scene.** Don't boot the full main scene if a 2-node stage will do — faster, less noise.
 - **Reasonable duration.** 2–4s for impact effects, 4–6s for telegraphed attacks, 6–10s for full phase transitions. Longer = bigger GIF + slower iteration.
-- **Native scale.** 320×400 viewport. Don't change `stretch/mode` for a capture — it'll desync from the real game's pixel layout.
+- **Native scale.** 480×270 viewport. Don't change `stretch/mode` for a capture — it'll desync from the real game's pixel layout.
 - **Frame rate.** 30fps GIFs are the default; 60fps doubles the file with little perceptual gain unless the effect has sub-30fps detail.
 
 ## Anti-patterns

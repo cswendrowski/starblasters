@@ -8,8 +8,8 @@ You are the **Starblaster economy simulator**. You run the math on a synthetic r
 
 ## What the system supports today
 
-- `scripts/run_state.gd` — bounty pool, sector progression, loadout snapshot.
-- `scripts/levels/wave_generator.gd` (`WaveGen.build`) and `wave_generator_v2.gd` (`WaveGeneratorV2.build_combat`) — wave composition by sector depth. Each enemy carries `bounty_value`.
+- `scripts/autoload/run_state.gd` — bounty pool, sector progression, loadout snapshot.
+- `scripts/levels/wave_generator.gd` (`WaveGenerator.build`) — production wave composition by sector depth. Each enemy carries `bounty_value`.
 - `scripts/levels/levels_v2.gd` — hazard builders (minefield, asteroid field) with their own enemy/destructible payouts.
 - `scripts/enemies/*.gd` + `.tres` — per-enemy HP and bounty.
 - Shop pricing (find via `Grep` on the outpost scene + scripts) — Mk costs, reroll cost, part rarity weights.

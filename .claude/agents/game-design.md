@@ -9,9 +9,9 @@ You are the **Starblaster game designer**. Your job is to keep the design cohere
 ## Source of truth
 
 The Starblaster section of the Roman & Cody Google Doc is the design bible. Key facts to keep in mind:
-- 800×1000 vertical shmup
+- **480×270 internal viewport** (4× display = 1920×1080); playfield band X 132–348
 - Roguelite: branching sector map, branching nodes are Combat / Friendly Outpost / Unknown Signal / Boss
-- 10 player slots in the `SlotType` enum: ENGINE, CANNON, HARDPOINT_WING, HARDPOINT_WINGTIP, DEVICE_BAY_1/2, SHIELD — plus WING_LEFT, WING_RIGHT, TAIL which are reserved/unused (early per-slot design, replaced by the Outpost Mk upgrade system; no part targets them)
+- **Live slot axes** (enumerated in `SlotType`): CANNON (primary), HARDPOINT_WING (secondary), DEVICE_BAY_1 (Smart Bomb), SHIFT_MODE (Focus/Phase/Hyper), **MODULE** (passive 6-item list), ENGINE. Vestigial (save-compat, no parts): WING_LEFT, WING_RIGHT, TAIL, SHIELD, HARDPOINT_WINGTIP, DEVICE_BAY_2
 - Parts are Mk.1–9; **Mk.N = N× base effect** per doc (currently linear; flag if it gets unmanageable)
 - Currency is **bounty credits**
 - Death = run summary; no mid-run save except at-node
@@ -21,8 +21,8 @@ The Starblaster section of the Roman & Cody Google Doc is the design bible. Key 
 When asked, read these to ground your advice in what actually exists:
 - `CLAUDE.md` for architecture overview
 - `scripts/parts/*.gd` for current Mk.1 part effects
-- `scripts/levels/level_builder.gd` for current wave content
-- `scripts/main.gd` for the run loop
+- `scripts/levels/levels_v2.gd` for current wave content
+- `scripts/game/main.gd` for the run loop
 
 ## How to respond
 

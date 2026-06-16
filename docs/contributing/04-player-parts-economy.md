@@ -81,19 +81,19 @@ Parts are swappable during a run via the outpost. When you swap a Part, the old 
 
 ### The slot system
 
-Each ship has **10 slots** (see `scripts/weapons/SlotTypes.gd`):
+Each ship has **12 slot enum values** (see `scripts/weapons/SlotTypes.gd`), but only **11 are live** (occupy the pegboard):
 
 | Slot | Purpose | Example Part |
 |------|---------|--------------|
 | ENGINE | Movement speed | `BasicEngine` (Mk scales speed bonus) |
 | CANNON | Primary weapon | Energy Blaster, Machinegun, Rotary Laser |
-| SHIELD | Hull protection | (reserved — shield upgrades moved to the Outpost Mk system; no part targets this slot) |
-| WING_LEFT, WING_RIGHT | — | (reserved — early per-slot design, replaced by the Outpost Mk upgrade system; no part targets these) |
-| TAIL | — | (reserved — same as the wing slots; no part targets it) |
 | HARDPOINT_WING | Secondary weapon | Seeking Missile, Rocket Pod, Particle Beam |
-| HARDPOINT_WINGTIP | Alternate secondary | (expansion slot) |
-| DEVICE_BAY_1, DEVICE_BAY_2 | Super (panic button, X) | Smart Bomb — the **only** super |
+| DEVICE_BAY_1 | Super ability | Smart Bomb (the **only** super) |
 | SHIFT_MODE | Shift stance (Shift) | Focus (default), Phase, Hyper — `ModePart`s; one occupies the slot, swapped at outposts. See `docs/shift_mode_system_2026-06-08.md`. |
+| **MODULE** (list bay) | Passive upgrades | Hull Core, Thrusters, Shield Core, Self-Repair, Hull Plating, etc. (6-slot list, not pegboard) |
+| **Dead slots** (no parts) | — | WING_LEFT, WING_RIGHT, TAIL, SHIELD, HARDPOINT_WINGTIP, DEVICE_BAY_2 (enum entries for save compatibility; no Parts target these) |
+
+**Module bay (2026-06-13):** Unlike the pegboard slots above, the **MODULE** slot stores parts in a **list** (`Run.modules`, up to 6 items) rather than one-per-slot. Modules are passive upgrades that roll in the shop weighted like any other part. Each module instance in the bay is independently applied/unapplied.
 
 A Part's `slot_type` is set in its `_init()` — if you get this wrong, the shop won't route it to the right slot.
 
@@ -163,41 +163,28 @@ The `Part` base class provides `effective_damage(at_mark)` to compute this for w
 
 Bounty is saved between sectors, so you can accumulate it across a run and make larger purchases later.
 
-### Weapons column pricing
+### Weapons & Modules column pricing
 
-The outpost rolls **5 weapon cards** each visit, weighted:
-- 50% CANNON (primary weapon)
-- 25% HARDPOINT_WING (secondary weapon)
-- 25% DEVICE_BAY_1 (super/special ability)
+The outpost rolls **5 weapon cards** each visit, drawn with replacement from `WEAPON_SLOT_WEIGHTS`
+(`scripts/screens/outpost.gd` — check there for the live weights). Currently weighted:
+- CANNON ×4 (primary weapon)
+- HARDPOINT_WING ×2 (secondary weapon)
+- DEVICE_BAY_1 ×1 (super ability — Smart Bomb)
+- SHIFT_MODE ×2 (Phase/Hyper mode swaps; Focus is default-only)
+- MODULE ×2 (passive bay upgrades: Hull Core, Thrusters, Shield Core, Self-Repair, Hull Plating)
 
-Weapon prices are:
+All weapon/shift/module parts price identically:
 ```
 CANNON_BASE_COST := 116
 CANNON_COST_PER_MK := 70
 ```
 
-So a cannon at Mk.X costs: `116 + (X - 1) × 70`
+So a part at Mk.X costs: `116 + (X - 1) × 70`
 - Mk.1: 116 bounty
 - Mk.5: 116 + 4 × 70 = 396
 - Mk.9: 116 + 8 × 70 = 676
 
-See `scripts/screens/outpost.gd:56–57` for the exact constants.
-
-### Upgrades column pricing
-
-The outpost rolls **3 upgrade cards** (hull, thrusters, shield, self-repair, hull plating). Upgrade prices are:
-
-```
-UPGRADE_BASE_COST := 140
-UPGRADE_COST_PER_MK := 70
-```
-
-Per upgrade: `140 + (next_mk - 1) × 70`
-- Mk.1→2: 140 + 0 × 70 = 140
-- Mk.5→6: 140 + 4 × 70 = 420
-- Max is Mk.9
-
-See `scripts/screens/outpost.gd:27–38` and `36–37` for the upgrade list and costs.
+See `scripts/screens/outpost.gd:54–78` for the slot weights and `54–55` for pricing.
 
 ### Services (hull repair, ammo refill, etc.)
 
@@ -306,8 +293,8 @@ This catches GDScript parse errors that a live editor might hide.
 ### 5. Balance & iteration
 
 For numeric tuning (damage per Mk, cost, etc.), see:
-- **`docs/economy_2026-05-24.md`** — full economy analysis (costs, inflation curves, decision trees).
-- **`docs/weapon_mk_progression_2026-05-25.md`** — weapon scaling guidelines (e.g. when to cap DPS, how to scale secondary ammo).
+- **`docs/archive/economy_2026-05-24.md`** — full economy analysis (costs, inflation curves, decision trees).
+- **`docs/archive/weapon_mk_progression_2026-05-25.md`** — weapon scaling guidelines (e.g. when to cap DPS, how to scale secondary ammo).
 
 If your Part changes fundamental ship mechanics (like a new secondary fire mode), document it in a comment block in the Part's `apply()` method so the next contributor understands the intent.
 
@@ -334,8 +321,8 @@ If your Part changes fundamental ship mechanics (like a new secondary fire mode)
 | `scripts/weapons/loadout.gd` | `PlayerLoadout` — manages equip/unequip and calls apply/unapply. |
 | `scripts/weapons/SlotTypes.gd` | Slot enum (ENGINE, CANNON, SHIELD, etc.). |
 | `scripts/screens/outpost.gd` | The shop UI, pricing, services. Start at line 27 (UPGRADES const) or line 56 (weapon pricing). |
-| `docs/economy_2026-05-24.md` | Design doc for pricing and economic balance. |
-| `docs/weapon_mk_progression_2026-05-25.md` | Scaling guidelines for weapons across Mk levels. |
+| `docs/archive/economy_2026-05-24.md` | Design doc for pricing and economic balance. |
+| `docs/archive/weapon_mk_progression_2026-05-25.md` | Scaling guidelines for weapons across Mk levels. |
 
 ---
 

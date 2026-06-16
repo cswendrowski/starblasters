@@ -21,10 +21,10 @@ and threat curve).
 This is the project convention. Before writing any movement code, check
 `scripts/enemies/patterns/` (movement) and `scripts/enemies/shoot_patterns/`
 (shooting) for an existing Resource that fits. Compose the enemy by extending
-`scripts/enemy_core.gd` (top-level `scripts/`, NOT `scripts/enemies/`) and
-filling its `movement` + `shoot_pattern` slots. **Only** write a bespoke script
-that extends `scripts/enemies/enemy_base.gd` for behavior a pattern genuinely
-can't express (multi-phase state machines, continuous-effect weapons).
+`scripts/enemies/enemy_core.gd` (in `scripts/enemies/`, not top-level) and filling its `movement` + `shoot_pattern` slots.
+**Only** write a bespoke script that extends `scripts/enemies/enemy_base.gd` for
+behavior a pattern genuinely can't express (multi-phase state machines,
+continuous-effect weapons).
 
 ### 3. Sprite
 - If real art was dropped (e.g. Roman shared new art): use the **asset-importer**

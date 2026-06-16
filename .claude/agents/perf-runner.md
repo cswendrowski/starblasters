@@ -45,7 +45,7 @@ Patterns to check:
 - `get_tree().get_nodes_in_group(` inside `_process` / `_physics_process` — linear scan every frame; cache the array or use signals.
 - `.instantiate()` / `Resource.new()` / array/dict literals **inside** `_process` — per-frame allocations; pool or precompute.
 - `find_node(` / `find_child(` inside `_process` — tree walk every frame; cache with `@onready`.
-- `print(` / `printerr(` in `scripts/player.gd`, `scripts/enemies/*.gd`, `scripts/projectiles/*.gd`, `scripts/levels/director.gd` — string alloc + IO per call in hot paths.
+- `print(` / `printerr(` in `scripts/game/player.gd`, `scripts/enemies/*.gd`, `scripts/projectiles/*.gd`, `scripts/levels/director.gd` — string alloc + IO per call in hot paths.
 - `Particles2D` / `GPUParticles2D` nodes in scenes without `one_shot=true` AND a finite `lifetime` — leak risk.
 - `create_tween()` calls not stored to a member var or not `kill()`'d in `_exit_tree` — orphan tween risk.
 - `Curve.sample(` results recomputed every frame for static curves — cache the sampled array.

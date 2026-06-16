@@ -3,7 +3,7 @@
 Realizes the REMAINING "PASSIVE-MODULE layer" from `docs/supers_modes_modules_2026-06-05.md`
 (§2, §12–15) + `TODO.md` items A–E. The SHIFT_MODE slot is the proven precedent for the
 whole pattern. **Decisions locked with Roman 2026-06-13:** reify the defensive systems (not
-present-only), and **5 bay slots** — Shield Core auto-takes one, leaving 4 to play with (or 5
+present-only), and **6 bay slots** — Shield Core auto-takes one, leaving 5 to play with (or 6
 if you drop shields for a glass-cannon build).
 
 ## The one open architectural decision (resolved here)
@@ -47,7 +47,7 @@ the refactor safe to land without a playtest breaking survival systems.
 |---|---|---|
 | Slot enum | `scripts/weapons/SlotTypes.gd` | add `MODULE` + `slot_name` case |
 | Base class | `scripts/parts/module_part.gd` (NEW) | extends `part.gd`; `module_id`; `apply/unapply` mutate ship (default-safe); Mk |
-| Bay state | `scripts/run_state.gd` | `modules: Array` + `MODULE_BAY_SIZE=5`; reset in `new_run`; seed default Shield Core; `_SAVE_FIELDS` + RunSave mirror; equip/unequip helpers |
+| Bay state | `scripts/run_state.gd` | `modules: Array` + `MODULE_BAY_SIZE=6`; reset in `new_run`; seed default Shield Core; `_SAVE_FIELDS` + RunSave mirror; equip/unequip helpers |
 | Loadout | `scripts/weapons/loadout.gd` | `apply_all` also applies `Run.modules` |
 | Catalog | `scripts/parts/part_catalog.gd` | preloads + roll-pool entries (Shield Core default-only, like Focus) + factory dispatch |
 | Defaults | `scripts/parts/part_factory.gd` | default loadout includes Shield Core in the bay |

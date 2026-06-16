@@ -10,10 +10,10 @@ You are the **Starblaster part author**. Parts are the player's entire stat surf
 
 Read these first:
 - `scripts/parts/part.gd` (base class) — fields: `slot_type`, `mk` (1–9), `display_name`, `apply(ship)`, `unapply(ship)`.
-- `scripts/weapons/SlotTypes.gd` — the 10-slot layout. Pick the right slot or the loadout UI won't show your Part.
+- `scripts/weapons/SlotTypes.gd` — the live slot axes. **MODULE is a LIST bay** (6 passive items per `modules: Array` on the ship) **not a pegboard slot**. Pick the right `slot_type` or the loadout UI won't show your Part correctly.
 - `scripts/parts/` — existing Parts. Read 2–3 in the same slot before authoring a new one.
 - `scripts/parts/part_factory.gd` — registration. New Parts MUST be added here to appear in starting pools and shop rolls.
-- `scripts/player_loadout.gd` — equip/unequip pipeline that calls apply/unapply.
+- `scripts/weapons/player_loadout.gd` — equip/unequip pipeline that calls apply/unapply.
 
 ## The recipe (CLAUDE.md, codified)
 

@@ -116,33 +116,33 @@ main.tscn (combat) ←───────────────────�
     ↓  (level_cleared signal)            │
 cleared_summary.tscn (results screen)    │
     ↓  (auto-transition)                 │
-sector_map_v3.tscn (node grid)           │
+sector_map_hd.tscn (wraps sector_map_v3) │
     ├─ Player clicks Combat node         │
     │   → sector_map writes Run.current_node_id/type
     │   → calls get_tree().change_scene("res://scenes/main.tscn")
     │   → goes back to main.tscn ────────┘
     │
-    ├─ Player clicks Outpost node
+    ├─ Player clicks Outpost (persistent hub button, always available)
     │   → opens outpost.tscn
-    │   → buys/sells/refills Parts
-    │   → returns to sector_map_v3.tscn
+    │   → buys/sells/refills Parts + Modules
+    │   → returns to sector_map_hd.tscn (does NOT advance progress)
     │
     ├─ Player clicks Hazard node (minefield/asteroid field)
     │   → opens main.tscn in hazard mode
-    │   → returns to sector_map_v3.tscn
+    │   → returns to sector_map_hd.tscn
     │
     ├─ Player clicks Boss node
     │   → opens main.tscn in boss mode
-    │   → boss dies → returns to sector_map_v3.tscn
+    │   → boss dies → returns to sector_map_hd.tscn
     │
     ├─ Player clicks Signal Event node
     │   → opens signal_event.tscn (narrative choice)
     │   → choice outcome modifies Run state
-    │   → returns to sector_map_v3.tscn
+    │   → returns to sector_map_hd.tscn
     │
     ├─ Sector complete (all required nodes cleared)
     │   → goes to cleared_summary.tscn with sector results
-    │   → auto-transition to sector_map_v3.tscn (next sector)
+    │   → auto-transition to sector_map_hd.tscn (next sector)
     │
     └─ Run ends (player dies or sector limit reached)
         → run_summary.tscn (final score, stats)

@@ -186,11 +186,11 @@
 
 ---
 
-### DirAccess `res://` directory scans return empty in exported web builds
+### DirAccess `res://` directory scans fail in exported builds (embedded .pck)
 
-**The rule:** Runtime directory scans (`DirAccess.list_dir_begin()` on `res://`) work in the editor but return nothing in exported HTML5 builds. Use a hardcoded const manifest of file paths instead.
+**The rule:** Runtime directory scans (`DirAccess.list_dir_begin()` on `res://`) work in the editor but return nothing in exported Windows builds. Use a hardcoded const manifest of file paths instead.
 
-**Why:** Web exports package assets into a `.pck` binary; there's no filesystem to enumerate at runtime.
+**Why:** Exported builds package assets into an embedded `.pck` binary; there's no live filesystem to enumerate at runtime.
 
 **Source:** [`scripts/dev/enemy_manifest.gd:4–7`](../../scripts/dev/enemy_manifest.gd) (canonical example)
 
@@ -230,7 +230,7 @@ Then grep output for `SCRIPT ERROR|Parse Error|Cannot infer|Failed to load`. Als
 
 Never restate what the code says (`# increment the counter`). Comment as you go, riding along with real work.
 
-**Source:** [README → House style](README.md#house-style-for-the-code-you-write), [`scripts/director.gd`](../../scripts/director.gd) (good example)
+**Source:** [README → House style](README.md#house-style-for-the-code-you-write), [`scripts/levels/director.gd`](../../scripts/levels/director.gd) (good example)
 
 ---
 

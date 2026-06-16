@@ -6,7 +6,7 @@ A pragmatic guide for getting productive in this repo. Pairs with `CLAUDE.md` (w
 
 A Godot 4 top-down vertical shmup, written in GDScript. Started life as the kidscancode "Classic Shmup" tutorial and was rebuilt against the **Starblaster** design doc: a roguelite with a branching sector map, slotted parts, Mk.1–9 upgrade scaling, a growing boss roster (see `scripts/enemies/boss_*.gd`), and procedural hazard levels (minefield, asteroid field).
 
-Ships to itch.io as a Web (HTML5) build. No Steam/desktop release pipeline today.
+Ships to itch.io as a Windows executable. Web/HTML5 export pipeline retired 2026-06-10.
 
 ## Setup
 
@@ -15,7 +15,7 @@ Ships to itch.io as a Web (HTML5) build. No Steam/desktop release pipeline today
 3. **Install ffmpeg** (on PATH) if you'll iterate on visual effects — the capture scripts pipe PNG frames into GIFs.
 4. Open `project.godot` in the 4.6.3 editor. The Godot MCP addon is enabled but optional — it just lets AI agents poke the live editor over a WebSocket.
 
-Renderer is `gl_compatibility` (for Web). Internal viewport is **480×270** with a **216×270 centered playfield band** — all gameplay math is in those coords, the side gutters are HUD/glass.
+Renderer is `forward_plus` (see `project.godot:20` for the feature flag). Internal viewport is **480×270** with a **216×270 centered playfield band** — all gameplay math is in those coords, the side gutters are HUD/glass.
 
 ## Repo layout
 
@@ -23,22 +23,21 @@ Renderer is `gl_compatibility` (for Web). Internal viewport is **480×270** with
 scenes/             *.tscn — every screen, ship, projectile, FX
   dev/              dev menu sub-scenes (tuners, labs, sizers)
 scripts/
-  main.gd           combat scene controller
-  player.gd         player ship (stat-driven, parts populate it)
-  enemies/boss_base.gd  boss base (boss.gd = Commander variant)
-  run_state.gd      Run autoload (persistent run state)
-  enemies/
-	enemy_base.gd     Area2D base for everything in `enemies` group
-	enemy_core.gd     pattern-driven layer (movement Resource + shoot Resource)
-	patterns/         movement Resources
-	shoot_patterns/   fire Resources
+  autoload/         Run, Dbg, Music, Settings
+  game/             main.gd (combat), player.gd, player_loadout.gd
+  enemies/          enemy_base.gd, enemy_core.gd, bosses/, patterns/, shoot_patterns/
+  levels/           director.gd, wave_generator.gd, factions.gd
   projectiles/      base_bullet.gd, base_missile.gd + subclasses
   effects/          static FX helpers (hit_flash, explosion, debris, …)
-  levels/           wave_generator(_v2), levels_v2 (hazards), director
   parts/            slotted upgrade Parts (Mk.1–9 scaling)
   weapons/          SlotTypes, weapon Parts
+  hud/              UI (overlay, hud.gd, etc.)
+  screens/          scene controllers (outpost.gd, sector_map_v3.gd, etc.)
+  parallax/         backdrop, layer_planet.gd, etc.
+  systems/          playfield.gd, sector_map_route.gd, scene_transition.gd
   dev/              dev menu pages (tuners, ship sizer, …)
-  playfield.gd      bounds constants — import this, don't hardcode
+  strings/          strings.gd (localization)
+  ui/               UI theme and helpers
 graphics/           sprite assets (some from third-party Mini Pixel Pack 3)
 tools/              publish, parse_check, capture scripts, smoke harness
 captures/           gitignored — capture script output
@@ -50,21 +49,21 @@ addons/
 
 ## Boot path
 
-`main_menu.tscn` (main scene) → either
+`main_menu.tscn` (main scene, set in `project.godot:19`) → either:
 
-- **Start Run** → `sector_map_v2.tscn` → node click goes to `main.tscn` (combat), `outpost.tscn`, `signal_event.tscn`, etc. Combat ends → `cleared_summary.tscn` → back to sector map.
-- **Dev Menu** → grid of test scenes (Wave Tester, Movement Lab, Boss Fight, UI Designer, Ship Sizer, Parallax Tuner, Asteroid Lab, Test Hazard, Hangar, …).
+- **Start Run** → `sector_map_hd.tscn` (wraps `sector_map_v3.tscn`) → node click goes to `main.tscn` (combat), `outpost.tscn`, `signal_event.tscn`, etc. Combat ends → `cleared_summary.tscn` → back to sector map. Outpost is a **persistent hub button** on the map (available anytime, doesn't advance progress).
+- **Dev Menu** → grid of test scenes. See `scripts/dev/dev_menu.gd` for the current button list (list drifts; don't hardcode expectations).
 
-Autoloads (`/root/*`): `Run`, `Dbg`, `Music`, `Settings`. `Run` is the one you'll touch most — it holds bounty, hull/shield, the loadout snapshot, the cached sector map, current node, and `set_meta(...)` one-shot config that combat/wave-gen consume.
+Autoloads (`/root/*`): `Run`, `Dbg`, `Music`, `Settings` (registered in `project.godot:26–29`). `Run` is the one you'll touch most — it holds bounty, hull/shield, the loadout snapshot, the cached sector map, current node, and `set_meta(...)` one-shot config that combat/wave-gen consume.
 
 ## How the systems fit
 
-- **Combat (`scripts/main.gd`)** picks a `LevelData` builder based on `Run.current_node_type` or a meta override: `WaveGen.build` (production), `WaveGeneratorV2.build_combat` (dev tester), or `Levels.build_*_level` (hazards).
-- **WaveDirector (`scripts/levels/director.gd`)** walks the `WaveSpec`s, spawns enemies, emits `enemy_died`, `wave_started`, `level_cleared`. `level_cleared` runs the outro tween → cleared_summary.
-- **Enemies** are `EnemyBase` (Area2D, in `enemies` group). Most are `enemy_core` with a movement Resource + shoot Resource. Bespoke logic (bomber, bulwark v2) subclasses `enemy_base` directly. Custom enemies expose `hull`/`max_hull` shim properties + `hull_changed` signal so damage tells (engine_torch, smoke trail) reuse the same plumbing as the player.
-- **Player** is stat-driven from Parts via `PlayerLoadout`. Stats start at zero; equipping Parts mutates them through `apply(ship)`/`unapply(ship)`. Shield is a **charge pool** (per-hit, brief i-frames, then bleeds to hull). Same mechanic on shielded enemies.
-- **Projectiles** extend `base_bullet.gd` or `base_missile.gd`. **Spawn under `get_tree().root`**, never under the shooter — the shooter dies and you don't want bullets dying with it.
-- **Effects** are static helpers: `ExplosionFx.play(pos)`, `HitFlashFx.flash(node, kind)`, `ShadowFx.attach_shadow(spr)`, etc.
+- **Combat (`scripts/game/main.gd`)** picks a `LevelData` builder based on `Run.current_node_type` or a meta override: `WaveGen.build` (production waves), or `Levels.build_minefield/asteroid_field_level` (hazards).
+- **Director (`scripts/levels/director.gd`)** walks the wave definitions, spawns enemies, emits `enemy_died`, `enemy_spawned`, `wave_started`, `level_cleared`. `level_cleared` runs the outro tween → `cleared_summary.tscn`.
+- **Enemies** are `EnemyBase` (Area2D, in `enemies` group). Most use `enemy_core` with a `movement` Resource + `shoot_pattern` Resource. Bespoke logic (custom HP/behavior) subclasses `enemy_base` directly. Bosses live in `scripts/enemies/bosses/` and `scenes/enemies/bosses/`.
+- **Player** is stat-driven from Parts via `PlayerLoadout` (`scripts/weapons/loadout.gd`). Stats start at zero; equipping Parts mutates them through `apply(ship)`/`unapply(ship)`. Shield is a **charge pool** (per-hit, brief i-frames, then bleeds to hull). Same mechanic on shielded enemies.
+- **Projectiles** extend `base_bullet.gd` or `base_missile.gd` (`scripts/projectiles/`). **Spawn under `get_tree().root`**, never under the shooter — the shooter dies and you don't want bullets dying with it.
+- **Effects** are static helpers in `scripts/effects/`: `ExplosionFx.play(pos)`, `HitFlashFx.flash(node, kind)`, `ShadowFx.attach_shadow(spr)`, etc.
 
 ## Adding things
 
@@ -99,14 +98,14 @@ This is a data-first loop — author Resources in Godot's inspector, hit "Test L
 **Tweak a movement or shoot pattern** (S-curve amplitude, dive angle, fire interval):
 - Patterns are `Resource` scripts under `scripts/enemies/patterns/` and `scripts/enemies/shoot_patterns/`. Each has `@export` knobs.
 - In Godot, FileSystem panel → right-click → New Resource → pick the pattern script. Save as `resources/patterns/my_pattern.tres`. Edit knobs in inspector.
-- Drop the new `.tres` into an enemy's `movement` / `shoot_pattern` slot — or into a `WaveDef`'s `movement_override` / `shoot_pattern_override` slot (per-wave override).
+- Drop the new `.tres` into an enemy's `movement` / `shoot_pattern` slot — or into a `wave_def.gd`'s `movement_override` / `shoot_pattern_override` slot (per-wave override).
 
 **Compose a custom wave**:
-- FileSystem → right-click → New Resource → `wave_def.gd`. Save as `resources/waves/my_wave.tres`.
+- FileSystem → right-click → New Resource → `scripts/levels/wave_def.gd`. Save as `resources/waves/my_wave.tres`.
 - Inspector fields: `enemy_scene` (drop in a `.tscn`), `count`, `spawn_interval`, `spawn_delay`, `formation`, `movement_override` (optional), `shoot_pattern_override` (optional), `max_health` (optional override), `bounty_value` (optional override), `silent` (skip the WAVE banner), `announce_text` (custom banner copy).
 
 **Compose a level** (one or more waves played in order):
-- New Resource → `level_def.gd`. Save as `resources/levels/test_level.tres` *(this exact filename is what the dev menu loads)*.
+- New Resource → `scripts/levels/level_def.gd`. Save as `resources/levels/test_level.tres` *(this exact filename is what the dev menu loads)*.
 - Drag your wave `.tres` files into the `waves` array in the inspector. Order = play order.
 
 **Test it**:
@@ -151,20 +150,20 @@ A passing smoke test means the code parsed. It does **not** mean the visual is r
 
 ## Releasing
 
-One Godot binary (4.6.3 standalone) now serves as both editor and exporter, so editor/exporter parser mismatches are no longer a class of publish disaster — but the parse-check gate is still belt-and-braces (it catches scripts that only resolve against the editor's class cache).
+One Godot binary (4.6.3 standalone) serves as both editor and exporter. Parse-check is a belt-and-braces gate (catches scripts that only resolve against the editor's class cache).
 
 1. **Smoke test / parse check.** `tools/parse_check.ps1` runs every user-reachable scene through the same 4.6.3 binary the export uses.
 2. **Commit before you publish.** Each release is a commit on `main`, so `git bisect` lands on a published build.
-3. **Run `tools/publish.ps1 -Version "0.1.NN"`.** It bumps `config/version` in `project.godot`, runs the parse check as a hard gate, exports the Web preset, validates the `.pck` mtime advanced (catches a silent no-op), and calls `butler push`. **Never `butler push` directly.** Never `--no-verify`.
-4. Quick post-publish check: open the itch page, hard-refresh, confirm version string in the corner matches what you bumped to.
+3. **Run `tools/publish.ps1 -Version "0.1.NN"`.** It bumps `config/version` in `project.godot`, runs the parse check as a hard gate, **exports the WINDOWS preset** to `../Starblaster_win/`, validates the `.exe` mtime advanced (catches a silent no-op), and calls `butler push` to `tikibones/starblaster:windows`. **Never `butler push` directly.** **Don't publish without explicit maintainer approval.**
+4. Quick post-publish check: open the itch page, hard-refresh, confirm version string matches what you bumped to.
 
 ## Debugging tips
 
 - **Headless smoke**: `godot --path . --headless --quit-after 2` — boots autoloads + main scene, surfaces parser errors and missing-resource errors fast.
-- **Full parse check**: `tools/parse_check.ps1` — catches Web-export-only parser errors.
-- **`DirAccess.open("res://...")` does not work in Web builds** at runtime. Use a hardcoded const manifest if you need to enumerate assets.
+- **Full parse check**: `tools/parse_check.ps1` — catches export-only parser errors.
+- **`DirAccess.open("res://...")` fails in exported builds** at runtime (embedded `.pck`). Use a hardcoded const manifest if you need to enumerate assets.
 - **Bullets vanish on enemy death?** They're parented to the enemy. Reparent to `get_tree().root`.
-- **Shader on Web looks wrong?** `gl_compatibility` is a subset of GL ES 3.0. Some Forward+ features silently no-op. Test on Web before assuming it's fine.
+- **Shader looks wrong in-game?** Check the shader syntax against `forward_plus` specifics (not all Forward+ features are built-in; test in-editor before export).
 - **Boss has 1 HP at fight start?** You used the `stat <= 0 ? default : stat` pattern in `_ready()` after `super._ready()` already ran. Set stats *before* `super._ready()`.
 - **A new movement pattern lets enemies leave the playfield?** It's reading `get_viewport_rect()` instead of `Playfield.X_MIN/X_MAX`. The viewport is 480 wide; the playfield is 216 wide and centered.
 

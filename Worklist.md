@@ -34,7 +34,7 @@ items remain below. Deep specs live in `TODO.md` / `docs/` — this is the scann
   (configs mirror the code; placeholder radial textures — hand-pass + wire-in pending). Also fixed a
   merge-conflict-corrupted `enemy_smoke_trail.gd.uid`. `ember_fx` uses a ShaderMaterial → tune via
   `explosion_ember.tscn`. Non-particle effects (Line2D/sprite/shader/audio) left alone.
-- ◑ **File-structure reorg — scripts root DONE (2026-06-14).** Change map: `docs/file_reorg_changemap_2026-06-14.md`;
+- ◑ **File-structure reorg — scripts root DONE (2026-06-14).** Change map: `docs/archive/file_reorg_changemap_2026-06-14.md`;
   guide: `docs/file-structure.md`. **The `scripts/` root is fully cleared** — 9 batches, each its own
   verified commit (compile 314/0 + boot each): `autoload/`, `effects/` (strays), `strings/`, `hud/` (+`ui`),
   `enemies/bosses/` (scripts+scenes), `game/` (main/player/ship/run_save) + `enemy_core`→`enemies/`,
@@ -50,7 +50,7 @@ items remain below. Deep specs live in `TODO.md` / `docs/` — this is the scann
   shaders** (`nebula_alt1` / `nebula_alt2`, godotshaders CC0) + tab selector. One cohesive nebula
   batch — commit once a direction's picked.
 
-## Renderer (`docs/renderer_audit_2026-06-11.md`)
+## Renderer (`docs/archive/renderer_audit_2026-06-11.md`)
 - ◑ **Lever C remainder** — >1.0 additive pass on **shield ring / beam cores / super flashes / engine
   GlowMask** so they bloom too (only if wanted).
 - ☐ **Lever D** — screen-space sweeteners (heat-haze behind exhaust, explosion ripple, damage CA).

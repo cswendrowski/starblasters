@@ -11,7 +11,7 @@
   "stance module cache" vs broaden a salvage event); magnitude tuning (first-pass
   numbers in §3, do via the Hangar); and Roman's in-combat **visual** verification
   (HUD meter, mode feel) — blocked until combat boots (`bulwark.gd` other-session WIP).
-**Supersedes:** `docs/supers_modes_modules_2026-06-05.md` (the "Mode Energy" spec) — that
+**Supersedes:** `docs/archive/supers_modes_modules_2026-06-05.md` (the "Mode Energy" spec) — that
 doc's complexity (a separate earned Mode-Energy gauge, ace-chain coupling, focus-save
 dual-hitbox, unified recharge spine) is **dropped** in favor of the simpler per-mode
 resource models below.
@@ -67,7 +67,7 @@ behavior unrelated to them. This spec makes the stance axis real.
 - **Effect:** **intangible** — identical dodge effect to Focus (passes through bullets +
   enemies, takes no hits) **but with NO dot/trail and NO speed reduction**. Lasts a **short
   fixed duration** per activation. While active the player **cannot hit bullets or enemies**
-  (purely defensive — no offense, no bullet-clear). When it ends, tangibility returns.
+  (purely defensive — no offense, no bullet-clear). **Each absorbed bullet restores 1 shield charge** (post-spec tweak, 2026-06-14). When it ends, tangibility returns.
 - **Activation:** **press** Shift → fires a fixed-duration intangibility burst, consuming **one
   charge**. (Holding does not extend it.)
 - **Resource:** discrete **charges**, replenished **by killing enemies** (NOT by time). No idle

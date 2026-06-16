@@ -49,10 +49,10 @@ Actions: `left`/`right`/`up`/`down` (arrow keys), `shoot` (Space/Z), `shoot2` (C
 > reference-fragile (uid + literal paths) — follow that guide's move-safety checklist.
 
 ### Scene flow
-`main_menu.tscn` → `main.tscn` (combat) ↔ `sector_map_v3.tscn` → `outpost.tscn` / `signal_event.tscn` / `cleared_summary.tscn` / `run_summary.tscn`. Forward-only branching grid (see `docs/contributing/02-architecture.md` for the grid details). Confirm the live sector-map scene in `main_menu.gd`/`main.gd` rather than trusting this line.
+`main_menu.tscn` → `main.tscn` (combat) ↔ `sector_map_hd.tscn` (HD wrapper around `sector_map_v3`) → `outpost.tscn` / `signal_event.tscn` / `cleared_summary.tscn` / `run_summary.tscn`. Forward-only branching grid (see `docs/contributing/02-architecture.md` for the grid details). Confirm the live sector-map scene in `main_menu.gd`/`main.gd` rather than trusting this line.
 
 ### Combat flow (`scripts/game/main.gd`)
-`new_game()` builds `LevelData` via `WaveGen.build()` (= `WaveGenerator.build()`, production) or `Levels.build_minefield/asteroid_field_level()` (hazard nodes); the dev wave-authoring tool is `scripts/dev/wave_editor.gd`. `director.gd` walks `WaveSpec`s and emits `enemy_died` / `enemy_spawned` / `wave_started` / `level_cleared`; `level_cleared` → `_run_outro()` → fly-out → wipe → cleared summary. Full walkthrough: `docs/contributing/03-combat-waves-enemies.md`.
+`new_game()` builds `LevelData` via `WaveGen.build()` (= `WaveGenerator.build()`, production) or `Levels.build_minefield/asteroid_field_level()` (hazard nodes); (the dedicated Wave Editor dev tool was retired — authored-pattern editing is designed but not yet built, see `docs/wave_pattern_editor_design_2026-06-15.md`). `director.gd` walks `WaveSpec`s and emits `enemy_died` / `enemy_spawned` / `wave_started` / `level_cleared`; `level_cleared` → `_run_outro()` → fly-out → wipe → cleared summary. Full walkthrough: `docs/contributing/03-combat-waves-enemies.md`.
 
 ### Enemies (`scripts/enemies/` + `scripts/enemies/enemy_core.gd`)
 - `scripts/enemies/enemy_base.gd` — base (`Area2D`, `class_name EnemyBase`). Health, `take_hit`, `explode`, engine flame + parallax shadow + damage overlay shader (gated by `auto_rotate`), debris on death, offscreen cleanup. Also holds the `components: Array` slot (M6) + `bullet_speed_mult`/`bullet_damage_mult` weapon scalars.
