@@ -1,8 +1,11 @@
 # Wave Pattern Editor + authored-pattern auto-mix — design
 
-**Status:** SCOPED, NOT BUILT (2026-06-15). Captures the agreed approach + an ordered build plan.
-Seams re-validated against `main` after the 2026-06-15 codebase-health audit (see "Reconciliation"
-below). Flip to `BUILT <date>` when shipped; keep the `docs/README.md` index entry in sync.
+**Status:** BUILT 2026-06-16 (branch `wave-pattern-editor-2026-06-16`). Implemented in phases P0–P4
+per the build plan below; every phase headless-verified + `tools/parse_check.ps1` green. Shipped:
+the dev tool `scripts/dev/wave_pattern_editor.gd` (+ `scenes/dev/wave_pattern_editor.tscn`, dev-menu
+button), the conductor change (`WaveSpec.lane` + `director._dispatch_authored`), and the library +
+auto-mix (`scripts/levels/authored_patterns.gd`, spliced at the `main.gd` producer chokepoint). The
+design + the audit reconciliation below are preserved as the build record.
 
 ## Context
 

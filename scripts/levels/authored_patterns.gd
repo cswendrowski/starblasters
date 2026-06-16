@@ -175,13 +175,11 @@ static func _pick_wildcard_entry(fill_faction: int, sector: int, size_hint: Stri
 static func maybe_inject(score, fill_faction: int, sector: int, rng: RandomNumberGenerator, chance: float = DEFAULT_CHANCE) -> void:
 	if score == null or score.waves.is_empty():
 		return
-	var forced: String = _forced_pattern_name()
-	if forced != "":
-		var fp: Dictionary = _by_name(forced)
-		if not fp.is_empty():
-			var ph0 := build_phrase(fp, fill_faction, sector, rng)
-			if ph0 != null:
-				score.waves[0].phrases.append(ph0)
+	var fp: Dictionary = _forced()
+	if not fp.is_empty():
+		var ph0 := build_phrase(fp, fill_faction, sector, rng)
+		if ph0 != null:
+			score.waves[0].phrases.append(ph0)
 		return
 	var pool: Array = eligible(fill_faction, sector)
 	if pool.is_empty():
@@ -194,20 +192,30 @@ static func maybe_inject(score, fill_faction: int, sector: int, rng: RandomNumbe
 				w.phrases.append(ph)
 
 
-# Read + clear the dev "send to conductor" one-shot (Run.forced_pattern -> a pattern name).
-static func _forced_pattern_name() -> String:
-	var ml := Engine.get_main_loop()
-	if ml == null or not (ml is SceneTree):
-		return ""
-	var root := (ml as SceneTree).root
-	if root == null:
-		return ""
-	var run := root.get_node_or_null("Run")
-	if run != null and run.has_meta("forced_pattern"):
+# Read + clear the dev "send to conductor" one-shot. The editor can push EITHER a live pattern
+# dict (Run.forced_pattern_dict, no export needed) OR a committed name (Run.forced_pattern).
+static func _forced() -> Dictionary:
+	var run := _run_node()
+	if run == null:
+		return {}
+	if run.has_meta("forced_pattern_dict"):
+		var d = run.get_meta("forced_pattern_dict", {})
+		run.remove_meta("forced_pattern_dict")
+		if d is Dictionary and not (d as Dictionary).is_empty():
+			return d
+	if run.has_meta("forced_pattern"):
 		var nm: String = String(run.get_meta("forced_pattern", ""))
 		run.remove_meta("forced_pattern")
-		return nm
-	return ""
+		return _by_name(nm)
+	return {}
+
+
+static func _run_node() -> Node:
+	var ml := Engine.get_main_loop()
+	if ml == null or not (ml is SceneTree):
+		return null
+	var root := (ml as SceneTree).root
+	return root.get_node_or_null("Run") if root != null else null
 
 
 static func _by_name(nm: String) -> Dictionary:

@@ -14,6 +14,7 @@ $scenes = @(
   'res://scenes/dev/enemy_bench.tscn',
   'res://scenes/dev/lane_visualizer.tscn',
   'res://scenes/dev/pattern_eligibility_editor.tscn',
+  'res://scenes/dev/wave_pattern_editor.tscn',
   'res://scenes/dev/movement_test.tscn',
   'res://scenes/dev/parallax_tuner.tscn',
   'res://scenes/dev/ui_designer.tscn',
