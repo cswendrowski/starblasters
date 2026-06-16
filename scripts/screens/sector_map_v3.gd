@@ -924,21 +924,55 @@ func _compute_boss_stellar(row_idx: int) -> Dictionary:
 	}
 
 
+# PixelPlanets/Control parity setup shared by every celestial spawn. PlanetKit scenes are
+# Control-rooted; their ColorRect cells only line up to viewport pixels if the root is forced
+# to a fixed 100x100 box with zero pivot BEFORE scaling. Extracted from 5 verbatim copies
+# (health audit 2026-06-15).
+func _setup_celestial_control(node, sf: float, pos: Vector2) -> void:
+	if node is Control:
+		node.anchor_left = 0.0; node.anchor_top = 0.0
+		node.anchor_right = 0.0; node.anchor_bottom = 0.0
+		node.offset_right = 100.0; node.offset_bottom = 100.0
+		node.size = Vector2(100.0, 100.0)
+		node.custom_minimum_size = Vector2(100.0, 100.0)
+		node.pivot_offset = Vector2.ZERO
+	node.scale = Vector2(sf, sf)
+	node.position = pos
+
+
+# One decorative asteroid: instantiate -> parity setup -> palette/seed/light -> add -> row
+# tint -> register for rotation. Extracted from the 3 verbatim copies (large / cluster / band).
+# Callers pass the asteroid CENTER (already offset), pixel size, the row-tint index, and the
+# per-variant spin range. RNG order (set_seed, then speed, then phase) is preserved exactly so
+# the combat backdrop still reproduces the map. (Health audit 2026-06-15.)
+func _spawn_one_asteroid(pos_center: Vector2, px: float, row_tint_idx: int, speed_lo: float, speed_hi: float, rng: RandomNumberGenerator) -> void:
+	var sf: float = px / 100.0
+	var ast = ASTEROID_SCENE.instantiate()
+	_setup_celestial_control(ast, sf, Vector2(pos_center.x - 50.0 * sf, pos_center.y - 50.0 * sf))
+	_duplicate_materials(ast)
+	_disable_asteroid_outlines(ast)   # Change 3
+	if ast.has_method("set_pixels"): ast.set_pixels(px)
+	if ast.has_method("set_seed"):   ast.set_seed(rng.randi())
+	if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
+	add_child(ast)
+	_disable_celestial_mouse(ast)
+	_reset_planet_colorrects(ast)
+	_apply_row_tint_to_asteroid(ast, row_tint_idx)
+	ast.modulate = Color.WHITE
+	_asteroid_rotators.append({
+		"node":  ast,
+		"speed": rng.randf_range(speed_lo, speed_hi),
+		"phase": rng.randf_range(0.0, TAU),
+	})
+
+
 func _spawn_planet(center: Vector2, display_px: float, type_idx: int, row_idx: int, rng: RandomNumberGenerator, poi_id: String = "") -> void:
 	var ps := load(PLANET_SCENES[type_idx])
 	if ps == null:
 		return
 	var p = ps.instantiate()
 	var sf: float = display_px / 100.0
-	if p is Control:
-		p.anchor_left = 0.0; p.anchor_top = 0.0
-		p.anchor_right = 0.0; p.anchor_bottom = 0.0
-		p.offset_right = 100.0; p.offset_bottom = 100.0
-		p.size = Vector2(100.0, 100.0)
-		p.custom_minimum_size = Vector2(100.0, 100.0)
-		p.pivot_offset = Vector2.ZERO
-	p.scale    = Vector2(sf, sf)
-	p.position = Vector2(center.x - 50.0 * sf, center.y - 50.0 * sf)
+	_setup_celestial_control(p, sf, Vector2(center.x - 50.0 * sf, center.y - 50.0 * sf))
 	_duplicate_materials(p)
 	if p.has_method("set_pixels"):  p.set_pixels(display_px)
 	# Deterministic per-node appearance so the combat backdrop can reproduce
@@ -970,38 +1004,7 @@ func _spawn_planet(center: Vector2, display_px: float, type_idx: int, row_idx: i
 
 func _spawn_large_asteroid(center: Vector2, row_idx: int, rng: RandomNumberGenerator) -> void:
 	const PX: float = 32.0
-	var sf: float   = PX / 100.0
-	var ast = ASTEROID_SCENE.instantiate()
-	if ast is Control:
-		ast.anchor_left = 0.0; ast.anchor_top = 0.0
-		ast.anchor_right = 0.0; ast.anchor_bottom = 0.0
-		ast.offset_right = 100.0; ast.offset_bottom = 100.0
-		ast.size = Vector2(100.0, 100.0)
-		ast.custom_minimum_size = Vector2(100.0, 100.0)
-		ast.pivot_offset = Vector2.ZERO
-	ast.scale    = Vector2(sf, sf)
-	ast.position = Vector2(center.x - 50.0 * sf, center.y - 50.0 * sf)
-	_duplicate_materials(ast)
-	_disable_asteroid_outlines(ast)   # Change 3
-	if ast.has_method("set_pixels"): ast.set_pixels(PX)
-	if ast.has_method("set_seed"):   ast.set_seed(rng.randi())
-	if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
-	add_child(ast)
-	_disable_celestial_mouse(ast)
-	_reset_planet_colorrects(ast)
-	# Designer: asteroid surfaces were not picking up the row's randomized
-	# tint — modulate-only ran into the muted gray-blue default palette and
-	# came out muddy. Inject a 3-tone palette derived from the row star color
-	# directly into the shader so the rocks actually read in the family color
-	# the decoration pixels already use. Keep modulate at WHITE so we don't
-	# double-tint.
-	_apply_row_tint_to_asteroid(ast, row_idx)
-	ast.modulate = Color.WHITE
-	_asteroid_rotators.append({
-		"node":  ast,
-		"speed": rng.randf_range(0.008, 0.025),
-		"phase": rng.randf_range(0.0, TAU),
-	})
+	_spawn_one_asteroid(center, PX, row_idx, 0.008, 0.025, rng)
 	_scatter_asteroid_band(center, rng)
 	_scatter_pulse_pixels(center, PX, rng)
 
@@ -1009,36 +1012,9 @@ func _spawn_asteroid_cluster(center: Vector2, row_idx: int, rng: RandomNumberGen
 	var count: int = 3 + rng.randi() % 3
 	for _k in count:
 		var px: float  = 8.0 + float(rng.randi() % 3) * 4.0
-		var sf: float  = px / 100.0
 		var ox: float  = rng.randf_range(-20.0, 20.0)
 		var oy: float  = rng.randf_range(-16.0, 16.0)
-		var ast = ASTEROID_SCENE.instantiate()
-		if ast is Control:
-			ast.anchor_left = 0.0; ast.anchor_top = 0.0
-			ast.anchor_right = 0.0; ast.anchor_bottom = 0.0
-			ast.offset_right = 100.0; ast.offset_bottom = 100.0
-			ast.size = Vector2(100.0, 100.0)
-			ast.custom_minimum_size = Vector2(100.0, 100.0)
-			ast.pivot_offset = Vector2.ZERO
-		ast.scale    = Vector2(sf, sf)
-		ast.position = Vector2(center.x + ox - 50.0 * sf, center.y + oy - 50.0 * sf)
-		_duplicate_materials(ast)
-		_disable_asteroid_outlines(ast)   # Change 3
-		if ast.has_method("set_pixels"): ast.set_pixels(px)
-		if ast.has_method("set_seed"):   ast.set_seed(rng.randi())
-		if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
-		add_child(ast)
-		_disable_celestial_mouse(ast)
-		_reset_planet_colorrects(ast)
-		# Inject row tint into the asteroid shader's `colors` palette instead
-		# of multiplying via modulate — modulate-on-gray reads muddy.
-		_apply_row_tint_to_asteroid(ast, row_idx)
-		ast.modulate = Color.WHITE
-		_asteroid_rotators.append({
-			"node":  ast,
-			"speed": rng.randf_range(0.005, 0.020),
-			"phase": rng.randf_range(0.0, TAU),
-		})
+		_spawn_one_asteroid(Vector2(center.x + ox, center.y + oy), px, row_idx, 0.005, 0.020, rng)
 		_scatter_pulse_pixels(Vector2(center.x + ox, center.y + oy), px, rng)
 	_scatter_asteroid_band(center, rng)
 
@@ -1046,36 +1022,9 @@ func _scatter_asteroid_band(center: Vector2, rng: RandomNumberGenerator) -> void
 	var count: int = 2 + rng.randi() % 3
 	for _k in count:
 		var px: float = 4.0 + float(rng.randi() % 3) * 2.0
-		var sf: float = px / 100.0
 		var ox: float = rng.randf_range(-36.0, 36.0)
 		var oy: float = rng.randf_range(-12.0, 12.0)
-		var ast = ASTEROID_SCENE.instantiate()
-		if ast is Control:
-			ast.anchor_left = 0.0; ast.anchor_top = 0.0
-			ast.anchor_right = 0.0; ast.anchor_bottom = 0.0
-			ast.offset_right = 100.0; ast.offset_bottom = 100.0
-			ast.size = Vector2(100.0, 100.0)
-			ast.custom_minimum_size = Vector2(100.0, 100.0)
-			ast.pivot_offset = Vector2.ZERO
-		ast.scale    = Vector2(sf, sf)
-		ast.position = Vector2(center.x + ox - 50.0 * sf, center.y + oy - 50.0 * sf)
-		_duplicate_materials(ast)
-		_disable_asteroid_outlines(ast)   # Change 3
-		if ast.has_method("set_pixels"): ast.set_pixels(px)
-		if ast.has_method("set_seed"):   ast.set_seed(rng.randi())
-		if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
-		add_child(ast)
-		_disable_celestial_mouse(ast)
-		_reset_planet_colorrects(ast)
-		# Apply asteroid-palette tint (gray/brown/silvery) rather than star tint.
-		# _get_asteroid_color handles arbitrary row_idx via hashing — no clamp needed.
-		_apply_row_tint_to_asteroid(ast, _cur_row_idx)
-		ast.modulate = Color.WHITE
-		_asteroid_rotators.append({
-			"node":  ast,
-			"speed": rng.randf_range(0.005, 0.018),
-			"phase": rng.randf_range(0.0, TAU),
-		})
+		_spawn_one_asteroid(Vector2(center.x + ox, center.y + oy), px, _cur_row_idx, 0.005, 0.018, rng)
 		_scatter_pulse_pixels(Vector2(center.x + ox, center.y + oy), px, rng)
 
 
@@ -1329,15 +1278,7 @@ func _build_stars() -> void:
 func _spawn_star_body(anchor: Vector2, display_px: float, seed_val: int, cool: bool, exotic_idx: int, row_i: int) -> void:
 	var star = STAR_SCENE.instantiate()
 	var sf: float = display_px / 100.0
-	if star is Control:
-		star.anchor_left = 0.0; star.anchor_top = 0.0
-		star.anchor_right = 0.0; star.anchor_bottom = 0.0
-		star.offset_right = 100.0; star.offset_bottom = 100.0
-		star.size = Vector2(100.0, 100.0)
-		star.custom_minimum_size = Vector2(100.0, 100.0)
-		star.pivot_offset = Vector2.ZERO
-	star.scale    = Vector2(sf, sf)
-	star.position = Vector2(anchor.x - 50.0 * sf, anchor.y - 50.0 * sf)
+	_setup_celestial_control(star, sf, Vector2(anchor.x - 50.0 * sf, anchor.y - 50.0 * sf))
 	_duplicate_materials(star)
 	if star.has_method("set_pixels"):  star.set_pixels(display_px)
 	if star.has_method("set_seed"):    star.set_seed(seed_val)
