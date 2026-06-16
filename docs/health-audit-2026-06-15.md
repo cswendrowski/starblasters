@@ -18,6 +18,21 @@ Severity = blast radius if it bites. **Urgency ≠ severity**: several HIGH-seve
 
 ---
 
+## Progress — branch `health-audit-fixes-2026-06-15`
+
+**Done + verified** (parse_check 315/0 + clean headless boot, on the branch):
+- **Tier-1:** `Run.new_run()` 6-field reset + save-surface symmetry assert; `_on_poi_clicked` outer-break; `outpost.gd:62` weight comment.
+- **Tier-2 dead-code:** outpost UPGRADES column (~200 lines); `explosion` `*_unused` fns + texture builders; `wave_generator` `_build_coda`/`_coda_shape`; `sector_map` name-label fns + 3 commented blocks; `layer_planet` dead `ci_mat`; stale gl_compatibility comments (`explosion`/`trail_fx`). Plus the `explosion` O(n²) `find()` fix.
+- **Perf:** `muzzle_fx` per-shot texture cache; `layer_stellar` per-frame asteroid-node cache.
+- **Safe fixes:** `settings` keybind corruption guard; `music_manager` `Node.name` shadow.
+- **Reclassified (no change):** #2 death-bomb — not a bug (`fire_super()` preconditions already match the guard).
+
+**Still open — decision-independent** (not yet done): `parallax_shadow` gut-to-gate + `director` dead params (deferred — `class_name`/hot-path care); Tier-3 helper extractions (PixelPlanets `_setup_celestial_control`, sector_map asteroid pipeline, `run_state` reseed/blaster dedup); outpost refresh-debounce; `enemy_sword`→`broadside` shoot key. Also minor: `_format_loadout_line`/`_current_mk` in outpost may now be unused post-UPGRADES-removal.
+
+**Still blocked on Roman:** RNG determinism scope; sector-modifier keep/cut; base-hull pips (+ soft confirms #3 filler-duration, #4 backup-shield SFX, #5 impact_fx, phase-refund cap, outpost offers/charges on resume).
+
+---
+
 ## Cross-cutting themes (fix the theme, not the instance)
 
 These span multiple lanes and are the highest-leverage work:
