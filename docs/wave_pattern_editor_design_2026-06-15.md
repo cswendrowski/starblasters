@@ -1,6 +1,8 @@
 # Wave Pattern Editor + authored-pattern auto-mix — design
 
-**Status:** designed, not yet implemented (2026-06-15). Captures the agreed approach for a future build.
+**Status:** SCOPED, NOT BUILT (2026-06-15). Captures the agreed approach + an ordered build plan.
+Seams re-validated against `main` after the 2026-06-15 codebase-health audit (see "Reconciliation"
+below). Flip to `BUILT <date>` when shipped; keep the `docs/README.md` index entry in sync.
 
 ## Context
 
@@ -14,8 +16,10 @@ composer can roll authored patterns into generated levels.
 Decisions (confirmed with Roman):
 - **One saved pattern = a single FORMATION burst** — a group of enemies entering together on specific
   lanes, with optional per-enemy entry stagger. Maps to one `Phrase` of kind FORMATION.
-- **Auto-mix into generated levels** — `WaveGenerator.build_score` rolls a seeded chance to splice an
-  eligible authored pattern into a generated wave, so they appear in normal play next to random ones.
+- **Auto-mix into generated levels** — the composer rolls a **seeded** chance (drawn from the content
+  RNG stream) to splice an eligible authored pattern into a generated wave at the producer chokepoint, so
+  they appear in normal play next to random ones. (Injection seam corrected post-audit — see
+  Reconciliation; `build_score` alone is off the production hot path.)
 - **Per-slot wildcards** — each slot independently locks (or leaves to the conductor) its **enemy** and
   its **movement**, which yields the three authoring modes below from one mechanism.
 
@@ -65,6 +69,42 @@ Key facts established during exploration:
   `main.gd:756`) is the canonical hand-built `CombatScore` reference and the model for the in-tool live
   preview + a dev force-hook.
 
+## Reconciliation with the 2026-06-15 health audit
+
+The audit/cleanup that landed on `main` (commits `67d97d8`…`5aa6118`) doesn't block this build — most of
+it is a **tailwind**. Re-validated seams + the two corrections that matter:
+
+- **Determinism is now wired (use it).** Two seeded streams exist: a **content** stream in
+  `wave_generator.gd` (`_stable_seed` folds `run_seed`; the `RandomNumberGenerator` is created at
+  `wave_generator.gd:127` and threaded through every `_build_*`/`_pick_*`), and a **dispatch** stream
+  `director._rng` (`_seed_dispatch_rng`, `director.gd:137-142`, seeded per combat node in `start_score`).
+  The auto-mix roll + wildcard **enemy** pick are *content* decisions → draw them from the **content**
+  stream; lane placement is already seeded for free via `director._rng`.
+- **CORRECTION — injection seam.** `WaveGenerator.build_score` is **off the production hot path**: real
+  runs go `WaveGen.build()` (LevelData) → `ScoreAdapter.from_level_data` (`main.gd:701`) →
+  `start_score` (`main.gd:761`); `build_score` is only hit by tools/tests. So the auto-mix must splice at
+  the **producer chokepoint in `main.gd`** — right after `ScoreAdapter.from_level_data(_current_level)`,
+  before `start_score(_current_score)` — where the active faction + sector + `run_seed` are all known
+  (hazards already set `_current_score` directly here, so it's the proven seam). Mirror the splice into
+  `build_score`/`ScoreAdapter` too so the tool/test path matches production.
+- **Phrase shape default is `&"top_spread"`**, not `&"formation"` — authored phrases must set
+  `shape = &"authored"` explicitly (the `ScoreAdapter._shape_id` map never emits `authored`, so the new
+  director branch is unambiguous).
+- **`director._spawn_enemy` is now 4-arg** (`wave, index, lane_override=-1, step_sync={}`) — the
+  `lane_override` precise-placement primitive (`director.gd:715-716`, spawns at `Lanes.lane_center`) is
+  unchanged; just call it positionally as before.
+- **Movement-variety is NOT run-seed reproducible today.** `EnemyRoster.make_movement` /
+  `PatternEligibility.resolve` draw "vary"/mirror rolls from the *unseeded* global RNG. For reproducible
+  authored patterns, resolve the wildcard movement **key** from the seeded content stream and pin it;
+  accept that intra-pattern mirroring isn't seeded (matches current production behaviour — not a regression).
+- **No breakage.** `lanes.gd`, `enemy_roster.gd` (pick path + `make_movement`), `pattern_eligibility.gd`
+  (`resolve`/`eligible_for`), `combat_slice.gd`, the `Run.set_meta` dev hooks, and the dev-tool conventions
+  (`dev_menu.gd` registration, `ui_designer.gd` JSON+Copy-GDScript) are all intact. Dead-code removed
+  (`_build_coda`, etc.) doesn't overlap the new code. `wave_def.gd`/`phrase.gd` have no removed fields
+  (`lane_anchor_hint` still present, unused).
+- **Doc canon:** this doc is CURRENT and indexed at `docs/README.md:32`; it stays in `docs/` (not
+  `docs/archive/`). Keep the `Status:` header in canon form and update the index entry when built.
+
 ## Data model — an authored formation pattern
 
 One pattern (plain Dictionary, JSON-friendly, mirrors `pattern_eligibility.gd:DATA`):
@@ -112,13 +152,15 @@ One pattern (plain Dictionary, JSON-friendly, mirrors `pattern_eligibility.gd:DA
    `enemy_scene` / `movement_override = Roster.make_movement({"movement": key})`. Also
    `static func eligible(faction, sector) -> Array` for the gate — a pattern is eligible if
    `min_sector <= sector` AND (`pattern.faction == "any"` OR matches the level faction).
-4. **`scripts/levels/wave_generator.gd` `build_score` (`:147`):** after lifting the base score, roll a
-   **seeded** per-wave chance (reuse `_stable_seed`/run-seed for determinism) to append an eligible
-   authored phrase into a wave's `phrases` — `AuthoredPatterns.build_phrase(pick, level_faction, sector,
-   rng)`. Faction-agnostic (enemy-wildcard) patterns are eligible in **any** faction level and get filled
-   with that level's roster; enemy-specified patterns gate to their matching faction so spawned enemies
-   stay in-roster. Modest probability + a knob. No downstream change — `build_score` already feeds
-   `main.gd`→`start_score`.
+4. **Auto-mix at the producer chokepoint (`scripts/game/main.gd`, right after
+   `ScoreAdapter.from_level_data(_current_level)`, before `start_score`):**
+   `AuthoredPatterns.maybe_inject(_current_score, faction, sector, rng)` — roll a **seeded** per-wave
+   chance (rng seeded from `run_seed` + sector, mirroring `_stable_seed`) to append an eligible authored
+   phrase into a wave's `phrases`. Faction-agnostic (enemy-wildcard) patterns are eligible in **any**
+   faction level and get filled with that level's roster; enemy-specified patterns gate to their matching
+   faction so spawned enemies stay in-roster. Modest probability + a knob. Mirror the same splice into
+   `WaveGenerator.build_score` / `ScoreAdapter.from_level_data` so the dev-tool/test path matches
+   production. (See Reconciliation — `build_score` alone is off the hot path.)
 
 ## The dev tool — `scripts/dev/wave_pattern_editor.gd` + `scenes/dev/wave_pattern_editor.tscn`
 
@@ -162,9 +204,44 @@ Add one button in `scripts/dev/dev_menu.gd` (the `_add_button(...)` block, ~`:86
 
 - New: `scripts/dev/wave_pattern_editor.gd`, `scenes/dev/wave_pattern_editor.tscn`,
   `scripts/levels/authored_patterns.gd`
-- Edit: `scripts/levels/wave_def.gd` (+`lane`), `scripts/levels/director.gd` (`_dispatch_authored`),
-  `scripts/levels/wave_generator.gd` (`build_score` injection), `scripts/dev/dev_menu.gd` (button),
-  `scenes/dev_menu.tscn` if the menu is data-driven.
+- Edit: `scripts/levels/wave_def.gd` (+`lane`), `scripts/levels/director.gd` (`&"authored"` branch +
+  `_dispatch_authored`), `scripts/game/main.gd` (chokepoint auto-mix call — the real seam),
+  `scripts/levels/wave_generator.gd` / `scripts/levels/score_adapter.gd` (mirror the splice for
+  tool/test parity), `scripts/dev/dev_menu.gd` (button) + `scenes/dev_menu.tscn` if the menu is
+  data-driven, `docs/README.md` (flip the index entry to BUILT on ship).
+
+## Build work plan (ordered phases)
+
+Each phase lands independently and is headless-verifiable. The editor (P3) needs P0+P1 to preview;
+the auto-mix (P2) is independent and can land last.
+
+- **P0 — Conductor honours explicit lanes (production primitive).** `wave_def.gd`: add `lane: int = -1`.
+  `director.gd`: add the `phrase.shape == &"authored"` branch in `_dispatch_formation` →
+  `_dispatch_authored(phrase)` that, for each spec, schedules `_spawn_enemy(spec, i, spec.lane)` at
+  `spec.spawn_delay` (cap-gated like the others). *Verify:* headless harness builds a hand-made authored
+  phrase → `CombatScore` → real `director`; assert each enemy lands on its authored lane
+  (`Lanes.nearest_lane(pos.x)`) in stagger order.
+- **P1 — Pattern library + builder (`scripts/levels/authored_patterns.gd`).** `const DATA: Array` (seed
+  one example) + `build_phrase(pattern, faction, sector, rng) -> Phrase` (FORMATION, `shape=&"authored"`,
+  one count-1 `WaveSpec` per placement with `lane` + `spawn_delay`; resolve wildcards from `rng` — enemy
+  via the `enemy_roster.gd` eligible-pick path filtered by faction/sector/size; movement key via
+  `pattern_eligibility` then `Roster.make_movement`) + `eligible(faction, sector) -> Array`. *Verify:*
+  headless — all three modes resolve (enemy-locked, movement-locked, both); a faction-agnostic pattern
+  fills two different factions; same seed → identical result.
+- **P2 — Auto-mix at the producer chokepoint (`scripts/game/main.gd`).** Call
+  `AuthoredPatterns.maybe_inject(_current_score, faction, sector, rng)` after `from_level_data`; seed `rng`
+  from `run_seed`+sector. Mirror into `build_score`/`ScoreAdapter`. Add a probability knob + the
+  `Run.set_meta("forced_pattern", name)` one-shot for dev testing. *Verify:* headless — build a level twice
+  with the same `run_seed` → identical injection; injected enemies stay in the level's faction roster.
+- **P3 — The editor tool (`scripts/dev/wave_pattern_editor.gd` + `scenes/dev/wave_pattern_editor.tscn`).**
+  Native-480 `Control`; lane grid (`_draw` from `lane_visualizer.gd`); enemy/movement/size palette + mode
+  presets; grid click-to-place with wildcard-slot rendering; live preview via the real `director`
+  (mirror `lane_visualizer` CONDUCTOR mode); JSON persist to `user://tuners/wave_patterns.json`;
+  Copy-GDScript export of the `const DATA` block; "Send to conductor" (`Run.set_meta`). Register a button
+  in `dev_menu.gd`. *Verify:* `parse_check` + headless scene boot; in-editor author a V-pincer, Preview,
+  Save, Copy GDScript, paste into `authored_patterns.gd`, launch a real level.
+- **P4 — Ship.** `parse_check` + headless boots green; capture a preview GIF for Roman (lane/timing feel
+  is eyeball-gated); flip this doc's `Status:` to `BUILT <date>` and update `docs/README.md`.
 
 ## Verification
 
