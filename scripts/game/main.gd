@@ -2,6 +2,7 @@ extends Node2D
 
 const Levels = preload("res://scripts/levels/levels_v2.gd")
 const WaveGen = preload("res://scripts/levels/wave_generator.gd")
+const AuthoredPatterns = preload("res://scripts/levels/authored_patterns.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
 const SectorNode = preload("res://scripts/systems/sector_node.gd")
 const WaveBannerScene = preload("res://scenes/hud/wave_banner.tscn")
@@ -577,6 +578,13 @@ func new_game() -> void:
 	var is_boss = false
 	var is_hazard = false
 	var hazard_subtype: String = ""
+	# Authored-pattern auto-mix (wave pattern editor, 2026-06-16): captured in the standard-combat
+	# branch and applied to the lifted score at the producer chokepoint below — STANDARD generated
+	# combat only (not boss / hazard / showcase / custom).
+	var allow_authored := false
+	var auth_faction := -1
+	var auth_sd := 1
+	var auth_li := 0
 	if has_node("/root/Run"):
 		var run = get_node("/root/Run")
 		if run.current_node_type == SectorNode.NodeType.BOSS:
@@ -655,6 +663,11 @@ func new_game() -> void:
 					faction = int(rsd.get_meta("forced_faction", faction))
 				rsd.set_meta("active_faction", faction)
 			_current_level = WaveGen.build(sd, li, false, faction)
+			# Eligible for authored-pattern auto-mix (applied after the lift, below).
+			allow_authored = true
+			auth_faction = faction
+			auth_sd = sd
+			auth_li = li
 			wave_director.max_concurrent = WaveGen.cap_for(sd, li)
 			# Rare ambient encounter: roll for a mid-level Missile Cruiser
 			# fly-through. STANDARD combat nodes only (we're in the generator
@@ -699,6 +712,13 @@ func new_game() -> void:
 	# own score in _run_intro and bypasses this.)
 	if _current_level != null:
 		_current_score = ScoreAdapter.from_level_data(_current_level)
+	# Auto-mix authored patterns into the generated score (wave pattern editor, 2026-06-16) —
+	# STANDARD combat only. Seeded from run_seed + sd + li so a node-retry reproduces the splice.
+	if allow_authored and _current_score != null:
+		var ars: int = int(get_node("/root/Run").run_seed) if has_node("/root/Run") else 0
+		var arng := RandomNumberGenerator.new()
+		arng.seed = (ars * 2654435761) ^ (auth_sd * 100003) ^ (auth_li * 7919) ^ 0x7A7E0001
+		AuthoredPatterns.maybe_inject(_current_score, auth_faction, auth_sd, arng)
 	_run_intro(is_boss)
 
 # ---- Intro sequence -----------------------------------------------------

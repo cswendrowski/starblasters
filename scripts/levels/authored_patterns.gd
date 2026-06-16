@@ -21,6 +21,9 @@ const WaveSpecScript = preload("res://scripts/levels/wave_def.gd")
 const Roster = preload("res://scripts/levels/enemy_roster.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
 
+# Per-wave probability the auto-mix splices an authored pattern into a generated wave.
+const DEFAULT_CHANCE := 0.22
+
 # Faction NAME -> Factions.Id. "any"/"" -> -1 (no fill faction / matches any level).
 const FACTION_IDS := {
 	"supremacy": Factions.Id.SUPREMACY,
@@ -161,3 +164,54 @@ static func _pick_wildcard_entry(fill_faction: int, sector: int, size_hint: Stri
 		if not sized.is_empty():
 			pool = sized
 	return pool[rng.randi() % pool.size()]
+
+
+# Auto-mix: roll a seeded chance PER WAVE to splice an eligible authored pattern's phrase into the
+# generated score, so authored patterns appear in normal play alongside the random ones. Mutates
+# `score` in place. `fill_faction` = the level's Factions.Id (-1 = none); `sector` = sector depth;
+# `rng` MUST be drawn from the content-seed stream so a node-retry reproduces the injection.
+#   Dev one-shot: Run meta "forced_pattern" (a pattern name, set by the editor's "send to
+#   conductor") forces THAT pattern into wave 0 and skips the roll (consumed once).
+static func maybe_inject(score, fill_faction: int, sector: int, rng: RandomNumberGenerator, chance: float = DEFAULT_CHANCE) -> void:
+	if score == null or score.waves.is_empty():
+		return
+	var forced: String = _forced_pattern_name()
+	if forced != "":
+		var fp: Dictionary = _by_name(forced)
+		if not fp.is_empty():
+			var ph0 := build_phrase(fp, fill_faction, sector, rng)
+			if ph0 != null:
+				score.waves[0].phrases.append(ph0)
+		return
+	var pool: Array = eligible(fill_faction, sector)
+	if pool.is_empty():
+		return
+	for w in score.waves:
+		if rng.randf() < chance:
+			var pat: Dictionary = pool[rng.randi() % pool.size()]
+			var ph := build_phrase(pat, fill_faction, sector, rng)
+			if ph != null:
+				w.phrases.append(ph)
+
+
+# Read + clear the dev "send to conductor" one-shot (Run.forced_pattern -> a pattern name).
+static func _forced_pattern_name() -> String:
+	var ml := Engine.get_main_loop()
+	if ml == null or not (ml is SceneTree):
+		return ""
+	var root := (ml as SceneTree).root
+	if root == null:
+		return ""
+	var run := root.get_node_or_null("Run")
+	if run != null and run.has_meta("forced_pattern"):
+		var nm: String = String(run.get_meta("forced_pattern", ""))
+		run.remove_meta("forced_pattern")
+		return nm
+	return ""
+
+
+static func _by_name(nm: String) -> Dictionary:
+	for p in DATA:
+		if String(p.get("name", "")) == nm:
+			return p
+	return {}
