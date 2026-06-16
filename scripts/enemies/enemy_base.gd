@@ -763,7 +763,7 @@ func _components_leave() -> void:
 # whether it has emitted. Drives the dropper-explosion routing in explode().
 func _has_emitter_tagged(tag: String) -> bool:
 	for c in _components:
-		if "tag" in c and "payload" in c and String(c.get("tag", "")) == tag:
+		if "tag" in c and "payload" in c and String(c.get("tag")) == tag:
 			return true
 	return false
 
@@ -774,7 +774,7 @@ func _has_emitter_tagged(tag: String) -> bool:
 func did_emit_tagged(tag: String) -> bool:
 	for c in _components:
 		if "tag" in c and "payload" in c and "_last_emit_succeeded" in c:
-			if String(c.get("tag", "")) == tag and bool(c.get("_last_emit_succeeded", false)):
+			if String(c.get("tag")) == tag and bool(c.get("_last_emit_succeeded")):
 				return true
 	return false
 

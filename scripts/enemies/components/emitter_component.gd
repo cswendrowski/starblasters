@@ -66,19 +66,36 @@ func _emit(enemy) -> void:
 		parent = enemy.get_tree().current_scene
 		if parent == null:
 			parent = enemy.get_tree().root
+	if parent == null:
+		return
+	var base_pos: Vector2 = enemy.global_position
 	for _i in count:
 		var inst = payload.instantiate()
 		if inst == null:
 			continue
-		var pos: Vector2 = enemy.global_position
+		var pos: Vector2 = base_pos
 		if spread > 0.0:
 			pos += Vector2(randf_range(-spread, spread), randf_range(-spread, spread))
-		parent.add_child(inst)
-		if attach_to_enemy:
-			# Rides on the enemy (turrets); the payload scene positions itself.
-			if inst is Node2D:
-				(inst as Node2D).position = Vector2.ZERO
-		elif inst.has_method("start"):
-			inst.start(pos)              # spawn entry for enemies/hazards (mine.start etc.)
-		elif inst is Node2D:
-			(inst as Node2D).global_position = pos
+		# Defer the tree insertion + setup: _emit can run inside a physics callback
+		# (DEATH trigger fires during a bullet collision → _on_area_entered → explode →
+		# _components_death). Adding an Area2D payload mid-flush trips "Can't change this
+		# state while flushing queries" when the new collision shape registers. Running it
+		# deferred (idle frame) sidesteps the flush. (Roman 2026-06-15.)
+		_insert.call_deferred(inst, parent, pos, attach_to_enemy)
+
+
+func _insert(inst, parent: Node, pos: Vector2, attach: bool) -> void:
+	if not is_instance_valid(parent):
+		# Enemy/scene torn down before the deferred call ran — drop the orphan.
+		if inst is Node:
+			(inst as Node).queue_free()
+		return
+	parent.add_child(inst)
+	if attach:
+		# Rides on the enemy (turrets); the payload scene positions itself.
+		if inst is Node2D:
+			(inst as Node2D).position = Vector2.ZERO
+	elif inst.has_method("start"):
+		inst.start(pos)              # spawn entry for enemies/hazards (mine.start etc.)
+	elif inst is Node2D:
+		(inst as Node2D).global_position = pos
