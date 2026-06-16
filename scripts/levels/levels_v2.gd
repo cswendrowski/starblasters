@@ -318,7 +318,15 @@ const VARIANT_SCENES := [
 
 static func build_minefield_score() -> CombatScore:
 	var rng = RandomNumberGenerator.new()
-	rng.randomize()
+	# Seed from run_seed + the current node so a minefield reproduces per run+node (was
+	# randomize() — non-deterministic). run_seed 0 (headless tools) stays deterministic.
+	var _ms_rs: int = 0
+	var _ms_nid: String = ""
+	if Engine.get_main_loop() and Engine.get_main_loop().root.has_node("Run"):
+		var _ms_run = Engine.get_main_loop().root.get_node("Run")
+		_ms_rs = int(_ms_run.run_seed) if "run_seed" in _ms_run else 0
+		_ms_nid = String(_ms_run.current_node_id) if "current_node_id" in _ms_run else ""
+	rng.seed = (_ms_rs * 2654435761) ^ (hash(_ms_nid) * 40503) ^ 0x4D696E65
 	# Mine-type selection (preserved): dev forced type / 5% single-variant field /
 	# basic + a variant sprinkle.
 	var forced_type: String = ""

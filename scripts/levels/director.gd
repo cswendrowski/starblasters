@@ -84,6 +84,10 @@ var _steps: Array = []        # flattened phrase steps (phrase + wave context)
 var _step_idx: int = -1
 var _wave_total: int = 0
 var _last_lane: int = -1      # last lane chosen by _pick_lane (alternate-anchor)
+# Seeded dispatch RNG — lane / wall-gap / filler placement picks draw from this so a
+# same-seed run reproduces PLACEMENT, not just wave content. Seeded per combat node in
+# start_score (a stream distinct from the producer's content seed). (Health audit 2026-06-15.)
+var _rng := RandomNumberGenerator.new()
 
 func start_level(new_level: Resource = null) -> void:
 	# COMPAT SHIM (M5 native emission): production now emits a CombatScore at the
@@ -114,6 +118,7 @@ func start_score(score: Resource) -> void:
 	_step_idx = -1
 	_check_clear = false
 	_last_lane = -1
+	_seed_dispatch_rng()
 	# Opening grace: let the player settle after the slide-in before waves come.
 	if start_grace > 0.0:
 		await get_tree().create_timer(start_grace).timeout
@@ -124,6 +129,27 @@ func start_score(score: Resource) -> void:
 func stop() -> void:
 	_running = false
 	_check_clear = false
+
+
+# Seed the dispatch RNG from run_seed + the current node identity so placement (lanes, wall
+# gaps, filler picks) reproduces per run+node — a stream distinct from the producer's content
+# seed. run_seed 0 (headless tools) stays deterministic. (Health audit 2026-06-15.)
+func _seed_dispatch_rng() -> void:
+	var run = get_node_or_null("/root/Run")
+	var rs: int = int(run.run_seed) if run != null and "run_seed" in run else 0
+	var nid: String = String(run.current_node_id) if run != null and "current_node_id" in run else ""
+	var sec: int = int(run.sectors_cleared) if run != null and "sectors_cleared" in run else 0
+	_rng.seed = (rs * 2654435761) ^ (hash(nid) * 40503) ^ (sec * 100003) ^ 0x9E3779B9
+
+
+# In-place Fisher-Yates shuffle drawing from the seeded dispatch RNG. Array.shuffle() would
+# draw from the global, unseeded stream and break placement reproducibility.
+func _rng_shuffle(arr: Array) -> void:
+	for i in range(arr.size() - 1, 0, -1):
+		var j: int = _rng.randi() % (i + 1)
+		var tmp = arr[i]
+		arr[i] = arr[j]
+		arr[j] = tmp
 
 
 # Flatten a CombatScore into an ordered list of phrase "steps". Each step is the
@@ -190,7 +216,7 @@ func _pick_lane(clear_neighbours: bool = false, check_y: float = 0.0, height: fl
 			func(i): return (i >= Lanes.COUNT / 2) == want_high)
 		if not side.is_empty():
 			candidates = side
-	var pick: int = candidates[randi() % candidates.size()]
+	var pick: int = candidates[_rng.randi() % candidates.size()]
 	_last_lane = pick
 	return pick
 
@@ -446,7 +472,7 @@ func _dispatch_step_wall(ph: Resource) -> void:
 # always a gap to shift into.
 func _step_wall_layout(n: int) -> Dictionary:
 	n = clampi(n, 1, Lanes.COUNT - 1)
-	var left_block: bool = randf() < 0.5
+	var left_block: bool = _rng.randf() < 0.5
 	var start_lane: int = 0 if left_block else (Lanes.COUNT - n)
 	var lanes: Array = []
 	for i in n:
@@ -469,7 +495,7 @@ func _wall_row_lanes(n: int, avoid_gaps: Array) -> Array:
 	var pool: Array = []
 	for i in Lanes.COUNT:
 		pool.append(i)
-	pool.shuffle()
+	_rng_shuffle(pool)
 	var gaps: Array = []
 	# First pass: gaps NOT used by the previous row (shift the safe lane).
 	for ln in pool:
@@ -498,7 +524,7 @@ func _formation_lanes(shape: StringName, n: int) -> Array:
 	var out: Array = []
 	match shape:
 		&"wall":
-			var gap: int = randi() % Lanes.COUNT
+			var gap: int = _rng.randi() % Lanes.COUNT
 			for i in Lanes.COUNT:
 				if i != gap and out.size() < n:
 					out.append(i)
@@ -548,7 +574,7 @@ func _dispatch_filler(ph: Resource) -> void:
 			elapsed += 0.1
 		if not _running:
 			return
-		var sp: Resource = ph.pool[randi() % ph.pool.size()]
+		var sp: Resource = ph.pool[_rng.randi() % ph.pool.size()]
 		if sp != null:
 			_spawn_enemy(sp, spawned)
 			spawned += 1
