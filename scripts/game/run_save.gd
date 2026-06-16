@@ -46,6 +46,10 @@ extends Resource
 @export var repair_charges: int = 0
 @export var ammo_restock_charges: int = 0
 @export var outpost_needs_refresh: bool = false
+# Rolled outpost weapon stock [{part, cost, sold}], persisted so a resumed run keeps the same
+# shop stock instead of re-rolling on re-entry (Roman 2026-06-16). Part resources round-trip
+# inline like loadout_snapshot. Re-rolls only on boss kill (outpost_needs_refresh).
+@export var outpost_weapon_offers: Array = []
 @export var run_time_seconds: float = 0.0
 @export var run_stats: Dictionary = {}
 @export var enemies_killed: int = 0

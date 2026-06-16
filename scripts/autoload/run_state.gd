@@ -1355,7 +1355,7 @@ const _SAVE_FIELDS := [
 	"shield_cap_mk", "shield_recharge_mk", "hull_plating_mk",
 	"sector_map_cache",
 	"cannon_pool", "active_cannon_idx",
-	"repair_charges", "ammo_restock_charges", "outpost_needs_refresh",
+	"repair_charges", "ammo_restock_charges", "outpost_needs_refresh", "outpost_weapon_offers",
 	"run_time_seconds", "run_stats",
 	"modules", "bay_initialized",
 ]
