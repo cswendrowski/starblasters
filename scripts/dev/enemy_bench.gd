@@ -62,6 +62,18 @@ const TURRET_GFX := {
 }
 const TURRET_GFX_DEFAULT := {"tex": "res://graphics/enemies/tank_turret.png", "hframes": 1, "recoil": 0}
 
+# Size-class tuner (the "Sizes" tab). Edits EnemyRoster.SIZE_TABLE (the production size→stats table)
+# and emits a paste-ready const via Copy GDScript. No in-bench live preview: size stats drive
+# wave-spawn scaling (compose_stats), not the bench's direct spawn.
+const SIZE_ORDER := ["tiny", "small", "medium", "large", "huge", "giant"]
+const SIZE_FIELDS := [
+	{"key": "hp", "label": "HP", "min": 1.0, "max": 9999.0, "step": 1.0},
+	{"key": "shield_cap", "label": "Shield cap", "min": 0.0, "max": 20.0, "step": 1.0},
+	{"key": "bounty", "label": "Bounty", "min": 0.0, "max": 9999.0, "step": 1.0},
+	{"key": "speed_mult", "label": "Speed ×", "min": 0.1, "max": 3.0, "step": 0.05},
+]
+var _size_data: Dictionary = {}   # size -> {hp, shield_cap, bounty, speed_mult} (working draft)
+
 const FS_CAPTION := 15   # filter-toggle font size (only code-built widgets left)
 const DUMMY_SPEED := 150.0
 
@@ -139,6 +151,7 @@ func _ready() -> void:
 	_setup_playspace()
 	_setup_ui()
 	_load_saved()
+	_setup_size_tab()   # wrap the right panel in Enemy/Sizes tabs (needs _saved for the size draft)
 	_load_list()
 	if _list.item_count > 0:
 		_list.select(0)
@@ -299,6 +312,120 @@ func _set_bus_muted(bus: String, muted: bool) -> void:
 	var idx := AudioServer.get_bus_index(bus)
 	if idx >= 0:
 		AudioServer.set_bus_mute(idx, muted)
+
+
+# ---- Sizes tab -----------------------------------------------------------
+# Wraps the right panel in an Enemy/Sizes TabContainer at runtime (no scene edit): the existing
+# enemy editor becomes the "Enemy" tab; the "Sizes" tab tunes the production size table.
+
+func _setup_size_tab() -> void:
+	var scroll := get_node_or_null("UI/RightPanel/RightScroll") as Control
+	if scroll == null:
+		return
+	var panel := scroll.get_parent()
+	var tabs := TabContainer.new()
+	tabs.add_theme_font_size_override("font_size", FS_CAPTION)
+	panel.remove_child(scroll)
+	panel.add_child(tabs)
+	tabs.add_child(scroll)
+	var sizes_scroll := ScrollContainer.new()
+	sizes_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	tabs.add_child(sizes_scroll)
+	tabs.set_tab_title(0, "Enemy")
+	tabs.set_tab_title(1, "Sizes")
+	var vb := VBoxContainer.new()
+	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vb.add_theme_constant_override("separation", 6)
+	sizes_scroll.add_child(vb)
+	_build_size_editor(vb)
+
+
+func _build_size_editor(vb: VBoxContainer) -> void:
+	vb.add_child(_mk_label("Size Classes", 18, Color(0.62, 0.82, 1, 1)))
+	var note := _mk_label("Production size→stats table. Tune, then Copy GDScript → paste into enemy_roster.gd SIZE_TABLE. (No live bench preview — sizes scale wave spawns, not direct bench spawns.)", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70))
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD
+	vb.add_child(note)
+	_size_data = _load_size_data()
+	for sz in SIZE_ORDER:
+		vb.add_child(HSeparator.new())
+		vb.add_child(_mk_label(sz, 16, Color(0.62, 0.82, 1, 1)))
+		for f in SIZE_FIELDS:
+			vb.add_child(_mk_label(String(f["label"]), FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
+			var sb := SpinBox.new()
+			sb.min_value = float(f["min"])
+			sb.max_value = float(f["max"])
+			sb.step = float(f["step"])
+			sb.custom_minimum_size = Vector2(0, 30)
+			sb.value = float(_size_data[sz][f["key"]])
+			sb.value_changed.connect(_on_size_changed.bind(String(sz), String(f["key"])))
+			vb.add_child(sb)
+	vb.add_child(HSeparator.new())
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	vb.add_child(row)
+	var save := Button.new()
+	save.text = "Save Sizes"
+	save.custom_minimum_size = Vector2(0, 34)
+	save.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	save.pressed.connect(_save_sizes)
+	row.add_child(save)
+	var cp := Button.new()
+	cp.text = "Copy GDScript"
+	cp.custom_minimum_size = Vector2(0, 34)
+	cp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cp.pressed.connect(_copy_sizes)
+	row.add_child(cp)
+
+
+# Working size values: a saved draft (bench JSON "_size_table") wins, else the live SIZE_TABLE.
+func _load_size_data() -> Dictionary:
+	var saved = _saved.get("_size_table", {})
+	var out := {}
+	for sz in SIZE_ORDER:
+		var base: Dictionary = EnemyRoster.SIZE_TABLE.get(sz, {})
+		var s: Dictionary = saved.get(sz, {}) if saved is Dictionary else {}
+		out[sz] = {
+			"hp": int(s.get("hp", base.get("hp", 8))),
+			"shield_cap": int(s.get("shield_cap", base.get("shield_cap", 2))),
+			"bounty": int(s.get("bounty", base.get("bounty", 15))),
+			"speed_mult": float(s.get("speed_mult", base.get("speed_mult", 1.0))),
+		}
+	return out
+
+
+func _on_size_changed(value: float, sz: String, field: String) -> void:
+	_size_data[sz][field] = float(value) if field == "speed_mult" else int(value)
+
+
+func _save_sizes() -> void:
+	_saved["_size_table"] = _size_data.duplicate(true)
+	DirAccess.make_dir_recursive_absolute("user://tuners")
+	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	if f != null:
+		f.store_string(JSON.stringify(_saved, "\t"))
+		f.close()
+	if _pattern_lbl:
+		_pattern_lbl.text = "Saved size table draft"
+
+
+func _copy_sizes() -> void:
+	var txt := "const SIZE_TABLE := {\n"
+	for sz in SIZE_ORDER:
+		var d: Dictionary = _size_data[sz]
+		txt += "\t\"%s\": {\"hp\": %d, \"shield_cap\": %d, \"bounty\": %d, \"speed_mult\": %s},\n" % [
+			sz, int(d["hp"]), int(d["shield_cap"]), int(d["bounty"]), String("%.2f" % float(d["speed_mult"]))]
+	txt += "}\n"
+	DisplayServer.clipboard_set(txt)
+	if _pattern_lbl:
+		_pattern_lbl.text = "Copied SIZE_TABLE to clipboard"
+
+
+func _mk_label(text: String, size: int, color: Color) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", color)
+	return l
 
 
 # ---- List / selection ----------------------------------------------------
