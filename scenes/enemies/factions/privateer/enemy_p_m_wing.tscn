@@ -1,11 +1,14 @@
 [gd_scene format=3 uid="uid://cxpea3yby1q4k"]
 
 [ext_resource type="Script" uid="uid://da5afv404n26y" path="res://scripts/enemies/factions/privateer/interceptor.gd" id="1_fn4je"]
-[ext_resource type="Texture2D" uid="uid://b3eicnxjy2o0r" path="res://graphics/enemies/enemy_p_m_intercept.png" id="2_tcdqp"]
+[ext_resource type="Texture2D" uid="uid://bkypjaeawy20v" path="res://graphics/enemies/enemy_p_m_wing.png" id="2_fn4je"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="3_q0vnw"]
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
-size = Vector2(30, 32)
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_tcdqp"]
+radius = 12.0
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_q0vnw"]
+size = Vector2(64, 10)
 
 [node name="Enemy" type="Area2D" unique_id=500156123 groups=["enemies"]]
 script = ExtResource("1_fn4je")
@@ -13,30 +16,38 @@ max_health = 10
 bounty_value = 35
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1303453757]
-texture = ExtResource("2_tcdqp")
+texture = ExtResource("2_fn4je")
 hframes = 2
 
 [node name="GlowMask" type="Sprite2D" parent="." unique_id=1648538547]
-texture = ExtResource("2_tcdqp")
+texture = ExtResource("2_fn4je")
 hframes = 2
 frame = 1
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1322859870]
-shape = SubResource("RectangleShape2D_1")
+shape = SubResource("CapsuleShape2D_tcdqp")
+
+[node name="CollisionShape2D2" type="CollisionShape2D" parent="." unique_id=1481125393]
+position = Vector2(0, 1)
+shape = SubResource("RectangleShape2D_q0vnw")
 
 [node name="ShootTimer" type="Timer" parent="." unique_id=1448296041]
 one_shot = true
 
 [node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1824585227]
+position = Vector2(0, 1)
 stream = ExtResource("3_q0vnw")
 
 [node name="MissileL" type="Marker2D" parent="." unique_id=379551227]
-position = Vector2(-10, 2)
+position = Vector2(-3, 1)
 
 [node name="MissileR" type="Marker2D" parent="." unique_id=1745160504]
-position = Vector2(10, 2)
+position = Vector2(3, 1)
 
-[node name="EngineWide" type="Marker2D" parent="." unique_id=517128381]
-position = Vector2(0, 14)
+[node name="EngineL" type="Marker2D" parent="." unique_id=517128381]
+position = Vector2(-7, 12)
+
+[node name="EngineR" type="Marker2D" parent="." unique_id=1205439877]
+position = Vector2(7, 12)
 
 [connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

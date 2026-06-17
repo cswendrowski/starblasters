@@ -960,6 +960,32 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 0,
 	},
 	{
+		# Jet (privateer small, 2026-06-17) — fast light fighter that dives in firing from its twin
+		# nose muzzles. NOTE: the scene also has LauncherL/R markers that are currently UNWIRED — add
+		# a missile mount (mounts: [...]) to arm them. Movement overrides the scene's baked top_dive
+		# (a retired key) with the current side_dive.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_s_jet.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "side_dive",
+		"shoot": "single",
+		"bullet_variant": BV_Basic,
+		"fire_min": 1.2, "fire_max": 1.8,
+		"base_count": 4,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0,
+	},
+	{
+		# Wing (privateer medium, 2026-06-17) — wide missile-dropper. Reuses interceptor.gd, which
+		# drops drifting (shootable) missiles on each mid-band pass; stats follow the medium size class.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_wing.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": ["tough"],
+		"movement": "side_dive",
+		"shoot": null,
+		"base_count": 2,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0,
+	},
+	{
 		"scene": "res://scenes/enemies/factions/corporate/enemy_bulwark.tscn",
 		"heavy_class": "capital",  # 64px-wide (placeholder art) — coda capital pool
 		"tier": Tier.RARE,

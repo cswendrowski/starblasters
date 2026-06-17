@@ -56,6 +56,8 @@ const STRINGS := {
 	"res://scenes/enemies/factions/privateer/enemy_minelayer.tscn": {"name": "minelayer", "codex": "TBD"},
 	"res://scenes/enemies/factions/privateer/enemy_p_m_cannon.tscn": {"name": "p_m_cannon", "codex": "TBD"},
 	"res://scenes/enemies/factions/privateer/enemy_p_m_pulse.tscn": {"name": "p_m_pulse", "codex": "TBD"},
+	"res://scenes/enemies/factions/privateer/enemy_p_s_jet.tscn": {"name": "Jet", "codex": "TBD"},
+	"res://scenes/enemies/factions/privateer/enemy_p_m_wing.tscn": {"name": "Wing", "codex": "TBD"},
 	"res://scenes/enemies/factions/privateer/enemy_p_s_drop.tscn": {"name": "p_s_drop", "codex": "TBD"},
 	"res://scenes/enemies/factions/privateer/enemy_p_s_gray.tscn": {"name": "p_s_gray", "codex": "TBD"},
 	"res://scenes/enemies/factions/privateer/enemy_p_s_green.tscn": {"name": "p_s_green", "codex": "TBD"},
