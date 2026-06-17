@@ -43,6 +43,7 @@ var _move_idx: int = 0
 var _size_idx: int = 0
 var _enemy_choices: Array = []     # [{label, scene}]
 var _enemy_buttons: Array = []
+var _icon_cache: Dictionary = {}   # scene path -> frame-0 Texture2D (palette + cell previews)
 
 var _world: Node2D = null
 var _overlay: Node2D = null
@@ -85,11 +86,48 @@ func _ready() -> void:
 
 func _build_enemy_choices() -> void:
 	_enemy_choices = [{"label": "Any (wild)", "scene": ""}]
+	var seen := {}
 	for e in EnemyRosterC.ENTRIES:
 		var path: String = String(e.get("scene", ""))
-		if path == "":
-			continue
+		if path == "" or seen.has(path) or path.to_lower().contains("boss"):
+			continue   # dedupe roster entries + exclude bosses (no boss tuning here)
+		seen[path] = true
 		_enemy_choices.append({"label": _enemy_short(path), "scene": path})
+
+
+# Frame-0 texture for a scene's hull sprite (codex-style single frame), cached. Mirrors the
+# Enemy Bench's list-icon extraction so the palette + placed cells read the same as the codex.
+func _frame0_tex(path: String) -> Texture2D:
+	if path == "":
+		return null
+	if _icon_cache.has(path):
+		return _icon_cache[path]
+	var tex: Texture2D = null
+	var ps := load(path) as PackedScene
+	if ps != null:
+		var st := ps.get_state()
+		for i in st.get_node_count():
+			if st.get_node_type(i) != &"Sprite2D":
+				continue
+			var t: Texture2D = null
+			var hf := 1
+			var vf := 1
+			for j in st.get_node_property_count(i):
+				var pn := st.get_node_property_name(i, j)
+				if pn == &"texture": t = st.get_node_property_value(i, j) as Texture2D
+				elif pn == &"hframes": hf = int(st.get_node_property_value(i, j))
+				elif pn == &"vframes": vf = int(st.get_node_property_value(i, j))
+			if t != null:
+				if hf <= 1 and vf <= 1:
+					tex = t
+				else:
+					var at := AtlasTexture.new()
+					at.atlas = t
+					at.region = Rect2(0, 0, float(t.get_width()) / float(maxi(1, hf)), float(t.get_height()) / float(maxi(1, vf)))
+					tex = at
+				break
+	_icon_cache[path] = tex
+	return tex
 
 
 func _enemy_short(path: String) -> String:
@@ -176,6 +214,7 @@ func _build_world() -> void:
 	add_child(_world)
 	_overlay = Node2D.new()
 	_overlay.name = "Overlay"
+	_overlay.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST   # crisp pixel-art cell previews
 	_overlay.draw.connect(_draw_overlay)
 	_world.add_child(_overlay)
 
@@ -214,10 +253,18 @@ func _draw_overlay() -> void:
 		var col: Color = Color(0.34, 0.39, 0.48, 0.9) if wild_enemy else Color(0.20, 0.45, 0.55, 0.92)
 		_overlay.draw_rect(Rect2(ccx - 10.0, ccy - 9.0, 20.0, 18.0), col, true)
 		_overlay.draw_rect(Rect2(ccx - 10.0, ccy - 9.0, 20.0, 18.0), Color(1, 1, 1, 0.5), false, 1.0)
-		var etxt: String = "?" if wild_enemy else _enemy_short(String(c["enemy"]))
-		_overlay.draw_string(_font, Vector2(ccx - 9.0, ccy - 1.0), etxt.substr(0, 5), HORIZONTAL_ALIGNMENT_LEFT, -1, 6, Color(1, 1, 1, 0.95))
+		# Composed (frame-0) sprite for a concrete enemy; "?" glyph for a wildcard slot.
+		var tex: Texture2D = null if wild_enemy else _frame0_tex(String(c["enemy"]))
+		if tex != null:
+			var tsz: Vector2 = tex.get_size()
+			var sc: float = minf(16.0 / maxf(1.0, tsz.x), 14.0 / maxf(1.0, tsz.y))
+			var dw: float = tsz.x * sc
+			var dh: float = tsz.y * sc
+			_overlay.draw_texture_rect(tex, Rect2(ccx - dw * 0.5, ccy - 4.0 - dh * 0.5, dw, dh), false)
+		else:
+			_overlay.draw_string(_font, Vector2(ccx - 3.0, ccy - 1.0), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(1, 1, 1, 0.7))
 		var mtxt: String = "·" if String(c["movement"]) == "" else String(c["movement"]).substr(0, 4)
-		_overlay.draw_string(_font, Vector2(ccx - 9.0, ccy + 7.0), mtxt, HORIZONTAL_ALIGNMENT_LEFT, -1, 6, Color(0.8, 0.9, 1.0, 0.85))
+		_overlay.draw_string(_font, Vector2(ccx - 9.0, ccy + 8.0), mtxt, HORIZONTAL_ALIGNMENT_LEFT, -1, 6, Color(0.8, 0.9, 1.0, 0.85))
 
 
 # ---------------------------------------------------------------- UI
@@ -356,8 +403,10 @@ func _build_ui() -> void:
 		b.text = String(_enemy_choices[i]["label"])
 		b.toggle_mode = true
 		b.button_pressed = (i == 0)
-		b.custom_minimum_size = Vector2(0, 11)
+		b.custom_minimum_size = Vector2(0, 18)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.icon = _frame0_tex(String(_enemy_choices[i]["scene"]))   # codex-style frame-0 preview
+		b.expand_icon = true
 		_style_button(b)
 		var idx: int = i
 		b.pressed.connect(func(): _select_enemy(idx))
