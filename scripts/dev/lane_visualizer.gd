@@ -24,7 +24,6 @@ const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const DirectorScript = preload("res://scripts/levels/director.gd")
 const CombatSlice = preload("res://scripts/dev/combat_slice.gd")
 const WaveGen = preload("res://scripts/levels/wave_generator.gd")
-const LanePath = preload("res://scripts/enemies/patterns/lane_path.gd")
 
 # Pattern list for PATTERN mode. ["label", kind, arg]
 #   kind "lane"   → arg = lane_path Shape int (0 STRAIGHT / 1 WEAVE / 2 HOOK / 3 STEP)
@@ -34,15 +33,13 @@ const LanePath = preload("res://scripts/enemies/patterns/lane_path.gd")
 # hardcoded list did (it was missing pendulum / proximity_chase / loiter_sweep). Roman 2026-06-10.
 const MovementKeys = preload("res://scripts/dev/pattern_eligibility_editor.gd")
 
-# The 4 raw lane_path shapes, shown first (these aren't roster keys).
-const LANE_SHAPES := [
-	["lane STRAIGHT", "lane", 0],
-	["lane WEAVE", "lane", 1],
-	["lane HOOK", "lane", 2],
-	["lane STEP", "lane", 3],
-]
+# Retired 2026-06-17: the 4 raw lane_path shapes ("lane STRAIGHT/WEAVE/HOOK/STEP") were pre-roster-key
+# inspection artifacts. STRAIGHT/HOOK were degenerate (shift_lanes unset → a plain descent), WEAVE was
+# an uncontained swing superseded by the tuned `lane_weave`, and a SOLO STEP misrepresents production
+# STEP (a SYNCED row step-wall — seen properly in CONDUCTOR mode). The canonical patterns are now the
+# roster MOVEMENT_KEYS only (lane_weave/lane_drift/lane_shift/lane_hook/lane_cut cover the lane shapes).
 
-# Built in _ready: LANE_SHAPES + one ["key","roster","key"] per live MovementKeys.MOVEMENT_KEYS.
+# Built in _ready: one ["key","roster","key"] per live MovementKeys.MOVEMENT_KEYS.
 var _patterns: Array = []
 var _move_buttons: Array = []   # the clickable movement-list buttons (right gutter)
 
@@ -98,7 +95,7 @@ func _ready() -> void:
 # Pull the live movement set: the 4 lane shapes + every roster key from the eligibility tool's
 # canonical MOVEMENT_KEYS, so the visualizer always matches the real registry.
 func _build_pattern_list() -> void:
-	_patterns = LANE_SHAPES.duplicate(true)
+	_patterns = []
 	for key in MovementKeys.MOVEMENT_KEYS:
 		_patterns.append([str(key), "roster", str(key)])
 
@@ -418,20 +415,8 @@ func _on_restart() -> void:
 # ---------------------------------------------------------------- pattern mode
 
 func _make_pattern() -> Resource:
+	# Every PATTERN-mode entry is now a roster movement key → real production tuning.
 	var p: Array = _patterns[_pattern_idx]
-	var kind: String = str(p[1])
-	if kind == "lane":
-		var lp = LanePath.new()
-		lp.shape = int(p[2])
-		lp.down_speed = 120.0
-		lp.weave_lanes = 1.0
-		if int(p[2]) == 3:  # STEP
-			lp.hold_time = 1.0
-			lp.step_time = 0.3
-			lp.step_lanes = 1
-			lp.step_pingpong = true
-		return lp
-	# roster movement key → real production tuning
 	return EnemyRoster.make_movement({"movement": str(p[2])})
 
 
