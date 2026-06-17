@@ -48,6 +48,12 @@ var _density_value_lbl: Label = null
 var _layer_buttons: Dictionary = {}  # layer_name -> Button
 var _forced_planet: int = -1  # -1 = random
 var _density_scale: float = 1.0
+# Backdrop kind the tuner feeds the coordinator via a mock current_stellar. An empty
+# stellar (the old behaviour) forced the bare single-planet path with no asteroids/nebula,
+# which made density + color controls look dead — they had nothing to act on. (E regression fix.)
+var _bg_kind: int = 0        # 0 single planet / 1 star system / 2 asteroid field / 3 nebula
+const BG_KIND_NAMES := ["Single Planet", "Star System", "Asteroid Field", "Nebula"]
+var _gen_counter: int = 0    # bumped each rebuild so re-rolls actually vary
 
 # ---- Lifecycle -----------------------------------------------------------
 
@@ -86,10 +92,63 @@ func _build_backdrop_subviewport() -> void:
 func _rebuild_backdrop() -> void:
 	if _backdrop != null and is_instance_valid(_backdrop):
 		_backdrop.queue_free()
+	_gen_counter += 1
+	# Feed the coordinator a real stellar context BEFORE its _ready/_populate runs, so it
+	# renders the same backdrop KINDS production does (system staging / asteroids / nebula)
+	# instead of the empty-stellar single-planet fallback. The coordinator reads
+	# /root/Run.current_stellar in _populate(). (E regression fix.)
+	var run := get_node_or_null("/root/Run")
+	if run != null and "current_stellar" in run:
+		run.current_stellar = _build_stellar()
 	_backdrop = BackdropCoordinatorScene.instantiate()
 	_backdrop.set("forced_planet_idx", _forced_planet)
 	_backdrop.set("asteroid_density_scale", _density_scale)
+	# Asteroid-field kind forces the rocks on even though it's not an asteroid hazard node.
+	_backdrop.set("force_asteroids", _bg_kind == 2)
 	_sub_viewport.add_child(_backdrop)
+
+
+# Build a mock current_stellar matching the real sector-map shape (sector_map_v3:729),
+# so the coordinator paints a faithful preview. The kind drives which extras are present:
+# system staging, asteroid belt, or nebula. Seeded off _gen_counter so each rebuild varies.
+func _build_stellar() -> Dictionary:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0x0BADC0DE + _gen_counter * 2654435761
+	var pidx: int = _forced_planet if _forced_planet >= 0 else rng.randi() % 9
+	var star_col := Color(rng.randf_range(0.7, 1.0), rng.randf_range(0.6, 0.95), rng.randf_range(0.5, 0.9))
+	var st := {
+		"planet_idx": pidx,
+		"planet_seed": rng.randi(),
+		"star_color": star_col,
+		"has_asteroids": false,
+		"asteroid_density": 0.0,
+		"nebula_band": "",
+		"nebula_tint": Color.WHITE,
+		"moons": [],
+		"system": [],
+	}
+	match _bg_kind:
+		1:  # Star System — a star plus 2–3 staged bodies spread across the upper band.
+			var n: int = rng.randi_range(3, 4)
+			var sys: Array = []
+			for i in n:
+				var is_star: bool = i == 0
+				sys.append({
+					"kind": "star" if is_star else "planet",
+					"planet_idx": 8 if is_star else (rng.randi() % 8),
+					"planet_seed": rng.randi(),
+					"frac": float(i) / float(maxi(1, n - 1)),
+					"scale": 1.0 if is_star else rng.randf_range(0.15, 0.6),
+					"star_color": star_col,
+				})
+			st["system"] = sys
+		2:  # Asteroid Field — belt density in the production range; the slider scales it further.
+			st["has_asteroids"] = true
+			st["asteroid_density"] = rng.randf_range(1.2, 2.4)
+		3:  # Nebula — any non-empty band enables the procedural nebula on the stellar layers.
+			st["nebula_band"] = "tuner"
+			st["nebula_tint"] = Color(rng.randf_range(0.4, 0.9), rng.randf_range(0.4, 0.9), rng.randf_range(0.6, 1.0), 1.0)
+	return st
 
 
 # ---- UI build (right panel at CanvasLayer 20) ----------------------------
@@ -129,6 +188,23 @@ func _build_ui() -> void:
 	title.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_HEADER)
 	title.add_theme_color_override("font_color", Color(0.82, 0.90, 1.0, 1.0))
 	vbox.add_child(title)
+
+	# ---- Background kind picker (single planet / star system / asteroid field / nebula) ----
+	var bg_label := Label.new()
+	bg_label.text = "Background"
+	bg_label.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	_style_caption(bg_label)
+	vbox.add_child(bg_label)
+
+	var bg_picker := OptionButton.new()
+	bg_picker.custom_minimum_size = Vector2(0, 28)
+	for kind_name in BG_KIND_NAMES:
+		bg_picker.add_item(kind_name)
+	bg_picker.selected = _bg_kind
+	bg_picker.item_selected.connect(func(idx: int): _on_bg_kind_picked(idx))
+	vbox.add_child(bg_picker)
+
+	vbox.add_child(HSeparator.new())
 
 	# ---- Planet type picker ----
 	var planet_label := Label.new()
@@ -326,6 +402,11 @@ func _add_button(parent: Node, text: String, cb: Callable) -> Button:
 var _current_layer: String = ""
 
 
+func _on_bg_kind_picked(idx: int) -> void:
+	_bg_kind = idx
+	_on_generate_new()
+
+
 func _on_planet_type_picked(idx: int) -> void:
 	_forced_planet = (idx - 1)  # "Random"(0) -> -1; type N(1..9) -> 0..8
 	_on_generate_new()
@@ -342,6 +423,32 @@ func _layer_node(layer_name: String) -> Node:
 	if _backdrop == null or not is_instance_valid(_backdrop):
 		return null
 	return _backdrop.get_node_or_null(layer_name)
+
+
+# Color read/write that works for BOTH layer kinds: layer_base layers expose a
+# `modulate_color` property; scriptless layers (LayerComposite) only have a child
+# CanvasModulate. Mirrors backdrop_coordinator._set_modulate so the picker is never
+# a silent no-op. (E regression fix — color "did nothing" on composite.)
+func _set_layer_color(layer, c: Color) -> void:
+	if layer == null:
+		return
+	if "modulate_color" in layer:
+		layer.modulate_color = c
+	else:
+		var cm := layer.get_node_or_null("CanvasModulate") as CanvasModulate
+		if cm:
+			cm.color = c
+
+
+func _get_layer_color(layer) -> Color:
+	if layer == null:
+		return Color.WHITE
+	if "modulate_color" in layer:
+		return layer.modulate_color
+	var cm := layer.get_node_or_null("CanvasModulate") as CanvasModulate
+	if cm:
+		return cm.color
+	return Color.WHITE
 
 
 func _refresh_layer_button_selection() -> void:
@@ -375,14 +482,7 @@ func _refresh_layers() -> void:
 			continue
 
 		# Read from the layer's actual properties (includes baked .tscn defaults)
-		if "modulate_color" in layer_node:
-			_layer_colors[layer_name] = layer_node.modulate_color
-		else:
-			var cm: CanvasModulate = layer_node.get_node_or_null("CanvasModulate")
-			if cm != null:
-				_layer_colors[layer_name] = cm.color
-			else:
-				_layer_colors[layer_name] = Color.WHITE
+		_layer_colors[layer_name] = _get_layer_color(layer_node)
 
 		if "brightness" in layer_node:
 			_layer_brightness[layer_name] = layer_node.brightness
@@ -408,8 +508,7 @@ func _on_layer_selected(layer_name: String) -> void:
 	var current_contrast := 1.0
 
 	if layer != null:
-		if "modulate_color" in layer:
-			current_color = layer.modulate_color
+		current_color = _get_layer_color(layer)
 		if "brightness" in layer:
 			current_brightness = layer.brightness
 		if "contrast" in layer:
@@ -441,9 +540,7 @@ func _on_layer_color_changed(c: Color) -> void:
 	if _current_layer.is_empty():
 		return
 	_layer_colors[_current_layer] = c
-	var layer = _layer_node(_current_layer)
-	if layer != null and "modulate_color" in layer:
-		layer.modulate_color = c
+	_set_layer_color(_layer_node(_current_layer), c)
 
 
 func _on_brightness_changed(v: float) -> void:
@@ -478,8 +575,7 @@ func _apply_grade(layer_name: String) -> void:
 	var c: float = _layer_contrast.get(layer_name, 1.0)
 
 	# Set the layer's properties; it will recompute via _recompute_modulate()
-	if "modulate_color" in layer:
-		layer.modulate_color = base
+	_set_layer_color(layer, base)
 	if "brightness" in layer:
 		layer.brightness = b
 	if "contrast" in layer:
