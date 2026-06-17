@@ -51,6 +51,13 @@ var _director: Node = null
 var _font: Font = null
 var _preview_seed: int = 1
 
+# Preview controls (Roman 2026-06-17).
+var _shoot_enabled: bool = true    # toggle: spawned preview enemies fire or stay silent
+var _shoot_btn: Button = null
+var _pulse_t: float = 0.0          # animates the placed-enemy direction pulse
+const MountComponentScript = preload("res://scripts/enemies/mounts/mount_component.gd")
+const EnemyTurretScript = preload("res://scripts/enemies/enemy_turret.gd")
+
 var _name_lbl: Label = null
 var _brush_lbl: Label = null
 var _move_lbl: Label = null
@@ -265,6 +272,14 @@ func _draw_overlay() -> void:
 			_overlay.draw_string(_font, Vector2(ccx - 3.0, ccy - 1.0), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(1, 1, 1, 0.7))
 		var mtxt: String = "·" if String(c["movement"]) == "" else String(c["movement"]).substr(0, 4)
 		_overlay.draw_string(_font, Vector2(ccx - 9.0, ccy + 8.0), mtxt, HORIZONTAL_ALIGNMENT_LEFT, -1, 6, Color(0.8, 0.9, 1.0, 0.85))
+		# Pulsing direction indicator — shows where this placed enemy's behavior heads.
+		var org := Vector2(ccx, ccy)
+		var dir: Vector2 = _move_dir(String(c["movement"]), int(k.x)).normalized()
+		var reach := 12.0
+		_overlay.draw_line(org + dir * 3.0, org + dir * reach, Color(0.6, 0.85, 1.0, 0.22), 1.0)
+		for s in [0.0, 0.5]:
+			var frac: float = fmod(_pulse_t * 0.9 + s, 1.0)
+			_overlay.draw_circle(org + dir * (3.0 + (reach - 3.0) * frac), 1.5, Color(0.75, 0.92, 1.0, (1.0 - frac) * 0.85))
 
 
 # ---------------------------------------------------------------- UI
@@ -365,6 +380,7 @@ func _build_ui() -> void:
 	a1.add_theme_constant_override("separation", 2)
 	lv.add_child(a1)
 	_add_button(a1, "Preview", _preview)
+	_shoot_btn = _add_button(a1, "Shoot:On", _toggle_shoot)
 	_add_button(a1, "Send>C", _send_to_conductor)
 	var a2 := HBoxContainer.new()
 	a2.add_theme_constant_override("separation", 2)
@@ -571,6 +587,73 @@ func _clear_world() -> void:
 		for n in get_tree().get_nodes_in_group(grp):
 			if is_instance_valid(n):
 				n.queue_free()
+
+
+func _process(delta: float) -> void:
+	_pulse_t += delta
+	if _overlay:
+		_overlay.queue_redraw()   # animate the placed-enemy direction pulse
+	_tame_preview_enemies()
+
+
+# Preview hygiene: spawned enemies default to UNLIMITED recycle (recycle_passes = -1), so a single
+# formation loops forever. Pin each to 0 (one pass) so the preview plays out and clears, and apply
+# the Shoot toggle. Tagged via meta so each enemy is handled exactly once.
+func _tame_preview_enemies() -> void:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.has_meta("_fb_tamed"):
+			continue
+		e.set_meta("_fb_tamed", true)
+		if "recycle_passes" in e:
+			e.recycle_passes = 0
+		if not _shoot_enabled:
+			_disable_firing(e)
+
+
+func _toggle_shoot() -> void:
+	_shoot_enabled = not _shoot_enabled
+	if _shoot_btn:
+		_shoot_btn.text = "Shoot:On" if _shoot_enabled else "Shoot:Off"
+	if not _shoot_enabled:
+		for e in get_tree().get_nodes_in_group("enemies"):
+			if is_instance_valid(e):
+				_disable_firing(e)
+		for grp in ["enemy_bullets", "bullets"]:
+			for n in get_tree().get_nodes_in_group(grp):
+				if is_instance_valid(n):
+					n.queue_free()
+	# Re-enabling only affects the next Preview (already-spawned enemies stay silent).
+
+
+# Stop every firing path on a preview enemy: hull weapon, mounted turrets, and gun/launcher mounts.
+func _disable_firing(e: Node) -> void:
+	if "shoot_pattern" in e:
+		e.shoot_pattern = null
+	for t in e.find_children("*", "", true, false):
+		if t.get_script() == EnemyTurretScript and "enabled" in t:
+			t.enabled = false
+	if "_components" in e and e._components is Array:
+		var kept: Array = []
+		for c in e._components:
+			if c.get_script() != MountComponentScript:
+				kept.append(c)
+		e._components = kept
+
+
+# Coarse "where it's headed" direction for the placed-enemy pulse. Crossers go sideways (toward the
+# far edge from their spawn lane); lane-movers descend with a lateral lean; the rest descend.
+func _move_dir(key: String, lane: int) -> Vector2:
+	var k := key.to_lower()
+	var side: float = 1.0 if lane < int(Lanes.COUNT / 2) else -1.0
+	if k.begins_with("side"):
+		return Vector2(side, 0.3)
+	if k.begins_with("lane"):
+		return Vector2(side * 0.4, 1.0)
+	if k.begins_with("skirmish"):
+		return Vector2(0.5, 0.8)
+	if k.begins_with("loiter") or k.begins_with("drift") or k == "pendulum":
+		return Vector2(0.15, 0.85)
+	return Vector2(0, 1)   # straight_*, hunt_*, proximity_*, wildcard → descend
 
 
 # ---------------------------------------------------------------- save / export
