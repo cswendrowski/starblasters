@@ -41,7 +41,7 @@ func _ready() -> void:
 	_build_ui()
 	_refresh_save_list()
 	if has_node("/root/Music"):
-		get_node("/root/Music").set_context("menu")
+		get_node("/root/Music").set_context("silent")
 
 
 func _ensure_dir() -> void:

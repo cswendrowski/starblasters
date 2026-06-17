@@ -61,7 +61,7 @@ func _ready() -> void:
 	_build_playspace()
 	_build_overlay()
 	if has_node("/root/Music"):
-		get_node("/root/Music").set_context("menu")
+		get_node("/root/Music").set_context("silent")
 	await get_tree().process_frame
 	HdScreen.verify_native_subviewport(_preview_vp, "SmartMountLab")
 	_load()

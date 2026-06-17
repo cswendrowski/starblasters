@@ -30,7 +30,7 @@ func _ready() -> void:
 	_install_dark_background()
 	_build_ui()
 	if has_node("/root/Music"):
-		get_node("/root/Music").set_context("menu")
+		get_node("/root/Music").set_context("silent")
 
 
 func _install_dark_background() -> void:
@@ -101,7 +101,7 @@ func _build_ui() -> void:
 	_add_button("[ Combat Lab ]", _on_combat_lab, true)
 	_add_button("[ Hangar ]", _on_hangar, true)
 	_add_button("[ EM Torpedo Test ]", _launch_em_torpedo_test, true)
-	_add_button("[ All-Signal Sector ]", _on_all_signal_sector, true)
+	# All-Signal Sector rolled into Combat Lab as the "All-Signal Sector" encounter (2026-06-17).
 
 	v.add_child(HSeparator.new())
 
@@ -213,14 +213,3 @@ func _launch_em_torpedo_test() -> void:
 				torp.mark = 3
 			run.equip_part(torp)
 	SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
-
-
-# Launch a sector map where EVERY POI is a Signal Event, for testing the signal screen.
-# The force_all_signal meta is read by run_state._gen_row_pois on map entry, cleared by
-# the next new_run().
-func _on_all_signal_sector() -> void:
-	if has_node("/root/Run"):
-		var run = get_node("/root/Run")
-		run.new_run()
-		run.set_meta("force_all_signal", true)  # AFTER new_run (new_run clears metas)
-	SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE)

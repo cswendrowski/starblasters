@@ -63,7 +63,7 @@ func _ready() -> void:
 		_on_layer_selected(LAYER_NAMES[0])
 		_refresh_layer_button_selection()
 	if has_node("/root/Music"):
-		get_node("/root/Music").set_context("menu")
+		get_node("/root/Music").set_context("silent")
 
 
 func _build_backdrop_subviewport() -> void:

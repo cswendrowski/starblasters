@@ -123,7 +123,7 @@ func _ready() -> void:
 	_build_playspace()
 	_build_overlay()
 	if has_node("/root/Music"):
-		get_node("/root/Music").set_context("menu")
+		get_node("/root/Music").set_context("silent")
 	# Player.gd's _ready calls default_starting_loadout() + reads
 	# Run.loadout_snapshot — same loadout a fresh-run player would have.
 	# Wait a frame for that to settle, then mirror it into the picker.

@@ -16,11 +16,12 @@ const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
+const SectorMapRoute = preload("res://scripts/systems/sector_map_route.gd")
 
 const SAVE_PATH := "user://tuners/combat_lab.json"
 
-enum Enc { COMBAT, MINEFIELD, ASTEROID, BOSS, BEAM_SHOWCASE, CUSTOM }
-const ENC_NAMES := ["Standard Combat", "Hazard: Minefield", "Hazard: Asteroid Field", "Boss Fight", "Beam Enemy Showcase", "Custom Level (test_level.tres)"]
+enum Enc { COMBAT, MINEFIELD, ASTEROID, BOSS, BEAM_SHOWCASE, CUSTOM, SIGNAL_SECTOR }
+const ENC_NAMES := ["Standard Combat", "Hazard: Minefield", "Hazard: Asteroid Field", "Boss Fight", "Beam Enemy Showcase", "Custom Level (test_level.tres)", "All-Signal Sector"]
 const TEST_LEVEL_PATH := "res://resources/levels/test_level.tres"
 
 const MINEFIELD_OPTIONS := [
@@ -84,7 +85,7 @@ func _ready() -> void:
 	_build_ui()
 	_load()
 	if has_node("/root/Music"):
-		get_node("/root/Music").set_context("menu")
+		get_node("/root/Music").set_context("silent")
 
 
 # Enumerate the dedup'd factory list for a slot, with display names (mirrors hangar).
@@ -297,6 +298,15 @@ func _launch() -> void:
 				_status.text = "test_level.tres missing — author one as a LevelData .tres."
 				return
 			run.set_meta("custom_level_path", TEST_LEVEL_PATH)
+		Enc.SIGNAL_SECTOR:
+			# Not a combat — launch the sector map with every POI forced to a Signal Event
+			# (rolled in from the old standalone dev-menu button). Uses the configured loadout.
+			run.set_meta("force_all_signal", true)
+			_save()
+			var sc := _hd_scope
+			_hd_scope = null
+			SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE, func(): HdScreen.drop(sc))
+			return
 	_save()
 	var scope := _hd_scope
 	_hd_scope = null

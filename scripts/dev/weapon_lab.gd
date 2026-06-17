@@ -144,7 +144,7 @@ func _ready() -> void:
 	if has_node("/root/Settings"):
 		_orig_autofire = bool(get_node("/root/Settings").autofire)
 	if has_node("/root/Music"):
-		get_node("/root/Music").set_context("menu")
+		get_node("/root/Music").set_context("silent")
 	_build_playspace()
 	_build_overlay()
 	await get_tree().process_frame

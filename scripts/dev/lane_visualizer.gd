@@ -73,7 +73,7 @@ var _last_banner: String = "-"
 
 func _ready() -> void:
 	if has_node("/root/Music"):
-		get_node("/root/Music").set_context("menu")
+		get_node("/root/Music").set_context("silent")
 	# Clean Run context so leftover sector_modifiers don't mutate spawned enemies.
 	var run := get_node_or_null("/root/Run")
 	if run and run.has_method("new_run"):

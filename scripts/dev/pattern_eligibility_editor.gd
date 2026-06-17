@@ -81,7 +81,7 @@ var _preview_key: String = ""       # behavior currently previewed
 
 func _ready() -> void:
 	if has_node("/root/Music"):
-		get_node("/root/Music").set_context("menu")
+		get_node("/root/Music").set_context("silent")
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_load_data()
 	_build_bg()

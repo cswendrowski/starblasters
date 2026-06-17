@@ -42,8 +42,9 @@ var _brush_size: String = ""       # "" = any, else small/medium/...
 var _move_keys: Array = []         # ["" (Any)] + MOVEMENT_KEYS
 var _move_idx: int = 0
 var _size_idx: int = 0
-var _enemy_choices: Array = []     # [{label, scene}]
+var _enemy_choices: Array = []     # [{label, scene, faction, size}]
 var _enemy_buttons: Array = []
+var _palette_listbox: VBoxContainer = null   # holds the enemy-brush buttons (re-sortable)
 var _icon_cache: Dictionary = {}   # scene path -> frame-0 Texture2D (palette + cell previews)
 
 var _world: Node2D = null
@@ -67,11 +68,12 @@ var _fac_lbl: Label = null
 var _sector_lbl: Label = null
 var _stagger_lbl: Label = null
 var _status_lbl: Label = null
+var _note_edit: TextEdit = null    # free-text note saved on the pattern (for review/evaluation)
 
 
 func _ready() -> void:
 	if has_node("/root/Music"):
-		get_node("/root/Music").set_context("menu")
+		get_node("/root/Music").set_context("silent")
 	var run := get_node_or_null("/root/Run")
 	if run and run.has_method("new_run"):
 		run.new_run()
@@ -93,14 +95,48 @@ func _ready() -> void:
 
 
 func _build_enemy_choices() -> void:
-	_enemy_choices = [{"label": "Any (wild)", "scene": ""}]
+	_enemy_choices = [{"label": "Any (wild)", "scene": "", "faction": "", "size": ""}]
 	var seen := {}
 	for e in EnemyRosterC.ENTRIES:
 		var path: String = String(e.get("scene", ""))
 		if path == "" or seen.has(path) or path.to_lower().contains("boss"):
 			continue   # dedupe roster entries + exclude bosses (no boss tuning here)
 		seen[path] = true
-		_enemy_choices.append({"label": _enemy_short(path), "scene": path})
+		_enemy_choices.append({"label": _enemy_short(path), "scene": path,
+			"faction": _faction_of(path), "size": String(e.get("size", "small"))})
+
+
+# Faction bucket from the scene path (mirrors the Enemy Bench's grouping).
+func _faction_of(path: String) -> String:
+	var p := path.to_lower()
+	for fac in ["supremacy", "privateer", "corporate", "zealot"]:
+		if p.contains("/factions/%s/" % fac):
+			return fac
+	if p.contains("/core/"):
+		return "core"
+	return "other"
+
+
+# Approx on-screen px for an enemy's size class — placed cells draw at this so tiny reads small.
+func _size_px(size: String) -> float:
+	match size:
+		"tiny": return 7.0
+		"small": return 11.0
+		"medium": return 15.0
+		"large": return 19.0
+		"huge", "giant": return 22.0
+		_: return 13.0
+
+
+# Resolve a placement's effective size: explicit → roster entry → "small".
+func _placement_size(c: Dictionary) -> String:
+	var s := String(c.get("size", ""))
+	if s != "":
+		return s
+	var en := String(c.get("enemy", ""))
+	if en != "":
+		s = String(EnemyRosterC.entry_for_scene(en).get("size", ""))
+	return s if s != "" else "small"
 
 
 # Frame-0 texture for a scene's hull sprite (codex-style single frame), cached. Mirrors the
@@ -145,7 +181,7 @@ func _enemy_short(path: String) -> String:
 # ---------------------------------------------------------------- library / pattern
 
 func _blank_pattern() -> Dictionary:
-	return {"name": "new_pattern", "faction": "any", "min_sector": 0, "stagger": 0.18, "placements": []}
+	return {"name": "new_pattern", "faction": "any", "min_sector": 0, "stagger": 0.18, "note": "", "placements": []}
 
 
 func _load_library() -> void:
@@ -179,6 +215,8 @@ func _select_pattern(i: int) -> void:
 			_cells[k] = {}
 		_cells[k][sub] = {"enemy": String(pl.get("enemy", "")), "movement": String(pl.get("movement", "")), "size": String(pl.get("size", ""))}
 	_refresh_prop_labels()
+	if _note_edit:
+		_note_edit.text = String(_cur().get("note", ""))
 	if _overlay:
 		_overlay.queue_redraw()
 	_update_status()
@@ -269,12 +307,17 @@ func _draw_overlay() -> void:
 			var ccy: float = rtop + (float(sub.y) + 0.5) * sh
 			var wild_enemy: bool = String(c["enemy"]) == ""
 			var col: Color = Color(0.34, 0.39, 0.48, 0.9) if wild_enemy else Color(0.20, 0.45, 0.55, 0.92)
-			_overlay.draw_rect(Rect2(ccx - sw * 0.5 + 0.5, ccy - sh * 0.5 + 0.5, sw - 1.0, sh - 1.0), col, true)
-			# Composed (frame-0) sprite scaled to fit the sub-cell; "?" for a wildcard slot.
+			# Footprint: tiny fills its sub-cell; everything else (placed at the centre) fills the cell.
+			var is_tiny: bool = _placement_size(c) == "tiny"
+			var fw: float = sw if is_tiny else Lanes.WIDTH
+			var fh: float = sh if is_tiny else _row_h()
+			_overlay.draw_rect(Rect2(ccx - fw * 0.5 + 0.5, ccy - fh * 0.5 + 0.5, fw - 1.0, fh - 1.0), col, true)
+			# Sprite drawn at the enemy's size-class px (tiny reads small, large reads big), capped to the lane.
 			var tex: Texture2D = null if wild_enemy else _frame0_tex(String(c["enemy"]))
 			if tex != null:
 				var tsz: Vector2 = tex.get_size()
-				var sc: float = minf((sw - 1.5) / maxf(1.0, tsz.x), (sh - 1.5) / maxf(1.0, tsz.y))
+				var target: float = minf(_size_px(_placement_size(c)), Lanes.WIDTH - 1.0)
+				var sc: float = minf(target / maxf(1.0, tsz.x), target / maxf(1.0, tsz.y))
 				_overlay.draw_texture_rect(tex, Rect2(ccx - tsz.x * sc * 0.5, ccy - tsz.y * sc * 0.5, tsz.x * sc, tsz.y * sc), false)
 			else:
 				_overlay.draw_string(_font, Vector2(ccx - 2.0, ccy + 2.0), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, 6, Color(1, 1, 1, 0.7))
@@ -378,6 +421,14 @@ func _build_ui() -> void:
 	str_row.add_child(_stagger_lbl)
 	_add_fixed_button(str_row, ">", func(): _cycle_stagger(1), 14)
 
+	_add_caption(lv, "NOTE")
+	_note_edit = TextEdit.new()
+	_note_edit.custom_minimum_size = Vector2(0, 42)
+	_note_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	_note_edit.add_theme_font_size_override("font_size", SZ)
+	_note_edit.text_changed.connect(func(): if not _library.is_empty(): _cur()["note"] = _note_edit.text)
+	lv.add_child(_note_edit)
+
 	lv.add_child(_sep())
 	var a1 := HBoxContainer.new()
 	a1.add_theme_constant_override("separation", 2)
@@ -408,20 +459,36 @@ func _build_ui() -> void:
 	right.add_child(rv)
 	_fill_panel(rv)
 	_add_caption(rv, "ENEMY BRUSH")
+	# Sort rockers — reorder the palette by faction or size (Any stays pinned on top).
+	var sort_row := HBoxContainer.new()
+	sort_row.add_theme_constant_override("separation", 2)
+	rv.add_child(sort_row)
+	_add_button(sort_row, "Fac", func(): _sort_palette("faction"))
+	_add_button(sort_row, "Size", func(): _sort_palette("size"))
+	_add_button(sort_row, "A-Z", func(): _sort_palette("default"))
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	rv.add_child(scroll)
-	var listbox := VBoxContainer.new()
-	listbox.add_theme_constant_override("separation", 1)
-	listbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(listbox)
+	_palette_listbox = VBoxContainer.new()
+	_palette_listbox.add_theme_constant_override("separation", 1)
+	_palette_listbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(_palette_listbox)
+	_rebuild_enemy_buttons()
+
+
+func _rebuild_enemy_buttons() -> void:
+	if _palette_listbox == null:
+		return
+	for ch in _palette_listbox.get_children():
+		_palette_listbox.remove_child(ch)
+		ch.queue_free()
 	_enemy_buttons = []
 	for i in _enemy_choices.size():
 		var b := Button.new()
 		b.text = String(_enemy_choices[i]["label"])
 		b.toggle_mode = true
-		b.button_pressed = (i == 0)
+		b.button_pressed = (String(_enemy_choices[i]["scene"]) == _brush_enemy)
 		b.custom_minimum_size = Vector2(0, 18)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.icon = _frame0_tex(String(_enemy_choices[i]["scene"]))   # codex-style frame-0 preview
@@ -429,8 +496,31 @@ func _build_ui() -> void:
 		_style_button(b)
 		var idx: int = i
 		b.pressed.connect(func(): _select_enemy(idx))
-		listbox.add_child(b)
+		_palette_listbox.add_child(b)
 		_enemy_buttons.append(b)
+
+
+# Reorder the enemy palette ("Any (wild)" stays first); rebuild the buttons.
+func _sort_palette(key: String) -> void:
+	var head: Dictionary = _enemy_choices[0]
+	var rest: Array = _enemy_choices.slice(1)
+	if key == "faction":
+		rest.sort_custom(func(a, b):
+			if String(a["faction"]) != String(b["faction"]):
+				return String(a["faction"]) < String(b["faction"])
+			return String(a["label"]) < String(b["label"]))
+	elif key == "size":
+		var ord := {"tiny": 0, "small": 1, "medium": 2, "large": 3, "huge": 4, "giant": 5}
+		rest.sort_custom(func(a, b):
+			var az: int = int(ord.get(String(a["size"]), 1))
+			var bz: int = int(ord.get(String(b["size"]), 1))
+			if az != bz:
+				return az < bz
+			return String(a["label"]) < String(b["label"]))
+	else:
+		rest.sort_custom(func(a, b): return String(a["label"]) < String(b["label"]))
+	_enemy_choices = [head] + rest
+	_rebuild_enemy_buttons()
 
 
 # ---------------------------------------------------------------- brush + props
@@ -702,9 +792,13 @@ func _place_at(pos: Vector2) -> void:
 		return
 	var lane: int = Lanes.nearest_lane(pos.x)
 	var row: int = clampi(int((pos.y - Playfield.Y_MIN) / _row_h()), 0, ROWS - 1)
-	# Sub-cell within the lane × row square (click position picks one of the 3×3 slots).
-	var sx: int = clampi(int((pos.x - Lanes.lane_left(lane)) / (Lanes.WIDTH / float(SUB))), 0, SUB - 1)
-	var sy: int = clampi(int((pos.y - (Playfield.Y_MIN + float(row) * _row_h())) / (_row_h() / float(SUB))), 0, SUB - 1)
+	# Only TINY enemies pack into the 3×3 sub-grid; everything else occupies the cell centre (1,1).
+	# Effective size = explicit brush size → the brush enemy's roster size → "small" ("any" assumes small).
+	var sx: int = 1
+	var sy: int = 1
+	if _effective_brush_size() == "tiny":
+		sx = clampi(int((pos.x - Lanes.lane_left(lane)) / (Lanes.WIDTH / float(SUB))), 0, SUB - 1)
+		sy = clampi(int((pos.y - (Playfield.Y_MIN + float(row) * _row_h())) / (_row_h() / float(SUB))), 0, SUB - 1)
 	var k := Vector2i(lane, row)
 	var sub := Vector2i(sx, sy)
 	if _cells.has(k) and _cells[k].has(sub):
@@ -718,6 +812,16 @@ func _place_at(pos: Vector2) -> void:
 	_sync_placements()
 	_overlay.queue_redraw()
 	_update_status()
+
+
+func _effective_brush_size() -> String:
+	if _brush_size != "":
+		return _brush_size
+	if _brush_enemy != "":
+		var s := String(EnemyRosterC.entry_for_scene(_brush_enemy).get("size", ""))
+		if s != "":
+			return s
+	return "small"
 
 
 func _set_status(s: String) -> void:
