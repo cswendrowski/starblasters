@@ -12,6 +12,10 @@ extends Control
 
 const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const RecycleController = preload("res://scripts/effects/recycle_controller.gd")
+const Playfield = preload("res://scripts/systems/playfield.gd")
+const BackdropCoordinatorScene = preload("res://scenes/parallax/backdrop_coordinator.tscn")
+const PlayerScene = preload("res://scenes/player/player.tscn")
+const EnemyRosterC = preload("res://scripts/levels/enemy_roster.gd")
 
 # Knob spec: key, label, min, max, step.
 const KNOBS := [
@@ -32,9 +36,11 @@ var _spins: Dictionary = {}        # key -> SpinBox
 var _status_label: Label = null
 
 # --- Preview state machine (mimics enemy_core._start_cycle timing) ---
+# The ghost now flies in a native-480 SubViewport against a real backdrop + composed player +
+# a few frozen enemies, so its recycle scale/tint can be judged against live game scale.
+var _world: SubViewport = null
 var _ghost: Node2D = null
-var _ghost_base: Polygon2D = null
-var _preview_rect: Rect2 = Rect2()
+var _ghost_base: Sprite2D = null   # a real enemy frame-0 sprite (scale/tint comparable)
 var _phase: String = "hold"        # hold -> fly -> done(loop)
 var _phase_t: float = 0.0
 var _hold_dur: float = 0.7
@@ -54,6 +60,8 @@ func _ready() -> void:
 	_build_ui()
 	_build_preview()
 	set_process(true)
+	if has_node("/root/Music"):
+		get_node("/root/Music").set_context("silent")
 
 
 func _seed_from_config() -> void:
@@ -99,15 +107,20 @@ func _build_ui() -> void:
 	_status_label.text = "Editing recycle.json"
 	rail.add_child(_status_label)
 
-	# Right: preview panel (a SubViewport-free in-place draw region).
-	var panel := PanelContainer.new()
-	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_child(panel)
-	var preview_host := Control.new()
-	preview_host.name = "PreviewHost"
-	preview_host.clip_contents = true
-	panel.add_child(preview_host)
+	# Right: a native-480 SubViewport (3× upscale = 1440×810) showing the live game context.
+	var svc := SubViewportContainer.new()
+	svc.position = Vector2(400, 60)
+	svc.stretch = true
+	svc.stretch_shrink = 3   # 480*3 = 1440 wide; renders native, crisp 3× upscale
+	svc.custom_minimum_size = Vector2(1440, 810)
+	svc.size = Vector2(1440, 810)
+	svc.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	svc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_world = SubViewport.new()
+	_world.size = Vector2i(480, 270)
+	_world.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	svc.add_child(_world)
+	add_child(svc)
 
 
 func _make_knob_row(spec: Array) -> Control:
@@ -144,43 +157,142 @@ func _on_knob(key: String, v: float) -> void:
 # --- Live preview ---------------------------------------------------------
 
 func _build_preview() -> void:
-	var host := get_node_or_null("HBoxContainer/PanelContainer/PreviewHost") as Control
-	if host == null:
-		# Find it regardless of container nesting.
-		host = find_child("PreviewHost", true, false) as Control
-	if host == null:
+	if _world == null:
 		return
+	_spawn_backdrop()
+	_spawn_idle_enemies()
+	_spawn_player_visual()
+	# The recycling subject — a real enemy frame-0 sprite (so its recycle scale/tint reads
+	# against the live enemies), pinned ON TOP of the scene.
 	_ghost = Node2D.new()
-	host.add_child(_ghost)
-	# Upward-pointing triangle stands in for a recycling enemy.
-	_ghost_base = Polygon2D.new()
-	_ghost_base.polygon = PackedVector2Array([Vector2(0, -10), Vector2(7, 8), Vector2(-7, 8)])
-	_ghost_base.color = Color(0.9, 0.9, 0.95)
+	_ghost.z_index = 50
+	_world.add_child(_ghost)
+	_ghost_base = _enemy_frame0_sprite(_random_enemy_scene())
 	_ghost.add_child(_ghost_base)
-	host.resized.connect(_recompute_preview_rect)
-	call_deferred("_recompute_preview_rect")
-
-
-func _recompute_preview_rect() -> void:
-	var host := find_child("PreviewHost", true, false) as Control
-	if host == null:
-		return
-	_preview_rect = Rect2(Vector2.ZERO, host.size)
 	_restart_preview()
+
+
+# Backdrop coordinator with an injected stellar context (a star + an asteroid belt) so the
+# recycle reads against a real, non-empty backdrop instead of a bare panel.
+func _spawn_backdrop() -> void:
+	var run := get_node_or_null("/root/Run")
+	if run != null and "current_stellar" in run:
+		run.current_stellar = {
+			"planet_idx": 3, "planet_seed": 4242, "star_color": Color(0.8, 0.85, 1.0),
+			"has_asteroids": true, "asteroid_density": 1.4,
+			"nebula_band": "", "nebula_tint": Color.WHITE, "moons": [], "system": [],
+		}
+	var bd = BackdropCoordinatorScene.instantiate()
+	bd.set("force_asteroids", true)
+	_world.add_child(bd)
+
+
+# A few frozen roster enemies scattered in the playfield band — process disabled so they
+# hold position (no movement / firing / offscreen-cleanup), just visuals for scale compare.
+func _spawn_idle_enemies() -> void:
+	var ys := [70.0, 95.0, 120.0]
+	for i in 3:
+		var path := _random_enemy_scene()
+		if path == "":
+			continue
+		var scn := load(path) as PackedScene
+		if scn == null:
+			continue
+		var e = scn.instantiate()
+		_world.add_child(e)
+		if e is Node2D:
+			e.position = Vector2(randf_range(Playfield.X_MIN + 16.0, Playfield.X_MAX - 16.0), ys[i])
+		_freeze(e)
+
+
+# Composed player ship at the bottom-centre of the band (cloned Sprite2D stack, mirroring
+# enemy_bench._make_player_visual — no heavy player.gd _ready).
+func _spawn_player_visual() -> void:
+	var inst := PlayerScene.instantiate()
+	var ship := inst.get_node_or_null("Ship") as Sprite2D
+	var body := _clone_sprite(ship)
+	if ship != null:
+		for child in ship.get_children():
+			if child is Sprite2D:
+				var c := _clone_sprite(child)
+				c.name = String(child.name)
+				body.add_child(c)
+	inst.free()
+	body.position = Vector2(Playfield.CENTER.x, Playfield.Y_MAX - 24.0)
+	body.z_index = 10
+	_world.add_child(body)
+
+
+func _clone_sprite(src: Sprite2D) -> Sprite2D:
+	var sp := Sprite2D.new()
+	sp.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	if src == null:
+		return sp
+	sp.texture = src.texture
+	sp.hframes = src.hframes
+	sp.vframes = src.vframes
+	sp.frame = src.frame
+	sp.flip_h = src.flip_h
+	sp.flip_v = src.flip_v
+	sp.position = src.position
+	sp.modulate = src.modulate
+	if src.material != null:
+		sp.material = src.material.duplicate()
+	return sp
+
+
+# Frame-0 Sprite2D from an enemy scene (first Sprite2D descendant), for the ghost.
+func _enemy_frame0_sprite(path: String) -> Sprite2D:
+	var sp := Sprite2D.new()
+	sp.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	if path == "":
+		return sp
+	var scn := load(path) as PackedScene
+	if scn == null:
+		return sp
+	var inst = scn.instantiate()
+	var src := _first_sprite(inst)
+	if src != null:
+		sp.texture = src.texture
+		sp.hframes = src.hframes
+		sp.vframes = src.vframes
+		sp.frame = 0
+	inst.free()
+	return sp
+
+
+func _first_sprite(n: Node) -> Sprite2D:
+	if n is Sprite2D and (n as Sprite2D).texture != null:
+		return n
+	for ch in n.get_children():
+		var r := _first_sprite(ch)
+		if r != null:
+			return r
+	return null
+
+
+func _freeze(n: Node) -> void:
+	n.set_process(false)
+	n.set_physics_process(false)
+
+
+func _random_enemy_scene() -> String:
+	var entries: Array = EnemyRosterC.ENTRIES
+	if entries.is_empty():
+		return ""
+	var e: Dictionary = entries[randi() % entries.size()]
+	return String(e.get("scene", ""))
 
 
 func _restart_preview() -> void:
 	_phase = "hold"
 	_phase_t = 0.0
 	_hold_dur = randf_range(float(_values.hold_min), float(_values.hold_max))
-	var w: float = max(40.0, _preview_rect.size.x)
-	var h: float = max(40.0, _preview_rect.size.y)
-	# Map the playfield band re-entry to the preview width using the inset ratio.
-	var inset_ratio: float = clampf(float(_values.entry_inset) / 108.0, 0.0, 0.45)
-	_entry_x = randf_range(w * inset_ratio, w * (1.0 - inset_ratio))
-	_from_y = h - 14.0
-	# fly_target_y is screen-space (-20 ≈ just off the top); map to preview top.
-	_to_y = lerp(0.0, -20.0, 1.0) + 12.0  # a touch below the panel top so it stays visible
+	# Re-entry inset maps into the playfield band; fly_target_y is the native screen-space target.
+	var inset: float = float(_values.entry_inset)
+	_entry_x = randf_range(Playfield.X_MIN + inset, Playfield.X_MAX - inset)
+	_from_y = Playfield.Y_MAX - 10.0
+	_to_y = float(_values.fly_target_y)
 	if _ghost:
 		_ghost.position = Vector2(_entry_x, _from_y)
 		_ghost.visible = false
@@ -201,7 +313,7 @@ func _process(delta: float) -> void:
 			var t: float = clampf(_phase_t / max(0.05, float(_values.fly_time)), 0.0, 1.0)
 			var s: float = float(_values.fly_scale)
 			_ghost.scale = Vector2(s, s)
-			_ghost_base.color = RecycleController.tint(_values)
+			_ghost_base.modulate = RecycleController.tint(_values)
 			_ghost.position = Vector2(_entry_x, lerp(_from_y, _to_y, t))
 			if t >= 1.0:
 				_phase = "done"
