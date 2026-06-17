@@ -22,8 +22,8 @@ const COLORRECT_CANONICAL := Vector2(100.0, 100.0)
 # Slider schema — key/label/min/max/step/default/fmt. Driven into the shader in _regenerate.
 const KNOBS := [
 	{"key": "size_px",    "label": "Footprint (px)",   "min": 30.0, "max": 160.0, "step": 1.0,  "def": 60.0,  "fmt": "%d px"},
-	{"key": "roundness",  "label": "Roundness",         "min": 0.0,  "max": 1.0,   "step": 0.05, "def": 0.0,   "fmt": "%.2f"},
-	{"key": "octaves",    "label": "Detail (octaves)",  "min": 1.0,  "max": 8.0,   "step": 1.0,  "def": 3.0,   "fmt": "%d"},
+	{"key": "roundness",  "label": "Roundness",         "min": 0.0,  "max": 1.0,   "step": 0.05, "def": 0.6,   "fmt": "%.2f"},
+	{"key": "octaves",    "label": "Detail (octaves)",  "min": 0.0,  "max": 5.0,   "step": 1.0,  "def": 3.0,   "fmt": "%d"},
 	{"key": "churn",      "label": "Surface churn",     "min": 0.0,  "max": 1.0,   "step": 0.02, "def": 0.40,  "fmt": "%.2f"},
 	{"key": "light_ang",  "label": "Light angle",       "min": 0.0,  "max": 360.0, "step": 5.0,  "def": 225.0, "fmt": "%d°"},
 	{"key": "spin",       "label": "Spin",              "min": -3.0, "max": 3.0,   "step": 0.1,  "def": 0.0,   "fmt": "%.1f rad/s"},

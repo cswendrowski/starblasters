@@ -85,7 +85,9 @@ func _ready() -> void:
 		# Trend the silhouette rounder (Roman 2026-06-11) — per-instance, so the
 		# background/parallax rocks (roundness 0) are untouched.
 		if inner != null and "material" in inner and inner.material != null:
-			inner.material.set_shader_parameter("roundness", 0.4)
+			# Hazard rocks read better as large, ROUND asteroids — bump the roundness band
+			# (was a flat 0.4) so they're clearly round, not lumpy (Roman 2026-06-17).
+			inner.material.set_shader_parameter("roundness", randf_range(0.6, 0.75))
 			# Disable dither on the gameplay rock (Roman 2026-06-15). The dither checkerboard
 			# samples RAW UV.y, so it SHIFTS with any motion — reading as "odd colours shifting
 			# as they move" — and HDR-2D + the bigger 44-64px rocks made the stipple a notable

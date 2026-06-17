@@ -376,6 +376,8 @@ static var _ship_tex: Texture2D = null
 func _ready() -> void:
 	if get_parent() == get_tree().root:
 		_hd_scope = HdViewportScope.attach(self)
+	if has_node("/root/Music"):
+		get_node("/root/Music").set_context("silent")   # dev tool: stay quiet (missed in the mute pass)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_init_values()
 	_init_ember_stops()
@@ -1392,9 +1394,19 @@ func _on_sd_damage(v: float) -> void:
 
 
 func _on_sd_destroyed() -> void:
-	# Ship died — leave it disintegrating in place. The New Ship button spawns the next one
-	# (Roman 2026-06-12: no auto-respawn).
+	# Ship died. Let the disintegrate + explosion read for a beat, then REMOVE the burnt-out hull
+	# so it fully vanishes and stays gone until "New Ship" (Roman 2026-06-17). The explosion/debris
+	# VFX live in _stage (the ship's parent), so they persist after the hull is freed.
 	_sd_dead = true
+	var ship := _sd_ship
+	_sd_ship = null
+	_sd_tells = null
+	if ship != null and is_instance_valid(ship):
+		var tw := create_tween()
+		tw.tween_interval(0.6)
+		tw.tween_callback(func():
+			if is_instance_valid(ship):
+				ship.queue_free())
 
 
 func _tick_ship_dmg(delta: float) -> void:
@@ -1440,6 +1452,14 @@ func _freeze_node(n: Node) -> void:
 	# render regardless. Timers (shooting) are always stopped.
 	if n is Timer:
 		(n as Timer).stop()
+	# Silence any audio the spawned ship carries (engine drones / spawn one-shots) so the
+	# inspection dummy is quiet — the lab is a visual tuner (Roman 2026-06-17).
+	if n is AudioStreamPlayer:
+		(n as AudioStreamPlayer).stop()
+		(n as AudioStreamPlayer).autoplay = false
+	elif n is AudioStreamPlayer2D:
+		(n as AudioStreamPlayer2D).stop()
+		(n as AudioStreamPlayer2D).autoplay = false
 	var scr: Variant = n.get_script()
 	var is_trail: bool = scr != null and String(scr.resource_path).ends_with("engine_trail_fx.gd")
 	if not is_trail:

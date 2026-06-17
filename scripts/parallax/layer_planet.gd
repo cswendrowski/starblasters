@@ -100,7 +100,7 @@ func spawn_planet(planet_idx: int, actual_size: float, rng: RandomNumberGenerato
 	# Store planet node and size for POI moons attachment
 	_planet_node = p
 	_planet_actual_size = actual_size
-	_make_planet_halo(p, planet_idx, actual_size, x, y)
+	_make_planet_halo(p, planet_idx, actual_size, x, y, star_color)
 	# Spawn companion bodies (moons/binary stars) around the main planet
 	_spawn_companions(rng, planet_idx, x, y, actual_size)
 
@@ -145,7 +145,7 @@ func spawn_system_body(planet_idx: int, actual_size: float, top_left: Vector2, p
 	# Star-color wash (skip the star itself — its own light shouldn't be tinted).
 	if p is CanvasItem and planet_idx != 8:
 		p.modulate = Color.WHITE.lerp(star_color, 0.18)
-	_make_planet_halo(p, planet_idx, actual_size, top_left.x, top_left.y)
+	_make_planet_halo(p, planet_idx, actual_size, top_left.x, top_left.y, star_color)
 
 
 # Render an EXTREME-DISTANCE body as a tiny glowing dot in `color` instead of a
@@ -272,13 +272,15 @@ func _apply_pixels_only(root: Node, value: float) -> void:
 #   multiplicative anchor tint can't darken the phenomenon itself.
 #   Globe planets get a softer atmosphere glow underneath (where it's
 #   "appropriate" — no atmosphere for the airless NoAtmosphere variant).
-func _make_planet_halo(planet_node: Node, planet_idx: int, actual_size: float, planet_x: float, planet_y: float) -> void:
+func _make_planet_halo(planet_node: Node, planet_idx: int, actual_size: float, planet_x: float, planet_y: float, star_color: Color = Color.WHITE) -> void:
 	# Stellar objects are the FOUNDATION 3 lighting source. Roman, 2026-05-16
 	# parallax overhaul: "should also have a bright bloom effect attached
 	# to them". Adds a wide, soft outer halo that sits behind the planet
 	# regardless of variant — amplifies the existing per-variant haloing.
 	var center_pre: Vector2 = Vector2(planet_x + actual_size * 0.5, planet_y + actual_size * 0.5)
-	var bloom_color: Color = PLANET_TINT.get(planet_idx, Color(1, 1, 1, 1))
+	# A STAR's bloom + halo take the row's star_color (blue/amber/red/exotic) so the glow MATCHES the
+	# star instead of a hardcoded warm yellow (Roman 2026-06-17). Planets keep their per-type tint.
+	var bloom_color: Color = star_color if planet_idx == 8 else PLANET_TINT.get(planet_idx, Color(1, 1, 1, 1))
 	bloom_color.a = 0.35
 	_make_halo_sprite(center_pre, actual_size * 1.7, bloom_color)
 
@@ -287,8 +289,9 @@ func _make_planet_halo(planet_node: Node, planet_idx: int, actual_size: float, p
 	# center = planet_pos + size/2.
 	var center: Vector2 = Vector2(planet_x + actual_size * 0.5, planet_y + actual_size * 0.5)
 	match planet_idx:
-		8:  # Star — full additive halo, blow it bright
-			_make_halo_sprite(center, actual_size * 1.5, Color(1.0, 0.95, 0.6, 0.8))
+		8:  # Star — full additive halo in the star's OWN colour (was a hardcoded warm yellow).
+			var star_halo: Color = Color(star_color.r, star_color.g, star_color.b, 0.8)
+			_make_halo_sprite(center, actual_size * 1.5, star_halo)
 		6:  # BlackHole — pulse-glow halo (Roman, 2026-05-17). Color comes
 			# from the sampled disc palette (set on planet meta during
 			# spawn); pulse_glow shader drives radial falloff + a slow

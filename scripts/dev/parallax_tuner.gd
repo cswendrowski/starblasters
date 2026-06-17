@@ -10,6 +10,7 @@ extends Control
 
 const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const BackdropCoordinatorScene = preload("res://scenes/parallax/backdrop_coordinator.tscn")
+const StellarComposer = preload("res://scripts/parallax/stellar_composer.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 
 const CONFIG_PATH := "user://tuners/parallax_v4.json"
@@ -51,8 +52,9 @@ var _density_scale: float = 1.0
 # Backdrop kind the tuner feeds the coordinator via a mock current_stellar. An empty
 # stellar (the old behaviour) forced the bare single-planet path with no asteroids/nebula,
 # which made density + color controls look dead — they had nothing to act on. (E regression fix.)
-var _bg_kind: int = 0        # 0 single planet / 1 star system / 2 asteroid field / 3 nebula
-const BG_KIND_NAMES := ["Single Planet", "Star System", "Asteroid Field", "Nebula"]
+var _bg_kind: int = 0        # index into BG_KIND_NAMES / BG_KIND_MAP
+const BG_KIND_NAMES := ["Auto (random)", "Single Planet", "Star System", "Asteroid Field", "Nebula"]
+const BG_KIND_MAP := ["", "planet", "system", "asteroid", "nebula"]   # → StellarComposer kind
 var _gen_counter: int = 0    # bumped each rebuild so re-rolls actually vary
 
 # ---- Lifecycle -----------------------------------------------------------
@@ -93,61 +95,30 @@ func _rebuild_backdrop() -> void:
 	if _backdrop != null and is_instance_valid(_backdrop):
 		_backdrop.queue_free()
 	_gen_counter += 1
-	# Feed the coordinator a real stellar context BEFORE its _ready/_populate runs, so it
-	# renders the same backdrop KINDS production does (system staging / asteroids / nebula)
-	# instead of the empty-stellar single-planet fallback. The coordinator reads
-	# /root/Run.current_stellar in _populate(). (E regression fix.)
+	# Feed the coordinator a stellar context from the SHARED composer (the same one the coordinator's
+	# random fallback uses + the same palettes the sector map uses), biased by the kind picker. This
+	# previews the real live composition styles instead of a hand-rolled mock. (Roman 2026-06-17.)
 	var run := get_node_or_null("/root/Run")
 	if run != null and "current_stellar" in run:
 		run.current_stellar = _build_stellar()
 	_backdrop = BackdropCoordinatorScene.instantiate()
 	_backdrop.set("forced_planet_idx", _forced_planet)
 	_backdrop.set("asteroid_density_scale", _density_scale)
-	# Asteroid-field kind forces the rocks on even though it's not an asteroid hazard node.
-	_backdrop.set("force_asteroids", _bg_kind == 2)
+	# Static preview → spawn asteroids already on-screen instead of waiting for them to drift in.
+	_backdrop.set("asteroid_prefill", true)
 	_sub_viewport.add_child(_backdrop)
 
 
-# Build a mock current_stellar matching the real sector-map shape (sector_map_v3:729),
-# so the coordinator paints a faithful preview. The kind drives which extras are present:
-# system staging, asteroid belt, or nebula. Seeded off _gen_counter so each rebuild varies.
+# Compose the preview stellar via the shared StellarComposer, biased by the Background picker.
+# "Auto" (kind "") lets the composer roll the full weighted variety. Seeded off _gen_counter so each
+# rebuild varies; the planet-type picker still forces planet_idx when set.
 func _build_stellar() -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 0x0BADC0DE + _gen_counter * 2654435761
-	var pidx: int = _forced_planet if _forced_planet >= 0 else rng.randi() % 9
-	var star_col := Color(rng.randf_range(0.7, 1.0), rng.randf_range(0.6, 0.95), rng.randf_range(0.5, 0.9))
-	var st := {
-		"planet_idx": pidx,
-		"planet_seed": rng.randi(),
-		"star_color": star_col,
-		"has_asteroids": false,
-		"asteroid_density": 0.0,
-		"nebula_band": "",
-		"nebula_tint": Color.WHITE,
-		"moons": [],
-		"system": [],
-	}
-	match _bg_kind:
-		1:  # Star System — a star plus 2–3 staged bodies spread across the upper band.
-			var n: int = rng.randi_range(3, 4)
-			var sys: Array = []
-			for i in n:
-				var is_star: bool = i == 0
-				sys.append({
-					"kind": "star" if is_star else "planet",
-					"planet_idx": 8 if is_star else (rng.randi() % 8),
-					"planet_seed": rng.randi(),
-					"frac": float(i) / float(maxi(1, n - 1)),
-					"scale": 1.0 if is_star else rng.randf_range(0.15, 0.6),
-					"star_color": star_col,
-				})
-			st["system"] = sys
-		2:  # Asteroid Field — belt density in the production range; the slider scales it further.
-			st["has_asteroids"] = true
-			st["asteroid_density"] = rng.randf_range(1.2, 2.4)
-		3:  # Nebula — any non-empty band enables the procedural nebula on the stellar layers.
-			st["nebula_band"] = "tuner"
-			st["nebula_tint"] = Color(rng.randf_range(0.4, 0.9), rng.randf_range(0.4, 0.9), rng.randf_range(0.6, 1.0), 1.0)
+	var kind: String = BG_KIND_MAP[clampi(_bg_kind, 0, BG_KIND_MAP.size() - 1)]
+	var st: Dictionary = StellarComposer.compose(rng, {"kind": kind})
+	if _forced_planet >= 0:
+		st["planet_idx"] = _forced_planet
 	return st
 
 
