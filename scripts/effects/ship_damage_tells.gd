@@ -59,6 +59,16 @@ const DEFAULT_CFG := {
 	"burn_trails": 1.0,      # number of progressive burning trails (small 1 → large 3+)
 	"torch_lead": 0.12,      # dmg fraction a torch fire precedes its trail (0 = no torch)
 	"burn_intro": 2.0,       # trail intro: 0 burst, 1 scale-in, 2 random per-trail
+	# Marker-bias weights (Shader Lab → Markers, Roman 2026-06-17): random-pick weight per marker
+	# category for the damage tells. 0 = that category is NOT eligible. Defaults reproduce the prior
+	# hardcoded behavior EXACTLY — engines favoured (3), muzzle/turret normal (1), centre fallback (1);
+	# thruster/launcher were not gathered before (0), now tunable on.
+	"w_engine": 3.0,
+	"w_thruster": 0.0,
+	"w_muzzle": 1.0,
+	"w_launcher": 0.0,
+	"w_turret": 1.0,
+	"w_centre": 1.0,
 }
 
 var self_explode: bool = true   # false = the caller (enemy_base) owns the explosion; we just disintegrate
@@ -85,20 +95,28 @@ func setup(ship: Node2D, sprite: Sprite2D, size_scale: float = 1.0, cfg: Diction
 		else:
 			_mat = _make_damage_material()
 			_sprite.material = _mat
-	# Markers: ANY marker is eligible, WEIGHTED toward engines (Roman 2026-06-11). Engines come
-	# FIRST (so the progressive sparks light them first) AND carry a higher random-pick weight;
-	# muzzles / cannons / turrets are normal weight; the sprite CENTRE is the always-present
-	# fallback (a guaranteed tell on a markerless ship).
+	# Markers: ANY marker is eligible, WEIGHTED per category via _cfg["w_*"] (Roman 2026-06-11,
+	# made tunable 2026-06-17). Categories are gathered in this ORDER (engines first) so the
+	# progressive sparks light engines first; a category at weight 0 is skipped entirely. The
+	# sprite CENTRE is the always-present fallback (a guaranteed tell on a markerless ship).
+	var marker_specs: Array = [
+		{"patterns": ["Engine*"],            "weight": float(_cfg["w_engine"])},
+		{"patterns": ["Thruster*"],          "weight": float(_cfg["w_thruster"])},
+		{"patterns": ["Muzzle*", "cannon_*"], "weight": float(_cfg["w_muzzle"])},
+		{"patterns": ["Launcher*"],          "weight": float(_cfg["w_launcher"])},
+		{"patterns": ["Turret*"],            "weight": float(_cfg["w_turret"])},
+	]
 	var marker_data: Array = []
 	if ship != null:
-		for m in ship.find_children("Engine*", "Marker2D", true, false):
-			if m is Node2D:
-				marker_data.append({"pos": to_local((m as Node2D).global_position), "weight": 3.0})
-		for pat in ["Muzzle*", "cannon_*", "Turret*"]:
-			for m in ship.find_children(pat, "Marker2D", true, false):
-				if m is Node2D:
-					marker_data.append({"pos": to_local((m as Node2D).global_position), "weight": 1.0})
-	marker_data.append({"pos": Vector2.ZERO, "weight": 1.0})   # centre — always present
+		for spec in marker_specs:
+			var w: float = float(spec["weight"])
+			if w <= 0.0:
+				continue
+			for pat in spec["patterns"]:
+				for m in ship.find_children(pat, "Marker2D", true, false):
+					if m is Node2D:
+						marker_data.append({"pos": to_local((m as Node2D).global_position), "weight": w})
+	marker_data.append({"pos": Vector2.ZERO, "weight": maxf(0.001, float(_cfg["w_centre"]))})   # centre — always present
 	# One spark emitter per marker, off until lit.
 	for md in marker_data:
 		var inst := SparkTrailFx.spawn(self, md["pos"])
@@ -371,7 +389,12 @@ func _spawn_death_vfx(world: Vector2) -> void:
 		ShipDebrisEmber.spawn(container, world, {
 			"velocity": Vector2(cos(ang), sin(ang)) * spd,
 			"spin": randf_range(-6.0, 6.0),
-			"piece_scale": randf_range(0.8, 1.4) * clampf(_size_scale, 0.7, 1.8),
+			# Piece scale is FIXED (~1×), per the convention "debris count scales with
+			# enemy size, piece scale fixed at 1×" — bigger ships throw MORE pieces (above),
+			# not BIGGER ones. The old `* clampf(_size_scale, 0.7, 1.8)` inflated big-enemy
+			# debris up to ~2.5×, reading larger than the canon explosion-path debris
+			# (Shader Lab parity, Roman 2026-06-17).
+			"piece_scale": randf_range(0.8, 1.4),
 		})
 
 

@@ -42,6 +42,15 @@ const SD_DMG_SCHEMA := [
 	{"key": "burn_trails", "label": "Burn trails (#)", "min": 1.0, "max": 4.0, "step": 1.0, "def": 1.0},
 	{"key": "torch_lead", "label": "Torch lead (dmg %, 0=off)", "min": 0.0, "max": 0.3, "step": 0.01, "def": 0.12},
 	{"key": "burn_intro", "label": "Burn intro 0burst/1scale/2rnd", "min": 0.0, "max": 2.0, "step": 1.0, "def": 2.0},
+	# Marker-bias weights — random-pick weight per marker category for the spark/burn/disintegrate
+	# tells (0 = that category not eligible). Defaults match ShipDamageTells.DEFAULT_CFG. Flow through
+	# _sd_dmg_cfg() → setup(cfg) and into the Copy-GDScript per-size suite.
+	{"key": "w_engine", "label": "Marker wt: engine", "min": 0.0, "max": 5.0, "step": 0.5, "def": 3.0},
+	{"key": "w_thruster", "label": "Marker wt: thruster", "min": 0.0, "max": 5.0, "step": 0.5, "def": 0.0},
+	{"key": "w_muzzle", "label": "Marker wt: muzzle", "min": 0.0, "max": 5.0, "step": 0.5, "def": 1.0},
+	{"key": "w_launcher", "label": "Marker wt: launcher", "min": 0.0, "max": 5.0, "step": 0.5, "def": 0.0},
+	{"key": "w_turret", "label": "Marker wt: turret", "min": 0.0, "max": 5.0, "step": 0.5, "def": 1.0},
+	{"key": "w_centre", "label": "Marker wt: centre", "min": 0.0, "max": 5.0, "step": 0.5, "def": 1.0},
 ]
 const SD_SIZES := ["small", "medium", "large"]
 const SD_PATH_SPEED := 52.0   # px/s the ship travels along the rounded-rect path
