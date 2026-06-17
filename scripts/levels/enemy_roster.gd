@@ -15,13 +15,16 @@ class_name EnemyRoster
 
 enum Tier { COMMON, UNCOMMON, RARE }
 
+# Size→stats (tuned in the Enemy Bench Sizes tab, intaken 2026-06-17). Bounty is now a clean
+# 1/2/4/8/16/32 doubling (was 3/5/15/40/100/250 — a much steeper curve); speeds slowed a touch on
+# the big classes; tiny is now 1 HP + a shield charge. NOTE: this is a sizeable economy change.
 const SIZE_TABLE := {
-	"tiny":   {"hp": 2,   "shield_cap": 0, "bounty": 3,   "speed_mult": 1.5},
-	"small":  {"hp": 4,   "shield_cap": 1, "bounty": 5,   "speed_mult": 1.3},
-	"medium": {"hp": 8,   "shield_cap": 2, "bounty": 15,  "speed_mult": 1.0},
-	"large":  {"hp": 16,  "shield_cap": 3, "bounty": 40,  "speed_mult": 0.75},
-	"huge":   {"hp": 32,  "shield_cap": 4, "bounty": 100, "speed_mult": 0.5},
-	"giant":  {"hp": 64,  "shield_cap": 5, "bounty": 250, "speed_mult": 0.3},
+	"tiny":   {"hp": 1,  "shield_cap": 1, "bounty": 1,  "speed_mult": 1.0},
+	"small":  {"hp": 4,  "shield_cap": 1, "bounty": 2,  "speed_mult": 1.3},
+	"medium": {"hp": 8,  "shield_cap": 2, "bounty": 4,  "speed_mult": 0.8},
+	"large":  {"hp": 16, "shield_cap": 3, "bounty": 8,  "speed_mult": 0.6},
+	"huge":   {"hp": 32, "shield_cap": 4, "bounty": 16, "speed_mult": 0.4},
+	"giant":  {"hp": 64, "shield_cap": 5, "bounty": 32, "speed_mult": 0.25},
 }
 
 const RARITY_BOUNTY_MULT := {
