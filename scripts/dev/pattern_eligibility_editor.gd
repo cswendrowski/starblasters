@@ -15,6 +15,7 @@ const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const PatternEligibility = preload("res://scripts/levels/pattern_eligibility.gd")
 const EnemyRoster = preload("res://scripts/levels/enemy_roster.gd")
+const EnemyManifest = preload("res://scripts/dev/enemy_manifest.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
 
 const SAVE_PATH := "user://tuners/pattern_eligibility.json"
@@ -119,6 +120,12 @@ func _load_data() -> void:
 							_data[scene]["identity"] = sid
 						if p.get("eligible", null) is Array:
 							_data[scene]["eligible"] = _canon_list(p["eligible"])
+	# Union the FULL dev roster (manifest ∪ faction tags) so EVERY enemy is authorable — not just the
+	# scenes already in the committed matrix. New faction units like the zealots weren't in DATA, so
+	# they never showed up here; they now appear with an empty record to fill in (Roman 2026-06-17).
+	for scene in EnemyManifest.all_enemies(false):
+		if not _data.has(scene):
+			_data[scene] = {"identity": "", "eligible": []}
 	# Identity must always be in its own eligible set.
 	for scene in _data.keys():
 		var ident: String = str(_data[scene]["identity"])

@@ -431,19 +431,10 @@ func _mk_label(text: String, size: int, color: Color) -> Label:
 # ---- List / selection ----------------------------------------------------
 
 func _load_list() -> void:
-	# Complete enemy set = the curated dev manifest (bosses/mines/asteroid/core) UNION every
-	# faction-tagged enemy (the manifest was missing the per-faction roster). Deduped + sorted.
-	_all_paths.clear()
-	var seen := {}
-	for src in [EnemyManifest.paths(), Factions.ENEMY_TAGS.keys()]:
-		for p in src:
-			var s := String(p)
-			if s.to_lower().contains("boss"):
-				continue   # bosses excluded from the bench (separate boss tuning tool later)
-			if not seen.has(s):
-				seen[s] = true
-				_all_paths.append(s)
-	_all_paths.sort()
+	# Complete enemy set = the shared full dev roster (curated manifest UNION every faction-tagged
+	# enemy), minus bosses (separate boss tuning tool later). Single source so the bench, eligibility
+	# editor + Formation Builder all stay in sync (Roman 2026-06-17).
+	_all_paths = EnemyManifest.all_enemies(false)
 	_rebuild_list(false)
 
 

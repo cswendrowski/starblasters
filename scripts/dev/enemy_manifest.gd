@@ -38,5 +38,28 @@ const ENEMIES: Array = [
 ]
 
 
+const Factions = preload("res://scripts/levels/factions.gd")
+
+
 static func paths() -> Array:
 	return ENEMIES.duplicate()
+
+
+# The FULL dev-tool enemy roster: the curated manifest UNION every faction-tagged enemy
+# (Factions.ENEMY_TAGS), deduped + sorted. Faction units like the zealots are tagged there even
+# when they're NOT in the hardcoded manifest or the production wave roll, so this is the canonical
+# "show everything" list every enemy-listing dev tool should pull from — keeping them from drifting
+# out of sync as new units land (Roman 2026-06-17). Bosses are excluded by default (bespoke tuning).
+static func all_enemies(include_bosses: bool = false) -> Array:
+	var seen := {}
+	var out := []
+	for src in [ENEMIES, Factions.ENEMY_TAGS.keys()]:
+		for p in src:
+			var s := String(p)
+			if not include_bosses and s.to_lower().contains("boss"):
+				continue
+			if not seen.has(s):
+				seen[s] = true
+				out.append(s)
+	out.sort()
+	return out

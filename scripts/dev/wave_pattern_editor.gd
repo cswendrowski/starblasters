@@ -17,6 +17,7 @@ const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const DirectorScript = preload("res://scripts/levels/director.gd")
 const AuthoredPatterns = preload("res://scripts/levels/authored_patterns.gd")
 const EnemyRosterC = preload("res://scripts/levels/enemy_roster.gd")
+const EnemyManifestC = preload("res://scripts/dev/enemy_manifest.gd")
 const MovementKeys = preload("res://scripts/dev/pattern_eligibility_editor.gd")
 
 const SAVE_PATH := "user://tuners/wave_patterns.json"
@@ -99,15 +100,32 @@ func _ready() -> void:
 
 
 func _build_enemy_choices() -> void:
+	# Pull from the SHARED full dev roster (manifest ∪ faction tags) so every placeable enemy shows —
+	# including faction units like the zealots that aren't in the production wave roll (Roman
+	# 2026-06-17). Bosses + mines are skipped (not formation units); size comes from the roster entry
+	# when one exists, else a fallback from the scene name.
 	_enemy_choices = [{"label": "Any (wild)", "scene": "", "faction": "", "size": ""}]
-	var seen := {}
-	for e in EnemyRosterC.ENTRIES:
-		var path: String = String(e.get("scene", ""))
-		if path == "" or seen.has(path) or path.to_lower().contains("boss"):
-			continue   # dedupe roster entries + exclude bosses (no boss tuning here)
-		seen[path] = true
+	for path in EnemyManifestC.all_enemies(false):
+		var low: String = path.to_lower()
+		if low.contains("mine") and not low.contains("minelayer"):
+			continue
+		var entry: Dictionary = EnemyRosterC.entry_for_scene(path)
+		var sz: String = String(entry.get("size", "")) if not entry.is_empty() else ""
+		if sz == "":
+			sz = _size_from_path(path)
 		_enemy_choices.append({"label": _enemy_short(path), "scene": path,
-			"faction": _faction_of(path), "size": String(e.get("size", "small"))})
+			"faction": _faction_of(path), "size": sz})
+
+
+# Size fallback for enemies without a roster entry (e.g. zealots) — the scene name encodes it
+# (enemy_z_s_/_z_m_/_z_l_); default small.
+func _size_from_path(path: String) -> String:
+	var p: String = path.to_lower()
+	if "_z_m_" in p or "_m_helix" in p:
+		return "medium"
+	if "_z_l_" in p:
+		return "large"
+	return "small"
 
 
 # Faction bucket from the scene path (mirrors the Enemy Bench's grouping).

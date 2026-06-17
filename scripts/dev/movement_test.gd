@@ -179,7 +179,9 @@ func _scan_enemies() -> void:
 	# exported web builds, which is what was making the dropdown look empty.
 	_enemy_select.clear()
 	_enemy_paths.clear()
-	var paths: Array = EnemyManifest.paths()
+	# Full dev roster (incl. faction units like the zealots), bosses kept — the movement test covers
+	# them too. HIDE_LIST below still trims anything not worth testing (Roman 2026-06-17).
+	var paths: Array = EnemyManifest.all_enemies(true)
 	paths.sort()
 	for p in paths:
 		var nm: String = (p as String).get_file().get_basename()

@@ -276,7 +276,7 @@ func _pick_ship_path() -> String:
 	if fixed != "" and ResourceLoader.exists(fixed):
 		return fixed
 	var pool: Array = []
-	for p in EnemyManifest.ENEMIES:
+	for p in EnemyManifest.all_enemies(false):   # full dev roster (zealots included), bosses already out
 		var path: String = String(p)
 		if path.contains("boss") or path.contains("asteroid") or path.contains("frigate"):
 			continue

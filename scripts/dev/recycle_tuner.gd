@@ -16,6 +16,7 @@ const Playfield = preload("res://scripts/systems/playfield.gd")
 const BackdropCoordinatorScene = preload("res://scenes/parallax/backdrop_coordinator.tscn")
 const PlayerScene = preload("res://scenes/player/player.tscn")
 const EnemyRosterC = preload("res://scripts/levels/enemy_roster.gd")
+const EnemyManifestC = preload("res://scripts/dev/enemy_manifest.gd")
 
 # Knob spec: key, label, min, max, step.
 const KNOBS := [
@@ -277,11 +278,12 @@ func _freeze(n: Node) -> void:
 
 
 func _random_enemy_scene() -> String:
-	var entries: Array = EnemyRosterC.ENTRIES
-	if entries.is_empty():
+	# Full dev roster (incl. faction units) so the backdrop enemies vary across everything, not just
+	# the production wave roll.
+	var all: Array = EnemyManifestC.all_enemies(false)
+	if all.is_empty():
 		return ""
-	var e: Dictionary = entries[randi() % entries.size()]
-	return String(e.get("scene", ""))
+	return String(all[randi() % all.size()])
 
 
 func _restart_preview() -> void:
