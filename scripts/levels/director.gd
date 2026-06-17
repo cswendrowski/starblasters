@@ -752,7 +752,10 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 	var x := 0.0
 	var pos: Vector2
 	if lane_override >= 0:
-		pos = Vector2(Lanes.lane_center(lane_override), wave.spawn_y)
+		var lane_x: float = Lanes.lane_center(lane_override)
+		if "spawn_x_offset" in wave:
+			lane_x += wave.spawn_x_offset   # sub-lane offset (Formation Builder sub-grid); 0 default
+		pos = Vector2(lane_x, wave.spawn_y)
 	else:
 		match wave.formation:
 			5: # TOP_TANDEM_PAIRS — two streams in concert, ±tandem_offset_x from CENTER.

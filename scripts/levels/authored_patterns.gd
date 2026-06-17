@@ -20,6 +20,7 @@ extends Object
 const WaveSpecScript = preload("res://scripts/levels/wave_def.gd")
 const Roster = preload("res://scripts/levels/enemy_roster.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
+const Lanes = preload("res://scripts/systems/lanes.gd")
 
 # Per-wave probability the auto-mix splices an authored pattern into a generated wave.
 const DEFAULT_CHANCE := 0.22
@@ -117,7 +118,12 @@ static func _spec_for_placement(pl: Dictionary, fill_faction: int, sector: int, 
 	ws.count = 1
 	ws.lane = int(pl.get("lane", -1))
 	ws.spawn_delay = float(int(pl.get("row", 0))) * stagger
-	ws.spawn_y = -12.0
+	# Sub-grid within the lane square (Formation Builder): sub_x spreads horizontally within the
+	# lane, sub_y staggers the spawn height so a cell enters as a cluster. Centre (1,1) = legacy.
+	var sub_x: int = int(pl.get("sub_x", 1))
+	var sub_y: int = int(pl.get("sub_y", 1))
+	ws.spawn_x_offset = (float(sub_x) - 1.0) * (Lanes.WIDTH / 3.0)
+	ws.spawn_y = -12.0 + (float(sub_y) - 1.0) * 11.0
 
 	# Movement: an explicit key overrides (resolved scene-less so the matrix identity can't
 	# stomp it — same trick the eligibility editor's preview uses); else the entry's roster

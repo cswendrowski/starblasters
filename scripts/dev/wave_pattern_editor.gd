@@ -23,15 +23,16 @@ const SAVE_PATH := "user://tuners/wave_patterns.json"
 const EXPORT_PATH := "user://tuners/wave_patterns_export.txt"
 const ROWS := 6
 const SZ := 7
+const SUB := 3   # NxN sub-grid per lane square — pack multiple (tiny) enemies into one cell
 
 const FACTIONS := ["any", "supremacy", "privateer", "corporate", "zealot"]
-const SIZES := ["", "small", "medium", "large", "huge", "giant"]
+const SIZES := ["", "tiny", "small", "medium", "large", "huge", "giant"]
 const STAGGERS := [0.08, 0.12, 0.18, 0.25, 0.35]
 
 # Library of pattern dicts (same shape as AuthoredPatterns.DATA).
 var _library: Array = []
 var _pat_idx: int = 0
-var _cells: Dictionary = {}        # Vector2i(lane,row) -> {enemy, movement, size}
+var _cells: Dictionary = {}        # Vector2i(lane,row) -> { Vector2i(sub_x,sub_y) -> {enemy,movement,size} }
 
 # Active brush.
 var _brush_enemy: String = ""      # "" = wildcard, else a scene path
@@ -172,7 +173,11 @@ func _select_pattern(i: int) -> void:
 	_cells.clear()
 	for pl in _cur().get("placements", []):
 		var k := Vector2i(int(pl.get("lane", 0)), int(pl.get("row", 0)))
-		_cells[k] = {"enemy": String(pl.get("enemy", "")), "movement": String(pl.get("movement", "")), "size": String(pl.get("size", ""))}
+		# Legacy placements (no sub_x/sub_y) land at the sub-grid centre (1,1).
+		var sub := Vector2i(clampi(int(pl.get("sub_x", 1)), 0, SUB - 1), clampi(int(pl.get("sub_y", 1)), 0, SUB - 1))
+		if not _cells.has(k):
+			_cells[k] = {}
+		_cells[k][sub] = {"enemy": String(pl.get("enemy", "")), "movement": String(pl.get("movement", "")), "size": String(pl.get("size", ""))}
 	_refresh_prop_labels()
 	if _overlay:
 		_overlay.queue_redraw()
@@ -182,9 +187,10 @@ func _select_pattern(i: int) -> void:
 func _sync_placements() -> void:
 	var placements: Array = []
 	for k in _cells:
-		var c: Dictionary = _cells[k]
-		placements.append({"lane": int(k.x), "row": int(k.y),
-			"enemy": String(c["enemy"]), "movement": String(c["movement"]), "size": String(c["size"])})
+		for sub in _cells[k]:
+			var c: Dictionary = _cells[k][sub]
+			placements.append({"lane": int(k.x), "row": int(k.y), "sub_x": int(sub.x), "sub_y": int(sub.y),
+				"enemy": String(c["enemy"]), "movement": String(c["movement"]), "size": String(c["size"])})
 	_cur()["placements"] = placements
 
 
@@ -251,35 +257,32 @@ func _draw_overlay() -> void:
 		_overlay.draw_line(Vector2(Playfield.X_MIN, y), Vector2(Playfield.X_MAX, y), Color(1, 1, 1, 0.06), 1.0)
 	for r in ROWS:
 		_overlay.draw_string(_font, Vector2(Playfield.X_MIN + 1.0, _row_center(r) + 2.0), "r%d" % r, HORIZONTAL_ALIGNMENT_LEFT, -1, 6, Color(1, 1, 1, 0.18))
-	# Filled cells.
+	# Filled cells — each lane square holds a 3×3 sub-grid; draw each placed sub-cell.
+	var sw: float = Lanes.WIDTH / float(SUB)
+	var sh: float = _row_h() / float(SUB)
 	for k in _cells:
-		var c: Dictionary = _cells[k]
-		var ccx: float = Lanes.lane_center(int(k.x))
-		var ccy: float = _row_center(int(k.y))
-		var wild_enemy: bool = String(c["enemy"]) == ""
-		var col: Color = Color(0.34, 0.39, 0.48, 0.9) if wild_enemy else Color(0.20, 0.45, 0.55, 0.92)
-		_overlay.draw_rect(Rect2(ccx - 10.0, ccy - 9.0, 20.0, 18.0), col, true)
-		_overlay.draw_rect(Rect2(ccx - 10.0, ccy - 9.0, 20.0, 18.0), Color(1, 1, 1, 0.5), false, 1.0)
-		# Composed (frame-0) sprite for a concrete enemy; "?" glyph for a wildcard slot.
-		var tex: Texture2D = null if wild_enemy else _frame0_tex(String(c["enemy"]))
-		if tex != null:
-			var tsz: Vector2 = tex.get_size()
-			var sc: float = minf(16.0 / maxf(1.0, tsz.x), 14.0 / maxf(1.0, tsz.y))
-			var dw: float = tsz.x * sc
-			var dh: float = tsz.y * sc
-			_overlay.draw_texture_rect(tex, Rect2(ccx - dw * 0.5, ccy - 4.0 - dh * 0.5, dw, dh), false)
-		else:
-			_overlay.draw_string(_font, Vector2(ccx - 3.0, ccy - 1.0), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(1, 1, 1, 0.7))
-		var mtxt: String = "·" if String(c["movement"]) == "" else String(c["movement"]).substr(0, 4)
-		_overlay.draw_string(_font, Vector2(ccx - 9.0, ccy + 8.0), mtxt, HORIZONTAL_ALIGNMENT_LEFT, -1, 6, Color(0.8, 0.9, 1.0, 0.85))
-		# Pulsing direction indicator — shows where this placed enemy's behavior heads.
-		var org := Vector2(ccx, ccy)
-		var dir: Vector2 = _move_dir(String(c["movement"]), int(k.x)).normalized()
-		var reach := 12.0
-		_overlay.draw_line(org + dir * 3.0, org + dir * reach, Color(0.6, 0.85, 1.0, 0.22), 1.0)
-		for s in [0.0, 0.5]:
-			var frac: float = fmod(_pulse_t * 0.9 + s, 1.0)
-			_overlay.draw_circle(org + dir * (3.0 + (reach - 3.0) * frac), 1.5, Color(0.75, 0.92, 1.0, (1.0 - frac) * 0.85))
+		var lx: float = Lanes.lane_left(int(k.x))
+		var rtop: float = Playfield.Y_MIN + float(k.y) * _row_h()
+		for sub in _cells[k]:
+			var c: Dictionary = _cells[k][sub]
+			var ccx: float = lx + (float(sub.x) + 0.5) * sw
+			var ccy: float = rtop + (float(sub.y) + 0.5) * sh
+			var wild_enemy: bool = String(c["enemy"]) == ""
+			var col: Color = Color(0.34, 0.39, 0.48, 0.9) if wild_enemy else Color(0.20, 0.45, 0.55, 0.92)
+			_overlay.draw_rect(Rect2(ccx - sw * 0.5 + 0.5, ccy - sh * 0.5 + 0.5, sw - 1.0, sh - 1.0), col, true)
+			# Composed (frame-0) sprite scaled to fit the sub-cell; "?" for a wildcard slot.
+			var tex: Texture2D = null if wild_enemy else _frame0_tex(String(c["enemy"]))
+			if tex != null:
+				var tsz: Vector2 = tex.get_size()
+				var sc: float = minf((sw - 1.5) / maxf(1.0, tsz.x), (sh - 1.5) / maxf(1.0, tsz.y))
+				_overlay.draw_texture_rect(tex, Rect2(ccx - tsz.x * sc * 0.5, ccy - tsz.y * sc * 0.5, tsz.x * sc, tsz.y * sc), false)
+			else:
+				_overlay.draw_string(_font, Vector2(ccx - 2.0, ccy + 2.0), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, 6, Color(1, 1, 1, 0.7))
+			# Pulsing direction indicator (compact, scaled to the sub-cell).
+			var dir: Vector2 = _move_dir(String(c["movement"]), int(k.x)).normalized()
+			var reach: float = minf(sw, sh) * 0.85
+			var frac: float = fmod(_pulse_t * 0.9, 1.0)
+			_overlay.draw_circle(Vector2(ccx, ccy) + dir * (1.0 + reach * frac), 1.0, Color(0.75, 0.92, 1.0, (1.0 - frac) * 0.75))
 
 
 # ---------------------------------------------------------------- UI
@@ -699,11 +702,19 @@ func _place_at(pos: Vector2) -> void:
 		return
 	var lane: int = Lanes.nearest_lane(pos.x)
 	var row: int = clampi(int((pos.y - Playfield.Y_MIN) / _row_h()), 0, ROWS - 1)
+	# Sub-cell within the lane × row square (click position picks one of the 3×3 slots).
+	var sx: int = clampi(int((pos.x - Lanes.lane_left(lane)) / (Lanes.WIDTH / float(SUB))), 0, SUB - 1)
+	var sy: int = clampi(int((pos.y - (Playfield.Y_MIN + float(row) * _row_h())) / (_row_h() / float(SUB))), 0, SUB - 1)
 	var k := Vector2i(lane, row)
-	if _cells.has(k):
-		_cells.erase(k)
+	var sub := Vector2i(sx, sy)
+	if _cells.has(k) and _cells[k].has(sub):
+		_cells[k].erase(sub)
+		if _cells[k].is_empty():
+			_cells.erase(k)
 	else:
-		_cells[k] = {"enemy": _brush_enemy, "movement": _brush_move, "size": _brush_size}
+		if not _cells.has(k):
+			_cells[k] = {}
+		_cells[k][sub] = {"enemy": _brush_enemy, "movement": _brush_move, "size": _brush_size}
 	_sync_placements()
 	_overlay.queue_redraw()
 	_update_status()
@@ -717,8 +728,11 @@ func _set_status(s: String) -> void:
 func _update_status() -> void:
 	if _status_lbl == null:
 		return
+	var total := 0
+	for k in _cells:
+		total += _cells[k].size()
 	_status_lbl.text = "slots: %d   brush: %s / %s" % [
-		_cells.size(), ("Any" if _brush_enemy == "" else _enemy_short(_brush_enemy)),
+		total, ("Any" if _brush_enemy == "" else _enemy_short(_brush_enemy)),
 		("Any" if _brush_move == "" else _brush_move)]
 
 

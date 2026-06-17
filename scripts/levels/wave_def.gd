@@ -21,6 +21,9 @@ enum Formation { TOP_LEFT_TO_RIGHT, TOP_RIGHT_TO_LEFT, TOP_RANDOM, TOP_CENTER_OU
 # that exact lane; -1 = unset (algorithmic placement). Consumed by director._dispatch_authored,
 # which passes it as lane_override to _spawn_enemy (spawns at Lanes.lane_center(lane)).
 @export var lane: int = -1
+# Sub-lane X offset (px) added to the lane centre — lets the Formation Builder pack a sub-grid of
+# enemies into one lane square. 0 = lane centre (default, production unchanged). Lane-pinned only.
+@export var spawn_x_offset: float = 0.0
 # Tandem-pair X offset from CENTER (formation TOP_TANDEM_PAIRS). Two enemies
 # spawn simultaneously at (CENTER - offset, CENTER + offset) sharing the same
 # movement pattern (duplicated so each owns its state).

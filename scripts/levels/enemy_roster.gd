@@ -16,6 +16,7 @@ class_name EnemyRoster
 enum Tier { COMMON, UNCOMMON, RARE }
 
 const SIZE_TABLE := {
+	"tiny":   {"hp": 2,   "shield_cap": 0, "bounty": 3,   "speed_mult": 1.5},
 	"small":  {"hp": 4,   "shield_cap": 1, "bounty": 5,   "speed_mult": 1.3},
 	"medium": {"hp": 8,   "shield_cap": 2, "bounty": 15,  "speed_mult": 1.0},
 	"large":  {"hp": 16,  "shield_cap": 3, "bounty": 40,  "speed_mult": 0.75},
