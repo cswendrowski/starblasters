@@ -256,8 +256,13 @@ func _build_overlay() -> void:
 
 	var back := Button.new()
 	back.text = "Back"
-	back.position = Vector2(1920 - MARGIN - 120, 14)
-	back.size = Vector2(120, 40)
+	# Right-anchored so it tracks the real top-right corner under HD `expand` (was absolute 1920).
+	back.anchor_left = 1.0
+	back.anchor_right = 1.0
+	back.offset_left = -(MARGIN + 120)
+	back.offset_right = -MARGIN
+	back.offset_top = 14
+	back.offset_bottom = 54
 	UiTheme.style_button(back, true)
 	back.add_theme_font_size_override("font_size", FS_BODY)
 	back.pressed.connect(_on_back)
@@ -297,14 +302,15 @@ func _build_overlay() -> void:
 # (panel bg + scroll) to `sink` so the caller can toggle them per tab. Returns the vbox.
 func _rail_panel(ui: CanvasLayer, right: bool, sink: Array) -> VBoxContainer:
 	var w := INFO_W if right else RAIL_W
-	var x := (1920 - MARGIN - w) if right else MARGIN
 	var y := TABBAR_Y + 84
-	var h := 1080 - y - MARGIN
-	var panel := _panel(Vector2(x, y), Vector2(w, h))
+	# Anchor to the real screen edges instead of absolute 1920-based x. Under the HD scope's
+	# `expand` content-scale aspect the logical width isn't exactly 1920 on non-16:9 windows, so
+	# the old `1920 - MARGIN - w` right panel drifted off-screen (Roman 2026-06-17).
+	var panel := _panel(Vector2.ZERO, Vector2(w, 100))
+	_anchor_rail(panel, right, w, y, 0.0)
 	ui.add_child(panel)
 	var scroll := ScrollContainer.new()
-	scroll.position = Vector2(x + 14, y + 12)
-	scroll.size = Vector2(w - 28, h - 24)
+	_anchor_rail(scroll, right, w, y + 12.0, 14.0)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	ui.add_child(scroll)
 	var vbox := VBoxContainer.new()
@@ -315,6 +321,26 @@ func _rail_panel(ui: CanvasLayer, right: bool, sink: Array) -> VBoxContainer:
 	sink.append(panel)
 	sink.append(scroll)
 	return vbox
+
+
+# Anchor a rail Control to the left or right screen edge, top `top`, bottom `MARGIN`, with a
+# symmetric horizontal `inset` (used so the scroll sits just inside its panel). Width-correct
+# under any logical viewport size because it rides anchors, not absolute coordinates.
+func _anchor_rail(c: Control, right: bool, w: float, top: float, inset: float) -> void:
+	c.anchor_top = 0.0
+	c.anchor_bottom = 1.0
+	c.offset_top = top + inset
+	c.offset_bottom = -MARGIN - inset
+	if right:
+		c.anchor_left = 1.0
+		c.anchor_right = 1.0
+		c.offset_left = -(MARGIN + w) + inset
+		c.offset_right = -MARGIN - inset
+	else:
+		c.anchor_left = 0.0
+		c.anchor_right = 0.0
+		c.offset_left = MARGIN + inset
+		c.offset_right = MARGIN + w - inset
 
 
 # ---- Player tab ----------------------------------------------------------
@@ -715,10 +741,51 @@ func _build_bullets_tab(ui: CanvasLayer) -> void:
 	var btn_row := HBoxContainer.new()
 	btn_row.add_theme_constant_override("separation", 10)
 	panel.add_child(btn_row)
+	btn_row.add_child(_button("Fire ▶", _fire_bullet_preview))
 	btn_row.add_child(_button("Save", _on_bullet_save))
 	btn_row.add_child(_button("Copy GDScript", _on_bullet_copy))
 
 	_tab_nodes[Tab.BULLETS] = sink
+
+
+# Live-fire the selected bullet into the preview world so its motion/behavior is visible (was a
+# static sprite). Enemy variants fire DOWN from the top via a throwaway Weapon + stand-in shooter
+# (BulletCatalog.scene_for resolves the variant's scene); player bullet scenes instantiate and
+# start() UP from the bottom, matching their in-game travel.
+func _fire_bullet_preview() -> void:
+	if _world == null:
+		return
+	var sel: PackedInt32Array = _b_list.get_selected_items()
+	if sel.is_empty():
+		return
+	var idx: int = sel[0]
+	if idx < 0 or idx >= _b_items.size():
+		return
+	var path: String = _b_items[idx]
+	if _b_is_enemy:
+		var bv = load(path)
+		if bv == null:
+			return
+		var w := Weapon.new()
+		w.fire_pattern = Weapon.FirePattern.SINGLE
+		w.aim = Weapon.Aim.STRAIGHT_DOWN
+		w.payload = bv
+		var shooter := Node2D.new()
+		shooter.position = Vector2(Playfield.CENTER.x, Playfield.Y_MIN + 30.0)
+		_world.add_child(shooter)
+		w.fire(shooter)           # SINGLE is synchronous; bullet reparents to _world
+		shooter.queue_free()
+	else:
+		var ps := load(path) as PackedScene
+		if ps == null:
+			return
+		var b = ps.instantiate()
+		_world.add_child(b)
+		var spawn := Vector2(Playfield.CENTER.x, Playfield.Y_MAX - 40.0)
+		if b is Node2D:
+			(b as Node2D).position = spawn
+		if b.has_method("start"):
+			b.start(spawn, Vector2.UP)
 
 
 func _refresh_bullet_list() -> void:
