@@ -1,159 +1,190 @@
 extends Control
 
-# Asteroid Lab (Roman 2026-05-19, Cody 2026-05-19 tweaks). Single procgen
-# asteroid in the centre of the screen with sliders for every generation
-# knob. Useful for understanding how the asteroid shader's inputs map
-# to the visual output.
+# Asteroid Lab — single procgen asteroid with sliders for every generation knob.
+# HD-rebuilt 2026-06-17: the preview now renders in a native-480 SubViewport (4×
+# upscale, crisp pixel-art) inside an HD 1920×1080 shell, mirroring the Parallax
+# Tuner / Enemy Bench pattern — the old native-480 Control stretched on the HD window.
 #
-# Cody 2026-05-19 tweaks:
-#   - Tint sliders apply to the INNER ColorRect (the shader-bearing
-#     node) so the modulate actually reaches the rendered pixels.
-#   - Numeric value readout next to each slider — updated on change.
-#   - "Generate New Asteroid" button reseeds + rebuilds.
-#   - Sliders + fonts ~25% smaller for a tighter rail.
+# Knob surface follows the real Asteroids.gdshader uniforms: size (noise freq),
+# octaves (detail), roundness, time_speed (surface churn), light angle, outline
+# toggle + colour, dither, plus the lab's footprint size + spin + RGB tint.
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const PROCGEN_ASTEROID = "res://Planets/Asteroids/Asteroid.tscn"
 
-# Cody's 25%-smaller pass — used by the slider/label rows below.
-const FONT_HDR := 10   # was 16 → 12 → 10 (another 20%)
-const FONT_LBL := 6    # was 9 → 7 → 6
-const FONT_VAL := 6    # numeric readout
-const SLIDER_H := 7    # was 12 → 9 → 7
-
-# Asteroid centred in the right half of the 480×270 viewport so the
-# slider rail on the left doesn't crowd the preview.
-const ASTEROID_CENTER := Vector2(360.0, 135.0)
-
-var _visual: Control = null
-var _seed: int = 12345
-
-var _size_slider: HSlider = null
-var _spin_slider: HSlider = null
-var _tint_r_slider: HSlider = null
-var _tint_g_slider: HSlider = null
-var _tint_b_slider: HSlider = null
-# Cobalt 2026-05-21: roundness knob. Internally drives the asteroid
-# shader's `size` (noise frequency) and `octaves` (detail layers) —
-# at 0 the rock looks jagged/lumpy, at 1 it tends toward a clean disc
-# because the noise can no longer carve large divots out of the radial
-# envelope.
-var _roundness_slider: HSlider = null
-# Pixel parity for the lab — same rule as galaxy_backdrop:
-# shader_pixels = displayed_size_vp / pixel_density.
+# Native-viewport centre the asteroid sits at (preview SubViewport is 480×270).
+const ASTEROID_CENTER := Vector2(240.0, 135.0)
 const PIXEL_DENSITY := 1.0
 const PIXELS_FLOOR := 16.0
 const COLORRECT_CANONICAL := Vector2(100.0, 100.0)
-# Per-slider readout labels — bound by closure on slider.value_changed.
-var _readouts: Dictionary = {}
+
+# Slider schema — key/label/min/max/step/default/fmt. Driven into the shader in _regenerate.
+const KNOBS := [
+	{"key": "size_px",    "label": "Footprint (px)",   "min": 30.0, "max": 160.0, "step": 1.0,  "def": 60.0,  "fmt": "%d px"},
+	{"key": "roundness",  "label": "Roundness",         "min": 0.0,  "max": 1.0,   "step": 0.05, "def": 0.0,   "fmt": "%.2f"},
+	{"key": "octaves",    "label": "Detail (octaves)",  "min": 1.0,  "max": 8.0,   "step": 1.0,  "def": 3.0,   "fmt": "%d"},
+	{"key": "churn",      "label": "Surface churn",     "min": 0.0,  "max": 1.0,   "step": 0.02, "def": 0.40,  "fmt": "%.2f"},
+	{"key": "light_ang",  "label": "Light angle",       "min": 0.0,  "max": 360.0, "step": 5.0,  "def": 225.0, "fmt": "%d°"},
+	{"key": "spin",       "label": "Spin",              "min": -3.0, "max": 3.0,   "step": 0.1,  "def": 0.0,   "fmt": "%.1f rad/s"},
+	{"key": "tint_r",     "label": "Tint R",            "min": 0.3,  "max": 1.7,   "step": 0.05, "def": 1.20,  "fmt": "%.2f"},
+	{"key": "tint_g",     "label": "Tint G",            "min": 0.3,  "max": 1.7,   "step": 0.05, "def": 1.05,  "fmt": "%.2f"},
+	{"key": "tint_b",     "label": "Tint B",            "min": 0.3,  "max": 1.7,   "step": 0.05, "def": 0.85,  "fmt": "%.2f"},
+]
+
+var _hd_scope: HdViewportScope = null
+var _world: SubViewport = null
+var _visual: Control = null
+var _seed: int = 12345
+var _vals: Dictionary = {}
+var _draw_outline: bool = true
+var _dither: bool = true
 var _readout: Label = null
 
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_hd_scope = HdViewportScope.attach(self)
+	for d in KNOBS:
+		_vals[d["key"]] = float(d["def"])
+	_build_preview_subviewport()
 	_build_ui()
 	_regenerate()
+	if has_node("/root/Music"):
+		get_node("/root/Music").set_context("silent")
 
 
-func _build_ui() -> void:
+func _build_preview_subviewport() -> void:
 	var bg := ColorRect.new()
 	bg.color = Color(0.04, 0.05, 0.08, 1.0)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
-	# Sidebar with sliders on the left, asteroid preview on the right.
+	_world = SubViewport.new()
+	_world.size = Vector2i(480, 270)
+	_world.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_world.transparent_bg = true
+	var container := SubViewportContainer.new()
+	container.stretch = true
+	container.stretch_shrink = 4   # 1920/4 = 480 → renders native, upscaled 4×
+	container.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	container.add_child(_world)
+	add_child(container)
+
+
+func _build_ui() -> void:
+	var ui_layer := CanvasLayer.new()
+	ui_layer.layer = 20
+	add_child(ui_layer)
+	var panel := PanelContainer.new()
+	panel.position = Vector2(1430, 0)
+	panel.size = Vector2(490, 1080)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.05, 0.07, 0.11, 0.9)
+	sb.content_margin_left = 12
+	sb.content_margin_right = 12
+	sb.content_margin_top = 12
+	sb.content_margin_bottom = 12
+	panel.add_theme_stylebox_override("panel", sb)
+	ui_layer.add_child(panel)
+	var scroll := ScrollContainer.new()
+	panel.add_child(scroll)
 	var v := VBoxContainer.new()
-	v.position = Vector2(8, 8)
-	v.size = Vector2(96, 380)
-	v.add_theme_constant_override("separation", 2)
-	add_child(v)
+	v.add_theme_constant_override("separation", 8)
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(v)
+
 	var hdr := Label.new()
 	hdr.text = "ASTEROID LAB"
-	hdr.add_theme_font_size_override("font_size", FONT_HDR)
+	hdr.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_HEADER)
 	hdr.add_theme_color_override("font_color", UiTheme.COLOR_ACCENT)
 	v.add_child(hdr)
 	var sub := Label.new()
-	sub.text = "Tune the procgen knobs."
-	sub.add_theme_font_size_override("font_size", FONT_LBL)
+	sub.text = "Tune the procgen asteroid shader."
+	sub.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
 	sub.add_theme_color_override("font_color", UiTheme.COLOR_FAINT)
 	v.add_child(sub)
 	v.add_child(HSeparator.new())
-	_size_slider = _add_slider(v, "Size", 30.0, 160.0, 1.0, 60.0, "%d px")
-	# Pixels uniform is no longer a free slider — it's derived from Size
-	# so the asteroid always renders at 1:1 pixel parity (same density as
-	# the player ship). Roundness replaces it as the second knob.
-	_roundness_slider = _add_slider(v, "Roundness", 0.0, 1.0, 0.05, 0.0, "%.2f")
-	_spin_slider = _add_slider(v, "Spin", -3.0, 3.0, 0.1, 0.0, "%.1f rad/s")
-	_tint_r_slider = _add_slider(v, "Tint R", 0.3, 1.7, 0.05, 1.20, "%.2f")
-	_tint_g_slider = _add_slider(v, "Tint G", 0.3, 1.7, 0.05, 1.05, "%.2f")
-	_tint_b_slider = _add_slider(v, "Tint B", 0.3, 1.7, 0.05, 0.85, "%.2f")
+
+	for d in KNOBS:
+		_add_slider(v, d)
+
+	v.add_child(HSeparator.new())
+	# Toggles: outline + dither.
+	_add_toggle(v, "Draw outline", _draw_outline, func(on: bool): _draw_outline = on; _regenerate())
+	_add_toggle(v, "Dither", _dither, func(on: bool): _dither = on; _regenerate())
+
 	v.add_child(HSeparator.new())
 	_readout = Label.new()
-	_readout.add_theme_font_size_override("font_size", FONT_LBL)
+	_readout.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
 	_readout.add_theme_color_override("font_color", Color(0.85, 0.92, 1.0))
 	v.add_child(_readout)
+
 	v.add_child(HSeparator.new())
-	# Cody 2026-05-19: distinct from Reroll. "Generate New Asteroid"
-	# always picks a fresh seed; the regen-on-slider path keeps the seed.
-	var new_btn := Button.new()
-	new_btn.text = "Generate New Asteroid"
-	new_btn.add_theme_font_size_override("font_size", FONT_LBL)
-	UiTheme.style_button(new_btn, true)
-	new_btn.pressed.connect(_on_new_asteroid)
-	v.add_child(new_btn)
-	var back_btn := Button.new()
-	back_btn.text = "Back"
-	back_btn.add_theme_font_size_override("font_size", FONT_LBL)
-	UiTheme.style_button(back_btn, true)
-	back_btn.pressed.connect(_on_back)
-	v.add_child(back_btn)
+	_add_button(v, "Generate New Asteroid", _on_new_asteroid)
+	_add_button(v, "Back", _on_back)
 
 
-func _add_slider(parent: Container, label: String, lo: float, hi: float, step: float, default_v: float, fmt: String) -> HSlider:
-	# Label + numeric readout share one row so the rail stays narrow.
+func _add_slider(parent: Container, d: Dictionary) -> void:
+	var key: String = d["key"]
+	var fmt: String = d["fmt"]
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 4)
+	row.add_theme_constant_override("separation", 8)
 	parent.add_child(row)
 	var l := Label.new()
-	l.text = label
-	l.add_theme_font_size_override("font_size", FONT_LBL)
+	l.text = d["label"]
+	l.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(l)
 	var val := Label.new()
-	val.text = fmt % default_v
-	val.add_theme_font_size_override("font_size", FONT_VAL)
+	val.text = fmt % float(_vals[key])
+	val.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
 	val.add_theme_color_override("font_color", Color(0.85, 0.92, 1.0))
 	val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	val.custom_minimum_size = Vector2(90, 0)
 	row.add_child(val)
 	var s := HSlider.new()
-	s.min_value = lo
-	s.max_value = hi
-	s.step = step
-	s.value = default_v
-	s.custom_minimum_size = Vector2(0, SLIDER_H)
-	s.value_changed.connect(_on_slider_changed)
-	# Closure that retypes the readout as the slider moves.
+	s.min_value = float(d["min"])
+	s.max_value = float(d["max"])
+	s.step = float(d["step"])
+	s.value = float(_vals[key])
+	s.custom_minimum_size = Vector2(0, 24)
 	s.value_changed.connect(func(v: float):
+		_vals[key] = v
 		val.text = fmt % v
-	)
+		_regenerate())
 	parent.add_child(s)
-	return s
 
 
-func _on_slider_changed(_v: float) -> void:
-	_regenerate()
+func _add_toggle(parent: Container, text: String, on: bool, cb: Callable) -> void:
+	var b := CheckButton.new()
+	b.text = text
+	b.button_pressed = on
+	b.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	b.toggled.connect(cb)
+	parent.add_child(b)
 
 
-# Cody 2026-05-19: was "Reroll Seed" — renamed to "Generate New Asteroid"
-# (player-facing label) but still does the same thing: fresh randi seed
-# + full regenerate.
+func _add_button(parent: Container, text: String, cb: Callable) -> void:
+	var b := Button.new()
+	b.text = text
+	b.custom_minimum_size = Vector2(0, 36)
+	b.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BUTTON)
+	UiTheme.style_button(b, true)
+	b.pressed.connect(cb)
+	parent.add_child(b)
+
+
 func _on_new_asteroid() -> void:
 	_seed = randi()
 	_regenerate()
 
 
 func _regenerate() -> void:
-	# Tear down old visual.
+	if _world == null:
+		return
 	if _visual and is_instance_valid(_visual):
 		_visual.queue_free()
 		_visual = null
@@ -161,18 +192,14 @@ func _regenerate() -> void:
 	if ps == null:
 		return
 	var v = ps.instantiate()
-	# Per-instance shader material so each seed produces a distinct rock.
-	# Targets the INNER Asteroid ColorRect — that's where the shader lives.
+	# Per-instance shader material so each seed/knob set produces a distinct rock.
 	var inner: Control = v.get_node_or_null("Asteroid") as Control
 	if inner and inner.material != null:
 		inner.material = inner.material.duplicate()
 	if v.has_method("set_seed"):
 		v.set_seed(_seed)
-	# Cobalt 2026-05-21: asteroid now renders at 1:1 pixel parity. The
-	# outer Control uses scale instead of resizing so the canonical
-	# 100×100 ColorRect inside the addon stays untouched; shader pixels =
-	# size_px keeps cell viewport size = 1 (matches player density).
-	var size_px: float = float(_size_slider.value)
+	# 1:1 pixel parity: scale the outer Control, keep the inner 100×100 ColorRect canonical.
+	var size_px: float = float(_vals["size_px"])
 	var sf: float = size_px / 100.0
 	if v is Control:
 		v.custom_minimum_size = COLORRECT_CANONICAL
@@ -180,30 +207,29 @@ func _regenerate() -> void:
 		v.scale = Vector2(sf, sf)
 		v.position = ASTEROID_CENTER - COLORRECT_CANONICAL * 0.5 * sf
 		v.pivot_offset = COLORRECT_CANONICAL * 0.5
-	# Drive shader pixels via the parity rule. Floor protects against
-	# unreadable mush at very small sizes.
 	var shader_pixels: float = max(size_px / PIXEL_DENSITY, PIXELS_FLOOR)
 	if v.has_method("set_pixels"):
 		v.set_pixels(shader_pixels)
-	# Roundness drives shader `size` (noise frequency) and `octaves`
-	# inversely — high roundness = small noise lobes + few octaves =
-	# rounder silhouette.
-	var roundness: float = float(_roundness_slider.value)
-	var asteroid_size: float = lerp(8.0, 1.5, roundness)
-	var asteroid_octaves: int = int(round(lerp(4.0, 1.0, roundness)))
+	# Apply the shader knobs. Roundness drives noise frequency (`size`); octaves is now its
+	# OWN knob (was coupled to roundness); churn = time_speed; light angle → light_origin.
 	if inner and inner.material is ShaderMaterial:
 		var mat: ShaderMaterial = inner.material
-		mat.set_shader_parameter("size", asteroid_size)
-		mat.set_shader_parameter("octaves", asteroid_octaves)
-	# Inner ColorRect stays at canonical 100×100 — set_pixels was resizing
-	# it which couples shader resolution to footprint. Reset undoes that.
+		var roundness: float = float(_vals["roundness"])
+		mat.set_shader_parameter("size", lerp(8.0, 1.5, roundness))
+		mat.set_shader_parameter("roundness", roundness)
+		mat.set_shader_parameter("octaves", int(round(float(_vals["octaves"]))))
+		mat.set_shader_parameter("time_speed", float(_vals["churn"]))
+		var ang: float = deg_to_rad(float(_vals["light_ang"]))
+		mat.set_shader_parameter("light_origin", Vector2(0.5 + 0.45 * cos(ang), 0.5 + 0.45 * sin(ang)))
+		mat.set_shader_parameter("draw_outline", _draw_outline)
+		mat.set_shader_parameter("should_dither", _dither)
 	if inner:
 		inner.size = COLORRECT_CANONICAL
 		inner.position = Vector2.ZERO
 		inner.pivot_offset = COLORRECT_CANONICAL * 0.5
-		inner.modulate = Color(_tint_r_slider.value, _tint_g_slider.value, _tint_b_slider.value, 1.0)
-	v.set_meta("spin", float(_spin_slider.value))
-	add_child(v)
+		inner.modulate = Color(float(_vals["tint_r"]), float(_vals["tint_g"]), float(_vals["tint_b"]), 1.0)
+	v.set_meta("spin", float(_vals["spin"]))
+	_world.add_child(v)
 	_visual = v
 	_update_readout()
 
@@ -218,7 +244,7 @@ func _process(delta: float) -> void:
 func _update_readout() -> void:
 	if _readout == null:
 		return
-	_readout.text = "Seed: %d" % _seed
+	_readout.text = "Seed: %d   octaves: %d" % [_seed, int(round(float(_vals["octaves"])))]
 
 
 func _on_back() -> void:
