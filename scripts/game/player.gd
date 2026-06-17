@@ -806,12 +806,23 @@ func _setup_shield_ring() -> void:
 	_shield_mat.shader = SHIELD_SHADER
 	_shield_mat.set_shader_parameter("alpha", 0.0)
 	_shield_mat.set_shader_parameter("hit_strength", 0.0)
+	# Look intaken from the Player FX Lab (Roman's saved tuning, 2026-06-17): sparser hex cells,
+	# bolder lines, tighter rim, static (no scroll), light-cyan. The ring is invisible until a hit
+	# (alpha 0); these define how the flash reads.
+	_shield_mat.set_shader_parameter("shield_color", Color.html("59d9ff"))
+	_shield_mat.set_shader_parameter("cells", 4.0)
+	_shield_mat.set_shader_parameter("scroll", Vector2(0.0, 0.0))
+	_shield_mat.set_shader_parameter("line_width", 0.25)
+	_shield_mat.set_shader_parameter("rim_power", 3.5)
+	_shield_mat.set_shader_parameter("fill_alpha", 0.05)
+	_shield_mat.set_shader_parameter("flicker", 1.0)
+	_shield_mat.set_shader_parameter("dome", 0.2)
 
 	_shield_ring = ColorRect.new()
 	_shield_ring.name = "ShieldRing"
 	_shield_ring.color = Color(1, 1, 1, 1) # shader drives final color
 	_shield_ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_shield_ring.size = Vector2(26, 26)
+	_shield_ring.size = Vector2(22, 22)
 	_shield_ring.position = -_shield_ring.size * 0.5
 	_shield_ring.material = _shield_mat
 	_shield_ring.z_index = 1

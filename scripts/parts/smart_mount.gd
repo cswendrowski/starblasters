@@ -8,7 +8,7 @@ extends "res://scripts/parts/module_part.gd"
 # Part just stamps the per-Mk knobs. Subclass overrides _is_blaster() + identity in _init().
 # Default-safe: the mount flags default false on the ship.
 
-@export var base_traverse: float = 2.5       # rad/s aim slew at Mk.1
+@export var base_traverse: float = 1.0472    # rad/s aim slew at Mk.1 — 60°/s, slower, more visible aim (intaken from Smart Mount Lab 2026-06-17; was 2.5 ≈ 143°/s)
 @export var traverse_per_mark: float = 0.45  # +/mark → ~6.1 rad/s at Mk.9
 @export var base_dispersion: float = 0.1745  # ~10° half-spread at Mk.1
 @export var min_dispersion: float = 0.0349   # ~2° floor at Mk.9
