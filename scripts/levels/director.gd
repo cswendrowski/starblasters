@@ -411,6 +411,12 @@ func _dispatch_authored(ph: Resource) -> void:
 	if specs.is_empty():
 		return
 	specs.sort_custom(func(a, b): return float(a.spawn_delay) < float(b.spawn_delay))
+	# An authored formation is an EXPLICIT count — the author placed exactly these enemies and
+	# expects them all on screen on their authored schedule. The standard max_concurrent gate is a
+	# clarity throttle for ALGORITHMIC waves; applying it here partially dropped large formations and
+	# staggered same-row enemies that should burst together (Roman 2026-06-17). Raise the gate to fit
+	# the whole formation on top of whatever's already alive, so the authored layout lands intact.
+	var authored_cap: int = maxi(max_concurrent, _alive_count() + specs.size())
 	var elapsed: float = 0.0
 	for sp in specs:
 		if not _running:
@@ -421,7 +427,7 @@ func _dispatch_authored(ph: Resource) -> void:
 			elapsed += wait
 			if not _running:
 				return
-		while _running and _alive_count() >= max_concurrent:
+		while _running and _alive_count() >= authored_cap:
 			await get_tree().create_timer(0.1).timeout
 		if not _running:
 			return
