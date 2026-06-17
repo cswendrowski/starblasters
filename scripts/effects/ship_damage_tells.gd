@@ -63,12 +63,15 @@ const DEFAULT_CFG := {
 	# category for the damage tells. 0 = that category is NOT eligible. Defaults reproduce the prior
 	# hardcoded behavior EXACTLY — engines favoured (3), muzzle/turret normal (1), centre fallback (1);
 	# thruster/launcher were not gathered before (0), now tunable on.
-	"w_engine": 3.0,
-	"w_thruster": 0.0,
-	"w_muzzle": 1.0,
-	"w_launcher": 0.0,
-	"w_turret": 1.0,
-	"w_centre": 1.0,
+	# Marker bias intaken from the Shader Lab → Ship Damage suite (Roman 2026-06-17): a broad spread
+	# across all marker types instead of the old engine-only lean — engines still favoured, but
+	# thrusters / launchers / turrets / centre now share the damage tells.
+	"w_engine": 5.0,
+	"w_thruster": 4.0,
+	"w_muzzle": 0.5,
+	"w_launcher": 3.0,
+	"w_turret": 2.0,
+	"w_centre": 4.0,
 }
 
 var self_explode: bool = true   # false = the caller (enemy_base) owns the explosion; we just disintegrate
