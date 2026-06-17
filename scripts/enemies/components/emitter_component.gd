@@ -14,6 +14,8 @@ extends EnemyComponent
 # (firecore_drone) needs per-projectile direction, so it stays a separate concern.
 
 const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
+const Playfield = preload("res://scripts/systems/playfield.gd")
+const WeaponSfxC = preload("res://scripts/effects/weapon_sfx.gd")
 
 enum Trigger { START, TIMER, DEATH }
 
@@ -25,14 +27,22 @@ enum Trigger { START, TIMER, DEATH }
 @export var spread: float = 0.0           # px: random positional scatter around the enemy
 @export var attach_to_enemy: bool = false  # true = child of enemy (turrets ride along)
 @export var tag: String = ""              # optional identifier (e.g. "firecore" for zealots)
+# TIMER extras (Roman 2026-06-17, generalized from the interceptor's bespoke missile-drop):
+@export var max_emits: int = 0            # stop after this many TIMER emits per pass (0 = unlimited)
+@export var band_only: bool = false       # TIMER only fires while the enemy is in the visible playfield band
+@export var sfx: String = ""              # optional WeaponSfx key played on each emit (e.g. "missile")
 
 var _t: float = 0.0
+var _emit_count: int = 0                  # TIMER emits so far this pass (vs max_emits)
 var _last_emit_succeeded: bool = false    # track if the last emission fired
 var _started: bool = false                # START fires once per instance, not once per recycle
 
 
 func on_start(enemy) -> void:
 	_t = 0.0
+	# TIMER budget refreshes each pass — on_start re-runs on every parallax recycle
+	# (enemy_core._components_start), so a `drops_per_pass`-style limit resets per pass.
+	_emit_count = 0
 	# on_start re-runs on every parallax recycle (enemy_core._components_start); a START emit must
 	# fire only ONCE per instance, else a turret/drop stacks a fresh payload each cycle. (Audit 2026-06-15.)
 	if trigger == Trigger.START and not _started:
@@ -43,11 +53,25 @@ func on_start(enemy) -> void:
 func on_process(enemy, delta: float) -> void:
 	if trigger != Trigger.TIMER:
 		return
+	if max_emits > 0 and _emit_count >= max_emits:
+		return
+	# band_only: pause the cadence while off-screen (entering from the top / past the bottom) so a fast
+	# diver doesn't waste its drops, mirroring the interceptor's `60 < y < sy-80` gate.
+	if band_only and not _in_band(enemy):
+		return
 	_t += delta
 	if _t >= cadence:
 		_t = 0.0
 		if _roll():
 			_emit(enemy)
+			_emit_count += 1
+
+
+func _in_band(enemy) -> bool:
+	if enemy == null or not (enemy is Node2D):
+		return true
+	var y: float = (enemy as Node2D).global_position.y
+	return y >= Playfield.Y_MIN + 10.0 and y <= Playfield.Y_MAX - 20.0
 
 
 func on_death(enemy) -> void:
@@ -76,6 +100,8 @@ func _emit(enemy) -> void:
 	if parent == null:
 		return
 	var base_pos: Vector2 = enemy.global_position
+	if sfx != "":
+		WeaponSfxC.play(enemy.get_tree().root, base_pos, sfx)
 	for _i in count:
 		var inst = payload.instantiate()
 		if inst == null:

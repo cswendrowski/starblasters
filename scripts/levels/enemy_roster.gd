@@ -956,6 +956,9 @@ const ENTRIES := [
 		"size": "medium", "tags": ["tough"],
 		"movement": "side_dive",
 		"shoot": null,
+		# Missile drop, now a reusable EmitterComponent (was bespoke in interceptor.gd): 3 drifting
+		# missiles per pass, 0.55s apart, only while on-screen.
+		"emitters": [{ "trigger": "timer", "payload": "Missile", "count": 1, "cadence": 0.55, "max_emits": 3, "band_only": true, "sfx": "missile" }],
 		"base_count": 3,
 		"unlock_sector": 1, "unlock_depth": 0,
 	},
@@ -975,13 +978,14 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0,
 	},
 	{
-		# Wing (privateer medium, 2026-06-17) — wide missile-dropper. Reuses interceptor.gd, which
-		# drops drifting (shootable) missiles on each mid-band pass; stats follow the medium size class.
+		# Wing (privateer medium, 2026-06-17) — wide missile-dropper. Uses interceptor.gd (no-recycle
+		# exit) + the reusable EmitterComponent for the drop; stats follow the medium size class.
 		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_wing.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
 		"movement": "side_dive",
 		"shoot": null,
+		"emitters": [{ "trigger": "timer", "payload": "Missile", "count": 1, "cadence": 0.55, "max_emits": 3, "band_only": true, "sfx": "missile" }],
 		"base_count": 2,
 		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0,
 	},
@@ -1472,6 +1476,60 @@ static func _mount_from_dict(d: Dictionary) -> Resource:
 	m.turret_hframes = int(d.get("turret_hframes", 1))
 	m.beam_config = d.get("beam_config", {})
 	return m
+
+
+# ---- Emitters (behavior components: drop/spawn a payload scene on a trigger) ----------------------
+# Mirrors make_mounts: builds EmitterComponents from an entry's optional "emitters" key (dict-list).
+# Returns [] when absent (every existing entry unchanged). Used by wave_generator (production) + the
+# Enemy Bench. An emitter is the generalized form of the interceptor's missile-drop (Roman 2026-06-17).
+const EmitterComponentC = preload("res://scripts/enemies/components/emitter_component.gd")
+const _EMIT_TRIGGER := {"start": 0, "timer": 1, "death": 2}   # EmitterComponent.Trigger
+# Friendly payload names → scene paths (the Enemy Bench dropdown picks from these).
+const EMITTABLE := {
+	"Missile":  "res://scenes/projectiles/drifting_missile.tscn",
+	"Mine":     "res://scenes/enemies/enemy_mine.tscn",
+	"Bomblet":  "res://scenes/enemies/enemy_bomblet.tscn",
+	"Firecore": "res://scenes/enemies/factions/zealot/firecore_hazard.tscn",
+}
+
+
+static func make_emitters(entry: Dictionary) -> Array:
+	var listed: Variant = entry.get("emitters", [])
+	return make_emitter_specs(listed) if listed is Array else []
+
+
+# Shared dict → EmitterComponent converter, also used by the Enemy Bench preview. FRESH per call.
+static func make_emitter_specs(dicts: Array) -> Array:
+	var out: Array = []
+	for d in dicts:
+		if d is Dictionary:
+			var e = _emitter_from_dict(d)
+			if e != null:
+				out.append(e)
+	return out
+
+
+static func _emitter_from_dict(d: Dictionary) -> Resource:
+	var e = EmitterComponentC.new()
+	e.trigger = int(_EMIT_TRIGGER.get(String(d.get("trigger", "timer")), 1))
+	# payload: an EMITTABLE name, or a direct res:// scene path / PackedScene.
+	var pay: Variant = d.get("payload", "")
+	if pay is String:
+		var path: String = String(EMITTABLE.get(pay, pay))   # name → path, else treat the string as a path
+		if path != "" and ResourceLoader.exists(path):
+			e.payload = load(path)
+	elif pay is PackedScene:
+		e.payload = pay
+	e.count = int(d.get("count", 1))
+	e.cadence = float(d.get("cadence", 2.0))
+	e.chance = float(d.get("chance", 1.0))
+	e.spread = float(d.get("spread", 0.0))
+	e.attach_to_enemy = bool(d.get("attach", d.get("attach_to_enemy", false)))
+	e.tag = String(d.get("tag", ""))
+	e.max_emits = int(d.get("max_emits", 0))
+	e.band_only = bool(d.get("band_only", false))
+	e.sfx = String(d.get("sfx", ""))
+	return e
 
 
 static func make_shoot(entry: Dictionary) -> Resource:

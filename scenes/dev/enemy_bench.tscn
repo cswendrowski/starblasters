@@ -291,6 +291,26 @@ custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 text = "+ Add Mount"
 
+[node name="EmittersSep" type="HSeparator" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+
+[node name="EmittersHeader" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.82, 1, 1)
+theme_override_font_sizes/font_size = 18
+text = "Emitters — drop/spawn on trigger"
+
+[node name="EmittersList" type="VBoxContainer" parent="UI/RightPanel/RightScroll/RightVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="AddEmitterButton" type="Button" parent="UI/RightPanel/RightScroll/RightVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+text = "+ Add Emitter"
+
 [node name="Sep2" type="HSeparator" parent="UI/RightPanel/RightScroll/RightVBox"]
 layout_mode = 2
 

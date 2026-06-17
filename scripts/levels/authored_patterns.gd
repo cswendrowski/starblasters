@@ -191,7 +191,7 @@ static func _spec_for_placement(pl: Dictionary, fill_faction: int, sector: int, 
 		var sp = Roster.make_shoot(entry)
 		if sp != null:
 			ws.shoot_pattern_override = sp
-		ws.components_override = Roster.make_components(entry)
+		ws.components_override = Roster.make_components(entry) + Roster.make_emitters(entry)
 		if entry.has("fire_min"):
 			ws.fire_interval_min = float(entry["fire_min"])
 		if entry.has("fire_max"):

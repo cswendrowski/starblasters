@@ -623,7 +623,8 @@ static func _make_wave_spec(rng: RandomNumberGenerator, entry: Dictionary, secto
 	var sp: Resource = Roster.make_shoot(entry)
 	if sp != null:
 		w.shoot_pattern_override = sp
-	w.components_override = Roster.make_components(entry)
+	# Components = pre-built "components" + dict-built "emitters" (droppers/spawners). Emitters add on top.
+	w.components_override = Roster.make_components(entry) + Roster.make_emitters(entry)
 	w.mounts_override = Roster.make_mounts(entry)
 	if entry.has("fire_min"):
 		w.fire_interval_min = float(entry["fire_min"])

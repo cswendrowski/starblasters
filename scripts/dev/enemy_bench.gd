@@ -54,6 +54,10 @@ const PROJECTILES := {
 	"Missile": "res://scenes/projectiles/drifting_missile.tscn",
 	"Bomblet": "res://scenes/enemies/enemy_bomblet.tscn",
 }
+# Emitters editor (the reusable EmitterComponent: drop/spawn a payload scene on a trigger — the
+# generalized form of the interceptor's missile-drop). Payload names come from EnemyRoster.EMITTABLE.
+const EMITTER_TRIGGERS := ["start", "timer", "death"]
+const EMITTER_TRIGGER_LABELS := ["Spawn", "Timer", "On Death"]
 # Faction → turret graphic for TURRET mounts so they're never invisible. The dome/zealot strips are
 # 3-frame recoil; the generic fallback is a 1-frame static turret.
 const TURRET_GFX := {
@@ -122,6 +126,9 @@ var _pattern_idx: int = 0
 # Mounts editor — extra emitters (gun/turret/launcher/beam) beyond the hull weapon (Mount 0).
 @onready var _mounts_list: VBoxContainer = %MountsList
 @onready var _add_mount_btn: Button = %AddMountButton
+# Emitters editor — EmitterComponents (drop/spawn a payload on a trigger), separate from the weapon mounts.
+@onready var _emitters_list: VBoxContainer = %EmittersList
+@onready var _add_emitter_btn: Button = %AddEmitterButton
 
 # scene_path -> true if any roster ENTRY declares a non-null "shoot" key. This is production's
 # source of truth for "this enemy_core enemy carries a generic Weapon" (the director assigns it
@@ -132,6 +139,9 @@ var _roster_armed: Dictionary = {}
 # Working list of mount dicts for the selected enemy (name-based, JSON-friendly):
 # {kind, marker, payload(name), aim, fire, count, spread}. Converted to MountSpecs at spawn.
 var _mount_dicts: Array = []
+# Working list of emitter dicts: {trigger, payload(name), cadence, count, max_emits, band_only}.
+# Converted to EmitterComponents at spawn via EnemyRoster.make_emitter_specs.
+var _emitter_dicts: Array = []
 
 # Persisted per-scene settings.
 var _saved: Dictionary = {}
@@ -277,6 +287,7 @@ func _setup_ui() -> void:
 	(%CopyButton as Button).pressed.connect(_on_copy)
 	(%BackButton as Button).pressed.connect(_on_back)
 	_add_mount_btn.pressed.connect(_add_mount)
+	_add_emitter_btn.pressed.connect(_add_emitter)
 
 	_wire_mute_toggle(%MusicMute as Button, "Music", _music_bus_was_muted)
 	_wire_mute_toggle(%SfxMute as Button, "SFX", _sfx_bus_was_muted)
@@ -622,6 +633,10 @@ func _spawn_current() -> void:
 	_apply_stats_to(inst)   # HP/scale/etc BEFORE _ready so health = max_health from frame 0
 	if "mounts" in inst:
 		inst.mounts = EnemyRoster.make_mount_specs(_mount_spec_dicts())   # extra emitters, BEFORE add_child
+	if "components" in inst:
+		var ems: Array = EnemyRoster.make_emitter_specs(_emitter_spec_dicts())
+		if not ems.is_empty():
+			inst.components = inst.components + ems   # append droppers/spawners to baked components
 	if inst is Node2D:
 		(inst as Node2D).position = spawn_pos
 	_enemy_layer.add_child(inst)
@@ -766,6 +781,151 @@ func _make_mount_row(idx: int) -> Control:
 	h3.add_child(cnt)
 	row.add_child(h3)
 	return row
+
+
+# ---- Emitters editor -----------------------------------------------------
+# Emitters are EmitterComponents — drop/spawn a payload scene on START/TIMER/DEATH, the reusable form of
+# the interceptor's missile-drop. `_emitter_dicts` holds JSON-friendly dicts; _emitter_spec_dicts()
+# resolves them to the roster "emitters" shape EnemyRoster.make_emitter_specs() builds at spawn.
+
+func _emitter_spec_dicts() -> Array:
+	var out: Array = []
+	for d in _emitter_dicts:
+		var pname: String = String(d.get("payload", "Missile"))
+		var sd: Dictionary = {
+			"trigger": String(d.get("trigger", "timer")),
+			"payload": pname,
+			"cadence": float(d.get("cadence", 0.55)),
+			"count": int(d.get("count", 1)),
+			"max_emits": int(d.get("max_emits", 0)),
+			"band_only": bool(d.get("band_only", false)),
+		}
+		if pname == "Missile":
+			sd["sfx"] = "missile"   # the drifting-missile drop carries the launch sound, like the interceptor
+		out.append(sd)
+	return out
+
+
+func _add_emitter() -> void:
+	_emitter_dicts.append({"trigger": "timer", "payload": "Missile", "cadence": 0.55, "count": 1, "max_emits": 3, "band_only": true})
+	_rebuild_emitters_ui()
+	_spawn_current()
+
+
+func _remove_emitter(d: Dictionary) -> void:
+	_emitter_dicts.erase(d)
+	_rebuild_emitters_ui()
+	_spawn_current()
+
+
+func _set_emitter(d: Dictionary, key: String, value) -> void:
+	d[key] = value
+	_spawn_current()
+
+
+func _rebuild_emitters_ui() -> void:
+	if _emitters_list == null:
+		return
+	for c in _emitters_list.get_children():
+		_emitters_list.remove_child(c)
+		c.queue_free()
+	for i in _emitter_dicts.size():
+		_emitters_list.add_child(_make_emitter_row(i))
+
+
+func _make_emitter_row(idx: int) -> Control:
+	var d: Dictionary = _emitter_dicts[idx]
+	var row := VBoxContainer.new()
+	row.add_theme_constant_override("separation", 3)
+	var head := HBoxContainer.new()
+	var title := _row_lbl("Emitter %d" % (idx + 1))
+	title.add_theme_color_override("font_color", Color(0.62, 0.82, 1, 1))
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	var rm := Button.new()
+	rm.text = "✕"
+	rm.custom_minimum_size = Vector2(34, 26)
+	rm.add_theme_font_size_override("font_size", FS_CAPTION)
+	rm.pressed.connect(func(): _remove_emitter(d))
+	head.add_child(rm)
+	row.add_child(head)
+	# Row 1: trigger + payload
+	var h1 := HBoxContainer.new()
+	var trig_dd := _row_dd(EMITTER_TRIGGER_LABELS, maxi(0, EMITTER_TRIGGERS.find(String(d.get("trigger", "timer")))))
+	trig_dd.item_selected.connect(func(i): _set_emitter(d, "trigger", EMITTER_TRIGGERS[i]))
+	h1.add_child(trig_dd)
+	var pnames: Array = EnemyRoster.EMITTABLE.keys()
+	var pay_dd := _row_dd(pnames, maxi(0, pnames.find(String(d.get("payload", "Missile")))))
+	pay_dd.item_selected.connect(func(i): _set_emitter(d, "payload", String(pnames[i])))
+	h1.add_child(pay_dd)
+	row.add_child(h1)
+	# Row 2: cadence + count
+	var h2 := HBoxContainer.new()
+	h2.add_child(_row_lbl("every"))
+	var cad := _row_spin(0.1, 6.0, 0.05, float(d.get("cadence", 0.55)))
+	cad.value_changed.connect(func(v): _set_emitter(d, "cadence", float(v)))
+	h2.add_child(cad)
+	h2.add_child(_row_lbl("count"))
+	var cnt := _row_spin(1, 12, 1, float(d.get("count", 1)))
+	cnt.value_changed.connect(func(v): _set_emitter(d, "count", int(v)))
+	h2.add_child(cnt)
+	row.add_child(h2)
+	# Row 3: max-per-pass (TIMER) + on-screen gate
+	var h3 := HBoxContainer.new()
+	h3.add_child(_row_lbl("max/pass"))
+	var mx := _row_spin(0, 20, 1, float(d.get("max_emits", 0)))
+	mx.value_changed.connect(func(v): _set_emitter(d, "max_emits", int(v)))
+	h3.add_child(mx)
+	var band := CheckBox.new()
+	band.text = "on-screen"
+	band.button_pressed = bool(d.get("band_only", false))
+	band.add_theme_font_size_override("font_size", FS_CAPTION)
+	band.toggled.connect(func(p): _set_emitter(d, "band_only", p))
+	h3.add_child(band)
+	row.add_child(h3)
+	return row
+
+
+# Default emitters for an enemy with no saved override: its production roster "emitters" block.
+func _default_emitters_for(path: String) -> Array:
+	var entry: Dictionary = EnemyRoster.entry_for_scene(path)
+	var raw = entry.get("emitters", []) if entry is Dictionary else []
+	var out: Array = []
+	if raw is Array:
+		for d in raw:
+			if d is Dictionary:
+				out.append({
+					"trigger": String(d.get("trigger", "timer")),
+					"payload": _emitter_payload_name(d),
+					"cadence": float(d.get("cadence", 2.0)),
+					"count": int(d.get("count", 1)),
+					"max_emits": int(d.get("max_emits", 0)),
+					"band_only": bool(d.get("band_only", false)),
+				})
+	return out
+
+
+# Roster emitter "payload" is already a friendly EMITTABLE name; fall back from a raw path.
+func _emitter_payload_name(d: Dictionary) -> String:
+	var pv = d.get("payload", "Missile")
+	if pv is String:
+		if EnemyRoster.EMITTABLE.has(pv):
+			return pv
+		for k in EnemyRoster.EMITTABLE:
+			if String(EnemyRoster.EMITTABLE[k]) == String(pv):
+				return String(k)
+	return "Missile"
+
+
+# A paste-ready roster "emitters" dict literal for one emitter.
+func _emitter_copy_line(d: Dictionary) -> String:
+	var pname: String = String(d.get("payload", "Missile"))
+	var extra: String = ", \"sfx\": \"missile\"" if pname == "Missile" else ""
+	var band: String = "true" if bool(d.get("band_only", false)) else "false"
+	return "{ \"trigger\": \"%s\", \"payload\": \"%s\", \"count\": %d, \"cadence\": %.2f, \"max_emits\": %d, \"band_only\": %s%s }," % [
+		String(d.get("trigger", "timer")), pname, int(d.get("count", 1)), float(d.get("cadence", 0.55)),
+		int(d.get("max_emits", 0)), band, extra,
+	]
 
 
 # Scan authored Marker2D names from a scene's state (no instantiation, like _icon_for).
@@ -1086,6 +1246,8 @@ func _load_settings_into_editors() -> void:
 	# Saved bench override wins; otherwise default to the enemy's production roster mounts.
 	_mount_dicts = _dup_mounts(s.get("mounts")) if s.has("mounts") else _default_mounts_for(_selected_path)
 	_rebuild_mounts_ui()
+	_emitter_dicts = _dup_mounts(s.get("emitters")) if s.has("emitters") else _default_emitters_for(_selected_path)
+	_rebuild_emitters_ui()
 	_loading = false
 
 
@@ -1127,6 +1289,7 @@ func _current_settings() -> Dictionary:
 		"name": _name_edit.text,
 		"codex": _codex_edit.text,
 		"mounts": _dup_mounts(_mount_dicts),
+		"emitters": _dup_mounts(_emitter_dicts),
 	}
 
 
@@ -1185,6 +1348,12 @@ func _on_copy() -> void:
 		txt += "\n# -> roster ENTRY \"mounts\":\n\"mounts\": [\n"
 		for d in _mount_dicts:
 			txt += "\t%s\n" % _mount_copy_line(d)
+		txt += "],\n"
+	# Emitters → a roster ENTRY "emitters" block (droppers/spawners — the EmitterComponent path).
+	if not _emitter_dicts.is_empty():
+		txt += "\n# -> roster ENTRY \"emitters\":\n\"emitters\": [\n"
+		for d in _emitter_dicts:
+			txt += "\t%s\n" % _emitter_copy_line(d)
 		txt += "],\n"
 	# Paste-ready enemy_strings.gd STRINGS entry (the name + codex live in a baked
 	# const dict, so this is the handoff back into source).
