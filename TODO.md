@@ -262,6 +262,16 @@ RecycleController must preserve those contracts._
 
 - [x] **Outline shader + preset material** — `93f4763`. `shaders/outline_1px.gdshader` + `resources/materials/outline_1px_black.tres` (round, 1px black).
 - [x] **Outline asteroids in the asteroid hazard playspace** — `0a16c51`.
+- [ ] **Wire the ship damage-tell system into live combat** — `scripts/effects/ship_damage_tells.gd`
+  (progressive battle damage: per-marker spark trails → burning trails → disintegrate-from-marker on
+  death) is currently DEV-ONLY: the Shader Lab → Ship Damage tab is the only caller of `.setup()`.
+  Live enemy deaths still use the simpler `damage_noise` overlay on `enemy_base` directly. To go live:
+  attach `ShipDamageTells` on the production enemy chassis (enemy_base/enemy_core) driven off
+  `hull_changed`, pass a per-size cfg (the Shader Lab suite tunes per size — small/medium/large), and
+  reconcile with / replace the existing `damage_noise` overlay + the `_spawn_death_vfx` debris path so
+  they don't double up. Marker bias + debris parity already tuned + baked into `DEFAULT_CFG`
+  (`e2b074b7`); the lab is the source of truth for the look. NOTE: changes how EVERY enemy reads when
+  hit → playtest-heavy regression surface.
 
 ## Follow-ups (not in scope this pass)
 
