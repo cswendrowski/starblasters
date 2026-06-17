@@ -61,6 +61,24 @@ const SHIELD_SLIDERS := [
 	{"key": "elongation", "label": "Capsule elongation", "min": 0.0, "max": 0.85, "step": 0.05, "def": 0.0},
 ]
 
+# Idle-look presets — each is a set of SHIELD_SLIDERS overrides (unset keys fall back to the
+# slider default). Picking one re-seeds the sliders so you start from a coherent look.
+const IDLE_PRESETS := {
+	"Default":         {},
+	"Dense honeycomb": {"cells": 14.0, "line_width": 0.08, "fill_alpha": 0.04, "rim_power": 2.6, "flicker": 0.25},
+	"Sparse plates":   {"cells": 4.0, "line_width": 0.22, "fill_alpha": 0.08, "rim_power": 1.6},
+	"Solid dome":      {"cells": 9.0, "fill_alpha": 0.30, "dome": 1.0, "flicker": 0.10, "rim_power": 3.5},
+	"Shimmer":         {"cells": 8.0, "flicker": 0.90, "scroll_x": 0.18, "scroll_y": 0.12, "fill_alpha": 0.03},
+}
+# Hit-flash presets — shape of the `hit_strength` pulse the Pulse Hit button (and an in-game
+# shield hit) plays: peak strength + decay duration.
+const HIT_PRESETS := {
+	"Default":     {"dur": 0.45, "peak": 1.0},
+	"Quick snap":  {"dur": 0.22, "peak": 1.0},
+	"Slow ripple": {"dur": 0.85, "peak": 0.8},
+	"Hard flash":  {"dur": 0.35, "peak": 1.6},
+}
+
 var _hd_scope: HdViewportScope = null
 var _world: SubViewport = null
 var _player: Node2D = null
@@ -79,6 +97,9 @@ var _shield_color := Color(0.35, 0.85, 1.0)
 var _shield_rect: ColorRect = null
 var _shield_mat: ShaderMaterial = null
 var _shield_on: bool = false
+var _shield_rows: Dictionary = {}   # key -> {"slider": HSlider, "label": Label, "name": String}
+var _hit_dur: float = 0.45
+var _hit_peak: float = 1.0
 
 
 func _ready() -> void:
@@ -196,23 +217,19 @@ func _apply_torch_knobs() -> void:
 
 # ---- Shield tuner ----------------------------------------------------------
 
-# Attach the hex-shield bubble (ColorRect + shader) onto the live player. Re-created
-# on each respawn (ship swap). Hidden until the "Show shield bubble" toggle is on.
+# Tune the player's OWN hex-shield ring (player.gd::_setup_shield_ring) — do NOT stack a second
+# bubble on top. The old code added a duplicate ColorRect, so "Show shield bubble" read as an
+# EXTRA shield over the one the ship already carries (Roman 2026-06-17). In game the ring is
+# alpha 0 until a hit; here the toggle drives its visibility via the shader alpha.
 func _attach_shield() -> void:
 	if _player == null or not is_instance_valid(_player):
 		return
-	if _shield_rect != null and is_instance_valid(_shield_rect):
-		_shield_rect.queue_free()
-	_shield_rect = ColorRect.new()
-	_shield_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_shield_rect.z_index = 20
-	_shield_mat = ShaderMaterial.new()
-	_shield_mat.shader = HEX_SHIELD
-	_shield_mat.set_shader_parameter("alpha", 1.0)
-	_shield_rect.material = _shield_mat
-	_shield_rect.visible = _shield_on
-	_player.add_child(_shield_rect)
+	_shield_rect = _player.get_node_or_null("ShieldRing")
+	_shield_mat = null
+	if _shield_rect != null and _shield_rect.material is ShaderMaterial:
+		_shield_mat = _shield_rect.material
 	_apply_shield_knobs()
+	_set_shield_visible(_shield_on)
 
 
 func _apply_shield_knobs() -> void:
@@ -234,17 +251,68 @@ func _apply_shield_knobs() -> void:
 
 func _set_shield_visible(on: bool) -> void:
 	_shield_on = on
-	if _shield_rect != null and is_instance_valid(_shield_rect):
-		_shield_rect.visible = on
+	# The ring's in-game visibility is shader-alpha driven (player keeps the node always present),
+	# so toggle the alpha rather than the node's `visible` flag.
+	if _shield_mat != null:
+		_shield_mat.set_shader_parameter("alpha", 1.0 if on else 0.0)
 
 
 func _pulse_shield() -> void:
 	if _shield_mat == null:
 		return
+	# Make sure the bubble is showing so the flash is visible even with the toggle off.
+	_shield_mat.set_shader_parameter("alpha", 1.0)
 	var m := _shield_mat
-	m.set_shader_parameter("hit_strength", 1.0)
+	var peak := _hit_peak
+	m.set_shader_parameter("hit_strength", peak)
 	var tw := create_tween()
-	tw.tween_method(func(v: float): m.set_shader_parameter("hit_strength", v), 1.0, 0.0, 0.45)
+	tw.tween_method(func(v: float): m.set_shader_parameter("hit_strength", v), peak, 0.0, _hit_dur)
+	# Restore the toggle's alpha state after the flash if the bubble was meant to be hidden.
+	if not _shield_on:
+		tw.tween_callback(func():
+			if _shield_mat != null:
+				_shield_mat.set_shader_parameter("alpha", 0.0))
+
+
+# A labelled OptionButton row for a preset group. `keys` is the preset-name list; the callback
+# receives the chosen name.
+func _mk_shield_preset_row(caption: String, keys: Array, cb: Callable) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var lbl := _mk_label(caption, 15)
+	lbl.custom_minimum_size = Vector2(150, 0)
+	row.add_child(lbl)
+	var dd := OptionButton.new()
+	dd.add_theme_font_size_override("font_size", 16)
+	for k in keys:
+		dd.add_item(String(k))
+	dd.item_selected.connect(func(i: int): cb.call(String(keys[i])))
+	row.add_child(dd)
+	return row
+
+
+# Re-seed the idle sliders from a preset: slider defaults first, then the preset overrides.
+func _apply_idle_preset(name: String) -> void:
+	for d in SHIELD_SLIDERS:
+		_shield_vals[d["key"]] = float(d["def"])
+	var ov: Dictionary = IDLE_PRESETS.get(name, {})
+	for k in ov:
+		_shield_vals[k] = float(ov[k])
+	# Push the new values onto the live slider rows (no signal — apply once below).
+	for key in _shield_rows:
+		var rec: Dictionary = _shield_rows[key]
+		var sl: HSlider = rec["slider"]
+		if sl != null and is_instance_valid(sl):
+			sl.set_value_no_signal(float(_shield_vals[key]))
+			(rec["label"] as Label).text = "%s   %.3f" % [String(rec["name"]), float(_shield_vals[key])]
+	_apply_shield_knobs()
+
+
+func _apply_hit_preset(name: String) -> void:
+	var p: Dictionary = HIT_PRESETS.get(name, {})
+	_hit_dur = float(p.get("dur", 0.45))
+	_hit_peak = float(p.get("peak", 1.0))
+	_pulse_shield()   # preview the chosen flash immediately
 
 
 # ---- Marker dots -----------------------------------------------------------
@@ -363,6 +431,9 @@ func _build_ui() -> void:
 	sh_toggle.add_theme_font_size_override("font_size", 16)
 	sh_toggle.toggled.connect(_set_shield_visible)
 	kb.add_child(sh_toggle)
+	# Idle-look + hit-flash style presets.
+	kb.add_child(_mk_shield_preset_row("Idle style", IDLE_PRESETS.keys(), _apply_idle_preset))
+	kb.add_child(_mk_shield_preset_row("Hit-flash style", HIT_PRESETS.keys(), _apply_hit_preset))
 	_add_shield_color_row(kb)
 	kb.add_child(_mk_button("Pulse Hit", _pulse_shield))
 	for d in SHIELD_SLIDERS:
@@ -444,6 +515,7 @@ func _add_shield_slider_row(parent: VBoxContainer, d: Dictionary) -> void:
 		lbl.text = "%s   %.3f" % [d["label"], v]
 		_apply_shield_knobs())
 	parent.add_child(s)
+	_shield_rows[key] = {"slider": s, "label": lbl, "name": String(d["label"])}
 
 
 func panel_slider_w() -> float:
