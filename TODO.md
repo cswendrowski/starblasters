@@ -272,6 +272,24 @@ RecycleController must preserve those contracts._
   they don't double up. Marker bias + debris parity already tuned + baked into `DEFAULT_CFG`
   (`e2b074b7`); the lab is the source of truth for the look. NOTE: changes how EVERY enemy reads when
   hit → playtest-heavy regression surface.
+- [ ] **Coordinated marker-name rename across all enemy scenes** — bring every Marker2D onto ONE
+  scheme: `Engine*` / `Thruster*` / `Muzzle*` (weapons) / `Launcher*` / `Turret*`, plus the deliberate
+  `turret_base`/`turret_mount` attach anchors and the broadside `GunLeft*`/`GunRight*` mechanic names.
+  The damage-tell patterns were already BROADENED (`ship_damage_tells.gd::setup`) to capture today's
+  variance, so this is a *consistency* cleanup, not a functional gap. **Load-bearing — rename scene +
+  script together**, because these names also drive the live firing/mount/turret systems:
+  `enemy_base._resolve_muzzles` fires from `Muzzle*`/`cannon_*`; mount globs match `spec.marker`;
+  `enemy_base` excludes `turret_base`/`turret_mount` from muzzles; `weapon.gd` cycles `GunLeft/Right`.
+  Non-conformers found in the 2026-06-17 audit:
+  - `CannonR/L` (gunship) — verify the gunship mount glob before → `cannon_r/l` or `MuzzleR/L`.
+  - `TailMuzzle` (bomber, ref `enemy_bomber.gd`) → `MuzzleTail`.
+  - `weapon_nose`, `turret_1/2`, `missile_port_1/2`, `launch_direction` (boss_conductor — boss firing anchors).
+  - `LaunchPoint*` (missile_cruiser, ref) / `launch_point*` (rocket, ref) → `Launcher*` + script update.
+  - `beam_emit_*` vs `BeamEmitter` (burner / beam_shooter) → standardize to `Beam*` (not a tell category).
+  - `GunRight*/GunLeft*` (frigate) — KEEP (broadside mechanic); already caught by the broadened patterns.
+  - `turret_base` (gun_turret) — KEEP (intentional attach anchor).
+  - `MissileL/R` on interceptor/wing already renamed → `LauncherL/R` (`80905ada`).
+  Do it as a scene+script pass per enemy with a boot check; no rush — purely cosmetic consistency now.
 
 ## Follow-ups (not in scope this pass)
 

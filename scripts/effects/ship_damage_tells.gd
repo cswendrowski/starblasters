@@ -102,14 +102,21 @@ func setup(ship: Node2D, sprite: Sprite2D, size_scale: float = 1.0, cfg: Diction
 	# made tunable 2026-06-17). Categories are gathered in this ORDER (engines first) so the
 	# progressive sparks light engines first; a category at weight 0 is skipped entirely. The
 	# sprite CENTRE is the always-present fallback (a guaranteed tell on a markerless ship).
+	# Patterns are BROADENED to capture the marker-name variance across the roster (Roman 2026-06-17)
+	# so the damage tells cooperate with every weapon/launcher/turret spot without renaming scenes yet:
+	#   muzzle  also matches Cannon*, broadside Gun*, weapon_*, and *Muzzle* (TailMuzzle)
+	#   launcher also matches Missile*, LaunchPoint*, launch_point*, missile_port*
+	#   turret  also matches lowercase turret_* (incl. the turret_base/_mount sprite anchors)
+	# A coordinated scene-side rename to one scheme is a separate pass (TODO.md, Visual / FX).
 	var marker_specs: Array = [
-		{"patterns": ["Engine*"],            "weight": float(_cfg["w_engine"])},
-		{"patterns": ["Thruster*"],          "weight": float(_cfg["w_thruster"])},
-		{"patterns": ["Muzzle*", "cannon_*"], "weight": float(_cfg["w_muzzle"])},
-		{"patterns": ["Launcher*"],          "weight": float(_cfg["w_launcher"])},
-		{"patterns": ["Turret*"],            "weight": float(_cfg["w_turret"])},
+		{"patterns": ["Engine*"],                                                "weight": float(_cfg["w_engine"])},
+		{"patterns": ["Thruster*"],                                              "weight": float(_cfg["w_thruster"])},
+		{"patterns": ["*Muzzle*", "cannon_*", "Cannon*", "Gun*", "weapon_*"],    "weight": float(_cfg["w_muzzle"])},
+		{"patterns": ["Launcher*", "Missile*", "LaunchPoint*", "launch_point*", "missile_port*"], "weight": float(_cfg["w_launcher"])},
+		{"patterns": ["Turret*", "turret_*"],                                    "weight": float(_cfg["w_turret"])},
 	]
 	var marker_data: Array = []
+	var _seen_markers := {}   # dedup: a marker matching several broadened globs counts once, first category wins
 	if ship != null:
 		for spec in marker_specs:
 			var w: float = float(spec["weight"])
@@ -117,7 +124,8 @@ func setup(ship: Node2D, sprite: Sprite2D, size_scale: float = 1.0, cfg: Diction
 				continue
 			for pat in spec["patterns"]:
 				for m in ship.find_children(pat, "Marker2D", true, false):
-					if m is Node2D:
+					if m is Node2D and not _seen_markers.has(m):
+						_seen_markers[m] = true
 						marker_data.append({"pos": to_local((m as Node2D).global_position), "weight": w})
 	marker_data.append({"pos": Vector2.ZERO, "weight": maxf(0.001, float(_cfg["w_centre"]))})   # centre — always present
 	# One spark emitter per marker, off until lit.
