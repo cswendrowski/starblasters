@@ -132,6 +132,9 @@ var _b_form: VBoxContainer = null
 var _b_status: Label = null
 var _b_edit_obj: Object = null        # the resource/instance being edited
 var _b_is_enemy: bool = true
+var _b_muzzle: Node2D = null          # visible dummy-weapon the bullet fires from
+var _b_fire_timer: Timer = null       # autofire cadence for the bullets tab
+var _last_footer: HBoxContainer = null  # set by _rail_panel — the fixed action bar at the panel bottom
 
 # Shared firing state.
 var _autofire: bool = false
@@ -311,6 +314,7 @@ func _rail_panel(ui: CanvasLayer, right: bool, sink: Array) -> VBoxContainer:
 	ui.add_child(panel)
 	var scroll := ScrollContainer.new()
 	_anchor_rail(scroll, right, w, y + 12.0, 14.0)
+	scroll.offset_bottom = -(MARGIN + 56)   # leave room for the fixed action footer below
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	ui.add_child(scroll)
 	var vbox := VBoxContainer.new()
@@ -318,8 +322,30 @@ func _rail_panel(ui: CanvasLayer, right: bool, sink: Array) -> VBoxContainer:
 	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vbox.add_theme_constant_override("separation", 8)
 	scroll.add_child(vbox)
+	# Fixed action footer pinned to the panel BOTTOM, outside the scroll, so action buttons stay
+	# on-screen no matter how tall the form scrolls (Roman 2026-06-17 — Save/Copy/Fire fell off the
+	# bottom of long BulletVariant / player-stat forms). Callers read _last_footer right after.
+	var footer := HBoxContainer.new()
+	footer.add_theme_constant_override("separation", 8)
+	footer.anchor_top = 1.0
+	footer.anchor_bottom = 1.0
+	footer.offset_top = -(MARGIN + 44)
+	footer.offset_bottom = -(MARGIN + 6)
+	if right:
+		footer.anchor_left = 1.0
+		footer.anchor_right = 1.0
+		footer.offset_left = -(MARGIN + w) + 14
+		footer.offset_right = -MARGIN - 14
+	else:
+		footer.anchor_left = 0.0
+		footer.anchor_right = 0.0
+		footer.offset_left = MARGIN + 14
+		footer.offset_right = MARGIN + w - 14
+	ui.add_child(footer)
 	sink.append(panel)
 	sink.append(scroll)
+	sink.append(footer)
+	_last_footer = footer
 	return vbox
 
 
@@ -386,6 +412,7 @@ func _build_player_tab(ui: CanvasLayer) -> void:
 	mark_row.add_child(_p_mark)
 
 	var panel := _rail_panel(ui, true, sink)
+	var player_footer := _last_footer   # fixed action bar pinned to the panel bottom
 	panel.add_child(_label("EQUIPPED", FS_HEADER, UiTheme.COLOR_ACCENT))
 	_p_info = _rich(panel)
 	panel.add_child(HSeparator.new())
@@ -398,12 +425,11 @@ func _build_player_tab(ui: CanvasLayer) -> void:
 	_p_stat_box = VBoxContainer.new()
 	_p_stat_box.add_theme_constant_override("separation", 4)
 	panel.add_child(_p_stat_box)
-	var pbtns := HBoxContainer.new()
-	pbtns.add_theme_constant_override("separation", 8)
-	panel.add_child(pbtns)
-	pbtns.add_child(_button("Save", _save_player_overrides))
-	pbtns.add_child(_button("Reset", _reset_player_stats))
-	pbtns.add_child(_button("Copy .tres", _copy_tres_block))
+	# Action buttons in the fixed bottom footer so they stay visible past the stat list.
+	for spec in [["Save", _save_player_overrides], ["Reset", _reset_player_stats], ["Copy .tres", _copy_tres_block]]:
+		var b := _button(String(spec[0]), spec[1] as Callable)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		player_footer.add_child(b)
 	_p_stat_status = _label("", FS_CAPTION, UiTheme.COLOR_FAINT)
 	_p_stat_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_p_stat_status.custom_minimum_size = Vector2(INFO_W - 60, 0)
@@ -730,6 +756,7 @@ func _build_bullets_tab(ui: CanvasLayer) -> void:
 	rail.add_child(_b_list)
 
 	var panel := _rail_panel(ui, true, sink)
+	var _bullet_footer := _last_footer   # the fixed action bar pinned to this panel's bottom
 	panel.add_child(_label("SETTINGS", FS_HEADER, UiTheme.COLOR_ACCENT))
 	_b_status = _label("", FS_CAPTION, UiTheme.COLOR_FAINT)
 	_b_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -738,12 +765,11 @@ func _build_bullets_tab(ui: CanvasLayer) -> void:
 	_b_form = VBoxContainer.new()
 	_b_form.add_theme_constant_override("separation", 6)
 	panel.add_child(_b_form)
-	var btn_row := HBoxContainer.new()
-	btn_row.add_theme_constant_override("separation", 10)
-	panel.add_child(btn_row)
-	btn_row.add_child(_button("Fire ▶", _fire_bullet_preview))
-	btn_row.add_child(_button("Save", _on_bullet_save))
-	btn_row.add_child(_button("Copy GDScript", _on_bullet_copy))
+	# Action buttons live in the fixed bottom footer (always visible, even with a tall form).
+	for spec in [["Fire ▶", _fire_bullet_preview], ["Save", _on_bullet_save], ["Copy GD", _on_bullet_copy]]:
+		var b := _button(String(spec[0]), spec[1] as Callable)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_bullet_footer.add_child(b)
 
 	_tab_nodes[Tab.BULLETS] = sink
 
@@ -755,6 +781,7 @@ func _build_bullets_tab(ui: CanvasLayer) -> void:
 func _fire_bullet_preview() -> void:
 	if _world == null:
 		return
+	_ensure_bullet_muzzle()
 	var sel: PackedInt32Array = _b_list.get_selected_items()
 	if sel.is_empty():
 		return
@@ -762,30 +789,60 @@ func _fire_bullet_preview() -> void:
 	if idx < 0 or idx >= _b_items.size():
 		return
 	var path: String = _b_items[idx]
+	var origin: Vector2 = _b_muzzle.position
 	if _b_is_enemy:
 		var bv = load(path)
 		if bv == null:
 			return
+		# The muzzle IS the firing host (a Node2D with global_position) — the bullet spawns
+		# from the visible dummy weapon via the real Weapon path (BulletCatalog resolves the scene).
 		var w := Weapon.new()
 		w.fire_pattern = Weapon.FirePattern.SINGLE
 		w.aim = Weapon.Aim.STRAIGHT_DOWN
 		w.payload = bv
-		var shooter := Node2D.new()
-		shooter.position = Vector2(Playfield.CENTER.x, Playfield.Y_MIN + 30.0)
-		_world.add_child(shooter)
-		w.fire(shooter)           # SINGLE is synchronous; bullet reparents to _world
-		shooter.queue_free()
+		w.fire(_b_muzzle)         # SINGLE is synchronous; bullet reparents to _world
 	else:
 		var ps := load(path) as PackedScene
 		if ps == null:
 			return
 		var b = ps.instantiate()
 		_world.add_child(b)
-		var spawn := Vector2(Playfield.CENTER.x, Playfield.Y_MAX - 40.0)
 		if b is Node2D:
-			(b as Node2D).position = spawn
+			(b as Node2D).position = origin
+		# Player bullet speed is normally set by the Part; give a raw scene a sane fallback so
+		# it actually travels instead of sitting at the muzzle.
+		if "speed" in b and absf(float(b.speed)) < 1.0:
+			b.speed = 360.0
 		if b.has_method("start"):
-			b.start(spawn, Vector2.UP)
+			b.start(origin, Vector2.DOWN)
+
+
+# Visible dummy weapon the bullets-tab projectiles fire from, so firing reads clearly (and gives
+# the Weapon path a host with a global_position). Created on entering the tab, lives in the world.
+func _ensure_bullet_muzzle() -> void:
+	if _b_muzzle != null and is_instance_valid(_b_muzzle):
+		return
+	if _world == null:
+		return
+	_b_muzzle = Node2D.new()
+	_b_muzzle.name = "BulletMuzzle"
+	_b_muzzle.position = Vector2(Playfield.CENTER.x, Playfield.Y_MIN + 44.0)
+	_world.add_child(_b_muzzle)
+	var body := Polygon2D.new()
+	body.polygon = PackedVector2Array([Vector2(-6, -5), Vector2(6, -5), Vector2(4, 4), Vector2(-4, 4)])
+	body.color = Color(0.55, 0.72, 0.95)
+	_b_muzzle.add_child(body)
+	var barrel := ColorRect.new()
+	barrel.color = Color(0.85, 0.92, 1.0)
+	barrel.size = Vector2(3, 6)
+	barrel.position = Vector2(-1.5, 3)
+	_b_muzzle.add_child(barrel)
+
+
+func _clear_bullet_muzzle() -> void:
+	if _b_muzzle != null and is_instance_valid(_b_muzzle):
+		_b_muzzle.queue_free()
+	_b_muzzle = null
 
 
 func _refresh_bullet_list() -> void:
@@ -969,6 +1026,9 @@ func _select_tab(idx: int) -> void:
 			if is_instance_valid(n):
 				n.visible = is_vis
 	# Reconfigure the arena for the tab.
+	_clear_bullet_muzzle()   # remove the dummy weapon unless we're (re)entering the Bullets tab
+	if _b_fire_timer != null:
+		_b_fire_timer.stop()
 	if idx == Tab.ENEMY:
 		_set_autofire_state(_autofire)   # keep current; enemy host respects it
 		_spawn_enemy_host()
@@ -978,8 +1038,9 @@ func _select_tab(idx: int) -> void:
 		if idx == Tab.PLAYER:
 			_set_autofire_state(_autofire)
 		else:
-			_set_autofire_state(false)   # bullets tab: quiet
 			_refresh_bullet_list()
+			_ensure_bullet_muzzle()       # visible dummy weapon to fire from
+			_set_autofire_state(_autofire) # bullets tab now streams when autofire is on
 
 
 # ---- Firing controls -----------------------------------------------------
@@ -1003,6 +1064,19 @@ func _set_autofire_state(on: bool) -> void:
 				t.start()
 		else:
 			t.stop()
+	# Bullets tab streams the selected bullet from the dummy weapon on a repeating timer.
+	if _tab == Tab.BULLETS:
+		if _b_fire_timer == null:
+			_b_fire_timer = Timer.new()
+			_b_fire_timer.wait_time = 0.5
+			_b_fire_timer.timeout.connect(_fire_bullet_preview)
+			add_child(_b_fire_timer)
+		if on:
+			_b_fire_timer.start()
+		else:
+			_b_fire_timer.stop()
+	elif _b_fire_timer != null:
+		_b_fire_timer.stop()
 
 
 func _on_fire_once() -> void:
@@ -1012,6 +1086,8 @@ func _on_fire_once() -> void:
 	elif _tab == Tab.ENEMY:
 		if _enemy_host != null and is_instance_valid(_enemy_host) and _enemy_host.shoot_pattern != null:
 			_enemy_host.shoot_pattern.fire(_enemy_host)
+	elif _tab == Tab.BULLETS:
+		_fire_bullet_preview()
 
 
 # ---- Helpers -------------------------------------------------------------

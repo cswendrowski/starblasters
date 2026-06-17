@@ -70,6 +70,12 @@ var _pattern_lbl: Label = null
 # Live conductor stats (driven by director signals).
 var _last_banner: String = "-"
 
+# Per-pattern review notes (Roman 2026-06-17): write a note about the selected movement pattern,
+# saved to disk so it can be read back + evaluated. Keyed by the pattern label.
+const NOTES_PATH := "user://tuners/pattern_notes.json"
+var _pattern_notes: Dictionary = {}
+var _note_edit: TextEdit = null
+
 
 func _ready() -> void:
 	if has_node("/root/Music"):
@@ -79,12 +85,14 @@ func _ready() -> void:
 	if run and run.has_method("new_run"):
 		run.new_run()
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_load_notes()
 	_build_pattern_list()
 	_build_bg()
 	_build_world()
 	_build_player_marker()
 	_build_ui()
 	_refresh_mode_panels()
+	_refresh_note()
 
 
 # Pull the live movement set: the 4 lane shapes + every roster key from the eligibility tool's
@@ -272,6 +280,18 @@ func _build_ui() -> void:
 	hint.custom_minimum_size = Vector2(120, 0)
 	lv.add_child(hint)
 
+	# Per-pattern review NOTE — typed here, saved to disk, read back for evaluation.
+	lv.add_child(_sep())
+	_add_caption(lv, "NOTE (saved)")
+	_note_edit = TextEdit.new()
+	_note_edit.add_theme_font_override("font", UiTheme.active_font())
+	_note_edit.add_theme_font_size_override("font_size", SZ_BODY)
+	_note_edit.placeholder_text = "note on this pattern…"
+	_note_edit.custom_minimum_size = Vector2(120, 46)
+	_note_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	_note_edit.text_changed.connect(_on_note_changed)
+	lv.add_child(_note_edit)
+
 	lv.add_child(_sep())
 	_add_button(lv, "Back", _on_back)
 
@@ -343,6 +363,7 @@ func _cycle_pattern(dir: int) -> void:
 	_pattern_lbl.text = str(_patterns[_pattern_idx][0])
 	_sync_move_buttons()
 	_update_readout()
+	_refresh_note()
 
 
 # Clicking a movement in the right-gutter list: select it, switch to PATTERN mode, spawn a row.
@@ -359,6 +380,7 @@ func _select_movement(idx: int) -> void:
 		_refresh_mode_panels()
 	_spawn_pattern_row()
 	_update_readout()
+	_refresh_note()
 
 
 # Highlight the selected movement button (no-signal so it doesn't re-fire _select_movement).
@@ -475,6 +497,58 @@ func _update_readout() -> void:
 	else:
 		var p: Array = _patterns[_pattern_idx]
 		_readout.text = "mode: pattern\n%s\ndummies: %d" % [str(p[0]), _dummies.size()]
+
+
+# ---------------------------------------------------------------- per-pattern notes
+
+func _current_pattern_key() -> String:
+	if _pattern_idx < 0 or _pattern_idx >= _patterns.size():
+		return ""
+	return str(_patterns[_pattern_idx][0])
+
+
+func _load_notes() -> void:
+	if not FileAccess.file_exists(NOTES_PATH):
+		return
+	var f := FileAccess.open(NOTES_PATH, FileAccess.READ)
+	if f == null:
+		return
+	var parsed = JSON.parse_string(f.get_as_text())
+	f.close()
+	if parsed is Dictionary:
+		_pattern_notes = parsed
+
+
+func _refresh_note() -> void:
+	if _note_edit == null:
+		return
+	# set_text_no_signal avoids re-triggering _on_note_changed when we load a note in.
+	_note_edit.set_block_signals(true)
+	_note_edit.text = str(_pattern_notes.get(_current_pattern_key(), ""))
+	_note_edit.set_block_signals(false)
+
+
+func _on_note_changed() -> void:
+	if _note_edit == null:
+		return
+	var key := _current_pattern_key()
+	if key == "":
+		return
+	var txt := _note_edit.text
+	if txt.strip_edges() == "":
+		_pattern_notes.erase(key)
+	else:
+		_pattern_notes[key] = txt
+	_save_notes()
+
+
+func _save_notes() -> void:
+	DirAccess.make_dir_recursive_absolute("user://tuners")
+	var f := FileAccess.open(NOTES_PATH, FileAccess.WRITE)
+	if f == null:
+		return
+	f.store_string(JSON.stringify(_pattern_notes, "  "))
+	f.close()
 
 
 # ---------------------------------------------------------------- UI helpers
