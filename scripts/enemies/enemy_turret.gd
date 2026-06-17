@@ -1,6 +1,7 @@
 extends Node2D
 class_name EnemyTurret
 
+const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
 
 # Reusable aiming + firing component. Add as a child of any enemy node.
@@ -141,7 +142,8 @@ func _shoot() -> void:
 	var b = EnemyBullet.instantiate()
 	if bullet_variant != null and "variant" in b:
 		b.variant = bullet_variant
-	get_tree().root.add_child(b)
+	var world: Node = BulletWorld.resolve(p if p != null else self, get_tree().root)
+	world.add_child(b)
 	if b.has_method("start"):
 		b.start(spawn_pos, fire_dir)
 	else:
@@ -161,7 +163,7 @@ func _shoot() -> void:
 		b.wobble_frequency = wobble_frequency
 	if has_mz:
 		var MuzzleFx = load("res://scripts/effects/muzzle_fx.gd")
-		MuzzleFx.play_enemy(spawn_pos, fire_dir, get_tree().root)
+		MuzzleFx.play_enemy(spawn_pos, fire_dir, world)
 	# Fire sound — classified off this turret's own bullet_variant (small/tracer
 	# → enemy_mg, else enemy_blaster). Positional at the muzzle.
 	EnemySfxC.play(get_tree().root, spawn_pos, EnemySfxC.kind_for(self))

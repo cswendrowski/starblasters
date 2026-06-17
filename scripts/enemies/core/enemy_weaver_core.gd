@@ -6,6 +6,7 @@ extends "res://scripts/enemies/enemy_core.gd"
 #
 # Spawning: as children of get_tree().root so they survive the weaver's death.
 
+const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 const EnemyRocket = preload("res://scenes/projectiles/enemy_rocket.tscn")
 const MuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
 
@@ -42,13 +43,14 @@ func _fire_rockets() -> void:
 		global_position + Vector2(ROCKET_OFFSET_X, 0),
 	]
 	var flashing: bool = has_muzzles()
+	var world: Node = BulletWorld.resolve(self, get_tree().root)
 	for spawn_pos in spawns:
 		var rocket = EnemyRocket.instantiate()
 		rocket.initial_dir = down        # launch heading — set BEFORE add_child (_ready reads it)
-		get_tree().root.add_child(rocket)
+		world.add_child(rocket)
 		rocket.scale = Vector2(1.5, 1.5)
 		rocket.start(spawn_pos)
 		if flashing:
-			MuzzleFx.play_enemy(spawn_pos, down, get_tree().root)
+			MuzzleFx.play_enemy(spawn_pos, down, world)
 	# One launch whoosh per volley from the universal rocket pool.
 	WeaponSfx.play(get_tree().root, global_position, "rocket")

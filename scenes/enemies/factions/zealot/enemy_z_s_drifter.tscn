@@ -1,0 +1,58 @@
+[gd_scene format=3 uid="uid://b0run000001"]
+
+[ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemies/enemy_core.gd" id="1_bhdwr"]
+[ext_resource type="Script" uid="uid://bj8dc3ktx8bt1" path="res://scripts/enemies/patterns/straight_down.gd" id="2_eerm4"]
+[ext_resource type="PackedScene" uid="uid://dxfppn7uceaea" path="res://scenes/enemies/factions/zealot/firecore_hazard.tscn" id="3_2r46t"]
+[ext_resource type="Script" uid="uid://5imwobncfuhu" path="res://scripts/enemies/components/emitter_component.gd" id="4_1rou7"]
+[ext_resource type="PackedScene" uid="uid://uoof4kuon0td" path="res://scenes/enemies/factions/zealot/firecore_core.tscn" id="5_t8dgm"]
+[ext_resource type="Texture2D" uid="uid://bae6g8rm3v4gt" path="res://graphics/enemies/enemy_z_s_drifter.png" id="6_vdxde"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="7_tllic"]
+
+[sub_resource type="Resource" id="MovePattern"]
+script = ExtResource("2_eerm4")
+speed = 180.0
+
+[sub_resource type="Resource" id="DropFirecore"]
+script = ExtResource("4_1rou7")
+payload = ExtResource("3_2r46t")
+tag = "firecore"
+
+[sub_resource type="RectangleShape2D" id="Hit"]
+size = Vector2(14.25, 14.25)
+
+[node name="Enemy" type="Area2D" unique_id=1024558731 groups=["enemies"]]
+script = ExtResource("1_bhdwr")
+movement = SubResource("MovePattern")
+components = [SubResource("DropFirecore")]
+
+[node name="FirecoreCore" parent="." unique_id=1518576690 instance=ExtResource("5_t8dgm")]
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1948286018]
+texture = ExtResource("6_vdxde")
+hframes = 2
+
+[node name="GlowMask" type="Sprite2D" parent="." unique_id=1469216126]
+texture = ExtResource("6_vdxde")
+hframes = 2
+frame = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=167903699]
+shape = SubResource("Hit")
+
+[node name="MoveTimer" type="Timer" parent="." unique_id=1704625583]
+one_shot = true
+
+[node name="ShootTimer" type="Timer" parent="." unique_id=633405903]
+one_shot = true
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1480492310]
+stream = ExtResource("7_tllic")
+
+[node name="EngineL" type="Marker2D" parent="." unique_id=63166823]
+position = Vector2(-5, 5)
+
+[node name="EngineR" type="Marker2D" parent="." unique_id=551874873]
+position = Vector2(5, 5)
+
+[connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
+[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

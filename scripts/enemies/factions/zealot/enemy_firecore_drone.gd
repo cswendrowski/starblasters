@@ -42,6 +42,7 @@ const DESCENT_SPEED: float = 40.0
 const SMALL_SCALE: float = 0.6
 # ---------------------------------------------------------------------------
 
+const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 const RingBulletTex = preload("res://graphics/projectiles/enemy_bullet.png")
 const EnemyBulletScene = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const BV_Basic = preload("res://data/bullets/basic.tres")
@@ -138,7 +139,7 @@ func explode() -> void:
 
 
 func _release_rings() -> void:
-	var root := get_tree().root
+	var world: Node = BulletWorld.resolve(self, get_tree().root)
 	var drone_world: Vector2 = global_position
 	for rb in _ring_bullets:
 		var node: Node2D = rb["node"]
@@ -154,7 +155,7 @@ func _release_rings() -> void:
 		# _ready(). Then start() positions + orients, then we override speed
 		# (basic.tres ships at 220; RELEASE_SPEED keeps the wave dodgeable).
 		b.variant = BV_Basic
-		root.add_child(b)
+		world.add_child(b)
 		if b.has_method("start"):
 			b.start(bullet_world, dir)
 		else:

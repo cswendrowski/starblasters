@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://b0retro00001"]
 
 [ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemies/enemy_core.gd" id="1_core"]
-[ext_resource type="Texture2D" uid="uid://dh8noop5cyxlb" path="res://graphics/enemies/enemy_z_s_retro.png" id="2_tex"]
+[ext_resource type="Texture2D" uid="uid://dh8noop5cyxlb" path="res://graphics/enemies/enemy_z_s_acolyte.png" id="2_tex"]
 [ext_resource type="Script" uid="uid://bj8dc3ktx8bt1" path="res://scripts/enemies/patterns/straight_down.gd" id="3_mov"]
 [ext_resource type="Script" uid="uid://5imwobncfuhu" path="res://scripts/enemies/components/emitter_component.gd" id="4_emit"]
 [ext_resource type="PackedScene" uid="uid://dxfppn7uceaea" path="res://scenes/enemies/factions/zealot/firecore_hazard.tscn" id="5_fc"]
@@ -58,8 +58,11 @@ position = Vector2(-5, 5)
 [node name="EngineR" type="Marker2D" parent="." unique_id=1546257568]
 position = Vector2(5, 5)
 
-[node name="Muzzle" type="Marker2D" parent="." unique_id=463794725]
-position = Vector2(0, -5)
+[node name="MuzzleL" type="Marker2D" parent="." unique_id=463794725]
+position = Vector2(-5, -5)
+
+[node name="MuzzleR" type="Marker2D" parent="." unique_id=660927834]
+position = Vector2(5, -5)
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
 [connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

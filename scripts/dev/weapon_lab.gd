@@ -631,6 +631,8 @@ func _spawn_enemy_host() -> void:
 	var inst := ps.instantiate()
 	if "movement" in inst:
 		inst.movement = null   # stationary so it sits at the top and just fires
+	if "auto_rotate" in inst:
+		inst.auto_rotate = false   # static enemy: don't let the anchor-tween rotate it to face up
 	if "shoot_pattern" in inst:
 		inst.shoot_pattern = _build_enemy_weapon()
 	if "fire_on_phase" in inst:

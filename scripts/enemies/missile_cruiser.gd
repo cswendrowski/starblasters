@@ -27,6 +27,7 @@ extends Node2D
 # stripped out.
 
 const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
+const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 # Shared faked-mid-depth presentation (backdrop parenting + depth-tint shader +
 # live-layer grade-match + bright glow). Extracted from this script 2026-06-01
 # (scripts/effects/mid_depth_presentation.gd) so every recycling / background
@@ -86,14 +87,9 @@ const MidDepthPresentation = preload("res://scripts/effects/mid_depth_presentati
 # 2*aoe_radius + a small margin (kept modest: with a 216x200 band and 4 points
 # this packs easily, so rejection sampling rarely hits the retry cap).
 @export var min_zone_separation: float = 56.0  # ~= 2*aoe_radius(24) + 8 margin
-# Retry cap for rejection sampling a non-overlapping point before accepting the
-# best-spread candidate seen so far.
-const ZONE_PICK_TRIES: int = 24
-
-# --- Telegraph circle visual ------------------------------------------------
-const TELEGRAPH_COLOR := Color(1.0, 0.15, 0.15, 0.5)  # filled red, alpha 0.5
-const TELEGRAPH_PULSE_HZ: float = 3.0
-const TELEGRAPH_PULSE_PX: float = 5.0                  # radius pulse amplitude
+# Telegraph circles, the lobbed missiles, the non-overlapping zone picker, and the
+# missile glow texture now live in the shared MissileSalvo component (used by the
+# Shepherd boss's Phase 2 too). Referenced via its global class_name.
 
 # --- Sprite layout ----------------------------------------------------------
 const SPRITE_PX: float = 64.0   # source frame is 64x64
@@ -244,10 +240,10 @@ func _begin_mark() -> void:
 	_phase = Phase.MARK
 	_phase_t = 0.0
 	_clear_telegraphs()
-	var zones: Array = _pick_zone_points(zone_count)
+	var zones: Array = MissileSalvo.pick_zone_points(zone_count, zone_y_min, zone_y_max, min_zone_separation)
 	for zone_v in zones:
 		var zone: Vector2 = zone_v
-		var circle: Node2D = _TelegraphCircle.new()
+		var circle: Node2D = MissileSalvo.TelegraphCircle.new()
 		circle.setup(zone, aoe_radius)
 		_world_parent().add_child(circle)
 		# Store [node, zone] so FIRE can reuse the exact same point.
@@ -282,7 +278,7 @@ func _launch_next_missile() -> void:
 	# at launch time so it tracks the cruiser's current (moving) position.
 	var launch: Vector2 = _launch_point(_launch_idx)
 	_launch_idx = (_launch_idx + 1) % LAUNCH_POINT_COUNT
-	var missile: Node2D = _Missile.new()
+	var missile: Node2D = MissileSalvo.Missile.new()
 	missile.setup(
 		launch, zone, missile_travel_time, fuse_time,
 		aoe_radius, explosion_damage, circle
@@ -319,55 +315,6 @@ func _clear_pending() -> void:
 	_pending_fires.clear()
 
 
-# Pick `count` random strike points in the gameplay band (X via Playfield, Y in
-# the configured band) that do NOT overlap each other — every chosen point is at
-# least `min_zone_separation` from all previously chosen points. Rejection
-# sampling with a retry cap (ZONE_PICK_TRIES); if the cap is hit for a slot we
-# accept the candidate that was best-spread (max min-distance to the accepted
-# set) so we never loop forever and still maximize spacing. World coords.
-func _pick_zone_points(count: int) -> Array:
-	var points: Array = []
-	var sep_sq: float = min_zone_separation * min_zone_separation
-	for _i in range(count):
-		var best: Vector2 = _rand_zone_point()
-		var best_min_d: float = _min_dist_sq(best, points)
-		# If the very first candidate already clears the separation, take it.
-		if best_min_d >= sep_sq:
-			points.append(best)
-			continue
-		# Otherwise re-roll up to the cap, keeping the best-spread candidate.
-		for _try in range(ZONE_PICK_TRIES):
-			var cand: Vector2 = _rand_zone_point()
-			var cand_min_d: float = _min_dist_sq(cand, points)
-			if cand_min_d >= sep_sq:
-				best = cand
-				best_min_d = cand_min_d
-				break
-			if cand_min_d > best_min_d:
-				best = cand
-				best_min_d = cand_min_d
-		points.append(best)
-	return points
-
-
-# One uniformly random point in the gameplay band.
-func _rand_zone_point() -> Vector2:
-	var x: float = randf_range(Playfield.X_MIN, Playfield.X_MAX)
-	var y: float = randf_range(zone_y_min, zone_y_max)
-	return Vector2(x, y)
-
-
-# Squared distance from `p` to the nearest point already in `pts` (INF if empty).
-func _min_dist_sq(p: Vector2, pts: Array) -> float:
-	var best: float = INF
-	for q_v in pts:
-		var q: Vector2 = q_v
-		var d: float = p.distance_squared_to(q)
-		if d < best:
-			best = d
-	return best
-
-
 # Launch point for shot `idx` (0-based): the child Marker2D "LaunchPoint{idx+1}"
 # (Roman added LaunchPoint1..4, 2026-05-31). Falls back to the legacy single
 # "LaunchPoint" marker, then to the sprite centre (cruiser world position) when
@@ -384,25 +331,6 @@ func _launch_point(idx: int) -> Vector2:
 	return global_position
 
 
-# Soft radial gradient used as the missile's diffuse glow (built once, shared).
-static var _glow_tex: GradientTexture2D = null
-
-static func _ensure_glow_tex() -> void:
-	if _glow_tex != null:
-		return
-	var g := Gradient.new()
-	g.offsets = PackedFloat32Array([0.0, 0.45, 1.0])
-	g.colors = PackedColorArray([Color(1, 1, 1, 1), Color(1, 1, 1, 0.45), Color(1, 1, 1, 0.0)])
-	var t := GradientTexture2D.new()
-	t.gradient = g
-	t.width = 16
-	t.height = 16
-	t.fill = GradientTexture2D.FILL_RADIAL
-	t.fill_from = Vector2(0.5, 0.5)
-	t.fill_to = Vector2(1.0, 0.5)
-	_glow_tex = t
-
-
 # Parent for world-space children (telegraphs/missiles). Prefer the live scene
 # root so they survive the cruiser; fall back to the tree root.
 func _world_parent() -> Node:
@@ -410,173 +338,6 @@ func _world_parent() -> Node:
 	if tree == null:
 		return self
 	var cs: Node = tree.current_scene
-	if cs != null:
-		return cs
-	return tree.root
-
-
-# ============================================================================
-# Telegraph circle — pulsing 50%-transparent filled red disc in world space.
-# ============================================================================
-class _TelegraphCircle extends Node2D:
-	var _radius: float = 24.0
-	var _pulse_t: float = 0.0
-
-	func setup(world_pos: Vector2, radius: float) -> void:
-		global_position = world_pos
-		_radius = radius
-
-	func _process(delta: float) -> void:
-		_pulse_t += delta
-		queue_redraw()
-
-	func _draw() -> void:
-		var pulse: float = sin(_pulse_t * TAU * MissileCruiser.TELEGRAPH_PULSE_HZ)
-		var r: float = _radius + pulse * MissileCruiser.TELEGRAPH_PULSE_PX
-		var a: float = MissileCruiser.TELEGRAPH_COLOR.a * (0.7 + 0.3 * (0.5 + 0.5 * pulse))
-		var col := Color(
-			MissileCruiser.TELEGRAPH_COLOR.r,
-			MissileCruiser.TELEGRAPH_COLOR.g,
-			MissileCruiser.TELEGRAPH_COLOR.b,
-			a
-		)
-		draw_circle(Vector2.ZERO, maxf(1.0, r), col)
-
-
-# ============================================================================
-# Missile — flies from launch to UNDER its zone point over travel_time
-# (tether-mine fly-to-fixed-point), waits a fuse, then explodes: AoE damage to
-# players in radius + ExplosionFx + clears its telegraph circle.
-# ============================================================================
-class _Missile extends Node2D:
-	signal detonated
-
-	# Bright-yellow tracer warhead. The core grows from 1px (just launched, far
-	# back at the cruiser's mid-depth) to 2px as it "ascends" into the play area
-	# toward its target zone — a cheap depth cue. Wrapped in a flickering diffuse
-	# glow and trailed by the standard enemy ordnance smoke.
-	const CORE_COLOR := Color(1.0, 0.96, 0.35, 1.0)
-	const GLOW_COLOR := Color(1.0, 0.9, 0.45, 1.0)
-	const CORE_W_LAUNCH: float = 1.0   # px at launch
-	const CORE_W_ASCEND: float = 2.0   # px once ascending into the play area
-	const CORE_LEN: float = 4.0        # streak length along heading
-	const ASCEND_START: float = 0.18   # travel fraction at which the grow begins
-
-	var _from: Vector2 = Vector2.ZERO
-	var _to: Vector2 = Vector2.ZERO
-	var _travel: float = 0.8
-	var _fuse: float = 0.4
-	var _radius: float = 24.0
-	var _damage: int = 1
-	var _telegraph: Node2D = null
-
-	var _t: float = 0.0
-	var _arrived: bool = false
-	var _fuse_t: float = 0.0
-	var _detonated: bool = false
-	var _heading: float = 0.0
-	var _trail: MissileSmokeTrail = null
-
-
-	# setup() runs before we're in-tree (no get_tree() yet); build the trail here
-	# in _ready(), by which point setup() has populated _from/_to for flip_drift.
-	# Mirrors enemy_rocket.gd exactly: the SAME MissileSmokeTrail, world-parented
-	# to the tree root and attached via call_deferred so it survives our
-	# detonation and fades on its own.
-	func _ready() -> void:
-		var trail: MissileSmokeTrail = MissileSmokeTrail.new()
-		trail.flip_drift = (_to.y > _from.y)  # downward missile → smoke lags upward
-		get_tree().root.call_deferred("add_child", trail)
-		trail.call_deferred("attach_to", self)
-		_trail = trail
-
-	func setup(
-		from: Vector2, to: Vector2, travel: float, fuse: float,
-		radius: float, damage: int, telegraph: Node2D
-	) -> void:
-		_from = from
-		_to = to
-		_travel = maxf(0.05, travel)
-		_fuse = maxf(0.0, fuse)
-		_radius = radius
-		_damage = damage
-		_telegraph = telegraph
-		global_position = from
-		_heading = (to - from).angle()
-
-	func _process(delta: float) -> void:
-		if _detonated:
-			return
-		if not _arrived:
-			_t += delta
-			var u: float = clampf(_t / _travel, 0.0, 1.0)
-			# Ease-out so it decelerates into the zone (reads like a lobbed shot).
-			var eased: float = 1.0 - pow(1.0 - u, 2.0)
-			var prev: Vector2 = global_position
-			global_position = _from.lerp(_to, eased)
-			var step: Vector2 = global_position - prev
-			if step.length_squared() > 0.0001:
-				_heading = step.angle()
-			queue_redraw()
-			if u >= 1.0:
-				_arrived = true
-				_fuse_t = 0.0
-		else:
-			_fuse_t += delta
-			queue_redraw()
-			if _fuse_t >= _fuse:
-				_detonate()
-
-	func _detonate() -> void:
-		if _detonated:
-			return
-		_detonated = true
-		# AoE: damage any player within radius. take_damage auto-scales with
-		# sectors + handles i-frames/shield.
-		var tree: SceneTree = get_tree()
-		if tree != null:
-			var players: Array = tree.get_nodes_in_group("player")
-			for p in players:
-				if not (p is Node2D):
-					continue
-				var pn: Node2D = p as Node2D
-				if pn.global_position.distance_to(_to) <= _radius:
-					if pn.has_method("take_damage"):
-						pn.take_damage(_damage)
-		# VFX at the zone point.
-		ExplosionFx.play(_to, 1.0)
-		# Let the smoke trail dissipate on its own rather than vanishing with us.
-		if _trail != null and is_instance_valid(_trail):
-			_trail.attach_to(null)
-			_trail = null
-		# Clear this zone's telegraph circle.
-		if _telegraph != null and is_instance_valid(_telegraph):
-			_telegraph.queue_free()
-		detonated.emit()
-		queue_free()
-
-	func _draw() -> void:
-		if _detonated:
-			return
-		if not _arrived:
-			# Core grows 1px → 2px once it starts ascending into the play area.
-			var u: float = clampf(_t / _travel, 0.0, 1.0)
-			var asc: float = clampf((u - ASCEND_START) / (1.0 - ASCEND_START), 0.0, 1.0)
-			var core_w: float = lerpf(CORE_W_LAUNCH, CORE_W_ASCEND, asc)
-			var dir := Vector2.RIGHT.rotated(_heading)
-			# Flickering diffuse glow around the warhead (radial gradient).
-			MissileCruiser._ensure_glow_tex()
-			var flick: float = 0.65 + 0.35 * randf()
-			var glow_half: float = (core_w + 1.5) * flick
-			var gcol := Color(GLOW_COLOR.r, GLOW_COLOR.g, GLOW_COLOR.b, 0.5 * flick)
-			draw_texture_rect(
-				MissileCruiser._glow_tex,
-				Rect2(Vector2(-glow_half, -glow_half), Vector2(glow_half * 2.0, glow_half * 2.0)),
-				false, gcol
-			)
-			# Bright-yellow core streak along the heading.
-			draw_line(dir * (-CORE_LEN * 0.5), dir * (CORE_LEN * 0.5), CORE_COLOR, core_w)
-		else:
-			# Fuse: pulse a warning dot at the zone so the player reads "incoming".
-			var pulse: float = 0.5 + 0.5 * sin(_fuse_t * 30.0)
-			draw_circle(Vector2.ZERO, 2.0 + pulse * 1.5, Color(1.0, 0.9, 0.4, 0.9))
+	# In a SubViewport bench the bullet_world layer wins, so telegraphs/missiles spawn into
+	# the preview instead of the window corner; combat has no such node → current_scene/root.
+	return BulletWorld.resolve(self, cs if cs != null else tree.root)

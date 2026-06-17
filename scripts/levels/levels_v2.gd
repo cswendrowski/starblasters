@@ -34,7 +34,7 @@ const MinelayerScene = preload("res://scenes/enemies/factions/privateer/enemy_mi
 const InterceptorScene = preload("res://scenes/enemies/factions/privateer/enemy_interceptor.tscn")
 const HunterDroneScene = preload("res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn")
 const BulwarkScene = preload("res://scenes/enemies/factions/corporate/enemy_bulwark.tscn")
-const FirecoreDroneScene = preload("res://scenes/enemies/factions/zealot/enemy_firecore_drone.tscn")
+const FirecoreDroneScene = preload("res://scenes/enemies/factions/zealot/enemy_z_s_bloom.tscn")
 # Beam enemies (M6a.2 beam showcase).
 const BeamerScene = preload("res://scenes/enemies/factions/zealot/enemy_beam_shooter.tscn")
 const BeamerTrackerScene = preload("res://scenes/enemies/factions/zealot/enemy_beamer_tracker.tscn")

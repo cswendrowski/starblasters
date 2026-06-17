@@ -13,10 +13,10 @@ const StraightDown := preload("res://scripts/enemies/patterns/straight_down.gd")
 
 const CORE := "res://scenes/enemies/factions/zealot/firecore_core.tscn"
 const MANTA := "res://scenes/enemies/factions/zealot/enemy_z_s_manta.tscn"
-const RETRO := "res://scenes/enemies/factions/zealot/enemy_z_s_retro.tscn"
-const RUN := "res://scenes/enemies/factions/zealot/enemy_z_s_run.tscn"
-const BLOOM := "res://scenes/enemies/factions/zealot/enemy_firecore_drone.tscn"
-const HELIX := "res://scenes/enemies/factions/zealot/enemy_firecore_cruiser.tscn"
+const RETRO := "res://scenes/enemies/factions/zealot/enemy_z_s_acolyte.tscn"
+const RUN := "res://scenes/enemies/factions/zealot/enemy_z_s_drifter.tscn"
+const BLOOM := "res://scenes/enemies/factions/zealot/enemy_z_s_bloom.tscn"
+const HELIX := "res://scenes/enemies/factions/zealot/enemy_z_m_helix.tscn"
 const SWORD := "res://scenes/enemies/factions/zealot/enemy_z_s_sword.tscn"
 
 var _lines: Array = []

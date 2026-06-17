@@ -1,0 +1,60 @@
+[gd_scene format=3 uid="uid://b7y71sa5pkab"]
+
+[ext_resource type="Script" uid="uid://bh0b14uxdllo6" path="res://scripts/enemies/factions/zealot/enemy_sword.gd" id="1_opqvp"]
+[ext_resource type="Script" uid="uid://bj8dc3ktx8bt1" path="res://scripts/enemies/patterns/straight_down.gd" id="2_rjntl"]
+[ext_resource type="Texture2D" uid="uid://dryaw8ul6j47k" path="res://graphics/enemies/enemy_z_m_censer.png" id="3_opqvp"]
+[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://assets/audio/SFX_shot7.wav" id="4_8aaq4"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="5_intau"]
+
+[sub_resource type="Resource" id="MovePattern"]
+script = ExtResource("2_rjntl")
+speed = 150.0
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_004cm"]
+size = Vector2(20, 32)
+
+[node name="Enemy" type="Area2D" unique_id=354957993 groups=["enemies"]]
+script = ExtResource("1_opqvp")
+movement = SubResource("MovePattern")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=869068400]
+texture = ExtResource("3_opqvp")
+hframes = 2
+
+[node name="GlowMask" type="Sprite2D" parent="." unique_id=721256683]
+texture = ExtResource("3_opqvp")
+hframes = 2
+frame = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=207114364]
+shape = SubResource("RectangleShape2D_004cm")
+
+[node name="MoveTimer" type="Timer" parent="." unique_id=1380023245]
+one_shot = true
+
+[node name="ShootTimer" type="Timer" parent="." unique_id=674172378]
+one_shot = true
+
+[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="." unique_id=892052681]
+stream = ExtResource("4_8aaq4")
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=6464871]
+stream = ExtResource("5_intau")
+
+[node name="MuzzleL" type="Marker2D" parent="." unique_id=1042893244]
+position = Vector2(-3, -15)
+
+[node name="MuzzleR" type="Marker2D" parent="." unique_id=1266181458]
+position = Vector2(3, -15)
+
+[node name="ThrusterUL" type="Marker2D" parent="." unique_id=1316847226]
+position = Vector2(-5, -3)
+
+[node name="ThrusterUR" type="Marker2D" parent="." unique_id=950605999]
+position = Vector2(5, -3)
+
+[node name="Engine" type="Marker2D" parent="." unique_id=1371445725]
+position = Vector2(0, 14)
+
+[connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
+[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

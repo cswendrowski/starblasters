@@ -1,6 +1,26 @@
-[gd_scene load_steps=2 format=3 uid="uid://cenemybench001"]
+[gd_scene load_steps=4 format=3 uid="uid://cenemybench001"]
 
 [ext_resource type="Script" path="res://scripts/dev/enemy_bench.gd" id="1_ebench"]
+[ext_resource type="Script" path="res://scripts/dev/hangar_dummy_target.gd" id="2_dummy"]
+
+[sub_resource type="StyleBoxFlat" id="PanelSB"]
+bg_color = Color(0, 0, 0, 0.6)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.35, 0.55, 0.75, 0.85)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+content_margin_left = 12.0
+content_margin_top = 12.0
+content_margin_right = 12.0
+content_margin_bottom = 12.0
+
+[sub_resource type="RectangleShape2D" id="DummyHit"]
+size = Vector2(12, 12)
 
 [node name="EnemyBench" type="Control"]
 layout_mode = 3
@@ -10,3 +30,458 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_ebench")
+
+[node name="Preview" type="SubViewportContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture_filter = 1
+stretch = true
+stretch_shrink = 4
+
+[node name="SubViewport" type="SubViewport" parent="Preview"]
+unique_name_in_owner = true
+handle_input_locally = false
+size = Vector2i(480, 270)
+render_target_update_mode = 4
+
+[node name="Backdrop" type="CanvasLayer" parent="Preview/SubViewport"]
+layer = -1
+
+[node name="Gutter" type="ColorRect" parent="Preview/SubViewport/Backdrop"]
+offset_right = 480.0
+offset_bottom = 270.0
+color = Color(0.04, 0.05, 0.08, 1)
+
+[node name="Band" type="ColorRect" parent="Preview/SubViewport/Backdrop"]
+offset_left = 132.0
+offset_right = 348.0
+offset_bottom = 270.0
+color = Color(0.07, 0.09, 0.13, 1)
+
+[node name="DummyPlayer" type="Area2D" parent="Preview/SubViewport" groups=["player"]]
+unique_name_in_owner = true
+position = Vector2(240, 230)
+script = ExtResource("2_dummy")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Preview/SubViewport/DummyPlayer"]
+shape = SubResource("DummyHit")
+
+[node name="EnemyLayer" type="Node2D" parent="Preview/SubViewport" groups=["bullet_world"]]
+unique_name_in_owner = true
+
+[node name="RespawnTimer" type="Timer" parent="."]
+unique_name_in_owner = true
+wait_time = 1.2
+one_shot = true
+
+[node name="UI" type="CanvasLayer" parent="."]
+layer = 5
+
+[node name="Header" type="Label" parent="UI"]
+offset_left = 20.0
+offset_top = 12.0
+offset_right = 700.0
+offset_bottom = 64.0
+theme_override_colors/font_color = Color(0.62, 0.82, 1, 1)
+theme_override_colors/font_outline_color = Color(0.05, 0.08, 0.12, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 40
+text = "ENEMY BENCH"
+
+[node name="Hint" type="Label" parent="UI"]
+offset_left = 20.0
+offset_top = 62.0
+offset_right = 700.0
+offset_bottom = 84.0
+theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
+theme_override_font_sizes/font_size = 15
+text = "WASD / arrows: drive the dummy player"
+
+[node name="MusicMute" type="Button" parent="UI"]
+unique_name_in_owner = true
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -460.0
+offset_top = 16.0
+offset_right = -310.0
+offset_bottom = 56.0
+grow_horizontal = 0
+focus_mode = 0
+toggle_mode = true
+text = "Music: On"
+
+[node name="SfxMute" type="Button" parent="UI"]
+unique_name_in_owner = true
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -300.0
+offset_top = 16.0
+offset_right = -150.0
+offset_bottom = 56.0
+grow_horizontal = 0
+focus_mode = 0
+toggle_mode = true
+text = "SFX: On"
+
+[node name="BackButton" type="Button" parent="UI"]
+unique_name_in_owner = true
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -140.0
+offset_top = 16.0
+offset_right = -20.0
+offset_bottom = 56.0
+grow_horizontal = 0
+text = "Back"
+
+[node name="LeftPanel" type="PanelContainer" parent="UI"]
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = 100.0
+offset_right = 320.0
+offset_bottom = -20.0
+grow_vertical = 2
+theme_override_styles/panel = SubResource("PanelSB")
+
+[node name="LeftVBox" type="VBoxContainer" parent="UI/LeftPanel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="EnemyLabel" type="Label" parent="UI/LeftPanel/LeftVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
+theme_override_font_sizes/font_size = 15
+text = "Enemy"
+
+[node name="FilterFlow" type="HFlowContainer" parent="UI/LeftPanel/LeftVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="EnemyList" type="ItemList" parent="UI/LeftPanel/LeftVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 18
+fixed_icon_size = Vector2i(28, 28)
+
+[node name="RightPanel" type="PanelContainer" parent="UI"]
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -450.0
+offset_top = 100.0
+offset_right = -20.0
+offset_bottom = -20.0
+grow_horizontal = 0
+grow_vertical = 2
+theme_override_styles/panel = SubResource("PanelSB")
+
+[node name="RightScroll" type="ScrollContainer" parent="UI/RightPanel"]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="RightVBox" type="VBoxContainer" parent="UI/RightPanel/RightScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="NameLabel" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.82, 1, 1)
+theme_override_colors/font_outline_color = Color(0.05, 0.08, 0.12, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 24
+text = "—"
+
+[node name="StatsLabel" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.97, 1, 1)
+theme_override_font_sizes/font_size = 15
+autowrap_mode = 2
+
+[node name="PatternLabel" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.86, 0.42, 1)
+theme_override_font_sizes/font_size = 18
+text = "Pattern: —"
+
+[node name="NextPatternButton" type="Button" parent="UI/RightPanel/RightScroll/RightVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+text = "Next Pattern"
+
+[node name="Sep1" type="HSeparator" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+
+[node name="WeaponHeader" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.82, 1, 1)
+theme_override_font_sizes/font_size = 18
+text = "Mount 0 — Hull Weapon"
+
+[node name="ArmedCaption" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
+theme_override_font_sizes/font_size = 15
+text = "Carries a generic weapon"
+
+[node name="ArmedCheck" type="CheckButton" parent="UI/RightPanel/RightScroll/RightVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="FiringCaption" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
+theme_override_font_sizes/font_size = 15
+text = "Firing pattern"
+
+[node name="FiringDD" type="OptionButton" parent="UI/RightPanel/RightScroll/RightVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+
+[node name="AimCaption" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
+theme_override_font_sizes/font_size = 15
+text = "Aim rule"
+
+[node name="AimDD" type="OptionButton" parent="UI/RightPanel/RightScroll/RightVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+
+[node name="PayloadCaption" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
+theme_override_font_sizes/font_size = 15
+text = "Payload"
+
+[node name="PayloadDD" type="OptionButton" parent="UI/RightPanel/RightScroll/RightVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+
+[node name="MountsSep" type="HSeparator" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+
+[node name="MountsHeader" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.82, 1, 1)
+theme_override_font_sizes/font_size = 18
+text = "Mounts — extra emitters"
+
+[node name="MountsList" type="VBoxContainer" parent="UI/RightPanel/RightScroll/RightVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="AddMountButton" type="Button" parent="UI/RightPanel/RightScroll/RightVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+text = "+ Add Mount"
+
+[node name="Sep2" type="HSeparator" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+
+[node name="DeathCaption" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
+theme_override_font_sizes/font_size = 15
+text = "Death explosion"
+
+[node name="ExplosionDD" type="OptionButton" parent="UI/RightPanel/RightScroll/RightVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+
+[node name="Sep3" type="HSeparator" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+
+[node name="StatsHeader" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.82, 1, 1)
+theme_override_font_sizes/font_size = 18
+text = "Stats"
+
+[node name="HpCaption" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
+theme_override_font_sizes/font_size = 15
+text = "Max HP"
+
+[node name="HpSpin" type="SpinBox" parent="UI/RightPanel/RightScroll/RightVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+min_value = 1.0
+max_value = 9999.0
+value = 1.0
+
+[node name="BountyCaption" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
+theme_override_font_sizes/font_size = 15
+text = "Bounty"
+
+[node name="BountySpin" type="SpinBox" parent="UI/RightPanel/RightScroll/RightVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+max_value = 9999.0
+
+[node name="ScaleCaption" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
+theme_override_font_sizes/font_size = 15
+text = "Display scale"
+
+[node name="ScaleSpin" type="SpinBox" parent="UI/RightPanel/RightScroll/RightVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+min_value = 0.25
+max_value = 6.0
+step = 0.05
+value = 0.25
+
+[node name="BSpeedCaption" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
+theme_override_font_sizes/font_size = 15
+text = "Bullet speed ×"
+
+[node name="BSpeedSpin" type="SpinBox" parent="UI/RightPanel/RightScroll/RightVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+min_value = 0.25
+max_value = 4.0
+step = 0.05
+value = 0.25
+
+[node name="BDmgCaption" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
+theme_override_font_sizes/font_size = 15
+text = "Bullet damage ×"
+
+[node name="BDmgSpin" type="SpinBox" parent="UI/RightPanel/RightScroll/RightVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+min_value = 0.25
+max_value = 4.0
+step = 0.05
+value = 0.25
+
+[node name="Sep4" type="HSeparator" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+
+[node name="StringsHeader" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.82, 1, 1)
+theme_override_font_sizes/font_size = 18
+text = "Display Strings"
+
+[node name="NameCaption" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
+theme_override_font_sizes/font_size = 15
+text = "Name"
+
+[node name="NameEdit" type="LineEdit" parent="UI/RightPanel/RightScroll/RightVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+
+[node name="CodexCaption" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
+theme_override_font_sizes/font_size = 15
+text = "Codex entry"
+
+[node name="CodexEdit" type="TextEdit" parent="UI/RightPanel/RightScroll/RightVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 96)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+wrap_mode = 1
+
+[node name="Sep5" type="HSeparator" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+
+[node name="RecycleHeader" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.82, 1, 1)
+theme_override_font_sizes/font_size = 18
+text = "Recycle Behavior"
+
+[node name="CanRecycleCaption" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
+theme_override_font_sizes/font_size = 15
+text = "Can recycle"
+
+[node name="RecycleCheck" type="CheckButton" parent="UI/RightPanel/RightScroll/RightVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+button_pressed = true
+
+[node name="RecyclePassesCaption" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
+theme_override_font_sizes/font_size = 15
+text = "Recycle passes"
+
+[node name="RecyclePassesSpin" type="SpinBox" parent="UI/RightPanel/RightScroll/RightVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+min_value = 1.0
+max_value = 10.0
+value = 1.0
+
+[node name="RecycleChanceCaption" type="Label" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
+theme_override_font_sizes/font_size = 15
+text = "Recycle chance (0=flee, 1=recycle)"
+
+[node name="RecycleChanceSpin" type="SpinBox" parent="UI/RightPanel/RightScroll/RightVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+max_value = 1.0
+step = 0.1
+value = 1.0
+
+[node name="Sep6" type="HSeparator" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+
+[node name="ButtonsRow" type="HBoxContainer" parent="UI/RightPanel/RightScroll/RightVBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="SaveButton" type="Button" parent="UI/RightPanel/RightScroll/RightVBox/ButtonsRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 36)
+layout_mode = 2
+text = "Save"
+
+[node name="CopyButton" type="Button" parent="UI/RightPanel/RightScroll/RightVBox/ButtonsRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 36)
+layout_mode = 2
+text = "Copy GDScript"

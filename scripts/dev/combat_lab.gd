@@ -35,6 +35,9 @@ const BOSS_PICKS := [
 	["Voidmaw", "res://scenes/enemies/bosses/boss_voidmaw.tscn"],
 	["Spinwright", "res://scenes/enemies/bosses/boss_spinwright.tscn"],
 	["Conductor", "res://scenes/enemies/bosses/boss_conductor.tscn"],
+	# Shepherd — testbed for the encounter state machine (dev-only; NOT in the
+	# production BOSS_ROSTER yet). Launch via Combat Lab -> Boss Fight -> Shepherd.
+	["Shepherd", "res://scenes/enemies/factions/zealot/boss_z_l_shepherd.tscn"],
 ]
 const FACTION_PICKS := [
 	["Auto (deterministic)", -1],

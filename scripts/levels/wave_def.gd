@@ -34,6 +34,10 @@ enum Formation { TOP_LEFT_TO_RIGHT, TOP_RIGHT_TO_LEFT, TOP_RANDOM, TOP_CENTER_OU
 # Untyped Array — assigning a typed Array[Resource] from an untyped source is a runtime
 # crash. Empty = none. Built by Roster.make_components(); applied in director._spawn_enemy.
 @export var components_override: Array = []
+# Firing mounts (extra guns/turrets/launchers/beams beyond shoot_pattern), as MountSpec resources.
+# Untyped Array (same crash reason as above). Empty = none. Built by Roster.make_mounts(); applied
+# in director._spawn_enemy before add_child so enemy_base._attach_mounts realizes them.
+@export var mounts_override: Array = []
 @export var fire_interval_min: float = -1.0
 @export var fire_interval_max: float = -1.0
 @export var max_health: int = -1

@@ -6,18 +6,18 @@
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="4_die"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_drone"]
-size = Vector2(16, 16)
+size = Vector2(14, 14)
 
-[node name="EnemyFirecoreDrone" type="Area2D" groups=["enemies"]]
+[node name="EnemyFirecoreDrone" type="Area2D" unique_id=1639620296 groups=["enemies"]]
 script = ExtResource("1_drone")
 
-[node name="FirecoreCore" parent="." instance=ExtResource("3_core")]
+[node name="FirecoreCore" parent="." unique_id=2114016041 instance=ExtResource("3_core")]
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1545794324]
 texture = ExtResource("2_sprite")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=2425118]
 shape = SubResource("RectangleShape2D_drone")
 
-[node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1247530379]
 stream = ExtResource("4_die")

@@ -48,10 +48,10 @@ const DATA := {
 	"res://scenes/enemies/factions/zealot/enemy_beam_shooter.tscn": {"identity": "loiter_sweep", "eligible": ["loiter_sweep"]},
 	"res://scenes/enemies/factions/zealot/enemy_beamer_lock.tscn": {"identity": "drift_high", "eligible": ["drift_high"]},
 	"res://scenes/enemies/factions/zealot/enemy_beamer_tracker.tscn": {"identity": "drift_high", "eligible": ["drift_high"]},
-	"res://scenes/enemies/factions/zealot/enemy_firecore_cruiser.tscn": {"identity": "straight_crawl", "eligible": ["drift_mid", "loiter_low", "loiter_high", "loiter_mid", "side_traverse", "straight_crawl"]},
+	"res://scenes/enemies/factions/zealot/enemy_z_m_helix.tscn": {"identity": "straight_crawl", "eligible": ["drift_mid", "loiter_low", "loiter_high", "loiter_mid", "side_traverse", "straight_crawl"]},
 	"res://scenes/enemies/factions/zealot/enemy_z_s_manta.tscn": {"identity": "straight_crawl", "eligible": ["lane_drift", "lane_shift", "straight_crawl", "straight_slow"]},
-	"res://scenes/enemies/factions/zealot/enemy_z_s_retro.tscn": {"identity": "straight_crawl", "eligible": ["lane_drift", "straight_crawl", "lane_shift"]},
-	"res://scenes/enemies/factions/zealot/enemy_z_s_run.tscn": {"identity": "straight_crawl", "eligible": ["straight_crawl", "straight_medium"]},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_acolyte.tscn": {"identity": "straight_crawl", "eligible": ["lane_drift", "straight_crawl", "lane_shift"]},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_drifter.tscn": {"identity": "straight_crawl", "eligible": ["straight_crawl", "straight_medium"]},
 	"res://scenes/enemies/factions/zealot/enemy_z_s_shiv.tscn": {"identity": "straight_charge", "eligible": ["straight_fast", "straight_charge", "hunt_beeline", "straight_reflex"]},
 	"res://scenes/enemies/factions/zealot/enemy_z_s_sword.tscn": {"identity": "side_traverse", "eligible": ["side_traverse", "straight_crawl", "lane_cut"]},
 }

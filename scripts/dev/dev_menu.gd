@@ -85,7 +85,7 @@ func _build_ui() -> void:
 
 	# Authoring tools (Wave Editor / Movement+Shoot Pattern editors retired 2026-06-11)
 	_add_button("[ Pattern Eligibility ]", _on_pattern_eligibility, true)
-	_add_button("[ Wave Pattern Ed ]", _on_wave_pattern_editor, true)
+	_add_button("[ Formation Builder ]", _on_wave_pattern_editor, true)
 	_add_button("[ Weapon Lab ]", _on_weapon_lab, true)
 	_add_button("[ Enemy Bench ]", _on_enemy_bench, true)
 	# Tuners / labs (Movement Lab / Sector Map HD Lab retired 2026-06-11)

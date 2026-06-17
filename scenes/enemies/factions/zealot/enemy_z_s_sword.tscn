@@ -1,8 +1,8 @@
 [gd_scene format=3 uid="uid://b0sword00001"]
 
-[ext_resource type="Script" path="res://scripts/enemies/factions/zealot/enemy_sword.gd" id="1_core"]
-[ext_resource type="Texture2D" uid="uid://xscbsw2doqjm" path="res://graphics/enemies/enemy_z_s_sword.png" id="2_tex"]
+[ext_resource type="Script" uid="uid://bh0b14uxdllo6" path="res://scripts/enemies/factions/zealot/enemy_sword.gd" id="1_core"]
 [ext_resource type="Script" uid="uid://bj8dc3ktx8bt1" path="res://scripts/enemies/patterns/straight_down.gd" id="3_mov"]
+[ext_resource type="Texture2D" uid="uid://b3hf2d5j5mh8n" path="res://graphics/enemies/enemy_z_m_sword.png" id="4_ard24"]
 [ext_resource type="PackedScene" uid="uid://uoof4kuon0td" path="res://scenes/enemies/factions/zealot/firecore_core.tscn" id="4_corevis"]
 [ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://assets/audio/SFX_shot7.wav" id="5_shoot"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="6_die"]
@@ -22,11 +22,11 @@ movement = SubResource("MovePattern")
 position = Vector2(0, -5)
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=869068400]
-texture = ExtResource("2_tex")
+texture = ExtResource("4_ard24")
 hframes = 2
 
 [node name="GlowMask" type="Sprite2D" parent="." unique_id=721256683]
-texture = ExtResource("2_tex")
+texture = ExtResource("4_ard24")
 hframes = 2
 frame = 1
 

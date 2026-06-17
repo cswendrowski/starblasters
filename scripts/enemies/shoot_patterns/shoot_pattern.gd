@@ -13,6 +13,7 @@ extends Resource
 const MuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
 const Clarity = preload("res://scripts/systems/clarity.gd")
 const BulletCatalog = preload("res://scripts/projectiles/bullet_catalog.gd")
+const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 # Ceiling on an enemy bullet's final damage after weapon multipliers (faction +
 # sector compound via *=). Guard rail so a late-sector + 'armed' + future damage
 # faction can't stack into a one-shot. Heaviest base today (heavy_slug=2) × armed
@@ -90,9 +91,12 @@ func _spawn_bullet(enemy, dir: Vector2, bv = null, spawn_override = null):
 	# share the enemy's coordinate space and survive its queue_free. In combat that's the main
 	# scene (identical to the old root); in a SubViewport bench/hangar it's the preview world,
 	# which keeps bullets in the playfield instead of the window's top-left corner.
+	# Normally the enemy's own container (in combat = the main scene; in a SubViewport bench =
+	# the preview world). If the enemy somehow has no parent (e.g. freed mid-burst await), fall
+	# back to the bench's bullet_world layer when present, else the window root.
 	var bullet_parent: Node = enemy.get_parent()
 	if bullet_parent == null:
-		bullet_parent = enemy.get_tree().root
+		bullet_parent = BulletWorld.resolve(enemy, enemy.get_tree().root)
 	bullet_parent.add_child(b)
 	# Spawn at the next muzzle marker when the enemy has them (cycling
 	# index alternates two-muzzle enemies); else the enemy center as before.

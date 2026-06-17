@@ -31,6 +31,7 @@ class_name EnemyFrigate
 # shader + hit-flash on the node literally named "Sprite2D" only, so the glow
 # overlay never darkens/frays with damage — exactly as intended.
 
+const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 const BULLET_SCENE = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const MuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
 const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
@@ -138,12 +139,13 @@ func _fire_gun(prefix: String, dir: Vector2) -> void:
 	var spawn_pos: Vector2 = marker.global_position if marker else global_position
 	var b = BULLET_SCENE.instantiate()
 	b.speed = BULLET_SPEED
-	get_tree().root.add_child(b)
+	var world: Node = BulletWorld.resolve(self, get_tree().root)
+	world.add_child(b)
 	if b.has_method("start"):
 		b.start(spawn_pos, dir)
 	elif "velocity_dir" in b:
 		b.velocity_dir = dir
-	MuzzleFx.play_enemy(spawn_pos, dir, get_tree().root)
+	MuzzleFx.play_enemy(spawn_pos, dir, world)
 	EnemySfxC.play_for(self)
 
 

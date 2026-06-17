@@ -8,18 +8,17 @@ extends Control
 # explosion. Persists to user://tuners/enemy_bench.json + a Copy-GDScript snippet (tuner
 # contract). Esc / Back returns to the dev menu.
 
-const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const EnemyManifest = preload("res://scripts/dev/enemy_manifest.gd")
 const EnemyRoster = preload("res://scripts/levels/enemy_roster.gd")
 const EnemyStrings = preload("res://scripts/strings/enemy_strings.gd")
 const PatternEligibility = preload("res://scripts/levels/pattern_eligibility.gd")
-const HangarDummy = preload("res://scripts/dev/hangar_dummy_target.gd")
 const Playfield = preload("res://scripts/systems/playfield.gd")
 const Weapon = preload("res://scripts/enemies/shoot_patterns/weapon.gd")
 const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
-const PLAYER_SPRITE = preload("res://Mini Pixel Pack 3/Player ship/Player_ship (16 x 16).png")
+const EnemyTurretScript = preload("res://scripts/enemies/enemy_turret.gd")
+const PLAYER_SCENE = preload("res://scenes/player/player.tscn")
 
 const SAVE_PATH := "user://tuners/enemy_bench.json"
 
@@ -31,37 +30,53 @@ const PAYLOADS := {
 	"Aimed Sniper": EnemyRoster.BV_AimedSniper, "Burst Round": EnemyRoster.BV_BurstRound,
 	"Plasma Orb": EnemyRoster.BV_PlasmaOrb, "Heavy Slug": EnemyRoster.BV_HeavySlug,
 	"Drop Pellet": EnemyRoster.BV_DropPellet,
+	"Zealot Ball": EnemyRoster.BV_ZealotBall, "Zealot Bolt": EnemyRoster.BV_ZealotBolt,
+	"Zealot Laser": EnemyRoster.BV_ZealotLaser, "Zealot Wave": EnemyRoster.BV_ZealotWave,
 }
 
 # Faction filter tabs (Roman 2026-06-12). "All" + the 4 factions + Core (universal chaff) +
 # Hazards (mines/asteroid) + Bosses. Group is derived from the scene PATH (folder), not the
 # ENEMY_TAGS home, so untagged hazards/bosses bucket cleanly and a universal chaff stays under Core.
-const FACTION_GROUPS := ["All", "Core", "Supremacy", "Privateer", "Corporate", "Zealot", "Hazards", "Bosses"]
+# Bosses are excluded from the bench (they don't tune cleanly here — a dedicated boss tuning tool
+# is a separate effort). The "Bosses" group is gone and boss scenes are filtered out of the list.
+const FACTION_GROUPS := ["All", "Core", "Supremacy", "Privateer", "Corporate", "Zealot", "Hazards"]
 
-const FS_TITLE := 40
-const FS_HEADER := 24
-const FS_BODY := 18
-const FS_CAPTION := 15
-const RAIL_W := 300
-const INFO_W := 430
-const MARGIN := 20
-const HEADER_H := 56
-const PANEL_BG := Color(0.0, 0.0, 0.0, 0.6)
-const PANEL_BORDER := Color(0.35, 0.55, 0.75, 0.85)
+# Mounts editor pools. Kind/aim are stored lowercase (the roster dict schema); the *_LABELS are the
+# dropdown text. PROJECTILES are launcher payloads (scene paths), offered alongside the BulletVariant
+# PAYLOADS in a mount row's payload dropdown.
+const MOUNT_KINDS := ["gun", "turret", "launcher", "beam"]
+const MOUNT_KIND_LABELS := ["Gun", "Turret", "Launcher", "Beam"]
+const MOUNT_AIM_KEYS := ["straight_down", "at_player", "toward_center", "forward"]
+const MOUNT_AIM_LABELS := ["Down", "At Player", "To Center", "Forward"]
+const PROJECTILES := {
+	"Rocket": "res://scenes/projectiles/enemy_rocket.tscn",
+	"Rocket Lg": "res://scenes/projectiles/enemy_rocket_large.tscn",
+	"Missile": "res://scenes/projectiles/drifting_missile.tscn",
+	"Bomblet": "res://scenes/enemies/enemy_bomblet.tscn",
+}
+# Faction → turret graphic for TURRET mounts so they're never invisible. The dome/zealot strips are
+# 3-frame recoil; the generic fallback is a 1-frame static turret.
+const TURRET_GFX := {
+	"Supremacy": {"tex": "res://graphics/enemies/turret_s_dome.png", "hframes": 3, "recoil": 3},
+	"Zealot": {"tex": "res://graphics/enemies/zealot-tank-turret.png", "hframes": 3, "recoil": 3},
+}
+const TURRET_GFX_DEFAULT := {"tex": "res://graphics/enemies/tank_turret.png", "hframes": 1, "recoil": 0}
+
+const FS_CAPTION := 15   # filter-toggle font size (only code-built widgets left)
 const DUMMY_SPEED := 150.0
-const RESPAWN_DELAY := 1.2
 
 var _hd_scope: HdViewportScope = null
 
-# Playspace.
-var _preview_vp: SubViewport = null
-var _enemy_layer: Node2D = null
-var _dummy: Area2D = null
+# Playspace — nodes authored in enemy_bench.tscn (hand-editable), bound here by unique name.
+@onready var _preview_vp: SubViewport = %SubViewport
+@onready var _enemy_layer: Node2D = %EnemyLayer
+@onready var _dummy: Area2D = %DummyPlayer
+@onready var _respawn_timer: Timer = %RespawnTimer
 var _current_enemy: Node = null
-var _respawn_timer: Timer = null
 
 # Enemy list.
-var _list: ItemList = null
+@onready var _list: ItemList = %EnemyList
+@onready var _filter_flow: HFlowContainer = %FilterFlow
 var _paths: Array = []                # currently-shown (faction-filtered) subset
 var _all_paths: Array = []            # complete enemy set, before faction filtering
 var _faction_filter: String = "All"
@@ -70,27 +85,41 @@ var _selected_path: String = ""
 # Pattern cycling.
 var _eligible: Array = []      # eligible movement keys for the selected enemy
 var _pattern_idx: int = 0
-var _pattern_lbl: Label = null
+@onready var _pattern_lbl: Label = %PatternLabel
 
-# Editors.
-var _name_lbl: Label = null
-var _stats_lbl: Label = null
-var _fire_dd: OptionButton = null
-var _aim_dd: OptionButton = null
-var _payload_dd: OptionButton = null
-var _explosion_dd: OptionButton = null
-var _recycle_chk: CheckButton = null
-var _recycle_passes_spin: SpinBox = null
-var _recycle_chance_spin: SpinBox = null
+# Editors (all live in the scene's right panel).
+@onready var _name_lbl: Label = %NameLabel
+@onready var _stats_lbl: Label = %StatsLabel
+@onready var _armed_chk: CheckButton = %ArmedCheck
+@onready var _fire_dd: OptionButton = %FiringDD
+@onready var _aim_dd: OptionButton = %AimDD
+@onready var _payload_dd: OptionButton = %PayloadDD
+@onready var _explosion_dd: OptionButton = %ExplosionDD
+@onready var _recycle_chk: CheckButton = %RecycleCheck
+@onready var _recycle_passes_spin: SpinBox = %RecyclePassesSpin
+@onready var _recycle_chance_spin: SpinBox = %RecycleChanceSpin
 # Stat knobs (live-tuned, persisted, emitted by Copy GDScript).
-var _hp_spin: SpinBox = null
-var _bounty_spin: SpinBox = null
-var _scale_spin: SpinBox = null
-var _bspeed_spin: SpinBox = null
-var _bdmg_spin: SpinBox = null
+@onready var _hp_spin: SpinBox = %HpSpin
+@onready var _bounty_spin: SpinBox = %BountySpin
+@onready var _scale_spin: SpinBox = %ScaleSpin
+@onready var _bspeed_spin: SpinBox = %BSpeedSpin
+@onready var _bdmg_spin: SpinBox = %BDmgSpin
 # Display strings (editable name + codex, persisted + emitted as an enemy_strings entry).
-var _name_edit: LineEdit = null
-var _codex_edit: TextEdit = null
+@onready var _name_edit: LineEdit = %NameEdit
+@onready var _codex_edit: TextEdit = %CodexEdit
+# Mounts editor — extra emitters (gun/turret/launcher/beam) beyond the hull weapon (Mount 0).
+@onready var _mounts_list: VBoxContainer = %MountsList
+@onready var _add_mount_btn: Button = %AddMountButton
+
+# scene_path -> true if any roster ENTRY declares a non-null "shoot" key. This is production's
+# source of truth for "this enemy_core enemy carries a generic Weapon" (the director assigns it
+# from the roster; scenes never bake shoot_pattern). Used to DEFAULT the Armed toggle so the bench
+# mirrors production: weaponless chaff stays silent, bespoke firers keep only their own bullets.
+var _roster_armed: Dictionary = {}
+
+# Working list of mount dicts for the selected enemy (name-based, JSON-friendly):
+# {kind, marker, payload(name), aim, fire, count, spread}. Converted to MountSpecs at spawn.
+var _mount_dicts: Array = []
 
 # Persisted per-scene settings.
 var _saved: Dictionary = {}
@@ -98,14 +127,18 @@ var _saved: Dictionary = {}
 # respawn storm (SpinBox.value setter emits the signal).
 var _loading: bool = false
 
+# Audio mute toggles (bench-local). We flip the Music/SFX bus mute via AudioServer and
+# restore the prior state on exit so leaving the bench never leaves the game muted.
+var _music_bus_was_muted: bool = false
+var _sfx_bus_was_muted: bool = false
+
 
 func _ready() -> void:
 	if get_parent() == get_tree().root:
 		_hd_scope = HdViewportScope.attach(self)
-	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_setup_playspace()
+	_setup_ui()
 	_load_saved()
-	_build_playspace()
-	_build_overlay()
 	_load_list()
 	if _list.item_count > 0:
 		_list.select(0)
@@ -115,119 +148,81 @@ func _ready() -> void:
 
 
 # ---- Playspace -----------------------------------------------------------
+# The SubViewport / Backdrop / dummy / EnemyLayer node tree now lives in enemy_bench.tscn so it's
+# hand-editable in the editor. (The recurring "play area in the corner" regression lives in the
+# SubViewportContainer's stretch=true + stretch_shrink=4 — those are set on the scene's Preview
+# node; HdScreen.verify_native_subviewport above still guards the 480×270 result.) This wires the
+# runtime-only bits the scene can't carry.
 
-func _build_playspace() -> void:
-	var sub_container := SubViewportContainer.new()
-	sub_container.stretch = true
-	# CRITICAL (the recurring "play area in the corner" regression, Roman 2026-06-11): stretch=true
-	# overwrites the child SubViewport.size to container_size / stretch_shrink each layout pass. Under
-	# HdViewportScope the full-rect container is 1920x1080, so the DEFAULT stretch_shrink=1 forces the
-	# viewport to 1920x1080 and the 480-native content renders in a corner. stretch_shrink=4 keeps it
-	# native 480x270, upscaled 4x. Reference: parallax_tuner.gd + docs/godot-patterns.md.
-	sub_container.stretch_shrink = 4
-	sub_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	sub_container.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	sub_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(sub_container)
-
-	_preview_vp = SubViewport.new()
-	_preview_vp.size = Vector2i(480, 270)   # initial; stretch_shrink=4 keeps it here each layout pass
-	_preview_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	_preview_vp.handle_input_locally = false
+func _setup_playspace() -> void:
 	# HDR-2D parity: match the project's hdr_2d root or additive blends (enemy muzzle flashes /
 	# bullet glow) composite in the wrong colour space. (Roman 2026-06-11; docs/godot-patterns.md.)
 	_preview_vp.use_hdr_2d = bool(ProjectSettings.get_setting("rendering/viewport/hdr_2d", false))
-	sub_container.add_child(_preview_vp)
-
-	# Opaque background → on a CanvasLayer BEHIND the gameplay. Bullets + glow halos render at
-	# z_index=-1; a z=0 band in the same canvas would hide them. (Roman 2026-06-11; see hangar.gd.)
-	var bg_layer := CanvasLayer.new()
-	bg_layer.name = "Backdrop"
-	bg_layer.layer = -1
-	_preview_vp.add_child(bg_layer)
-	var gutter := ColorRect.new()
-	gutter.color = Color(0.04, 0.05, 0.08, 1.0)
-	gutter.size = Vector2(480, 270)
-	bg_layer.add_child(gutter)
-	var band := ColorRect.new()
-	band.color = Color(0.07, 0.09, 0.13, 1.0)
-	band.position = Vector2(Playfield.X_MIN, 0)
-	band.size = Vector2(Playfield.W, Playfield.H)
-	bg_layer.add_child(band)
-
-	# Controllable dummy PLAYER — moved by input in _process (see _drive_dummy).
-	_dummy = Area2D.new()
-	_dummy.set_script(HangarDummy)
-	_dummy.name = "DummyPlayer"
-	_dummy.add_to_group("player")
-	_dummy.position = Vector2(Playfield.CENTER.x, 230)
-	var sprite := Sprite2D.new()
-	sprite.name = "Sprite2D"
-	sprite.texture = PLAYER_SPRITE
-	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	_dummy.add_child(sprite)
-	var hit := CollisionShape2D.new()
-	var cs := RectangleShape2D.new()
-	cs.size = Vector2(12, 12)
-	hit.shape = cs
-	_dummy.add_child(hit)
-	_preview_vp.add_child(_dummy)
-
-	_enemy_layer = Node2D.new()
-	_enemy_layer.name = "EnemyLayer"
-	_preview_vp.add_child(_enemy_layer)
-
-	_respawn_timer = Timer.new()
-	_respawn_timer.one_shot = true
-	_respawn_timer.wait_time = RESPAWN_DELAY
+	# The dummy's CURRENT composed player visual (hull + livery + glow, neutral frame), cloned out
+	# of player.tscn, not the retired 16×16 strip. Root sprite named "Sprite2D" so the dummy's
+	# take_hit flash (hangar_dummy_target.gd) still finds it. EnemyLayer carries the "bullet_world"
+	# group (set in the scene) so bespoke enemy bullets spawn into the preview, not the window corner.
+	_dummy.add_child(_make_player_visual())
 	_respawn_timer.timeout.connect(_cycle_and_spawn)
-	add_child(_respawn_timer)
+	# Snapshot the audio bus mute state so the Mute toggles can be restored on exit.
+	_music_bus_was_muted = _bus_muted("Music")
+	_sfx_bus_was_muted = _bus_muted("SFX")
 
 
-# ---- Overlay UI ----------------------------------------------------------
-
-func _build_overlay() -> void:
-	var ui := CanvasLayer.new()
-	ui.layer = 5
-	add_child(ui)
-
-	var header := _label("ENEMY BENCH", FS_TITLE, UiTheme.COLOR_ACCENT)
-	header.position = Vector2(MARGIN, 12)
-	header.add_theme_constant_override("outline_size", 6)
-	ui.add_child(header)
-
-	var hint := _label("WASD / arrows: drive the dummy player", FS_CAPTION, UiTheme.COLOR_FAINT)
-	hint.position = Vector2(MARGIN, 60)
-	ui.add_child(hint)
-
-	var back := Button.new()
-	back.text = "Back"
-	back.position = Vector2(1920 - MARGIN - 120, 16)
-	back.size = Vector2(120, 40)
-	UiTheme.style_button(back, true)
-	back.add_theme_font_size_override("font_size", FS_BODY)
-	back.pressed.connect(_on_back)
-	ui.add_child(back)
-
-	_build_left_rail(ui)
-	_build_right_panel(ui)
+# The current composed player ship as a static visual, cloned from player.tscn (hull body +
+# livery tint + glow, all on the neutral centre frame). The player scene is instantiated for
+# its sprites only — never added to the tree, so player.gd._ready / the loadout never run.
+# Returns a Sprite2D named "Sprite2D" (the hull) so the dummy's hit-flash keeps working.
+func _make_player_visual() -> Sprite2D:
+	var packed := PLAYER_SCENE
+	var inst := packed.instantiate()
+	var ship := inst.get_node_or_null("Ship") as Sprite2D
+	var body := _clone_player_sprite(ship)
+	body.name = "Sprite2D"
+	if ship != null:
+		for child in ship.get_children():
+			if child is Sprite2D:
+				var c := _clone_player_sprite(child)
+				c.name = String(child.name)
+				body.add_child(c)
+	inst.free()
+	return body
 
 
-func _build_left_rail(ui: CanvasLayer) -> void:
-	var x := MARGIN
-	var y := HEADER_H + MARGIN + 24
-	var h := int((1080 - y - MARGIN) * 0.82)
-	ui.add_child(_panel(Vector2(x, y), Vector2(RAIL_W, h)))
+# Clone a player Sprite2D preserving the frame strip + shader material (livery tint) +
+# transform, so the composed look matches the in-game ship. Falls back to an empty sprite.
+func _clone_player_sprite(src: Sprite2D) -> Sprite2D:
+	var sp := Sprite2D.new()
+	sp.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	if src == null:
+		return sp
+	sp.texture = src.texture
+	sp.hframes = src.hframes
+	sp.vframes = src.vframes
+	sp.frame = src.frame
+	sp.flip_h = src.flip_h
+	sp.flip_v = src.flip_v
+	sp.position = src.position
+	sp.modulate = src.modulate
+	if src.material != null:
+		sp.material = src.material.duplicate()
+	return sp
 
-	var lbl := _label("Enemy", FS_CAPTION, UiTheme.COLOR_FAINT)
-	lbl.position = Vector2(x + 14, y + 10)
-	ui.add_child(lbl)
 
-	# Faction filter "tabs" — a wrapping row of mutually-exclusive toggles (a TabBar would
-	# overflow the 300px rail with 8 groups). Picking one re-filters the list below.
-	var flow := HFlowContainer.new()
-	flow.position = Vector2(x + 14, y + 32)
-	flow.size = Vector2(RAIL_W - 28, 92)
+# ---- UI wiring -----------------------------------------------------------
+# All widgets are authored in enemy_bench.tscn (container-based + edge-anchored, so the
+# panels/fields can't fall off-screen at non-16:9 HD aspects). This populates the data-driven
+# bits (option pools, faction toggles) and connects the signals.
+
+func _setup_ui() -> void:
+	_build_roster_armed()
+	_fill_options(_fire_dd, FIRE_PATTERNS)
+	_fill_options(_aim_dd, AIMS)
+	_fill_options(_payload_dd, PAYLOADS.keys())
+	_fill_options(_explosion_dd, ExplosionFx.variant_names())
+
+	# Faction filter toggles — data-driven (FACTION_GROUPS) into the scene's FilterFlow. They sit
+	# in the left VBox ABOVE the list, so the wrapping row pushes the list down instead of overrunning it.
 	var grp := ButtonGroup.new()
 	for g in FACTION_GROUPS:
 		var b := Button.new()
@@ -239,165 +234,71 @@ func _build_left_rail(ui: CanvasLayer) -> void:
 		if String(g) == _faction_filter:
 			b.button_pressed = true
 		b.pressed.connect(_on_faction_filter.bind(String(g)))
-		flow.add_child(b)
-	ui.add_child(flow)
+		_filter_flow.add_child(b)
 
-	_list = ItemList.new()
-	_list.position = Vector2(x + 14, y + 132)
-	_list.size = Vector2(RAIL_W - 28, h - 146)
-	_list.add_theme_font_override("font", UiTheme.active_font())
-	_list.add_theme_font_size_override("font_size", FS_BODY)
-	_list.fixed_icon_size = Vector2i(28, 28)
+	# Signals.
 	_list.item_selected.connect(_on_list_select)
-	ui.add_child(_list)
-
-
-func _build_right_panel(ui: CanvasLayer) -> void:
-	var x := 1920 - MARGIN - INFO_W
-	var y := HEADER_H + MARGIN + 24
-	var h := int((1080 - y - MARGIN) * 0.82)
-	ui.add_child(_panel(Vector2(x, y), Vector2(INFO_W, h)))
-
-	# ScrollContainer so the (now longer) editor stack never overflows the panel.
-	var scroll := ScrollContainer.new()
-	scroll.position = Vector2(x + 16, y + 14)
-	scroll.size = Vector2(INFO_W - 32, h - 28)
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	ui.add_child(scroll)
-
-	var vbox := VBoxContainer.new()
-	vbox.custom_minimum_size = Vector2(INFO_W - 48, 0)
-	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vbox.add_theme_constant_override("separation", 8)
-	scroll.add_child(vbox)
-
-	_name_lbl = _label("—", FS_HEADER, UiTheme.COLOR_ACCENT)
-	vbox.add_child(_name_lbl)
-	_stats_lbl = _label("", FS_CAPTION, UiTheme.COLOR_TEXT)
-	vbox.add_child(_stats_lbl)
-	_pattern_lbl = _label("Pattern: —", FS_BODY, UiTheme.COLOR_BOUNTY)
-	vbox.add_child(_pattern_lbl)
-
-	var next_btn := Button.new()
-	next_btn.text = "Next Pattern"
-	UiTheme.style_button(next_btn, true)
-	next_btn.add_theme_font_size_override("font_size", FS_BODY)
-	next_btn.custom_minimum_size = Vector2(0, 36)
-	next_btn.pressed.connect(_cycle_and_spawn)
-	vbox.add_child(next_btn)
-
-	vbox.add_child(HSeparator.new())
-	vbox.add_child(_label("Weapon", FS_BODY, UiTheme.COLOR_ACCENT))
-
 	# Weapon changes respawn (re-runs start() so BEAM/aim init correctly).
-	_fire_dd = _dropdown(vbox, "Firing pattern", FIRE_PATTERNS)
 	_fire_dd.item_selected.connect(func(_i): _spawn_current())
-	_aim_dd = _dropdown(vbox, "Aim rule", AIMS)
 	_aim_dd.item_selected.connect(func(_i): _spawn_current())
-	_payload_dd = _dropdown(vbox, "Payload", PAYLOADS.keys())
 	_payload_dd.item_selected.connect(func(_i): _spawn_current())
-
-	vbox.add_child(HSeparator.new())
 	# Death explosion only matters on death, so apply it live (no respawn).
-	_explosion_dd = _dropdown(vbox, "Death explosion", ExplosionFx.variant_names())
 	_explosion_dd.item_selected.connect(func(_i): _apply_explosion_live())
-
-	vbox.add_child(HSeparator.new())
-	vbox.add_child(_label("Stats", FS_BODY, UiTheme.COLOR_ACCENT))
-	# Stat knobs respawn so the value is live from frame 0 (max_health -> health
-	# in _ready, display_scale -> visual scale). Cheap; matches the weapon flow.
-	_hp_spin = _spinbox(vbox, "Max HP", 1, 9999, 1)
+	# Stat knobs: HP/scale respawn (live from frame 0); bounty/bullet mults apply live.
 	_hp_spin.value_changed.connect(func(_v): if not _loading: _spawn_current())
-	_bounty_spin = _spinbox(vbox, "Bounty", 0, 9999, 1)
 	_bounty_spin.value_changed.connect(func(_v): if not _loading: _apply_stats_live())
-	_scale_spin = _spinbox(vbox, "Display scale", 0.25, 6.0, 0.05)
 	_scale_spin.value_changed.connect(func(_v): if not _loading: _spawn_current())
-	_bspeed_spin = _spinbox(vbox, "Bullet speed ×", 0.25, 4.0, 0.05)
 	_bspeed_spin.value_changed.connect(func(_v): if not _loading: _apply_stats_live())
-	_bdmg_spin = _spinbox(vbox, "Bullet damage ×", 0.25, 4.0, 0.05)
 	_bdmg_spin.value_changed.connect(func(_v): if not _loading: _apply_stats_live())
-
-	vbox.add_child(HSeparator.new())
-	vbox.add_child(_label("Display Strings", FS_BODY, UiTheme.COLOR_ACCENT))
-	vbox.add_child(_label("Name", FS_CAPTION, UiTheme.COLOR_FAINT))
-	_name_edit = LineEdit.new()
-	_name_edit.add_theme_font_override("font", UiTheme.active_font())
-	_name_edit.add_theme_font_size_override("font_size", FS_BODY)
-	_name_edit.custom_minimum_size = Vector2(0, 34)
-	_name_edit.text_changed.connect(func(t): if _name_lbl: _name_lbl.text = t)
-	vbox.add_child(_name_edit)
-	vbox.add_child(_label("Codex entry", FS_CAPTION, UiTheme.COLOR_FAINT))
-	_codex_edit = TextEdit.new()
-	_codex_edit.add_theme_font_override("font", UiTheme.active_font())
-	_codex_edit.add_theme_font_size_override("font_size", FS_CAPTION)
-	_codex_edit.custom_minimum_size = Vector2(0, 96)
-	_codex_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
-	vbox.add_child(_codex_edit)
-
-	vbox.add_child(HSeparator.new())
-	vbox.add_child(_label("Recycle Behavior", FS_BODY, UiTheme.COLOR_ACCENT))
-
-	# Can recycle checkbox
-	vbox.add_child(_label("Can recycle", FS_CAPTION, UiTheme.COLOR_FAINT))
-	_recycle_chk = CheckButton.new()
-	_recycle_chk.button_pressed = true
-	_recycle_chk.add_theme_font_override("font", UiTheme.active_font())
-	_recycle_chk.add_theme_font_size_override("font_size", FS_BODY)
+	_name_edit.text_changed.connect(_on_name_edited)
+	# Armed toggle: gates whether the bench assigns a generic Weapon at all. Respawns so the
+	# enemy is rebuilt with (or without) shoot_pattern from frame 0.
+	_armed_chk.toggled.connect(func(_v):
+		_refresh_weapon_editor_state()
+		if not _loading: _spawn_current())
 	_recycle_chk.toggled.connect(func(_v): _apply_recycle_live())
-	vbox.add_child(_recycle_chk)
-
-	# Recycle passes spinbox
-	_recycle_passes_spin = _spinbox(vbox, "Recycle passes", 1, 10, 1)
 	_recycle_passes_spin.value_changed.connect(func(_v): _apply_recycle_live())
-
-	# Chance to recycle vs flee slider
-	_recycle_chance_spin = _spinbox(vbox, "Recycle chance (0=flee, 1=recycle)", 0, 1, 0.1)
 	_recycle_chance_spin.value_changed.connect(func(_v): _apply_recycle_live())
+	(%NextPatternButton as Button).pressed.connect(_cycle_and_spawn)
+	(%SaveButton as Button).pressed.connect(_on_save)
+	(%CopyButton as Button).pressed.connect(_on_copy)
+	(%BackButton as Button).pressed.connect(_on_back)
+	_add_mount_btn.pressed.connect(_add_mount)
 
-	vbox.add_child(HSeparator.new())
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	vbox.add_child(row)
-	var save_btn := Button.new()
-	save_btn.text = "Save"
-	UiTheme.style_button(save_btn, true)
-	save_btn.add_theme_font_size_override("font_size", FS_BODY)
-	save_btn.custom_minimum_size = Vector2(120, 36)
-	save_btn.pressed.connect(_on_save)
-	row.add_child(save_btn)
-	var copy_btn := Button.new()
-	copy_btn.text = "Copy GDScript"
-	UiTheme.style_button(copy_btn, false)
-	copy_btn.add_theme_font_size_override("font_size", FS_BODY)
-	copy_btn.custom_minimum_size = Vector2(180, 36)
-	copy_btn.pressed.connect(_on_copy)
-	row.add_child(copy_btn)
+	_wire_mute_toggle(%MusicMute as Button, "Music", _music_bus_was_muted)
+	_wire_mute_toggle(%SfxMute as Button, "SFX", _sfx_bus_was_muted)
 
 
-func _dropdown(vbox: VBoxContainer, caption: String, items) -> OptionButton:
-	vbox.add_child(_label(caption, FS_CAPTION, UiTheme.COLOR_FAINT))
-	var dd := OptionButton.new()
-	dd.add_theme_font_override("font", UiTheme.active_font())
-	dd.add_theme_font_size_override("font_size", FS_BODY)
-	dd.custom_minimum_size = Vector2(0, 34)
+func _fill_options(dd: OptionButton, items) -> void:
+	dd.clear()
 	for it in items:
 		dd.add_item(String(it))
-	vbox.add_child(dd)
-	return dd
 
 
-func _spinbox(vbox: VBoxContainer, caption: String, min_v: float, max_v: float, step: float) -> SpinBox:
-	vbox.add_child(_label(caption, FS_CAPTION, UiTheme.COLOR_FAINT))
-	var sb := SpinBox.new()
-	sb.add_theme_font_override("font", UiTheme.active_font())
-	sb.add_theme_font_size_override("font_size", FS_BODY)
-	sb.custom_minimum_size = Vector2(0, 34)
-	sb.min_value = min_v
-	sb.max_value = max_v
-	sb.step = step
-	sb.value = min_v
-	vbox.add_child(sb)
-	return sb
+# Bind a scene mute Button to its audio bus. Pressed = muted; label flips between
+# "<bus>: On" / "<bus> Muted". button_pressed is set BEFORE connecting so binding never
+# perturbs the live bus state.
+func _wire_mute_toggle(b: Button, bus: String, start_muted: bool) -> void:
+	b.button_pressed = start_muted
+	b.text = _mute_text(bus, start_muted)
+	b.toggled.connect(func(on):
+		_set_bus_muted(bus, on)
+		b.text = _mute_text(bus, on))
+
+
+func _mute_text(bus: String, muted: bool) -> String:
+	return ("%s Muted" % bus) if muted else ("%s: On" % bus)
+
+
+func _bus_muted(bus: String) -> bool:
+	var idx := AudioServer.get_bus_index(bus)
+	return idx >= 0 and AudioServer.is_bus_mute(idx)
+
+
+func _set_bus_muted(bus: String, muted: bool) -> void:
+	var idx := AudioServer.get_bus_index(bus)
+	if idx >= 0:
+		AudioServer.set_bus_mute(idx, muted)
 
 
 # ---- List / selection ----------------------------------------------------
@@ -410,6 +311,8 @@ func _load_list() -> void:
 	for src in [EnemyManifest.paths(), Factions.ENEMY_TAGS.keys()]:
 		for p in src:
 			var s := String(p)
+			if s.to_lower().contains("boss"):
+				continue   # bosses excluded from the bench (separate boss tuning tool later)
 			if not seen.has(s):
 				seen[s] = true
 				_all_paths.append(s)
@@ -426,10 +329,29 @@ func _rebuild_list(select_first: bool) -> void:
 		if _faction_filter == "All" or _group_of(String(p)) == _faction_filter:
 			_paths.append(p)
 	for p in _paths:
-		_list.add_item(EnemyStrings.display_name(p), _icon_for(p))
+		_list.add_item(_list_label_for(p), _icon_for(p))
 	if select_first and _list.item_count > 0:
 		_list.select(0)
 		_on_list_select(0)
+
+
+# The sidebar label for an enemy: its edited/saved name when one exists, else the baked
+# display name. Keeps the list in sync with renames done in the right-panel Name field.
+func _list_label_for(path: String) -> String:
+	var nm := String(_saved.get(path, {}).get("name", ""))
+	return nm if nm != "" else EnemyStrings.display_name(path)
+
+
+# Live rename: as the right-panel Name field changes, keep the big header label AND the
+# matching sidebar item in sync (empty falls back to the baked display name). Save persists
+# the name so it also survives faction-tab rebuilds (see _list_label_for).
+func _on_name_edited(t: String) -> void:
+	var shown: String = t if t != "" else EnemyStrings.display_name(_selected_path)
+	if _name_lbl:
+		_name_lbl.text = shown
+	var idx: int = _paths.find(_selected_path)
+	if idx >= 0 and idx < _list.item_count:
+		_list.set_item_text(idx, shown)
 
 
 func _on_faction_filter(group: String) -> void:
@@ -458,20 +380,72 @@ func _is_mine(path: String) -> bool:
 	return p.contains("mine") and not p.contains("minelayer")
 
 
+# Index every roster entry whose "shoot" key is non-null → that scene carries a generic Weapon
+# in production. (An enemy can have several entries; armed if ANY of them shoots.)
+func _build_roster_armed() -> void:
+	_roster_armed.clear()
+	for e in EnemyRoster.ENTRIES:
+		if e.get("shoot", null) != null:
+			_roster_armed[String(e.get("scene", ""))] = true
+
+
+# Default Armed state for a scene: armed iff production arms it (roster "shoot"), never for mines.
+# Enemies with no roster entry (bench-only units, bespoke firers) default UNARMED — the bench
+# won't force a generic weapon on them; the user opts in via the Armed toggle if designing one.
+func _default_armed(path: String) -> bool:
+	return _roster_armed.has(path) and not _is_mine(path)
+
+
+# Enable/disable the weapon editors to match the Armed state. Firing/Aim only matter for a generic
+# Weapon, so they grey out when unarmed. Payload stays live (unless a mine) because it also tunes
+# mounted turrets (helix) via _apply_payload_to_turrets, which fire independently of shoot_pattern.
+func _refresh_weapon_editor_state() -> void:
+	var mine := _is_mine(_selected_path)
+	if _armed_chk: _armed_chk.disabled = mine
+	var armed: bool = _armed_chk != null and _armed_chk.button_pressed and not mine
+	if _fire_dd: _fire_dd.disabled = not armed
+	if _aim_dd: _aim_dd.disabled = not armed
+	if _payload_dd: _payload_dd.disabled = mine
+
+
 func _icon_for(path: String) -> Texture2D:
 	var ps := load(path) as PackedScene
 	if ps == null:
 		return null
 	var state := ps.get_state()
+	# First Sprite2D = the hull (GlowMask is added after it in every enemy scene). Clip the
+	# icon to its FIRST frame so the list reads as the codex/summary do — a clean single
+	# appearance, not the raw multi-frame strip (issue #2).
 	for i in state.get_node_count():
 		if state.get_node_type(i) != &"Sprite2D":
 			continue
+		var tex: Texture2D = null
+		var hf := 1
+		var vf := 1
 		for j in state.get_node_property_count(i):
-			if state.get_node_property_name(i, j) == &"texture":
-				var tex := state.get_node_property_value(i, j) as Texture2D
-				if tex != null:
-					return tex
+			var pname := state.get_node_property_name(i, j)
+			if pname == &"texture":
+				tex = state.get_node_property_value(i, j) as Texture2D
+			elif pname == &"hframes":
+				hf = int(state.get_node_property_value(i, j))
+			elif pname == &"vframes":
+				vf = int(state.get_node_property_value(i, j))
+		if tex != null:
+			return _frame0_atlas(tex, hf, vf)
 	return null
+
+
+# A single-frame view of a sprite-strip texture (frame 0), for clean list icons. A 1×1
+# strip is returned as-is; multi-frame strips get an AtlasTexture clipped to the first cell.
+func _frame0_atlas(tex: Texture2D, hframes: int, vframes: int) -> Texture2D:
+	hframes = maxi(1, hframes)
+	vframes = maxi(1, vframes)
+	if hframes == 1 and vframes == 1:
+		return tex
+	var at := AtlasTexture.new()
+	at.atlas = tex
+	at.region = Rect2(0, 0, float(tex.get_width()) / float(hframes), float(tex.get_height()) / float(vframes))
+	return at
 
 
 func _on_list_select(idx: int) -> void:
@@ -485,11 +459,7 @@ func _on_list_select(idx: int) -> void:
 		_eligible = [idk] if idk != "" else ["straight_medium"]
 	_pattern_idx = 0
 	_load_settings_into_editors()
-	# Mines can't be equipped — grey out the weapon editors so it's clear they stay silent.
-	var mine := _is_mine(_selected_path)
-	if _fire_dd: _fire_dd.disabled = mine
-	if _aim_dd: _aim_dd.disabled = mine
-	if _payload_dd: _payload_dd.disabled = mine
+	_refresh_weapon_editor_state()   # grey out weapon editors when unarmed / a mine
 	_spawn_current()
 
 
@@ -503,7 +473,7 @@ func _cycle_and_spawn() -> void:
 
 func _spawn_current() -> void:
 	_respawn_timer.stop()
-	_clear_enemy()
+	_clear_playspace()   # nuke the prior enemy AND its leftover bullets/drops/fx for a clean slate
 	if _selected_path == "":
 		return
 	var ps := load(_selected_path) as PackedScene
@@ -518,15 +488,22 @@ func _spawn_current() -> void:
 		key = String(_eligible[_pattern_idx])
 		inst.movement = EnemyRoster.make_movement({"movement": key})
 	if "shoot_pattern" in inst:
-		if _is_mine(_selected_path):
-			inst.shoot_pattern = null   # mines never fire — keep the slot empty
-		else:
+		# Only ARM the enemy with a generic Weapon when the Armed toggle is on (defaulted from the
+		# roster "shoot" key). Otherwise leave shoot_pattern null — which in enemy_core makes every
+		# fire gate a no-op, so weaponless enemies stay silent and the movement pattern's fire TIMING
+		# has nothing to fire. Mines and bespoke firers (sword/helix) are never generically armed:
+		# bespoke ones keep firing via their own script, turrets via the payload path.
+		if _armed_chk.button_pressed and not _is_mine(_selected_path):
 			inst.shoot_pattern = _build_weapon()
 			if "fire_on_phase" in inst:
 				inst.fire_on_phase = ""    # use the generic ShootTimer cadence
+		else:
+			inst.shoot_pattern = null
 	if "explosion_variant" in inst:
 		inst.explosion_variant = ExplosionFx.variant_names()[_explosion_dd.selected]
 	_apply_stats_to(inst)   # HP/scale/etc BEFORE _ready so health = max_health from frame 0
+	if "mounts" in inst:
+		inst.mounts = EnemyRoster.make_mount_specs(_mount_spec_dicts())   # extra emitters, BEFORE add_child
 	if inst is Node2D:
 		(inst as Node2D).position = spawn_pos
 	_enemy_layer.add_child(inst)
@@ -535,6 +512,7 @@ func _spawn_current() -> void:
 	# contract. enemy_core._ready does NOT auto-start.
 	if inst.has_method("start"):
 		inst.start(spawn_pos)
+	_apply_payload_to_turrets(inst)   # turret-mounted enemies fire via child turrets, not shoot_pattern
 	if _pattern_lbl:
 		var n: int = max(1, _eligible.size())
 		_pattern_lbl.text = "Pattern: %s  (%d/%d)" % [(key if key != "" else "—"), _pattern_idx + 1, n]
@@ -545,10 +523,315 @@ func _build_weapon() -> Weapon:
 	var w := Weapon.new()
 	w.fire_pattern = _fire_dd.selected
 	w.aim = _aim_dd.selected
+	w.payload = _selected_payload()
+	return w
+
+
+# The BulletVariant currently picked in the Payload dropdown.
+func _selected_payload():
 	var pkeys: Array = PAYLOADS.keys()
 	var pname: String = String(pkeys[clampi(_payload_dd.selected, 0, pkeys.size() - 1)])
-	w.payload = PAYLOADS[pname]
-	return w
+	return PAYLOADS[pname]
+
+
+# ---- Mounts editor -------------------------------------------------------
+# Mounts are extra emitters (gun/turret/launcher/beam) beyond the hull weapon (Mount 0). The working
+# list `_mount_dicts` holds JSON-friendly name-based dicts; _mount_spec_dicts() resolves them to the
+# roster dict schema (payload name → BulletVariant resource / projectile scene path) that
+# EnemyRoster.make_mount_specs() converts into live MountSpecs at spawn.
+
+func _mount_spec_dicts() -> Array:
+	var out: Array = []
+	for d in _mount_dicts:
+		var k: String = String(d.get("kind", "gun"))
+		var sd: Dictionary = {
+			"kind": k, "marker": String(d.get("marker", "")),
+			"aim": String(d.get("aim", "straight_down")),
+			"fire_min": float(d.get("fire", 1.5)), "fire_max": float(d.get("fire", 1.5)),
+			"count": int(d.get("count", 1)), "spread_deg": float(d.get("spread", 0.0)),
+		}
+		var pname: String = String(d.get("payload", "Basic"))
+		if PAYLOADS.has(pname):
+			sd["payload"] = PAYLOADS[pname]
+		elif PROJECTILES.has(pname):
+			sd["payload_scene"] = PROJECTILES[pname]
+		if k == "gun":
+			sd["marker_mode"] = "cycle"   # rolling muzzles, like the bespoke gunship
+		elif k == "turret":
+			# Give the turret a graphic so it's visible — faction dome/tank strip, else a generic
+			# 1-frame turret. (The roster→bench conversion drops the texture, so we re-derive it here.)
+			var g: Dictionary = TURRET_GFX.get(_group_of(_selected_path), TURRET_GFX_DEFAULT)
+			sd["turret_texture"] = g["tex"]
+			sd["turret_hframes"] = g["hframes"]
+			sd["recoil_frames"] = g["recoil"]
+		out.append(sd)
+	return out
+
+
+func _add_mount() -> void:
+	_mount_dicts.append({"kind": "gun", "marker": "", "payload": "Basic", "aim": "straight_down", "fire": 1.5, "count": 1, "spread": 0.0})
+	_rebuild_mounts_ui()
+	_spawn_current()
+
+
+func _remove_mount(d: Dictionary) -> void:
+	_mount_dicts.erase(d)
+	_rebuild_mounts_ui()
+	_spawn_current()
+
+
+# Mutate one field of a mount dict (by reference) and respawn for a live preview.
+func _set_mount(d: Dictionary, key: String, value) -> void:
+	d[key] = value
+	_spawn_current()
+
+
+func _rebuild_mounts_ui() -> void:
+	if _mounts_list == null:
+		return
+	for c in _mounts_list.get_children():
+		_mounts_list.remove_child(c)
+		c.queue_free()
+	for i in _mount_dicts.size():
+		_mounts_list.add_child(_make_mount_row(i))
+
+
+func _make_mount_row(idx: int) -> Control:
+	var d: Dictionary = _mount_dicts[idx]
+	var row := VBoxContainer.new()
+	row.add_theme_constant_override("separation", 3)
+
+	var head := HBoxContainer.new()
+	var title := _row_lbl("Mount %d" % (idx + 1))
+	title.add_theme_color_override("font_color", Color(0.62, 0.82, 1, 1))
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	var rm := Button.new()
+	rm.text = "✕"
+	rm.custom_minimum_size = Vector2(34, 26)
+	rm.add_theme_font_size_override("font_size", FS_CAPTION)
+	rm.pressed.connect(func(): _remove_mount(d))
+	head.add_child(rm)
+	row.add_child(head)
+
+	var h1 := HBoxContainer.new()
+	var kind_dd := _row_dd(MOUNT_KIND_LABELS, MOUNT_KINDS.find(String(d.get("kind", "gun"))))
+	kind_dd.item_selected.connect(func(i): _set_mount(d, "kind", MOUNT_KINDS[i]))
+	h1.add_child(kind_dd)
+	var mopts: Array = _marker_options(_selected_path)
+	var cur_mk: String = _marker_label(String(d.get("marker", "")))
+	if not mopts.has(cur_mk):
+		mopts.append(cur_mk)   # keep a glob like "Turret*" (from a roster mount) selectable
+	var mk_dd := _row_dd(mopts, maxi(0, mopts.find(cur_mk)))
+	mk_dd.item_selected.connect(func(i): _set_mount(d, "marker", _marker_value(String(mopts[i]))))
+	h1.add_child(mk_dd)
+	row.add_child(h1)
+
+	var h2 := HBoxContainer.new()
+	var pnames: Array = _mount_payload_names()
+	var pay_dd := _row_dd(pnames, maxi(0, pnames.find(String(d.get("payload", "Basic")))))
+	pay_dd.item_selected.connect(func(i): _set_mount(d, "payload", String(pnames[i])))
+	h2.add_child(pay_dd)
+	var aim_dd := _row_dd(MOUNT_AIM_LABELS, maxi(0, MOUNT_AIM_KEYS.find(String(d.get("aim", "straight_down")))))
+	aim_dd.item_selected.connect(func(i): _set_mount(d, "aim", MOUNT_AIM_KEYS[i]))
+	h2.add_child(aim_dd)
+	row.add_child(h2)
+
+	var h3 := HBoxContainer.new()
+	h3.add_child(_row_lbl("rate"))
+	var rate := _row_spin(0.1, 6.0, 0.1, float(d.get("fire", 1.5)))
+	rate.value_changed.connect(func(v): _set_mount(d, "fire", float(v)))
+	h3.add_child(rate)
+	h3.add_child(_row_lbl("count"))
+	var cnt := _row_spin(1, 12, 1, float(d.get("count", 1)))
+	cnt.value_changed.connect(func(v): _set_mount(d, "count", int(v)))
+	h3.add_child(cnt)
+	row.add_child(h3)
+	return row
+
+
+# Scan authored Marker2D names from a scene's state (no instantiation, like _icon_for).
+func _scan_markers(path: String) -> Array:
+	var ps := load(path) as PackedScene
+	if ps == null:
+		return []
+	var st := ps.get_state()
+	var out: Array = []
+	for i in st.get_node_count():
+		if st.get_node_type(i) == &"Marker2D":
+			out.append(String(st.get_node_name(i)))
+	return out
+
+
+# Dropdown options for a mount's marker: "(hull)" + each exact marker + a glob per suffix family.
+func _marker_options(path: String) -> Array:
+	var opts: Array = ["(hull)"]
+	var globs: Dictionary = {}
+	for nm in _scan_markers(path):
+		if not opts.has(nm):
+			opts.append(nm)
+		var g: String = _glob_of(nm)
+		if g != "" and not globs.has(g):
+			globs[g] = true
+	for g in globs.keys():
+		opts.append(g)
+	return opts
+
+
+# Strip trailing digits / L / R off a marker name to a "<prefix>*" glob (MuzzleL → Muzzle*); "" if none.
+func _glob_of(nm: String) -> String:
+	var base: String = nm
+	while base.length() > 0 and ("0123456789LR".contains(base.substr(base.length() - 1, 1))):
+		base = base.substr(0, base.length() - 1)
+	return (base + "*") if (base.length() >= 2 and base != nm) else ""
+
+
+func _marker_label(value: String) -> String:
+	return "(hull)" if value == "" else value
+
+
+func _marker_value(label: String) -> String:
+	return "" if label == "(hull)" else label
+
+
+func _mount_payload_names() -> Array:
+	var names: Array = PAYLOADS.keys().duplicate()
+	for p in PROJECTILES.keys():
+		names.append(p)
+	return names
+
+
+func _dup_mounts(src) -> Array:
+	var out: Array = []
+	if src is Array:
+		for d in src:
+			if d is Dictionary:
+				out.append(d.duplicate(true))
+	return out
+
+
+# Default mounts for an enemy when it has no saved bench override: its production roster `mounts`,
+# converted to the bench's name-based dict shape. So a migrated enemy (gunship, helix) shows + fires
+# its real mounts in the bench out of the box, and the user tunes from there.
+func _default_mounts_for(path: String) -> Array:
+	var entry: Dictionary = EnemyRoster.entry_for_scene(path)
+	var raw = entry.get("mounts", []) if entry is Dictionary else []
+	var out: Array = []
+	if raw is Array:
+		for d in raw:
+			if d is Dictionary:
+				out.append(_roster_mount_to_bench(d))
+	return out
+
+
+func _roster_mount_to_bench(d: Dictionary) -> Dictionary:
+	return {
+		"kind": String(d.get("kind", "gun")),
+		"marker": String(d.get("marker", "")),
+		"aim": String(d.get("aim", "straight_down")),
+		"fire": float(d.get("fire_min", d.get("fire_max", 1.5))),
+		"count": int(d.get("count", 1)),
+		"spread": float(d.get("spread_deg", 0.0)),
+		"payload": _payload_name_of(d),
+	}
+
+
+# Reverse-resolve a roster mount's payload (a BulletVariant resource or a scene path) to its bench
+# dropdown name. Both PAYLOADS and the roster share the same preloaded BV_* consts → identity match.
+func _payload_name_of(d: Dictionary) -> String:
+	var pv = d.get("payload", null)
+	if pv != null:
+		for k in PAYLOADS:
+			if PAYLOADS[k] == pv:
+				return String(k)
+	var ps = d.get("payload_scene", null)
+	if ps != null:
+		var p: String = String(ps) if ps is String else (ps.resource_path if ps is PackedScene else "")
+		for k in PROJECTILES:
+			if String(PROJECTILES[k]) == p:
+				return String(k)
+	return "Basic"
+
+
+# A paste-ready roster "mounts" dict literal for one mount (payload → BV_ const or scene path).
+func _mount_copy_line(d: Dictionary) -> String:
+	var pname: String = String(d.get("payload", "Basic"))
+	var pay: String = "\"payload\": null"
+	if PAYLOADS.has(pname):
+		pay = "\"payload\": BV_%s" % pname.replace(" ", "")
+	elif PROJECTILES.has(pname):
+		pay = "\"payload_scene\": \"%s\"" % PROJECTILES[pname]
+	return "{ \"kind\": \"%s\", \"marker\": \"%s\", %s, \"aim\": \"%s\", \"fire_min\": %.2f, \"fire_max\": %.2f, \"count\": %d, \"spread_deg\": %.1f }," % [
+		String(d.get("kind", "gun")), String(d.get("marker", "")), pay, String(d.get("aim", "straight_down")),
+		float(d.get("fire", 1.5)), float(d.get("fire", 1.5)), int(d.get("count", 1)), float(d.get("spread", 0.0)),
+	]
+
+
+# --- compact row widget factories ---
+func _row_dd(labels: Array, sel: int) -> OptionButton:
+	var dd := OptionButton.new()
+	dd.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	dd.add_theme_font_size_override("font_size", FS_CAPTION)
+	for l in labels:
+		dd.add_item(String(l))
+	if sel >= 0 and sel < dd.item_count:
+		dd.select(sel)
+	return dd
+
+
+func _row_spin(mn: float, mx: float, st: float, val: float) -> SpinBox:
+	var sb := SpinBox.new()
+	sb.min_value = mn
+	sb.max_value = mx
+	sb.step = st
+	sb.value = val
+	sb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sb.add_theme_font_size_override("font_size", FS_CAPTION)
+	return sb
+
+
+func _row_lbl(t: String) -> Label:
+	var l := Label.new()
+	l.text = t
+	l.add_theme_font_size_override("font_size", FS_CAPTION)
+	l.add_theme_color_override("font_color", Color(0.70, 0.78, 0.88, 0.70))
+	return l
+
+
+# Turret-mounted enemies (zealot tank turret, gun_turret, push dome…) fire through child
+# EnemyTurret nodes that carry their OWN bullet_variant and ignore the enemy's shoot_pattern —
+# so the Payload dropdown is a no-op on them unless we push the selection onto each turret too.
+# zealot_turret mounts a placeholder slug "to retune in the dev tools"; this is that retune.
+# Runs after start() since turrets are mounted in the enemy's _ready/start. Matched by script
+# identity (not the EnemyTurret class_name, which doesn't resolve in headless --script runs).
+func _apply_payload_to_turrets(inst: Node) -> void:
+	if not _mount_dicts.is_empty():
+		return   # mount turrets carry their own payload from the spec — don't clobber
+	if inst == null or _is_mine(_selected_path):
+		return
+	var bv = _selected_payload()
+	if bv == null:
+		return
+	for t in _collect_turrets(inst, []):
+		t.bullet_variant = bv
+
+
+func _collect_turrets(node: Node, out: Array) -> Array:
+	for c in node.get_children():
+		if _is_turret(c):
+			out.append(c)
+		_collect_turrets(c, out)
+	return out
+
+
+# True if `n` runs enemy_turret.gd (directly or via a subclass).
+func _is_turret(n: Node) -> bool:
+	var s: Script = n.get_script()
+	while s != null:
+		if s == EnemyTurretScript:
+			return true
+		s = s.get_base_script()
+	return false
 
 
 func _apply_explosion_live() -> void:
@@ -607,6 +890,18 @@ func _clear_enemy() -> void:
 	_current_enemy = null
 
 
+# Full reset of the in-viewport gameplay layer: the current enemy PLUS every leftover it
+# spawned (bullets, firecore drops, muzzle/explosion fx — all parented into _enemy_layer via
+# the bullet_world group). The dummy player lives on _preview_vp, not _enemy_layer, so it
+# survives. Used on every (re)spawn so switching enemies starts from a clean slate (issue #3).
+func _clear_playspace() -> void:
+	_current_enemy = null
+	if _enemy_layer == null or not is_instance_valid(_enemy_layer):
+		return
+	for child in _enemy_layer.get_children():
+		child.queue_free()
+
+
 # ---- Per-frame: drive dummy + respawn check ------------------------------
 
 func _process(delta: float) -> void:
@@ -654,6 +949,9 @@ func _load_settings_into_editors() -> void:
 	_select_text(_aim_dd, String(s.get("aim", "STRAIGHT_DOWN")), AIMS)
 	_select_text(_payload_dd, String(s.get("payload", "Basic")), PAYLOADS.keys())
 	_select_text(_explosion_dd, String(s.get("explosion", "default")), ExplosionFx.variant_names())
+	if _armed_chk:
+		# Default from the roster "shoot" key; a saved value (incl. user opt-in for bench-only units) wins.
+		_armed_chk.button_pressed = bool(s.get("armed", _default_armed(_selected_path)))
 	if _recycle_chk:
 		_recycle_chk.button_pressed = bool(s.get("can_recycle", true))
 	if _recycle_passes_spin:
@@ -667,6 +965,9 @@ func _load_settings_into_editors() -> void:
 	_bdmg_spin.value = float(s.get("bullet_damage_mult", nat.get("bullet_damage_mult", 1.0)))
 	_name_edit.text = String(s.get("name", EnemyStrings.display_name(_selected_path)))
 	_codex_edit.text = String(s.get("codex", EnemyStrings.codex_entry(_selected_path)))
+	# Saved bench override wins; otherwise default to the enemy's production roster mounts.
+	_mount_dicts = _dup_mounts(s.get("mounts")) if s.has("mounts") else _default_mounts_for(_selected_path)
+	_rebuild_mounts_ui()
 	_loading = false
 
 
@@ -692,6 +993,7 @@ func _select_text(dd: OptionButton, text: String, pool) -> void:
 
 func _current_settings() -> Dictionary:
 	return {
+		"armed": _armed_chk.button_pressed,
 		"fire_pattern": FIRE_PATTERNS[_fire_dd.selected],
 		"aim": AIMS[_aim_dd.selected],
 		"payload": String(PAYLOADS.keys()[_payload_dd.selected]),
@@ -706,6 +1008,7 @@ func _current_settings() -> Dictionary:
 		"bullet_damage_mult": float(_bdmg_spin.value),
 		"name": _name_edit.text,
 		"codex": _codex_edit.text,
+		"mounts": _dup_mounts(_mount_dicts),
 	}
 
 
@@ -738,11 +1041,15 @@ func _on_copy() -> void:
 	var s := _current_settings()
 	var payload_const: String = "BV_" + String(s["payload"]).replace(" ", "")
 	var txt := "# Enemy Bench — %s\n" % String(s["name"])
-	txt += "var w := Weapon.new()\n"
-	txt += "w.fire_pattern = Weapon.FirePattern.%s\n" % s["fire_pattern"]
-	txt += "w.aim = Weapon.Aim.%s\n" % s["aim"]
-	txt += "w.payload = %s\n" % payload_const
-	txt += "enemy.shoot_pattern = w\n"
+	if s["armed"]:
+		txt += "var w := Weapon.new()\n"
+		txt += "w.fire_pattern = Weapon.FirePattern.%s\n" % s["fire_pattern"]
+		txt += "w.aim = Weapon.Aim.%s\n" % s["aim"]
+		txt += "w.payload = %s\n" % payload_const
+		txt += "enemy.shoot_pattern = w\n"
+	else:
+		txt += "# (no generic weapon — weaponless or fires via its own script / turret)\n"
+		txt += "enemy.shoot_pattern = null\n"
 	txt += "enemy.explosion_variant = \"%s\"\n" % s["explosion"]
 	txt += "# Stats:\n"
 	txt += "enemy.max_health = %d\n" % s["max_health"]
@@ -755,6 +1062,12 @@ func _on_copy() -> void:
 		txt += "enemy.recycle_passes = %d  # %.1f chance to recycle\n" % [s["recycle_passes"], s["recycle_chance"]]
 	else:
 		txt += "enemy.recycle_passes = 0  # flee (no recycle)\n"
+	# Mounts → a roster ENTRY "mounts" block (extra emitters beyond the hull weapon).
+	if not _mount_dicts.is_empty():
+		txt += "\n# -> roster ENTRY \"mounts\":\n\"mounts\": [\n"
+		for d in _mount_dicts:
+			txt += "\t%s\n" % _mount_copy_line(d)
+		txt += "],\n"
 	# Paste-ready enemy_strings.gd STRINGS entry (the name + codex live in a baked
 	# const dict, so this is the handoff back into source).
 	var codex_one_line: String = String(s["codex"]).replace("\n", " ").replace("\"", "'")
@@ -765,38 +1078,13 @@ func _on_copy() -> void:
 		_pattern_lbl.text = "Copied GDScript to clipboard"
 
 
-# ---- Helpers + back ------------------------------------------------------
-
-func _label(text: String, size: int, color: Color) -> Label:
-	var l := Label.new()
-	l.text = text
-	l.add_theme_font_override("font", UiTheme.active_font())
-	l.add_theme_font_size_override("font_size", size)
-	l.add_theme_color_override("font_color", color)
-	l.add_theme_color_override("font_outline_color", UiTheme.COLOR_OUTLINE)
-	l.add_theme_constant_override("outline_size", 3)
-	return l
-
-
-func _panel(pos: Vector2, sz: Vector2) -> Panel:
-	var panel := Panel.new()
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = PANEL_BG
-	sb.border_color = PANEL_BORDER
-	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(4)
-	sb.content_margin_left = 10
-	sb.content_margin_top = 10
-	sb.content_margin_right = 10
-	sb.content_margin_bottom = 10
-	panel.add_theme_stylebox_override("panel", sb)
-	panel.position = pos
-	panel.size = sz
-	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	return panel
-
+# ---- Back ----------------------------------------------------------------
 
 func _on_back() -> void:
+	# Restore the audio bus mute state the bench inherited, so the Mute toggles never
+	# leave Music/SFX muted out in the rest of the game.
+	_set_bus_muted("Music", _music_bus_was_muted)
+	_set_bus_muted("SFX", _sfx_bus_was_muted)
 	if _hd_scope != null and is_instance_valid(_hd_scope):
 		_hd_scope.free()
 		_hd_scope = null

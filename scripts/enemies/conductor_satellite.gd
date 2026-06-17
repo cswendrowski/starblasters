@@ -4,6 +4,8 @@ extends Area2D
 # player X on top of the orbit motion. Fires a telegraphed 3-shot aimed
 # burst on cadence. Notifies the boss on death so the boss can phase-gate.
 
+const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
+
 signal satellite_killed
 
 var hp: int = 100
@@ -88,11 +90,12 @@ func _fire_burst() -> void:
 		aim = Vector2(0, 1)
 	var bs: PackedScene = preload("res://scenes/projectiles/enemy_bullet.tscn")
 	var spread_rad: float = deg_to_rad(8.0)
+	var world: Node = BulletWorld.resolve(self, get_tree().root)
 	for i in 3:
 		var t: float = (float(i) - 1.0)  # -1, 0, 1
 		var dir: Vector2 = aim.rotated(t * spread_rad * 0.5)
 		var b = bs.instantiate()
-		get_tree().root.add_child(b)
+		world.add_child(b)
 		if b.has_method("start"):
 			b.start(global_position, dir)
 		else:

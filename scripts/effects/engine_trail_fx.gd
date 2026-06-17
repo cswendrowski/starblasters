@@ -8,7 +8,7 @@ extends Node2D
 # damage smoke trail, but always-on, yellow, additive, and short (a tight exhaust
 # streak, not a billowing smoke column).
 
-const TRAIL_COLOR := Color(1.0, 0.86, 0.22)   # warm engine yellow
+const TRAIL_COLOR := Color(0.984314, 0.94902, 0.211765)   # #fbf236 engine yellow
 const POINT_LIFETIME := 0.28                   # seconds a streak point lingers
 const MAX_POINTS := 14
 const HEAD_WIDTH := 2.5

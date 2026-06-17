@@ -213,7 +213,7 @@ func _flash_return_telegraph(x: float, duration: float) -> void:
 	bar.size = Vector2(4.0, vp.y)
 	bar.position = Vector2(x - 2.0, 0.0)
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	get_tree().current_scene.add_child(bar)
+	_world().add_child(bar)   # bullet_world layer in a bench; current scene in combat
 	var tw := bar.create_tween()
 	tw.tween_property(bar, "color:a", 0.85, duration * 0.25)
 	tw.tween_property(bar, "color:a", 0.35, duration * 0.25)

@@ -8,6 +8,7 @@ extends "res://scripts/enemies/enemy_core.gd"
 # Roman 2026-06-01: minelayer drops plain DUMB bomblets (not the smart,
 # station-keeping variant) — both the trail it lays and the death scatter use
 # the same simple bomblet, mirroring the cluster mine's burst.
+const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 const BombletScene = preload("res://scenes/enemies/enemy_bomblet.tscn")
 const DeathBombletScene = preload("res://scenes/enemies/enemy_bomblet.tscn")
 
@@ -91,7 +92,8 @@ func _carrier_fully_visible() -> bool:
 
 func _drop_bomblet() -> void:
 	var b = BombletScene.instantiate()
-	get_tree().root.add_child(b)
+	var world: Node = BulletWorld.resolve(self, get_tree().root)
+	world.add_child(b)
 	# Drop from the rear of the carrier (Roman, 2026-05-17: "should come
 	# out the back of the ship rather than the middle"). The minelayer
 	# traverses horizontally — "back" is opposite the travel direction.
@@ -108,9 +110,10 @@ func _drop_bomblet() -> void:
 # Death override: drop a scatter of bomblets in addition to the regular
 # explode sequence.
 func explode() -> void:
+	var world: Node = BulletWorld.resolve(self, get_tree().root)
 	for i in drop_count_on_death:
 		var b = DeathBombletScene.instantiate()
-		get_tree().root.add_child(b)
+		world.add_child(b)
 		var jitter: Vector2 = Vector2(randf_range(-28.0, 28.0), randf_range(-12.0, 18.0))
 		if b.has_method("start"):
 			b.start(global_position + jitter)

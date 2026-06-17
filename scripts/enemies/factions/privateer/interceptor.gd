@@ -6,6 +6,7 @@ extends "res://scripts/enemies/enemy_core.gd"
 #
 # Interceptors don't recycle — they exit the bottom and stay gone.
 
+const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 const MissileScene = preload("res://scenes/projectiles/drifting_missile.tscn")
 
 @export var drop_interval: float = 0.55
@@ -38,7 +39,8 @@ func _process(delta: float) -> void:
 
 func _drop_missile() -> void:
 	var m = MissileScene.instantiate()
-	get_tree().root.add_child(m)
+	var world: Node = BulletWorld.resolve(self, get_tree().root)
+	world.add_child(m)
 	if m.has_method("start"):
 		m.start(global_position)
 	else:

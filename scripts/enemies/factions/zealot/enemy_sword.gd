@@ -10,6 +10,8 @@ extends "res://scripts/enemies/enemy_core.gd"
 const BULLET = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const SHOT = preload("res://data/bullets/fast_pellet.tres")
 const MuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
+const ZealotTurret = preload("res://scripts/enemies/factions/zealot/zealot_turret.gd")
+const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 
 const FIRE_INTERVAL := 0.18   # fast roll down the guns
 
@@ -19,6 +21,9 @@ var _fire_t: float = 0.0
 func _ready() -> void:
 	super._ready()
 	_fire_t = randf_range(0.0, FIRE_INTERVAL)
+	# Mount a zealot gun turret on each Turret* marker (only the Shepherd carries
+	# them; the censer/cross/rebuker/spear hulls have none, so this is a no-op).
+	ZealotTurret.mount_all(self)
 
 
 func _process(delta: float) -> void:
@@ -34,9 +39,10 @@ func _process(delta: float) -> void:
 	var pos: Vector2 = next_muzzle_pos()   # cycles Muzzle* in name order (rolls the hull)
 	var b = BULLET.instantiate()
 	b.variant = SHOT
-	get_tree().root.add_child(b)
+	var world: Node = BulletWorld.resolve(self, get_tree().root)
+	world.add_child(b)
 	if b.has_method("start"):
 		b.start(pos, Vector2(0, 1))
-	MuzzleFx.play_enemy(pos, Vector2(0, 1), get_tree().root)
+	MuzzleFx.play_enemy(pos, Vector2(0, 1), world)
 	if has_node("EnemyShoot"):
 		$EnemyShoot.play()

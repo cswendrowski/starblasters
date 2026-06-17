@@ -655,6 +655,9 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 	# Behavior components (m6 §3): set before add_child so enemy_base._ready dupes them.
 	if not wave.components_override.is_empty() and "components" in enemy:
 		enemy.components = wave.components_override
+	# Firing mounts: set before add_child so enemy_base._attach_mounts realizes them in _ready.
+	if "mounts_override" in wave and not wave.mounts_override.is_empty() and "mounts" in enemy:
+		enemy.mounts = wave.mounts_override
 	# Crosser height-stagger (P2 row choreography): a horizontal crosser (its
 	# movement has a `travel_y`) rides a per-index latitude so a stream doesn't
 	# overlap. Duplicate first so siblings don't share the mutated resource (the

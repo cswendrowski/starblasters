@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dh8noop5cyxlb"
-path="res://.godot/imported/enemy_z_s_retro.png-36ebe15bfdb005d0d587a5eae5409c4c.ctex"
+uid="uid://btwrkpdek1llh"
+path="res://.godot/imported/boss_z_l_shepherd.png-577e8342ac39f0eed1aaff1e481e7e10.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://graphics/enemies/enemy_z_s_retro.png"
-dest_files=["res://.godot/imported/enemy_z_s_retro.png-36ebe15bfdb005d0d587a5eae5409c4c.ctex"]
+source_file="res://graphics/enemies/boss_z_l_shepherd.png"
+dest_files=["res://.godot/imported/boss_z_l_shepherd.png-577e8342ac39f0eed1aaff1e481e7e10.ctex"]
 
 [params]
 

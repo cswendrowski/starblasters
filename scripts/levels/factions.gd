@@ -37,10 +37,19 @@ enum Id { SUPREMACY, PRIVATEER, CORPORATE, ZEALOT }
 const ENEMY_TAGS := {
 	"res://scenes/enemies/factions/privateer/enemy_dart.tscn": {"home": Id.PRIVATEER, "universal": true},
 	"res://scenes/enemies/factions/zealot/enemy_z_s_manta.tscn": {"home": Id.ZEALOT, "universal": false},
-	"res://scenes/enemies/factions/zealot/enemy_z_s_retro.tscn": {"home": Id.ZEALOT, "universal": false},
-	"res://scenes/enemies/factions/zealot/enemy_z_s_run.tscn": {"home": Id.ZEALOT, "universal": false},
+	# Roman art rework 2026-06-16: retro→acolyte, run→drifter (renamed in place, same UID).
+	"res://scenes/enemies/factions/zealot/enemy_z_s_acolyte.tscn": {"home": Id.ZEALOT, "universal": false},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_drifter.tscn": {"home": Id.ZEALOT, "universal": false},
 	"res://scenes/enemies/factions/zealot/enemy_z_s_sword.tscn": {"home": Id.ZEALOT, "universal": false},
 	"res://scenes/enemies/factions/zealot/enemy_z_s_shiv.tscn": {"home": Id.ZEALOT, "universal": false},
+	# New zealot chaff/elites (Roman 2026-06-16) — Enemy-Bench-configurable, not yet in the wave roll.
+	"res://scenes/enemies/factions/zealot/enemy_z_s_crook.tscn": {"home": Id.ZEALOT, "universal": false},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_pilgrim.tscn": {"home": Id.ZEALOT, "universal": false},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_censer.tscn": {"home": Id.ZEALOT, "universal": false},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_cross.tscn": {"home": Id.ZEALOT, "universal": false},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_rebuker.tscn": {"home": Id.ZEALOT, "universal": false},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_spear.tscn": {"home": Id.ZEALOT, "universal": false},
+	"res://scenes/enemies/factions/zealot/boss_z_l_shepherd.tscn": {"home": Id.ZEALOT, "universal": false},
 	# enemy_bomb_drone PULLED 2026-06-14 (Roman — rework pending); roster entry also removed.
 	"res://scenes/enemies/factions/corporate/enemy_c_dart.tscn": {"home": Id.CORPORATE, "universal": false},
 	"res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn": {"home": Id.CORPORATE, "universal": false},
@@ -67,8 +76,9 @@ const ENEMY_TAGS := {
 	"res://scenes/enemies/factions/privateer/enemy_gunship.tscn": {"home": Id.PRIVATEER, "universal": false},
 	"res://scenes/enemies/factions/privateer/enemy_rocket.tscn": {"home": Id.PRIVATEER, "universal": false},
 	"res://scenes/enemies/factions/corporate/enemy_drone_carrier.tscn": {"home": Id.CORPORATE, "universal": false},
-	"res://scenes/enemies/factions/zealot/enemy_firecore_drone.tscn": {"home": Id.ZEALOT, "universal": false},
-	"res://scenes/enemies/factions/zealot/enemy_firecore_cruiser.tscn": {"home": Id.ZEALOT, "universal": false},
+	# Roman art rework 2026-06-16: firecore_drone→bloom, firecore_cruiser→helix (renamed, same UID).
+	"res://scenes/enemies/factions/zealot/enemy_z_s_bloom.tscn": {"home": Id.ZEALOT, "universal": false},
+	"res://scenes/enemies/factions/zealot/enemy_z_m_helix.tscn": {"home": Id.ZEALOT, "universal": false},
 	"res://scenes/enemies/factions/zealot/enemy_beam_shooter.tscn": {"home": Id.ZEALOT, "universal": false},
 	"res://scenes/enemies/factions/zealot/enemy_beamer_tracker.tscn": {"home": Id.ZEALOT, "universal": false},
 	"res://scenes/enemies/factions/zealot/enemy_burner.tscn": {"home": Id.ZEALOT, "universal": false},

@@ -1,0 +1,36 @@
+[gd_scene format=3 uid="uid://68sikv3acsg1"]
+
+[ext_resource type="PackedScene" uid="uid://iqys12s5srvb" path="res://scenes/projectiles/enemy_bullet.tscn" id="1_base"]
+[ext_resource type="Resource" path="res://data/bullets/zealot_bolt.tres" id="2_variant"]
+[ext_resource type="Texture2D" uid="uid://dsv8dl5i44bdg" path="res://graphics/projectiles/projectile_zealot_bolt.png" id="3_tex"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_zbo1"]
+atlas = ExtResource("3_tex")
+region = Rect2(0, 0, 6, 12)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_zbo"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_zbo1")
+}],
+"loop": true,
+"name": &"default",
+"speed": 8.0
+}]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_zbo"]
+radius = 3.0
+height = 12.0
+
+[node name="EnemyBullet" instance=ExtResource("1_base")]
+variant = ExtResource("2_variant")
+speed = 240.0
+max_lifetime = 1.5
+impact_color = Color(1, 0.2, 0.2, 1)
+
+[node name="AnimatedSprite2D" parent="." index="0"]
+sprite_frames = SubResource("SpriteFrames_zbo")
+
+[node name="CollisionShape2D" parent="." index="1"]
+shape = SubResource("CapsuleShape2D_zbo")

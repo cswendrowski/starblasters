@@ -1,25 +1,20 @@
 extends "res://scripts/enemies/enemy_core.gd"
 
-# Firecore Cruiser "Helix" (M6c rework, Roman 2026-06-07).
+# Firecore Cruiser "Helix" (M6c rework, Roman 2026-06-07; turret swap 2026-06-16).
 #
 # A slow zealot capital. Movement comes from the roster slot (cross / lane-advance
 # / hold / shift / drift) but is clamped to ~1 px/frame (60 px/s) here so the hull
 # always reads as a ponderous capital regardless of which movement it rolled. It
-# carries a central HOOK-TURRET beam that tracks the player, two glowing cores
-# (authored in the scene, hand-tunable), and drops firecores on destruction (baked
-# DropFirecore component, count 2). Only the beam turret is bespoke; locomotion is
-# a movement pattern (mirrors interceptor: enemy_core + custom firing).
+# carries a zealot GUN TURRET on its `Turret` marker (the shared zealot_turret port
+# of the supremacy dome turret), two glowing cores (authored in the scene,
+# hand-tunable), and drops firecores on destruction (baked DropFirecore component,
+# count 2). Only the turret mount is bespoke here; locomotion is a movement pattern.
 #
-# Was a bespoke EnemyBase side-traverse cruiser with an EnemyTurret (plasma bullets)
-# and an elaborate death descent. The new identity replaces all of that.
-
-const BeamEmitter = preload("res://scripts/enemies/beam_emitter.gd")
-const HookTurretTex = preload("res://graphics/enemies/hook_turret.png")
+# The bespoke center HOOK-TURRET beam was retired 2026-06-16 in favor of the
+# marker-mounted zealot gun turret (Roman) — the scene gained a `Turret` marker for it.
 
 # ~1 px/frame ceiling on the rolled movement (Roman: "moving at 1p/f").
 const SPEED_CAP := 60.0
-
-var _turret: Node = null
 
 
 func _ready() -> void:
@@ -27,7 +22,8 @@ func _ready() -> void:
 	bounty_value = 100
 	display_scale = 1.0
 	super._ready()
-	_build_beam_turret()
+	# Gun turret is now a roster `mounts` turret (EnemyRoster.HELIX_MOUNTS), realized by MountBuilder
+	# in enemy_base._ready — was ZealotTurret.mount_all here (migrated to data 2026-06-16).
 
 
 func start(pos: Vector2) -> void:
@@ -47,28 +43,3 @@ func _clamp_pattern_speed() -> void:
 		if n == "speed" or n == "down_speed" or n.ends_with("_speed"):
 			if float(_pattern.get(n)) > SPEED_CAP:
 				_pattern.set(n, SPEED_CAP)
-
-
-func _build_beam_turret() -> void:
-	_turret = BeamEmitter.new()
-	_turret.name = "HookTurret"
-	# Tracks the player and rakes a directed beam — a slow, telegraphed capital
-	# threat. LOOP_WINDUP: idle once, then windup->fire->cooldown->windup forever.
-	_turret.configure({
-		"idle_time": 1.5, "windup_time": 2.0, "firing_time": 2.0, "cooldown_time": 2.5,
-		"cycle": BeamEmitter.Cycle.LOOP_WINDUP, "autostart": true,
-		"endpoint": BeamEmitter.Endpoint.RAY, "aim_mode": BeamEmitter.AimMode.TRACKING,
-		"tracking_rate": 1.0, "reach": 320.0, "dps": 3.0, "hit_radius": 8.0,
-		"emitter_offset": Vector2.ZERO, "target_group": "player",
-		"layers": [
-			{"width": 9.0, "color": Color(0.65, 0.15, 1.0, 0.55)},
-			{"width": 5.0, "color": Color(1.0, 0.5, 0.1, 0.85)},
-			{"width": 2.0, "color": Color(1.0, 0.95, 0.35, 1.0)},
-		],
-		"telegraph_width": 1.0,
-	})
-	var s := Sprite2D.new()
-	s.texture = HookTurretTex
-	s.modulate = Color.html("9350ad")
-	_turret.add_child(s)
-	add_child(_turret)

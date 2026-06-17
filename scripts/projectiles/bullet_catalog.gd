@@ -18,6 +18,11 @@ const _V_LASER   = preload("res://data/bullets/laser_bolt.tres")
 const _V_CANNON  = preload("res://data/bullets/burst_round.tres")
 const _V_DIAMOND = preload("res://data/bullets/tracker.tres")
 const _V_TRACER  = preload("res://data/bullets/aimed_sniper.tres")
+# Zealot faction projectiles (Roman 2026-06-16) — each maps to its own freestanding scene.
+const _V_ZBALL   = preload("res://data/bullets/zealot_ball.tres")
+const _V_ZBOLT   = preload("res://data/bullets/zealot_bolt.tres")
+const _V_ZLASER  = preload("res://data/bullets/zealot_laser.tres")
+const _V_ZWAVE   = preload("res://data/bullets/zealot_wave.tres")
 
 const _S_BASIC   = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const _S_SMALL   = preload("res://scenes/projectiles/enemy_bullet_small.tscn")
@@ -27,6 +32,10 @@ const _S_LASER   = preload("res://scenes/projectiles/enemy_bullet_laser.tscn")
 const _S_CANNON  = preload("res://scenes/projectiles/enemy_bullet_cannon.tscn")
 const _S_DIAMOND = preload("res://scenes/projectiles/enemy_bullet_diamond.tscn")
 const _S_TRACER  = preload("res://scenes/projectiles/enemy_bullet_tracer.tscn")
+const _S_ZBALL   = preload("res://scenes/projectiles/zealot/zealot_bullet_ball.tscn")
+const _S_ZBOLT   = preload("res://scenes/projectiles/zealot/zealot_bullet_bolt.tscn")
+const _S_ZLASER  = preload("res://scenes/projectiles/zealot/zealot_bullet_laser.tscn")
+const _S_ZWAVE   = preload("res://scenes/projectiles/zealot/zealot_bullet_wave.tscn")
 
 static var _map: Dictionary = {}
 
@@ -42,6 +51,10 @@ static func _ensure() -> void:
 	_map[_V_CANNON]  = _S_CANNON
 	_map[_V_DIAMOND] = _S_DIAMOND
 	_map[_V_TRACER]  = _S_TRACER
+	_map[_V_ZBALL]   = _S_ZBALL
+	_map[_V_ZBOLT]   = _S_ZBOLT
+	_map[_V_ZLASER]  = _S_ZLASER
+	_map[_V_ZWAVE]   = _S_ZWAVE
 
 
 # The canonical per-bullet scene for a BulletVariant, or null if the variant has no

@@ -44,6 +44,7 @@ const Pendulum = preload("res://scripts/enemies/patterns/pendulum.gd")
 const ProximityChase = preload("res://scripts/enemies/patterns/proximity_chase.gd")
 const LoiterSweep = preload("res://scripts/enemies/patterns/loiter_sweep.gd")
 const Weapon = preload("res://scripts/enemies/shoot_patterns/weapon.gd")
+const MountSpec = preload("res://scripts/enemies/mounts/mount_spec.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
 
 # Faction pool filter (M6b): set by WaveGen.build for the duration of one generation so
@@ -83,6 +84,29 @@ const BV_BurstRound   = preload("res://data/bullets/burst_round.tres")
 const BV_PlasmaOrb    = preload("res://data/bullets/plasma_orb.tres")
 const BV_HeavySlug    = preload("res://data/bullets/heavy_slug.tres")
 const BV_DropPellet   = preload("res://data/bullets/drop_pellet.tres")
+# Zealot faction projectiles (Roman 2026-06-16) — assignable in the Enemy Bench.
+const BV_ZealotBall   = preload("res://data/bullets/zealot_ball.tres")
+const BV_ZealotBolt   = preload("res://data/bullets/zealot_bolt.tres")
+const BV_ZealotLaser  = preload("res://data/bullets/zealot_laser.tres")
+const BV_ZealotWave   = preload("res://data/bullets/zealot_wave.tres")
+
+# Shared firing mounts (M6 mount migration 2026-06-16). The privateer gunship's two weapons —
+# previously hardcoded in enemy_gunship.gd — as data: an alternating-muzzle MG burst (Muzzle*) and
+# dual wingtip cannons (Cannon*). Reused across every gunship roster entry (firing is identical).
+const GUNSHIP_MOUNTS := [
+	{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_SpreadPellet,
+	  "aim": "at_player", "count": 3, "burst_interval": 0.1, "fire_min": 2.0, "fire_max": 2.0 },
+	{ "kind": "gun", "marker": "Cannon*", "marker_mode": "all", "payload": BV_HeavySlug,
+	  "aim": "straight_down", "count": 1, "fire_min": 2.4, "fire_max": 2.4 },
+]
+
+# Helix (firecore cruiser) gun turret on its Turret marker — was zealot_turret.mount_all in the
+# enemy's _ready (deleted 2026-06-16). The zealot tank-turret strip + heavy slug, 1:1 with _build.
+const HELIX_MOUNTS := [
+	{ "kind": "turret", "marker": "Turret*", "payload": BV_HeavySlug,
+	  "rotation_speed": 3.6, "fire_min": 1.0, "fire_max": 1.6, "aim_tolerance_deg": 14.0,
+	  "recoil_frames": 3, "turret_texture": "res://graphics/enemies/zealot-tank-turret.png", "turret_hframes": 3 },
+]
 
 # Each entry: scene path + movement_factory + shoot_factory + tier + suggested
 # counts per wave at the entry-level (modest end of the scaling).
@@ -166,12 +190,13 @@ const ENTRIES := [
 	# --- Zealot core units (M6c, Roman art 2026-06-07) --------------------
 	# Zealot-exclusive enemy_core ships carrying a decorative firecore (glowing
 	# center) and a baked DropFirecore component (ALWAYS drop a firecore on death,
-	# count 1 — the faction overlay may add a chance of a second). "Retro" is the
-	# hover/skirmisher gunner; "Run" is the unarmed runner. Each appears under a
-	# few movements for variety.
+	# count 1 — the faction overlay may add a chance of a second). "Acolyte" (was
+	# Retro) is the hover/skirmisher gunner; "Drifter" (was Run) is the unarmed
+	# runner — both renamed in place by the 2026-06-16 art rework (same UID). Each
+	# appears under a few movements for variety.
 	{
 		# Run (straight) — unarmed firecore-runner; basic descent.
-		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_run.tscn",
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_drifter.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "fast_straight",
@@ -183,7 +208,7 @@ const ENTRIES := [
 	},
 	{
 		# Run (weave) — unarmed firecore-runner; lane weave.
-		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_run.tscn",
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_drifter.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "lane_weave",
@@ -195,7 +220,7 @@ const ENTRIES := [
 	},
 	{
 		# Retro (hover) — firecore hover-gunner, aimed fire from a central muzzle.
-		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_retro.tscn",
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_acolyte.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "loiter_mid",
@@ -209,7 +234,7 @@ const ENTRIES := [
 	},
 	{
 		# Retro (skirmish) — firecore skirmisher, advance/retreat aimed fire.
-		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_retro.tscn",
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_acolyte.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "advance_retreat",
@@ -223,7 +248,7 @@ const ENTRIES := [
 	},
 	{
 		# Retro (drift) — firecore drifting gunner.
-		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_retro.tscn",
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_acolyte.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "lane_drift",
@@ -753,6 +778,7 @@ const ENTRIES := [
 	# Single / duo entries give 1 or 2 roamers; no trio (omni roamers don't form up).
 	{
 		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
+		"mounts": GUNSHIP_MOUNTS,
 		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
@@ -764,6 +790,7 @@ const ENTRIES := [
 	},
 	{
 		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
+		"mounts": GUNSHIP_MOUNTS,
 		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
@@ -784,6 +811,7 @@ const ENTRIES := [
 	{
 		# Gunship (hold) — descends and holds the mid band like a loiter gunner.
 		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
+		"mounts": GUNSHIP_MOUNTS,
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
 		"movement": "loiter_mid",
@@ -795,6 +823,7 @@ const ENTRIES := [
 	{
 		# Gunship (weave) — lane-confined weave; a heavier weaver in a lane wave.
 		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
+		"mounts": GUNSHIP_MOUNTS,
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
 		"movement": "lane_weave",
@@ -805,6 +834,7 @@ const ENTRIES := [
 	{
 		# Gunship (shift) — one-way commit to an adjacent lane, then holds it.
 		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
+		"mounts": GUNSHIP_MOUNTS,
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
 		"movement": "lane_shift",
@@ -815,6 +845,7 @@ const ENTRIES := [
 	{
 		# Gunship (skirmish) — aggressive advance/retreat, raking on the hold.
 		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
+		"mounts": GUNSHIP_MOUNTS,
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
 		"movement": "advance_retreat",
@@ -963,7 +994,8 @@ const ENTRIES := [
 	# (loiter), drift (lane_drift). shift/advance can be added later. Bespoke beam +
 	# baked DropFirecore (count 2). RARE capital, kept scarce by the tier-roll.
 	{
-		"scene": "res://scenes/enemies/factions/zealot/enemy_firecore_cruiser.tscn",
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_m_helix.tscn",
+		"mounts": HELIX_MOUNTS,
 		"heavy_class": "capital",
 		"tier": Tier.RARE,
 		"size": "huge", "tags": ["tough"],
@@ -975,7 +1007,8 @@ const ENTRIES := [
 		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.6,
 	},
 	{
-		"scene": "res://scenes/enemies/factions/zealot/enemy_firecore_cruiser.tscn",
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_m_helix.tscn",
+		"mounts": HELIX_MOUNTS,
 		"heavy_class": "capital",
 		"tier": Tier.RARE,
 		"size": "huge", "tags": ["tough"],
@@ -987,7 +1020,8 @@ const ENTRIES := [
 		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5,
 	},
 	{
-		"scene": "res://scenes/enemies/factions/zealot/enemy_firecore_cruiser.tscn",
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_m_helix.tscn",
+		"mounts": HELIX_MOUNTS,
 		"heavy_class": "capital",
 		"tier": Tier.RARE,
 		"size": "huge", "tags": ["tough"],
@@ -1008,7 +1042,7 @@ const ENTRIES := [
 		# — self-manages its rings so default formation/count is fine (no even-count
 		# requirement). Keep hp_override in sync with the script's max_health (10)
 		# so the codex matches.
-		"scene": "res://scenes/enemies/factions/zealot/enemy_firecore_drone.tscn",
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_bloom.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": null,   # handles own movement
@@ -1345,6 +1379,69 @@ static func make_components(entry: Dictionary) -> Array:
 				# Factions.build_components' fresh-per-spawn contract. (Health audit 2026-06-15.)
 				out.append(c.duplicate() if c is Resource else c)
 	return out
+
+
+# Build the enemy's firing MOUNTS (extra guns/turrets/launchers/beams beyond the hull shoot_pattern)
+# from an entry's optional "mounts" key — a list of plain dicts. Mirrors make_shoot/make_components:
+# returns [] when absent (every existing entry → unchanged behavior). Each dict → one MountSpec.
+static func make_mounts(entry: Dictionary) -> Array:
+	var listed: Variant = entry.get("mounts", [])
+	return make_mount_specs(listed) if listed is Array else []
+
+
+# Shared dict → MountSpec converter, also used by the Enemy Bench. "payload" is a BulletVariant
+# resource (or null); "payload_scene"/"turret_texture" may be a res:// string or a loaded resource.
+# Specs are FRESH per call (the wave/instance owns them — the shared-resource-mutation rule).
+static func make_mount_specs(dicts: Array) -> Array:
+	var out: Array = []
+	for d in dicts:
+		if d is Dictionary:
+			out.append(_mount_from_dict(d))
+	return out
+
+
+const _MOUNT_KIND := {"gun": 0, "turret": 1, "launcher": 2, "beam": 3}        # MountSpec.Kind
+const _MOUNT_AIM := {"straight_down": 0, "toward_center": 1, "at_player": 2, "forward": 3}  # MountSpec.Aim
+const _MOUNT_MODE := {"all": 0, "cycle": 1}                                    # MountSpec.MarkerMode
+
+static func _mount_from_dict(d: Dictionary) -> Resource:
+	var m = MountSpec.new()
+	m.kind = int(_MOUNT_KIND.get(String(d.get("kind", "gun")), 0))
+	m.marker = String(d.get("marker", ""))
+	m.marker_mode = int(_MOUNT_MODE.get(String(d.get("marker_mode", "all")), 0))
+	m.payload = d.get("payload", null)
+	var ps: Variant = d.get("payload_scene", null)
+	if ps is String and ps != "":
+		m.payload_scene = load(ps)
+	elif ps is PackedScene:
+		m.payload_scene = ps
+	m.fire_interval_min = float(d.get("fire_min", d.get("fire_interval_min", 2.0)))
+	m.fire_interval_max = float(d.get("fire_max", d.get("fire_interval_max", m.fire_interval_min)))
+	m.aim = int(_MOUNT_AIM.get(String(d.get("aim", "straight_down")), 0))
+	m.lead_factor = float(d.get("lead_factor", 0.0))
+	m.bullet_speed = float(d.get("bullet_speed", -1.0))
+	m.count = int(d.get("count", 1))
+	m.spread_deg = float(d.get("spread_deg", 0.0))
+	m.burst_interval = float(d.get("burst_interval", 0.0))
+	m.homing_rate = float(d.get("homing_rate", 0.0))
+	m.wobble_amplitude = float(d.get("wobble_amplitude", 0.0))
+	m.wobble_frequency = float(d.get("wobble_frequency", 0.0))
+	m.rotation_speed = float(d.get("rotation_speed", 3.6))
+	m.arc_deg = float(d.get("arc_deg", 0.0))
+	m.rest_angle_deg = float(d.get("rest_angle_deg", 0.0))
+	m.arc_gate = bool(d.get("arc_gate", false))
+	m.lock_to_fire = bool(d.get("lock_to_fire", false))
+	m.lock_duration = float(d.get("lock_duration", 0.4))
+	m.aim_tolerance_deg = float(d.get("aim_tolerance_deg", 14.0))
+	m.recoil_frames = int(d.get("recoil_frames", 0))
+	var tt: Variant = d.get("turret_texture", null)
+	if tt is String and tt != "":
+		m.turret_texture = load(tt)
+	elif tt is Texture2D:
+		m.turret_texture = tt
+	m.turret_hframes = int(d.get("turret_hframes", 1))
+	m.beam_config = d.get("beam_config", {})
+	return m
 
 
 static func make_shoot(entry: Dictionary) -> Resource:

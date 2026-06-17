@@ -1,0 +1,83 @@
+[gd_scene format=3 uid="uid://cnpsp638pek6y"]
+
+[ext_resource type="Script" uid="uid://bh0b14uxdllo6" path="res://scripts/enemies/factions/zealot/enemy_sword.gd" id="1_a2j72"]
+[ext_resource type="Script" uid="uid://bj8dc3ktx8bt1" path="res://scripts/enemies/patterns/straight_down.gd" id="2_soqrg"]
+[ext_resource type="PackedScene" uid="uid://uoof4kuon0td" path="res://scenes/enemies/factions/zealot/firecore_core.tscn" id="3_us6vd"]
+[ext_resource type="Texture2D" uid="uid://cbxy4t3ut0y1l" path="res://graphics/enemies/enemy_z_m_cross.png" id="4_a2j72"]
+[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://assets/audio/SFX_shot7.wav" id="5_cs74s"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="6_wcmgs"]
+
+[sub_resource type="Resource" id="MovePattern"]
+script = ExtResource("2_soqrg")
+speed = 150.0
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_soqrg"]
+radius = 16.0
+height = 32.0
+
+[node name="Enemy" type="Area2D" unique_id=354957993 groups=["enemies"]]
+script = ExtResource("1_a2j72")
+movement = SubResource("MovePattern")
+
+[node name="FirecoreCore" parent="." unique_id=655469713 instance=ExtResource("3_us6vd")]
+position = Vector2(-9, 0)
+
+[node name="FirecoreCore2" parent="." unique_id=1174304517 instance=ExtResource("3_us6vd")]
+position = Vector2(9, 0)
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=869068400]
+texture = ExtResource("4_a2j72")
+hframes = 2
+
+[node name="GlowMask" type="Sprite2D" parent="." unique_id=721256683]
+texture = ExtResource("4_a2j72")
+hframes = 2
+frame = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=207114364]
+shape = SubResource("CapsuleShape2D_soqrg")
+
+[node name="MoveTimer" type="Timer" parent="." unique_id=1380023245]
+one_shot = true
+
+[node name="ShootTimer" type="Timer" parent="." unique_id=674172378]
+one_shot = true
+
+[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="." unique_id=892052681]
+stream = ExtResource("5_cs74s")
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=6464871]
+stream = ExtResource("6_wcmgs")
+
+[node name="MuzzleL" type="Marker2D" parent="." unique_id=1042893244]
+position = Vector2(-4, -9)
+
+[node name="MuzzleR" type="Marker2D" parent="." unique_id=1266181458]
+position = Vector2(4, -9)
+
+[node name="EngineL" type="Marker2D" parent="." unique_id=1578016475]
+position = Vector2(-5, 4)
+
+[node name="EngineL2" type="Marker2D" parent="." unique_id=1627023031]
+position = Vector2(-9, 6)
+
+[node name="EngineL3" type="Marker2D" parent="." unique_id=2011148832]
+position = Vector2(-13, 4)
+
+[node name="ThrusterUL" type="Marker2D" parent="." unique_id=1533547]
+position = Vector2(-14, -4)
+
+[node name="EngineR" type="Marker2D" parent="." unique_id=1371445725]
+position = Vector2(5, 4)
+
+[node name="EngineR2" type="Marker2D" parent="." unique_id=1370860956]
+position = Vector2(9, 6)
+
+[node name="EngineR3" type="Marker2D" parent="." unique_id=1430885679]
+position = Vector2(13, 4)
+
+[node name="ThrusterUR" type="Marker2D" parent="." unique_id=1313286604]
+position = Vector2(14, -4)
+
+[connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
+[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

@@ -68,6 +68,10 @@ func _ready() -> void:
 		run.new_run()
 	_font = UiTheme.active_font()
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# The root Control defaults to MOUSE_FILTER_STOP, which CONSUMES grid clicks before
+	# _unhandled_input fires (so placement silently did nothing). IGNORE lets empty-area clicks
+	# fall through to _unhandled_input; the side panels/buttons keep their own STOP filter.
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_move_keys = [""]
 	for k in MovementKeys.MOVEMENT_KEYS:
 		_move_keys.append(str(k))
@@ -227,7 +231,7 @@ func _build_ui() -> void:
 	left.add_child(lv)
 	_fill_panel(lv)
 
-	lv.add_child(_new_label("WAVE PATTERN ED", UiTheme.COLOR_ACCENT, SZ))
+	lv.add_child(_new_label("FORMATION BUILDER", UiTheme.COLOR_ACCENT, SZ))
 
 	# Pattern nav.
 	var pr := HBoxContainer.new()

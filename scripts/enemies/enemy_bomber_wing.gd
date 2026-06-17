@@ -23,6 +23,7 @@ extends "res://scripts/enemies/enemy_base.gd"
 # Bomber faces UP (rear toward player). Each turret's "rear" arc is a
 # 150° wedge centered on +Y so the player gets hit when chasing.
 
+const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 const BulletScene = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const TURRET_BULLET_TEX = preload("res://graphics/projectiles/tracer-yellow.png")
 const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
@@ -210,7 +211,8 @@ func _fire_turret(idx: int, dist_to_player: float) -> void:
 		b.velocity_dir = dir
 	if "speed" in b:
 		b.speed = turret_bullet_speed
-	get_tree().root.add_child(b)
+	var world: Node = BulletWorld.resolve(self, get_tree().root)
+	world.add_child(b)
 	var spr: Sprite2D = b.get_node_or_null("Sprite2D") as Sprite2D
 	if spr:
 		spr.texture = TURRET_BULLET_TEX

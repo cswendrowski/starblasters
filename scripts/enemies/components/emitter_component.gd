@@ -13,6 +13,8 @@ extends EnemyComponent
 # not an arbitrary-anything god-object (the §19 caution). Bullet-ring death release
 # (firecore_drone) needs per-projectile direction, so it stays a separate concern.
 
+const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
+
 enum Trigger { START, TIMER, DEATH }
 
 @export var payload: PackedScene = null
@@ -66,8 +68,9 @@ func _emit(enemy) -> void:
 	var parent: Node = enemy
 	if not attach_to_enemy:
 		# Parent to the scene root so drops survive the enemy's queue_free (matches the
-		# bullets/debris convention).
-		parent = enemy.get_tree().current_scene
+		# bullets/debris convention). In a SubViewport bench, the bullet_world layer wins so
+		# drops land in the preview, not the window corner.
+		parent = BulletWorld.resolve(enemy, enemy.get_tree().current_scene)
 		if parent == null:
 			parent = enemy.get_tree().root
 	if parent == null:

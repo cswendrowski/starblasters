@@ -20,6 +20,7 @@ extends "res://scripts/enemies/enemy_base.gd"
 # subclass picks up the bar automatically by extending this file.
 
 const Playfield = preload("res://scripts/systems/playfield.gd")
+const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 
 # Flat base HP multiplier applied to EVERY boss (designer Roman, 2026-05-31:
 # "bosses die too fast"). Layered ON TOP of the per-boss-defeated +5% run
@@ -68,9 +69,45 @@ var _current_phase_idx: int = -1   # -1 = not yet initialised
 # read. Reuse from any signature attack that needs the read.
 var _charging: bool = false
 
+# ---- Encounter state machine (2026-06-16, standardized boss system) ------
+# OPT-IN second phase model that supersedes the HP-ladder above for bosses that
+# need lifecycle states (scripted arrival / invincible transitions / exit
+# choreography) and non-HP triggers (timers, flags, loops back to an earlier
+# state). A boss opts in by overriding `_build_states()` to register a state
+# graph; if it does NOT, `_states` stays empty, `_sm_active` is false, and the
+# legacy `phases[]` ladder runs exactly as before (ZERO behaviour change for the
+# 7 existing bosses). The two models are mutually exclusive per-boss.
+#
+# Behaviour dispatch mirrors the legacy split: `_state_enter/_state_tick/
+# _state_exit(name)` are the analogue of `_on_phase_entered` + `_attack_loop`.
+# The idiomatic per-state attack rotation is a coroutine started in `_state_enter`
+# guarded by `while _state == name and not _dying:` so it self-cancels on exit.
+var _sm_active: bool = false
+var _states: Dictionary = {}              # StringName -> { "transitions": Array }
+var _state_order: Array[StringName] = []  # registration order; [0] is the initial state
+var _initial_state: StringName = &""      # override to start somewhere other than _state_order[0]
+var _state: StringName = &""              # current state name
+var _state_t: float = 0.0                 # seconds elapsed in the current state
+var _flags: Dictionary = {}               # named booleans raised for t_flag() triggers
+# Damage-immunity window — set true by transition/arrival states. While true,
+# take_hit() no-ops (with a deflect tick) so the boss can't be killed mid-animation.
+var _invincible: bool = false
+
+# ---- Destructible parts (turrets / pods / weak-points) ------------------
+# Registered BossPart instances. Optional HP-threshold part loss is decoupled
+# from the phase machine: set_part_loss_thresholds([0.75, 0.5, 0.25]) blows a
+# random live part each time HP crosses a listed fraction (the Shepherd's turrets).
+var _parts: Array = []
+var _part_loss_thresholds: Array = []     # descending hp fractions
+var _parts_lost: int = 0
+
 # ---- Movement plumbing -------------------------------------------------
 
 var _pattern = null
+# Scripted-move mode: while true, an awaitable movement helper (arrive_from /
+# vertical_pass / fly_offscreen) owns `position` via a tween, and _process leaves
+# pattern/anchor/mirror/clamp alone so the boss can travel OFF the playfield.
+var _scripted_move: bool = false
 # Anchored mode (sweep disabled). When set, _process lerps toward _anchor.
 var _anchored: bool = false
 var _anchor_pos: Vector2 = Vector2.ZERO
@@ -137,6 +174,10 @@ func start(pos: Vector2) -> void:
 		$ShootTimer.wait_time = randf_range(fire_interval_min, fire_interval_max)
 		$ShootTimer.start()
 	health_changed.emit(health, max_health)
+	# State-machine bosses enter their initial state now (boss is placed + live).
+	if _sm_active and _state == &"":
+		var initial: StringName = _initial_state if _initial_state != &"" else _state_order[0]
+		_enter_state(initial)
 	# Kick the subclass attack rotation (coroutine — many subclasses will
 	# leave this empty and rely on ShootTimer).
 	call_deferred("_attack_loop")
@@ -152,22 +193,28 @@ func _on_timer_timeout() -> void:
 func _process(delta: float) -> void:
 	if _dying:
 		return
-	if _anchored:
-		position = position.lerp(_anchor_pos, clamp(delta * _anchor_lerp, 0.0, 1.0))
-	elif _pattern != null:
-		var safe_delta: float = min(delta, 1.0 / 30.0)
-		var step: Vector2 = _pattern.compute_step(self, safe_delta)
-		# Slow the boss to a crawl while a signature attack is winding up
-		# so the player can read "this boss is busy".
-		if _charging:
-			step *= 0.25
-		position += step
-	if _mirror_strength > 0.0:
-		var player := find_player()
-		if player != null and player is Node2D:
-			var tgt_x: float = _mirror_center_x + ((player as Node2D).global_position.x - _mirror_center_x) * _mirror_strength
-			position.x = clamp(tgt_x, Playfield.X_MIN + 24.0, Playfield.X_MAX - 24.0)
-	_clamp_to_playfield()
+	# While a scripted move owns position (off-playfield arrival/pass/exit), skip
+	# the normal movement + clamp so the tween isn't fought. The SM still ticks so
+	# its transitions (e.g. on the move's completion flag) keep firing.
+	if not _scripted_move:
+		if _anchored:
+			position = position.lerp(_anchor_pos, clamp(delta * _anchor_lerp, 0.0, 1.0))
+		elif _pattern != null:
+			var safe_delta: float = min(delta, 1.0 / 30.0)
+			var step: Vector2 = _pattern.compute_step(self, safe_delta)
+			# Slow the boss to a crawl while a signature attack is winding up
+			# so the player can read "this boss is busy".
+			if _charging:
+				step *= 0.25
+			position += step
+		if _mirror_strength > 0.0:
+			var player := find_player()
+			if player != null and player is Node2D:
+				var tgt_x: float = _mirror_center_x + ((player as Node2D).global_position.x - _mirror_center_x) * _mirror_strength
+				position.x = clamp(tgt_x, Playfield.X_MIN + 24.0, Playfield.X_MAX - 24.0)
+		_clamp_to_playfield()
+	if _sm_active:
+		_tick_state_machine(delta)
 
 
 # Keep the boss inside the visible playfield. Bosses sit in the top 70%
@@ -186,11 +233,17 @@ func hit() -> void:
 	tw.tween_property(self, "modulate", Color(1, 1, 1, 1), 0.15)
 	health_changed.emit(health, max_health)
 	_check_phase_transition()
+	_check_part_loss()
 
 
 # Override EnemyBase.take_hit so the phase check runs even on kills (rare,
 # but the kill itself emits a final health_changed via explode()).
 func take_hit(damage: int = 1) -> bool:
+	# Invincibility window (transition/arrival states) — absorb the hit with a
+	# deflect tick, no health loss. Guarded so a dying boss still resolves.
+	if _invincible and not _dying:
+		_deflect_tick()
+		return false
 	var killed: bool = super.take_hit(damage)
 	# health_changed already emitted by hit() on non-fatal hits; emit on
 	# fatal for parity (explode() emits 0/max).
@@ -278,6 +331,14 @@ func _on_shoot_timer_timeout() -> void:
 func _init_phases() -> void:
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("boss")
+	# Opt-in state machine: a boss that registers a state graph runs on it and
+	# skips the legacy HP-ladder entirely. Built before the initial state enters.
+	_build_states()
+	if not _states.is_empty():
+		_sm_active = true
+		# The initial state is entered from start() — once the director has placed
+		# the boss and it's live — so arrival choreography sees a real position.
+		return
 	if phases.is_empty():
 		# Subclass left it empty — treat as single 1.0 phase. No push_error
 		# here because "1 phase" is a legitimate design choice for some bosses
@@ -328,6 +389,209 @@ func _check_phase_transition() -> void:
 # rotation, spawn extra adds, etc).
 func _on_phase_entered(_phase_idx: int, _phase_name: String) -> void:
 	pass
+
+
+# ======================================================================
+# Encounter state machine (the standardized boss system). See the field
+# block near the top for the opt-in contract. Subclasses author the graph in
+# _build_states() and behaviour in _state_enter/_state_tick/_state_exit.
+# ======================================================================
+
+# Subclass hook: register the state graph here (called once before the initial
+# state is entered). Leave empty to use the legacy phases[] HP-ladder. Example:
+#   add_state(&"ARRIVAL"); add_state(&"PHASE_1"); add_state(&"TRANSITION_1")
+#   add_transition(&"ARRIVAL", t_flag(&"arrived"), &"PHASE_1")
+#   add_transition(&"PHASE_1", t_any([t_hp(0.75), t_after(20.0)]), &"TRANSITION_1")
+func _build_states() -> void:
+	pass
+
+
+# Register a state. The first registered state is the initial one unless
+# _initial_state is set. Safe to call twice with the same name (idempotent).
+func add_state(state_name: StringName) -> void:
+	if not _states.has(state_name):
+		_states[state_name] = {"transitions": []}
+		_state_order.append(state_name)
+
+
+# Add a trigger-gated transition. Each frame the current state's transitions are
+# evaluated in the order added; the FIRST whose trigger fires wins.
+func add_transition(from_state: StringName, trigger: Dictionary, to_state: StringName) -> void:
+	if not _states.has(from_state):
+		add_state(from_state)
+	_states[from_state]["transitions"].append({"trigger": trigger, "to": to_state})
+
+
+# ---- Trigger library (plain data dicts: inspectable, no closure capture) ----
+func t_hp(pct: float) -> Dictionary: return {"type": "hp_below", "pct": pct}
+func t_after(seconds: float) -> Dictionary: return {"type": "after", "sec": seconds}
+func t_flag(flag: StringName) -> Dictionary: return {"type": "flag", "flag": flag}
+func t_any(subs: Array) -> Dictionary: return {"type": "any", "subs": subs}
+func t_all(subs: Array) -> Dictionary: return {"type": "all", "subs": subs}
+# Escape hatch — a Callable() -> bool evaluated live each frame.
+func t_pred(cb: Callable) -> Dictionary: return {"type": "pred", "cb": cb}
+
+
+func _eval_trigger(t: Dictionary) -> bool:
+	match String(t.get("type", "")):
+		"hp_below":
+			return max_health > 0 and float(health) / float(max_health) <= float(t["pct"])
+		"after":
+			return _state_t >= float(t["sec"])
+		"flag":
+			return bool(_flags.get(t["flag"], false))
+		"any":
+			for s in t["subs"]:
+				if _eval_trigger(s):
+					return true
+			return false
+		"all":
+			for s in t["subs"]:
+				if not _eval_trigger(s):
+					return false
+			return true
+		"pred":
+			var cb: Callable = t["cb"]
+			return cb.is_valid() and bool(cb.call())
+	return false
+
+
+# Raise/lower a named boolean read by t_flag() triggers (e.g. "arrived",
+# "anim_done"). Cleared automatically on every state change.
+func set_flag(flag: StringName, value: bool = true) -> void:
+	_flags[flag] = value
+
+
+# Damage-immunity window. While true, take_hit() no-ops with a deflect tick.
+func set_invincible(value: bool) -> void:
+	_invincible = value
+
+
+# Subclass hooks — per-state behaviour. _state_enter is the place to start a
+# per-state coroutine guarded by `while _state == name and not _dying:`.
+func _state_enter(_state_name: StringName) -> void:
+	pass
+func _state_tick(_state_name: StringName, _delta: float) -> void:
+	pass
+func _state_exit(_state_name: StringName) -> void:
+	pass
+
+
+# Enter a state: run the old state's exit hook, reset the timer + per-state
+# flags, fire phase_changed, run the new state's enter hook.
+func _enter_state(state_name: StringName) -> void:
+	if not _states.has(state_name):
+		push_error("BossBase: unknown state " + String(state_name))
+		return
+	var old: StringName = _state
+	if old != &"":
+		_state_exit(old)
+	_state = state_name
+	_state_t = 0.0
+	_flags.clear()
+	phase_changed.emit(_state_order.find(old), _state_order.find(state_name), String(state_name))
+	_state_enter(state_name)
+
+
+# Force a jump to any registered state — escape hatch for event-driven logic
+# (a destroyed part, a scripted cue) that bypasses the trigger table.
+func go_to_state(state_name: StringName) -> void:
+	if _sm_active:
+		_enter_state(state_name)
+
+
+# Per-frame pump: advance the state timer, tick the state, then evaluate
+# transitions (first match wins). Called from _process while _sm_active.
+func _tick_state_machine(delta: float) -> void:
+	if _state == &"" or _dying:
+		return
+	_state_t += delta
+	_state_tick(_state, delta)
+	if _dying or not _sm_active:
+		return
+	for tr in _states[_state]["transitions"]:
+		if _eval_trigger(tr["trigger"]):
+			_enter_state(tr["to"])
+			return
+
+
+# Brief cyan deflect flash while invincible — reads as "hits aren't landing".
+func _deflect_tick() -> void:
+	if not has_node("Sprite2D"):
+		return
+	var spr := $Sprite2D as Sprite2D
+	if spr == null:
+		return
+	var tw := spr.create_tween()
+	tw.tween_property(spr, "modulate", Color(0.5, 0.9, 1.4, 1.0), 0.05)
+	tw.tween_property(spr, "modulate", Color(1, 1, 1, 1), 0.1)
+
+
+# ---- Destructible parts API --------------------------------------------
+
+# Register a BossPart so the boss tracks it (for threshold loss + cleanup) and
+# is notified when it dies. Call after add_child-ing the part.
+func register_part(part: Node) -> void:
+	if part == null or part in _parts:
+		return
+	_parts.append(part)
+	if part.has_signal("part_destroyed") and not part.part_destroyed.is_connected(_on_part_destroyed):
+		part.part_destroyed.connect(_on_part_destroyed)
+
+
+func _on_part_destroyed(part: Node) -> void:
+	_parts.erase(part)
+	_on_part_lost(part)
+
+
+# Subclass hook: react to a part being destroyed (retarget a coordinator,
+# escalate a phase, etc).
+func _on_part_lost(_part: Node) -> void:
+	pass
+
+
+# Live (still-valid) registered parts.
+func live_parts() -> Array:
+	var out: Array = []
+	for p in _parts:
+		if is_instance_valid(p):
+			out.append(p)
+	return out
+
+
+# Blow a random live part now (used by the HP-threshold loss + on demand).
+func destroy_random_part() -> void:
+	var live := live_parts()
+	if live.is_empty():
+		return
+	live[randi() % live.size()].destroy()
+
+
+# Free all surviving parts — call from _on_boss_death so they don't linger or
+# keep gating wave-clear after the boss dies.
+func free_parts() -> void:
+	for p in _parts:
+		if is_instance_valid(p):
+			p.queue_free()
+	_parts.clear()
+
+
+# Configure HP fractions at which a random part is blown (e.g. [0.75,0.5,0.25]).
+func set_part_loss_thresholds(fractions: Array) -> void:
+	_part_loss_thresholds = fractions.duplicate()
+	_part_loss_thresholds.sort()
+	_part_loss_thresholds.reverse()   # descending so we cross them as HP drops
+	_parts_lost = 0
+
+
+# Called from hit(): blow a part for each newly-crossed threshold.
+func _check_part_loss() -> void:
+	if _part_loss_thresholds.is_empty() or max_health <= 0:
+		return
+	var frac: float = float(health) / float(max_health)
+	while _parts_lost < _part_loss_thresholds.size() and frac <= float(_part_loss_thresholds[_parts_lost]):
+		_parts_lost += 1
+		destroy_random_part()
 
 
 # Subclass hook: looped attack coroutine. Many bosses will just leave this
@@ -393,6 +657,13 @@ func _resolve_variant(override: BulletVariant) -> BulletVariant:
 	return default_bullet_variant
 
 
+# World parent for boss-spawned visuals (bullets, telegraphs, beam/zone hitboxes, firecore
+# drops). The live combat scene normally; in a SubViewport bench the bullet_world layer wins
+# so they render + collide inside the preview instead of the window's top-left corner.
+func _world() -> Node:
+	return BulletWorld.resolve(self, get_tree().current_scene)
+
+
 func _spawn_bullet(dir: Vector2, variant: BulletVariant = null) -> void:
 	var bs := _bullet_scene()
 	if bs == null:
@@ -404,7 +675,7 @@ func _spawn_bullet(dir: Vector2, variant: BulletVariant = null) -> void:
 	var v: BulletVariant = _resolve_variant(variant)
 	if v != null:
 		b.variant = v
-	get_tree().root.add_child(b)
+	_world().add_child(b)
 	if b.has_method("start"):
 		b.start(global_position, dir)
 	else:
@@ -483,13 +754,13 @@ func fire_beam_telegraphed(width_px: float, gap_x: float, telegraph_duration: fl
 	tele_left.size = Vector2(max(0.0, gap_x - gap_half - Playfield.X_MIN), 1.0)
 	tele_left.position = Vector2(Playfield.X_MIN, beam_y - 0.5)
 	tele_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	get_tree().current_scene.add_child(tele_left)
+	_world().add_child(tele_left)
 	var tele_right := ColorRect.new()
 	tele_right.color = Color(1.0, 0.15, 0.15, 0.7)
 	tele_right.size = Vector2(max(0.0, Playfield.X_MAX - (gap_x + gap_half)), 1.0)
 	tele_right.position = Vector2(gap_x + gap_half, beam_y - 0.5)
 	tele_right.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	get_tree().current_scene.add_child(tele_right)
+	_world().add_child(tele_right)
 	await get_tree().create_timer(telegraph_duration).timeout
 	if is_instance_valid(tele_left):
 		tele_left.queue_free()
@@ -503,13 +774,13 @@ func fire_beam_telegraphed(width_px: float, gap_x: float, telegraph_duration: fl
 	left.size = Vector2(max(0.0, gap_x - gap_half - Playfield.X_MIN), width_px)
 	left.position = Vector2(Playfield.X_MIN, beam_y - width_px * 0.5)
 	left.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	get_tree().current_scene.add_child(left)
+	_world().add_child(left)
 	var right := ColorRect.new()
 	right.color = Color(1.0, 0.3, 0.3, 0.9)
 	right.size = Vector2(max(0.0, Playfield.X_MAX - (gap_x + gap_half)), width_px)
 	right.position = Vector2(gap_x + gap_half, beam_y - width_px * 0.5)
 	right.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	get_tree().current_scene.add_child(right)
+	_world().add_child(right)
 	# Damage hitboxes — one per side of the gap. Spawned as children of the
 	# current scene so they outlive any boss reposition mid-beam.
 	_spawn_beam_hitbox(Playfield.X_MIN, gap_x - gap_half, beam_y, width_px, beam_duration, damage)
@@ -537,7 +808,7 @@ func _spawn_beam_hitbox(x_left: float, x_right: float, beam_y: float, width_px: 
 	cs.shape = shape
 	hb.add_child(cs)
 	hb.global_position = Vector2(x_left + w * 0.5, beam_y)
-	get_tree().current_scene.add_child(hb)
+	_world().add_child(hb)
 	var dmg: int = damage
 	hb.area_entered.connect(func(other: Area2D) -> void:
 		if other != null and other.is_in_group("player") and other.has_method("take_damage"):
@@ -603,6 +874,178 @@ func dive_toward(target: Vector2, speed: float, telegraph_first: bool = true) ->
 func mirror_player_x(strength: float = 1.0) -> void:
 	_mirror_strength = clamp(strength, 0.0, 1.0)
 	_mirror_center_x = Playfield.CENTER.x
+
+
+# ---- Encounter behaviour helpers (reusable across bosses) --------------
+# Movement choreography (arrival / off-screen exit / vertical pass) used by
+# lifecycle states, plus a few shared attack/transition primitives the Shepherd
+# testbed needs. All movement helpers are awaitable so a state coroutine can
+# `await arrive_from(...)` then raise a flag the trigger table reads.
+
+# High-hold "jiggle drift": a gentle small-amplitude sweep that reads as the
+# capital idling in place. Thin wrapper over sweep_horizontal.
+func jiggle_hold(amplitude_x: float = 16.0, period_sec: float = 4.5) -> void:
+	_scripted_move = false
+	sweep_horizontal(amplitude_x, period_sec)
+
+
+# Awaitable: fly fully off-screen along `direction` (e.g. Vector2.UP / DOWN).
+func fly_offscreen(direction: Vector2, speed: float = 280.0) -> void:
+	_scripted_move = true
+	var vp: Vector2 = get_viewport_rect().size
+	var dir: Vector2 = direction.normalized()
+	if dir == Vector2.ZERO:
+		dir = Vector2.DOWN
+	var target: Vector2 = position + dir * (vp.length() + 160.0)
+	var dur: float = position.distance_to(target) / max(speed, 1.0)
+	var tw := create_tween()
+	tw.tween_property(self, "position", target, dur).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	await tw.finished
+
+
+# Awaitable: the Shepherd's signature entrance — park below the screen in `lane_x`,
+# sweep up and off the top, then descend into the hold position. Ends with the boss
+# anchored at the hold so a follow-up jiggle_hold/sweep reads cleanly.
+func arrive_from(lane_x: float, speed: float = 170.0) -> void:
+	_scripted_move = true
+	var vp: Vector2 = get_viewport_rect().size
+	position = Vector2(lane_x, vp.y + 60.0)
+	var top_target := Vector2(lane_x, -70.0)
+	var dur1: float = position.distance_to(top_target) / max(speed, 1.0)
+	var tw1 := create_tween()
+	tw1.tween_property(self, "position", top_target, dur1).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	await tw1.finished
+	if _dying:
+		return
+	# Re-enter from the top and settle into the hold.
+	var hold := Vector2(Playfield.CENTER.x, boss_hover_y)
+	position = Vector2(hold.x, -50.0)
+	var tw2 := create_tween()
+	tw2.tween_property(self, "position", hold, 1.0).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	await tw2.finished
+	_scripted_move = false
+
+
+# Awaitable: a top-to-bottom traverse like the missile cruiser. `on_tick` (optional
+# Callable taking the 0..1 progress) lets the caller fire salvos along the pass.
+func vertical_pass(speed: float = 95.0, on_tick: Callable = Callable()) -> void:
+	_scripted_move = true
+	var vp: Vector2 = get_viewport_rect().size
+	position = Vector2(Playfield.CENTER.x, -50.0)
+	var target := Vector2(position.x, vp.y + 50.0)
+	var dur: float = position.distance_to(target) / max(speed, 1.0)
+	var tw := create_tween()
+	tw.tween_property(self, "position", target, dur)
+	if on_tick.is_valid():
+		# Fire the callback a handful of times across the pass.
+		var n := 6
+		for i in range(1, n):
+			tw.parallel().tween_callback(on_tick.bind(float(i) / float(n))).set_delay(dur * float(i) / float(n))
+	await tw.finished
+	_scripted_move = false
+
+
+# Awaitable transition flare (Shepherd's Transition 1): N red engine flashes, then a
+# flare that NUKES nearby projectiles and opens a brief damage area to close players.
+# The boss is held invincible for the whole animation.
+func flare_clear(radius: float = 70.0, damage: int = 1, flashes: int = 3) -> void:
+	set_invincible(true)
+	for i in flashes:
+		if _dying:
+			set_invincible(false)
+			return
+		_enrage_flash(Color(1.5, 0.2, 0.2, 1.0), 0.22)
+		await get_tree().create_timer(0.3).timeout
+	if _dying:
+		set_invincible(false)
+		return
+	_screen_shake(8.0)
+	_clear_projectiles_in_radius(radius)
+	_spawn_circle_hitbox(global_position, radius, 0.45, damage)
+	# Placeholder flare VFX — the expanding enrage ring stands in until the new art
+	# lands (spec: "use the gun muzzle flash sprite strip for now").
+	_enrage_flash(Color(1.6, 0.9, 0.4, 1.0), 0.5)
+	await get_tree().create_timer(0.5).timeout
+	set_invincible(false)
+
+
+# Free every projectile (group "bullets") within `radius` of the boss.
+func _clear_projectiles_in_radius(radius: float) -> void:
+	var r2: float = radius * radius
+	for b in get_tree().get_nodes_in_group("bullets"):
+		if b is Node2D and (b as Node2D).global_position.distance_squared_to(global_position) <= r2:
+			b.queue_free()
+
+
+# Telegraphed area strikes at random playfield positions (Phase 2 "zone strike
+# missiles"). Awaitable for one cycle: telegraph -> impact + brief damage area.
+func fire_zone_strike(count: int = 3, telegraph: float = 0.8, radius: float = 26.0, damage: int = 1) -> void:
+	var vp: Vector2 = get_viewport_rect().size
+	for i in count:
+		var px: float = randf_range(Playfield.X_MIN + radius, Playfield.X_MAX - radius)
+		var py: float = randf_range(70.0, vp.y - 40.0)
+		_zone_strike_at(Vector2(px, py), radius, telegraph, damage)
+	await get_tree().create_timer(telegraph + 0.25).timeout
+
+
+# Fire-and-forget single zone strike: a growing red telegraph ring, then an
+# explosion + a one-shot circular damage area.
+func _zone_strike_at(center: Vector2, radius: float, telegraph: float, damage: int) -> void:
+	var tele := ColorRect.new()
+	tele.color = Color(1.0, 0.25, 0.2, 0.0)
+	tele.size = Vector2(radius * 2.0, radius * 2.0)
+	tele.position = center - tele.size * 0.5
+	tele.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_world().add_child(tele)
+	var tw := tele.create_tween()
+	tw.tween_property(tele, "color:a", 0.5, telegraph * 0.8)
+	tw.tween_callback(func() -> void:
+		if is_instance_valid(tele):
+			tele.queue_free()
+		if _dying:
+			return
+		var ExplosionFx := load("res://scripts/effects/explosion_fx.gd")
+		ExplosionFx.play(center, 1.0, true, _world())
+		_spawn_circle_hitbox(center, radius, 0.3, damage)
+	)
+
+
+# A one-shot circular Area2D that damages the "player" group, auto-freed after
+# `duration`. Companion to _spawn_beam_hitbox (rect) for radial strikes.
+func _spawn_circle_hitbox(center: Vector2, radius: float, duration: float, damage: int) -> void:
+	var hb := Area2D.new()
+	hb.monitoring = true
+	hb.monitorable = false
+	var cs := CollisionShape2D.new()
+	var shape := CircleShape2D.new()
+	shape.radius = radius
+	cs.shape = shape
+	hb.add_child(cs)
+	hb.global_position = center
+	_world().add_child(hb)
+	var dmg: int = damage
+	hb.area_entered.connect(func(other: Area2D) -> void:
+		if other != null and other.is_in_group("player") and other.has_method("take_damage"):
+			other.take_damage(dmg)
+	)
+	get_tree().create_timer(duration).timeout.connect(func() -> void:
+		if is_instance_valid(hb):
+			hb.queue_free()
+	)
+
+
+# Spawn a drifting firecore hazard below the boss (Phase 3 "releases its fire
+# cores one after another"). Reuses the zealot firecore hazard scene.
+func release_firecore(offset: Vector2 = Vector2(0, 12)) -> void:
+	var FC := load("res://scenes/enemies/factions/zealot/firecore_hazard.tscn")
+	if FC == null:
+		return
+	var fc = FC.instantiate()
+	_world().add_child(fc)
+	if fc is Node2D:
+		(fc as Node2D).global_position = global_position + offset
+	if fc.has_method("start"):
+		fc.start(global_position + offset)
 
 
 # ---- Shared VFX --------------------------------------------------------

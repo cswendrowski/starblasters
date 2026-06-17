@@ -26,6 +26,7 @@ const _DamageEdgeTex = preload("res://resources/edge_distance_flat.tres")
 const ExplosionFxScript = preload("res://scripts/effects/explosion_fx.gd")
 const DeathDustScript = preload("res://scripts/effects/death_dust.gd")
 const BurnFxScript = preload("res://scripts/effects/burn_fx.gd")
+const MountBuilder = preload("res://scripts/enemies/mounts/mount_builder.gd")
 # Dead-code holdover: the simple max_shield charge + its ring are retired (nothing in the
 # live spawn path sets max_shield > 0). Repointed to hex_shield so the only consumer left —
 # the preserved-but-unscened enemy_bomber_wing — matches the committed shield (Roman 2026-06-11).
@@ -149,6 +150,12 @@ enum Category { UNKNOWN, CHAFF, ELITE, MINE, ASTEROID, BOSS, PROJECTILE }
 @export var components: Array = []
 var _components: Array = []
 
+# Firing mounts (Roman 2026-06-16): extra guns/turrets/launchers/beams beyond the hull
+# `shoot_pattern`, as MountSpec resources. Realized at spawn by MountBuilder (turrets/beams become
+# child nodes; gun/launcher mounts become MountComponents appended to _components). UNTYPED for the
+# same reason as `components` above (programmatic assignment from roster/director/bench).
+@export var mounts: Array = []
+
 # Allow this enemy to leave through the screen sides without being
 # clamped back into the playfield. Patterns (side_traverse, side_cut,
 # advance_retreat, top_dive) set this to true. Declared on the base so
@@ -205,6 +212,7 @@ func _ready() -> void:
 	# positions us (deferred so it lands after start(pos), uniformly for every enemy
 	# type). No-op while components is empty.
 	_init_components()
+	_attach_mounts()   # BEFORE the deferral so gun/launcher mounts get on_start too
 	if not _components.is_empty():
 		call_deferred("_components_start")
 	# Legacy enemy .tscns use Sprite2D.flip_v = true to point art "down" at
@@ -708,6 +716,16 @@ func _init_components() -> void:
 	for c in components:
 		if c != null:
 			_components.append(c.duplicate())
+
+
+# Realize `mounts` (MountSpec resources) into live primitives. Turrets/beams become child nodes;
+# gun/launcher mounts become fresh MountComponents appended to the live component list so they
+# tick (their on_start fires via the same deferred _components_start path as authored components).
+func _attach_mounts() -> void:
+	if mounts.is_empty():
+		return
+	for c in MountBuilder.attach_all(self, mounts):
+		_components.append(c)
 
 
 func _components_start() -> void:

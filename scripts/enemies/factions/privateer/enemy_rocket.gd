@@ -15,6 +15,7 @@ extends "res://scripts/enemies/enemy_core.gd"
 # (mirrors interceptor: enemy_core + custom _process). Two-frame sprite:
 # frame 0 hull + frame 1 emissive glow (GlowMask).
 
+const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 const ROCKET_SCENE = preload("res://scenes/projectiles/enemy_rocket.tscn")
 const BULLET_SCENE = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const MuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
@@ -78,7 +79,8 @@ func _fire_rocket() -> void:
 	var dir: Vector2 = Vector2(0, 1).rotated(spread)
 	var r = ROCKET_SCENE.instantiate()
 	r.initial_dir = dir              # launch heading — set BEFORE add_child (BaseMissile._ready reads it)
-	get_tree().root.add_child(r)
+	var world: Node = BulletWorld.resolve(self, get_tree().root)
+	world.add_child(r)
 	r.start(pos)
 
 
@@ -110,9 +112,10 @@ func _fire_tracer() -> void:
 	var dir: Vector2 = (player.global_position - pos).normalized() if player else Vector2(0, 1)
 	var b = BULLET_SCENE.instantiate()
 	b.speed = TRACER_SPEED
-	get_tree().root.add_child(b)
+	var world: Node = BulletWorld.resolve(self, get_tree().root)
+	world.add_child(b)
 	if b.has_method("start"):
 		b.start(pos, dir)
-	MuzzleFx.play_enemy(pos, dir, get_tree().root)
+	MuzzleFx.play_enemy(pos, dir, world)
 	# Rapid wing-muzzle tracers → machine-gun pool.
 	EnemySfxC.play_for(self, "enemy_mg")

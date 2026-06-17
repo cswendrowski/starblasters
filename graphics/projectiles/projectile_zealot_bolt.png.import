@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ctlc01x8jgii3"
-path="res://.godot/imported/enemy_z_s_run.png-04f00673f74888230857e0f271515db4.ctex"
+uid="uid://dsv8dl5i44bdg"
+path="res://.godot/imported/projectile_zealot_bolt.png-37cea7528cfbe93ced5d489b9245f79f.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://graphics/enemies/enemy_z_s_run.png"
-dest_files=["res://.godot/imported/enemy_z_s_run.png-04f00673f74888230857e0f271515db4.ctex"]
+source_file="res://graphics/projectiles/projectile_zealot_bolt.png"
+dest_files=["res://.godot/imported/projectile_zealot_bolt.png-37cea7528cfbe93ced5d489b9245f79f.ctex"]
 
 [params]
 

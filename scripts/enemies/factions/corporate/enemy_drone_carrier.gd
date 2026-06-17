@@ -7,6 +7,7 @@ class_name EnemyDroneCarrier
 # pattern vocabulary doesn't cover) — when _leaving, _process climbs out instead of drifting.
 # Drone release is unchanged (drones are independent, parented to the scene root).
 
+const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 const DRONE_SCENE = preload("res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn")
 const BeelinePlayer = preload("res://scripts/enemies/patterns/beeline_player.gd")
 const Drift = preload("res://scripts/enemies/patterns/drift.gd")
@@ -42,7 +43,8 @@ func _release_drone() -> void:
 	if _total_released >= MAX_DRONES_TOTAL or _dying:
 		return
 	var d = DRONE_SCENE.instantiate()
-	get_tree().root.add_child(d)
+	var world: Node = BulletWorld.resolve(self, get_tree().root)
+	world.add_child(d)
 	d.global_position = global_position + Vector2(randf_range(-20, 20), 0)
 	d.movement = BeelinePlayer.new()
 	d.start(d.global_position)
