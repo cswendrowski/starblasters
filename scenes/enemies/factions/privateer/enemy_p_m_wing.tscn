@@ -38,10 +38,10 @@ one_shot = true
 position = Vector2(0, 1)
 stream = ExtResource("3_q0vnw")
 
-[node name="MissileL" type="Marker2D" parent="." unique_id=379551227]
+[node name="LauncherL" type="Marker2D" parent="." unique_id=379551227]
 position = Vector2(-3, 1)
 
-[node name="MissileR" type="Marker2D" parent="." unique_id=1745160504]
+[node name="LauncherR" type="Marker2D" parent="." unique_id=1745160504]
 position = Vector2(3, 1)
 
 [node name="EngineL" type="Marker2D" parent="." unique_id=517128381]
