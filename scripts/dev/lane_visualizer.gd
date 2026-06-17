@@ -635,7 +635,7 @@ class PatternDummy extends Node2D:
 		add_to_group("enemies")
 		var body := Polygon2D.new()
 		body.polygon = PackedVector2Array([
-			Vector2(0, -6), Vector2(-5, 5), Vector2(0, 2), Vector2(5, 5)])
+			Vector2(0, 6), Vector2(-5, -5), Vector2(0, -2), Vector2(5, -5)])  # apex down: enemies descend
 		body.color = Color(0.6, 0.95, 1.0)
 		add_child(body)
 		_trail = Line2D.new()

@@ -24,6 +24,14 @@ enum Formation { TOP_LEFT_TO_RIGHT, TOP_RIGHT_TO_LEFT, TOP_RANDOM, TOP_CENTER_OU
 # Sub-lane X offset (px) added to the lane centre — lets the Formation Builder pack a sub-grid of
 # enemies into one lane square. 0 = lane centre (default, production unchanged). Lane-pinned only.
 @export var spawn_x_offset: float = 0.0
+# Lateral-direction override (Formation Builder, 2026-06-17). Forces which way a
+# side-aware movement (side_traverse/side_cut/side_pingpong's `direction`, or
+# lane_path's `mirrored` flip) runs, instead of leaving it as authored:
+#   0 = leave as authored (default, production unchanged)
+#   1 = right (+X)   -1 = left (-X)   2 = random per-spawn (seeded ±1)
+# director._spawn_enemy applies it just before add_child; only patterns that
+# expose `direction` or `mirrored` are touched.
+@export var direction_override: int = 0
 # Tandem-pair X offset from CENTER (formation TOP_TANDEM_PAIRS). Two enemies
 # spawn simultaneously at (CENTER - offset, CENTER + offset) sharing the same
 # movement pattern (duplicated so each owns its state).

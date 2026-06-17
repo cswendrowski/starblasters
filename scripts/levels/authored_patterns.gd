@@ -124,6 +124,13 @@ static func _spec_for_placement(pl: Dictionary, fill_faction: int, sector: int, 
 	var sub_y: int = int(pl.get("sub_y", 1))
 	ws.spawn_x_offset = (float(sub_x) - 1.0) * (Lanes.WIDTH / 3.0)
 	ws.spawn_y = -12.0 + (float(sub_y) - 1.0) * 11.0
+	# Lateral-direction override (Formation Builder): "left"/"right"/"random" force which way a
+	# side-aware movement runs; "" / "any" leaves it as authored. director._apply_direction consumes it.
+	match String(pl.get("dir", "")):
+		"right": ws.direction_override = 1
+		"left": ws.direction_override = -1
+		"random": ws.direction_override = 2
+		_: ws.direction_override = 0
 
 	# Movement: an explicit key overrides (resolved scene-less so the matrix identity can't
 	# stomp it — same trick the eligibility editor's preview uses); else the entry's roster

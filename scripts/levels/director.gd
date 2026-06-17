@@ -786,6 +786,14 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 				if is_cruiser:
 					sy = _anchor_stagger_y(lane, sy, h)
 				pos = Vector2(Lanes.lane_center(lane), sy)
+	# Formation Builder lateral-direction override: force which way a side-aware
+	# movement runs (or randomize per spawn). Only patterns exposing `direction` or
+	# `mirrored` respond; others are untouched. Layers over any SIDE_ALTERNATING dup.
+	if "direction_override" in wave and wave.direction_override != 0:
+		var dir: int = wave.direction_override
+		if dir == 2:
+			dir = 1 if _rng.randf() < 0.5 else -1
+		_apply_direction(enemy, dir)
 	# Make the enemy a child of our parent (typically Main) so it lives in the world
 	var parent = get_parent()
 	parent.add_child(enemy)
@@ -814,6 +822,25 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 
 func _on_enemy_died(value: int, scene_path: String) -> void:
 	enemy_died.emit(value, scene_path)
+
+
+# Apply an absolute lateral direction (+1 right / -1 left) to whatever side knob the
+# movement exposes. `direction` (side_traverse/side_cut/side_pingpong) maps directly;
+# `mirrored` (lane_path HOOK/STEP/WEAVE) flips relative to the authored side — right =
+# authored, left = mirror. Duplicates the resource so siblings don't share state.
+# No-op for movements with neither knob.
+func _apply_direction(enemy, dir: int) -> void:
+	if not ("movement" in enemy) or enemy.movement == null:
+		return
+	var mv = enemy.movement
+	if "direction" in mv:
+		var d = mv.duplicate()
+		d.direction = dir
+		enemy.movement = d
+	elif "mirrored" in mv:
+		var d = mv.duplicate()
+		d.mirrored = dir < 0
+		enemy.movement = d
 
 
 func _apply_sector_modifiers(enemy: Node, modifiers: Array) -> void:

@@ -27,6 +27,7 @@ const SUB := 3   # NxN sub-grid per lane square — pack multiple (tiny) enemies
 
 const FACTIONS := ["any", "supremacy", "privateer", "corporate", "zealot"]
 const SIZES := ["", "tiny", "small", "medium", "large", "huge", "giant"]
+const DIRS := ["", "left", "right", "random"]   # "" = any (leave authored)
 const STAGGERS := [0.08, 0.12, 0.18, 0.25, 0.35]
 
 # Library of pattern dicts (same shape as AuthoredPatterns.DATA).
@@ -38,10 +39,12 @@ var _cells: Dictionary = {}        # Vector2i(lane,row) -> { Vector2i(sub_x,sub_
 var _brush_enemy: String = ""      # "" = wildcard, else a scene path
 var _brush_move: String = ""       # "" = wildcard/default, else a movement key
 var _brush_size: String = ""       # "" = any, else small/medium/...
+var _brush_dir: String = ""        # "" = any (authored), else left/right/random — side-aware movements only
 
 var _move_keys: Array = []         # ["" (Any)] + MOVEMENT_KEYS
 var _move_idx: int = 0
 var _size_idx: int = 0
+var _dir_idx: int = 0
 var _enemy_choices: Array = []     # [{label, scene, faction, size}]
 var _enemy_buttons: Array = []
 var _palette_listbox: VBoxContainer = null   # holds the enemy-brush buttons (re-sortable)
@@ -64,6 +67,7 @@ var _name_lbl: Label = null
 var _brush_lbl: Label = null
 var _move_lbl: Label = null
 var _size_lbl: Label = null
+var _dir_lbl: Label = null
 var _fac_lbl: Label = null
 var _sector_lbl: Label = null
 var _stagger_lbl: Label = null
@@ -213,7 +217,7 @@ func _select_pattern(i: int) -> void:
 		var sub := Vector2i(clampi(int(pl.get("sub_x", 1)), 0, SUB - 1), clampi(int(pl.get("sub_y", 1)), 0, SUB - 1))
 		if not _cells.has(k):
 			_cells[k] = {}
-		_cells[k][sub] = {"enemy": String(pl.get("enemy", "")), "movement": String(pl.get("movement", "")), "size": String(pl.get("size", ""))}
+		_cells[k][sub] = {"enemy": String(pl.get("enemy", "")), "movement": String(pl.get("movement", "")), "size": String(pl.get("size", "")), "dir": String(pl.get("dir", ""))}
 	_refresh_prop_labels()
 	if _note_edit:
 		_note_edit.text = String(_cur().get("note", ""))
@@ -228,7 +232,8 @@ func _sync_placements() -> void:
 		for sub in _cells[k]:
 			var c: Dictionary = _cells[k][sub]
 			placements.append({"lane": int(k.x), "row": int(k.y), "sub_x": int(sub.x), "sub_y": int(sub.y),
-				"enemy": String(c["enemy"]), "movement": String(c["movement"]), "size": String(c["size"])})
+				"enemy": String(c["enemy"]), "movement": String(c["movement"]), "size": String(c["size"]),
+				"dir": String(c.get("dir", ""))})
 	_cur()["placements"] = placements
 
 
@@ -383,6 +388,16 @@ func _build_ui() -> void:
 	_size_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	szr.add_child(_size_lbl)
 	_add_fixed_button(szr, ">", func(): _cycle_size(1), 14)
+	# Direction brush — forces which way a side-aware movement (hook/shift/drift/cut/…) runs.
+	var dr := HBoxContainer.new()
+	dr.add_theme_constant_override("separation", 2)
+	lv.add_child(dr)
+	_add_fixed_button(dr, "<", func(): _cycle_dir(-1), 14)
+	_dir_lbl = _new_label("dir: any", UiTheme.COLOR_TEXT, SZ)
+	_dir_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_dir_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	dr.add_child(_dir_lbl)
+	_add_fixed_button(dr, ">", func(): _cycle_dir(1), 14)
 	# Mode presets.
 	var modr := HBoxContainer.new()
 	modr.add_theme_constant_override("separation", 2)
@@ -545,6 +560,13 @@ func _cycle_size(d: int) -> void:
 	_size_idx = (_size_idx + d + SIZES.size()) % SIZES.size()
 	_brush_size = String(SIZES[_size_idx])
 	_size_lbl.text = "sz: %s" % ("any" if _brush_size == "" else _brush_size)
+	_update_status()
+
+
+func _cycle_dir(d: int) -> void:
+	_dir_idx = (_dir_idx + d + DIRS.size()) % DIRS.size()
+	_brush_dir = String(DIRS[_dir_idx])
+	_dir_lbl.text = "dir: %s" % ("any" if _brush_dir == "" else _brush_dir)
 	_update_status()
 
 
@@ -808,7 +830,7 @@ func _place_at(pos: Vector2) -> void:
 	else:
 		if not _cells.has(k):
 			_cells[k] = {}
-		_cells[k][sub] = {"enemy": _brush_enemy, "movement": _brush_move, "size": _brush_size}
+		_cells[k][sub] = {"enemy": _brush_enemy, "movement": _brush_move, "size": _brush_size, "dir": _brush_dir}
 	_sync_placements()
 	_overlay.queue_redraw()
 	_update_status()
