@@ -262,16 +262,14 @@ RecycleController must preserve those contracts._
 
 - [x] **Outline shader + preset material** — `93f4763`. `shaders/outline_1px.gdshader` + `resources/materials/outline_1px_black.tres` (round, 1px black).
 - [x] **Outline asteroids in the asteroid hazard playspace** — `0a16c51`.
-- [ ] **Wire the ship damage-tell system into live combat** — `scripts/effects/ship_damage_tells.gd`
-  (progressive battle damage: per-marker spark trails → burning trails → disintegrate-from-marker on
-  death) is currently DEV-ONLY: the Shader Lab → Ship Damage tab is the only caller of `.setup()`.
-  Live enemy deaths still use the simpler `damage_noise` overlay on `enemy_base` directly. To go live:
-  attach `ShipDamageTells` on the production enemy chassis (enemy_base/enemy_core) driven off
-  `hull_changed`, pass a per-size cfg (the Shader Lab suite tunes per size — small/medium/large), and
-  reconcile with / replace the existing `damage_noise` overlay + the `_spawn_death_vfx` debris path so
-  they don't double up. Marker bias + debris parity already tuned + baked into `DEFAULT_CFG`
-  (`e2b074b7`); the lab is the source of truth for the look. NOTE: changes how EVERY enemy reads when
-  hit → playtest-heavy regression surface.
+- [x] **Wire the ship damage-tell system into live combat** — `2026-06-17`. `ShipDamageTells` now
+  attaches to every ship-vfx enemy in `enemy_base` (deferred so display_scale lands first), driven off
+  `take_hit` (overlay sensitivity + progressive sparks/burn trails) and owning the normal-path death
+  (disintegrate + per-size explosion/debris) via `_dmg_tells`. Per-size presets (`SIZE_PRESETS`,
+  small/medium/large; tiny→small) baked from the Shader Lab tuner; marker selection made UNIFORM
+  (per-category bias retired). Bosses/hazards excluded by the existing `has_ship_vfx=false` gate;
+  firecore "ball" routing + settling dust preserved; wreck/EM-disable paths untouched. NOTE: changes
+  how EVERY enemy reads when hit + adds per-enemy spark/burn nodes at spawn → playtest + perf watch.
 - [ ] **Coordinated marker-name rename across all enemy scenes** — bring every Marker2D onto ONE
   scheme: `Engine*` / `Thruster*` / `Muzzle*` (weapons) / `Launcher*` / `Turret*`, plus the deliberate
   `turret_base`/`turret_mount` attach anchors and the broadside `GunLeft*`/`GunRight*` mechanic names.

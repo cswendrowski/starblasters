@@ -237,6 +237,10 @@ func _ready() -> void:
 	# bomblets explode on death rather than scaling damage.
 	if has_ship_vfx and has_node("Sprite2D"):
 		_install_damage_material($Sprite2D)
+		# Progressive damage tells. Deferred so the spawner's display_scale (director sets
+		# enemy.scale after instancing) is applied before we measure the size bucket + place
+		# the spark/burn markers at their final world positions.
+		call_deferred("_attach_damage_tells")
 	# 1px black hull outline (Roman 2026-06-07). Separate behind-node (NOT a
 	# material on the hull — that slot holds the damage shader, and the hull is a
 	# 2-frame sheet). Only the visible hull "Sprite2D" is outlined; the glow-mask
@@ -251,8 +255,13 @@ func _ready() -> void:
 
 const _OutlineFx = preload("res://scripts/effects/outline_fx.gd")
 const _EngineTrailFx = preload("res://scripts/effects/engine_trail_fx.gd")
+const _ShipDamageTells = preload("res://scripts/effects/ship_damage_tells.gd")
 var _engine_trail: Node = null
 var _damage_material: ShaderMaterial = null
+# Progressive battle-damage tells (sparks → burning trails → disintegrate + per-size death VFX).
+# Attached for ship-vfx enemies only (bosses/hazards set has_ship_vfx=false); drives the overlay +
+# tells off take_hit and owns the normal-path death blast. Null until the deferred attach lands.
+var _dmg_tells: Node = null
 # The hit-flash tween. Tracked so _die_as_wreck can KILL it before reparenting the hull — otherwise
 # its first idle-step (the burst hits during physics) re-snaps the already-reparented wreck to white
 # flash_strength after _die_as_wreck zeroed it (Roman 2026-06-10 white-carryover fix).
@@ -278,6 +287,36 @@ var _shield_ring: ColorRect = null
 var _shield_mat: ShaderMaterial = null
 var _shield_alpha_tween: Tween = null
 var _shield_hit_tween: Tween = null
+
+
+# Attach the ShipDamageTells driver (self_explode=false — take_hit drives it, explode() decides who
+# owns the death blast). It reuses the damage material installed above, so the overlay sensitivity it
+# sets and our hit-flash share one material. No-op if the enemy died/freed before the deferral lands.
+func _attach_damage_tells() -> void:
+	if _dying or not is_instance_valid(self) or not has_node("Sprite2D"):
+		return
+	var spr := $Sprite2D as Sprite2D
+	var ss: float = _tells_size_scale(spr)
+	var tells: Node2D = _ShipDamageTells.new()
+	tells.self_explode = false
+	add_child(tells)
+	tells.setup(self, spr, ss, _ShipDamageTells.cfg_for_size(ss))
+	_dmg_tells = tells
+
+
+# Ship size_scale = effective sprite pixel size / 16 (mirrors the Shader Lab Ship-Damage panel), used
+# to pick the small/medium/large tell preset. global_scale composes the ship's display_scale.
+func _tells_size_scale(spr: Sprite2D) -> float:
+	if spr != null and is_instance_valid(spr) and spr.texture != null:
+		var fsz: Vector2 = spr.texture.get_size()
+		if spr.hframes > 1:
+			fsz.x /= float(spr.hframes)
+		if spr.vframes > 1:
+			fsz.y /= float(spr.vframes)
+		var gs: Vector2 = spr.global_scale
+		var px: float = maxf(fsz.x, fsz.y) * maxf(absf(gs.x), absf(gs.y))
+		return clampf(px / 16.0, 0.6, 3.5)
+	return clampf(display_scale, 0.6, 3.5)
 
 
 func _install_damage_material(spr: Sprite2D) -> void:
@@ -370,9 +409,14 @@ func take_hit(damage: int = 1) -> bool:
 	var effective_dmg: int = max(1, int(round(float(routed) * (1.0 - damage_reduction))))
 	health -= effective_dmg
 	health_changed.emit(health, max_health)
-	# Push the new health ratio into the damage shader so the sprite
-	# darkens + frays as it takes damage (Roman, 2026-05-18).
-	_update_damage_visual()
+	# Drive the damage tells (overlay sensitivity + progressive sparks / burning trails). The tells own
+	# the death blast in explode(), so cap below 1.0 here — a lethal hit falls through to explode(),
+	# which triggers the disintegrate + per-size death VFX. Enemies without tells use the plain overlay.
+	if _dmg_tells != null and is_instance_valid(_dmg_tells):
+		if health >= 1:
+			_dmg_tells.set_damage(clampf(1.0 - float(health) / maxf(1.0, float(max_health)), 0.0, 0.999))
+	else:
+		_update_damage_visual()
 	if health < 1:
 		explode()
 		return true
@@ -435,35 +479,35 @@ func explode() -> void:
 	# it's `_world`, which keeps the blasts over the ship instead of the window's
 	# top-left corner.
 	var fx_parent: Node = _fx_parent()
-	var ex_scene: PackedScene = ExplosionFxScript.scene_for(explosion_variant)
-	var blast_count: int = clampi(int(round(max(1.0, display_scale * 1.4))), 1, 6)
-	if blast_count <= 1:
-		ExplosionFxScript.play(global_position, 1.0, true, fx_parent, ex_scene)
-	else:
-		ExplosionFxScript.burst(global_position, blast_count, 12.0 * max(1.0, display_scale * 0.6), 0.06, fx_parent, ex_scene)
-	# Settling dust supplement (Roman 2026-05-24): 1px gray particles
-	# scattering radially with downward gravity. Count scales with size
-	# (8/16/32/64). Fires alongside the debris strip, not instead of it.
-	# For boss-class enemies (display_scale large enough to trigger the
-	# multi-blast cascade above) the bigger count bucket gives each blast
-	# a corresponding dust puff feel without per-blast wiring.
-	DeathDustScript.play(global_position, display_scale, fx_parent)
-	# Debris scatter (Roman 2026-05-18). Parent under the same container so the
-	# pieces survive the enemy's queue_free at the end of explode() AND render in
-	# the correct space (window-root in combat, SubViewport world in the hangar).
-	_spawn_debris(fx_parent, global_position, display_scale)
-	# Fade the non-body overlay sprites (glow mask, hull outline, decorative
-	# cores) FAST so they don't outlive the disintegrating body — otherwise a
-	# bright glow map / outline hangs in the air for the ~0.5s death window after
-	# the hull starts burning (Roman 2026-06-07). The body itself disintegrates
-	# via the burn shader below, not a fade.
+	# Fade the non-body overlay sprites (glow mask, hull outline, decorative cores) FAST so they don't
+	# outlive the disintegrating body, and stop the exhaust (the streak ages out on its own). Both
+	# paths want this.
 	_fade_death_overlays()
-	set_engine_trail_emitting(false)   # stop exhaust; the streak ages out on its own
-	# (helper _burn_origin_uv defined below picks the marker the burn starts from.)
-	if has_node("Sprite2D"):
-		# Burn starts from a random hardpoint marker (engine/turret/muzzle) so the body
-		# dissolves from a believable point, not always the centre (Roman 2026-06-11).
-		BurnFxScript.apply_burn($Sprite2D, 0.45, Color(0, 0, 0, 0), _burn_origin_uv())
+	set_engine_trail_emitting(false)
+	if _dmg_tells != null and is_instance_valid(_dmg_tells):
+		# The damage-tell system owns the per-size tuned death: sprite disintegrate + explosion +
+		# debris + embers. Carry the firecore "ball" routing through to its blast, and keep the
+		# settling dust supplement (which the tell system doesn't emit itself).
+		_dmg_tells.death_explosion_type = "ball" if explosion_variant == "ball" else "basic"
+		_dmg_tells.self_explode = true
+		DeathDustScript.play(global_position, display_scale, fx_parent)
+		_dmg_tells.set_damage(1.0)
+	else:
+		var ex_scene: PackedScene = ExplosionFxScript.scene_for(explosion_variant)
+		# Explosions are always 1× scale; bigger enemies just get MORE blasts with jitter. 16-px
+		# chaff = 1, 48-px boss-class = ~4-5, clamped.
+		var blast_count: int = clampi(int(round(max(1.0, display_scale * 1.4))), 1, 6)
+		if blast_count <= 1:
+			ExplosionFxScript.play(global_position, 1.0, true, fx_parent, ex_scene)
+		else:
+			ExplosionFxScript.burst(global_position, blast_count, 12.0 * max(1.0, display_scale * 0.6), 0.06, fx_parent, ex_scene)
+		# Settling dust supplement (Roman 2026-05-24): 1px gray particles, count scales with size.
+		DeathDustScript.play(global_position, display_scale, fx_parent)
+		# Debris scatter — parent under the same container so the pieces survive queue_free.
+		_spawn_debris(fx_parent, global_position, display_scale)
+		# Burn starts from a random hardpoint marker so the body dissolves from a believable point.
+		if has_node("Sprite2D"):
+			BurnFxScript.apply_burn($Sprite2D, 0.45, Color(0, 0, 0, 0), _burn_origin_uv())
 	if has_node("ParticleExplode"):
 		$ParticleExplode.restart()
 	# Death audio: the scene-embedded $EnemyDie clip is RETIRED (Roman 2026-06-10 — "wire up the

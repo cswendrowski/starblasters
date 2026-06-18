@@ -59,22 +59,55 @@ const DEFAULT_CFG := {
 	"burn_trails": 1.0,      # number of progressive burning trails (small 1 → large 3+)
 	"torch_lead": 0.12,      # dmg fraction a torch fire precedes its trail (0 = no torch)
 	"burn_intro": 2.0,       # trail intro: 0 burst, 1 scale-in, 2 random per-trail
-	# Marker-bias weights (Shader Lab → Markers, Roman 2026-06-17): random-pick weight per marker
-	# category for the damage tells. 0 = that category is NOT eligible. Defaults reproduce the prior
-	# hardcoded behavior EXACTLY — engines favoured (3), muzzle/turret normal (1), centre fallback (1);
-	# thruster/launcher were not gathered before (0), now tunable on.
-	# Marker bias intaken from the Shader Lab → Ship Damage suite (Roman 2026-06-17): a broad spread
-	# across all marker types instead of the old engine-only lean — engines still favoured, but
-	# thrusters / launchers / turrets / centre now share the damage tells.
-	"w_engine": 5.0,
-	"w_thruster": 4.0,
-	"w_muzzle": 0.5,
-	"w_launcher": 3.0,
-	"w_turret": 2.0,
-	"w_centre": 4.0,
+	# Marker selection is UNIFORM across every category (Roman 2026-06-17 — "uniform across all types
+	# of enemies"). The earlier per-category bias is retired; setup() weights all markers 1.0 and
+	# ignores these keys, kept only for back-compat with any caller that still reads them.
+	"w_engine": 1.0,
+	"w_thruster": 1.0,
+	"w_muzzle": 1.0,
+	"w_launcher": 1.0,
+	"w_turret": 1.0,
+	"w_centre": 1.0,
 }
 
+# Per-size tuned suites — baked from the Shader Lab Ship-Damage tuner (Roman 2026-06-17). Life tells
+# (overlay/spark/burn) AND death VFX (expl_*/debris) differ by size. NO w_* here: marker selection is
+# uniform (above). setup()'s cfg merges these over DEFAULT_CFG, so the uniform weights stand.
+const SIZE_PRESETS := {
+	"small": {
+		"max_sens": 0.85, "spark_start": 0.04, "burn_threshold": 0.6, "spark_amount": 30.0,
+		"expl_size": 1.0, "expl_density": 1.0, "expl_shockwave": 0.0, "debris": 0.2,
+		"burn_trails": 1.0, "torch_lead": 0.11, "burn_intro": 1.0,
+	},
+	"medium": {
+		"max_sens": 0.88, "spark_start": 0.1, "burn_threshold": 0.6, "spark_amount": 45.0,
+		"expl_size": 1.0, "expl_density": 1.0, "expl_shockwave": 0.1, "debris": 1.0,
+		"burn_trails": 2.0, "torch_lead": 0.08, "burn_intro": 1.0,
+	},
+	"large": {
+		"max_sens": 0.85, "spark_start": 0.04, "burn_threshold": 0.6, "spark_amount": 90.0,
+		"expl_size": 1.3, "expl_density": 1.3, "expl_shockwave": 0.1, "debris": 1.5,
+		"burn_trails": 3.0, "torch_lead": 0.12, "burn_intro": 2.0,
+	},
+}
+
+
+# Map a ship size_scale (sprite px / 16 — see enemy_base._tells_size_scale) to a preset bucket.
+# Mirrors the Shader Lab Ship-Damage bands; TINY ships fall into "small" (sc < 1.5) by design.
+static func size_category(size_scale: float) -> String:
+	if size_scale < 1.5:
+		return "small"
+	if size_scale < 2.5:
+		return "medium"
+	return "large"
+
+
+# The tuned cfg for a size_scale — pass straight to setup()'s `cfg` arg.
+static func cfg_for_size(size_scale: float) -> Dictionary:
+	return (SIZE_PRESETS[size_category(size_scale)] as Dictionary).duplicate()
+
 var self_explode: bool = true   # false = the caller (enemy_base) owns the explosion; we just disintegrate
+var death_explosion_type: String = "basic"   # "basic" | "ball" — caller routes firecore-ball deaths here
 
 var _cfg: Dictionary = DEFAULT_CFG.duplicate()
 var _sprite: Sprite2D = null
@@ -98,36 +131,30 @@ func setup(ship: Node2D, sprite: Sprite2D, size_scale: float = 1.0, cfg: Diction
 		else:
 			_mat = _make_damage_material()
 			_sprite.material = _mat
-	# Markers: ANY marker is eligible, WEIGHTED per category via _cfg["w_*"] (Roman 2026-06-11,
-	# made tunable 2026-06-17). Categories are gathered in this ORDER (engines first) so the
-	# progressive sparks light engines first; a category at weight 0 is skipped entirely. The
-	# sprite CENTRE is the always-present fallback (a guaranteed tell on a markerless ship).
-	# Patterns are BROADENED to capture the marker-name variance across the roster (Roman 2026-06-17)
-	# so the damage tells cooperate with every weapon/launcher/turret spot without renaming scenes yet:
+	# Markers: EVERY category is eligible at UNIFORM weight (Roman 2026-06-17 — "uniform across all
+	# types of enemies"; the earlier engine-favoured bias is retired). The sprite CENTRE is the
+	# always-present fallback (a guaranteed tell on a markerless ship). Patterns are BROADENED to
+	# capture the marker-name variance across the roster so the tells cooperate with every weapon /
+	# launcher / turret spot without renaming scenes yet:
 	#   muzzle  also matches Cannon*, broadside Gun*, weapon_*, and *Muzzle* (TailMuzzle)
 	#   launcher also matches Missile*, LaunchPoint*, launch_point*, missile_port*
 	#   turret  also matches lowercase turret_* (incl. the turret_base/_mount sprite anchors)
 	# A coordinated scene-side rename to one scheme is a separate pass (TODO.md, Visual / FX).
-	var marker_specs: Array = [
-		{"patterns": ["Engine*"],                                                "weight": float(_cfg["w_engine"])},
-		{"patterns": ["Thruster*"],                                              "weight": float(_cfg["w_thruster"])},
-		{"patterns": ["*Muzzle*", "cannon_*", "Cannon*", "Gun*", "weapon_*"],    "weight": float(_cfg["w_muzzle"])},
-		{"patterns": ["Launcher*", "Missile*", "LaunchPoint*", "launch_point*", "missile_port*"], "weight": float(_cfg["w_launcher"])},
-		{"patterns": ["Turret*", "turret_*"],                                    "weight": float(_cfg["w_turret"])},
+	var marker_globs: Array = [
+		"Engine*", "Thruster*",
+		"*Muzzle*", "cannon_*", "Cannon*", "Gun*", "weapon_*",
+		"Launcher*", "Missile*", "LaunchPoint*", "launch_point*", "missile_port*",
+		"Turret*", "turret_*",
 	]
 	var marker_data: Array = []
-	var _seen_markers := {}   # dedup: a marker matching several broadened globs counts once, first category wins
+	var _seen_markers := {}   # dedup: a marker matching several broadened globs counts once
 	if ship != null:
-		for spec in marker_specs:
-			var w: float = float(spec["weight"])
-			if w <= 0.0:
-				continue
-			for pat in spec["patterns"]:
-				for m in ship.find_children(pat, "Marker2D", true, false):
-					if m is Node2D and not _seen_markers.has(m):
-						_seen_markers[m] = true
-						marker_data.append({"pos": to_local((m as Node2D).global_position), "weight": w})
-	marker_data.append({"pos": Vector2.ZERO, "weight": maxf(0.001, float(_cfg["w_centre"]))})   # centre — always present
+		for pat in marker_globs:
+			for m in ship.find_children(pat, "Marker2D", true, false):
+				if m is Node2D and not _seen_markers.has(m):
+					_seen_markers[m] = true
+					marker_data.append({"pos": to_local((m as Node2D).global_position), "weight": 1.0})
+	marker_data.append({"pos": Vector2.ZERO, "weight": 1.0})   # centre — always present, uniform
 	# One spark emitter per marker, off until lit.
 	for md in marker_data:
 		var inst := SparkTrailFx.spawn(self, md["pos"])
@@ -384,7 +411,7 @@ func _spawn_death_vfx(world: Vector2) -> void:
 	# Death blast via the centralized explosion system — size + density + shockwave scale with the
 	# ship size and the tuned config (Roman 2026-06-12).
 	ExplosionFx.play_config(world, {
-		"type": "basic",
+		"type": death_explosion_type,
 		"size": (1.0 + 0.4 * _size_scale) * float(_cfg["expl_size"]),
 		"density": maxi(1, int(round((1.0 + _size_scale * 0.6) * float(_cfg["expl_density"])))),
 		"area": 6.0 + _size_scale * 5.0,
