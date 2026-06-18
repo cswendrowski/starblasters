@@ -1,11 +1,6 @@
 extends Node2D
 
-const StellarComposer = preload("res://scripts/parallax/stellar_composer.gd")
-
 @export var drift_speed: float = 22.0
-# Spawn drifting asteroids already on-screen (across the full height) instead of only above the top,
-# so a STATIC preview (parallax tuner) shows them immediately instead of waiting for them to drift in.
-@export var asteroid_prefill: bool = false
 @export var planet_size: float = 240.0
 @export var planet_size_variance: float = 0.35
 @export var tint_alpha: float = 0.09
@@ -96,30 +91,17 @@ func _populate() -> void:
 		stellar = run_node.current_stellar
 
 	var rng := RandomNumberGenerator.new()
-	# Deterministic per-NODE seed only when there's a real combat node id; otherwise (menu, dev
-	# tools, the parallax tuner) use a fresh time-based seed so each regeneration actually varies.
-	# The old code derived seed_val from run_seed alone whenever Run existed — but Run is an autoload
-	# that's ALWAYS present, with run_seed/sectors_cleared constant outside a run, so the backdrop was
-	# identical every time in those contexts ("same backgrounds over and over") (Roman 2026-06-17).
-	var node_id: String = ""
-	if run_node and "current_node_id" in run_node:
-		node_id = String(run_node.get("current_node_id"))
+	# Deterministic per-run seed in gameplay (from Run); a fresh time-based
+	# seed everywhere else (tuner "Generate New", capture tool) so each
+	# regeneration actually varies instead of repeating one fixed backdrop.
 	var seed_val := int(Time.get_ticks_usec())
-	if node_id != "":
-		var rs := int(run_node.run_seed) if "run_seed" in run_node else 12345
-		var sc := int(run_node.sectors_cleared) if "sectors_cleared" in run_node else 0
-		seed_val = rs + sc * 9973 + hash(node_id)
+	if run_node:
+		var rs := 12345 if not "run_seed" in run_node else int(run_node.run_seed)
+		var sc := 0 if not "sectors_cleared" in run_node else int(run_node.sectors_cleared)
+		var node_id: String = run_node.get("current_node_id") if "current_node_id" in run_node else ""
+		var node_hash := hash(node_id) if node_id != "" else 0
+		seed_val = rs + sc * 9973 + node_hash
 	rng.seed = abs(seed_val)
-
-	# No sector-map data (menu / dev tools / signal events) → generate a faithful RANDOM stellar so
-	# the backdrop isn't a bare single planet. This is the missing random-gen fallback.
-	if stellar.is_empty():
-		stellar = StellarComposer.compose(rng)
-
-	# Re-roll the background starfield too — the coordinator never reseeded it, so every level showed
-	# the SAME fixed-seed (12345) pinprick field, reinforcing the "sparse / repetitive" look.
-	if _layer_stars != null and _layer_stars.has_method("reseed"):
-		_layer_stars.reseed(seed_val)
 
 	# Planet
 	var planet_idx := forced_planet_idx
@@ -188,8 +170,6 @@ func _populate() -> void:
 					layer.set("mini_asteroid_count", 0)
 			if "asteroid_tint" in layer:
 				layer.set("asteroid_tint", ast_color)
-			if "asteroid_prefill" in layer:
-				layer.set("asteroid_prefill", asteroid_prefill)
 			layer.populate(rng)
 
 	# Warp streaks

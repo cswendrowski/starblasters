@@ -11,10 +11,6 @@ const RESET_THRESHOLD := 340.0
 @export var asteroid_size_pow: float = 1.286
 @export var asteroid_tint: Color = Color(0.9, 0.88, 0.85, 1.0)
 @export var mini_asteroid_count: int = 14
-# When true, spawn asteroids spread across the FULL viewport height (already on-screen) instead of
-# only above the top — so a static preview shows them immediately (Roman 2026-06-17). Combat keeps
-# false so asteroids drift in from the top.
-@export var asteroid_prefill: bool = false
 @export var nebula_enabled: bool = false
 @export var nebula_alpha: float = 0.18
 @export var nebula_shader_path: String = "res://graphics/nebula2.gdshader"
@@ -105,10 +101,7 @@ func _spawn_asteroid() -> void:
 	# CanvasModulate still handles per-depth dimming. (Roman 2026-06-02)
 	a.modulate = Color.WHITE
 	# Spawn fully above the top so it drifts in (body spans [pos.y, pos.y+sz]).
-	var spawn_y: float = -sz - _local_rng.randf_range(0, 270)
-	if asteroid_prefill:
-		spawn_y = _local_rng.randf_range(-sz, 270.0)   # already on-screen for static previews
-	a.position = Vector2(_local_rng.randf_range(16, 464), spawn_y)
+	a.position = Vector2(_local_rng.randf_range(16, 464), -sz - _local_rng.randf_range(0, 270))
 	add_child(a)
 	# Each Asteroid.tscn instance shares one inline ShaderMaterial — duplicate
 	# it per-instance so set_seed/set_pixels/set_rotates don't all write to the
@@ -134,12 +127,7 @@ func _spawn_asteroid() -> void:
 		inner.size = Vector2(100, 100)
 		inner.position = Vector2.ZERO
 		if inner.material is ShaderMaterial:
-			var amat := inner.material as ShaderMaterial
-			amat.set_shader_parameter("draw_outline", false)
-			# Rounder, lower-detail silhouettes read better as drifting rocks than the jagged
-			# default (roundness 0). Per-instance random within the tuned ranges (Roman 2026-06-17).
-			amat.set_shader_parameter("roundness", _local_rng.randf_range(0.4, 0.75))
-			amat.set_shader_parameter("octaves", _local_rng.randi_range(0, 5))
+			(inner.material as ShaderMaterial).set_shader_parameter("draw_outline", false)
 	var spin: float = 0.0
 	if _local_rng.randf() < 0.35:
 		spin = _local_rng.randf_range(0.05, 0.25)
