@@ -12,7 +12,7 @@
 #                vulkan+d3d12 crash, compat stable => Forward+ render path (engine/Godot version).
 #                all three crash => not renderer-specific; symbolicate (Calinou/godot-debug-builds).
 
-param([ValidateSet("vulkan","d3d12","compat")][string]$Mode = "vulkan")
+param([ValidateSet("vulkan","d3d12","compat","mobile")][string]$Mode = "vulkan")
 
 $Bin  = 'E:\tools\Godot_v4.6.3\Godot_v4.6.3-stable_win64_console.exe'   # _console = reliable stdout
 $Repo = Split-Path -Parent $PSScriptRoot
@@ -26,6 +26,7 @@ $argList = @("--path", $Repo, "--verbose", "--accurate-breadcrumbs")
 switch ($Mode) {
     "d3d12"  { $argList += @("--rendering-driver", "d3d12") }
     "compat" { $argList += @("--rendering-method", "gl_compatibility") }
+    "mobile" { $argList += @("--rendering-method", "mobile") }   # drops the 3D-GI shader suite (#116172)
     default  { }   # vulkan / forward_plus = project default, no override
 }
 
