@@ -65,6 +65,12 @@ var _beat_fire_at: float = -1.0  # engine-clock time a pending beat-synced shot 
 const INERTIA_ACCEL: float = 2400.0
 var _inertial_vel: Vector2 = Vector2.ZERO
 
+# When an external driver (e.g. a seq_bombing_run sequence) owns this enemy's transform,
+# enemy_core SUSPENDS its own movement / firing / component ticks so the two don't fight.
+# The driver flips this true on start and false (or frees the enemy) when done. Set on the
+# enemy_core base so any composed enemy can be driven by a sequenced attack.
+var external_control: bool = false
+
 # Cycling state â€” enemy is currently flying back up through parallax.
 var _cycling: bool = false
 var _cycle_tween: Tween = null
@@ -207,6 +213,9 @@ func _start_anchored(pos: Vector2) -> void:
 
 
 func _process(delta: float) -> void:
+	# A sequenced attack (bombing run) owns the transform — skip movement/firing/components.
+	if external_control:
+		return
 	if _pattern != null:
 		# Cycling enemies are mid-fly-back in a parallax layer; their
 		# movement is driven by tween, not the pattern.
@@ -369,6 +378,13 @@ func _on_shoot_timer_timeout() -> void:
 	# Dead enemies don't shoot: explode() sets _dying before the ~0.5s death
 	# animation, during which the timer could otherwise fire a phantom shot.
 	if _dying:
+		return
+	# Suspended by an external driver (bombing run): keep the timer alive but don't fire,
+	# so normal firing resumes cleanly once control returns.
+	if external_control:
+		if has_node("ShootTimer"):
+			$ShootTimer.wait_time = 0.2
+			$ShootTimer.start()
 		return
 	# Hard requirements before any bullet leaves the muzzle:
 	#   - not parallax-cycling

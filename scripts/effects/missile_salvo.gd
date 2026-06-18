@@ -65,6 +65,24 @@ static func _min_dist_sq(p: Vector2, pts: Array) -> float:
 	return best
 
 
+# ---- In-place AoE detonation ----------------------------------------------
+# Detonate an area strike at `world_pos`: every "player"-group Node2D within `radius`
+# takes `damage`, then a 1× explosion plays. Shared by Missile._detonate (a lobbed
+# missile) AND in-place bombs that never fly (the bombing run). `tree` drives the
+# player-group lookup — pass null to skip damage (a dev lab with no player, pure VFX
+# tuning). `parent` is the explosion's parent (resolve via BulletWorld for SubViewport
+# benches; null = window root, the production default).
+static func detonate_aoe(world_pos: Vector2, radius: float, damage: int, tree: SceneTree, parent: Node = null) -> void:
+	if tree != null:
+		for p in tree.get_nodes_in_group("player"):
+			if not (p is Node2D):
+				continue
+			var pn: Node2D = p as Node2D
+			if pn.global_position.distance_to(world_pos) <= radius and pn.has_method("take_damage"):
+				pn.take_damage(damage)
+	ExplosionFx.play(world_pos, 1.0, true, parent)
+
+
 # ---- Missile glow texture (built once, shared) -----------------------------
 static var _glow_tex: GradientTexture2D = null
 
@@ -253,15 +271,7 @@ class Missile extends Node2D:
 		if _detonated:
 			return
 		_detonated = true
-		var tree: SceneTree = get_tree()
-		if tree != null:
-			for p in tree.get_nodes_in_group("player"):
-				if not (p is Node2D):
-					continue
-				var pn: Node2D = p as Node2D
-				if pn.global_position.distance_to(_to) <= _radius and pn.has_method("take_damage"):
-					pn.take_damage(_damage)
-		ExplosionFx.play(_to, 1.0)
+		MissileSalvo.detonate_aoe(_to, _radius, _damage, get_tree())
 		if _trail != null and is_instance_valid(_trail):
 			_trail.attach_to(null)
 			_trail = null

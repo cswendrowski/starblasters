@@ -19,6 +19,7 @@ const SEQUENCES := [
 	{"name": "Slow Death", "script": preload("res://scripts/effects/sequences/seq_slow_death.gd"), "ship": ""},
 	{"name": "Bomber Death", "script": preload("res://scripts/effects/sequences/seq_bomber_death.gd"), "ship": "res://scenes/enemies/core/enemy_bomber.tscn"},
 	{"name": "Wreck", "script": preload("res://scripts/effects/sequences/seq_wreck.gd"), "ship": ""},
+	{"name": "Bombing Run", "script": preload("res://scripts/effects/sequences/seq_bombing_run.gd"), "ship": "res://scenes/enemies/core/enemy_bomber.tscn"},
 ]
 
 const SAVE_PATH := "user://tuners/sequence_lab.json"
@@ -100,6 +101,15 @@ func _build_playspace() -> void:
 	band.size = Vector2(Playfield.W, Playfield.H)
 	band.z_index = -100
 	_preview_vp.add_child(band)
+
+	# Faint 7-lane grid so bombing-run placement reads against the lanes.
+	for i in Lanes.COUNT:
+		var col := ColorRect.new()
+		col.color = Color(0.30, 0.42, 0.55, 0.10)
+		col.position = Vector2(Lanes.lane_left(i), 0)
+		col.size = Vector2(Lanes.WIDTH, Playfield.H)
+		col.z_index = -99
+		_preview_vp.add_child(col)
 
 	_stage = Node2D.new()
 	_stage.name = "Stage"
