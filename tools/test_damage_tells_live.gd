@@ -41,10 +41,17 @@ func _test_scene(path: String) -> bool:
 		if absf(float(cfg[key]) - float(expected[key])) > 0.001:
 			print("  FAIL %s: cfg[%s]=%s expected %s" % [path, key, cfg[key], expected[key]]); ok = false
 
-	# (2) uniform marker weights.
+	# (2) uniform marker weights + LAZY: no emitter nodes built before any damage.
 	for s in e._dmg_tells._sparks:
 		if absf(float(s["weight"]) - 1.0) > 0.001:
 			print("  FAIL %s: non-uniform marker weight %s" % [path, s["weight"]]); ok = false
+			break
+		if s["parts"] != null:
+			print("  FAIL %s: spark emitter built before damage (not lazy)" % path); ok = false
+			break
+	for slot in e._dmg_tells._burn_slots:
+		if slot["trail"] != null:
+			print("  FAIL %s: burn trail built before damage (not lazy)" % path); ok = false
 			break
 
 	# (3) life ramp: overlay sensitivity tracks the damage fraction × max_sens.

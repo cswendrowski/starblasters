@@ -155,15 +155,11 @@ func setup(ship: Node2D, sprite: Sprite2D, size_scale: float = 1.0, cfg: Diction
 					_seen_markers[m] = true
 					marker_data.append({"pos": to_local((m as Node2D).global_position), "weight": 1.0})
 	marker_data.append({"pos": Vector2.ZERO, "weight": 1.0})   # centre — always present, uniform
-	# One spark emitter per marker, off until lit.
+	# Spark slots are metadata only — the GPUParticles2D emitter is created LAZILY on first light
+	# (Roman 2026-06-17 perf pass). Most enemies are undamaged most of the time, and chaff that dies
+	# before spark_start never allocates an emitter at all, killing the per-enemy spawn cost.
 	for md in marker_data:
-		var inst := SparkTrailFx.spawn(self, md["pos"])
-		var parts := SparkTrailFx.particles(inst)
-		if parts != null:
-			parts.local_coords = false
-			parts.amount = mini(parts.amount, int(_cfg["spark_amount"]))
-			parts.emitting = false
-		_sparks.append({"pos": md["pos"], "weight": float(md["weight"]), "parts": parts, "lit": false})
+		_sparks.append({"pos": md["pos"], "weight": float(md["weight"]), "parts": null, "lit": false})
 	# Progressive burning-trail slots (one per marker; more on bigger ships, each with an optional
 	# torch precursor). Built after the sparks so it can draw from the same weighted markers.
 	_build_burn_slots()
@@ -175,6 +171,11 @@ func set_damage(t: float) -> void:
 	_level = clampf(t, 0.0, 1.0)
 	if _mat != null:
 		_mat.set_shader_parameter("sensitivity", _level * float(_cfg["max_sens"]))
+	# At full damage go straight to the death — BEFORE touching the spark/burn slots, so a lethal hit
+	# never lazily spawns emitters just to stop them the same frame (the disintegrate owns the look).
+	if _level >= 1.0:
+		_destroy()
+		return
 	# Sparks light marker-by-marker across [spark_start, burn_threshold]. More markers → a longer
 	# escalation (big ships); a single-marker ship lights its one spark at spark_start.
 	var ss: float = float(_cfg["spark_start"])
@@ -186,8 +187,6 @@ func set_damage(t: float) -> void:
 			thresh = lerpf(ss, bt_thr, float(i) / float(n - 1))
 		_set_spark(i, _level >= thresh)
 	_update_burn_slots()
-	if _level >= 1.0:
-		_destroy()
 
 
 func _set_spark(i: int, lit: bool) -> void:
@@ -195,8 +194,23 @@ func _set_spark(i: int, lit: bool) -> void:
 	if bool(s["lit"]) == lit:
 		return
 	s["lit"] = lit
+	if lit:
+		_ensure_spark_parts(s)   # lazy: build the emitter the first time this marker lights
 	if s["parts"] != null and is_instance_valid(s["parts"]):
 		s["parts"].emitting = lit
+
+
+# Lazily build a spark slot's GPUParticles2D emitter on first use (off until lit elsewhere).
+func _ensure_spark_parts(s: Dictionary) -> void:
+	if s["parts"] != null and is_instance_valid(s["parts"]):
+		return
+	var inst := SparkTrailFx.spawn(self, s["pos"])
+	var parts := SparkTrailFx.particles(inst)
+	if parts != null:
+		parts.local_coords = false
+		parts.amount = mini(parts.amount, int(_cfg["spark_amount"]))
+		parts.emitting = false
+	s["parts"] = parts
 
 
 # ── Progressive burning trails ─────────────────────────────────────────────────────────────────
@@ -216,16 +230,10 @@ func _build_burn_slots() -> void:
 		if positions.size() > 1:
 			trail_thr = lerpf(bt_thr, TRAIL_THR_TOP, float(i) / float(positions.size() - 1))
 		var torch_thr: float = maxf(float(_cfg["spark_start"]), trail_thr - lead)
-		var bt: Node2D = BURNING_TRAIL.instantiate()
-		bt.position = pos
-		add_child(bt)
-		var parts: GPUParticles2D = SparkTrailFx.particles(bt)
-		if parts != null:
-			parts.local_coords = false
-			parts.emitting = false
-		var torch: ColorRect = _make_torch(pos) if lead > 0.0 else null
+		# Metadata only — the BURNING_TRAIL node + torch are created LAZILY (on ignite / first torch
+		# show), so an undamaged or lightly-grazed enemy carries no trail nodes (perf pass 2026-06-17).
 		_burn_slots.append({
-			"pos": pos, "trail": bt, "parts": parts, "torch": torch,
+			"pos": pos, "trail": null, "parts": null, "torch": null, "wants_torch": lead > 0.0,
 			"trail_thr": trail_thr, "torch_thr": torch_thr, "lit": false, "intro": intro,
 		})
 
@@ -241,13 +249,18 @@ func _update_burn_slots() -> void:
 			_ignite_trail(slot)
 		elif _level < trail_thr and lit:
 			_extinguish_trail(slot)
+		# Torch precursor shows in [torch_thr, trail_thr) — lazily built the first time it's shown.
+		var want_torch: bool = bool(slot["wants_torch"]) and not bool(slot["lit"]) and _level >= float(slot["torch_thr"])
+		if want_torch and slot["torch"] == null:
+			slot["torch"] = _make_torch(slot["pos"])
 		var torch = slot["torch"]
 		if torch != null and is_instance_valid(torch):
-			torch.visible = (_level >= float(slot["torch_thr"])) and not bool(slot["lit"])
+			torch.visible = want_torch
 
 
 func _ignite_trail(slot: Dictionary) -> void:
 	slot["lit"] = true
+	_ensure_trail_node(slot)   # lazy: build the burning-trail node on first ignite
 	# Drop the torch in the same frame — the trail's intro covers its removal.
 	var torch = slot["torch"]
 	if torch != null and is_instance_valid(torch):
@@ -259,6 +272,21 @@ func _ignite_trail(slot: Dictionary) -> void:
 			parts.emitting = true
 	else:
 		_burn_intro_scale(slot)
+
+
+# Lazily build a burn slot's BURNING_TRAIL node + emitter on first ignite (off until the intro starts).
+func _ensure_trail_node(slot: Dictionary) -> void:
+	if slot["trail"] != null and is_instance_valid(slot["trail"]):
+		return
+	var bt: Node2D = BURNING_TRAIL.instantiate()
+	bt.position = slot["pos"]
+	add_child(bt)
+	var parts: GPUParticles2D = SparkTrailFx.particles(bt)
+	if parts != null:
+		parts.local_coords = false
+		parts.emitting = false
+	slot["trail"] = bt
+	slot["parts"] = parts
 
 
 func _extinguish_trail(slot: Dictionary) -> void:
