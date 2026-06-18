@@ -43,6 +43,20 @@ static func change_scene(tree: SceneTree, path: String, on_covered: Callable = C
 	if on_covered.is_valid():
 		on_covered.call()
 
+	# Tear down the leaving scene's parallax backdrop BEFORE the swap. change_scene_to_file frees the
+	# whole scene at once; with a heavy backdrop's many shader CanvasItems in that batch, the engine's
+	# draw-order reindex walks a freed RID -> "canvas_item is null" flood -> SIGSEGV. remove_child
+	# unlinks the backdrop subtree cleanly (its CanvasItems EXIT the canvas instead of being freed
+	# while still indexed), so the swap's free no longer touches them, and the reindex runs over only
+	# the lightweight gameplay/HUD set (the baseline-stable set). Universal + safe: a no-op for any
+	# scene with no "Backdrop" child. (2026-06-18 — docs/parallax_rework_safe_rebuild_2026-06-18.md)
+	var leaving: Node = tree.current_scene
+	if leaving != null and is_instance_valid(leaving):
+		var bd: Node = leaving.get_node_or_null("Backdrop")
+		if bd != null and is_instance_valid(bd):
+			leaving.remove_child(bd)
+			bd.queue_free()
+
 	var err := tree.change_scene_to_file(path)
 	if err != OK:
 		if is_instance_valid(cl):
