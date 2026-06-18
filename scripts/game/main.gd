@@ -1003,6 +1003,12 @@ func _on_start_pressed() -> void:
 func _on_node_added_to_tree(n: Node) -> void:
 	if _boss_hooked != null and is_instance_valid(_boss_hooked):
 		return
+	# node_added fires for EVERY node added anywhere in the tree, including short-lived combat VFX /
+	# spawns that can already be freed by the time this runs (a freed Object reads as null, so
+	# n.get_script() throws "Cannot call method 'get_script' on a null value"). Guard before touching
+	# it — this hook only cares about boss roots (Roman 2026-06-17 crash-log fix).
+	if not is_instance_valid(n):
+		return
 	var sc = n.get_script()
 	if sc == null:
 		return
