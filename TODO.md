@@ -262,14 +262,17 @@ RecycleController must preserve those contracts._
 
 - [x] **Outline shader + preset material** — `93f4763`. `shaders/outline_1px.gdshader` + `resources/materials/outline_1px_black.tres` (round, 1px black).
 - [x] **Outline asteroids in the asteroid hazard playspace** — `0a16c51`.
-- [x] **Wire the ship damage-tell system into live combat** — `2026-06-17`. `ShipDamageTells` now
-  attaches to every ship-vfx enemy in `enemy_base` (deferred so display_scale lands first), driven off
-  `take_hit` (overlay sensitivity + progressive sparks/burn trails) and owning the normal-path death
-  (disintegrate + per-size explosion/debris) via `_dmg_tells`. Per-size presets (`SIZE_PRESETS`,
-  small/medium/large; tiny→small) baked from the Shader Lab tuner; marker selection made UNIFORM
-  (per-category bias retired). Bosses/hazards excluded by the existing `has_ship_vfx=false` gate;
-  firecore "ball" routing + settling dust preserved; wreck/EM-disable paths untouched. NOTE: changes
-  how EVERY enemy reads when hit + adds per-enemy spark/burn nodes at spawn → playtest + perf watch.
+- [~] **Wire the ship damage-tell system into live combat** — `2026-06-17`. LIVE tells SHIPPED:
+  `ShipDamageTells` attaches to every ship-vfx enemy in `enemy_base` (deferred so display_scale lands
+  first), driven off `take_hit` for overlay sensitivity + progressive sparks/burn trails (lazy-created
+  on first damage). Per-size presets (`SIZE_PRESETS`, small/medium/large; tiny→small) baked from the
+  Shader Lab tuner; marker selection UNIFORM; bosses/hazards excluded via `has_ship_vfx=false`.
+  **Death-VFX delegation REVERTED** (2026-06-17): routing enemy deaths through `_dmg_tells._spawn_death_vfx`
+  (ShipDebrisEmber, absolute-z) surfaced an intermittent render-server `canvas_item_set_draw_index`
+  draw-order race on the death frame, so `enemy_base.explode()` again owns the proven death VFX and
+  just calls `_dmg_tells.quiet()`. The per-size death knobs (expl_*/debris) are therefore UNUSED live.
+  TODO if revisiting death VFX: reproduce the race in a full main.tscn canvas first, then route death
+  through the tells with the freed-node guarded.
 - [ ] **Coordinated marker-name rename across all enemy scenes** — bring every Marker2D onto ONE
   scheme: `Engine*` / `Thruster*` / `Muzzle*` (weapons) / `Launcher*` / `Turret*`, plus the deliberate
   `turret_base`/`turret_mount` attach anchors and the broadside `GunLeft*`/`GunRight*` mechanic names.

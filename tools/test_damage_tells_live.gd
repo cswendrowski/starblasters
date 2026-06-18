@@ -71,11 +71,20 @@ func _test_scene(path: String) -> bool:
 	if not any_lit:
 		print("  FAIL %s: no spark lit at 30%% damage" % path); ok = false
 
-	# (4) lethal hit delegates the death to the tell system.
+	# (4) lethal hit: enemy_base owns the death (NOT delegated to the tell system, reverted 2026-06-17),
+	# and the tells are quieted so they stop emitting through the death animation.
+	var sample = null
+	for s in e._dmg_tells._sparks:
+		if s["parts"] != null:
+			sample = s["parts"]; break
 	e.health = 1
 	e.take_hit(5)
-	if not e._dmg_tells._destroyed:
-		print("  FAIL %s: death not delegated to tells" % path); ok = false
+	if e._dmg_tells._destroyed:
+		print("  FAIL %s: death wrongly delegated to tells" % path); ok = false
+	if not e._dying:
+		print("  FAIL %s: enemy not dying after lethal hit" % path); ok = false
+	if sample != null and is_instance_valid(sample) and sample.emitting:
+		print("  FAIL %s: tell emitter not quieted on death" % path); ok = false
 
 	print(("  PASS [%s] " % cat) + path if ok else ("  ---- [%s] " % cat) + path)
 	world.queue_free(); await process_frame

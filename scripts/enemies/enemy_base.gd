@@ -409,9 +409,10 @@ func take_hit(damage: int = 1) -> bool:
 	var effective_dmg: int = max(1, int(round(float(routed) * (1.0 - damage_reduction))))
 	health -= effective_dmg
 	health_changed.emit(health, max_health)
-	# Drive the damage tells (overlay sensitivity + progressive sparks / burning trails). The tells own
-	# the death blast in explode(), so cap below 1.0 here — a lethal hit falls through to explode(),
-	# which triggers the disintegrate + per-size death VFX. Enemies without tells use the plain overlay.
+	# Drive the damage tells (overlay sensitivity + progressive sparks / burning trails) — LIVE damage
+	# only. enemy_base.explode() owns the death VFX (the tell death-delegation was reverted 2026-06-17),
+	# so cap below 1.0 here: a lethal hit skips this and falls through to explode(). Enemies without
+	# tells use the plain overlay.
 	if _dmg_tells != null and is_instance_valid(_dmg_tells):
 		if health >= 1:
 			_dmg_tells.set_damage(clampf(1.0 - float(health) / maxf(1.0, float(max_health)), 0.0, 0.999))
@@ -484,30 +485,27 @@ func explode() -> void:
 	# paths want this.
 	_fade_death_overlays()
 	set_engine_trail_emitting(false)
+	# Quiet the progressive damage tells so their emitters stop churning the draw order through the
+	# death animation. The tells drive LIVE damage only (overlay + sparks + burn trails); enemy_base
+	# owns the death VFX below — the per-enemy tell death-delegation was reverted (Roman 2026-06-17)
+	# after it surfaced a render-server draw-index race on the death frame (ShipDebrisEmber absolute-z).
 	if _dmg_tells != null and is_instance_valid(_dmg_tells):
-		# The damage-tell system owns the per-size tuned death: sprite disintegrate + explosion +
-		# debris + embers. Carry the firecore "ball" routing through to its blast, and keep the
-		# settling dust supplement (which the tell system doesn't emit itself).
-		_dmg_tells.death_explosion_type = "ball" if explosion_variant == "ball" else "basic"
-		_dmg_tells.self_explode = true
-		DeathDustScript.play(global_position, display_scale, fx_parent)
-		_dmg_tells.set_damage(1.0)
+		_dmg_tells.quiet()
+	var ex_scene: PackedScene = ExplosionFxScript.scene_for(explosion_variant)
+	# Explosions are always 1× scale; bigger enemies just get MORE blasts with jitter. 16-px
+	# chaff = 1, 48-px boss-class = ~4-5, clamped.
+	var blast_count: int = clampi(int(round(max(1.0, display_scale * 1.4))), 1, 6)
+	if blast_count <= 1:
+		ExplosionFxScript.play(global_position, 1.0, true, fx_parent, ex_scene)
 	else:
-		var ex_scene: PackedScene = ExplosionFxScript.scene_for(explosion_variant)
-		# Explosions are always 1× scale; bigger enemies just get MORE blasts with jitter. 16-px
-		# chaff = 1, 48-px boss-class = ~4-5, clamped.
-		var blast_count: int = clampi(int(round(max(1.0, display_scale * 1.4))), 1, 6)
-		if blast_count <= 1:
-			ExplosionFxScript.play(global_position, 1.0, true, fx_parent, ex_scene)
-		else:
-			ExplosionFxScript.burst(global_position, blast_count, 12.0 * max(1.0, display_scale * 0.6), 0.06, fx_parent, ex_scene)
-		# Settling dust supplement (Roman 2026-05-24): 1px gray particles, count scales with size.
-		DeathDustScript.play(global_position, display_scale, fx_parent)
-		# Debris scatter — parent under the same container so the pieces survive queue_free.
-		_spawn_debris(fx_parent, global_position, display_scale)
-		# Burn starts from a random hardpoint marker so the body dissolves from a believable point.
-		if has_node("Sprite2D"):
-			BurnFxScript.apply_burn($Sprite2D, 0.45, Color(0, 0, 0, 0), _burn_origin_uv())
+		ExplosionFxScript.burst(global_position, blast_count, 12.0 * max(1.0, display_scale * 0.6), 0.06, fx_parent, ex_scene)
+	# Settling dust supplement (Roman 2026-05-24): 1px gray particles, count scales with size.
+	DeathDustScript.play(global_position, display_scale, fx_parent)
+	# Debris scatter — parent under the same container so the pieces survive queue_free.
+	_spawn_debris(fx_parent, global_position, display_scale)
+	# Burn starts from a random hardpoint marker so the body dissolves from a believable point.
+	if has_node("Sprite2D"):
+		BurnFxScript.apply_burn($Sprite2D, 0.45, Color(0, 0, 0, 0), _burn_origin_uv())
 	if has_node("ParticleExplode"):
 		$ParticleExplode.restart()
 	# Death audio: the scene-embedded $EnemyDie clip is RETIRED (Roman 2026-06-10 — "wire up the

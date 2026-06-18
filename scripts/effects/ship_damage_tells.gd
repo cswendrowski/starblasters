@@ -189,6 +189,22 @@ func set_damage(t: float) -> void:
 	_update_burn_slots()
 
 
+# Stop every active tell emitter (sparks + burn trails) + hide torches. Called by enemy_base when the
+# host dies so the tells stop emitting + churning the draw order through the death animation (the
+# enemy owns the death VFX). No-op on emitters that were never lazily created.
+func quiet() -> void:
+	for s in _sparks:
+		if s["parts"] != null and is_instance_valid(s["parts"]):
+			s["parts"].emitting = false
+	for slot in _burn_slots:
+		var bp = slot["parts"]
+		if bp != null and is_instance_valid(bp):
+			bp.emitting = false
+		var tc = slot["torch"]
+		if tc != null and is_instance_valid(tc):
+			tc.visible = false
+
+
 func _set_spark(i: int, lit: bool) -> void:
 	var s: Dictionary = _sparks[i]
 	if bool(s["lit"]) == lit:
