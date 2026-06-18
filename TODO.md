@@ -262,17 +262,18 @@ RecycleController must preserve those contracts._
 
 - [x] **Outline shader + preset material** — `93f4763`. `shaders/outline_1px.gdshader` + `resources/materials/outline_1px_black.tres` (round, 1px black).
 - [x] **Outline asteroids in the asteroid hazard playspace** — `0a16c51`.
-- [~] **Wire the ship damage-tell system into live combat** — `2026-06-17`. LIVE tells SHIPPED:
-  `ShipDamageTells` attaches to every ship-vfx enemy in `enemy_base` (deferred so display_scale lands
-  first), driven off `take_hit` for overlay sensitivity + progressive sparks/burn trails (lazy-created
-  on first damage). Per-size presets (`SIZE_PRESETS`, small/medium/large; tiny→small) baked from the
-  Shader Lab tuner; marker selection UNIFORM; bosses/hazards excluded via `has_ship_vfx=false`.
-  **Death-VFX delegation REVERTED** (2026-06-17): routing enemy deaths through `_dmg_tells._spawn_death_vfx`
-  (ShipDebrisEmber, absolute-z) surfaced an intermittent render-server `canvas_item_set_draw_index`
-  draw-order race on the death frame, so `enemy_base.explode()` again owns the proven death VFX and
-  just calls `_dmg_tells.quiet()`. The per-size death knobs (expl_*/debris) are therefore UNUSED live.
-  TODO if revisiting death VFX: reproduce the race in a full main.tscn canvas first, then route death
-  through the tells with the freed-node guarded.
+- [ ] **Wire the ship damage-tell system into live combat** — `ShipDamageTells` is LAB-ONLY again
+  (Shader Lab → Ship Damage). It was wired live in `enemy_base` on 2026-06-17 (deferred attach, take_hit
+  drove the overlay + lazy sparks/burn trails, explode() delegated the per-size death VFX) but
+  **fully REVERTED 2026-06-17** after repeated intermittent native crashes during combat — incl. a
+  render-server `canvas_item_set_draw_index: null` draw-order race "right as an enemy was being
+  destroyed" (the absolute-z `ShipDebrisEmber` in the death frame), and earlier signal-11s fitting the
+  same stale-render-command-on-a-freed-CanvasItem class. None reproduced in isolation (needs the full
+  main.tscn canvas). `enemy_base` is back to the plain `damage_noise` overlay ramp + proven death VFX.
+  KEPT for the lab + a future retry: the per-size `SIZE_PRESETS` (small/medium/large; tiny→small),
+  UNIFORM marker selection, lazy emitter creation, `quiet()`. **Before re-wiring: reproduce the
+  draw-order/freed-node race inside a real main.tscn combat first** (isolated probes won't show it),
+  then guard it — don't re-enable blind. See [[damage-tells-reverted-lab-only]].
 - [ ] **Coordinated marker-name rename across all enemy scenes** — bring every Marker2D onto ONE
   scheme: `Engine*` / `Thruster*` / `Muzzle*` (weapons) / `Launcher*` / `Turret*`, plus the deliberate
   `turret_base`/`turret_mount` attach anchors and the broadside `GunLeft*`/`GunRight*` mechanic names.
