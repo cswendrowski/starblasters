@@ -28,7 +28,7 @@ func _process(_dt: float) -> bool:
 		var mv = StraightDown.new()
 		mv.speed = 60.0
 		var w = WaveSpec.new()
-		w.enemy_scene = load("res://scenes/enemies/core/enemy_dart.tscn")
+		w.enemy_scene = load("res://scenes/enemies/factions/privateer/enemy_dart.tscn")
 		w.count = 1
 		w.movement_override = mv
 		w.components_override = [Probe.new()]

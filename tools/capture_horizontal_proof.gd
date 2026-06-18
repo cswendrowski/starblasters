@@ -10,7 +10,7 @@ const FPS: int = 24
 const DURATION: float = 5.0
 const FRAME_TIME: float = 1.0 / float(FPS)
 const PLAYER_SCENE := preload("res://scenes/player/player.tscn")
-const ENEMY_SCENE := preload("res://scenes/enemies/core/enemy_dart.tscn")
+const ENEMY_SCENE := preload("res://scenes/enemies/factions/privateer/enemy_dart.tscn")
 const StraightDownCls := preload("res://scripts/enemies/patterns/straight_down.gd")
 
 

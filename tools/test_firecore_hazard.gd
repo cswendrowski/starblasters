@@ -6,7 +6,7 @@ extends SceneTree
 #   godot --headless --script res://tools/test_firecore_hazard.gd
 
 const RESULT := "res://tools/_firecore_result.txt"
-const HazardScene := preload("res://scenes/enemies/firecore_hazard.tscn")
+const HazardScene := preload("res://scenes/enemies/factions/zealot/firecore_hazard.tscn")
 const Factions := preload("res://scripts/levels/factions.gd")
 const HullTarget := preload("res://tools/_hull_target.gd")
 

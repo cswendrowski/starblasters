@@ -15,7 +15,7 @@ const ENEMIES := [
 	"res://scenes/enemies/factions/supremacy/enemy_frigate.tscn",
 	"res://scenes/enemies/factions/corporate/enemy_bulwark.tscn",
 ]
-const SHADER := preload("res://graphics/damage_overlay.gdshader")
+const SHADER := preload("res://graphics/damage_noise.gdshader")
 
 
 func _initialize() -> void:

@@ -6,8 +6,8 @@ extends Control
 @onready var particles : GPUParticles2D = $StarParticles
 @onready var starcontainer : Node2D = $StarContainer
 @onready var planetcontainer : Node2D = $PlanetContainer
-@onready var planet_scene : PackedScene = preload("res://BackgroundGenerator/Planet.tscn")
-@onready var big_star_scene : PackedScene = preload("res://BackgroundGenerator/BigStar.tscn")
+@onready var planet_scene : PackedScene = preload("res://SpaceBG/Planet.tscn")
+@onready var big_star_scene : PackedScene = preload("res://SpaceBG/BigStar.tscn")
 
 var should_tile : bool = false
 var reduce_background : bool = false

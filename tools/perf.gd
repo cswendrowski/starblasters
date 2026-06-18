@@ -9,7 +9,6 @@ extends SceneTree
 #   first_wave     — main.tscn, ticked through first wave spawn window
 #   bullet_stress  — main.tscn, then 200 bullet scenes force-spawned
 #   boss           — main.tscn, fast-forwarded to boss spawn
-#   parallax_only  — parallax_background.tscn alone
 #
 # Sampling cadence: every frame, recorded into ring buffers. p50/p95/max
 # computed at end.
@@ -20,8 +19,7 @@ const DEFAULT_SCENARIO := "first_wave"
 # cost and first-wave spawn spikes don't dominate the p95.
 const WARMUP_TIME := 1.5
 const MAIN_SCENE := "res://scenes/main.tscn"
-const PARALLAX_SCENE := "res://scenes/parallax_background.tscn"
-const BULLET_SCENE := "res://scenes/projectiles/bullet.tscn"
+const BULLET_SCENE := "res://scenes/projectiles/enemy_bullet.tscn"
 const SETTLE_TIME := 0.4
 const STRESS_BULLET_COUNT := 200
 
@@ -79,8 +77,6 @@ func _run() -> void:
 
 func _build_scenario(name: String) -> Node:
 	match name:
-		"parallax_only":
-			return await _instance_scene(PARALLAX_SCENE)
 		"idle", "first_wave":
 			return await _instance_scene(MAIN_SCENE)
 		"bullet_stress":

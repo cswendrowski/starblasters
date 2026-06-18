@@ -17,7 +17,7 @@ func _init() -> void:
 		quit()
 		return
 	var SidePodsScript = load("res://scripts/parts/side_pods.gd")
-	var BulletDefault = load("res://scenes/projectiles/bullet.tscn")
+	var BulletDefault = load("res://scenes/projectiles/enemy_bullet.tscn")
 	var pods = SidePodsScript.new()
 	pods.mark = 5
 	pods.bullet_scene = BulletDefault

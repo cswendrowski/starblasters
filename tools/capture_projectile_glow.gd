@@ -13,7 +13,7 @@ const FRAME_TIME: float = 1.0 / float(FPS)
 
 # Representative spread of colors/shapes to prove auto-derivation.
 const SPECS := [
-	"res://scenes/projectiles/bullet_heavy.tscn",          # cyan player bolt
+	"res://scenes/projectiles/bullet_blaster_heavy.tscn",  # cyan player bolt
 	"res://scenes/projectiles/bullet_minigun.tscn",        # warm tracer
 	"res://scenes/projectiles/bullet_wave_small.tscn",     # green wave
 	"res://scenes/projectiles/enemy_bullet_wave.tscn",     # magenta orb

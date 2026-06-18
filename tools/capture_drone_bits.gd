@@ -17,7 +17,7 @@ func _init() -> void:
 		quit()
 		return
 	var DroneBitsScript = load("res://scripts/parts/drone_bits.gd")
-	var BulletDefault = load("res://scenes/projectiles/bullet.tscn")
+	var BulletDefault = load("res://scenes/projectiles/enemy_bullet.tscn")
 	var bits = DroneBitsScript.new()
 	bits.mark = 5
 	bits.bullet_scene = BulletDefault

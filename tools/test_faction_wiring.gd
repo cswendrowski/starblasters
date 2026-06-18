@@ -38,14 +38,14 @@ func _process(_dt: float) -> bool:
 	_done = true
 
 	# allowed_in
-	var dart := "res://scenes/enemies/core/enemy_dart.tscn"          # universal
-	var fcd := "res://scenes/enemies/factions/zealot/enemy_firecore_drone.tscn" # zealot exclusive
+	var dart := "res://scenes/enemies/factions/privateer/enemy_dart.tscn"          # universal
+	var zexcl := "res://scenes/enemies/factions/zealot/enemy_beam_shooter.tscn" # zealot exclusive
 	if not Factions.allowed_in(dart, Factions.Id.CORPORATE):
 		_fail("universal dart not allowed in corporate")
-	if Factions.allowed_in(fcd, Factions.Id.CORPORATE):
-		_fail("zealot-exclusive firecore_drone allowed in corporate")
-	if not Factions.allowed_in(fcd, Factions.Id.ZEALOT):
-		_fail("firecore_drone not allowed in its home (zealot)")
+	if Factions.allowed_in(zexcl, Factions.Id.CORPORATE):
+		_fail("zealot-exclusive enemy not allowed in corporate")
+	if not Factions.allowed_in(zexcl, Factions.Id.ZEALOT):
+		_fail("zealot exclusive not allowed in its home (zealot)")
 
 	# Roster filter
 	Roster.set_faction_filter(Factions.Id.CORPORATE)
@@ -54,7 +54,7 @@ func _process(_dt: float) -> bool:
 		for e in Roster.entries_eligible(tier, 99, 99):
 			corp_scenes[str(e.get("scene", ""))] = true
 	Roster.set_faction_filter(-1)
-	if corp_scenes.has(fcd):
+	if corp_scenes.has(zexcl):
 		_fail("corporate filter let a zealot exclusive into entries_eligible")
 	if not corp_scenes.has(dart):
 		_fail("corporate filter dropped universal dart")
