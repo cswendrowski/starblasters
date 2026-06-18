@@ -8,10 +8,13 @@
 The 2026-06-17 parallax rework crashed the game (SIGSEGV) intermittently at **scene
 transitions**. We reverted it to the baseline backdrop to restore stability. This doc
 plans how to re-land its visual gains (colored star glows, varied starfields, random-gen
-fallback, asteroid fields) **without** the crash. The core fix (§4a) is to **isolate the
-combat backdrop in a `SubViewport`** — the pattern the parallax tuner and sector map already
-use safely; combat is the only context rendering the backdrop directly, and that's exactly why
-it crashes when `change_scene` frees it. With the backdrop isolated, the planet "cap" becomes a
+fallback, asteroid fields) **without** the crash. The shipped fix (committed `2258020c`) is the **`on_covered` backdrop teardown**:
+`SceneTransition.change_scene` detaches the backdrop (remove_child → queue_free) before the scene
+swap, so freeing the combat scene never reindexes its CanvasItems against the main canvas. (A
+SubViewport was tried first and **rejected** — it traded the canvas crash for a Forward+
+shader-pipeline-creation crash, because a SubViewport is a second Forward+ viewport; see §4a-RESULT.)
+That handles the **exit** crash; the **entry** load-burst is deferred out of the `change_scene`
+frame (§4b). With the backdrop isolated, the planet "cap" becomes a
 **performance budget** rather than a crash limit, so we keep the dense multi-body arrays and use
 LOD (full shader → baked sprite → glowing dot, by distance) + flat static asteroids to keep
 render cost flat.
@@ -71,7 +74,25 @@ run, on the real Forward+ renderer.
 
 ## 4. Approach — defense in depth
 
-### 4a. PRIMARY: isolate the combat backdrop in a SubViewport (proven, in-codebase pattern)
+### 4a-RESULT (2026-06-18): SubViewport tried and REJECTED → on_covered teardown is the fix
+
+**Outcome of the experiment below:** wrapping the combat backdrop in a SubViewport *did* change
+the crash (0 canvas_item-null errors vs 220) — but a SubViewport is a **second Forward+ viewport**,
+and Forward+ compiles GPU pipelines per viewport, so it **traded the canvas-reindex crash for a
+shader-pipeline-creation crash at combat load** (Forward+ #116172 — the log ended mid
+`CanvasShaderRD`/`ParticlesShaderRD` pipeline load, no canvas errors). It regressed the stable
+baseline. **Do NOT re-try the SubViewport on Forward+.**
+
+**The fix we shipped instead is §4a-bis (the on_covered teardown)** — committed `2258020c`:
+`SceneTransition.change_scene` detaches the leaving scene's `Backdrop` (remove_child → queue_free)
+at the black-screen moment, before `change_scene_to_file`. No second viewport → no pipeline cost →
+Forward+ unchanged. It fixes the **exit** crash. The **entry** (load-burst) crash is handled
+separately by deferring the backdrop populate out of the `change_scene` frame (§4b). The SubViewport
+write-up below is kept for history only.
+
+---
+
+### 4a (history — REJECTED): isolate the combat backdrop in a SubViewport
 
 **This is the structural fix** and it's already proven elsewhere in this project (Roman's
 catch, 2026-06-18 — confirmed):
