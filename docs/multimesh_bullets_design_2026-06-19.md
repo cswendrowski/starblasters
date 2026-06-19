@@ -73,16 +73,20 @@ per-instance `TRANSFORM_2D` is reliable. Consequences:
   on the current path, keeping their tint/animation. Zero visual change on those; the bulk (the
   common chaff/blaster bolts) gets the draw-call win.
 
-## Build steps
+## Build steps — DEV-BENCH FIRST, then flip live (the established pattern, same as the asteroid bake)
 1. `scripts/projectiles/bullet_manager.gd` (Node2D, two instances player/enemy via `BulletWorld`):
    struct-of-arrays + free-list, `spawn(variant_idx, pos, dir, dmg, ...)`, per-frame move loop
    (round-snapped), `MultiMeshInstance2D` per plain-variant texture (TRANSFORM_2D), Area2D
    collision proxies positioned each frame → existing `_on_area_entered`/`take_hit` pipeline.
 2. **Routing helper**: classify a variant as PLAIN (→ manager) vs SPECIAL (crit/animated/guided/
    homing/wobble → current node path). Start with the narrowest PLAIN set, widen as validated.
-3. **Bench/headless validation** BEFORE the hot path: spawn N plain bullets into a manager, tick,
-   assert they move + render (MM instance_count) + a proxy hit calls take_hit. (Run it — don't
-   compile-and-hope.)
-4. Integrate the PLAIN path at the two spawn sites: `player.gd::fire_primary` + `shoot_pattern.gd::
-   _spawn_bullet`. Crit/animated keep instantiating their scene.
-5. Validate FPS + look + hits register, headless + real renderer. Then optional Phase B.
+3. **DEV-MENU BENCH** ("Bullet Bench"): fire plain bullets through the manager at tunable rate/count
+   with a live FPS + bullet-count + draw-call readout, and a manager-path-vs-node-path A/B toggle so
+   Roman validates the look + the perf win side-by-side (like the Asteroid Field Test). Plus a
+   headless self-test that RUNS it (spawn → tick → assert move/render/hit) — not compile-and-hope.
+   **Roman iterates + signs off here before any live wiring.**
+4. **FLIP LIVE behind a flag** (mirror `AsteroidBakeCache.enabled`, default-OFF): when on, route the
+   PLAIN bullets at the two spawn sites (`player.gd::fire_primary` + `shoot_pattern::_spawn_bullet`)
+   to the manager; crit/animated/missiles keep the node path. A/B-able in real combat.
+5. Validate in real combat (Combat Lab + the crash loop), then default-on once proven. Then optional
+   Phase B (manual broadphase, drop the Area2D proxies).
