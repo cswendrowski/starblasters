@@ -19,6 +19,13 @@ extends Node2D
 
 signal destroyed
 
+# Crash stress-test gate (Roman 2026-06-19). The live per-enemy damage-tell wiring in
+# enemy_base.gd is DEFAULT-OFF — it was reverted 2026-06-17 after intermittent combat crashes
+# (the canvas_item draw-index race on enemy death). The crash loop flips this ON to re-introduce
+# that render load and test whether the combat teardown/rebuild path now survives it. Production
+# must leave this false (the wiring stays lab-only).
+static var live_enabled: bool = false
+
 const SparkTrailFx = preload("res://scripts/effects/spark_trail_fx.gd")
 const BURNING_TRAIL := preload("res://scenes/effects/burning_trail.tscn")
 const TORCH_SHADER := preload("res://graphics/torch_fire.gdshader")

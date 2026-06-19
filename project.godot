@@ -27,6 +27,7 @@ Run="*res://scripts/autoload/run_state.gd"
 Dbg="*res://scripts/autoload/dbg.gd"
 Music="*res://scripts/autoload/music_manager.gd"
 Settings="*res://scripts/autoload/settings.gd"
+CrashLog="*res://scripts/autoload/crash_log.gd"
 
 [display]
 

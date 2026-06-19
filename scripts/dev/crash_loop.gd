@@ -66,6 +66,13 @@ func _ready() -> void:
 	v.add_child(_make_button("Run BAKED   x N", func(): _start(true)))
 	v.add_child(_make_button("Back", func(): SceneTransition.change_scene(get_tree(), "res://scenes/dev_menu.tscn")))
 
+	# Headless self-test: auto-run 2 LIVE iterations when booted headless, so the loop's mechanics
+	# (spawn → mass-slay → reload) can be verified from the command line without clicking. Only
+	# fires under --headless boots of THIS scene; never in the normal windowed game.
+	if DisplayServer.get_name() == "headless":
+		_iter_spin.value = 2
+		call_deferred("_start", false)
+
 
 func _make_button(text: String, cb: Callable) -> Button:
 	var b := Button.new()

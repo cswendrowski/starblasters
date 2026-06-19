@@ -543,6 +543,12 @@ func new_game() -> void:
 	_current_level = null
 	_current_score = null
 	_asteroids_killed_this_level = 0
+	# Forensic breadcrumb (CrashLog): which POI is building — combat load is the prime crash seam.
+	var _cl = get_node_or_null("/root/CrashLog")
+	if _cl != null and has_node("/root/Run"):
+		var _r = get_node("/root/Run")
+		_cl.note("combat", "new_game: node=%s hazard=%s sectors=%s" % [
+			str(_r.current_node_type), str(_r.current_hazard_subtype), str(_r.sectors_cleared)])
 	# M6b: clear any prior level's faction so boss/hazard/custom levels carry none;
 	# the standard-combat branch sets it for this level (read per spawn by the director).
 	if has_node("/root/Run"):

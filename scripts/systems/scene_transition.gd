@@ -20,6 +20,11 @@ const HOLD := 0.05
 static func change_scene(tree: SceneTree, path: String, on_covered: Callable = Callable()) -> void:
 	if tree == null:
 		return
+	# Forensic breadcrumb — this swap (+ the backdrop teardown below) is the prime crash seam.
+	var _crashlog: Node = tree.root.get_node_or_null("CrashLog")
+	if _crashlog != null:
+		var _from: String = tree.current_scene.scene_file_path.get_file() if tree.current_scene != null else "?"
+		_crashlog.note("xition", "change_scene: %s -> %s" % [_from, path.get_file()])
 	var cl := CanvasLayer.new()
 	cl.layer = 128
 	tree.root.add_child(cl)
@@ -54,6 +59,8 @@ static func change_scene(tree: SceneTree, path: String, on_covered: Callable = C
 	if leaving != null and is_instance_valid(leaving):
 		var bd: Node = leaving.get_node_or_null("Backdrop")
 		if bd != null and is_instance_valid(bd):
+			if _crashlog != null:
+				_crashlog.note("xition", "teardown backdrop + swap -> %s" % path.get_file())
 			leaving.remove_child(bd)
 			bd.queue_free()
 
