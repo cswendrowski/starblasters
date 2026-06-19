@@ -33,6 +33,23 @@ Captured from Cody's 2026-05-19 punch list. Ordered roughly by leverage.
   for release builds so shipped copies don't write forensic logs to players' disks. (Added
   2026-06-19, commit `ee107aed`.)
 
+## Efficiency / burst-reduction backlog (2026-06-19)
+
+From the Forward+ pipeline-burst + perf plan (asteroid bake was item 1, landed `b4b42eeb`). Cut
+the draw-call / node / per-frame load in dense combat and the load-time shader-pipeline burst:
+
+- [ ] **MultiMesh bullets** — bullets are individual Area2D+Sprite nodes; pool them into a
+  MultiMesh render (one draw call, shared material) behind a central manager. **IN PROGRESS.**
+- [ ] **Productionize the asteroid bake** — the baked path is built but dev-gated
+  (`AsteroidBakeCache.enabled` default OFF). Wire bake-at-level-load behind a loading screen +
+  default-on for asteroid POIs so players actually get the death-frame-drop fix + the baked look.
+- [ ] **Shared particle emitters** — collapse the ~42 live GPUParticles2D (dust, damage tells,
+  trails) to a pooled/shared set. Cuts `ParticlesShaderRD` churn (seen in the crash traces).
+- [ ] **Level enemy pools + shared materials** — pool enemies per level + share their materials
+  instead of per-instance instantiation each spawn.
+- [ ] **Shader Baker on export** — turn on Godot 4.4+ export-time shader precompile so the shipping
+  build bakes shaders in instead of compiling them at runtime (the load-time pipeline burst).
+
 ## Carried from Worklist (2026-06-11)
 
 The Worklist was cleared this session. Items below were the active worklist; statuses updated.
