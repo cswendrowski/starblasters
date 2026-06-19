@@ -49,6 +49,14 @@ func _ready() -> void:
 	# stays as the gameplay hitbox.
 	if has_node("Sprite2D"):
 		$Sprite2D.visible = false
+	# Baked main-rock visual (flagged): swap the live procgen Asteroids.gdshader rock for a
+	# Sprite2D from the shared atlas — removes the LAST live asteroid shader from an asteroid
+	# POI. The Area2D hitbox/health/gameplay is untouched; only the visual swaps. Falls through
+	# to the procgen rock below when the flag is off / the atlas isn't baked yet.
+	if AsteroidBakeCache.enabled and AsteroidBakeCache.is_ready() and _build_baked_main_visual():
+		rotation = randf_range(-0.3, 0.3)
+		_attach_debris_trail()
+		return
 	var ps = load(PROCGEN_ASTEROID)
 	if ps != null:
 		var visual = ps.instantiate()
@@ -113,6 +121,38 @@ var _rock_color: Color = Color(0.48, 0.46, 0.45)   # set from the procgen base c
 var _visual: Node = null                           # the procgen rock visual (hidden on explode)
 var _visual_size: float = 50.0
 var _trail: Node2D = null                          # attached asteroid_debris_trail scene
+
+
+# Baked main-rock visual: a Sprite2D reading one frame cell from the shared atlas at its
+# native bucket size (1:1, no scale), tinted toward the POI asteroid colour and brightened so
+# it reads as a lit foreground target. Returns false (→ procgen fallback) if no usable atlas.
+func _build_baked_main_visual() -> bool:
+	var desired: float = randf_range(44.0, 64.0)
+	var atlas := AsteroidBakeCache.get_atlas_for_size(desired)
+	var tex = atlas.get("texture")
+	if tex == null:
+		return false
+	# POI asteroid base colour (same derivation as the procgen path below).
+	var base: Color = Color(0.70, 0.66, 0.60)
+	if has_node("/root/Run") and get_node("/root/Run").has_meta("asteroid_base_color"):
+		base = get_node("/root/Run").get_meta("asteroid_base_color")
+	var mx: float = maxf(base.r, maxf(base.g, base.b))
+	base = base * (0.82 / maxf(mx, 0.01))
+	_rock_color = base
+	var fpx: int = int(atlas.get("frame_px", 48))
+	var frames: int = maxi(int(atlas.get("frames", 1)), 1)
+	var variants: int = maxi(int(atlas.get("variants", 1)), 1)
+	var s := Sprite2D.new()
+	s.texture = tex
+	s.region_enabled = true
+	s.region_rect = Rect2((randi() % frames) * fpx, (randi() % variants) * fpx, fpx, fpx)
+	s.centered = true
+	s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	s.modulate = Color(base.r * 1.6, base.g * 1.6, base.b * 1.6, 1.0)
+	add_child(s)
+	_visual = s
+	_visual_size = float(fpx)
+	return true
 
 
 # Instantiate the drifting debris-trail scene as a child of the rock. The scene's

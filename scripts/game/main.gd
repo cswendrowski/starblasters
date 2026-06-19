@@ -819,6 +819,29 @@ const WreckLayerScript = preload("res://scripts/effects/wreck_layer.gd")
 # death style reparent their hull sprite into it. See scripts/effects/wreck_layer.gd.
 func _ensure_wreck_layer() -> void:
 	WreckLayerScript.ensure(self)
+	_apply_scene_grade()
+
+
+# Light scene grade (Roman 2026-06-19): tint the gameplay canvas (ships, asteroids, chunks,
+# bullets) lightly toward the level's atmospheric / planet tint, so the play area reads coherent
+# with the parallax backdrop + the wreck layer instead of sitting bright and un-graded. Light
+# touch — a fraction of the near-band grade so targets stay readable. Idempotent. This sits in
+# the world canvas (layer 0), so it does NOT touch the parallax backdrop (negative CanvasLayers,
+# their own grade) or the HUD (positive layers).
+func _apply_scene_grade() -> void:
+	if get_tree().get_first_node_in_group("scene_grade") != null:
+		return
+	var near_grade := Color(0.62, 0.64, 0.70)
+	var coord := get_node_or_null("Backdrop")
+	if coord != null:
+		var nm := coord.get_node_or_null("LayerStellarNear/CanvasModulate") as CanvasModulate
+		if nm != null:
+			near_grade = nm.color
+	var cm := CanvasModulate.new()
+	cm.name = "SceneGrade"
+	cm.add_to_group("scene_grade")
+	cm.color = Color.WHITE.lerp(near_grade, 0.4)
+	add_child(cm)
 
 
 # Roll the rare in-level encounter. `sector_depth` is sectors_cleared + 1 (the

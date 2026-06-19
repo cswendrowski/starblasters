@@ -44,8 +44,15 @@ const NEBULA_TILE: float = 270.0
 func populate(rng: RandomNumberGenerator) -> void:
 	_local_rng = rng
 	_clear_content()
+	# Flagged baked-asteroid path (crash test): when enabled + the shared atlas is baked,
+	# spawn cheap Sprite2D rocks (no per-rock shader) instead of live procedural ones. The
+	# live path below is unchanged when the flag is off. See AsteroidBakeCache.
+	var use_baked := AsteroidBakeCache.enabled and AsteroidBakeCache.is_ready()
 	for _i in asteroid_count:
-		_spawn_asteroid()
+		if use_baked:
+			_spawn_baked_asteroid()
+		else:
+			_spawn_asteroid()
 	for _i in mini_asteroid_count:
 		_spawn_mini_asteroid()
 	if nebula_enabled and _local_rng != null and _local_rng.randf() < nebula_chance:
@@ -137,6 +144,55 @@ func _spawn_asteroid() -> void:
 	if inner != null and inner.material is ShaderMaterial:
 		base_rot = float((inner.material as ShaderMaterial).get_shader_parameter("rotation"))
 	_objects.append({"node": a, "size": sz, "spin": spin, "rot": base_rot, "mini": false, "asteroid": inner})
+
+
+# Baked-asteroid spawn (flagged crash-test path). A Sprite2D reading one frame cell from
+# the shared baked atlas — no per-rock ShaderMaterial, so it does not add the live
+# Asteroids.gdshader to the combat-load pipeline burst. Scrolls/wraps via _objects like
+# the live rocks; its rotation frame is ticked in _process.
+func _spawn_baked_asteroid() -> void:
+	if _local_rng == null:
+		return
+	var size_t: float = pow(_local_rng.randf(), asteroid_size_pow)
+	var sz := asteroid_min_size + (asteroid_max_size - asteroid_min_size) * size_t
+	# Above the top bucket the rock stays LIVE — a procedural rock renders at pixels=size, so
+	# it's inherently 1:1, and it doubles as the LOD "hero" tier for the big rare rocks.
+	if sz > float(AsteroidBakeCache.max_bucket()) + 6.0:
+		_spawn_asteroid()
+		return
+	var atlas := AsteroidBakeCache.get_atlas_for_size(sz)
+	var tex = atlas.get("texture")
+	if tex == null:
+		_spawn_asteroid()
+		return
+	var fpx: int = int(atlas.get("frame_px", 32))
+	var frames: int = maxi(int(atlas.get("frames", 1)), 1)
+	var variants: int = maxi(int(atlas.get("variants", 1)), 1)
+	var variant := _local_rng.randi() % variants
+	var s := Sprite2D.new()
+	s.texture = tex
+	s.region_enabled = true
+	s.region_rect = Rect2(0, variant * fpx, fpx, fpx)
+	s.centered = true
+	s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	# Tint the neutral baked rock to the POI asteroid colour. asteroid_tint is the sector map's
+	# per-POI colour (realistic palette), shunted here by the coordinator, so baked backdrop
+	# rocks match the gameplay rocks. Brightened to roughly the live backdrop's tint level.
+	s.modulate = Color(asteroid_tint.r * 1.4, asteroid_tint.g * 1.4, asteroid_tint.b * 1.4, 1.0)
+	# 1:1 — render at the bucket's native px (scale 1.0); the rock size snaps to the bucket.
+	s.position = Vector2(_local_rng.randf_range(16, 464), -float(fpx) - _local_rng.randf_range(0, 270))
+	add_child(s)
+	# ~50% static; the rest drift slowly CW or CCW (signed).
+	var bspin: float = 0.0
+	if _local_rng.randf() < 0.5:
+		bspin = _local_rng.randf_range(0.03, 0.08) * (1.0 if _local_rng.randf() < 0.5 else -1.0)
+	# "spin": 0.0 so the live rotation tick in _process skips it; "baked" routes it to the
+	# baked frame tick instead. "size" = the bucket px (drives the scroll-wrap threshold).
+	_objects.append({
+		"node": s, "size": float(fpx), "spin": 0.0, "rot": 0.0, "mini": false,
+		"baked": true, "variant": variant, "fpx": fpx, "frames": frames,
+		"phase": _local_rng.randf(), "bspin": bspin,
+	})
 
 
 # Build the Asteroids.gdshader `colors` ramp (light → mid → dark) from a single
@@ -250,6 +306,23 @@ func _on_scrolled() -> void:
 
 func _process(delta: float) -> void:
 	for entry in _objects:
+		# Baked rocks: advance the rotation frame (region_rect) from their own signed spin.
+		if entry.get("baked", false):
+			var bn: Node = entry.node
+			if not is_instance_valid(bn):
+				continue
+			var bspin: float = float(entry.get("bspin", 0.0))
+			var frames: int = maxi(int(entry.get("frames", 1)), 1)
+			var fpx: int = int(entry.get("fpx", 96))
+			var variant: int = int(entry.get("variant", 0))
+			var phase: float = float(entry.get("phase", 0.0))
+			var t := Time.get_ticks_msec() / 1000.0
+			var cyc := fmod(t * bspin + phase, 1.0)
+			if cyc < 0.0:
+				cyc += 1.0
+			var fidx := int(cyc * float(frames)) % frames
+			(bn as Sprite2D).region_rect = Rect2(fidx * fpx, variant * fpx, fpx, fpx)
+			continue
 		var sp: float = float(entry.get("spin", 0.0))
 		if sp == 0.0:
 			continue

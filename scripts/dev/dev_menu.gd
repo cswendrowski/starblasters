@@ -20,6 +20,7 @@ const SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
 var _vbox: VBoxContainer = null
 var _grid: GridContainer = null
 var _hd_scope: HdViewportScope = null
+var _baked_btn: Button = null
 
 
 func _ready() -> void:
@@ -92,6 +93,14 @@ func _build_ui() -> void:
 	_add_button("[ Lane Visualizer ]", _on_lane_visualizer, true)
 	_add_button("[ Parallax Tuner ]", _on_parallax_tuner, true)
 	_add_button("[ Asteroid Lab ]", _on_asteroid_lab, true)
+	_add_button("[ Asteroid Bake Lab ]", _on_asteroid_bake_lab, true)
+	_add_button("[ Asteroid Field Test ]", _on_asteroid_field_test, true)
+	# Crash-test toggle: flips the backdrop's asteroid layer to the baked Sprite2D path
+	# (AsteroidBakeCache). Bakes the shared atlas on first enable. Then launch an asteroid
+	# POI via Combat Lab to A/B whether baked asteroids stop the #116172 combat-load crash.
+	_baked_btn = _add_button("[ Baked Asteroids: OFF ]", _on_toggle_baked_asteroids, true)
+	_update_baked_btn()
+	_add_button("[ Crash Loop ]", _on_crash_loop, true)
 	_add_button("[ Shader Lab ]", _on_shader_lab, true)
 	_add_button("[ Sequence Lab ]", _on_sequence_lab, true)
 	_add_button("[ Player FX Lab ]", _on_player_fx_lab, true)
@@ -114,7 +123,7 @@ func _build_ui() -> void:
 	v.add_child(back)
 
 
-func _add_button(text: String, cb: Callable, dev_green: bool) -> void:
+func _add_button(text: String, cb: Callable, dev_green: bool) -> Button:
 	var btn := Button.new()
 	btn.text = text
 	btn.custom_minimum_size = Vector2(300, 56)
@@ -124,6 +133,31 @@ func _add_button(text: String, cb: Callable, dev_green: bool) -> void:
 		btn.add_theme_color_override("font_color", Color(0.55, 1.0, 0.6, 1.0))
 	btn.pressed.connect(cb)
 	_grid.add_child(btn)
+	return btn
+
+
+# Toggle the flagged baked-asteroid backdrop path (crash test). On first enable, bake the
+# shared atlas (async, ~1s+). Persists statically, so once ON every asteroid POI this
+# session uses baked rocks until toggled OFF (or the app restarts).
+func _on_toggle_baked_asteroids() -> void:
+	if AsteroidBakeCache.enabled:
+		AsteroidBakeCache.enabled = false
+		_update_baked_btn()
+		return
+	if _baked_btn != null:
+		_baked_btn.disabled = true
+		_baked_btn.text = "[ Baked Asteroids: BAKING… ]"
+	await AsteroidBakeCache.ensure_baked(self)
+	AsteroidBakeCache.enabled = true
+	if _baked_btn != null:
+		_baked_btn.disabled = false
+	_update_baked_btn()
+
+
+func _update_baked_btn() -> void:
+	if _baked_btn == null:
+		return
+	_baked_btn.text = "[ Baked Asteroids: ON ]" if AsteroidBakeCache.enabled else "[ Baked Asteroids: OFF ]"
 
 
 # ---- Button handlers ----
@@ -170,6 +204,18 @@ func _on_parallax_tuner() -> void:
 
 func _on_asteroid_lab() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/asteroid_lab.tscn")
+
+
+func _on_asteroid_bake_lab() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/asteroid_bake_lab.tscn")
+
+
+func _on_asteroid_field_test() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/asteroid_field_test.tscn")
+
+
+func _on_crash_loop() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/crash_loop.tscn")
 
 
 func _on_hangar() -> void:

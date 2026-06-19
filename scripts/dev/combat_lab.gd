@@ -287,6 +287,15 @@ func _launch() -> void:
 		Enc.ASTEROID:
 			run.current_node_type = 5
 			run.current_hazard_subtype = "asteroid_field"
+			# Turn the DECORATIVE backdrop asteroid field on. The coordinator zeroes it unless
+			# current_stellar flags has_asteroids — the sector map sets that for real asteroid
+			# nodes, but Combat Lab doesn't, so the backdrop came up empty. Merge it in (keeping
+			# any other stellar fields) so the baked-backdrop path is exercised here too.
+			var ast_stellar: Dictionary = run.current_stellar if run.current_stellar is Dictionary else {}
+			ast_stellar["has_asteroids"] = true
+			if float(ast_stellar.get("asteroid_density", 0.0)) <= 0.0:
+				ast_stellar["asteroid_density"] = 0.7
+			run.current_stellar = ast_stellar
 		Enc.BOSS:
 			run.current_node_type = 3
 			run.forced_boss_scene = String(BOSS_PICKS[_boss_dd.selected][1])

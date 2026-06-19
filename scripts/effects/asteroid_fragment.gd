@@ -53,6 +53,13 @@ static func spawn(parent: Node, world_pos: Vector2, opts: Dictionary = {}) -> No
 func _ready() -> void:
 	z_index = 5
 	z_as_relative = false
+	# Baked chunk path: reuse the shared asteroid atlas (the distant-layer bake) instead of
+	# instantiating a fresh procgen Asteroid per chunk. The procgen spawn (x3-6 per death,
+	# each a new Asteroids.gdshader material) is the death-time frame drop — and keeping the
+	# shader off the chunks also helps the asteroid-POI combat-load burst. Same flag as the
+	# backdrop bake (AsteroidBakeCache); falls through to procgen when off / not yet baked.
+	if AsteroidBakeCache.enabled and AsteroidBakeCache.is_ready() and _build_baked_visual():
+		return
 	var ps = load(PROCGEN_ASTEROID)
 	if ps == null:
 		queue_free()
@@ -83,6 +90,33 @@ func _ready() -> void:
 	add_child(_visual)
 
 
+# Cheap baked chunk: a Sprite2D reading a random variant/frame cell from the shared
+# asteroid atlas, scaled to size_px. No procgen scene, no per-chunk ShaderMaterial. Tinted
+# toward the parent rock's colour so shattered debris reads as the rock it came from.
+# Returns false (→ procgen fallback) if the atlas isn't usable.
+func _build_baked_visual() -> bool:
+	var atlas := AsteroidBakeCache.get_atlas_for_size(size_px)
+	var tex = atlas.get("texture")
+	if tex == null:
+		return false
+	var fpx: int = int(atlas.get("frame_px", 32))
+	var frames: int = maxi(int(atlas.get("frames", 1)), 1)
+	var variants: int = maxi(int(atlas.get("variants", 1)), 1)
+	var s := Sprite2D.new()
+	s.texture = tex
+	s.region_enabled = true
+	s.region_rect = Rect2((randi() % frames) * fpx, (randi() % variants) * fpx, fpx, fpx)
+	s.centered = true
+	s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	# Tint the neutral baked chunk to the parent rock's POI colour, brightened so debris reads
+	# at roughly the rock's tone rather than dim (the atlas is mid-grey).
+	s.modulate = Color(color.r * 1.4, color.g * 1.4, color.b * 1.4, 1.0)
+	# 1:1 — render at the bucket's native px (scale 1.0); the chunk size snaps to the bucket.
+	add_child(s)
+	_visual = s
+	return true
+
+
 func _process(delta: float) -> void:
 	if _dead:
 		return
@@ -91,6 +125,8 @@ func _process(delta: float) -> void:
 	position += (velocity + Vector2(0.0, down_speed)) * delta
 	if _visual is Control:
 		(_visual as Control).rotation += spin * delta
+	elif _visual is Sprite2D:
+		(_visual as Sprite2D).rotation += spin * delta
 	# Sink into the wreck layer once the chunk reaches the exit zone: it recedes into the
 	# near-band grade and drifts off-screen behind gameplay (replaces the old alpha fade).
 	if not _reparented and global_position.y >= EXIT_ZONE_Y:
@@ -108,9 +144,19 @@ func _sink_into_wreck_layer() -> void:
 	var layer: Node = get_tree().get_first_node_in_group(WRECK_GROUP)
 	if layer == null or not is_instance_valid(layer):
 		return   # no wreck layer (bare/dev scene) — keep drifting off-screen as-is
+	# Read the wreck layer's grade (its modulate) BEFORE reparenting so we can ease INTO it
+	# instead of snapping the chunk's colour at the seam.
+	var w := Color.WHITE
+	if layer is CanvasItem:
+		w = (layer as CanvasItem).modulate
 	reparent(layer, true)
 	# Drop from the bright foreground z to the layer's depth (above backdrop, below ships).
 	z_as_relative = true
 	z_index = 0
+	# Counter the wreck grade at the seam (so the chunk keeps its pre-sink colour), then ease the
+	# compensation away over the sink — a smooth play→wreck colour transition, not a hard snap.
+	modulate = Color(1.0 / maxf(w.r, 0.02), 1.0 / maxf(w.g, 0.02), 1.0 / maxf(w.b, 0.02), 1.0)
 	var tw := create_tween()
+	tw.set_parallel(true)
 	tw.tween_property(self, "scale", scale * 0.8, 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(self, "modulate", Color.WHITE, 0.6).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
