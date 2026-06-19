@@ -25,6 +25,14 @@ Captured from Cody's 2026-05-19 punch list. Ordered roughly by leverage.
 > halos, HDR-bright bolts); the **`outline_1px` Forward+ crash fix**; and confirmation that renderer
 > **levers A+B** are already live (lever C partial). Per-item status: **`Worklist.md`** (refreshed).
 
+## Pre-ship checklist (turn OFF before release)
+
+- [ ] **Disable the forensic crash log before shipping** — `scripts/autoload/crash_log.gd`,
+  `const ENABLED := true`. ON for development (a per-launch `user://logs/session_*.log` breadcrumb
+  trail — the weather-eye for the intermittent #116172 combat-load crash). Set `ENABLED = false`
+  for release builds so shipped copies don't write forensic logs to players' disks. (Added
+  2026-06-19, commit `ee107aed`.)
+
 ## Carried from Worklist (2026-06-11)
 
 The Worklist was cleared this session. Items below were the active worklist; statuses updated.

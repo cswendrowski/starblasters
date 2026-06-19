@@ -10,6 +10,9 @@ extends Node
 ## data folder's logs/ dir (Editor → Project → Open User Data Folder). Hunting the intermittent
 ## #116172 combat-load crash — keep a weather eye via these logs.
 
+# TODO(ship): set ENABLED = false for release builds (see TODO.md "Pre-ship checklist"). ON for
+# development as the weather-eye crash log; shipped copies shouldn't write forensic logs to players'
+# disks. (Alternatively gate on OS.is_debug_build() to auto-disable in release exports.)
 const ENABLED := true
 const LOG_DIR := "user://logs"
 const KEEP_LOGS := 25
