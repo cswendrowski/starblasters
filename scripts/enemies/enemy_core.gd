@@ -12,7 +12,6 @@ var speed: float = 0.0
 var anchor: Node2D = null
 var follow_anchor: bool = false
 const _DEFAULT_BULLET = preload("res://scenes/projectiles/enemy_bullet.tscn")
-const ClarityRules = preload("res://scripts/systems/clarity.gd")
 const BeamEmitterC = preload("res://scripts/enemies/beam_emitter.gd")
 const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
 const RecycleController = preload("res://scripts/effects/recycle_controller.gd")
@@ -111,11 +110,9 @@ func start(pos: Vector2) -> void:
 func _start_with_pattern(pos: Vector2) -> void:
 	position = pos
 	_pattern = movement.duplicate()
-	# Sector speed scaling (Cody, 2026-05-24): +5% per cleared sector, capped
-	# at 2Ã— (so sector 21+ tops out). Applied once per spawn on the duplicated
-	# pattern resource so siblings don't share state. Scales any @export float
-	# whose name is `speed`, `accel`, `drift_x`, or ends in `_speed`/`_accel`.
-	_apply_sector_speed_scale(_pattern)
+	# Sector speed scaling now lives on the chassis (locomotion refactor 2026-06-19):
+	# director._apply_sector_locomotion_scale scales the resolved enemy.move_speed/accel once
+	# per spawn, and patterns read those. (Was a per-@export-float walk here.)
 	# Connect phase events BEFORE on_start so the initial-phase emit lands.
 	if _pattern.has_signal("phase_entered") \
 		and not _pattern.is_connected("phase_entered", _on_movement_phase_entered):
@@ -166,36 +163,6 @@ func _attach_beam_if_weapon() -> bool:
 	return true
 
 
-func _apply_sector_speed_scale(pattern: Resource) -> void:
-	if pattern == null:
-		return
-	var run := get_node_or_null("/root/Run")
-	if run == null or not ("sectors_cleared" in run):
-		return
-	var cleared: int = int(run.sectors_cleared)
-	if cleared <= 0:
-		return
-	var scale_factor: float = clamp(1.0 + 0.05 * float(cleared), 1.0, 2.0)
-	for prop in pattern.get_property_list():
-		if not (int(prop.get("usage", 0)) & PROPERTY_USAGE_SCRIPT_VARIABLE):
-			continue
-		if int(prop.get("type", -1)) != TYPE_FLOAT:
-			continue
-		var n: String = str(prop.get("name", ""))
-		var is_accel: bool = n == "accel" or n.ends_with("_accel")
-		var is_speed: bool = n == "speed" or n.ends_with("_speed")
-		var is_drift: bool = n == "drift_x"
-		if not (is_speed or is_accel or is_drift):
-			continue
-		var scaled: float = float(pattern.get(n)) * scale_factor
-		if is_speed:
-			# Keep late-game movement readable: clamp the scaled speed at the
-			# 8 px/f ceiling and snap to a whole-px/frame rung so it has an
-			# even cadence under pixel-snap. (accel/drift scale unclamped.)
-			scaled = ClarityRules.snap_to_rung(minf(scaled, ClarityRules.ABS_MAX_SPEED))
-		pattern.set(n, scaled)
-
-
 func _start_anchored(pos: Vector2) -> void:
 	follow_anchor = false
 	speed = 0
@@ -229,11 +196,12 @@ func _process(delta: float) -> void:
 			if _pattern.uses_inertia() and safe_delta > 0.0:
 				# Unit-weighted velocity smoothing (inertia): ease the APPLIED velocity
 				# toward the pattern's desired one so the unit doesn't stop sharply at its
-				# hold/jiggle point. Heavier (bigger display_scale) = laggier (Roman
-				# 2026-06-11). Position-error patterns (drift/loiter) opt in via uses_inertia().
+				# hold/jiggle point. Heavier (bigger weight) = laggier (Roman 2026-06-11).
+				# Position-error patterns (drift/loiter) opt in via uses_inertia(). `weight` is
+				# the chassis mass (locomotion refactor 2026-06-19), seeded from size — was display_scale.
 				var desired_vel: Vector2 = step / safe_delta
-				var weight: float = maxf(0.6, float(display_scale)) if "display_scale" in self else 1.0
-				_inertial_vel = _inertial_vel.move_toward(desired_vel, (INERTIA_ACCEL / weight) * safe_delta)
+				var w: float = maxf(0.6, weight)
+				_inertial_vel = _inertial_vel.move_toward(desired_vel, (INERTIA_ACCEL / w) * safe_delta)
 				position += _inertial_vel * safe_delta
 				_last_move_vel = _inertial_vel
 			else:

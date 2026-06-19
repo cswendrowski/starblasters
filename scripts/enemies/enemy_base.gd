@@ -81,6 +81,18 @@ enum OffscreenMode { CYCLE_BOTTOM, FREE_ANY_EDGE, FREE_OPPOSITE_SIDE, NONE }
 # filters the "enemies" group by this flag when checking for empty.
 @export var is_hazard: bool = false
 @export var display_scale: float = 1.0
+# --- Locomotion stat block (chassis-owned kinematics; locomotion refactor 2026-06-19) ---
+# Movement patterns express SHAPE only and read these for SCALE (movement_pattern.gd accessors).
+# Resolved per-spawn from the roster (size base rung + engine modifier) in director._spawn_enemy;
+# a per-scene .tscn may also author them. An unset value (0, or depth_bp < 0) falls back to the
+# pattern's medium default, so bosses/mines/hazards WITHOUT a block keep working unchanged.
+# `weight` is the inertia/turn mass that `display_scale` used to stand in for — display_scale is
+# now purely visual.
+@export var move_speed: float = 0.0   # absolute px/s, ALWAYS a clarity rung once resolved
+@export var weight: float = 1.0       # mass: inertia smoothing + turn/accel damping
+@export var turn_rate: float = 0.0    # deg/s base steering rate (jet / omni / inertial)
+@export var accel: float = 0.0        # px/s² base acceleration (charge / beeline / loiter-exit)
+@export var depth_bp: float = -1.0    # DEFAULT engagement depth (Zones.band_progress 0..1); <0 = pattern default
 # Death-explosion variant (ExplosionFx.VARIANTS key — "default" / "small_circle" / …).
 # The enemy dev tool + per-enemy scenes set this; explode() resolves it to a scene.
 @export var explosion_variant: String = "default"

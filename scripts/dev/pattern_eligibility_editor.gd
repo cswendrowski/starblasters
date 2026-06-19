@@ -21,39 +21,43 @@ const Factions = preload("res://scripts/levels/factions.gd")
 const SAVE_PATH := "user://tuners/pattern_eligibility.json"
 const EXPORT_PATH := "user://tuners/pattern_eligibility_export.txt"
 
-# The offerable movement keys (the 2026-06-08 make_movement pattern set).
+# The offerable movement keys — SHAPE-only after the locomotion refactor (2026-06-19): speed +
+# depth are chassis/formation axes now, not movement keys. Speed = size base + per-enemy engine
+# (Enemy Bench Locomotion tab); depth = enemy default + per-placement override.
 const MOVEMENT_KEYS := [
-	"straight_crawl", "straight_slow", "straight_medium", "straight_fast", "straight_reflex", "straight_charge",
+	"straight", "straight_charge",
 	"skirmish_loop", "skirmish_figure8",
-	"drift_low", "drift_mid", "drift_high",
-	"loiter_low", "loiter_mid", "loiter_high",
+	"drift",
+	"loiter",
 	"lane_weave", "lane_drift", "lane_shift", "lane_hook", "lane_cut",
 	"side_turn", "side_dive", "side_traverse",
 	"hunt_beeline", "hunt_omni",
 	"pendulum", "proximity_chase", "loiter_sweep",
 ]
 
-# Legacy/retired movement keys → their current replacement. Applied when loading the
-# committed matrix + any saved JSON so stale identities/eligible entries (from before the
-# 2026-06-08 pattern overhaul) surface as the new keys instead of vanishing or showing a
-# retired name. Anything not here and not in MOVEMENT_KEYS is dropped on load.
+# Legacy/retired movement keys → their current SHAPE replacement. Applied when loading the
+# committed matrix + any saved JSON so the speed/depth-variant keys (2026-06-08 set) and older
+# retired names collapse to the shape key instead of vanishing. Anything not here and not in
+# MOVEMENT_KEYS is dropped on load.
 const KEY_REMAP := {
-	"fast_straight": "straight_fast",
-	"firecore_straight": "straight_medium",
-	"slow_advance": "straight_crawl",
+	# 2026-06-08 speed/depth-variant keys → shape (locomotion refactor 2026-06-19)
+	"straight_crawl": "straight", "straight_slow": "straight", "straight_medium": "straight",
+	"straight_fast": "straight", "straight_reflex": "straight",
+	"drift_low": "drift", "drift_mid": "drift", "drift_high": "drift",
+	"loiter_low": "loiter", "loiter_mid": "loiter", "loiter_high": "loiter",
+	"side_traverse_high": "side_traverse", "side_traverse_mid": "side_traverse", "side_traverse_low": "side_traverse",
+	# older retired keys → shape
+	"fast_straight": "straight", "firecore_straight": "straight", "slow_advance": "straight",
+	"drifter_straight": "straight", "jet_charger": "straight",
 	"lane_charge": "straight_charge",
-	"bulwark_drift": "drift_mid",
-	"loiter": "loiter_low",
+	"bulwark_drift": "drift",
 	"advance_retreat": "skirmish_loop",
 	"dive_return": "lane_hook",
 	"omni": "hunt_omni",
 	"beeline": "hunt_beeline",
 	"top_dive": "side_dive",
-	"straight": "straight_medium",
-	"drifter_straight": "straight_slow",
-	"s_curve": "lane_weave",
-	"jet_charger": "straight_fast",
 	"side_cut": "side_dive",
+	"s_curve": "lane_weave",
 	"beam_sweep": "loiter_sweep",   # renamed 2026-06-09 (behavior unchanged)
 	# (strafe_run intentionally absent — strafer retired 2026-06-09; saved entries drop on load)
 }

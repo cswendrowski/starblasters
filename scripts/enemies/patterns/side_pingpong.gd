@@ -53,7 +53,8 @@ func on_start(enemy) -> void:
 
 
 func compute_step(enemy, delta: float) -> Vector2:
-	var step: Vector2 = Vector2(speed * float(_direction_runtime) * delta, 0.0)
+	# Cross speed is chassis-owned now (locomotion refactor); `speed` is vestigial.
+	var step: Vector2 = Vector2(_move_speed(enemy) * float(_direction_runtime) * delta, 0.0)
 	if _exiting:
 		return step
 	# Detect crossing the far bound. Use the bound the cutter is currently

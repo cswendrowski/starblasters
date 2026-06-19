@@ -19,12 +19,15 @@ func on_start(enemy) -> void:
 	_t = 0.0
 	_base_x = enemy.position.x
 	_holding = false
+	# Hold DEPTH is chassis/formation-owned now (locomotion refactor 2026-06-19); fall back to hold_y.
+	hold_y = Zones.y_for_progress(_depth_bp(enemy, Zones.band_progress(hold_y)))
 
 
 func compute_step(enemy, delta: float) -> Vector2:
 	var step_y: float = 0.0
 	if not _holding:
-		step_y = enter_speed * delta
+		# Descent speed is chassis-owned now (locomotion refactor); `enter_speed` is vestigial.
+		step_y = _move_speed(enemy) * delta
 		if enemy.position.y + step_y >= hold_y:
 			step_y = hold_y - enemy.position.y
 			_holding = true

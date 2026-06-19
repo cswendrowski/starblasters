@@ -23,12 +23,26 @@ extends "res://scripts/enemies/movement_pattern.gd"
 @export var target_speed: float = 128.0
 # Pull the enemy back into the play field when it strays past these bounds.
 @export var playfield_margin: float = 16.0
+# Locomotion refactor 2026-06-19: speed/turn/accel are SEEDED from the chassis in on_start so the
+# flight model scales with the enemy. The ratios reproduce the old 72/180/128/200/60 defaults at
+# the medium fallback (move_speed 180 / turn 300 / accel 600). The min/max/target_speed, accel and
+# turn_rate_at_min exports above are now seed defaults, overwritten per spawn; variants
+# (jet_charger / jet_vector) override after calling super.on_start.
+const MIN_RATIO: float = 72.0 / 180.0
+const TARGET_RATIO: float = 128.0 / 180.0
+const ACCEL_RATIO: float = 60.0 / 600.0
+const TURN_RATIO: float = 200.0 / 300.0
 
 var _speed: float = 0.0
 var _t: float = 0.0
 
 
-func on_start(_enemy) -> void:
+func on_start(enemy) -> void:
+	max_speed = _move_speed(enemy)
+	min_speed = max_speed * MIN_RATIO
+	target_speed = max_speed * TARGET_RATIO
+	accel = _accel(enemy) * ACCEL_RATIO
+	turn_rate_at_min = _turn_rate(enemy) * TURN_RATIO
 	_speed = target_speed
 	_t = 0.0
 

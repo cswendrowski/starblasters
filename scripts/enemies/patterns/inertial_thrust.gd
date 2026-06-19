@@ -30,6 +30,12 @@ extends "res://scripts/enemies/movement_pattern.gd"
 # When idle (between target refreshes), still rotate toward the player so
 # the ship is always lined up for the next thrust burst.
 @export var aim_at_player_idle: bool = true
+# Locomotion refactor 2026-06-19: top speed / thrust / brake / rotate are chassis-owned. Ratios
+# reproduce the old 120/280/360/240 feel (thrust+brake are fractions of enemy.accel; rotate is a
+# fraction of enemy.turn_rate). The max_speed/thrust/brake_thrust/rotate_speed exports are vestigial.
+const THRUST_RATIO: float = 280.0 / 600.0
+const BRAKE_RATIO: float = 360.0 / 600.0
+const ROTATE_RATIO: float = 240.0 / 300.0
 
 var _vel: Vector2 = Vector2.ZERO
 var _target: Vector2 = Vector2.ZERO
@@ -86,21 +92,21 @@ func compute_step(enemy, delta: float) -> Vector2:
 	# Decide thrust direction: approach if far, retro-burn if close,
 	# OR counter-thrust if a wall is in the lookahead path.
 	var thrust_dir: Vector2 = dir_to_target
-	var thrust_mag: float = thrust
+	var thrust_mag: float = _accel(enemy) * THRUST_RATIO
 	if wall_avoid != Vector2.ZERO:
 		thrust_dir = wall_avoid.normalized()
-		thrust_mag = brake_thrust
+		thrust_mag = _accel(enemy) * BRAKE_RATIO
 	elif dist < brake_range:
 		# Point the nose AWAY from target so retro-thrust kills velocity.
 		thrust_dir = -dir_to_target
-		thrust_mag = brake_thrust
+		thrust_mag = _accel(enemy) * BRAKE_RATIO
 
 	# Rotate the body toward thrust_dir at limited angular speed.
 	if enemy is Node2D:
 		var target_angle: float = thrust_dir.angle() + PI * 0.5  # sprite faces +Y
 		var current: float = enemy.rotation
 		var diff: float = wrapf(target_angle - current, -PI, PI)
-		var max_step: float = deg_to_rad(rotate_speed) * delta
+		var max_step: float = deg_to_rad(_turn_rate(enemy) * ROTATE_RATIO) * delta
 		if abs(diff) <= max_step:
 			enemy.rotation = target_angle
 		else:
@@ -121,8 +127,8 @@ func compute_step(enemy, delta: float) -> Vector2:
 		_vel += body_forward * thrust_mag * delta
 
 	# Cap to max_speed. No drag — Newtonian.
-	if _vel.length() > max_speed:
-		_vel = _vel.normalized() * max_speed
+	if _vel.length() > _move_speed(enemy):
+		_vel = _vel.normalized() * _move_speed(enemy)
 
 	return _vel * delta
 

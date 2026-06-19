@@ -57,6 +57,15 @@ enum Formation { TOP_LEFT_TO_RIGHT, TOP_RIGHT_TO_LEFT, TOP_RANDOM, TOP_CENTER_OU
 
 @export var shield_charges: int = 0
 @export var recycle_passes: int = -2   # -2 = don't override; -1 = unlimited; 0+ = N passes
+# Locomotion (locomotion refactor 2026-06-19): resolved chassis stats from Roster.compose_stats
+# (size base rung + engine + overrides). 0 = unset (keep the enemy scene / pattern fallback).
+# depth_override < 0 = no formation/roster depth (enemy keeps its scene default). Applied per-spawn
+# in director._spawn_enemy; movement patterns read them via movement_pattern.gd's accessors.
+@export var move_speed: float = 0.0
+@export var weight: float = 0.0
+@export var turn_rate: float = 0.0
+@export var accel: float = 0.0
+@export var depth_override: float = -1.0
 # Firecore Drone ring count override (-1 = use scene/script default). Lets a
 # wave dial the number of orbiting bullet rings (1-4) per drone so different
 # comps cover different amounts of screen on death (Roman, 2026-05-31).

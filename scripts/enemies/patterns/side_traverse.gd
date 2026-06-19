@@ -26,5 +26,7 @@ func on_start(enemy) -> void:
 		enemy.position.x = Playfield.X_MAX + 12.0
 
 
-func compute_step(_enemy, delta: float) -> Vector2:
-	return Vector2(speed * float(direction) * delta, 0)
+func compute_step(enemy, delta: float) -> Vector2:
+	# Cross speed is chassis-owned now (locomotion refactor); `speed` is vestigial. travel_y (the
+	# cross depth) is resolved from the enemy/formation depth by the director before spawn.
+	return Vector2(_move_speed(enemy) * float(direction) * delta, 0)

@@ -678,7 +678,13 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 		var h_cross: float = _enemy_height(enemy)
 		if h_cross >= ANCHOR_MIN_HEIGHT:
 			cross_step = h_cross + ANCHOR_GAP_PAD
-		mv_cross.travel_y = _crosser_travel_y(mv_cross.travel_y, index, cross_step)
+		# Depth axis (locomotion refactor 2026-06-19): a resolved enemy/formation depth sets the
+		# CROSS latitude — the per-index stagger then spreads around it so a row crosses at the
+		# chosen depth without overlapping. No depth → the pattern's own travel_y default.
+		var base_ty: float = mv_cross.travel_y
+		if "depth_override" in wave and wave.depth_override >= 0.0:
+			base_ty = Zones.y_for_progress(wave.depth_override)
+		mv_cross.travel_y = _crosser_travel_y(base_ty, index, cross_step)
 		enemy.movement = mv_cross
 	# STEP_WALL (P2d): stamp the shared synced-STEP params so the row steps in unison.
 	# Duplicate per instance; the anchor lane comes from lane_override.
@@ -721,6 +727,21 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 	# not the retired simple max_shield (shield_unification_2026-06-08.md).
 	if wave.recycle_passes >= -1 and "recycle_passes" in enemy:
 		enemy.recycle_passes = wave.recycle_passes
+	# Locomotion (locomotion refactor 2026-06-19): apply the resolved chassis stats to the
+	# instance (movement patterns read these for SCALE). Guarded `in` checks so hazards without
+	# the stat block skip. move_speed/accel are sector-scaled here (the per-pattern scaler is
+	# retired in Phase C); depth_override (formation or roster default) sets the enemy default.
+	if wave.move_speed > 0.0 and "move_speed" in enemy:
+		enemy.move_speed = wave.move_speed
+	if wave.weight > 0.0 and "weight" in enemy:
+		enemy.weight = wave.weight
+	if wave.turn_rate > 0.0 and "turn_rate" in enemy:
+		enemy.turn_rate = wave.turn_rate
+	if wave.accel > 0.0 and "accel" in enemy:
+		enemy.accel = wave.accel
+	if wave.depth_override >= 0.0 and "depth_bp" in enemy:
+		enemy.depth_bp = wave.depth_override
+	_apply_sector_locomotion_scale(enemy)
 	# Firecore Drone ring count — set before add_child() below (the drone
 	# builds its rings in _ready()). Guarded so other enemies ignore it.
 	if wave.ring_count_override >= 0 and "ring_count" in enemy:
@@ -847,6 +868,25 @@ func _apply_direction(enemy, dir: int) -> void:
 		var d = mv.duplicate()
 		d.mirrored = dir < 0
 		enemy.movement = d
+
+
+# Sector speed/accel scale on the resolved chassis stats (replaces enemy_core's per-pattern
+# float walk, locomotion refactor 2026-06-19): +5% per cleared sector, capped 2×. move_speed is
+# kept readable (clamped to the 8 px/f ceiling + snapped to a rung); accel scales unclamped.
+func _apply_sector_locomotion_scale(enemy) -> void:
+	if not ("move_speed" in enemy):
+		return
+	var run := get_node_or_null("/root/Run")
+	if run == null or not ("sectors_cleared" in run):
+		return
+	var cleared: int = int(run.sectors_cleared)
+	if cleared <= 0:
+		return
+	var f: float = clampf(1.0 + 0.05 * float(cleared), 1.0, 2.0)
+	if enemy.move_speed > 0.0:
+		enemy.move_speed = Clarity.snap_to_rung(minf(enemy.move_speed * f, Clarity.ABS_MAX_SPEED))
+	if "accel" in enemy and enemy.accel > 0.0:
+		enemy.accel *= f
 
 
 func _apply_sector_modifiers(enemy: Node, modifiers: Array) -> void:

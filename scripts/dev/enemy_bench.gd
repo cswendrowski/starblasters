@@ -78,6 +78,17 @@ const SIZE_FIELDS := [
 ]
 var _size_data: Dictionary = {}   # size -> {hp, shield_cap, bounty, speed_mult} (working draft)
 
+# Locomotion table (locomotion refactor 2026-06-19): per-size chassis kinematics. Tuned in the
+# "Locomotion" tab; Copy GDScript → paste into enemy_roster.gd SIZE_LOCOMOTION. Per-enemy speed is
+# this base shifted by the entry's `engine` rung offset.
+const LOCO_FIELDS := [
+	{"key": "base_rung", "label": "Base speed (px/s)", "min": 60.0, "max": 480.0, "step": 60.0},
+	{"key": "weight", "label": "Weight", "min": 0.2, "max": 8.0, "step": 0.1},
+	{"key": "turn_rate", "label": "Turn (deg/s)", "min": 30.0, "max": 720.0, "step": 10.0},
+	{"key": "accel", "label": "Accel (px/s2)", "min": 60.0, "max": 1800.0, "step": 20.0},
+]
+var _loco_data: Dictionary = {}   # size -> {base_rung, weight, turn_rate, accel} (working draft)
+
 const FS_CAPTION := 15   # filter-toggle font size (only code-built widgets left)
 const DUMMY_SPEED := 150.0
 
@@ -129,6 +140,11 @@ var _pattern_idx: int = 0
 # Emitters editor — EmitterComponents (drop/spawn a payload on a trigger), separate from the weapon mounts.
 @onready var _emitters_list: VBoxContainer = %EmittersList
 @onready var _add_emitter_btn: Button = %AddEmitterButton
+# Per-enemy locomotion knobs (code-built, appended to the Enemy tab; locomotion refactor 2026-06-19):
+# engine = rung offset on the size base speed; depth = hold/cross band override ("" = default).
+var _engine_spin: SpinBox = null
+var _depth_dd: OptionButton = null
+const _DEPTH_ITEMS := ["", "high", "mid", "low"]   # OptionButton index 0 = "(default)"
 
 # scene_path -> true if any roster ENTRY declares a non-null "shoot" key. This is production's
 # source of truth for "this enemy_core enemy carries a generic Weapon" (the director assigns it
@@ -333,6 +349,7 @@ func _setup_size_tab() -> void:
 	var scroll := get_node_or_null("UI/RightPanel/RightScroll") as Control
 	if scroll == null:
 		return
+	_setup_enemy_loco_knobs(scroll)
 	var panel := scroll.get_parent()
 	var tabs := TabContainer.new()
 	tabs.add_theme_font_size_override("font_size", FS_CAPTION)
@@ -349,6 +366,144 @@ func _setup_size_tab() -> void:
 	vb.add_theme_constant_override("separation", 6)
 	sizes_scroll.add_child(vb)
 	_build_size_editor(vb)
+	# Locomotion tab (locomotion refactor 2026-06-19): the per-size chassis kinematics.
+	var loco_scroll := ScrollContainer.new()
+	loco_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	tabs.add_child(loco_scroll)
+	tabs.set_tab_title(2, "Locomotion")
+	var lvb := VBoxContainer.new()
+	lvb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lvb.add_theme_constant_override("separation", 6)
+	loco_scroll.add_child(lvb)
+	_build_loco_editor(lvb)
+
+
+func _build_loco_editor(vb: VBoxContainer) -> void:
+	vb.add_child(_mk_label("Locomotion (size → chassis)", 18, Color(0.62, 0.82, 1, 1)))
+	var note := _mk_label("Per-size base speed / weight / turn / accel. Speed is a clarity rung; a per-enemy ENGINE offset (on the roster entry) shifts it without changing weight/turn. Tune, then Copy GDScript → paste into enemy_roster.gd SIZE_LOCOMOTION.", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70))
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD
+	vb.add_child(note)
+	_loco_data = _load_loco_data()
+	for sz in SIZE_ORDER:
+		vb.add_child(HSeparator.new())
+		vb.add_child(_mk_label(sz, 16, Color(0.62, 0.82, 1, 1)))
+		for f in LOCO_FIELDS:
+			vb.add_child(_mk_label(String(f["label"]), FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
+			var sb := SpinBox.new()
+			sb.min_value = float(f["min"])
+			sb.max_value = float(f["max"])
+			sb.step = float(f["step"])
+			sb.custom_minimum_size = Vector2(0, 30)
+			sb.value = float(_loco_data[sz][f["key"]])
+			sb.value_changed.connect(_on_loco_changed.bind(String(sz), String(f["key"])))
+			vb.add_child(sb)
+	vb.add_child(HSeparator.new())
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	vb.add_child(row)
+	var save := Button.new()
+	save.text = "Save Loco"
+	save.custom_minimum_size = Vector2(0, 34)
+	save.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	save.pressed.connect(_save_loco)
+	row.add_child(save)
+	var cp := Button.new()
+	cp.text = "Copy GDScript"
+	cp.custom_minimum_size = Vector2(0, 34)
+	cp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cp.pressed.connect(_copy_loco)
+	row.add_child(cp)
+
+
+func _load_loco_data() -> Dictionary:
+	var saved = _saved.get("_loco_table", {})
+	var out := {}
+	for sz in SIZE_ORDER:
+		var base: Dictionary = EnemyRoster.SIZE_LOCOMOTION.get(sz, {})
+		var s: Dictionary = saved.get(sz, {}) if saved is Dictionary else {}
+		out[sz] = {
+			"base_rung": float(s.get("base_rung", base.get("base_rung", 180.0))),
+			"weight": float(s.get("weight", base.get("weight", 1.0))),
+			"turn_rate": float(s.get("turn_rate", base.get("turn_rate", 300.0))),
+			"accel": float(s.get("accel", base.get("accel", 600.0))),
+		}
+	return out
+
+
+func _on_loco_changed(value: float, sz: String, field: String) -> void:
+	_loco_data[sz][field] = float(value)
+
+
+func _save_loco() -> void:
+	_saved["_loco_table"] = _loco_data.duplicate(true)
+	DirAccess.make_dir_recursive_absolute("user://tuners")
+	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	if f != null:
+		f.store_string(JSON.stringify(_saved, "\t"))
+		f.close()
+	if _pattern_lbl:
+		_pattern_lbl.text = "Saved locomotion draft"
+
+
+func _copy_loco() -> void:
+	var txt := "const SIZE_LOCOMOTION := {\n"
+	for sz in SIZE_ORDER:
+		var d: Dictionary = _loco_data[sz]
+		txt += "\t\"%s\": {\"base_rung\": %.0f, \"weight\": %.2f, \"turn_rate\": %.0f, \"accel\": %.0f},\n" % [
+			sz, float(d["base_rung"]), float(d["weight"]), float(d["turn_rate"]), float(d["accel"])]
+	txt += "}\n"
+	DisplayServer.clipboard_set(txt)
+	if _pattern_lbl:
+		_pattern_lbl.text = "Copied SIZE_LOCOMOTION to clipboard"
+
+
+# Append a per-enemy locomotion section (engine offset + depth band) to the Enemy tab's content,
+# so the lead can dial each enemy's speed/depth with a live preview + Copy GDScript → ENTRIES.
+func _setup_enemy_loco_knobs(scroll: Control) -> void:
+	if scroll == null or scroll.get_child_count() == 0:
+		return
+	var content := scroll.get_child(0)
+	if not (content is Container):
+		return
+	content.add_child(HSeparator.new())
+	content.add_child(_mk_label("Locomotion (this enemy)", 16, Color(0.62, 0.82, 1, 1)))
+	content.add_child(_mk_label("Engine = rung offset on the size base speed (+1 = +60 px/s; weight/turn unchanged). Depth = hold/cross band (default = size/identity).", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
+	var er := HBoxContainer.new()
+	er.add_theme_constant_override("separation", 8)
+	content.add_child(er)
+	er.add_child(_mk_label("Engine", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
+	_engine_spin = SpinBox.new()
+	_engine_spin.min_value = -4.0
+	_engine_spin.max_value = 4.0
+	_engine_spin.step = 1.0
+	_engine_spin.custom_minimum_size = Vector2(70, 28)
+	_engine_spin.value_changed.connect(_on_loco_knob_changed)
+	er.add_child(_engine_spin)
+	er.add_child(_mk_label("Depth", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
+	_depth_dd = OptionButton.new()
+	_depth_dd.add_item("(default)")
+	_depth_dd.add_item("high")
+	_depth_dd.add_item("mid")
+	_depth_dd.add_item("low")
+	_depth_dd.custom_minimum_size = Vector2(90, 28)
+	_depth_dd.item_selected.connect(_on_loco_depth_changed)
+	er.add_child(_depth_dd)
+
+
+func _on_loco_knob_changed(_v: float) -> void:
+	if not _loading:
+		_spawn_current()
+
+
+func _on_loco_depth_changed(_i: int) -> void:
+	if not _loading:
+		_spawn_current()
+
+
+# The selected depth band ("" when "(default)" is chosen).
+func _depth_for_selected() -> String:
+	var i: int = _depth_dd.selected if _depth_dd != null else 0
+	return _DEPTH_ITEMS[i] if i >= 0 and i < _DEPTH_ITEMS.size() else ""
 
 
 func _build_size_editor(vb: VBoxContainer) -> void:
@@ -1131,6 +1286,24 @@ func _apply_stats_to(inst: Node) -> void:
 		inst.bullet_speed_mult = float(_bspeed_spin.value)
 	if "bullet_damage_mult" in inst:
 		inst.bullet_damage_mult = float(_bdmg_spin.value)
+	# Locomotion preview: resolve from the enemy's ENTRIES size + the bench engine/depth so the live
+	# ship moves at the tuned speed/depth (locomotion refactor 2026-06-19).
+	if "move_speed" in inst and _engine_spin != null:
+		var le: Dictionary = EnemyRoster.entry_for_scene(_selected_path)
+		var sz: String = String(le.get("size", "medium")) if not le.is_empty() else "medium"
+		var loco: Dictionary = EnemyRoster.resolve_locomotion({
+			"scene": _selected_path, "size": sz,
+			"engine": int(_engine_spin.value), "depth": _depth_for_selected(),
+		})
+		inst.move_speed = float(loco["move_speed"])
+		if "weight" in inst:
+			inst.weight = float(loco["weight"])
+		if "turn_rate" in inst:
+			inst.turn_rate = float(loco["turn_rate"])
+		if "accel" in inst:
+			inst.accel = float(loco["accel"])
+		if "depth_bp" in inst:
+			inst.depth_bp = float(loco["depth_bp"])
 
 
 # Cheap stats (no _ready dependency) applied to the live enemy without a respawn.
@@ -1241,6 +1414,12 @@ func _load_settings_into_editors() -> void:
 	_scale_spin.value = float(s.get("display_scale", nat.get("display_scale", 1.0)))
 	_bspeed_spin.value = float(s.get("bullet_speed_mult", nat.get("bullet_speed_mult", 1.0)))
 	_bdmg_spin.value = float(s.get("bullet_damage_mult", nat.get("bullet_damage_mult", 1.0)))
+	if _engine_spin != null:
+		var le: Dictionary = EnemyRoster.entry_for_scene(_selected_path)
+		_engine_spin.value = int(s.get("engine", int(le.get("engine", 0))))
+		var dstr: String = String(s.get("depth", String(le.get("depth", ""))))
+		var didx: int = _DEPTH_ITEMS.find(dstr)
+		_depth_dd.select(didx if didx >= 0 else 0)
 	_name_edit.text = String(s.get("name", EnemyStrings.display_name(_selected_path)))
 	_codex_edit.text = String(s.get("codex", EnemyStrings.codex_entry(_selected_path)))
 	# Saved bench override wins; otherwise default to the enemy's production roster mounts.
@@ -1290,6 +1469,8 @@ func _current_settings() -> Dictionary:
 		"codex": _codex_edit.text,
 		"mounts": _dup_mounts(_mount_dicts),
 		"emitters": _dup_mounts(_emitter_dicts),
+		"engine": int(_engine_spin.value) if _engine_spin != null else 0,
+		"depth": _depth_for_selected(),
 	}
 
 
@@ -1343,6 +1524,13 @@ func _on_copy() -> void:
 		txt += "enemy.recycle_passes = %d  # %.1f chance to recycle\n" % [s["recycle_passes"], s["recycle_chance"]]
 	else:
 		txt += "enemy.recycle_passes = 0  # flee (no recycle)\n"
+	# Locomotion → roster ENTRY fields (size base + engine rung offset + optional depth band).
+	var loco_bits: Array = []
+	if int(s.get("engine", 0)) != 0:
+		loco_bits.append("\"engine\": %d" % int(s["engine"]))
+	if String(s.get("depth", "")) != "":
+		loco_bits.append("\"depth\": \"%s\"" % String(s["depth"]))
+	txt += "\n# -> roster ENTRY (locomotion): %s\n" % (", ".join(loco_bits) if not loco_bits.is_empty() else "(size-derived — engine 0, no depth override)")
 	# Mounts → a roster ENTRY "mounts" block (extra emitters beyond the hull weapon).
 	if not _mount_dicts.is_empty():
 		txt += "\n# -> roster ENTRY \"mounts\":\n\"mounts\": [\n"

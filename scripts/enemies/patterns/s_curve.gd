@@ -29,7 +29,8 @@ func compute_step(enemy, delta: float) -> Vector2:
 	var safe_amp: float = min(amplitude, max(max_amp, 8.0))
 	var sign_x: float = -1.0 if mirrored else 1.0
 	var target_x: float = _start_x + sign_x * sin(_t * frequency) * safe_amp
-	return Vector2(target_x - enemy.position.x, down_speed * delta)
+	# Descent speed is chassis-owned now (locomotion refactor); `down_speed` is vestigial.
+	return Vector2(target_x - enemy.position.x, _move_speed(enemy) * delta)
 
 
 func path_phase_capable() -> bool:

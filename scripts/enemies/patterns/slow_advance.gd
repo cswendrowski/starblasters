@@ -23,7 +23,8 @@ func on_start(_enemy) -> void:
 func compute_step(enemy, delta: float) -> Vector2:
 	if _holding:
 		return Vector2.ZERO
-	var step_y: float = enter_speed * delta
+	# Descent speed is chassis-owned now (locomotion refactor); `enter_speed` is vestigial.
+	var step_y: float = _move_speed(enemy) * delta
 	if enemy.position.y + step_y >= hold_y:
 		step_y = hold_y - enemy.position.y
 		_holding = true

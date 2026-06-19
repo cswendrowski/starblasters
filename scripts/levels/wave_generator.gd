@@ -637,6 +637,13 @@ static func _make_wave_spec(rng: RandomNumberGenerator, entry: Dictionary, secto
 		w.shield_charges = stats["shield_charges"]
 	if stats["recycle_passes"] >= -1:
 		w.recycle_passes = stats["recycle_passes"]
+	# Locomotion (chassis stats); a random wave has no formation depth override, so the enemy's
+	# roster-default depth (compose_stats depth_bp) rides depth_override.
+	w.move_speed = float(stats.get("move_speed", 0.0))
+	w.weight = float(stats.get("weight", 0.0))
+	w.turn_rate = float(stats.get("turn_rate", 0.0))
+	w.accel = float(stats.get("accel", 0.0))
+	w.depth_override = float(stats.get("depth_bp", -1.0))
 	return w
 
 

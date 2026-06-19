@@ -7,6 +7,12 @@ extends "res://scripts/enemies/patterns/jet.gd"
 
 @export var slow_speed: float = 40.0
 @export var brake_rate: float = 90.0
+# Locomotion refactor 2026-06-19: phase speed/turn/accel are chassis-relative (max_speed is the
+# seeded chassis move_speed; _turn_rate/_accel are the chassis stats). Ratios reproduce the old
+# 40/220/35 feel. The slow_speed export above is vestigial.
+const SLOW_RATIO: float = 40.0 / 180.0
+const TURN_RATIO_V: float = 220.0 / 300.0
+const ACCEL_RATIO_V: float = 35.0 / 600.0
 
 
 func on_start(enemy) -> void:
@@ -15,12 +21,12 @@ func on_start(enemy) -> void:
 	# its turns instead of snapping (Roman, 2026-05-17 Movement Lab v2:
 	# "Vector needs some more inertia so that it fishtails and drifts a
 	# bit more"). Wider falloff so the high-speed pass is still floaty.
-	turn_rate_at_min = 220.0
+	turn_rate_at_min = _turn_rate(enemy) * TURN_RATIO_V
 	turn_speed_falloff = 0.35
 	weave_amplitude_deg = 5.0
 	# Slow the speed-adjust ramp so deceleration takes a beat — the body
 	# keeps carrying through the turn before the nose realigns.
-	accel = 35.0
+	accel = _accel(enemy) * ACCEL_RATIO_V
 
 
 func compute_step(enemy, delta: float) -> Vector2:
@@ -35,7 +41,7 @@ func compute_step(enemy, delta: float) -> Vector2:
 			# the turn — accelerate toward slow_speed instead of cruising.
 			var alignment: float = fwd.dot(dir)
 			if alignment < 0.5:
-				target_speed = slow_speed
+				target_speed = max_speed * SLOW_RATIO
 			else:
 				# Realigned; resume cruise.
 				target_speed = max_speed * 0.85

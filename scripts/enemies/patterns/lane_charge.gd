@@ -10,24 +10,31 @@ extends "res://scripts/enemies/movement_pattern.gd"
 @export var charge_accel: float = 700.0      # px/s^2 ramp once triggered
 @export var charge_max_speed: float = 420.0  # 7 px/f rush (telegraphed by the slow entry)
 @export var drift_x: float = 0.0
+# Locomotion refactor 2026-06-19: the chassis move_speed IS the committed CHARGE speed; the slow
+# telegraph entry is a fixed fraction of it, so the "slow wind-up → fast commit" character scales
+# with the enemy (a fast hull still telegraphs, then rushes at its full speed). The *_speed exports
+# above are vestigial.
+const ENTER_RATIO: float = 60.0 / 420.0          # slow entry as a fraction of the charge speed
+const CHARGE_ACCEL_RATIO: float = 700.0 / 600.0  # charge ramp as a multiple of enemy.accel
 
 var _vy: float = 0.0
 var _charging: bool = false
 
 
-func on_start(_enemy) -> void:
-	_vy = enter_speed
+func on_start(enemy) -> void:
+	_vy = _move_speed(enemy) * ENTER_RATIO
 	_charging = false
 
 
 func compute_step(enemy, delta: float) -> Vector2:
+	var charge_speed: float = _move_speed(enemy)
 	# Trigger the charge once the hull enters the engagement band.
 	if not _charging and Zones.in_engagement(enemy.position.y):
 		_charging = true
 	if _charging:
-		_vy = minf(_vy + charge_accel * delta, charge_max_speed)
+		_vy = minf(_vy + _accel(enemy) * CHARGE_ACCEL_RATIO * delta, charge_speed)
 	else:
-		_vy = enter_speed
+		_vy = charge_speed * ENTER_RATIO
 	return Vector2(drift_x, _vy) * delta
 
 

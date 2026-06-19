@@ -36,6 +36,14 @@ extends "res://scripts/enemies/movement_pattern.gd"
 # Exit: accelerate upward off the top, from rest (smooth launch).
 @export var exit_accel: float = 420.0
 @export var exit_max_speed: float = 460.0
+# Locomotion refactor 2026-06-19: cruise/exit speeds + endpoint/exit accel are chassis-owned.
+# advance cruise = move_speed; retreat + exit overshoot it; the easing/exit accels are fractions of
+# enemy.accel. advance_y (the dive depth) resolves from the enemy/formation DEPTH. The *_speed/accel
+# exports above are vestigial; endpoint_min_speed/jiggle/decel_dist stay pattern shape.
+const RETREAT_RATIO: float = 150.0 / 110.0     # ascending cruise as a multiple of move_speed
+const ACCEL_RATIO: float = 360.0 / 600.0       # endpoint-easing accel as a fraction of enemy.accel
+const EXIT_ACCEL_RATIO: float = 420.0 / 600.0  # exit accel as a fraction of enemy.accel
+const EXIT_MAX_RATIO: float = 460.0 / 110.0    # exit speed as a multiple of move_speed
 
 signal phase_entered(phase_name: String)
 
@@ -60,6 +68,8 @@ func on_start(enemy) -> void:
 	# bare dummy (no offscreen_mode property) doesn't choke.
 	if "offscreen_mode" in enemy:
 		enemy.offscreen_mode = 1  # EnemyBase.OffscreenMode.FREE_ANY_EDGE
+	# Dive DEPTH is chassis/formation-owned now (locomotion refactor); fall back to advance_y.
+	advance_y = Zones.y_for_progress(_depth_bp(enemy, Zones.band_progress(advance_y)))
 	_phase = Phase.ADVANCE
 	_t = 0.0
 	_cycle = 0
@@ -89,7 +99,7 @@ func compute_step(enemy, delta: float) -> Vector2:
 	match _phase:
 		Phase.ADVANCE:
 			var dist: float = advance_y - enemy.position.y
-			_vel = move_toward(_vel, _eased(advance_speed, dist), accel * delta)
+			_vel = move_toward(_vel, _eased(_move_speed(enemy), dist), _accel(enemy) * ACCEL_RATIO * delta)
 			var step: float = _vel * delta
 			if enemy.position.y + step >= advance_y:
 				step = advance_y - enemy.position.y
@@ -114,7 +124,7 @@ func compute_step(enemy, delta: float) -> Vector2:
 			return (_anchor + _jiggle_off(hold_jiggle_amp)) - enemy.position
 		Phase.RETREAT:
 			var dist2: float = enemy.position.y - TOP_Y
-			_vel = move_toward(_vel, _eased(retreat_speed, dist2), accel * delta)
+			_vel = move_toward(_vel, _eased(_move_speed(enemy) * RETREAT_RATIO, dist2), _accel(enemy) * ACCEL_RATIO * delta)
 			var step2: float = -_vel * delta
 			if enemy.position.y + step2 <= TOP_Y:
 				step2 = TOP_Y - enemy.position.y
@@ -134,7 +144,7 @@ func compute_step(enemy, delta: float) -> Vector2:
 			return (_anchor + _jiggle_off(prep_jiggle_amp)) - enemy.position
 		Phase.EXIT:
 			# Accelerate up and off the top, from rest — smooth launch.
-			_vel = min(_vel + exit_accel * delta, exit_max_speed)
+			_vel = min(_vel + _accel(enemy) * EXIT_ACCEL_RATIO * delta, _move_speed(enemy) * EXIT_MAX_RATIO)
 			return Vector2(0, -_vel * delta)
 	return Vector2.ZERO
 

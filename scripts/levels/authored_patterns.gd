@@ -456,6 +456,26 @@ static func _spec_for_placement(pl: Dictionary, fill_faction: int, sector: int, 
 			ws.shield_charges = int(stats["shield_charges"])
 		if int(stats["recycle_passes"]) >= -1:
 			ws.recycle_passes = int(stats["recycle_passes"])
+		# Locomotion (chassis stats). A placement "depth" override wins over the enemy's
+		# roster-default depth; otherwise the roster default (compose_stats depth_bp) rides through.
+		ws.move_speed = float(stats.get("move_speed", 0.0))
+		ws.weight = float(stats.get("weight", 0.0))
+		ws.turn_rate = float(stats.get("turn_rate", 0.0))
+		ws.accel = float(stats.get("accel", 0.0))
+		# Depth: an explicit placement "depth" wins; else a legacy banded movement key
+		# (loiter_low → "low") carries the band; else the enemy's roster-default depth.
+		var pl_depth: Variant = pl.get("depth", null)
+		if (pl_depth == null or String(pl_depth) == "") and move_key != "":
+			if move_key.ends_with("_high"):
+				pl_depth = "high"
+			elif move_key.ends_with("_mid"):
+				pl_depth = "mid"
+			elif move_key.ends_with("_low"):
+				pl_depth = "low"
+		if pl_depth != null and String(pl_depth) != "":
+			ws.depth_override = Zones.depth_to_bp(pl_depth, float(stats.get("depth_bp", -1.0)))
+		else:
+			ws.depth_override = float(stats.get("depth_bp", -1.0))
 	return ws
 
 

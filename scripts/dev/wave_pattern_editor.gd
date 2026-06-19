@@ -29,6 +29,7 @@ const SUB := 3   # NxN sub-grid per lane square — pack multiple (tiny) enemies
 const FACTIONS := ["any", "supremacy", "privateer", "corporate", "zealot"]
 const SIZES := ["", "tiny", "small", "medium", "large", "huge", "giant"]
 const DIRS := ["", "left", "right", "random"]   # "" = any (leave authored)
+const DEPTHS := ["", "high", "mid", "low"]      # "" = enemy default; else hold/cross band (locomotion refactor)
 const STAGGERS := [0.08, 0.12, 0.18, 0.25, 0.35]
 
 # Library of pattern dicts (same shape as AuthoredPatterns.DATA).
@@ -41,11 +42,13 @@ var _brush_enemy: String = ""      # "" = wildcard, else a scene path
 var _brush_move: String = ""       # "" = wildcard/default, else a movement key
 var _brush_size: String = ""       # "" = any, else small/medium/...
 var _brush_dir: String = ""        # "" = any (authored), else left/right/random — side-aware movements only
+var _brush_depth: String = ""      # "" = enemy default, else high/mid/low — hold/cross depth (locomotion refactor)
 
 var _move_keys: Array = []         # ["" (Any)] + MOVEMENT_KEYS
 var _move_idx: int = 0
 var _size_idx: int = 0
 var _dir_idx: int = 0
+var _depth_idx: int = 0
 var _enemy_choices: Array = []     # [{label, scene, faction, size}]
 var _enemy_buttons: Array = []
 var _palette_listbox: VBoxContainer = null   # holds the enemy-brush buttons (re-sortable)
@@ -69,6 +72,7 @@ var _brush_lbl: Label = null
 var _move_lbl: Label = null
 var _size_lbl: Label = null
 var _dir_lbl: Label = null
+var _depth_lbl: Label = null
 var _fac_lbl: Label = null
 var _sector_lbl: Label = null
 var _stagger_lbl: Label = null
@@ -235,7 +239,7 @@ func _select_pattern(i: int) -> void:
 		var sub := Vector2i(clampi(int(pl.get("sub_x", 1)), 0, SUB - 1), clampi(int(pl.get("sub_y", 1)), 0, SUB - 1))
 		if not _cells.has(k):
 			_cells[k] = {}
-		_cells[k][sub] = {"enemy": String(pl.get("enemy", "")), "movement": String(pl.get("movement", "")), "size": String(pl.get("size", "")), "dir": String(pl.get("dir", ""))}
+		_cells[k][sub] = {"enemy": String(pl.get("enemy", "")), "movement": String(pl.get("movement", "")), "size": String(pl.get("size", "")), "dir": String(pl.get("dir", "")), "depth": String(pl.get("depth", ""))}
 	_refresh_prop_labels()
 	if _note_edit:
 		_note_edit.text = String(_cur().get("note", ""))
@@ -251,7 +255,7 @@ func _sync_placements() -> void:
 			var c: Dictionary = _cells[k][sub]
 			placements.append({"lane": int(k.x), "row": int(k.y), "sub_x": int(sub.x), "sub_y": int(sub.y),
 				"enemy": String(c["enemy"]), "movement": String(c["movement"]), "size": String(c["size"]),
-				"dir": String(c.get("dir", ""))})
+				"dir": String(c.get("dir", "")), "depth": String(c.get("depth", ""))})
 	_cur()["placements"] = placements
 
 
@@ -416,6 +420,17 @@ func _build_ui() -> void:
 	_dir_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	dr.add_child(_dir_lbl)
 	_add_fixed_button(dr, ">", func(): _cycle_dir(1), 14)
+	# Depth brush — hold/cross band (loiter/drift hold, hook/cut turn-off, crosser cross).
+	# "" = the enemy's own default depth (locomotion refactor 2026-06-19).
+	var dpr := HBoxContainer.new()
+	dpr.add_theme_constant_override("separation", 2)
+	lv.add_child(dpr)
+	_add_fixed_button(dpr, "<", func(): _cycle_depth(-1), 14)
+	_depth_lbl = _new_label("depth: def", UiTheme.COLOR_TEXT, SZ)
+	_depth_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_depth_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	dpr.add_child(_depth_lbl)
+	_add_fixed_button(dpr, ">", func(): _cycle_depth(1), 14)
 	# Mode presets.
 	var modr := HBoxContainer.new()
 	modr.add_theme_constant_override("separation", 2)
@@ -585,6 +600,13 @@ func _cycle_dir(d: int) -> void:
 	_dir_idx = (_dir_idx + d + DIRS.size()) % DIRS.size()
 	_brush_dir = String(DIRS[_dir_idx])
 	_dir_lbl.text = "dir: %s" % ("any" if _brush_dir == "" else _brush_dir)
+	_update_status()
+
+
+func _cycle_depth(d: int) -> void:
+	_depth_idx = (_depth_idx + d + DEPTHS.size()) % DEPTHS.size()
+	_brush_depth = String(DEPTHS[_depth_idx])
+	_depth_lbl.text = "depth: %s" % ("def" if _brush_depth == "" else _brush_depth)
 	_update_status()
 
 
@@ -848,7 +870,7 @@ func _place_at(pos: Vector2) -> void:
 	else:
 		if not _cells.has(k):
 			_cells[k] = {}
-		_cells[k][sub] = {"enemy": _brush_enemy, "movement": _brush_move, "size": _brush_size, "dir": _brush_dir}
+		_cells[k][sub] = {"enemy": _brush_enemy, "movement": _brush_move, "size": _brush_size, "dir": _brush_dir, "depth": _brush_depth}
 	_sync_placements()
 	_overlay.queue_redraw()
 	_update_status()

@@ -15,21 +15,28 @@ enum Shape { LOOP, FIGURE8 }
 @export var loop_speed: float = 0.8        # loops per second
 @export var loops: float = 2.0             # cycles before exiting
 @export var exit_speed: float = 180.0
+# Locomotion refactor 2026-06-19: descent speed is chassis-owned; the exit is a touch faster
+# (ratio preserves the old 120→180 feel). hold_y (the loop depth) is resolved from the
+# enemy/formation DEPTH. The *_speed exports above are vestigial; loop_speed/radius/loops stay shape.
+const EXIT_RATIO: float = 180.0 / 120.0
 
 var _phase: int = 0    # 0 enter, 1 loop, 2 exit
 var _t: float = 0.0
 var _center: Vector2 = Vector2.ZERO
 
 
-func on_start(_enemy) -> void:
+func on_start(enemy) -> void:
 	_phase = 0
 	_t = 0.0
+	# Loop DEPTH is chassis/formation-owned now; fall back to the pattern's own hold_y.
+	hold_y = Zones.y_for_progress(_depth_bp(enemy, Zones.band_progress(hold_y)))
 
 
 func compute_step(enemy, delta: float) -> Vector2:
 	match _phase:
 		0:  # descend to the loop height
-			var sy: float = enter_speed * delta
+			# Descent speed is chassis-owned now (locomotion refactor); `enter_speed` is vestigial.
+			var sy: float = _move_speed(enemy) * delta
 			if enemy.position.y + sy >= hold_y:
 				sy = hold_y - enemy.position.y
 				_phase = 1
@@ -53,4 +60,4 @@ func compute_step(enemy, delta: float) -> Vector2:
 				_phase = 2
 			return Vector2(tx - enemy.position.x, ty - enemy.position.y)
 		_:  # exit
-			return Vector2(0.0, exit_speed * delta)
+			return Vector2(0.0, _move_speed(enemy) * EXIT_RATIO * delta)

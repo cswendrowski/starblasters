@@ -14,6 +14,15 @@ enum Phase { CRUISE, TURN, CHARGE }
 @export var charge_speed: float = 180.0
 @export var cruise_duration: float = 1.8       # seconds before forcing a turn
 @export var aim_tolerance_deg: float = 8.0     # how close to on-target before charge
+# Locomotion refactor 2026-06-19: the phase speeds/turn-rates are ratios of the chassis (max_speed
+# is seeded = move_speed by super.on_start; _turn_rate(enemy) is the chassis turn). Ratios
+# reproduce the old 88/24/180 + 60/220/90 feel. The *_speed exports above are vestigial.
+const CRUISE_RATIO: float = 88.0 / 180.0
+const SLOW_RATIO: float = 24.0 / 180.0
+const CHARGE_RATIO: float = 180.0 / 180.0
+const CRUISE_TURN: float = 60.0 / 300.0
+const TURN_TURN: float = 220.0 / 300.0
+const CHARGE_TURN: float = 90.0 / 300.0
 
 var _phase: int = Phase.CRUISE
 var _phase_t: float = 0.0
@@ -23,7 +32,7 @@ func on_start(enemy) -> void:
 	super.on_start(enemy)
 	_phase = Phase.CRUISE
 	_phase_t = 0.0
-	target_speed = cruise_speed
+	target_speed = max_speed * CRUISE_RATIO
 	turn_speed_falloff = 0.05
 	weave_amplitude_deg = 1.5
 
@@ -33,20 +42,20 @@ func compute_step(enemy, delta: float) -> Vector2:
 	var player := _find_player(enemy)
 	match _phase:
 		Phase.CRUISE:
-			target_speed = cruise_speed
-			turn_rate_at_min = 60.0
+			target_speed = max_speed * CRUISE_RATIO
+			turn_rate_at_min = _turn_rate(enemy) * CRUISE_TURN
 			if _should_end_cruise(enemy, player):
 				_phase = Phase.TURN
 				_phase_t = 0.0
 		Phase.TURN:
-			target_speed = slow_speed
-			turn_rate_at_min = 220.0
+			target_speed = max_speed * SLOW_RATIO
+			turn_rate_at_min = _turn_rate(enemy) * TURN_TURN
 			if _is_aimed_at(enemy, player, aim_tolerance_deg):
 				_phase = Phase.CHARGE
 				_phase_t = 0.0
 		Phase.CHARGE:
-			target_speed = charge_speed
-			turn_rate_at_min = 90.0
+			target_speed = max_speed * CHARGE_RATIO
+			turn_rate_at_min = _turn_rate(enemy) * CHARGE_TURN
 			if _phase_t > 1.4 or _passed_target(enemy, player):
 				_phase = Phase.CRUISE
 				_phase_t = 0.0

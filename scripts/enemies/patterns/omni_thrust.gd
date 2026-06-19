@@ -35,6 +35,11 @@ extends "res://scripts/enemies/movement_pattern.gd"
 # Base turn rate (rad/s) toward the player, DIVIDED by the unit's size-weight so big ships turn
 # laggier and can't hold a perfect lock (Roman 2026-06-10). The old code snapped rotation instantly.
 @export var turn_rate: float = 5.0
+# Locomotion refactor 2026-06-19: top speed / accel / strafe are chassis-owned; the facing
+# turn_rate (rad/s) derives from the chassis turn_rate (deg/s). Ratios preserve the old 120/540/108
+# feel. The max_speed/accel/strafe_speed/turn_rate exports above are vestigial.
+const ACCEL_RATIO: float = 540.0 / 600.0
+const STRAFE_RATIO: float = 108.0 / 120.0
 
 var _vel: Vector2 = Vector2.ZERO
 var _strafe_dir: int = 1
@@ -62,12 +67,12 @@ func on_start(enemy) -> void:
 				enemy.recycle_passes = 0   # don't fly back — dive out and free
 
 
-# Size-weight from the enemy's display_scale (clamped so small chaff isn't hyper-twitchy). Bigger
-# ship => more inertia: laggier turn + slower acceleration.
+# Size-weight from the chassis `weight` (clamped so small chaff isn't hyper-twitchy). Bigger ship
+# => more inertia: laggier turn + slower acceleration. (Was display_scale; locomotion refactor.)
 func _weight(enemy) -> float:
 	var w: float = 1.0
-	if "display_scale" in enemy:
-		w = float(enemy.display_scale)
+	if "weight" in enemy and enemy.weight > 0.0:
+		w = float(enemy.weight)
 	return maxf(0.6, w)
 
 
@@ -75,11 +80,13 @@ func compute_step(enemy, delta: float) -> Vector2:
 	# Persistence: once the harasser has attacked long enough, disengage and dive out the bottom
 	# (past the no-fly line, so the host's offscreen path recycles/frees it). -1 = never leave.
 	_alive_t += delta
+	var top: float = _move_speed(enemy)
+	var acc: float = _accel(enemy) * ACCEL_RATIO
 	if not _leaving and persistence >= 0.0 and _alive_t >= persistence:
 		_leaving = true
 	if _leaving:
-		var accel_exit: float = accel / _weight(enemy)
-		_vel = _vel.move_toward(Vector2(0.0, max_speed), accel_exit * delta)
+		var accel_exit: float = acc / _weight(enemy)
+		_vel = _vel.move_toward(Vector2(0.0, top), accel_exit * delta)
 		if "auto_rotate" in enemy:
 			enemy.auto_rotate = true   # let it point along its dive as it leaves
 		return _vel * delta
@@ -124,11 +131,11 @@ func compute_step(enemy, delta: float) -> Vector2:
 			# Radial: positive = approach, negative = back off.
 			var radial: float = 0.0
 			if dist > target_range + range_tolerance:
-				radial = max_speed
+				radial = top
 			elif dist < target_range - range_tolerance:
-				radial = -max_speed * 0.6
+				radial = -top * 0.6
 			# Tangent: perpendicular to dir.
-			var tangent: Vector2 = Vector2(-dir.y, dir.x) * float(_strafe_dir) * strafe_speed
+			var tangent: Vector2 = Vector2(-dir.y, dir.x) * float(_strafe_dir) * top * STRAFE_RATIO
 			desired_vel = dir * radial + tangent
 	# Edge avoidance — Roman, 2026-05-17 Movement Lab v2: "Omni seems
 	# like it's magnetized to the walls now, check that wall avoidance
@@ -162,10 +169,10 @@ func compute_step(enemy, delta: float) -> Vector2:
 		)
 		var nearest: float = min(dx if push_dir.x != 0 else avoid_band, dy if push_dir.y != 0 else avoid_band)
 		var blend: float = clamp(1.0 - (nearest / avoid_band), 0.0, 1.0)
-		desired_vel = desired_vel.lerp(push_dir.normalized() * max_speed, blend)
+		desired_vel = desired_vel.lerp(push_dir.normalized() * top, blend)
 
 	# Size-weighted acceleration = movement inertia (heavier ships change velocity slower).
-	_vel = _vel.move_toward(desired_vel, (accel / _weight(enemy)) * delta)
+	_vel = _vel.move_toward(desired_vel, (acc / _weight(enemy)) * delta)
 
 	# Zero velocity component into walls so we slide along, not pin.
 	if enemy.position.x <= x_lo + playfield_margin and _vel.x < 0.0:
@@ -184,7 +191,7 @@ func compute_step(enemy, delta: float) -> Vector2:
 		var look: Vector2 = player.global_position - enemy.global_position
 		if look.length_squared() > 1.0:
 			var target_rot: float = look.angle() + PI * 0.5
-			var rate: float = turn_rate / _weight(enemy)
+			var rate: float = deg_to_rad(_turn_rate(enemy)) / _weight(enemy)
 			enemy.rotation = rotate_toward(enemy.rotation, target_rot, rate * delta)
 			# Suppress enemy_core's auto-rotate so it doesn't fight us.
 			if "auto_rotate" in enemy:

@@ -40,6 +40,13 @@ extends "res://scripts/enemies/movement_pattern.gd"
 @export var jiggle_amp_x: float = 2.0
 @export var jiggle_freq_x: float = 0.35        # Hz
 
+# Locomotion refactor 2026-06-19: cruise/exit speed is chassis-owned. enter_speed → move_speed,
+# the exit OVERSHOOTS cruise by EXIT_MAX_RATIO, and the exit acceleration is a fraction of the
+# enemy's accel. hover_y is resolved from the enemy/formation DEPTH. The enter_speed/exit_* exports
+# above are vestigial (entry-easing accels + jiggle stay pattern shape).
+const EXIT_MAX_RATIO: float = 280.0 / 60.0     # exit speed as a multiple of cruise (move_speed)
+const EXIT_ACCEL_RATIO: float = 300.0 / 600.0  # exit accel as a fraction of enemy.accel
+
 signal phase_entered(phase_name: String)
 
 enum Phase { ENTERING, LOITERING, EXITING }
@@ -67,11 +74,12 @@ func on_start(enemy) -> void:
 	_exit_speed = 0.0
 	if "auto_rotate" in enemy:
 		_orig_auto_rotate = bool(enemy.auto_rotate)
-	# Ease IN: start at a fraction of cruise and accelerate up (not a hard pop-in).
-	_enter_vel = enter_speed * 0.3
+	# Ease IN: start at a fraction of cruise (chassis move_speed) and accelerate up.
+	_enter_vel = _move_speed(enemy) * 0.3
 	_hold_t = 0.0
-	# Clamp hover_y so the enemy never settles in the bottom half (y > 135).
-	hover_y = minf(hover_y, 135.0)
+	# Hold DEPTH is chassis/formation-owned now (locomotion refactor): resolve hover_y from the
+	# enemy/formation depth (fallback = the pattern's own hover_y), then clamp out of the bottom half.
+	hover_y = minf(Zones.y_for_progress(_depth_bp(enemy, Zones.band_progress(hover_y))), 135.0)
 	# Randomize the jiggle so a row of Holders doesn't bob in lockstep.
 	_phase_x = randf() * TAU
 	_phase_y = randf() * TAU
@@ -99,7 +107,7 @@ func compute_step(enemy, delta: float) -> Vector2:
 				return Vector2(0, snap)
 			# Far → accelerate toward cruise; near → decelerate for the approach.
 			# Floored so a short entry arrives crisply (see enter_min_speed).
-			var target_vel: float = maxf(enter_speed * clampf(dist / decel_dist, 0.0, 1.0), enter_min_speed)
+			var target_vel: float = maxf(_move_speed(enemy) * clampf(dist / decel_dist, 0.0, 1.0), enter_min_speed)
 			var rate: float = enter_accel if target_vel > _enter_vel else enter_decel
 			_enter_vel = move_toward(_enter_vel, target_vel, rate * delta)
 			_enter_vel = maxf(_enter_vel, 0.0)
@@ -113,7 +121,7 @@ func compute_step(enemy, delta: float) -> Vector2:
 			_hold_t += delta
 			if _timer >= loiter_time:
 				_phase = Phase.EXITING
-				_exit_speed = enter_speed
+				_exit_speed = _move_speed(enemy)
 				# Restore auto_rotate so the hull turns to its (downward) depart heading.
 				if "auto_rotate" in enemy:
 					enemy.auto_rotate = _orig_auto_rotate
@@ -123,7 +131,7 @@ func compute_step(enemy, delta: float) -> Vector2:
 			# Absolute repositioning: position = anchor + jiggle offset.
 			return (_anchor + _jiggle_off(_hold_t)) - enemy.position
 		Phase.EXITING:
-			_exit_speed = min(_exit_speed + exit_accel * delta, exit_max_speed)
+			_exit_speed = min(_exit_speed + _accel(enemy) * EXIT_ACCEL_RATIO * delta, _move_speed(enemy) * EXIT_MAX_RATIO)
 			return Vector2(0, _exit_speed * delta)
 	return Vector2.ZERO
 

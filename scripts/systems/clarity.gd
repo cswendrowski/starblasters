@@ -99,3 +99,31 @@ static func band(speed: float) -> String:
 	if pxf >= 1.0:
 		return "slow"
 	return "crawl"
+
+
+# --- Named speed rungs (locomotion refactor 2026-06-19) ---
+# Enemy movement speed is authored as a chassis stat on one of these rungs (multiples of
+# RUNG_STEP). The NAME is for editor/codex readability; the px/s NUMBER is the source of truth.
+# label_for_speed() snaps an arbitrary speed to its rung and returns "Name (px/s)".
+const SPEED_RUNGS := {
+	60.0: "crawl",    # 1 px/f
+	120.0: "slow",    # 2 px/f
+	180.0: "medium",  # 3 px/f
+	240.0: "quick",   # 4 px/f
+	300.0: "fast",    # 5 px/f
+	360.0: "reflex",  # 6 px/f
+	420.0: "blitz",   # 7 px/f
+	480.0: "max",     # 8 px/f — the absolute ceiling
+}
+
+
+# Rung index (whole px/frame) for a speed.
+static func rung_of(speed: float) -> int:
+	return int(round(snap_to_rung(speed) / RUNG_STEP))
+
+
+# "Name (px/s)" for a speed, snapped to its nearest rung; unknown rungs read "r<N> (px/s)".
+static func label_for_speed(speed: float) -> String:
+	var snapped: float = snap_to_rung(speed)
+	var nm: String = String(SPEED_RUNGS.get(snapped, "r%d" % rung_of(snapped)))
+	return "%s (%d)" % [nm, int(round(snapped))]

@@ -10,6 +10,10 @@ const Playfield = preload("res://scripts/systems/playfield.gd")
 @export var down_speed: float = 180.0      # post-turn descent (side_dive bumps this up)
 @export var advance_time: float = 0.6      # seconds advancing before the turn
 @export var turn_time: float = 0.45        # seconds the rounded turn takes
+# Locomotion refactor 2026-06-19: the post-turn descent is the chassis move_speed (side_dive = a
+# fast hull); the horizontal advance is a fraction of it. The *_speed exports above are vestigial;
+# advance_time/turn_time stay pattern shape (side_dive still authors a shorter advance).
+const ENTER_RATIO: float = 160.0 / 180.0
 
 var _t: float = 0.0
 var _phase: int = 0    # 0 advance, 1 turn, 2 descend
@@ -26,9 +30,11 @@ func on_start(enemy) -> void:
 
 func compute_step(enemy, delta: float) -> Vector2:
 	_t += delta
+	var ms: float = _move_speed(enemy)         # chassis descent speed (locomotion refactor)
+	var enter_v: float = ms * ENTER_RATIO      # horizontal advance, a fraction of it
 	match _phase:
 		0:  # horizontal advance
-			var nx: float = clampf(enemy.position.x + _dir * enter_speed * delta,
+			var nx: float = clampf(enemy.position.x + _dir * enter_v * delta,
 				Playfield.X_MIN + 6.0, Playfield.X_MAX - 6.0)
 			if _t >= advance_time:
 				_phase = 1
@@ -37,9 +43,9 @@ func compute_step(enemy, delta: float) -> Vector2:
 		1:  # rounded quarter-turn: blend the velocity from horizontal to straight-down
 			var u: float = clampf(_t / maxf(turn_time, 0.0001), 0.0, 1.0)
 			var ang: float = lerpf(0.0, PI * 0.5, u * u * (3.0 - 2.0 * u))  # 0=horizontal..PI/2=down
-			var spd: float = lerpf(enter_speed, down_speed, u)
+			var spd: float = lerpf(enter_v, ms, u)
 			if u >= 1.0:
 				_phase = 2
 			return Vector2(_dir * cos(ang) * spd * delta, sin(ang) * spd * delta)
 		_:  # descend
-			return Vector2(0.0, down_speed * delta)
+			return Vector2(0.0, ms * delta)

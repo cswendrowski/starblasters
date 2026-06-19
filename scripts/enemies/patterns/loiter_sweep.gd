@@ -13,6 +13,10 @@ signal phase_entered(phase_name: String)
 @export var enter_speed: float = 170.0
 @export var sweep_speed: float = 42.0
 @export var sweep_margin: float = 22.0   # keep the hull off the gutter edges
+# Locomotion refactor 2026-06-19: descent speed is chassis-owned; the lateral rake is a fraction
+# of it (preserves the old 170→42 feel). settle_y is resolved from the enemy/formation DEPTH. The
+# enter_speed/sweep_speed exports above are vestigial.
+const SWEEP_RATIO: float = 42.0 / 170.0
 
 enum Ph { ENTER, SWEEP }
 var _ph: int = Ph.ENTER
@@ -22,6 +26,8 @@ var _target_x: float = 0.0
 
 func on_start(enemy) -> void:
 	_ph = Ph.ENTER
+	# Settle DEPTH is chassis/formation-owned now (locomotion refactor); fall back to settle_y.
+	settle_y = Zones.y_for_progress(_depth_bp(enemy, Zones.band_progress(settle_y)))
 	# Sweep outward from the spawn side so a pair fans apart rather than overlapping.
 	_dir = -1 if enemy.position.x < Playfield.CENTER.x else 1
 	_target_x = (Playfield.X_MIN + sweep_margin) if _dir < 0 else (Playfield.X_MAX - sweep_margin)
@@ -29,7 +35,8 @@ func on_start(enemy) -> void:
 
 func compute_step(enemy, delta: float) -> Vector2:
 	if _ph == Ph.ENTER:
-		var sy: float = enter_speed * delta
+		# Descent speed is chassis-owned now (locomotion refactor); `enter_speed` is vestigial.
+		var sy: float = _move_speed(enemy) * delta
 		if enemy.position.y + sy >= settle_y:
 			sy = settle_y - enemy.position.y
 			_ph = Ph.SWEEP
@@ -39,6 +46,6 @@ func compute_step(enemy, delta: float) -> Vector2:
 	if absf(_target_x - enemy.position.x) < 2.0:
 		_dir = -_dir
 		_target_x = (Playfield.X_MIN + sweep_margin) if _dir < 0 else (Playfield.X_MAX - sweep_margin)
-	var nx: float = clampf(enemy.position.x + float(_dir) * sweep_speed * delta,
+	var nx: float = clampf(enemy.position.x + float(_dir) * _move_speed(enemy) * SWEEP_RATIO * delta,
 		Playfield.X_MIN + sweep_margin, Playfield.X_MAX - sweep_margin)
 	return Vector2(nx - enemy.position.x, 0.0)

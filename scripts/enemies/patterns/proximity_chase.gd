@@ -19,6 +19,9 @@ signal phase_entered(phase_name: String)
 @export var chase_accel: float = 360.0
 @export var chase_max_speed: float = 180.0
 @export var bounce_damp: float = 0.5       # side-wall bounce velocity retention
+# Locomotion refactor 2026-06-19: dormant drift + chase speed are both the chassis move_speed; the
+# chase accel is a fraction of the enemy's accel. The *_speed/accel exports above are vestigial.
+const CHASE_ACCEL_RATIO: float = 360.0 / 600.0
 
 enum Ph { DRIFT, TRANSITION, CHASE }
 var _ph: int = Ph.DRIFT
@@ -26,10 +29,10 @@ var _t: float = 0.0
 var _vel: Vector2 = Vector2.ZERO
 
 
-func on_start(_enemy) -> void:
+func on_start(enemy) -> void:
 	_ph = Ph.DRIFT
 	_t = 0.0
-	_vel = Vector2(0.0, drift_speed)
+	_vel = Vector2(0.0, _move_speed(enemy))
 
 
 # Force activation regardless of proximity (e.g. the smart mine is shot while dormant).
@@ -69,7 +72,7 @@ func compute_step(enemy, delta: float) -> Vector2:
 			if p2 != null and is_instance_valid(p2):
 				var dir: Vector2 = (p2.global_position - enemy.global_position)
 				if dir.length_squared() > 0.01:
-					_vel = _vel.move_toward(dir.normalized() * chase_max_speed, chase_accel * delta)
+					_vel = _vel.move_toward(dir.normalized() * _move_speed(enemy), _accel(enemy) * CHASE_ACCEL_RATIO * delta)
 			var x: float = enemy.position.x
 			if x <= Playfield.X_MIN + 4.0 and _vel.x < 0.0:
 				_vel.x = -_vel.x * bounce_damp

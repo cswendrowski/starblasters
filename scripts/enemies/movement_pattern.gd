@@ -52,6 +52,33 @@ func uses_inertia() -> bool:
 	return false
 
 
+# --- Chassis locomotion accessors (locomotion refactor 2026-06-19) ---
+# Patterns express SHAPE only; they read SCALE from the enemy through these. Each falls back to a
+# "medium enemy" default when the enemy lacks the field or leaves it unset (0) — load-bearing for
+# bosses/hazards without the stat block AND the bare-Node2D dummies in dev tools / headless tests.
+func _move_speed(enemy) -> float:
+	return enemy.move_speed if ("move_speed" in enemy and enemy.move_speed > 0.0) else 180.0
+
+
+func _turn_rate(enemy) -> float:   # deg/s
+	return enemy.turn_rate if ("turn_rate" in enemy and enemy.turn_rate > 0.0) else 300.0
+
+
+func _accel(enemy) -> float:       # px/s²
+	return enemy.accel if ("accel" in enemy and enemy.accel > 0.0) else 600.0
+
+
+func _weight(enemy) -> float:
+	return enemy.weight if ("weight" in enemy and enemy.weight > 0.0) else 1.0
+
+
+# Effective engagement depth (Zones.band_progress 0..1). `fallback` is the pattern's OWN default
+# depth, used when the enemy doesn't set one (depth_bp < 0) so unconfigured enemies keep today's
+# behavior. A formation override is already resolved onto enemy.depth_bp before this is read.
+func _depth_bp(enemy, fallback: float) -> float:
+	return enemy.depth_bp if ("depth_bp" in enemy and enemy.depth_bp >= 0.0) else fallback
+
+
 # Legacy entry point. Internally routes through compute_step so old
 # callers (or patterns that still mutate enemy.position directly inside
 # overridden on_process) keep working during migration. Once everything

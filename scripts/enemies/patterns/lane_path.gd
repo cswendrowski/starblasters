@@ -138,6 +138,11 @@ func on_start(enemy) -> void:
 
 func compute_step(enemy, delta: float) -> Vector2:
 	_t += delta
+	# Locomotion refactor 2026-06-19: descent speed + TURN-OFF depth are chassis/formation-owned.
+	# `spd` replaces the vestigial down_speed export; `turn_bp` is where DIVE_RETURN/LANE_CUT turn
+	# off (the lane_hook/lane_cut keys), defaulting to the pattern's return_trigger_bp.
+	var spd: float = _move_speed(enemy)
+	var turn_bp: float = _depth_bp(enemy, return_trigger_bp)
 	var sign_x: float = -1.0 if mirrored else 1.0
 	var target_x: float = _anchor_x
 	match shape:
@@ -181,29 +186,29 @@ func compute_step(enemy, delta: float) -> Vector2:
 			# direction in one frame (Roman 2026-06-09: "needs a smooth, rounded turn, not a
 			# sharp sudden change"). Apex (vy = 0) lands at reased = 0.5.
 			if not _return_started:
-				if Zones.band_progress(enemy.position.y) >= return_trigger_bp:
+				if Zones.band_progress(enemy.position.y) >= turn_bp:
 					_return_started = true
 					_return_t = 0.0
 					_return_anchor_x = enemy.position.x
-				return Vector2(0.0, down_speed * delta)   # dive down
+				return Vector2(0.0, spd * delta)   # dive down
 			_return_t += delta
 			var ru: float = clampf(_return_t / maxf(return_curve_time, 0.0001), 0.0, 1.0)
 			var reased: float = ru * ru * (3.0 - 2.0 * ru)  # smoothstep
 			var rtx: float = _return_anchor_x + sign_x * float(maxi(1, shift_lanes)) * Lanes.PITCH * reased
-			var rvy: float = lerpf(down_speed, -down_speed, reased)  # +down -> 0 -> -down
+			var rvy: float = lerpf(spd, -spd, reased)  # +down -> 0 -> -down
 			return Vector2(rtx - enemy.position.x, rvy * delta)
 		Shape.LANE_CUT:
 			# Dive down until the fire-zone midpoint, then a rounded turn LEFT/RIGHT and run
 			# HORIZONTALLY off the side (like DIVE_RETURN but exiting a side, not climbing up).
 			if not _return_started:
-				if Zones.band_progress(enemy.position.y) >= return_trigger_bp:
+				if Zones.band_progress(enemy.position.y) >= turn_bp:
 					_return_started = true
 					_return_t = 0.0
-				return Vector2(0.0, down_speed * delta)   # dive down
+				return Vector2(0.0, spd * delta)   # dive down
 			_return_t += delta
 			var cu: float = clampf(_return_t / maxf(return_curve_time, 0.0001), 0.0, 1.0)
 			var cang: float = lerpf(0.0, PI * 0.5, cu * cu * (3.0 - 2.0 * cu))  # 0=down..PI/2=horizontal
-			return Vector2(sign_x * sin(cang) * down_speed * delta, cos(cang) * down_speed * delta)
+			return Vector2(sign_x * sin(cang) * spd * delta, cos(cang) * spd * delta)
 		Shape.STEP:
 			if step_synced:
 				# Coordinated row step: shared anchor-relative offset (lanes -> px).
@@ -212,7 +217,7 @@ func compute_step(enemy, delta: float) -> Vector2:
 				target_x = _step_update(enemy, delta)
 		_:
 			target_x = _anchor_x
-	return Vector2(target_x - enemy.position.x, down_speed * delta)
+	return Vector2(target_x - enemy.position.x, spd * delta)
 
 
 # Keep a weave from pushing the enemy out of the 216-px playfield band

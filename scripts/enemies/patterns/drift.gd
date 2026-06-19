@@ -31,18 +31,22 @@ var _phase: float = 0.0     # per-instance phase offset (radians)
 var _spd: float = 0.45      # per-instance jiggle speed (jiggle_speed * random factor)
 
 
-func on_start(_enemy) -> void:
+func on_start(enemy) -> void:
 	_held = false
 	_t = 0.0
 	_hold_t = 0.0
 	_phase = randf() * TAU
 	_spd = jiggle_speed * randf_range(0.82, 1.18)   # desync frequency too, so they drift apart
+	# Hold DEPTH is chassis/formation-owned now (locomotion refactor 2026-06-19): resolve hover_y
+	# from the enemy/formation depth, falling back to the pattern's own hover_y when none is set.
+	hover_y = Zones.y_for_progress(_depth_bp(enemy, Zones.band_progress(hover_y)))
 
 
 func compute_step(enemy, delta: float) -> Vector2:
 	_t += delta
 	if not _held:
-		var sy: float = enter_speed * delta
+		# Descent speed is chassis-owned now (locomotion refactor); `enter_speed` is vestigial.
+		var sy: float = _move_speed(enemy) * delta
 		if enemy.position.y + sy >= hover_y:
 			sy = hover_y - enemy.position.y
 			_held = true

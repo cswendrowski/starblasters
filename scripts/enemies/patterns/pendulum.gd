@@ -22,6 +22,11 @@ signal phase_entered(phase_name: String)
 @export var rot_lerp_rate: float = 8.0
 @export var fire_pause: float = 0.18       # hold after firing
 @export var exit_speed: float = 240.0
+# Locomotion refactor 2026-06-19: dive/rise/exit speed is chassis-owned. The dive uses move_speed;
+# the slow-band floor + exit are ratios of it. rot_lerp_rate is an AIM lerp, kept absolute. The
+# dive_speed/exit_speed/slow_min_speed exports above are vestigial; the band Ys stay pattern shape.
+const EXIT_RATIO: float = 240.0 / 220.0
+const SLOW_MIN_RATIO: float = 35.0 / 220.0
 
 enum Ph { DIVE, AIM, FIRE, RISE, AIM_HIGH, FIRE_HIGH, EXIT }
 var _ph: int = Ph.DIVE
@@ -59,7 +64,7 @@ func compute_step(enemy, delta: float) -> Vector2:
 			return Vector2.ZERO
 		_:  # EXIT — face down, plunge out the bottom
 			enemy.rotation = lerp_angle(enemy.rotation, PI, rot_lerp_rate * delta)
-			return Vector2(0.0, exit_speed * delta)
+			return Vector2(0.0, _move_speed(enemy) * EXIT_RATIO * delta)
 
 
 # Eased vertical travel to target_y; faces travel direction; advances to next phase on arrival.
@@ -70,9 +75,10 @@ func _travel_to(enemy, target_y: float, delta: float, next: int) -> Vector2:
 		_ph = next
 		_t = 0.0
 		return Vector2(0.0, dy)
-	var speed_now: float = dive_speed
+	var spd: float = _move_speed(enemy)
+	var speed_now: float = spd
 	if dist < slow_band:
-		speed_now = lerpf(slow_min_speed, dive_speed, dist / slow_band)
+		speed_now = lerpf(spd * SLOW_MIN_RATIO, spd, dist / slow_band)
 	var dir: float = signf(dy)
 	enemy.rotation = lerp_angle(enemy.rotation, (PI if dir > 0.0 else 0.0), rot_lerp_rate * delta)
 	return Vector2(0.0, dir * speed_now * delta)

@@ -27,6 +27,22 @@ const SIZE_TABLE := {
 	"giant":  {"hp": 64, "shield_cap": 5, "bounty": 32, "speed_mult": 0.25},
 }
 
+# Size→locomotion base (locomotion refactor 2026-06-19). The chassis owns kinematics; a movement
+# pattern reads these for SCALE (it owns only SHAPE). `base_rung` is the base linear speed in px/s
+# on a clarity rung (bigger size = slower); a per-entry `engine` offset shifts ONLY this. `weight`
+# is inertia/turn mass (bigger = heavier), `turn_rate` deg/s, `accel` px/s². Behaviour-preserving
+# migration sets each enemy's `engine` so its resolved move_speed lands on its OLD speed; these
+# bases are the authoring anchors, tuned in the Enemy Bench Locomotion tab. (SIZE_TABLE.speed_mult
+# is now dead — removed with the bench rework.)
+const SIZE_LOCOMOTION := {
+	"tiny":   {"base_rung": 300.0, "weight": 0.5, "turn_rate": 360.0, "accel": 900.0},
+	"small":  {"base_rung": 240.0, "weight": 0.8, "turn_rate": 320.0, "accel": 800.0},
+	"medium": {"base_rung": 180.0, "weight": 1.2, "turn_rate": 260.0, "accel": 600.0},
+	"large":  {"base_rung": 120.0, "weight": 2.0, "turn_rate": 180.0, "accel": 420.0},
+	"huge":   {"base_rung":  60.0, "weight": 3.5, "turn_rate": 120.0, "accel": 300.0},
+	"giant":  {"base_rung":  60.0, "weight": 5.0, "turn_rate":  90.0, "accel": 220.0},
+}
+
 const RARITY_BOUNTY_MULT := {
 	Tier.COMMON: 1,
 	Tier.UNCOMMON: 2,
@@ -1213,12 +1229,73 @@ static func compose_stats(entry: Dictionary) -> Dictionary:
 	if recycle >= 0:
 		bounty = max(1, int(round(float(bounty) * max(0.5, 1.0 - 0.15 * float(recycle)))))
 
+	var loco: Dictionary = resolve_locomotion(entry, size)
 	return {
 		"max_health": hp,
 		"shield_charges": shield_charges,
 		"bounty_value": bounty,
 		"recycle_passes": recycle,
+		"move_speed": loco["move_speed"],
+		"weight": loco["weight"],
+		"turn_rate": loco["turn_rate"],
+		"accel": loco["accel"],
+		"depth_bp": loco["depth_bp"],
 	}
+
+
+# Resolve the chassis locomotion stats for an entry: size base + a per-entry `engine` rung offset
+# (shifts linear speed only) + optional raw overrides (move_speed/weight/turn_rate/accel) + a
+# default `depth` band. Pure numbers (no tree / no Zones→Y), so it is headless-safe. move_speed is
+# clamped to the rung grid and snapped. depth_bp is band_progress (0..1), or -1 = "pattern default".
+static func resolve_locomotion(entry: Dictionary, size: String = "") -> Dictionary:
+	var sz: String = size if size != "" else String(entry.get("size", "medium"))
+	var loco: Dictionary = SIZE_LOCOMOTION.get(sz, SIZE_LOCOMOTION["medium"])
+	var move_speed: float = float(loco["base_rung"]) + float(int(entry.get("engine", 0))) * Clarity.RUNG_STEP
+	if entry.has("move_speed"):
+		move_speed = float(entry["move_speed"])
+	move_speed = Clarity.snap_to_rung(clampf(move_speed, Clarity.RUNG_STEP, Clarity.ABS_MAX_SPEED))
+	# Depth: an explicit entry "depth" wins; otherwise inherit the band from a legacy banded
+	# movement identity (loiter_high / drift_mid / side_traverse_low → high / mid / low) so the
+	# key-collapse preserves each enemy's hold/cross height without per-entry edits.
+	var depth_spec: Variant = entry.get("depth", "")
+	if depth_spec == null or String(depth_spec) == "":
+		depth_spec = _legacy_depth_for(entry)
+	return {
+		"move_speed": move_speed,
+		"weight": float(entry.get("weight", loco["weight"])),
+		"turn_rate": float(entry.get("turn_rate", loco["turn_rate"])),
+		"accel": float(entry.get("accel", loco["accel"])),
+		"depth_bp": Zones.depth_to_bp(depth_spec, -1.0),
+	}
+
+
+# Default depth band for an entry whose movement identity is a legacy banded key (the *_high/_mid/
+# _low suffix that collapsed into the depth axis). "" when the enemy has no banded identity.
+static func _legacy_depth_for(entry: Dictionary) -> String:
+	var id: String = PatternEligibility.identity_for(String(entry.get("scene", "")))
+	if id == "":
+		id = String(entry.get("movement", ""))
+	if id.ends_with("_high"):
+		return "high"
+	if id.ends_with("_mid"):
+		return "mid"
+	if id.ends_with("_low"):
+		return "low"
+	return ""
+
+
+# Legacy movement-key aliases (locomotion refactor 2026-06-19): the speed/depth-variant keys
+# collapsed to shape-only keys once speed/depth became chassis/formation-owned. Old DATA (saved
+# eligibility JSON, stray references) still resolves through these. The committed DATA is rewritten
+# to the shape keys; this is the safety net for stragglers.
+const MOVEMENT_ALIASES := {
+	"straight_crawl": "straight", "straight_slow": "straight", "straight_medium": "straight",
+	"straight_fast": "straight", "straight_reflex": "straight",
+	"drift_low": "drift", "drift_mid": "drift", "drift_high": "drift",
+	"loiter_low": "loiter", "loiter_mid": "loiter", "loiter_high": "loiter",
+	"side_traverse_high": "side_traverse", "side_traverse_mid": "side_traverse",
+	"side_traverse_low": "side_traverse",
+}
 
 
 # Build a fresh movement-pattern Resource for an entry. Each spawned enemy
@@ -1228,18 +1305,12 @@ static func make_movement(entry: Dictionary) -> Resource:
 	# unless it opts into variety ("vary": true) — then a flat-random eligible key. Behavior-
 	# preserving until eligibility is expanded + an entry opts in (pattern_eligibility.gd).
 	var key: String = PatternEligibility.resolve(entry)
+	key = MOVEMENT_ALIASES.get(key, key)   # collapse legacy speed/depth-variant keys to shapes
 	match key:
-		# --- STRAIGHT family (named by speed; rungs of 60 px/s = 1 px/f), Roman 2026-06-08 ---
-		"straight_crawl":
-			return _straight(60.0)    # 1 px/f (was slow_advance)
-		"straight_slow":
-			return _straight(120.0)   # 2 px/f
-		"straight_medium":
-			return _straight(180.0)   # 3 px/f (was firecore_straight / generic straight)
-		"straight_fast":
-			return _straight(300.0)   # 5 px/f (was fast_straight)
-		"straight_reflex":
-			return _straight(360.0)   # 6 px/f (reflex rung)
+		# --- STRAIGHT: pure descent. Speed is chassis-owned now (size base + engine); the old
+		# straight_crawl/slow/medium/fast/reflex keys collapsed here (locomotion refactor). ---
+		"straight":
+			return _straight(180.0)   # speed vestigial — enemy.move_speed drives it
 		"straight_charge":
 			# Slow telegraphed entry, then accelerate hard in the fire zone (was lane_charge).
 			return LaneCharge.new()
@@ -1248,13 +1319,10 @@ static func make_movement(entry: Dictionary) -> Resource:
 			return _skirmish(Skirmish.Shape.LOOP)
 		"skirmish_figure8":
 			return _skirmish(Skirmish.Shape.FIGURE8)
-		# --- DRIFT (tank hold + jiggle; heights match loiter), was bulwark_drift ---
-		"drift_low":
-			return _drift(130.0)
-		"drift_mid":
-			return _drift(90.0)
-		"drift_high":
-			return _drift(50.0)
+		# --- DRIFT (tank hold + jiggle). Hold DEPTH is the chassis/formation depth axis now;
+		# drift_low/mid/high collapsed here (locomotion refactor). ---
+		"drift":
+			return Drift.new()   # hover_y vestigial — enemy.depth_bp drives the hold height
 		"lane_weave":
 			# Weaver (m6 §13, lane_path engine) — wobble WITHIN its own lane while
 			# descending. Lane-confined: ~10px swing < half lane width (12), never
@@ -1307,42 +1375,26 @@ static func make_movement(entry: Dictionary) -> Resource:
 			m.down_speed = 160.0
 			m.mirrored = randf() < 0.5
 			return m
-		"loiter_low", "loiter_mid", "loiter_high":
-			# Holder (m6 §13). Hover into the fire band, hold with a gentle
-			# bob/sway, then accelerate away. Exit accel/max trimmed (was
-			# 600/700) so a player drifting upward isn't rammed by an exit.
-			# low/mid/high pick the hold band (deeper = more pressure). Base
-			# "loiter" keeps the historical deep hold for back-compat.
+		"loiter":
+			# Holder (m6 §13). Hover into the fire band, hold with a gentle bob/sway, then
+			# accelerate away. Hold DEPTH is the chassis/formation depth axis now (loiter_low/mid/high
+			# collapsed here); enter/exit speed are chassis-owned. Timing/jiggle stay pattern shape.
 			var m = Loiter.new()
-			match key:
-				"loiter_high": m.hover_y = 50.0
-				"loiter_mid": m.hover_y = 90.0
-				_: m.hover_y = 130.0   # loiter / loiter_low — deep hold
-			m.enter_speed = 180.0
 			m.loiter_time = 3.0
-			m.exit_accel = 400.0
-			m.exit_max_speed = 480.0
 			return m
 		"side_turn":
 			# Advance horizontally in, rounded-turn down into the lane, descend to exit.
 			return SideTurn.new()
 		"side_dive":
-			# Like side_turn but a swift descent (Roman 2026-06-08).
+			# Like side_turn but a SHORTER advance into the dive (the "swift" feel); the descent
+			# speed itself is chassis-owned now. advance_time stays pattern shape.
 			var m = SideTurn.new()
-			m.down_speed = 300.0
 			m.advance_time = 0.45
 			return m
 		"side_traverse":
-			# Slow horizontal cross (Minelayer). Base now randomizes its latitude band
-			# (Roman 2026-06-11: expanded into high/mid/low). Explicit *_high/_mid/_low
-			# keys force a specific band.
-			return _side_traverse([50.0, 90.0, 128.0][randi() % 3])
-		"side_traverse_high":
-			return _side_traverse(50.0)
-		"side_traverse_mid":
-			return _side_traverse(90.0)
-		"side_traverse_low":
-			return _side_traverse(128.0)
+			# Slow horizontal cross (Minelayer). Cross DEPTH is the chassis/formation depth axis now
+			# (side_traverse_high/mid/low collapsed here); cross speed is chassis-owned.
+			return _side_traverse()
 		"hunt_beeline":
 			# Player-tracking pursuit — threatens, shouldn't connect (was beeline).
 			var m = BeelinePlayer.new()
@@ -1382,16 +1434,8 @@ static func _skirmish(shape: int) -> Resource:
 	return m
 
 
-static func _drift(hover_y: float) -> Resource:
-	var m = Drift.new()
-	m.hover_y = hover_y
-	return m
-
-
-static func _side_traverse(travel_y: float) -> Resource:
+static func _side_traverse() -> Resource:
 	var m = SideTraverse.new()
-	m.travel_y = travel_y
-	m.speed = 75.0
 	m.direction = 1 if randf() < 0.5 else -1
 	return m
 

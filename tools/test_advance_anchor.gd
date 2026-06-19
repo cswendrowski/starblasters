@@ -8,6 +8,9 @@ extends SceneTree
 
 const RESULT := "res://tools/_advance_anchor_result.txt"
 const Roster := preload("res://scripts/levels/enemy_roster.gd")
+const AdvanceRetreat := preload("res://scripts/enemies/patterns/advance_retreat.gd")
+# Chassis fallback speed for a bare dummy (no move_speed) — locomotion refactor 2026-06-19.
+const FALLBACK_SPEED := 180.0
 
 const DT := 1.0 / 60.0
 var _lines: Array = []
@@ -23,14 +26,16 @@ func _test_skirmisher() -> void:
 	var e := Node2D.new()
 	root.add_child(e)
 	e.position = Vector2(240, 0)
-	var m = Roster.make_movement({"movement": "advance_retreat"})
+	# advance_retreat is no longer a make_movement key (replaced by skirmish); construct it directly.
+	var m = AdvanceRetreat.new()
 	m.on_start(e)
 	var start_x: float = e.position.x
 
-	# ease-in: first advance step slower than cruise.
+	# ease-in: first advance step slower than cruise. Cruise = the chassis move_speed; a bare
+	# dummy falls back to FALLBACK_SPEED (locomotion refactor).
 	var first: Vector2 = m.compute_step(e, DT); e.position += first
-	if first.y >= m.advance_speed * DT:
-		_fail("skirmisher: no ease-in (%.2f >= cruise %.2f)" % [first.y, m.advance_speed * DT])
+	if first.y >= FALLBACK_SPEED * DT:
+		_fail("skirmisher: no ease-in (%.2f >= cruise %.2f)" % [first.y, FALLBACK_SPEED * DT])
 
 	var saw_advance := false
 	var saw_retreat := false
