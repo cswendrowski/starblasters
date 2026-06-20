@@ -15,6 +15,7 @@ const EnemyStrings = preload("res://scripts/strings/enemy_strings.gd")
 const PatternEligibility = preload("res://scripts/levels/pattern_eligibility.gd")
 const Playfield = preload("res://scripts/systems/playfield.gd")
 const Weapon = preload("res://scripts/enemies/shoot_patterns/weapon.gd")
+const ShieldComponentC = preload("res://scripts/enemies/components/shield_component.gd")
 const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
 const EnemyTurretScript = preload("res://scripts/enemies/enemy_turret.gd")
@@ -145,6 +146,12 @@ var _pattern_idx: int = 0
 var _engine_spin: SpinBox = null
 var _depth_dd: OptionButton = null
 const _DEPTH_ITEMS := ["", "high", "mid", "low"]   # OptionButton index 0 = "(default)"
+# Template knobs (size + traits drive the derived stats; locomotion refactor 2026-06-19): pick a
+# size + tags → HP/bounty/shield + locomotion fill from the size template, then hand-tweak below.
+var _size_dd: OptionButton = null
+var _tough_chk: CheckBox = null
+var _shielded_chk: CheckBox = null
+const _SIZE_OPTS := ["tiny", "small", "medium", "large", "huge", "giant"]
 
 # scene_path -> true if any roster ENTRY declares a non-null "shoot" key. This is production's
 # source of truth for "this enemy_core enemy carries a generic Weapon" (the director assigns it
@@ -349,6 +356,7 @@ func _setup_size_tab() -> void:
 	var scroll := get_node_or_null("UI/RightPanel/RightScroll") as Control
 	if scroll == null:
 		return
+	_setup_enemy_template_knobs(scroll)
 	_setup_enemy_loco_knobs(scroll)
 	var panel := scroll.get_parent()
 	var tabs := TabContainer.new()
@@ -455,6 +463,80 @@ func _copy_loco() -> void:
 	DisplayServer.clipboard_set(txt)
 	if _pattern_lbl:
 		_pattern_lbl.text = "Copied SIZE_LOCOMOTION to clipboard"
+
+
+# Append a per-enemy TEMPLATE section (size + traits → derived stats) to the Enemy tab's content.
+# Picking a size/trait fills HP/bounty (and locomotion/shield via respawn) from the size template;
+# the spinboxes below stay the hand-tweak layer. (template-driven stats, 2026-06-19.)
+func _setup_enemy_template_knobs(scroll: Control) -> void:
+	if scroll == null or scroll.get_child_count() == 0:
+		return
+	var content := scroll.get_child(0)
+	if not (content is Container):
+		return
+	content.add_child(HSeparator.new())
+	content.add_child(_mk_label("Template (size + traits)", 16, Color(0.62, 0.82, 1, 1)))
+	content.add_child(_mk_label("Size + traits drive HP / bounty / shield / locomotion from the size template — then hand-tweak the values below.", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
+	var sr := HBoxContainer.new()
+	sr.add_theme_constant_override("separation", 8)
+	content.add_child(sr)
+	sr.add_child(_mk_label("Size", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
+	_size_dd = OptionButton.new()
+	for s in _SIZE_OPTS:
+		_size_dd.add_item(s)
+	_size_dd.custom_minimum_size = Vector2(100, 28)
+	_size_dd.item_selected.connect(_on_template_changed)
+	sr.add_child(_size_dd)
+	var tr := HBoxContainer.new()
+	tr.add_theme_constant_override("separation", 10)
+	content.add_child(tr)
+	_tough_chk = CheckBox.new()
+	_tough_chk.text = "tough (x2 HP)"
+	_tough_chk.toggled.connect(func(_p): _on_template_changed(0))
+	tr.add_child(_tough_chk)
+	_shielded_chk = CheckBox.new()
+	_shielded_chk.text = "shielded"
+	_shielded_chk.toggled.connect(func(_p): _on_template_changed(0))
+	tr.add_child(_shielded_chk)
+
+
+func _on_template_changed(_i: int) -> void:
+	if _loading:
+		return
+	_apply_template_stats()
+	_spawn_current()
+
+
+# Fill HP/bounty from the size+tags template (the lead then hand-tweaks the spinboxes).
+func _apply_template_stats() -> void:
+	if _size_dd == null:
+		return
+	var stats: Dictionary = EnemyRoster.compose_stats(_template_entry())
+	_loading = true   # suppress the spinbox value_changed respawn storm
+	if _hp_spin:
+		_hp_spin.value = int(stats["max_health"])
+	if _bounty_spin:
+		_bounty_spin.value = int(stats["bounty_value"])
+	_loading = false
+
+
+# The current bench size class.
+func _bench_size() -> String:
+	return String(_SIZE_OPTS[_size_dd.selected]) if (_size_dd != null and _size_dd.selected >= 0) else "medium"
+
+
+# An entry-shaped dict (size + tags + engine/depth) for compose_stats / resolve_locomotion.
+func _template_entry() -> Dictionary:
+	var tags: Array = []
+	if _tough_chk != null and _tough_chk.button_pressed:
+		tags.append("tough")
+	if _shielded_chk != null and _shielded_chk.button_pressed:
+		tags.append("shielded")
+	return {
+		"scene": _selected_path, "size": _bench_size(), "tags": tags,
+		"engine": int(_engine_spin.value) if _engine_spin != null else 0,
+		"depth": _depth_for_selected(),
+	}
 
 
 # Append a per-enemy locomotion section (engine offset + depth band) to the Enemy tab's content,
@@ -792,6 +874,15 @@ func _spawn_current() -> void:
 		var ems: Array = EnemyRoster.make_emitter_specs(_emitter_spec_dicts())
 		if not ems.is_empty():
 			inst.components = inst.components + ems   # append droppers/spawners to baked components
+	# Shielded trait (template): add a CHARGE ShieldComponent sized to the template for a live preview.
+	if _shielded_chk != null and _shielded_chk.button_pressed and "components" in inst:
+		var cap: int = int(EnemyRoster.compose_stats(_template_entry()).get("shield_charges", 0))
+		if cap > 0:
+			var sh = ShieldComponentC.new()
+			sh.mode = ShieldComponentC.Mode.CHARGE
+			sh.capacity = cap
+			sh.regen_interval = 0.0
+			inst.components = inst.components + [sh]
 	if inst is Node2D:
 		(inst as Node2D).position = spawn_pos
 	_enemy_layer.add_child(inst)
@@ -1289,12 +1380,7 @@ func _apply_stats_to(inst: Node) -> void:
 	# Locomotion preview: resolve from the enemy's ENTRIES size + the bench engine/depth so the live
 	# ship moves at the tuned speed/depth (locomotion refactor 2026-06-19).
 	if "move_speed" in inst and _engine_spin != null:
-		var le: Dictionary = EnemyRoster.entry_for_scene(_selected_path)
-		var sz: String = String(le.get("size", "medium")) if not le.is_empty() else "medium"
-		var loco: Dictionary = EnemyRoster.resolve_locomotion({
-			"scene": _selected_path, "size": sz,
-			"engine": int(_engine_spin.value), "depth": _depth_for_selected(),
-		})
+		var loco: Dictionary = EnemyRoster.resolve_locomotion(_template_entry())
 		inst.move_speed = float(loco["move_speed"])
 		if "weight" in inst:
 			inst.weight = float(loco["weight"])
@@ -1420,6 +1506,13 @@ func _load_settings_into_editors() -> void:
 		var dstr: String = String(s.get("depth", String(le.get("depth", ""))))
 		var didx: int = _DEPTH_ITEMS.find(dstr)
 		_depth_dd.select(didx if didx >= 0 else 0)
+		if _size_dd != null:
+			var sz: String = String(s.get("size", String(le.get("size", "medium"))))
+			var si: int = _SIZE_OPTS.find(sz)
+			_size_dd.select(si if si >= 0 else 2)
+			var etags: Array = le.get("tags", []) if le.has("tags") else []
+			_tough_chk.button_pressed = bool(s.get("tough", "tough" in etags))
+			_shielded_chk.button_pressed = bool(s.get("shielded", "shielded" in etags))
 	_name_edit.text = String(s.get("name", EnemyStrings.display_name(_selected_path)))
 	_codex_edit.text = String(s.get("codex", EnemyStrings.codex_entry(_selected_path)))
 	# Saved bench override wins; otherwise default to the enemy's production roster mounts.
@@ -1471,6 +1564,9 @@ func _current_settings() -> Dictionary:
 		"emitters": _dup_mounts(_emitter_dicts),
 		"engine": int(_engine_spin.value) if _engine_spin != null else 0,
 		"depth": _depth_for_selected(),
+		"size": _bench_size(),
+		"tough": _tough_chk.button_pressed if _tough_chk != null else false,
+		"shielded": _shielded_chk.button_pressed if _shielded_chk != null else false,
 	}
 
 
@@ -1531,6 +1627,22 @@ func _on_copy() -> void:
 	if String(s.get("depth", "")) != "":
 		loco_bits.append("\"depth\": \"%s\"" % String(s["depth"]))
 	txt += "\n# -> roster ENTRY (locomotion): %s\n" % (", ".join(loco_bits) if not loco_bits.is_empty() else "(size-derived — engine 0, no depth override)")
+	# Template → roster ENTRY (size + traits drive the derived stats; overrides only when tweaked).
+	var t_tags: Array = []
+	if bool(s.get("tough", false)):
+		t_tags.append("tough")
+	if bool(s.get("shielded", false)):
+		t_tags.append("shielded")
+	var tag_lits: Array = []
+	for t in t_tags:
+		tag_lits.append("\"%s\"" % String(t))
+	var entry_bits: Array = ["\"size\": \"%s\"" % String(s.get("size", "medium")), "\"tags\": [%s]" % ", ".join(tag_lits)]
+	var tmpl: Dictionary = EnemyRoster.compose_stats({"size": String(s.get("size", "medium")), "tags": t_tags})
+	if int(s["max_health"]) != int(tmpl["max_health"]):
+		entry_bits.append("\"hp_override\": %d" % int(s["max_health"]))
+	if int(s["bounty_value"]) != int(tmpl["bounty_value"]):
+		entry_bits.append("\"bounty_override\": %d" % int(s["bounty_value"]))
+	txt += "# -> roster ENTRY (template): %s\n" % ", ".join(entry_bits)
 	# Mounts → a roster ENTRY "mounts" block (extra emitters beyond the hull weapon).
 	if not _mount_dicts.is_empty():
 		txt += "\n# -> roster ENTRY \"mounts\":\n\"mounts\": [\n"
