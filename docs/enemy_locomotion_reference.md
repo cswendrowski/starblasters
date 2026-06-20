@@ -76,6 +76,7 @@ Speeds snap to these; the bench shows "Name (px/s)". 1 rung = 60 px/s = 1 px/fra
 
 | Name | px/s | px/frame |
 |---|---|---|
+| creep | 30 | 0.5 |
 | crawl | 60 | 1 |
 | slow | 120 | 2 |
 | medium | 180 | 3 |
@@ -87,6 +88,11 @@ Speeds snap to these; the bench shows "Name (px/s)". 1 rung = 60 px/s = 1 px/fra
 
 **8 px/f (480) is the hard readability ceiling** — past it objects strobe. Lasers sit at 8; chaff
 1–3; fast movers ~5–6.
+
+**creep (30) is the slow floor** — the one clean sub-1px/frame speed (1px every 2 frames). Whole
+rungs (≥60) move every frame; 30 is the slowest that still reads as smooth drift. Reach it with a
+negative `engine` (e.g. crawl-base − 1) or an explicit `move_speed: 30`. Don't author odd in-between
+values (45, 78…) — they snap to a rung anyway and would shimmer.
 
 ---
 
