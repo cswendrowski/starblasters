@@ -1,17 +1,14 @@
 extends "res://scripts/enemies/enemy_core.gd"
 class_name EnemyBeamShooter
 
-# Beamer — beam specialist. On-lane migration 2026-06-08: LOCOMOTION is now on the lane system.
-# The SWEEP variant uses the LoiterSweep movement pattern (descend → rake L↔R; renamed from
-# "beam_sweep" 2026-06-09); the CHASE/LOCK tracker variant uses Drift (descend → hold). The beam
-# itself is already the shared BeamEmitter
-# (M6a.2). What stays bespoke is the hull-AIM (the beam exits the sprite front, so the hull turns
-# to aim) — genuinely special: LOCK freezes rotation while the beam is committed.
-#
-# Three aim behaviors:
-#   SWEEP — face down; the body sweep rakes the beam.
-#   CHASE — rotate to track the player (turn rate below the player's so they can out-run it).
-#   LOCK  — track between shots, freeze while the beam is committed (an evade window).
+# Beamer — beam specialist. LOCOMOTION is on the lane system (SWEEP uses the LoiterSweep movement —
+# descend → rake L↔R; CHASE/LOCK use Drift — descend → hold). The AIM is now the shared BeamEmitter's
+# CONFIGURABLE aim modes (2026-06-19) — the same styles any beam mount can set via beam_config — so
+# this script just maps aim_behavior → an emitter mode (the hull no longer turns to aim):
+#   SWEEP → LOCAL_FORWARD (fires straight down; the body-rake movement sweeps it).
+#   CHASE → TRACKING      (continuously re-aims at the player — "track player").
+#   LOCK  → TRACK_LOCK    (tracks between shots, freezes while committed — an evade window).
+# What stays bespoke: anti-stacking repulsion + begin-on-settle (bench-only beamer specifics).
 
 const BeamEmitter = preload("res://scripts/enemies/beam_emitter.gd")
 const LoiterSweep = preload("res://scripts/enemies/patterns/loiter_sweep.gd")
@@ -55,10 +52,24 @@ func _ready() -> void:
 			movement = d
 	super._ready()
 	_beam = BeamEmitter.new()
+	# Aim STYLE is the emitter's job now (the shared, configurable primitive — usable by ANY beam
+	# mount via beam_config): SWEEP fires straight down and the body-rake (LoiterSweep movement)
+	# sweeps it; CHASE tracks the player; LOCK tracks between shots then freezes while committed.
+	var aim_md := BeamEmitter.AimMode.LOCAL_FORWARD
+	var trate := 0.0
+	match aim_behavior:
+		AimBehavior.CHASE:
+			aim_md = BeamEmitter.AimMode.TRACKING
+			trate = ROTATION_SPEED
+		AimBehavior.LOCK:
+			aim_md = BeamEmitter.AimMode.TRACK_LOCK
+			trate = ROTATION_SPEED
+		_:
+			aim_md = BeamEmitter.AimMode.LOCAL_FORWARD
 	_beam.configure({
 		"idle_time": 0.9, "windup_time": 1.3, "firing_time": 1.1, "cooldown_time": 1.5,
 		"cycle": BeamEmitter.Cycle.LOOP_IDLE, "autostart": false,
-		"endpoint": BeamEmitter.Endpoint.RAY, "aim_mode": BeamEmitter.AimMode.LOCAL_FORWARD,
+		"endpoint": BeamEmitter.Endpoint.RAY, "aim_mode": aim_md, "tracking_rate": trate,
 		"forward_local": FWD_LOCAL, "reach": 320.0, "dps": 3.0, "hit_radius": 8.0,
 		"emitter_offset": _emitter_local, "target_group": "player",
 	})
@@ -74,34 +85,7 @@ func _process(delta: float) -> void:
 		if _beam != null:
 			_beam.begin()
 		_beam_started = true
-	_face_target(delta)
 	_repel_siblings(delta)
-
-
-# Rotate the hull so its front (FWD_LOCAL) points at the aim target.
-func _face_target(delta: float) -> void:
-	var dir: Vector2 = Vector2.DOWN
-	match aim_behavior:
-		AimBehavior.SWEEP:
-			dir = Vector2.DOWN
-		AimBehavior.CHASE:
-			dir = _player_dir()
-		AimBehavior.LOCK:
-			if _beam != null and is_instance_valid(_beam) and _beam.is_committed():
-				return   # frozen while committed — the evade window
-			dir = _player_dir()
-	var target_rot: float = atan2(dir.x, -dir.y)
-	var diff: float = angle_difference(rotation, target_rot)
-	rotation += clampf(diff, -ROTATION_SPEED * delta, ROTATION_SPEED * delta)
-
-
-func _player_dir() -> Vector2:
-	var player := find_player()
-	if player != null:
-		var d: Vector2 = player.global_position - global_position
-		if d.length_squared() > 1.0:
-			return d.normalized()
-	return Vector2.DOWN
 
 
 # Push apart from any other beamer within SPACING_RADIUS so sweeps don't stack.

@@ -25,7 +25,13 @@ enum Phase { OFF, IDLE, WINDUP, FIRING, COOLDOWN }
 # the Burner's pairing/settle logic). The emitter still owns visuals + damage.
 enum Cycle { LOOP_IDLE, LOOP_WINDUP, ONCE, HOLD, MANUAL }
 enum Endpoint { RAY, SEGMENT }                       # beam geometry
-enum AimMode { LOCAL_FORWARD, LOCKED, TRACKING, SWEEP }
+# LOCAL_FORWARD = fire along the host's forward (host rotation aims it).
+# LOCKED        = snapshot a world dir at windup, hold it (no re-aim).
+# TRACKING      = continuously re-aim toward the target group ("track player") at tracking_rate.
+# TRACK_LOCK    = track between shots, but FREEZE the aim while committed (windup+firing) — an
+#                 evade window for the player (the old Beamer "LOCK" hull behavior, generalized).
+# SWEEP         = rake the beam at a constant sweep_rate (host stays put).
+enum AimMode { LOCAL_FORWARD, LOCKED, TRACKING, SWEEP, TRACK_LOCK }
 
 # --- lifecycle ---
 var idle_time: float = 0.9
@@ -227,6 +233,13 @@ func _update_aim(delta: float) -> void:
 				_aim_dir = _aim_dir.rotated(clampf(diff, -tracking_rate * delta, tracking_rate * delta))
 		AimMode.SWEEP:
 			_aim_dir = _aim_dir.rotated(sweep_rate * delta)
+		AimMode.TRACK_LOCK:
+			# Track the target between shots; hold the aim once committed (the evade window).
+			if not is_committed():
+				var w2 := _aim_target_dir()
+				if w2 != Vector2.ZERO:
+					var d2: float = _aim_dir.angle_to(w2)
+					_aim_dir = _aim_dir.rotated(clampf(d2, -tracking_rate * delta, tracking_rate * delta))
 		AimMode.LOCKED:
 			pass   # held from windup / set_locked_aim
 	if _aim_dir.length_squared() < 0.0001:
