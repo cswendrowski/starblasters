@@ -128,6 +128,32 @@ const HELIX_MOUNTS := [
 	  "recoil_frames": 3, "turret_texture": "res://graphics/enemies/zealot-tank-turret.png", "turret_hframes": 3 },
 ]
 
+# Push's player-tracking dome turrets — one per Turret* marker, aimed heavy slugs, fast traverse.
+# Was hand-built in enemy_push.gd (deleted from the scene 2026-06-19); now a data mount on enemy_core.
+const PUSH_MOUNTS := [
+	{ "kind": "turret", "marker": "Turret*", "payload": BV_HeavySlug,
+	  "rotation_speed": 3.6, "fire_min": 1.0, "fire_max": 1.6, "aim_tolerance_deg": 14.0,
+	  "recoil_frames": 3, "turret_texture": "res://graphics/enemies/turret_s_dome.png", "turret_hframes": 3 },
+]
+
+# Rocket gunship — two weapons off its marker rack, was hand-timed in enemy_rocket.gd (2026-06-19):
+# rocket salvos from the cycled launch rack + aimed tracer bursts from the hull muzzles.
+const ROCKET_MOUNTS := [
+	{ "kind": "launcher", "marker": "launch_point*", "marker_mode": "cycle",
+	  "payload_scene": "res://scenes/projectiles/enemy_rocket.tscn",
+	  "aim": "straight_down", "count": 3, "spread_deg": 24.0, "fire_min": 1.8, "fire_max": 1.8 },
+	{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_Basic,
+	  "aim": "at_player", "count": 4, "burst_interval": 0.12, "bullet_speed": 300.0,
+	  "fire_min": 2.4, "fire_max": 2.4 },
+]
+
+# Minelayer — drops dumb bomblets while crossing, then scatters a cluster on death. Was bespoke
+# (_process timer + explode scatter in minelayer.gd); now a TIMER + DEATH emitter pair (2026-06-19).
+const MINELAYER_EMITTERS := [
+	{ "trigger": "timer", "payload": "Bomblet", "cadence": 2.5, "count": 1, "band_only": true },
+	{ "trigger": "death", "payload": "Bomblet", "count": 6, "spread": 28.0 },
+]
+
 # Each entry: scene path + movement_factory + shoot_factory + tier + suggested
 # counts per wave at the entry-level (modest end of the scaling).
 # `shoot` may be null for melee/contact enemies.
@@ -661,7 +687,9 @@ const ENTRIES := [
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
 		"movement": "slow_advance",   # slow straight descent
-		"shoot": null,                # bespoke twin turrets
+		"shoot": null,                # no hull gun — fires via the turret mounts
+		"mounts": PUSH_MOUNTS,
+		"bounty_override": 25,
 		"hp_override": 28,
 		"base_count": 2,
 		"recycle": 0,                 # larger lane anchor — exit at bottom, don't loop (Roman 2026-06-08)
@@ -674,6 +702,8 @@ const ENTRIES := [
 		"size": "medium", "tags": ["tough"],
 		"movement": "firecore_straight",   # mid-speed straight descent
 		"shoot": null,
+		"mounts": PUSH_MOUNTS,
+		"bounty_override": 25,
 		"hp_override": 28,
 		"base_count": 2,
 		"recycle": 0,                       # anchor — exit at bottom, don't loop (Roman 2026-06-08)
@@ -686,6 +716,8 @@ const ENTRIES := [
 		"size": "medium", "tags": ["tough"],
 		"movement": "side_traverse",   # slow horizontal cross, lobbing shots
 		"shoot": null,
+		"mounts": PUSH_MOUNTS,
+		"bounty_override": 25,
 		"hp_override": 28,
 		"base_count": 2,
 		"recycle": 0,                   # anchor — exit, don't loop (Roman 2026-06-08)
@@ -884,7 +916,9 @@ const ENTRIES := [
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
 		"movement": "lane_drift",
-		"shoot": null,   # bespoke rocket + tracer firing
+		"shoot": null,   # no hull gun — fires via the launcher + gun mounts
+		"mounts": ROCKET_MOUNTS,
+		"bounty_override": 35,
 		"hp_override": 14,
 		"base_count": 1,
 		"no_scale": true,
@@ -960,6 +994,7 @@ const ENTRIES := [
 		"size": "large", "tags": [],
 		"movement": "side_traverse",
 		"shoot": null,
+		"emitters": MINELAYER_EMITTERS,
 		"base_count": 2,
 		"unlock_sector": 1, "unlock_depth": 0,
 	},
