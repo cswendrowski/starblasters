@@ -487,12 +487,14 @@ theme_override_constants/separation = 10
 
 [node name="SaveButton" type="Button" parent="UI/RightPanel/RightScroll/RightVBox/ButtonsRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(120, 36)
+custom_minimum_size = Vector2(0, 36)
 layout_mode = 2
+size_flags_horizontal = 3
 text = "Save"
 
 [node name="CopyButton" type="Button" parent="UI/RightPanel/RightScroll/RightVBox/ButtonsRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(180, 36)
+custom_minimum_size = Vector2(0, 36)
 layout_mode = 2
+size_flags_horizontal = 3
 text = "Copy GDScript"
