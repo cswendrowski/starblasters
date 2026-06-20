@@ -24,6 +24,11 @@ extends RefCounted
 
 const FPS := 60.0
 const RUNG_STEP := 60.0   # px/s per 1 internal-px/frame at 60fps
+# CREEP — the one clean SUB-1px/frame speed: 30 px/s = 0.5 px/f = an even 1px hop every 2 frames
+# (smooth slow drift at an effective 30fps cadence). Whole rungs move every frame (constant delta,
+# zero snap-wobble); 30 is the slowest "smooth enough" speed below that — below it the stop-go reads
+# as stop-motion. Only enemy CREEP movers use it; projectiles stay >= RUNG_STEP (proposed_speed floor).
+const CREEP_SPEED := 30.0
 
 # Ratio = px-per-frame ÷ sprite-length-along-travel.
 const TIER_BUTTERY := 0.5   # sprite overlaps itself every frame
@@ -47,8 +52,13 @@ static func ratio(speed: float, travel_len: float) -> float:
 	return px_per_frame(speed) / travel_len
 
 
-# Nearest rung (multiple of RUNG_STEP) to an arbitrary speed.
+# Nearest valid rung. Below the 30<->60 midpoint, snap to the CREEP half-rung (the one clean
+# sub-1px/frame speed); otherwise snap to the whole-rung grid (integer px/frame, no snap-wobble).
+# proposed_speed floors projectiles at RUNG_STEP, so 30 only surfaces where a caller allows sub-60
+# (enemy creep movers — e.g. resolve_locomotion's clamp).
 static func snap_to_rung(speed: float) -> float:
+	if speed < (CREEP_SPEED + RUNG_STEP) * 0.5:
+		return CREEP_SPEED
 	return roundf(speed / RUNG_STEP) * RUNG_STEP
 
 
@@ -106,6 +116,7 @@ static func band(speed: float) -> String:
 # RUNG_STEP). The NAME is for editor/codex readability; the px/s NUMBER is the source of truth.
 # label_for_speed() snaps an arbitrary speed to its rung and returns "Name (px/s)".
 const SPEED_RUNGS := {
+	30.0: "creep",    # 0.5 px/f — the clean sub-rung (1px every 2 frames); slow drifters only
 	60.0: "crawl",    # 1 px/f
 	120.0: "slow",    # 2 px/f
 	180.0: "medium",  # 3 px/f

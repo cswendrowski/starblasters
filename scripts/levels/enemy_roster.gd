@@ -1288,7 +1288,7 @@ static func resolve_locomotion(entry: Dictionary, size: String = "") -> Dictiona
 	var move_speed: float = float(loco["base_rung"]) + float(int(entry.get("engine", 0))) * Clarity.RUNG_STEP
 	if entry.has("move_speed"):
 		move_speed = float(entry["move_speed"])
-	move_speed = Clarity.snap_to_rung(clampf(move_speed, Clarity.RUNG_STEP, Clarity.ABS_MAX_SPEED))
+	move_speed = Clarity.snap_to_rung(clampf(move_speed, Clarity.CREEP_SPEED, Clarity.ABS_MAX_SPEED))
 	# Depth: an explicit entry "depth" wins; otherwise inherit the band from a legacy banded
 	# movement identity (loiter_high / drift_mid / side_traverse_low → high / mid / low) so the
 	# key-collapse preserves each enemy's hold/cross height without per-entry edits.
