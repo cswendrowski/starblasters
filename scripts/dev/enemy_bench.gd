@@ -312,7 +312,9 @@ func _setup_ui() -> void:
 	_add_mount_btn.pressed.connect(_add_mount)
 	_add_emitter_btn.pressed.connect(_add_emitter)
 
-	_wire_mute_toggle(%MusicMute as Button, "Music", _music_bus_was_muted)
+	# Music stays muted for dev menus (the Music toggle button was removed 2026-06-20); SFX keeps its
+	# toggle. The prior bus state is still restored on exit (_on_back).
+	_set_bus_muted("Music", true)
 	_wire_mute_toggle(%SfxMute as Button, "SFX", _sfx_bus_was_muted)
 
 

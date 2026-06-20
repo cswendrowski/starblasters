@@ -83,10 +83,12 @@ one_shot = true
 layer = 5
 
 [node name="Header" type="Label" parent="UI"]
+anchor_right = 0.275
 offset_left = 20.0
 offset_top = 12.0
-offset_right = 700.0
+offset_right = -12.0
 offset_bottom = 64.0
+clip_text = true
 theme_override_colors/font_color = Color(0.62, 0.82, 1, 1)
 theme_override_colors/font_outline_color = Color(0.05, 0.08, 0.12, 1)
 theme_override_constants/outline_size = 6
@@ -94,26 +96,15 @@ theme_override_font_sizes/font_size = 40
 text = "ENEMY BENCH"
 
 [node name="Hint" type="Label" parent="UI"]
+anchor_right = 0.275
 offset_left = 20.0
 offset_top = 62.0
-offset_right = 700.0
+offset_right = -12.0
 offset_bottom = 84.0
+clip_text = true
 theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
 theme_override_font_sizes/font_size = 15
 text = "WASD / arrows: drive the dummy player"
-
-[node name="MusicMute" type="Button" parent="UI"]
-unique_name_in_owner = true
-anchor_left = 1.0
-anchor_right = 1.0
-offset_left = -460.0
-offset_top = 16.0
-offset_right = -310.0
-offset_bottom = 56.0
-grow_horizontal = 0
-focus_mode = 0
-toggle_mode = true
-text = "Music: On"
 
 [node name="SfxMute" type="Button" parent="UI"]
 unique_name_in_owner = true
@@ -140,10 +131,11 @@ grow_horizontal = 0
 text = "Back"
 
 [node name="LeftPanel" type="PanelContainer" parent="UI"]
+anchor_right = 0.275
 anchor_bottom = 1.0
-offset_left = 20.0
+offset_left = 16.0
 offset_top = 100.0
-offset_right = 320.0
+offset_right = -8.0
 offset_bottom = -20.0
 grow_vertical = 2
 theme_override_styles/panel = SubResource("PanelSB")
@@ -170,14 +162,13 @@ theme_override_font_sizes/font_size = 18
 fixed_icon_size = Vector2i(28, 28)
 
 [node name="RightPanel" type="PanelContainer" parent="UI"]
-anchor_left = 1.0
+anchor_left = 0.725
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -450.0
+offset_left = 8.0
 offset_top = 100.0
-offset_right = -20.0
+offset_right = -16.0
 offset_bottom = -20.0
-grow_horizontal = 0
 grow_vertical = 2
 theme_override_styles/panel = SubResource("PanelSB")
 
