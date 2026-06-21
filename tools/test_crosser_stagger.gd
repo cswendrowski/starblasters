@@ -28,7 +28,7 @@ func _process(_dt: float) -> bool:
 
 	# A crosser spec: dart hull (enemy_core) driven by side_traverse.
 	var spec := WaveSpec.new()
-	spec.enemy_scene = load("res://scenes/enemies/factions/privateer/enemy_dart.tscn")
+	spec.enemy_scene = load("res://scenes/enemies/core/enemy_core_s_dart.tscn")
 	var mv = SideTraverse.new()
 	mv.direction = 1
 	spec.movement_override = mv

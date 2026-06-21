@@ -23,7 +23,7 @@ func _fail(m: String) -> void:
 
 
 func _dart():
-	return load("res://scenes/enemies/factions/privateer/enemy_dart.tscn").instantiate()
+	return load("res://scenes/enemies/core/enemy_core_s_dart.tscn").instantiate()
 
 
 func _process(_dt: float) -> bool:

@@ -34,7 +34,7 @@ func _process(_dt: float) -> bool:
 	w.fire_interval_max = 0.9
 
 	var spec := WaveSpec.new()
-	spec.enemy_scene = load("res://scenes/enemies/factions/privateer/enemy_dart.tscn")
+	spec.enemy_scene = load("res://scenes/enemies/core/enemy_core_s_dart.tscn")
 	spec.shoot_pattern_override = w
 	spec.count = 1
 	spec.formation = 0

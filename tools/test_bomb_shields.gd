@@ -26,7 +26,7 @@ func _fail(m: String) -> void:
 
 
 func _spawn(mode: int, cap: int, hp: int):
-	var dart = load("res://scenes/enemies/factions/privateer/enemy_dart.tscn").instantiate()
+	var dart = load("res://scenes/enemies/core/enemy_core_s_dart.tscn").instantiate()
 	var mv = StraightDown.new(); mv.speed = 0.0
 	dart.movement = mv
 	var sc = ShieldComp.new(); sc.mode = mode; sc.capacity = cap; sc.regen_interval = 0.0

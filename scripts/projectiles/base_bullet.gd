@@ -180,8 +180,9 @@ func _apply_variant() -> void:
 				pass
 
 	# --- glow color ---
-	# The shader halo (glow_shader_fx) reads variant.glow_color in the
-	# subclass _apply_visuals; nothing to do here. The old scene "Glow"
+	# Nothing to do here. Glow is now the WorldEnvironment bloom on bright sprites
+	# (or a GlowFx aura attached per-bullet in the subclass _apply_visuals);
+	# variant.glow_color is vestigial and no longer read. The old scene "Glow"
 	# child has been removed from all projectile scenes.
 
 	# --- telegraph flash ---

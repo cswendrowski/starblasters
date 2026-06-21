@@ -1,8 +1,8 @@
 [gd_scene format=3 uid="uid://bprivgreen001"]
 
 [ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemies/enemy_core.gd" id="1_core"]
-[ext_resource type="Texture2D" uid="uid://buyp2mhyxeao7" path="res://graphics/enemies/enemy_p_s_green.png" id="2_tex"]
 [ext_resource type="Script" uid="uid://bj8dc3ktx8bt1" path="res://scripts/enemies/patterns/straight_down.gd" id="3_mov"]
+[ext_resource type="Texture2D" uid="uid://chemaqq1r2vkc" path="res://graphics/enemies/enemy_core_falchion.png" id="3_x485k"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="4_die"]
 
 [sub_resource type="Resource" id="MovePattern"]
@@ -17,13 +17,18 @@ script = ExtResource("1_core")
 movement = SubResource("MovePattern")
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=435225622]
-texture = ExtResource("2_tex")
-hframes = 2
+texture = ExtResource("3_x485k")
+hframes = 3
 
 [node name="GlowMask" type="Sprite2D" parent="." unique_id=1763154118]
-texture = ExtResource("2_tex")
-hframes = 2
+texture = ExtResource("3_x485k")
+hframes = 3
 frame = 1
+
+[node name="Livery" type="Sprite2D" parent="." unique_id=2083373110]
+texture = ExtResource("3_x485k")
+hframes = 3
+frame = 2
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1620333606]
 shape = SubResource("Hit")

@@ -180,7 +180,7 @@ static func play_enemy(world_pos: Vector2, dir: Vector2, root: Node) -> void:
 	tw.tween_callback(flash.queue_free)
 
 
-const GlowFxM = preload("res://scripts/effects/glow_shader_fx.gd")
+const GlowFx = preload("res://scripts/effects/glow_fx.gd")
 
 static var _flash_tex_cache: Texture2D = null
 static var _smoke_tex_cache: Texture2D = null
@@ -214,8 +214,8 @@ static func play_player(world_pos: Vector2, host: Node, color: Color, with_smoke
 	fmat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	flash.material = fmat
 	parent.add_child(flash)
-	# Diffuse glow in the same colour (its own sibling node — free it with the flash).
-	var glow: CanvasItem = GlowFxM.apply(flash, color)
+	# Diffuse radial glow in the same colour (its own child node — free it with the flash).
+	var glow: CanvasItem = GlowFx.attach_glow(flash, color, 1.1, 0.7)
 	# Last ~a frame, then gone (no lingering fade).
 	var tw := flash.create_tween()
 	tw.tween_interval(0.045)

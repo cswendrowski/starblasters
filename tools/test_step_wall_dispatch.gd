@@ -45,7 +45,7 @@ func _process(_dt: float) -> bool:
 
 	# Dispatch: build a step_wall phrase of 5 STEP enemies and dispatch it.
 	var spec := WaveSpec.new()
-	spec.enemy_scene = load("res://scenes/enemies/factions/privateer/enemy_dart.tscn")
+	spec.enemy_scene = load("res://scenes/enemies/core/enemy_core_s_dart.tscn")
 	var mv = LanePath.new()
 	mv.shape = LanePath.Shape.STEP
 	spec.movement_override = mv

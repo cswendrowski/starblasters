@@ -8,7 +8,7 @@ extends SceneTree
 const RESULT := "res://tools/_pe_result.txt"
 const PE := preload("res://scripts/levels/pattern_eligibility.gd")
 const PUSH := "res://scenes/enemies/factions/supremacy/enemy_s_m_push.tscn"
-const INTERCEPTOR := "res://scenes/enemies/factions/privateer/enemy_interceptor.tscn"
+const INTERCEPTOR := "res://scenes/enemies/factions/privateer/enemy_p_m_interceptor.tscn"
 
 func _init() -> void:
 	var lines: Array = []

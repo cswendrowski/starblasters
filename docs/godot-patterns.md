@@ -307,7 +307,7 @@ choice — Forward+ stays; the SubViewport just has to match the root it composi
 it. **Cause:** the play area's opaque background (the `gutter`/`band` ColorRects) was added directly to
 the SubViewport at the default `z_index = 0`, **in the same canvas as the gameplay**. But player bullets
 render at `z_index = -1` ("under the ship", `player.gd`) and every muzzle/bullet **glow halo** is
-`z_index = -1` too (`glow_shader_fx.gd`). Within one canvas, `z=-1` draws *behind* `z=0` — so the opaque
+`z_index = -1` too (`glow_fx.gd`'s `attach_glow` defaults `behind = true`). Within one canvas, `z=-1` draws *behind* `z=0` — so the opaque
 band covered every `z=-1` thing: bullets vanished (they're plain visible sprites, in-frame, just
 occluded) and the muzzle flash lost its coloured glow halo, leaving the bare additive sprite. The ship
 (z=0) drew after the band, so it looked fine — which is why "everything else works."

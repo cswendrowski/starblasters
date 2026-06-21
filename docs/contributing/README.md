@@ -127,7 +127,7 @@ When you write or change code, leave **two layers of comments**:
 **Never restate what the code already says** (`# increment the counter` is
 noise). Comment *as you go*, riding along with real work — we don't do giant
 separate comment passes. The hot-spot files (`director.gd`, `wave_generator.gd`,
-`glow_shader_fx.gd`, `missile_cruiser.gd`) already model this style well.
+`glow_fx.gd`, `missile_cruiser.gd`) already model this style well.
 
 ---
 

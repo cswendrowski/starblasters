@@ -262,6 +262,9 @@ func _ready() -> void:
 	# and any decorative cores are other nodes. Opt-out via wants_outline.
 	if wants_outline and has_node("Sprite2D") and $Sprite2D.visible:
 		_OutlineFx.apply($Sprite2D)
+	# Engine glowmask glow (Roman 2026-06-20): push any "GlowMask" overlay HDR-bright with the
+	# firecore's glow settings so the WorldEnvironment bloom lights it. See _setup_glowmask.
+	_setup_glowmask()
 	# Yellow engine trail (Roman 2026-06-07): any enemy that places Engine* markers
 	# (Engine / EngineL / EngineR / EngineL2 ... anywhere in its scene) gets a trailing
 	# exhaust streak per marker via the shared EngineTrailFx — no per-enemy code.
@@ -673,6 +676,17 @@ func _fade_death_overlays() -> void:
 		if nm == "GlowMask" or nm == "Outline" or nm.begins_with("FirecoreCore"):
 			var tw := create_tween()
 			tw.tween_property(child, "modulate:a", 0.0, OVERLAY_FADE)
+
+
+# Engine glowmask (the body's frame-1 glow-parts overlay) → HDR-bright so the WorldEnvironment bloom
+# lights it, using the firecore's glow settings (Roman 2026-06-20). No-op if the scene has no
+# GlowMask. The death tweens above only touch modulate:a, so the HDR rgb survives until the fade.
+const GLOWMASK_HDR := Color(1.9, 1.8, 0.38, 1.0)  # = firecore_core.GLOW_HDR — keep the two in sync
+
+func _setup_glowmask() -> void:
+	var gm := get_node_or_null("GlowMask")
+	if gm is Sprite2D:
+		(gm as Sprite2D).modulate = GLOWMASK_HDR
 
 
 # The container death VFX (explosions, dust, debris) should spawn into: this

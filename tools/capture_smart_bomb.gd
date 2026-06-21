@@ -13,11 +13,11 @@ const DURATION: float = 2.0
 const FRAME_TIME: float = 1.0 / float(FPS)
 
 # Enemy scenes: small, medium, large non-tough, large tough, shielded chaff.
-const SMALL_ENEMY := "res://scenes/enemies/factions/privateer/enemy_dart.tscn"
-const MEDIUM_ENEMY := "res://scenes/enemies/core/enemy_bomb_drone.tscn"
+const SMALL_ENEMY := "res://scenes/enemies/core/enemy_core_s_dart.tscn"
+const MEDIUM_ENEMY := "res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn"  # [RETIRED: enemy_bomb_drone]
 const LARGE_ENEMY := "res://scenes/enemies/core/enemy_cruiser.tscn"
-const TOUGH_ENEMY := "res://scenes/enemies/factions/corporate/enemy_bulwark.tscn"
-const CHAFF_SHIELDED := "res://scenes/enemies/factions/privateer/enemy_dart.tscn"
+const TOUGH_ENEMY := "res://scenes/enemies/factions/corporate/enemy_c_l_bulwark.tscn"
+const CHAFF_SHIELDED := "res://scenes/enemies/core/enemy_core_s_dart.tscn"
 const PLAYER_SCENE := preload("res://scenes/player/player.tscn")
 const BULLET_SCENE := "res://scenes/projectiles/enemy_bullet.tscn"
 

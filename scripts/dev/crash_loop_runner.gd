@@ -20,8 +20,7 @@ const ShipDamageTellsScript = preload("res://scripts/effects/ship_damage_tells.g
 # Ship enemies (enemy_core → has_ship_vfx → the damage tells attach). Batch-spawned in a crowd
 # and wiped at once, because the wave director only trickles 1-2 on screen — no mass death.
 const ENEMY_SCENES := [
-	"res://scenes/enemies/core/enemy_bomb_drone.tscn",
-	"res://scenes/enemies/factions/privateer/enemy_dart.tscn",
+	"res://scenes/enemies/core/enemy_core_s_dart.tscn",
 ]
 
 var _mode_baked: bool = false

@@ -36,7 +36,7 @@ func _init() -> void:
 		await process_frame
 	# Spawn a row of dart enemies above the player so the beam has things
 	# to pierce + damage. Place them in a vertical column at the player's x.
-	var dart_scene: PackedScene = load("res://scenes/enemies/factions/privateer/enemy_dart.tscn")
+	var dart_scene: PackedScene = load("res://scenes/enemies/core/enemy_core_s_dart.tscn")
 	if dart_scene:
 		for i in range(4):
 			var dart = dart_scene.instantiate()

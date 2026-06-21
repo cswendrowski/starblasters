@@ -18,10 +18,21 @@ const SPEED_CAP := 60.0
 
 
 func _ready() -> void:
-	max_health = 32
-	bounty_value = 100
+	# Set BEFORE super._ready() (the boss-stat rule — avoids the `<= 0 ? default` 1-HP bug).
+	# Hull/bounty come from overridable methods so heavier variants (the Crusader) can bump
+	# them without the roster hp_override being clobbered by this _ready running post-spawn.
+	max_health = _default_hull()
+	bounty_value = _default_bounty()
 	display_scale = 1.0
 	super._ready()
+
+
+# Default hull / bounty — overridden by larger subclasses (e.g. enemy_z_l_crusader.gd).
+func _default_hull() -> int:
+	return 32
+
+func _default_bounty() -> int:
+	return 100
 	# Gun turret is now a roster `mounts` turret (EnemyRoster.HELIX_MOUNTS), realized by MountBuilder
 	# in enemy_base._ready — was ZealotTurret.mount_all here (migrated to data 2026-06-16).
 

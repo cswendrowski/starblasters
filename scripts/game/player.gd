@@ -254,7 +254,7 @@ const FOCUS_TRAIL_LEN := 36   # long trail, ample segments (Roman 2026-06-11)
 const FOCUS_SHIP_ALPHA := 0.55                 # ship opacity while focused
 const FOCUS_GLOW_COLOR := Color(0.5, 0.9, 1.0) # cool cyan focus aura
 const PHASE_GLOW_COLOR := Color(0.2, 0.5, 1.0) # bright blue phase-out aura (no dot/trail)
-const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
+const GlowFx = preload("res://scripts/effects/glow_fx.gd")
 var _focus_glow: CanvasItem = null
 var focus_charge: float = 10.0
 var focus_charge_max: float = 10.0
@@ -463,7 +463,8 @@ func _ready() -> void:
 	_install_damage_material()
 	start()
 
-const ENGINE_GLOW_COLOR := Color(0.0, 0.827, 1.0)   # #00d3ff (engine glowmask + trails)
+const ENGINE_GLOW_COLOR := Color(0.0, 0.827, 1.0)   # #00d3ff (engine trails)
+const GLOW_EFFECT_2D := preload("res://graphics/glow_effect_2d.gdshader")  # engine glowmask glow
 const PLAYER_TRAIL_DRIFT := 160.0                    # px/s downward exhaust drift (hovering plume)
 
 # Damage-overlay shader (Roman 2026-06-15): the player now gets the SAME health-driven damage
@@ -515,13 +516,21 @@ func _update_damage_visual() -> void:
 # Wire up the new ship-art layers (Roman 2026-06-09): engine glowmask tint, the two #00d3ff
 # engine trails, and the per-patrol livery recolor.
 func _setup_ship_visuals() -> void:
-	# Engine glowmask — additive #00d3ff so it reads as emissive. Its alpha is driven in
-	# _process (half opacity while moving back).
+	# Engine glowmask — glows via the tuned Player Blaster glow_effect_2d (Roman 2026-06-20):
+	# color-keyed in-sprite emission (white core + #8ce6ff body) blooming through the
+	# WorldEnvironment, replacing the old additive #00d3ff. modulate stays white; its alpha is
+	# eased in _process (half opacity while moving back).
 	if has_node("Ship") and $Ship.has_node("GlowMask"):
 		var gm: Sprite2D = $Ship.get_node("GlowMask")
-		gm.modulate = ENGINE_GLOW_COLOR
-		var gmat := CanvasItemMaterial.new()
-		gmat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		gm.modulate = Color(1, 1, 1, 1)
+		var gmat := ShaderMaterial.new()
+		gmat.shader = GLOW_EFFECT_2D
+		gmat.set_shader_parameter("color1", Color(1, 1, 1, 1))
+		gmat.set_shader_parameter("color2", Color("8ce6ff"))
+		gmat.set_shader_parameter("glow_color", Color("8ce6ff"))
+		gmat.set_shader_parameter("threshold", 0.2)
+		gmat.set_shader_parameter("intensity", 2.5)
+		gmat.set_shader_parameter("opacity", 1.0)
 		gm.material = gmat
 	# 1px black outline on the ship body — same outline_fx shader/look the enemies get. Rebuilt on
 	# bank since the body is a 3-frame strip (the outline is a single padded frame).
@@ -1312,7 +1321,7 @@ func _set_phase_glow(on: bool) -> void:
 	_phase_was_active = on
 	if on:
 		if has_node("Ship") and (_phase_glow == null or not is_instance_valid(_phase_glow)):
-			_phase_glow = GlowShaderFx.apply($Ship, PHASE_GLOW_COLOR)
+			_phase_glow = GlowFx.attach_glow($Ship, PHASE_GLOW_COLOR, 1.6, 0.7)
 	else:
 		if _phase_glow != null and is_instance_valid(_phase_glow):
 			_phase_glow.queue_free()
@@ -1812,10 +1821,13 @@ func _spawn_pulse_beam(origin: Vector2, end_pt: Vector2) -> void:
 	var host: Node = get_parent()
 	if host == null:
 		host = self
-	# Outer glow — a wider #0012ff additive line UNDER the core beam (Roman 2026-06-11).
+	# Outer glow — a wider additive line UNDER the core beam (Roman 2026-06-11). Now carries the
+	# tuned Auto-Laser glow (Roman 2026-06-20): light-blue #a1afff pushed HDR-bright (×~1.75 intensity)
+	# so the WorldEnvironment blooms it like the autolaser bolt. The 1px core below keeps its
+	# white→blue dispersion tell.
 	var glow := Line2D.new()
 	glow.width = 3.0
-	glow.default_color = Color(0.0, 0.07, 1.0, 0.45)   # #0012ff
+	glow.default_color = Color(1.1, 1.2, 1.75, 0.55)   # #a1afff × 1.75 (HDR)
 	glow.add_point(origin)
 	glow.add_point(end_pt)
 	glow.z_index = 0
@@ -2897,10 +2909,10 @@ func _set_focus_hitbox(active: bool) -> void:
 func _focus_visuals_enter() -> void:
 	if not has_node("Ship"):
 		return
-	# Soft cyan bloom behind the ship (GlowShaderFx parents a halo quad as a
-	# sibling at z_index -1). apply() returns a typed CanvasItem.
+	# Soft cyan radial bloom behind the ship (GlowFx.attach_glow childs an additive
+	# halo at z_index -1). Returns a Sprite2D, held as CanvasItem.
 	if _focus_glow == null or not is_instance_valid(_focus_glow):
-		_focus_glow = GlowShaderFx.apply($Ship, FOCUS_GLOW_COLOR)
+		_focus_glow = GlowFx.attach_glow($Ship, FOCUS_GLOW_COLOR, 1.6, 0.7)
 
 
 # Focus-exit: free the glow aura.

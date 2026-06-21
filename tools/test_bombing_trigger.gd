@@ -5,8 +5,8 @@ extends SceneTree
 # sequence launch, TailGun pause, finish/resume) is checked deterministically. The sequence mechanics
 # themselves are covered by tools/test_bombing_run.gd. Run: godot --headless -s tools/test_bombing_trigger.gd
 
-const BOMBER := preload("res://scenes/enemies/core/enemy_bomber.tscn")
-const WING := preload("res://scenes/enemies/factions/privateer/enemy_interceptor.tscn")
+const BOMBER := preload("res://scenes/enemies/core/enemy_core_bomber.tscn")
+const WING := preload("res://scenes/enemies/factions/privateer/enemy_p_m_interceptor.tscn")
 
 
 class PlayerStub extends Node2D:

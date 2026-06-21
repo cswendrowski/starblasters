@@ -1,6 +1,7 @@
 // Glow Effect 2D — color-keyed in-sprite emission (godotshaders.com/shader/glow-effect-2d/,
-// "evaluate next to our current glow", Roman 2026-06-11). Unlike glow_halo.gdshader (a soft
-// halo drawn BEHIND the sprite), this one boosts pixels of the sprite that MATCH color1/color2
+// "evaluate next to our current glow", Roman 2026-06-11). Unlike a radial halo drawn BEHIND
+// the sprite (glow_fx.gd; the old glow_halo.gdshader was retired 2026-06-20), this one boosts
+// pixels of the sprite that MATCH color1/color2
 // up to glow_color × intensity, so the WorldEnvironment bloom lights just those pixels. Pair
 // with an env that has glow enabled.
 shader_type canvas_item;

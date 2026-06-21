@@ -10,8 +10,8 @@ extends Node
 #      A neighbour-sampling outline shader on the live Sprite2D would read across
 #      the frame boundary and outline the glow frame too.
 #   Both problems vanish if the outline lives on its OWN node carrying a CROPPED,
-#   PADDED single-frame copy of the hull — same trick GlowShaderFx uses. The node
-#   sits 1px behind the hull (drawn first), so the hull covers the silhouette and
+#   PADDED single-frame copy of the hull — a separate behind-the-sprite silhouette
+#   node. It sits 1px behind the hull (drawn first), so the hull covers the silhouette and
 #   only the black ring in the 1px transparent pad shows.
 #
 #   apply(hull_sprite) -> the "Outline" node (or null). Toggle visibility to drop

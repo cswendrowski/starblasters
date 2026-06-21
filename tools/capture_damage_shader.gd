@@ -10,10 +10,10 @@ const DURATION: float = 4.0    # one full sweep 0 → 1 (capture half-cycle)
 const FRAME_TIME: float = 1.0 / float(FPS)
 
 const ENEMIES := [
-	"res://scenes/enemies/factions/privateer/enemy_dart.tscn",
+	"res://scenes/enemies/core/enemy_core_s_dart.tscn",
 	"res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn",
 	"res://scenes/enemies/factions/supremacy/enemy_frigate.tscn",
-	"res://scenes/enemies/factions/corporate/enemy_bulwark.tscn",
+	"res://scenes/enemies/factions/corporate/enemy_c_l_bulwark.tscn",
 ]
 const SHADER := preload("res://graphics/damage_noise.gdshader")
 

@@ -7,7 +7,7 @@ extends Node2D
 # Base-agnostic: any mine adds one in its _ready via `add_child(MineBlinker.new())` — works for
 # enemy_core mines (basic/armored/shielded/smart) and enemy_base ones (cluster/mega/tether) alike.
 
-const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
+const GlowFx = preload("res://scripts/effects/glow_fx.gd")
 
 const DOT_COLOR := Color(1.0, 0.12, 0.12)
 # Steady in-out breathing pulse (Roman 2026-06-11: no longer ramps up as the mine nears
@@ -34,7 +34,7 @@ func _ready() -> void:
 	_dot.modulate = DOT_COLOR
 	add_child(_dot)
 	# Diffuse red glow behind the dot (forced colour so it reads off the 2px source).
-	_glow = GlowShaderFx.apply(_dot, DOT_COLOR)
+	_glow = GlowFx.attach_glow(_dot, DOT_COLOR, 0.5, 0.7)
 
 
 func _process(delta: float) -> void:

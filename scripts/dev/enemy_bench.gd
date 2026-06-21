@@ -976,8 +976,15 @@ func _mount_spec_dicts() -> Array:
 			sd["payload"] = PAYLOADS[pname]
 		elif PROJECTILES.has(pname):
 			sd["payload_scene"] = PROJECTILES[pname]
-		if k == "gun":
-			sd["marker_mode"] = "cycle"   # rolling muzzles, like the bespoke gunship
+		if k == "gun" or k == "launcher":
+			# Firing pattern: marker_mode (all/cycle), burst_interval, bullet_speed
+			sd["marker_mode"] = String(d.get("marker_mode", "cycle"))
+			var burst: float = float(d.get("burst_interval", 0.0))
+			if burst > 0.0:
+				sd["burst_interval"] = burst
+			var bspeed: float = float(d.get("bullet_speed", -1.0))
+			if bspeed >= 0.0:
+				sd["bullet_speed"] = bspeed
 		elif k == "turret":
 			# Give the turret a graphic so it's visible — faction dome/tank strip, else a generic
 			# 1-frame turret. (The roster→bench conversion drops the texture, so we re-derive it here.)
@@ -990,7 +997,7 @@ func _mount_spec_dicts() -> Array:
 
 
 func _add_mount() -> void:
-	_mount_dicts.append({"kind": "gun", "marker": "", "payload": "Basic", "aim": "straight_down", "fire": 1.5, "count": 1, "spread": 0.0})
+	_mount_dicts.append({"kind": "gun", "marker": "", "payload": "Basic", "aim": "straight_down", "fire": 1.5, "count": 1, "spread": 0.0, "marker_mode": "cycle", "burst_interval": 0.0, "bullet_speed": -1.0})
 	_rebuild_mounts_ui()
 	_spawn_current()
 
@@ -1069,6 +1076,28 @@ func _make_mount_row(idx: int) -> Control:
 	cnt.value_changed.connect(func(v): _set_mount(d, "count", int(v)))
 	h3.add_child(cnt)
 	row.add_child(h3)
+
+	# Firing pattern controls for gun/launcher mounts only.
+	var k: String = String(d.get("kind", "gun"))
+	if k == "gun" or k == "launcher":
+		var h4 := HBoxContainer.new()
+		var sync_labels: Array = ["All", "Cycle"]
+		var sync_keys: Array = ["all", "cycle"]
+		var cur_mode: String = String(d.get("marker_mode", "cycle"))
+		var sync_dd := _row_dd(sync_labels, maxi(0, sync_keys.find(cur_mode)))
+		sync_dd.item_selected.connect(func(i): _set_mount(d, "marker_mode", String(sync_keys[i])))
+		h4.add_child(sync_dd)
+		h4.add_child(_row_lbl("sync"))
+		var burst := _row_spin(0.0, 0.5, 0.01, float(d.get("burst_interval", 0.0)))
+		burst.value_changed.connect(func(v): _set_mount(d, "burst_interval", float(v)))
+		h4.add_child(burst)
+		h4.add_child(_row_lbl("burst"))
+		var spd := _row_spin(-1.0, 600.0, 10.0, float(d.get("bullet_speed", -1.0)))
+		spd.value_changed.connect(func(v): _set_mount(d, "bullet_speed", float(v)))
+		h4.add_child(spd)
+		h4.add_child(_row_lbl("speed"))
+		row.add_child(h4)
+
 	return row
 
 
@@ -1301,6 +1330,9 @@ func _roster_mount_to_bench(d: Dictionary) -> Dictionary:
 		"count": int(d.get("count", 1)),
 		"spread": float(d.get("spread_deg", 0.0)),
 		"payload": _payload_name_of(d),
+		"marker_mode": String(d.get("marker_mode", "cycle")),
+		"burst_interval": float(d.get("burst_interval", 0.0)),
+		"bullet_speed": float(d.get("bullet_speed", -1.0)),
 	}
 
 
@@ -1329,10 +1361,24 @@ func _mount_copy_line(d: Dictionary) -> String:
 		pay = "\"payload\": BV_%s" % pname.replace(" ", "")
 	elif PROJECTILES.has(pname):
 		pay = "\"payload_scene\": \"%s\"" % PROJECTILES[pname]
-	return "{ \"kind\": \"%s\", \"marker\": \"%s\", %s, \"aim\": \"%s\", \"fire_min\": %.2f, \"fire_max\": %.2f, \"count\": %d, \"spread_deg\": %.1f }," % [
+	var line: String = "{ \"kind\": \"%s\", \"marker\": \"%s\", %s, \"aim\": \"%s\", \"fire_min\": %.2f, \"fire_max\": %.2f, \"count\": %d, \"spread_deg\": %.1f" % [
 		String(d.get("kind", "gun")), String(d.get("marker", "")), pay, String(d.get("aim", "straight_down")),
 		float(d.get("fire", 1.5)), float(d.get("fire", 1.5)), int(d.get("count", 1)), float(d.get("spread", 0.0)),
 	]
+	# Firing pattern fields for gun/launcher (emit only when non-default).
+	var k: String = String(d.get("kind", "gun"))
+	if k == "gun" or k == "launcher":
+		var mode: String = String(d.get("marker_mode", "cycle"))
+		if mode != "all":
+			line += ", \"marker_mode\": \"%s\"" % mode
+		var burst: float = float(d.get("burst_interval", 0.0))
+		if burst > 0.0:
+			line += ", \"burst_interval\": %.2f" % burst
+		var bspeed: float = float(d.get("bullet_speed", -1.0))
+		if bspeed >= 0.0:
+			line += ", \"bullet_speed\": %.0f" % bspeed
+	line += " },"
+	return line
 
 
 # --- compact row widget factories ---

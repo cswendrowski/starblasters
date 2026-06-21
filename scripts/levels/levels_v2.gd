@@ -11,8 +11,8 @@ const Loiter = preload("res://scripts/enemies/patterns/loiter.gd")
 # SingleShot/SpreadShot/AimedShot/BurstShot classes).
 const Weapon = preload("res://scripts/enemies/shoot_patterns/weapon.gd")
 const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
-const CrystalScene = preload("res://scenes/enemies/core/enemy_crystal.tscn")
-const DartScene = preload("res://scenes/enemies/factions/privateer/enemy_dart.tscn")
+const CrystalScene = preload("res://scenes/enemies/factions/privateer/enemy_p_m_widow.tscn")
+const DartScene = preload("res://scenes/enemies/core/enemy_core_s_dart.tscn")
 const BossScene = preload("res://scenes/enemies/bosses/boss.tscn")
 const BossSweep = preload("res://scripts/enemies/patterns/boss_sweep.gd")
 const MineScene = preload("res://scenes/enemies/enemy_mine.tscn")
@@ -24,11 +24,11 @@ const MineArmoredScene = preload("res://scenes/enemies/enemy_mine_armored.tscn")
 const MineTetherScene = preload("res://scenes/enemies/enemy_mine_tether.tscn")  # non-boss tether, 4 HP
 const AsteroidScene = preload("res://scenes/enemies/enemy_asteroid.tscn")
 const FrigateScene = preload("res://scenes/enemies/factions/supremacy/enemy_frigate.tscn")
-const SkirmisherScene = preload("res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn")
-const MinelayerScene = preload("res://scenes/enemies/factions/privateer/enemy_minelayer.tscn")
-const InterceptorScene = preload("res://scenes/enemies/factions/privateer/enemy_interceptor.tscn")
-const HunterDroneScene = preload("res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn")
-const BulwarkScene = preload("res://scenes/enemies/factions/corporate/enemy_bulwark.tscn")
+const SkirmisherScene = preload("res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn")  # [RETIRED: enemy_skirmisher] corp gunner substitute
+const MinelayerScene = preload("res://scenes/enemies/core/enemy_core_m_minelayer.tscn")
+const InterceptorScene = preload("res://scenes/enemies/factions/privateer/enemy_p_m_interceptor.tscn")
+const HunterDroneScene = preload("res://scenes/enemies/core/enemy_core_s_flechette.tscn")  # [RETIRED: enemy_hunter_drone] small core unit substitute
+const BulwarkScene = preload("res://scenes/enemies/factions/corporate/enemy_c_l_bulwark.tscn")
 const FirecoreDroneScene = preload("res://scenes/enemies/factions/zealot/enemy_z_s_bloom.tscn")
 # Beam enemies (M6a.2 beam showcase).
 const BeamerScene = preload("res://scenes/enemies/factions/zealot/enemy_beam_shooter.tscn")

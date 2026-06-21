@@ -1,0 +1,97 @@
+[gd_scene format=3 uid="uid://cag58ctysupvw"]
+
+[ext_resource type="Script" path="res://scripts/enemies/factions/zealot/enemy_z_l_crusader.gd" id="1_nbh84"]
+[ext_resource type="Script" uid="uid://bj8dc3ktx8bt1" path="res://scripts/enemies/patterns/straight_down.gd" id="2_tyegh"]
+[ext_resource type="PackedScene" uid="uid://dxfppn7uceaea" path="res://scenes/enemies/factions/zealot/firecore_hazard.tscn" id="3_3uxyx"]
+[ext_resource type="Script" uid="uid://5imwobncfuhu" path="res://scripts/enemies/components/emitter_component.gd" id="4_k1irt"]
+[ext_resource type="PackedScene" uid="uid://uoof4kuon0td" path="res://scenes/enemies/factions/zealot/firecore_core.tscn" id="5_qgy1i"]
+[ext_resource type="Texture2D" uid="uid://dfqjpbj34u4n3" path="res://graphics/enemies/enemy_z_l_crusader.png" id="6_nbh84"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="7_dg178"]
+
+[sub_resource type="Resource" id="MovePattern"]
+script = ExtResource("2_tyegh")
+speed = 60.0
+
+[sub_resource type="Resource" id="DropFirecore"]
+script = ExtResource("4_k1irt")
+payload = ExtResource("3_3uxyx")
+count = 4
+spread = 8.0
+tag = "firecore"
+
+[sub_resource type="RectangleShape2D" id="Hit"]
+size = Vector2(44, 60)
+
+[node name="EnemyCrusader" type="Area2D" unique_id=1597328774 groups=["enemies"]]
+script = ExtResource("1_nbh84")
+movement = SubResource("MovePattern")
+components = [SubResource("DropFirecore")]
+explosion_variant = "small_then_default"
+
+[node name="FirecoreR" parent="." unique_id=1848099877 instance=ExtResource("5_qgy1i")]
+position = Vector2(15, -12)
+
+[node name="FirecoreR2" parent="." unique_id=520045624 instance=ExtResource("5_qgy1i")]
+position = Vector2(15, 20)
+
+[node name="FirecoreR3" parent="." unique_id=508814075 instance=ExtResource("5_qgy1i")]
+position = Vector2(15, 4)
+
+[node name="FirecoreL" parent="." unique_id=2143333384 instance=ExtResource("5_qgy1i")]
+position = Vector2(-15, -12)
+
+[node name="FirecoreL2" parent="." unique_id=156453870 instance=ExtResource("5_qgy1i")]
+position = Vector2(-15, 20)
+
+[node name="FirecoreL3" parent="." unique_id=1673180160 instance=ExtResource("5_qgy1i")]
+position = Vector2(-15, 4)
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1742375993]
+texture = ExtResource("6_nbh84")
+hframes = 2
+
+[node name="GlowMask" type="Sprite2D" parent="." unique_id=1664876094]
+texture = ExtResource("6_nbh84")
+hframes = 2
+frame = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=539471388]
+visible = false
+position = Vector2(0, -2)
+shape = SubResource("Hit")
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=329974719]
+stream = ExtResource("7_dg178")
+
+[node name="TurretL1" type="Marker2D" parent="." unique_id=591032924]
+position = Vector2(-15, -4)
+
+[node name="TurretR1" type="Marker2D" parent="." unique_id=736338261]
+position = Vector2(15, -4)
+
+[node name="TurretL2" type="Marker2D" parent="." unique_id=853236108]
+position = Vector2(-15, 12)
+
+[node name="TurretR2" type="Marker2D" parent="." unique_id=10551670]
+position = Vector2(15, 12)
+
+[node name="EngineCenterWide" type="Marker2D" parent="." unique_id=1354738519]
+position = Vector2(0, 12)
+
+[node name="MuzzleL" type="Marker2D" parent="." unique_id=1453786218]
+position = Vector2(-3, -22)
+
+[node name="MuzzleR" type="Marker2D" parent="." unique_id=1365830715]
+position = Vector2(3, -22)
+
+[node name="EngineCenterL" type="Marker2D" parent="." unique_id=153383493]
+position = Vector2(-5, 11)
+
+[node name="EngineCenterR" type="Marker2D" parent="." unique_id=681857706]
+position = Vector2(5, 11)
+
+[node name="EngineR" type="Marker2D" parent="." unique_id=498280649]
+position = Vector2(15, 27)
+
+[node name="EngineL" type="Marker2D" parent="." unique_id=2145414863]
+position = Vector2(-15, 27)

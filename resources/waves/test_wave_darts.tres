@@ -1,7 +1,7 @@
 [gd_resource type="Resource" format=3 uid="uid://vhgbg45gatb3"]
 
 [ext_resource type="Script" uid="uid://daxblyqbp7m0c" path="res://scripts/levels/wave_def.gd" id="1_wd"]
-[ext_resource type="PackedScene" uid="uid://cdartship001" path="res://scenes/enemies/factions/privateer/enemy_dart.tscn" id="2_enemy"]
+[ext_resource type="PackedScene" uid="uid://cdartship001" path="res://scenes/enemies/core/enemy_core_s_dart.tscn" id="2_enemy"]
 [ext_resource type="Resource" path="res://resources/patterns/movement/straight_down.tres" id="3_mv"]
 [ext_resource type="Resource" uid="uid://br63l373x26od" path="res://resources/patterns/shoot/single_shot.tres" id="4_sh"]
 

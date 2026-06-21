@@ -26,6 +26,9 @@ const EmitterComponent = preload("res://scripts/enemies/components/emitter_compo
 # Zealot's firecore lane-hazard drop payload (the zealot DropFirecore Emitter spawns it
 # on death). The ResourceLoader.exists guard in build_components stays as a safety net.
 const FIRECORE_HAZARD_PATH := "res://scenes/enemies/factions/zealot/firecore_hazard.tscn"
+# Shared livery recolor shader (same one the player hull uses) — applied at spawn to any enemy
+# carrying a "Livery" sprite layer, tinted by the active level faction (apply_livery below).
+const LIVERY_SHADER = preload("res://scenes/player/livery_color.gdshader")
 
 enum Id { SUPREMACY, PRIVATEER, CORPORATE, ZEALOT }
 
@@ -35,7 +38,8 @@ enum Id { SUPREMACY, PRIVATEER, CORPORATE, ZEALOT }
 # appear only in their home faction. Pool restriction: an enemy is allowed in faction F
 # if universal OR home == F. (END-STATE: drop universals, each faction owns its set.)
 const ENEMY_TAGS := {
-	"res://scenes/enemies/factions/privateer/enemy_dart.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.CORPORATE, Id.PRIVATEER]},
+	"res://scenes/enemies/core/enemy_core_s_dart.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.CORPORATE, Id.PRIVATEER]},
+	"res://scenes/enemies/core/enemy_core_s_flechette.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.CORPORATE, Id.PRIVATEER]},  # NEW core flechette (off the dart)
 	"res://scenes/enemies/factions/zealot/enemy_z_s_manta.tscn": {"home": Id.ZEALOT, "universal": false},
 	# Roman art rework 2026-06-16: retro→acolyte, run→drifter (renamed in place, same UID).
 	"res://scenes/enemies/factions/zealot/enemy_z_s_acolyte.tscn": {"home": Id.ZEALOT, "universal": false},
@@ -53,34 +57,35 @@ const ENEMY_TAGS := {
 	# enemy_bomb_drone PULLED 2026-06-14 (Roman — rework pending); roster entry also removed.
 	"res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn": {"home": Id.CORPORATE, "universal": false},
 	"res://scenes/enemies/factions/corporate/enemy_c_s_curve.tscn": {"home": Id.CORPORATE, "universal": false},
-	"res://scenes/enemies/core/enemy_crystal.tscn": {"home": Id.CORPORATE, "universal": false},  # A-110 Widow → corpo-exclusive (2026-06-20)
-	"res://scenes/enemies/core/enemy_bomber.tscn": {"home": Id.CORPORATE, "universal": false},  # B-220 Incisor → corpo-exclusive (2026-06-20)
+	"res://scenes/enemies/factions/privateer/enemy_p_m_widow.tscn": {"home": Id.CORPORATE, "universal": false},  # A-110 Widow → corporate (Roman 2026-06-20). NOTE: scene still named/filed under privateer/ (p_m_) — rename to factions/corporate/enemy_c_m_widow when convenient.
+	"res://scenes/enemies/core/enemy_core_bomber.tscn": {"home": Id.CORPORATE, "universal": true},  # B-220 → core/universal, corpo-themed overlay. FLAG: reach unconfirmed
 	"res://scenes/enemies/core/enemy_cruiser.tscn": {"home": Id.SUPREMACY, "universal": true},
-	"res://scenes/enemies/factions/privateer/enemy_minelayer.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.SUPREMACY, Id.PRIVATEER, Id.CORPORATE]},  # core minelayer (Zealot gets its own later)
-	"res://scenes/enemies/factions/privateer/enemy_p_s_green.tscn": {"home": Id.PRIVATEER, "universal": false},
-	"res://scenes/enemies/factions/privateer/enemy_p_s_gray.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.CORPORATE, Id.PRIVATEER]},  # CF-9D Cobra core (corpo twin enemy_c_s_gray cut)
-	"res://scenes/enemies/factions/privateer/enemy_p_s_drop.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.CORPORATE, Id.PRIVATEER]},  # Caltrop core (corpo twin enemy_c_s_drop cut)
+	"res://scenes/enemies/core/enemy_core_m_minelayer.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.SUPREMACY, Id.PRIVATEER, Id.CORPORATE]},  # core minelayer (Zealot gets its own later)
+	"res://scenes/enemies/factions/privateer/enemy_core_s_falchion.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.PRIVATEER]},  # core Falchion (was Hornet/p_s_green), privateer-only for now
+	"res://scenes/enemies/core/enemy_core_s_cobra.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.CORPORATE, Id.PRIVATEER]},  # CF-9D Cobra core (corpo twin enemy_c_s_gray cut)
+	"res://scenes/enemies/core/enemy_core_s_caltrop.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.CORPORATE, Id.PRIVATEER]},  # Caltrop core (corpo twin enemy_c_s_drop cut)
 	"res://scenes/enemies/factions/privateer/enemy_p_m_cannon.tscn": {"home": Id.PRIVATEER, "universal": false},
 	"res://scenes/enemies/factions/privateer/enemy_p_m_pulse.tscn": {"home": Id.PRIVATEER, "universal": false},
-	"res://scenes/enemies/factions/privateer/enemy_p_s_jet.tscn": {"home": Id.PRIVATEER, "universal": false},
+	"res://scenes/enemies/core/enemy_core_s_jet.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.CORPORATE, Id.PRIVATEER]},  # core Jet
 	"res://scenes/enemies/factions/privateer/enemy_p_m_wing.tscn": {"home": Id.PRIVATEER, "universal": false},
-	"res://scenes/enemies/factions/corporate/enemy_sapper.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/factions/corporate/enemy_c_s_sapper.tscn": {"home": Id.CORPORATE, "universal": false},
 	"res://scenes/enemies/factions/supremacy/enemy_s_s_hotrod.tscn": {"home": Id.SUPREMACY, "universal": false},
 	"res://scenes/enemies/factions/supremacy/enemy_s_s_rush.tscn": {"home": Id.SUPREMACY, "universal": false},
 	"res://scenes/enemies/factions/supremacy/enemy_s_m_plasma.tscn": {"home": Id.SUPREMACY, "universal": false},
-	"res://scenes/enemies/factions/privateer/enemy_interceptor.tscn": {"home": Id.PRIVATEER, "universal": false},
-	"res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn": {"home": Id.CORPORATE, "universal": false},
-	"res://scenes/enemies/factions/corporate/enemy_bulwark.tscn": {"home": Id.CORPORATE, "universal": false},
-	"res://scenes/enemies/factions/privateer/enemy_gunship.tscn": {"home": Id.PRIVATEER, "universal": false},
-	"res://scenes/enemies/factions/privateer/enemy_rocket.tscn": {"home": Id.PRIVATEER, "universal": false},
-	"res://scenes/enemies/factions/corporate/enemy_drone_carrier.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/factions/privateer/enemy_p_m_interceptor.tscn": {"home": Id.PRIVATEER, "universal": false},
+	"res://scenes/enemies/factions/corporate/enemy_c_l_bulwark.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/factions/privateer/enemy_p_m_gunship.tscn": {"home": Id.PRIVATEER, "universal": false},
+	"res://scenes/enemies/factions/privateer/enemy_p_m_rocket.tscn": {"home": Id.PRIVATEER, "universal": false},
+	"res://scenes/enemies/factions/corporate/enemy_c_l_hive.tscn": {"home": Id.CORPORATE, "universal": false},
 	# Roman art rework 2026-06-16: firecore_drone→bloom, firecore_cruiser→helix (renamed, same UID).
 	"res://scenes/enemies/factions/zealot/enemy_z_s_bloom.tscn": {"home": Id.ZEALOT, "universal": false},
 	"res://scenes/enemies/factions/zealot/enemy_z_m_helix.tscn": {"home": Id.ZEALOT, "universal": false},
+	"res://scenes/enemies/factions/zealot/enemy_z_l_crusader.tscn": {"home": Id.ZEALOT, "universal": false},  # NEW large zealot capital
 	"res://scenes/enemies/factions/zealot/enemy_beam_shooter.tscn": {"home": Id.ZEALOT, "universal": false},
 	"res://scenes/enemies/factions/zealot/enemy_beamer_tracker.tscn": {"home": Id.ZEALOT, "universal": false},
 	"res://scenes/enemies/factions/zealot/enemy_burner.tscn": {"home": Id.ZEALOT, "universal": false},
 	"res://scenes/enemies/factions/supremacy/enemy_s_m_push.tscn": {"home": Id.SUPREMACY, "universal": false},
+	"res://scenes/enemies/factions/supremacy/enemy_frigate.tscn": {"home": Id.SUPREMACY, "universal": false},
 }
 
 
@@ -253,6 +258,29 @@ static func apply(id: int, enemy) -> void:
 				continue   # skip the shield component for exempt enemies
 			to_add.append(c)
 		enemy.components = existing + to_add
+
+
+# Recolor an enemy's Livery layer to the active level faction. Runtime auto-detect: ANY enemy
+# carrying a "Livery" sprite (frame-2 of its 3-frame strip, mirroring the player hull) gets the
+# faction's tint via the shared livery_color shader — no per-scene shader setup. The producer
+# (director._spawn_enemy) calls this for EVERY spawn, BEFORE add_child, with the resolved level
+# faction (or -1). Unlike apply(), livery is NOT home-gated: a foreign unit appearing in a
+# faction's level wears that level's colors (Roman 2026-06-20). faction < 0 (no faction / boss /
+# hazard) hides the Livery layer so it doesn't render an untinted overlay.
+static func apply_livery(faction: int, enemy) -> void:
+	if enemy == null:
+		return
+	var lv = enemy.get_node_or_null("Livery")
+	if lv == null:
+		return
+	if faction < 0:
+		lv.visible = false
+		return
+	var mat := ShaderMaterial.new()
+	mat.shader = LIVERY_SHADER
+	mat.set_shader_parameter("tint_color", data(faction).get("tint", Color(0.5, 0.5, 0.5)))
+	lv.material = mat
+	lv.visible = true
 
 
 # True if `c` is an Emitter that drops a firecore hazard on death — used to avoid

@@ -45,8 +45,6 @@ const WAVE_INTERMINGLE_PROBS := [0.0, 0.30, 0.55, 0.75, 0.85]
 # rolled pair is on this table, accept it immediately. Otherwise re-roll
 # the second pick once with 50% chance. Scene-path keyed.
 const WAVE_AFFINITY := {
-	"res://scenes/enemies/factions/privateer/enemy_minelayer.tscn": ["res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn"],
-	"res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn": ["res://scenes/enemies/factions/privateer/enemy_minelayer.tscn"],
 	# Cut-unit pairs (cutter/drifter/hover/spitter/weaver) removed 2026-06-20 — those ships were
 	# retired; only survivors remain on the affinity table.
 }

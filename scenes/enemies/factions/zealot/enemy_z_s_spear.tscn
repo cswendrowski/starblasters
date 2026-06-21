@@ -6,10 +6,15 @@
 [ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://assets/audio/SFX_shot7.wav" id="4_br0vj"]
 [ext_resource type="Texture2D" uid="uid://thddvj0q0ygk" path="res://graphics/enemies/enemy_z_m_spear_charge.png" id="4_fo2ip"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="5_o0a6i"]
+[ext_resource type="Script" path="res://scripts/enemies/components/beam_charge_visual.gd" id="6_charge"]
 
 [sub_resource type="Resource" id="MovePattern"]
 script = ExtResource("2_hfen3")
 speed = 150.0
+
+[sub_resource type="Resource" id="ChargeVisual"]
+script = ExtResource("6_charge")
+layer = "ChargeMask"
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_004cm"]
 size = Vector2(32, 32)
@@ -17,6 +22,7 @@ size = Vector2(32, 32)
 [node name="Enemy" type="Area2D" unique_id=354957993 groups=["enemies"]]
 script = ExtResource("1_d2wt5")
 movement = SubResource("MovePattern")
+components = [SubResource("ChargeVisual")]
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=869068400]
 texture = ExtResource("3_1b7fy")

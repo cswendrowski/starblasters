@@ -459,7 +459,7 @@ func _make_bounty_board_event() -> Dictionary:
 		var entry: Dictionary = entries[_rng.randi() % entries.size()]
 		enemy_path = String(entry.get("scene", ""))
 		# Derive display name from scene path stem: strip prefix + suffix,
-		# capitalize. e.g. "res://scenes/enemies/factions/privateer/enemy_dart.tscn" -> "Dart"
+		# capitalize. e.g. "res://scenes/enemies/core/enemy_core_s_dart.tscn" -> "Dart"
 		var stem: String = enemy_path.get_file().replace(".tscn", "").replace("enemy_", "")
 		enemy_name = stem.capitalize()
 	return {

@@ -8,7 +8,7 @@ const RESULT := "res://tools/_faction_gate_result.txt"
 const Factions := preload("res://scripts/levels/factions.gd")
 const CORPO := 2   # Factions.Id.CORPORATE
 const CORPO_UNIT := "res://scenes/enemies/factions/corporate/enemy_c_s_curve.tscn"
-const PRIV_UNIT := "res://scenes/enemies/factions/privateer/enemy_dart.tscn"
+const PRIV_UNIT := "res://scenes/enemies/core/enemy_core_s_dart.tscn"
 
 var _done := false
 

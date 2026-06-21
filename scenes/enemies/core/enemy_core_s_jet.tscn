@@ -1,13 +1,12 @@
-[gd_scene format=3 uid="uid://bjjmnakwycrc7"]
+[gd_scene format=3 uid="uid://talx28aiao4"]
 
-[ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemies/enemy_core.gd" id="1_core"]
-[ext_resource type="Texture2D" uid="uid://jp6y7qcxix5o" path="res://graphics/enemies/enemy_c_s_hold.png" id="4_anl2r"]
-[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://assets/audio/SFX_shot7.wav" id="4_shoot"]
-[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="5_die"]
-[ext_resource type="Resource" path="res://resources/patterns/shoot/aimed_wild.tres" id="11_shoot"]
+[ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemies/enemy_core.gd" id="1_ev1t7"]
+[ext_resource type="Texture2D" uid="uid://bb6llpj3xb60e" path="res://graphics/enemies/enemy_core_s_jet.png" id="2_503lp"]
+[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://assets/audio/SFX_shot7.wav" id="4_wy22s"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="5_q0cbu"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hit"]
-size = Vector2(14, 16.375)
+size = Vector2(14, 16)
 
 [sub_resource type="Gradient" id="Gradient_7yss3"]
 offsets = PackedFloat32Array(0, 0.347107, 0.669421, 1)
@@ -112,33 +111,33 @@ scale_max = 1.25
 scale_curve = SubResource("CurveTexture_nnpah")
 color_ramp = SubResource("GradientTexture1D_4lmie")
 
-[node name="Enemy" type="Area2D" unique_id=1245704888 groups=["enemies"]]
-script = ExtResource("1_core")shoot_pattern = ExtResource("11_shoot")
-fire_interval_min = 999.0
-fire_interval_max = 999.0
-fire_on_phase = "hold"
-max_health = 2
-bounty_value = 15
+[node name="Enemy" type="Area2D" unique_id=886416096 groups=["enemies"]]
+script = ExtResource("1_ev1t7")
 
-[node name="Sprite2D" type="Sprite2D" parent="." unique_id=55705691]
-texture = ExtResource("4_anl2r")
-hframes = 2
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1699718429]
+texture = ExtResource("2_503lp")
+hframes = 3
 
-[node name="GlowMask" type="Sprite2D" parent="." unique_id=576877337]
-texture = ExtResource("4_anl2r")
-hframes = 2
+[node name="GlowMask" type="Sprite2D" parent="." unique_id=1240667112]
+texture = ExtResource("2_503lp")
+hframes = 3
 frame = 1
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1093652668]
+[node name="Livery" type="Sprite2D" parent="." unique_id=1258248859]
+texture = ExtResource("2_503lp")
+hframes = 3
+frame = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=900412659]
 shape = SubResource("RectangleShape2D_hit")
 
-[node name="MoveTimer" type="Timer" parent="." unique_id=2002029771]
+[node name="MoveTimer" type="Timer" parent="." unique_id=1073718068]
 one_shot = true
 
-[node name="ShootTimer" type="Timer" parent="." unique_id=1678022467]
+[node name="ShootTimer" type="Timer" parent="." unique_id=1423625087]
 one_shot = true
 
-[node name="ParticleExplode" type="GPUParticles2D" parent="." unique_id=785797721]
+[node name="ParticleExplode" type="GPUParticles2D" parent="." unique_id=2133553033]
 emitting = false
 amount = 128
 lifetime = 0.6
@@ -147,7 +146,7 @@ explosiveness = 1.0
 randomness = 1.0
 process_material = SubResource("ParticleProcessMaterial_kn0e5")
 
-[node name="ParticleHullBits" type="GPUParticles2D" parent="." unique_id=1854935752]
+[node name="ParticleHullBits" type="GPUParticles2D" parent="." unique_id=1791062101]
 emitting = false
 amount = 64
 lifetime = 0.6
@@ -156,7 +155,7 @@ explosiveness = 1.0
 randomness = 1.0
 process_material = SubResource("ParticleProcessMaterial_h8535")
 
-[node name="ParticleHit" type="GPUParticles2D" parent="." unique_id=1270871540]
+[node name="ParticleHit" type="GPUParticles2D" parent="." unique_id=1706380188]
 emitting = false
 amount = 128
 lifetime = 0.5
@@ -165,20 +164,26 @@ explosiveness = 1.0
 randomness = 1.0
 process_material = SubResource("ParticleProcessMaterial_unky2")
 
-[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="." unique_id=1351802988]
-stream = ExtResource("4_shoot")
+[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="." unique_id=1398450474]
+stream = ExtResource("4_wy22s")
 
-[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1277140834]
-stream = ExtResource("5_die")
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=927073083]
+stream = ExtResource("5_q0cbu")
 
-[node name="Engine" type="Marker2D" parent="." unique_id=470685273]
-position = Vector2(0, 6)
+[node name="Engine" type="Marker2D" parent="." unique_id=1068525672]
+position = Vector2(0, 5)
 
-[node name="MuzzleL" type="Marker2D" parent="." unique_id=1424781693]
-position = Vector2(-6, -1)
+[node name="MuzzleL" type="Marker2D" parent="." unique_id=531864418]
+position = Vector2(-3, -3)
 
-[node name="MuzzleR" type="Marker2D" parent="." unique_id=2055554355]
-position = Vector2(6, -1)
+[node name="MuzzleR" type="Marker2D" parent="." unique_id=1887884507]
+position = Vector2(3, -3)
+
+[node name="LauncherL" type="Marker2D" parent="." unique_id=475878170]
+position = Vector2(-5, 2)
+
+[node name="LauncherR" type="Marker2D" parent="." unique_id=1256724555]
+position = Vector2(5, 2)
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
 [connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

@@ -21,7 +21,7 @@ extends Node
 # identical to the original.
 
 const DEPTH_TINT_SHADER: Shader = preload("res://scripts/effects/depth_tint.gdshader")
-const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
+const GlowFx = preload("res://scripts/effects/glow_fx.gd")
 
 # Default look (mirrors missile_cruiser.gd's prior hardcoded constants).
 const DEFAULT_BG_TINT := Color(0.42, 0.50, 0.62, 1.0)
@@ -73,13 +73,13 @@ static func apply_body_tint(
 
 
 # Make a GLOW sprite read as a bright emissive element (additive overdrive +
-# bloom halo) that the depth tint never dims. The host must already be in-tree
-# (GlowShaderFx.apply parents the halo as a sibling). No-op if `glow` is null.
+# radial halo) that the depth tint never dims. The host must already be in-tree
+# (GlowFx.attach_glow childs the halo). No-op if `glow` is null.
 static func apply_glow(glow: Sprite2D, brightness: float = DEFAULT_GLOW_BRIGHTNESS) -> void:
 	if glow == null:
 		return
 	glow.modulate = Color(brightness, brightness, brightness, 1.0)
-	GlowShaderFx.apply(glow)
+	GlowFx.attach_glow(glow, Color.WHITE, 1.4, 0.6)
 
 
 # Read the LIVE mid parallax layer's CanvasModulate color so a body multiply is

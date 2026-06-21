@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ck26n7h1e8xmb"
-path="res://.godot/imported/dart_drone.png-b38e4b96e9f27882deea4a2505908d7f.ctex"
+uid="uid://bb6llpj3xb60e"
+path="res://.godot/imported/enemy_core_s_jet.png-bac1a47fdd9360b7dc3a72e8069ec920.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://graphics/enemies/dart_drone.png"
-dest_files=["res://.godot/imported/dart_drone.png-b38e4b96e9f27882deea4a2505908d7f.ctex"]
+source_file="res://graphics/enemies/enemy_core_s_jet.png"
+dest_files=["res://.godot/imported/enemy_core_s_jet.png-bac1a47fdd9360b7dc3a72e8069ec920.ctex"]
 
 [params]
 

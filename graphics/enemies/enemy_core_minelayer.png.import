@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cxf682lw3uial"
-path="res://.godot/imported/small_dart.png-ae5206aa57c648334f8e098d7cc09c4a.ctex"
+uid="uid://ccl2u8jguqf3k"
+path="res://.godot/imported/enemy_core_minelayer.png-75a7b4264aab35f8ab330adb4e96e363.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://graphics/enemies/small_dart.png"
-dest_files=["res://.godot/imported/small_dart.png-ae5206aa57c648334f8e098d7cc09c4a.ctex"]
+source_file="res://graphics/enemies/enemy_core_minelayer.png"
+dest_files=["res://.godot/imported/enemy_core_minelayer.png-75a7b4264aab35f8ab330adb4e96e363.ctex"]
 
 [params]
 

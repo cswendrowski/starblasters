@@ -7,7 +7,7 @@ extends Node2D
 # When no capture flags are present, runs interactively for vibe-checks.
 
 const PLAYER = preload("res://scenes/player/player.tscn")
-const ENEMY_DART = preload("res://scenes/enemies/factions/privateer/enemy_dart.tscn")
+const ENEMY_DART = preload("res://scenes/enemies/core/enemy_core_s_dart.tscn")
 const BOSS = preload("res://scenes/enemies/bosses/boss.tscn")
 const BLACK_HOLE = preload("res://scenes/hazards/black_hole.tscn")
 const WAVE_BANNER = preload("res://scenes/hud/wave_banner.tscn")
@@ -272,9 +272,8 @@ func _demo_level_outro() -> void:
 			# Fake some enemy stats so the cleared screen has rows to show.
 			if "_enemy_stats" in main_inst:
 				main_inst._enemy_stats = {
-					"res://scenes/enemies/factions/privateer/enemy_dart.tscn": {"spawned": 14, "killed": 12, "bounty": 5, "total_bounty": 60},
-					"res://scenes/enemies/factions/privateer/enemy_p_s_green.tscn": {"spawned": 8, "killed": 7, "bounty": 8, "total_bounty": 56},
-					"res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn": {"spawned": 4, "killed": 4, "bounty": 25, "total_bounty": 100},
+					"res://scenes/enemies/core/enemy_core_s_dart.tscn": {"spawned": 14, "killed": 12, "bounty": 5, "total_bounty": 60},
+					"res://scenes/enemies/factions/privateer/enemy_core_s_falchion.tscn": {"spawned": 8, "killed": 7, "bounty": 8, "total_bounty": 56},
 				}
 				main_inst.bounty = 325
 			# Trigger the outro
@@ -555,12 +554,10 @@ func _demo_codex() -> void:
 	if has_node("/root/Run"):
 		var run = get_node("/root/Run")
 		for path in [
-			"res://scenes/enemies/factions/privateer/enemy_dart.tscn",
-			"res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn",
+			"res://scenes/enemies/core/enemy_core_s_dart.tscn",
 			"res://scenes/enemies/factions/supremacy/enemy_frigate.tscn",
-			"res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn",
-			"res://scenes/enemies/core/enemy_crystal.tscn",
-			"res://scenes/enemies/factions/privateer/enemy_minelayer.tscn",
+			"res://scenes/enemies/factions/privateer/enemy_p_m_widow.tscn",
+			"res://scenes/enemies/core/enemy_core_m_minelayer.tscn",
 		]:
 			run.encountered_enemies[path] = true
 	var ps = load("res://scenes/enemy_codex.tscn")
@@ -574,16 +571,14 @@ func _demo_enemy_roster_sheet() -> void:
 	# the roster reference image Roman asked for 2026-05-16.
 	const ROSTER = [
 		# COMMON
-		{"path": "res://scenes/enemies/factions/privateer/enemy_dart.tscn",     "name": "Dart",     "tier": "Common"},
-		{"path": "res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn", "name": "Hunter Drone", "tier": "Common"},
+		{"path": "res://scenes/enemies/core/enemy_core_s_dart.tscn",     "name": "Dart",     "tier": "Common"},
 		# UNCOMMON
 		{"path": "res://scenes/enemies/factions/supremacy/enemy_frigate.tscn",  "name": "Frigate",  "tier": "Uncommon"},
-		{"path": "res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn", "name": "Skirmisher", "tier": "Uncommon"},
 		# RARE
-		{"path": "res://scenes/enemies/core/enemy_crystal.tscn",  "name": "Crystal",  "tier": "Rare"},
-		{"path": "res://scenes/enemies/factions/privateer/enemy_minelayer.tscn", "name": "Minelayer", "tier": "Rare"},
-		{"path": "res://scenes/enemies/factions/privateer/enemy_interceptor.tscn", "name": "Interceptor", "tier": "Rare"},
-		{"path": "res://scenes/enemies/factions/corporate/enemy_bulwark.tscn",  "name": "Bulwark",  "tier": "Rare"},
+		{"path": "res://scenes/enemies/factions/privateer/enemy_p_m_widow.tscn",  "name": "Crystal",  "tier": "Rare"},
+		{"path": "res://scenes/enemies/core/enemy_core_m_minelayer.tscn", "name": "Minelayer", "tier": "Rare"},
+		{"path": "res://scenes/enemies/factions/privateer/enemy_p_m_interceptor.tscn", "name": "Interceptor", "tier": "Rare"},
+		{"path": "res://scenes/enemies/factions/corporate/enemy_c_l_bulwark.tscn",  "name": "Bulwark",  "tier": "Rare"},
 		# BOSS
 		{"path": "res://scenes/enemies/bosses/boss.tscn",            "name": "Commander",  "tier": "Boss"},
 		{"path": "res://scenes/enemies/bosses/boss_reaver.tscn",     "name": "Lash",       "tier": "Boss"},

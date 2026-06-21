@@ -10,7 +10,7 @@ extends Node
 const RESULT := "res://tools/_minigun_diag_result.txt"
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
-const ENEMY_SCENE = preload("res://scenes/enemies/core/enemy_bomb_drone.tscn")
+const ENEMY_SCENE = preload("res://scenes/enemies/core/enemy_core_s_dart.tscn")  # [RETIRED: enemy_bomb_drone]
 
 var _t := 0
 var _main: Node = null

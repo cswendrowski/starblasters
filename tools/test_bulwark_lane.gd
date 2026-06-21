@@ -9,7 +9,7 @@ extends SceneTree
 # Run: godot --headless --script res://tools/test_bulwark_lane.gd
 
 const RESULT := "res://tools/_bulwark_lane_result.txt"
-const SCENE := "res://scenes/enemies/factions/corporate/enemy_bulwark.tscn"
+const SCENE := "res://scenes/enemies/factions/corporate/enemy_c_l_bulwark.tscn"
 
 var _done := false
 

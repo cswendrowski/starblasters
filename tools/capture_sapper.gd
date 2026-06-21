@@ -11,7 +11,7 @@ const OUT_DIR := "res://captures/sapper"
 const FPS: int = 30
 const DURATION: float = 8.0
 const FRAME_TIME: float = 1.0 / float(FPS)
-const SAPPER_SCENE := preload("res://scenes/enemies/factions/corporate/enemy_sapper.tscn")
+const SAPPER_SCENE := preload("res://scenes/enemies/factions/corporate/enemy_c_s_sapper.tscn")
 
 
 func _initialize() -> void:

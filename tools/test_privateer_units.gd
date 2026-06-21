@@ -13,9 +13,9 @@ const BV_DropPellet := preload("res://data/bullets/drop_pellet.tres")
 const BV_HeavySlug := preload("res://data/bullets/heavy_slug.tres")
 const BV_PlasmaOrb := preload("res://data/bullets/plasma_orb.tres")
 
-const GREEN := "res://scenes/enemies/factions/privateer/enemy_p_s_green.tscn"
-const GRAY := "res://scenes/enemies/factions/privateer/enemy_p_s_gray.tscn"
-const DROP := "res://scenes/enemies/factions/privateer/enemy_p_s_drop.tscn"
+const GREEN := "res://scenes/enemies/factions/privateer/enemy_core_s_falchion.tscn"
+const GRAY := "res://scenes/enemies/core/enemy_core_s_cobra.tscn"
+const DROP := "res://scenes/enemies/core/enemy_core_s_caltrop.tscn"
 const CANNON := "res://scenes/enemies/factions/privateer/enemy_p_m_cannon.tscn"
 const PULSE := "res://scenes/enemies/factions/privateer/enemy_p_m_pulse.tscn"
 

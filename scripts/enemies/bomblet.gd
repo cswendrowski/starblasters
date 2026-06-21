@@ -27,7 +27,7 @@ const BOMBLET_AVOID_STRENGTH := 140.0
 const BOMBLET_NEIGHBOUR_CAP := 4
 const BOMBLET_GROUP := "bomblets"
 const ProximityChase = preload("res://scripts/enemies/patterns/proximity_chase.gd")
-const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
+const GlowFx = preload("res://scripts/effects/glow_fx.gd")
 const HELD_GLOW_COLOR := Color(0.78, 0.231, 1.0)   # #c73bff — matches the Gravity Mine glowmask
 
 @export var smart: bool = false
@@ -125,7 +125,7 @@ func _attach_held_glow() -> void:
 	if _held_glow != null and is_instance_valid(_held_glow):
 		return
 	if has_node("Sprite2D"):
-		_held_glow = GlowShaderFx.apply($Sprite2D, HELD_GLOW_COLOR)
+		_held_glow = GlowFx.attach_glow($Sprite2D, HELD_GLOW_COLOR, 0.9, 0.7)
 
 
 func _clear_held_glow() -> void:

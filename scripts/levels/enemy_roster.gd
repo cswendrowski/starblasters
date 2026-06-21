@@ -134,6 +134,19 @@ const HELIX_MOUNTS := [
 	  "recoil_frames": 3, "turret_texture": "res://graphics/enemies/zealot-tank-turret.png", "turret_hframes": 3 },
 ]
 
+# Crusader (Roman 2026-06-20) — the large zealot capital. FOUR gun turrets on the Helix tank-turret
+# chassis (the "Turret*" glob matches TurretL1/R1/L2/R2) firing Zealot Balls, PLUS two forward hull
+# muzzles (MuzzleL/R) firing Zealot Lasers. Payloads + cadence from Roman's Enemy Bench (2026-06-20);
+# the turret keeps the Helix visual/rotation fields (the bench doesn't expose those). Realized by
+# MountBuilder in enemy_base._ready.
+const CRUSADER_MOUNTS := [
+	{ "kind": "turret", "marker": "Turret*", "payload": BV_ZealotBall,
+	  "rotation_speed": 3.6, "fire_min": 1.0, "fire_max": 1.0, "aim_tolerance_deg": 14.0,
+	  "recoil_frames": 3, "turret_texture": "res://graphics/enemies/zealot-tank-turret.png", "turret_hframes": 3 },
+	{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "all", "payload": BV_ZealotLaser,
+	  "aim": "forward", "count": 1, "fire_min": 1.4, "fire_max": 1.4 },
+]
+
 # Push's player-tracking dome turrets — one per Turret* marker, aimed heavy slugs, fast traverse.
 # Was hand-built in enemy_push.gd (deleted from the scene 2026-06-19); now a data mount on enemy_core.
 const PUSH_MOUNTS := [
@@ -156,7 +169,7 @@ const ROCKET_MOUNTS := [
 # Minelayer — drops dumb bomblets while crossing, then scatters a cluster on death. Was bespoke
 # (_process timer + explode scatter in minelayer.gd); now a TIMER + DEATH emitter pair (2026-06-19).
 const MINELAYER_EMITTERS := [
-	{ "trigger": "timer", "payload": "Bomblet", "cadence": 2.5, "count": 1, "band_only": true },
+	{ "trigger": "timer", "payload": "Bomblet", "cadence": 1.0, "count": 1, "band_only": true, "max_emits": 3 },
 	{ "trigger": "death", "payload": "Bomblet", "count": 6, "spread": 28.0 },
 ]
 
@@ -200,7 +213,7 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "chaff": true, "wall": true,
 	},
 	{
-		"scene": "res://scenes/enemies/factions/privateer/enemy_dart.tscn",
+		"scene": "res://scenes/enemies/core/enemy_core_s_dart.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "straight",
@@ -213,6 +226,21 @@ const ENTRIES := [
 		# a big dart wave keeps end-of-node momentum (construction §8).
 		"unlock_sector": 0, "unlock_depth": 0, "weight": 1.4, "chaff": true, "wall": true,
 	},
+	{
+		# Flechette (2026-06-20) — new core chaff, built off the Dart. Unarmed (no Muzzle)
+		# wall-filler; carries a Livery layer (auto-tinted per faction). allowed_in
+		# [Corp, Priv] via factions.ENEMY_TAGS. Also the Hive's released swarm unit.
+		"scene": "res://scenes/enemies/core/enemy_core_s_flechette.tscn",
+		"engine": -1,
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "straight",
+		"shoot": null,
+		"base_count": 8,
+		"recycle": 0,
+		"hp_override": 1, "bounty_override": 5,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "chaff": true, "wall": true,
+	},
 	# Bomb Drone PULLED 2026-06-14 (Roman — to be reworked). Roster entry removed so it
 	# can't spawn; its factions.gd ENEMY_TAGS tag is removed too. Scene/script/codex/
 	# pattern-eligibility kept intact for the rework — re-add this dict to restore it.
@@ -222,6 +250,8 @@ const ENTRIES := [
 		# fires from a single CENTRAL muzzle (straight) rather than the diagonal
 		# popper. Stays a zealot UNIVERSAL (enemy_drifter.tscn retired from tags).
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_manta.tscn",
+		"mounts": [{ "kind": "gun", "marker": "Muzzle", "payload": BV_ZealotBall, "aim": "forward", "fire_min": 1.0, "fire_max": 1.0, "count": 1, "spread_deg": 0.0 }],
+		"engine": -3,
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "lane_drift",
@@ -322,6 +352,8 @@ const ENTRIES := [
 		# (enemy_sword.gd cycles the body muzzles firing down). shoot null = the script
 		# fires. recycle 0 = exit at bottom.
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_sword.tscn",
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "payload": BV_ZealotBall, "aim": "at_player", "fire_min": 0.2, "fire_max": 0.2, "count": 1, "spread_deg": 0.0 }],
+		"engine": -1,
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "straight",
@@ -336,6 +368,8 @@ const ENTRIES := [
 		# Sword (cross) — crosses horizontally; the rolling broadside (firing down) reads
 		# as a perpendicular curtain raking the lanes it passes. Bespoke firing.
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_sword.tscn",
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "payload": BV_ZealotBall, "aim": "at_player", "fire_min": 0.2, "fire_max": 0.2, "count": 1, "spread_deg": 0.0 }],
+		"engine": -1,
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "side_traverse",
@@ -470,33 +504,21 @@ const ENTRIES := [
 		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.6, "chaff": true,
 		"conflict_tags": ["aimed_or_spread"],
 	},
-	{
-		"scene": "res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn",
-		"tier": Tier.COMMON,
-		"size": "small", "tags": [],
-		"movement": "hunt_beeline",
-		"shoot": null,
-		"base_count": 4,
-		"no_scale": true,   # beeline kamikaze waves stay small (Roman 2026-06-08: cap 1-6)
-		# Hunter Drones are kamikaze threats, not bounty piñatas — pay
-		# mine-equivalent value (1) so killing one doesn't reward more
-		# than dodging an asteroid/mine of the same threat profile.
-		"bounty_override": 1,
-		# Hunter Drone — kamikaze threat; deeper-common. Appears from sector 2,
-		# a node or two in. (Was D4 — unreachable on short sectors; pulled to D1.)
-		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.6, "chaff": true,
-	},
+	# Hunter Drone (enemy_hunter_drone) RETIRED 2026-06-20 (Roman reorg) — roster entry
+	# removed, scene deleted. The Hive now releases Flechettes instead.
 
-	# --- Privateer chaff (M6c, Roman art 2026-06-07) ----------------------
-	# Privateer-exclusive (universal=false in factions.ENEMY_TAGS) — these only
-	# roll in privateer levels, fleshing out the faction's own set. All three use
-	# enemy_core directly (movement + shoot driven by the roster slots; no bespoke
-	# scripts). Two-frame sprite: frame 0 hull + frame 1 emissive glow (GlowMask).
+	# --- Privateer / core chaff (M6c, Roman art 2026-06-07; reorg 2026-06-20) ----------------------
+	# These started privateer-exclusive; the 2026-06-20 reorg promoted Cobra/Caltrop/Jet to
+	# CORE (allowed_in [Corp, Priv]) and reworked Green into the core Falchion (universal,
+	# allowed_in [Priv] — privateer-only for now). All use enemy_core directly (movement +
+	# shoot driven by the roster slots; no bespoke scripts). 3-frame strip: frame 0 hull +
+	# frame 1 emissive glow (GlowMask) + frame 2 Livery (auto-tinted per faction at spawn).
 	{
-		# Green (weave) — privateer chaff. lane_weave wobble. Weight dropped 1.1->0.7 so
-		# green waves aren't "heavy on curves" (Roman 2026-06-08) — the drift + straight
+		# Falchion (weave) — was the Hornet/Green. lane_weave wobble. Weight dropped 1.1->0.7 so
+		# weave waves aren't "heavy on curves" (Roman 2026-06-08) — the drift + straight
 		# variants below add variety.
-		"scene": "res://scenes/enemies/factions/privateer/enemy_p_s_green.tscn",
+		"scene": "res://scenes/enemies/factions/privateer/enemy_core_s_falchion.tscn",
+		"mounts": [{ "kind": "gun", "marker": "Muzzle", "payload": BV_PrivLaser, "aim": "forward", "fire_min": 0.5, "fire_max": 0.5, "count": 1, "spread_deg": 0.0 }],
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "lane_weave",
@@ -507,8 +529,9 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.7, "chaff": true, "wall": true,
 	},
 	{
-		# Green (drift) — slow lane-to-lane slide variant for wave variety.
-		"scene": "res://scenes/enemies/factions/privateer/enemy_p_s_green.tscn",
+		# Falchion (drift) — slow lane-to-lane slide variant for wave variety.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_core_s_falchion.tscn",
+		"mounts": [{ "kind": "gun", "marker": "Muzzle", "payload": BV_PrivLaser, "aim": "forward", "fire_min": 0.5, "fire_max": 0.5, "count": 1, "spread_deg": 0.0 }],
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "lane_drift",
@@ -519,8 +542,9 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.6, "chaff": true,
 	},
 	{
-		# Green (straight) — plain fast diver variant for wave variety.
-		"scene": "res://scenes/enemies/factions/privateer/enemy_p_s_green.tscn",
+		# Falchion (straight) — plain fast diver variant for wave variety.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_core_s_falchion.tscn",
+		"mounts": [{ "kind": "gun", "marker": "Muzzle", "payload": BV_PrivLaser, "aim": "forward", "fire_min": 0.5, "fire_max": 0.5, "count": 1, "spread_deg": 0.0 }],
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "straight",
@@ -531,13 +555,15 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.6, "chaff": true, "wall": true,
 	},
 	{
-		# Gray — privateer straight-diver chaff (no weapon). The faction's plain
-		# fast descender; pairs with Green as the basic privateer opener fodder.
-		"scene": "res://scenes/enemies/factions/privateer/enemy_p_s_gray.tscn",
+		# Cobra — fast diver, now armed (Enemy Bench 2026-06-20): fires an Aimed Sniper round
+		# along its nose (forward = down once auto-rotated), a precise poke as it dives.
+		"scene": "res://scenes/enemies/core/enemy_core_s_cobra.tscn",
+		"engine": -2,
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "straight",
-		"shoot": null,
+		"shoot": "nose", "bullet_variant": BV_AimedSniper,
+		"fire_min": 1.2, "fire_max": 2.0,
 		"base_count": 8,
 		"recycle": 0,
 		"hp_override": 1, "bounty_override": 5,
@@ -550,7 +576,7 @@ const ENTRIES := [
 		# lands at even screen heights regardless of fire_interval. The pellets crawl
 		# down at 45 px/s — far slower than the 180 px/s descent — so they hang in
 		# the lane behind the dropper as a lingering hazard.
-		"scene": "res://scenes/enemies/factions/privateer/enemy_p_s_drop.tscn",
+		"scene": "res://scenes/enemies/core/enemy_core_s_caltrop.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "straight",
@@ -610,6 +636,7 @@ const ENTRIES := [
 		# aimed-plasma gunner. The old no-shoot c_s_curve chaff entry is retired into this
 		# (curve now carries muzzles). enemy_weaver.tscn retired from the tag table.
 		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_curve.tscn",
+		"mounts": [{ "kind": "launcher", "marker": "Muzzle*", "payload_scene": "res://scenes/projectiles/drifting_missile.tscn", "aim": "forward", "fire_min": 1.5, "fire_max": 1.5, "count": 1, "spread_deg": 0.0 }],
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "lane_weave",
@@ -631,6 +658,7 @@ const ENTRIES := [
 		# new two-frame corp sprite (hull + glow). Stays a corporate UNIVERSAL so
 		# every faction keeps a loiter-gunner; the old enemy_hover.tscn is retired.
 		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn",
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "payload": BV_AimedSniper, "aim": "forward", "fire_min": 0.3, "fire_max": 0.3, "count": 1, "spread_deg": 0.0 }],
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "loiter",
@@ -708,6 +736,7 @@ const ENTRIES := [
 		# aimed-fire advance/retreat, double-muzzle (the muzzle resolver cycles hold's
 		# MuzzleL/R). The hold (loiter) entry above is kept too. enemy_skirmisher retired.
 		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn",
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "payload": BV_AimedSniper, "aim": "forward", "fire_min": 0.3, "fire_max": 0.3, "count": 1, "spread_deg": 0.0 }],
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "skirmish_loop",
@@ -732,11 +761,13 @@ const ENTRIES := [
 		# cannon shells (heavy_slug: 60 px/s, 2 dmg) straight down from alternating
 		# muzzles (cannon_left/right at ±6). Slow, telegraphed, punishing if ignored.
 		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_cannon.tscn",
+		"depth": "mid",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
-		"movement": "loiter", "depth": "mid",
-		"shoot": "single",
-		"bullet_variant": BV_HeavySlug,
+		"movement": "loiter",
+		# Spectre artillery — retuned via Enemy Bench (2026-06-20): bursts Privateer Bolts.
+		"shoot": "burst", "burst_count": 3,
+		"bullet_variant": BV_PrivBolt,
 		"base_count": 2,
 		"fire_min": 1.4, "fire_max": 2.0,
 		"hp_override": 8, "bounty_override": 18,
@@ -748,9 +779,11 @@ const ENTRIES := [
 		# (wobble 8/3, the plasma signature) from two muzzles (±8). Aimed + wobble
 		# makes it the privateer pressure unit that demands active dodging.
 		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_pulse.tscn",
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "payload": BV_PrivWave, "aim": "forward", "fire_min": 0.5, "fire_max": 0.5, "count": 2, "spread_deg": 0.0 }],
+		"engine": -2, "depth": "mid",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
-		"movement": "loiter", "depth": "mid",
+		"movement": "loiter",
 		"shoot": "aimed",
 		"bullet_variant": BV_PlasmaOrb,
 		"base_count": 2,
@@ -795,7 +828,7 @@ const ENTRIES := [
 	# omni pattern, so it's a self-roaming presence — formation roles are gone.
 	# Single / duo entries give 1 or 2 roamers; no trio (omni roamers don't form up).
 	{
-		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_gunship.tscn",
 		"mounts": GUNSHIP_MOUNTS,
 		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
@@ -807,7 +840,7 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.8,
 	},
 	{
-		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_gunship.tscn",
 		"mounts": GUNSHIP_MOUNTS,
 		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
@@ -828,7 +861,7 @@ const ENTRIES := [
 	# not a flood.
 	{
 		# Gunship (hold) — descends and holds the mid band like a loiter gunner.
-		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_gunship.tscn",
 		"mounts": GUNSHIP_MOUNTS,
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
@@ -840,7 +873,7 @@ const ENTRIES := [
 	},
 	{
 		# Gunship (weave) — lane-confined weave; a heavier weaver in a lane wave.
-		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_gunship.tscn",
 		"mounts": GUNSHIP_MOUNTS,
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
@@ -851,7 +884,7 @@ const ENTRIES := [
 	},
 	{
 		# Gunship (shift) — one-way commit to an adjacent lane, then holds it.
-		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_gunship.tscn",
 		"mounts": GUNSHIP_MOUNTS,
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
@@ -862,7 +895,7 @@ const ENTRIES := [
 	},
 	{
 		# Gunship (skirmish) — aggressive advance/retreat, raking on the hold.
-		"scene": "res://scenes/enemies/factions/privateer/enemy_gunship.tscn",
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_gunship.tscn",
 		"mounts": GUNSHIP_MOUNTS,
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
@@ -877,7 +910,7 @@ const ENTRIES := [
 	# + rakes tracers from its hull muzzles. Bespoke firing (enemy_rocket.gd,
 	# enemy_core). A deliberate presence anchor, contrast to the omni Gunship.
 	{
-		"scene": "res://scenes/enemies/factions/privateer/enemy_rocket.tscn",
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_rocket.tscn",
 		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
@@ -898,7 +931,7 @@ const ENTRIES := [
 	# Extra bounty for the bullet-sponge HP. Gated to sector 2 as a heavier
 	# escalation threat.
 	{
-		"scene": "res://scenes/enemies/core/enemy_bomber.tscn",
+		"scene": "res://scenes/enemies/core/enemy_core_bomber.tscn",
 		"heavy_class": "anchor",  # 32px-wide (tall) — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "large", "tags": ["tough"],
@@ -911,7 +944,7 @@ const ENTRIES := [
 		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.35,
 	},
 	{
-		"scene": "res://scenes/enemies/core/enemy_bomber.tscn",
+		"scene": "res://scenes/enemies/core/enemy_core_bomber.tscn",
 		"heavy_class": "anchor",  # 32px-wide (tall) — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "large", "tags": ["tough"],
@@ -926,7 +959,8 @@ const ENTRIES := [
 
 	# --- RARE -------------------------------------------------------------
 	{
-		"scene": "res://scenes/enemies/factions/corporate/enemy_sapper.tscn",
+		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_sapper.tscn",
+		"engine": -1,
 		"tier": Tier.RARE,
 		"size": "small", "tags": [],
 		"movement": "hunt_omni",
@@ -942,7 +976,7 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 0,
 	},
 	{
-		"scene": "res://scenes/enemies/core/enemy_crystal.tscn",
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_widow.tscn",
 		"tier": Tier.RARE,
 		"size": "medium", "tags": [],
 		# High hold (Roman 2026-06-07: crystal was coming too far down) — hovers in the
@@ -955,7 +989,7 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 0,
 	},
 	{
-		"scene": "res://scenes/enemies/factions/privateer/enemy_minelayer.tscn",
+		"scene": "res://scenes/enemies/core/enemy_core_m_minelayer.tscn",
 		"tier": Tier.RARE,
 		"size": "large", "tags": [],
 		"movement": "side_traverse",
@@ -965,7 +999,7 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 0,
 	},
 	{
-		"scene": "res://scenes/enemies/factions/privateer/enemy_interceptor.tscn",
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_interceptor.tscn",
 		# NOT heavy-beat tagged (Roman 2026-06-04): top_dive is a transient
 		# dive-through, not a presence-holding anchor. Stays a normal RARE dive squad
 		# (reaction-test / direct-challenge). Heavy beats want descend-and-hold types.
@@ -984,7 +1018,7 @@ const ENTRIES := [
 		# nose muzzles. NOTE: the scene also has LauncherL/R markers that are currently UNWIRED — add
 		# a missile mount (mounts: [...]) to arm them. Movement overrides the scene's baked top_dive
 		# (a retired key) with the current side_dive.
-		"scene": "res://scenes/enemies/factions/privateer/enemy_p_s_jet.tscn",
+		"scene": "res://scenes/enemies/core/enemy_core_s_jet.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "side_dive",
@@ -1007,7 +1041,7 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0,
 	},
 	{
-		"scene": "res://scenes/enemies/factions/corporate/enemy_bulwark.tscn",
+		"scene": "res://scenes/enemies/factions/corporate/enemy_c_l_bulwark.tscn",
 		"heavy_class": "capital",  # 64px-wide (placeholder art) — coda capital pool
 		"tier": Tier.RARE,
 		"size": "large", "tags": [],
@@ -1028,7 +1062,7 @@ const ENTRIES := [
 		"unlock_sector": 2, "unlock_depth": 0,
 	},
 	{
-		"scene": "res://scenes/enemies/factions/corporate/enemy_drone_carrier.tscn",
+		"scene": "res://scenes/enemies/factions/corporate/enemy_c_l_hive.tscn",
 		"heavy_class": "capital",  # 64px-wide (placeholder art) — coda capital pool
 		"tier": Tier.RARE,
 		"size": "large", "tags": [],
@@ -1084,6 +1118,25 @@ const ENTRIES := [
 		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5,
 	},
 	{
+		# Crusader (Roman 2026-06-20) — LARGE zealot capital, a heavier sibling of the Helix.
+		# Four Helix gun turrets (Turret*) + two hull muzzles firing zealot bolts (Muzzle*),
+		# plus the baked firecore drop on death. Shares enemy_firecore_cruiser.gd (clamped to
+		# ~1px/f capital speed); bigger stats via the overrides below. Slow loiter gun-platform.
+		# First-pass tier/stat gating — Roman tunes (pull this entry if it should stay bench-only).
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_l_crusader.tscn",
+		"mounts": CRUSADER_MOUNTS,
+		"engine": -4, "recycle": 0,
+		"heavy_class": "capital",
+		"tier": Tier.RARE,
+		"size": "huge", "tags": ["tough"],
+		"movement": "loiter",  # descend + hold as a gun platform
+		"shoot": null,
+		"base_count": 1,
+		"no_scale": true,
+		"hp_override": 60, "bounty_override": 180,
+		"unlock_sector": 3, "unlock_depth": 1, "weight": 0.4,
+	},
+	{
 		# Firecore Drone (Roman, 2026-05-31). Small + tough; descends slowly
 		# wreathed in 1-4 concentric rings of orbiting bullet visuals. Doesn't
 		# shoot — killing it DETACHES the rings into real enemy_bullets that fly
@@ -1105,6 +1158,74 @@ const ENTRIES := [
 		# Unlocks sector 2 (peer of Burner). Had no unlock fields, which under
 		# the new default-0 rule would have put it at sector-1/depth-0.
 		"unlock_sector": 2, "unlock_depth": 0,
+	},
+
+	# --- Zealot units promoted from the Enemy Bench (2026-06-20) — configs from enemy_bench.json.
+	{
+		# Censer Frigate — FLAG: bench left it unarmed (codex implies nose wave-projectors; arm in bench later).
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_censer.tscn",
+		"engine": -1, "tier": Tier.COMMON, "size": "medium", "tags": [],
+		"movement": "loiter", "shoot": null, "base_count": 2, "recycle": 0,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.5,
+	},
+	{
+		# Crook — rapid-fire zealot laser fighter.
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_crook.tscn",
+		"tier": Tier.COMMON, "size": "medium", "tags": [],
+		"movement": "straight", "shoot": null, "base_count": 3, "recycle": 0,
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_ZealotLaser, "aim": "forward", "fire_min": 0.5, "fire_max": 0.5, "count": 4, "spread_deg": 0.0 }],
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7,
+	},
+	{
+		# Cross Gunship — omni-thrust twin-laser gunboat.
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_cross.tscn",
+		"tier": Tier.COMMON, "size": "medium", "tags": [],
+		"movement": "hunt_omni", "shoot": null, "base_count": 2, "recycle": 0,
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_ZealotBolt, "aim": "forward", "fire_min": 1.0, "fire_max": 1.0, "count": 4, "spread_deg": 0.0 }],
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.6,
+	},
+	{
+		# Pilgrim — dual plasma + wing rockets.
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_pilgrim.tscn",
+		"tier": Tier.UNCOMMON, "size": "medium", "tags": [],
+		"movement": "loiter", "shoot": null, "base_count": 2, "recycle": 0,
+		"mounts": [
+			{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_ZealotLaser, "aim": "forward", "fire_min": 0.5, "fire_max": 0.5, "count": 1, "spread_deg": 0.0 },
+			{ "kind": "launcher", "marker": "Wing*", "payload_scene": "res://scenes/projectiles/enemy_rocket.tscn", "aim": "forward", "fire_min": 1.2, "fire_max": 1.2, "count": 1, "spread_deg": 0.0 },
+		],
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5,
+	},
+	{
+		# Rebuker — slow, maneuverable, forward zealot lasers.
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_rebuker.tscn",
+		"engine": -1, "tier": Tier.COMMON, "size": "medium", "tags": [],
+		"movement": "loiter", "shoot": null, "base_count": 2, "recycle": 0,
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_ZealotLaser, "aim": "straight_down", "fire_min": 0.5, "fire_max": 0.5, "count": 1, "spread_deg": 0.0 }],
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.6,
+	},
+	{
+		# Spear Frigate — charged firecore BEAM. The beam_config drives its charge animation (the scene
+		# bakes a BeamChargeVisual component on its ChargeMask). aim_mode 4 = TRACK_LOCK (tracks between
+		# shots, holds aim while charging+firing for a fair dodge window).
+		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_spear.tscn",
+		"tier": Tier.UNCOMMON, "size": "medium", "tags": [],
+		"movement": "straight", "shoot": null, "base_count": 2, "recycle": 0,
+		"mounts": [{ "kind": "beam", "marker": "Muzzle", "beam_config": {
+			"aim_mode": 4, "target_group": "player",
+			"idle_time": 0.8, "windup_time": 1.2, "firing_time": 0.7, "cooldown_time": 1.2,
+			"reach": 320.0, "dps": 4.0, "hit_radius": 8.0, "autostart": true,
+		} }],
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5,
+	},
+	{
+		# Tyrant (enemy_frigate) — supremacy broadside capital. Fires a rolling naval broadside out its
+		# player-facing flank (GunLeft1..5 / GunRight1..5 markers on the scene).
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_frigate.tscn",
+		"tier": Tier.RARE, "size": "large", "tags": ["tough"],
+		"movement": "side_traverse", "shoot": "broadside", "bullet_variant": BV_HeavySlug,
+		"base_count": 1, "no_scale": true, "fire_min": 0.35, "fire_max": 0.5,
+		"hp_override": 16, "bounty_override": 40,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5,
 	},
 ]
 

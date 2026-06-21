@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://jo0kqikmtqyp"
-path="res://.godot/imported/enemy_c_s_dart.png-9cdbd7dfaaff8909546dfa9ef49c934d.ctex"
+uid="uid://chemaqq1r2vkc"
+path="res://.godot/imported/enemy_core_falchion.png-f9883b5e8292eb5ebd172f79df651b45.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://graphics/enemies/enemy_c_s_dart.png"
-dest_files=["res://.godot/imported/enemy_c_s_dart.png-9cdbd7dfaaff8909546dfa9ef49c934d.ctex"]
+source_file="res://graphics/enemies/enemy_core_falchion.png"
+dest_files=["res://.godot/imported/enemy_core_falchion.png-f9883b5e8292eb5ebd172f79df651b45.ctex"]
 
 [params]
 

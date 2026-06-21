@@ -7,7 +7,7 @@ const OUT_DIR := "res://captures/debris"
 const FPS: int = 24
 const DURATION: float = 2.2
 const FRAME_TIME: float = 1.0 / float(FPS)
-const SMALL_SCENE := "res://scenes/enemies/factions/privateer/enemy_dart.tscn"
+const SMALL_SCENE := "res://scenes/enemies/core/enemy_core_s_dart.tscn"
 const LARGE_SCENE := "res://scenes/enemies/factions/supremacy/enemy_frigate.tscn"
 
 

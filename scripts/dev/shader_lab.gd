@@ -6,7 +6,7 @@ extends Control
 #   Embers      — ember_spray burst, normal / inverted, tunable colour ramp
 #   Smoke       — SmokeTrailFx smoke trail (light → dark), tunable colours
 #   Shields     — sci_fi_shield ring (current) vs hex_shield (new) side by side
-#   Glow        — diffuse glow_halo (per-sprite) on enemy bullets
+#   Glow        — per-faction-bullet glow_effect_2d tuner (cycle + tune + save per style)
 #   Bloom Env   — the Godot WorldEnvironment glow (main.tscn's combat bloom)
 #   Modes       — Focus / Phase / Hyper player-mode tells (moving ship)
 #   Damage      — damage_noise overlay tuner (enemy hull erosion)
@@ -20,7 +20,7 @@ const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const Playfield = preload("res://scripts/systems/playfield.gd")
 const EmberFx = preload("res://scripts/effects/ember_fx.gd")
-const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
+const GlowFx = preload("res://scripts/effects/glow_fx.gd")
 const OutlineFx = preload("res://scripts/effects/outline_fx.gd")
 const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
 const ShipDebrisEmber = preload("res://scripts/effects/ship_debris_ember.gd")
@@ -84,6 +84,42 @@ const BULLETS := [
 	{"name": "Tracer", "path": "res://graphics/projectiles/enemy_tracer.png", "frames": 3},
 	{"name": "Cannon slug", "path": "res://graphics/projectiles/enemy_cannon.png", "frames": 2},
 	{"name": "Wave orb", "path": "res://graphics/projectiles/enemy_bullet_wave.png", "frames": 4},
+]
+
+# Bullet styles cycled by the Glow mode. glow_effect_2d settings are tuned + saved PER style
+# (Roman 2026-06-20). Each entry sources its sprite from EITHER a "variant" (a BulletVariant
+# .tres — enemy/faction, static_texture) OR a "scene" (a player bullet .tscn whose first
+# Sprite2D/AnimatedSprite2D is read directly). Sprite-less procedural bullets (shredder/swarm)
+# are excluded — there's nothing to colour-key.
+const GLOW_BULLET_STYLES := [
+	# Player bullets (sprite read from the bullet scene)
+	{"name": "Player Blaster",      "scene": "res://scenes/projectiles/bullet_blaster.tscn"},
+	{"name": "Player Blaster Mk2",  "scene": "res://scenes/projectiles/bullet_blaster_medium.tscn"},
+	{"name": "Player Blaster Mk3",  "scene": "res://scenes/projectiles/bullet_blaster_heavy.tscn"},
+	{"name": "Player Minigun",      "scene": "res://scenes/projectiles/bullet_minigun.tscn"},
+	{"name": "Player Autocannon",   "scene": "res://scenes/projectiles/bullet_autocannon.tscn"},
+	{"name": "Player Auto-Laser",   "scene": "res://scenes/projectiles/bullet_auto_laser.tscn"},
+	{"name": "Player Rotary Laser", "scene": "res://scenes/projectiles/bullet_rotary_laser.tscn"},
+	{"name": "Player Wave",         "scene": "res://scenes/projectiles/bullet_wave.tscn"},
+	{"name": "Player Wave (sm)",    "scene": "res://scenes/projectiles/bullet_wave_small.tscn"},
+	{"name": "Player Wave (lg)",    "scene": "res://scenes/projectiles/bullet_wave_large.tscn"},
+	# Universal enemy bullets (BulletVariant .tres)
+	{"name": "Enemy Basic",      "variant": "res://data/bullets/basic.tres"},
+	{"name": "Enemy Pellet",     "variant": "res://data/bullets/spread_pellet.tres"},
+	{"name": "Enemy Slug",       "variant": "res://data/bullets/heavy_slug.tres"},
+	{"name": "Enemy Plasma Orb", "variant": "res://data/bullets/plasma_orb.tres"},
+	{"name": "Enemy Laser",      "variant": "res://data/bullets/laser_bolt.tres"},
+	{"name": "Enemy Tracker",    "variant": "res://data/bullets/tracker.tres"},
+	{"name": "Enemy Sniper",     "variant": "res://data/bullets/aimed_sniper.tres"},
+	# Faction bullets (BulletVariant .tres)
+	{"name": "Zealot Ball",     "variant": "res://data/bullets/zealot_ball.tres"},
+	{"name": "Zealot Bolt",     "variant": "res://data/bullets/zealot_bolt.tres"},
+	{"name": "Zealot Laser",    "variant": "res://data/bullets/zealot_laser.tres"},
+	{"name": "Zealot Wave",     "variant": "res://data/bullets/zealot_wave.tres"},
+	{"name": "Privateer Ball",  "variant": "res://data/bullets/privateer_ball.tres"},
+	{"name": "Privateer Bolt",  "variant": "res://data/bullets/privateer_bolt.tres"},
+	{"name": "Privateer Laser", "variant": "res://data/bullets/privateer_laser.tres"},
+	{"name": "Privateer Wave",  "variant": "res://data/bullets/privateer_wave.tres"},
 ]
 
 const SAVE_PATH := "user://tuners/shader_lab.json"
@@ -233,11 +269,11 @@ const NEBULA_ALT2_KNOBS := [
 
 # Every shader currently in the project that can be shown standalone.
 # mode: "rect" = ColorRect quad, "sprite" = ship sprite, "glowfx" = live
-# GlowShaderFx.apply() on a ship. pulse = uniform tweened by the Pulse button.
+# GlowFx.attach_glow() radial halo. pulse = uniform tweened by the Pulse button.
 const GALLERY := [
 	{"name": "Sci-Fi Shield (current)", "path": "res://graphics/sci_fi_shield.gdshader", "mode": "rect", "size": Vector2(48, 48), "pulse": {"param": "hit_strength", "from": 1.0, "to": 0.0, "time": 0.5}},
 	{"name": "Hex Shield (NEW)", "path": "res://graphics/hex_shield.gdshader", "mode": "rect", "size": Vector2(48, 48), "pulse": {"param": "hit_strength", "from": 1.0, "to": 0.0, "time": 0.5}},
-	{"name": "Glow Halo (current bloom)", "path": "res://scripts/effects/glow_halo.gdshader", "mode": "glowfx"},
+	{"name": "Radial Glow (glow_fx)", "path": "res://scripts/effects/glow_fx.gd", "mode": "glowfx"},
 	{"name": "Pulse Glow (legacy)", "path": "res://graphics/pulse_glow.gdshader", "mode": "sprite"},
 	{"name": "Hit Flash", "path": "res://graphics/hit_flash.gdshader", "mode": "sprite", "pulse": {"param": "flash_strength", "from": 1.0, "to": 0.0, "time": 0.35}},
 	{"name": "Hologram", "path": "res://graphics/hologram.gdshader", "mode": "sprite"},
@@ -300,6 +336,10 @@ var _glow_fx_colors := {
 	"color2": Color(1, 0.85, 0.3, 1),
 	"glow_color": Color(0.4, 0.8, 1.0, 1),
 }
+# Glow mode cycles faction bullet styles; each keeps its own glow_effect_2d settings.
+var _glow_style_idx: int = 0
+# style name -> {color1/color2/glow_color (Color), threshold/intensity/opacity (float)}.
+var _glow_styles: Dictionary = {}
 
 # Player-modes showcase state.
 var _pm_ship: Node2D = null
@@ -403,7 +443,7 @@ func _build_playspace() -> void:
 	# with a 4× content root so the 480-authored coords fill the stretched
 	# 1920×1080 viewport at HIGH resolution. The earlier add_upscaled_backdrop
 	# path rendered at native 480×270 then NEAREST-upscaled 4× through a
-	# ViewportTexture — which both BLOCKED/blurred the diffuse glow_halo AND
+	# ViewportTexture — which both BLOCKED/blurred diffuse additive glows AND
 	# mis-composited additive blends (the same bug the hangar V6 hit). At 1920-res
 	# the glow's LINEAR filter stays smooth while pixel-art sprites keep their own
 	# NEAREST crispness — matching the game's canvas_items look (Roman 2026-06-10).
@@ -791,49 +831,52 @@ const GLOW_EFFECT_2D: Shader = preload("res://graphics/glow_effect_2d.gdshader")
 
 
 func _enter_glow() -> void:
-	# Two columns of enemy bullets side by side (Roman 2026-06-11): LEFT = our current
-	# per-sprite glow_halo (a soft halo BEHIND the sprite); RIGHT = the candidate
-	# glow_effect_2d (color-keyed in-sprite emission, blooming through a WorldEnvironment).
-	var n := BULLETS.size()
-	var spacing := 30.0
-	var col_h := (n - 1) * spacing
-	var y0 := 135.0 - col_h * 0.5
+	# Per-faction-bullet glow tuner (Roman 2026-06-20): cycle every faction bullet style and
+	# tune glow_effect_2d (color-keyed in-sprite emission that blooms through a WorldEnvironment)
+	# PER STYLE. Save persists each style; Copy GDScript emits the whole table.
+	_load_cur_glow_style()
+	var spec: Dictionary = GLOW_BULLET_STYLES[_glow_style_idx]
+	var resolved: Dictionary = _resolve_style_texture(spec)
+	var tex: Texture2D = resolved["tex"]
+	var fc: int = int(resolved["frames"])
 	var cx := Playfield.CENTER.x
-	var lx := cx - 40.0
-	var rx := cx + 40.0
-	# A WorldEnvironment glow so the color-keyed shader has something to bloom into.
+	# WorldEnvironment glow so the color-keyed emission has something to bloom into.
 	var we := WorldEnvironment.new()
 	var env := Environment.new()
 	env.background_mode = Environment.BG_CANVAS
 	env.glow_enabled = true
-	env.glow_intensity = 0.7
+	env.glow_intensity = 0.8
 	env.glow_hdr_threshold = 0.9
 	we.environment = env
 	_stage.add_child(we)
 	_glow_fx_mats.clear()
-	for i in n:
-		var bl := _make_bullet(Vector2(lx, y0 + i * spacing), BULLETS[i])
-		GlowShaderFx.apply(bl.get_node("Bullet"))
-		var br := _make_bullet(Vector2(rx, y0 + i * spacing), BULLETS[i])
-		var spr: Sprite2D = br.get_node("Bullet")
+	if tex != null:
+		# Raw reference (left) vs live glow_effect_2d (right), zoomed for inspection.
+		_make_style_sprite(Vector2(cx - 64.0, 135.0), tex, 5.0, fc)
+		var g := _make_style_sprite(Vector2(cx + 64.0, 135.0), tex, 5.0, fc)
 		var m := ShaderMaterial.new()
 		m.shader = GLOW_EFFECT_2D
-		spr.material = m
+		g.material = m
 		_glow_fx_mats.append(m)
-	_apply_glow_fx()   # push the current tuner values into every right-column material
+		_apply_glow_fx()
+		_hd_note("raw", Vector2(cx - 78.0, 104.0))
+		_hd_note("glow_effect_2d", Vector2(cx + 36.0, 104.0))
+	else:
+		_hd_note("(no texture: %s)" % String(spec["name"]), Vector2(cx - 48.0, 120.0))
 
-	_hd_note("glow_halo (current)", Vector2(lx - 56.0, y0 - 22.0))
-	_hd_note("glow_effect_2d (new)", Vector2(rx - 18.0, y0 - 22.0))
-	_knob_box.add_child(_label("glow_effect_2d tuner", FS_BODY, UiTheme.COLOR_ACCENT))
-	_knob_box.add_child(_label("LEFT: current glow_halo (soft halo behind the\nsprite). RIGHT: glow_effect_2d — tune it below.\nColor1/2 = source colours keyed for emission;\nGlow = what they bloom to (× intensity).", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_knob_box.add_child(_label("Faction Bullet Glow", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("Cycle every faction bullet style and tune glow_effect_2d\nper style. RIGHT sprite is live; LEFT is the raw art.\nSave persists each style; Copy emits the table.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_build_glow_style_picker()
+	_knob_box.add_child(HSeparator.new())
 	_add_glow_color("Color 1 (key — bright core)", "color1")
-	_add_glow_color("Color 2 (key — warm core)", "color2")
+	_add_glow_color("Color 2 (key — body tint)", "color2")
 	_add_glow_color("Glow color (bloom target)", "glow_color")
 	_knob_box.add_child(HSeparator.new())
 	_build_knobs("Glow")
 
 
-# Push the Glow tuner state (floats + colours) into every right-column material.
+# Push the current style's settings (the working mirrors) into every live material, then
+# persist them back into the per-style dict so each style retains its own tuning.
 func _apply_glow_fx() -> void:
 	var v: Dictionary = _values["Glow"]
 	for m in _glow_fx_mats:
@@ -845,6 +888,7 @@ func _apply_glow_fx() -> void:
 		m.set_shader_parameter("threshold", float(v["threshold"]))
 		m.set_shader_parameter("intensity", float(v["intensity"]))
 		m.set_shader_parameter("opacity", float(v["opacity"]))
+	_sync_cur_glow_style()
 
 
 func _add_glow_color(caption: String, key: String) -> void:
@@ -857,6 +901,220 @@ func _add_glow_color(caption: String, key: String) -> void:
 		_glow_fx_colors[key] = c
 		_apply_glow_fx())
 	_knob_box.add_child(cp)
+
+
+# ---- Per-style glow state --------------------------------------------------
+
+# Texture + frame count for a style spec: "variant" = a BulletVariant .tres (enemy/faction),
+# "scene" = a player bullet .tscn whose first sprite is read directly. {tex, frames}.
+func _resolve_style_texture(spec: Dictionary) -> Dictionary:
+	if spec.has("variant"):
+		var v: Variant = load(String(spec["variant"]))
+		var fc: int = 1
+		if v != null and ("frame_count" in v):
+			fc = maxi(int(v.frame_count), 1)
+		return {"tex": _style_variant_texture(v), "frames": fc}
+	if spec.has("scene"):
+		return _scene_sprite_texture(String(spec["scene"]))
+	return {"tex": null, "frames": 1}
+
+
+# Display texture for a bullet-style variant: sprite_frames frame 0 if present, else static_texture.
+func _style_variant_texture(v: Variant) -> Texture2D:
+	if v == null:
+		return null
+	if ("sprite_frames" in v) and v.sprite_frames != null:
+		var sf: SpriteFrames = v.sprite_frames
+		var names := sf.get_animation_names()
+		if names.size() > 0 and sf.get_frame_count(names[0]) > 0:
+			return sf.get_frame_texture(names[0], 0)
+	if "static_texture" in v:
+		return v.static_texture
+	return null
+
+
+# Instantiate a bullet scene WITHOUT adding it to the tree (so no _ready / no spawning), read its
+# first Sprite2D/AnimatedSprite2D texture + frame count, then free it. Handles uid-referenced and
+# animated sprites. Returns {tex=null} for sprite-less (procedural) bullets.
+func _scene_sprite_texture(path: String) -> Dictionary:
+	var res := {"tex": null, "frames": 1}
+	var ps := load(path) as PackedScene
+	if ps == null:
+		return res
+	var inst: Node = ps.instantiate()
+	var spr: Node = _find_any_sprite(inst)
+	if spr is Sprite2D:
+		res["tex"] = (spr as Sprite2D).texture
+		res["frames"] = maxi((spr as Sprite2D).hframes, 1)
+	elif spr is AnimatedSprite2D:
+		var asp := spr as AnimatedSprite2D
+		if asp.sprite_frames != null:
+			var names := asp.sprite_frames.get_animation_names()
+			if names.size() > 0 and asp.sprite_frames.get_frame_count(names[0]) > 0:
+				res["tex"] = asp.sprite_frames.get_frame_texture(names[0], 0)
+	inst.free()
+	return res
+
+
+func _find_any_sprite(node: Node) -> Node:
+	for c in node.get_children():
+		if c is Sprite2D or c is AnimatedSprite2D:
+			return c
+		var found: Node = _find_any_sprite(c)
+		if found != null:
+			return found
+	return null
+
+
+# Representative tint for seeding a style's defaults — the projectile's impact_color (its signature
+# colour) from the variant or the scene-bullet instance; white if none is exposed.
+func _style_tint(spec: Dictionary) -> Color:
+	var c := Color(1, 1, 1, 1)
+	if spec.has("variant"):
+		var v: Variant = load(String(spec["variant"]))
+		if v != null and ("impact_color" in v):
+			c = v.impact_color
+	elif spec.has("scene"):
+		var ps := load(String(spec["scene"])) as PackedScene
+		if ps != null:
+			var inst: Node = ps.instantiate()
+			if "impact_color" in inst:
+				c = inst.impact_color
+			inst.free()
+	c.a = 1.0
+	return c
+
+
+func _make_style_sprite(pos: Vector2, tex: Texture2D, zoom: float, frame_count: int) -> Sprite2D:
+	var s := Sprite2D.new()
+	s.texture = tex
+	s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	if frame_count > 1:
+		s.hframes = frame_count
+		s.frame = 0
+	s.scale = Vector2(zoom, zoom)
+	s.position = pos
+	_stage.add_child(s)
+	return s
+
+
+func _glow_knob_def(key: String) -> float:
+	for def in KNOBS["Glow"]:
+		if String(def["key"]) == key:
+			return float(def["def"])
+	return 0.0
+
+
+func _cur_glow_name() -> String:
+	return String(GLOW_BULLET_STYLES[_glow_style_idx]["name"])
+
+
+# Seed any not-yet-present style: color2 + glow_color from the bullet's impact_color (its signature
+# tint), white core, KNOBS["Glow"] defaults otherwise.
+func _ensure_glow_styles() -> void:
+	for spec in GLOW_BULLET_STYLES:
+		var nm := String(spec["name"])
+		if _glow_styles.has(nm):
+			continue
+		var tint := _style_tint(spec)
+		_glow_styles[nm] = {
+			"color1": Color(1, 1, 1, 1),
+			"color2": tint,
+			"glow_color": tint,
+			"threshold": _glow_knob_def("threshold"),
+			"intensity": _glow_knob_def("intensity"),
+			"opacity": _glow_knob_def("opacity"),
+		}
+
+
+# Load the current style into the working mirrors (_values["Glow"] + _glow_fx_colors) so the
+# knob sliders + colour pickers reflect it.
+func _load_cur_glow_style() -> void:
+	_ensure_glow_styles()
+	var s: Dictionary = _glow_styles[_cur_glow_name()]
+	_glow_fx_colors["color1"] = s["color1"]
+	_glow_fx_colors["color2"] = s["color2"]
+	_glow_fx_colors["glow_color"] = s["glow_color"]
+	_values["Glow"]["threshold"] = float(s["threshold"])
+	_values["Glow"]["intensity"] = float(s["intensity"])
+	_values["Glow"]["opacity"] = float(s["opacity"])
+
+
+# Persist the working mirrors back into the current style (every live edit + save).
+func _sync_cur_glow_style() -> void:
+	if _glow_styles.is_empty():
+		return
+	var s: Dictionary = _glow_styles.get(_cur_glow_name(), {})
+	s["color1"] = _glow_fx_colors["color1"]
+	s["color2"] = _glow_fx_colors["color2"]
+	s["glow_color"] = _glow_fx_colors["glow_color"]
+	s["threshold"] = float(_values["Glow"]["threshold"])
+	s["intensity"] = float(_values["Glow"]["intensity"])
+	s["opacity"] = float(_values["Glow"]["opacity"])
+	_glow_styles[_cur_glow_name()] = s
+
+
+func _build_glow_style_picker() -> void:
+	_knob_box.add_child(_label("Style: %s  (%d/%d)" % [_cur_glow_name(), _glow_style_idx + 1, GLOW_BULLET_STYLES.size()], FS_CAPTION, UiTheme.COLOR_BOUNTY))
+	var dd := OptionButton.new()
+	dd.add_theme_font_override("font", UiTheme.active_font())
+	dd.add_theme_font_size_override("font_size", FS_BODY)
+	dd.custom_minimum_size = Vector2(0, 34)
+	for spec in GLOW_BULLET_STYLES:
+		dd.add_item(String(spec["name"]))
+	dd.select(_glow_style_idx)
+	dd.item_selected.connect(func(i: int): _select_glow_style(i))
+	_knob_box.add_child(dd)
+	var n := GLOW_BULLET_STYLES.size()
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var prev := Button.new()
+	prev.text = "◀ Prev"
+	UiTheme.style_button(prev, false)
+	prev.add_theme_font_size_override("font_size", FS_BODY)
+	prev.custom_minimum_size = Vector2(0, 34)
+	prev.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	prev.pressed.connect(func(): _select_glow_style((_glow_style_idx - 1 + n) % n))
+	row.add_child(prev)
+	var nxt := Button.new()
+	nxt.text = "Next ▶"
+	UiTheme.style_button(nxt, false)
+	nxt.add_theme_font_size_override("font_size", FS_BODY)
+	nxt.custom_minimum_size = Vector2(0, 34)
+	nxt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	nxt.pressed.connect(func(): _select_glow_style((_glow_style_idx + 1) % n))
+	row.add_child(nxt)
+	_knob_box.add_child(row)
+
+
+# Switch the tuned style: persist current edits, point at the new style, rebuild the glow view.
+func _select_glow_style(idx: int) -> void:
+	_sync_cur_glow_style()
+	_glow_style_idx = clampi(idx, 0, GLOW_BULLET_STYLES.size() - 1)
+	for c in _stage.get_children():
+		c.queue_free()
+	for c in _knob_box.get_children():
+		c.queue_free()
+	for c in _mode_overlay.get_children():
+		c.queue_free()
+	_enter_glow()
+
+
+func _serialize_glow_styles() -> Dictionary:
+	_sync_cur_glow_style()
+	_ensure_glow_styles()
+	var out := {}
+	for nm in _glow_styles:
+		var s: Dictionary = _glow_styles[nm]
+		out[nm] = {
+			"color1": (s["color1"] as Color).to_html(true),
+			"color2": (s["color2"] as Color).to_html(true),
+			"glow_color": (s["glow_color"] as Color).to_html(true),
+			"threshold": float(s["threshold"]),
+			"intensity": float(s["intensity"]),
+			"opacity": float(s["opacity"]),
+		}
+	return out
 
 
 # ---- Player Modes mode -----------------------------------------------------
@@ -894,11 +1152,11 @@ func _set_player_mode(m: String) -> void:
 	match m:
 		"focus":
 			ship.modulate = FOCUS_SHIP_TINT
-			_pm_glow = GlowShaderFx.apply(ship, FOCUS_GLOW_COLOR)
+			_pm_glow = GlowFx.attach_glow(ship, FOCUS_GLOW_COLOR, 1.6, 0.7)
 			_pm_trail = _make_focus_trail()
 			_pm_dot = _make_focus_dot(ship)
 		"phase":
-			_pm_glow = GlowShaderFx.apply(ship, PHASE_GLOW_COLOR)
+			_pm_glow = GlowFx.attach_glow(ship, PHASE_GLOW_COLOR, 1.6, 0.7)
 		"hyper":
 			_pm_outline = OutlineFx.apply(ship, HYPER_OUTLINE_COLOR)
 	if _pm_status != null and is_instance_valid(_pm_status):
@@ -1955,7 +2213,7 @@ func _show_gallery(idx: int) -> void:
 
 	if String(e["mode"]) == "glowfx":
 		var bullet := _make_bullet(center, BULLETS[0])
-		GlowShaderFx.apply(bullet.get_node("Bullet"))
+		GlowFx.attach_glow(bullet.get_node("Bullet"), Color(1.0, 0.85, 0.5), 0.7, 0.6)
 	else:
 		var shader: Shader = load(String(e["path"]))
 		var mat := ShaderMaterial.new()
@@ -2122,8 +2380,8 @@ static func _ship_texture() -> Texture2D:
 	return _ship_tex
 
 
-# An enemy-bullet sprite (frame 0 of its strip) under a Node2D, so GlowShaderFx
-# can attach a sibling halo. `spec` = a BULLETS entry {path, frames}.
+# An enemy-bullet sprite (frame 0 of its strip) under a Node2D, so GlowFx
+# can attach a radial halo. `spec` = a BULLETS entry {path, frames}.
 func _make_bullet(pos: Vector2, spec: Dictionary) -> Node2D:
 	var n := Node2D.new()
 	n.position = pos
@@ -2158,6 +2416,7 @@ func _on_save() -> void:
 	for gk in _glow_fx_colors:
 		glow_cols[gk] = (_glow_fx_colors[gk] as Color).to_html(false)
 	out["GlowColors"] = glow_cols
+	out["GlowStyles"] = _serialize_glow_styles()
 	var stops := []
 	for s in _ember_stops:
 		stops.append({"color": (s["color"] as Color).to_html(false), "offset": float(s["offset"])})
@@ -2193,6 +2452,17 @@ func _load_saved() -> void:
 		for gk in _glow_fx_colors:
 			if gcols.has(gk):
 				_glow_fx_colors[gk] = Color(String(gcols[gk]))
+		var gstyles: Dictionary = data.get("GlowStyles", {})
+		for nm in gstyles:
+			var sd: Dictionary = gstyles[nm]
+			_glow_styles[nm] = {
+				"color1": Color(String(sd.get("color1", "ffffffff"))),
+				"color2": Color(String(sd.get("color2", "ffffffff"))),
+				"glow_color": Color(String(sd.get("glow_color", "ffffffff"))),
+				"threshold": float(sd.get("threshold", _glow_knob_def("threshold"))),
+				"intensity": float(sd.get("intensity", _glow_knob_def("intensity"))),
+				"opacity": float(sd.get("opacity", _glow_knob_def("opacity"))),
+			}
 		var stops: Array = data.get("EmberGradient", [])
 		if stops.size() >= 2:
 			_ember_stops.clear()
@@ -2287,8 +2557,8 @@ func _snippet_smoke() -> String:
 func _snippet_modes() -> String:
 	var t := "# Shader Lab — player-mode tells live in scripts/player.gd:\n"
 	t += "#   Focus: $Ship.modulate = Color(0.5,0.7,1.0,0.55)\n"
-	t += "#          GlowShaderFx.apply($Ship, Color(0.5,0.9,1.0)) + 4px hit dot\n"
-	t += "#   Phase: GlowShaderFx.apply($Ship, Color(0.2,0.5,1.0)) + additive ghosts\n"
+	t += "#          GlowFx.attach_glow($Ship, Color(0.5,0.9,1.0)) + 4px hit dot\n"
+	t += "#   Phase: GlowFx.attach_glow($Ship, Color(0.2,0.5,1.0)) + additive ghosts\n"
 	t += "#   Hyper: OutlineFx.apply($Ship, Color(1.0,0.5,0.0)) pulsing alpha\n"
 	t += "# This mode is a read-only showcase; tune the source constants in player.gd.\n"
 	return t
@@ -2417,22 +2687,29 @@ func _snippet_disintegrate() -> String:
 
 
 func _snippet_glow() -> String:
-	var v: Dictionary = _values["Glow"]
-	var c1: Color = _glow_fx_colors["color1"]
-	var c2: Color = _glow_fx_colors["color2"]
-	var gc: Color = _glow_fx_colors["glow_color"]
-	var t := "# Shader Lab — glow_effect_2d (color-keyed in-sprite emission; needs a\n"
-	t += "# WorldEnvironment with glow_enabled to bloom). For the soft behind-sprite\n"
-	t += "# halo instead, use GlowShaderFx.apply(sprite).\n"
-	t += "var m := ShaderMaterial.new()\n"
-	t += "m.shader = preload(\"res://graphics/glow_effect_2d.gdshader\")\n"
-	t += "m.set_shader_parameter(\"color1\", Color(%.3f, %.3f, %.3f))\n" % [c1.r, c1.g, c1.b]
-	t += "m.set_shader_parameter(\"color2\", Color(%.3f, %.3f, %.3f))\n" % [c2.r, c2.g, c2.b]
-	t += "m.set_shader_parameter(\"glow_color\", Color(%.3f, %.3f, %.3f))\n" % [gc.r, gc.g, gc.b]
-	t += "m.set_shader_parameter(\"threshold\", %.2f)\n" % float(v["threshold"])
-	t += "m.set_shader_parameter(\"intensity\", %.2f)\n" % float(v["intensity"])
-	t += "m.set_shader_parameter(\"opacity\", %.2f)\n" % float(v["opacity"])
-	t += "sprite.material = m\n"
+	_sync_cur_glow_style()
+	_ensure_glow_styles()
+	var t := "# Shader Lab — per-faction-bullet glow_effect_2d settings (needs a\n"
+	t += "# WorldEnvironment with glow_enabled to bloom). Apply on a bullet sprite:\n"
+	t += "#   var m := ShaderMaterial.new()\n"
+	t += "#   m.shader = preload(\"res://graphics/glow_effect_2d.gdshader\")\n"
+	t += "#   for k in GLOW_BY_STYLE[name]: m.set_shader_parameter(k, GLOW_BY_STYLE[name][k])\n"
+	t += "const GLOW_BY_STYLE := {\n"
+	for spec in GLOW_BULLET_STYLES:
+		var nm := String(spec["name"])
+		var s: Dictionary = _glow_styles.get(nm, {})
+		if s.is_empty():
+			continue
+		var c1: Color = s["color1"]
+		var c2: Color = s["color2"]
+		var gc: Color = s["glow_color"]
+		t += "\t\"%s\": {\n" % nm
+		t += "\t\t\"color1\": Color(%.3f, %.3f, %.3f),\n" % [c1.r, c1.g, c1.b]
+		t += "\t\t\"color2\": Color(%.3f, %.3f, %.3f),\n" % [c2.r, c2.g, c2.b]
+		t += "\t\t\"glow_color\": Color(%.3f, %.3f, %.3f),\n" % [gc.r, gc.g, gc.b]
+		t += "\t\t\"threshold\": %.2f, \"intensity\": %.2f, \"opacity\": %.2f,\n" % [float(s["threshold"]), float(s["intensity"]), float(s["opacity"])]
+		t += "\t},\n"
+	t += "}\n"
 	return t
 
 

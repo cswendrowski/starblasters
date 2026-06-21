@@ -19,11 +19,11 @@ func _process(_d: float) -> bool:
 	var fails := 0
 	var dt := 1.0 / 60.0
 
-	_check(lines, "bomber", "res://scenes/enemies/core/enemy_bomber.tscn", Zones.band_progress(90.0),
+	_check(lines, "bomber", "res://scenes/enemies/core/enemy_core_bomber.tscn", Zones.band_progress(90.0),
 		Vector2(Lanes.lane_center(3), 10.0), 240, 90.0, "TailGun")
 	_check(lines, "cruiser", "res://scenes/enemies/core/enemy_cruiser.tscn", Zones.band_progress(50.0),
 		Vector2(Lanes.lane_center(3), 10.0), 160, 50.0, "")
-	_check(lines, "carrier", "res://scenes/enemies/factions/corporate/enemy_drone_carrier.tscn", Zones.band_progress(50.0),
+	_check(lines, "carrier", "res://scenes/enemies/factions/corporate/enemy_c_l_hive.tscn", Zones.band_progress(50.0),
 		Vector2(Lanes.lane_center(3), 10.0), 160, 50.0, "")
 
 	# accumulate fail count

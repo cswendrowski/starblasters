@@ -8,7 +8,10 @@ class_name EnemyDroneCarrier
 # Drone release is unchanged (drones are independent, parented to the scene root).
 
 const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
-const DRONE_SCENE = preload("res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn")
+# Released swarm unit. Was enemy_hunter_drone (retired 2026-06-20); now the core Flechette —
+# the Hive seeds a swarm of flechettes. FLAG: confirm this is the intended drone (vs. a corp
+# small unit like enemy_c_s_sapper).
+const DRONE_SCENE = preload("res://scenes/enemies/core/enemy_core_s_flechette.tscn")
 const BeelinePlayer = preload("res://scripts/enemies/patterns/beeline_player.gd")
 const Drift = preload("res://scripts/enemies/patterns/drift.gd")
 

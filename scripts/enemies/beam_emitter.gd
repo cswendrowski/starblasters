@@ -109,6 +109,21 @@ func is_firing() -> bool:
 	return _phase == Phase.FIRING
 
 
+# Charge fraction for an external charge-layer animation (e.g. the Spear's ChargeMask): 0.0 =
+# uncharged (start of WINDUP / end of COOLDOWN), 1.0 = fully charged (FIRING). WINDUP ramps 0->1,
+# FIRING holds 1, COOLDOWN ramps 1->0. Returns -1.0 when idle/off so the caller hides the layer.
+func charge_fraction() -> float:
+	match _phase:
+		Phase.WINDUP:
+			return clampf(_t / maxf(0.0001, windup_time), 0.0, 1.0)
+		Phase.FIRING:
+			return 1.0
+		Phase.COOLDOWN:
+			return clampf(1.0 - _t / maxf(0.0001, cooldown_time), 0.0, 1.0)
+		_:
+			return -1.0
+
+
 # True while the beam is committed to its shot (telegraph + lethal). Hull-aimed beams
 # (the Beamer LOCK behavior) hold their rotation during this window, then re-aim.
 func is_committed() -> bool:

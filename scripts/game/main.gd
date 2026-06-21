@@ -236,7 +236,6 @@ const _WARMUP_SHADERS := [
 	"res://graphics/damage_noise.gdshader",    # enemy damage overlay
 	"res://graphics/hex_shield.gdshader",       # first shielded enemy / player shield
 	"res://graphics/torch_fire.gdshader",      # first hull-loss damage tell
-	"res://scripts/effects/glow_halo.gdshader",# bullet glow
 	"res://shaders/outline_1px.gdshader",      # enemy hull outline
 ]
 
@@ -816,7 +815,7 @@ func _run_intro(is_boss: bool) -> void:
 # scene's "Backdrop" Node2D (above parallax, below ships, world space) — same
 # seam as boss_base.add_world_node_above_backdrop. World coords == playfield
 # coords because the combat camera is centred on (240,135).
-const MISSILE_CRUISER_SCENE := preload("res://scenes/enemies/core/missile_cruiser.tscn")
+const MISSILE_CRUISER_SCENE := preload("res://scenes/enemies/factions/supremacy/enemy_s_m_missile_cruiser.tscn")
 const MidDepthPresentation = preload("res://scripts/effects/mid_depth_presentation.gd")
 const WreckLayerScript = preload("res://scripts/effects/wreck_layer.gd")
 
@@ -858,6 +857,13 @@ func _apply_scene_grade() -> void:
 func _maybe_schedule_rare_cruiser(sector_depth: int) -> void:
 	var sectors_cleared: int = maxi(0, sector_depth - 1)
 	if sectors_cleared < MISSILE_CRUISER_MIN_SECTORS:
+		return
+	# Supremacy-only encounter (Roman 2026-06-20): the missile cruiser is a Crimson Supremacy
+	# asset, so it only rolls in Supremacy-faction levels. Forced/showcase triggers (the
+	# Run.set_meta("missile_cruiser") one-shot + the missile_cruiser_showcase hazard) bypass
+	# this — they don't route through this roller.
+	if not has_node("/root/Run") \
+			or int(get_node("/root/Run").get_meta("active_faction", -1)) != Factions.Id.SUPREMACY:
 		return
 	var chance: float = MISSILE_CRUISER_RARE_CHANCE \
 		+ MISSILE_CRUISER_RARE_PER_SECTOR * float(sectors_cleared)

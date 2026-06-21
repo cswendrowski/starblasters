@@ -179,7 +179,7 @@ func _build_playspace() -> void:
 	# Gutter dim + brighter playfield band, matching the real frame.
 	# CRITICAL (Roman 2026-06-11, "no bullets / bare muzzle colour"): these are OPAQUE and must live on
 	# a CanvasLayer BEHIND the gameplay. Player bullets render at z_index=-1 ("under the ship", player.gd)
-	# and muzzle/bullet GLOW halos are z_index=-1 too (glow_shader_fx.gd). If the band sits at the default
+	# and muzzle/bullet GLOW halos are z_index=-1 too (glow_fx.attach_glow defaults behind=true). If the band sits at the default
 	# z=0 in the SAME canvas as the gameplay, every z=-1 thing draws BEHIND the opaque band → bullets
 	# vanish + the muzzle flash loses its colored glow halo (reads as "wrong colour"). In combat the
 	# backdrop is on a lower layer for exactly this reason; mirror that here.

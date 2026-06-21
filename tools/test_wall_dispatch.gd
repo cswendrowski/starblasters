@@ -34,16 +34,16 @@ func _process(_dt: float) -> bool:
 	if ScoreAdapter._shape_id(w_pincer) != &"pincer":
 		lines.append("FAIL _shape_id(PINCER) != &pincer"); fails += 1
 
-	# 2) Fast chaff tagged wall. (enemy_bomb_drone was pulled 2026-06-14; Dart is the canonical
-	# wall chaff and its first roster entry carries the tag — most others tag a non-first variant.)
-	for path in ["res://scenes/enemies/factions/privateer/enemy_dart.tscn"]:
+	# 2) Fast chaff tagged wall. (Dart is the canonical wall chaff and its first roster entry
+	# carries the tag — most others tag a non-first variant.)
+	for path in ["res://scenes/enemies/core/enemy_core_s_dart.tscn"]:
 		var e: Dictionary = Roster.entry_for_scene(path)
 		if e.is_empty() or not bool(e.get("wall", false)):
 			lines.append("FAIL %s not tagged wall" % path); fails += 1
 
 	# 3) _make_wave_spec stamps WALL on a wall-tagged wave, robustly across seeds
 	#    (the random spread + 25% tandem roll must never win for a wall entry).
-	var dart: Dictionary = Roster.entry_for_scene("res://scenes/enemies/factions/privateer/enemy_dart.tscn")
+	var dart: Dictionary = Roster.entry_for_scene("res://scenes/enemies/core/enemy_core_s_dart.tscn")
 	var wall_count: int = 0
 	for seed in range(40):
 		var rng := RandomNumberGenerator.new()

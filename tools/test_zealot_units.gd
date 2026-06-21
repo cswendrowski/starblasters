@@ -71,13 +71,14 @@ func _process(_dt: float) -> bool:
 		return true
 	_done = true
 
-	# --- 1) Decorative core: instantiates + self-applies the glow halo ---------
+	# --- 1) Decorative core: Core sprite is HDR-bright so the WorldEnvironment
+	# bloom glows it (the old GlowShaderFx halo was retired, Roman 2026-06-20) ----
 	var core := _inst(CORE)
-	if core.get_node_or_null("Core") == null:
+	var core_spr := core.get_node_or_null("Core") as CanvasItem
+	if core_spr == null:
 		_fail("firecore_core missing its Core sprite")
-	# GlowShaderFx.apply adds a "ShaderGlow" halo under the wrapper (the host's parent).
-	if core.get_node_or_null("ShaderGlow") == null:
-		_fail("firecore_core did not produce a ShaderGlow halo")
+	elif maxf(core_spr.modulate.r, core_spr.modulate.g) < 1.5:
+		_fail("firecore_core Core sprite not HDR-bright (modulate must clear the env glow_hdr_threshold 1.5)")
 	core.free()
 
 	# --- 2) Manta: central muzzle, no core ------------------------------------

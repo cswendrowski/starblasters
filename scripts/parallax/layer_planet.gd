@@ -39,6 +39,13 @@ const COLORRECT_CANONICAL_BY_NAME := {
 const PULSE_GLOW_SHADER = preload("res://graphics/pulse_glow.gdshader")
 const POI_MOON_SCENE := "res://Planets/NoAtmosphere/NoAtmosphere.tscn"
 
+# Cap on the baked halo-gradient resolution. Halos pick a power-of-two texture
+# >= their displayed diameter (see _halo_res_for) so the radial falloff maps at
+# (or above) 1:1 to viewport pixels — a fixed 64² texture nearest-upscaled to a
+# big planet's ~560–730px bloom (9–11×) is what made large glows read as chunky
+# concentric blocks. Pow2 bucketing bounds the shared cache to ~5 textures total.
+const HALO_TEX_MAX := 1024
+
 var _planet_node: Node = null
 var _planet_actual_size: float = 0.0
 
@@ -317,9 +324,13 @@ func _make_planet_halo(planet_node: Node, planet_idx: int, actual_size: float, p
 func _make_halo_sprite(center: Vector2, diameter: float, color: Color) -> void:
 	var halo := Sprite2D.new()
 	halo.name = "PlanetHalo"
-	halo.texture = _build_halo_texture()
+	# Bake the gradient at >= the displayed pixel size so the radial falloff maps
+	# ~1:1 to viewport pixels (1 source texel per pixel, or super-sampled when the
+	# pow2 bucket overshoots). Removes the chunky nearest-upscale on large planets.
+	var res: int = _halo_res_for(diameter)
+	halo.texture = _build_halo_texture(res)
 	halo.position = center
-	var s: float = diameter / 64.0
+	var s: float = diameter / float(res)
 	halo.scale = Vector2(s, s)
 	halo.self_modulate = color
 	var mat := CanvasItemMaterial.new()
@@ -495,7 +506,26 @@ func attach_moons(moons: Array) -> void:
 		moon_idx += 1
 
 
-static func _build_halo_texture() -> Texture2D:
+# Smallest power-of-two texture resolution >= the displayed glow diameter, so the
+# baked radial gradient maps at (or above) 1:1 to viewport pixels. Bucketing to
+# pow2 bounds the cache to a handful of shared textures no matter how many
+# distinct halo sizes a backdrop spawns (companions, moons, atmosphere + bloom).
+static func _halo_res_for(diameter: float) -> int:
+	var need: int = maxi(int(ceil(diameter)), 16)
+	var res: int = 64
+	while res < need and res < HALO_TEX_MAX:
+		res <<= 1
+	return res
+
+
+# Cache baked radial-gradient textures by resolution bucket — a backdrop spawns
+# several halos and they cluster onto a few pow2 sizes, so they share textures
+# (mirrors the static texture-cache idiom in burn_fx / death_dust / em_burst_fx).
+static var _halo_tex_cache: Dictionary = {}
+
+static func _build_halo_texture(res: int = 64) -> Texture2D:
+	if _halo_tex_cache.has(res):
+		return _halo_tex_cache[res]
 	var g = Gradient.new()
 	g.colors = PackedColorArray([
 		Color(1, 1, 1, 1),
@@ -505,9 +535,10 @@ static func _build_halo_texture() -> Texture2D:
 	g.offsets = PackedFloat32Array([0.0, 0.55, 1.0])
 	var t = GradientTexture2D.new()
 	t.gradient = g
-	t.width = 64
-	t.height = 64
+	t.width = res
+	t.height = res
 	t.fill = GradientTexture2D.FILL_RADIAL
 	t.fill_from = Vector2(0.5, 0.5)
 	t.fill_to = Vector2(1.0, 0.5)
+	_halo_tex_cache[res] = t
 	return t

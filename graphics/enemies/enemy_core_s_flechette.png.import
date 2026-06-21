@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dhi8kty44dp8n"
-path="res://.godot/imported/enemy_p_s_dart.png-45cb38bf5b4e19d4287867f81e370dbc.ctex"
+uid="uid://bslig6ux5yvoa"
+path="res://.godot/imported/enemy_core_s_flechette.png-793b6dac55e741740fb8a8013459bf3c.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://graphics/enemies/enemy_p_s_dart.png"
-dest_files=["res://.godot/imported/enemy_p_s_dart.png-45cb38bf5b4e19d4287867f81e370dbc.ctex"]
+source_file="res://graphics/enemies/enemy_core_s_flechette.png"
+dest_files=["res://.godot/imported/enemy_core_s_flechette.png-793b6dac55e741740fb8a8013459bf3c.ctex"]
 
 [params]
 

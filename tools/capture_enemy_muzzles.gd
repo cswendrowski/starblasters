@@ -17,8 +17,8 @@ const FPS: int = 30
 const DURATION: float = 4.0
 const FRAME_TIME: float = 1.0 / float(FPS)
 
-const DART := preload("res://scenes/enemies/factions/privateer/enemy_dart.tscn")
-const SKIRMISHER := preload("res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn")
+const DART := preload("res://scenes/enemies/core/enemy_core_s_dart.tscn")
+const SKIRMISHER := preload("res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn")  # [RETIRED: enemy_skirmisher]
 const GUNNER := preload("res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn")
 
 

@@ -16,8 +16,8 @@ const X_MIN := 132.0
 const X_MAX := 348.0
 
 const FRIGATE := "res://scenes/enemies/factions/supremacy/enemy_frigate.tscn"
-const BOMBER := "res://scenes/enemies/core/enemy_bomber.tscn"
-const MINELAYER := "res://scenes/enemies/factions/privateer/enemy_minelayer.tscn"
+const BOMBER := "res://scenes/enemies/core/enemy_core_bomber.tscn"
+const MINELAYER := "res://scenes/enemies/core/enemy_core_m_minelayer.tscn"
 const BEAMER_DOWN := "res://scenes/enemies/factions/zealot/enemy_beam_shooter.tscn"
 const BEAMER_TRACK := "res://scenes/enemies/factions/zealot/enemy_beamer_tracker.tscn"
 

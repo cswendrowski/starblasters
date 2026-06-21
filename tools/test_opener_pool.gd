@@ -1,9 +1,8 @@
 extends SceneTree
 
 # M5 step 3: opener-pool width. The sector-1 node-0 COMMON pool should contain >= 5 distinct
-# chaff scenes (was 3: dart/bomb_drone/drifter) and include the staple chaff openers. (Stale
-# must-haves firecore + strafer dropped 2026-06-09 — firecore split into cruiser/drone, strafer
-# retired.) Run: godot --headless --script res://tools/test_opener_pool.gd
+# chaff scenes and include the staple chaff openers. (bomb_drone retired 2026-06-20; firecore + strafer
+# dropped 2026-06-09 — firecore split into cruiser/drone, strafer retired.) Run: godot --headless --script res://tools/test_opener_pool.gd
 
 const RESULT := "res://tools/_opener_pool_result.txt"
 const Roster := preload("res://scripts/levels/enemy_roster.gd")
@@ -21,7 +20,7 @@ func _init() -> void:
 	names.sort()
 	if names.size() < 5:
 		lines.append("FAIL opener pool only %d types: %s" % [names.size(), str(names)]); fails += 1
-	for must in ["enemy_bomb_drone.tscn", "enemy_dart.tscn"]:
+	for must in ["enemy_core_s_dart.tscn"]:
 		if not scenes.has(must):
 			lines.append("FAIL %s not in opener pool" % must); fails += 1
 	lines.append("opener COMMON types (%d): %s" % [names.size(), str(names)])

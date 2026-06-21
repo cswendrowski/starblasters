@@ -44,16 +44,17 @@ A `BulletVariant` Resource lets you override bullet behavior at runtime *without
 
 #### Subclass pattern: `_apply_visuals()`
 
-Subclasses (e.g. `scripts/projectiles/bullet.gd`, `scripts/projectiles/bullet_laser.gd`) override `_apply_visuals()` to attach glow, trails, or other polish. The base is a no-op (`func _apply_visuals() -> void: pass` at line 81–82), so a plain `BaseBullet` instance moves and hits without any visual frills. Example from `scripts/projectiles/bullet.gd:22–28`:
+Subclasses (e.g. `scripts/projectiles/bullet.gd`, `scripts/projectiles/bullet_laser.gd`) override `_apply_visuals()` to attach glow, trails, or other polish. The base is a no-op (`func _apply_visuals() -> void: pass` at line 81–82), so a plain `BaseBullet` instance moves and hits without any visual frills. Example from `scripts/projectiles/bullet.gd:21–25`:
 
 ```gdscript
 func _apply_visuals() -> void:
-	GlowShaderFx.apply_to_host(self)
+	# No per-bullet glow halo — the WorldEnvironment bloom glows the bright bolt
+	# sprite directly (see "Glow" below). Only the optional guided trail remains.
 	if guided:
 		TrailFX.attach_trail(self, true)
 ```
 
-This attaches a shader glow (see "GlowShaderFx" below) and optionally a trail.
+The player bolt needs no glow node — its sprite is bright enough that the scene's WorldEnvironment bloom glows it (see "Glow" below). A bullet that wants a *distinct-colored* aura attaches one explicitly with `GlowFx.attach_glow()` — that's what the minigun / autocannon tracers do (`scenes/projectiles/bullet_minigun.gd:34–39`).
 
 ### `base_missile.gd` — two-phase ordnance
 
@@ -164,32 +165,31 @@ Shield hit / break audio. Wired by `base_bullet.gd:277` when a bulwark-shielded 
 
 ---
 
-## GlowShaderFx: Shader-Based Additive Halos
+## Glow: WorldEnvironment bloom + GlowFx radial halos
 
-`scripts/effects/glow_shader_fx.gd:1` is the **single code path for bright things** (projectiles now; engines / explosions / muzzle flashes later). It replaces the old `glow_fx.attach_glow()` radial halos.
+There is **no per-sprite glow-halo shader anymore.** `glow_shader_fx.gd` + `glow_halo.gdshader` (a behind-the-sprite quad carrying an upscaled silhouette) were deleted 2026-06-20: they predated the scene-wide bloom and *double-bloomed* against it into a blurry, chunky blob. Two cleaner paths replace it.
 
-### How it works
+### 1. WorldEnvironment bloom — the default for bright things
 
-A fragment shader on a sprite can only draw *inside* the texture. To get an outer halo, a separate slightly-larger quad is positioned behind the host (`z_index = -1`) carrying the same texture + the `glow_halo.gdshader`. The shader softens the upscaled silhouette into a bloom without multi-tap blurring.
+`main.tscn` carries a `WorldEnvironment` with 2D HDR (`hdr_2d = true`) and glow enabled at `glow_hdr_threshold = 1.5`. Any sprite whose color clears that threshold blooms **natively** — no helper node, no extra quad. This is how player bolts, lasers, and most bright projectiles glow: the art is already bright (or the script pushes it past 1.5), and the env's glow pass does the rest. Player `bullet.gd` attaches **no** glow node for exactly this reason (`scripts/projectiles/bullet.gd:21–25`).
 
-**Static methods:**
+**To make something bloom, make it bright** — either author the sprite bright, or push `modulate` past 1.5 in an HDR color (see the firecore pattern below).
+
+### 2. `GlowFx.attach_glow()` — an explicit, distinct-colored aura
+
+When you want a soft radial aura in a **specific color** the sprite itself isn't (a focus ring, a tinted tracer halo, a pulsing core light), attach one explicitly with `scripts/effects/glow_fx.gd`:
 
 ```gdscript
-static func apply(host: CanvasItem, color_override: Color = Color(0, 0, 0, 0)) -> CanvasItem
+static func attach_glow(host: Node2D, color: Color, scale := 2.0, alpha := 0.7, behind := true) -> Sprite2D
 ```
 
-Derives the glow color from the host's texture (the brightest, most-saturated non-white pixel), creates a `Sprite2D` halo quad, and attaches it as a sibling behind the host. If `color_override.a > 0`, that color is forced instead. Returns the glow node.
+It builds a radial `GradientTexture2D` dot, tints it `color`, blends it additive, and parents it to `host` at `z_index = -1` (behind the sprite) by default — returning the `Sprite2D` so callers can tune position/scale further. Companion helpers: `attach_engine_glow()` (places the halo at a child node's position, e.g. the player's booster) and `attach_flickering_glow()` (adds per-frame alpha jitter for pulsing cores).
 
-**Color derivation:** Computed once per texture on the CPU and cached by texture ID (line 49). The ShaderMaterial is then cached per glow color (line 51), so every bullet of the same color shares one material. Textures with no derivable color (pure white / greyscale) get NO glow — acceptable by design.
+Used everywhere a distinct aura is wanted: player focus/phase, bomblet, `mine_blinker`, `gravity_glow`, `muzzle_fx`, and the minigun / autocannon tracers (`scenes/projectiles/bullet_minigun.gd:34–39`).
 
-**Multi-frame sprite gotcha:** For animated bullets, the glow is **static** (the first frame's silhouette stays as the bullet animates). This is intentional — a 16×16 bullet is too small for per-frame glow ghosting to be imperceptible (see line 105–107). The tradeoff: the halo doesn't pulse with the animation, but it also doesn't ghost neighboring frames into the bloom.
+### 3. Firecore: HDR-bright `modulate`, no halo node at all
 
-**Usage:** From `scripts/projectiles/bullet.gd:26`:
-```gdscript
-GlowShaderFx.apply_to_host(self)
-```
-
-`apply_to_host()` at line 157 is a convenience: find the bullet's Sprite2D child and apply glow to it.
+The decorative firecore ember (`scripts/enemies/firecore_core.gd`, `firecore_hazard.gd`) takes the path-1 route deliberately: instead of attaching a `GlowFx` aura it sets `spr.modulate = Color(1.9, 1.8, 0.38, 1.0)` — a hue-preserving boost of its yellow that clears the 1.5 threshold — and lets the WorldEnvironment bloom glow it. Result: a sharp, bright core with no upscaled halo quad. When something *is* the light, prefer this over an attached aura.
 
 ---
 
@@ -276,9 +276,13 @@ If your bullet has **bespoke behavior** (wobble, homing, split-on-death), extend
 # scripts/projectiles/bullet_mynew.gd
 extends "res://scripts/projectiles/base_bullet.gd"
 
+const GlowFx = preload("res://scripts/effects/glow_fx.gd")
+
 func _apply_visuals() -> void:
-	# Attach glow, trails, or other polish here.
-	GlowShaderFx.apply_to_host(self)
+	# A bright bolt needs nothing — the WorldEnvironment bloom glows it (see "Glow"
+	# above). Attach a GlowFx aura here only when you want a distinct-colored halo.
+	if has_node("Sprite2D"):
+		GlowFx.attach_glow($Sprite2D, impact_color, 0.6, 0.6)
 ```
 
 Keep it lean. Override `_apply_visuals()` for VFX attachment. If behavior is more complex (homing with evasion, multi-stage detonation), check if a variant hook (wobble_amplitude, homing_rate) covers it first.

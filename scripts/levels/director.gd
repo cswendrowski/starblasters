@@ -769,6 +769,14 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 			# units in the level. (Dropped the privateer-interloper re-theme — it re-themed
 			# arbitrary spawns, which contradicts faction-scoped bonuses.)
 			FactionsC.apply(pf, enemy)
+		# Faction livery (2026-06-20): recolor the enemy's Livery layer to the LEVEL faction.
+		# Unlike apply(), this is NOT home-gated — every unit with a "Livery" node wears the
+		# level's colors (Roman's runtime auto-detect decision). pf < 0 hides the layer.
+		FactionsC.apply_livery(pf, enemy)
+	else:
+		# No faction context (hazard node / dev launch) — hide the Livery layer so it doesn't
+		# render an untinted overlay on the body.
+		FactionsC.apply_livery(-1, enemy)
 	# Data-driven shields (shield_unification_2026-06-08.md): roster "shielded" tag +
 	# sector "shielded" modifier both produce a ShieldComponent. Done AFTER the faction
 	# overlay so a sector boost lands on an existing corporate component instead of

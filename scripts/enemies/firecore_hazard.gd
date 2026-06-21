@@ -10,8 +10,10 @@ extends "res://scripts/enemies/enemy_base.gd"
 # spawn X; the slow downward drift lets it clear the band (off-bottom despawn) with a
 # lifetime fallback so a low-spawned ember never lingers.
 
-const GlowShaderFx = preload("res://scripts/effects/glow_shader_fx.gd")
-const GLOW_COLOR := Color(1.0, 0.95, 0.2)   # bright yellow diffuse glow
+# HDR-bright yellow so the WorldEnvironment bloom (glow_hdr_threshold 1.5) glows the
+# ember natively. Replaces the old per-sprite GlowShaderFx halo, which double-bloomed
+# with the env glow into a blurry blob (Roman 2026-06-20). R/G must clear 1.5; tune to taste.
+const GLOW_HDR := Color(1.9, 1.8, 0.38, 1.0)
 
 @export var drift_speed: float = 45.0        # slow lane drift (mines are 120)
 @export var damage_on_collide: int = 2
@@ -34,9 +36,9 @@ func _ready() -> void:
 	if spr != null:
 		if spr is AnimatedSprite2D:
 			(spr as AnimatedSprite2D).play("default")
-		# Bright yellow diffuse glow — double brightness + size so firecores pop
-		# (Roman 2026-06-07). The engine trail comes from the scene's Engine marker.
-		GlowShaderFx.apply(spr, GLOW_COLOR, 2.0, 2.0)
+		# HDR modulate → the WorldEnvironment bloom glows the ember (replaces the old
+		# GlowShaderFx halo, Roman 2026-06-20). The engine trail comes from the Engine marker.
+		spr.modulate = GLOW_HDR
 
 
 func _sprite() -> CanvasItem:

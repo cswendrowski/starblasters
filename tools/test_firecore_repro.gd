@@ -32,7 +32,7 @@ func _process(_dt: float) -> void:
 		_y0_direct = _direct.position.y
 		# Real path: a host enemy with the zealot faction overlay (chance forced to 1.0), killed.
 		var Factions = load("res://scripts/levels/factions.gd")
-		_host = load("res://scenes/enemies/core/enemy_bomb_drone.tscn").instantiate()
+		_host = load("res://scenes/enemies/core/enemy_core_s_dart.tscn").instantiate()  # [RETIRED: enemy_bomb_drone]
 		var comps: Array = Factions.build_components(Factions.Id.ZEALOT)
 		for c in comps:
 			if "chance" in c:
