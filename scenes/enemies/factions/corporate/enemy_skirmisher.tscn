@@ -4,16 +4,7 @@
 [ext_resource type="Texture2D" uid="uid://jp6y7qcxix5o" path="res://graphics/enemies/enemy_c_s_hold.png" id="4_anl2r"]
 [ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://assets/audio/SFX_shot7.wav" id="4_shoot"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="5_die"]
-[ext_resource type="Script" uid="uid://bw15n4h1hqg0e" path="res://scripts/enemies/patterns/advance_retreat.gd" id="10_mov"]
 [ext_resource type="Resource" path="res://resources/patterns/shoot/aimed_wild.tres" id="11_shoot"]
-
-[sub_resource type="Resource" id="MovePattern_inst"]
-script = ExtResource("10_mov")
-advance_y = 180.0
-hold_time = 0.4
-advance_speed = 200.0
-retreat_speed = 280.0
-cycles = 1
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hit"]
 size = Vector2(14, 16.375)
@@ -122,9 +113,7 @@ scale_curve = SubResource("CurveTexture_nnpah")
 color_ramp = SubResource("GradientTexture1D_4lmie")
 
 [node name="Enemy" type="Area2D" unique_id=1245704888 groups=["enemies"]]
-script = ExtResource("1_core")
-movement = SubResource("MovePattern_inst")
-shoot_pattern = ExtResource("11_shoot")
+script = ExtResource("1_core")shoot_pattern = ExtResource("11_shoot")
 fire_interval_min = 999.0
 fire_interval_max = 999.0
 fire_on_phase = "hold"

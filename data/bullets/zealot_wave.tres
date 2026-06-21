@@ -5,6 +5,7 @@
 
 [resource]
 script = ExtResource("1_variant")
+family = &"wave"
 speed = 120.0
 hitbox_size = Vector2(12, 6)
 static_texture = ExtResource("2_tex")

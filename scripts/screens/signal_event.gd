@@ -41,6 +41,7 @@ var _state: int = EState.PRESENT
 
 
 const BackdropCoordinatorScene = preload("res://scenes/parallax/backdrop_coordinator.tscn")
+const COMBAT_SCENE := "res://scenes/main.tscn"
 
 func _ready() -> void:
 	_hd_scope = HdScreen.enter(self)
@@ -1031,9 +1032,12 @@ func _resolve(outcome: Dictionary) -> void:
 	if nxt == ENext.COMBAT:
 		var bt: String = String(outcome.get("btn", ""))
 		btn.text = bt if bt != "" else Strings.BTN_ENGAGE
-		btn.pressed.connect(func():
-			SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn")
-		)
+		# Hot drop: this is an in-place ambush, so it skips the "Flying to…" loading screen. We KNOW
+		# combat is coming the moment this outcome resolves, so preload main.tscn NOW (while the
+		# player reads the result). ENGAGE then swaps to the already-loaded scene — no load hitch,
+		# straight into the fight.
+		ResourceLoader.load_threaded_request(COMBAT_SCENE)
+		btn.pressed.connect(_on_engage_combat)
 	else:
 		btn.text = Strings.BTN_SECTOR_MAP
 		btn.pressed.connect(_on_continue_sector_map)
@@ -1049,6 +1053,20 @@ func _on_continue_sector_map() -> void:
 		if String(run.current_node_id) != "":
 			run.mark_node_completed(String(run.current_node_id))
 	SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE)
+
+
+# ENGAGE the ambush. Swap to the preloaded main.tscn (started when the outcome resolved) with a
+# cover-only fade so combat's own intro reveals it — a snappy hot drop, no loading screen. Falls
+# back to a plain (synchronous) cover-only swap if the preload hasn't finished yet. The signal node
+# is marked completed by main.gd when the ambush combat clears (same as the old ENGAGE path).
+func _on_engage_combat() -> void:
+	var packed: PackedScene = null
+	if ResourceLoader.load_threaded_get_status(COMBAT_SCENE) == ResourceLoader.THREAD_LOAD_LOADED:
+		packed = ResourceLoader.load_threaded_get(COMBAT_SCENE)
+	if packed != null:
+		SceneTransition.change_scene_packed(get_tree(), packed, Callable(), true)
+	else:
+		SceneTransition.change_scene(get_tree(), COMBAT_SCENE, Callable(), true)
 
 
 func _apply_tone(label: Label, tone: int) -> void:

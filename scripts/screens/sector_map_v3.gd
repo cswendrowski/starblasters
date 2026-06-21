@@ -126,6 +126,9 @@ const OUTPOST_SCENE := "res://scenes/outpost.tscn"
 const SIGNAL_SCENE  := "res://scenes/signal_event.tscn"
 const BOSS_SCENE    := "res://scenes/main.tscn"
 const HAZARD_SCENE  := "res://scenes/main.tscn"
+# Heavy main.tscn loads (combat/boss/hazard) route through the "Flying to <POI>" loading
+# screen instead of a plain fade; light scenes (outpost/signal) keep the plain fade.
+const LevelLauncher = preload("res://scripts/systems/level_launcher.gd")
 
 # Per-POI decoration object types: 0=planet, 1=large_asteroid, 2=asteroid_cluster
 const OBJ_PLANET    := 0
@@ -2022,7 +2025,7 @@ func _on_poi_clicked(node_id: String) -> void:
 	run.set_meta("asteroid_base_color", _get_asteroid_color(poi_row_idx))
 	match int(poi.node_type):
 		int(SectorNode.NodeType.COMBAT):
-			SceneTransition.change_scene(get_tree(), COMBAT_SCENE)
+			LevelLauncher.go(get_tree(), COMBAT_SCENE)
 		int(SectorNode.NodeType.OUTPOST):
 			# Zero-bounty entry is no longer gated by a modal — the HD host
 			# surfaces a "no bounty to spend" warning over the selected-node
@@ -2031,7 +2034,7 @@ func _on_poi_clicked(node_id: String) -> void:
 		int(SectorNode.NodeType.SIGNAL):
 			SceneTransition.change_scene(get_tree(), SIGNAL_SCENE)
 		int(SectorNode.NodeType.HAZARD):
-			SceneTransition.change_scene(get_tree(), HAZARD_SCENE)
+			LevelLauncher.go(get_tree(), HAZARD_SCENE)
 
 
 func _on_boss_clicked(node_id: String) -> void:
@@ -2065,7 +2068,7 @@ func _on_boss_clicked(node_id: String) -> void:
 	# spawns parallax rocks — give them the same family color the sector used.
 	run.set_meta("asteroid_base_color", _get_asteroid_color(row_idx))
 	run.forced_boss_scene = String(boss.get("boss_scene", ""))
-	SceneTransition.change_scene(get_tree(), BOSS_SCENE)
+	LevelLauncher.go(get_tree(), BOSS_SCENE)
 
 
 # Shared status string used by both the Manage Ship modal and the sector map

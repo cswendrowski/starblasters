@@ -35,10 +35,11 @@ const MOVEMENT_KEYS := [
 	"pendulum", "proximity_chase", "loiter_sweep",
 ]
 
-# Legacy/retired movement keys → their current SHAPE replacement. Applied when loading the
-# committed matrix + any saved JSON so the speed/depth-variant keys (2026-06-08 set) and older
-# retired names collapse to the shape key instead of vanishing. Anything not here and not in
-# MOVEMENT_KEYS is dropped on load.
+# Legacy/retired movement keys → their current SHAPE replacement. The committed matrix is itself
+# all shape keys now (2026-06-20 cleanup), so this is a no-op for it; it remains the load-time net
+# for OLD saved user:// JSON whose identities/eligibles still use the speed/depth-variant keys
+# (2026-06-08 set) or older retired names — they collapse to the shape key instead of vanishing.
+# Anything not here and not in MOVEMENT_KEYS is dropped on load.
 const KEY_REMAP := {
 	# 2026-06-08 speed/depth-variant keys → shape (locomotion refactor 2026-06-19)
 	"straight_crawl": "straight", "straight_slow": "straight", "straight_medium": "straight",

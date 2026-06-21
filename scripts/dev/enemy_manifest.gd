@@ -18,12 +18,8 @@ const ENEMIES: Array = [
 	"res://scenes/enemies/enemy_asteroid.tscn",
 	"res://scenes/enemies/factions/corporate/enemy_bulwark.tscn",
 	"res://scenes/enemies/core/enemy_crystal.tscn",
-	"res://scenes/enemies/core/enemy_cutter.tscn",
 	"res://scenes/enemies/factions/privateer/enemy_dart.tscn",
-	"res://scenes/enemies/core/enemy_drifter.tscn",
-	"res://scenes/enemies/core/enemy_spitter.tscn",
 	"res://scenes/enemies/factions/supremacy/enemy_frigate.tscn",
-	"res://scenes/enemies/core/enemy_hover.tscn",
 	"res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn",
 	"res://scenes/enemies/factions/privateer/enemy_interceptor.tscn",
 	"res://scenes/enemies/enemy_mine.tscn",
@@ -34,7 +30,6 @@ const ENEMIES: Array = [
 	"res://scenes/enemies/enemy_mine_tether.tscn",
 	"res://scenes/enemies/factions/privateer/enemy_minelayer.tscn",
 	"res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn",
-	"res://scenes/enemies/core/enemy_weaver.tscn",
 ]
 
 

@@ -5,6 +5,7 @@
 
 [resource]
 script = ExtResource("1_variant")
+family = &"bolt"
 speed = 240.0
 lifetime = 1.5
 hitbox_size = Vector2(6, 12)

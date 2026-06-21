@@ -10,6 +10,13 @@ class_name BulletVariant
 @export var lifetime: float = 4.0
 @export var hitbox_size: Vector2 = Vector2(6.0, 6.0)
 
+# Faction-appearance facet (2026-06-20): the bullet's visual ARCHETYPE — "ball"/"bolt"/"laser"/
+# "wave". When set, the firing layer swaps this variant for the active faction's same-family variant
+# (e.g. zealot_ball → privateer_ball) at spawn, so a universal enemy's shots take the level faction's
+# style. Family members are stat-clones (only the texture differs), so the swap is appearance-only.
+# "" = no family (never swapped). Resolution lives in BulletCatalog.faction_variant().
+@export var family: StringName = &""
+
 # Visuals — leave both null to keep the scene's default appearance.
 @export var sprite_frames: SpriteFrames = null    # null → use static_texture
 @export var static_texture: Texture2D = null       # shown when sprite_frames is null

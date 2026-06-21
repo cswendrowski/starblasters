@@ -47,13 +47,8 @@ const WAVE_INTERMINGLE_PROBS := [0.0, 0.30, 0.55, 0.75, 0.85]
 const WAVE_AFFINITY := {
 	"res://scenes/enemies/factions/privateer/enemy_minelayer.tscn": ["res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn"],
 	"res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn": ["res://scenes/enemies/factions/privateer/enemy_minelayer.tscn"],
-	"res://scenes/enemies/core/enemy_drifter.tscn": ["res://scenes/enemies/factions/privateer/enemy_dart.tscn", "res://scenes/enemies/core/enemy_weaver.tscn"],
-	"res://scenes/enemies/factions/privateer/enemy_dart.tscn": ["res://scenes/enemies/core/enemy_drifter.tscn"],
-	"res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn": ["res://scenes/enemies/core/enemy_spitter.tscn"],
-	"res://scenes/enemies/core/enemy_spitter.tscn": ["res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn"],
-	"res://scenes/enemies/core/enemy_cutter.tscn": ["res://scenes/enemies/core/enemy_hover.tscn"],
-	"res://scenes/enemies/core/enemy_hover.tscn": ["res://scenes/enemies/core/enemy_cutter.tscn"],
-	"res://scenes/enemies/core/enemy_weaver.tscn": ["res://scenes/enemies/core/enemy_drifter.tscn"],
+	# Cut-unit pairs (cutter/drifter/hover/spitter/weaver) removed 2026-06-20 — those ships were
+	# retired; only survivors remain on the affinity table.
 }
 
 # Per-wave HP bonus from prior wave-clears within the current sector. Each
@@ -601,10 +596,7 @@ static func _make_wave_spec(rng: RandomNumberGenerator, entry: Dictionary, secto
 	# unconditional _apply_force_formation below, not this 25% roll).
 	var mv_raw: Variant = entry.get("movement", "")
 	var mv_key: String = String(mv_raw) if mv_raw != null else ""
-	var tandem_eligible: bool = mv_key in [
-		"straight", "firecore_straight", "drifter_straight",
-		"fast_straight", "s_curve",
-	]
+	var tandem_eligible: bool = mv_key in ["straight"]   # straight descenders pair into tandem rows
 	if tandem_eligible and not want_wall and not is_boss_leadin and level_index >= 2 and rng.randf() < 0.25:
 		w.formation = WaveSpec.Formation.TOP_TANDEM_PAIRS
 		if (w.count % 2) == 1:

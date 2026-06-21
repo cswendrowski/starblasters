@@ -74,6 +74,11 @@ func _apply_axis(b) -> void:
 # Optional `bv` (BulletVariant) is applied before start() so the variant
 # can override speed, damage, hitbox, and visuals at spawn time.
 func _spawn_bullet(enemy, dir: Vector2, bv = null, spawn_override = null):
+	# Faction projectile-appearance facet (2026-06-20): swap a family-tagged payload for the active
+	# faction's same-family variant (e.g. zealot_ball → privateer_ball). No-op for family-less
+	# bullets, a faction with no styled set, or a non-faction level (faction_skin meta absent → -1).
+	if bv != null and enemy != null:
+		bv = BulletCatalog.faction_variant(bv, int(enemy.get_meta("faction_skin", -1)))
 	# Resolve the payload's canonical per-bullet scene (weapons spec "Index: Enemy
 	# Projectiles"): a variant with an indexed scene spawns THAT scene (its own
 	# sprite/shader/hitbox); otherwise fall back to this pattern's bullet_scene.

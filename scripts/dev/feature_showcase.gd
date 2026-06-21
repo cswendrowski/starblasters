@@ -8,8 +8,6 @@ extends Node2D
 
 const PLAYER = preload("res://scenes/player/player.tscn")
 const ENEMY_DART = preload("res://scenes/enemies/factions/privateer/enemy_dart.tscn")
-const ENEMY_DRIFTER = preload("res://scenes/enemies/core/enemy_drifter.tscn")
-const ENEMY_FIRECORE = preload("res://scenes/enemies/core/enemy_spitter.tscn")
 const BOSS = preload("res://scenes/enemies/bosses/boss.tscn")
 const BLACK_HOLE = preload("res://scenes/hazards/black_hole.tscn")
 const WAVE_BANNER = preload("res://scenes/hud/wave_banner.tscn")
@@ -94,8 +92,8 @@ func _setup_demo(idx: int) -> void:
 func _demo_idle() -> void:
 	_spawn_player(Vector2(400, 760))
 	# Mix of enemies so different display_scales are visible against player
-	_spawn_enemy(Vector2(200, 280), ENEMY_DRIFTER)
-	_spawn_enemy(Vector2(400, 260), ENEMY_FIRECORE)
+	_spawn_enemy(Vector2(200, 280), ENEMY_DART)
+	_spawn_enemy(Vector2(400, 260), ENEMY_DART)
 	_spawn_enemy(Vector2(600, 280), ENEMY_DART)
 
 func _demo_wave_banner() -> void:
@@ -275,8 +273,8 @@ func _demo_level_outro() -> void:
 			if "_enemy_stats" in main_inst:
 				main_inst._enemy_stats = {
 					"res://scenes/enemies/factions/privateer/enemy_dart.tscn": {"spawned": 14, "killed": 12, "bounty": 5, "total_bounty": 60},
-					"res://scenes/enemies/core/enemy_drifter.tscn": {"spawned": 8, "killed": 7, "bounty": 8, "total_bounty": 56},
-					"res://scenes/enemies/core/enemy_spitter.tscn": {"spawned": 4, "killed": 4, "bounty": 25, "total_bounty": 100},
+					"res://scenes/enemies/factions/privateer/enemy_p_s_green.tscn": {"spawned": 8, "killed": 7, "bounty": 8, "total_bounty": 56},
+					"res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn": {"spawned": 4, "killed": 4, "bounty": 25, "total_bounty": 100},
 				}
 				main_inst.bounty = 325
 			# Trigger the outro
@@ -557,14 +555,9 @@ func _demo_codex() -> void:
 	if has_node("/root/Run"):
 		var run = get_node("/root/Run")
 		for path in [
-			"res://scenes/enemies/core/enemy_spitter.tscn",
-			"res://scenes/enemies/core/enemy_drifter.tscn",
 			"res://scenes/enemies/factions/privateer/enemy_dart.tscn",
 			"res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn",
-			"res://scenes/enemies/core/enemy_hover.tscn",
 			"res://scenes/enemies/factions/supremacy/enemy_frigate.tscn",
-			"res://scenes/enemies/core/enemy_cutter.tscn",
-			"res://scenes/enemies/core/enemy_weaver.tscn",
 			"res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn",
 			"res://scenes/enemies/core/enemy_crystal.tscn",
 			"res://scenes/enemies/factions/privateer/enemy_minelayer.tscn",
@@ -581,15 +574,10 @@ func _demo_enemy_roster_sheet() -> void:
 	# the roster reference image Roman asked for 2026-05-16.
 	const ROSTER = [
 		# COMMON
-		{"path": "res://scenes/enemies/core/enemy_spitter.tscn", "name": "Firecore", "tier": "Common"},
-		{"path": "res://scenes/enemies/core/enemy_drifter.tscn",  "name": "Drifter",  "tier": "Common"},
 		{"path": "res://scenes/enemies/factions/privateer/enemy_dart.tscn",     "name": "Dart",     "tier": "Common"},
 		{"path": "res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn", "name": "Hunter Drone", "tier": "Common"},
 		# UNCOMMON
-		{"path": "res://scenes/enemies/core/enemy_weaver.tscn",   "name": "Weaver",   "tier": "Uncommon"},
-		{"path": "res://scenes/enemies/core/enemy_hover.tscn",    "name": "Hover",    "tier": "Uncommon"},
 		{"path": "res://scenes/enemies/factions/supremacy/enemy_frigate.tscn",  "name": "Frigate",  "tier": "Uncommon"},
-		{"path": "res://scenes/enemies/core/enemy_cutter.tscn",   "name": "Cutter",   "tier": "Uncommon"},
 		{"path": "res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn", "name": "Skirmisher", "tier": "Uncommon"},
 		# RARE
 		{"path": "res://scenes/enemies/core/enemy_crystal.tscn",  "name": "Crystal",  "tier": "Rare"},

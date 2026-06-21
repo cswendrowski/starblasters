@@ -33,6 +33,8 @@ const PAYLOADS := {
 	"Drop Pellet": EnemyRoster.BV_DropPellet,
 	"Zealot Ball": EnemyRoster.BV_ZealotBall, "Zealot Bolt": EnemyRoster.BV_ZealotBolt,
 	"Zealot Laser": EnemyRoster.BV_ZealotLaser, "Zealot Wave": EnemyRoster.BV_ZealotWave,
+	"Privateer Ball": EnemyRoster.BV_PrivBall, "Privateer Bolt": EnemyRoster.BV_PrivBolt,
+	"Privateer Laser": EnemyRoster.BV_PrivLaser, "Privateer Wave": EnemyRoster.BV_PrivWave,
 }
 
 # Faction filter tabs (Roman 2026-06-12). "All" + the 4 factions + Core (universal chaff) +
@@ -386,6 +388,26 @@ func _setup_size_tab() -> void:
 	lvb.add_theme_constant_override("separation", 6)
 	loco_scroll.add_child(lvb)
 	_build_loco_editor(lvb)
+	# Keep the Enemy tab inside the gutter: every label wraps and every dropdown clips/sizes to its
+	# selection, so no leaf can demand more width than the gutter and push the panel into the play band.
+	_tighten_panel(scroll)
+
+
+# Stop the Enemy tab from inflating its min-width past the gutter. Two width drivers exist in a
+# narrow side panel: long single-line Labels (force their full text width) and OptionButtons (force
+# their longest item's width). Wrap the labels; size dropdowns to the selection (fit_to_longest_item
+# off) + clip + expand-fill. Re-applied after mount/emitter rebuilds add rows. (The static .tscn
+# captions are covered here too, so they don't each need an autowrap flag in the scene.)
+func _tighten_panel(root_ctl: Control) -> void:
+	if root_ctl == null:
+		return
+	for n in root_ctl.find_children("*", "OptionButton", true, false):
+		var ob := n as OptionButton
+		ob.fit_to_longest_item = false
+		ob.clip_text = true
+		ob.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for n in root_ctl.find_children("*", "Label", true, false):
+		(n as Label).autowrap_mode = TextServer.AUTOWRAP_WORD
 
 
 func _build_loco_editor(vb: VBoxContainer) -> void:
@@ -479,25 +501,27 @@ func _setup_enemy_template_knobs(scroll: Control) -> void:
 	content.add_child(HSeparator.new())
 	content.add_child(_mk_label("Template (size + traits)", 16, Color(0.62, 0.82, 1, 1)))
 	content.add_child(_mk_label("Size + traits drive HP / bounty / shield / locomotion from the size template — then hand-tweak the values below.", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
-	var sr := HBoxContainer.new()
-	sr.add_theme_constant_override("separation", 8)
-	content.add_child(sr)
-	sr.add_child(_mk_label("Size", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
+	# Caption above a full-width control (the panel's consistent stack pattern) — an inline
+	# label-beside-control row gets squished to clipping in this narrow gutter.
+	content.add_child(_mk_label("Size", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
 	_size_dd = OptionButton.new()
 	for s in _SIZE_OPTS:
 		_size_dd.add_item(s)
-	_size_dd.custom_minimum_size = Vector2(100, 28)
+	_size_dd.custom_minimum_size = Vector2(0, 30)
+	_size_dd.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_size_dd.item_selected.connect(_on_template_changed)
-	sr.add_child(_size_dd)
+	content.add_child(_size_dd)
 	var tr := HBoxContainer.new()
 	tr.add_theme_constant_override("separation", 10)
 	content.add_child(tr)
 	_tough_chk = CheckBox.new()
 	_tough_chk.text = "tough (x2 HP)"
+	_tough_chk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_tough_chk.toggled.connect(func(_p): _on_template_changed(0))
 	tr.add_child(_tough_chk)
 	_shielded_chk = CheckBox.new()
 	_shielded_chk.text = "shielded"
+	_shielded_chk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_shielded_chk.toggled.connect(func(_p): _on_template_changed(0))
 	tr.add_child(_shielded_chk)
 
@@ -552,26 +576,38 @@ func _setup_enemy_loco_knobs(scroll: Control) -> void:
 	content.add_child(HSeparator.new())
 	content.add_child(_mk_label("Locomotion (this enemy)", 16, Color(0.62, 0.82, 1, 1)))
 	content.add_child(_mk_label("Engine = rung offset on the size base speed (+1 = +60 px/s; weight/turn unchanged). Depth = hold/cross band (default = size/identity).", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
+	# Engine + Depth as two equal columns (caption stacked above each control), so neither label is
+	# squished by an expanding control sharing its row — they split the panel 50/50 instead.
 	var er := HBoxContainer.new()
 	er.add_theme_constant_override("separation", 8)
 	content.add_child(er)
-	er.add_child(_mk_label("Engine", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
+	var ecol := VBoxContainer.new()
+	ecol.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ecol.add_theme_constant_override("separation", 2)
+	er.add_child(ecol)
+	ecol.add_child(_mk_label("Engine", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
 	_engine_spin = SpinBox.new()
 	_engine_spin.min_value = -4.0
 	_engine_spin.max_value = 4.0
 	_engine_spin.step = 1.0
-	_engine_spin.custom_minimum_size = Vector2(70, 28)
+	_engine_spin.custom_minimum_size = Vector2(0, 30)
+	_engine_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_engine_spin.value_changed.connect(_on_loco_knob_changed)
-	er.add_child(_engine_spin)
-	er.add_child(_mk_label("Depth", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
+	ecol.add_child(_engine_spin)
+	var dcol := VBoxContainer.new()
+	dcol.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	dcol.add_theme_constant_override("separation", 2)
+	er.add_child(dcol)
+	dcol.add_child(_mk_label("Depth", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
 	_depth_dd = OptionButton.new()
 	_depth_dd.add_item("(default)")
 	_depth_dd.add_item("high")
 	_depth_dd.add_item("mid")
 	_depth_dd.add_item("low")
-	_depth_dd.custom_minimum_size = Vector2(90, 28)
+	_depth_dd.custom_minimum_size = Vector2(0, 30)
+	_depth_dd.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_depth_dd.item_selected.connect(_on_loco_depth_changed)
-	er.add_child(_depth_dd)
+	dcol.add_child(_depth_dd)
 
 
 func _on_loco_knob_changed(_v: float) -> void:
@@ -675,6 +711,10 @@ func _mk_label(text: String, size: int, color: Color) -> Label:
 	l.text = text
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", color)
+	# Wrap by default: this is a narrow side-gutter panel, so a long caption must wrap rather than
+	# force its full text width as the panel's min-width (that pushed the whole panel off the gutter,
+	# into the play band). Single-word/short labels are unaffected (they never exceed the width).
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD
 	return l
 
 
@@ -975,6 +1015,7 @@ func _rebuild_mounts_ui() -> void:
 		c.queue_free()
 	for i in _mount_dicts.size():
 		_mounts_list.add_child(_make_mount_row(i))
+	_tighten_panel(_mounts_list)
 
 
 func _make_mount_row(idx: int) -> Control:
@@ -1079,6 +1120,7 @@ func _rebuild_emitters_ui() -> void:
 		c.queue_free()
 	for i in _emitter_dicts.size():
 		_emitters_list.add_child(_make_emitter_row(i))
+	_tighten_panel(_emitters_list)
 
 
 func _make_emitter_row(idx: int) -> Control:
@@ -1321,6 +1363,8 @@ func _row_lbl(t: String) -> Label:
 	l.text = t
 	l.add_theme_font_size_override("font_size", FS_CAPTION)
 	l.add_theme_color_override("font_color", Color(0.70, 0.78, 0.88, 0.70))
+	# Wrap (see _mk_label): mount/emitter rows live in the same narrow gutter panel.
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD
 	return l
 
 

@@ -18,31 +18,31 @@ extends Object
 
 # Page titles and bodies.
 const ONBOARDING_CONTROLS_TITLE := "Controls"
-const ONBOARDING_CONTROLS_BODY := "Arrow Keys / WASD — move.\nSpace / Z — fire primary cannon.\nC — fire secondary hardpoint weapon.\nX — super weapon (limited charges).\nShift — activate Shift Mode (Focus / Phase / Hyper): each grants different benefits.\nQ — swap between primary cannons (if you own more than one).\nEsc — pause."
+const ONBOARDING_CONTROLS_BODY := "Arrow Keys — move.\nSpace / Z — fire blaster or primary cannon.\nC — fire secondary hardpoint weapon.\nX — Smart Bomb.\nShift — activate Shift Mode (If Available): each grants different benefits.\nG — swap between blaster and primary cannon (if you own more than one).\nA — Toggle AutoFire for blaster or primary cannon.\nS — Toggle Smart Mode for selected Blaster/Cannon (if available).\nEsc — pause."
 
 const ONBOARDING_PARTS_TITLE := "Parts & Marks"
-const ONBOARDING_PARTS_BODY := "Your ship can be upgraded with new parts and weapon improvements during patrols. Visit Outposts to buy new gear, or pick up parts from defeated enemies.\n\nEvery part has a Mark level from Mk.1 to Mk.9. Higher Mk = stronger: more damage, more durability, better stats. Acquire duplicate parts to upgrade their Mark level.\n\nSpend Bounty Credits at Outposts to buy parts and upgrades. Different shops offer different inventories — explore to find the best deals."
+const ONBOARDING_PARTS_BODY := "Your ship can be upgraded with new parts during patrols. Visit the Outpost to buy them, or seek out Unknown Signal events and see what you find.\n\nEvery part has a Mark level from Mk.1 to Mk.9. A higher Mark is always better, providing more damage, more durability, better stats, etc.\n\nAside from spending Bounty and scavenging them, you can upgrade existing equipped party by spending Bounty and Materials at the Outpost. You can gain materials from Signal Events and from breaking down owned equipment."
 
 const ONBOARDING_SHIELDS_TITLE := "Shields & Hull"
-const ONBOARDING_SHIELDS_BODY := "Your ship has two layers of integrity.\n\nThe SHIELD bar at the top absorbs incoming fire. When it runs out, your HULL becomes vulnerable.\n\nAt start you can sustain three hits before you're put into a danger state, if you take another hit while in this danger state your ship is gone and your patrol ends. You can repair our hull at outposts."
+const ONBOARDING_SHIELDS_BODY := "Your ship has two layers of integrity.\n\nThe SHIELD absorbs incoming fire. When it runs out, your HULL becomes vulnerable.\n\nAt start you can sustain two hits before you're put into a danger state, if you take another hit while in this danger state you die and your patrol ends. You can repair our hull at outposts, or through some modules."
 
 const ONBOARDING_SHIELD_REGEN_TITLE := "Shield Regen"
-const ONBOARDING_SHIELD_REGEN_BODY := "Shields regenerate automatically a couple of seconds after the last hit.\n\nIf you can avoid taking damage for a few seconds your shield will start to come back. Upgrades can increase the capacity and recharge rate."
+const ONBOARDING_SHIELD_REGEN_BODY := "Shields regenerate automatically a few seconds after the last hit, and will recharge themselves to full if given time. Taking damage while the shield is regenerating will halt the process and reset the timer.\n\nUpgrades can increase the capacity and recharge rate, and reduce the recharge delay."
 
 const ONBOARDING_BOUNTY_TITLE := "Bounty Economy"
-const ONBOARDING_BOUNTY_BODY := "Defeat enemies to earn Bounty Credits — your in-patrol currency. Your total displays at the top-right of the HUD.\n\nVisit Outposts to spend Bounty on parts, weapons, repairs, and ammo. As you progress deeper into the patrol, Outpost prices increase — but the quality of available gear gets better too, rewarding deeper runs.\n\nBounty doesn't carry over — each patrol starts fresh. Spend it while you're out there: an upgrade in your hold beats credits you'll never bank."
+const ONBOARDING_BOUNTY_BODY := "Defeat enemies to earn Bounty Credits — your in-patrol currency.\n\nVisit the Outpost to spend Bounty on parts, weapons, repairs, and ammo. As you progress deeper into the patrol, Outpost prices increase — but the quality of available gear gets better too.\n\nBounty doesn't carry over — each patrol starts fresh, so spend it while you're out there."
 
 const ONBOARDING_WAVES_TITLE := "Waves"
 const ONBOARDING_WAVES_BODY := "Combat levels are split into waves. A banner pops at the start of each: WAVE 1 / 7, WAVE 2 / 7, and so on.\n\nMid-level, the wave count tells you how close you are to clearing. The last two waves of every level are the toughest — keep something in reserve."
 
 const ONBOARDING_SECTOR_MAP_TITLE := "Sector Map"
-const ONBOARDING_SECTOR_MAP_BODY := "Your patrol covers three sectors. Each sector has three star systems, each with missions you can tackle in any order.\n\nClear all nodes in a system to unlock that system's Boss. Defeat the Boss to finish the sector. Clear all three sectors to complete your patrol.\n\nBetween missions, visit Outposts to buy upgrades and repairs, or use the Manage Ship button to organize your loadout."
+const ONBOARDING_SECTOR_MAP_BODY := "Your patrol covers a single sector space. Each sector has three star systems, each with missions you can tackle in any order.\n\nClear all nodes in a system to unlock that system's Boss. Defeat the Boss to finish the system patrol. Clear all three systems to complete your patrol.\n\nBetween missions, visit Outposts to buy upgrades, adjust your loadout and restock and make repairs."
 
 const ONBOARDING_NODE_TYPES_TITLE := "Location Types"
-const ONBOARDING_NODE_TYPES_BODY := "Combat — defeat waves of enemies to earn Bounty.\nOutpost — a safe hub where you can buy parts, upgrades, repairs, and ammo using your Bounty. Also visit the Manage Ship screen to equip and organize your loadout.\nSignal — mysterious contact; a random event that offers rewards or risks.\nHazard — navigate through dangerous fields (mines or asteroids). Destructible but hazardous.\nBoss — the sector's commander. Defeat it to clear the sector and advance."
+const ONBOARDING_NODE_TYPES_BODY := "Combat — defeat waves of enemies to earn Bounty.\nSignal — mysterious contact; a random event that offers rewards or risks.\nHazard — navigate through dangerous fields (mines or asteroids). Destructible but hazardous.\nBoss — the sector's commander. Defeat it to clear the system, reset the outpost stock and advance toward sector completion."
 
 const ONBOARDING_MISSION_TITLE := "Mission Briefing"
-const ONBOARDING_MISSION_BODY := "Your mission is to patrol three sectors, hunting down Supremacy slavers and corporate privateers lurking there. Each one you take out is worth bounty, and each bounty will help you take the next one down a little more easily. Search the systems, tally up kills, and eventually you'll learn where the worst of them are. Eliminate them, for the good of the galaxy and your accounts.\n\nGood luck, Starblaster!"
+const ONBOARDING_MISSION_BODY := "Your mission is to patrol three systems, hunting down slavers, marauders, cultists, and mercenaries preying on the local inhabitants. Each enemy you dust is worth bounty, and each bounty will help you gear up for the next fight. Search the systems, tally up kills, and eventually you'll learn where the worst of them are. Eliminate them, for the good of the galaxy and your accounts.\n\nGood luck, Starblaster!"
 
 # Navigation buttons.
 const ONBOARDING_BTN_BACK := "Back"

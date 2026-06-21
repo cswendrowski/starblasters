@@ -5,6 +5,7 @@
 
 [resource]
 script = ExtResource("1_variant")
+family = &"ball"
 speed = 180.0
 lifetime = 3.0
 static_texture = ExtResource("2_tex")

@@ -4,7 +4,9 @@ extends SceneTree
 # stamps each faction's modifier onto a fresh enemy via the M6a component/weapon axes:
 #   supremacy -> faster fire (interval * 0.7)   privateer -> 2x HP
 #   corporate -> Shield component               zealot    -> DropFirecore Emitter (DEATH)
-# plus the tint. Run: godot --headless --script res://tools/test_factions.gd
+# apply() is HOME-gated (Roman 2026-06-08): it only themes a unit whose home IS that faction, so
+# each check uses a HOME unit of the faction under test (not a single shared dart).
+# Run: godot --headless --script res://tools/test_factions.gd
 
 const RESULT := "res://tools/_factions_result.txt"
 const Factions := preload("res://scripts/levels/factions.gd")
@@ -43,8 +45,8 @@ func _process(_dt: float) -> bool:
 	if not Factions.data(Factions.Id.PRIVATEER).get("overlay", false):
 		_fail("privateer should be the overlay faction")
 
-	# supremacy: faster fire (interval * 0.7) + tint
-	var s = _dart()
+	# supremacy: faster fire (interval * 0.7) + tint — supremacy-home unit
+	var s = load("res://scenes/enemies/factions/supremacy/enemy_s_s_hotrod.tscn").instantiate()
 	var fmin: float = s.fire_interval_min
 	Factions.apply(Factions.Id.SUPREMACY, s)
 	if not is_equal_approx(s.fire_interval_min, fmin * 0.7):
@@ -62,8 +64,8 @@ func _process(_dt: float) -> bool:
 		_fail("privateer max_health %d != %d (2x)" % [p.max_health, int(round(hp0 * 2.0))])
 	p.free()
 
-	# corporate: a Shield component attached
-	var c = _dart()
+	# corporate: a Shield component attached — corporate-home unit
+	var c = load("res://scenes/enemies/factions/corporate/enemy_c_s_curve.tscn").instantiate()
 	Factions.apply(Factions.Id.CORPORATE, c)
 	var has_shield := false
 	for comp in c.components:
@@ -73,8 +75,8 @@ func _process(_dt: float) -> bool:
 		_fail("corporate did not attach a Shield component")
 	c.free()
 
-	# zealot: a DropFirecore Emitter (DEATH trigger) attached
-	var z = _dart()
+	# zealot: a DropFirecore Emitter (DEATH trigger) attached — zealot-home unit
+	var z = load("res://scenes/enemies/factions/zealot/enemy_z_s_manta.tscn").instantiate()
 	Factions.apply(Factions.Id.ZEALOT, z)
 	var has_emitter := false
 	for comp in z.components:

@@ -32,7 +32,7 @@ const EnemyRoster = preload("res://scripts/levels/enemy_roster.gd")
 
 # A stationary enemy_core chassis to host the previewed enemy weapon (movement is
 # nulled so it sits at the top and just fires).
-const ENEMY_HOST := "res://scenes/enemies/core/enemy_hover.tscn"
+const ENEMY_HOST := "res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn"
 
 enum Tab { PLAYER, ENEMY, BULLETS }
 

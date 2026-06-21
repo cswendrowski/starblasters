@@ -17,9 +17,9 @@ const FPS: int = 30
 const DURATION: float = 4.0
 const FRAME_TIME: float = 1.0 / float(FPS)
 
-const DRIFTER := preload("res://scenes/enemies/core/enemy_drifter.tscn")
+const DART := preload("res://scenes/enemies/factions/privateer/enemy_dart.tscn")
 const SKIRMISHER := preload("res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn")
-const HOVER := preload("res://scenes/enemies/core/enemy_hover.tscn")
+const GUNNER := preload("res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn")
 
 
 func _initialize() -> void:
@@ -55,9 +55,9 @@ func _run() -> void:
 	root.add_child(bg)
 
 	# Three shooters across the playfield band (X 132–348), upper third.
-	var drifter := _spawn(DRIFTER, Vector2(170, 70))
+	var dart := _spawn(DART, Vector2(170, 70))
 	var skirmisher := _spawn(SKIRMISHER, Vector2(240, 70))
-	var hover := _spawn(HOVER, Vector2(310, 70))
+	var gunner := _spawn(GUNNER, Vector2(310, 70))
 
 	# Dummy player in the line of fire so aimed_fire has a target.
 	var dummy := Area2D.new()
@@ -74,9 +74,9 @@ func _run() -> void:
 	var fire_every: int = 9
 	for f in total:
 		if f % fire_every == 0:
-			_fire(drifter)
+			_fire(dart)
 			_fire(skirmisher)
-			_fire(hover)
+			_fire(gunner)
 		await create_timer(FRAME_TIME).timeout
 		var img: Image = root.get_viewport().get_texture().get_image()
 		if img != null:

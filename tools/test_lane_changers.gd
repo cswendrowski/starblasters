@@ -18,12 +18,21 @@ var _fails := 0
 var _done := false
 
 
+# Chassis-aware mover: lane_path reads descent SPEED from enemy.move_speed (down_speed is vestigial
+# post-2026-06-19), and the accessor needs the PROPERTY to exist (a bare Node2D gets 180). Setting
+# move_speed ~1 keeps the lateral-commit movers near a fixed-Y occupant; the zone test sets the
+# real cross speed. (Occupants stay bare Node2D — they're positioned by hand, not by a pattern.)
+class Dummy extends Node2D:
+	var move_speed: float = 1.0
+
+
 func _fail(msg: String) -> void:
 	_lines.append("FAIL " + msg); _fails += 1
 
 
-func _mover(lane: int, y: float) -> Node2D:
-	var n := Node2D.new()
+func _mover(lane: int, y: float, ms: float = 1.0) -> Node2D:
+	var n := Dummy.new()
+	n.move_speed = ms
 	n.position = Vector2(Lanes.lane_center(lane), y)
 	root.add_child(n)
 	return n
@@ -94,7 +103,7 @@ func _tick_to_y(m: Node2D, p, target_y: float, occ: Node2D = null) -> void:
 func _test_drifter_zone() -> void:
 	# Zone-timed Drifter (HOOK + zone_timed): holds the spawn lane through the entry
 	# band, slides across the fire zone, lands in the adjacent lane by the band bottom.
-	var m := _mover(2, 0.0)
+	var m := _mover(2, 0.0, 120.0)
 	var p = LanePath.new()
 	p.shape = LanePath.Shape.HOOK
 	p.zone_timed = true
@@ -109,7 +118,7 @@ func _test_drifter_zone() -> void:
 		_fail("drifter(zone) should be in lane 3 by the fire-zone exit (lane=%d)" % _lane_of(m))
 
 	# blocked the whole way (occupant rides alongside in lane 3) -> never slides.
-	var m2 := _mover(2, 0.0)
+	var m2 := _mover(2, 0.0, 120.0)
 	var occ := _occupant(3, 0.0)
 	var p2 = LanePath.new()
 	p2.shape = LanePath.Shape.HOOK

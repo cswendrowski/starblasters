@@ -5,6 +5,7 @@
 
 [resource]
 script = ExtResource("1_variant")
+family = &"laser"
 speed = 480.0
 lifetime = 2.0
 hitbox_size = Vector2(4, 12)

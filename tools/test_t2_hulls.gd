@@ -19,11 +19,11 @@ func _process(_d: float) -> bool:
 	var fails := 0
 	var dt := 1.0 / 60.0
 
-	_check(lines, "bomber", "res://scenes/enemies/core/enemy_bomber.tscn", "drift_mid",
+	_check(lines, "bomber", "res://scenes/enemies/core/enemy_bomber.tscn", Zones.band_progress(90.0),
 		Vector2(Lanes.lane_center(3), 10.0), 240, 90.0, "TailGun")
-	_check(lines, "cruiser", "res://scenes/enemies/core/enemy_cruiser.tscn", "drift_high",
+	_check(lines, "cruiser", "res://scenes/enemies/core/enemy_cruiser.tscn", Zones.band_progress(50.0),
 		Vector2(Lanes.lane_center(3), 10.0), 160, 50.0, "")
-	_check(lines, "carrier", "res://scenes/enemies/factions/corporate/enemy_drone_carrier.tscn", "drift_high",
+	_check(lines, "carrier", "res://scenes/enemies/factions/corporate/enemy_drone_carrier.tscn", Zones.band_progress(50.0),
 		Vector2(Lanes.lane_center(3), 10.0), 160, 50.0, "")
 
 	# accumulate fail count
@@ -36,14 +36,18 @@ func _process(_d: float) -> bool:
 		f.store_string("\n".join(PackedStringArray(lines))); f.close()
 	return true
 
-func _check(lines: Array, name: String, scene_path: String, mv: String, spawn: Vector2,
+func _check(lines: Array, name: String, scene_path: String, depth_bp: float, spawn: Vector2,
 		ticks: int, hold_y: float, child: String) -> void:
 	var ps: PackedScene = load(scene_path)
 	if ps == null:
 		lines.append("FAIL %s: scene load" % name); return
 	var e = ps.instantiate()
 	root.add_child(e)
-	e.movement = Roster.make_movement({"movement": mv})
+	# Depth is chassis-owned now: Drift reads enemy.depth_bp for its hold height (was the drift_mid/
+	# drift_high movement key). Set it before make_movement so the resolved hover_y matches hold_y.
+	if "depth_bp" in e:
+		e.depth_bp = depth_bp
+	e.movement = Roster.make_movement({"movement": "drift"})
 	e.start(spawn)
 	var dt := 1.0 / 60.0
 	for _i in range(ticks):

@@ -3,9 +3,8 @@ extends SceneTree
 # Path-phase firing (construction §8). Verifies:
 #   Zones.band_progress  — 0 at/above entry (y40), 1 at/below departure (y195),
 #                          linear between, clamped.
-#   path_phase_capable   — monotonic descenders (straight_down, s_curve, lane_path)
-#                          opt IN; reversing/holding patterns (advance_retreat,
-#                          loiter) and the base stay OUT.
+#   path_phase_capable   — monotonic descenders (straight_down, lane_path) opt IN;
+#                          holding patterns (loiter) and the base stay OUT.
 #   fire mapping         — default phases [0.35,0.75] map to sane fire Ys (~94/~156),
 #                          both safely above the departure band (cease-fire) so a
 #                          descender never plinks point-blank.
@@ -15,9 +14,7 @@ const RESULT := "res://tools/_path_phase_result.txt"
 const Zones := preload("res://scripts/systems/zones.gd")
 const Base := preload("res://scripts/enemies/movement_pattern.gd")
 const StraightDown := preload("res://scripts/enemies/patterns/straight_down.gd")
-const SCurve := preload("res://scripts/enemies/patterns/s_curve.gd")
 const LanePath := preload("res://scripts/enemies/patterns/lane_path.gd")
-const AdvanceRetreat := preload("res://scripts/enemies/patterns/advance_retreat.gd")
 const Loiter := preload("res://scripts/enemies/patterns/loiter.gd")
 
 
@@ -37,12 +34,10 @@ func _init() -> void:
 	# --- capability flags -------------------------------------------------
 	var capable := {
 		"straight_down": StraightDown.new().path_phase_capable(),
-		"s_curve": SCurve.new().path_phase_capable(),
 		"lane_path": LanePath.new().path_phase_capable(),
 	}
 	var incapable := {
 		"base": Base.new().path_phase_capable(),
-		"advance_retreat": AdvanceRetreat.new().path_phase_capable(),
 		"loiter": Loiter.new().path_phase_capable(),
 	}
 	for k in capable:

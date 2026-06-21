@@ -109,6 +109,12 @@ const BV_ZealotBall   = preload("res://data/bullets/zealot_ball.tres")
 const BV_ZealotBolt   = preload("res://data/bullets/zealot_bolt.tres")
 const BV_ZealotLaser  = preload("res://data/bullets/zealot_laser.tres")
 const BV_ZealotWave   = preload("res://data/bullets/zealot_wave.tres")
+# Privateer faction projectiles (2026-06-20) — family-tagged; in a privateer level they ARE the
+# fired bullet, and the appearance facet maps them to other factions' clones if the unit travels.
+const BV_PrivBall     = preload("res://data/bullets/privateer_ball.tres")
+const BV_PrivBolt     = preload("res://data/bullets/privateer_bolt.tres")
+const BV_PrivLaser    = preload("res://data/bullets/privateer_laser.tres")
+const BV_PrivWave     = preload("res://data/bullets/privateer_wave.tres")
 
 # Shared firing mounts (M6 mount migration 2026-06-16). The privateer gunship's two weapons —
 # previously hardcoded in enemy_gunship.gd — as data: an alternating-muzzle MG burst (Muzzle*) and
@@ -172,7 +178,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_shiv.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "lane_charge",
+		"movement": "straight_charge",
 		"shoot": null,
 		"base_count": 6,
 		"no_scale": true,
@@ -186,7 +192,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_shiv.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "fast_straight",
+		"movement": "straight",
 		"shoot": null,
 		"base_count": 8,
 		"recycle": 0,
@@ -197,7 +203,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/privateer/enemy_dart.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "fast_straight",
+		"movement": "straight",
 		"shoot": null,
 		"base_count": 8,
 		"recycle": 0,
@@ -245,7 +251,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_drifter.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "fast_straight",
+		"movement": "straight",
 		"shoot": null,
 		"base_count": 6,
 		"recycle": 0,
@@ -269,7 +275,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_acolyte.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "loiter_mid",
+		"movement": "loiter",
 		"shoot": "aimed",
 		"bullet_variant": BV_Basic,
 		"base_count": 2,
@@ -283,7 +289,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_acolyte.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "advance_retreat",
+		"movement": "skirmish_loop",
 		"shoot": "aimed",
 		"bullet_variant": BV_Basic,
 		"base_count": 3,
@@ -318,7 +324,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_sword.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "slow_advance",
+		"movement": "straight",
 		"shoot": null,
 		"base_count": 3,
 		"recycle": 0,
@@ -362,7 +368,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_hotrod.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "fast_straight",
+		"movement": "straight",
 		"shoot": "single",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 4,
@@ -414,7 +420,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_rush.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "beeline",   # charge straight at the player
+		"movement": "hunt_beeline",   # charge straight at the player
 		"shoot": "burst",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 2,
@@ -429,7 +435,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_plasma.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
-		"movement": "loiter_mid",
+		"movement": "loiter", "depth": "high",
 		"shoot": "aimed",
 		"bullet_variant": BV_PlasmaOrb,
 		"base_count": 2,
@@ -442,7 +448,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_plasma.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
-		"movement": "lane_weave",
+		"movement": "lane_weave", "depth": "high",
 		"shoot": "aimed",
 		"bullet_variant": BV_PlasmaOrb,
 		"base_count": 2,
@@ -455,7 +461,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_plasma.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
-		"movement": "side_traverse",   # slide across
+		"movement": "side_traverse", "depth": "high",   # slide across
 		"shoot": "aimed",
 		"bullet_variant": BV_PlasmaOrb,
 		"base_count": 2,
@@ -468,7 +474,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/corporate/enemy_hunter_drone.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "beeline",
+		"movement": "hunt_beeline",
 		"shoot": null,
 		"base_count": 4,
 		"no_scale": true,   # beeline kamikaze waves stay small (Roman 2026-06-08: cap 1-6)
@@ -517,7 +523,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/privateer/enemy_p_s_green.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "fast_straight",
+		"movement": "straight",
 		"shoot": null,
 		"base_count": 6,
 		"recycle": 0,
@@ -530,7 +536,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/privateer/enemy_p_s_gray.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "fast_straight",
+		"movement": "straight",
 		"shoot": null,
 		"base_count": 8,
 		"recycle": 0,
@@ -547,7 +553,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/privateer/enemy_p_s_drop.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "firecore_straight",
+		"movement": "straight",
 		# Burst-once then exit (Roman 2026-06-08): a single 4-shot burst at one band
 		# position (scene fire_path_phases = [0.4]), recycle 0 = leave, don't loop.
 		# TODO(M6c r2): +2 shots per depth increment (director-driven burst_count).
@@ -560,51 +566,11 @@ const ENTRIES := [
 		"conflict_tags": ["dumb_shot"],
 	},
 
-	# --- Corporate chaff (M6c, Roman art 2026-06-07) ----------------------
-	# Corporate-exclusive (universal=false) mirror of the privateer chaff pack —
-	# enemy_core, no bespoke scripts, two-frame hull+glow sprites. Gives corp its
-	# own basic fodder alongside the universal Hold gunner.
-	{
-		# Corp Gray — straight-diver chaff (no weapon). Corp's plain fast descender.
-		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_gray.tscn",
-		"tier": Tier.COMMON,
-		"size": "small", "tags": [],
-		"movement": "fast_straight",
-		"shoot": null,
-		"base_count": 8,
-		"recycle": 0,
-		"hp_override": 1, "bounty_override": 5,
-		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "chaff": true, "wall": true,
-	},
-	{
-		# Corp Dart (M6c, Roman 2026-06-07) — corporate version of the Dart: same fast
-		# diver role, new corp art, NO shield (faction_shield_exempt on the scene keeps
-		# the corporate overlay from shielding it). Replaces curve as corp's basic diver.
-		"scene": "res://scenes/enemies/factions/corporate/enemy_c_dart.tscn",
-		"tier": Tier.COMMON,
-		"size": "small", "tags": [],
-		"movement": "fast_straight",
-		"shoot": null,
-		"base_count": 8,
-		"recycle": 0,
-		"hp_override": 1, "bounty_override": 5,
-		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.2, "chaff": true, "wall": true,
-	},
-	{
-		# Corp Drop — burst-once dropper (Roman 2026-06-08): one 4-shot burst at band
-		# 0.4 then exit (recycle 0). TODO(M6c r2): +2 shots per depth increment.
-		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_drop.tscn",
-		"tier": Tier.COMMON,
-		"size": "small", "tags": [],
-		"movement": "firecore_straight",
-		"shoot": "burst", "burst_count": 4,
-		"bullet_variant": BV_DropPellet,
-		"base_count": 4,
-		"recycle": 0,
-		"hp_override": 1, "bounty_override": 8,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
-		"conflict_tags": ["dumb_shot"],
-	},
+	# --- Corporate chaff: collapsed into the core units (2026-06-20) ------
+	# The corp Gray/Dart/Drop twins were folded into the now-universal Cobra (enemy_p_s_gray),
+	# Dart (enemy_dart) and Caltrop (enemy_p_s_drop), each allowed_in [Corp, Priv]. The corpo
+	# copies were cut; corp fields the shared core units (faction sprite/bullets via livery + the
+	# projectile-appearance facet).
 
 	# --- UNCOMMON ---------------------------------------------------------
 	{
@@ -686,7 +652,7 @@ const ENTRIES := [
 		"heavy_class": "anchor",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
-		"movement": "slow_advance",   # slow straight descent
+		"movement": "straight",   # slow straight descent
 		"shoot": null,                # no hull gun — fires via the turret mounts
 		"mounts": PUSH_MOUNTS,
 		"bounty_override": 25,
@@ -700,7 +666,7 @@ const ENTRIES := [
 		"heavy_class": "anchor",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
-		"movement": "firecore_straight",   # mid-speed straight descent
+		"movement": "straight",   # mid-speed straight descent
 		"shoot": null,
 		"mounts": PUSH_MOUNTS,
 		"bounty_override": 25,
@@ -744,7 +710,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "advance_retreat",
+		"movement": "skirmish_loop",
 		"shoot": "aimed",
 		"bullet_variant": BV_AimedSniper,
 		# Experienced gunner: leads the player's velocity a touch (0.15) so sitting
@@ -768,7 +734,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_cannon.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
-		"movement": "loiter_mid",
+		"movement": "loiter", "depth": "mid",
 		"shoot": "single",
 		"bullet_variant": BV_HeavySlug,
 		"base_count": 2,
@@ -784,7 +750,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_pulse.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
-		"movement": "loiter_high",
+		"movement": "loiter", "depth": "mid",
 		"shoot": "aimed",
 		"bullet_variant": BV_PlasmaOrb,
 		"base_count": 2,
@@ -834,7 +800,7 @@ const ENTRIES := [
 		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
-		"movement": "omni",
+		"movement": "hunt_omni",
 		"shoot": null,   # bespoke tracer + cannon firing
 		"base_count": 1,
 		"no_scale": true,
@@ -846,7 +812,7 @@ const ENTRIES := [
 		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
-		"movement": "omni",
+		"movement": "hunt_omni",
 		"shoot": null,
 		"base_count": 2,
 		"no_scale": true,
@@ -866,7 +832,7 @@ const ENTRIES := [
 		"mounts": GUNSHIP_MOUNTS,
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
-		"movement": "loiter_mid",
+		"movement": "loiter",
 		"shoot": null,
 		"base_count": 2,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.5, "chaff": true,
@@ -900,7 +866,7 @@ const ENTRIES := [
 		"mounts": GUNSHIP_MOUNTS,
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
-		"movement": "advance_retreat",
+		"movement": "skirmish_loop",
 		"shoot": null,
 		"base_count": 2,
 		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5, "chaff": true,
@@ -963,7 +929,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/corporate/enemy_sapper.tscn",
 		"tier": Tier.RARE,
 		"size": "small", "tags": [],
-		"movement": "omni",
+		"movement": "hunt_omni",
 		"shoot": null,
 		"base_count": 1,
 		# RARE gating (Roman 2026-05-31): rares already only roll when _roll_tier
@@ -981,7 +947,7 @@ const ENTRIES := [
 		"size": "medium", "tags": [],
 		# High hold (Roman 2026-06-07: crystal was coming too far down) — hovers in the
 		# upper band instead of the deep "loiter" hold.
-		"movement": "loiter_high",
+		"movement": "loiter", "depth": "high",
 		"shoot": "spread5",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 2,
@@ -1023,7 +989,7 @@ const ENTRIES := [
 		"size": "small", "tags": [],
 		"movement": "side_dive",
 		"shoot": "single",
-		"bullet_variant": BV_Basic,
+		"bullet_variant": BV_PrivBolt,   # privateer gun bolt (family-tagged → faction-styled if it travels)
 		"fire_min": 1.2, "fire_max": 1.8,
 		"base_count": 4,
 		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0,
@@ -1045,7 +1011,7 @@ const ENTRIES := [
 		"heavy_class": "capital",  # 64px-wide (placeholder art) — coda capital pool
 		"tier": Tier.RARE,
 		"size": "large", "tags": [],
-		"movement": "bulwark_drift",
+		"movement": "drift", "depth": "mid",
 		"shoot": null,
 		"base_count": 1,
 		# Heavy elite — sector 2+.
@@ -1056,7 +1022,7 @@ const ENTRIES := [
 		"heavy_class": "capital",  # 64px-wide (placeholder art) — coda capital pool
 		"tier": Tier.RARE,
 		"size": "large", "tags": [],
-		"movement": "loiter",
+		"movement": "loiter", "depth": "high",
 		"shoot": null,
 		"base_count": 1,
 		"unlock_sector": 2, "unlock_depth": 0,
@@ -1066,7 +1032,7 @@ const ENTRIES := [
 		"heavy_class": "capital",  # 64px-wide (placeholder art) — coda capital pool
 		"tier": Tier.RARE,
 		"size": "large", "tags": [],
-		"movement": "loiter",
+		"movement": "loiter", "depth": "high",
 		"shoot": null,
 		"base_count": 1,
 		# Drone carrier — top-tier elite, latest of the standard rares.
@@ -1306,6 +1272,9 @@ static func resolve_locomotion(entry: Dictionary, size: String = "") -> Dictiona
 
 # Default depth band for an entry whose movement identity is a legacy banded key (the *_high/_mid/
 # _low suffix that collapsed into the depth axis). "" when the enemy has no banded identity.
+# Inert as of the 2026-06-20 shape-key cleanup — every banded enemy now carries an explicit
+# "depth" on its ENTRY (which wins in resolve_locomotion), so this returns "" for all live data.
+# Kept as a fallback for hand-authored entries / old saved JSON that still use a banded identity.
 static func _legacy_depth_for(entry: Dictionary) -> String:
 	var id: String = PatternEligibility.identity_for(String(entry.get("scene", "")))
 	if id == "":
@@ -1320,9 +1289,10 @@ static func _legacy_depth_for(entry: Dictionary) -> String:
 
 
 # Legacy movement-key aliases (locomotion refactor 2026-06-19): the speed/depth-variant keys
-# collapsed to shape-only keys once speed/depth became chassis/formation-owned. Old DATA (saved
-# eligibility JSON, stray references) still resolves through these. The committed DATA is rewritten
-# to the shape keys; this is the safety net for stragglers.
+# collapsed to shape-only keys once speed/depth became chassis/formation-owned. As of the 2026-06-20
+# cleanup NO live producer feeds a legacy key here — the committed eligibility DATA + roster ENTRIES
+# are all shape keys. Retained defensively as a load-time net for old saved eligibility JSON or
+# hand-authored entries that still reference a pre-collapse key.
 const MOVEMENT_ALIASES := {
 	"straight_crawl": "straight", "straight_slow": "straight", "straight_medium": "straight",
 	"straight_fast": "straight", "straight_reflex": "straight",

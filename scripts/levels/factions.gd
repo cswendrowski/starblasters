@@ -35,7 +35,7 @@ enum Id { SUPREMACY, PRIVATEER, CORPORATE, ZEALOT }
 # appear only in their home faction. Pool restriction: an enemy is allowed in faction F
 # if universal OR home == F. (END-STATE: drop universals, each faction owns its set.)
 const ENEMY_TAGS := {
-	"res://scenes/enemies/factions/privateer/enemy_dart.tscn": {"home": Id.PRIVATEER, "universal": true},
+	"res://scenes/enemies/factions/privateer/enemy_dart.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.CORPORATE, Id.PRIVATEER]},
 	"res://scenes/enemies/factions/zealot/enemy_z_s_manta.tscn": {"home": Id.ZEALOT, "universal": false},
 	# Roman art rework 2026-06-16: retro→acolyte, run→drifter (renamed in place, same UID).
 	"res://scenes/enemies/factions/zealot/enemy_z_s_acolyte.tscn": {"home": Id.ZEALOT, "universal": false},
@@ -51,19 +51,15 @@ const ENEMY_TAGS := {
 	"res://scenes/enemies/factions/zealot/enemy_z_s_spear.tscn": {"home": Id.ZEALOT, "universal": false},
 	"res://scenes/enemies/factions/zealot/boss_z_l_shepherd.tscn": {"home": Id.ZEALOT, "universal": false},
 	# enemy_bomb_drone PULLED 2026-06-14 (Roman — rework pending); roster entry also removed.
-	"res://scenes/enemies/factions/corporate/enemy_c_dart.tscn": {"home": Id.CORPORATE, "universal": false},
 	"res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn": {"home": Id.CORPORATE, "universal": false},
-	"res://scenes/enemies/factions/corporate/enemy_c_s_gray.tscn": {"home": Id.CORPORATE, "universal": false},
 	"res://scenes/enemies/factions/corporate/enemy_c_s_curve.tscn": {"home": Id.CORPORATE, "universal": false},
-	"res://scenes/enemies/factions/corporate/enemy_c_s_drop.tscn": {"home": Id.CORPORATE, "universal": false},
-	"res://scenes/enemies/core/enemy_crystal.tscn": {"home": Id.SUPREMACY, "universal": true},
-	"res://scenes/enemies/core/enemy_cutter.tscn": {"home": Id.PRIVATEER, "universal": true},
-	"res://scenes/enemies/core/enemy_bomber.tscn": {"home": Id.CORPORATE, "universal": true},
+	"res://scenes/enemies/core/enemy_crystal.tscn": {"home": Id.CORPORATE, "universal": false},  # A-110 Widow → corpo-exclusive (2026-06-20)
+	"res://scenes/enemies/core/enemy_bomber.tscn": {"home": Id.CORPORATE, "universal": false},  # B-220 Incisor → corpo-exclusive (2026-06-20)
 	"res://scenes/enemies/core/enemy_cruiser.tscn": {"home": Id.SUPREMACY, "universal": true},
-	"res://scenes/enemies/factions/privateer/enemy_minelayer.tscn": {"home": Id.PRIVATEER, "universal": false},
+	"res://scenes/enemies/factions/privateer/enemy_minelayer.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.SUPREMACY, Id.PRIVATEER, Id.CORPORATE]},  # core minelayer (Zealot gets its own later)
 	"res://scenes/enemies/factions/privateer/enemy_p_s_green.tscn": {"home": Id.PRIVATEER, "universal": false},
-	"res://scenes/enemies/factions/privateer/enemy_p_s_gray.tscn": {"home": Id.PRIVATEER, "universal": false},
-	"res://scenes/enemies/factions/privateer/enemy_p_s_drop.tscn": {"home": Id.PRIVATEER, "universal": false},
+	"res://scenes/enemies/factions/privateer/enemy_p_s_gray.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.CORPORATE, Id.PRIVATEER]},  # CF-9D Cobra core (corpo twin enemy_c_s_gray cut)
+	"res://scenes/enemies/factions/privateer/enemy_p_s_drop.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.CORPORATE, Id.PRIVATEER]},  # Caltrop core (corpo twin enemy_c_s_drop cut)
 	"res://scenes/enemies/factions/privateer/enemy_p_m_cannon.tscn": {"home": Id.PRIVATEER, "universal": false},
 	"res://scenes/enemies/factions/privateer/enemy_p_m_pulse.tscn": {"home": Id.PRIVATEER, "universal": false},
 	"res://scenes/enemies/factions/privateer/enemy_p_s_jet.tscn": {"home": Id.PRIVATEER, "universal": false},
@@ -90,13 +86,21 @@ const ENEMY_TAGS := {
 
 # True if `scene_path` may appear in faction F's level (universal OR home == F). Untagged
 # enemies are allowed everywhere (safe default — e.g. mines/asteroids/bosses/hazards).
+# Core-ship identity (2026-06-20): a tag may carry an optional "allowed_in": [Id…] whitelist —
+# a universal enemy restricted to a subset of factions (e.g. the core Minelayer in Corp/Sup/Priv
+# but not Zealot). When present, the faction must ALSO be in that list. Absent = unrestricted.
 static func allowed_in(scene_path: String, faction: int) -> bool:
 	if faction < 0:
 		return true
 	var t: Variant = ENEMY_TAGS.get(scene_path, null)
 	if t == null:
 		return true
-	return bool(t.get("universal", false)) or int(t.get("home", -1)) == faction
+	if not (bool(t.get("universal", false)) or int(t.get("home", -1)) == faction):
+		return false
+	var whitelist: Variant = t.get("allowed_in", null)
+	if whitelist is Array:
+		return faction in whitelist
+	return true
 
 
 # Deterministic primary faction for a combat level (sector progression + run-seed).

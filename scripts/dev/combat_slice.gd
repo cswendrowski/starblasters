@@ -17,7 +17,6 @@ extends RefCounted
 # docs/combat_construction_plan_2026-06-03.md.
 
 const DART := "res://scenes/enemies/factions/privateer/enemy_dart.tscn"
-const DRIFTER := "res://scenes/enemies/core/enemy_drifter.tscn"
 
 # lane_path.gd Shape enum order: 0 = STRAIGHT, 1 = WEAVE, 2 = HOOK, 3 = STEP.
 const LP_STRAIGHT := 0
@@ -103,25 +102,25 @@ static func build() -> CombatScore:
 	# FILLER bridge -> longer exhale before the next wave.
 	# Wave 1 — a WALL of drifters (one safe gap to thread).
 	score.waves.append(_wave("WALL", [
-		_formation(&"wall", [_spec(DRIFTER, 6, 0.2, _lane_path(LP_STRAIGHT, 120.0))]),
+		_formation(&"wall", [_spec(DART, 6, 0.2, _lane_path(LP_STRAIGHT, 120.0))]),
 		_breather(0.7),
-		_filler([_spec(DRIFTER, 1, 0.2, _lane_path(LP_STRAIGHT, 90.0))], 1.5, 6),
+		_filler([_spec(DART, 1, 0.2, _lane_path(LP_STRAIGHT, 90.0))], 1.5, 6),
 		_breather(1.2),
 	]))
 	# Wave 2 — a PINCER of darts converging from the edges (deliberate pressure).
 	score.waves.append(_wave("PINCER", [
 		_formation(&"pincer", [_spec(DART, 6, 0.2, _lane_path(LP_STRAIGHT, 120.0))]),
 		_breather(0.7),
-		_filler([_spec(DRIFTER, 1, 0.2, _lane_path(LP_STRAIGHT, 90.0))], 1.5, 8),
+		_filler([_spec(DART, 1, 0.2, _lane_path(LP_STRAIGHT, 90.0))], 1.5, 8),
 		_breather(1.2),
 	]))
 	# Wave 3 — SWEEP: the original gentle weave (visual busyness / distraction).
 	score.waves.append(_wave("SWEEP", [
-		_formation(&"spread", [_spec(DRIFTER, 10, 0.2, _lane_path(LP_WEAVE, 120.0, 1.0))]),
+		_formation(&"spread", [_spec(DART, 10, 0.2, _lane_path(LP_WEAVE, 120.0, 1.0))]),
 	]))
 	# Wave 4 — STEP: slow hold-then-hop drifters (ping-pong between adjacent lanes)
 	# that force you to commit to a lane and re-read as they camp + relocate.
 	score.waves.append(_wave("STEP", [
-		_formation(&"spread", [_spec(DRIFTER, 8, 0.25, _step_path(70.0, 1.0, 0.3, 1, true))]),
+		_formation(&"spread", [_spec(DART, 8, 0.25, _step_path(70.0, 1.0, 0.3, 1, true))]),
 	]))
 	return score

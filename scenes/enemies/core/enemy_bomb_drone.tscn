@@ -4,11 +4,6 @@
 [ext_resource type="Texture2D" uid="uid://daqyp35f3qsnh" path="res://graphics/enemies/drone_bomblet_jet.png" id="3_g646a"]
 [ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://assets/audio/SFX_shot7.wav" id="4_shoot"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="5_die"]
-[ext_resource type="Script" uid="uid://bbr5n16o8e4g0" path="res://scripts/enemies/patterns/top_dive.gd" id="10_mov"]
-
-[sub_resource type="Resource" id="MovePattern_inst"]
-script = ExtResource("10_mov")
-drift_x = 35.0
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hit"]
 size = Vector2(16, 16)
@@ -118,8 +113,6 @@ color_ramp = SubResource("GradientTexture1D_4lmie")
 
 [node name="Enemy" type="Area2D" unique_id=1886416096 groups=["enemies"]]
 script = ExtResource("1_core")
-movement = SubResource("MovePattern_inst")
-
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=-1595248867]
 texture = ExtResource("3_g646a")
 

@@ -25,9 +25,9 @@ func _init() -> void:
 		else:
 			lines.append("OK %s -> %s" % [k, String(m.get_script().resource_path).get_file()])
 	# Removed / culled keys must fall to the StraightDown default (no crash).
-	var dead := ["s_curve", "drifter_straight", "jet_charger", "side_cut", "loiter", "slow_advance",
+	var dead := ["s_curve", "drifter_straight", "jet_charger", "side_cut", "slow_advance",
 		"advance_retreat", "omni", "beeline", "bulwark_drift", "fast_straight", "firecore_straight",
-		"dive_return", "lane_charge", "straight", "top_dive"]
+		"dive_return", "lane_charge", "top_dive"]   # NB: "loiter"/"straight" are LIVE shape keys, not dead
 	for k in dead:
 		var m = Roster.make_movement({"movement": k})
 		var nm := String(m.get_script().resource_path).get_file() if m and m.get_script() else "null"

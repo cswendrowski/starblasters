@@ -6,17 +6,13 @@ extends Node
 const WaveSpec = preload("res://scripts/levels/wave_def.gd")
 const LevelData = preload("res://scripts/levels/level_def.gd")
 const StraightDown = preload("res://scripts/enemies/patterns/straight_down.gd")
-const SCurve = preload("res://scripts/enemies/patterns/s_curve.gd")
 const Loiter = preload("res://scripts/enemies/patterns/loiter.gd")
 # Weapons 3b (2026-06-13): hazard shoot helpers build the unified Weapon (was the legacy
 # SingleShot/SpreadShot/AimedShot/BurstShot classes).
 const Weapon = preload("res://scripts/enemies/shoot_patterns/weapon.gd")
 const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
-const FirecoreScene = preload("res://scenes/enemies/core/enemy_spitter.tscn")
-const DrifterScene = preload("res://scenes/enemies/core/enemy_drifter.tscn")
 const CrystalScene = preload("res://scenes/enemies/core/enemy_crystal.tscn")
 const DartScene = preload("res://scenes/enemies/factions/privateer/enemy_dart.tscn")
-const HoverScene = preload("res://scenes/enemies/core/enemy_hover.tscn")
 const BossScene = preload("res://scenes/enemies/bosses/boss.tscn")
 const BossSweep = preload("res://scripts/enemies/patterns/boss_sweep.gd")
 const MineScene = preload("res://scenes/enemies/enemy_mine.tscn")
@@ -28,7 +24,6 @@ const MineArmoredScene = preload("res://scenes/enemies/enemy_mine_armored.tscn")
 const MineTetherScene = preload("res://scenes/enemies/enemy_mine_tether.tscn")  # non-boss tether, 4 HP
 const AsteroidScene = preload("res://scenes/enemies/enemy_asteroid.tscn")
 const FrigateScene = preload("res://scenes/enemies/factions/supremacy/enemy_frigate.tscn")
-const CutterScene = preload("res://scenes/enemies/core/enemy_cutter.tscn")
 const SkirmisherScene = preload("res://scenes/enemies/factions/corporate/enemy_skirmisher.tscn")
 const MinelayerScene = preload("res://scenes/enemies/factions/privateer/enemy_minelayer.tscn")
 const InterceptorScene = preload("res://scenes/enemies/factions/privateer/enemy_interceptor.tscn")
@@ -41,13 +36,9 @@ const BeamerTrackerScene = preload("res://scenes/enemies/factions/zealot/enemy_b
 const BeamerLockScene = preload("res://scenes/enemies/factions/zealot/enemy_beamer_lock.tscn")
 const BurnerScene = preload("res://scenes/enemies/factions/zealot/enemy_burner.tscn")
 const CruiserScene = preload("res://scenes/enemies/core/enemy_cruiser.tscn")
-const SideTraverse = preload("res://scripts/enemies/patterns/side_traverse.gd")
-const SlowAdvance = preload("res://scripts/enemies/patterns/slow_advance.gd")
-const TopDive = preload("res://scripts/enemies/patterns/top_dive.gd")
-const SideCut = preload("res://scripts/enemies/patterns/side_cut.gd")
-const AdvanceRetreat = preload("res://scripts/enemies/patterns/advance_retreat.gd")
-const BeelinePlayer = preload("res://scripts/enemies/patterns/beeline_player.gd")
-const BulwarkDrift = preload("res://scripts/enemies/patterns/bulwark_drift.gd")
+# Roster-Test dev node builds its movement via EnemyRoster.make_movement (shape keys), so the
+# bespoke side_traverse/slow_advance/top_dive/side_cut/advance_retreat/beeline/bulwark_drift
+# pattern consts that used to live here are gone (locomotion cleanup 2026-06-20).
 
 static func _single() -> Resource:
 	var sp = Weapon.new()
@@ -111,198 +102,6 @@ static func _breather_phrase(dur: float) -> Phrase:
 	ph.duration = dur
 	ph.alive_floor = -1       # pure-hazard levels have 0 combatants; -1 = wait full duration
 	return ph
-
-static func build_level_1_1():
-	# WAVE 1: firecore single-shot intro
-	var w1 = WaveSpec.new()
-	w1.enemy_scene = FirecoreScene
-	w1.count = 6
-	w1.spawn_interval = 0.45
-	w1.spawn_delay = 0.5
-	w1.formation = 0
-	var p1 = StraightDown.new()
-	p1.speed = 220.0
-	w1.movement_override = p1
-	w1.shoot_pattern_override = _single()
-	w1.fire_interval_min = 2.0
-	w1.fire_interval_max = 3.5
-
-	# WAVE 2: firecore s-curve, single shots
-	var w2 = WaveSpec.new()
-	w2.enemy_scene = FirecoreScene
-	w2.count = 5
-	w2.spawn_interval = 0.5
-	w2.spawn_delay = 1.5
-	w2.formation = 1
-	var p2 = SCurve.new()
-	p2.down_speed = 180.0
-	p2.amplitude = 120.0
-	p2.frequency = 1.4
-	w2.movement_override = p2
-	w2.shoot_pattern_override = _single()
-	w2.fire_interval_min = 1.5
-	w2.fire_interval_max = 3.0
-
-	# WAVE 3: firecore loiter with spread shots — sub-wave of the firecore
-	# intro; rides under WAVE 2's banner so the second wave feels meatier
-	# without another announcement.
-	var w3 = WaveSpec.new()
-	w3.enemy_scene = FirecoreScene
-	w3.count = 4
-	w3.spawn_interval = 0.7
-	w3.spawn_delay = 1.2
-	w3.silent = true
-	w3.formation = 3
-	var p3 = Loiter.new()
-	p3.hover_y = 240.0
-	p3.enter_speed = 250.0
-	p3.loiter_time = 4.0
-	p3.exit_accel = 700.0
-	p3.exit_max_speed = 800.0
-	w3.movement_override = p3
-	w3.shoot_pattern_override = _spread(3, 26.0)
-	w3.fire_interval_min = 1.4
-	w3.fire_interval_max = 2.4
-
-	# WAVE 4: fast diver rush — single shots, lots of them
-	var w4 = WaveSpec.new()
-	w4.enemy_scene = DartScene
-	w4.count = 8
-	w4.spawn_interval = 0.22
-	w4.spawn_delay = 1.5
-	w4.formation = 2
-	var p4 = StraightDown.new()
-	p4.speed = 280.0
-	w4.movement_override = p4
-	w4.shoot_pattern_override = _single()
-	w4.fire_interval_min = 0.6
-	w4.fire_interval_max = 1.2
-
-	# WAVE 5: crystal tanks — slow loiter, 3 HP, wide spread
-	var w5 = WaveSpec.new()
-	w5.enemy_scene = CrystalScene
-	w5.count = 3
-	w5.spawn_interval = 0.8
-	w5.spawn_delay = 2.0
-	w5.formation = 3
-	var p5 = Loiter.new()
-	p5.hover_y = 200.0
-	p5.enter_speed = 180.0
-	p5.loiter_time = 6.0
-	p5.exit_accel = 400.0
-	p5.exit_max_speed = 500.0
-	w5.movement_override = p5
-	w5.shoot_pattern_override = _spread(5, 36.0)
-	w5.fire_interval_min = 1.8
-	w5.fire_interval_max = 2.6
-	w5.max_health = 3
-	w5.bounty_value = 25
-
-	# WAVE 6: pink dart raiders — fast s-curve, aimed shots, 2 HP
-	var w6 = WaveSpec.new()
-	w6.enemy_scene = DartScene
-	w6.count = 6
-	w6.spawn_interval = 0.4
-	w6.spawn_delay = 2.0
-	w6.formation = 1
-	var p6 = SCurve.new()
-	p6.down_speed = 240.0
-	p6.amplitude = 180.0
-	p6.frequency = 1.8
-	w6.movement_override = p6
-	w6.shoot_pattern_override = _aimed()
-	w6.fire_interval_min = 1.2
-	w6.fire_interval_max = 2.0
-	w6.max_health = 2
-	w6.bounty_value = 15
-
-	# WAVE 7: alien hoppers — silent sub-wave of WAVE 6 dart raiders.
-	var w7 = WaveSpec.new()
-	w7.enemy_scene = HoverScene
-	w7.count = 4
-	w7.spawn_interval = 0.6
-	w7.spawn_delay = 1.5
-	w7.silent = true
-	w7.formation = 0
-	var p7 = Loiter.new()
-	p7.hover_y = 320.0
-	p7.enter_speed = 280.0
-	p7.loiter_time = 5.0
-	p7.exit_accel = 600.0
-	p7.exit_max_speed = 700.0
-	w7.movement_override = p7
-	w7.shoot_pattern_override = _burst(3, 0.14)
-	w7.fire_interval_min = 1.6
-	w7.fire_interval_max = 2.4
-	w7.max_health = 2
-	w7.bounty_value = 20
-
-	var level = LevelData.new()
-	level.level_name = "Sector Alpha"
-	level.waves = [w1, w2, w3, w4, w5, w6, w7]
-	return level
-
-# Boss level: 2 lead-in waves then a final wave with exactly 1 boss.
-# WaveDirector will treat the boss like any other enemy; boss.gd handles its
-# own scale, minion spawning, and fires level_cleared when it dies.
-static func build_boss_level():
-	# Lead-in: divers
-	var w1 = WaveSpec.new()
-	w1.enemy_scene = DartScene
-	w1.count = 8
-	w1.spawn_interval = 0.25
-	w1.spawn_delay = 0.5
-	w1.formation = 2  # TOP_RANDOM
-	var p1 = StraightDown.new()
-	p1.speed = 280.0
-	w1.movement_override = p1
-	w1.shoot_pattern_override = _single()
-	w1.fire_interval_min = 0.7
-	w1.fire_interval_max = 1.3
-
-	# Lead-in: dart squadron
-	var w2 = WaveSpec.new()
-	w2.enemy_scene = DartScene
-	w2.count = 6
-	w2.spawn_interval = 0.4
-	w2.spawn_delay = 2.0
-	w2.formation = 3  # TOP_CENTER_OUT
-	var p2 = SCurve.new()
-	p2.down_speed = 220.0
-	p2.amplitude = 160.0
-	p2.frequency = 1.6
-	w2.movement_override = p2
-	w2.shoot_pattern_override = _aimed()
-	w2.fire_interval_min = 1.4
-	w2.fire_interval_max = 2.2
-	w2.max_health = 2
-	w2.bounty_value = 15
-
-	# Boss wave: 1 boss. Long spawn_delay = grace period before the boss
-	# actually enters and its HP bar appears (Roman, 2026-05-16).
-	var w3 = WaveSpec.new()
-	w3.enemy_scene = BossScene
-	w3.count = 1
-	w3.spawn_interval = 1.0
-	w3.spawn_delay = 5.5
-	w3.announce_text = "HIGH VALUE TARGET INCOMING"
-	w3.formation = 3  # TOP_CENTER_OUT
-	var p3 = BossSweep.new()
-	p3.hover_y = 200.0
-	p3.enter_speed = 140.0
-	p3.sweep_amplitude = 240.0
-	p3.sweep_frequency = 0.3
-	w3.movement_override = p3
-	w3.shoot_pattern_override = _spread(5, 50.0)
-	w3.fire_interval_min = 0.9
-	w3.fire_interval_max = 1.4
-	# Don't override max_health here; boss.gd's @export sets 80.
-
-	var level = LevelData.new()
-	level.level_name = "Sector Commander"
-	level.waves = [w1, w2, w3]
-	return level
-
 
 # Hazard: Minefield — phrase-native CombatScore. Lane-shaped mine drops
 # (wall/pincer/spread) the conductor dispatches with real lane placement, paced by
@@ -462,25 +261,20 @@ static func build_roster_test():
 	w1.spawn_delay = 0.5
 	w1.formation = 3  # CENTER_OUT
 	w1.announce_text = "FRIGATE PATROL"
-	var m1 = SlowAdvance.new()
-	m1.hold_y = 220.0
-	w1.movement_override = m1
+	w1.movement_override = EnemyRoster.make_movement({"movement": "straight"})
 	w1.shoot_pattern_override = _burst(3, 0.18)
 	w1.fire_interval_min = 1.8
 	w1.fire_interval_max = 2.8
 
 	# WAVE 2: Cutters — enter from sides, cut across leaving a trail of shots.
 	var w2 = WaveSpec.new()
-	w2.enemy_scene = CutterScene
+	w2.enemy_scene = DartScene
 	w2.count = 4
 	w2.spawn_interval = 0.7
 	w2.spawn_delay = 2.0
 	w2.formation = 0
 	w2.announce_text = "CUTTERS INBOUND"
-	var m2 = SideCut.new()
-	m2.travel_y = 200.0
-	m2.direction = 1
-	w2.movement_override = m2
+	w2.movement_override = EnemyRoster.make_movement({"movement": "side_dive"})
 	w2.shoot_pattern_override = _single()
 	w2.fire_interval_min = 0.3
 	w2.fire_interval_max = 0.5
@@ -493,8 +287,7 @@ static func build_roster_test():
 	w3.spawn_delay = 2.0
 	w3.formation = 2
 	w3.announce_text = "SKIRMISHER WING"
-	var m3 = AdvanceRetreat.new()
-	w3.movement_override = m3
+	w3.movement_override = EnemyRoster.make_movement({"movement": "skirmish_loop"})
 	w3.shoot_pattern_override = _aimed()
 	w3.fire_interval_min = 0.7
 	w3.fire_interval_max = 1.1
@@ -507,10 +300,7 @@ static func build_roster_test():
 	w4.spawn_delay = 2.5
 	w4.formation = 2
 	w4.announce_text = "MINELAYER DETECTED"
-	var m4 = SideTraverse.new()
-	m4.travel_y = 180.0
-	m4.direction = 1
-	w4.movement_override = m4
+	w4.movement_override = EnemyRoster.make_movement({"movement": "side_traverse"})
 
 	# WAVE 5: Interceptors — dive top→bottom dropping homing missiles.
 	var w5 = WaveSpec.new()
@@ -520,8 +310,7 @@ static func build_roster_test():
 	w5.spawn_delay = 2.0
 	w5.formation = 2
 	w5.announce_text = "INTERCEPTORS DIVING"
-	var m5 = TopDive.new()
-	w5.movement_override = m5
+	w5.movement_override = EnemyRoster.make_movement({"movement": "side_dive"})
 
 	# WAVE 6: Bulwark + Hunter Drones. Bulwark shields the drones until
 	# you focus it down.
@@ -532,8 +321,7 @@ static func build_roster_test():
 	w6.spawn_delay = 2.5
 	w6.formation = 3
 	w6.announce_text = "BULWARK ESCORT"
-	var m6 = BulwarkDrift.new()
-	w6.movement_override = m6
+	w6.movement_override = EnemyRoster.make_movement({"movement": "drift"})
 
 	var w7 = WaveSpec.new()
 	w7.enemy_scene = HunterDroneScene
@@ -542,8 +330,7 @@ static func build_roster_test():
 	w7.spawn_delay = 0.5
 	w7.silent = true
 	w7.formation = 2
-	var m7 = BeelinePlayer.new()
-	w7.movement_override = m7
+	w7.movement_override = EnemyRoster.make_movement({"movement": "hunt_beeline"})
 
 	var level = LevelData.new()
 	level.level_name = "New Roster Test"
@@ -608,7 +395,7 @@ static func build_firecore_drone_showcase():
 # missiles, and AoE explosions read cleanly.
 static func build_missile_cruiser_showcase():
 	var w1 = WaveSpec.new()
-	w1.enemy_scene = DrifterScene
+	w1.enemy_scene = DartScene
 	w1.count = 3
 	w1.spawn_interval = 6.0
 	w1.spawn_delay = 4.0
@@ -617,7 +404,7 @@ static func build_missile_cruiser_showcase():
 	w1.announce_text = "MISSILE CRUISER"
 
 	var w2 = WaveSpec.new()
-	w2.enemy_scene = DrifterScene
+	w2.enemy_scene = DartScene
 	w2.count = 3
 	w2.spawn_interval = 6.0
 	w2.spawn_delay = 12.0

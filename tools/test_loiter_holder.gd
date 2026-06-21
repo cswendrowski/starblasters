@@ -16,17 +16,26 @@ var _fails := 0
 var _done := false
 
 
+# Chassis-aware stub: loiter reads hold DEPTH from enemy.depth_bp and descent SPEED from
+# enemy.move_speed via the movement_pattern accessors, which require the PROPERTY to exist (a bare
+# Node2D gets the medium default). depth_bp drives hold height; move_speed 0 → the 180 medium default.
+class Dummy extends Node2D:
+	var move_speed: float = 0.0
+	var depth_bp: float = -1.0
+
+
 func _fail(msg: String) -> void:
 	_lines.append("FAIL " + msg); _fails += 1
 
 
-func _run_variant(key: String, expect_y: float) -> void:
-	var e := Node2D.new()
+func _run_variant(key: String, depth_bp: float, expect_y: float) -> void:
+	var e := Dummy.new()
+	e.depth_bp = depth_bp   # hold depth is chassis-owned now (was the loiter_high/mid/low key)
 	root.add_child(e)
 	# Spawn at y=12 — matches the visualizer "Spawn row" + a short-entry case so
 	# the high variant (hold y=50, only 38px down) exercises the entry floor.
 	e.position = Vector2(240, 12)
-	var m = Roster.make_movement({"movement": key})
+	var m = Roster.make_movement({"movement": "loiter"})
 	m.on_start(e)
 
 	# ease-in: first compute_step should be slower than cruise (enter_speed * dt).
@@ -93,10 +102,11 @@ func _test_row_desync() -> void:
 	# their hold positions differ (randomized jiggle, not lockstep). Roman 06-06.
 	var es: Array = []
 	for i in 6:
-		var e := Node2D.new()
+		var e := Dummy.new()
+		e.depth_bp = Zones.band_progress(90.0)
 		root.add_child(e)
 		e.position = Vector2(240, 0)
-		var m = Roster.make_movement({"movement": "loiter_mid"})
+		var m = Roster.make_movement({"movement": "loiter"})
 		m.on_start(e)
 		es.append({"e": e, "m": m})
 	# tick everyone identically into the hold (entry ~0.5s; loiter_time 3s) and
@@ -124,10 +134,9 @@ func _test_row_desync() -> void:
 func _process(_dt: float) -> bool:
 	if _done:
 		return true
-	_run_variant("loiter_high", 50.0)
-	_run_variant("loiter_mid", 90.0)
-	_run_variant("loiter_low", 130.0)
-	_run_variant("loiter", 130.0)  # back-compat: deep hold
+	_run_variant("high", Zones.band_progress(50.0), 50.0)
+	_run_variant("mid", Zones.band_progress(90.0), 90.0)
+	_run_variant("low", Zones.band_progress(130.0), 130.0)
 	_test_row_desync()
 	_lines.append("LOITER HOLDER: " + ("PASS" if _fails == 0 else "FAIL (%d)" % _fails))
 	var f := FileAccess.open(RESULT, FileAccess.WRITE)

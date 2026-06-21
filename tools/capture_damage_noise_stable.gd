@@ -13,7 +13,7 @@ const FPS: int = 6
 const FRAME_TIME: float = 1.0 / float(FPS)
 const NOISE_TEXTURE := preload("res://resources/noise_damage.tres")
 const EDGE_DISTANCE_MAP := preload("res://resources/edge_distance_flat.tres")
-const SPRITE_SCENE := preload("res://scenes/enemies/core/enemy_hover.tscn")
+const SPRITE_SCENE := preload("res://scenes/enemies/factions/privateer/enemy_dart.tscn")
 
 # Sensitivity mid-damage — enough to see the burn clearly
 const TEST_SENSITIVITY := 0.45

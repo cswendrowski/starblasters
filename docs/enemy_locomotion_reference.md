@@ -198,7 +198,10 @@ default for that deployment (the hybrid axis).
   (ignored at runtime, commented as such). Tune speed on the *enemy*, not the pattern.
 - **Sector scaling** still applies (+5%/cleared sector, cap 2×) — it scales the resolved
   `move_speed`/`accel` once at spawn, then re-snaps to a rung.
-- **Legacy keys still resolve**: old movement keys (`straight_fast`, `loiter_high`, …) alias to the
-  shape key, and the editors migrate them on load — but new authoring should use the shape keys.
+- **All committed data is shape-only** (2026-06-20 cleanup): the eligibility matrix + every roster
+  ENTRY use the shape keys, and banded enemies (cruiser/crystal/drone_carrier/plasma → high,
+  cannon/pulse/bulwark → mid) carry an explicit `depth`. Old movement keys (`straight_fast`,
+  `loiter_high`, …) still *resolve* — `MOVEMENT_ALIASES` + the editor `KEY_REMAP` keep them as
+  load-time safety nets for hand-authored entries / old saved JSON — but new authoring uses shapes.
 - **Weight ≠ visual size**: `weight` drives feel, `display_scale` drives the sprite. A small sprite
   can be heavy, or vice-versa.

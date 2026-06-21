@@ -1,9 +1,0 @@
-[gd_resource type="Resource" load_steps=2 format=3]
-
-[ext_resource type="Script" path="res://scripts/enemies/patterns/s_curve.gd" id="1_sc"]
-
-[resource]
-script = ExtResource("1_sc")
-down_speed = 90.0
-amplitude = 70.0
-frequency = 1.4

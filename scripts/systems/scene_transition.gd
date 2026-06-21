@@ -17,14 +17,31 @@ const HOLD := 0.05
 # screen, BEFORE the scene swap. Use it to tear down per-scene state that
 # must not be visible during the fade but must be gone before the
 # destination's _ready (e.g. an HD viewport scope — see outpost._on_leave).
-static func change_scene(tree: SceneTree, path: String, on_covered: Callable = Callable()) -> void:
+#
+# `cover_only` (Roman 2026-06-19): fade to black + swap, but DON'T fade back in —
+# the destination owns its own reveal (e.g. combat's _run_intro fades from black).
+# Skips the fade-in to avoid a sluggish double-fade. Used by the loading-screen
+# launcher so the ship's fly-off hands straight to combat's arrival.
+static func change_scene(tree: SceneTree, path: String, on_covered: Callable = Callable(), cover_only: bool = false) -> void:
+	await _run(tree, path, null, on_covered, cover_only)
+
+
+# As change_scene, but swaps to an ALREADY-LOADED PackedScene (no disk load on the
+# swap). The loading-screen launcher threaded-preloads the target, then hands the
+# PackedScene here so the only main-thread cost at swap time is instantiation.
+static func change_scene_packed(tree: SceneTree, packed: PackedScene, on_covered: Callable = Callable(), cover_only: bool = false) -> void:
+	await _run(tree, "", packed, on_covered, cover_only)
+
+
+static func _run(tree: SceneTree, path: String, packed: PackedScene, on_covered: Callable, cover_only: bool) -> void:
 	if tree == null:
 		return
 	# Forensic breadcrumb — this swap (+ the backdrop teardown below) is the prime crash seam.
 	var _crashlog: Node = tree.root.get_node_or_null("CrashLog")
+	var _to: String = path.get_file() if packed == null else ("preloaded:" + packed.resource_path.get_file())
 	if _crashlog != null:
 		var _from: String = tree.current_scene.scene_file_path.get_file() if tree.current_scene != null else "?"
-		_crashlog.note("xition", "change_scene: %s -> %s" % [_from, path.get_file()])
+		_crashlog.note("xition", "change_scene: %s -> %s" % [_from, _to])
 	var cl := CanvasLayer.new()
 	cl.layer = 128
 	tree.root.add_child(cl)
@@ -64,15 +81,23 @@ static func change_scene(tree: SceneTree, path: String, on_covered: Callable = C
 			leaving.remove_child(bd)
 			bd.queue_free()
 
-	var err := tree.change_scene_to_file(path)
+	var err: int = tree.change_scene_to_packed(packed) if packed != null else tree.change_scene_to_file(path)
 	if err != OK:
 		if is_instance_valid(cl):
 			cl.queue_free()
 		return
 
-	# change_scene_to_file is deferred — wait for the swap to land before
-	# fading the black overlay back out, otherwise we'd reveal an empty frame.
+	# The swap is deferred — wait for it to land before revealing, otherwise we'd
+	# show an empty frame.
 	await tree.process_frame
+	if cover_only:
+		# Destination owns its reveal; its black cover is up by now (its _ready ran
+		# during the swap). Drop ours with NO fade-in — black-to-black hand-off, no
+		# flash, no double fade. One extra frame of slack for safety.
+		await tree.process_frame
+		if is_instance_valid(cl):
+			cl.queue_free()
+		return
 	if HOLD > 0.0:
 		await tree.create_timer(HOLD).timeout
 	if not is_instance_valid(rect):

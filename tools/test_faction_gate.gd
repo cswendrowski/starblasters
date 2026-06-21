@@ -7,7 +7,7 @@ extends SceneTree
 const RESULT := "res://tools/_faction_gate_result.txt"
 const Factions := preload("res://scripts/levels/factions.gd")
 const CORPO := 2   # Factions.Id.CORPORATE
-const CORPO_UNIT := "res://scenes/enemies/factions/corporate/enemy_c_s_gray.tscn"
+const CORPO_UNIT := "res://scenes/enemies/factions/corporate/enemy_c_s_curve.tscn"
 const PRIV_UNIT := "res://scenes/enemies/factions/privateer/enemy_dart.tscn"
 
 var _done := false

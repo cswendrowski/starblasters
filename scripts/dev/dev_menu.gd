@@ -104,6 +104,8 @@ func _build_ui() -> void:
 	_add_button("[ Shader Lab ]", _on_shader_lab, true)
 	_add_button("[ Sequence Lab ]", _on_sequence_lab, true)
 	_add_button("[ Player FX Lab ]", _on_player_fx_lab, true)
+	_add_button("[ Loading Screen Lab ]", _on_loading_screen_lab, true)
+	_add_button("[ Outpost Arrival Lab ]", _on_outpost_arrival_lab, true)
 	_add_button("[ Recycle Tuner ]", _on_recycle_tuner, true)
 	_add_button("[ Smart Mount Lab ]", _on_smart_mount_lab, true)
 	# Test launchers
@@ -184,6 +186,14 @@ func _on_recycle_tuner() -> void:
 
 func _on_player_fx_lab() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/player_fx_lab.tscn")
+
+
+func _on_loading_screen_lab() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/loading_screen_lab.tscn")
+
+
+func _on_outpost_arrival_lab() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/outpost_arrival_lab.tscn")
 
 
 func _on_lane_visualizer() -> void:

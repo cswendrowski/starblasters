@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="BulletVariant" format=3]
+
+[ext_resource type="Script" path="res://scripts/projectiles/bullet_variant.gd" id="1_variant"]
+[ext_resource type="Texture2D" path="res://graphics/projectiles/projectile_privateer_ball.png" id="2_tex"]
+
+[resource]
+script = ExtResource("1_variant")
+family = &"ball"
+speed = 180.0
+lifetime = 3.0
+static_texture = ExtResource("2_tex")
+glow_color = Color(0.376471, 0.768627, 0.435294, 0.501961)
+impact_color = Color(0.376471, 0.768627, 0.435294, 1)
+enemy_sfx_kind = "enemy_mg"

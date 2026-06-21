@@ -34,8 +34,9 @@ func _process(_dt: float) -> bool:
 	if ScoreAdapter._shape_id(w_pincer) != &"pincer":
 		lines.append("FAIL _shape_id(PINCER) != &pincer"); fails += 1
 
-	# 2) Fast chaff tagged wall.
-	for path in ["res://scenes/enemies/factions/privateer/enemy_dart.tscn", "res://scenes/enemies/core/enemy_bomb_drone.tscn"]:
+	# 2) Fast chaff tagged wall. (enemy_bomb_drone was pulled 2026-06-14; Dart is the canonical
+	# wall chaff and its first roster entry carries the tag — most others tag a non-first variant.)
+	for path in ["res://scenes/enemies/factions/privateer/enemy_dart.tscn"]:
 		var e: Dictionary = Roster.entry_for_scene(path)
 		if e.is_empty() or not bool(e.get("wall", false)):
 			lines.append("FAIL %s not tagged wall" % path); fails += 1
@@ -54,14 +55,14 @@ func _process(_dt: float) -> bool:
 	if wall_count != 40:
 		lines.append("FAIL dart wall stamp held only %d/40 seeds" % wall_count); fails += 1
 
-	# Sanity: a non-wall chaff entry (drifter) is NOT forced to wall.
-	var drifter: Dictionary = Roster.entry_for_scene("res://scenes/enemies/core/enemy_drifter.tscn")
-	if not drifter.is_empty():
+	# Sanity: a non-wall entry (the Sentry loiter-gunner) is NOT forced to wall.
+	var non_wall: Dictionary = Roster.entry_for_scene("res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn")
+	if not non_wall.is_empty():
 		var rng2 := RandomNumberGenerator.new()
 		rng2.seed = 7
-		var wd = WG._make_wave_spec(rng2, drifter, 1, 2, 1)
+		var wd = WG._make_wave_spec(rng2, non_wall, 1, 2, 1)
 		if int(wd.formation) == int(WaveSpec.Formation.WALL):
-			lines.append("FAIL drifter (untagged) got WALL formation"); fails += 1
+			lines.append("FAIL non-wall entry got WALL formation"); fails += 1
 
 	lines.append("dart wall stamp = %d/40 ; shape map wall/pincer ok=%s" % [
 		wall_count, str(ScoreAdapter._shape_id(w_wall) == &"wall" and ScoreAdapter._shape_id(w_pincer) == &"pincer")])

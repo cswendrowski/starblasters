@@ -760,6 +760,10 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 	if _run != null and _run.has_meta("active_faction"):
 		var pf: int = int(_run.get_meta("active_faction", -1))
 		if pf >= 0:
+			# Faction projectile-appearance facet (2026-06-20): stamp the level faction on EVERY
+			# spawn (universals included — the whole point) so family-tagged bullets resolve to
+			# this faction's styled variant at fire time (shoot_pattern._spawn_bullet).
+			enemy.set_meta("faction_skin", pf)
 			# Apply the LEVEL faction; FactionsC.apply only overlays units whose home IS that
 			# faction (Roman 2026-06-08), so bonuses never leak onto universals / other-faction
 			# units in the level. (Dropped the privateer-interloper re-theme — it re-themed
