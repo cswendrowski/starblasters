@@ -45,7 +45,7 @@ enum Shape { STRAIGHT, WEAVE, HOOK, STEP, DIVE_RETURN, LANE_CUT }
 
 @export_group("Hook")
 @export var shift_lanes: int = 0            # signed lane delta for the one-way hook
-@export var shift_delay: float = 0.0        # s to hold the spawn lane before hooking
+@export var shift_delay: float = 0.0        # DEPRECATED — the depth gate (depth_bp) now drives the Shifter commit; vestigial
 @export var shift_duration: float = 0.8     # s the hook transition takes
 # Drifter mode (Roman 2026-06-06): drive the hook off the ENGAGEMENT BAND instead
 # of a timer — hold the spawn lane through entry, start sliding as the enemy crosses
@@ -92,10 +92,20 @@ var _return_anchor_x: float = 0.0
 var _hook_committed: bool = false
 var _hook_start_t: float = 0.0
 var _hook_commit_bp: float = 0.0   # band_progress at commit (zone_timed remap origin)
+# WEAVE state: hold the spawn lane until the depth gate, then wobble. _weave_t0 anchors the sine
+# clock to the gate crossing so the swing starts from lane center (phase 0), not mid-swing.
+var _weave_started: bool = false
+var _weave_t0: float = 0.0
 # Latest band_progress at which a zone-timed Drifter will still start a slide — past
 # this there isn't enough band left to land in the new lane gracefully, so it rides
 # its lane straight down instead.
 const ZONE_COMMIT_MAX: float = 0.7
+# Depth-gate fallbacks for when the enemy carries no depth (depth_bp < 0): chosen to preserve each
+# shape's pre-gate behavior. WEAVE wobbled from the top (gate 0.0 = start immediately); SHIFT
+# committed ~0.6s after entry (≈ band_progress 0.3). LANE_CUT/DIVE_RETURN keep return_trigger_bp.
+# A depth authored on the enemy (or the Lane Visualizer's randomized high/mid/low) overrides these.
+const WEAVE_GATE_DEFAULT: float = 0.0
+const SHIFT_GATE_DEFAULT: float = 0.3
 # STEP state
 var _anchor_lane: int = 0
 var _cur_lane: int = 0
@@ -126,6 +136,8 @@ func on_start(enemy) -> void:
 	_hook_committed = false
 	_hook_start_t = 0.0
 	_hook_commit_bp = 0.0
+	_weave_started = false
+	_weave_t0 = 0.0
 	_return_started = false
 	_return_t = 0.0
 	_return_anchor_x = _anchor_x
@@ -154,8 +166,18 @@ func compute_step(enemy, delta: float) -> Vector2:
 	var target_x: float = _anchor_x
 	match shape:
 		Shape.WEAVE:
+			# Depth-gated wobble: descend in the spawn lane until band_progress reaches the gate
+			# (high/mid/low), THEN start the sinusoidal swing. _weave_t0 anchors the sine to the
+			# gate crossing so the first swing leaves lane center cleanly (no mid-swing snap).
 			var amp: float = _clamp_amp(absf(weave_lanes) * Lanes.PITCH)
-			target_x = _anchor_x + sign_x * sin(_t * weave_frequency * TAU) * amp
+			if not _weave_started \
+					and Zones.band_progress(enemy.position.y) >= _depth_bp(enemy, WEAVE_GATE_DEFAULT):
+				_weave_started = true
+				_weave_t0 = _t
+			if _weave_started:
+				target_x = _anchor_x + sign_x * sin((_t - _weave_t0) * weave_frequency * TAU) * amp
+			else:
+				target_x = _anchor_x
 		Shape.HOOK:
 			# Shifter: hold the spawn lane until shift_delay AND the target lane is
 			# clear, then lock a one-way commit (P2 lane-awareness). If the target
@@ -168,7 +190,10 @@ func compute_step(enemy, delta: float) -> Vector2:
 					var bp: float = Zones.band_progress(enemy.position.y)
 					ready = bp > 0.0 and bp < ZONE_COMMIT_MAX
 				else:
-					ready = _t >= shift_delay
+					# Shifter: commit the one-way slide at the authored DEPTH gate (high/mid/low) —
+					# hold the spawn lane until band_progress reaches it, then slide. Supersedes the
+					# old fixed shift_delay timer so the commit depth is tunable per enemy.
+					ready = Zones.band_progress(enemy.position.y) >= _depth_bp(enemy, SHIFT_GATE_DEFAULT)
 				if ready and _hook_target_free(enemy, sign_x):
 					_hook_committed = true
 					_hook_commit_bp = Zones.band_progress(enemy.position.y)

@@ -26,13 +26,13 @@ const EXPORT_PATH := "user://tuners/pattern_eligibility_export.txt"
 # (Enemy Bench Locomotion tab); depth = enemy default + per-placement override.
 const MOVEMENT_KEYS := [
 	"straight", "straight_charge",
-	"skirmish_loop", "skirmish_figure8",
+	"skirmish_loop", "skirmish_figure8", "skirmish_pendulum",
 	"drift",
 	"loiter",
 	"lane_weave", "lane_drift", "lane_shift", "lane_hook", "lane_cut",
-	"side_turn", "side_dive", "side_traverse",
+	"side_turn", "side_traverse",
 	"hunt_beeline", "hunt_omni",
-	"pendulum", "proximity_chase", "loiter_sweep",
+	"proximity_chase", "loiter_sweep",
 ]
 
 # Legacy/retired movement keys → their current SHAPE replacement. The committed matrix is itself
@@ -56,8 +56,10 @@ const KEY_REMAP := {
 	"dive_return": "lane_hook",
 	"omni": "hunt_omni",
 	"beeline": "hunt_beeline",
-	"top_dive": "side_dive",
-	"side_cut": "side_dive",
+	"top_dive": "side_turn",
+	"side_cut": "side_turn",
+	"side_dive": "side_turn",   # collapsed 2026-06-22 — one SideTurn pattern; side_dive retired as a distinct key
+	"pendulum": "skirmish_pendulum",   # renamed 2026-06-22 — grouped under the skirmish family
 	"s_curve": "lane_weave",
 	"beam_sweep": "loiter_sweep",   # renamed 2026-06-09 (behavior unchanged)
 	# (strafe_run intentionally absent — strafer retired 2026-06-09; saved entries drop on load)

@@ -385,11 +385,32 @@ static func build_phrase(pattern: Dictionary, fill_faction: int, sector: int, rn
 			specs.append(ws)
 	if specs.is_empty():
 		return null
+	# Formation speed mode (Formation Builder, 2026-06-22): "formation"/lockstep makes the whole
+	# burst advance at the SLOWEST member's speed so it holds its shape; "free" (the default, and
+	# every legacy pattern w/o the key) leaves each unit at its own chassis speed.
+	if bool(pattern.get("lockstep", false)):
+		_lock_to_slowest(specs)
 	var ph := Phrase.new()
 	ph.kind = Phrase.Kind.FORMATION
 	ph.shape = &"authored"
 	ph.specs = specs
 	return ph
+
+
+# Lockstep speed: clamp every speed-bearing spec to the SLOWEST member's move_speed so an authored
+# formation advances in unison instead of spreading out as fast units outrun slow ones. Specs with
+# no resolved speed (move_speed <= 0 — e.g. non-roster scenes that keep their scene-baked motion)
+# are left untouched, and don't drag the minimum to zero.
+static func _lock_to_slowest(specs: Array) -> void:
+	var slowest: float = INF
+	for ws in specs:
+		if ws.move_speed > 0.0:
+			slowest = minf(slowest, ws.move_speed)
+	if slowest == INF:
+		return   # nothing had a resolved speed
+	for ws in specs:
+		if ws.move_speed > 0.0:
+			ws.move_speed = slowest
 
 
 # Build one count-1 WaveSpec for a single placement, resolving enemy + movement. Returns null

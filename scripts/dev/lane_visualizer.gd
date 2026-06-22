@@ -73,6 +73,14 @@ const NOTES_PATH := "user://tuners/pattern_notes.json"
 var _pattern_notes: Dictionary = {}
 var _note_edit: TextEdit = null
 
+# Depth-tier colors for PATTERN-mode dummies — the body + trail are tinted by the randomized
+# engagement depth so the high/mid/low spread is readable at a glance (Roman 2026-06-21).
+const DEPTH_COLORS := {
+	"high": Color(0.55, 0.95, 0.70),   # shallow — acts near the top
+	"mid":  Color(0.95, 0.85, 0.45),
+	"low":  Color(0.95, 0.55, 0.55),   # deep — acts near the bottom
+}
+
 
 func _ready() -> void:
 	if has_node("/root/Music"):
@@ -252,6 +260,11 @@ func _build_ui() -> void:
 	_add_button(_pattern_panel, "Spawn row", func(): _spawn_pattern_row())
 	_add_button(_pattern_panel, "Spawn one", func(): _spawn_pattern_one())
 	_add_button(_pattern_panel, "Clear", func(): _clear_world())
+	# Depth legend — spawns randomize high/mid/low; the dummy's tint shows which tier it drew.
+	var dl := _new_label("depth rnd: grn=hi amb=mid red=lo", UiTheme.COLOR_FAINT, SZ_CAPTION)
+	dl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	dl.custom_minimum_size = Vector2(118, 0)
+	_pattern_panel.add_child(dl)
 
 	lv.add_child(_sep())
 
@@ -435,10 +448,29 @@ func _spawn_pattern_one() -> void:
 
 func _make_dummy(pos: Vector2) -> void:
 	var d := PatternDummy.new()
-	d.pattern = _make_pattern()
+	var pat: Resource = _make_pattern()
+	# Randomize the engagement DEPTH (high/mid/low) per dummy so a spawned row shows the full
+	# spread of where each depth-aware pattern acts: lane_cut/lane_hook turn-off, lane_shift
+	# commit, lane_weave wobble-start, side_traverse cross height, loiter/drift hold.
+	var pick: Array = _pick_depth()
+	var bp: float = float(pick[0])
+	d.depth_bp = bp
+	d.tier_color = pick[2]
+	# Crossers (side_traverse) read travel_y, NOT depth_bp — resolve it from the chosen depth the
+	# same way director._spawn_enemy does (Zones.y_for_progress) so the crosser enters at that height.
+	if "travel_y" in pat:
+		pat.travel_y = Zones.y_for_progress(bp)
+	d.pattern = pat
 	d.position = pos
 	_world.add_child(d)
 	_dummies.append(d)
+
+
+# Pick a random depth band → [band_progress, tier_name, color].
+func _pick_depth() -> Array:
+	var keys: Array = Zones.DEPTH_BANDS.keys()
+	var tier: String = str(keys[randi() % keys.size()])
+	return [float(Zones.DEPTH_BANDS[tier]), tier, DEPTH_COLORS[tier]]
 
 
 # ---------------------------------------------------------------- clear / process
@@ -481,7 +513,7 @@ func _update_readout() -> void:
 		_readout.text = "mode: conductor\nbanner: %s\nalive: %d" % [_last_banner, alive]
 	else:
 		var p: Array = _patterns[_pattern_idx]
-		_readout.text = "mode: pattern\n%s\ndummies: %d" % [str(p[0]), _dummies.size()]
+		_readout.text = "mode: pattern\n%s\ndummies: %d\ndepth: random hi/mid/lo" % [str(p[0]), _dummies.size()]
 
 
 # ---------------------------------------------------------------- per-pattern notes
@@ -683,6 +715,14 @@ class PatternDummy extends Node2D:
 	var pattern = null
 	var auto_rotate: bool = true
 	var allow_side_exit: bool = false
+	# Engagement depth the depth-aware patterns gate on (band_progress 0..1); -1 = pattern default.
+	# Present so movement_pattern._depth_bp(self, …) reads it instead of falling back.
+	var depth_bp: float = -1.0
+	var tier_color: Color = Color(0.6, 0.95, 1.0)
+	# Sink for patterns that write it in on_start (LANE_CUT / DIVE_RETURN set FREE_ANY_EDGE=1).
+	# The dummy ignores it — it resets on its own band-exit check — but the field must EXIST or
+	# the assignment throws (mirrors pattern_eligibility_editor's PreviewDummy).
+	var offscreen_mode: int = 0
 	var _spawn: Vector2 = Vector2.ZERO
 	var _trail: Line2D = null
 	const MAX_TRAIL := 240
@@ -695,11 +735,11 @@ class PatternDummy extends Node2D:
 		var body := Polygon2D.new()
 		body.polygon = PackedVector2Array([
 			Vector2(0, 6), Vector2(-5, -5), Vector2(0, -2), Vector2(5, -5)])  # apex down: enemies descend
-		body.color = Color(0.6, 0.95, 1.0)
+		body.color = tier_color
 		add_child(body)
 		_trail = Line2D.new()
 		_trail.width = 1.0
-		_trail.default_color = Color(0.6, 0.95, 1.0, 0.5)
+		_trail.default_color = Color(tier_color.r, tier_color.g, tier_color.b, 0.5)
 		get_parent().add_child(_trail)
 		if pattern and pattern.has_method("on_start"):
 			pattern.on_start(self)

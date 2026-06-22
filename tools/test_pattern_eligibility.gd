@@ -26,9 +26,9 @@ func _init() -> void:
 			vary_ok = false; break
 	if not vary_ok:
 		lines.append("FAIL vary returned a non-eligible key"); fails += 1
-	# identity_for (interceptor migrated top_dive -> side_dive on 2026-06-08)
-	if PE.identity_for(INTERCEPTOR) != "side_dive":
-		lines.append("FAIL interceptor identity != side_dive"); fails += 1
+	# identity_for (interceptor: top_dive -> side_dive 2026-06-08 -> side_turn 2026-06-22 collapse)
+	if PE.identity_for(INTERCEPTOR) != "side_turn":
+		lines.append("FAIL interceptor identity != side_turn"); fails += 1
 	# Unmapped scene -> falls back to the entry movement.
 	if PE.resolve({"scene": "res://nope.tscn", "movement": "straight_medium"}) != "straight_medium":
 		lines.append("FAIL unmapped did not fall back to entry movement"); fails += 1

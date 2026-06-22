@@ -76,6 +76,7 @@ var _depth_lbl: Label = null
 var _fac_lbl: Label = null
 var _sector_lbl: Label = null
 var _stagger_lbl: Label = null
+var _mode_btn: Button = null       # Formation/Free speed-mode toggle (per-pattern)
 var _status_lbl: Label = null
 var _note_edit: TextEdit = null    # free-text note saved on the pattern (for review/evaluation)
 
@@ -207,7 +208,9 @@ func _enemy_short(path: String) -> String:
 # ---------------------------------------------------------------- library / pattern
 
 func _blank_pattern() -> Dictionary:
-	return {"name": "new_pattern", "faction": "any", "min_sector": 0, "stagger": 0.18, "note": "", "placements": []}
+	# lockstep=false → FREE speed mode (each unit at its own speed); true → FORMATION (whole burst
+	# moves at the slowest member's speed). build_phrase reads it; AuthoredPatterns._lock_to_slowest.
+	return {"name": "new_pattern", "faction": "any", "min_sector": 0, "stagger": 0.18, "lockstep": false, "note": "", "placements": []}
 
 
 func _load_library() -> void:
@@ -468,6 +471,9 @@ func _build_ui() -> void:
 	_stagger_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	str_row.add_child(_stagger_lbl)
 	_add_fixed_button(str_row, ">", func(): _cycle_stagger(1), 14)
+	# Speed mode (Roman 2026-06-22): Formation = the whole burst moves at the SLOWEST member's speed
+	# so it holds its shape; Free = each unit moves at its own chassis speed. Per-pattern toggle.
+	_mode_btn = _add_button(lv, "spd: free", _toggle_speed_mode)
 
 	_add_caption(lv, "NOTE")
 	_note_edit = TextEdit.new()
@@ -662,6 +668,17 @@ func _refresh_prop_labels() -> void:
 		_sector_lbl.text = "minS: %d" % int(_cur().get("min_sector", 0))
 	if _stagger_lbl:
 		_stagger_lbl.text = "stg: %s" % str(_cur().get("stagger", 0.18))
+	if _mode_btn:
+		_mode_btn.text = "spd: formation" if bool(_cur().get("lockstep", false)) else "spd: free"
+
+
+# Toggle the current pattern's speed mode: Formation (lockstep to the slowest unit) vs Free.
+func _toggle_speed_mode() -> void:
+	var on: bool = not bool(_cur().get("lockstep", false))
+	_cur()["lockstep"] = on
+	if _mode_btn:
+		_mode_btn.text = "spd: formation" if on else "spd: free"
+	_set_status("speed mode: %s" % ("FORMATION (slowest-wins)" if on else "free"))
 
 
 func _rename_pattern() -> void:
@@ -805,8 +822,8 @@ func _move_dir(key: String, lane: int) -> Vector2:
 	if k.begins_with("lane"):
 		return Vector2(side * 0.4, 1.0)
 	if k.begins_with("skirmish"):
-		return Vector2(0.5, 0.8)
-	if k.begins_with("loiter") or k.begins_with("drift") or k == "pendulum":
+		return Vector2(0.2, 0.9)   # vertical in-lane loops (incl. skirmish_pendulum)
+	if k.begins_with("loiter") or k.begins_with("drift"):
 		return Vector2(0.15, 0.85)
 	return Vector2(0, 1)   # straight_*, hunt_*, proximity_*, wildcard → descend
 

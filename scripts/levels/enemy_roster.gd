@@ -389,7 +389,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_hotrod.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "side_dive",
+		"movement": "side_turn",
 		"shoot": "single",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 4,
@@ -430,7 +430,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_rush.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "side_dive",
+		"movement": "side_turn",
 		"shoot": "burst",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 3,
@@ -1021,7 +1021,7 @@ const ENTRIES := [
 		# (reaction-test / direct-challenge). Heavy beats want descend-and-hold types.
 		"tier": Tier.RARE,
 		"size": "medium", "tags": ["tough"],
-		"movement": "side_dive",
+		"movement": "side_turn",
 		"shoot": null,
 		# Missile drop, now a reusable EmitterComponent (was bespoke in interceptor.gd): 3 drifting
 		# missiles per pass, 0.55s apart, only while on-screen.
@@ -1033,11 +1033,11 @@ const ENTRIES := [
 		# Jet (privateer small, 2026-06-17) — fast light fighter that dives in firing from its twin
 		# nose muzzles. NOTE: the scene also has LauncherL/R markers that are currently UNWIRED — add
 		# a missile mount (mounts: [...]) to arm them. Movement overrides the scene's baked top_dive
-		# (a retired key) with the current side_dive.
+		# (a retired key) with the current side_turn.
 		"scene": "res://scenes/enemies/core/enemy_core_s_jet.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "side_dive",
+		"movement": "side_turn",
 		"shoot": "single",
 		"bullet_variant": BV_PrivBolt,   # privateer gun bolt (family-tagged → faction-styled if it travels)
 		"fire_min": 1.2, "fire_max": 1.8,
@@ -1050,7 +1050,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_wing.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
-		"movement": "side_dive",
+		"movement": "side_turn",
 		"shoot": null,
 		"emitters": [{ "trigger": "timer", "payload": "Missile", "count": 1, "cadence": 0.55, "max_emits": 3, "band_only": true, "sfx": "missile" }],
 		"base_count": 2,
@@ -1437,6 +1437,8 @@ const MOVEMENT_ALIASES := {
 	"loiter_low": "loiter", "loiter_mid": "loiter", "loiter_high": "loiter",
 	"side_traverse_high": "side_traverse", "side_traverse_mid": "side_traverse",
 	"side_traverse_low": "side_traverse",
+	"side_dive": "side_turn",   # collapsed 2026-06-22 — side_dive was SideTurn w/ a shorter advance; one pattern now
+	"pendulum": "skirmish_pendulum",   # renamed 2026-06-22 — grouped under the skirmish family
 }
 
 
@@ -1526,13 +1528,10 @@ static func make_movement(entry: Dictionary) -> Resource:
 			return m
 		"side_turn":
 			# Advance horizontally in, rounded-turn down into the lane, descend to exit.
+			# (`side_dive` collapsed into this 2026-06-22 — it was the same pattern with a shorter
+			# advance, and the descent speed is chassis-owned, so there was no real second version.
+			# `side_dive` now aliases to `side_turn` in MOVEMENT_ALIASES.)
 			return SideTurn.new()
-		"side_dive":
-			# Like side_turn but a SHORTER advance into the dive (the "swift" feel); the descent
-			# speed itself is chassis-owned now. advance_time stays pattern shape.
-			var m = SideTurn.new()
-			m.advance_time = 0.45
-			return m
 		"side_traverse":
 			# Slow horizontal cross (Minelayer). Cross DEPTH is the chassis/formation depth axis now
 			# (side_traverse_high/mid/low collapsed here); cross speed is chassis-owned.
@@ -1549,8 +1548,10 @@ static func make_movement(entry: Dictionary) -> Resource:
 			var omt = OmniThrust.new()
 			omt.max_passes = 3
 			return omt
-		"pendulum":
+		"skirmish_pendulum":
 			# Dual-band vertical ping-pong diver w/ aim-fire dwell (ported from crystal).
+			# (Renamed from "pendulum" 2026-06-22 to group it with the skirmish family; the old
+			# key aliases to this in MOVEMENT_ALIASES.)
 			return Pendulum.new()
 		"proximity_chase":
 			# Drift straight until near the player, then activate a chase (smart mine/bomblet).

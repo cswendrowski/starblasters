@@ -274,7 +274,7 @@ static func build_roster_test():
 	w2.spawn_delay = 2.0
 	w2.formation = 0
 	w2.announce_text = "CUTTERS INBOUND"
-	w2.movement_override = EnemyRoster.make_movement({"movement": "side_dive"})
+	w2.movement_override = EnemyRoster.make_movement({"movement": "side_turn"})
 	w2.shoot_pattern_override = _single()
 	w2.fire_interval_min = 0.3
 	w2.fire_interval_max = 0.5
@@ -310,7 +310,7 @@ static func build_roster_test():
 	w5.spawn_delay = 2.0
 	w5.formation = 2
 	w5.announce_text = "INTERCEPTORS DIVING"
-	w5.movement_override = EnemyRoster.make_movement({"movement": "side_dive"})
+	w5.movement_override = EnemyRoster.make_movement({"movement": "side_turn"})
 
 	# WAVE 6: Bulwark + Hunter Drones. Bulwark shields the drones until
 	# you focus it down.
