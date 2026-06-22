@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://bcorphold0001"]
 
 [ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemies/enemy_core.gd" id="1_core"]
-[ext_resource type="Texture2D" uid="uid://jp6y7qcxix5o" path="res://graphics/enemies/enemy_c_s_hold.png" id="2_tex"]
+[ext_resource type="Texture2D" uid="uid://cklyxhuyfkpqu" path="res://graphics/enemies/enemy_c_s_skirmisher.png" id="3_2bskn"]
 [ext_resource type="Script" uid="uid://c2nnsbxlwvuep" path="res://scripts/enemies/patterns/loiter.gd" id="3_mov"]
 [ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://assets/audio/SFX_shot7.wav" id="4_shoot"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="5_die"]
@@ -14,7 +14,7 @@ exit_accel = 400.0
 exit_max_speed = 480.0
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_2bskn"]
-size = Vector2(14, 16.375)
+size = Vector2(16, 16.1875)
 
 [sub_resource type="Gradient" id="Gradient_n4wuu"]
 offsets = PackedFloat32Array(0, 0.347107, 0.669421, 1)
@@ -125,16 +125,16 @@ movement = SubResource("MovePattern")
 fire_on_phase = "hold"
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1074578671]
-texture = ExtResource("2_tex")
+texture = ExtResource("3_2bskn")
 hframes = 2
 
 [node name="GlowMask" type="Sprite2D" parent="." unique_id=1297939729]
-texture = ExtResource("2_tex")
+texture = ExtResource("3_2bskn")
 hframes = 2
 frame = 1
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1286003294]
-visible = false
+position = Vector2(0, -0.09375)
 shape = SubResource("RectangleShape2D_2bskn")
 
 [node name="MoveTimer" type="Timer" parent="." unique_id=1184835287]
@@ -176,11 +176,20 @@ stream = ExtResource("4_shoot")
 [node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=274428339]
 stream = ExtResource("5_die")
 
-[node name="Engine" type="Marker2D" parent="." unique_id=93448791]
-position = Vector2(0, 6)
+[node name="EngineL" type="Marker2D" parent="." unique_id=93448791]
+position = Vector2(-4, 6)
+
+[node name="EngineR" type="Marker2D" parent="." unique_id=983275987]
+position = Vector2(4, 6)
+
+[node name="ThrusterL" type="Marker2D" parent="." unique_id=577755460]
+position = Vector2(-4, 0)
+
+[node name="ThrusterR" type="Marker2D" parent="." unique_id=314344559]
+position = Vector2(4, 0)
 
 [node name="MuzzleL" type="Marker2D" parent="." unique_id=89025704]
-position = Vector2(-6, -1)
+position = Vector2(-3, -2)
 
 [node name="MuzzleR" type="Marker2D" parent="." unique_id=438567833]
-position = Vector2(6, -1)
+position = Vector2(3, -2)

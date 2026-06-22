@@ -6,7 +6,8 @@
 [ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://assets/audio/SFX_shot7.wav" id="4_br0vj"]
 [ext_resource type="Texture2D" uid="uid://thddvj0q0ygk" path="res://graphics/enemies/enemy_z_m_spear_charge.png" id="4_fo2ip"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="5_o0a6i"]
-[ext_resource type="Script" path="res://scripts/enemies/components/beam_charge_visual.gd" id="6_charge"]
+[ext_resource type="Script" uid="uid://b2rq6tdtocx55" path="res://scripts/enemies/components/beam_charge_visual.gd" id="6_charge"]
+[ext_resource type="PackedScene" uid="uid://uoof4kuon0td" path="res://scenes/enemies/factions/zealot/firecore_core.tscn" id="8_tqkps"]
 
 [sub_resource type="Resource" id="MovePattern"]
 script = ExtResource("2_hfen3")
@@ -14,7 +15,6 @@ speed = 150.0
 
 [sub_resource type="Resource" id="ChargeVisual"]
 script = ExtResource("6_charge")
-layer = "ChargeMask"
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_004cm"]
 size = Vector2(32, 32)
@@ -74,6 +74,12 @@ position = Vector2(-13, 14)
 
 [node name="EngineR2" type="Marker2D" parent="." unique_id=873782675]
 position = Vector2(13, 14)
+
+[node name="FirecoreRight" parent="." unique_id=929255552 instance=ExtResource("8_tqkps")]
+position = Vector2(9, 8)
+
+[node name="FirecoreLeft" parent="." unique_id=1431352712 instance=ExtResource("8_tqkps")]
+position = Vector2(-9, 8)
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
 [connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

@@ -956,6 +956,22 @@ const ENTRIES := [
 		"no_scale": true,
 		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.35,
 	},
+	{
+		# Thin bomber variant (Roman 2026-06-21) — lighter-framed B-220. Same anchor role + tail gun,
+		# a bit less hull. Core ship (corp+priv); Livery + faction TailGunGlow auto-apply. Stats are
+		# first-pass — Roman tunes.
+		"scene": "res://scenes/enemies/core/enemy_core_bomber_thin.tscn",
+		"heavy_class": "anchor",
+		"tier": Tier.UNCOMMON,
+		"size": "large", "tags": ["tough"],
+		"movement": null,
+		"shoot": null,
+		"hp_override": 22,
+		"bounty_override": 100,
+		"base_count": 2,
+		"no_scale": true,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.35,
+	},
 
 	# --- RARE -------------------------------------------------------------
 	{

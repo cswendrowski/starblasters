@@ -93,6 +93,15 @@ enum OffscreenMode { CYCLE_BOTTOM, FREE_ANY_EDGE, FREE_OPPOSITE_SIDE, NONE }
 @export var turn_rate: float = 0.0    # deg/s base steering rate (jet / omni / inertial)
 @export var accel: float = 0.0        # px/s² base acceleration (charge / beeline / loiter-exit)
 @export var depth_bp: float = -1.0    # DEFAULT engagement depth (Zones.band_progress 0..1); <0 = pattern default
+# Locomotion capability flags (Roman 2026-06-21) — OPT-IN (default false = face raw velocity, the
+# legacy auto-rotate). They decouple FACING from travel in _apply_auto_rotation:
+#   omni   — face the PLAYER while moving (omni-directional thrust; stays on target as it slides).
+#   strafe — slide left/right WITHOUT turning (lateral velocity dropped from facing; sweeping loiter).
+#   retro  — fly BACKWARD without turning (reverse/upward velocity dropped from facing; skirmish loops).
+# strafe + retro compose: a unit with both holds a fixed forward (downward) facing however it travels.
+@export var omni: bool = false
+@export var strafe: bool = false
+@export var retro: bool = false
 # Death-explosion variant (ExplosionFx.VARIANTS key — "default" / "small_circle" / …).
 # The enemy dev tool + per-enemy scenes set this; explode() resolves it to a scene.
 @export var explosion_variant: String = "default"
@@ -978,11 +987,33 @@ func _apply_auto_rotation() -> void:
 		return
 	var delta_pos: Vector2 = global_position - _last_position
 	_last_position = global_position
+	# OMNI: keep the nose on the player regardless of travel direction (omni-directional thrust).
+	# Done even while stationary so the unit tracks; bypasses the velocity-based facing below.
+	# (Dedicated omni patterns like omni_thrust suppress auto_rotate and steer themselves — this
+	# branch is the generalization for any other pattern on an omni-capable hull.)
+	if omni:
+		var pl := find_player()
+		if pl != null and pl is Node2D:
+			var to_p: Vector2 = (pl as Node2D).global_position - global_position
+			if to_p.length_squared() > 1.0:
+				rotation = to_p.angle() + PI * 0.5
+		return
 	if delta_pos.length_squared() < 0.04:  # < 0.2px/frame ~= stationary
 		return
+	# STRAFE drops the lateral (X) component and RETRO drops the backward (upward, −Y) component from
+	# the FACING velocity, so a sliding/reversing unit keeps facing forward instead of turning. When
+	# the filtered velocity collapses to ~0 (a pure side-slide or pure reverse) the unit faces straight
+	# DOWN (its forward), never snapping sideways or flipping around.
+	var fv: Vector2 = delta_pos
+	if strafe:
+		fv.x = 0.0
+	if retro and fv.y < 0.0:
+		fv.y = 0.0
+	if fv.length_squared() < 0.0001:
+		fv = Vector2(0.0, 1.0)
 	# Sprites face up (north); atan2 returns 0 = east. Add PI/2 so
 	# velocity (0, +1) → south → rotation = PI (sprite points down).
-	rotation = delta_pos.angle() + PI * 0.5
+	rotation = fv.angle() + PI * 0.5
 
 
 func _offscreen_cleanup_check() -> void:

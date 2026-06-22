@@ -153,6 +153,9 @@ const _DEPTH_ITEMS := ["", "high", "mid", "low"]   # OptionButton index 0 = "(de
 var _size_dd: OptionButton = null
 var _tough_chk: CheckBox = null
 var _shielded_chk: CheckBox = null
+var _omni_chk: CheckBox = null
+var _strafe_chk: CheckBox = null
+var _retro_chk: CheckBox = null
 const _SIZE_OPTS := ["tiny", "small", "medium", "large", "huge", "giant"]
 
 # scene_path -> true if any roster ENTRY declares a non-null "shoot" key. This is production's
@@ -524,6 +527,25 @@ func _setup_enemy_template_knobs(scroll: Control) -> void:
 	_shielded_chk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_shielded_chk.toggled.connect(func(_p): _on_template_changed(0))
 	tr.add_child(_shielded_chk)
+	# Locomotion capability flags (omni/strafe/retro).
+	var loco_tr := HBoxContainer.new()
+	loco_tr.add_theme_constant_override("separation", 10)
+	content.add_child(loco_tr)
+	_omni_chk = CheckBox.new()
+	_omni_chk.text = "omni"
+	_omni_chk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_omni_chk.toggled.connect(func(_p): _on_template_changed(0))
+	loco_tr.add_child(_omni_chk)
+	_strafe_chk = CheckBox.new()
+	_strafe_chk.text = "strafe"
+	_strafe_chk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_strafe_chk.toggled.connect(func(_p): _on_template_changed(0))
+	loco_tr.add_child(_strafe_chk)
+	_retro_chk = CheckBox.new()
+	_retro_chk.text = "retro"
+	_retro_chk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_retro_chk.toggled.connect(func(_p): _on_template_changed(0))
+	loco_tr.add_child(_retro_chk)
 
 
 func _on_template_changed(_i: int) -> void:
@@ -925,6 +947,13 @@ func _spawn_current() -> void:
 			sh.capacity = cap
 			sh.regen_interval = 0.0
 			inst.components = inst.components + [sh]
+	# Locomotion capability flags (omni/strafe/retro).
+	if _omni_chk != null and "omni" in inst:
+		inst.omni = _omni_chk.button_pressed
+	if _strafe_chk != null and "strafe" in inst:
+		inst.strafe = _strafe_chk.button_pressed
+	if _retro_chk != null and "retro" in inst:
+		inst.retro = _retro_chk.button_pressed
 	if inst is Node2D:
 		(inst as Node2D).position = spawn_pos
 	_enemy_layer.add_child(inst)
@@ -1605,6 +1634,12 @@ func _load_settings_into_editors() -> void:
 			var etags: Array = le.get("tags", []) if le.has("tags") else []
 			_tough_chk.button_pressed = bool(s.get("tough", "tough" in etags))
 			_shielded_chk.button_pressed = bool(s.get("shielded", "shielded" in etags))
+			if _omni_chk != null:
+				_omni_chk.button_pressed = bool(s.get("omni", false))
+			if _strafe_chk != null:
+				_strafe_chk.button_pressed = bool(s.get("strafe", false))
+			if _retro_chk != null:
+				_retro_chk.button_pressed = bool(s.get("retro", false))
 	_name_edit.text = String(s.get("name", EnemyStrings.display_name(_selected_path)))
 	_codex_edit.text = String(s.get("codex", EnemyStrings.codex_entry(_selected_path)))
 	# Saved bench override wins; otherwise default to the enemy's production roster mounts.
@@ -1659,6 +1694,9 @@ func _current_settings() -> Dictionary:
 		"size": _bench_size(),
 		"tough": _tough_chk.button_pressed if _tough_chk != null else false,
 		"shielded": _shielded_chk.button_pressed if _shielded_chk != null else false,
+		"omni": _omni_chk.button_pressed if _omni_chk != null else false,
+		"strafe": _strafe_chk.button_pressed if _strafe_chk != null else false,
+		"retro": _retro_chk.button_pressed if _retro_chk != null else false,
 	}
 
 
@@ -1735,6 +1773,13 @@ func _on_copy() -> void:
 	if int(s["bounty_value"]) != int(tmpl["bounty_value"]):
 		entry_bits.append("\"bounty_override\": %d" % int(s["bounty_value"]))
 	txt += "# -> roster ENTRY (template): %s\n" % ", ".join(entry_bits)
+	# Locomotion capability flags (omni/strafe/retro) — scene-baked on enemy_base.
+	var loco_flags: Array = []
+	if bool(s.get("omni", false)): loco_flags.append("omni")
+	if bool(s.get("strafe", false)): loco_flags.append("strafe")
+	if bool(s.get("retro", false)): loco_flags.append("retro")
+	if not loco_flags.is_empty():
+		txt += "# -> scene root (enemy_base): set %s = true\n" % ", ".join(loco_flags)
 	# Mounts → a roster ENTRY "mounts" block (extra emitters beyond the hull weapon).
 	if not _mount_dicts.is_empty():
 		txt += "\n# -> roster ENTRY \"mounts\":\n\"mounts\": [\n"

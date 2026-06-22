@@ -58,7 +58,8 @@ const ENEMY_TAGS := {
 	"res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn": {"home": Id.CORPORATE, "universal": false},
 	"res://scenes/enemies/factions/corporate/enemy_c_s_curve.tscn": {"home": Id.CORPORATE, "universal": false},
 	"res://scenes/enemies/factions/privateer/enemy_p_m_widow.tscn": {"home": Id.CORPORATE, "universal": false},  # A-110 Widow → corporate (Roman 2026-06-20). NOTE: scene still named/filed under privateer/ (p_m_) — rename to factions/corporate/enemy_c_m_widow when convenient.
-	"res://scenes/enemies/core/enemy_core_bomber.tscn": {"home": Id.CORPORATE, "universal": true},  # B-220 → core/universal, corpo-themed overlay. FLAG: reach unconfirmed
+	"res://scenes/enemies/core/enemy_core_bomber.tscn": {"home": Id.CORPORATE, "universal": true, "allowed_in": [Id.CORPORATE, Id.PRIVATEER]},  # B-220 core bomber (corp+priv, per its TailGunGlow tints)
+	"res://scenes/enemies/core/enemy_core_bomber_thin.tscn": {"home": Id.CORPORATE, "universal": true, "allowed_in": [Id.CORPORATE, Id.PRIVATEER]},  # thin bomber variant — core (corp+priv)
 	"res://scenes/enemies/core/enemy_cruiser.tscn": {"home": Id.SUPREMACY, "universal": true},
 	"res://scenes/enemies/core/enemy_core_m_minelayer.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.SUPREMACY, Id.PRIVATEER, Id.CORPORATE]},  # core minelayer (Zealot gets its own later)
 	"res://scenes/enemies/factions/privateer/enemy_core_s_falchion.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.PRIVATEER]},  # core Falchion (was Hornet/p_s_green), privateer-only for now
@@ -281,6 +282,37 @@ static func apply_livery(faction: int, enemy) -> void:
 	mat.set_shader_parameter("tint_color", data(faction).get("tint", Color(0.5, 0.5, 0.5)))
 	lv.material = mat
 	lv.visible = true
+
+
+# Per-faction signature PROJECTILE color — what the faction's bullets read as. Drives the TailGunGlow
+# tint (apply_tailglow) and is the reference for faction bullet styling. Privateer lime-green +
+# corporate purple-pink are Roman's calls (2026-06-21); supremacy/zealot follow faction identity
+# (crimson / firecore-orange). Bright values so the WorldEnvironment bloom blooms the glow in-hue.
+const BULLET_GLOW := {
+	Id.SUPREMACY: Color(1.0, 0.3, 0.3),     # crimson
+	Id.PRIVATEER: Color(0.45, 0.95, 0.35),  # lime green (matches the privateer bullet glow)
+	Id.CORPORATE: Color(0.9, 0.35, 0.85),   # purple-pink
+	Id.ZEALOT:    Color(1.0, 0.6, 0.35),    # firecore orange
+}
+
+
+# The faction's signature projectile/glow color (white fallback for no/unknown faction).
+static func bullet_glow_color(faction: int) -> Color:
+	return BULLET_GLOW.get(faction, Color(1.0, 1.0, 1.0))
+
+
+# Tint an enemy's TailGunGlow layer to the active faction's signature bullet color (Roman 2026-06-21):
+# the tail/engine glow then reads as the faction's projectiles (privateer lime-green, corpo purple-
+# pink…). Mirrors apply_livery — runtime auto-detect of a "TailGunGlow" sprite, applied per spawn by
+# the director. A multiply modulate (the layer is an emissive glow frame, not a screen-darken decal).
+# faction < 0 leaves the layer's baked color (no faction context).
+static func apply_tailglow(faction: int, enemy) -> void:
+	if enemy == null or faction < 0:
+		return
+	var tg = enemy.get_node_or_null("TailGunGlow")
+	if tg == null:
+		return
+	tg.modulate = bullet_glow_color(faction)
 
 
 # True if `c` is an Emitter that drops a firecore hazard on death — used to avoid

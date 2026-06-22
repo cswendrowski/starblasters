@@ -773,6 +773,9 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 		# Unlike apply(), this is NOT home-gated — every unit with a "Livery" node wears the
 		# level's colors (Roman's runtime auto-detect decision). pf < 0 hides the layer.
 		FactionsC.apply_livery(pf, enemy)
+		# Faction tail-glow (2026-06-21): tint a "TailGunGlow" layer to the faction's bullet color
+		# (privateer lime-green, corpo purple-pink…). pf < 0 leaves the baked glow.
+		FactionsC.apply_tailglow(pf, enemy)
 	else:
 		# No faction context (hazard node / dev launch) — hide the Livery layer so it doesn't
 		# render an untinted overlay on the body.

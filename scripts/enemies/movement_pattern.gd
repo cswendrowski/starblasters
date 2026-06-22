@@ -79,6 +79,22 @@ func _depth_bp(enemy, fallback: float) -> float:
 	return enemy.depth_bp if ("depth_bp" in enemy and enemy.depth_bp >= 0.0) else fallback
 
 
+# --- Locomotion capability flags (Roman 2026-06-21) — chassis booleans the enemy carries. Patterns
+# query these to decide whether they may slide/reverse/face-player without turning; facing itself is
+# applied in enemy_base._apply_auto_rotation. Default false for bare-Node2D dummies / hosts without
+# the chassis fields. ---
+func _can_omni(enemy) -> bool:
+	return "omni" in enemy and bool(enemy.omni)
+
+
+func _can_strafe(enemy) -> bool:
+	return "strafe" in enemy and bool(enemy.strafe)
+
+
+func _can_retro(enemy) -> bool:
+	return "retro" in enemy and bool(enemy.retro)
+
+
 # Legacy entry point. Internally routes through compute_step so old
 # callers (or patterns that still mutate enemy.position directly inside
 # overridden on_process) keep working during migration. Once everything

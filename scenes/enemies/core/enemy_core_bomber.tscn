@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://dyoidta710441"]
 
 [ext_resource type="Script" uid="uid://bd1l72v0x85xw" path="res://scripts/enemies/core/enemy_bomber.gd" id="1_bomber"]
-[ext_resource type="Texture2D" uid="uid://crrt44bpht5w2" path="res://graphics/enemies/enemy_bomber.png" id="2_uxu1k"]
+[ext_resource type="Texture2D" uid="uid://dlwv3m7lentxk" path="res://graphics/enemies/enemy_core_m_bomber.png" id="2_7p3iw"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="3_die"]
 [ext_resource type="AudioStream" uid="uid://bhiuomm0cj0w2" path="res://assets/audio/SFX_flameShot3b.wav" id="4_shot"]
 
@@ -14,7 +14,23 @@ max_health = 16
 bounty_value = 100
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=24319312]
-texture = ExtResource("2_uxu1k")
+texture = ExtResource("2_7p3iw")
+hframes = 4
+
+[node name="Glowmap" type="Sprite2D" parent="." unique_id=1677021081]
+texture = ExtResource("2_7p3iw")
+hframes = 4
+frame = 1
+
+[node name="Livery" type="Sprite2D" parent="." unique_id=694849499]
+texture = ExtResource("2_7p3iw")
+hframes = 4
+frame = 3
+
+[node name="TailGunGlow" type="Sprite2D" parent="." unique_id=1019058680]
+texture = ExtResource("2_7p3iw")
+hframes = 4
+frame = 2
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=926190180]
 shape = SubResource("RectangleShape2D_bomber")

@@ -24,6 +24,9 @@ uniform float max_strength : hint_range(0.0, 1.0) = 0.6;
 // material instead of needing a second material slot the damage shader occupies).
 uniform float flash_strength : hint_range(0.0, 1.0) = 0.0;
 uniform vec4 flash_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
+// Final RGB scale (Roman 2026-06-21). Default 1.0 = no change (combat/enemies untouched);
+// the outpost dock screen sets it < 1.0 to darken the parked ship to match the dim hangar.
+uniform float brightness : hint_range(0.0, 1.0) = 1.0;
 
 const float epsilon = 0.01;
 
@@ -78,4 +81,5 @@ void fragment() {
         vec3 outc = mix(damaged, flash_color.rgb, flash_strength);
         COLOR = vec4(outc, color.a);
     }
+    COLOR.rgb *= brightness;   // default 1.0 → no-op everywhere except the dimmed dock ship
 }

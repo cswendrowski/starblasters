@@ -134,6 +134,13 @@ func on_start(enemy) -> void:
 	# 1 = OffscreenMode.FREE_ANY_EDGE.
 	if shape == Shape.DIVE_RETURN or shape == Shape.LANE_CUT:
 		enemy.offscreen_mode = 1
+	# LANE_CUT runs HORIZONTALLY off the side after its turn, so it must opt out of the
+	# enemy_core side-clamp (mirrors side_traverse/side_turn) — otherwise X is pinned at
+	# the band edge and the FREE_ANY_EDGE side-exit never fires (enemy gets stuck there).
+	# DIVE_RETURN exits the TOP and should stay clamped through its dive+climb, so it is
+	# deliberately left out.
+	if shape == Shape.LANE_CUT:
+		enemy.allow_side_exit = true
 
 
 func compute_step(enemy, delta: float) -> Vector2:

@@ -1,0 +1,52 @@
+[gd_scene format=3 uid="uid://dg5tlh6p6b6bi"]
+
+[ext_resource type="Script" uid="uid://bd1l72v0x85xw" path="res://scripts/enemies/core/enemy_bomber.gd" id="1_0ukpm"]
+[ext_resource type="Texture2D" uid="uid://csppslglnf1oa" path="res://graphics/enemies/enemy_core_m_bomber_thin.png" id="2_0ukpm"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="3_fhst2"]
+[ext_resource type="AudioStream" uid="uid://bhiuomm0cj0w2" path="res://assets/audio/SFX_flameShot3b.wav" id="4_khdsf"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_bomber"]
+size = Vector2(32, 64)
+
+[node name="Enemy" type="Area2D" unique_id=758767157 groups=["enemies"]]
+script = ExtResource("1_0ukpm")
+max_health = 16
+bounty_value = 100
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=50080201]
+texture = ExtResource("2_0ukpm")
+hframes = 4
+
+[node name="Glowmap" type="Sprite2D" parent="." unique_id=422728402]
+texture = ExtResource("2_0ukpm")
+hframes = 4
+frame = 1
+
+[node name="Livery" type="Sprite2D" parent="." unique_id=1264672898]
+texture = ExtResource("2_0ukpm")
+hframes = 4
+frame = 3
+
+[node name="TailGunGlow" type="Sprite2D" parent="." unique_id=948271332]
+texture = ExtResource("2_0ukpm")
+hframes = 4
+frame = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=926190180]
+shape = SubResource("RectangleShape2D_bomber")
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=328881185]
+stream = ExtResource("3_fhst2")
+
+[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="." unique_id=328881186]
+stream = ExtResource("4_khdsf")
+volume_db = -5.0
+
+[node name="TailMuzzle" type="Marker2D" parent="." unique_id=328881184]
+position = Vector2(0, 27)
+
+[node name="EngineL" type="Marker2D" parent="." unique_id=841835202]
+position = Vector2(-12, 25)
+
+[node name="EngineR" type="Marker2D" parent="." unique_id=711760557]
+position = Vector2(12, 25)
