@@ -102,6 +102,7 @@ func _build_ui() -> void:
 	_update_baked_btn()
 	_add_button("[ Crash Loop ]", _on_crash_loop, true)
 	_add_button("[ Shader Lab ]", _on_shader_lab, true)
+	_add_button("[ Combat VFX Lab ]", _on_combat_vfx_lab, true)
 	_add_button("[ Sequence Lab ]", _on_sequence_lab, true)
 	_add_button("[ Player FX Lab ]", _on_player_fx_lab, true)
 	_add_button("[ Loading Screen Lab ]", _on_loading_screen_lab, true)
@@ -174,6 +175,10 @@ func _on_wave_pattern_editor() -> void:
 
 func _on_shader_lab() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/shader_lab.tscn")
+
+
+func _on_combat_vfx_lab() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/combat_vfx_lab.tscn")
 
 
 func _on_sequence_lab() -> void:

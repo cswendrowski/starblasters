@@ -16,10 +16,7 @@ extends "res://scripts/enemies/movement_pattern.gd"
 # Hold position. Clamped to the top half (<= 135) so the Holder never settles in
 # the player's lap. Variants: high ~50, mid ~90, low ~130.
 @export var hover_y: float = 88.0
-@export var enter_speed: float = 60.0          # cruise speed during entry
 @export var loiter_time: float = 3.0
-@export var exit_accel: float = 300.0
-@export var exit_max_speed: float = 280.0
 
 # Entry easing. accel ramps from a slow start up to enter_speed; decel slows the
 # approach over the last `decel_dist` px into hover_y. Both give a weighted feel.

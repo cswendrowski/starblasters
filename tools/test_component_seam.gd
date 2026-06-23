@@ -26,7 +26,6 @@ func _process(_dt: float) -> bool:
 		var dir = DirectorScript.new()
 		_world.add_child(dir)
 		var mv = StraightDown.new()
-		mv.speed = 60.0
 		var w = WaveSpec.new()
 		w.enemy_scene = load("res://scenes/enemies/core/enemy_core_s_dart.tscn")
 		w.count = 1

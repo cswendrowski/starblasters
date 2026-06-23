@@ -13,11 +13,8 @@ const Playfield = preload("res://scripts/systems/playfield.gd")
 
 signal phase_entered(phase_name: String)
 
-@export var drift_speed: float = 180.0     # dormant descent (straight_medium rung)
 @export var proximity: float = 80.0        # activation radius
 @export var transition_time: float = 0.18  # telegraph before the chase engages
-@export var chase_accel: float = 360.0
-@export var chase_max_speed: float = 180.0
 @export var bounce_damp: float = 0.5       # side-wall bounce velocity retention
 # Locomotion refactor 2026-06-19: dormant drift + chase speed are both the chassis move_speed; the
 # chase accel is a fraction of the enemy's accel. The *_speed/accel exports above are vestigial.

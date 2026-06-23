@@ -1,8 +1,10 @@
 [gd_resource type="Resource" load_steps=3 format=3 uid="uid://br63l373x26od"]
 
-[ext_resource type="Script" path="res://scripts/enemies/shoot_patterns/single_shot.gd" id="1_ss"]
+[ext_resource type="Script" path="res://scripts/enemies/shoot_patterns/weapon.gd" id="1_w"]
 [ext_resource type="PackedScene" uid="uid://iqys12s5srvb" path="res://scenes/projectiles/enemy_bullet.tscn" id="2_b"]
 
 [resource]
-script = ExtResource("1_ss")
+script = ExtResource("1_w")
 bullet_scene = ExtResource("2_b")
+fire_pattern = 0
+aim = 0

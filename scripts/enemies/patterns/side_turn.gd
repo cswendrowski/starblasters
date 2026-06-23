@@ -11,8 +11,6 @@ extends "res://scripts/enemies/movement_pattern.gd"
 
 const Playfield = preload("res://scripts/systems/playfield.gd")
 
-@export var enter_speed: float = 160.0     # vestigial — horizontal advance is a fraction of move_speed
-@export var down_speed: float = 180.0      # vestigial — post-turn descent is the chassis move_speed
 @export var advance_time: float = 0.6      # seconds advancing before the turn
 @export var turn_time: float = 0.45        # seconds the rounded turn takes
 # Locomotion refactor 2026-06-19: the post-turn descent is the chassis move_speed; the horizontal
@@ -57,7 +55,7 @@ func compute_step(enemy, delta: float) -> Vector2:
 			return Vector2(nx - enemy.position.x, 0.0)
 		1:  # rounded quarter-turn: ease X to the lane center while the descent ramps in
 			var u: float = clampf(_t / maxf(turn_time, 0.0001), 0.0, 1.0)
-			var eased: float = u * u * (3.0 - 2.0 * u)
+			var eased: float = smoothstep(0.0, 1.0, u)
 			var ang: float = lerpf(0.0, PI * 0.5, eased)  # 0=horizontal..PI/2=down
 			var tx: float = lerpf(_turn_from_x, _target_x, eased)
 			if u >= 1.0:

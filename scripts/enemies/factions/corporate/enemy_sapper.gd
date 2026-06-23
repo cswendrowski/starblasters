@@ -18,10 +18,11 @@ const OmniThrust  = preload("res://scripts/enemies/patterns/omni_thrust.gd")
 var _sap_state: int = SapState.SEEKING
 var _drain_accum: float = 0.0
 
-# Beam visuals — created lazily on first DRAINING entry.
-# Two stacked Line2Ds: a wide low-alpha additive "glow" under a crisp 2px core.
-var _beam_outer: Line2D = null
-var _beam_core: Line2D = null
+# Beam visual — a shared BeamEmitter (visual-only: dps 0, the sapper does its own
+# shield drain in _tick_drain). MANUAL cycle + SEGMENT endpoint so the sapper drives
+# on/off and sets the sapper→player endpoints each frame. Created lazily on first DRAIN.
+const BeamEmitterC = preload("res://scripts/enemies/beam_emitter.gd")
+var _beam: Node = null
 
 
 func _ready() -> void:
@@ -115,52 +116,40 @@ func _restore_shield_regen(player: Node) -> void:
 			regen_timer.start()
 
 
-func _ensure_beam_visuals() -> void:
-	if _beam_outer and is_instance_valid(_beam_outer):
+func _ensure_beam() -> void:
+	if _beam and is_instance_valid(_beam):
 		return
-
-	# Diffuse glow: a wide, low-alpha line drawn UNDER the core. Additive blend
-	# (CanvasItemMaterial ADD) makes the overlapping translucent blue brighten
-	# rather than just stack alpha, giving a soft halo instead of a hard edge.
-	var glow_mat := CanvasItemMaterial.new()
-	glow_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-
-	_beam_outer = Line2D.new()
-	_beam_outer.default_color = Color(BEAM_COLOR.r, BEAM_COLOR.g, BEAM_COLOR.b, 0.3)
-	_beam_outer.width = 6.0
-	_beam_outer.begin_cap_mode = Line2D.LINE_CAP_ROUND
-	_beam_outer.end_cap_mode = Line2D.LINE_CAP_ROUND
-	_beam_outer.material = glow_mat
-	_beam_outer.z_index = 4
-	_beam_outer.visible = false
-
-	# Core: crisp 2px shield-blue line on top of the glow.
-	_beam_core = Line2D.new()
-	_beam_core.default_color = BEAM_COLOR
-	_beam_core.width = 2.0
-	_beam_core.begin_cap_mode = Line2D.LINE_CAP_ROUND
-	_beam_core.end_cap_mode = Line2D.LINE_CAP_ROUND
-	_beam_core.z_index = 5
-	_beam_core.visible = false
-
-	add_child.call_deferred(_beam_outer)
-	add_child.call_deferred(_beam_core)
+	# Visual-only beam: dps 0 (the sapper transfers shield charges in _tick_drain, not via
+	# beam damage) and a teal shield-blue 2-layer stack (wide soft glow under a crisp core)
+	# matching the HUD shield color. MANUAL cycle = the sapper drives show_fire()/cease();
+	# SEGMENT endpoint = the sapper sets the sapper→player endpoints each frame.
+	var b := BeamEmitterC.new()
+	b.configure({
+		"cycle": BeamEmitterC.Cycle.MANUAL,
+		"endpoint": BeamEmitterC.Endpoint.SEGMENT,
+		"autostart": true,
+		"dps": 0.0,
+		"hit_radius": 0.0,
+		"target_group": "player",
+		"emitter_offset": Vector2.ZERO,
+		"layers": [
+			{"width": 6.0, "color": Color(BEAM_COLOR.r, BEAM_COLOR.g, BEAM_COLOR.b, 0.35)},
+			{"width": 2.0, "color": BEAM_COLOR},
+		],
+	})
+	_beam = b
+	add_child(b)
 
 
 func _show_beam(player: Node) -> void:
-	_ensure_beam_visuals()
-	if _beam_outer == null or not is_instance_valid(_beam_outer):
+	_ensure_beam()
+	if _beam == null or not is_instance_valid(_beam):
 		return
-	var target_local: Vector2 = to_local(player.global_position)
-	var pts := PackedVector2Array([Vector2.ZERO, target_local])
-	_beam_outer.points = pts
-	_beam_outer.visible = true
-	_beam_core.points = pts
-	_beam_core.visible = true
+	# Sapper origin → player, in world space (SEGMENT draws via to_local each frame).
+	_beam.set_segment(global_position, player.global_position)
+	_beam.show_fire()
 
 
 func _hide_beam() -> void:
-	if _beam_outer and is_instance_valid(_beam_outer):
-		_beam_outer.visible = false
-	if _beam_core and is_instance_valid(_beam_core):
-		_beam_core.visible = false
+	if _beam and is_instance_valid(_beam):
+		_beam.cease()

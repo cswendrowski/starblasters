@@ -555,8 +555,8 @@ const V3_TO_BACKDROP_PLANET_IDX := {
 	3: 5,  # LandMasses      -> backdrop 5 LandMasses
 	4: 3,  # GasPlanet       -> backdrop 3 GasPlanet
 	5: 1,  # IceWorld        -> backdrop 1 IceWorld
-	6: 3,  # GasPlanetLayers -> backdrop 3 GasPlanet (closest match)
-	7: 5,  # Rivers          -> backdrop 5 LandMasses (closest match)
+	6: 9,  # GasPlanetLayers -> backdrop 9 GasPlanetLayers (ringed — the real thing now)
+	7: 10, # Rivers          -> backdrop 10 Rivers
 }
 
 

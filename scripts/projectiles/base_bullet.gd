@@ -110,8 +110,8 @@ func _apply_hdr_bloom() -> void:
 
 
 # Apply a BulletVariant's stat and visual overrides. Called from _ready()
-# when variant != null. Subclasses should gate their own _apply_visuals
-# glow on `variant == null` so the variant glow_color wins.
+# when variant != null. (Glow is no longer per-variant — subclass _apply_visuals
+# attaches a GlowFx aura, and WorldEnvironment bloom lights the bright sprite.)
 func _apply_variant() -> void:
 	speed = variant.speed
 	damage = variant.damage
@@ -121,10 +121,9 @@ func _apply_variant() -> void:
 
 	# --- hitbox ---
 	# The per-bullet SCENE owns its collision shape now (Roman 2026-06-08: "I've updated the
-	# projectile scenes with correct hitboxes"). The variant no longer overrides it — every
-	# indexed bullet scene carries its own authored hitbox, so forcing variant.hitbox_size
-	# here just clobbered the scene value (e.g. the cannon's 6x16 -> 5x5). hitbox_size stays
-	# on BulletVariant for reference/data but is not applied.
+	# projectile scenes with correct hitboxes"). The variant does not override it — every
+	# indexed bullet scene carries its own authored hitbox. (The old variant.hitbox_size field
+	# clobbered the scene value, e.g. the cannon's 6x16 -> 5x5, so it was removed 2026-06-23.)
 
 	# --- visuals ---
 	if variant.sprite_frames != null:
@@ -181,9 +180,9 @@ func _apply_variant() -> void:
 
 	# --- glow color ---
 	# Nothing to do here. Glow is now the WorldEnvironment bloom on bright sprites
-	# (or a GlowFx aura attached per-bullet in the subclass _apply_visuals);
-	# variant.glow_color is vestigial and no longer read. The old scene "Glow"
-	# child has been removed from all projectile scenes.
+	# (or a GlowFx aura attached per-bullet in the subclass _apply_visuals). The old
+	# per-variant glow_color field + scene "Glow" child were both removed (2026-06-23 /
+	# 2026-06-20) — no per-bullet glow authoring remains.
 
 	# --- telegraph flash ---
 	if variant.telegraph_flash:

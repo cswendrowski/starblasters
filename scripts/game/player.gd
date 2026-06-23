@@ -464,7 +464,7 @@ func _ready() -> void:
 	start()
 
 const ENGINE_GLOW_COLOR := Color(0.0, 0.827, 1.0)   # #00d3ff (engine trails)
-const GLOW_EFFECT_2D := preload("res://graphics/glow_effect_2d.gdshader")  # engine glowmask glow
+const VfxGlow = preload("res://scripts/effects/vfx_glow_config.gd")  # per-category HDR glow multipliers
 const PLAYER_TRAIL_DRIFT := 160.0                    # px/s downward exhaust drift (hovering plume)
 
 # Damage-overlay shader (Roman 2026-06-15): the player now gets the SAME health-driven damage
@@ -516,22 +516,13 @@ func _update_damage_visual() -> void:
 # Wire up the new ship-art layers (Roman 2026-06-09): engine glowmask tint, the two #00d3ff
 # engine trails, and the per-patrol livery recolor.
 func _setup_ship_visuals() -> void:
-	# Engine glowmask — glows via the tuned Player Blaster glow_effect_2d (Roman 2026-06-20):
-	# color-keyed in-sprite emission (white core + #8ce6ff body) blooming through the
-	# WorldEnvironment, replacing the old additive #00d3ff. modulate stays white; its alpha is
-	# eased in _process (half opacity while moving back).
+	# Engine glowmask — HDR-bright by the tuned "engines" multiplier so the WorldEnvironment bloom
+	# lights it (Roman 2026-06-22). modulate.a is eased in _process (half opacity while moving back),
+	# so the engine dims on a move-back without losing the HDR rgb.
 	if has_node("Ship") and $Ship.has_node("GlowMask"):
 		var gm: Sprite2D = $Ship.get_node("GlowMask")
-		gm.modulate = Color(1, 1, 1, 1)
-		var gmat := ShaderMaterial.new()
-		gmat.shader = GLOW_EFFECT_2D
-		gmat.set_shader_parameter("color1", Color(1, 1, 1, 1))
-		gmat.set_shader_parameter("color2", Color("8ce6ff"))
-		gmat.set_shader_parameter("glow_color", Color("8ce6ff"))
-		gmat.set_shader_parameter("threshold", 0.2)
-		gmat.set_shader_parameter("intensity", 2.5)
-		gmat.set_shader_parameter("opacity", 1.0)
-		gm.material = gmat
+		gm.modulate = VfxGlow.prod_hdr("engines")
+		gm.material = null
 	# 1px black outline on the ship body — same outline_fx shader/look the enemies get. Rebuilt on
 	# bank since the body is a 3-frame strip (the outline is a single padded frame).
 	_rebuild_outline()
@@ -1821,13 +1812,13 @@ func _spawn_pulse_beam(origin: Vector2, end_pt: Vector2) -> void:
 	var host: Node = get_parent()
 	if host == null:
 		host = self
-	# Outer glow — a wider additive line UNDER the core beam (Roman 2026-06-11). Now carries the
-	# tuned Auto-Laser glow (Roman 2026-06-20): light-blue #a1afff pushed HDR-bright (×~1.75 intensity)
-	# so the WorldEnvironment blooms it like the autolaser bolt. The 1px core below keeps its
-	# white→blue dispersion tell.
+	# Outer glow — a wider additive line UNDER the core beam (Roman 2026-06-11). HDR-bright by the
+	# tuned "lasers" multiplier so the WorldEnvironment blooms it (Roman 2026-06-22). The 1px core
+	# below keeps its white→blue dispersion tell.
 	var glow := Line2D.new()
 	glow.width = 3.0
-	glow.default_color = Color(1.1, 1.2, 1.75, 0.55)   # #a1afff × 1.75 (HDR)
+	glow.default_color = Color(0.0, 0.07, 1.0, 0.55)   # #0012ff base; HDR comes from modulate
+	glow.modulate = VfxGlow.prod_hdr("lasers")
 	glow.add_point(origin)
 	glow.add_point(end_pt)
 	glow.z_index = 0
@@ -1844,6 +1835,7 @@ func _spawn_pulse_beam(origin: Vector2, end_pt: Vector2) -> void:
 	line.width = 1.0
 	var ratio: float = clampf(_pulse_dispersion / PULSE_MAX_DISPERSION, 0.0, 1.0)
 	line.default_color = Color(1.0, 1.0, 1.0).lerp(PULSE_INACCURATE_COLOR, ratio)
+	line.modulate = VfxGlow.prod_hdr("lasers")
 	line.add_point(origin)
 	line.add_point(end_pt)
 	line.z_index = 1

@@ -9,6 +9,9 @@ extends Node
 const FLICKER_SCRIPT = preload("res://scripts/effects/flicker.gd")
 
 static var _dot_tex: GradientTexture2D = null
+# Dev kill-switch (Parallax Tuner / VFX labs) to A/B the gradient halos vs the WorldEnvironment
+# bloom. When false, attach_glow is a no-op (returns null — callers already null-guard their refs).
+static var enabled: bool = true
 
 
 static func _ensure_tex() -> void:
@@ -33,6 +36,8 @@ static func _ensure_tex() -> void:
 # Add an additive Sprite2D glow to `host`. Returns the sprite so callers can
 # tune further (e.g. set position, offset, scale per-frame, etc.).
 static func attach_glow(host: Node2D, color: Color, scale: float = 2.0, alpha: float = 0.7, behind: bool = true) -> Sprite2D:
+	if not enabled:
+		return null
 	_ensure_tex()
 	var s := Sprite2D.new()
 	s.texture = _dot_tex

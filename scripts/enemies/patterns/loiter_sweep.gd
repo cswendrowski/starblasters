@@ -10,8 +10,6 @@ const Playfield = preload("res://scripts/systems/playfield.gd")
 signal phase_entered(phase_name: String)
 
 @export var settle_y: float = 58.0
-@export var enter_speed: float = 170.0
-@export var sweep_speed: float = 42.0
 @export var sweep_margin: float = 22.0   # keep the hull off the gutter edges
 # Locomotion refactor 2026-06-19: descent speed is chassis-owned; the lateral rake is a fraction
 # of it (preserves the old 170→42 feel). settle_y is resolved from the enemy/formation DEPTH. The

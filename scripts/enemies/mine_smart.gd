@@ -38,11 +38,8 @@ func _ready() -> void:
 		$Sprite2D.frame = 0
 	if movement == null:
 		var m := ProximityChase.new()
-		m.drift_speed = drift_speed
 		m.proximity = proximity_trigger
 		m.transition_time = transition_time
-		m.chase_accel = chase_accel
-		m.chase_max_speed = chase_max_speed
 		movement = m
 	super._ready()
 	add_child(MineBlinker.new())   # 2px flashing red centre dot + glow

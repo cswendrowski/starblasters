@@ -69,7 +69,6 @@ func _run() -> void:
 				var enemy: Node2D = ENEMY_SCENE.instantiate()
 				if "movement" in enemy:
 					var pat := StraightDownCls.new()
-					pat.speed = 95.0
 					enemy.movement = pat
 				if "shoot_pattern" in enemy:
 					enemy.shoot_pattern = null

@@ -12,11 +12,9 @@ var speed: float = 0.0
 var anchor: Node2D = null
 var follow_anchor: bool = false
 const _DEFAULT_BULLET = preload("res://scenes/projectiles/enemy_bullet.tscn")
-const BeamEmitterC = preload("res://scripts/enemies/beam_emitter.gd")
 const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
 const RecycleController = preload("res://scripts/effects/recycle_controller.gd")
 var bullet_scene: PackedScene = _DEFAULT_BULLET
-var _beam: Node = null   # per-enemy BeamEmitter when shoot_pattern is a beam weapon
 
 # Pattern-driven slots.
 @export var movement: Resource = null
@@ -119,10 +117,6 @@ func _start_with_pattern(pos: Vector2) -> void:
 		_pattern.phase_entered.connect(_on_movement_phase_entered)
 	if _pattern.has_method("on_start"):
 		_pattern.on_start(self)
-	# Continuous BEAM weapon (M6a.2): attach a per-enemy BeamEmitter and skip all
-	# discrete firing (no path-phase, no shoot timer) — the emitter self-runs.
-	if _attach_beam_if_weapon():
-		return
 	# Path-phase firing (Â§8): a monotonic descender with a weapon fires by band-Y
 	# progress instead of the random timer. Auto-enable when the pattern supports it
 	# and nothing more specific is configured (explicit phases, or a fire_on_phase
@@ -148,19 +142,6 @@ func _start_with_pattern(pos: Vector2) -> void:
 		else:
 			$ShootTimer.wait_time = randf_range(fire_interval_min, fire_interval_max)
 		$ShootTimer.start()
-
-
-# Attach a per-enemy BeamEmitter when the shoot_pattern is a continuous beam weapon.
-# Returns true if a beam was set up (caller then skips discrete-firing arming). The
-# Weapon resource stays shared (just config); the per-enemy state lives on the node.
-func _attach_beam_if_weapon() -> bool:
-	if shoot_pattern == null or not shoot_pattern.has_method("is_beam") or not shoot_pattern.is_beam():
-		return false
-	if _beam == null or not is_instance_valid(_beam):
-		_beam = BeamEmitterC.new()
-		_beam.configure(shoot_pattern.make_beam_config())
-		add_child(_beam)
-	return true
 
 
 func _start_anchored(pos: Vector2) -> void:

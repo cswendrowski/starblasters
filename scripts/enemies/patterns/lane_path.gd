@@ -40,12 +40,10 @@ const LaneTraffic = preload("res://scripts/systems/lane_traffic.gd")
 enum Shape { STRAIGHT, WEAVE, HOOK, STEP, DIVE_RETURN, LANE_CUT }
 
 @export var shape: Shape = Shape.STRAIGHT
-@export var down_speed: float = 120.0       # px/s descent (rung 2). Clarity-clamped.
 @export var mirrored: bool = false          # reflect lateral direction L<->R
 
 @export_group("Hook")
 @export var shift_lanes: int = 0            # signed lane delta for the one-way hook
-@export var shift_delay: float = 0.0        # DEPRECATED — the depth gate (depth_bp) now drives the Shifter commit; vestigial
 @export var shift_duration: float = 0.8     # s the hook transition takes
 # Drifter mode (Roman 2026-06-06): drive the hook off the ENGAGEMENT BAND instead
 # of a timer — hold the spawn lane through entry, start sliding as the enemy crosses
@@ -208,7 +206,7 @@ func compute_step(enemy, delta: float) -> Vector2:
 					u = clampf((bp2 - _hook_commit_bp) / maxf(1.0 - _hook_commit_bp, 0.0001), 0.0, 1.0)
 				else:
 					u = clampf((_t - _hook_start_t) / maxf(shift_duration, 0.0001), 0.0, 1.0)
-				var eased: float = u * u * (3.0 - 2.0 * u)  # smoothstep ease-in-out
+				var eased: float = smoothstep(0.0, 1.0, u)  # ease-in-out
 				# Slide to the inward-guarded destination lane (clamped into the inner band).
 				target_x = _anchor_x + float(_hook_dest_lane(sign_x) - _anchor_lane) * Lanes.PITCH * eased
 		Shape.DIVE_RETURN:
@@ -225,7 +223,7 @@ func compute_step(enemy, delta: float) -> Vector2:
 				return Vector2(0.0, spd * delta)   # dive down
 			_return_t += delta
 			var ru: float = clampf(_return_t / maxf(return_curve_time, 0.0001), 0.0, 1.0)
-			var reased: float = ru * ru * (3.0 - 2.0 * ru)  # smoothstep
+			var reased: float = smoothstep(0.0, 1.0, ru)
 			var rtx: float = _return_anchor_x + sign_x * float(maxi(1, shift_lanes)) * Lanes.PITCH * reased
 			var rvy: float = lerpf(spd, -spd, reased)  # +down -> 0 -> -down
 			return Vector2(rtx - enemy.position.x, rvy * delta)
@@ -239,7 +237,7 @@ func compute_step(enemy, delta: float) -> Vector2:
 				return Vector2(0.0, spd * delta)   # dive down
 			_return_t += delta
 			var cu: float = clampf(_return_t / maxf(return_curve_time, 0.0001), 0.0, 1.0)
-			var cang: float = lerpf(0.0, PI * 0.5, cu * cu * (3.0 - 2.0 * cu))  # 0=down..PI/2=horizontal
+			var cang: float = lerpf(0.0, PI * 0.5, smoothstep(0.0, 1.0, cu))  # 0=down..PI/2=horizontal
 			return Vector2(sign_x * sin(cang) * spd * delta, cos(cang) * spd * delta)
 		Shape.STEP:
 			if step_synced:
@@ -354,7 +352,10 @@ func _fold_offset(n: int) -> int:
 
 
 func path_phase_capable() -> bool:
-	return true  # every shape descends at down_speed; band-Y is monotonic
+	# DIVE_RETURN climbs back up off the top and LANE_CUT runs horizontally off the side — both
+	# break band-Y monotonicity, so they must NOT auto-enable path-phase firing (they fire on the
+	# standard timer instead). STRAIGHT/WEAVE/HOOK/STEP all descend monotonically at down_speed.
+	return shape != Shape.DIVE_RETURN and shape != Shape.LANE_CUT
 
 
 func _next_step_lane() -> int:

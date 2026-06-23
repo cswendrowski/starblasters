@@ -6,9 +6,6 @@ extends "res://scripts/enemies/movement_pattern.gd"
 #
 # Monotonic descent, so it's path-phase-capable (a weapon, if any, fires on band-Y).
 
-@export var enter_speed: float = 60.0        # 1 px/f — slow, deliberate entry
-@export var charge_accel: float = 700.0      # px/s^2 ramp once triggered
-@export var charge_max_speed: float = 420.0  # 7 px/f rush (telegraphed by the slow entry)
 @export var drift_x: float = 0.0
 # Locomotion refactor 2026-06-19: the chassis move_speed IS the committed CHARGE speed; the slow
 # telegraph entry is a fixed fraction of it, so the "slow wind-up → fast commit" character scales

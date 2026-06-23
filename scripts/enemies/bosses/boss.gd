@@ -54,7 +54,6 @@ func _ready() -> void:
 	if minion_movement == null:
 		var Straight = load("res://scripts/enemies/patterns/straight_down.gd")
 		var mv = Straight.new()
-		mv.speed = 360.0
 		minion_movement = mv
 	if has_node("MinionTimer"):
 		$MinionTimer.wait_time = minion_spawn_interval

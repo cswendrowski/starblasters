@@ -1,13 +1,16 @@
 extends Node2D
 
-# Mine center-blink (Roman 2026-06-09). A 2px flashing red dot + a diffuse red glow at the mine's
-# centre. The flash FREQUENCY rises as the mine nears the player (a "getting hot" tell), and each
-# instance carries a random PHASE OFFSET so a field of dormant mines doesn't blink in unison.
+# Mine center-blink (Roman 2026-06-09). A 2px flashing red dot at the mine's centre. The flash
+# breathes at a constant rate; each instance carries a random PHASE OFFSET so a field of dormant
+# mines doesn't blink in unison.
+#
+# GLOW (Roman 2026-06-22): the old diffuse glow_fx halo was dropped — the dot is HDR-modulated by
+# the tuned "bullets" multiplier so the WorldEnvironment bloom lights it (no per-sprite gradient).
 #
 # Base-agnostic: any mine adds one in its _ready via `add_child(MineBlinker.new())` — works for
 # enemy_core mines (basic/armored/shielded/smart) and enemy_base ones (cluster/mega/tether) alike.
 
-const GlowFx = preload("res://scripts/effects/glow_fx.gd")
+const VfxGlow = preload("res://scripts/effects/vfx_glow_config.gd")
 
 const DOT_COLOR := Color(1.0, 0.12, 0.12)
 # Steady in-out breathing pulse (Roman 2026-06-11: no longer ramps up as the mine nears
@@ -20,7 +23,7 @@ const MIN_ALPHA := 0.15
 static var _dot_tex: Texture2D = null
 
 var _dot: Sprite2D = null
-var _glow: CanvasItem = null
+var _dot_rgb: Color = DOT_COLOR   # HDR-bright red (DOT_COLOR × the "bullets" multiplier)
 var _phase: float = 0.0
 var _t: float = 0.0
 
@@ -29,12 +32,13 @@ func _ready() -> void:
 	z_index = 3   # above the mine sprite (0) + any shield ring (1)
 	_phase = randf() * TAU   # per-instance offset → no unison blinking across a field
 	_t = randf() * 10.0      # also desync the absolute clock
+	# HDR-bright the red by the "bullets" multiplier so the WorldEnvironment blooms the dot.
+	var m: float = VfxGlow.prod_mult("bullets")
+	_dot_rgb = Color(DOT_COLOR.r * m, DOT_COLOR.g * m, DOT_COLOR.b * m, 1.0)
 	_dot = Sprite2D.new()
 	_dot.texture = _dot_texture()
-	_dot.modulate = DOT_COLOR
+	_dot.modulate = _dot_rgb
 	add_child(_dot)
-	# Diffuse red glow behind the dot (forced colour so it reads off the 2px source).
-	_glow = GlowFx.attach_glow(_dot, DOT_COLOR, 0.5, 0.7)
 
 
 func _process(delta: float) -> void:
@@ -45,20 +49,15 @@ func _process(delta: float) -> void:
 	# per-instance phase.
 	var s: float = 0.5 + 0.5 * sin(_t * PULSE_HZ * TAU + _phase)
 	var a: float = lerpf(MIN_ALPHA, 1.0, s)
-	_dot.modulate = Color(DOT_COLOR.r, DOT_COLOR.g, DOT_COLOR.b, a)
-	if _glow != null and is_instance_valid(_glow):
-		_glow.modulate = Color(1.0, 1.0, 1.0, a)
+	_dot.modulate = Color(_dot_rgb.r, _dot_rgb.g, _dot_rgb.b, a)
 
 
-# Kill the blink instantly on mine death — hide the dot + glow and stop the
-# per-frame pulse so neither lingers over the explosion. (enemy_base's
-# _fade_death_overlays calls this for any MineBlinker child.)
+# Kill the blink instantly on mine death — hide the dot + stop the per-frame pulse so it doesn't
+# linger over the explosion. (enemy_base's _fade_death_overlays calls this for any MineBlinker child.)
 func stop() -> void:
 	set_process(false)
 	if _dot != null and is_instance_valid(_dot):
 		_dot.visible = false
-	if _glow != null and is_instance_valid(_glow):
-		_glow.visible = false
 
 
 static func _dot_texture() -> Texture2D:

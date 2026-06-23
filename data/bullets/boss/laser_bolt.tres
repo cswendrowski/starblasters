@@ -7,6 +7,5 @@ script = ExtResource("1_variant")
 speed = 350.0
 damage = 1
 lifetime = 2.0
-hitbox_size = Vector2(3, 8)
 impact_kind = 0
 impact_color = Color(1, 0.533333, 0.266667, 1)

@@ -11,13 +11,10 @@ extends "res://scripts/enemies/movement_pattern.gd"
 #     into the playfield edge.
 #   - Face the player every frame (enemy.rotation overridden here).
 
-@export var max_speed: float = 120.0
-@export var accel: float = 540.0
 # Harassment tuning (Roman 2026-05-18 "more player harassment"): closer
 # stand-off range, faster juke flips, slightly punchier strafe.
 @export var target_range: float = 130.0      # stand-off distance from player
 @export var range_tolerance: float = 20.0
-@export var strafe_speed: float = 108.0
 @export var strafe_period_min: float = 0.45
 @export var strafe_period_max: float = 1.1
 @export var face_player: bool = true
@@ -34,7 +31,6 @@ extends "res://scripts/enemies/movement_pattern.gd"
 @export var max_passes: int = -1
 # Base turn rate (rad/s) toward the player, DIVIDED by the unit's size-weight so big ships turn
 # laggier and can't hold a perfect lock (Roman 2026-06-10). The old code snapped rotation instantly.
-@export var turn_rate: float = 5.0
 # Locomotion refactor 2026-06-19: top speed / accel / strafe are chassis-owned; the facing
 # turn_rate (rad/s) derives from the chassis turn_rate (deg/s). Ratios preserve the old 120/540/108
 # feel. The max_speed/accel/strafe_speed/turn_rate exports above are vestigial.
@@ -70,10 +66,7 @@ func on_start(enemy) -> void:
 # Size-weight from the chassis `weight` (clamped so small chaff isn't hyper-twitchy). Bigger ship
 # => more inertia: laggier turn + slower acceleration. (Was display_scale; locomotion refactor.)
 func _weight(enemy) -> float:
-	var w: float = 1.0
-	if "weight" in enemy and enemy.weight > 0.0:
-		w = float(enemy.weight)
-	return maxf(0.6, w)
+	return maxf(0.6, super._weight(enemy))
 
 
 func compute_step(enemy, delta: float) -> Vector2:
@@ -198,9 +191,3 @@ func compute_step(enemy, delta: float) -> Vector2:
 				enemy.auto_rotate = false
 
 	return _vel * delta
-
-
-func _find_player(enemy) -> Node:
-	for n in enemy.get_tree().get_nodes_in_group("player"):
-		return n
-	return null

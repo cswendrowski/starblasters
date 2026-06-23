@@ -7,7 +7,6 @@ script = ExtResource("1_variant")
 speed = 300.0
 damage = 1
 lifetime = 3.0
-hitbox_size = Vector2(4, 6)
 impact_kind = 0
 impact_color = Color(0.266667, 1, 1, 1)
 enemy_sfx_kind = "enemy_mg"

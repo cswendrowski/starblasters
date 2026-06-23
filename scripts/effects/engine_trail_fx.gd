@@ -12,6 +12,7 @@ const TRAIL_COLOR := Color(0.984314, 0.94902, 0.211765)   # #fbf236 engine yello
 const POINT_LIFETIME := 0.28                   # seconds a streak point lingers
 const MAX_POINTS := 14
 const HEAD_WIDTH := 2.5
+const VfxGlow = preload("res://scripts/effects/vfx_glow_config.gd")
 
 var _markers: Array = []      # Array[Marker2D]
 var _lines: Array = []        # Array[Line2D], parallel to _markers (world-space)
@@ -68,6 +69,7 @@ func setup(enemy: Node2D, markers: Array, color: Color = TRAIL_COLOR, drift: flo
 		var mat := CanvasItemMaterial.new()
 		mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD   # glowy exhaust
 		line.material = mat
+		line.modulate = VfxGlow.prod_hdr("engines")   # HDR-bright so the WorldEnvironment blooms it
 		# Deferred: setup() runs during the host's _ready, and `root` (the host's
 		# parent) is mid-add_child of the host itself — a direct add_child would
 		# fail "parent busy". Deferring lands the line one frame later, after the

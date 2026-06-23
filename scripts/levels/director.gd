@@ -23,6 +23,7 @@ signal level_cleared
 const FactionsC = preload("res://scripts/levels/factions.gd")
 const ShieldComponentC = preload("res://scripts/enemies/components/shield_component.gd")
 const LaneTraffic = preload("res://scripts/systems/lane_traffic.gd")
+const LanePathC = preload("res://scripts/enemies/patterns/lane_path.gd")
 
 # Banner fade-in+hold+fade-out budget. Director waits this long before the
 # first enemy of an ANNOUNCED wave so spawns never overlap the WAVE alert.
@@ -387,7 +388,7 @@ func _dispatch_shaped(ph: Resource) -> void:
 			members.append(sp)
 	if members.is_empty():
 		return
-	var lanes: Array = _formation_lanes(ph.shape, members.size())
+	var lanes: Array = _pincer_lanes(members.size())
 	for idx in members.size():
 		if not _running:
 			return
@@ -558,40 +559,26 @@ func _wall_row_lanes(n: int, avoid_gaps: Array) -> Array:
 	return lanes
 
 
-# Lane layout for a shaped formation of n members.
-#   wall   — fill lanes leaving one randomized safe gap (then wrap if n is big).
-#   pincer — alternate inward from both edges: 0, 6, 1, 5, 2, 4, 3 ...
-#   else   — spread via alternate-anchor _pick_lane per member.
-func _formation_lanes(shape: StringName, n: int) -> Array:
+# Lane layout for a pincer formation of n members: alternate inward from both edges
+# (0, 6, 1, 5, 2, 4, 3 ...), wrapping if n exceeds the lane count. (Wall + spread
+# formations have their own dispatch paths — _dispatch_wall / the default spread — so
+# this is only ever called for pincer.)
+func _pincer_lanes(n: int) -> Array:
 	var out: Array = []
-	match shape:
-		&"wall":
-			var gap: int = _rng.randi() % Lanes.COUNT
-			for i in Lanes.COUNT:
-				if i != gap and out.size() < n:
-					out.append(i)
-			var j: int = 0
-			while out.size() < n:
-				out.append(j % Lanes.COUNT)
-				j += 1
-		&"pincer":
-			var lo: int = 0
-			var hi: int = Lanes.COUNT - 1
-			var from_left: bool = true
-			while out.size() < n:
-				if lo > hi:
-					lo = 0
-					hi = Lanes.COUNT - 1
-				if from_left:
-					out.append(lo)
-					lo += 1
-				else:
-					out.append(hi)
-					hi -= 1
-				from_left = not from_left
-		_:
-			for _i in n:
-				out.append(_pick_lane())
+	var lo: int = 0
+	var hi: int = Lanes.COUNT - 1
+	var from_left: bool = true
+	while out.size() < n:
+		if lo > hi:
+			lo = 0
+			hi = Lanes.COUNT - 1
+		if from_left:
+			out.append(lo)
+			lo += 1
+		else:
+			out.append(hi)
+			hi -= 1
+		from_left = not from_left
 	return out
 
 
@@ -691,6 +678,10 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 	if not step_sync.is_empty() and "movement" in enemy and enemy.movement != null \
 			and "step_synced" in enemy.movement:
 		var mv_sync: Resource = enemy.movement.duplicate()
+		# Force the synced-step branch. The dispatch previously stamped step_synced/offsets but
+		# never the shape, so a real step_wall wave kept the entry's own shape (WEAVE/HOOK/…) and
+		# the synced-step locomotion never engaged — only hand-built Shape.STEP resources worked.
+		mv_sync.shape = LanePathC.Shape.STEP
 		mv_sync.step_synced = true
 		mv_sync.step_offset_lo = int(step_sync["lo"])
 		mv_sync.step_offset_hi = int(step_sync["hi"])

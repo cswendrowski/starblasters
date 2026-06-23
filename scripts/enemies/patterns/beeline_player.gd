@@ -5,9 +5,6 @@ extends "res://scripts/enemies/movement_pattern.gd"
 # track the player from off-screen and could overshoot upward.
 
 # 320×400 res rework: halved.
-@export var max_speed: float = 180.0
-@export var accel: float = 360.0
-@export var enter_speed: float = 128.0
 @export var commit_y: float = 48.0  # start hunting once we're this far down
 # Locomotion refactor 2026-06-19: the chassis move_speed IS the hunt/pursuit speed; the initial
 # descent is a fraction of it, the chase accel a fraction of the enemy's accel. The *_speed/accel
@@ -40,9 +37,3 @@ func compute_step(enemy, delta: float) -> Vector2:
 			_vel = _vel.move_toward(dir * _move_speed(enemy), _accel(enemy) * ACCEL_RATIO * delta)
 			return _vel * delta
 	return Vector2.ZERO
-
-
-func _find_player(enemy) -> Node:
-	for n in enemy.get_tree().get_nodes_in_group("player"):
-		return n
-	return null

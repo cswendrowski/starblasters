@@ -11,7 +11,6 @@ extends "res://scripts/enemies/movement_pattern.gd"
 const Playfield = preload("res://scripts/systems/playfield.gd")
 
 @export var hover_y: float = 90.0
-@export var enter_speed: float = 60.0
 @export var jiggle_px: float = 6.0
 # Jiggle speed matched to the Loiter holder's bob (Roman 2026-06-09: drift was
 # jiggling far too fast). Loiter uses freq_y 0.6 Hz / freq_x 0.35 Hz; with drift's

@@ -11,6 +11,8 @@ extends Control
 const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const BackdropCoordinatorScene = preload("res://scenes/parallax/backdrop_coordinator.tscn")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
+const VfxGlowConfigC = preload("res://scripts/effects/vfx_glow_config.gd")
+const GlowFx = preload("res://scripts/effects/glow_fx.gd")
 
 const CONFIG_PATH := "user://tuners/parallax_v4.json"
 
@@ -26,7 +28,7 @@ const LAYER_SHORT_NAMES := {
 	"LayerComposite":   "Composite",
 }
 
-const PLANET_TYPE_NAMES := ["Random", "LavaWorld", "IceWorld", "DryTerran", "GasPlanet", "NoAtmosphere", "LandMasses", "BlackHole", "Galaxy", "Star"]
+const PLANET_TYPE_NAMES := ["Random", "LavaWorld", "IceWorld", "DryTerran", "GasPlanet", "NoAtmosphere", "LandMasses", "BlackHole", "Galaxy", "Star", "GasPlanetLayers", "Rivers"]
 
 # ---- State ---------------------------------------------------------------
 
@@ -48,6 +50,11 @@ var _density_value_lbl: Label = null
 var _layer_buttons: Dictionary = {}  # layer_name -> Button
 var _forced_planet: int = -1  # -1 = random
 var _density_scale: float = 1.0
+var _gradient_glows_on: bool = true   # Sprite2D gradient halos on/off (A/B vs the WorldEnv bloom)
+var _worldenv_on: bool = false        # WorldEnv bloom + HDR — OPT-IN. The backdrop is LDR-authored
+                                      # and renders dark/flat under use_hdr_2d, so default OFF = old look.
+var _env: Environment = null          # the SubViewport's WorldEnvironment (tuned by the env sliders)
+var _we_node: WorldEnvironment = null # the WorldEnvironment node (attached only when _worldenv_on)
 
 # ---- Lifecycle -----------------------------------------------------------
 
@@ -71,6 +78,8 @@ func _build_backdrop_subviewport() -> void:
 	_sub_viewport.size = Vector2i(480, 270)
 	_sub_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_sub_viewport.transparent_bg = false
+	_sub_viewport.use_hdr_2d = _worldenv_on   # HDR only when the bloom A/B is enabled — the backdrop is
+	                                          # LDR-authored and renders dark/flat under HDR otherwise
 
 	var container := SubViewportContainer.new()
 	container.stretch = true
@@ -81,6 +90,20 @@ func _build_backdrop_subviewport() -> void:
 	add_child(container)
 
 	_rebuild_backdrop()
+	# Combat-matched WorldEnvironment, built but DETACHED by default. Forcing HDR+bloom on the
+	# tuner's main view darkens/flattens the LDR-authored backdrop, so the bloom A/B is OPT-IN via
+	# the "WorldEnv bloom" toggle (_set_worldenv) — default off renders like the old tuner.
+	_we_node = WorldEnvironment.new()
+	_env = Environment.new()
+	_env.background_mode = Environment.BG_CANVAS
+	_env.glow_enabled = true
+	_env.glow_intensity = 0.8
+	_env.glow_strength = 0.75
+	_env.glow_blend_mode = 1
+	_env.glow_hdr_threshold = 1.5
+	_we_node.environment = _env
+	if _worldenv_on:
+		_sub_viewport.add_child(_we_node)
 
 
 func _rebuild_backdrop() -> void:
@@ -90,6 +113,127 @@ func _rebuild_backdrop() -> void:
 	_backdrop.set("forced_planet_idx", _forced_planet)
 	_backdrop.set("asteroid_density_scale", _density_scale)
 	_sub_viewport.add_child(_backdrop)
+	call_deferred("_apply_gradient_toggle")   # re-hide gradient halos if the toggle is off
+	call_deferred("_apply_backdrop_glow")     # re-apply live stars/planets multipliers to new bodies
+
+
+# ---- VFX glow controls (shared VfxGlowConfig) + gradient-halo A/B -----------
+
+func _add_glow_slider(parent: VBoxContainer, cat: String) -> void:
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 8)
+	parent.add_child(hb)
+	var lbl := Label.new()
+	lbl.text = cat.capitalize()
+	lbl.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	_style_caption(lbl)
+	lbl.custom_minimum_size = Vector2(90, 0)
+	hb.add_child(lbl)
+	var sl := HSlider.new()
+	sl.min_value = VfxGlowConfigC.SLIDER_MIN
+	sl.max_value = VfxGlowConfigC.SLIDER_MAX
+	sl.step = 0.05
+	sl.value = VfxGlowConfigC.get_mult(cat)
+	sl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sl.custom_minimum_size = Vector2(0, 24)
+	hb.add_child(sl)
+	var val := Label.new()
+	val.text = "%.2f" % VfxGlowConfigC.get_mult(cat)
+	val.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	val.add_theme_color_override("font_color", UiTheme.COLOR_TEXT)
+	val.custom_minimum_size = Vector2(40, 0)
+	hb.add_child(val)
+	sl.value_changed.connect(func(v: float):
+		VfxGlowConfigC.set_mult(cat, v)
+		_apply_backdrop_glow()   # stars/planets multipliers drive backdrop bodies live (no-op for gameplay cats)
+		val.text = "%.2f" % v)
+
+
+func _add_env_slider(parent: VBoxContainer, label: String, prop: String, lo: float, hi: float, def: float) -> void:
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 8)
+	parent.add_child(hb)
+	var lbl := Label.new()
+	lbl.text = label
+	lbl.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	_style_caption(lbl)
+	lbl.custom_minimum_size = Vector2(110, 0)
+	hb.add_child(lbl)
+	var sl := HSlider.new()
+	sl.min_value = lo
+	sl.max_value = hi
+	sl.step = 0.05
+	sl.value = def
+	sl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sl.custom_minimum_size = Vector2(0, 24)
+	hb.add_child(sl)
+	var val := Label.new()
+	val.text = "%.2f" % def
+	val.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	val.add_theme_color_override("font_color", UiTheme.COLOR_TEXT)
+	val.custom_minimum_size = Vector2(40, 0)
+	hb.add_child(val)
+	sl.value_changed.connect(func(v: float):
+		if _env != null:
+			_env.set(prop, v)
+		val.text = "%.2f" % v)
+
+
+func _on_gradient_glows_toggled(on: bool) -> void:
+	_gradient_glows_on = on
+	GlowFx.enabled = on   # global kill-switch for glow_fx halos (gameplay); backdrop halos handled below
+	_apply_gradient_toggle()
+
+
+# WorldEnv bloom is opt-in: the backdrop is LDR-authored, so use_hdr_2d darkens/flattens it. Default
+# OFF = plain LDR (old tuner look). Toggling ON enables HDR + attaches the bloom env so the planet
+# bloom can be A/B'd against the gradient halos.
+func _set_worldenv(on: bool) -> void:
+	_worldenv_on = on
+	if _sub_viewport == null or not is_instance_valid(_sub_viewport):
+		return
+	_sub_viewport.use_hdr_2d = on
+	if on:
+		if _we_node != null and _we_node.get_parent() == null:
+			_sub_viewport.add_child(_we_node)
+	elif _we_node != null and _we_node.get_parent() != null:
+		_sub_viewport.remove_child(_we_node)
+	_apply_backdrop_glow()   # palette ×M in HDR mode, ×1 (true colours) in LDR
+
+
+func _apply_gradient_toggle() -> void:
+	if _backdrop != null and is_instance_valid(_backdrop):
+		_set_halos_visible(_backdrop, _gradient_glows_on)
+
+
+# Apply the live stars/planets multipliers to the backdrop's tagged bodies by re-scaling each body's
+# BASE palette (get_colors × M → set_colors). This multiplies the colours the planet SHADER reads, so
+# the WorldEnv bloom glows in the body's OWN predominant colour (modulate can't — the shaders overwrite
+# COLOR). Gated on _worldenv_on: in plain LDR mode the palette stays at ×1 (true authored colours).
+func _apply_backdrop_glow() -> void:
+	if _backdrop != null and is_instance_valid(_backdrop):
+		_apply_backdrop_glow_walk(_backdrop)
+
+
+func _apply_backdrop_glow_walk(n: Node) -> void:
+	for c in n.get_children():
+		if c is CanvasItem and c.has_meta("base_palette") and c.has_method("set_colors"):
+			var is_star := c.is_in_group("backdrop_star")
+			if is_star or c.is_in_group("backdrop_planet"):
+				var m: float = (VfxGlowConfigC.get_mult("stars" if is_star else "planets")) if _worldenv_on else 1.0
+				var base: Array = c.get_meta("base_palette")
+				var out: Array = []
+				for col in base:
+					out.append(Color(col.r * m, col.g * m, col.b * m, col.a))
+				c.set_colors(out)
+		_apply_backdrop_glow_walk(c)
+
+
+func _set_halos_visible(n: Node, vis: bool) -> void:
+	for c in n.get_children():
+		if c is CanvasItem and (String(c.name) == "PlanetHalo" or String(c.name) == "BlackHolePulseGlow"):
+			(c as CanvasItem).visible = vis
+		_set_halos_visible(c, vis)
 
 
 # ---- UI build (right panel at CanvasLayer 20) ----------------------------
@@ -174,6 +318,62 @@ func _build_ui() -> void:
 	_density_value_lbl.add_theme_color_override("font_color", UiTheme.COLOR_TEXT)
 	_density_value_lbl.custom_minimum_size = Vector2(32, 0)
 	density_hbox.add_child(_density_value_lbl)
+
+	vbox.add_child(HSeparator.new())
+
+	# ---- VFX Glow (shared with Shader Lab / Combat VFX Lab) + gradient-halo A/B ----
+	var glow_label := Label.new()
+	glow_label.text = "VFX Glow (HDR ×)"
+	glow_label.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	_style_caption(glow_label)
+	vbox.add_child(glow_label)
+
+	var grad_chk := CheckButton.new()
+	grad_chk.text = "Gradient glows on (vs WorldEnv)"
+	grad_chk.button_pressed = _gradient_glows_on
+	grad_chk.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BUTTON)
+	grad_chk.toggled.connect(func(on: bool): _on_gradient_glows_toggled(on))
+	vbox.add_child(grad_chk)
+
+	for cat in VfxGlowConfigC.CATEGORIES:
+		_add_glow_slider(vbox, String(cat))
+
+	# Backdrop bodies — multiply BASE colours (grayscale M) so bloom glows in the body's own colour.
+	var bg_label := Label.new()
+	bg_label.text = "Backdrop (base × M) — needs WorldEnv bloom on"
+	bg_label.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	_style_caption(bg_label)
+	vbox.add_child(bg_label)
+	for cat in VfxGlowConfigC.BACKDROP_CATEGORIES:
+		_add_glow_slider(vbox, String(cat))
+
+	var glow_copy := Button.new()
+	glow_copy.text = "Copy + Save glow table"
+	glow_copy.custom_minimum_size = Vector2(0, 28)
+	glow_copy.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BUTTON)
+	glow_copy.pressed.connect(func():
+		DisplayServer.clipboard_set(VfxGlowConfigC.snippet())
+		VfxGlowConfigC.save())
+	vbox.add_child(glow_copy)
+
+	vbox.add_child(HSeparator.new())
+
+	# ---- World Env (PlanetKit bloom) ----
+	var env_label := Label.new()
+	env_label.text = "World Env (bloom)"
+	env_label.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	_style_caption(env_label)
+	vbox.add_child(env_label)
+	var we_chk := CheckButton.new()
+	we_chk.text = "WorldEnv bloom (HDR) — off = plain LDR"
+	we_chk.button_pressed = _worldenv_on
+	we_chk.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BUTTON)
+	we_chk.toggled.connect(func(on: bool): _set_worldenv(on))
+	vbox.add_child(we_chk)
+	_add_env_slider(vbox, "Glow intensity", "glow_intensity", 0.0, 4.0, 0.8)
+	_add_env_slider(vbox, "Glow strength", "glow_strength", 0.0, 2.0, 0.75)
+	_add_env_slider(vbox, "Glow bloom", "glow_bloom", 0.0, 1.0, 0.0)
+	_add_env_slider(vbox, "HDR threshold", "glow_hdr_threshold", 0.0, 2.0, 1.5)
 
 	vbox.add_child(HSeparator.new())
 

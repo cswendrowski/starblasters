@@ -34,7 +34,6 @@ func _ready() -> void:
 		$Sprite2D.frame = 0
 	if movement == null:
 		var m := StraightDown.new()
-		m.speed = drift_speed
 		movement = m
 	# Orbiting bomblets via the shared OrbitComponent (LIVE) — set BEFORE super._ready so enemy_core
 	# inits + ticks it. One ring of 4/6/8 bomblets, spinning CW or CCW; released on death/exit by the

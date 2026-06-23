@@ -140,21 +140,6 @@ func _spawn_bullet(enemy, dir: Vector2, bv = null, spawn_override = null):
 	return b
 
 
-# Time-driven multi-shot helper. Replaces the old recursive `await` chain
-# in burst_shot — fires `count` bullets spaced `interval` seconds apart,
-# each in direction `dir`. Safe if the enemy dies mid-burst (the
-# is_instance_valid gate stops further shots).
-func _spawn_burst(enemy, dir: Vector2, count: int, interval: float, bv = null) -> void:
-	if count <= 0 or bullet_scene == null:
-		return
-	_spawn_bullet(enemy, dir, bv)
-	for i in range(1, count):
-		await enemy.get_tree().create_timer(interval).timeout
-		if not is_instance_valid(enemy):
-			return
-		_spawn_bullet(enemy, dir, bv)
-
-
 # Resolve a unit vector aimed at the player's current position. Returns
 # straight-down (Vector2(0, 1)) if the player can't be found — same
 # safe default the legacy aimed_fire used.

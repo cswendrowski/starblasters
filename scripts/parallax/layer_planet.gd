@@ -14,6 +14,8 @@ const PLANETS := {
 	6: "res://Planets/BlackHole/BlackHole.tscn",
 	7: "res://Planets/Galaxy/Galaxy.tscn",
 	8: "res://Planets/Star/Star.tscn",
+	9: "res://Planets/GasPlanetLayers/GasPlanetLayers.tscn",   # ringed gas giant (set_pixels handles the Ring)
+	10: "res://Planets/Rivers/Rivers.tscn",
 }
 
 const PLANET_TINT = {
@@ -101,15 +103,28 @@ func spawn_planet(planet_idx: int, actual_size: float, rng: RandomNumberGenerato
 		p.override_time = true
 	if p.has_method("update_time"):
 		_animated.append(p)
-	# Star-color wash on the planet — matches the sector map's planet modulate.
+	# Tag for the Parallax Tuner's live stars/planets glow sliders + snapshot the base palette so the
+	# tuner can re-scale it (get_colors × M → set_colors). That's the ONLY working HDR boost here —
+	# these planet shaders OVERWRITE COLOR, so modulate (and the old star-colour wash) had no effect
+	# on the rendered colours. Production palette stays as authored until the tuned values land.
 	if p is CanvasItem:
-		p.modulate = Color.WHITE.lerp(star_color, 0.18)
+		_apply_body_glow(p, planet_idx == 8)
 	# Store planet node and size for POI moons attachment
 	_planet_node = p
 	_planet_actual_size = actual_size
 	_make_planet_halo(p, planet_idx, actual_size, x, y)
 	# Spawn companion bodies (moons/binary stars) around the main planet
 	_spawn_companions(rng, planet_idx, x, y, actual_size)
+
+
+# Tag a spawned body as star/planet for the Parallax Tuner's live glow sliders, and snapshot its
+# base palette (post-randomize) so the tuner can re-scale colours for HDR bloom (get_colors × M →
+# set_colors). Modulate can't do this — the planet shaders OVERWRITE COLOR. Bodies without the
+# palette API (some star/black-hole/galaxy scenes) are still tagged but can't be palette-boosted.
+func _apply_body_glow(p: Node, is_star: bool) -> void:
+	p.add_to_group("backdrop_star" if is_star else "backdrop_planet")
+	if p.has_method("get_colors") and p.has_method("set_colors"):
+		p.set_meta("base_palette", p.get_colors())
 
 
 # Spawn ONE body of a star-system at an arbitrary screen position + size,
@@ -149,9 +164,9 @@ func spawn_system_body(planet_idx: int, actual_size: float, top_left: Vector2, p
 		p.override_time = true
 	if p.has_method("update_time"):
 		_animated.append(p)
-	# Star-color wash (skip the star itself — its own light shouldn't be tinted).
-	if p is CanvasItem and planet_idx != 8:
-		p.modulate = Color.WHITE.lerp(star_color, 0.18)
+	# Tag + snapshot base palette for the tuner's glow sliders (see spawn_planet / _apply_body_glow).
+	if p is CanvasItem:
+		_apply_body_glow(p, planet_idx == 8)
 	_make_planet_halo(p, planet_idx, actual_size, top_left.x, top_left.y)
 
 

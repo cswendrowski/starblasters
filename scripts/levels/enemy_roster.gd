@@ -205,7 +205,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_shiv.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "straight",
+		"movement": "straight_charge",
 		"shoot": null,
 		"base_count": 8,
 		"recycle": 0,
@@ -254,7 +254,7 @@ const ENTRIES := [
 		"engine": -3,
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "lane_drift",
+		"movement": "straight",
 		"shoot": "single",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 4,
@@ -293,7 +293,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_drifter.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "lane_weave",
+		"movement": "straight",
 		"shoot": null,
 		"base_count": 5,
 		"recycle": 0,
@@ -305,7 +305,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_acolyte.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "loiter",
+		"movement": "straight",
 		"shoot": "aimed",
 		"bullet_variant": BV_Basic,
 		"base_count": 2,
@@ -319,7 +319,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_acolyte.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "skirmish_loop",
+		"movement": "straight",
 		"shoot": "aimed",
 		"bullet_variant": BV_Basic,
 		"base_count": 3,
@@ -333,7 +333,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_acolyte.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "lane_drift",
+		"movement": "straight",
 		"shoot": "aimed",
 		"bullet_variant": BV_Basic,
 		"base_count": 3,
@@ -356,7 +356,7 @@ const ENTRIES := [
 		"engine": -1,
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "straight",
+		"movement": "side_traverse",
 		"shoot": null,
 		"base_count": 3,
 		"recycle": 0,
@@ -389,7 +389,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_hotrod.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "side_turn",
+		"movement": "straight",
 		"shoot": "single",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 4,
@@ -415,7 +415,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_hotrod.tscn",
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "lane_weave",
+		"movement": "straight",
 		"shoot": "single",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 3,
@@ -430,7 +430,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_rush.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "side_turn",
+		"movement": "hunt_beeline",
 		"shoot": "burst",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 3,
@@ -442,7 +442,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_rush.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "lane_weave",
+		"movement": "hunt_beeline",
 		"shoot": "burst",
 		"bullet_variant": BV_SpreadPellet,
 		"base_count": 3,
@@ -482,7 +482,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_plasma.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
-		"movement": "lane_weave", "depth": "high",
+		"movement": "loiter", "depth": "high",
 		"shoot": "aimed",
 		"bullet_variant": BV_PlasmaOrb,
 		"base_count": 2,
@@ -495,7 +495,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_plasma.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
-		"movement": "side_traverse", "depth": "high",   # slide across
+		"movement": "loiter", "depth": "high",   # slide across
 		"shoot": "aimed",
 		"bullet_variant": BV_PlasmaOrb,
 		"base_count": 2,
@@ -521,7 +521,7 @@ const ENTRIES := [
 		"mounts": [{ "kind": "gun", "marker": "Muzzle", "payload": BV_PrivLaser, "aim": "forward", "fire_min": 0.5, "fire_max": 0.5, "count": 1, "spread_deg": 0.0 }],
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "lane_weave",
+		"movement": "straight",
 		"shoot": null,
 		"base_count": 6,
 		"recycle": 0,
@@ -534,7 +534,7 @@ const ENTRIES := [
 		"mounts": [{ "kind": "gun", "marker": "Muzzle", "payload": BV_PrivLaser, "aim": "forward", "fire_min": 0.5, "fire_max": 0.5, "count": 1, "spread_deg": 0.0 }],
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
-		"movement": "lane_drift",
+		"movement": "straight",
 		"shoot": null,
 		"base_count": 5,
 		"recycle": 0,
@@ -639,7 +639,7 @@ const ENTRIES := [
 		"mounts": [{ "kind": "launcher", "marker": "Muzzle*", "payload_scene": "res://scenes/projectiles/drifting_missile.tscn", "aim": "forward", "fire_min": 1.5, "fire_max": 1.5, "count": 1, "spread_deg": 0.0 }],
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "lane_weave",
+		"movement": "lane_cut",
 		"shoot": "aimed",
 		"bullet_variant": BV_PlasmaOrb,
 		# M6a.2: restore the plasma-orb wobble via the FIRING LAYER (not the bullet
@@ -661,7 +661,7 @@ const ENTRIES := [
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "payload": BV_AimedSniper, "aim": "forward", "fire_min": 0.3, "fire_max": 0.3, "count": 1, "spread_deg": 0.0 }],
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "loiter",
+		"movement": "lane_hook",
 		"shoot": "single",
 		"bullet_variant": BV_Basic,
 		"base_count": 2,
@@ -708,7 +708,7 @@ const ENTRIES := [
 		"heavy_class": "anchor",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
-		"movement": "side_traverse",   # slow horizontal cross, lobbing shots
+		"movement": "straight",   # slow horizontal cross, lobbing shots
 		"shoot": null,
 		"mounts": PUSH_MOUNTS,
 		"bounty_override": 25,
@@ -739,7 +739,7 @@ const ENTRIES := [
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "payload": BV_AimedSniper, "aim": "forward", "fire_min": 0.3, "fire_max": 0.3, "count": 1, "spread_deg": 0.0 }],
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "skirmish_loop",
+		"movement": "lane_hook",
 		"shoot": "aimed",
 		"bullet_variant": BV_AimedSniper,
 		# Experienced gunner: leads the player's velocity a touch (0.15) so sitting
@@ -783,7 +783,7 @@ const ENTRIES := [
 		"engine": -2, "depth": "mid",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
-		"movement": "loiter",
+		"movement": "straight",
 		"shoot": "aimed",
 		"bullet_variant": BV_PlasmaOrb,
 		"base_count": 2,
@@ -801,7 +801,7 @@ const ENTRIES := [
 		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
-		"movement": null,
+		"movement": "loiter_sweep",
 		"shoot": null,  # uses built-in beam, not shoot_pattern
 		"base_count": 2,
 		# Beam pressure is a deeper-sector escalation, not a sector-1 opener.
@@ -816,7 +816,7 @@ const ENTRIES := [
 		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
-		"movement": null,
+		"movement": "drift",
 		"shoot": null,
 		"base_count": 2,
 		"unlock_sector": 2, "unlock_depth": 2, "weight": 0.7,
@@ -865,7 +865,7 @@ const ENTRIES := [
 		"mounts": GUNSHIP_MOUNTS,
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
-		"movement": "loiter",
+		"movement": "hunt_omni",
 		"shoot": null,
 		"base_count": 2,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.5, "chaff": true,
@@ -877,7 +877,7 @@ const ENTRIES := [
 		"mounts": GUNSHIP_MOUNTS,
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
-		"movement": "lane_weave",
+		"movement": "hunt_omni",
 		"shoot": null,
 		"base_count": 3,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.5, "chaff": true,
@@ -888,7 +888,7 @@ const ENTRIES := [
 		"mounts": GUNSHIP_MOUNTS,
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
-		"movement": "lane_shift",
+		"movement": "hunt_omni",
 		"shoot": null,
 		"base_count": 3,
 		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.5, "chaff": true,
@@ -899,7 +899,7 @@ const ENTRIES := [
 		"mounts": GUNSHIP_MOUNTS,
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
-		"movement": "skirmish_loop",
+		"movement": "hunt_omni",
 		"shoot": null,
 		"base_count": 2,
 		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5, "chaff": true,
@@ -914,7 +914,7 @@ const ENTRIES := [
 		"heavy_class": "anchor",  # 32px-wide — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
-		"movement": "lane_drift",
+		"movement": "straight",
 		"shoot": null,   # no hull gun — fires via the launcher + gun mounts
 		"mounts": ROCKET_MOUNTS,
 		"bounty_override": 35,
@@ -935,7 +935,7 @@ const ENTRIES := [
 		"heavy_class": "anchor",  # 32px-wide (tall) — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "large", "tags": ["tough"],
-		"movement": null,
+		"movement": "drift",
 		"shoot": null,
 		"hp_override": 30,
 		"bounty_override": 120,
@@ -948,7 +948,7 @@ const ENTRIES := [
 		"heavy_class": "anchor",  # 32px-wide (tall) — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "large", "tags": ["tough"],
-		"movement": null,
+		"movement": "drift",
 		"shoot": null,
 		"hp_override": 30,
 		"bounty_override": 120,
@@ -964,7 +964,7 @@ const ENTRIES := [
 		"heavy_class": "anchor",
 		"tier": Tier.UNCOMMON,
 		"size": "large", "tags": ["tough"],
-		"movement": null,
+		"movement": "drift",
 		"shoot": null,
 		"hp_override": 22,
 		"bounty_override": 100,
@@ -1037,7 +1037,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/core/enemy_core_s_jet.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "side_turn",
+		"movement": "lane_cut",
 		"shoot": "single",
 		"bullet_variant": BV_PrivBolt,   # privateer gun bolt (family-tagged → faction-styled if it travels)
 		"fire_min": 1.2, "fire_max": 1.8,
@@ -1050,7 +1050,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_wing.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
-		"movement": "side_turn",
+		"movement": "drift",
 		"shoot": null,
 		"emitters": [{ "trigger": "timer", "payload": "Missile", "count": 1, "cadence": 0.55, "max_emits": 3, "band_only": true, "sfx": "missile" }],
 		"base_count": 2,
@@ -1100,7 +1100,7 @@ const ENTRIES := [
 		"heavy_class": "capital",
 		"tier": Tier.RARE,
 		"size": "huge", "tags": ["tough"],
-		"movement": "side_traverse",  # cross the screen
+		"movement": "straight",  # cross the screen
 		"shoot": null,                # bespoke beam turret
 		"base_count": 1,
 		"no_scale": true,
@@ -1113,7 +1113,7 @@ const ENTRIES := [
 		"heavy_class": "capital",
 		"tier": Tier.RARE,
 		"size": "huge", "tags": ["tough"],
-		"movement": "loiter",  # descend + hold
+		"movement": "straight",  # descend + hold
 		"shoot": null,
 		"base_count": 1,
 		"no_scale": true,
@@ -1126,7 +1126,7 @@ const ENTRIES := [
 		"heavy_class": "capital",
 		"tier": Tier.RARE,
 		"size": "huge", "tags": ["tough"],
-		"movement": "lane_drift",  # slow lane drift
+		"movement": "straight",  # slow lane drift
 		"shoot": null,
 		"base_count": 1,
 		"no_scale": true,
@@ -1145,7 +1145,7 @@ const ENTRIES := [
 		"heavy_class": "capital",
 		"tier": Tier.RARE,
 		"size": "huge", "tags": ["tough"],
-		"movement": "loiter",  # descend + hold as a gun platform
+		"movement": "straight",  # descend + hold as a gun platform
 		"shoot": null,
 		"base_count": 1,
 		"no_scale": true,
@@ -1181,7 +1181,7 @@ const ENTRIES := [
 		# Censer Frigate — FLAG: bench left it unarmed (codex implies nose wave-projectors; arm in bench later).
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_censer.tscn",
 		"engine": -1, "tier": Tier.COMMON, "size": "medium", "tags": [],
-		"movement": "loiter", "shoot": null, "base_count": 2, "recycle": 0,
+		"movement": "straight", "shoot": null, "base_count": 2, "recycle": 0,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.5,
 	},
 	{
@@ -1204,7 +1204,7 @@ const ENTRIES := [
 		# Pilgrim — dual plasma + wing rockets.
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_pilgrim.tscn",
 		"tier": Tier.UNCOMMON, "size": "medium", "tags": [],
-		"movement": "loiter", "shoot": null, "base_count": 2, "recycle": 0,
+		"movement": "straight", "shoot": null, "base_count": 2, "recycle": 0,
 		"mounts": [
 			{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_ZealotLaser, "aim": "forward", "fire_min": 0.5, "fire_max": 0.5, "count": 1, "spread_deg": 0.0 },
 			{ "kind": "launcher", "marker": "Wing*", "payload_scene": "res://scenes/projectiles/enemy_rocket.tscn", "aim": "forward", "fire_min": 1.2, "fire_max": 1.2, "count": 1, "spread_deg": 0.0 },
@@ -1215,7 +1215,7 @@ const ENTRIES := [
 		# Rebuker — slow, maneuverable, forward zealot lasers.
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_rebuker.tscn",
 		"engine": -1, "tier": Tier.COMMON, "size": "medium", "tags": [],
-		"movement": "loiter", "shoot": null, "base_count": 2, "recycle": 0,
+		"movement": "straight", "shoot": null, "base_count": 2, "recycle": 0,
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_ZealotLaser, "aim": "straight_down", "fire_min": 0.5, "fire_max": 0.5, "count": 1, "spread_deg": 0.0 }],
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.6,
 	},
@@ -1225,7 +1225,7 @@ const ENTRIES := [
 		# shots, holds aim while charging+firing for a fair dodge window).
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_spear.tscn",
 		"tier": Tier.UNCOMMON, "size": "medium", "tags": [],
-		"movement": "straight", "shoot": null, "base_count": 2, "recycle": 0,
+		"movement": "loiter", "shoot": null, "base_count": 2, "recycle": 0,
 		"mounts": [{ "kind": "beam", "marker": "Muzzle", "beam_config": {
 			"aim_mode": 4, "target_group": "player",
 			"idle_time": 0.8, "windup_time": 1.2, "firing_time": 0.7, "cooldown_time": 1.2,
@@ -1458,7 +1458,7 @@ static func make_movement(entry: Dictionary) -> Resource:
 		# --- STRAIGHT: pure descent. Speed is chassis-owned now (size base + engine); the old
 		# straight_crawl/slow/medium/fast/reflex keys collapsed here (locomotion refactor). ---
 		"straight":
-			return _straight(180.0)   # speed vestigial — enemy.move_speed drives it
+			return _straight()
 		"straight_charge":
 			# Slow telegraphed entry, then accelerate hard in the fire zone (was lane_charge).
 			return LaneCharge.new()
@@ -1477,7 +1477,6 @@ static func make_movement(entry: Dictionary) -> Resource:
 			# crosses into a neighbor. (P2: lane_path is the production lateral engine.)
 			var m = LanePath.new()
 			m.shape = LanePath.Shape.WEAVE
-			m.down_speed = 120.0
 			m.weave_lanes = 0.32
 			m.weave_frequency = 0.9
 			m.mirrored = randf() < 0.5
@@ -1491,7 +1490,6 @@ static func make_movement(entry: Dictionary) -> Resource:
 			m.shape = LanePath.Shape.HOOK
 			m.zone_timed = true
 			m.shift_lanes = 1
-			m.down_speed = 110.0
 			m.mirrored = randf() < 0.5
 			return m
 		"lane_shift":
@@ -1500,9 +1498,7 @@ static func make_movement(entry: Dictionary) -> Resource:
 			# Live as of 2026-06-07: the Gunship (shift) roster variant uses this.
 			var m = LanePath.new()
 			m.shape = LanePath.Shape.HOOK
-			m.down_speed = 120.0
 			m.shift_lanes = 1
-			m.shift_delay = 0.6
 			m.shift_duration = 0.7
 			m.mirrored = randf() < 0.5
 			return m
@@ -1511,7 +1507,6 @@ static func make_movement(entry: Dictionary) -> Resource:
 			# back up and off the TOP. For droppers — drop the volley, then turn and burn.
 			var m = LanePath.new()
 			m.shape = LanePath.Shape.DIVE_RETURN
-			m.down_speed = 140.0
 			m.shift_lanes = 1
 			m.mirrored = randf() < 0.5
 			return m
@@ -1520,7 +1515,6 @@ static func make_movement(entry: Dictionary) -> Resource:
 			# off the side (Roman 2026-06-08).
 			var m = LanePath.new()
 			m.shape = LanePath.Shape.LANE_CUT
-			m.down_speed = 160.0
 			m.mirrored = randf() < 0.5
 			return m
 		"loiter":
@@ -1543,8 +1537,6 @@ static func make_movement(entry: Dictionary) -> Resource:
 		"hunt_beeline":
 			# Player-tracking pursuit — threatens, shouldn't connect (was beeline).
 			var m = BeelinePlayer.new()
-			m.max_speed = 190.0
-			m.accel = 280.0
 			return m
 		"hunt_omni":
 			# Omni-thrust vector roamer — holds stand-off range + strafes (was omni).
@@ -1565,14 +1557,13 @@ static func make_movement(entry: Dictionary) -> Resource:
 			# "beam_sweep" 2026-06-09 — behavior unchanged.
 			return LoiterSweep.new()
 	# Default: a readable medium straight.
-	return _straight(180.0)
+	return _straight()
 
 
 # --- make_movement helpers (Roman 2026-06-08 pattern overhaul) ---
-static func _straight(speed: float) -> Resource:
-	var m = StraightDown.new()
-	m.speed = speed
-	return m
+static func _straight() -> Resource:
+	# Speed is chassis-owned (enemy.move_speed); StraightDown just descends.
+	return StraightDown.new()
 
 
 static func _skirmish(shape: int) -> Resource:

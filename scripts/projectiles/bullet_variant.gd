@@ -8,7 +8,6 @@ class_name BulletVariant
 @export var speed: float = 220.0
 @export var damage: int = 1
 @export var lifetime: float = 4.0
-@export var hitbox_size: Vector2 = Vector2(6.0, 6.0)
 
 # Faction-appearance facet (2026-06-20): the bullet's visual ARCHETYPE — "ball"/"bolt"/"laser"/
 # "wave". When set, the firing layer swaps this variant for the active faction's same-family variant
@@ -22,12 +21,6 @@ class_name BulletVariant
 @export var static_texture: Texture2D = null       # shown when sprite_frames is null
 @export var frame_count: int = 1                   # frames in static_texture strip (1 = static)
 @export var fps: float = 8.0                       # playback speed for animated strips
-
-# VESTIGIAL (2026-05-30): no per-weapon glow authoring. Glow is now the
-# WorldEnvironment bloom on bright sprites, or a GlowFx aura attached per-bullet
-# in the subclass _apply_visuals — neither reads this field. Kept so existing
-# .tres files load without warnings.
-@export var glow_color: Color = Color(1, 0.11, 1, 0.5)
 
 # Impact
 @export var impact_kind: int = 0   # 0=SMOKE, 1=EXPLOSIVE

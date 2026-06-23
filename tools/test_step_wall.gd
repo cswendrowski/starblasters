@@ -32,7 +32,6 @@ func _make(lane: int, lo: int, hi: int) -> Dictionary:
 	p.step_start_dir = 1
 	p.hold_time = 0.6
 	p.step_time = 0.3
-	p.down_speed = 0.0
 	p.on_start(n)
 	return {"n": n, "p": p, "anchor": lane}
 

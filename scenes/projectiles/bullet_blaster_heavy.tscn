@@ -11,6 +11,7 @@ script = ExtResource("1_hvscr")
 speed = 120
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1228754949]
+modulate = Color(1.2742168, 1.2742168, 1.2742168, 1)
 texture = ExtResource("2_hvtex")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1281268116]

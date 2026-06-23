@@ -7,7 +7,6 @@ script = ExtResource("1_variant")
 speed = 160.0
 damage = 2
 lifetime = 5.0
-hitbox_size = Vector2(10, 10)
 impact_kind = 1
 impact_color = Color(1, 0.533333, 0, 1)
 telegraph_flash = true

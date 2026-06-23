@@ -125,7 +125,6 @@ func _process(_dt: float) -> bool:
 		_fail("helix should drop firecores on death")
 	# Speed clamp: a fast rolled movement is held to <= 60 px/s.
 	var fast := StraightDown.new()
-	fast.speed = 200.0
 	helix.movement = fast
 	helix.start(Vector2(240, 60))
 	if helix._pattern != null and float(helix._pattern.speed) > 60.0:

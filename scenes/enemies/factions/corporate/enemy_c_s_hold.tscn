@@ -9,9 +9,6 @@
 [sub_resource type="Resource" id="MovePattern"]
 script = ExtResource("3_mov")
 hover_y = 90.0
-enter_speed = 180.0
-exit_accel = 400.0
-exit_max_speed = 480.0
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_2bskn"]
 size = Vector2(16, 16.1875)

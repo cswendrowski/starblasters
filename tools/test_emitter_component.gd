@@ -32,7 +32,7 @@ func _process(_dt: float) -> bool:
 		var world := Node2D.new()
 		root.add_child(world)
 		var dart = load("res://scenes/enemies/core/enemy_core_s_dart.tscn").instantiate()
-		var mv = StraightDown.new(); mv.speed = 0.0
+		var mv = StraightDown.new()
 		dart.movement = mv
 		var em = Emitter.new()
 		em.payload = load("res://scenes/enemies/enemy_mine.tscn")

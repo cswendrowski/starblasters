@@ -10,10 +10,8 @@ extends "res://scripts/enemies/enemy_base.gd"
 # spawn X; the slow downward drift lets it clear the band (off-bottom despawn) with a
 # lifetime fallback so a low-spawned ember never lingers.
 
-# HDR-bright yellow so the WorldEnvironment bloom (glow_hdr_threshold 1.5) glows the
-# ember natively. Replaces the old per-sprite GlowShaderFx halo, which double-bloomed
-# with the env glow into a blurry blob (Roman 2026-06-20). R/G must clear 1.5; tune to taste.
-const GLOW_HDR := Color(1.9, 1.8, 0.38, 1.0)
+# Firecore embers share the "engines" HDR-glow multiplier (Roman 2026-06-22) so the WorldEnvironment
+# blooms them. VfxGlow is inherited from enemy_base.
 
 @export var drift_speed: float = 45.0        # slow lane drift (mines are 120)
 @export var damage_on_collide: int = 2
@@ -36,9 +34,9 @@ func _ready() -> void:
 	if spr != null:
 		if spr is AnimatedSprite2D:
 			(spr as AnimatedSprite2D).play("default")
-		# HDR modulate → the WorldEnvironment bloom glows the ember (replaces the old
-		# GlowShaderFx halo, Roman 2026-06-20). The engine trail comes from the Engine marker.
-		spr.modulate = GLOW_HDR
+		# HDR modulate → the WorldEnvironment bloom glows the ember (uses the tuned "engines"
+		# multiplier). The engine trail comes from the Engine marker.
+		spr.modulate = VfxGlow.prod_hdr("engines")
 
 
 func _sprite() -> CanvasItem:

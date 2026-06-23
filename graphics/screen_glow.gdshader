@@ -12,7 +12,7 @@
 // SETUP: full-viewport ColorRect drawn AFTER the content it should bloom
 // (last child of the viewport / its own CanvasLayer), this material on it.
 // Everything brighter than `threshold` blooms — scene-wide, unlike a per-sprite
-// glow (glow_fx.gd radial halo / glow_effect_2d in-sprite emission).
+// glow (glow_fx.gd radial halo).
 shader_type canvas_item;
 render_mode blend_add, unshaded;
 

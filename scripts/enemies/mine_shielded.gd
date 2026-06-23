@@ -38,7 +38,6 @@ func _ready() -> void:
 	components = components + [sh]
 	if movement == null:
 		var m := StraightDown.new()
-		m.speed = drift_speed
 		movement = m
 	super._ready()
 	add_child(MineBlinker.new())   # 2px flashing red centre dot + glow

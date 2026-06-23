@@ -2,7 +2,7 @@ class_name CombatSlice
 extends RefCounted
 
 # Hand-authored showcase CombatScore demonstrating the full composed model end to
-# end: shaped FORMATIONS (wall, pincer) sent as bursts + FILLER trickle bridging
+# end: shaped FORMATIONS (wall, pincer, step_wall) sent as bursts + FILLER trickle bridging
 # + BREATHER beats + lane placement + the streaming concurrency cap.
 #
 # Formation enemies get an explicit lane_path movement override (STRAIGHT/WEAVE)
@@ -28,7 +28,6 @@ static func _lane_path(shape_int: int, down: float = 120.0, weave_lanes: float =
 	var LanePath := load("res://scripts/enemies/patterns/lane_path.gd")
 	var lp = LanePath.new()
 	lp.shape = shape_int
-	lp.down_speed = down
 	lp.weave_lanes = weave_lanes
 	return lp
 
@@ -37,7 +36,6 @@ static func _step_path(down: float = 70.0, hold: float = 1.0, step_t: float = 0.
 	var LanePath := load("res://scripts/enemies/patterns/lane_path.gd")
 	var lp = LanePath.new()
 	lp.shape = LP_STEP
-	lp.down_speed = down
 	lp.hold_time = hold
 	lp.step_time = step_t
 	lp.step_lanes = lanes
@@ -122,5 +120,14 @@ static func build() -> CombatScore:
 	# that force you to commit to a lane and re-read as they camp + relocate.
 	score.waves.append(_wave("STEP", [
 		_formation(&"spread", [_spec(DART, 8, 0.25, _step_path(70.0, 1.0, 0.3, 1, true))]),
+	]))
+	# Wave 5 — STEP WALL: a contiguous row fills all but one lane, spawned in ONE frame, then
+	# shifts the gap in UNISON (synced step). The step_wall dispatch lays out the lanes + stamps
+	# the shared sync params, and the director forces Shape.STEP onto the lane_path override — so
+	# this is the live demo of the production step-wall (vs Wave 4's per-instance hop). The
+	# movement override just needs to be a lane_path so the dispatch's step stamp applies.
+	score.waves.append(_wave("STEP WALL", [
+		_formation(&"step_wall", [_spec(DART, 6, 0.2, _lane_path(LP_STRAIGHT, 90.0))]),
+		_breather(1.5),
 	]))
 	return score

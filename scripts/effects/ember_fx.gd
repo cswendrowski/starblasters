@@ -53,6 +53,8 @@ static var _pixel_tex: Texture2D = null
 static var _default_ramp: GradientTexture1D = null
 
 
+const VfxGlow = preload("res://scripts/effects/vfx_glow_config.gd")
+
 static func spray(parent: Node, pos: Vector2, direction: Vector2 = Vector2.UP, params: Dictionary = {}) -> GPUParticles2D:
 	if parent == null:
 		return null
@@ -93,6 +95,7 @@ static func spray(parent: Node, pos: Vector2, direction: Vector2 = Vector2.UP, p
 	mat.set_shader_parameter("color_ramp", ramp)
 	p.process_material = mat
 
+	p.modulate = VfxGlow.prod_hdr("particles")   # HDR-bright so the WorldEnvironment blooms the embers
 	parent.add_child(p)
 	p.emitting = true
 	p.finished.connect(p.queue_free)

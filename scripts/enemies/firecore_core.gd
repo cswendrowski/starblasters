@@ -12,17 +12,16 @@ extends Node2D
 # WRAPPER (this Node2D whose child "Core" is the sprite) is retained as the
 # existing authored scene structure; author it under the hull (z_index -1).
 
-# HDR-bright yellow — R/G must clear the env glow_hdr_threshold (1.5) to bloom.
-# Hue-preserving boost of the old (1.0, 0.95, 0.2) ember color. Tune to taste.
-const GLOW_HDR := Color(1.9, 1.8, 0.38, 1.0)
+# Firecores share the "engines" HDR-glow multiplier (Roman 2026-06-22) so they bloom via the env.
+const VfxGlow = preload("res://scripts/effects/vfx_glow_config.gd")
 
 
 func _ready() -> void:
 	var spr := $Core as AnimatedSprite2D
 	if spr != null:
 		spr.play("default")
-		# HDR modulate → env bloom does the glow (replaces GlowShaderFx, Roman 2026-06-20).
-		spr.modulate = GLOW_HDR
+		# HDR modulate → env bloom does the glow (uses the tuned "engines" multiplier).
+		spr.modulate = VfxGlow.prod_hdr("engines")
 	# NOTE: no engine trail here (Roman 2026-06-08). The decorative core sits at the
 	# CENTER of every ship that carries one, so a trail off it gave every such enemy a
 	# spurious central streak. The standalone firecore HAZARD gets its trail from an

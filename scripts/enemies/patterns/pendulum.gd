@@ -15,13 +15,10 @@ signal phase_entered(phase_name: String)
 
 @export var target_y_low: float = 200.0
 @export var target_y_high: float = 30.0
-@export var dive_speed: float = 220.0
 @export var slow_band: float = 30.0        # ease the last px of each dive/rise
-@export var slow_min_speed: float = 35.0
 @export var fishtail_time: float = 0.4     # seconds spent rotating to aim before firing
 @export var rot_lerp_rate: float = 8.0
 @export var fire_pause: float = 0.18       # hold after firing
-@export var exit_speed: float = 240.0
 # Locomotion refactor 2026-06-19: dive/rise/exit speed is chassis-owned. The dive uses move_speed;
 # the slow-band floor + exit are ratios of it. rot_lerp_rate is an AIM lerp, kept absolute. The
 # dive_speed/exit_speed/slow_min_speed exports above are vestigial; the band Ys stay pattern shape.

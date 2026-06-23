@@ -370,9 +370,12 @@ func _ensure_visuals() -> void:
 	add_child(_telegraph)
 
 
+const VfxGlow = preload("res://scripts/effects/vfx_glow_config.gd")
+
 func _make_line(color: Color, w: float) -> Line2D:
 	var l := Line2D.new()
 	l.default_color = color
+	l.modulate = VfxGlow.prod_hdr("lasers")   # HDR-bright so the WorldEnvironment blooms the beam
 	l.width = w
 	l.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	l.end_cap_mode = Line2D.LINE_CAP_ROUND

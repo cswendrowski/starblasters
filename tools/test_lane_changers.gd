@@ -61,9 +61,7 @@ func _test_shifter() -> void:
 	var p = LanePath.new()
 	p.shape = LanePath.Shape.HOOK
 	p.shift_lanes = 1
-	p.shift_delay = 0.2
 	p.shift_duration = 0.5
-	p.down_speed = 0.0
 	p.on_start(m)
 	_tick(m, p, 90)  # 1.5s
 	if _lane_of(m) != 3:
@@ -76,9 +74,7 @@ func _test_shifter() -> void:
 	var p2 = LanePath.new()
 	p2.shape = LanePath.Shape.HOOK
 	p2.shift_lanes = 1
-	p2.shift_delay = 0.2
 	p2.shift_duration = 0.5
-	p2.down_speed = 0.0
 	p2.on_start(m2)
 	_tick(m2, p2, 90)
 	if _lane_of(m2) != 2:
@@ -108,7 +104,6 @@ func _test_drifter_zone() -> void:
 	p.shape = LanePath.Shape.HOOK
 	p.zone_timed = true
 	p.shift_lanes = 1
-	p.down_speed = 120.0
 	p.on_start(m)
 	_tick_to_y(m, p, 30.0)   # still in the entry band (Zones.ENTRY_END = 40)
 	if _lane_of(m) != 2:
@@ -124,7 +119,6 @@ func _test_drifter_zone() -> void:
 	p2.shape = LanePath.Shape.HOOK
 	p2.zone_timed = true
 	p2.shift_lanes = 1
-	p2.down_speed = 120.0
 	p2.on_start(m2)
 	_tick_to_y(m2, p2, 200.0, occ)
 	if _lane_of(m2) != 2:
@@ -141,7 +135,6 @@ func _test_stepper() -> void:
 	p.hold_time = 0.5
 	p.step_time = 0.2
 	p.step_lanes = 1
-	p.down_speed = 0.0
 	p.on_start(m)
 	_tick(m, p, 90)
 	if _lane_of(m) == 2:
@@ -156,7 +149,6 @@ func _test_stepper() -> void:
 	p2.hold_time = 0.5
 	p2.step_time = 0.2
 	p2.step_lanes = 1
-	p2.down_speed = 0.0
 	p2.on_start(m2)
 	_tick(m2, p2, 90)
 	if _lane_of(m2) != 2:

@@ -20,11 +20,6 @@ extends Resource
 #   Some patterns are inherently position-based (sin-wave absolute x).
 #   Returning a step lets those patterns compute (target - current) and
 #   coexist with velocity-based patterns under one shape.
-#
-# Legacy compatibility:
-#   The old on_process(enemy, delta) hook still exists as a thin wrapper
-#   that calls compute_step + applies the step. Any caller that hasn't
-#   been migrated yet will still work.
 
 func on_start(_enemy) -> void:
 	pass
@@ -95,11 +90,9 @@ func _can_retro(enemy) -> bool:
 	return "retro" in enemy and bool(enemy.retro)
 
 
-# Legacy entry point. Internally routes through compute_step so old
-# callers (or patterns that still mutate enemy.position directly inside
-# overridden on_process) keep working during migration. Once everything
-# is on compute_step we can delete this.
-func on_process(enemy, delta: float) -> void:
-	var step: Vector2 = compute_step(enemy, delta)
-	if step != Vector2.ZERO and enemy is Node2D:
-		enemy.position += step
+# Resolve the player node (first member of the "player" group), or null. Shared by the
+# patterns that steer toward the player (omni_thrust, beeline_player).
+func _find_player(enemy) -> Node:
+	for n in enemy.get_tree().get_nodes_in_group("player"):
+		return n
+	return null

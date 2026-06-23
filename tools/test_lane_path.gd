@@ -29,7 +29,6 @@ func _init() -> void:
 	p.shape = LanePath.Shape.HOOK
 	p.shift_lanes = 2
 	p.shift_duration = 0.5
-	p.down_speed = 120.0
 	var e := Node2D.new()
 	var start_x: float = Lanes.lane_center(3)
 	e.position = Vector2(start_x, 0.0)
@@ -51,7 +50,6 @@ func _init() -> void:
 	pm.shift_lanes = 2
 	pm.shift_duration = 0.5
 	pm.mirrored = true
-	pm.down_speed = 120.0
 	var em := Node2D.new()
 	em.position = Vector2(start_x, 0.0)
 	pm.on_start(em)
@@ -63,7 +61,6 @@ func _init() -> void:
 	# STRAIGHT: holds the spawn lane, only descends.
 	var ps = LanePath.new()
 	ps.shape = LanePath.Shape.STRAIGHT
-	ps.down_speed = 120.0
 	var es := Node2D.new()
 	es.position = Vector2(Lanes.lane_center(2), 0.0)
 	ps.on_start(es)
@@ -77,7 +74,6 @@ func _init() -> void:
 	# STEP: hold the anchor lane, then hop to the adjacent lane (dir +1 from lane 2).
 	var pstep = LanePath.new()
 	pstep.shape = LanePath.Shape.STEP
-	pstep.down_speed = 60.0
 	pstep.hold_time = 0.2
 	pstep.step_time = 0.1
 	pstep.step_lanes = 1

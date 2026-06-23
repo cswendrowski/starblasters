@@ -11,7 +11,7 @@ const Loiter = preload("res://scripts/enemies/patterns/loiter.gd")
 # SingleShot/SpreadShot/AimedShot/BurstShot classes).
 const Weapon = preload("res://scripts/enemies/shoot_patterns/weapon.gd")
 const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
-const CrystalScene = preload("res://scenes/enemies/factions/privateer/enemy_p_m_widow.tscn")
+const CrystalScene = preload("res://scenes/enemies/factions/corporate/enemy_c_m_widow.tscn")
 const DartScene = preload("res://scenes/enemies/core/enemy_core_s_dart.tscn")
 const BossScene = preload("res://scenes/enemies/bosses/boss.tscn")
 const BossSweep = preload("res://scripts/enemies/patterns/boss_sweep.gd")

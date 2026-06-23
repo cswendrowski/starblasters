@@ -7,7 +7,6 @@ extends "res://scripts/enemies/movement_pattern.gd"
 
 # 320×400 res rework: halved.
 @export var travel_y: float = 80.0
-@export var speed: float = 60.0
 @export var direction: int = 1
 
 

@@ -29,7 +29,6 @@ func _process(_dt: float) -> bool:
 		root.add_child(world)
 		var dart = load("res://scenes/enemies/core/enemy_core_s_dart.tscn").instantiate()
 		var mv = StraightDown.new()
-		mv.speed = 60.0
 		dart.movement = mv
 		dart.components = [Probe.new()]
 		world.add_child(dart)            # _ready dupes the component

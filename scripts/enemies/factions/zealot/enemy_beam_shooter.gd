@@ -24,8 +24,8 @@ const SPACING_RADIUS := 32.0
 const PUSH_STRENGTH  := 60.0
 
 var _emitter_local: Vector2 = Vector2(0.0, -8.0)
-# _beam is inherited from enemy_core (its per-enemy BeamEmitter slot). shoot_pattern is null
-# here, so enemy_core never auto-attaches one — we own it.
+# This beamer owns its BeamEmitter directly (shoot_pattern is null, so nothing else attaches one).
+var _beam: Node = null
 var _beam_started: bool = false
 
 

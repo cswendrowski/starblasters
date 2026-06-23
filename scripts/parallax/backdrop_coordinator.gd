@@ -106,7 +106,9 @@ func _populate() -> void:
 	# Planet
 	var planet_idx := forced_planet_idx
 	if planet_idx < 0:
-		planet_idx = stellar.get("planet_idx", rng.randi() % 9)
+		# 0..10 — includes the ringed GasPlanetLayers(9) + Rivers(10); the old % 9 capped at 0..8
+		# and silently excluded both from every random backdrop. LayerPlanet.PLANETS has all 11.
+		planet_idx = stellar.get("planet_idx", rng.randi() % 11)
 	var size_mult := rng.randf_range(1.0 - planet_size_variance, 1.0 + planet_size_variance)
 	var actual_size := planet_size * size_mult
 

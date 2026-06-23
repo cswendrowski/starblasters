@@ -4,5 +4,4 @@
 
 [resource]
 script = ExtResource("1_sd")
-speed = 125.0
 drift_x = 0.0

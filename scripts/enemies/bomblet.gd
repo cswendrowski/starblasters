@@ -81,10 +81,7 @@ func _ready() -> void:
 	if smart:
 		# Shared proximity-chase: drift straight_medium → engage → relentless chase.
 		_chase = ProximityChase.new()
-		_chase.drift_speed = descent_speed
 		_chase.proximity = smart_engage_range
-		_chase.chase_accel = homing_accel
-		_chase.chase_max_speed = homing_max_speed
 		_chase.on_start(self)
 
 

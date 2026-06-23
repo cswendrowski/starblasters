@@ -7,7 +7,6 @@ script = ExtResource("1_variant")
 speed = 180.0
 damage = 1
 lifetime = 4.0
-hitbox_size = Vector2(8, 8)
 impact_kind = 0
 impact_color = Color(0.266667, 1, 0.533333, 1)
 wobble_amplitude = 8.0

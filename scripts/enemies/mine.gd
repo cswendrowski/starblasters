@@ -26,7 +26,6 @@ func _ready() -> void:
 	recycle_passes = 0        # off the bottom = free, never parallax-cycle
 	if movement == null:
 		var m := StraightDown.new()
-		m.speed = drift_speed
 		movement = m
 	super._ready()
 	add_child(MineBlinker.new())   # 2px flashing red centre dot + glow

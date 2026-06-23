@@ -38,7 +38,12 @@ var _halos: Array = []  # additive glow overlays (one per sprite)
 var _light: Node2D = null
 
 
+const VfxGlow = preload("res://scripts/effects/vfx_glow_config.gd")
+
 func _ready() -> void:
+	# HDR-bright the whole explosion by the tuned "explosions" multiplier (cascades to the flash
+	# sprites + halos + particles) so the WorldEnvironment blooms it (Roman 2026-06-22).
+	modulate = VfxGlow.prod_hdr("explosions")
 	_spawn_core()
 	_spawn_secondaries()
 	_spawn_sparks()

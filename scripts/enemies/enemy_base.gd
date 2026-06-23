@@ -709,14 +709,14 @@ func _fade_death_overlays() -> void:
 
 
 # Engine glowmask (the body's frame-1 glow-parts overlay) → HDR-bright so the WorldEnvironment bloom
-# lights it, using the firecore's glow settings (Roman 2026-06-20). No-op if the scene has no
-# GlowMask. The death tweens above only touch modulate:a, so the HDR rgb survives until the fade.
-const GLOWMASK_HDR := Color(1.9, 1.8, 0.38, 1.0)  # = firecore_core.GLOW_HDR — keep the two in sync
+# lights it, by the tuned "engines" multiplier (Roman 2026-06-22). No-op if the scene has no GlowMask.
+# The death tweens above only touch modulate:a, so the HDR rgb survives until the fade.
+const VfxGlow = preload("res://scripts/effects/vfx_glow_config.gd")
 
 func _setup_glowmask() -> void:
 	var gm := get_node_or_null("GlowMask")
 	if gm is Sprite2D:
-		(gm as Sprite2D).modulate = GLOWMASK_HDR
+		(gm as Sprite2D).modulate = VfxGlow.prod_hdr("engines")
 
 
 # The container death VFX (explosions, dust, debris) should spawn into: this

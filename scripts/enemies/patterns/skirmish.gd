@@ -10,12 +10,10 @@ const Playfield = preload("res://scripts/systems/playfield.gd")
 enum Shape { LOOP, FIGURE8 }
 
 @export var shape: int = Shape.LOOP
-@export var enter_speed: float = 120.0
 @export var hold_y: float = 90.0
 @export var radius_lanes: float = 1.0      # VERTICAL loop radius in lane-pitch units (the X swing is lane-confined)
 @export var loop_speed: float = 0.8        # loops per second
 @export var loops: float = 2.0             # cycles before exiting
-@export var exit_speed: float = 180.0
 # Locomotion refactor 2026-06-19: descent speed is chassis-owned; the exit is a touch faster
 # (ratio preserves the old 120→180 feel). hold_y (the loop depth) is resolved from the
 # enemy/formation DEPTH. The *_speed exports above are vestigial; loop_speed/radius/loops stay shape.

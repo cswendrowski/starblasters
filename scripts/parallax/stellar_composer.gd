@@ -38,6 +38,10 @@ const KIND_WEIGHTS := {"system": 0.45, "planet": 0.25, "asteroid": 0.16, "nebula
 # Compose a random stellar dict. `opts.kind` forces a composition ("system"/"planet"/"asteroid"/
 # "nebula"); omit or "" for a weighted-random pick. All randomness comes from `rng` so callers
 # control determinism / variation.
+# Backdrop planet indices the composer may pick (layer_planet.PLANETS). Excludes 8 = Star; includes
+# 9 = GasPlanetLayers (ringed) + 10 = Rivers so those appear in random/composed backdrops.
+const PLANET_PICK := [0, 1, 2, 3, 4, 5, 6, 7, 9, 10]
+
 static func compose(rng: RandomNumberGenerator, opts: Dictionary = {}) -> Dictionary:
 	var star_color: Color
 	if rng.randf() < EXOTIC_CHANCE:
@@ -50,7 +54,7 @@ static func compose(rng: RandomNumberGenerator, opts: Dictionary = {}) -> Dictio
 		kind = _weighted_kind(rng)
 
 	var st := {
-		"planet_idx": rng.randi() % 8,
+		"planet_idx": PLANET_PICK[rng.randi() % PLANET_PICK.size()],
 		"planet_seed": rng.randi(),
 		"star_color": star_color,
 		"has_asteroids": false,
@@ -116,7 +120,7 @@ static func _build_system(rng: RandomNumberGenerator, star_color: Color) -> Arra
 			scale_f = rng.randf_range(0.08, 0.40)
 		sys.append({
 			"kind": "star" if is_star else "planet",
-			"planet_idx": 8 if is_star else (rng.randi() % 8),
+			"planet_idx": 8 if is_star else PLANET_PICK[rng.randi() % PLANET_PICK.size()],
 			"planet_seed": rng.randi(),
 			"frac": float(i) / float(maxi(1, n - 1)),
 			"scale": scale_f,

@@ -320,7 +320,6 @@ func _resolve_movement_for(scene_path: String) -> Resource:
 	# Last resort — straight-down so the test doesn't silently freeze.
 	var Straight = load("res://scripts/enemies/patterns/straight_down.gd")
 	var fallback = Straight.new()
-	fallback.speed = 220.0
 	return fallback
 
 

@@ -8,7 +8,5 @@ script = ExtResource("1_variant")
 family = &"bolt"
 speed = 240.0
 lifetime = 1.5
-hitbox_size = Vector2(6, 12)
 static_texture = ExtResource("2_tex")
-glow_color = Color(0.9921875, 1, 0, 0.5019608)
 impact_color = Color(0.96875, 1, 0, 1)

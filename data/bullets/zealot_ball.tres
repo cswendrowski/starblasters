@@ -9,6 +9,5 @@ family = &"ball"
 speed = 180.0
 lifetime = 3.0
 static_texture = ExtResource("2_tex")
-glow_color = Color(1, 0.9090909, 0, 0.5019608)
 impact_color = Color(1, 0.9090909, 0, 1)
 enemy_sfx_kind = "enemy_mg"
