@@ -357,10 +357,13 @@ const ENTRIES := [
 	# on the timer while traversing. Zealot-exclusive enemy_core.
 	{
 		# Sword (advance) — SLOW lane pusher with a bespoke rolling broadside
-		# (enemy_sword.gd cycles the body muzzles firing down). shoot null = the script
-		# fires. recycle 0 = exit at bottom.
+		# rolling broadside, now a CYCLE mount (see below; was the bespoke enemy_sword.gd).
+		# shoot null = no hull gun. recycle 0 = exit at bottom.
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_sword.tscn",
-		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "payload": BV_ZealotBall, "aim": "at_player", "fire_min": 0.2, "fire_max": 0.2, "count": 1, "spread_deg": 0.0 }],
+		# Rolling broadside as a mount (2026-06-23): CYCLE walks one shot down the Muzzle* rack per beat,
+		# straight-down + zone-gated — the bespoke enemy_sword.gd firing, now data. Payload kept as the
+		# migration's BV_ZealotBall (was fast_pellet); Roman rectifies the bullet.
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_ZealotBall, "aim": "straight_down", "fire_min": 0.18, "fire_max": 0.18, "count": 1, "spread_deg": 0.0, "fire_zone_gated": true }],
 		"engine": -1,
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
@@ -376,7 +379,10 @@ const ENTRIES := [
 		# Sword (cross) — crosses horizontally; the rolling broadside (firing down) reads
 		# as a perpendicular curtain raking the lanes it passes. Bespoke firing.
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_sword.tscn",
-		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "payload": BV_ZealotBall, "aim": "at_player", "fire_min": 0.2, "fire_max": 0.2, "count": 1, "spread_deg": 0.0 }],
+		# Rolling broadside as a mount (2026-06-23): CYCLE walks one shot down the Muzzle* rack per beat,
+		# straight-down + zone-gated — the bespoke enemy_sword.gd firing, now data. Payload kept as the
+		# migration's BV_ZealotBall (was fast_pellet); Roman rectifies the bullet.
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_ZealotBall, "aim": "straight_down", "fire_min": 0.18, "fire_max": 0.18, "count": 1, "spread_deg": 0.0, "fire_zone_gated": true }],
 		"engine": -1,
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
