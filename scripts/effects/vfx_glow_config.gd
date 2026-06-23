@@ -11,20 +11,15 @@ extends RefCounted
 # dict shared across the labs in a session, and persist to user://tuners/vfx_glow.json.
 
 const CATEGORIES := ["bullets", "engines", "lasers", "explosions", "particles"]
-# Backdrop bodies — tuned in the Parallax Tuner. Same model (uniform multiplier on the body's BASE
-# colours) applied to the star / planet sprites so the env bloom glows in each body's own
-# predominant colour instead of a mis-matched chosen tint.
-const BACKDROP_CATEGORIES := ["stars", "planets"]
 # Canonical shipped values — Roman's 2026-06-23 tune. Production reads these (prod_hdr), the dev
-# labs tune a separate `_current` copy for live preview.
+# labs tune a separate `_current` copy for live preview. (Backdrop star/planet glow is NOT here —
+# it's a per-LAYER CanvasModulate multiplier, see layer_base.glow_mult + the Parallax Tuner.)
 const DEFAULTS := {
 	"bullets": 1.75,
 	"engines": 2.30,
 	"lasers": 2.30,
 	"explosions": 2.00,
 	"particles": 2.30,
-	"stars": 2.00,        # backdrop — Parallax Tuner (untuned first-pass; Roman to dial in)
-	"planets": 1.75,
 }
 const SAVE_PATH := "user://tuners/vfx_glow.json"
 const SLIDER_MIN := 1.0
@@ -43,7 +38,7 @@ static func ensure_loaded() -> void:
 			var d: Variant = JSON.parse_string(f.get_as_text())
 			f.close()
 			if d is Dictionary:
-				for c in DEFAULTS:
+				for c in CATEGORIES:
 					if (d as Dictionary).has(c):
 						_current[c] = float(d[c])
 
@@ -95,12 +90,6 @@ static func snippet() -> String:
 	t += "# Apply as: node.modulate = Color(M, M, M) so the WorldEnvironment bloom lights it.\n"
 	t += "const VFX_GLOW := {\n"
 	for c in CATEGORIES:
-		t += "\t\"%s\": %.2f,\n" % [c, get_mult(c)]
-	t += "}\n\n"
-	t += "# Backdrop body glow — Parallax Tuner (stars / planets). Same model, applied to the body's\n"
-	t += "# BASE colours so the bloom glows in its own predominant colour.\n"
-	t += "const BACKDROP_GLOW := {\n"
-	for c in BACKDROP_CATEGORIES:
 		t += "\t\"%s\": %.2f,\n" % [c, get_mult(c)]
 	t += "}\n"
 	return t

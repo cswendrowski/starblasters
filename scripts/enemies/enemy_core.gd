@@ -1,16 +1,11 @@
 ﻿extends "res://scripts/enemies/enemy_base.gd"
 
 # Pattern-driven regular enemy. Adds movement_pattern + shoot_pattern slots
-# on top of EnemyBase, plus the legacy "anchor follow" path used when no
-# movement resource is set, plus the parallax fly-back cycle on bottom
-# exit. All death + hit + offscreen + player-finding logic lives in
-# EnemyBase; this script is just the combat-fighter specifics.
+# on top of EnemyBase (a null movement = hold position, e.g. a stationary
+# weapon dummy), plus the parallax fly-back cycle on bottom exit. All death +
+# hit + offscreen + player-finding logic lives in EnemyBase; this script is
+# just the combat-fighter specifics.
 
-# Legacy anchor-follow fields (used when movement == null).
-var start_pos: Vector2 = Vector2.ZERO
-var speed: float = 0.0
-var anchor: Node2D = null
-var follow_anchor: bool = false
 const _DEFAULT_BULLET = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
 const RecycleController = preload("res://scripts/effects/recycle_controller.gd")
@@ -102,7 +97,7 @@ func start(pos: Vector2) -> void:
 	if movement != null:
 		_start_with_pattern(pos)
 	else:
-		_start_anchored(pos)
+		_start_stationary(pos)
 
 
 func _start_with_pattern(pos: Vector2) -> void:
@@ -144,20 +139,14 @@ func _start_with_pattern(pos: Vector2) -> void:
 		$ShootTimer.start()
 
 
-func _start_anchored(pos: Vector2) -> void:
-	follow_anchor = false
-	speed = 0
-	position = Vector2(pos.x, -pos.y)
-	start_pos = pos
-	await get_tree().create_timer(randf_range(0.25, 0.55)).timeout
-	var tw = create_tween().set_trans(Tween.TRANS_BACK)
-	tw.tween_property(self, "position:y", start_pos.y, 1.4)
-	await tw.finished
-	follow_anchor = true
-	$MoveTimer.wait_time = randf_range(5, 20)
-	$MoveTimer.start()
-	$ShootTimer.wait_time = randf_range(fire_interval_min, fire_interval_max)
-	$ShootTimer.start()
+func _start_stationary(pos: Vector2) -> void:
+	# No movement pattern → hold the spawn position (e.g. the Weapon Lab dummy: "sits at the
+	# top and just fires"). Still arm the shoot timer so a weapon-carrying stationary enemy fires.
+	# (Replaced the legacy MoveTimer/anchor-follow path 2026-06-23.)
+	position = pos
+	if shoot_pattern != null and has_node("ShootTimer") and fire_on_phase == "" and fire_path_phases.is_empty():
+		$ShootTimer.wait_time = randf_range(fire_interval_min, fire_interval_max)
+		$ShootTimer.start()
 
 
 func _process(delta: float) -> void:
@@ -195,13 +184,8 @@ func _process(delta: float) -> void:
 			_check_path_phase_fire()
 			_tick_components(safe_delta)
 		return
-	if follow_anchor and anchor != null:
-		position = start_pos + anchor.position
-	position.y += speed * delta
-	_clamp_to_sides()
+	# No movement pattern (stationary enemy, e.g. the Weapon Lab dummy): just tick components.
 	_tick_components(delta)
-	if position.y > screensize.y + 32:
-		start(start_pos)
 
 
 # Keep the enemy inside the horizontal playfield (Roman: enemies shouldn't
@@ -295,7 +279,6 @@ func _start_cycle() -> void:
 	modulate = _pre_cycle_modulate
 	_set_outline_visible(true)        # back on the gameplay layer — restore the outline
 	set_engine_trail_emitting(true)   # ...and the engine exhaust
-	start_pos = position
 	_cycling = false
 	# Reset the auto-rotate position tracker so the first post-cycle
 	# move computes a fresh delta vector.
@@ -315,12 +298,6 @@ func _start_cycle() -> void:
 	if _pattern and _pattern.has_method("on_start"):
 		_pattern.on_start(self)
 	_components_start()  # re-fire component on_start for the new pass (no-op if none)
-
-
-# enemy.tscn template wires MoveTimer/ShootTimer to legacy callbacks.
-func _on_timer_timeout() -> void:
-	speed = randf_range(75, 100)
-	follow_anchor = false
 
 
 func _on_shoot_timer_timeout() -> void:

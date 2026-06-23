@@ -39,6 +39,7 @@ var _backdrop: Node2D = null
 var _layer_colors: Dictionary = {}
 var _layer_brightness: Dictionary = {}
 var _layer_contrast: Dictionary = {}
+var _layer_glow: Dictionary = {}      # layer_name -> glow_mult (per-layer HDR bloom multiplier)
 
 # ---- UI nodes ------------------------------------------------------------
 
@@ -46,11 +47,13 @@ var _status_label: Label
 var _layer_controls: Dictionary = {}  # layer_name -> {color_picker, brightness_slider, contrast_slider}
 var _brightness_value_lbl: Label = null
 var _contrast_value_lbl: Label = null
+var _glow_value_lbl: Label = null
 var _density_value_lbl: Label = null
 var _layer_buttons: Dictionary = {}  # layer_name -> Button
 var _forced_planet: int = -1  # -1 = random
 var _density_scale: float = 1.0
-var _gradient_glows_on: bool = true   # Sprite2D gradient halos on/off (A/B vs the WorldEnv bloom)
+var _gradient_glows_on: bool = false  # Sprite2D gradient halos off by DEFAULT now (the bloom approach
+                                      # replaces them); toggle on to A/B the legacy halos vs WorldEnv
 var _worldenv_on: bool = false        # WorldEnv bloom + HDR — OPT-IN. The backdrop is LDR-authored
                                       # and renders dark/flat under use_hdr_2d, so default OFF = old look.
 var _env: Environment = null          # the SubViewport's WorldEnvironment (tuned by the env sliders)
@@ -114,7 +117,7 @@ func _rebuild_backdrop() -> void:
 	_backdrop.set("asteroid_density_scale", _density_scale)
 	_sub_viewport.add_child(_backdrop)
 	call_deferred("_apply_gradient_toggle")   # re-hide gradient halos if the toggle is off
-	call_deferred("_apply_backdrop_glow")     # re-apply live stars/planets multipliers to new bodies
+	call_deferred("_apply_layer_glow")        # re-apply per-layer glow multipliers to the fresh layers
 
 
 # ---- VFX glow controls (shared VfxGlowConfig) + gradient-halo A/B -----------
@@ -145,7 +148,6 @@ func _add_glow_slider(parent: VBoxContainer, cat: String) -> void:
 	hb.add_child(val)
 	sl.value_changed.connect(func(v: float):
 		VfxGlowConfigC.set_mult(cat, v)
-		_apply_backdrop_glow()   # stars/planets multipliers drive backdrop bodies live (no-op for gameplay cats)
 		val.text = "%.2f" % v)
 
 
@@ -198,7 +200,6 @@ func _set_worldenv(on: bool) -> void:
 			_sub_viewport.add_child(_we_node)
 	elif _we_node != null and _we_node.get_parent() != null:
 		_sub_viewport.remove_child(_we_node)
-	_apply_backdrop_glow()   # palette ×M in HDR mode, ×1 (true colours) in LDR
 
 
 func _apply_gradient_toggle() -> void:
@@ -206,32 +207,11 @@ func _apply_gradient_toggle() -> void:
 		_set_halos_visible(_backdrop, _gradient_glows_on)
 
 
-# Apply the live stars/planets multipliers to the backdrop's tagged bodies by re-scaling each body's
-# BASE palette (get_colors × M → set_colors). This multiplies the colours the planet SHADER reads, so
-# the WorldEnv bloom glows in the body's OWN predominant colour (modulate can't — the shaders overwrite
-# COLOR). Gated on _worldenv_on: in plain LDR mode the palette stays at ×1 (true authored colours).
-func _apply_backdrop_glow() -> void:
-	if _backdrop != null and is_instance_valid(_backdrop):
-		_apply_backdrop_glow_walk(_backdrop)
-
-
-func _apply_backdrop_glow_walk(n: Node) -> void:
-	for c in n.get_children():
-		if c is CanvasItem and c.has_meta("base_palette") and c.has_method("set_colors"):
-			var is_star := c.is_in_group("backdrop_star")
-			if is_star or c.is_in_group("backdrop_planet"):
-				var m: float = (VfxGlowConfigC.get_mult("stars" if is_star else "planets")) if _worldenv_on else 1.0
-				var base: Array = c.get_meta("base_palette")
-				var out: Array = []
-				for col in base:
-					out.append(Color(col.r * m, col.g * m, col.b * m, col.a))
-				c.set_colors(out)
-		_apply_backdrop_glow_walk(c)
-
-
 func _set_halos_visible(n: Node, vis: bool) -> void:
 	for c in n.get_children():
-		if c is CanvasItem and (String(c.name) == "PlanetHalo" or String(c.name) == "BlackHolePulseGlow"):
+		# Match by GROUP, not name — add_child renames colliding "PlanetHalo" siblings to @Sprite2D@NN,
+		# so a name check only caught the first halo and left companion/per-type halos visible.
+		if c is CanvasItem and c.is_in_group("backdrop_halo"):
 			(c as CanvasItem).visible = vis
 		_set_halos_visible(c, vis)
 
@@ -336,15 +316,6 @@ func _build_ui() -> void:
 	vbox.add_child(grad_chk)
 
 	for cat in VfxGlowConfigC.CATEGORIES:
-		_add_glow_slider(vbox, String(cat))
-
-	# Backdrop bodies — multiply BASE colours (grayscale M) so bloom glows in the body's own colour.
-	var bg_label := Label.new()
-	bg_label.text = "Backdrop (base × M) — needs WorldEnv bloom on"
-	bg_label.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
-	_style_caption(bg_label)
-	vbox.add_child(bg_label)
-	for cat in VfxGlowConfigC.BACKDROP_CATEGORIES:
 		_add_glow_slider(vbox, String(cat))
 
 	var glow_copy := Button.new()
@@ -482,6 +453,37 @@ func _build_ui() -> void:
 
 	_layer_controls["contrast_slider"] = contrast_slider
 
+	# ---- Glow × slider (per-layer HDR bloom; needs WorldEnv bloom on to see it) ----
+	var glow_label := Label.new()
+	glow_label.text = "Glow × (HDR bloom)"
+	glow_label.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	_style_caption(glow_label)
+	vbox.add_child(glow_label)
+
+	var glow_hbox := HBoxContainer.new()
+	glow_hbox.add_theme_constant_override("separation", 8)
+	vbox.add_child(glow_hbox)
+
+	var glow_slider := HSlider.new()
+	glow_slider.name = "GlowSlider"
+	glow_slider.min_value = 1.0
+	glow_slider.max_value = 4.0
+	glow_slider.value = 1.0
+	glow_slider.step = 0.05
+	glow_slider.custom_minimum_size = Vector2(0, 24)
+	glow_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	glow_slider.value_changed.connect(func(v: float): _on_glow_changed(v))
+	glow_hbox.add_child(glow_slider)
+
+	_glow_value_lbl = Label.new()
+	_glow_value_lbl.text = "1.00"
+	_glow_value_lbl.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	_glow_value_lbl.add_theme_color_override("font_color", UiTheme.COLOR_TEXT)
+	_glow_value_lbl.custom_minimum_size = Vector2(32, 0)
+	glow_hbox.add_child(_glow_value_lbl)
+
+	_layer_controls["glow_slider"] = glow_slider
+
 	vbox.add_child(HSeparator.new())
 
 	# ---- Generate button ----
@@ -594,18 +596,25 @@ func _refresh_layers() -> void:
 		else:
 			_layer_contrast[layer_name] = 1.0
 
+		if "glow_mult" in layer_node:
+			_layer_glow[layer_name] = layer_node.glow_mult
+		else:
+			_layer_glow[layer_name] = 1.0
+
 
 func _on_layer_selected(layer_name: String) -> void:
 	_current_layer = layer_name
 	var color_picker: ColorPickerButton = _layer_controls.get("color_picker")
 	var brightness_slider: HSlider = _layer_controls.get("brightness_slider")
 	var contrast_slider: HSlider = _layer_controls.get("contrast_slider")
+	var glow_slider: HSlider = _layer_controls.get("glow_slider")
 
 	# Read current values from the layer node (includes baked .tscn defaults)
 	var layer = _layer_node(layer_name)
 	var current_color := Color.WHITE
 	var current_brightness := 1.0
 	var current_contrast := 1.0
+	var current_glow := 1.0
 
 	if layer != null:
 		if "modulate_color" in layer:
@@ -614,6 +623,8 @@ func _on_layer_selected(layer_name: String) -> void:
 			current_brightness = layer.brightness
 		if "contrast" in layer:
 			current_contrast = layer.contrast
+		if "glow_mult" in layer:
+			current_glow = layer.glow_mult
 
 	# Update sliders and picker
 	if color_picker:
@@ -622,17 +633,22 @@ func _on_layer_selected(layer_name: String) -> void:
 		brightness_slider.value = current_brightness
 	if contrast_slider:
 		contrast_slider.value = current_contrast
+	if glow_slider:
+		glow_slider.value = current_glow
 
 	# Update value labels
 	if _brightness_value_lbl:
 		_brightness_value_lbl.text = "%.2f" % current_brightness
 	if _contrast_value_lbl:
 		_contrast_value_lbl.text = "%.2f" % current_contrast
+	if _glow_value_lbl:
+		_glow_value_lbl.text = "%.2f" % current_glow
 
 	# Update caches
 	_layer_colors[layer_name] = current_color
 	_layer_brightness[layer_name] = current_brightness
 	_layer_contrast[layer_name] = current_contrast
+	_layer_glow[layer_name] = current_glow
 
 	_refresh_layer_button_selection()
 
@@ -666,6 +682,27 @@ func _on_contrast_changed(v: float) -> void:
 		layer.contrast = v
 	if _contrast_value_lbl:
 		_contrast_value_lbl.text = "%.2f" % v
+
+
+func _on_glow_changed(v: float) -> void:
+	if _current_layer.is_empty():
+		return
+	_layer_glow[_current_layer] = v
+	var layer = _layer_node(_current_layer)
+	if layer != null and "glow_mult" in layer:
+		layer.glow_mult = v
+	if _glow_value_lbl:
+		_glow_value_lbl.text = "%.2f" % v
+
+
+# Re-apply the per-layer glow multipliers after a backdrop rebuild (fresh layer nodes default to 1.0).
+func _apply_layer_glow() -> void:
+	if _backdrop == null or not is_instance_valid(_backdrop):
+		return
+	for layer_name in _layer_glow:
+		var layer = _layer_node(layer_name)
+		if layer != null and "glow_mult" in layer:
+			layer.glow_mult = float(_layer_glow[layer_name])
 
 
 func _apply_grade(layer_name: String) -> void:

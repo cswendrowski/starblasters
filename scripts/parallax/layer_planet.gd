@@ -103,28 +103,17 @@ func spawn_planet(planet_idx: int, actual_size: float, rng: RandomNumberGenerato
 		p.override_time = true
 	if p.has_method("update_time"):
 		_animated.append(p)
-	# Tag for the Parallax Tuner's live stars/planets glow sliders + snapshot the base palette so the
-	# tuner can re-scale it (get_colors × M → set_colors). That's the ONLY working HDR boost here —
-	# these planet shaders OVERWRITE COLOR, so modulate (and the old star-colour wash) had no effect
-	# on the rendered colours. Production palette stays as authored until the tuned values land.
+	# Star-color wash on the planet — matches the sector map's planet modulate. (Per-layer glow now
+	# comes from the layer CanvasModulate, see layer_base.glow_mult — modulate is ignored by the
+	# planet shaders.)
 	if p is CanvasItem:
-		_apply_body_glow(p, planet_idx == 8)
+		p.modulate = Color.WHITE.lerp(star_color, 0.18)
 	# Store planet node and size for POI moons attachment
 	_planet_node = p
 	_planet_actual_size = actual_size
 	_make_planet_halo(p, planet_idx, actual_size, x, y)
 	# Spawn companion bodies (moons/binary stars) around the main planet
 	_spawn_companions(rng, planet_idx, x, y, actual_size)
-
-
-# Tag a spawned body as star/planet for the Parallax Tuner's live glow sliders, and snapshot its
-# base palette (post-randomize) so the tuner can re-scale colours for HDR bloom (get_colors × M →
-# set_colors). Modulate can't do this — the planet shaders OVERWRITE COLOR. Bodies without the
-# palette API (some star/black-hole/galaxy scenes) are still tagged but can't be palette-boosted.
-func _apply_body_glow(p: Node, is_star: bool) -> void:
-	p.add_to_group("backdrop_star" if is_star else "backdrop_planet")
-	if p.has_method("get_colors") and p.has_method("set_colors"):
-		p.set_meta("base_palette", p.get_colors())
 
 
 # Spawn ONE body of a star-system at an arbitrary screen position + size,
@@ -164,9 +153,9 @@ func spawn_system_body(planet_idx: int, actual_size: float, top_left: Vector2, p
 		p.override_time = true
 	if p.has_method("update_time"):
 		_animated.append(p)
-	# Tag + snapshot base palette for the tuner's glow sliders (see spawn_planet / _apply_body_glow).
-	if p is CanvasItem:
-		_apply_body_glow(p, planet_idx == 8)
+	# Star-color wash (skip the star itself — its own light shouldn't be tinted).
+	if p is CanvasItem and planet_idx != 8:
+		p.modulate = Color.WHITE.lerp(star_color, 0.18)
 	_make_planet_halo(p, planet_idx, actual_size, top_left.x, top_left.y)
 
 
@@ -352,6 +341,7 @@ func _make_halo_sprite(center: Vector2, diameter: float, color: Color) -> void:
 	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	halo.material = mat
 	halo.z_index = 0
+	halo.add_to_group("backdrop_halo")  # group, NOT name — add_child renames colliding "PlanetHalo" siblings
 	add_child(halo)
 
 
@@ -370,6 +360,7 @@ func _attach_pulse_glow(center: Vector2, diameter: float, color: Color) -> void:
 	mat.shader = PULSE_GLOW_SHADER
 	mat.set_shader_parameter("glow_color", Color(color.r, color.g, color.b, 0.85))
 	rect.material = mat
+	rect.add_to_group("backdrop_halo")
 	add_child(rect)
 
 
