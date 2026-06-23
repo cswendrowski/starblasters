@@ -213,6 +213,15 @@ const GEOMETRIC_CAPSTONE_CHANCE: float = 0.6
 const GEOMETRIC_FLOCK_MIN: int = 8
 const GEOMETRIC_FLOCK_MAX: int = 12
 
+# ACCENT STING (conductor readability pass, 2026-06-23). The generator builds big chaff blobs and
+# heavy/flock capstones but has no MICRO-phrase — the audit's missing "2-3 enemy crossing sting" that
+# punctuates the rhythm between bulk waves (the authored cross-pairs, e.g. shift_cross_pair). After a
+# non-finale wave's capstone, this often appends a tiny side-crossing burst (SIDE_ALTERNATING +
+# side_traverse → one unit from each edge, scissoring across the upper band on the existing crosser
+# dispatch). Silent (no banner), DISCRETE (count 2-3, excluded from the chaff budget), so it reads as
+# a quick grace-note before the breather, not another wall. Tune CHANCE freely.
+const ACCENT_CHANCE: float = 0.35
+
 static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, level_index: int) -> Array:
 	var waves: Array = []
 	var base_counts: Array = []
@@ -273,8 +282,37 @@ static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, l
 				s_end2.formation = WaveSpec.Formation.WALL if lead_lr else WaveSpec.Formation.PINCER
 				_apply_force_formation(s_end2, e_end)
 				waves.append(s_end2); base_counts.append(int(e_end.get("base_count", 4)))
+		# ACCENT — a quick crossing sting punctuates the tail of some non-finale waves (see ACCENT_CHANCE).
+		if not is_finale and rng.randf() < ACCENT_CHANCE:
+			var s_acc = _make_accent_wave(rng, sector_depth, level_index, i, used)
+			if s_acc != null:
+				waves.append(s_acc); base_counts.append(1)   # discrete: skip budget scaling
 	_apply_budget(waves, base_counts, sector_depth, level_index)
 	return waves
+
+
+# Build a tiny crossing-sting WaveSpec (the audit's "2-3 enemy accent"). A COMMON chaff entry forced
+# to a side-alternating cross (one from each edge, scissoring across the upper band via the director's
+# existing crosser dispatch). `exclude` is the wave's `used` set so the sting prefers a DIFFERENT
+# enemy than the bulk it punctuates (visual contrast); it's not tracked back, so accents never starve
+# the main beats. Returns null if no entry exists or the pick demands its own formation (e.g. Burner's
+# beam-pair), so the accent is simply skipped that beat. Silent + count 2-3.
+static func _make_accent_wave(rng: RandomNumberGenerator, sector_depth: int, level_index: int, wave_index: int, exclude: Array) -> WaveSpec:
+	var e: Dictionary = _pick_entry(rng, sector_depth, level_index, exclude, PackedStringArray(), Roster.Tier.COMMON, "")
+	if e.is_empty() or e.has("force_formation"):
+		return null
+	var w = _make_wave_spec(rng, e, sector_depth, level_index, wave_index)
+	w.count = 2 + (rng.randi() % 2)   # 2 or 3
+	w.formation = WaveSpec.Formation.SIDE_ALTERNATING
+	# Force the horizontal cross so the sting reads regardless of the entry's own movement.
+	w.movement_override = Roster.make_movement({"movement": "side_traverse"})
+	# Pin to the high band so it cuts cleanly across the TOP (away from the player's lane) instead of
+	# riding the chaff's natural depth — the crosser dispatch reads depth_override for the cross latitude.
+	w.depth_override = Zones.depth_to_bp("high", w.depth_override)
+	w.silent = true
+	w.spawn_delay = 0.4
+	w.spawn_interval = 0.12   # quick one-two
+	return w
 
 
 # Pick a heavy for a beat (midpoint or coda). prefer_capital orders the two pools:
