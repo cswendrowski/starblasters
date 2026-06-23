@@ -23,6 +23,8 @@ var _markers: Array = []
 var _cycle: int = 0
 var _t: float = 0.0
 var _next: float = 2.0
+var _phase_idx: int = 0          # path-phase firing: next band-progress line to cross
+var _beat_fire_at: float = -1.0  # path-phase beat-sync: scheduled global beat for a deferred shot
 
 
 func on_start(enemy) -> void:
@@ -44,8 +46,18 @@ func on_start(enemy) -> void:
 func on_process(enemy, delta: float) -> void:
 	if _held(enemy):
 		return
+	# MODE: path-phase firing (fixed band-progress lines) replaces the cadence timer — fires once as
+	# the host descends past each fraction, beat-synced into a cross-formation volley.
+	if not spec.fire_path_phases.is_empty():
+		_tick_path_phases(enemy)
+		return
 	_t += delta
 	if _t < _next:
+		return
+	# Conditional gates (zone / nose): hold fire + fast re-poll, mirroring enemy_core's hull shoot.
+	if not _gates_pass(enemy):
+		_t = 0.0
+		_next = 0.15
 		return
 	_t = 0.0
 	_next = _roll_interval()
@@ -64,6 +76,61 @@ func _held(enemy) -> bool:
 	if enemy.has_method("_on_playfield") and not enemy._on_playfield():
 		return true
 	return false
+
+
+# Conditional fire gates shared by cadence + path-phase, mirroring enemy_core's hull shoot: hold
+# fire outside the engagement band (fire_zone_gated) or until the nose lines up (fire_only_on_target).
+func _gates_pass(enemy) -> bool:
+	if spec.fire_zone_gated and not Zones.in_engagement(enemy.position.y):
+		return false
+	if spec.fire_only_on_target and not _nose_on_player(enemy):
+		return false
+	return true
+
+
+# Host forward vector within fire_aim_tol_deg of the player direction (sprite faces +Y at rot 0).
+func _nose_on_player(enemy) -> bool:
+	var player = enemy.find_player() if enemy.has_method("find_player") else null
+	if player == null:
+		return false
+	var to_p: Vector2 = player.global_position - enemy.global_position
+	if to_p.length_squared() < 1.0:
+		return false
+	var rot: float = enemy.rotation - PI * 0.5
+	var fwd: Vector2 = Vector2(cos(rot), sin(rot))
+	return fwd.dot(to_p.normalized()) >= cos(deg_to_rad(spec.fire_aim_tol_deg))
+
+
+# Path-phase firing: one shot each time the host descends past the next band-progress fraction,
+# optionally quantized to the shared tempo so a descending formation volleys on the same line.
+# Mirrors enemy_core._check_path_phase_fire / _do_path_shot.
+func _tick_path_phases(enemy) -> void:
+	if _beat_fire_at >= 0.0 and Beat.now() >= _beat_fire_at:
+		_beat_fire_at = -1.0
+		_do_path_shot(enemy)
+	if _phase_idx >= spec.fire_path_phases.size():
+		return
+	if Zones.band_progress(enemy.position.y) < spec.fire_path_phases[_phase_idx]:
+		return
+	_phase_idx += 1
+	if spec.fire_beat_synced:
+		var beat_at: float = Beat.next_beat_time(Beat.now())
+		var vel_y: float = enemy._last_move_vel.y if "_last_move_vel" in enemy else 0.0
+		var predicted_y: float = enemy.position.y + vel_y * maxf(0.0, beat_at - Beat.now())
+		if predicted_y >= Zones.DEPARTURE_START:
+			_do_path_shot(enemy)
+		else:
+			_beat_fire_at = beat_at
+	else:
+		_do_path_shot(enemy)
+
+
+func _do_path_shot(enemy) -> void:
+	if _held(enemy):
+		return
+	if spec.fire_only_on_target and not _nose_on_player(enemy):
+		return
+	_fire(enemy)
 
 
 func _resolve_markers(enemy) -> void:

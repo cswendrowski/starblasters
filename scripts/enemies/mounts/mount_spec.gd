@@ -35,6 +35,16 @@ enum MarkerMode { ALL, CYCLE }   # ALL = fire from every matched marker; CYCLE =
 @export var wobble_amplitude: float = 0.0
 @export var wobble_frequency: float = 0.0
 
+# --- Firing conditions (captured from enemy_core's hull shoot, 2026-06-23) so a GUN/LAUNCHER mount
+# can fully replace a conditional hull weapon. GATES hold fire across the cadence; fire_path_phases
+# swaps the cadence for fixed band-progress firing. Honoured by MountComponent (GUN/LAUNCHER); the
+# TURRET arc-gate covers its own conditional fire. ---
+@export var fire_zone_gated: bool = false       # only fire inside Zones.in_engagement (hold above, cease below)
+@export var fire_only_on_target: bool = false   # only fire when the host nose points at the player
+@export var fire_aim_tol_deg: float = 18.0      # nose-alignment tolerance for fire_only_on_target
+@export var fire_path_phases: PackedFloat32Array = PackedFloat32Array()  # fire once past each band-progress fraction
+@export var fire_beat_synced: bool = true       # quantize path-phase shots to the shared tempo (volley collapse)
+
 # --- TURRET only (forwarded 1:1 to EnemyTurret) ---
 @export var rotation_speed: float = 3.6
 @export var arc_deg: float = 0.0

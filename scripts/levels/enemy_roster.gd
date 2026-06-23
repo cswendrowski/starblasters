@@ -1640,6 +1640,13 @@ static func _mount_from_dict(d: Dictionary) -> Resource:
 	m.homing_rate = float(d.get("homing_rate", 0.0))
 	m.wobble_amplitude = float(d.get("wobble_amplitude", 0.0))
 	m.wobble_frequency = float(d.get("wobble_frequency", 0.0))
+	m.fire_zone_gated = bool(d.get("fire_zone_gated", false))
+	m.fire_only_on_target = bool(d.get("fire_only_on_target", false))
+	m.fire_aim_tol_deg = float(d.get("fire_aim_tol_deg", 18.0))
+	var _fpp: Variant = d.get("fire_path_phases", null)
+	if _fpp is Array:
+		m.fire_path_phases = PackedFloat32Array(_fpp)
+	m.fire_beat_synced = bool(d.get("fire_beat_synced", true))
 	m.rotation_speed = float(d.get("rotation_speed", 3.6))
 	m.arc_deg = float(d.get("arc_deg", 0.0))
 	m.rest_angle_deg = float(d.get("rest_angle_deg", 0.0))
