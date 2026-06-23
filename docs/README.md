@@ -33,6 +33,7 @@ move it to `docs/archive/` with a banner rather than deleting it.
 | Player weapons — data model | [`weapon_data_centralization_2026-06-11.md`](weapon_data_centralization_2026-06-11.md) (stats live in `.tres`) |
 | Player weapons — live DPS numbers | [`weapon_dps_report_2026-06-13.md`](weapon_dps_report_2026-06-13.md) (rebalance candidates are deferred, not a to-do) |
 | Enemy weapons + projectiles | [`weapons_system_2026-06-05.md`](weapons_system_2026-06-05.md) |
+| Faction bullet/muzzle recolor (grayscale + tint) | **SCOPED / NOT BUILT** — [`faction_energy_recolor_design_2026-06-22.md`](faction_energy_recolor_design_2026-06-22.md) (waits on grayscale assets; color data = `Factions.MUZZLE_GLOW_COLOR`) |
 | Shift modes (Focus / Phase / Hyper) | [`shift_mode_system_2026-06-08.md`](shift_mode_system_2026-06-08.md) |
 | Passive module bay | [`passive_module_bay_2026-06-13.md`](passive_module_bay_2026-06-13.md) |
 | Enemy shields | [`shield_unification_2026-06-08.md`](shield_unification_2026-06-08.md) |

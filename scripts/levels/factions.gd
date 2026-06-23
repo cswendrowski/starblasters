@@ -29,6 +29,9 @@ const FIRECORE_HAZARD_PATH := "res://scenes/enemies/factions/zealot/firecore_haz
 # Shared livery recolor shader (same one the player hull uses) — applied at spawn to any enemy
 # carrying a "Livery" sprite layer, tinted by the active level faction (apply_livery below).
 const LIVERY_SHADER = preload("res://scenes/player/livery_color.gdshader")
+# Match the player's livery blend: player.tscn's Livery material bakes opacity 0.8 (the shader's
+# darken strength). Enemies were running 1.0 (max darken → too dark); keep them in sync here.
+const LIVERY_OPACITY := 0.8
 
 enum Id { SUPREMACY, PRIVATEER, CORPORATE, ZEALOT }
 
@@ -144,28 +147,28 @@ static func data(id: int) -> Dictionary:
 				"id": "supremacy", "lore_name": "Crimson Supremacy",
 				"core_pool": [], "exclusives": [], "overlay": false,
 				"stat_mods": {}, "weapon_mods": {"fire_rate_mult": 0.7, "bullet_speed_mult": 1.25},
-				"modifier_components": [], "tint": Color(1.0, 0.45, 0.45),
+				"modifier_components": [], "tint": LIVERY_COLOR[Id.SUPREMACY],
 			}
 		Id.PRIVATEER:
 			return {
 				"id": "privateer", "lore_name": "Vertarine Armada",
 				"core_pool": [], "exclusives": [], "overlay": true,
 				"stat_mods": {"hp_mult": 2.0}, "weapon_mods": {},
-				"modifier_components": [], "tint": Color(0.55, 0.85, 0.6),
+				"modifier_components": [], "tint": LIVERY_COLOR[Id.PRIVATEER],
 			}
 		Id.CORPORATE:
 			return {
 				"id": "corporate", "lore_name": "UltraGalactic Concerns",
 				"core_pool": [], "exclusives": [], "overlay": false,
 				"stat_mods": {}, "weapon_mods": {},
-				"modifier_components": ["shield"], "tint": Color(0.55, 0.7, 1.0),
+				"modifier_components": ["shield"], "tint": LIVERY_COLOR[Id.CORPORATE],
 			}
 		Id.ZEALOT:
 			return {
 				"id": "zealot", "lore_name": "Evantian Theocracy",
 				"core_pool": [], "exclusives": [], "overlay": false,
 				"stat_mods": {}, "weapon_mods": {},
-				"modifier_components": ["firecore"], "tint": Color(1.0, 0.6, 0.3),
+				"modifier_components": ["firecore"], "tint": LIVERY_COLOR[Id.ZEALOT],
 			}
 	return data(Id.SUPREMACY)
 
@@ -280,25 +283,44 @@ static func apply_livery(faction: int, enemy) -> void:
 	var mat := ShaderMaterial.new()
 	mat.shader = LIVERY_SHADER
 	mat.set_shader_parameter("tint_color", data(faction).get("tint", Color(0.5, 0.5, 0.5)))
+	mat.set_shader_parameter("opacity", LIVERY_OPACITY)   # match the player; also lets the death-fade tween it
 	lv.material = mat
 	lv.visible = true
 
 
-# Per-faction signature PROJECTILE color — what the faction's bullets read as. Drives the TailGunGlow
-# tint (apply_tailglow) and is the reference for faction bullet styling. Privateer lime-green +
-# corporate purple-pink are Roman's calls (2026-06-21); supremacy/zealot follow faction identity
-# (crimson / firecore-orange). Bright values so the WorldEnvironment bloom blooms the glow in-hue.
-const BULLET_GLOW := {
-	Id.SUPREMACY: Color(1.0, 0.3, 0.3),     # crimson
-	Id.PRIVATEER: Color(0.45, 0.95, 0.35),  # lime green (matches the privateer bullet glow)
-	Id.CORPORATE: Color(0.9, 0.35, 0.85),   # purple-pink
-	Id.ZEALOT:    Color(1.0, 0.6, 0.35),    # firecore orange
+# CENTRALIZED per-faction color (Roman 2026-06-21) — THE single source for a faction's color across
+# EVERY visual overlay facet: livery (data().tint → apply_livery), tail-glow (apply_tailglow), and the
+# codex UI. Edit HERE to recolor a faction everywhere. Privateer lime-green + corporate purple-pink are
+# Roman's calls; supremacy crimson / zealot firecore-orange follow faction identity. Bright values so
+# the WorldEnvironment bloom blooms the glow in-hue.
+# CENTRALIZED faction colors (Roman 2026-06-21) — TWO separate per-faction palettes, each the single
+# source for its facet. Edit HERE to recolor everywhere.
+#   LIVERY_COLOR      — the hull LIVERY decal color (data().tint → apply_livery; + codex). 4 distinct.
+#   MUZZLE_GLOW_COLOR — the faction's ENERGY color: muzzle flashes + tail-glow (apply_tailglow). Shared
+#                       in pairs — Supremacy+Zealot = gold, Privateer+Corporate = lime. (Distinct from
+#                       the livery color on purpose — a faction's paint ≠ its weapon energy.)
+static var LIVERY_COLOR := {
+	Id.SUPREMACY: Color.html("#ac3232"),  # red
+	Id.PRIVATEER: Color.html("#4b692f"),  # green
+	Id.CORPORATE: Color.html("#4972a9"),  # blue
+	Id.ZEALOT:    Color.html("#76428a"),  # purple
+}
+static var MUZZLE_GLOW_COLOR := {
+	Id.SUPREMACY: Color.html("#fbf236"),  # gold (Supremacy + Zealot)
+	Id.ZEALOT:    Color.html("#fbf236"),  # gold
+	Id.PRIVATEER: Color.html("#99e550"),  # lime (Privateer + Corporate)
+	Id.CORPORATE: Color.html("#99e550"),  # lime
 }
 
 
-# The faction's signature projectile/glow color (white fallback for no/unknown faction).
-static func bullet_glow_color(faction: int) -> Color:
-	return BULLET_GLOW.get(faction, Color(1.0, 1.0, 1.0))
+# The faction's hull-livery color (white fallback for no/unknown faction).
+static func livery_color(faction: int) -> Color:
+	return LIVERY_COLOR.get(faction, Color(1.0, 1.0, 1.0))
+
+
+# The faction's ENERGY color — muzzle flashes + tail-glow (white fallback). Shared in pairs.
+static func muzzle_glow_color(faction: int) -> Color:
+	return MUZZLE_GLOW_COLOR.get(faction, Color(1.0, 1.0, 1.0))
 
 
 # Tint an enemy's TailGunGlow layer to the active faction's signature bullet color (Roman 2026-06-21):
@@ -312,7 +334,7 @@ static func apply_tailglow(faction: int, enemy) -> void:
 	var tg = enemy.get_node_or_null("TailGunGlow")
 	if tg == null:
 		return
-	tg.modulate = bullet_glow_color(faction)
+	tg.modulate = muzzle_glow_color(faction)
 
 
 # True if `c` is an Emitter that drops a firecore hazard on death — used to avoid

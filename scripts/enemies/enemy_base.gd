@@ -682,7 +682,28 @@ func _fade_death_overlays() -> void:
 		if not (child is CanvasItem):
 			continue
 		var nm: String = String(child.name)
-		if nm == "GlowMask" or nm == "Outline" or nm.begins_with("FirecoreCore"):
+		# The Livery layer's screen-darken shader overwrites COLOR (alpha = sprite_tex.a), so a
+		# modulate:a fade is IGNORED — it would linger as a dark mask through the ~0.5s death beat
+		# (Roman 2026-06-21). Fade the darken EFFECT via the shader's `opacity` uniform instead
+		# (mix→screen at 0 = no tint, reveals the disintegrating body); hard-hide as a fallback for
+		# any livery without the shader material.
+		if nm == "Livery":
+			var lmat: Material = (child as CanvasItem).material
+			if lmat is ShaderMaterial:
+				# Fade the darken EFFECT via the shader's `opacity` uniform (the livery shader ignores
+				# modulate:a). Only seed the override if it's missing — apply_livery sets it (0.8); don't
+				# snap it back up to full-dark here. Then fade it out from wherever it is.
+				var lsm := lmat as ShaderMaterial
+				if lsm.get_shader_parameter("opacity") == null:
+					lsm.set_shader_parameter("opacity", 0.8)
+				var ltw := create_tween()
+				ltw.tween_property(lsm, "shader_parameter/opacity", 0.0, OVERLAY_FADE)
+			else:
+				(child as CanvasItem).visible = false
+			continue
+		# Engine/tail glow overlays (incl. the bomber's "Glowmap"/"TailGunGlow", which don't follow the
+		# GlowMask name) fade out with the body so they don't outlive the disintegration.
+		if nm == "GlowMask" or nm == "Glowmap" or nm == "TailGunGlow" or nm == "Outline" or nm.begins_with("FirecoreCore"):
 			var tw := create_tween()
 			tw.tween_property(child, "modulate:a", 0.0, OVERLAY_FADE)
 
