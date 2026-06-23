@@ -26,11 +26,6 @@ const BOMB_RUN_DELAY_MAX := 9.0
 var _bomb_cooldown: float = 0.0
 var _bomb_seq: Node = null
 
-# --- Tail turret (arc-gated rear gunner) ---------------------------------
-const REAR_ARC_DEG := 160.0             # full cone, centred on +Y (rear)
-const FIRE_INTERVAL_MIN := 0.55
-const FIRE_INTERVAL_MAX := 0.85
-const TURRET_BULLET_SPEED := 190.0
 
 # --- Engine exhaust plumes -----------------------------------------------
 const PLUME_LEN := 17.0
@@ -53,28 +48,12 @@ func _ready() -> void:
 		movement = d
 	super._ready()
 	_build_engine_trails()
-	_spawn_tail_turret()
 	_bomb_cooldown = randf_range(BOMB_RUN_DELAY_MIN, BOMB_RUN_DELAY_MAX)
 
 
 # Enter from above the director's spawn x so the descent into the hold is visible.
 func start(pos: Vector2) -> void:
 	super.start(Vector2(pos.x, minf(pos.y, -20.0)))
-
-
-func _spawn_tail_turret() -> void:
-	var t := EnemyTurret.new()
-	t.name = "TailGun"
-	var mz := get_node_or_null("TailMuzzle") as Marker2D
-	t.position = mz.position if mz != null else Vector2(0.0, 27.0)
-	t.arc_gate = true                 # blind-spot gunner: hold fire outside the cone
-	t.arc_deg = REAR_ARC_DEG
-	t.rest_angle_deg = 180.0          # cone centred on +Y (rear, toward the chasing player)
-	t.aim_tolerance_deg = 30.0
-	t.fire_interval_min = FIRE_INTERVAL_MIN
-	t.fire_interval_max = FIRE_INTERVAL_MAX
-	t.bullet_speed = TURRET_BULLET_SPEED
-	add_child(t)
 
 
 func _process(delta: float) -> void:
@@ -125,8 +104,9 @@ func _end_bombing_run() -> void:
 
 
 func _set_tail_gun_active(on: bool) -> void:
-	var tg := get_node_or_null("TailGun")
-	if tg != null:
+	# The tail gun is now a roster turret mount (EnemyRoster.BOMBER_TAIL_MOUNT) realized by MountBuilder
+	# as an EnemyTurret child of the TailMuzzle marker — toggle it by type, not the bespoke "TailGun" node.
+	for tg in find_children("*", "EnemyTurret", true, false):
 		tg.set_process(on)
 		tg.set_physics_process(on)
 

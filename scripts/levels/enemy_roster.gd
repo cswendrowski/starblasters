@@ -166,6 +166,16 @@ const ROCKET_MOUNTS := [
 	  "fire_min": 2.4, "fire_max": 2.4 },
 ]
 
+# Bomber tail gun — arc-gated rear gunner, ported from enemy_bomber._spawn_tail_turret (2026-06-23):
+# an invisible (no-texture) turret on the TailMuzzle marker that HOLDS FIRE outside its 160° rear cone
+# (centred on +Y, toward the chasing player) and fires the default enemy bullet. Realized by
+# MountBuilder in enemy_base._ready; shared across all three bomber entries.
+const BOMBER_TAIL_MOUNT := [
+	{ "kind": "turret", "marker": "TailMuzzle", "arc_gate": true, "arc_deg": 160.0,
+	  "rest_angle_deg": 180.0, "aim_tolerance_deg": 30.0, "rotation_speed": 2.0,
+	  "fire_min": 0.55, "fire_max": 0.85, "bullet_speed": 190.0 },
+]
+
 # Minelayer — drops dumb bomblets while crossing, then scatters a cluster on death. Was bespoke
 # (_process timer + explode scatter in minelayer.gd); now a TIMER + DEATH emitter pair (2026-06-19).
 const MINELAYER_EMITTERS := [
@@ -255,8 +265,6 @@ const ENTRIES := [
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "straight",
-		"shoot": "single",
-		"bullet_variant": BV_SpreadPellet,
 		"base_count": 4,
 		# Fire-rate pass (2026-05-30, Roman): was ~2.4-3.2s (slowest shooter).
 		# Tightened to ~1.6-2.2s (~33% faster). Drifter stays a touch slower
@@ -640,10 +648,6 @@ const ENTRIES := [
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "lane_cut",
-		"shoot": "aimed",
-		"bullet_variant": BV_PlasmaOrb,
-		# M6a.2: restore the plasma-orb wobble via the FIRING LAYER (not the bullet
-		# .tres). Matches the boss plasma signature (amp 8 / freq 3).
 		"base_count": 2,
 		"fire_min": 1.4, "fire_max": 2.2,
 		"hp_override": 2, "bounty_override": 10,
@@ -662,8 +666,6 @@ const ENTRIES := [
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "lane_hook",
-		"shoot": "single",
-		"bullet_variant": BV_Basic,
 		"base_count": 2,
 		"fire_min": 1.6, "fire_max": 2.4,
 		"hp_override": 2, "bounty_override": 12,
@@ -740,11 +742,6 @@ const ENTRIES := [
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "lane_hook",
-		"shoot": "aimed",
-		"bullet_variant": BV_AimedSniper,
-		# Experienced gunner: leads the player's velocity a touch (0.15) so sitting
-		# still under its aimed-sniper fire is punished, without raising bullet speed.
-		"lead_factor": 0.15,
 		"base_count": 3,
 		"fire_min": 0.7, "fire_max": 1.1,
 		"hp_override": 2, "bounty_override": 15,
@@ -784,8 +781,6 @@ const ENTRIES := [
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
 		"movement": "straight",
-		"shoot": "aimed",
-		"bullet_variant": BV_PlasmaOrb,
 		"base_count": 2,
 		"fire_min": 1.6, "fire_max": 2.4,
 		"hp_override": 8, "bounty_override": 18,
@@ -937,6 +932,7 @@ const ENTRIES := [
 		"size": "large", "tags": ["tough"],
 		"movement": "drift",
 		"shoot": null,
+		"mounts": BOMBER_TAIL_MOUNT,
 		"hp_override": 30,
 		"bounty_override": 120,
 		"base_count": 2,
@@ -950,6 +946,7 @@ const ENTRIES := [
 		"size": "large", "tags": ["tough"],
 		"movement": "drift",
 		"shoot": null,
+		"mounts": BOMBER_TAIL_MOUNT,
 		"hp_override": 30,
 		"bounty_override": 120,
 		"base_count": 3,
@@ -966,6 +963,7 @@ const ENTRIES := [
 		"size": "large", "tags": ["tough"],
 		"movement": "drift",
 		"shoot": null,
+		"mounts": BOMBER_TAIL_MOUNT,
 		"hp_override": 22,
 		"bounty_override": 100,
 		"base_count": 2,
@@ -992,7 +990,7 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 0,
 	},
 	{
-		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_widow.tscn",
+		"scene": "res://scenes/enemies/factions/corporate/enemy_c_m_widow.tscn",
 		"tier": Tier.RARE,
 		"size": "medium", "tags": [],
 		# High hold (Roman 2026-06-07: crystal was coming too far down) — hovers in the
