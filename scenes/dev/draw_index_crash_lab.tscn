@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://b8draw1ndexcr4sh"]
+
+[ext_resource type="Script" path="res://scripts/dev/draw_index_crash_lab.gd" id="1_dicl"]
+
+[node name="DrawIndexCrashLab" type="Node2D"]
+script = ExtResource("1_dicl")

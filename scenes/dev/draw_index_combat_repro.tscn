@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://c0mb4tdraw1ndexr"]
+
+[ext_resource type="Script" path="res://scripts/dev/draw_index_combat_repro.gd" id="1_dicr"]
+
+[node name="DrawIndexCombatRepro" type="Node"]
+script = ExtResource("1_dicr")

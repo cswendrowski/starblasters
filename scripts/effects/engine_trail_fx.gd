@@ -72,9 +72,26 @@ func setup(enemy: Node2D, markers: Array, color: Color = TRAIL_COLOR, drift: flo
 		# parent) is mid-add_child of the host itself — a direct add_child would
 		# fail "parent busy". Deferring lands the line one frame later, after the
 		# spawn settles (matches damage_smoke_trail).
-		root.call_deferred("add_child", line)
+		# Routed through _attach_line (a method on THIS trail) instead of root.add_child so the
+		# deferred call is SKIPPED if the trail was freed before idle — e.g. main._install_chosen_player
+		# free()s the baked player (host) during the ship swap, whose _exit_tree queue_free()s these
+		# lines; the old code's `root.call_deferred("add_child", line)` then still ran at idle, adding an
+		# already-queued-for-deletion Line2D to the world canvas → draw-order reindex over a freed
+		# CanvasItem → SIGSEGV (the ship-B/C combat-load crash, root-caused 2026-06-22).
+		_attach_line.call_deferred(root, line)
 		_lines.append(line)
 		_point_t.append([])
+
+
+# Guarded deferred attach of a world-space line into `root`. Called via call_deferred on THIS
+# trail, so Godot DISCARDS it entirely if the trail was freed before idle (host swapped/destroyed).
+# Also bails if the line was already queued for deletion by _free_lines — adding a dying CanvasItem
+# to a live canvas races the draw-order reindex and crashes the renderer.
+func _attach_line(root: Node, line: Line2D) -> void:
+	if not is_instance_valid(line) or line.is_queued_for_deletion():
+		return
+	if is_instance_valid(root) and line.get_parent() == null:
+		root.add_child(line)
 
 
 # Stop/resume emitting (kept aging+fading) — EnemyBase pauses this while the enemy

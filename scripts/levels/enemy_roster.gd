@@ -1413,9 +1413,13 @@ static func resolve_locomotion(entry: Dictionary, size: String = "") -> Dictiona
 # "depth" on its ENTRY (which wins in resolve_locomotion), so this returns "" for all live data.
 # Kept as a fallback for hand-authored entries / old saved JSON that still use a banded identity.
 static func _legacy_depth_for(entry: Dictionary) -> String:
-	var id: String = PatternEligibility.identity_for(String(entry.get("scene", "")))
+	# str() not String(): the String() constructor only accepts String/StringName/NodePath, so a
+	# non-string "movement"/"scene" entry value (e.g. a Resource) throws "Invalid call 'String'
+	# constructor". str() stringifies any Variant — a non-banded value just yields a non-matching
+	# string → "" (the correct fallback). (Crash found via the combat repro, 2026-06-22.)
+	var id: String = PatternEligibility.identity_for(str(entry.get("scene", "")))
 	if id == "":
-		id = String(entry.get("movement", ""))
+		id = str(entry.get("movement", ""))
 	if id.ends_with("_high"):
 		return "high"
 	if id.ends_with("_mid"):

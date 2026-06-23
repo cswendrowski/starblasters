@@ -68,7 +68,18 @@ func _ready() -> void:
 	var p := get_tree().current_scene
 	if p == null:
 		p = get_tree().root
-	p.call_deferred("add_child", _line)
+	# Routed through _attach_line (defense-in-depth, 2026-06-22 — matches engine_trail_fx): skip if
+	# the line was queued for deletion before this deferred add runs. Adding a dying CanvasItem to a
+	# live canvas races the draw-order reindex → SIGSEGV. These trails free _line via a tween (never
+	# synchronously), so they don't hit it today, but this keeps the pattern safe against future edits.
+	_attach_line.call_deferred(p)
+
+
+func _attach_line(p: Node) -> void:
+	if not is_instance_valid(_line) or _line.is_queued_for_deletion():
+		return
+	if is_instance_valid(p) and _line.get_parent() == null:
+		p.add_child(_line)
 
 
 func attach_to(emitter: Node2D) -> void:
