@@ -70,6 +70,10 @@ static func _is_side(spec: Resource) -> bool:
 
 
 static func _shape_id(spec: Resource) -> StringName:
+	# A geometric shape_override (formation_shapes.gd, set by the generator) wins over the legacy
+	# Formation enum: the director performs it as a held pre-stacked burst via _dispatch_geometric.
+	if "shape_override" in spec and spec.shape_override != &"":
+		return spec.shape_override
 	if not ("formation" in spec):
 		return &"top_spread"
 	match int(spec.formation):

@@ -25,6 +25,7 @@ const BossSweep = preload("res://scripts/enemies/patterns/boss_sweep.gd")
 # Weapons 3b (2026-06-13): the boss sweep config fires via the unified Weapon (was SpreadShot).
 const Weapon = preload("res://scripts/enemies/shoot_patterns/weapon.gd")
 const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
+const FormationShapesC = preload("res://scripts/levels/formation_shapes.gd")
 
 # Per-boss chaff conflict tags. Lead-in waves drop chaff carrying any of
 # these tags so the boss's signature pressure doesn't overlap a chaff
@@ -202,6 +203,16 @@ static func _apply_budget(waves: Array, base_counts: Array, sector_depth: int, l
 # chaff sub-waves to the level headcount; heavies (low base_count) stay discrete.
 const COMBAT_WAVE_COUNT: int = 5
 
+# GEOMETRIC CAPSTONE (conductor readability pass, 2026-06-23). When a wave's END beat has no heavy,
+# cap it with a held geometric flock (formation_shapes.gd) this often, else the classic shifting
+# WALL/PINCER. A flock is a DISCRETE readable burst — its count is held to [MIN,MAX] and it's kept
+# out of the chaff budget pool so it stays a formation instead of being scaled into a big column. A
+# coherent straight descent (lane-pinned) makes the painted shape hold. Tune CHANCE up freely; this
+# is the seam more authored/parametric shapes plug into later.
+const GEOMETRIC_CAPSTONE_CHANCE: float = 0.6
+const GEOMETRIC_FLOCK_MIN: int = 8
+const GEOMETRIC_FLOCK_MAX: int = 12
+
 static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, level_index: int) -> Array:
 	var waves: Array = []
 	var base_counts: Array = []
@@ -243,15 +254,25 @@ static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, l
 			s_end.spawn_delay = 0.35
 			waves.append(s_end); base_counts.append(int(heavy.get("base_count", 4)))
 		else:
-			# No heavy unlocked (early sector 1) — a tight chaff wall caps the wave.
+			# No heavy this beat — cap the wave with a held GEOMETRIC FLOCK (formation_shapes) most of
+			# the time, else the classic shifting WALL / PINCER. See GEOMETRIC_CAPSTONE_CHANCE above.
 			var e_end: Dictionary = _pick_entry(rng, sector_depth, level_index, used, PackedStringArray(), Roster.Tier.COMMON, "")
 			used.append(e_end)
 			var s_end2 = _make_wave_spec(rng, e_end, sector_depth, level_index, i)
-			s_end2.formation = WaveSpec.Formation.WALL if lead_lr else WaveSpec.Formation.PINCER
 			s_end2.silent = true
 			s_end2.spawn_delay = 0.35
-			_apply_force_formation(s_end2, e_end)
-			waves.append(s_end2); base_counts.append(int(e_end.get("base_count", 4)))
+			# Geometric only when the entry doesn't demand its own formation (e.g. Burner's beam-pair).
+			if not e_end.has("force_formation") and rng.randf() < GEOMETRIC_CAPSTONE_CHANCE:
+				s_end2.shape_override = FormationShapesC.SHAPES[rng.randi() % FormationShapesC.SHAPES.size()]
+				s_end2.count = clampi(int(s_end2.count), GEOMETRIC_FLOCK_MIN, GEOMETRIC_FLOCK_MAX)
+				# Coherent straight descent so the lane-pinned shape holds rigidly as it enters.
+				s_end2.movement_override = Roster.make_movement({"movement": "straight"})
+				# base_count 1 → _apply_budget treats this as a discrete beat, not scalable chaff.
+				waves.append(s_end2); base_counts.append(1)
+			else:
+				s_end2.formation = WaveSpec.Formation.WALL if lead_lr else WaveSpec.Formation.PINCER
+				_apply_force_formation(s_end2, e_end)
+				waves.append(s_end2); base_counts.append(int(e_end.get("base_count", 4)))
 	_apply_budget(waves, base_counts, sector_depth, level_index)
 	return waves
 

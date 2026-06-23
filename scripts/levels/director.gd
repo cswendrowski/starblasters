@@ -24,6 +24,7 @@ const FactionsC = preload("res://scripts/levels/factions.gd")
 const ShieldComponentC = preload("res://scripts/enemies/components/shield_component.gd")
 const LaneTraffic = preload("res://scripts/systems/lane_traffic.gd")
 const LanePathC = preload("res://scripts/enemies/patterns/lane_path.gd")
+const FormationShapes = preload("res://scripts/levels/formation_shapes.gd")
 
 # Banner fade-in+hold+fade-out budget. Director waits this long before the
 # first enemy of an ANNOUNCED wave so spawns never overlap the WAVE alert.
@@ -67,6 +68,12 @@ const CROSSER_STAGGER_STEP: float = 26.0
 # taller than ANCHOR_MIN_HEIGHT count as cruisers for this gate.
 const ANCHOR_MIN_HEIGHT: float = 40.0
 const ANCHOR_GAP_PAD: float = 8.0
+# GEOMETRIC formation dispatch (conductor readability pass, 2026-06-23): a generator-rolled shape
+# (formation_shapes.gd) is performed as a held burst. Rows are PRE-STACKED above the top edge this
+# far apart so the painted shape descends in intact (mirrors authored_patterns.ROW_GAP_PX); members
+# spawn on a near-simultaneous stagger so a whole shape lands as one gesture, not a trickle.
+const GEOMETRIC_ROW_GAP: float = 40.0
+const GEOMETRIC_MEMBER_STAGGER: float = 0.03
 # Staggered arrival for LARGE enemies (height >= ANCHOR_MIN_HEIGHT): in a spread formation
 # (e.g. lanes 1/3/5) the next lane's enemy does not arrive until the previous one has
 # descended ANCHOR_ARRIVAL_DEPTH (≈ half its body in the playfield) — so cruisers like the
@@ -335,6 +342,13 @@ func _dispatch_formation(ph: Resource) -> void:
 		await _dispatch_authored(ph)
 		_advance_step()
 		return
+	# GEOMETRIC: a generator-rolled held shape (vee/chevron/diamond/echelon/columns). The homogeneous
+	# count-N spec is exploded across the shape's lane/row grid and burst in pre-stacked rows, so it
+	# reads as a formation instead of the random-spread trickle below.
+	if FormationShapes.is_geometric(ph.shape):
+		await _dispatch_geometric(ph)
+		_advance_step()
+		return
 	# Default (spread): per-member alternate-anchor lane at each spec's cadence;
 	# preserves tandem/side placement via spec.formation.
 	for sp in ph.specs:
@@ -433,6 +447,56 @@ func _dispatch_authored(ph: Resource) -> void:
 		if not _running:
 			return
 		_spawn_enemy(sp, 0, int(sp.lane))
+
+
+# GEOMETRIC: perform a generator-rolled held shape (formation_shapes.gd). The phrase's specs are
+# homogeneous (one enemy type, count each); we explode the TOTAL across the shape's lane/row cells,
+# PRE-STACK each row above the top edge (bottom row leads, higher rows trail GEOMETRIC_ROW_GAP up)
+# and burst them so the shape paints in as it descends — the same technique as _dispatch_authored.
+# Members are one enemy type → identical chassis speed → the shape holds without an explicit
+# lockstep clamp (that clamp matters only for MIXED-speed formations, which the authored path and
+# any future escort/native-mixed path own via authored_patterns._lock_to_slowest).
+func _dispatch_geometric(ph: Resource) -> void:
+	var base: Resource = null
+	var total: int = 0
+	for sp in ph.specs:
+		if sp == null:
+			continue
+		if base == null:
+			base = sp
+		total += int(sp.count)
+	if base == null or total <= 0:
+		return
+	var cells: Array = FormationShapes.placements(ph.shape, total)
+	if cells.is_empty():
+		return
+	# Tallest row sets the pre-stack height (row 0 enters at the edge; each row up adds a gap).
+	var max_row: int = 0
+	for c in cells:
+		max_row = maxi(max_row, int(c.y))
+	# Explode into count-1 sub-specs, each pinned to its cell's lane + pre-stacked spawn_y. Duplicate
+	# the base spec so per-spawn fields (lane/spawn_y) don't stomp the shared spec; movement_override
+	# and the other Resource refs ride through shared, exactly as a single count-N wave already shares
+	# them across its members (no new per-instance state — see _spawn_enemy's per-instance dups).
+	var specs: Array = []
+	for c in cells:
+		var s: Resource = base.duplicate()
+		s.count = 1
+		s.lane = clampi(int(c.x), 0, Lanes.COUNT - 1)
+		s.spawn_y = -12.0 - float(max_row - int(c.y)) * GEOMETRIC_ROW_GAP
+		specs.append(s)
+	# An explicit shape is an intentional burst (like authored): raise the gate to fit the whole
+	# formation on top of whatever's already alive so the clarity cap can't partially drop it.
+	var cap: int = maxi(max_concurrent, _alive_count() + specs.size())
+	for s in specs:
+		if not _running:
+			return
+		while _running and _alive_count() >= cap:
+			await get_tree().create_timer(0.1).timeout
+		if not _running:
+			return
+		_spawn_enemy(s, 0, int(s.lane))
+		await get_tree().create_timer(GEOMETRIC_MEMBER_STAGGER).timeout
 
 
 # WALL: spawn members as successive rows across the lanes. Each row leaves
