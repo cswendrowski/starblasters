@@ -454,11 +454,11 @@ func _build_ui() -> void:
 	_layer_controls["contrast_slider"] = contrast_slider
 
 	# ---- Glow × slider (per-layer HDR bloom; needs WorldEnv bloom on to see it) ----
-	var glow_label := Label.new()
-	glow_label.text = "Glow × (HDR bloom)"
-	glow_label.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
-	_style_caption(glow_label)
-	vbox.add_child(glow_label)
+	var layer_glow_label := Label.new()
+	layer_glow_label.text = "Glow × (HDR bloom)"
+	layer_glow_label.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	_style_caption(layer_glow_label)
+	vbox.add_child(layer_glow_label)
 
 	var glow_hbox := HBoxContainer.new()
 	glow_hbox.add_theme_constant_override("separation", 8)
@@ -713,6 +713,7 @@ func _apply_grade(layer_name: String) -> void:
 	var base: Color = _layer_colors.get(layer_name, Color.WHITE)
 	var b: float = _layer_brightness.get(layer_name, 1.0)
 	var c: float = _layer_contrast.get(layer_name, 1.0)
+	var g: float = _layer_glow.get(layer_name, 1.0)
 
 	# Set the layer's properties; it will recompute via _recompute_modulate()
 	if "modulate_color" in layer:
@@ -721,6 +722,8 @@ func _apply_grade(layer_name: String) -> void:
 		layer.brightness = b
 	if "contrast" in layer:
 		layer.contrast = c
+	if "glow_mult" in layer:
+		layer.glow_mult = g
 
 
 # ---- Buttons ---------------------------------------------------------------
@@ -757,14 +760,17 @@ func _current_config() -> Dictionary:
 	var colors := {}
 	var brightness := {}
 	var contrast := {}
+	var glow := {}
 	for layer_name in LAYER_NAMES:
 		var c: Color = _layer_colors.get(layer_name, Color.WHITE)
 		colors[layer_name] = [c.r, c.g, c.b, c.a]
 		brightness[layer_name] = _layer_brightness.get(layer_name, 1.0)
 		contrast[layer_name] = _layer_contrast.get(layer_name, 1.0)
+		glow[layer_name] = _layer_glow.get(layer_name, 1.0)
 	out["colors"] = colors
 	out["brightness"] = brightness
 	out["contrast"] = contrast
+	out["glow"] = glow
 	return out
 
 
@@ -796,6 +802,7 @@ func _apply_config(cfg: Dictionary) -> void:
 	var colors: Dictionary = cfg.get("colors", {})
 	var brightness: Dictionary = cfg.get("brightness", {})
 	var contrast: Dictionary = cfg.get("contrast", {})
+	var glow: Dictionary = cfg.get("glow", {})
 
 	for layer_name in LAYER_NAMES:
 		if colors.has(layer_name):
@@ -810,6 +817,9 @@ func _apply_config(cfg: Dictionary) -> void:
 		if contrast.has(layer_name):
 			_layer_contrast[layer_name] = float(contrast[layer_name])
 
+		if glow.has(layer_name):
+			_layer_glow[layer_name] = float(glow[layer_name])
+
 	# Refresh UI to reflect loaded values
 	if not _current_layer.is_empty():
 		_on_layer_selected(_current_layer)
@@ -822,7 +832,7 @@ func _apply_config(cfg: Dictionary) -> void:
 func _build_snippet() -> String:
 	var cfg := _current_config()
 	var lines: PackedStringArray = []
-	lines.append("# Parallax V4 layer tuning (colors, brightness, contrast)")
+	lines.append("# Parallax V4 layer tuning (colors, brightness, contrast, glow)")
 	lines.append("")
 
 	lines.append("var LAYER_COLORS := {")
@@ -852,6 +862,16 @@ func _build_snippet() -> String:
 	names.sort()
 	for nm in names:
 		lines.append("\t\"%s\": %.3f," % [nm, float(contrast[nm])])
+	lines.append("}")
+	lines.append("")
+
+	lines.append("# Per-layer HDR glow multiplier — bake into each layer's glow_mult (layer_base).")
+	lines.append("var LAYER_GLOW := {")
+	var glow: Dictionary = cfg.get("glow", {})
+	names = glow.keys()
+	names.sort()
+	for nm in names:
+		lines.append("\t\"%s\": %.3f," % [nm, float(glow[nm])])
 	lines.append("}")
 
 	return "\n".join(lines)
