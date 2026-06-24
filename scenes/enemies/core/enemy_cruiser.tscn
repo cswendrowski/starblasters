@@ -1,111 +1,75 @@
-[gd_scene load_steps=9 format=3 uid="uid://enemycruiser001"]
+[gd_scene load_steps=11 format=3 uid="uid://enemycruiser001"]
 
-[ext_resource type="Script" path="res://scripts/enemies/core/enemy_cruiser.gd" id="1_script"]
-[ext_resource type="Texture2D" uid="uid://bxyyd2dqfyvxb" path="res://graphics/enemies/enemy_placeholder_64x.png" id="2_tex"]
-[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="3_die"]
+[ext_resource type="Script" path="res://scripts/enemies/core/enemy_cruiser.gd" id="1_core"]
+[ext_resource type="Script" path="res://scripts/enemies/destructible_part.gd" id="2_part"]
+[ext_resource type="Texture2D" uid="uid://cinqi6q7r35oc" path="res://graphics/enemies/placeholder/cruiser_core.png" id="3_core"]
+[ext_resource type="Texture2D" uid="uid://bicqu5qn78ufq" path="res://graphics/enemies/placeholder/cruiser_gun.png" id="4_gun"]
+[ext_resource type="Texture2D" uid="uid://p3norroanqhm" path="res://graphics/enemies/placeholder/cruiser_engine.png" id="5_engine"]
+[ext_resource type="Texture2D" uid="uid://bqpafpe6j1347" path="res://graphics/enemies/placeholder/cruiser_bridge.png" id="6_bridge"]
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
-size = Vector2(56, 56)
+[sub_resource type="RectangleShape2D" id="core_shape"]
+size = Vector2(34, 44)
 
-[sub_resource type="Animation" id="Animation_reset"]
-length = 0.001
-tracks/0/type = "value"
-tracks/0/imported = false
-tracks/0/enabled = true
-tracks/0/path = NodePath("Sprite2D:frame")
-tracks/0/interp = 1
-tracks/0/loop_wrap = true
-tracks/0/keys = {
-"times": PackedFloat32Array(0),
-"transitions": PackedFloat32Array(1),
-"update": 1,
-"values": [0]
-}
-tracks/1/type = "value"
-tracks/1/imported = false
-tracks/1/enabled = true
-tracks/1/path = NodePath("Sprite2D:texture")
-tracks/1/interp = 1
-tracks/1/loop_wrap = true
-tracks/1/keys = {
-"times": PackedFloat32Array(0),
-"transitions": PackedFloat32Array(1),
-"update": 1,
-"values": [ExtResource("2_tex")]
-}
-tracks/2/type = "value"
-tracks/2/imported = false
-tracks/2/enabled = true
-tracks/2/path = NodePath("Sprite2D:hframes")
-tracks/2/interp = 1
-tracks/2/loop_wrap = true
-tracks/2/keys = {
-"times": PackedFloat32Array(0),
-"transitions": PackedFloat32Array(1),
-"update": 1,
-"values": [1]
-}
+[sub_resource type="RectangleShape2D" id="gun_shape"]
+size = Vector2(22, 22)
 
-[sub_resource type="Animation" id="Animation_bounce"]
-resource_name = "bounce"
-loop_mode = 1
-step = 0.25
-tracks/0/type = "value"
-tracks/0/imported = false
-tracks/0/enabled = true
-tracks/0/path = NodePath("Sprite2D:frame")
-tracks/0/interp = 1
-tracks/0/loop_wrap = true
-tracks/0/keys = {
-"times": PackedFloat32Array(0),
-"transitions": PackedFloat32Array(1),
-"update": 1,
-"values": [0]
-}
-tracks/1/type = "value"
-tracks/1/imported = false
-tracks/1/enabled = true
-tracks/1/path = NodePath("Sprite2D:texture")
-tracks/1/interp = 1
-tracks/1/loop_wrap = true
-tracks/1/keys = {
-"times": PackedFloat32Array(0),
-"transitions": PackedFloat32Array(1),
-"update": 1,
-"values": [ExtResource("2_tex")]
-}
-tracks/2/type = "value"
-tracks/2/imported = false
-tracks/2/enabled = true
-tracks/2/path = NodePath("Sprite2D:hframes")
-tracks/2/interp = 1
-tracks/2/loop_wrap = true
-tracks/2/keys = {
-"times": PackedFloat32Array(0),
-"transitions": PackedFloat32Array(1),
-"update": 1,
-"values": [1]
-}
+[sub_resource type="RectangleShape2D" id="engine_shape"]
+size = Vector2(20, 28)
 
-[sub_resource type="AnimationLibrary" id="AnimationLibrary_1"]
-_data = {
-"RESET": SubResource("Animation_reset"),
-"bounce": SubResource("Animation_bounce")
-}
+[sub_resource type="RectangleShape2D" id="bridge_shape"]
+size = Vector2(28, 18)
 
 [node name="EnemyCruiser" type="Area2D" groups=["enemies"]]
-script = ExtResource("1_script")
+script = ExtResource("1_core")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
-texture = ExtResource("2_tex")
+texture = ExtResource("3_core")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
-shape = SubResource("RectangleShape2D_1")
+shape = SubResource("core_shape")
 
-[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
-libraries = {
-"": SubResource("AnimationLibrary_1")
-}
+[node name="GunL" type="Area2D" parent="." groups=["enemies"]]
+position = Vector2(-28, 6)
+script = ExtResource("2_part")
+has_turret = true
 
-[node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
-stream = ExtResource("3_die")
+[node name="Sprite2D" type="Sprite2D" parent="GunL"]
+texture = ExtResource("4_gun")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="GunL"]
+shape = SubResource("gun_shape")
+
+[node name="GunR" type="Area2D" parent="." groups=["enemies"]]
+position = Vector2(28, 6)
+script = ExtResource("2_part")
+has_turret = true
+
+[node name="Sprite2D" type="Sprite2D" parent="GunR"]
+texture = ExtResource("4_gun")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="GunR"]
+shape = SubResource("gun_shape")
+
+[node name="Engine" type="Area2D" parent="." groups=["enemies"]]
+position = Vector2(0, -32)
+script = ExtResource("2_part")
+part_health = 8
+part_bounty = 10
+
+[node name="Sprite2D" type="Sprite2D" parent="Engine"]
+texture = ExtResource("5_engine")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Engine"]
+shape = SubResource("engine_shape")
+
+[node name="Bridge" type="Area2D" parent="." groups=["enemies"]]
+position = Vector2(0, 34)
+script = ExtResource("2_part")
+part_health = 5
+part_bounty = 8
+
+[node name="Sprite2D" type="Sprite2D" parent="Bridge"]
+texture = ExtResource("6_bridge")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Bridge"]
+shape = SubResource("bridge_shape")

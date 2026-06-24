@@ -1,56 +1,32 @@
 extends "res://scripts/enemies/enemy_core.gd"
 class_name EnemyCruiser
 
-# Large cruiser with three child turrets: one beam turret (center) and two gun turrets (flanks).
-# Turrets are children — they follow the cruiser and are freed with it.
-#
-# On-lane migration 2026-06-08: enter→settle→drift is now the shared Drift pattern (a high hold,
-# the matrix assigns drift_high). The turret spawning + explode handling are unchanged (decoupled
-# from locomotion, mirroring enemy_firecore_cruiser).
-#
-# NOTE: display_scale = 2.0 affects VFX blast count and debris only.
+# Multi-part destroyable cruiser (rebuilt 2026-06-24). The hull is the CORE (this node — the tanky
+# kill target); its destructible SECTIONS are DestructiblePart child nodes authored in the .tscn
+# (two gun pods + an engine + a bridge), each an independent EnemyBase the player can shoot off for
+# bounty. Killing the core cascade-explodes any surviving parts so the whole cruiser detonates
+# together. Movement is the shared Drift hold (capital sits high in the band).
+# NOTE: display_scale only affects VFX blast / debris count.
 
 const Drift = preload("res://scripts/enemies/patterns/drift.gd")
 
-var _beam_turret: Node = null
-var _gun_turret_l: Node = null
-var _gun_turret_r: Node = null
-
 
 func _ready() -> void:
-	max_health   = 16
-	bounty_value = 40
-	auto_rotate  = false
+	max_health    = 28          # tanky hull — the parts are the softer, pickable targets
+	bounty_value  = 40
+	auto_rotate   = false
 	display_scale = 2.0
 	if movement == null:
 		var d := Drift.new()
-		d.hover_y = 50.0          # capital hold high in the band
+		d.hover_y = 50.0        # capital hold high in the band
 		movement = d
 	super._ready()
-	call_deferred("_spawn_turrets")
 
 
-func _spawn_turrets() -> void:
-	var BeamScene = load("res://scenes/enemies/enemy_beam_turret.tscn")
-	var GunScene  = load("res://scenes/enemies/enemy_gun_turret.tscn")
-	if BeamScene == null or GunScene == null:
-		push_error("EnemyCruiser: failed to load turret scenes")
-		return
-	_beam_turret  = BeamScene.instantiate()
-	_gun_turret_l = GunScene.instantiate()
-	_gun_turret_r = GunScene.instantiate()
-	_beam_turret.position  = Vector2(0, -10)
-	_gun_turret_l.position = Vector2(-20, 4)
-	_gun_turret_r.position = Vector2(20, 4)
-	add_child(_beam_turret)
-	add_child(_gun_turret_l)
-	add_child(_gun_turret_r)
-
-
+# Cascade: detonate every surviving section (their died signals fire → bounties count), then the
+# core's own explosion. Freeing the core frees the part children anyway; this gives them death VFX.
 func explode() -> void:
-	# Kill surviving turrets first so their died signals fire and bounties count.
-	for t in [_beam_turret, _gun_turret_l, _gun_turret_r]:
-		if t and is_instance_valid(t) and t.has_method("explode"):
-			if not ("_dying" in t and t._dying):
-				t.explode()
+	for c in get_children():
+		if c is DestructiblePart and is_instance_valid(c) and not (("_dying" in c) and c._dying):
+			c.explode()
 	super.explode()
