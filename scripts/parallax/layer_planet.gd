@@ -40,6 +40,7 @@ const COLORRECT_CANONICAL_BY_NAME := {
 
 const PULSE_GLOW_SHADER = preload("res://graphics/pulse_glow.gdshader")
 const POI_MOON_SCENE := "res://Planets/NoAtmosphere/NoAtmosphere.tscn"
+const PlanetGlow = preload("res://scripts/effects/planet_glow_config.gd")
 
 # Cap on the baked halo-gradient resolution. Halos pick a power-of-two texture
 # >= their displayed diameter (see _halo_res_for) so the radial falloff maps at
@@ -61,6 +62,25 @@ func _duplicate_materials(root: Node) -> void:
 		if child is ColorRect and child.material is ShaderMaterial:
 			(child as ColorRect).material = (child.material as ShaderMaterial).duplicate()
 		_duplicate_materials(child)
+
+
+# Scale a planet body's palette by M (uniform, per-channel) via the kit's own get_colors/set_colors,
+# so its brightest colours clear the HDR bloom threshold and glow in the body's OWN hue. Snapshots
+# the authored palette to "base_palette" meta once, so re-applying a different M never compounds.
+# Static so both production (layer_planet spawn) and the Parallax Tuner can call it on any body.
+static func apply_palette_glow(p: Node, m: float) -> void:
+	if p == null or not (p.has_method("get_colors") and p.has_method("set_colors")):
+		return
+	var base: Array
+	if p.has_meta("base_palette"):
+		base = p.get_meta("base_palette")
+	else:
+		base = p.get_colors()
+		p.set_meta("base_palette", base)
+	var out: Array = []
+	for c in base:
+		out.append(Color(c.r * m, c.g * m, c.b * m, c.a))
+	p.set_colors(out)
 
 
 func spawn_planet(planet_idx: int, actual_size: float, rng: RandomNumberGenerator, poi_id: String = "", planet_seed: int = -1, star_color: Color = Color.WHITE) -> void:
@@ -103,11 +123,14 @@ func spawn_planet(planet_idx: int, actual_size: float, rng: RandomNumberGenerato
 		p.override_time = true
 	if p.has_method("update_time"):
 		_animated.append(p)
-	# Star-color wash on the planet — matches the sector map's planet modulate. (Per-layer glow now
-	# comes from the layer CanvasModulate, see layer_base.glow_mult — modulate is ignored by the
-	# planet shaders.)
+	# Star-color wash on the planet — matches the sector map's planet modulate.
 	if p is CanvasItem:
 		p.modulate = Color.WHITE.lerp(star_color, 0.18)
+	# Per-type HDR glow: scale this body's palette so it blooms in its own hue at threshold 1.5 (kit
+	# untouched — uses its own get/set_colors). No-ops at 1.0, so production is unchanged until tuned.
+	var pg_main: float = PlanetGlow.prod_mult(planet_idx)
+	if pg_main != 1.0:
+		apply_palette_glow(p, pg_main)
 	# Store planet node and size for POI moons attachment
 	_planet_node = p
 	_planet_actual_size = actual_size
@@ -156,6 +179,9 @@ func spawn_system_body(planet_idx: int, actual_size: float, top_left: Vector2, p
 	# Star-color wash (skip the star itself — its own light shouldn't be tinted).
 	if p is CanvasItem and planet_idx != 8:
 		p.modulate = Color.WHITE.lerp(star_color, 0.18)
+	var pg_sys: float = PlanetGlow.prod_mult(planet_idx)
+	if pg_sys != 1.0:
+		apply_palette_glow(p, pg_sys)
 	_make_planet_halo(p, planet_idx, actual_size, top_left.x, top_left.y)
 
 
@@ -433,6 +459,9 @@ func _spawn_companion_body(scene_path: String, rng: RandomNumberGenerator, plane
 	add_child(p)
 	_apply_pixel_parity(p, actual_size)
 	_duplicate_materials(p)
+	var pg_comp: float = PlanetGlow.prod_mult(planet_idx_used)
+	if pg_comp != 1.0:
+		apply_palette_glow(p, pg_comp)
 	_make_planet_halo(p, planet_idx_used, actual_size, x, y)
 
 

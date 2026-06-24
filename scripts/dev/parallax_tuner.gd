@@ -12,11 +12,18 @@ const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const BackdropCoordinatorScene = preload("res://scenes/parallax/backdrop_coordinator.tscn")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const VfxGlowConfigC = preload("res://scripts/effects/vfx_glow_config.gd")
+const PlanetGlowC = preload("res://scripts/effects/planet_glow_config.gd")
+const LayerPlanetC = preload("res://scripts/parallax/layer_planet.gd")
 const GlowFx = preload("res://scripts/effects/glow_fx.gd")
+const PG_PLANET_SIZE := 140.0   # planet size in the centered "Planet Glow" view (fits 480x270 + bloom)
 
 const CONFIG_PATH := "user://tuners/parallax_v4.json"
 
 const LAYER_NAMES := ["LayerStars", "LayerPlanet", "LayerStellarFar", "LayerStellarMid", "LayerStellarNear", "LayerStreaks", "LayerComposite"]
+# These layers get their modulate_color OVERWRITTEN per-planet at spawn (backdrop_coordinator
+# _apply_tints / _setup_composite). Their tuner colour is just a snapshot of that runtime tint, so we
+# NEVER export, save, or re-apply it — baking it would freeze one planet's tint onto every backdrop.
+const AUTO_TINTED_LAYERS := ["LayerStellarFar", "LayerStellarMid", "LayerStellarNear", "LayerComposite"]
 
 const LAYER_SHORT_NAMES := {
 	"LayerStars":       "Stars",
@@ -58,6 +65,17 @@ var _worldenv_on: bool = false        # WorldEnv bloom + HDR — OPT-IN. The bac
                                       # and renders dark/flat under use_hdr_2d, so default OFF = old look.
 var _env: Environment = null          # the SubViewport's WorldEnvironment (tuned by the env sliders)
 var _we_node: WorldEnvironment = null # the WorldEnvironment node (attached only when _worldenv_on)
+# ---- Planet Glow tab (per-PLANET-TYPE palette glow, centered isolated view) ----
+var _pg_mode: bool = false            # true while the "Planet Glow" tab is active
+var _pg_type: int = 0                 # planet idx being tuned (0..10)
+var _planet_glow: Dictionary = {}     # planet idx -> live glow multiplier (tuner copy of PlanetGlowConfig)
+var _parallax_pane: VBoxContainer = null
+var _pg_pane: VBoxContainer = null
+var _tab_parallax_btn: Button = null
+var _tab_pg_btn: Button = null
+var _pg_picker: OptionButton = null
+var _pg_glow_slider: HSlider = null
+var _pg_glow_lbl: Label = null
 
 # ---- Lifecycle -----------------------------------------------------------
 
@@ -113,11 +131,20 @@ func _rebuild_backdrop() -> void:
 	if _backdrop != null and is_instance_valid(_backdrop):
 		_backdrop.queue_free()
 	_backdrop = BackdropCoordinatorScene.instantiate()
-	_backdrop.set("forced_planet_idx", _forced_planet)
+	if _pg_mode:
+		# Planet Glow tab: one forced body, small + fixed size so it sits centered with bloom room.
+		_backdrop.set("forced_planet_idx", _pg_type)
+		_backdrop.set("planet_size", PG_PLANET_SIZE)
+		if "planet_size_variance" in _backdrop:
+			_backdrop.set("planet_size_variance", 0.0)
+	else:
+		_backdrop.set("forced_planet_idx", _forced_planet)
 	_backdrop.set("asteroid_density_scale", _density_scale)
 	_sub_viewport.add_child(_backdrop)
 	call_deferred("_apply_gradient_toggle")   # re-hide gradient halos if the toggle is off
 	call_deferred("_apply_layer_glow")        # re-apply per-layer glow multipliers to the fresh layers
+	if _pg_mode:
+		call_deferred("_apply_pg_view")       # center + isolate + apply the per-type palette glow
 
 
 # ---- VFX glow controls (shared VfxGlowConfig) + gradient-halo A/B -----------
@@ -242,17 +269,51 @@ func _build_ui() -> void:
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	panel.add_child(scroll)
 
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 6)
-	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(vbox)
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 6)
+	outer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(outer)
 
 	# ---- Title ----
 	var title := Label.new()
 	title.text = "PARALLAX TUNER V4"
 	title.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_HEADER)
 	title.add_theme_color_override("font_color", Color(0.82, 0.90, 1.0, 1.0))
-	vbox.add_child(title)
+	outer.add_child(title)
+
+	# ---- Tabs: Parallax | Planet Glow ----
+	var tab_row := HBoxContainer.new()
+	tab_row.add_theme_constant_override("separation", 6)
+	outer.add_child(tab_row)
+	_tab_parallax_btn = Button.new()
+	_tab_parallax_btn.text = "Parallax"
+	_tab_parallax_btn.toggle_mode = true
+	_tab_parallax_btn.button_pressed = true
+	_tab_parallax_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_tab_parallax_btn.pressed.connect(func(): _set_tab(false))
+	tab_row.add_child(_tab_parallax_btn)
+	_tab_pg_btn = Button.new()
+	_tab_pg_btn.text = "Planet Glow"
+	_tab_pg_btn.toggle_mode = true
+	_tab_pg_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_tab_pg_btn.pressed.connect(func(): _set_tab(true))
+	tab_row.add_child(_tab_pg_btn)
+
+	var parallax_vb := VBoxContainer.new()
+	parallax_vb.add_theme_constant_override("separation", 6)
+	parallax_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	outer.add_child(parallax_vb)
+	_parallax_pane = parallax_vb
+
+	var pg_vb := VBoxContainer.new()
+	pg_vb.add_theme_constant_override("separation", 6)
+	pg_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pg_vb.visible = false
+	outer.add_child(pg_vb)
+	_pg_pane = pg_vb
+
+	# Existing parallax controls all build into the Parallax pane.
+	var vbox := parallax_vb
 
 	# ---- Planet type picker ----
 	var planet_label := Label.new()
@@ -504,6 +565,143 @@ func _build_ui() -> void:
 	_style_caption(_status_label)
 	vbox.add_child(_status_label)
 
+	# Planet Glow pane (its own tab) — built last so _status_label exists for its buttons.
+	_build_planet_glow_pane(_pg_pane)
+
+
+# ---- Planet Glow tab: per-PLANET-TYPE palette glow, centered isolated view --------------
+
+func _build_planet_glow_pane(pg: VBoxContainer) -> void:
+	var hint := Label.new()
+	hint.text = "Tune each planet's HDR glow. Palette x M blooms it in its own hue at threshold 1.5 (kit untouched)."
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.custom_minimum_size = Vector2(540, 0)
+	hint.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	_style_caption(hint)
+	pg.add_child(hint)
+
+	var type_label := Label.new()
+	type_label.text = "Planet body"
+	type_label.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	_style_caption(type_label)
+	pg.add_child(type_label)
+
+	_pg_picker = OptionButton.new()
+	_pg_picker.custom_minimum_size = Vector2(0, 28)
+	for i in range(1, PLANET_TYPE_NAMES.size()):   # skip "Random" — pick a concrete type
+		_pg_picker.add_item(PLANET_TYPE_NAMES[i])
+	_pg_picker.item_selected.connect(func(i: int): _pg_on_type_picked(i))
+	pg.add_child(_pg_picker)
+
+	pg.add_child(HSeparator.new())
+
+	var glow_label := Label.new()
+	glow_label.text = "Glow x (HDR)"
+	glow_label.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	_style_caption(glow_label)
+	pg.add_child(glow_label)
+
+	var glow_hbox := HBoxContainer.new()
+	glow_hbox.add_theme_constant_override("separation", 8)
+	pg.add_child(glow_hbox)
+
+	_pg_glow_slider = HSlider.new()
+	_pg_glow_slider.min_value = PlanetGlowC.SLIDER_MIN
+	_pg_glow_slider.max_value = PlanetGlowC.SLIDER_MAX
+	_pg_glow_slider.value = 1.0
+	_pg_glow_slider.step = 0.05
+	_pg_glow_slider.custom_minimum_size = Vector2(0, 24)
+	_pg_glow_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_pg_glow_slider.value_changed.connect(func(v: float): _pg_on_glow_changed(v))
+	glow_hbox.add_child(_pg_glow_slider)
+
+	_pg_glow_lbl = Label.new()
+	_pg_glow_lbl.text = "1.00"
+	_pg_glow_lbl.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	_pg_glow_lbl.add_theme_color_override("font_color", UiTheme.COLOR_TEXT)
+	_pg_glow_lbl.custom_minimum_size = Vector2(32, 0)
+	glow_hbox.add_child(_pg_glow_lbl)
+
+	pg.add_child(HSeparator.new())
+	_add_button(pg, "Copy + Save planet glow table", func():
+		DisplayServer.clipboard_set(PlanetGlowC.snippet())
+		PlanetGlowC.save()
+		_set_status("Copied PLANET_GLOW + saved to user://tuners/planet_glow.json"))
+
+
+func _set_tab(planet_glow: bool) -> void:
+	_pg_mode = planet_glow
+	if _tab_parallax_btn != null:
+		_tab_parallax_btn.button_pressed = not planet_glow
+	if _tab_pg_btn != null:
+		_tab_pg_btn.button_pressed = planet_glow
+	if _parallax_pane != null:
+		_parallax_pane.visible = not planet_glow
+	if _pg_pane != null:
+		_pg_pane.visible = planet_glow
+	if planet_glow:
+		# Planet Glow needs the HDR bloom on to be visible; sync the slider to this type's value.
+		_set_worldenv(true)
+		var v: float = float(_planet_glow.get(_pg_type, PlanetGlowC.get_mult(_pg_type)))
+		_planet_glow[_pg_type] = v
+		if _pg_glow_slider != null:
+			_pg_glow_slider.value = v
+		if _pg_glow_lbl != null:
+			_pg_glow_lbl.text = "%.2f" % v
+	_rebuild_backdrop()
+
+
+func _pg_on_type_picked(item: int) -> void:
+	_pg_type = item   # items are PLANET_TYPE_NAMES[1..] so item index == planet idx
+	var v: float = float(_planet_glow.get(_pg_type, PlanetGlowC.get_mult(_pg_type)))
+	_planet_glow[_pg_type] = v
+	if _pg_glow_slider != null:
+		_pg_glow_slider.value = v
+	if _pg_glow_lbl != null:
+		_pg_glow_lbl.text = "%.2f" % v
+	_rebuild_backdrop()
+
+
+func _pg_on_glow_changed(v: float) -> void:
+	_planet_glow[_pg_type] = v
+	PlanetGlowC.set_mult(_pg_type, v)
+	if _pg_glow_lbl != null:
+		_pg_glow_lbl.text = "%.2f" % v
+	_pg_apply_glow()
+
+
+# Center the forced planet on-screen, freeze its scroll, hide companions, and apply the live glow.
+func _apply_pg_view() -> void:
+	if _backdrop == null or not is_instance_valid(_backdrop):
+		return
+	var lp = _backdrop.get_node_or_null("LayerPlanet")
+	if lp == null:
+		return
+	if "scroll_rate" in lp:
+		lp.scroll_rate = 0.0           # stop the drift so the centered planet stays put
+	var main = lp.get("_planet_node")
+	var size: float = float(lp.get("_planet_actual_size"))
+	if main != null and is_instance_valid(main):
+		var center_local: Vector2 = main.position + Vector2(size, size) * 0.5
+		# Center in the VISIBLE band (the UI panel covers display x 1360-1920 = viewport x 340-480),
+		# so aim for x=170 (centre of viewport 0-340), full-height centre y=135.
+		lp.offset = Vector2(170.0, 135.0) - center_local
+		for c in lp.get_children():
+			if c is Control and c != main and c.has_method("set_colors"):
+				(c as CanvasItem).visible = false   # hide companion bodies — focus on the tuned type
+	_pg_apply_glow()
+
+
+func _pg_apply_glow() -> void:
+	if not _pg_mode or _backdrop == null or not is_instance_valid(_backdrop):
+		return
+	var lp = _backdrop.get_node_or_null("LayerPlanet")
+	if lp == null:
+		return
+	var main = lp.get("_planet_node")
+	if main != null and is_instance_valid(main):
+		LayerPlanetC.apply_palette_glow(main, float(_planet_glow.get(_pg_type, 1.0)))
+
 
 func _style_caption(lbl: Label) -> void:
 	if lbl == null:
@@ -650,6 +848,9 @@ func _on_layer_selected(layer_name: String) -> void:
 	_layer_contrast[layer_name] = current_contrast
 	_layer_glow[layer_name] = current_glow
 
+	if layer_name in AUTO_TINTED_LAYERS:
+		_set_status("%s colour is per-planet (runtime) — not saved/exported. Brightness/contrast/glow are." % layer_name)
+
 	_refresh_layer_button_selection()
 
 
@@ -715,8 +916,9 @@ func _apply_grade(layer_name: String) -> void:
 	var c: float = _layer_contrast.get(layer_name, 1.0)
 	var g: float = _layer_glow.get(layer_name, 1.0)
 
-	# Set the layer's properties; it will recompute via _recompute_modulate()
-	if "modulate_color" in layer:
+	# Set the layer's properties; it will recompute via _recompute_modulate(). Auto-tinted layers
+	# keep their per-planet runtime colour — we only drive brightness/contrast/glow there.
+	if "modulate_color" in layer and not (layer_name in AUTO_TINTED_LAYERS):
 		layer.modulate_color = base
 	if "brightness" in layer:
 		layer.brightness = b
@@ -762,8 +964,10 @@ func _current_config() -> Dictionary:
 	var contrast := {}
 	var glow := {}
 	for layer_name in LAYER_NAMES:
-		var c: Color = _layer_colors.get(layer_name, Color.WHITE)
-		colors[layer_name] = [c.r, c.g, c.b, c.a]
+		# Skip colour for auto-tinted layers — it's the per-planet runtime tint, not real tuning.
+		if not (layer_name in AUTO_TINTED_LAYERS):
+			var c: Color = _layer_colors.get(layer_name, Color.WHITE)
+			colors[layer_name] = [c.r, c.g, c.b, c.a]
 		brightness[layer_name] = _layer_brightness.get(layer_name, 1.0)
 		contrast[layer_name] = _layer_contrast.get(layer_name, 1.0)
 		glow[layer_name] = _layer_glow.get(layer_name, 1.0)
@@ -805,7 +1009,8 @@ func _apply_config(cfg: Dictionary) -> void:
 	var glow: Dictionary = cfg.get("glow", {})
 
 	for layer_name in LAYER_NAMES:
-		if colors.has(layer_name):
+		# Ignore any colour for auto-tinted layers, even from a stale JSON — it's runtime per-planet.
+		if colors.has(layer_name) and not (layer_name in AUTO_TINTED_LAYERS):
 			var arr = colors[layer_name]
 			if arr is Array and arr.size() >= 4:
 				var c := Color(float(arr[0]), float(arr[1]), float(arr[2]), float(arr[3]))
@@ -833,6 +1038,7 @@ func _build_snippet() -> String:
 	var cfg := _current_config()
 	var lines: PackedStringArray = []
 	lines.append("# Parallax V4 layer tuning (colors, brightness, contrast, glow)")
+	lines.append("# NOTE: colours for %s are omitted — they're tinted per-planet at runtime." % ", ".join(AUTO_TINTED_LAYERS))
 	lines.append("")
 
 	lines.append("var LAYER_COLORS := {")

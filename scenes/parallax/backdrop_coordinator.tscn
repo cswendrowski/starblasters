@@ -17,10 +17,15 @@ script = ExtResource("1_coord")
 [node name="LayerPlanet" parent="." instance=ExtResource("3_planet")]
 
 [node name="LayerStellarFar" parent="." instance=ExtResource("4_far")]
+brightness = 0.2
+contrast = 0.0
 
 [node name="LayerStellarMid" parent="." instance=ExtResource("5_mid")]
+brightness = 0.4
+contrast = 0.7
 
 [node name="LayerStellarNear" parent="." instance=ExtResource("6_near")]
+brightness = 0.6
 
 [node name="LayerStreaks" parent="." instance=ExtResource("7_streaks")]
 
