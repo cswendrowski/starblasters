@@ -41,6 +41,7 @@ move it to `docs/archive/` with a banner rather than deleting it.
 | Economy / outpost | **Code is the reference** — `scripts/autoload/run_state.gd` (bounty + Materials, outpost hub) + `scripts/screens/outpost.gd`. The old two-currency design is archived. |
 | Sector map | `scripts/screens/sector_map_v3.gd` wrapped by `scripts/screens/sector_map_hd.gd` (routed via `scripts/systems/sector_map_route.gd`) |
 | Renderer / engine gotchas | [`godot-patterns.md`](godot-patterns.md); portable heuristics: [`godot-learnings-for-new-projects.md`](godot-learnings-for-new-projects.md) |
+| Asteroid HDR-2D darkening (open) | **INVESTIGATED, fix NOT built** — [`asteroid_hdr_darkening_2026-06-23.md`](asteroid_hdr_darkening_2026-06-23.md) (`use_hdr_2d` darkens opaque-over-bright; compare-lab planned for 2026-06-24) |
 | UI palette | [`ui_color_reference.md`](ui_color_reference.md) |
 | Controller support | [`controller_support_plan_2026-06-05.md`](controller_support_plan_2026-06-05.md) — **designed, not built** |
 | Intercept signal events | [`intercept-signal-events.md`](intercept-signal-events.md) — **backlog idea, not built** |
