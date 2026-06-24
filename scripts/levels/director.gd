@@ -179,15 +179,15 @@ func _build_steps(score: Resource) -> Array:
 	return out
 
 
-# Count of live, non-hazard enemies on screen — the concurrency-cap measure.
-# Includes recyclers (they occupy screen space); excludes is_hazard terrain
-# (mines/asteroids keep their own bespoke pacing, uncapped in v1).
+# Count of live "enemies"-group bodies on screen — the concurrency-cap measure. Includes
+# recyclers AND hazards: mines/asteroids are conducted like enemies now (Roman 2026-06-23) —
+# cap-throttled so a field STREAMS at a navigable peak, and their breathers can wait for the
+# field to thin (the density ebb). (Was: hazards excluded as uncapped "terrain" in v1 — that
+# let asteroid/mine fields pile into an impassable wall.)
 func _alive_count() -> int:
 	var n: int = 0
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(e):
-			continue
-		if "is_hazard" in e and e.is_hazard:
 			continue
 		n += 1
 	return n
@@ -236,14 +236,12 @@ func _crosser_travel_y(base: float, index: int, step: float = CROSSER_STAGGER_ST
 	return base + float(index % CROSSER_STAGGER_BANDS) * step
 
 
-# Lanes currently holding a non-hazard enemy in the top entry band, so a fresh
-# spawn doesn't stack directly onto one.
+# Lanes currently holding an enemy/hazard in the top entry band, so a fresh spawn doesn't
+# stack onto one — hazards included (2026-06-23) so asteroids spread across lanes on entry.
 func _occupied_lanes() -> Array:
 	var out: Array = []
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(e) or not (e is Node2D):
-			continue
-		if "is_hazard" in e and e.is_hazard:
 			continue
 		if e.position.y <= 40.0:
 			var ln: int = Lanes.nearest_lane(e.position.x)

@@ -640,6 +640,10 @@ func new_game() -> void:
 			_missile_cruiser_respawn = true
 		else:
 			_current_score = Levels.build_minefield_score()
+			# Conduct mines like enemies too (Roman 2026-06-23): cap so the field streams +
+			# ebbs instead of walling. Mines are smaller than asteroids, so a denser navigable
+			# peak reads fine. Tunable.
+			wave_director.max_concurrent = 18
 	else:
 		# Custom-level shortcut: dev menu's "Test Level" stashes the .tres
 		# path on Run; load it directly so designers can iterate on a

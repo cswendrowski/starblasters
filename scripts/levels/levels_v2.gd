@@ -103,6 +103,17 @@ static func _breather_phrase(dur: float) -> Phrase:
 	ph.alive_floor = -1       # pure-hazard levels have 0 combatants; -1 = wait full duration
 	return ph
 
+
+# Hazard breather with a real alive_floor: the conductor breaks out early once the field thins
+# to <= floor_n (hazards count toward _alive_count now), so density visibly EBBS between swells;
+# falls back to the full duration if the field is still busy. (Roman 2026-06-23.)
+static func _haz_breather(dur: float, floor_n: int) -> Phrase:
+	var ph := Phrase.new()
+	ph.kind = Phrase.Kind.BREATHER
+	ph.duration = dur
+	ph.alive_floor = floor_n
+	return ph
+
 # Hazard: Minefield — phrase-native CombatScore. Lane-shaped mine drops
 # (wall/pincer/spread) the conductor dispatches with real lane placement, paced by
 # breathers so the player can weave through. See build_minefield_score below. (The
@@ -178,11 +189,11 @@ static func build_minefield_score() -> CombatScore:
 			_haz_spec(base_scene, int(b["count"]), float(b["interval"]), form_id)))
 		total_basic += int(b["count"])
 		if k < beat_count - 1:
-			wave.phrases.append(_breather_phrase(0.35))
+			wave.phrases.append(_haz_breather(2.0, 7))   # ebb between beats (was a flat 0.35s)
 	# Bomblet WALLS (Roman 2026-06-11): dense straight-descending walls to weave/shoot
 	# through, NOT scattered wiggling pockets (form_id 0 = wall). ~104 bomblets.
 	for c in range(4):
-		wave.phrases.append(_breather_phrase(0.45))
+		wave.phrases.append(_haz_breather(2.5, 5))   # ebb before each bomblet wall
 		wave.phrases.append(_formation_phrase(&"wall", _haz_spec(BombletScene, 26, 0.10, 0)))
 
 	# Variant sprinkle: a final lane-scatter mixing the non-basic mine types into a basic
@@ -194,7 +205,7 @@ static func build_minefield_score() -> CombatScore:
 			var j: int = rng.randi() % (i + 1)
 			var t = pool[i]; pool[i] = pool[j]; pool[j] = t
 		var vcount: int = max(1, int(round(float(total_basic) * rng.randf_range(0.01, 0.20))))
-		wave.phrases.append(_breather_phrase(1.0))
+		wave.phrases.append(_haz_breather(3.0, 4))   # release before the variant finale
 		wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(_scene_by_name(pool[0]), vcount, 0.35, 2)))
 		wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(_scene_by_name(pool[1]), max(1, vcount / 2), 0.4, 2)))
 		# ... PLUS a few Armored mines (4 HP) as tougher must-dodge anchors — the new mine type.
@@ -232,17 +243,32 @@ static func build_asteroid_field_score() -> CombatScore:
 	# the prior field (~90 rocks) but now lane-shaped + paced.
 	# Spawn intervals widened ~1.4× (Roman 2026-06-11: same count, but spaced out more
 	# so the field is avoidable, not a wall). Counts unchanged.
+	# Density ARC (Roman 2026-06-23): asteroids are conducted like enemies now — cap-throttled
+	# (main.gd sets max_concurrent) + lane-spread — so each beat STREAMS instead of walling up.
+	# The field ebbs and flows for tension: light approach -> building scatter -> a dense climax
+	# that pegs the cap -> release -> coda. _haz_breather floors thin the field between swells
+	# (hazards count toward _alive_count now). Counts ~= how long each dense beat runs (the cap
+	# gates them); intervals are the min spacing; floors = how empty it gets. Baseline kept near
+	# the old ~128 rocks — tune freely / author extra patterns on top.
 	var wave := ScoreWave.new()
 	wave.banner = "COLLISION WARNING"
-	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 32, 0.26, 2)))
-	wave.phrases.append(_breather_phrase(0.4))
-	wave.phrases.append(_formation_phrase(&"wall", _haz_spec(AsteroidScene, 20, 0.15, 0)))
-	wave.phrases.append(_breather_phrase(0.4))
-	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 30, 0.26, 2)))
-	wave.phrases.append(_breather_phrase(0.35))
-	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 28, 0.26, 2)))
-	wave.phrases.append(_breather_phrase(0.35))
-	wave.phrases.append(_formation_phrase(&"wall", _haz_spec(AsteroidScene, 18, 0.15, 0)))
+	# 1. Approach — a light scatter drifts in; the field arrives gently.
+	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 12, 0.55, 2)))
+	wave.phrases.append(_haz_breather(4.0, 2))     # nearly clears — the calm before
+	# 2. Build — denser scatter, then a first "pick a gap" wall.
+	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 18, 0.40, 2)))
+	wave.phrases.append(_formation_phrase(&"wall", _haz_spec(AsteroidScene, 14, 0.22, 0)))
+	wave.phrases.append(_haz_breather(3.0, 5))     # partial thin
+	# 3. Climax — sustained pressure at the cap: walls + scatter back-to-back.
+	wave.phrases.append(_formation_phrase(&"wall", _haz_spec(AsteroidScene, 18, 0.20, 0)))
+	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 22, 0.32, 2)))
+	wave.phrases.append(_formation_phrase(&"wall", _haz_spec(AsteroidScene, 16, 0.20, 0)))
+	wave.phrases.append(_haz_breather(2.5, 6))     # a single tense breath at peak
+	# 4. Release — one more pass, then the field empties out.
+	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 16, 0.45, 2)))
+	wave.phrases.append(_haz_breather(4.5, 1))     # big release, near-empty
+	# 5. Coda — a final light drift-through.
+	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 10, 0.6, 2)))
 	var score := CombatScore.new()
 	score.level_name = "Asteroid Field"
 	score.waves = [wave]
