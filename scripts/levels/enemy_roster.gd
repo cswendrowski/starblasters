@@ -134,6 +134,19 @@ const HELIX_MOUNTS := [
 	  "recoil_frames": 3, "turret_texture": "res://graphics/enemies/zealot-tank-turret.png", "turret_hframes": 3 },
 ]
 
+# Beamer beam mounts (ported from enemy_beam_shooter.gd 2026-06-23): the configurable RAY beam as a
+# data BEAM mount that begins on settle_y (was the bespoke begin-on-settle). cycle 0=LOOP_IDLE,
+# endpoint 0=RAY, aim_mode 0=LOCAL_FORWARD (SWEEP, straight down — the loiter_sweep movement rakes
+# it) / 2=TRACKING (CHASE, tracks the player). MountBuilder attaches the BeamEmitter to the marker.
+const BEAMER_SWEEP_MOUNT := [{ "kind": "beam", "marker": "BeamEmitter", "beam_config": {
+	"idle_time": 0.9, "windup_time": 1.3, "firing_time": 1.1, "cooldown_time": 1.5,
+	"cycle": 0, "autostart": false, "settle_y": 58.0, "endpoint": 0, "aim_mode": 0,
+	"reach": 320.0, "dps": 3.0, "hit_radius": 8.0, "emitter_offset": Vector2(0, 0), "target_group": "player" } }]
+const BEAMER_CHASE_MOUNT := [{ "kind": "beam", "marker": "BeamEmitter", "beam_config": {
+	"idle_time": 0.9, "windup_time": 1.3, "firing_time": 1.1, "cooldown_time": 1.5,
+	"cycle": 0, "autostart": false, "settle_y": 58.0, "endpoint": 0, "aim_mode": 2, "tracking_rate": 1.3,
+	"reach": 320.0, "dps": 3.0, "hit_radius": 8.0, "emitter_offset": Vector2(0, 0), "target_group": "player" } }]
+
 # Crusader (Roman 2026-06-20) — the large zealot capital. FOUR gun turrets on the Helix tank-turret
 # chassis (the "Turret*" glob matches TurretL1/R1/L2/R2) firing Zealot Balls, PLUS two forward hull
 # muzzles (MuzzleL/R) firing Zealot Lasers. Payloads + cadence from Roman's Enemy Bench (2026-06-20);
@@ -781,7 +794,8 @@ const ENTRIES := [
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
 		"movement": "loiter_sweep",
-		"shoot": null,  # uses built-in beam, not shoot_pattern
+		"shoot": null,
+		"mounts": BEAMER_SWEEP_MOUNT,   # beam ported from enemy_beam_shooter.gd (begins on settle)
 		"base_count": 2,
 		# Beam pressure is a deeper-sector escalation, not a sector-1 opener.
 		"unlock_sector": 2, "unlock_depth": 0,
@@ -797,6 +811,7 @@ const ENTRIES := [
 		"size": "medium", "tags": ["tough"],
 		"movement": "drift",
 		"shoot": null,
+		"mounts": BEAMER_CHASE_MOUNT,   # tracking beam, ported from enemy_beam_shooter.gd
 		"base_count": 2,
 		"unlock_sector": 2, "unlock_depth": 2, "weight": 0.7,
 		"conflict_tags": ["beamshooter"],

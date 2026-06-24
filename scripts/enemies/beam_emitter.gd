@@ -40,6 +40,8 @@ var firing_time: float = 1.1
 var cooldown_time: float = 1.5
 var cycle: int = Cycle.LOOP_IDLE
 var autostart: bool = true
+var settle_y: float = -1.0       # >=0: a beam MOUNT begins only once the host descends past this Y
+var _settle_gated: bool = false  # internal: true once the settle-gate has fired begin()
 
 # --- geometry ---
 var endpoint: int = Endpoint.RAY
@@ -165,6 +167,15 @@ func _set_phase(p: int) -> void:
 
 
 func _process(delta: float) -> void:
+	# Settle-gate (beam mounts): hold fire until the host descends into the band, then begin() once.
+	# Replaces the Beamer's bespoke begin-on-settle; pair with autostart:false + settle_y in the cfg.
+	if settle_y >= 0.0 and not _settle_gated:
+		var sh := get_parent()
+		if sh != null and sh is Node2D and (sh as Node2D).global_position.y >= settle_y:
+			_settle_gated = true
+			begin()
+		else:
+			return
 	if _phase == Phase.OFF:
 		return
 	# Host-state guard (review P0): suppress the beam entirely while the host enemy is
