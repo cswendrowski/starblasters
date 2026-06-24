@@ -57,15 +57,6 @@ func _ready() -> void:
 	components = components + [sh]
 	super._ready()
 	hull_changed.emit(max_health, health)
-	var t := EnemyTurret.new()
-	t.name = "Turret"
-	t.position = Vector2(0, -4)
-	t.rotation_speed    = 1.6
-	t.fire_interval_min = fire_interval_min
-	t.fire_interval_max = fire_interval_max
-	t.aim_tolerance_deg = 30.0
-	t.bullet_speed      = bullet_speed
-	add_child(t)
 
 
 # Hull shim — engine_torch / damage_smoke_trail look for these.

@@ -1067,6 +1067,8 @@ const ENTRIES := [
 		"size": "large", "tags": [],
 		"movement": "drift", "depth": "mid",
 		"shoot": null,
+		# Tank turret ported from bulwark.gd _ready (2026-06-23): omni aim, slow traverse, default bullet.
+		"mounts": [{ "kind": "turret", "rotation_speed": 1.6, "fire_min": 2.3, "fire_max": 3.2, "aim_tolerance_deg": 30.0, "bullet_speed": 180.0 }],
 		"base_count": 1,
 		# Heavy elite — sector 2+.
 		"unlock_sector": 2, "unlock_depth": 0,
