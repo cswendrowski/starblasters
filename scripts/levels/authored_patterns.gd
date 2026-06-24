@@ -25,6 +25,10 @@ const Lanes = preload("res://scripts/systems/lanes.gd")
 # Per-wave probability the auto-mix splices an authored pattern into a generated wave.
 const DEFAULT_CHANCE := 0.22
 
+# Vertical gap (px) between formation rows: rows are pre-stacked this far apart ABOVE the screen so
+# the painted formation descends in holding its shape (~ the editor grid's row height; tunable).
+const ROW_GAP_PX := 40.0
+
 # Faction NAME -> Factions.Id. "any"/"" -> -1 (no fill faction / matches any level).
 const FACTION_IDS := {
 	"supremacy": Factions.Id.SUPREMACY,
@@ -34,7 +38,7 @@ const FACTION_IDS := {
 }
 
 # The committed pattern library — authored in the wave pattern editor, named + baked here (Roman
-# 2026-06-17). 16 conductor-filled formations spanning the movement families: charge_* (fast straight
+# 2026-06-17). 23 conductor-filled formations (incl. weave/cut/collapsing/escort variants) spanning the movement families: charge_* (fast straight
 # spearhead / wall / echelon), loiter_* (held tiers / phalanx), drift/shift/hook lattices, crawl_*
 # (slow phalanx / hourglass / weave), and advance_* (medium straight pairs / chevron / columns).
 # All faction "any", min_sector 0 — auto-mixed into generated waves by maybe_inject().
@@ -44,17 +48,30 @@ const DATA: Array = [
 		"faction": "any",
 		"min_sector": 0,
 		"stagger": 0.18,
+		"lockstep": true,
 		"placements": [
-			{"lane": 0, "row": 0, "enemy": "", "movement": "lane_drift", "size": "small"},
-			{"lane": 0, "row": 1, "enemy": "", "movement": "lane_drift", "size": "small"},
-			{"lane": 0, "row": 2, "enemy": "", "movement": "lane_drift", "size": "small"},
-			{"lane": 6, "row": 0, "enemy": "", "movement": "lane_drift", "size": "small"},
-			{"lane": 6, "row": 1, "enemy": "", "movement": "lane_drift", "size": "small"},
-			{"lane": 6, "row": 2, "enemy": "", "movement": "lane_drift", "size": "small"},
+			{"lane": 0, "row": 0, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 0, "row": 1, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 0, "row": 2, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 0, "row": 3, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 0, "row": 4, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 0, "row": 5, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 6, "row": 0, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 6, "row": 1, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 6, "row": 2, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 6, "row": 3, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 6, "row": 4, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 6, "row": 5, "enemy": "", "movement": "lane_shift", "size": "small"},
 			{"lane": 5, "row": 0, "enemy": "", "movement": "lane_shift", "size": "small"},
-			{"lane": 1, "row": 0, "enemy": "", "movement": "lane_shift", "size": "small"},
-			{"lane": 1, "row": 2, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 5, "row": 1, "enemy": "", "movement": "lane_shift", "size": "small"},
 			{"lane": 5, "row": 2, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 5, "row": 3, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 5, "row": 4, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 1, "row": 0, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 1, "row": 1, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 1, "row": 2, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 1, "row": 3, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 1, "row": 4, "enemy": "", "movement": "lane_shift", "size": "small"},
 		],
 	},
 	{
@@ -62,18 +79,18 @@ const DATA: Array = [
 		"faction": "any",
 		"min_sector": 0,
 		"stagger": 0.18,
+		"lockstep": true,
 		"placements": [
-			{"lane": 0, "row": 5, "enemy": "", "movement": "straight_charge", "size": "small"},
-			{"lane": 1, "row": 4, "enemy": "", "movement": "straight_charge", "size": "small"},
-			{"lane": 2, "row": 3, "enemy": "", "movement": "straight_charge", "size": "small"},
-			{"lane": 4, "row": 3, "enemy": "", "movement": "straight_charge", "size": "small"},
-			{"lane": 5, "row": 4, "enemy": "", "movement": "straight_charge", "size": "small"},
-			{"lane": 6, "row": 5, "enemy": "", "movement": "straight_charge", "size": "small"},
-			{"lane": 1, "row": 2, "enemy": "", "movement": "", "size": ""},
-			{"lane": 3, "row": 1, "enemy": "", "movement": "", "size": ""},
-			{"lane": 1, "row": 0, "enemy": "", "movement": "", "size": ""},
-			{"lane": 5, "row": 0, "enemy": "", "movement": "", "size": ""},
-			{"lane": 5, "row": 2, "enemy": "", "movement": "", "size": ""},
+			{"lane": 0, "row": 0, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 1, "row": 1, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 2, "row": 2, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 3, "row": 3, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 4, "row": 2, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 5, "row": 1, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 6, "row": 0, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 4, "row": 0, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 3, "row": 1, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 2, "row": 0, "enemy": "", "movement": "straight_charge", "size": "small"},
 		],
 	},
 	{
@@ -81,23 +98,29 @@ const DATA: Array = [
 		"faction": "any",
 		"min_sector": 0,
 		"stagger": 0.18,
+		"lockstep": true,
 		"placements": [
-			{"lane": 0, "row": 3, "enemy": "", "movement": "straight_charge", "size": "small"},
-			{"lane": 1, "row": 4, "enemy": "", "movement": "straight_charge", "size": "small"},
-			{"lane": 2, "row": 5, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 6, "row": 5, "enemy": "", "movement": "straight_charge", "size": "small"},
 			{"lane": 4, "row": 5, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 2, "row": 5, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 0, "row": 5, "enemy": "", "movement": "straight_charge", "size": "small"},
 			{"lane": 5, "row": 4, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 3, "row": 4, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 1, "row": 4, "enemy": "", "movement": "straight_charge", "size": "small"},
 			{"lane": 6, "row": 3, "enemy": "", "movement": "straight_charge", "size": "small"},
-			{"lane": 0, "row": 1, "enemy": "", "movement": "straight_charge", "size": ""},
-			{"lane": 1, "row": 2, "enemy": "", "movement": "straight_charge", "size": ""},
-			{"lane": 2, "row": 3, "enemy": "", "movement": "straight_charge", "size": ""},
-			{"lane": 4, "row": 3, "enemy": "", "movement": "straight_charge", "size": ""},
-			{"lane": 5, "row": 2, "enemy": "", "movement": "straight_charge", "size": ""},
-			{"lane": 6, "row": 1, "enemy": "", "movement": "straight_charge", "size": ""},
-			{"lane": 1, "row": 0, "enemy": "", "movement": "straight_charge", "size": ""},
-			{"lane": 2, "row": 1, "enemy": "", "movement": "straight_charge", "size": ""},
-			{"lane": 4, "row": 1, "enemy": "", "movement": "straight_charge", "size": ""},
-			{"lane": 5, "row": 0, "enemy": "", "movement": "straight_charge", "size": ""},
+			{"lane": 4, "row": 3, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 2, "row": 3, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 0, "row": 3, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 1, "row": 2, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 3, "row": 2, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 5, "row": 2, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 6, "row": 1, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 4, "row": 1, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 2, "row": 1, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 0, "row": 1, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 1, "row": 0, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 3, "row": 0, "enemy": "", "movement": "straight_charge", "size": "small"},
+			{"lane": 5, "row": 0, "enemy": "", "movement": "straight_charge", "size": "small"},
 		],
 	},
 	{
@@ -105,6 +128,7 @@ const DATA: Array = [
 		"faction": "any",
 		"min_sector": 0,
 		"stagger": 0.18,
+		"lockstep": true,
 		"placements": [
 			{"lane": 2, "row": 2, "enemy": "", "movement": "straight_charge", "size": "small"},
 			{"lane": 3, "row": 3, "enemy": "", "movement": "straight_charge", "size": "small"},
@@ -119,6 +143,7 @@ const DATA: Array = [
 		"faction": "any",
 		"min_sector": 0,
 		"stagger": 0.18,
+		"lockstep": true,
 		"placements": [
 			{"lane": 0, "row": 0, "enemy": "", "movement": "loiter_low", "size": "small"},
 			{"lane": 2, "row": 0, "enemy": "", "movement": "loiter_low", "size": "small"},
@@ -136,28 +161,29 @@ const DATA: Array = [
 		"faction": "any",
 		"min_sector": 0,
 		"stagger": 0.18,
+		"lockstep": true,
 		"placements": [
-			{"lane": 0, "row": 5, "enemy": "", "movement": "loiter_high", "size": "small"},
-			{"lane": 2, "row": 5, "enemy": "", "movement": "loiter_high", "size": "small"},
-			{"lane": 1, "row": 5, "enemy": "", "movement": "loiter_high", "size": "small"},
-			{"lane": 3, "row": 5, "enemy": "", "movement": "loiter_high", "size": "small"},
-			{"lane": 4, "row": 5, "enemy": "", "movement": "loiter_high", "size": "small"},
-			{"lane": 5, "row": 5, "enemy": "", "movement": "loiter_high", "size": "small"},
-			{"lane": 6, "row": 5, "enemy": "", "movement": "loiter_high", "size": "small"},
-			{"lane": 0, "row": 3, "enemy": "", "movement": "loiter_mid", "size": "small"},
-			{"lane": 2, "row": 3, "enemy": "", "movement": "loiter_mid", "size": "small"},
-			{"lane": 1, "row": 3, "enemy": "", "movement": "loiter_mid", "size": "small"},
-			{"lane": 3, "row": 3, "enemy": "", "movement": "loiter_mid", "size": "small"},
-			{"lane": 4, "row": 3, "enemy": "", "movement": "loiter_mid", "size": "small"},
-			{"lane": 5, "row": 3, "enemy": "", "movement": "loiter_mid", "size": "small"},
-			{"lane": 6, "row": 3, "enemy": "", "movement": "loiter_mid", "size": "small"},
-			{"lane": 0, "row": 1, "enemy": "", "movement": "loiter_low", "size": "small"},
-			{"lane": 1, "row": 1, "enemy": "", "movement": "loiter_low", "size": "small"},
-			{"lane": 2, "row": 1, "enemy": "", "movement": "loiter_low", "size": "small"},
-			{"lane": 4, "row": 1, "enemy": "", "movement": "loiter_low", "size": "small"},
-			{"lane": 3, "row": 1, "enemy": "", "movement": "loiter_low", "size": "small"},
-			{"lane": 5, "row": 1, "enemy": "", "movement": "loiter_low", "size": "small"},
-			{"lane": 6, "row": 1, "enemy": "", "movement": "loiter_low", "size": "small"},
+			{"lane": 0, "row": 0, "enemy": "", "movement": "loiter", "size": "small"},
+			{"lane": 1, "row": 0, "enemy": "", "movement": "loiter", "size": "small"},
+			{"lane": 3, "row": 0, "enemy": "", "movement": "loiter", "size": "small"},
+			{"lane": 2, "row": 0, "enemy": "", "movement": "loiter", "size": "small"},
+			{"lane": 5, "row": 0, "enemy": "", "movement": "loiter", "size": "small"},
+			{"lane": 4, "row": 0, "enemy": "", "movement": "loiter", "size": "small"},
+			{"lane": 6, "row": 0, "enemy": "", "movement": "loiter", "size": "small"},
+			{"lane": 0, "row": 2, "enemy": "", "movement": "loiter", "size": "small"},
+			{"lane": 1, "row": 2, "enemy": "", "movement": "loiter", "size": "small"},
+			{"lane": 2, "row": 2, "enemy": "", "movement": "loiter", "size": "small"},
+			{"lane": 3, "row": 2, "enemy": "", "movement": "loiter", "size": "small"},
+			{"lane": 4, "row": 2, "enemy": "", "movement": "loiter", "size": "small"},
+			{"lane": 5, "row": 2, "enemy": "", "movement": "loiter", "size": "small"},
+			{"lane": 6, "row": 2, "enemy": "", "movement": "loiter", "size": "small"},
+			{"lane": 6, "row": 4, "enemy": "", "movement": "loiter", "size": "small"},
+			{"lane": 5, "row": 4, "enemy": "", "movement": "loiter", "size": "small"},
+			{"lane": 4, "row": 4, "enemy": "", "movement": "loiter", "size": "small"},
+			{"lane": 3, "row": 4, "enemy": "", "movement": "loiter", "size": "small"},
+			{"lane": 2, "row": 4, "enemy": "", "movement": "loiter", "size": "small"},
+			{"lane": 1, "row": 4, "enemy": "", "movement": "loiter", "size": "small"},
+			{"lane": 0, "row": 4, "enemy": "", "movement": "loiter", "size": "small"},
 		],
 	},
 	{
@@ -165,6 +191,7 @@ const DATA: Array = [
 		"faction": "any",
 		"min_sector": 0,
 		"stagger": 0.18,
+		"lockstep": true,
 		"placements": [
 			{"lane": 6, "row": 5, "enemy": "", "movement": "lane_drift", "size": "small"},
 			{"lane": 0, "row": 5, "enemy": "", "movement": "lane_drift", "size": "small"},
@@ -185,6 +212,7 @@ const DATA: Array = [
 		"faction": "any",
 		"min_sector": 0,
 		"stagger": 0.18,
+		"lockstep": true,
 		"placements": [
 			{"lane": 0, "row": 5, "enemy": "", "movement": "lane_shift", "size": "small"},
 			{"lane": 2, "row": 4, "enemy": "", "movement": "lane_shift", "size": "small"},
@@ -205,6 +233,7 @@ const DATA: Array = [
 		"faction": "any",
 		"min_sector": 0,
 		"stagger": 0.18,
+		"lockstep": true,
 		"placements": [
 			{"lane": 3, "row": 5, "enemy": "", "movement": "lane_hook", "size": "small"},
 			{"lane": 1, "row": 4, "enemy": "", "movement": "lane_hook", "size": "small"},
@@ -222,6 +251,7 @@ const DATA: Array = [
 		"faction": "any",
 		"min_sector": 0,
 		"stagger": 0.18,
+		"lockstep": true,
 		"placements": [
 			{"lane": 6, "row": 1, "enemy": "", "movement": "straight_crawl", "size": "small"},
 			{"lane": 5, "row": 1, "enemy": "", "movement": "straight_crawl", "size": "small"},
@@ -251,6 +281,7 @@ const DATA: Array = [
 		"faction": "any",
 		"min_sector": 0,
 		"stagger": 0.18,
+		"lockstep": true,
 		"placements": [
 			{"lane": 0, "row": 0, "enemy": "", "movement": "straight_crawl", "size": "small"},
 			{"lane": 1, "row": 1, "enemy": "", "movement": "straight_crawl", "size": "small"},
@@ -273,6 +304,7 @@ const DATA: Array = [
 		"faction": "any",
 		"min_sector": 0,
 		"stagger": 0.18,
+		"lockstep": true,
 		"placements": [
 			{"lane": 0, "row": 5, "enemy": "", "movement": "straight_crawl", "size": "small"},
 			{"lane": 1, "row": 4, "enemy": "", "movement": "straight_crawl", "size": "small"},
@@ -297,13 +329,13 @@ const DATA: Array = [
 		],
 	},
 	{
-		"name": "crawl_cross_pair",
+		"name": "shift_cross_pair",
 		"faction": "any",
 		"min_sector": 0,
 		"stagger": 0.18,
 		"placements": [
-			{"lane": 1, "row": 5, "enemy": "", "movement": "straight_crawl", "size": "medium"},
-			{"lane": 5, "row": 0, "enemy": "", "movement": "straight_crawl", "size": "medium"},
+			{"lane": 1, "row": 5, "enemy": "", "movement": "lane_shift", "size": "medium"},
+			{"lane": 5, "row": 0, "enemy": "", "movement": "lane_shift", "size": "medium"},
 		],
 	},
 	{
@@ -311,6 +343,7 @@ const DATA: Array = [
 		"faction": "any",
 		"min_sector": 0,
 		"stagger": 0.18,
+		"lockstep": false,
 		"placements": [
 			{"lane": 1, "row": 5, "enemy": "", "movement": "straight_slow", "size": "medium"},
 			{"lane": 5, "row": 0, "enemy": "", "movement": "straight_slow", "size": "medium"},
@@ -321,6 +354,7 @@ const DATA: Array = [
 		"faction": "any",
 		"min_sector": 0,
 		"stagger": 0.18,
+		"lockstep": true,
 		"placements": [
 			{"lane": 3, "row": 5, "enemy": "", "movement": "straight_medium", "size": "medium"},
 			{"lane": 1, "row": 4, "enemy": "", "movement": "straight_medium", "size": "small"},
@@ -335,6 +369,7 @@ const DATA: Array = [
 		"faction": "any",
 		"min_sector": 0,
 		"stagger": 0.18,
+		"lockstep": true,
 		"placements": [
 			{"lane": 0, "row": 5, "enemy": "", "movement": "straight_medium", "size": "small"},
 			{"lane": 0, "row": 3, "enemy": "", "movement": "straight_medium", "size": "small"},
@@ -348,6 +383,168 @@ const DATA: Array = [
 			{"lane": 4, "row": 4, "enemy": "", "movement": "straight_medium", "size": "small"},
 			{"lane": 6, "row": 5, "enemy": "", "movement": "straight_medium", "size": "small"},
 			{"lane": 3, "row": 5, "enemy": "", "movement": "straight_slow", "size": "medium"},
+		],
+	},
+	{
+		"name": "weave_middle",
+		"faction": "any",
+		"min_sector": 0,
+		"stagger": 0.18,
+		"lockstep": true,
+		"placements": [
+			{"lane": 3, "row": 0, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 3, "row": 1, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 3, "row": 2, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 3, "row": 3, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 3, "row": 4, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 3, "row": 5, "enemy": "", "movement": "lane_weave", "size": "small"},
+		],
+	},
+	{
+		"name": "weave_wave",
+		"faction": "any",
+		"min_sector": 0,
+		"stagger": 0.18,
+		"lockstep": true,
+		"placements": [
+			{"lane": 6, "row": 5, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 4, "row": 5, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 2, "row": 5, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 0, "row": 5, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 1, "row": 4, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 3, "row": 4, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 5, "row": 4, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 6, "row": 3, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 4, "row": 3, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 2, "row": 3, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 0, "row": 3, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 1, "row": 2, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 3, "row": 2, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 5, "row": 2, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 6, "row": 1, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 4, "row": 1, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 2, "row": 1, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 0, "row": 1, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 1, "row": 0, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 3, "row": 0, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 5, "row": 0, "enemy": "", "movement": "lane_weave", "size": "small"},
+		],
+	},
+	{
+		"name": "collapsing_line",
+		"faction": "any",
+		"min_sector": 0,
+		"stagger": 0.18,
+		"lockstep": true,
+		"placements": [
+			{"lane": 1, "row": 0, "enemy": "", "movement": "lane_drift", "size": "small"},
+			{"lane": 1, "row": 2, "enemy": "", "movement": "lane_drift", "size": "small"},
+			{"lane": 1, "row": 4, "enemy": "", "movement": "lane_drift", "size": "small"},
+			{"lane": 1, "row": 5, "enemy": "", "movement": "lane_drift", "size": "small"},
+			{"lane": 1, "row": 3, "enemy": "", "movement": "lane_drift", "size": "small"},
+			{"lane": 1, "row": 1, "enemy": "", "movement": "lane_drift", "size": "small"},
+			{"lane": 5, "row": 0, "enemy": "", "movement": "lane_drift", "size": "small"},
+			{"lane": 5, "row": 1, "enemy": "", "movement": "lane_drift", "size": "small"},
+			{"lane": 5, "row": 2, "enemy": "", "movement": "lane_drift", "size": "small"},
+			{"lane": 5, "row": 3, "enemy": "", "movement": "lane_drift", "size": "small"},
+			{"lane": 5, "row": 4, "enemy": "", "movement": "lane_drift", "size": "small"},
+			{"lane": 5, "row": 5, "enemy": "", "movement": "lane_drift", "size": "small"},
+			{"lane": 3, "row": 0, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 3, "row": 1, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 3, "row": 2, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 3, "row": 3, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 3, "row": 4, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 3, "row": 5, "enemy": "", "movement": "lane_weave", "size": "small"},
+			{"lane": 0, "row": 0, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 0, "row": 1, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 0, "row": 2, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 6, "row": 0, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 6, "row": 1, "enemy": "", "movement": "lane_shift", "size": "small"},
+			{"lane": 6, "row": 2, "enemy": "", "movement": "lane_shift", "size": "small"},
+		],
+	},
+	{
+		"name": "cut_right_high",
+		"faction": "any",
+		"min_sector": 0,
+		"stagger": 0.18,
+		"lockstep": true,
+		"placements": [
+			{"lane": 0, "row": 0, "enemy": "", "movement": "lane_cut", "size": "small", "dir": "right", "depth": "high"},
+			{"lane": 1, "row": 1, "enemy": "", "movement": "lane_cut", "size": "small", "dir": "right", "depth": "high"},
+			{"lane": 2, "row": 2, "enemy": "", "movement": "lane_cut", "size": "small", "dir": "right", "depth": "high"},
+			{"lane": 3, "row": 3, "enemy": "", "movement": "lane_cut", "size": "small", "dir": "right", "depth": "high"},
+			{"lane": 4, "row": 4, "enemy": "", "movement": "lane_cut", "size": "small", "dir": "right", "depth": "high"},
+			{"lane": 5, "row": 5, "enemy": "", "movement": "lane_cut", "size": "small", "dir": "right", "depth": "high"},
+		],
+	},
+	{
+		"name": "cut_left_high",
+		"faction": "any",
+		"min_sector": 0,
+		"stagger": 0.18,
+		"lockstep": true,
+		"placements": [
+			{"lane": 6, "row": 0, "enemy": "", "movement": "lane_cut", "size": "small", "dir": "left", "depth": "high"},
+			{"lane": 5, "row": 1, "enemy": "", "movement": "lane_cut", "size": "small", "dir": "left", "depth": "high"},
+			{"lane": 4, "row": 2, "enemy": "", "movement": "lane_cut", "size": "small", "dir": "left", "depth": "high"},
+			{"lane": 3, "row": 3, "enemy": "", "movement": "lane_cut", "size": "small", "dir": "left", "depth": "high"},
+			{"lane": 2, "row": 4, "enemy": "", "movement": "lane_cut", "size": "small", "dir": "left", "depth": "high"},
+			{"lane": 1, "row": 5, "enemy": "", "movement": "lane_cut", "size": "small", "dir": "left", "depth": "high"},
+		],
+	},
+	{
+		"name": "loiter_tiered",
+		"faction": "any",
+		"min_sector": 0,
+		"stagger": 0.18,
+		"lockstep": true,
+		"placements": [
+			{"lane": 0, "row": 5, "enemy": "", "movement": "loiter_sweep", "size": "medium", "dir": "random", "depth": "low"},
+			{"lane": 0, "row": 3, "enemy": "", "movement": "loiter_sweep", "size": "medium", "dir": "random", "depth": "mid"},
+			{"lane": 0, "row": 1, "enemy": "", "movement": "loiter_sweep", "size": "medium", "dir": "random", "depth": "high"},
+		],
+	},
+	{
+		"name": "straight_escort_wall",
+		"faction": "any",
+		"min_sector": 0,
+		"stagger": 0.18,
+		"lockstep": true,
+		"placements": [
+			{"lane": 0, "row": 5, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 1, "row": 5, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 2, "row": 5, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 3, "row": 5, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 4, "row": 5, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 5, "row": 5, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 6, "row": 5, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 0, "row": 4, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 1, "row": 4, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 2, "row": 4, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 3, "row": 4, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 4, "row": 4, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 5, "row": 4, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 6, "row": 4, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 1, "row": 3, "enemy": "", "movement": "straight", "size": "medium"},
+			{"lane": 3, "row": 3, "enemy": "", "movement": "straight", "size": "medium"},
+			{"lane": 5, "row": 3, "enemy": "", "movement": "straight", "size": "medium"},
+			{"lane": 2, "row": 2, "enemy": "", "movement": "straight", "size": "medium"},
+			{"lane": 4, "row": 2, "enemy": "", "movement": "straight", "size": "medium"},
+			{"lane": 0, "row": 1, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 1, "row": 1, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 2, "row": 1, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 3, "row": 1, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 4, "row": 1, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 5, "row": 1, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 6, "row": 1, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 5, "row": 0, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 6, "row": 0, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 4, "row": 0, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 3, "row": 0, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 2, "row": 0, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 1, "row": 0, "enemy": "", "movement": "straight", "size": "small"},
+			{"lane": 0, "row": 0, "enemy": "", "movement": "straight", "size": "small"},
 		],
 	},
 ]
@@ -377,10 +574,16 @@ static func eligible(level_faction: int, sector: int) -> Array:
 # movement uses the entry's roster default; specified values are honoured. `fill_faction` is the
 # level's Factions.Id (-1 = no faction filter). Returns null if nothing resolves.
 static func build_phrase(pattern: Dictionary, fill_faction: int, sector: int, rng: RandomNumberGenerator) -> Phrase:
-	var stagger: float = float(pattern.get("stagger", 0.18))
+	var lockstep: bool = bool(pattern.get("lockstep", false))
+	var placements: Array = pattern.get("placements", [])
+	# Entry order reads bottom-up (Roman 2026-06-23): the BOTTOM-most painted row leads on screen
+	# (enters first), the TOP row trails — so the burst appears as drawn, "sheet music" style.
+	var max_row: int = 0
+	for pl in placements:
+		max_row = maxi(max_row, int(pl.get("row", 0)))
 	var specs: Array = []
-	for pl in pattern.get("placements", []):
-		var ws = _spec_for_placement(pl, fill_faction, sector, stagger, rng)
+	for pl in placements:
+		var ws = _spec_for_placement(pl, fill_faction, sector, max_row, rng)
 		if ws != null:
 			specs.append(ws)
 	if specs.is_empty():
@@ -388,7 +591,7 @@ static func build_phrase(pattern: Dictionary, fill_faction: int, sector: int, rn
 	# Formation speed mode (Formation Builder, 2026-06-22): "formation"/lockstep makes the whole
 	# burst advance at the SLOWEST member's speed so it holds its shape; "free" (the default, and
 	# every legacy pattern w/o the key) leaves each unit at its own chassis speed.
-	if bool(pattern.get("lockstep", false)):
+	if lockstep:
 		_lock_to_slowest(specs)
 	var ph := Phrase.new()
 	ph.kind = Phrase.Kind.FORMATION
@@ -415,7 +618,7 @@ static func _lock_to_slowest(specs: Array) -> void:
 
 # Build one count-1 WaveSpec for a single placement, resolving enemy + movement. Returns null
 # when the slot can't be filled (no eligible enemy / unloadable scene).
-static func _spec_for_placement(pl: Dictionary, fill_faction: int, sector: int, stagger: float, rng: RandomNumberGenerator):
+static func _spec_for_placement(pl: Dictionary, fill_faction: int, sector: int, max_row: int, rng: RandomNumberGenerator):
 	var enemy_path: String = String(pl.get("enemy", ""))
 	var move_key: String = String(pl.get("movement", ""))
 	var size_hint: String = String(pl.get("size", ""))
@@ -436,13 +639,17 @@ static func _spec_for_placement(pl: Dictionary, fill_faction: int, sector: int, 
 	ws.enemy_scene = scene
 	ws.count = 1
 	ws.lane = int(pl.get("lane", -1))
-	ws.spawn_delay = float(int(pl.get("row", 0))) * stagger
+	ws.spawn_delay = 0.0   # whole formation spawns together; row spacing is SPATIAL (spawn_y below)
 	# Sub-grid within the lane square (Formation Builder): sub_x spreads horizontally within the
-	# lane, sub_y staggers the spawn height so a cell enters as a cluster. Centre (1,1) = legacy.
+	# lane, sub_y nudges the spawn height so a cell enters as a cluster. Centre (1,1) = legacy.
 	var sub_x: int = int(pl.get("sub_x", 1))
 	var sub_y: int = int(pl.get("sub_y", 1))
 	ws.spawn_x_offset = (float(sub_x) - 1.0) * (Lanes.WIDTH / 3.0)
-	ws.spawn_y = -12.0 + (float(sub_y) - 1.0) * 11.0
+	# Pre-stack rows ABOVE the top edge so the painted formation descends in intact: the bottom-most
+	# painted row (row == max_row) enters at the edge; each row up adds ROW_GAP_PX. enemy_base
+	# suppresses the FREE_ANY_EDGE top cull until first entry so these aren't freed pre-descent.
+	var row: int = int(pl.get("row", 0))
+	ws.spawn_y = -12.0 - float(max_row - row) * ROW_GAP_PX + (float(sub_y) - 1.0) * 11.0
 	# Lateral-direction override (Formation Builder): "left"/"right"/"random" force which way a
 	# side-aware movement runs; "" / "any" leaves it as authored. director._apply_direction consumes it.
 	match String(pl.get("dir", "")):

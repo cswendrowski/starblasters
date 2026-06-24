@@ -106,6 +106,10 @@ enum OffscreenMode { CYCLE_BOTTOM, FREE_ANY_EDGE, FREE_OPPOSITE_SIDE, NONE }
 # The enemy dev tool + per-enemy scenes set this; explode() resolves it to a scene.
 @export var explosion_variant: String = "default"
 @export var offscreen_mode: int = OffscreenMode.CYCLE_BOTTOM
+# True once the enemy first reaches the visible area (y >= 0). Gates the FREE_ANY_EDGE top-edge cull
+# so a formation row pre-stacked above the screen (authored_patterns) isn't freed before it descends
+# in; a genuine top EXIT (after entry) still frees.
+var _entered_playfield: bool = false
 # Engine flame color override. Default warm-orange; missile-like enemies
 # (Dart) use yellow per Roman 2026-05-18. Alpha is honored.
 @export var engine_tint: Color = Color(1.0, 0.65, 0.25, 0.95)
@@ -1040,6 +1044,10 @@ func _apply_auto_rotation() -> void:
 func _offscreen_cleanup_check() -> void:
 	if _dying:
 		return
+	# Once the enemy first reaches the visible area, allow the FREE_ANY_EDGE top-edge cull (below) to
+	# fire on a genuine top exit. Until then a row pre-stacked above the screen is still descending IN.
+	if not _entered_playfield and global_position.y >= 0.0:
+		_entered_playfield = true
 	match offscreen_mode:
 		OffscreenMode.NONE:
 			return
@@ -1066,7 +1074,7 @@ func _offscreen_cleanup_check() -> void:
 		OffscreenMode.FREE_ANY_EDGE:
 			var sz_a: Vector2 = get_viewport_rect().size
 			if global_position.y > sz_a.y + offscreen_margin \
-				or global_position.y < -offscreen_margin \
+				or (_entered_playfield and global_position.y < -offscreen_margin) \
 				or global_position.x < -offscreen_margin \
 				or global_position.x > sz_a.x + offscreen_margin:
 				_leave()

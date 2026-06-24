@@ -67,7 +67,7 @@ var _pulse_t: float = 0.0          # animates the placed-enemy direction pulse
 const MountComponentScript = preload("res://scripts/enemies/mounts/mount_component.gd")
 const EnemyTurretScript = preload("res://scripts/enemies/enemy_turret.gd")
 
-var _name_lbl: Label = null
+var _name_lbl: LineEdit = null
 var _brush_lbl: Label = null
 var _move_lbl: Label = null
 var _size_lbl: Label = null
@@ -364,10 +364,21 @@ func _build_ui() -> void:
 	# Left gutter.
 	var left := _make_panel(Vector2(0, 0), Vector2(128, 270))
 	add_child(left)
+	# The control stack outgrew 270px (depth/speed brushes etc.) and the panel clips, so the
+	# NOTE field + action buttons (Preview/Save/…) were being cut off the bottom. Scroll it so
+	# every control stays reachable no matter how many accumulate (Roman 2026-06-23).
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 2)
+	left.add_child(outer)
+	_fill_panel(outer)
+	var lsc := ScrollContainer.new()
+	lsc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	lsc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	outer.add_child(lsc)
 	var lv := VBoxContainer.new()
 	lv.add_theme_constant_override("separation", 2)
-	left.add_child(lv)
-	_fill_panel(lv)
+	lv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lsc.add_child(lv)
 
 	lv.add_child(_new_label("FORMATION BUILDER", UiTheme.COLOR_ACCENT, SZ))
 
@@ -376,10 +387,14 @@ func _build_ui() -> void:
 	pr.add_theme_constant_override("separation", 2)
 	lv.add_child(pr)
 	_add_fixed_button(pr, "<", func(): _select_pattern(_pat_idx - 1), 14)
-	_name_lbl = _new_label("-", UiTheme.COLOR_TEXT, SZ)
-	_name_lbl.clip_text = true
+	# Editable pattern name (Roman 2026-06-23): type + Enter (or click away) renames the pattern.
+	_name_lbl = LineEdit.new()
+	_name_lbl.add_theme_font_size_override("font_size", SZ)
+	_name_lbl.add_theme_color_override("font_color", UiTheme.COLOR_TEXT)
 	_name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_name_lbl.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_name_lbl.text_submitted.connect(_commit_name)
+	_name_lbl.focus_exited.connect(func(): _commit_name(_name_lbl.text))
 	pr.add_child(_name_lbl)
 	_add_fixed_button(pr, ">", func(): _select_pattern(_pat_idx + 1), 14)
 	var pr2 := HBoxContainer.new()
@@ -483,27 +498,28 @@ func _build_ui() -> void:
 	_note_edit.text_changed.connect(func(): if not _library.is_empty(): _cur()["note"] = _note_edit.text)
 	lv.add_child(_note_edit)
 
-	lv.add_child(_sep())
+	# --- Pinned action bar (outside the scroll, always visible at the panel bottom) ---
+	outer.add_child(_sep())
 	var a1 := HBoxContainer.new()
 	a1.add_theme_constant_override("separation", 2)
-	lv.add_child(a1)
+	outer.add_child(a1)
 	_add_button(a1, "Preview", _preview)
 	_shoot_btn = _add_button(a1, "Shoot:On", _toggle_shoot)
 	_add_button(a1, "Send>C", _send_to_conductor)
 	var a2 := HBoxContainer.new()
 	a2.add_theme_constant_override("separation", 2)
-	lv.add_child(a2)
+	outer.add_child(a2)
 	_add_button(a2, "Save", _save_json)
 	_add_button(a2, "Export", _export)
 	var a3 := HBoxContainer.new()
 	a3.add_theme_constant_override("separation", 2)
-	lv.add_child(a3)
+	outer.add_child(a3)
 	_add_button(a3, "ClearGrid", _clear_grid)
 	_add_button(a3, "Back", _on_back)
 	_status_lbl = _new_label("", UiTheme.COLOR_FAINT, SZ)
 	_status_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status_lbl.custom_minimum_size = Vector2(120, 0)
-	lv.add_child(_status_lbl)
+	outer.add_child(_status_lbl)
 
 	# Right gutter — enemy palette.
 	var right := _make_panel(Vector2(348, 0), Vector2(132, 270))
@@ -660,7 +676,7 @@ func _cycle_stagger(d: int) -> void:
 
 
 func _refresh_prop_labels() -> void:
-	if _name_lbl:
+	if _name_lbl and not _name_lbl.has_focus():
 		_name_lbl.text = String(_cur().get("name", "-"))
 	if _fac_lbl:
 		_fac_lbl.text = "fac: %s" % String(_cur().get("faction", "any"))
@@ -682,9 +698,20 @@ func _toggle_speed_mode() -> void:
 
 
 func _rename_pattern() -> void:
-	# No text-input chrome at native size — cycle a numbered name so each pattern is addressable.
-	_cur()["name"] = "pattern_%d_%d" % [_pat_idx, Time.get_ticks_msec() % 1000]
-	_refresh_prop_labels()
+	# Focus the name field so you can type a new name (Enter or click-away commits it).
+	if _name_lbl:
+		_name_lbl.grab_focus()
+		_name_lbl.select_all()
+
+
+# Commit an edited pattern name (from the name LineEdit's text_submitted/focus_exited). Blank ignored.
+func _commit_name(t: String) -> void:
+	if _library.is_empty():
+		return
+	var nm: String = t.strip_edges()
+	if nm == "":
+		return
+	_cur()["name"] = nm
 	_update_status()
 
 
