@@ -139,7 +139,13 @@ static func build(sector_depth: int, level_index_in_sector: int, is_boss: bool, 
 # (faction tints, telegraphs, native wall/filler authoring) — author phrases here
 # rather than inferring them from flat WaveSpecs.
 static func build_score(sector_depth: int, level_index_in_sector: int, is_boss: bool, faction: int = -1) -> CombatScore:
-	return ScoreAdapter.from_level_data(build(sector_depth, level_index_in_sector, is_boss, faction))
+	var score := ScoreAdapter.from_level_data(build(sector_depth, level_index_in_sector, is_boss, faction))
+	# Native phrase authoring on top of the lifted flat score (the seam the bridge names). ESCORT is
+	# the first multi-TYPE formation — a heavy core + chaff screen in ONE phrase, which the flat
+	# WaveSpec→one-phrase adapter path can't express. Boss levels keep their tuned lead-in.
+	if not is_boss:
+		_maybe_inject_escort(score, sector_depth, level_index_in_sector, faction)
+	return score
 
 
 # Wave count target. 5-8 waves per level (streaming model, M5): the conductor
@@ -221,6 +227,12 @@ const GEOMETRIC_FLOCK_MAX: int = 12
 # dispatch). Silent (no banner), DISCRETE (count 2-3, excluded from the chaff budget), so it reads as
 # a quick grace-note before the breather, not another wall. Tune CHANCE freely.
 const ACCENT_CHANCE: float = 0.35
+
+# ESCORT (audit follow-on, 2026-06-23). Per-level chance build_score splices a heavy-core-plus-chaff-
+# screen convoy into a mid wave. Discrete spectacle, lockstep-clamped to the slow core. Pre-stack gap
+# matches the geometric/authored row spacing. Tune CHANCE freely.
+const ESCORT_CHANCE: float = 0.4
+const ESCORT_ROW_GAP: float = 40.0
 
 static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, level_index: int) -> Array:
 	var waves: Array = []
@@ -313,6 +325,105 @@ static func _make_accent_wave(rng: RandomNumberGenerator, sector_depth: int, lev
 	w.spawn_delay = 0.4
 	w.spawn_interval = 0.12   # quick one-two
 	return w
+
+
+# ESCORT injection (audit follow-on). Occasionally splice a heavy-core-plus-chaff-screen formation
+# into a mid wave of the score. This is the first MIXED-TYPE formation: a single FORMATION phrase
+# carrying two roster entries (heavy + chaff), which the flat WaveSpec→one-phrase adapter path can't
+# produce — so it's authored here on the CombatScore. The screen is lockstep-clamped to the slow core
+# so it descends WITH the heavy instead of outrunning it (the real lockstep payoff). Seeded from the
+# node's stable stream (distinct sub-stream) so a retry reproduces it. Mutates `score` in place.
+static func _maybe_inject_escort(score: CombatScore, sector_depth: int, level_index: int, faction: int) -> void:
+	if score == null or score.waves.size() < 3:
+		return
+	# Keep the calm opener (sector 1, first node) escort-free.
+	if sector_depth <= 1 and level_index <= 0:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = _stable_seed(sector_depth, level_index, false) ^ 0x5C027   # distinct sub-stream
+	if rng.randf() >= ESCORT_CHANCE:
+		return
+	# Pick the core + screen entries under the level's faction filter (mirrors build()).
+	var prev_faction: int = Roster.get_faction_filter()
+	Roster.set_faction_filter(faction)
+	var heavy: Dictionary = _pick_heavy(rng, sector_depth, level_index, [], false)   # prefer anchor (movement-slot)
+	var chaff: Dictionary = _pick_entry(rng, sector_depth, level_index, [], PackedStringArray(), Roster.Tier.COMMON, "")
+	Roster.set_faction_filter(prev_faction)
+	# Skip if nothing suitable, or either pick demands its own formation (e.g. Burner's beam-pair).
+	if heavy.is_empty() or chaff.is_empty() or heavy.has("force_formation") or chaff.has("force_formation"):
+		return
+	var ph := _build_escort_phrase(rng, heavy, chaff, sector_depth, level_index)
+	if ph == null:
+		return
+	# Drop into a mid wave — never the opener or the finale — as that wave's final formation phrase.
+	var idx: int = clampi(int(score.waves.size() / 2), 1, maxi(1, score.waves.size() - 2))
+	score.waves[idx].phrases.append(ph)
+
+
+# Assemble the escort FORMATION phrase: fill the screen cells from `chaff` and the core cells from
+# `heavy` (formation_shapes.escort layout), pre-stack the rows above the top edge so the convoy
+# descends in holding shape, and lockstep-clamp the whole burst to the slowest (the core). Shape
+# &"authored" routes it to director._dispatch_authored (the mixed-type pre-stacked burst path). null
+# if too few specs resolve.
+static func _build_escort_phrase(rng: RandomNumberGenerator, heavy: Dictionary, chaff: Dictionary, sector_depth: int, level_index: int) -> Phrase:
+	var layout: Dictionary = FormationShapesC.escort(1 + (rng.randi() % 2))   # 1-2 cores
+	var core_cells: Array = layout["core"]
+	var screen_cells: Array = layout["screen"]
+	var max_row: int = 0
+	for c in core_cells:
+		max_row = maxi(max_row, int(c.y))
+	for c in screen_cells:
+		max_row = maxi(max_row, int(c.y))
+	var specs: Array = []
+	for c in screen_cells:
+		var s = _escort_spec(rng, chaff, c, max_row, sector_depth, level_index)
+		if s != null:
+			specs.append(s)
+	for c in core_cells:
+		var s = _escort_spec(rng, heavy, c, max_row, sector_depth, level_index)
+		if s != null:
+			specs.append(s)
+	if specs.size() < 2:
+		return null
+	# LOCKSTEP — clamp the fast chaff to the SLOW core's speed so the screen holds around the heavy
+	# instead of outrunning it (mirrors authored_patterns._lock_to_slowest; the audit's #1, finally
+	# load-bearing now that a generated formation is mixed-speed).
+	_lock_specs_to_slowest(specs)
+	var ph := Phrase.new()
+	ph.kind = Phrase.Kind.FORMATION
+	ph.shape = &"authored"
+	ph.specs = specs
+	return ph
+
+
+# One escort member: a count-1 spec for `entry` pinned to its cell's lane + pre-stacked spawn_y, with
+# a straight descent so it holds its lane as the convoy advances. Reuses _make_wave_spec so the unit
+# keeps its real stats/weapon/components. (A bespoke heavy with no movement slot keeps its own
+# locomotion but still takes the locked move_speed — it rides along rather than holding rigidly.)
+static func _escort_spec(rng: RandomNumberGenerator, entry: Dictionary, cell: Vector2i, max_row: int, sector_depth: int, level_index: int) -> WaveSpec:
+	var w = _make_wave_spec(rng, entry, sector_depth, level_index, 0)
+	w.count = 1
+	w.lane = int(cell.x)
+	w.spawn_y = -12.0 - float(max_row - int(cell.y)) * ESCORT_ROW_GAP
+	w.spawn_delay = 0.0   # authored burst — whole convoy enters together; rows are SPATIAL
+	w.movement_override = Roster.make_movement({"movement": "straight"})
+	w.silent = true
+	return w
+
+
+# Clamp every speed-bearing spec to the SLOWEST member's move_speed so a mixed-speed formation
+# advances in unison (mirrors authored_patterns._lock_to_slowest). Specs with no resolved speed
+# (move_speed <= 0) are left alone and don't drag the minimum to zero.
+static func _lock_specs_to_slowest(specs: Array) -> void:
+	var slowest: float = INF
+	for ws in specs:
+		if ws.move_speed > 0.0:
+			slowest = minf(slowest, ws.move_speed)
+	if slowest == INF:
+		return
+	for ws in specs:
+		if ws.move_speed > 0.0:
+			ws.move_speed = slowest
 
 
 # Pick a heavy for a beat (midpoint or coda). prefer_capital orders the two pools:

@@ -115,6 +115,28 @@ static func _columns(count: int) -> Array:
 	return out
 
 
+# ESCORT — a heavy CORE screened by a chaff formation (the audit's mixed-size escort, e.g. the
+# authored straight_escort_wall). Returns two cell lists: `core` (the heavy/heavies) and `screen`
+# (the chaff shield). The forward screen (row 0) leads — it faces the player, who attacks from below
+# — and a rear guard trails, with the core nested at the centre. Unlike the homogeneous shapes above
+# this is type-mixed, so the caller fills the two lists from different roster entries and the whole
+# burst is lockstep-clamped to the slow core (wave_generator._build_escort_phrase). `core_count`
+# 1..3 sets how many heavies sit at the centre.
+static func escort(core_count: int) -> Dictionary:
+	core_count = clampi(core_count, 1, 3)
+	var core: Array
+	match core_count:
+		1: core = [Vector2i(3, 2)]
+		2: core = [Vector2i(2, 2), Vector2i(4, 2)]
+		_: core = [Vector2i(2, 2), Vector2i(3, 2), Vector2i(4, 2)]
+	var screen: Array = [
+		Vector2i(1, 0), Vector2i(3, 0), Vector2i(5, 0),                   # forward shield (leads, faces player)
+		Vector2i(0, 1), Vector2i(2, 1), Vector2i(4, 1), Vector2i(6, 1),   # mid screen
+		Vector2i(1, 3), Vector2i(3, 3), Vector2i(5, 3),                   # rear guard (trails)
+	]
+	return {"core": core, "screen": screen}
+
+
 # Stack copies of `unit` upward until at least `count` cells, then truncate to exactly `count`.
 # Lanes are clamped defensively so a malformed unit can never spawn off-grid.
 static func _tile(unit: Array, unit_height: int, count: int) -> Array:
