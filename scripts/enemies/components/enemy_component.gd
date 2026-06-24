@@ -15,6 +15,7 @@ extends Resource
 #                                  absorbed. Default: unchanged.
 #   on_death(enemy)              — enemy is dying (ring-release, kill-partner, …)
 #   on_leave(enemy)              — enemy recycled / escaped (teardown)
+#   on_phase(enemy, phase_name)  — host movement entered a named phase (fire_on_phase mounts)
 #
 # Registry + event fan-out live on enemy_base (so bosses + bespoke hulls can host
 # components too); the per-frame tick lives on enemy_core. INERT until something
@@ -39,4 +40,10 @@ func on_death(_enemy) -> void:
 
 
 func on_leave(_enemy) -> void:
+	pass
+
+
+# Host movement entered a named phase (lane_path/drift emit `phase_entered`). A mount can fire
+# on it via spec.fire_on_phase; most components ignore it.
+func on_phase(_enemy, _phase_name: String) -> void:
 	pass

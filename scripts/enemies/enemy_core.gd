@@ -400,6 +400,7 @@ func _do_path_shot() -> void:
 func _on_movement_phase_entered(phase_name: String) -> void:
 	if _dying:
 		return
+	_components_phase(phase_name)   # mounts/components react to the phase (fire_on_phase mounts fire here)
 	if fire_on_phase == "" or phase_name != fire_on_phase:
 		return
 	if shoot_pattern == null:

@@ -44,6 +44,7 @@ enum MarkerMode { ALL, CYCLE }   # ALL = fire from every matched marker; CYCLE =
 @export var fire_aim_tol_deg: float = 18.0      # nose-alignment tolerance for fire_only_on_target
 @export var fire_path_phases: PackedFloat32Array = PackedFloat32Array()  # fire once past each band-progress fraction
 @export var fire_beat_synced: bool = true       # quantize path-phase shots to the shared tempo (volley collapse)
+@export var fire_on_phase: String = ""          # fire when the host movement enters this named phase (not cadence)
 
 # --- TURRET only (forwarded 1:1 to EnemyTurret) ---
 @export var rotation_speed: float = 3.6

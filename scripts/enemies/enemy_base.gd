@@ -869,6 +869,13 @@ func _components_death() -> void:
 			c.on_death(self)
 
 
+# Fan a host movement-phase event out to components (fire_on_phase mounts fire from here).
+func _components_phase(phase_name: String) -> void:
+	for c in _components:
+		if c.has_method("on_phase"):
+			c.on_phase(self, phase_name)
+
+
 # Strip every ShieldComponent down to zero (the EM Torpedo burst calls this before applying its
 # shield-ignoring damage). Also drops the legacy simple max_shield charge. (Roman 2026-06-10.)
 func break_shields() -> void:

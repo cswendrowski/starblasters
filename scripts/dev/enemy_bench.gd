@@ -1018,6 +1018,7 @@ func _mount_spec_dicts() -> Array:
 			sd["fire_zone_gated"] = bool(d.get("zone_gated", false))
 			sd["fire_only_on_target"] = bool(d.get("nose_gated", false))
 			sd["fire_aim_tol_deg"] = float(d.get("aim_tol", 18.0))
+			sd["fire_on_phase"] = String(d.get("on_phase", ""))
 			var pp_str: String = String(d.get("path_phases", "")).strip_edges()
 			if pp_str != "":
 				var phases: Array = []
@@ -1037,7 +1038,7 @@ func _mount_spec_dicts() -> Array:
 
 
 func _add_mount() -> void:
-	_mount_dicts.append({"kind": "gun", "marker": "", "payload": "Basic", "aim": "straight_down", "fire": 1.5, "count": 1, "spread": 0.0, "marker_mode": "cycle", "burst_interval": 0.0, "bullet_speed": -1.0, "zone_gated": false, "nose_gated": false, "aim_tol": 18.0, "path_phases": "", "beat_synced": true})
+	_mount_dicts.append({"kind": "gun", "marker": "", "payload": "Basic", "aim": "straight_down", "fire": 1.5, "count": 1, "spread": 0.0, "marker_mode": "cycle", "burst_interval": 0.0, "bullet_speed": -1.0, "zone_gated": false, "nose_gated": false, "aim_tol": 18.0, "path_phases": "", "beat_synced": true, "on_phase": ""})
 	_rebuild_mounts_ui()
 	_spawn_current()
 
@@ -1178,6 +1179,15 @@ func _make_mount_row(idx: int) -> Control:
 		beat_chk.add_theme_font_size_override("font_size", FS_CAPTION)
 		beat_chk.toggled.connect(func(on): _set_mount(d, "beat_synced", on))
 		h6.add_child(beat_chk)
+		h6.add_child(_row_lbl("phase"))
+		var phase_ed := LineEdit.new()
+		phase_ed.placeholder_text = "name"
+		phase_ed.text = String(d.get("on_phase", ""))
+		phase_ed.custom_minimum_size = Vector2(64, 26)
+		phase_ed.add_theme_font_size_override("font_size", FS_CAPTION)
+		phase_ed.text_submitted.connect(func(t): _set_mount(d, "on_phase", t))
+		phase_ed.focus_exited.connect(func(): _set_mount(d, "on_phase", phase_ed.text))
+		h6.add_child(phase_ed)
 		row.add_child(h6)
 
 	return row
@@ -1425,6 +1435,7 @@ func _roster_mount_to_bench(d: Dictionary) -> Dictionary:
 		"aim_tol": float(d.get("fire_aim_tol_deg", 18.0)),
 		"path_phases": ",".join(pp_toks),
 		"beat_synced": bool(d.get("fire_beat_synced", true)),
+		"on_phase": String(d.get("fire_on_phase", "")),
 	}
 
 
@@ -1478,6 +1489,9 @@ func _mount_copy_line(d: Dictionary) -> String:
 			line += ", \"fire_path_phases\": [%s]" % pp_copy
 			if not bool(d.get("beat_synced", true)):
 				line += ", \"fire_beat_synced\": false"
+		var ophase: String = String(d.get("on_phase", "")).strip_edges()
+		if ophase != "":
+			line += ", \"fire_on_phase\": \"%s\"" % ophase
 	line += " },"
 	return line
 

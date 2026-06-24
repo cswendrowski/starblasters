@@ -51,6 +51,9 @@ func on_process(enemy, delta: float) -> void:
 	if not spec.fire_path_phases.is_empty():
 		_tick_path_phases(enemy)
 		return
+	# MODE: phase-event firing — fires from on_phase() on a named movement phase, not the cadence.
+	if String(spec.fire_on_phase) != "":
+		return
 	_t += delta
 	if _t < _next:
 		return
@@ -61,6 +64,16 @@ func on_process(enemy, delta: float) -> void:
 		return
 	_t = 0.0
 	_next = _roll_interval()
+	_fire(enemy)
+
+
+# Phase-event firing (spec.fire_on_phase): the host movement entered a named phase; fire if it
+# matches, subject to the same zone/nose gates. Fanned in by enemy_core._on_movement_phase_entered.
+func on_phase(enemy, phase_name: String) -> void:
+	if String(spec.fire_on_phase) == "" or phase_name != String(spec.fire_on_phase):
+		return
+	if _held(enemy) or not _gates_pass(enemy):
+		return
 	_fire(enemy)
 
 

@@ -1629,6 +1629,7 @@ static func _mount_from_dict(d: Dictionary) -> Resource:
 	if _fpp is Array:
 		m.fire_path_phases = PackedFloat32Array(_fpp)
 	m.fire_beat_synced = bool(d.get("fire_beat_synced", true))
+	m.fire_on_phase = String(d.get("fire_on_phase", ""))
 	m.rotation_speed = float(d.get("rotation_speed", 3.6))
 	m.arc_deg = float(d.get("arc_deg", 0.0))
 	m.rest_angle_deg = float(d.get("rest_angle_deg", 0.0))
