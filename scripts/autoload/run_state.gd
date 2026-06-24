@@ -1100,12 +1100,11 @@ func get_primary_cannon():
 	return cannon_pool[1] if cannon_pool.size() > 1 else null
 
 
-# Top up the persistent metered-ammo pools by `pct` of each weapon's max, capped at
-# max. Primary magazine lives on the cannon Part (current_ammo/ammo_max); secondary on
-# secondary_ammo/secondary_ammo_max. Infinite blasters (ammo_max <= 0) and unmetered
-# secondaries (-1) are skipped. ceil() guarantees at least +1 per call for any metered
-# weapon, and pct >= 1.0 is a guaranteed full refill (mini-clamped to max).
-# Callers: main._on_level_cleared passes 1.0 (every clear fully refills metered ammo).
+# Internal Micro Fabricator (module): top up the persistent metered-ammo pools by
+# `pct` of each weapon's max, capped at max. Primary magazine lives on the cannon
+# Part (current_ammo/ammo_max); secondary on secondary_ammo/secondary_ammo_max.
+# Infinite blasters (ammo_max <= 0) and unmetered secondaries (-1) are skipped.
+# ceil() guarantees at least +1 per clear for any metered weapon.
 func restock_ammo_fraction(pct: float) -> void:
 	if pct <= 0.0:
 		return
@@ -1125,6 +1124,29 @@ func restock_ammo_fraction(pct: float) -> void:
 	# Secondary — Run-persisted pool.
 	if secondary_ammo_max > 0 and secondary_ammo >= 0:
 		secondary_ammo = mini(secondary_ammo_max, secondary_ammo + int(ceil(float(secondary_ammo_max) * pct)))
+
+
+# Laser-family primaries (ammo_recharge_rate > 0 — Auto/Pulse/Rotary/Quad lasers)
+# already regenerate ammo IN combat; on top of that they arrive FULL at the outpost.
+# Every level clear tops the laser magazine back to max. Non-regen metered weapons
+# (Autocannon/Minigun/Shredder, recharge 0) get nothing here — they rely on the
+# Internal Micro Fabricator's partial restock instead. Secondaries are likewise the
+# Fabricator's job, not this one. (Roman 2026-06-23.)
+func restock_regen_laser_primary() -> void:
+	var prim = get_primary_cannon()
+	if prim == null:
+		return
+	if not ("ammo_recharge_rate" in prim) or float(prim.ammo_recharge_rate) <= 0.0:
+		return  # not a regen laser — leave it to the Micro Fabricator
+	if not ("current_ammo" in prim and "ammo_max" in prim):
+		return
+	var pmax: int = int(prim.ammo_max)
+	if pmax <= 0:
+		return
+	prim.current_ammo = pmax
+	# Mirror Run.ammo when the laser is the active (loaded) cannon.
+	if active_cannon_idx == 1:
+		ammo = pmax
 
 
 # Replace the BLASTER (slot 0). Old blaster → hold; same-name = mark-bump.

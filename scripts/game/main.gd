@@ -483,12 +483,15 @@ func _on_level_cleared() -> void:
 			# return). Save max_shield so the next combat starts fully shielded.
 			run.current_shield = player.max_shield
 			run.max_shield = player.max_shield
-			# Metered primary/secondary weapons (lasers, Quad, Pulse, Autocannon, …)
-			# FULLY refill on every level clear — you should never reach the outpost
-			# low on ammo (Roman 2026-06-23). Tops up the persistent pools that carry
-			# into the next combat. This subsumes the Internal Micro Fabricator's
-			# partial on-clear restock (a full clear already maxes the pools).
-			run.restock_ammo_fraction(1.0)
+			# Laser-family primaries (Auto/Pulse/Rotary/Quad — the regen lasers) arrive
+			# FULL at the outpost: every clear tops their magazine to max, riding alongside
+			# the in-combat regen they already have. Non-laser metered weapons get no
+			# auto-restock here — they rely on the Internal Micro Fabricator below.
+			run.restock_regen_laser_primary()
+			# Internal Micro Fabricator (module): restock a slice of max ammo on clear for
+			# the NON-regen weapons + secondaries, topping up the persistent pools.
+			if player.module_ammo_restore_pct > 0.0:
+				run.restock_ammo_fraction(player.module_ammo_restore_pct)
 	_run_outro()
 
 func _on_player_died() -> void:
@@ -619,6 +622,9 @@ func new_game() -> void:
 			# breathers); set _current_score directly so the chokepoint below
 			# (which only adapts a LevelData) leaves it untouched.
 			_current_score = Levels.build_asteroid_field_score()
+			# Conduct asteroids like enemies (Roman 2026-06-23): a concurrency cap so the
+			# field STREAMS at a navigable peak instead of walling up. Tunable for density.
+			wave_director.max_concurrent = 14
 		elif hazard_subtype == "roster_test":
 			_current_level = Levels.build_roster_test()
 		elif hazard_subtype == "firecore_drone_showcase":
