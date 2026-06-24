@@ -556,7 +556,7 @@ func _demo_codex() -> void:
 		for path in [
 			"res://scenes/enemies/core/enemy_core_s_dart.tscn",
 			"res://scenes/enemies/factions/supremacy/enemy_frigate.tscn",
-			"res://scenes/enemies/factions/privateer/enemy_p_m_widow.tscn",
+			"res://scenes/enemies/factions/corporate/enemy_c_m_widow.tscn",
 			"res://scenes/enemies/core/enemy_core_m_minelayer.tscn",
 		]:
 			run.encountered_enemies[path] = true
@@ -575,7 +575,7 @@ func _demo_enemy_roster_sheet() -> void:
 		# UNCOMMON
 		{"path": "res://scenes/enemies/factions/supremacy/enemy_frigate.tscn",  "name": "Frigate",  "tier": "Uncommon"},
 		# RARE
-		{"path": "res://scenes/enemies/factions/privateer/enemy_p_m_widow.tscn",  "name": "Crystal",  "tier": "Rare"},
+		{"path": "res://scenes/enemies/factions/corporate/enemy_c_m_widow.tscn",  "name": "Crystal",  "tier": "Rare"},
 		{"path": "res://scenes/enemies/core/enemy_core_m_minelayer.tscn", "name": "Minelayer", "tier": "Rare"},
 		{"path": "res://scenes/enemies/factions/privateer/enemy_p_m_interceptor.tscn", "name": "Interceptor", "tier": "Rare"},
 		{"path": "res://scenes/enemies/factions/corporate/enemy_c_l_bulwark.tscn",  "name": "Bulwark",  "tier": "Rare"},

@@ -17,7 +17,7 @@ const ENEMIES: Array = [
 	"res://scenes/enemies/bosses/boss_conductor.tscn",
 	"res://scenes/enemies/enemy_asteroid.tscn",
 	"res://scenes/enemies/factions/corporate/enemy_c_l_bulwark.tscn",
-	"res://scenes/enemies/factions/privateer/enemy_p_m_widow.tscn",
+	"res://scenes/enemies/factions/corporate/enemy_c_m_widow.tscn",
 	"res://scenes/enemies/core/enemy_core_s_dart.tscn",
 	"res://scenes/enemies/core/enemy_core_s_flechette.tscn",
 	"res://scenes/enemies/factions/supremacy/enemy_frigate.tscn",

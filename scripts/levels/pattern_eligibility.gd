@@ -28,7 +28,7 @@ const DATA := {
 	"res://scenes/enemies/core/enemy_core_bomber.tscn": {"identity": "drift", "eligible": ["drift"]},
 	"res://scenes/enemies/core/enemy_core_bomber_thin.tscn": {"identity": "drift", "eligible": ["drift"]},
 	"res://scenes/enemies/core/enemy_cruiser.tscn": {"identity": "loiter", "eligible": ["drift", "loiter"]},
-	"res://scenes/enemies/factions/privateer/enemy_p_m_widow.tscn": {"identity": "loiter", "eligible": ["loiter", "straight_charge"]},
+	"res://scenes/enemies/factions/corporate/enemy_c_m_widow.tscn": {"identity": "loiter", "eligible": ["loiter", "straight_charge"]},
 	"res://scenes/enemies/factions/corporate/enemy_c_l_bulwark.tscn": {"identity": "drift", "eligible": ["drift"]},
 	"res://scenes/enemies/factions/corporate/enemy_c_s_curve.tscn": {"identity": "lane_cut", "eligible": ["lane_cut", "lane_drift", "lane_shift", "lane_weave", "side_turn", "straight_charge", "straight"]},
 	"res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn": {"identity": "lane_hook", "eligible": ["lane_hook", "loiter", "skirmish_figure8", "skirmish_loop"]},

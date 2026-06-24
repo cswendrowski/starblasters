@@ -60,7 +60,7 @@ const ENEMY_TAGS := {
 	# enemy_bomb_drone PULLED 2026-06-14 (Roman — rework pending); roster entry also removed.
 	"res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn": {"home": Id.CORPORATE, "universal": false},
 	"res://scenes/enemies/factions/corporate/enemy_c_s_curve.tscn": {"home": Id.CORPORATE, "universal": false},
-	"res://scenes/enemies/factions/privateer/enemy_p_m_widow.tscn": {"home": Id.CORPORATE, "universal": false},  # A-110 Widow → corporate (Roman 2026-06-20). NOTE: scene still named/filed under privateer/ (p_m_) — rename to factions/corporate/enemy_c_m_widow when convenient.
+	"res://scenes/enemies/factions/corporate/enemy_c_m_widow.tscn": {"home": Id.CORPORATE, "universal": false},  # A-110 Widow → corporate (Roman 2026-06-20); scene moved privateer/enemy_p_m_widow → corporate/enemy_c_m_widow 2026-06-23.
 	"res://scenes/enemies/core/enemy_core_bomber.tscn": {"home": Id.CORPORATE, "universal": true, "allowed_in": [Id.CORPORATE, Id.PRIVATEER]},  # B-220 core bomber (corp+priv, per its TailGunGlow tints)
 	"res://scenes/enemies/core/enemy_core_bomber_thin.tscn": {"home": Id.CORPORATE, "universal": true, "allowed_in": [Id.CORPORATE, Id.PRIVATEER]},  # thin bomber variant — core (corp+priv)
 	"res://scenes/enemies/core/enemy_cruiser.tscn": {"home": Id.SUPREMACY, "universal": true},

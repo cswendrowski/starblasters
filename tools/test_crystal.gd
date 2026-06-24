@@ -9,7 +9,7 @@ extends SceneTree
 
 const RESULT := "res://tools/_crystal_result.txt"
 const Roster := preload("res://scripts/levels/enemy_roster.gd")
-const CRYSTAL := "res://scenes/enemies/factions/privateer/enemy_p_m_widow.tscn"
+const CRYSTAL := "res://scenes/enemies/factions/corporate/enemy_c_m_widow.tscn"
 
 var _done := false
 
