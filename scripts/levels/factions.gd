@@ -283,7 +283,8 @@ static func apply_livery(faction: int, enemy) -> void:
 	var mat := ShaderMaterial.new()
 	mat.shader = LIVERY_SHADER
 	mat.set_shader_parameter("tint_color", data(faction).get("tint", Color(0.5, 0.5, 0.5)))
-	mat.set_shader_parameter("opacity", LIVERY_OPACITY)   # match the player; also lets the death-fade tween it
+	mat.set_shader_parameter("opacity", LIVERY_OPACITY)   # match the player's livery blend
+	mat.set_shader_parameter("fade", 1.0)                 # master visibility; enemy_base's death-fade tweens it to 0
 	lv.material = mat
 	lv.visible = true
 

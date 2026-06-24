@@ -675,6 +675,7 @@ const _GravityGlowScript = preload("res://scripts/effects/gravity_glow.gd")
 
 func _fade_death_overlays() -> void:
 	const OVERLAY_FADE := 0.15
+	const LIVERY_DEATH_FADE := 0.3   # within the body's ~0.45s disintegrate burn (gone before it completes)
 	for child in get_children():
 		# Effect nodes that own multiple sub-visuals + per-frame logic (mine centre
 		# blink, gravity glow) can't be killed by a single modulate tween — stop()
@@ -694,14 +695,15 @@ func _fade_death_overlays() -> void:
 		if nm == "Livery":
 			var lmat: Material = (child as CanvasItem).material
 			if lmat is ShaderMaterial:
-				# Fade the darken EFFECT via the shader's `opacity` uniform (the livery shader ignores
-				# modulate:a). Only seed the override if it's missing — apply_livery sets it (0.8); don't
-				# snap it back up to full-dark here. Then fade it out from wherever it is.
+				# The livery shader writes COLOR.a = sprite_alpha, so modulate:a is ignored AND opacity=0
+				# still draws an opaque copy of the background (the "persisting" decal). Fade the `fade`
+				# uniform (master OUTPUT alpha) to 0 so the decal goes truly transparent, completing inside
+				# the body's disintegrate burn so it's gone before the unit finishes (Roman 2026-06-22).
 				var lsm := lmat as ShaderMaterial
-				if lsm.get_shader_parameter("opacity") == null:
-					lsm.set_shader_parameter("opacity", 0.8)
+				if lsm.get_shader_parameter("fade") == null:
+					lsm.set_shader_parameter("fade", 1.0)
 				var ltw := create_tween()
-				ltw.tween_property(lsm, "shader_parameter/opacity", 0.0, OVERLAY_FADE)
+				ltw.tween_property(lsm, "shader_parameter/fade", 0.0, LIVERY_DEATH_FADE)
 			else:
 				(child as CanvasItem).visible = false
 			continue
