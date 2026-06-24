@@ -26,7 +26,7 @@ const ROWS := 6
 const SZ := 7
 const SUB := 3   # NxN sub-grid per lane square — pack multiple (tiny) enemies into one cell
 
-const FACTIONS := ["any", "supremacy", "privateer", "corporate", "zealot"]
+const FACTIONS := ["any", "supremacy", "privateer", "corporate", "zealot", "hazard"]
 const SIZES := ["", "tiny", "small", "medium", "large", "huge", "giant"]
 const DIRS := ["", "left", "right", "random"]   # "" = any (leave authored)
 const DEPTHS := ["", "high", "mid", "low"]      # "" = enemy default; else hold/cross band (locomotion refactor)
@@ -120,6 +120,13 @@ func _build_enemy_choices() -> void:
 			sz = _size_from_path(path)
 		_enemy_choices.append({"label": _enemy_short(path), "scene": path,
 			"faction": _faction_of(path), "size": sz})
+	# Hazard scenes (asteroid + mines) so hazard fields can be hand-placed: paint these, tag the
+	# pattern faction "hazard", and levels_v2 splices it into the asteroid/mine field (conductor).
+	for hp in [["Asteroid", "res://scenes/enemies/enemy_asteroid.tscn", "large"],
+			["Mine", "res://scenes/enemies/enemy_mine.tscn", "small"],
+			["Mine (armor)", "res://scenes/enemies/enemy_mine_armored.tscn", "small"],
+			["Bomblet", "res://scenes/enemies/enemy_bomblet.tscn", "small"]]:
+		_enemy_choices.append({"label": String(hp[0]), "scene": String(hp[1]), "faction": "hazard", "size": String(hp[2])})
 
 
 # Size fallback for enemies without a roster entry (e.g. zealots) — the scene name encodes it

@@ -5,6 +5,7 @@ extends Node
 
 const WaveSpec = preload("res://scripts/levels/wave_def.gd")
 const LevelData = preload("res://scripts/levels/level_def.gd")
+const AuthoredPatterns = preload("res://scripts/levels/authored_patterns.gd")
 const StraightDown = preload("res://scripts/enemies/patterns/straight_down.gd")
 const Loiter = preload("res://scripts/enemies/patterns/loiter.gd")
 # Weapons 3b (2026-06-13): hazard shoot helpers build the unified Weapon (was the legacy
@@ -114,6 +115,20 @@ static func _haz_breather(dur: float, floor_n: int) -> Phrase:
 	ph.alive_floor = floor_n
 	return ph
 
+
+# Splice any authored HAZARD patterns of `kind` ("asteroid"/"mine") onto a hazard wave — Roman
+# hand-places navigable layouts (faction "hazard" in the wave editor) ON TOP of the algorithmic
+# arc. Each becomes an authored FORMATION phrase (exact lanes, navigable by construction) preceded
+# by a clearing breather. None authored = the baseline arc, unchanged. (Roman 2026-06-23.)
+static func _splice_hazard_patterns(wave, kind: String) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0xA57E + hash(kind)
+	for p in AuthoredPatterns.hazard_patterns(kind):
+		var ph = AuthoredPatterns.build_phrase(p, -1, 0, rng)
+		if ph != null:
+			wave.phrases.append(_haz_breather(2.0, 5))
+			wave.phrases.append(ph)
+
 # Hazard: Minefield — phrase-native CombatScore. Lane-shaped mine drops
 # (wall/pincer/spread) the conductor dispatches with real lane placement, paced by
 # breathers so the player can weave through. See build_minefield_score below. (The
@@ -212,6 +227,7 @@ static func build_minefield_score() -> CombatScore:
 		var acount: int = max(2, int(round(float(total_basic) * 0.06)))
 		wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(MineArmoredScene, acount, 0.4, 2)))
 
+	_splice_hazard_patterns(wave, "mine")   # Roman's hand-placed mine layouts, if any
 	var score := CombatScore.new()
 	score.level_name = "Minefield"
 	score.waves = [wave]
@@ -269,6 +285,7 @@ static func build_asteroid_field_score() -> CombatScore:
 	wave.phrases.append(_haz_breather(4.5, 1))     # big release, near-empty
 	# 5. Coda — a final light drift-through.
 	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 10, 0.6, 2)))
+	_splice_hazard_patterns(wave, "asteroid")   # Roman's hand-placed asteroid layouts, if any
 	var score := CombatScore.new()
 	score.level_name = "Asteroid Field"
 	score.waves = [wave]

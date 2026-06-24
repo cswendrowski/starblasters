@@ -564,9 +564,34 @@ static func eligible(level_faction: int, sector: int) -> Array:
 		if int(p.get("min_sector", 0)) > sector:
 			continue
 		var pf: String = String(p.get("faction", "any"))
+		if pf == "hazard":
+			continue   # hazard fields pull these via hazard_patterns(); never combat auto-mix
 		if pf == "any" or pf == "" or faction_id(pf) == level_faction:
 			out.append(p)
 	return out
+
+
+# Authored HAZARD patterns (faction == "hazard"): asteroid/mine layouts Roman hand-places in the
+# wave editor, spliced into hazard FIELDS by levels_v2 (the conductor's authored dispatch places
+# them at exact lanes, navigable by construction). `kind` filters by the first placement's scene
+# substring ("asteroid" / "mine"); "" returns all. Excluded from eligible() so they never auto-mix
+# into combat waves. (Roman 2026-06-23.)
+static func hazard_patterns(kind: String = "", sector: int = 9999) -> Array:
+	var out: Array = []
+	for p in DATA:
+		if String(p.get("faction", "")) != "hazard":
+			continue
+		if int(p.get("min_sector", 0)) > sector:
+			continue
+		if kind != "" and not _first_scene(p).to_lower().contains(kind):
+			continue
+		out.append(p)
+	return out
+
+
+static func _first_scene(p: Dictionary) -> String:
+	var pls: Array = p.get("placements", [])
+	return String(pls[0].get("enemy", "")) if not pls.is_empty() else ""
 
 
 # Compile a pattern dict into a FORMATION Phrase (shape &"authored"). Wildcards resolve here,
