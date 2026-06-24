@@ -1978,7 +1978,6 @@ func fire_primary(aim_angle: float = 0.0) -> void:
 	var _crit_shot: bool = module_crit_chance > 0.0 and randf() < module_crit_chance
 	# Fire-rate bonuses (shorter cooldown), stacked additively: Hyper + Overclock Core
 	# (sustained-fire ramp) + Critical System De-Limiter (scales with hull lost).
-	# start(time) overrides this one cycle's wait_time.
 	var _fire_bonus: float = 0.0
 	if _hyper_active and active_mode == ShiftMode.HYPER and hyper_fire_bonus > 0.0:
 		_fire_bonus += hyper_fire_bonus
@@ -1988,7 +1987,14 @@ func fire_primary(aim_angle: float = 0.0) -> void:
 		_fire_bonus += _overclock_ramp * module_overclock_max
 	_fire_bonus += _delimiter_bonus()
 	if _fire_bonus > 0.0:
-		$GunCooldown.start($GunCooldown.wait_time / (1.0 + _fire_bonus))
+		# Divide ONLY this cycle's interval by the bonus, then restore wait_time.
+		# Timer.start(t) permanently overwrites wait_time (it calls set_wait_time
+		# internally), so without the restore the cooldown would compound smaller
+		# every shot and never recover once the bonus ends — e.g. Hyper's fire-rate
+		# buff would stack indefinitely and stick after release (2026-06-23).
+		var _base_wt: float = $GunCooldown.wait_time
+		$GunCooldown.start(_base_wt / (1.0 + _fire_bonus))
+		$GunCooldown.wait_time = _base_wt
 	else:
 		$GunCooldown.start()
 	# Pulse Laser: hitscan beam from the nose, consume one ammo, then bail (no bullet
