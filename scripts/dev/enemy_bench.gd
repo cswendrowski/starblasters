@@ -14,7 +14,6 @@ const EnemyRoster = preload("res://scripts/levels/enemy_roster.gd")
 const EnemyStrings = preload("res://scripts/strings/enemy_strings.gd")
 const PatternEligibility = preload("res://scripts/levels/pattern_eligibility.gd")
 const Playfield = preload("res://scripts/systems/playfield.gd")
-const Weapon = preload("res://scripts/enemies/shoot_patterns/weapon.gd")
 const ShieldComponentC = preload("res://scripts/enemies/components/shield_component.gd")
 const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
@@ -24,8 +23,6 @@ const PLAYER_SCENE = preload("res://scenes/player/player.tscn")
 const SAVE_PATH := "user://tuners/enemy_bench.json"
 
 # Editor option pools.
-const FIRE_PATTERNS := ["SINGLE", "AIMED", "SPREAD", "BURST", "BEAM", "LOB", "BROADSIDE"]
-const AIMS := ["STRAIGHT_DOWN", "TOWARD_CENTER", "AT_PLAYER", "FORWARD"]
 const PAYLOADS := {
 	"Basic": EnemyRoster.BV_Basic, "Spread Pellet": EnemyRoster.BV_SpreadPellet,
 	"Aimed Sniper": EnemyRoster.BV_AimedSniper, "Burst Round": EnemyRoster.BV_BurstRound,
@@ -120,9 +117,6 @@ var _pattern_idx: int = 0
 # Editors (all live in the scene's right panel).
 @onready var _name_lbl: Label = %NameLabel
 @onready var _stats_lbl: Label = %StatsLabel
-@onready var _armed_chk: CheckButton = %ArmedCheck
-@onready var _fire_dd: OptionButton = %FiringDD
-@onready var _aim_dd: OptionButton = %AimDD
 @onready var _payload_dd: OptionButton = %PayloadDD
 @onready var _explosion_dd: OptionButton = %ExplosionDD
 @onready var _recycle_chk: CheckButton = %RecycleCheck
@@ -157,12 +151,6 @@ var _omni_chk: CheckBox = null
 var _strafe_chk: CheckBox = null
 var _retro_chk: CheckBox = null
 const _SIZE_OPTS := ["tiny", "small", "medium", "large", "huge", "giant"]
-
-# scene_path -> true if any roster ENTRY declares a non-null "shoot" key. This is production's
-# source of truth for "this enemy_core enemy carries a generic Weapon" (the director assigns it
-# from the roster; scenes never bake shoot_pattern). Used to DEFAULT the Armed toggle so the bench
-# mirrors production: weaponless chaff stays silent, bespoke firers keep only their own bullets.
-var _roster_armed: Dictionary = {}
 
 # Working list of mount dicts for the selected enemy (name-based, JSON-friendly):
 # {kind, marker, payload(name), aim, fire, count, spread}. Converted to MountSpecs at spawn.
@@ -266,9 +254,6 @@ func _clone_player_sprite(src: Sprite2D) -> Sprite2D:
 # bits (option pools, faction toggles) and connects the signals.
 
 func _setup_ui() -> void:
-	_build_roster_armed()
-	_fill_options(_fire_dd, FIRE_PATTERNS)
-	_fill_options(_aim_dd, AIMS)
 	_fill_options(_payload_dd, PAYLOADS.keys())
 	_fill_options(_explosion_dd, ExplosionFx.variant_names())
 
@@ -289,9 +274,7 @@ func _setup_ui() -> void:
 
 	# Signals.
 	_list.item_selected.connect(_on_list_select)
-	# Weapon changes respawn (re-runs start() so BEAM/aim init correctly).
-	_fire_dd.item_selected.connect(func(_i): _spawn_current())
-	_aim_dd.item_selected.connect(func(_i): _spawn_current())
+	# Payload change respawns (also retunes child-turret payloads via _apply_payload_to_turrets).
 	_payload_dd.item_selected.connect(func(_i): _spawn_current())
 	# Death explosion only matters on death, so apply it live (no respawn).
 	_explosion_dd.item_selected.connect(func(_i): _apply_explosion_live())
@@ -302,11 +285,6 @@ func _setup_ui() -> void:
 	_bspeed_spin.value_changed.connect(func(_v): if not _loading: _apply_stats_live())
 	_bdmg_spin.value_changed.connect(func(_v): if not _loading: _apply_stats_live())
 	_name_edit.text_changed.connect(_on_name_edited)
-	# Armed toggle: gates whether the bench assigns a generic Weapon at all. Respawns so the
-	# enemy is rebuilt with (or without) shoot_pattern from frame 0.
-	_armed_chk.toggled.connect(func(_v):
-		_refresh_weapon_editor_state()
-		if not _loading: _spawn_current())
 	_recycle_chk.toggled.connect(func(_v): _apply_recycle_live())
 	_recycle_passes_spin.value_changed.connect(func(_v): _apply_recycle_live())
 	_recycle_chance_spin.value_changed.connect(func(_v): _apply_recycle_live())
@@ -810,32 +788,6 @@ func _is_mine(path: String) -> bool:
 	return p.contains("mine") and not p.contains("minelayer")
 
 
-# Index every roster entry whose "shoot" key is non-null → that scene carries a generic Weapon
-# in production. (An enemy can have several entries; armed if ANY of them shoots.)
-func _build_roster_armed() -> void:
-	_roster_armed.clear()
-	for e in EnemyRoster.ENTRIES:
-		if e.get("shoot", null) != null:
-			_roster_armed[String(e.get("scene", ""))] = true
-
-
-# Default Armed state for a scene: armed iff production arms it (roster "shoot"), never for mines.
-# Enemies with no roster entry (bench-only units, bespoke firers) default UNARMED — the bench
-# won't force a generic weapon on them; the user opts in via the Armed toggle if designing one.
-func _default_armed(path: String) -> bool:
-	return _roster_armed.has(path) and not _is_mine(path)
-
-
-# Enable/disable the weapon editors to match the Armed state. Firing/Aim only matter for a generic
-# Weapon, so they grey out when unarmed. Payload stays live (unless a mine) because it also tunes
-# mounted turrets (helix) via _apply_payload_to_turrets, which fire independently of shoot_pattern.
-func _refresh_weapon_editor_state() -> void:
-	var mine := _is_mine(_selected_path)
-	if _armed_chk: _armed_chk.disabled = mine
-	var armed: bool = _armed_chk != null and _armed_chk.button_pressed and not mine
-	if _fire_dd: _fire_dd.disabled = not armed
-	if _aim_dd: _aim_dd.disabled = not armed
-	if _payload_dd: _payload_dd.disabled = mine
 
 
 func _icon_for(path: String) -> Texture2D:
@@ -889,7 +841,6 @@ func _on_list_select(idx: int) -> void:
 		_eligible = [idk] if idk != "" else ["straight_medium"]
 	_pattern_idx = 0
 	_load_settings_into_editors()
-	_refresh_weapon_editor_state()   # grey out weapon editors when unarmed / a mine
 	_spawn_current()
 
 
@@ -918,17 +869,9 @@ func _spawn_current() -> void:
 		key = String(_eligible[_pattern_idx])
 		inst.movement = EnemyRoster.make_movement({"movement": key})
 	if "shoot_pattern" in inst:
-		# Only ARM the enemy with a generic Weapon when the Armed toggle is on (defaulted from the
-		# roster "shoot" key). Otherwise leave shoot_pattern null — which in enemy_core makes every
-		# fire gate a no-op, so weaponless enemies stay silent and the movement pattern's fire TIMING
-		# has nothing to fire. Mines and bespoke firers (sword/helix) are never generically armed:
-		# bespoke ones keep firing via their own script, turrets via the payload path.
-		if _armed_chk.button_pressed and not _is_mine(_selected_path):
-			inst.shoot_pattern = _build_weapon()
-			if "fire_on_phase" in inst:
-				inst.fire_on_phase = ""    # use the generic ShootTimer cadence
-		else:
-			inst.shoot_pattern = null
+		# Mount 0 (hull weapon) retired 2026-06-23: the bench arms enemies via mounts only, so
+		# leave shoot_pattern null (enemy_core's fire gates become no-ops for it).
+		inst.shoot_pattern = null
 	if "explosion_variant" in inst:
 		inst.explosion_variant = ExplosionFx.variant_names()[_explosion_dd.selected]
 	_apply_stats_to(inst)   # HP/scale/etc BEFORE _ready so health = max_health from frame 0
@@ -969,12 +912,6 @@ func _spawn_current() -> void:
 	_refresh_info()
 
 
-func _build_weapon() -> Weapon:
-	var w := Weapon.new()
-	w.fire_pattern = _fire_dd.selected
-	w.aim = _aim_dd.selected
-	w.payload = _selected_payload()
-	return w
 
 
 # The BulletVariant currently picked in the Payload dropdown.
@@ -1689,13 +1626,8 @@ func _load_settings_into_editors() -> void:
 	_loading = true
 	var s: Dictionary = _saved.get(_selected_path, {})
 	var nat: Dictionary = _scene_defaults(_selected_path)   # native scene values = fallbacks
-	_select_text(_fire_dd, String(s.get("fire_pattern", "SINGLE")), FIRE_PATTERNS)
-	_select_text(_aim_dd, String(s.get("aim", "STRAIGHT_DOWN")), AIMS)
 	_select_text(_payload_dd, String(s.get("payload", "Basic")), PAYLOADS.keys())
 	_select_text(_explosion_dd, String(s.get("explosion", "default")), ExplosionFx.variant_names())
-	if _armed_chk:
-		# Default from the roster "shoot" key; a saved value (incl. user opt-in for bench-only units) wins.
-		_armed_chk.button_pressed = bool(s.get("armed", _default_armed(_selected_path)))
 	if _recycle_chk:
 		_recycle_chk.button_pressed = bool(s.get("can_recycle", true))
 	if _recycle_passes_spin:
@@ -1758,9 +1690,6 @@ func _select_text(dd: OptionButton, text: String, pool) -> void:
 
 func _current_settings() -> Dictionary:
 	return {
-		"armed": _armed_chk.button_pressed,
-		"fire_pattern": FIRE_PATTERNS[_fire_dd.selected],
-		"aim": AIMS[_aim_dd.selected],
 		"payload": String(PAYLOADS.keys()[_payload_dd.selected]),
 		"explosion": ExplosionFx.variant_names()[_explosion_dd.selected],
 		"can_recycle": _recycle_chk.button_pressed,
@@ -1813,17 +1742,9 @@ func _load_saved() -> void:
 
 func _on_copy() -> void:
 	var s := _current_settings()
-	var payload_const: String = "BV_" + String(s["payload"]).replace(" ", "")
 	var txt := "# Enemy Bench — %s\n" % String(s["name"])
-	if s["armed"]:
-		txt += "var w := Weapon.new()\n"
-		txt += "w.fire_pattern = Weapon.FirePattern.%s\n" % s["fire_pattern"]
-		txt += "w.aim = Weapon.Aim.%s\n" % s["aim"]
-		txt += "w.payload = %s\n" % payload_const
-		txt += "enemy.shoot_pattern = w\n"
-	else:
-		txt += "# (no generic weapon — weaponless or fires via its own script / turret)\n"
-		txt += "enemy.shoot_pattern = null\n"
+	# Hull weapon (Mount 0) retired 2026-06-23 — enemies fire via mounts (emitted below).
+	txt += "enemy.shoot_pattern = null\n"
 	txt += "enemy.explosion_variant = \"%s\"\n" % s["explosion"]
 	txt += "# Stats:\n"
 	txt += "enemy.max_health = %d\n" % s["max_health"]
