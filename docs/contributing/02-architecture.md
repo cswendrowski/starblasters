@@ -76,12 +76,12 @@ The run-wide **state machine**. Anything that persists across scenes (combat →
 
 **Owns:**
 - **Bounty** — in-game currency. Earned from killing enemies/hazards, spent at shops.
-- **Hull/shield** — ship durability. Hull = health; shield = charge pool (one charge per hit, then hull damage). Both persist between sectors.
+- **Hull/shield** — ship durability. Hull = health; shield = charge pool (one charge per hit, then hull damage). Both persist between scenes (combat → map → outpost → combat).
 - **Loadout snapshot** — the set of Parts (upgrades) currently equipped. Read by combat on entry, written by shops/outposts on exit.
 - **Sector progress** — current node ID and type (combat/hazard/boss/shop), sector modifiers (difficulty tags), current hazard subtype.
 - **Inventory** — uninstalled Parts the player is carrying (cargo hold).
 - **Run seed** — pseudo-random seed for reproducible waves.
-- **Sector map cache** — the graph of available sectors, used to draw the map and navigate between nodes.
+- **Sector map cache** — the current sector's graph (3 rows of POI nodes + a boss each), used to draw the map and navigate between nodes.
 - **One-shot config** — via `Run.set_meta(key, value)`, for test launchers and dev tools to override defaults (e.g., `forced_boss_scene`).
 
 **Key methods:**
@@ -89,7 +89,7 @@ The run-wide **state machine**. Anything that persists across scenes (combat →
 - `Run.bounty`, `Run.current_hull`, `Run.max_hull`, `Run.current_shield`, `Run.max_shield` — game stat properties (some emit signals on change).
 - `Run.loadout_snapshot` — dict of `SlotType (int) -> Part (Resource)`.
 
-When combat ends, `main.gd` writes the player's surviving hull and shield back to `Run` so they carry into the next sector. When the player clicks a sector node on the map, `sector_map_v3.gd` writes the node type/ID to `Run` before calling the next scene.
+When combat ends, `main.gd` writes the player's surviving hull and shield back to `Run` so they carry into the next node. When the player clicks a node on the map, `sector_map_v3.gd` writes the node type/ID to `Run` before calling the next scene.
 
 ### `Dbg` (`scripts/autoload/dbg.gd`)
 
@@ -140,14 +140,20 @@ sector_map_hd.tscn (wraps sector_map_v3) │
     │   → choice outcome modifies Run state
     │   → returns to sector_map_hd.tscn
     │
-    ├─ Sector complete (all required nodes cleared)
-    │   → goes to cleared_summary.tscn with sector results
-    │   → auto-transition to sector_map_hd.tscn (next sector)
+    ├─ Patrol complete (all 3 rows' POIs cleared + all 3 row bosses dead)
+    │   → cleared_summary.tscn flags victory ("PATROL COMPLETE")
+    │   → run_summary.tscn (final score, stats) → main_menu.tscn
     │
-    └─ Run ends (player dies or sector limit reached)
+    └─ Run ends (player dies)
         → run_summary.tscn (final score, stats)
         → return to main_menu.tscn
 ```
+
+**Run shape:** a run is **one sector of 3 rows**; each row is a string of POIs (combat / hazard /
+signal) ending in a **boss** at the right edge — so a run has **3 bosses**, one per row, drawn at
+random from the boss pool. Clearing all three rows (POIs + boss) completes the patrol = victory.
+(`run_state.gd` still carries multi-sector scaffolding — `TOTAL_SECTORS`, per-sector boss pools,
+sector advancement — left over from an earlier 3-sector design; a run is one sector.)
 
 **Key pattern:** Scenes read/write `Run` to pass state. The sector map doesn't *own* the run; it's a navigator that reads the current node, writes the next destination, and calls `get_tree().change_scene()`.
 
@@ -161,8 +167,8 @@ When a run starts:
 2. **main_menu.gd** calls `Run.new_run()`, which:
    - Zeros bounty, hull, shield.
    - Clears loadout and inventory.
-   - Generates a new `sector_map_cache` (the graph of all 12-row sectors).
-   - Sets `current_node_id` to the root node (sector 0, always a combat arena).
+   - Generates a new `sector_map_cache` (one sector: 3 rows, each a line of POIs ending in a boss).
+   - Sets `current_node_id` to the root node (always a combat arena).
 3. **main_menu.gd** transitions to `sector_map_v3.tscn`.
 4. **sector_map_v3.gd** reads `Run.current_node_id` in `_ready()`, draws the map, and highlights the starting node.
 
@@ -178,7 +184,7 @@ When combat ends:
 9. **main.gd** transitions to `cleared_summary.tscn`.
 10. **cleared_summary.gd** displays results and auto-transitions back to `sector_map_v3.tscn` after a few seconds.
 
-The loop repeats until the run ends (player death, boss defeated, etc.), at which point the sector map transitions to `run_summary.tscn` and back to `main_menu.tscn`.
+The loop repeats until the run ends — player death, or all 3 rows cleared (POIs + bosses) = victory — at which point the flow transitions to `run_summary.tscn` and back to `main_menu.tscn`.
 
 ---
 

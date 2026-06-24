@@ -543,10 +543,12 @@ func sector_complete() -> void:
 const SectorNodeType = preload("res://scripts/systems/sector_node.gd").NodeType
 const SectorNameGenerator = preload("res://scripts/strings/sector_name_generator.gd")
 
-# Total sectors required to beat the game. Drives the "Sector Patrol X/Y"
-# header in sector_map_v3. Designer-tunable — bump when adding mid/late
-# sectors. Read by sector_map_v3 directly.
-const TOTAL_SECTORS: int = 3
+# Total sectors required to beat the game. A run is now ONE sector of 3 rows
+# (= 3 bosses); clearing it is victory ("PATROL COMPLETE"). Drives the "Sector
+# Patrol X/Y" header in sector_map_v3 + the victory gate in cleared_summary.
+# Designer-tunable — bump for a multi-sector / endless mode (boss HP escalation
+# already supports boss 4+ via boss_base.BOSS_HP_MULT[3]). Read by sector_map_v3.
+const TOTAL_SECTORS: int = 1
 
 # Full rollable modifier vocabulary. Most effects live in
 # scripts/levels/director.gd::_apply_sector_modifiers (per-enemy stat tweaks).
@@ -605,9 +607,8 @@ func start_new_sector(sector_idx: int, seed_value: int) -> void:
 	# Three rows, anchored at the same Y-coords the V3 map renders at.
 	var anchors := [Vector2(64, 64), Vector2(64, 128), Vector2(64, 192)]
 	var boss_positions := [Vector2(448, 64), Vector2(448, 128), Vector2(448, 192)]
-	# Per-sector boss pool + final-slot lock. Sector 3 row-3 is always the
-	# Conductor; the other two row slots pull from the sector pool minus the
-	# Conductor, with conflict-pair rules applied (see _pick_row_bosses).
+	# Boss roster for this sector's 3 rows: 3 of all 7 bosses, drawn at random
+	# with conflict-pair + no-repeat rules (see _pick_row_bosses).
 	var boss_scenes: Array = _pick_row_bosses(sector_idx, rng, used_boss_scenes)
 	for r in range(3):
 		var pois: Array = _gen_row_pois(rng, sector_idx, r, anchors[r], sector_mod_pool)
@@ -805,9 +806,10 @@ func get_node_faction(node_id: String) -> int:
 	return -1
 
 
-# Per-sector boss roster + never-pair rules. Sector 3 row-3 is always the
-# Conductor (final). Other rows pull from sector pools and avoid forbidden
-# pairs ("never-pair-with" from the boss proposal):
+# Boss roster + never-pair rules. A run is one sector of 3 rows; each row's boss
+# is drawn from all 7 below (no per-sector pools, no Conductor finale-lock — both
+# retired with the single-sector switch), avoiding these forbidden pairs
+# ("never-pair-with" from the boss proposal):
 #   Commander  never with Voidmaw  (both BH)
 #   Lash       never with Howler   (both aggro)
 #   Aegis      never with Spinwright (both long tanks)
@@ -834,25 +836,22 @@ const _BOSS_CONFLICTS := {
 # final boss (Conductor) is locked to sector-3 row-3. `prior_bosses` lists
 # scene paths already used in previous sectors — excluded from the pool so
 # no boss repeats across sectors in the same run.
-func _pick_row_bosses(sector_idx: int, rng: RandomNumberGenerator, prior_bosses: Array = []) -> Array:
-	var pool: Array = []
-	if sector_idx <= 1:
-		pool = [BOSS_COMMANDER, BOSS_LASH, BOSS_HOWLER]
-	elif sector_idx == 2:
-		pool = [BOSS_COMMANDER, BOSS_LASH, BOSS_VOIDMAW, BOSS_AEGIS, BOSS_SPINWRIGHT]
-	else:
-		pool = [BOSS_AEGIS, BOSS_VOIDMAW, BOSS_SPINWRIGHT]
-	# Remove bosses already used in prior sectors. Keep Conductor out — it's
-	# always locked to sector-3 row-3 and handled separately below.
-	pool = pool.filter(func(b): return not prior_bosses.has(b))
+func _pick_row_bosses(_sector_idx: int, rng: RandomNumberGenerator, prior_bosses: Array = []) -> Array:
+	# Single-sector run (TOTAL_SECTORS = 1): all 7 bosses are eligible for any of
+	# the 3 rows, drawn at random with conflict-pair + no-repeat-within-sector
+	# rules. The Conductor is no longer locked to a finale slot (no multi-sector
+	# final). prior_bosses still de-dupes across sectors should an endless/multi-
+	# sector mode ever drive this again; if that empties the roster the full pool
+	# is restored so the draw never starves.
+	var full_pool: Array = [
+		BOSS_COMMANDER, BOSS_LASH, BOSS_HOWLER, BOSS_VOIDMAW,
+		BOSS_AEGIS, BOSS_SPINWRIGHT, BOSS_CONDUCTOR,
+	]
+	var pool: Array = full_pool.filter(func(b): return not prior_bosses.has(b))
+	if pool.is_empty():
+		pool = full_pool.duplicate()
 	var picks: Array = []
-	# Sector 3 row-3 final lock.
-	var final_locked: bool = sector_idx >= 3
-	var slots: int = 3
-	for slot in range(slots):
-		if final_locked and slot == slots - 1:
-			picks.append(BOSS_CONDUCTOR)
-			continue
+	for _slot in range(3):
 		var candidates: Array = []
 		for b in pool:
 			# Skip if conflicts with any already-picked.
@@ -869,13 +868,12 @@ func _pick_row_bosses(sector_idx: int, rng: RandomNumberGenerator, prior_bosses:
 			if ok:
 				candidates.append(b)
 		if candidates.is_empty():
-			# Pool exhausted by conflicts — fall back to whatever's left in
-			# the pool so we never push a Conductor or empty path here.
+			# Every remaining boss conflicts with a pick — fall back to what's left.
 			candidates = pool.duplicate()
 		var chosen: String = candidates[rng.randi() % candidates.size()]
 		picks.append(chosen)
-		# Remove the chosen boss from the pool so it can't be picked again
-		# for another row in this sector (Bug fix 2026-05-26: Howler repeating).
+		# Remove so it can't be picked again for another row this sector
+		# (Bug fix 2026-05-26: Howler repeating).
 		pool.erase(chosen)
 	return picks
 

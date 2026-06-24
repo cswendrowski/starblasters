@@ -22,11 +22,20 @@ extends "res://scripts/enemies/enemy_base.gd"
 const Playfield = preload("res://scripts/systems/playfield.gd")
 const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 
-# Flat base HP multiplier applied to EVERY boss (designer Roman, 2026-05-31:
-# "bosses die too fast"). Layered ON TOP of the per-boss-defeated +5% run
-# escalation below, so effective HP = base * BASE_HP_MULT * (1 + 0.05*defeated).
-# Single shared site so all bosses pick it up; tunable here.
-const BASE_HP_MULT: float = 1.5
+# Per-boss-of-the-run HP multiplier, indexed by Run.bosses_defeated (0 = the
+# run's first boss). Replaces the old flat BASE_HP_MULT (1.5) + linear +5%/kill
+# escalation — which let later bosses die FASTER than the first, since player
+# DPS (Mk cap climbing 3→6→9 across the run) outgrew the HP. Single shared site
+# so every boss picks it up — tune here. Effective HP = base * _boss_hp_mult().
+#
+#   [0],[1],[2]  Base 3-boss run (one sector, one boss per row). Tuned so fights
+#                run ~20 / 25 / 31s against the climbing Mk cap.
+#   [3]          ENDLESS compounding factor. Past boss 3 the Mk cap is maxed
+#                (gear growth only), so each further boss multiplies the 3rd-boss
+#                value by this again: boss N = [2] * [3]^(N-3). Keeps long runs
+#                escalating without the steep base-run ramp. (Placeholder until
+#                endless mode ships — tune then.)
+const BOSS_HP_MULT: Array[float] = [2.8, 6.0, 9.5, 1.15]
 
 # health_changed is INHERITED from EnemyBase (signal health_changed(current, max)) —
 # do NOT redeclare it here (a duplicate parent member is a parse error that the class
@@ -130,25 +139,19 @@ func _ready() -> void:
 	# boss-specific effects and to keep large hand-authored sprites untouched.
 	has_ship_vfx = false
 	offscreen_mode = OffscreenMode.NONE
-	# Run-wide boss HP escalation: each boss defeated this run grants +5% max
-	# HP to every subsequent boss (designer Roman, 2026-05-31). Applied here —
-	# before super._ready() — so it lands while max_health still holds the
-	# subclass base value but BEFORE enemy_base._ready() does `health =
-	# max_health`. Single shared site: every boss subclass routes through this
-	# _ready(), so no boss can forget the buff. Guarded for autoload-less
-	# dev/test scenes (defaults to x1.0). Explicit type — never `:=` here.
-	# Flat base buff FIRST — unconditional, lands even at defeated=0 and in
-	# autoload-less dev/test scenes. Its own statement (not folded into the
-	# run scale_mult) so the defeated==0 case still gets the x1.5. Explicit
-	# type, no `:=`.
+	# Run-wide boss HP scaling: the Nth boss of the run (N = bosses_defeated + 1)
+	# gets BOSS_HP_MULT applied here — BEFORE super._ready() — so it lands while
+	# max_health still holds the subclass base value but BEFORE enemy_base._ready()
+	# does `health = max_health`. Single shared site: every boss subclass routes
+	# through this _ready(), so none can forget it. Guarded for autoload-less
+	# dev/test scenes — no Run → defeated 0 → first-boss mult. Explicit types,
+	# never `:=` here.
 	if max_health > 0:
-		max_health = int(round(float(max_health) * BASE_HP_MULT))
-	var run: Node = get_node_or_null("/root/Run")
-	if run != null and "bosses_defeated" in run:
-		var defeated: int = int(run.bosses_defeated)
-		if defeated > 0 and max_health > 0:
-			var scale_mult: float = 1.0 + 0.05 * float(defeated)
-			max_health = int(round(float(max_health) * scale_mult))
+		var defeated: int = 0
+		var run: Node = get_node_or_null("/root/Run")
+		if run != null and "bosses_defeated" in run:
+			defeated = int(run.bosses_defeated)
+		max_health = int(round(float(max_health) * _boss_hp_mult(defeated)))
 	super._ready()
 	if has_node("ShootTimer") and not $ShootTimer.timeout.is_connected(_on_shoot_timer_timeout):
 		$ShootTimer.timeout.connect(_on_shoot_timer_timeout)
@@ -159,6 +162,16 @@ func _ready() -> void:
 	# Initialise the phase machine. Phase 0 enter fires once HP is known.
 	_init_phases()
 	health_changed.emit(health, max_health)
+
+
+# Resolve the HP multiplier for the Nth boss of the run (N = defeated + 1).
+# Base run uses the explicit [0..2] entries; endless (boss 4+) compounds [3]
+# onto the 3rd-boss value once per boss past the third. See BOSS_HP_MULT.
+func _boss_hp_mult(defeated: int) -> float:
+	var d: int = maxi(0, defeated)
+	if d <= 2:
+		return BOSS_HP_MULT[d]
+	return BOSS_HP_MULT[2] * pow(BOSS_HP_MULT[3], d - 2)
 
 
 func start(pos: Vector2) -> void:

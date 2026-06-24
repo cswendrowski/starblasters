@@ -103,9 +103,10 @@ func start(pos: Vector2) -> void:
 func _start_with_pattern(pos: Vector2) -> void:
 	position = pos
 	_pattern = movement.duplicate()
-	# Sector speed scaling now lives on the chassis (locomotion refactor 2026-06-19):
-	# director._apply_sector_locomotion_scale scales the resolved enemy.move_speed/accel once
-	# per spawn, and patterns read those. (Was a per-@export-float walk here.)
+	# Chassis move_speed/accel are applied by the director at spawn from the resolved
+	# roster/formation stats, and patterns read those for SCALE. Speeds are used as
+	# authored — the +5%/sector locomotion scale was dropped 2026-06-23 with the
+	# single-sector switch. (Was a per-@export-float walk before the 2026-06-19 refactor.)
 	# Connect phase events BEFORE on_start so the initial-phase emit lands.
 	if _pattern.has_signal("phase_entered") \
 		and not _pattern.is_connected("phase_entered", _on_movement_phase_entered):

@@ -103,16 +103,17 @@ DPS-vs-the-actual-roster compresses Energy/Heavy down and lifts the lasers up.
 ## B. Mk reachability — the table is front-loaded in practice
 
 Shop Mk cap = `min(9, 3 + 3×bosses_defeated)` ([outpost.gd:650](../scripts/outpost.gd)). A patrol is
-~3 sectors, ~1 boss each:
+**one sector of 3 rows = 3 bosses** (one boss per row, drawn from the pool), so `bosses_defeated`
+runs 0 → 2 across the whole run:
 
 | Where you are | Bosses killed | Mk cap you can buy |
 |---|---:|---:|
-| Sector 1 (most of the run) | 0 | **3** |
-| Sector 2 | 1 | 6 |
-| Sector 3 (final) | 2 | 9 |
+| Before boss 1 (most of the run) | 0 | **3** |
+| Before boss 2 | 1 | 6 |
+| Before boss 3 (final) | 2 | 9 |
 
 Upgrades are **random shop offers** over only ~3 refreshes (stock rerolls on boss kill), so committing a
-single weapon to Mk.9 needs the right offers + the bounty + luck — realistically a *final-sector* or
+single weapon to Mk.9 needs the right offers + the bounty + luck — realistically a *final-boss* or
 *endless-mode* outcome. **Players field Mk.1–4 for the bulk of a run.** Re-read the table at "realistic
 Mk":
 

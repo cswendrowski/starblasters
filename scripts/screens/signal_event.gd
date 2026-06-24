@@ -278,7 +278,7 @@ func _make_derelict_event() -> Dictionary:
 	var run = get_node_or_null("/root/Run")
 	var current_mark: int = 1
 	if run != null:
-		current_mark = clampi(run.sectors_cleared + 1, 1, 9)
+		current_mark = clampi(run.bosses_defeated + 1, 1, 9)
 	_derelict_weapon = PartCatalog.roll_for_slot(_rng, Slots.SlotType.CANNON, current_mark)
 	_derelict_price = 58 + 35 * (current_mark - 1)
 	var choices: Array = []

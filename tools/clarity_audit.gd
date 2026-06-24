@@ -138,7 +138,7 @@ func _print_table(rows: Array) -> void:
 	print("")
 	print("=== MOTION CLARITY AUDIT (60fps internal 480x270) ===")
 	print("ratio = px/frame ÷ sprite-length-along-travel.  >0.8 STROBE  0.4-0.8 step  <0.4 clean")
-	print("x2 = late-run (sector speed scaling caps at 2x movement)")
+	print("x2 = 2x-speed headroom check (does the motion still read cleanly if doubled)")
 	print("")
 	print("%-26s %-6s %7s %5s %8s  %6s %6s  %s" % [
 		"name", "kind", "speed", "px/f", "WxH", "ratio", "x2", "speed-src"])

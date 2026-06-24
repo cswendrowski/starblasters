@@ -20,9 +20,9 @@ extends "res://scripts/enemies/movement_pattern.gd"
 # enemy auto_rotate on, banking follows the velocity for free — no flip_h needed
 # (lane spec §1.4). The conductor chooses mirror to fit the board + pursue/avoid.
 #
-# Speed naming: the descent export is `down_speed` (ends in `_speed`) so
-# enemy_core._apply_sector_speed_scale sector-scales AND clarity-clamps it to the
-# 8 px/f ceiling (enemy_core.gd:108/117). Author the base on a rung (mult of 60).
+# Speed naming: the descent export is `down_speed` (ends in `_speed`). Author it
+# on a rung (mult of 60) under the 8 px/f clarity ceiling — enemy speeds are used
+# as authored now (the +5%/sector locomotion scale was dropped 2026-06-23).
 
 #   STEP      — hold a lane, hop step_lanes to a new lane, hold, repeat. Knobs:
 #               hold_time, step_time, step_lanes (1 = adjacent), step_repeat (keep

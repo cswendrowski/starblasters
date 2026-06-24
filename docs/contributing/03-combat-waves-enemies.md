@@ -230,8 +230,7 @@ Bullets call `area.take_hit(damage)` on hit. Returns true if the enemy dies. The
 **Off-screen recycling** — `CYCLE_BOTTOM` mode (the default):
 When the enemy drifts off the bottom, instead of freeing, it tweens back up through the parallax layers and re-enters from the top. A recycling enemy reports `is_recycling() = true` so the wave-advance gate ignores it (other enemies can clear while recyclers fly back).
 
-**Sector speed scaling** — `_apply_sector_speed_scale()` (enemy_core.gd:90):
-When an enemy spawns, its movement pattern is duplicated and speed-scaled by +5% per cleared sector, capped at 2×. This makes later sectors feel faster without changing the wave generator's composition logic.
+**Enemy speeds are authored, not sector-scaled** — when an enemy spawns its movement pattern is duplicated and reads the chassis `move_speed`/`accel` as authored (on a clarity rung, under the 8 px/f ceiling). The old +5%-per-sector speed ramp was dropped 2026-06-23 with the single-sector run structure (`sectors_cleared` stays 0 now).
 
 ### Tier 2b: Bespoke Enemies
 

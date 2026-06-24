@@ -1362,15 +1362,13 @@ func take_damage(amount: int) -> void:
 				var HitFlashFx2 = load("res://scripts/effects/hit_flash_fx.gd")
 				HitFlashFx2.flash($Ship, HitFlashFx2.FLASH_SHIELD)
 		return
-	# "dangerous" sector modifier doubles all incoming enemy damage.
-	# Per-sector difficulty scaler: incoming damage scales × (1 + 0.05 × sectors_cleared).
+	# "dangerous" sector modifier doubles all incoming enemy damage. (The flat
+	# per-sector damage ramp `× (1 + 0.05 × sectors_cleared)` was dropped
+	# 2026-06-23 with the single-sector switch — sectors_cleared stays 0 now.)
 	if has_node("/root/Run"):
 		var _run = get_node("/root/Run")
 		if "sector_modifiers" in _run and "dangerous" in _run.sector_modifiers:
 			amount *= 2
-		if "sectors_cleared" in _run:
-			var sector_mult: float = 1.0 + 0.05 * float(_run.sectors_cleared)
-			amount = int(round(float(amount) * sector_mult))
 	# I-frame window after a shield or hull hit.
 	if _invuln_t > 0.0:
 		return

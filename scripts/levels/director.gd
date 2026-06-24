@@ -782,8 +782,8 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 		enemy.recycle_passes = wave.recycle_passes
 	# Locomotion (locomotion refactor 2026-06-19): apply the resolved chassis stats to the
 	# instance (movement patterns read these for SCALE). Guarded `in` checks so hazards without
-	# the stat block skip. move_speed/accel are sector-scaled here (the per-pattern scaler is
-	# retired in Phase C); depth_override (formation or roster default) sets the enemy default.
+	# the stat block skip. depth_override (formation or roster default) sets the enemy default.
+	# (The +5%/sector locomotion ramp was dropped 2026-06-23 with the single-sector switch.)
 	if wave.move_speed > 0.0 and "move_speed" in enemy:
 		enemy.move_speed = wave.move_speed
 	if wave.weight > 0.0 and "weight" in enemy:
@@ -794,7 +794,6 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 		enemy.accel = wave.accel
 	if wave.depth_override >= 0.0 and "depth_bp" in enemy:
 		enemy.depth_bp = wave.depth_override
-	_apply_sector_locomotion_scale(enemy)
 	# Firecore Drone ring count — set before add_child() below (the drone
 	# builds its rings in _ready()). Guarded so other enemies ignore it.
 	if wave.ring_count_override >= 0 and "ring_count" in enemy:
@@ -936,25 +935,6 @@ func _apply_direction(enemy, dir: int) -> void:
 		var d = mv.duplicate()
 		d.mirrored = dir < 0
 		enemy.movement = d
-
-
-# Sector speed/accel scale on the resolved chassis stats (replaces enemy_core's per-pattern
-# float walk, locomotion refactor 2026-06-19): +5% per cleared sector, capped 2×. move_speed is
-# kept readable (clamped to the 8 px/f ceiling + snapped to a rung); accel scales unclamped.
-func _apply_sector_locomotion_scale(enemy) -> void:
-	if not ("move_speed" in enemy):
-		return
-	var run := get_node_or_null("/root/Run")
-	if run == null or not ("sectors_cleared" in run):
-		return
-	var cleared: int = int(run.sectors_cleared)
-	if cleared <= 0:
-		return
-	var f: float = clampf(1.0 + 0.05 * float(cleared), 1.0, 2.0)
-	if enemy.move_speed > 0.0:
-		enemy.move_speed = Clarity.snap_to_rung(minf(enemy.move_speed * f, Clarity.ABS_MAX_SPEED))
-	if "accel" in enemy and enemy.accel > 0.0:
-		enemy.accel *= f
 
 
 func _apply_sector_modifiers(enemy: Node, modifiers: Array) -> void:
