@@ -30,12 +30,14 @@ func _run() -> void:
 	print("[diag] window content_scale_size = ", root.content_scale_size, "   (want 1920, 1080)")
 	if ls is Control:
 		print("[diag] loading_screen.size = ", (ls as Control).size, "   (want 1920, 1080)")
-	var view: Node = ls.get_node_or_null("WorldView") if ls else null
-	var vp: Node = ls.get_node_or_null("WorldViewport") if ls else null
-	if view is Control:
-		print("[diag] WorldView (TextureRect).size = ", (view as Control).size, "   (want 1920, 1080)")
-	if vp is SubViewport:
-		print("[diag] WorldViewport.size = ", (vp as SubViewport).size, "   (want 480, 270)")
+	# World is now rendered directly (no SubViewport): a Node2D scaled ×4, plus the scaled star layer.
+	var world: Node = ls.get_node_or_null("World") if ls else null
+	var stars: Node = ls.get_node_or_null("LayerStars") if ls else null
+	if world is Node2D:
+		print("[diag] World (Node2D).scale = ", (world as Node2D).scale, "   (want 4, 4)")
 	else:
-		print("[diag] WorldViewport NOT FOUND")
+		print("[diag] World NOT FOUND")
+	if stars is CanvasLayer:
+		print("[diag] LayerStars.scale = ", (stars as CanvasLayer).scale, "   (want 4, 4)")
+	print("[diag] any SubViewport child? ", ls.find_children("*", "SubViewport", true, false).size() if ls else 0, "   (want 0 — no resample)")
 	quit(0)

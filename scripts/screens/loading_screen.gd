@@ -37,6 +37,7 @@ const PLAYER_SCENES := [
 const NATIVE_W := 480.0
 const SHIP_X := NATIVE_W / 2.0   # 240 — native viewport centre (matches _run_outro)
 const FLYOFF_TARGET_Y := -120.0  # off the top edge, same as _run_outro
+const WORLD_SCALE := 4.0         # 1920/480 — maps native 480 world coords into the HD canvas
 
 signal flight_complete
 
@@ -63,7 +64,7 @@ signal flight_complete
 @export var flyoff_time: float = 1.0
 
 var _hd: HdViewportScope = null
-var _world: SubViewport = null
+var _world: Node2D = null
 var _stars: CanvasLayer = null
 var _streaks: GPUParticles2D = null
 var _ship: Node2D = null
@@ -80,7 +81,7 @@ func _ready() -> void:
 	else:
 		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_resolve_identity()
-	_build_world_viewport()
+	_build_world()
 	rebuild_streaks()
 	_build_stars()
 	rebuild_ship()
@@ -88,31 +89,18 @@ func _ready() -> void:
 	_built = true
 
 
-# Robust HD play-area. HdScreen.make_play_subviewport (a SubViewportContainer with stretch) rendered
-# BLURRY + SMALL in the live window: the container recomputes the viewport size from its own size on
-# every layout pass, which is timing-fragile across a scene transition (it reads correct in headless
-# but not in the real window). Instead use a FIXED 480×270 SubViewport shown by a full-rect,
-# nearest-filtered STRETCH_SCALE TextureRect — the exact crisp 1:1 upscale live backdrops use
-# (HdScreen.add_upscaled_backdrop). The world always renders at native 480 and scales up cleanly.
-func _build_world_viewport() -> void:
-	_world = SubViewport.new()
-	_world.name = "WorldViewport"
-	_world.size = Vector2i(480, 270)
-	_world.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	_world.transparent_bg = false
-	_world.gui_disable_input = true
-	_world.handle_input_locally = false
-	# Match the project's 2D-HDR mode so additive blends (engine glow / muzzle) composite correctly.
-	_world.use_hdr_2d = bool(ProjectSettings.get_setting("rendering/viewport/hdr_2d", false))
+# Render the world DIRECTLY in the HD canvas at ×4 scale — NOT via a SubViewport. A SubViewport
+# upscale (480→1920) bakes the scene into one raster, and the window then resamples THAT to the
+# physical display (blurry on fullscreen / >1080p monitors — the sharp ship sprite shows it; soft
+# backdrops hide it, which is why add_upscaled_backdrop "works" for them). Drawing the pixel-art
+# sprites directly, nearest-filtered and scaled ×4, lets the GPU sample the original 16px textures
+# at the FINAL physical resolution — crisp at any window size, exactly like combat. All world
+# content keeps its native 480 coordinates; the ×4 maps them into the 1920 HD space.
+func _build_world() -> void:
+	_world = Node2D.new()
+	_world.name = "World"
+	_world.scale = Vector2(WORLD_SCALE, WORLD_SCALE)
 	add_child(_world)
-	var view := TextureRect.new()
-	view.name = "WorldView"
-	view.texture = _world.get_texture()
-	view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	view.stretch_mode = TextureRect.STRETCH_SCALE
-	view.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	view.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(view)
 
 
 # Override identity in one call (caller-facing). Pass -1 for any of variant/hull/max_hull to defer
@@ -160,7 +148,11 @@ func _build_stars() -> void:
 	if _stars != null and is_instance_valid(_stars):
 		_stars.queue_free()
 	_stars = load(STARS_SCENE).instantiate()
-	_world.add_child(_stars)
+	# layer_stars is a CanvasLayer (viewport-relative, ignores the World Node2D's transform), so scale
+	# it directly. Stars/DeepSpace are authored in 480 space; ×4 fills the HD canvas. Its layer=-10
+	# keeps it behind the World + title regardless of tree order.
+	_stars.scale = Vector2(WORLD_SCALE, WORLD_SCALE)
+	add_child(_stars)
 	if _stars.has_method("reseed"):
 		_stars.reseed(randi())
 	apply_star_alpha()
