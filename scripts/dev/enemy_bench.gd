@@ -1014,6 +1014,17 @@ func _mount_spec_dicts() -> Array:
 			var bspeed: float = float(d.get("bullet_speed", -1.0))
 			if bspeed >= 0.0:
 				sd["bullet_speed"] = bspeed
+			# Firing conditions (gates + path-phase mode), honoured by MountComponent.
+			sd["fire_zone_gated"] = bool(d.get("zone_gated", false))
+			sd["fire_only_on_target"] = bool(d.get("nose_gated", false))
+			sd["fire_aim_tol_deg"] = float(d.get("aim_tol", 18.0))
+			var pp_str: String = String(d.get("path_phases", "")).strip_edges()
+			if pp_str != "":
+				var phases: Array = []
+				for tok in pp_str.split(",", false):
+					phases.append(String(tok).strip_edges().to_float())
+				sd["fire_path_phases"] = phases
+				sd["fire_beat_synced"] = bool(d.get("beat_synced", true))
 		elif k == "turret":
 			# Give the turret a graphic so it's visible — faction dome/tank strip, else a generic
 			# 1-frame turret. (The roster→bench conversion drops the texture, so we re-derive it here.)
@@ -1026,7 +1037,7 @@ func _mount_spec_dicts() -> Array:
 
 
 func _add_mount() -> void:
-	_mount_dicts.append({"kind": "gun", "marker": "", "payload": "Basic", "aim": "straight_down", "fire": 1.5, "count": 1, "spread": 0.0, "marker_mode": "cycle", "burst_interval": 0.0, "bullet_speed": -1.0})
+	_mount_dicts.append({"kind": "gun", "marker": "", "payload": "Basic", "aim": "straight_down", "fire": 1.5, "count": 1, "spread": 0.0, "marker_mode": "cycle", "burst_interval": 0.0, "bullet_speed": -1.0, "zone_gated": false, "nose_gated": false, "aim_tol": 18.0, "path_phases": "", "beat_synced": true})
 	_rebuild_mounts_ui()
 	_spawn_current()
 
@@ -1104,6 +1115,10 @@ func _make_mount_row(idx: int) -> Control:
 	var cnt := _row_spin(1, 12, 1, float(d.get("count", 1)))
 	cnt.value_changed.connect(func(v): _set_mount(d, "count", int(v)))
 	h3.add_child(cnt)
+	h3.add_child(_row_lbl("spread"))
+	var spr := _row_spin(0.0, 90.0, 2.0, float(d.get("spread", 0.0)))
+	spr.value_changed.connect(func(v): _set_mount(d, "spread", float(v)))
+	h3.add_child(spr)
 	row.add_child(h3)
 
 	# Firing pattern controls for gun/launcher mounts only.
@@ -1126,6 +1141,44 @@ func _make_mount_row(idx: int) -> Control:
 		h4.add_child(spd)
 		h4.add_child(_row_lbl("speed"))
 		row.add_child(h4)
+
+		# Firing conditions: zone/nose gates + path-phase mode (mirror the hull shoot).
+		var h5 := HBoxContainer.new()
+		var zone_chk := CheckBox.new()
+		zone_chk.text = "zone"
+		zone_chk.button_pressed = bool(d.get("zone_gated", false))
+		zone_chk.add_theme_font_size_override("font_size", FS_CAPTION)
+		zone_chk.toggled.connect(func(on): _set_mount(d, "zone_gated", on))
+		h5.add_child(zone_chk)
+		var nose_chk := CheckBox.new()
+		nose_chk.text = "nose"
+		nose_chk.button_pressed = bool(d.get("nose_gated", false))
+		nose_chk.add_theme_font_size_override("font_size", FS_CAPTION)
+		nose_chk.toggled.connect(func(on): _set_mount(d, "nose_gated", on))
+		h5.add_child(nose_chk)
+		h5.add_child(_row_lbl("tol"))
+		var tol := _row_spin(2.0, 90.0, 1.0, float(d.get("aim_tol", 18.0)))
+		tol.value_changed.connect(func(v): _set_mount(d, "aim_tol", float(v)))
+		h5.add_child(tol)
+		row.add_child(h5)
+
+		var h6 := HBoxContainer.new()
+		h6.add_child(_row_lbl("path"))
+		var pp := LineEdit.new()
+		pp.placeholder_text = "0.4,0.7"
+		pp.text = String(d.get("path_phases", ""))
+		pp.custom_minimum_size = Vector2(72, 26)
+		pp.add_theme_font_size_override("font_size", FS_CAPTION)
+		pp.text_submitted.connect(func(t): _set_mount(d, "path_phases", t))
+		pp.focus_exited.connect(func(): _set_mount(d, "path_phases", pp.text))
+		h6.add_child(pp)
+		var beat_chk := CheckBox.new()
+		beat_chk.text = "beat"
+		beat_chk.button_pressed = bool(d.get("beat_synced", true))
+		beat_chk.add_theme_font_size_override("font_size", FS_CAPTION)
+		beat_chk.toggled.connect(func(on): _set_mount(d, "beat_synced", on))
+		h6.add_child(beat_chk)
+		row.add_child(h6)
 
 	return row
 
@@ -1351,6 +1404,11 @@ func _default_mounts_for(path: String) -> Array:
 
 
 func _roster_mount_to_bench(d: Dictionary) -> Dictionary:
+	var pp_toks: Array = []
+	var pp_arr = d.get("fire_path_phases", [])
+	if pp_arr != null:
+		for f in pp_arr:
+			pp_toks.append(str(f))
 	return {
 		"kind": String(d.get("kind", "gun")),
 		"marker": String(d.get("marker", "")),
@@ -1362,6 +1420,11 @@ func _roster_mount_to_bench(d: Dictionary) -> Dictionary:
 		"marker_mode": String(d.get("marker_mode", "cycle")),
 		"burst_interval": float(d.get("burst_interval", 0.0)),
 		"bullet_speed": float(d.get("bullet_speed", -1.0)),
+		"zone_gated": bool(d.get("fire_zone_gated", false)),
+		"nose_gated": bool(d.get("fire_only_on_target", false)),
+		"aim_tol": float(d.get("fire_aim_tol_deg", 18.0)),
+		"path_phases": ",".join(pp_toks),
+		"beat_synced": bool(d.get("fire_beat_synced", true)),
 	}
 
 
@@ -1406,6 +1469,15 @@ func _mount_copy_line(d: Dictionary) -> String:
 		var bspeed: float = float(d.get("bullet_speed", -1.0))
 		if bspeed >= 0.0:
 			line += ", \"bullet_speed\": %.0f" % bspeed
+		if bool(d.get("zone_gated", false)):
+			line += ", \"fire_zone_gated\": true"
+		if bool(d.get("nose_gated", false)):
+			line += ", \"fire_only_on_target\": true, \"fire_aim_tol_deg\": %.0f" % float(d.get("aim_tol", 18.0))
+		var pp_copy: String = String(d.get("path_phases", "")).strip_edges()
+		if pp_copy != "":
+			line += ", \"fire_path_phases\": [%s]" % pp_copy
+			if not bool(d.get("beat_synced", true)):
+				line += ", \"fire_beat_synced\": false"
 	line += " },"
 	return line
 
