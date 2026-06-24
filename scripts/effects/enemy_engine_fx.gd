@@ -18,6 +18,7 @@ class_name EnemyEngineFx
 const FLAME_OFFSET := Vector2(0, 11)  # below the body in local space
 const FLAME_SIZE := Vector2(0.55, 0.85)
 const FLAME_TINT := Color(1.0, 0.65, 0.25, 0.95)
+const VfxGlow = preload("res://scripts/effects/vfx_glow_config.gd")
 
 static var _flame_tex: Texture2D = null
 
@@ -38,24 +39,23 @@ static func attach(enemy: Node2D, tint: Color = FLAME_TINT, scale_mult: float = 
 	spr.texture = _flame_texture()
 	spr.position = FLAME_OFFSET
 	spr.scale = base_scale
-	spr.modulate = tint
+	# HDR-bright modulate so the WorldEnvironment bloom catches the flame (matches the engine streak
+	# trail, which is already on prod_hdr("engines")). The white flame texture x this clears 1.5.
+	var gm: float = VfxGlow.prod_mult("engines")
+	var hdr_tint := Color(tint.r * gm, tint.g * gm, tint.b * gm, tint.a)
+	spr.modulate = hdr_tint
 	var mat := CanvasItemMaterial.new()
 	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	spr.material = mat
 	holder.add_child(spr)
-	# Brightness-flicker tint (slight desaturation pulse) keyed off the
-	# caller-supplied tint so a yellow trail flickers yellow, not orange.
-	var flicker_tint := Color(
-		clamp(tint.r * 1.0, 0.0, 1.0),
-		clamp(tint.g * 0.85, 0.0, 1.0),
-		clamp(tint.b * 0.6, 0.0, 1.0),
-		tint.a,
-	)
+	# Brightness-flicker (slight desaturation pulse) keyed off the caller-supplied tint so a yellow
+	# trail flickers yellow, not orange. HDR-scaled, NOT clamped to [0,1] so it stays bloomy.
+	var flicker_tint := Color(tint.r * gm, tint.g * 0.85 * gm, tint.b * 0.6 * gm, tint.a)
 	var tw: Tween = holder.create_tween().set_loops()
 	tw.tween_property(spr, "scale", base_scale * Vector2(1.15, 1.25), 0.08).set_trans(Tween.TRANS_SINE)
 	tw.parallel().tween_property(spr, "modulate", flicker_tint, 0.08)
 	tw.tween_property(spr, "scale", base_scale, 0.10).set_trans(Tween.TRANS_SINE)
-	tw.parallel().tween_property(spr, "modulate", tint, 0.10)
+	tw.parallel().tween_property(spr, "modulate", hdr_tint, 0.10)
 	return holder
 
 
