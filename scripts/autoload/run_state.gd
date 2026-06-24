@@ -1100,11 +1100,12 @@ func get_primary_cannon():
 	return cannon_pool[1] if cannon_pool.size() > 1 else null
 
 
-# Internal Micro Fabricator (module): top up the persistent metered-ammo pools by
-# `pct` of each weapon's max, capped at max. Primary magazine lives on the cannon
-# Part (current_ammo/ammo_max); secondary on secondary_ammo/secondary_ammo_max.
-# Infinite blasters (ammo_max <= 0) and unmetered secondaries (-1) are skipped.
-# ceil() guarantees at least +1 per clear for any metered weapon.
+# Top up the persistent metered-ammo pools by `pct` of each weapon's max, capped at
+# max. Primary magazine lives on the cannon Part (current_ammo/ammo_max); secondary on
+# secondary_ammo/secondary_ammo_max. Infinite blasters (ammo_max <= 0) and unmetered
+# secondaries (-1) are skipped. ceil() guarantees at least +1 per call for any metered
+# weapon, and pct >= 1.0 is a guaranteed full refill (mini-clamped to max).
+# Callers: main._on_level_cleared passes 1.0 (every clear fully refills metered ammo).
 func restock_ammo_fraction(pct: float) -> void:
 	if pct <= 0.0:
 		return

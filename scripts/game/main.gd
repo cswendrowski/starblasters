@@ -483,10 +483,12 @@ func _on_level_cleared() -> void:
 			# return). Save max_shield so the next combat starts fully shielded.
 			run.current_shield = player.max_shield
 			run.max_shield = player.max_shield
-			# Internal Micro Fabricator (module): restock a slice of max ammo on clear,
-			# topping up the persistent primary + secondary pools for the next level.
-			if player.module_ammo_restore_pct > 0.0:
-				run.restock_ammo_fraction(player.module_ammo_restore_pct)
+			# Metered primary/secondary weapons (lasers, Quad, Pulse, Autocannon, …)
+			# FULLY refill on every level clear — you should never reach the outpost
+			# low on ammo (Roman 2026-06-23). Tops up the persistent pools that carry
+			# into the next combat. This subsumes the Internal Micro Fabricator's
+			# partial on-clear restock (a full clear already maxes the pools).
+			run.restock_ammo_fraction(1.0)
 	_run_outro()
 
 func _on_player_died() -> void:
