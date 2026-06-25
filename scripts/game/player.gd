@@ -1864,7 +1864,7 @@ var _ablative_hit_count: int = 0
 var module_crit_chance: float = 0.0          # Targeting Computer: primary crit chance (×2 dmg, purple bolt)
 var module_overclock_max: float = 0.0        # Overclock Core: max sustained-fire rate bonus (0 = off)
 var module_delimiter_max: float = 0.0        # Critical System De-Limiter: max fire+dmg bonus at 1 hull (0 = off)
-const OVERCLOCK_RAMP_PER_SHOT := 0.08        # ramp gained per shot held (≈12 shots to full)
+const OVERCLOCK_RAMP_PER_SHOT := 0.05        # ramp gained per shot held (≈20 shots to full; balance 2026-06-25)
 const OVERCLOCK_RESET_DELAY := 0.35          # no-fire gap that resets the ramp
 const MODULE_CRIT_COLOR := Color(0.85, 0.45, 1.35)  # purple HDR bolt tint on a crit shot
 var _overclock_ramp: float = 0.0

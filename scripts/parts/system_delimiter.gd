@@ -5,18 +5,21 @@ extends "res://scripts/parts/module_part.gd"
 # peaking at 1 hull. 0 bonus at full hull, so it only pays off when you're hurting — a
 # comeback/glass-cannon enabler. Default-safe: ship.module_delimiter_max (0) is off until
 # applied. The hull-fraction curve lives in player._delimiter_bonus().
-#   Mk.1 = +25% at 1 hull  →  Mk.9 = +75%.
+#   Mk.1 = +20% at 1 hull  →  Mk.9 = +60%.
+# Balance (2026-06-25): trimmed from +25%/+75%. This one knob drives BOTH fire-rate and
+# damage, so at 1 hull it multiplies on itself (e.g. Mk.9 = 1.60× fire × 1.60× dmg ≈ 2.6×
+# DPS) — strong comeback payoff, but the old +75% double-dip was too swingy.
 
 
 func _init() -> void:
 	super._init()
 	module_id = "system_delimiter"
 	display_name = "Critical System De-Limiter"
-	description = "Lifts the safety limiters as your hull falls — fire-rate and damage climb the closer to death you are, peaking at 1 hull. Mk.1: +25% → Mk.9: +75%."
+	description = "Lifts the safety limiters as your hull falls — fire-rate and damage climb the closer to death you are, peaking at 1 hull. Mk.1: +20% → Mk.9: +60%."
 
 
 func _max_bonus() -> float:
-	return 0.25 + 0.0625 * float(clampi(int(mark), 1, 9) - 1)
+	return 0.20 + 0.05 * float(clampi(int(mark), 1, 9) - 1)
 
 
 func apply(ship) -> void:
