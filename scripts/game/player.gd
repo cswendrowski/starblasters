@@ -178,8 +178,8 @@ var super_part: Resource = null
 var super_charges: int = 0
 var max_super_charges: int = 3
 signal super_charges_changed(value: int, maximum: int)
-# (Hyper is a SHIFT_MODE stance now, not a super — its runtime lives below with
-# the other Shift-Mode state. See `active_mode` / _tick_hyper_mode.)
+# (Hyper is a SHIFT_MODE stance now, not a super — it rides the unified Shift-mode
+# runtime below. See `active_mode` / _tick_shift_mode.)
 # Exported so player.tscn can assign a fallback bullet; parts override at runtime.
 @export var bullet_scene: PackedScene
 @export var super_scene: PackedScene
@@ -256,52 +256,62 @@ const FOCUS_GLOW_COLOR := Color(0.5, 0.9, 1.0) # cool cyan focus aura
 const PHASE_GLOW_COLOR := Color(0.2, 0.5, 1.0) # bright blue phase-out aura (no dot/trail)
 const GlowFx = preload("res://scripts/effects/glow_fx.gd")
 var _focus_glow: CanvasItem = null
-var focus_charge: float = 10.0
-var focus_charge_max: float = 10.0
-var _focus_regen_delay: float = 0.0
-const FOCUS_DRAIN_RATE := 1.0    # seconds of charge lost per second held
-const FOCUS_REGEN_RATE := 1.0    # seconds of charge gained per second released
-const FOCUS_REGEN_DELAY := 2.0   # seconds after release before regen starts
-
-signal focus_charge_changed(charge: float, max_charge: float)
+# Focus's resource is now the unified Shift-mode system below (mode_charges /
+# mode_active_t / mode_duration). FOCUS_FACTOR (above) still drives the speed cut while
+# Focus is active.
 
 # Shift-Mode slot (Focus / Phase / Hyper). The equipped ModePart sets `mode_part`
-# + `active_mode` in apply(); `active_mode` dispatches the `focus` (Shift) input in
-# _process. Default FOCUS so an empty/absent mode slot still behaves as base Focus.
+# + `active_mode` in apply(); `active_mode` selects WHICH effect the unified runtime
+# dispatches. Default FOCUS so an empty/absent mode slot still behaves as base Focus.
 # Mirror of ModePart.Mode — KEEP IN SYNC: 0=FOCUS, 1=PHASE, 2=HYPER.
 # Design: docs/shift_mode_system_2026-06-08.md.
 enum ShiftMode { FOCUS, PHASE, HYPER }
 var active_mode: int = ShiftMode.FOCUS
 var mode_part: Resource = null
 
-# --- Hyper mode runtime (active_mode == HYPER) ---
-# A Focus-style bar (seconds of uptime). Drains while overdriving, recharges only
-# while idle, and can ONLY (re)engage when FULL. While active: primary +fire-rate,
-# unlimited primary ammo, +Mk damage. Tunables pulled from the mode part on equip.
-var hyper_charge: float = 4.0
-var hyper_charge_max: float = 4.0
-var _hyper_active: bool = false
+# --- Unified Shift-mode runtime (the singular system; _tick_shift_mode) ---
+# Press Shift → spend one charge → active for `mode_duration` seconds → charges refill
+# per `mode_regen_kind` (TIME secs/charge while idle, or KILLS via on_enemy_killed). The
+# per-mode EFFECT is dispatched on `active_mode` (Focus slow / Phase intangible / Hyper
+# overdrive). Params + effect tunables are pulled from the equipped part in
+# _on_mode_changed. Mirror of ModePart.ModeRegen — KEEP IN SYNC: 0=TIME, 1=KILLS.
+enum ModeRegen { TIME, KILLS }
+var mode_charges: int = 3
+var mode_charges_max: int = 3
+var mode_active_t: float = 0.0          # remaining active seconds (0 = inactive)
+var mode_duration: float = 3.0          # full activation length (duration bar denominator)
+var mode_regen_kind: int = ModeRegen.TIME
+var mode_regen_secs: float = 3.0        # TIME: seconds per +1 charge
+var mode_kills_per_charge: int = 4      # KILLS: kills per +1 charge
+var _mode_regen_acc: float = 0.0        # time / kill accumulator toward the next charge
+# Pips (discrete charges) + duration bar. mode_changed swaps the HUD meter's mode.
+signal mode_charges_changed(charges: int, max_charges: int)
+signal mode_duration_changed(active_t: float, duration: float)
+signal mode_changed(active_mode: int)
+
+func mode_is_active() -> bool:
+	return mode_active_t > 0.0
+
+# Per-mode effect gates — "the active mode is X and currently running". Read by the
+# scattered fire / damage / ammo / visual paths so a mode's effect only applies while live.
+func _focus_on() -> bool:
+	return mode_active_t > 0.0 and active_mode == ShiftMode.FOCUS
+func _phase_on() -> bool:
+	return mode_active_t > 0.0 and active_mode == ShiftMode.PHASE
+func _hyper_on() -> bool:
+	return mode_active_t > 0.0 and active_mode == ShiftMode.HYPER
+
+# Hyper effect tunables (pulled from the mode part on equip; only meaningful while Hyper).
 var hyper_fire_bonus: float = 0.10
 var hyper_damage_mult: float = 1.0
-var hyper_recharge_rate: float = 0.8
-signal hyper_charge_changed(charge: float, max_charge: float, active: bool)
-# Hyper "tell": a pulsing orange outline that speeds up as the bar runs out (Roman 2026-06-10).
+# Hyper "tell": a pulsing orange outline that speeds up as the window runs out.
 var _hyper_outline: Sprite2D = null
 var _hyper_pulse_t: float = 0.0
 const HYPER_OUTLINE_COLOR := Color(1.0, 0.5, 0.0)   # orange
-const HYPER_PULSE_HZ_SLOW: float = 2.0              # pulses/sec at full charge
+const HYPER_PULSE_HZ_SLOW: float = 2.0              # pulses/sec at activation
 const HYPER_PULSE_HZ_FAST: float = 9.0             # pulses/sec as it empties
 
-# --- Phase mode runtime (active_mode == PHASE) ---
-# Press Shift to phase out: brief intangibility (no incoming damage, no offense),
-# consuming one charge. Charges refill by KILLING enemies (on_enemy_killed), not by
-# time. Tunables pulled from the mode part on equip.
-var phase_charges: int = 2
-var phase_charges_max: int = 2
-var phase_duration: float = 3.0
-var phase_kills_per_charge: int = 4
-var _phase_t: float = 0.0
-var _phase_kill_count: int = 0
+# Phase effect visuals (intangibility itself is just "while active").
 var _phase_glow: CanvasItem = null   # bright-blue diffuse aura while phased
 var _phase_was_active: bool = false
 # Fading blue after-image ghosts while phased (Roman 2026-06-10).
@@ -309,10 +319,6 @@ var _phase_ai_acc: float = 0.0
 var _ghost_add_mat: CanvasItemMaterial = null   # shared additive material for all ghosts
 const PHASE_AI_INTERVAL: float = 0.06   # seconds between ghosts
 const PHASE_AI_LIFETIME: float = 0.34   # ghost fade-out time
-signal phase_charges_changed(charges: int, max_charges: int)
-# Emitted when the equipped Shift mode changes — the HUD swaps its meter (Focus/
-# Hyper bar vs Phase charge readout) on this.
-signal mode_changed(active_mode: int)
 
 var can_shoot: bool = true
 var is_alive: bool = true
@@ -871,10 +877,12 @@ func start() -> void:
 	# Force-emit UI updates so bars reflect current loadout
 	shield_changed.emit(max_shield, shield)
 	hull_changed.emit(max_hull, hull)
-	# Focus charge: always full at combat start.
-	focus_charge = focus_charge_max
-	_focus_regen_delay = 0.0
-	focus_charge_changed.emit(focus_charge, focus_charge_max)
+	# Shift-mode charges: always full + inactive at combat start.
+	mode_charges = mode_charges_max
+	mode_active_t = 0.0
+	_mode_regen_acc = 0.0
+	mode_charges_changed.emit(mode_charges, mode_charges_max)
+	mode_duration_changed.emit(mode_active_t, mode_duration)
 	# Initial shield-ring visibility matches starting shield.
 	_set_shield_ring_alpha(1.0 if shield > 0 else 0.0, 0.0)
 
@@ -925,29 +933,12 @@ func _process(delta: float) -> void:
 		_set_bank_frame(1)
 	# Engine glowmask dims to half opacity while moving BACK (down); full bright otherwise.
 	_update_engine_glow(input.y > 0.0, delta)
-	# Focus mode (Shift, by convention): ⅔-ish speed for precision
-	# dodging + show the hitbox dot so the player sees their collider.
-	# Charge-gated: focus deactivates when charge hits 0; recharges 2s
-	# after release.
-	# Focus is one of three Shift modes — only run the Focus stance when it's the
-	# active mode. Hyper/Phase handle the same Shift input via their own runtime
-	# (_tick_hyper_mode / _tick_phase_mode, below).
-	var want_focus: bool = active_mode == ShiftMode.FOCUS and Input.is_action_pressed("focus") and focus_charge > 0.0
-	# Drain charge while focused.
-	if want_focus:
-		focus_charge = max(0.0, focus_charge - FOCUS_DRAIN_RATE * delta)
-		_focus_regen_delay = FOCUS_REGEN_DELAY
-		focus_charge_changed.emit(focus_charge, focus_charge_max)
-	else:
-		if _focus_regen_delay > 0.0:
-			_focus_regen_delay -= delta
-		elif focus_charge < focus_charge_max:
-			focus_charge = min(focus_charge_max, focus_charge + FOCUS_REGEN_RATE * delta)
-			focus_charge_changed.emit(focus_charge, focus_charge_max)
-	# Hyper / Phase share the `focus` (Shift) action — tick their runtime here.
-	_tick_hyper_mode(delta)
-	_tick_phase_mode(delta)
-	var focused: bool = want_focus
+	# Shift modes (Focus / Phase / Hyper) all run through ONE unified runtime: press
+	# Shift to spend a charge and activate for a duration, charges regen per the mode's
+	# rule, and the per-mode effect (Focus slow / Phase intangible / Hyper overdrive)
+	# is dispatched on active_mode. Focus's ⅔-ish speed cut comes out of that below.
+	_tick_shift_mode(delta)
+	var focused: bool = _focus_on()
 	var focus_mult: float = FOCUS_FACTOR if focused else 1.0
 	_update_focus_dot(focused)
 	# Thrusters / Armor Plating upgrades feed into speed_multiplier;
@@ -979,7 +970,7 @@ func _process(delta: float) -> void:
 			fire_held = true
 	# Phase mode: while phased out the player is intangible AND cannot hit bullets
 	# or enemies — lock off primary offense (secondary is gated below).
-	if _phase_t > 0.0:
+	if _phase_on():
 		fire_held = false
 	# Passive Energy Routers — track trigger idleness for the shield-regen boost.
 	# fire_held already folds in autofire + phase, so this reads true "shooting" state.
@@ -1009,7 +1000,7 @@ func _process(delta: float) -> void:
 			fire_held = false
 		elif module_blaster_mount and not _has_primary:
 			fire_held = false                         # blaster auto, no primary to manual-fire
-	if _mounts_on and is_alive and _phase_t <= 0.0:
+	if _mounts_on and is_alive and not _phase_on():
 		if module_blaster_mount:
 			_update_blaster_mount(delta)
 		if module_primary_mount:
@@ -1125,7 +1116,7 @@ func _process(delta: float) -> void:
 	# Phase mode locks off secondary offense too (still ticks cooldowns via the
 	# tick fns; just no fire). DEPLOY keeps ticking its active-wave countdown but
 	# won't accept a new deploy press while phased (handled in _tick_deploy).
-	var sec_held: bool = Input.is_action_pressed("shoot2") and _phase_t <= 0.0
+	var sec_held: bool = Input.is_action_pressed("shoot2") and not _phase_on()
 	if secondary_mode == WS.SecondaryMode.BEAM:
 		_tick_beam(sec_held, delta)
 	elif secondary_mode == WS.SecondaryMode.BURST:
@@ -1145,76 +1136,89 @@ func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("shoot_nose"):
 		fire_super()
 
-# ---- Shift modes (Hyper / Phase) ----------------------------------------
-# Focus lives inline in _process; Hyper + Phase share the same `focus` (Shift) action
-# but have their own resource models. Design: docs/shift_mode_system_2026-06-08.md.
+# ---- Shift modes (the unified system) -----------------------------------
+# One runtime (_tick_shift_mode) drives all three modes: press Shift → spend a charge →
+# active for mode_duration → charges refill per the mode's rule. The per-mode EFFECT is
+# dispatched on active_mode. Design: docs/shift_mode_system_2026-06-08.md.
 
 # Screen post-FX aberration request, read each frame by CombatPostFx (renderer-polish
 # D3, 2026-06-11): the aggressive Shift-modes split the screen channels slightly.
-# Hyper overcharge holds a steady split; a phase dash punches a stronger one that the
-# controller eases back as the dash ends. 0 = no aberration.
+# Hyper overcharge holds a steady split; a phase dash punches a stronger one. 0 = none.
 func postfx_aberration() -> float:
 	var a: float = 0.0
-	if _hyper_active:
+	if _hyper_on():
 		a = maxf(a, 0.0026)
-	if _phase_t > 0.0:
+	if _phase_on():
 		a = maxf(a, 0.0045)
 	return a
 
 
-# Called by ModePart.apply/unapply when the equipped Shift mode changes. Pulls the
-# part's Mk-scaled tunables and resets runtime state.
+# Called by ModePart.apply/unapply when the equipped Shift mode changes. Pulls the part's
+# unified params (duration / charges / regen) + Hyper's Mk effect tunables, resets state.
 func _on_mode_changed() -> void:
-	_hyper_active = false
-	_phase_t = 0.0
+	mode_active_t = 0.0
+	_mode_regen_acc = 0.0
+	_clear_hyper_outline()
+	_set_phase_glow(false)
+	if mode_part != null:
+		var mk: int = int(mode_part.mark) if "mark" in mode_part else 1
+		if mode_part.has_method("mode_duration"):
+			mode_duration = maxf(0.1, float(mode_part.mode_duration(mk)))
+		if mode_part.has_method("mode_charges"):
+			mode_charges_max = maxi(1, int(mode_part.mode_charges(mk)))
+		if mode_part.has_method("mode_regen_kind"):
+			mode_regen_kind = int(mode_part.mode_regen_kind())
+		if mode_part.has_method("mode_regen_secs"):
+			mode_regen_secs = maxf(0.1, float(mode_part.mode_regen_secs()))
+		if mode_part.has_method("mode_kills_per_charge"):
+			mode_kills_per_charge = maxi(1, int(mode_part.mode_kills_per_charge()))
+		# Hyper effect tunables (only meaningful while Hyper is active).
+		if active_mode == ShiftMode.HYPER:
+			if mode_part.has_method("fire_bonus_at_mark"):
+				hyper_fire_bonus = float(mode_part.fire_bonus_at_mark(mk))
+			if mode_part.has_method("damage_mult_at_mark"):
+				hyper_damage_mult = float(mode_part.damage_mult_at_mark(mk))
+	mode_charges = mode_charges_max  # start full
+	# mode_changed first so the HUD rebuilds its pips/colour for the new mode, THEN the
+	# charge + duration values populate the freshly-built meter.
 	mode_changed.emit(active_mode)
-	if active_mode == ShiftMode.HYPER and mode_part != null:
-		if mode_part.has_method("fire_bonus_at_mark"):
-			hyper_fire_bonus = mode_part.fire_bonus_at_mark(int(mode_part.mark))
-		if mode_part.has_method("damage_mult_at_mark"):
-			hyper_damage_mult = mode_part.damage_mult_at_mark(int(mode_part.mark))
-		if "bar_seconds" in mode_part:
-			hyper_charge_max = float(mode_part.bar_seconds)
-		if "recharge_per_sec" in mode_part:
-			hyper_recharge_rate = float(mode_part.recharge_per_sec)
-		hyper_charge = hyper_charge_max  # start full / ready
-		hyper_charge_changed.emit(hyper_charge, hyper_charge_max, false)
-	elif active_mode == ShiftMode.PHASE and mode_part != null:
-		if mode_part.has_method("charges_at_mark"):
-			phase_charges_max = int(mode_part.charges_at_mark(int(mode_part.mark)))
-		if mode_part.has_method("duration_at_mark"):
-			phase_duration = float(mode_part.duration_at_mark(int(mode_part.mark)))
-		if "kills_per_charge" in mode_part:
-			phase_kills_per_charge = int(mode_part.kills_per_charge)
-		phase_charges = phase_charges_max  # start full
-		_phase_kill_count = 0
-		phase_charges_changed.emit(phase_charges, phase_charges_max)
-	else:
-		# FOCUS (or no mode part) — refresh the focus bar.
-		focus_charge_changed.emit(focus_charge, focus_charge_max)
+	mode_charges_changed.emit(mode_charges, mode_charges_max)
+	mode_duration_changed.emit(mode_active_t, mode_duration)
 
 
-# Hyper: held Shift drains the bar (+fire/ammo/dmg while active); release/empty ends
-# it; recharges only while idle; can ONLY (re)engage from a FULL bar (no tapping).
-func _tick_hyper_mode(delta: float) -> void:
-	if active_mode != ShiftMode.HYPER:
-		_clear_hyper_outline()
-		return
-	var holding: bool = Input.is_action_pressed("focus")
-	if _hyper_active:
-		hyper_charge = max(0.0, hyper_charge - delta)  # drain 1/s
-		if hyper_charge <= 0.0 or not holding:
-			_hyper_active = false
-		hyper_charge_changed.emit(hyper_charge, hyper_charge_max, _hyper_active)
-	else:
-		if hyper_charge < hyper_charge_max:
-			hyper_charge = min(hyper_charge_max, hyper_charge + hyper_recharge_rate * delta)
-			hyper_charge_changed.emit(hyper_charge, hyper_charge_max, false)
-		if holding and hyper_charge >= hyper_charge_max:
-			_hyper_active = true
-			hyper_charge_changed.emit(hyper_charge, hyper_charge_max, true)
-	# Pulsing orange outline tell — faster as the bar runs out.
-	if _hyper_active:
+# Unified Shift-mode tick (called from _process). Activation → countdown → charge regen →
+# per-mode effect dispatch. Focus's speed cut is read off _focus_on() back in _process.
+func _tick_shift_mode(delta: float) -> void:
+	# 1. Activate: tap Shift, hold a charge, not already running.
+	if Input.is_action_just_pressed("focus") and mode_charges > 0 and not mode_is_active():
+		mode_charges -= 1
+		mode_active_t = mode_duration
+		if active_mode == ShiftMode.PHASE:
+			_phase_ai_acc = PHASE_AI_INTERVAL  # drop a ghost immediately on entry
+		mode_charges_changed.emit(mode_charges, mode_charges_max)
+		mode_duration_changed.emit(mode_active_t, mode_duration)
+	# 2. Countdown the active window.
+	if mode_active_t > 0.0:
+		mode_active_t = max(0.0, mode_active_t - delta)
+		mode_duration_changed.emit(mode_active_t, mode_duration)
+	# 3. Refill charges while idle (TIME modes here; KILLS handled in on_enemy_killed).
+	if mode_charges < mode_charges_max and not mode_is_active() and mode_regen_kind == ModeRegen.TIME:
+		_mode_regen_acc += delta
+		if _mode_regen_acc >= mode_regen_secs:
+			_mode_regen_acc -= mode_regen_secs
+			mode_charges = mini(mode_charges_max, mode_charges + 1)
+			mode_charges_changed.emit(mode_charges, mode_charges_max)
+	# 4. Per-mode effect dispatch.
+	# Phase: intangible + after-image ghosts + blue glow while active.
+	if active_mode == ShiftMode.PHASE and _phase_on():
+		_invuln_t = max(_invuln_t, mode_active_t)  # intangible for the whole window
+		_phase_ai_acc += delta
+		if _phase_ai_acc >= PHASE_AI_INTERVAL:
+			_phase_ai_acc = 0.0
+			_spawn_phase_afterimage()
+	_set_phase_glow(_phase_on())
+	# Hyper: pulsing orange outline tell while active.
+	if _hyper_on():
 		_update_hyper_outline(delta)
 	else:
 		_clear_hyper_outline()
@@ -1232,10 +1236,10 @@ func _update_hyper_outline(delta: float) -> void:
 		_hyper_pulse_t = 0.0
 	if _hyper_outline == null or not is_instance_valid(_hyper_outline):
 		return
-	# Pulse frequency rises from SLOW→FAST as the bar empties.
+	# Pulse frequency rises from SLOW→FAST as the active window empties.
 	var frac: float = 0.0
-	if hyper_charge_max > 0.0:
-		frac = clampf(1.0 - hyper_charge / hyper_charge_max, 0.0, 1.0)
+	if mode_duration > 0.0:
+		frac = clampf(1.0 - mode_active_t / mode_duration, 0.0, 1.0)
 	var hz: float = lerpf(HYPER_PULSE_HZ_SLOW, HYPER_PULSE_HZ_FAST, frac)
 	_hyper_pulse_t += delta * hz
 	_hyper_outline.modulate.a = 0.30 + 0.70 * (0.5 + 0.5 * sin(_hyper_pulse_t * TAU))
@@ -1245,30 +1249,6 @@ func _clear_hyper_outline() -> void:
 	if _hyper_outline != null and is_instance_valid(_hyper_outline):
 		_hyper_outline.queue_free()
 	_hyper_outline = null
-
-
-# Phase: PRESS Shift to phase out — intangible (no incoming damage) + offense locked
-# for phase_duration, costs one charge. Charges refill via on_enemy_killed (kills).
-func _tick_phase_mode(delta: float) -> void:
-	if active_mode != ShiftMode.PHASE:
-		_set_phase_glow(false)
-		return
-	if _phase_t > 0.0:
-		_phase_t = max(0.0, _phase_t - delta)
-		_invuln_t = max(_invuln_t, _phase_t)  # intangible for the whole window
-		# Fading blue after-image ghosts as the ship moves.
-		_phase_ai_acc += delta
-		if _phase_ai_acc >= PHASE_AI_INTERVAL:
-			_phase_ai_acc = 0.0
-			_spawn_phase_afterimage()
-	if Input.is_action_just_pressed("focus") and _phase_t <= 0.0 and phase_charges > 0:
-		phase_charges -= 1
-		_phase_t = phase_duration
-		_invuln_t = max(_invuln_t, phase_duration)
-		_phase_ai_acc = PHASE_AI_INTERVAL  # drop a ghost immediately on entry
-		phase_charges_changed.emit(phase_charges, phase_charges_max)
-	# Bright-blue diffuse glow while phased (the Phase "tell" — no dot/trail).
-	_set_phase_glow(_phase_t > 0.0)
 
 
 # Spawn a fading blue ghost of the ship body at its current pose. Parented to the combat world (not
@@ -1319,12 +1299,13 @@ func _set_phase_glow(on: bool) -> void:
 		_phase_glow = null
 
 
-# Phase refills charges by killing enemies. Wired from main._on_enemy_died (the
-# bounty-award hook) so only player-caused kills count — off-screen departs don't.
+# KILLS-regen Shift modes (Phase) refill a charge per N kills. Wired from
+# main._on_enemy_died (the bounty-award hook) so only player-caused kills count —
+# off-screen departs don't.
 func on_enemy_killed() -> void:
 	# Module bay — Siphon Core: every Nth kill restores one shield charge (no-op unless
 	# a Siphon Core is equipped). Runs regardless of shift mode, so it sits before the
-	# Phase-mode early-return below.
+	# mode-regen early-return below.
 	if module_siphon_kills_per_charge > 0:
 		_siphon_kill_count += 1
 		if _siphon_kill_count >= module_siphon_kills_per_charge:
@@ -1332,13 +1313,14 @@ func on_enemy_killed() -> void:
 			if shield < max_shield:
 				shield = mini(max_shield, shield + 1)
 				shield_changed.emit()
-	if active_mode != ShiftMode.PHASE or phase_charges >= phase_charges_max:
+	# Unified Shift-mode KILLS regen — only for modes that refill on kills (Phase).
+	if mode_regen_kind != ModeRegen.KILLS or mode_charges >= mode_charges_max:
 		return
-	_phase_kill_count += 1
-	if _phase_kill_count >= phase_kills_per_charge:
-		_phase_kill_count = 0
-		phase_charges = min(phase_charges_max, phase_charges + 1)
-		phase_charges_changed.emit(phase_charges, phase_charges_max)
+	_mode_regen_acc += 1.0
+	if _mode_regen_acc >= float(mode_kills_per_charge):
+		_mode_regen_acc -= float(mode_kills_per_charge)
+		mode_charges = mini(mode_charges_max, mode_charges + 1)
+		mode_charges_changed.emit(mode_charges, mode_charges_max)
 
 
 # ---- Damage pipeline ----
@@ -1354,7 +1336,7 @@ func take_damage(amount: int) -> void:
 	# Phase mode: while phased the player absorbs incoming enemy fire instead of taking it —
 	# each absorbed hit restores 1 shield point (capped). The bullet that called this still frees
 	# itself, so it reads as "absorbed". (Roman 2026-06-10 phase rework.)
-	if _phase_t > 0.0:
+	if _phase_on():
 		if shield < max_shield:
 			set_shield(min(max_shield, shield + 1))
 			_pulse_shield_ring()
@@ -1490,7 +1472,7 @@ func die() -> void:
 	is_alive = false
 	_set_phase_glow(false)  # clean up the Phase aura if we die mid-blink
 	_clear_hyper_outline()  # and the Hyper pulse outline
-	_hyper_active = false
+	mode_active_t = 0.0     # end any active Shift mode
 	hide()
 	died.emit()
 	$ShieldRegenTimer.stop()
@@ -1528,7 +1510,7 @@ func _fire_pulse_laser() -> void:
 	var ang: float = randf_range(-half, half)
 	var dir := Vector2(sin(ang), -cos(ang))
 	var dmg: int = bullet_damage
-	if _hyper_active and active_mode == ShiftMode.HYPER:
+	if _hyper_on():
 		dmg = int(round(float(bullet_damage) * hyper_damage_mult))
 	var hit := _pulse_hitscan(origin, dir, PULSE_RANGE)
 	var enemy = hit["enemy"]
@@ -1942,7 +1924,7 @@ func fire_primary(aim_angle: float = 0.0) -> void:
 	var _is_pulse: bool = weapon_style == WS.WeaponStyle.PULSE_LASER
 	if bullet_scene == null and not _is_pulse:
 		return
-	if _phase_t > 0.0:
+	if _phase_on():
 		return  # phased out — no offense
 	# Metered primary out of ammo. Single-active model (2026-06-11): a REGEN
 	# cannon (laser: ammo_recharge_rate > 0) just can't fire until it recharges —
@@ -1950,7 +1932,7 @@ func fire_primary(aim_angle: float = 0.0) -> void:
 	# (minigun) reverts to an owned blaster. Hyper grants unlimited ammo, so a
 	# dry metered weapon keeps firing while Hyper is active.
 	if _is_replacement_primary_active() and ammo == 0 \
-			and not (_hyper_active and active_mode == ShiftMode.HYPER):
+			and not (_hyper_on()):
 		if ammo_recharge_rate > 0.0:
 			return  # regen cannon: pause until it recharges, stay equipped
 		# Smart Mount: a turreted primary stands down dry and waits — never falls back to
@@ -1977,7 +1959,7 @@ func fire_primary(aim_angle: float = 0.0) -> void:
 	# Fire-rate bonuses (shorter cooldown), stacked additively: Hyper + Overclock Core
 	# (sustained-fire ramp) + Critical System De-Limiter (scales with hull lost).
 	var _fire_bonus: float = 0.0
-	if _hyper_active and active_mode == ShiftMode.HYPER and hyper_fire_bonus > 0.0:
+	if _hyper_on() and hyper_fire_bonus > 0.0:
 		_fire_bonus += hyper_fire_bonus
 	if module_overclock_max > 0.0:
 		_overclock_ramp = minf(1.0, _overclock_ramp + OVERCLOCK_RAMP_PER_SHOT)
@@ -2004,7 +1986,7 @@ func fire_primary(aim_angle: float = 0.0) -> void:
 		if _rs != null:
 			_rs.stat_add("shots_fired", 1)   # one hitscan beam = one shot
 		if _is_replacement_primary_active() and ammo > 0 \
-				and not (_hyper_active and active_mode == ShiftMode.HYPER):
+				and not (_hyper_on()):
 			ammo -= 1
 			ammo_changed.emit(ammo)
 			if has_node("/root/Run"):
@@ -2057,7 +2039,7 @@ func fire_primary(aim_angle: float = 0.0) -> void:
 		# Hyper mode adds its Mk damage multiplier (even-Mk stacks) while active.
 		if "damage" in b:
 			var dmg: int = bullet_damage
-			if _hyper_active and active_mode == ShiftMode.HYPER:
+			if _hyper_on():
 				dmg = int(round(float(bullet_damage) * hyper_damage_mult))
 			# Module bay — Overcharge Core multiplies primary damage (1.0 = no module).
 			if module_damage_mult != 1.0:
@@ -2164,7 +2146,7 @@ func fire_primary(aim_angle: float = 0.0) -> void:
 	# WeaponPart.apply/unapply snapshot cycle happens cleanly outside the
 	# fire loop.
 	if _is_replacement_primary_active() and ammo > 0 \
-			and not (_hyper_active and active_mode == ShiftMode.HYPER):
+			and not (_hyper_on()):
 		# (Hyper mode grants unlimited primary ammo while active — skip decrement.)
 		ammo -= 1
 		ammo_changed.emit(ammo)
@@ -2477,7 +2459,7 @@ func _end_deploy() -> void:
 # ammo. Phase-locked (no offense while phased). The Part's fire_salvo() owns the
 # spawn + distinct-target assignment; the missiles are fire-and-forget (not tracked).
 func _tick_salvo() -> void:
-	if not is_alive or _phase_t > 0.0:
+	if not is_alive or _phase_on():
 		return
 	if not Input.is_action_just_pressed("shoot2"):
 		return

@@ -61,7 +61,9 @@ When building UI or special effects, hook these signals on the Player node:
 | `ammo_changed` | `(value: int)` | Primary weapon ammo count changed |
 | `secondary_ammo_changed` | `(value: int, maximum: int)` | Secondary weapon ammo changed |
 | `super_charges_changed` | `(value: int, maximum: int)` | Smart bomb or super weapon charges |
-| `focus_charge_changed` | `(charge: float, max_charge: float)` | Focus-mode charge (precision slowdown) |
+| `mode_charges_changed` | `(charges: int, max_charges: int)` | Shift-mode discrete charges (HUD pips) |
+| `mode_duration_changed` | `(active_t: float, duration: float)` | Shift-mode active window (HUD duration bar) |
+| `mode_changed` | `(active_mode: int)` | Equipped Shift mode swapped (0=Focus/1=Phase/2=Hyper) |
 
 See `scripts/game/player.gd` lines 3–9 and 78, 146, 228, 248 for the exact definitions.
 

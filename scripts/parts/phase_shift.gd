@@ -31,3 +31,17 @@ func duration_at_mark(at_mark: int) -> float:
 # Odd Mk >1 (3,5,7,9) each add +1 charge. Cumulative adds at Mk M = floor((M-1)/2).
 func charges_at_mark(at_mark: int) -> int:
 	return base_charges + int((at_mark - 1) / 2)
+
+
+# --- Unified Shift-mode interface (reuses the Mk getters above; regen by KILLS) ---
+func mode_duration(at_mark: int) -> float:
+	return duration_at_mark(at_mark)
+
+func mode_charges(at_mark: int) -> int:
+	return charges_at_mark(at_mark)
+
+func mode_regen_kind() -> int:
+	return ModeRegen.KILLS
+
+func mode_kills_per_charge() -> int:
+	return kills_per_charge

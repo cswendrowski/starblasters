@@ -35,7 +35,7 @@ const CODEX := {
 	# --- Shift modes (SHIFT_MODE) ---
 	"_make_focus_mode": "FOCUS stance (hold Shift). Slows you to a precise crawl with a pinpoint hitbox for threading dense fire. The default stance.",
 	"_make_phase_shift": "PHASE stance (tap Shift). A short intangible blink — pass through bullets and ships, no offense, no screen-clear. Charges refill by killing enemies.",
-	"_make_hyper_mode": "HYPER stance (hold Shift). Overdrive: +10% fire rate and unlimited ammo while the bar holds. Recharges only when idle — can't re-engage until full.",
+	"_make_hyper_mode": "HYPER stance (tap Shift). Overdrive: +10% fire rate and unlimited ammo for a few seconds. Spends a charge; charges refill over time while idle.",
 	# --- Engines (ENGINE) ---
 	"_make_basic_engine": "Main Engine — your baseline thrust. Mk raises top speed toward the clarity ceiling.",
 	"_make_vectoring_engine": "Vectoring thrusters — crisper handling and a higher speed band.",

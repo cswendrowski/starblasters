@@ -31,13 +31,13 @@ func _process(_dt: float) -> void:
 	var lines: Array = []
 	var fails := 0
 	# 1) Phase duration default = 3.0
-	lines.append("phase_duration = %.1f (expect 3.0)" % float(_p.phase_duration))
-	if abs(float(_p.phase_duration) - 3.0) > 0.01:
-		lines.append("FAIL phase_duration not 3.0"); fails += 1
+	lines.append("mode_duration = %.1f (expect 3.0)" % float(_p.mode_duration))
+	if abs(float(_p.mode_duration) - 3.0) > 0.01:
+		lines.append("FAIL mode_duration not 3.0"); fails += 1
 	# 2) Bullet absorption while phased restores 1 shield per hit (capped).
 	_p.set("max_shield", 10)
 	_p.set("shield", 2)
-	_p.set("_phase_t", 3.0)        # phased
+	_p.set("active_mode", 1); _p.set("mode_active_t", 3.0)        # phased
 	_p.set("invincible", false)
 	var before: int = int(_p.shield)
 	_p.take_damage(5)              # would normally drain shield; phased -> +1
@@ -55,7 +55,7 @@ func _process(_dt: float) -> void:
 	else:
 		lines.append("shield caps at max while phased: OK")
 	# 3) Out of phase, damage applies normally (drains shield).
-	_p.set("_phase_t", 0.0)
+	_p.set("mode_active_t", 0.0)
 	_p.set("_invuln_t", 0.0)
 	_p.set("shield", 5)
 	_p.take_damage(2)
@@ -64,9 +64,9 @@ func _process(_dt: float) -> void:
 		lines.append("FAIL normal damage broken after phase changes"); fails += 1
 	# 4) Hyper pulsing outline node spawns while hyper active.
 	_p.set("active_mode", 2)       # ShiftMode.HYPER = 2
-	_p.set("hyper_charge", 4.0)
-	_p.set("hyper_charge_max", 4.0)
-	_p.set("_hyper_active", true)
+	_p.set("mode_duration", 4.0)
+	_p.set("mode_active_t", 4.0)
+	_p.set("active_mode", 2)  # HYPER (already set; _hyper_on() now reads mode_active_t)
 	_p._update_hyper_outline(0.05)
 	var ho = _p.get("_hyper_outline")
 	lines.append("hyper outline spawned: %s" % (ho != null and is_instance_valid(ho)))

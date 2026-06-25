@@ -58,16 +58,21 @@ var _fire_light: Sprite2D = null
 var _threat_light: Sprite2D = null
 var _ann: Sprite2D = null
 
-var _focus_bar_fill: ColorRect = null
-# Shift-Mode meter (reuses the focus bar slot — modes are mutually exclusive).
-# The label + bar swap by active mode: Focus/Hyper show a charge bar; Phase shows
-# its discrete charge count (x/y) on the same bar.
+# Shift-Mode meter (unified system): a DURATION bar (active countdown) + a row of
+# discrete CHARGE pips (light sprites, like hull/shield). The label + bar colour + pip
+# count swap by active mode in _on_mode_changed_ui.
+var _focus_bar_fill: ColorRect = null   # repurposed as the active-duration bar
 var _mode_label: Label = null
+var _mode_pips: Array = []              # Array[Sprite2D] — one per charge
+var _mode_pip_container: Control = null
+var _mode_pip_color: Color = Color(0.4, 0.7, 1.0, 0.9)  # tint of the current mode's lit pips
+var _prev_mode_charges: int = -1        # for pip-spend flash
 var _ui_active_mode: int = 0  # 0=FOCUS, 1=PHASE, 2=HYPER
 const _MODE_COL_FOCUS := Color(0.4, 0.7, 1.0, 0.9)
 const _MODE_COL_HYPER := Color(1.0, 0.6, 0.2, 0.9)
 const _MODE_COL_HYPER_ON := Color(1.0, 0.85, 0.35, 1.0)
 const _MODE_COL_PHASE := Color(0.7, 0.45, 1.0, 0.9)
+const _MODE_PIP_OFF := Color(0.2, 0.22, 0.3, 0.7)  # spent/empty charge pip
 
 var _player_ref = null
 var _wave_spawning: bool = false
@@ -427,12 +432,11 @@ func bind_player(player) -> void:
 		player.secondary_timer_changed.connect(_on_secondary_timer_changed)
 	if player.has_signal("super_charges_changed") and not player.super_charges_changed.is_connected(_on_super_charges_changed):
 		player.super_charges_changed.connect(_on_super_charges_changed)
-	if player.has_signal("focus_charge_changed") and not player.focus_charge_changed.is_connected(_on_focus_charge_changed):
-		player.focus_charge_changed.connect(_on_focus_charge_changed)
-	if player.has_signal("hyper_charge_changed") and not player.hyper_charge_changed.is_connected(_on_hyper_charge_changed):
-		player.hyper_charge_changed.connect(_on_hyper_charge_changed)
-	if player.has_signal("phase_charges_changed") and not player.phase_charges_changed.is_connected(_on_phase_charges_changed):
-		player.phase_charges_changed.connect(_on_phase_charges_changed)
+	# Unified Shift-mode meter: discrete charges (pips) + active-duration bar.
+	if player.has_signal("mode_charges_changed") and not player.mode_charges_changed.is_connected(_on_mode_charges_changed):
+		player.mode_charges_changed.connect(_on_mode_charges_changed)
+	if player.has_signal("mode_duration_changed") and not player.mode_duration_changed.is_connected(_on_mode_duration_changed):
+		player.mode_duration_changed.connect(_on_mode_duration_changed)
 	if player.has_signal("mode_changed") and not player.mode_changed.is_connected(_on_mode_changed_ui):
 		player.mode_changed.connect(_on_mode_changed_ui)
 	if player.has_signal("damaged") and not player.damaged.is_connected(_on_player_damaged):
@@ -445,13 +449,16 @@ func bind_player(player) -> void:
 		update_shield(player.max_shield, player.shield)
 	if "super_charges" in player and "max_super_charges" in player:
 		_on_super_charges_changed(int(player.super_charges), int(player.max_super_charges))
-	if "focus_charge" in player and "focus_charge_max" in player:
-		_on_focus_charge_changed(float(player.focus_charge), float(player.focus_charge_max))
 
 	_install_focus_bar()
-	# Seed the mode meter to the player's current Shift mode.
+	# Seed the mode meter to the player's current Shift mode (rebuilds pips + colour),
+	# then push the live charge + duration values into it.
 	if "active_mode" in player:
 		_on_mode_changed_ui(int(player.active_mode))
+	if "mode_charges" in player and "mode_charges_max" in player:
+		_on_mode_charges_changed(int(player.mode_charges), int(player.mode_charges_max))
+	if "mode_active_t" in player and "mode_duration" in player:
+		_on_mode_duration_changed(float(player.mode_active_t), float(player.mode_duration))
 	_refresh_weapon_names()
 
 	var director = get_node_or_null("/root/Main/WaveDirector")
@@ -486,63 +493,91 @@ func _install_focus_bar() -> void:
 	_focus_bar_fill.size = Vector2(BAR_W, BAR_H)
 	_focus_bar_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	c.add_child(_focus_bar_fill)
+	# Charge pips (discrete light sprites, like hull/shield) below the duration bar.
+	# Rebuilt to the active mode's charge count by _on_mode_changed_ui.
+	_mode_pip_container = Control.new()
+	_mode_pip_container.name = "ModePips"
+	_mode_pip_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_mode_pip_container.set_anchors_preset(Control.PRESET_FULL_RECT)
+	c.add_child(_mode_pip_container)
+
+
+# Rebuild the Shift-mode charge pips to `count` (one light per charge).
+func _rebuild_mode_pips(count: int) -> void:
+	for p in _mode_pips:
+		if is_instance_valid(p):
+			p.queue_free()
+	_mode_pips.clear()
+	if not is_instance_valid(_mode_pip_container):
+		return
+	var origin := _mpos("mode_pips", Vector2(8, 263))
+	for i in range(count):
+		var pip := _make_dot(origin + Vector2(i * DOT_STEP, 0), _MODE_PIP_OFF)
+		_mode_pip_container.add_child(pip)
+		_mode_pips.append(pip)
 
 
 # ---------------------------------------------------------------------------
 # Signal handlers
 # ---------------------------------------------------------------------------
 
-func _on_focus_charge_changed(charge: float, max_charge: float) -> void:
-	# Focus regen ticks in every mode (the reserve sits full while Hyper/Phase are
-	# equipped) — only drive the bar when Focus is the active mode, else it'd
-	# clobber the Hyper/Phase meter.
-	if _focus_bar_fill == null or _ui_active_mode != 0:
+# Discrete charges → light the pips, flash on spend. (Unified Shift-mode meter.)
+func _on_mode_charges_changed(charges: int, max_charges: int) -> void:
+	if _mode_pip_container == null or not is_instance_valid(_mode_pip_container):
 		return
-	_focus_bar_fill.size.x = float(BAR_W) * clamp(charge / max(1.0, max_charge), 0.0, 1.0)
+	if _mode_pips.size() != max_charges:
+		_rebuild_mode_pips(max_charges)
+	for i in _mode_pips.size():
+		var pip := _mode_pips[i] as Sprite2D
+		if pip == null:
+			continue
+		var on: bool = i < charges
+		pip.frame = 1 if on else 0
+		pip.modulate = _mode_pip_color if on else _MODE_PIP_OFF
+	# Flash the pip row when a charge is spent (count dropped).
+	if _prev_mode_charges >= 0 and charges < _prev_mode_charges:
+		HudLight.pip_flash(_mode_pip_container)
+	_prev_mode_charges = charges
 
 
-func _on_hyper_charge_changed(charge: float, max_charge: float, active: bool) -> void:
-	if _focus_bar_fill == null or _ui_active_mode != 2:
+# Active window → fill the duration bar (1.0 at activation, empties as it runs out).
+func _on_mode_duration_changed(active_t: float, duration: float) -> void:
+	if _focus_bar_fill == null:
 		return
-	_focus_bar_fill.size.x = float(BAR_W) * clamp(charge / max(1.0, max_charge), 0.0, 1.0)
-	_focus_bar_fill.color = _MODE_COL_HYPER_ON if active else _MODE_COL_HYPER
-	if _mode_label != null:
-		_mode_label.text = "HYPER" if not active else "HYPER ▶"
+	_focus_bar_fill.size.x = float(BAR_W) * clamp(active_t / max(0.001, duration), 0.0, 1.0)
 
 
-func _on_phase_charges_changed(charges: int, max_charges: int) -> void:
-	if _focus_bar_fill == null or _ui_active_mode != 1:
-		return
-	# Phase is discrete charges — show the count on the label, bar as the fraction.
-	_focus_bar_fill.size.x = float(BAR_W) * clamp(float(charges) / max(1.0, float(max_charges)), 0.0, 1.0)
-	if _mode_label != null:
-		_mode_label.text = "PHASE %d/%d" % [charges, max_charges]
-
-
-# Swap the mode meter (label text + bar colour) when the equipped Shift mode
-# changes, then refresh it from the player's current resource value.
+# Swap the mode meter (label, bar colour, pip count/colour) when the equipped Shift
+# mode changes, then reseed it from the player's current charge + duration values.
 func _on_mode_changed_ui(mode: int) -> void:
 	_ui_active_mode = mode
 	if _mode_label == null or _focus_bar_fill == null:
 		return
-	var p = _player_ref
 	match mode:
 		1:  # PHASE
+			_mode_label.text = "PHASE"
 			_mode_label.add_theme_color_override("font_color", Color(0.82, 0.62, 1.0, 0.9))
 			_focus_bar_fill.color = _MODE_COL_PHASE
-			if p != null and "phase_charges" in p:
-				_on_phase_charges_changed(int(p.phase_charges), int(p.phase_charges_max))
+			_mode_pip_color = _MODE_COL_PHASE
 		2:  # HYPER
+			_mode_label.text = "HYPER"
 			_mode_label.add_theme_color_override("font_color", Color(1.0, 0.75, 0.4, 0.9))
 			_focus_bar_fill.color = _MODE_COL_HYPER
-			if p != null and "hyper_charge" in p:
-				_on_hyper_charge_changed(float(p.hyper_charge), float(p.hyper_charge_max), bool(p._hyper_active))
+			_mode_pip_color = _MODE_COL_HYPER
 		_:  # FOCUS
 			_mode_label.text = "FOCUS"
 			_mode_label.add_theme_color_override("font_color", Color(0.5, 0.75, 1.0, 0.85))
 			_focus_bar_fill.color = _MODE_COL_FOCUS
-			if p != null and "focus_charge" in p:
-				_on_focus_charge_changed(float(p.focus_charge), float(p.focus_charge_max))
+			_mode_pip_color = _MODE_COL_FOCUS
+	# Rebuild pips for this mode's charge count, then reseed live values.
+	_prev_mode_charges = -1
+	var p = _player_ref
+	if p != null and "mode_charges_max" in p:
+		_rebuild_mode_pips(int(p.mode_charges_max))
+		if "mode_charges" in p:
+			_on_mode_charges_changed(int(p.mode_charges), int(p.mode_charges_max))
+	if p != null and "mode_active_t" in p and "mode_duration" in p:
+		_on_mode_duration_changed(float(p.mode_active_t), float(p.mode_duration))
 
 
 func _on_player_damaged(_amount: int) -> void:
@@ -641,8 +676,12 @@ func _disconnect_player_signals(player) -> void:
 		player.secondary_timer_changed.disconnect(_on_secondary_timer_changed)
 	if player.has_signal("super_charges_changed") and player.super_charges_changed.is_connected(_on_super_charges_changed):
 		player.super_charges_changed.disconnect(_on_super_charges_changed)
-	if player.has_signal("focus_charge_changed") and player.focus_charge_changed.is_connected(_on_focus_charge_changed):
-		player.focus_charge_changed.disconnect(_on_focus_charge_changed)
+	if player.has_signal("mode_charges_changed") and player.mode_charges_changed.is_connected(_on_mode_charges_changed):
+		player.mode_charges_changed.disconnect(_on_mode_charges_changed)
+	if player.has_signal("mode_duration_changed") and player.mode_duration_changed.is_connected(_on_mode_duration_changed):
+		player.mode_duration_changed.disconnect(_on_mode_duration_changed)
+	if player.has_signal("mode_changed") and player.mode_changed.is_connected(_on_mode_changed_ui):
+		player.mode_changed.disconnect(_on_mode_changed_ui)
 	if player.has_signal("damaged") and player.damaged.is_connected(_on_player_damaged):
 		player.damaged.disconnect(_on_player_damaged)
 

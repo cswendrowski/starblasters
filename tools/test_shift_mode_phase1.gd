@@ -47,11 +47,11 @@ func _run() -> void:
 
 	# --- Mk-scaled getters match spec ---
 	var phase = PartCatalog._make_by_name("_make_phase_shift", SlotTypes.SlotType.SHIFT_MODE)
-	# base 1.5s / 2ch; Mk9 -> 5.5s / 6ch (even Mk +1s, odd Mk>1 +1 charge).
-	_assert_eqf(phase.duration_at_mark(1), 1.5, "Phase dur Mk1 = 1.5")
-	_assert_eqf(phase.duration_at_mark(2), 2.5, "Phase dur Mk2 = 2.5 (+1s)")
+	# base 3.0s / 2ch; Mk9 -> 7.0s / 6ch (even Mk +1s, odd Mk>1 +1 charge).
+	_assert_eqf(phase.duration_at_mark(1), 3.0, "Phase dur Mk1 = 3.0")
+	_assert_eqf(phase.duration_at_mark(2), 4.0, "Phase dur Mk2 = 4.0 (+1s)")
 	_assert_eq(phase.charges_at_mark(3), 3, "Phase charges Mk3 = 3 (+1)")
-	_assert_eqf(phase.duration_at_mark(9), 5.5, "Phase dur Mk9 = 5.5")
+	_assert_eqf(phase.duration_at_mark(9), 7.0, "Phase dur Mk9 = 7.0")
 	_assert_eq(phase.charges_at_mark(9), 6, "Phase charges Mk9 = 6")
 
 	var hyper = PartCatalog._make_by_name("_make_hyper_mode", SlotTypes.SlotType.SHIFT_MODE)

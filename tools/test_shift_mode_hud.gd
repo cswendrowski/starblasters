@@ -1,9 +1,9 @@
 extends SceneTree
 
-# Shift-Mode Phase 3 HUD wiring: the mode meter (reused focus-bar slot) swaps with
-# the active mode. Instantiates the combat UI + a player, binds them, swaps modes,
-# checks the label text + bar colour follow. (Headless — verifies signal wiring,
-# not pixels; the visual read is Roman's once combat boots.)
+# Shift-Mode HUD wiring (unified system): the mode meter swaps with the active mode.
+# Instantiates the combat UI + a player, binds them, swaps modes, and checks the label
+# text + bar colour + charge PIPS follow. (Headless — verifies signal wiring, not pixels;
+# the visual read is Roman's once combat boots.)
 
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
@@ -26,7 +26,8 @@ func _run() -> void:
 	await process_frame
 
 	_assert(ui._mode_label != null, "mode label exists")
-	_assert(ui._focus_bar_fill != null, "mode bar exists")
+	_assert(ui._focus_bar_fill != null, "mode duration bar exists")
+	_assert(ui._mode_pip_container != null, "mode pip container exists")
 	# Default Focus.
 	_assert(ui._mode_label.text == "FOCUS", "label FOCUS by default (got '%s')" % ui._mode_label.text)
 
@@ -38,22 +39,25 @@ func _run() -> void:
 	_assert(ui._mode_label.text.begins_with("HYPER"), "label HYPER (got '%s')" % ui._mode_label.text)
 	_assert(_close(ui._focus_bar_fill.color, ui._MODE_COL_HYPER) or _close(ui._focus_bar_fill.color, ui._MODE_COL_HYPER_ON), "bar is Hyper colour")
 
-	# Phase -> label shows charge count, bar purple.
+	# Phase -> label PHASE, bar purple, charges shown as pips.
 	_equip("_make_phase_shift", 1, loadout, player)
 	await process_frame
-	_assert(ui._mode_label.text == "PHASE 2/2", "label 'PHASE 2/2' (got '%s')" % ui._mode_label.text)
+	_assert(ui._mode_label.text == "PHASE", "label 'PHASE' (got '%s')" % ui._mode_label.text)
 	_assert(_close(ui._focus_bar_fill.color, ui._MODE_COL_PHASE), "bar is Phase colour")
-	# Spend a charge -> label updates.
-	player.phase_charges = 1
-	player.phase_charges_changed.emit(1, 2)
+	_assert(ui._mode_pips.size() == 2, "Phase shows 2 charge pips (got %d)" % ui._mode_pips.size())
+	_assert(_lit(ui) == 2, "both pips lit at full charges (got %d)" % _lit(ui))
+	# Spend a charge -> one pip dims.
+	player.mode_charges = 1
+	player.mode_charges_changed.emit(1, 2)
 	await process_frame
-	_assert(ui._mode_label.text == "PHASE 1/2", "label updates to 'PHASE 1/2' (got '%s')" % ui._mode_label.text)
+	_assert(_lit(ui) == 1, "one pip lit after spending a charge (got %d)" % _lit(ui))
 
-	# Back to Focus -> label FOCUS, bar cyan.
+	# Back to Focus -> label FOCUS, bar cyan, 3 pips.
 	_equip("_make_focus_mode", 1, loadout, player)
 	await process_frame
 	_assert(ui._mode_label.text == "FOCUS", "label back to FOCUS (got '%s')" % ui._mode_label.text)
 	_assert(_close(ui._focus_bar_fill.color, ui._MODE_COL_FOCUS), "bar is Focus colour")
+	_assert(ui._mode_pips.size() == 3, "Focus shows 3 charge pips (got %d)" % ui._mode_pips.size())
 
 	print("[test] ALL PASS")
 	quit()
@@ -64,6 +68,15 @@ func _equip(factory: String, mk: int, loadout, player) -> void:
 	part.mark = mk
 	root.get_node("/root/Run").equip_part(part)
 	loadout.equip(SlotTypes.SlotType.SHIFT_MODE, part)
+
+
+# Count lit charge pips (frame 1 = on).
+func _lit(ui) -> int:
+	var n := 0
+	for p in ui._mode_pips:
+		if p != null and is_instance_valid(p) and int(p.frame) == 1:
+			n += 1
+	return n
 
 
 func _close(a: Color, b: Color) -> bool:

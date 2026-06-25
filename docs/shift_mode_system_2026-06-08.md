@@ -3,6 +3,26 @@
 **Date:** 2026-06-08
 **Status:** ✅ design settled · ✅ BUILT (Phases 1–5, 2026-06-08) · magnitudes first-pass (tuner job)
 
+> ### ⚠️ UPDATE 2026-06-25 — unified into ONE system
+> The three modes were originally built as **bespoke per-mode runtimes** (§3 below describes
+> that: Focus/Hyper as continuous *seconds-reserves*, Phase as press/duration/charges). They are
+> now **one singular system** in `player.gd` (`_tick_shift_mode`), and §3's per-mode *resource*
+> descriptions are superseded by this uniform model (the per-mode *effects* are unchanged):
+>
+> - **Activation:** every mode is **press Shift → activate**, spending **one discrete charge**
+>   (no more held/hold distinction).
+> - **Duration:** the mode is active for `mode_duration` seconds — shown by the HUD **duration bar**.
+> - **Charges:** discrete, shown as **light pip sprites** (like hull/shield). One spent per activation.
+> - **Regen:** per the mode's existing rule — `ModeRegen.TIME` (seconds/charge while idle: Focus,
+>   Hyper) or `ModeRegen.KILLS` (Phase, via `on_enemy_killed`).
+> - **Mk scaling unchanged:** the same Mk getters drive it (`mode_part.gd` interface:
+>   `mode_duration` / `mode_charges` / `mode_regen_kind` / `mode_regen_secs` / `mode_kills_per_charge`;
+>   Phase reuses `duration_at_mark`/`charges_at_mark`, Hyper keeps `fire_bonus_at_mark`/`damage_mult_at_mark`).
+>
+> Placeholders to tune: Focus = 3s / 3 charges / 3s-per-charge; Hyper = 4s / 2 charges. Mode *behavior*
+> adjustments + new modes are the follow-on. Tests: `tools/test_shift_mode_phase{1,2}.gd`,
+> `test_shift_mode_hud.gd`, `test_phase_hyper.gd`.
+
 **Build status (2026-06-08):** Phases 1–5 landed + headless-verified
 (`tools/test_shift_mode_phase{1,2,4}.gd`, `test_shift_mode_hud.gd`).
 - ✅ P1 slot + ModeParts · ✅ P2 Hyper/Phase runtime · ✅ P3 HUD meter ·

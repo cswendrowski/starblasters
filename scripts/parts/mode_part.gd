@@ -17,6 +17,10 @@ const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 
 enum Mode { FOCUS, PHASE, HYPER }
 
+# How a mode's discrete charges refill. TIME = seconds per charge; KILLS = enemy kills
+# per charge (refunded via player.on_enemy_killed). KEEP IN SYNC with player.gd's mirror.
+enum ModeRegen { TIME, KILLS }
+
 @export var mode_id: int = Mode.FOCUS
 
 # Snapshot so unequip restores the prior mode (back to Focus by default).
@@ -55,3 +59,32 @@ func unapply(ship) -> void:
 	if ship.has_method("_on_mode_changed"):
 		ship._on_mode_changed()
 	_had_prev = false
+
+
+# --- Unified Shift-mode interface (the singular activation/charge/duration system) ---
+# Every mode plugs into ONE player runtime (_tick_shift_mode): press Shift → spend a
+# charge → active for `mode_duration` seconds → charges refill per `mode_regen_*`. The
+# per-mode EFFECT (slow / intangible / fire-buff) is dispatched in player.gd on
+# `active_mode`; this interface only declares the resource shape. Subclasses override
+# these (reusing their existing Mk getters so Mk scaling is untouched). Defaults below
+# keep an unconfigured mode functional.
+
+# Seconds the mode stays active per activation.
+func mode_duration(_at_mark: int) -> float:
+	return 3.0
+
+# Discrete charges (HUD pips). One is spent per activation.
+func mode_charges(_at_mark: int) -> int:
+	return 3
+
+# How charges refill — ModeRegen.TIME (seconds) or ModeRegen.KILLS (enemy kills).
+func mode_regen_kind() -> int:
+	return ModeRegen.TIME
+
+# TIME regen: seconds to earn back one charge.
+func mode_regen_secs() -> float:
+	return 3.0
+
+# KILLS regen: enemy kills to earn back one charge.
+func mode_kills_per_charge() -> int:
+	return 4
