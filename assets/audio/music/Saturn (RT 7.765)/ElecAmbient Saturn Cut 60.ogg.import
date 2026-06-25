@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://bhch4sa80ymoq"
+path="res://.godot/imported/ElecAmbient Saturn Cut 60.ogg-ee31bbed0bd5ed96b137c6d4f2c928ae.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Saturn (RT 7.765)/ElecAmbient Saturn Cut 60.ogg"
+dest_files=["res://.godot/imported/ElecAmbient Saturn Cut 60.ogg-ee31bbed0bd5ed96b137c6d4f2c928ae.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

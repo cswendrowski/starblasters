@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://r15q0lubtdwe"
+path="res://.godot/imported/Industrial Shadowrun Main.ogg-5664a3e5b3bcd77bda2cef3ef75e3390.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Shadowrun (RT 0.22)/Industrial Shadowrun Main.ogg"
+dest_files=["res://.godot/imported/Industrial Shadowrun Main.ogg-5664a3e5b3bcd77bda2cef3ef75e3390.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

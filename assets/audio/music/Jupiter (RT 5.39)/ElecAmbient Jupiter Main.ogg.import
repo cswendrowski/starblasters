@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://qvvsmhkpcass"
+path="res://.godot/imported/ElecAmbient Jupiter Main.ogg-42b4525861112c154f8e488ccc25706e.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Jupiter (RT 5.39)/ElecAmbient Jupiter Main.ogg"
+dest_files=["res://.godot/imported/ElecAmbient Jupiter Main.ogg-42b4525861112c154f8e488ccc25706e.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

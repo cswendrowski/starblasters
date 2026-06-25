@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://dyvut47qxdlr"
+path="res://.godot/imported/ElecAmbient Creep Cut 30.ogg-b0d7f3a0d6ec9d268289c9dda294331d.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Creep (RT 6.445)/ElecAmbient Creep Cut 30.ogg"
+dest_files=["res://.godot/imported/ElecAmbient Creep Cut 30.ogg-b0d7f3a0d6ec9d268289c9dda294331d.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

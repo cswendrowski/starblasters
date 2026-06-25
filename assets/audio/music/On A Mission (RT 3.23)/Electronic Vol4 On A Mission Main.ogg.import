@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://dwm40eev6ix1a"
+path="res://.godot/imported/Electronic Vol4 On A Mission Main.ogg-3280027fee8d6135729f75648ffd789c.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/On A Mission (RT 3.23)/Electronic Vol4 On A Mission Main.ogg"
+dest_files=["res://.godot/imported/Electronic Vol4 On A Mission Main.ogg-3280027fee8d6135729f75648ffd789c.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

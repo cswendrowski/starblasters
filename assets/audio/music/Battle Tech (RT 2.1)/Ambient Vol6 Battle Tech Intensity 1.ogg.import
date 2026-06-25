@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://b7lcnm5ubcimw"
+path="res://.godot/imported/Ambient Vol6 Battle Tech Intensity 1.ogg-44c560a31bb65496148b6b9d9d2ba1e1.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Battle Tech (RT 2.1)/Ambient Vol6 Battle Tech Intensity 1.ogg"
+dest_files=["res://.godot/imported/Ambient Vol6 Battle Tech Intensity 1.ogg-44c560a31bb65496148b6b9d9d2ba1e1.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://b6omauc4jhl2"
+path="res://.godot/imported/ElecAmbient Retribution Cut 60.ogg-b4cc59b037737272d482f6d2b53f4f60.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Retribution (RT 5.002)/ElecAmbient Retribution Cut 60.ogg"
+dest_files=["res://.godot/imported/ElecAmbient Retribution Cut 60.ogg-b4cc59b037737272d482f6d2b53f4f60.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

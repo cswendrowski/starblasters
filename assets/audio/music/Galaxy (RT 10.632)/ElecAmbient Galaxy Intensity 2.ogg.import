@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://c3qlowwsr5b70"
+path="res://.godot/imported/ElecAmbient Galaxy Intensity 2.ogg-560e2014dbc05dc06970fa640f43fc8a.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Galaxy (RT 10.632)/ElecAmbient Galaxy Intensity 2.ogg"
+dest_files=["res://.godot/imported/ElecAmbient Galaxy Intensity 2.ogg-560e2014dbc05dc06970fa640f43fc8a.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

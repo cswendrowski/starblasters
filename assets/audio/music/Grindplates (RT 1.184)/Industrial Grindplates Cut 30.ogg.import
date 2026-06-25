@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://ck4w0yvmb68st"
+path="res://.godot/imported/Industrial Grindplates Cut 30.ogg-3f188df2623a621fe0fa7a813f09aa75.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Grindplates (RT 1.184)/Industrial Grindplates Cut 30.ogg"
+dest_files=["res://.godot/imported/Industrial Grindplates Cut 30.ogg-3f188df2623a621fe0fa7a813f09aa75.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://ca10r4go8fo1x"
+path="res://.godot/imported/ElecAmbient Milkyway Intensity 1.ogg-1f21dd567c75faa4fa37246b274f5274.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Milkyway (RT 7.008)/ElecAmbient Milkyway Intensity 1.ogg"
+dest_files=["res://.godot/imported/ElecAmbient Milkyway Intensity 1.ogg-1f21dd567c75faa4fa37246b274f5274.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

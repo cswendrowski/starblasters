@@ -1,74 +1,87 @@
 extends Node
 
-# Music ramp test (Roman 2026-06-10): boots combat (Music autoload loaded) and checks the intensity
-# TARGET logic — first wave → Intensity_2, past wave 4 → Main, ramp_down → I1, and the per-boss
-# permanent floor raises the combat-open intensity. (Audio is dummy headless; we verify the index
-# math, not sound.) Run: godot --headless --path . tools/test_music_ramp.tscn --quit-after 120
+# Music intensity schema test (rewritten 2026-06-24 for the Ovani migration).
+# Verifies the dynamic combat-intensity math on the `Music` autoload:
+#   - deeper into a combat level (wave progress) → hotter
+#   - more damaged → hotter
+#   - deeper into the run (combats cleared) → hotter baseline
+#   - ramp_down() decompresses to 0, a boss pins Main (1.0)
+# Audio is dummy under headless; we check the intensity TARGET math, not sound.
+# Run: godot --headless --path . tools/test_music_ramp.tscn --quit-after 120
 
 const RESULT := "res://tools/_music_ramp_result.txt"
 var _t := 0
 var _done := false
-var _main: Node = null
 
-func _ready() -> void:
-	var run = get_node_or_null("/root/Run")
-	if run != null:
-		run.new_run()
-	_main = load("res://scenes/main.tscn").instantiate()
-	add_child(_main)
 
 func _process(_dt: float) -> void:
 	if _done:
 		return
 	_t += 1
-	if _t < 8:
+	if _t < 4:
 		return
 	_done = true
+
 	var lines: Array = []
 	var fails := 0
 	var music = get_node_or_null("/root/Music")
 	var run = get_node_or_null("/root/Run")
 	if music == null:
-		lines.append("FAIL no Music autoload"); _finish(lines, 1); return
+		_finish(["FAIL no Music autoload"], 1)
+		return
+	if run != null and run.has_method("new_run"):
+		run.new_run()
+	if run != null:
+		run.combats_in_sector = 0
+		run.sectors_cleared = 0
 
-	run.bosses_defeated = 0
 	music.set_context("combat")
-	lines.append("combat open (0 bosses): _active_idx=%d (expect 0)" % int(music._active_idx))
-	if int(music._active_idx) != 0:
-		lines.append("FAIL combat should open at I1 with no bosses"); fails += 1
+	var i_open: float = music._intensity_target
+	lines.append("combat open (shallow): intensity=%.3f" % i_open)
 
 	music.set_combat_progress(0, 8, false)
-	lines.append("wave 0: target=%d (expect 1=I2)" % int(music._combat_target_idx))
-	if int(music._combat_target_idx) != 1: fails += 1; lines.append("FAIL first wave should lift to I2")
+	var i_w0: float = music._intensity_target
 
-	music.set_combat_progress(3, 8, false)
-	if int(music._combat_target_idx) != 1: fails += 1; lines.append("FAIL waves 1-3 should stay I2")
+	music.set_combat_progress(7, 8, false)
+	var i_w7: float = music._intensity_target
+	lines.append("deep wave 7/8: intensity=%.3f (expect > wave0 %.3f)" % [i_w7, i_w0])
+	if not (i_w7 > i_w0 + 0.2):
+		fails += 1
+		lines.append("FAIL wave progress should raise intensity")
 
-	music.set_combat_progress(4, 8, false)
-	lines.append("wave 4: target=%d (expect 2=Main)" % int(music._combat_target_idx))
-	if int(music._combat_target_idx) != 2: fails += 1; lines.append("FAIL past wave 4 should lift to Main")
+	music.notify_damage(3, 0)   # fully damaged
+	var i_dmg: float = music._intensity_target
+	lines.append("fully damaged: intensity=%.3f (expect > deep wave)" % i_dmg)
+	if not (i_dmg > i_w7):
+		fails += 1
+		lines.append("FAIL damage should raise intensity")
 
-	# ramp_down() guards on _active.playing — under headless dummy audio in this single-frame test it
-	# may report not-playing, so this is informational (in real combat the track is playing).
+	# Deeper run → hotter combat open.
+	if run != null:
+		run.combats_in_sector = 6
+	music.set_context("menu")
+	music.set_context("combat")
+	var i_deep: float = music._intensity_target
+	lines.append("combat open (deep run): intensity=%.3f (expect > shallow %.3f)" % [i_deep, i_open])
+	if not (i_deep > i_open):
+		fails += 1
+		lines.append("FAIL run progress should raise open intensity")
+
 	music.ramp_down()
-	lines.append("ramp_down: target=%d (expect 0=I1; informational under dummy audio)" % int(music._combat_target_idx))
+	lines.append("ramp_down: intensity=%.3f (expect 0)" % music._intensity_target)
+	if music._intensity_target > 0.001:
+		fails += 1
+		lines.append("FAIL ramp_down should reach 0")
 
-	# Permanent floor: 1 boss beaten → combat opens at I2; 2 bosses → Main.
-	run.bosses_defeated = 1
-	music.set_context("menu"); music.set_context("combat")
-	lines.append("combat open (1 boss): _active_idx=%d (expect 1)" % int(music._active_idx))
-	if int(music._active_idx) != 1: fails += 1; lines.append("FAIL 1-boss floor should open at I2")
-	# Even an early wave can't drop below the floor.
-	music.set_combat_progress(0, 8, false)
-	if int(music._combat_target_idx) < 1: fails += 1; lines.append("FAIL floor not respected on wave 0")
+	music.set_context("boss")
+	lines.append("boss: intensity=%.3f (expect 1.0)" % music._intensity_target)
+	if absf(music._intensity_target - 1.0) > 0.001:
+		fails += 1
+		lines.append("FAIL boss should pin Main")
 
-	run.bosses_defeated = 2
-	music.set_context("menu"); music.set_context("combat")
-	lines.append("combat open (2 bosses): _active_idx=%d (expect 2)" % int(music._active_idx))
-	if int(music._active_idx) != 2: fails += 1; lines.append("FAIL 2-boss floor should open at Main")
-
-	lines.append("MUSIC RAMP: " + ("PASS" if fails == 0 else "FAIL (%d)" % fails))
+	lines.append("MUSIC SCHEMA: " + ("PASS" if fails == 0 else "FAIL (%d)" % fails))
 	_finish(lines, fails)
+
 
 func _finish(lines: Array, _fails: int) -> void:
 	var f := FileAccess.open(RESULT, FileAccess.WRITE)

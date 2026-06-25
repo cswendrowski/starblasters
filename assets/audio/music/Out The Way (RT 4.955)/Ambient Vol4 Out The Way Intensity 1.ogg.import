@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://53rlwlnkx2j1"
+path="res://.godot/imported/Ambient Vol4 Out The Way Intensity 1.ogg-d12a88bac57e2cca8eeb92e6c1833bbb.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Out The Way (RT 4.955)/Ambient Vol4 Out The Way Intensity 1.ogg"
+dest_files=["res://.godot/imported/Ambient Vol4 Out The Way Intensity 1.ogg-d12a88bac57e2cca8eeb92e6c1833bbb.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

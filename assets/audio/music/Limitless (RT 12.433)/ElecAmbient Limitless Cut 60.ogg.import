@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://8eujkiyqr1df"
+path="res://.godot/imported/ElecAmbient Limitless Cut 60.ogg-302fbb11413667655ea65c6d9c62c509.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Limitless (RT 12.433)/ElecAmbient Limitless Cut 60.ogg"
+dest_files=["res://.godot/imported/ElecAmbient Limitless Cut 60.ogg-302fbb11413667655ea65c6d9c62c509.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

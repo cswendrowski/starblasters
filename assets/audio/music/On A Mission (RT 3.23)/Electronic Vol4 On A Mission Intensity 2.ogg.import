@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://bpqm24mj4l2gi"
+path="res://.godot/imported/Electronic Vol4 On A Mission Intensity 2.ogg-12f57244d0c9a2667b3383b10c71f8a1.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/On A Mission (RT 3.23)/Electronic Vol4 On A Mission Intensity 2.ogg"
+dest_files=["res://.godot/imported/Electronic Vol4 On A Mission Intensity 2.ogg-12f57244d0c9a2667b3383b10c71f8a1.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

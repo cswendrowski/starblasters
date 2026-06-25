@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://bhaba5cb14qi7"
+path="res://.godot/imported/Industrial Knuckles Intensity 2.ogg-f464f987b3ba9284f18e8b5c620610fd.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Knuckles (RT 1.164)/Industrial Knuckles Intensity 2.ogg"
+dest_files=["res://.godot/imported/Industrial Knuckles Intensity 2.ogg-f464f987b3ba9284f18e8b5c620610fd.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

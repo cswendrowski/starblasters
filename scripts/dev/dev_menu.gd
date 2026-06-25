@@ -95,6 +95,7 @@ func _build_ui() -> void:
 	_add_button("[ Asteroid Lab ]", _on_asteroid_lab, true)
 	_add_button("[ Asteroid Bake Lab ]", _on_asteroid_bake_lab, true)
 	_add_button("[ Asteroid Field Test ]", _on_asteroid_field_test, true)
+	_add_button("[ Asteroid HDR Lab ]", _on_asteroid_hdr_lab, true)
 	# Crash-test toggle: flips the backdrop's asteroid layer to the baked Sprite2D path
 	# (AsteroidBakeCache). Bakes the shared atlas on first enable. Then launch an asteroid
 	# POI via Combat Lab to A/B whether baked asteroids stop the #116172 combat-load crash.
@@ -106,7 +107,9 @@ func _build_ui() -> void:
 	_add_button("[ Sequence Lab ]", _on_sequence_lab, true)
 	_add_button("[ Player FX Lab ]", _on_player_fx_lab, true)
 	_add_button("[ Loading Screen Lab ]", _on_loading_screen_lab, true)
+	_add_button("[ Music Lab ]", _on_music_lab, true)
 	_add_button("[ Outpost Arrival Lab ]", _on_outpost_arrival_lab, true)
+	_add_button("[ Patrol Start ]", _on_patrol_start, true)
 	_add_button("[ Recycle Tuner ]", _on_recycle_tuner, true)
 	_add_button("[ Smart Mount Lab ]", _on_smart_mount_lab, true)
 	# Test launchers
@@ -197,8 +200,16 @@ func _on_loading_screen_lab() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/loading_screen_lab.tscn")
 
 
+func _on_music_lab() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/music_lab.tscn")
+
+
 func _on_outpost_arrival_lab() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/outpost_arrival_lab.tscn")
+
+
+func _on_patrol_start() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/patrol_start.tscn")
 
 
 func _on_lane_visualizer() -> void:
@@ -227,6 +238,10 @@ func _on_asteroid_bake_lab() -> void:
 
 func _on_asteroid_field_test() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/asteroid_field_test.tscn")
+
+
+func _on_asteroid_hdr_lab() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/asteroid_hdr_lab.tscn")
 
 
 func _on_crash_loop() -> void:

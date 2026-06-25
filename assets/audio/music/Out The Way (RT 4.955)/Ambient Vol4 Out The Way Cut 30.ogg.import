@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://c5dknfx6gu42"
+path="res://.godot/imported/Ambient Vol4 Out The Way Cut 30.ogg-19970c315917fccc5586c816b94c41ae.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Out The Way (RT 4.955)/Ambient Vol4 Out The Way Cut 30.ogg"
+dest_files=["res://.godot/imported/Ambient Vol4 Out The Way Cut 30.ogg-19970c315917fccc5586c816b94c41ae.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

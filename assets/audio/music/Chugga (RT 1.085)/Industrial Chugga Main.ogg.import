@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://cbbsm73mtpffh"
+path="res://.godot/imported/Industrial Chugga Main.ogg-f829934de76dc44cbf74dea22e504b1d.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Chugga (RT 1.085)/Industrial Chugga Main.ogg"
+dest_files=["res://.godot/imported/Industrial Chugga Main.ogg-f829934de76dc44cbf74dea22e504b1d.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

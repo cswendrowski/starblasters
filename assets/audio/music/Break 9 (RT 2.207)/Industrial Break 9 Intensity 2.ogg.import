@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://dgx1jdgedpqd5"
+path="res://.godot/imported/Industrial Break 9 Intensity 2.ogg-bea70758459ebb359b344de79e034b5e.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Break 9 (RT 2.207)/Industrial Break 9 Intensity 2.ogg"
+dest_files=["res://.godot/imported/Industrial Break 9 Intensity 2.ogg-bea70758459ebb359b344de79e034b5e.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

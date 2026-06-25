@@ -1,0 +1,144 @@
+[gd_resource type="Resource" script_class="MusicLibraryData" format=3]
+
+[ext_resource type="Script" path="res://scripts/systems/music_library_data.gd" id="1_f1v7o"]
+
+[resource]
+script = ExtResource("1_f1v7o")
+tracks = {
+"Battle Tech": {
+"i1": "res://assets/audio/music/Battle Tech (RT 2.1)/Ambient Vol6 Battle Tech Intensity 1.ogg",
+"i2": "res://assets/audio/music/Battle Tech (RT 2.1)/Ambient Vol6 Battle Tech Intensity 2.ogg",
+"l30": "res://assets/audio/music/Battle Tech (RT 2.1)/Ambient Vol6 Battle Tech Cut 30.ogg",
+"l60": "res://assets/audio/music/Battle Tech (RT 2.1)/Ambient Vol6 Battle Tech Cut 60.ogg",
+"main": "res://assets/audio/music/Battle Tech (RT 2.1)/Ambient Vol6 Battle Tech Main.ogg",
+"rt": 2.1
+},
+"Break 9": {
+"i1": "res://assets/audio/music/Break 9 (RT 2.207)/Industrial Break 9 Intensity 1.ogg",
+"i2": "res://assets/audio/music/Break 9 (RT 2.207)/Industrial Break 9 Intensity 2.ogg",
+"l30": "res://assets/audio/music/Break 9 (RT 2.207)/Industrial Break 9 Cut 30.ogg",
+"l60": "res://assets/audio/music/Break 9 (RT 2.207)/Industrial Break 9 Cut 60.ogg",
+"main": "res://assets/audio/music/Break 9 (RT 2.207)/Industrial Break 9 Main.ogg",
+"rt": 2.207
+},
+"Chugga": {
+"i1": "res://assets/audio/music/Chugga (RT 1.085)/Industrial Chugga Intensity 1.ogg",
+"i2": "res://assets/audio/music/Chugga (RT 1.085)/Industrial Chugga Intensity 2.ogg",
+"l30": "res://assets/audio/music/Chugga (RT 1.085)/Industrial Chugga Cut 30.ogg",
+"l60": "res://assets/audio/music/Chugga (RT 1.085)/Industrial Chugga Cut 60.ogg",
+"main": "res://assets/audio/music/Chugga (RT 1.085)/Industrial Chugga Main.ogg",
+"rt": 1.085
+},
+"Creep": {
+"i1": "res://assets/audio/music/Creep (RT 6.445)/ElecAmbient Creep Intensity 1.ogg",
+"i2": "res://assets/audio/music/Creep (RT 6.445)/ElecAmbient Creep Intensity 2.ogg",
+"l30": "res://assets/audio/music/Creep (RT 6.445)/ElecAmbient Creep Cut 30.ogg",
+"l60": "res://assets/audio/music/Creep (RT 6.445)/ElecAmbient Creep Cut 60.ogg",
+"main": "res://assets/audio/music/Creep (RT 6.445)/ElecAmbient Creep Main.ogg",
+"rt": 6.445
+},
+"Galaxy": {
+"i1": "res://assets/audio/music/Galaxy (RT 10.632)/ElecAmbient Galaxy Intensity 1.ogg",
+"i2": "res://assets/audio/music/Galaxy (RT 10.632)/ElecAmbient Galaxy Intensity 2.ogg",
+"l30": "res://assets/audio/music/Galaxy (RT 10.632)/ElecAmbient Galaxy Cut 30.ogg",
+"l60": "res://assets/audio/music/Galaxy (RT 10.632)/ElecAmbient Galaxy Cut 60.ogg",
+"main": "res://assets/audio/music/Galaxy (RT 10.632)/ElecAmbient Galaxy Main.ogg",
+"rt": 10.632
+},
+"Grindplates": {
+"i1": "res://assets/audio/music/Grindplates (RT 1.184)/Industrial Grindplates Intensity 1.ogg",
+"i2": "res://assets/audio/music/Grindplates (RT 1.184)/Industrial Grindplates Intensity 2.ogg",
+"l30": "res://assets/audio/music/Grindplates (RT 1.184)/Industrial Grindplates Cut 30.ogg",
+"l60": "res://assets/audio/music/Grindplates (RT 1.184)/Industrial Grindplates Cut 60.ogg",
+"main": "res://assets/audio/music/Grindplates (RT 1.184)/Industrial Grindplates Main.ogg",
+"rt": 1.184
+},
+"Jupiter": {
+"i1": "res://assets/audio/music/Jupiter (RT 5.39)/ElecAmbient Jupiter Intensity 1.ogg",
+"i2": "res://assets/audio/music/Jupiter (RT 5.39)/ElecAmbient Jupiter Intensity 2.ogg",
+"l30": "res://assets/audio/music/Jupiter (RT 5.39)/ElecAmbient Jupiter Cut 30.ogg",
+"l60": "res://assets/audio/music/Jupiter (RT 5.39)/ElecAmbient Jupiter Cut 60.ogg",
+"main": "res://assets/audio/music/Jupiter (RT 5.39)/ElecAmbient Jupiter Main.ogg",
+"rt": 5.39
+},
+"Knuckles": {
+"i1": "res://assets/audio/music/Knuckles (RT 1.164)/Industrial Knuckles Intensity 1.ogg",
+"i2": "res://assets/audio/music/Knuckles (RT 1.164)/Industrial Knuckles Intensity 2.ogg",
+"l30": "res://assets/audio/music/Knuckles (RT 1.164)/Industrial Knuckles Cut 30.ogg",
+"l60": "res://assets/audio/music/Knuckles (RT 1.164)/Industrial Knuckles Cut 60.ogg",
+"main": "res://assets/audio/music/Knuckles (RT 1.164)/Industrial Knuckles Main.ogg",
+"rt": 1.164
+},
+"Limitless": {
+"i1": "res://assets/audio/music/Limitless (RT 12.433)/ElecAmbient Limitless Intensity 1.ogg",
+"i2": "res://assets/audio/music/Limitless (RT 12.433)/ElecAmbient Limitless Intensity 2.ogg",
+"l30": "res://assets/audio/music/Limitless (RT 12.433)/ElecAmbient Limitless Cut 30.ogg",
+"l60": "res://assets/audio/music/Limitless (RT 12.433)/ElecAmbient Limitless Cut 60.ogg",
+"main": "res://assets/audio/music/Limitless (RT 12.433)/ElecAmbient Limitless Main.ogg",
+"rt": 12.433
+},
+"Milkyway": {
+"i1": "res://assets/audio/music/Milkyway (RT 7.008)/ElecAmbient Milkyway Intensity 1.ogg",
+"i2": "res://assets/audio/music/Milkyway (RT 7.008)/ElecAmbient Milkyway Intensity 2.ogg",
+"l30": "res://assets/audio/music/Milkyway (RT 7.008)/ElecAmbient Milkyway Cut 30.ogg",
+"l60": "res://assets/audio/music/Milkyway (RT 7.008)/ElecAmbient Milkyway Cut 60.ogg",
+"main": "res://assets/audio/music/Milkyway (RT 7.008)/ElecAmbient Milkyway Main.ogg",
+"rt": 7.008
+},
+"On A Mission": {
+"i1": "res://assets/audio/music/On A Mission (RT 3.23)/Electronic Vol4 On A Mission Intensity 1.ogg",
+"i2": "res://assets/audio/music/On A Mission (RT 3.23)/Electronic Vol4 On A Mission Intensity 2.ogg",
+"l30": "res://assets/audio/music/On A Mission (RT 3.23)/Electronic Vol4 On A Mission Cut 30.ogg",
+"l60": "res://assets/audio/music/On A Mission (RT 3.23)/Electronic Vol4 On A Mission Cut 60.ogg",
+"main": "res://assets/audio/music/On A Mission (RT 3.23)/Electronic Vol4 On A Mission Main.ogg",
+"rt": 3.23
+},
+"Out The Way": {
+"i1": "res://assets/audio/music/Out The Way (RT 4.955)/Ambient Vol4 Out The Way Intensity 1.ogg",
+"i2": "res://assets/audio/music/Out The Way (RT 4.955)/Ambient Vol4 Out The Way Intensity 2.ogg",
+"l30": "res://assets/audio/music/Out The Way (RT 4.955)/Ambient Vol4 Out The Way Cut 30.ogg",
+"l60": "res://assets/audio/music/Out The Way (RT 4.955)/Ambient Vol4 Out The Way Cut 60.ogg",
+"main": "res://assets/audio/music/Out The Way (RT 4.955)/Ambient Vol4 Out The Way Main.ogg",
+"rt": 4.955
+},
+"Retribution": {
+"i1": "res://assets/audio/music/Retribution (RT 5.002)/ElecAmbient Retribution Intensity 1.ogg",
+"i2": "res://assets/audio/music/Retribution (RT 5.002)/ElecAmbient Retribution Intensity 2.ogg",
+"l30": "res://assets/audio/music/Retribution (RT 5.002)/ElecAmbient Retribution Cut 30.ogg",
+"l60": "res://assets/audio/music/Retribution (RT 5.002)/ElecAmbient Retribution Cut 60.ogg",
+"main": "res://assets/audio/music/Retribution (RT 5.002)/ElecAmbient Retribution Main.ogg",
+"rt": 5.002
+},
+"Saturn": {
+"i1": "res://assets/audio/music/Saturn (RT 7.765)/ElecAmbient Saturn Intensity 1.ogg",
+"i2": "res://assets/audio/music/Saturn (RT 7.765)/ElecAmbient Saturn Intensity 2.ogg",
+"l30": "res://assets/audio/music/Saturn (RT 7.765)/ElecAmbient Saturn Cut 30.ogg",
+"l60": "res://assets/audio/music/Saturn (RT 7.765)/ElecAmbient Saturn Cut 60.ogg",
+"main": "res://assets/audio/music/Saturn (RT 7.765)/ElecAmbient Saturn Main.ogg",
+"rt": 7.765
+},
+"Shadowrun": {
+"i1": "res://assets/audio/music/Shadowrun (RT 0.22)/Industrial Shadowrun Intensity 1.ogg",
+"i2": "res://assets/audio/music/Shadowrun (RT 0.22)/Industrial Shadowrun Intensity 2.ogg",
+"l30": "res://assets/audio/music/Shadowrun (RT 0.22)/Industrial Shadowrun Cut 30.ogg",
+"l60": "res://assets/audio/music/Shadowrun (RT 0.22)/Industrial Shadowrun Cut 60.ogg",
+"main": "res://assets/audio/music/Shadowrun (RT 0.22)/Industrial Shadowrun Main.ogg",
+"rt": 0.22
+},
+"Swarm": {
+"i1": "res://assets/audio/music/Swarm (RT 5.978)/ElecAmbient Swarm Intensity 1.ogg",
+"i2": "res://assets/audio/music/Swarm (RT 5.978)/ElecAmbient Swarm Intensity 2.ogg",
+"l30": "res://assets/audio/music/Swarm (RT 5.978)/ElecAmbient Swarm Cut 30.ogg",
+"l60": "res://assets/audio/music/Swarm (RT 5.978)/ElecAmbient Swarm Cut 60.ogg",
+"main": "res://assets/audio/music/Swarm (RT 5.978)/ElecAmbient Swarm Main.ogg",
+"rt": 5.978
+}
+}
+eligibility = {
+"boss": ["Chugga", "Break 9", "Grindplates", "Knuckles", "On A Mission", "Shadowrun", "Retribution"],
+"combat": ["Break 9", "Chugga", "Knuckles", "Grindplates", "On A Mission", "Shadowrun"],
+"menu": ["Galaxy", "Milkyway", "Creep", "Battle Tech"],
+"outpost": ["Limitless", "Galaxy", "Battle Tech"],
+"sector": ["Saturn", "Jupiter", "Milkyway", "Limitless", "Creep", "Out The Way", "Swarm"],
+"signal": ["Creep", "Jupiter", "Out The Way", "Swarm"]
+}

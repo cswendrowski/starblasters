@@ -539,6 +539,11 @@ func _ensure_combat_overlays() -> void:
 		_postfx.set_player(player)
 		if not player.hull_changed.is_connected(_danger.on_hull_changed):
 			player.hull_changed.connect(_danger.on_hull_changed)
+		# Damage-reactive music: hull_changed emits (max_hull, hull), matching
+		# Music.notify_damage — the more hurt the player, the hotter the score.
+		var music := get_node_or_null("/root/Music")
+		if music != null and not player.hull_changed.is_connected(Callable(music, "notify_damage")):
+			player.hull_changed.connect(Callable(music, "notify_damage"))
 
 
 func new_game() -> void:

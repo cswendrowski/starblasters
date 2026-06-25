@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://b5pc01ir33vpn"
+path="res://.godot/imported/Industrial Break 9 Cut 30.ogg-3d18052b9a770187b819e25af66faaf8.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Break 9 (RT 2.207)/Industrial Break 9 Cut 30.ogg"
+dest_files=["res://.godot/imported/Industrial Break 9 Cut 30.ogg-3d18052b9a770187b819e25af66faaf8.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

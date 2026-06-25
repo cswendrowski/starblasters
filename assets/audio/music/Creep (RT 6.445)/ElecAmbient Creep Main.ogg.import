@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://dtdgp7432xguf"
+path="res://.godot/imported/ElecAmbient Creep Main.ogg-8ee72ecc9bbedb9c3bdb6905fa2de598.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Creep (RT 6.445)/ElecAmbient Creep Main.ogg"
+dest_files=["res://.godot/imported/ElecAmbient Creep Main.ogg-8ee72ecc9bbedb9c3bdb6905fa2de598.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://dj0w2gvlr7s62"
+path="res://.godot/imported/Industrial Knuckles Cut 60.ogg-6e86e4fdf1cb6aec4adf7cdef38f728a.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Knuckles (RT 1.164)/Industrial Knuckles Cut 60.ogg"
+dest_files=["res://.godot/imported/Industrial Knuckles Cut 60.ogg-6e86e4fdf1cb6aec4adf7cdef38f728a.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://cq62l7f42qhij"
+path="res://.godot/imported/ElecAmbient Galaxy Cut 60.ogg-0b6cb6d09dc67e52e31ca1ec61401108.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Galaxy (RT 10.632)/ElecAmbient Galaxy Cut 60.ogg"
+dest_files=["res://.godot/imported/ElecAmbient Galaxy Cut 60.ogg-0b6cb6d09dc67e52e31ca1ec61401108.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

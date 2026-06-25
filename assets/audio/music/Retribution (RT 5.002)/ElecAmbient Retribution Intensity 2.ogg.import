@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://cr77b2tu2ysny"
+path="res://.godot/imported/ElecAmbient Retribution Intensity 2.ogg-268208695ba65398a2b0d86baec38fbd.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Retribution (RT 5.002)/ElecAmbient Retribution Intensity 2.ogg"
+dest_files=["res://.godot/imported/ElecAmbient Retribution Intensity 2.ogg-268208695ba65398a2b0d86baec38fbd.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

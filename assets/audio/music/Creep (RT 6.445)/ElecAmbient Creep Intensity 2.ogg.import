@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://dygg3uu8p62qi"
+path="res://.godot/imported/ElecAmbient Creep Intensity 2.ogg-702d298479fa197636f8bbe3c68f172d.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Creep (RT 6.445)/ElecAmbient Creep Intensity 2.ogg"
+dest_files=["res://.godot/imported/ElecAmbient Creep Intensity 2.ogg-702d298479fa197636f8bbe3c68f172d.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

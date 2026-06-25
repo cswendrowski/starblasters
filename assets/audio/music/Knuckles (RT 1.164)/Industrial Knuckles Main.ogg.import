@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://cfykijcrw0g7i"
+path="res://.godot/imported/Industrial Knuckles Main.ogg-ab48072f36b5f56239296d8d8f1b5207.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Knuckles (RT 1.164)/Industrial Knuckles Main.ogg"
+dest_files=["res://.godot/imported/Industrial Knuckles Main.ogg-ab48072f36b5f56239296d8d8f1b5207.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

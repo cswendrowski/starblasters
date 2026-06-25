@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://gkn60yv3wllg"
+path="res://.godot/imported/Industrial Grindplates Intensity 2.ogg-b788182d670861f248fb40772e30a97f.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Grindplates (RT 1.184)/Industrial Grindplates Intensity 2.ogg"
+dest_files=["res://.godot/imported/Industrial Grindplates Intensity 2.ogg-b788182d670861f248fb40772e30a97f.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

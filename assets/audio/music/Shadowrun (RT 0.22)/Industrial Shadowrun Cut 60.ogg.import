@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://cd1bnwfw0t3xg"
+path="res://.godot/imported/Industrial Shadowrun Cut 60.ogg-c70271a1f5c5a30e773c31b6154b8745.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Shadowrun (RT 0.22)/Industrial Shadowrun Cut 60.ogg"
+dest_files=["res://.godot/imported/Industrial Shadowrun Cut 60.ogg-c70271a1f5c5a30e773c31b6154b8745.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

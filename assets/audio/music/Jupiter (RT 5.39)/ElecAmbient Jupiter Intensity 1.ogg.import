@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://bj5o5faqs6tf5"
+path="res://.godot/imported/ElecAmbient Jupiter Intensity 1.ogg-69c75ec33d87d3214b95848846a57267.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/music/Jupiter (RT 5.39)/ElecAmbient Jupiter Intensity 1.ogg"
+dest_files=["res://.godot/imported/ElecAmbient Jupiter Intensity 1.ogg-69c75ec33d87d3214b95848846a57267.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4
