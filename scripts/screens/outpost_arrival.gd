@@ -40,28 +40,12 @@ const DamageOverlayShader = preload("res://graphics/damage_noise.gdshader")
 const _DamageNoiseTex = preload("res://resources/noise_damage.tres")
 const _DamageEdgeTex = preload("res://resources/edge_distance_flat.tres")
 
-# Backdrop: two-layer star parallax (deep void) behind the outpost hangar plate (gray walls +
-# bay + landing circle). The plate descends in as the ship lands, slides out as it leaves —
-# reading as the ship flying into / out of the hangar. Roman 2026-06-20.
+# Backdrop: two-layer star parallax (deep void) behind the shared hangar plate. HangarPlate owns
+# the plate sprite + the runway lights (shared with patrol_start); the plate descends in as the ship
+# lands and slides out as it leaves — reading as flying into / out of the hangar. Roman 2026-06-20.
 const STARS_SCENE := "res://scenes/parallax/layers/layer_stars.tscn"
-const OUTPOST_BG := "res://graphics/backgrounds/outpost_background.png"
-
-# Runway indicator lights: a yellow pixel at the centre of each "+" marker down the bay,
-# pulsing bottom→top (dark amber → amber yellow) + a small amber point light per marker.
-# Marker centres (image px, x=107, every 6px; the tan circle hides y~100..168). Roman 2026-06-20.
-const RUNWAY_MARKER_TOP := 30
-const RUNWAY_MARKER_BOTTOM := 240
-const RUNWAY_MARKER_STEP := 6
-const RUNWAY_CIRCLE_MIN := 96    # skip markers behind the landing circle (image y)
-const RUNWAY_CIRCLE_MAX := 174
-const RUNWAY_DARK := Color(0.30, 0.16, 0.0)    # dark amber (off)
-const RUNWAY_LIT := Color(1.0, 0.80, 0.16)     # amber yellow (lit)
-const RUNWAY_K := TAU                          # one travelling band across the strip
-const RUNWAY_LIGHT_COLOR := Color(1.0, 0.70, 0.16)
-const RUNWAY_LIGHT_ENERGY := 0.7
-const RUNWAY_LIGHT_SCALE := 0.12
-const RUNWAY_PIXEL_SIZE := 1.0
-const RUNWAY_X_OFFSET := 1.0   # nudge the column +1px right onto the true marker centre (Roman)
+const HangarPlate = preload("res://scripts/screens/hangar_plate.gd")
+const PointLightFx = preload("res://scripts/effects/point_light_fx.gd")
 
 const ENGINE_GLOW_COLOR := Color(0.0, 0.827, 1.0)   # #00d3ff — in-game engine glowmask
 const TELL_ACTIVATE := 0.5   # missing-hull fraction at which smoke/sparks light (player default)
@@ -145,7 +129,7 @@ enum ShopMode { NONE, SCRAP, SELL }
 @export var rise_time: float = 1.0
 @export var flyoff_time: float = 1.0
 @export var star_drift: float = 1500.0  # star-parallax scroll rate during fly-in/out (depth)
-@export var bg_brightness: float = 0.6  # darken the hangar plate so the engine glow reads (1 = full)
+@export var scene_dim: float = 0.6  # uniform dim of the whole bay output (engine lights counteract it; 1 = full)
 @export var runway_speed: float = 0.9   # runway-light pulse speed (rad/s; lower = slower)
 
 var _hd: HdViewportScope = null
@@ -153,6 +137,7 @@ var _world: SubViewport = null
 var _ship: Node2D = null
 var _body: Sprite2D = null
 var _livery: Sprite2D = null
+var _play_container: Node = null   # the SubViewportContainer — its modulate dims the whole bay output
 var _shadow: Sprite2D = null
 var _engine_glow: Sprite2D = null
 var _trail: EngineTrailFx = null
@@ -161,15 +146,11 @@ var _sparks: Array = []        # spark trail instances (one per engine marker)
 var _damage_mat: ShaderMaterial = null
 var _engine_on: bool = false
 var _stars = null                  # layer_stars instance (two-layer parallax + deep-space void)
-var _bg: Sprite2D = null           # outpost hangar plate (descends in / slides out)
+var _plate: Node2D = null          # shared HangarPlate (descends in / slides out); owns the runway lights
 var _bg_tween: Tween = null
-var _bg_center_y: float = 135.0    # rest position (centered) — set from the texture height
+var _bg_center_y: float = 135.0    # plate rest position (centered) — set from plate_size()
 var _bg_above_y: float = -135.0    # fully off the top (fly-in start)
 var _bg_below_y: float = 405.0     # fully off the bottom (departure end)
-var _runway_pixels: Array = []     # Polygon2D yellow pixels on the "+" markers (children of _bg)
-var _runway_lights: Array = []     # amber PointLight2D per marker
-var _runway_v: Array = []          # normalized position per marker (0 top .. 1 bottom)
-var _runway_t: float = 0.0
 var _sparks_on: bool = false
 var _spark_t: float = 0.0          # countdown to the next landed puff
 var _spark_burst_t: float = 0.0    # remaining emit time of the active puff
@@ -224,6 +205,11 @@ func _ready() -> void:
 	_resolve_identity()
 	_init_inventory()
 	_world = HdScreen.make_play_subviewport(self)
+	# Dim the WHOLE bay output (the SubViewportContainer's modulate) uniformly — the engine glow +
+	# point lights are additive INSIDE the viewport, so they pop relative to the dim (mirrors
+	# patrol_start.scene_dim). Simpler than the old per-layer dim. Roman 2026-06-21.
+	_play_container = _world.get_parent()
+	_apply_scene_dim()
 	_build_backdrop()
 	_build_ship()
 	# Persistent black sidebars (behind the panels), then the menu Controls.
@@ -290,69 +276,16 @@ func _build_backdrop() -> void:
 	_world.add_child(_stars)
 	if _stars.has_method("reseed"):
 		_stars.reseed(randi())
-	# The outpost hangar plate (gray walls + bay + landing circle). Band-width, full height;
-	# centred at the band centre. z behind the ship/shadow/sparks, in front of the stars.
-	var tex: Texture2D = load(OUTPOST_BG)
-	_bg = Sprite2D.new()
-	_bg.name = "OutpostBackground"
-	_bg.texture = tex
-	_bg.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	_bg.z_index = -8
-	# self_modulate darkens the plate TEXTURE only (not the runway-light children) so the engine
-	# glow reads better over the bay.
-	_bg.self_modulate = Color(bg_brightness, bg_brightness, bg_brightness, 1.0)
-	_world.add_child(_bg)
-	var h: float = float(tex.get_height())
+	# Shared hangar plate + runway lights (HangarPlate, also used by patrol_start). The plate is
+	# centred on the node; we DESCEND/SLIDE the node. self_modulate dim lives inside HangarPlate.
+	_plate = HangarPlate.new()
+	_plate.runway_speed = runway_speed   # plate stays full-bright; scene_dim dims the whole bay output
+	_world.add_child(_plate)
+	var h: float = _plate.plate_size().y
 	_bg_center_y = NATIVE_H / 2.0
 	_bg_above_y = -h / 2.0
 	_bg_below_y = NATIVE_H + h / 2.0
-	_bg.position = Vector2(SHIP_X, _bg_above_y)
-	_build_runway_lights()
-
-
-# A yellow pixel + small amber point light at each "+" marker down the bay (children of _bg so
-# they ride the descending plate). _update_runway pulses them bottom→top like runway lights.
-func _build_runway_lights() -> void:
-	_runway_pixels.clear()
-	_runway_lights.clear()
-	_runway_v.clear()
-	var tex := _make_light_texture()
-	var s := RUNWAY_PIXEL_SIZE / 2.0
-	var my := RUNWAY_MARKER_TOP
-	while my <= RUNWAY_MARKER_BOTTOM:
-		if my > RUNWAY_CIRCLE_MIN and my < RUNWAY_CIRCLE_MAX:
-			my += RUNWAY_MARKER_STEP   # behind the landing circle — no light
-			continue
-		var ly: float = float(my) - NATIVE_H / 2.0   # local Y (sprite is centred)
-		if my <= RUNWAY_CIRCLE_MIN:
-			ly += 1.0   # the top-half markers (above the circle) sit 1px below the 6px grid (Roman)
-		var pix := Polygon2D.new()
-		pix.polygon = PackedVector2Array([Vector2(-s, -s), Vector2(s, -s), Vector2(s, s), Vector2(-s, s)])
-		pix.position = Vector2(RUNWAY_X_OFFSET, ly)
-		pix.color = RUNWAY_DARK
-		_bg.add_child(pix)
-		_runway_pixels.append(pix)
-		var lt := _make_point_light(Vector2(RUNWAY_X_OFFSET, ly), RUNWAY_LIGHT_COLOR, RUNWAY_LIGHT_SCALE, tex)
-		_bg.add_child(lt)
-		_runway_lights.append(lt)
-		_runway_v.append((float(my) - float(RUNWAY_MARKER_TOP)) / float(RUNWAY_MARKER_BOTTOM - RUNWAY_MARKER_TOP))
-		my += RUNWAY_MARKER_STEP
-
-
-# Pulse the runway lights bottom→top: a travelling amber band (sharpened by pow) over dark amber.
-func _update_runway(delta: float) -> void:
-	if _runway_pixels.is_empty():
-		return
-	_runway_t += delta
-	for i in _runway_pixels.size():
-		var s: float = 0.5 + 0.5 * sin(_runway_t * runway_speed + float(_runway_v[i]) * RUNWAY_K)
-		var lit: float = pow(s, 2.5)
-		var pix = _runway_pixels[i]
-		if is_instance_valid(pix):
-			pix.color = RUNWAY_DARK.lerp(RUNWAY_LIT, lit)
-		var lt = _runway_lights[i]
-		if is_instance_valid(lt):
-			lt.energy = lit * RUNWAY_LIGHT_ENERGY
+	_plate.position = Vector2(SHIP_X, _bg_above_y)
 
 
 func _build_ship() -> void:
@@ -443,7 +376,6 @@ func _install_damage_material() -> void:
 	mat.set_shader_parameter("details_opacity", 0.1)
 	mat.set_shader_parameter("edge_color", Color("494e55"))
 	mat.set_shader_parameter("details_color", Color("cacaca"))
-	mat.set_shader_parameter("brightness", bg_brightness)   # dim the body to match the hangar
 	_body.material = mat
 	_damage_mat = mat
 
@@ -470,22 +402,12 @@ func _attach_spark(pos: Vector2) -> void:
 	_sparks.append(inst)
 
 
-# Soft radial light texture (white centre → transparent), shared by all the point lights.
+# Cached light texture for the engine/spark point lights (shared PointLightFx; 64px to match the
+# scales below). The runway lights make their own inside HangarPlate.
 func _make_light_texture() -> Texture2D:
-	if _light_tex != null:
-		return _light_tex
-	var g := Gradient.new()
-	g.offsets = PackedFloat32Array([0.0, 1.0])
-	g.colors = PackedColorArray([Color(1, 1, 1, 1), Color(1, 1, 1, 0)])
-	var t := GradientTexture2D.new()
-	t.gradient = g
-	t.width = 64
-	t.height = 64
-	t.fill = GradientTexture2D.FILL_RADIAL
-	t.fill_from = Vector2(0.5, 0.5)
-	t.fill_to = Vector2(1.0, 0.5)
-	_light_tex = t
-	return t
+	if _light_tex == null:
+		_light_tex = PointLightFx.make_texture(64)
+	return _light_tex
 
 
 func _build_engine_lights(markers: Array) -> void:
@@ -502,15 +424,7 @@ func _build_engine_lights(markers: Array) -> void:
 
 
 func _make_point_light(pos: Vector2, col: Color, scale: float, tex: Texture2D) -> PointLight2D:
-	var l := PointLight2D.new()
-	l.texture = tex
-	l.color = col
-	l.energy = 0.0
-	l.texture_scale = scale
-	l.blend_mode = Light2D.BLEND_MODE_ADD
-	l.shadow_enabled = false
-	l.position = pos
-	return l
+	return PointLightFx.make(pos, col, scale, tex)
 
 
 func _attach_smoke(pos: Vector2) -> void:
@@ -1422,10 +1336,10 @@ func begin_arrival() -> void:
 		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	_phase_tween.tween_callback(_on_landed)
 	# Hangar plate descends from above to centred, in sync with the ship setting down.
-	if _bg != null and is_instance_valid(_bg):
-		_bg.position = Vector2(SHIP_X, _bg_above_y)
+	if _plate != null and is_instance_valid(_plate):
+		_plate.position = Vector2(SHIP_X, _bg_above_y)
 		_bg_tween = create_tween()
-		_bg_tween.tween_property(_bg, "position:y", _bg_center_y, arrival_time) \
+		_bg_tween.tween_property(_plate, "position:y", _bg_center_y, arrival_time) \
 			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 
@@ -1484,10 +1398,10 @@ func depart() -> void:
 	_ui_tween.tween_property(_bottom_bar, "modulate:a", 0.0, bars_fade_time)
 
 	# Hangar plate slides down off-screen (continuing its downward travel) as the ship flies up.
-	if _bg != null and is_instance_valid(_bg):
+	if _plate != null and is_instance_valid(_plate):
 		_bg_tween = create_tween()
 		_bg_tween.tween_interval(engine_spool)
-		_bg_tween.tween_property(_bg, "position:y", _bg_below_y, rise_time + flyoff_time) \
+		_bg_tween.tween_property(_plate, "position:y", _bg_below_y, rise_time + flyoff_time) \
 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 
 	# Engine spool (ship still static): a DAMAGED ship STUTTERS to life + sprays sparks off the
@@ -1534,7 +1448,7 @@ func _process(delta: float) -> void:
 			_stars.scroll_stars(star_drift * delta)
 	_update_sparks(delta)
 	_update_lights(delta)
-	_update_runway(delta)
+	# (the runway pulse self-updates inside HangarPlate)
 
 
 func toast(msg: String) -> void:
@@ -1566,17 +1480,22 @@ func set_damage(level: float) -> void:
 	_apply_damage()
 
 
-func set_bg_brightness(b: float) -> void:
-	bg_brightness = clampf(b, 0.0, 1.0)
-	var gray := Color(bg_brightness, bg_brightness, bg_brightness, 1.0)
-	if _bg != null and is_instance_valid(_bg):
-		_bg.self_modulate = gray
-	if _damage_mat != null:
-		_damage_mat.set_shader_parameter("brightness", bg_brightness)   # body
-	# Livery is screen-multiplied off the (already-dimmed) body, so the hangar dim flows through it
-	# automatically — keep its own modulate WHITE so the brightness isn't applied twice.
-	if _livery != null and is_instance_valid(_livery):
-		_livery.self_modulate = Color.WHITE                             # livery (engine glow/sparks stay full)
+# Uniform bay dim (the SubViewportContainer's modulate). Engine glow + point lights are additive
+# inside the viewport, so they pop relative to it — no per-layer dim needed. Mirrors patrol_start.
+func set_scene_dim(x: float) -> void:
+	scene_dim = clampf(x, 0.0, 1.0)
+	_apply_scene_dim()
+
+
+func _apply_scene_dim() -> void:
+	if _play_container != null and is_instance_valid(_play_container):
+		(_play_container as CanvasItem).modulate = Color(scene_dim, scene_dim, scene_dim, 1.0)
+
+
+func set_runway_speed(v: float) -> void:
+	runway_speed = v
+	if _plate != null and is_instance_valid(_plate):
+		_plate.set_runway_speed(v)
 
 
 # Heal damage to `target` over `dur`, re-driving the shader + tells each step (the overlay is

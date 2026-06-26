@@ -1,0 +1,1230 @@
+extends Control
+
+# Patrol Start (dev scaffold, 2026-06-24) — the new-patrol hangar ship-select sequence.
+#
+# Flow:
+#   1. A dummy main menu (the shared random parallax backdrop + title + buttons) shows first.
+#   2. "Start New Patrol" fades the menu out (music walks Intensity_1 → Intensity_2), waits a
+#      tunable beat, then the hangar rises into view (TRANS_CUBIC/EASE_IN_OUT — slow start,
+#      accelerate, settle) while the backdrop PANS DOWN at a speed matched to the hangar's
+#      approach (driven off the hangar's own velocity). Warp streaks run during the rise only —
+#      once the bay is in place everything is stationary, so the streaks switch off.
+#   3. The fleet parks in two columns flanking the pad, each on a drop shadow. A hover LIFTER
+#      sits idle on the floor; ammo-crate clusters + a couple of parked tractor+trailer rigs
+#      (lights on/off) dress the outer edges. The hangar is dim (outpost parity).
+#   4. Clicking a ship spotlights it + prints its codex/loadout into the LEFT panel.
+#   5. "Ready Ship": the LIFTER settles over the ship's centre, lowers until the centres align,
+#      fires its grav-glow lights + layer, lifts + carries it to the pad, sets it down, powers
+#      the grav off and flies back to idle. Music progresses into Main — rising energy. Readying
+#      a different ship returns the previous one to its slot first.
+#   6. "Begin Patrol" spools the readied ship's engines, the shadow spreads (outpost depart), and
+#      it flies out the top, trail fading (streaks return for the launch). (Dev: flies out + STOPS.)
+#
+# TUNING: the "Tune ⚙" button (top-left) or Tab toggles a slider rail with Replay + Copy GDScript.
+# RENDER MODEL mirrors outpost_arrival.gd (HD root + native 480×270 TRANSPARENT SubViewport so the
+# backdrop shows behind). Altitude is faked with the drop shadow only (no sprite scaling).
+
+const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
+const UiTheme = preload("res://scripts/ui/ui_theme.gd")
+const ShipCatalog = preload("res://scripts/strings/ship_catalog.gd")
+const EngineTrailFx = preload("res://scripts/effects/engine_trail_fx.gd")
+const PF = preload("res://scripts/systems/playfield.gd")
+const BackdropCoordinatorScene = preload("res://scenes/parallax/backdrop_coordinator.tscn")
+const ShipVisual = preload("res://scripts/ui/ship_visual.gd")
+const HangarPlate = preload("res://scripts/screens/hangar_plate.gd")
+const PointLightFx = preload("res://scripts/effects/point_light_fx.gd")
+const FIRECORE_SCENE := "res://scenes/enemies/factions/zealot/firecore_core.tscn"
+const LIFTER_SCENE := "res://scenes/outpost/outpost_lifter.tscn"
+const TRACTOR_SCENE := "res://scenes/outpost/outpost_tractor.tscn"
+const TRAILER_SCENE := "res://scenes/outpost/outpost_tractor_trailer.tscn"
+const TRACTOR_TEX := "res://graphics/backgrounds/outpost_tractor.png"
+const TRAILER_TEX := "res://graphics/backgrounds/outpost_tractor_trailer.png"
+const LIFTER_TEX := "res://graphics/backgrounds/outpost_lifter.png"
+const CRATE_TEX := "res://graphics/backgrounds/outpost_ammo_crates.png"
+
+const NATIVE_W := 480.0
+const NATIVE_H := 270.0
+const HD_SCALE := 4.0
+const HD_W := 1920.0
+const HD_H := 1080.0
+const SHIP_X := NATIVE_W / 2.0
+const PAD_Y := 132.0
+const FLYOFF_TARGET_Y := -120.0
+const GUTTER_HD := PF.X_MIN * HD_SCALE   # 528
+const RIGHT_HD := PF.X_MAX * HD_SCALE     # 1392
+
+const ENGINE_GLOW_COLOR := Color(0.0, 0.827, 1.0)
+const ENGINE_LIGHT_COLOR := Color(0.10, 0.60, 1.0)
+const ENGINE_LIGHT_ENERGY := 1.0
+const ENGINE_LIGHT_SCALE := 0.35
+const FIRECORE_LIGHT_COLOR := Color(1.0, 0.62, 0.16)
+const SELECT_LIGHT_COLOR := Color(0.62, 0.82, 1.0)
+const FILL_LIGHT_COLOR := Color(0.55, 0.70, 0.95)
+const BG_BRIGHTNESS := 1.0   # plate full-bright in the viewport; scene_dim dims the whole bay output
+const LIFTER_IDLE := Vector2(240.0, 226.0)
+const LIFTER_Z := 12                                # flies above the hulls
+const CARRY_Z := 8                                  # carried hull lifts above the parked ones
+
+# Runway lights now live in HangarPlate (shared with outpost_arrival).
+
+const PARK_LEFT_X := 184.0
+const PARK_RIGHT_X := 296.0
+const PARK_TOP_Y := 66.0
+const PARK_STEP_Y := 44.0
+
+# Ammo-crate clusters dressing the OUTER edges (kept clear of the columns/pad/lifter/rigs).
+const CRATE_ZONES := [
+	Vector2(152.0, 46.0), Vector2(328.0, 46.0),
+	Vector2(146.0, 120.0), Vector2(334.0, 120.0),
+]
+# Parked tractor+trailer rigs as dressing: {pos, lights_on}.
+const DRESSING_RIGS := [
+	{"pos": Vector2(158.0, 206.0), "on": true},
+	{"pos": Vector2(330.0, 206.0), "on": false},
+]
+
+const SWATCHES := [
+	Color(0.90, 0.16, 0.16), Color(0.96, 0.55, 0.13), Color(0.98, 0.85, 0.25),
+	Color(0.45, 0.85, 0.30), Color(0.20, 0.80, 0.65), Color(0.25, 0.62, 0.97),
+	Color(0.70, 0.38, 0.95), Color(0.96, 0.40, 0.78), Color(0.92, 0.92, 0.95),
+]
+
+# ---- Tunables (Tune rail + inspector; read live) -------------------------
+@export_group("Sequence")
+@export var menu_fade_time: float = 0.5
+@export var rise_delay: float = 0.6             # beat between menu fade-out and the hangar rising
+@export var slide_time: float = 1.8
+@export var bars_fade_time: float = 0.7
+@export var bg_pan_ratio: float = 0.6           # backdrop pan-down px per px of hangar rise
+@export_group("Takeoff")
+@export var engine_spool: float = 0.8
+@export var rise_time: float = 0.5
+@export var flyoff_time: float = 0.9
+@export_group("Drop shadow / altitude")
+@export var shadow_land_offset: Vector2 = Vector2(2.0, 3.0)
+@export var shadow_land_alpha: float = 0.5
+@export var shadow_fly_offset: Vector2 = Vector2(5.0, 9.0)
+@export var shadow_fly_scale: float = 0.85
+@export var shadow_fly_alpha: float = 0.2
+@export_group("Lifter")
+@export var lift_set_time: float = 0.6          # lower / raise duration
+@export var lift_fly_time: float = 1.1          # cross at altitude
+@export var carry_distance: float = 0.0         # hull offset below the lifter centre while carried
+@export var grav_light_energy: float = 1.6      # purple grav lights while carrying
+@export_group("Lighting")
+# scene_dim dims the WHOLE rendered bay (the hangar SubViewport's OUTPUT) — applied after the
+# livery shader has already screen-sampled the full-bright hulls inside the viewport, so the bay
+# reads dim/moody WITHOUT the livery going matte (which is what dimming the hulls themselves does,
+# since the shader screen-MULTIPLIES the body behind it). 1.0 = no dim. Lights pop relative to it.
+@export var scene_dim: float = 0.6
+@export var fill_energy: float = 0.18
+@export var runway_speed: float = 0.9
+
+var _hd: HdViewportScope = null
+var _world: SubViewport = null
+var _hangar: Node2D = null
+var _plate: Node2D = null   # shared HangarPlate (plate + runway lights), rides inside _hangar
+var _select_light: PointLight2D = null
+var _light_tex: Texture2D = null
+var _backdrop: Node = null
+var _bg_stars: Node = null
+var _streaks_node: Node = null
+var _play_container: Node = null
+var _prev_hangar_y: float = NATIVE_H
+
+# (runway pixel/light/pulse state now lives in HangarPlate)
+
+# Lifter.
+var _lifter: Node2D = null
+var _lifter_shadow: Sprite2D = null
+var _grav_lights: Array = []
+var _grav_glow: Sprite2D = null
+var _lifter_engines: Sprite2D = null   # engine glow sprite (4-frame anim) — off when idle
+var _hover_lights: Array = []
+var _lifter_active: bool = false       # engines lit + animating
+var _engine_anim_t: float = 0.0
+var _altitude: float = 0.0
+var _grab: Dictionary = {}
+
+# Per-ship state.
+var _ships: Array = []
+var _selected_idx: int = -1
+var _readied_idx: int = -1
+var _busy: bool = false
+var _started: bool = false
+
+var _skip_tutorial: bool = false
+var _endless: bool = false
+var _sector_modifiers: int = 0
+
+# UI refs.
+var _menu_ui: Control = null
+var _left_body: VBoxContainer = null
+var _ready_btn: Button = null
+var _begin_btn: Button = null
+var _sectormod_lbl: Label = null
+var _left_sidebar: ColorRect = null
+var _right_sidebar: ColorRect = null
+var _left_panel: Control = null
+var _right_panel: Control = null
+var _status: Label = null
+var _click_layer: Control = null
+var _rail: PanelContainer = null
+var _rail_vals: Dictionary = {}
+
+
+func _ready() -> void:
+	_hd = HdScreen.enter(self)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_install_menu_backdrop()
+	_world = HdScreen.make_play_subviewport(self)
+	_world.transparent_bg = true
+	_play_container = _world.get_parent()   # the SubViewportContainer — dimming it dims the whole bay output
+	_apply_scene_dim()
+	_light_tex = _make_light_texture()
+	_hangar = Node2D.new()
+	_hangar.name = "Hangar"
+	_hangar.position = Vector2(0, NATIVE_H)
+	_world.add_child(_hangar)
+	_prev_hangar_y = NATIVE_H
+	_build_backdrop()
+	_build_crates()
+	_build_dressing()
+	_build_ships()
+	_build_lifter()
+	_build_ui()
+	if has_node("/root/Music"):
+		get_node("/root/Music").set_context("menu")
+
+
+func _process(delta: float) -> void:
+	_lift_update()
+	_animate_lifter_engines(delta)
+	_update_bg_pan()
+
+
+func _install_menu_backdrop() -> void:
+	var bd := BackdropCoordinatorScene.instantiate()
+	bd.name = "MenuBackdrop"
+	bd.set("drift_speed", 14.0)
+	bd.set("warp_streak_count", 8)
+	bd.set("warp_streak_speed", 432.0)
+	bd.set("asteroid_presence", 0.5)
+	HdScreen.add_upscaled_backdrop(self, bd)
+	_backdrop = bd
+	_bg_stars = bd.get_node_or_null("LayerStars")
+	_streaks_node = bd.get_node_or_null("LayerStreaks")
+
+
+# Pan the backdrop DOWN in proportion to the hangar's upward travel — so its speed matches the
+# outpost's approach exactly (slow start, accelerate, settle), and it naturally stops when the
+# hangar does.
+func _update_bg_pan() -> void:
+	if _hangar == null:
+		return
+	var dy: float = _hangar.position.y - _prev_hangar_y
+	_prev_hangar_y = _hangar.position.y
+	if absf(dy) < 0.001:
+		return
+	if _bg_stars != null and is_instance_valid(_bg_stars) and _bg_stars.has_method("scroll_stars"):
+		_bg_stars.scroll_stars(-dy * bg_pan_ratio)   # hangar up (dy<0) → stars down
+
+
+func _set_streaks(on: bool) -> void:
+	if _streaks_node != null and is_instance_valid(_streaks_node):
+		_streaks_node.set("enabled", on)
+
+
+# Dim the whole rendered bay (the SubViewportContainer's output). The livery's screen-sampling
+# already happened inside the viewport at full brightness, so dimming here keeps it rich.
+func _apply_scene_dim() -> void:
+	if _play_container != null and is_instance_valid(_play_container):
+		(_play_container as CanvasItem).modulate = Color(scene_dim, scene_dim, scene_dim, 1.0)
+
+
+func _set_scene_dim(x: float) -> void:
+	scene_dim = x
+	_apply_scene_dim()
+
+
+func _set_runway_speed(x: float) -> void:
+	runway_speed = x
+	if _plate != null and is_instance_valid(_plate):
+		_plate.set_runway_speed(x)
+
+
+# ---- World ---------------------------------------------------------------
+
+func _build_backdrop() -> void:
+	# Shared hangar plate + runway lights (HangarPlate, also used by outpost_arrival). Rides inside
+	# _hangar at the band centre; scene_dim dims the whole bay output, so keep the plate full-bright.
+	_plate = HangarPlate.new()
+	_plate.brightness = BG_BRIGHTNESS
+	_plate.runway_speed = runway_speed
+	_plate.position = Vector2(SHIP_X, NATIVE_H / 2.0)
+	_hangar.add_child(_plate)
+	for x in [PARK_LEFT_X, PARK_RIGHT_X]:
+		var fill := _make_point_light(Vector2(x, 130.0), FILL_LIGHT_COLOR, 0.8, _light_tex)
+		fill.energy = fill_energy
+		_hangar.add_child(fill)
+	_select_light = _make_point_light(Vector2.ZERO, SELECT_LIGHT_COLOR, 0.5, _light_tex)
+	_hangar.add_child(_select_light)
+
+
+func _build_crates() -> void:
+	var tex: Texture2D = load(CRATE_TEX)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0xC4A7E5
+	for zone in CRATE_ZONES:
+		var n := rng.randi_range(2, 4)
+		for i in n:
+			var pos: Vector2 = zone + Vector2(rng.randf_range(-11.0, 11.0), rng.randf_range(-9.0, 9.0))
+			var frame := rng.randi() % 10
+			var sh := _make_frame_sprite(tex, 10, frame)
+			sh.modulate = Color(0, 0, 0, 0.4)
+			sh.position = pos + Vector2(1.0, 1.5)
+			sh.z_index = -6
+			_hangar.add_child(sh)
+			var crate := _make_frame_sprite(tex, 10, frame)
+			crate.position = pos
+			crate.z_index = -5
+			_hangar.add_child(crate)
+
+
+# Parked tractor+trailer rigs (4-wheel ground vehicles) as dressing: tractor (front, facing up) +
+# trailer behind, hitched rear-to-front with a 1px gray pivot between the hitch markers, in on/off
+# light states. Pure scenery.
+func _build_dressing() -> void:
+	for rig in DRESSING_RIGS:
+		_make_rig(rig["pos"], bool(rig["on"]))
+
+
+func _make_rig(pos: Vector2, lights_on: bool) -> void:
+	# Short shadows (silhouettes) under both vehicles.
+	var t_sh := _make_frame_sprite(load(TRACTOR_TEX), 4, 0)
+	t_sh.modulate = Color(0, 0, 0, 0.4)
+	t_sh.position = pos + Vector2(1.0, 1.5)
+	t_sh.z_index = -6
+	_hangar.add_child(t_sh)
+	var trailer_pos := pos + Vector2(0, 12)
+	var r_sh := _make_frame_sprite(load(TRAILER_TEX), 1, 0)
+	r_sh.modulate = Color(0, 0, 0, 0.4)
+	r_sh.position = trailer_pos + Vector2(1.0, 1.5)
+	r_sh.z_index = -6
+	_hangar.add_child(r_sh)
+	# Tractor + trailer.
+	var tractor = load(TRACTOR_SCENE).instantiate()
+	tractor.position = pos
+	tractor.z_index = -4
+	_nearest_all(tractor)
+	_hangar.add_child(tractor)
+	var trailer = load(TRAILER_SCENE).instantiate()
+	trailer.position = trailer_pos
+	trailer.z_index = -4
+	_nearest_all(trailer)
+	_hangar.add_child(trailer)
+	# Gray 1px pivot between the tractor's rear Hitch (pos + 0,5) and the trailer's front HitchF.
+	var pivot := Polygon2D.new()
+	pivot.polygon = PackedVector2Array([Vector2(-0.5, 5.0), Vector2(0.5, 5.0), Vector2(0.5, 6.0), Vector2(-0.5, 6.0)])
+	pivot.color = Color(0.5, 0.5, 0.5)
+	pivot.position = pos
+	pivot.z_index = -3
+	_hangar.add_child(pivot)
+	if not lights_on:
+		_rig_lights(tractor, false)
+		_rig_lights(trailer, false)
+
+
+# Toggle a rig vehicle's lights (the PointLights + the head/brake/engine light sprite layers).
+func _rig_lights(vehicle: Node, on: bool) -> void:
+	for l in vehicle.find_children("*", "PointLight2D", true, false):
+		(l as Node2D).visible = on
+	for nm in ["Headlights", "Brakelights", "Engines"]:
+		var n = vehicle.get_node_or_null(nm)
+		if n != null:
+			n.visible = on
+
+
+func _make_frame_sprite(tex: Texture2D, hframes: int, frame: int) -> Sprite2D:
+	var spr := Sprite2D.new()
+	spr.texture = tex
+	spr.hframes = hframes
+	spr.frame = frame
+	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	return spr
+
+
+func _nearest_all(node: Node) -> void:
+	if node is CanvasItem:
+		(node as CanvasItem).texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	for spr in node.find_children("*", "Sprite2D", true, false):
+		(spr as Sprite2D).texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+
+
+func _build_ships() -> void:
+	_ships.clear()
+	for i in ShipCatalog.count():
+		var ship: Dictionary = ShipCatalog.get_ship(i)
+		var col: Color = ship.get("livery_color", Color(0.90, 0.16, 0.16))
+		var host := Node2D.new()
+		host.name = "Ship_%s" % String(ship["id"])
+		var shadow := _make_sprite(String(ship["body"]))
+		shadow.modulate = Color(0, 0, 0, shadow_land_alpha)
+		shadow.position = shadow_land_offset
+		# Absolute z so the shadow stays on the FLOOR (under everything) even while the hull is
+		# raised to CARRY_Z during a lift — it tracks the hull across the bay as a ground shadow.
+		shadow.z_as_relative = false
+		shadow.z_index = -3
+		host.add_child(shadow)
+		var body := _make_sprite(String(ship["body"]))   # full-bright (live-ship look); scene_dim dims the output
+		body.z_index = -2
+		host.add_child(body)
+		var livery_mat := ShipVisual.make_livery_material(col)
+		var livery := _make_sprite(String(ship["livery"]))
+		livery.material = livery_mat
+		body.add_child(livery)
+		var glow := _make_sprite(String(ship["engine"]))
+		glow.z_index = 0
+		glow.modulate = ENGINE_GLOW_COLOR
+		glow.modulate.a = 0.0
+		var gm := CanvasItemMaterial.new()
+		gm.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		glow.material = gm
+		host.add_child(glow)
+		var markers: Array = []
+		for e in (ship["engines"] as Array):
+			var mk := Marker2D.new()
+			mk.position = e
+			host.add_child(mk)
+			markers.append(mk)
+		if String(ship["id"]) == "pilgrim":
+			_attach_firecore(host)
+		var park: Vector2 = _park_pos(i)
+		host.position = park
+		_hangar.add_child(host)
+		_ships.append({
+			"idx": i, "host": host, "body": body, "glow": glow, "shadow": shadow,
+			"markers": markers, "park_pos": park, "btn": null,
+			"livery_mat": livery_mat, "livery_color": col, "trail": null, "engine_lights": [],
+		})
+
+
+func _park_pos(idx: int) -> Vector2:
+	var on_left := (idx % 2) == 0
+	var row := idx / 2
+	var x := PARK_LEFT_X if on_left else PARK_RIGHT_X
+	return Vector2(x, PARK_TOP_Y + row * PARK_STEP_Y)
+
+
+func _make_sprite(path: String) -> Sprite2D:
+	var spr := Sprite2D.new()
+	spr.texture = load(path)
+	spr.hframes = 3
+	spr.frame = 1
+	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	return spr
+
+
+func _attach_firecore(host: Node2D) -> void:
+	var core = load(FIRECORE_SCENE).instantiate()
+	core.z_index = 3
+	core.position = Vector2(0, 0)
+	host.add_child(core)
+	var light := _make_point_light(Vector2(0, 0), FIRECORE_LIGHT_COLOR, 0.35, _light_tex)
+	light.energy = 0.9
+	host.add_child(light)
+	var pulse := create_tween().set_loops()
+	pulse.tween_property(light, "energy", 1.1, 0.7).set_trans(Tween.TRANS_SINE)
+	pulse.tween_property(light, "energy", 0.65, 0.7).set_trans(Tween.TRANS_SINE)
+
+
+func _make_light_texture() -> Texture2D:
+	return PointLightFx.make_texture(128)
+
+
+func _make_point_light(pos: Vector2, col: Color, scale: float, tex: Texture2D) -> PointLight2D:
+	return PointLightFx.make(pos, col, scale, tex)
+
+
+# ---- Lifter (grav crane: centres over a ship, lowers, grav-grabs, carries) ----
+
+func _build_lifter() -> void:
+	_lifter = load(LIFTER_SCENE).instantiate()
+	_lifter.z_index = LIFTER_Z
+	_lifter.position = LIFTER_IDLE
+	_nearest_all(_lifter)
+	# Grav glow layer + grav lights start OFF (the lifter is idle, grav cold).
+	_grav_glow = _lifter.get_node_or_null("GravGlow")
+	if _grav_glow != null:
+		_grav_glow.modulate.a = 0.0
+	_grav_lights = []
+	for nm in ["Body/GravLight", "Body/GravLight2"]:
+		var l = _lifter.get_node_or_null(nm)
+		if l != null:
+			(l as PointLight2D).energy = 0.0
+			_grav_lights.append(l)
+	# Engines + hover lights start OFF (idle = powered down); they fade in + animate on activation.
+	_lifter_engines = _lifter.get_node_or_null("Engines")
+	if _lifter_engines != null:
+		_lifter_engines.modulate.a = 0.0
+	_hover_lights = []
+	for nm in ["Body/HoverLight", "Body/HoverLight2", "Body/HoverLight3", "Body/HoverLight4"]:
+		var h = _lifter.get_node_or_null(nm)
+		if h != null:
+			(h as PointLight2D).energy = 0.0
+			_hover_lights.append(h)
+	_hangar.add_child(_lifter)
+	# The lifter's own drop shadow (frame-0 silhouette; spreads with altitude on lift-off).
+	var sh := _make_frame_sprite(load(LIFTER_TEX), 3, 0)
+	sh.modulate = Color(0, 0, 0, shadow_land_alpha)
+	sh.position = LIFTER_IDLE + shadow_land_offset
+	sh.z_index = -3
+	_hangar.add_child(sh)
+	_lifter_shadow = sh
+
+
+# Per-frame: altitude → lifter + carried-hull shadows; keep a carried hull under the lifter.
+func _lift_update() -> void:
+	if _lifter == null or not is_instance_valid(_lifter):
+		return
+	var off: Vector2 = shadow_land_offset.lerp(shadow_fly_offset, _altitude)
+	var scl: float = lerpf(1.0, shadow_fly_scale, _altitude)
+	var alp: float = lerpf(shadow_land_alpha, shadow_fly_alpha, _altitude)
+	if _lifter_shadow != null and is_instance_valid(_lifter_shadow):
+		_lifter_shadow.position = _lifter.position + off
+		_lifter_shadow.scale = Vector2(scl, scl)
+		_lifter_shadow.modulate.a = alp
+	if not _grab.is_empty():
+		var host: Node2D = _grab["host"]
+		host.position = _lifter.position + Vector2(0, carry_distance)
+		var hsh: Sprite2D = _grab["shadow"]
+		hsh.position = off
+		hsh.scale = Vector2(scl, scl)
+		hsh.modulate.a = alp
+
+
+func _tween_altitude(target: float, dur: float) -> void:
+	var tw := create_tween()
+	tw.tween_property(self, "_altitude", target, dur).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	await tw.finished
+
+
+func _tween_lifter_to(target: Vector2, dur: float) -> void:
+	var tw := create_tween()
+	tw.tween_property(_lifter, "position", target, dur).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	await tw.finished
+
+
+func _set_grav(on: bool) -> void:
+	var tw := create_tween().set_parallel(true)
+	for l in _grav_lights:
+		tw.tween_property(l, "energy", grav_light_energy if on else 0.0, 0.3)
+	if _grav_glow != null:
+		tw.tween_property(_grav_glow, "modulate:a", 1.0 if on else 0.0, 0.3)
+
+
+# Power the lifter's engines up (fade the engine glow in + light the hover lights) or down. The
+# engine sprite frames cycle while active (see _animate_lifter_engines).
+func _set_lifter_engines(on: bool) -> void:
+	_lifter_active = on
+	var tw := create_tween().set_parallel(true)
+	if _lifter_engines != null:
+		tw.tween_property(_lifter_engines, "modulate:a", 1.0 if on else 0.0, 0.4)
+	for h in _hover_lights:
+		tw.tween_property(h, "energy", 1.0 if on else 0.0, 0.4)
+
+
+func _animate_lifter_engines(delta: float) -> void:
+	if not _lifter_active or _lifter_engines == null or not is_instance_valid(_lifter_engines):
+		return
+	_engine_anim_t += delta
+	_lifter_engines.frame = int(_engine_anim_t * 14.0) % 4   # cycle the 4 engine frames
+
+
+# Settle over the ship's centre, lower until the centres align, fire the grav, lift + carry to
+# `dest`, set down, power the grav off.
+func _lift_pick(ship: Dictionary, dest: Vector2) -> void:
+	var host: Node2D = ship["host"]
+	await _tween_altitude(1.0, lift_set_time)
+	await _tween_lifter_to(host.position, lift_fly_time)
+	await _tween_altitude(0.0, lift_set_time)
+	# Grav-grab.
+	_grab = ship
+	host.z_index = CARRY_Z
+	_set_grav(true)
+	await get_tree().create_timer(0.25).timeout
+	await _tween_altitude(1.0, lift_set_time)
+	await _tween_lifter_to(dest, lift_fly_time)
+	await _tween_altitude(0.0, lift_set_time)
+	# Power down + release.
+	_set_grav(false)
+	host.z_index = 0
+	host.position = dest
+	_grab = {}
+	_position_ship_button(ship)
+
+
+func _lift_return() -> void:
+	await _tween_altitude(1.0, lift_set_time)
+	await _tween_lifter_to(LIFTER_IDLE, lift_fly_time)
+	await _tween_altitude(0.0, lift_set_time)
+
+
+# ---- HD UI ---------------------------------------------------------------
+
+func _build_ui() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 5
+	layer.name = "PatrolUI"
+	add_child(layer)
+
+	_left_sidebar = _make_sidebar(0.0, GUTTER_HD)
+	layer.add_child(_left_sidebar)
+	_right_sidebar = _make_sidebar(RIGHT_HD, HD_W)
+	layer.add_child(_right_sidebar)
+
+	_click_layer = Control.new()
+	_click_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_click_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_click_layer.visible = false
+	layer.add_child(_click_layer)
+	for s in _ships:
+		var btn := Button.new()
+		btn.flat = true
+		btn.focus_mode = Control.FOCUS_NONE
+		btn.custom_minimum_size = Vector2(80, 80)
+		btn.size = Vector2(80, 80)
+		var clear := StyleBoxEmpty.new()
+		for st in ["normal", "hover", "pressed", "focus"]:
+			btn.add_theme_stylebox_override(st, clear)
+		btn.pressed.connect(_on_ship_clicked.bind(int(s["idx"])))
+		_click_layer.add_child(btn)
+		s["btn"] = btn
+		_position_ship_button(s)
+
+	_build_left_panel(layer)
+	_build_right_panel(layer)
+	_build_menu_overlay(layer)
+	_build_rail(layer)
+
+	var tune := UiTheme.make_button("Tune ⚙", true)
+	tune.position = Vector2(16, 10)
+	tune.size = Vector2(132, 40)
+	tune.pressed.connect(_toggle_rail)
+	layer.add_child(tune)
+
+
+func _make_sidebar(x0: float, x1: float) -> ColorRect:
+	var r := ColorRect.new()
+	r.color = Color(0.02, 0.03, 0.05, 1.0)
+	r.position = Vector2(x0, 0)
+	r.size = Vector2(x1 - x0, HD_H)
+	r.modulate.a = 0.0
+	r.mouse_filter = Control.MOUSE_FILTER_STOP
+	return r
+
+
+func _position_ship_button(s: Dictionary) -> void:
+	var btn: Button = s["btn"]
+	if btn == null:
+		return
+	var host: Node2D = s["host"]
+	var hd: Vector2 = host.position * HD_SCALE
+	btn.position = hd - btn.size * 0.5
+
+
+func _build_menu_overlay(layer: CanvasLayer) -> void:
+	var root := Control.new()
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(root)
+	_menu_ui = root
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(center)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 18)
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	center.add_child(v)
+	var title := _label("STARBLASTER", UiTheme.LabelKind.TITLE)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(title)
+	var btns := VBoxContainer.new()
+	btns.add_theme_constant_override("separation", 12)
+	btns.custom_minimum_size = Vector2(460, 0)
+	v.add_child(btns)
+	var start_btn := UiTheme.make_button("Start New Patrol")
+	start_btn.custom_minimum_size = Vector2(460, 64)
+	start_btn.pressed.connect(_on_start_patrol)
+	btns.add_child(start_btn)
+	for label in ["Continue Patrol", "Options", "Quit"]:
+		var b := UiTheme.make_button(label)
+		b.custom_minimum_size = Vector2(460, 64)
+		b.disabled = true
+		btns.add_child(b)
+
+
+func _build_left_panel(layer: CanvasLayer) -> void:
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _panel_stylebox())
+	panel.position = Vector2(16, 16)
+	panel.size = Vector2(GUTTER_HD - 32, HD_H - 32)
+	panel.modulate.a = 0.0
+	layer.add_child(panel)
+	_left_panel = panel
+	var margin := MarginContainer.new()
+	for side in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
+		margin.add_theme_constant_override(side, 18)
+	panel.add_child(margin)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 12)
+	margin.add_child(v)
+	_left_body = v
+	_refresh_left_panel()
+
+
+func _refresh_left_panel() -> void:
+	if _left_body == null:
+		return
+	for c in _left_body.get_children():
+		c.queue_free()
+	if _selected_idx < 0:
+		_left_body.add_child(_label("SELECT A SHIP", UiTheme.LabelKind.HEADER))
+		var sub := _label("Click a parked hull to inspect it.", UiTheme.LabelKind.CAPTION)
+		sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_left_body.add_child(sub)
+		return
+	var ship: Dictionary = ShipCatalog.get_ship(_selected_idx)
+	_left_body.add_child(_label(String(ship["name"]), UiTheme.LabelKind.HEADER))
+	_left_body.add_child(_label(String(ship["tag"]), UiTheme.LabelKind.CAPTION))
+	_left_body.add_child(_label("ARMAMENT", UiTheme.LabelKind.CAPTION))
+	var arm := _label(String(ship["armament"]), UiTheme.LabelKind.BODY)
+	arm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_left_body.add_child(arm)
+	_left_body.add_child(_label("MODULES", UiTheme.LabelKind.CAPTION))
+	var mod := _label(String(ship["modules"]), UiTheme.LabelKind.BODY)
+	mod.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_left_body.add_child(mod)
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_left_body.add_child(scroll)
+	var blurb := _label(String(ship["codex"]), UiTheme.LabelKind.BODY)
+	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	blurb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(blurb)
+	_left_body.add_child(HSeparator.new())
+	_left_body.add_child(_label("LIVERY", UiTheme.LabelKind.CAPTION))
+	var swatch_grid := GridContainer.new()
+	swatch_grid.columns = 5
+	swatch_grid.add_theme_constant_override("h_separation", 8)
+	swatch_grid.add_theme_constant_override("v_separation", 8)
+	_left_body.add_child(swatch_grid)
+	for c in SWATCHES:
+		swatch_grid.add_child(_make_swatch(c))
+	var ready_row := CenterContainer.new()
+	_left_body.add_child(ready_row)
+	_ready_btn = UiTheme.make_button("Ready Ship")
+	_ready_btn.pressed.connect(_on_ready_pressed)
+	if _selected_idx == _readied_idx:
+		_ready_btn.text = "Readied ✓"
+		_ready_btn.disabled = true
+	ready_row.add_child(_ready_btn)
+
+
+func _make_swatch(c: Color) -> Button:
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(40, 40)
+	b.focus_mode = Control.FOCUS_NONE
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = c
+	sb.set_border_width_all(2)
+	sb.border_color = Color(0, 0, 0, 0.6)
+	sb.set_corner_radius_all(4)
+	b.add_theme_stylebox_override("normal", sb)
+	b.add_theme_stylebox_override("hover", sb)
+	b.add_theme_stylebox_override("pressed", sb)
+	b.pressed.connect(_on_livery_picked.bind(c))
+	return b
+
+
+func _build_right_panel(layer: CanvasLayer) -> void:
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _panel_stylebox())
+	panel.position = Vector2(RIGHT_HD + 16, 16)
+	panel.size = Vector2(HD_W - RIGHT_HD - 32, HD_H - 32)
+	panel.modulate.a = 0.0
+	layer.add_child(panel)
+	_right_panel = panel
+	var margin := MarginContainer.new()
+	for side in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
+		margin.add_theme_constant_override(side, 18)
+	panel.add_child(margin)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 14)
+	margin.add_child(v)
+	v.add_child(_label("RUN SETTINGS", UiTheme.LabelKind.HEADER))
+	v.add_child(HSeparator.new())
+	v.add_child(_make_toggle("Skip Tutorial", _skip_tutorial, func(on): _skip_tutorial = on))
+	v.add_child(_make_toggle("Endless Mode", _endless, func(on): _endless = on))
+	v.add_child(_make_sectormod_rocker())
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_child(spacer)
+	_status = _label("Ready a ship, then begin the patrol.", UiTheme.LabelKind.CAPTION)
+	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(_status)
+	var begin_row := CenterContainer.new()
+	v.add_child(begin_row)
+	_begin_btn = UiTheme.make_button("Begin Patrol")
+	_begin_btn.disabled = true
+	_begin_btn.pressed.connect(_on_begin_pressed)
+	begin_row.add_child(_begin_btn)
+	var back := UiTheme.make_button("Back", true)
+	back.pressed.connect(_back)
+	v.add_child(back)
+
+
+func _make_toggle(text: String, initial: bool, on_change: Callable) -> CheckButton:
+	var cb := CheckButton.new()
+	cb.text = text
+	cb.button_pressed = initial
+	cb.focus_mode = Control.FOCUS_NONE
+	cb.add_theme_font_override("font", UiTheme.menu_font())
+	cb.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	cb.toggled.connect(func(on: bool) -> void: on_change.call(on))
+	return cb
+
+
+func _make_sectormod_rocker() -> VBoxContainer:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+	box.add_child(_label("Sector Modifiers", UiTheme.LabelKind.CAPTION))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	var minus := UiTheme.make_button("−", true)
+	minus.custom_minimum_size = Vector2(56, 0)
+	minus.pressed.connect(_on_sectormod_step.bind(-1))
+	row.add_child(minus)
+	_sectormod_lbl = _label(str(_sector_modifiers), UiTheme.LabelKind.HEADER)
+	_sectormod_lbl.custom_minimum_size = Vector2(48, 0)
+	_sectormod_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	row.add_child(_sectormod_lbl)
+	var plus := UiTheme.make_button("+", true)
+	plus.custom_minimum_size = Vector2(56, 0)
+	plus.pressed.connect(_on_sectormod_step.bind(1))
+	row.add_child(plus)
+	box.add_child(row)
+	return box
+
+
+# ---- Tuning rail ---------------------------------------------------------
+
+func _toggle_rail() -> void:
+	if _rail != null:
+		_rail.visible = not _rail.visible
+
+
+func _build_rail(layer: CanvasLayer) -> void:
+	var panel := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.04, 0.06, 0.10, 0.92)
+	sb.border_color = UiTheme.COLOR_ACCENT_DIM
+	sb.set_border_width_all(2)
+	sb.set_content_margin_all(14)
+	panel.add_theme_stylebox_override("panel", sb)
+	panel.position = Vector2(HD_W - 470, 12)
+	panel.size = Vector2(458, HD_H - 24)
+	panel.visible = false
+	layer.add_child(panel)
+	_rail = panel
+	var scroll := ScrollContainer.new()
+	panel.add_child(scroll)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	v.custom_minimum_size = Vector2(420, 0)
+	scroll.add_child(v)
+	v.add_child(_label("PATROL START TUNER", UiTheme.LabelKind.HEADER))
+	v.add_child(_label("Tune ⚙ / Tab: hide · Esc: back", UiTheme.LabelKind.CAPTION))
+
+	v.add_child(_label("Sequence", UiTheme.LabelKind.CAPTION))
+	_slider(v, "menu_fade_time", "Menu fade (s)", 0.1, 1.5, 0.05)
+	_slider(v, "rise_delay", "Delay before rise (s)", 0.0, 2.0, 0.05)
+	_slider(v, "slide_time", "Hangar rise (s)", 0.6, 4.0, 0.05)
+	_slider(v, "bars_fade_time", "Bars/panels fade (s)", 0.2, 1.5, 0.05)
+	_slider(v, "bg_pan_ratio", "Background pan ratio", 0.0, 2.0, 0.05)
+
+	v.add_child(_label("Takeoff", UiTheme.LabelKind.CAPTION))
+	_slider(v, "engine_spool", "Engine spool (s)", 0.1, 2.0, 0.05)
+	_slider(v, "rise_time", "Rise (s)", 0.2, 1.5, 0.05)
+	_slider(v, "flyoff_time", "Fly-off (s)", 0.4, 2.5, 0.05)
+
+	v.add_child(_label("Drop shadow / altitude", UiTheme.LabelKind.CAPTION))
+	_slider_v2x(v, "shadow_land_offset", "Land offset X", 0.0, 8.0, 0.5)
+	_slider_v2y(v, "shadow_land_offset", "Land offset Y", 0.0, 10.0, 0.5)
+	_slider(v, "shadow_land_alpha", "Land alpha", 0.0, 1.0, 0.05)
+	_slider_v2x(v, "shadow_fly_offset", "Fly offset X", 0.0, 16.0, 0.5)
+	_slider_v2y(v, "shadow_fly_offset", "Fly offset Y", 0.0, 20.0, 0.5)
+	_slider(v, "shadow_fly_scale", "Fly scale", 0.5, 1.5, 0.02)
+	_slider(v, "shadow_fly_alpha", "Fly alpha", 0.0, 1.0, 0.05)
+
+	v.add_child(_label("Lifter", UiTheme.LabelKind.CAPTION))
+	_slider(v, "lift_set_time", "Lower / raise (s)", 0.2, 1.5, 0.05)
+	_slider(v, "lift_fly_time", "Cross at altitude (s)", 0.4, 2.5, 0.05)
+	_slider(v, "carry_distance", "Carry offset (px below centre)", 0.0, 24.0, 0.5)
+	_slider(v, "grav_light_energy", "Grav light energy", 0.0, 3.0, 0.05)
+
+	v.add_child(_label("Lighting", UiTheme.LabelKind.CAPTION))
+	_slider_generic(v, "Scene dim (whole bay)", 0.2, 1.0, 0.02, scene_dim, _set_scene_dim)
+	_slider(v, "fill_energy", "Hangar fill energy", 0.0, 1.2, 0.05)
+	_slider_generic(v, "Runway pulse (rad/s)", 0.2, 4.0, 0.1, runway_speed, _set_runway_speed)
+
+	v.add_child(HSeparator.new())
+	var replay := UiTheme.make_button("Replay Sequence")
+	replay.pressed.connect(_replay)
+	v.add_child(replay)
+	var copy := UiTheme.make_button("Copy GDScript")
+	copy.pressed.connect(_copy_gdscript)
+	v.add_child(copy)
+
+
+func _slider(parent: Node, prop: String, label: String, mn: float, mx: float, step: float) -> void:
+	_slider_generic(parent, label, mn, mx, step, float(get(prop)), func(x: float) -> void: set(prop, x))
+
+
+func _slider_v2x(parent: Node, prop: String, label: String, mn: float, mx: float, step: float) -> void:
+	var v: Vector2 = get(prop)
+	_slider_generic(parent, label, mn, mx, step, v.x, func(x: float) -> void: _set_v2(prop, x, true))
+
+
+func _slider_v2y(parent: Node, prop: String, label: String, mn: float, mx: float, step: float) -> void:
+	var v: Vector2 = get(prop)
+	_slider_generic(parent, label, mn, mx, step, v.y, func(x: float) -> void: _set_v2(prop, x, false))
+
+
+func _set_v2(prop: String, val: float, is_x: bool) -> void:
+	var v: Vector2 = get(prop)
+	if is_x:
+		v.x = val
+	else:
+		v.y = val
+	set(prop, v)
+
+
+func _slider_generic(parent: Node, label: String, mn: float, mx: float, step: float, val: float, on_change: Callable) -> void:
+	var head := HBoxContainer.new()
+	var name_lbl := _label(label, UiTheme.LabelKind.CAPTION)
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(name_lbl)
+	var key := str(_rail_vals.size())
+	var val_lbl := _label(_fmt(val, step), UiTheme.LabelKind.CAPTION)
+	_rail_vals[key] = val_lbl
+	head.add_child(val_lbl)
+	parent.add_child(head)
+	var s := HSlider.new()
+	s.min_value = mn
+	s.max_value = mx
+	s.step = step
+	s.value = val
+	s.custom_minimum_size = Vector2(0, 20)
+	s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	s.value_changed.connect(func(x: float) -> void:
+		on_change.call(x)
+		val_lbl.text = _fmt(x, step))
+	parent.add_child(s)
+
+
+func _fmt(v: float, step: float) -> String:
+	return str(int(round(v))) if step >= 1.0 else "%.2f" % v
+
+
+func _copy_gdscript() -> void:
+	var lines := [
+		"# Patrol Start tuned defaults:",
+		"menu_fade_time = %s" % _f(menu_fade_time),
+		"rise_delay = %s" % _f(rise_delay),
+		"slide_time = %s" % _f(slide_time),
+		"bars_fade_time = %s" % _f(bars_fade_time),
+		"bg_pan_ratio = %s" % _f(bg_pan_ratio),
+		"engine_spool = %s" % _f(engine_spool),
+		"rise_time = %s" % _f(rise_time),
+		"flyoff_time = %s" % _f(flyoff_time),
+		"shadow_land_offset = Vector2(%s, %s)" % [_f(shadow_land_offset.x), _f(shadow_land_offset.y)],
+		"shadow_land_alpha = %s" % _f(shadow_land_alpha),
+		"shadow_fly_offset = Vector2(%s, %s)" % [_f(shadow_fly_offset.x), _f(shadow_fly_offset.y)],
+		"shadow_fly_scale = %s" % _f(shadow_fly_scale),
+		"shadow_fly_alpha = %s" % _f(shadow_fly_alpha),
+		"lift_set_time = %s" % _f(lift_set_time),
+		"lift_fly_time = %s" % _f(lift_fly_time),
+		"carry_distance = %s" % _f(carry_distance),
+		"grav_light_energy = %s" % _f(grav_light_energy),
+		"scene_dim = %s" % _f(scene_dim),
+		"fill_energy = %s" % _f(fill_energy),
+		"runway_speed = %s" % _f(runway_speed),
+	]
+	DisplayServer.clipboard_set("\n".join(lines))
+	if _status != null:
+		_status.text = "Copied tuned defaults to clipboard."
+
+
+func _f(v: float) -> String:
+	return "%.2f" % v
+
+
+# ---- Sequence (menu → delay → rise + pan → hangar) -----------------------
+
+func _on_start_patrol() -> void:
+	if _started:
+		return
+	_started = true
+	_music_intensity(1)   # Intensity_1 → Intensity_2
+	# 1. Fade the menu out.
+	var fade := create_tween()
+	fade.tween_property(_menu_ui, "modulate:a", 0.0, menu_fade_time)
+	await fade.finished
+	if _menu_ui != null:
+		_menu_ui.visible = false
+	# 2. Beat before the bay rises.
+	if rise_delay > 0.0:
+		await get_tree().create_timer(rise_delay).timeout
+	# 3. Streaks on (motion), rise + backdrop pan (driven off the hangar velocity) + bars/panels.
+	_set_streaks(true)
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(_hangar, "position:y", 0.0, slide_time).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(_left_sidebar, "modulate:a", 1.0, bars_fade_time).set_delay(maxf(slide_time - bars_fade_time, 0.0))
+	tw.tween_property(_right_sidebar, "modulate:a", 1.0, bars_fade_time).set_delay(maxf(slide_time - bars_fade_time, 0.0))
+	tw.tween_property(_left_panel, "modulate:a", 1.0, bars_fade_time).set_delay(maxf(slide_time - bars_fade_time + 0.3, 0.0))
+	tw.tween_property(_right_panel, "modulate:a", 1.0, bars_fade_time).set_delay(maxf(slide_time - bars_fade_time + 0.3, 0.0))
+	await tw.finished
+	# 4. In place — everything's stationary, so the streaks switch off.
+	_set_streaks(false)
+	for s in _ships:
+		_position_ship_button(s)
+	_click_layer.visible = true
+
+
+# ---- Interaction ----------------------------------------------------------
+
+func _on_ship_clicked(idx: int) -> void:
+	if _busy:
+		return
+	_selected_idx = idx
+	_move_select_light(idx)
+	_refresh_left_panel()
+
+
+func _move_select_light(idx: int) -> void:
+	var s: Dictionary = _ships[idx]
+	var host: Node2D = s["host"]
+	_select_light.position = host.position
+	if _select_light.energy <= 0.0:
+		var tw := create_tween()
+		tw.tween_property(_select_light, "energy", 1.1, 0.25)
+	else:
+		_select_light.energy = 1.1
+
+
+func _on_livery_picked(c: Color) -> void:
+	if _selected_idx < 0:
+		return
+	var s: Dictionary = _ships[_selected_idx]
+	s["livery_color"] = c
+	(s["livery_mat"] as ShaderMaterial).set_shader_parameter("tint_color", c)
+
+
+func _on_sectormod_step(delta: int) -> void:
+	_sector_modifiers = clampi(_sector_modifiers + delta, 0, 5)
+	if _sectormod_lbl != null:
+		_sectormod_lbl.text = str(_sector_modifiers)
+
+
+func _on_ready_pressed() -> void:
+	if _busy or _selected_idx < 0 or _selected_idx == _readied_idx:
+		return
+	_busy = true
+	var incoming := _selected_idx
+	if _status != null:
+		_status.text = "Lifter moving %s to the pad…" % ShipCatalog.display_name(incoming)
+	_set_lifter_engines(true)   # power up (engine glow fades in + animates) before it moves
+	await get_tree().create_timer(0.4).timeout
+	# Return the currently-readied ship to its slot first, then lift the new one onto the pad.
+	if _readied_idx >= 0:
+		await _lift_pick(_ships[_readied_idx], _ships[_readied_idx]["park_pos"])
+	await _lift_pick(_ships[incoming], Vector2(SHIP_X, PAD_Y))
+	await _lift_return()
+	_set_lifter_engines(false)  # back on the floor — power down
+	_readied_idx = incoming
+	_move_select_light(incoming)
+	_music_intensity(2)   # progress into Main — rising energy
+	_busy = false
+	if _begin_btn != null:
+		_begin_btn.disabled = false
+	if _status != null:
+		_status.text = "%s readied on the pad. Begin the patrol when ready." % ShipCatalog.display_name(incoming)
+	_refresh_left_panel()
+
+
+func _on_begin_pressed() -> void:
+	if _busy or _readied_idx < 0:
+		return
+	_busy = true
+	_begin_btn.disabled = true
+	if _status != null:
+		_status.text = "Launching…"
+	_set_streaks(true)   # the ship's away — motion returns
+	var run := get_node_or_null("/root/Run")
+	if run != null:
+		run.ship_variant = _readied_idx
+		run.livery_color = _ships[_readied_idx]["livery_color"]
+		run.livery_chosen = true
+		run.set_meta("patrol_skip_tutorial", _skip_tutorial)
+		run.set_meta("patrol_endless", _endless)
+		run.set_meta("patrol_sector_modifiers", _sector_modifiers)
+	await _launch(_ships[_readied_idx])
+	if _status != null:
+		_status.text = "Patrol begun — ship away. (Dev: fly-out only; transition is the follow-on.)"
+	# TODO(patrol-start): hand off to the real run here, e.g.
+	#   run.new_run(); SceneTransition.change_scene(get_tree(), "res://scenes/sector_map_hd.tscn")
+	_busy = false
+
+
+# Spool engines, then the ship flies up while the whole BAY slides down off the bottom — the
+# outpost departing beneath you (mirrors outpost_arrival.depart: ship up, plate down). The ship is
+# reparented into world space so it flies independently of the sinking hangar.
+func _launch(s: Dictionary) -> void:
+	var host: Node2D = s["host"]
+	var glow: Sprite2D = s["glow"]
+	var shadow: Sprite2D = s["shadow"]
+	# Move the ship out of the hangar into world space (keeps its on-pad position) so the bay can
+	# sink without dragging it; the trail's world-space lines then parent to the viewport correctly.
+	if host.get_parent() != _world:
+		host.reparent(_world)
+	if s["trail"] == null:
+		var trail := EngineTrailFx.new()
+		host.add_child(trail)
+		trail.setup(host, s["markers"], ENGINE_GLOW_COLOR, 0.0)
+		s["trail"] = trail
+	var lights: Array = []
+	for mk in s["markers"]:
+		var el := _make_point_light((mk as Marker2D).position, ENGINE_LIGHT_COLOR, ENGINE_LIGHT_SCALE, _light_tex)
+		host.add_child(el)
+		lights.append(el)
+	s["engine_lights"] = lights
+	var spool := create_tween()
+	spool.set_parallel(true)
+	spool.tween_property(glow, "modulate:a", 1.0, engine_spool)
+	for el in lights:
+		spool.tween_property(el, "energy", ENGINE_LIGHT_ENERGY, engine_spool)
+	await spool.finished
+	# Bay slides down (SINE/EASE_IN, like the outpost plate) as the ship lifts off + flies out.
+	var bay := create_tween()
+	bay.tween_property(_hangar, "position:y", NATIVE_H, rise_time + flyoff_time).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	var fly := create_tween()
+	if shadow != null:
+		fly.parallel().tween_property(shadow, "position", shadow_fly_offset, rise_time)
+		fly.parallel().tween_property(shadow, "scale", Vector2(shadow_fly_scale, shadow_fly_scale), rise_time)
+		fly.parallel().tween_property(shadow, "modulate:a", shadow_fly_alpha, rise_time)
+	fly.parallel().tween_property(host, "position:y", PAD_Y - 10.0, rise_time).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	fly.chain().tween_property(host, "position:y", FLYOFF_TARGET_Y, flyoff_time).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	await fly.finished
+	var trail = s["trail"]
+	if trail != null and is_instance_valid(trail):
+		trail.set_emitting(false)
+	if _select_light != null:
+		_select_light.energy = 0.0
+
+
+func _music_intensity(idx: int) -> void:
+	var m := get_node_or_null("/root/Music")
+	if m != null and m.has_method("set_intensity"):
+		m.set_intensity(idx)
+
+
+# ---- Replay (rail) -------------------------------------------------------
+
+func _replay() -> void:
+	_busy = false
+	_started = false
+	_selected_idx = -1
+	_readied_idx = -1
+	_grab = {}
+	_altitude = 0.0
+	_set_grav(false)
+	_set_lifter_engines(false)
+	if _lifter != null:
+		_lifter.position = LIFTER_IDLE
+	for s in _ships:
+		var host: Node2D = s["host"]
+		# A launched ship was reparented into world space — put it back in the hangar.
+		if host.get_parent() != _hangar:
+			host.get_parent().remove_child(host)
+			_hangar.add_child(host)
+		host.position = s["park_pos"]
+		host.z_index = 0
+		(s["glow"] as Sprite2D).modulate.a = 0.0
+		var sh: Sprite2D = s["shadow"]
+		sh.position = shadow_land_offset
+		sh.scale = Vector2.ONE
+		sh.modulate = Color(0, 0, 0, shadow_land_alpha)
+		if s["trail"] != null and is_instance_valid(s["trail"]):
+			s["trail"].queue_free()
+		s["trail"] = null
+		for el in s["engine_lights"]:
+			if is_instance_valid(el):
+				el.queue_free()
+		s["engine_lights"] = []
+		_position_ship_button(s)
+	if _select_light != null:
+		_select_light.energy = 0.0
+	_hangar.position = Vector2(0, NATIVE_H)
+	_prev_hangar_y = NATIVE_H
+	_left_sidebar.modulate.a = 0.0
+	_right_sidebar.modulate.a = 0.0
+	_left_panel.modulate.a = 0.0
+	_right_panel.modulate.a = 0.0
+	_click_layer.visible = false
+	if _begin_btn != null:
+		_begin_btn.disabled = true
+	if _menu_ui != null:
+		_menu_ui.visible = true
+		_menu_ui.modulate.a = 1.0
+	_refresh_left_panel()
+	if _status != null:
+		_status.text = "Ready a ship, then begin the patrol."
+	_on_start_patrol()
+
+
+# ---- Misc ----------------------------------------------------------------
+
+func _panel_stylebox() -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.04, 0.06, 0.10, 0.92)
+	sb.border_color = UiTheme.COLOR_ACCENT_DIM
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(4)
+	return sb
+
+
+func _label(text: String, kind: int) -> Label:
+	var l := Label.new()
+	l.text = text
+	UiTheme.style_label(l, kind)
+	return l
+
+
+func _back() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev_menu.tscn")
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_ESCAPE:
+			_back()
+			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_TAB:
+			_toggle_rail()
+			get_viewport().set_input_as_handled()

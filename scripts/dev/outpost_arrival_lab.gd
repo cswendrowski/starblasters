@@ -12,6 +12,7 @@ extends Control
 
 const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
+const ShipCatalog = preload("res://scripts/strings/ship_catalog.gd")
 const OA_SCENE := "res://scenes/outpost_arrival.tscn"
 
 const SWATCHES := [
@@ -74,10 +75,9 @@ func _build_rail() -> void:
 	# --- Ship variant ---
 	v.add_child(_mk_label("Ship", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
 	var dd := OptionButton.new()
-	dd.add_item("ALPHA", 0)
-	dd.add_item("BETA", 1)
-	dd.add_item("GAMMA", 2)
-	dd.selected = clampi(_oa.ship_variant, 0, 2)
+	for i in ShipCatalog.SHIPS.size():
+		dd.add_item(String(ShipCatalog.SHIPS[i]["name"]), i)
+	dd.selected = clampi(_oa.ship_variant, 0, ShipCatalog.count() - 1)
 	dd.item_selected.connect(func(i: int) -> void: _oa.set_ship(i, _oa.livery_color, _oa.livery_set))
 	v.add_child(dd)
 
@@ -107,8 +107,8 @@ func _build_rail() -> void:
 	_add_slider(v, "idle_bob", "Idle bob amplitude", 0.0, 6.0, 0.1, _oa.idle_bob, func(x): _oa.idle_bob = x)
 	_add_slider(v, "engine_drift", "Engine plume drift (0 = motion-driven)", 0.0, 420.0, 5.0, _oa.engine_drift, func(x): _oa.engine_drift = x)
 	_add_slider(v, "star_drift", "Star parallax scroll (fly-in/out)", 0.0, 6000.0, 50.0, _oa.star_drift, func(x): _oa.star_drift = x)
-	_add_slider(v, "bg_brightness", "Hangar darken (1 = full bright)", 0.2, 1.0, 0.02, _oa.bg_brightness, func(x): _oa.set_bg_brightness(x))
-	_add_slider(v, "runway_speed", "Runway pulse speed (rad/s)", 0.2, 5.0, 0.1, _oa.runway_speed, func(x): _oa.runway_speed = x)
+	_add_slider(v, "scene_dim", "Scene dim (whole bay; 1 = full bright)", 0.2, 1.0, 0.02, _oa.scene_dim, func(x): _oa.set_scene_dim(x))
+	_add_slider(v, "runway_speed", "Runway pulse speed (rad/s)", 0.2, 5.0, 0.1, _oa.runway_speed, func(x): _oa.set_runway_speed(x))
 	_add_slider(v, "engine_spool", "Engine spool fade (on/off, s)", 0.1, 2.5, 0.05, _oa.engine_spool, func(x): _oa.engine_spool = x)
 	_add_slider(v, "damage_level", "Damage (shader + smoke/sparks)", 0.0, 1.0, 0.05, _oa.damage_level, func(x): _oa.set_damage(x))
 
@@ -255,7 +255,7 @@ func _on_copy_gdscript() -> void:
 		"engine_drift = %s" % _f(_oa.engine_drift),
 		"engine_spool = %s" % _f(_oa.engine_spool),
 		"star_drift = %s" % _f(_oa.star_drift),
-		"bg_brightness = %s" % _f(_oa.bg_brightness),
+		"scene_dim = %s" % _f(_oa.scene_dim),
 		"runway_speed = %s" % _f(_oa.runway_speed),
 		"shadow_fly_offset = Vector2(%s, %s)" % [_f(_oa.shadow_fly_offset.x), _f(_oa.shadow_fly_offset.y)],
 		"shadow_land_offset = Vector2(%s, %s)" % [_f(_oa.shadow_land_offset.x), _f(_oa.shadow_land_offset.y)],
