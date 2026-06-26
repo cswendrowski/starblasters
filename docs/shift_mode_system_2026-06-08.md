@@ -23,6 +23,26 @@
 > adjustments + new modes are the follow-on. Tests: `tools/test_shift_mode_phase{1,2}.gd`,
 > `test_shift_mode_hud.gd`, `test_phase_hyper.gd`.
 
+> ### ⚠️ UPDATE 2026-06-25b — roster overhaul (reworked 3, added 5 → 8 modes)
+> The 3 originals were reworked and 5 new modes added; all ride the unified runtime (a
+> `ModePart` + an effect branch). Magnitudes are tunable placeholders. `ShiftMode`/`ModePart.Mode`
+> enums are append-only (0=FOCUS 1=PHASE 2=HYPER 3=RUSH 4=REFIRE 5=ECHO 6=THIEF 7=REFLECT).
+>
+> | Mode | Effect | Player hook |
+> |---|---|---|
+> | **Focus** *(default)* | +crit chance, stacks with Targeting Computer | `_eff_crit` in `fire_primary` |
+> | **Phase** | full intangibility (no damage), offense locked; KILLS-regen | `_invuln_t = mode_active_t` |
+> | **Hyper** | autofire blaster + cannon + secondary, no ammo cost | `_process` fire dispatch + blaster-direct + ammo-skips |
+> | **Rush** | +speed, total impact immunity, offense stays | `_invuln_t` + `speed_mode_mult` |
+> | **Refire** | +fire-rate, still pays ammo | `_arm_cooldown` `_fire_bonus` |
+> | **Echo** | delayed ghost mirrors movement + re-fires primary | `_tick_echo` + `echo_ghost` |
+> | **Thief** | purple catch-bubble steals enemy bullets → shield | `_set_mode_field` Area2D + `_on_mode_field_hit` |
+> | **Reflect** | incoming shots have a chance to bounce back at enemies | `_mode_field` reverses the bullet (`base_bullet.reflect_to_enemies`) |
+>
+> Consequences: the old **Focus precision-slow/tight-hitbox is retired** (no mode slows now); **Hyper**
+> dropped its +fire/+dmg buff (Refire owns fire-rate). The old Phase **+shield-on-absorb moved to Thief**.
+> Echo v1 mirrors PRIMARY fire only. Tests: `tools/test_shift_modes_overhaul.gd` + the suite above.
+
 **Build status (2026-06-08):** Phases 1–5 landed + headless-verified
 (`tools/test_shift_mode_phase{1,2,4}.gd`, `test_shift_mode_hud.gd`).
 - ✅ P1 slot + ModeParts · ✅ P2 Hyper/Phase runtime · ✅ P3 HUD meter ·

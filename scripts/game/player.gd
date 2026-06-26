@@ -265,7 +265,7 @@ var _focus_glow: CanvasItem = null
 # dispatches. Default FOCUS so an empty/absent mode slot still behaves as base Focus.
 # Mirror of ModePart.Mode — KEEP IN SYNC: 0=FOCUS, 1=PHASE, 2=HYPER.
 # Design: docs/shift_mode_system_2026-06-08.md.
-enum ShiftMode { FOCUS, PHASE, HYPER }
+enum ShiftMode { FOCUS, PHASE, HYPER, RUSH, REFIRE, ECHO, THIEF, REFLECT }
 var active_mode: int = ShiftMode.FOCUS
 var mode_part: Resource = null
 
@@ -300,8 +300,28 @@ func _phase_on() -> bool:
 	return mode_active_t > 0.0 and active_mode == ShiftMode.PHASE
 func _hyper_on() -> bool:
 	return mode_active_t > 0.0 and active_mode == ShiftMode.HYPER
+func _rush_on() -> bool:
+	return mode_active_t > 0.0 and active_mode == ShiftMode.RUSH
+func _refire_on() -> bool:
+	return mode_active_t > 0.0 and active_mode == ShiftMode.REFIRE
+func _echo_on() -> bool:
+	return mode_active_t > 0.0 and active_mode == ShiftMode.ECHO
+func _thief_on() -> bool:
+	return mode_active_t > 0.0 and active_mode == ShiftMode.THIEF
+func _reflect_on() -> bool:
+	return mode_active_t > 0.0 and active_mode == ShiftMode.REFLECT
 
-# Hyper effect tunables (pulled from the mode part on equip; only meaningful while Hyper).
+# Per-mode effect tunables, pulled from the equipped part in _on_mode_changed (only the
+# active mode's value is meaningful at a time). Magnitudes are first-pass placeholders.
+var focus_crit_chance: float = 0.15    # Focus: +crit chance while active (stacks w/ module)
+var rush_speed_bonus: float = 0.25     # Rush: +move-speed fraction while active
+var refire_fire_bonus: float = 0.30    # Refire: +fire-rate fraction while active (pays ammo)
+var reflect_chance: float = 0.35       # Reflect: per-hit chance an incoming shot bounces back
+var thief_regen_per_hit: int = 1       # Thief: shield restored per caught bullet
+var thief_catch_radius: float = 40.0   # Thief: bubble radius (px) that grabs enemy bullets
+var echo_delay: float = 0.35           # Echo: ghost trails the player by this many seconds
+# Hyper effect tunables (legacy fire/dmg getters retained on the part; Hyper's new effect is
+# autofire-all + free ammo, so these are no longer applied — kept for back-compat reads).
 var hyper_fire_bonus: float = 0.10
 var hyper_damage_mult: float = 1.0
 # Hyper "tell": a pulsing orange outline that speeds up as the window runs out.
@@ -319,6 +339,35 @@ var _phase_ai_acc: float = 0.0
 var _ghost_add_mat: CanvasItemMaterial = null   # shared additive material for all ghosts
 const PHASE_AI_INTERVAL: float = 0.06   # seconds between ghosts
 const PHASE_AI_LIFETIME: float = 0.34   # ghost fade-out time
+
+# Mode field: a bullet-detecting Area2D shared by Thief (steals → shield) and Reflect
+# (bounces a fraction back at enemies). Slightly larger than the ship so it intercepts
+# bullets before the player hurtbox. Thief also shows a purple hex-sphere visual.
+var _mode_field: Area2D = null
+var _thief_sphere: ColorRect = null
+var _thief_mat: ShaderMaterial = null
+const THIEF_SPHERE_COLOR := Color(0.72, 0.32, 1.0)   # purple
+const REFLECT_FIELD_RADIUS := 20.0                   # Reflect intercept radius (px)
+# Echo effect: a delayed ghost that replays the player's pose + re-fires the primary.
+var _echo_ghost: Node2D = null
+var _echo_buf: Array = []            # ring buffer of {pos, fired} samples
+var _echo_fired_this_frame: bool = false
+const ECHO_BUF_MAX := 64             # ~1s of samples at 60fps (delay caps below this)
+# Per-mode activation tell: a glow aura on the ship (tinted by mode) while active, plus a
+# one-shot expanding pulse on activation. Phase/Hyper/Echo/Thief keep their signatures too.
+var _mode_aura: CanvasItem = null
+var _intangible: bool = false        # Phase: collision fully off (bullets pass through)
+# Aura colours indexed by ShiftMode (KEEP IN SYNC): Focus Phase Hyper Rush Refire Echo Thief Reflect.
+const _MODE_AURA_COLORS := [
+	Color(0.4, 0.7, 1.0),   # FOCUS  cyan
+	Color(0.2, 0.5, 1.0),   # PHASE  blue
+	Color(1.0, 0.5, 0.0),   # HYPER  orange
+	Color(0.4, 1.0, 0.6),   # RUSH   green
+	Color(1.0, 0.45, 0.45), # REFIRE red
+	Color(0.55, 0.85, 1.0), # ECHO   cyan
+	Color(0.72, 0.32, 1.0), # THIEF  purple
+	Color(0.95, 0.85, 0.35),# REFLECT gold
+]
 
 var can_shoot: bool = true
 var is_alive: bool = true
@@ -933,23 +982,23 @@ func _process(delta: float) -> void:
 		_set_bank_frame(1)
 	# Engine glowmask dims to half opacity while moving BACK (down); full bright otherwise.
 	_update_engine_glow(input.y > 0.0, delta)
-	# Shift modes (Focus / Phase / Hyper) all run through ONE unified runtime: press
-	# Shift to spend a charge and activate for a duration, charges regen per the mode's
-	# rule, and the per-mode effect (Focus slow / Phase intangible / Hyper overdrive)
-	# is dispatched on active_mode. Focus's ⅔-ish speed cut comes out of that below.
+	# All Shift modes run through ONE unified runtime: press Shift to spend a charge and
+	# activate for a duration; the per-mode effect is dispatched on active_mode. The only
+	# movement-speed effect now is Rush's transient boost (Focus no longer slows — it's a
+	# crit window; the old precision dot/hitbox is retired, see focus_mode.gd).
 	_tick_shift_mode(delta)
-	var focused: bool = _focus_on()
-	var focus_mult: float = FOCUS_FACTOR if focused else 1.0
-	_update_focus_dot(focused)
+	var speed_mode_mult: float = 1.0
+	if _rush_on():
+		speed_mode_mult = 1.0 + rush_speed_bonus   # Rush: minor speed surge while active
 	# Thrusters / Armor Plating upgrades feed into speed_multiplier;
 	# applied here so the runtime stat reflects the live upgrade state.
 	# Movement is delta-scaled (framerate-independent). Clamp the step to a
 	# 30fps-equivalent ceiling so a frame hitch / huge delta can't teleport the
 	# ship across the playfield (matches enemy_core's delta cap). Roman 2026-06-01.
 	# Clamp effective speed (engine/wing parts can stack past it) to the 8 px/f
-	# readability ceiling so the ship stays controllable; focus slows below it.
-	var eff_speed: float = minf(speed * speed_multiplier, ClarityRules.ABS_MAX_SPEED)
-	_move_velocity = input * eff_speed * focus_mult
+	# readability ceiling so the ship stays controllable.
+	var eff_speed: float = minf(speed * speed_multiplier * speed_mode_mult, ClarityRules.ABS_MAX_SPEED)
+	_move_velocity = input * eff_speed
 	position += _move_velocity * minf(delta, 1.0 / 30.0)
 	position = Playfield.clamp_pos(position, 8.0)
 	# Autofire toggle (Settings.autofire) latches primary fire on so
@@ -968,6 +1017,10 @@ func _process(delta: float) -> void:
 		var s = get_node("/root/Settings")
 		if "autofire" in s and s.autofire:
 			fire_held = true
+	# Hyper mode: hands-off full-auto — force the primary trigger on (the blaster fires
+	# alongside it below, and the secondary is forced too). No ammo cost (gated elsewhere).
+	if _hyper_on():
+		fire_held = true
 	# Phase mode: while phased out the player is intangible AND cannot hit bullets
 	# or enemies — lock off primary offense (secondary is gated below).
 	if _phase_on():
@@ -1008,6 +1061,13 @@ func _process(delta: float) -> void:
 		if _manual_blaster and _blaster_cd_t <= 0.0:
 			_fire_blaster_bolt(0.0)                    # manual blaster fires straight up
 			_blaster_cd_t = _blaster_cooldown
+	# Hyper: the blaster fires ALONGSIDE your active cannon (the all-weapons barrage), even
+	# without a Smart Mount — drive the blaster direct-spawn on its own cadence.
+	if _hyper_on() and is_alive and _blaster_cd_t <= 0.0:
+		if _blaster_bullet_scene == null and has_node("/root/Run"):
+			_cache_blaster_config(get_node("/root/Run"))
+		_fire_blaster_bolt(0.0)
+		_blaster_cd_t = _blaster_cooldown
 	_update_mount_sight(_mounts_on)                   # aiming laser sight (hidden when off)
 	# Pulse Laser dispersion: it ACCRUES while the trigger is HELD (in _fire_pulse_laser).
 	# RELEASING the trigger recovers spread (PULSE_DISPERSION_DECAY °/s) + resets the
@@ -1116,7 +1176,8 @@ func _process(delta: float) -> void:
 	# Phase mode locks off secondary offense too (still ticks cooldowns via the
 	# tick fns; just no fire). DEPLOY keeps ticking its active-wave countdown but
 	# won't accept a new deploy press while phased (handled in _tick_deploy).
-	var sec_held: bool = Input.is_action_pressed("shoot2") and not _phase_on()
+	# Hyper forces the secondary trigger too (held-type secondaries: bullet/beam/burst).
+	var sec_held: bool = (Input.is_action_pressed("shoot2") or _hyper_on()) and not _phase_on()
 	if secondary_mode == WS.SecondaryMode.BEAM:
 		_tick_beam(sec_held, delta)
 	elif secondary_mode == WS.SecondaryMode.BURST:
@@ -1160,6 +1221,11 @@ func _on_mode_changed() -> void:
 	_mode_regen_acc = 0.0
 	_clear_hyper_outline()
 	_set_phase_glow(false)
+	_set_mode_field(false)
+	_set_intangible(false)
+	_set_mode_aura(false, Color.WHITE)
+	_clear_echo_ghost()
+	_echo_buf.clear()
 	if mode_part != null:
 		var mk: int = int(mode_part.mark) if "mark" in mode_part else 1
 		if mode_part.has_method("mode_duration"):
@@ -1178,6 +1244,26 @@ func _on_mode_changed() -> void:
 				hyper_fire_bonus = float(mode_part.fire_bonus_at_mark(mk))
 			if mode_part.has_method("damage_mult_at_mark"):
 				hyper_damage_mult = float(mode_part.damage_mult_at_mark(mk))
+		elif active_mode == ShiftMode.FOCUS:
+			if mode_part.has_method("crit_chance_at_mark"):
+				focus_crit_chance = float(mode_part.crit_chance_at_mark(mk))
+		elif active_mode == ShiftMode.RUSH:
+			if "speed_bonus" in mode_part:
+				rush_speed_bonus = float(mode_part.speed_bonus)
+		elif active_mode == ShiftMode.REFIRE:
+			if mode_part.has_method("fire_bonus_at_mark"):
+				refire_fire_bonus = float(mode_part.fire_bonus_at_mark(mk))
+		elif active_mode == ShiftMode.REFLECT:
+			if mode_part.has_method("reflect_chance_at_mark"):
+				reflect_chance = float(mode_part.reflect_chance_at_mark(mk))
+		elif active_mode == ShiftMode.THIEF:
+			if "regen_per_hit" in mode_part:
+				thief_regen_per_hit = maxi(1, int(mode_part.regen_per_hit))
+			if "catch_radius" in mode_part:
+				thief_catch_radius = maxf(8.0, float(mode_part.catch_radius))
+		elif active_mode == ShiftMode.ECHO:
+			if "delay" in mode_part:
+				echo_delay = maxf(0.05, float(mode_part.delay))
 	mode_charges = mode_charges_max  # start full
 	# mode_changed first so the HUD rebuilds its pips/colour for the new mode, THEN the
 	# charge + duration values populate the freshly-built meter.
@@ -1195,6 +1281,8 @@ func _tick_shift_mode(delta: float) -> void:
 		mode_active_t = mode_duration
 		if active_mode == ShiftMode.PHASE:
 			_phase_ai_acc = PHASE_AI_INTERVAL  # drop a ghost immediately on entry
+		if active_mode >= 0 and active_mode < _MODE_AURA_COLORS.size():
+			_mode_activation_pulse(_MODE_AURA_COLORS[active_mode])  # one-shot expanding flash
 		mode_charges_changed.emit(mode_charges, mode_charges_max)
 		mode_duration_changed.emit(mode_active_t, mode_duration)
 	# 2. Countdown the active window.
@@ -1209,14 +1297,26 @@ func _tick_shift_mode(delta: float) -> void:
 			mode_charges = mini(mode_charges_max, mode_charges + 1)
 			mode_charges_changed.emit(mode_charges, mode_charges_max)
 	# 4. Per-mode effect dispatch.
-	# Phase: intangible + after-image ghosts + blue glow while active.
-	if active_mode == ShiftMode.PHASE and _phase_on():
-		_invuln_t = max(_invuln_t, mode_active_t)  # intangible for the whole window
+	# Generic tell: a glow aura tinted by the active mode (every mode lights up).
+	if mode_is_active() and active_mode >= 0 and active_mode < _MODE_AURA_COLORS.size():
+		_set_mode_aura(true, _MODE_AURA_COLORS[active_mode])
+	else:
+		_set_mode_aura(false, Color.WHITE)
+	# Phase: TRUE intangibility — collision OFF so bullets pass clean through (no impact,
+	# no hit sound), plus i-frames + after-image ghosts. Rush: i-frames only (impacts land
+	# but deal no damage) + a speed-blur after-image; offense stays on.
+	_set_intangible(_phase_on())
+	if _phase_on() or _rush_on():
+		_invuln_t = max(_invuln_t, mode_active_t)
 		_phase_ai_acc += delta
 		if _phase_ai_acc >= PHASE_AI_INTERVAL:
 			_phase_ai_acc = 0.0
 			_spawn_phase_afterimage()
-	_set_phase_glow(_phase_on())
+	# Thief steals + Reflect bounces — both via the bullet-intercept field (Thief also
+	# raises its purple sphere).
+	_set_mode_field(_thief_on() or _reflect_on())
+	# Echo: drive the delayed firing ghost while active.
+	_tick_echo(delta)
 	# Hyper: pulsing orange outline tell while active.
 	if _hyper_on():
 		_update_hyper_outline(delta)
@@ -1249,6 +1349,208 @@ func _clear_hyper_outline() -> void:
 	if _hyper_outline != null and is_instance_valid(_hyper_outline):
 		_hyper_outline.queue_free()
 	_hyper_outline = null
+
+
+# Mode field: a bullet-intercept Area2D shared by Thief + Reflect. Same detection mask as
+# the player's hurtbox, slightly larger so it catches bullets BEFORE the hurtbox (reliable).
+# monitorable=false so bullets never try to damage the field itself. Thief steals bullets
+# (→ shield) + shows a purple sphere; Reflect bounces a chance of them back at enemies.
+func _set_mode_field(on: bool) -> void:
+	if on:
+		if _mode_field == null or not is_instance_valid(_mode_field):
+			_mode_field = Area2D.new()
+			_mode_field.name = "ModeField"
+			_mode_field.collision_layer = 0
+			_mode_field.collision_mask = collision_mask
+			_mode_field.monitoring = true
+			_mode_field.monitorable = false
+			var cs := CollisionShape2D.new()
+			var circ := CircleShape2D.new()
+			circ.radius = thief_catch_radius if _thief_on() else REFLECT_FIELD_RADIUS
+			cs.shape = circ
+			_mode_field.add_child(cs)
+			add_child(_mode_field)
+			_mode_field.area_entered.connect(_on_mode_field_hit)
+		if _thief_on():
+			_spawn_thief_sphere()
+		else:
+			_clear_thief_sphere()
+	else:
+		if _mode_field != null and is_instance_valid(_mode_field):
+			_mode_field.queue_free()
+		_mode_field = null
+		_clear_thief_sphere()
+
+
+# A bullet entered the field. Thief steals it (delete + bank shield). Reflect bounces a
+# chance of them back at enemies; a failed roll leaves the bullet to hit the player.
+func _on_mode_field_hit(area: Area2D) -> void:
+	if area == null or not is_instance_valid(area) or not area.is_in_group("bullets"):
+		return
+	if _thief_on():
+		area.queue_free()
+		if shield < max_shield:
+			set_shield(mini(max_shield, shield + thief_regen_per_hit))
+			_pulse_shield_ring()
+	elif _reflect_on():
+		if randf() < reflect_chance and area.has_method("reflect_to_enemies"):
+			area.reflect_to_enemies()
+
+
+func _clear_thief_sphere() -> void:
+	if _thief_sphere != null and is_instance_valid(_thief_sphere):
+		_thief_sphere.queue_free()
+	_thief_sphere = null
+
+
+# Phase: toggle the player's collision OFF so enemy fire passes clean through (no impact,
+# no hit sound, no damage) — true intangibility. Restored on exit. set_deferred is
+# physics-flush safe. NOTE: also makes the player pass through enemy ships (by design).
+func _set_intangible(on: bool) -> void:
+	if on == _intangible:
+		return
+	_intangible = on
+	set_deferred("monitoring", not on)
+	set_deferred("monitorable", not on)
+
+
+# Generic per-mode tell: a soft glow aura on the ship, tinted to the active mode's colour,
+# shown while active. Created once per activation (color baked at creation); cleared on exit.
+func _set_mode_aura(on: bool, color: Color) -> void:
+	if on:
+		if (_mode_aura == null or not is_instance_valid(_mode_aura)) and has_node("Ship"):
+			_mode_aura = GlowFx.attach_glow($Ship, color, 1.8, 0.6)
+	else:
+		if _mode_aura != null and is_instance_valid(_mode_aura):
+			_mode_aura.queue_free()
+		_mode_aura = null
+
+
+# One-shot activation flash: an expanding, fading glow ring in the mode's colour.
+func _mode_activation_pulse(color: Color) -> void:
+	if not has_node("Ship"):
+		return
+	var g := GlowFx.attach_glow($Ship, color, 1.0, 0.95)
+	if g == null or not is_instance_valid(g):
+		return
+	var base_scale: Vector2 = g.scale
+	var tw := g.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(g, "scale", base_scale * 3.5, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(g, "modulate:a", 0.0, 0.35)
+	tw.chain().tween_callback(g.queue_free)
+
+
+# Purple recolor of the hex-shield dome, scaled to the catch radius (visual only).
+func _spawn_thief_sphere() -> void:
+	if _thief_sphere != null and is_instance_valid(_thief_sphere):
+		return
+	_thief_mat = ShaderMaterial.new()
+	_thief_mat.shader = SHIELD_SHADER
+	_thief_mat.set_shader_parameter("alpha", 0.55)
+	_thief_mat.set_shader_parameter("hit_strength", 0.0)
+	_thief_mat.set_shader_parameter("shield_color", THIEF_SPHERE_COLOR)
+	_thief_mat.set_shader_parameter("cells", 5.0)
+	_thief_mat.set_shader_parameter("scroll", Vector2(0.0, 0.05))
+	_thief_mat.set_shader_parameter("line_width", 0.2)
+	_thief_mat.set_shader_parameter("rim_power", 3.0)
+	_thief_mat.set_shader_parameter("fill_alpha", 0.12)
+	_thief_mat.set_shader_parameter("flicker", 1.0)
+	_thief_mat.set_shader_parameter("dome", 0.45)
+	_thief_sphere = ColorRect.new()
+	_thief_sphere.name = "ThiefSphere"
+	_thief_sphere.color = Color(1, 1, 1, 1)   # shader drives final colour
+	_thief_sphere.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var d: float = thief_catch_radius * 2.0
+	_thief_sphere.size = Vector2(d, d)
+	_thief_sphere.position = -_thief_sphere.size * 0.5
+	_thief_sphere.material = _thief_mat
+	_thief_sphere.z_index = 1
+	add_child(_thief_sphere)
+
+
+# Echo: each frame while active, record the player's pose + whether they fired, drive a
+# translucent ghost to replay that pose `echo_delay` seconds late, and re-fire the primary
+# from the ghost when the recorded frame fired. v1 mirrors PRIMARY fire only.
+func _tick_echo(delta: float) -> void:
+	if not _echo_on():
+		if _echo_ghost != null:
+			_clear_echo_ghost()   # fades out when the window ends
+		_echo_buf.clear()
+		return
+	# Record this frame (the fired flag carries last frame's fire_primary — a 1-frame lag
+	# that's invisible against the ~0.35s delay).
+	_echo_buf.append({"pos": global_position, "fired": _echo_fired_this_frame})
+	_echo_fired_this_frame = false
+	if _echo_buf.size() > ECHO_BUF_MAX:
+		_echo_buf.pop_front()
+	if _echo_ghost == null or not is_instance_valid(_echo_ghost):
+		_spawn_echo_ghost()
+	if _echo_ghost == null or not is_instance_valid(_echo_ghost):
+		return
+	# Read the sample from echo_delay seconds ago (≈ delay/delta frames back).
+	var frames_back: int = int(round(echo_delay / maxf(0.001, delta)))
+	var raw_idx: int = _echo_buf.size() - 1 - frames_back
+	var idx: int = maxi(0, raw_idx)
+	var sample: Dictionary = _echo_buf[idx]
+	_echo_ghost.global_position = sample.get("pos", global_position)
+	# ONLY fire once genuine delayed history exists (raw_idx >= 0). Until then the buffer's
+	# oldest sample is clamped at idx 0, and replaying its fired flag every frame would dump
+	# a burst at activation — the bug Roman hit.
+	if raw_idx >= 0 and bool(sample.get("fired", false)):
+		_echo_fire_ghost_bolt()
+
+
+func _spawn_echo_ghost() -> void:
+	if not has_node("Ship"):
+		return
+	var ship := $Ship as Sprite2D
+	if ship == null or ship.texture == null:
+		return
+	var g := Sprite2D.new()
+	g.texture = ship.texture
+	g.hframes = ship.hframes
+	g.vframes = ship.vframes
+	g.frame = ship.frame
+	g.flip_h = ship.flip_h
+	g.flip_v = ship.flip_v
+	g.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	g.global_position = global_position
+	g.z_index = -1
+	g.modulate = Color(0.6, 0.85, 1.0, 0.6)   # translucent cyan echo
+	if _ghost_add_mat == null:
+		_ghost_add_mat = CanvasItemMaterial.new()
+		_ghost_add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	g.material = _ghost_add_mat
+	var host: Node = get_parent() if get_parent() != null else get_tree().root
+	host.add_child(g)
+	_echo_ghost = g
+
+
+# Fire one primary bolt straight up from the ghost (player's bullet + damage; no crit/mods).
+func _echo_fire_ghost_bolt() -> void:
+	if bullet_scene == null or _echo_ghost == null or not is_instance_valid(_echo_ghost):
+		return
+	var b: Node = bullet_scene.instantiate()
+	_bullet_parent().add_child(b)
+	if b is Node2D:
+		(b as Node2D).z_index = -1
+	if "damage" in b:
+		b.damage = maxi(1, bullet_damage)
+	if b.has_method("start"):
+		b.start(_echo_ghost.global_position + Vector2(0, -10), Vector2(0, -1))
+
+
+# Detach + fade the ghost so it lingers a moment after Echo ends (it's parented to the world,
+# so it survives the player). Idempotent.
+func _clear_echo_ghost() -> void:
+	var g := _echo_ghost
+	_echo_ghost = null
+	if g == null or not is_instance_valid(g):
+		return
+	var tw := g.create_tween()
+	tw.tween_property(g, "modulate:a", 0.0, 0.3)
+	tw.tween_callback(g.queue_free)
 
 
 # Spawn a fading blue ghost of the ship body at its current pose. Parented to the combat world (not
@@ -1333,17 +1635,9 @@ func take_damage(amount: int) -> void:
 		return
 	if not is_alive or amount <= 0:
 		return
-	# Phase mode: while phased the player absorbs incoming enemy fire instead of taking it —
-	# each absorbed hit restores 1 shield point (capped). The bullet that called this still frees
-	# itself, so it reads as "absorbed". (Roman 2026-06-10 phase rework.)
-	if _phase_on():
-		if shield < max_shield:
-			set_shield(min(max_shield, shield + 1))
-			_pulse_shield_ring()
-			if has_node("Ship"):
-				var HitFlashFx2 = load("res://scripts/effects/hit_flash_fx.gd")
-				HitFlashFx2.flash($Ship, HitFlashFx2.FLASH_SHIELD)
-		return
+	# Phase mode takes NO damage at all — handled by the full-duration i-frame the runtime
+	# sets (_invuln_t = mode_active_t in _tick_shift_mode), caught at the i-frame check below.
+	# (Bullet-absorb → +shield is now Thief mode's job, via its catch bubble.)
 	# "dangerous" sector modifier doubles all incoming enemy damage. (The flat
 	# per-sector damage ramp `× (1 + 0.05 × sectors_cleared)` was dropped
 	# 2026-06-23 with the single-sector switch — sectors_cleared stays 0 now.)
@@ -1354,6 +1648,8 @@ func take_damage(amount: int) -> void:
 	# I-frame window after a shield or hull hit.
 	if _invuln_t > 0.0:
 		return
+	# (Reflect mode reverses incoming bullets at the mode field BEFORE they reach here, so
+	# there's no reflect roll in the damage path — a bullet that gets here simply landed.)
 	# Module bay — Repair Nanites: any landed hit resets the regen-delay timer.
 	_repair_undamaged_t = 0.0
 	_repair_tick_t = 0.0
@@ -1472,6 +1768,10 @@ func die() -> void:
 	is_alive = false
 	_set_phase_glow(false)  # clean up the Phase aura if we die mid-blink
 	_clear_hyper_outline()  # and the Hyper pulse outline
+	_set_mode_field(false)  # and the Thief/Reflect field
+	_set_intangible(false)  # restore collision
+	_set_mode_aura(false, Color.WHITE)  # and the activation glow
+	_clear_echo_ghost()       # and the Echo ghost
 	mode_active_t = 0.0     # end any active Shift mode
 	hide()
 	died.emit()
@@ -1510,8 +1810,6 @@ func _fire_pulse_laser() -> void:
 	var ang: float = randf_range(-half, half)
 	var dir := Vector2(sin(ang), -cos(ang))
 	var dmg: int = bullet_damage
-	if _hyper_on():
-		dmg = int(round(float(bullet_damage) * hyper_damage_mult))
 	var hit := _pulse_hitscan(origin, dir, PULSE_RANGE)
 	var enemy = hit["enemy"]
 	if enemy != null and is_instance_valid(enemy):
@@ -1945,6 +2243,7 @@ func fire_primary(aim_angle: float = 0.0) -> void:
 	if weapon_style == WS.WeaponStyle.ROTARY_LASER and not _rl_charged:
 		return
 	can_shoot = false
+	_echo_fired_this_frame = true   # Echo ghost re-fires this shot, delayed
 	# Run-summary Phase 2: this is the fire COMMIT (a shot is happening this frame).
 	# Note the active weapon once here (covers the pulse + bullet paths); shots_fired is
 	# counted PER-PROJECTILE below (Quad/spread spawn N bolts per trigger).
@@ -1955,12 +2254,15 @@ func fire_primary(aim_angle: float = 0.0) -> void:
 			_rs.note_weapon_used(String(_ac.display_name))
 	# Module bay — Targeting Computer: roll a crit ONCE per trigger (the whole volley
 	# crits together for a readable purple burst). ×2 damage + purple bolt tint applied below.
-	var _crit_shot: bool = module_crit_chance > 0.0 and randf() < module_crit_chance
-	# Fire-rate bonuses (shorter cooldown), stacked additively: Hyper + Overclock Core
-	# (sustained-fire ramp) + Critical System De-Limiter (scales with hull lost).
+	# Crit chance = Targeting Computer module + Focus mode (additive stack) while Focus is live.
+	var _eff_crit: float = module_crit_chance + (focus_crit_chance if _focus_on() else 0.0)
+	var _crit_shot: bool = _eff_crit > 0.0 and randf() < _eff_crit
+	# Fire-rate bonuses (shorter cooldown), stacked additively: Refire mode + Overclock Core
+	# (sustained-fire ramp) + Critical System De-Limiter (scales with hull lost). (Hyper no
+	# longer boosts fire-rate — it's autofire-all now; Refire owns the cadence buff.)
 	var _fire_bonus: float = 0.0
-	if _hyper_on() and hyper_fire_bonus > 0.0:
-		_fire_bonus += hyper_fire_bonus
+	if _refire_on() and refire_fire_bonus > 0.0:
+		_fire_bonus += refire_fire_bonus
 	if module_overclock_max > 0.0:
 		_overclock_ramp = minf(1.0, _overclock_ramp + OVERCLOCK_RAMP_PER_SHOT)
 		_overclock_idle_t = 0.0
@@ -2036,11 +2338,8 @@ func fire_primary(aim_angle: float = 0.0) -> void:
 			(b as Node2D).z_index = -1   # render under the player sprite (Roman 2026-06-09)
 		# Propagate the equipped cannon's damage to the bullet so per-Part /
 		# per-Mark scaling actually reaches the take_hit call.
-		# Hyper mode adds its Mk damage multiplier (even-Mk stacks) while active.
 		if "damage" in b:
 			var dmg: int = bullet_damage
-			if _hyper_on():
-				dmg = int(round(float(bullet_damage) * hyper_damage_mult))
 			# Module bay — Overcharge Core multiplies primary damage (1.0 = no module).
 			if module_damage_mult != 1.0:
 				dmg = int(round(float(dmg) * module_damage_mult))
@@ -2271,8 +2570,9 @@ func fire_secondary() -> void:
 	if _secondary_t < secondary_cooldown:
 		return
 	# Ammo gate — only applies to metered secondaries (Rocket Pod / Seeking
-	# Missile set secondary_ammo_max > 0). Unmetered (-1) fires forever.
-	if secondary_ammo == 0:
+	# Missile set secondary_ammo_max > 0). Unmetered (-1) fires forever. Hyper grants
+	# free secondary fire, so a dry metered secondary still launches while Hyper is active.
+	if secondary_ammo == 0 and not _hyper_on():
 		return
 	_secondary_t = 0.0
 	var count: int = max(1, secondary_pod_count)
@@ -2311,7 +2611,7 @@ func fire_secondary() -> void:
 	# Decrement ONE per fire_secondary press regardless of pod_count — the
 	# pod_count is a visual fan, not a per-shot multiplier on ammo cost.
 	# (If we ever want pod_count to cost N rounds, change here.)
-	if secondary_ammo > 0:
+	if secondary_ammo > 0 and not _hyper_on():
 		secondary_ammo -= 1
 		secondary_ammo_changed.emit(secondary_ammo, secondary_ammo_max)
 		if has_node("/root/Run"):
@@ -2381,7 +2681,7 @@ func _spawn_burst_rocket() -> void:
 	if WeaponSfxBurst:
 		WeaponSfxBurst.play(get_tree().root, global_position, "rocket")
 	# One round per rocket (per-rocket ammo cost).
-	if secondary_ammo > 0:
+	if secondary_ammo > 0 and not _hyper_on():
 		secondary_ammo -= 1
 		secondary_ammo_changed.emit(secondary_ammo, secondary_ammo_max)
 		if has_node("/root/Run"):
@@ -2432,7 +2732,7 @@ func _tick_deploy(delta: float) -> void:
 	_deploy_timer = dur
 	secondary_timer_changed.emit(_deploy_timer, true)
 	# Consume one deploy.
-	if secondary_ammo > 0:
+	if secondary_ammo > 0 and not _hyper_on():
 		secondary_ammo -= 1
 		secondary_ammo_changed.emit(secondary_ammo, secondary_ammo_max)
 		if has_node("/root/Run"):
@@ -2474,7 +2774,7 @@ func _tick_salvo() -> void:
 		return
 	_secondary_muzzle(global_position + _muzzle_offset("Ship/Muzzle", Vector2(0, -8)))
 	_secondary_t = 0.0  # restart the cooldown
-	if secondary_ammo > 0:
+	if secondary_ammo > 0 and not _hyper_on():
 		secondary_ammo -= 1
 		secondary_ammo_changed.emit(secondary_ammo, secondary_ammo_max)
 		if has_node("/root/Run"):

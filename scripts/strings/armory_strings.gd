@@ -33,9 +33,14 @@ const CODEX := {
 	# --- Super (DEVICE_BAY_1) ---
 	"_make_smart_bomb": "The panic button. A shockwave that ignores shields and clears the screen of chaff and ordnance; auto-fires to save you from a lethal hit. Charges are bought at outposts — the only super.",
 	# --- Shift modes (SHIFT_MODE) ---
-	"_make_focus_mode": "FOCUS stance (hold Shift). Slows you to a precise crawl with a pinpoint hitbox for threading dense fire. The default stance.",
-	"_make_phase_shift": "PHASE stance (tap Shift). A short intangible blink — pass through bullets and ships, no offense, no screen-clear. Charges refill by killing enemies.",
-	"_make_hyper_mode": "HYPER stance (tap Shift). Overdrive: +10% fire rate and unlimited ammo for a few seconds. Spends a charge; charges refill over time while idle.",
+	"_make_focus_mode": "FOCUS stance (tap Shift). Sharpens your aim — bonus critical-hit chance on primary fire for a few seconds, stacking with Targeting Computer. The default stance.",
+	"_make_phase_shift": "PHASE stance (tap Shift). A short intangible blink — pass through bullets and ships, take no damage, no offense. Charges refill by killing enemies.",
+	"_make_hyper_mode": "HYPER stance (tap Shift). Full-auto overdrive: every weapon you have — blaster, cannon, and secondary — fires automatically with no ammo cost for a few seconds. Charges refill over time.",
+	"_make_rush_mode": "RUSH stance (tap Shift). Surge forward — extra move speed and total impact immunity for a few seconds, while you keep firing. Charges refill over time.",
+	"_make_refire_mode": "REFIRE stance (tap Shift). Overclock your trigger for a burst of faster fire. You still spend ammo — pure cadence. Charges refill over time.",
+	"_make_echo_mode": "ECHO stance (tap Shift). Split off a ghost that mirrors your movement a beat behind and fires your primary with you — double your forward fire. Charges refill over time.",
+	"_make_thief_mode": "THIEF stance (tap Shift). Project a catch-field; enemy bullets entering the sphere are stolen and converted to shield. Charges refill over time.",
+	"_make_reflect_mode": "REFLECT stance (tap Shift). Harden up — incoming shots have a chance to ricochet back at the enemy. Stacks with the reflect module. Charges refill over time.",
 	# --- Engines (ENGINE) ---
 	"_make_basic_engine": "Main Engine — your baseline thrust. Mk raises top speed toward the clarity ceiling.",
 	"_make_vectoring_engine": "Vectoring thrusters — crisper handling and a higher speed band.",

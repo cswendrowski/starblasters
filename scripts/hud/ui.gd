@@ -67,11 +67,27 @@ var _mode_pips: Array = []              # Array[Sprite2D] — one per charge
 var _mode_pip_container: Control = null
 var _mode_pip_color: Color = Color(0.4, 0.7, 1.0, 0.9)  # tint of the current mode's lit pips
 var _prev_mode_charges: int = -1        # for pip-spend flash
-var _ui_active_mode: int = 0  # 0=FOCUS, 1=PHASE, 2=HYPER
+var _ui_active_mode: int = 0  # ShiftMode enum: 0=FOCUS 1=PHASE 2=HYPER 3=RUSH 4=REFIRE 5=ECHO 6=THIEF 7=REFLECT
 const _MODE_COL_FOCUS := Color(0.4, 0.7, 1.0, 0.9)
 const _MODE_COL_HYPER := Color(1.0, 0.6, 0.2, 0.9)
 const _MODE_COL_HYPER_ON := Color(1.0, 0.85, 0.35, 1.0)
 const _MODE_COL_PHASE := Color(0.7, 0.45, 1.0, 0.9)
+const _MODE_COL_RUSH := Color(0.4, 1.0, 0.6, 0.9)     # green
+const _MODE_COL_REFIRE := Color(1.0, 0.45, 0.45, 0.9) # red
+const _MODE_COL_ECHO := Color(0.55, 0.85, 1.0, 0.9)   # cyan
+const _MODE_COL_THIEF := Color(0.72, 0.32, 1.0, 0.9)  # purple
+const _MODE_COL_REFLECT := Color(0.95, 0.85, 0.35, 0.9) # gold
+# mode enum int → [label, colour]. Keep in sync with player.gd ShiftMode.
+const _MODE_META := {
+	0: ["FOCUS", _MODE_COL_FOCUS],
+	1: ["PHASE", _MODE_COL_PHASE],
+	2: ["HYPER", _MODE_COL_HYPER],
+	3: ["RUSH", _MODE_COL_RUSH],
+	4: ["REFIRE", _MODE_COL_REFIRE],
+	5: ["ECHO", _MODE_COL_ECHO],
+	6: ["THIEF", _MODE_COL_THIEF],
+	7: ["REFLECT", _MODE_COL_REFLECT],
+}
 const _MODE_PIP_OFF := Color(0.2, 0.22, 0.3, 0.7)  # spent/empty charge pip
 
 var _player_ref = null
@@ -553,22 +569,12 @@ func _on_mode_changed_ui(mode: int) -> void:
 	_ui_active_mode = mode
 	if _mode_label == null or _focus_bar_fill == null:
 		return
-	match mode:
-		1:  # PHASE
-			_mode_label.text = "PHASE"
-			_mode_label.add_theme_color_override("font_color", Color(0.82, 0.62, 1.0, 0.9))
-			_focus_bar_fill.color = _MODE_COL_PHASE
-			_mode_pip_color = _MODE_COL_PHASE
-		2:  # HYPER
-			_mode_label.text = "HYPER"
-			_mode_label.add_theme_color_override("font_color", Color(1.0, 0.75, 0.4, 0.9))
-			_focus_bar_fill.color = _MODE_COL_HYPER
-			_mode_pip_color = _MODE_COL_HYPER
-		_:  # FOCUS
-			_mode_label.text = "FOCUS"
-			_mode_label.add_theme_color_override("font_color", Color(0.5, 0.75, 1.0, 0.85))
-			_focus_bar_fill.color = _MODE_COL_FOCUS
-			_mode_pip_color = _MODE_COL_FOCUS
+	var meta = _MODE_META.get(mode, _MODE_META[0])   # default to FOCUS
+	var col: Color = meta[1]
+	_mode_label.text = String(meta[0])
+	_mode_label.add_theme_color_override("font_color", Color(col.r, col.g, col.b, 0.9))
+	_focus_bar_fill.color = col
+	_mode_pip_color = col
 	# Rebuild pips for this mode's charge count, then reseed live values.
 	_prev_mode_charges = -1
 	var p = _player_ref

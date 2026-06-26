@@ -15,7 +15,8 @@ extends "res://scripts/parts/part.gd"
 
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 
-enum Mode { FOCUS, PHASE, HYPER }
+# Append-only (save-compat — parts store mode_id): keep 0/1/2 fixed.
+enum Mode { FOCUS, PHASE, HYPER, RUSH, REFIRE, ECHO, THIEF, REFLECT }
 
 # How a mode's discrete charges refill. TIME = seconds per charge; KILLS = enemy kills
 # per charge (refunded via player.on_enemy_killed). KEEP IN SYNC with player.gd's mirror.

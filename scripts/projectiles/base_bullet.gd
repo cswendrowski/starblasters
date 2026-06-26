@@ -348,6 +348,25 @@ func _apply_player_hit(area: Area2D) -> void:
 	_finish_hit(area)
 
 
+# Reflect mode: flip this enemy bullet into a player-side projectile that flies back UP at
+# enemies. Called by the player's mode field on a successful reflect roll, so the bullet is
+# physically bounced rather than re-spawned. Leaves "bullets" group so the player/Thief
+# don't re-grab it; retargets + retints + speeds it up.
+func reflect_to_enemies() -> void:
+	if _killed:
+		return
+	target_group = "enemies"
+	if is_in_group("bullets"):
+		remove_from_group("bullets")
+	velocity_dir = Vector2(velocity_dir.x * 0.4, -absf(velocity_dir.y) - 0.6)
+	if velocity_dir == Vector2.ZERO:
+		velocity_dir = Vector2(0, -1)
+	velocity_dir = velocity_dir.normalized()
+	rotation = velocity_dir.angle() + PI * 0.5
+	speed = maxf(speed, 220.0)
+	modulate = Color(1.0, 0.92, 0.45)   # gold reflected tint
+
+
 # Default: one-shot. Override to drill through multiple enemies (e.g.
 # bullet_wave's multi-hit behavior).
 # The container a hit effect should spawn into: this bullet's own parent, so it

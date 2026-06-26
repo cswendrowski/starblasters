@@ -35,6 +35,7 @@ const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const PlayerScene = preload("res://scenes/player/player.tscn")
 const DummyTargetScript = preload("res://scripts/dev/hangar_dummy_target.gd")
 const Playfield = preload("res://scripts/systems/playfield.gd")
+const EnemyBulletScene = preload("res://scenes/projectiles/enemy_bullet.tscn")
 
 # HD font sizes — UiTheme defaults are sized for 480×270; bump for 1080p.
 const FS_TITLE := 40
@@ -59,15 +60,23 @@ const WEAPON_GROUPS := [
 ]
 
 # SUPER = Smart Bomb only (the permanent panic button), in DEVICE_BAY_1. The Shift
-# MODES (Focus / Hyper / Phase) are a separate real axis in the SHIFT_MODE slot,
-# activated on Shift — set in the Mode row. (Shift-Mode system Phase 1, 2026-06-08;
-# docs/shift_mode_system_2026-06-08.md.)
-const MODE_NAMES := ["Focus", "Hyper Mode", "Phase"]
+# MODES are a separate real axis in the SHIFT_MODE slot, all activated by tapping Shift
+# (the `focus` action). 8 modes as of the 2026-06-25 overhaul. Set in the Mode grid;
+# docs/shift_mode_system_2026-06-08.md.
+const MODE_NAMES := ["Focus", "Phase", "Hyper Mode", "Rush", "Refire", "Echo", "Thief", "Reflect"]
 const MODE_FACTORIES := {
 	"Focus": "_make_focus_mode",
-	"Hyper Mode": "_make_hyper_mode",
 	"Phase": "_make_phase_shift",
+	"Hyper Mode": "_make_hyper_mode",
+	"Rush": "_make_rush_mode",
+	"Refire": "_make_refire_mode",
+	"Echo": "_make_echo_mode",
+	"Thief": "_make_thief_mode",
+	"Reflect": "_make_reflect_mode",
 }
+# Enemy-fire test: spawn a stream of enemy bullets aimed at the player so the DEFENSIVE
+# modes (Phase / Rush / Thief / Reflect) have something to act on.
+const ENEMY_FIRE_INTERVAL := 0.28  # seconds between incoming bullets
 
 const STATUS_REFRESH := 0.1  # seconds between right-panel rebuilds
 
@@ -91,6 +100,8 @@ var _status_label: Label = null
 var _selected_slot: int = SlotTypes.SlotType.CANNON
 var _slot_factories: Array = []   # factory names for the currently-shown slot
 var _unlimited_ammo: bool = false  # when on, top off primary + secondary ammo every frame
+var _enemy_fire: bool = false      # when on, spawn incoming enemy bullets at the player
+var _ef_t: float = 0.0             # enemy-fire spawn accumulator
 
 # Right panel (live status) labels.
 var _dps_lbl: Label = null
@@ -101,6 +112,7 @@ var _super_lbl: Label = null
 var _ammo_lbl: Label = null
 var _sec_ammo_lbl: Label = null
 var _equip_lbl: Label = null
+var _mode_lbl: Label = null
 
 var _status_t: float = 0.0
 
@@ -258,6 +270,22 @@ func _spawn_player() -> void:
 	# Spawn at the live-game position (player.start() will also reposition to
 	# screensize.y - 30; both land at the same bottom-center spot in 480×270).
 	_player.position = Vector2(Playfield.CENTER.x, Playfield.Y_MAX - 30.0)
+
+
+# Spawn one incoming enemy bullet from the top of the band, aimed at the player. Lives in
+# _world (group "bullets") so the player hurtbox + Thief bubble + Reflect roll all see it.
+func _spawn_enemy_bullet() -> void:
+	if _world == null or not is_instance_valid(_world) or _player == null or not is_instance_valid(_player):
+		return
+	var b = EnemyBulletScene.instantiate()
+	_world.add_child(b)
+	var sx: float = randf_range(Playfield.X_MIN + 12.0, Playfield.X_MAX - 12.0)
+	var spawn_pos := Vector2(sx, Playfield.Y_MIN + 8.0)
+	var dir: Vector2 = _player.global_position - spawn_pos
+	if dir.length() < 0.01:
+		dir = Vector2(0, 1)
+	if b.has_method("start"):
+		b.start(spawn_pos, dir.normalized())
 
 
 # ---- HD overlay UI (floats over playspace) -----------------------------
@@ -452,18 +480,31 @@ func _build_info_panel(parent: CanvasLayer) -> void:
 	vbox.add_child(_equip_lbl)
 	vbox.add_child(HSeparator.new())
 
-	# MODE — the stance modules that replace base Focus (Focus / Hyper / Phase).
-	# Separate from the Super (Smart Bomb) per the supers design.
-	vbox.add_child(_make_label("MODE  (replaces Focus)", FS_HEADER, UiTheme.COLOR_ACCENT))
-	var mode_row := HBoxContainer.new()
-	mode_row.add_theme_constant_override("separation", 6)
-	vbox.add_child(mode_row)
+	# MODE — the 8 Shift stances (SHIFT_MODE slot). Pick one, then tap Shift in the
+	# playspace to activate it. Equips at the Mark slider's value.
+	vbox.add_child(_make_label("SHIFT MODE  (tap Shift to use)", FS_HEADER, UiTheme.COLOR_ACCENT))
+	var mode_grid := GridContainer.new()
+	mode_grid.columns = 2
+	mode_grid.add_theme_constant_override("h_separation", 6)
+	mode_grid.add_theme_constant_override("v_separation", 6)
+	vbox.add_child(mode_grid)
 	for mode_name in MODE_NAMES:
 		var b := _make_button(mode_name, _on_quick_mode.bind(mode_name))
 		b.add_theme_font_size_override("font_size", FS_CAPTION)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		mode_row.add_child(b)
-	vbox.add_child(_make_label("(Hyper/Phase activate with X / shoot_nose; Focus = hold Shift)", FS_CAPTION, UiTheme.COLOR_FAINT))
+		mode_grid.add_child(b)
+	# Live mode readout (active mode + charges + window).
+	_mode_lbl = _make_label("Mode: Focus", FS_CAPTION, UiTheme.COLOR_TEXT)
+	vbox.add_child(_mode_lbl)
+	# Enemy Fire toggle — gives the defensive modes (Phase/Rush/Thief/Reflect) bullets
+	# to act on. The player is kept alive (hull floored) while it's on.
+	var ef_chk := CheckButton.new()
+	ef_chk.text = "Enemy Fire (test defense)"
+	ef_chk.add_theme_font_override("font", UiTheme.active_font())
+	ef_chk.add_theme_font_size_override("font_size", FS_CAPTION)
+	ef_chk.toggled.connect(func(on: bool): _enemy_fire = on)
+	vbox.add_child(ef_chk)
+	vbox.add_child(_make_label("Focus=crit · Phase=intangible · Hyper=auto-fire-all · Rush=speed+immune · Refire=fast-fire · Echo=ghost · Thief=catch→shield · Reflect=bounce", FS_CAPTION, UiTheme.COLOR_FAINT))
 	# SUPER — the dedicated panic button (Smart Bomb), set in the Super slot.
 	vbox.add_child(_make_label("SUPER", FS_HEADER, UiTheme.COLOR_ACCENT))
 	var fire_row := HBoxContainer.new()
@@ -487,6 +528,15 @@ func _process(delta: float) -> void:
 			_player.ammo = int(_player.ammo_max)
 		if "secondary_ammo" in _player and int(_player.secondary_ammo) >= 0:
 			_player.secondary_ammo = int(_player.secondary_ammo_max)
+	# Enemy fire: stream incoming bullets aimed at the player so the defensive modes do
+	# something visible. Keep the player alive (floor hull at 1) so the bench never dies.
+	if _enemy_fire and _player != null and is_instance_valid(_player) and _player.is_alive:
+		if int(_player.hull) < 1:
+			_player.set_hull(1)
+		_ef_t += delta
+		if _ef_t >= ENEMY_FIRE_INTERVAL:
+			_ef_t = 0.0
+			_spawn_enemy_bullet()
 	_status_t += delta
 	if _status_t >= STATUS_REFRESH:
 		_status_t = 0.0
@@ -518,6 +568,18 @@ func _refresh_status() -> void:
 		_sec_ammo_lbl.text = "Secondary ammo: %d / %d" % [sec, int(p.secondary_ammo_max)]
 	else:
 		_sec_ammo_lbl.text = ""
+
+	# Live Shift-mode readout (active mode + charges + window). MODE_NAMES is ordered to
+	# match the ShiftMode enum (0=Focus … 7=Reflect), so index by active_mode.
+	if _mode_lbl != null and "active_mode" in p:
+		var am: int = int(p.active_mode)
+		var nm: String = String(MODE_NAMES[am]) if am >= 0 and am < MODE_NAMES.size() else "?"
+		var ch: int = int(p.mode_charges) if "mode_charges" in p else 0
+		var chm: int = int(p.mode_charges_max) if "mode_charges_max" in p else 0
+		var act: String = "ready"
+		if "mode_active_t" in p and float(p.mode_active_t) > 0.0:
+			act = "ACTIVE %.1fs" % float(p.mode_active_t)
+		_mode_lbl.text = "Mode: %s · charges %d/%d · %s" % [nm, ch, chm, act]
 
 	_refresh_equipped_label()
 

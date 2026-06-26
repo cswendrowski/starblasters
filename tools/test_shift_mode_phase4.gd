@@ -2,7 +2,7 @@ extends SceneTree
 
 # Shift-Mode Phase 4 economy wiring: modes are buyable at outposts.
 # - The outpost weapons column weights include SHIFT_MODE.
-# - roll_for_slot(SHIFT_MODE) yields Phase/Hyper (never Focus — default-only —
+# - roll_for_slot(SHIFT_MODE) yields any shop-rollable mode (never Focus — default-only —
 #   never null), priced like a weapon by the outpost's offer builder.
 # - Equipping a rolled mode routes to the SHIFT_MODE slot.
 
@@ -23,7 +23,8 @@ func _run() -> void:
 			has_mode = true
 	_assert(has_mode, "SHIFT_MODE is in the outpost WEAPON_SLOT_WEIGHTS")
 
-	# roll_for_slot(SHIFT_MODE) only ever yields Phase/Hyper.
+	# roll_for_slot(SHIFT_MODE) yields any shop-rollable mode (never Focus, never null).
+	var ROLLABLE := ["Phase", "Hyper Mode", "Rush", "Refire", "Echo", "Thief", "Reflect"]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 12345
 	var seen := {}
@@ -32,7 +33,7 @@ func _run() -> void:
 		_assert(p != null, "roll_for_slot(SHIFT_MODE) never null")
 		var dn := String(p.display_name)
 		seen[dn] = true
-		_assert(dn == "Phase" or dn == "Hyper Mode", "rolled a mode (Phase/Hyper), got '%s'" % dn)
+		_assert(dn in ROLLABLE, "rolled a shop mode, got '%s'" % dn)
 		_assert(dn != "Focus", "never rolls Focus (default-only)")
 		_assert(int(p.slot_type) == int(SlotTypes.SlotType.SHIFT_MODE), "rolled part is SHIFT_MODE")
 	print("[test] rolled modes over 40 picks: %s" % str(seen.keys()))

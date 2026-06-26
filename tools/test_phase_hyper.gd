@@ -37,16 +37,16 @@ func _process(_dt: float) -> void:
 	# 2) Bullet absorption while phased restores 1 shield per hit (capped).
 	_p.set("max_shield", 10)
 	_p.set("shield", 2)
-	_p.set("active_mode", 1); _p.set("mode_active_t", 3.0)        # phased
+	_p.set("active_mode", 1); _p.set("mode_active_t", 3.0); _p.set("_invuln_t", 3.0)  # phased (intangible)
 	_p.set("invincible", false)
 	var before: int = int(_p.shield)
 	_p.take_damage(5)              # would normally drain shield; phased -> +1
 	var after1: int = int(_p.shield)
 	_p.take_damage(3)
 	var after2: int = int(_p.shield)
-	lines.append("shield while phased: %d -> %d -> %d (expect +1 each)" % [before, after1, after2])
-	if after1 != before + 1 or after2 != after1 + 1:
-		lines.append("FAIL phase did not absorb -> +1 shield per hit"); fails += 1
+	lines.append("shield while phased: %d -> %d -> %d (expect unchanged)" % [before, after1, after2])
+	if after1 != before or after2 != before:
+		lines.append("FAIL phase took damage (should be intangible, no +shield)"); fails += 1
 	# cap at max_shield
 	_p.set("shield", 10)
 	_p.take_damage(5)

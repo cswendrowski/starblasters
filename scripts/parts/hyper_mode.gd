@@ -1,15 +1,11 @@
 extends "res://scripts/parts/mode_part.gd"
 
-# Hyper — Shift mode. While active: primary fire is +10% faster AND has unlimited
-# ammo (metered weapons don't deplete). NO invulnerability, NO damage mult at base —
-# a sustain/uptime buff, not a nuke. Runs off a Focus-style charge bar that recharges
-# only while NOT in use and CANNOT be re-engaged until fully recharged (no tapping:
-# commit the whole bar, then wait for a full refill).
-#
-# Mk scaling:
-#   odd Mk (1,3,5,7,9) -> increase the fire-rate boost (base 10% +5% per further odd Mk)
-#   even Mk (2,4,6,8)  -> add a stacking +10% damage boost
-# Design: docs/shift_mode_system_2026-06-08.md §3.3. Numbers first-pass (tuner job).
+# Hyper — Shift mode (reworked 2026-06-25). Tap Shift to go full-auto: for the duration ALL
+# your weapons fire automatically with NO ammo cost — the blaster AND your equipped cannon
+# AND your secondary, all at once, hands-off. The "ultimate" burst. The EFFECT lives in
+# player.gd (autofire dispatch + blaster-direct + secondary ammo-skip, gated on _hyper_on()).
+# (The old +fire-rate/+damage buff moved to Refire; fire_bonus_at_mark/damage_mult_at_mark
+# remain as back-compat reads but are no longer applied.) Numbers first-pass (tuner job).
 
 @export var base_fire_bonus: float = 0.10        # +10% fire rate at Mk1
 @export var fire_bonus_per_odd_mark: float = 0.05  # each further odd Mk (3,5,7,9)
@@ -23,7 +19,7 @@ func _init() -> void:
 	super._init()
 	mode_id = Mode.HYPER
 	display_name = "Hyper Mode"
-	description = "Tap Shift to overdrive for a few seconds — +10% fire rate and unlimited ammo. Spends a charge; charges refill over time while idle."
+	description = "Tap Shift to go full-auto — every weapon you have fires automatically with no ammo cost for a few seconds. Spends a charge; charges refill over time while idle."
 
 
 # Mk1 = base; each further ODD Mk (3,5,7,9) adds fire_bonus_per_odd_mark.
