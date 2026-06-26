@@ -39,6 +39,11 @@ var _light: Node2D = null
 
 
 const VfxGlow = preload("res://scripts/effects/vfx_glow_config.gd")
+const LightFx = preload("res://scripts/effects/light_fx.gd")
+# Light cast tuning (Roman 2026-06-22, gradient→PointLight2D): the per-frame color cycle's alpha
+# envelope scales the light ENERGY; base_scale × the boom growth scales its texture (radius).
+const LIGHT_ENERGY_GAIN := 3.0   # alpha (≤0.5) → energy (≈1.5 peak)
+const LIGHT_TSCALE := 0.3        # base_scale × size_mult → texture_scale (radius)
 
 func _ready() -> void:
 	# HDR-bright the whole explosion by the tuned "explosions" multiplier (cascades to the flash
@@ -161,25 +166,10 @@ func _spawn_debris() -> void:
 
 
 func _spawn_light() -> void:
-	# Light cast: additive glow sprite parented to the explosion ORIGIN.
-	# Sized to ~3× the primary boom. Color cycles white → yellow → orange →
-	# red → out over frames 0–6. Rendered OVER the explosion sprite so it
-	# enriches the artwork instead of sitting behind it. Held to ~50% alpha
-	# so it adds warmth without washing out the scene.
-	_light = Sprite2D.new()
-	_light.texture = _build_light_texture()
-	_light.position = Vector2.ZERO  # centered on the core
-	# Start at half the target size on frame 0 — the "punchy flash" grows
-	# to its full scale by ~frame 1.
-	var s: float = base_scale * 1.5
-	_light.scale = Vector2(s, s)
-	_light.self_modulate = Color(1, 1, 1, 1)
-	var mat := CanvasItemMaterial.new()
-	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	_light.material = mat
-	# Above the core sprite (which is at default z_index 0) so it tints
-	# the explosion artwork additively.
-	_light.z_index = 1
+	# Light cast: a colored additive PointLight2D at the explosion origin (was a gradient glow sprite;
+	# PointLight2D 2026-06-22 so the boom lights the surrounding ships + blooms). Color/energy/size are
+	# driven per-frame by _apply_light, walking the LIGHT_COLORS cycle. z above the core so it reads.
+	_light = LightFx.make(Color(1, 1, 1), 0.0, 32.0, 1)
 	add_child(_light)
 
 
@@ -228,29 +218,6 @@ static func _build_ring_texture() -> Texture2D:
 				img.set_pixel(x, y, Color(1.0, 1.0, 1.0, a))
 		_ring_tex = ImageTexture.create_from_image(img)
 	return _ring_tex
-
-
-# Soft white radial gradient — the per-frame color cycle is applied via
-# `self_modulate` so this texture stays neutral.
-static func _build_light_texture() -> Texture2D:
-	var g = Gradient.new()
-	g.colors = PackedColorArray([
-		Color(1, 1, 1, 1),
-		Color(1, 1, 1, 0.55),
-		Color(1, 1, 1, 0.0),
-	])
-	g.offsets = PackedFloat32Array([0.0, 0.45, 1.0])
-	var t = GradientTexture2D.new()
-	t.gradient = g
-	t.width = 32
-	t.height = 32
-	t.fill = GradientTexture2D.FILL_RADIAL
-	# Default fill_from is (0,0) — that anchors the gradient to the top-left
-	# corner and renders only a quarter-circle inside the texture. Center it
-	# at (0.5, 0.5) so we get a full disc.
-	t.fill_from = Vector2(0.5, 0.5)
-	t.fill_to = Vector2(1.0, 0.5)
-	return t
 
 
 # Per-frame light color (frame 0 = white flash, then yellow/orange/red, gone
@@ -327,10 +294,11 @@ func _apply_light() -> void:
 	# Hold the additive light at ~50% so it warms the scene rather than
 	# blowing it out. Color cycle still drives hue/value above this.
 	col.a *= 0.5 * glow_mult
-	_light.self_modulate = col
-	# Punch the flash: light starts half size on frame 0 and grows to its
-	# full 3× over frame 0→1. After that it holds steady.
+	# Point light: hue from the cycle color, brightness from its alpha envelope, size from the boom
+	# growth (light starts ~half size on frame 0, grows to full over frame 0→1, then holds).
+	var pl := _light as PointLight2D
+	pl.color = Color(col.r, col.g, col.b)
+	pl.energy = col.a * LIGHT_ENERGY_GAIN
 	var size_t: float = clamp(f, 0.0, 1.0)
 	var size_mult: float = lerp(1.5, 3.0, size_t)
-	var s: float = base_scale * size_mult
-	_light.scale = Vector2(s, s)
+	pl.texture_scale = base_scale * size_mult * LIGHT_TSCALE

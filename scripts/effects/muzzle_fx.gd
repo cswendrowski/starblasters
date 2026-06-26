@@ -64,23 +64,7 @@ static func play_energy(world_pos: Vector2, host: Node = null, rot: float = 0.0)
 	# blaster_muzzle strip + a cyan-blue glow halo at #5acbfd.
 	# When `host` is supplied, parent under it so the flash inherits the
 	# ship's transform (matches what star_flash does for the beam windup).
-	var glow := Sprite2D.new()
-	glow.texture = _build_flash_texture()
-	glow.position = (Vector2(0, 0) if use_local else world_pos)
-	if use_local:
-		glow.position = world_pos - (host as Node2D).global_position
-	glow.scale = Vector2(1.05, 1.05)
-	glow.modulate = BLASTER_GLOW_COLOR
-	glow.rotation = rot
-	glow.z_index = 4
-	var glow_mat := CanvasItemMaterial.new()
-	glow_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	glow.material = glow_mat
-	parent.add_child(glow)
-	var gtw := glow.create_tween()
-	gtw.tween_property(glow, "scale", Vector2(1.8, 1.8), 0.15)
-	gtw.parallel().tween_property(glow, "modulate:a", 0.0, 0.15)
-	gtw.tween_callback(glow.queue_free)
+	LightFx.flash(parent, world_pos, BLASTER_GLOW_COLOR, 1.5, 16.0, 0.15)
 	# Pixel-art strip — random frame per shot. Sprite held at 1.5× and
 	# at full alpha for 70 ms so it reads in the GIF, then fades.
 	var flash := Sprite2D.new()
@@ -109,23 +93,7 @@ static func play_rotary_laser(world_pos: Vector2, host: Node = null) -> void:
 	var parent: Node = host if host != null else root
 	var use_local: bool = host != null
 	# Cyan-blue additive glow halo.
-	var glow := Sprite2D.new()
-	glow.texture = _build_flash_texture()
-	if use_local:
-		glow.position = world_pos - (host as Node2D).global_position
-	else:
-		glow.position = world_pos
-	glow.scale = Vector2(0.8, 0.8)
-	glow.modulate = ROTARY_LASER_GLOW_COLOR
-	glow.z_index = 4
-	var glow_mat := CanvasItemMaterial.new()
-	glow_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	glow.material = glow_mat
-	parent.add_child(glow)
-	var gtw := glow.create_tween()
-	gtw.tween_property(glow, "scale", Vector2(1.4, 1.4), 0.08)
-	gtw.parallel().tween_property(glow, "modulate:a", 0.0, 0.08)
-	gtw.tween_callback(glow.queue_free)
+	LightFx.flash(parent, world_pos, ROTARY_LASER_GLOW_COLOR, 1.5, 14.0, 0.08)
 	# Pixel-art flash — pick from frames 1..3 so the bullet frame (0) is
 	# never shown as a flash.
 	var flash := Sprite2D.new()
@@ -180,9 +148,8 @@ static func play_enemy(world_pos: Vector2, dir: Vector2, root: Node) -> void:
 	tw.tween_callback(flash.queue_free)
 
 
-const GlowFx = preload("res://scripts/effects/glow_fx.gd")
+const LightFx = preload("res://scripts/effects/light_fx.gd")
 
-static var _flash_tex_cache: Texture2D = null
 static var _smoke_tex_cache: Texture2D = null
 
 
@@ -215,7 +182,7 @@ static func play_player(world_pos: Vector2, host: Node, color: Color, with_smoke
 	flash.material = fmat
 	parent.add_child(flash)
 	# Diffuse radial glow in the same colour (its own child node — free it with the flash).
-	var glow: CanvasItem = GlowFx.attach_glow(flash, color, 1.1, 0.7)
+	var glow: CanvasItem = LightFx.attach(flash, color, 1.4, 14.0)
 	# Last ~a frame, then gone (no lingering fade).
 	var tw := flash.create_tween()
 	tw.tween_interval(0.045)
@@ -294,22 +261,10 @@ static func _spawn_flash(parent: Node, world_pos: Vector2, use_local: bool = fal
 	var local_pos: Vector2 = world_pos
 	if use_local and parent is Node2D:
 		local_pos = world_pos - (parent as Node2D).global_position
-	var glow := Sprite2D.new()
-	glow.texture = _build_flash_texture()
-	glow.position = local_pos
-	glow.scale = Vector2(1.0, 1.0)
 	# HDR-bright yellow-orange so the muzzle flash clears glow_hdr_threshold=1.0
-	# and blooms (Roman renderer-polish C, 2026-06-11). Was 1.0/0.72/0.28.
-	glow.modulate = Color(1.9, 1.35, 0.5, 1.0)
-	glow.z_index = 4
-	var glow_mat := CanvasItemMaterial.new()
-	glow_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	glow.material = glow_mat
-	parent.add_child(glow)
-	var glow_tw := glow.create_tween()
-	glow_tw.tween_property(glow, "scale", Vector2(1.8, 1.8), 0.15)
-	glow_tw.parallel().tween_property(glow, "modulate:a", 0.0, 0.15)
-	glow_tw.tween_callback(glow.queue_free)
+	# and blooms (Roman renderer-polish C, 2026-06-11). Was 1.9/1.35/0.5 (HDR);
+	# normalized to [0,1] with energy carry-through.
+	LightFx.flash(parent, world_pos, Color(1.0, 0.71, 0.26), 1.6, 16.0, 0.15)
 	var flash := Sprite2D.new()
 	flash.texture = MUZZLE_STRIP
 	flash.hframes = MUZZLE_STRIP_HFRAMES
@@ -389,28 +344,6 @@ static func _spawn_shell(root: Node, world_pos: Vector2, large: bool = false) ->
 	# the ejection port; the rest is the world streaming past the ship.
 	var v := Vector2(randf_range(60.0, 90.0), randf_range(480.0, 560.0))
 	shell.call_deferred("launch", v, 0.0)
-
-
-# 32x32 soft white→transparent radial gradient. The flash sprite uses additive
-# blending so this drives both shape and brightness.
-static func _build_flash_texture() -> Texture2D:
-	if _flash_tex_cache == null:
-		var g := Gradient.new()
-		g.colors = PackedColorArray([
-			Color(1, 1, 1, 1),
-			Color(1, 1, 1, 0.55),
-			Color(1, 1, 1, 0.0),
-		])
-		g.offsets = PackedFloat32Array([0.0, 0.45, 1.0])
-		var t := GradientTexture2D.new()
-		t.gradient = g
-		t.width = 32
-		t.height = 32
-		t.fill = GradientTexture2D.FILL_RADIAL
-		t.fill_from = Vector2(0.5, 0.5)
-		t.fill_to = Vector2(1.0, 0.5)
-		_flash_tex_cache = t
-	return _flash_tex_cache
 
 
 # 16x16 softer disc for smoke puffs — slightly chunkier falloff than the

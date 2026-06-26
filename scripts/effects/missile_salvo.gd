@@ -194,6 +194,8 @@ class Missile extends Node2D:
 
 	const CORE_COLOR := Color(1.0, 0.96, 0.35, 1.0)
 	const GLOW_COLOR := Color(1.0, 0.9, 0.45, 1.0)
+	const LightFxC := preload("res://scripts/effects/light_fx.gd")
+	const LIGHT_RADIUS := 12.0   # point-light radius following the missile
 	const CORE_W_LAUNCH: float = 1.0
 	const CORE_W_ASCEND: float = 2.0
 	const CORE_LEN: float = 4.0
@@ -222,6 +224,10 @@ class Missile extends Node2D:
 		BulletWorld.resolve(self, get_tree().root).call_deferred("add_child", trail)
 		trail.call_deferred("attach_to", self)
 		_trail = trail
+		# Colored point light following the missile so its arc casts light (Roman 2026-06-22). Frees
+		# with the missile on detonate. The per-missile detonation already lights the scene via the
+		# explosion's own PointLight2D, so this is just the in-flight glow.
+		LightFxC.attach(self, Color(GLOW_COLOR.r, GLOW_COLOR.g, GLOW_COLOR.b, 1.0), 1.0, LIGHT_RADIUS)
 
 	func setup(
 		from: Vector2, to: Vector2, travel: float, fuse: float,
