@@ -95,6 +95,16 @@ func _process(_dt: float) -> void:
 		fails += 1
 		lines.append("FAIL boss should pin Main")
 
+	# Regression: re-entering "silent" (e.g. returning to the dev menu) must stay
+	# silenced, not un-silence a leftover track.
+	music.set_context("menu")     # play something audible
+	music.set_context("silent")   # dev menu silences
+	music.set_context("silent")   # dev menu re-opened — must NOT bring music back
+	lines.append("re-enter silent: _silenced=%s (expect true)" % str(music._silenced))
+	if not music._silenced:
+		fails += 1
+		lines.append("FAIL re-entering silent should stay silenced")
+
 	lines.append("MUSIC SCHEMA: " + ("PASS" if fails == 0 else "FAIL (%d)" % fails))
 	_finish(lines, fails)
 

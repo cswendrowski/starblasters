@@ -121,6 +121,15 @@ func _ready() -> void:
 # ---- Public API ---------------------------------------------------------
 
 func set_context(context: String, options: Dictionary = {}) -> void:
+	# Silent is special: always fade out. Handled BEFORE the idempotency check so
+	# re-entering silent (e.g. returning to the dev menu) can never hit the
+	# keep-playing path and un-silence a leftover track.
+	if context == CTX_SILENT:
+		_context = CTX_SILENT
+		_combat_active = false
+		stop()
+		return
+
 	var forced: bool = options.get("force", false)
 	# Idempotent re-entry: keep the track, just ensure audible + correct energy.
 	if context == _context and _current_track != "" and not forced:
@@ -131,9 +140,6 @@ func set_context(context: String, options: Dictionary = {}) -> void:
 		return
 
 	_context = context
-	if context == CTX_SILENT:
-		stop()
-		return
 	if _silenced:
 		_unsilence()
 
