@@ -1,7 +1,56 @@
-# Asteroid HDR-2D darkening — investigation + plan (2026-06-23)
+# Asteroid HDR-2D darkening — RESOLVED (2026-06-24)
 
-**Status:** root-caused, NOT fixed. Picking up tomorrow: build a dev lab to compare fix approaches
-side-by-side LIVE, then Roman makes the call.
+**Status: FIXED** with a one-function shader change — no architectural change needed. The
+two-viewport / LDR / clamp approaches below were exploratory and are NOT used.
+
+## THE FIX (2026-06-24)
+The asteroid darkened over HDR-bright content because its shader (`Planets/Asteroids/Asteroids.gdshader`)
+wrote **alpha-0 fragments** for the transparent regions around the rock. In a `use_hdr_2d` viewport,
+a canvas item that writes alpha<1 pixels crushes its OPAQUE pixels to black when drawn over HDR-bright
+(>1) content. Normal sprites / ColorRects don't hit this (a plain opaque ColorRect renders fine over a
+2.0 bar; only the asteroid shader went black — that's the tell Roman pointed at: "ships/enemy sprites
+don't have this problem, asteroids do, same play space"). Confirmed by isolation: forcing the shader
+fully opaque (`COLOR.a = 1.0`) rendered tan, not black → it's the alpha-0 fragments, not the colour.
+
+**Fix:** the fragment now composites **opaque-or-discard** instead of writing alpha-0:
+`inside → COLOR = vec4(col.rgb, 1.0)`, `outline → opaque outline_color`, `else → discard`. The
+discarded pixels show the background exactly as alpha-0 did, so the LOOK is unchanged, but no alpha<1
+fragment is written → no crush. Verified: asteroid renders clean over a glow-3.0 LandMasses planet in
+a plain single-HDR viewport (the real play space), bullets keep their glow, bg/parallax asteroids
+(same shader) unaffected. `Asteroid HDR Lab` (dev menu) is now a single-pane verification bench.
+
+---
+## Exploratory history (NOT the fix)
+
+**Status (pre-fix):** root-caused; compare-lab built with two candidate architectural fixes.
+
+## Compare-lab (BUILT 2026-06-24)
+`scripts/dev/asteroid_hdr_lab.gd` + `scenes/dev/asteroid_hdr_lab.tscn`, dev-menu button
+"Asteroid HDR Lab". Two live panes, same scene (bright planet via `PlanetGlowConfig` + 5 drifting
+gameplay-style asteroids + 3 HDR-bright bullets):
+- **LEFT** = current single-HDR viewport (the darkening).
+- **RIGHT** = fix candidate(s), tunable:
+  - `Backdrop clamp` slider — composites the backdrop (rendered+bloomed in an inner HDR SubViewport)
+    through a `min(rgb, ceil)` clamp into the HDR gameplay viewport. Lower ceil = cleaner asteroids
+    but dimmer planet.
+  - `Right = LDR gameplay` checkbox — renders the gameplay pass LDR (`use_hdr_2d=false`) over the
+    bloomed backdrop texture.
+- Controls: planet picker, `Planet glow x` (crank to see the worst case), clamp slider, LDR toggle.
+
+### Compare-lab findings (verified with a rock centred over a glow-3.0 LandMasses)
+- **LDR-gameplay (right pane, checkbox ON) is the clean winner for asteroids:** planet stays FULL
+  bright + asteroids render perfectly (no crush). **Cost: gameplay VFX in that pass don't self-bloom**
+  (bullets render as plain rects). Backdrop bloom is preserved (it's baked into the inner-viewport
+  texture).
+- **Backdrop-clamp (HDR gameplay) only partially works:** clamping to ~0.8 reduces the crush but the
+  very brightest backdrop pixels still darken rocks, AND it dims the planet glow Roman just tuned.
+  Clamp ~1.0 ≈ no fix (same as left). So clamp is a compromise, not a clean fix.
+- Net: the real choice is **"clean asteroids + bright planet but no gameplay-VFX self-bloom" (LDR
+  gameplay)** vs **keeping gameplay-VFX bloom at the cost of asteroid crush / a dimmer planet**.
+  The asteroid-over-**bullet** case is unaffected by either (bullets live in the gameplay pass).
+
+---
+**Original investigation (2026-06-23):** root-caused; the lab above was the agreed next step.
 
 ## Symptom
 Gameplay asteroid enemies render dark / "negative-multiply" smear when they move over bright things

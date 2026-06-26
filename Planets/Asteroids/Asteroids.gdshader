@@ -146,20 +146,27 @@ void fragment() {
 		col = colors[2];
 	}
 	
-	COLOR = vec4(col.rgb, n_step * col.a);
-
-	// Outline pass: if this pixel is outside the silhouette but any of
-	// the 4-neighbor cells is inside, write outline_color. Sampled at
-	// 1/pixels offsets so the band is exactly one pixelized cell thick.
-	if (draw_outline && n_step < 0.5) {
+	// Composite as OPAQUE-or-DISCARD instead of writing alpha-0 fragments. In a use_hdr_2d viewport, a
+	// canvas item that writes alpha<1 pixels crushes its OPAQUE pixels to black over HDR-bright (>1)
+	// content (planets/bullets); sprites/ColorRects don't. Discarding the transparent regions (they
+	// just show the background, same as alpha 0 did) keeps the look but stops the crush. (2026-06-24)
+	bool inside = (n_step * col.a) >= 0.5;
+	bool is_outline = false;
+	if (!inside && draw_outline && n_step < 0.5) {
+		// Outline: outside the silhouette but a 4-neighbor cell is inside (1 pixelized cell thick).
 		float step_px = 1.0 / pixels;
 		float neighbor = 0.0;
 		neighbor = max(neighbor, silhouette_at(UV + vec2( step_px, 0.0)));
 		neighbor = max(neighbor, silhouette_at(UV + vec2(-step_px, 0.0)));
 		neighbor = max(neighbor, silhouette_at(UV + vec2(0.0,  step_px)));
 		neighbor = max(neighbor, silhouette_at(UV + vec2(0.0, -step_px)));
-		if (neighbor > 0.5) {
-			COLOR = outline_color;
-		}
+		is_outline = neighbor > 0.5;
+	}
+	if (inside) {
+		COLOR = vec4(col.rgb, 1.0);
+	} else if (is_outline) {
+		COLOR = vec4(outline_color.rgb, 1.0);
+	} else {
+		discard;
 	}
 }

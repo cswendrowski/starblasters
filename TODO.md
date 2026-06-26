@@ -25,14 +25,14 @@ Captured from Cody's 2026-05-19 punch list. Ordered roughly by leverage.
 > halos, HDR-bright bolts); the **`outline_1px` Forward+ crash fix**; and confirmation that renderer
 > **levers A+B** are already live (lever C partial). Per-item status: **`Worklist.md`** (refreshed).
 
-## NEXT (2026-06-24): asteroid HDR-2D darkening — build the compare-lab
+## ✅ DONE (2026-06-24): asteroid HDR-2D darkening — FIXED in the shader
 
-Asteroid enemies render dark/"negative" over HDR-bright planets/bullets. Root-caused: it's the
-`use_hdr_2d` viewport (opaque content over >1 content darkens) — NOT bloom/blend/outline/asteroid
-setup; the bg parallax asteroids dodge it only via negative-layer placement. **Plan:** build a dev
-lab with two LIVE side-by-side panes (current single-HDR vs two-viewport composite, asteroids
-drifting over a bright planet) so Roman can A/B and pick the fix. Full bundle (findings, ruled-out
-list, candidate fixes, lab design, file map): **`docs/asteroid_hdr_darkening_2026-06-23.md`**.
+Asteroids crushed to black over HDR-bright planets/bullets. Root cause: the asteroid shader wrote
+**alpha-0 fragments** (transparent regions) which crush opaque pixels over >1 content in `use_hdr_2d`
+(sprites/ColorRects don't). FIX: `Planets/Asteroids/Asteroids.gdshader` now does opaque-or-discard
+(no alpha<1 written) — look unchanged, no crush, gameplay glow kept. Verified single-HDR. The
+two-viewport/LDR/clamp ideas were dropped. `Asteroid HDR Lab` simplified to a verification bench.
+Write-up: **`docs/asteroid_hdr_darkening_2026-06-23.md`**.
 
 ## Pre-ship checklist (turn OFF before release)
 
