@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://d3auxeep7q008"
-path="res://.godot/imported/player_ship_b_engines.png-c6af9dc881f7e43e2ee18cfef36f380f.ctex"
+uid="uid://ceberuymswe8m"
+path="res://.godot/imported/player_stiletto_engines.png-782be1e68d7b58465ba8bc518fccb1a0.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://graphics/player/player_ship_b_engines.png"
-dest_files=["res://.godot/imported/player_ship_b_engines.png-c6af9dc881f7e43e2ee18cfef36f380f.ctex"]
+source_file="res://graphics/player/player_stiletto_engines.png"
+dest_files=["res://.godot/imported/player_stiletto_engines.png-782be1e68d7b58465ba8bc518fccb1a0.ctex"]
 
 [params]
 

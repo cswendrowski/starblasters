@@ -1,0 +1,180 @@
+[gd_scene format=3 uid="uid://t8i1mt63v2iu"]
+
+[ext_resource type="Script" uid="uid://bvobhlwg6dhui" path="res://scripts/game/player.gd" id="1_t2ws4"]
+[ext_resource type="PackedScene" uid="uid://ce2sbgdju6rp7" path="res://scenes/projectiles/bullet_blaster.tscn" id="2_lmuqc"]
+[ext_resource type="PackedScene" uid="uid://c5te1ekoxw700" path="res://scenes/projectiles/bullet_blaster_heavy.tscn" id="3_koc76"]
+[ext_resource type="Texture2D" uid="uid://dbo5rwmc2nprp" path="res://graphics/player/player_stiletto_body.png" id="4_t2ws4"]
+[ext_resource type="Shader" uid="uid://cakr26sn2n1b3" path="res://scenes/player/livery_color.gdshader" id="5_i5rri"]
+[ext_resource type="Texture2D" uid="uid://b4elj1xxe64m" path="res://graphics/player/player_stiletto_livery.png" id="6_lmuqc"]
+[ext_resource type="Texture2D" uid="uid://ceberuymswe8m" path="res://graphics/player/player_stiletto_engines.png" id="7_koc76"]
+[ext_resource type="PackedScene" uid="uid://dionbws2gpfnd" path="res://scenes/shield.tscn" id="8_ffsyt"]
+[ext_resource type="Script" uid="uid://c8m8l655ht3ho" path="res://scenes/player_weapon_changer.gd" id="9_wu25g"]
+[ext_resource type="PackedScene" uid="uid://dxumspm4c6yeg" path="res://scenes/effects/shell_eject_small.tscn" id="10_npsm7"]
+[ext_resource type="PackedScene" uid="uid://qy4pikt4sjwk" path="res://scenes/effects/muzzleflash_small.tscn" id="11_mes12"]
+[ext_resource type="AudioStream" uid="uid://dqjwv5lcwapki" path="res://assets/audio/SFX_hit&damage9.wav" id="12_e3coy"]
+[ext_resource type="AudioStream" uid="uid://b3ly44akrfjnx" path="res://assets/audio/SFX_shot8.wav" id="13_hvxh5"]
+[ext_resource type="AudioStream" uid="uid://7woqbofpv2f4" path="res://assets/audio/SFX_explosion1.wav" id="14_img27"]
+[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://assets/audio/SFX_shot7.wav" id="15_cdrbc"]
+[ext_resource type="AudioStream" uid="uid://dcat8ema0o6ak" path="res://assets/audio/SFX_powerUp9.wav" id="16_3bseq"]
+[ext_resource type="AudioStream" uid="uid://bgsdyxqmgbntp" path="res://assets/audio/SFX_wrong&malus6.wav" id="17_wyqh2"]
+[ext_resource type="AudioStream" uid="uid://d2ikeqix24rd0" path="res://assets/audio/weapons/player/rotary_laser_charge.ogg" id="18_walwc"]
+[ext_resource type="AudioStream" uid="uid://cbm6ryhnxrbak" path="res://assets/audio/weapons/player/particle_charge.ogg" id="19_0dfwi"]
+[ext_resource type="AudioStream" uid="uid://c0e6ya05udjiy" path="res://assets/audio/weapons/player/particle_loop.ogg" id="20_q5v14"]
+[ext_resource type="AudioStream" uid="uid://cwcws8bbvlyjg" path="res://assets/audio/weapons/player/particle_stop.ogg" id="21_ee2xr"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_cnsyf"]
+shader = ExtResource("5_i5rri")
+shader_parameter/tint_color = Color(1, 0, 0, 1)
+shader_parameter/opacity = 0.800000038
+shader_parameter/fade = 1.0
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_11ea1"]
+size = Vector2(14, 14)
+
+[sub_resource type="Gradient" id="Gradient_on6p3"]
+offsets = PackedFloat32Array(0, 0.280992, 0.619835, 1)
+colors = PackedColorArray(0.94902, 0.945098, 0.941176, 1, 0.407843, 0.870588, 0.933333, 1, 0.12549, 0.639216, 0.972549, 1, 0.94902, 0.945098, 0.941176, 1)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_cjbju"]
+gradient = SubResource("Gradient_on6p3")
+
+[sub_resource type="Curve" id="Curve_t7bto"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_yabdq"]
+curve = SubResource("Curve_t7bto")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_ulur3"]
+lifetime_randomness = 1.0
+particle_flag_disable_z = true
+emission_shape = 1
+emission_sphere_radius = 10.0
+direction = Vector3(0, 1, 0)
+flatness = 0.28
+initial_velocity_min = 25.0
+initial_velocity_max = 75.0
+gravity = Vector3(0, 0, 0)
+scale_max = 1.25
+scale_curve = SubResource("CurveTexture_yabdq")
+color_ramp = SubResource("GradientTexture1D_cjbju")
+
+[node name="Player" type="Area2D" unique_id=1536830273]
+script = ExtResource("1_t2ws4")
+bullet_scene = ExtResource("2_lmuqc")
+heavy_scene = ExtResource("3_koc76")
+
+[node name="Ship" type="Sprite2D" parent="." unique_id=16642258]
+texture = ExtResource("4_t2ws4")
+hframes = 3
+frame = 1
+
+[node name="Livery" type="Sprite2D" parent="Ship" unique_id=2071794664]
+material = SubResource("ShaderMaterial_cnsyf")
+texture = ExtResource("6_lmuqc")
+hframes = 3
+frame = 1
+
+[node name="GlowMask" type="Sprite2D" parent="Ship" unique_id=2077275859]
+texture = ExtResource("7_koc76")
+hframes = 3
+frame = 1
+
+[node name="Shield" parent="Ship" unique_id=1634052579 instance=ExtResource("8_ffsyt")]
+visible = false
+scale = Vector2(1, 1.00602)
+
+[node name="MuzzleWingL" type="Marker2D" parent="Ship" unique_id=1720238274]
+position = Vector2(-2, -7)
+
+[node name="MuzzleWingR" type="Marker2D" parent="Ship" unique_id=820020244]
+position = Vector2(2, -7)
+
+[node name="LaunchWingL" type="Marker2D" parent="Ship" unique_id=1492219921]
+position = Vector2(-6, 3)
+
+[node name="LaunchWingR" type="Marker2D" parent="Ship" unique_id=54608312]
+position = Vector2(6, 3)
+
+[node name="Muzzle" type="Marker2D" parent="Ship" unique_id=1797069538]
+position = Vector2(0, -4)
+
+[node name="Gun_Nose_Eject" type="Marker2D" parent="Ship/Muzzle" unique_id=1165767346]
+position = Vector2(1, 1)
+
+[node name="PlayerWeaponChanger" type="Node2D" parent="Ship" unique_id=1496218143]
+visible = false
+script = ExtResource("9_wu25g")
+casing_particle_scene = ExtResource("10_npsm7")
+flash_particle_scene = ExtResource("11_mes12")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=649184006]
+visible = false
+shape = SubResource("RectangleShape2D_11ea1")
+
+[node name="GunCooldown" type="Timer" parent="." unique_id=1057816957]
+one_shot = true
+
+[node name="MinigunCooldown" type="Timer" parent="." unique_id=891459468]
+wait_time = 0.1
+one_shot = true
+
+[node name="ShieldRegenTimer" type="Timer" parent="." unique_id=1302336062]
+wait_time = 2.0
+autostart = true
+
+[node name="ShootMinigun" type="AudioStreamPlayer2D" parent="." unique_id=1742104969]
+stream = ExtResource("12_e3coy")
+volume_db = -8.0
+
+[node name="ShootSound" type="AudioStreamPlayer2D" parent="." unique_id=180717552]
+stream = ExtResource("13_hvxh5")
+
+[node name="CannonShoot" type="AudioStreamPlayer2D" parent="." unique_id=1560732301]
+stream = ExtResource("14_img27")
+
+[node name="SuperShoot" type="AudioStreamPlayer2D" parent="." unique_id=635771662]
+stream = ExtResource("15_cdrbc")
+
+[node name="BulletHit" type="AudioStreamPlayer2D" parent="." unique_id=1574456737]
+stream = ExtResource("12_e3coy")
+
+[node name="ShieldUp" type="AudioStreamPlayer2D" parent="." unique_id=20336153]
+stream = ExtResource("16_3bseq")
+
+[node name="Death" type="AudioStreamPlayer2D" parent="." unique_id=997250907]
+stream = ExtResource("17_wyqh2")
+
+[node name="RotaryLaserCharge" type="AudioStreamPlayer2D" parent="." unique_id=933156384]
+stream = ExtResource("18_walwc")
+
+[node name="RotaryLaserShoot" type="AudioStreamPlayer2D" parent="." unique_id=362393074]
+
+[node name="ParticleBeamCharge" type="AudioStreamPlayer2D" parent="." unique_id=1723686632]
+stream = ExtResource("19_0dfwi")
+
+[node name="ParticleBeamLoop" type="AudioStreamPlayer2D" parent="." unique_id=1614614612]
+stream = ExtResource("20_q5v14")
+
+[node name="ParticleBeamStop" type="AudioStreamPlayer2D" parent="." unique_id=1465568312]
+stream = ExtResource("21_ee2xr")
+
+[node name="ImpactParticle" type="GPUParticles2D" parent="." unique_id=1780426325]
+emitting = false
+amount = 128
+lifetime = 0.5
+one_shot = true
+explosiveness = 1.0
+randomness = 1.0
+process_material = SubResource("ParticleProcessMaterial_ulur3")
+
+[node name="EngineL" type="Marker2D" parent="." unique_id=1495778554]
+position = Vector2(-3, 6)
+
+[node name="EngineR" type="Marker2D" parent="." unique_id=854711842]
+position = Vector2(3, 6)
+
+[connection signal="area_entered" from="." to="." method="_on_area_entered"]
+[connection signal="timeout" from="GunCooldown" to="." method="_on_gun_cooldown_timeout"]
+[connection signal="timeout" from="MinigunCooldown" to="." method="_on_gun_cooldown_timeout"]
+[connection signal="timeout" from="ShieldRegenTimer" to="." method="_on_shield_regen_timer_timeout"]

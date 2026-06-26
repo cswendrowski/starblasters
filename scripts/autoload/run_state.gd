@@ -139,23 +139,20 @@ var run_stats: Dictionary = {}
 var run_seed: int = 0
 
 # ---- Ship choice (per-patrol; picked in the ship-select modal at new-patrol start) ----
-# ship_variant: 0 = A (default), 1 = B, 2 = C. Selects which player scene combat instantiates.
-# livery_color: the player-chosen hull livery tint; only honored when livery_chosen is true,
-# otherwise player.gd falls back to its run_seed-derived random tint (dev / non-modal entry).
+# ship_variant: index into ShipCatalog.SHIPS (0 = the default Starblaster; the full roster +
+# scene paths live in scripts/strings/ship_catalog.gd). Selects which player scene combat
+# instantiates. livery_color: the player-chosen hull livery tint; only honored when
+# livery_chosen is true, otherwise player.gd falls back to its run_seed-derived random tint.
 var ship_variant: int = 0
 var livery_color: Color = Color(1.0, 0.0, 0.0)
 var livery_chosen: bool = false
 
-const PLAYER_SCENES := [
-	"res://scenes/player/player.tscn",
-	"res://scenes/player/player_b.tscn",
-	"res://scenes/player/player_c.tscn",
-]
+const ShipCatalog = preload("res://scripts/strings/ship_catalog.gd")
 
 
 # Scene path for the chosen player ship variant (clamped to the known set).
 func player_scene_path() -> String:
-	return PLAYER_SCENES[clampi(ship_variant, 0, PLAYER_SCENES.size() - 1)]
+	return ShipCatalog.scene_path(ship_variant)
 
 # ---- Persistent upgrades (outpost purchases) --------------------------
 # Mk 0..9 per category. Applied to the player at combat start via

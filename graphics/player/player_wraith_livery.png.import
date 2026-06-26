@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bgl65rnatcqhi"
-path="res://.godot/imported/player_ship_c_engines.png-622bf7c65a6c2ff4c93e1c857eada42c.ctex"
+uid="uid://iy36eirf37pw"
+path="res://.godot/imported/player_wraith_livery.png-1de1835129e3fbdd5a0ef87ac2709609.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://graphics/player/player_ship_c_engines.png"
-dest_files=["res://.godot/imported/player_ship_c_engines.png-622bf7c65a6c2ff4c93e1c857eada42c.ctex"]
+source_file="res://graphics/player/player_wraith_livery.png"
+dest_files=["res://.godot/imported/player_wraith_livery.png-1de1835129e3fbdd5a0ef87ac2709609.ctex"]
 
 [params]
 

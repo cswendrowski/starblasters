@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://2bjt0u2qgpq6"
-path="res://.godot/imported/player_ship_b_livery.png-90bb3d8ab57788ba3073959e39d4ea64.ctex"
+uid="uid://icc3cau2alyc"
+path="res://.godot/imported/player_pilgrim_livery.png-d10e5f12686eabdf51b3eab420b4da92.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://graphics/player/player_ship_b_livery.png"
-dest_files=["res://.godot/imported/player_ship_b_livery.png-90bb3d8ab57788ba3073959e39d4ea64.ctex"]
+source_file="res://graphics/player/player_pilgrim_livery.png"
+dest_files=["res://.godot/imported/player_pilgrim_livery.png-d10e5f12686eabdf51b3eab420b4da92.ctex"]
 
 [params]
 

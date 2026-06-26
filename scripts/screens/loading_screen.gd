@@ -22,17 +22,14 @@ extends Control
 # embedding under a host that already owns an HD scope (the dev lab) to avoid a double scale swap.
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
+const ShipCatalog = preload("res://scripts/strings/ship_catalog.gd")
 
 const STARS_SCENE := "res://scenes/parallax/layers/layer_stars.tscn"
 
-# Player scenes per variant (index = Run.ship_variant). We render the REAL combat player (idle: no
-# input / collision / weapons, never dies) rather than a sprite mock, so the livery shader, engine
-# glow AND the live damage tells (engine_torch / damage_smoke_trail / spark_trail) match combat.
-const PLAYER_SCENES := [
-	"res://scenes/player/player.tscn",
-	"res://scenes/player/player_b.tscn",
-	"res://scenes/player/player_c.tscn",
-]
+# Player scenes per variant (index = Run.ship_variant) come from the canonical ShipCatalog. We
+# render the REAL combat player (idle: no input / collision / weapons, never dies) rather than a
+# sprite mock, so the livery shader, engine glow AND the live damage tells (engine_torch /
+# damage_smoke_trail / spark_trail) match combat.
 
 const NATIVE_W := 480.0
 const SHIP_X := NATIVE_W / 2.0   # 240 — native viewport centre (matches _run_outro)
@@ -120,7 +117,7 @@ func _resolve_identity() -> void:
 	var run := get_node_or_null("/root/Run")
 	if ship_variant < 0:
 		ship_variant = int(run.ship_variant) if run != null and "ship_variant" in run else 0
-	ship_variant = clampi(ship_variant, 0, PLAYER_SCENES.size() - 1)
+	ship_variant = clampi(ship_variant, 0, ShipCatalog.count() - 1)
 	# Carried damage state (current/max). Stay -1 when Run has none (fresh Run / dev lab) → the ship
 	# keeps the player scene's own default hull (undamaged).
 	if ship_max_hull < 0 and run != null and "max_hull" in run:
@@ -232,8 +229,8 @@ func _build_streak_texture() -> Texture2D:
 func rebuild_ship() -> void:
 	if _ship != null and is_instance_valid(_ship):
 		_ship.queue_free()
-	var idx: int = clampi(ship_variant, 0, PLAYER_SCENES.size() - 1)
-	var p: Node2D = load(PLAYER_SCENES[idx]).instantiate()
+	var idx: int = clampi(ship_variant, 0, ShipCatalog.count() - 1)
+	var p: Node2D = load(ShipCatalog.scene_path(idx)).instantiate()
 	if "controls_enabled" in p:
 		p.controls_enabled = false   # skips input/fire; pins the level-flight frame
 	if "invincible" in p:

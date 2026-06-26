@@ -6,24 +6,18 @@ extends CanvasLayer
 # the static open() factory. On "Begin Patrol" it fires on_confirm(variant:int, color:Color); the
 # caller does Run.new_run() + writes the choice + transitions. Cancel just closes (stay on menu).
 #
-# The ship preview composites the MIDDLE frame (frame 1, the neutral bank pose) of the body + livery +
-# engine-glow sheets as stacked TextureRects. The livery layer is tinted by modulate to the chosen
-# hue — a clear color read for the picker (the in-game livery shader is a screen-multiply, so the
-# real ship reads a touch darker; the preview communicates the chosen color, not a pixel-exact mirror).
+# The ship preview is built by the shared `ShipVisual` builder (body + the real screen-multiply livery
+# shader @0.8 + additive engine glow) — the SAME render path every other menu uses, so the picker reads
+# exactly like the in-game ship instead of an approximation.
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
+const ShipCatalog = preload("res://scripts/strings/ship_catalog.gd")
+const ShipVisual = preload("res://scripts/ui/ship_visual.gd")
 const NODE_NAME := "ShipSelectOverlay"
-const ENGINE_GLOW_COLOR := Color(0.0, 0.827, 1.0)   # #00d3ff — matches the in-game engine glowmask
 
-# Per-variant art + display name. Index = Run.ship_variant.
-const VARIANTS := [
-	{"name": "ALPHA", "tag": "Standard hull",  "body": "res://graphics/player/player_ship_a_body.png",
-		"livery": "res://graphics/player/player_ship_a_livery.png", "engine": "res://graphics/player/player_ship_a_engines.png"},
-	{"name": "BETA",  "tag": "Alternate hull", "body": "res://graphics/player/player_ship_b_body.png",
-		"livery": "res://graphics/player/player_ship_b_livery.png", "engine": "res://graphics/player/player_ship_b_engines.png"},
-	{"name": "GAMMA", "tag": "Alternate hull", "body": "res://graphics/player/player_ship_c_body.png",
-		"livery": "res://graphics/player/player_ship_c_livery.png", "engine": "res://graphics/player/player_ship_c_engines.png"},
-]
+# Per-variant art + display name. Index = Run.ship_variant. The roster (name / tag / sheets) is
+# the canonical ShipCatalog; this picker reads it so a new ship shows up here automatically.
+const VARIANTS := ShipCatalog.SHIPS
 
 # Livery swatch palette — a spread of saturated, readable hues. Random picks anywhere in HSV space.
 const SWATCHES := [
@@ -161,16 +155,16 @@ func _make_ship_card(idx: int) -> PanelContainer:
 	vb.add_theme_constant_override("separation", 8)
 	card.add_child(vb)
 
-	# Preview: stacked body + livery (tinted) + engine glow, all the middle (neutral) frame.
+	# Preview: the shared ship visual (body + real screen-multiply livery @0.8 + engine glow), so it
+	# matches the in-game ship exactly. Centered + scaled to fill the fixed-size holder.
 	var holder := Control.new()
 	holder.custom_minimum_size = Vector2(PREVIEW_PX, PREVIEW_PX)
 	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var body_rect := _make_layer(_frame_tex(String(data["body"])), Color.WHITE, false)
-	holder.add_child(body_rect)
-	var livery_rect := _make_layer(_frame_tex(String(data["livery"])), _current_color, false)
-	holder.add_child(livery_rect)
-	var glow_rect := _make_layer(_frame_tex(String(data["engine"])), ENGINE_GLOW_COLOR, true)
-	holder.add_child(glow_rect)
+	var visual := ShipVisual.build(idx, _current_color)
+	var sf: float = PREVIEW_PX / 16.0   # ships are 16px native
+	visual.scale = Vector2(sf, sf)
+	visual.position = Vector2(PREVIEW_PX, PREVIEW_PX) * 0.5
+	holder.add_child(visual)
 	vb.add_child(holder)
 
 	var name_lbl := _label(String(data["name"]), UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_TEXT)
@@ -187,37 +181,8 @@ func _make_ship_card(idx: int) -> PanelContainer:
 	btn.pressed.connect(_on_select_variant.bind(idx))
 	card.add_child(btn)
 
-	_cards.append({"root": card, "livery_rect": livery_rect, "idx": idx})
+	_cards.append({"root": card, "visual": visual, "idx": idx})
 	return card
-
-
-# One full-rect TextureRect layer of the preview, nearest-filtered + aspect-fit.
-func _make_layer(tex: Texture2D, tint: Color, additive: bool) -> TextureRect:
-	var r := TextureRect.new()
-	r.texture = tex
-	r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	r.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	r.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	r.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	r.modulate = tint
-	if additive:
-		var m := CanvasItemMaterial.new()
-		m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-		r.material = m
-	return r
-
-
-# Middle frame (frame 1 of the 3-frame bank strip) of a horizontal sheet as an AtlasTexture.
-func _frame_tex(path: String) -> Texture2D:
-	var t: Texture2D = load(path)
-	if t == null:
-		return null
-	var fw: int = int(t.get_width() / 3.0)
-	var at := AtlasTexture.new()
-	at.atlas = t
-	at.region = Rect2(fw, 0, fw, t.get_height())
-	return at
 
 
 func _make_swatch(c: Color) -> Control:
@@ -258,7 +223,7 @@ func _set_color(c: Color) -> void:
 	if _color_dot != null:
 		_color_dot.color = c
 	for card in _cards:
-		(card["livery_rect"] as TextureRect).modulate = c
+		ShipVisual.set_tint(card["visual"], c)
 
 
 func _refresh_selection() -> void:

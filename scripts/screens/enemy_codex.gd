@@ -5,11 +5,12 @@ extends Control
 # HD 1920×1080 layout (style guide): sector_bg backdrop, CanvasLayer-hosted UI,
 # container layout, UiTheme LabelKind typography (no native font pins).
 #
-# Navigation (left column): the four factions + Bosses + the Starblaster (player).
-# Selecting a faction shows its codex entry + a roster of its enemies (discovered
-# ones named, the rest "???"). Selecting a discovered enemy shows a slowly-rotating
-# sprite (hull + glowmap + dropshadow, NO other shaders), its name, classification,
-# and codex blurb.
+# Navigation (left column): the four factions + Bosses + Ships (the player fleet) + the
+# Armory. Selecting a faction shows its codex entry + a roster of its enemies (discovered
+# ones named, the rest "???"). Selecting a discovered enemy shows a slowly-rotating sprite
+# (hull + glowmap + dropshadow, NO other shaders), its name, classification, and codex blurb.
+# Selecting Ships lists the playable hulls (ShipCatalog) → each ship's hull preview + codex
+# + starting armament/modules.
 #
 # Everything is PULLED FROM THE GAME, not authored here:
 #   - faction list / display name / tint .... Factions (factions.gd)
@@ -27,10 +28,11 @@ const EnemyRoster = preload("res://scripts/levels/enemy_roster.gd")
 const EnemyStrings = preload("res://scripts/strings/enemy_strings.gd")
 const CodexStrings = preload("res://scripts/strings/codex_strings.gd")
 const ArmoryStrings = preload("res://scripts/strings/armory_strings.gd")
+const ShipCatalog = preload("res://scripts/strings/ship_catalog.gd")
+const ShipVisual = preload("res://scripts/ui/ship_visual.gd")
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
 
-const PLAYER_SCENE := "res://scenes/player/player.tscn"
 const SPIN_SPEED := 0.5      # rad/s — slow turntable
 const PREVIEW_SCALE := 4.0   # native pixel sprite shown crisp at HD (nearest)
 const TIER_NAMES := ["Common", "Uncommon", "Rare"]
@@ -53,7 +55,9 @@ func _ready() -> void:
 	for fid in [Factions.Id.SUPREMACY, Factions.Id.PRIVATEER, Factions.Id.CORPORATE, Factions.Id.ZEALOT]:
 		_cats.append({"kind": "faction", "fid": fid, "key": Factions.id_key(fid)})
 	_cats.append({"kind": "bosses"})
-	_cats.append({"kind": "starblaster"})
+	# Ships — the player fleet (browsable roster, pulled from ShipCatalog). Replaces the old
+	# single "Starblaster" entry; the Starblaster is now the first ship in the list.
+	_cats.append({"kind": "ships"})
 	# Armory — the player's own kit, one category per slot class.
 	_cats.append({"kind": "armory", "label": "Blasters", "slot": SlotTypes.SlotType.CANNON})
 	_cats.append({"kind": "armory", "label": "Secondaries", "slot": SlotTypes.SlotType.HARDPOINT_WING})
@@ -213,8 +217,11 @@ func _render_right() -> void:
 	for c in _right_root.get_children():
 		c.queue_free()
 	var cat: Dictionary = _cats[_sel_cat]
-	if cat.kind == "starblaster":
-		_render_starblaster()
+	if cat.kind == "ships":
+		if _view == "detail":
+			_render_ship_detail(int(_detail_path))
+		else:
+			_render_ships_list()
 	elif cat.kind == "armory":
 		if _view == "detail":
 			_render_item_detail(cat, _detail_path)
@@ -285,14 +292,64 @@ func _render_enemy_detail(path: String) -> void:
 	_add_blurb(EnemyStrings.codex_entry(path))
 
 
-func _render_starblaster() -> void:
-	var header := _label(CodexStrings.STARBLASTER["name"], UiTheme.LabelKind.HEADER)
-	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+# ---- Ships (the player fleet) --------------------------------------------
+
+func _show_ship(idx: int) -> void:
+	_detail_path = str(idx)
+	_view = "detail"
+	_render_right()
+
+
+func _render_ships_list() -> void:
+	var header := _label("Ships", UiTheme.LabelKind.HEADER)
 	header.add_theme_color_override("font_color", UiTheme.COLOR_ACCENT)
 	_right_root.add_child(header)
-	_add_preview(PLAYER_SCENE, "Ship", "", 1)
-	_add_blurb(CodexStrings.STARBLASTER["codex"])
+	var sub := _label("FLEET   (%d hulls)" % ShipCatalog.count(), UiTheme.LabelKind.CAPTION)
+	_right_root.add_child(sub)
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_right_root.add_child(scroll)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(vb)
+	for i in ShipCatalog.count():
+		var row := Button.new()
+		row.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		UiTheme.style_button(row)
+		row.text = ShipCatalog.display_name(i)
+		row.pressed.connect(_show_ship.bind(i))
+		vb.add_child(row)
+
+
+func _render_ship_detail(idx: int) -> void:
+	var ship: Dictionary = ShipCatalog.get_ship(idx)
+	var back := Button.new()
+	back.text = "<  Ships"
+	back.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	UiTheme.style_button(back)
+	back.pressed.connect(_show_category.bind(_sel_cat))
+	_right_root.add_child(back)
+	# Rotating hull preview — body + the real screen-multiply livery (ship's signature tint) +
+	# additive engine glow, so the codex shows the ship exactly as it flies in combat.
+	_add_ship_preview(idx)
+	var name_lbl := _label(String(ship["name"]), UiTheme.LabelKind.HEADER)
+	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_lbl.add_theme_color_override("font_color", UiTheme.COLOR_ACCENT)
+	_right_root.add_child(name_lbl)
+	var cls := _label(String(ship["tag"]), UiTheme.LabelKind.CAPTION)
+	cls.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cls.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_right_root.add_child(cls)
+	var loadout := _label("ARMAMENT   %s\nMODULES   %s" % [String(ship["armament"]), String(ship["modules"])], UiTheme.LabelKind.CAPTION)
+	loadout.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	loadout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_right_root.add_child(loadout)
+	_add_blurb(String(ship["codex"]))
 
 
 # ---- Armory (the player's own kit) ---------------------------------------
@@ -382,6 +439,37 @@ func _add_blurb(text: String) -> void:
 
 # ---- Sprite preview (hull + glowmap + dropshadow, no other shaders) -------
 
+# Player-ship preview. Unlike _add_preview (generic enemy/hull sprite cloning), this routes through
+# the shared ShipVisual builder so the hull shows its real screen-multiply livery + additive engine
+# glow — the same render path the live ship + every ship menu uses.
+func _add_ship_preview(idx: int) -> void:
+	var ship: Dictionary = ShipCatalog.get_ship(idx)
+	var stage := Control.new()
+	stage.custom_minimum_size = Vector2(0, 320)
+	stage.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_right_root.add_child(stage)
+	var holder := Node2D.new()
+	holder.scale = Vector2(PREVIEW_SCALE, PREVIEW_SCALE)
+	stage.add_child(holder)
+	_center_holder.call_deferred(holder, stage)
+	# Static dropshadow — body silhouette, dark, offset, behind.
+	var shadow := Sprite2D.new()
+	shadow.texture = load(String(ship["body"]))
+	shadow.hframes = 3
+	shadow.frame = 1
+	shadow.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	shadow.modulate = Color(0, 0, 0, 0.32)
+	shadow.position = Vector2(3, 4)
+	shadow.z_index = -2
+	holder.add_child(shadow)
+	# Rotating ship (body + livery + glow), tinted to the hull's signature livery.
+	var spin := Node2D.new()
+	holder.add_child(spin)
+	var tint: Color = ship.get("livery_color", Color(0.90, 0.16, 0.16))
+	spin.add_child(ShipVisual.build(idx, tint, 1.0))
+	_preview_spin = spin
+
+
 func _add_preview(scene_path: String, hull_name: String, glow_name: String, frame_override: int) -> void:
 	# A fixed-size stage the rotating Node2D parents into, centered.
 	var stage := Control.new()
@@ -463,7 +551,7 @@ func _category_label(cat: Dictionary) -> String:
 	match cat.kind:
 		"faction":   return CodexStrings.faction_name(cat.key)
 		"bosses":    return "Bosses"
-		"starblaster": return CodexStrings.STARBLASTER["name"]
+		"ships":     return "Ships"
 		"armory":    return String(cat.label)
 	return "?"
 

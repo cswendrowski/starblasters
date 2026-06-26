@@ -33,6 +33,8 @@ const EngineTrailFx = preload("res://scripts/effects/engine_trail_fx.gd")
 const SparkTrailFx = preload("res://scripts/effects/spark_trail_fx.gd")
 const DamageSmokeTrail = preload("res://scripts/effects/damage_smoke_trail.gd")
 const PF = preload("res://scripts/systems/playfield.gd")
+const ShipCatalog = preload("res://scripts/strings/ship_catalog.gd")
+const ShipVisual = preload("res://scripts/ui/ship_visual.gd")
 
 const DamageOverlayShader = preload("res://graphics/damage_noise.gdshader")
 const _DamageNoiseTex = preload("res://resources/noise_damage.tres")
@@ -86,14 +88,10 @@ const SPARK_LIGHT_ENERGY := 1.0
 const SPARK_LIGHT_SCALE := 0.22
 const SPARK_LIGHT_RATE := 8.0         # light energy attack/decay per second (flash speed)
 
-# Per-variant art layers + engine marker positions (index = Run.ship_variant). The engine
-# positions mirror scenes/player/player{,_b,_c}.tscn so the streak + tells sit on each
-# body's real nozzles (A has one, B/C have two). Roman 2026-06-19.
-const VARIANTS := [
-	{"body": "res://graphics/player/player_ship_a_body.png", "livery": "res://graphics/player/player_ship_a_livery.png", "engine": "res://graphics/player/player_ship_a_engines.png", "engines": [Vector2(0, 6)]},
-	{"body": "res://graphics/player/player_ship_b_body.png", "livery": "res://graphics/player/player_ship_b_livery.png", "engine": "res://graphics/player/player_ship_b_engines.png", "engines": [Vector2(-4, 5), Vector2(4, 5)]},
-	{"body": "res://graphics/player/player_ship_c_body.png", "livery": "res://graphics/player/player_ship_c_livery.png", "engine": "res://graphics/player/player_ship_c_engines.png", "engines": [Vector2(-2, 7), Vector2(2, 7)]},
-]
+# Per-variant art layers + engine marker positions (index = Run.ship_variant). The roster +
+# nozzle offsets are the canonical ShipCatalog (its `body`/`livery`/`engine`/`engines` keys
+# are exactly what _build_ship reads), so a new ship's dock cinematic comes along for free.
+const VARIANTS := ShipCatalog.SHIPS
 
 const NATIVE_W := 480.0
 const NATIVE_H := 270.0
@@ -363,10 +361,12 @@ func _build_ship() -> void:
 	var data: Dictionary = VARIANTS[clampi(ship_variant, 0, VARIANTS.size() - 1)]
 	_body = _make_layer(String(data["body"]), Color.WHITE, false)
 	host.add_child(_body)
-	# Livery darkens to match the dim hangar via self_modulate (multiplies its tint; the body
-	# does the same through the shader's `brightness`). The engine glow + sparks stay full-bright.
-	_livery = _make_layer(String(data["livery"]), livery_color, false)
-	_livery.self_modulate = Color(bg_brightness, bg_brightness, bg_brightness, 1.0)
+	# Livery: the SAME screen-multiply shader the in-game ship + every other menu uses (body shaded
+	# THROUGH the tint @0.8, not a flat fill) — via the shared ShipVisual definition. The body is
+	# already dimmed to the hangar by its damage-overlay `brightness`, and the livery samples that
+	# dimmed body, so the dim flows through automatically — keep modulate WHITE (no double-dim).
+	_livery = _make_layer(String(data["livery"]), Color.WHITE, false)
+	_livery.material = ShipVisual.make_livery_material(livery_color)
 	host.add_child(_livery)
 	_engine_glow = _make_layer(String(data["engine"]), ENGINE_GLOW_COLOR, true)
 	host.add_child(_engine_glow)
@@ -1573,8 +1573,10 @@ func set_bg_brightness(b: float) -> void:
 		_bg.self_modulate = gray
 	if _damage_mat != null:
 		_damage_mat.set_shader_parameter("brightness", bg_brightness)   # body
+	# Livery is screen-multiplied off the (already-dimmed) body, so the hangar dim flows through it
+	# automatically — keep its own modulate WHITE so the brightness isn't applied twice.
 	if _livery != null and is_instance_valid(_livery):
-		_livery.self_modulate = gray                                    # livery (engine glow/sparks stay full)
+		_livery.self_modulate = Color.WHITE                             # livery (engine glow/sparks stay full)
 
 
 # Heal damage to `target` over `dur`, re-driving the shader + tells each step (the overlay is

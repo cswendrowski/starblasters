@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://batel2u2bqxtq"
-path="res://.godot/imported/player_ship_b_body.png-42946e5f602bb8f95c5f96df54e7f376.ctex"
+uid="uid://2bjt0u2qgpq6"
+path="res://.godot/imported/player_falchion_livery.png-038b04435e38e0d4dce08f98b523ebc5.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://graphics/player/player_ship_b_body.png"
-dest_files=["res://.godot/imported/player_ship_b_body.png-42946e5f602bb8f95c5f96df54e7f376.ctex"]
+source_file="res://graphics/player/player_falchion_livery.png"
+dest_files=["res://.godot/imported/player_falchion_livery.png-038b04435e38e0d4dce08f98b523ebc5.ctex"]
 
 [params]
 

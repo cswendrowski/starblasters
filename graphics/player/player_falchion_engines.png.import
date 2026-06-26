@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bcvg5ug4y8r02"
-path="res://.godot/imported/player_ship_c_body.png-ebcb669aadf7b288d09d1bae2cbc8234.ctex"
+uid="uid://d3auxeep7q008"
+path="res://.godot/imported/player_falchion_engines.png-e664a3adfb07affa4e85a51506fd688d.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://graphics/player/player_ship_c_body.png"
-dest_files=["res://.godot/imported/player_ship_c_body.png-ebcb669aadf7b288d09d1bae2cbc8234.ctex"]
+source_file="res://graphics/player/player_falchion_engines.png"
+dest_files=["res://.godot/imported/player_falchion_engines.png-e664a3adfb07affa4e85a51506fd688d.ctex"]
 
 [params]
 
