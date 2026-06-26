@@ -370,6 +370,10 @@ func _on_enemy_spawned(scene_path: String, bounty_value: int) -> void:
 		get_node("/root/Run").mark_encountered(scene_path)
 
 func _on_enemy_died(value: int, scene_path: String) -> void:
+	# Kill-streak heat for the music — a mild, decaying lift while scoring fast.
+	var music := get_node_or_null("/root/Music")
+	if music != null:
+		music.notify_kill()
 	# Bounty Board bonus: if the player opted in to a priority target type,
 	# apply the multiplier when that enemy type is killed. Meta persists until
 	# consumed by a new_run() or until manually cleared — intentional so it

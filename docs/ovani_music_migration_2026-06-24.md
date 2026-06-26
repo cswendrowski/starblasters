@@ -133,15 +133,30 @@ adjust volume, watch the loop point, and tick per-context eligibility checkboxes
 ### Music autoload (`scripts/autoload/music_manager.gd`)
 Rewritten over one `OvaniPlayer`. Public API preserved (`set_context`,
 `set_combat_progress`, `ramp_down`, `set_intensity`, `set_walk_frozen`, `stop`,
-`notify_boss_spawned`) **plus new `notify_damage(max_hull, hull)`**. The
+`notify_boss_spawned`) **plus `notify_damage(max_hull, hull)` and
+`notify_kill()`**. The
 two-player swap, discrete tiers, per-frame lookahead, `finished` safety net, and
 per-boss intensity floor are all gone.
 
-**Dynamic combat intensity** (`_combat_intensity()`):
-`clamp(COMBAT_BASE 0.12 + W_WAVE 0.50·wave01 + W_PROGRESS 0.22·runDepth01 + W_DAMAGE 0.30·damage01, 0, 1)`
+**Dynamic combat intensity** — a CEILING the music ramps *up to*, never snaps to
+(updated 2026-06-25 to a live per-frame envelope so combat opens quiet and breathes):
+
+`ceiling = _combat_ceiling() = clamp(COMBAT_BASE 0.12 + W_WAVE 0.50·wave01 + W_PROGRESS 0.22·runDepth01 + W_DAMAGE 0.30·damage01, 0, 1)`
 - `wave01` = wave_idx / (total-1) — deeper into the level = hotter.
 - `runDepth01` = (sectors_cleared·4 + combats_in_sector) / 6 — deeper run = hotter open.
 - `damage01` = 1 − hull/max_hull — fed by `notify_damage` off `hull_changed`.
+
+Live intensity each frame (`_process`, combat only):
+`intensity = clamp(presence · ceiling + W_STREAK 0.15 · streak_heat, 0, 1)`
+- **presence** (0..1): `move_toward` the live enemy count / `CROWD_FULL 5`, rising at
+  `PRESENCE_RISE 1.5`/s, falling at `PRESENCE_FALL 0.4`/s. Combat opens at presence 0
+  (intensity 0) and ramps to the ceiling as enemies stream in; brief between-wave lulls
+  dip gently (slow fall) instead of cutting out. Enemy count via the `"enemies"` group.
+- **streak_heat** (0..1, mild): each kill adds `STREAK_GAIN 0.34` (capped), decays at
+  `STREAK_DECAY 0.5`/s — a gentle lift while scoring fast, fading when the streak ends.
+  Fed by `notify_kill()` off the director's `enemy_died` (main.gd `_on_enemy_died`).
+`set_context("combat")` opens quiet (resets presence/streak/wave/damage, Intensity→0);
+`ramp_down()` stops the envelope so the level-clear breather can settle.
 Non-combat contexts rest at fixed levels (`CTX_INTENSITY`: menu/outpost 0.0,
 sector 0.12, events 0.40, boss 1.0). Transitions use `PlaySongNow(song, fade)`;
 intensity changes use `FadeIntensity`. Tuning lives in the constants block.

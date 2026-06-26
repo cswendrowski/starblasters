@@ -35,37 +35,53 @@ func _process(_dt: float) -> void:
 		run.combats_in_sector = 0
 		run.sectors_cleared = 0
 
+	# Combat intensity is a live envelope (presence * ceiling + streak) driven in
+	# _process; under this single-frame headless test with no enemies in-tree we
+	# verify the CEILING math + the kill-streak meter, not the per-frame envelope.
 	music.set_context("combat")
-	var i_open: float = music._intensity_target
-	lines.append("combat open (shallow): intensity=%.3f" % i_open)
+	var i_open: float = music._combat_ceiling()
+	lines.append("combat ceiling (shallow): %.3f" % i_open)
 
 	music.set_combat_progress(0, 8, false)
-	var i_w0: float = music._intensity_target
+	var i_w0: float = music._combat_ceiling()
 
 	music.set_combat_progress(7, 8, false)
-	var i_w7: float = music._intensity_target
-	lines.append("deep wave 7/8: intensity=%.3f (expect > wave0 %.3f)" % [i_w7, i_w0])
+	var i_w7: float = music._combat_ceiling()
+	lines.append("deep wave 7/8 ceiling: %.3f (expect > wave0 %.3f)" % [i_w7, i_w0])
 	if not (i_w7 > i_w0 + 0.2):
 		fails += 1
-		lines.append("FAIL wave progress should raise intensity")
+		lines.append("FAIL wave progress should raise the ceiling")
 
 	music.notify_damage(3, 0)   # fully damaged
-	var i_dmg: float = music._intensity_target
-	lines.append("fully damaged: intensity=%.3f (expect > deep wave)" % i_dmg)
+	var i_dmg: float = music._combat_ceiling()
+	lines.append("fully damaged ceiling: %.3f (expect > deep wave)" % i_dmg)
 	if not (i_dmg > i_w7):
 		fails += 1
-		lines.append("FAIL damage should raise intensity")
+		lines.append("FAIL damage should raise the ceiling")
 
-	# Deeper run → hotter combat open.
+	# Combat must OPEN QUIET — the live intensity starts at 0, not at the ceiling.
+	lines.append("combat-open live intensity: %.3f (expect 0 — ramps up in _process)" % music._player.Intensity)
+	if music._player.Intensity > 0.001:
+		fails += 1
+		lines.append("FAIL combat should open quiet (intensity 0)")
+
+	# Kill-streak heat rises with kills and is capped.
+	music.notify_kill(); music.notify_kill(); music.notify_kill()
+	lines.append("streak heat after 3 kills: %.3f (expect > 0, <= 1)" % music._streak_heat)
+	if music._streak_heat <= 0.0:
+		fails += 1
+		lines.append("FAIL kills should add streak heat")
+
+	# Deeper run → hotter combat ceiling.
 	if run != null:
 		run.combats_in_sector = 6
 	music.set_context("menu")
 	music.set_context("combat")
-	var i_deep: float = music._intensity_target
-	lines.append("combat open (deep run): intensity=%.3f (expect > shallow %.3f)" % [i_deep, i_open])
+	var i_deep: float = music._combat_ceiling()
+	lines.append("combat ceiling (deep run): %.3f (expect > shallow %.3f)" % [i_deep, i_open])
 	if not (i_deep > i_open):
 		fails += 1
-		lines.append("FAIL run progress should raise open intensity")
+		lines.append("FAIL run progress should raise the ceiling")
 
 	music.ramp_down()
 	lines.append("ramp_down: intensity=%.3f (expect 0)" % music._intensity_target)
