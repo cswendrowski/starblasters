@@ -36,6 +36,10 @@ func _fmt_placement(pl: Dictionary) -> String:
 func _fmt_data(lib: Array) -> String:
 	var out: String = "const DATA: Array = [\n"
 	for p in lib:
+		# Skip empty editor slots (a "new pattern" never filled) — they'd bake as dead 0-placement
+		# entries. build_phrase returns null on them anyway, but keep DATA clean.
+		if (p.get("placements", []) as Array).is_empty():
+			continue
 		out += "\t{\n"
 		out += '\t\t"name": %s,\n' % _fmt_str(p.get("name", ""))
 		out += '\t\t"faction": %s,\n' % _fmt_str(p.get("faction", "any"))
