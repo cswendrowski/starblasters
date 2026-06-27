@@ -171,11 +171,11 @@ static func cap_for(sector_depth: int, level_index: int) -> int:
 	return clampi(12 + level_index + (sector_depth - 1), 12, 16)
 
 
-# Scale the level's CHAFF waves so the total approaches the budget, leaving elite
-# (low base_count) waves at their rolled counts so elites stay rare. base_counts
-# is parallel to waves. Replaces the old per-wave count ceiling as the volume
-# driver — chaff fills whatever budget the elites don't.
-static func _apply_budget(waves: Array, base_counts: Array, sector_depth: int, level_index: int) -> void:
+# Scale the level's CHAFF waves so the total approaches the budget, leaving discrete beats (heavies /
+# capped flocks / accents) at their authored counts. `chaff_flags` is parallel to `waves` — true =
+# scalable chaff. (Roman 2026-06-27: was keyed on base_count >= 4, which MISCLASSIFIED low-base
+# uncommon chaff as elite and left it to trickle at count 2-3. The explicit flag scales it densely.)
+static func _apply_budget(waves: Array, chaff_flags: Array, sector_depth: int, level_index: int) -> void:
 	if waves.is_empty():
 		return
 	var target: int = _level_budget(sector_depth, level_index)
@@ -183,8 +183,7 @@ static func _apply_budget(waves: Array, base_counts: Array, sector_depth: int, l
 	var chaff_idx: Array = []
 	var chaff_raw: int = 0
 	for i in waves.size():
-		var base: int = (int(base_counts[i]) if i < base_counts.size() else 4)
-		if base >= 4:
+		if i < chaff_flags.size() and bool(chaff_flags[i]):
 			chaff_idx.append(i)
 			chaff_raw += int(waves[i].count)
 		else:
@@ -235,50 +234,58 @@ const ESCORT_CHANCE: float = 0.4
 const ESCORT_ROW_GAP: float = 40.0
 
 static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, level_index: int) -> Array:
+	# PALETTE (Roman 2026-06-27): the whole level draws from a SMALL subset of the roster, not the full
+	# pool per beat (which produced 9-15 distinct types/level). The bulk beats cycle the chaff list; the
+	# capstone uses the level's one heavy. Kitchen-sink (full pool) is reserved for the boss lead-in.
+	var palette: Dictionary = _pick_palette(rng, sector_depth, level_index)
+	var chaff_types: Array = palette["chaff"]
+	var heavy_type: Dictionary = palette["heavy"]
+	if chaff_types.is_empty():
+		return []   # roster misconfig guard (should never happen — basic chaff is unlock 0)
 	var waves: Array = []
-	var base_counts: Array = []
-	var used: Array = []
+	# Parallel to `waves`: true = a chaff bulk wave that _apply_budget scales to the headcount; false =
+	# a DISCRETE beat (heavy / capped flock / accent) left at its authored count.
+	var chaff_flags: Array = []
 	for i in COMBAT_WAVE_COUNT:
 		var lead_lr: bool = (i % 2 == 0)
 		var is_finale: bool = (i == COMBAT_WAVE_COUNT - 1)
-		# START — light chaff entry; opens the wave (banner).
-		var e_start: Dictionary = _pick_entry(rng, sector_depth, level_index, used, PackedStringArray(), Roster.Tier.UNCOMMON, "")
-		used.append(e_start)
+		# START — a chaff entry from the palette; opens the wave (banner). Cycles the palette for
+		# variety within the subset.
+		var e_start: Dictionary = chaff_types[i % chaff_types.size()]
 		var s_start = _make_wave_spec(rng, e_start, sector_depth, level_index, i)
 		s_start.formation = WaveSpec.Formation.TOP_LEFT_TO_RIGHT if lead_lr else WaveSpec.Formation.TOP_RIGHT_TO_LEFT
 		s_start.silent = false        # opens a new ScoreWave -> one banner per wave
 		s_start.announce_text = ""    # default "WAVE n / 5"
 		s_start.spawn_delay = 0.5
 		_apply_force_formation(s_start, e_start)
-		waves.append(s_start); base_counts.append(int(e_start.get("base_count", 4)))
-		# MIDDLE — the bulk; opposite sweep, anti-repeat on the start's movement.
-		var e_mid: Dictionary = _pick_entry(rng, sector_depth, level_index, used, PackedStringArray(), Roster.Tier.RARE, str(e_start.get("movement", "")))
-		used.append(e_mid)
+		waves.append(s_start); chaff_flags.append(true)
+		# MIDDLE — the bulk; a DIFFERENT palette chaff (same type if the palette has only one), opposite
+		# sweep. Budget-scaled, so even a low-base uncommon chaff fills out densely (no trickle).
+		var e_mid: Dictionary = chaff_types[(i + 1) % chaff_types.size()]
 		var s_mid = _make_wave_spec(rng, e_mid, sector_depth, level_index, i)
 		s_mid.formation = WaveSpec.Formation.TOP_RIGHT_TO_LEFT if lead_lr else WaveSpec.Formation.TOP_LEFT_TO_RIGHT
 		s_mid.silent = true
 		s_mid.spawn_delay = 0.35
 		_apply_force_formation(s_mid, e_mid)
-		waves.append(s_mid); base_counts.append(int(e_mid.get("base_count", 4)))
-		# END — the capstone. A heavy on the finale (always) and ~60% of waves 1-3; else a chaff wall.
+		waves.append(s_mid); chaff_flags.append(true)
+		# END — the capstone: the level's heavy on the finale (always) and ~60% of waves 1-3; else a
+		# held flock / shifting wall of palette chaff.
 		var want_heavy: bool = is_finale or (i >= 1 and rng.randf() < 0.6)
-		var heavy: Dictionary = {}
-		if want_heavy:
-			var prefer_capital: bool = is_finale and (level_index >= 1 or sector_depth >= 2)
-			heavy = _pick_heavy(rng, sector_depth, level_index, used, prefer_capital)
-		if not heavy.is_empty():
-			used.append(heavy)
-			var s_end = _make_wave_spec(rng, heavy, sector_depth, level_index, i)
-			s_end.count = clampi(int(s_end.count), 1, (3 if is_finale else 2))
+		if want_heavy and not heavy_type.is_empty():
+			var s_end = _make_wave_spec(rng, heavy_type, sector_depth, level_index, i)
+			# Floor of 2 so a medium heavy never arrives as a lone, slow, unexciting single — a real
+			# anchor PAIR reads as a beat. A genuinely big capital (large/huge) may still come solo.
+			var hi: int = 3 if is_finale else 2
+			var lo: int = 1 if String(heavy_type.get("size", "")) in ["large", "huge"] else 2
+			s_end.count = clampi(int(s_end.count), lo, hi)
 			s_end.formation = WaveSpec.Formation.TOP_CENTER_OUT
 			s_end.silent = true
 			s_end.spawn_delay = 0.35
-			waves.append(s_end); base_counts.append(int(heavy.get("base_count", 4)))
+			waves.append(s_end); chaff_flags.append(false)   # discrete anchor
 		else:
 			# No heavy this beat — cap the wave with a held GEOMETRIC FLOCK (formation_shapes) most of
 			# the time, else the classic shifting WALL / PINCER. See GEOMETRIC_CAPSTONE_CHANCE above.
-			var e_end: Dictionary = _pick_entry(rng, sector_depth, level_index, used, PackedStringArray(), Roster.Tier.COMMON, "")
-			used.append(e_end)
+			var e_end: Dictionary = chaff_types[rng.randi() % chaff_types.size()]
 			var s_end2 = _make_wave_spec(rng, e_end, sector_depth, level_index, i)
 			s_end2.silent = true
 			s_end2.spawn_delay = 0.35
@@ -288,29 +295,65 @@ static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, l
 				s_end2.count = clampi(int(s_end2.count), GEOMETRIC_FLOCK_MIN, GEOMETRIC_FLOCK_MAX)
 				# Coherent straight descent so the lane-pinned shape holds rigidly as it enters.
 				s_end2.movement_override = Roster.make_movement({"movement": "straight"})
-				# base_count 1 → _apply_budget treats this as a discrete beat, not scalable chaff.
-				waves.append(s_end2); base_counts.append(1)
+				waves.append(s_end2); chaff_flags.append(false)   # discrete capped flock
 			else:
 				s_end2.formation = WaveSpec.Formation.WALL if lead_lr else WaveSpec.Formation.PINCER
 				_apply_force_formation(s_end2, e_end)
-				waves.append(s_end2); base_counts.append(int(e_end.get("base_count", 4)))
+				waves.append(s_end2); chaff_flags.append(true)    # scaled chaff wall
 		# ACCENT — a quick crossing sting punctuates the tail of some non-finale waves (see ACCENT_CHANCE).
 		if not is_finale and rng.randf() < ACCENT_CHANCE:
-			var s_acc = _make_accent_wave(rng, sector_depth, level_index, i, used)
+			var s_acc = _make_accent_wave(rng, chaff_types[rng.randi() % chaff_types.size()], sector_depth, level_index, i)
 			if s_acc != null:
-				waves.append(s_acc); base_counts.append(1)   # discrete: skip budget scaling
-	_apply_budget(waves, base_counts, sector_depth, level_index)
+				waves.append(s_acc); chaff_flags.append(false)   # discrete sting
+	_apply_budget(waves, chaff_flags, sector_depth, level_index)
 	return waves
 
 
-# Build a tiny crossing-sting WaveSpec (the audit's "2-3 enemy accent"). A COMMON chaff entry forced
-# to a side-alternating cross (one from each edge, scissoring across the upper band via the director's
-# existing crosser dispatch). `exclude` is the wave's `used` set so the sting prefers a DIFFERENT
-# enemy than the bulk it punctuates (visual contrast); it's not tracked back, so accents never starve
-# the main beats. Returns null if no entry exists or the pick demands its own formation (e.g. Burner's
-# beam-pair), so the accent is simply skipped that beat. Silent + count 2-3.
-static func _make_accent_wave(rng: RandomNumberGenerator, sector_depth: int, level_index: int, wave_index: int, exclude: Array) -> WaveSpec:
-	var e: Dictionary = _pick_entry(rng, sector_depth, level_index, exclude, PackedStringArray(), Roster.Tier.COMMON, "")
+# Per-level unit PALETTE (Roman 2026-06-27): a small subset of the eligible roster the whole level
+# draws from. {"chaff": Array of chaff-tagged entries, "heavy": one heavy entry ({} if none unlocked)}.
+# Chaff count grows with depth (1 at the opener → 3 deep) so an early node features one swarm + a
+# heavy, a later node a few. Force-formation chaff (Burner etc.) is excluded — it needs its own beat.
+static func _pick_palette(rng: RandomNumberGenerator, sector_depth: int, level_index: int) -> Dictionary:
+	var chaff_pool: Array = []
+	for tier in [Roster.Tier.COMMON, Roster.Tier.UNCOMMON]:
+		for e in Roster.entries_eligible(tier, sector_depth, level_index):
+			if bool(e.get("chaff", false)) and not e.has("force_formation"):
+				chaff_pool.append(e)
+	_shuffle(chaff_pool, rng)
+	# 2 chaff types at the opener (avoids a whole level of ONE unit), up to 3 deep — a tight subset.
+	# Kitchen-sink (the full pool) is the boss lead-in's job, not a normal node's.
+	var n_chaff: int = clampi(2 + level_index, 2, 3)
+	var chaff: Array = []
+	for e in chaff_pool:
+		if chaff.size() >= n_chaff:
+			break
+		if not chaff.has(e):
+			chaff.append(e)
+	# Fallback: no chaff-tagged entries unlocked (shouldn't happen) — take any common.
+	if chaff.is_empty():
+		var any: Array = Roster.entries_eligible(Roster.Tier.COMMON, sector_depth, level_index)
+		if any.is_empty():
+			any = Roster.entries_of(Roster.Tier.COMMON)
+		if not any.is_empty():
+			chaff.append(any[rng.randi() % any.size()])
+	var prefer_capital: bool = (level_index >= 1 or sector_depth >= 2)
+	var heavy: Dictionary = _pick_heavy(rng, sector_depth, level_index, [], prefer_capital)
+	return {"chaff": chaff, "heavy": heavy}
+
+
+# Seeded Fisher-Yates in place (the generator's rng, so the palette reproduces per run+node).
+static func _shuffle(arr: Array, rng: RandomNumberGenerator) -> void:
+	for i in range(arr.size() - 1, 0, -1):
+		var j: int = rng.randi() % (i + 1)
+		var t = arr[i]; arr[i] = arr[j]; arr[j] = t
+
+
+# Build a tiny crossing-sting WaveSpec (the audit's "2-3 enemy accent") from a palette chaff `entry`,
+# forced to a side-alternating cross (one from each edge, scissoring across the upper band via the
+# director's existing crosser dispatch). Returns null if the entry is empty or demands its own
+# formation (e.g. Burner's beam-pair), so the accent is simply skipped that beat. Silent + count 2-3.
+static func _make_accent_wave(rng: RandomNumberGenerator, entry: Dictionary, sector_depth: int, level_index: int, wave_index: int) -> WaveSpec:
+	var e: Dictionary = entry
 	if e.is_empty() or e.has("force_formation"):
 		return null
 	var w = _make_wave_spec(rng, e, sector_depth, level_index, wave_index)
@@ -509,15 +552,17 @@ static func _is_affinity_pair(a: Dictionary, b: Dictionary) -> bool:
 	return partners.has(pb)
 
 
-# Boss level: 2-4 escalating lead-in waves then the boss. Lead-in chaff
-# filters out enemies whose conflict_tags overlap the boss's own pressure
-# signature (BOSS_LEADIN_CONFLICTS). Final lead-in is thinned and re-bannered
-# so the boss arrival reads cleanly.
+# Boss level: a FULL 5-6 wave escalating run-up, THEN the boss (Roman 2026-06-27: was 2-4 — the boss
+# should arrive after a substantial fight). This is the level's KITCHEN-SINK moment — each wave draws
+# from the whole pool (varied), unlike a normal node's small palette. Lead-in chaff filters out
+# enemies whose conflict_tags overlap the boss's own pressure signature. Each wave is floored to a
+# dense, escalating count (boss lead-ins skip the budget pass, so without this a low-base elite would
+# trickle). The final lead-in is thinned + re-bannered so the boss arrival reads cleanly.
 static func _build_boss_waves(rng: RandomNumberGenerator, sector_depth: int, level_index: int) -> Array:
 	var boss_entry: Dictionary = _pick_boss(rng, sector_depth)
 	var conflict_tags: PackedStringArray = PackedStringArray(
 		BOSS_LEADIN_CONFLICTS.get(boss_entry["scene"], []))
-	var n_leadin: int = clampi(1 + sector_depth, 2, 4)  # S1=2, S2=3, S3+=4
+	var n_leadin: int = clampi(4 + sector_depth, 5, 6)  # S1=5, S2=6, deep=6 — a full run-up
 	var used: Array = []
 	var waves: Array = []
 	for i in n_leadin:
@@ -528,6 +573,12 @@ static func _build_boss_waves(rng: RandomNumberGenerator, sector_depth: int, lev
 			# Thin the final lead-in and re-banner so the boss arrival reads cleanly.
 			w.count = maxi(2, int(w.count / 2))
 			w.announce_text = "BOSS APPROACHING"
+		else:
+			# Escalating density floor so every run-up wave is a real wave, not a 1-2 trickle, and the
+			# run-up visibly builds toward the boss. Chaff escalates harder (5→13); a non-chaff elite
+			# wave escalates gently and is capped (elites are tough — a few is already a beat).
+			var floor_n: int = (5 + i * 2) if bool(entry.get("chaff", false)) else mini(3 + i, 5)
+			w.count = maxi(int(w.count), floor_n)
 		waves.append(w)
 	var w_boss = _make_boss_wave(boss_entry)
 	w_boss.spawn_delay = 5.0 - 0.5 * float(sector_depth - 1)  # 4.5/4.0/3.5
