@@ -17,18 +17,25 @@ extends Node
 #           + W_WAVE     * (how deep into this combat level — wave progress)
 #           + W_PROGRESS * (how deep into the run — combats/sectors cleared)
 #           + W_DAMAGE   * (how hurt the player is — hull lost)
-#   The live intensity each frame (see _process) is:
-#     intensity = presence * ceiling + W_STREAK * streak_heat   (clamped [0,1])
-#   where `presence` (0..1, smoothed enemy count) makes combat OPEN QUIET and rise to
-#   the ceiling as enemies arrive — and breathe down during lulls — and `streak_heat`
-#   is a mild, decaying lift from rapid kills. A boss pins intensity to 1.0. Non-combat
+#   The per-frame GOAL (see _process) is:
+#     goal = presence * ceiling + W_STREAK * streak_heat   (clamped [0,1])
+#   where `presence` (0..1, raw enemy count / CROWD_FULL) makes combat OPEN QUIET and
+#   rise as enemies arrive, and `streak_heat` is a mild, decaying lift from rapid kills.
+#   The applied intensity DAMPS toward that goal each frame (asymmetric exponential
+#   smoothing — gentler on the way down), so moves are buffered and brief action spikes
+#   only partially land before they subside. A boss pins intensity to 1.0. Non-combat
 #   contexts sit at a fixed, calmer level (CTX_INTENSITY). Music decompresses on clear.
+#
+# Loading screens warm combat up: warm_up_combat() starts a combat track at 0 and
+# ramps to a middle-low "warming" level during the load; set_context("combat") then
+# hands off from there instead of jamming combat music into place at level start.
 #
 # Public API (callers use get_node("/root/Music")):
 #   set_context(context, options={})       options.track forces a track; .force re-picks
 #   set_combat_progress(wave_idx, total_waves, has_boss)   raises the combat ceiling
 #   notify_damage(max_hull, hull)          raises the ceiling as the player is hurt
-#   notify_kill()                          NEW — adds kill-streak heat (mild, decays)
+#   notify_kill()                          adds kill-streak heat (mild, decays)
+#   warm_up_combat(target=.22, ramp=3)     NEW — loading-screen combat pre-heat
 #   notify_boss_spawned()
 #   ramp_down()                            decompress to calm (level-clear breather)
 #   set_intensity(level, fade=2.0)         legacy 0/1/2 tier → continuous
@@ -76,11 +83,20 @@ const UNSILENCE_FADE := 0.8
 
 # Live combat envelope (per-frame "breathing"). Tune these for moment-to-moment feel.
 const CROWD_FULL := 5.0         # live enemy count that saturates presence (→ full ceiling)
-const PRESENCE_RISE := 1.5      # presence units/sec while enemies arrive (swell up, fast)
-const PRESENCE_FALL := 0.4      # presence units/sec while the field clears (gentle fade)
 const W_STREAK := 0.15          # max intensity lift from a hot kill streak (mild on purpose)
 const STREAK_GAIN := 0.34       # streak heat added per kill (~3 fast kills → full lift)
 const STREAK_DECAY := 0.5       # streak heat lost/sec when not killing (~2s to fade out)
+
+# Damping / buffering: the applied intensity eases toward the goal with these
+# exponential time constants (seconds). Larger = smoother + more lag, and brief
+# action spikes are attenuated more. Falling is gentler than rising on purpose.
+const INTENSITY_RISE_TAU := 1.1 # smoothing while intensity is climbing
+const INTENSITY_FALL_TAU := 2.6 # smoothing while intensity is dropping (gentler)
+
+# Loading-screen combat warm-up.
+const WARM_TARGET := 0.22       # middle-low intensity to warm up to before combat starts
+const WARM_RAMP := 3.0          # seconds to ramp 0 → WARM_TARGET during the load
+const WARM_ENTER_FADE := 2.0    # crossfade INTO the combat track when warm-up begins
 
 var _player: OvaniPlayer = null
 var _lib: MusicLibrary = null
@@ -95,9 +111,10 @@ var _wave01: float = 0.0
 var _damage01: float = 0.0
 
 # Live combat envelope state (driven per-frame in _process while in combat).
-var _combat_active: bool = false   # true only in CTX_COMBAT: run the live envelope
-var _presence01: float = 0.0       # smoothed enemy presence 0..1 (arrival ramp + breathing)
-var _streak_heat: float = 0.0      # kill-streak heat 0..1, decays over time
+var _combat_active: bool = false     # true only in CTX_COMBAT: run the live envelope
+var _warming: bool = false           # loading-screen combat warm-up in progress
+var _intensity_smoothed: float = 0.0 # damped applied combat intensity (the buffer)
+var _streak_heat: float = 0.0        # kill-streak heat 0..1, decays over time
 
 # When true, auto intensity changes (wave/damage) are suppressed — the track
 # keeps playing/looping but won't escalate or de-escalate. Set by the pause menu
@@ -127,18 +144,25 @@ func set_context(context: String, options: Dictionary = {}) -> void:
 	if context == CTX_SILENT:
 		_context = CTX_SILENT
 		_combat_active = false
+		_warming = false
 		stop()
 		return
 
 	var forced: bool = options.get("force", false)
 	# Idempotent re-entry: keep the track, just ensure audible + correct energy.
-	if context == _context and _current_track != "" and not forced:
+	# (Skipped while warming so the warm-up → combat handoff below always runs.)
+	if context == _context and _current_track != "" and not forced and not _warming:
 		if _silenced:
 			_unsilence()
 		if context != CTX_COMBAT:
 			_apply_context_intensity(CTX_FADE)   # combat energy is driven live in _process
 		return
 
+	# Handing off from a loading-screen warm-up into actual combat: keep the
+	# already-playing combat track and its warmed intensity; just seed the damping
+	# buffer and switch the live envelope on (no reset-to-0, no re-pick, no jam).
+	var was_warming: bool = _warming and context == CTX_COMBAT
+	_warming = false
 	_context = context
 	if _silenced:
 		_unsilence()
@@ -146,13 +170,17 @@ func set_context(context: String, options: Dictionary = {}) -> void:
 	# Combat runs a live per-frame envelope (_process); everything else glides to
 	# a fixed resting intensity.
 	_combat_active = (context == CTX_COMBAT)
+	if was_warming and _player != null:
+		_intensity_smoothed = _player.Intensity            # continue from the warmed level
+		_player.FadeIntensity(_player.Intensity, 0.05)     # end the warm ramp; _process drives now
+		return
 	if _combat_active:
-		# Open QUIET — the envelope ramps up to the ceiling as enemies arrive,
-		# instead of jamming to full energy before anything is happening.
+		# Cold open — start QUIET; the envelope ramps up to the ceiling as enemies
+		# arrive, instead of jamming to full energy before anything is happening.
 		_wave01 = 0.0
 		_damage01 = 0.0
-		_presence01 = 0.0
 		_streak_heat = 0.0
+		_intensity_smoothed = 0.0
 		if _player != null:
 			_player.Intensity = 0.0
 			_player.FadeIntensity(0.0, 0.05)  # cancel any stale context fade; _process drives from here
@@ -194,6 +222,31 @@ func notify_kill() -> void:
 		_streak_heat = minf(1.0, _streak_heat + STREAK_GAIN)
 
 
+# Loading-screen combat pre-heat. Begins a combat track quietly and ramps it to a
+# middle-low "warming up" level over `ramp` seconds, so combat doesn't jam into
+# place when the level starts. The subsequent set_context("combat") (main.gd, at
+# level start) hands off from this warmed state — keeping the track + intensity —
+# instead of cold-opening at 0. Call when a load into a combat node begins
+# (LevelLauncher.go). The live envelope stays OFF until combat actually starts.
+func warm_up_combat(target_intensity: float = WARM_TARGET, ramp: float = WARM_RAMP) -> void:
+	if _player == null:
+		return
+	if _silenced:
+		_unsilence()
+	_warming = true
+	_combat_active = false
+	_context = CTX_COMBAT
+	_wave01 = 0.0
+	_damage01 = 0.0
+	_streak_heat = 0.0
+	_intensity_smoothed = 0.0
+	var track: String = _pick_track(CTX_COMBAT)
+	if track != "" and (track != _current_track or _current_track == ""):
+		_play_track(track, WARM_ENTER_FADE)
+	_player.Intensity = 0.0
+	_set_intensity_target(clampf(target_intensity, 0.0, 1.0), maxf(ramp, 0.05))
+
+
 func notify_boss_spawned() -> void:
 	set_context(CTX_BOSS)
 
@@ -203,6 +256,7 @@ func notify_boss_spawned() -> void:
 # the next context can crossfade smoothly.
 func ramp_down() -> void:
 	_combat_active = false
+	_warming = false
 	_set_intensity_target(0.0, RAMP_FADE)
 
 
@@ -255,22 +309,25 @@ func _combat_ceiling() -> float:
 		0.0, 1.0)
 
 
-# Live combat envelope. Ramps intensity UP TO the ceiling based on how much is
-# actually happening — enemies present (presence) plus recent kills (streak) —
-# so combat opens quiet and breathes. Non-combat contexts hold their fixed
-# FadeIntensity target, so there's nothing to do for them here.
+# Live combat envelope. Computes a GOAL intensity from how much is actually
+# happening — enemies present (presence) plus recent kills (streak) — then DAMPS
+# the applied intensity toward it, so moves are buffered and brief action spikes
+# only partially land. Combat opens quiet and breathes. Non-combat contexts hold
+# their fixed FadeIntensity target, so there's nothing to do for them here.
 func _process(delta: float) -> void:
 	if not _combat_active or _context != CTX_COMBAT or _walk_frozen or _player == null:
 		return
-	# Presence swells toward the live enemy count, rising fast / falling slow so
-	# brief between-wave lulls dip the music gently instead of cutting it out.
 	var count := get_tree().get_node_count_in_group("enemies")
-	var presence_target := clampf(float(count) / CROWD_FULL, 0.0, 1.0)
-	var rate := PRESENCE_RISE if presence_target > _presence01 else PRESENCE_FALL
-	_presence01 = move_toward(_presence01, presence_target, rate * delta)
+	var presence := clampf(float(count) / CROWD_FULL, 0.0, 1.0)
 	# Kill-streak heat decays toward 0 when the player stops scoring.
 	_streak_heat = maxf(0.0, _streak_heat - STREAK_DECAY * delta)
-	_player.Intensity = clampf(_presence01 * _combat_ceiling() + W_STREAK * _streak_heat, 0.0, 1.0)
+	var goal := clampf(presence * _combat_ceiling() + W_STREAK * _streak_heat, 0.0, 1.0)
+	# Damped follow (the buffer): ease toward the goal with an exponential, frame-
+	# rate-independent step — gentler when falling. Short spikes never fully land
+	# because the gap only closes a fraction before the spike subsides.
+	var tau := INTENSITY_RISE_TAU if goal > _intensity_smoothed else INTENSITY_FALL_TAU
+	_intensity_smoothed = lerpf(_intensity_smoothed, goal, 1.0 - exp(-delta / maxf(tau, 0.01)))
+	_player.Intensity = _intensity_smoothed
 
 
 # How deep into the run we are, 0..1 — combats done this sector plus cleared

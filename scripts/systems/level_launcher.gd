@@ -36,6 +36,13 @@ static func go(tree: SceneTree, target_path: String) -> void:
 		var cur: Node = tree.current_scene
 		if cur != null and cur is LoadingScreen:
 			ls = cur
+	# 3b. Warm the combat music up during the load — start a combat track quiet and
+	#     ramp to a middle-low vibe, so combat doesn't jam into place at level start.
+	#     main.gd's set_context("combat") hands off from this warmed state. All go()
+	#     targets are main.tscn (combat/boss/hazard), so the combat track is right.
+	var music: Node = tree.root.get_node_or_null("Music")
+	if music != null and music.has_method("warm_up_combat"):
+		music.warm_up_combat()
 	# 4. Hold until the target is loaded AND the minimum dwell (visible time) has elapsed.
 	var visible_ms: int = Time.get_ticks_msec()
 	while true:

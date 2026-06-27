@@ -146,20 +146,31 @@ per-boss intensity floor are all gone.
 - `runDepth01` = (sectors_cleared·4 + combats_in_sector) / 6 — deeper run = hotter open.
 - `damage01` = 1 − hull/max_hull — fed by `notify_damage` off `hull_changed`.
 
-Live intensity each frame (`_process`, combat only):
-`intensity = clamp(presence · ceiling + W_STREAK 0.15 · streak_heat, 0, 1)`
-- **presence** (0..1): `move_toward` the live enemy count / `CROWD_FULL 5`, rising at
-  `PRESENCE_RISE 1.5`/s, falling at `PRESENCE_FALL 0.4`/s. Combat opens at presence 0
-  (intensity 0) and ramps to the ceiling as enemies stream in; brief between-wave lulls
-  dip gently (slow fall) instead of cutting out. Enemy count via the `"enemies"` group.
+Per-frame GOAL (`_process`, combat only):
+`goal = clamp(presence · ceiling + W_STREAK 0.15 · streak_heat, 0, 1)`
+- **presence** (0..1): raw live enemy count / `CROWD_FULL 5`. Combat opens at presence 0
+  and rises as enemies stream in. Enemy count via the `"enemies"` group.
 - **streak_heat** (0..1, mild): each kill adds `STREAK_GAIN 0.34` (capped), decays at
   `STREAK_DECAY 0.5`/s — a gentle lift while scoring fast, fading when the streak ends.
   Fed by `notify_kill()` off the director's `enemy_died` (main.gd `_on_enemy_died`).
-`set_context("combat")` opens quiet (resets presence/streak/wave/damage, Intensity→0);
-`ramp_down()` stops the envelope so the level-clear breather can settle.
-Non-combat contexts rest at fixed levels (`CTX_INTENSITY`: menu/outpost 0.0,
-sector 0.12, events 0.40, boss 1.0). Transitions use `PlaySongNow(song, fade)`;
-intensity changes use `FadeIntensity`. Tuning lives in the constants block.
+
+**Damping/buffer (2026-06-25):** the applied intensity isn't the goal directly — it
+eases toward it with frame-rate-independent exponential smoothing,
+`smoothed = lerp(smoothed, goal, 1 − exp(−dt/τ))`, using `INTENSITY_RISE_TAU 1.1` when
+climbing and `INTENSITY_FALL_TAU 2.6` when dropping (gentler down). This buffers all
+intensity moves (presence, ceiling jumps from waves/damage, streak spikes) and makes
+**brief action spikes only partially land** before they subside.
+
+**Loading-screen warm-up (2026-06-25):** `warm_up_combat(target 0.22, ramp 3s)` starts a
+combat track at intensity 0 and ramps to a middle-low "warming" level during the load
+(`LevelLauncher.go` calls it when the loading screen appears). `set_context("combat")` at
+level start then **hands off** from that warmed state (seeds the damping buffer from the
+current intensity, switches the live envelope on) instead of cold-opening at 0.
+
+`set_context("combat")` cold-opens quiet; `ramp_down()` stops the envelope so the
+level-clear breather can settle. Non-combat contexts rest at fixed levels
+(`CTX_INTENSITY`: menu/outpost 0.0, sector 0.12, events 0.40, boss 1.0) via
+`FadeIntensity`. Tuning lives in the constants block.
 
 ### Wiring + retirement
 - `main.gd` forwards `player.hull_changed` → `Music.notify_damage` in combat setup.

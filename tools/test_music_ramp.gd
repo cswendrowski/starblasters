@@ -95,6 +95,18 @@ func _process(_dt: float) -> void:
 		fails += 1
 		lines.append("FAIL boss should pin Main")
 
+	# Warm-up handoff: warm_up_combat arms warming + the combat context; the
+	# following set_context("combat") must hand off to the live envelope (not
+	# cold-open) — combat_active true, warming cleared.
+	music.warm_up_combat(0.22, 3.0)
+	var warmed: bool = music._warming and music._context == "combat"
+	music.set_context("combat")
+	lines.append("warm-up handoff: warmed=%s -> combat_active=%s warming=%s" % [
+		str(warmed), str(music._combat_active), str(music._warming)])
+	if not (warmed and music._combat_active and not music._warming):
+		fails += 1
+		lines.append("FAIL warm-up should hand off to live combat")
+
 	# Regression: re-entering "silent" (e.g. returning to the dev menu) must stay
 	# silenced, not un-silence a leftover track.
 	music.set_context("menu")     # play something audible
