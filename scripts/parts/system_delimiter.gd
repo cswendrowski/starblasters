@@ -30,3 +30,10 @@ func apply(ship) -> void:
 func unapply(ship) -> void:
 	if "module_delimiter_max" in ship:
 		ship.module_delimiter_max = 0.0
+
+
+func bonus_description(mk: int) -> String:
+	var m := clampi(mk, 1, 9)
+	var bonus: float = 0.20 + 0.05 * float(m - 1)
+	var pct: int = int(round(bonus * 100.0))
+	return "+%d%% fire-rate & damage when low on hull" % pct

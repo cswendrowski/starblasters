@@ -22,7 +22,7 @@ const UiTheme := preload("res://scripts/ui/ui_theme.gd")
 const HdScreenLib := preload("res://scripts/ui/hd_screen.gd")
 const SectorNode := preload("res://scripts/systems/sector_node.gd")
 const SECTOR_MAP_SCENE := preload("res://scenes/sector_map_v3.tscn")
-const OUTPOST_SCENE := "res://scenes/outpost.tscn"
+const OUTPOST_SCENE := "res://scenes/outpost_arrival.tscn"   # cinematic dock (was the flat outpost.tscn)
 const SELF_SCENE := "res://scenes/sector_map_hd.tscn"
 const NODE_STRIP := preload("res://graphics/ui/sector_nodes.png")
 # Higher-res glyphs (white-on-transparent) — crisper than the 32px strip tiles

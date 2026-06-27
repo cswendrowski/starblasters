@@ -30,5 +30,9 @@ static func make(pos: Vector2, col: Color, scale: float, tex: Texture2D) -> Poin
 	l.texture_scale = scale
 	l.blend_mode = Light2D.BLEND_MODE_ADD
 	l.shadow_enabled = false
+	# Light every sprite layer (not just the default) so a stray non-default light_mask on a background
+	# sprite can't exclude these dock lights. Roman 2026-06-26. (The dock engine-light "doesn't reach the
+	# plate" issue turned out to be z-order — the hull is drawn OVER the floor it lights — not masks.)
+	l.range_item_cull_mask = 0xFFFFF
 	l.position = pos
 	return l

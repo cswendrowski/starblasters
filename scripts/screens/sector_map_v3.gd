@@ -122,7 +122,7 @@ const BG_STAR_BRIGHTNESS_MUL := 0.8  # -20%
 # Scene paths for click transitions. Combat/Boss/Hazard all share main.tscn;
 # the distinction comes from current_node_type set on Run.
 const COMBAT_SCENE  := "res://scenes/main.tscn"
-const OUTPOST_SCENE := "res://scenes/outpost.tscn"
+const OUTPOST_SCENE := "res://scenes/outpost_arrival.tscn"
 const SIGNAL_SCENE  := "res://scenes/signal_event.tscn"
 const BOSS_SCENE    := "res://scenes/main.tscn"
 const HAZARD_SCENE  := "res://scenes/main.tscn"

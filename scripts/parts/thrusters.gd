@@ -24,3 +24,9 @@ func apply(ship) -> void:
 func unapply(ship) -> void:
 	if "module_speed_pct" in ship:
 		ship.module_speed_pct -= _speed_pct()
+
+
+func bonus_description(mk: int) -> String:
+	var m := clampi(mk, 1, 9)
+	var pct: int = int(round(float(m) * 0.03 * 100.0))
+	return "+%d%% move speed" % pct

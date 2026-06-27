@@ -61,3 +61,9 @@ func _spawn_drones(ship) -> void:
 # Editor readout — total drone hit pool across all drones at this Mk.
 func effective_damage(at_mark: int) -> int:
 	return (base_hits + (at_mark - 1) * hits_per_mark) * base_drones
+
+
+func bonus_description(mk: int) -> String:
+	var m := clampi(mk, 1, 9)
+	var hits: int = base_hits + (m - 1) * hits_per_mark
+	return "%d drones, %d hits each" % [base_drones, hits]

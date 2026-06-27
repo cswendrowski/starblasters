@@ -30,3 +30,10 @@ func apply(ship) -> void:
 func unapply(ship) -> void:
 	if "module_overclock_max" in ship:
 		ship.module_overclock_max = 0.0
+
+
+func bonus_description(mk: int) -> String:
+	var m := clampi(mk, 1, 9)
+	var bonus: float = 0.15 + 0.0375 * float(m - 1)
+	var pct: int = int(round(bonus * 100.0))
+	return "+%d%% rate-of-fire when holding trigger" % pct

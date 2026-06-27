@@ -44,10 +44,26 @@ const _DamageEdgeTex = preload("res://resources/edge_distance_flat.tres")
 # the plate sprite + the runway lights (shared with patrol_start); the plate descends in as the ship
 # lands and slides out as it leaves — reading as flying into / out of the hangar. Roman 2026-06-20.
 const STARS_SCENE := "res://scenes/parallax/layers/layer_stars.tscn"
-const HangarPlate = preload("res://scripts/screens/hangar_plate.gd")
+const HANGAR_STAGE := "res://scenes/hangar_stage.tscn"   # shared authorable plate + runway + lights
 const PointLightFx = preload("res://scripts/effects/point_light_fx.gd")
+const LightShadowFx = preload("res://scripts/effects/light_shadow_fx.gd")
+# Live shop wiring (production): the dock reads/writes the real Run loadout/economy. Mirrors outpost.gd.
+const SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
+const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
+const PartTier = preload("res://scripts/parts/part_tier.gd")
+const SHOP_MAX_MK := 9
+const CANNON_BASE_COST := 116
+const CANNON_COST_PER_MK := 70
+const HULL_REPAIR_COST := 250
+const WEAPONS_COLUMN_COUNT := 5
+const WEAPON_SLOT_WEIGHTS := [
+	SlotTypes.SlotType.CANNON, SlotTypes.SlotType.CANNON, SlotTypes.SlotType.CANNON, SlotTypes.SlotType.CANNON,
+	SlotTypes.SlotType.HARDPOINT_WING, SlotTypes.SlotType.HARDPOINT_WING,
+	SlotTypes.SlotType.DEVICE_BAY_1, SlotTypes.SlotType.MODULE, SlotTypes.SlotType.MODULE,
+]
 
 const ENGINE_GLOW_COLOR := Color(0.0, 0.827, 1.0)   # #00d3ff — in-game engine glowmask
+const ENGINE_GLOW_OFF := 0.0   # glowmask + engine-light level when the engine is OFF (landed) — fully dark
 const TELL_ACTIVATE := 0.5   # missing-hull fraction at which smoke/sparks light (player default)
 const SPARK_GRAVITY := 120.0  # gentle downward drift on the sparks (lower = "less velocity")
 # Landed sparks crackle intermittently (not a constant fountain); frequency + density scale
@@ -65,11 +81,15 @@ const SPARK_RADIAL_VEL := 16.0        # low spark velocity (scene default ~50)
 # Point lights: blue on each engine (follows the glow on/off), orange on each spark marker
 # (flashes when the ship sparks). Roman 2026-06-20.
 const ENGINE_LIGHT_COLOR := Color(0.10, 0.60, 1.0)
-const ENGINE_LIGHT_ENERGY := 0.9
-const ENGINE_LIGHT_SCALE := 0.30
+const ENGINE_LIGHT_ENERGY := 1.8          # bright — the engines are the dock's main light in the dark bay
+const ENGINE_LIGHT_SCALE := 0.45          # FOCUSED nozzle glow (64px tex → ~29px); scale wasn't the issue,
+                                          # a small bright light at the marker reads better (Roman 2026-06-26)
+const ENGINE_LIGHT_GLOW_GAMMA := 0.5      # <1 → the lights come in EARLY as the glow mask fades in
+const ENGINE_FLARE_PEAK := 2.2            # energy × at the moment of launch (accelerating out of the bay)
+const ENGINE_FLARE_SCALE := 1.7           # light-size × at launch (the bright spot blooms as it leaves)
 const SPARK_LIGHT_COLOR := Color(1.0, 0.55, 0.12)
 const SPARK_LIGHT_ENERGY := 1.0
-const SPARK_LIGHT_SCALE := 0.22
+const SPARK_LIGHT_SCALE := 0.25           # focused orange spark flash at the nozzle (64px tex → ~16px)
 const SPARK_LIGHT_RATE := 8.0         # light energy attack/decay per second (flash speed)
 
 # Per-variant art layers + engine marker positions (index = Run.ship_variant). The roster +
@@ -97,6 +117,9 @@ signal depart_requested   # bottom-bar Depart pressed (caller may intercept; def
 
 enum State { ARRIVING, LANDED, DEPARTING, GONE }
 enum ShopMode { NONE, SCRAP, SELL }
+# Shadow prototype: LEGACY = baked drop shadows; KEY = one central key light (single shadow);
+# FILL = the bay's 2×3 fill lights (multi-shadow). + optional dynamic engine-light casters.
+enum ShadowMode { LEGACY, KEY, FILL }
 
 # ---- Identity (set before add_child; -1/false = read from Run) ----
 @export var ship_variant: int = -1
@@ -104,6 +127,7 @@ enum ShopMode { NONE, SCRAP, SELL }
 @export var livery_set: bool = false
 @export var outpost_name: String = ""
 @export var manage_hd_scope: bool = true
+@export var return_to_map: bool = false   # PRODUCTION: on depart, fly out → return to the sector map
 @export var damage_level: float = 0.0   # 0 = pristine, 1 = near-wreck; drives shader + tells
 
 # ---- Tuning knobs (the dev lab drives these; defaults are the shipped feel) ----
@@ -131,13 +155,22 @@ enum ShopMode { NONE, SCRAP, SELL }
 @export var star_drift: float = 1500.0  # star-parallax scroll rate during fly-in/out (depth)
 @export var scene_dim: float = 0.6  # uniform dim of the whole bay output (engine lights counteract it; 1 = full)
 @export var runway_speed: float = 0.9   # runway-light pulse speed (rad/s; lower = slower)
+# Light-derived shadow prototype (Roman 2026-06-26) — see ShadowMode. Default LEGACY = unchanged.
+@export var shadow_mode: int = ShadowMode.LEGACY
+@export var shadow_dynamic: bool = false   # also cast from the bright engine lights (fade with glow)
+@export var shadow_length: float = 4.0
+@export var shadow_alpha: float = 0.5
+@export var shadow_falloff: float = 110.0
+@export var shadow_softness: float = 0.0
+@export var shadow_max: int = 6
+const KEY_LIGHT_ENERGY := 0.0    # key light is a SHADOW SOURCE only — illuminating it floods/sweeps the bay
+const SHIP_SHADOW_LIFT := 12.0   # px the ship's light-derived shadow pulls away when "high" (faked drop height)
 
 var _hd: HdViewportScope = null
 var _world: SubViewport = null
 var _ship: Node2D = null
 var _body: Sprite2D = null
 var _livery: Sprite2D = null
-var _play_container: Node = null   # the SubViewportContainer — its modulate dims the whole bay output
 var _shadow: Sprite2D = null
 var _engine_glow: Sprite2D = null
 var _trail: EngineTrailFx = null
@@ -146,7 +179,7 @@ var _sparks: Array = []        # spark trail instances (one per engine marker)
 var _damage_mat: ShaderMaterial = null
 var _engine_on: bool = false
 var _stars = null                  # layer_stars instance (two-layer parallax + deep-space void)
-var _plate: Node2D = null          # shared HangarPlate (descends in / slides out); owns the runway lights
+var _plate: Node2D = null          # shared hangar_stage instance (descends in / slides out); owns runway + fill
 var _bg_tween: Tween = null
 var _bg_center_y: float = 135.0    # plate rest position (centered) — set from plate_size()
 var _bg_above_y: float = -135.0    # fully off the top (fly-in start)
@@ -158,6 +191,11 @@ var _spray_t: float = 0.0          # remaining time of a damaged spool-up spray
 var _engine_lights: Array = []     # blue PointLight2D per engine marker
 var _spark_lights: Array = []      # orange PointLight2D per engine marker
 var _light_tex: Texture2D = null
+var _engine_flare: float = 1.0     # 1 normally; tweened up to ENGINE_FLARE_PEAK as the ship launches out
+var _flare_tween: Tween = null
+var _shadow_mgr = null             # LightShadowFx (light-derived shadow prototype; null until built)
+var _ship_altitude: float = 1.0    # 1 = flying (shadow pulled away for height), 0 = landed (tight)
+var _skip_anim: bool = false       # cinematic skipped this visit (Settings dock-anim) → instant depart too
 
 var _state: int = State.ARRIVING
 var _t: float = 0.0
@@ -176,6 +214,8 @@ var _materials: int = 0
 var _shop_mode: int = ShopMode.NONE
 var _market: Array = []            # market entries (item dicts; sold ones carry ["buyback"]=true)
 var _left_tabs: TabContainer = null
+var _live: bool = false            # true when Run is present + run_seed != 0
+var _locked_parts: Array = []      # parts locked in hold (by part reference identity)
 
 # UI refs.
 var _left_panel: Control = null
@@ -205,13 +245,12 @@ func _ready() -> void:
 	_resolve_identity()
 	_init_inventory()
 	_world = HdScreen.make_play_subviewport(self)
-	# Dim the WHOLE bay output (the SubViewportContainer's modulate) uniformly — the engine glow +
-	# point lights are additive INSIDE the viewport, so they pop relative to the dim (mirrors
-	# patrol_start.scene_dim). Simpler than the old per-layer dim. Roman 2026-06-21.
-	_play_container = _world.get_parent()
-	_apply_scene_dim()
+	# The bay dim lives in the hangar stage's own CanvasModulate (authored + tuned there), so the
+	# screen no longer dims the container. Roman 2026-06-21.
 	_build_backdrop()
 	_build_ship()
+	_build_clutter()
+	_build_shadow_mgr()
 	# Persistent black sidebars (behind the panels), then the menu Controls.
 	_build_sidebars()
 	_build_left_panel()
@@ -220,7 +259,10 @@ func _ready() -> void:
 	_build_bottom_bar()
 	_build_toast()
 	_built = true
-	begin_arrival()
+	if _should_play_cinematic():
+		begin_arrival()
+	else:
+		begin_landed()
 	await get_tree().process_frame
 	HdScreen.verify_native_subviewport(_world, "Outpost Arrival")
 
@@ -246,26 +288,231 @@ func _default_outpost_name(run: Node) -> String:
 
 
 func _init_inventory() -> void:
-	_money = _run_int("bounty", 1250)
-	_materials = _run_int("materials", 8)
-	_slots = {
-		"PRIMARY": _mk_item("Twin Cannon", "PRIMARY", 3, 40, "Rapid dual-bolt cannon. Mk scales fire-rate + damage."),
-		"SECONDARY": _mk_item("Seeker Missiles", "SECONDARY", 2, 30, "Homing missile pod. Mk adds salvo size + tracking."),
-		"SUPER": _mk_item("Smart Bomb", "SUPER", 1, 60, "Screen-clearing blast. Mk adds charges + radius."),
-		"MODULE_1": _mk_item("Shield Core", "MODULE", 2, 50, "Adds shield charges. Mk raises the charge pool."),
-		"MODULE_2": _mk_item("Thrusters", "MODULE", 1, 35, "Raises move speed. Mk sharpens handling."),
-		"MODULE_3": null,
-	}
-	_hold = [
-		_mk_item("Reinforced Hull", "MODULE", 4, 55, "Adds hull pips. Mk raises max hull."),
-		_mk_item("Spread Cannon", "PRIMARY", 2, 40, "Wide pellet spread. Mk widens the cone + damage."),
-		_mk_item("Repair Drone", "MODULE", 1, 25, "Slow passive hull repair between waves."),
-	]
-	_market = _base_offers()
+	var run := get_node_or_null("/root/Run")
+	_live = run != null and "run_seed" in run and int(run.run_seed) != 0
+	if _live:
+		_refresh_live()
+	else:
+		_money = _run_int("bounty", 1250)
+		_materials = _run_int("materials", 8)
+		_slots = {
+			"PRIMARY": _mk_item("Twin Cannon", "PRIMARY", 3, 40, "Rapid dual-bolt cannon. Mk scales fire-rate + damage."),
+			"SECONDARY": _mk_item("Seeker Missiles", "SECONDARY", 2, 30, "Homing missile pod. Mk adds salvo size + tracking."),
+			"SUPER": _mk_item("Smart Bomb", "SUPER", 1, 60, "Screen-clearing blast. Mk adds charges + radius."),
+			"MODULE_1": _mk_item("Shield Core", "MODULE", 2, 50, "Adds shield charges. Mk raises the charge pool."),
+			"MODULE_2": _mk_item("Thrusters", "MODULE", 1, 35, "Raises move speed. Mk sharpens handling."),
+			"MODULE_3": null,
+		}
+		_hold = [
+			_mk_item("Reinforced Hull", "MODULE", 4, 55, "Adds hull pips. Mk raises max hull."),
+			_mk_item("Spread Cannon", "PRIMARY", 2, 40, "Wide pellet spread. Mk widens the cone + damage."),
+			_mk_item("Repair Drone", "MODULE", 1, 25, "Slow passive hull repair between waves."),
+		]
+		_market = _base_offers()
+		_locked_parts.clear()
 
 
-func _mk_item(nm: String, kind: String, mark: int, scrap: int, desc: String) -> Dictionary:
-	return {"name": nm, "kind": kind, "mark": mark, "max_mark": 9, "scrap": scrap, "locked": false, "desc": desc}
+func _mk_item(nm: String, kind: String, mark: int, scrap: int, desc: String, part = null, src: String = "") -> Dictionary:
+	var item = {"name": nm, "kind": kind, "mark": mark, "max_mark": 9, "scrap": scrap, "locked": false, "desc": desc}
+	if part != null:
+		item["part"] = part
+	if src != "":
+		item["src"] = src
+	return item
+
+
+# Rebuild view-model dicts FROM Run so existing card builders stay compatible.
+func _refresh_live() -> void:
+	if not _live:
+		return
+	var run := get_node_or_null("/root/Run")
+	if run == null:
+		return
+
+	_money = int(run.bounty)
+	_materials = int(run.materials)
+	_slots.clear()
+	_hold.clear()
+	_locked_parts.clear()
+
+	# PRIMARY/SECONDARY/SUPER slots from Run.
+	var active_cannon = run.get_active_cannon() if run.has_method("get_active_cannon") else null
+	if active_cannon != null:
+		_slots["PRIMARY"] = _mk_item(
+			String(active_cannon.display_name), "PRIMARY", int(active_cannon.mark),
+			_scrap_value(active_cannon), String(active_cannon.description),
+			active_cannon, "cannon_pool")
+	else:
+		_slots["PRIMARY"] = null
+
+	var secondary = run.loadout_snapshot.get(int(SlotTypes.SlotType.HARDPOINT_WING), null)
+	if secondary != null:
+		_slots["SECONDARY"] = _mk_item(
+			String(secondary.display_name), "SECONDARY", int(secondary.mark),
+			_scrap_value(secondary), String(secondary.description),
+			secondary, "loadout")
+	else:
+		_slots["SECONDARY"] = null
+
+	var super_part = run.loadout_snapshot.get(int(SlotTypes.SlotType.DEVICE_BAY_1), null)
+	if super_part != null:
+		_slots["SUPER"] = _mk_item(
+			String(super_part.display_name), "SUPER", int(super_part.mark),
+			_scrap_value(super_part), String(super_part.description),
+			super_part, "loadout")
+	else:
+		_slots["SUPER"] = null
+
+	# Modules: map run.modules[i] to MODULE_0..5 pseudo-slots
+	for i in range(6):
+		var sid = "MODULE_%d" % (i + 1)
+		if i < run.modules.size() and run.modules[i] != null:
+			var mod = run.modules[i]
+			_slots[sid] = _mk_item(
+				String(mod.display_name), "MODULE", int(mod.mark),
+				_scrap_value(mod), String(mod.description),
+				mod, "modules")
+		else:
+			_slots[sid] = null
+
+	# Hold: weapon_storage + inventory
+	for i in range(run.weapon_storage.size()):
+		var wp = run.weapon_storage[i]
+		_hold.append(_mk_item(
+			String(wp.display_name), _slot_type_kind(int(wp.slot_type)), int(wp.mark),
+			_scrap_value(wp), String(wp.description),
+			wp, "weapon_storage"))
+
+	for i in range(run.inventory.size()):
+		var ip = run.inventory[i]
+		_hold.append(_mk_item(
+			String(ip.display_name), _slot_type_kind(int(ip.slot_type)), int(ip.mark),
+			_scrap_value(ip), String(ip.description),
+			ip, "inventory"))
+
+	# Market: load or roll offers
+	_load_or_roll_live_offers()
+
+
+# Map SlotType int to kind string
+func _slot_type_kind(slot_type: int) -> String:
+	var ST = SlotTypes.SlotType
+	match slot_type:
+		ST.CANNON: return "PRIMARY"
+		ST.HARDPOINT_WING: return "SECONDARY"
+		ST.DEVICE_BAY_1: return "SUPER"
+		ST.MODULE: return "MODULE"
+		ST.SHIFT_MODE: return "SHIFT_MODE"
+	return "UNKNOWN"
+
+
+# Build market from Run.outpost_weapon_offers or roll fresh
+# The persisted stock lives in run.outpost_weapon_offers as REAL offers [{part,cost,sold,buyback?}]
+# (shared by ref, persists across visits). _market is the VIEW the card builders read.
+func _load_or_roll_live_offers() -> void:
+	var run := get_node_or_null("/root/Run")
+	if run == null:
+		_market = _base_offers()
+		return
+	var have_stock: bool = not run.outpost_weapon_offers.is_empty()
+	if run.outpost_needs_refresh or not have_stock:
+		_roll_live_offers(run)
+		run.outpost_needs_refresh = false
+	_market = _market_view_from(run.outpost_weapon_offers)
+
+
+# View-dicts (for the existing card builders) from the persisted real offers — skipping sold.
+func _market_view_from(offers: Array) -> Array:
+	var view: Array = []
+	for o in offers:
+		if bool(o.get("sold", false)):
+			continue
+		var part = o.get("part")
+		if part == null:
+			continue
+		view.append({
+			"name": String(part.display_name), "kind": _slot_type_kind(int(part.slot_type)),
+			"mark": int(part.mark), "max_mark": SHOP_MAX_MK, "scrap": _scrap_value(part),
+			"locked": false, "desc": String(part.description), "part": part,
+			"cost": int(o.get("cost", 0)), "offer": o, "buyback": bool(o.get("buyback", false)),
+		})
+	return view
+
+
+# Roll fresh stock into run.outpost_weapon_offers — real Parts via PartCatalog. Ported from
+# outpost.gd:_roll_offers (drops the own-better/cannon-bump refinements; same slot weights + cost).
+func _roll_live_offers(run) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var max_mk: int = mini(SHOP_MAX_MK, 3 + 3 * int(run.bosses_defeated))
+	var offers: Array = []
+	var seen: Dictionary = {}
+	for i in WEAPONS_COLUMN_COUNT:
+		var picked = null
+		var picked_mk: int = 1
+		for attempt in 8:
+			var slot: int = int(WEAPON_SLOT_WEIGHTS[rng.randi() % WEAPON_SLOT_WEIGHTS.size()])
+			picked_mk = _roll_weighted_mark(rng, 1, max_mk)
+			var part = PartCatalog.roll_for_slot(rng, slot, picked_mk)
+			if part == null:
+				continue
+			var key: String = String(part.display_name)
+			if seen.has(key):
+				continue
+			seen[key] = true
+			picked = part
+			break
+		if picked == null:
+			continue
+		offers.append({"part": picked, "cost": _full_cost(picked), "sold": false})
+	run.outpost_weapon_offers = offers
+
+
+func _roll_weighted_mark(rng: RandomNumberGenerator, lo: int, hi: int) -> int:
+	if hi <= lo:
+		return clampi(lo, 1, SHOP_MAX_MK)
+	var a: int = rng.randi_range(lo, hi)
+	var b: int = rng.randi_range(lo, hi)
+	return clampi(int(round(float(a + b) * 0.5)), lo, hi)
+
+
+func _full_cost(part) -> int:
+	var mk: int = int(part.mark) if (part != null and "mark" in part) else 1
+	return CANNON_BASE_COST + (mk - 1) * CANNON_COST_PER_MK
+
+
+func _upgrade_bounty_cost(new_mk: int) -> int:
+	return int(floor(0.5 * float(CANNON_BASE_COST + (new_mk - 1) * CANNON_COST_PER_MK)))
+
+
+# Buy-equip routing (port of outpost.gd:_apply_part_to_player + _buy_slot_occupied): MODULE → bay
+# (overflow to cargo); occupied target slot → cargo (no silent displace on purchase); empty → equip.
+func _apply_part_buy(run, part) -> void:
+	if part == null:
+		return
+	var slot: int = int(part.slot_type) if "slot_type" in part else -1
+	if slot == SlotTypes.SlotType.MODULE:
+		if not run.add_module(part):
+			run.inventory.append(part)
+		return
+	if _buy_slot_occupied(run, part, slot):
+		run.inventory.append(part)
+	else:
+		run.equip_part(part)
+
+
+func _buy_slot_occupied(run, part, slot: int) -> bool:
+	if slot == SlotTypes.SlotType.CANNON:
+		var infinite: bool = part.has_method("ammo_at_mark") and int(part.ammo_at_mark(int(part.mark))) < 0
+		if infinite:
+			return run.cannon_pool.size() > 0
+		return run.get_primary_cannon() != null
+	return run.loadout_snapshot.get(slot, null) != null
+
+
+# Scrap value = item's Mk (1 material per Mk)
+func _scrap_value(part) -> int:
+	return int(part.mark) if (part != null and "mark" in part) else 1
 
 
 # ---- World build (native 480 SubViewport) ---------------------------------
@@ -276,16 +523,152 @@ func _build_backdrop() -> void:
 	_world.add_child(_stars)
 	if _stars.has_method("reseed"):
 		_stars.reseed(randi())
-	# Shared hangar plate + runway lights (HangarPlate, also used by patrol_start). The plate is
-	# centred on the node; we DESCEND/SLIDE the node. self_modulate dim lives inside HangarPlate.
-	_plate = HangarPlate.new()
-	_plate.runway_speed = runway_speed   # plate stays full-bright; scene_dim dims the whole bay output
+	# Shared authorable hangar stage (scenes/hangar_stage.tscn, also used by patrol_start): plate +
+	# runway lights + ambient fill + slot markers. The plate is centred on the node; we DESCEND/SLIDE
+	# the node. The whole bay output is dimmed by scene_dim (the container), not the plate.
+	_plate = load(HANGAR_STAGE).instantiate()
+	_plate.runway_speed = runway_speed
 	_world.add_child(_plate)
+	scene_dim = _plate.scene_dim   # adopt the hangar stage's authored dim
 	var h: float = _plate.plate_size().y
 	_bg_center_y = NATIVE_H / 2.0
 	_bg_above_y = -h / 2.0
 	_bg_below_y = NATIVE_H + h / 2.0
 	_plate.position = Vector2(SHIP_X, _bg_above_y)
+
+
+# Randomized crate clutter on the hangar stage (rides the plate as it descends). Stable per outpost
+# REFRESH — not per visit/replay — so re-entering the same outpost looks the same until the shop
+# re-rolls. Plus the parts-pile HOOK flanking the pad.
+func _build_clutter() -> void:
+	var seed_value := _clutter_seed()
+	var baked := shadow_mode == ShadowMode.LEGACY   # light-derived modes project crate shadows instead
+	_plate.scatter_clutter(seed_value, -1, baked)    # amount default (production lowers it by shop storage)
+	_plate.flank_pile(seed_value, _flank_count(), baked)
+
+
+# Production: seed from the shop-roll/refresh seed. For now: run seed ⊕ node ⊕ a refresh counter, or
+# (no run, e.g. the lab) a stable hash of the outpost name → same across replays, re-rolls on refresh.
+func _clutter_seed() -> int:
+	var run := get_node_or_null("/root/Run")
+	if run != null and "run_seed" in run:
+		var refresh: int = int(run.get_meta("outpost_refresh", 0))
+		var node_id := String(run.current_node_id) if "current_node_id" in run else ""
+		return int(run.run_seed) ^ abs(hash(node_id)) ^ (refresh * 0x9E3779B1)
+	return abs(hash(outpost_name))
+
+
+# HOOK: production scales the flanking crate piles by the parked ship's parts/ammo/weapons.
+func _flank_count() -> int:
+	return 2
+
+
+# ---- Light-derived shadow prototype (Roman 2026-06-26) --------------------
+# Compares baked drop shadows (LEGACY) against shadows PROJECTED from a central KEY light or the bay's
+# 2×3 FILL lights (multi-shadow), with optional bright dynamic (engine) casters. The lab drives the
+# mode + knobs live. Default LEGACY = production behaviour unchanged.
+
+func _build_shadow_mgr() -> void:
+	_shadow_mgr = LightShadowFx.new()
+	_world.add_child(_shadow_mgr)
+	_apply_shadow_mode()
+
+
+func set_shadow_mode(m: int) -> void:
+	shadow_mode = m
+	if not _built:
+		return
+	_build_clutter()   # re-scatter with/without baked shadows (same seed → same layout)
+	_apply_shadow_mode()
+
+
+func set_shadow_dynamic(on: bool) -> void:
+	shadow_dynamic = on
+	if _built:
+		_rebuild_shadow_lights()
+
+
+func set_shadow_length(x: float) -> void:
+	shadow_length = x
+	_sync_shadow_knobs()
+
+
+func set_shadow_alpha(x: float) -> void:
+	shadow_alpha = x
+	_sync_shadow_knobs()
+
+
+func set_shadow_falloff(x: float) -> void:
+	shadow_falloff = x
+	_sync_shadow_knobs()
+
+
+func set_shadow_softness(x: float) -> void:
+	shadow_softness = x
+	_sync_shadow_knobs()
+
+
+func set_shadow_max(x: float) -> void:
+	shadow_max = int(round(x))
+	_sync_shadow_knobs()
+
+
+func _apply_shadow_mode() -> void:
+	if _shadow_mgr == null:
+		return
+	var proto: bool = shadow_mode != ShadowMode.LEGACY
+	_shadow_mgr.enabled = proto
+	if _shadow != null and is_instance_valid(_shadow):
+		_shadow.visible = not proto   # legacy ship drop shadow off in the light-derived modes
+	_sync_shadow_knobs()
+	_rebuild_shadow_lights()
+	_rebuild_shadow_casters()
+
+
+func _rebuild_shadow_lights() -> void:
+	if _shadow_mgr == null or _plate == null or not is_instance_valid(_plate):
+		return
+	_shadow_mgr.clear_lights()
+	var kl: PointLight2D = _plate.ensure_key_light()
+	if shadow_mode == ShadowMode.KEY:
+		kl.energy = KEY_LIGHT_ENERGY
+		_shadow_mgr.add_light(kl, 1.0, false)
+	else:
+		kl.energy = 0.0
+		if shadow_mode == ShadowMode.FILL:
+			for fl in _plate.fill_lights():
+				_shadow_mgr.add_light(fl, 1.0, false)
+	if shadow_dynamic:
+		for el in _engine_lights:
+			_shadow_mgr.add_light(el, 0.9, true, ENGINE_LIGHT_ENERGY)
+
+
+func _rebuild_shadow_casters() -> void:
+	if _shadow_mgr == null:
+		return
+	_shadow_mgr.clear_casters()
+	if shadow_mode == ShadowMode.LEGACY:
+		return
+	if _body != null and is_instance_valid(_body):
+		# The ship caster carries a lift callable so its shadow pulls away when "high" (faked drop height).
+		_shadow_mgr.add_caster(_body, _world, -2, func() -> float: return _ship_altitude, SHIP_SHADOW_LIFT)
+	var cl = null
+	if _plate != null and is_instance_valid(_plate):
+		cl = _plate.clutter_node()
+	if cl != null and is_instance_valid(cl):
+		for c in cl.get_children():
+			if c is Sprite2D:
+				_shadow_mgr.add_caster(c, cl, -6)
+
+
+func _sync_shadow_knobs() -> void:
+	if _shadow_mgr == null:
+		return
+	_shadow_mgr.shadow_length = shadow_length
+	_shadow_mgr.max_alpha = shadow_alpha
+	_shadow_mgr.falloff = shadow_falloff
+	_shadow_mgr.softness = shadow_softness
+	_shadow_mgr.max_per_caster = shadow_max
 
 
 func _build_ship() -> void:
@@ -513,9 +896,17 @@ func _update_lights(delta: float) -> void:
 	var glow_ratio: float = 0.0
 	if _engine_glow != null and is_instance_valid(_engine_glow):
 		glow_ratio = clampf(_engine_glow.modulate.b / maxf(ENGINE_GLOW_COLOR.b, 0.001), 0.0, 1.0)
+	# Remap the glow's off-floor → 0 so the engine light FULLY fades out when the engine is off (landed),
+	# rather than lingering as a constant blue spill. Gamma < 1 makes it come in sooner on spool-up; the
+	# launch flare boosts brightness + pool size, peaking as the ship accelerates off the top.
+	var power: float = clampf((glow_ratio - ENGINE_GLOW_OFF) / maxf(1.0 - ENGINE_GLOW_OFF, 0.001), 0.0, 1.0)
+	var lead: float = pow(power, ENGINE_LIGHT_GLOW_GAMMA)
+	var flare_norm: float = clampf((_engine_flare - 1.0) / maxf(ENGINE_FLARE_PEAK - 1.0, 0.001), 0.0, 1.0)
+	var tex_scale: float = ENGINE_LIGHT_SCALE * lerpf(1.0, ENGINE_FLARE_SCALE, flare_norm)
 	for l in _engine_lights:
 		if is_instance_valid(l):
-			l.energy = glow_ratio * ENGINE_LIGHT_ENERGY
+			l.energy = lead * ENGINE_LIGHT_ENERGY * _engine_flare
+			l.texture_scale = tex_scale
 	var spark_target: float = SPARK_LIGHT_ENERGY if _sparks_on else 0.0
 	for l in _spark_lights:
 		if is_instance_valid(l):
@@ -694,6 +1085,12 @@ func _build_top_bar() -> void:
 	row.add_child(_parts_lbl)
 
 
+func _open_options() -> void:
+	var ov = load("res://scripts/ui/options_overlay.gd")
+	if ov != null:
+		ov.open(self)
+
+
 func _build_bottom_bar() -> void:
 	var p := _panel(GUTTER_HD, HD_H - BAR_H, RIGHT_HD, HD_H, Color(0.05, 0.07, 0.06, 0.88))
 	_bottom_bar = p
@@ -708,7 +1105,7 @@ func _build_bottom_bar() -> void:
 	row.add_child(depart)
 	var options := UiTheme.make_button("OPTIONS", true)
 	options.custom_minimum_size = Vector2(180, 60)
-	options.pressed.connect(func() -> void: toast("Options (stub)"))
+	options.pressed.connect(_open_options)
 	row.add_child(options)
 	var code := UiTheme.make_button("CODE", true)
 	code.custom_minimum_size = Vector2(160, 60)
@@ -775,12 +1172,16 @@ func _market_card(entry: Dictionary) -> PanelContainer:
 	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(nm)
 	var is_bb: bool = bool(entry.get("buyback", false))
-	var price: int = _sell_price(entry) if is_bb else _item_value(entry)
+	var price: int = _sell_price(entry) if is_bb else int(entry.get("cost", _item_value(entry)))
 	row.add_child(_label("₵%d" % price, UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_BOUNTY))
 	var btn := UiTheme.make_button("BUYBACK" if is_bb else "BUY", true)
 	btn.pressed.connect(func() -> void: _buy_market(entry))
 	row.add_child(btn)
 	v.add_child(row)
+	v.add_child(_label(_card_subtitle_live(entry), UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
+	var mdetail := _part_detail_live(entry)
+	if mdetail != "":
+		v.add_child(_label(mdetail, UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_TEXT))
 	if is_bb:
 		v.add_child(_label("· sold — buyback until you depart", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
 	return card
@@ -788,19 +1189,35 @@ func _market_card(entry: Dictionary) -> PanelContainer:
 
 func _buy_market(entry: Dictionary) -> void:
 	var is_bb: bool = bool(entry.get("buyback", false))
-	var price: int = _sell_price(entry) if is_bb else _item_value(entry)
+	var price: int = _sell_price(entry) if is_bb else int(entry.get("cost", _item_value(entry)))
 	if _money < price:
 		toast("Not enough ₵")
 		return
-	_money -= price
-	_market.erase(entry)
-	var item := entry.duplicate()
-	item.erase("buyback")
-	_hold.append(item)
-	toast("%s %s → hold" % ["Bought back" if is_bb else "Bought", entry["name"]])
-	_update_money_parts()
-	_rebuild_market()
-	_rebuild_hold()
+	if _live:
+		var run := get_node_or_null("/root/Run")
+		var part = entry.get("part")
+		if run == null or part == null:
+			return
+		run.spend_bounty(price)
+		_apply_part_buy(run, part)
+		var offer = entry.get("offer")
+		if offer != null:
+			run.outpost_weapon_offers.erase(offer)
+		toast("%s %s" % ["Bought back" if is_bb else "Bought", entry["name"]])
+		_refresh_live()
+		_update_money_parts()
+		_rebuild_market()
+		_rebuild_inventory()
+	else:
+		_money -= price
+		_market.erase(entry)
+		var item := entry.duplicate()
+		item.erase("buyback")
+		_hold.append(item)
+		toast("%s %s → hold" % ["Bought back" if is_bb else "Bought", entry["name"]])
+		_update_money_parts()
+		_rebuild_market()
+		_rebuild_hold()
 
 
 func _item_value(item: Dictionary) -> int:
@@ -818,8 +1235,13 @@ func _rebuild_services() -> void:
 	_page_services.add_child(_caption("Repair, rearm and upgrade"))
 	# Repair clears battle damage — the shader fray + sparks heal LIVE (driven, never baked).
 	_page_services.add_child(_service_row("Repair Hull", 250, _do_repair))
-	_page_services.add_child(_service_row("Refill MG Ammo", 120, func() -> void: toast("Refilled MG ammo (stub)")))
-	_page_services.add_child(_service_row("Refill Super", 120, func() -> void: toast("Refilled super (stub)")))
+	if _live:
+		_page_services.add_child(_service_row("Refill MG Ammo", 100, _on_refill_primary_ammo))
+		_page_services.add_child(_service_row("Refill Secondary", 60, _on_refill_secondary_ammo))
+		_page_services.add_child(_service_row("Refill Super", 120, _on_refill_super))
+	else:
+		_page_services.add_child(_service_row("Refill MG Ammo", 120, func() -> void: toast("Refilled MG ammo (stub)")))
+		_page_services.add_child(_service_row("Refill Super", 120, func() -> void: toast("Refilled super (stub)")))
 	_page_services.add_child(HSeparator.new())
 	_page_services.add_child(_label("PART HANDLING", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
 	# Scrap / Sell put the shop in a mode that retargets the owned-part action buttons.
@@ -857,6 +1279,15 @@ func _set_shop_mode(mode: int) -> void:
 
 # Departing for a node ends buyback: any sold parts still listed rise back to full price.
 func _complete_node_shop() -> void:
+	if _live:
+		var run := get_node_or_null("/root/Run")
+		if run != null:
+			for o in run.outpost_weapon_offers:
+				if bool(o.get("buyback", false)):
+					o["buyback"] = false
+			_market = _market_view_from(run.outpost_weapon_offers)
+		_rebuild_market()
+		return
 	for e in _market:
 		if bool(e.get("buyback", false)):
 			e.erase("buyback")
@@ -884,10 +1315,102 @@ func _do_repair() -> void:
 	if _money < 250:
 		toast("Not enough ₵")
 		return
-	_money -= 250
+
+	if _live:
+		var run := get_node_or_null("/root/Run")
+		if run == null or int(run.repair_charges) <= 0:
+			toast("No repair charges left")
+			return
+		run.spend_bounty(250)
+		run.repair_charges -= 1
+		run.current_hull = clampi(int(run.current_hull) + 1, 0, int(run.max_hull))
+		repair()
+		toast("Hull repaired")
+		_refresh_live()
+		_update_money_parts()
+	else:
+		_money -= 250
+		_update_money_parts()
+		repair()
+		toast("Hull repaired — damage clearing")
+
+
+func _on_refill_primary_ammo() -> void:
+	if not _live:
+		toast("Refill MG ammo (stub)")
+		return
+	var run := get_node_or_null("/root/Run")
+	if run == null:
+		return
+	var cannon = run.get_primary_cannon() if run.has_method("get_primary_cannon") else null
+	if cannon == null or not ("current_ammo" in cannon) or not ("ammo_max" in cannon):
+		toast("No primary weapon to refill")
+		return
+	if int(cannon.current_ammo) >= int(cannon.ammo_max):
+		toast("Primary ammo already full")
+		return
+	if int(run.ammo_restock_charges) <= 0:
+		toast("No ammo restock charges left")
+		return
+	var cost: int = 100
+	if int(run.bounty) < cost:
+		toast("Not enough bounty")
+		return
+	run.spend_bounty(cost)
+	run.ammo_restock_charges -= 1
+	cannon.current_ammo = int(cannon.ammo_max)
+	run.ammo = int(cannon.ammo_max)
+	toast("Primary ammo refilled")
+	_refresh_live()
 	_update_money_parts()
-	repair()
-	toast("Hull repaired — damage clearing")
+
+
+func _on_refill_secondary_ammo() -> void:
+	if not _live:
+		toast("Refill secondary ammo (stub)")
+		return
+	var run := get_node_or_null("/root/Run")
+	if run == null:
+		return
+	if int(run.secondary_ammo) < 0 or int(run.secondary_ammo_max) <= 0:
+		toast("No secondary weapon to refill")
+		return
+	if int(run.secondary_ammo) >= int(run.secondary_ammo_max):
+		toast("Secondary ammo already full")
+		return
+	if int(run.ammo_restock_charges) <= 0:
+		toast("No ammo restock charges left")
+		return
+	var cost: int = 60
+	if int(run.bounty) < cost:
+		toast("Not enough bounty")
+		return
+	run.spend_bounty(cost)
+	run.ammo_restock_charges -= 1
+	run.secondary_ammo = int(run.secondary_ammo_max)
+	toast("Secondary ammo refilled")
+	_refresh_live()
+	_update_money_parts()
+
+
+func _on_refill_super() -> void:
+	if not _live:
+		toast("Refill super (stub)")
+		return
+	var run := get_node_or_null("/root/Run")
+	if run == null:
+		return
+	if int(run.bounty) < 120:
+		toast("Not enough bounty")
+		return
+	if int(run.super_charges) >= int(run.max_super_charges):
+		toast("Super charges already full")
+		return
+	run.spend_bounty(120)
+	run.super_charges = clampi(int(run.super_charges) + 1, 0, int(run.max_super_charges))
+	toast("Super charge refilled")
+	_refresh_live()
+	_update_money_parts()
 
 
 # ---- Right panel: armaments / systems / hold ------------------------------
@@ -913,8 +1436,13 @@ func _rebuild_systems() -> void:
 		return
 	_clear(_page_systems)
 	_page_systems.add_child(_caption("Installed modules + shift mode"))
-	for sid in SYS_SLOTS:
-		_page_systems.add_child(_slot_card(sid))
+	if _live:
+		for i in range(6):
+			var sid = "MODULE_%d" % (i + 1)
+			_page_systems.add_child(_slot_card(sid))
+	else:
+		for sid in SYS_SLOTS:
+			_page_systems.add_child(_slot_card(sid))
 	_page_systems.add_child(_shift_mode_row())
 	_page_systems.add_child(_spacer())
 
@@ -942,10 +1470,12 @@ func _slot_card(sid: String) -> PanelContainer:
 	var nm := _label(String(item["name"]) if item != null else "(empty)", UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_TEXT if item != null else UiTheme.COLOR_DISABLED)
 	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(nm)
-	if item != null:
-		top.add_child(_label("Mk.%d" % int(item["mark"]), UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_ACCENT))
 	v.add_child(top)
 	if item != null:
+		v.add_child(_label(_card_subtitle_live(item), UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
+		var detail := _part_detail_live(item)
+		if detail != "":
+			v.add_child(_label(detail, UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_TEXT))
 		var btns := HBoxContainer.new()
 		btns.add_theme_constant_override("separation", 8)
 		btns.add_child(_mini_btn("Info", func() -> void: _show_info(item)))
@@ -957,6 +1487,7 @@ func _slot_card(sid: String) -> PanelContainer:
 				btns.add_child(_mini_btn("Sell (+%d)" % _sell_price(item), func() -> void: _sell_slot(sid)))
 			_:
 				btns.add_child(_mini_btn("Pull", func() -> void: _pull(sid)))
+				_maybe_add_upgrade(btns, item)
 		v.add_child(btns)
 	return card
 
@@ -971,8 +1502,11 @@ func _hold_card(idx: int) -> PanelContainer:
 	var nm := _label(String(item["name"]), UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_TEXT)
 	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(nm)
-	top.add_child(_label("%s · Mk.%d" % [item["kind"], int(item["mark"])], UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
 	v.add_child(top)
+	v.add_child(_label(_card_subtitle_live(item), UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
+	var hdetail := _part_detail_live(item)
+	if hdetail != "":
+		v.add_child(_label(hdetail, UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_TEXT))
 
 	var btns := HBoxContainer.new()
 	btns.add_theme_constant_override("separation", 6)
@@ -992,12 +1526,65 @@ func _hold_card(idx: int) -> PanelContainer:
 				btns.add_child(_mini_btn("Slot", func() -> void: _slot_from_hold(idx, empty)))
 			else:
 				btns.add_child(_mini_btn("Swap", func() -> void: _swap_from_hold(idx)))
+	if _shop_mode == ShopMode.NONE:
+		_maybe_add_upgrade(btns, item)
 	var lock_btn := _mini_btn("Locked" if locked else "Lock", func() -> void: _toggle_lock(idx))
 	if locked:
 		lock_btn.add_theme_color_override("font_color", UiTheme.COLOR_BOUNTY)
 	btns.add_child(lock_btn)
 	v.add_child(btns)
 	return card
+
+
+# Add an Upgrade button to an owned-part card's button row when live + the part can Mk-up.
+func _maybe_add_upgrade(btns: HBoxContainer, item) -> void:
+	if not _live or item == null:
+		return
+	var part = item.get("part")
+	var run := get_node_or_null("/root/Run")
+	if part == null or run == null or not run.can_upgrade_part(part):
+		return
+	var new_mk: int = int(part.mark) + 1
+	btns.add_child(_mini_btn("Up→Mk.%d  ◆%d ₵%d" % [new_mk, new_mk, _upgrade_bounty_cost(new_mk)], func() -> void: _upgrade_part_live(part)))
+
+
+# Card subtitle "Mk.X <Quality> <ItemType>" — Quality from PartTier; NO "Tier N" roman numeral
+# (Roman 2026-06-27). Falls back to the mock "kind · Mk.X" when there's no real part.
+func _card_subtitle_live(item) -> String:
+	var mk: int = int(item.get("mark", 1))
+	if item.get("part") == null:
+		return "%s · Mk.%d" % [item.get("kind", "?"), mk]
+	var quality: String = String(PartTier.tier_for_mk(mk).get("name", ""))
+	return "Mk.%d %s %s" % [mk, quality, _type_name_for_kind(String(item.get("kind", "")))]
+
+
+func _type_name_for_kind(kind: String) -> String:
+	match kind:
+		"PRIMARY": return "Primary Weapon"
+		"SECONDARY": return "Secondary Weapon"
+		"SUPER": return "Super"
+		"MODULE": return "Module"
+		"SHIFT_MODE": return "Shift Mode"
+	return "Part"
+
+
+# Card detail line: a MODULE shows its computed bonus (bonus_description); a WEAPON shows damage + ammo
+# with NO fire-rate "/s" (Roman 2026-06-27). Empty when there's nothing useful.
+func _part_detail_live(item) -> String:
+	var part = item.get("part")
+	if part == null:
+		return ""
+	var mk: int = int(item.get("mark", 1))
+	if int(part.slot_type) == SlotTypes.SlotType.MODULE:
+		return String(part.bonus_description(mk)) if part.has_method("bonus_description") else ""
+	var bits: Array[String] = []
+	if "base_damage" in part:
+		var per_mk: int = int(part.dmg_per_mark) if "dmg_per_mark" in part else 0
+		bits.append("dmg %d" % (int(part.base_damage) + per_mk * maxi(0, mk - 1)))
+	if part.has_method("_base_ammo"):
+		var ammo: int = int(part._base_ammo())
+		bits.append("ammo %d" % ammo if ammo >= 0 else "∞")
+	return " · ".join(bits)
 
 
 func _shift_mode_row() -> VBoxContainer:
@@ -1025,77 +1612,293 @@ func _pull(sid: String) -> void:
 	var item = _slots.get(sid)
 	if item == null:
 		return
-	_hold.append(item)
-	_slots[sid] = null
-	toast("Pulled %s to hold" % item["name"])
-	_rebuild_inventory()
+
+	if _live:
+		var run := get_node_or_null("/root/Run")
+		if run == null:
+			return
+		var part = item.get("part")
+		if part == null:
+			return
+		match sid:
+			"PRIMARY":
+				# Metered primary (active idx 1) can unslot; permanent blaster cannot
+				if int(run.active_cannon_idx) == 1:
+					run.weapon_storage.append(part)
+					if run.cannon_pool.size() > 1:
+						run.cannon_pool.remove_at(1)
+					run.active_cannon_idx = 0
+					run.loadout_snapshot[int(SlotTypes.SlotType.CANNON)] = run.get_active_cannon()
+					run.ammo = -1
+				else:
+					toast("Blaster is permanent")
+					return
+			"SECONDARY", "SUPER":
+				var slot_type = int(SlotTypes.SlotType.HARDPOINT_WING) if sid == "SECONDARY" else int(SlotTypes.SlotType.DEVICE_BAY_1)
+				run.unequip_slot(slot_type)
+				run.weapon_storage.append(part)
+			_:
+				# MODULE_i
+				if sid.begins_with("MODULE_"):
+					var idx: int = int(sid.split("_")[1]) - 1
+					if idx >= 0 and idx < run.modules.size():
+						var m = run.remove_module(idx)
+						if m != null:
+							run.inventory.append(m)
+				else:
+					return
+		_refresh_live()
+		_rebuild_inventory()
+		toast("Pulled %s to hold" % item["name"])
+	else:
+		_hold.append(item)
+		_slots[sid] = null
+		toast("Pulled %s to hold" % item["name"])
+		_rebuild_inventory()
 
 
 func _slot_from_hold(idx: int, sid: String) -> void:
 	if idx < 0 or idx >= _hold.size():
 		return
 	var nm = _hold[idx]["name"]
-	_slots[sid] = _hold[idx]
-	_hold.remove_at(idx)
-	toast("Slotted %s → %s" % [nm, _slot_label(sid)])
-	_rebuild_inventory()
+
+	if _live:
+		var run := get_node_or_null("/root/Run")
+		if run == null:
+			return
+		var item = _hold[idx]
+		var part = item.get("part")
+		if part == null:
+			return
+
+		# Remove the part from its source BY REFERENCE (the hold concatenates storage+inventory, so
+		# index math is fragile). equip_part may push a displaced part back into storage.
+		var src = item.get("src", "")
+		match src:
+			"weapon_storage": run.weapon_storage.erase(part)
+			"inventory": run.inventory.erase(part)
+
+		# Try to equip
+		if "slot_type" in part and int(part.slot_type) == int(SlotTypes.SlotType.MODULE):
+			if not run.add_module(part):
+				# Bay full - put back, no toast
+				return
+		else:
+			run.equip_part(part)
+
+		_refresh_live()
+		_rebuild_inventory()
+		toast("Slotted %s into %s" % [nm, _slot_label(sid)])
+	else:
+		_slots[sid] = _hold[idx]
+		_hold.remove_at(idx)
+		toast("Slotted %s → %s" % [nm, _slot_label(sid)])
+		_rebuild_inventory()
 
 
 func _swap_from_hold(idx: int) -> void:
 	if idx < 0 or idx >= _hold.size():
 		return
 	var item = _hold[idx]
-	var sid: String = _target_slots(String(item["kind"]))[0]
-	var old = _slots.get(sid)
-	_slots[sid] = item
-	_hold[idx] = old   # the displaced part drops into the same hold slot
-	toast("Swapped into %s" % _slot_label(sid))
-	_rebuild_inventory()
+	if _live:
+		var run := get_node_or_null("/root/Run")
+		var part = item.get("part")
+		if run == null or part == null:
+			return
+		var src = item.get("src", "")
+		match src:
+			"weapon_storage": run.weapon_storage.erase(part)
+			"inventory": run.inventory.erase(part)
+		if int(part.slot_type) == SlotTypes.SlotType.MODULE:
+			if not run.add_module(part):   # bay full → can't swap a module without pulling one first
+				if src == "inventory": run.inventory.append(part)
+				else: run.weapon_storage.append(part)
+				toast("Module bay full — pull one first")
+				_refresh_live()
+				_rebuild_inventory()
+				return
+		else:
+			run.equip_part(part)   # Run displaces the same-slot part → weapon_storage (→ hold)
+		toast("Swapped %s into the loadout" % item["name"])
+		_refresh_live()
+		_rebuild_inventory()
+	else:
+		var sid: String = _target_slots(String(item["kind"]))[0]
+		var old = _slots.get(sid)
+		_slots[sid] = item
+		_hold[idx] = old   # the displaced part drops into the same hold slot
+		toast("Swapped into %s" % _slot_label(sid))
+		_rebuild_inventory()
 
 
 func _scrap_hold(idx: int) -> void:
 	if idx < 0 or idx >= _hold.size():
 		return
 	var item = _hold[idx]
-	if bool(item["locked"]):
+	if bool(item.get("locked", false)):
 		toast("%s is locked" % item["name"])
 		return
-	_materials += int(item["scrap"])
-	_hold.remove_at(idx)
-	toast("Scrapped %s  (+%d ◆)" % [item["name"], int(item["scrap"])])
-	_update_money_parts()
-	_rebuild_hold()
+
+	if _live:
+		var run := get_node_or_null("/root/Run")
+		if run == null:
+			return
+		var part = item.get("part")
+		if part == null:
+			return
+		var value: int = _scrap_value(part)
+		run.add_materials(value)
+		# Remove the part from its source by reference (index math is fragile across storage+inventory).
+		match item.get("src", ""):
+			"weapon_storage": run.weapon_storage.erase(part)
+			"inventory": run.inventory.erase(part)
+		_refresh_live()
+		toast("Scrapped %s  (+%d ◆)" % [item["name"], value])
+		_rebuild_hold()
+	else:
+		_materials += int(item["scrap"])
+		_hold.remove_at(idx)
+		toast("Scrapped %s  (+%d ◆)" % [item["name"], int(item["scrap"])])
+		_update_money_parts()
+		_rebuild_hold()
 
 
 func _scrap_slot(sid: String) -> void:
 	var item = _slots.get(sid)
 	if item == null:
 		return
-	_materials += int(item["scrap"])
-	_slots[sid] = null
-	toast("Scrapped %s  (+%d ◆)" % [item["name"], int(item["scrap"])])
-	_update_money_parts()
-	_rebuild_inventory()
+
+	if _live:
+		var run := get_node_or_null("/root/Run")
+		if run == null:
+			return
+		var part = item.get("part")
+		if part == null:
+			return
+		if not _can_remove_slot(run, sid):
+			toast("The Blaster is permanent — can't scrap it")
+			return
+		var value: int = _scrap_value(part)
+		run.add_materials(value)
+		_remove_slot_part(run, sid)
+		_refresh_live()
+		toast("Scrapped %s  (+%d ◆)" % [item["name"], value])
+		_rebuild_inventory()
+	else:
+		_materials += int(item["scrap"])
+		_slots[sid] = null
+		toast("Scrapped %s  (+%d ◆)" % [item["name"], int(item["scrap"])])
+		_update_money_parts()
+		_rebuild_inventory()
 
 
 func _sell_hold(idx: int) -> void:
 	if idx < 0 or idx >= _hold.size():
 		return
 	var item = _hold[idx]
-	if bool(item["locked"]):
+	if bool(item.get("locked", false)):
 		toast("%s is locked" % item["name"])
 		return
-	_hold.remove_at(idx)
-	_complete_sale(item)
-	_rebuild_hold()
+
+	if _live:
+		var run := get_node_or_null("/root/Run")
+		if run == null:
+			return
+		var part = item.get("part")
+		if part == null:
+			return
+		var gain: int = _sell_price(item)
+		run.bounty += gain
+		match item.get("src", ""):
+			"weapon_storage": run.weapon_storage.erase(part)
+			"inventory": run.inventory.erase(part)
+		# List the sold part as a buyback offer in the PERSISTED stock (survives _refresh_live; cleared
+		# to full price on depart by _complete_node_shop).
+		run.outpost_weapon_offers.append({"part": part, "cost": _full_cost(part), "sold": false, "buyback": true})
+		_refresh_live()
+		toast("Sold %s  (+%d ₵)" % [item["name"], gain])
+		_rebuild_hold()
+		_rebuild_market()
+	else:
+		_hold.remove_at(idx)
+		_complete_sale(item)
+		_rebuild_hold()
 
 
 func _sell_slot(sid: String) -> void:
 	var item = _slots.get(sid)
 	if item == null:
 		return
-	_slots[sid] = null
-	_complete_sale(item)
+
+	if _live:
+		var run := get_node_or_null("/root/Run")
+		if run == null:
+			return
+		var part = item.get("part")
+		if part == null:
+			return
+		if not _can_remove_slot(run, sid):
+			toast("The Blaster is permanent — can't sell it")
+			return
+		var gain: int = _sell_price(item)
+		run.bounty += gain
+		_remove_slot_part(run, sid)
+		run.outpost_weapon_offers.append({"part": part, "cost": _full_cost(part), "sold": false, "buyback": true})
+		_refresh_live()
+		toast("Sold %s  (+%d ₵)" % [item["name"], gain])
+		_rebuild_inventory()
+		_rebuild_market()
+	else:
+		_slots[sid] = null
+		_complete_sale(item)
+		_rebuild_inventory()
+
+
+# The permanent Blaster (active cannon idx 0) can't be removed; only the metered Primary (idx 1) can.
+func _can_remove_slot(run, sid: String) -> bool:
+	if sid == "PRIMARY":
+		return int(run.active_cannon_idx) == 1 and run.cannon_pool.size() > 1
+	return true
+
+
+# Remove the part installed in `sid` from Run (mirrors outpost.gd: metered-primary unslot incl ammo
+# reset, secondary/super unequip, module remove). Caller guards the permanent Blaster via _can_remove_slot.
+func _remove_slot_part(run, sid: String) -> void:
+	match sid:
+		"PRIMARY":
+			if int(run.active_cannon_idx) == 1 and run.cannon_pool.size() > 1:
+				run.cannon_pool.remove_at(1)
+				run.active_cannon_idx = 0
+				run.loadout_snapshot[SlotTypes.SlotType.CANNON] = run.get_active_cannon()
+				run.ammo = -1   # back to the infinite blaster
+		"SECONDARY":
+			run.unequip_slot(SlotTypes.SlotType.HARDPOINT_WING)
+		"SUPER":
+			run.unequip_slot(SlotTypes.SlotType.DEVICE_BAY_1)
+		_:
+			if sid.begins_with("MODULE_"):
+				var midx: int = int(sid.split("_")[1]) - 1
+				if midx >= 0 and midx < run.modules.size():
+					run.remove_module(midx)
+
+
+# Mk-up a part (port of outpost.gd:_on_upgrade_part): can_upgrade gate + materials + bounty fee.
+func _upgrade_part_live(part) -> void:
+	var run := get_node_or_null("/root/Run")
+	if run == null or part == null or not run.can_upgrade_part(part):
+		return
+	var new_mk: int = int(part.mark) + 1
+	var mats: int = new_mk
+	var bounty_cost: int = _upgrade_bounty_cost(new_mk)
+	if int(run.materials) < mats or int(run.bounty) < bounty_cost:
+		toast("Need ◆%d + ₵%d to upgrade" % [mats, bounty_cost])
+		return
+	run.spend_materials(mats)
+	run.spend_bounty(bounty_cost)
+	run.upgrade_part(part)
+	toast("Upgraded → Mk.%d" % int(part.mark))
+	_refresh_live()
+	_update_money_parts()
 	_rebuild_inventory()
 
 
@@ -1121,6 +1924,11 @@ func _toggle_lock(idx: int) -> void:
 
 func _target_slots(kind: String) -> Array:
 	if kind == "MODULE":
+		if _live:
+			var slots: Array = []
+			for i in range(6):
+				slots.append("MODULE_%d" % (i + 1))
+			return slots
 		return SYS_SLOTS
 	return [kind]   # PRIMARY / SECONDARY / SUPER map to the same-named slot
 
@@ -1140,6 +1948,9 @@ func _slot_label(sid: String) -> String:
 		"MODULE_1": return "MODULE 1"
 		"MODULE_2": return "MODULE 2"
 		"MODULE_3": return "MODULE 3"
+		"MODULE_4": return "MODULE 4"
+		"MODULE_5": return "MODULE 5"
+		"MODULE_6": return "MODULE 6"
 	return sid
 
 
@@ -1185,7 +1996,10 @@ func _show_info(item: Dictionary) -> void:
 	v.custom_minimum_size = Vector2(760, 0)
 	panel.add_child(v)
 	v.add_child(_label(String(item["name"]), UiTheme.FONT_SIZE_TITLE, UiTheme.COLOR_ACCENT))
-	v.add_child(_label("%s   ·   Mk.%d / %d" % [item["kind"], int(item["mark"]), int(item["max_mark"])], UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_TEXT))
+	v.add_child(_label(_card_subtitle_live(item), UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_TEXT))
+	var idetail := _part_detail_live(item)
+	if idetail != "":
+		v.add_child(_label(idetail, UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_GREEN))
 	var desc := _label(String(item["desc"]), UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_FAINT)
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	desc.custom_minimum_size = Vector2(760, 0)
@@ -1293,21 +2107,87 @@ func _run_int(field: String, fallback: int) -> int:
 # ---- Sequence -------------------------------------------------------------
 
 func _kill_phase_tween() -> void:
-	for tw in [_phase_tween, _glow_tween, _ui_tween, _bg_tween]:
+	for tw in [_phase_tween, _glow_tween, _ui_tween, _bg_tween, _flare_tween]:
 		if tw != null and tw.is_valid():
 			tw.kill()
 	_phase_tween = null
 	_glow_tween = null
 	_ui_tween = null
 	_bg_tween = null
+	_flare_tween = null
 
 
 # ARRIVING: ship below the screen, engines lit, masks closed, menus hidden →
 # decelerating fly-in to the pad. Idempotent reset (the lab's Replay).
+# Skip the cinematic: set up the LANDED, menus-up state directly (Settings dock-anim = never, or the
+# per-boss/per-patrol gate already satisfied this visit). Depart is instant too (no fly-out).
+func begin_landed() -> void:
+	if not _built:
+		return
+	_kill_phase_tween()
+	_state = State.LANDED
+	_t = 0.0
+	_skip_anim = true
+	_engine_flare = 1.0
+	_ship_altitude = 0.0
+	if _ship != null:
+		_ship.position = Vector2(SHIP_X, land_y)
+	if _engine_glow != null:
+		_engine_glow.modulate = ENGINE_GLOW_COLOR * ENGINE_GLOW_OFF
+	_set_engine_active(false)
+	_set_sparks_emitting(false)
+	_shadow_offset = shadow_land_offset
+	_shadow_scale = shadow_land_scale
+	if _shadow != null:
+		_shadow.modulate.a = shadow_land_alpha
+	if _plate != null and is_instance_valid(_plate):
+		_plate.position = Vector2(SHIP_X, _bg_center_y)
+	_apply_damage()
+	_set_alpha(_left_panel, 1.0)
+	_set_alpha(_right_panel, 1.0)
+	_set_alpha(_top_bar, 1.0)
+	_set_alpha(_bottom_bar, 1.0)
+	emit_signal("landed")
+
+
+# Settings.outpost_dock_anim: 0 always / 1 per-boss / 2 per-patrol / 3 never. Per-boss + per-patrol
+# track via Run meta (keyed by bosses_defeated / run_seed so a new boss-clear / new run replays).
+func _should_play_cinematic() -> bool:
+	match _dock_anim_mode():
+		3:
+			return false
+		1:
+			var run = get_node_or_null("/root/Run")
+			if run == null:
+				return true
+			if int(run.get_meta("dock_anim_boss", -1)) != int(run.bosses_defeated):
+				run.set_meta("dock_anim_boss", int(run.bosses_defeated))
+				return true
+			return false
+		2:
+			var run2 = get_node_or_null("/root/Run")
+			if run2 == null:
+				return true
+			if int(run2.get_meta("dock_anim_run", 0)) != int(run2.run_seed):
+				run2.set_meta("dock_anim_run", int(run2.run_seed))
+				return true
+			return false
+		_:
+			return true
+
+
+func _dock_anim_mode() -> int:
+	var s = get_node_or_null("/root/Settings")
+	if s != null and "outpost_dock_anim" in s:
+		return int(s.outpost_dock_anim)
+	return 0
+
+
 func begin_arrival() -> void:
 	if not _built:
 		return
 	_kill_phase_tween()
+	_skip_anim = false
 	_state = State.ARRIVING
 	_t = 0.0
 	_shadow_offset = shadow_fly_offset
@@ -1318,6 +2198,8 @@ func begin_arrival() -> void:
 		_ship.position = Vector2(SHIP_X, start_y)
 	if _engine_glow != null:
 		_engine_glow.modulate = ENGINE_GLOW_COLOR
+	_engine_flare = 1.0
+	_ship_altitude = 1.0
 	_set_engine_active(true)
 	# Reset spark scheduling (the continuous fly-in trail relights via _update_sparks).
 	_set_sparks_emitting(false)
@@ -1357,13 +2239,14 @@ func _on_landed() -> void:
 	_phase_tween.tween_property(self, "_shadow_scale", shadow_land_scale, shadow_settle_time) \
 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	_phase_tween.tween_property(_shadow, "modulate:a", shadow_land_alpha, shadow_settle_time)
+	_phase_tween.tween_property(self, "_ship_altitude", 0.0, shadow_settle_time)   # set down → shadow tightens
 	_phase_tween.tween_property(_left_panel, "modulate:a", 1.0, bars_fade_time)
 	_phase_tween.tween_property(_right_panel, "modulate:a", 1.0, bars_fade_time)
 	_phase_tween.tween_property(_top_bar, "modulate:a", 1.0, bars_fade_time)
 	_phase_tween.tween_property(_bottom_bar, "modulate:a", 1.0, bars_fade_time)
 	# Fully set down → cut engines (streak + smoke stop) and power the glow down, THEN announce.
 	_phase_tween.chain().tween_callback(_cut_engines)
-	_phase_tween.tween_property(_engine_glow, "modulate", ENGINE_GLOW_COLOR * 0.18, engine_spool)
+	_phase_tween.tween_property(_engine_glow, "modulate", ENGINE_GLOW_COLOR * ENGINE_GLOW_OFF, engine_spool)
 	_phase_tween.chain().tween_callback(func() -> void: emit_signal("landed"))
 
 
@@ -1380,6 +2263,13 @@ func _on_depart_pressed() -> void:
 # spreads), then launches off the top. No-op unless landed.
 func depart() -> void:
 	if _state != State.LANDED:
+		return
+	if _skip_anim:
+		# No cinematic this visit (Settings dock-anim) → instant exit, no fly-out.
+		_close_info()
+		_set_shop_mode(ShopMode.NONE)
+		_complete_node_shop()
+		_on_departed()
 		return
 	_state = State.DEPARTING
 	_kill_phase_tween()
@@ -1413,6 +2303,13 @@ func depart() -> void:
 		_glow_tween = create_tween()
 		_glow_tween.tween_property(_engine_glow, "modulate", ENGINE_GLOW_COLOR, engine_spool)
 
+	# Engine light flare: hold through the spool, then surge to the brightest/biggest bloom right as the
+	# ship accelerates off the top (EASE_IN peaks at the launch instant). Roman 2026-06-26.
+	_flare_tween = create_tween()
+	_flare_tween.tween_interval(engine_spool)
+	_flare_tween.tween_property(self, "_engine_flare", ENGINE_FLARE_PEAK, rise_time + flyoff_time) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+
 	# Motion: hold through the spool, THEN rise (shadow spreads), then launch off the top.
 	var hover_y: float = land_y - 10.0
 	_phase_tween = create_tween()
@@ -1420,6 +2317,7 @@ func depart() -> void:
 	_phase_tween.tween_property(self, "_shadow_offset", shadow_fly_offset, rise_time)
 	_phase_tween.parallel().tween_property(self, "_shadow_scale", shadow_fly_scale, rise_time)
 	_phase_tween.parallel().tween_property(_shadow, "modulate:a", shadow_fly_alpha, rise_time)
+	_phase_tween.parallel().tween_property(self, "_ship_altitude", 1.0, rise_time)   # rising → shadow pulls away
 	_phase_tween.parallel().tween_property(_ship, "position:y", hover_y, rise_time) \
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	_phase_tween.tween_property(_ship, "position:y", FLYOFF_TARGET_Y, flyoff_time) \
@@ -1430,6 +2328,11 @@ func depart() -> void:
 func _on_departed() -> void:
 	_state = State.GONE
 	emit_signal("departed")
+	# Production: the dock is the live outpost — fly-out done, return to the sector map (drop the HD
+	# scope once the fade covers, mirroring the old outpost's _on_leave). The lab/drivers leave
+	# return_to_map false and handle `departed` themselves.
+	if return_to_map:
+		SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE, drop_hd_scope)
 
 
 # ---- Runtime --------------------------------------------------------------
@@ -1480,16 +2383,11 @@ func set_damage(level: float) -> void:
 	_apply_damage()
 
 
-# Uniform bay dim (the SubViewportContainer's modulate). Engine glow + point lights are additive
-# inside the viewport, so they pop relative to it — no per-layer dim needed. Mirrors patrol_start.
+# Bay dim → the hangar stage's in-scene CanvasModulate (single source; tuned via the lab).
 func set_scene_dim(x: float) -> void:
 	scene_dim = clampf(x, 0.0, 1.0)
-	_apply_scene_dim()
-
-
-func _apply_scene_dim() -> void:
-	if _play_container != null and is_instance_valid(_play_container):
-		(_play_container as CanvasItem).modulate = Color(scene_dim, scene_dim, scene_dim, 1.0)
+	if _plate != null and is_instance_valid(_plate):
+		_plate.set_scene_dim(scene_dim)
 
 
 func set_runway_speed(v: float) -> void:
@@ -1524,6 +2422,7 @@ func set_ship(variant: int, livery: Color, set_livery: bool) -> void:
 	if _ship != null and is_instance_valid(_ship):
 		_ship.queue_free()
 	_build_ship()
+	_apply_shadow_mode()   # re-bind the shadow casters/lights to the freshly-built ship
 	begin_arrival()
 
 

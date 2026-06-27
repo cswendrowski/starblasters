@@ -32,3 +32,10 @@ func unapply(ship) -> void:
 		ship.module_damage_mult /= _damage_mult()
 	if "module_shield_charge_penalty" in ship:
 		ship.module_shield_charge_penalty -= 1
+
+
+func bonus_description(mk: int) -> String:
+	var m := clampi(mk, 1, 9)
+	var mult: float = 1.10 + 0.025 * float(m - 1)
+	var pct: int = int(round((mult - 1.0) * 100.0))
+	return "+%d%% weapon damage (−1 max shield charge)" % pct

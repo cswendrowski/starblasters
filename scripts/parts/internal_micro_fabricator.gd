@@ -34,3 +34,9 @@ func _pct_for(at_mark: int) -> float:
 # Editor readout — restock fraction (as a whole %) at this Mk.
 func effective_damage(at_mark: int) -> int:
 	return int(round(_pct_for(at_mark) * 100.0))
+
+
+func bonus_description(mk: int) -> String:
+	var m := clampi(mk, 1, 9)
+	var pct: int = int(round(_pct_for(m) * 100.0))
+	return "On level clear, restocks %d%% of max primary & secondary ammo" % pct

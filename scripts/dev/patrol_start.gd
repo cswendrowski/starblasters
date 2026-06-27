@@ -31,8 +31,10 @@ const EngineTrailFx = preload("res://scripts/effects/engine_trail_fx.gd")
 const PF = preload("res://scripts/systems/playfield.gd")
 const BackdropCoordinatorScene = preload("res://scenes/parallax/backdrop_coordinator.tscn")
 const ShipVisual = preload("res://scripts/ui/ship_visual.gd")
-const HangarPlate = preload("res://scripts/screens/hangar_plate.gd")
+const HANGAR_STAGE := "res://scenes/hangar_stage.tscn"   # shared authorable plate + runway + lights + slot markers
+const HangarClutter = preload("res://scripts/screens/hangar_clutter.gd")
 const PointLightFx = preload("res://scripts/effects/point_light_fx.gd")
+const LightShadowFx = preload("res://scripts/effects/light_shadow_fx.gd")
 const FIRECORE_SCENE := "res://scenes/enemies/factions/zealot/firecore_core.tscn"
 const LIFTER_SCENE := "res://scenes/outpost/outpost_lifter.tscn"
 const TRACTOR_SCENE := "res://scenes/outpost/outpost_tractor.tscn"
@@ -48,35 +50,28 @@ const HD_SCALE := 4.0
 const HD_W := 1920.0
 const HD_H := 1080.0
 const SHIP_X := NATIVE_W / 2.0
-const PAD_Y := 132.0
 const FLYOFF_TARGET_Y := -120.0
 const GUTTER_HD := PF.X_MIN * HD_SCALE   # 528
 const RIGHT_HD := PF.X_MAX * HD_SCALE     # 1392
 
 const ENGINE_GLOW_COLOR := Color(0.0, 0.827, 1.0)
 const ENGINE_LIGHT_COLOR := Color(0.10, 0.60, 1.0)
-const ENGINE_LIGHT_ENERGY := 1.0
-const ENGINE_LIGHT_SCALE := 0.35
+const ENGINE_LIGHT_ENERGY := 1.8          # bright — the engines are the dock's main light in the dark bay
+const ENGINE_LIGHT_SCALE := 0.3           # FOCUSED nozzle glow (128px tex → ~38px); scale wasn't the issue
+                                          # (Roman 2026-06-26)
+const ENGINE_FLARE_PEAK := 2.2            # energy × at the moment of launch (accelerating out of the bay)
+const ENGINE_FLARE_SCALE := 1.7           # light-size × at launch (the bright spot blooms as it leaves)
 const FIRECORE_LIGHT_COLOR := Color(1.0, 0.62, 0.16)
 const SELECT_LIGHT_COLOR := Color(0.62, 0.82, 1.0)
-const FILL_LIGHT_COLOR := Color(0.55, 0.70, 0.95)
-const BG_BRIGHTNESS := 1.0   # plate full-bright in the viewport; scene_dim dims the whole bay output
-const LIFTER_IDLE := Vector2(240.0, 226.0)
 const LIFTER_Z := 12                                # flies above the hulls
 const CARRY_Z := 8                                  # carried hull lifts above the parked ones
+# Shadow prototype: LEGACY = baked drop shadows; KEY = central key light; FILL = the 2×3 fill lights.
+enum ShadowMode { LEGACY, KEY, FILL }
+const KEY_LIGHT_ENERGY := 0.0   # key light is a SHADOW SOURCE only — illuminating it floods/sweeps the bay
 
-# Runway lights now live in HangarPlate (shared with outpost_arrival).
-
-const PARK_LEFT_X := 184.0
-const PARK_RIGHT_X := 296.0
-const PARK_TOP_Y := 66.0
-const PARK_STEP_Y := 44.0
-
-# Ammo-crate clusters dressing the OUTER edges (kept clear of the columns/pad/lifter/rigs).
-const CRATE_ZONES := [
-	Vector2(152.0, 46.0), Vector2(328.0, 46.0),
-	Vector2(146.0, 120.0), Vector2(334.0, 120.0),
-]
+# The plate, runway lights, fill lights, and the pad/lifter/park/crate slot markers now live in the
+# shared authorable hangar stage (scenes/hangar_stage.tscn). patrol reads the slot markers from it
+# (see _build_backdrop) so ship-park positions etc. are tuned in the editor, not hardcoded here.
 # Parked tractor+trailer rigs as dressing: {pos, lights_on}.
 const DRESSING_RIGS := [
 	{"pos": Vector2(158.0, 206.0), "on": true},
@@ -116,23 +111,36 @@ const SWATCHES := [
 # livery shader has already screen-sampled the full-bright hulls inside the viewport, so the bay
 # reads dim/moody WITHOUT the livery going matte (which is what dimming the hulls themselves does,
 # since the shader screen-MULTIPLIES the body behind it). 1.0 = no dim. Lights pop relative to it.
-@export var scene_dim: float = 0.6
-@export var fill_energy: float = 0.18
-@export var runway_speed: float = 0.9
+@export var scene_dim: float = 0.6     # adopted from the hangar stage on build; applied to the bay output
+@export var runway_speed: float = 0.9  # passed to the hangar stage (fill-light energy is authored in the stage)
+# Light-derived shadow prototype (Roman 2026-06-26) — see ShadowMode. Default LEGACY = unchanged.
+@export var shadow_mode: int = ShadowMode.LEGACY
+@export var shadow_dynamic: bool = false   # also cast from tractor head/tail + lifter grav/hover lights
+@export var shadow_length: float = 4.0
+@export var shadow_alpha: float = 0.5
+@export var shadow_falloff: float = 110.0
+@export var shadow_softness: float = 0.0
+@export var shadow_max: int = 6
 
 var _hd: HdViewportScope = null
 var _world: SubViewport = null
 var _hangar: Node2D = null
-var _plate: Node2D = null   # shared HangarPlate (plate + runway lights), rides inside _hangar
+var _hangar_stage: Node2D = null   # shared hangar stage (plate + runway + fill + slot markers), rides in _hangar
+var _hangar_off := Vector2.ZERO    # where the stage sits within _hangar (slot markers are relative to it)
+var _pad := Vector2(SHIP_X, 132.0)        # readied-ship pad (overwritten from the stage's Pad marker)
+var _lifter_idle := Vector2(SHIP_X, 226.0)  # lifter rest (overwritten from the LifterIdle marker)
 var _select_light: PointLight2D = null
 var _light_tex: Texture2D = null
+var _shadow_mgr = null               # LightShadowFx (light-derived shadow prototype)
+var _legacy_shadows: Array = []      # baked drop shadows to hide in the light-derived modes
+var _extra_casters: Array = []       # [{src, parent, z}] ship/tractor/lifter bodies
+var _dynamic_lights: Array = []      # tractor head/brake/hover + lifter grav/hover PointLights
 var _backdrop: Node = null
 var _bg_stars: Node = null
 var _streaks_node: Node = null
-var _play_container: Node = null
 var _prev_hangar_y: float = NATIVE_H
 
-# (runway pixel/light/pulse state now lives in HangarPlate)
+# (runway / plate / fill-light state now lives in the shared hangar stage)
 
 # Lifter.
 var _lifter: Node2D = null
@@ -179,8 +187,7 @@ func _ready() -> void:
 	_install_menu_backdrop()
 	_world = HdScreen.make_play_subviewport(self)
 	_world.transparent_bg = true
-	_play_container = _world.get_parent()   # the SubViewportContainer — dimming it dims the whole bay output
-	_apply_scene_dim()
+	# The bay dim lives in the hangar stage's own CanvasModulate (authored + tuned there).
 	_light_tex = _make_light_texture()
 	_hangar = Node2D.new()
 	_hangar.name = "Hangar"
@@ -192,6 +199,7 @@ func _ready() -> void:
 	_build_dressing()
 	_build_ships()
 	_build_lifter()
+	_build_shadow_mgr()
 	_build_ui()
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("menu")
@@ -235,60 +243,142 @@ func _set_streaks(on: bool) -> void:
 		_streaks_node.set("enabled", on)
 
 
-# Dim the whole rendered bay (the SubViewportContainer's output). The livery's screen-sampling
-# already happened inside the viewport at full brightness, so dimming here keeps it rich.
-func _apply_scene_dim() -> void:
-	if _play_container != null and is_instance_valid(_play_container):
-		(_play_container as CanvasItem).modulate = Color(scene_dim, scene_dim, scene_dim, 1.0)
-
-
+# Bay dim → the hangar stage's in-scene CanvasModulate (single source; tuned via the rail).
 func _set_scene_dim(x: float) -> void:
 	scene_dim = x
-	_apply_scene_dim()
+	if _hangar_stage != null and is_instance_valid(_hangar_stage):
+		_hangar_stage.set_scene_dim(x)
 
 
 func _set_runway_speed(x: float) -> void:
 	runway_speed = x
-	if _plate != null and is_instance_valid(_plate):
-		_plate.set_runway_speed(x)
+	if _hangar_stage != null and is_instance_valid(_hangar_stage):
+		_hangar_stage.set_runway_speed(x)
 
 
 # ---- World ---------------------------------------------------------------
 
 func _build_backdrop() -> void:
-	# Shared hangar plate + runway lights (HangarPlate, also used by outpost_arrival). Rides inside
-	# _hangar at the band centre; scene_dim dims the whole bay output, so keep the plate full-bright.
-	_plate = HangarPlate.new()
-	_plate.brightness = BG_BRIGHTNESS
-	_plate.runway_speed = runway_speed
-	_plate.position = Vector2(SHIP_X, NATIVE_H / 2.0)
-	_hangar.add_child(_plate)
-	for x in [PARK_LEFT_X, PARK_RIGHT_X]:
-		var fill := _make_point_light(Vector2(x, 130.0), FILL_LIGHT_COLOR, 0.8, _light_tex)
-		fill.energy = fill_energy
-		_hangar.add_child(fill)
+	# Shared authorable hangar stage (plate + runway lights + ambient fill + slot markers). Rides inside
+	# _hangar at the band centre; scene_dim dims the whole bay output, so the plate stays full-bright.
+	_hangar_stage = load(HANGAR_STAGE).instantiate()
+	_hangar_stage.runway_speed = runway_speed
+	_hangar_stage.position = Vector2(SHIP_X, NATIVE_H / 2.0)
+	_hangar.add_child(_hangar_stage)
+	# Read the slot markers (stage-local) into the positions the rest of the scene uses (in _hangar
+	# coords). Authored in scenes/hangar_stage.tscn → tune ship slots in the editor, not in code.
+	_hangar_off = _hangar_stage.position
+	_pad = _hangar_off + _hangar_stage.slot("Pad")
+	_lifter_idle = _hangar_off + _hangar_stage.slot("LifterIdle")
+	scene_dim = _hangar_stage.scene_dim   # adopt the stage's authored CanvasModulate dim (for the rail default)
+	# The selection spotlight stays dynamic (moves to the clicked ship), so it lives in patrol.
 	_select_light = _make_point_light(Vector2.ZERO, SELECT_LIGHT_COLOR, 0.5, _light_tex)
 	_hangar.add_child(_select_light)
 
 
+# Randomized crate clutter at the hangar stage's authored ClutterZones (out of the way of the ships
+# /lifter/rigs by where those zones are placed). Re-rolls per patrol start (seed = the run seed).
 func _build_crates() -> void:
-	var tex: Texture2D = load(CRATE_TEX)
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 0xC4A7E5
-	for zone in CRATE_ZONES:
-		var n := rng.randi_range(2, 4)
-		for i in n:
-			var pos: Vector2 = zone + Vector2(rng.randf_range(-11.0, 11.0), rng.randf_range(-9.0, 9.0))
-			var frame := rng.randi() % 10
-			var sh := _make_frame_sprite(tex, 10, frame)
-			sh.modulate = Color(0, 0, 0, 0.4)
-			sh.position = pos + Vector2(1.0, 1.5)
-			sh.z_index = -6
-			_hangar.add_child(sh)
-			var crate := _make_frame_sprite(tex, 10, frame)
-			crate.position = pos
-			crate.z_index = -5
-			_hangar.add_child(crate)
+	var baked := shadow_mode == ShadowMode.LEGACY   # light-derived modes project crate shadows instead
+	_hangar_stage.scatter_clutter(_clutter_seed(), -1, baked)
+
+
+# Per-patrol clutter seed: the run seed if a run is live, else random (a fresh launch = fresh clutter).
+func _clutter_seed() -> int:
+	var run := get_node_or_null("/root/Run")
+	if run != null and "run_seed" in run and int(run.run_seed) != 0:
+		return int(run.run_seed)
+	return randi()
+
+
+# ---- Light-derived shadow prototype (Roman 2026-06-26; shared light_shadow_fx) --------------------
+# Mirrors the outpost lab: LEGACY = baked drop shadows; KEY = a central key light; FILL = the bay's 2×3
+# fill lights (multi-shadow). Dynamic adds the bright bay lights (tractor head/tail + lifter grav/hover)
+# as extra casters. Default LEGACY = unchanged.
+
+func _build_shadow_mgr() -> void:
+	_shadow_mgr = LightShadowFx.new()
+	_world.add_child(_shadow_mgr)
+	_apply_shadow_mode()
+
+
+func set_shadow_mode(m: int) -> void:
+	shadow_mode = m
+	_build_crates()   # re-scatter crates with/without baked shadows (same seed → same layout)
+	_apply_shadow_mode()
+
+
+func set_shadow_dynamic(on: bool) -> void:
+	shadow_dynamic = on
+	_rebuild_shadow_lights()
+
+
+func set_shadow_max(x: float) -> void:
+	shadow_max = int(round(x))
+	_sync_shadow_knobs()
+
+
+func _set_shadow_knob(prop: String, x: float) -> void:
+	set(prop, x)
+	_sync_shadow_knobs()
+
+
+func _apply_shadow_mode() -> void:
+	if _shadow_mgr == null:
+		return
+	var proto: bool = shadow_mode != ShadowMode.LEGACY
+	_shadow_mgr.enabled = proto
+	for s in _legacy_shadows:
+		if is_instance_valid(s):
+			(s as Node2D).visible = not proto
+	_sync_shadow_knobs()
+	_rebuild_shadow_lights()
+	_rebuild_shadow_casters()
+
+
+func _rebuild_shadow_lights() -> void:
+	if _shadow_mgr == null or _hangar_stage == null or not is_instance_valid(_hangar_stage):
+		return
+	_shadow_mgr.clear_lights()
+	var kl: PointLight2D = _hangar_stage.ensure_key_light()
+	if shadow_mode == ShadowMode.KEY:
+		kl.energy = KEY_LIGHT_ENERGY
+		_shadow_mgr.add_light(kl, 1.0, false)
+	else:
+		kl.energy = 0.0
+		if shadow_mode == ShadowMode.FILL:
+			for fl in _hangar_stage.fill_lights():
+				_shadow_mgr.add_light(fl, 1.0, false)
+	if shadow_dynamic:
+		for l in _dynamic_lights:
+			if is_instance_valid(l):
+				_shadow_mgr.add_light(l, 1.0, true, 1.5)
+
+
+func _rebuild_shadow_casters() -> void:
+	if _shadow_mgr == null:
+		return
+	_shadow_mgr.clear_casters()
+	if shadow_mode == ShadowMode.LEGACY:
+		return
+	for c in _extra_casters:
+		if is_instance_valid(c["src"]):
+			_shadow_mgr.add_caster(c["src"], c["parent"], int(c["z"]))
+	var cl = _hangar_stage.clutter_node()
+	if cl != null and is_instance_valid(cl):
+		for ch in cl.get_children():
+			if ch is Sprite2D:
+				_shadow_mgr.add_caster(ch, cl, -6)
+
+
+func _sync_shadow_knobs() -> void:
+	if _shadow_mgr == null:
+		return
+	_shadow_mgr.shadow_length = shadow_length
+	_shadow_mgr.max_alpha = shadow_alpha
+	_shadow_mgr.falloff = shadow_falloff
+	_shadow_mgr.softness = shadow_softness
+	_shadow_mgr.max_per_caster = shadow_max
 
 
 # Parked tractor+trailer rigs (4-wheel ground vehicles) as dressing: tractor (front, facing up) +
@@ -323,6 +413,8 @@ func _make_rig(pos: Vector2, lights_on: bool) -> void:
 	trailer.z_index = -4
 	_nearest_all(trailer)
 	_hangar.add_child(trailer)
+	# Load a couple of small crates into the trailer's carrying space (TrailerArea), z above its body.
+	HangarClutter.fill_trailer(trailer, _clutter_seed() ^ int(pos.x) ^ (int(pos.y) << 8))
 	# Gray 1px pivot between the tractor's rear Hitch (pos + 0,5) and the trailer's front HitchF.
 	var pivot := Polygon2D.new()
 	pivot.polygon = PackedVector2Array([Vector2(-0.5, 5.0), Vector2(0.5, 5.0), Vector2(0.5, 6.0), Vector2(-0.5, 6.0)])
@@ -330,9 +422,20 @@ func _make_rig(pos: Vector2, lights_on: bool) -> void:
 	pivot.position = pos
 	pivot.z_index = -3
 	_hangar.add_child(pivot)
-	if not lights_on:
-		_rig_lights(tractor, false)
-		_rig_lights(trailer, false)
+	# Lights track the glowmasks: an ON rig shows its head/brake/engine glow AND casts its point lights;
+	# an OFF rig has both dark. Set both ways explicitly so it never rides on the scene's default state.
+	_rig_lights(tractor, lights_on)
+	_rig_lights(trailer, lights_on)
+	# Shadow prototype: each vehicle body casts; its drop shadow becomes legacy; an ON rig's point
+	# lights join the dynamic shadow sources (an OFF rig's are hidden → they contribute nothing).
+	for sh2 in [t_sh, r_sh]:
+		_legacy_shadows.append(sh2)
+	for veh in [tractor, trailer]:
+		var vb = veh.get_node_or_null("Body")
+		if vb is Sprite2D:
+			_extra_casters.append({"src": vb, "parent": _hangar, "z": -3})
+		for l in veh.find_children("*", "PointLight2D", true, false):
+			_dynamic_lights.append(l)
 
 
 # Toggle a rig vehicle's lights (the PointLights + the head/brake/engine light sprite layers).
@@ -407,13 +510,14 @@ func _build_ships() -> void:
 			"markers": markers, "park_pos": park, "btn": null,
 			"livery_mat": livery_mat, "livery_color": col, "trail": null, "engine_lights": [],
 		})
+		# Shadow prototype: the hull body casts; its baked drop shadow becomes legacy.
+		_extra_casters.append({"src": body, "parent": _hangar, "z": -3})
+		_legacy_shadows.append(shadow)
 
 
 func _park_pos(idx: int) -> Vector2:
-	var on_left := (idx % 2) == 0
-	var row := idx / 2
-	var x := PARK_LEFT_X if on_left else PARK_RIGHT_X
-	return Vector2(x, PARK_TOP_Y + row * PARK_STEP_Y)
+	# Ship-park slots are authored Marker2D ("Park0".."ParkN") in the hangar stage; read by index.
+	return _hangar_off + _hangar_stage.slot("Park%d" % idx)
 
 
 func _make_sprite(path: String) -> Sprite2D:
@@ -451,7 +555,7 @@ func _make_point_light(pos: Vector2, col: Color, scale: float, tex: Texture2D) -
 func _build_lifter() -> void:
 	_lifter = load(LIFTER_SCENE).instantiate()
 	_lifter.z_index = LIFTER_Z
-	_lifter.position = LIFTER_IDLE
+	_lifter.position = _lifter_idle
 	_nearest_all(_lifter)
 	# Grav glow layer + grav lights start OFF (the lifter is idle, grav cold).
 	_grav_glow = _lifter.get_node_or_null("GravGlow")
@@ -477,10 +581,19 @@ func _build_lifter() -> void:
 	# The lifter's own drop shadow (frame-0 silhouette; spreads with altitude on lift-off).
 	var sh := _make_frame_sprite(load(LIFTER_TEX), 3, 0)
 	sh.modulate = Color(0, 0, 0, shadow_land_alpha)
-	sh.position = LIFTER_IDLE + shadow_land_offset
+	sh.position = _lifter_idle + shadow_land_offset
 	sh.z_index = -3
 	_hangar.add_child(sh)
 	_lifter_shadow = sh
+	# Shadow prototype: the lifter body casts; its grav/hover lights join the dynamic shadow sources.
+	_legacy_shadows.append(sh)
+	var lbody = _lifter.get_node_or_null("Body")
+	if lbody is Sprite2D:
+		_extra_casters.append({"src": lbody, "parent": _hangar, "z": -3})
+	for gl in _grav_lights:
+		_dynamic_lights.append(gl)
+	for hl in _hover_lights:
+		_dynamic_lights.append(hl)
 
 
 # Per-frame: altitude → lifter + carried-hull shadows; keep a carried hull under the lifter.
@@ -566,7 +679,7 @@ func _lift_pick(ship: Dictionary, dest: Vector2) -> void:
 
 func _lift_return() -> void:
 	await _tween_altitude(1.0, lift_set_time)
-	await _tween_lifter_to(LIFTER_IDLE, lift_fly_time)
+	await _tween_lifter_to(_lifter_idle, lift_fly_time)
 	await _tween_altitude(0.0, lift_set_time)
 
 
@@ -879,8 +992,26 @@ func _build_rail(layer: CanvasLayer) -> void:
 
 	v.add_child(_label("Lighting", UiTheme.LabelKind.CAPTION))
 	_slider_generic(v, "Scene dim (whole bay)", 0.2, 1.0, 0.02, scene_dim, _set_scene_dim)
-	_slider(v, "fill_energy", "Hangar fill energy", 0.0, 1.2, 0.05)
 	_slider_generic(v, "Runway pulse (rad/s)", 0.2, 4.0, 0.1, runway_speed, _set_runway_speed)
+
+	v.add_child(_label("Shadows (prototype)", UiTheme.LabelKind.CAPTION))
+	var sm := OptionButton.new()
+	sm.add_item("Legacy (drop)", ShadowMode.LEGACY)
+	sm.add_item("Key light", ShadowMode.KEY)
+	sm.add_item("Fill lights (2x3)", ShadowMode.FILL)
+	sm.selected = shadow_mode
+	sm.item_selected.connect(func(i: int) -> void: set_shadow_mode(i))
+	v.add_child(sm)
+	var dyn := CheckBox.new()
+	dyn.text = "Dynamic (tractor/lifter) casters"
+	dyn.button_pressed = shadow_dynamic
+	dyn.toggled.connect(func(on: bool) -> void: set_shadow_dynamic(on))
+	v.add_child(dyn)
+	_slider_generic(v, "Shadow length (px)", 0.0, 16.0, 0.5, shadow_length, func(x): _set_shadow_knob("shadow_length", x))
+	_slider_generic(v, "Shadow alpha (per light)", 0.0, 1.0, 0.02, shadow_alpha, func(x): _set_shadow_knob("shadow_alpha", x))
+	_slider_generic(v, "Shadow falloff (px)", 20.0, 300.0, 5.0, shadow_falloff, func(x): _set_shadow_knob("shadow_falloff", x))
+	_slider_generic(v, "Shadow softness (scale+)", 0.0, 1.0, 0.05, shadow_softness, func(x): _set_shadow_knob("shadow_softness", x))
+	_slider_generic(v, "Max shadows / object", 1.0, 8.0, 1.0, float(shadow_max), set_shadow_max)
 
 	v.add_child(HSeparator.new())
 	var replay := UiTheme.make_button("Replay Sequence")
@@ -962,8 +1093,14 @@ func _copy_gdscript() -> void:
 		"carry_distance = %s" % _f(carry_distance),
 		"grav_light_energy = %s" % _f(grav_light_energy),
 		"scene_dim = %s" % _f(scene_dim),
-		"fill_energy = %s" % _f(fill_energy),
 		"runway_speed = %s" % _f(runway_speed),
+		"shadow_mode = %d" % shadow_mode,
+		"shadow_dynamic = %s" % str(shadow_dynamic),
+		"shadow_length = %s" % _f(shadow_length),
+		"shadow_alpha = %s" % _f(shadow_alpha),
+		"shadow_falloff = %s" % _f(shadow_falloff),
+		"shadow_softness = %s" % _f(shadow_softness),
+		"shadow_max = %d" % shadow_max,
 	]
 	DisplayServer.clipboard_set("\n".join(lines))
 	if _status != null:
@@ -1054,7 +1191,7 @@ func _on_ready_pressed() -> void:
 	# Return the currently-readied ship to its slot first, then lift the new one onto the pad.
 	if _readied_idx >= 0:
 		await _lift_pick(_ships[_readied_idx], _ships[_readied_idx]["park_pos"])
-	await _lift_pick(_ships[incoming], Vector2(SHIP_X, PAD_Y))
+	await _lift_pick(_ships[incoming], _pad)
 	await _lift_return()
 	_set_lifter_engines(false)  # back on the floor — power down
 	_readied_idx = incoming
@@ -1118,17 +1255,29 @@ func _launch(s: Dictionary) -> void:
 	spool.set_parallel(true)
 	spool.tween_property(glow, "modulate:a", 1.0, engine_spool)
 	for el in lights:
-		spool.tween_property(el, "energy", ENGINE_LIGHT_ENERGY, engine_spool)
+		# Lights LEAD the glow in (EASE_OUT front-loads the fade) so they read sooner. Roman 2026-06-26.
+		spool.tween_property(el, "energy", ENGINE_LIGHT_ENERGY, engine_spool) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	await spool.finished
 	# Bay slides down (SINE/EASE_IN, like the outpost plate) as the ship lifts off + flies out.
 	var bay := create_tween()
 	bay.tween_property(_hangar, "position:y", NATIVE_H, rise_time + flyoff_time).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	# Engine lights flare to their brightest/biggest bloom right as the ship accelerates off the top
+	# (EASE_IN peaks at the launch instant). Roman 2026-06-26.
+	var flare := create_tween()
+	flare.set_parallel(true)
+	for el in lights:
+		if is_instance_valid(el):
+			flare.tween_property(el, "energy", ENGINE_LIGHT_ENERGY * ENGINE_FLARE_PEAK, rise_time + flyoff_time) \
+				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			flare.tween_property(el, "texture_scale", ENGINE_LIGHT_SCALE * ENGINE_FLARE_SCALE, rise_time + flyoff_time) \
+				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	var fly := create_tween()
 	if shadow != null:
 		fly.parallel().tween_property(shadow, "position", shadow_fly_offset, rise_time)
 		fly.parallel().tween_property(shadow, "scale", Vector2(shadow_fly_scale, shadow_fly_scale), rise_time)
 		fly.parallel().tween_property(shadow, "modulate:a", shadow_fly_alpha, rise_time)
-	fly.parallel().tween_property(host, "position:y", PAD_Y - 10.0, rise_time).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	fly.parallel().tween_property(host, "position:y", _pad.y - 10.0, rise_time).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	fly.chain().tween_property(host, "position:y", FLYOFF_TARGET_Y, flyoff_time).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	await fly.finished
 	var trail = s["trail"]
@@ -1156,7 +1305,7 @@ func _replay() -> void:
 	_set_grav(false)
 	_set_lifter_engines(false)
 	if _lifter != null:
-		_lifter.position = LIFTER_IDLE
+		_lifter.position = _lifter_idle
 	for s in _ships:
 		var host: Node2D = s["host"]
 		# A launched ship was reparented into world space — put it back in the hangar.

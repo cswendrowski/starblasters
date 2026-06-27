@@ -80,3 +80,9 @@ func unapply(ship) -> void:
 	_applied_ammo_max = 0
 	_applied_sec_ammo = 0
 	_applied_sec_ammo_max = 0
+
+
+func bonus_description(mk: int) -> String:
+	var m := clampi(mk, 1, 9)
+	var pct: int = int(round(AMMO_BONUS_PER_MARK * m * 100.0))
+	return "Increases ammo for primary and secondary weapons by +%d%%" % pct

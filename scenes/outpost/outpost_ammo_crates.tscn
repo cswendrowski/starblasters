@@ -1,0 +1,9 @@
+[gd_scene format=3 uid="uid://b12kpy141nqfe"]
+
+[ext_resource type="Texture2D" uid="uid://bkxalu66w8ufq" path="res://graphics/backgrounds/outpost_clutter_8px_ammo_crates.png" id="1_vckn3"]
+
+[node name="OutpostAmmoCrates" type="Node2D" unique_id=1474043942]
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1868539636]
+texture = ExtResource("1_vckn3")
+hframes = 8

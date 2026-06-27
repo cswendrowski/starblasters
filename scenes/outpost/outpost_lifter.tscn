@@ -1,0 +1,72 @@
+[gd_scene format=3 uid="uid://cwj1u4tpb0tij"]
+
+[ext_resource type="Texture2D" uid="uid://4gs5n6rhaeof" path="res://graphics/backgrounds/outpost_lifter.png" id="1_okmvt"]
+[ext_resource type="Texture2D" uid="uid://ddna65isnsceu" path="res://graphics/backgrounds/outpost_lifter_engines.png" id="2_p8hqk"]
+
+[sub_resource type="Gradient" id="Gradient_d75qf"]
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_753ot"]
+gradient = SubResource("Gradient_d75qf")
+width = 8
+height = 8
+use_hdr = true
+fill = 1
+fill_from = Vector2(0, 0.5)
+fill_to = Vector2(0.5, 0.5)
+
+[node name="OutpostTractor" type="Node2D" unique_id=1773369181]
+
+[node name="Body" type="Sprite2D" parent="." unique_id=1949607330]
+texture = ExtResource("1_okmvt")
+hframes = 3
+
+[node name="HoverLight" type="PointLight2D" parent="Body" unique_id=353889575]
+position = Vector2(5, -5)
+color = Color(0.8477955, 1.6197081, 1.6197081, 1)
+texture = SubResource("GradientTexture2D_753ot")
+
+[node name="HoverLight2" type="PointLight2D" parent="Body" unique_id=29867456]
+position = Vector2(5, 5)
+color = Color(0.8477955, 1.6197081, 1.6197081, 1)
+texture = SubResource("GradientTexture2D_753ot")
+
+[node name="GravLight" type="PointLight2D" parent="Body" unique_id=1412271301]
+position = Vector2(-4, 0)
+color = Color(1.2528048, 0, 1.6201918, 1)
+texture = SubResource("GradientTexture2D_753ot")
+
+[node name="GravLight2" type="PointLight2D" parent="Body" unique_id=1879587452]
+position = Vector2(4, 0)
+color = Color(1.2528048, 0, 1.6201918, 1)
+texture = SubResource("GradientTexture2D_753ot")
+
+[node name="HoverLight3" type="PointLight2D" parent="Body" unique_id=2039525717]
+position = Vector2(-5, 5)
+color = Color(0.8477955, 1.6197081, 1.6197081, 1)
+texture = SubResource("GradientTexture2D_753ot")
+
+[node name="HoverLight4" type="PointLight2D" parent="Body" unique_id=511888614]
+position = Vector2(-5, -5)
+color = Color(0.8477955, 1.6197081, 1.6197081, 1)
+texture = SubResource("GradientTexture2D_753ot")
+
+[node name="Engines" type="Sprite2D" parent="." unique_id=1453137839]
+z_index = 1
+texture = ExtResource("2_p8hqk")
+hframes = 4
+
+[node name="GravGlow" type="Sprite2D" parent="." unique_id=1726691989]
+z_index = 1
+texture = ExtResource("1_okmvt")
+hframes = 3
+frame = 2
+
+[node name="Reactor" type="Sprite2D" parent="." unique_id=407791053]
+z_index = 1
+texture = ExtResource("1_okmvt")
+hframes = 3
+frame = 1
+
+[node name="Hitch" type="Marker2D" parent="." unique_id=1584241671]
+position = Vector2(0, 5)

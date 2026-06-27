@@ -43,3 +43,21 @@ func _n_for(at_mark: int) -> int:
 # Editor readout — the N (reflect every Nth) at this Mk.
 func effective_damage(at_mark: int) -> int:
 	return _n_for(at_mark)
+
+
+func bonus_description(mk: int) -> String:
+	var m := clampi(mk, 1, 9)
+	var n: int = _n_for(m)
+	match n:
+		2:
+			return "Reflects every 2nd blocked shot"
+		3:
+			return "Reflects every 3rd blocked shot"
+		4:
+			return "Reflects every 4th blocked shot"
+		5:
+			return "Reflects every 5th blocked shot"
+		6:
+			return "Reflects every 6th blocked shot"
+		_:
+			return "Reflects every %dth blocked shot" % n

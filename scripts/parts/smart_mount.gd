@@ -56,3 +56,12 @@ func unapply(ship) -> void:
 # Editor readout — turret traverse in deg/s at this Mk.
 func effective_damage(at_mark: int) -> int:
 	return int(round(rad_to_deg(_traverse_for(at_mark))))
+
+
+func bonus_description(mk: int) -> String:
+	var m := clampi(mk, 1, 9)
+	var traverse: float = _traverse_for(m)
+	var traverse_deg: int = int(round(rad_to_deg(traverse)))
+	var dispersion: float = _dispersion_for(m)
+	var dispersion_deg: int = int(round(rad_to_deg(dispersion)))
+	return "Auto-turret: %d°/s traverse, ±%d° spread" % [traverse_deg, dispersion_deg]

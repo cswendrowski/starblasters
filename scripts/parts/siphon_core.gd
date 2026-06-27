@@ -30,3 +30,9 @@ func apply(ship) -> void:
 func unapply(ship) -> void:
 	if "module_siphon_kills_per_charge" in ship:
 		ship.module_siphon_kills_per_charge = 0
+
+
+func bonus_description(mk: int) -> String:
+	var m := clampi(mk, 1, 9)
+	var kills: int = _kills_per_charge() if m == int(mark) else maxi(2, 10 - (m - 1))
+	return "Refunds a shield charge every %d kills" % kills

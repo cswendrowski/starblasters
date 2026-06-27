@@ -29,3 +29,19 @@ func apply(ship) -> void:
 func unapply(ship) -> void:
 	if "module_ablative_n" in ship:
 		ship.module_ablative_n = 0
+
+
+func bonus_description(mk: int) -> String:
+	var m := clampi(mk, 1, 9)
+	var n: int = _every_n() if m == int(mark) else maxi(2, 6 - (m - 1) / 2)
+	match n:
+		2:
+			return "Negates every 2nd hull hit"
+		3:
+			return "Negates every 3rd hull hit"
+		4:
+			return "Negates every 4th hull hit"
+		5:
+			return "Negates every 5th hull hit"
+		_:
+			return "Negates every %dth hull hit" % n

@@ -35,6 +35,7 @@ func _ready() -> void:
 	_hd = HdScreen.enter(self)
 	_oa = load(OA_SCENE).instantiate()
 	_oa.manage_hd_scope = false
+	_oa.return_to_map = false   # lab owns depart (don't navigate to the sector map)
 	_oa.damage_level = 0.6   # arrive visibly battle-damaged so the shader + tells show for review
 	_oa.landed.connect(_on_landed)
 	_oa.departed.connect(_on_departed)
@@ -131,6 +132,28 @@ func _build_rail() -> void:
 	_add_slider(v, "bars_fade_time", "Bar reveal/hide time (s)", 0.2, 1.4, 0.05, _oa.bars_fade_time, func(x): _oa.bars_fade_time = x)
 	_add_slider(v, "rise_time", "Lift-off rise time (s)", 0.2, 1.2, 0.05, _oa.rise_time, func(x): _oa.rise_time = x)
 	_add_slider(v, "flyoff_time", "Fly-off duration (s)", 0.4, 2.6, 0.05, _oa.flyoff_time, func(x): _oa.flyoff_time = x)
+
+	v.add_child(HSeparator.new())
+
+	# --- Shadows (prototype: light-derived vs legacy drop shadows) ---
+	v.add_child(_mk_label("Shadows (prototype)", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
+	var sm := OptionButton.new()
+	sm.add_item("Legacy (drop)", OutpostArrival.ShadowMode.LEGACY)
+	sm.add_item("Key light", OutpostArrival.ShadowMode.KEY)
+	sm.add_item("Fill lights (2x3)", OutpostArrival.ShadowMode.FILL)
+	sm.selected = _oa.shadow_mode
+	sm.item_selected.connect(func(i: int) -> void: _oa.set_shadow_mode(i))
+	v.add_child(sm)
+	var dyn := CheckBox.new()
+	dyn.text = "Dynamic (engine) casters"
+	dyn.button_pressed = _oa.shadow_dynamic
+	dyn.toggled.connect(func(on: bool) -> void: _oa.set_shadow_dynamic(on))
+	v.add_child(dyn)
+	_add_slider(v, "shadow_length", "Shadow length (px)", 0.0, 16.0, 0.5, _oa.shadow_length, func(x): _oa.set_shadow_length(x))
+	_add_slider(v, "shadow_alpha", "Shadow alpha (per light)", 0.0, 1.0, 0.02, _oa.shadow_alpha, func(x): _oa.set_shadow_alpha(x))
+	_add_slider(v, "shadow_falloff", "Shadow falloff (px)", 20.0, 300.0, 5.0, _oa.shadow_falloff, func(x): _oa.set_shadow_falloff(x))
+	_add_slider(v, "shadow_softness", "Shadow softness (scale+)", 0.0, 1.0, 0.05, _oa.shadow_softness, func(x): _oa.set_shadow_softness(x))
+	_add_slider(v, "shadow_max", "Max shadows / object", 1.0, 8.0, 1.0, float(_oa.shadow_max), func(x): _oa.set_shadow_max(x))
 
 	v.add_child(HSeparator.new())
 
@@ -267,6 +290,13 @@ func _on_copy_gdscript() -> void:
 		"bars_fade_time = %s" % _f(_oa.bars_fade_time),
 		"rise_time = %s" % _f(_oa.rise_time),
 		"flyoff_time = %s" % _f(_oa.flyoff_time),
+		"shadow_mode = %d" % _oa.shadow_mode,
+		"shadow_dynamic = %s" % str(_oa.shadow_dynamic),
+		"shadow_length = %s" % _f(_oa.shadow_length),
+		"shadow_alpha = %s" % _f(_oa.shadow_alpha),
+		"shadow_falloff = %s" % _f(_oa.shadow_falloff),
+		"shadow_softness = %s" % _f(_oa.shadow_softness),
+		"shadow_max = %d" % _oa.shadow_max,
 	]
 	DisplayServer.clipboard_set("\n".join(lines))
 	if _status != null:

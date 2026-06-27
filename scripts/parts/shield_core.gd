@@ -28,3 +28,9 @@ func apply(ship) -> void:
 func unapply(ship) -> void:
 	if "module_shield_bonus" in ship:
 		ship.module_shield_bonus -= _capacity_bonus()
+
+
+func bonus_description(mk: int) -> String:
+	var m := clampi(mk, 1, 9)
+	var bonus: int = _capacity_bonus() if m == int(mark) else ((m - 1) * 2 + (4 if m >= 9 else 0))
+	return "Shield charges: +%d (base 10)" % bonus

@@ -29,3 +29,14 @@ func unapply(ship) -> void:
 		ship.module_hull_bonus -= _pips()
 	if "module_hull_repair_discount" in ship:
 		ship.module_hull_repair_discount = 0.0
+
+
+func bonus_description(mk: int) -> String:
+	var m := clampi(mk, 1, 9)
+	var pips: int = mini(m, 8)
+	var desc: String = "+%d hull pip" % pips
+	if pips != 1:
+		desc += "s"
+	if m >= 9:
+		desc += ", repairs 30% cheaper at Mk.9"
+	return desc

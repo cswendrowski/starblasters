@@ -33,3 +33,9 @@ func unapply(ship) -> void:
 # Editor readout — restored fraction (as a whole %) at this Mk.
 func effective_damage(at_mark: int) -> int:
 	return int(round((base_pct + (at_mark - 1) * pct_per_mark) * 100.0))
+
+
+func bonus_description(mk: int) -> String:
+	var m := clampi(mk, 1, 9)
+	var pct: int = int(round((base_pct + (m - 1) * pct_per_mark) * 100.0))
+	return "Once per level, restores %d%% of max shield" % pct

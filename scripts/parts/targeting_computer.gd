@@ -26,3 +26,10 @@ func apply(ship) -> void:
 func unapply(ship) -> void:
 	if "module_crit_chance" in ship:
 		ship.module_crit_chance = 0.0
+
+
+func bonus_description(mk: int) -> String:
+	var m := clampi(mk, 1, 9)
+	var chance: float = 0.10 + 0.025 * float(m - 1)
+	var pct: int = int(round(chance * 100.0))
+	return "+%d%% critical-hit chance (×2 damage)" % pct

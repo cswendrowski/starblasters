@@ -37,3 +37,10 @@ func effective_damage(at_mark: int) -> int:
 	if "dmg_per_mark" in self:
 		per_mark = int(self.get("dmg_per_mark"))
 	return int(self.get("base_damage")) + (at_mark - 1) * per_mark
+
+
+# Human-readable COMPUTED bonus at a given Mk for the outpost/codex card (e.g. "+45% ammo").
+# Empty by default; passive modules override it. The card falls back to `description` when
+# this returns "".
+func bonus_description(_mk: int) -> String:
+	return ""

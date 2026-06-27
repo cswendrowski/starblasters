@@ -35,3 +35,10 @@ func unapply(ship) -> void:
 		ship.shield_regen_delay = 5.0
 	if "shield_regen_interval" in ship:
 		ship.shield_regen_interval = 1.0
+
+
+func bonus_description(mk: int) -> String:
+	var m := clampi(mk, 1, 9)
+	var delay: float = maxf(1.0, 5.0 - float(m) * 0.5)
+	var interval: float = maxf(0.3, 1.0 - float(m) * 0.07)
+	return "Shield recharges %.1fs sooner, every %.1fs" % [5.0 - delay, interval]

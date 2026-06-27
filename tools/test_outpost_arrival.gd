@@ -7,6 +7,7 @@ extends SceneTree
 func _init() -> void:
 	var oa = load("res://scenes/outpost_arrival.tscn").instantiate()
 	oa.manage_hd_scope = true
+	oa.return_to_map = false   # driver asserts on `departed`; don't navigate away
 	oa.damage_level = 0.7   # exercise the damaged-launch path (stutter glow + spark spray)
 	# Short timings so the flow completes quickly headless.
 	oa.arrival_time = 0.4

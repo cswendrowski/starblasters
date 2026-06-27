@@ -1,0 +1,86 @@
+[gd_scene format=3 uid="uid://bnle7xidpwp2m"]
+
+[ext_resource type="Texture2D" uid="uid://r8bcvtdf1kax" path="res://graphics/backgrounds/outpost_tractor.png" id="1_d75qf"]
+
+[sub_resource type="Gradient" id="Gradient_d75qf"]
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_753ot"]
+gradient = SubResource("Gradient_d75qf")
+width = 4
+height = 4
+use_hdr = true
+fill = 1
+fill_from = Vector2(0, 0.5)
+fill_to = Vector2(0.5, 0.5)
+
+[sub_resource type="Gradient" id="Gradient_xfwcs"]
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_tpil1"]
+gradient = SubResource("Gradient_xfwcs")
+width = 2
+height = 6
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(0.5, 0)
+metadata/_snap_enabled = true
+
+[node name="OutpostTractor" type="Node2D" unique_id=1773369181]
+
+[node name="Body" type="Sprite2D" parent="." unique_id=1949607330]
+texture = ExtResource("1_d75qf")
+hframes = 4
+
+[node name="HoverLight" type="PointLight2D" parent="Body" unique_id=353889575]
+position = Vector2(0, 1)
+color = Color(0.8477955, 1.6197081, 1.6197081, 1)
+texture = SubResource("GradientTexture2D_753ot")
+
+[node name="HeadLight" type="PointLight2D" parent="Body" unique_id=359329361]
+z_index = 1
+position = Vector2(-2, -8)
+color = Color(1.6197081, 1.4018295, 0.5676659, 1)
+texture = SubResource("GradientTexture2D_tpil1")
+
+[node name="HeadLight2" type="PointLight2D" parent="Body" unique_id=840959386]
+z_index = 1
+position = Vector2(2, -8)
+color = Color(1.6197081, 1.4018295, 0.5676659, 1)
+texture = SubResource("GradientTexture2D_tpil1")
+
+[node name="BrakeLight" type="PointLight2D" parent="Body" unique_id=1895418776]
+z_index = 1
+position = Vector2(-2, 6.0000005)
+rotation = -3.1421988
+color = Color(1.6197081, 0, 0, 1)
+texture = SubResource("GradientTexture2D_tpil1")
+
+[node name="BrakeLight2" type="PointLight2D" parent="Body" unique_id=314872540]
+z_index = 1
+position = Vector2(2, 6)
+rotation = -3.1415927
+color = Color(1.6197081, 0, 0, 1)
+texture = SubResource("GradientTexture2D_tpil1")
+
+[node name="Engines" type="Sprite2D" parent="." unique_id=1453137839]
+z_index = 1
+texture = ExtResource("1_d75qf")
+hframes = 4
+frame = 1
+
+[node name="Headlights" type="Sprite2D" parent="." unique_id=1726691989]
+z_index = 1
+position = Vector2(0, -1)
+texture = ExtResource("1_d75qf")
+hframes = 4
+frame = 2
+
+[node name="Brakelights" type="Sprite2D" parent="." unique_id=407791053]
+z_index = 1
+position = Vector2(0, -1)
+texture = ExtResource("1_d75qf")
+hframes = 4
+frame = 3
+
+[node name="Hitch" type="Marker2D" parent="." unique_id=1584241671]
+position = Vector2(0, 5)

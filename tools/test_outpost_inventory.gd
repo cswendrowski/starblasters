@@ -10,6 +10,7 @@ var _oa
 func _init() -> void:
 	_oa = load("res://scenes/outpost_arrival.tscn").instantiate()
 	_oa.manage_hd_scope = true
+	_oa.return_to_map = false   # mock driver; don't navigate away
 	_oa.damage_level = 0.7
 	get_root().add_child(_oa)
 	var t := Timer.new()
@@ -78,6 +79,10 @@ func _run() -> void:
 	_oa.repair(0.0, 0.0)
 	assert(_oa.damage_level == 0.0)
 
-	print("INV ok; hold=%d money=%d materials=%d market=%d" % [_oa._hold.size(), _oa._money, _oa._materials, _oa._market.size()])
+	# Clutter scattered on the hangar stage (crate piles + flank piles) — non-empty.
+	var clutter = _oa._plate.get_node_or_null("Clutter")
+	assert(clutter != null and clutter.get_child_count() > 0)
+
+	print("INV ok; hold=%d money=%d materials=%d market=%d clutter=%d" % [_oa._hold.size(), _oa._money, _oa._materials, _oa._market.size(), clutter.get_child_count()])
 	print("VERDICT: PASS")
 	quit()

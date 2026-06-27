@@ -146,6 +146,25 @@ func _build_ui() -> void:
 	font_btn.item_selected.connect(_on_font_picked)
 	font_row.add_child(font_btn)
 
+	# How often the outpost docking cinematic plays (Roman 2026-06-27).
+	var dock_row := HBoxContainer.new()
+	dock_row.add_theme_constant_override("separation", 8)
+	left.add_child(dock_row)
+	var dock_label := Label.new()
+	dock_label.text = "Dock cinematic"
+	dock_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	UiTheme.style_label(dock_label, UiTheme.LabelKind.BODY)
+	dock_row.add_child(dock_label)
+	var dock_btn := OptionButton.new()
+	dock_btn.add_theme_font_override("font", UiTheme.menu_font())
+	dock_btn.add_item("Always")
+	dock_btn.add_item("Once per boss")
+	dock_btn.add_item("Once per patrol")
+	dock_btn.add_item("Never")
+	dock_btn.select(clampi(int(_settings().outpost_dock_anim), 0, 3))
+	dock_btn.item_selected.connect(_on_dock_anim_picked)
+	dock_row.add_child(dock_btn)
+
 	# --- Right column: Controls ---
 	var right := VBoxContainer.new()
 	right.custom_minimum_size = Vector2(460, 0)
@@ -337,6 +356,10 @@ func _on_fullscreen_toggled(on: bool) -> void:
 func _on_font_picked(idx: int) -> void:
 	_settings().set_font_style("pixel" if idx == 0 else "ttf")
 	call_deferred("_rebuild_ui")
+
+
+func _on_dock_anim_picked(idx: int) -> void:
+	_settings().set_outpost_dock_anim(idx)
 
 
 func _rebuild_ui() -> void:

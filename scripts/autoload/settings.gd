@@ -39,6 +39,11 @@ var autofire: bool = false
 # first keyboard event on each action when the override is set.
 # Empty = use project.godot defaults.
 var keyboard_overrides: Dictionary = {}
+# How often the outpost docking cinematic plays: 0 = always (every visit),
+# 1 = once per boss (plays, skips until a boss is cleared, then plays once),
+# 2 = once per patrol (first visit of the run only), 3 = never (jump to the
+# landed, menus-up state). Roman 2026-06-27.
+var outpost_dock_anim: int = 0
 
 
 func _ready() -> void:
@@ -64,6 +69,7 @@ func load_from_disk() -> void:
 	shake_scale = float(cfg.get_value("video", "shake_scale", shake_scale))
 	fullscreen = bool(cfg.get_value("video", "fullscreen", fullscreen))
 	font_style = String(cfg.get_value("video", "font_style", font_style))
+	outpost_dock_anim = int(cfg.get_value("video", "outpost_dock_anim", outpost_dock_anim))
 	# autofire intentionally NOT loaded — runtime-only, defaults off each launch.
 	# Keybind overrides — stored as a JSON-serialised dict (ConfigFile
 	# doesn't natively round-trip Dictionary cleanly across versions).
@@ -85,6 +91,7 @@ func save_to_disk() -> void:
 	cfg.set_value("video", "shake_scale", shake_scale)
 	cfg.set_value("video", "fullscreen", fullscreen)
 	cfg.set_value("video", "font_style", font_style)
+	cfg.set_value("video", "outpost_dock_anim", outpost_dock_anim)
 	# autofire intentionally NOT saved — runtime-only, defaults off each launch.
 	cfg.set_value("controls", "keyboard_overrides", JSON.stringify(keyboard_overrides))
 	cfg.save(CFG_PATH)
@@ -132,6 +139,12 @@ func set_font_style(style: String) -> void:
 
 func _apply_font() -> void:
 	UiTheme.apply_font_to_default_theme()
+
+
+func set_outpost_dock_anim(mode: int) -> void:
+	outpost_dock_anim = clampi(mode, 0, 3)
+	save_to_disk()
+	settings_changed.emit()
 
 
 func set_autofire(on: bool) -> void:
