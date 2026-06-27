@@ -6,6 +6,7 @@ extends Node
 const WaveSpec = preload("res://scripts/levels/wave_def.gd")
 const LevelData = preload("res://scripts/levels/level_def.gd")
 const AuthoredPatterns = preload("res://scripts/levels/authored_patterns.gd")
+const HazardShapes = preload("res://scripts/levels/hazard_shapes.gd")
 const StraightDown = preload("res://scripts/enemies/patterns/straight_down.gd")
 const Loiter = preload("res://scripts/enemies/patterns/loiter.gd")
 # Weapons 3b (2026-06-13): hazard shoot helpers build the unified Weapon (was the legacy
@@ -94,6 +95,35 @@ static func _formation_phrase(shape: StringName, spec: Resource) -> Phrase:
 	ph.kind = Phrase.Kind.FORMATION
 	ph.shape = shape          # &"wall" / &"pincer" / &"top_spread"
 	ph.specs = [spec]
+	return ph
+
+
+# Row pre-stack gap for navigable channels (matches authored_patterns.ROW_GAP_PX so a parametric
+# channel descends the same way as a hand-authored one).
+const HAZ_ROW_GAP := 40.0
+
+
+# Build a NAVIGABLE channel phrase (hazard_shapes cells) — one count-1 hazard pinned per cell, rows
+# pre-stacked above the top edge so the corridor descends holding its gap. Shape &"authored" routes
+# it to director._dispatch_authored (exact lanes, burst-fit), exactly like the hand-authored hazard
+# patterns. The complementary lanes are clear by construction → always a path through.
+static func _channel_phrase(scene, cells: Array) -> Phrase:
+	var max_row: int = 0
+	for c in cells:
+		max_row = maxi(max_row, int(c.y))
+	var specs: Array = []
+	for c in cells:
+		var ws = WaveSpec.new()
+		ws.enemy_scene = scene
+		ws.count = 1
+		ws.lane = int(c.x)
+		ws.spawn_y = -12.0 - float(max_row - int(c.y)) * HAZ_ROW_GAP
+		ws.spawn_delay = 0.0
+		specs.append(ws)
+	var ph := Phrase.new()
+	ph.kind = Phrase.Kind.FORMATION
+	ph.shape = &"authored"
+	ph.specs = specs
 	return ph
 
 
@@ -285,6 +315,16 @@ static func build_asteroid_field_score() -> CombatScore:
 	# the old ~128 rocks — tune freely / author extra patterns on top.
 	var wave := ScoreWave.new()
 	wave.banner = "COLLISION WARNING"
+	# Seeded per run+node so the navigable corridor (climax, below) reproduces within a run but varies
+	# across runs/nodes. run_seed 0 (headless tools) stays deterministic.
+	var rng := RandomNumberGenerator.new()
+	var a_rs: int = 0
+	var a_nid: String = ""
+	if Engine.get_main_loop() and Engine.get_main_loop().root.has_node("Run"):
+		var a_run = Engine.get_main_loop().root.get_node("Run")
+		a_rs = int(a_run.run_seed) if "run_seed" in a_run else 0
+		a_nid = String(a_run.current_node_id) if "current_node_id" in a_run else ""
+	rng.seed = (a_rs * 2654435761) ^ (hash(a_nid) * 40503) ^ 0x4173746F   # "Asto"
 	# 1. Approach — a light scatter drifts in; the field arrives gently.
 	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 12, 0.55, 2)))
 	wave.phrases.append(_haz_breather(4.0, 2))     # nearly clears — the calm before
@@ -292,9 +332,12 @@ static func build_asteroid_field_score() -> CombatScore:
 	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 18, 0.40, 2)))
 	wave.phrases.append(_formation_phrase(&"wall", _haz_spec(AsteroidScene, 14, 0.22, 0)))
 	wave.phrases.append(_haz_breather(3.0, 5))     # partial thin
-	# 3. Climax — sustained pressure at the cap: walls + scatter back-to-back.
+	# 3. Climax — sustained pressure at the cap. The middle beat is now a NAVIGABLE snaking corridor
+	# instead of a random scatter that could wall off every lane at the worst moment (the navigability
+	# lesson from Roman's authored channels): ~5 rows, a 3-lane gap that migrates row-to-row so the
+	# safe path slides as the field falls. Walls either side keep the "pick a gap" pressure.
 	wave.phrases.append(_formation_phrase(&"wall", _haz_spec(AsteroidScene, 18, 0.20, 0)))
-	wave.phrases.append(_formation_phrase(&"top_spread", _haz_spec(AsteroidScene, 22, 0.32, 2)))
+	wave.phrases.append(_channel_phrase(AsteroidScene, HazardShapes.flowing_channel_cells(4, 1, rng)))
 	wave.phrases.append(_formation_phrase(&"wall", _haz_spec(AsteroidScene, 16, 0.20, 0)))
 	wave.phrases.append(_haz_breather(2.5, 6))     # a single tense breath at peak
 	# 4. Release — one more pass, then the field empties out.
