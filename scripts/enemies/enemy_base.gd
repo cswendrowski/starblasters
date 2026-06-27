@@ -707,22 +707,44 @@ func _fade_death_overlays() -> void:
 			else:
 				(child as CanvasItem).visible = false
 			continue
-		# Engine/tail glow overlays (incl. the bomber's "Glowmap"/"TailGunGlow", which don't follow the
-		# GlowMask name) fade out with the body so they don't outlive the disintegration.
-		if nm == "GlowMask" or nm == "Glowmap" or nm == "TailGunGlow" or nm == "Outline" or nm.begins_with("FirecoreCore"):
+		# Engine/tail glow overlays (GlowMask + the bomber's "Glowmap"/"TailGunGlow", the cruiser's
+		# "Glow", boss "EngineLayer" — all matched by _is_glow_overlay) fade out with the body so they
+		# don't outlive the disintegration. Outline + Firecore overlays fade with them.
+		if _is_glow_overlay(child) or nm == "Outline" or nm.begins_with("FirecoreCore"):
 			var tw := create_tween()
 			tw.tween_property(child, "modulate:a", 0.0, OVERLAY_FADE)
 
 
-# Engine glowmask (the body's frame-1 glow-parts overlay) → HDR-bright so the WorldEnvironment bloom
-# lights it, by the tuned "engines" multiplier (Roman 2026-06-22). No-op if the scene has no GlowMask.
-# The death tweens above only touch modulate:a, so the HDR rgb survives until the fade.
+# Engine/overlay glow sprites (the body's frame-1 glow-parts overlay) → HDR-bright so the
+# WorldEnvironment bloom lights them, by the tuned "engines" multiplier (Roman 2026-06-22).
+# Most of the roster names this "GlowMask", but some scenes use "Glowmap"/"TailGunGlow" (bombers),
+# "Glow" (missile cruiser) or "EngineLayer" (Shepherd) — match by name AND recurse so EVERY glow
+# overlay blooms, not just a direct-child "GlowMask" (the old code missed all the others). The boost
+# multiplies the baked modulate so any authored hue/alpha is preserved. No-op if a scene has none;
+# the death tweens above only touch modulate:a, so the HDR rgb survives until the fade.
 const VfxGlow = preload("res://scripts/effects/vfx_glow_config.gd")
 
 func _setup_glowmask() -> void:
-	var gm := get_node_or_null("GlowMask")
-	if gm is Sprite2D:
-		(gm as Sprite2D).modulate = VfxGlow.prod_hdr("engines")
+	_apply_glow_hdr(self, VfxGlow.prod_mult("engines"))
+
+
+# A glow overlay = a Sprite2D whose name reads as a glow ("glow" anywhere, case-insensitive) or the
+# Shepherd boss's "EngineLayer". Shared by _apply_glow_hdr (bloom) and the death fade above.
+static func _is_glow_overlay(n: Node) -> bool:
+	if not (n is Sprite2D):
+		return false
+	var nm := String(n.name)
+	return nm.to_lower().contains("glow") or nm == "EngineLayer"
+
+
+# Recursively boost every glow overlay's modulate by `m` (keeps its baked hue + alpha so it blooms
+# in its own colour). Recurses to catch glows nested under sub-units (e.g. multi-part hulls).
+func _apply_glow_hdr(node: Node, m: float) -> void:
+	for child in node.get_children():
+		if _is_glow_overlay(child):
+			var c: Color = (child as Sprite2D).modulate
+			(child as Sprite2D).modulate = Color(c.r * m, c.g * m, c.b * m, c.a)
+		_apply_glow_hdr(child, m)
 
 
 # The container death VFX (explosions, dust, debris) should spawn into: this

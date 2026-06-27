@@ -122,6 +122,9 @@ damping_max = 1.0
 alpha_curve = SubResource("CurveTexture_nqttg")
 turbulence_noise_scale = 1.0
 
+[sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_large_add"]
+blend_mode = 1
+
 [node name="AsteroidExplosion" type="Node2D" unique_id=1169129577]
 
 [node name="Particles" type="GPUParticles2D" parent="." unique_id=1247394863]
@@ -146,6 +149,7 @@ trail_lifetime = 0.4
 process_material = SubResource("ParticleProcessMaterial_s2swu")
 
 [node name="Large Particles" type="GPUParticles2D" parent="." unique_id=427530331]
+material = SubResource("CanvasItemMaterial_large_add")
 emitting = false
 amount = 15
 texture = SubResource("GradientTexture2D_ji3r1")
