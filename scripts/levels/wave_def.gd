@@ -27,6 +27,11 @@ enum Formation { TOP_LEFT_TO_RIGHT, TOP_RIGHT_TO_LEFT, TOP_RANDOM, TOP_CENTER_OU
 # by director._dispatch_geometric. "" = unset (the Formation enum drives placement, production
 # default). ScoreAdapter._shape_id prefers this over the legacy enum when set.
 @export var shape_override: StringName = &""
+# Hazard lateral-drift mode (Roman 2026-06-23): "" = leave the hazard's own default; otherwise
+# "straight"/"drift_lane"/"drift_adjacent"/"drift_all" picks the LateralDrift envelope. Applied by
+# director._spawn_enemy to any spawn exposing a `drift_mode` property (asteroid/mine/firecore);
+# ignored by everything else. Authored hazard patterns map their placement movement onto this.
+@export var drift_mode: String = ""
 # Sub-lane X offset (px) added to the lane centre — lets the Formation Builder pack a sub-grid of
 # enemies into one lane square. 0 = lane centre (default, production unchanged). Lane-pinned only.
 @export var spawn_x_offset: float = 0.0

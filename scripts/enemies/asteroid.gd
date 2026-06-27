@@ -6,8 +6,18 @@ extends "res://scripts/enemies/enemy_base.gd"
 # 320×400 res rework — speeds halved. Roman 2026-06-02: +20% (55 → 66) for the
 # denser/faster asteroid-field hazard pass.
 @export var drift_speed: float = 60.0
-@export var drift_x: float = 0.0
 @export var damage_on_collide: int = 2
+# Lateral drift mode (Roman 2026-06-23): "drift_all" (default — free band drift, the historical
+# behavior), "drift_lane", "drift_adjacent", or "straight". The conductor sets this per spawn
+# (WaveSpec.drift_mode / authored hazard movement). The descent + collision response stay bespoke
+# below; only the sideways wander is delegated to the shared LateralDrift pattern.
+@export var drift_mode: String = "drift_all"
+const LateralDrift = preload("res://scripts/enemies/patterns/lateral_drift.gd")
+var _drift: Resource = null
+# Soft mutual separation so rocks collide but don't MERGE (Roman 2026-06-23). Spring stiffness for
+# the per-frame push (higher = firmer separation).
+const HazardSpacing = preload("res://scripts/enemies/hazard_spacing.gd")
+const SEP_STIFFNESS: float = 6.0
 
 # Impact jolt (Roman 2026-06-14): halved the player kick (was 50) AND added a short
 # per-player grace so a chain of asteroids can't pinball the ship energetically off one
@@ -38,6 +48,12 @@ func _ready() -> void:
 	wants_outline = false  # asteroids carry their own procgen outline
 	offscreen_mode = OffscreenMode.NONE
 	super._ready()
+	# Lateral-drift pattern (shared). Mode is set by the conductor via drift_mode before add_child;
+	# the home lane is captured on the first step (after start() positions us). Default "drift_all"
+	# reproduces the historical free-band drift.
+	_drift = LateralDrift.new()
+	_drift.mode = LateralDrift.mode_from_key(drift_mode)
+	add_to_group("asteroids")   # for mutual soft-separation (HazardSpacing)
 	# Freespace Miner signal event sets a per-asteroid bonus bounty for one
 	# hazard run. Apply it on spawn; main.gd clears the flag at level end.
 	if has_node("/root/Run"):
@@ -186,7 +202,8 @@ func _release_trail() -> void:
 
 func start(pos: Vector2) -> void:
 	position = pos
-	drift_x = randf_range(-10.0, 10.0)
+	if _drift != null:
+		_drift.on_start(self)   # (re)capture the home lane + reseed the wander from this position
 
 func hit() -> void:
 	if has_node("ParticleHit"):
@@ -196,21 +213,22 @@ func hit() -> void:
 	_spawn_dust(global_position, 10, 0.30)
 
 func _process(delta: float) -> void:
-	position.x += drift_x * delta
+	# Lateral wander comes from the shared LateralDrift pattern (mode-confined; ALL mode reflects off
+	# the band edges with the historical damping). Descent stays bespoke so the collision slow-down
+	# below still works.
+	if _drift != null:
+		position.x += _drift.compute_step(self, delta).x
 	position.y += drift_speed * delta
-	# Reflect horizontal drift at the playfield edges so the asteroid stays
-	# in the gamespace (Roman, 2026-05-16). 0.6 multiplier dampens so it
-	# doesn't ping-pong forever.
-	# Reflect off the 216-px playfield band, not the full viewport, so the
-	# rock stays in the player's shootable zone.
-	if position.x < Playfield.X_MIN + 6.0 and drift_x < 0.0:
-		position.x = Playfield.X_MIN + 6.0
-		drift_x = -drift_x * 0.6
-	elif position.x > Playfield.X_MAX - 6.0 and drift_x > 0.0:
-		position.x = Playfield.X_MAX - 6.0
-		drift_x = -drift_x * 0.6
+	# Soft mutual spacing — push apart from overlapping rocks so the field reads as distinct bodies,
+	# not a merged blob (they can still bump). Applied velocity-style so it's frame-rate independent.
+	position += HazardSpacing.resolve(self, "asteroids", hazard_radius()) * SEP_STIFFNESS * delta
 	if position.y > screensize.y + 40.0:
 		queue_free()
+
+
+# Body radius for soft separation (HazardSpacing reads this off neighbours). Half the visual size.
+func hazard_radius() -> float:
+	return _visual_size * 0.5
 
 func explode() -> void:
 	if _dying:
@@ -244,7 +262,8 @@ func explode() -> void:
 # the wreck layer as it exits (see asteroid_fragment.gd).
 func _spawn_asteroid_fragments() -> void:
 	var parent: Node = _fx_parent()
-	var travel := Vector2(drift_x, drift_speed)
+	var vx: float = _drift.current_vx() if _drift != null else 0.0
+	var travel := Vector2(vx, drift_speed)
 	var base_ang: float = travel.angle() if travel.length() > 1.0 else PI * 0.5  # default: down
 	var n: int = 3 + randi() % 4   # 3-6
 	for i in n:
@@ -278,7 +297,8 @@ func _on_area_entered(area: Area2D) -> void:
 			var tw = p2.create_tween()
 			tw.tween_property(p2, "position", p2.position + push, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		# Asteroid bounces the other way + slows briefly.
-		drift_x = -push.x * 0.4
+		if _drift != null:
+			_drift.nudge_lateral(-push.x * 0.4)
 		drift_speed = max(drift_speed * 0.4, 15.0)
 		# Dust burst at the contact point.
 		_spawn_dust(global_position + to_player.normalized() * 8.0)

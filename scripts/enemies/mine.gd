@@ -8,9 +8,14 @@ extends "res://scripts/enemies/enemy_core.gd"
 
 const StraightDown = preload("res://scripts/enemies/patterns/straight_down.gd")
 const MineBlinker = preload("res://scripts/effects/mine_blinker.gd")
+const LateralDrift = preload("res://scripts/enemies/patterns/lateral_drift.gd")
 
 @export var drift_speed: float = 120.0
 @export var damage_on_collide: int = 2
+# Lateral drift mode (Roman 2026-06-23). Default "straight" keeps the StraightDown descent (the
+# minefield is unchanged). The conductor can set "drift_lane"/"drift_adjacent"/"drift_all" to swap
+# in the shared LateralDrift through the movement slot — mines reusing the asteroid drift modes.
+@export var drift_mode: String = "straight"
 # Hull HP, overridable per scene so variants reuse this script: basic = 2, the
 # Armored mine (enemy_mine_armored.tscn) sets 4. Set BEFORE super._ready().
 @export var hull_hp: int = 2
@@ -27,6 +32,12 @@ func _ready() -> void:
 	if movement == null:
 		var m := StraightDown.new()
 		movement = m
+	# A drift_mode (set by the conductor before add_child) swaps the descent for a confined wander.
+	# "straight"/"" leaves the StraightDown above untouched.
+	if drift_mode == "drift_lane" or drift_mode == "drift_adjacent" or drift_mode == "drift_all":
+		var ld := LateralDrift.new()
+		ld.mode = LateralDrift.mode_from_key(drift_mode)
+		movement = ld
 	super._ready()
 	add_child(MineBlinker.new())   # 2px flashing red centre dot + glow
 

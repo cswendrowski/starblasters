@@ -16,6 +16,12 @@ extends "res://scripts/enemies/enemy_base.gd"
 @export var drift_speed: float = 45.0        # slow lane drift (mines are 120)
 @export var damage_on_collide: int = 2
 @export var lifetime: float = 7.0            # safety despawn if it never clears the band
+# Lateral drift mode (Roman 2026-06-23). Default "straight" = the historical lane-anchored ember
+# (no sideways motion); the conductor can set "drift_lane"/"drift_adjacent"/"drift_all" to make
+# embers wander. Reuses the shared LateralDrift pattern (same as the asteroid).
+@export var drift_mode: String = "straight"
+const LateralDrift = preload("res://scripts/enemies/patterns/lateral_drift.gd")
+var _drift: Resource = null
 
 var _t: float = 0.0
 
@@ -30,6 +36,8 @@ func _ready() -> void:
 	wants_outline = false  # firecores are excepted from the hull outline
 	offscreen_mode = OffscreenMode.NONE
 	super._ready()
+	_drift = LateralDrift.new()
+	_drift.mode = LateralDrift.mode_from_key(drift_mode)
 	var spr := _sprite()
 	if spr != null:
 		if spr is AnimatedSprite2D:
@@ -50,12 +58,16 @@ func _sprite() -> CanvasItem:
 func start(pos: Vector2) -> void:
 	position = pos
 	_t = 0.0
+	if _drift != null:
+		_drift.on_start(self)   # capture the home lane for the confined modes
 
 
 func _process(delta: float) -> void:
 	if _dying:
 		return
 	_t += delta
+	if _drift != null:
+		position.x += _drift.compute_step(self, delta).x   # lateral wander (STRAIGHT = no-op)
 	position.y += drift_speed * delta
 	if position.y > screensize.y + 16.0 or _t >= lifetime:
 		queue_free()

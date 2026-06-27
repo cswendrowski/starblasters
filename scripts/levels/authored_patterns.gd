@@ -1081,6 +1081,11 @@ static func _spec_for_placement(pl: Dictionary, fill_faction: int, sector: int, 
 	# default. Leave the scene's authored movement when neither applies (non-roster enemy).
 	if move_key != "":
 		ws.movement_override = Roster.make_movement({"movement": move_key})
+		# Also carry the key as a hazard drift mode: for a self-drifting hazard (asteroid/mine/firecore)
+		# the movement_override Resource is inert (no movement slot), and director._spawn_enemy instead
+		# reads drift_mode to pick the LateralDrift envelope. Harmless for non-hazards (no drift_mode
+		# property). So an authored asteroid channel with movement "straight" actually holds its lane.
+		ws.drift_mode = move_key
 	elif not entry.is_empty():
 		ws.movement_override = Roster.make_movement(entry)
 

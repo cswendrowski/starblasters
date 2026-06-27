@@ -119,6 +119,7 @@ static func _channel_phrase(scene, cells: Array) -> Phrase:
 		ws.lane = int(c.x)
 		ws.spawn_y = -12.0 - float(max_row - int(c.y)) * HAZ_ROW_GAP
 		ws.spawn_delay = 0.0
+		ws.drift_mode = "straight"   # hold the lane so the corridor's gap stays crisp (no drift blur)
 		specs.append(ws)
 	var ph := Phrase.new()
 	ph.kind = Phrase.Kind.FORMATION

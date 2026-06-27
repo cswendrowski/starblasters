@@ -703,6 +703,10 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 	# All four overrides are guarded with `in` checks so hazard enemies
 	# (mines, asteroids, bomblets) can drop the dead compatibility-shim
 	# fields. (Roman, 2026-05-16 enemy refactor.)
+	# Hazard drift mode (asteroid/mine/firecore) — set before add_child so the hazard's _ready builds
+	# the LateralDrift in the right mode. Guarded `in` check: non-hazard enemies have no drift_mode.
+	if "drift_mode" in wave and String(wave.drift_mode) != "" and "drift_mode" in enemy:
+		enemy.drift_mode = String(wave.drift_mode)
 	if wave.movement_override != null and "movement" in enemy:
 		enemy.movement = wave.movement_override
 	if wave.shoot_pattern_override != null and "shoot_pattern" in enemy:
