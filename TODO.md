@@ -24,6 +24,19 @@ Captured from Cody's 2026-05-19 punch list. Ordered roughly by leverage.
 > (swirl + per-POI re-enable + Shader Lab page + A/B alts); **glow-halo → bloom** (pulled projectile
 > halos, HDR-bright bolts); the **`outline_1px` Forward+ crash fix**; and confirmation that renderer
 > **levers A+B** are already live (lever C partial). Per-item status: **`Worklist.md`** (refreshed).
+>
+> **2026-06-13 → 06-27 (on `main`):** a large multi-session run. Highlights, with checkbox updates
+> made below as part of this reconciliation: **hazard overhaul** — asteroid/mine fields conducted
+> through the wave conductor (no more impassable "wall"), drift modes, navigable corridors, authored
+> asteroid/mine patterns (`6daa5b75`, `cbcf8fd3`, `e35dbef6`, `5c8b3712`, `22ca1163`); **wave
+> composition** — per-level chaff palette + the `base_count>=4` budget-skip fix + a 5–6-wave boss
+> run-up (`82fe3f06`); **outpost** — the cinematic dock is now the live production hub + a shared
+> hangar/patrol cinematic substrate (`186577db`, `a5bcde72`, `243f34ef`); the **Wave Pattern Editor**
+> shipped (the branch namesake — `f081edb5` + P0–P4; `docs/wave_pattern_editor_design_2026-06-15.md`
+> flipped to BUILT). Plus the Shift-mode unification + 8 modes (`58402f50`, `dfc6983e`), the Ovani
+> music migration (`384796cd`), the multi-part cruiser framework (`e01b5488`), single-sector patrol
+> (`cb7ee56a`), VFX point lights + engine-glow bloom (`512a0012`, `553e452b`), and the
+> livery/ShipCatalog wiring (`e16ce955`).
 
 ## ✅ DONE (2026-06-24): asteroid HDR-2D darkening — FIXED in the shader
 
@@ -107,11 +120,19 @@ landed. Grouped by effort.
   the wrong way during the jiggle").
 
 **Wave/pattern work (larger, director + wave-gen):**
-- [ ] **Cohesive chaff waves** — bomb-drone/dart waves are too long + sparse. Want
+- [x] **Cohesive chaff waves** — bomb-drone/dart waves are too long + sparse. Want
   multi-layered walls, tightly-spaced walls with navigable lane gaps, L→R (and R→L) sweeps,
   and inward→out / outward→in patterns. (`scripts/levels/director.gd` + `wave_generator.gd`)
   - _2026-06-08: STILL OPEN. STEP-wall-with-gap exists (lane_path STEP + director step_wall);
     the broader wall/sweep composition is unbuilt beyond the hotrod no-recycle subitem._
+  - _2026-06-27: DONE (`82fe3f06`). Root cause of the "1–2 enemies trickling on wide lanes" was
+    `_apply_budget` keying chaff on `base_count>=4`, mis-skipping low-base uncommon chaff → now an
+    explicit chaff_flag. Per-level PALETTE (2–3 chaff + 1 heavy, ~3–4 distinct types) replaces the
+    9–15-type kitchen-sink roll; boss run-up is now 5–6 escalating waves. Geometric formation shapes
+    (vee/chevron/diamond/echelon/columns) + crossing accent stings landed earlier (see
+    `geometric-formations`). Residual: explicit L→R/R→L full-field sweeps as a named shape aren't
+    built — the palette + formations cover the density/wall intent. Diagnose via
+    `tools/sim_wave_density.gd`._
 - [ ] **Speed audit to the 1–8 px/f rungs** — `fast_straight` done (→300); audit every other
   movement key + sector scaling so nothing common sits past 6 px/f. >6 px/f = reflex tier:
   rare, mid/late only. (`enemy_roster.make_movement` + `enemy_core` sector scale + `clarity.gd`)
@@ -148,21 +169,29 @@ landed. Grouped by effort.
   - _2026-06-08: STILL OPEN — not touched by the migration (art/shader bug)._
 
 ### Patterns (director / wave-gen)
-- [ ] **Minefield hazard = real wave numerics + dense navigable patterns.** Same enemy counts
+- [x] **Minefield hazard = real wave numerics + dense navigable patterns.** Same enemy counts
   as a normal wave; dense waves with patterns demanding careful navigation / focus-threading /
   shoot-through. (`scripts/levels/levels_v2.gd` minefield + director)
   - _2026-06-08: PREP DONE. mine/mine_shielded → enemy_core + straight_down; smart-mine → enemy_core
     + proximity_chase (all conductor-spawnable now). REMAINING = the actual upgrade: levels_v2
     minefield wave numerics + dense navigable patterns (still `_haz_spec` formations)._
+  - _2026-06-27: DONE. Hazard fields are now conducted like enemy waves (`6daa5b75`) — cap-throttled
+    with a rise/fall density arc (mines cap 18), fixing the impassable "wall" (root cause: the director
+    excluded `is_hazard` from its concurrency cap). Drift modes (`cbcf8fd3`, `0a9c7476`) + soft
+    no-merge spacing + authored mine layouts spliced from `authored_patterns.hazard_patterns()`
+    (`5c8b3712`, content-classified; `22ca1163` tooling). Navigable-by-construction, not random
+    density._
 - [x] **p_s_green waves over-rely on curves** — DONE (combat session, `ab1b7e2` "p_s_green wave variety (drift + straight variants, less weave)").
 - [ ] **Conductor must not repeat patterns** — if reused, reverse them on alternating waves or
   mix with lane patterning (L→R, R→L, in/out sweeps). (`director.gd` conductor choreography)
   - _2026-06-08: SUBSTRATE only. The eligibility matrix gives per-enemy identity + eligible set +
     a per-entry `vary` flag (flat-random among eligible). The no-repeat / reverse-on-alternating-
     waves ENFORCEMENT is NOT built — the conductor doesn't yet track/avoid recent patterns._
-- [ ] **Bomb-drone waves too thin again** — come as walls with dodge gaps the player must enter,
+- [x] **Bomb-drone waves too thin again** — come as walls with dodge gaps the player must enter,
   not 1–2 stragglers. (shared with round-1 "cohesive chaff waves")
   - _2026-06-08: STILL OPEN (shares status with "Cohesive chaff waves" above)._
+  - _2026-06-27: DONE with the chaff-palette fix (`82fe3f06`) — the `base_count>=4` chaff-skip bug
+    was exactly the "1–2 stragglers" cause. See "Cohesive chaff waves" above._
 - [ ] **Mix-and-match lane patterns** — different lanes running different patterns in one wave
   for visual texture.
   - _2026-06-08: PARTIAL. Different enemy TYPES in a wave already run their own matrix identities,
@@ -385,7 +414,13 @@ RecycleController must preserve those contracts._
 
 ## Hazard rework backlog 2026-05-24
 
-- [ ] **Overhaul Asteroid Hazard** — current asteroid_field level needs a structural pass. Cody flagged background asteroids overlapping the playspace; APT confirmed the underlying behavior isn't what was described and the level wants a broader rework, not a spawn-range patch. Defer until the hazard rework slot opens.
+- [x] **Overhaul Asteroid Hazard** — current asteroid_field level needs a structural pass. Cody flagged background asteroids overlapping the playspace; APT confirmed the underlying behavior isn't what was described and the level wants a broader rework, not a spawn-range patch. Defer until the hazard rework slot opens.
+  - _2026-06-27: DONE — the hazard rework slot opened. Asteroids conducted through the wave conductor
+    (`6daa5b75`, cap 14 + density arc), parametric navigable corridors / snaking gap in the climax
+    (`e35dbef6`, `hazard_shapes.gd`), drift modes + soft no-merge spacing (`cbcf8fd3`), and authored
+    asteroid layouts spliced in (`5c8b3712`, `22ca1163`). HDR-2D darkening fixed separately
+    (`2cd81cb3` — see the DONE banner at top of this file). Eyeball-gated; reopen if the field feel
+    needs another pass._
 
 ## New 2026-05-25 (designer)
 
