@@ -27,7 +27,7 @@ const CODEX := {
 	"_make_anti_ship_missile": "A heavy seeker that prefers the LARGEST target on screen. Half the ammo, an enormous hit.",
 	"_make_swarm_launcher": "Releases a salvo of homing micro-missiles that fan out to distinct targets and detonate on contact. Mk adds two missiles per level.",
 	"_make_particle_beam": "A continuous particle lance that shreds chaff and stalls against tough hulls. Width grows with Mk.",
-	"_make_side_pods": "Ammo Pods — extra forward muzzles that fire alongside your primary. Mk adds pods.",
+	"_make_side_pods": "Ammo Pods — a logistics module that boosts your primary AND secondary ammo capacity by +15% per Mk. No firing of its own.",
 	"_make_intercept_drones": "Spinning ablative drones orbit your ship and soak incoming bullets — each takes a few hits before popping (Mk adds +1 hit). They respawn each level; once gone, gone for the level. (A MODULE now, moved off the secondary slot.)",
 	"_make_drone_swarm": "Combat Drones — deploys a timed wing of autonomous drones that fire on bosses first, then the nearest threat.",
 	# --- Super (DEVICE_BAY_1) ---

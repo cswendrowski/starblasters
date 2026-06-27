@@ -108,7 +108,6 @@ static func _all_pool() -> Array:
 		{"factory": "_make_thief_mode", "slot": Slots.SlotType.SHIFT_MODE},
 		{"factory": "_make_reflect_mode", "slot": Slots.SlotType.SHIFT_MODE},
 		{"factory": "_make_particle_beam", "slot": Slots.SlotType.HARDPOINT_WING},
-		{"factory": "_make_side_pods", "slot": Slots.SlotType.HARDPOINT_WING},
 		# Cobalt 2026-05-21: Drone Bits (secondary shield drones) sidelined
 		# while the combined Drone Swarm super is the canonical drone
 		# experience. Roman 2026-05-24: re-enabled — renamed to "Intercept
@@ -128,6 +127,7 @@ static func _all_pool() -> Array:
 		{"factory": "_make_reinforced_hull", "slot": Slots.SlotType.MODULE},
 		{"factory": "_make_thrusters", "slot": Slots.SlotType.MODULE},
 		{"factory": "_make_shield_capacitor", "slot": Slots.SlotType.MODULE},
+		{"factory": "_make_side_pods", "slot": Slots.SlotType.MODULE},  # Ammo Pods (passive ammo+; moved from secondary 2026-06-27)
 		{"factory": "_make_intercept_drones", "slot": Slots.SlotType.MODULE},
 		{"factory": "_make_backup_shield_capacitor", "slot": Slots.SlotType.MODULE},
 		{"factory": "_make_reflective_shield", "slot": Slots.SlotType.MODULE},

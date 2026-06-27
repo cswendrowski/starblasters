@@ -42,11 +42,11 @@ const PRIMARY_FACTORIES := ["_make_basic_blaster", "_make_heavy_blaster", "_make
 	"_make_autocannon", "_make_minigun", "_make_rotary_laser", "_make_quad_lasers", "_make_wave_gun",
 	"_make_laser_beam", "_make_spread_cannon", "_make_shredder", "_make_pulse_laser"]
 const SECONDARY_FACTORIES := ["_make_rocket_pod", "_make_seeking_missile", "_make_anti_ship_missile",
-	"_make_particle_beam", "_make_side_pods", "_make_drone_swarm", "_make_swarm_launcher"]
+	"_make_particle_beam", "_make_drone_swarm", "_make_swarm_launcher"]
 const MODULE_FACTORIES := ["_make_overcharge_core", "_make_siphon_core", "_make_repair_nanites",
 	"_make_ablative_plating", "_make_targeting_computer", "_make_overclock_core", "_make_reinforced_hull",
 	"_make_thrusters", "_make_shield_capacitor", "_make_intercept_drones", "_make_backup_shield_capacitor",
-	"_make_reflective_shield", "_make_micro_fabricator", "_make_energy_routers"]
+	"_make_reflective_shield", "_make_micro_fabricator", "_make_energy_routers", "_make_side_pods"]
 const SHIFT_FACTORIES := ["_make_phase_shift", "_make_hyper_mode"]   # focus is the default
 const ENGINE_FACTORIES := ["_make_basic_engine", "_make_vectoring_engine"]
 

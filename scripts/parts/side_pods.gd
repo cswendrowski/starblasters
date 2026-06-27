@@ -1,14 +1,13 @@
-extends "res://scripts/parts/part.gd"
+extends "res://scripts/parts/module_part.gd"
 
-# Ammo Pods — passive HARDPOINT_WING part. No firing behavior.
-# Adds 15% max ammo per mark to all equipped metered weapons
-# (primary MG / Rotary Laser, and secondary Rocket Pod / Seeking Missile).
-# Unmetered weapons (ammo == -1) are untouched.
+# Ammo Pods — passive Module Bay part (moved out of the secondary-weapon slot 2026-06-27;
+# it never fired, it's a pure stat add). Adds 15% max ammo per mark to all equipped metered
+# weapons (primary MG / Rotary Laser, and secondary Rocket Pod / Seeking Missile). Unmetered
+# weapons (ammo == -1) are untouched. Applied in the player's module loop AFTER weapons equip,
+# so the +15% reads the real magazine sizes.
 #
 # apply() snapshots the base values BEFORE the bonus and records exact integer
 # deltas; unapply() subtracts them exactly.
-
-const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 
 const AMMO_BONUS_PER_MARK: float = 0.15
 
@@ -19,9 +18,10 @@ var _applied_sec_ammo_max: int = 0
 
 
 func _init() -> void:
-	slot_type = Slots.SlotType.HARDPOINT_WING
+	super._init()   # sets slot_type = MODULE
+	module_id = "ammo_pods"
 	display_name = "Ammo Pods"
-	description = "Increases ammo for primary and secondary weapons by +15% per mark."
+	description = "Increases ammo for your primary and secondary weapons by +15% per mark."
 
 
 func apply(ship) -> void:

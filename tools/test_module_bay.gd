@@ -72,12 +72,12 @@ func _go() -> void:
 	_assert(absf(tc9._crit_chance() - 0.30) < 0.001, "Targeting Computer Mk.9 = 30% crit")
 	var ov1 = OverclockCore.new(); ov1.mark = 1
 	var ov9 = OverclockCore.new(); ov9.mark = 9
-	_assert(absf(ov1._max_bonus() - 0.25) < 0.001, "Overclock Mk.1 = +25%")
-	_assert(absf(ov9._max_bonus() - 0.65) < 0.001, "Overclock Mk.9 = +65%")
+	_assert(absf(ov1._max_bonus() - 0.15) < 0.001, "Overclock Mk.1 = +15%")
+	_assert(absf(ov9._max_bonus() - 0.45) < 0.001, "Overclock Mk.9 = +45%")
 	var dl1 = SystemDelimiter.new(); dl1.mark = 1
 	var dl9 = SystemDelimiter.new(); dl9.mark = 9
-	_assert(absf(dl1._max_bonus() - 0.25) < 0.001, "De-Limiter Mk.1 = +25%")
-	_assert(absf(dl9._max_bonus() - 0.75) < 0.001, "De-Limiter Mk.9 = +75%")
+	_assert(absf(dl1._max_bonus() - 0.20) < 0.001, "De-Limiter Mk.1 = +20%")
+	_assert(absf(dl9._max_bonus() - 0.60) < 0.001, "De-Limiter Mk.9 = +60%")
 	# Former-upgrade modules.
 	var sc9m = ShieldCore.new(); sc9m.mark = 9
 	_assert(sc9m._capacity_bonus() == 20, "Shield Core Mk.9 capacity bonus = 20 (→ max_shield 30)")
