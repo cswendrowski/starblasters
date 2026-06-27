@@ -33,6 +33,10 @@ const MOVEMENT_KEYS := [
 	"side_turn", "side_traverse",
 	"hunt_beeline", "hunt_omni",
 	"proximity_chase", "loiter_sweep",
+	# HAZARD drift modes (Roman 2026-06-23) — selectable in the wave editor for asteroid/mine/firecore
+	# placements (LateralDrift envelopes). On a combat enemy these have no drift_mode hook and fall
+	# back to a straight descent, so they're harmless there. ("straight" above is shared.)
+	"drift_lane", "drift_adjacent", "drift_all",
 ]
 
 # Legacy/retired movement keys → their current SHAPE replacement. The committed matrix is itself
