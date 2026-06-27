@@ -345,6 +345,7 @@ func new_run() -> void:
 	# inherits a forced faction from a prior dev session (the dev launcher re-sets
 	# it AFTER calling new_run). active_faction is per-level, also cleared.
 	remove_meta("forced_faction")
+	remove_meta("forced_faction_once")  # one-shot signal-event faction force (corpo inspection, etc.)
 	remove_meta("active_faction")
 	remove_meta("force_all_signal")  # dev all-signal-sector flag (re-set after new_run by the launcher)
 	bounty = 0

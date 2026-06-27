@@ -377,18 +377,46 @@ func _style_outline_button(btn: Button) -> void:
 	UiTheme.style_button(btn)
 
 
-# Hazard flavor line — historically used to inject the Asteroid Miners
-# thank-you here. As of 2026-05-24 the asteroid_field hazard skips this
-# scene entirely (main.gd jumps straight to sector_map) and the banner
-# lives above the sector map instead. Kept the function as a no-op so
-# existing callers don't break; new hazard subtypes can hook in here.
-func _install_hazard_flavor(_title: Label) -> void:
-	# asteroid_field hazard skips this scene entirely (main.gd routes
-	# straight to sector_map_v3 after the wipe; the miners thank-you is
-	# rendered there via Run.post_combat_banner meta). No other hazard
-	# subtype emits flavor here yet — add new branches above this comment
-	# rather than gating on subtype lists.
-	return
+# Hazard flavor line — the "field cleared" note for a cleared hazard now lives HERE,
+# on the hazard's clear screen, instead of as a sector-map banner (Roman 2026-06-27).
+# main.gd plants the text on Run via set_meta("hazard_clear_note", text); we render it
+# as a centered line under the title and consume the meta so it never shows twice.
+# (The asteroid-Miners event is the exception — it skips this scene and keeps its own
+# thank-you banner above the sector map.)
+func _install_hazard_flavor(title: Label) -> void:
+	if not has_node("/root/Run"):
+		return
+	var run = get_node("/root/Run")
+	if not run.has_meta("hazard_clear_note"):
+		return
+	var note: String = String(run.get_meta("hazard_clear_note", ""))
+	run.remove_meta("hazard_clear_note")
+	if note == "":
+		return
+	var lbl := Label.new()
+	lbl.name = "HazardFlavor"
+	lbl.text = note
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	lbl.add_theme_color_override("font_color", UiTheme.COLOR_BOUNTY)
+	lbl.add_theme_font_override("font", UiTheme.menu_font())
+	lbl.material = _shared_mat
+	# Root is a plain Control with absolutely-positioned children — place the line in the
+	# gap below the title (bottom 96 from _layout_hd) rather than relying on flow layout.
+	var title_parent := title.get_parent() as Control
+	lbl.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	lbl.anchor_right = 1.0
+	lbl.offset_left = 0.0
+	lbl.offset_right = 0.0
+	lbl.offset_top = 120.0
+	lbl.offset_bottom = 160.0
+	title_parent.add_child(lbl)
+	title_parent.move_child(lbl, title.get_index() + 1)
+	# Ride the reveal: fade in just after the title.
+	lbl.modulate.a = 0.0
+	var tw := create_tween()
+	tw.tween_interval(0.3)
+	tw.tween_property(lbl, "modulate:a", 1.0, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
 
 # Spacebar (and the `shoot` action generally — Space + Z + gamepad A) advances

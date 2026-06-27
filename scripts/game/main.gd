@@ -468,7 +468,14 @@ func _on_level_cleared() -> void:
 			bounty += 25
 			run.bounty += 25
 			$CanvasLayer/UI.update_score(bounty)
-			run.set_meta("post_combat_banner", "Hazard field cleared. (+25)")
+			# The "field cleared" note now rides the hazard CLEAR SCREEN (Roman 2026-06-27)
+			# instead of a sector-map banner — the cleared summary reads hazard_clear_note. The
+			# miners event keeps its own sector-map thank-you (planted just above), so there we
+			# skip the clear-screen note and let _run_outro route straight to the map.
+			if run.has_meta("post_combat_banner"):
+				run.set_meta("hazard_skip_clear", true)
+			else:
+				run.set_meta("hazard_clear_note", "Hazard field cleared. (+25)")
 		# Run-summary Phase 1: roll this level's active-combat time + asteroid count
 		# into the run-wide accumulators before the per-level counters reset.
 		run.run_time_seconds += _level_time
@@ -687,6 +694,11 @@ func new_game() -> void:
 				# four can be eyeballed on demand (persists across levels until cleared).
 				if rsd.has_meta("forced_faction"):
 					faction = int(rsd.get_meta("forced_faction", faction))
+				# One-shot force from a signal event (e.g. the Corporate Inspection's fight
+				# must be corpo-only). Consumed immediately so it doesn't leak into later combats.
+				if rsd.has_meta("forced_faction_once"):
+					faction = int(rsd.get_meta("forced_faction_once", faction))
+					rsd.remove_meta("forced_faction_once")
 				rsd.set_meta("active_faction", faction)
 			_current_level = WaveGen.build(sd, li, false, faction)
 			# Eligible for authored-pattern auto-mix (applied after the lift, below).
@@ -1013,13 +1025,14 @@ func _run_outro() -> void:
 	var wipe_tw = create_tween()
 	wipe_tw.tween_property(fade_rect, "color:a", 1.0, 0.55).set_trans(Tween.TRANS_SINE)
 	await wipe_tw.finished
-	# Asteroid-field hazard skips the cleared summary entirely (Roman,
-	# 2026-05-24: "this combat doesn't need an event summary/clear screen").
-	# Miners thank-you banner is delivered above the sector map instead.
+	# The asteroid-Miners event skips the cleared summary entirely — its thank-you banner
+	# is delivered above the sector map instead (Roman 2026-05-24). All other hazards
+	# (regular asteroid fields + minefields) now get a proper clear screen carrying the
+	# "field cleared" note (Roman 2026-06-27), so only the flagged miners run routes past it.
 	if has_node("/root/Run"):
 		var run_skip = get_node("/root/Run")
-		if run_skip.current_node_type == SectorNode.NodeType.HAZARD \
-				and String(run_skip.current_hazard_subtype) == "asteroid_field":
+		if run_skip.has_meta("hazard_skip_clear"):
+			run_skip.remove_meta("hazard_skip_clear")
 			# Route through the HD host (SectorMapRoute), not the raw inner map — loading
 			# sector_map_v3.tscn directly was the "old sector map" round-trip after an
 			# asteroid hazard (Roman 2026-06-08).

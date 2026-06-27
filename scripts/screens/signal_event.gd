@@ -16,6 +16,7 @@ const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const SectorMapRoute = preload("res://scripts/systems/sector_map_route.gd")
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 const EnemyRoster = preload("res://scripts/levels/enemy_roster.gd")
+const Factions = preload("res://scripts/levels/factions.gd")
 const Strings = preload("res://scripts/strings/strings.gd")
 
 @onready var title_label: Label = $Panel/VBox/Title
@@ -378,6 +379,7 @@ func _do_inspection_run() -> void:
 		1:
 			if has_node("/root/Run"):
 				get_node("/root/Run").combat_intro = "interceptor_chase"
+				_force_corpo_fight()   # corporate inspectors run you down — a corpo-only fight
 			_finish_to_launch(Strings.COMBAT_FLAVOR_INSPECTION_RUN)
 		_:
 			_finish_to_sector_map(Strings.OUTCOME_INSPECTION_RUN_ESCAPE)
@@ -386,7 +388,16 @@ func _do_inspection_run() -> void:
 func _do_inspection_fight() -> void:
 	if has_node("/root/Run"):
 		get_node("/root/Run").combat_intro = "inspection_fight"
+		_force_corpo_fight()   # it's a CORPORATE inspection — the fight must be corpo-only
 	_finish_to_launch(Strings.COMBAT_FLAVOR_INSPECTION_FIGHT)
+
+
+# Pin the upcoming combat to the Corporate faction. One-shot: main.gd consumes
+# `forced_faction_once` on the next combat build and clears it, so (unlike the dev
+# `forced_faction` override) it never leaks into later, unrelated fights.
+func _force_corpo_fight() -> void:
+	if has_node("/root/Run"):
+		get_node("/root/Run").set_meta("forced_faction_once", Factions.Id.CORPORATE)
 
 
 # ---- Event 3: Experimental Tech -----------------------------------------

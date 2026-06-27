@@ -52,6 +52,14 @@ var _pulse_phase: float = 0.0
 var _orbiting: bool = false
 var _held_glow = null   # #c73bff diffuse glow while held by the Gravity Mine; cleared on release
 
+# Death-boom audio throttle (Roman 2026-06-27: "bomblets have no explosion sound when they die").
+# Bomblets release in swarms (4-8 from a Gravity Mine) that often die together, so an un-throttled
+# per-bomblet SFX stacks into a wall of close booms. A shared (static) min-gap means a simultaneous
+# swarm pops ONCE while bomblets picked off one-by-one each get their own boom.
+static var _last_boom_ms: int = 0
+const BOOM_THROTTLE_MS := 70
+const BOOM_SCALE := 0.7   # smaller munition → a softer boom than a full enemy/mine
+
 
 func _ready() -> void:
 	max_health = 1
@@ -179,8 +187,8 @@ func _pulse_vfx() -> void:
 		$Sprite2D.modulate = Color(k, 0.6, 0.55, 1.0)
 
 
-# Bomblets explode silently softer than the parent mine — quieter audio,
-# smaller burn — so a salvo of 6 doesn't drown the soundscape.
+# Bomblets explode softer than the parent mine — quieter, throttled audio + a smaller
+# burn — so a salvo of 6 dying together doesn't drown the soundscape.
 func explode() -> void:
 	if _dying:
 		return
@@ -188,11 +196,15 @@ func explode() -> void:
 	set_deferred("monitorable", false)
 	died.emit(bounty_value)
 	_clear_held_glow()   # if shot while orbiting a Gravity Mine, drop the #c73bff glow instantly
-	# Single circle explosion (Roman 2026-06-11) — dropped the layered impact-flash + fiery
-	# blast for a clean one-circle pop. Silent: bomblets release in swarms (4-8 from a gravity
-	# mine); the distance system would stack a wall of close booms. Parent mine covers the cue.
+	# Single circle explosion (Roman 2026-06-11) — a clean one-circle pop. Now WITH a boom
+	# (Roman 2026-06-27), but globally throttled (see BOOM_THROTTLE_MS): a simultaneous swarm
+	# pops once, while bomblets shot down one-by-one each sound.
+	var now: int = Time.get_ticks_msec()
+	var with_sound: bool = (now - _last_boom_ms) >= BOOM_THROTTLE_MS
+	if with_sound:
+		_last_boom_ms = now
 	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
-	ExplosionFx.play(global_position, 1.0, true, null, ExplosionFx.scene_for("small_circle"), false)
+	ExplosionFx.play(global_position, BOOM_SCALE, true, null, ExplosionFx.scene_for("small_circle"), with_sound)
 	if has_node("Sprite2D"):
 		var BurnFx = load("res://scripts/effects/burn_fx.gd")
 		BurnFx.apply_burn($Sprite2D, 0.25)
