@@ -121,10 +121,27 @@ static func _haz_breather(dur: float, floor_n: int) -> Phrase:
 # arc. Each becomes an authored FORMATION phrase (exact lanes, navigable by construction) preceded
 # by a clearing breather. None authored = the baseline arc, unchanged. (Roman 2026-06-23.)
 static func _splice_hazard_patterns(wave, kind: String) -> void:
+	var pool: Array = AuthoredPatterns.hazard_patterns(kind)
+	if pool.is_empty():
+		return
 	var rng := RandomNumberGenerator.new()
-	rng.seed = 0xA57E + hash(kind)
-	for p in AuthoredPatterns.hazard_patterns(kind):
-		var ph = AuthoredPatterns.build_phrase(p, -1, 0, rng)
+	# Per run+node so the picks reproduce within a run but vary across runs/nodes (was a fixed seed →
+	# identical picks every field). Mirrors build_minefield_score's seed recipe.
+	var rs: int = 0
+	var nid: String = ""
+	if Engine.get_main_loop() and Engine.get_main_loop().root.has_node("Run"):
+		var run = Engine.get_main_loop().root.get_node("Run")
+		rs = int(run.run_seed) if "run_seed" in run else 0
+		nid = String(run.current_node_id) if "current_node_id" in run else ""
+	rng.seed = (rs * 2654435761) ^ (hash(nid) * 40503) ^ (0xA57E + hash(kind))
+	# Shuffle, then splice only a FEW (2-3) as navigable set-pieces — not all of them flooding the
+	# field. Each is preceded by a clearing breather so it descends into a thinned field, readable.
+	for i in range(pool.size() - 1, 0, -1):
+		var j: int = rng.randi() % (i + 1)
+		var t = pool[i]; pool[i] = pool[j]; pool[j] = t
+	var n: int = mini(pool.size(), 2 + (rng.randi() % 2))   # 2-3
+	for i in n:
+		var ph = AuthoredPatterns.build_phrase(pool[i], -1, 0, rng)
 		if ph != null:
 			wave.phrases.append(_haz_breather(2.0, 5))
 			wave.phrases.append(ph)
