@@ -1,6 +1,9 @@
 extends Control
 
-# Patrol Start (dev scaffold, 2026-06-24) — the new-patrol hangar ship-select sequence.
+# Patrol Start (2026-06-27) — the new-patrol hangar ship-select sequence. PRODUCTION: the main
+# menu's "Start New Patrol" opens this scene; "Begin Patrol" resets the run, writes the chosen
+# hull/livery/settings, flies the ship out, and hands off to onboarding (or the sector map when
+# Skip Tutorial is set). Also reachable from the dev menu. Esc/Back → main menu.
 #
 # Flow:
 #   1. A dummy main menu (the shared random parallax backdrop + title + buttons) shows first.
@@ -18,13 +21,14 @@ extends Control
 #      the grav off and flies back to idle. Music progresses into Main — rising energy. Readying
 #      a different ship returns the previous one to its slot first.
 #   6. "Begin Patrol" spools the readied ship's engines, the shadow spreads (outpost depart), and
-#      it flies out the top, trail fading (streaks return for the launch). (Dev: flies out + STOPS.)
+#      it flies out the top, trail fading (streaks return) — then the run starts (onboarding / map).
 #
 # TUNING: the "Tune ⚙" button (top-left) or Tab toggles a slider rail with Replay + Copy GDScript.
 # RENDER MODEL mirrors outpost_arrival.gd (HD root + native 480×270 TRANSPARENT SubViewport so the
 # backdrop shows behind). Altitude is faked with the drop shadow only (no sprite scaling).
 
 const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
+const SectorMapRoute = preload("res://scripts/systems/sector_map_route.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const ShipCatalog = preload("res://scripts/strings/ship_catalog.gd")
 const EngineTrailFx = preload("res://scripts/effects/engine_trail_fx.gd")
@@ -90,7 +94,9 @@ const SWATCHES := [
 @export var rise_delay: float = 0.6             # beat between menu fade-out and the hangar rising
 @export var slide_time: float = 1.8
 @export var bars_fade_time: float = 0.7
-@export var bg_pan_ratio: float = 0.6           # backdrop pan-down px per px of hangar rise
+@export var bg_pan_ratio: float = 0.6           # celestial pan-up px per px of hangar rise
+@export var bg_celestial_drop: float = 110.0    # start the celestial bodies this far down (toward
+                                                # centre, matching the main menu); they pan up on the rise
 @export_group("Takeoff")
 @export var engine_spool: float = 0.8
 @export var rise_time: float = 0.5
@@ -138,6 +144,8 @@ var _dynamic_lights: Array = []      # tractor head/brake/hover + lifter grav/ho
 var _backdrop: Node = null
 var _bg_stars: Node = null
 var _streaks_node: Node = null
+var _celestial_layers: Array = []   # planet + stellar layers — dropped at start, pan up on the rise
+var _celestial_start: Array = []    # their start positions (for Replay reset)
 var _prev_hangar_y: float = NATIVE_H
 
 # (runway / plate / fill-light state now lives in the shared hangar stage)
@@ -222,11 +230,21 @@ func _install_menu_backdrop() -> void:
 	_backdrop = bd
 	_bg_stars = bd.get_node_or_null("LayerStars")
 	_streaks_node = bd.get_node_or_null("LayerStreaks")
+	# Celestial bodies start dropped toward centre (matching the main menu) and pan up on the rise.
+	# The parallax layers are CanvasLayers — shift them with `offset`, not `position`.
+	_celestial_layers = []
+	_celestial_start = []
+	for nm in ["LayerPlanet", "LayerStellarFar", "LayerStellarMid", "LayerStellarNear"]:
+		var cl := bd.get_node_or_null(nm) as CanvasLayer
+		if cl != null:
+			cl.offset.y += bg_celestial_drop
+			_celestial_layers.append(cl)
+			_celestial_start.append(cl.offset)
 
 
-# Pan the backdrop DOWN in proportion to the hangar's upward travel — so its speed matches the
-# outpost's approach exactly (slow start, accelerate, settle), and it naturally stops when the
-# hangar does.
+# Pan the celestial bodies UP in proportion to the hangar's upward travel — the camera craning down
+# onto the rising bay, so space pans across. Speed matches the outpost approach exactly (slow start,
+# accelerate, settle) and naturally stops when the hangar does.
 func _update_bg_pan() -> void:
 	if _hangar == null:
 		return
@@ -234,8 +252,9 @@ func _update_bg_pan() -> void:
 	_prev_hangar_y = _hangar.position.y
 	if absf(dy) < 0.001:
 		return
-	if _bg_stars != null and is_instance_valid(_bg_stars) and _bg_stars.has_method("scroll_stars"):
-		_bg_stars.scroll_stars(-dy * bg_pan_ratio)   # hangar up (dy<0) → stars down
+	for L in _celestial_layers:
+		if is_instance_valid(L):
+			(L as CanvasLayer).offset.y += dy * bg_pan_ratio   # hangar up (dy<0) → celestials pan up
 
 
 func _set_streaks(on: bool) -> void:
@@ -1213,8 +1232,11 @@ func _on_begin_pressed() -> void:
 	if _status != null:
 		_status.text = "Launching…"
 	_set_streaks(true)   # the ship's away — motion returns
+	# Reset the run, then write the chosen hull + livery + run settings (new_run() clears them, so
+	# it must come FIRST — mirrors main_menu._on_new_game's order).
 	var run := get_node_or_null("/root/Run")
 	if run != null:
+		run.new_run()
 		run.ship_variant = _readied_idx
 		run.livery_color = _ships[_readied_idx]["livery_color"]
 		run.livery_chosen = true
@@ -1222,11 +1244,10 @@ func _on_begin_pressed() -> void:
 		run.set_meta("patrol_endless", _endless)
 		run.set_meta("patrol_sector_modifiers", _sector_modifiers)
 	await _launch(_ships[_readied_idx])
-	if _status != null:
-		_status.text = "Patrol begun — ship away. (Dev: fly-out only; transition is the follow-on.)"
-	# TODO(patrol-start): hand off to the real run here, e.g.
-	#   run.new_run(); SceneTransition.change_scene(get_tree(), "res://scenes/sector_map_hd.tscn")
-	_busy = false
+	# Hand off to the run: the tutorial onboarding (which funnels to the sector map), or straight to
+	# the map when the player asked to skip it. The fly-out covers the swap.
+	var dest: String = SectorMapRoute.SECTOR_MAP_SCENE if _skip_tutorial else "res://scenes/onboarding.tscn"
+	SceneTransition.change_scene(get_tree(), dest)
 
 
 # Spool engines, then the ship flies up while the whole BAY slides down off the bottom — the
@@ -1331,6 +1352,9 @@ func _replay() -> void:
 		_select_light.energy = 0.0
 	_hangar.position = Vector2(0, NATIVE_H)
 	_prev_hangar_y = NATIVE_H
+	for i in _celestial_layers.size():
+		if is_instance_valid(_celestial_layers[i]):
+			(_celestial_layers[i] as CanvasLayer).offset = _celestial_start[i]
 	_left_sidebar.modulate.a = 0.0
 	_right_sidebar.modulate.a = 0.0
 	_left_panel.modulate.a = 0.0
@@ -1366,7 +1390,7 @@ func _label(text: String, kind: int) -> Label:
 
 
 func _back() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev_menu.tscn")
+	SceneTransition.change_scene(get_tree(), "res://scenes/main_menu.tscn")
 
 
 func _unhandled_input(event: InputEvent) -> void:

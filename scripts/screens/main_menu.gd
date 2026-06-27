@@ -112,6 +112,13 @@ func _install_backdrop() -> void:
 	# via a native SubViewport upscaled 4× (nearest) so it fills the screen the
 	# same way combat's canvas stretch does — see HdScreen.add_upscaled_backdrop.
 	HdScreen.add_upscaled_backdrop(self, bd)
+	# Drop the celestial bodies toward the centre of the menu (they normally stage near the top); the
+	# patrol-start sequence starts them here and pans them up as the hangar rises (kept in sync, 110).
+	# The parallax layers are CanvasLayers — shift them with `offset`, not `position`.
+	for nm in ["LayerPlanet", "LayerStellarFar", "LayerStellarMid", "LayerStellarNear"]:
+		var cl := bd.get_node_or_null(nm) as CanvasLayer
+		if cl != null:
+			cl.offset.y += 110.0
 
 
 func _style_title() -> void:
@@ -193,25 +200,10 @@ func _on_continue() -> void:
 	SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE)
 
 func _on_new_game() -> void:
-	# New patrol opens the ship-select modal FIRST (pick hull + livery). Only on "Begin Patrol"
-	# do we reset the run, write the choice, and transition. New game then funnels through
-	# onboarding before the sector map (the onboarding "Begin Run" / "Skip" jump to the map).
-	var ShipSelect = load("res://scripts/ui/ship_select_overlay.gd")
-	var def_v: int = 0
-	var def_c: Color = Color(0.90, 0.16, 0.16)
-	if has_node("/root/Run"):
-		var run = get_node("/root/Run")
-		def_v = int(run.ship_variant)
-		if run.livery_chosen:
-			def_c = run.livery_color
-	ShipSelect.open(self, def_v, def_c, func(variant: int, color: Color):
-		if has_node("/root/Run"):
-			var run = get_node("/root/Run")
-			run.new_run()
-			run.ship_variant = variant
-			run.livery_color = color
-			run.livery_chosen = true
-		SceneTransition.change_scene(get_tree(), "res://scenes/onboarding.tscn"))
+	# New patrol opens the hangar PATROL START sequence (cinematic ship-select: pick hull + livery
+	# + run settings, the lifter readies it, then Begin Patrol flies it out and resets/starts the
+	# run → onboarding / sector map). Replaces the old ship-select modal (2026-06-27).
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/patrol_start.tscn")
 
 func _on_options() -> void:
 	var OptionsOverlay = load("res://scripts/ui/options_overlay.gd")

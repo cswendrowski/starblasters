@@ -16,12 +16,7 @@ extends Control
 
 const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
-
-const SHIPS := [
-	"res://scenes/player/player.tscn",
-	"res://scenes/player/player_b.tscn",
-	"res://scenes/player/player_c.tscn",
-]
+const ShipCatalog = preload("res://scripts/strings/ship_catalog.gd")
 
 const SAVE_PATH := "user://tuners/player_fx_lab.json"
 
@@ -131,7 +126,7 @@ func _spawn_player(idx: int) -> void:
 	if _player != null and is_instance_valid(_player):
 		_player.queue_free()
 	_marker_dots.clear()
-	var scn: PackedScene = load(SHIPS[clampi(idx, 0, SHIPS.size() - 1)])
+	var scn: PackedScene = load(ShipCatalog.scene_path(idx))
 	_player = scn.instantiate()
 	_world.add_child(_player)
 	_player.position = Vector2(240.0, 175.0)
@@ -373,8 +368,8 @@ func _build_ui() -> void:
 	rail.add_child(_mk_label("PLAYER FX LAB", 26))
 
 	var dd := OptionButton.new()
-	for s in ["Ship A", "Ship B", "Ship C"]:
-		dd.add_item(s)
+	for ship in ShipCatalog.SHIPS:
+		dd.add_item(String(ship["name"]))
 	dd.item_selected.connect(func(i): _spawn_player(i))
 	dd.custom_minimum_size = Vector2(220, 40)
 	rail.add_child(dd)

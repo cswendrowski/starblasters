@@ -117,24 +117,9 @@ func _fmt_time(secs: float) -> String:
 	return SummaryUi.fmt_mmss(secs)
 
 func _new_game() -> void:
-	# Same ship-select modal as the main menu's New Patrol, then straight to the sector map
-	# (end-of-run New Patrol skips onboarding). Choice is written after new_run().
-	var ShipSelect = load("res://scripts/ui/ship_select_overlay.gd")
-	var def_v: int = 0
-	var def_c: Color = Color(0.90, 0.16, 0.16)
-	if has_node("/root/Run"):
-		var run = get_node("/root/Run")
-		def_v = int(run.ship_variant)
-		if run.livery_chosen:
-			def_c = run.livery_color
-	ShipSelect.open(self, def_v, def_c, func(variant: int, color: Color):
-		if has_node("/root/Run"):
-			var run = get_node("/root/Run")
-			run.new_run()
-			run.ship_variant = variant
-			run.livery_color = color
-			run.livery_chosen = true
-		SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE))
+	# New Patrol → the hangar patrol-start sequence (same as the main menu, 2026-06-27). It resets
+	# the run, writes the chosen hull/livery, and hands off to onboarding / the sector map.
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/patrol_start.tscn")
 
 func _to_menu() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/main_menu.tscn")
