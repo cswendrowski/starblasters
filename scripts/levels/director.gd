@@ -74,6 +74,13 @@ const ANCHOR_GAP_PAD: float = 8.0
 # spawn on a near-simultaneous stagger so a whole shape lands as one gesture, not a trickle.
 const GEOMETRIC_ROW_GAP: float = 40.0
 const GEOMETRIC_MEMBER_STAGGER: float = 0.03
+# SWEEP rows (2026-06-27): a directional sweep (left_to_right / right_to_left — the START/MIDDLE
+# bulk) used to spawn ONE enemy per spawn_interval on a side-alternating _pick_lane, reading as
+# "single enemies trickling in on random lanes". It now enters as ROWS of this many abreast (a
+# readable descending line), beat-separated, so the bulk reads as formations while still streaming
+# under the concurrency cap. Hazard scatter (random/top_spread) + heavy anchors (center_out) keep
+# the one-at-a-time path on purpose.
+const SWEEP_ROW_SIZE: int = 4
 # Staggered arrival for LARGE enemies (height >= ANCHOR_MIN_HEIGHT): in a spread formation
 # (e.g. lanes 1/3/5) the next lane's enemy does not arrive until the previous one has
 # descended ANCHOR_ARRIVAL_DEPTH (≈ half its body in the playfield) — so cruisers like the
@@ -347,6 +354,14 @@ func _dispatch_formation(ph: Resource) -> void:
 		await _dispatch_geometric(ph)
 		_advance_step()
 		return
+	# SWEEP: a directional sweep (the START/MIDDLE bulk) enters as readable ROWS abreast instead of
+	# one-at-a-time scattered singles — the real fix for the "single enemies on random lanes" trickle
+	# (the generator only controls counts; the trickle was this dispatch). Hazard scatter + heavy
+	# anchors deliberately skip this.
+	if ph.shape == &"left_to_right" or ph.shape == &"right_to_left":
+		await _dispatch_sweep_rows(ph)
+		_advance_step()
+		return
 	# Default (spread): per-member alternate-anchor lane at each spec's cadence;
 	# preserves tandem/side placement via spec.formation.
 	for sp in ph.specs:
@@ -374,6 +389,54 @@ func _dispatch_formation(ph: Resource) -> void:
 			else:
 				await get_tree().create_timer(maxf(sp.spawn_interval, ANTI_BURST_FLOOR)).timeout
 	_advance_step()
+
+
+# SWEEP rows: spawn a directional-sweep spec as descending ROWS of SWEEP_ROW_SIZE abreast on spread
+# lanes (the gap interleaves between rows), a beat between rows, cap-gated — so the START/MIDDLE bulk
+# reads as readable lines instead of one-at-a-time scattered singles. Caller calls _advance_step().
+func _dispatch_sweep_rows(ph: Resource) -> void:
+	for sp in ph.specs:
+		if sp == null:
+			continue
+		var i: int = 0
+		var row_index: int = 0
+		while i < sp.count:
+			if not _running:
+				return
+			while _running and _alive_count() >= max_concurrent:
+				await get_tree().create_timer(0.1).timeout
+			if not _running:
+				return
+			# Size this row to the remaining count AND the cap headroom, so a row never overshoots the
+			# clarity cap by much. At least 1 so we always make progress.
+			var room: int = maxi(1, max_concurrent - _alive_count())
+			var group: int = mini(mini(SWEEP_ROW_SIZE, room), sp.count - i)
+			for ln in _sweep_row_lanes(group, row_index):
+				if i >= sp.count:
+					break
+				_spawn_enemy(sp, i, int(ln))
+				i += 1
+			row_index += 1
+			await get_tree().create_timer(maxf(sp.spawn_interval, ANTI_BURST_FLOOR)).timeout
+
+
+# Distinct, spread lane set for a sweep row: evenly spaces `n` lanes across the grid with a half-step
+# offset on alternate rows, so successive rows interleave (the gaps shift) into a readable weave.
+func _sweep_row_lanes(n: int, row_index: int) -> Array:
+	n = clampi(n, 1, Lanes.COUNT)
+	var lanes: Array = []
+	var step: float = float(Lanes.COUNT) / float(n)
+	var off: float = step * 0.5 * float(row_index % 2)
+	for k in n:
+		var ln: int = clampi(int(floor(off + (float(k) + 0.5) * step)), 0, Lanes.COUNT - 1)
+		if not lanes.has(ln):
+			lanes.append(ln)
+	var p: int = 0   # top up to n distinct lanes if rounding collided
+	while lanes.size() < n and p < Lanes.COUNT:
+		if not lanes.has(p):
+			lanes.append(p)
+		p += 1
+	return lanes
 
 
 # Block until `enemy` has descended ANCHOR_ARRIVAL_DEPTH past its spawn Y (≈ half its body
