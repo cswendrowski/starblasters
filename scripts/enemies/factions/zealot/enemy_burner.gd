@@ -208,8 +208,8 @@ func _free_beam() -> void:
 # Selected by world distance to the partner (rotation-invariant — the hull
 # auto-rotates ~180° on descent, so name/local-x selection would pick the outer edge).
 func _beam_point(toward: Vector2) -> Vector2:
-	var mr: Node2D = get_node_or_null("beam_emit_r") as Node2D
-	var ml: Node2D = get_node_or_null("beam_emit_l") as Node2D
+	var mr: Node2D = get_node_or_null("BeamR") as Node2D
+	var ml: Node2D = get_node_or_null("BeamL") as Node2D
 	if mr != null and ml != null:
 		var dr: float = mr.global_position.distance_squared_to(toward)
 		var dl: float = ml.global_position.distance_squared_to(toward)

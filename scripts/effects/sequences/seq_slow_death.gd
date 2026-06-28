@@ -39,7 +39,7 @@ func _begin() -> void:
 	for m in target.find_children("Engine*", "Marker2D", true, false):
 		if m is Node2D:
 			_markers.append({"node": m, "weight": 3.0})
-	for pat in ["Muzzle*", "cannon_*", "Turret*"]:
+	for pat in ["Muzzle*", "Cannon*", "Turret*"]:
 		for m in target.find_children(pat, "Marker2D", true, false):
 			if m is Node2D:
 				_markers.append({"node": m, "weight": 1.0})

@@ -188,10 +188,10 @@ var _components: Array = []
 var allow_side_exit: bool = false
 
 # Muzzle markers (Roman, 2026-05-31). Resolved lazily on first use from
-# Marker2D descendants named `Muzzle*` / `cannon_*` (case-insensitive),
+# Marker2D descendants named `Muzzle*` / `Cannon*` (case-insensitive),
 # EXCLUDING mount points named `turret_base` / `turret_mount`. Sorted by
-# NAME ascending so MuzzleL precedes MuzzleR and cannon_left precedes
-# cannon_right regardless of tree/child order (weaver's markers are nested
+# NAME ascending so MuzzleL precedes MuzzleR and CannonL precedes
+# CannonR regardless of tree/child order (weaver's markers are nested
 # under CollisionShape2D). The alternation index lives on the ENEMY INSTANCE
 # — never on a shoot_pattern Resource (Resources are shared across all
 # instances of a pattern, so per-enemy state there would corrupt).
@@ -567,7 +567,7 @@ func _burn_origin_uv() -> Vector2:
 	if spr.texture == null:
 		return Vector2(0.5, 0.5)
 	var markers: Array = []
-	for pat in ["Engine*", "Muzzle*", "cannon_*", "Turret*"]:
+	for pat in ["Engine*", "Muzzle*", "Cannon*", "Turret*"]:
 		for m in find_children(pat, "Marker2D", true, false):
 			if m is Node2D:
 				markers.append(m)
@@ -954,7 +954,7 @@ func _resolve_muzzles() -> void:
 			continue
 		if lname.begins_with("muzzle") or lname.begins_with("cannon"):
 			_muzzles.append(m)
-	# Stable ordering by name (MuzzleL < MuzzleR, cannon_left < cannon_right).
+	# Stable ordering by name (MuzzleL < MuzzleR, CannonL < CannonR).
 	_muzzles.sort_custom(func(a, b): return String(a.name) < String(b.name))
 
 

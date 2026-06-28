@@ -11,7 +11,7 @@ class_name EnemyBomber
 # The tail gun is now a shared EnemyTurret in ARC-GATE mode (holds fire outside its 160° rear
 # cone) instead of the hand-rolled cone test. Still bespoke: the twin downward engine contrails.
 #
-# Markers (scene): TailMuzzle (0,27) rear turret mount; EngineL (-4,29) / EngineR (4,29) nozzles.
+# Markers (scene): TurretTail (0,27) rear turret mount; EngineL (-4,29) / EngineR (4,29) nozzles.
 # Faces up, so "rear" is +Y (down, toward the player).
 
 const Drift = preload("res://scripts/enemies/patterns/drift.gd")
@@ -105,7 +105,7 @@ func _end_bombing_run() -> void:
 
 func _set_tail_gun_active(on: bool) -> void:
 	# The tail gun is now a roster turret mount (EnemyRoster.BOMBER_TAIL_MOUNT) realized by MountBuilder
-	# as an EnemyTurret child of the TailMuzzle marker — toggle it by type, not the bespoke "TailGun" node.
+	# as an EnemyTurret child of the TurretTail marker — toggle it by type, not the bespoke "TailGun" node.
 	for tg in find_children("*", "EnemyTurret", true, false):
 		tg.set_process(on)
 		tg.set_physics_process(on)

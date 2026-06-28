@@ -30,7 +30,7 @@ position = Vector2(0, -4)
 z_index = 0
 position = Vector2(0, 2)
 
-[node name="Sherpherd Hull" type="Sprite2D" parent="." unique_id=869068400]
+[node name="Shepherd Hull" type="Sprite2D" parent="." unique_id=869068400]
 texture = ExtResource("4_5lmsu")
 hframes = 3
 frame = 2

@@ -73,7 +73,7 @@ const MidDepthPresentation = preload("res://scripts/effects/mid_depth_presentati
 @export var explosion_damage: int = 1        # damage per player in radius
 @export var cooldown_time: float = 2.0       # gap between salvos (s)
 # Stagger between successive missile launches within a salvo. >0 makes the
-# launch points fire in sequence (LaunchPoint1 → 2 → 3 → 4) instead of all at
+# launch points fire in sequence (Launcher1 → 2 → 3 → 4) instead of all at
 # once (Roman 2026-06-01).
 @export var launch_stagger: float = 0.16
 
@@ -108,7 +108,7 @@ var _missiles_remaining: int = 0 # outstanding (live, in-flight) missiles this s
 var _pending_fires: Array = []   # {zone, node} still waiting to launch (stagger)
 var _stagger_t: float = 0.0      # countdown to the next staggered launch
 # Cycling launch-point index. Advances by ONE per missile fired and PERSISTS
-# across salvos so successive shots keep walking LaunchPoint1 -> 2 -> 3 -> 4 ->
+# across salvos so successive shots keep walking Launcher1 -> 2 -> 3 -> 4 ->
 # wrap (mod LAUNCH_POINT_COUNT). Roman 2026-05-31.
 var _launch_idx: int = 0
 const LAUNCH_POINT_COUNT: int = 4
@@ -133,8 +133,8 @@ func _ready() -> void:
 	# Rotate to face travel direction like other enemies (auto-rotate convention:
 	# rotation = velocity.angle() + PI*0.5, sprite art points "up"/north).
 	# Moving down (dir +1, vel (0,+1)) -> PI (nose down); moving up (dir -1,
-	# vel (0,-1)) -> 0 (nose up). Children (Glow, Body, LaunchPoint) rotate with
-	# the root; LaunchPoint at local (0,0) stays at center so launch/targeting are
+	# vel (0,-1)) -> 0 (nose up). Children (Glow, Body, Launcher) rotate with
+	# the root; Launcher at local (0,0) stays at center so launch/targeting are
 	# rotation-invariant and missiles (world-parented) compute their own heading.
 	var vel: Vector2 = Vector2(0.0, float(_direction))
 	rotation = vel.angle() + PI * 0.5
@@ -273,7 +273,7 @@ func _launch_next_missile() -> void:
 	var tdict: Dictionary = _pending_fires.pop_front()
 	var zone: Vector2 = tdict["zone"]
 	var circle: Node2D = tdict["node"]
-	# Cycle the launch ORIGIN through LaunchPoint1..4 in sequence, one step per
+	# Cycle the launch ORIGIN through Launcher1..4 in sequence, one step per
 	# missile, persisting the index across salvos so it keeps walking. Computed
 	# at launch time so it tracks the cruiser's current (moving) position.
 	var launch: Vector2 = _launch_point(_launch_idx)
@@ -315,17 +315,17 @@ func _clear_pending() -> void:
 	_pending_fires.clear()
 
 
-# Launch point for shot `idx` (0-based): the child Marker2D "LaunchPoint{idx+1}"
-# (Roman added LaunchPoint1..4, 2026-05-31). Falls back to the legacy single
-# "LaunchPoint" marker, then to the sprite centre (cruiser world position) when
+# Launch point for shot `idx` (0-based): the child Marker2D "Launcher{idx+1}"
+# (Launcher1..4). Falls back to the legacy single
+# "Launcher" marker, then to the sprite centre (cruiser world position) when
 # the indexed marker is missing — preserving the prior behavior on bare scenes.
 # get_node_or_null is statically typed Node, so cast to Node2D explicitly;
 # `:=` on the Variant RHS would be a parse_check-missed compile error.
 func _launch_point(idx: int) -> Vector2:
-	var marker: Node2D = get_node_or_null("LaunchPoint%d" % (idx + 1)) as Node2D
+	var marker: Node2D = get_node_or_null("Launcher%d" % (idx + 1)) as Node2D
 	if marker != null:
 		return marker.global_position
-	var legacy: Node2D = get_node_or_null("LaunchPoint") as Node2D
+	var legacy: Node2D = get_node_or_null("Launcher") as Node2D
 	if legacy != null:
 		return legacy.global_position
 	return global_position

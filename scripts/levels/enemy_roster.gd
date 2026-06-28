@@ -171,7 +171,7 @@ const PUSH_MOUNTS := [
 # Rocket gunship — two weapons off its marker rack, was hand-timed in enemy_rocket.gd (2026-06-19):
 # rocket salvos from the cycled launch rack + aimed tracer bursts from the hull muzzles.
 const ROCKET_MOUNTS := [
-	{ "kind": "launcher", "marker": "launch_point*", "marker_mode": "cycle",
+	{ "kind": "launcher", "marker": "Launcher*", "marker_mode": "cycle",
 	  "payload_scene": "res://scenes/projectiles/enemy_rocket.tscn",
 	  "aim": "straight_down", "count": 3, "spread_deg": 24.0, "fire_min": 1.8, "fire_max": 1.8 },
 	{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_Basic,
@@ -180,11 +180,11 @@ const ROCKET_MOUNTS := [
 ]
 
 # Bomber tail gun — arc-gated rear gunner, ported from enemy_bomber._spawn_tail_turret (2026-06-23):
-# an invisible (no-texture) turret on the TailMuzzle marker that HOLDS FIRE outside its 160° rear cone
+# an invisible (no-texture) turret on the TurretTail marker that HOLDS FIRE outside its 160° rear cone
 # (centred on +Y, toward the chasing player) and fires the default enemy bullet. Realized by
 # MountBuilder in enemy_base._ready; shared across all three bomber entries.
 const BOMBER_TAIL_MOUNT := [
-	{ "kind": "turret", "marker": "TailMuzzle", "arc_gate": true, "arc_deg": 160.0,
+	{ "kind": "turret", "marker": "TurretTail", "arc_gate": true, "arc_deg": 160.0,
 	  "rest_angle_deg": 180.0, "aim_tolerance_deg": 30.0, "rotation_speed": 2.0,
 	  "fire_min": 0.55, "fire_max": 0.85, "bullet_speed": 190.0 },
 ]
@@ -755,14 +755,14 @@ const ENTRIES := [
 	{
 		# Cannon — artillery platform. Holds the mid band and lobs slow, heavy
 		# cannon shells (heavy_slug: 60 px/s, 2 dmg) straight down from alternating
-		# muzzles (cannon_left/right at ±6). Slow, telegraphed, punishing if ignored.
+		# muzzles (CannonL/R at ±6). Slow, telegraphed, punishing if ignored.
 		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_cannon.tscn",
 		"depth": "mid",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
 		"movement": "loiter",
 		# Spectre artillery — retuned via Enemy Bench (2026-06-20): bursts Privateer Bolts.
-		"mounts": [{ "kind": "gun", "marker": "cannon_*", "marker_mode": "cycle", "payload": BV_PrivBolt, "aim": "straight_down", "count": 3, "burst_interval": 0.18, "fire_min": 1.4, "fire_max": 2.0 }],
+		"mounts": [{ "kind": "gun", "marker": "Cannon*", "marker_mode": "cycle", "payload": BV_PrivBolt, "aim": "straight_down", "count": 3, "burst_interval": 0.18, "fire_min": 1.4, "fire_max": 2.0 }],
 		"base_count": 2,
 		"hp_override": 8, "bounty_override": 18,
 		"unlock_sector": 1, "unlock_depth": 2, "weight": 0.8, "chaff": true,
@@ -1202,7 +1202,7 @@ const ENTRIES := [
 		"movement": "straight", "shoot": null, "base_count": 2, "recycle": 0,
 		"mounts": [
 			{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_ZealotLaser, "aim": "forward", "fire_min": 0.5, "fire_max": 0.5, "count": 1, "spread_deg": 0.0 },
-			{ "kind": "launcher", "marker": "Wing*", "payload_scene": "res://scenes/projectiles/enemy_rocket.tscn", "aim": "forward", "fire_min": 1.2, "fire_max": 1.2, "count": 1, "spread_deg": 0.0 },
+			{ "kind": "launcher", "marker": "Launcher*", "payload_scene": "res://scenes/projectiles/enemy_rocket.tscn", "aim": "forward", "fire_min": 1.2, "fire_max": 1.2, "count": 1, "spread_deg": 0.0 },
 		],
 		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5,
 	},

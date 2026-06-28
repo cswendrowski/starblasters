@@ -21,8 +21,8 @@ shape = SubResource("RectangleShape2D_1")
 [node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=427882434]
 stream = ExtResource("3_die")
 
-[node name="beam_emit_r" type="Marker2D" parent="." unique_id=617550323]
+[node name="BeamR" type="Marker2D" parent="." unique_id=617550323]
 position = Vector2(15, 0)
 
-[node name="beam_emit_l" type="Marker2D" parent="." unique_id=1161374232]
+[node name="BeamL" type="Marker2D" parent="." unique_id=1161374232]
 position = Vector2(-15, 0)

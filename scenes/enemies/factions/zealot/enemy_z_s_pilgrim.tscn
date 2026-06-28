@@ -61,10 +61,10 @@ position = Vector2(-6, -5)
 [node name="MuzzleR" type="Marker2D" parent="." unique_id=1623929246]
 position = Vector2(6, -5)
 
-[node name="WingL" type="Marker2D" parent="." unique_id=1153517408]
+[node name="LauncherL" type="Marker2D" parent="." unique_id=1153517408]
 position = Vector2(-7, 1)
 
-[node name="WingR" type="Marker2D" parent="." unique_id=1639353051]
+[node name="LauncherR" type="Marker2D" parent="." unique_id=1639353051]
 position = Vector2(7, 1)
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]

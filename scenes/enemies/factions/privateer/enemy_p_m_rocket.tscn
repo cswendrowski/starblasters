@@ -36,22 +36,22 @@ stream = ExtResource("4_shoot")
 [node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1102927823]
 stream = ExtResource("5_die")
 
-[node name="launch_point1" type="Marker2D" parent="." unique_id=2100281992]
+[node name="Launcher1" type="Marker2D" parent="." unique_id=2100281992]
 position = Vector2(-13, 0)
 
-[node name="launch_point2" type="Marker2D" parent="." unique_id=72891183]
+[node name="Launcher2" type="Marker2D" parent="." unique_id=72891183]
 position = Vector2(-11, 0)
 
-[node name="launch_point3" type="Marker2D" parent="." unique_id=1229333107]
+[node name="Launcher3" type="Marker2D" parent="." unique_id=1229333107]
 position = Vector2(-9, 0)
 
-[node name="launch_point4" type="Marker2D" parent="." unique_id=1940807632]
+[node name="Launcher4" type="Marker2D" parent="." unique_id=1940807632]
 position = Vector2(9, 0)
 
-[node name="launch_point5" type="Marker2D" parent="." unique_id=1413001144]
+[node name="Launcher5" type="Marker2D" parent="." unique_id=1413001144]
 position = Vector2(11, 0)
 
-[node name="launch_point6" type="Marker2D" parent="." unique_id=250427084]
+[node name="Launcher6" type="Marker2D" parent="." unique_id=250427084]
 position = Vector2(13, 0)
 
 [node name="MuzzleL" type="Marker2D" parent="." unique_id=2096420780]

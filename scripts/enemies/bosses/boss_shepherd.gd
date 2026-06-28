@@ -219,7 +219,7 @@ func _exit_background() -> void:
 		(s as Sprite2D).modulate = Color.WHITE
 
 
-# The hull's direct-child Sprite2D layers (Roman's multi-layer hull: "Sherpherd
+# The hull's direct-child Sprite2D layers (Roman's multi-layer hull: "Shepherd
 # Hull" / "EngineLayer" / "Lower Hull" / masks). Excludes turret barrels (nested
 # under markers). Discovered by type so it survives layer renames.
 func _hull_layers() -> Array:

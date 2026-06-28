@@ -15,14 +15,14 @@ frame = 1
 texture = ExtResource("2_tex")
 hframes = 2
 
-[node name="LaunchPoint1" type="Marker2D" parent="." unique_id=121860235]
+[node name="Launcher1" type="Marker2D" parent="." unique_id=121860235]
 position = Vector2(-9, -7)
 
-[node name="LaunchPoint2" type="Marker2D" parent="." unique_id=1290466490]
+[node name="Launcher2" type="Marker2D" parent="." unique_id=1290466490]
 position = Vector2(8, -7)
 
-[node name="LaunchPoint3" type="Marker2D" parent="." unique_id=275776557]
+[node name="Launcher3" type="Marker2D" parent="." unique_id=275776557]
 position = Vector2(-9, -3)
 
-[node name="LaunchPoint4" type="Marker2D" parent="." unique_id=183036974]
+[node name="Launcher4" type="Marker2D" parent="." unique_id=183036974]
 position = Vector2(8, -3)

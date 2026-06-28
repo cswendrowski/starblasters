@@ -41,10 +41,10 @@ stream = ExtResource("4_shoot")
 [node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1809732211]
 stream = ExtResource("5_die")
 
-[node name="cannon_left" type="Marker2D" parent="." unique_id=1894531130]
+[node name="CannonL" type="Marker2D" parent="." unique_id=1894531130]
 position = Vector2(-9, -6)
 
-[node name="cannon_right" type="Marker2D" parent="." unique_id=1809899549]
+[node name="CannonR" type="Marker2D" parent="." unique_id=1809899549]
 position = Vector2(9, -6)
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
