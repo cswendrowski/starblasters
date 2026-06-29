@@ -434,12 +434,14 @@ func _dispatch_sweep_rows(ph: Resource) -> void:
 # (rhythm = the beat), slow chaff wait longer (so they never pile up).
 func _await_row_clear(enemy, min_beat: float) -> void:
 	var floor_beat: float = maxf(min_beat, ANTI_BURST_FLOOR)
-	var start_y: float = (enemy.position.y if (enemy is Node2D and is_instance_valid(enemy)) else 0.0)
+	# is_instance_valid FIRST so it short-circuits before `is Node2D` — `is` THROWS on a freed
+	# instance, and the awaited row-lead can be killed mid-sweep before the next row spawns.
+	var start_y: float = (enemy.position.y if (is_instance_valid(enemy) and enemy is Node2D) else 0.0)
 	var t: float = 0.0
 	while _running and t < SWEEP_ROW_TIMEOUT:
 		await get_tree().create_timer(0.05).timeout
 		t += 0.05
-		var cleared: bool = (not (enemy is Node2D)) or (not is_instance_valid(enemy)) \
+		var cleared: bool = (not is_instance_valid(enemy)) or (not (enemy is Node2D)) \
 			or (enemy.position.y - start_y >= SWEEP_ROW_CLEAR_DEPTH)
 		if t >= floor_beat and cleared:
 			return
