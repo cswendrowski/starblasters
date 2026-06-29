@@ -29,6 +29,10 @@ const _V_PBALL   = preload("res://data/bullets/privateer_ball.tres")
 const _V_PBOLT   = preload("res://data/bullets/privateer_bolt.tres")
 const _V_PLASER  = preload("res://data/bullets/privateer_laser.tres")
 const _V_PWAVE   = preload("res://data/bullets/privateer_wave.tres")
+# "drop" family (2026-06-29): slow lingering caltrop pellets that REUSE the faction ball textures, so
+# a dropped shot takes the enemy's faction colour. Same slow speed/lifetime, just the ball sprite.
+const _V_PDROP   = preload("res://data/bullets/drop_pellet.tres")    # privateer-coloured base drop
+const _V_ZDROP   = preload("res://data/bullets/zealot_drop.tres")    # zealot-coloured drop
 
 const _S_BASIC   = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const _S_SMALL   = preload("res://scenes/projectiles/enemy_bullet_small.tscn")
@@ -86,6 +90,8 @@ static func _ensure() -> void:
 	_family["bolt"]  = {Z: _V_ZBOLT,  P: _V_PBOLT,  S: _V_ZBOLT,  C: _V_PBOLT}
 	_family["laser"] = {Z: _V_ZLASER, P: _V_PLASER, S: _V_ZLASER, C: _V_PLASER}
 	_family["wave"]  = {Z: _V_ZWAVE,  P: _V_PWAVE,  S: _V_ZWAVE,  C: _V_PWAVE}
+	# Dropped shots take the faction's ball colour (slow drop variants, same S/C reuse as the families).
+	_family["drop"]  = {Z: _V_ZDROP,  P: _V_PDROP,  S: _V_ZDROP,  C: _V_PDROP}
 
 
 # The canonical per-bullet scene for a BulletVariant, or null if the variant has no
