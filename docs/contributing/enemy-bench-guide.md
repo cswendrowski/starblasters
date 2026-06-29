@@ -128,12 +128,18 @@ weapon). Each mount row:
 | **count** | Bullets per shot. |
 | **spread** | Fan angle (degrees) across those bullets. |
 
-**Bullet families + factions:** payloads are just the four shapes — `Ball / Bolt
-/ Laser / Wave`. You don't pick a faction; the bullet auto-restyles to the
-enemy's faction at spawn (`BulletCatalog.faction_variant`). Privateer + Zealot
-have real art; Supremacy reuses the Zealot look and Corporate the Privateer look
-for now. The bench preview stamps the selected enemy's faction so you see the
-right style.
+**Bullet families + factions:** payloads are the four shapes — `Ball / Bolt /
+Laser / Wave` — plus `Drop`. The four families auto-restyle to the enemy's
+faction at spawn (`BulletCatalog.faction_variant`). Privateer + Zealot have real
+art; Supremacy reuses the Zealot look and Corporate the Privateer look for now.
+The bench preview stamps the selected enemy's faction so you see the right style.
+
+**Dropping shots (Caltrop-style):** pick the **`Drop`** payload + aim **Down**.
+`Drop` is the slow lingering caltrop pellet (45 px/s, 5s life) — because it
+crawls far slower than the enemy descends, it hangs in the lane as a trail of
+dropped shots in the enemy's wake. It isn't faction-restyled. Combine it with
+rear `Muzzle*` markers, `count`/burst, and a `path` phase (the Caltrop fires a
+4-shot burst at path phase `0.4`) to reproduce the Caltrop's dropper.
 
 **Gun/Launcher get extra firing controls:**
 - **muzzles** (`All / Cycle`) — when a mount covers multiple markers: `All` fires

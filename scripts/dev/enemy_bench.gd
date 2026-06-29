@@ -31,10 +31,21 @@ const PAYLOADS := {
 	"Bolt": EnemyRoster.BV_PrivBolt,
 	"Laser": EnemyRoster.BV_PrivLaser,
 	"Wave": EnemyRoster.BV_PrivWave,
+	# "Drop" = the slow lingering caltrop pellet (45 px/s, 5s life) — pick it + aim Down for a Caltrop-
+	# style trail of dropped shots in the enemy's wake. Not faction-tagged, so it never swaps style.
+	"Drop": EnemyRoster.BV_DropPellet,
 }
 # Family name -> the BulletVariant const to emit in Copy GDScript (the family-tagged base; the faction
 # swap at spawn handles per-faction styling, so any faction's same-family clone would work as the base).
-const PAYLOAD_CONST := {"Ball": "BV_PrivBall", "Bolt": "BV_PrivBolt", "Laser": "BV_PrivLaser", "Wave": "BV_PrivWave"}
+const PAYLOAD_CONST := {"Ball": "BV_PrivBall", "Bolt": "BV_PrivBolt", "Laser": "BV_PrivLaser", "Wave": "BV_PrivWave", "Drop": "BV_DropPellet"}
+# Migration for saved tuner files written before the payload collapse (2026-06-29): the old per-faction
+# / per-shape names map to the new families so an existing saved mount doesn't load with a dead payload.
+const _LEGACY_PAYLOAD := {
+	"Basic": "Ball", "Spread Pellet": "Ball", "Burst Round": "Ball", "Plasma Orb": "Ball",
+	"Heavy Slug": "Bolt", "Aimed Sniper": "Bolt", "Drop Pellet": "Drop",
+	"Zealot Ball": "Ball", "Zealot Bolt": "Bolt", "Zealot Laser": "Laser", "Zealot Wave": "Wave",
+	"Privateer Ball": "Ball", "Privateer Bolt": "Bolt", "Privateer Laser": "Laser", "Privateer Wave": "Wave",
+}
 
 # Faction filter tabs (Roman 2026-06-12). "All" + the 4 factions + Core (universal chaff) +
 # Hazards (mines/asteroid) + Bosses. Group is derived from the scene PATH (folder), not the
@@ -1398,6 +1409,12 @@ func _roster_mount_to_bench(d: Dictionary) -> Dictionary:
 	}
 
 
+# Map a (possibly legacy) saved payload name to a current dropdown key, always returning a valid one.
+func _norm_payload(name: String) -> String:
+	var n: String = String(_LEGACY_PAYLOAD.get(name, name))
+	return n if (PAYLOADS.has(n) or PROJECTILES.has(n)) else "Ball"
+
+
 # Reverse-resolve a roster mount's payload to its bench dropdown name. Payloads collapsed to families
 # (2026-06-29), so map by the variant's `family` first — any faction's clone (zealot/privateer ball)
 # folds to the generic "Ball". A non-family variant (e.g. legacy BV_Basic) falls back to "Ball".
@@ -1742,7 +1759,7 @@ func _load_settings_into_editors() -> void:
 	_loading = true
 	var s: Dictionary = _saved.get(_selected_path, {})
 	var nat: Dictionary = _scene_defaults(_selected_path)   # native scene values = fallbacks
-	_select_text(_payload_dd, String(s.get("payload", "Ball")), PAYLOADS.keys())
+	_select_text(_payload_dd, _norm_payload(String(s.get("payload", "Ball"))), PAYLOADS.keys())
 	_select_text(_explosion_dd, String(s.get("explosion", "default")), ExplosionFx.variant_names())
 	if _recycle_chk:
 		_recycle_chk.button_pressed = bool(s.get("can_recycle", true))
@@ -1786,6 +1803,8 @@ func _load_settings_into_editors() -> void:
 	_codex_edit.text = String(s.get("codex", EnemyStrings.codex_entry(_selected_path)))
 	# Saved bench override wins; otherwise default to the enemy's production roster mounts.
 	_mount_dicts = _dup_mounts(s.get("mounts")) if s.has("mounts") else _default_mounts_for(_selected_path)
+	for md in _mount_dicts:
+		md["payload"] = _norm_payload(String(md.get("payload", "Ball")))   # migrate pre-collapse names
 	_rebuild_mounts_ui()
 	_emitter_dicts = _dup_mounts(s.get("emitters")) if s.has("emitters") else _default_emitters_for(_selected_path)
 	_rebuild_emitters_ui()
