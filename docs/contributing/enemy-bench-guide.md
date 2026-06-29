@@ -92,22 +92,27 @@ sit right below it.
 
   These ship inert by default (no production enemy sets them yet); the checkboxes
   let you preview the behavior.
-- **Max HP** — `max_health` (respawns; health = max from frame 0). Seeded by the
-  size/traits template, then overridable here.
-- **Bounty** — `bounty_value` (applies live). Also seeded by the template.
-- **Bullet speed ×** — `bullet_speed_mult`, a multiplier on this enemy's
-  projectile speed (applies live).
+**Stat overrides** — HP / Bounty / Bullet-speed are **opt-in**. Each is a
+checkbox; leave it unticked (the default) and the enemy uses its template/native
+value, keeping the row to a single line. Tick it to reveal a spinbox and pin an
+explicit value:
+- **Max HP** — `max_health` (respawns). Off = the size+traits template HP.
+- **Bounty** — `bounty_value` (applies live). Off = template bounty.
+- **Bullet speed ×** — `bullet_speed_mult`. Off = native 1×.
 
 > *Display-scale and bullet-damage knobs were removed (2026-06-29) — enemies are
-> always 1× scale and 1× bullet damage, so those weren't worth tuning.*
+> always 1× scale and 1× bullet damage, so those weren't worth tuning. The
+> remaining stat knobs became opt-in overrides the same day.*
 
 ### Locomotion (this enemy)
-- **Engine** — a **rung offset** on the size's base speed. Each step = ±60 px/s
-  (`+1` = +60 px/s faster), and it does *not* change weight/turn. This is how
-  you make one enemy faster/slower than its size baseline without retuning the
-  whole size class.
+- **Engine ±rung** — an opt-in override (same checkbox pattern as the stats).
+  When ticked, a **rung offset** on the size's base speed: each step = ±60 px/s
+  (`+1` = +60 px/s faster), without changing weight/turn. Off = size-derived
+  speed. (It defaults *on* for enemies whose roster entry already ships a
+  non-zero engine offset, so you can see it.)
 - **Depth** — the hold/cross band (`high / mid / low`) for how deep into the
-  playfield it advances. `(default)` = derived from size/identity.
+  playfield it advances. `(default)` = derived from size/identity (this dropdown
+  is its own opt-out, so it isn't gated behind a checkbox).
 
 ### Mounts editor (Add Mount)
 Mounts are the actual weapons now (extra emitters beyond the retired hull

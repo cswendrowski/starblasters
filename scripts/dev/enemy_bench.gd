@@ -128,6 +128,13 @@ var _pattern_idx: int = 0
 var _hp_spin: SpinBox = null
 var _bounty_spin: SpinBox = null
 var _bspeed_spin: SpinBox = null
+# Opt-in override toggles (Roman 2026-06-29): HP/bounty/bullet-speed/engine are usually left at the
+# template/native value, so each is gated behind a checkbox — unchecked hides the spinbox and the
+# enemy uses its derived value; checked reveals the spin and applies it as an explicit override.
+var _hp_override_chk: CheckBox = null
+var _bounty_override_chk: CheckBox = null
+var _bspeed_override_chk: CheckBox = null
+var _engine_override_chk: CheckBox = null
 # Display strings (editable name + codex, persisted + emitted as an enemy_strings entry).
 @onready var _name_edit: LineEdit = %NameEdit
 @onready var _codex_edit: TextEdit = %CodexEdit
@@ -391,7 +398,13 @@ func _tighten_panel(root_ctl: Control) -> void:
 		ob.clip_text = true
 		ob.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for n in root_ctl.find_children("*", "Label", true, false):
-		(n as Label).autowrap_mode = TextServer.AUTOWRAP_WORD
+		var lbl := n as Label
+		# 2-col field-grid captions must NOT autowrap: an autowrap label reports a ~0 min width, so
+		# its grid column collapses and the control renders on top of the caption (the bug Roman hit).
+		# Leave those at their natural width; only wrap the free-standing stacked captions.
+		if lbl.get_parent() is GridContainer:
+			continue
+		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
 
 
 func _build_loco_editor(vb: VBoxContainer) -> void:
@@ -419,14 +432,12 @@ func _build_loco_editor(vb: VBoxContainer) -> void:
 	vb.add_child(row)
 	var save := Button.new()
 	save.text = "Save Loco"
-	save.custom_minimum_size = Vector2(0, 34)
-	save.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_style_button(save)
 	save.pressed.connect(_save_loco)
 	row.add_child(save)
 	var cp := Button.new()
 	cp.text = "Copy GDScript"
-	cp.custom_minimum_size = Vector2(0, 34)
-	cp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_style_button(cp)
 	cp.pressed.connect(_copy_loco)
 	row.add_child(cp)
 
@@ -527,34 +538,26 @@ func _setup_enemy_template_knobs(scroll: Control) -> void:
 	_retro_chk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_retro_chk.toggled.connect(func(_p): _on_template_changed(0))
 	loco_tr.add_child(_retro_chk)
-	# Hand-tweak stats, folded in below the template (size/traits seed HP + bounty, then override).
-	# (These were a separate "Stats" .tscn block; moved here 2026-06-29 so the knobs live together.)
-	content.add_child(_mk_label("Max HP", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
+	# Stat overrides (opt-in): size/traits seed HP & bounty; tick a box only when you want to pin an
+	# explicit value. Unchecked = use the template/native value, and the row stays one compact line.
+	content.add_child(_mk_label("Stat overrides (off = use template / native)", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
 	_hp_spin = SpinBox.new()
 	_hp_spin.min_value = 1.0
 	_hp_spin.max_value = 9999.0
 	_hp_spin.value = 1.0
-	_hp_spin.custom_minimum_size = Vector2(0, 30)
-	_hp_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_hp_spin.value_changed.connect(func(_v): if not _loading: _spawn_current())
-	content.add_child(_hp_spin)
-	content.add_child(_mk_label("Bounty", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
+	_hp_override_chk = _override_row(content, "Max HP", _hp_spin)
 	_bounty_spin = SpinBox.new()
 	_bounty_spin.max_value = 9999.0
-	_bounty_spin.custom_minimum_size = Vector2(0, 30)
-	_bounty_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_bounty_spin.value_changed.connect(func(_v): if not _loading: _apply_stats_live())
-	content.add_child(_bounty_spin)
-	content.add_child(_mk_label("Bullet speed ×", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
+	_bounty_override_chk = _override_row(content, "Bounty", _bounty_spin)
 	_bspeed_spin = SpinBox.new()
 	_bspeed_spin.min_value = 0.25
 	_bspeed_spin.max_value = 4.0
 	_bspeed_spin.step = 0.05
 	_bspeed_spin.value = 1.0
-	_bspeed_spin.custom_minimum_size = Vector2(0, 30)
-	_bspeed_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_bspeed_spin.value_changed.connect(func(_v): if not _loading: _apply_stats_live())
-	content.add_child(_bspeed_spin)
+	_bspeed_override_chk = _override_row(content, "Bullet speed ×", _bspeed_spin)
 
 
 func _on_template_changed(_i: int) -> void:
@@ -570,9 +573,10 @@ func _apply_template_stats() -> void:
 		return
 	var stats: Dictionary = EnemyRoster.compose_stats(_template_entry())
 	_loading = true   # suppress the spinbox value_changed respawn storm
-	if _hp_spin:
+	# Only reseed spins that AREN'T pinned by an override (don't clobber a value the user set).
+	if _hp_spin and not _override_on(_hp_override_chk):
 		_hp_spin.value = int(stats["max_health"])
-	if _bounty_spin:
+	if _bounty_spin and not _override_on(_bounty_override_chk):
 		_bounty_spin.value = int(stats["bounty_value"])
 	_loading = false
 
@@ -591,7 +595,7 @@ func _template_entry() -> Dictionary:
 		tags.append("shielded")
 	return {
 		"scene": _selected_path, "size": _bench_size(), "tags": tags,
-		"engine": int(_engine_spin.value) if _engine_spin != null else 0,
+		"engine": int(_engine_spin.value) if _override_on(_engine_override_chk) else 0,
 		"depth": _depth_for_selected(),
 	}
 
@@ -607,29 +611,15 @@ func _setup_enemy_loco_knobs(scroll: Control) -> void:
 	content.add_child(HSeparator.new())
 	content.add_child(_mk_label("Locomotion (this enemy)", 16, Color(0.62, 0.82, 1, 1)))
 	content.add_child(_mk_label("Engine = rung offset on the size base speed (+1 = +60 px/s; weight/turn unchanged). Depth = hold/cross band (default = size/identity).", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
-	# Engine + Depth as two equal columns (caption stacked above each control), so neither label is
-	# squished by an expanding control sharing its row — they split the panel 50/50 instead.
-	var er := HBoxContainer.new()
-	er.add_theme_constant_override("separation", 8)
-	content.add_child(er)
-	var ecol := VBoxContainer.new()
-	ecol.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	ecol.add_theme_constant_override("separation", 2)
-	er.add_child(ecol)
-	ecol.add_child(_mk_label("Engine", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
+	# Engine is an opt-in override (off = size-derived speed); Depth's own "(default)" already serves
+	# as its no-override state, so it stays a plain stacked caption + dropdown.
 	_engine_spin = SpinBox.new()
 	_engine_spin.min_value = -4.0
 	_engine_spin.max_value = 4.0
 	_engine_spin.step = 1.0
-	_engine_spin.custom_minimum_size = Vector2(0, 30)
-	_engine_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_engine_spin.value_changed.connect(_on_loco_knob_changed)
-	ecol.add_child(_engine_spin)
-	var dcol := VBoxContainer.new()
-	dcol.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	dcol.add_theme_constant_override("separation", 2)
-	er.add_child(dcol)
-	dcol.add_child(_mk_label("Depth", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
+	_engine_override_chk = _override_row(content, "Engine ±rung", _engine_spin)
+	content.add_child(_mk_label("Depth", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
 	_depth_dd = OptionButton.new()
 	_depth_dd.add_item("(default)")
 	_depth_dd.add_item("high")
@@ -638,7 +628,7 @@ func _setup_enemy_loco_knobs(scroll: Control) -> void:
 	_depth_dd.custom_minimum_size = Vector2(0, 30)
 	_depth_dd.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_depth_dd.item_selected.connect(_on_loco_depth_changed)
-	dcol.add_child(_depth_dd)
+	content.add_child(_depth_dd)
 
 
 func _on_loco_knob_changed(_v: float) -> void:
@@ -682,14 +672,12 @@ func _build_size_editor(vb: VBoxContainer) -> void:
 	vb.add_child(row)
 	var save := Button.new()
 	save.text = "Save Sizes"
-	save.custom_minimum_size = Vector2(0, 34)
-	save.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_style_button(save)
 	save.pressed.connect(_save_sizes)
 	row.add_child(save)
 	var cp := Button.new()
 	cp.text = "Copy GDScript"
-	cp.custom_minimum_size = Vector2(0, 34)
-	cp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_style_button(cp)
 	cp.pressed.connect(_copy_sizes)
 	row.add_child(cp)
 
@@ -1046,7 +1034,7 @@ func _make_mount_row(idx: int) -> Control:
 	head.add_child(title)
 	var rm := Button.new()
 	rm.text = "✕"
-	rm.custom_minimum_size = Vector2(34, 26)
+	_style_button(rm)
 	rm.add_theme_font_size_override("font_size", FS_CAPTION)
 	rm.pressed.connect(func(): _remove_mount(d))
 	head.add_child(rm)
@@ -1197,7 +1185,7 @@ func _make_emitter_row(idx: int) -> Control:
 	head.add_child(title)
 	var rm := Button.new()
 	rm.text = "✕"
-	rm.custom_minimum_size = Vector2(34, 26)
+	_style_button(rm)
 	rm.add_theme_font_size_override("font_size", FS_CAPTION)
 	rm.pressed.connect(func(): _remove_emitter(d))
 	head.add_child(rm)
@@ -1464,7 +1452,15 @@ func _row_lbl(t: String) -> Label:
 # captions; one field per row in a 2-col grid keeps every caption readable (Roman 2026-06-29).
 # The caption sits at its natural width in col1; the control expands to fill col2.
 func _grid_row(grid: GridContainer, label: String, ctl: Control) -> void:
-	grid.add_child(_row_lbl(label))
+	# Grid captions must NOT autowrap (an autowrap label reports ~0 min width → the column collapses
+	# and the control draws over the caption). Non-wrapping, so col1 holds the caption's real width.
+	var l := Label.new()
+	l.text = label
+	l.add_theme_font_size_override("font_size", FS_CAPTION)
+	l.add_theme_color_override("font_color", Color(0.70, 0.78, 0.88, 0.70))
+	l.autowrap_mode = TextServer.AUTOWRAP_OFF
+	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	grid.add_child(l)
 	ctl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid.add_child(ctl)
 
@@ -1493,6 +1489,50 @@ func _row_line(text: String, placeholder: String) -> LineEdit:
 	le.custom_minimum_size = Vector2(0, 26)
 	le.add_theme_font_size_override("font_size", FS_CAPTION)
 	return le
+
+
+# An opt-in override row: a checkbox captioned with the field name + a spinbox revealed only when
+# checked. Off keeps the row to a single compact line and the enemy uses its template/native value;
+# on shows the spin and applies it. Caller wires the spin's value_changed (HP/engine respawn,
+# bounty/bullet-speed apply live). Returns the checkbox so the caller can store + persist it.
+func _override_row(content: Container, label: String, spin: SpinBox) -> CheckBox:
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 8)
+	content.add_child(hb)
+	var chk := CheckBox.new()
+	chk.text = label
+	chk.add_theme_font_size_override("font_size", FS_CAPTION)
+	hb.add_child(chk)
+	spin.custom_minimum_size = Vector2(0, 30)
+	spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spin.visible = false
+	hb.add_child(spin)
+	chk.toggled.connect(func(on):
+		spin.visible = on
+		if not _loading:
+			_spawn_current())
+	return chk
+
+
+func _override_on(chk: CheckBox) -> bool:
+	return chk != null and chk.button_pressed
+
+
+# Restore an override row's state on load: set the checkbox + the spin's visibility directly (setting
+# button_pressed to its current value wouldn't fire `toggled`, so the spin's visibility is set here).
+func _set_override(chk: CheckBox, spin: SpinBox, on: bool) -> void:
+	if chk != null:
+		chk.button_pressed = on
+	if spin != null:
+		spin.visible = on
+
+
+# Consistent action-button styling: a uniform height + shrink-to-content width (left-aligned), so
+# buttons fit their label instead of stretching to the full panel width (Roman 2026-06-29).
+const BTN_H := 30
+func _style_button(b: Button) -> void:
+	b.custom_minimum_size = Vector2(0, BTN_H)
+	b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 
 
 # Turret-mounted enemies (zealot tank turret, gun_turret, push dome…) fire through child
@@ -1536,16 +1576,18 @@ func _apply_explosion_live() -> void:
 		_current_enemy.explosion_variant = ExplosionFx.variant_names()[_explosion_dd.selected]
 
 
-# Apply the stat-knob values to a (pre-_ready) enemy instance.
+# Apply the stat-knob values to a (pre-_ready) enemy instance. HP/bounty come from the size+traits
+# template unless their override box is ticked; bullet-speed is native 1× unless overridden.
 func _apply_stats_to(inst: Node) -> void:
 	if inst == null:
 		return
+	var tmpl: Dictionary = EnemyRoster.compose_stats(_template_entry())
 	if "max_health" in inst:
-		inst.max_health = int(_hp_spin.value)
+		inst.max_health = int(_hp_spin.value) if _override_on(_hp_override_chk) else int(tmpl["max_health"])
 	if "bounty_value" in inst:
-		inst.bounty_value = int(_bounty_spin.value)
+		inst.bounty_value = int(_bounty_spin.value) if _override_on(_bounty_override_chk) else int(tmpl["bounty_value"])
 	if "bullet_speed_mult" in inst:
-		inst.bullet_speed_mult = float(_bspeed_spin.value)
+		inst.bullet_speed_mult = float(_bspeed_spin.value) if _override_on(_bspeed_override_chk) else 1.0
 	# Locomotion preview: resolve from the enemy's ENTRIES size + the bench engine/depth so the live
 	# ship moves at the tuned speed/depth (locomotion refactor 2026-06-19).
 	if "move_speed" in inst and _engine_spin != null:
@@ -1561,13 +1603,14 @@ func _apply_stats_to(inst: Node) -> void:
 			inst.depth_bp = float(loco["depth_bp"])
 
 
-# Cheap stats (no _ready dependency) applied to the live enemy without a respawn.
+# Cheap stats (no _ready dependency) applied to the live enemy without a respawn. Only the overridden
+# ones write; an un-ticked override leaves the spawn-time template/native value in place.
 func _apply_stats_live() -> void:
 	if _current_enemy == null or not is_instance_valid(_current_enemy):
 		return
-	if "bounty_value" in _current_enemy:
+	if _override_on(_bounty_override_chk) and "bounty_value" in _current_enemy:
 		_current_enemy.bounty_value = int(_bounty_spin.value)
-	if "bullet_speed_mult" in _current_enemy:
+	if _override_on(_bspeed_override_chk) and "bullet_speed_mult" in _current_enemy:
 		_current_enemy.bullet_speed_mult = float(_bspeed_spin.value)
 
 
@@ -1657,15 +1700,22 @@ func _load_settings_into_editors() -> void:
 		_recycle_passes_spin.value = int(s.get("recycle_passes", 1))
 	if _recycle_chance_spin:
 		_recycle_chance_spin.value = float(s.get("recycle_chance", 1.0))
+	# Stat overrides: restore each spin's value + whether its box is ticked (default off → hidden).
 	if _hp_spin:
 		_hp_spin.value = int(s.get("max_health", nat.get("max_health", 1)))
+		_set_override(_hp_override_chk, _hp_spin, bool(s.get("hp_override", false)))
 	if _bounty_spin:
 		_bounty_spin.value = int(s.get("bounty_value", nat.get("bounty_value", 5)))
+		_set_override(_bounty_override_chk, _bounty_spin, bool(s.get("bounty_override", false)))
 	if _bspeed_spin:
 		_bspeed_spin.value = float(s.get("bullet_speed_mult", nat.get("bullet_speed_mult", 1.0)))
+		_set_override(_bspeed_override_chk, _bspeed_spin, bool(s.get("bspeed_override", false)))
 	if _engine_spin != null:
 		var le: Dictionary = EnemyRoster.entry_for_scene(_selected_path)
-		_engine_spin.value = int(s.get("engine", int(le.get("engine", 0))))
+		var eng: int = int(s.get("engine", int(le.get("engine", 0))))
+		_engine_spin.value = eng
+		# Default the engine override ON when the roster already ships a non-zero offset, so it shows.
+		_set_override(_engine_override_chk, _engine_spin, bool(s.get("engine_override", eng != 0)))
 		var dstr: String = String(s.get("depth", String(le.get("depth", ""))))
 		var didx: int = _DEPTH_ITEMS.find(dstr)
 		_depth_dd.select(didx if didx >= 0 else 0)
@@ -1719,13 +1769,17 @@ func _current_settings() -> Dictionary:
 		"can_recycle": _recycle_chk.button_pressed,
 		"recycle_passes": int(_recycle_passes_spin.value),
 		"recycle_chance": float(_recycle_chance_spin.value),
+		"hp_override": _override_on(_hp_override_chk),
 		"max_health": int(_hp_spin.value) if _hp_spin else 1,
+		"bounty_override": _override_on(_bounty_override_chk),
 		"bounty_value": int(_bounty_spin.value) if _bounty_spin else 0,
+		"bspeed_override": _override_on(_bspeed_override_chk),
 		"bullet_speed_mult": float(_bspeed_spin.value) if _bspeed_spin else 1.0,
 		"name": _name_edit.text,
 		"codex": _codex_edit.text,
 		"mounts": _dup_mounts(_mount_dicts),
 		"emitters": _dup_mounts(_emitter_dicts),
+		"engine_override": _override_on(_engine_override_chk),
 		"engine": int(_engine_spin.value) if _engine_spin != null else 0,
 		"depth": _depth_for_selected(),
 		"size": _bench_size(),
@@ -1768,10 +1822,13 @@ func _on_copy() -> void:
 	# Hull weapon (Mount 0) retired 2026-06-23 — enemies fire via mounts (emitted below).
 	txt += "enemy.shoot_pattern = null\n"
 	txt += "enemy.explosion_variant = \"%s\"\n" % s["explosion"]
-	txt += "# Stats:\n"
-	txt += "enemy.max_health = %d\n" % s["max_health"]
-	txt += "enemy.bounty_value = %d\n" % s["bounty_value"]
-	txt += "enemy.bullet_speed_mult = %.2f\n" % s["bullet_speed_mult"]
+	txt += "# Stat overrides (only the ticked ones — unticked uses the size template / native):\n"
+	if bool(s.get("hp_override", false)):
+		txt += "enemy.max_health = %d\n" % s["max_health"]
+	if bool(s.get("bounty_override", false)):
+		txt += "enemy.bounty_value = %d\n" % s["bounty_value"]
+	if bool(s.get("bspeed_override", false)):
+		txt += "enemy.bullet_speed_mult = %.2f\n" % s["bullet_speed_mult"]
 	txt += "# Recycle behavior:\n"
 	if s["can_recycle"]:
 		txt += "enemy.recycle_passes = %d  # %.1f chance to recycle\n" % [s["recycle_passes"], s["recycle_chance"]]
@@ -1779,7 +1836,7 @@ func _on_copy() -> void:
 		txt += "enemy.recycle_passes = 0  # flee (no recycle)\n"
 	# Locomotion → roster ENTRY fields (size base + engine rung offset + optional depth band).
 	var loco_bits: Array = []
-	if int(s.get("engine", 0)) != 0:
+	if bool(s.get("engine_override", false)) and int(s.get("engine", 0)) != 0:
 		loco_bits.append("\"engine\": %d" % int(s["engine"]))
 	if String(s.get("depth", "")) != "":
 		loco_bits.append("\"depth\": \"%s\"" % String(s["depth"]))
@@ -1794,10 +1851,9 @@ func _on_copy() -> void:
 	for t in t_tags:
 		tag_lits.append("\"%s\"" % String(t))
 	var entry_bits: Array = ["\"size\": \"%s\"" % String(s.get("size", "medium")), "\"tags\": [%s]" % ", ".join(tag_lits)]
-	var tmpl: Dictionary = EnemyRoster.compose_stats({"size": String(s.get("size", "medium")), "tags": t_tags})
-	if int(s["max_health"]) != int(tmpl["max_health"]):
+	if bool(s.get("hp_override", false)):
 		entry_bits.append("\"hp_override\": %d" % int(s["max_health"]))
-	if int(s["bounty_value"]) != int(tmpl["bounty_value"]):
+	if bool(s.get("bounty_override", false)):
 		entry_bits.append("\"bounty_override\": %d" % int(s["bounty_value"]))
 	txt += "# -> roster ENTRY (template): %s\n" % ", ".join(entry_bits)
 	# Locomotion capability flags (omni/strafe/retro) — scene-baked on enemy_base.

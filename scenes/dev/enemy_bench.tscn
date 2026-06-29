@@ -206,8 +206,9 @@ text = "Pattern: —"
 
 [node name="NextPatternButton" type="Button" parent="UI/RightPanel/RightScroll/RightVBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 36)
+custom_minimum_size = Vector2(0, 30)
 layout_mode = 2
+size_flags_horizontal = 0
 text = "Next Pattern"
 
 [node name="Sep1" type="HSeparator" parent="UI/RightPanel/RightScroll/RightVBox"]
@@ -240,8 +241,9 @@ theme_override_constants/separation = 6
 
 [node name="AddMountButton" type="Button" parent="UI/RightPanel/RightScroll/RightVBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 30)
 layout_mode = 2
+size_flags_horizontal = 0
 text = "+ Add Mount"
 
 [node name="EmittersSep" type="HSeparator" parent="UI/RightPanel/RightScroll/RightVBox"]
@@ -260,8 +262,9 @@ theme_override_constants/separation = 6
 
 [node name="AddEmitterButton" type="Button" parent="UI/RightPanel/RightScroll/RightVBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 30)
 layout_mode = 2
+size_flags_horizontal = 0
 text = "+ Add Emitter"
 
 [node name="Sep2" type="HSeparator" parent="UI/RightPanel/RightScroll/RightVBox"]
@@ -369,14 +372,14 @@ theme_override_constants/separation = 10
 
 [node name="SaveButton" type="Button" parent="UI/RightPanel/RightScroll/RightVBox/ButtonsRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 36)
+custom_minimum_size = Vector2(0, 30)
 layout_mode = 2
-size_flags_horizontal = 3
+size_flags_horizontal = 0
 text = "Save"
 
 [node name="CopyButton" type="Button" parent="UI/RightPanel/RightScroll/RightVBox/ButtonsRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 36)
+custom_minimum_size = Vector2(0, 30)
 layout_mode = 2
-size_flags_horizontal = 3
+size_flags_horizontal = 0
 text = "Copy GDScript"
