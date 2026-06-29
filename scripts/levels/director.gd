@@ -79,8 +79,12 @@ const GEOMETRIC_MEMBER_STAGGER: float = 0.03
 # "single enemies trickling in on random lanes". It now enters as ROWS of this many abreast (a
 # readable descending line), beat-separated, so the bulk reads as formations while still streaming
 # under the concurrency cap. Hazard scatter (random/top_spread) + heavy anchors (center_out) keep
-# the one-at-a-time path on purpose.
+# the one-at-a-time path on purpose. The structured lanes DON'T avoid occupancy the way _pick_lane
+# did, so each row is gated on the previous one descending SWEEP_ROW_CLEAR_DEPTH out of the spawn
+# zone (capped by SWEEP_ROW_TIMEOUT) — otherwise rows pile up at the top instead of descending apart.
 const SWEEP_ROW_SIZE: int = 4
+const SWEEP_ROW_CLEAR_DEPTH: float = 36.0
+const SWEEP_ROW_TIMEOUT: float = 1.6
 # Staggered arrival for LARGE enemies (height >= ANCHOR_MIN_HEIGHT): in a spread formation
 # (e.g. lanes 1/3/5) the next lane's enemy does not arrive until the previous one has
 # descended ANCHOR_ARRIVAL_DEPTH (≈ half its body in the playfield) — so cruisers like the
@@ -411,13 +415,34 @@ func _dispatch_sweep_rows(ph: Resource) -> void:
 			# clarity cap by much. At least 1 so we always make progress.
 			var room: int = maxi(1, max_concurrent - _alive_count())
 			var group: int = mini(mini(SWEEP_ROW_SIZE, room), sp.count - i)
+			var last_spawned: Node = null
 			for ln in _sweep_row_lanes(group, row_index):
 				if i >= sp.count:
 					break
-				_spawn_enemy(sp, i, int(ln))
+				last_spawned = _spawn_enemy(sp, i, int(ln))
 				i += 1
 			row_index += 1
-			await get_tree().create_timer(maxf(sp.spawn_interval, ANTI_BURST_FLOOR)).timeout
+			# Gate the next row on THIS row clearing the spawn zone so rows descend SEPARATED (the
+			# structured lanes don't avoid occupancy the way _pick_lane did, so without this they stack).
+			if i < sp.count:
+				await _await_row_clear(last_spawned, sp.spawn_interval)
+
+
+# Wait at least `min_beat`, AND until `enemy` has descended SWEEP_ROW_CLEAR_DEPTH (so the row clears
+# the spawn zone before the next), capped at SWEEP_ROW_TIMEOUT so a held/dead row can't stall the
+# wave. `enemy` may be null/freed — then only `min_beat` applies. Adaptive: fast chaff clear quickly
+# (rhythm = the beat), slow chaff wait longer (so they never pile up).
+func _await_row_clear(enemy, min_beat: float) -> void:
+	var floor_beat: float = maxf(min_beat, ANTI_BURST_FLOOR)
+	var start_y: float = (enemy.position.y if (enemy is Node2D and is_instance_valid(enemy)) else 0.0)
+	var t: float = 0.0
+	while _running and t < SWEEP_ROW_TIMEOUT:
+		await get_tree().create_timer(0.05).timeout
+		t += 0.05
+		var cleared: bool = (not (enemy is Node2D)) or (not is_instance_valid(enemy)) \
+			or (enemy.position.y - start_y >= SWEEP_ROW_CLEAR_DEPTH)
+		if t >= floor_beat and cleared:
+			return
 
 
 # Distinct, spread lane set for a sweep row: evenly spaces `n` lanes across the grid with a half-step
