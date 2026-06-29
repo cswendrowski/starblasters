@@ -73,6 +73,8 @@ static func _build_turret(enemy: Node, spec, mount) -> void:
 	t.bullet_variant = spec.payload
 	if spec.bullet_speed > 0.0:
 		t.bullet_speed = spec.bullet_speed
+	t.count = int(spec.count)            # fan volley (turrets honor count/spread now, like guns)
+	t.spread_deg = float(spec.spread_deg)
 	t.recoil_frames = spec.recoil_frames
 	t.homing_rate = spec.homing_rate
 	t.wobble_amplitude = spec.wobble_amplitude

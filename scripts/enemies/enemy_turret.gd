@@ -29,6 +29,10 @@ const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
 @export var bullet_variant: BulletVariant = null
 @export var bullet_speed: float = 160.0
 @export var enabled: bool = true
+# Volley shape (Roman 2026-06-29): fire `count` bullets fanned across `spread_deg` each shot, mirroring
+# gun/launcher mounts. Defaults (1 / 0) = a single aimed shot, so existing turrets are unchanged.
+@export var count: int = 1
+@export var spread_deg: float = 0.0
 # Projectile-movement axis (M6a.2): the turret is a firing emitter, so it drives
 # homing/wobble on its bullets the same way shoot_pattern does — independent of the
 # bullet .tres. >0 overrides the variant's seed.
@@ -126,7 +130,7 @@ func _try_fire() -> void:
 
 
 func _shoot() -> void:
-	var fire_dir := Vector2(cos(_turret_rot - PI * 0.5), sin(_turret_rot - PI * 0.5))
+	var base_dir := Vector2(cos(_turret_rot - PI * 0.5), sin(_turret_rot - PI * 0.5))
 	var EnemyBullet = load("res://scenes/projectiles/enemy_bullet.tscn")
 	if EnemyBullet == null:
 		return
@@ -139,34 +143,46 @@ func _shoot() -> void:
 	var spawn_pos: Vector2 = global_position
 	if has_mz:
 		spawn_pos = p.next_muzzle_pos()
-	var b = EnemyBullet.instantiate()
-	if bullet_variant != null and "variant" in b:
-		b.variant = bullet_variant
 	var world: Node = BulletWorld.resolve(p if p != null else self, get_tree().root)
-	world.add_child(b)
-	if b.has_method("start"):
-		b.start(spawn_pos, fire_dir)
-	else:
-		b.global_position = spawn_pos
-		if "velocity_dir" in b:
-			b.velocity_dir = fire_dir
-		if "speed" in b:
-			b.speed = bullet_speed
-		elif "velocity" in b:
-			b.velocity = fire_dir * bullet_speed
-	# Movement axis — drive homing/wobble post-spawn (after _apply_variant seeded),
-	# so the firing layer (turret) owns movement, not the bullet .tres.
-	if homing_rate > 0.0 and "homing_rate" in b:
-		b.homing_rate = homing_rate
-	if wobble_amplitude > 0.0 and "wobble_amplitude" in b:
-		b.wobble_amplitude = wobble_amplitude
-		b.wobble_frequency = wobble_frequency
+	# Fire `count` bullets fanned across `spread_deg` (1 / 0 = a single aimed shot).
+	var n: int = maxi(1, count)
+	for i in n:
+		var dir := _fan_dir(base_dir, i, n)
+		var b = EnemyBullet.instantiate()
+		if bullet_variant != null and "variant" in b:
+			b.variant = bullet_variant
+		world.add_child(b)
+		if b.has_method("start"):
+			b.start(spawn_pos, dir)
+		else:
+			b.global_position = spawn_pos
+			if "velocity_dir" in b:
+				b.velocity_dir = dir
+			if "speed" in b:
+				b.speed = bullet_speed
+			elif "velocity" in b:
+				b.velocity = dir * bullet_speed
+		# Movement axis — drive homing/wobble post-spawn (after _apply_variant seeded),
+		# so the firing layer (turret) owns movement, not the bullet .tres.
+		if homing_rate > 0.0 and "homing_rate" in b:
+			b.homing_rate = homing_rate
+		if wobble_amplitude > 0.0 and "wobble_amplitude" in b:
+			b.wobble_amplitude = wobble_amplitude
+			b.wobble_frequency = wobble_frequency
 	if has_mz:
 		var MuzzleFx = load("res://scripts/effects/muzzle_fx.gd")
-		MuzzleFx.play_enemy(spawn_pos, fire_dir, world)
+		MuzzleFx.play_enemy(spawn_pos, base_dir, world)
 	# Fire sound — classified off this turret's own bullet_variant (small/tracer
 	# → enemy_mg, else enemy_blaster). Positional at the muzzle.
 	EnemySfxC.play(get_tree().root, spawn_pos, EnemySfxC.kind_for(self))
+
+
+# i-th direction in an n-wide fan around `base` (no fan when spread_deg<=0 or n==1).
+func _fan_dir(base: Vector2, i: int, n: int) -> Vector2:
+	if spread_deg <= 0.0 or n <= 1:
+		return base
+	var total: float = deg_to_rad(spread_deg)
+	return base.rotated(-total * 0.5 + total / float(n - 1) * float(i))
 
 
 # Flick the barrel through its recoil frames (1 -> max -> back to idle 0) on a shot.
