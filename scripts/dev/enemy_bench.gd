@@ -122,12 +122,12 @@ var _pattern_idx: int = 0
 @onready var _recycle_chk: CheckButton = %RecycleCheck
 @onready var _recycle_passes_spin: SpinBox = %RecyclePassesSpin
 @onready var _recycle_chance_spin: SpinBox = %RecycleChanceSpin
-# Stat knobs (live-tuned, persisted, emitted by Copy GDScript).
-@onready var _hp_spin: SpinBox = %HpSpin
-@onready var _bounty_spin: SpinBox = %BountySpin
-@onready var _scale_spin: SpinBox = %ScaleSpin
-@onready var _bspeed_spin: SpinBox = %BSpeedSpin
-@onready var _bdmg_spin: SpinBox = %BDmgSpin
+# Stat knobs (live-tuned, persisted, emitted by Copy GDScript). Built in code inside the Template
+# section (_setup_enemy_template_knobs) so they sit with the size/traits knobs instead of in their
+# own .tscn block. Display-scale + bullet-damage-mult knobs were cut 2026-06-29 (always 1×, untuned).
+var _hp_spin: SpinBox = null
+var _bounty_spin: SpinBox = null
+var _bspeed_spin: SpinBox = null
 # Display strings (editable name + codex, persisted + emitted as an enemy_strings entry).
 @onready var _name_edit: LineEdit = %NameEdit
 @onready var _codex_edit: TextEdit = %CodexEdit
@@ -278,12 +278,7 @@ func _setup_ui() -> void:
 	_payload_dd.item_selected.connect(func(_i): _spawn_current())
 	# Death explosion only matters on death, so apply it live (no respawn).
 	_explosion_dd.item_selected.connect(func(_i): _apply_explosion_live())
-	# Stat knobs: HP/scale respawn (live from frame 0); bounty/bullet mults apply live.
-	_hp_spin.value_changed.connect(func(_v): if not _loading: _spawn_current())
-	_bounty_spin.value_changed.connect(func(_v): if not _loading: _apply_stats_live())
-	_scale_spin.value_changed.connect(func(_v): if not _loading: _spawn_current())
-	_bspeed_spin.value_changed.connect(func(_v): if not _loading: _apply_stats_live())
-	_bdmg_spin.value_changed.connect(func(_v): if not _loading: _apply_stats_live())
+	# Stat knobs (HP/bounty/bullet-speed) are built + wired in _setup_enemy_template_knobs.
 	_name_edit.text_changed.connect(_on_name_edited)
 	_recycle_chk.toggled.connect(func(_v): _apply_recycle_live())
 	_recycle_passes_spin.value_changed.connect(func(_v): _apply_recycle_live())
@@ -343,6 +338,14 @@ func _setup_size_tab() -> void:
 		return
 	_setup_enemy_template_knobs(scroll)
 	_setup_enemy_loco_knobs(scroll)
+	# Save/Copy were the last .tscn child, but the template + locomotion sections get appended in
+	# code after them — so re-seat the separator + button row at the true bottom of the panel.
+	var enemy_content := scroll.get_child(0)
+	if enemy_content is Container:
+		for nm in ["Sep6", "ButtonsRow"]:
+			var n := enemy_content.get_node_or_null(nm)
+			if n != null:
+				enemy_content.move_child(n, enemy_content.get_child_count() - 1)
 	var panel := scroll.get_parent()
 	var tabs := TabContainer.new()
 	tabs.add_theme_font_size_override("font_size", FS_CAPTION)
@@ -524,6 +527,34 @@ func _setup_enemy_template_knobs(scroll: Control) -> void:
 	_retro_chk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_retro_chk.toggled.connect(func(_p): _on_template_changed(0))
 	loco_tr.add_child(_retro_chk)
+	# Hand-tweak stats, folded in below the template (size/traits seed HP + bounty, then override).
+	# (These were a separate "Stats" .tscn block; moved here 2026-06-29 so the knobs live together.)
+	content.add_child(_mk_label("Max HP", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
+	_hp_spin = SpinBox.new()
+	_hp_spin.min_value = 1.0
+	_hp_spin.max_value = 9999.0
+	_hp_spin.value = 1.0
+	_hp_spin.custom_minimum_size = Vector2(0, 30)
+	_hp_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_hp_spin.value_changed.connect(func(_v): if not _loading: _spawn_current())
+	content.add_child(_hp_spin)
+	content.add_child(_mk_label("Bounty", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
+	_bounty_spin = SpinBox.new()
+	_bounty_spin.max_value = 9999.0
+	_bounty_spin.custom_minimum_size = Vector2(0, 30)
+	_bounty_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_bounty_spin.value_changed.connect(func(_v): if not _loading: _apply_stats_live())
+	content.add_child(_bounty_spin)
+	content.add_child(_mk_label("Bullet speed ×", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
+	_bspeed_spin = SpinBox.new()
+	_bspeed_spin.min_value = 0.25
+	_bspeed_spin.max_value = 4.0
+	_bspeed_spin.step = 0.05
+	_bspeed_spin.value = 1.0
+	_bspeed_spin.custom_minimum_size = Vector2(0, 30)
+	_bspeed_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_bspeed_spin.value_changed.connect(func(_v): if not _loading: _apply_stats_live())
+	content.add_child(_bspeed_spin)
 
 
 func _on_template_changed(_i: int) -> void:
@@ -1021,111 +1052,85 @@ func _make_mount_row(idx: int) -> Control:
 	head.add_child(rm)
 	row.add_child(head)
 
-	var h1 := HBoxContainer.new()
+	# Every field as a labelled row in a 2-col grid (label | control), one per line — see _grid_row.
+	var grid := _field_grid()
+	row.add_child(grid)
+
 	var kind_dd := _row_dd(MOUNT_KIND_LABELS, MOUNT_KINDS.find(String(d.get("kind", "gun"))))
 	kind_dd.item_selected.connect(func(i): _set_mount(d, "kind", MOUNT_KINDS[i]))
-	h1.add_child(kind_dd)
+	_grid_row(grid, "kind", kind_dd)
+
 	var mopts: Array = _marker_options(_selected_path)
 	var cur_mk: String = _marker_label(String(d.get("marker", "")))
 	if not mopts.has(cur_mk):
 		mopts.append(cur_mk)   # keep a glob like "Turret*" (from a roster mount) selectable
 	var mk_dd := _row_dd(mopts, maxi(0, mopts.find(cur_mk)))
 	mk_dd.item_selected.connect(func(i): _set_mount(d, "marker", _marker_value(String(mopts[i]))))
-	h1.add_child(mk_dd)
-	row.add_child(h1)
+	_grid_row(grid, "marker", mk_dd)
 
-	var h2 := HBoxContainer.new()
 	var pnames: Array = _mount_payload_names()
 	var pay_dd := _row_dd(pnames, maxi(0, pnames.find(String(d.get("payload", "Basic")))))
 	pay_dd.item_selected.connect(func(i): _set_mount(d, "payload", String(pnames[i])))
-	h2.add_child(pay_dd)
+	_grid_row(grid, "payload", pay_dd)
+
 	var aim_dd := _row_dd(MOUNT_AIM_LABELS, maxi(0, MOUNT_AIM_KEYS.find(String(d.get("aim", "straight_down")))))
 	aim_dd.item_selected.connect(func(i): _set_mount(d, "aim", MOUNT_AIM_KEYS[i]))
-	h2.add_child(aim_dd)
-	row.add_child(h2)
+	_grid_row(grid, "aim", aim_dd)
 
-	var h3 := HBoxContainer.new()
-	h3.add_child(_row_lbl("rate"))
 	var rate := _row_spin(0.1, 6.0, 0.1, float(d.get("fire", 1.5)))
 	rate.value_changed.connect(func(v): _set_mount(d, "fire", float(v)))
-	h3.add_child(rate)
-	h3.add_child(_row_lbl("count"))
+	_grid_row(grid, "rate", rate)
+
 	var cnt := _row_spin(1, 12, 1, float(d.get("count", 1)))
 	cnt.value_changed.connect(func(v): _set_mount(d, "count", int(v)))
-	h3.add_child(cnt)
-	h3.add_child(_row_lbl("spread"))
+	_grid_row(grid, "count", cnt)
+
 	var spr := _row_spin(0.0, 90.0, 2.0, float(d.get("spread", 0.0)))
 	spr.value_changed.connect(func(v): _set_mount(d, "spread", float(v)))
-	h3.add_child(spr)
-	row.add_child(h3)
+	_grid_row(grid, "spread", spr)
 
 	# Firing pattern controls for gun/launcher mounts only.
 	var k: String = String(d.get("kind", "gun"))
 	if k == "gun" or k == "launcher":
-		var h4 := HBoxContainer.new()
-		var sync_labels: Array = ["All", "Cycle"]
 		var sync_keys: Array = ["all", "cycle"]
-		var cur_mode: String = String(d.get("marker_mode", "cycle"))
-		var sync_dd := _row_dd(sync_labels, maxi(0, sync_keys.find(cur_mode)))
+		var sync_dd := _row_dd(["All", "Cycle"], maxi(0, sync_keys.find(String(d.get("marker_mode", "cycle")))))
 		sync_dd.item_selected.connect(func(i): _set_mount(d, "marker_mode", String(sync_keys[i])))
-		h4.add_child(sync_dd)
-		h4.add_child(_row_lbl("sync"))
+		_grid_row(grid, "sync", sync_dd)
+
 		var burst := _row_spin(0.0, 0.5, 0.01, float(d.get("burst_interval", 0.0)))
 		burst.value_changed.connect(func(v): _set_mount(d, "burst_interval", float(v)))
-		h4.add_child(burst)
-		h4.add_child(_row_lbl("burst"))
+		_grid_row(grid, "burst", burst)
+
 		var spd := _row_spin(-1.0, 600.0, 10.0, float(d.get("bullet_speed", -1.0)))
 		spd.value_changed.connect(func(v): _set_mount(d, "bullet_speed", float(v)))
-		h4.add_child(spd)
-		h4.add_child(_row_lbl("speed"))
-		row.add_child(h4)
+		_grid_row(grid, "speed", spd)
 
 		# Firing conditions: zone/nose gates + path-phase mode (mirror the hull shoot).
-		var h5 := HBoxContainer.new()
-		var zone_chk := CheckBox.new()
-		zone_chk.text = "zone"
-		zone_chk.button_pressed = bool(d.get("zone_gated", false))
-		zone_chk.add_theme_font_size_override("font_size", FS_CAPTION)
+		var zone_chk := _row_check(bool(d.get("zone_gated", false)))
 		zone_chk.toggled.connect(func(on): _set_mount(d, "zone_gated", on))
-		h5.add_child(zone_chk)
-		var nose_chk := CheckBox.new()
-		nose_chk.text = "nose"
-		nose_chk.button_pressed = bool(d.get("nose_gated", false))
-		nose_chk.add_theme_font_size_override("font_size", FS_CAPTION)
+		_grid_row(grid, "zone", zone_chk)
+
+		var nose_chk := _row_check(bool(d.get("nose_gated", false)))
 		nose_chk.toggled.connect(func(on): _set_mount(d, "nose_gated", on))
-		h5.add_child(nose_chk)
-		h5.add_child(_row_lbl("tol"))
+		_grid_row(grid, "nose", nose_chk)
+
 		var tol := _row_spin(2.0, 90.0, 1.0, float(d.get("aim_tol", 18.0)))
 		tol.value_changed.connect(func(v): _set_mount(d, "aim_tol", float(v)))
-		h5.add_child(tol)
-		row.add_child(h5)
+		_grid_row(grid, "tol", tol)
 
-		var h6 := HBoxContainer.new()
-		h6.add_child(_row_lbl("path"))
-		var pp := LineEdit.new()
-		pp.placeholder_text = "0.4,0.7"
-		pp.text = String(d.get("path_phases", ""))
-		pp.custom_minimum_size = Vector2(72, 26)
-		pp.add_theme_font_size_override("font_size", FS_CAPTION)
+		var pp := _row_line(String(d.get("path_phases", "")), "0.4,0.7")
 		pp.text_submitted.connect(func(t): _set_mount(d, "path_phases", t))
 		pp.focus_exited.connect(func(): _set_mount(d, "path_phases", pp.text))
-		h6.add_child(pp)
-		var beat_chk := CheckBox.new()
-		beat_chk.text = "beat"
-		beat_chk.button_pressed = bool(d.get("beat_synced", true))
-		beat_chk.add_theme_font_size_override("font_size", FS_CAPTION)
+		_grid_row(grid, "path", pp)
+
+		var beat_chk := _row_check(bool(d.get("beat_synced", true)))
 		beat_chk.toggled.connect(func(on): _set_mount(d, "beat_synced", on))
-		h6.add_child(beat_chk)
-		h6.add_child(_row_lbl("phase"))
-		var phase_ed := LineEdit.new()
-		phase_ed.placeholder_text = "name"
-		phase_ed.text = String(d.get("on_phase", ""))
-		phase_ed.custom_minimum_size = Vector2(64, 26)
-		phase_ed.add_theme_font_size_override("font_size", FS_CAPTION)
+		_grid_row(grid, "beat", beat_chk)
+
+		var phase_ed := _row_line(String(d.get("on_phase", "")), "name")
 		phase_ed.text_submitted.connect(func(t): _set_mount(d, "on_phase", t))
 		phase_ed.focus_exited.connect(func(): _set_mount(d, "on_phase", phase_ed.text))
-		h6.add_child(phase_ed)
-		row.add_child(h6)
+		_grid_row(grid, "phase", phase_ed)
 
 	return row
 
@@ -1197,40 +1202,28 @@ func _make_emitter_row(idx: int) -> Control:
 	rm.pressed.connect(func(): _remove_emitter(d))
 	head.add_child(rm)
 	row.add_child(head)
-	# Row 1: trigger + payload
-	var h1 := HBoxContainer.new()
+	# Every field as a labelled row in a 2-col grid (label | control) — see _grid_row.
+	var grid := _field_grid()
+	row.add_child(grid)
 	var trig_dd := _row_dd(EMITTER_TRIGGER_LABELS, maxi(0, EMITTER_TRIGGERS.find(String(d.get("trigger", "timer")))))
 	trig_dd.item_selected.connect(func(i): _set_emitter(d, "trigger", EMITTER_TRIGGERS[i]))
-	h1.add_child(trig_dd)
+	_grid_row(grid, "trigger", trig_dd)
 	var pnames: Array = EnemyRoster.EMITTABLE.keys()
 	var pay_dd := _row_dd(pnames, maxi(0, pnames.find(String(d.get("payload", "Missile")))))
 	pay_dd.item_selected.connect(func(i): _set_emitter(d, "payload", String(pnames[i])))
-	h1.add_child(pay_dd)
-	row.add_child(h1)
-	# Row 2: cadence + count
-	var h2 := HBoxContainer.new()
-	h2.add_child(_row_lbl("every"))
+	_grid_row(grid, "payload", pay_dd)
 	var cad := _row_spin(0.1, 6.0, 0.05, float(d.get("cadence", 0.55)))
 	cad.value_changed.connect(func(v): _set_emitter(d, "cadence", float(v)))
-	h2.add_child(cad)
-	h2.add_child(_row_lbl("count"))
+	_grid_row(grid, "every", cad)
 	var cnt := _row_spin(1, 12, 1, float(d.get("count", 1)))
 	cnt.value_changed.connect(func(v): _set_emitter(d, "count", int(v)))
-	h2.add_child(cnt)
-	row.add_child(h2)
-	# Row 3: max-per-pass (TIMER) + on-screen gate
-	var h3 := HBoxContainer.new()
-	h3.add_child(_row_lbl("max/pass"))
+	_grid_row(grid, "count", cnt)
 	var mx := _row_spin(0, 20, 1, float(d.get("max_emits", 0)))
 	mx.value_changed.connect(func(v): _set_emitter(d, "max_emits", int(v)))
-	h3.add_child(mx)
-	var band := CheckBox.new()
-	band.text = "on-screen"
-	band.button_pressed = bool(d.get("band_only", false))
-	band.add_theme_font_size_override("font_size", FS_CAPTION)
+	_grid_row(grid, "max/pass", mx)
+	var band := _row_check(bool(d.get("band_only", false)))
 	band.toggled.connect(func(p): _set_emitter(d, "band_only", p))
-	h3.add_child(band)
-	row.add_child(h3)
+	_grid_row(grid, "on-screen", band)
 	return row
 
 
@@ -1466,6 +1459,42 @@ func _row_lbl(t: String) -> Label:
 	return l
 
 
+# Append a "label | control" pair to a 2-column GridContainer. Mount/emitter fields used to cram
+# three label+control pairs onto one HBox row in this narrow gutter, so the controls overran their
+# captions; one field per row in a 2-col grid keeps every caption readable (Roman 2026-06-29).
+# The caption sits at its natural width in col1; the control expands to fill col2.
+func _grid_row(grid: GridContainer, label: String, ctl: Control) -> void:
+	grid.add_child(_row_lbl(label))
+	ctl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_child(ctl)
+
+
+# A 2-col field grid for a mount/emitter row (label col + expanding control col).
+func _field_grid() -> GridContainer:
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 3)
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	return grid
+
+
+func _row_check(pressed: bool) -> CheckBox:
+	var c := CheckBox.new()
+	c.button_pressed = pressed
+	c.add_theme_font_size_override("font_size", FS_CAPTION)
+	return c
+
+
+func _row_line(text: String, placeholder: String) -> LineEdit:
+	var le := LineEdit.new()
+	le.text = text
+	le.placeholder_text = placeholder
+	le.custom_minimum_size = Vector2(0, 26)
+	le.add_theme_font_size_override("font_size", FS_CAPTION)
+	return le
+
+
 # Turret-mounted enemies (zealot tank turret, gun_turret, push dome…) fire through child
 # EnemyTurret nodes that carry their OWN bullet_variant and ignore the enemy's shoot_pattern —
 # so the Payload dropdown is a no-op on them unless we push the selection onto each turret too.
@@ -1515,12 +1544,8 @@ func _apply_stats_to(inst: Node) -> void:
 		inst.max_health = int(_hp_spin.value)
 	if "bounty_value" in inst:
 		inst.bounty_value = int(_bounty_spin.value)
-	if "display_scale" in inst:
-		inst.display_scale = float(_scale_spin.value)
 	if "bullet_speed_mult" in inst:
 		inst.bullet_speed_mult = float(_bspeed_spin.value)
-	if "bullet_damage_mult" in inst:
-		inst.bullet_damage_mult = float(_bdmg_spin.value)
 	# Locomotion preview: resolve from the enemy's ENTRIES size + the bench engine/depth so the live
 	# ship moves at the tuned speed/depth (locomotion refactor 2026-06-19).
 	if "move_speed" in inst and _engine_spin != null:
@@ -1544,8 +1569,6 @@ func _apply_stats_live() -> void:
 		_current_enemy.bounty_value = int(_bounty_spin.value)
 	if "bullet_speed_mult" in _current_enemy:
 		_current_enemy.bullet_speed_mult = float(_bspeed_spin.value)
-	if "bullet_damage_mult" in _current_enemy:
-		_current_enemy.bullet_damage_mult = float(_bdmg_spin.value)
 
 
 func _apply_recycle_live() -> void:
@@ -1634,11 +1657,12 @@ func _load_settings_into_editors() -> void:
 		_recycle_passes_spin.value = int(s.get("recycle_passes", 1))
 	if _recycle_chance_spin:
 		_recycle_chance_spin.value = float(s.get("recycle_chance", 1.0))
-	_hp_spin.value = int(s.get("max_health", nat.get("max_health", 1)))
-	_bounty_spin.value = int(s.get("bounty_value", nat.get("bounty_value", 5)))
-	_scale_spin.value = float(s.get("display_scale", nat.get("display_scale", 1.0)))
-	_bspeed_spin.value = float(s.get("bullet_speed_mult", nat.get("bullet_speed_mult", 1.0)))
-	_bdmg_spin.value = float(s.get("bullet_damage_mult", nat.get("bullet_damage_mult", 1.0)))
+	if _hp_spin:
+		_hp_spin.value = int(s.get("max_health", nat.get("max_health", 1)))
+	if _bounty_spin:
+		_bounty_spin.value = int(s.get("bounty_value", nat.get("bounty_value", 5)))
+	if _bspeed_spin:
+		_bspeed_spin.value = float(s.get("bullet_speed_mult", nat.get("bullet_speed_mult", 1.0)))
 	if _engine_spin != null:
 		var le: Dictionary = EnemyRoster.entry_for_scene(_selected_path)
 		_engine_spin.value = int(s.get("engine", int(le.get("engine", 0))))
@@ -1676,7 +1700,7 @@ func _scene_defaults(path: String) -> Dictionary:
 	if ps == null:
 		return out
 	var inst := ps.instantiate()
-	for k in ["max_health", "bounty_value", "display_scale", "bullet_speed_mult", "bullet_damage_mult"]:
+	for k in ["max_health", "bounty_value", "bullet_speed_mult"]:
 		if k in inst:
 			out[k] = inst.get(k)
 	inst.free()
@@ -1695,11 +1719,9 @@ func _current_settings() -> Dictionary:
 		"can_recycle": _recycle_chk.button_pressed,
 		"recycle_passes": int(_recycle_passes_spin.value),
 		"recycle_chance": float(_recycle_chance_spin.value),
-		"max_health": int(_hp_spin.value),
-		"bounty_value": int(_bounty_spin.value),
-		"display_scale": float(_scale_spin.value),
-		"bullet_speed_mult": float(_bspeed_spin.value),
-		"bullet_damage_mult": float(_bdmg_spin.value),
+		"max_health": int(_hp_spin.value) if _hp_spin else 1,
+		"bounty_value": int(_bounty_spin.value) if _bounty_spin else 0,
+		"bullet_speed_mult": float(_bspeed_spin.value) if _bspeed_spin else 1.0,
 		"name": _name_edit.text,
 		"codex": _codex_edit.text,
 		"mounts": _dup_mounts(_mount_dicts),
@@ -1749,9 +1771,7 @@ func _on_copy() -> void:
 	txt += "# Stats:\n"
 	txt += "enemy.max_health = %d\n" % s["max_health"]
 	txt += "enemy.bounty_value = %d\n" % s["bounty_value"]
-	txt += "enemy.display_scale = %.2f\n" % s["display_scale"]
 	txt += "enemy.bullet_speed_mult = %.2f\n" % s["bullet_speed_mult"]
-	txt += "enemy.bullet_damage_mult = %.2f\n" % s["bullet_damage_mult"]
 	txt += "# Recycle behavior:\n"
 	if s["can_recycle"]:
 		txt += "enemy.recycle_passes = %d  # %.1f chance to recycle\n" % [s["recycle_passes"], s["recycle_chance"]]

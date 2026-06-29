@@ -58,6 +58,13 @@ These are the highest-value pages — each walks the full add, end to end:
 - **A new Part (ship upgrade)** → [Doc 04 → "Add a new Part"](04-player-parts-economy.md#walkthrough-add-a-new-part)
 - **A new projectile or effect** → [Doc 05 → "Add a projectile / effect"](05-projectiles-effects-visuals.md#walkthrough-add-a-new-projectile)
 
+## Dev tool guides
+
+Reference docs for the human-run tuners (launched from the Dev Menu):
+
+- **The Enemy Bench** (tune an enemy's weapons/stats/locomotion live) →
+  [Enemy Bench — User Guide](enemy-bench-guide.md)
+
 ---
 
 ## Where everything lives (folder map)
