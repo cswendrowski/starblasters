@@ -23,16 +23,18 @@ const PLAYER_SCENE = preload("res://scenes/player/player.tscn")
 const SAVE_PATH := "user://tuners/enemy_bench.json"
 
 # Editor option pools.
+# Payloads collapsed to the 4 generic FAMILIES (Roman 2026-06-29). Each maps to a family-tagged base
+# variant; the faction-appearance swap (BulletCatalog.faction_variant, via the enemy's faction_skin)
+# restyles it to the enemy's faction at spawn — so the bench just picks the shape, not the faction.
 const PAYLOADS := {
-	"Basic": EnemyRoster.BV_Basic, "Spread Pellet": EnemyRoster.BV_SpreadPellet,
-	"Aimed Sniper": EnemyRoster.BV_AimedSniper, "Burst Round": EnemyRoster.BV_BurstRound,
-	"Plasma Orb": EnemyRoster.BV_PlasmaOrb, "Heavy Slug": EnemyRoster.BV_HeavySlug,
-	"Drop Pellet": EnemyRoster.BV_DropPellet,
-	"Zealot Ball": EnemyRoster.BV_ZealotBall, "Zealot Bolt": EnemyRoster.BV_ZealotBolt,
-	"Zealot Laser": EnemyRoster.BV_ZealotLaser, "Zealot Wave": EnemyRoster.BV_ZealotWave,
-	"Privateer Ball": EnemyRoster.BV_PrivBall, "Privateer Bolt": EnemyRoster.BV_PrivBolt,
-	"Privateer Laser": EnemyRoster.BV_PrivLaser, "Privateer Wave": EnemyRoster.BV_PrivWave,
+	"Ball": EnemyRoster.BV_PrivBall,
+	"Bolt": EnemyRoster.BV_PrivBolt,
+	"Laser": EnemyRoster.BV_PrivLaser,
+	"Wave": EnemyRoster.BV_PrivWave,
 }
+# Family name -> the BulletVariant const to emit in Copy GDScript (the family-tagged base; the faction
+# swap at spawn handles per-faction styling, so any faction's same-family clone would work as the base).
+const PAYLOAD_CONST := {"Ball": "BV_PrivBall", "Bolt": "BV_PrivBolt", "Laser": "BV_PrivLaser", "Wave": "BV_PrivWave"}
 
 # Faction filter tabs (Roman 2026-06-12). "All" + the 4 factions + Core (universal chaff) +
 # Hazards (mines/asteroid) + Bosses. Group is derived from the scene PATH (folder), not the
@@ -117,6 +119,7 @@ var _pattern_idx: int = 0
 # Editors (all live in the scene's right panel).
 @onready var _name_lbl: Label = %NameLabel
 @onready var _stats_lbl: Label = %StatsLabel
+@onready var _weapon_header: Label = %WeaponHeader   # "Turret payload" header (hidden when no turret)
 @onready var _payload_dd: OptionButton = %PayloadDD
 @onready var _explosion_dd: OptionButton = %ExplosionDD
 @onready var _recycle_chk: CheckButton = %RecycleCheck
@@ -880,6 +883,9 @@ func _spawn_current() -> void:
 	if ps == null:
 		return
 	var inst := ps.instantiate()
+	# Stamp the faction skin (the production director does this on every spawn) so the collapsed
+	# family payloads (Ball/Bolt/Laser/Wave) restyle to THIS enemy's faction in the preview.
+	inst.set_meta("faction_skin", _faction_id_for_selected())
 	var spawn_pos := Vector2(Playfield.CENTER.x, -20)
 	# Configure BEFORE add_child + start() so enemy_core._start_with_pattern
 	# duplicates the chosen movement and the weapon/explosion are live from frame 0.
@@ -925,12 +931,33 @@ func _spawn_current() -> void:
 	if inst.has_method("start"):
 		inst.start(spawn_pos)
 	_apply_payload_to_turrets(inst)   # turret-mounted enemies fire via child turrets, not shoot_pattern
+	_update_turret_payload_visibility(inst)
 	if _pattern_lbl:
 		var n: int = max(1, _eligible.size())
 		_pattern_lbl.text = "Pattern: %s  (%d/%d)" % [(key if key != "" else "—"), _pattern_idx + 1, n]
 	_refresh_info()
 
 
+# The "Turret payload" dropdown only does anything for enemies with BAKED child turrets and no mounts
+# (mount turrets carry their own payload). Hide the header + dropdown otherwise so it isn't offered on
+# enemies that have no turret (Roman 2026-06-29).
+func _update_turret_payload_visibility(inst: Node) -> void:
+	var has_turret: bool = inst != null and _mount_dicts.is_empty() and not _collect_turrets(inst, []).is_empty()
+	if _payload_dd:
+		_payload_dd.visible = has_turret
+	if _weapon_header:
+		_weapon_header.visible = has_turret
+
+
+# The faction Id for the selected enemy's group (folder), so the bench preview swaps the family
+# payloads to the right faction's bullet style. -1 = no skin (Core / Hazards / All → authored base).
+func _faction_id_for_selected() -> int:
+	match _group_of(_selected_path):
+		"Supremacy": return Factions.Id.SUPREMACY
+		"Privateer": return Factions.Id.PRIVATEER
+		"Corporate": return Factions.Id.CORPORATE
+		"Zealot": return Factions.Id.ZEALOT
+	return -1
 
 
 # The BulletVariant currently picked in the Payload dropdown.
@@ -956,7 +983,7 @@ func _mount_spec_dicts() -> Array:
 			"fire_min": float(d.get("fire", 1.5)), "fire_max": float(d.get("fire", 1.5)),
 			"count": int(d.get("count", 1)), "spread_deg": float(d.get("spread", 0.0)),
 		}
-		var pname: String = String(d.get("payload", "Basic"))
+		var pname: String = String(d.get("payload", "Ball"))
 		if PAYLOADS.has(pname):
 			sd["payload"] = PAYLOADS[pname]
 		elif PROJECTILES.has(pname):
@@ -970,8 +997,8 @@ func _mount_spec_dicts() -> Array:
 			var bspeed: float = float(d.get("bullet_speed", -1.0))
 			if bspeed >= 0.0:
 				sd["bullet_speed"] = bspeed
-			# Firing conditions (gates + path-phase mode), honoured by MountComponent.
-			sd["fire_zone_gated"] = bool(d.get("zone_gated", false))
+			# Firing conditions (path-phase mode + nose gate), honoured by MountComponent. The zone gate
+			# was retired 2026-06-29 (off-screen suppression is already universal via _on_playfield).
 			sd["fire_only_on_target"] = bool(d.get("nose_gated", false))
 			sd["fire_aim_tol_deg"] = float(d.get("aim_tol", 18.0))
 			sd["fire_on_phase"] = String(d.get("on_phase", ""))
@@ -994,7 +1021,7 @@ func _mount_spec_dicts() -> Array:
 
 
 func _add_mount() -> void:
-	_mount_dicts.append({"kind": "gun", "marker": "", "payload": "Basic", "aim": "straight_down", "fire": 1.5, "count": 1, "spread": 0.0, "marker_mode": "cycle", "burst_interval": 0.0, "bullet_speed": -1.0, "zone_gated": false, "nose_gated": false, "aim_tol": 18.0, "path_phases": "", "beat_synced": true, "on_phase": ""})
+	_mount_dicts.append({"kind": "gun", "marker": "", "payload": "Ball", "aim": "straight_down", "fire": 1.5, "count": 1, "spread": 0.0, "marker_mode": "cycle", "burst_interval": 0.0, "bullet_speed": -1.0, "nose_gated": false, "aim_tol": 18.0, "path_phases": "", "beat_synced": true, "on_phase": ""})
 	_rebuild_mounts_ui()
 	_spawn_current()
 
@@ -1057,7 +1084,7 @@ func _make_mount_row(idx: int) -> Control:
 	_grid_row(grid, "marker", mk_dd)
 
 	var pnames: Array = _mount_payload_names()
-	var pay_dd := _row_dd(pnames, maxi(0, pnames.find(String(d.get("payload", "Basic")))))
+	var pay_dd := _row_dd(pnames, maxi(0, pnames.find(String(d.get("payload", "Ball")))))
 	pay_dd.item_selected.connect(func(i): _set_mount(d, "payload", String(pnames[i])))
 	_grid_row(grid, "payload", pay_dd)
 
@@ -1080,24 +1107,39 @@ func _make_mount_row(idx: int) -> Control:
 	# Firing pattern controls for gun/launcher mounts only.
 	var k: String = String(d.get("kind", "gun"))
 	if k == "gun" or k == "launcher":
+		# muzzles: which marker(s) fire each shot — All (every marker) vs Cycle (round-robin).
 		var sync_keys: Array = ["all", "cycle"]
 		var sync_dd := _row_dd(["All", "Cycle"], maxi(0, sync_keys.find(String(d.get("marker_mode", "cycle")))))
 		sync_dd.item_selected.connect(func(i): _set_mount(d, "marker_mode", String(sync_keys[i])))
-		_grid_row(grid, "sync", sync_dd)
+		_grid_row(grid, "muzzles", sync_dd)
 
-		var burst := _row_spin(0.0, 0.5, 0.01, float(d.get("burst_interval", 0.0)))
-		burst.value_changed.connect(func(v): _set_mount(d, "burst_interval", float(v)))
-		_grid_row(grid, "burst", burst)
+		# volley: fire all `count` bullets at once (Simultaneous, burst_interval 0) or spaced out (Burst,
+		# burst_interval seconds between shots). The burst-gap spin only shows in Burst mode.
+		var is_burst: bool = float(d.get("burst_interval", 0.0)) > 0.0
+		var volley_dd := _row_dd(["Simultaneous", "Burst"], 1 if is_burst else 0)
+		_grid_row(grid, "volley", volley_dd)
+		var burst_lbl := _grid_label(grid, "burst gap")
+		var burst := _row_spin(0.02, 0.5, 0.01, maxf(0.1, float(d.get("burst_interval", 0.1))))
+		burst.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		grid.add_child(burst)
+		burst_lbl.visible = is_burst
+		burst.visible = is_burst
+		volley_dd.item_selected.connect(func(i):
+			var on: bool = i == 1
+			burst_lbl.visible = on
+			burst.visible = on
+			_set_mount(d, "burst_interval", float(burst.value) if on else 0.0))
+		burst.value_changed.connect(func(v):
+			if volley_dd.selected == 1:
+				_set_mount(d, "burst_interval", float(v)))
 
 		var spd := _row_spin(-1.0, 600.0, 10.0, float(d.get("bullet_speed", -1.0)))
 		spd.value_changed.connect(func(v): _set_mount(d, "bullet_speed", float(v)))
 		_grid_row(grid, "speed", spd)
 
-		# Firing conditions: zone/nose gates + path-phase mode (mirror the hull shoot).
-		var zone_chk := _row_check(bool(d.get("zone_gated", false)))
-		zone_chk.toggled.connect(func(on): _set_mount(d, "zone_gated", on))
-		_grid_row(grid, "zone", zone_chk)
-
+		# Firing conditions: nose gate + path-phase mode (mirror the hull shoot). The old "zone" toggle
+		# was dropped 2026-06-29 — off-screen suppression is already universal (_on_playfield), so the
+		# per-mount zone gate was redundant clutter.
 		var nose_chk := _row_check(bool(d.get("nose_gated", false)))
 		nose_chk.toggled.connect(func(on): _set_mount(d, "nose_gated", on))
 		_grid_row(grid, "nose", nose_chk)
@@ -1348,7 +1390,6 @@ func _roster_mount_to_bench(d: Dictionary) -> Dictionary:
 		"marker_mode": String(d.get("marker_mode", "cycle")),
 		"burst_interval": float(d.get("burst_interval", 0.0)),
 		"bullet_speed": float(d.get("bullet_speed", -1.0)),
-		"zone_gated": bool(d.get("fire_zone_gated", false)),
 		"nose_gated": bool(d.get("fire_only_on_target", false)),
 		"aim_tol": float(d.get("fire_aim_tol_deg", 18.0)),
 		"path_phases": ",".join(pp_toks),
@@ -1357,11 +1398,16 @@ func _roster_mount_to_bench(d: Dictionary) -> Dictionary:
 	}
 
 
-# Reverse-resolve a roster mount's payload (a BulletVariant resource or a scene path) to its bench
-# dropdown name. Both PAYLOADS and the roster share the same preloaded BV_* consts → identity match.
+# Reverse-resolve a roster mount's payload to its bench dropdown name. Payloads collapsed to families
+# (2026-06-29), so map by the variant's `family` first — any faction's clone (zealot/privateer ball)
+# folds to the generic "Ball". A non-family variant (e.g. legacy BV_Basic) falls back to "Ball".
 func _payload_name_of(d: Dictionary) -> String:
 	var pv = d.get("payload", null)
 	if pv != null:
+		if "family" in pv and String(pv.family) != "":
+			var fam: String = String(pv.family).capitalize()   # "ball" -> "Ball"
+			if PAYLOADS.has(fam):
+				return fam
 		for k in PAYLOADS:
 			if PAYLOADS[k] == pv:
 				return String(k)
@@ -1371,15 +1417,15 @@ func _payload_name_of(d: Dictionary) -> String:
 		for k in PROJECTILES:
 			if String(PROJECTILES[k]) == p:
 				return String(k)
-	return "Basic"
+	return "Ball"
 
 
 # A paste-ready roster "mounts" dict literal for one mount (payload → BV_ const or scene path).
 func _mount_copy_line(d: Dictionary) -> String:
-	var pname: String = String(d.get("payload", "Basic"))
+	var pname: String = String(d.get("payload", "Ball"))
 	var pay: String = "\"payload\": null"
 	if PAYLOADS.has(pname):
-		pay = "\"payload\": BV_%s" % pname.replace(" ", "")
+		pay = "\"payload\": %s" % String(PAYLOAD_CONST.get(pname, "BV_PrivBall"))
 	elif PROJECTILES.has(pname):
 		pay = "\"payload_scene\": \"%s\"" % PROJECTILES[pname]
 	var line: String = "{ \"kind\": \"%s\", \"marker\": \"%s\", %s, \"aim\": \"%s\", \"fire_min\": %.2f, \"fire_max\": %.2f, \"count\": %d, \"spread_deg\": %.1f" % [
@@ -1398,8 +1444,6 @@ func _mount_copy_line(d: Dictionary) -> String:
 		var bspeed: float = float(d.get("bullet_speed", -1.0))
 		if bspeed >= 0.0:
 			line += ", \"bullet_speed\": %.0f" % bspeed
-		if bool(d.get("zone_gated", false)):
-			line += ", \"fire_zone_gated\": true"
 		if bool(d.get("nose_gated", false)):
 			line += ", \"fire_only_on_target\": true, \"fire_aim_tol_deg\": %.0f" % float(d.get("aim_tol", 18.0))
 		var pp_copy: String = String(d.get("path_phases", "")).strip_edges()
@@ -1452,17 +1496,23 @@ func _row_lbl(t: String) -> Label:
 # captions; one field per row in a 2-col grid keeps every caption readable (Roman 2026-06-29).
 # The caption sits at its natural width in col1; the control expands to fill col2.
 func _grid_row(grid: GridContainer, label: String, ctl: Control) -> void:
-	# Grid captions must NOT autowrap (an autowrap label reports ~0 min width → the column collapses
-	# and the control draws over the caption). Non-wrapping, so col1 holds the caption's real width.
+	_grid_label(grid, label)
+	ctl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_child(ctl)
+
+
+# Add just the col1 caption of a grid row (returned so the caller can toggle it with its control, e.g.
+# to show/hide the burst-gap row). Captions must NOT autowrap — an autowrap label reports ~0 min width
+# so the column collapses and the control draws over the caption (the overlap bug Roman hit).
+func _grid_label(grid: GridContainer, text: String) -> Label:
 	var l := Label.new()
-	l.text = label
+	l.text = text
 	l.add_theme_font_size_override("font_size", FS_CAPTION)
 	l.add_theme_color_override("font_color", Color(0.70, 0.78, 0.88, 0.70))
 	l.autowrap_mode = TextServer.AUTOWRAP_OFF
 	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	grid.add_child(l)
-	ctl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	grid.add_child(ctl)
+	return l
 
 
 # A 2-col field grid for a mount/emitter row (label col + expanding control col).
@@ -1692,7 +1742,7 @@ func _load_settings_into_editors() -> void:
 	_loading = true
 	var s: Dictionary = _saved.get(_selected_path, {})
 	var nat: Dictionary = _scene_defaults(_selected_path)   # native scene values = fallbacks
-	_select_text(_payload_dd, String(s.get("payload", "Basic")), PAYLOADS.keys())
+	_select_text(_payload_dd, String(s.get("payload", "Ball")), PAYLOADS.keys())
 	_select_text(_explosion_dd, String(s.get("explosion", "default")), ExplosionFx.variant_names())
 	if _recycle_chk:
 		_recycle_chk.button_pressed = bool(s.get("can_recycle", true))

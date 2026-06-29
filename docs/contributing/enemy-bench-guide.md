@@ -52,12 +52,12 @@ into source.
 ### Top: Name + stats readout
 A live header showing the display name and `HP / Bounty / Eligible patterns`.
 
-### Payload
-The bullet (`BulletVariant`) used by enemies that fire through **child turrets**
-(zealot tank turret, gun_turret, etc.). Note: the old hull weapon ("Mount 0")
-was retired — so for **mount-based** enemies this dropdown is a no-op and each
-mount carries its own payload. It only bites on turret-driven enemies *when you
-have no mounts defined*.
+### Turret payload
+The bullet used by enemies that fire through **child turrets** (zealot tank
+turret, gun_turret, etc.). **This header + dropdown only appear when the selected
+enemy actually has child turrets and no mounts** — it's hidden otherwise (the old
+hull weapon was retired, and mount turrets carry their own payload). Choices are
+the four bullet **families** (see below).
 
 ### Explosion
 Death explosion variant. Applies live (no respawn needed) since it only matters
@@ -122,20 +122,27 @@ weapon). Each mount row:
 |---|---|
 | **kind** | `Gun / Turret / Launcher / Beam`. Turret rows auto-get a faction turret graphic so they're visible. |
 | **marker** | Where on the ship it fires from. `(hull)` = ship origin; named markers are the scene's `Marker2D`s; a `Muzzle*`-style **glob** means "all markers in that family." |
-| **payload** | The bullet (`BulletVariant`) or, for launchers, a projectile scene (Rocket / Missile / Bomblet). |
+| **payload** | The bullet **family** (`Ball / Bolt / Laser / Wave`) or, for launchers, a projectile scene (Rocket / Missile / Bomblet). The family auto-restyles to the enemy's **faction** at spawn (see below). |
 | **aim** | `Down / At Player / To Center / Forward`. |
 | **rate** | **Seconds between shots** (not shots/sec) — lower = faster. `1.5` = fire every 1.5s. |
 | **count** | Bullets per shot. |
 | **spread** | Fan angle (degrees) across those bullets. |
 
+**Bullet families + factions:** payloads are just the four shapes — `Ball / Bolt
+/ Laser / Wave`. You don't pick a faction; the bullet auto-restyles to the
+enemy's faction at spawn (`BulletCatalog.faction_variant`). Privateer + Zealot
+have real art; Supremacy reuses the Zealot look and Corporate the Privateer look
+for now. The bench preview stamps the selected enemy's faction so you see the
+right style.
+
 **Gun/Launcher get extra firing controls:**
-- **sync** (`All / Cycle`) — when a mount covers multiple markers: `All` fires
-  every marker at once; `Cycle` fires them one at a time round-robin.
-- **burst** — sub-interval (seconds) between bullets *within* one shot, for a
-  quick burst instead of a simultaneous volley. `0` = simultaneous.
+- **muzzles** (`All / Cycle`) — when a mount covers multiple markers: `All` fires
+  every marker each shot; `Cycle` fires them one at a time round-robin.
+- **volley** (`Simultaneous / Burst`) — `Simultaneous` fires all `count` bullets
+  at once (a spread volley); `Burst` spaces them out by **burst gap** seconds.
+- **burst gap** — seconds between consecutive shots in a burst (only shown in
+  Burst mode).
 - **speed** — bullet-speed override in px/s; `-1` = use the payload's default.
-- **zone** — only fire while the enemy is inside its **firing zone** (the band
-  where shooting is allowed), so it doesn't spray from offscreen.
 - **nose** — only fire when actually **aimed at the player**, within…
 - **tol** — the aim tolerance in degrees for the `nose` gate (e.g. 18° cone).
 - **path** — **path-phase** firing: comma-separated points along its movement
@@ -185,10 +192,11 @@ base. **Save Loco** / **Copy GDScript** → paste into `SIZE_LOCOMOTION`.
    until you paste.
 2. **"rate" is a period, not a frequency.** It's seconds between shots, so bigger
    = slower fire.
-3. **zone / nose / path / phase are firing *gates*** — they restrict *when* a
-   mount is allowed to shoot (in-band, aimed-at-player, at a point on its path,
-   during a named phase). Leave them off and the mount fires on its plain `rate`
-   timer.
+3. **nose / path / phase are firing *gates*** — they restrict *when* a mount is
+   allowed to shoot (aimed-at-player, at a point on its path, during a named
+   phase). Leave them off and the mount fires on its plain `rate` timer.
+   Off-screen suppression is **automatic** for every enemy (no toggle) — a mount
+   never fires while the enemy is off the visible playfield.
 
 ---
 

@@ -110,12 +110,8 @@ func _ready() -> void:
 	_vel = drift_dir * drift_speed + Vector2(randf_range(-30.0, 30.0), 0.0)
 	if not area_entered.is_connected(_on_area_entered):
 		area_entered.connect(_on_area_entered)
-	# Rockets (dumb_fire) start with a warm orange pre-ignite tint so the
-	# orange warhead reads as "cold then hot." Seeking missiles (teal sprite,
-	# !dumb_fire) keep their natural colour — the orange tint would muddy
-	# missile-teal.png and make the sprite nearly invisible.
-	if has_node("Sprite2D") and dumb_fire:
-		$Sprite2D.modulate = Color(1.0, 0.85, 0.7, 1.0)
+	# Rockets/missiles render their plain scene sprite — no modulate tint (Roman 2026-06-29: they
+	# should read as 1× sprites, no colouring). The old warm pre-ignite / hot-ignite tints are gone.
 	# Resolve the exhaust marker and build the engine flare HIDDEN — it
 	# ignites in _ignite() so it stays off during the drift/freefall.
 	# Created for every missile with an exhaust marker, independent of the
@@ -261,11 +257,7 @@ func _ignite() -> void:
 		var fwd: Vector2 = initial_dir.normalized()
 		if fwd != Vector2.ZERO:
 			_vel = fwd * drift_speed
-	# Orange rockets get a hot-ignition tint on the sprite. Teal seeking
-	# missiles keep their natural colour — the warm modulate would make the
-	# teal sprite invisible (Bug 2 fix, 2026-05-26).
-	if has_node("Sprite2D") and dumb_fire:
-		$Sprite2D.modulate = Color(1.6, 0.55, 0.25, 1.0)
+	# (No ignite tint — rockets render their plain scene sprite; Roman 2026-06-29.)
 	# Ignite the engine flare — the muzzle-flash plume at the exhaust marker
 	# (Roman, 2026-05-29). Gated here so it stays off during drift/freefall.
 	if _engine_flare != null:

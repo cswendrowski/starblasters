@@ -76,10 +76,16 @@ static func _ensure() -> void:
 	_map[_V_PWAVE]   = _S_PWAVE
 	var Z: int = FactionsC.Id.ZEALOT
 	var P: int = FactionsC.Id.PRIVATEER
-	_family["ball"]  = {Z: _V_ZBALL,  P: _V_PBALL}
-	_family["bolt"]  = {Z: _V_ZBOLT,  P: _V_PBOLT}
-	_family["laser"] = {Z: _V_ZLASER, P: _V_PLASER}
-	_family["wave"]  = {Z: _V_ZWAVE,  P: _V_PWAVE}
+	# Supremacy + Corporate have no bespoke bullet art yet, so they REUSE the zealot/privateer styled
+	# clones for now (Roman 2026-06-29): Supremacy borrows the zealot look, Corporate the privateer
+	# look. Swap these to dedicated S/C variants once that art exists. Every family covers all 4
+	# factions so a generic "ball"/"bolt"/"laser"/"wave" payload always resolves to a styled bullet.
+	var S: int = FactionsC.Id.SUPREMACY
+	var C: int = FactionsC.Id.CORPORATE
+	_family["ball"]  = {Z: _V_ZBALL,  P: _V_PBALL,  S: _V_ZBALL,  C: _V_PBALL}
+	_family["bolt"]  = {Z: _V_ZBOLT,  P: _V_PBOLT,  S: _V_ZBOLT,  C: _V_PBOLT}
+	_family["laser"] = {Z: _V_ZLASER, P: _V_PLASER, S: _V_ZLASER, C: _V_PLASER}
+	_family["wave"]  = {Z: _V_ZWAVE,  P: _V_PWAVE,  S: _V_ZWAVE,  C: _V_PWAVE}
 
 
 # The canonical per-bullet scene for a BulletVariant, or null if the variant has no

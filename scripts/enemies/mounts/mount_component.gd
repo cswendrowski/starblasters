@@ -82,13 +82,26 @@ func _roll_interval() -> float:
 
 
 # Hold fire while recycling or off the playfield — mirrors enemy_core._on_shoot_timer_timeout.
-# Duck-typed: pure enemy_base enemies (no enemy_core) lack these, so they fire freely.
+# enemy_core provides _on_playfield; pure enemy_base enemies (bombers, bulwark) don't, so we fall back
+# to an inline off-screen check there too — EVERY mount holds fire until the enemy is on the visible
+# playfield (Roman 2026-06-29: enemies shouldn't shoot while well off-screen). Recycling is enemy_core-only.
 func _held(enemy) -> bool:
 	if "_cycling" in enemy and enemy._cycling:
 		return true
-	if enemy.has_method("_on_playfield") and not enemy._on_playfield():
-		return true
-	return false
+	if enemy.has_method("_on_playfield"):
+		return not enemy._on_playfield()
+	return _off_screen(enemy)
+
+
+# Inline "off the visible playfield" check for enemies without _on_playfield. Mirrors enemy_core's
+# 8px-margin box (X uses the full viewport so the gutters never gate; only the Y edges suppress fire).
+func _off_screen(enemy) -> bool:
+	if not (enemy is Node2D):
+		return false
+	const M := 8.0
+	var sz: Vector2 = enemy.get_viewport_rect().size
+	var p: Vector2 = enemy.position
+	return p.x < M or p.x > sz.x - M or p.y < M or p.y > sz.y - M
 
 
 # Conditional fire gates shared by cadence + path-phase, mirroring enemy_core's hull shoot: hold
@@ -182,7 +195,11 @@ func _fire_gun(enemy) -> void:
 	var cycling: bool = int(spec.marker_mode) == MountSpecC.MarkerMode.CYCLE and not _markers.is_empty()
 	for i in n:
 		if spec.burst_interval > 0.0 and i > 0:
-			await enemy.get_tree().create_timer(spec.burst_interval * float(i)).timeout
+			# Wait ONE interval between consecutive shots. The await is serial (it blocks the loop), so
+			# each step already lands burst_interval after the previous shot — multiplying by i here
+			# (the old bug) double-counted the elapsed time, stretching the gaps to 0.1/0.2/0.3 instead
+			# of a steady 0.1 (Roman 2026-06-29: "2 fast, 1 late, 1 later").
+			await enemy.get_tree().create_timer(spec.burst_interval).timeout
 			if not is_instance_valid(enemy):
 				return
 		# Re-aim per shot (the player moves between burst shots), then fan if spread is set.
