@@ -1,0 +1,19 @@
+[gd_scene format=3 uid="uid://xqx41syagl82"]
+
+[ext_resource type="Texture2D" uid="uid://svgw25iehy25" path="res://graphics/projectiles/projectile_laser.png" id="1_mk2uf"]
+[ext_resource type="Script" uid="uid://cr84xrjml35ar" path="res://scripts/weapons/enemy_bullet.gd" id="2_script"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_kgo5h"]
+size = Vector2(2, 11.109375)
+
+[node name="ProjectileLaser" type="Area2D" unique_id=103234960 groups=["bullets"]]
+script = ExtResource("2_script")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1478807322]
+texture = ExtResource("1_mk2uf")
+hframes = 4
+
+[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="." unique_id=386404790]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1069508729]
+shape = SubResource("RectangleShape2D_kgo5h")

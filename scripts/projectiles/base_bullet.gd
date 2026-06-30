@@ -178,6 +178,16 @@ func _apply_variant() -> void:
 				# but support is harmless.
 				pass
 
+	# --- faction frame ---
+	# The projectile_<type> scenes carry a 4-frame sheet (frame = faction). When the variant pins a
+	# frame (set by BulletCatalog.faction_variant), select it on the scene's hframes Sprite2D.
+	if variant.frame >= 0:
+		var skin_sp: Sprite2D = _get_bullet_sprite()
+		if skin_sp != null:
+			var total: int = maxi(1, skin_sp.hframes) * maxi(1, skin_sp.vframes)
+			if total > 1:
+				skin_sp.frame = clampi(variant.frame, 0, total - 1)
+
 	# --- glow color ---
 	# Nothing to do here. Glow is now the WorldEnvironment bloom on bright sprites
 	# (or a GlowFx aura attached per-bullet in the subclass _apply_visuals). The old

@@ -128,11 +128,13 @@ weapon). Each mount row:
 | **count** | Bullets per shot. |
 | **spread** | Fan angle (degrees) across those bullets. |
 
-**Bullet families + factions:** payloads are the four shapes — `Ball / Bolt /
-Laser / Wave` — plus `Drop`. The four families auto-restyle to the enemy's
-faction at spawn (`BulletCatalog.faction_variant`). Privateer + Zealot have real
-art; Supremacy reuses the Zealot look and Corporate the Privateer look for now.
-The bench preview stamps the selected enemy's faction so you see the right style.
+**Bullet families + factions:** payloads are the shapes — `Ball / Bolt / Laser /
+Wave / Orb` (Orb = a slow round) — plus `Drop`. Each maps to one
+`projectile_<type>.tscn` whose sprite is a **4-frame sheet, one frame per
+faction** (0 privateer, 1 zealot, 2 corpo, 3 supremacy). At spawn the bullet's
+frame is set from the enemy's faction (`BulletCatalog.faction_variant`), so all
+four factions reskin from the single sheet — full faction coverage. The bench
+preview stamps the selected enemy's faction so you see the right frame.
 
 **Dropping shots (Caltrop-style):** pick the **`Drop`** payload + aim **Down**.
 `Drop` is a slow lingering pellet (45 px/s, 5s life) — because it crawls far

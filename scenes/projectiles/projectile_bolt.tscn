@@ -1,0 +1,20 @@
+[gd_scene format=3 uid="uid://bh2ygtvxmla1e"]
+
+[ext_resource type="Texture2D" uid="uid://b6hkyuwm510m8" path="res://graphics/projectiles/projectile_bolt.png" id="1_knpcn"]
+[ext_resource type="Script" uid="uid://cr84xrjml35ar" path="res://scripts/weapons/enemy_bullet.gd" id="2_script"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_knpcn"]
+radius = 2.0
+height = 12.0
+
+[node name="ProjectileBolt" type="Area2D" unique_id=39913240 groups=["bullets"]]
+script = ExtResource("2_script")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1831928906]
+texture = ExtResource("1_knpcn")
+hframes = 4
+
+[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="." unique_id=1920568142]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=620838655]
+shape = SubResource("CapsuleShape2D_knpcn")

@@ -1,0 +1,19 @@
+[gd_scene format=3 uid="uid://dcsh3xnycnsq3"]
+
+[ext_resource type="Texture2D" uid="uid://dtre7uqeosvdw" path="res://graphics/projectiles/projectile_ball.png" id="1_ndl5k"]
+[ext_resource type="Script" uid="uid://cr84xrjml35ar" path="res://scripts/weapons/enemy_bullet.gd" id="2_script"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_0r8sg"]
+radius = 2.0
+
+[node name="ProjectileBall" type="Area2D" unique_id=320729782 groups=["bullets"]]
+script = ExtResource("2_script")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1912363345]
+texture = ExtResource("1_ndl5k")
+hframes = 4
+
+[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="." unique_id=763932523]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=430184677]
+shape = SubResource("CircleShape2D_0r8sg")

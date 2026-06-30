@@ -16,6 +16,14 @@ class_name BulletVariant
 # "" = no family (never swapped). Resolution lives in BulletCatalog.faction_variant().
 @export var family: StringName = &""
 
+# Faction-frame reskin (2026-06-29): the projectile_<type> scenes carry ONE 4-frame sprite sheet
+# (frame 0 privateer, 1 zealot, 2 corpo, 3 supremacy). A variant that sets `bullet_scene` is reskinned
+# by SELECTING this frame instead of swapping to a per-faction variant. -1 = leave the scene's frame.
+@export var frame: int = -1
+# The variant's own bullet scene. When set it wins over BulletCatalog's indexed _map (scene_for), so a
+# family variant points straight at its projectile_<type>.tscn and the faction picks the frame.
+@export var bullet_scene: PackedScene = null
+
 # Visuals — leave both null to keep the scene's default appearance.
 @export var sprite_frames: SpriteFrames = null    # null → use static_texture
 @export var static_texture: Texture2D = null       # shown when sprite_frames is null

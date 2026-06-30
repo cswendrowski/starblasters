@@ -95,12 +95,30 @@ static func _ensure() -> void:
 
 
 # The canonical per-bullet scene for a BulletVariant, or null if the variant has no
-# indexed scene (caller should fall back to its own bullet_scene).
+# indexed scene (caller should fall back to its own bullet_scene). A variant that carries its OWN
+# bullet_scene (the new frame-reskin families) wins over the indexed _map.
 static func scene_for(variant) -> PackedScene:
 	if variant == null:
 		return null
+	if "bullet_scene" in variant and variant.bullet_scene != null:
+		return variant.bullet_scene
 	_ensure()
 	return _map.get(variant, null)
+
+
+# Faction Id -> sprite-sheet frame on the projectile_<type> scenes (Roman 2026-06-29: frame 0
+# privateer, 1 zealot, 2 corpo, 3 supremacy). -1 = no frame for this faction.
+static func _frame_for_faction(faction: int) -> int:
+	match faction:
+		FactionsC.Id.PRIVATEER: return 0
+		FactionsC.Id.ZEALOT: return 1
+		FactionsC.Id.CORPORATE: return 2
+		FactionsC.Id.SUPREMACY: return 3
+	return -1
+
+
+# Cache of per-(variant, faction) frame-reskin clones, so the duplicate is built once not per bullet.
+static var _skin_cache: Dictionary = {}
 
 
 # Resolve a bullet variant to the active faction's same-family variant (appearance facet). A
@@ -110,6 +128,19 @@ static func scene_for(variant) -> PackedScene:
 static func faction_variant(variant, faction: int):
 	if variant == null or faction < 0:
 		return variant
+	# New frame-reskin path: a variant carrying its own scene (the projectile_<type> families) keeps the
+	# SAME variant and just selects the faction's frame on a cached clone — no per-faction variant set.
+	if "bullet_scene" in variant and variant.bullet_scene != null:
+		var fr: int = _frame_for_faction(faction)
+		if fr < 0:
+			return variant
+		var key: String = "%d:%d" % [variant.get_instance_id(), faction]
+		if not _skin_cache.has(key):
+			var clone = variant.duplicate()
+			clone.frame = fr
+			_skin_cache[key] = clone
+		return _skin_cache[key]
+	# Legacy per-faction swap (separate styled .tres per faction): unchanged.
 	var fam: StringName = variant.family if ("family" in variant) else &""
 	if String(fam) == "":
 		return variant

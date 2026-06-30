@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="BulletVariant" format=3]
+
+[ext_resource type="Script" path="res://scripts/projectiles/bullet_variant.gd" id="1_variant"]
+[ext_resource type="PackedScene" path="res://scenes/projectiles/projectile_laser.tscn" id="2_scene"]
+
+[resource]
+script = ExtResource("1_variant")
+family = &"laser"
+bullet_scene = ExtResource("2_scene")
+speed = 480.0
+lifetime = 2.0

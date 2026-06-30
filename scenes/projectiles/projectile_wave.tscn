@@ -1,0 +1,22 @@
+[gd_scene format=3 uid="uid://by4sb7jmh1fha"]
+
+[ext_resource type="Texture2D" uid="uid://bxspoj656yd0y" path="res://graphics/projectiles/projectile_wave.png" id="1_oy3jj"]
+[ext_resource type="Script" uid="uid://cr84xrjml35ar" path="res://scripts/weapons/enemy_bullet.gd" id="2_script"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_oy3jj"]
+radius = 2.0
+height = 10.0
+
+[node name="ProjectileWave" type="Area2D" unique_id=457608960 groups=["bullets"]]
+script = ExtResource("2_script")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1015247461]
+texture = ExtResource("1_oy3jj")
+hframes = 4
+
+[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="." unique_id=1931367521]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1797129621]
+position = Vector2(0, -1)
+rotation = -1.5707964
+shape = SubResource("CapsuleShape2D_oy3jj")

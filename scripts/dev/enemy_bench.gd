@@ -23,21 +23,35 @@ const PLAYER_SCENE = preload("res://scenes/player/player.tscn")
 const SAVE_PATH := "user://tuners/enemy_bench.json"
 
 # Editor option pools.
-# Payloads collapsed to the 4 generic FAMILIES (Roman 2026-06-29). Each maps to a family-tagged base
-# variant; the faction-appearance swap (BulletCatalog.faction_variant, via the enemy's faction_skin)
-# restyles it to the enemy's faction at spawn — so the bench just picks the shape, not the faction.
+# Payload FAMILIES (Roman 2026-06-29): each maps to one BulletVariant that points at its
+# projectile_<type> scene (a 4-frame sprite sheet, frame = faction). The faction-frame reskin
+# (BulletCatalog.faction_variant, via the enemy's faction_skin) picks the frame at spawn — so the
+# bench just picks the shape, and all four factions reskin from the one sheet. "Orb" is a slow round.
+const BV_Ball  = preload("res://data/bullets/ball.tres")
+const BV_Bolt  = preload("res://data/bullets/bolt.tres")
+const BV_Laser = preload("res://data/bullets/laser.tres")
+const BV_Wave  = preload("res://data/bullets/wave.tres")
+const BV_Orb   = preload("res://data/bullets/orb.tres")
 const PAYLOADS := {
-	"Ball": EnemyRoster.BV_PrivBall,
-	"Bolt": EnemyRoster.BV_PrivBolt,
-	"Laser": EnemyRoster.BV_PrivLaser,
-	"Wave": EnemyRoster.BV_PrivWave,
+	"Ball": BV_Ball,
+	"Bolt": BV_Bolt,
+	"Laser": BV_Laser,
+	"Wave": BV_Wave,
+	"Orb": BV_Orb,
 	# "Drop" = the slow lingering caltrop pellet (45 px/s, 5s life) — pick it + aim Down for a Caltrop-
-	# style trail of dropped shots in the enemy's wake. Not faction-tagged, so it never swaps style.
+	# style trail of dropped shots in the enemy's wake. (Still on the legacy per-faction-texture path.)
 	"Drop": EnemyRoster.BV_DropPellet,
 }
-# Family name -> the BulletVariant const to emit in Copy GDScript (the family-tagged base; the faction
-# swap at spawn handles per-faction styling, so any faction's same-family clone would work as the base).
-const PAYLOAD_CONST := {"Ball": "BV_PrivBall", "Bolt": "BV_PrivBolt", "Laser": "BV_PrivLaser", "Wave": "BV_PrivWave", "Drop": "BV_DropPellet"}
+# Family name -> the payload EXPRESSION to emit in Copy GDScript. The new families have no roster const
+# yet (enemy_roster migration is a follow-up), so emit a self-contained preload; Drop keeps its const.
+const PAYLOAD_CONST := {
+	"Ball": "preload(\"res://data/bullets/ball.tres\")",
+	"Bolt": "preload(\"res://data/bullets/bolt.tres\")",
+	"Laser": "preload(\"res://data/bullets/laser.tres\")",
+	"Wave": "preload(\"res://data/bullets/wave.tres\")",
+	"Orb": "preload(\"res://data/bullets/orb.tres\")",
+	"Drop": "BV_DropPellet",
+}
 # Migration for saved tuner files written before the payload collapse (2026-06-29): the old per-faction
 # / per-shape names map to the new families so an existing saved mount doesn't load with a dead payload.
 const _LEGACY_PAYLOAD := {
@@ -1442,7 +1456,7 @@ func _mount_copy_line(d: Dictionary) -> String:
 	var pname: String = String(d.get("payload", "Ball"))
 	var pay: String = "\"payload\": null"
 	if PAYLOADS.has(pname):
-		pay = "\"payload\": %s" % String(PAYLOAD_CONST.get(pname, "BV_PrivBall"))
+		pay = "\"payload\": %s" % String(PAYLOAD_CONST.get(pname, "preload(\"res://data/bullets/ball.tres\")"))
 	elif PROJECTILES.has(pname):
 		pay = "\"payload_scene\": \"%s\"" % PROJECTILES[pname]
 	var line: String = "{ \"kind\": \"%s\", \"marker\": \"%s\", %s, \"aim\": \"%s\", \"fire_min\": %.2f, \"fire_max\": %.2f, \"count\": %d, \"spread_deg\": %.1f" % [
