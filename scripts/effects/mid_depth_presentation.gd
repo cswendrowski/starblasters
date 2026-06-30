@@ -29,6 +29,12 @@ const DEFAULT_TINT_AMOUNT: float = 0.45
 const DEFAULT_GRADE_STRENGTH: float = 0.5
 const DEFAULT_GLOW_BRIGHTNESS: float = 1.8
 
+# The shared "recede into mid-depth" body look — see recede_body() below. The disabled-wreck
+# (wreck_drift.gd) hazes toward a dark, charred tint; the recycle ghost (RecycleController) uses its
+# own tuner-driven tint. Both go through recede_body so a receding ship reads consistently.
+const WRECK_TINT := Color(0.34, 0.37, 0.45)
+const WRECK_AMOUNT: float = 0.62
+
 
 # Parent `node` ABOVE the parallax backdrop but BELOW the ships. `context` is a
 # node whose tree contains the "Backdrop" coordinator as a child — the combat
@@ -70,6 +76,21 @@ static func apply_body_tint(
 	# object can stay a touch brighter than pure mid-layer dressing.
 	mat.set_shader_parameter("grade_mul", Color.WHITE.lerp(read_mid_layer_grade(coordinator), grade_strength))
 	body.material = mat
+
+
+# ---- Shared "recede into mid-depth" body look ----------------------------
+# THE single definition of how a ship that's leaving the playfield recedes into the backdrop, shared by
+# the recycle ghost (RecycleController — reversible loop-back), the disabled wreck (wreck_drift —
+# terminal fall), and the missile cruiser. Owns only the BODY GRADE (the depth-tint shader: desaturate
+# toward `tint` by `amount`, then grade-match the live mid layer). Callers own their own SHRINK + motion
+# + lifecycle — shrink magnitudes differ by intent (a wreck recedes less than a ghost) and stay
+# caller-side. `coordinator` is the backdrop to grade-match, or null when the caller already lives in a
+# depth-graded layer (e.g. the wreck layer's own CanvasModulate) so the grade isn't applied twice.
+#
+# NOTE: this swaps the body's material to the depth-tint shader, so a caller carrying its OWN body
+# material (e.g. the wreck's damage-overlay fray) trades it for the depth grade. No-op if `body` is null.
+static func recede_body(body: Sprite2D, coordinator: Node, tint: Color, amount: float) -> void:
+	apply_body_tint(body, coordinator, amount, tint)
 
 
 # Make a GLOW sprite read as a bright emissive element (additive overdrive +

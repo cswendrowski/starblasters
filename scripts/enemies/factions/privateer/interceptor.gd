@@ -52,12 +52,9 @@ func _on_bomb_done() -> void:
 		queue_free()                  # spent its run; leaves
 
 
-# Override the cycle hook from enemy_core so interceptors don't recycle.
-func _start_cycle() -> void:
-	# Mark the enemy as cycling so the rest of _process skips it, then defer-free instead of fly-back.
-	_cycling = true
-	if has_node("ShootTimer"):
-		$ShootTimer.stop()
-	set_deferred("monitorable", false)
-	set_deferred("monitoring", false)
-	queue_free()
+# Interceptors dive to the bottom and STAY GONE — they never recycle. enemy_core._on_offscreen
+# hands off to RecycleController.recycle(); override it back to a clean leave so the wing exits for
+# good regardless of any wave-assigned recycle_passes. (Was a bespoke _start_cycle override before
+# RecycleController owned the fly-back, 2026-06-29.)
+func _on_offscreen() -> void:
+	_leave()

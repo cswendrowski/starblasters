@@ -27,6 +27,8 @@ const ExplosionFxScript = preload("res://scripts/effects/explosion_fx.gd")
 const DeathDustScript = preload("res://scripts/effects/death_dust.gd")
 const BurnFxScript = preload("res://scripts/effects/burn_fx.gd")
 const MountBuilder = preload("res://scripts/enemies/mounts/mount_builder.gd")
+# Single owner of the offscreen→recycle/free/ignore decision + the parallax fly-back (2026-06-29).
+const RecycleController = preload("res://scripts/effects/recycle_controller.gd")
 # Dead-code holdover: the simple max_shield charge + its ring are retired (nothing in the
 # live spawn path sets max_shield > 0). Repointed to hex_shield so the only consumer left —
 # the preserved-but-unscened enemy_bomber_wing — matches the committed shield (Roman 2026-06-11).
@@ -202,6 +204,11 @@ var _muzzle_idx: int = 0
 var health: int = 1
 var shield: int = 0
 var recycle_passes: int = -1   # -1 = unlimited (matches current default behavior)
+# True while RecycleController.recycle() is flying this enemy back up through the parallax for
+# another pass. Lives on the base (not enemy_core) so any enemy class can be recycled and report
+# is_recycling() accurately. Read by enemy_core._process (pauses pattern movement during the cycle)
+# + the firing guards; the controller owns writes.
+var _cycling: bool = false
 var damage_reduction: float = 0.0  # 0.0–1.0; set by sector modifiers (armored/heavily_armored)
 var _dying: bool = false
 var _last_position: Vector2 = Vector2.ZERO
@@ -265,9 +272,10 @@ func _ready() -> void:
 		# Progressive damage tells. Deferred so the spawner's display_scale (director sets
 		# enemy.scale after instancing) is applied before we measure the size bucket + place
 		# the spark/burn markers at their final world positions.
-		# DEFAULT-OFF (lab-only, reverted 2026-06-17 for crashes). Re-enabled only when the crash
-		# stress test flips ShipDamageTells.live_enabled — see scripts/dev/crash_loop_runner.gd.
-		if _ShipDamageTells.live_enabled:
+		# LIVE since 2026-06-29 (the 2026-06-17 crash suspect — the tell death-VFX delegation's
+		# absolute-z debris — is excluded here: the driver runs self_explode=false, enemy_base owns
+		# the death blast). Gated on the user setting; force_live lets the crash harnesses override.
+		if _damage_tells_enabled():
 			call_deferred("_attach_damage_tells")
 	# 1px black hull outline (Roman 2026-06-07). Separate behind-node (NOT a
 	# material on the hull — that slot holds the damage shader, and the hull is a
@@ -318,6 +326,20 @@ var _shield_ring: ColorRect = null
 var _shield_mat: ShaderMaterial = null
 var _shield_alpha_tween: Tween = null
 var _shield_hit_tween: Tween = null
+
+
+# Whether the progressive damage tells should attach. ON by default (the user setting
+# Settings.damage_tells, default true); force_live is a dev override the crash harnesses set to
+# exercise the tell render load regardless of the setting. Defaults ON when Settings is absent
+# (e.g. headless smoke boots) so the attach path is still exercised.
+func _damage_tells_enabled() -> bool:
+	if _ShipDamageTells.force_live:
+		return true
+	if has_node("/root/Settings"):
+		var s := get_node("/root/Settings")
+		if "damage_tells" in s:
+			return bool(s.damage_tells)
+	return true
 
 
 # Attach the ShipDamageTells driver (self_explode=false — take_hit drives it, explode() decides who
@@ -608,15 +630,13 @@ func _die_as_wreck(wlayer: Node, exit_explode_chance: float) -> void:
 		queue_free()
 		return
 	var s: Node2D = spr
-	# Heavy-damage look, NOT pure white (Roman 2026-06-10): KILL the hit-flash tween (it would
-	# otherwise run its first idle-step after this and re-snap the reparented wreck to white) then
-	# zero the flash and crank the damage-overlay fray to max so the wreck reads as a battered hull.
+	# KILL the hit-flash tween (it would otherwise run its first idle-step after this and re-snap the
+	# reparented wreck to white). The body's depth-recession grade is then applied by wreck_drift via
+	# the SHARED MidDepthPresentation.recede_body (consistent with the recycle ghost) — which replaces
+	# this body's damage-overlay material, so the old "crank the fray to max" battered look is gone; the
+	# fire/smoke/tumble + the dark depth tint carry the wreck read now (Roman 2026-06-29, dedupe pass).
 	if _flash_tween != null and _flash_tween.is_valid():
 		_flash_tween.kill()
-	if s.material is ShaderMaterial:
-		var m: ShaderMaterial = s.material
-		m.set_shader_parameter("flash_strength", 0.0)
-		m.set_shader_parameter("sensitivity", 0.75)
 	# Capture transform + motion + emit points (engine markers + hull centre, in world space) BEFORE
 	# reparenting; convert to hull-local after.
 	var gpos: Vector2 = s.global_position
@@ -673,7 +693,9 @@ func _die_as_wreck(wlayer: Node, exit_explode_chance: float) -> void:
 const _MineBlinkerScript = preload("res://scripts/effects/mine_blinker.gd")
 const _GravityGlowScript = preload("res://scripts/effects/gravity_glow.gd")
 
-func _fade_death_overlays() -> void:
+# skip_glow=true leaves the glow overlays untouched so a caller can drive them itself (e.g. DeathEffects
+# flickers them out over a tunable time). Default false = the original fade-everything behavior.
+func _fade_death_overlays(skip_glow: bool = false) -> void:
 	const OVERLAY_FADE := 0.15
 	const LIVERY_DEATH_FADE := 0.3   # within the body's ~0.45s disintegrate burn (gone before it completes)
 	for child in get_children():
@@ -709,8 +731,14 @@ func _fade_death_overlays() -> void:
 			continue
 		# Engine/tail glow overlays (GlowMask + the bomber's "Glowmap"/"TailGunGlow", the cruiser's
 		# "Glow", boss "EngineLayer" — all matched by _is_glow_overlay) fade out with the body so they
-		# don't outlive the disintegration. Outline + Firecore overlays fade with them.
-		if _is_glow_overlay(child) or nm == "Outline" or nm.begins_with("FirecoreCore"):
+		# don't outlive the disintegration — UNLESS skip_glow (the caller flickers them itself).
+		if _is_glow_overlay(child):
+			if skip_glow:
+				continue
+			var gtw := create_tween()
+			gtw.tween_property(child, "modulate:a", 0.0, OVERLAY_FADE)
+		# Outline + Firecore overlays always fade with the body.
+		elif nm == "Outline" or nm.begins_with("FirecoreCore"):
 			var tw := create_tween()
 			tw.tween_property(child, "modulate:a", 0.0, OVERLAY_FADE)
 
@@ -809,13 +837,31 @@ func _spawn_debris_piece(parent: Node, world_pos: Vector2, scale_factor: float) 
 
 # ---- Shared helpers ----------------------------------------------------
 
-# True when this enemy is in a transient "recycling" state (leaving the field
-# to re-enter for another pass). The director's wave-ADVANCE gate ignores such
-# enemies so a lone recycler doesn't stall the next wave. Subclasses override.
-# The final level-clear gate stays strict (counts everyone) so a level never
-# ends with a recycler still on-screen. (Roman 2026-06-01)
+# True while this enemy is in the transient parallax fly-back (RecycleController.recycle()).
+# Load-bearing: take_hit() + the smart bomb reject a mid-fly-back enemy as a target, and
+# enemy_core pauses its pattern movement / firing while it's set. (The director's level-clear
+# gate counts everyone — a recycler included — so a level never ends mid-fly-back.)
 func is_recycling() -> bool:
-	return false
+	return _cycling
+
+
+# RecycleController hooks — the enemy-specific firing suspend / re-arm across a fly-back.
+# Base defaults are no-ops so ANY enemy can be recycled; enemy_core overrides them to stop /
+# re-arm its ShootTimer + pattern + components.
+func _recycle_suspend() -> void:
+	pass
+
+
+func _recycle_resume() -> void:
+	pass
+
+
+# Toggle the hull outline node (added via OutlineFx) — RecycleController drops it for the whole
+# fly-back so a faux-parallax ghost doesn't carry the "shootable" outline. No-op if absent.
+func _set_outline_visible(v: bool) -> void:
+	var o := get_node_or_null("Outline")
+	if o != null:
+		o.visible = v
 
 
 # True when the enemy is fully outside the visible viewport (by offscreen_margin on any edge) — used
@@ -1075,45 +1121,19 @@ func _apply_auto_rotation() -> void:
 func _offscreen_cleanup_check() -> void:
 	if _dying:
 		return
-	# Once the enemy first reaches the visible area, allow the FREE_ANY_EDGE top-edge cull (below) to
-	# fire on a genuine top exit. Until then a row pre-stacked above the screen is still descending IN.
+	# Once the enemy first reaches the visible area, allow the FREE_ANY_EDGE top-edge cull to fire on
+	# a genuine top exit. Until then a row pre-stacked above the screen is still descending IN. (State
+	# latch stays here; RecycleController.resolve only reads it.)
 	if not _entered_playfield and global_position.y >= 0.0:
 		_entered_playfield = true
-	match offscreen_mode:
-		OffscreenMode.NONE:
-			return
-		OffscreenMode.CYCLE_BOTTOM:
-			# The bottom exit always triggers the recycle hook; subclasses
-			# override _on_offscreen() (enemy_core does this for its parallax
-			# cycle). Enemies that break off SIDEWAYS — allow_side_exit patterns
-			# like the Skirmisher's advance_retreat BREAK phase — used to wait
-			# until their slow Y descent finally crossed the bottom margin (the
-			# Skirmisher's 19.2 px/s drift = ~14 s of off-screen loiter before it
-			# recycled). Treat a full side exit as an off-screen trigger too, so
-			# the recycle fires promptly and consistently regardless of which edge
-			# the enemy actually left through. We deliberately do NOT watch the
-			# TOP edge here: patterns legitimately spawn/retreat near y=0, so a
-			# top trigger would misfire — sideways drift is the real culprit.
-			# Viewport edges (not playfield band) so in-band pong/overshoot from
-			# side-cutters never trips this; only a genuine off-screen exit does.
-			var sz_b: Vector2 = get_viewport_rect().size
-			if global_position.y > sz_b.y + offscreen_margin:
-				_on_offscreen()
-			elif allow_side_exit and (global_position.x < -offscreen_margin \
-				or global_position.x > sz_b.x + offscreen_margin):
-				_on_offscreen()
-		OffscreenMode.FREE_ANY_EDGE:
-			var sz_a: Vector2 = get_viewport_rect().size
-			if global_position.y > sz_a.y + offscreen_margin \
-				or (_entered_playfield and global_position.y < -offscreen_margin) \
-				or global_position.x < -offscreen_margin \
-				or global_position.x > sz_a.x + offscreen_margin:
-				_leave()
-		OffscreenMode.FREE_OPPOSITE_SIDE:
-			var sz_s: Vector2 = get_viewport_rect().size
-			if global_position.x < -offscreen_margin \
-				or global_position.x > sz_s.x + offscreen_margin:
-				_leave()
+	# The offscreen→recycle/free/ignore decision is owned by RecycleController.resolve (the per-mode
+	# edge logic). We just route its verdict: RECYCLE → _on_offscreen() (enemy_core flies back; other
+	# subclasses can override), FREE → _leave() (clean queue_free), IGNORE → still in play.
+	match RecycleController.resolve(self):
+		RecycleController.Action.RECYCLE:
+			_on_offscreen()
+		RecycleController.Action.FREE:
+			_leave()
 
 
 # Hook for subclasses that want custom behavior on the bottom exit

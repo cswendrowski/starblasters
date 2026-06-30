@@ -20,6 +20,7 @@ extends Node
 const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
 const EngineTorchScript = preload("res://scripts/effects/engine_torch.gd")
 const DamageSmokeScript = preload("res://scripts/effects/damage_smoke_trail.gd")
+const MidDepthPresentation = preload("res://scripts/effects/mid_depth_presentation.gd")
 
 # Tunables (Roman: retune once you eyeball the fall).
 const FALL_GRAVITY := 110.0        # px/s^2 downward accel that curves the preserved velocity into a fall
@@ -35,7 +36,6 @@ const SCALE_TIME := 1.4            # Roman 2026-06-11: more GRADUAL recession (w
 const DESCENT_TIME := 1.4
 const SPEED_LOSS_START := 0.99     # 1% slower at the start of the descent
 const SPEED_LOSS_END := 0.80       # 20% slower by the end
-const RECEDE_DARKEN := 0.9         # subtle per-sprite push into depth (compounds with the layer grade)
 const EXIT_ZONE_Y := 195.0         # Zones.DEPARTURE_START — the "exit zone" where the fate is decided
 const DESPAWN_Y := 320.0           # the fall-off case frees here, below the 270 playfield
 const SAFETY_LIFETIME := 12.0      # backstop free if it somehow never reaches the exit zone
@@ -54,7 +54,6 @@ var _scale_time: float = SCALE_TIME
 var _descent_time: float = DESCENT_TIME
 var _speed_loss_start: float = SPEED_LOSS_START
 var _speed_loss_end: float = SPEED_LOSS_END
-var _recede_darken: float = RECEDE_DARKEN
 
 var _init_vel: Vector2 = Vector2.ZERO   # inherited living velocity (decays to 80% across the descent)
 var _fall_v: float = 0.0                # gravity-accumulated downward speed
@@ -101,7 +100,6 @@ func _apply_cfg(cfg: Dictionary) -> void:
 	_descent_time = float(cfg.get("descent_time", _descent_time))
 	_speed_loss_start = float(cfg.get("speed_loss_start", _speed_loss_start))
 	_speed_loss_end = float(cfg.get("speed_loss_end", _speed_loss_end))
-	_recede_darken = float(cfg.get("recede_darken", _recede_darken))
 
 
 func _init_drift(init_vel: Vector2, seed_i: int, exit_explode_chance: float, emit_points: Array) -> void:
@@ -114,10 +112,14 @@ func _init_drift(init_vel: Vector2, seed_i: int, exit_explode_chance: float, emi
 	_drift_x = dir * randf_range(3.0, 11.0)
 	_init_vel = init_vel
 	_exit_explode_chance = exit_explode_chance
-	# Mid-depth recession: smooth scale-down + a subtle darken.
+	# Mid-depth recession: smooth scale-down (caller-owned magnitude — a wreck recedes less than a
+	# recycle ghost, 0.72 vs 0.45) + the SHARED depth-tint body look (MidDepthPresentation.recede_body,
+	# same call the recycle ghost + missile cruiser use → consistent recession). coordinator = null: the
+	# wreck already rides the wreck layer's own CanvasModulate grade, so don't double-grade. This swaps
+	# the body's damage-overlay material for the depth tint — the fire/smoke/tumble carry the wreck read.
 	var tw := s.create_tween()
 	tw.tween_property(s, "scale", s.scale * _wreck_scale, _scale_time).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	s.modulate = Color(s.modulate.r * _recede_darken, s.modulate.g * _recede_darken, s.modulate.b * _recede_darken, s.modulate.a)
+	MidDepthPresentation.recede_body(s, null, MidDepthPresentation.WRECK_TINT, MidDepthPresentation.WRECK_AMOUNT)
 	# Pick a random emit point (engine marker or hull centre) for the fire + smoke combo.
 	var emit: Vector2 = Vector2.ZERO
 	if not emit_points.is_empty():

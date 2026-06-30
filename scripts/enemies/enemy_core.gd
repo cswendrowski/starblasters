@@ -8,7 +8,8 @@
 
 const _DEFAULT_BULLET = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
-const RecycleController = preload("res://scripts/effects/recycle_controller.gd")
+# RecycleController is inherited from EnemyBase (don't redeclare — GDScript errors on a const that
+# already exists in the parent). enemy_core uses it via _on_offscreen → RecycleController.recycle().
 var bullet_scene: PackedScene = _DEFAULT_BULLET
 
 # Pattern-driven slots.
@@ -63,26 +64,12 @@ var _inertial_vel: Vector2 = Vector2.ZERO
 # enemy_core base so any composed enemy can be driven by a sequenced attack.
 var external_control: bool = false
 
-# Cycling state â€” enemy is currently flying back up through parallax.
-var _cycling: bool = false
-var _cycle_tween: Tween = null
-var _pre_cycle_scale: Vector2 = Vector2.ONE
-var _pre_cycle_modulate: Color = Color(1, 1, 1, 1)
+# Cycling state (_cycling) + is_recycling() + _set_outline_visible() live on EnemyBase now — the
+# fly-back itself is owned by RecycleController.recycle() (2026-06-29). This script just pauses its
+# movement/firing while _cycling and supplies the firing suspend/re-arm via the hooks below.
 
 # Pattern-driven enemies use CYCLE_BOTTOM by default (the parallax
 # re-entry). Leavers can flip this to FREE_ANY_EDGE / FREE_OPPOSITE_SIDE.
-
-
-func is_recycling() -> bool:
-	return _cycling
-
-
-# Toggle the hull outline node (added by EnemyBase via OutlineFx) — dropped while
-# recycling so a faux-parallax fly-back doesn't carry the "shootable" outline.
-func _set_outline_visible(v: bool) -> void:
-	var o := get_node_or_null("Outline")
-	if o != null:
-		o.visible = v
 
 
 func _ready() -> void:
@@ -205,95 +192,26 @@ func _clamp_to_sides() -> void:
 		position.x = Playfield.X_MAX - SIDE_MARGIN
 
 
-# Override EnemyBase's bottom-exit hook: instead of freeing, do the
-# parallax fly-back so the enemy reappears for another pass.
-# recycle_passes controls how many fly-back cycles are allowed:
-#   -1 = unlimited (legacy default), 0 = leave instead of cycling,
-#   N > 0 = decrement then cycle.
+# Override EnemyBase's offscreen hook: instead of freeing, hand off to RecycleController for the
+# parallax fly-back (it owns recycle_passes accounting + the tween; -1 unlimited / 0 leave /
+# N decrement-then-cycle). The firing suspend/re-arm flows back through the hooks below.
 func _on_offscreen() -> void:
-	if recycle_passes == 0:
-		_leave()
-		return
-	if recycle_passes > 0:
-		recycle_passes -= 1
-	_start_cycle()
+	RecycleController.recycle(self)
 
 
-func _start_cycle() -> void:
-	if _cycling:
-		return
-	_cycling = true
+# RecycleController hook: stop firing for the duration of the fly-back.
+func _recycle_suspend() -> void:
 	if has_node("ShootTimer"):
 		$ShootTimer.stop()
-	set_deferred("monitorable", false)
-	set_deferred("monitoring", false)
-	# Drop the hull outline + engine exhaust for the whole fly-back: a recycling ship
-	# reads as faux-parallax (shrunk + tinted), which shouldn't carry either effect.
-	_set_outline_visible(false)
-	set_engine_trail_emitting(false)
-	visible = false
-	# Recycle timing + look now flow from RecycleController (worklist #33): a single
-	# tunable owner whose DEFAULTS equal the old hardcoded numbers, so behavior is
-	# unchanged until Roman tunes via the RecycleTuner dev scene.
-	var rcfg: Dictionary = RecycleController.config()
-	# Cody, 2026-05-18: "Ships looping back around in the background could
-	# be brought up in speed, there's a lot of dead time waiting for them."
-	# Pre-cycle hold trimmed 1.0-2.0s â†’ 0.4-0.9s (now cfg.hold_min/max).
-	var delay: float = randf_range(float(rcfg.hold_min), float(rcfg.hold_max))
-	await get_tree().create_timer(delay).timeout
-	if not is_instance_valid(self):
-		return
-	# Pick a re-entry x inside the playfield band, not the full viewport â€”
-	# otherwise the cycle dropped enemies into the side gutters where the
-	# player can't shoot back. 22 px inset keeps the sprite fully inside
-	# the band edges (Roman, 2026-05-19).
-	var inset: float = float(rcfg.entry_inset)
-	var x_min: float = Playfield.X_MIN + inset
-	var x_max: float = Playfield.X_MAX - inset
-	var entry_x: float = randf_range(x_min, x_max)
-	position = Vector2(entry_x, screensize.y + 12.0)
-	_pre_cycle_scale = scale
-	_pre_cycle_modulate = modulate
-	# Parallax-pass: shrink to 45% size, push toward parallax tint. NO
-	# scale.y flip â€” auto_rotate handles orientation, so we rotate the
-	# ship to face UP (the direction it's flying during the fly-back)
-	# instead of mirroring its scale.
-	var fly_scale: float = float(rcfg.fly_scale)
-	scale = Vector2(_pre_cycle_scale.x * fly_scale, _pre_cycle_scale.y * fly_scale)
-	modulate = RecycleController.tint(rcfg)
-	# Face up â€” sprites are drawn pointing up, so rotation = 0 means
-	# they point along their travel direction during the fly-back.
-	rotation = 0.0
-	_rot_init = true
-	_last_position = position
-	visible = true
-	if _cycle_tween and _cycle_tween.is_valid():
-		_cycle_tween.kill()
-	_cycle_tween = create_tween()
-	# Fly-back tween 3.5s â†’ 1.8s so the cycle reads as a quick zip,
-	# not a leisurely parade (Cody, 2026-05-18). Duration/target now cfg-driven.
-	_cycle_tween.tween_property(self, "position:y", float(rcfg.fly_target_y), float(rcfg.fly_time)).set_trans(Tween.TRANS_LINEAR)
-	await _cycle_tween.finished
-	if not is_instance_valid(self):
-		return
-	scale = _pre_cycle_scale
-	modulate = _pre_cycle_modulate
-	_set_outline_visible(true)        # back on the gameplay layer — restore the outline
-	set_engine_trail_emitting(true)   # ...and the engine exhaust
-	_cycling = false
-	# Reset the auto-rotate position tracker so the first post-cycle
-	# move computes a fresh delta vector.
-	_rot_init = false
-	set_deferred("monitorable", true)
-	set_deferred("monitoring", true)
-	# Re-arm firing for the next pass. Path-phase enemies just reset their phase
-	# index (they re-fire by band progress on the new descent); timer enemies re-arm
-	# the ShootTimer with the same short first-poll as spawn.
+
+
+# RecycleController hook: re-arm firing for the next pass + re-run the pattern/components.
+# Path-phase enemies just reset their phase index (they re-fire by band progress on the new
+# descent); timer enemies re-arm the ShootTimer with the same short first-poll as spawn.
+func _recycle_resume() -> void:
 	_phase_fire_idx = 0
 	_beat_fire_at = -1.0
 	if has_node("ShootTimer") and fire_on_phase == "" and fire_path_phases.is_empty():
-		# Same short first-poll as spawn (zone-gated) so a recycled enemy fires
-		# again on its next engagement pass, not late on the long interval.
 		$ShootTimer.wait_time = 0.2 if fire_zone_gated else randf_range(fire_interval_min, fire_interval_max)
 		$ShootTimer.start()
 	if _pattern and _pattern.has_method("on_start"):
