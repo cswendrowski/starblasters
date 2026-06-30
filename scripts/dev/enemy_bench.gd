@@ -15,6 +15,7 @@ const EnemyStrings = preload("res://scripts/strings/enemy_strings.gd")
 const PatternEligibility = preload("res://scripts/levels/pattern_eligibility.gd")
 const Playfield = preload("res://scripts/systems/playfield.gd")
 const ShieldComponentC = preload("res://scripts/enemies/components/shield_component.gd")
+const OrbitComponentC = preload("res://scripts/enemies/components/orbit_component.gd")
 const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
 const EnemyTurretScript = preload("res://scripts/enemies/enemy_turret.gd")
@@ -211,6 +212,14 @@ var _mount_dicts: Array = []
 # Working list of emitter dicts: {trigger, payload(name), cadence, count, max_emits, band_only}.
 # Converted to EmitterComponents at spawn via EnemyRoster.make_emitter_specs.
 var _emitter_dicts: Array = []
+# Orbit rings (cluster-mine / bloom): an OrbitComponent holding N rings of payloads released on death.
+# `_orbit_mode` = "visual" (bullet shells erupt outward) or "live" (real bomblets fly free).
+# `_orbit_rings` = [{radius, count, speed, payload(name)}]. Built into an OrbitComponent at spawn.
+var _orbit_mode: String = "live"
+var _orbit_rings: Array = []
+var _orbit_list: VBoxContainer = null
+var _orbit_mode_dd: OptionButton = null
+const ORBIT_LIVE_PAYLOADS := {"Bomblet": "res://scenes/enemies/enemy_bomblet.tscn"}
 
 # Persisted per-scene settings.
 var _saved: Dictionary = {}
@@ -391,6 +400,7 @@ func _setup_size_tab() -> void:
 		return
 	_setup_enemy_template_knobs(scroll)
 	_setup_enemy_loco_knobs(scroll)
+	_setup_orbit_editor(scroll)
 	# Save/Copy were the last .tscn child, but the template + locomotion sections get appended in
 	# code after them — so re-seat the separator + button row at the true bottom of the panel.
 	var enemy_content := scroll.get_child(0)
@@ -962,6 +972,8 @@ func _spawn_current() -> void:
 				ems[i].drop = bool(em_dicts[i].get("drop", true))
 		if not ems.is_empty():
 			inst.components = inst.components + ems   # append droppers/spawners to baked components
+		if not _orbit_rings.is_empty():
+			inst.components = inst.components + [_build_orbit()]   # cluster-mine / bloom ring held + released
 	# Shielded trait (template): add a CHARGE ShieldComponent sized to the template for a live preview.
 	if _shielded_chk != null and _shielded_chk.button_pressed and "components" in inst:
 		var cap: int = int(EnemyRoster.compose_stats(_template_entry()).get("shield_charges", 0))
@@ -1392,6 +1404,129 @@ func _emitter_copy_line(d: Dictionary) -> String:
 		String(d.get("trigger", "timer")), ppath, int(d.get("count", 1)), float(d.get("cadence", 0.55)),
 		int(d.get("max_emits", 0)), band, extra,
 	]
+
+
+# ---- Orbit rings editor (cluster-mine / bloom) ---------------------------
+# An OrbitComponent: N rings of payloads orbiting the enemy, RELEASED on death. mode "live" = real
+# bomblets fly free with their orbit momentum; "visual" = bullet shells erupt radially outward. The
+# generalization of the gravity-mine + bloom enemies — added to any enemy's components here.
+
+func _setup_orbit_editor(scroll: Control) -> void:
+	if scroll == null or scroll.get_child_count() == 0:
+		return
+	var content := scroll.get_child(0)
+	if not (content is Container):
+		return
+	content.add_child(HSeparator.new())
+	content.add_child(_mk_label("Orbit rings (held → released on death)", 16, Color(0.62, 0.82, 1, 1)))
+	content.add_child(_mk_label("Rings of payloads orbiting the enemy, freed on death — the cluster mine / bloom. Live = real hittable bomblets; Visual = bullet shells flung outward.", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
+	content.add_child(_mk_label("Mode", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
+	_orbit_mode_dd = OptionButton.new()
+	_orbit_mode_dd.add_item("Live (bomblets)")
+	_orbit_mode_dd.add_item("Visual (bullets)")
+	_orbit_mode_dd.select(0 if _orbit_mode == "live" else 1)
+	_orbit_mode_dd.custom_minimum_size = Vector2(0, 30)
+	_orbit_mode_dd.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_orbit_mode_dd.item_selected.connect(func(i):
+		_orbit_mode = "live" if i == 0 else "visual"
+		_rebuild_orbit_ui()
+		if not _loading:
+			_spawn_current())
+	content.add_child(_orbit_mode_dd)
+	_orbit_list = VBoxContainer.new()
+	_orbit_list.add_theme_constant_override("separation", 6)
+	content.add_child(_orbit_list)
+	var add := Button.new()
+	add.text = "+ Add Ring"
+	_style_button(add)
+	add.pressed.connect(_add_orbit_ring)
+	content.add_child(add)
+	_rebuild_orbit_ui()
+
+
+# Payload options for an orbit ring: bomblets (Live) or bullet families (Visual).
+func _orbit_payload_options() -> Array:
+	return ORBIT_LIVE_PAYLOADS.keys() if _orbit_mode == "live" else PAYLOADS.keys()
+
+
+func _add_orbit_ring() -> void:
+	_orbit_rings.append({"radius": 16.0, "count": 6, "speed": 1.6, "payload": ("Bomblet" if _orbit_mode == "live" else "Ball")})
+	_rebuild_orbit_ui()
+	_spawn_current()
+
+
+func _remove_orbit_ring(d: Dictionary) -> void:
+	_orbit_rings.erase(d)
+	_rebuild_orbit_ui()
+	_spawn_current()
+
+
+func _set_orbit_ring(d: Dictionary, key: String, value) -> void:
+	d[key] = value
+	_spawn_current()
+
+
+func _rebuild_orbit_ui() -> void:
+	if _orbit_list == null:
+		return
+	for c in _orbit_list.get_children():
+		_orbit_list.remove_child(c)
+		c.queue_free()
+	for i in _orbit_rings.size():
+		_orbit_list.add_child(_make_orbit_ring_row(i))
+	_tighten_panel(_orbit_list)
+
+
+func _make_orbit_ring_row(idx: int) -> Control:
+	var d: Dictionary = _orbit_rings[idx]
+	var row := VBoxContainer.new()
+	row.add_theme_constant_override("separation", 3)
+	var head := HBoxContainer.new()
+	var title := _row_lbl("Ring %d" % (idx + 1))
+	title.add_theme_color_override("font_color", Color(0.62, 0.82, 1, 1))
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	var rm := Button.new()
+	rm.text = "✕"
+	_style_button(rm)
+	rm.add_theme_font_size_override("font_size", FS_CAPTION)
+	rm.pressed.connect(func(): _remove_orbit_ring(d))
+	head.add_child(rm)
+	row.add_child(head)
+	var grid := _field_grid()
+	row.add_child(grid)
+	var pnames: Array = _orbit_payload_options()
+	var pay_dd := _row_dd(pnames, maxi(0, pnames.find(String(d.get("payload", "")))))
+	pay_dd.item_selected.connect(func(i): _set_orbit_ring(d, "payload", String(pnames[i])))
+	_grid_row(grid, "payload", pay_dd)
+	var rad := _row_spin(4.0, 64.0, 1.0, float(d.get("radius", 16.0)))
+	rad.value_changed.connect(func(v): _set_orbit_ring(d, "radius", float(v)))
+	_grid_row(grid, "radius", rad)
+	var cnt := _row_spin(1, 24, 1, float(d.get("count", 6)))
+	cnt.value_changed.connect(func(v): _set_orbit_ring(d, "count", int(v)))
+	_grid_row(grid, "count", cnt)
+	var spd := _row_spin(-6.0, 6.0, 0.2, float(d.get("speed", 1.6)))
+	spd.value_changed.connect(func(v): _set_orbit_ring(d, "speed", float(v)))
+	_grid_row(grid, "spin rad/s", spd)
+	return row
+
+
+# Build a live OrbitComponent from the ring dicts (Live → bomblet scenes, Visual → bullet variants).
+func _build_orbit():
+	var oc = OrbitComponentC.new()
+	oc.mode = OrbitComponentC.Mode.LIVE if _orbit_mode == "live" else OrbitComponentC.Mode.VISUAL
+	oc.host_drift = 60.0
+	var rings: Array = []
+	for r in _orbit_rings:
+		var ring: Dictionary = {"radius": float(r.get("radius", 16.0)), "count": int(r.get("count", 6)), "speed": float(r.get("speed", 1.6))}
+		var pname: String = String(r.get("payload", ""))
+		if _orbit_mode == "live":
+			ring["scene"] = load(String(ORBIT_LIVE_PAYLOADS.get(pname, ORBIT_LIVE_PAYLOADS["Bomblet"])))
+		else:
+			ring["variant"] = PAYLOADS.get(pname, BV_Ball)
+		rings.append(ring)
+	oc.rings = rings
+	return oc
 
 
 # Scan authored Marker2D names from a scene's state (no instantiation, like _icon_for).
@@ -1895,6 +2030,11 @@ func _load_settings_into_editors() -> void:
 	_rebuild_mounts_ui()
 	_emitter_dicts = _dup_mounts(s.get("emitters")) if s.has("emitters") else _default_emitters_for(_selected_path)
 	_rebuild_emitters_ui()
+	_orbit_mode = String(s.get("orbit_mode", "live"))
+	_orbit_rings = _dup_mounts(s.get("orbit_rings")) if s.has("orbit_rings") else []
+	if _orbit_mode_dd != null:
+		_orbit_mode_dd.select(0 if _orbit_mode == "live" else 1)
+	_rebuild_orbit_ui()
 	_loading = false
 
 
@@ -1935,6 +2075,8 @@ func _current_settings() -> Dictionary:
 		"codex": _codex_edit.text,
 		"mounts": _dup_mounts(_mount_dicts),
 		"emitters": _dup_mounts(_emitter_dicts),
+		"orbit_mode": _orbit_mode,
+		"orbit_rings": _dup_mounts(_orbit_rings),
 		"engine_override": _override_on(_engine_override_chk),
 		"engine": int(_engine_spin.value) if _engine_spin != null else 0,
 		"depth": _depth_for_selected(),
@@ -2031,6 +2173,22 @@ func _on_copy() -> void:
 		for d in _emitter_dicts:
 			txt += "\t%s\n" % _emitter_copy_line(d)
 		txt += "],\n"
+	# Orbit rings → an OrbitComponent built in the enemy's _ready (cluster-mine / bloom). Rings released on death.
+	if not _orbit_rings.is_empty():
+		txt += "\n# -> OrbitComponent (add to components in _ready, BEFORE super._ready()):\n"
+		txt += "var oc = OrbitComponent.new()\n"
+		txt += "oc.mode = OrbitComponent.Mode.%s\n" % ("LIVE" if _orbit_mode == "live" else "VISUAL")
+		txt += "oc.rings = [\n"
+		for r in _orbit_rings:
+			var pname: String = String(r.get("payload", ""))
+			var pay: String
+			if _orbit_mode == "live":
+				pay = "\"scene\": preload(\"%s\")" % String(ORBIT_LIVE_PAYLOADS.get(pname, ORBIT_LIVE_PAYLOADS["Bomblet"]))
+			else:
+				pay = "\"variant\": %s" % String(PAYLOAD_CONST.get(pname, "preload(\"res://data/bullets/ball.tres\")"))
+			txt += "\t{ \"radius\": %.0f, \"count\": %d, \"speed\": %.2f, %s },\n" % [
+				float(r.get("radius", 16.0)), int(r.get("count", 6)), float(r.get("speed", 1.6)), pay]
+		txt += "]\ncomponents = [oc]\n"
 	# Paste-ready enemy_strings.gd STRINGS entry (the name + codex live in a baked
 	# const dict, so this is the handoff back into source).
 	var codex_one_line: String = String(s["codex"]).replace("\n", " ").replace("\"", "'")

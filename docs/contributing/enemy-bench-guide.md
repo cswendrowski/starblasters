@@ -164,6 +164,16 @@ This works with **any** payload — no bespoke slow bullet needed. (The legacy
 - **phase** — a named movement phase to gate firing on (for enemies with
   multi-phase state machines).
 
+### Orbit rings editor (cluster mine / bloom)
+Gives the enemy an `OrbitComponent` — rings of payloads that orbit it and are
+**released on death** (the generalized gravity-mine / bloom behavior).
+- **Mode** — `Live (bomblets)` holds real, hittable bomblets that fly free with
+  their orbit momentum on death; `Visual (bullets)` holds sprite shells that
+  erupt as outward bullets on death.
+- **Add Ring** — each ring has **payload** (a bomblet in Live mode, a bullet
+  family in Visual mode), **radius**, **count**, and **spin rad/s** (sign =
+  direction). Stack rings for concentric layers.
+
 ### Emitters editor (Add Emitter)
 Emitters **drop or spawn a payload scene** on a trigger — the generalized form
 of the interceptor's mine/missile drop. Separate from weapon mounts.
