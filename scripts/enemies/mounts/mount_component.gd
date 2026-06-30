@@ -235,9 +235,17 @@ func _fire_launcher(enemy) -> void:
 		return
 	var world: Node = BulletWorld.resolve(enemy, enemy.get_tree().root)
 	var n: int = maxi(1, spec.count)
-	for pos in _spawn_positions(enemy):
-		for i in n:
-			var dir: Vector2 = _fan(Vector2(0, 1), i, n)
+	var is_burst: bool = spec.burst_interval > 0.0
+	# Mirror _fire_gun: the `count` rockets/missiles are spaced by burst_interval (was a single-frame
+	# clump that ignored burst, Roman 2026-06-29). Resolve spawn positions per shot so they follow the
+	# moving launcher and CYCLE alternates muzzles per shot.
+	for i in n:
+		if is_burst and i > 0:
+			await enemy.get_tree().create_timer(spec.burst_interval).timeout
+			if not is_instance_valid(enemy):
+				return
+		var dir: Vector2 = _fan(Vector2(0, 1), i, n)
+		for pos in _spawn_positions(enemy):
 			var proj = spec.payload_scene.instantiate()
 			if "initial_dir" in proj:
 				proj.initial_dir = dir
@@ -246,7 +254,10 @@ func _fire_launcher(enemy) -> void:
 				proj.start(pos)
 			elif proj is Node2D:
 				proj.global_position = pos
-	_play_sfx(enemy)
+		if is_burst:
+			_play_sfx(enemy)
+	if not is_burst:
+		_play_sfx(enemy)
 
 
 # i-th direction in a `n`-wide fan around `base` (no fan when spread_deg==0 or n==1).
