@@ -137,6 +137,32 @@ static func _all_pool() -> Array:
 		{"factory": "_make_primary_smart_mount", "slot": Slots.SlotType.MODULE},
 	]
 
+# Reverse lookup: a part instance → its catalog factory name (the key ArmoryStrings/codex use), matched
+# by display_name since parts don't carry their factory id. Lets meta screens (outpost) source the SAME
+# codex blurb the Codex shows, instead of the part's inline `description` (one source of truth). Cached.
+static var _display_to_factory: Dictionary = {}
+
+static func factory_for_part(part) -> String:
+	if part == null or not ("display_name" in part):
+		return ""
+	if _display_to_factory.is_empty():
+		_build_display_index()
+	return String(_display_to_factory.get(String(part.display_name), ""))
+
+
+static func _build_display_index() -> void:
+	# The roll pool + the two default-only parts (Focus, Shield Core) that never roll but are owned.
+	var entries: Array = _all_pool().duplicate()
+	entries.append({"factory": "_make_focus_mode", "slot": Slots.SlotType.SHIFT_MODE})
+	entries.append({"factory": "_make_shield_core", "slot": Slots.SlotType.MODULE})
+	for entry in entries:
+		var p = _make_by_name(String(entry["factory"]), int(entry["slot"]))
+		if p != null and "display_name" in p:
+			var dn := String(p.display_name)
+			if not _display_to_factory.has(dn):
+				_display_to_factory[dn] = String(entry["factory"])
+
+
 static func roll_random_part(rng: RandomNumberGenerator):
 	var pool = _all_pool()
 	var entry = pool[rng.randi() % pool.size()]

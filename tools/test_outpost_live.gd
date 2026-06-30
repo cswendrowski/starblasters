@@ -79,7 +79,11 @@ func _run() -> void:
 	_ck(run.outpost_weapon_offers.size() > 0, "market rolled real offers (%d)" % run.outpost_weapon_offers.size())
 	if run.outpost_weapon_offers.size() > 0:
 		_ck(run.outpost_weapon_offers[0].get("part") != null, "offers carry real Part refs")
-	_ck(_oa._slots.get("PRIMARY") != null, "PRIMARY reads the active cannon")
+	_ck(_oa._slots.get("BLASTER") != null, "BLASTER slot always present (mandatory cannon)")
+	# Info blurb is sourced from the Codex (ArmoryStrings via factory_for_part), not part.description.
+	var blsl = _oa._slots.get("BLASTER")
+	if blsl != null and blsl.get("part") != null:
+		_ck(_oa._codex_blurb(blsl) != "", "info blurb resolves from the Codex source")
 	_ck(_oa._hold.size() >= 2, "hold reads storage+inventory (%d)" % _oa._hold.size())
 
 	# Pull SECONDARY → storage.
@@ -111,8 +115,8 @@ func _run() -> void:
 		_oa._buy_market(_oa._market[0])
 		_ck(int(run.bounty) <= b2, "buy spends bounty (or no-op if unaffordable)")
 
-	# Upgrade an owned part (PRIMARY cannon).
-	var prim = _oa._slots.get("PRIMARY")
+	# Upgrade an owned part (the BLASTER — always present).
+	var prim = _oa._slots.get("BLASTER")
 	if prim != null and prim.get("part") != null and run.can_upgrade_part(prim["part"]):
 		var mk = int(prim["part"].mark)
 		_oa._upgrade_part_live(prim["part"])
@@ -129,6 +133,50 @@ func _run() -> void:
 	run.super_charges = 0
 	_oa._on_refill_super()
 	_ck(true, "super refill ran")
+
+	# Shift mode is now a first-class owned part (SHIFT slot reads loadout_snapshot[SHIFT_MODE]).
+	var shift = _oa._slots.get("SHIFT")
+	_ck(shift != null and shift.get("part") != null, "SHIFT slot reads the equipped shift mode")
+
+	# Upgrade is its own shop mode now (like scrap/sell) — engaging + rebuilding must not error.
+	_oa._set_shop_mode(OutpostArrival.ShopMode.UPGRADE)
+	_ck(_oa._shop_mode == OutpostArrival.ShopMode.UPGRADE, "upgrade mode engages + renders")
+	_oa._set_shop_mode(OutpostArrival.ShopMode.NONE)
+
+	# Pull the shift mode → it lands in the hold (swappable/sellable like any part).
+	if shift != null and shift.get("part") != null:
+		var hn2 = _oa._hold.size()
+		_oa._pull("SHIFT")
+		_ck(run.loadout_snapshot.get(SlotTypes.SlotType.SHIFT_MODE) == null, "pull SHIFT clears the slot")
+		_ck(_oa._hold.size() == hn2 + 1, "pulled shift mode → hold")
+
+	# Blaster swap: slotting a DIFFERENT infinite blaster pulls the old blaster out to the hold (it
+	# does NOT silently overwrite). The mandatory BLASTER slot stays filled.
+	var old_blaster = _oa._slots.get("BLASTER")
+	var old_blaster_name := String(old_blaster["part"].display_name) if old_blaster != null and old_blaster.get("part") != null else ""
+	var swap_rng := RandomNumberGenerator.new()
+	swap_rng.seed = 4242
+	var newb = null
+	for i in 24:
+		var c = PartCatalog.roll_for_slot(swap_rng, SlotTypes.SlotType.CANNON, 2)
+		if c != null and c.has_method("ammo_at_mark") and int(c.ammo_at_mark(int(c.mark))) < 0 and String(c.display_name) != old_blaster_name:
+			newb = c
+			break
+	if newb != null and old_blaster_name != "":
+		run.weapon_storage.append(newb)
+		_oa._refresh_live()
+		var hidx := -1
+		for i in _oa._hold.size():
+			if _oa._hold[i].get("part") == newb:
+				hidx = i
+		if hidx >= 0:
+			_oa._swap_from_hold(hidx)
+			_ck(String(run.cannon_pool[0].display_name) == String(newb.display_name), "blaster swap installs the new blaster")
+			var in_hold := false
+			for p in run.weapon_storage:
+				if String(p.display_name) == old_blaster_name:
+					in_hold = true
+			_ck(in_hold, "blaster swap pulls the OLD blaster to the hold (no overwrite)")
 
 	print("live: hold=%d market=%d offers=%d bounty=%d materials=%d" %
 		[_oa._hold.size(), _oa._market.size(), run.outpost_weapon_offers.size(), int(run.bounty), int(run.materials)])

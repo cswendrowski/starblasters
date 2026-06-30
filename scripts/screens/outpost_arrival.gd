@@ -51,6 +51,8 @@ const LightShadowFx = preload("res://scripts/effects/light_shadow_fx.gd")
 const SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const PartTier = preload("res://scripts/parts/part_tier.gd")
+const OutpostSfx = preload("res://scripts/effects/outpost_sfx.gd")   # carried over from the old outpost menu
+const ArmoryStrings = preload("res://scripts/strings/armory_strings.gd")   # the Codex's item blurbs (one source)
 const SHOP_MAX_MK := 9
 const CANNON_BASE_COST := 116
 const CANNON_COST_PER_MK := 70
@@ -60,6 +62,7 @@ const WEAPON_SLOT_WEIGHTS := [
 	SlotTypes.SlotType.CANNON, SlotTypes.SlotType.CANNON, SlotTypes.SlotType.CANNON, SlotTypes.SlotType.CANNON,
 	SlotTypes.SlotType.HARDPOINT_WING, SlotTypes.SlotType.HARDPOINT_WING,
 	SlotTypes.SlotType.DEVICE_BAY_1, SlotTypes.SlotType.MODULE, SlotTypes.SlotType.MODULE,
+	SlotTypes.SlotType.SHIFT_MODE,   # shift modes are buyable items now (sold/scrapped/swapped like any part)
 ]
 
 const ENGINE_GLOW_COLOR := Color(0.0, 0.827, 1.0)   # #00d3ff — in-game engine glowmask
@@ -116,7 +119,7 @@ signal departed
 signal depart_requested   # bottom-bar Depart pressed (caller may intercept; default → depart())
 
 enum State { ARRIVING, LANDED, DEPARTING, GONE }
-enum ShopMode { NONE, SCRAP, SELL }
+enum ShopMode { NONE, SCRAP, SELL, UPGRADE }
 # Shadow prototype: LEGACY = baked drop shadows; KEY = one central key light (single shadow);
 # FILL = the bay's 2×3 fill lights (multi-shadow). + optional dynamic engine-light casters.
 enum ShadowMode { LEGACY, KEY, FILL }
@@ -208,7 +211,6 @@ var _ui_tween: Tween = null
 # Inventory mock (local model — see file header).
 var _slots: Dictionary = {}
 var _hold: Array = []
-var _shift_mode: String = "Focus"
 var _money: int = 0
 var _materials: int = 0
 var _shop_mode: int = ShopMode.NONE
@@ -226,6 +228,7 @@ var _left_sidebar: ColorRect = null    # persistent black gutter bg (menus read 
 var _right_sidebar: ColorRect = null
 var _money_lbl: Label = null
 var _parts_lbl: Label = null
+var _hull_lbl: Label = null
 var _toast_lbl: Label = null
 var _toast_tween: Tween = null
 var _info_popup: Control = null
@@ -259,7 +262,12 @@ func _ready() -> void:
 	_build_bottom_bar()
 	_build_toast()
 	_built = true
-	if _should_play_cinematic():
+	if _consume_dock_skip():
+		# Returning from a side trip (e.g. the Codex) lands immediately — no second fly-in. Only the
+		# ARRIVAL is skipped; depart still animates normally unless dock cinematics are turned fully off.
+		begin_landed()
+		_skip_anim = (_dock_anim_mode() == 3)
+	elif _should_play_cinematic():
 		begin_arrival()
 	else:
 		begin_landed()
@@ -302,6 +310,7 @@ func _init_inventory() -> void:
 			"MODULE_1": _mk_item("Shield Core", "MODULE", 2, 50, "Adds shield charges. Mk raises the charge pool."),
 			"MODULE_2": _mk_item("Thrusters", "MODULE", 1, 35, "Raises move speed. Mk sharpens handling."),
 			"MODULE_3": null,
+			"SHIFT": _mk_item("Focus", "SHIFT_MODE", 1, 20, "Tap Shift for a burst of bonus crit chance. Mk widens the crit window."),
 		}
 		_hold = [
 			_mk_item("Reinforced Hull", "MODULE", 4, 55, "Adds hull pips. Mk raises max hull."),
@@ -335,13 +344,24 @@ func _refresh_live() -> void:
 	_hold.clear()
 	_locked_parts.clear()
 
-	# PRIMARY/SECONDARY/SUPER slots from Run.
-	var active_cannon = run.get_active_cannon() if run.has_method("get_active_cannon") else null
-	if active_cannon != null:
+	# Two cannon slots (Roman 2026-06-29): a ship ALWAYS has a BLASTER (infinite, cannon_pool[0]) —
+	# mandatory, but swappable blaster-for-blaster (the old one drops to the hold). The PRIMARY
+	# (metered, cannon_pool[1]) is OPTIONAL — it can be removed, leaving the ship with just its blaster.
+	var blaster = run.cannon_pool[0] if run.cannon_pool.size() > 0 else null
+	if blaster != null:
+		_slots["BLASTER"] = _mk_item(
+			String(blaster.display_name), "PRIMARY", int(blaster.mark),
+			_scrap_value(blaster), String(blaster.description),
+			blaster, "blaster")
+	else:
+		_slots["BLASTER"] = null
+
+	var primary = run.get_primary_cannon() if run.has_method("get_primary_cannon") else null
+	if primary != null:
 		_slots["PRIMARY"] = _mk_item(
-			String(active_cannon.display_name), "PRIMARY", int(active_cannon.mark),
-			_scrap_value(active_cannon), String(active_cannon.description),
-			active_cannon, "cannon_pool")
+			String(primary.display_name), "PRIMARY", int(primary.mark),
+			_scrap_value(primary), String(primary.description),
+			primary, "primary")
 	else:
 		_slots["PRIMARY"] = null
 
@@ -374,6 +394,17 @@ func _refresh_live() -> void:
 				mod, "modules")
 		else:
 			_slots[sid] = null
+
+	# Shift mode (SHIFT_MODE slot) — now a first-class owned part (Info/Pull/Swap/Scrap/Sell/Upgrade),
+	# not a hardcoded Focus/Phase/Hyper toggle. An empty slot falls back to Focus behavior in combat.
+	var shift_part = run.loadout_snapshot.get(int(SlotTypes.SlotType.SHIFT_MODE), null)
+	if shift_part != null:
+		_slots["SHIFT"] = _mk_item(
+			String(shift_part.display_name), "SHIFT_MODE", int(shift_part.mark),
+			_scrap_value(shift_part), String(shift_part.description),
+			shift_part, "shift")
+	else:
+		_slots["SHIFT"] = null
 
 	# Hold: weapon_storage + inventory
 	for i in range(run.weapon_storage.size()):
@@ -513,6 +544,19 @@ func _buy_slot_occupied(run, part, slot: int) -> bool:
 # Scrap value = item's Mk (1 material per Mk)
 func _scrap_value(part) -> int:
 	return int(part.mark) if (part != null and "mark" in part) else 1
+
+
+# True when the player can afford a bounty cost. `_money` is kept in sync with Run in live mode.
+func _afford(cost: int) -> bool:
+	return _money >= cost
+
+
+# The BLASTER slot (cannon_pool[0], infinite) is MANDATORY — it can never be pulled/scrapped/sold, only
+# swapped for another blaster from the hold (which drops the old one into the hold). That guarantees the
+# player always leaves with a blaster. The metered PRIMARY (cannon_pool[1]) is freely removable.
+# Live-only: the mock dock has a single demo cannon slot, no separate blaster.
+func _is_core_blaster(sid: String) -> bool:
+	return _live and sid == "BLASTER"
 
 
 # ---- World build (native 480 SubViewport) ---------------------------------
@@ -1016,16 +1060,24 @@ func _tab_container() -> TabContainer:
 	return tc
 
 
-# A scrollable tab page; the ScrollContainer's name becomes the tab title.
+# A scrollable tab page; the ScrollContainer's name becomes the tab title. Vertical scroll only —
+# horizontal scroll OFF so content is constrained to the page width (right-aligned buttons stay in the
+# margin instead of overflowing). A MarginContainer keeps content clear of the right-hand scrollbar.
 func _add_page(tc: TabContainer, title: String) -> VBoxContainer:
 	var scroll := ScrollContainer.new()
 	scroll.name = title
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var margin := MarginContainer.new()
+	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	margin.add_theme_constant_override("margin_right", 14)
+	margin.add_theme_constant_override("margin_left", 2)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 10)
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(v)
+	margin.add_child(v)
+	scroll.add_child(margin)
 	tc.add_child(scroll)
 	return v
 
@@ -1079,16 +1131,43 @@ func _build_top_bar() -> void:
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 48)
 	v.add_child(row)
+	_hull_lbl = _label("", UiTheme.FONT_SIZE_HEADER, UiTheme.COLOR_DANGER)
+	row.add_child(_hull_lbl)
 	_money_lbl = _label("₵ %d" % _money, UiTheme.FONT_SIZE_HEADER, UiTheme.COLOR_BOUNTY)
 	row.add_child(_money_lbl)
 	_parts_lbl = _label("◆ %d" % _materials, UiTheme.FONT_SIZE_HEADER, UiTheme.COLOR_GREEN)
 	row.add_child(_parts_lbl)
+	_update_hull()
 
 
 func _open_options() -> void:
 	var ov = load("res://scripts/ui/options_overlay.gd")
 	if ov != null:
 		ov.open(self)
+
+
+# Codex: jump to the holo-shaded reference, returning to the dock afterward (the codex honors
+# Run's one-shot `codex_return` meta). Only when we own the HD scope (production / standalone) —
+# the embedded dev lab can't change scene out from under its host, so just toast there.
+func _open_codex() -> void:
+	if not manage_hd_scope:
+		toast("Codex unavailable here")
+		return
+	var run := get_node_or_null("/root/Run")
+	if run != null:
+		run.set_meta("codex_return", "res://scenes/outpost_arrival.tscn")
+		run.set_meta("outpost_skip_cinematic", true)   # land straight away on the way back — no re-fly-in
+	SceneTransition.change_scene(get_tree(), "res://scenes/enemy_codex.tscn", drop_hd_scope)
+
+
+# One-shot: a side trip (Codex) sets this so the returning dock lands immediately instead of replaying
+# the fly-in. Consumed here so it only affects the very next instantiation.
+func _consume_dock_skip() -> bool:
+	var run := get_node_or_null("/root/Run")
+	if run != null and run.has_meta("outpost_skip_cinematic"):
+		run.remove_meta("outpost_skip_cinematic")
+		return true
+	return false
 
 
 func _build_bottom_bar() -> void:
@@ -1107,10 +1186,10 @@ func _build_bottom_bar() -> void:
 	options.custom_minimum_size = Vector2(180, 60)
 	options.pressed.connect(_open_options)
 	row.add_child(options)
-	var code := UiTheme.make_button("CODE", true)
-	code.custom_minimum_size = Vector2(160, 60)
-	code.pressed.connect(func() -> void: toast("Enter Code (stub)"))
-	row.add_child(code)
+	var codex := UiTheme.make_button("CODEX", true)
+	codex.custom_minimum_size = Vector2(160, 60)
+	codex.pressed.connect(_open_codex)
+	row.add_child(codex)
 
 
 # Solid-black gutter backdrops that STAY on (so the side menus read on a solid background).
@@ -1168,20 +1247,25 @@ func _market_card(entry: Dictionary) -> PanelContainer:
 	var v: VBoxContainer = card.get_child(0)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
-	var nm := _label("%s · Mk.%d" % [entry["name"], int(entry["mark"])], UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_TEXT)
+	# Name only — the Mk lives in the subtitle below (no "· Mk.N" tail).
+	var nm := _label(String(entry["name"]), UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_TEXT)
 	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	nm.clip_text = true
 	row.add_child(nm)
 	var is_bb: bool = bool(entry.get("buyback", false))
 	var price: int = _sell_price(entry) if is_bb else int(entry.get("cost", _item_value(entry)))
-	row.add_child(_label("₵%d" % price, UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_BOUNTY))
+	var afford: bool = _afford(price)
+	# Can't afford it → the price reddens and the buy button grays out.
+	row.add_child(_label("₵%d" % price, UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_BOUNTY if afford else UiTheme.COLOR_DANGER))
+	# Compact "i" info button (the full label pushed BUY out of frame). Same popup as owned parts.
+	row.add_child(_info_btn(entry))
 	var btn := UiTheme.make_button("BUYBACK" if is_bb else "BUY", true)
-	btn.pressed.connect(func() -> void: _buy_market(entry))
+	btn.disabled = not afford
+	if afford:
+		btn.pressed.connect(func() -> void: _buy_market(entry))
 	row.add_child(btn)
 	v.add_child(row)
-	v.add_child(_label(_card_subtitle_live(entry), UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
-	var mdetail := _part_detail_live(entry)
-	if mdetail != "":
-		v.add_child(_label(mdetail, UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_TEXT))
+	v.add_child(_label(_card_subtitle_live(entry), UiTheme.FONT_SIZE_CAPTION, _tier_color(entry)))
 	if is_bb:
 		v.add_child(_label("· sold — buyback until you depart", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
 	return card
@@ -1193,6 +1277,7 @@ func _buy_market(entry: Dictionary) -> void:
 	if _money < price:
 		toast("Not enough ₵")
 		return
+	OutpostSfx.play("equip")
 	if _live:
 		var run := get_node_or_null("/root/Run")
 		var part = entry.get("part")
@@ -1233,35 +1318,49 @@ func _rebuild_services() -> void:
 		return
 	_clear(_page_services)
 	_page_services.add_child(_caption("Repair, rearm and upgrade"))
+	var run := get_node_or_null("/root/Run")
+	# Each service grays out when it's UNNECESSARY (would no-op — full / nothing to refill / no charges)
+	# as well as when it's unaffordable. The `available` flag mirrors each handler's own success guards.
 	# Repair clears battle damage — the shader fray + sparks heal LIVE (driven, never baked).
-	_page_services.add_child(_service_row("Repair Hull", 250, _do_repair))
+	var repair_avail: bool = damage_level > 0.01 and (not _live or (run != null and int(run.repair_charges) > 0))
+	_page_services.add_child(_service_row("Repair Hull", 250, _do_repair, repair_avail))
 	if _live:
-		_page_services.add_child(_service_row("Refill MG Ammo", 100, _on_refill_primary_ammo))
-		_page_services.add_child(_service_row("Refill Secondary", 60, _on_refill_secondary_ammo))
-		_page_services.add_child(_service_row("Refill Super", 120, _on_refill_super))
+		_page_services.add_child(_service_row("Refill Primary", 100, _on_refill_primary_ammo, _refill_primary_avail(run)))
+		_page_services.add_child(_service_row("Refill Secondary", 60, _on_refill_secondary_ammo, _refill_secondary_avail(run)))
+		_page_services.add_child(_service_row("Refill Super", 120, _on_refill_super, _refill_super_avail(run)))
 	else:
-		_page_services.add_child(_service_row("Refill MG Ammo", 120, func() -> void: toast("Refilled MG ammo (stub)")))
+		_page_services.add_child(_service_row("Refill Primary", 120, func() -> void: toast("Refilled primary ammo (stub)")))
 		_page_services.add_child(_service_row("Refill Super", 120, func() -> void: toast("Refilled super (stub)")))
 	_page_services.add_child(HSeparator.new())
 	_page_services.add_child(_label("PART HANDLING", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
 	# Scrap / Sell put the shop in a mode that retargets the owned-part action buttons.
 	var modes := HBoxContainer.new()
 	modes.add_theme_constant_override("separation", 8)
-	var scrap_btn := UiTheme.make_button("Scrap Parts", true)
+	var scrap_btn := UiTheme.make_button("Scrap", true)
 	if _shop_mode == ShopMode.SCRAP:
 		scrap_btn.add_theme_color_override("font_color", UiTheme.COLOR_DANGER)
 	scrap_btn.pressed.connect(func() -> void: _toggle_shop_mode(ShopMode.SCRAP))
 	modes.add_child(scrap_btn)
-	var sell_btn := UiTheme.make_button("Sell Parts", true)
+	var sell_btn := UiTheme.make_button("Sell", true)
 	if _shop_mode == ShopMode.SELL:
 		sell_btn.add_theme_color_override("font_color", UiTheme.COLOR_BOUNTY)
 	sell_btn.pressed.connect(func() -> void: _toggle_shop_mode(ShopMode.SELL))
 	modes.add_child(sell_btn)
+	# Upgrade is its own mode now (like scrap/sell) — it lists every owned part and Mk-ups the ones the
+	# player can afford, instead of a fixed upgrade button bolted onto each card. Live-only (real parts).
+	if _live:
+		var up_btn := UiTheme.make_button("Upgrade", true)
+		if _shop_mode == ShopMode.UPGRADE:
+			up_btn.add_theme_color_override("font_color", UiTheme.COLOR_GREEN)
+		up_btn.pressed.connect(func() -> void: _toggle_shop_mode(ShopMode.UPGRADE))
+		modes.add_child(up_btn)
 	_page_services.add_child(modes)
 	if _shop_mode == ShopMode.SCRAP:
 		_page_services.add_child(_label("SCRAP MODE — tap an owned part to break it for ◆ materials.", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_DANGER))
 	elif _shop_mode == ShopMode.SELL:
 		_page_services.add_child(_label("SELL MODE — tap an owned part to sell for 20% ₵ (buyable back until you depart).", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_BOUNTY))
+	elif _shop_mode == ShopMode.UPGRADE:
+		_page_services.add_child(_label("UPGRADE MODE — tap an owned part to Mk-up (costs ◆ + ₵; grayed when maxed or unaffordable).", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_GREEN))
 	_page_services.add_child(_spacer())
 
 
@@ -1294,16 +1393,47 @@ func _complete_node_shop() -> void:
 	_rebuild_market()
 
 
-func _service_row(title: String, cost: int, cb: Callable) -> HBoxContainer:
+func _service_row(title: String, cost: int, cb: Callable, available: bool = true) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
-	var nm := _label(title, UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_TEXT)
+	# Grayed when unaffordable OR unnecessary (nothing to do) so the player can read what's out of reach.
+	var enabled: bool = available and _afford(cost)
+	var nm := _label(title, UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_TEXT if enabled else UiTheme.COLOR_DISABLED)
 	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(nm)
 	var b := UiTheme.make_button("₵%d" % cost, true)
-	b.pressed.connect(cb)
+	b.disabled = not enabled
+	if enabled:
+		b.pressed.connect(cb)
 	row.add_child(b)
 	return row
+
+
+# Per-service "is there anything to do?" predicates — mirror each refill handler's success guards so a
+# grayed button always corresponds to a no-op (full / nothing equipped / out of restock charges).
+func _refill_primary_avail(run) -> bool:
+	if run == null:
+		return false
+	var cannon = run.get_primary_cannon() if run.has_method("get_primary_cannon") else null
+	if cannon == null or not ("current_ammo" in cannon) or not ("ammo_max" in cannon):
+		return false
+	if int(cannon.ammo_max) <= 0 or int(cannon.current_ammo) >= int(cannon.ammo_max):
+		return false
+	return int(run.ammo_restock_charges) > 0
+
+
+func _refill_secondary_avail(run) -> bool:
+	if run == null:
+		return false
+	if int(run.secondary_ammo) < 0 or int(run.secondary_ammo_max) <= 0:
+		return false
+	if int(run.secondary_ammo) >= int(run.secondary_ammo_max):
+		return false
+	return int(run.ammo_restock_charges) > 0
+
+
+func _refill_super_avail(run) -> bool:
+	return run != null and int(run.super_charges) < int(run.max_super_charges)
 
 
 # Demonstrates live damage removal: pay, then heal damage_level → 0. Because the overlay is
@@ -1325,6 +1455,7 @@ func _do_repair() -> void:
 		run.repair_charges -= 1
 		run.current_hull = clampi(int(run.current_hull) + 1, 0, int(run.max_hull))
 		repair()
+		OutpostSfx.play("repair")
 		toast("Hull repaired")
 		_refresh_live()
 		_update_money_parts()
@@ -1332,6 +1463,7 @@ func _do_repair() -> void:
 		_money -= 250
 		_update_money_parts()
 		repair()
+		OutpostSfx.play("repair")
 		toast("Hull repaired — damage clearing")
 
 
@@ -1360,6 +1492,7 @@ func _on_refill_primary_ammo() -> void:
 	run.ammo_restock_charges -= 1
 	cannon.current_ammo = int(cannon.ammo_max)
 	run.ammo = int(cannon.ammo_max)
+	OutpostSfx.play("repair")
 	toast("Primary ammo refilled")
 	_refresh_live()
 	_update_money_parts()
@@ -1388,6 +1521,7 @@ func _on_refill_secondary_ammo() -> void:
 	run.spend_bounty(cost)
 	run.ammo_restock_charges -= 1
 	run.secondary_ammo = int(run.secondary_ammo_max)
+	OutpostSfx.play("repair")
 	toast("Secondary ammo refilled")
 	_refresh_live()
 	_update_money_parts()
@@ -1408,6 +1542,7 @@ func _on_refill_super() -> void:
 		return
 	run.spend_bounty(120)
 	run.super_charges = clampi(int(run.super_charges) + 1, 0, int(run.max_super_charges))
+	OutpostSfx.play("repair")
 	toast("Super charge refilled")
 	_refresh_live()
 	_update_money_parts()
@@ -1426,7 +1561,9 @@ func _rebuild_armaments() -> void:
 		return
 	_clear(_page_armaments)
 	_page_armaments.add_child(_caption("Installed weapons + super"))
-	for sid in ARM_SLOTS:
+	# Live splits the cannon into BLASTER (mandatory) + PRIMARY (optional); the mock keeps one slot.
+	var slots: Array = ["BLASTER", "PRIMARY", "SECONDARY", "SUPER"] if _live else ARM_SLOTS
+	for sid in slots:
 		_page_armaments.add_child(_slot_card(sid))
 	_page_armaments.add_child(_spacer())
 
@@ -1443,7 +1580,8 @@ func _rebuild_systems() -> void:
 	else:
 		for sid in SYS_SLOTS:
 			_page_systems.add_child(_slot_card(sid))
-	_page_systems.add_child(_shift_mode_row())
+	_page_systems.add_child(_label("SHIFT MODE", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
+	_page_systems.add_child(_slot_card("SHIFT"))
 	_page_systems.add_child(_spacer())
 
 
@@ -1472,22 +1610,26 @@ func _slot_card(sid: String) -> PanelContainer:
 	top.add_child(nm)
 	v.add_child(top)
 	if item != null:
-		v.add_child(_label(_card_subtitle_live(item), UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
-		var detail := _part_detail_live(item)
-		if detail != "":
-			v.add_child(_label(detail, UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_TEXT))
+		v.add_child(_label(_card_subtitle_live(item), UiTheme.FONT_SIZE_CAPTION, _tier_color(item)))
 		var btns := HBoxContainer.new()
 		btns.add_theme_constant_override("separation", 8)
-		btns.add_child(_mini_btn("Info", func() -> void: _show_info(item)))
-		# The mode retargets the action: Pull (default) / Scrap / Sell. Installed parts are unlocked.
+		btns.add_child(_info_btn(item))
+		# The core blaster is locked in (no pull/scrap/sell) so the player can never leave unarmed — it
+		# can only be swapped out by slotting another blaster from the hold. It CAN still be upgraded.
+		var core: bool = _is_core_blaster(sid)
+		# The mode retargets the action: Pull (default) / Scrap / Sell / Upgrade. Installed parts are unlocked.
 		match _shop_mode:
 			ShopMode.SCRAP:
-				btns.add_child(_mini_btn("Scrap (+%d)" % int(item["scrap"]), func() -> void: _scrap_slot(sid)))
+				if not core:
+					btns.add_child(_mini_btn("Scrap (+%d)" % int(item["scrap"]), func() -> void: _scrap_slot(sid)))
 			ShopMode.SELL:
-				btns.add_child(_mini_btn("Sell (+%d)" % _sell_price(item), func() -> void: _sell_slot(sid)))
+				if not core:
+					btns.add_child(_mini_btn("Sell (+%d)" % _sell_price(item), func() -> void: _sell_slot(sid)))
+			ShopMode.UPGRADE:
+				_add_upgrade_action(btns, item)
 			_:
-				btns.add_child(_mini_btn("Pull", func() -> void: _pull(sid)))
-				_maybe_add_upgrade(btns, item)
+				if not core:
+					btns.add_child(_mini_btn("Pull", func() -> void: _pull(sid)))
 		v.add_child(btns)
 	return card
 
@@ -1501,18 +1643,17 @@ func _hold_card(idx: int) -> PanelContainer:
 	top.add_theme_constant_override("separation", 8)
 	var nm := _label(String(item["name"]), UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_TEXT)
 	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	nm.clip_text = true
 	top.add_child(nm)
 	v.add_child(top)
-	v.add_child(_label(_card_subtitle_live(item), UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
-	var hdetail := _part_detail_live(item)
-	if hdetail != "":
-		v.add_child(_label(hdetail, UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_TEXT))
+	v.add_child(_label(_card_subtitle_live(item), UiTheme.FONT_SIZE_CAPTION, _tier_color(item)))
 
 	var btns := HBoxContainer.new()
 	btns.add_theme_constant_override("separation", 6)
-	btns.add_child(_mini_btn("Info", func() -> void: _show_info(item)))
+	btns.add_child(_info_btn(item))
 	var locked: bool = bool(item["locked"])
-	# Scrap/Sell modes retarget the action (only for unlocked parts); default = Slot/Swap.
+	# The mode retargets the action: Slot/Swap (default) / Scrap / Sell / Upgrade. Scrap/Sell/Upgrade
+	# act only on unlocked parts.
 	match _shop_mode:
 		ShopMode.SCRAP:
 			if not locked:
@@ -1520,14 +1661,17 @@ func _hold_card(idx: int) -> PanelContainer:
 		ShopMode.SELL:
 			if not locked:
 				btns.add_child(_mini_btn("Sell (+%d)" % _sell_price(item), func() -> void: _sell_hold(idx)))
+		ShopMode.UPGRADE:
+			if not locked:
+				_add_upgrade_action(btns, item)
 		_:
-			var empty := _empty_target(String(item["kind"]))
-			if empty != "":
-				btns.add_child(_mini_btn("Slot", func() -> void: _slot_from_hold(idx, empty)))
+			# Slot into an empty target, else Swap. Cannons route by ammo type (a blaster targets the
+			# BLASTER slot — always occupied — so it reads as a Swap that drops the old blaster to hold).
+			var tgt := _hold_target_slot(item)
+			if tgt != "" and _slots.get(tgt) == null:
+				btns.add_child(_mini_btn("Slot", func() -> void: _slot_from_hold(idx, tgt)))
 			else:
 				btns.add_child(_mini_btn("Swap", func() -> void: _swap_from_hold(idx)))
-	if _shop_mode == ShopMode.NONE:
-		_maybe_add_upgrade(btns, item)
 	var lock_btn := _mini_btn("Locked" if locked else "Lock", func() -> void: _toggle_lock(idx))
 	if locked:
 		lock_btn.add_theme_color_override("font_color", UiTheme.COLOR_BOUNTY)
@@ -1536,16 +1680,30 @@ func _hold_card(idx: int) -> PanelContainer:
 	return card
 
 
-# Add an Upgrade button to an owned-part card's button row when live + the part can Mk-up.
-func _maybe_add_upgrade(btns: HBoxContainer, item) -> void:
-	if not _live or item == null:
-		return
-	var part = item.get("part")
+# UPGRADE-mode action: a Mk-up button on an owned-part card. Disabled (grayed) when the part is at
+# max Mk ("Max Mk") or the player can't afford the ◆ + ₵ cost. Live-only (mock has no real parts).
+func _add_upgrade_action(btns: HBoxContainer, item) -> void:
+	var part = item.get("part") if item != null else null
 	var run := get_node_or_null("/root/Run")
-	if part == null or run == null or not run.can_upgrade_part(part):
+	if not _live or part == null or run == null:
+		var nb := UiTheme.make_button("Upgrade", true)
+		nb.disabled = true
+		btns.add_child(nb)
+		return
+	if not run.can_upgrade_part(part):
+		var mb := UiTheme.make_button("Max Mk", true)
+		mb.disabled = true
+		btns.add_child(mb)
 		return
 	var new_mk: int = int(part.mark) + 1
-	btns.add_child(_mini_btn("Up→Mk.%d  ◆%d ₵%d" % [new_mk, new_mk, _upgrade_bounty_cost(new_mk)], func() -> void: _upgrade_part_live(part)))
+	var mats: int = new_mk
+	var bounty_cost: int = _upgrade_bounty_cost(new_mk)
+	var afford: bool = int(run.materials) >= mats and int(run.bounty) >= bounty_cost
+	var b := UiTheme.make_button("Up→Mk.%d  ◆%d ₵%d" % [new_mk, mats, bounty_cost], true)
+	b.disabled = not afford
+	if afford:
+		b.pressed.connect(func() -> void: _upgrade_part_live(part))
+	btns.add_child(b)
 
 
 # Card subtitle "Mk.X <Quality> <ItemType>" — Quality from PartTier; NO "Tier N" roman numeral
@@ -1568,42 +1726,75 @@ func _type_name_for_kind(kind: String) -> String:
 	return "Part"
 
 
-# Card detail line: a MODULE shows its computed bonus (bonus_description); a WEAPON shows damage + ammo
-# with NO fire-rate "/s" (Roman 2026-06-27). Empty when there's nothing useful.
-func _part_detail_live(item) -> String:
+# Rarity tint for the card subtitle (carried over from the old outpost — PartTier color per Mk band).
+func _tier_color(item) -> Color:
+	return PartTier.tier_for_mk(int(item.get("mark", 1))).get("color", UiTheme.COLOR_FAINT)
+
+
+# Item blurb sourced from the SAME place the Codex reads (ArmoryStrings, keyed by catalog factory) so the
+# outpost and the Codex never diverge. Falls back to the part's inline description (mock items / no entry).
+func _codex_blurb(item) -> String:
 	var part = item.get("part")
+	if part != null:
+		var factory := PartCatalog.factory_for_part(part)
+		if factory != "":
+			var blurb := ArmoryStrings.codex_for(factory)
+			if blurb != "":
+				return blurb
+	return String(item.get("desc", ""))
+
+
+# Compact square "i" info button — keeps the buy/action buttons in frame (the full "Info" label
+# pushed them out). Opens the same Mk-aware info popup.
+func _info_btn(item) -> Button:
+	var b := UiTheme.make_button("i", true)
+	b.custom_minimum_size = Vector2(40, 0)
+	b.tooltip_text = "Info"
+	b.pressed.connect(func() -> void: _show_info(item))
+	return b
+
+
+# Live, Mk-aware stat lines for the info panel — the numbers the cards no longer show. Reads the
+# part's real Mk-scaled getters so the panel can preview ANY Mk (tap the mark track to compare).
+# MODULE → computed bonus; SHIFT_MODE → duration/charges/refill; WEAPON → damage/ammo (+ super charges).
+# Empty for mock items (no real part) or parts with no numeric stats.
+func _stats_lines_at_mark(part, mk: int) -> Array:
+	var lines: Array = []
 	if part == null:
-		return ""
-	var mk: int = int(item.get("mark", 1))
-	if int(part.slot_type) == SlotTypes.SlotType.MODULE:
-		return String(part.bonus_description(mk)) if part.has_method("bonus_description") else ""
-	var bits: Array[String] = []
-	if "base_damage" in part:
-		var per_mk: int = int(part.dmg_per_mark) if "dmg_per_mark" in part else 0
-		bits.append("dmg %d" % (int(part.base_damage) + per_mk * maxi(0, mk - 1)))
-	if part.has_method("_base_ammo"):
-		var ammo: int = int(part._base_ammo())
-		bits.append("ammo %d" % ammo if ammo >= 0 else "∞")
-	return " · ".join(bits)
-
-
-func _shift_mode_row() -> VBoxContainer:
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 6)
-	box.add_child(_label("SHIFT MODE", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
-	var modes := HBoxContainer.new()
-	modes.add_theme_constant_override("separation", 8)
-	for m in ["Focus", "Phase", "Hyper"]:
-		var b := UiTheme.make_button(m, true)
-		if m == _shift_mode:
-			b.add_theme_color_override("font_color", UiTheme.COLOR_GREEN)
-		b.pressed.connect(func() -> void:
-			_shift_mode = m
-			_rebuild_systems()
-			toast("Shift → %s" % m))
-		modes.add_child(b)
-	box.add_child(modes)
-	return box
+		return lines
+	var st: int = int(part.slot_type) if "slot_type" in part else -1
+	if st == SlotTypes.SlotType.MODULE:
+		var bd: String = String(part.bonus_description(mk)) if part.has_method("bonus_description") else ""
+		if bd != "":
+			lines.append(bd)
+		return lines
+	if st == SlotTypes.SlotType.SHIFT_MODE:
+		if part.has_method("mode_duration"):
+			lines.append("Duration: %.1fs" % float(part.mode_duration(mk)))
+		if part.has_method("mode_charges"):
+			lines.append("Charges: %d" % int(part.mode_charges(mk)))
+		if part.has_method("mode_regen_kind"):
+			if int(part.mode_regen_kind()) == 1:   # ModeRegen.KILLS
+				var kpc: int = int(part.mode_kills_per_charge()) if part.has_method("mode_kills_per_charge") else 0
+				lines.append("Refill: %d kills / charge" % kpc)
+			else:
+				var rs: float = float(part.mode_regen_secs()) if part.has_method("mode_regen_secs") else 0.0
+				lines.append("Refill: %.1fs / charge" % rs)
+		return lines
+	# Weapons (CANNON / HARDPOINT_WING / DEVICE_BAY_1).
+	if part.has_method("effective_damage"):
+		var dmg: int = int(part.effective_damage(mk))
+		if dmg >= 0:
+			lines.append("Damage: %d" % dmg)
+	if part.has_method("ammo_at_mark"):
+		var ammo: int = int(part.ammo_at_mark(mk))
+		lines.append("Ammo: %s" % ("∞" if ammo < 0 else str(ammo)))
+	elif part.has_method("_base_ammo"):
+		var ammo2: int = int(part._base_ammo())
+		lines.append("Ammo: %s" % ("∞" if ammo2 < 0 else str(ammo2)))
+	if st == SlotTypes.SlotType.DEVICE_BAY_1 and part.has_method("_charges_at_mark"):
+		lines.append("Charges: %d" % int(part._charges_at_mark(mk)))
+	return lines
 
 
 # ---- Inventory actions ----------------------------------------------------
@@ -1612,6 +1803,7 @@ func _pull(sid: String) -> void:
 	var item = _slots.get(sid)
 	if item == null:
 		return
+	OutpostSfx.play("unequip")
 
 	if _live:
 		var run := get_node_or_null("/root/Run")
@@ -1621,22 +1813,24 @@ func _pull(sid: String) -> void:
 		if part == null:
 			return
 		match sid:
+			"BLASTER":
+				toast("A blaster is required — swap it for another instead")
+				return
 			"PRIMARY":
-				# Metered primary (active idx 1) can unslot; permanent blaster cannot
-				if int(run.active_cannon_idx) == 1:
-					run.weapon_storage.append(part)
-					if run.cannon_pool.size() > 1:
-						run.cannon_pool.remove_at(1)
-					run.active_cannon_idx = 0
-					run.loadout_snapshot[int(SlotTypes.SlotType.CANNON)] = run.get_active_cannon()
-					run.ammo = -1
-				else:
-					toast("Blaster is permanent")
-					return
+				# Metered primary (cannon_pool[1]) → hold; the mandatory blaster (idx 0) stays.
+				run.weapon_storage.append(part)
+				if run.cannon_pool.size() > 1:
+					run.cannon_pool.remove_at(1)
+				run.active_cannon_idx = 0
+				run.loadout_snapshot[int(SlotTypes.SlotType.CANNON)] = run.get_active_cannon()
+				run.ammo = -1
 			"SECONDARY", "SUPER":
 				var slot_type = int(SlotTypes.SlotType.HARDPOINT_WING) if sid == "SECONDARY" else int(SlotTypes.SlotType.DEVICE_BAY_1)
 				run.unequip_slot(slot_type)
 				run.weapon_storage.append(part)
+			"SHIFT":
+				run.unequip_slot(int(SlotTypes.SlotType.SHIFT_MODE))
+				run.inventory.append(part)
 			_:
 				# MODULE_i
 				if sid.begins_with("MODULE_"):
@@ -1661,6 +1855,7 @@ func _slot_from_hold(idx: int, sid: String) -> void:
 	if idx < 0 or idx >= _hold.size():
 		return
 	var nm = _hold[idx]["name"]
+	OutpostSfx.play("equip")
 
 	if _live:
 		var run := get_node_or_null("/root/Run")
@@ -1700,6 +1895,7 @@ func _swap_from_hold(idx: int) -> void:
 	if idx < 0 or idx >= _hold.size():
 		return
 	var item = _hold[idx]
+	OutpostSfx.play("equip")
 	if _live:
 		var run := get_node_or_null("/root/Run")
 		var part = item.get("part")
@@ -1738,6 +1934,7 @@ func _scrap_hold(idx: int) -> void:
 	if bool(item.get("locked", false)):
 		toast("%s is locked" % item["name"])
 		return
+	OutpostSfx.play("unequip")
 
 	if _live:
 		var run := get_node_or_null("/root/Run")
@@ -1753,6 +1950,7 @@ func _scrap_hold(idx: int) -> void:
 			"weapon_storage": run.weapon_storage.erase(part)
 			"inventory": run.inventory.erase(part)
 		_refresh_live()
+		_update_money_parts()
 		toast("Scrapped %s  (+%d ◆)" % [item["name"], value])
 		_rebuild_hold()
 	else:
@@ -1767,6 +1965,7 @@ func _scrap_slot(sid: String) -> void:
 	var item = _slots.get(sid)
 	if item == null:
 		return
+	OutpostSfx.play("unequip")
 
 	if _live:
 		var run := get_node_or_null("/root/Run")
@@ -1782,6 +1981,7 @@ func _scrap_slot(sid: String) -> void:
 		run.add_materials(value)
 		_remove_slot_part(run, sid)
 		_refresh_live()
+		_update_money_parts()
 		toast("Scrapped %s  (+%d ◆)" % [item["name"], value])
 		_rebuild_inventory()
 	else:
@@ -1799,6 +1999,7 @@ func _sell_hold(idx: int) -> void:
 	if bool(item.get("locked", false)):
 		toast("%s is locked" % item["name"])
 		return
+	OutpostSfx.play("unequip")
 
 	if _live:
 		var run := get_node_or_null("/root/Run")
@@ -1816,6 +2017,7 @@ func _sell_hold(idx: int) -> void:
 		# to full price on depart by _complete_node_shop).
 		run.outpost_weapon_offers.append({"part": part, "cost": _full_cost(part), "sold": false, "buyback": true})
 		_refresh_live()
+		_update_money_parts()
 		toast("Sold %s  (+%d ₵)" % [item["name"], gain])
 		_rebuild_hold()
 		_rebuild_market()
@@ -1829,6 +2031,7 @@ func _sell_slot(sid: String) -> void:
 	var item = _slots.get(sid)
 	if item == null:
 		return
+	OutpostSfx.play("unequip")
 
 	if _live:
 		var run := get_node_or_null("/root/Run")
@@ -1845,6 +2048,7 @@ func _sell_slot(sid: String) -> void:
 		_remove_slot_part(run, sid)
 		run.outpost_weapon_offers.append({"part": part, "cost": _full_cost(part), "sold": false, "buyback": true})
 		_refresh_live()
+		_update_money_parts()
 		toast("Sold %s  (+%d ₵)" % [item["name"], gain])
 		_rebuild_inventory()
 		_rebuild_market()
@@ -1854,27 +2058,31 @@ func _sell_slot(sid: String) -> void:
 		_rebuild_inventory()
 
 
-# The permanent Blaster (active cannon idx 0) can't be removed; only the metered Primary (idx 1) can.
+# The mandatory BLASTER (cannon_pool[0]) can't be removed; only the metered PRIMARY (cannon_pool[1]) can.
 func _can_remove_slot(run, sid: String) -> bool:
+	if sid == "BLASTER":
+		return false
 	if sid == "PRIMARY":
-		return int(run.active_cannon_idx) == 1 and run.cannon_pool.size() > 1
+		return run.get_primary_cannon() != null
 	return true
 
 
 # Remove the part installed in `sid` from Run (mirrors outpost.gd: metered-primary unslot incl ammo
-# reset, secondary/super unequip, module remove). Caller guards the permanent Blaster via _can_remove_slot.
+# reset, secondary/super unequip, module remove). Caller guards the mandatory BLASTER via _can_remove_slot.
 func _remove_slot_part(run, sid: String) -> void:
 	match sid:
 		"PRIMARY":
-			if int(run.active_cannon_idx) == 1 and run.cannon_pool.size() > 1:
+			if run.cannon_pool.size() > 1:
 				run.cannon_pool.remove_at(1)
 				run.active_cannon_idx = 0
 				run.loadout_snapshot[SlotTypes.SlotType.CANNON] = run.get_active_cannon()
-				run.ammo = -1   # back to the infinite blaster
+				run.ammo = -1   # back to the blaster
 		"SECONDARY":
 			run.unequip_slot(SlotTypes.SlotType.HARDPOINT_WING)
 		"SUPER":
 			run.unequip_slot(SlotTypes.SlotType.DEVICE_BAY_1)
+		"SHIFT":
+			run.unequip_slot(SlotTypes.SlotType.SHIFT_MODE)
 		_:
 			if sid.begins_with("MODULE_"):
 				var midx: int = int(sid.split("_")[1]) - 1
@@ -1893,6 +2101,7 @@ func _upgrade_part_live(part) -> void:
 	if int(run.materials) < mats or int(run.bounty) < bounty_cost:
 		toast("Need ◆%d + ₵%d to upgrade" % [mats, bounty_cost])
 		return
+	OutpostSfx.play("upgrade")
 	run.spend_materials(mats)
 	run.spend_bounty(bounty_cost)
 	run.upgrade_part(part)
@@ -1930,6 +2139,8 @@ func _target_slots(kind: String) -> Array:
 				slots.append("MODULE_%d" % (i + 1))
 			return slots
 		return SYS_SLOTS
+	if kind == "SHIFT_MODE":
+		return ["SHIFT"]
 	return [kind]   # PRIMARY / SECONDARY / SUPER map to the same-named slot
 
 
@@ -1940,8 +2151,36 @@ func _empty_target(kind: String) -> String:
 	return ""
 
 
+# Which installed slot a hold item targets (drives the Slot/Swap label). Cannons route by ammo type:
+# an infinite blaster → the BLASTER slot, a metered cannon → the PRIMARY slot. Everything else picks the
+# first empty same-kind slot, falling back to the first target slot (a Swap).
+func _hold_target_slot(item) -> String:
+	var kind := String(item.get("kind", ""))
+	if kind == "PRIMARY" and _live:   # a cannon
+		return "BLASTER" if _cannon_is_infinite(item) else "PRIMARY"
+	var empty := _empty_target(kind)
+	if empty != "":
+		return empty
+	var targets := _target_slots(kind)
+	return String(targets[0]) if not targets.is_empty() else ""
+
+
+# A cannon is a BLASTER (vs a metered PRIMARY) when it has no finite magazine (infinite ammo).
+func _cannon_is_infinite(item) -> bool:
+	var part = item.get("part")
+	if part == null:
+		return false
+	var mk: int = int(item.get("mark", 1))
+	if part.has_method("ammo_at_mark"):
+		return int(part.ammo_at_mark(mk)) < 0
+	if part.has_method("_base_ammo"):
+		return int(part._base_ammo()) < 0
+	return false
+
+
 func _slot_label(sid: String) -> String:
 	match sid:
+		"BLASTER": return "BLASTER"
 		"PRIMARY": return "PRIMARY"
 		"SECONDARY": return "SECONDARY"
 		"SUPER": return "SUPER"
@@ -1951,6 +2190,7 @@ func _slot_label(sid: String) -> String:
 		"MODULE_4": return "MODULE 4"
 		"MODULE_5": return "MODULE 5"
 		"MODULE_6": return "MODULE 6"
+		"SHIFT": return "SHIFT MODE"
 	return sid
 
 
@@ -1959,6 +2199,22 @@ func _update_money_parts() -> void:
 		_money_lbl.text = "₵ %d" % _money
 	if _parts_lbl != null and is_instance_valid(_parts_lbl):
 		_parts_lbl.text = "◆ %d" % _materials
+	_update_hull()
+	# Money/materials just changed → re-evaluate the services panel's affordability graying (it's the
+	# one panel whose buy/repair/upgrade-mode options gray on funds but isn't rebuilt by the action).
+	_rebuild_services()
+
+
+# Top-bar hull readout (current/max). Hidden when there's no hull data (e.g. the dev lab without a run).
+func _update_hull() -> void:
+	if _hull_lbl == null or not is_instance_valid(_hull_lbl):
+		return
+	var run := get_node_or_null("/root/Run")
+	if run != null and "current_hull" in run and "max_hull" in run and int(run.max_hull) > 0:
+		_hull_lbl.text = "♥ %d/%d" % [int(run.current_hull), int(run.max_hull)]
+		_hull_lbl.visible = true
+	else:
+		_hull_lbl.visible = false
 
 
 # ---- Info popup (codex entry) ---------------------------------------------
@@ -1995,17 +2251,26 @@ func _show_info(item: Dictionary) -> void:
 	v.add_theme_constant_override("separation", 14)
 	v.custom_minimum_size = Vector2(760, 0)
 	panel.add_child(v)
+	var part = item.get("part")
+	var cur_mk: int = int(item.get("mark", 1))
+	var mx: int = int(item.get("max_mark", 9))
 	v.add_child(_label(String(item["name"]), UiTheme.FONT_SIZE_TITLE, UiTheme.COLOR_ACCENT))
-	v.add_child(_label(_card_subtitle_live(item), UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_TEXT))
-	var idetail := _part_detail_live(item)
-	if idetail != "":
-		v.add_child(_label(idetail, UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_GREEN))
-	var desc := _label(String(item["desc"]), UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_FAINT)
+	v.add_child(_label(_card_subtitle_live(item), UiTheme.FONT_SIZE_BODY, _tier_color(item)))
+	# Blurb from the Codex source (ArmoryStrings) so the dock and the Codex never show different text.
+	var desc := _label(_codex_blurb(item), UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_FAINT)
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	desc.custom_minimum_size = Vector2(760, 0)
 	v.add_child(desc)
-	v.add_child(_label("MARK LEVELS  (current highlighted)", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
-	v.add_child(_mark_ladder(int(item["mark"]), int(item["max_mark"])))
+	v.add_child(_label("MARK LEVELS — tap to compare (current ringed)", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
+	# Live, Mk-aware stat box. Defaults to the current Mk; tapping a chip on the mark track previews
+	# that Mk's stats so the player can see what an upgrade buys before paying.
+	var stats_box := VBoxContainer.new()
+	stats_box.add_theme_constant_override("separation", 4)
+	var show_mk := func(mk: int) -> void:
+		_fill_stats_box(stats_box, item, part, mk, cur_mk)
+	v.add_child(_mark_ladder(cur_mk, mx, show_mk))
+	v.add_child(stats_box)
+	show_mk.call(cur_mk)
 	v.add_child(_label("Scrap value:   ◆ %d" % int(item["scrap"]), UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_GREEN))
 	v.add_child(_label("Sell value:    ₵ %d   (20%% of ₵%d)" % [_sell_price(item), _item_value(item)], UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_BOUNTY))
 	var close := UiTheme.make_button("Close")
@@ -2013,31 +2278,55 @@ func _show_info(item: Dictionary) -> void:
 	v.add_child(close)
 
 
-func _mark_ladder(cur: int, mx: int) -> HBoxContainer:
+# Clickable Mk ladder: the current Mk is highlighted; every chip is tappable to preview that Mk's
+# stats (on_pick(mk)). Lower Mks read as "owned", higher Mks as "locked/upgrade target".
+func _mark_ladder(cur: int, mx: int, on_pick: Callable) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 4)
 	for i in range(1, mx + 1):
-		var chip := Label.new()
+		var chip := Button.new()
 		chip.text = str(i)
 		chip.custom_minimum_size = Vector2(40, 40)
-		chip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		chip.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		chip.add_theme_font_override("font", UiTheme.menu_font())
 		chip.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_CAPTION)
 		var sb := StyleBoxFlat.new()
 		sb.set_corner_radius_all(3)
+		var fg: Color = UiTheme.COLOR_DISABLED
 		if i == cur:
 			sb.bg_color = UiTheme.COLOR_BOUNTY
-			chip.add_theme_color_override("font_color", Color(0.05, 0.05, 0.08))
+			fg = Color(0.05, 0.05, 0.08)
 		elif i < cur:
 			sb.bg_color = Color(UiTheme.COLOR_ACCENT_DIM.r, UiTheme.COLOR_ACCENT_DIM.g, UiTheme.COLOR_ACCENT_DIM.b, 0.55)
-			chip.add_theme_color_override("font_color", UiTheme.COLOR_TEXT)
+			fg = UiTheme.COLOR_TEXT
 		else:
 			sb.bg_color = Color(0, 0, 0, 0.35)
-			chip.add_theme_color_override("font_color", UiTheme.COLOR_DISABLED)
-		chip.add_theme_stylebox_override("normal", sb)
+			fg = UiTheme.COLOR_DISABLED
+		for state in ["normal", "hover", "pressed", "focus"]:
+			chip.add_theme_stylebox_override(state, sb)
+		chip.add_theme_color_override("font_color", fg)
+		chip.add_theme_color_override("font_hover_color", fg)
+		chip.add_theme_color_override("font_pressed_color", fg)
+		chip.add_theme_color_override("font_focus_color", fg)
+		var mk: int = i
+		chip.pressed.connect(func() -> void: on_pick.call(mk))
 		row.add_child(chip)
 	return row
+
+
+# Render the stat box for a chosen Mk: a header (flagged when it's the current Mk) + each stat line.
+func _fill_stats_box(box: VBoxContainer, _item, part, mk: int, cur_mk: int) -> void:
+	if box == null or not is_instance_valid(box):
+		return
+	_clear(box)
+	var hdr: String = "Mk.%d stats" % mk
+	if mk == cur_mk:
+		hdr += "   (current)"
+	box.add_child(_label(hdr, UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_BOUNTY if mk == cur_mk else UiTheme.COLOR_ACCENT))
+	var lines: Array = _stats_lines_at_mark(part, mk)
+	if lines.is_empty():
+		box.add_child(_label("(no numeric stats)", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
+	for ln in lines:
+		box.add_child(_label(String(ln), UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_GREEN))
 
 
 func _close_info() -> void:
