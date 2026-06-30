@@ -3,6 +3,7 @@ class_name EnemyTurret
 
 const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
+const BulletCatalog = preload("res://scripts/projectiles/bullet_catalog.gd")
 
 # Reusable aiming + firing component. Add as a child of any enemy node.
 # Handles player tracking, arc clamping, post-shot rotation lock, and
@@ -131,8 +132,14 @@ func _try_fire() -> void:
 
 func _shoot() -> void:
 	var base_dir := Vector2(cos(_turret_rot - PI * 0.5), sin(_turret_rot - PI * 0.5))
-	var EnemyBullet = load("res://scenes/projectiles/enemy_bullet.tscn")
-	if EnemyBullet == null:
+	# Faction-skin the payload + resolve its indexed scene (the new unified projectiles), so a turret
+	# fires the same frame-reskinned bullet a gun mount does (2026-06-29). Variants with no indexed
+	# scene (or no variant) fall back to the shared enemy_bullet shell.
+	var bv = BulletCatalog.faction_variant(bullet_variant, _faction()) if bullet_variant != null else null
+	var scn: PackedScene = BulletCatalog.scene_for(bv) if bv != null else null
+	if scn == null:
+		scn = load("res://scenes/projectiles/enemy_bullet.tscn")
+	if scn == null:
 		return
 	# Fire from the parent enemy's muzzle marker when it has one (gun_turret
 	# has a `Muzzle`), else from this turret node's own position. Mount-only
@@ -148,9 +155,9 @@ func _shoot() -> void:
 	var n: int = maxi(1, count)
 	for i in n:
 		var dir := _fan_dir(base_dir, i, n)
-		var b = EnemyBullet.instantiate()
-		if bullet_variant != null and "variant" in b:
-			b.variant = bullet_variant
+		var b = scn.instantiate()
+		if bv != null and "variant" in b:
+			b.variant = bv
 		world.add_child(b)
 		if b.has_method("start"):
 			b.start(spawn_pos, dir)
@@ -183,6 +190,17 @@ func _fan_dir(base: Vector2, i: int, n: int) -> Vector2:
 		return base
 	var total: float = deg_to_rad(spread_deg)
 	return base.rotated(-total * 0.5 + total / float(n - 1) * float(i))
+
+
+# The owning enemy's faction skin (the director/bench stamp it on the enemy). A turret is parented to
+# the enemy or one of its markers, so walk up to the first node carrying the meta. -1 = no skin.
+func _faction() -> int:
+	var n: Node = self
+	while n != null:
+		if n.has_meta("faction_skin"):
+			return int(n.get_meta("faction_skin"))
+		n = n.get_parent()
+	return -1
 
 
 # Flick the barrel through its recoil frames (1 -> max -> back to idle 0) on a shot.
