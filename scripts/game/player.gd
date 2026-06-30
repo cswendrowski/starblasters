@@ -370,6 +370,17 @@ const _MODE_AURA_COLORS := [
 ]
 
 var can_shoot: bool = true
+# Primary fire cadence: a carried-residual countdown that REPLACES the GunCooldown
+# Timer as the firing gate. The Timer rounded every interval UP to the next whole
+# frame and threw away the sub-frame remainder, so full-auto fire ran slow and the
+# cadence slipped (firing intervals weren't aligned to the 60 Hz tick). _gun_cd_t
+# counts down each frame and banks the (negative) overshoot into the next shot, so
+# the average rate matches the configured `cooldown` exactly. Carry is capped at one
+# frame (FIRE_CARRY) so a lag hitch can't bank a catch-up burst. GunCooldown stays
+# in the scene only as the value mirror weapon_part writes + _cache_blaster_config
+# reads — it is no longer started.
+var _gun_cd_t: float = 0.0
+const FIRE_CARRY: float = 1.0 / 60.0
 var is_alive: bool = true
 # Equipped CANNON style. See scripts/weapons/WeaponStyle.gd for the
 # enum. ENERGY (default Energy Blaster — blue muzzle, silent, infinite
@@ -900,7 +911,8 @@ func start() -> void:
 	_setup_smart_mounts()
 	# Hull loaded from Run.current_hull via start() context (set in apply_run_upgrades).
 	can_shoot = true
-	$GunCooldown.wait_time = cooldown
+	_gun_cd_t = 0.0
+	$GunCooldown.wait_time = cooldown  # value mirror only; not started (see _gun_cd_t)
 	# Shield regen: always full at combat start — no timer needed.
 	_shield_in_delay = false
 	$ShieldRegenTimer.stop()
@@ -958,7 +970,10 @@ func _process(delta: float) -> void:
 	# Secondary cooldown ticks every frame regardless of input — so the
 	# weapon recharges in the background and a tap fires immediately
 	# whenever it's ready.
-	_secondary_t = min(_secondary_t + delta, secondary_cooldown)
+	# Cap one frame past ready so the sub-frame overshoot can bank into the next
+	# shot (consumers subtract secondary_cooldown rather than zeroing) — same
+	# tick-alignment fix as the primary; carry stays bounded to one frame.
+	_secondary_t = min(_secondary_t + delta, secondary_cooldown + FIRE_CARRY)
 	if not controls_enabled:
 		# Ship still animates "forward" so it reads as actively flying during
 		# the intro slide-in / outro fly-out cinematic.
@@ -1041,7 +1056,15 @@ func _process(delta: float) -> void:
 		_show_mount_toast(_mounts_enabled)
 		if _mounts_enabled:
 			_setup_smart_mounts()                     # re-force the primary active + re-cache blaster
-	_blaster_cd_t = maxf(0.0, _blaster_cd_t - delta)
+	# Primary cooldown recovery (carried-residual; see _gun_cd_t decl). Ticked here,
+	# before any fire_primary() call this frame, so the gun is ready THIS frame when
+	# the interval elapses — no parent-before-child one-frame Timer slip.
+	if not can_shoot:
+		_gun_cd_t -= delta
+		if _gun_cd_t <= 0.0:
+			can_shoot = true
+			_gun_cd_t = maxf(_gun_cd_t, -FIRE_CARRY)
+	_blaster_cd_t = maxf(_blaster_cd_t - delta, -FIRE_CARRY)
 	var _manual_blaster: bool = false
 	var _mounts_on: bool = _mounts_active()
 	if _mounts_on:
@@ -1060,14 +1083,14 @@ func _process(delta: float) -> void:
 			_update_primary_mount(delta)
 		if _manual_blaster and _blaster_cd_t <= 0.0:
 			_fire_blaster_bolt(0.0)                    # manual blaster fires straight up
-			_blaster_cd_t = _blaster_cooldown
+			_blaster_cd_t += _blaster_cooldown
 	# Hyper: the blaster fires ALONGSIDE your active cannon (the all-weapons barrage), even
 	# without a Smart Mount — drive the blaster direct-spawn on its own cadence.
 	if _hyper_on() and is_alive and _blaster_cd_t <= 0.0:
 		if _blaster_bullet_scene == null and has_node("/root/Run"):
 			_cache_blaster_config(get_node("/root/Run"))
 		_fire_blaster_bolt(0.0)
-		_blaster_cd_t = _blaster_cooldown
+		_blaster_cd_t += _blaster_cooldown
 	_update_mount_sight(_mounts_on)                   # aiming laser sight (hidden when off)
 	# Pulse Laser dispersion: it ACCRUES while the trigger is HELD (in _fire_pulse_laser).
 	# RELEASING the trigger recovers spread (PULSE_DISPERSION_DECAY °/s) + resets the
@@ -1978,7 +2001,7 @@ func _update_blaster_mount(delta: float) -> void:
 	_blaster_aim = _slew_aim(_blaster_aim, desired, module_blaster_traverse, delta)
 	if tgt != null and _blaster_cd_t <= 0.0 and absf(_blaster_aim - desired) <= mount_fire_tolerance:
 		_fire_blaster_bolt(_blaster_aim + _mount_dispersion(module_blaster_dispersion))
-		_blaster_cd_t = _blaster_cooldown
+		_blaster_cd_t += _blaster_cooldown
 
 
 # Primary turret: aim toward the nearest in-arc enemy, then auto-trigger fire_primary(aim).
@@ -2012,6 +2035,18 @@ func _update_primary_mount(delta: float) -> void:
 
 # Direct-spawn one blaster bolt in `aim` direction (rad, 0 = up). Mirrors the module
 # damage scalars the manual blaster gets (Overcharge / De-Limiter) for parity.
+# Sub-frame spawn correction (the spatial twin of the _gun_cd_t / _blaster_cd_t carry).
+# A shot fired `late` seconds after its ideal moment is advanced along its travel
+# vector by the distance it should already have covered, so an off-grid fire rate
+# lays down an evenly-spaced stream instead of a one-frame 4/5 "beat". `late` is
+# bounded by FIRE_CARRY (≤ one frame), so the forward nudge is ≤ ~8 px — invisible
+# as a pop, but it removes the stream waviness. No-op when the bullet has no speed.
+func _subframe_advance(b: Node, dir: Vector2, late: float) -> Vector2:
+	if late <= 0.0 or not ("speed" in b):
+		return Vector2.ZERO
+	return dir * float(b.speed) * late
+
+
 func _fire_blaster_bolt(aim: float) -> void:
 	if _blaster_bullet_scene == null:
 		return
@@ -2031,6 +2066,9 @@ func _fire_blaster_bolt(aim: float) -> void:
 	# Muzzle (bullet spawn + flash) rotates with the turret aim so the bolt leaves the
 	# aimed barrel; aim 0 (manual / mount off) = the normal nose.
 	var muzzle: Vector2 = global_position + _muzzle_offset("Ship/Muzzle", Vector2(0, -8)).rotated(aim)
+	# Sub-frame spawn (see _subframe_advance): _blaster_cd_t still holds this shot's
+	# negative residual here — the carry's += runs at the call site after this returns.
+	muzzle += _subframe_advance(b, dir, clampf(-_blaster_cd_t, 0.0, FIRE_CARRY))
 	if b.has_method("start"):
 		b.start(muzzle, dir)
 	var MuzzleFx = load("res://scripts/effects/muzzle_fx.gd")
@@ -2268,17 +2306,20 @@ func fire_primary(aim_angle: float = 0.0) -> void:
 		_overclock_idle_t = 0.0
 		_fire_bonus += _overclock_ramp * module_overclock_max
 	_fire_bonus += _delimiter_bonus()
+	# Add this cycle's interval to the carried (negative) remainder so the previous
+	# shot's sub-frame overshoot self-corrects — the average rate matches `cooldown`
+	# instead of rounding each interval up to the next whole frame. The fire-rate
+	# bonus (Refire / Overclock / De-Limiter) shortens ONLY this cycle; because the
+	# interval is recomputed from `cooldown` every shot it can't compound or stick
+	# after the bonus ends. (can_shoot was already cleared above.)
+	# Sub-frame spawn (see _subframe_advance): how late this shot is vs its ideal
+	# moment — the residual the carry banked. _gun_cd_t sits in [-FIRE_CARRY, 0] here,
+	# so capture it BEFORE the += below turns it positive.
+	var _fire_late: float = clampf(-_gun_cd_t, 0.0, FIRE_CARRY)
+	var _eff_cd: float = cooldown
 	if _fire_bonus > 0.0:
-		# Divide ONLY this cycle's interval by the bonus, then restore wait_time.
-		# Timer.start(t) permanently overwrites wait_time (it calls set_wait_time
-		# internally), so without the restore the cooldown would compound smaller
-		# every shot and never recover once the bonus ends — e.g. Hyper's fire-rate
-		# buff would stack indefinitely and stick after release (2026-06-23).
-		var _base_wt: float = $GunCooldown.wait_time
-		$GunCooldown.start(_base_wt / (1.0 + _fire_bonus))
-		$GunCooldown.wait_time = _base_wt
-	else:
-		$GunCooldown.start()
+		_eff_cd = cooldown / (1.0 + _fire_bonus)
+	_gun_cd_t += _eff_cd
 	# Pulse Laser: hitscan beam from the nose, consume one ammo, then bail (no bullet
 	# spawn). It's a metered REGEN laser, so when dry it PAUSES + recharges (the ammo==0
 	# gate above) rather than snapping to the blaster — hence no _snap call here. Hyper
@@ -2381,13 +2422,15 @@ func fire_primary(aim_angle: float = 0.0) -> void:
 			spawn_offset = muzzle_off + Vector2(dx, 0.0)
 			muzzle_pos = global_position + spawn_offset
 			_tandem_side = 1 - _tandem_side
-		# Doppler fix: add the player's velocity along this bullet's fire
-		# direction so flying toward the shots keeps the stream spacing
-		# constant instead of bunching it. Forward component only (never
-		# negative) so descending fast can't slow/reverse a slow bullet.
+		# Velocity inheritance ("Doppler"): add the player's velocity along this bullet's
+		# fire direction so flying toward the shots keeps the stream spacing constant
+		# instead of bunching it. Forward component only (never negative) so descending
+		# fast can't slow/reverse a slow bullet. Clamped to the clarity ceiling so a
+		# boosted bullet can't strobe past 8 px/f (CLAUDE.md hard rule) when you fly up.
 		if "speed" in b:
-			b.speed += maxf(0.0, _move_velocity.dot(dir))
-		b.start(position + spawn_offset, dir)
+			b.speed = minf(b.speed + maxf(0.0, _move_velocity.dot(dir)), ClarityRules.ABS_MAX_SPEED)
+		# Advance the spawn by the sub-frame lateness (uses the Doppler-adjusted speed above).
+		b.start(position + spawn_offset + _subframe_advance(b, dir, _fire_late), dir)
 	# Drone Bits piggyback the primary fire — one extra bullet from each
 	# drone's position, fired straight up. Uses drone_bits_bullet_scene
 	# (defaults to the primary's bullet if not set) and drone damage.
@@ -2574,7 +2617,7 @@ func fire_secondary() -> void:
 	# free secondary fire, so a dry metered secondary still launches while Hyper is active.
 	if secondary_ammo == 0 and not _hyper_on():
 		return
-	_secondary_t = 0.0
+	_secondary_t -= secondary_cooldown  # carry the sub-frame overshoot, don't zero
 	var count: int = max(1, secondary_pod_count)
 	var _rs_sec := _run_ref()
 	if _rs_sec != null:
@@ -2773,7 +2816,7 @@ func _tick_salvo() -> void:
 	if not part.fire_salvo(self):
 		return
 	_secondary_muzzle(global_position + _muzzle_offset("Ship/Muzzle", Vector2(0, -8)))
-	_secondary_t = 0.0  # restart the cooldown
+	_secondary_t -= secondary_cooldown  # restart, carrying the sub-frame overshoot
 	if secondary_ammo > 0 and not _hyper_on():
 		secondary_ammo -= 1
 		secondary_ammo_changed.emit(secondary_ammo, secondary_ammo_max)
@@ -3204,6 +3247,9 @@ func _play_focus_sound(_starting: bool) -> void:
 	pass  # TODO: swap in focus_start.wav / focus_end.wav when assets land
 
 func _on_gun_cooldown_timeout() -> void:
+	# Vestigial: GunCooldown/MinigunCooldown are no longer started — fire readiness is
+	# driven by _gun_cd_t in _process (see its decl). Kept because the scene still wires
+	# these Timers' timeout signals here; harmless if one ever fires.
 	can_shoot = true
 
 func _on_area_entered(area: Area2D) -> void:

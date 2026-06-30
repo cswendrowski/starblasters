@@ -137,6 +137,15 @@ func _spawn_bullet(enemy, dir: Vector2, bv = null, spawn_override = null):
 		b.speed = minf(b.speed * float(enemy.bullet_speed_mult), Clarity.ABS_MAX_SPEED)
 	if "bullet_damage_mult" in enemy and float(enemy.bullet_damage_mult) != 1.0 and "damage" in b:
 		b.damage = clampi(int(round(float(b.damage) * float(enemy.bullet_damage_mult))), 1, ENEMY_BULLET_DAMAGE_CAP)
+	# Velocity inheritance ("Doppler"), mirrors player.gd: add the forward component of the
+	# enemy's own velocity so a mover advancing toward its line of fire keeps even stream
+	# spacing instead of bunching it. Forward-only (retreating never slows the shot) and
+	# clamped to the clarity ceiling like every other speed write above. _last_move_vel
+	# (px/s) is maintained by enemy_core; bespoke/static shooters leave it at zero → no-op.
+	if "speed" in b and "_last_move_vel" in enemy:
+		var fwd: float = maxf(0.0, enemy._last_move_vel.dot(dir))
+		if fwd > 0.0:
+			b.speed = minf(b.speed + fwd, Clarity.ABS_MAX_SPEED)
 	return b
 
 
