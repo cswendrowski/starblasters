@@ -35,12 +35,12 @@ const SIZE_TABLE := {
 # bases are the authoring anchors, tuned in the Enemy Bench Locomotion tab. (SIZE_TABLE.speed_mult
 # is now dead — removed with the bench rework.)
 const SIZE_LOCOMOTION := {
-	"tiny":   {"base_rung": 300.0, "weight": 0.5, "turn_rate": 360.0, "accel": 900.0},
-	"small":  {"base_rung": 240.0, "weight": 0.8, "turn_rate": 320.0, "accel": 800.0},
-	"medium": {"base_rung": 180.0, "weight": 1.2, "turn_rate": 260.0, "accel": 600.0},
-	"large":  {"base_rung": 120.0, "weight": 2.0, "turn_rate": 180.0, "accel": 420.0},
-	"huge":   {"base_rung":  60.0, "weight": 3.5, "turn_rate": 120.0, "accel": 300.0},
-	"giant":  {"base_rung":  60.0, "weight": 5.0, "turn_rate":  90.0, "accel": 220.0},
+	"tiny":   {"base_rung": 240.0, "weight": 1.0, "turn_rate": 240.0, "accel": 500.0},
+	"small":  {"base_rung": 180.0, "weight": 1.0, "turn_rate": 240.0, "accel": 410.0},
+	"medium": {"base_rung": 120.0, "weight": 2.0, "turn_rate": 120.0, "accel": 330.0},
+	"large":  {"base_rung": 120.0, "weight": 3.0, "turn_rate":  90.0, "accel": 240.0},
+	"huge":   {"base_rung":  60.0, "weight": 4.0, "turn_rate":  45.0, "accel": 180.0},
+	"giant":  {"base_rung":  60.0, "weight": 5.0, "turn_rate":  23.0, "accel":  90.0},
 }
 
 const RARITY_BOUNTY_MULT := {
