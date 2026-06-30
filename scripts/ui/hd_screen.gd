@@ -59,6 +59,13 @@ static func make_play_subviewport(host: Node, native_size: Vector2i = NATIVE, sh
 	# glow halos, explosions) in the wrong colour space — flashes tint wrong and faint glows wash
 	# out to nothing. Mirror the project's 2D-HDR mode so the dev play area matches combat exactly.
 	vp.use_hdr_2d = bool(ProjectSettings.get_setting("rendering/viewport/hdr_2d", false))
+	# Same gotcha as use_hdr_2d (Roman 2026-06-29): a hand-built SubViewport does NOT inherit the
+	# project's `2d/snap/snap_2d_transforms_to_pixel` — it defaults to FALSE while the root (combat)
+	# viewport snaps. So native-pixel content that MOVES inside this viewport (the dock-cinematic bay,
+	# the landing ship, crate clutter) renders at sub-pixel positions and shimmers/jitters under the 4×
+	# nearest upscale, where combat does not. Mirror the project setting so the play area steps on whole
+	# native pixels exactly like combat.
+	vp.snap_2d_transforms_to_pixel = bool(ProjectSettings.get_setting("rendering/2d/snap/snap_2d_transforms_to_pixel", false))
 	container.add_child(vp)
 	return vp
 

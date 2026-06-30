@@ -23,7 +23,8 @@ const SHEETS := [
 	{"tex": "res://graphics/backgrounds/outpost_clutter_8px_ammo_crates.png", "size": 8, "frames": 8},
 ]
 const SHADOW_COL := Color(0, 0, 0, 0.4)
-const SHADOW_OFF := Vector2(1.0, 1.5)
+const SHADOW_OFF := Vector2(1.0, 2.0)   # INTEGER — a fractional Y snapped out of phase with its crate,
+                                        # so the shadow wobbled 1px against the box as the plate moved.
 const NO_SPOT := Vector2(-99999.0, -99999.0)
 const CARDINALS := [Vector2.RIGHT, Vector2.LEFT, Vector2.UP, Vector2.DOWN]
 
