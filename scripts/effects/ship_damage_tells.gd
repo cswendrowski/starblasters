@@ -19,12 +19,12 @@ extends Node2D
 
 signal destroyed
 
-# Crash stress-test gate (Roman 2026-06-19). The live per-enemy damage-tell wiring in
-# enemy_base.gd is DEFAULT-OFF — it was reverted 2026-06-17 after intermittent combat crashes
-# (the canvas_item draw-index race on enemy death). The crash loop flips this ON to re-introduce
-# that render load and test whether the combat teardown/rebuild path now survives it. Production
-# must leave this false (the wiring stays lab-only).
-static var live_enabled: bool = false
+# Dev force-override (Roman 2026-06-19, repurposed 2026-06-29). The per-enemy damage-tell wiring in
+# enemy_base.gd went LIVE 2026-06-29 — it now attaches by default, gated on the user setting
+# `Settings.damage_tells` (default on). This static is a separate FORCE-ON knob the crash-repro
+# harnesses set so they exercise the tell render load even if a dev has toggled the setting off.
+# Leave it false in production; the user setting owns the live gate.
+static var force_live: bool = false
 
 const SparkTrailFx = preload("res://scripts/effects/spark_trail_fx.gd")
 const BURNING_TRAIL := preload("res://scenes/effects/burning_trail.tscn")
@@ -459,11 +459,12 @@ func _spawn_death_vfx(world: Vector2) -> void:
 	var container: Node = _vfx_container()
 	if container == null:
 		return
-	# Death blast via the centralized explosion system — size + density + shockwave scale with the
-	# ship size and the tuned config (Roman 2026-06-12).
+	# Death blast via the centralized explosion system. Boom SPRITES stay 1× (the never-stretch
+	# convention) — the ship size drives the boom COUNT (density) + spread, not the sprite scale; the
+	# expl_size knob is a plain multiplier on the 1× base (so it's 1× at the default).
 	ExplosionFx.play_config(world, {
 		"type": death_explosion_type,
-		"size": (1.0 + 0.4 * _size_scale) * float(_cfg["expl_size"]),
+		"size": float(_cfg["expl_size"]),
 		"density": maxi(1, int(round((1.0 + _size_scale * 0.6) * float(_cfg["expl_density"])))),
 		"area": 6.0 + _size_scale * 5.0,
 		"shockwave": float(_cfg["expl_shockwave"]) * clampf(_size_scale, 0.6, 2.5),

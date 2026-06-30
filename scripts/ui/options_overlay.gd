@@ -33,6 +33,7 @@ var _music_slider: HSlider = null
 var _sfx_slider: HSlider = null
 var _shake_slider: HSlider = null
 var _fullscreen_check: CheckButton = null
+var _damage_tells_check: CheckButton = null
 
 var _rebind_pending_action: String = ""
 var _rebind_pending_button: Button = null
@@ -129,6 +130,19 @@ func _build_ui() -> void:
 	_fullscreen_check.button_pressed = _settings().fullscreen
 	_fullscreen_check.toggled.connect(_on_fullscreen_toggled)
 	fs_row.add_child(_fullscreen_check)
+
+	var tells_row := HBoxContainer.new()
+	tells_row.add_theme_constant_override("separation", 8)
+	left.add_child(tells_row)
+	var tells_label := Label.new()
+	tells_label.text = "Damage Tells"
+	tells_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	UiTheme.style_label(tells_label, UiTheme.LabelKind.BODY)
+	tells_row.add_child(tells_label)
+	_damage_tells_check = CheckButton.new()
+	_damage_tells_check.button_pressed = _settings().damage_tells
+	_damage_tells_check.toggled.connect(_on_damage_tells_toggled)
+	tells_row.add_child(_damage_tells_check)
 
 	var font_row := HBoxContainer.new()
 	font_row.add_theme_constant_override("separation", 8)
@@ -351,6 +365,10 @@ func _on_shake_changed(v: float) -> void:
 
 func _on_fullscreen_toggled(on: bool) -> void:
 	_settings().set_fullscreen(on)
+
+
+func _on_damage_tells_toggled(on: bool) -> void:
+	_settings().set_damage_tells(on)
 
 
 func _on_font_picked(idx: int) -> void:

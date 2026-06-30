@@ -48,9 +48,9 @@ func _run() -> void:
 		_orig_autofire = bool(s.autofire) if "autofire" in s else false
 		if s.has_method("set_autofire"):
 			s.set_autofire(true)
-	# Re-enable the LIVE per-enemy damage tells (default-off, reverted as the prime crash
-	# suspect) for this run — the spark/burn render nodes + the draw-index race on enemy death.
-	ShipDamageTellsScript.live_enabled = true
+	# Force the per-enemy damage tells ON for this run regardless of the user setting — the
+	# spark/burn render nodes + the death-frame draw order this harness stress-tests.
+	ShipDamageTellsScript.force_live = true
 	_logln("live damage tells ON + full backdrop teardown per load")
 	# Bake the shared atlas once up front (baked mode) so each combat load reuses the cache
 	# instead of re-baking. This IS the load-time bake the production loading screen would cover.
@@ -107,7 +107,7 @@ func _run() -> void:
 		var s = get_node("/root/Settings")
 		if s.has_method("set_autofire"):
 			s.set_autofire(_orig_autofire)
-	ShipDamageTellsScript.live_enabled = false   # back to lab-only
+	ShipDamageTellsScript.force_live = false   # drop the dev override (user setting still governs)
 	if _log != null:
 		_log.close()
 		_log = null

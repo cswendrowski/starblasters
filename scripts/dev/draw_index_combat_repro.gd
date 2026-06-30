@@ -102,8 +102,8 @@ func _drive() -> void:
 		DisplayServer.get_name(), str(RenderingServer.get_rendering_device() != null)])
 	_enable_autofire()
 	if ENABLE_DAMAGE_TELLS:
-		ShipDamageTells.live_enabled = true
-		_logln("ShipDamageTells.live_enabled = TRUE (damage-tell death-frame repro test)")
+		ShipDamageTells.force_live = true
+		_logln("ShipDamageTells.force_live = TRUE (damage-tell death-frame repro test)")
 
 	var level := 0
 	while not _aborted and level < LEVEL_CAP:
@@ -361,7 +361,7 @@ func _wait_frames(n: int) -> void:
 
 func _finish() -> void:
 	_release_all_input()
-	ShipDamageTells.live_enabled = false   # restore lab-only default
+	ShipDamageTells.force_live = false   # drop the dev override (user setting still governs)
 	_close_log()
 	get_tree().quit()
 
