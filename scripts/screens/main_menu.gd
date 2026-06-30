@@ -200,10 +200,38 @@ func _on_continue() -> void:
 	SceneTransition.change_scene(get_tree(), SectorMapRoute.SECTOR_MAP_SCENE)
 
 func _on_new_game() -> void:
-	# New patrol opens the hangar PATROL START sequence (cinematic ship-select: pick hull + livery
-	# + run settings, the lifter readies it, then Begin Patrol flies it out and resets/starts the
-	# run → onboarding / sector map). Replaces the old ship-select modal (2026-06-27).
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev/patrol_start.tscn")
+	# New patrol opens the hangar PATROL START sequence (cinematic ship-select). We hand off WITHOUT a
+	# fade-to-black: snapshot the live menu frame, flag a LIVE launch, and let patrol_start crossfade
+	# that snapshot out as the hangar rises — so the menu dissolves smoothly straight into the patrol
+	# start, no black flash and no second menu. (The dev-menu launch of the same scene leaves these
+	# metas unset → its own dummy menu + Tune rail. See patrol_start._ready.)
+	if has_node("/root/Run"):
+		var run := get_node("/root/Run")
+		run.set_meta("patrol_live_launch", true)
+		var snap := await _capture_screen()
+		if snap != null:
+			run.set_meta("patrol_menu_snapshot", snap)
+	# Direct swap (no SceneTransition black) — patrol_start owns the crossfade reveal. main_menu's
+	# backdrop renders in a SubViewport (off the root canvas), so the change_scene backdrop-free
+	# SIGSEGV guard SceneTransition adds for combat's direct-child Backdrop doesn't apply here.
+	get_tree().change_scene_to_file("res://scenes/dev/patrol_start.tscn")
+
+
+# Capture the current rendered frame as a texture for patrol_start's crossfade hand-off. Returns null
+# if the viewport image isn't available (e.g. a headless dummy renderer) — the destination then just
+# skips the crossfade and runs the rise.
+func _capture_screen() -> ImageTexture:
+	await RenderingServer.frame_post_draw
+	var vp := get_viewport()
+	if vp == null:
+		return null
+	var vtex := vp.get_texture()
+	if vtex == null:
+		return null
+	var img := vtex.get_image()
+	if img == null or img.is_empty():
+		return null
+	return ImageTexture.create_from_image(img)
 
 func _on_options() -> void:
 	var OptionsOverlay = load("res://scripts/ui/options_overlay.gd")

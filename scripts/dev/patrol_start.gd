@@ -5,7 +5,14 @@ extends Control
 # hull/livery/settings, flies the ship out, and hands off to onboarding (or the sector map when
 # Skip Tutorial is set). Also reachable from the dev menu. Esc/Back → main menu.
 #
-# Flow:
+# LIVE vs DEV launch: the main menu sets Run meta `patrol_live_launch` (+ a `patrol_menu_snapshot`
+# frame grab) and DIRECT-swaps here with NO fade-to-black. Live mode builds NO dummy menu and NO dev
+# chrome; instead it covers the first frame with the captured main-menu image and CROSSFADES it out as
+# the hangar rises — so the player's menu dissolves smoothly straight into the patrol start, no black
+# flash and no second menu. The dev-menu launch leaves both metas unset and keeps the full tuner: the
+# dummy main-menu bridge (so the sequence can be replayed from a menu) + Tune ⚙ + rail.
+#
+# Flow (dev launch shows step 1's dummy menu; live launch crossfades the real menu frame in its place):
 #   1. A dummy main menu (the shared random parallax backdrop + title + buttons) shows first.
 #   2. "Start New Patrol" fades the menu out (music walks Intensity_1 → Intensity_2), waits a
 #      tunable beat, then the hangar rises into view (TRANS_CUBIC/EASE_IN_OUT — slow start,
@@ -172,6 +179,9 @@ var _started: bool = false
 var _skip_tutorial: bool = false
 var _endless: bool = false
 var _sector_modifiers: int = 0
+var _live_launch: bool = false   # main-menu launch: seamless auto-run, no dev chrome (see header)
+var _menu_snapshot: Texture2D = null   # captured main-menu frame, crossfaded out on a live launch
+var _crossfade_layer: CanvasLayer = null
 
 # UI refs.
 var _menu_ui: Control = null
@@ -190,6 +200,14 @@ var _rail_vals: Dictionary = {}
 
 
 func _ready() -> void:
+	# Consume the one-shot live-launch flag + crossfade frame the main menu set (dev launch sets neither).
+	var run := get_node_or_null("/root/Run")
+	if run != null and run.has_meta("patrol_live_launch"):
+		_live_launch = bool(run.get_meta("patrol_live_launch"))
+		run.remove_meta("patrol_live_launch")
+	if run != null and run.has_meta("patrol_menu_snapshot"):
+		_menu_snapshot = run.get_meta("patrol_menu_snapshot") as Texture2D
+		run.remove_meta("patrol_menu_snapshot")
 	_hd = HdScreen.enter(self)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_install_menu_backdrop()
@@ -209,8 +227,13 @@ func _ready() -> void:
 	_build_lifter()
 	_build_shadow_mgr()
 	_build_ui()
+	if _live_launch:
+		_preready_default_ship()   # default hull already on the pad + codex up — player can Begin at once
+		_build_live_crossfade()    # cover the first frame with the captured menu so the direct swap is invisible
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("menu")
+	if _live_launch:
+		_begin_live_launch()
 
 
 func _process(delta: float) -> void:
@@ -736,14 +759,18 @@ func _build_ui() -> void:
 
 	_build_left_panel(layer)
 	_build_right_panel(layer)
-	_build_menu_overlay(layer)
-	_build_rail(layer)
-
-	var tune := UiTheme.make_button("Tune ⚙", true)
-	tune.position = Vector2(16, 10)
-	tune.size = Vector2(132, 40)
-	tune.pressed.connect(_toggle_rail)
-	layer.add_child(tune)
+	# DEV launch keeps the dummy main-menu bridge + tuner chrome (rail + Tune ⚙ + Tab) so the sequence
+	# can be replayed from a menu state. A LIVE launch from the real main menu builds NEITHER — the real
+	# menu already played that role, so there's no redundant second menu and we drop straight into the
+	# hangar rise (see _begin_live_launch / _on_start_patrol).
+	if not _live_launch:
+		_build_menu_overlay(layer)
+		_build_rail(layer)
+		var tune := UiTheme.make_button("Tune ⚙", true)
+		tune.position = Vector2(16, 10)
+		tune.size = Vector2(132, 40)
+		tune.pressed.connect(_toggle_rail)
+		layer.add_child(tune)
 
 
 func _make_sidebar(x0: float, x1: float) -> ColorRect:
@@ -1132,16 +1159,81 @@ func _f(v: float) -> String:
 
 # ---- Sequence (menu → delay → rise + pan → hangar) -----------------------
 
+# Default hull for a fresh patrol — catalog index 0 (the Reaver / "default Starblaster").
+func _default_ship_idx() -> int:
+	return 0
+
+
+# LIVE start: drop the default hull straight onto the pad, readied, with its codex up — so the player
+# can Begin the patrol at once (or ready a different ship). Skips the mandatory click-ready-wait-click
+# loop the "start menu is slow" complaint was about. Its column slot is simply left empty.
+func _preready_default_ship() -> void:
+	var idx := _default_ship_idx()
+	if idx < 0 or idx >= _ships.size():
+		return
+	var ship: Dictionary = _ships[idx]
+	var host: Node2D = ship["host"]
+	host.position = _pad
+	_position_ship_button(ship)
+	_readied_idx = idx
+	_selected_idx = idx
+	_move_select_light(idx)
+	if _begin_btn != null:
+		_begin_btn.disabled = false
+	if _status != null:
+		_status.text = "%s standing by on the pad. Begin the patrol, or ready another ship." % ShipCatalog.display_name(idx)
+	_refresh_left_panel()   # codex + loadout up for the readied hull
+
+
+# Cover the first post-swap frame with the captured main-menu image so the direct (no-black) scene
+# swap is invisible — the player keeps seeing their menu until the crossfade dissolves it.
+func _build_live_crossfade() -> void:
+	if _menu_snapshot == null:
+		return
+	var layer := CanvasLayer.new()
+	layer.name = "MenuCrossfade"
+	layer.layer = 80   # above PatrolUI (5), below a SceneTransition black cover (128)
+	add_child(layer)
+	var tr := TextureRect.new()
+	tr.name = "MenuFrame"
+	tr.texture = _menu_snapshot
+	tr.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	tr.stretch_mode = TextureRect.STRETCH_SCALE
+	tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(tr)
+	_crossfade_layer = layer
+	_menu_snapshot = null
+
+
+# LIVE launch (from the real main menu): no dummy menu, no second click, no dev chrome. Crossfade the
+# captured menu frame out (no black) so the menu dissolves into the patrol backdrop, then run the
+# hangar-rise sequence directly. With no snapshot (e.g. headless) just run the rise.
+func _begin_live_launch() -> void:
+	if _crossfade_layer != null and is_instance_valid(_crossfade_layer):
+		var tr := _crossfade_layer.get_node_or_null("MenuFrame")
+		if tr != null:
+			var tw := create_tween()
+			tw.tween_property(tr, "modulate:a", 0.0, menu_fade_time)
+			await tw.finished
+		if is_instance_valid(_crossfade_layer):
+			_crossfade_layer.queue_free()
+		_crossfade_layer = null
+	if is_instance_valid(self):
+		_on_start_patrol()
+
+
 func _on_start_patrol() -> void:
 	if _started:
 		return
 	_started = true
 	_music_intensity(1)   # Intensity_1 → Intensity_2
-	# 1. Fade the menu out.
-	var fade := create_tween()
-	fade.tween_property(_menu_ui, "modulate:a", 0.0, menu_fade_time)
-	await fade.finished
+	# 1. Fade the dummy menu out — DEV launch only. A live launch never built one (the real main menu
+	#    already played that role), so this step is skipped and we go straight to the rise.
 	if _menu_ui != null:
+		var fade := create_tween()
+		fade.tween_property(_menu_ui, "modulate:a", 0.0, menu_fade_time)
+		await fade.finished
 		_menu_ui.visible = false
 	# 2. Beat before the bay rises.
 	if rise_delay > 0.0:
