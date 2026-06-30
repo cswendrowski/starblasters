@@ -26,6 +26,7 @@ const ShipDebrisEmber = preload("res://scripts/effects/ship_debris_ember.gd")
 const BURNING_TRAIL = preload("res://scenes/effects/burning_trail.tscn")
 const SPARK_TRAIL = preload("res://scenes/effects/spark_trail.tscn")
 const ShipDamageTells = preload("res://scripts/effects/ship_damage_tells.gd")
+const DeathEffectsScript = preload("res://scripts/effects/death_effects.gd")
 const EnemyManifest = preload("res://scripts/dev/enemy_manifest.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
 # Tunable damage-tell suite, tuned PER SIZE category (Roman 2026-06-12).
@@ -106,7 +107,7 @@ const GLOW_DEMO_TEX := {
 	"engines": "res://graphics/enemies/enemy_core_cobra.png",
 	"explosions": "res://graphics/effects/explosion_small_circle.png",
 }
-const MODES := ["Embers", "Smoke", "Glow", "Bloom Env", "Modes", "Damage", "Disintegrate", "Explosions", "Expl. Tuner", "Ship Dmg", "Nebula", "Asteroids", "Gallery"]
+const MODES := ["Embers", "Smoke", "Glow", "Bloom Env", "Modes", "Damage", "Disintegrate", "Explosions", "Expl. Tuner", "Ship Dmg", "Death", "Nebula", "Asteroids", "Gallery"]
 
 const EMBER_VARIANTS := ["normal", "inverted", "smoke"]
 
@@ -182,7 +183,7 @@ const KNOBS := {
 		{"key": "stagger", "label": "Stagger (s)", "min": 0.0, "max": 0.4, "step": 0.01, "def": 0.06},
 		{"key": "secondaries", "label": "Per-boom satellites", "min": 0.0, "max": 4.0, "step": 0.25, "def": 1.0},
 		{"key": "glow", "label": "Glow ×", "min": 0.0, "max": 3.0, "step": 0.1, "def": 0.9},
-		{"key": "shockwave", "label": "Shockwave reach", "min": 0.0, "max": 3.0, "step": 0.1, "def": 0.1},
+		{"key": "shockwave", "label": "Shockwave reach", "min": 0.0, "max": 3.0, "step": 0.1, "def": 0.0},
 		{"key": "sparks", "label": "Spark density", "min": 0.0, "max": 3.0, "step": 0.1, "def": 1.0},
 		{"key": "debris", "label": "Ember density", "min": 0.0, "max": 3.0, "step": 0.1, "def": 1.0},
 	],
@@ -350,6 +351,16 @@ var _sd_suite_label: Label = null     # "Damage-tell suite — <size>" header (u
 var _sd_dmg_vals: Dictionary = {}     # size → {key: value}
 var _sd_dead: bool = false            # ship destroyed — stays put until New Ship (no auto-respawn)
 var _sd_pool_by_cat: Dictionary = {}  # "small"/"medium"/"large" → [scene paths] (measured once)
+
+# Death-effects tab.
+var _death_ship: Node2D = null        # the live dummy flying down the middle, awaiting a death
+var _death_ship_vel: Vector2 = Vector2.ZERO  # its downward travel (handed to the death as the glide)
+var _death_fx: Node = null            # the active DeathEffects controller (null between plays)
+var _death_style: String = "burn_out"
+var _death_vals: Dictionary = {}      # style → {key: value} (per-style knobs, like _sd_dmg_vals)
+var _death_knob_box: VBoxContainer = null  # sub-box for the selected style's knobs (rebuilt on change)
+var _death_pool: Array = []           # all spawnable ship-vfx enemy paths (measured once)
+var _death_pool_2eng: Array = []      # subset with >=2 engine markers (Spinout prefers these)
 
 static var _ship_tex: Texture2D = null
 
@@ -555,6 +566,10 @@ func _set_mode(idx: int) -> void:
 	_sd_slider = null
 	_sd_label = null
 	_sd_respawn_t = -1.0
+	# Death dummy + controller live in _stage, freed above; just drop the refs.
+	_death_ship = null
+	_death_fx = null
+	_death_knob_box = null
 	match MODES[_mode]:
 		"Embers":
 			_enter_embers()
@@ -576,6 +591,8 @@ func _set_mode(idx: int) -> void:
 			_enter_expl_tuner()
 		"Ship Dmg":
 			_enter_ship_dmg()
+		"Death":
+			_enter_death()
 		"Nebula":
 			_enter_nebula()
 		"Asteroids":
@@ -1232,7 +1249,7 @@ func _build_sd_pool() -> void:
 		_sd_pool_by_cat[sz] = []
 	for p in Factions.ENEMY_TAGS.keys():
 		var path := String(p)
-		if not ResourceLoader.exists(path):
+		if not ResourceLoader.exists(path) or _is_boss_scene(path):
 			continue
 		var inst: Node2D = load(path).instantiate()
 		_stage.add_child(inst)
@@ -1243,6 +1260,21 @@ func _build_sd_pool() -> void:
 		var cat := _sd_size_category(_ship_size_scale(inst, spr))
 		(_sd_pool_by_cat[cat] as Array).append(path)
 		inst.queue_free()
+	_force_quiet_music()   # a boss _ready (were one to slip in) flips the Music context — re-assert silence
+
+
+# A boss scene path — bosses aren't size/death dummies, and their _ready calls Music.set_context("boss")
+# (boss_base._init_phases), which would un-silence the lab. Matched by the "boss" filename prefix (the
+# Shepherd is faction-tagged, not under /bosses/) plus the bosses dir for the rest.
+func _is_boss_scene(path: String) -> bool:
+	return String(path.get_file()).to_lower().begins_with("boss") or path.contains("/bosses/")
+
+
+# Re-assert the lab's silent Music context (SFX ride their own bus, so they stay audible). Used after
+# instantiating roster enemies, since a spawned unit's _ready can flip the context.
+func _force_quiet_music() -> void:
+	if has_node("/root/Music"):
+		get_node("/root/Music").set_context("silent")
 
 
 func _spawn_sd_ship() -> void:
@@ -1349,6 +1381,185 @@ func _ship_size_scale(ship: Node, sprite: Sprite2D) -> float:
 	if "display_scale" in ship:
 		return clampf(float(ship.display_scale), 0.6, 3.5)
 	return 1.0
+
+
+# ---- Death effects mode ----------------------------------------------------
+# A live enemy holds at top-centre; pick a death STYLE and Play it. DeathEffects (the production
+# module) composes the fire trail / explosion / embers / disintegrate / wreck-corkscrew primitives.
+# Knobs tune the suite; Copy GDScript emits the DeathEffects.play() call. Re-spawns after each death.
+
+func _enter_death() -> void:
+	if _death_style == "" or not DeathEffectsScript.STYLES.has(_death_style):
+		_death_style = "burn_out"
+	_init_death_vals()
+	_knob_box.add_child(_label("Death Effects", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("A live enemy holds at centre. Pick a style and\nPlay it — it composes the real death primitives.\nEach style has its OWN knobs below.\nSpinout auto-picks a 2-engine ship.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_knob_box.add_child(_label("Style", FS_CAPTION, UiTheme.COLOR_FAINT))
+	var dd := OptionButton.new()
+	dd.add_theme_font_override("font", UiTheme.active_font())
+	dd.add_theme_font_size_override("font_size", FS_BODY)
+	dd.custom_minimum_size = Vector2(0, 34)
+	for s in DeathEffectsScript.STYLES:
+		dd.add_item(String(s).capitalize())
+	dd.select(maxi(0, DeathEffectsScript.STYLES.find(_death_style)))
+	dd.item_selected.connect(func(i: int):
+		_death_style = String(DeathEffectsScript.STYLES[i])
+		_rebuild_death_knobs()
+		_spawn_death_ship())   # re-pick (spinout wants a 2-engine ship)
+	_knob_box.add_child(dd)
+	_add_action("▶ Play Death", _play_death)
+	_add_action("New Ship", _spawn_death_ship)
+	_knob_box.add_child(HSeparator.new())
+	_death_knob_box = VBoxContainer.new()
+	_death_knob_box.add_theme_constant_override("separation", 6)
+	_knob_box.add_child(_death_knob_box)
+	_rebuild_death_knobs()
+	_spawn_death_ship()
+
+
+# Seed the per-style value dicts from each style's knob schema (the single source of truth). No-op if
+# already populated (e.g. _load_saved built them from disk).
+func _init_death_vals() -> void:
+	if not _death_vals.is_empty():
+		return
+	for style in DeathEffectsScript.STYLES:
+		var d := {}
+		for def in DeathEffectsScript.STYLE_KNOBS.get(style, []):
+			d[String(def["key"])] = float(def["def"])
+		_death_vals[style] = d
+
+
+# Rebuild the knob sliders for the SELECTED style into _death_knob_box (like the Ship Dmg per-size box).
+func _rebuild_death_knobs() -> void:
+	if _death_knob_box == null or not is_instance_valid(_death_knob_box):
+		return
+	for c in _death_knob_box.get_children():
+		c.queue_free()
+	var vals: Dictionary = _death_vals.get(_death_style, {})
+	for def in DeathEffectsScript.STYLE_KNOBS.get(_death_style, []):
+		var key := String(def["key"])
+		var row_lbl := _label("%s: %s" % [def["label"], _fmt(float(vals[key]), float(def["step"]))], FS_CAPTION, UiTheme.COLOR_FAINT)
+		_death_knob_box.add_child(row_lbl)
+		var sl := HSlider.new()
+		sl.min_value = float(def["min"])
+		sl.max_value = float(def["max"])
+		sl.step = float(def["step"])
+		sl.value = float(vals[key])
+		sl.custom_minimum_size = Vector2(0, 24)
+		sl.value_changed.connect(func(v: float):
+			vals[key] = v
+			row_lbl.text = "%s: %s" % [def["label"], _fmt(v, float(def["step"]))])
+		_death_knob_box.add_child(sl)
+
+
+# Measure every spawnable faction-roster enemy ONCE (in-tree so _ready-set scales count), keeping the
+# ship-vfx ships (skip hazards/mines) and noting which carry >=2 engine markers. Cached.
+func _build_death_pool() -> void:
+	if not _death_pool.is_empty():
+		return
+	for p in Factions.ENEMY_TAGS.keys():
+		var path := String(p)
+		if not ResourceLoader.exists(path) or _is_boss_scene(path):
+			continue
+		var inst: Node2D = load(path).instantiate()
+		_stage.add_child(inst)
+		_freeze_node(inst)
+		if inst.is_in_group("enemies"):
+			inst.remove_from_group("enemies")
+		var is_ship: bool = ("has_ship_vfx" in inst and bool(inst.has_ship_vfx)) and _find_body_sprite(inst) != null
+		if is_ship:
+			_death_pool.append(path)
+			if inst.find_children("Engine*", "Marker2D", true, false).size() >= 2:
+				_death_pool_2eng.append(path)
+		inst.queue_free()
+	_force_quiet_music()   # a boss _ready (were one to slip in) flips the Music context — re-assert silence
+
+
+func _spawn_death_ship() -> void:
+	if _death_ship != null and is_instance_valid(_death_ship):
+		_death_ship.queue_free()
+	_death_ship = null
+	_build_death_pool()
+	# Spinout reads best on a 2-engine ship — pull from that subset when available.
+	var pool: Array = _death_pool
+	if _death_style == "spinout" and not _death_pool_2eng.is_empty():
+		pool = _death_pool_2eng
+	if pool.is_empty():
+		_note.text = "no ship-vfx enemies to spawn"
+		return
+	var path := String(pool[randi() % pool.size()])
+	var ship: Node2D = load(path).instantiate()
+	_stage.add_child(ship)            # run _ready so the sprite/scale are final
+	_freeze_node(ship)
+	if ship.is_in_group("enemies"):
+		ship.remove_from_group("enemies")
+	# Enter at the TOP and FLY DOWN the middle (a better in-play representation than holding still) —
+	# _tick_death advances it, and Play hands its current downward velocity to the death as the glide.
+	# Sprites are authored facing UP at rotation 0; an auto_rotate ship needs rotation PI to point down
+	# (matches enemy_base._apply_auto_rotation). Fixed-facing ships keep their authored orientation.
+	ship.position = Vector2(Playfield.CENTER.x, 10.0)
+	if "auto_rotate" in ship and bool(ship.auto_rotate):
+		ship.rotation = PI
+	_death_ship = ship
+	_death_ship_vel = Vector2.DOWN * _death_primary_speed()
+
+
+func _death_cfg() -> Dictionary:
+	return (_death_vals.get(_death_style, {}) as Dictionary).duplicate()
+
+
+# The downward glide / inherited-velocity speed handed to DeathEffects — pulled from whichever knob
+# the selected style uses as its entry speed.
+func _death_primary_speed() -> float:
+	var v: Dictionary = _death_vals.get(_death_style, {})
+	if _death_style == "blow_out":
+		return float(v.get("enter_speed", 40.0))
+	if _death_style == "spinout":
+		return float(v.get("spinout_speed", 40.0))
+	return float(v.get("travel_speed", 70.0))
+
+
+func _play_death() -> void:
+	if _death_fx != null and is_instance_valid(_death_fx):
+		return   # a death is already playing
+	if _death_ship == null or not is_instance_valid(_death_ship):
+		_spawn_death_ship()
+		if _death_ship == null:
+			return
+	var ship := _death_ship
+	_death_ship = null   # hand it off to the controller
+	var fx: Node = DeathEffectsScript.new()
+	_stage.add_child(fx)
+	_death_fx = fx
+	if fx.has_signal("finished"):
+		fx.finished.connect(_on_death_finished)
+	# Hand the ship's CURRENT downward velocity to the death so the glide continues its in-flight motion.
+	var travel := _death_ship_vel if _death_ship_vel.length() > 0.1 else Vector2.DOWN * _death_primary_speed()
+	fx.play(ship, _death_style, _death_cfg(), travel, {
+		"vfx_parent": _stage, "wreck_parent": _stage, "bounds": Rect2(0, 0, 480, 270),
+	})
+
+
+func _on_death_finished() -> void:
+	_death_fx = null
+	if MODES[_mode] != "Death":
+		return
+	# Respawn a fresh dummy a beat after the death clears, so the tab is always ready to replay.
+	var tw := create_tween()
+	tw.tween_interval(0.4)
+	tw.tween_callback(_spawn_death_ship)
+
+
+# Fly the awaiting dummy down the middle; loop back to the top when it clears the bottom. Paused while
+# a death is playing (the dummy is handed off to the DeathEffects controller, which owns the motion).
+func _tick_death(delta: float) -> void:
+	if _death_fx != null and is_instance_valid(_death_fx):
+		return
+	if _death_ship == null or not is_instance_valid(_death_ship):
+		return
+	_death_ship.position += _death_ship_vel * delta
+	if _death_ship.position.y > 290.0:
+		_death_ship.position = Vector2(Playfield.CENTER.x, 10.0)
 
 
 func _freeze_node(n: Node) -> void:
@@ -1911,6 +2122,8 @@ func _process(delta: float) -> void:
 			_tick_expl_tuner(delta)
 		"Ship Dmg":
 			_tick_ship_dmg(delta)
+		"Death":
+			_tick_death(delta)
 		"Nebula":
 			_tick_nebula(delta)
 		"Disintegrate":
@@ -2176,6 +2389,8 @@ func _on_save() -> void:
 	out["EmberGradient"] = stops
 	if not _sd_dmg_vals.is_empty():
 		out["ShipDmgSizes"] = _sd_dmg_vals
+	if not _death_vals.is_empty():
+		out["DeathStyles"] = _death_vals
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f != null:
 		f.store_string(JSON.stringify(out, "\t"))
@@ -2215,6 +2430,15 @@ func _load_saved() -> void:
 					var key := String(def["key"])
 					d[key] = float((sds.get(sz, {}) as Dictionary).get(key, def["def"]))
 				_sd_dmg_vals[sz] = d
+			var dss: Dictionary = data.get("DeathStyles", {})
+			if not dss.is_empty():
+				_death_vals = {}
+				for style in DeathEffectsScript.STYLES:
+					var dvd := {}
+					for def in DeathEffectsScript.STYLE_KNOBS.get(style, []):
+						var key2 := String(def["key"])
+						dvd[key2] = float((dss.get(style, {}) as Dictionary).get(key2, def["def"]))
+					_death_vals[style] = dvd
 
 
 func _on_copy() -> void:
@@ -2240,6 +2464,8 @@ func _on_copy() -> void:
 			txt = _snippet_expl_tuner()
 		"Ship Dmg":
 			txt = _snippet_ship_dmg()
+		"Death":
+			txt = _snippet_death()
 		"Nebula":
 			txt = _snippet_nebula()
 		"Asteroids":
@@ -2337,6 +2563,21 @@ func _snippet_ship_dmg() -> String:
 			var key := String(def["key"])
 			t += "\t\"%s\": %s,\n" % [key, _fmt(float(vals.get(key, def["def"])), float(def["step"]))]
 		t += "}\n"
+	return t
+
+
+func _snippet_death() -> String:
+	var v: Dictionary = _death_vals.get(_death_style, {})
+	var t := "# Shader Lab — death effect '%s' (scripts/effects/death_effects.gd)\n" % _death_style
+	t += "# const DeathEffects = preload(\"res://scripts/effects/death_effects.gd\")\n"
+	t += "var fx := DeathEffects.new()\n"
+	t += "vfx_parent.add_child(fx)   # a node that OUTLIVES the enemy (combat scene root)\n"
+	t += "fx.play(enemy, \"%s\", {\n" % _death_style
+	for def in DeathEffectsScript.STYLE_KNOBS.get(_death_style, []):
+		var key := String(def["key"])
+		t += "\t\"%s\": %s,\n" % [key, _fmt(float(v.get(key, def["def"])), float(def["step"]))]
+	t += "}, Vector2.DOWN * %.1f,\n" % _death_primary_speed()
+	t += "\t{\"vfx_parent\": vfx_parent, \"wreck_parent\": wreck_layer, \"bounds\": play_rect})\n"
 	return t
 
 

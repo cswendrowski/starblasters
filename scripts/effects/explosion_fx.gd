@@ -49,7 +49,7 @@ const EXPLOSION_DEFAULTS := {
 	"stagger": 0.06,      # seconds between booms
 	"secondaries": 1.0,   # per-boom satellite multiplier (the small scattered sub-booms)
 	"glow": 0.9,          # additive halo + light intensity multiplier (Expl. Tuner bake 2026-06-12)
-	"shockwave": 0.1,     # expanding pressure ring on the lead boom (Expl. Tuner bake; 0 = off)
+	"shockwave": 0.0,     # expanding pressure ring on the lead boom — OFF by default (opt-in); pass an explicit value when wanted
 	"sparks": 1.0,        # spark count multiplier
 	"debris": 1.0,        # debris count multiplier
 	"light": true,

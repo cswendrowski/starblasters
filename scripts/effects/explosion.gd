@@ -29,7 +29,7 @@ extends Node2D
 # universal expanding ring whose reach scales with this value. These are universal to every type.
 @export var density: float = 1.0
 @export var glow_mult: float = 0.9   # Expl. Tuner bake (Roman 2026-06-12)
-@export var shockwave: float = 0.1   # Expl. Tuner bake — subtle ring on every blast
+@export var shockwave: float = 0.0   # OFF by default (Roman 2026-06-29) — opt-in per blast; pass an explicit value when a ring is specifically wanted
 
 var _frame_timer: float = 0.0
 var _frame: int = 0
