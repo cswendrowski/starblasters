@@ -926,7 +926,14 @@ func _spawn_current() -> void:
 		inst.explosion_variant = ExplosionFx.variant_names()[_explosion_dd.selected]
 	_apply_stats_to(inst)   # HP/scale/etc BEFORE _ready so health = max_health from frame 0
 	if "mounts" in inst:
-		inst.mounts = EnemyRoster.make_mount_specs(_mount_spec_dicts())   # extra emitters, BEFORE add_child
+		var spec_dicts: Array = _mount_spec_dicts()
+		var specs: Array = EnemyRoster.make_mount_specs(spec_dicts)
+		# Bridge no_inertia onto the specs: EnemyRoster._mount_from_dict doesn't read it yet (that edit
+		# lands when the roster WIP is committed), and make_mount_specs is 1:1 with spec_dicts.
+		for i in mini(specs.size(), spec_dicts.size()):
+			if specs[i] != null and "no_inertia" in specs[i]:
+				specs[i].no_inertia = bool(spec_dicts[i].get("no_inertia", false))
+		inst.mounts = specs   # extra emitters, BEFORE add_child
 	if "components" in inst:
 		var ems: Array = EnemyRoster.make_emitter_specs(_emitter_spec_dicts())
 		if not ems.is_empty():
@@ -1016,6 +1023,7 @@ func _mount_spec_dicts() -> Array:
 		if k == "gun" or k == "launcher":
 			# Firing pattern: marker_mode (all/cycle), burst_interval, bullet_speed
 			sd["marker_mode"] = String(d.get("marker_mode", "cycle"))
+			sd["no_inertia"] = bool(d.get("no_inertia", false))
 			var burst: float = float(d.get("burst_interval", 0.0))
 			if burst > 0.0:
 				sd["burst_interval"] = burst
@@ -1046,7 +1054,7 @@ func _mount_spec_dicts() -> Array:
 
 
 func _add_mount() -> void:
-	_mount_dicts.append({"kind": "gun", "marker": "", "payload": "Ball", "aim": "straight_down", "fire": 1.5, "count": 1, "spread": 0.0, "marker_mode": "cycle", "burst_interval": 0.0, "bullet_speed": -1.0, "nose_gated": false, "aim_tol": 18.0, "path_phases": "", "beat_synced": true, "on_phase": ""})
+	_mount_dicts.append({"kind": "gun", "marker": "", "payload": "Ball", "aim": "straight_down", "fire": 1.5, "count": 1, "spread": 0.0, "marker_mode": "cycle", "burst_interval": 0.0, "bullet_speed": -1.0, "no_inertia": false, "nose_gated": false, "aim_tol": 18.0, "path_phases": "", "beat_synced": true, "on_phase": ""})
 	_rebuild_mounts_ui()
 	_spawn_current()
 
@@ -1161,6 +1169,12 @@ func _make_mount_row(idx: int) -> Control:
 		var spd := _row_spin(-1.0, 600.0, 10.0, float(d.get("bullet_speed", -1.0)))
 		spd.value_changed.connect(func(v): _set_mount(d, "bullet_speed", float(v)))
 		_grid_row(grid, "speed", spd)
+
+		# Drop gun: ignore the enemy's velocity inheritance so the shot moves at its own speed — any
+		# payload becomes a droppable round (replaces the bespoke slow-drop bullet).
+		var drop_chk := _row_check(bool(d.get("no_inertia", false)))
+		drop_chk.toggled.connect(func(on): _set_mount(d, "no_inertia", on))
+		_grid_row(grid, "no inertia", drop_chk)
 
 		# Firing conditions: nose gate + path-phase mode (mirror the hull shoot). The old "zone" toggle
 		# was dropped 2026-06-29 — off-screen suppression is already universal (_on_playfield), so the
@@ -1415,6 +1429,7 @@ func _roster_mount_to_bench(d: Dictionary) -> Dictionary:
 		"marker_mode": String(d.get("marker_mode", "cycle")),
 		"burst_interval": float(d.get("burst_interval", 0.0)),
 		"bullet_speed": float(d.get("bullet_speed", -1.0)),
+		"no_inertia": bool(d.get("no_inertia", false)),
 		"nose_gated": bool(d.get("fire_only_on_target", false)),
 		"aim_tol": float(d.get("fire_aim_tol_deg", 18.0)),
 		"path_phases": ",".join(pp_toks),
@@ -1475,6 +1490,8 @@ func _mount_copy_line(d: Dictionary) -> String:
 		var bspeed: float = float(d.get("bullet_speed", -1.0))
 		if bspeed >= 0.0:
 			line += ", \"bullet_speed\": %.0f" % bspeed
+		if bool(d.get("no_inertia", false)):
+			line += ", \"no_inertia\": true"
 		if bool(d.get("nose_gated", false)):
 			line += ", \"fire_only_on_target\": true, \"fire_aim_tol_deg\": %.0f" % float(d.get("aim_tol", 18.0))
 		var pp_copy: String = String(d.get("path_phases", "")).strip_edges()

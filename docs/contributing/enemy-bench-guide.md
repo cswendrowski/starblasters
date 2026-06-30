@@ -136,13 +136,13 @@ frame is set from the enemy's faction (`BulletCatalog.faction_variant`), so all
 four factions reskin from the single sheet — full faction coverage. The bench
 preview stamps the selected enemy's faction so you see the right frame.
 
-**Dropping shots (Caltrop-style):** pick the **`Drop`** payload + aim **Down**.
-`Drop` is a slow lingering pellet (45 px/s, 5s life) — because it crawls far
-slower than the enemy descends, it hangs in the lane as a trail of dropped shots
-in the enemy's wake. It reuses the **Ball** sprite, so it takes the enemy's
-faction colour like the other families. Combine it with rear `Muzzle*` markers,
-`count`/burst, and a `path` phase (the Caltrop fires a 4-shot burst at path phase
-`0.4`) to reproduce the Caltrop's dropper.
+**Dropping shots (Caltrop-style):** turn on the **`no inertia`** toggle and pick a
+slow payload (e.g. **`Orb`**) + aim **Down**. By default a shot inherits the
+enemy's forward velocity ("Doppler" inertia), so a fast-moving gun's slow round
+still gets dragged along; `no inertia` makes the shot leave at its *own* intended
+speed, so it hangs in the lane as a trail of dropped shots in the enemy's wake.
+This works with **any** payload — no bespoke slow bullet needed. (The legacy
+`Drop` payload, a 45 px/s pellet, still exists for back-compat.)
 
 **Gun/Launcher get extra firing controls:**
 - **muzzles** (`All / Cycle`) — when a mount covers multiple markers: `All` fires
@@ -152,6 +152,8 @@ faction colour like the other families. Combine it with rear `Muzzle*` markers,
 - **burst gap** — seconds between consecutive shots in a burst (only shown in
   Burst mode).
 - **speed** — bullet-speed override in px/s; `-1` = use the payload's default.
+- **no inertia** — the "drop" toggle: the shot ignores the enemy's velocity
+  inheritance and leaves at its own speed (see *Dropping shots* above).
 - **nose** — only fire when actually **aimed at the player**, within…
 - **tol** — the aim tolerance in degrees for the `nose` gate (e.g. 18° cone).
 - **path** — **path-phase** firing: comma-separated points along its movement

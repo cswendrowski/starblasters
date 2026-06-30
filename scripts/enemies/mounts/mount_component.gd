@@ -208,10 +208,10 @@ func _fire_gun(enemy) -> void:
 		if cycling:
 			var m = _markers[_cycle % _markers.size()]   # one cycled marker per shot (alternating MG muzzles)
 			_cycle += 1
-			_weapon._spawn_bullet(enemy, dir, spec.payload, m.global_position)
+			_drop_strip(enemy, _weapon._spawn_bullet(enemy, dir, spec.payload, m.global_position), dir)
 		else:
 			for pos in _all_positions(enemy):            # every marker fires this shot (both cannons)
-				_weapon._spawn_bullet(enemy, dir, spec.payload, pos)
+				_drop_strip(enemy, _weapon._spawn_bullet(enemy, dir, spec.payload, pos), dir)
 		# A burst is several distinct shots over time, so each one gets its own fire sound (Roman
 		# 2026-06-29). A simultaneous volley (no burst gap) stays a single sound — played once below.
 		if is_burst:
@@ -255,6 +255,19 @@ func _fan(base: Vector2, i: int, n: int) -> Vector2:
 		return base
 	var total: float = deg_to_rad(spec.spread_deg)
 	return base.rotated(-total * 0.5 + total / float(n - 1) * float(i))
+
+
+# Drop gun (spec.no_inertia): undo the velocity-inheritance the firing layer added, so the shot leaves
+# at its OWN intended speed regardless of the gun's travel. Mirrors the "Doppler" add in
+# shoot_pattern._spawn_bullet (same forward term) — kept in lockstep with it. Duck-typed on
+# _last_move_vel: if the firing layer never added inertia, there's nothing to strip.
+func _drop_strip(enemy, b, dir: Vector2) -> void:
+	if not spec.no_inertia or b == null:
+		return
+	if "speed" in b and "_last_move_vel" in enemy:
+		var fwd: float = maxf(0.0, enemy._last_move_vel.dot(dir))
+		if fwd > 0.0:
+			b.speed = maxf(b.speed - fwd, 1.0)
 
 
 func _play_sfx(enemy) -> void:

@@ -29,6 +29,10 @@ enum MarkerMode { ALL, CYCLE }   # ALL = fire from every matched marker; CYCLE =
 @export var count: int = 1                     # shots/rockets per volley
 @export var spread_deg: float = 0.0            # fan across the volley
 @export var burst_interval: float = 0.0        # >0 staggers the `count` shots in time
+# "Drop" gun (Roman 2026-06-29): the shot ignores the enemy's velocity inheritance ("Doppler"), so it
+# leaves at its OWN intended speed no matter how fast the gun is travelling — lets ANY payload be
+# dropped without a bespoke slow bullet. false = normal inertia-carrying fire.
+@export var no_inertia: bool = false
 
 # Projectile-movement axis driven onto each spawned bullet (mirrors Weapon).
 @export var homing_rate: float = 0.0
