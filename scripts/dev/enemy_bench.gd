@@ -82,9 +82,27 @@ const PROJECTILES := {
 	"Bomblet": "res://scenes/enemies/enemy_bomblet.tscn",
 }
 # Emitters editor (the reusable EmitterComponent: drop/spawn a payload scene on a trigger — the
-# generalized form of the interceptor's missile-drop). Payload names come from EnemyRoster.EMITTABLE.
+# generalized form of the interceptor's missile-drop).
 const EMITTER_TRIGGERS := ["start", "timer", "death"]
 const EMITTER_TRIGGER_LABELS := ["Spawn", "Timer", "On Death"]
+# Expanded emitter payload set (Roman 2026-06-29): every rocket / missile / mine / bomblet / firecore,
+# plus ANY enemy (appended from the manifest at runtime — see _emitter_payload_options). The emitter
+# spawns whatever scene the name resolves to via start(pos); the roster's _emitter_from_dict accepts a
+# raw res:// path, so the bench doesn't need EnemyRoster.EMITTABLE to list these.
+const EMITTER_PAYLOADS := {
+	"Missile": "res://scenes/projectiles/drifting_missile.tscn",
+	"Missile Lg": "res://scenes/projectiles/drifting_missile_large.tscn",
+	"Rocket": "res://scenes/projectiles/enemy_rocket.tscn",
+	"Rocket Lg": "res://scenes/projectiles/enemy_rocket_large.tscn",
+	"Mine": "res://scenes/enemies/enemy_mine.tscn",
+	"Mine Shield": "res://scenes/enemies/enemy_mine_shield.tscn",
+	"Mine Smart": "res://scenes/enemies/enemy_mine_smart.tscn",
+	"Mine Armored": "res://scenes/enemies/enemy_mine_armored.tscn",
+	"Mine Tether": "res://scenes/enemies/enemy_mine_tether.tscn",
+	"Mine Gravity": "res://scenes/enemies/enemy_mine_gravity.tscn",
+	"Bomblet": "res://scenes/enemies/enemy_bomblet.tscn",
+	"Firecore": "res://scenes/enemies/factions/zealot/firecore_hazard.tscn",
+}
 # Faction → turret graphic for TURRET mounts so they're never invisible. The dome/zealot strips are
 # 3-frame recoil; the generic fallback is a 1-frame static turret.
 const TURRET_GFX := {
@@ -935,7 +953,13 @@ func _spawn_current() -> void:
 				specs[i].no_inertia = bool(spec_dicts[i].get("no_inertia", false))
 		inst.mounts = specs   # extra emitters, BEFORE add_child
 	if "components" in inst:
-		var ems: Array = EnemyRoster.make_emitter_specs(_emitter_spec_dicts())
+		var em_dicts: Array = _emitter_spec_dicts()
+		var ems: Array = EnemyRoster.make_emitter_specs(em_dicts)
+		# Bridge `drop` onto the components (EnemyRoster._emitter_from_dict doesn't read it yet — same
+		# roster-WIP follow-up as the mount no_inertia). make_emitter_specs is 1:1 with em_dicts.
+		for i in mini(ems.size(), em_dicts.size()):
+			if ems[i] != null and "drop" in ems[i]:
+				ems[i].drop = bool(em_dicts[i].get("drop", true))
 		if not ems.is_empty():
 			inst.components = inst.components + ems   # append droppers/spawners to baked components
 	# Shielded trait (template): add a CHARGE ShieldComponent sized to the template for a live preview.
@@ -1209,17 +1233,37 @@ func _make_mount_row(idx: int) -> Control:
 # the interceptor's missile-drop. `_emitter_dicts` holds JSON-friendly dicts; _emitter_spec_dicts()
 # resolves them to the roster "emitters" shape EnemyRoster.make_emitter_specs() builds at spawn.
 
+# Every emitter payload the bench offers: the named projectiles/mines (EMITTER_PAYLOADS) + every enemy
+# (so an emitter can drop other enemies, Roman 2026-06-29). Enemy entries use their display name.
+func _emitter_payload_options() -> Array:
+	var out: Array = EMITTER_PAYLOADS.keys().duplicate()
+	for p in EnemyManifest.all_enemies(false):
+		out.append(EnemyStrings.display_name(String(p)))
+	return out
+
+
+# Resolve an emitter payload NAME to its scene path (named projectile/mine, else an enemy display name).
+func _emitter_payload_path(name: String) -> String:
+	if EMITTER_PAYLOADS.has(name):
+		return String(EMITTER_PAYLOADS[name])
+	for p in EnemyManifest.all_enemies(false):
+		if EnemyStrings.display_name(String(p)) == name:
+			return String(p)
+	return String(EMITTER_PAYLOADS.get("Missile", ""))
+
+
 func _emitter_spec_dicts() -> Array:
 	var out: Array = []
 	for d in _emitter_dicts:
 		var pname: String = String(d.get("payload", "Missile"))
 		var sd: Dictionary = {
 			"trigger": String(d.get("trigger", "timer")),
-			"payload": pname,
+			"payload": _emitter_payload_path(pname),   # pass the resolved PATH (roster loads it directly)
 			"cadence": float(d.get("cadence", 0.55)),
 			"count": int(d.get("count", 1)),
 			"max_emits": int(d.get("max_emits", 0)),
 			"band_only": bool(d.get("band_only", false)),
+			"drop": bool(d.get("drop", true)),
 		}
 		if pname == "Missile":
 			sd["sfx"] = "missile"   # the drifting-missile drop carries the launch sound, like the interceptor
@@ -1228,7 +1272,7 @@ func _emitter_spec_dicts() -> Array:
 
 
 func _add_emitter() -> void:
-	_emitter_dicts.append({"trigger": "timer", "payload": "Missile", "cadence": 0.55, "count": 1, "max_emits": 3, "band_only": true})
+	_emitter_dicts.append({"trigger": "timer", "payload": "Missile", "cadence": 0.55, "count": 1, "max_emits": 3, "band_only": true, "drop": true})
 	_rebuild_emitters_ui()
 	_spawn_current()
 
@@ -1277,7 +1321,7 @@ func _make_emitter_row(idx: int) -> Control:
 	var trig_dd := _row_dd(EMITTER_TRIGGER_LABELS, maxi(0, EMITTER_TRIGGERS.find(String(d.get("trigger", "timer")))))
 	trig_dd.item_selected.connect(func(i): _set_emitter(d, "trigger", EMITTER_TRIGGERS[i]))
 	_grid_row(grid, "trigger", trig_dd)
-	var pnames: Array = EnemyRoster.EMITTABLE.keys()
+	var pnames: Array = _emitter_payload_options()
 	var pay_dd := _row_dd(pnames, maxi(0, pnames.find(String(d.get("payload", "Missile")))))
 	pay_dd.item_selected.connect(func(i): _set_emitter(d, "payload", String(pnames[i])))
 	_grid_row(grid, "payload", pay_dd)
@@ -1293,6 +1337,11 @@ func _make_emitter_row(idx: int) -> Control:
 	var band := _row_check(bool(d.get("band_only", false)))
 	band.toggled.connect(func(p): _set_emitter(d, "band_only", p))
 	_grid_row(grid, "on-screen", band)
+	# drop = leave the payload at rest in the wake (no inherited velocity); off = launch it with the
+	# enemy's velocity. On by default — that's the classic "drop a mine/missile as you go".
+	var drop_chk := _row_check(bool(d.get("drop", true)))
+	drop_chk.toggled.connect(func(p): _set_emitter(d, "drop", p))
+	_grid_row(grid, "drop", drop_chk)
 	return row
 
 
@@ -1315,25 +1364,32 @@ func _default_emitters_for(path: String) -> Array:
 	return out
 
 
-# Roster emitter "payload" is already a friendly EMITTABLE name; fall back from a raw path.
+# Map a roster emitter "payload" (a friendly name OR a raw scene path) back to a bench dropdown name.
 func _emitter_payload_name(d: Dictionary) -> String:
 	var pv = d.get("payload", "Missile")
 	if pv is String:
-		if EnemyRoster.EMITTABLE.has(pv):
+		if EMITTER_PAYLOADS.has(pv):
 			return pv
-		for k in EnemyRoster.EMITTABLE:
-			if String(EnemyRoster.EMITTABLE[k]) == String(pv):
+		for k in EMITTER_PAYLOADS:
+			if String(EMITTER_PAYLOADS[k]) == String(pv):
 				return String(k)
+		for p in EnemyManifest.all_enemies(false):
+			if String(p) == String(pv):
+				return EnemyStrings.display_name(String(p))
 	return "Missile"
 
 
-# A paste-ready roster "emitters" dict literal for one emitter.
+# A paste-ready roster "emitters" dict literal for one emitter. Emits the resolved scene PATH (the
+# roster's _emitter_from_dict loads it directly), so the expanded payloads need no roster const.
 func _emitter_copy_line(d: Dictionary) -> String:
 	var pname: String = String(d.get("payload", "Missile"))
+	var ppath: String = _emitter_payload_path(pname)
 	var extra: String = ", \"sfx\": \"missile\"" if pname == "Missile" else ""
+	if not bool(d.get("drop", true)):
+		extra += ", \"drop\": false"
 	var band: String = "true" if bool(d.get("band_only", false)) else "false"
 	return "{ \"trigger\": \"%s\", \"payload\": \"%s\", \"count\": %d, \"cadence\": %.2f, \"max_emits\": %d, \"band_only\": %s%s }," % [
-		String(d.get("trigger", "timer")), pname, int(d.get("count", 1)), float(d.get("cadence", 0.55)),
+		String(d.get("trigger", "timer")), ppath, int(d.get("count", 1)), float(d.get("cadence", 0.55)),
 		int(d.get("max_emits", 0)), band, extra,
 	]
 

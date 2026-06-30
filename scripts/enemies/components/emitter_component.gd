@@ -31,6 +31,9 @@ enum Trigger { START, TIMER, DEATH }
 @export var max_emits: int = 0            # stop after this many TIMER emits per pass (0 = unlimited)
 @export var band_only: bool = false       # TIMER only fires while the enemy is in the visible playfield band
 @export var sfx: String = ""              # optional WeaponSfx key played on each emit (e.g. "missile")
+# Drop vs launch (Roman 2026-06-29): true = the payload is left at rest in the wake (no inherited
+# velocity — the existing emitter behavior); false = it LAUNCHES with the enemy's current velocity.
+@export var drop: bool = true
 
 var _t: float = 0.0
 var _emit_count: int = 0                  # TIMER emits so far this pass (vs max_emits)
@@ -100,6 +103,11 @@ func _emit(enemy) -> void:
 	if parent == null:
 		return
 	var base_pos: Vector2 = enemy.global_position
+	# Launch mode (drop == false) hands the payload the enemy's current velocity so it's thrown along;
+	# drop mode leaves it at rest in the wake. Capture now — the enemy may be freed before _insert runs.
+	var launch_vel: Vector2 = Vector2.ZERO
+	if not drop and "_last_move_vel" in enemy:
+		launch_vel = enemy._last_move_vel
 	if sfx != "":
 		WeaponSfxC.play(enemy.get_tree().root, base_pos, sfx)
 	for _i in count:
@@ -114,10 +122,10 @@ func _emit(enemy) -> void:
 		# _components_death). Adding an Area2D payload mid-flush trips "Can't change this
 		# state while flushing queries" when the new collision shape registers. Running it
 		# deferred (idle frame) sidesteps the flush. (Roman 2026-06-15.)
-		_insert.call_deferred(inst, parent, pos, attach_to_enemy)
+		_insert.call_deferred(inst, parent, pos, attach_to_enemy, launch_vel)
 
 
-func _insert(inst, parent: Node, pos: Vector2, attach: bool) -> void:
+func _insert(inst, parent: Node, pos: Vector2, attach: bool, launch_vel: Vector2 = Vector2.ZERO) -> void:
 	if not is_instance_valid(parent):
 		# Enemy/scene torn down before the deferred call ran — drop the orphan.
 		if inst is Node:
@@ -130,5 +138,19 @@ func _insert(inst, parent: Node, pos: Vector2, attach: bool) -> void:
 			(inst as Node2D).position = Vector2.ZERO
 	elif inst.has_method("start"):
 		inst.start(pos)              # spawn entry for enemies/hazards (mine.start etc.)
+		if launch_vel != Vector2.ZERO:
+			_impart_velocity(inst, launch_vel)
 	elif inst is Node2D:
 		(inst as Node2D).global_position = pos
+		if launch_vel != Vector2.ZERO:
+			_impart_velocity(inst, launch_vel)
+
+
+# Add the enemy's velocity to the freshly-emitted payload (launch mode). Best-effort across the
+# payload kinds we drop: missiles/rockets use `_vel`, bomblets `_velocity`, plain bullets `velocity`.
+# Enemies move via their own `movement` resource and expose none of these — they're left unchanged.
+func _impart_velocity(inst, v: Vector2) -> void:
+	for f in ["_vel", "_velocity", "velocity"]:
+		if f in inst:
+			inst.set(f, inst.get(f) + v)
+			return

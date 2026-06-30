@@ -171,11 +171,12 @@ of the interceptor's mine/missile drop. Separate from weapon mounts.
 | Control | What it does |
 |---|---|
 | **trigger** | `Spawn` (once on entry) / `Timer` (repeating) / `On Death`. |
-| **payload** | What to drop (from `EMITTABLE` — mines, bomblets, missiles, etc.). |
+| **payload** | What to drop: every rocket / missile / mine (all variants) / bomblet / firecore, **or any enemy** (the manifest is appended to the dropdown — an emitter can spawn other enemies). |
 | **every** | Cadence in seconds (Timer trigger). |
 | **count** | How many to drop per emission. |
 | **max/pass** | Cap on total emissions per pass (`0` = unlimited). |
 | **on-screen** | Only emit while the enemy is in the visible playfield band (so it doesn't litter offscreen). |
+| **drop** | On (default) leaves the payload at rest in the wake (no inherited velocity — a classic drop); off **launches** it with the enemy's current velocity. |
 
 ---
 
