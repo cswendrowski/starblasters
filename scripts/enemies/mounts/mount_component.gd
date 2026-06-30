@@ -193,8 +193,9 @@ func _fire_gun(enemy) -> void:
 		return
 	var n: int = maxi(1, spec.count)
 	var cycling: bool = int(spec.marker_mode) == MountSpecC.MarkerMode.CYCLE and not _markers.is_empty()
+	var is_burst: bool = spec.burst_interval > 0.0
 	for i in n:
-		if spec.burst_interval > 0.0 and i > 0:
+		if is_burst and i > 0:
 			# Wait ONE interval between consecutive shots. The await is serial (it blocks the loop), so
 			# each step already lands burst_interval after the previous shot — multiplying by i here
 			# (the old bug) double-counted the elapsed time, stretching the gaps to 0.1/0.2/0.3 instead
@@ -211,7 +212,12 @@ func _fire_gun(enemy) -> void:
 		else:
 			for pos in _all_positions(enemy):            # every marker fires this shot (both cannons)
 				_weapon._spawn_bullet(enemy, dir, spec.payload, pos)
-	_play_sfx(enemy)
+		# A burst is several distinct shots over time, so each one gets its own fire sound (Roman
+		# 2026-06-29). A simultaneous volley (no burst gap) stays a single sound — played once below.
+		if is_burst:
+			_play_sfx(enemy)
+	if not is_burst:
+		_play_sfx(enemy)
 
 
 # All matched marker globals, or the hull centre when there's no marker.
