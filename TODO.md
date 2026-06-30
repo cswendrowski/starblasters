@@ -93,8 +93,11 @@ The Worklist was cleared this session. Items below were the active worklist; sta
 - [ ] **EM Torpedo** — BUILT; electric-ball ring detonation reworked 2026-06-11 (`34b33be`). NEEDS
   FEEL PASS. NOT in the shop pool yet — promote by adding `_make_em_torpedo` to `part_catalog._all_pool`
   + authoring `resources/weapons/em_torpedo.tres`. (Behind Test Combat → "EM Torpedo + Wreck Test", fire C.)
-- [ ] **Sector modifiers** — PULLED (kill-switch `Run.SECTOR_MODIFIERS_ENABLED = false` gates rolling +
-  application; vocabulary + effect wiring kept). **FLAGGED FOR RE-EVAL + REIMPLEMENT.**
+- [ ] **Sector modifiers → Sector Conditions** — PULLED (kill-switch `Run.SECTOR_MODIFIERS_ENABLED = false`
+  gates rolling + application; vocabulary + effect wiring kept). **RE-EVAL DONE — design doc:
+  `docs/sector_conditions_redesign_2026-06-27.md`** (reframe as chosen, bounty+materials-rewarded
+  Conditions; one `active_conditions` pipe behind patrol-setup / wildcard-count / threat-level /
+  per-node front-ends). Not built yet — build order in the doc §7.
 
 **Done this session** (were on the Worklist):
 - [x] **Forward+ renderer + Windows-only build** — pivoted and locked in (non-negotiable per Roman 2026-06-11).
@@ -211,25 +214,42 @@ landed. Grouped by effort.
 
 ### Recycling — Pillar 2 (spec: `docs/archive/recycling_system_pillar2_2026-06-04.md`)
 **Pillar 1 + the recycle-delay bug fix SHIPPED (`8f99dd0`)**: `mid_depth_presentation.gd` + the
-side-exit cleanup fix. Pillar 2 (the central controller) + its tuner are unbuilt. Build order per
-the doc: **RecycleTuner dev scene FIRST** (recycle budget / fly-back scale / tint / hold are 3+
-live knobs — JSON persist + Copy-GDScript), then the controller tuned against it. Regression
-surface = the whole roster → playtest-only verification.
+side-exit cleanup fix. **RecycleTuner + the (conservative) RecycleController also SHIPPED** — see the
+two `[x]` items below. What remains is the **roster migration**: the deep refactor the controller
+deliberately deferred (it currently owns only the timing/look *constants*, fed into the old
+`enemy_core._start_cycle` body). Regression surface = the whole roster → playtest-only verification.
 _2026-06-10: prereq tooling landed — the Enemy Bench now has per-enemy recycle/passes/flee-chance
-tagging knobs (`a58f908`). Controller + tuner + roster migration still unbuilt; ALSO note the new
-off-screen hit-immunity guard (`d313dd4`) keys off `is_recycling()`/`is_fully_offscreen()` — the
-RecycleController must preserve those contracts._
-- [ ] **RecycleTuner dev scene** (prerequisite) — `scripts/dev/` tuner for the recycle budget +
-  fly-back look, registered in `dev_menu.gd`.
-- [ ] **`RecycleController` helper** (preload-const, not `class_name`) — owns offscreen→recycle
-  decisioning + ONE timing budget (replacing the scattered `0.4–0.9` hold + fixed `1.8s` tween),
-  with the fly-back ghost reusing `MidDepthPresentation` instead of hardcoded scale/tint.
-  `enemy_base._offscreen_cleanup_check` + `enemy_core._start_cycle` delegate to it; preserve
-  `is_recycling()` / `recycle_passes` / `fleeing`. (= "unified pseudo-mid recycle layer".)
+tagging knobs (`a58f908`). ALSO note the off-screen hit-immunity guard (`d313dd4`) keys off
+`is_recycling()`/`is_fully_offscreen()` — the migration must preserve those contracts._
+- [x] **RecycleTuner dev scene** (prerequisite) — DONE. `scripts/dev/recycle_tuner.gd` +
+  `scenes/dev/recycle_tuner.tscn`, registered in `dev_menu.gd` ("[ Recycle Tuner ]"). Live SubViewport
+  preview, 10 knobs (hold/inset/scale/tint/fly-time/target), JSON persist to `user://tuners/recycle.json`,
+  Copy-GDScript emitting a paste-ready `RecycleController.DEFAULTS` literal.
+- [x] **`RecycleController` helper** — DONE but *conservative*. `scripts/effects/recycle_controller.gd`
+  (preload-const, not `class_name`). Owns the recycle timing/look config (load/save/cache/`tint()`),
+  loaded from the tuner JSON; DEFAULTS are byte-identical to the old hardcoded numbers → zero regression.
+  `enemy_core._start_cycle` reads `RecycleController.config()`/`.tint()` for its magic numbers. The
+  deeper refactor (below) was deferred per the spec's playtest-risk note.
+- [~] **Roster migration** — CODE-COMPLETE 2026-06-29, AWAITING ROMAN'S PLAYTEST (the regression
+  surface = whole roster; headless can't clear recycle *feel*). The controller is now the single
+  owner: (1) `RecycleController.resolve(enemy)` owns the offscreen→recycle/free/ignore decision,
+  `enemy_base._offscreen_cleanup_check` is a thin delegate; (2) `RecycleController.recycle(enemy)`
+  owns the fly-back (`enemy_core._start_cycle` deleted; `_cycling`/`is_recycling()`/`_set_outline_visible`
+  moved to `enemy_base`; firing suspend/re-arm via `_recycle_suspend()`/`_recycle_resume()` hooks so
+  ANY enemy class can recycle); (3) the ghost uses `MidDepthPresentation.apply_body_tint` (depth-tint
+  shader) with the body's original material saved/restored; (4) the one bespoke recycler — interceptor
+  (overrode `_start_cycle` to free) — folded onto `_on_offscreen()`→`_leave()`; gravity_mine already
+  used `recycle_passes=0`. `is_recycling()`/`recycle_passes`/`fleeing` contracts preserved. Verified:
+  parse_check 349/0, `tools/test_recycle.gd` 24/24 (resolve matrix + a full fly-back round-trip),
+  clean headless boot. **Roman: playtest Skirmisher/advance_retreat (side-exit), a top-dive,
+  side-cutters, chaff, + interceptor leaving + bosses/mines/asteroids unaffected; judge the new
+  depth-tint ghost look (was a flat blue modulate).** NOTE the level-clear gate counts recyclers as
+  live (`_live_combatants_present()` lost its `ignore_recycling` carve-out — pre-existing, not new);
+  watch that an unlimited-recycle unit on the final wave doesn't stall clear.
 - [ ] **Formation-aware re-entry** — the conductor routes recycled units into the next wave pool /
   a fresh intervening pattern so composed pincer/wall patterns don't devolve into noise. (Combat
-  session note 2026-06-08: migration only set `recycle_passes` per-enemy; this + the controller
-  are both unbuilt.)
+  session note 2026-06-08: that migration only set `recycle_passes` per-enemy; this re-entry routing
+  is still unbuilt and is independent of the roster migration above.)
 
 ### Background (likely separate scope)
 - [x] **Per-row planets are static** — DONE (lead 2026-06-08, `c36a044`). Live backdrop is the V4
@@ -337,7 +357,17 @@ RecycleController must preserve those contracts._
   UNIFORM marker selection, lazy emitter creation, `quiet()`. **Before re-wiring: reproduce the
   draw-order/freed-node race inside a real main.tscn combat first** (isolated probes won't show it),
   then guard it — don't re-enable blind. See [[damage-tells-reverted-lab-only]].
-- [ ] **Coordinated marker-name rename across all enemy scenes** — bring every Marker2D onto ONE
+- [x] **Coordinated marker-name rename across all enemy scenes** — DONE 2026-06-28. Final scheme (PascalCase):
+  `Engine*`/`Thruster*`/`Muzzle*`/`Cannon*` (2nd gun bank)/`Launcher*`/`Turret*`/`Beam*` + kept anchors
+  `turret_base`/`turret_mount` + broadside `GunLeft*`/`GunRight*`. Renamed scene+code together: bomber
+  `TailMuzzle`→`TurretTail`, cruiser `LaunchPoint#`→`Launcher#`, rocket `launch_point#`→`Launcher#`, burner
+  `beam_emit_l/r`→`BeamL/R`, cannon `cannon_left/right`→`CannonL/R` (gunship `Cannon*` already conformant),
+  pilgrim `WingL/R`→`LauncherL/R`. GOTCHA: `find_children` globs are CASE-SENSITIVE — `cannon_*`→`Cannon*`
+  also updated the death-VFX globs in `enemy_base._burn_origin_uv` + `seq_slow_death.gd`. Folded in a Sprite2D
+  layer audit (bodies all `Sprite2D` ✓, liveries all `Livery` ✓; bomber `Glowmap`→`GlowMask`, Shepherd
+  `Sherpherd Hull` typo fixed). Skipped on purpose: boss_conductor markers (dead, no code refs) + missile_cruiser
+  `Body`/`Glow` (standalone Node2D, self-consistent). Verified: parse_check clean, test_mounts PASS, headless boot clean.
+  ~~Original plan:~~ bring every Marker2D onto ONE
   scheme: `Engine*` / `Thruster*` / `Muzzle*` (weapons) / `Launcher*` / `Turret*`, plus the deliberate
   `turret_base`/`turret_mount` attach anchors and the broadside `GunLeft*`/`GunRight*` mechanic names.
   The damage-tell patterns were already BROADENED (`ship_damage_tells.gd::setup`) to capture today's

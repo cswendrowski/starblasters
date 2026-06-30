@@ -90,3 +90,90 @@ per-instance `TRANSFORM_2D` is reliable. Consequences:
    to the manager; crit/animated/missiles keep the node path. A/B-able in real combat.
 5. Validate in real combat (Combat Lab + the crash loop), then default-on once proven. Then optional
    Phase B (manual broadphase, drop the Area2D proxies).
+
+---
+
+## Build scope — grounded pass (2026-06-27)
+
+Verified the design above against the live bullet code before scoping the build. Findings + the
+concrete build order. Nothing below changes the locked decisions — it pins them to real files.
+
+### Verified against code
+- **Hit pipeline** lives on `base_bullet.gd` (`_on_area_entered` → `_apply_enemy_hit` /
+  `_apply_player_hit` → `take_hit` / `take_damage`, bulwark-meta check, `ImpactFx.spawn`, `_kill`).
+  `bullet_wave.gd` overrides `_on_area_entered`/`_finish_hit` for drill-through (per-bullet `_hit`
+  dict). Phase-A keeps ALL of this untouched by giving each managed bullet a render-less Area2D
+  proxy that carries these same handlers.
+- **Enemy spawn site** = `shoot_pattern.gd::_spawn_bullet` (single chokepoint). It does: faction
+  family-swap (`BulletCatalog.faction_variant`), variant→scene resolve (`BulletCatalog.scene_for` —
+  each variant has its OWN authored scene/texture/hitbox), parent via `enemy.get_parent()` /
+  `BulletWorld.resolve`, muzzle-cycle position + `MuzzleFx`, then homing/wobble + speed/damage mults.
+- **Player spawn site** = `player.gd::fire_primary`. Per-bolt: spread/parallel/quad offsets, damage
+  (module mult + crit ×2 + delimiter), **crit purple `modulate`** (`MODULE_CRIT_COLOR`, the
+  per-bullet tint that can't go in a MultiMesh), speed/`max_hits` overrides, Doppler velocity add,
+  z_index=-1. Plain non-crit single blaster bolt is the clean first target.
+- **Parenting/world**: `BulletWorld.resolve(node, fallback)` returns the in-viewport "bullet_world"
+  group node in a SubViewport bench, else the caller's root — production byte-identical to today.
+  The manager(s) must resolve through the SAME helper so they live in the right viewport.
+
+### Correction: the player spawn surface is PLURAL, not "two spawn sites"
+The phrasing above ("route the PLAIN bullets at the two spawn sites: `fire_primary` +
+`_spawn_bullet`") holds on the ENEMY side — `shoot_pattern.gd::_spawn_bullet` is a genuine single
+chokepoint. It UNDERSTATES the PLAYER side. A grep of production `.instantiate()`/`.start()` bullet
+spawns found the player fires plain bolts from several distinct paths:
+`fire_primary` (player.gd:2335), secondary (2588 / 2671), drone-bits (2400), echo-ghost (1534),
+reflect (1873), and the blaster smart-mount turret (2018) — plus a separate `ship.gd::48` spawn.
+The narrowest-first cut (primary blaster bolt, `fire_primary`) is still a clean single entry, so this
+doesn't change P1. But "route plain bullets at the player spawn site" is really "route them at each
+of these paths" as the managed set widens — budget for that, and add a shared `_spawn_plain(...)`
+routing helper rather than inlining the manager call at each site.
+
+### The Phase-A wrinkle the doc didn't name: external bullet-node grabs
+Two player systems reach into enemy bullet NODES by group `"bullets"` (`player.gd::_on_mode_field_hit`):
+- **Thief** stance: `area.queue_free()` to steal the bullet → bank shield.
+- **Reflective Shield** module: `area.reflect_to_enemies()` → retarget enemy→player + **gold tint**
+  + speed-up (`base_bullet.gd::reflect_to_enemies`).
+Under Phase A the proxy Area2D is what overlaps that field, so a managed enemy bullet must either be
+in group `"bullets"` with a proxy that (a) frees its manager slot when externally `queue_free`d and
+(b) implements `reflect_to_enemies` as an enemy→player slot migration (losing the per-instance gold
+tint — MultiMesh can't tint one instance). This is fiddly and ONLY affects enemy bullets.
+
+### Build order (refines the doc's P1: player FIRST, for real reasons)
+Migrating **player** bullets first sidesteps every hard enemy-side interaction in one move: reflect,
+thief, the per-variant authored scenes, the faction family-swap, and the `bullets`-group grabs are
+ALL enemy-bullet-only. Player plain bolts are a single texture, never reflected/stolen, never
+faction-swapped. So:
+
+1. **`scripts/projectiles/bullet_manager.gd`** (Node2D, no `class_name` — preload-const, codebase
+   convention). Holds: struct-of-arrays + free-list (`pos`, `dir`, `speed`, `life`, `damage`,
+   `variant_idx`), a pooled set of render-less Area2D **proxies** (one CollisionShape per plain
+   variant, shape lifted once from the variant's scene), and one `MultiMeshInstance2D` per plain
+   variant texture (`TRANSFORM_2D`, shared `self_modulate = white × BULLET_HDR_GAIN`).
+   Per frame: array move loop (`pos += dir*speed*dt`, lifetime/offscreen cull → free slot),
+   **`round()`-snap** before writing the MultiMesh buffer (engine pixel-snap doesn't reach buffer
+   writes), write proxy `global_position`. `spawn(variant_idx, pos, dir, dmg)` grabs a free slot.
+   Lazy find-or-create in the `BulletWorld`-resolved world, registered to a `bullet_manager` group;
+   frees with the scene like bullets do today (no main.tscn scene edit needed).
+2. **Classifier** — `is_plain(variant, params)`: static single-frame texture, no homing/wobble, not
+   multi-hit/wave, not crit, default impact. Start with the NARROWEST set (player basic blaster
+   bolt), widen as validated. Player render path z=-1; enemy render path over (two render layers /
+   two manager instances — instances also split the collision group cleanly, per the doc).
+3. **Bullet Bench dev tool** (`scripts/dev/` + `dev_menu.gd`) — fires plain bolts through the manager
+   at tunable rate/count with live FPS + bullet-count + draw-call readout, and a **manager-path vs
+   node-path A/B toggle** (look + perf side-by-side, like `asteroid_field_test.gd`). Plus a headless
+   self-test that RUNS it (spawn → tick → assert move + cull + a registered hit) — the standing
+   lesson: don't compile-and-hope.
+4. **Flag** `MultiMeshBullets.enabled` (static, default OFF, mirrors `AsteroidBakeCache.enabled`).
+   When on, `fire_primary` routes plain player bolts to the manager; `_spawn_bullet` stays node-based
+   until player bullets are proven, THEN add enemy routing (with the reflect/thief proxy handling).
+5. Validate in Combat Lab + crash loop; default-on once proven. Optional Phase B (manual broadphase,
+   drop proxies) only after A holds.
+
+### Open decisions for Roman (don't need answers to start P1)
+- **Enemy-bullet reflect/thief** (Phase A, enemy step): proxy slot-migration (lose gold tint) vs.
+  promote a reflected/stolen bullet back to a node vs. exclude managed enemy bullets while the
+  Reflective/Thief module is equipped. Lowest-risk = exclude-while-equipped for the first enemy cut.
+- **One manager, two render layers** vs **two manager instances** (player/enemy). Doc leans two
+  instances (clean group split); one-node-two-layers is simpler lifecycle. Pick at build time.
+- **Manual round-snap** confirms the clarity-rung look survives the buffer path — bench A/B is the
+  proof gate before any live flip.

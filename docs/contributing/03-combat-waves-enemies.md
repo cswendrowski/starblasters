@@ -228,7 +228,7 @@ Bullets call `area.take_hit(damage)` on hit. Returns true if the enemy dies. The
   - Pattern owns direction logic (straight down, angled, aimed at player, etc.)
 
 **Off-screen recycling** — `CYCLE_BOTTOM` mode (the default):
-When the enemy drifts off the bottom, instead of freeing, it tweens back up through the parallax layers and re-enters from the top. A recycling enemy reports `is_recycling() = true` so the wave-advance gate ignores it (other enemies can clear while recyclers fly back).
+When the enemy drifts off the bottom (or fully off a side, if its pattern sets `allow_side_exit`), instead of freeing, it tweens back up through the parallax layers and re-enters from the top. A recycling enemy reports `is_recycling() = true`, which the off-screen hit-immunity guard ([`enemy_base.gd`](../../scripts/enemies/enemy_base.gd)) and the smart bomb use to skip it mid-fly-back. Note: a recycler still counts as a live combatant for the level-clear gate ([`director._live_combatants_present`](../../scripts/levels/director.gd)) — the old `ignore_recycling` wave-advance carve-out was removed.
 
 **Enemy speeds are authored, not sector-scaled** — when an enemy spawns its movement pattern is duplicated and reads the chassis `move_speed`/`accel` as authored (on a clarity rung, under the 8 px/f ceiling). The old +5%-per-sector speed ramp was dropped 2026-06-23 with the single-sector run structure (`sectors_cleared` stays 0 now).
 
@@ -487,7 +487,7 @@ If you set them AFTER `super._ready()`, the base class has already copied `max_h
 ## Tips & Common Patterns
 
 **Parallax recycling:**
-Pattern-driven enemies default to `offscreen_mode = CYCLE_BOTTOM`. When they drift off the bottom, they tween back up and re-enter from the top, refreshing their health. This is visual — the same enemy instance cycles. Call `is_recycling()` to check if an enemy is mid-fly-back.
+Pattern-driven enemies default to `offscreen_mode = CYCLE_BOTTOM`. When they drift off the bottom, they tween back up and re-enter from the top. This is visual — the same enemy instance cycles, and it keeps whatever health it had (health is set once at spawn; the fly-back does not refresh it). Call `is_recycling()` to check if an enemy is mid-fly-back. The fly-back timing/look is owned by [`RecycleController`](../../scripts/effects/recycle_controller.gd) (tunable live via the Recycle Tuner dev scene).
 
 **Sector-based difficulty scaling:**
 Enemy_core's `_apply_sector_speed_scale()` automatically boosts pattern speeds (+5% per sector, capped at 2×). No per-enemy changes needed.

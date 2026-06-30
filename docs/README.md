@@ -38,6 +38,7 @@ move it to `docs/archive/` with a banner rather than deleting it.
 | Passive module bay | [`passive_module_bay_2026-06-13.md`](passive_module_bay_2026-06-13.md) |
 | Enemy shields | [`shield_unification_2026-06-08.md`](shield_unification_2026-06-08.md) |
 | Signal events | [`signal_event_redesign_2026-06-08.md`](signal_event_redesign_2026-06-08.md) |
+| Sector Conditions (ex-"sector modifiers") | **SCOPED / NOT BUILT** — [`sector_conditions_redesign_2026-06-27.md`](sector_conditions_redesign_2026-06-27.md) (parked system re-eval; effect wiring lives behind `Run.SECTOR_MODIFIERS_ENABLED`) |
 | Economy / outpost | **Code is the reference** — `scripts/autoload/run_state.gd` (bounty + Materials, outpost hub) + `scripts/screens/outpost.gd`. The old two-currency design is archived. |
 | Sector map | `scripts/screens/sector_map_v3.gd` wrapped by `scripts/screens/sector_map_hd.gd` (routed via `scripts/systems/sector_map_route.gd`) |
 | Renderer / engine gotchas | [`godot-patterns.md`](godot-patterns.md); portable heuristics: [`godot-learnings-for-new-projects.md`](godot-learnings-for-new-projects.md) |
