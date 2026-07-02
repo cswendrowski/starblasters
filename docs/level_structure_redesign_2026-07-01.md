@@ -67,8 +67,9 @@ vs today (12–16 → 36), which is where the outnumbered feel comes from.
   (an on-screen body) as they do now.
 - `WaveGenerator.cap_for` returns the **slot** cap, ramped per stretch (§3), not a headcount.
 
-**Tunable (proposed defaults):** cell = 24 px; huge = 9 (bump to 12 if capitals should dominate
-more); cap ramp 24 → 30 → 36 across the three stretches.
+**Tunable (defaults):** cell = 24 px; huge = 9 (bump to 12 if capitals should dominate more); cap
+ramp **16 → 26 → 36** across the three stretches (Roman 2026-07-01 — the opener stays near today's
+~16 density and *builds* to a packed climax, rather than starting busy).
 
 ---
 
@@ -81,8 +82,8 @@ stretch's palette.
 
 | Stretch | Budget (enemies) | Slot cap | Tier / character | Climax unit |
 |---------|------------------|----------|------------------|-------------|
-| 1 Opener | ~100 | 24 | mid chaff (common/uncommon), lighter palette | — |
-| 2 Obstacles | ~100 | 30 | tankier + elites, weave-forcing walls/channels, higher HP bonus | heavy anchor |
+| 1 Opener | ~100 | 16 | mid chaff (common/uncommon), lighter palette | — |
+| 2 Obstacles | ~100 | 26 | tankier + elites, weave-forcing walls/channels, higher HP bonus | heavy anchor |
 | 3 Climax | ~100 | 36 | densest; regular = elite pack / mini-boss, boss node = the boss | elite/mini-boss/boss |
 
 - **Budget** stays in **enemy count** (~100/stretch, ~300/level); the **slot cap** governs density
@@ -156,6 +157,7 @@ values.
   fallback so regular-node climaxes work meanwhile.
 - **Super-bomb** — the pressure-release for an overwhelming wall is assumed to exist / be wanted;
   not part of this doc.
-- **Slot weights + cap ramp** — huge=9 vs 12, ramp 24→30→36 vs busier opener: tune in playtest.
+- **Slot weights + cap ramp** — huge=9 vs 12: tune in playtest. Cap ramp set to 16→26→36 (Roman's
+  pick); revisit if the opener feels too thin or the climax not overwhelming enough.
 - **Consistency vs skill** — if "hard 3 min for everyone" ever becomes the goal, the alternative is
   time-gating the sub-wave release (cost: a strong player sees a sparser screen). Not chosen now.
