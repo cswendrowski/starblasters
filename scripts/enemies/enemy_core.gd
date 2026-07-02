@@ -36,16 +36,21 @@ var _pattern: Resource = null
 # for the enemies it spawns; bosses/bespoke firing are unaffected.
 @export var fire_zone_gated: bool = false
 # Path-phase firing (construction Â§8): fractions [0,1] of engagement-band progress
-# (Zones.band_progress) at which to fire â€” e.g. [0.35, 0.75] fires twice during the
-# descent, at fixed screen positions, instead of on the random ShootTimer (which
-# fired "too late"). MUST be ascending. Non-empty disables the timer. Auto-populated
-# in _start_with_pattern for monotonic descenders (path_phase_capable patterns) that
-# have a weapon and no fire_on_phase; a scene/roster may set it explicitly to override.
+# (Zones.band_progress) at which to fire â€” fires at fixed screen positions during the
+# descent, instead of on the random ShootTimer. MUST be ascending. Non-empty disables
+# the timer. Auto-populated in _start_with_pattern for monotonic descenders
+# (path_phase_capable patterns) that have a weapon and no fire_on_phase; a scene/roster
+# may set it explicitly to override.
 @export var fire_path_phases: PackedFloat32Array = PackedFloat32Array()
 # Plain Array const (a PackedFloat32Array(...) constructor is NOT a constant
 # expression â€” it fails to parse the whole script). Converted to a packed array at
 # the assignment site below.
-const DEFAULT_PATH_PHASES := [0.35, 0.75]
+# Firing-consistency pass (2026-07-02): first phase near the TOP of the band (0.1 -> ~y63,
+# ~23px after entry = "fires promptly on entering") and the second at mid-band (0.5 -> ~y118),
+# both kept clear of the DEPARTURE_START (195) edge. The old [0.35, 0.75] held fire for the
+# first third (read as "fires late") and put the 2nd shot at the departure edge (read as "only
+# fires when leaving"). Keep ascending + <=0.6 so no shot lands in the departure band.
+const DEFAULT_PATH_PHASES := [0.1, 0.5]
 var _phase_fire_idx: int = 0  # next phase index to fire (advances as the enemy descends)
 # Shared beat (Beat): when true, a path-phase shot doesn't fire the instant it crosses
 # its phase line - it quantizes to the next global beat (Beat.next_beat_time) so enemies
@@ -118,12 +123,12 @@ func _start_with_pattern(pos: Vector2) -> void:
 	if shoot_pattern != null and has_node("ShootTimer") and fire_on_phase == "" and fire_path_phases.is_empty():
 		# Zone-gated enemies arm a short first poll so the FIRST shot lands as soon
 		# as they enter the engagement band (the gate fast-polls until then). The
-		# long random interval would otherwise delay the first shot until they've
+		# full fire interval would otherwise delay the first shot until they've
 		# descended near the bottom. Subsequent shots re-arm on the normal interval.
 		if fire_zone_gated:
 			$ShootTimer.wait_time = 0.2
 		else:
-			$ShootTimer.wait_time = randf_range(fire_interval_min, fire_interval_max)
+			$ShootTimer.wait_time = _fire_interval()
 		$ShootTimer.start()
 
 
@@ -133,7 +138,7 @@ func _start_stationary(pos: Vector2) -> void:
 	# (Replaced the legacy MoveTimer/anchor-follow path 2026-06-23.)
 	position = pos
 	if shoot_pattern != null and has_node("ShootTimer") and fire_on_phase == "" and fire_path_phases.is_empty():
-		$ShootTimer.wait_time = randf_range(fire_interval_min, fire_interval_max)
+		$ShootTimer.wait_time = _fire_interval()
 		$ShootTimer.start()
 
 
@@ -212,11 +217,22 @@ func _recycle_resume() -> void:
 	_phase_fire_idx = 0
 	_beat_fire_at = -1.0
 	if has_node("ShootTimer") and fire_on_phase == "" and fire_path_phases.is_empty():
-		$ShootTimer.wait_time = 0.2 if fire_zone_gated else randf_range(fire_interval_min, fire_interval_max)
+		$ShootTimer.wait_time = 0.2 if fire_zone_gated else _fire_interval()
 		$ShootTimer.start()
 	if _pattern and _pattern.has_method("on_start"):
 		_pattern.on_start(self)
 	_components_start()  # re-fire component on_start for the new pass (no-op if none)
+
+
+# Deterministic fire cadence (firing-consistency pass 2026-07-02). Replaces the old
+# per-shot randf_range(fire_interval_min, fire_interval_max): re-rolling every shot made an
+# enemy's rhythm wander unpredictably. We now fire at a FIXED interval â€” the midpoint of the
+# roster's min/max â€” so a given enemy type has a steady, readable cadence. (Staggered band
+# entry across a wave keeps identical enemies from firing in perfect lockstep, so the fixed
+# rate doesn't read as robotic.) The roster's min/max are kept as the tuning source; their
+# average IS the cadence. Floor at 0.1s so a degenerate 0/0 can't busy-loop the timer.
+func _fire_interval() -> float:
+	return maxf(0.1, (fire_interval_min + fire_interval_max) * 0.5)
 
 
 func _on_shoot_timer_timeout() -> void:
@@ -241,8 +257,8 @@ func _on_shoot_timer_timeout() -> void:
 	if _cycling or not _on_playfield():
 		# Zone-gated enemies fast-poll here too (not just in the zone check below),
 		# so a slow enemy still above the playfield margin doesn't get bumped onto
-		# the long random interval and fire late once it's finally low.
-		$ShootTimer.wait_time = 0.15 if fire_zone_gated else randf_range(fire_interval_min, fire_interval_max)
+		# the full fire interval and fire late once it's finally low.
+		$ShootTimer.wait_time = 0.15 if fire_zone_gated else _fire_interval()
 		$ShootTimer.start()
 		return
 	# Firing zones (bridge Â§1.8-1.9): hold fire above the engagement band (just
@@ -255,11 +271,11 @@ func _on_shoot_timer_timeout() -> void:
 	if fire_only_on_target and not _nose_on_player():
 		# Re-arm the poll but skip this trigger so the enemy waits for a
 		# clean line. Slightly faster re-check than the normal interval.
-		$ShootTimer.wait_time = max(0.1, randf_range(fire_interval_min, fire_interval_max) * 0.4)
+		$ShootTimer.wait_time = max(0.1, _fire_interval() * 0.4)
 		$ShootTimer.start()
 		return
 	shoot_pattern.fire(self)
-	$ShootTimer.wait_time = randf_range(fire_interval_min, fire_interval_max)
+	$ShootTimer.wait_time = _fire_interval()
 	$ShootTimer.start()
 	EnemySfxC.play_for(self)
 
