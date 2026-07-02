@@ -39,8 +39,6 @@ height = 14.0
 
 [node name="EnemyBullet" unique_id=1887349845 instance=ExtResource("1_base")]
 variant = ExtResource("2_variant")
-speed = 180.0
-max_lifetime = 3.0
 impact_color = Color(0.266667, 1, 1, 1)
 
 [node name="AnimatedSprite2D" parent="." index="0" unique_id=791917356]
