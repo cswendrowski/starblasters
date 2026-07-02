@@ -968,6 +968,11 @@ func _spawn_current() -> void:
 	if "explosion_variant" in inst:
 		inst.explosion_variant = ExplosionFx.variant_names()[_explosion_dd.selected]
 	_apply_stats_to(inst)   # HP/scale/etc BEFORE _ready so health = max_health from frame 0
+	# Faction weapon overlay (the director does this on every spawn — director.gd). Home-gated inside
+	# Factions.apply, so it only buffs an enemy shown in its own faction: compounds bullet_speed_mult /
+	# bullet_damage_mult (which the mounts read via _spawn_bullet) and adds faction components
+	# (corpo shield / zealot firecore). Without this the bench fired un-multiplied vs live (Roman 2026-07-02).
+	Factions.apply(_faction_id_for_selected(), inst)
 	if "mounts" in inst:
 		var spec_dicts: Array = _mount_spec_dicts()
 		var specs: Array = EnemyRoster.make_mount_specs(spec_dicts)
