@@ -1,8 +1,15 @@
 # Level Structure — 3-stretch levels + slot-weighted density
 
-**Status: SCOPED / NOT BUILT.** Design for the combat-level rework agreed with Roman 2026-07-01.
-No code written against it yet. When it ships, flip this to CURRENT and update
-[`README.md`](README.md) + the wave-composition memory.
+**Status: BUILT 2026-07-01 (steps 1-5), UNVERIFIED IN-GAME.** Shipped in five commits on branch
+`wave-pattern-editor-2026-06-16` (slot cap `18ad6f5d` · 3-stretch loop `54317680` · pauses `7ebf4c14`
+· climax+recycle `02930f3e`). Headless-verified (caps 16/26/36, ~300 enemies/level, chaff recycling,
+climax elite pack); NOT yet playtested for feel/length. Numbers in §2-§4 are tunable knobs.
+
+**⚠️ One reversal to review (§4):** the doc assumed chaff recycle unlimited and needed *capping*; the
+roster actually sets high-count chaff to `recycle: 0` (leak off — Roman 2026-06-08). Enabling roll-back
+(now `CHAFF_RECYCLE_PASSES = 2`) is what makes ~300 enemies fill ~3 min instead of leaking in ~60s, but
+it **reverses that 2026-06-08 decision** — every dense chaff wave now does the parallax fly-back. If
+that reads as visual noise (the reason it was disabled), set the constant back to 0.
 
 Supersedes the flat-5-wave model in `WaveGenerator._build_combat_waves` and the headcount cap in
 `director` (`max_concurrent`). Builds on the palette/formation/hazard-drift work (see
