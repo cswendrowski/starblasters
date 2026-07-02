@@ -62,6 +62,12 @@ const BOOM_SCALE := 0.7   # smaller munition → a softer boom than a full enemy
 
 
 func _ready() -> void:
+	# Descent follows the chassis move_speed when the spawner sets it (bench/director → SIZE_LOCOMOTION
+	# base rung + engine offset), so bomblets tune on the rung scale like any enemy. Bespoke hazard /
+	# orbit-ring / emitter spawns leave move_speed at 0 and keep the authored descent_speed (Roman
+	# 2026-07-02: "bomblet was ignoring movement speed + rung multiplier"). move_speed is set pre-_ready.
+	if move_speed > 0.0:
+		descent_speed = move_speed
 	max_health = 1
 	is_hazard = true
 	bounty_value = 0
