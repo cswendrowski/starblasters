@@ -358,6 +358,18 @@ func path_phase_capable() -> bool:
 	return shape != Shape.DIVE_RETURN and shape != Shape.LANE_CUT
 
 
+# Ship-kinematics fidelity (roadmap P1.5 — 2026-07-02). STEP hops yaw the hull ~60° and back each
+# 0.25s hop, which reads as a snap; filter the LATERAL component only so the hop banks like a ship
+# while the descent Y stays raw (path-phase firing predicts from descent speed — spec §7 constraint
+# 3) and the lane X stays inside the <4px LaneTraffic free-check bound (ShipKinematics.LANE_LAT_ACCEL
+# is sized for a 30px/0.25s hop; enemy_core additionally snaps any residual past LANE_LAT_MAX_ERR).
+# All OTHER shapes stay EXACT: WEAVE/HOOK/DIVE_RETURN/LANE_CUT already ease their own transitions with
+# smoothstep and their lateral geometry is authored/mirror-sacred — no snap to fix, and lane free-
+# checks + mirror symmetry must see the exact closed-form position.
+func fidelity() -> int:
+	return ShipKinematics.Fidelity.EXACT_Y_SMOOTH_X if shape == Shape.STEP else ShipKinematics.Fidelity.EXACT
+
+
 func _next_step_lane() -> int:
 	var cand: int = _cur_lane + _step_dir * maxi(1, step_lanes)
 	if cand < 0 or cand >= Lanes.COUNT:

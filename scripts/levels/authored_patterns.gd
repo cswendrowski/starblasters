@@ -1186,7 +1186,7 @@ static func _pick_wildcard_entry(fill_faction: int, sector: int, size_hint: Stri
 # `rng` MUST be drawn from the content-seed stream so a node-retry reproduces the injection.
 #   Dev one-shot: Run meta "forced_pattern" (a pattern name, set by the editor's "send to
 #   conductor") forces THAT pattern into wave 0 and skips the roll (consumed once).
-static func maybe_inject(score, fill_faction: int, sector: int, rng: RandomNumberGenerator, chance: float = DEFAULT_CHANCE) -> void:
+static func maybe_inject(score, fill_faction: int, sector: int, rng: RandomNumberGenerator, chance: float = DEFAULT_CHANCE, motif: Dictionary = {}) -> void:
 	if score == null or score.waves.is_empty():
 		return
 	var fp: Dictionary = _forced()
@@ -1198,6 +1198,15 @@ static func maybe_inject(score, fill_faction: int, sector: int, rng: RandomNumbe
 	var pool: Array = eligible(fill_faction, sector)
 	if pool.is_empty():
 		return
+	# MOTIF FILTER (review §5, roadmap P2.7): when a LevelMotif is supplied, PREFER injected patterns
+	# that share the motif's signature movement key (so injections reinforce the level's recurring
+	# behavior instead of randomizing it). This is a PREFERENCE, not a hard requirement — if no eligible
+	# pattern matches the motif key, fall back to the full pool. Determinism: the pool we draw from is a
+	# pure function of (fill_faction, sector, motif), so a node retry reproduces the picks. The size
+	# filter + unconditional-draw convention below are unchanged.
+	var motif_pool: Array = _motif_filtered(pool, motif)
+	if not motif_pool.is_empty():
+		pool = motif_pool
 	for w in score.waves:
 		if rng.randf() < chance:
 			# Down-select to patterns that FIT this wave's cap headroom (fairness §2.1): an injection is
@@ -1217,6 +1226,57 @@ static func maybe_inject(score, fill_faction: int, sector: int, rng: RandomNumbe
 # the wave's cap headroom — see INJECT_CAP_SHARE.
 static func _member_count(pattern: Dictionary) -> int:
 	return (pattern.get("placements", []) as Array).size()
+
+
+# Down-select `pool` to library patterns whose DOMINANT movement key matches the motif's signature
+# key (review §5 motif reinforcement). Returns [] when no motif key is given or nothing matches — the
+# caller then keeps the full pool (preference, not requirement). A pattern's dominant key = the most
+# common `movement` across its placements.
+static func _motif_filtered(pool: Array, motif: Dictionary) -> Array:
+	var key: String = String(motif.get("movement", ""))
+	if key == "":
+		return []
+	var out: Array = []
+	for p in pool:
+		if _dominant_movement(p) == key:
+			out.append(p)
+	return out
+
+
+static func _dominant_movement(pattern: Dictionary) -> String:
+	var counts: Dictionary = {}
+	var best: String = ""
+	var best_n: int = 0
+	for pl in pattern.get("placements", []):
+		var mv: String = String(pl.get("movement", ""))
+		if mv == "":
+			continue
+		counts[mv] = int(counts.get(mv, 0)) + 1
+		if int(counts[mv]) > best_n:
+			best_n = int(counts[mv]); best = mv
+	return best
+
+
+# Splice the LevelMotif's pre-composed escalation capstones (roadmap P2.7) onto the score as native
+# authored phrases. Each `variants[stretch]` is an AuthoredPatterns-schema pattern dict from
+# FormationComposer; it compiles here via build_phrase() (the same path authored patterns take) and is
+# appended as the FINAL phrase of that stretch's ScoreWave. ScoreWaves map 1:1 to stretches (each
+# stretch opens exactly one ScoreWave, review §5 / level_structure_redesign), so score.waves[stretch]
+# is the capstone target. Empty variants (composition failed) are skipped — the in-line random
+# shape_override capstone already stands as the fallback for that stretch. `rng` MUST be the content
+# stream (same convention as maybe_inject) so a node retry reproduces the realized capstone.
+static func inject_motif_capstones(score, variants: Array, fill_faction: int, sector: int, rng: RandomNumberGenerator) -> void:
+	if score == null or score.waves.is_empty():
+		return
+	for stretch in variants.size():
+		if stretch >= score.waves.size():
+			break
+		var v: Dictionary = variants[stretch]
+		if v.is_empty() or (v.get("placements", []) as Array).is_empty():
+			continue
+		var ph := build_phrase(v, fill_faction, sector, rng)
+		if ph != null:
+			score.waves[stretch].phrases.append(ph)
 
 
 # Read + clear the dev "send to conductor" one-shot. The editor can push EITHER a live pattern

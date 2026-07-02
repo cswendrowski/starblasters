@@ -34,9 +34,10 @@ func on_start(enemy) -> void:
 func compute_step(enemy, delta: float) -> Vector2:
 	if _ph == Ph.ENTER:
 		# Descent speed is chassis-owned now (locomotion refactor); `enter_speed` is vestigial.
-		var sy: float = _move_speed(enemy) * delta
-		if enemy.position.y + sy >= settle_y:
-			sy = settle_y - enemy.position.y
+		# Shared descend-to-depth snap (review §7 dedup) — arrival flips _ph + emits the settle phase.
+		var arrived: Array = [false]
+		var sy: float = descend_to(enemy, settle_y, _move_speed(enemy), delta, arrived)
+		if arrived[0]:
 			_ph = Ph.SWEEP
 			phase_entered.emit("settled")
 		return Vector2(0.0, sy)

@@ -58,10 +58,13 @@ var _phase_fire_idx: int = 0  # next phase index to fire (advances as the enemy 
 @export var fire_beat_synced: bool = true
 var _beat_fire_at: float = -1.0  # engine-clock time a pending beat-synced shot fires (-1 = none)
 
-# Unit-weighted velocity smoothing (inertia) for patterns that opt in via
-# uses_inertia() — see _process. INERTIA_ACCEL is divided by the unit's size-weight.
-const INERTIA_ACCEL: float = 2400.0
-var _inertial_vel: Vector2 = Vector2.ZERO
+# Ship-kinematics applied-velocity state (roadmap P1.5 — 2026-07-02). The velocity actually applied
+# last frame; the ShipKinematics filter eases it toward the pattern's desired velocity per the
+# pattern's fidelity class (EXACT bypasses entirely, SMOOTH is the old inertia feel, EXACT_Y_SMOOTH_X
+# filters lateral only). Reset in _start_with_pattern + _recycle_resume (spec §7 constraint 5). The
+# old inline INERTIA_ACCEL now lives in ShipKinematics.SMOOTH_ACCEL (same 2400 value / feel).
+var _applied_vel: Vector2 = Vector2.ZERO
+var _kin_fidelity: int = ShipKinematics.Fidelity.EXACT
 
 # When an external driver (e.g. a seq_bombing_run sequence) owns this enemy's transform,
 # enemy_core SUSPENDS its own movement / firing / component ticks so the two don't fight.
@@ -114,6 +117,11 @@ func _start_with_pattern(pos: Vector2) -> void:
 		fire_path_phases = PackedFloat32Array(DEFAULT_PATH_PHASES)
 	_phase_fire_idx = 0
 	_beat_fire_at = -1.0
+	# Ship-kinematics: cache the pattern's fidelity class + reset the applied-velocity filter state
+	# (spec §7 constraint 5 — reset on start/recycle) so a fresh spawn / re-used instance starts from
+	# rest and doesn't inherit the previous pass's velocity.
+	_kin_fidelity = _pattern.fidelity() if _pattern.has_method("fidelity") else ShipKinematics.Fidelity.EXACT
+	_applied_vel = Vector2.ZERO
 	# Only arm the shoot timer if the enemy *can* shoot. A null shoot_pattern
 	# means this enemy has no weapon â€” don't let a timer fire bullets via
 	# the legacy bullet_scene fallback. Roman, 2026-05-17: minelayer/mine
@@ -156,17 +164,30 @@ func _process(delta: float) -> void:
 			# 500-ms stall produces a 33-ms move, not a 500-ms move.
 			var safe_delta: float = min(delta, 1.0 / 30.0)
 			var step: Vector2 = _pattern.compute_step(self, safe_delta)
-			if _pattern.uses_inertia() and safe_delta > 0.0:
-				# Unit-weighted velocity smoothing (inertia): ease the APPLIED velocity
-				# toward the pattern's desired one so the unit doesn't stop sharply at its
-				# hold/jiggle point. Heavier (bigger weight) = laggier (Roman 2026-06-11).
-				# Position-error patterns (drift/loiter) opt in via uses_inertia(). `weight` is
-				# the chassis mass (locomotion refactor 2026-06-19), seeded from size — was display_scale.
+			if _kin_fidelity != ShipKinematics.Fidelity.EXACT and safe_delta > 0.0:
+				# Ship-kinematics velocity filter (roadmap P1.5 — 2026-07-02): ease the APPLIED
+				# velocity toward the pattern's desired one per the pattern's fidelity class, so the
+				# unit reads as a ship with mass instead of snapping direction. SMOOTH = the old
+				# inertia feel (heavier = laggier); EXACT_Y_SMOOTH_X filters lateral only (lane STEP
+				# hops) while leaving the descent raw. `_last_move_vel` is set from the APPLIED
+				# velocity (spec §7 constraint 5 — wreck drift + beat-sync prediction consume it).
 				var desired_vel: Vector2 = step / safe_delta
-				var w: float = maxf(0.6, weight)
-				_inertial_vel = _inertial_vel.move_toward(desired_vel, (INERTIA_ACCEL / w) * safe_delta)
-				position += _inertial_vel * safe_delta
-				_last_move_vel = _inertial_vel
+				_applied_vel = ShipKinematics.filter(_applied_vel, desired_vel, accel, weight,
+					safe_delta, _kin_fidelity)
+				var applied_step: Vector2 = _applied_vel * safe_delta
+				# Lane-lag safety clamp (spec §7 constraint 2): keep the filtered lateral X within a
+				# few px of the closed-form lane X the LaneTraffic free-checks assume. The high lateral
+				# budget already holds this; this is a belt-and-suspenders snap under a frame hitch.
+				if _kin_fidelity == ShipKinematics.Fidelity.EXACT_Y_SMOOTH_X:
+					# step.x = closed_form_target_x − position.x, so (applied_step.x − step.x) is exactly
+					# the cumulative error between the filtered X and the closed-form lane X this frame.
+					var err_x: float = applied_step.x - step.x
+					if absf(err_x) > ShipKinematics.LANE_LAT_MAX_ERR:
+						var corr: float = err_x - signf(err_x) * ShipKinematics.LANE_LAT_MAX_ERR
+						applied_step.x -= corr
+						_applied_vel.x = applied_step.x / safe_delta
+				position += applied_step
+				_last_move_vel = _applied_vel
 			else:
 				position += step
 				if safe_delta > 0.0:
@@ -216,6 +237,9 @@ func _recycle_suspend() -> void:
 func _recycle_resume() -> void:
 	_phase_fire_idx = 0
 	_beat_fire_at = -1.0
+	# Reset the kinematics filter for the new pass (spec §7 constraint 5) — the fly-back tween owns
+	# the transform, so the applied velocity must restart from rest when the pattern resumes.
+	_applied_vel = Vector2.ZERO
 	if has_node("ShootTimer") and fire_on_phase == "" and fire_path_phases.is_empty():
 		$ShootTimer.wait_time = 0.2 if fire_zone_gated else _fire_interval()
 		$ShootTimer.start()

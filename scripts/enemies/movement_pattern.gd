@@ -38,11 +38,24 @@ func path_phase_capable() -> bool:
 	return false
 
 
-# Whether enemy_core should apply UNIT-WEIGHTED velocity smoothing (inertia) to this
-# pattern's steps: the applied velocity eases toward the desired one, scaled by the
-# unit's size-weight, so heavy ships approach/leave a hold point softly instead of
-# snapping (Roman 2026-06-11). Position-error patterns (drift/loiter) opt in; the
-# smoothing lives in the unit (enemy_core), not the pattern.
+# Ship-kinematics fidelity class (roadmap P1.5 / review §7 — 2026-07-02). Declares HOW HEAVILY
+# enemy_core filters this pattern's step through the ShipKinematics velocity filter:
+#   ShipKinematics.Fidelity.EXACT            — bypass (default; nothing changes without an opt-in).
+#   ShipKinematics.Fidelity.SMOOTH           — full velocity filter (the old uses_inertia behavior).
+#   ShipKinematics.Fidelity.EXACT_Y_SMOOTH_X — vertical raw, lateral filtered (lane STEP hops).
+# EXACT is the deliberate default so unconfigured/telegraph/hard-authored patterns keep today's
+# exact motion. Patterns that need mass opt in by overriding this (or, legacy, uses_inertia()).
+# NB: returns EXACT unless a subclass overrides EITHER this OR uses_inertia() — the alias bridge in
+# the base maps a true uses_inertia() to SMOOTH so the four already-opted patterns need no edit.
+func fidelity() -> int:
+	# Bridge: honor a legacy uses_inertia() override (drift/loiter/loiter_sweep/skirmish) → SMOOTH.
+	return ShipKinematics.Fidelity.SMOOTH if uses_inertia() else ShipKinematics.Fidelity.EXACT
+
+
+# DEPRECATED alias for fidelity() (kept working per the P1.5 spec). Historically: "apply
+# unit-weighted velocity smoothing (inertia) to this pattern's steps" — position-error patterns
+# (drift/loiter) opt in; the smoothing lives in the unit (enemy_core), not the pattern. New patterns
+# should override fidelity() directly (EXACT/SMOOTH/EXACT_Y_SMOOTH_X); this maps only to SMOOTH.
 func uses_inertia() -> bool:
 	return false
 
@@ -88,6 +101,20 @@ func _can_strafe(enemy) -> bool:
 
 func _can_retro(enemy) -> bool:
 	return "retro" in enemy and bool(enemy.retro)
+
+
+# Shared descend-to-depth step (review §7 dedup — 2026-07-02). The "descend at chassis speed,
+# clamp the final frame so we land exactly on `depth` (never overshoot), report arrival" idiom was
+# copy-pasted ~5× (loiter_sweep/skirmish/drift enter phases, boss_sweep). Returns the vertical step
+# (px) to apply THIS frame; sets `arrived[0]` true on the frame the enemy reaches/passes `depth`.
+# `speed` px/s (pass _move_speed(enemy) or a bespoke value). Pure vertical — callers that also move
+# laterally add their own X. Behavior is byte-identical to the inlined form it replaces.
+func descend_to(enemy, depth: float, speed: float, delta: float, arrived: Array) -> float:
+	var sy: float = speed * delta
+	if enemy.position.y + sy >= depth:
+		sy = depth - enemy.position.y
+		arrived[0] = true
+	return sy
 
 
 # Resolve the player node (first member of the "player" group), or null. Shared by the

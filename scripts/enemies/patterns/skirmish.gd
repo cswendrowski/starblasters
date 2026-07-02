@@ -35,9 +35,10 @@ func compute_step(enemy, delta: float) -> Vector2:
 	match _phase:
 		0:  # descend to the loop height
 			# Descent speed is chassis-owned now (locomotion refactor); `enter_speed` is vestigial.
-			var sy: float = _move_speed(enemy) * delta
-			if enemy.position.y + sy >= hold_y:
-				sy = hold_y - enemy.position.y
+			# Shared descend-to-depth snap (review §7 dedup) — on arrival, latch the loop center.
+			var arrived: Array = [false]
+			var sy: float = descend_to(enemy, hold_y, _move_speed(enemy), delta, arrived)
+			if arrived[0]:
 				_phase = 1
 				_t = 0.0
 				_center = Vector2(enemy.position.x, hold_y)

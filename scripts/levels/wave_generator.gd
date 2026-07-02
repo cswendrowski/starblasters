@@ -26,6 +26,8 @@ const BossSweep = preload("res://scripts/enemies/patterns/boss_sweep.gd")
 const Weapon = preload("res://scripts/enemies/shoot_patterns/weapon.gd")
 const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const FormationShapesC = preload("res://scripts/levels/formation_shapes.gd")
+const FormationComposer = preload("res://scripts/levels/formation_composer.gd")
+const PatternEligibility = preload("res://scripts/levels/pattern_eligibility.gd")
 
 # Per-boss chaff conflict tags. Lead-in waves drop chaff carrying any of
 # these tags so the boss's signature pressure doesn't overlap a chaff
@@ -242,20 +244,38 @@ const ESCORT_CHANCE: float = 0.4
 const ESCORT_ROW_GAP: float = 40.0
 
 static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, level_index: int) -> Array:
+	# LevelMotif (conductor review §5, roadmap P2.7). Two things are now rolled ONCE per level and
+	# threaded through the three stretches instead of re-rolled per stretch:
+	#   1. The PALETTE (hoisted): the level's base chaff set + heavy, rolled at the opener depth. Each
+	#      stretch EXTENDS it (adds one deeper chaff entry via the eff_depth mechanism) so the three
+	#      stretches share a coherent enemy identity that GROWS, rather than three disjoint rolls.
+	#   2. The MOTIF: a signature grammar primitive + movement key + three pre-composed escalating
+	#      formation variants (v1 bare / v2 grown / v3 full density). Each stretch's END capstone draws
+	#      escalation[stretch] so the player watches ONE formation idea build across the level.
+	var base_palette: Dictionary = _pick_palette(rng, sector_depth, level_index)
+	var motif: Dictionary = _roll_motif(rng, base_palette, level_index)
 	var waves: Array = []
 	for s in STRETCH_COUNT:
-		waves.append_array(_build_stretch(rng, sector_depth, level_index, s))
+		waves.append_array(_build_stretch(rng, sector_depth, level_index, s, base_palette, motif))
+	# Stash the pre-composed capstone patterns onto Run meta so the producer chokepoint (main.gd, after
+	# the adapter lift + authored auto-mix) can splice them as native authored phrases — the only
+	# post-adapter authored-splice point on the production LevelData path. Keyed by stretch index; the
+	# score-side splice matches ScoreWave order 1:1 with the stretches. (Falls back to the in-line random
+	# shape_override capstone below if a variant failed to compose.)
+	_stash_motif(motif)
 	return waves
 
 
 # Build one stretch's sub-waves. Escalates by stretch index: a deeper "effective depth" pulls tougher
 # palette chaff + heavier capstones, and the stretch carries slot cap 16/26/36. The FIRST sub-wave
 # opens the stretch's ScoreWave (banner + slot cap); the rest are silent. Chaff scaled to STRETCH_BUDGET.
-static func _build_stretch(rng: RandomNumberGenerator, sector_depth: int, level_index: int, stretch: int) -> Array:
+static func _build_stretch(rng: RandomNumberGenerator, sector_depth: int, level_index: int, stretch: int, base_palette: Dictionary, motif: Dictionary) -> Array:
 	# Deeper stretches read as "further in" for tier/palette (opener light → climax elite).
 	var eff_depth: int = level_index + stretch
-	# PALETTE: a small subset of the roster this stretch draws from (chaff list + one heavy).
-	var palette: Dictionary = _pick_palette(rng, sector_depth, eff_depth)
+	# PALETTE (hoisted, review §5): the level's base palette EXTENDED by one deeper chaff entry per
+	# stretch (via eff_depth), not re-rolled — so the level's enemy identity grows instead of the three
+	# stretches being disjoint. The heavy is the level's heavy (base_palette), deepened only if empty.
+	var palette: Dictionary = _extend_palette(rng, base_palette, sector_depth, eff_depth, stretch)
 	var chaff_types: Array = palette["chaff"]
 	var heavy_type: Dictionary = palette["heavy"]
 	if chaff_types.is_empty():
@@ -312,7 +332,15 @@ static func _build_stretch(rng: RandomNumberGenerator, sector_depth: int, level_
 			var s_end2 = _make_wave_spec(rng, e_end, sector_depth, eff_depth, u)
 			s_end2.silent = true
 			s_end2.spawn_delay = 0.35
-			if not e_end.has("force_formation") and rng.randf() < GEOMETRIC_CAPSTONE_CHANCE:
+			# When the MOTIF has a composed variant for THIS stretch, its authored phrase is spliced onto
+			# this stretch's ScoreWave (main.gd, post-adapter) as the held-formation capstone — so on the
+			# LAST unit we suppress the RANDOM geometric flock (it would double up on the signature burst)
+			# and fall through to a plain chaff WALL/PINCER for texture. Non-last units + the fallback
+			# (no motif variant composed) keep the classic random geometric capstone. Draw the RNG
+			# unconditionally so suppression doesn't desync the seeded stream (a retry reproduces the level).
+			var geo_roll: bool = rng.randf() < GEOMETRIC_CAPSTONE_CHANCE
+			var motif_covers: bool = is_last_unit and _motif_has_variant(motif, stretch)
+			if not e_end.has("force_formation") and geo_roll and not motif_covers:
 				s_end2.shape_override = FormationShapesC.SHAPES[rng.randi() % FormationShapesC.SHAPES.size()]
 				s_end2.count = clampi(int(s_end2.count), GEOMETRIC_FLOCK_MIN, GEOMETRIC_FLOCK_MAX)
 				s_end2.movement_override = Roster.make_movement({"movement": "straight"})
@@ -385,10 +413,13 @@ static func _append_climax_finale(rng: RandomNumberGenerator, sector_depth: int,
 		waves.append(w); chaff_flags.append(false)
 
 
-# Per-level unit PALETTE (Roman 2026-06-27): a small subset of the eligible roster the whole level
-# draws from. {"chaff": Array of chaff-tagged entries, "heavy": one heavy entry ({} if none unlocked)}.
-# Chaff count grows with depth (1 at the opener → 3 deep) so an early node features one swarm + a
-# heavy, a later node a few. Force-formation chaff (Burner etc.) is excluded — it needs its own beat.
+# PER-LEVEL unit PALETTE (Roman 2026-06-27; HOISTED to true per-level 2026-07-02, review §5): a small
+# subset of the eligible roster the whole level draws from. {"chaff": Array of chaff-tagged entries,
+# "heavy": one heavy entry ({} if none unlocked)}. Rolled ONCE per level in _build_combat_waves at the
+# OPENER depth (level_index); each stretch EXTENDS this base via _extend_palette (adds one deeper chaff
+# entry) rather than re-rolling, so the level's enemy identity is coherent and grows across the three
+# stretches instead of three disjoint rolls. Chaff count grows with depth (2 at the opener → 3 deep).
+# Force-formation chaff (Burner etc.) is excluded — it needs its own beat.
 static func _pick_palette(rng: RandomNumberGenerator, sector_depth: int, level_index: int) -> Dictionary:
 	var chaff_pool: Array = []
 	for tier in [Roster.Tier.COMMON, Roster.Tier.UNCOMMON]:
@@ -415,6 +446,123 @@ static func _pick_palette(rng: RandomNumberGenerator, sector_depth: int, level_i
 	var prefer_capital: bool = (level_index >= 1 or sector_depth >= 2)
 	var heavy: Dictionary = _pick_heavy(rng, sector_depth, level_index, [], prefer_capital)
 	return {"chaff": chaff, "heavy": heavy}
+
+
+# EXTEND the hoisted per-level palette for `stretch` (review §5): keep the level's base chaff + heavy,
+# and (stretch 1+) append ONE deeper chaff entry drawn at eff_depth so the palette GROWS across the
+# level without re-rolling. The added entry is deduped against the base. If the base has no heavy but a
+# deeper heavy has since unlocked, adopt it. Returns a fresh dict (base is not mutated).
+static func _extend_palette(rng: RandomNumberGenerator, base: Dictionary, sector_depth: int, eff_depth: int, stretch: int) -> Dictionary:
+	var chaff: Array = (base.get("chaff", []) as Array).duplicate()
+	var heavy: Dictionary = base.get("heavy", {})
+	if stretch >= 1:
+		# One deeper chaff entry from the eff_depth-eligible pool, not already in the palette.
+		var deep_pool: Array = []
+		for tier in [Roster.Tier.COMMON, Roster.Tier.UNCOMMON]:
+			for e in Roster.entries_eligible(tier, sector_depth, eff_depth):
+				if bool(e.get("chaff", false)) and not e.has("force_formation") and not chaff.has(e):
+					deep_pool.append(e)
+		if not deep_pool.is_empty():
+			chaff.append(deep_pool[rng.randi() % deep_pool.size()])
+	# Adopt a deeper heavy only if the level had none.
+	if heavy.is_empty():
+		heavy = _pick_heavy(rng, sector_depth, eff_depth, [], eff_depth >= 1 or sector_depth >= 2)
+	return {"chaff": chaff, "heavy": heavy}
+
+
+# LevelMotif (review §5, roadmap P2.7). Roll the level's recurring formation identity ONCE and
+# pre-compose THREE escalating variants of it (one per stretch), all seeded from `rng` (the content
+# stream) so a node retry reproduces the whole thing. Returns:
+#   {"primitive", "movement", "variants":[v1,v2,v3], "family"}
+# where each variant is an AuthoredPatterns-schema pattern dict (from FormationComposer) sized to fit
+# that stretch's slot-cap share, or {} if composition failed (the in-line random capstone is the
+# fallback for that stretch). Escalation: v1 bare primitive (small N, fits the opener's 0.6 share of
+# cap 16), v2 + ECHO/THICKEN/ZONE_ASSIGN (obstacles, cap 26), v3 + LEAD/CORE_SCREEN at full density
+# (climax, cap 36).
+static func _roll_motif(rng: RandomNumberGenerator, palette: Dictionary, level_index: int) -> Dictionary:
+	# Signature MOVEMENT key: pick one that's actually present among the palette chaff's eligible keys
+	# (intersect palette eligibility with the composer's known key vocabulary) so the motif reads with
+	# the units the level actually fields. Falls back to "straight" if the intersection is empty.
+	var key_pool: Array = _palette_movement_keys(palette)
+	var mv: String = key_pool[rng.randi() % key_pool.size()] if not key_pool.is_empty() else "straight"
+	# Signature PRIMITIVE. Fast keys favor shallow directional shapes (SLASH/WEDGE/PICKET); slow keys
+	# favor holding shapes (PICKET/FILE/PILLAR/CORRIDOR). CORE_SCREEN/CROSS_PAIR reserved for the v3
+	# LEAD/escort escalation, not the base signature.
+	var prim: String
+	if FormationComposer.is_fast_key(mv):
+		prim = [FormationComposer.PRIM_SLASH, FormationComposer.PRIM_WEDGE, FormationComposer.PRIM_PICKET][rng.randi() % 3]
+	else:
+		prim = [FormationComposer.PRIM_PICKET, FormationComposer.PRIM_FILE, FormationComposer.PRIM_PILLAR, FormationComposer.PRIM_CORRIDOR][rng.randi() % 4]
+
+	# Per-stretch member budgets: the composed capstone is a DISCRETE burst, held to a share of the
+	# stretch slot cap (v1 must fit the opener's 0.6 × 16 ≈ 9; v2 ~15; v3 ~24 at cap 36).
+	var budgets: Array = [
+		int(round(float(STRETCH_SLOT_CAPS[0]) * 0.6)),   # ~9
+		int(round(float(STRETCH_SLOT_CAPS[1]) * 0.6)),   # ~15
+		int(round(float(STRETCH_SLOT_CAPS[2]) * 0.66)),  # ~24
+	]
+	# Modifier ladders per tier. MIRROR is default-on for symmetry (slashes emit L/R pairs anyway).
+	var v1_flags: Dictionary = {FormationComposer.MOD_MIRROR: true}
+	# v2: grow — one of ECHO / THICKEN / ZONE_ASSIGN (seeded).
+	var v2_flags: Dictionary = {FormationComposer.MOD_MIRROR: true}
+	match rng.randi() % 3:
+		0: v2_flags[FormationComposer.MOD_ECHO] = true
+		1: v2_flags[FormationComposer.MOD_THICKEN] = true
+		_: v2_flags[FormationComposer.MOD_ZONE_ASSIGN] = true
+	# v3: full density — LEAD (leader tip + lockstep) or CORE_SCREEN, plus DEPTH_BAND for readability.
+	var v3_flags: Dictionary = {FormationComposer.MOD_MIRROR: true, FormationComposer.MOD_DEPTH_BAND: true}
+	var v3_prim: String = prim
+	if rng.randf() < 0.5:
+		v3_prim = FormationComposer.PRIM_CORE_SCREEN   # escort escalation (interior mediums)
+	else:
+		v3_flags[FormationComposer.MOD_LEAD] = true
+		v3_flags[FormationComposer.MOD_THICKEN] = true
+	var variants: Array = [
+		FormationComposer.compose(prim, mv, 0, int(budgets[0]), v1_flags, rng, "motif_v1"),
+		FormationComposer.compose(prim, mv, 1, int(budgets[1]), v2_flags, rng, "motif_v2"),
+		FormationComposer.compose(v3_prim, mv, 2, int(budgets[2]), v3_flags, rng, "motif_v3"),
+	]
+	return {"primitive": prim, "movement": mv, "variants": variants}
+
+
+# The set of composer movement keys reachable by this palette's chaff — the union of each chaff entry's
+# pattern-eligibility keys, intersected with the composer's known key vocabulary (fast + slow). Lets the
+# motif pick a signature key the level's units can actually express (review §5 "intersect with
+# pattern_eligibility"). Empty ⇒ caller falls back to "straight".
+static func _palette_movement_keys(palette: Dictionary) -> Array:
+	var known: Array = FormationComposer.FAST_KEYS + FormationComposer.SLOW_KEYS
+	var out: Array = []
+	for e in palette.get("chaff", []):
+		var scene: String = String(e.get("scene", ""))
+		for k in PatternEligibility.eligible_for(scene):
+			var key: String = String(k)
+			if known.has(key) and not out.has(key):
+				out.append(key)
+	return out
+
+
+# True if the motif has a successfully-composed (non-empty, validating) variant for `stretch`.
+static func _motif_has_variant(motif: Dictionary, stretch: int) -> bool:
+	var variants: Array = motif.get("variants", [])
+	if stretch < 0 or stretch >= variants.size():
+		return false
+	var v: Dictionary = variants[stretch]
+	return not v.is_empty() and not (v.get("placements", []) as Array).is_empty()
+
+
+# Stash the rolled motif onto Run meta so the producer chokepoint (main.gd) can splice the composed
+# capstone variants as native authored phrases post-adapter, and can pass the motif's signature key +
+# primitive as a HINT to AuthoredPatterns.maybe_inject (so injected picks reinforce the motif). Keyed
+# per (sd,li) is unnecessary — the build is synchronous and consumed immediately by main.gd for THIS
+# level. Headless/tool runs with no Run node simply skip the splice (the in-line capstones stand).
+static func _stash_motif(motif: Dictionary) -> void:
+	var ml := Engine.get_main_loop()
+	if not (ml is SceneTree):
+		return
+	var run = (ml as SceneTree).root.get_node_or_null("Run")
+	if run == null:
+		return
+	run.set_meta("level_motif", motif)
 
 
 # Seeded Fisher-Yates in place (the generator's rng, so the palette reproduces per run+node).

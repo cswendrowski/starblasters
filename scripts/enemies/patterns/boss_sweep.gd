@@ -27,9 +27,11 @@ func on_start(enemy) -> void:
 func compute_step(enemy, delta: float) -> Vector2:
 	match _phase:
 		Phase.ENTERING:
-			var step_y: float = enter_speed * delta
-			if enemy.position.y + step_y >= hover_y:
-				step_y = hover_y - enemy.position.y
+			# Shared descend-to-depth snap (review §7 dedup). boss_sweep keeps its OWN enter_speed
+			# (a boss-tuned constant, not the chassis move_speed) — passed straight through.
+			var arrived: Array = [false]
+			var step_y: float = descend_to(enemy, hover_y, enter_speed, delta, arrived)
+			if arrived[0]:
 				_phase = Phase.SWEEPING
 				_t = 0.0
 			return Vector2(0, step_y)

@@ -764,7 +764,18 @@ func new_game() -> void:
 		var ars: int = int(get_node("/root/Run").run_seed) if has_node("/root/Run") else 0
 		var arng := RandomNumberGenerator.new()
 		arng.seed = (ars * 2654435761) ^ (auth_sd * 100003) ^ (auth_li * 7919) ^ 0x7A7E0001
-		AuthoredPatterns.maybe_inject(_current_score, auth_faction, auth_sd, arng)
+		# LevelMotif (roadmap P2.7): WaveGen stashed the level's rolled motif on Run meta during
+		# build(). Splice its pre-composed escalation capstones onto each stretch's ScoreWave as
+		# native authored phrases (the only post-adapter authored-splice point on the production
+		# LevelData path), and pass the motif as a hint so maybe_inject's picks reinforce it. The
+		# in-line random shape_override capstones remain the fallback when a variant didn't compose.
+		var motif: Dictionary = {}
+		if has_node("/root/Run") and get_node("/root/Run").has_meta("level_motif"):
+			motif = get_node("/root/Run").get_meta("level_motif", {})
+			get_node("/root/Run").remove_meta("level_motif")
+		if not motif.is_empty():
+			AuthoredPatterns.inject_motif_capstones(_current_score, motif.get("variants", []), auth_faction, auth_sd, arng)
+		AuthoredPatterns.maybe_inject(_current_score, auth_faction, auth_sd, arng, AuthoredPatterns.DEFAULT_CHANCE, motif)
 	_run_intro(is_boss)
 
 # ---- Intro sequence -----------------------------------------------------

@@ -45,9 +45,10 @@ func compute_step(enemy, delta: float) -> Vector2:
 	_t += delta
 	if not _held:
 		# Descent speed is chassis-owned now (locomotion refactor); `enter_speed` is vestigial.
-		var sy: float = _move_speed(enemy) * delta
-		if enemy.position.y + sy >= hover_y:
-			sy = hover_y - enemy.position.y
+		# Shared descend-to-depth snap (review §7 dedup) — on arrival, latch the hold point.
+		var arrived: Array = [false]
+		var sy: float = descend_to(enemy, hover_y, _move_speed(enemy), delta, arrived)
+		if arrived[0]:
 			_held = true
 			_hold_t = 0.0
 			_hold = Vector2(enemy.position.x, hover_y)
