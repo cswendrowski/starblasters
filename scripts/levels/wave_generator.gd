@@ -210,6 +210,11 @@ const STRETCH_BUDGET: int = 100                 # enemies per stretch (chaff sca
 # Deliberate 1-2s beat between sub-wave units within a stretch (pacing; see WaveSpec.lead_pause).
 const SUBWAVE_PAUSE_MIN: float = 1.0
 const SUBWAVE_PAUSE_MAX: float = 2.0
+# Combat chaff roll-back: how many times a MISSED chaff flies back + re-enters before it finally
+# leaves (level_structure_redesign_2026-07-01). >0 makes ~300 enemies fill ~3 min (kill-gated) instead
+# of leaking off in ~60s; capped so a perpetually-dodged straggler still eventually bows out. 0 =
+# the old leak-off behavior. REVERSES the roster's recycle:0 for high-count chaff (Roman 2026-06-08).
+const CHAFF_RECYCLE_PASSES: int = 2
 
 # GEOMETRIC CAPSTONE (conductor readability pass, 2026-06-23). When a wave's END beat has no heavy,
 # cap it with a held geometric flock (formation_shapes.gd) this often, else the classic shifting
@@ -321,8 +326,63 @@ static func _build_stretch(rng: RandomNumberGenerator, sector_depth: int, level_
 			var s_acc = _make_accent_wave(rng, chaff_types[rng.randi() % chaff_types.size()], sector_depth, eff_depth, u)
 			if s_acc != null:
 				waves.append(s_acc); chaff_flags.append(false)   # discrete sting
+	# CLIMAX finale: a mini-boss (if registered) or an elite pack, after the chaff wall.
+	if is_climax:
+		_append_climax_finale(rng, sector_depth, eff_depth, waves, chaff_flags)
 	_apply_budget(waves, chaff_flags, STRETCH_BUDGET)
 	return waves
+
+
+# Mini-boss registry (level_structure_redesign_2026-07-01). A regular-node CLIMAX features a mini-boss
+# when one is registered for the depth/faction, else an ELITE PACK. EMPTY for now — Roman authors the
+# mini-boss scenes and adds entries {scene, min_depth, faction (-1 = any)}; the elite-pack fallback
+# keeps climaxes working meanwhile. (Boss NODES use _build_boss_waves + the real boss, not this.)
+const MINIBOSS_ROSTER: Array = []
+
+
+static func _pick_miniboss(rng: RandomNumberGenerator, eff_depth: int, faction: int) -> Dictionary:
+	var pool: Array = []
+	for m in MINIBOSS_ROSTER:
+		if eff_depth < int(m.get("min_depth", 0)):
+			continue
+		var mf: int = int(m.get("faction", -1))
+		if mf < 0 or mf == faction:
+			pool.append(m)
+	if pool.is_empty():
+		return {}
+	return pool[rng.randi() % pool.size()]
+
+
+# Append the CLIMAX finale onto `waves`: a mini-boss (registered) or an elite pack — 2-3 heavy TYPES,
+# a small cluster of each, arriving centre-out after a beat. Discrete (chaff_flags false) so the chaff
+# budget flows around it. This is the level's peak threat at the 36-slot cap.
+static func _append_climax_finale(rng: RandomNumberGenerator, sector_depth: int, eff_depth: int, waves: Array, chaff_flags: Array) -> void:
+	var mb: Dictionary = _pick_miniboss(rng, eff_depth, Roster.get_faction_filter())
+	if not mb.is_empty():
+		var wm = WaveSpec.new()
+		wm.enemy_scene = load(String(mb.get("scene", "")))
+		if wm.enemy_scene != null:
+			wm.count = 1
+			wm.formation = WaveSpec.Formation.TOP_CENTER_OUT
+			wm.silent = true
+			wm.lead_pause = 1.5   # a beat before the mini-boss arrives
+			waves.append(wm); chaff_flags.append(false)
+			return
+	# Elite pack fallback: 2-3 distinct heavies, a couple of each, centre-out.
+	var used: Array = []
+	var n_types: int = 2 + (rng.randi() % 2)   # 2-3 elite types
+	for k in n_types:
+		var e: Dictionary = _pick_heavy(rng, sector_depth, eff_depth, used, k == 0)   # first prefers a capital
+		if e.is_empty():
+			break
+		used.append(e)
+		var w = _make_wave_spec(rng, e, sector_depth, eff_depth, k)
+		w.count = clampi(int(w.count), 2, 3)
+		w.formation = WaveSpec.Formation.TOP_CENTER_OUT
+		w.silent = true
+		if k == 0:
+			w.lead_pause = 1.5   # a beat before the pack crashes in
+		waves.append(w); chaff_flags.append(false)
 
 
 # Per-level unit PALETTE (Roman 2026-06-27): a small subset of the eligible roster the whole level
@@ -869,6 +929,12 @@ static func _make_wave_spec(rng: RandomNumberGenerator, entry: Dictionary, secto
 		w.shield_charges = stats["shield_charges"]
 	if stats["recycle_passes"] >= -1:
 		w.recycle_passes = stats["recycle_passes"]
+	# Chaff roll-back: combat chaff RECYCLE a couple of times (fly back + re-enter) so missed enemies
+	# feed the next sub-wave and ~300 enemies fill ~3 min, rather than leaking off the bottom in ~60s.
+	# Overrides the roster's recycle:0 for high-count chaff (see CHAFF_RECYCLE_PASSES). Boss lead-ins
+	# keep their own tuning.
+	if not is_boss_leadin and bool(entry.get("chaff", false)) and CHAFF_RECYCLE_PASSES > 0:
+		w.recycle_passes = CHAFF_RECYCLE_PASSES
 	# Locomotion (chassis stats); a random wave has no formation depth override, so the enemy's
 	# roster-default depth (compose_stats depth_bp) rides depth_override.
 	w.move_speed = float(stats.get("move_speed", 0.0))
