@@ -11,3 +11,6 @@ extends Resource
 @export var banner: String = ""               # non-blocking wave marker text
 @export var dominant_faction: StringName = &""
 @export var phrases: Array[Phrase] = []
+# Slot cap for this section = the density ceiling the director enforces while it plays (the 3-stretch
+# ramp 16/26/36; level_structure_redesign_2026-07-01). -1 = leave max_concurrent unchanged.
+@export var slot_cap: int = -1

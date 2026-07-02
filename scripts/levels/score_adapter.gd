@@ -41,6 +41,10 @@ static func from_level_data(level: Resource) -> CombatScore:
 				current.phrases.append(_breather())
 			current = ScoreWave.new()
 			current.banner = (spec.announce_text if "announce_text" in spec else "")
+			# Carry the stretch's slot cap from the wave-opening spec (level_structure_redesign) so the
+			# director ramps density 16/26/36 as it enters each stretch.
+			if "slot_cap" in spec:
+				current.slot_cap = int(spec.slot_cap)
 			score.waves.append(current)
 			wave_count += 1
 		var ph := Phrase.new()

@@ -32,6 +32,10 @@ enum Formation { TOP_LEFT_TO_RIGHT, TOP_RIGHT_TO_LEFT, TOP_RANDOM, TOP_CENTER_OU
 # director._spawn_enemy to any spawn exposing a `drift_mode` property (asteroid/mine/firecore);
 # ignored by everything else. Authored hazard patterns map their placement movement onto this.
 @export var drift_mode: String = ""
+# Per-stretch slot cap (level_structure_redesign_2026-07-01). Set on the FIRST sub-wave of a stretch
+# (the one that opens a ScoreWave); ScoreAdapter copies it to ScoreWave.slot_cap and the director
+# applies it as max_concurrent (a slot ceiling) when it enters that stretch. -1 = leave unchanged.
+@export var slot_cap: int = -1
 # Sub-lane X offset (px) added to the lane centre — lets the Formation Builder pack a sub-grid of
 # enemies into one lane square. 0 = lane centre (default, production unchanged). Lane-pinned only.
 @export var spawn_x_offset: float = 0.0

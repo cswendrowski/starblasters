@@ -193,6 +193,7 @@ func _build_steps(score: Resource) -> Array:
 				"wave_idx": wi,
 				"is_wave_start": pi == 0,
 				"banner": w.banner,
+				"slot_cap": (int(w.slot_cap) if "slot_cap" in w else -1),
 			})
 	return out
 
@@ -359,6 +360,10 @@ func _advance_step() -> void:
 			return
 	# Non-blocking banner once per ScoreWave (bridge §1.1): emit and keep going.
 	if st["is_wave_start"]:
+		# Per-stretch density ramp (level_structure_redesign_2026-07-01): a stretch-opening wave sets
+		# the slot cap (16/26/36) for its section. -1 leaves it (hazards / non-stretch content).
+		if int(st.get("slot_cap", -1)) >= 0:
+			max_concurrent = int(st["slot_cap"])
 		wave_started.emit(int(st["wave_idx"]), _wave_total, false, String(st["banner"]))
 		# Let a gating boss know a wave began (it enables stage hazards from wave 3 = wave_idx 2).
 		if _boss_gate_alive() and boss_gate.has_method("on_wave_started"):

@@ -171,14 +171,14 @@ static func cap_for(sector_depth: int, level_index: int) -> int:
 	return clampi(26 + 2 * level_index + 2 * (sector_depth - 1), 26, 36)
 
 
-# Scale the level's CHAFF waves so the total approaches the budget, leaving discrete beats (heavies /
-# capped flocks / accents) at their authored counts. `chaff_flags` is parallel to `waves` — true =
-# scalable chaff. (Roman 2026-06-27: was keyed on base_count >= 4, which MISCLASSIFIED low-base
-# uncommon chaff as elite and left it to trickle at count 2-3. The explicit flag scales it densely.)
-static func _apply_budget(waves: Array, chaff_flags: Array, sector_depth: int, level_index: int) -> void:
+# Scale the CHAFF waves so their total approaches `target`, leaving discrete beats (heavies / capped
+# flocks / accents) at their authored counts. `chaff_flags` is parallel to `waves` — true = scalable
+# chaff. Called PER STRETCH (level_structure_redesign_2026-07-01) with the stretch budget. (Roman
+# 2026-06-27: was keyed on base_count >= 4, which MISCLASSIFIED low-base uncommon chaff as elite and
+# left it to trickle at count 2-3. The explicit flag scales it densely.)
+static func _apply_budget(waves: Array, chaff_flags: Array, target: int) -> void:
 	if waves.is_empty():
 		return
-	var target: int = _level_budget(sector_depth, level_index)
 	var elite_total: int = 0
 	var chaff_idx: Array = []
 	var chaff_raw: int = 0
@@ -196,17 +196,17 @@ static func _apply_budget(waves: Array, chaff_flags: Array, sector_depth: int, l
 		waves[i].count = maxi(2, int(round(float(waves[i].count) * scale)))
 
 
-# Combat level (Roman 2026-06-10 restructure): exactly 5 WAVES, each broken into 3 sub-wave
-# compositions that flow continuously, then a BREATHER before the next wave (avoids the old 5-8
-# run-on stream). Per wave:
-#   START  — a sweeping chaff entry; NON-silent, so it opens a new ScoreWave (the wave banner).
-#   MIDDLE — the bulk; another chaff type, opposite sweep. Silent (attaches to the wave).
-#   END    — the capstone: a heavy anchor that "shows itself" (or the boss-substitute heavy on the
-#            final wave); falls back to a tight chaff wall when no heavy is unlocked. Silent.
-# The score adapter groups each START+MIDDLE+END trio into ONE ScoreWave (silent-chaining) and
-# injects a breather between waves (ScoreAdapter.BREATHER_EVERY == 1). Budget scaling fills the
-# chaff sub-waves to the level headcount; heavies (low base_count) stay discrete.
-const COMBAT_WAVE_COUNT: int = 5
+# 3-STRETCH LEVEL (level_structure_redesign_2026-07-01). A combat level is three ~1-minute pieces:
+#   OPENER    — mid chaff, slot cap 16.
+#   OBSTACLES — tankier / elites, slot cap 26.
+#   CLIMAX    — densest (elite pack / mini-boss; the boss on boss nodes), slot cap 36.
+# Each stretch is a run of START/MIDDLE/END sub-wave UNITS (the palette/formation/accent vocabulary);
+# its FIRST sub-wave opens a ScoreWave (banner "WAVE n/3" + the stretch's slot cap), the rest silent.
+# Chaff scales to STRETCH_BUDGET per stretch; recycling holds the screen so ~300 enemies fill ~3 min.
+const STRETCH_COUNT: int = 3
+const STRETCH_SLOT_CAPS: Array = [16, 26, 36]   # density ramp; applied via WaveSpec.slot_cap on entry
+const STRETCH_UNITS: Array = [2, 2, 2]          # START/MIDDLE/END trios per stretch
+const STRETCH_BUDGET: int = 100                 # enemies per stretch (chaff scaled to hit this)
 
 # GEOMETRIC CAPSTONE (conductor readability pass, 2026-06-23). When a wave's END beat has no heavy,
 # cap it with a held geometric flock (formation_shapes.gd) this often, else the classic shifting
@@ -234,48 +234,63 @@ const ESCORT_CHANCE: float = 0.4
 const ESCORT_ROW_GAP: float = 40.0
 
 static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, level_index: int) -> Array:
-	# PALETTE (Roman 2026-06-27): the whole level draws from a SMALL subset of the roster, not the full
-	# pool per beat (which produced 9-15 distinct types/level). The bulk beats cycle the chaff list; the
-	# capstone uses the level's one heavy. Kitchen-sink (full pool) is reserved for the boss lead-in.
-	var palette: Dictionary = _pick_palette(rng, sector_depth, level_index)
+	var waves: Array = []
+	for s in STRETCH_COUNT:
+		waves.append_array(_build_stretch(rng, sector_depth, level_index, s))
+	return waves
+
+
+# Build one stretch's sub-waves. Escalates by stretch index: a deeper "effective depth" pulls tougher
+# palette chaff + heavier capstones, and the stretch carries slot cap 16/26/36. The FIRST sub-wave
+# opens the stretch's ScoreWave (banner + slot cap); the rest are silent. Chaff scaled to STRETCH_BUDGET.
+static func _build_stretch(rng: RandomNumberGenerator, sector_depth: int, level_index: int, stretch: int) -> Array:
+	# Deeper stretches read as "further in" for tier/palette (opener light → climax elite).
+	var eff_depth: int = level_index + stretch
+	# PALETTE: a small subset of the roster this stretch draws from (chaff list + one heavy).
+	var palette: Dictionary = _pick_palette(rng, sector_depth, eff_depth)
 	var chaff_types: Array = palette["chaff"]
 	var heavy_type: Dictionary = palette["heavy"]
 	if chaff_types.is_empty():
-		return []   # roster misconfig guard (should never happen — basic chaff is unlock 0)
+		return []   # roster misconfig guard (basic chaff is unlock 0, so this shouldn't happen)
+	var slot_cap: int = int(STRETCH_SLOT_CAPS[stretch]) if stretch < STRETCH_SLOT_CAPS.size() else 26
+	var is_climax: bool = (stretch == STRETCH_COUNT - 1)
+	var n_units: int = int(STRETCH_UNITS[stretch]) if stretch < STRETCH_UNITS.size() else 2
 	var waves: Array = []
-	# Parallel to `waves`: true = a chaff bulk wave that _apply_budget scales to the headcount; false =
-	# a DISCRETE beat (heavy / capped flock / accent) left at its authored count.
+	# Parallel to `waves`: true = scalable chaff, false = a DISCRETE beat (heavy / flock / accent).
 	var chaff_flags: Array = []
-	for i in COMBAT_WAVE_COUNT:
-		var lead_lr: bool = (i % 2 == 0)
-		var is_finale: bool = (i == COMBAT_WAVE_COUNT - 1)
-		# START — a chaff entry from the palette; opens the wave (banner). Cycles the palette for
-		# variety within the subset.
-		var e_start: Dictionary = chaff_types[i % chaff_types.size()]
-		var s_start = _make_wave_spec(rng, e_start, sector_depth, level_index, i)
+	var opened: bool = false
+	for u in n_units:
+		var lead_lr: bool = (u % 2 == 0)
+		var is_last_unit: bool = (u == n_units - 1)
+		# START — palette chaff sweep. The stretch's first sub-wave opens the ScoreWave (banner + the
+		# stretch's slot cap); every later sub-wave is silent (attaches to the stretch).
+		var e_start: Dictionary = chaff_types[u % chaff_types.size()]
+		var s_start = _make_wave_spec(rng, e_start, sector_depth, eff_depth, u)
 		s_start.formation = WaveSpec.Formation.TOP_LEFT_TO_RIGHT if lead_lr else WaveSpec.Formation.TOP_RIGHT_TO_LEFT
-		s_start.silent = false        # opens a new ScoreWave -> one banner per wave
-		s_start.announce_text = ""    # default "WAVE n / 5"
 		s_start.spawn_delay = 0.5
+		if not opened:
+			s_start.silent = false
+			s_start.announce_text = ""      # default "WAVE n / 3"
+			s_start.slot_cap = slot_cap     # apply this stretch's density on entry
+			opened = true
+		else:
+			s_start.silent = true
 		_apply_force_formation(s_start, e_start)
 		waves.append(s_start); chaff_flags.append(true)
-		# MIDDLE — the bulk; a DIFFERENT palette chaff (same type if the palette has only one), opposite
-		# sweep. Budget-scaled, so even a low-base uncommon chaff fills out densely (no trickle).
-		var e_mid: Dictionary = chaff_types[(i + 1) % chaff_types.size()]
-		var s_mid = _make_wave_spec(rng, e_mid, sector_depth, level_index, i)
+		# MIDDLE — the bulk; a different palette chaff, opposite sweep.
+		var e_mid: Dictionary = chaff_types[(u + 1) % chaff_types.size()]
+		var s_mid = _make_wave_spec(rng, e_mid, sector_depth, eff_depth, u)
 		s_mid.formation = WaveSpec.Formation.TOP_RIGHT_TO_LEFT if lead_lr else WaveSpec.Formation.TOP_LEFT_TO_RIGHT
 		s_mid.silent = true
 		s_mid.spawn_delay = 0.35
 		_apply_force_formation(s_mid, e_mid)
 		waves.append(s_mid); chaff_flags.append(true)
-		# END — the capstone: the level's heavy on the finale (always) and ~60% of waves 1-3; else a
-		# held flock / shifting wall of palette chaff.
-		var want_heavy: bool = is_finale or (i >= 1 and rng.randf() < 0.6)
+		# END — capstone. Heavy on the OBSTACLES/CLIMAX stretches (always on the stretch's last unit,
+		# ~60% otherwise); the opener leans lighter (flock/wall). Climax capstones run a touch bigger.
+		var want_heavy: bool = (stretch >= 1) and (is_last_unit or rng.randf() < 0.6)
 		if want_heavy and not heavy_type.is_empty():
-			var s_end = _make_wave_spec(rng, heavy_type, sector_depth, level_index, i)
-			# Floor of 2 so a medium heavy never arrives as a lone, slow, unexciting single — a real
-			# anchor PAIR reads as a beat. A genuinely big capital (large/huge) may still come solo.
-			var hi: int = 3 if is_finale else 2
+			var s_end = _make_wave_spec(rng, heavy_type, sector_depth, eff_depth, u)
+			var hi: int = 3 if is_climax else 2
 			var lo: int = 1 if String(heavy_type.get("size", "")) in ["large", "huge"] else 2
 			s_end.count = clampi(int(s_end.count), lo, hi)
 			s_end.formation = WaveSpec.Formation.TOP_CENTER_OUT
@@ -283,29 +298,25 @@ static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, l
 			s_end.spawn_delay = 0.35
 			waves.append(s_end); chaff_flags.append(false)   # discrete anchor
 		else:
-			# No heavy this beat — cap the wave with a held GEOMETRIC FLOCK (formation_shapes) most of
-			# the time, else the classic shifting WALL / PINCER. See GEOMETRIC_CAPSTONE_CHANCE above.
 			var e_end: Dictionary = chaff_types[rng.randi() % chaff_types.size()]
-			var s_end2 = _make_wave_spec(rng, e_end, sector_depth, level_index, i)
+			var s_end2 = _make_wave_spec(rng, e_end, sector_depth, eff_depth, u)
 			s_end2.silent = true
 			s_end2.spawn_delay = 0.35
-			# Geometric only when the entry doesn't demand its own formation (e.g. Burner's beam-pair).
 			if not e_end.has("force_formation") and rng.randf() < GEOMETRIC_CAPSTONE_CHANCE:
 				s_end2.shape_override = FormationShapesC.SHAPES[rng.randi() % FormationShapesC.SHAPES.size()]
 				s_end2.count = clampi(int(s_end2.count), GEOMETRIC_FLOCK_MIN, GEOMETRIC_FLOCK_MAX)
-				# Coherent straight descent so the lane-pinned shape holds rigidly as it enters.
 				s_end2.movement_override = Roster.make_movement({"movement": "straight"})
 				waves.append(s_end2); chaff_flags.append(false)   # discrete capped flock
 			else:
 				s_end2.formation = WaveSpec.Formation.WALL if lead_lr else WaveSpec.Formation.PINCER
 				_apply_force_formation(s_end2, e_end)
 				waves.append(s_end2); chaff_flags.append(true)    # scaled chaff wall
-		# ACCENT — a quick crossing sting punctuates the tail of some non-finale waves (see ACCENT_CHANCE).
-		if not is_finale and rng.randf() < ACCENT_CHANCE:
-			var s_acc = _make_accent_wave(rng, chaff_types[rng.randi() % chaff_types.size()], sector_depth, level_index, i)
+		# ACCENT — a crossing sting on the tail of non-last units.
+		if not is_last_unit and rng.randf() < ACCENT_CHANCE:
+			var s_acc = _make_accent_wave(rng, chaff_types[rng.randi() % chaff_types.size()], sector_depth, eff_depth, u)
 			if s_acc != null:
 				waves.append(s_acc); chaff_flags.append(false)   # discrete sting
-	_apply_budget(waves, chaff_flags, sector_depth, level_index)
+	_apply_budget(waves, chaff_flags, STRETCH_BUDGET)
 	return waves
 
 
