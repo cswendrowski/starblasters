@@ -162,13 +162,13 @@ static func _level_budget(sector_depth: int, level_index: int) -> int:
 	return clampi(int(round(140.0 + 25.0 * level_index + 35.0 * (sector_depth - 1))), 140, 350)
 
 
-# Streaming concurrency cap (M5, bridge §1.2/§8): the on-screen non-hazard density
-# ceiling the conductor enforces. The budget (above) is the TOTAL the level streams
-# toward; this cap is the RATE — how many of that total are alive at once. Ramps
-# 12 (shallow opener, stays readable) -> 16 (deep) with +1 per node and +1 per
-# sector. The director consumes this via main.gd; default export is the fallback.
+# Streaming density cap — now a SLOT cap (level_structure_redesign_2026-07-01): the ceiling on
+# summed enemy FOOTPRINTS on screen (director._alive_slots), not a headcount. A wall of small chaff
+# (1 slot) packs to the cap; a few cruisers (9-12 slots) fill it. This is the LEVEL default / opener
+# value; step 2 (3-stretch loop) ramps it per stretch (16 → 26 → 36). Hazards set their own cap
+# (their bodies weigh 1, so it stays a headcount). The director consumes this via main.gd.
 static func cap_for(sector_depth: int, level_index: int) -> int:
-	return clampi(12 + level_index + (sector_depth - 1), 12, 16)
+	return clampi(26 + 2 * level_index + 2 * (sector_depth - 1), 26, 36)
 
 
 # Scale the level's CHAFF waves so the total approaches the budget, leaving discrete beats (heavies /

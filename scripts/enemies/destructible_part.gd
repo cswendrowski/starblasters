@@ -21,6 +21,7 @@ func _ready() -> void:
 	auto_rotate    = false                     # static section; the core owns facing
 	offscreen_mode = OffscreenMode.NONE        # freed with the core, never on its own offscreen check
 	super._ready()
+	slot_weight = 0                            # rides the core's footprint — no independent grid slot
 	if has_turret:
 		var t := EnemyTurret.new()
 		t.rotation_speed    = 1.8

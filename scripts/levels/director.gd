@@ -215,6 +215,20 @@ func _alive_count() -> int:
 	return n
 
 
+# Sum of live enemies' slot footprints — the slot-WEIGHTED density measure (level_structure_redesign_
+# 2026-07-01). max_concurrent is now a SLOT cap: a wall of small chaff (weight 1) can pack to it while
+# a few cruisers (weight 9) fill it. Hazards weigh 1 (their fields stay count-tuned), so an asteroid
+# field's slot sum == its headcount and its existing count-cap is unchanged. Excludes the boss gate,
+# like _alive_count.
+func _alive_slots() -> int:
+	var n: int = 0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or _is_boss_gate_node(e):
+			continue
+		n += (int(e.slot_weight) if "slot_weight" in e else 1)
+	return n
+
+
 # Lane selection for TOP spawns (conductor v2): alternate-anchor — prefer the
 # side opposite the previous spawn (Toaplan rhythm, composition guide §3),
 # among lanes not currently occupied near the entry band so the stream spreads
@@ -415,7 +429,7 @@ func _dispatch_formation(ph: Resource) -> void:
 		while i < sp.count:
 			if not _running:
 				return
-			while _running and _alive_count() >= max_concurrent:
+			while _running and _alive_slots() >= max_concurrent:
 				await get_tree().create_timer(0.1).timeout
 			if not _running:
 				return
@@ -447,13 +461,13 @@ func _dispatch_sweep_rows(ph: Resource) -> void:
 		while i < sp.count:
 			if not _running:
 				return
-			while _running and _alive_count() >= max_concurrent:
+			while _running and _alive_slots() >= max_concurrent:
 				await get_tree().create_timer(0.1).timeout
 			if not _running:
 				return
 			# Size this row to the remaining count AND the cap headroom, so a row never overshoots the
 			# clarity cap by much. At least 1 so we always make progress.
-			var room: int = maxi(1, max_concurrent - _alive_count())
+			var room: int = maxi(1, max_concurrent - _alive_slots())
 			var group: int = mini(mini(SWEEP_ROW_SIZE, room), sp.count - i)
 			var last_spawned: Node = null
 			for ln in _sweep_row_lanes(group, row_index):
@@ -534,7 +548,7 @@ func _dispatch_shaped(ph: Resource) -> void:
 	for idx in members.size():
 		if not _running:
 			return
-		while _running and _alive_count() >= max_concurrent:
+		while _running and _alive_slots() >= max_concurrent:
 			await get_tree().create_timer(0.1).timeout
 		if not _running:
 			return
@@ -559,7 +573,10 @@ func _dispatch_authored(ph: Resource) -> void:
 	# clarity throttle for ALGORITHMIC waves; applying it here partially dropped large formations and
 	# staggered same-row enemies that should burst together (Roman 2026-06-17). Raise the gate to fit
 	# the whole formation on top of whatever's already alive, so the authored layout lands intact.
-	var authored_cap: int = maxi(max_concurrent, _alive_count() + specs.size())
+	# Slot-aware burst-fit: raise the cap generously (est. up to 4 slots/member) so an intentional
+	# authored/escort formation lands intact on top of whatever's alive, instead of the clarity cap
+	# partially dropping it.
+	var authored_cap: int = maxi(max_concurrent, _alive_slots() + specs.size() * 4)
 	var elapsed: float = 0.0
 	for sp in specs:
 		if not _running:
@@ -570,7 +587,7 @@ func _dispatch_authored(ph: Resource) -> void:
 			elapsed += wait
 			if not _running:
 				return
-		while _running and _alive_count() >= authored_cap:
+		while _running and _alive_slots() >= authored_cap:
 			await get_tree().create_timer(0.1).timeout
 		if not _running:
 			return
@@ -615,11 +632,11 @@ func _dispatch_geometric(ph: Resource) -> void:
 		specs.append(s)
 	# An explicit shape is an intentional burst (like authored): raise the gate to fit the whole
 	# formation on top of whatever's already alive so the clarity cap can't partially drop it.
-	var cap: int = maxi(max_concurrent, _alive_count() + specs.size())
+	var cap: int = maxi(max_concurrent, _alive_slots() + specs.size() * 4)   # slot-aware burst-fit
 	for s in specs:
 		if not _running:
 			return
-		while _running and _alive_count() >= cap:
+		while _running and _alive_slots() >= cap:
 			await get_tree().create_timer(0.1).timeout
 		if not _running:
 			return
@@ -647,7 +664,7 @@ func _dispatch_wall(ph: Resource) -> void:
 		if not _running:
 			return
 		# Cap-gate before each row so a wall never blows past the concurrency cap.
-		while _running and _alive_count() >= max_concurrent:
+		while _running and _alive_slots() >= max_concurrent:
 			await get_tree().create_timer(0.1).timeout
 		if not _running:
 			return
@@ -687,7 +704,7 @@ func _dispatch_step_wall(ph: Resource) -> void:
 	if members.is_empty():
 		return
 	# Cap-gate before the row (one cohesive burst).
-	while _running and _alive_count() >= max_concurrent:
+	while _running and _alive_slots() >= max_concurrent:
 		await get_tree().create_timer(0.1).timeout
 	if not _running:
 		return
@@ -790,7 +807,7 @@ func _dispatch_filler(ph: Resource) -> void:
 			break
 		if budget_limit < 0 and elapsed >= dur_limit:
 			break
-		while _running and _alive_count() >= max_concurrent:
+		while _running and _alive_slots() >= max_concurrent:
 			await get_tree().create_timer(0.1).timeout
 			elapsed += 0.1
 		if not _running:

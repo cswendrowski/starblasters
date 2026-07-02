@@ -83,6 +83,13 @@ enum OffscreenMode { CYCLE_BOTTOM, FREE_ANY_EDGE, FREE_OPPOSITE_SIDE, NONE }
 # filters the "enemies" group by this flag when checking for empty.
 @export var is_hazard: bool = false
 @export var display_scale: float = 1.0
+# Slot footprint on the concurrency grid (level_structure_redesign_2026-07-01): a combat body counts
+# by how many 24px cells it occupies — ceil(w/24)*ceil(h/24) — so a wall of small chaff can pack the
+# 7-lane screen (up to the slot cap) while a few cruisers fill it. Hazards stay weight 1: their
+# fields are count-tuned separately. Computed once in _ready from the first RectangleShape2D box;
+# director._alive_slots() sums it for the density cap.
+const SLOT_CELL: float = 24.0
+var slot_weight: int = 1
 # --- Locomotion stat block (chassis-owned kinematics; locomotion refactor 2026-06-19) ---
 # Movement patterns express SHAPE only and read these for SCALE (movement_pattern.gd accessors).
 # Resolved per-spawn from the roster (size base rung + engine modifier) in director._spawn_enemy;
@@ -240,6 +247,7 @@ func _ready() -> void:
 	# enemy that was instantiated from script without a scene.
 	if not is_in_group("enemies"):
 		add_to_group("enemies")
+	slot_weight = _compute_slot_weight()   # grid footprint for the slot-weighted concurrency cap
 	# Behavior components: duplicate per-instance, then fire on_start AFTER the spawner
 	# positions us (deferred so it lands after start(pos), uniformly for every enemy
 	# type). No-op while components is empty.
@@ -290,6 +298,30 @@ func _ready() -> void:
 	# (Engine / EngineL / EngineR / EngineL2 ... anywhere in its scene) gets a trailing
 	# exhaust streak per marker via the shared EngineTrailFx — no per-enemy code.
 	_attach_engine_trail()
+
+
+# Grid footprint = ceil(w/24) * ceil(h/24) from the first RectangleShape2D collision (× display_scale
+# for scaled sprites). Hazards (asteroids/mines) stay weight 1 so their count-tuned fields are
+# untouched. 1 for anything without a rect box (bosses etc. are excluded from the cap elsewhere).
+func _compute_slot_weight() -> int:
+	if is_hazard:
+		return 1
+	var rect := _first_rect_shape_self(self)
+	if rect == null:
+		return 1
+	var w: float = rect.size.x * display_scale
+	var h: float = rect.size.y * display_scale
+	return maxi(1, int(ceil(w / SLOT_CELL)) * int(ceil(h / SLOT_CELL)))
+
+
+func _first_rect_shape_self(n: Node) -> RectangleShape2D:
+	for c in n.get_children():
+		if c is CollisionShape2D and (c as CollisionShape2D).shape is RectangleShape2D:
+			return (c as CollisionShape2D).shape as RectangleShape2D
+		var deep := _first_rect_shape_self(c)
+		if deep != null:
+			return deep
+	return null
 
 
 const _OutlineFx = preload("res://scripts/effects/outline_fx.gd")
