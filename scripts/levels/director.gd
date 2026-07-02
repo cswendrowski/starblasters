@@ -74,6 +74,16 @@ const ANCHOR_GAP_PAD: float = 8.0
 # spawn on a near-simultaneous stagger so a whole shape lands as one gesture, not a trickle.
 const GEOMETRIC_ROW_GAP: float = 40.0
 const GEOMETRIC_MEMBER_STAGGER: float = 0.03
+# Burst-fit ceiling (fairness fix, 2026-07-02): an intentional pre-stacked burst (authored /
+# geometric) may exceed the clarity cap so its shape lands intact, but NOT without bound — an
+# unclamped raise let a 21-33-member injected wall stack on top of a saturated 36-cap climax
+# (conductor review §2.1). The burst-fit cap is raised at most this many slots above max_concurrent,
+# and the whole formation is gated to fit under that ceiling BEFORE the first member spawns (so a
+# lockstep formation enters coherent instead of shearing mid-spawn while it waits for room).
+const BURST_OVERSHOOT: int = 8
+# Hard cap on how long a burst waits for cap headroom before spawning anyway — so a held/stuck
+# screen (nothing dying) can never deadlock the wave on the pre-gate.
+const BURST_HEADROOM_TIMEOUT: float = 6.0
 # SWEEP rows (2026-06-27): a directional sweep (left_to_right / right_to_left — the START/MIDDLE
 # bulk) used to spawn ONE enemy per spawn_interval on a side-alternating _pick_lane, reading as
 # "single enemies trickling in on random lanes". It now enters as ROWS of this many abreast (a
@@ -577,11 +587,14 @@ func _dispatch_authored(ph: Resource) -> void:
 	# expects them all on screen on their authored schedule. The standard max_concurrent gate is a
 	# clarity throttle for ALGORITHMIC waves; applying it here partially dropped large formations and
 	# staggered same-row enemies that should burst together (Roman 2026-06-17). Raise the gate to fit
-	# the whole formation on top of whatever's already alive, so the authored layout lands intact.
-	# Slot-aware burst-fit: raise the cap generously (est. up to 4 slots/member) so an intentional
-	# authored/escort formation lands intact on top of whatever's alive, instead of the clarity cap
-	# partially dropping it.
-	var authored_cap: int = maxi(max_concurrent, _alive_slots() + specs.size() * 4)
+	# the whole formation on top of whatever's already alive, so the authored layout lands intact —
+	# but CEILED (fairness fix 2026-07-02): the raise never exceeds max_concurrent + BURST_OVERSHOOT,
+	# and we wait for that headroom BEFORE the first member so the burst doesn't shear mid-formation
+	# on a saturated screen.
+	await _await_burst_headroom(specs.size())
+	if not _running:
+		return
+	var authored_cap: int = _burst_cap(specs.size())
 	var elapsed: float = 0.0
 	for sp in specs:
 		if not _running:
@@ -636,8 +649,13 @@ func _dispatch_geometric(ph: Resource) -> void:
 		s.spawn_y = -12.0 - float(max_row - int(c.y)) * GEOMETRIC_ROW_GAP
 		specs.append(s)
 	# An explicit shape is an intentional burst (like authored): raise the gate to fit the whole
-	# formation on top of whatever's already alive so the clarity cap can't partially drop it.
-	var cap: int = maxi(max_concurrent, _alive_slots() + specs.size() * 4)   # slot-aware burst-fit
+	# formation on top of whatever's already alive so the clarity cap can't partially drop it —
+	# CEILED to max_concurrent + BURST_OVERSHOOT, with a whole-formation pre-gate, so it can't stack
+	# an unbounded wall on a saturated screen (fairness fix 2026-07-02; see _dispatch_authored).
+	await _await_burst_headroom(specs.size())
+	if not _running:
+		return
+	var cap: int = _burst_cap(specs.size())
 	for s in specs:
 		if not _running:
 			return
@@ -647,6 +665,32 @@ func _dispatch_geometric(ph: Resource) -> void:
 			return
 		_spawn_enemy(s, 0, int(s.lane))
 		await get_tree().create_timer(GEOMETRIC_MEMBER_STAGGER).timeout
+
+
+# Ceiled burst-fit cap for an intentional pre-stacked formation of `member_count`: fit it on top of
+# whatever's alive (est. up to 4 slots/member so same-row bursts aren't throttled), but never raise
+# more than BURST_OVERSHOOT above the clarity cap. Always >= max_concurrent so a burst is never
+# throttled BELOW the normal streaming rate.
+func _burst_cap(member_count: int) -> int:
+	var want: int = _alive_slots() + member_count * 4
+	return maxi(max_concurrent, mini(want, max_concurrent + BURST_OVERSHOOT))
+
+
+# Gate a burst until the WHOLE formation fits under the ceiling (max_concurrent + BURST_OVERSHOOT),
+# so a pre-stacked / lockstep formation enters coherent instead of shearing while it stalls
+# mid-spawn on a saturated screen. `member_count` is used as the slot estimate (authored members are
+# overwhelmingly 1-slot smalls; mediums under-estimate slightly and eat into the overshoot budget).
+# A formation too big to ever fit (target < 0 — dev-forced walls on a low cap) waits for the screen
+# to drain as far as it will, then the timeout releases it and it streams under _burst_cap.
+# Hard-timeout either way so a held/stuck screen can't deadlock the wave.
+func _await_burst_headroom(member_count: int) -> void:
+	var ceiling: int = max_concurrent + BURST_OVERSHOOT
+	# Room for the whole formation: alive must drop far enough that alive + member_count <= ceiling.
+	var target: int = ceiling - member_count
+	var elapsed: float = 0.0
+	while _running and _alive_slots() > target and elapsed < BURST_HEADROOM_TIMEOUT:
+		await get_tree().create_timer(0.1).timeout
+		elapsed += 0.1
 
 
 # WALL: spawn members as successive rows across the lanes. Each row leaves

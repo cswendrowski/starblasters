@@ -56,8 +56,10 @@ var _lock_t: float = 0.0
 
 
 func _ready() -> void:
+	# Random spawn-time desync (KEPT) — staggers this turret's first shot so identical turrets across a
+	# wave don't volley in lockstep. The steady-state interval itself is deterministic (see _fire_interval).
 	_fire_t = randf_range(0.5, fire_interval_max)
-	_next_interval = randf_range(fire_interval_min, fire_interval_max)
+	_next_interval = _fire_interval()
 	var p := get_parent()
 	if p and not p.tree_exiting.is_connected(queue_free):
 		p.tree_exiting.connect(queue_free)
@@ -121,6 +123,15 @@ func _host_suspended() -> bool:
 	return false
 
 
+# Deterministic fire cadence (firing-consistency pass 2026-07-02, parity with enemy_core._fire_interval).
+# Replaces the old per-shot randf_range(min, max): re-rolling every shot made the turret's rhythm wander
+# unpredictably. We fire at a FIXED interval — the midpoint of min/max — for a steady, readable cadence.
+# The random spawn-time desync (_fire_t seed in _ready) keeps identical turrets from firing in perfect
+# lockstep, so the fixed rate doesn't read as robotic. Floor at 0.1s so a degenerate 0/0 can't busy-loop.
+func _fire_interval() -> float:
+	return maxf(0.1, (fire_interval_min + fire_interval_max) * 0.5)
+
+
 func _try_fire() -> void:
 	if _fire_t < _next_interval:
 		return
@@ -141,7 +152,7 @@ func _try_fire() -> void:
 		# Not aimed yet — do NOT reset _fire_t; check again next frame.
 		return
 	_fire_t = 0.0
-	_next_interval = randf_range(fire_interval_min, fire_interval_max)
+	_next_interval = _fire_interval()
 	_shoot()
 	if recoil_frames > 0:
 		_recoil()

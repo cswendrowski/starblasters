@@ -130,12 +130,38 @@ func _fire_burst(enemy) -> void:
 	_fire_bullet(enemy, dir)   # shot 1's SFX is played by enemy_core after fire() returns
 	for i in range(1, maxi(1, burst_count)):
 		await enemy.get_tree().create_timer(burst_interval).timeout
-		if not is_instance_valid(enemy):
+		# Bail if the host went away OR is now held (dying / recycling / off the playfield) — a
+		# hull burst that started on-screen must not keep firing into a death/recycle (Roman
+		# 2026-07-01, matching mount_component's _fire_gun burst guard).
+		if not is_instance_valid(enemy) or _held(enemy):
 			return
 		_fire_bullet(enemy, dir)
 		# Each subsequent burst shot fires its OWN sound (Roman 2026-06-11: enemy
 		# weapons should play their fire sound on every shot, bursts included).
 		_EnemySfx.play_for(enemy)
+
+
+# Hold fire while the host is dying / recycling / off the playfield. Mirrors mount_component._held +
+# enemy_core's shoot-timer guards. Duck-typed: _dying/_cycling live on enemy_core (a pure enemy_base
+# host may lack them); enemy_core provides _on_playfield, pure enemy_base enemies fall back to an
+# inline off-screen box (X uses the full viewport so gutters never gate; only the Y edges suppress).
+func _held(enemy) -> bool:
+	if "_dying" in enemy and enemy._dying:
+		return true
+	if "_cycling" in enemy and enemy._cycling:
+		return true
+	if enemy.has_method("_on_playfield"):
+		return not enemy._on_playfield()
+	return _off_screen(enemy)
+
+
+func _off_screen(enemy) -> bool:
+	if not (enemy is Node2D):
+		return false
+	const M := 8.0
+	var sz: Vector2 = enemy.get_viewport_rect().size
+	var p: Vector2 = enemy.position
+	return p.x < M or p.x > sz.x - M or p.y < M or p.y > sz.y - M
 
 # (_apply_axis is inherited from shoot_pattern and applied inside _spawn_bullet — the
 # duplicate override here was dead, removed per the M6 review.)

@@ -62,3 +62,11 @@ func compute_step(enemy, delta: float) -> Vector2:
 			return Vector2(tx - enemy.position.x, ty - enemy.position.y)
 		_:  # exit
 			return Vector2(0.0, _move_speed(enemy) * EXIT_RATIO * delta)
+
+
+# Opt into unit-weighted inertia (ship kinematics §7 increment 2 — 2026-07-02) so the loop→exit
+# snap (and the descend→loop entry) ease through their velocity discontinuities instead of jerking.
+# The smoothing lives in enemy_core; _center is captured on the position-Y arrival test above, which
+# lags a frame or two under inertia but still resolves correctly (arrival is position-based).
+func uses_inertia() -> bool:
+	return true

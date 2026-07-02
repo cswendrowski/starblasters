@@ -47,3 +47,11 @@ func compute_step(enemy, delta: float) -> Vector2:
 	var nx: float = clampf(enemy.position.x + float(_dir) * _move_speed(enemy) * SWEEP_RATIO * delta,
 		Playfield.X_MIN + sweep_margin, Playfield.X_MAX - sweep_margin)
 	return Vector2(nx - enemy.position.x, 0.0)
+
+
+# Opt into unit-weighted inertia (ship kinematics §7 increment 2 — 2026-07-02) so the margin
+# reversal + the descend→sweep settle pivot ease through their velocity snaps instead of flipping
+# instantly. The smoothing lives in enemy_core; the settle trigger is the position-Y clamp above,
+# which lags a frame or two under inertia but still resolves correctly.
+func uses_inertia() -> bool:
+	return true

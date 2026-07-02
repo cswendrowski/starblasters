@@ -77,8 +77,14 @@ func on_phase(enemy, phase_name: String) -> void:
 	_fire(enemy)
 
 
+# Deterministic fire cadence (firing-consistency pass 2026-07-02, parity with enemy_core._fire_interval).
+# Replaces the old per-shot randf_range(min, max): re-rolling every shot made the mount's rhythm wander
+# unpredictably. We fire at a FIXED interval — the midpoint of the roster's min/max — for a steady,
+# readable cadence. The random spawn-time desync (on_start _t seed) keeps identical mounts from firing in
+# perfect lockstep, so the fixed rate doesn't read as robotic. Floor at 0.1s so a degenerate 0/0 can't
+# busy-loop the timer.
 func _roll_interval() -> float:
-	return randf_range(spec.fire_interval_min, maxf(spec.fire_interval_min, spec.fire_interval_max))
+	return maxf(0.1, (spec.fire_interval_min + spec.fire_interval_max) * 0.5)
 
 
 # Hold fire while recycling or off the playfield — mirrors enemy_core._on_shoot_timer_timeout.

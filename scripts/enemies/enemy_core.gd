@@ -173,7 +173,7 @@ func _process(delta: float) -> void:
 					_last_move_vel = step / safe_delta   # px/s — for wreck-drift motion preservation
 			_clamp_to_sides()
 			_offscreen_cleanup_check()
-			_apply_auto_rotation()
+			_apply_auto_rotation(safe_delta)
 			_check_path_phase_fire()
 			_tick_components(safe_delta)
 		return

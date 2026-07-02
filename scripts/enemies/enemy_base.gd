@@ -223,6 +223,9 @@ var _last_position: Vector2 = Vector2.ZERO
 # preserves the enemy's motion at the moment of death before drifting into the fall (Roman 2026-06-10).
 var _last_move_vel: Vector2 = Vector2.ZERO
 var _rot_init: bool = false
+# Armed on spawn/recycle re-init; the first frame that produces a facing target snaps to it
+# (no turn-rate limit) so units enter the screen already oriented. See _apply_auto_rotation.
+var _rot_snap_pending: bool = false
 
 # Cached viewport size — used by subclasses for off-screen checks and side
 # clamps. Set in _ready() (not @onready) so subclasses can use it from their
@@ -1104,50 +1107,79 @@ func nose_ray_hits_player(radius: float, max_range: float = 0.0) -> bool:
 # Per-frame offscreen check + optional sprite auto-rotation. Subclasses
 # should call this from their _process() AFTER moving themselves, OR
 # rely on the default here when they don't override it.
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	_offscreen_cleanup_check()
-	_apply_auto_rotation()
+	_apply_auto_rotation(delta)
 
 
-# Rotate so the sprite's "up" (- y) points along the current velocity.
-# Tiny moves (under a pixel/frame) are skipped to avoid jitter when the
-# enemy is stationary or anchor-following without a real velocity.
-func _apply_auto_rotation() -> void:
+# Turn-rate-capped facing (ship kinematics, §7 increment 1 — 2026-07-02).
+# Rotate so the sprite's "up" (−y) points along the current velocity, but APPROACH the target
+# heading at a weight-lagged turn rate instead of snapping to it. Previously rotation was set
+# INSTANTLY from the per-frame positional delta, so every velocity reversal (loiter_sweep margin
+# bounce, skirmish loop-exit, lateral reflection) was a one-frame 90–180° hull flip. We now compute
+# the same TARGET rotation, then close on it with rotate_toward at the chassis turn_rate/weight rate
+# (the convention omni_thrust already uses). After a spawn/recycle (_rot_init false) the snap stays
+# PENDING until the first frame that actually produces a target — the init frame itself has a zero
+# positional delta, so snapping there would never fire for velocity-facing units and the ship would
+# visibly pirouette from its scene-default rotation while entering the screen.
+# `delta` defaults to 0 for backward compatibility with any bespoke caller that omits it — a 0 delta
+# yields a zero max-step, so the facing simply holds until the next real-delta tick.
+func _apply_auto_rotation(delta: float = 0.0) -> void:
 	if not auto_rotate or _dying:
 		return
 	if not _rot_init:
 		_last_position = global_position
 		_rot_init = true
-		return
+		_rot_snap_pending = true
+		return  # zero delta this frame — nothing to face yet; snap stays pending
 	var delta_pos: Vector2 = global_position - _last_position
 	_last_position = global_position
+	# Chassis turn budget: deg/s divided by weight so heavy ships turn laggier (mirrors
+	# movement_pattern.gd's 300 deg/s + weight 1 medium defaults and omni_thrust's rate math).
+	var eff_turn_rate: float = turn_rate if turn_rate > 0.0 else 300.0
+	var eff_weight: float = weight if weight > 0.0 else 1.0
+	var max_step: float = deg_to_rad(eff_turn_rate) / maxf(eff_weight, 0.1) * delta
+	# Resolve the TARGET heading (all the existing facing filters apply to the target, not the
+	# raw application), then approach it under the rate cap.
+	var target_rot: float
 	# OMNI: keep the nose on the player regardless of travel direction (omni-directional thrust).
 	# Done even while stationary so the unit tracks; bypasses the velocity-based facing below.
 	# (Dedicated omni patterns like omni_thrust suppress auto_rotate and steer themselves — this
-	# branch is the generalization for any other pattern on an omni-capable hull.)
+	# branch is the generalization for any other pattern on an omni-capable hull.) Routed through
+	# the same rate cap now — the old snap-lock was the perfect-lock Roman rejected 2026-06-10.
 	if omni:
 		var pl := find_player()
-		if pl != null and pl is Node2D:
-			var to_p: Vector2 = (pl as Node2D).global_position - global_position
-			if to_p.length_squared() > 1.0:
-				rotation = to_p.angle() + PI * 0.5
-		return
-	if delta_pos.length_squared() < 0.04:  # < 0.2px/frame ~= stationary
-		return
-	# STRAFE drops the lateral (X) component and RETRO drops the backward (upward, −Y) component from
-	# the FACING velocity, so a sliding/reversing unit keeps facing forward instead of turning. When
-	# the filtered velocity collapses to ~0 (a pure side-slide or pure reverse) the unit faces straight
-	# DOWN (its forward), never snapping sideways or flipping around.
-	var fv: Vector2 = delta_pos
-	if strafe:
-		fv.x = 0.0
-	if retro and fv.y < 0.0:
-		fv.y = 0.0
-	if fv.length_squared() < 0.0001:
-		fv = Vector2(0.0, 1.0)
-	# Sprites face up (north); atan2 returns 0 = east. Add PI/2 so
-	# velocity (0, +1) → south → rotation = PI (sprite points down).
-	rotation = fv.angle() + PI * 0.5
+		if pl == null or not (pl is Node2D):
+			return
+		var to_p: Vector2 = (pl as Node2D).global_position - global_position
+		if to_p.length_squared() <= 1.0:
+			return
+		target_rot = to_p.angle() + PI * 0.5
+	else:
+		if delta_pos.length_squared() < 0.04:  # < 0.2px/frame ~= stationary
+			return
+		# STRAFE drops the lateral (X) component and RETRO drops the backward (upward, −Y) component
+		# from the FACING velocity, so a sliding/reversing unit keeps facing forward instead of
+		# turning. When the filtered velocity collapses to ~0 (a pure side-slide or pure reverse) the
+		# unit faces straight DOWN (its forward), never snapping sideways or flipping around.
+		var fv: Vector2 = delta_pos
+		if strafe:
+			fv.x = 0.0
+		if retro and fv.y < 0.0:
+			fv.y = 0.0
+		if fv.length_squared() < 0.0001:
+			fv = Vector2(0.0, 1.0)
+		# Sprites face up (north); atan2 returns 0 = east. Add PI/2 so
+		# velocity (0, +1) → south → rotation = PI (sprite points down).
+		target_rot = fv.angle() + PI * 0.5
+	# First meaningful-motion frame after spawn/recycle: snap so the unit faces its travel
+	# immediately (no rate limit — spawns happen off-screen and must enter already oriented).
+	# Otherwise close on the target at the capped rate (rotate_toward handles shortest-arc wrapping).
+	if _rot_snap_pending:
+		_rot_snap_pending = false
+		rotation = target_rot
+	else:
+		rotation = rotate_toward(rotation, target_rot, max_step)
 
 
 func _offscreen_cleanup_check() -> void:

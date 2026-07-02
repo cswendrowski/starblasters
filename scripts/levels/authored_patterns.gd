@@ -25,6 +25,17 @@ const Lanes = preload("res://scripts/systems/lanes.gd")
 # Per-wave probability the auto-mix splices an authored pattern into a generated wave.
 const DEFAULT_CHANCE := 0.22
 
+# Fairness clamp (conductor review §2.1, 2026-07-02): an injected formation is INVISIBLE to the
+# stretch slot-budget, so a 21-33-member wall used to burst on top of a capstone at the 36-slot
+# climax (or worse under the 16-slot opener). At injection time we skip patterns whose member count
+# exceeds this SHARE of the wave's slot_cap — the injection should be an accent on the wave, never a
+# second wave's worth of enemies. Skipping (not trimming) preserves each authored shape's designed
+# whole (navigability guarantees). Dev-forced patterns bypass this (explicit intent).
+const INJECT_CAP_SHARE := 0.6
+# Fallback cap when a ScoreWave carries no slot_cap (-1 = hazards / non-stretch content). Matches the
+# director's export default so the share math stays sane off the 3-stretch path.
+const INJECT_FALLBACK_CAP := 14
+
 # Vertical gap (px) between formation rows: rows are pre-stacked this far apart ABOVE the screen so
 # the painted formation descends in holding its shape (~ the editor grid's row height; tunable).
 const ROW_GAP_PX := 40.0
@@ -545,6 +556,27 @@ const DATA: Array = [
 			{"lane": 2, "row": 0, "enemy": "", "movement": "straight", "size": "small"},
 			{"lane": 1, "row": 0, "enemy": "", "movement": "straight", "size": "small"},
 			{"lane": 0, "row": 0, "enemy": "", "movement": "straight", "size": "small"},
+		],
+	},
+	{
+		# Depth-banding exemplar (baked from user://tuners/wave_patterns.json, 2026-07-02): 9 lane-cutters
+		# on the parity lanes 1/3/5 × rows 0/2/4, each row's depth band monotonic high→mid→low. Free (not
+		# lockstep) so each cutter runs at its own chassis speed. Leaves lanes 0/2/4/6 clear = navigable.
+		"name": "lane_cut_wave",
+		"faction": "any",
+		"min_sector": 0,
+		"stagger": 0.18,
+		"lockstep": false,
+		"placements": [
+			{"lane": 1, "row": 0, "enemy": "", "movement": "lane_cut", "size": "small", "dir": "", "depth": "high"},
+			{"lane": 3, "row": 0, "enemy": "", "movement": "lane_cut", "size": "small", "dir": "", "depth": "high"},
+			{"lane": 5, "row": 0, "enemy": "", "movement": "lane_cut", "size": "small", "dir": "", "depth": "high"},
+			{"lane": 1, "row": 2, "enemy": "", "movement": "lane_cut", "size": "small", "dir": "", "depth": "mid"},
+			{"lane": 3, "row": 2, "enemy": "", "movement": "lane_cut", "size": "small", "dir": "", "depth": "mid"},
+			{"lane": 5, "row": 2, "enemy": "", "movement": "lane_cut", "size": "small", "dir": "", "depth": "mid"},
+			{"lane": 1, "row": 4, "enemy": "", "movement": "lane_cut", "size": "small", "dir": "", "depth": "low"},
+			{"lane": 3, "row": 4, "enemy": "", "movement": "lane_cut", "size": "small", "dir": "", "depth": "low"},
+			{"lane": 5, "row": 4, "enemy": "", "movement": "lane_cut", "size": "small", "dir": "", "depth": "low"},
 		],
 	},
 	{
@@ -1168,10 +1200,23 @@ static func maybe_inject(score, fill_faction: int, sector: int, rng: RandomNumbe
 		return
 	for w in score.waves:
 		if rng.randf() < chance:
+			# Down-select to patterns that FIT this wave's cap headroom (fairness §2.1): an injection is
+			# an accent, not a second wave. Draw the RNG unconditionally (fit or not) so the injection
+			# stream stays deterministic across the size filter — a node retry reproduces the same picks.
 			var pat: Dictionary = pool[rng.randi() % pool.size()]
+			var cap: int = int(w.slot_cap) if ("slot_cap" in w and int(w.slot_cap) >= 0) else INJECT_FALLBACK_CAP
+			var max_members: int = maxi(1, int(float(cap) * INJECT_CAP_SHARE))
+			if _member_count(pat) > max_members:
+				continue   # oversized for this wave — skip rather than mutilate the authored shape
 			var ph := build_phrase(pat, fill_faction, sector, rng)
 			if ph != null:
 				w.phrases.append(ph)
+
+
+# Placement count of a pattern dict (its member count once built). Used to gate injection against
+# the wave's cap headroom — see INJECT_CAP_SHARE.
+static func _member_count(pattern: Dictionary) -> int:
+	return (pattern.get("placements", []) as Array).size()
 
 
 # Read + clear the dev "send to conductor" one-shot. The editor can push EITHER a live pattern
