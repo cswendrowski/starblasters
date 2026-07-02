@@ -34,11 +34,13 @@ const SIZE_TABLE := {
 # migration sets each enemy's `engine` so its resolved move_speed lands on its OLD speed; these
 # bases are the authoring anchors, tuned in the Enemy Bench Locomotion tab. (SIZE_TABLE.speed_mult
 # is now dead — removed with the bench rework.)
+# base_rung dropped one clarity rung (−60 px/s) 2026-07-02 (Roman: "bring all enemy speeds down a
+# rung"). huge/giant stay at 60 (the lowest whole rung — one more rung would hit the 30 creep sub-rung).
 const SIZE_LOCOMOTION := {
-	"tiny":   {"base_rung": 240.0, "weight": 1.0, "turn_rate": 240.0, "accel": 500.0},
-	"small":  {"base_rung": 180.0, "weight": 1.0, "turn_rate": 240.0, "accel": 410.0},
-	"medium": {"base_rung": 120.0, "weight": 2.0, "turn_rate": 120.0, "accel": 330.0},
-	"large":  {"base_rung": 120.0, "weight": 3.0, "turn_rate":  90.0, "accel": 240.0},
+	"tiny":   {"base_rung": 180.0, "weight": 1.0, "turn_rate": 240.0, "accel": 500.0},
+	"small":  {"base_rung": 120.0, "weight": 1.0, "turn_rate": 240.0, "accel": 410.0},
+	"medium": {"base_rung":  60.0, "weight": 2.0, "turn_rate": 120.0, "accel": 330.0},
+	"large":  {"base_rung":  60.0, "weight": 3.0, "turn_rate":  90.0, "accel": 240.0},
 	"huge":   {"base_rung":  60.0, "weight": 4.0, "turn_rate":  45.0, "accel": 180.0},
 	"giant":  {"base_rung":  60.0, "weight": 5.0, "turn_rate":  23.0, "accel":  90.0},
 }
@@ -567,7 +569,7 @@ const ENTRIES := [
 		# Cobra — fast diver, now armed (Enemy Bench 2026-06-20): fires an Aimed Sniper round
 		# along its nose (forward = down once auto-rotated), a precise poke as it dives.
 		"scene": "res://scenes/enemies/core/enemy_core_s_cobra.tscn",
-		"engine": -2,
+		"engine": -1,   # held at 60 (was -2 → 60 on the old base; the −1 rung base drop would push it to creep)
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "straight",
@@ -1175,7 +1177,7 @@ const ENTRIES := [
 	{
 		# Censer Frigate — FLAG: bench left it unarmed (codex implies nose wave-projectors; arm in bench later).
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_censer.tscn",
-		"engine": -1, "tier": Tier.COMMON, "size": "medium", "tags": [],
+		"engine": 0, "tier": Tier.COMMON, "size": "medium", "tags": [],   # held at 60 (was -1; base drop would push to creep)
 		"movement": "straight", "shoot": null, "base_count": 2, "recycle": 0,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.5,
 	},
@@ -1209,7 +1211,7 @@ const ENTRIES := [
 	{
 		# Rebuker — slow, maneuverable, forward zealot lasers.
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_rebuker.tscn",
-		"engine": -1, "tier": Tier.COMMON, "size": "medium", "tags": [],
+		"engine": 0, "tier": Tier.COMMON, "size": "medium", "tags": [],   # held at 60 (was -1; base drop would push to creep)
 		"movement": "straight", "shoot": null, "base_count": 2, "recycle": 0,
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_ZealotLaser, "aim": "straight_down", "fire_min": 0.5, "fire_max": 0.5, "count": 1, "spread_deg": 0.0 }],
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.6,
