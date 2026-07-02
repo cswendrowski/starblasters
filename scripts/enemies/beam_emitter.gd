@@ -59,6 +59,11 @@ var dps: float = 3.0
 var hit_radius: float = 8.0                    # damage band half-width (gameplay)
 var target_group: String = "player"
 var pierce: bool = true                        # false = stop visual+damage at first hit
+# Friendly fire (Roman 2026-07-01): when on, the beam ALSO damages the "enemies" group (in addition
+# to target_group) — a lane hazard that blows up the player AND enemies alike. EXCEPT any node that
+# is `ignore_owner` or its descendant, so a boss's own lane laser never kills its own turrets/lasers.
+var friendly_fire: bool = false
+var ignore_owner: Node = null
 
 # --- visuals: layer table [{width, color}], widest first; empty = default stack ---
 var layers: Array = []
@@ -308,11 +313,8 @@ func _apply_damage(delta: float) -> void:
 	var seg: Array = _world_segment()
 	var a: Vector2 = seg[0]
 	var b: Vector2 = seg[1]
-	var tree := get_tree()
-	if tree == null:
-		return
-	for t in tree.get_nodes_in_group(target_group):
-		if not is_instance_valid(t) or not (t is Node2D):
+	for t in _damage_candidates():
+		if not is_instance_valid(t) or not (t is Node2D) or _is_ignored(t):
 			continue
 		if _dist_point_to_segment((t as Node2D).global_position, a, b) <= hit_radius:
 			_damage_target(t, dmg)
@@ -327,6 +329,26 @@ func _damage_target(t: Object, dmg: int) -> void:
 		t.take_hit(dmg)
 
 
+# The nodes the beam can hit this frame: target_group, plus the "enemies" group when friendly_fire
+# is on (the boss's lane laser is indifferent — it torches the player AND enemies).
+func _damage_candidates() -> Array:
+	var tree := get_tree()
+	if tree == null:
+		return []
+	var out: Array = tree.get_nodes_in_group(target_group)
+	if friendly_fire and target_group != "enemies":
+		out = out + tree.get_nodes_in_group("enemies")
+	return out
+
+
+# Skip the beam's own owner + everything under it (a boss never kills its own turrets/lasers).
+func _is_ignored(t: Object) -> bool:
+	if ignore_owner == null or not (t is Node):
+		return false
+	var n: Node = t as Node
+	return n == ignore_owner or ignore_owner.is_ancestor_of(n)
+
+
 # Distance along the beam to the nearest target_group member within hit_radius, or
 # -1 if none (used to truncate when pierce is off).
 func _nearest_hit_distance(a: Vector2, b: Vector2) -> float:
@@ -339,8 +361,8 @@ func _nearest_hit_distance(a: Vector2, b: Vector2) -> float:
 		return -1.0
 	var dir: Vector2 = ab / len_ab
 	var best: float = -1.0
-	for t in tree.get_nodes_in_group(target_group):
-		if not is_instance_valid(t) or not (t is Node2D):
+	for t in _damage_candidates():
+		if not is_instance_valid(t) or not (t is Node2D) or _is_ignored(t):
 			continue
 		var p: Vector2 = (t as Node2D).global_position
 		if _dist_point_to_segment(p, a, b) <= hit_radius:

@@ -23,6 +23,19 @@ extends "res://scripts/enemies/enemy_base.gd"
 const LateralDrift = preload("res://scripts/enemies/patterns/lateral_drift.gd")
 var _drift: Resource = null
 
+# Optional initial SCATTER impulse (Roman 2026-07-01) — set before start() to fling the ember outward
+# (e.g. the battleship's firecore release fans them out); it decays over ~0.5s, after which the normal
+# lane drift carries on. Default zero = the historical straight drop (faction drop unchanged).
+@export var burst_velocity: Vector2 = Vector2.ZERO
+const BURST_DECAY: float = 3.0   # per-second exponential-ish decay of the scatter impulse
+var _burst: Vector2 = Vector2.ZERO
+
+# Optional initial SCALE (Roman 2026-07-01) — set <1 before start() so the ember starts small and GROWS
+# to full size, reading as "rising into the foreground" from a distant (background) source (the
+# battleship's background firecore hook). Default 1.0 = spawns full-size (faction drop / slide unchanged).
+@export var spawn_scale: float = 1.0
+const GROW_DURATION: float = 0.5   # matches ~the burst decay, so it's full-size by the time it settles
+
 var _t: float = 0.0
 
 
@@ -58,6 +71,12 @@ func _sprite() -> CanvasItem:
 func start(pos: Vector2) -> void:
 	position = pos
 	_t = 0.0
+	_burst = burst_velocity   # initial scatter impulse (decays into the normal drift)
+	# Grow from a small "distant" size to full as it rises into the foreground (background hook release).
+	if spawn_scale < 0.999:
+		scale = Vector2(spawn_scale, spawn_scale)
+		var tw := create_tween()
+		tw.tween_property(self, "scale", Vector2.ONE, GROW_DURATION).set_trans(Tween.TRANS_SINE)
 	if _drift != null:
 		_drift.on_start(self)   # capture the home lane for the confined modes
 
@@ -66,6 +85,10 @@ func _process(delta: float) -> void:
 	if _dying:
 		return
 	_t += delta
+	# Decaying scatter impulse (fan-out on release), then the normal lane drift takes over.
+	if _burst.length_squared() > 1.0:
+		position += _burst * delta
+		_burst = _burst.lerp(Vector2.ZERO, clampf(BURST_DECAY * delta, 0.0, 1.0))
 	if _drift != null:
 		position.x += _drift.compute_step(self, delta).x   # lateral wander (STRAIGHT = no-op)
 	position.y += drift_speed * delta
@@ -97,7 +120,14 @@ func explode() -> void:
 	queue_free()
 
 
+# Brief arm delay after spawn so a just-released ember (e.g. the battleship scattering its cores as it
+# dives) doesn't instantly detonate on a player it spawned near — it scatters + drifts first.
+const ARM_DELAY: float = 0.3
+
+
 func _on_area_entered(area: Area2D) -> void:
+	if _t < ARM_DELAY:
+		return
 	if area.has_method("take_damage") and "hull" in area:
 		area.take_damage(damage_on_collide)
 		explode()

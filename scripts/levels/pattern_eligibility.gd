@@ -54,6 +54,10 @@ const DATA := {
 	"res://scenes/enemies/factions/zealot/enemy_beamer_tracker.tscn": {"identity": "drift", "eligible": ["drift"]},
 	"res://scenes/enemies/factions/zealot/enemy_z_m_helix.tscn": {"identity": "straight", "eligible": ["drift", "loiter", "side_traverse", "straight"]},
 	"res://scenes/enemies/factions/zealot/enemy_z_l_crusader.tscn": {"identity": "straight", "eligible": ["straight", "lane_drift", "lane_shift", "loiter_sweep"]},
+	# Zealot Battleship (mega-boss). Movement is driven by the boss encounter state machine, so this
+	# entry is cosmetic — it just keeps the Enemy Bench / eligibility tools from falling back to a
+	# placeholder key when the boss is selected. "loiter" reads as the capital holding high in the band.
+	"res://scenes/enemies/factions/zealot/boss_z_battleship.tscn": {"identity": "loiter", "eligible": ["loiter", "drift"]},
 	"res://scenes/enemies/factions/zealot/enemy_z_s_manta.tscn": {"identity": "straight", "eligible": ["lane_drift", "lane_shift", "straight"]},
 	"res://scenes/enemies/factions/zealot/enemy_z_s_acolyte.tscn": {"identity": "straight", "eligible": ["lane_drift", "straight", "lane_shift"]},
 	"res://scenes/enemies/factions/zealot/enemy_z_s_drifter.tscn": {"identity": "straight", "eligible": ["straight"]},

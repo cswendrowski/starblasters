@@ -108,6 +108,13 @@ var _last_lane: int = -1      # last lane chosen by _pick_lane (alternate-anchor
 # start_score (a stream distinct from the producer's content seed). (Health audit 2026-06-15.)
 var _rng := RandomNumberGenerator.new()
 
+# BOSS GATE (Roman 2026-07-01): when a persistent boss registers here (main.gd wires it on the
+# battleship level), the director runs DISCRETE waves — it drains the current wave, then awaits ONE
+# boss maneuver before starting the next. Null on every other level, so the normal streaming pacing
+# (no per-wave clear-gate) is completely untouched.
+var boss_gate: Node = null
+const BOSS_GATE_DRAIN_TIMEOUT: float = 15.0   # safety cap (s) so a stuck/lingering enemy can't hang the gate
+
 func start_level(new_level: Resource = null) -> void:
 	# COMPAT SHIM (M5 native emission): production now emits a CombatScore at the
 	# producer chokepoint (main.gd) and calls start_score directly. This remains for
@@ -195,10 +202,14 @@ func _build_steps(score: Resource) -> Array:
 # cap-throttled so a field STREAMS at a navigable peak, and their breathers can wait for the
 # field to thin (the density ebb). (Was: hazards excluded as uncapped "terrain" in v1 — that
 # let asteroid/mine fields pile into an impassable wall.)
+# EXCLUDES a gating boss + its parts (Roman 2026-07-01): a persistent boss like the battleship lives in
+# "enemies" from wave 1, but the boss + its ~26 turret/laser parts must NOT eat concurrency slots (27 >
+# max_concurrent would spin-lock the dispatchers forever → no wave ever spawns). The boss gates clear via
+# _live_combatants_present, not this cap.
 func _alive_count() -> int:
 	var n: int = 0
 	for e in get_tree().get_nodes_in_group("enemies"):
-		if not is_instance_valid(e):
+		if not is_instance_valid(e) or _is_boss_gate_node(e):
 			continue
 		n += 1
 	return n
@@ -252,7 +263,7 @@ func _crosser_travel_y(base: float, index: int, step: float = CROSSER_STAGGER_ST
 func _occupied_lanes() -> Array:
 	var out: Array = []
 	for e in get_tree().get_nodes_in_group("enemies"):
-		if not is_instance_valid(e) or not (e is Node2D):
+		if not is_instance_valid(e) or not (e is Node2D) or _is_boss_gate_node(e):
 			continue
 		if e.position.y <= 40.0:
 			var ln: int = Lanes.nearest_lane(e.position.x)
@@ -287,7 +298,7 @@ func _anchor_stagger_y(lane: int, base_y: float, height: float) -> float:
 	var gap: float = height + ANCHOR_GAP_PAD
 	var sy: float = base_y
 	for e in get_tree().get_nodes_in_group("enemies"):
-		if not is_instance_valid(e) or not (e is Node2D):
+		if not is_instance_valid(e) or not (e is Node2D) or _is_boss_gate_node(e):
 			continue
 		if "is_hazard" in e and e.is_hazard:
 			continue
@@ -302,13 +313,42 @@ func _anchor_stagger_y(lane: int, base_y: float, height: float) -> float:
 func _advance_step() -> void:
 	_step_idx += 1
 	if _step_idx >= _steps.size():
+		# All authored phrases dispatched (the "survive the waves" win). If a live boss is still gating,
+		# give it ONE final maneuver over the drained field then have it retreat — it frees itself, so
+		# the clear-watch below fires once it's gone. A boss already defeated mid-fight is a no-op.
+		if _boss_gate_alive() and not _boss_defeated():
+			await _drain_for_gate()
+			if _boss_gate_alive() and not _boss_defeated() and boss_gate.has_method("play_wave_maneuver"):
+				await boss_gate.play_wave_maneuver(-1)
+			if _boss_gate_alive() and not _boss_defeated() and boss_gate.has_method("retreat"):
+				boss_gate.retreat()
 		_running = false
 		_check_clear = true   # all phrases dispatched; watch for clear
 		return
 	var st: Dictionary = _steps[_step_idx]
+	# BOSS GATE (Roman 2026-07-01): before starting a NEW wave (every wave after the first), wait for
+	# the current wave to CLEAR, then let the boss play one maneuver — the next wave is held until it
+	# finishes. Opt-in via boss_gate; no-op on normal levels.
+	if st["is_wave_start"] and int(st["wave_idx"]) >= 1 and _boss_gate_alive():
+		await _drain_for_gate()
+		if not _running:
+			return
+		if _boss_gate_alive() and not _boss_defeated() and boss_gate.has_method("play_wave_maneuver"):
+			await boss_gate.play_wave_maneuver(int(st["wave_idx"]))
+		if not _running:
+			return
+		# If the player destroyed every part during that maneuver, the fight is WON (the "parts" exit) —
+		# stop spawning the remaining waves; the boss's death animation + drain trip the clear-watch.
+		if _boss_defeated():
+			_running = false
+			_check_clear = true
+			return
 	# Non-blocking banner once per ScoreWave (bridge §1.1): emit and keep going.
 	if st["is_wave_start"]:
 		wave_started.emit(int(st["wave_idx"]), _wave_total, false, String(st["banner"]))
+		# Let a gating boss know a wave began (it enables stage hazards from wave 3 = wave_idx 2).
+		if _boss_gate_alive() and boss_gate.has_method("on_wave_started"):
+			boss_gate.on_wave_started(int(st["wave_idx"]))
 	var ph: Resource = st["phrase"]
 	match ph.kind:
 		Phrase.Kind.FORMATION:
@@ -1138,6 +1178,47 @@ func _hazards_present() -> bool:
 		if "is_hazard" in n and n.is_hazard:
 			return true
 	return false
+
+
+# ---- Boss gate (opt-in discrete waves; see boss_gate) --------------------
+
+func _boss_gate_alive() -> bool:
+	return boss_gate != null and is_instance_valid(boss_gate)
+
+
+# True if `e` is the gating boss or one of its parts — such nodes live in "enemies" but must be excluded
+# from wave concurrency/placement math (they aren't wave chaff competing for slots or lanes).
+func _is_boss_gate_node(e: Node) -> bool:
+	return _boss_gate_alive() and (e == boss_gate or boss_gate.is_ancestor_of(e))
+
+
+# True once the boss has begun its death/retreat (it reports is_defeated) — the gate stops driving it.
+func _boss_defeated() -> bool:
+	return _boss_gate_alive() and boss_gate.has_method("is_defeated") and boss_gate.is_defeated()
+
+
+# True while any WAVE combatant is still alive — a non-hazard "enemies" node that is neither the boss
+# nor one of its parts (the boss + its turrets/lasers are in "enemies" too, but must NOT gate its own
+# maneuver). Hazards (dropped firecores etc.) never gate, matching _live_combatants_present.
+func _wave_combatants_present() -> bool:
+	for n in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(n):
+			continue
+		if "is_hazard" in n and n.is_hazard:
+			continue
+		if _is_boss_gate_node(n):
+			continue
+		return true
+	return false
+
+
+# Await until the current wave's combatants have cleared, so the boss plays its between-wave maneuver
+# over an empty field. Bounded by BOSS_GATE_DRAIN_TIMEOUT so a stuck/lingering enemy can't hang it.
+func _drain_for_gate() -> void:
+	var guard: float = 0.0
+	while _running and _wave_combatants_present() and guard < BOSS_GATE_DRAIN_TIMEOUT:
+		await get_tree().create_timer(0.1).timeout
+		guard += 0.1
 
 func _ready() -> void:
 	if auto_start and level != null:

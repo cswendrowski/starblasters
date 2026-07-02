@@ -91,6 +91,11 @@ func _damage_enemy(e) -> void:
 		return
 	if e.has_method("is_fully_offscreen") and e.is_fully_offscreen():
 		return
+	# Destructible boss PARTS (battleship turrets / lasers) resist the panic bomb — they take a CAPPED
+	# chunk via their own hook instead of being one-shot (Roman 2026-07-01).
+	if e.has_method("take_smart_bomb"):
+		e.take_smart_bomb(_damage)
+		return
 	# Bosses: bite via the normal path so phase/shield gates fire correctly.
 	var path: String = String(e.scene_file_path) if "scene_file_path" in e else ""
 	if path.find("boss") != -1:

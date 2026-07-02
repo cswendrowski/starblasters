@@ -560,6 +560,10 @@ static func _is_affinity_pair(a: Dictionary, b: Dictionary) -> bool:
 # trickle). The final lead-in is thinned + re-bannered so the boss arrival reads cleanly.
 static func _build_boss_waves(rng: RandomNumberGenerator, sector_depth: int, level_index: int) -> Array:
 	var boss_entry: Dictionary = _pick_boss(rng, sector_depth)
+	# The Zealot Battleship (Roman 2026-07-01) is a PERSISTENT boss spawned at level start by main.gd
+	# and gated by the wave director — the level is just its ~5-6 boss-less enemy waves (one maneuver
+	# between each). So we build the run-up waves but skip the final _make_boss_wave for it.
+	var is_battleship: bool = String(boss_entry["scene"]).contains("boss_z_battleship")
 	var conflict_tags: PackedStringArray = PackedStringArray(
 		BOSS_LEADIN_CONFLICTS.get(boss_entry["scene"], []))
 	var n_leadin: int = clampi(4 + sector_depth, 5, 6)  # S1=5, S2=6, deep=6 — a full run-up
@@ -569,7 +573,7 @@ static func _build_boss_waves(rng: RandomNumberGenerator, sector_depth: int, lev
 		var entry: Dictionary = _pick_entry(rng, sector_depth, level_index + i, used, conflict_tags)
 		used.append(entry)
 		var w = _make_wave_spec(rng, entry, sector_depth, level_index + i, i, true)
-		if i == n_leadin - 1:
+		if i == n_leadin - 1 and not is_battleship:
 			# Thin the final lead-in and re-banner so the boss arrival reads cleanly.
 			w.count = maxi(2, int(w.count / 2))
 			w.announce_text = "BOSS APPROACHING"
@@ -580,9 +584,10 @@ static func _build_boss_waves(rng: RandomNumberGenerator, sector_depth: int, lev
 			var floor_n: int = (5 + i * 2) if bool(entry.get("chaff", false)) else mini(3 + i, 5)
 			w.count = maxi(int(w.count), floor_n)
 		waves.append(w)
-	var w_boss = _make_boss_wave(boss_entry)
-	w_boss.spawn_delay = 5.0 - 0.5 * float(sector_depth - 1)  # 4.5/4.0/3.5
-	waves.append(w_boss)
+	if not is_battleship:
+		var w_boss = _make_boss_wave(boss_entry)
+		w_boss.spawn_delay = 5.0 - 0.5 * float(sector_depth - 1)  # 4.5/4.0/3.5
+		waves.append(w_boss)
 	return waves
 
 

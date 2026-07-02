@@ -166,9 +166,21 @@ func _canon_list(keys: Array) -> Array:
 
 func _home_of(scene: String) -> int:
 	var t: Variant = Factions.ENEMY_TAGS.get(scene, null)
-	if t == null:
-		return -1
-	return int(t.get("home", -1))
+	if t != null:
+		return int(t.get("home", -1))
+	# Fallback for scenes NOT in ENEMY_TAGS (e.g. WIP bosses like the battleship — in the eligibility
+	# matrix but intentionally untagged for spawning): derive the faction from the scene PATH so a
+	# /factions/<faction>/ unit still buckets under its faction filter instead of only "All".
+	return _home_from_path(scene)
+
+
+func _home_from_path(scene: String) -> int:
+	var p: String = scene.to_lower()
+	if p.contains("/factions/supremacy/"): return Factions.Id.SUPREMACY
+	if p.contains("/factions/privateer/"): return Factions.Id.PRIVATEER
+	if p.contains("/factions/corporate/"): return Factions.Id.CORPORATE
+	if p.contains("/factions/zealot/"): return Factions.Id.ZEALOT
+	return -1
 
 
 func _apply_filter() -> void:

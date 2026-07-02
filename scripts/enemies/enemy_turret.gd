@@ -72,6 +72,12 @@ func _process(delta: float) -> void:
 	var p := get_parent()
 	if p == null or not is_instance_valid(p):
 		return
+	# Hold fire + freeze aim while the OWNING enemy is recycling (flying back through the parallax) or
+	# dying — a turret on a ship mid-recycle/mid-death must not keep shooting (Roman 2026-07-01). Walk
+	# the WHOLE ancestor chain: a turret can sit on a sub-part (DestructiblePart) whose recycling core is
+	# higher up, so the direct parent alone isn't enough.
+	if _host_suspended():
+		return
 
 	if _locked:
 		_lock_t -= delta
@@ -99,6 +105,18 @@ func _process(delta: float) -> void:
 	rotation = _turret_rot - p.global_rotation
 	_fire_t += delta
 	_try_fire()
+
+
+# True if any ancestor enemy is recycling or dying — the turret then holds fire + freezes. Duck-typed
+# on `_cycling`/`_dying` and walks to the root (NOT stopping at the first EnemyBase) so a turret on a
+# sub-part still sees its recycling core above it. Non-enemy ancestors (markers, layers) are skipped.
+func _host_suspended() -> bool:
+	var n: Node = get_parent()
+	while n != null:
+		if ("_cycling" in n and n._cycling) or ("_dying" in n and n._dying):
+			return true
+		n = n.get_parent()
+	return false
 
 
 func _try_fire() -> void:

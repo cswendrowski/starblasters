@@ -1,0 +1,161 @@
+[gd_scene format=3 uid="uid://cn2qhhew2ryjh"]
+
+[ext_resource type="Script" uid="uid://bfrdm2mk00bdr" path="res://scripts/enemies/bosses/boss_z_battleship.gd" id="1_hn4du"]
+[ext_resource type="PackedScene" uid="uid://uoof4kuon0td" path="res://scenes/enemies/factions/zealot/firecore_core.tscn" id="2_iptxh"]
+[ext_resource type="Texture2D" uid="uid://c0p6abx3ya3f0" path="res://graphics/enemies/boss_z_battleship.png" id="3_356b8"]
+[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://assets/audio/SFX_shot7.wav" id="6_4olgs"]
+[ext_resource type="PackedScene" uid="uid://cs01xwahagl6a" path="res://scenes/enemies/factions/zealot/boss_z_battleship_sidelaser.tscn" id="6_hn4du"]
+[ext_resource type="PackedScene" uid="uid://148xec8ift6v" path="res://scenes/enemies/factions/zealot/boss_z_battleship_mainlaser.tscn" id="7_iptxh"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="7_mrlmy"]
+
+[node name="Enemy" type="Area2D" unique_id=354957993 groups=["enemies"]]
+script = ExtResource("1_hn4du")
+
+[node name="CollisionShape2D" type="CollisionPolygon2D" parent="." unique_id=1799325510]
+visible = false
+rotation = 1.5719
+polygon = PackedVector2Array(-158, 15, -91, 49, -68, 49, -67, 52, -50, 52, -34, 64, 26, 63, 35, 53, 39, 58, 62, 58, 68, 51, 128, 49, 143, 40, 143, 23, 157, 9, 157, -9, 143, -23, 143, -40, 128, -49, 68, -51, 62, -58, 38, -58, 35, -54, 33, -54, 25, -64, -35, -64, -37, -62, -41, -62, -50, -52, -67, -52, -68, -50, -91, -50, -158, -16, -158, -11, -154, -7, -154, 7, -158, 10)
+
+[node name="FireCoreL" parent="." unique_id=1992394466 instance=ExtResource("2_iptxh")]
+z_index = 1
+position = Vector2(-16, -105)
+
+[node name="FireCoreL2" parent="." unique_id=1556056255 instance=ExtResource("2_iptxh")]
+z_index = 1
+position = Vector2(-20, -95)
+
+[node name="FireCoreL3" parent="." unique_id=2046277241 instance=ExtResource("2_iptxh")]
+z_index = 1
+position = Vector2(-23, -85)
+
+[node name="FireCoreL4" parent="." unique_id=154969334 instance=ExtResource("2_iptxh")]
+z_index = 1
+position = Vector2(-26, -74)
+
+[node name="FireCoreR" parent="." unique_id=1220467332 instance=ExtResource("2_iptxh")]
+z_index = 1
+position = Vector2(16, -105)
+
+[node name="FireCoreR2" parent="." unique_id=44648740 instance=ExtResource("2_iptxh")]
+z_index = 1
+position = Vector2(20, -95)
+
+[node name="FireCoreR3" parent="." unique_id=1287306851 instance=ExtResource("2_iptxh")]
+z_index = 1
+position = Vector2(23, -85)
+
+[node name="FireCoreR4" parent="." unique_id=229623918 instance=ExtResource("2_iptxh")]
+z_index = 1
+position = Vector2(26, -74)
+
+[node name="Hull" type="Sprite2D" parent="." unique_id=869068400]
+texture = ExtResource("3_356b8")
+hframes = 2
+
+[node name="GlowMask" type="Sprite2D" parent="." unique_id=721256683]
+texture = ExtResource("3_356b8")
+hframes = 2
+frame = 1
+
+[node name="MoveTimer" type="Timer" parent="." unique_id=1380023245]
+one_shot = true
+
+[node name="ShootTimer" type="Timer" parent="." unique_id=674172378]
+one_shot = true
+
+[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="." unique_id=892052681]
+visible = false
+stream = ExtResource("6_4olgs")
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=6464871]
+visible = false
+stream = ExtResource("7_mrlmy")
+
+[node name="TurretL" type="Marker2D" parent="." unique_id=486966493]
+position = Vector2(-16, -64)
+
+[node name="TurretTail" type="Marker2D" parent="." unique_id=84771476]
+position = Vector2(0, 125)
+
+[node name="TurretL3" type="Marker2D" parent="." unique_id=665650491]
+position = Vector2(-23, -25)
+
+[node name="TurretL4" type="Marker2D" parent="." unique_id=1176694003]
+position = Vector2(-34, -21)
+
+[node name="TurretL5" type="Marker2D" parent="." unique_id=547881692]
+position = Vector2(-32, -8)
+
+[node name="TurretL6" type="Marker2D" parent="." unique_id=1266135247]
+position = Vector2(-32, 33)
+
+[node name="TurretL7" type="Marker2D" parent="." unique_id=544030678]
+position = Vector2(-32, 49)
+
+[node name="TurretL8" type="Marker2D" parent="." unique_id=983649440]
+position = Vector2(-24, 69)
+
+[node name="TurretL9" type="Marker2D" parent="." unique_id=225076290]
+position = Vector2(-23, 75)
+
+[node name="TurretL10" type="Marker2D" parent="." unique_id=1612241549]
+position = Vector2(-13, 134)
+
+[node name="TurretR" type="Marker2D" parent="." unique_id=634189436]
+position = Vector2(16, -64)
+
+[node name="TurretL2" type="Marker2D" parent="." unique_id=2017230070]
+position = Vector2(-21, -40)
+
+[node name="TurretR2" type="Marker2D" parent="." unique_id=1151804914]
+position = Vector2(21, -40)
+
+[node name="TurretR3" type="Marker2D" parent="." unique_id=1026333119]
+position = Vector2(23, -25)
+
+[node name="TurretR4" type="Marker2D" parent="." unique_id=1105203415]
+position = Vector2(34, -21)
+
+[node name="TurretR5" type="Marker2D" parent="." unique_id=1852950920]
+position = Vector2(32, -8)
+
+[node name="TurretR6" type="Marker2D" parent="." unique_id=717305202]
+position = Vector2(32, 33)
+
+[node name="TurretR7" type="Marker2D" parent="." unique_id=1777389183]
+position = Vector2(32, 49)
+
+[node name="TurretR8" type="Marker2D" parent="." unique_id=1698207328]
+position = Vector2(24, 69)
+
+[node name="TurretR9" type="Marker2D" parent="." unique_id=1299475186]
+position = Vector2(23, 75)
+
+[node name="TurretR10" type="Marker2D" parent="." unique_id=962685123]
+position = Vector2(13, 134)
+
+[node name="EngineL" type="Marker2D" parent="." unique_id=1624882402]
+position = Vector2(-32, 138)
+
+[node name="EngineR" type="Marker2D" parent="." unique_id=2054798492]
+position = Vector2(32, 138)
+
+[node name="SideLaserLF" parent="." unique_id=1312260193 instance=ExtResource("6_hn4du")]
+position = Vector2(-53, -31)
+
+[node name="SideLaserLB" parent="." unique_id=1143075907 instance=ExtResource("6_hn4du")]
+position = Vector2(-53, 21)
+
+[node name="SideLaserRF" parent="." unique_id=1266271636 instance=ExtResource("6_hn4du")]
+position = Vector2(53, 21)
+rotation = 3.1415927
+
+[node name="SideLaserRB" parent="." unique_id=706024051 instance=ExtResource("6_hn4du")]
+position = Vector2(53, -31)
+rotation = 3.1415927
+
+[node name="MainLaser" parent="." unique_id=2042415856 instance=ExtResource("7_iptxh")]
+position = Vector2(0, -57)
+
+[connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
+[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

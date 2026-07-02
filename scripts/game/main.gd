@@ -39,6 +39,10 @@ var _missile_cruiser_respawn: bool = false
 # immediate (showcase + one-shot meta). The rare in-level encounter sets this so
 # the cruiser drifts in a few seconds into the fight, while waves are spawning.
 var _missile_cruiser_delay: float = 0.0
+# When the upcoming boss is the Zealot Battleship, spawn a background-decoration copy at level start that
+# creeps up through the parallax during the opening waves (Roman 2026-07-01, "Option A"). Set from the
+# forced_boss_scene when the boss level is selected (before the generator consumes it).
+var _bg_battleship: bool = false
 
 # ── Rare in-level Missile Cruiser encounter (Roman 2026-05-31) ──────────────
 # On a STANDARD combat level (not boss/hazard/custom) roll a rare chance to
@@ -615,6 +619,10 @@ func new_game() -> void:
 		var run = get_node("/root/Run")
 		if run.current_node_type == SectorNode.NodeType.BOSS:
 			is_boss = true
+			# Zealot Battleship (Roman 2026-07-01): a PERSISTENT boss present from wave 1, gated by the
+			# scene NOW — the generator consumes forced_boss_scene during WaveGen.build below.
+			if String(run.forced_boss_scene).contains("boss_z_battleship"):
+				_bg_battleship = true
 		elif run.current_node_type == SectorNode.NodeType.HAZARD:
 			is_hazard = true
 			hazard_subtype = run.current_hazard_subtype
@@ -820,6 +828,13 @@ func _run_intro(is_boss: bool) -> void:
 	else:
 		# Fallback for any LevelData that skipped the chokepoint (defensive).
 		wave_director.start_level(_current_level)
+	# Zealot Battleship (Roman 2026-07-01): spawn the PERSISTENT boss now (level start) so it's present
+	# from wave 1, and register it as the director's wave gate (it plays one maneuver between waves).
+	if _bg_battleship:
+		_bg_battleship = false
+		var battleship := _spawn_battleship_boss()
+		if battleship != null:
+			wave_director.boss_gate = battleship   # director drains each wave, then awaits its maneuver
 	# Spawn the unattackable background Missile Cruiser now that the Backdrop +
 	# player + camera all exist (deferred from level selection).
 	if _want_missile_cruiser:
@@ -916,6 +931,23 @@ func _maybe_schedule_rare_cruiser(sector_depth: int) -> void:
 		_want_missile_cruiser = true
 		_missile_cruiser_respawn = false  # rare = exactly one fly-through
 		_missile_cruiser_delay = MISSILE_CRUISER_SPAWN_DELAY
+
+
+# Spawn the PERSISTENT Zealot Battleship at level start (Roman 2026-07-01): present from wave 1, it idles
+# off-screen and the wave director (boss_gate) drives one maneuver between each wave. Parented on the
+# mid-depth layer (above parallax, below ships) like the cruiser; it also pins itself to an under-layer z.
+# Returns the boss node so the caller can register it as the director's gate. Loaded on demand (dev boss).
+func _spawn_battleship_boss() -> Node:
+	var ps: PackedScene = load("res://scenes/enemies/factions/zealot/boss_z_battleship.tscn")
+	if ps == null:
+		return null
+	var bs: Node2D = ps.instantiate() as Node2D
+	if bs == null:
+		return null
+	MidDepthPresentation.add_above_backdrop(self, bs)
+	if bs.has_method("start"):
+		bs.start(Vector2(Playfield.CENTER.x, get_viewport_rect().size.y + 260.0))
+	return bs
 
 
 func _spawn_missile_cruiser() -> void:

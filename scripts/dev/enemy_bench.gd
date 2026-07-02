@@ -69,6 +69,15 @@ const _LEGACY_PAYLOAD := {
 # is a separate effort). The "Bosses" group is gone and boss scenes are filtered out of the list.
 const FACTION_GROUPS := ["All", "Core", "Supremacy", "Privateer", "Corporate", "Zealot", "Hazards"]
 
+# WIP mega-bosses waived from the blanket boss exclusion above, so their destructible-turret rig can be
+# iterated against the dummy here (the enemy still fires at the dummy; the flee-on-turret-clear mechanic
+# is exercised in the Combat Lab, where you can shoot back). Remove an entry once it graduates to the
+# production boss roster + a dedicated boss tuner. Bucketed by scene path (_group_of), so the battleship
+# lands under the "Zealot" tab.
+const BENCH_WIP_BOSSES := [
+	"res://scenes/enemies/factions/zealot/boss_z_battleship.tscn",
+]
+
 # Mounts editor pools. Kind/aim are stored lowercase (the roster dict schema); the *_LABELS are the
 # dropdown text. PROJECTILES are launcher payloads (scene paths), offered alongside the BulletVariant
 # PAYLOADS in a mount row's payload dropdown.
@@ -800,6 +809,12 @@ func _load_list() -> void:
 	# enemy), minus bosses (separate boss tuning tool later). Single source so the bench, eligibility
 	# editor + Formation Builder all stay in sync (Roman 2026-06-17).
 	_all_paths = EnemyManifest.all_enemies(false)
+	# Splice in the WIP mega-bosses the blanket boss filter drops (see BENCH_WIP_BOSSES), then re-sort
+	# so they slot alphabetically like every other entry.
+	for p in BENCH_WIP_BOSSES:
+		if ResourceLoader.exists(p) and not _all_paths.has(p):
+			_all_paths.append(p)
+	_all_paths.sort()
 	_rebuild_list(false)
 
 

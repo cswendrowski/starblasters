@@ -42,6 +42,7 @@ func _run_all() -> void:
 	_test_resolve()
 	await _test_recycle()
 	_test_wreck()
+	_test_turret_suspend()
 	print("------")
 	if _fails == 0:
 		print("VERDICT: PASS")
@@ -189,3 +190,33 @@ func _test_wreck() -> void:
 	_check(body != null and body.material is ShaderMaterial, "wreck body got the shared depth-tint material")
 	_check(body != null and body.get_node_or_null("WreckDrift") != null, "WreckDrift attached to the hull")
 	run.remove_meta("disable_deaths")
+
+
+# --- Part 4: turrets hold fire while their host recycles --------------------
+
+func _test_turret_suspend() -> void:
+	print("EnemyTurret holds fire while its host recycles/dies:")
+	var host = load(DART).instantiate()
+	get_root().add_child(host)
+	var t := EnemyTurret.new()
+	host.add_child(t)
+	host._cycling = false
+	host._dying = false
+	_check(not t._host_suspended(), "turret active when host is live")
+	host._cycling = true
+	_check(t._host_suspended(), "turret suspended when host is recycling")
+	host._cycling = false
+	host._dying = true
+	_check(t._host_suspended(), "turret suspended when host is dying")
+	host._dying = false
+
+	# Nested: a turret on a sub-part (plain node) whose RECYCLING core is higher up the chain.
+	var part := Node2D.new()
+	host.add_child(part)
+	var t2 := EnemyTurret.new()
+	part.add_child(t2)
+	host._cycling = true
+	_check(t2._host_suspended(), "sub-part turret sees the recycling core above it")
+	host._cycling = false
+	_check(not t2._host_suspended(), "sub-part turret clear when core is live")
+	host.free()

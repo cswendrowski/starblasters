@@ -39,6 +39,10 @@ const BOSS_PICKS := [
 	# Shepherd — testbed for the encounter state machine (dev-only; NOT in the
 	# production BOSS_ROSTER yet). Launch via Combat Lab -> Boss Fight -> Shepherd.
 	["Shepherd", "res://scenes/enemies/factions/zealot/boss_z_l_shepherd.tscn"],
+	# Battleship — zealot turret mega-boss (WIP, dev-only). The hull is unhittable; destroy all its
+	# turrets to make it flee. This is the ONLY way to exercise the destroy→flee mechanic (the Enemy
+	# Bench dummy can't shoot back).
+	["Battleship", "res://scenes/enemies/factions/zealot/boss_z_battleship.tscn"],
 ]
 const FACTION_PICKS := [
 	["Auto (deterministic)", -1],
