@@ -30,6 +30,7 @@ move it to `docs/archive/` with a banner rather than deleting it.
 | Modular enemy system (M6) | [`m6_modular_enemies_design_2026-06-05.md`](m6_modular_enemies_design_2026-06-05.md) + [`m6b_faction_tagging_2026-06-06.md`](m6b_faction_tagging_2026-06-06.md); live roster = `scripts/levels/factions.gd` + `scripts/enemies/` |
 | Movement-pattern eligibility | [`pattern_eligibility_2026-06-08.md`](pattern_eligibility_2026-06-08.md) + `scripts/levels/pattern_eligibility.gd` |
 | Wave authoring principles | [`wave_composition_guide_2026-06-03.md`](wave_composition_guide_2026-06-03.md); authored-pattern editor **BUILT 2026-06-16**: [`wave_pattern_editor_design_2026-06-15.md`](wave_pattern_editor_design_2026-06-15.md) (dev tool `scripts/dev/wave_pattern_editor.gd` + `scripts/levels/authored_patterns.gd`) |
+| Level structure (3-stretch + slot density) | **SCOPED / NOT BUILT** — [`level_structure_redesign_2026-07-01.md`](level_structure_redesign_2026-07-01.md) (3-part ~3-min levels + slot-weighted cap replacing the headcount cap; current flat-5-wave loop = `WaveGenerator._build_combat_waves`) |
 | Player weapons — data model | [`weapon_data_centralization_2026-06-11.md`](weapon_data_centralization_2026-06-11.md) (stats live in `.tres`) |
 | Player weapons — live DPS numbers | [`weapon_dps_report_2026-06-13.md`](weapon_dps_report_2026-06-13.md) (rebalance candidates are deferred, not a to-do) |
 | Enemy weapons + projectiles | [`weapons_system_2026-06-05.md`](weapons_system_2026-06-05.md) |
