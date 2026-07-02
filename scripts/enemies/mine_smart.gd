@@ -36,6 +36,11 @@ func _ready() -> void:
 	if has_node("Sprite2D"):
 		$Sprite2D.hframes = 4
 		$Sprite2D.frame = 0
+	# Descent = chassis move_speed (ProximityChase drift + chase both read it). Seed from the authored
+	# drift_speed when unset; a handed move_speed wins. chase_accel/chase_max_speed are vestigial —
+	# ProximityChase derives the chase from move_speed × its own accel ratio. (speed-source pass.)
+	if move_speed <= 0.0:
+		move_speed = drift_speed
 	if movement == null:
 		var m := ProximityChase.new()
 		m.proximity = proximity_trigger

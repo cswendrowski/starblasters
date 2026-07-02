@@ -24,9 +24,10 @@ extends Control
 # that persist while damaged. The engine streak + tells respect EACH body's real engine
 # markers (A: 1, B/C: 2). Drive the damage with `damage_level` (0 = pristine, 1 = wreck).
 #
-# SCOPE: the cinematic + the dock LAYOUT are real. The inventory is a self-contained
-# MOCK (local item model — buy/pull/slot/swap/scrap/lock all work on it) so the screen
-# can be evaluated; wiring it to Run's real loadout/storage is the follow-on.
+# SCOPE: the cinematic + the dock LAYOUT are real, and the inventory is LIVE when a run exists —
+# the shop reads/writes Run's real loadout/economy/storage (the `_live` flag, set from run_seed).
+# The self-contained MOCK item model (buy/pull/slot/swap/scrap/lock on a local dict) remains only as
+# the fallback for the dev lab, where no run is present.
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const EngineTrailFx = preload("res://scripts/effects/engine_trail_fx.gd")
@@ -46,7 +47,8 @@ const _DamageEdgeTex = preload("res://resources/edge_distance_flat.tres")
 const STARS_SCENE := "res://scenes/parallax/layers/layer_stars.tscn"
 const HANGAR_STAGE := "res://scenes/hangar_stage.tscn"   # shared authorable plate + runway + lights
 const PointLightFx = preload("res://scripts/effects/point_light_fx.gd")
-const LightShadowFx = preload("res://scripts/effects/light_shadow_fx.gd")
+const DockShadowRig = preload("res://scripts/effects/dock_shadow_rig.gd")
+const DockConst = preload("res://scripts/effects/dock_const.gd")
 # Live shop wiring (production): the dock reads/writes the real Run loadout/economy. Mirrors outpost.gd.
 const SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
@@ -65,7 +67,7 @@ const WEAPON_SLOT_WEIGHTS := [
 	SlotTypes.SlotType.SHIFT_MODE,   # shift modes are buyable items now (sold/scrapped/swapped like any part)
 ]
 
-const ENGINE_GLOW_COLOR := Color(0.0, 0.827, 1.0)   # #00d3ff — in-game engine glowmask
+const ENGINE_GLOW_COLOR := DockConst.ENGINE_GLOW_COLOR   # #00d3ff — in-game engine glowmask
 const ENGINE_GLOW_OFF := 0.0   # glowmask + engine-light level when the engine is OFF (landed) — fully dark
 const TELL_ACTIVATE := 0.5   # missing-hull fraction at which smoke/sparks light (player default)
 const SPARK_GRAVITY := 120.0  # gentle downward drift on the sparks (lower = "less velocity")
@@ -83,13 +85,13 @@ const SPARK_TRAIL_LIFETIME := 0.35    # short spark ribbons
 const SPARK_RADIAL_VEL := 16.0        # low spark velocity (scene default ~50)
 # Point lights: blue on each engine (follows the glow on/off), orange on each spark marker
 # (flashes when the ship sparks). Roman 2026-06-20.
-const ENGINE_LIGHT_COLOR := Color(0.10, 0.60, 1.0)
-const ENGINE_LIGHT_ENERGY := 1.8          # bright — the engines are the dock's main light in the dark bay
+const ENGINE_LIGHT_COLOR := DockConst.ENGINE_LIGHT_COLOR
+const ENGINE_LIGHT_ENERGY := DockConst.ENGINE_LIGHT_ENERGY   # bright — the engines are the dock's main light
 const ENGINE_LIGHT_SCALE := 0.45          # FOCUSED nozzle glow (64px tex → ~29px); scale wasn't the issue,
                                           # a small bright light at the marker reads better (Roman 2026-06-26)
 const ENGINE_LIGHT_GLOW_GAMMA := 0.5      # <1 → the lights come in EARLY as the glow mask fades in
-const ENGINE_FLARE_PEAK := 2.2            # energy × at the moment of launch (accelerating out of the bay)
-const ENGINE_FLARE_SCALE := 1.7           # light-size × at launch (the bright spot blooms as it leaves)
+const ENGINE_FLARE_PEAK := DockConst.ENGINE_FLARE_PEAK   # energy × at the moment of launch
+const ENGINE_FLARE_SCALE := DockConst.ENGINE_FLARE_SCALE   # light-size × at launch (bright spot blooms)
 const SPARK_LIGHT_COLOR := Color(1.0, 0.55, 0.12)
 const SPARK_LIGHT_ENERGY := 1.0
 const SPARK_LIGHT_SCALE := 0.25           # focused orange spark flash at the nozzle (64px tex → ~16px)
@@ -100,16 +102,16 @@ const SPARK_LIGHT_RATE := 8.0         # light energy attack/decay per second (fl
 # are exactly what _build_ship reads), so a new ship's dock cinematic comes along for free.
 const VARIANTS := ShipCatalog.SHIPS
 
-const NATIVE_W := 480.0
-const NATIVE_H := 270.0
-const SHIP_X := NATIVE_W / 2.0      # 240 — native viewport centre
-const HD_SCALE := 4.0
-const HD_W := 1920.0
-const HD_H := 1080.0
-const GUTTER_HD := PF.X_MIN * HD_SCALE   # 528 — left panel / mask right edge
-const RIGHT_HD := PF.X_MAX * HD_SCALE     # 1392 — right panel / mask left edge
+const NATIVE_W := DockConst.NATIVE_W
+const NATIVE_H := DockConst.NATIVE_H
+const SHIP_X := DockConst.SHIP_X      # 240 — native viewport centre
+const HD_SCALE := DockConst.HD_SCALE
+const HD_W := DockConst.HD_W
+const HD_H := DockConst.HD_H
+const GUTTER_HD := DockConst.GUTTER_HD   # 528 — left panel / mask right edge
+const RIGHT_HD := DockConst.RIGHT_HD     # 1392 — right panel / mask left edge
 const BAR_H := 150.0                # HD height of the top money bar / bottom action bar
-const FLYOFF_TARGET_Y := -120.0    # off the top edge, same as _run_outro
+const FLYOFF_TARGET_Y := DockConst.FLYOFF_TARGET_Y    # off the top edge, same as _run_outro
 
 const ARM_SLOTS := ["PRIMARY", "SECONDARY", "SUPER"]
 const SYS_SLOTS := ["MODULE_1", "MODULE_2", "MODULE_3"]
@@ -166,7 +168,6 @@ enum ShadowMode { LEGACY, KEY, FILL }
 @export var shadow_falloff: float = 110.0
 @export var shadow_softness: float = 0.0
 @export var shadow_max: int = 6
-const KEY_LIGHT_ENERGY := 0.0    # key light is a SHADOW SOURCE only — illuminating it floods/sweeps the bay
 const SHIP_SHADOW_LIFT := 12.0   # px the ship's light-derived shadow pulls away when "high" (faked drop height)
 
 var _hd: HdViewportScope = null
@@ -196,7 +197,7 @@ var _spark_lights: Array = []      # orange PointLight2D per engine marker
 var _light_tex: Texture2D = null
 var _engine_flare: float = 1.0     # 1 normally; tweened up to ENGINE_FLARE_PEAK as the ship launches out
 var _flare_tween: Tween = null
-var _shadow_mgr = null             # LightShadowFx (light-derived shadow prototype; null until built)
+var _shadow_rig = null             # DockShadowRig (owns the LightShadowFx; null until built)
 var _ship_altitude: float = 1.0    # 1 = flying (shadow pulled away for height), 0 = landed (tight)
 var _skip_anim: bool = false       # cinematic skipped this visit (Settings dock-anim) → instant depart too
 
@@ -613,8 +614,16 @@ func _flank_count() -> int:
 # mode + knobs live. Default LEGACY = production behaviour unchanged.
 
 func _build_shadow_mgr() -> void:
-	_shadow_mgr = LightShadowFx.new()
-	_world.add_child(_shadow_mgr)
+	_shadow_rig = DockShadowRig.new()
+	_shadow_rig.setup(_world, _plate)
+	# Per-screen registration: the ship body (with an altitude-lift callable so its shadow pulls away
+	# when "high") + the dynamic engine lights. Clutter casters + key/fill lights are handled by the rig.
+	_shadow_rig.set_casters_callback(func(rig) -> void:
+		if _body != null and is_instance_valid(_body):
+			rig.add_caster(_body, _world, -2, func() -> float: return _ship_altitude, SHIP_SHADOW_LIFT))
+	_shadow_rig.set_dynamic_lights_callback(func(rig) -> void:
+		for el in _engine_lights:
+			rig.add_dynamic_light(el, 0.9, ENGINE_LIGHT_ENERGY))
 	_apply_shadow_mode()
 
 
@@ -628,8 +637,8 @@ func set_shadow_mode(m: int) -> void:
 
 func set_shadow_dynamic(on: bool) -> void:
 	shadow_dynamic = on
-	if _built:
-		_rebuild_shadow_lights()
+	if _built and _shadow_rig != null:
+		_shadow_rig.rebuild_lights()
 
 
 func set_shadow_length(x: float) -> void:
@@ -658,86 +667,35 @@ func set_shadow_max(x: float) -> void:
 
 
 func _apply_shadow_mode() -> void:
-	if _shadow_mgr == null:
+	if _shadow_rig == null:
 		return
 	var proto: bool = shadow_mode != ShadowMode.LEGACY
-	_shadow_mgr.enabled = proto
 	if _shadow != null and is_instance_valid(_shadow):
 		_shadow.visible = not proto   # legacy ship drop shadow off in the light-derived modes
 	_sync_shadow_knobs()
-	_rebuild_shadow_lights()
-	_rebuild_shadow_casters()
-
-
-func _rebuild_shadow_lights() -> void:
-	if _shadow_mgr == null or _plate == null or not is_instance_valid(_plate):
-		return
-	_shadow_mgr.clear_lights()
-	var kl: PointLight2D = _plate.ensure_key_light()
-	if shadow_mode == ShadowMode.KEY:
-		kl.energy = KEY_LIGHT_ENERGY
-		_shadow_mgr.add_light(kl, 1.0, false)
-	else:
-		kl.energy = 0.0
-		if shadow_mode == ShadowMode.FILL:
-			for fl in _plate.fill_lights():
-				_shadow_mgr.add_light(fl, 1.0, false)
-	if shadow_dynamic:
-		for el in _engine_lights:
-			_shadow_mgr.add_light(el, 0.9, true, ENGINE_LIGHT_ENERGY)
-
-
-func _rebuild_shadow_casters() -> void:
-	if _shadow_mgr == null:
-		return
-	_shadow_mgr.clear_casters()
-	if shadow_mode == ShadowMode.LEGACY:
-		return
-	if _body != null and is_instance_valid(_body):
-		# The ship caster carries a lift callable so its shadow pulls away when "high" (faked drop height).
-		_shadow_mgr.add_caster(_body, _world, -2, func() -> float: return _ship_altitude, SHIP_SHADOW_LIFT)
-	var cl = null
-	if _plate != null and is_instance_valid(_plate):
-		cl = _plate.clutter_node()
-	if cl != null and is_instance_valid(cl):
-		for c in cl.get_children():
-			if c is Sprite2D:
-				_shadow_mgr.add_caster(c, cl, -6)
+	_shadow_rig.apply(shadow_mode, shadow_dynamic)
 
 
 func _sync_shadow_knobs() -> void:
-	if _shadow_mgr == null:
-		return
-	_shadow_mgr.shadow_length = shadow_length
-	_shadow_mgr.max_alpha = shadow_alpha
-	_shadow_mgr.falloff = shadow_falloff
-	_shadow_mgr.softness = shadow_softness
-	_shadow_mgr.max_per_caster = shadow_max
+	if _shadow_rig != null:
+		_shadow_rig.sync_knobs(shadow_length, shadow_alpha, shadow_falloff, shadow_softness, shadow_max)
 
 
 func _build_ship() -> void:
-	var host := Node2D.new()
-	host.name = "DockShip"
 	var data: Dictionary = VARIANTS[clampi(ship_variant, 0, VARIANTS.size() - 1)]
-	_body = _make_layer(String(data["body"]), Color.WHITE, false)
-	host.add_child(_body)
-	# Livery: the SAME screen-multiply shader the in-game ship + every other menu uses (body shaded
-	# THROUGH the tint @0.8, not a flat fill) — via the shared ShipVisual definition. The body is
-	# already dimmed to the hangar by its damage-overlay `brightness`, and the livery samples that
-	# dimmed body, so the dim flows through automatically — keep modulate WHITE (no double-dim).
-	_livery = _make_layer(String(data["livery"]), Color.WHITE, false)
-	_livery.material = ShipVisual.make_livery_material(livery_color)
-	host.add_child(_livery)
-	_engine_glow = _make_layer(String(data["engine"]), ENGINE_GLOW_COLOR, true)
-	host.add_child(_engine_glow)
-	# Engine markers — one per real nozzle of THIS body (A: 1, B/C: 2). Roman 2026-06-19.
-	var markers: Array = []
-	for i in (data["engines"] as Array).size():
-		var mk := Marker2D.new()
-		mk.name = "Engine%d" % i
-		mk.position = data["engines"][i]
-		host.add_child(mk)
-		markers.append(mk)
+	# Shared dock ship stack (body + livery sibling + additive glow + engine markers). Outpost keeps the
+	# livery a SIBLING of the body, the body at its default z, and the glow lit at full color (the ship
+	# arrives with engines running). The livery uses the SAME screen-multiply shader the in-game ship +
+	# every other menu uses (body shaded THROUGH the tint @0.8, not a flat fill). The body is dimmed to
+	# the hangar by its damage-overlay `brightness` and the livery samples that dimmed body, so the dim
+	# flows through automatically — the livery keeps modulate WHITE (no double-dim).
+	var built := ShipVisual.build_dock_ship(data, livery_color, false, 0, 1.0)
+	var host: Node2D = built["host"]
+	host.name = "DockShip"
+	_body = built["body"]
+	_livery = built["livery"]
+	_engine_glow = built["glow"]
+	var markers: Array = built["markers"]
 	_world.add_child(host)
 	host.position = Vector2(SHIP_X, start_y)
 	_ship = host
@@ -772,20 +730,6 @@ func _build_ship() -> void:
 	# Point lights: blue engine light + orange spark light at each nozzle.
 	_build_engine_lights(markers)
 	_apply_damage()
-
-
-func _make_layer(path: String, tint: Color, additive: bool) -> Sprite2D:
-	var spr := Sprite2D.new()
-	spr.texture = load(path)
-	spr.hframes = 3
-	spr.frame = 1
-	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	spr.modulate = tint
-	if additive:
-		var m := CanvasItemMaterial.new()
-		m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-		spr.material = m
-	return spr
 
 
 # Mirrors scripts/game/player.gd::_install_damage_material — the health-driven fray overlay.
@@ -951,10 +895,12 @@ func _update_lights(delta: float) -> void:
 		if is_instance_valid(l):
 			l.energy = lead * ENGINE_LIGHT_ENERGY * _engine_flare
 			l.texture_scale = tex_scale
+			l.enabled = l.energy > 0.0   # a disabled 0-energy light frees a plate light slot (16-cap)
 	var spark_target: float = SPARK_LIGHT_ENERGY if _sparks_on else 0.0
 	for l in _spark_lights:
 		if is_instance_valid(l):
 			l.energy = move_toward(l.energy, spark_target, SPARK_LIGHT_RATE * delta)
+			l.enabled = l.energy > 0.0
 
 
 func _begin_spark_burst() -> void:

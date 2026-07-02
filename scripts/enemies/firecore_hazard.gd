@@ -48,6 +48,10 @@ func _ready() -> void:
 	has_ship_vfx = false    # no ground shadow / damage-overlay — it explodes, not frays
 	wants_outline = false  # firecores are excepted from the hull outline
 	offscreen_mode = OffscreenMode.NONE
+	# Descent intake (speed-source pass): a handed move_speed (bench/director) drives the drop;
+	# otherwise the authored drift_speed holds. Never overrides a handed value.
+	if move_speed > 0.0:
+		drift_speed = move_speed
 	super._ready()
 	_drift = LateralDrift.new()
 	_drift.mode = LateralDrift.mode_from_key(drift_mode)

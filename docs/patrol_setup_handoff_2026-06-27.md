@@ -3,7 +3,7 @@
 **Audience:** the agent building out the new Patrol Start sequence.
 **TL;DR:** The hangar art/lights/markers, the cinematic substrate, the clutter system, the engine-light
 feel, and a light-derived shadow prototype are **already built and SHARED** with the outpost dock. Patrol
-already instances all of it. **Build on `scripts/dev/patrol_start.gd` — do NOT rebuild the hangar, the
+already instances all of it. **Build on `scripts/screens/patrol_start.gd` — do NOT rebuild the hangar, the
 runway lights, the point-light factory, the clutter, or the cinematic plate animation.** This doc maps
 what exists so you don't redo it.
 
@@ -12,7 +12,7 @@ what exists so you don't redo it.
 ## 1. The shared authorable scene: `scenes/hangar_stage.tscn` (script `scripts/screens/hangar_stage.gd`)
 
 ONE scene used by BOTH the outpost dock (`scripts/screens/outpost_arrival.gd`) and patrol
-(`scripts/dev/patrol_start.gd`). Edit it in the Godot editor — it's authorable. Contains:
+(`scripts/screens/patrol_start.gd`). Edit it in the Godot editor — it's authorable. Contains:
 
 - **`Plate`** (Sprite2D, `outpost_background.png`, z −8) — the bay backdrop. The whole node is CENTRED on
   its origin; the screens DESCEND/SLIDE the node to animate fly-in/out.
@@ -50,7 +50,7 @@ ONE scene used by BOTH the outpost dock (`scripts/screens/outpost_arrival.gd`) a
   `_build_crates` / `_make_rig`.
 - **`scripts/effects/light_shadow_fx.gd`** — see §4.
 
-## 3. The cinematic substrate — patrol ALREADY has it (`scripts/dev/patrol_start.gd`)
+## 3. The cinematic substrate — patrol ALREADY has it (`scripts/screens/patrol_start.gd`)
 
 Patrol instances the hangar stage (`_hangar_stage`, inside `_hangar` at `_hangar_off`), builds the
 parked ships (each = body+livery via `ShipVisual.make_livery_material` + engine glow + markers + an
@@ -111,4 +111,4 @@ a black silhouette of the body cell whose offset/scale/alpha tween (high vs land
 Hangar art + lights + markers · runway pulse · the point-light factory · the clutter/crate system · the
 plate fly-in/out animation · the engine-beat timing · the drop-shadow height model · the light-derived
 shadow prototype · the tune-rail + Copy-GDScript pattern. **All shared and done.** Start from
-`scripts/dev/patrol_start.gd` and the markers in `scenes/hangar_stage.tscn`.
+`scripts/screens/patrol_start.gd` and the markers in `scenes/hangar_stage.tscn`.

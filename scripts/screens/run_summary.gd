@@ -119,7 +119,7 @@ func _fmt_time(secs: float) -> String:
 func _new_game() -> void:
 	# New Patrol → the hangar patrol-start sequence (same as the main menu, 2026-06-27). It resets
 	# the run, writes the chosen hull/livery, and hands off to onboarding / the sector map.
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev/patrol_start.tscn")
+	SceneTransition.change_scene(get_tree(), "res://scenes/patrol_start.tscn")
 
 func _to_menu() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/main_menu.tscn")

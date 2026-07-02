@@ -114,6 +114,7 @@ func _build_ui() -> void:
 	_add_button("[ Smart Mount Lab ]", _on_smart_mount_lab, true)
 	# Test launchers
 	_add_button("[ Combat Lab ]", _on_combat_lab, true)
+	_add_button("[ Battleship Lab ]", _on_battleship_lab, true)
 	_add_button("[ Hangar ]", _on_hangar, true)
 	_add_button("[ EM Torpedo Test ]", _launch_em_torpedo_test, true)
 	# All-Signal Sector rolled into Combat Lab as the "All-Signal Sector" encounter (2026-06-17).
@@ -209,7 +210,7 @@ func _on_outpost_arrival_lab() -> void:
 
 
 func _on_patrol_start() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev/patrol_start.tscn")
+	SceneTransition.change_scene(get_tree(), "res://scenes/patrol_start.tscn")
 
 
 func _on_lane_visualizer() -> void:
@@ -256,6 +257,11 @@ func _on_hangar() -> void:
 # encounter. Replaces the old modal Test Combat fan-out.
 func _on_combat_lab() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/combat_lab.tscn")
+
+
+# Battleship Lab — trigger + live-tune the Zealot Battleship's maneuvers (Roman 2026-07-02).
+func _on_battleship_lab() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/battleship_lab.tscn")
 
 
 # Smart Mount Lab — controlled turret tuner (live player + randomized targets + knobs).

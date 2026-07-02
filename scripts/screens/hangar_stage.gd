@@ -23,21 +23,23 @@ const HangarClutter = preload("res://scripts/screens/hangar_clutter.gd")
 @export var runway_pixel_size: float = 2.0   # 2px amber squares
 @export var runway_dark: Color = Color(0.15, 0.08, 0.0)    # off (additive → faint)
 @export var runway_lit: Color = Color(1.0, 0.66, 0.12)     # on  (additive → glow)
-@export var runway_light_color: Color = Color(1.0, 0.70, 0.16)
-@export var runway_light_energy: float = 0.7
-@export var runway_light_scale: float = 0.12
 @export_group("Lighting")
 @export var scene_dim: float = 0.6     # bay dim — drives the in-scene CanvasModulate (authored value wins on load)
 @export_group("Clutter")
 @export var clutter_amount: int = 8    # how many ClutterZones get a pile (default; screen can override)
 
 const RUNWAY_K := TAU
-const LIGHT_TEX_SIZE := 64
 
-var _light_tex: Texture2D = null
+# LIGHT BUDGET (Roman 2026-07-02): Godot's 2D renderer caps the lights affecting a SINGLE CanvasItem
+# at 16 — overflow lights are silently dropped per-item (chosen by canvas order). The full-bay "Plate"
+# sprite covers the whole bay, so it intersects EVERY light here (fill lights + any key light + the
+# screens' engine/spark/grav/hover lights). Total simultaneously-ENABLED lights over the plate must
+# stay ≤ 16, or the LATER lights (the ship engines, built after the backdrop) silently stop lighting
+# the floor. This is why the per-marker runway PointLight2Ds were removed — 12 invisible ~8px halos
+# were eating the budget; only the additive amber Polygon2D pixels + their pulse remain (the real FX).
+# A light at energy 0 that is still ENABLED counts against the cap — park lights with `enabled = false`.
 var _cmod: CanvasModulate = null    # the in-scene bay dim (authored; tuned via set_scene_dim)
 var _pixels: Array = []
-var _lights: Array = []
 var _v: Array = []
 var _t: float = 0.0
 var _clutter: Node2D = null
@@ -45,14 +47,15 @@ var _key_light: PointLight2D = null   # lazily-created central key light (light_
 
 
 func _ready() -> void:
-	_light_tex = PointLightFx.make_texture(LIGHT_TEX_SIZE)
 	_cmod = get_node_or_null("CanvasModulate")
 	if _cmod != null:
 		scene_dim = _cmod.color.r   # adopt the authored CanvasModulate dim as the source of truth
 	_build_runway()
 
 
-# Generate a bright-amber ADDITIVE square + an amber point light on each RunwayMarkers Marker2D.
+# Generate a bright-amber ADDITIVE square on each RunwayMarkers Marker2D. NO per-marker PointLight2D
+# (removed 2026-07-02) — the ~8px halos were invisible but ate 12 of the plate's 16-light budget (see
+# the LIGHT BUDGET note above). The visible runway FX is the additive pixel + its travelling pulse.
 func _build_runway() -> void:
 	var markers := _runway_markers()
 	if markers.is_empty():
@@ -73,9 +76,6 @@ func _build_runway() -> void:
 		pix.material = add_mat
 		m.add_child(pix)
 		_pixels.append(pix)
-		var lt := PointLightFx.make(Vector2.ZERO, runway_light_color, runway_light_scale, _light_tex)
-		m.add_child(lt)
-		_lights.append(lt)
 		_v.append((m.position.y - ymin) / span)   # 0 (top) .. 1 (bottom) for the travelling pulse
 
 
@@ -100,9 +100,6 @@ func _process(delta: float) -> void:
 		var pix = _pixels[i]
 		if is_instance_valid(pix):
 			pix.color = runway_dark.lerp(runway_lit, lit)
-		var lt = _lights[i]
-		if is_instance_valid(lt):
-			lt.energy = lit * runway_light_energy
 
 
 # (Ambient fill lights are fully authored under FillLights in the editor — position/color/energy/
@@ -205,6 +202,12 @@ func fill_lights() -> Array:
 
 # Lazily-created central KEY light at the bay centre (stage origin). Off (energy 0) until a caller
 # raises it; both lights the bay and acts as the single shadow source in the prototype's "key" mode.
+# The key light if one has been created, else null (does NOT create one). Screens use this in LEGACY
+# mode to disable an existing key light without forcing one into being.
+func key_light_or_null() -> PointLight2D:
+	return _key_light if (_key_light != null and is_instance_valid(_key_light)) else null
+
+
 func ensure_key_light() -> PointLight2D:
 	if _key_light == null or not is_instance_valid(_key_light):
 		var tex := PointLightFx.make_texture(256)

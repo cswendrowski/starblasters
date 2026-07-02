@@ -37,7 +37,10 @@ func _ready() -> void:
 	display_scale = 1.0
 	offscreen_mode = OffscreenMode.FREE_ANY_EDGE
 	explosion_variant = "ball"
-	move_speed = Clarity.CREEP_SPEED   # 30 px/s creep descent (the clean half-rung)
+	# Creep descent by default, but never clobber a move_speed the bench/director handed us
+	# (Roman 2026-07-02 speed-source pass — was an unconditional override).
+	if move_speed <= 0.0:
+		move_speed = Clarity.CREEP_SPEED   # 30 px/s creep descent (the clean half-rung)
 	if movement == null:
 		movement = StraightDown.new()
 	# Orbiting bullet shells via the shared OrbitComponent (VISUAL) — set BEFORE super._ready so

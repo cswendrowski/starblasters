@@ -60,6 +60,59 @@ static func build(variant: int, tint: Color, glow_alpha: float = 1.0) -> Node2D:
 	return root
 
 
+# Dock-cinematic ship assembly (Roman 2026-07-02 refactor) — the shared body/livery/glow stack the
+# outpost + patrol dock screens both hand-built. Builds a host Node2D containing: body (Sprite2D), a
+# livery Sprite2D (screen-multiply material, WHITE modulate), an additive engine-glow Sprite2D tinted
+# ENGINE_GLOW_COLOR, and one Marker2D per engine nozzle (named "Engine{i}"). Returns the host plus refs
+# {body, livery, glow, markers} so each screen can apply its own extras (damage overlay, drop shadow,
+# trail, point lights) and adjust draw order without diverging on the core layers.
+#
+# The two screens differ in a few structural details, parameterized here to preserve each EXACTLY:
+#   `livery_under_body` — patrol parents the livery UNDER the body (child); outpost keeps it a sibling.
+#   `body_z`            — patrol sets the body z_index to -2; outpost leaves it at 0.
+#   `glow_alpha`        — patrol starts the glow at alpha 0 (parked/unlit); outpost at full color (lit).
+# `data` is a ShipCatalog ship dict (its `body`/`livery`/`engine`/`engines` keys).
+static func build_dock_ship(data: Dictionary, livery_color: Color, livery_under_body: bool = false, body_z: int = 0, glow_alpha: float = 1.0) -> Dictionary:
+	var host := Node2D.new()
+
+	var body := _dock_layer(String(data["body"]), Color.WHITE, false)
+	if body_z != 0:
+		body.z_index = body_z
+	host.add_child(body)
+
+	var livery := _dock_layer(String(data["livery"]), Color.WHITE, false)
+	livery.material = make_livery_material(livery_color)
+	if livery_under_body:
+		body.add_child(livery)
+	else:
+		host.add_child(livery)
+
+	var glow := _dock_layer(String(data["engine"]), ENGINE_GLOW_COLOR, true)
+	glow.modulate.a = glow_alpha
+	host.add_child(glow)
+
+	var markers: Array = []
+	for i in (data["engines"] as Array).size():
+		var mk := Marker2D.new()
+		mk.name = "Engine%d" % i
+		mk.position = data["engines"][i]
+		host.add_child(mk)
+		markers.append(mk)
+
+	return {"host": host, "body": body, "livery": livery, "glow": glow, "markers": markers}
+
+
+# A dock ship sprite layer: frame-1 of the 3-frame bank, nearest filter, tint, optional additive blend.
+static func _dock_layer(path: String, tint: Color, additive: bool) -> Sprite2D:
+	var spr := _sprite(path)
+	spr.modulate = tint
+	if additive:
+		var m := CanvasItemMaterial.new()
+		m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		spr.material = m
+	return spr
+
+
 # The configured screen-multiply livery ShaderMaterial — the ONE place the livery look is defined
 # (shader + 0.8 opacity). Scenes that build their own ship layers (the outpost / patrol cinematics,
 # which carry damage overlays + dimming the plain builder tree doesn't) call this so their livery

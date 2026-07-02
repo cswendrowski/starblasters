@@ -32,6 +32,12 @@ func _ready() -> void:
 	recycle_passes = 0
 	if has_node("Sprite2D"):
 		$Sprite2D.frame = 0
+	# Descent = chassis move_speed (StraightDown reads it). Seed from the authored drift_speed when
+	# unset so the BODY descends at the written 100 instead of the pattern's 180 fallback — and so the
+	# orbit host_drift below matches the body (they were mismatched). Handed move_speed wins.
+	# (Roman 2026-07-02 speed-source pass, option B.)
+	if move_speed <= 0.0:
+		move_speed = drift_speed
 	if movement == null:
 		var m := StraightDown.new()
 		movement = m
@@ -40,7 +46,7 @@ func _ready() -> void:
 	# component (on_death / on_leave) with the mine drift + their tangential orbit velocity.
 	var oc = OrbitComponentC.new()
 	oc.mode = OrbitComponentC.Mode.LIVE
-	oc.host_drift = drift_speed
+	oc.host_drift = move_speed   # match the body's actual descent (seeded from drift_speed above)
 	var dir: float = 1.0 if randf() < 0.5 else -1.0
 	var n: int = [4, 6, 8][randi() % 3]
 	var omega: float = orbit_tangential_speed / maxf(orbit_radius, 1.0) * dir

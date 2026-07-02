@@ -47,6 +47,11 @@ func _ready() -> void:
 	has_ship_vfx = false  # no ground shadow / damage-overlay — asteroids shatter, not fray
 	wants_outline = false  # asteroids carry their own procgen outline
 	offscreen_mode = OffscreenMode.NONE
+	# Descent intake (Roman 2026-07-02 speed-source pass): when the bench/director hands a move_speed,
+	# drive off it (rung-scale tunable); otherwise keep the authored drift_speed. Never overrides a
+	# handed value. drift_speed stays the live working var — collision slowdown mutates it below.
+	if move_speed > 0.0:
+		drift_speed = move_speed
 	super._ready()
 	# Lateral-drift pattern (shared). Mode is set by the conductor via drift_mode before add_child;
 	# the home lane is captured on the first step (after start() positions us). Default "drift_all"

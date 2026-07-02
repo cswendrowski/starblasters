@@ -29,6 +29,7 @@ static func cookie() -> Texture2D:
 # rendered diameter). Not yet in any tree (caller adds it).
 static func make(color: Color, energy: float, radius_px: float, z: int = 0) -> PointLight2D:
 	var l := PointLightFx.make(Vector2.ZERO, color, radius_px / (float(COOKIE_PX) * 0.5), cookie())
+	l.enabled = true   # the factory now spawns disabled (dock light-budget fix); combat lights are always live
 	l.energy = energy
 	l.z_index = z
 	return l

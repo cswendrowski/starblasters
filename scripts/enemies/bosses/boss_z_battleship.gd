@@ -49,25 +49,25 @@ const FIRECORE_BURST_SPEED := 90.0
 
 const TURRET_HP := 64   # Roman 2026-07-01: turrets + side lasers cut to 64
 const TURRET_HITBOX := Vector2(16, 16)
-
-# Latitudes / travel.
-const HIGH_HOLD_Y := 64.0        # the "high hold point" — where a hook maneuver comes to rest near the top
-const HOOK_RISE_SPEED := 100.0   # coming up the edge lane from behind
-const HOOK_DIVE_SPEED := 130.0   # diving out the bottom
-const SLIDE_ENTER_SPEED := 80.0  # foreground entry from the top (also covers the laser windup)
-const SLIDE_CROSS_SPEED := 90.0  # sidestepping across the play area
-const SLIDE_EXIT_SPEED := 130.0  # exiting off the bottom
-const FLEE_SPEED := 260.0        # retreat (survive-the-waves exit)
-# Rotate-slide / hold timings.
-const ROTATE_SLIDE_DUR := 1.2    # matches the main-laser windup, so a charging laser fires on arrival
-const ROTATE_TO_DOWN_DUR := 0.7  # pivot-in-place back to nose-down at the end of a blockade
-const BEAM_HOLD := 3.0           # hold in the centre lane while the main laser fires down it
-const BLOCKADE_HOLD := 3.0       # hold horizontal while turrets + side lasers rake down
-# Stage hazards (wave 3+).
-const HAZARD_MIN_GAP := 7.0
-const HAZARD_MAX_GAP := 12.0
 const HAZARD_MUZZLE_Y := 170.0   # off-screen ABOVE: -HAZARD_MUZZLE_Y puts the body off-top, muzzle near y=0
-const HAZARD_SWEEP_SPEED := 55.0 # how fast the sweep beam pans edge→centre
+
+# MOVEMENT / TIMING KNOBS (Roman 2026-07-02) — @export so the Battleship Lab (scenes/dev/battleship_lab)
+# can LIVE-TUNE the ponderous feel; kept UPPER_CASE so the maneuvers read them like the old consts. Tune
+# in the Lab → Copy GDScript → paste this block back. Deliberately SLOW — a heavy, ponderous mega-boss.
+@export var HIGH_HOLD_Y: float = 64.0        # the "high hold point" — where a hook maneuver comes to rest near the top
+@export var HOOK_RISE_SPEED: float = 65.0    # coming up the edge lane from behind
+@export var HOOK_DIVE_SPEED: float = 90.0    # diving out the bottom
+@export var SLIDE_ENTER_SPEED: float = 55.0  # foreground entry from the top (also covers the laser windup)
+@export var SLIDE_CROSS_SPEED: float = 60.0  # sidestepping across the play area
+@export var SLIDE_EXIT_SPEED: float = 90.0   # exiting off the bottom
+@export var FLEE_SPEED: float = 200.0        # retreat (survive-the-waves exit)
+@export var ROTATE_SLIDE_DUR: float = 1.8    # the rotate-slide swing (bigger = heavier / slower)
+@export var ROTATE_TO_DOWN_DUR: float = 1.1  # pivot-in-place back to nose-down at the end of a blockade
+@export var BEAM_HOLD: float = 3.0           # hold in the centre lane while the main laser fires down it
+@export var BLOCKADE_HOLD: float = 3.5       # hold horizontal while turrets + side lasers rake down
+@export var HAZARD_MIN_GAP: float = 8.0      # stage-hazard cadence MIN (wave 3+)
+@export var HAZARD_MAX_GAP: float = 14.0     # stage-hazard cadence MAX
+@export var HAZARD_SWEEP_SPEED: float = 40.0 # how fast the sweep beam pans edge→centre
 
 const UNDER_LAYER_Z := -2        # draws behind gameplay (player/trail/bullets) but in front of the parallax CanvasLayers
 const BG_TINT := Color(0.5, 0.58, 0.72, 1.0)
@@ -263,21 +263,38 @@ func _state_enter(_state_name: StringName) -> void:
 # Play ONE maneuver and return when the boss is back off-screen/idle. Awaited by the director between
 # waves (and once more, with wave_idx=-1, after the last wave). Serialized against the hazard loop.
 func play_wave_maneuver(_wave_idx: int = 0) -> void:
+	await _run_maneuver(_pick_maneuver())
+
+
+# Dev (Battleship Lab): play a SPECIFIC maneuver or hazard on demand.
+func play_named_maneuver(name: String) -> void:
+	await _run_maneuver(name)
+
+
+# Names the Lab can trigger (order = its button row).
+const MANEUVER_NAMES := ["hook_firecores", "hook_laser", "hook_blockade", "firecore_slide", "laser_slide",
+	"hazard_lane_laser", "hazard_sweep"]
+
+
+# Run one named maneuver/hazard, serialized against any other (the wave gate + the hazard loop share
+# this), returning once the boss is back off-screen/idle.
+func _run_maneuver(m: String) -> void:
 	if _dying or not is_instance_valid(self):
 		return
-	# Wait out any hazard currently firing so the two never fight over the boss's position.
+	# Wait out anything currently running so the two never fight over the boss's position.
 	while _busy and not _dying:
 		await get_tree().process_frame
 	if _dying:
 		return
 	_busy = true
-	var m: String = _pick_maneuver()
 	match m:
 		"hook_firecores": await _m_lane_hook_firecores()
 		"hook_laser": await _m_lane_hook_laser()
 		"hook_blockade": await _m_lane_hook_blockade()
 		"firecore_slide": await _m_lane_firecore_slide()
 		"laser_slide": await _m_lane_laser_slide()
+		"hazard_lane_laser": await _hazard_lane_laser()
+		"hazard_sweep": await _hazard_lane_laser_sweep()
 	_last_maneuver = m
 	if not _dying and is_instance_valid(self):
 		_go_idle()

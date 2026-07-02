@@ -5,7 +5,7 @@ extends Control
 # buttons. All styling is code-driven so the .tscn cache-bind trap doesn't
 # bite when we iterate.
 
-const BackdropCoordinatorScene = preload("res://scenes/parallax/backdrop_coordinator.tscn")
+const MenuBackdrop = preload("res://scripts/ui/menu_backdrop.gd")
 const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const SectorMapRoute = preload("res://scripts/systems/sector_map_route.gd")
@@ -21,6 +21,9 @@ const SectorMapRoute = preload("res://scripts/systems/sector_map_route.gd")
 var test_hazard_btn: Button = null
 var _test_hazard_modal: CanvasLayer = null
 var _hd_scope: HdViewportScope = null
+# The upscaled-backdrop SubViewport (from HdScreen.add_upscaled_backdrop). Handed to patrol_start on a
+# live "Start New Patrol" so the LIVE backdrop (drift + star scatter) survives the swap (Roman 2026-07-02).
+var _backdrop_sub: SubViewport = null
 @onready var title_label: Label = $Center/VBox/Title
 @onready var version_label: Label = $VersionLabel if has_node("VersionLabel") else null
 @onready var center: CenterContainer = $Center
@@ -98,27 +101,18 @@ func _host_ui_on_canvaslayer() -> void:
 
 
 func _install_backdrop() -> void:
-	# Spawn the same parallax setup the combat scene uses. Slower planet drift
-	# so the menu's planet doesn't blow past — this is the lobby, not a level.
-	var bd := BackdropCoordinatorScene.instantiate()
-	bd.name = "Backdrop"
-	# Reasonable tune for a menu — present, calm but with motion. Asteroids
-	# might or might not roll in; same call as combat.
-	bd.set("drift_speed", 14.0)
-	bd.set("warp_streak_count", 8)
-	bd.set("warp_streak_speed", 432.0)
-	bd.set("asteroid_presence", 0.5)
+	# Spawn the same parallax setup the combat scene uses, on the shared calm-lobby tune (slower
+	# planet drift so the menu's planet doesn't blow past — this is the lobby, not a level).
+	var bd := MenuBackdrop.make()
 	# The parallax backdrop renders in native 480×270; this menu is HD. Show it
 	# via a native SubViewport upscaled 4× (nearest) so it fills the screen the
 	# same way combat's canvas stretch does — see HdScreen.add_upscaled_backdrop.
-	HdScreen.add_upscaled_backdrop(self, bd)
+	# Stash the SubViewport so a live "Start New Patrol" can HAND THE WHOLE LIVE
+	# backdrop to patrol_start (drift + star scatter intact) instead of rebuilding.
+	_backdrop_sub = HdScreen.add_upscaled_backdrop(self, bd)
 	# Drop the celestial bodies toward the centre of the menu (they normally stage near the top); the
-	# patrol-start sequence starts them here and pans them up as the hangar rises (kept in sync, 110).
-	# The parallax layers are CanvasLayers — shift them with `offset`, not `position`.
-	for nm in ["LayerPlanet", "LayerStellarFar", "LayerStellarMid", "LayerStellarNear"]:
-		var cl := bd.get_node_or_null(nm) as CanvasLayer
-		if cl != null:
-			cl.offset.y += 110.0
+	# patrol-start sequence starts them here and pans them up as the hangar rises (kept in sync).
+	MenuBackdrop.drop_celestials(bd)
 
 
 func _style_title() -> void:
@@ -211,10 +205,20 @@ func _on_new_game() -> void:
 		var snap := await _capture_screen()
 		if snap != null:
 			run.set_meta("patrol_menu_snapshot", snap)
+		# Hand the LIVE backdrop over: detach the upscaled-backdrop SubViewport from the menu tree
+		# (AFTER the snapshot, so it's in the captured frame) and stash it, so patrol_start ADOPTS the
+		# already-rendered sky (accumulated parallax drift + per-layer star scatter intact) instead of
+		# building a fresh coordinator that resets both — which made the crossfade dissolve into a
+		# visibly-different sky. remove_child (not free) so change_scene's free of this scene leaves it
+		# alive; patrol_start re-parents + consumes it (freeing it if adoption is impossible).
+		if _backdrop_sub != null and is_instance_valid(_backdrop_sub):
+			if _backdrop_sub.get_parent() != null:
+				_backdrop_sub.get_parent().remove_child(_backdrop_sub)
+			run.set_meta("patrol_backdrop_live", _backdrop_sub)
 	# Direct swap (no SceneTransition black) — patrol_start owns the crossfade reveal. main_menu's
 	# backdrop renders in a SubViewport (off the root canvas), so the change_scene backdrop-free
 	# SIGSEGV guard SceneTransition adds for combat's direct-child Backdrop doesn't apply here.
-	get_tree().change_scene_to_file("res://scenes/dev/patrol_start.tscn")
+	get_tree().change_scene_to_file("res://scenes/patrol_start.tscn")
 
 
 # Capture the current rendered frame as a texture for patrol_start's crossfade hand-off. Returns null

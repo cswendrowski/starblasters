@@ -52,7 +52,7 @@ func _step() -> void:
 			_oa.queue_free()
 			_oa = null
 		5:
-			_ps = load("res://scenes/dev/patrol_start.tscn").instantiate()
+			_ps = load("res://scenes/patrol_start.tscn").instantiate()
 			get_root().add_child(_ps)
 		6:
 			_ps.set_shadow_mode(2)        # FILL

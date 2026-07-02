@@ -36,6 +36,11 @@ func _ready() -> void:
 	sh.ring_size = 24.0
 	sh.start_inactive = true
 	components = components + [sh]
+	# Descent = chassis move_speed (StraightDown reads it). Seed from the authored drift_speed when
+	# unset so it descends at the written rate instead of the pattern's 180 fallback; a handed
+	# move_speed wins. (speed-source pass, option B.)
+	if move_speed <= 0.0:
+		move_speed = drift_speed
 	if movement == null:
 		var m := StraightDown.new()
 		movement = m

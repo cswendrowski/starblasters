@@ -51,8 +51,8 @@ rename to `has_condition()` — cheap either way (single seam).
 | Active list | `run_state.gd` `sector_modifiers: Array` | becomes `active_conditions` |
 | Labels | `strings.gd` `MODIFIER_LABELS` | rewrite as bane+boon (§4) |
 | Outpost readout | `outpost.gd` `_format_sector_modifiers` | keep, extend with reward line |
-| **Patrol-setup stepper (0–5)** | `patrol_start.gd:936`, writes `patrol_sector_modifiers` meta | **half-built — unconsumed** |
-| `patrol_endless` meta | `patrol_start.gd` | also unconsumed (out of scope here) |
+| **Patrol-setup stepper (0–5)** | `scripts/screens/patrol_start.gd:936`, writes `patrol_sector_modifiers` meta | **half-built — unconsumed** |
+| `patrol_endless` meta | `scripts/screens/patrol_start.gd` | also unconsumed (out of scope here) |
 
 Two cleanups fall out of this audit regardless of which front-end ships:
 
@@ -222,7 +222,7 @@ Build the pipe once; each UI is then cheap. **Which to build, and in what order,
 this doc just defines them.**
 
 1. **Wildcard count** *(smallest first ship)* — consume the 0–5 stepper that already exists and is
-   already writing `patrol_sector_modifiers` ([patrol_start.gd:1245](../scripts/dev/patrol_start.gd)).
+   already writing `patrol_sector_modifiers` ([patrol_start.gd:1245](../scripts/screens/patrol_start.gd)).
    On Begin Patrol, roll N Conditions, store them, and **reveal them** on a confirmation beat. This is
    ~1 consume-function + the roll; it proves the whole pipe end-to-end.
 2. **Curated picker** — at patrol setup, hand-pick Conditions from cards showing bane **and** boon and

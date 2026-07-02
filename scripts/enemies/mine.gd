@@ -29,6 +29,12 @@ func _ready() -> void:
 	auto_rotate = false       # mines don't have a "forward"
 	has_ship_vfx = false      # no engine flame / damage-overlay — mines explode, not fray
 	recycle_passes = 0        # off the bottom = free, never parallax-cycle
+	# Descent = chassis move_speed (StraightDown/LateralDrift read it). Seed it from the authored
+	# drift_speed when unset so the mine descends at the WRITTEN rate instead of the pattern's 180
+	# fallback; a handed move_speed (bench/director) still wins. (Roman 2026-07-02 speed-source pass,
+	# option B: honor the authored value.)
+	if move_speed <= 0.0:
+		move_speed = drift_speed
 	if movement == null:
 		var m := StraightDown.new()
 		movement = m

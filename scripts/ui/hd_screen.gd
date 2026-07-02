@@ -134,3 +134,28 @@ static func add_upscaled_backdrop(host: Node, backdrop: Node, native_size: Vecto
 	host.add_child(view)
 	host.move_child(view, 0)
 	return sub
+
+
+# Adopt an ALREADY-BUILT upscaled backdrop SubViewport (as returned by add_upscaled_backdrop) into a
+# new host — used to hand the LIVE menu backdrop to the next screen without rebuilding it, so the
+# accumulated parallax drift + per-layer star scatter survive the scene swap (a fresh coordinator
+# resets both and the crossfade dissolves into a visibly-different sky). The caller must have detached
+# `sub` from its old host BEFORE that host is freed (remove_child, not queue_free). Re-parents `sub`
+# under `host`, builds a fresh TextureRect bound to its texture (the old host's TextureRect died with
+# it), inserts it at index 0. Returns the same SubViewport. Falls back to null if `sub` is invalid.
+static func adopt_upscaled_backdrop(host: Node, sub: SubViewport) -> SubViewport:
+	if sub == null or not is_instance_valid(sub):
+		return null
+	if sub.get_parent() != null:
+		sub.get_parent().remove_child(sub)
+	host.add_child(sub)
+	var view := TextureRect.new()
+	view.name = "BackdropView"
+	view.texture = sub.get_texture()
+	view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	view.stretch_mode = TextureRect.STRETCH_SCALE
+	view.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	view.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	host.add_child(view)
+	host.move_child(view, 0)
+	return sub

@@ -40,12 +40,13 @@ const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const ShipCatalog = preload("res://scripts/strings/ship_catalog.gd")
 const EngineTrailFx = preload("res://scripts/effects/engine_trail_fx.gd")
 const PF = preload("res://scripts/systems/playfield.gd")
-const BackdropCoordinatorScene = preload("res://scenes/parallax/backdrop_coordinator.tscn")
+const MenuBackdrop = preload("res://scripts/ui/menu_backdrop.gd")
 const ShipVisual = preload("res://scripts/ui/ship_visual.gd")
 const HANGAR_STAGE := "res://scenes/hangar_stage.tscn"   # shared authorable plate + runway + lights + slot markers
 const HangarClutter = preload("res://scripts/screens/hangar_clutter.gd")
 const PointLightFx = preload("res://scripts/effects/point_light_fx.gd")
-const LightShadowFx = preload("res://scripts/effects/light_shadow_fx.gd")
+const DockShadowRig = preload("res://scripts/effects/dock_shadow_rig.gd")
+const DockConst = preload("res://scripts/effects/dock_const.gd")
 const FIRECORE_SCENE := "res://scenes/enemies/factions/zealot/firecore_core.tscn"
 const LIFTER_SCENE := "res://scenes/outpost/outpost_lifter.tscn"
 const TRACTOR_SCENE := "res://scenes/outpost/outpost_tractor.tscn"
@@ -55,30 +56,29 @@ const TRAILER_TEX := "res://graphics/backgrounds/outpost_tractor_trailer.png"
 const LIFTER_TEX := "res://graphics/backgrounds/outpost_lifter.png"
 const CRATE_TEX := "res://graphics/backgrounds/outpost_ammo_crates.png"
 
-const NATIVE_W := 480.0
-const NATIVE_H := 270.0
-const HD_SCALE := 4.0
-const HD_W := 1920.0
-const HD_H := 1080.0
-const SHIP_X := NATIVE_W / 2.0
-const FLYOFF_TARGET_Y := -120.0
-const GUTTER_HD := PF.X_MIN * HD_SCALE   # 528
-const RIGHT_HD := PF.X_MAX * HD_SCALE     # 1392
+const NATIVE_W := DockConst.NATIVE_W
+const NATIVE_H := DockConst.NATIVE_H
+const HD_SCALE := DockConst.HD_SCALE
+const HD_W := DockConst.HD_W
+const HD_H := DockConst.HD_H
+const SHIP_X := DockConst.SHIP_X
+const FLYOFF_TARGET_Y := DockConst.FLYOFF_TARGET_Y
+const GUTTER_HD := DockConst.GUTTER_HD   # 528
+const RIGHT_HD := DockConst.RIGHT_HD     # 1392
 
-const ENGINE_GLOW_COLOR := Color(0.0, 0.827, 1.0)
-const ENGINE_LIGHT_COLOR := Color(0.10, 0.60, 1.0)
-const ENGINE_LIGHT_ENERGY := 1.8          # bright — the engines are the dock's main light in the dark bay
+const ENGINE_GLOW_COLOR := DockConst.ENGINE_GLOW_COLOR
+const ENGINE_LIGHT_COLOR := DockConst.ENGINE_LIGHT_COLOR
+const ENGINE_LIGHT_ENERGY := DockConst.ENGINE_LIGHT_ENERGY   # bright — the engines are the dock's main light
 const ENGINE_LIGHT_SCALE := 0.3           # FOCUSED nozzle glow (128px tex → ~38px); scale wasn't the issue
                                           # (Roman 2026-06-26)
-const ENGINE_FLARE_PEAK := 2.2            # energy × at the moment of launch (accelerating out of the bay)
-const ENGINE_FLARE_SCALE := 1.7           # light-size × at launch (the bright spot blooms as it leaves)
+const ENGINE_FLARE_PEAK := DockConst.ENGINE_FLARE_PEAK   # energy × at the moment of launch
+const ENGINE_FLARE_SCALE := DockConst.ENGINE_FLARE_SCALE   # light-size × at launch (bright spot blooms)
 const FIRECORE_LIGHT_COLOR := Color(1.0, 0.62, 0.16)
 const SELECT_LIGHT_COLOR := Color(0.62, 0.82, 1.0)
 const LIFTER_Z := 12                                # flies above the hulls
 const CARRY_Z := 8                                  # carried hull lifts above the parked ones
 # Shadow prototype: LEGACY = baked drop shadows; KEY = central key light; FILL = the 2×3 fill lights.
 enum ShadowMode { LEGACY, KEY, FILL }
-const KEY_LIGHT_ENERGY := 0.0   # key light is a SHADOW SOURCE only — illuminating it floods/sweeps the bay
 
 # The plate, runway lights, fill lights, and the pad/lifter/park/crate slot markers now live in the
 # shared authorable hangar stage (scenes/hangar_stage.tscn). patrol reads the slot markers from it
@@ -144,7 +144,7 @@ var _pad := Vector2(SHIP_X, 132.0)        # readied-ship pad (overwritten from t
 var _lifter_idle := Vector2(SHIP_X, 226.0)  # lifter rest (overwritten from the LifterIdle marker)
 var _select_light: PointLight2D = null
 var _light_tex: Texture2D = null
-var _shadow_mgr = null               # LightShadowFx (light-derived shadow prototype)
+var _shadow_rig = null               # DockShadowRig (owns the LightShadowFx; light-derived prototype)
 var _legacy_shadows: Array = []      # baked drop shadows to hide in the light-derived modes
 var _extra_casters: Array = []       # [{src, parent, z}] ship/tractor/lifter bodies
 var _dynamic_lights: Array = []      # tractor head/brake/hover + lifter grav/hover PointLights
@@ -243,26 +243,58 @@ func _process(delta: float) -> void:
 
 
 func _install_menu_backdrop() -> void:
-	var bd := BackdropCoordinatorScene.instantiate()
+	# LIVE launch: the main menu hands over its ALREADY-RENDERED backdrop (accumulated parallax drift +
+	# per-layer star scatter intact) via the `patrol_backdrop_live` meta. ADOPT it so the crossfade
+	# dissolves the menu into the SAME sky instead of a freshly-reset coordinator. Consume the meta
+	# unconditionally — never leave a stashed node dangling. Dev launch (no meta) builds fresh as before.
+	var adopted := _adopt_live_backdrop()
+	if adopted:
+		return
+	var bd := MenuBackdrop.make()
 	bd.name = "MenuBackdrop"
-	bd.set("drift_speed", 14.0)
-	bd.set("warp_streak_count", 8)
-	bd.set("warp_streak_speed", 432.0)
-	bd.set("asteroid_presence", 0.5)
 	HdScreen.add_upscaled_backdrop(self, bd)
 	_backdrop = bd
 	_bg_stars = bd.get_node_or_null("LayerStars")
 	_streaks_node = bd.get_node_or_null("LayerStreaks")
 	# Celestial bodies start dropped toward centre (matching the main menu) and pan up on the rise.
-	# The parallax layers are CanvasLayers — shift them with `offset`, not `position`.
+	MenuBackdrop.drop_celestials(bd)
 	_celestial_layers = []
 	_celestial_start = []
-	for nm in ["LayerPlanet", "LayerStellarFar", "LayerStellarMid", "LayerStellarNear"]:
-		var cl := bd.get_node_or_null(nm) as CanvasLayer
-		if cl != null:
-			cl.offset.y += bg_celestial_drop
-			_celestial_layers.append(cl)
-			_celestial_start.append(cl.offset)
+	for cl in MenuBackdrop.celestial_layers(bd):
+		_celestial_layers.append(cl)
+		_celestial_start.append((cl as CanvasLayer).offset)
+
+
+# Adopt the live main-menu backdrop stashed in the `patrol_backdrop_live` Run meta (if valid). Returns
+# true when adopted; false → the caller builds a fresh backdrop. Consumes the meta either way, freeing
+# an unusable stashed node so it never dangles.
+func _adopt_live_backdrop() -> bool:
+	var run := get_node_or_null("/root/Run")
+	if run == null or not run.has_meta("patrol_backdrop_live"):
+		return false
+	var sub = run.get_meta("patrol_backdrop_live")
+	run.remove_meta("patrol_backdrop_live")   # consume unconditionally
+	if not (sub is SubViewport) or not is_instance_valid(sub):
+		return false
+	var bd := (sub as SubViewport).get_node_or_null("Backdrop")
+	if bd == null:
+		# Stashed viewport has no backdrop child — unusable; free it so it doesn't dangle.
+		(sub as SubViewport).queue_free()
+		return false
+	if HdScreen.adopt_upscaled_backdrop(self, sub) == null:
+		(sub as SubViewport).queue_free()
+		return false
+	_backdrop = bd
+	_bg_stars = bd.get_node_or_null("LayerStars")
+	_streaks_node = bd.get_node_or_null("LayerStreaks")
+	# The menu already dropped the celestials by bg_celestial_drop — do NOT re-apply it. Record their
+	# CURRENT offsets as the pan/replay baseline so _update_bg_pan + _replay still work.
+	_celestial_layers = []
+	_celestial_start = []
+	for cl in MenuBackdrop.celestial_layers(bd):
+		_celestial_layers.append(cl)
+		_celestial_start.append((cl as CanvasLayer).offset)
+	return true
 
 
 # Pan the celestial bodies UP in proportion to the hangar's upward travel — the camera craning down
@@ -339,8 +371,19 @@ func _clutter_seed() -> int:
 # as extra casters. Default LEGACY = unchanged.
 
 func _build_shadow_mgr() -> void:
-	_shadow_mgr = LightShadowFx.new()
-	_world.add_child(_shadow_mgr)
+	_shadow_rig = DockShadowRig.new()
+	_shadow_rig.setup(_world, _hangar_stage)
+	# Per-screen registration: the ship/tractor/lifter bodies (from _extra_casters) + the dynamic bay
+	# lights (tractor head/tail + lifter grav/hover, from _dynamic_lights). Clutter casters + key/fill
+	# lights are handled by the rig.
+	_shadow_rig.set_casters_callback(func(rig) -> void:
+		for c in _extra_casters:
+			if is_instance_valid(c["src"]):
+				rig.add_caster(c["src"], c["parent"], int(c["z"])))
+	_shadow_rig.set_dynamic_lights_callback(func(rig) -> void:
+		for l in _dynamic_lights:
+			if is_instance_valid(l):
+				rig.add_dynamic_light(l, 1.0, 1.5))
 	_apply_shadow_mode()
 
 
@@ -352,7 +395,8 @@ func set_shadow_mode(m: int) -> void:
 
 func set_shadow_dynamic(on: bool) -> void:
 	shadow_dynamic = on
-	_rebuild_shadow_lights()
+	if _shadow_rig != null:
+		_shadow_rig.rebuild_lights()
 
 
 func set_shadow_max(x: float) -> void:
@@ -366,61 +410,19 @@ func _set_shadow_knob(prop: String, x: float) -> void:
 
 
 func _apply_shadow_mode() -> void:
-	if _shadow_mgr == null:
+	if _shadow_rig == null:
 		return
 	var proto: bool = shadow_mode != ShadowMode.LEGACY
-	_shadow_mgr.enabled = proto
 	for s in _legacy_shadows:
 		if is_instance_valid(s):
 			(s as Node2D).visible = not proto
 	_sync_shadow_knobs()
-	_rebuild_shadow_lights()
-	_rebuild_shadow_casters()
-
-
-func _rebuild_shadow_lights() -> void:
-	if _shadow_mgr == null or _hangar_stage == null or not is_instance_valid(_hangar_stage):
-		return
-	_shadow_mgr.clear_lights()
-	var kl: PointLight2D = _hangar_stage.ensure_key_light()
-	if shadow_mode == ShadowMode.KEY:
-		kl.energy = KEY_LIGHT_ENERGY
-		_shadow_mgr.add_light(kl, 1.0, false)
-	else:
-		kl.energy = 0.0
-		if shadow_mode == ShadowMode.FILL:
-			for fl in _hangar_stage.fill_lights():
-				_shadow_mgr.add_light(fl, 1.0, false)
-	if shadow_dynamic:
-		for l in _dynamic_lights:
-			if is_instance_valid(l):
-				_shadow_mgr.add_light(l, 1.0, true, 1.5)
-
-
-func _rebuild_shadow_casters() -> void:
-	if _shadow_mgr == null:
-		return
-	_shadow_mgr.clear_casters()
-	if shadow_mode == ShadowMode.LEGACY:
-		return
-	for c in _extra_casters:
-		if is_instance_valid(c["src"]):
-			_shadow_mgr.add_caster(c["src"], c["parent"], int(c["z"]))
-	var cl = _hangar_stage.clutter_node()
-	if cl != null and is_instance_valid(cl):
-		for ch in cl.get_children():
-			if ch is Sprite2D:
-				_shadow_mgr.add_caster(ch, cl, -6)
+	_shadow_rig.apply(shadow_mode, shadow_dynamic)
 
 
 func _sync_shadow_knobs() -> void:
-	if _shadow_mgr == null:
-		return
-	_shadow_mgr.shadow_length = shadow_length
-	_shadow_mgr.max_alpha = shadow_alpha
-	_shadow_mgr.falloff = shadow_falloff
-	_shadow_mgr.softness = shadow_softness
-	_shadow_mgr.max_per_caster = shadow_max
+	if _shadow_rig != null:
+		_shadow_rig.sync_knobs(shadow_length, shadow_alpha, shadow_falloff, shadow_softness, shadow_max)
 
 
 # Parked tractor+trailer rigs (4-wheel ground vehicles) as dressing: tractor (front, facing up) +
@@ -466,8 +468,10 @@ func _make_rig(pos: Vector2, lights_on: bool) -> void:
 	_hangar.add_child(pivot)
 	# Lights track the glowmasks: an ON rig shows its head/brake/engine glow AND casts its point lights;
 	# an OFF rig has both dark. Set both ways explicitly so it never rides on the scene's default state.
-	_rig_lights(tractor, lights_on)
-	_rig_lights(trailer, lights_on)
+	# Only enable the TRACTOR's headlights (not the trailer's) to keep a rig pair at 2 enabled lights max,
+	# respecting the plate's 16-light budget (see LIGHT BUDGET in hangar_stage.gd).
+	_rig_lights(tractor, lights_on, true)
+	_rig_lights(trailer, lights_on, false)
 	# Shadow prototype: each vehicle body casts; its drop shadow becomes legacy; an ON rig's point
 	# lights join the dynamic shadow sources (an OFF rig's are hidden → they contribute nothing).
 	for sh2 in [t_sh, r_sh]:
@@ -481,9 +485,21 @@ func _make_rig(pos: Vector2, lights_on: bool) -> void:
 
 
 # Toggle a rig vehicle's lights (the PointLights + the head/brake/engine light sprite layers).
-func _rig_lights(vehicle: Node, on: bool) -> void:
+func _rig_lights(vehicle: Node, on: bool, is_tractor: bool = true) -> void:
+	# Light budget: when a rig is ON, only enable the TRACTOR's HEADLIGHTS (2 PointLight2Ds) to cap the
+	# rig pair at 2 enabled lights total; the trailer's PointLights all stay disabled even when ON.
+	# The visual glow sprite layers (Headlights/Brakelights/Engines) remain fully visible on both
+	# tractor + trailer, so the display isn't compromised. This keeps an ON rig within the plate's 16-light
+	# budget (see LIGHT BUDGET in hangar_stage.gd). Roman 2026-07-02.
 	for l in vehicle.find_children("*", "PointLight2D", true, false):
-		(l as Node2D).visible = on
+		var light_node = l as Node2D
+		var light_name = String(light_node.name)
+		if on and is_tractor:
+			# Only TRACTOR headlights are enabled (most visible/important for lighting the bay).
+			light_node.visible = light_name.begins_with("HeadLight")
+		else:
+			# Trailer lights always off; tractor lights off when the rig is OFF.
+			light_node.visible = false
 	for nm in ["Headlights", "Brakelights", "Engines"]:
 		var n = vehicle.get_node_or_null(nm)
 		if n != null:
@@ -511,37 +527,25 @@ func _build_ships() -> void:
 	for i in ShipCatalog.count():
 		var ship: Dictionary = ShipCatalog.get_ship(i)
 		var col: Color = ship.get("livery_color", Color(0.90, 0.16, 0.16))
-		var host := Node2D.new()
+		# Shared dock ship stack (body + livery UNDER body + additive glow + engine markers). Patrol
+		# parents the livery under the body, sets the body z to -2, and starts the glow unlit (alpha 0 —
+		# parked). Bodies are full-bright (live-ship look); scene_dim dims the whole bay output.
+		var built := ShipVisual.build_dock_ship(ship, col, true, -2, 0.0)
+		var host: Node2D = built["host"]
 		host.name = "Ship_%s" % String(ship["id"])
+		var body: Sprite2D = built["body"]
+		var glow: Sprite2D = built["glow"]
+		var livery_mat := (built["livery"] as Sprite2D).material as ShaderMaterial
+		var markers: Array = built["markers"]
+		# Drop shadow — added under the body layers (built earlier so it sorts behind). Absolute z so it
+		# stays on the FLOOR (under everything) even while the hull is raised to CARRY_Z during a lift —
+		# it tracks the hull across the bay as a ground shadow.
 		var shadow := _make_sprite(String(ship["body"]))
 		shadow.modulate = Color(0, 0, 0, shadow_land_alpha)
 		shadow.position = shadow_land_offset
-		# Absolute z so the shadow stays on the FLOOR (under everything) even while the hull is
-		# raised to CARRY_Z during a lift — it tracks the hull across the bay as a ground shadow.
 		shadow.z_as_relative = false
 		shadow.z_index = -3
 		host.add_child(shadow)
-		var body := _make_sprite(String(ship["body"]))   # full-bright (live-ship look); scene_dim dims the output
-		body.z_index = -2
-		host.add_child(body)
-		var livery_mat := ShipVisual.make_livery_material(col)
-		var livery := _make_sprite(String(ship["livery"]))
-		livery.material = livery_mat
-		body.add_child(livery)
-		var glow := _make_sprite(String(ship["engine"]))
-		glow.z_index = 0
-		glow.modulate = ENGINE_GLOW_COLOR
-		glow.modulate.a = 0.0
-		var gm := CanvasItemMaterial.new()
-		gm.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-		glow.material = gm
-		host.add_child(glow)
-		var markers: Array = []
-		for e in (ship["engines"] as Array):
-			var mk := Marker2D.new()
-			mk.position = e
-			host.add_child(mk)
-			markers.append(mk)
 		if String(ship["id"]) == "pilgrim":
 			_attach_firecore(host)
 		var park: Vector2 = _park_pos(i)
@@ -578,6 +582,7 @@ func _attach_firecore(host: Node2D) -> void:
 	host.add_child(core)
 	var light := _make_point_light(Vector2(0, 0), FIRECORE_LIGHT_COLOR, 0.35, _light_tex)
 	light.energy = 0.9
+	light.enabled = true   # pulses forever (never parked off) — always on (see LIGHT BUDGET, hangar_stage)
 	host.add_child(light)
 	var pulse := create_tween().set_loops()
 	pulse.tween_property(light, "energy", 1.1, 0.7).set_trans(Tween.TRANS_SINE)
@@ -599,26 +604,28 @@ func _build_lifter() -> void:
 	_lifter.z_index = LIFTER_Z
 	_lifter.position = _lifter_idle
 	_nearest_all(_lifter)
-	# Grav glow layer + grav lights start OFF (the lifter is idle, grav cold).
+	# Grav glow layer + grav light start OFF (the lifter is idle, grav cold). Roman 2026-07-02: lifter
+	# refactored to 1 GravLight PointLight2D at root (was Body/GravLight + Body/GravLight2).
 	_grav_glow = _lifter.get_node_or_null("GravGlow")
 	if _grav_glow != null:
 		_grav_glow.modulate.a = 0.0
 	_grav_lights = []
-	for nm in ["Body/GravLight", "Body/GravLight2"]:
-		var l = _lifter.get_node_or_null(nm)
-		if l != null:
-			(l as PointLight2D).energy = 0.0
-			_grav_lights.append(l)
-	# Engines + hover lights start OFF (idle = powered down); they fade in + animate on activation.
+	var grav_light = _lifter.get_node_or_null("GravLight")
+	if grav_light != null:
+		(grav_light as PointLight2D).energy = 0.0
+		(grav_light as PointLight2D).enabled = false   # idle = off; frees a plate light slot (LIGHT BUDGET)
+		_grav_lights.append(grav_light)
+	# Engines + hover light start OFF (idle = powered down); they fade in + animate on activation.
+	# Roman 2026-07-02: lifter refactored to 1 HoverLight PointLight2D at root (was 4x Body/HoverLight*).
 	_lifter_engines = _lifter.get_node_or_null("Engines")
 	if _lifter_engines != null:
 		_lifter_engines.modulate.a = 0.0
 	_hover_lights = []
-	for nm in ["Body/HoverLight", "Body/HoverLight2", "Body/HoverLight3", "Body/HoverLight4"]:
-		var h = _lifter.get_node_or_null(nm)
-		if h != null:
-			(h as PointLight2D).energy = 0.0
-			_hover_lights.append(h)
+	var hover_light = _lifter.get_node_or_null("HoverLight")
+	if hover_light != null:
+		(hover_light as PointLight2D).energy = 0.0
+		(hover_light as PointLight2D).enabled = false   # idle = off; frees a plate light slot (LIGHT BUDGET)
+		_hover_lights.append(hover_light)
 	_hangar.add_child(_lifter)
 	# The lifter's own drop shadow (frame-0 silhouette; spreads with altitude on lift-off).
 	var sh := _make_frame_sprite(load(LIFTER_TEX), 3, 0)
@@ -642,9 +649,10 @@ func _build_lifter() -> void:
 func _lift_update() -> void:
 	if _lifter == null or not is_instance_valid(_lifter):
 		return
-	var off: Vector2 = shadow_land_offset.lerp(shadow_fly_offset, _altitude)
-	var scl: float = lerpf(1.0, shadow_fly_scale, _altitude)
-	var alp: float = lerpf(shadow_land_alpha, shadow_fly_alpha, _altitude)
+	var pose := DockShadowRig.shadow_pose(_altitude, shadow_land_offset, shadow_fly_offset, shadow_land_alpha, shadow_fly_alpha, shadow_fly_scale)
+	var off: Vector2 = pose["offset"]
+	var scl: float = pose["scale"]
+	var alp: float = pose["alpha"]
 	if _lifter_shadow != null and is_instance_valid(_lifter_shadow):
 		_lifter_shadow.position = _lifter.position + off
 		_lifter_shadow.scale = Vector2(scl, scl)
@@ -671,22 +679,42 @@ func _tween_lifter_to(target: Vector2, dur: float) -> void:
 
 
 func _set_grav(on: bool) -> void:
+	if on:
+		for l in _grav_lights:
+			(l as PointLight2D).enabled = true   # enable before fading in (see LIGHT BUDGET, hangar_stage)
 	var tw := create_tween().set_parallel(true)
 	for l in _grav_lights:
 		tw.tween_property(l, "energy", grav_light_energy if on else 0.0, 0.3)
 	if _grav_glow != null:
 		tw.tween_property(_grav_glow, "modulate:a", 1.0 if on else 0.0, 0.3)
+	if not on:
+		# After the fade-out, disable the parked 0-energy grav lights so they free their plate slots.
+		var lights := _grav_lights
+		tw.chain().tween_callback(func() -> void:
+			for l in lights:
+				if is_instance_valid(l):
+					(l as PointLight2D).enabled = false)
 
 
 # Power the lifter's engines up (fade the engine glow in + light the hover lights) or down. The
 # engine sprite frames cycle while active (see _animate_lifter_engines).
 func _set_lifter_engines(on: bool) -> void:
 	_lifter_active = on
+	if on:
+		for h in _hover_lights:
+			(h as PointLight2D).enabled = true   # enable before fading in (see LIGHT BUDGET, hangar_stage)
 	var tw := create_tween().set_parallel(true)
 	if _lifter_engines != null:
 		tw.tween_property(_lifter_engines, "modulate:a", 1.0 if on else 0.0, 0.4)
 	for h in _hover_lights:
 		tw.tween_property(h, "energy", 1.0 if on else 0.0, 0.4)
+	if not on:
+		# After fade-out, disable the parked hover lights so they free their plate slots.
+		var lights := _hover_lights
+		tw.chain().tween_callback(func() -> void:
+			for h in lights:
+				if is_instance_valid(h):
+					(h as PointLight2D).enabled = false)
 
 
 func _animate_lifter_engines(delta: float) -> void:
@@ -1269,6 +1297,7 @@ func _move_select_light(idx: int) -> void:
 	var s: Dictionary = _ships[idx]
 	var host: Node2D = s["host"]
 	_select_light.position = host.position
+	_select_light.enabled = true   # coming on — take a plate light slot (see LIGHT BUDGET, hangar_stage)
 	if _select_light.energy <= 0.0:
 		var tw := create_tween()
 		tw.tween_property(_select_light, "energy", 1.1, 0.25)
@@ -1361,6 +1390,7 @@ func _launch(s: Dictionary) -> void:
 	var lights: Array = []
 	for mk in s["markers"]:
 		var el := _make_point_light((mk as Marker2D).position, ENGINE_LIGHT_COLOR, ENGINE_LIGHT_SCALE, _light_tex)
+		el.enabled = true   # about to spool up — enable before the tween (see LIGHT BUDGET, hangar_stage)
 		host.add_child(el)
 		lights.append(el)
 	s["engine_lights"] = lights
@@ -1398,6 +1428,7 @@ func _launch(s: Dictionary) -> void:
 		trail.set_emitting(false)
 	if _select_light != null:
 		_select_light.energy = 0.0
+		_select_light.enabled = false
 
 
 func _music_intensity(idx: int) -> void:
@@ -1442,6 +1473,7 @@ func _replay() -> void:
 		_position_ship_button(s)
 	if _select_light != null:
 		_select_light.energy = 0.0
+		_select_light.enabled = false
 	_hangar.position = Vector2(0, NATIVE_H)
 	_prev_hangar_y = NATIVE_H
 	for i in _celestial_layers.size():
