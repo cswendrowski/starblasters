@@ -12,8 +12,11 @@ const Drift = preload("res://scripts/enemies/patterns/drift.gd")
 
 
 func _ready() -> void:
-	max_health    = 28          # tanky hull — the parts are the softer, pickable targets
-	bounty_value  = 40
+	# HP/bounty now come from the roster (hp_override 28 / bounty_override 40), set by the director
+	# before _ready. The guard is only a dev/emitter-spawn fallback (default max_health is 1) so it
+	# doesn't clobber the roster value in production — the roster is the single source (2026-07-02).
+	if max_health <= 1:
+		max_health = 28         # tanky hull — the parts are the softer, pickable targets
 	auto_rotate   = false
 	display_scale = 2.0
 	if movement == null:

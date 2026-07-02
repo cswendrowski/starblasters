@@ -37,8 +37,11 @@ var _beam: Node = null   # owner-only MANUAL SEGMENT BeamEmitter
 
 
 func _ready() -> void:
-	max_health   = 12
-	bounty_value = 30
+	# HP/bounty come from the roster (hp_override 12 / bounty_override 30), set by the director before
+	# _ready. The guard is only a dev/emitter-spawn fallback (default max_health is 1) so it doesn't
+	# clobber the roster value in production — the roster is the single source (2026-07-02 consolidation).
+	if max_health <= 1:
+		max_health = 12
 	display_scale = 1.0
 	super._ready()
 

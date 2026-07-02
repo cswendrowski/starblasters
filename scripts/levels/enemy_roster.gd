@@ -1069,6 +1069,7 @@ const ENTRIES := [
 		"heavy_class": "capital",  # 64px-wide (placeholder art) — coda capital pool
 		"tier": Tier.RARE,
 		"size": "large", "tags": [],
+		"hp_override": 28, "bounty_override": 40,   # tanky capital — was hardcoded in enemy_cruiser.gd _ready
 		"movement": "loiter", "depth": "high",
 		"shoot": null,
 		"base_count": 1,
