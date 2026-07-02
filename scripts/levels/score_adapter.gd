@@ -47,6 +47,14 @@ static func from_level_data(level: Resource) -> CombatScore:
 				current.slot_cap = int(spec.slot_cap)
 			score.waves.append(current)
 			wave_count += 1
+		# Deliberate intra-stretch pause (level_structure_redesign): a 1-2s beat BEFORE this sub-wave
+		# that runs its full duration (alive_floor -1 = no self-cancel), so the reposition beat is felt.
+		if current != null and ("lead_pause" in spec) and float(spec.lead_pause) > 0.0:
+			var pause := Phrase.new()
+			pause.kind = Phrase.Kind.BREATHER
+			pause.duration = float(spec.lead_pause)
+			pause.alive_floor = -1
+			current.phrases.append(pause)
 		var ph := Phrase.new()
 		ph.kind = Phrase.Kind.FORMATION
 		ph.specs = [spec]

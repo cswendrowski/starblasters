@@ -205,8 +205,11 @@ static func _apply_budget(waves: Array, chaff_flags: Array, target: int) -> void
 # Chaff scales to STRETCH_BUDGET per stretch; recycling holds the screen so ~300 enemies fill ~3 min.
 const STRETCH_COUNT: int = 3
 const STRETCH_SLOT_CAPS: Array = [16, 26, 36]   # density ramp; applied via WaveSpec.slot_cap on entry
-const STRETCH_UNITS: Array = [2, 2, 2]          # START/MIDDLE/END trios per stretch
+const STRETCH_UNITS: Array = [4, 4, 4]          # START/MIDDLE/END sub-wave units per stretch
 const STRETCH_BUDGET: int = 100                 # enemies per stretch (chaff scaled to hit this)
+# Deliberate 1-2s beat between sub-wave units within a stretch (pacing; see WaveSpec.lead_pause).
+const SUBWAVE_PAUSE_MIN: float = 1.0
+const SUBWAVE_PAUSE_MAX: float = 2.0
 
 # GEOMETRIC CAPSTONE (conductor readability pass, 2026-06-23). When a wave's END beat has no heavy,
 # cap it with a held geometric flock (formation_shapes.gd) this often, else the classic shifting
@@ -275,6 +278,8 @@ static func _build_stretch(rng: RandomNumberGenerator, sector_depth: int, level_
 			opened = true
 		else:
 			s_start.silent = true
+			# A deliberate 1-2s reposition beat between sub-wave units (not before the stretch opener).
+			s_start.lead_pause = rng.randf_range(SUBWAVE_PAUSE_MIN, SUBWAVE_PAUSE_MAX)
 		_apply_force_formation(s_start, e_start)
 		waves.append(s_start); chaff_flags.append(true)
 		# MIDDLE — the bulk; a different palette chaff, opposite sweep.

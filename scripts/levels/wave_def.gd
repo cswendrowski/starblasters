@@ -36,6 +36,11 @@ enum Formation { TOP_LEFT_TO_RIGHT, TOP_RIGHT_TO_LEFT, TOP_RANDOM, TOP_CENTER_OU
 # (the one that opens a ScoreWave); ScoreAdapter copies it to ScoreWave.slot_cap and the director
 # applies it as max_concurrent (a slot ceiling) when it enters that stretch. -1 = leave unchanged.
 @export var slot_cap: int = -1
+# Deliberate pause (seconds) inserted BEFORE this sub-wave (level_structure_redesign_2026-07-01) — the
+# 1-2s beat between sub-wave units within a stretch. ScoreAdapter turns it into a BREATHER phrase that
+# runs its FULL duration (does NOT self-cancel when the screen is clear, unlike the inter-stretch
+# breather), so a competent player still feels the reposition beat. 0 = no pause.
+@export var lead_pause: float = 0.0
 # Sub-lane X offset (px) added to the lane centre — lets the Formation Builder pack a sub-grid of
 # enemies into one lane square. 0 = lane centre (default, production unchanged). Lane-pinned only.
 @export var spawn_x_offset: float = 0.0
