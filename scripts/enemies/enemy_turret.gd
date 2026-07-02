@@ -4,6 +4,8 @@ class_name EnemyTurret
 const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
 const BulletCatalog = preload("res://scripts/projectiles/bullet_catalog.gd")
+const Clarity = preload("res://scripts/systems/clarity.gd")
+const ENEMY_BULLET_DAMAGE_CAP := 4   # mirrors shoot_pattern.gd — cap faction/sector damage scaling
 
 # Reusable aiming + firing component. Add as a child of any enemy node.
 # Handles player tracking, arc clamping, post-shot rotation lock, and
@@ -169,6 +171,7 @@ func _shoot() -> void:
 	if has_mz:
 		spawn_pos = p.next_muzzle_pos()
 	var world: Node = BulletWorld.resolve(p if p != null else self, get_tree().root)
+	var owner: Node = _owner_enemy()   # for the faction/sector weapon mults + velocity inheritance
 	# Fire `count` bullets fanned across `spread_deg` (1 / 0 = a single aimed shot).
 	var n: int = maxi(1, count)
 	for i in n:
@@ -178,15 +181,27 @@ func _shoot() -> void:
 			b.variant = bv
 		world.add_child(b)
 		if b.has_method("start"):
-			b.start(spawn_pos, dir)
+			b.start(spawn_pos, dir)   # _apply_variant sets speed from the .tres
 		else:
 			b.global_position = spawn_pos
 			if "velocity_dir" in b:
 				b.velocity_dir = dir
 			if "speed" in b:
-				b.speed = bullet_speed
+				b.speed = bullet_speed   # fallback only for a variant-less bullet
 			elif "velocity" in b:
 				b.velocity = dir * bullet_speed
+		# Faction/sector weapon scaling + velocity inheritance (Doppler) — the same steps gun/hull
+		# bullets get in shoot_pattern._spawn_bullet, so a turret's shots aren't the odd one out that
+		# ignores a Supremacy bullet-speed buff etc. (Roman 2026-07-02).
+		if owner != null:
+			if "speed" in b and "bullet_speed_mult" in owner and float(owner.bullet_speed_mult) != 1.0:
+				b.speed = minf(b.speed * float(owner.bullet_speed_mult), Clarity.ABS_MAX_SPEED)
+			if "damage" in b and "bullet_damage_mult" in owner and float(owner.bullet_damage_mult) != 1.0:
+				b.damage = clampi(int(round(float(b.damage) * float(owner.bullet_damage_mult))), 1, ENEMY_BULLET_DAMAGE_CAP)
+			if "speed" in b and "_last_move_vel" in owner:
+				var fwd: float = maxf(0.0, owner._last_move_vel.dot(dir))
+				if fwd > 0.0:
+					b.speed = minf(b.speed + fwd, Clarity.ABS_MAX_SPEED)
 		# Movement axis — drive homing/wobble post-spawn (after _apply_variant seeded),
 		# so the firing layer (turret) owns movement, not the bullet .tres.
 		if homing_rate > 0.0 and "homing_rate" in b:
@@ -219,6 +234,17 @@ func _faction() -> int:
 			return int(n.get_meta("faction_skin"))
 		n = n.get_parent()
 	return -1
+
+
+# The owning enemy (turret is parented to it or one of its markers) — the node carrying the weapon
+# multipliers + velocity. Found by walking up to the first node with bullet_speed_mult. null = none.
+func _owner_enemy() -> Node:
+	var n: Node = get_parent()
+	while n != null:
+		if "bullet_speed_mult" in n:
+			return n
+		n = n.get_parent()
+	return null
 
 
 # Flick the barrel through its recoil frames (1 -> max -> back to idle 0) on a shot.
