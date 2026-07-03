@@ -1614,9 +1614,10 @@ static func make_mount_specs(dicts: Array) -> Array:
 	return out
 
 
-const _MOUNT_KIND := {"gun": 0, "turret": 1, "launcher": 2, "beam": 3}        # MountSpec.Kind
+const _MOUNT_KIND := {"gun": 0, "turret": 1, "launcher": 2, "beam": 3, "entity": 4}   # MountSpec.Kind
 const _MOUNT_AIM := {"straight_down": 0, "toward_center": 1, "at_player": 2, "forward": 3, "backward": 4, "left": 5, "right": 6}  # MountSpec.Aim
 const _MOUNT_MODE := {"all": 0, "cycle": 1, "inward": 2, "outward": 3}         # MountSpec.MarkerMode
+const _HARDPOINT_TRIGGER := {"cadence": 0, "timer": 0, "start": 1, "death": 2}  # MountSpec.Trigger (ENTITY)
 
 static func _mount_from_dict(d: Dictionary) -> Resource:
 	var m = MountSpec.new()
@@ -1665,6 +1666,15 @@ static func _mount_from_dict(d: Dictionary) -> Resource:
 		m.turret_texture = tt
 	m.turret_hframes = int(d.get("turret_hframes", 1))
 	m.beam_config = d.get("beam_config", {})
+	# ENTITY (Phase 3): trigger + emit fields when a hardpoint spawns a scene on start/cadence/death.
+	m.trigger = int(_HARDPOINT_TRIGGER.get(String(d.get("trigger", "cadence")), 0))
+	m.emit_scatter = float(d.get("scatter", 0.0))
+	m.emit_chance = float(d.get("emit_chance", d.get("chance", 1.0)))
+	m.max_emits = int(d.get("max_emits", 0))
+	m.band_only = bool(d.get("band_only", false))
+	m.attach_to_enemy = bool(d.get("attach_to_enemy", d.get("attach", false)))
+	m.emit_tag = String(d.get("tag", ""))
+	m.emit_sfx = String(d.get("sfx", ""))
 	return m
 
 
