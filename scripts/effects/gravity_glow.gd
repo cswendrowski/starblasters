@@ -1,17 +1,20 @@
 extends Node2D
 
 # Gravity-mine glow (Roman 2026-06-09). Renders the mine sprite's GLOWMASK frame (the LAST frame
-# of the 2-frame enemy_mine_gravity strip) as an additive overlay tinted #c73bff, PLUS a soft
-# diffuse radial halo of the same colour via GlowFx. Alpha is controllable so tether mines can keep
-# the glow OFF while dormant and fade it in when they activate. The Gravity Mine keeps it on.
+# of the 2-frame enemy_mine_gravity strip) as an additive overlay tinted #c73bff, PLUS a matched-
+# colour PointLight2D "well" glow (LightFx) that lights nearby sprites + blooms — replaces the old
+# flat diffuse halo (retired 2026-06-27). Alpha is controllable so tether mines can keep the glow
+# OFF while dormant and fade it in when they activate. The Gravity Mine keeps it on.
 #
 # Usage: add as a child of the mine, then `setup($Sprite2D)`. Optional start_alpha 0 + fade_in().
 
-const GlowFx = preload("res://scripts/effects/glow_fx.gd")
+const LightFx = preload("res://scripts/effects/light_fx.gd")
 const GRAVITY_COLOR := Color(0.78, 0.231, 1.0)   # #c73bff
+const LIGHT_ENERGY := 1.3    # point-light brightness at full alpha
+const LIGHT_RADIUS := 28.0   # px radius of the well glow
 
 var _mask: Sprite2D = null
-var _halo: CanvasItem = null
+var _light: PointLight2D = null
 var _color: Color = GRAVITY_COLOR
 var _alpha: float = 1.0
 
@@ -34,8 +37,9 @@ func setup(body: Sprite2D, color: Color = GRAVITY_COLOR, start_alpha: float = 1.
 	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	_mask.material = mat
 	add_child(_mask)
-	# Soft diffuse halo of the same colour, derived from the glowmask silhouette.
-	_halo = GlowFx.attach_glow(_mask, color, 1.0, 0.7)
+	# Matched-colour point light — a soft "well" glow that lights nearby sprites + blooms, instead of
+	# the retired flat radial halo. Energy tracks _alpha so dormant tether mines can fade it in.
+	_light = LightFx.attach(self, color, LIGHT_ENERGY * _alpha, LIGHT_RADIUS)
 	_apply_alpha()
 
 
@@ -55,12 +59,12 @@ func fade_in(duration: float = 0.5) -> void:
 func stop() -> void:
 	if _mask != null and is_instance_valid(_mask):
 		_mask.visible = false
-	if _halo != null and is_instance_valid(_halo):
-		_halo.visible = false
+	if _light != null and is_instance_valid(_light):
+		_light.enabled = false
 
 
 func _apply_alpha() -> void:
 	if _mask != null and is_instance_valid(_mask):
 		_mask.modulate = Color(_color.r, _color.g, _color.b, _alpha)
-	if _halo != null and is_instance_valid(_halo):
-		_halo.modulate = Color(1.0, 1.0, 1.0, _alpha)
+	if _light != null and is_instance_valid(_light):
+		_light.energy = LIGHT_ENERGY * _alpha

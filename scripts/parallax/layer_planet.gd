@@ -18,18 +18,6 @@ const PLANETS := {
 	10: "res://Planets/Rivers/Rivers.tscn",
 }
 
-const PLANET_TINT = {
-	0: Color(1.00, 0.45, 0.22),  # LavaWorld   → hot orange
-	1: Color(0.55, 0.75, 1.00),  # IceWorld    → cool blue
-	2: Color(1.00, 0.82, 0.55),  # DryTerran   → sandy warm
-	3: Color(0.80, 0.55, 1.00),  # GasPlanet   → purple-magenta
-	4: Color(0.70, 0.78, 0.90),  # NoAtmosphere → muted blue-grey
-	5: Color(0.55, 0.92, 0.78),  # LandMasses  → green-cyan
-	6: Color(0.55, 0.30, 0.70),  # BlackHole   → deep violet
-	7: Color(0.78, 0.55, 1.00),  # Galaxy      → cool magenta
-	8: Color(1.00, 0.88, 0.55),  # Star        → warm yellow-white
-}
-
 const COLORRECT_DEFAULT_CANONICAL := {"size": Vector2(100.0, 100.0), "pos": Vector2.ZERO}
 const COLORRECT_CANONICAL_BY_NAME := {
 	"Disk":       {"size": Vector2(300.0, 300.0), "pos": Vector2(-100.0, -100.0)},
@@ -304,49 +292,17 @@ func _apply_pixels_only(root: Node, value: float) -> void:
 		_apply_pixels_only(child, value)
 
 
-# Per-planet brightness + atmosphere treatment.
-#   Star / BlackHole get a hot additive halo and an above-tint z_index so the
-#   multiplicative anchor tint can't darken the phenomenon itself.
-#   Globe planets get a softer atmosphere glow underneath (where it's
-#   "appropriate" — no atmosphere for the airless NoAtmosphere variant).
+# Per-planet atmosphere treatment. The GradientTexture2D atmosphere/bloom halos were RETIRED
+# 2026-06-27: planets now bloom purely via their HDR palette (apply_palette_glow scales the kit's
+# OWN colours past the 1.5 threshold), which is the PixelPlanets plugin's self-contained design.
+# Only the BlackHole keeps a bespoke halo — its breathing pulse-glow disc (a shader, not a gradient
+# sprite) — since a black body has nothing bright to bloom on its own.
 func _make_planet_halo(planet_node: Node, planet_idx: int, actual_size: float, planet_x: float, planet_y: float) -> void:
-	# Stellar objects are the FOUNDATION 3 lighting source. Roman, 2026-05-16
-	# parallax overhaul: "should also have a bright bloom effect attached
-	# to them". Adds a wide, soft outer halo that sits behind the planet
-	# regardless of variant — amplifies the existing per-variant haloing.
-	var center_pre: Vector2 = Vector2(planet_x + actual_size * 0.5, planet_y + actual_size * 0.5)
-	var bloom_color: Color = PLANET_TINT.get(planet_idx, Color(1, 1, 1, 1))
-	bloom_color.a = 0.35
-	_make_halo_sprite(center_pre, actual_size * 1.7, bloom_color)
-
-	# Center of the planet visual in LayerPlanet-local coords. For Control planets
-	# we placed the (100x100) rect at top-left planet_pos and scaled it up, so
-	# center = planet_pos + size/2.
-	var center: Vector2 = Vector2(planet_x + actual_size * 0.5, planet_y + actual_size * 0.5)
-	match planet_idx:
-		8:  # Star — full additive halo, blow it bright
-			_make_halo_sprite(center, actual_size * 1.5, Color(1.0, 0.95, 0.6, 0.8))
-		6:  # BlackHole — pulse-glow halo (Roman, 2026-05-17). Color comes
-			# from the sampled disc palette (set on planet meta during
-			# spawn); pulse_glow shader drives radial falloff + a slow
-			# sine intensity pulse so the glow breathes.
-			var disc: Color = planet_node.get_meta("blackhole_halo_color", Color(0.85, 0.6, 1.0, 1.0))
-			_attach_pulse_glow(center, actual_size * 2.2, disc)
-		7:  # Galaxy — soft additive bloom but a bit dimmer
-			_make_halo_sprite(center, actual_size * 1.4, Color(0.6, 0.85, 1.0, 0.45))
-		0:  # LavaWorld — magma glow
-			_make_halo_sprite(center, actual_size * 1.25, Color(1.0, 0.5, 0.2, 0.35))
-		1:  # IceWorld — pale cyan atmosphere
-			_make_halo_sprite(center, actual_size * 1.22, Color(0.65, 0.85, 1.0, 0.32))
-		2:  # DryTerran — thin warm atmosphere
-			_make_halo_sprite(center, actual_size * 1.18, Color(1.0, 0.82, 0.55, 0.28))
-		3:  # GasPlanet — vivid magenta atmosphere
-			_make_halo_sprite(center, actual_size * 1.28, Color(0.85, 0.55, 1.0, 0.4))
-		5:  # LandMasses — green atmosphere
-			_make_halo_sprite(center, actual_size * 1.22, Color(0.55, 0.95, 0.75, 0.32))
-		# NoAtmosphere (4): intentionally no halo — airless rock
-		_:
-			pass
+	if planet_idx == 6:  # BlackHole. Colour from the sampled disc palette (planet meta, set at spawn);
+		# the pulse_glow shader drives the radial falloff + a slow sine breathe.
+		var center: Vector2 = Vector2(planet_x + actual_size * 0.5, planet_y + actual_size * 0.5)
+		var disc: Color = planet_node.get_meta("blackhole_halo_color", Color(0.85, 0.6, 1.0, 1.0))
+		_attach_pulse_glow(center, actual_size * 2.2, disc)
 
 
 # Additive halo behind/beside the planet. z_index is kept at 0 so the

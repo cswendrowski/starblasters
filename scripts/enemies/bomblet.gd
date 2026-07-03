@@ -27,8 +27,9 @@ const BOMBLET_AVOID_STRENGTH := 140.0
 const BOMBLET_NEIGHBOUR_CAP := 4
 const BOMBLET_GROUP := "bomblets"
 const ProximityChase = preload("res://scripts/enemies/patterns/proximity_chase.gd")
-const GlowFx = preload("res://scripts/effects/glow_fx.gd")
+const HELD_OUTLINE_SHADER := preload("res://shaders/outline_1px.gdshader")
 const HELD_GLOW_COLOR := Color(0.78, 0.231, 1.0)   # #c73bff — matches the Gravity Mine glowmask
+const HELD_OUTLINE_HDR := 2.0   # boost the held outline past the 1.5 bloom threshold so it glows
 
 @export var smart: bool = false
 @export var homing_accel: float = 360.0
@@ -50,7 +51,10 @@ var _pulse_phase: float = 0.0
 # Orbiting mode (Gravity Mine): the parent mine drives this bomblet's position while it rings the
 # mine; its own drift/lifetime are suspended until release(velocity) hands it a free velocity.
 var _orbiting: bool = false
-var _held_glow = null   # #c73bff diffuse glow while held by the Gravity Mine; cleared on release
+# While held by the Gravity Mine the bomblet's hull outline is recoloured to a matched HDR purple
+# (blooms via the WorldEnvironment) instead of a diffuse halo; _orig_outline_mat restores the default
+# black outline on release.
+var _orig_outline_mat: Material = null
 
 # Death-boom audio throttle (Roman 2026-06-27: "bomblets have no explosion sound when they die").
 # Bomblets release in swarms (4-8 from a Gravity Mine) that often die together, so an un-throttled
@@ -133,16 +137,34 @@ func release(velocity: Vector2) -> void:
 
 
 func _attach_held_glow() -> void:
-	if _held_glow != null and is_instance_valid(_held_glow):
+	var o := get_node_or_null("Outline")
+	if not (o is Sprite2D):
 		return
-	if has_node("Sprite2D"):
-		_held_glow = GlowFx.attach_glow($Sprite2D, HELD_GLOW_COLOR, 0.9, 0.7)
+	if _orig_outline_mat == null:
+		_orig_outline_mat = (o as Sprite2D).material   # the shared black hull outline
+	(o as Sprite2D).material = _held_outline_material()
 
 
 func _clear_held_glow() -> void:
-	if _held_glow != null and is_instance_valid(_held_glow):
-		_held_glow.queue_free()
-	_held_glow = null
+	var o := get_node_or_null("Outline")
+	if o is Sprite2D and _orig_outline_mat != null:
+		(o as Sprite2D).material = _orig_outline_mat
+
+
+# Matched-colour (#c73bff), HDR-bright 1px outline material — the WorldEnvironment bloom glows it.
+# Shared across held bomblets; it's its OWN material so recolouring never touches the shared black
+# hull outline (which is a cached material reused by every enemy).
+static var _held_mat: ShaderMaterial = null
+static func _held_outline_material() -> ShaderMaterial:
+	if _held_mat != null:
+		return _held_mat
+	var m := ShaderMaterial.new()
+	m.shader = HELD_OUTLINE_SHADER
+	m.set_shader_parameter("clr", Color(HELD_GLOW_COLOR.r * HELD_OUTLINE_HDR, HELD_GLOW_COLOR.g * HELD_OUTLINE_HDR, HELD_GLOW_COLOR.b * HELD_OUTLINE_HDR, 1.0))
+	m.set_shader_parameter("type", 1)
+	m.set_shader_parameter("thickness", 1.0)
+	_held_mat = m
+	return m
 
 
 func _process(delta: float) -> void:

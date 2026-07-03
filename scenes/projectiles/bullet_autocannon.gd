@@ -4,8 +4,6 @@ extends "res://scripts/projectiles/base_bullet.gd"
 # bullet pipeline so it goes through take_hit + bulwark-shielded check
 # instead of the legacy `area.health -=` path it used to.
 
-const GlowFx = preload("res://scripts/effects/glow_fx.gd")
-
 
 func _init() -> void:
 	target_group = "enemies"
@@ -26,11 +24,3 @@ func _ready() -> void:
 		if s.hframes > 1:
 			s.frame = randi() % s.hframes
 	super._ready()
-
-
-func _apply_visuals() -> void:
-	# Subtle warm-amber radial halo behind the tracer. The blurry per-sprite
-	# glow_halo shader was retired (Roman 2026-06-20); glow_fx is the clean
-	# radial replacement and impact_color matches the tracer strip.
-	if has_node("Sprite2D"):
-		GlowFx.attach_glow($Sprite2D, impact_color, 0.6, 0.6)
