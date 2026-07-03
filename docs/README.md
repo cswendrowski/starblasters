@@ -34,6 +34,7 @@ move it to `docs/archive/` with a banner rather than deleting it.
 | Player weapons — data model | [`weapon_data_centralization_2026-06-11.md`](weapon_data_centralization_2026-06-11.md) (stats live in `.tres`) |
 | Player weapons — live DPS numbers | [`weapon_dps_report_2026-06-13.md`](weapon_dps_report_2026-06-13.md) (rebalance candidates are deferred, not a to-do) |
 | Enemy weapons + projectiles | [`weapons_system_2026-06-05.md`](weapons_system_2026-06-05.md) |
+| Mount + emitter → one "Hardpoint" system | **APPROVED / NOT BUILT 2026-07-02** — [`hardpoint_unification_design_2026-07-02.md`](hardpoint_unification_design_2026-07-02.md) (unify `MountSpec`/`MountComponent` + `EmitterComponent`; new aim BACKWARD/LEFT/RIGHT, muzzle INWARD/OUTWARD, payload toggles Delay/Inertia/Nose; turret/beam stay routed) |
 | Faction bullet/muzzle recolor (grayscale + tint) | **SCOPED / NOT BUILT** — [`faction_energy_recolor_design_2026-06-22.md`](faction_energy_recolor_design_2026-06-22.md) (waits on grayscale assets; color data = `Factions.MUZZLE_GLOW_COLOR`) |
 | Shift modes (Focus / Phase / Hyper) | [`shift_mode_system_2026-06-08.md`](shift_mode_system_2026-06-08.md) |
 | Passive module bay | [`passive_module_bay_2026-06-13.md`](passive_module_bay_2026-06-13.md) |
