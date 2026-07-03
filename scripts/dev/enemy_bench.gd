@@ -360,6 +360,22 @@ func _setup_ui() -> void:
 	(%BackButton as Button).pressed.connect(_on_back)
 	_add_mount_btn.pressed.connect(_add_mount)
 	_add_emitter_btn.pressed.connect(_add_emitter)
+	# Phase 3: the Emitters editor is retired — droppers/spawners are now authored as an "Entity"
+	# hardpoint in the unified Mounts list (legacy emitters fold in on load). Hide the vestigial panel
+	# and rename the mount header/button to "Hardpoints".
+	_add_emitter_btn.visible = false
+	if _emitters_list != null:
+		_emitters_list.visible = false
+		var _rvbox: Node = _emitters_list.get_parent()
+		for _nm in ["EmittersSep", "EmittersHeader"]:
+			var _n = _rvbox.get_node_or_null(_nm)
+			if _n is CanvasItem:
+				(_n as CanvasItem).visible = false
+		var _mh = _rvbox.get_node_or_null("MountsHeader")
+		if _mh is Label:
+			(_mh as Label).text = "Hardpoints"
+	if _add_mount_btn != null:
+		_add_mount_btn.text = "+ Add Hardpoint"
 
 	# Music stays muted for dev menus (the Music toggle button was removed 2026-06-20); SFX keeps its
 	# toggle. The prior bus state is still restored on exit (_on_back).
@@ -1329,6 +1345,25 @@ func _emitter_payload_path(name: String) -> String:
 	return String(EMITTER_PAYLOADS.get("Missile", ""))
 
 
+# Phase 3: convert a legacy emitter dict into a unified ENTITY mount dict, so a saved enemy's droppers
+# load into the single Hardpoints (mounts) list. `drop` (default true) -> no_inertia; "timer" -> cadence.
+func _emitter_dict_to_mount(e: Dictionary) -> Dictionary:
+	var trig: String = String(e.get("trigger", "timer"))
+	if trig == "timer":
+		trig = "cadence"
+	return {
+		"kind": "entity",
+		"payload": String(e.get("payload", "Bomblet")),
+		"trigger": trig,
+		"fire": float(e.get("cadence", 2.0)),
+		"count": int(e.get("count", 1)),
+		"max_emits": int(e.get("max_emits", 0)),
+		"band_only": bool(e.get("band_only", false)),
+		"scatter": float(e.get("spread", 0.0)),
+		"no_inertia": bool(e.get("drop", true)),
+	}
+
+
 func _emitter_spec_dicts() -> Array:
 	var out: Array = []
 	for d in _emitter_dicts:
@@ -2110,8 +2145,12 @@ func _load_settings_into_editors() -> void:
 	_mount_dicts = _dup_mounts(s.get("mounts")) if s.has("mounts") else _default_mounts_for(_selected_path)
 	for md in _mount_dicts:
 		md["payload"] = _norm_payload(String(md.get("payload", "Ball")))   # migrate pre-collapse names
+	# Phase 3: legacy emitters (saved or roster-default) fold into the unified Hardpoints list as entity mounts.
+	var _raw_em: Array = _dup_mounts(s.get("emitters")) if s.has("emitters") else _default_emitters_for(_selected_path)
+	for _e in _raw_em:
+		_mount_dicts.append(_emitter_dict_to_mount(_e))
 	_rebuild_mounts_ui()
-	_emitter_dicts = _dup_mounts(s.get("emitters")) if s.has("emitters") else _default_emitters_for(_selected_path)
+	_emitter_dicts = []
 	_rebuild_emitters_ui()
 	_orbit_mode = String(s.get("orbit_mode", "live"))
 	_orbit_rings = _dup_mounts(s.get("orbit_rings")) if s.has("orbit_rings") else []
