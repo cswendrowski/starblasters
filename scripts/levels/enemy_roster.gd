@@ -193,9 +193,9 @@ const BOMBER_TAIL_MOUNT := [
 
 # Minelayer — drops dumb bomblets while crossing, then scatters a cluster on death. Was bespoke
 # (_process timer + explode scatter in minelayer.gd); now a TIMER + DEATH emitter pair (2026-06-19).
-const MINELAYER_EMITTERS := [
-	{ "trigger": "timer", "payload": "Bomblet", "cadence": 1.0, "count": 1, "band_only": true, "max_emits": 3 },
-	{ "trigger": "death", "payload": "Bomblet", "count": 6, "spread": 28.0 },
+const MINELAYER_MOUNTS := [
+	{ "kind": "entity", "trigger": "cadence", "payload_scene": "res://scenes/enemies/enemy_bomblet.tscn", "fire_min": 1.0, "fire_max": 1.0, "count": 1, "band_only": true, "max_emits": 3, "no_inertia": true },
+	{ "kind": "entity", "trigger": "death", "payload_scene": "res://scenes/enemies/enemy_bomblet.tscn", "count": 6, "scatter": 28.0, "no_inertia": true },
 ]
 
 # Each entry: scene path + movement_factory + shoot_factory + tier + suggested
@@ -1007,7 +1007,7 @@ const ENTRIES := [
 		"size": "large", "tags": [],
 		"movement": "side_traverse",
 		"shoot": null,
-		"emitters": MINELAYER_EMITTERS,
+		"mounts": MINELAYER_MOUNTS,
 		"base_count": 2,
 		"unlock_sector": 1, "unlock_depth": 0,
 	},
@@ -1022,7 +1022,7 @@ const ENTRIES := [
 		"shoot": null,
 		# Missile drop, now a reusable EmitterComponent (was bespoke in interceptor.gd): 3 drifting
 		# missiles per pass, 0.55s apart, only while on-screen.
-		"emitters": [{ "trigger": "timer", "payload": "Missile", "count": 1, "cadence": 0.55, "max_emits": 3, "band_only": true, "sfx": "missile" }],
+		"mounts": [{ "kind": "entity", "trigger": "cadence", "payload_scene": "res://scenes/projectiles/drifting_missile.tscn", "count": 1, "fire_min": 0.55, "fire_max": 0.55, "max_emits": 3, "band_only": true, "sfx": "missile", "no_inertia": true }],
 		"base_count": 3,
 		"unlock_sector": 1, "unlock_depth": 0,
 	},
@@ -1047,7 +1047,7 @@ const ENTRIES := [
 		"size": "medium", "tags": ["tough"],
 		"movement": "drift",
 		"shoot": null,
-		"emitters": [{ "trigger": "timer", "payload": "Missile", "count": 1, "cadence": 0.55, "max_emits": 3, "band_only": true, "sfx": "missile" }],
+		"mounts": [{ "kind": "entity", "trigger": "cadence", "payload_scene": "res://scenes/projectiles/drifting_missile.tscn", "count": 1, "fire_min": 0.55, "fire_max": 0.55, "max_emits": 3, "band_only": true, "sfx": "missile", "no_inertia": true }],
 		"base_count": 2,
 		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0,
 	},
@@ -1638,7 +1638,7 @@ static func _mount_from_dict(d: Dictionary) -> Resource:
 	m.count = int(d.get("count", 1))
 	m.spread_deg = float(d.get("spread_deg", 0.0))
 	m.burst_interval = float(d.get("burst_interval", 0.0))
-	m.no_inertia = bool(d.get("no_inertia", false))                 # was never read — roster drop-guns now honoured
+	m.no_inertia = bool(d.get("no_inertia", m.kind == MountSpec.Kind.ENTITY))  # ENTITY drops at rest by default; guns carry inertia
 	m.payload_delay_ms = float(d.get("payload_delay_ms", 0.0))      # Payload Delay (Phase 1)
 	m.homing_rate = float(d.get("homing_rate", 0.0))
 	m.wobble_amplitude = float(d.get("wobble_amplitude", 0.0))
