@@ -13,8 +13,11 @@ extends Resource
 # cache regenerates — the firing-resource convention, see weapon.gd / movement_pattern.gd).
 
 enum Kind { GUN, TURRET, LAUNCHER, BEAM }
-enum Aim { STRAIGHT_DOWN, TOWARD_CENTER, AT_PLAYER, FORWARD }   # mirrors Weapon.Aim
-enum MarkerMode { ALL, CYCLE }   # ALL = fire from every matched marker; CYCLE = one per volley
+enum Aim { STRAIGHT_DOWN, TOWARD_CENTER, AT_PLAYER, FORWARD, BACKWARD, LEFT, RIGHT }   # mirrors Weapon.Aim (int values MUST stay in lockstep)
+# ALL = fire from every matched marker; CYCLE = one per volley (scene order). INWARD/OUTWARD =
+# ordered cycle by horizontal distance from the hull centre — OUTWARD fires the outermost hardpoint
+# first working in, INWARD the reverse (Roman 2026-07-03). Pair with burst_interval for a ripple.
+enum MarkerMode { ALL, CYCLE, INWARD, OUTWARD }
 
 @export var kind: int = Kind.GUN
 @export var marker: String = ""                # exact name or glob ("Cannon*"); "" = hull centre
@@ -33,6 +36,10 @@ enum MarkerMode { ALL, CYCLE }   # ALL = fire from every matched marker; CYCLE =
 # leaves at its OWN intended speed no matter how fast the gun is travelling — lets ANY payload be
 # dropped without a bespoke slow bullet. false = normal inertia-carrying fire.
 @export var no_inertia: bool = false
+# Payload Delay (Roman 2026-07-03, off by default): the spawned payload holds at the muzzle for this
+# many milliseconds before its motion begins, then travels normally. Set onto the bullet/projectile's
+# `motion_delay` at spawn. 0 = fire immediately (unchanged).
+@export var payload_delay_ms: float = 0.0
 
 # Projectile-movement axis driven onto each spawned bullet (mirrors Weapon).
 @export var homing_rate: float = 0.0

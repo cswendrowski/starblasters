@@ -150,13 +150,26 @@ func _resolve_markers(enemy) -> void:
 		return
 	for m in enemy.find_children(spec.marker, "Marker2D", true, false):
 		_markers.append(m)
+	# INWARD/OUTWARD (Roman 2026-07-03): order the hardpoints by hull-local horizontal distance from
+	# centre so a cycled/rippled volley walks outer→in (OUTWARD) or in→out (INWARD). ALL/CYCLE keep
+	# scene-tree order. to_local keeps it correct if the hull is rotated.
+	var mode: int = int(spec.marker_mode)
+	if _markers.size() > 1 and (mode == MountSpecC.MarkerMode.INWARD or mode == MountSpecC.MarkerMode.OUTWARD):
+		_markers.sort_custom(func(a, b): return absf(enemy.to_local(a.global_position).x) < absf(enemy.to_local(b.global_position).x))
+		if mode == MountSpecC.MarkerMode.OUTWARD:
+			_markers.reverse()
+
+
+# CYCLE, INWARD, OUTWARD all fire ONE (ordered) marker per shot; ALL fires every marker each shot.
+func _is_cycling() -> bool:
+	return int(spec.marker_mode) != MountSpecC.MarkerMode.ALL
 
 
 # Spawn positions for this volley: matched markers (ALL, or one cycled) or the hull centre.
 func _spawn_positions(enemy) -> Array:
 	if _markers.is_empty():
 		return [enemy.global_position]
-	if int(spec.marker_mode) == MountSpecC.MarkerMode.CYCLE:
+	if _is_cycling():
 		var m = _markers[_cycle % _markers.size()]
 		_cycle += 1
 		return [m.global_position]
@@ -177,7 +190,7 @@ func _fire_gun(enemy) -> void:
 	if _weapon == null:
 		return
 	var n: int = maxi(1, spec.count)
-	var cycling: bool = int(spec.marker_mode) == MountSpecC.MarkerMode.CYCLE and not _markers.is_empty()
+	var cycling: bool = _is_cycling() and not _markers.is_empty()
 	var is_burst: bool = spec.burst_interval > 0.0
 	for i in n:
 		if is_burst and i > 0:
@@ -195,10 +208,10 @@ func _fire_gun(enemy) -> void:
 		if cycling:
 			var m = _markers[_cycle % _markers.size()]   # one cycled marker per shot (alternating MG muzzles)
 			_cycle += 1
-			_drop_strip(enemy, _weapon._spawn_bullet(enemy, dir, spec.payload, m.global_position), dir)
+			_finish_shot(enemy, _weapon._spawn_bullet(enemy, dir, spec.payload, m.global_position), dir)
 		else:
 			for pos in _all_positions(enemy):            # every marker fires this shot (both cannons)
-				_drop_strip(enemy, _weapon._spawn_bullet(enemy, dir, spec.payload, pos), dir)
+				_finish_shot(enemy, _weapon._spawn_bullet(enemy, dir, spec.payload, pos), dir)
 		# A burst is several distinct shots over time, so each one gets its own fire sound (Roman
 		# 2026-06-29). A simultaneous volley (no burst gap) stays a single sound — played once below.
 		if is_burst:
@@ -238,6 +251,7 @@ func _fire_launcher(enemy) -> void:
 			var proj = spec.payload_scene.instantiate()
 			if "initial_dir" in proj:
 				proj.initial_dir = dir
+			_apply_delay(proj)
 			world.add_child(proj)
 			if proj.has_method("start"):
 				proj.start(pos)
@@ -255,6 +269,21 @@ func _fan(base: Vector2, i: int, n: int) -> Vector2:
 		return base
 	var total: float = deg_to_rad(spec.spread_deg)
 	return base.rotated(-total * 0.5 + total / float(n - 1) * float(i))
+
+
+# Finish one gun shot: apply the payload Delay, then the drop-gun inertia strip.
+func _finish_shot(enemy, b, dir: Vector2) -> void:
+	_apply_delay(b)
+	_drop_strip(enemy, b, dir)
+
+
+# Payload Delay (spec.payload_delay_ms): hold the freshly-spawned payload at the muzzle before its
+# motion begins. Duck-typed on `motion_delay` (base_bullet / base_missile), ms → seconds.
+func _apply_delay(b) -> void:
+	if b == null or spec.payload_delay_ms <= 0.0:
+		return
+	if "motion_delay" in b:
+		b.motion_delay = spec.payload_delay_ms / 1000.0
 
 
 # Drop gun (spec.no_inertia): undo the velocity-inheritance the firing layer added, so the shot leaves

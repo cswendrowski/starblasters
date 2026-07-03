@@ -20,7 +20,10 @@ enum FirePattern { SINGLE, AIMED, SPREAD, BURST, LOB, BROADSIDE }
 # FORWARD (Roman 2026-06-08): fire along the enemy's NOSE (its facing / global_rotation),
 # extracted from the strafer/crystal nose-ray firing. Pair with enemy_core.fire_only_on_target
 # (the _nose_on_player gate) so the forward shot only releases when lined up on the player.
-enum Aim { STRAIGHT_DOWN, TOWARD_CENTER, AT_PLAYER, FORWARD }
+# BACKWARD/LEFT/RIGHT (Roman 2026-07-03): fire relative to the enemy's facing — out the tail,
+# or off either beam. Same facing source as FORWARD (global_rotation), so a rotated hull's
+# "left" is its own port side. Turret/beam ignore these (they aim their own way).
+enum Aim { STRAIGHT_DOWN, TOWARD_CENTER, AT_PLAYER, FORWARD, BACKWARD, LEFT, RIGHT }
 
 @export var fire_pattern: FirePattern = FirePattern.SINGLE
 @export var payload: BulletVariant = null
@@ -74,6 +77,15 @@ func _aim_dir(enemy) -> Vector2:
 		Aim.FORWARD:
 			# Along the enemy's nose. Mirrors enemy_base.nose_dir() (Vector2.UP rotated by facing).
 			return Vector2.UP.rotated(enemy.global_rotation)
+		Aim.BACKWARD:
+			# Opposite the nose — out the tail.
+			return Vector2.DOWN.rotated(enemy.global_rotation)
+		Aim.LEFT:
+			# The enemy's port beam (relative to its facing).
+			return Vector2.LEFT.rotated(enemy.global_rotation)
+		Aim.RIGHT:
+			# The enemy's starboard beam.
+			return Vector2.RIGHT.rotated(enemy.global_rotation)
 		Aim.TOWARD_CENTER:
 			# Lean toward the playfield center: left-spawn (x < center) angles right-down,
 			# right-spawn angles left-down. Sign corrected 2026-06-13 (was reversed — it

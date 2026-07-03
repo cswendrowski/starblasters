@@ -17,6 +17,9 @@ class_name BaseMissile
 # same fraction of playfield per second.
 @export var drift_time: float = 0.25
 @export var drift_speed: float = 80.0
+# Payload Delay (Roman 2026-07-03, off by default): hold in place this long (seconds) before the
+# drift/ignition sequence begins. 0 = launch immediately (unchanged). Set from a mount's payload_delay_ms.
+@export var motion_delay: float = 0.0
 @export var homing_accel: float = 380.0
 @export var homing_max_speed: float = 220.0
 # Roman, 2026-05-18 seeker rework: missiles fly straight unless a target
@@ -67,6 +70,7 @@ const EngineFlareCls := preload("res://scripts/effects/engine_flare.gd")
 
 var _vel: Vector2 = Vector2.ZERO
 var _t: float = 0.0
+var _delay_t: float = 0.0   # Payload Delay accumulator (frozen at spawn while < motion_delay)
 var _ignited: bool = false
 # Engine flare + exhaust marker; resolved/created in _ready.
 var _engine_flare: Sprite2D = null
@@ -151,6 +155,11 @@ func start(pos: Vector2) -> void:
 
 func _process(delta: float) -> void:
 	if _dying:
+		return
+	# Payload Delay: sit frozen at the muzzle until the delay elapses, THEN begin the drift/ignite
+	# sequence (the drift clock _t stays at 0 during the hold).
+	if motion_delay > 0.0 and _delay_t < motion_delay:
+		_delay_t += delta
 		return
 	_t += delta
 	if not _ignited and _t >= drift_time:

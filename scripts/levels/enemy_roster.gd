@@ -1615,8 +1615,8 @@ static func make_mount_specs(dicts: Array) -> Array:
 
 
 const _MOUNT_KIND := {"gun": 0, "turret": 1, "launcher": 2, "beam": 3}        # MountSpec.Kind
-const _MOUNT_AIM := {"straight_down": 0, "toward_center": 1, "at_player": 2, "forward": 3}  # MountSpec.Aim
-const _MOUNT_MODE := {"all": 0, "cycle": 1}                                    # MountSpec.MarkerMode
+const _MOUNT_AIM := {"straight_down": 0, "toward_center": 1, "at_player": 2, "forward": 3, "backward": 4, "left": 5, "right": 6}  # MountSpec.Aim
+const _MOUNT_MODE := {"all": 0, "cycle": 1, "inward": 2, "outward": 3}         # MountSpec.MarkerMode
 
 static func _mount_from_dict(d: Dictionary) -> Resource:
 	var m = MountSpec.new()
@@ -1637,6 +1637,8 @@ static func _mount_from_dict(d: Dictionary) -> Resource:
 	m.count = int(d.get("count", 1))
 	m.spread_deg = float(d.get("spread_deg", 0.0))
 	m.burst_interval = float(d.get("burst_interval", 0.0))
+	m.no_inertia = bool(d.get("no_inertia", false))                 # was never read — roster drop-guns now honoured
+	m.payload_delay_ms = float(d.get("payload_delay_ms", 0.0))      # Payload Delay (Phase 1)
 	m.homing_rate = float(d.get("homing_rate", 0.0))
 	m.wobble_amplitude = float(d.get("wobble_amplitude", 0.0))
 	m.wobble_frequency = float(d.get("wobble_frequency", 0.0))

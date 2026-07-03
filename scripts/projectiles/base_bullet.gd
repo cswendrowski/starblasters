@@ -44,6 +44,9 @@ class_name BaseBullet
 @export var homing_rate: float = 0.0
 @export var wobble_amplitude: float = 0.0
 @export var wobble_frequency: float = 0.0
+# Payload Delay (Roman 2026-07-03, off by default): hold at the muzzle this long (seconds) before
+# motion begins, then travel normally. Set by the firing layer (a mount's payload_delay_ms / 1000).
+@export var motion_delay: float = 0.0
 # Impact effect kind (Roman, 2026-05-17 sprite pass). SMOKE for small
 # energy/MG/laser bolts; EXPLOSIVE for missiles, rockets, cannon rounds,
 # bomblets — see scripts/effects/impact_fx.gd::ImpactKind.
@@ -54,6 +57,7 @@ class_name BaseBullet
 
 var _t: float = 0.0
 var _killed: bool = false
+var _delay_t: float = 0.0   # Payload Delay accumulator (motion held while < motion_delay)
 # Wobble support: we advance the canonical position without wobble offset
 # so the offset is purely re-derived each frame (no drift accumulation).
 var _base_position: Vector2 = Vector2.ZERO
@@ -244,6 +248,11 @@ func start(pos: Vector2, dir: Vector2 = Vector2.ZERO) -> void:
 
 func _process(delta: float) -> void:
 	if _killed:
+		return
+	# Payload Delay: hold at the muzzle until the delay elapses, then travel normally. _t (lifetime /
+	# wobble clock) stays frozen during the hold so the payload keeps its full lifetime afterward.
+	if motion_delay > 0.0 and _delay_t < motion_delay:
+		_delay_t += delta
 		return
 	_t += delta
 
