@@ -83,8 +83,8 @@ const BENCH_WIP_BOSSES := [
 # PAYLOADS in a mount row's payload dropdown.
 const MOUNT_KINDS := ["gun", "turret", "launcher", "beam"]
 const MOUNT_KIND_LABELS := ["Gun", "Turret", "Launcher", "Beam"]
-const MOUNT_AIM_KEYS := ["straight_down", "at_player", "toward_center", "forward"]
-const MOUNT_AIM_LABELS := ["Down", "At Player", "To Center", "Forward"]
+const MOUNT_AIM_KEYS := ["straight_down", "at_player", "toward_center", "forward", "backward", "left", "right"]
+const MOUNT_AIM_LABELS := ["Down", "At Player", "To Center", "Forward", "Backward", "Left", "Right"]
 const PROJECTILES := {
 	"Rocket": "res://scenes/projectiles/enemy_rocket.tscn",
 	"Rocket Lg": "res://scenes/projectiles/enemy_rocket_large.tscn",
@@ -1080,6 +1080,7 @@ func _mount_spec_dicts() -> Array:
 			# Firing pattern: marker_mode (all/cycle), burst_interval, bullet_speed
 			sd["marker_mode"] = String(d.get("marker_mode", "cycle"))
 			sd["no_inertia"] = bool(d.get("no_inertia", false))
+			sd["payload_delay_ms"] = float(d.get("payload_delay_ms", 0.0))
 			var burst: float = float(d.get("burst_interval", 0.0))
 			if burst > 0.0:
 				sd["burst_interval"] = burst
@@ -1110,7 +1111,7 @@ func _mount_spec_dicts() -> Array:
 
 
 func _add_mount() -> void:
-	_mount_dicts.append({"kind": "gun", "marker": "", "payload": "Ball", "aim": "straight_down", "fire": 1.5, "count": 1, "spread": 0.0, "marker_mode": "cycle", "burst_interval": 0.0, "bullet_speed": -1.0, "no_inertia": false, "nose_gated": false, "aim_tol": 18.0, "path_phases": "", "beat_synced": true, "on_phase": ""})
+	_mount_dicts.append({"kind": "gun", "marker": "", "payload": "Ball", "aim": "straight_down", "fire": 1.5, "count": 1, "spread": 0.0, "marker_mode": "cycle", "burst_interval": 0.0, "bullet_speed": -1.0, "no_inertia": true, "payload_delay_ms": 0.0, "nose_gated": false, "aim_tol": 18.0, "path_phases": "", "beat_synced": true, "on_phase": ""})
 	_rebuild_mounts_ui()
 	_spawn_current()
 
@@ -1197,8 +1198,8 @@ func _make_mount_row(idx: int) -> Control:
 	var k: String = String(d.get("kind", "gun"))
 	if k == "gun" or k == "launcher":
 		# muzzles: which marker(s) fire each shot — All (every marker) vs Cycle (round-robin).
-		var sync_keys: Array = ["all", "cycle"]
-		var sync_dd := _row_dd(["All", "Cycle"], maxi(0, sync_keys.find(String(d.get("marker_mode", "cycle")))))
+		var sync_keys: Array = ["all", "cycle", "inward", "outward"]
+		var sync_dd := _row_dd(["All", "Cycle", "Inward", "Outward"], maxi(0, sync_keys.find(String(d.get("marker_mode", "cycle")))))
 		sync_dd.item_selected.connect(func(i): _set_mount(d, "marker_mode", String(sync_keys[i])))
 		_grid_row(grid, "muzzles", sync_dd)
 
@@ -1226,11 +1227,17 @@ func _make_mount_row(idx: int) -> Control:
 		spd.value_changed.connect(func(v): _set_mount(d, "bullet_speed", float(v)))
 		_grid_row(grid, "speed", spd)
 
-		# Drop gun: ignore the enemy's velocity inheritance so the shot moves at its own speed — any
-		# payload becomes a droppable round (replaces the bespoke slow-drop bullet).
-		var drop_chk := _row_check(bool(d.get("no_inertia", false)))
-		drop_chk.toggled.connect(func(on): _set_mount(d, "no_inertia", on))
-		_grid_row(grid, "no inertia", drop_chk)
+		# Payload toggles (Roman 2026-07-03) — opt-in, off by default. Inertia ON = the shot carries the
+		# enemy's velocity (Doppler); OFF (new-mount default) = it drops at its own speed. Stored as the
+		# inverse no_inertia, so existing mounts keep their behaviour (absent key = carries).
+		var inertia_chk := _row_check(not bool(d.get("no_inertia", false)))
+		inertia_chk.toggled.connect(func(on): _set_mount(d, "no_inertia", not on))
+		_grid_row(grid, "inertia", inertia_chk)
+
+		# Delay: the payload holds at the muzzle this many milliseconds before its motion begins.
+		var delay_spin := _row_spin(0.0, 2000.0, 10.0, float(d.get("payload_delay_ms", 0.0)))
+		delay_spin.value_changed.connect(func(v): _set_mount(d, "payload_delay_ms", float(v)))
+		_grid_row(grid, "delay ms", delay_spin)
 
 		# Firing conditions: nose gate + path-phase mode (mirror the hull shoot). The old "zone" toggle
 		# was dropped 2026-06-29 — off-screen suppression is already universal (_on_playfield), so the
@@ -1641,6 +1648,7 @@ func _roster_mount_to_bench(d: Dictionary) -> Dictionary:
 		"burst_interval": float(d.get("burst_interval", 0.0)),
 		"bullet_speed": float(d.get("bullet_speed", -1.0)),
 		"no_inertia": bool(d.get("no_inertia", false)),
+		"payload_delay_ms": float(d.get("payload_delay_ms", 0.0)),
 		"nose_gated": bool(d.get("fire_only_on_target", false)),
 		"aim_tol": float(d.get("fire_aim_tol_deg", 18.0)),
 		"path_phases": ",".join(pp_toks),
@@ -1703,6 +1711,9 @@ func _mount_copy_line(d: Dictionary) -> String:
 			line += ", \"bullet_speed\": %.0f" % bspeed
 		if bool(d.get("no_inertia", false)):
 			line += ", \"no_inertia\": true"
+		var _pd: float = float(d.get("payload_delay_ms", 0.0))
+		if _pd > 0.0:
+			line += ", \"payload_delay_ms\": %.0f" % _pd
 		if bool(d.get("nose_gated", false)):
 			line += ", \"fire_only_on_target\": true, \"fire_aim_tol_deg\": %.0f" % float(d.get("aim_tol", 18.0))
 		var pp_copy: String = String(d.get("path_phases", "")).strip_edges()
