@@ -114,16 +114,16 @@ explicit value:
   playfield it advances. `(default)` = derived from size/identity (this dropdown
   is its own opt-out, so it isn't gated behind a checkbox).
 
-### Mounts editor (Add Mount)
-Mounts are the actual weapons now (extra emitters beyond the retired hull
-weapon). Each mount row:
+### Hardpoints editor (Add Hardpoint)
+Hardpoints are everything an enemy fires or drops — the unified editor (2026-07-03)
+that merged the old Mounts + Emitters lists into one. Each row:
 
 | Control | What it does |
 |---|---|
-| **kind** | `Gun / Turret / Launcher / Beam`. Turret rows auto-get a faction turret graphic so they're visible. |
+| **kind** | `Gun / Turret / Launcher / Beam / Entity`. Turret rows auto-get a faction turret graphic. **Entity** = the old emitter — drop/spawn a scene (mine / missile / rocket / bomblet / firecore / any enemy) on a trigger; picking it swaps the gun controls for the entity fields (trigger / max emits / scatter / band-only / inertia). |
 | **marker** | Where on the ship it fires from. `(hull)` = ship origin; named markers are the scene's `Marker2D`s; a `Muzzle*`-style **glob** means "all markers in that family." |
 | **payload** | The bullet **family** (`Ball / Bolt / Laser / Wave`) or, for launchers, a projectile scene (Rocket / Missile / Bomblet). The family auto-restyles to the enemy's **faction** at spawn (see below). |
-| **aim** | `Down / At Player / To Center / Forward`. |
+| **aim** | `Down / At Player / To Center / Forward / Backward / Left / Right` (Backward/Left/Right are relative to the enemy's facing). |
 | **rate** | **Seconds between shots** (not shots/sec) — lower = faster. `1.5` = fire every 1.5s. |
 | **count** | Bullets per shot. |
 | **spread** | Fan angle (degrees) across those bullets. |
@@ -174,9 +174,12 @@ Gives the enemy an `OrbitComponent` — rings of payloads that orbit it and are
   family in Visual mode), **radius**, **count**, and **spin rad/s** (sign =
   direction). Stack rings for concentric layers.
 
-### Emitters editor (Add Emitter)
-Emitters **drop or spawn a payload scene** on a trigger — the generalized form
-of the interceptor's mine/missile drop. Separate from weapon mounts.
+### Emitters — merged into Hardpoints (2026-07-03)
+The separate Emitters editor was **retired**: drop/spawn behaviour is now the
+**Entity** hardpoint kind in the editor above. Saved enemies' emitters fold into
+the Hardpoints list automatically on load. The fields (below) carry over 1:1
+(trigger `Cadence / Start / Death`, payload = any rocket/missile/mine/bomblet/
+firecore/enemy scene, max-emits, scatter, band-only, inertia).
 
 | Control | What it does |
 |---|---|
