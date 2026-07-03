@@ -38,20 +38,6 @@ const PatternEligibility = preload("res://scripts/levels/pattern_eligibility.gd"
 const COMBAT_DEPTH_CHAFF_MAX := 3
 const CHAFF_BONUS_TOTAL_CAP := 4
 
-# Wave intermingling — probability the Nth combat wave in a level mixes
-# two enemy types. Index = level_index_in_sector, clamped to last entry.
-# Sector_depth adds +0.05 per sector past the first. Clamped to [0, 0.85].
-# Wave 0 of every level is never mixed (calm intro). See _should_intermingle.
-const WAVE_INTERMINGLE_PROBS := [0.0, 0.30, 0.55, 0.75, 0.85]
-
-# Affinity table — symmetric pairs that "go together" thematically. When a
-# rolled pair is on this table, accept it immediately. Otherwise re-roll
-# the second pick once with 50% chance. Scene-path keyed.
-const WAVE_AFFINITY := {
-	# Cut-unit pairs (cutter/drifter/hover/spitter/weaver) removed 2026-06-20 — those ships were
-	# retired; only survivors remain on the affinity table.
-}
-
 # Per-wave HP bonus from prior wave-clears within the current sector. Each
 # cleared combat in a sector adds BONUS_HP_PER_WAVE to every chaff's max_health
 # in subsequent waves, capped at BONUS_HP_CAP. Bosses scale separately and
@@ -150,16 +136,16 @@ static func build_score(sector_depth: int, level_index_in_sector: int, is_boss: 
 	return score
 
 
-# Wave count target. 5-8 waves per level (streaming model, M5): the conductor
-# blends them into one continuous stream, so more waves = a longer, fuller level.
-# Base 5, +1 per node into the sector and +1 per sector depth, soft-capped at 8.
+# LEGACY, TOOL-ONLY (dead on the production 3-stretch path, 2026-07-02): the pre-3-stretch M5
+# wave-count rule. Kept solely because tools/test_wave_count.gd still asserts it; not called by
+# build(). Delete alongside that tool if it's ever retired.
 static func _wave_count_for(sector_depth: int, level_index: int) -> int:
 	return clampi(5 + level_index + (sector_depth - 1), 5, 8)
 
 
-# Level enemy budget (M5): the soft total headcount the level streams toward (the
-# conductor caps how many are on screen at once). Opener ~140 -> mature ~300 ->
-# deep ceiling 350. Composition wins ties. TUNE via tools/test_budget.gd.
+# LEGACY, TOOL-ONLY (dead on the production 3-stretch path, 2026-07-02): the pre-3-stretch M5
+# level enemy budget (per-stretch STRETCH_BUDGET replaced it). Kept solely because
+# tools/test_budget.gd still reports against it; not called by build().
 static func _level_budget(sector_depth: int, level_index: int) -> int:
 	return clampi(int(round(140.0 + 25.0 * level_index + 35.0 * (sector_depth - 1))), 140, 350)
 
@@ -238,10 +224,9 @@ const GEOMETRIC_FLOCK_MAX: int = 12
 const ACCENT_CHANCE: float = 0.35
 
 # ESCORT (audit follow-on, 2026-06-23). Per-level chance build_score splices a heavy-core-plus-chaff-
-# screen convoy into a mid wave. Discrete spectacle, lockstep-clamped to the slow core. Pre-stack gap
-# matches the geometric/authored row spacing. Tune CHANCE freely.
+# screen convoy into a mid wave. Discrete spectacle, lockstep-clamped to the slow core. Row pre-stack
+# uses the shared formation_shapes.prestack_y (one ROW_GAP for all formation sites). Tune CHANCE freely.
 const ESCORT_CHANCE: float = 0.4
-const ESCORT_ROW_GAP: float = 40.0
 
 static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, level_index: int) -> Array:
 	# LevelMotif (conductor review §5, roadmap P2.7). Two things are now rolled ONCE per level and
@@ -361,11 +346,30 @@ static func _build_stretch(rng: RandomNumberGenerator, sector_depth: int, level_
 	return waves
 
 
-# Mini-boss registry (level_structure_redesign_2026-07-01). A regular-node CLIMAX features a mini-boss
-# when one is registered for the depth/faction, else an ELITE PACK. EMPTY for now — Roman authors the
-# mini-boss scenes and adds entries {scene, min_depth, faction (-1 = any)}; the elite-pack fallback
-# keeps climaxes working meanwhile. (Boss NODES use _build_boss_waves + the real boss, not this.)
-const MINIBOSS_ROSTER: Array = []
+# Mini-boss registry (level_structure_redesign_2026-07-01; populated 2026-07-02, review P2.8). A
+# regular-node CLIMAX features a mini-boss when one is registered for the depth/faction, else an
+# ELITE PACK. Entries: {scene, min_depth (vs eff_depth = level_index + 2 at the climax), faction
+# (-1 = any), movement (optional key — overrides the roster movement so a straight-descent capital
+# LOITERS through its climax instead of leaving in ~5s)}. Roster-known scenes compose through
+# _make_wave_spec so they keep their mounts/stats (a bare scene load leaves roster-mounted capitals
+# UNARMED — see _append_climax_finale). (Boss NODES use _build_boss_waves + the real boss, not this.)
+const MINIBOSS_ROSTER: Array = [
+	# Multi-part cruiser: tanky core + 4 shootable DestructiblePart sections — the one enemy already
+	# built like a mini-boss. Universal home tag → legal for every faction (covers privateer, which
+	# has no capital of its own). Placeholder art as of 2026-07-02.
+	{"scene": "res://scenes/enemies/core/enemy_cruiser.tscn", "min_depth": 2, "faction": -1},
+	# Hive drone carrier: self-escorting (streams beelining flechettes) — single-spawn is the point.
+	# NOTE 16 HP reads soft for a 36-slot climax anchor; playtest may want a bump (script hard-set).
+	{"scene": "res://scenes/enemies/factions/corporate/enemy_c_l_hive.tscn", "min_depth": 3, "faction": 2},
+	# Zealot depth ladder: Helix (32 HP, single tank turret) anchors shallow climaxes, Crusader
+	# (60 HP, 4 turrets + twin lasers + firecore death drop) the deep ones. Both are roster-mounted →
+	# MUST compose (unarmed bare); both descend straight at recycle 0 → loiter override keeps them
+	# on-screen for the fight instead of exiting in ~5s.
+	{"scene": "res://scenes/enemies/factions/zealot/enemy_z_m_helix.tscn", "min_depth": 2, "faction": 3, "movement": "loiter"},
+	{"scene": "res://scenes/enemies/factions/zealot/enemy_z_l_crusader.tscn", "min_depth": 4, "faction": 3, "movement": "loiter"},
+	# Considered + deferred: Tyrant broadside frigate (supremacy) — scene bakes 6 HP and its script
+	# header still says retired; needs a bench pass before it anchors a climax (review 2026-07-02).
+]
 
 
 static func _pick_miniboss(rng: RandomNumberGenerator, eff_depth: int, faction: int) -> Dictionary:
@@ -387,13 +391,28 @@ static func _pick_miniboss(rng: RandomNumberGenerator, eff_depth: int, faction: 
 static func _append_climax_finale(rng: RandomNumberGenerator, sector_depth: int, eff_depth: int, waves: Array, chaff_flags: Array) -> void:
 	var mb: Dictionary = _pick_miniboss(rng, eff_depth, Roster.get_faction_filter())
 	if not mb.is_empty():
-		var wm = WaveSpec.new()
-		wm.enemy_scene = load(String(mb.get("scene", "")))
+		# Roster-known scenes COMPOSE through _make_wave_spec (review P2.8, 2026-07-02): a bare
+		# WaveSpec skips the roster's mounts/stats overlay, so roster-mounted capitals (Crusader,
+		# Helix) would arrive UNARMED. Composing inherits weapons, tuned HP/bounty, and locomotion;
+		# the finale then stamps its own count/formation/pause on top. A non-roster scene keeps the
+		# bare-load path — it must then be fully self-sufficient on disk (script-fallback stats + guns).
+		var entry: Dictionary = Roster.entry_for_scene(String(mb.get("scene", "")))
+		var wm: WaveSpec
+		if not entry.is_empty():
+			wm = _make_wave_spec(rng, entry, sector_depth, eff_depth, 0)
+		else:
+			wm = WaveSpec.new()
+			wm.enemy_scene = load(String(mb.get("scene", "")))
 		if wm.enemy_scene != null:
 			wm.count = 1
 			wm.formation = WaveSpec.Formation.TOP_CENTER_OUT
 			wm.silent = true
 			wm.lead_pause = 1.5   # a beat before the mini-boss arrives
+			# Optional registry movement override (e.g. "loiter") so a straight-descent capital
+			# holds the field for the fight instead of exiting with its recycle-0 descent.
+			var mv: String = String(mb.get("movement", ""))
+			if mv != "":
+				wm.movement_override = Roster.make_movement({"movement": mv})
 			waves.append(wm); chaff_flags.append(false)
 			return
 	# Elite pack fallback: 2-3 distinct heavies, a couple of each, centre-out.
@@ -426,7 +445,7 @@ static func _pick_palette(rng: RandomNumberGenerator, sector_depth: int, level_i
 		for e in Roster.entries_eligible(tier, sector_depth, level_index):
 			if bool(e.get("chaff", false)) and not e.has("force_formation"):
 				chaff_pool.append(e)
-	_shuffle(chaff_pool, rng)
+	FormationShapesC.fisher_yates(chaff_pool, rng)
 	# 2 chaff types at the opener (avoids a whole level of ONE unit), up to 3 deep — a tight subset.
 	# Kitchen-sink (the full pool) is the boss lead-in's job, not a normal node's.
 	var n_chaff: int = clampi(2 + level_index, 2, 3)
@@ -565,13 +584,6 @@ static func _stash_motif(motif: Dictionary) -> void:
 	run.set_meta("level_motif", motif)
 
 
-# Seeded Fisher-Yates in place (the generator's rng, so the palette reproduces per run+node).
-static func _shuffle(arr: Array, rng: RandomNumberGenerator) -> void:
-	for i in range(arr.size() - 1, 0, -1):
-		var j: int = rng.randi() % (i + 1)
-		var t = arr[i]; arr[i] = arr[j]; arr[j] = t
-
-
 # Build a tiny crossing-sting WaveSpec (the audit's "2-3 enemy accent") from a palette chaff `entry`,
 # forced to a side-alternating cross (one from each edge, scissoring across the upper band via the
 # director's existing crosser dispatch). Returns null if the entry is empty or demands its own
@@ -653,9 +665,9 @@ static func _build_escort_phrase(rng: RandomNumberGenerator, heavy: Dictionary, 
 	if specs.size() < 2:
 		return null
 	# LOCKSTEP — clamp the fast chaff to the SLOW core's speed so the screen holds around the heavy
-	# instead of outrunning it (mirrors authored_patterns._lock_to_slowest; the audit's #1, finally
-	# load-bearing now that a generated formation is mixed-speed).
-	_lock_specs_to_slowest(specs)
+	# instead of outrunning it (the audit's #1, finally load-bearing now that a generated formation is
+	# mixed-speed). Shared impl: formation_shapes.lock_to_slowest (dedup, conductor review §3).
+	FormationShapesC.lock_to_slowest(specs)
 	var ph := Phrase.new()
 	ph.kind = Phrase.Kind.FORMATION
 	ph.shape = &"authored"
@@ -671,26 +683,13 @@ static func _escort_spec(rng: RandomNumberGenerator, entry: Dictionary, cell: Ve
 	var w = _make_wave_spec(rng, entry, sector_depth, level_index, 0)
 	w.count = 1
 	w.lane = int(cell.x)
-	w.spawn_y = -12.0 - float(max_row - int(cell.y)) * ESCORT_ROW_GAP
+	# Shared pre-stack row math (formation_shapes.prestack_y): row == max_row enters at the top edge,
+	# each row up trails one ROW_GAP higher (dedup, conductor review §3).
+	w.spawn_y = FormationShapesC.prestack_y(int(cell.y), max_row)
 	w.spawn_delay = 0.0   # authored burst — whole convoy enters together; rows are SPATIAL
 	w.movement_override = Roster.make_movement({"movement": "straight"})
 	w.silent = true
 	return w
-
-
-# Clamp every speed-bearing spec to the SLOWEST member's move_speed so a mixed-speed formation
-# advances in unison (mirrors authored_patterns._lock_to_slowest). Specs with no resolved speed
-# (move_speed <= 0) are left alone and don't drag the minimum to zero.
-static func _lock_specs_to_slowest(specs: Array) -> void:
-	var slowest: float = INF
-	for ws in specs:
-		if ws.move_speed > 0.0:
-			slowest = minf(slowest, ws.move_speed)
-	if slowest == INF:
-		return
-	for ws in specs:
-		if ws.move_speed > 0.0:
-			ws.move_speed = slowest
 
 
 # Pick a heavy for a beat (midpoint or coda). prefer_capital orders the two pools:
@@ -733,47 +732,6 @@ static func _pick_elite(rng: RandomNumberGenerator, sector_depth: int, level_ind
 	if not fresh.is_empty():
 		pool = fresh
 	return pool[rng.randi() % pool.size()]
-
-
-# Returns true if this wave should be a mixed two-enemy wave.
-# P(mix) = WAVE_INTERMINGLE_PROBS[clamp(level_index, ...)] + 0.05*(sector_depth-1)
-# Clamped to [0, 0.85]. Caller is responsible for skipping wave 0.
-static func _should_intermingle(level_index: int, sector_depth: int, rng: RandomNumberGenerator) -> bool:
-	var idx: int = clampi(level_index, 0, WAVE_INTERMINGLE_PROBS.size() - 1)
-	var p: float = float(WAVE_INTERMINGLE_PROBS[idx]) + 0.05 * float(max(sector_depth - 1, 0))
-	p = clampf(p, 0.0, 0.85)
-	return rng.randf() < p
-
-
-# Pick two entries for an intermingled wave. Second pick excludes the first
-# pick's conflict_tags (existing safety) and is tier-capped at UNCOMMON if the
-# first pick was RARE (max one Rare per mixed wave). Affinity bias: if the
-# resulting pair isn't in WAVE_AFFINITY, with 50% chance re-roll the second
-# pick once. Returns [first, second].
-static func _pick_pair(rng: RandomNumberGenerator, sector_depth: int, level_index: int, used: Array, avoid_movement: String = "") -> Array:
-	var first: Dictionary = _pick_entry(rng, sector_depth, level_index, used, PackedStringArray(), Roster.Tier.RARE, avoid_movement)
-	var first_tags: PackedStringArray = PackedStringArray(first.get("conflict_tags", []))
-	var tier_cap: int = Roster.Tier.RARE
-	if int(first.get("tier", Roster.Tier.COMMON)) == Roster.Tier.RARE:
-		tier_cap = Roster.Tier.UNCOMMON
-	# Block the first pick itself from being picked again as second.
-	var exclude_second: Array = used.duplicate()
-	exclude_second.append(first)
-	var second: Dictionary = _pick_entry(rng, sector_depth, level_index, exclude_second, first_tags, tier_cap)
-	# Affinity bias — if pair not in affinity table, 50% chance to re-roll once.
-	if not _is_affinity_pair(first, second) and rng.randf() < 0.5:
-		var second2: Dictionary = _pick_entry(rng, sector_depth, level_index, exclude_second, first_tags, tier_cap)
-		second = second2
-	return [first, second]
-
-
-static func _is_affinity_pair(a: Dictionary, b: Dictionary) -> bool:
-	var pa: String = String(a.get("scene", ""))
-	var pb: String = String(b.get("scene", ""))
-	if not WAVE_AFFINITY.has(pa):
-		return false
-	var partners: Array = WAVE_AFFINITY[pa]
-	return partners.has(pb)
 
 
 # Boss level: a FULL 5-6 wave escalating run-up, THEN the boss (Roman 2026-06-27: was 2-4 — the boss
@@ -1060,36 +1018,21 @@ static func _make_wave_spec(rng: RandomNumberGenerator, entry: Dictionary, secto
 	# was force-set.
 	if want_wall and not entry.has("force_formation"):
 		w.formation = WaveSpec.Formation.WALL
-	var sp: Resource = Roster.make_shoot(entry)
-	if sp != null:
-		w.shoot_pattern_override = sp
-	# Components = pre-built "components" + dict-built "emitters" (droppers/spawners). Emitters add on top.
-	w.components_override = Roster.make_components(entry) + Roster.make_emitters(entry)
+	# Shared roster-behavior stamp (shoot/components/fire/stats/locomotion) — one impl in
+	# formation_shapes, also used by authored_patterns._spec_for_placement (dedup, review §3).
+	FormationShapesC.stamp_roster_behavior(w, entry)
+	# DIVERGENT extras (not in the shared block, this path only):
+	# Mounts (extra guns/turrets) — authored placements don't stamp these.
 	w.mounts_override = Roster.make_mounts(entry)
-	if entry.has("fire_min"):
-		w.fire_interval_min = float(entry["fire_min"])
-	if entry.has("fire_max"):
-		w.fire_interval_max = float(entry["fire_max"])
-	var stats: Dictionary = Roster.compose_stats(entry)
-	w.max_health = stats["max_health"]
-	w.bounty_value = stats["bounty_value"]
-	if stats["shield_charges"] > 0:
-		w.shield_charges = stats["shield_charges"]
-	if stats["recycle_passes"] >= -1:
-		w.recycle_passes = stats["recycle_passes"]
 	# Chaff roll-back: combat chaff RECYCLE a couple of times (fly back + re-enter) so missed enemies
 	# feed the next sub-wave and ~300 enemies fill ~3 min, rather than leaking off the bottom in ~60s.
 	# Overrides the roster's recycle:0 for high-count chaff (see CHAFF_RECYCLE_PASSES). Boss lead-ins
 	# keep their own tuning.
 	if not is_boss_leadin and bool(entry.get("chaff", false)) and CHAFF_RECYCLE_PASSES > 0:
 		w.recycle_passes = CHAFF_RECYCLE_PASSES
-	# Locomotion (chassis stats); a random wave has no formation depth override, so the enemy's
-	# roster-default depth (compose_stats depth_bp) rides depth_override.
-	w.move_speed = float(stats.get("move_speed", 0.0))
-	w.weight = float(stats.get("weight", 0.0))
-	w.turn_rate = float(stats.get("turn_rate", 0.0))
-	w.accel = float(stats.get("accel", 0.0))
-	w.depth_override = float(stats.get("depth_bp", -1.0))
+	# Depth: a random wave has no formation depth override, so the enemy's roster-default depth
+	# (compose_stats depth_bp) rides depth_override.
+	w.depth_override = float(Roster.compose_stats(entry).get("depth_bp", -1.0))
 	return w
 
 

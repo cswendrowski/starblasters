@@ -14,8 +14,6 @@ enum Formation { TOP_LEFT_TO_RIGHT, TOP_RIGHT_TO_LEFT, TOP_RANDOM, TOP_CENTER_OU
 @export var spawn_interval: float = 0.35
 @export var spawn_delay: float = 0.5
 @export var formation: int = Formation.TOP_LEFT_TO_RIGHT
-# 320×400 res rework — halved.
-@export var formation_padding: float = 32.0
 @export var spawn_y: float = -12.0
 # Authored explicit lane (wave pattern editor, 2026-06-16): 0..Lanes.COUNT-1 pins this spec to
 # that exact lane; -1 = unset (algorithmic placement). Consumed by director._dispatch_authored,

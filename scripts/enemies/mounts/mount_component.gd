@@ -16,6 +16,7 @@ const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
 const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 const MountSpecC = preload("res://scripts/enemies/mounts/mount_spec.gd")
 const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
+const FiringSchedulerC = preload("res://scripts/enemies/firing_scheduler.gd")
 
 var spec: Resource = null
 var _weapon = null            # internal Weapon, borrowed for _spawn_bullet + aim helpers (GUN)
@@ -23,8 +24,13 @@ var _markers: Array = []
 var _cycle: int = 0
 var _t: float = 0.0
 var _next: float = 2.0
-var _phase_idx: int = 0          # path-phase firing: next band-progress line to cross
-var _beat_fire_at: float = -1.0  # path-phase beat-sync: scheduled global beat for a deferred shot
+# Trigger-resolution engine shared with enemy_core's hull (roadmap P3.9). Owns the path-phase
+# line-crossing + beat-sync state. Note the mount deliberately does NOT auto-populate
+# DEFAULT_PATH_PHASES (unlike the hull) — a mount path-fires ONLY when its spec sets fire_path_phases
+# explicitly; auto-populating would change every mount's firing behavior. This difference is the
+# reason the mount keeps its own `if not spec.fire_path_phases.is_empty()` guard rather than sharing
+# an auto-populate config flag.
+var _scheduler = FiringSchedulerC.new()
 
 
 func on_start(enemy) -> void:
@@ -110,57 +116,30 @@ func _off_screen(enemy) -> bool:
 	return p.x < M or p.x > sz.x - M or p.y < M or p.y > sz.y - M
 
 
-# Conditional fire gates shared by cadence + path-phase, mirroring enemy_core's hull shoot: hold
-# fire outside the engagement band (fire_zone_gated) or until the nose lines up (fire_only_on_target).
+# Conditional fire gates shared by cadence + path-phase — the zone/nose gate now lives in the shared
+# FiringScheduler (P3.9). _held stays local (it also folds in recycling + the pure-enemy_base
+# off-screen fallback, which is mount-host-specific), so the cadence path checks _held THEN gates.
 func _gates_pass(enemy) -> bool:
-	if spec.fire_zone_gated and not Zones.in_engagement(enemy.position.y):
-		return false
-	if spec.fire_only_on_target and not _nose_on_player(enemy):
-		return false
-	return true
+	return _scheduler.gates_pass(enemy, spec.fire_zone_gated, spec.fire_only_on_target, spec.fire_aim_tol_deg)
 
 
-# Host forward vector within fire_aim_tol_deg of the player direction (sprite faces +Y at rot 0).
-func _nose_on_player(enemy) -> bool:
-	var player = enemy.find_player() if enemy.has_method("find_player") else null
-	if player == null:
-		return false
-	var to_p: Vector2 = player.global_position - enemy.global_position
-	if to_p.length_squared() < 1.0:
-		return false
-	var rot: float = enemy.rotation - PI * 0.5
-	var fwd: Vector2 = Vector2(cos(rot), sin(rot))
-	return fwd.dot(to_p.normalized()) >= cos(deg_to_rad(spec.fire_aim_tol_deg))
-
-
-# Path-phase firing: one shot each time the host descends past the next band-progress fraction,
-# optionally quantized to the shared tempo so a descending formation volleys on the same line.
-# Mirrors enemy_core._check_path_phase_fire / _do_path_shot.
+# Path-phase firing: delegated to the shared FiringScheduler (line-crossing + beat-sync quantize +
+# fast-mover departure escape) — the same engine the hull uses. The mount only reaches here when its
+# spec set fire_path_phases explicitly (no auto-populate; see _scheduler declaration).
 func _tick_path_phases(enemy) -> void:
-	if _beat_fire_at >= 0.0 and Beat.now() >= _beat_fire_at:
-		_beat_fire_at = -1.0
-		_do_path_shot(enemy)
-	if _phase_idx >= spec.fire_path_phases.size():
-		return
-	if Zones.band_progress(enemy.position.y) < spec.fire_path_phases[_phase_idx]:
-		return
-	_phase_idx += 1
-	if spec.fire_beat_synced:
-		var beat_at: float = Beat.next_beat_time(Beat.now())
-		var vel_y: float = enemy._last_move_vel.y if "_last_move_vel" in enemy else 0.0
-		var predicted_y: float = enemy.position.y + vel_y * maxf(0.0, beat_at - Beat.now())
-		if predicted_y >= Zones.DEPARTURE_START:
-			_do_path_shot(enemy)
-		else:
-			_beat_fire_at = beat_at
-	else:
-		_do_path_shot(enemy)
+	_scheduler.tick_path_phases(enemy, spec.fire_path_phases, spec.fire_beat_synced, _do_path_shot.bind(enemy))
 
 
+# Fire one path-phase shot, re-checking the live guards (the beat-synced path defers the shot, so the
+# host may have started dying / left the band by the time it fires). _held covers recycling +
+# off-playfield (with the pure-enemy_base fallback); the dying re-check is the P3.9 SAFE unification —
+# a pure enemy_base host isn't dying-gated on the deferred beat otherwise.
 func _do_path_shot(enemy) -> void:
+	if "_dying" in enemy and enemy._dying:
+		return
 	if _held(enemy):
 		return
-	if spec.fire_only_on_target and not _nose_on_player(enemy):
+	if spec.fire_only_on_target and not FiringSchedulerC.nose_on_player(enemy, spec.fire_aim_tol_deg):
 		return
 	_fire(enemy)
 

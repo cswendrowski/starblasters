@@ -8,6 +8,7 @@
 
 const _DEFAULT_BULLET = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
+const FiringSchedulerC = preload("res://scripts/enemies/firing_scheduler.gd")
 # RecycleController is inherited from EnemyBase (don't redeclare — GDScript errors on a const that
 # already exists in the parent). enemy_core uses it via _on_offscreen → RecycleController.recycle().
 var bullet_scene: PackedScene = _DEFAULT_BULLET
@@ -42,21 +43,18 @@ var _pattern: Resource = null
 # (path_phase_capable patterns) that have a weapon and no fire_on_phase; a scene/roster
 # may set it explicitly to override.
 @export var fire_path_phases: PackedFloat32Array = PackedFloat32Array()
-# Plain Array const (a PackedFloat32Array(...) constructor is NOT a constant
-# expression â€” it fails to parse the whole script). Converted to a packed array at
-# the assignment site below.
-# Firing-consistency pass (2026-07-02): first phase near the TOP of the band (0.1 -> ~y63,
-# ~23px after entry = "fires promptly on entering") and the second at mid-band (0.5 -> ~y118),
-# both kept clear of the DEPARTURE_START (195) edge. The old [0.35, 0.75] held fire for the
-# first third (read as "fires late") and put the 2nd shot at the departure edge (read as "only
-# fires when leaving"). Keep ascending + <=0.6 so no shot lands in the departure band.
-const DEFAULT_PATH_PHASES := [0.1, 0.5]
-var _phase_fire_idx: int = 0  # next phase index to fire (advances as the enemy descends)
+# The default phases + the path-phase line-crossing / beat-sync state now live in the shared
+# FiringScheduler (roadmap P3.9). DEFAULT_PATH_PHASES is its single source; this alias keeps the
+# auto-populate site below readable. (Plain Array — a PackedFloat32Array(...) constructor is NOT a
+# constant expression; converted to a packed array at the assignment site.)
+const DEFAULT_PATH_PHASES := FiringSchedulerC.DEFAULT_PATH_PHASES
 # Shared beat (Beat): when true, a path-phase shot doesn't fire the instant it crosses
 # its phase line - it quantizes to the next global beat (Beat.next_beat_time) so enemies
 # across formations volley together. Set false to fire immediately on the phase line.
 @export var fire_beat_synced: bool = true
-var _beat_fire_at: float = -1.0  # engine-clock time a pending beat-synced shot fires (-1 = none)
+# Trigger-resolution engine (path-phase line crossing + beat-sync quantize + shared gates).
+# Owns _phase_fire_idx / _beat_fire_at internally; reset via _scheduler.reset() on start/recycle.
+var _scheduler = FiringSchedulerC.new()
 
 # Ship-kinematics applied-velocity state (roadmap P1.5 — 2026-07-02). The velocity actually applied
 # last frame; the ShipKinematics filter eases it toward the pattern's desired velocity per the
@@ -115,8 +113,7 @@ func _start_with_pattern(pos: Vector2) -> void:
 	if shoot_pattern != null and fire_on_phase == "" and fire_path_phases.is_empty() \
 			and _pattern.has_method("path_phase_capable") and _pattern.path_phase_capable():
 		fire_path_phases = PackedFloat32Array(DEFAULT_PATH_PHASES)
-	_phase_fire_idx = 0
-	_beat_fire_at = -1.0
+	_scheduler.reset()
 	# Ship-kinematics: cache the pattern's fidelity class + reset the applied-velocity filter state
 	# (spec §7 constraint 5 — reset on start/recycle) so a fresh spawn / re-used instance starts from
 	# rest and doesn't inherit the previous pass's velocity.
@@ -235,8 +232,7 @@ func _recycle_suspend() -> void:
 # Path-phase enemies just reset their phase index (they re-fire by band progress on the new
 # descent); timer enemies re-arm the ShootTimer with the same short first-poll as spawn.
 func _recycle_resume() -> void:
-	_phase_fire_idx = 0
-	_beat_fire_at = -1.0
+	_scheduler.reset()
 	# Reset the kinematics filter for the new pass (spec §7 constraint 5) — the fly-back tween owns
 	# the transform, so the applied velocity must restart from rest when the pattern resumes.
 	_applied_vel = Vector2.ZERO
@@ -292,7 +288,7 @@ func _on_shoot_timer_timeout() -> void:
 		$ShootTimer.wait_time = 0.15
 		$ShootTimer.start()
 		return
-	if fire_only_on_target and not _nose_on_player():
+	if fire_only_on_target and not FiringSchedulerC.nose_on_player(self, fire_aim_tol_deg):
 		# Re-arm the poll but skip this trigger so the enemy waits for a
 		# clean line. Slightly faster re-check than the normal interval.
 		$ShootTimer.wait_time = max(0.1, _fire_interval() * 0.4)
@@ -304,44 +300,16 @@ func _on_shoot_timer_timeout() -> void:
 	EnemySfxC.play_for(self)
 
 
-# Path-phase firing (Â§8): called each movement frame. Fires one shot each time the
-# enemy descends past the next configured band-progress fraction, so shots land at
-# fixed screen positions during the pass (telegraph-friendly, never "too late") and
-# a descending formation volleys together at the same Y line. Phases must be
-# ascending; max phase < 1.0 means firing naturally ceases before the departure band.
+# Path-phase firing (Â§8): called each movement frame. Delegates the line-crossing + beat-sync
+# quantize (with the fast-mover departure escape) to the shared FiringScheduler, which fires shots
+# at fixed band-progress positions during the pass (telegraph-friendly, never "too late") and
+# volleys a descending formation together at the same Y line. shoot_pattern==null bails first (the
+# scheduler is weapon-agnostic; the hull only path-fires with a weapon). _do_path_shot re-checks the
+# live guards because the beat-synced path defers the shot.
 func _check_path_phase_fire() -> void:
-	# 1) Release a pending beat-synced shot once its global beat arrives. Checked
-	# first + unconditionally so the last queued shot still fires after the final
-	# phase line is crossed (idx exhausted).
-	if _beat_fire_at >= 0.0 and Beat.now() >= _beat_fire_at:
-		_beat_fire_at = -1.0
-		_do_path_shot()
-	# 2) Detect crossing the next phase line.
-	if fire_path_phases.is_empty() or _phase_fire_idx >= fire_path_phases.size():
+	if shoot_pattern == null:
 		return
-	if _dying or _cycling or shoot_pattern == null:
-		return
-	if not _on_playfield():
-		return
-	if Zones.band_progress(position.y) < fire_path_phases[_phase_fire_idx]:
-		return
-	_phase_fire_idx += 1
-	if fire_beat_synced:
-		# Quantize to the shared tempo so cross-formation shots collapse into a volley —
-		# BUT only when the enemy will still be inside the engagement band when that beat
-		# lands. Fast movers (Hot Rods at 300 px/s) cross the whole 155px band in ~0.5s,
-		# less than the 0.45s beat period, so a deferred shot would fire in (or past) the
-		# departure band — fire NOW instead so the shot lands in-zone. Slow waves still
-		# get their beat-synced volley. (Roman 2026-06-14: "fire properly in the zones even
-		# when moving fast".)
-		var beat_at: float = Beat.next_beat_time(Beat.now())
-		var predicted_y: float = position.y + _last_move_vel.y * maxf(0.0, beat_at - Beat.now())
-		if predicted_y >= Zones.DEPARTURE_START:
-			_do_path_shot()
-		else:
-			_beat_fire_at = beat_at
-	else:
-		_do_path_shot()
+	_scheduler.tick_path_phases(self, fire_path_phases, fire_beat_synced, _do_path_shot)
 
 
 # Fire one path-phase shot, re-checking the live guards (the beat-synced path defers
@@ -349,7 +317,7 @@ func _check_path_phase_fire() -> void:
 func _do_path_shot() -> void:
 	if _dying or _cycling or shoot_pattern == null or not _on_playfield():
 		return
-	if fire_only_on_target and not _nose_on_player():
+	if fire_only_on_target and not FiringSchedulerC.nose_on_player(self, fire_aim_tol_deg):
 		return
 	shoot_pattern.fire(self)
 	EnemySfxC.play_for(self)
@@ -365,26 +333,14 @@ func _on_movement_phase_entered(phase_name: String) -> void:
 		return
 	if _cycling or not _on_playfield():
 		return
-	if fire_only_on_target and not _nose_on_player():
+	if fire_only_on_target and not FiringSchedulerC.nose_on_player(self, fire_aim_tol_deg):
 		return
 	shoot_pattern.fire(self)
 	EnemySfxC.play_for(self)
 
 
-# True when the body's forward vector is within fire_aim_tol_deg of the
-# direction toward the player. Mirrors the same math the omni/inertial/jet
-# patterns use to decide their facing.
-func _nose_on_player() -> bool:
-	var player := find_player()
-	if player == null:
-		return false
-	var to_p: Vector2 = player.global_position - global_position
-	if to_p.length_squared() < 1.0:
-		return false
-	# Sprite faces +Y at rotation=0 â†’ forward derived from rotation - PI/2.
-	var rot: float = rotation - PI * 0.5
-	var fwd: Vector2 = Vector2(cos(rot), sin(rot))
-	return fwd.dot(to_p.normalized()) >= cos(deg_to_rad(fire_aim_tol_deg))
+# _nose_on_player moved to FiringSchedulerC.nose_on_player (shared static) as part of the P3.9
+# firing unification — the hull + mount copies of the nose-cone math were identical.
 
 
 # Strict "fully inside the visible playfield" check, used by the shoot

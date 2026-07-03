@@ -21,6 +21,7 @@ const WaveSpecScript = preload("res://scripts/levels/wave_def.gd")
 const Roster = preload("res://scripts/levels/enemy_roster.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
 const Lanes = preload("res://scripts/systems/lanes.gd")
+const FormationShapesC = preload("res://scripts/levels/formation_shapes.gd")
 
 # Per-wave probability the auto-mix splices an authored pattern into a generated wave.
 const DEFAULT_CHANCE := 0.22
@@ -35,10 +36,6 @@ const INJECT_CAP_SHARE := 0.6
 # Fallback cap when a ScoreWave carries no slot_cap (-1 = hazards / non-stretch content). Matches the
 # director's export default so the share math stays sane off the 3-stretch path.
 const INJECT_FALLBACK_CAP := 14
-
-# Vertical gap (px) between formation rows: rows are pre-stacked this far apart ABOVE the screen so
-# the painted formation descends in holding its shape (~ the editor grid's row height; tunable).
-const ROW_GAP_PX := 40.0
 
 # Faction NAME -> Factions.Id. "any"/"" -> -1 (no fill faction / matches any level).
 const FACTION_IDS := {
@@ -1042,28 +1039,12 @@ static func build_phrase(pattern: Dictionary, fill_faction: int, sector: int, rn
 	# burst advance at the SLOWEST member's speed so it holds its shape; "free" (the default, and
 	# every legacy pattern w/o the key) leaves each unit at its own chassis speed.
 	if lockstep:
-		_lock_to_slowest(specs)
+		FormationShapesC.lock_to_slowest(specs)
 	var ph := Phrase.new()
 	ph.kind = Phrase.Kind.FORMATION
 	ph.shape = &"authored"
 	ph.specs = specs
 	return ph
-
-
-# Lockstep speed: clamp every speed-bearing spec to the SLOWEST member's move_speed so an authored
-# formation advances in unison instead of spreading out as fast units outrun slow ones. Specs with
-# no resolved speed (move_speed <= 0 — e.g. non-roster scenes that keep their scene-baked motion)
-# are left untouched, and don't drag the minimum to zero.
-static func _lock_to_slowest(specs: Array) -> void:
-	var slowest: float = INF
-	for ws in specs:
-		if ws.move_speed > 0.0:
-			slowest = minf(slowest, ws.move_speed)
-	if slowest == INF:
-		return   # nothing had a resolved speed
-	for ws in specs:
-		if ws.move_speed > 0.0:
-			ws.move_speed = slowest
 
 
 # Build one count-1 WaveSpec for a single placement, resolving enemy + movement. Returns null
@@ -1096,10 +1077,11 @@ static func _spec_for_placement(pl: Dictionary, fill_faction: int, sector: int, 
 	var sub_y: int = int(pl.get("sub_y", 1))
 	ws.spawn_x_offset = (float(sub_x) - 1.0) * (Lanes.WIDTH / 3.0)
 	# Pre-stack rows ABOVE the top edge so the painted formation descends in intact: the bottom-most
-	# painted row (row == max_row) enters at the edge; each row up adds ROW_GAP_PX. enemy_base
+	# painted row (row == max_row) enters at the edge; each row up adds one shared ROW_GAP
+	# (formation_shapes.prestack_y — dedup, review §3). sub_y nudges within the row. enemy_base
 	# suppresses the FREE_ANY_EDGE top cull until first entry so these aren't freed pre-descent.
 	var row: int = int(pl.get("row", 0))
-	ws.spawn_y = -12.0 - float(max_row - row) * ROW_GAP_PX + (float(sub_y) - 1.0) * 11.0
+	ws.spawn_y = FormationShapesC.prestack_y(row, max_row) + (float(sub_y) - 1.0) * 11.0
 	# Lateral-direction override (Formation Builder): "left"/"right"/"random" force which way a
 	# side-aware movement runs; "" / "any" leaves it as authored. director._apply_direction consumes it.
 	match String(pl.get("dir", "")):
@@ -1121,30 +1103,12 @@ static func _spec_for_placement(pl: Dictionary, fill_faction: int, sector: int, 
 	elif not entry.is_empty():
 		ws.movement_override = Roster.make_movement(entry)
 
-	# Shoot / components / stats from the roster entry so a filled enemy behaves like a normal
-	# spawn (mirrors wave_generator._make_wave_spec). Skipped for non-roster scenes.
+	# Shoot / components / stats from the roster entry so a filled enemy behaves like a normal spawn.
+	# The shared block (shoot/components/fire/stats/locomotion) is stamped by formation_shapes; the
+	# per-placement DEPTH override below is authored-only. Skipped for non-roster scenes.
 	if not entry.is_empty():
-		var sp = Roster.make_shoot(entry)
-		if sp != null:
-			ws.shoot_pattern_override = sp
-		ws.components_override = Roster.make_components(entry) + Roster.make_emitters(entry)
-		if entry.has("fire_min"):
-			ws.fire_interval_min = float(entry["fire_min"])
-		if entry.has("fire_max"):
-			ws.fire_interval_max = float(entry["fire_max"])
+		FormationShapesC.stamp_roster_behavior(ws, entry)
 		var stats: Dictionary = Roster.compose_stats(entry)
-		ws.max_health = int(stats["max_health"])
-		ws.bounty_value = int(stats["bounty_value"])
-		if int(stats["shield_charges"]) > 0:
-			ws.shield_charges = int(stats["shield_charges"])
-		if int(stats["recycle_passes"]) >= -1:
-			ws.recycle_passes = int(stats["recycle_passes"])
-		# Locomotion (chassis stats). A placement "depth" override wins over the enemy's
-		# roster-default depth; otherwise the roster default (compose_stats depth_bp) rides through.
-		ws.move_speed = float(stats.get("move_speed", 0.0))
-		ws.weight = float(stats.get("weight", 0.0))
-		ws.turn_rate = float(stats.get("turn_rate", 0.0))
-		ws.accel = float(stats.get("accel", 0.0))
 		# Depth: an explicit placement "depth" wins; else a legacy banded movement key
 		# (loiter_low → "low") carries the band; else the enemy's roster-default depth.
 		var pl_depth: Variant = pl.get("depth", null)

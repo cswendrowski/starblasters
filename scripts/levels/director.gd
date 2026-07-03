@@ -26,15 +26,6 @@ const LaneTraffic = preload("res://scripts/systems/lane_traffic.gd")
 const LanePathC = preload("res://scripts/enemies/patterns/lane_path.gd")
 const FormationShapes = preload("res://scripts/levels/formation_shapes.gd")
 
-# Banner fade-in+hold+fade-out budget. Director waits this long before the
-# first enemy of an ANNOUNCED wave so spawns never overlap the WAVE alert.
-const BANNER_HOLD: float = 1.9  # Roman 2026-06-01: halved inter-wave windows
-# Extra beat after the banner clears before enemies start (Roman, 2026-05-15).
-const POST_BANNER_GRACE: float = 0.2
-# Grace period AFTER a wave is cleared (all enemies in the group dead) and
-# BEFORE the next banner pops. "Wait a beat, show next wave banner."
-const POST_CLEAR_GRACE: float = 0.2
-
 @export var level: Resource  # LevelData
 @export var auto_start: bool = false
 # Streaming concurrency cap (bridge §1.2 / composition guide §9). On-screen
@@ -69,10 +60,9 @@ const CROSSER_STAGGER_STEP: float = 26.0
 const ANCHOR_MIN_HEIGHT: float = 40.0
 const ANCHOR_GAP_PAD: float = 8.0
 # GEOMETRIC formation dispatch (conductor readability pass, 2026-06-23): a generator-rolled shape
-# (formation_shapes.gd) is performed as a held burst. Rows are PRE-STACKED above the top edge this
-# far apart so the painted shape descends in intact (mirrors authored_patterns.ROW_GAP_PX); members
-# spawn on a near-simultaneous stagger so a whole shape lands as one gesture, not a trickle.
-const GEOMETRIC_ROW_GAP: float = 40.0
+# (formation_shapes.gd) is performed as a held burst. Rows are PRE-STACKED above the top edge (shared
+# formation_shapes.prestack_y / ROW_GAP) so the painted shape descends in intact; members spawn on a
+# near-simultaneous stagger so a whole shape lands as one gesture, not a trickle.
 const GEOMETRIC_MEMBER_STAGGER: float = 0.03
 # Burst-fit ceiling (fairness fix, 2026-07-02): an intentional pre-stacked burst (authored /
 # geometric) may exceed the clarity cap so its shape lands intact, but NOT without bound — an
@@ -176,16 +166,6 @@ func _seed_dispatch_rng() -> void:
 	var nid: String = String(run.current_node_id) if run != null and "current_node_id" in run else ""
 	var sec: int = int(run.sectors_cleared) if run != null and "sectors_cleared" in run else 0
 	_rng.seed = (rs * 2654435761) ^ (hash(nid) * 40503) ^ (sec * 100003) ^ 0x9E3779B9
-
-
-# In-place Fisher-Yates shuffle drawing from the seeded dispatch RNG. Array.shuffle() would
-# draw from the global, unseeded stream and break placement reproducibility.
-func _rng_shuffle(arr: Array) -> void:
-	for i in range(arr.size() - 1, 0, -1):
-		var j: int = _rng.randi() % (i + 1)
-		var tmp = arr[i]
-		arr[i] = arr[j]
-		arr[j] = tmp
 
 
 # Flatten a CombatScore into an ordered list of phrase "steps". Each step is the
@@ -614,11 +594,11 @@ func _dispatch_authored(ph: Resource) -> void:
 
 # GEOMETRIC: perform a generator-rolled held shape (formation_shapes.gd). The phrase's specs are
 # homogeneous (one enemy type, count each); we explode the TOTAL across the shape's lane/row cells,
-# PRE-STACK each row above the top edge (bottom row leads, higher rows trail GEOMETRIC_ROW_GAP up)
+# PRE-STACK each row above the top edge (bottom row leads, higher rows trail one shared ROW_GAP up)
 # and burst them so the shape paints in as it descends — the same technique as _dispatch_authored.
 # Members are one enemy type → identical chassis speed → the shape holds without an explicit
 # lockstep clamp (that clamp matters only for MIXED-speed formations, which the authored path and
-# any future escort/native-mixed path own via authored_patterns._lock_to_slowest).
+# any future escort/native-mixed path own via formation_shapes.lock_to_slowest).
 func _dispatch_geometric(ph: Resource) -> void:
 	var base: Resource = null
 	var total: int = 0
@@ -646,7 +626,9 @@ func _dispatch_geometric(ph: Resource) -> void:
 		var s: Resource = base.duplicate()
 		s.count = 1
 		s.lane = clampi(int(c.x), 0, Lanes.COUNT - 1)
-		s.spawn_y = -12.0 - float(max_row - int(c.y)) * GEOMETRIC_ROW_GAP
+		# Shared pre-stack row math (formation_shapes.prestack_y): row == max_row enters at the top edge,
+		# each row up trails one ROW_GAP higher (dedup, conductor review §3).
+		s.spawn_y = FormationShapes.prestack_y(int(c.y), max_row)
 		specs.append(s)
 	# An explicit shape is an intentional burst (like authored): raise the gate to fit the whole
 	# formation on top of whatever's already alive so the clarity cap can't partially drop it —
@@ -796,7 +778,8 @@ func _wall_row_lanes(n: int, avoid_gaps: Array) -> Array:
 	var pool: Array = []
 	for i in Lanes.COUNT:
 		pool.append(i)
-	_rng_shuffle(pool)
+	# Seeded shuffle off the dispatch RNG (reproducible placement); shared impl (dedup, review §3).
+	FormationShapes.fisher_yates(pool, _rng)
 	var gaps: Array = []
 	# First pass: gaps NOT used by the previous row (shift the safe lane).
 	for ln in pool:

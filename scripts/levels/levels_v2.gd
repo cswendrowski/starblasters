@@ -6,6 +6,7 @@ extends Node
 const WaveSpec = preload("res://scripts/levels/wave_def.gd")
 const LevelData = preload("res://scripts/levels/level_def.gd")
 const AuthoredPatterns = preload("res://scripts/levels/authored_patterns.gd")
+const FormationShapes = preload("res://scripts/levels/formation_shapes.gd")
 const HazardShapes = preload("res://scripts/levels/hazard_shapes.gd")
 const StraightDown = preload("res://scripts/enemies/patterns/straight_down.gd")
 const Loiter = preload("res://scripts/enemies/patterns/loiter.gd")
@@ -98,11 +99,6 @@ static func _formation_phrase(shape: StringName, spec: Resource) -> Phrase:
 	return ph
 
 
-# Row pre-stack gap for navigable channels (matches authored_patterns.ROW_GAP_PX so a parametric
-# channel descends the same way as a hand-authored one).
-const HAZ_ROW_GAP := 40.0
-
-
 # Build a NAVIGABLE channel phrase (hazard_shapes cells) — one count-1 hazard pinned per cell, rows
 # pre-stacked above the top edge so the corridor descends holding its gap. Shape &"authored" routes
 # it to director._dispatch_authored (exact lanes, burst-fit), exactly like the hand-authored hazard
@@ -117,7 +113,9 @@ static func _channel_phrase(scene, cells: Array) -> Phrase:
 		ws.enemy_scene = scene
 		ws.count = 1
 		ws.lane = int(c.x)
-		ws.spawn_y = -12.0 - float(max_row - int(c.y)) * HAZ_ROW_GAP
+		# Shared pre-stack row math (formation_shapes.prestack_y): matches the hand-authored/geometric
+		# formation spacing so a parametric channel descends identically (dedup, review §3).
+		ws.spawn_y = FormationShapes.prestack_y(int(c.y), max_row)
 		ws.spawn_delay = 0.0
 		ws.drift_mode = "straight"   # hold the lane so the corridor's gap stays crisp (no drift blur)
 		specs.append(ws)
@@ -469,7 +467,6 @@ static func build_firecore_drone_showcase():
 	w2.spawn_interval = 0.4
 	w2.spawn_delay = 2.5
 	w2.formation = 3  # TOP_CENTER_OUT — even spread
-	w2.formation_padding = 36.0
 	w2.ring_count_override = 2
 	w2.announce_text = "DRONE TRIAD"
 
@@ -480,7 +477,6 @@ static func build_firecore_drone_showcase():
 	w3.spawn_interval = 0.3
 	w3.spawn_delay = 2.5
 	w3.formation = 0  # TOP_LEFT_TO_RIGHT — full-width line
-	w3.formation_padding = 24.0
 	w3.ring_count_override = 1
 	w3.announce_text = "DRONE LINE"
 
@@ -504,7 +500,6 @@ static func build_missile_cruiser_showcase():
 	w1.spawn_interval = 6.0
 	w1.spawn_delay = 4.0
 	w1.formation = 0  # TOP_LEFT_TO_RIGHT
-	w1.formation_padding = 48.0
 	w1.announce_text = "MISSILE CRUISER"
 
 	var w2 = WaveSpec.new()
@@ -513,7 +508,6 @@ static func build_missile_cruiser_showcase():
 	w2.spawn_interval = 6.0
 	w2.spawn_delay = 12.0
 	w2.formation = 0
-	w2.formation_padding = 48.0
 
 	var level = LevelData.new()
 	level.level_name = "Missile Cruiser Showcase"
@@ -533,7 +527,6 @@ static func build_beam_showcase():
 	w1.spawn_interval = 0.6
 	w1.spawn_delay = 0.5
 	w1.formation = 0  # TOP_LEFT_TO_RIGHT
-	w1.formation_padding = 60.0
 	w1.announce_text = "BEAMER — SWEEP"
 
 	var w2 = WaveSpec.new()
@@ -542,7 +535,6 @@ static func build_beam_showcase():
 	w2.spawn_interval = 0.6
 	w2.spawn_delay = 6.0
 	w2.formation = 0
-	w2.formation_padding = 60.0
 	w2.announce_text = "BEAMER — CHASE"
 
 	var wlock = WaveSpec.new()
@@ -551,7 +543,6 @@ static func build_beam_showcase():
 	wlock.spawn_interval = 0.6
 	wlock.spawn_delay = 6.0
 	wlock.formation = 0
-	wlock.formation_padding = 60.0
 	wlock.announce_text = "BEAMER — LOCK"
 
 	var w3 = WaveSpec.new()

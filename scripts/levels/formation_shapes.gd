@@ -24,6 +24,7 @@ extends Object
 # Preload-referenced, NOT a class_name (headless-safe; matches authored_patterns.gd / factions.gd).
 
 const Lanes = preload("res://scripts/systems/lanes.gd")
+const Roster = preload("res://scripts/levels/enemy_roster.gd")
 
 # Shapes this library can build. The generator rolls from here; the director routes a wave's
 # shape_override StringName through placements(). Keep in sync with director.GEOMETRIC_SHAPES.
@@ -135,6 +136,80 @@ static func escort(core_count: int) -> Dictionary:
 		Vector2i(1, 3), Vector2i(3, 3), Vector2i(5, 3),                   # rear guard (trails)
 	]
 	return {"core": core, "screen": screen}
+
+
+# --- Shared formation utilities (dedup, conductor review §3, 2026-07-02) -----------------------
+# Row pre-stack + speed-lockstep + seeded shuffle were copy-pasted across director / wave_generator
+# / authored_patterns / levels_v2 (four ROW_GAP constants of one value, two verbatim lockstep clamps,
+# two Fisher-Yates). Consolidated here (the pure-static formation-utility hub every formation site
+# already imports) so a new value/behavior lands in ONE place.
+
+# Vertical pre-stack: rows lead from the BOTTOM (row == max_row enters at the top edge, SPAWN_Y_TOP);
+# each row up trails ROW_GAP px higher, so a painted formation descends holding its shape. This was
+# four separate constants (authored_patterns.ROW_GAP_PX, director.GEOMETRIC_ROW_GAP,
+# wave_generator.ESCORT_ROW_GAP, levels_v2.HAZ_ROW_GAP) — all 40.0.
+const SPAWN_Y_TOP: float = -12.0
+const ROW_GAP: float = 40.0
+
+
+# Pre-stacked spawn_y for a placement's `row` within a formation whose deepest (leading) row is
+# `max_row`. row == max_row → SPAWN_Y_TOP (enters at the edge); each row above adds ROW_GAP.
+static func prestack_y(row: int, max_row: int) -> float:
+	return SPAWN_Y_TOP - float(max_row - row) * ROW_GAP
+
+
+# Lockstep speed: clamp every speed-bearing spec to the SLOWEST member's move_speed so a mixed-speed
+# formation advances in unison instead of spreading as fast units outrun slow ones. Specs with no
+# resolved speed (move_speed <= 0 — non-roster scenes that keep scene-baked motion) are left untouched
+# and don't drag the minimum to zero. (Was authored_patterns._lock_to_slowest ≡ wave_generator.
+# _lock_specs_to_slowest, verbatim.)
+static func lock_to_slowest(specs: Array) -> void:
+	var slowest: float = INF
+	for ws in specs:
+		if ws.move_speed > 0.0:
+			slowest = minf(slowest, ws.move_speed)
+	if slowest == INF:
+		return   # nothing had a resolved speed
+	for ws in specs:
+		if ws.move_speed > 0.0:
+			ws.move_speed = slowest
+
+
+# Seeded Fisher-Yates shuffle in place (uses the caller's rng so a shuffle reproduces per run+node).
+# Was director._rng_shuffle (instance, on `_rng`) ≡ wave_generator._shuffle (static, rng param).
+static func fisher_yates(arr: Array, rng: RandomNumberGenerator) -> void:
+	for i in range(arr.size() - 1, 0, -1):
+		var j: int = rng.randi() % (i + 1)
+		var t = arr[i]; arr[i] = arr[j]; arr[j] = t
+
+
+# Stamp the SHARED roster-behavior block onto a count-1 WaveSpec `ws` from roster `entry` — the
+# verbatim-identical portion that wave_generator._make_wave_spec and authored_patterns._spec_for_placement
+# both apply so a placed enemy behaves like a normal spawn: shoot pattern, components(+emitters), fire
+# interval overrides, composed stats (health/bounty/shield/recycle), and chassis locomotion. Callers
+# apply their DIVERGENT extras separately (wave_generator: mounts + chaff-recycle override; authored:
+# per-placement depth-band override) — those are intentionally NOT here (dedup, conductor review §3).
+# `entry` must be non-empty; caller guards for the non-roster (raw-scene) case where none of this applies.
+static func stamp_roster_behavior(ws, entry: Dictionary) -> void:
+	var sp = Roster.make_shoot(entry)
+	if sp != null:
+		ws.shoot_pattern_override = sp
+	ws.components_override = Roster.make_components(entry) + Roster.make_emitters(entry)
+	if entry.has("fire_min"):
+		ws.fire_interval_min = float(entry["fire_min"])
+	if entry.has("fire_max"):
+		ws.fire_interval_max = float(entry["fire_max"])
+	var stats: Dictionary = Roster.compose_stats(entry)
+	ws.max_health = int(stats["max_health"])
+	ws.bounty_value = int(stats["bounty_value"])
+	if int(stats["shield_charges"]) > 0:
+		ws.shield_charges = int(stats["shield_charges"])
+	if int(stats["recycle_passes"]) >= -1:
+		ws.recycle_passes = int(stats["recycle_passes"])
+	ws.move_speed = float(stats.get("move_speed", 0.0))
+	ws.weight = float(stats.get("weight", 0.0))
+	ws.turn_rate = float(stats.get("turn_rate", 0.0))
+	ws.accel = float(stats.get("accel", 0.0))
 
 
 # Stack copies of `unit` upward until at least `count` cells, then truncate to exactly `count`.

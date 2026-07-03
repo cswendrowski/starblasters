@@ -24,7 +24,6 @@ enum Kind { FORMATION, FILLER, BREATHER }
 # also carries lifted legacy Formation ids (left_to_right, center_out, …).
 @export var shape: StringName = &"top_spread"
 @export var entry: StringName = &"top"        # "top" | "side"
-@export var lane_anchor_hint: int = -1        # -1 = conductor chooses anchor
 
 # --- FILLER: connective single-enemy trickle between formations (§2.2). ---
 @export_group("Filler")
