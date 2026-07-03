@@ -81,8 +81,8 @@ const BENCH_WIP_BOSSES := [
 # Mounts editor pools. Kind/aim are stored lowercase (the roster dict schema); the *_LABELS are the
 # dropdown text. PROJECTILES are launcher payloads (scene paths), offered alongside the BulletVariant
 # PAYLOADS in a mount row's payload dropdown.
-const MOUNT_KINDS := ["gun", "turret", "launcher", "beam"]
-const MOUNT_KIND_LABELS := ["Gun", "Turret", "Launcher", "Beam"]
+const MOUNT_KINDS := ["gun", "turret", "launcher", "beam", "entity"]
+const MOUNT_KIND_LABELS := ["Gun", "Turret", "Launcher", "Beam", "Entity"]
 const MOUNT_AIM_KEYS := ["straight_down", "at_player", "toward_center", "forward", "backward", "left", "right"]
 const MOUNT_AIM_LABELS := ["Down", "At Player", "To Center", "Forward", "Backward", "Left", "Right"]
 const PROJECTILES := {
@@ -1072,7 +1072,9 @@ func _mount_spec_dicts() -> Array:
 			"count": int(d.get("count", 1)), "spread_deg": float(d.get("spread", 0.0)),
 		}
 		var pname: String = String(d.get("payload", "Ball"))
-		if PAYLOADS.has(pname):
+		if k == "entity":
+			sd["payload_scene"] = _emitter_payload_path(pname)   # entity scene path
+		elif PAYLOADS.has(pname):
 			sd["payload"] = PAYLOADS[pname]
 		elif PROJECTILES.has(pname):
 			sd["payload_scene"] = PROJECTILES[pname]
@@ -1106,6 +1108,13 @@ func _mount_spec_dicts() -> Array:
 			sd["turret_texture"] = g["tex"]
 			sd["turret_hframes"] = g["hframes"]
 			sd["recoil_frames"] = g["recoil"]
+		elif k == "entity":
+			# ENTITY emitter fields (Phase 3): trigger + emit knobs, honoured by _mount_from_dict.
+			sd["trigger"] = String(d.get("trigger", "cadence"))
+			sd["scatter"] = float(d.get("scatter", 0.0))
+			sd["max_emits"] = int(d.get("max_emits", 0))
+			sd["band_only"] = bool(d.get("band_only", false))
+			sd["no_inertia"] = bool(d.get("no_inertia", true))
 		out.append(sd)
 	return out
 
@@ -1162,7 +1171,9 @@ func _make_mount_row(idx: int) -> Control:
 	row.add_child(grid)
 
 	var kind_dd := _row_dd(MOUNT_KIND_LABELS, MOUNT_KINDS.find(String(d.get("kind", "gun"))))
-	kind_dd.item_selected.connect(func(i): _set_mount(d, "kind", MOUNT_KINDS[i]))
+	kind_dd.item_selected.connect(func(i):
+		_set_mount(d, "kind", MOUNT_KINDS[i])
+		_rebuild_mounts_ui.call_deferred())   # kind changes which fields show — rebuild the rows (deferred = safe)
 	_grid_row(grid, "kind", kind_dd)
 
 	var mopts: Array = _marker_options(_selected_path)
@@ -1173,8 +1184,11 @@ func _make_mount_row(idx: int) -> Control:
 	mk_dd.item_selected.connect(func(i): _set_mount(d, "marker", _marker_value(String(mopts[i]))))
 	_grid_row(grid, "marker", mk_dd)
 
-	var pnames: Array = _mount_payload_names()
-	var pay_dd := _row_dd(pnames, maxi(0, pnames.find(String(d.get("payload", "Ball")))))
+	var k: String = String(d.get("kind", "gun"))
+	var is_entity: bool = k == "entity"
+	var pnames: Array = _emitter_payload_options() if is_entity else _mount_payload_names()
+	var def_pay: String = "Bomblet" if is_entity else "Ball"
+	var pay_dd := _row_dd(pnames, maxi(0, pnames.find(String(d.get("payload", def_pay)))))
 	pay_dd.item_selected.connect(func(i): _set_mount(d, "payload", String(pnames[i])))
 	_grid_row(grid, "payload", pay_dd)
 
@@ -1195,7 +1209,6 @@ func _make_mount_row(idx: int) -> Control:
 	_grid_row(grid, "spread", spr)
 
 	# Firing pattern controls for gun/launcher mounts only.
-	var k: String = String(d.get("kind", "gun"))
 	if k == "gun" or k == "launcher":
 		# muzzles: which marker(s) fire each shot — All (every marker) vs Cycle (round-robin).
 		var sync_keys: Array = ["all", "cycle", "inward", "outward"]
@@ -1263,6 +1276,31 @@ func _make_mount_row(idx: int) -> Control:
 		phase_ed.text_submitted.connect(func(t): _set_mount(d, "on_phase", t))
 		phase_ed.focus_exited.connect(func(): _set_mount(d, "on_phase", phase_ed.text))
 		_grid_row(grid, "phase", phase_ed)
+
+	# Entity emitter fields (Phase 3): spawn the payload scene on a trigger. Cadence uses the "rate" row
+	# above as the emit period; count = scenes per emit. aim/marker/spread rows are ignored for entities.
+	if is_entity:
+		var trig_keys: Array = ["cadence", "start", "death"]
+		var trig_dd := _row_dd(["Cadence", "Start", "Death"], maxi(0, trig_keys.find(String(d.get("trigger", "cadence")))))
+		trig_dd.item_selected.connect(func(i): _set_mount(d, "trigger", String(trig_keys[i])))
+		_grid_row(grid, "trigger", trig_dd)
+
+		var maxe := _row_spin(0, 20, 1, float(d.get("max_emits", 0)))
+		maxe.value_changed.connect(func(v): _set_mount(d, "max_emits", int(v)))
+		_grid_row(grid, "max emits", maxe)
+
+		var scat := _row_spin(0.0, 60.0, 2.0, float(d.get("scatter", 0.0)))
+		scat.value_changed.connect(func(v): _set_mount(d, "scatter", float(v)))
+		_grid_row(grid, "scatter", scat)
+
+		var band_chk := _row_check(bool(d.get("band_only", false)))
+		band_chk.toggled.connect(func(on): _set_mount(d, "band_only", on))
+		_grid_row(grid, "band only", band_chk)
+
+		# Inertia ON = the drop carries the enemy's velocity; OFF (default) = it drops at rest.
+		var einertia := _row_check(not bool(d.get("no_inertia", true)))
+		einertia.toggled.connect(func(on): _set_mount(d, "no_inertia", not on))
+		_grid_row(grid, "inertia", einertia)
 
 	return row
 
@@ -1687,6 +1725,20 @@ func _payload_name_of(d: Dictionary) -> String:
 
 # A paste-ready roster "mounts" dict literal for one mount (payload → BV_ const or scene path).
 func _mount_copy_line(d: Dictionary) -> String:
+	# ENTITY hardpoint (Phase 3): a "mounts" entry that spawns a scene on a trigger (read by
+	# _mount_from_dict). payload -> payload_scene path; cadence/count from the shared rate/count rows.
+	if String(d.get("kind", "gun")) == "entity":
+		var epath: String = _emitter_payload_path(String(d.get("payload", "Bomblet")))
+		var eline: String = "{ \"kind\": \"entity\", \"trigger\": \"%s\", \"payload_scene\": \"%s\", \"count\": %d, \"fire_min\": %.2f, \"fire_max\": %.2f" % [
+			String(d.get("trigger", "cadence")), epath, int(d.get("count", 1)), float(d.get("fire", 1.5)), float(d.get("fire", 1.5))]
+		if float(d.get("scatter", 0.0)) > 0.0:
+			eline += ", \"scatter\": %.1f" % float(d.get("scatter", 0.0))
+		if int(d.get("max_emits", 0)) > 0:
+			eline += ", \"max_emits\": %d" % int(d.get("max_emits", 0))
+		if bool(d.get("band_only", false)):
+			eline += ", \"band_only\": true"
+		eline += ", \"no_inertia\": %s }," % ("true" if bool(d.get("no_inertia", true)) else "false")
+		return eline
 	var pname: String = String(d.get("payload", "Ball"))
 	var pay: String = "\"payload\": null"
 	if PAYLOADS.has(pname):
