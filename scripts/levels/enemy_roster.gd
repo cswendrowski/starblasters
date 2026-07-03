@@ -1673,7 +1673,11 @@ static func _mount_from_dict(d: Dictionary) -> Resource:
 # Returns [] when absent (every existing entry unchanged). Used by wave_generator (production) + the
 # Enemy Bench. An emitter is the generalized form of the interceptor's missile-drop (Roman 2026-06-17).
 const EmitterComponentC = preload("res://scripts/enemies/components/emitter_component.gd")
-const _EMIT_TRIGGER := {"start": 0, "timer": 1, "death": 2}   # EmitterComponent.Trigger
+# Phase 2 (2026-07-03): roster/bench emitters realize as ENTITY MountComponents (the unified path);
+# EmitterComponent survives only for the faction firecore overlay. String trigger -> MountSpec.Trigger
+# (CADENCE=0, START=1, DEATH=2) — note "timer" -> CADENCE (the fire-interval emit timer).
+const MountComponentC = preload("res://scripts/enemies/mounts/mount_component.gd")
+const _EMIT_TRIGGER_K := {"start": 1, "timer": 0, "death": 2}
 # Friendly payload names → scene paths (the Enemy Bench dropdown picks from these).
 const EMITTABLE := {
 	"Missile":  "res://scenes/projectiles/drifting_missile.tscn",
@@ -1700,26 +1704,34 @@ static func make_emitter_specs(dicts: Array) -> Array:
 
 
 static func _emitter_from_dict(d: Dictionary) -> Resource:
-	var e = EmitterComponentC.new()
-	e.trigger = int(_EMIT_TRIGGER.get(String(d.get("trigger", "timer")), 1))
+	# An emitter is now an ENTITY MountSpec realized by a MountComponent (Phase 2). Fields map 1:1;
+	# `drop` -> no_inertia (drop=true => leave at rest / don't inherit the enemy's velocity).
+	var s = MountSpec.new()
+	s.kind = MountSpec.Kind.ENTITY
+	s.trigger = int(_EMIT_TRIGGER_K.get(String(d.get("trigger", "timer")), 0))
 	# payload: an EMITTABLE name, or a direct res:// scene path / PackedScene.
 	var pay: Variant = d.get("payload", "")
 	if pay is String:
 		var path: String = String(EMITTABLE.get(pay, pay))   # name → path, else treat the string as a path
 		if path != "" and ResourceLoader.exists(path):
-			e.payload = load(path)
+			s.payload_scene = load(path)
 	elif pay is PackedScene:
-		e.payload = pay
-	e.count = int(d.get("count", 1))
-	e.cadence = float(d.get("cadence", 2.0))
-	e.chance = float(d.get("chance", 1.0))
-	e.spread = float(d.get("spread", 0.0))
-	e.attach_to_enemy = bool(d.get("attach", d.get("attach_to_enemy", false)))
-	e.tag = String(d.get("tag", ""))
-	e.max_emits = int(d.get("max_emits", 0))
-	e.band_only = bool(d.get("band_only", false))
-	e.sfx = String(d.get("sfx", ""))
-	return e
+		s.payload_scene = pay
+	s.count = int(d.get("count", 1))
+	var cad: float = float(d.get("cadence", 2.0))
+	s.fire_interval_min = cad
+	s.fire_interval_max = cad
+	s.emit_chance = float(d.get("chance", 1.0))
+	s.emit_scatter = float(d.get("spread", 0.0))
+	s.attach_to_enemy = bool(d.get("attach", d.get("attach_to_enemy", false)))
+	s.emit_tag = String(d.get("tag", ""))
+	s.max_emits = int(d.get("max_emits", 0))
+	s.band_only = bool(d.get("band_only", false))
+	s.emit_sfx = String(d.get("sfx", ""))
+	s.no_inertia = bool(d.get("drop", true))   # drop default true = at rest; false = launch w/ velocity
+	var mc = MountComponentC.new()
+	mc.spec = s
+	return mc
 
 
 static func make_shoot(entry: Dictionary) -> Resource:

@@ -17,6 +17,8 @@ const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 const MountSpecC = preload("res://scripts/enemies/mounts/mount_spec.gd")
 const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const FiringSchedulerC = preload("res://scripts/enemies/firing_scheduler.gd")
+const WeaponSfxC = preload("res://scripts/effects/weapon_sfx.gd")   # ENTITY emit sfx (Phase 2)
+const Playfield = preload("res://scripts/systems/playfield.gd")     # ENTITY band_only gate
 
 var spec: Resource = null
 var _weapon = null            # internal Weapon, borrowed for _spawn_bullet + aim helpers (GUN)
@@ -31,6 +33,8 @@ var _next: float = 2.0
 # reason the mount keeps its own `if not spec.fire_path_phases.is_empty()` guard rather than sharing
 # an auto-populate config flag.
 var _scheduler = FiringSchedulerC.new()
+var _emit_count: int = 0          # ENTITY CADENCE emits this pass (vs spec.max_emits)
+var _started_once: bool = false   # ENTITY START fires once per instance, not once per parallax recycle
 
 
 func on_start(enemy) -> void:
@@ -47,9 +51,20 @@ func on_start(enemy) -> void:
 		_weapon.wobble_frequency = spec.wobble_frequency
 	_t = randf_range(0.2, maxf(0.2, spec.fire_interval_max))   # desync, matches the bespoke _ready
 	_next = _roll_interval()
+	# ENTITY (Phase 2): reset the per-pass emit budget; START emits once per instance (guarded vs the
+	# per-recycle on_start re-run). CADENCE uses _t from 0 as the emit timer, matching EmitterComponent.
+	if int(spec.kind) == MountSpecC.Kind.ENTITY:
+		_emit_count = 0
+		_t = 0.0
+		if int(spec.trigger) == MountSpecC.Trigger.START and not _started_once:
+			_started_once = true
+			_emit_scene(enemy)
 
 
 func on_process(enemy, delta: float) -> void:
+	if int(spec.kind) == MountSpecC.Kind.ENTITY:
+		_process_entity(enemy, delta)
+		return
 	if _held(enemy):
 		return
 	# MODE: path-phase firing (fixed band-progress lines) replaces the cadence timer — fires once as
@@ -81,6 +96,103 @@ func on_phase(enemy, phase_name: String) -> void:
 	if _held(enemy) or not _gates_pass(enemy):
 		return
 	_fire(enemy)
+
+
+# --- ENTITY payload (Phase 2 2026-07-03) — folds EmitterComponent: spawn payload_scene on a trigger.
+# START fires in on_start, DEATH here, CADENCE via _process_entity. Behaviourally identical to the
+# retired EmitterComponent (deferred insert, scatter, attach, drop-vs-launch, per-emit sfx). ---
+func on_death(enemy) -> void:
+	if int(spec.kind) == MountSpecC.Kind.ENTITY and int(spec.trigger) == MountSpecC.Trigger.DEATH:
+		if _roll_chance():
+			_emit_scene(enemy)
+
+
+func _process_entity(enemy, delta: float) -> void:
+	if int(spec.trigger) != MountSpecC.Trigger.CADENCE:
+		return   # START (on_start) / DEATH (on_death) don't tick a timer
+	if spec.max_emits > 0 and _emit_count >= spec.max_emits:
+		return
+	# band_only: pause the cadence off the visible band so a fast diver doesn't waste drops.
+	if spec.band_only and not _in_band(enemy):
+		return
+	_t += delta
+	if _t >= _emit_period():
+		_t = 0.0
+		if _roll_chance():
+			_emit_scene(enemy)
+			_emit_count += 1
+
+
+func _emit_period() -> float:
+	return maxf(0.05, spec.fire_interval_min)
+
+
+func _roll_chance() -> bool:
+	return spec.emit_chance >= 1.0 or randf() < spec.emit_chance
+
+
+func _in_band(enemy) -> bool:
+	if not (enemy is Node2D):
+		return true
+	var y: float = (enemy as Node2D).global_position.y
+	return y >= Playfield.Y_MIN + 10.0 and y <= Playfield.Y_MAX - 20.0
+
+
+# Spawn spec.count scenes at the origin (centre + scatter, or attached to the enemy). Parents to the
+# BulletWorld so drops survive the enemy's queue_free, unless attach_to_enemy. Deferred insert — a
+# DEATH emit runs inside a physics callback and adding an Area2D mid-flush trips the query-flush guard.
+func _emit_scene(enemy) -> void:
+	if spec.payload_scene == null:
+		return
+	var parent: Node = enemy
+	if not spec.attach_to_enemy:
+		parent = BulletWorld.resolve(enemy, enemy.get_tree().current_scene)
+		if parent == null:
+			parent = enemy.get_tree().root
+	if parent == null:
+		return
+	var base_pos: Vector2 = enemy.global_position
+	# Inertia ON (no_inertia == false) launches the scene with the enemy's velocity; OFF drops it at rest.
+	var launch_vel: Vector2 = Vector2.ZERO
+	if not spec.no_inertia and "_last_move_vel" in enemy:
+		launch_vel = enemy._last_move_vel
+	if String(spec.emit_sfx) != "":
+		WeaponSfxC.play(enemy.get_tree().root, base_pos, spec.emit_sfx)
+	for _i in maxi(1, spec.count):
+		var inst = spec.payload_scene.instantiate()
+		if inst == null:
+			continue
+		var pos: Vector2 = base_pos
+		if spec.emit_scatter > 0.0:
+			pos += Vector2(randf_range(-spec.emit_scatter, spec.emit_scatter), randf_range(-spec.emit_scatter, spec.emit_scatter))
+		_insert_scene.call_deferred(inst, parent, pos, spec.attach_to_enemy, launch_vel)
+
+
+func _insert_scene(inst, parent: Node, pos: Vector2, attach: bool, launch_vel: Vector2) -> void:
+	if not is_instance_valid(parent):
+		if inst is Node:
+			(inst as Node).queue_free()
+		return
+	parent.add_child(inst)
+	_apply_delay(inst)   # payload delay applies to the entity too (no-op when it has no motion_delay)
+	if attach:
+		if inst is Node2D:
+			(inst as Node2D).position = Vector2.ZERO
+	elif inst.has_method("start"):
+		inst.start(pos)
+		if launch_vel != Vector2.ZERO:
+			_impart_velocity(inst, launch_vel)
+	elif inst is Node2D:
+		(inst as Node2D).global_position = pos
+		if launch_vel != Vector2.ZERO:
+			_impart_velocity(inst, launch_vel)
+
+
+func _impart_velocity(inst, v: Vector2) -> void:
+	for f in ["_vel", "_velocity", "velocity"]:
+		if f in inst:
+			inst.set(f, inst.get(f) + v)
+			return
 
 
 # Deterministic fire cadence (firing-consistency pass 2026-07-02, parity with enemy_core._fire_interval).

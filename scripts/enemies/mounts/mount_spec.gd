@@ -12,7 +12,10 @@ extends Resource
 # Preload-const, NOT class_name (a fresh class_name doesn't resolve under headless --script until the
 # cache regenerates — the firing-resource convention, see weapon.gd / movement_pattern.gd).
 
-enum Kind { GUN, TURRET, LAUNCHER, BEAM }
+# ENTITY (Phase 2 unification 2026-07-03) — spawn a SCENE (mine/drone/bomblet/firecore) on a trigger,
+# folding the old EmitterComponent into this one spec+component. GUN=bullet, LAUNCHER=aimed projectile,
+# ENTITY=dropped/scattered scene. TURRET/BEAM stay separate node realizations the builder routes to.
+enum Kind { GUN, TURRET, LAUNCHER, BEAM, ENTITY }
 enum Aim { STRAIGHT_DOWN, TOWARD_CENTER, AT_PLAYER, FORWARD, BACKWARD, LEFT, RIGHT }   # mirrors Weapon.Aim (int values MUST stay in lockstep)
 # ALL = fire from every matched marker; CYCLE = one per volley (scene order). INWARD/OUTWARD =
 # ordered cycle by horizontal distance from the hull centre — OUTWARD fires the outermost hardpoint
@@ -71,3 +74,17 @@ enum MarkerMode { ALL, CYCLE, INWARD, OUTWARD }
 
 # --- BEAM only (a BeamEmitter.configure() dict) ---
 @export var beam_config: Dictionary = {}
+
+# --- ENTITY only (Phase 2, folds EmitterComponent) — spawn payload_scene on a trigger. CADENCE reuses
+# fire_interval_min/max as the emit period; START emits once at spawn; DEATH emits on death by
+# emit_chance. `count` = scenes per emit, `no_inertia` = drop-at-rest (true) vs launch-with-velocity
+# (false), `payload_delay_ms` applies to the spawned scene, same as a bullet. ---
+enum Trigger { CADENCE, START, DEATH }
+@export var trigger: int = Trigger.CADENCE
+@export var emit_scatter: float = 0.0        # px positional jitter around the origin
+@export var emit_chance: float = 1.0         # probability per emit (DEATH scatter / chance-gated)
+@export var max_emits: int = 0               # CADENCE: stop after this many emits per pass (0 = unlimited)
+@export var band_only: bool = false          # CADENCE: only emit while on the visible playfield band
+@export var attach_to_enemy: bool = false    # child of the enemy (carried turrets ride along)
+@export var emit_tag: String = ""            # optional identifier (e.g. "firecore")
+@export var emit_sfx: String = ""            # optional WeaponSfx key played on each emit
