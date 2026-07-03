@@ -46,10 +46,38 @@ func _run() -> void:
 				print("  FAIL %s: spec has no enemy scene" % nm); ok = false
 				break
 
-	# (3) eligibility: every pattern is faction "any" + min_sector 0, so all eligible from sector 0.
+	# (3) eligibility: eligible() returns exactly the COMBAT patterns — hazard layouts (faction
+	# "hazard" or hazard-pinned content) are routed to hazard fields via hazard_patterns() instead.
+	var combat_names := {}
+	var hazard_names := {}
+	for p in AuthoredPatterns.DATA:
+		var nm := String(p.get("name", ""))
+		if int(p.get("min_sector", 0)) > 0:
+			continue
+		if String(p.get("faction", "any")) == "hazard" or AuthoredPatterns._is_hazard_pinned(p):
+			hazard_names[nm] = true
+		else:
+			combat_names[nm] = true
 	var elig: Array = AuthoredPatterns.eligible(-1, 0)
-	if elig.size() != AuthoredPatterns.DATA.size():
-		print("  FAIL eligible at sector 0: %d of %d" % [elig.size(), AuthoredPatterns.DATA.size()]); ok = false
+	if elig.size() != combat_names.size():
+		print("  FAIL eligible at sector 0: %d, expected %d combat patterns" % [elig.size(), combat_names.size()]); ok = false
+	for p in elig:
+		var nm := String(p.get("name", ""))
+		if not combat_names.has(nm):
+			print("  FAIL eligible included non-combat pattern: %s" % nm); ok = false
+	print("  eligible: %d combat, %d hazard of %d total" % [combat_names.size(), hazard_names.size(), AuthoredPatterns.DATA.size()])
+
+	# (3b) hazard_patterns() returns exactly the hazard-pinned set.
+	var haz: Array = AuthoredPatterns.hazard_patterns()
+	var haz_pinned := 0
+	for p in AuthoredPatterns.DATA:
+		if AuthoredPatterns._is_hazard_pinned(p):
+			haz_pinned += 1
+	if haz.size() != haz_pinned:
+		print("  FAIL hazard_patterns: %d, expected %d pinned" % [haz.size(), haz_pinned]); ok = false
+	for p in haz:
+		if not AuthoredPatterns._is_hazard_pinned(p):
+			print("  FAIL hazard_patterns included non-pinned: %s" % String(p.get("name", ""))); ok = false
 
 	# (4) maybe_inject splices a forced pattern's phrase into wave 0.
 	var score = _stub_score()
