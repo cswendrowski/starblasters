@@ -46,6 +46,7 @@ const SD_DMG_SCHEMA := [
 	# category in ShipDamageTells, so there's nothing to tune per-size here.
 ]
 const SD_SIZES := ["small", "medium", "large"]
+const DEATH_SIZES := ["any", "tiny", "small", "medium", "large"]   # Death tab size dial
 const SD_PATH_SPEED := 52.0   # px/s the ship travels along the rounded-rect path
 
 # Live player ship sheet (3-hframe banking sheet; middle frame = level flight).
@@ -362,6 +363,8 @@ var _death_vals: Dictionary = {}      # style → {key: value} (per-style knobs,
 var _death_knob_box: VBoxContainer = null  # sub-box for the selected style's knobs (rebuilt on change)
 var _death_pool: Array = []           # all spawnable ship-vfx enemy paths (measured once)
 var _death_pool_2eng: Array = []      # subset with >=2 engine markers (Spinout prefers these)
+var _death_pool_by_size: Dictionary = {}   # "tiny"/"small"/"medium"/"large" → [paths]
+var _death_size: String = "any"       # size dial: any | tiny | small | medium | large
 
 static var _ship_tex: Texture2D = null
 
@@ -1406,8 +1409,21 @@ func _enter_death() -> void:
 	dd.item_selected.connect(func(i: int):
 		_death_style = String(DeathEffectsScript.STYLES[i])
 		_rebuild_death_knobs()
-		_spawn_death_ship())   # re-pick (spinout wants a 2-engine ship)
+		_spawn_death_ship())
 	_knob_box.add_child(dd)
+	# Size dial — which band of the live enemy roster to spawn/test on ("any" = the whole roster).
+	_knob_box.add_child(_label("Enemy size", FS_CAPTION, UiTheme.COLOR_FAINT))
+	var sd := OptionButton.new()
+	sd.add_theme_font_override("font", UiTheme.active_font())
+	sd.add_theme_font_size_override("font_size", FS_BODY)
+	sd.custom_minimum_size = Vector2(0, 34)
+	for sz in DEATH_SIZES:
+		sd.add_item(String(sz).capitalize())
+	sd.select(maxi(0, DEATH_SIZES.find(_death_size)))
+	sd.item_selected.connect(func(i: int):
+		_death_size = String(DEATH_SIZES[i])
+		_spawn_death_ship())
+	_knob_box.add_child(sd)
 	_add_action("▶ Play Death", _play_death)
 	_add_action("New Ship", _spawn_death_ship)
 	_knob_box.add_child(HSeparator.new())
@@ -1505,6 +1521,8 @@ func _add_death_range_knob(def: Dictionary, vals: Dictionary) -> void:
 func _build_death_pool() -> void:
 	if not _death_pool.is_empty():
 		return
+	for sz in ["tiny", "small", "medium", "large"]:
+		_death_pool_by_size[sz] = []
 	for p in Factions.ENEMY_TAGS.keys():
 		var path := String(p)
 		if not ResourceLoader.exists(path) or _is_boss_scene(path):
@@ -1514,13 +1532,25 @@ func _build_death_pool() -> void:
 		_freeze_node(inst)
 		if inst.is_in_group("enemies"):
 			inst.remove_from_group("enemies")
-		var is_ship: bool = ("has_ship_vfx" in inst and bool(inst.has_ship_vfx)) and _find_body_sprite(inst) != null
+		var spr := _find_body_sprite(inst)
+		var is_ship: bool = ("has_ship_vfx" in inst and bool(inst.has_ship_vfx)) and spr != null
 		if is_ship:
 			_death_pool.append(path)
 			if inst.find_children("Engine*", "Marker2D", true, false).size() >= 2:
 				_death_pool_2eng.append(path)
+			(_death_pool_by_size[_death_size_bucket(_ship_size_scale(inst, spr))] as Array).append(path)
 		inst.queue_free()
 	_force_quiet_music()   # a boss _ready (were one to slip in) flips the Music context — re-assert silence
+
+
+func _death_size_bucket(sc: float) -> String:
+	if sc < 1.0:
+		return "tiny"
+	if sc < 1.5:
+		return "small"
+	if sc < 2.5:
+		return "medium"
+	return "large"
 
 
 func _spawn_death_ship() -> void:
@@ -1528,12 +1558,10 @@ func _spawn_death_ship() -> void:
 		_death_ship.queue_free()
 	_death_ship = null
 	_build_death_pool()
-	# Spinout reads best on a 2-engine ship — pull from that subset when available.
-	var pool: Array = _death_pool
-	if _death_style == "spinout" and not _death_pool_2eng.is_empty():
-		pool = _death_pool_2eng
+	# The size dial picks the band to spawn from (any = the full ship roster).
+	var pool: Array = _death_pool if _death_size == "any" else (_death_pool_by_size.get(_death_size, []) as Array)
 	if pool.is_empty():
-		_note.text = "no ship-vfx enemies to spawn"
+		_note.text = "no %s ship in the roster" % _death_size
 		return
 	var path := String(pool[randi() % pool.size()])
 	var ship: Node2D = load(path).instantiate()

@@ -26,6 +26,9 @@ var _cases := [
 	{"label": "blow_out", "style": "blow_out", "cfg": {}},
 	{"label": "wreck", "style": "wreck", "cfg": {}},
 	{"label": "descent", "style": "descent", "cfg": {}},
+	{"label": "random(lg)", "style": "random", "cfg": {}},
+	{"label": "random(sm)", "style": "random", "cfg": {}, "small": true},
+	{"label": "sm flashout", "style": "flashout", "cfg": {}, "small": true},
 	# Small hosts exercise the SMOULDER trail (Line2D smoke + spark + torch shader) instead of fire.
 	{"label": "sm wreck", "style": "wreck", "cfg": {}, "small": true},
 	{"label": "sm spin→descent", "style": "spinout", "cfg": {"resolution": "descent"}, "small": true},

@@ -102,6 +102,13 @@ func set_emitting(v: bool) -> void:
 	_emitting = v
 
 
+# Hard-clear: stop emitting AND free the residual world-space points NOW, so the exhaust culls WITH
+# the dying ship instead of aging out over POINT_LIFETIME (~0.28s of lingering streak). Roman 2026-06-29.
+func cull() -> void:
+	_emitting = false
+	_free_lines()
+
+
 func _process(delta: float) -> void:
 	if _enemy == null or not is_instance_valid(_enemy):
 		_free_lines()

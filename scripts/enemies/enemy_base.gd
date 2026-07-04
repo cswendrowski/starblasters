@@ -357,6 +357,13 @@ func _attach_engine_trail() -> void:
 func set_engine_trail_emitting(v: bool) -> void:
 	if _engine_trail != null and is_instance_valid(_engine_trail):
 		_engine_trail.set_emitting(v)
+
+
+# Hard-clear the engine exhaust NOW (free its world-space streak) so it culls WITH the dying hull
+# instead of aging out over the trail's point lifetime — a death-VFX helper (Roman 2026-06-29).
+func cull_engine_trail() -> void:
+	if _engine_trail != null and is_instance_valid(_engine_trail) and _engine_trail.has_method("cull"):
+		_engine_trail.cull()
 var _shield_ring: ColorRect = null
 var _shield_mat: ShaderMaterial = null
 var _shield_alpha_tween: Tween = null

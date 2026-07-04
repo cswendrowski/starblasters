@@ -31,12 +31,13 @@ extends Node2D
 
 signal finished
 
-const STYLES := ["spinout", "flashout", "instakill", "blow_out", "wreck", "descent"]
+const STYLES := ["random", "spinout", "flashout", "instakill", "blow_out", "wreck", "descent"]
 # Spinout resolutions (how the spin-out ends). "random" picks uniformly among the concrete four.
 const RESOLUTIONS := ["random", "instakill", "flashout", "wreck", "descent", "blow_out"]
 
 const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
 const ShipDebrisEmber = preload("res://scripts/effects/ship_debris_ember.gd")
+const EmberFx = preload("res://scripts/effects/ember_fx.gd")
 const BurnFx = preload("res://scripts/effects/burn_fx.gd")
 const SparkTrailFx = preload("res://scripts/effects/spark_trail_fx.gd")
 const DamageSmokeTrail = preload("res://scripts/effects/damage_smoke_trail.gd")
@@ -81,16 +82,21 @@ const STYLE_KNOBS := {
 	],
 	# explosion_density / sparks / debris are MULTIPLIERS on a size-derived base (bigger hull = MORE
 	# booms). The boom SPRITES are always 1× (the never-stretch convention).
+	# A "random" meta-style: either spinout(→resolution) or a size-gated resolution straight away.
+	"random": [],
+	# flashout = small/tiny only. Sparks thrown in a cone aimed the way the enemy was moving.
 	"flashout": [
 		{"key": "explosion_density", "label": "Explosion density ×", "min": 0.5, "max": 3.0, "step": 0.1, "def": 1.0},
 		{"key": "burn_time", "label": "Disintegrate time (s)", "min": 0.2, "max": 2.0, "step": 0.05, "def": 0.45},
+		{"key": "spark_amount", "label": "Spark count", "min": 0.0, "max": 96.0, "step": 2.0, "def": 24.0},
+		{"key": "spark_spread", "label": "Spark cone (deg)", "min": 5.0, "max": 120.0, "step": 5.0, "def": 40.0},
 		{"key": "glow_flicker_time", "label": "Glow flicker (s)", "min": 0.0, "max": 1.0, "step": 0.05, "def": 0.3},
 	],
+	# instakill = all enemies. No spark/ember sliders (those effects aren't in this one); the DEBRIS is
+	# the star — it inherits the enemy's velocity going into the kill (see _run_instakill).
 	"instakill": [
 		{"key": "explosion_density", "label": "Explosion density ×", "min": 0.5, "max": 3.0, "step": 0.1, "def": 1.0},
 		{"key": "explosion_shockwave", "label": "Shockwave × (off=0)", "min": 0.0, "max": 3.0, "step": 0.1, "def": 0.0},
-		{"key": "sparks", "label": "Spark density ×", "min": 0.0, "max": 3.0, "step": 0.1, "def": 1.0},
-		{"key": "debris", "label": "Ember density ×", "min": 0.0, "max": 3.0, "step": 0.1, "def": 1.0},
 	],
 	# Blow-out (slump + erupting marker blasts + spark trails). Defaults baked from Roman's lab tuning.
 	"blow_out": [
@@ -194,6 +200,8 @@ func play(host: Node2D, style: String, cfg: Dictionary = {}, travel: Vector2 = V
 		_wreck_parent = _vfx_parent
 	_bounds = opts.get("bounds", _bounds)
 	match style:
+		"random":
+			_run_random()
 		"spinout":
 			_run_spinout()
 		"flashout":
@@ -245,6 +253,27 @@ func _process(delta: float) -> void:
 
 # ── Styles ───────────────────────────────────────────────────────────────────────────────────────
 
+# Random meta-style: half the time a full spin-out (which resolves randomly), half the time jump
+# straight to a size-gated resolution — the production-representative "surprise me" death.
+func _run_random() -> void:
+	if randf() < 0.5:
+		_run_spinout()
+		return
+	match _pick_gated_resolution():
+		"instakill":
+			_run_instakill()
+		"flashout":
+			_run_flashout()
+		"wreck":
+			_run_wreck()
+		"descent":
+			_run_descent()
+		"blow_out":
+			_run_blowout()
+		_:
+			_run_instakill()
+
+
 func _run_spinout() -> void:
 	_resolution = _resolve_resolution()
 	_phase = "glide"
@@ -256,7 +285,7 @@ func _run_spinout() -> void:
 		return
 	_ignite_trail()          # size-based (smoulder for small/med, full fire for large)
 	_to_wreck_layer()
-	_fade_host_overlays()     # flicker the glow out + fade the livery as it spins out
+	_cull_host_overlays()     # flicker the glow out + fade the livery as it spins out
 	_start_corkscrew()
 	await _wait(SPINOUT_LEAD)
 	if not _valid():
@@ -264,7 +293,7 @@ func _run_spinout() -> void:
 	match _resolution:
 		"instakill":
 			_phase = "idle"
-			_explode_velocity()
+			_explode_velocity(_cork_travel * _cork_speed)   # debris matches the spin-out velocity
 			_finish()
 		"flashout":
 			_travel = _cork_travel * _cork_speed * 0.6   # keep a bit of the spin-out motion
@@ -290,9 +319,11 @@ func _run_spinout() -> void:
 
 # flashout keeps a bit of the ship's incoming motion rather than a hard stop, then blasts + disintegrates.
 func _run_flashout() -> void:
-	_travel *= 0.45
+	var dir: Vector2 = _travel.normalized() if _travel.length() > 0.1 else Vector2.DOWN
+	_travel *= 0.45   # keep a bit of the incoming motion rather than a hard stop
 	_phase = "glide"
 	_explode(false)
+	_spark_cone(dir)   # sparks thrown in a cone aimed the way the enemy was moving
 	_disintegrate()
 	await _wait(_c("burn_time", 0.45) + 0.2)
 	_finish()
@@ -300,8 +331,19 @@ func _run_flashout() -> void:
 
 func _run_instakill() -> void:
 	_phase = "idle"
-	_explode(true)
+	_explode_velocity(_travel)   # debris matches the enemy's incoming velocity + extra
 	_finish()
+
+
+# A cone of ember-sparks thrown from the hull, aimed along `dir` (the travel direction).
+func _spark_cone(dir: Vector2) -> void:
+	if not _host_ok():
+		return
+	EmberFx.spray(_vfx_parent, _host.global_position, dir, {
+		"amount": int(_c("spark_amount", 24.0)),
+		"spread_deg": _c("spark_spread", 40.0),
+		"variant": "normal",
+	})
 
 
 # Standalone wreck: the damaged hull sinks + drifts in its heading until off-screen; a brief fire
@@ -309,7 +351,7 @@ func _run_instakill() -> void:
 func _run_wreck() -> void:
 	_to_wreck_layer()
 	_ignite_trail()
-	_fade_host_overlays()
+	_cull_host_overlays()
 	await _wait(0.15)
 	if not _valid():
 		return
@@ -321,7 +363,7 @@ func _run_wreck() -> void:
 func _run_descent() -> void:
 	_to_wreck_layer()
 	_ignite_trail()
-	_fade_host_overlays()
+	_cull_host_overlays()
 	await _wait(0.15)
 	if not _valid():
 		return
@@ -367,7 +409,7 @@ func _begin_shrink_drift(is_descent: bool) -> void:
 # Blow-out: keep downward momentum, decelerate to a drift, DARKEN + SHRINK, and erupt a cascade of
 # blasts from WEIGHTED hull markers (engines favoured) — each leaving a spark trail — then slip off.
 func _run_blowout() -> void:
-	_fade_host_overlays()
+	_cull_host_overlays()
 	_start_scale = _host.scale
 	_travel = Vector2(0.0, _c("enter_speed", 40.0) * 1.6)
 	_blast_times.clear()
@@ -539,20 +581,33 @@ func _make_smoulder_torch(local_pos: Vector2) -> ColorRect:
 # ── Composed primitives ────────────────────────────────────────────────────────────────────────
 
 func _disintegrate() -> void:
-	_fade_host_overlays()
+	_cull_host_overlays()
 	if _body != null and is_instance_valid(_body):
 		BurnFx.apply_burn(_body, _c("burn_time", 0.55), Color(0, 0, 0, 0), _burn_origin_uv())
 
 
-# Tear down the host's presentation: stop the engine trail, fade the livery/outline (skip_glow — we
-# flicker the glow ourselves over glow_flicker_time). No-op for a host without those.
-func _fade_host_overlays() -> void:
+# Cull the host's presentation the SAME FRAME the ship dies — nothing lingers a few frames past the
+# hull. Hard-clears the engine exhaust (its world-space streak, else it ages out ~0.28s later) and
+# hard-hides every non-body, non-glow layer (livery / outline / firecore). The glow flickers out on
+# its own (glow_flicker_time). No-op for a host without those (e.g. the headless test).
+func _cull_host_overlays() -> void:
 	if not _host_ok():
 		return
-	if _host.has_method("set_engine_trail_emitting"):
+	if _host.has_method("cull_engine_trail"):
+		_host.cull_engine_trail()
+	elif _host.has_method("set_engine_trail_emitting"):
 		_host.set_engine_trail_emitting(false)
-	if _host.has_method("_fade_death_overlays"):
-		_host._fade_death_overlays(true)
+	for child in _host.get_children():
+		if not (child is CanvasItem) or _is_glow(child):
+			continue
+		var nm := String(child.name)
+		if nm == "Livery":
+			(child as CanvasItem).visible = false
+			var m: Material = (child as CanvasItem).material
+			if m is ShaderMaterial and (m as ShaderMaterial).get_shader_parameter("fade") != null:
+				(m as ShaderMaterial).set_shader_parameter("fade", 0.0)
+		elif nm == "Outline" or nm.begins_with("Firecore"):
+			(child as CanvasItem).visible = false
 	_flicker_glow_out(_c("glow_flicker_time", 0.3))
 
 
@@ -600,27 +655,28 @@ func _explode(with_embers: bool) -> void:
 		_spawn_embers(world, Vector2.ZERO)
 
 
-# Instakill resolution of the spin-out: explode + debris that INHERITS the wreck's velocity plus an
-# extra outward kick from the blast.
-func _explode_velocity() -> void:
+# Instakill: a clean boom + debris that MATCHES the enemy's velocity going into the kill (`inherit`)
+# plus a little extra outward energy.
+func _explode_velocity(inherit: Vector2) -> void:
 	if not _host_ok():
 		return
 	var world: Vector2 = _host.global_position
 	ExplosionFx.play_config(world, {
 		"type": "basic", "size": 1.0,
-		"density": maxi(1, int(round(1.0 + _size_scale * 0.6))),
-		"area": 6.0 + _size_scale * 5.0, "sparks": 1.0, "glow": 1.2, "shockwave": 0.0,
+		"density": maxi(1, int(round((1.0 + _size_scale * 0.6) * _c("explosion_density", 1.0)))),
+		"area": 6.0 + _size_scale * 5.0, "sparks": 1.0, "glow": 1.2,
+		"shockwave": _c("explosion_shockwave", 0.0) * clampf(_size_scale, 0.6, 2.5),
 	}, _vfx_parent)
-	_spawn_embers(world, _cork_travel * _c("spinout_speed", 40.0))   # inherit the wreck velocity
+	_spawn_embers(world, inherit)
 
 
-# Scatter ShipDebrisEmber chunks (size-derived count). `base_vel` is added to every chunk (the wreck's
-# inherited velocity for the instakill resolution; ZERO otherwise), then an outward blast kick.
+# Scatter ShipDebrisEmber chunks (size-derived count). Every chunk inherits `base_vel` (the enemy's
+# velocity going into the kill) plus a little extra outward energy.
 func _spawn_embers(world: Vector2, base_vel: Vector2) -> void:
 	var n: int = clampi(int(round((2.0 + _size_scale * 4.0) * _c("debris", 1.0))), 0, 24)
 	for i in n:
-		var ang: float = (randf_range(0.0, TAU) if base_vel != Vector2.ZERO else randf_range(0.15, PI - 0.15))
-		var spd: float = randf_range(50.0, 130.0)
+		var ang: float = randf_range(0.0, TAU)
+		var spd: float = randf_range(30.0, 90.0)   # extra energy on top of the matched enemy velocity
 		ShipDebrisEmber.spawn(_vfx_parent, world, {
 			"velocity": base_vel + Vector2(cos(ang), sin(ang)) * spd,
 			"spin": randf_range(-6.0, 6.0),
@@ -763,11 +819,19 @@ func _host_ok() -> bool:
 func _resolve_resolution() -> String:
 	var r := String(_cfg.get("resolution", "random"))
 	if r == "random" or not RESOLUTIONS.has(r):
-		var opts := ["instakill", "flashout", "wreck", "descent"]
-		if _size_scale >= 1.5:   # medium + larger enemies can blow out
-			opts.append("blow_out")
-		return opts[randi() % opts.size()]
+		return _pick_gated_resolution()
 	return r
+
+
+# A random resolution valid for this hull's SIZE: instakill/wreck/descent for anyone, flashout only for
+# small/tiny (< 1.5), blow_out only for medium+ (>= 1.5).
+func _pick_gated_resolution() -> String:
+	var opts := ["instakill", "wreck", "descent"]
+	if _size_scale < 1.5:
+		opts.append("flashout")
+	else:
+		opts.append("blow_out")
+	return opts[randi() % opts.size()]
 
 
 func _off_screen(pos: Vector2) -> bool:
