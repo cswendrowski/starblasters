@@ -162,11 +162,12 @@ func _emit_scene(enemy) -> void:
 		var inst = spec.payload_scene.instantiate()
 		if inst == null:
 			continue
-		# Rung-riding drops (bomblets/mines) inherit the DROPPER's move_speed, so a slow minelayer lays
-		# slow-falling drops instead of the payload's fast default — bench-tunable via the enemy's speed.
-		# Missiles ignore move_speed. Set BEFORE the deferred add_child so the entity's _ready reads it.
-		if "move_speed" in inst and "move_speed" in enemy and enemy.move_speed > 0.0:
-			inst.move_speed = enemy.move_speed
+		# Drop speed (Roman 2026-07-04): an EXPLICIT hardpoint speed (spec.bullet_speed > 0) sets the
+		# dropped entity's move_speed, so the bench preview matches live and it's directly tunable —
+		# instead of implicitly inheriting the dropper's (lateral) speed. 0 = the entity's own authored
+		# descent. Set BEFORE the deferred add_child so the entity's _ready reads it. Missiles ignore it.
+		if spec.bullet_speed > 0.0 and "move_speed" in inst:
+			inst.move_speed = spec.bullet_speed
 		var pos: Vector2 = base_pos
 		if spec.emit_scatter > 0.0:
 			pos += Vector2(randf_range(-spec.emit_scatter, spec.emit_scatter), randf_range(-spec.emit_scatter, spec.emit_scatter))

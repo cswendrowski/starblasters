@@ -1132,6 +1132,9 @@ func _mount_spec_dicts() -> Array:
 			sd["band_only"] = bool(d.get("band_only", false))
 			sd["no_inertia"] = bool(d.get("no_inertia", true))
 			sd["payload_delay_ms"] = float(d.get("payload_delay_ms", 0.0))
+			var espd: float = float(d.get("bullet_speed", 0.0))
+			if espd > 0.0:
+				sd["bullet_speed"] = espd
 		out.append(sd)
 	return out
 
@@ -1323,6 +1326,11 @@ func _make_mount_row(idx: int) -> Control:
 		var edelay := _row_spin(0.0, 2000.0, 10.0, float(d.get("payload_delay_ms", 0.0)))
 		edelay.value_changed.connect(func(v): _set_mount(d, "payload_delay_ms", float(v)))
 		_grid_row(grid, "delay ms", edelay)
+
+		# Speed: overrides the dropped entity's move_speed (px/s), so bench == live. 0 = the payload's own.
+		var espeed := _row_spin(0.0, 480.0, 10.0, maxf(0.0, float(d.get("bullet_speed", 0.0))))
+		espeed.value_changed.connect(func(v): _set_mount(d, "bullet_speed", float(v)))
+		_grid_row(grid, "speed", espeed)
 
 	return row
 
@@ -1780,6 +1788,8 @@ func _mount_copy_line(d: Dictionary) -> String:
 			eline += ", \"band_only\": true"
 		if float(d.get("payload_delay_ms", 0.0)) > 0.0:
 			eline += ", \"payload_delay_ms\": %.0f" % float(d.get("payload_delay_ms", 0.0))
+		if float(d.get("bullet_speed", 0.0)) > 0.0:
+			eline += ", \"bullet_speed\": %.0f" % float(d.get("bullet_speed", 0.0))
 		eline += ", \"no_inertia\": %s }," % ("true" if bool(d.get("no_inertia", true)) else "false")
 		return eline
 	var pname: String = String(d.get("payload", "Ball"))

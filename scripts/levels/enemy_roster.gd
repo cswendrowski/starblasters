@@ -194,8 +194,8 @@ const BOMBER_TAIL_MOUNT := [
 # Minelayer — drops dumb bomblets while crossing, then scatters a cluster on death. Was bespoke
 # (_process timer + explode scatter in minelayer.gd); now a TIMER + DEATH emitter pair (2026-06-19).
 const MINELAYER_MOUNTS := [
-	{ "kind": "entity", "trigger": "cadence", "payload_scene": "res://scenes/enemies/enemy_bomblet.tscn", "fire_min": 1.0, "fire_max": 1.0, "count": 1, "band_only": true, "max_emits": 3, "no_inertia": true },
-	{ "kind": "entity", "trigger": "death", "payload_scene": "res://scenes/enemies/enemy_bomblet.tscn", "count": 6, "scatter": 28.0, "no_inertia": true },
+	{ "kind": "entity", "trigger": "cadence", "payload_scene": "res://scenes/enemies/enemy_bomblet.tscn", "fire_min": 1.0, "fire_max": 1.0, "count": 1, "band_only": true, "max_emits": 3, "no_inertia": true, "bullet_speed": 60.0 },
+	{ "kind": "entity", "trigger": "death", "payload_scene": "res://scenes/enemies/enemy_bomblet.tscn", "count": 6, "scatter": 28.0, "no_inertia": true, "bullet_speed": 60.0 },
 ]
 
 # Each entry: scene path + movement_factory + shoot_factory + tier + suggested
