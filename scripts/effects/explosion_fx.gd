@@ -8,6 +8,10 @@ extends Node
 
 const EXPLOSION_SCENE = preload("res://scenes/effects/explosion.tscn")
 const ExplosionSfx = preload("res://scripts/effects/explosion_sfx.gd")
+# Route the parent-less fallback through a SubViewport dev bench's registered gameplay layer when one
+# exists, so an unparented explosion doesn't land in the window's top-left corner (no-op in production;
+# see scripts/systems/bullet_world.gd::spawn_root). (Roman 2026-07-04)
+const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 
 # Named death-explosion variants. The enemy dev tool / enemy_base.explosion_variant
 # select by name; scene_for() resolves it (unknown name -> default). Add new
@@ -62,7 +66,7 @@ static func play_config(world_pos: Vector2, cfg: Dictionary = {}, parent: Node =
 	var c: Dictionary = EXPLOSION_DEFAULTS.duplicate(true)
 	c.merge(cfg, true)
 	var tree := Engine.get_main_loop() as SceneTree
-	var p: Node = parent if (parent != null and is_instance_valid(parent)) else (tree.root if tree != null else null)
+	var p: Node = parent if (parent != null and is_instance_valid(parent)) else (BulletWorld.spawn_root(tree, tree.root) if tree != null else null)
 	if p == null:
 		return null
 	var count: int = maxi(1, int(round(float(c["density"]))))
@@ -135,7 +139,7 @@ static func play(world_pos: Vector2, scale: float = 1.0, with_light: bool = true
 		inst.emit_light = with_light
 	# Fall back to the window root if no parent given OR it was freed (a staggered
 	# burst can outlive a transient container like the hangar world).
-	var p: Node = parent if (parent != null and is_instance_valid(parent)) else Engine.get_main_loop().root
+	var p: Node = parent if (parent != null and is_instance_valid(parent)) else BulletWorld.spawn_root(Engine.get_main_loop() as SceneTree, Engine.get_main_loop().root)
 	p.add_child(inst)
 	# Distance-based explosion SFX (close/medium/distant). Silenced on burst sub-blasts so a
 	# multi-blast death sounds once, not N times.
@@ -153,7 +157,7 @@ static func burst(world_pos: Vector2, count: int = 1, jitter_radius: float = 10.
 	if tree == null:
 		return
 	# One explosion SFX for the whole death, scaled up by blast count (bigger enemy = bigger boom).
-	var snd_parent: Node = parent if (parent != null and is_instance_valid(parent)) else tree.root
+	var snd_parent: Node = parent if (parent != null and is_instance_valid(parent)) else BulletWorld.spawn_root(tree, tree.root)
 	ExplosionSfx.play(world_pos, clampf(1.0 + float(count - 1) * 0.25, 1.0, 2.5), snd_parent)
 	for i in count:
 		var delay: float = float(i) * stagger

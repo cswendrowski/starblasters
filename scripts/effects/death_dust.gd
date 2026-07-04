@@ -1,6 +1,8 @@
 extends Node
 class_name DeathDust
 
+const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
+
 # Death dust supplement (Roman 2026-05-24).
 #
 # Spawned alongside the existing debris strip on enemy/boss death. The
@@ -66,9 +68,9 @@ static func play_with_count(world_pos: Vector2, count: int, parent: Node = null)
 	if tree == null:
 		return
 	if parent == null or not is_instance_valid(parent):
-		parent = tree.current_scene
-	if parent == null:
-		parent = tree.root
+		# Prefer a SubViewport dev bench's registered gameplay layer over current_scene/root so
+		# an unparented dust puff doesn't land in the window's top-left corner (no-op in production).
+		parent = BulletWorld.spawn_root(tree, tree.current_scene if tree.current_scene != null else tree.root)
 	var tex := _white_dot()
 	for i in count:
 		_spawn_one(parent, world_pos, tex)

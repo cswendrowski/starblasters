@@ -120,6 +120,9 @@ func _build_ui() -> void:
 	_world = SubViewport.new()
 	_world.size = Vector2i(480, 270)
 	_world.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	# "bullet_world" sink so any parent-less fx from the backdrop/idle enemies resolve into this native
+	# SubViewport, not the 1920×1080 window's top-left corner (BulletWorld.spawn_root; no-op in prod).
+	_world.add_to_group("bullet_world")
 	svc.add_child(_world)
 	add_child(svc)
 

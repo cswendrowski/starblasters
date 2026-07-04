@@ -36,3 +36,20 @@ static func resolve(node: Node, fallback: Node) -> Node:
 			if w != null and is_instance_valid(w):
 				return w
 	return fallback
+
+
+# As resolve(), but keyed off a SceneTree directly — for the effect helpers (explosion_fx,
+# death_dust, engine_torch, …) that only have a tree + their existing get_tree().root /
+# current_scene fallback and no in-tree node to key on. Returns the registered "bullet_world"
+# gameplay layer if one exists (a SubViewport dev bench advertises its native-coord world here),
+# else `fallback`. This is what makes the "fx land in the window's upper-left corner" bug
+# CONSISTENTLY fixable: instead of patching each effect helper's parent-resolution one at a time,
+# every helper's last-resort fallback routes through this, and any dev bench that registers the
+# group catches all of them at once. In production nothing registers the group, so the result is
+# byte-identical to the old fallback. (Roman 2026-07-04)
+static func spawn_root(tree: SceneTree, fallback: Node) -> Node:
+	if tree != null:
+		var w: Node = tree.get_first_node_in_group(GROUP)
+		if w != null and is_instance_valid(w):
+			return w
+	return fallback

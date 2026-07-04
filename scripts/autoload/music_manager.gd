@@ -145,6 +145,18 @@ func set_context(context: String, options: Dictionary = {}) -> void:
 		_context = CTX_SILENT
 		_combat_active = false
 		_warming = false
+		# Drop the ENERGY to nothing under the mute, not just the volume (Roman 2026-07-04). The old
+		# stop() only faded the master volume, leaving whatever track was playing looping silently AT
+		# ITS LAST INTENSITY. Entering a dev menu straight from combat/boss left an intense stem muted
+		# but live; the next context's un-silence then swelled THAT loud track back in = the jarring
+		# "music comes in loud on exit". Easing intensity to 0 here means only the calmest stem lurks,
+		# so the exit reveal is quiet. Combat re-entry cold-opens its own envelope, so this is safe.
+		_wave01 = 0.0
+		_damage01 = 0.0
+		_streak_heat = 0.0
+		_intensity_smoothed = 0.0
+		if _player != null:
+			_player.FadeIntensity(0.0, UNSILENCE_FADE)
 		stop()
 		return
 

@@ -1,5 +1,7 @@
 extends Node2D
 
+const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
+
 # Small inert debris chunk (Roman 2026-06-11) — an asteroid fragment or a dust mote
 # thrown out by an asteroid shatter. Drifts outward with drag, leaves a thin
 # same-colour 1px dust trail, and fades out. Harmless: no collision, no gameplay.
@@ -41,9 +43,9 @@ func _ready() -> void:
 	# world) so it renders in the same viewport as the fragment — not the window root.
 	var p: Node = get_parent()
 	if p == null:
-		p = get_tree().current_scene
-	if p == null:
-		p = get_tree().root
+		# Prefer a SubViewport dev bench's gameplay layer over current_scene/root (no-op in production)
+		# so an unparented trail doesn't render in the window's top-left corner.
+		p = BulletWorld.spawn_root(get_tree(), get_tree().current_scene if get_tree().current_scene != null else get_tree().root)
 	p.add_child(_trail)
 
 

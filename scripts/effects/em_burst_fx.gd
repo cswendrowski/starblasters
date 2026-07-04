@@ -12,6 +12,7 @@ extends Node
 
 const _BALL_SHADER = preload("res://graphics/electric_ball.gdshader")
 const _SPRITE_SHADER = preload("res://graphics/electric_sprite.gdshader")
+const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 
 const BALL_TINT := Color(0.45, 0.72, 1.0, 1.0)   # electric blue-white; the shader tints by this
 const QUAD_PX := 16.0                             # the ring quad's native size (scaled to 2*radius)
@@ -78,9 +79,7 @@ static func detonate(tree: SceneTree, world_pos: Vector2, radius: float, damage:
 	if tree == null:
 		return
 	_ensure_resources()
-	var parent: Node = fx_parent if (fx_parent != null and is_instance_valid(fx_parent)) else tree.current_scene
-	if parent == null:
-		parent = tree.root
+	var parent: Node = fx_parent if (fx_parent != null and is_instance_valid(fx_parent)) else BulletWorld.spawn_root(tree, tree.current_scene if tree.current_scene != null else tree.root)
 	var ring := EmBurstRing.new()
 	ring.setup(world_pos, radius, damage, max_targets, _white_tex, _make_ball_material(), _sprite_mat, BALL_TINT)
 	parent.add_child(ring)

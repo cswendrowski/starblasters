@@ -213,6 +213,9 @@ func _build_playspace() -> void:
 	# collide (the SubViewport has its own 2D physics space). This is the node handed to bullet_parent.
 	_world = Node2D.new()
 	_world.name = "World"
+	# "bullet_world" sink so any parent-less gameplay fx resolve into this native world, not the
+	# 1920×1080 window's top-left corner (BulletWorld.spawn_root; no-op in production).
+	_world.add_to_group("bullet_world")
 	_preview_vp.add_child(_world)
 
 	# 2D AUDIO in the SubViewport: AudioStreamPlayer2D only outputs when its viewport has an enabled

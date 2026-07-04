@@ -448,6 +448,9 @@ func _build_playspace() -> void:
 
 	_stage = Node2D.new()
 	_stage.name = "Stage"
+	# "bullet_world" sink so the Death-tab explosions/debris (and any parent-less fx) resolve into this
+	# native stage, not the 1920×1080 window's top-left corner (BulletWorld.spawn_root; no-op in prod).
+	_stage.add_to_group("bullet_world")
 	_preview_vp.add_child(_stage)
 
 

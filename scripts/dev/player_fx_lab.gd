@@ -101,6 +101,9 @@ func _ready() -> void:
 	_hd_scope = HdViewportScope.attach(self)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_world = HdScreen.make_play_subviewport(self)
+	# "bullet_world" sink so a damaged player's tell fx (torch burst, smoke) + any parent-less fx
+	# resolve into this native SubViewport, not the 1920×1080 window's top-left corner (no-op in prod).
+	_world.add_to_group("bullet_world")
 	var bg := ColorRect.new()
 	bg.color = Color(0.05, 0.06, 0.09)
 	bg.size = Vector2(480, 270)

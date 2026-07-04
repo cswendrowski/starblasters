@@ -50,6 +50,12 @@ func _release_drone() -> void:
 	world.add_child(d)
 	d.global_position = global_position + Vector2(randf_range(-20, 20), 0)
 	d.movement = BeelinePlayer.new()
+	# Bound the recycle (Roman 2026-07-04): a directly-released flechette keeps enemy_base's -1
+	# (unlimited) recycle default, and with the default CYCLE_BOTTOM offscreen mode that loops the
+	# drone back up FOREVER — the "endless flechettes that recycle at 1/4 size" seen anywhere a Hive
+	# spawns (Enemy Bench / Combat Lab / faction previews) and in real combat. A couple of hunt passes
+	# then a clean leave keeps the swarm lively without the infinite loop (matches chaff recycle).
+	d.recycle_passes = 2
 	d.start(d.global_position)
 	d.connect("died", _on_drone_died)
 	_total_released += 1

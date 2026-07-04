@@ -697,7 +697,20 @@ func _add_toggle(parent: Node, text: String, on: bool, cb: Callable) -> void:
 
 
 func _on_back() -> void:
+	_clear_world()
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev_menu.tscn")
+
+
+# Safety net (Roman 2026-07-04): on ANY exit, stop the conductor and purge the global enemy/bullet
+# groups so a running preview can't leave recycling enemies (or their /root-parented bullets) alive to
+# linger in the next scene. Kept UI-free (no _update_readout) since the labels may be mid-teardown.
+func _exit_tree() -> void:
+	if _director and is_instance_valid(_director) and _director.has_method("stop"):
+		_director.stop()
+	for grp in ["enemies", "enemy_bullets", "bullets"]:
+		for n in get_tree().get_nodes_in_group(grp):
+			if is_instance_valid(n):
+				n.queue_free()
 
 
 func _unhandled_input(event: InputEvent) -> void:

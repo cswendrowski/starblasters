@@ -954,7 +954,15 @@ func _update_status() -> void:
 
 
 func _on_back() -> void:
+	_clear_world()
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev_menu.tscn")
+
+
+# Safety net (Roman 2026-07-04): clear any live preview enemies + their bullets on EVERY exit path
+# (Back, Esc, or any scene swap), not just Back. _clear_world purges the global enemy/enemy_bullet/
+# bullet groups, so nothing a preview spawned can linger or leak into a subsequently launched combat.
+func _exit_tree() -> void:
+	_clear_world()
 
 
 # ---------------------------------------------------------------- UI helpers (lane_visualizer convention)

@@ -198,6 +198,9 @@ func _build_playspace() -> void:
 
 	_world = Node2D.new()
 	_world.name = "World"
+	# "bullet_world" sink so any parent-less gameplay fx resolve into this native world, not the
+	# 1920×1080 window's top-left corner (BulletWorld.spawn_root; no-op in production).
+	_world.add_to_group("bullet_world")
 	_preview_vp.add_child(_world)
 
 	# 2D audio listener so the player's per-ship loops (MG/AC/rotary) are audible.

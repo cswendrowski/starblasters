@@ -144,6 +144,9 @@ func _build_playspace() -> void:
 
 	_world = Node2D.new()
 	_world.name = "World"
+	# Advertise this native-coord world as the "bullet_world" sink so any parent-less gameplay fx
+	# (explosions, dust, EM burst) resolve HERE instead of the 1920×1080 window's top-left corner.
+	_world.add_to_group("bullet_world")
 	_preview_vp.add_child(_world)
 
 	_preview_vp.audio_listener_enable_2d = true
