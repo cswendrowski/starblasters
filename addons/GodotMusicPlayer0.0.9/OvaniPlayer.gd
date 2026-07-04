@@ -243,6 +243,11 @@ func _process(delta):
 						_soundManagers.append(newPSM);
 						if remainingTime < psm.FadeOut:
 							newPSM.FadeIn = psm.FadeOut;
+							# Start the fading-in copy SILENT. _constructPolySoundManager leaves it
+							# at full volume; without this it blips at full for one frame before
+							# FadeIn pulls it down — an audible pop on every crossfade.
+							# (Starblaster local patch.)
+							newPSM.Volume = -80.0;
 				if (remainingTime < 0):
 					_soundManagers.erase(psm);
 					for id in psm.Ids:

@@ -172,6 +172,16 @@ level-clear breather can settle. Non-combat contexts rest at fixed levels
 (`CTX_INTENSITY`: menu/outpost 0.0, sector 0.12, events 0.40, boss 1.0) via
 `FadeIntensity`. Tuning lives in the constants block.
 
+**Transition-pop fix (2026-06-25):** two causes of clicks *on transitions*, both fixed.
+(1) Combat entry + `warm_up_combat` were **hard-setting `_player.Intensity = 0.0`** — a
+global knob, so it jolted the *outgoing* track's stem mix in one frame. Now they seed
+`_intensity_smoothed` from the current value and ease via `FadeIntensity`/`_process` (no
+snap). (2) The Ovani plugin constructs a crossfade's incoming copy at **full volume**
+(`o.Volume = Volume`) and only pulls it down on the *next* frame's `FadeIn` — a one-frame
+full-volume blip on every crossfade. Patched `OvaniPlayer.gd` to start a fading-in copy
+silent (`newPSM.Volume = -80`). NB: the plugin patch is a local edit — re-apply if the
+addon is updated. Loop copies are unaffected (they intentionally enter at full).
+
 ### Wiring + retirement
 - `main.gd` forwards `player.hull_changed` → `Music.notify_damage` in combat setup.
 - Imported all 16 Ovani folders (`loop=false`); **deleted the 24 old loose

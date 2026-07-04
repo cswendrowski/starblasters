@@ -175,15 +175,19 @@ func set_context(context: String, options: Dictionary = {}) -> void:
 		_player.FadeIntensity(_player.Intensity, 0.05)     # end the warm ramp; _process drives now
 		return
 	if _combat_active:
-		# Cold open — start QUIET; the envelope ramps up to the ceiling as enemies
-		# arrive, instead of jamming to full energy before anything is happening.
+		# Cold open — reset combat inputs, then EASE from the current intensity down
+		# to the (low) combat goal via _process. Do NOT snap Intensity to 0: it's a
+		# global knob, so a hard set jolts the outgoing track's stem mix in one
+		# frame = a pop on the transition. The combat goal is ~0 at open (no enemies)
+		# so the ease is quiet anyway.
 		_wave01 = 0.0
 		_damage01 = 0.0
 		_streak_heat = 0.0
-		_intensity_smoothed = 0.0
 		if _player != null:
-			_player.Intensity = 0.0
-			_player.FadeIntensity(0.0, 0.05)  # cancel any stale context fade; _process drives from here
+			_intensity_smoothed = _player.Intensity
+			_player.FadeIntensity(_player.Intensity, 0.05)  # claim/cancel any stale fade at the current value
+		else:
+			_intensity_smoothed = 0.0
 
 	var track: String = options.get("track", "")
 	if track == "" or not _lib.has_track(track):
@@ -243,7 +247,9 @@ func warm_up_combat(target_intensity: float = WARM_TARGET, ramp: float = WARM_RA
 	var track: String = _pick_track(CTX_COMBAT)
 	if track != "" and (track != _current_track or _current_track == ""):
 		_play_track(track, WARM_ENTER_FADE)
-	_player.Intensity = 0.0
+	# Ramp intensity from the current level to the warm target (no hard set to 0 —
+	# that pops the outgoing track). The combat track fades IN by volume anyway
+	# (WARM_ENTER_FADE), so the warm-up still starts quiet.
 	_set_intensity_target(clampf(target_intensity, 0.0, 1.0), maxf(ramp, 0.05))
 
 
