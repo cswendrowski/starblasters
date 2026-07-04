@@ -92,6 +92,7 @@ func _build_ui() -> void:
 	# Tuners / labs (Movement Lab / Sector Map HD Lab retired 2026-06-11)
 	_add_button("[ Lane Visualizer ]", _on_lane_visualizer, true)
 	_add_button("[ Parallax Tuner ]", _on_parallax_tuner, true)
+	_add_button("[ Nebula Lab ]", _on_nebula_lab, true)
 	_add_button("[ Asteroid Lab ]", _on_asteroid_lab, true)
 	_add_button("[ Asteroid Bake Lab ]", _on_asteroid_bake_lab, true)
 	_add_button("[ Asteroid Field Test ]", _on_asteroid_field_test, true)
@@ -243,6 +244,10 @@ func _on_asteroid_field_test() -> void:
 
 func _on_asteroid_hdr_lab() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/asteroid_hdr_lab.tscn")
+
+
+func _on_nebula_lab() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/nebula_lab.tscn")
 
 
 func _on_crash_loop() -> void:

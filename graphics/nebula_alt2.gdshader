@@ -22,6 +22,9 @@ uniform float movement : hint_range(0.7, 1.3, 0.01) = 1.0;
 uniform float blur : hint_range(0.0, 10.0, 0.01) = 1.4;
 uniform float blur2 : hint_range(0.0, 0.01, 0.00001) = 0.01;
 uniform float alpha : hint_range(0.0, 1.0) = 1.0;
+// External parallax scroll (Nebula Lab / backdrop): shifts the cloud + star sampling so this
+// screen-space nebula can drift downward WITH the parallax stack. 0 = static (original look).
+uniform vec2 scroll_offset = vec2(0.0);
 
 float localTime() {
 	return TIME * timeScaleFactor;
@@ -78,6 +81,7 @@ void fragment() {
 	vec2 p = fragCoord / resolution - 0.5;
 	p.x *= resolution.x / resolution.y;
 	p *= clouds_resolution;
+	p += scroll_offset;   // parallax drift (cloud sampling)
 
 	float red = 0.2 * sin(TIME * 0.1);
 	float blue = 0.1;
@@ -88,8 +92,9 @@ void fragment() {
 	col = pow(max(col, vec3(0.0)), vec3(brightness));
 
 	float stars = 0.0;
-	if (rand2(SCREEN_UV.xy / 20.0) > 0.995) {
-		float r = rand2(SCREEN_UV.xy);
+	vec2 star_uv = SCREEN_UV.xy + scroll_offset * 0.1;   // parallax drift (star field)
+	if (rand2(star_uv / 20.0) > 0.995) {
+		float r = rand2(star_uv);
 		stars = r * (0.5 * sin(TIME * (r * 2.0) + 1000.0 * r) + 0.5);
 	}
 
