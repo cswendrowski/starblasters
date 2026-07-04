@@ -1658,6 +1658,15 @@ func take_damage(amount: int) -> void:
 		return
 	if not is_alive or amount <= 0:
 		return
+	# FLAT DAMAGE (Roman 2026-07-04): every hit costs the player exactly ONE — one shield HP,
+	# or one hull pip — regardless of the source's own damage stat. Enemy bullets, missiles,
+	# rockets, ship contact, mines, beams and bosses all normalize to 1 here. Difficulty scales
+	# through VOLUME (more enemies / more bullets), not per-hit magnitude. This is also the single
+	# choke point that makes the two-sided collision detection (projectile-side take_damage(damage)
+	# vs the player-side _on_area_entered) deterministic — whichever wins the same-frame race now
+	# applies the same 1. Placed BEFORE the "dangerous" block so that parked modifier, if ever
+	# re-enabled, still doubles the flat base (1 → 2) as designed.
+	amount = 1
 	# Phase mode takes NO damage at all — handled by the full-duration i-frame the runtime
 	# sets (_invuln_t = mode_active_t in _tick_shift_mode), caught at the i-frame check below.
 	# (Bullet-absorb → +shield is now Thief mode's job, via its catch bubble.)
@@ -3253,11 +3262,15 @@ func _on_gun_cooldown_timeout() -> void:
 	can_shoot = true
 
 func _on_area_entered(area: Area2D) -> void:
+	# Flat 1 for EVERY source (ship contact, mines, missiles/rockets tagged "enemies", and
+	# bullets). take_damage() normalizes to 1 regardless, so these literals are kept at 1 only
+	# for honesty. take_hit(6) is the player's ram damage TO the enemy — unrelated to what the
+	# player takes. (Roman 2026-07-04: damage is flat; difficulty scales via volume.)
 	if area.is_in_group("enemies"):
 		if area.has_method("take_hit"):
 			area.take_hit(6)
 		_play_hit_sfx()
-		take_damage(2)
+		take_damage(1)
 	elif area.is_in_group("bullets"):
 		_play_hit_sfx()
 		take_damage(1)

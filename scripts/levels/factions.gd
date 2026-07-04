@@ -222,9 +222,10 @@ static func apply(id: int, enemy) -> void:
 		enemy.max_health = int(round(float(enemy.max_health) * hp_mult))
 		if "health" in enemy:
 			enemy.health = enemy.max_health
-	# Weapon mods. Faster fire (supremacy): smaller interval = faster. Projectile
-	# speed/damage mults COMPOUND onto the per-enemy fields (*=) so they stack with
-	# sector modifiers; shoot_pattern applies them (speed clamped) to each bullet.
+	# Weapon mods. Faster fire (supremacy): smaller interval = faster. Projectile SPEED mult
+	# compounds onto the per-enemy field (*=); shoot_pattern applies it (clamped) to each bullet.
+	# NOTE: faction bullet_damage_mult was REMOVED 2026-07-04 — player damage is flat 1 across the
+	# board (see player.take_damage), so no faction changes per-hit damage. Difficulty is volume.
 	var wm: Dictionary = d.get("weapon_mods", {})
 	var fr: float = float(wm.get("fire_rate_mult", 1.0))
 	if fr != 1.0:
@@ -235,9 +236,6 @@ static func apply(id: int, enemy) -> void:
 	var bsm: float = float(wm.get("bullet_speed_mult", 1.0))
 	if bsm != 1.0 and "bullet_speed_mult" in enemy:
 		enemy.bullet_speed_mult *= bsm
-	var bdm: float = float(wm.get("bullet_damage_mult", 1.0))
-	if bdm != 1.0 and "bullet_damage_mult" in enemy:
-		enemy.bullet_damage_mult *= bdm
 	# Modifier components — Shield (corporate) / DropFirecore Emitter (zealot).
 	var comps: Array = build_components(id)
 	if not comps.is_empty() and "components" in enemy:
