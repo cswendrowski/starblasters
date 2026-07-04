@@ -1131,6 +1131,7 @@ func _mount_spec_dicts() -> Array:
 			sd["max_emits"] = int(d.get("max_emits", 0))
 			sd["band_only"] = bool(d.get("band_only", false))
 			sd["no_inertia"] = bool(d.get("no_inertia", true))
+			sd["payload_delay_ms"] = float(d.get("payload_delay_ms", 0.0))
 		out.append(sd)
 	return out
 
@@ -1317,6 +1318,11 @@ func _make_mount_row(idx: int) -> Control:
 		var einertia := _row_check(not bool(d.get("no_inertia", true)))
 		einertia.toggled.connect(func(on): _set_mount(d, "no_inertia", not on))
 		_grid_row(grid, "inertia", einertia)
+
+		# Delay: the dropped payload holds this many ms before its motion begins (bomblets/missiles honour it).
+		var edelay := _row_spin(0.0, 2000.0, 10.0, float(d.get("payload_delay_ms", 0.0)))
+		edelay.value_changed.connect(func(v): _set_mount(d, "payload_delay_ms", float(v)))
+		_grid_row(grid, "delay ms", edelay)
 
 	return row
 
@@ -1772,6 +1778,8 @@ func _mount_copy_line(d: Dictionary) -> String:
 			eline += ", \"max_emits\": %d" % int(d.get("max_emits", 0))
 		if bool(d.get("band_only", false)):
 			eline += ", \"band_only\": true"
+		if float(d.get("payload_delay_ms", 0.0)) > 0.0:
+			eline += ", \"payload_delay_ms\": %.0f" % float(d.get("payload_delay_ms", 0.0))
 		eline += ", \"no_inertia\": %s }," % ("true" if bool(d.get("no_inertia", true)) else "false")
 		return eline
 	var pname: String = String(d.get("payload", "Ball"))

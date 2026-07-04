@@ -22,6 +22,9 @@ extends "res://scripts/enemies/enemy_base.gd"
 @export var lateral_jitter_speed: float = 0.0
 @export var jitter_cadence: float = 0.18
 @export var lifetime: float = 8.0
+# Payload Delay (2026-07-04): hold at the drop point this long (s) before descending — set by an ENTITY
+# hardpoint's delay (via _apply_delay) so a laid mine can arm-pause. 0 = descend immediately (unchanged).
+@export var motion_delay: float = 0.0
 const BOMBLET_AVOID_RADIUS := 14.0
 const BOMBLET_AVOID_STRENGTH := 140.0
 const BOMBLET_NEIGHBOUR_CAP := 4
@@ -47,6 +50,7 @@ var _velocity: Vector2 = Vector2.ZERO
 var _lateral_target: float = 0.0
 var _jitter_timer: float = 0.0
 var _age: float = 0.0
+var _delay_t: float = 0.0   # Payload Delay accumulator (held at the drop point while < motion_delay)
 var _pulse_phase: float = 0.0
 # Orbiting mode (Gravity Mine): the parent mine drives this bomblet's position while it rings the
 # mine; its own drift/lifetime are suspended until release(velocity) hands it a free velocity.
@@ -172,6 +176,11 @@ func _process(delta: float) -> void:
 		return
 	if _orbiting:
 		# Parent mine owns position; just keep the live-munition pulse going.
+		_pulse_vfx()
+		return
+	# Payload Delay: hold at the drop point (pulsing) before the descent begins.
+	if motion_delay > 0.0 and _delay_t < motion_delay:
+		_delay_t += delta
 		_pulse_vfx()
 		return
 	_age += delta
