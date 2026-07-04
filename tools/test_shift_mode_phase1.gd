@@ -70,10 +70,10 @@ func _run() -> void:
 	for entry in PartCatalog._all_pool():
 		if int(entry["slot"]) == SlotTypes.SlotType.DEVICE_BAY_1:
 			var p = PartCatalog._make_by_name(String(entry["factory"]), SlotTypes.SlotType.DEVICE_BAY_1)
-			if p != null and String(p.display_name) == "Smart Bomb":
+			if p != null and String(p.display_name) == "Super Pulse Bomb":
 				smartbomb_in_dev1 = true
-			_assert(p == null or String(p.display_name) == "Smart Bomb", "only Smart Bomb in DEVICE_BAY_1 pool (got %s)" % (String(p.display_name) if p else "null"))
-	_assert(smartbomb_in_dev1, "Smart Bomb still the lone DEVICE_BAY_1 super")
+			_assert(p == null or String(p.display_name) == "Super Pulse Bomb", "only Super Pulse Bomb in DEVICE_BAY_1 pool (got %s)" % (String(p.display_name) if p else "null"))
+	_assert(smartbomb_in_dev1, "Super Pulse Bomb still the lone DEVICE_BAY_1 super")
 
 	print("[test] ALL PASS")
 	quit()

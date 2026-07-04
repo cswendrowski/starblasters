@@ -20,7 +20,7 @@ const CLIPS := {
 	],
 }
 
-const VOLUME_DB: float = -3.0
+const VOLUME_DB: float = -5.0   # ~20% quieter than the original -3.0 dB (Roman 2026-06-29)
 
 
 static func play(kind: String) -> void:

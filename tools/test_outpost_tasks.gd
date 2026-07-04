@@ -74,7 +74,7 @@ func test_task_1_3() -> void:
 	var blaster = DummyPart.new("Energy Blaster", SlotTypes.SlotType.CANNON, 1)
 	var rotary = DummyPart.new("Rotary Laser", SlotTypes.SlotType.CANNON, 3)
 	var secondary = DummyPart.new("Rocket Pod", SlotTypes.SlotType.HARDPOINT_WING, 2)
-	var super_bomb = DummyPart.new("Smart Bomb", SlotTypes.SlotType.DEVICE_BAY_1, 1)
+	var super_bomb = DummyPart.new("Super Pulse Bomb", SlotTypes.SlotType.DEVICE_BAY_1, 1)
 	var mode = DummyPart.new("Hyper Mode", SlotTypes.SlotType.SHIFT_MODE, 2)
 
 	# Test Energy Blaster detection.
@@ -104,7 +104,7 @@ func test_task_1_3() -> void:
 	print("    - Blaster → 'Blaster'")
 	print("    - Rotary Laser → 'Primary Weapon'")
 	print("    - Rocket Pod → 'Secondary Weapon'")
-	print("    - Smart Bomb → 'Super'")
+	print("    - Super Pulse Bomb → 'Super'")
 	print("    - Hyper Mode → 'Mode'")
 
 

@@ -18,7 +18,7 @@ extends Object
 
 # Page titles and bodies.
 const ONBOARDING_CONTROLS_TITLE := "Controls"
-const ONBOARDING_CONTROLS_BODY := "Arrow Keys — move.\nSpace / Z — fire blaster or primary cannon.\nC — fire secondary hardpoint weapon.\nX — Smart Bomb.\nShift — activate Shift Mode (If Available): each grants different benefits.\nG — swap between blaster and primary cannon (if you own more than one).\nA — Toggle AutoFire for blaster or primary cannon.\nS — Toggle Smart Mode for selected Blaster/Cannon (if available).\nEsc — pause."
+const ONBOARDING_CONTROLS_BODY := "Arrow Keys — move.\nSpace / Z — fire blaster or primary cannon.\nC — fire secondary hardpoint weapon.\nX — Super Pulse Bomb.\nShift — activate Shift Mode (If Available): each grants different benefits.\nG — swap between blaster and primary cannon (if you own more than one).\nA — Toggle AutoFire for blaster or primary cannon.\nS — Toggle Smart Mode for selected Blaster/Cannon (if available).\nEsc — pause."
 
 const ONBOARDING_PARTS_TITLE := "Parts & Marks"
 const ONBOARDING_PARTS_BODY := "Your ship can be upgraded with new parts during patrols. Visit the Outpost to buy them, or seek out Unknown Signal events and see what you find.\n\nEvery part has a Mark level from Mk.1 to Mk.9. A higher Mark is always better, providing more damage, more durability, better stats, etc.\n\nAside from spending Bounty and scavenging them, you can upgrade existing equipped party by spending Bounty and Materials at the Outpost. You can gain materials from Signal Events and from breaking down owned equipment."

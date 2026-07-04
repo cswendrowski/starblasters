@@ -122,17 +122,27 @@ func _run() -> void:
 		_oa._upgrade_part_live(prim["part"])
 		_ck(int(prim["part"].mark) == mk + 1, "upgrade bumps Mk")
 
-	# Repair (charge-limited).
-	run.repair_charges = 2
-	run.current_hull = maxi(1, int(run.max_hull) - 2)
+	# Repair — MUST be gated on the real hull deficit, NOT the visual damage_level (production never
+	# sets damage_level, so the old gate left Repair permanently grayed). 1-pip + Repair-All.
+	run.bounty = 5000
+	run.repair_charges = 9
+	run.current_hull = maxi(1, int(run.max_hull) - 3)
 	var hb = int(run.current_hull)
-	_oa._do_repair()
-	_ck(int(run.current_hull) >= hb, "repair raises hull (or guarded)")
+	_oa._do_repair(1)
+	_ck(int(run.current_hull) == hb + 1, "repair(1) raises hull by a pip (hull-gated, not damage_level)")
+	_oa._do_repair(999)
+	_ck(int(run.current_hull) == int(run.max_hull), "repair All fills the hull to max")
 
-	# Refill super (no crash).
+	# Refill super — 1 then All.
+	run.bounty = 5000
 	run.super_charges = 0
-	_oa._on_refill_super()
-	_ck(true, "super refill ran")
+	if int(run.max_super_charges) > 0:
+		_oa._on_refill_super(1)
+		_ck(int(run.super_charges) == 1, "refill super(1) adds one charge")
+		_oa._on_refill_super(999)
+		_ck(int(run.super_charges) == int(run.max_super_charges), "refill super All tops up charges")
+	else:
+		_ck(true, "no super equipped — refill skipped")
 
 	# Shift mode is now a first-class owned part (SHIFT slot reads loadout_snapshot[SHIFT_MODE]).
 	var shift = _oa._slots.get("SHIFT")

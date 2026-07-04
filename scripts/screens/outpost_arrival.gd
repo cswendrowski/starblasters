@@ -55,10 +55,18 @@ const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const PartTier = preload("res://scripts/parts/part_tier.gd")
 const OutpostSfx = preload("res://scripts/effects/outpost_sfx.gd")   # carried over from the old outpost menu
 const ArmoryStrings = preload("res://scripts/strings/armory_strings.gd")   # the Codex's item blurbs (one source)
+# Top-bar stat icons — one 10×10 frame each: 0=hull, 1=super, 2=bounty, 3=materials (Roman 2026-06-29).
+const ICON_SHEET = preload("res://graphics/ui/outpost_icons.png")
+const ICON_FRAME := 10       # native px per frame (sheet is 40×10)
+const ICON_DISPLAY := 40     # HD px shown = 4× (matches the game's 480→1920 pixel scale; nearest-filtered)
 const SHOP_MAX_MK := 9
 const CANNON_BASE_COST := 116
 const CANNON_COST_PER_MK := 70
 const HULL_REPAIR_COST := 250
+const SUPER_REFILL_COST := 120
+const PRIMARY_REFILL_COST := 100
+const SECONDARY_REFILL_COST := 60
+const SERVICE_BTN_W := 144.0   # uniform service-button width — fits a tagged 3-digit price ("All  ₵999")
 const WEAPONS_COLUMN_COUNT := 5
 const WEAPON_SLOT_WEIGHTS := [
 	SlotTypes.SlotType.CANNON, SlotTypes.SlotType.CANNON, SlotTypes.SlotType.CANNON, SlotTypes.SlotType.CANNON,
@@ -230,6 +238,7 @@ var _right_sidebar: ColorRect = null
 var _money_lbl: Label = null
 var _parts_lbl: Label = null
 var _hull_lbl: Label = null
+var _super_lbl: Label = null
 var _toast_lbl: Label = null
 var _toast_tween: Tween = null
 var _info_popup: Control = null
@@ -301,13 +310,16 @@ func _init_inventory() -> void:
 	_live = run != null and "run_seed" in run and int(run.run_seed) != 0
 	if _live:
 		_refresh_live()
+		# Production opens the dock via a plain scene change (no damage_level set) — derive the ship's
+		# visual fray from the real hull so a battle-worn ship looks it AND Repair has something to clear.
+		damage_level = _hull_damage_fraction(run)
 	else:
 		_money = _run_int("bounty", 1250)
 		_materials = _run_int("materials", 8)
 		_slots = {
 			"PRIMARY": _mk_item("Twin Cannon", "PRIMARY", 3, 40, "Rapid dual-bolt cannon. Mk scales fire-rate + damage."),
 			"SECONDARY": _mk_item("Seeker Missiles", "SECONDARY", 2, 30, "Homing missile pod. Mk adds salvo size + tracking."),
-			"SUPER": _mk_item("Smart Bomb", "SUPER", 1, 60, "Screen-clearing blast. Mk adds charges + radius."),
+			"SUPER": _mk_item("Super Pulse Bomb", "SUPER", 1, 60, "Screen-clearing blast. Mk adds charges + radius."),
 			"MODULE_1": _mk_item("Shield Core", "MODULE", 2, 50, "Adds shield charges. Mk raises the charge pool."),
 			"MODULE_2": _mk_item("Thrusters", "MODULE", 1, 35, "Raises move speed. Mk sharpens handling."),
 			"MODULE_3": null,
@@ -424,6 +436,10 @@ func _refresh_live() -> void:
 
 	# Market: load or roll offers
 	_load_or_roll_live_offers()
+
+	# Keep the top-bar hull + super readouts in sync with the refreshed Run state (pull/slot/swap/repair
+	# all route through here; the labels no-op safely if the bar isn't built yet during _ready).
+	_update_status()
 
 
 # Map SlotType int to kind string
@@ -1077,13 +1093,36 @@ func _build_top_bar() -> void:
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 48)
 	v.add_child(row)
-	_hull_lbl = _label("", UiTheme.FONT_SIZE_HEADER, UiTheme.COLOR_DANGER)
-	row.add_child(_hull_lbl)
-	_money_lbl = _label("₵ %d" % _money, UiTheme.FONT_SIZE_HEADER, UiTheme.COLOR_BOUNTY)
-	row.add_child(_money_lbl)
-	_parts_lbl = _label("◆ %d" % _materials, UiTheme.FONT_SIZE_HEADER, UiTheme.COLOR_GREEN)
-	row.add_child(_parts_lbl)
-	_update_hull()
+	# Each field is [icon + number]: 0=hull, 1=super, 2=bounty, 3=materials (custom pixel-art icons).
+	_hull_lbl = _stat_field(row, 0, "", UiTheme.COLOR_TEXT)
+	_super_lbl = _stat_field(row, 1, "", UiTheme.COLOR_ACCENT)
+	_money_lbl = _stat_field(row, 2, "%d" % _money, UiTheme.COLOR_BOUNTY)
+	_parts_lbl = _stat_field(row, 3, "%d" % _materials, UiTheme.COLOR_GREEN)
+	_update_status()
+
+
+# One top-bar stat: a pixel-art icon (frame `frame` of the outpost_icons sheet, nearest-filtered so it
+# stays crisp at 4×) + a value Label. Returns the Label so callers can update the number; hull/super
+# hide the whole field (icon included) when there's no data via _stat_visible().
+func _stat_field(row: HBoxContainer, frame: int, initial: String, color: Color) -> Label:
+	var box := HBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	var icon := TextureRect.new()
+	var atlas := AtlasTexture.new()
+	atlas.atlas = ICON_SHEET
+	atlas.region = Rect2(frame * ICON_FRAME, 0, ICON_FRAME, ICON_FRAME)
+	icon.texture = atlas
+	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	icon.custom_minimum_size = Vector2(ICON_DISPLAY, ICON_DISPLAY)
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	box.add_child(icon)
+	var lbl := _label(initial, UiTheme.FONT_SIZE_HEADER, color)
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	box.add_child(lbl)
+	row.add_child(box)
+	return lbl
 
 
 func _open_options() -> void:
@@ -1265,18 +1304,36 @@ func _rebuild_services() -> void:
 	_clear(_page_services)
 	_page_services.add_child(_caption("Repair, rearm and upgrade"))
 	var run := get_node_or_null("/root/Run")
-	# Each service grays out when it's UNNECESSARY (would no-op — full / nothing to refill / no charges)
-	# as well as when it's unaffordable. The `available` flag mirrors each handler's own success guards.
-	# Repair clears battle damage — the shader fray + sparks heal LIVE (driven, never baked).
-	var repair_avail: bool = damage_level > 0.01 and (not _live or (run != null and int(run.repair_charges) > 0))
-	_page_services.add_child(_service_row("Repair Hull", 250, _do_repair, repair_avail))
-	if _live:
-		_page_services.add_child(_service_row("Refill Primary", 100, _on_refill_primary_ammo, _refill_primary_avail(run)))
-		_page_services.add_child(_service_row("Refill Secondary", 60, _on_refill_secondary_ammo, _refill_secondary_avail(run)))
-		_page_services.add_child(_service_row("Refill Super", 120, _on_refill_super, _refill_super_avail(run)))
+	# Each button grays when it's UNNECESSARY (would no-op — full / nothing to refill / no charges) or
+	# unaffordable. Repair + Super refill per-pip/per-charge, so they get a "1" and an "All" button; ammo
+	# refills top up the whole magazine in one go (single "Fill"). All buttons are a fixed width so a 60₵
+	# price is the same size as a 999₵ one.
+	if _live and run != null:
+		# Repair — gated on the REAL hull (current_hull < max_hull), NOT the decorative damage_level
+		# (production never sets damage_level, so the old gate left Repair grayed forever). 1 charge / pip.
+		var pips: int = maxi(0, int(run.max_hull) - int(run.current_hull))
+		var chg: int = int(run.repair_charges)
+		_page_services.add_child(_service_row("Repair Hull", [
+			_svc_btn("1", HULL_REPAIR_COST, pips >= 1 and chg >= 1, func() -> void: _do_repair(1)),
+			_svc_btn("All", pips * HULL_REPAIR_COST, pips >= 1 and chg >= pips, func() -> void: _do_repair(pips)),
+		]))
+		_page_services.add_child(_service_row("Refill Primary", [
+			_svc_btn("Fill", PRIMARY_REFILL_COST, _refill_primary_avail(run), _on_refill_primary_ammo)]))
+		_page_services.add_child(_service_row("Refill Secondary", [
+			_svc_btn("Fill", SECONDARY_REFILL_COST, _refill_secondary_avail(run), _on_refill_secondary_ammo)]))
+		var sneed: int = maxi(0, int(run.max_super_charges) - int(run.super_charges))
+		_page_services.add_child(_service_row("Refill Super", [
+			_svc_btn("1", SUPER_REFILL_COST, sneed >= 1, func() -> void: _on_refill_super(1)),
+			_svc_btn("All", sneed * SUPER_REFILL_COST, sneed >= 1, func() -> void: _on_refill_super(sneed)),
+		]))
 	else:
-		_page_services.add_child(_service_row("Refill Primary", 120, func() -> void: toast("Refilled primary ammo (stub)")))
-		_page_services.add_child(_service_row("Refill Super", 120, func() -> void: toast("Refilled super (stub)")))
+		# Mock (dev lab) — single stub buttons off the visual damage_level.
+		_page_services.add_child(_service_row("Repair Hull", [
+			_svc_btn("Fix", HULL_REPAIR_COST, damage_level > 0.01, func() -> void: _do_repair(1))]))
+		_page_services.add_child(_service_row("Refill Primary", [
+			_svc_btn("Fill", PRIMARY_REFILL_COST, true, func() -> void: toast("Refilled primary ammo (stub)"))]))
+		_page_services.add_child(_service_row("Refill Super", [
+			_svc_btn("Fill", SUPER_REFILL_COST, true, func() -> void: toast("Refilled super (stub)"))]))
 	_page_services.add_child(HSeparator.new())
 	_page_services.add_child(_label("PART HANDLING", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
 	# Scrap / Sell put the shop in a mode that retargets the owned-part action buttons.
@@ -1339,20 +1396,34 @@ func _complete_node_shop() -> void:
 	_rebuild_market()
 
 
-func _service_row(title: String, cost: int, cb: Callable, available: bool = true) -> HBoxContainer:
+# A service row: a title label + one or more fixed-width price buttons (built by _svc_btn). The title
+# grays out when every button is disabled (nothing on this row can be done right now).
+func _service_row(title: String, buttons: Array) -> HBoxContainer:
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	# Grayed when unaffordable OR unnecessary (nothing to do) so the player can read what's out of reach.
-	var enabled: bool = available and _afford(cost)
-	var nm := _label(title, UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_TEXT if enabled else UiTheme.COLOR_DISABLED)
+	row.add_theme_constant_override("separation", 8)
+	var any_enabled: bool = false
+	for b in buttons:
+		if not b.disabled:
+			any_enabled = true
+	var nm := _label(title, UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_TEXT if any_enabled else UiTheme.COLOR_DISABLED)
 	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	nm.clip_text = true
 	row.add_child(nm)
-	var b := UiTheme.make_button("₵%d" % cost, true)
+	for b in buttons:
+		row.add_child(b)
+	return row
+
+
+# One fixed-width service button "TAG  ₵COST" (e.g. "1  ₵250" / "All  ₵750" / "Fill  ₵100"). Uniform
+# width so a 60₵ button matches a 999₵ one. Grayed (disabled) when unavailable OR unaffordable.
+func _svc_btn(tag: String, cost: int, available: bool, cb: Callable) -> Button:
+	var enabled: bool = available and _afford(cost)
+	var b := UiTheme.make_button("%s  ₵%d" % [tag, cost], true)
+	b.custom_minimum_size = Vector2(SERVICE_BTN_W, 0)
 	b.disabled = not enabled
 	if enabled:
 		b.pressed.connect(cb)
-	row.add_child(b)
-	return row
+	return b
 
 
 # Per-service "is there anything to do?" predicates — mirror each refill handler's success guards so a
@@ -1378,44 +1449,63 @@ func _refill_secondary_avail(run) -> bool:
 	return int(run.ammo_restock_charges) > 0
 
 
-func _refill_super_avail(run) -> bool:
-	return run != null and int(run.super_charges) < int(run.max_super_charges)
-
-
-# Demonstrates live damage removal: pay, then heal damage_level → 0. Because the overlay is
-# driven (not baked) the fray recedes + the sparks/smoke taper out as the level falls.
-func _do_repair() -> void:
-	if damage_level <= 0.01:
-		toast("Hull already pristine")
-		return
-	if _money < 250:
-		toast("Not enough ₵")
-		return
-
-	if _live:
-		var run := get_node_or_null("/root/Run")
-		if run == null or int(run.repair_charges) <= 0:
-			toast("No repair charges left")
+# Repair up to `times` hull pips (250₵ + 1 repair charge each). Gated on the REAL hull, not the
+# decorative damage_level (which production never sets). The shader fray recedes to match the new hull.
+func _do_repair(times: int = 1) -> void:
+	if not _live:
+		# Mock (dev lab): one visual heal off damage_level, no Run.
+		if damage_level <= 0.01:
+			toast("Hull already pristine")
 			return
-		run.spend_bounty(250)
-		run.repair_charges -= 1
-		run.current_hull = clampi(int(run.current_hull) + 1, 0, int(run.max_hull))
-		repair()
-		OutpostSfx.play("repair")
-		toast("Hull repaired")
-		_refresh_live()
-		_update_money_parts()
-	else:
-		_money -= 250
+		if _money < HULL_REPAIR_COST:
+			toast("Not enough ₵")
+			return
+		_money -= HULL_REPAIR_COST
 		_update_money_parts()
 		repair()
 		OutpostSfx.play("repair")
 		toast("Hull repaired — damage clearing")
+		return
+
+	var run := get_node_or_null("/root/Run")
+	if run == null:
+		return
+	if int(run.current_hull) >= int(run.max_hull):
+		toast("Hull already full")
+		return
+	var did: int = 0
+	for _i in range(maxi(1, times)):
+		if int(run.current_hull) >= int(run.max_hull):
+			break
+		if int(run.repair_charges) <= 0:
+			if did == 0: toast("No repair charges left")
+			break
+		if int(run.bounty) < HULL_REPAIR_COST:
+			if did == 0: toast("Not enough ₵")
+			break
+		run.spend_bounty(HULL_REPAIR_COST)
+		run.repair_charges -= 1
+		run.current_hull = clampi(int(run.current_hull) + 1, 0, int(run.max_hull))
+		did += 1
+	if did > 0:
+		OutpostSfx.play("repair")
+		repair(_hull_damage_fraction(run))   # tween the fray down to match the restored hull
+		toast("Hull repaired" if did == 1 else "Hull repaired ×%d" % did)
+		_refresh_live()
+		_update_money_parts()
+
+
+# Visual damage_level for a hull state: 0 = full hull, 1 = empty. Keeps the dock ship's fray in sync
+# with the real hull (production opens the dock via a plain scene change and never sets damage_level).
+func _hull_damage_fraction(run) -> float:
+	if run == null or int(run.max_hull) <= 0:
+		return 0.0
+	return clampf(1.0 - float(run.current_hull) / float(run.max_hull), 0.0, 1.0)
 
 
 func _on_refill_primary_ammo() -> void:
 	if not _live:
-		toast("Refill MG ammo (stub)")
+		toast("Refill primary ammo (stub)")
 		return
 	var run := get_node_or_null("/root/Run")
 	if run == null:
@@ -1430,7 +1520,7 @@ func _on_refill_primary_ammo() -> void:
 	if int(run.ammo_restock_charges) <= 0:
 		toast("No ammo restock charges left")
 		return
-	var cost: int = 100
+	var cost: int = PRIMARY_REFILL_COST
 	if int(run.bounty) < cost:
 		toast("Not enough bounty")
 		return
@@ -1460,7 +1550,7 @@ func _on_refill_secondary_ammo() -> void:
 	if int(run.ammo_restock_charges) <= 0:
 		toast("No ammo restock charges left")
 		return
-	var cost: int = 60
+	var cost: int = SECONDARY_REFILL_COST
 	if int(run.bounty) < cost:
 		toast("Not enough bounty")
 		return
@@ -1473,25 +1563,31 @@ func _on_refill_secondary_ammo() -> void:
 	_update_money_parts()
 
 
-func _on_refill_super() -> void:
+func _on_refill_super(times: int = 1) -> void:
 	if not _live:
 		toast("Refill super (stub)")
 		return
 	var run := get_node_or_null("/root/Run")
 	if run == null:
 		return
-	if int(run.bounty) < 120:
-		toast("Not enough bounty")
-		return
 	if int(run.super_charges) >= int(run.max_super_charges):
 		toast("Super charges already full")
 		return
-	run.spend_bounty(120)
-	run.super_charges = clampi(int(run.super_charges) + 1, 0, int(run.max_super_charges))
-	OutpostSfx.play("repair")
-	toast("Super charge refilled")
-	_refresh_live()
-	_update_money_parts()
+	var did: int = 0
+	for _i in range(maxi(1, times)):
+		if int(run.super_charges) >= int(run.max_super_charges):
+			break
+		if int(run.bounty) < SUPER_REFILL_COST:
+			if did == 0: toast("Not enough bounty")
+			break
+		run.spend_bounty(SUPER_REFILL_COST)
+		run.super_charges = clampi(int(run.super_charges) + 1, 0, int(run.max_super_charges))
+		did += 1
+	if did > 0:
+		OutpostSfx.play("repair")
+		toast("Super charge refilled" if did == 1 else "Super charges refilled ×%d" % did)
+		_refresh_live()
+		_update_money_parts()
 
 
 # ---- Right panel: armaments / systems / hold ------------------------------
@@ -2141,26 +2237,38 @@ func _slot_label(sid: String) -> String:
 
 
 func _update_money_parts() -> void:
+	# Numbers only — the bounty / materials icons stand in for the old ₵ / ◆ prefixes.
 	if _money_lbl != null and is_instance_valid(_money_lbl):
-		_money_lbl.text = "₵ %d" % _money
+		_money_lbl.text = "%d" % _money
 	if _parts_lbl != null and is_instance_valid(_parts_lbl):
-		_parts_lbl.text = "◆ %d" % _materials
-	_update_hull()
+		_parts_lbl.text = "%d" % _materials
+	_update_status()
 	# Money/materials just changed → re-evaluate the services panel's affordability graying (it's the
 	# one panel whose buy/repair/upgrade-mode options gray on funds but isn't rebuilt by the action).
 	_rebuild_services()
 
 
-# Top-bar hull readout (current/max). Hidden when there's no hull data (e.g. the dev lab without a run).
-func _update_hull() -> void:
-	if _hull_lbl == null or not is_instance_valid(_hull_lbl):
-		return
+# Top-bar ship-status readouts: hull (current/max) + super charges (the Super Pulse Bomb). Each field
+# (icon + number) hides when there's no data (e.g. the dev lab without a run / no super equipped).
+func _update_status() -> void:
 	var run := get_node_or_null("/root/Run")
-	if run != null and "current_hull" in run and "max_hull" in run and int(run.max_hull) > 0:
-		_hull_lbl.text = "♥ %d/%d" % [int(run.current_hull), int(run.max_hull)]
-		_hull_lbl.visible = true
-	else:
-		_hull_lbl.visible = false
+	if _hull_lbl != null and is_instance_valid(_hull_lbl):
+		var ok: bool = run != null and "current_hull" in run and "max_hull" in run and int(run.max_hull) > 0
+		if ok:
+			_hull_lbl.text = "%d/%d" % [int(run.current_hull), int(run.max_hull)]
+		_stat_visible(_hull_lbl, ok)
+	if _super_lbl != null and is_instance_valid(_super_lbl):
+		var ok2: bool = run != null and "max_super_charges" in run and int(run.max_super_charges) > 0
+		if ok2:
+			_super_lbl.text = "%d/%d" % [int(run.super_charges), int(run.max_super_charges)]
+		_stat_visible(_super_lbl, ok2)
+
+
+# Show/hide a whole stat field (its icon + number) via the Label's parent box.
+func _stat_visible(lbl: Label, vis: bool) -> void:
+	var box := lbl.get_parent()
+	if box != null and is_instance_valid(box):
+		box.visible = vis
 
 
 # ---- Info popup (codex entry) ---------------------------------------------

@@ -32,14 +32,14 @@ func _run() -> void:
 	# --- Super into _world ---
 	var bomb = PartCatalog._make_by_name("_make_smart_bomb", SlotTypes.SlotType.DEVICE_BAY_1)
 	if bomb == null:
-		# factory name may differ — search the pool for Smart Bomb
+		# factory name may differ — search the pool for the Super Pulse Bomb
 		for entry in PartCatalog._all_pool():
 			if int(entry["slot"]) == SlotTypes.SlotType.DEVICE_BAY_1:
 				var p = PartCatalog._make_by_name(String(entry["factory"]), SlotTypes.SlotType.DEVICE_BAY_1)
-				if p != null and "display_name" in p and String(p.display_name) == "Smart Bomb":
+				if p != null and "display_name" in p and String(p.display_name) == "Super Pulse Bomb":
 					bomb = p
 					break
-	_assert(bomb != null, "made a Smart Bomb part")
+	_assert(bomb != null, "made a Super Pulse Bomb part")
 	var run = root.get_node("/root/Run")
 	run.equip_part(bomb)
 	hangar._live_loadout().equip(SlotTypes.SlotType.DEVICE_BAY_1, bomb)

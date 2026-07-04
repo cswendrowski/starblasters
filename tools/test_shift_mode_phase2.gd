@@ -33,8 +33,8 @@ func _run() -> void:
 	_assert_eqf(player.mode_duration, 4.0, "Hyper duration 4.0s")
 	_assert_eqf(player.hyper_fire_bonus, 0.10, "hyper fire bonus = +10% (Mk2)")
 	_assert_eqf(player.hyper_damage_mult, 1.10, "hyper dmg mult = x1.10 (Mk2)")
-	# Equipping a mode must NOT hijack the super slot (Smart Bomb stays).
-	_assert(player.super_part == null or String(player.super_part.display_name) == "Smart Bomb", "super_part untouched by Hyper (got %s)" % (String(player.super_part.display_name) if player.super_part else "null"))
+	# Equipping a mode must NOT hijack the super slot (Super Pulse Bomb stays).
+	_assert(player.super_part == null or String(player.super_part.display_name) == "Super Pulse Bomb", "super_part untouched by Hyper (got %s)" % (String(player.super_part.display_name) if player.super_part else "null"))
 
 	# Tap Shift -> activate (spend a charge, window opens).
 	Input.action_press("focus")
