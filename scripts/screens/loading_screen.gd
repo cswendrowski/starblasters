@@ -36,6 +36,11 @@ const SHIP_X := NATIVE_W / 2.0   # 240 — native viewport centre (matches _run_
 const FLYOFF_TARGET_Y := -120.0  # off the top edge, same as _run_outro
 const WORLD_SCALE := 4.0         # 1920/480 — maps native 480 world coords into the HD canvas
 
+# Run fields the real player's _ready()/start() can WRITE on spawn (super-charge refill in start();
+# SidePods part writes run.ammo). The loading screen is a READ-ONLY visual, so we snapshot these
+# around the throwaway player's init and restore them — it must never damage/repair/re-arm the run.
+const _RUN_GUARD_FIELDS := ["super_charges", "max_super_charges", "ammo", "secondary_ammo", "secondary_ammo_max", "active_cannon_idx"]
+
 signal flight_complete
 
 # ---- Identity (set before add_child, or via configure(); -1/false = read from Run) ----
@@ -118,12 +123,10 @@ func _resolve_identity() -> void:
 	if ship_variant < 0:
 		ship_variant = int(run.ship_variant) if run != null and "ship_variant" in run else 0
 	ship_variant = clampi(ship_variant, 0, ShipCatalog.count() - 1)
-	# Carried damage state (current/max). Stay -1 when Run has none (fresh Run / dev lab) → the ship
-	# keeps the player scene's own default hull (undamaged).
-	if ship_max_hull < 0 and run != null and "max_hull" in run:
-		ship_max_hull = int(run.max_hull)
-	if ship_hull < 0 and run != null and "current_hull" in run:
-		ship_hull = int(run.current_hull)
+	# NOTE: damage state is NOT read here. apply_hull() derives it from the spawned player's own
+	# loadout max_hull + Run.current_hull (identical to combat) — reading Run.max_hull here would use
+	# the stale snapshot and show damage on an already-repaired ship. ship_hull/ship_max_hull stay -1
+	# in production (apply_hull's combat-matching path); the dev lab sets them to force a test state.
 	if poi_name.is_empty():
 		poi_name = _default_poi_name(run)
 
@@ -237,7 +240,19 @@ func rebuild_ship() -> void:
 		p.invincible = true
 	if "is_alive" in p:
 		p.is_alive = true
+	# READ-ONLY guard: adding the player runs its full combat _ready() (applies the loadout + start()),
+	# which can write run.super_charges / run.ammo etc. Snapshot those, spawn, then restore — this
+	# presentation copy must leave the run's state exactly as it found it.
+	var run := get_node_or_null("/root/Run")
+	var snap: Dictionary = {}
+	if run != null:
+		for f in _RUN_GUARD_FIELDS:
+			if f in run:
+				snap[f] = run.get(f)
 	_world.add_child(p)
+	if run != null:
+		for f in snap:
+			run.set(f, snap[f])
 	if "monitoring" in p:
 		p.monitoring = false
 	if "monitorable" in p:
@@ -256,22 +271,34 @@ func rebuild_ship() -> void:
 		apply_hull()
 
 
-# Drive the ship's hull → emits hull_changed → engine_torch / damage_smoke_trail / spark_trail
-# update to the carried damage severity (1 - hull/max). No-op when there's no valid hull state
-# (fresh Run / dev lab default) — the ship then reads as undamaged.
+# Drive the ship's hull → emits hull_changed → engine_torch / damage_smoke_trail / spark_trail update
+# to the carried damage severity (1 - hull/max). Matches combat EXACTLY, so a repaired ship reads as
+# repaired: the player's own start() already set max_hull from the LIVE loadout (apply_run_upgrades =
+# 2 + module_hull_bonus), so we keep THAT — never the stale Run.max_hull snapshot (the old bug: it
+# diverged from the loadout max, making repaired ships still show damage) — and load only the current
+# hull the way main.gd does. Read-only: reads Run.current_hull, never writes it.
 func apply_hull() -> void:
 	if _ship == null or not is_instance_valid(_ship):
 		return
-	if ship_max_hull <= 0:
+	# Dev-lab override: an explicit max/current pair set via the Hull sliders.
+	if ship_max_hull > 0:
+		var mh: int = maxi(1, ship_max_hull)
+		var h: int = clampi(ship_hull if ship_hull >= 0 else mh, 0, mh)
+		if "max_hull" in _ship:
+			_ship.max_hull = mh
+		if "hull" in _ship:
+			_ship.hull = h
+		if _ship.has_signal("hull_changed"):
+			_ship.hull_changed.emit(mh, h)
 		return
-	var mh: int = maxi(1, ship_max_hull)
-	var h: int = clampi(ship_hull, 0, mh)
-	if "max_hull" in _ship:
-		_ship.max_hull = mh
-	if "hull" in _ship:
-		_ship.hull = h
+	# Production: keep the player's loadout-derived max_hull; load current hull from Run like combat
+	# (main.gd: player.hull = mini(run.current_hull, player.max_hull); left at max when unsaved).
+	var max_h: int = int(_ship.max_hull) if "max_hull" in _ship else 1
+	var run := get_node_or_null("/root/Run")
+	if run != null and "current_hull" in run and int(run.current_hull) > 0 and "hull" in _ship:
+		_ship.hull = mini(int(run.current_hull), max_h)
 	if _ship.has_signal("hull_changed"):
-		_ship.hull_changed.emit(mh, h)
+		_ship.hull_changed.emit(max_h, int(_ship.hull) if "hull" in _ship else max_h)
 
 
 func _build_title() -> void:
