@@ -18,20 +18,19 @@ var _cases := [
 	{"label": "spin→instakill", "style": "spinout", "cfg": {"resolution": "instakill"}},
 	{"label": "spin→flashout", "style": "spinout", "cfg": {"resolution": "flashout"}},
 	{"label": "spin→wreck", "style": "spinout", "cfg": {"resolution": "wreck"}},
-	{"label": "spin→descent", "style": "spinout", "cfg": {"resolution": "descent"}},
 	{"label": "spin→blowout", "style": "spinout", "cfg": {"resolution": "blow_out"}},
 	{"label": "spin→random", "style": "spinout", "cfg": {}},
 	{"label": "flashout", "style": "flashout", "cfg": {}},
 	{"label": "instakill", "style": "instakill", "cfg": {}},
 	{"label": "blow_out", "style": "blow_out", "cfg": {}},
 	{"label": "wreck", "style": "wreck", "cfg": {}},
-	{"label": "descent", "style": "descent", "cfg": {}},
+	{"label": "wreck2", "style": "wreck", "cfg": {}},   # 2nd run — the shrink variant is random per play
 	{"label": "random(lg)", "style": "random", "cfg": {}},
 	{"label": "random(sm)", "style": "random", "cfg": {}, "small": true},
 	{"label": "sm flashout", "style": "flashout", "cfg": {}, "small": true},
-	# Small hosts exercise the SMOULDER trail (Line2D smoke + spark + torch shader) instead of fire.
+	# Small hosts exercise the SMOULDER trail (Line2D smoke + spark + torch shader) + the spark taper.
 	{"label": "sm wreck", "style": "wreck", "cfg": {}, "small": true},
-	{"label": "sm spin→descent", "style": "spinout", "cfg": {"resolution": "descent"}, "small": true},
+	{"label": "sm wreck2", "style": "wreck", "cfg": {}, "small": true},
 ]
 var _i := -1
 var _t := 0.0

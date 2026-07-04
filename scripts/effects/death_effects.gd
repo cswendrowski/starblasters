@@ -17,23 +17,22 @@ extends Node2D
 # RANDOMIZES per play (each death varies). play()'s cfg overrides the schema.
 #
 # The styles:
+#   random    — half spinout(→resolution), half a size-gated resolution straight away.
 #   spinout   — ball-blast over an engine, ignite a size-based trail, keep the heading it died with +
 #               veer toward the nearer edge while tumbling, then RESOLVE into instakill / flashout /
-#               wreck / descent (lab Resolution dropdown; random in production).
-#   flashout  — the default look: circle blasts + a brief disintegrate.
-#   instakill — just explode with debris/sparks/embers, gone immediately.
-#   blow_out  — slump + DARKEN + SHRINK while a cascade of blasts ERUPTS from weighted hull markers
-#               (engines favoured), each leaving a spark trail, then slips off.
-#   wreck     — the damaged hull drifts in its heading until off-screen; fire trail tapers → smoke +
-#               sparks linger. (Also spinout's "wreck" resolution.)
-#   descent   — like wreck but keeps shrinking + receding into the backdrop tint until ~1px / off.
-#               (Also spinout's "descent" resolution.)
+#               wreck / blow_out (lab Resolution dropdown; random in production).
+#   flashout  — circle blasts + a spark cone in the travel direction + a brief disintegrate (small/tiny).
+#   instakill — explode; debris matches the enemy's velocity going into the kill (any size).
+#   blow_out  — slump + DARKEN + SHRINK while ball-pops ripple across weighted hull markers (medium+).
+#   wreck     — the damaged hull keeps its momentum + drifts off-screen while shrinking; fire trail
+#               tapers → smoke + sparks (spark density tapers with the shrink). Randomly a shallow shrink
+#               or a deep, slow shrink that recedes away. (Also spinout's "wreck" resolution.)
 
 signal finished
 
-const STYLES := ["random", "spinout", "flashout", "instakill", "blow_out", "wreck", "descent"]
+const STYLES := ["random", "spinout", "flashout", "instakill", "blow_out", "wreck"]
 # Spinout resolutions (how the spin-out ends). "random" picks uniformly among the concrete four.
-const RESOLUTIONS := ["random", "instakill", "flashout", "wreck", "descent", "blow_out"]
+const RESOLUTIONS := ["random", "instakill", "flashout", "wreck", "blow_out"]
 
 const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
 const ShipDebrisEmber = preload("res://scripts/effects/ship_debris_ember.gd")
@@ -41,7 +40,6 @@ const EmberFx = preload("res://scripts/effects/ember_fx.gd")
 const BurnFx = preload("res://scripts/effects/burn_fx.gd")
 const SparkTrailFx = preload("res://scripts/effects/spark_trail_fx.gd")
 const DamageSmokeTrail = preload("res://scripts/effects/damage_smoke_trail.gd")
-const MidDepth = preload("res://scripts/effects/mid_depth_presentation.gd")
 const BURNING_TRAIL := preload("res://scenes/effects/burning_trail.tscn")
 const TORCH_SHADER := preload("res://graphics/torch_fire.gdshader")
 
@@ -49,10 +47,9 @@ const TORCH_SHADER := preload("res://graphics/torch_fire.gdshader")
 # (black smoke + sparks + a small torch, the debris-ember look).
 const LARGE_SIZE := 2.5
 const SPINOUT_LEAD := 0.6        # seconds of pure spin-out before it resolves
-const DESCENT_SHRINK_TIME := 2.5 # descent shrink-to-1px duration (ease-out, like blow_out)
-const DESCENT_MIN_SCALE := 0.04  # ~1px for a 16px sprite
-const DRIFT_SAFETY := 8.0        # wreck/descent finish backstop if it never leaves the frame
-const DRIFT_DECEL := 18.0        # wreck/descent momentum decay (px/s²) toward the drift floor
+const DRIFT_SAFETY := 8.0        # wreck finish backstop if it never leaves the frame
+const DRIFT_DECEL := 18.0        # wreck momentum decay (px/s²) toward the drift floor
+const WRECK_SHRINK_TIME_MAX := 6.0  # deepest-shrink variant duration (smaller shrink = slower)
 
 # The hull-ripple explosion (Roman's lab tune) — small fast ball-pops, no glow/shockwave/sparks/debris.
 # Used per blast in the blow-out cascade; the cascade (blast_count over blast_window) ripples them
@@ -112,23 +109,17 @@ const STYLE_KNOBS := {
 		{"key": "max_dur", "label": "Max duration (s)", "min": 1.0, "max": 8.0, "step": 0.5, "def": 6.0},
 		{"key": "glow_flicker_time", "label": "Glow flicker (s)", "min": 0.0, "max": 1.0, "step": 0.05, "def": 0.3},
 	],
-	# Wreck / descent RETAIN the entry momentum (they don't reset to a fixed drift speed — see
-	# _begin_drift). veer/spin/swirl/amp reuse the spinout_* keys (the cork tick reads them), relabeled.
+	# Wreck RETAINS the entry momentum (decays to a drift). Per play it randomly does either the shallow
+	# shrink (shrink_to / shrink_time) or a DEEP shrink (down to 0.1) whose duration scales up as the
+	# shrink deepens (to WRECK_SHRINK_TIME_MAX at the smallest). veer/spin/swirl/amp reuse the spinout_*
+	# keys (the cork tick reads them), relabeled.
 	"wreck": [
 		{"key": "spinout_veer", "label": "Edge veer", "min": 0.0, "max": 1.0, "step": 0.05, "def": 0.2},
 		{"key": "spinout_spin", "label": "Tumble (rad/s)", "min": 0.0, "max": 10.0, "step": 0.25, "def": 0.5},
 		{"key": "spinout_swirl", "label": "Swirl freq", "min": 0.0, "max": 20.0, "step": 0.5, "def": 1.0},
 		{"key": "spinout_amp", "label": "Wobble amp", "min": 0.0, "max": 120.0, "step": 5.0, "def": 10.0},
-		{"key": "shrink_to", "label": "Shrink to (×)", "min": 0.2, "max": 1.0, "step": 0.02, "def": 0.6},
-		{"key": "shrink_time", "label": "Shrink time (s)", "min": 0.5, "max": 6.0, "step": 0.1, "def": 3.0},
-		{"key": "glow_flicker_time", "label": "Glow flicker (s)", "min": 0.0, "max": 1.0, "step": 0.05, "def": 0.3},
-	],
-	"descent": [
-		{"key": "spinout_veer", "label": "Edge veer", "min": 0.0, "max": 1.0, "step": 0.05, "def": 0.15},
-		{"key": "spinout_spin", "label": "Tumble (rad/s)", "min": 0.0, "max": 10.0, "step": 0.25, "def": 0.5},
-		{"key": "spinout_swirl", "label": "Swirl freq", "min": 0.0, "max": 20.0, "step": 0.5, "def": 1.0},
-		{"key": "spinout_amp", "label": "Wobble amp", "min": 0.0, "max": 120.0, "step": 5.0, "def": 8.0},
-		{"key": "shrink_time", "label": "Shrink to 1px (s)", "min": 0.5, "max": 6.0, "step": 0.1, "def": 2.5},
+		{"key": "shrink_to", "label": "Shrink to (×, shallow)", "min": 0.2, "max": 1.0, "step": 0.02, "def": 0.6},
+		{"key": "shrink_time", "label": "Shrink time (s, shallow)", "min": 0.5, "max": 6.0, "step": 0.1, "def": 3.0},
 		{"key": "glow_flicker_time", "label": "Glow flicker (s)", "min": 0.0, "max": 1.0, "step": 0.05, "def": 0.3},
 	],
 }
@@ -157,14 +148,17 @@ var _cork_lateral: Vector2 = Vector2.ZERO  # unit perpendicular toward the neare
 var _cork_t: float = 0.0
 var _spin: float = 0.0
 var _cork_speed: float = 40.0              # current cork/drift speed (fixed for spinout, momentum for wreck)
-var _keep_momentum: bool = false           # wreck/descent: decay the entry speed toward a floor, don't reset it
+var _keep_momentum: bool = false           # wreck: decay the entry speed toward a floor, don't reset it
 var _drift_floor: float = 15.0             # momentum decay floor (retain forward motion)
 var _resolution: String = "instakill"      # spin-out ending
-var _drift_off: bool = false               # wreck/descent: keep drifting until off-screen
-var _descent: bool = false                 # descent: shrink all the way to ~1px + recede (vs wreck's partial shrink)
-var _shrinking: bool = false               # shrink the hull each tick (wreck + descent)
+var _drift_off: bool = false               # wreck: keep drifting until off-screen
+var _shrinking: bool = false               # shrink the hull each tick (wreck)
 var _shrink0: Vector2 = Vector2.ONE
 var _shrink_t: float = 0.0
+var _shrink_target: float = 0.6            # wreck shrink end scale (this play's variant)
+var _shrink_dur: float = 3.0               # wreck shrink duration (this play's variant)
+var _shrink_finishes: bool = false         # deep-shrink variant ends the death when fully shrunk
+var _spark_emitters: Array = []            # spark GPUParticles2D to taper (amount_ratio) as it shrinks
 var _drift_t: float = 0.0
 var _trails: Array = []           # every trail node (fire / smoke / spark / torch), lingered on finish
 var _fire_parts: Array = []       # the FIRE bits (BURNING_TRAIL emitter / torch) to taper on fire→smoke
@@ -212,8 +206,6 @@ func play(host: Node2D, style: String, cfg: Dictionary = {}, travel: Vector2 = V
 			_run_blowout()
 		"wreck":
 			_run_wreck()
-		"descent":
-			_run_descent()
 		_:
 			_run_flashout()
 
@@ -266,8 +258,6 @@ func _run_random() -> void:
 			_run_flashout()
 		"wreck":
 			_run_wreck()
-		"descent":
-			_run_descent()
 		"blow_out":
 			_run_blowout()
 		_:
@@ -304,11 +294,7 @@ func _run_spinout() -> void:
 			_finish()
 		"wreck":
 			_fire_to_smoke()
-			_begin_shrink_drift(false)   # keep the cork motion; add shrink + off-screen finish
-		"descent":
-			_fire_to_smoke()
-			_apply_recede_tint()
-			_begin_shrink_drift(true)
+			_begin_shrink_drift()   # keep the cork motion; add shrink + off-screen finish
 		"blow_out":
 			_run_blowout()
 		_:
@@ -346,9 +332,11 @@ func _spark_cone(dir: Vector2) -> void:
 	})
 
 
-# Standalone wreck: the damaged hull sinks + drifts in its heading until off-screen; a brief fire
-# trail tapers into smoke + sparks. (Spinout's "wreck" resolution reuses the same drift + fire→smoke.)
+# Standalone wreck: the damaged hull KEEPS GLIDING as it sinks (no stop-then-go hitch), a brief fire
+# trail tapers into smoke + sparks, then it retains its momentum and drifts off-screen while shrinking.
 func _run_wreck() -> void:
+	_cork_travel = _travel.normalized() if _travel.length() > 0.1 else Vector2.DOWN
+	_phase = "glide"          # keep moving through the fire→smoke beat, so the drift transition is smooth
 	_to_wreck_layer()
 	_ignite_trail()
 	_cull_host_overlays()
@@ -356,25 +344,12 @@ func _run_wreck() -> void:
 	if not _valid():
 		return
 	_fire_to_smoke()
-	_begin_drift(false)
+	_begin_drift()
 
 
-# Standalone descent: like wreck, but keeps shrinking toward ~1px + recedes into the backdrop tint.
-func _run_descent() -> void:
-	_to_wreck_layer()
-	_ignite_trail()
-	_cull_host_overlays()
-	await _wait(0.15)
-	if not _valid():
-		return
-	_fire_to_smoke()
-	_apply_recede_tint()
-	_begin_drift(true)
-
-
-# Standalone wreck/descent: RETAIN the entry momentum (like blow-out) — decay it toward a floor, not
-# reset to a fixed speed — plus a veer/wobble/tumble, and shrink while drifting off-screen.
-func _begin_drift(is_descent: bool) -> void:
+# Standalone wreck: RETAIN the entry momentum (like blow-out) — decay it to a drift — plus a
+# veer/wobble/tumble, and shrink while drifting off-screen (variant picked in _pick_shrink_variant).
+func _begin_drift() -> void:
 	if not _host_ok():
 		_finish()
 		return
@@ -383,27 +358,38 @@ func _begin_drift(is_descent: bool) -> void:
 	_pick_edge_lateral()
 	_cork_speed = maxf(_travel.length(), 20.0)     # keep the incoming speed
 	_keep_momentum = true
-	_drift_floor = maxf(15.0, _cork_speed * 0.4)   # never fully stop — retain forward motion
-	_shrinking = true
-	_shrink0 = _host.scale
-	_shrink_t = 0.0
-	_descent = is_descent
+	_drift_floor = maxf(15.0, _cork_speed * 0.4)   # decays to a drift, never fully stops
+	_pick_shrink_variant()
 	_drift_off = true
 	_cork_t = 0.0
 	_drift_t = 0.0
 	_phase = "cork"
 
 
-# Spinout's wreck/descent resolution: the cork is already running (fixed spin-out speed) — just add the
-# shrink + off-screen finish, keeping its motion.
-func _begin_shrink_drift(is_descent: bool) -> void:
+# Spinout's wreck resolution: the cork is already running (fixed spin-out speed) — just add the shrink
+# variant + off-screen finish, keeping its motion.
+func _begin_shrink_drift() -> void:
 	if not _host_ok():
 		return
+	_pick_shrink_variant()
+	_drift_off = true
+
+
+# Wreck randomly does one of two shrinks per play: a SHALLOW shrink (shrink_to/shrink_time, drifts off),
+# or a DEEP shrink (down to ~0.1) whose duration scales UP as it deepens (to WRECK_SHRINK_TIME_MAX at
+# the smallest) and which ENDS the death when fully shrunk (receded into the distance).
+func _pick_shrink_variant() -> void:
 	_shrinking = true
 	_shrink0 = _host.scale
 	_shrink_t = 0.0
-	_descent = is_descent
-	_drift_off = true
+	if randf() < 0.5:
+		_shrink_target = _c("shrink_to", 0.6)
+		_shrink_dur = _c("shrink_time", 3.0)
+		_shrink_finishes = false
+	else:
+		_shrink_target = randf_range(0.1, 0.5)
+		_shrink_dur = remap(_shrink_target, 0.1, 0.5, WRECK_SHRINK_TIME_MAX, _c("shrink_time", 3.0))
+		_shrink_finishes = true
 
 
 # Blow-out: keep downward momentum, decelerate to a drift, DARKEN + SHRINK, and erupt a cascade of
@@ -434,14 +420,18 @@ func _tick_cork(delta: float) -> void:
 	var veer: Vector2 = _cork_lateral * (_cork_speed * _c("spinout_veer", 0.4))
 	_host.global_position += (_cork_travel * _cork_speed + veer + wob) * delta
 	_host.rotation += _spin * delta
-	# Shrink (wreck = partial toward shrink_to; descent = all the way to ~1px), ease-out (blow-out model).
+	# Shrink toward this play's target (shallow or deep variant), ease-out (blow-out model).
 	if _shrinking:
 		_shrink_t += delta
-		var f: float = clampf(_shrink_t / _c("shrink_time", DESCENT_SHRINK_TIME), 0.0, 1.0)
+		var f: float = clampf(_shrink_t / maxf(0.01, _shrink_dur), 0.0, 1.0)
 		var e: float = 1.0 - pow(1.0 - f, 2.0)
-		var target: float = DESCENT_MIN_SCALE if _descent else _c("shrink_to", 0.6)
-		_host.scale = _shrink0.lerp(_shrink0 * target, e)
-		if _descent and f >= 1.0:   # descent reached ~1px
+		_host.scale = _shrink0.lerp(_shrink0 * _shrink_target, e)
+		# Taper the spark density with the shrink — fewer sparks as it recedes into the distance.
+		var frac: float = clampf(_host.scale.x / maxf(0.001, _shrink0.x), 0.0, 1.0)
+		for em in _spark_emitters:
+			if em != null and is_instance_valid(em):
+				em.amount_ratio = frac
+		if _shrink_finishes and f >= 1.0:   # deep shrink complete — receded away, done
 			_finish()
 			return
 	if not _drift_off:
@@ -505,6 +495,7 @@ func _ignite_trail() -> void:
 				if spp != null:
 					spp.local_coords = false
 					spp.emitting = true
+					_spark_emitters.append(spp)   # tapered by amount_ratio as the wreck shrinks
 				_trails.append(sp)
 			var torch: ColorRect = _make_smoulder_torch(p)
 			_host.add_child(torch)
@@ -513,7 +504,7 @@ func _ignite_trail() -> void:
 	_has_smoke = not large
 
 
-# Wreck / descent transition: taper off the fire (BURNING_TRAIL emitter stops / torch fades) and make
+# Wreck transition: taper off the fire (BURNING_TRAIL emitter stops / torch fades) and make
 # sure a smoke stream is running, so the fire hands off to smoke + sparks that linger behind.
 func _fire_to_smoke() -> void:
 	for fp in _fire_parts:
@@ -714,22 +705,6 @@ func _to_wreck_layer() -> void:
 		_body.modulate = _body.modulate.darkened(0.35)
 
 
-# Descent resolution: haze the body toward the level's mid-parallax grade (recede into the backdrop),
-# using the shared MidDepthPresentation depth-tint. Grade-matches the live backdrop if one is present.
-func _apply_recede_tint() -> void:
-	if _body == null or not is_instance_valid(_body):
-		return
-	MidDepth.recede_body(_body, _find_backdrop(), MidDepth.WRECK_TINT, MidDepth.WRECK_AMOUNT)
-
-
-# The combat scene's BackdropCoordinator ("Backdrop") to grade-match against, or null (lab / bare).
-func _find_backdrop() -> Node:
-	var cs: Node = get_tree().current_scene if get_tree() != null else null
-	if cs != null:
-		return cs.get_node_or_null("Backdrop")
-	return null
-
-
 # Spin-out launch: keep the heading the ship died with (never reverse), and veer toward whichever
 # PERPENDICULAR screen edge is nearer.
 func _start_corkscrew() -> void:
@@ -737,7 +712,7 @@ func _start_corkscrew() -> void:
 		return
 	_spin = _c("spinout_spin", 0.5) * (1.0 if randf() < 0.5 else -1.0)
 	_cork_travel = _travel.normalized() if _travel.length() > 0.1 else Vector2.DOWN
-	_cork_speed = _c("spinout_speed", 40.0)   # fixed tumble speed (spinout); wreck/descent use momentum
+	_cork_speed = _c("spinout_speed", 40.0)   # fixed tumble speed (spinout); wreck uses momentum
 	_keep_momentum = false
 	_shrinking = false
 	_drift_off = false
@@ -823,10 +798,10 @@ func _resolve_resolution() -> String:
 	return r
 
 
-# A random resolution valid for this hull's SIZE: instakill/wreck/descent for anyone, flashout only for
+# A random resolution valid for this hull's SIZE: instakill/wreck for anyone, flashout only for
 # small/tiny (< 1.5), blow_out only for medium+ (>= 1.5).
 func _pick_gated_resolution() -> String:
-	var opts := ["instakill", "wreck", "descent"]
+	var opts := ["instakill", "wreck"]
 	if _size_scale < 1.5:
 		opts.append("flashout")
 	else:
