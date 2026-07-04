@@ -103,7 +103,15 @@ func _process(delta: float) -> void:
 			continue
 		_scroll[layer] += delta * _flight * float(LAYER_RATE[layer])
 		var rect = _nebula_rects.get(layer)
-		if rect and is_instance_valid(rect) and rect.material:
+		if rect == null or not is_instance_valid(rect):
+			continue
+		# The stellar layers are CanvasLayers that scroll by accumulating `offset.y` (their stars get
+		# re-wrapped in _on_scrolled). A full-screen nebula quad would just slide off with that offset,
+		# so cancel it here — the quad stays screen-fixed and the SHADER's scroll_offset does the drift.
+		var host := _layer_node(layer) as CanvasLayer
+		if host != null and is_instance_valid(host):
+			rect.position = Vector2(0.0, -host.offset.y)
+		if rect.material:
 			rect.material.set_shader_parameter("scroll_offset", Vector2(0.0, SCROLL_DIR * _scroll[layer]))
 
 
@@ -425,7 +433,7 @@ func _fmt(v) -> String:
 
 
 func _on_close() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev/dev_menu.tscn")
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev_menu.tscn")
 
 
 # ---- Small helpers --------------------------------------------------------
