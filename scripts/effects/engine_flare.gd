@@ -5,6 +5,7 @@ class_name EngineFlare
 # flipped vertically so the burst points out the rear of the exhaust.
 # Additive blend; renders BEHIND the (tiny) projectile body. Self-animating.
 const STRIP := preload("res://graphics/gun_muzzle_flash.png")
+const VfxGlow = preload("res://scripts/effects/vfx_glow_config.gd")
 const HFRAMES := 5
 const ANIM_FPS := 14.0
 const FLARE_SCALE := 0.55   # 16px flash over a 4-6px body — tune via capture
@@ -28,6 +29,9 @@ func _ready() -> void:
 	var mat := CanvasItemMaterial.new()
 	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	material = mat
+	# HDR-bright by the tuned "engines" multiplier so the WorldEnvironment bloom lights the plume
+	# (the missile BODY stays a plain 1x sprite by design; only this thruster flare blooms).
+	self_modulate = VfxGlow.prod_hdr("engines")
 
 func _process(delta: float) -> void:
 	_t += delta

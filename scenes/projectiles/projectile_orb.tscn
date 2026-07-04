@@ -10,7 +10,6 @@ radius = 5.0
 script = ExtResource("2_script")
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1957011595]
-modulate = Color(1.4586968, 1.4586968, 1.4586968, 1)
 texture = ExtResource("1_22sdl")
 hframes = 4
 
