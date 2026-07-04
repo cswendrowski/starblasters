@@ -71,6 +71,8 @@ func _build_beam() -> void:
 	# line along its path during windup.
 	_beam.telegraph_color = LASER_WARN
 	_beam.telegraph_width = 2.0
+	# Grow-in (thin white line → full width) then shrink + flicker out at the end (Roman 2026-07-02).
+	_beam.envelope = true
 	if beam_kind == "main":
 		# Fire FROM the BeamStart marker TOWARD the BeamMuzzle marker (out the muzzle), on down the lane.
 		# LOCAL_FORWARD + the marker-derived direction means it always points start→muzzle in world space,
@@ -142,7 +144,7 @@ func set_active(on: bool) -> void:
 	if on:
 		_beam.begin()
 	else:
-		_beam.stop()
+		_beam.fade_out()   # graceful shrink+flicker OUT (same in/out as the lane laser), not a hard cut
 
 
 # The full warn→fire→vanish duration of ONE beam cycle — the boss waits this out (main laser) before it
@@ -253,4 +255,4 @@ func _main_death_cascade() -> void:
 		if delay <= 0.001:
 			boom.call()
 		else:
-			tree.create_timer(delay).timeout.connect(boom)
+			tree.create_timer(delay, false).timeout.connect(boom)   # false = pause with the game

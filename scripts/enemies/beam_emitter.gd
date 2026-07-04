@@ -65,6 +65,16 @@ var pierce: bool = true                        # false = stop visual+damage at f
 var friendly_fire: bool = false
 var ignore_owner: Node = null
 
+# Width ENVELOPE (Roman 2026-07-02): when on, the lethal beam comes in as a thin (white-cored) line that
+# rapidly grows to full width, holds, then shrinks back down + flickers out over the tail of FIRING.
+# Default off → existing beams draw at full width the whole time.
+var envelope: bool = false
+var envelope_grow: float = 0.15    # rapid grow-in at fire onset
+var envelope_shrink: float = 0.45  # shrink + flicker over the tail of firing
+var _base_widths: Array = []       # authored layer widths (envelope scales these)
+var _fading: bool = false          # graceful shrink+flicker OUT (fade_out) mid-firing instead of a hard cut
+var _fade_t: float = 0.0
+
 # --- visuals: layer table [{width, color}], widest first; empty = default stack ---
 var layers: Array = []
 var telegraph_color: Color = Color(1.0, 0.95, 0.35, 0.5)
@@ -110,6 +120,16 @@ func begin() -> void:
 func stop() -> void:
 	_hide_all()
 	_set_phase(Phase.OFF)
+
+
+# Graceful stop: if currently FIRING with an envelope, play the shrink+flicker OUT (like the natural end
+# of firing) before hiding — so an early cut looks the same as a full cycle. Else stop immediately.
+func fade_out() -> void:
+	if _phase == Phase.FIRING and envelope and not _fading:
+		_fading = true
+		_fade_t = 0.0
+	else:
+		stop()
 
 
 func is_firing() -> bool:
@@ -168,6 +188,8 @@ func set_locked_aim(world_dir: Vector2) -> void:
 func _set_phase(p: int) -> void:
 	_phase = p
 	_t = 0.0
+	_fading = false
+	_fade_t = 0.0
 	phase_changed.emit(p)
 
 
@@ -217,8 +239,14 @@ func _process(delta: float) -> void:
 			if _t >= windup_time:
 				_set_phase(Phase.FIRING)
 		Phase.FIRING:
+			if _fading:
+				_fade_t += delta
+				if _fade_t >= envelope_shrink:
+					stop()
+					return
 			_show_lethal()
-			_apply_damage(delta)
+			if not _fading:
+				_apply_damage(delta)   # a fading beam stops dealing damage as it shrinks out
 			if cycle != Cycle.HOLD and _t >= firing_time:
 				_enter_after_firing()
 		Phase.COOLDOWN:
@@ -395,8 +423,11 @@ func _ensure_visuals() -> void:
 	if not _lines.is_empty():
 		return
 	var tbl: Array = layers if not layers.is_empty() else _default_layers()
+	_base_widths.clear()
 	for spec in tbl:
-		_lines.append(_make_line(spec.get("color", Color.WHITE), spec.get("width", 4.0)))
+		var w: float = spec.get("width", 4.0)
+		_base_widths.append(w)
+		_lines.append(_make_line(spec.get("color", Color.WHITE), w))
 	_telegraph = _make_line(telegraph_color, telegraph_width)
 	for l in _lines:
 		add_child(l)
@@ -427,9 +458,27 @@ func _line_points() -> PackedVector2Array:
 func _show_lethal() -> void:
 	_ensure_visuals()
 	var pts := _line_points()
-	for l in _lines:
+	var wscale := 1.0
+	var alpha := 1.0
+	if envelope:
+		var ft: float = maxf(0.05, firing_time)
+		if _fading:
+			wscale = clampf(1.0 - _fade_t / maxf(0.01, envelope_shrink), 0.0, 1.0)   # early-cut shrink
+			alpha = 1.0 if fmod(_fade_t * 34.0, 1.0) < 0.5 else 0.2                   # flicker out
+		elif _t < envelope_grow:
+			wscale = clampf(_t / maxf(0.01, envelope_grow), 0.05, 1.0)   # rapid grow-in (thin white → full)
+		elif _t > ft - envelope_shrink:
+			wscale = clampf((ft - _t) / maxf(0.01, envelope_shrink), 0.0, 1.0)   # natural shrink at the end
+			alpha = 1.0 if fmod(_t * 34.0, 1.0) < 0.5 else 0.2                    # flicker out
+	for i in _lines.size():
+		var l: Line2D = _lines[i]
 		l.visible = true
 		l.points = pts
+		if envelope:
+			l.width = maxf(0.1, float(_base_widths[i]) * wscale) if i < _base_widths.size() else l.width
+			var m: Color = l.modulate
+			m.a = alpha
+			l.modulate = m
 	if _telegraph:
 		_telegraph.visible = false
 

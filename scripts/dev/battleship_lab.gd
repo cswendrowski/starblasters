@@ -16,17 +16,23 @@ const WaveGen = preload("res://scripts/levels/wave_generator.gd")
 const BOSS_SCENE := "res://scenes/enemies/factions/zealot/boss_z_battleship.tscn"
 const CONFIG_PATH := "user://tuners/battleship.json"
 
-# key (= the boss @export var), label, min, max, step
+# key (= the boss @export var), label, min, max, step. The physics-inspired thrust model (2026-07-02):
+# accels + drags + caps + depth + the fly-to pilot gains.
 const KNOBS := [
 	["HIGH_HOLD_Y", "High hold Y (px)", 20.0, 150.0, 2.0],
-	["HOOK_RISE_SPEED", "Hook rise speed", 20.0, 220.0, 5.0],
-	["HOOK_DIVE_SPEED", "Hook dive speed", 20.0, 260.0, 5.0],
-	["SLIDE_ENTER_SPEED", "Slide enter speed", 20.0, 220.0, 5.0],
-	["SLIDE_CROSS_SPEED", "Slide cross speed", 20.0, 220.0, 5.0],
-	["SLIDE_EXIT_SPEED", "Slide exit speed", 20.0, 260.0, 5.0],
-	["FLEE_SPEED", "Flee speed", 60.0, 400.0, 10.0],
-	["ROTATE_SLIDE_DUR", "Rotate-slide dur (s)", 0.5, 4.0, 0.1],
-	["ROTATE_TO_DOWN_DUR", "Pivot-down dur (s)", 0.3, 3.0, 0.1],
+	["MAIN_ACCEL", "Main thrust accel", 60.0, 700.0, 10.0],
+	["STRAFE_ACCEL", "Strafe accel", 40.0, 700.0, 10.0],
+	["MAX_SPEED", "Max speed (px/s)", 40.0, 460.0, 10.0],
+	["LIN_DAMP", "Linear drag (1/s)", 0.4, 8.0, 0.1],
+	["RCS_ANG_ACCEL", "RCS yaw accel", 0.5, 12.0, 0.2],
+	["MAX_ANG_SPEED", "Max yaw rate", 0.4, 5.0, 0.1],
+	["ANG_DAMP", "Yaw drag (1/s)", 0.5, 8.0, 0.1],
+	["DEPTH_ACCEL", "Depth dive accel", 1.0, 14.0, 0.5],
+	["DEPTH_SPRING", "Depth restore spring", 1.0, 14.0, 0.5],
+	["DEPTH_DAMP", "Depth drag", 1.0, 12.0, 0.5],
+	["ARRIVE_RADIUS", "Arrive radius (px)", 15.0, 120.0, 2.0],
+	["FACE_GAIN", "Yaw P gain", 1.0, 16.0, 0.5],
+	["FACE_DAMP", "Yaw D gain", 0.2, 6.0, 0.1],
 	["BEAM_HOLD", "Beam hold (s)", 0.5, 8.0, 0.25],
 	["BLOCKADE_HOLD", "Blockade hold (s)", 0.5, 8.0, 0.25],
 	["HAZARD_MIN_GAP", "Hazard gap MIN (s)", 2.0, 20.0, 0.5],

@@ -40,34 +40,71 @@ const MountSpecC = preload("res://scripts/enemies/mounts/mount_spec.gd")
 const TurretTex = preload("res://graphics/enemies/zealot-tank-turret.png")
 const BoltVariant = preload("res://data/bullets/zealot_bolt.tres")
 const FirecoreHazard = preload("res://scenes/enemies/factions/zealot/firecore_hazard.tscn")
+const EngineFlareC = preload("res://scripts/effects/engine_flare.gd")
 # MountBuilder is an inherited const from enemy_base; referenced by its bare name below.
 
+# THRUSTER LAYOUT (local coords, nose = -Y; plume_rotation = where the EngineFlare plume POINTS, i.e.
+# opposite the thrust). Groups: main = rear forward; spos/sneg = side STRAFE jets (spos pushes local +x
+# → left-flank jets w/ plume left; sneg pushes -x); ycw/yccw = the diagonal RCS pairs that yaw the hull;
+# top = inner divers (into the background). Roman 2026-07-02 (see the reference sketch).
+const THRUSTER_DEFS := [
+	["main", Vector2(-32, 138), 0.0], ["main", Vector2(32, 138), 0.0],
+	["spos", Vector2(-54, -28), 0.5 * PI], ["spos", Vector2(-54, 88), 0.5 * PI],
+	["sneg", Vector2(54, -28), -0.5 * PI], ["sneg", Vector2(54, 88), -0.5 * PI],
+	["ycw", Vector2(-46, -88), 0.5 * PI], ["ycw", Vector2(46, 122), -0.5 * PI],
+	["yccw", Vector2(46, -88), -0.5 * PI], ["yccw", Vector2(-46, 122), 0.5 * PI],
+	["top", Vector2(-13, -8), PI], ["top", Vector2(13, -8), PI],
+	["top", Vector2(-13, 42), PI], ["top", Vector2(13, 42), PI],
+]
+
 # Firecore release scatter (Roman 2026-07-01): fling the cores outward in a fan around a base direction,
-# then they settle into their normal drift.
-const FIRECORE_FAN_HALF_DEG := 55.0
-const FIRECORE_BURST_SPEED := 90.0
+# then they settle into their normal drift. Fan angle is derived from each core's WORLD x-offset (not
+# tree order) so both banks spread OUTWARD symmetrically — no reversed / twisted launch.
+const FIRECORE_FAN_HALF_DEG := 65.0    # base half-fan (widened per salvo)
+const FIRECORE_BURST_SPEED := 150.0    # more energy → spreads further into the lanes (Roman 2026-07-02)
+const FIRECORE_MAX_SALVOS := 5         # cap on the per-pass salvo count
+const FIRECORE_SALVO_GAP := 0.3        # beat between salvos in a volley
+const FIRECORE_FAN_STEP := 9.0         # each successive salvo widens the fan by this (deg), capped
+const FIRECORE_FAN_MAX := 88.0
+# Each SUBSEQUENT salvo launches slower (Roman 2026-07-02) so the salvos land at different depths — more
+# separated + covering more area — instead of clumping at one range.
+const FIRECORE_SALVO_SPEED_MULT := 0.72   # salvo k speed = BURST_SPEED * MULT^k
+const FIRECORE_SALVO_SPEED_MIN := 45.0
 
 const TURRET_HP := 64   # Roman 2026-07-01: turrets + side lasers cut to 64
 const TURRET_HITBOX := Vector2(16, 16)
 const HAZARD_MUZZLE_Y := 170.0   # off-screen ABOVE: -HAZARD_MUZZLE_Y puts the body off-top, muzzle near y=0
 
-# MOVEMENT / TIMING KNOBS (Roman 2026-07-02) — @export so the Battleship Lab (scenes/dev/battleship_lab)
-# can LIVE-TUNE the ponderous feel; kept UPPER_CASE so the maneuvers read them like the old consts. Tune
-# in the Lab → Copy GDScript → paste this block back. Deliberately SLOW — a heavy, ponderous mega-boss.
-@export var HIGH_HOLD_Y: float = 64.0        # the "high hold point" — where a hook maneuver comes to rest near the top
-@export var HOOK_RISE_SPEED: float = 65.0    # coming up the edge lane from behind
-@export var HOOK_DIVE_SPEED: float = 90.0    # diving out the bottom
-@export var SLIDE_ENTER_SPEED: float = 55.0  # foreground entry from the top (also covers the laser windup)
-@export var SLIDE_CROSS_SPEED: float = 60.0  # sidestepping across the play area
-@export var SLIDE_EXIT_SPEED: float = 90.0   # exiting off the bottom
-@export var FLEE_SPEED: float = 200.0        # retreat (survive-the-waves exit)
-@export var ROTATE_SLIDE_DUR: float = 1.8    # the rotate-slide swing (bigger = heavier / slower)
-@export var ROTATE_TO_DOWN_DUR: float = 1.1  # pivot-in-place back to nose-down at the end of a blockade
+# MOVEMENT — a physics-inspired THRUST-DRIVEN rigid body (Roman 2026-07-02, replaces the nose-pivot). The
+# ship has momentum: MAIN thrust pushes FORWARD ONLY (no reverse) along the nose; RCS torque swings it
+# about its centre of mass; inner "top" thrusters dive it into the background (spring-restored to the
+# fore). Station-keeping trim (LIN/ANG_DAMP) bleeds momentum so it always eases to a controllable stop.
+# @export so the Battleship Lab live-tunes the heft; tune → Copy GDScript → paste this block back.
+@export var HIGH_HOLD_Y: float = 64.0        # the high-hold latitude a hook comes to rest at
+@export var MAIN_ACCEL: float = 380.0        # forward thrust (px/s²) along the nose
+@export var STRAFE_ACCEL: float = 360.0      # LATERAL thrust (side thrusters) — it PREFERS to strafe, not turn
+@export var MAX_SPEED: float = 200.0         # linear speed cap (keep < the 480 px/s clarity ceiling)
+@export var LIN_DAMP: float = 3.0            # station-keeping drag (proportional, 1/s) → always eases to a stop
+@export var RCS_ANG_ACCEL: float = 6.5       # yaw torque (rad/s²)
+@export var MAX_ANG_SPEED: float = 2.8       # yaw-rate cap (rad/s)
+@export var ANG_DAMP: float = 4.5            # yaw drag (proportional, 1/s)
+@export var DEPTH_ACCEL: float = 5.0         # top-thruster dive accel (1/s²)
+@export var DEPTH_SPRING: float = 6.0        # restoring pull back to the foreground
+@export var DEPTH_DAMP: float = 4.0
+@export var ARRIVE_RADIUS: float = 52.0      # cut thrust + orient to the final heading within this of the target
+@export var FACE_GAIN: float = 6.0           # yaw controller P gain
+@export var FACE_DAMP: float = 1.5           # yaw controller D gain
 @export var BEAM_HOLD: float = 3.0           # hold in the centre lane while the main laser fires down it
 @export var BLOCKADE_HOLD: float = 3.5       # hold horizontal while turrets + side lasers rake down
 @export var HAZARD_MIN_GAP: float = 8.0      # stage-hazard cadence MIN (wave 3+)
 @export var HAZARD_MAX_GAP: float = 14.0     # stage-hazard cadence MAX
-@export var HAZARD_SWEEP_SPEED: float = 40.0 # how fast the sweep beam pans edge→centre
+@export var HAZARD_SWEEP_SPEED: float = 40.0 # off-screen sweep-beam pan speed
+
+# Fly-to release: proximity only (position + heading) — it carries momentum into the next leg for a
+# continuous, no-dead-air flow. Bounded by FLY_TIMEOUT so a maneuver can never hang the wave gate.
+const ARRIVE_TOL := 20.0
+const FACE_TOL := 0.16
+const FLY_TIMEOUT := 8.0
 
 const UNDER_LAYER_Z := -2        # draws behind gameplay (player/trail/bullets) but in front of the parallax CanvasLayers
 const BG_TINT := Color(0.5, 0.58, 0.72, 1.0)
@@ -85,6 +122,26 @@ var _hazards_active: bool = false  # stage hazards armed (from wave 3 = wave_idx
 var _hazard_loop_started: bool = false
 var _last_maneuver: String = ""    # anti-immediate-repeat
 var _side_flip: int = 0            # alternates the edge-lane side maneuvers start from
+var _firecore_passes: int = 0      # firecore launches so far → salvo count (1 per pass, widening)
+var _parts_max_total: int = 0      # sum of all part max_hp — drives the HP bar (the fight IS the parts)
+
+# --- thrust-driven rigid-body state (see the MOVEMENT knobs above) ---
+enum { M_IDLE, M_FLY, M_THROUGH, M_FACE }   # pilot target modes
+var _vel: Vector2 = Vector2.ZERO   # world linear velocity (px/s)
+var _ang_vel: float = 0.0          # angular velocity (rad/s)
+var _depth: float = 0.0            # 0 = foreground, 1 = deep background
+var _depth_vel: float = 0.0
+var _last_hittable: bool = true    # parts-hittable state (retoggled when depth crosses 0.5)
+var _tgt_mode: int = M_IDLE
+var _tgt_pos: Vector2 = Vector2.ZERO
+var _tgt_heading: float = 0.0
+var _tgt_depth: float = 0.0
+var _fly_dir: Vector2 = Vector2.DOWN
+var _cmd_throttle: float = 0.0     # last-frame thruster commands (drive the flares)
+var _cmd_strafe: float = 0.0       # lateral thrust command (+ = local +x / right)
+var _cmd_yaw: float = 0.0
+var _cmd_dive: float = 0.0
+var _flares: Dictionary = {}       # group name → Array[EngineFlare]
 
 
 func _ready() -> void:
@@ -110,9 +167,26 @@ func _ready() -> void:
 	# (z_as_relative); the beams' own z lifts them over. The body sprites are pinned absolutely below.
 	z_index = UNDER_LAYER_Z
 	_pin_body_under_layer()
+	# Disable the HULL's own collision shape so nothing on the body intercepts player shots — the ONLY
+	# hittable targets are the turret/laser parts (Roman 2026-07-02). monitorable=false already hides the
+	# hull from detection; this makes it explicit + covers any shapecast-style bullet.
+	for c in get_children():
+		if (c is CollisionShape2D or c is CollisionPolygon2D) and "disabled" in c:
+			c.disabled = true
 	_build_turrets()
 	_collect_lasers()
 	_fix_firecore_sorting()
+	_build_thruster_flares()
+	# HP bar reflects TOTAL part HP (the hull is unhittable — the fight is destroying the parts), so it
+	# drops meaningfully per turret/laser instead of barely moving. Overrides the cosmetic 1200.
+	_parts_max_total = 0
+	for p in live_parts():
+		if "max_hp" in p:
+			_parts_max_total += int(p.max_hp)
+	if _parts_max_total > 0:
+		max_health = _parts_max_total
+		health = _parts_max_total
+		health_changed.emit(health, max_health)
 	# NOTE: no auto-idle here — start(pos) just places the boss (main.gd passes an off-screen pos for
 	# production; the Enemy Bench passes an on-screen pos so its parts are visible/tunable). The off-screen
 	# IDLE park (_go_idle) is a BETWEEN-maneuvers concept, driven by play_wave_maneuver / the hazards.
@@ -321,10 +395,12 @@ func retreat() -> void:
 	_set_side_lasers(false)
 	_set_main_laser(false)
 	free_parts()
-	var vp: Vector2 = get_viewport_rect().size
-	_exit_background()
-	_face_travel(Vector2.DOWN)
-	await _travel(position, Vector2(position.x, vp.y + 320.0), FLEE_SPEED)
+	# Burn away off the bottom — the integrator keeps flying it even though _dying is set.
+	_fly_dir = Vector2.DOWN
+	_tgt_heading = _heading_for(Vector2.DOWN)
+	_tgt_depth = 0.0
+	_tgt_mode = M_THROUGH
+	await _paced(2.6).timeout
 	if is_instance_valid(self):
 		queue_free()
 
@@ -399,17 +475,16 @@ func _m_lane_hook_firecores() -> void:
 	var vp: Vector2 = get_viewport_rect().size
 	var ex: float = _edge_lane_x(_rand_side())
 	_firing_enabled = false
-	_enter_background()
-	_face_travel(Vector2.UP)
-	position = Vector2(ex, vp.y + 240.0)
-	await _travel(position, Vector2(ex, HIGH_HOLD_Y), HOOK_RISE_SPEED)
+	# Start in the deep BACKGROUND (depth 1 — stays faint/small), edge lane, below, facing up.
+	_teleport(Vector2(ex, vp.y + 240.0), _heading_for(Vector2.UP), 1.0)
+	await _fly_to(Vector2(ex, HIGH_HOLD_Y), _heading_for(Vector2.UP), 1.0)   # rise up the lane (bg)
 	if not _maneuver_ok(): return
-	# STAYS in the background (Roman 2026-07-01): no rise-to-foreground. The boss remains faint/small; the
-	# firecores start 0.5x and GROW to 1x as they rise into the foreground toward the player.
-	await _rotate_slide(_pivot_local(), Vector2(_center_x(), HIGH_HOLD_Y), PI, ROTATE_SLIDE_DUR)
+	await _fly_to(Vector2(_center_x(), HIGH_HOLD_Y), _heading_for(Vector2.DOWN), 1.0)   # swing to centre facing down (bg)
 	if not _maneuver_ok(): return
-	_release_firecores(Vector2.DOWN, 0.5)   # emerge small from the distant boss, grow as they rise in
-	await _travel(position, Vector2(position.x, vp.y + 260.0), HOOK_DIVE_SPEED, Tween.EASE_IN)  # accelerate out
+	await _settle()   # finish the move BEFORE releasing (Roman 2026-07-02: cores were dropping mid-drift)
+	if not _maneuver_ok(): return
+	await _launch_firecore_salvos(0.5)   # emerge small from the distant boss, grow as they rise in (widening volley)
+	await _fly_through(Vector2.DOWN, _heading_for(Vector2.DOWN), 1.0, 2.6)   # dive out (bg)
 
 
 # As the firecore hook, but the main laser charges during the rotate-slide and fires down the centre lane
@@ -418,23 +493,21 @@ func _m_lane_hook_laser() -> void:
 	var vp: Vector2 = get_viewport_rect().size
 	var ex: float = _edge_lane_x(_rand_side())
 	_firing_enabled = false
-	_enter_background()
-	_face_travel(Vector2.UP)
-	position = Vector2(ex, vp.y + 240.0)
-	await _travel(position, Vector2(ex, HIGH_HOLD_Y), HOOK_RISE_SPEED)
+	_teleport(Vector2(ex, vp.y + 240.0), _heading_for(Vector2.UP), 1.0)
+	await _fly_to(Vector2(ex, HIGH_HOLD_Y), _heading_for(Vector2.UP), 1.0)   # rise up the lane (bg)
 	if not _maneuver_ok(): return
-	_set_main_laser(true)   # begin the charge (glow fades in during the rise + slide)
-	_rise_into_foreground(ROTATE_SLIDE_DUR)   # smooth reverse-dive rise (parallel with the rotate-slide)
-	await _rotate_slide(_pivot_local(), Vector2(_center_x(), HIGH_HOLD_Y), PI, ROTATE_SLIDE_DUR)
-	if not _maneuver_ok():
-		_set_main_laser(false)
-		return
-	# On arrival (facing down, centre lane) the beam fires down the lane — hold while it fires.
-	await get_tree().create_timer(BEAM_HOLD).timeout
-	_set_main_laser(false)
+	# Surface + swing to centre facing down, then SETTLE — only THEN charge + fire, so the beam fires
+	# ONCE, cleanly down the centre lane (not a first shot while it's still turning into position).
+	await _fly_to(Vector2(_center_x(), HIGH_HOLD_Y), _heading_for(Vector2.DOWN), 0.0)
 	if not _maneuver_ok(): return
-	_dive_into_background(ROTATE_SLIDE_DUR)   # smooth recede back into the background
-	await _travel(position, Vector2(position.x, vp.y + 260.0), HOOK_DIVE_SPEED, Tween.EASE_IN)
+	await _settle()
+	if not _maneuver_ok(): return
+	_set_main_laser(true)
+	await _paced(BEAM_HOLD).timeout
+	_set_main_laser(false)   # graceful shrink+flicker out
+	if not _maneuver_ok(): return
+	_dive(1.0)   # recede back into the background
+	await _fly_through(Vector2.DOWN, _heading_for(Vector2.DOWN), 1.0, 2.6)
 
 
 # bg edge lane up from behind → high hold → rotate-slide up HORIZONTAL at centre high hold with the
@@ -446,32 +519,28 @@ func _m_lane_hook_blockade() -> void:
 		await _m_lane_hook_firecores()   # nothing left to blockade with → fall back to a firecore hook
 		return
 	var vp: Vector2 = get_viewport_rect().size
-	var ex: float = _edge_lane_x(_rand_side())
+	var cx: float = _center_x()
 	_firing_enabled = false
-	_enter_background()
-	_face_travel(Vector2.UP)
-	position = Vector2(ex, vp.y + 240.0)
-	await _travel(position, Vector2(ex, HIGH_HOLD_Y), HOOK_RISE_SPEED)
+	var rot_horizontal: float = (-PI * 0.5) if side == 0 else (PI * 0.5)   # the fuller side faces DOWN
+	# Rise up the CENTRE lane facing up (bg), then surface + rotate IN PLACE to horizontal — brings the
+	# fuller side to bear with a single 90° turn, no sideways fly (Roman 2026-07-02: fixes the setup delay).
+	_teleport(Vector2(cx, vp.y + 240.0), _heading_for(Vector2.UP), 1.0)
+	await _fly_to(Vector2(cx, HIGH_HOLD_Y), _heading_for(Vector2.UP), 1.0)
 	if not _maneuver_ok(): return
-	var rot_horizontal: float = (-PI * 0.5) if side == 0 else (PI * 0.5)   # chosen side faces DOWN
-	# Land the boss's CENTRE (not the muzzle) on the centre lane at the high hold (Roman 2026-07-01), and
-	# rise into the foreground smoothly (parallel) as it swings horizontal.
-	_rise_into_foreground(ROTATE_SLIDE_DUR)
-	var center_target: Vector2 = _center_pivot_target(Vector2(_center_x(), HIGH_HOLD_Y), rot_horizontal, display_scale)
-	await _rotate_slide(_pivot_local(), center_target, rot_horizontal, ROTATE_SLIDE_DUR)
+	_dive(0.0)   # surface
+	await _face(rot_horizontal)   # rotate in place to horizontal
 	if not _maneuver_ok(): return
 	# Rake: turrets fire + the down-facing side's lasers fire down the play area.
 	_firing_enabled = true
 	_activate_blockade_lasers(side)
-	await get_tree().create_timer(BLOCKADE_HOLD).timeout
+	await _paced(BLOCKADE_HOLD).timeout
 	_firing_enabled = false
 	_set_side_lasers(false)
 	if not _maneuver_ok(): return
-	# Pivot in place (around the muzzle) back to nose-down, then recede into the background + dive out.
-	await _rotate_slide(_pivot_local(), to_global(_pivot_local()), PI, ROTATE_TO_DOWN_DUR)
-	if not _maneuver_ok(): return
-	_dive_into_background(0.8)
-	await _travel(position, Vector2(position.x, vp.y + 260.0), HOOK_DIVE_SPEED, Tween.EASE_IN)
+	# Dive out STILL HORIZONTAL — strafe straight down (side jets) instead of rotating back to nose-down,
+	# so the blockade only ever rotates the 90° needed to bring the fuller side to bear (Roman 2026-07-02).
+	_dive(1.0)
+	await _fly_through(Vector2.DOWN, rot_horizontal, 1.0, 2.6)
 
 
 # fg edge lane from the top → ~1/3 down → sidestep across to centre (drop firecores) → to the opposite
@@ -483,17 +552,18 @@ func _m_lane_firecore_slide() -> void:
 	var ox: float = _edge_lane_x(1 - side)
 	var third_y: float = vp.y / 3.0
 	_firing_enabled = false
-	_exit_background()
-	_face_travel(Vector2.DOWN)
-	position = Vector2(ex, -240.0)
-	await _travel(position, Vector2(ex, third_y), SLIDE_ENTER_SPEED)
+	# Foreground, top of the edge lane, facing down.
+	_teleport(Vector2(ex, -240.0), _heading_for(Vector2.DOWN), 0.0)
+	await _fly_to(Vector2(ex, third_y), _heading_for(Vector2.DOWN), 0.0)
 	if not _maneuver_ok(): return
-	await _travel(position, Vector2(_center_x(), third_y), SLIDE_CROSS_SPEED)
+	await _fly_to(Vector2(_center_x(), third_y), _heading_for(Vector2.DOWN), 0.0)   # strafe across to centre
 	if not _maneuver_ok(): return
-	_release_firecores(Vector2.DOWN)   # drop them in the centre lane
-	await _travel(position, Vector2(ox, third_y), SLIDE_CROSS_SPEED)
+	await _settle()   # finish the move BEFORE dropping the volley
 	if not _maneuver_ok(): return
-	await _travel(position, Vector2(ox, vp.y + 260.0), SLIDE_EXIT_SPEED, Tween.EASE_IN)
+	await _launch_firecore_salvos(1.0)   # drop a widening volley in the centre lane
+	await _fly_to(Vector2(ox, third_y), _heading_for(Vector2.DOWN), 0.0)   # on to the opposite lane
+	if not _maneuver_ok(): return
+	await _fly_through(Vector2.DOWN, _heading_for(Vector2.DOWN), 0.0, 2.6)   # exit off the bottom
 
 
 # fg edge lane from the top → ~1/3 down charging → fire down its lane → sidestep across (the downward
@@ -505,21 +575,19 @@ func _m_lane_laser_slide() -> void:
 	var ox: float = _edge_lane_x(1 - side)
 	var third_y: float = vp.y / 3.0
 	_firing_enabled = false
-	_exit_background()
-	_face_travel(Vector2.DOWN)
-	position = Vector2(ex, -240.0)
+	_teleport(Vector2(ex, -240.0), _heading_for(Vector2.DOWN), 0.0)
 	_set_main_laser(true)   # charge during the descent
-	await _travel(position, Vector2(ex, third_y), SLIDE_ENTER_SPEED)
+	await _fly_to(Vector2(ex, third_y), _heading_for(Vector2.DOWN), 0.0)
 	if not _maneuver_ok():
 		_set_main_laser(false)
 		return
-	# Sweep the firing beam from the edge lane to centre, then cut it.
-	await _travel(position, Vector2(_center_x(), third_y), SLIDE_CROSS_SPEED)
+	# Bank across to centre — the firing beam sweeps + banks with the hull, then cut it at centre.
+	await _fly_to(Vector2(_center_x(), third_y), _heading_for(Vector2.DOWN), 0.0)
 	_set_main_laser(false)
 	if not _maneuver_ok(): return
-	await _travel(position, Vector2(ox, third_y), SLIDE_CROSS_SPEED)
+	await _fly_to(Vector2(ox, third_y), _heading_for(Vector2.DOWN), 0.0)
 	if not _maneuver_ok(): return
-	await _travel(position, Vector2(ox, vp.y + 260.0), SLIDE_EXIT_SPEED, Tween.EASE_IN)
+	await _fly_through(Vector2.DOWN, _heading_for(Vector2.DOWN), 0.0, 2.6)
 
 
 # ---- Stage hazards (wave 3+, boss off-screen) ---------------------------
@@ -528,7 +596,7 @@ func _m_lane_laser_slide() -> void:
 # laser alive (main-laser maneuvers/hazards are impossible once it's destroyed).
 func _hazard_loop() -> void:
 	while is_instance_valid(self) and not _dying:
-		await get_tree().create_timer(randf_range(HAZARD_MIN_GAP, HAZARD_MAX_GAP)).timeout
+		await _paced(randf_range(HAZARD_MIN_GAP, HAZARD_MAX_GAP)).timeout
 		if _dying:
 			return
 		if not _hazards_active or _busy or not _main_laser_alive():
@@ -546,13 +614,13 @@ func _hazard_loop() -> void:
 func _hazard_lane_laser() -> void:
 	var lane: int = randi() % Lanes.COUNT
 	var lx: float = Lanes.lane_center(lane)
-	_exit_background()
-	_face_travel(Vector2.DOWN)
-	position = Vector2(lx, -HAZARD_MUZZLE_Y)
+	# Off-screen ABOVE the lane, facing down, foreground scale (so the beam geometry is full-size). Teleport
+	# (M_IDLE, zero velocity) — the hazard is off-screen, no physics needed.
+	_teleport(Vector2(lx, -HAZARD_MUZZLE_Y), _heading_for(Vector2.DOWN), 0.0)
 	_set_main_laser(true)
 	var dur: float = _main_laser_duration()
 	if dur > 0.0:
-		await get_tree().create_timer(dur).timeout
+		await _paced(dur).timeout
 	_set_main_laser(false)
 	if is_instance_valid(self) and not _dying:
 		_go_idle()
@@ -564,84 +632,204 @@ func _hazard_lane_laser_sweep() -> void:
 	var side: int = _rand_side()
 	var ex: float = _edge_lane_x(side)
 	var cx: float = _center_x()
-	_exit_background()
-	_face_travel(Vector2.DOWN)
-	position = Vector2(ex, -HAZARD_MUZZLE_Y)
+	_teleport(Vector2(ex, -HAZARD_MUZZLE_Y), _heading_for(Vector2.DOWN), 0.0)
 	_set_main_laser(true)
-	await get_tree().create_timer(_main_laser_windup()).timeout   # hold the red warning at the edge lane
+	await _paced(_main_laser_windup()).timeout   # hold the red warning at the edge lane
 	if not _maneuver_ok():
 		_set_main_laser(false)
 		return
-	await _travel(position, Vector2(cx, -HAZARD_MUZZLE_Y), HAZARD_SWEEP_SPEED)   # pan edge→centre while firing
+	# Pan the off-screen boss edge→centre so the downward beam sweeps across the lanes. Manual x-lerp (the
+	# ship is idle/off-screen; the integrator holds velocity at 0, so it doesn't fight this).
+	var pan_dur: float = absf(cx - ex) / maxf(HAZARD_SWEEP_SPEED, 1.0)
+	var t: float = 0.0
+	while _maneuver_ok() and t < pan_dur:
+		await get_tree().process_frame
+		if not get_tree().paused:
+			t += get_process_delta_time()
+		position.x = lerpf(ex, cx, clampf(t / pan_dur, 0.0, 1.0))
 	_set_main_laser(false)
 	if is_instance_valid(self) and not _dying:
 		_go_idle()
 
 
-# ---- Movement / presentation helpers -----------------------------------
+# ---- Thrust-driven rigid-body movement (physics-inspired; replaces the nose-pivot) --------------------
 
-# Face `dir` of travel. The hull art faces UP (nose = local -Y), so rotate the nose along dir.
-# (UP → 0, DOWN → PI, RIGHT → PI/2, LEFT → -PI/2.) Turrets aim independently; lasers use LOCAL_FORWARD
-# aim (from their markers) so they follow this rotation automatically.
-func _face_travel(dir: Vector2) -> void:
-	if dir.length_squared() > 0.0001:
-		rotation = dir.angle() + PI * 0.5
-
-
-# Awaitable move (scripted — the base skips its clamp/pattern while _scripted_move is set). The default
-# ease is a WEIGHTY ease-in-out (TRANS_CUBIC) so the huge ship heaves off, slides, and trundles into
-# position rather than snapping (Roman 2026-07-01). `speed` sets the AVERAGE speed (the eased curve peaks
-# faster mid-move). Exits pass EASE_IN so the ship accelerates away off-screen.
-func _travel(from: Vector2, to: Vector2, speed: float, ease_mode: int = Tween.EASE_IN_OUT, trans: int = Tween.TRANS_CUBIC) -> void:
-	_scripted_move = true
-	position = from
-	var dur: float = from.distance_to(to) / maxf(speed, 1.0)
-	var tw := create_tween()
-	tw.tween_property(self, "position", to, dur).set_trans(trans).set_ease(ease_mode)
-	await tw.finished
-
-
-# Rotate-slide pivoting around the LASER MUZZLE (Roman: "so it appears the rear/side thrusters do the
-# work"): tween a pivot point from its current world position to `pivot_to_world` while lerping rotation
-# to `rot_to`, holding the muzzle (pivot_local, in the boss's local frame) pinned to that path. Pass the
-# current muzzle world position as pivot_to_world for a pivot-IN-PLACE (pure rotation).
-func _rotate_slide(pivot_local: Vector2, pivot_to_world: Vector2, rot_to: float, dur: float) -> void:
-	_scripted_move = true
-	var pivot_from_world: Vector2 = to_global(pivot_local)
-	var rot_from: float = rotation
-	var tw := create_tween()
-	# Read scale.x LIVE inside the lambda (not captured) so the muzzle stays pinned even while a parallel
-	# _rise_into_foreground grows the ship. Weighty ease so the body swings around the muzzle with heft.
-	tw.tween_method(func(f: float) -> void:
-		var pw: Vector2 = pivot_from_world.lerp(pivot_to_world, f)
-		var r: float = lerp_angle(rot_from, rot_to, f)
-		rotation = r
-		global_position = pw - pivot_local.rotated(r) * scale.x
-	, 0.0, 1.0, dur).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-	await tw.finished
+# Integrate the rigid body each frame: the pilot picks throttle/yaw/dive from the target pose, then the
+# body accumulates linear velocity (forward-only main thrust + station-keeping drag), angular velocity
+# (RCS torque about the CoM), and depth (top thrusters vs a foreground-restoring spring). Runs in
+# _process so it pauses with the tree.
+func _integrate_physics(delta: float) -> void:
+	if not is_instance_valid(self):
+		return
+	delta = minf(delta, 1.0 / 30.0)
+	_pilot_step(delta)
+	# Linear — main thrust FORWARD along the nose (no reverse) + LATERAL strafe thrust (side jets), then
+	# proportional drag (station-keeping trim) so it always eases to a controllable stop.
+	_vel += _nose_dir() * (MAIN_ACCEL * _cmd_throttle) * delta
+	_vel += _nose_perp() * (STRAFE_ACCEL * _cmd_strafe) * delta
+	_vel -= _vel * (LIN_DAMP * delta)
+	var sp: float = _vel.length()
+	if sp > MAX_SPEED:
+		_vel *= MAX_SPEED / sp
+	position += _vel * delta
+	# Angular — RCS torque swings the hull about its origin (= centre of mass), then trims to rest.
+	_ang_vel += RCS_ANG_ACCEL * _cmd_yaw * delta
+	_ang_vel -= _ang_vel * (ANG_DAMP * delta)
+	_ang_vel = clampf(_ang_vel, -MAX_ANG_SPEED, MAX_ANG_SPEED)
+	rotation += _ang_vel * delta
+	# Depth — the top thrusters push it in (dive_cmd) against a spring that restores toward the fore.
+	_depth_vel += (DEPTH_ACCEL * _cmd_dive - DEPTH_SPRING * _depth - DEPTH_DAMP * _depth_vel) * delta
+	_depth = clampf(_depth + _depth_vel * delta, 0.0, 1.0)
+	_apply_depth()
+	_update_flares()
 
 
-# Park off-screen below (background, non-hittable, not firing) — the resting state between attacks.
+# The control law → the frame's throttle / strafe / yaw / dive commands. The ship holds its COMMANDED
+# heading and PREFERS TO STRAFE (side jets) to reach a target, only thrusting forward for the ahead
+# component — so it slides sideways instead of turning to drive. Main thrust is forward-only (no reverse).
+func _pilot_step(_delta: float) -> void:
+	_cmd_dive = clampf(_tgt_depth, 0.0, 1.0)
+	_cmd_throttle = 0.0
+	_cmd_strafe = 0.0
+	match _tgt_mode:
+		M_IDLE:
+			_cmd_yaw = 0.0
+		M_FACE:
+			_cmd_yaw = _yaw_to(_tgt_heading)
+		M_THROUGH:
+			_cmd_yaw = _yaw_to(_tgt_heading)
+			_cmd_throttle = clampf(_nose_dir().dot(_fly_dir), 0.0, 1.0)
+			_cmd_strafe = clampf(_nose_perp().dot(_fly_dir), -1.0, 1.0)
+		M_FLY:
+			_cmd_yaw = _yaw_to(_tgt_heading)                    # HOLD the commanded heading (don't turn to travel)
+			var to_t: Vector2 = _tgt_pos - position
+			var dist: float = to_t.length()
+			if dist > ARRIVE_TOL:
+				var dir: Vector2 = to_t / dist
+				var taper: float = clampf(dist / ARRIVE_RADIUS, 0.0, 1.0)   # ease off approaching the target
+				_cmd_throttle = clampf(_nose_dir().dot(dir), 0.0, 1.0) * taper    # forward (ahead component)
+				_cmd_strafe = clampf(_nose_perp().dot(dir), -1.0, 1.0) * taper    # STRAFE (lateral component)
+
+
+# PD yaw controller → a torque command in [-1,1]. P pulls toward the heading, D damps the spin.
+func _yaw_to(target_heading: float) -> float:
+	var err: float = wrapf(target_heading - rotation, -PI, PI)
+	return clampf(err * FACE_GAIN - _ang_vel * FACE_DAMP, -1.0, 1.0)
+
+
+# The world direction the nose points (hull art faces UP = local -Y).
+func _nose_dir() -> Vector2:
+	return Vector2.UP.rotated(rotation)
+
+
+# The world lateral (strafe) axis = the nose rotated +90° (= local +x). +_cmd_strafe pushes this way.
+func _nose_perp() -> Vector2:
+	return _nose_dir().rotated(PI * 0.5)
+
+
+# The rotation that points the nose along `dir` (UP→0, DOWN→PI, RIGHT→PI/2, LEFT→-PI/2).
+func _heading_for(dir: Vector2) -> float:
+	return (dir.angle() + PI * 0.5) if dir.length_squared() > 0.0001 else rotation
+
+
+# Map _depth (0 fg … 1 bg) → scale + desaturation + parts-hittable. The tint covers the turret barrels +
+# laser hulls too (nested part sprites). Only re-toggles hittability when it crosses the 0.5 threshold.
+func _apply_depth() -> void:
+	scale = Vector2(display_scale, display_scale) * lerp(1.0, BG_SCALE, _depth)
+	var tint: Color = Color.WHITE.lerp(BG_TINT, _depth)
+	for spr in _all_shaded_sprites():
+		(spr as CanvasItem).modulate = tint
+	var want_hit: bool = _depth < 0.5
+	if want_hit != _last_hittable:
+		_last_hittable = want_hit
+		_set_parts_hittable(want_hit)
+
+
+# --- Awaitable pilot primitives (replace _travel / _rotate_slide / _face_travel) ---
+
+# Fly to a pose: cruise to `pos`, orient to `heading`, settle. `depth`>=0 sets the depth target. Bounded
+# by FLY_TIMEOUT so a maneuver can never hang the wave gate (it releases NEAR the pose if it can't settle).
+func _fly_to(pos: Vector2, heading: float, depth: float = -1.0) -> void:
+	_tgt_pos = pos
+	_tgt_heading = heading
+	if depth >= 0.0:
+		_tgt_depth = depth
+	_tgt_mode = M_FLY
+	var t: float = 0.0
+	while _maneuver_ok() and t < FLY_TIMEOUT:
+		await get_tree().process_frame
+		if not get_tree().paused:
+			t += get_process_delta_time()
+		if position.distance_to(_tgt_pos) < ARRIVE_TOL \
+				and absf(wrapf(_tgt_heading - rotation, -PI, PI)) < FACE_TOL:
+			return   # release on proximity — carry momentum into the next leg (no dead air)
+
+
+# Coast to a near-stop (used before releasing firecores / firing so the launch happens once the movement
+# is DONE, not mid-drift). Keeps the current target so drag settles it in place; bounded by max_wait.
+func _settle(max_wait: float = 1.2) -> void:
+	var t: float = 0.0
+	while _maneuver_ok() and t < max_wait:
+		await get_tree().process_frame
+		if not get_tree().paused:
+			t += get_process_delta_time()
+		if _vel.length() < 12.0 and absf(_ang_vel) < 0.3:
+			return
+
+
+# Thrust along a world direction (holding `heading`) for `dur` seconds — passes + exits (no arrival brake).
+func _fly_through(dir: Vector2, heading: float, depth: float, dur: float) -> void:
+	_fly_dir = dir.normalized()
+	_tgt_heading = heading
+	_tgt_depth = depth
+	_tgt_mode = M_THROUGH
+	var t: float = 0.0
+	while _maneuver_ok() and t < dur:
+		await get_tree().process_frame
+		if not get_tree().paused:
+			t += get_process_delta_time()
+
+
+# Yaw-in-place to a heading (the rotate-slide replacement — the hull swings about its CoM).
+func _face(heading: float) -> void:
+	_tgt_heading = heading
+	_tgt_mode = M_FACE
+	var t: float = 0.0
+	while _maneuver_ok() and t < FLY_TIMEOUT:
+		await get_tree().process_frame
+		if not get_tree().paused:
+			t += get_process_delta_time()
+		if absf(wrapf(heading - rotation, -PI, PI)) < FACE_TOL and absf(_ang_vel) < 0.4:
+			return
+
+
+# Set the depth target (fire-and-forget; the physics eases there). 0 = foreground, 1 = deep background.
+func _dive(target_depth: float) -> void:
+	_tgt_depth = clampf(target_depth, 0.0, 1.0)
+
+
+# Snap the pose (off-screen placement at a maneuver's start / idle park — the player never sees the jump).
+func _teleport(pos: Vector2, heading: float, depth: float) -> void:
+	position = pos
+	rotation = heading
+	_vel = Vector2.ZERO
+	_ang_vel = 0.0
+	_depth = clampf(depth, 0.0, 1.0)
+	_depth_vel = 0.0
+	_tgt_pos = pos
+	_tgt_heading = heading
+	_tgt_depth = _depth
+	_tgt_mode = M_IDLE
+	_apply_depth()
+
+
+# Park off-screen below (deep background, non-hittable, not firing) — the resting state between attacks.
 func _go_idle() -> void:
 	_firing_enabled = false
 	_set_side_lasers(false)
 	_set_main_laser(false)
-	_enter_background()
 	var vp: Vector2 = get_viewport_rect().size
-	_scripted_move = true
-	_face_travel(Vector2.UP)
-	position = Vector2(Playfield.CENTER.x, vp.y + 260.0)
-
-
-# The main-laser muzzle in the boss's LOCAL (unrotated) frame — the rotate-slide pivot. Derived from the
-# MainLaser instance + its BeamMuzzle marker; falls back to the hull's authored MainLaser marker offset.
-func _pivot_local() -> Vector2:
-	if _main_laser != null and is_instance_valid(_main_laser):
-		var mm := (_main_laser as Node2D).get_node_or_null("BeamMuzzle")
-		if mm is Node2D:
-			return (_main_laser as Node2D).position + (mm as Node2D).position
-		return (_main_laser as Node2D).position
-	return Vector2(0, -57)
+	_teleport(Vector2(Playfield.CENTER.x, vp.y + 260.0), _heading_for(Vector2.UP), 1.0)
 
 
 func _edge_lane_x(side: int) -> float:
@@ -652,53 +840,44 @@ func _center_x() -> float:
 	return Lanes.lane_center(int(Lanes.COUNT / 2))
 
 
-# "Background" phases DESATURATE + shrink the boss + make its parts non-hittable; "foreground" phases
-# restore full colour, scale + hittability. Shading covers the turret barrels + laser hulls too (nested
-# part sprites), not just the direct-child hull layers.
-func _enter_background() -> void:
-	for s in _all_shaded_sprites():
-		(s as CanvasItem).modulate = BG_TINT
-	scale = Vector2(display_scale, display_scale) * BG_SCALE
-	_set_parts_hittable(false)
+# --- Thruster flares (visible thrust; reuse EngineFlare) ---
+
+func _build_thruster_flares() -> void:
+	for d in THRUSTER_DEFS:
+		var g: String = String(d[0])
+		var fl: Sprite2D = EngineFlareC.new()
+		fl.position = d[1]
+		fl.rotation = float(d[2])
+		fl.visible = false
+		fl.z_as_relative = false
+		fl.z_index = UNDER_LAYER_Z + 1   # OVER the boss body (the hull is pinned at UNDER_LAYER_Z)
+		add_child(fl)
+		if not _flares.has(g):
+			_flares[g] = []
+		_flares[g].append(fl)
 
 
-func _exit_background() -> void:
-	for s in _all_shaded_sprites():
-		(s as CanvasItem).modulate = Color.WHITE
-	scale = Vector2(display_scale, display_scale)
-	_set_parts_hittable(true)
+# Light each thruster group by the command driving it: main→forward, spos/sneg→strafe sign, ycw/yccw→yaw
+# sign, top→dive. Called each physics frame.
+func _update_flares() -> void:
+	_set_flare_group("main", _cmd_throttle)
+	_set_flare_group("spos", maxf(_cmd_strafe, 0.0))
+	_set_flare_group("sneg", maxf(-_cmd_strafe, 0.0))
+	_set_flare_group("ycw", maxf(_cmd_yaw, 0.0))
+	_set_flare_group("yccw", maxf(-_cmd_yaw, 0.0))
+	_set_flare_group("top", _cmd_dive)
 
 
-# Smoothly recede into the background over `dur`: tween the desaturation (hull + parts) + shrink. Parts go
-# non-hittable immediately.
-func _dive_into_background(dur: float = 1.0) -> void:
-	_set_parts_hittable(false)
-	for s in _all_shaded_sprites():
-		var ci := s as CanvasItem
-		var tw := ci.create_tween()
-		tw.tween_property(ci, "modulate", BG_TINT, dur).set_trans(Tween.TRANS_SINE)
-	var tw2 := create_tween()
-	tw2.tween_property(self, "scale", Vector2(display_scale, display_scale) * BG_SCALE, dur).set_trans(Tween.TRANS_SINE)
-
-
-# The REVERSE of _dive_into_background (Roman 2026-07-01): smoothly resaturate (hull + parts) + grow back
-# to full size over `dur`, as the ship rises OUT of the background into the foreground. Parts become
-# hittable immediately (it's committing to the play space). Fire-and-forget (tweens) so it runs in
-# PARALLEL with a rotate-slide — _rotate_slide reads scale.x live, so the pivot stays pinned as it grows.
-func _rise_into_foreground(dur: float = 1.0) -> void:
-	_set_parts_hittable(true)
-	for s in _all_shaded_sprites():
-		var ci := s as CanvasItem
-		var tw := ci.create_tween()
-		tw.tween_property(ci, "modulate", Color.WHITE, dur).set_trans(Tween.TRANS_SINE)
-	var tw2 := create_tween()
-	tw2.tween_property(self, "scale", Vector2(display_scale, display_scale), dur).set_trans(Tween.TRANS_SINE)
-
-
-# The rotate-slide pins the MUZZLE (pivot_local). To instead land the boss's CENTRE (origin) at
-# `center_world` at rotation `rot` and scale `scl`, offset the muzzle target by the rotated muzzle vector.
-func _center_pivot_target(center_world: Vector2, rot: float, scl: float) -> Vector2:
-	return center_world + _pivot_local().rotated(rot) * scl
+func _set_flare_group(g: String, throttle: float) -> void:
+	if not _flares.has(g):
+		return
+	var on: bool = throttle > 0.06 and not _dying
+	var s: float = 0.35 + 0.6 * clampf(throttle, 0.0, 1.0)
+	for fl in _flares[g]:
+		if is_instance_valid(fl):
+			fl.visible = on
+			if on:
+				fl.scale = Vector2(s, s)
 
 
 # Every sprite that should pick up the background shading: the direct-child hull layers PLUS each live
@@ -778,14 +957,35 @@ func _activate_blockade_lasers(side: int) -> void:
 # (a decaying burst), after which each settles into its normal downward drift. `grow_from` <1 makes each
 # ember START small and grow to full size as it rises into the foreground (the background hook release —
 # the boss stays faint/distant while its firecores rise toward the player). Hide the spent decoration.
-func _release_firecores(base_dir: Vector2 = Vector2.DOWN, grow_from: float = 1.0) -> void:
+# Launch a WIDENING volley: 1 salvo on the first firecore pass, 2 on the second, 3 on the third … each
+# salvo fanned wider than the last (Roman 2026-07-02), so coverage grows over the fight. Capped.
+func _launch_firecore_salvos(grow_from: float = 1.0) -> void:
+	_firecore_passes += 1
+	var salvos: int = clampi(_firecore_passes, 1, FIRECORE_MAX_SALVOS)
+	for k in salvos:
+		if not _maneuver_ok():
+			return
+		var fan: float = minf(FIRECORE_FAN_MAX, FIRECORE_FAN_HALF_DEG + float(k) * FIRECORE_FAN_STEP)
+		var speed: float = maxf(FIRECORE_SALVO_SPEED_MIN, FIRECORE_BURST_SPEED * pow(FIRECORE_SALVO_SPEED_MULT, float(k)))
+		_release_firecores(Vector2.DOWN, grow_from, fan, speed)
+		if k < salvos - 1:
+			await _paced(FIRECORE_SALVO_GAP).timeout
+
+
+# One salvo: a firecore from each FireCore* core, fanned OUTWARD by the core's WORLD x-offset from the
+# ship centre (so left cores go down-left, right cores down-right — no reversed/twisted launch,
+# independent of the hull's rotation). `grow_from` <1 makes them rise from small; `fan_half_deg` = spread.
+func _release_firecores(base_dir: Vector2 = Vector2.DOWN, grow_from: float = 1.0, fan_half_deg: float = FIRECORE_FAN_HALF_DEG, burst_speed: float = FIRECORE_BURST_SPEED) -> void:
 	var world: Node = _world()
 	if FirecoreHazard == null or world == null:
 		return
 	var cores: Array = find_children("FireCore*", "", true, false)
-	var n: int = cores.size()
-	for i in n:
-		var core = cores[i]
+	var bx: float = global_position.x
+	var maxdx: float = 1.0
+	for c in cores:
+		if c is Node2D:
+			maxdx = maxf(maxdx, absf((c as Node2D).global_position.x - bx))
+	for core in cores:
 		if not (core is Node2D):
 			continue
 		var fc = FirecoreHazard.instantiate()
@@ -794,10 +994,10 @@ func _release_firecores(base_dir: Vector2 = Vector2.DOWN, grow_from: float = 1.0
 			(fc as CanvasItem).z_index = UNDER_LAYER_Z   # mid-depth, behind the player (matches the ship)
 		var pos: Vector2 = (core as Node2D).global_position
 		(fc as Node2D).global_position = pos
-		var t: float = 0.0 if n <= 1 else (float(i) / float(n - 1)) * 2.0 - 1.0   # -1..1
-		var dir: Vector2 = base_dir.rotated(deg_to_rad(t * FIRECORE_FAN_HALF_DEG))
+		var frac: float = clampf((pos.x - bx) / maxdx, -1.0, 1.0)   # -1 world-left … +1 world-right
+		var dir: Vector2 = base_dir.rotated(deg_to_rad(-frac * fan_half_deg))   # left→down-left, right→down-right
 		if "burst_velocity" in fc:
-			fc.burst_velocity = dir * FIRECORE_BURST_SPEED
+			fc.burst_velocity = dir * burst_speed
 		if "spawn_scale" in fc:
 			fc.spawn_scale = grow_from
 		if fc.has_method("start"):
@@ -809,7 +1009,26 @@ func _release_firecores(base_dir: Vector2 = Vector2.DOWN, grow_from: float = 1.0
 
 func _process(delta: float) -> void:
 	super._process(delta)
+	_integrate_physics(delta)
 	_update_turret_gate()
+	_update_health_bar()
+
+
+# Drive the shared boss HP bar off the LIVE aggregate part HP so it tracks cumulative turret + laser
+# damage (each part's hp falls as it's shot; destroyed parts drop out of live_parts entirely).
+func _update_health_bar() -> void:
+	if _dying or _parts_max_total <= 0:
+		return
+	var cur: int = 0
+	for p in live_parts():
+		if not is_instance_valid(p) or not ("hp" in p):
+			continue
+		if "_destroyed" in p and p._destroyed:
+			continue   # a wrecked laser HUSK (not freed) contributes 0
+		cur += maxi(0, int(p.hp))
+	if cur != health:
+		health = cur
+		health_changed.emit(health, max_health)
 
 
 # Turrets fire only while _firing_enabled (a firing maneuver) AND fully on-screen (the ship is bigger
@@ -863,7 +1082,9 @@ func _death_sequence() -> void:
 	_firing_enabled = false
 	_set_side_lasers(false)
 	_set_main_laser(false)
-	_exit_background()
+	_depth = 0.0            # surface instantly so the death multi-blast reads at full colour / scale
+	_depth_vel = 0.0
+	_apply_depth()
 	explode()   # boss_base: sets _dying, multi-blast, died.emit(bounty), on_boss_defeated, frees after ~1.3s
 
 

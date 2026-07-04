@@ -116,6 +116,7 @@ func _run() -> void:
 		# FRIENDLY-FIRE: the main laser blows up the player AND enemies, excluding the boss's own parts.
 		_ck(bool(boss._main_laser._beam.friendly_fire), "main laser beam is friendly-fire (player + enemies)")
 		_ck(boss._main_laser._beam.ignore_owner == boss, "main laser friendly-fire excludes the boss (ignore_owner=boss)")
+		_ck(bool(boss._main_laser._beam.envelope), "main laser uses the grow/shrink/flicker width envelope")
 	var side_hp_ok: bool = not boss._side_lasers.is_empty()
 	var glow_ok: bool = true
 	var side_ff_off: bool = true
@@ -161,12 +162,45 @@ func _run() -> void:
 		for c in t0.get_children():
 			if c is Sprite2D:
 				barrel = c
-		boss._enter_background()
-		_ck(barrel != null and barrel.modulate.is_equal_approx(boss.BG_TINT), "background shading tints the turret barrels")
-		boss._exit_background()
+		boss._depth = 1.0   # deep background
+		boss._apply_depth()
+		_ck(barrel != null and barrel.modulate.is_equal_approx(boss.BG_TINT), "depth shading tints the turret barrels")
+		boss._depth = 0.0
+		boss._apply_depth()
 
 	# --- Friendly-fire beam: hits player + enemies, spares the beam owner's own parts ---
 	_run_friendly_fire_check()
+
+	# --- Physics pilot: STRAFE to a lateral target while HOLDING heading (tick the integrator by hand) ---
+	var b5 = ps.instantiate()
+	get_root().add_child(b5)
+	b5.start(Vector2(240.0, 400.0))
+	b5.position = Vector2(200.0, 150.0)
+	b5.rotation = PI                # facing DOWN
+	b5._vel = Vector2.ZERO
+	b5._ang_vel = 0.0
+	b5._tgt_pos = Vector2(300.0, 150.0)   # directly to the RIGHT — a pure sideways move
+	b5._tgt_heading = PI            # HOLD facing down (must strafe, not turn)
+	b5._tgt_depth = 0.0
+	b5._tgt_mode = b5.M_FLY
+	var min_throttle: float = 999.0
+	for i in 1200:
+		b5._integrate_physics(1.0 / 60.0)
+		min_throttle = minf(min_throttle, float(b5._cmd_throttle))
+	var off: float = b5.position.distance_to(Vector2(300.0, 150.0))
+	_ck(off < 45.0, "pilot STRAFES to a lateral target (%.0f px off)" % off)
+	_ck(absf(wrapf(PI - b5.rotation, -PI, PI)) < 0.2, "heading HELD while strafing (didn't turn to travel: %.2f off)" % absf(wrapf(PI - b5.rotation, -PI, PI)))
+	_ck(min_throttle >= 0.0, "main thrust is forward-only (throttle never < 0 — no reverse)")
+	# depth axis: top thrusters dive it in, releasing surfaces it
+	b5._tgt_depth = 1.0
+	for i in 300:
+		b5._integrate_physics(1.0 / 60.0)
+	_ck(b5._depth > 0.8, "top thrusters dive it into the background (depth→%.2f)" % b5._depth)
+	b5._tgt_depth = 0.0
+	for i in 300:
+		b5._integrate_physics(1.0 / 60.0)
+	_ck(b5._depth < 0.2, "releasing surfaces it back to the foreground (depth→%.2f)" % b5._depth)
+	b5.free()
 
 	# --- Maneuver eligibility (fresh instance) ------------------------------------
 	var b3 = ps.instantiate()
@@ -234,24 +268,38 @@ func _run() -> void:
 	_ck(custom_ok, "configured turret MountSpec drives the built turrets")
 	boss2.free()
 
-	# --- Firecore release scatters in an outward fan (then drifts) ----------------
-	boss._release_firecores(Vector2.UP)
+	# --- Firecore release scatters in an OUTWARD fan by world x-offset (no twist) --
+	boss.rotation = 0.0
+	boss.position = Vector2(240.0, 60.0)
+	boss._release_firecores(Vector2.DOWN)
 	var cores_spawned: int = 0
 	var fanned: int = 0
 	var mid_depth: int = 0
-	var dirs: Array = []
+	var left_core_x: float = 9999.0
+	var right_core_x: float = -9999.0
+	var left_burst_x: float = 0.0
+	var right_burst_x: float = 0.0
 	for c in world.get_children():
 		if c.get_script() == FirecoreScript:
 			cores_spawned += 1
 			if c.burst_velocity.length() > 1.0:
 				fanned += 1
-				dirs.append(c.burst_velocity.normalized())
 			if int(c.z_index) < -1:
 				mid_depth += 1
+			if c.global_position.x < left_core_x:
+				left_core_x = c.global_position.x
+				left_burst_x = c.burst_velocity.x
+			if c.global_position.x > right_core_x:
+				right_core_x = c.global_position.x
+				right_burst_x = c.burst_velocity.x
 	_ck(cores_spawned > 0, "firecores released (%d)" % cores_spawned)
 	_ck(fanned == cores_spawned, "every released firecore gets a scatter burst")
 	_ck(mid_depth == cores_spawned, "released firecores sit at mid-depth z (behind the player)")
-	_ck(dirs.size() >= 2 and not dirs[0].is_equal_approx(dirs[dirs.size() - 1]), "firecores fan out across a range of directions")
+	_ck(left_burst_x < right_burst_x, "firecores fan OUTWARD by world x (left→down-left, right→down-right; no twist)")
+	# Salvo count grows per firecore pass (1, then 2, …) — _launch_firecore_salvos increments synchronously.
+	var passes0: int = int(boss._firecore_passes)
+	boss._launch_firecore_salvos(1.0)
+	_ck(int(boss._firecore_passes) == passes0 + 1, "each firecore launch counts a pass (widening volley)")
 
 	# --- Under-layer z + body pin -------------------------------------------------
 	_ck(int(boss.z_index) < -1, "boss sits at an under-layer z (%d, behind the player trail's -1)" % int(boss.z_index))
@@ -262,6 +310,19 @@ func _run() -> void:
 		if bs == null or bs.z_as_relative or int(bs.z_index) >= PLAYER_SHOT_Z:
 			body_ok = false
 	_ck(body_ok, "hull body sprites pinned absolute z < player-shot z=-1 (player shots draw over the body)")
+
+	# --- Hull collision disabled (only the parts stop shots) ----------------------
+	var hull_solid := false
+	for c in boss.get_children():
+		if (c is CollisionShape2D or c is CollisionPolygon2D) and not c.disabled:
+			hull_solid = true
+	_ck(not hull_solid, "hull collision shape disabled (player shots pass the hull, hit the parts)")
+
+	# --- HP bar tracks aggregate part HP (not the cosmetic 1200) ------------------
+	_ck(int(boss.max_health) == int(boss._parts_max_total) and int(boss._parts_max_total) > 1000,
+		"HP-bar max = total part HP (%d, not the cosmetic hull max)" % int(boss._parts_max_total))
+	boss._update_health_bar()   # recompute from live parts (the main + a side laser were destroyed above)
+	_ck(int(boss.health) < int(boss.max_health), "HP bar drops as parts die (%d/%d)" % [int(boss.health), int(boss.max_health)])
 
 	# --- Retreat exit (survive the waves): stops + frees, reports defeated ---------
 	var b4 = ps.instantiate()
