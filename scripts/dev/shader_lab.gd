@@ -356,7 +356,8 @@ var _sd_pool_by_cat: Dictionary = {}  # "small"/"medium"/"large" → [scene path
 var _death_ship: Node2D = null        # the live dummy flying down the middle, awaiting a death
 var _death_ship_vel: Vector2 = Vector2.ZERO  # its downward travel (handed to the death as the glide)
 var _death_fx: Node = null            # the active DeathEffects controller (null between plays)
-var _death_style: String = "burn_out"
+var _death_style: String = "spinout"
+var _spinout_resolution: String = "random"   # spinout ending (random | instakill | flashout | wreck | descent)
 var _death_vals: Dictionary = {}      # style → {key: value} (per-style knobs, like _sd_dmg_vals)
 var _death_knob_box: VBoxContainer = null  # sub-box for the selected style's knobs (rebuilt on change)
 var _death_pool: Array = []           # all spawnable ship-vfx enemy paths (measured once)
@@ -1390,7 +1391,7 @@ func _ship_size_scale(ship: Node, sprite: Sprite2D) -> float:
 
 func _enter_death() -> void:
 	if _death_style == "" or not DeathEffectsScript.STYLES.has(_death_style):
-		_death_style = "burn_out"
+		_death_style = "spinout"
 	_init_death_vals()
 	_knob_box.add_child(_label("Death Effects", FS_BODY, UiTheme.COLOR_ACCENT))
 	_knob_box.add_child(_label("A live enemy holds at centre. Pick a style and\nPlay it — it composes the real death primitives.\nEach style has its OWN knobs below.\nSpinout auto-picks a 2-engine ship.", FS_CAPTION, UiTheme.COLOR_FAINT))
@@ -1425,7 +1426,11 @@ func _init_death_vals() -> void:
 	for style in DeathEffectsScript.STYLES:
 		var d := {}
 		for def in DeathEffectsScript.STYLE_KNOBS.get(style, []):
-			d[String(def["key"])] = float(def["def"])
+			var key := String(def["key"])
+			if def.get("range", false):
+				d[key] = (def["def"] as Array).duplicate()   # [lo, hi] — randomized per death
+			else:
+				d[key] = float(def["def"])
 		_death_vals[style] = d
 
 
@@ -1435,20 +1440,63 @@ func _rebuild_death_knobs() -> void:
 		return
 	for c in _death_knob_box.get_children():
 		c.queue_free()
+	# Spinout resolves into one of instakill/flashout/wreck/descent — pick which (or Random) to test.
+	if _death_style == "spinout":
+		_death_knob_box.add_child(_label("Resolution", FS_CAPTION, UiTheme.COLOR_FAINT))
+		var rd := OptionButton.new()
+		rd.add_theme_font_override("font", UiTheme.active_font())
+		rd.add_theme_font_size_override("font_size", FS_BODY)
+		rd.custom_minimum_size = Vector2(0, 30)
+		for r in DeathEffectsScript.RESOLUTIONS:
+			rd.add_item(String(r).capitalize())
+		rd.select(maxi(0, DeathEffectsScript.RESOLUTIONS.find(_spinout_resolution)))
+		rd.item_selected.connect(func(i: int): _spinout_resolution = String(DeathEffectsScript.RESOLUTIONS[i]))
+		_death_knob_box.add_child(rd)
+		_death_knob_box.add_child(HSeparator.new())
 	var vals: Dictionary = _death_vals.get(_death_style, {})
 	for def in DeathEffectsScript.STYLE_KNOBS.get(_death_style, []):
-		var key := String(def["key"])
-		var row_lbl := _label("%s: %s" % [def["label"], _fmt(float(vals[key]), float(def["step"]))], FS_CAPTION, UiTheme.COLOR_FAINT)
-		_death_knob_box.add_child(row_lbl)
+		if def.get("range", false):
+			_add_death_range_knob(def, vals)
+		else:
+			_add_death_knob(def, vals)
+
+
+func _add_death_knob(def: Dictionary, vals: Dictionary) -> void:
+	var key := String(def["key"])
+	var step := float(def["step"])
+	var row_lbl := _label("%s: %s" % [def["label"], _fmt(float(vals[key]), step)], FS_CAPTION, UiTheme.COLOR_FAINT)
+	_death_knob_box.add_child(row_lbl)
+	var sl := HSlider.new()
+	sl.min_value = float(def["min"])
+	sl.max_value = float(def["max"])
+	sl.step = step
+	sl.value = float(vals[key])
+	sl.custom_minimum_size = Vector2(0, 24)
+	sl.value_changed.connect(func(v: float):
+		vals[key] = v
+		row_lbl.text = "%s: %s" % [def["label"], _fmt(v, step)])
+	_death_knob_box.add_child(sl)
+
+
+# A RANGE knob = two sliders (Lo, Hi); the death randomizes randf_range(lo, hi) per play.
+func _add_death_range_knob(def: Dictionary, vals: Dictionary) -> void:
+	var key := String(def["key"])
+	var step := float(def["step"])
+	var arr: Array = vals[key]   # [lo, hi] — mutated in place
+	var row_lbl := _label("%s: %s–%s (rand)" % [def["label"], _fmt(float(arr[0]), step), _fmt(float(arr[1]), step)], FS_CAPTION, UiTheme.COLOR_FAINT)
+	_death_knob_box.add_child(row_lbl)
+	var refresh := func():
+		row_lbl.text = "%s: %s–%s (rand)" % [def["label"], _fmt(float(arr[0]), step), _fmt(float(arr[1]), step)]
+	for idx in 2:
 		var sl := HSlider.new()
 		sl.min_value = float(def["min"])
 		sl.max_value = float(def["max"])
-		sl.step = float(def["step"])
-		sl.value = float(vals[key])
-		sl.custom_minimum_size = Vector2(0, 24)
+		sl.step = step
+		sl.value = float(arr[idx])
+		sl.custom_minimum_size = Vector2(0, 22)
 		sl.value_changed.connect(func(v: float):
-			vals[key] = v
-			row_lbl.text = "%s: %s" % [def["label"], _fmt(v, float(def["step"]))])
+			arr[idx] = v
+			refresh.call())
 		_death_knob_box.add_child(sl)
 
 
@@ -1505,18 +1553,18 @@ func _spawn_death_ship() -> void:
 
 
 func _death_cfg() -> Dictionary:
-	return (_death_vals.get(_death_style, {}) as Dictionary).duplicate()
-
-
-# The downward glide / inherited-velocity speed handed to DeathEffects — pulled from whichever knob
-# the selected style uses as its entry speed.
-func _death_primary_speed() -> float:
-	var v: Dictionary = _death_vals.get(_death_style, {})
-	if _death_style == "blow_out":
-		return float(v.get("enter_speed", 40.0))
+	var cfg: Dictionary = (_death_vals.get(_death_style, {}) as Dictionary).duplicate(true)  # deep — copy range arrays
 	if _death_style == "spinout":
-		return float(v.get("spinout_speed", 40.0))
-	return float(v.get("travel_speed", 70.0))
+		cfg["resolution"] = _spinout_resolution
+	return cfg
+
+
+# The downward flight speed handed to the dummy + the death as its inherited velocity. A representative
+# constant — the death sets its own speeds (spinout randomizes within its ranges).
+func _death_primary_speed() -> float:
+	if _death_style == "blow_out":
+		return float((_death_vals.get("blow_out", {}) as Dictionary).get("enter_speed", 40.0))
+	return 50.0
 
 
 func _play_death() -> void:
@@ -2435,9 +2483,17 @@ func _load_saved() -> void:
 				_death_vals = {}
 				for style in DeathEffectsScript.STYLES:
 					var dvd := {}
+					var saved_style: Dictionary = dss.get(style, {})
 					for def in DeathEffectsScript.STYLE_KNOBS.get(style, []):
 						var key2 := String(def["key"])
-						dvd[key2] = float((dss.get(style, {}) as Dictionary).get(key2, def["def"]))
+						var sv = saved_style.get(key2, null)
+						if def.get("range", false):
+							if sv is Array and (sv as Array).size() == 2:
+								dvd[key2] = [float(sv[0]), float(sv[1])]
+							else:
+								dvd[key2] = (def["def"] as Array).duplicate()
+						else:
+							dvd[key2] = float(sv) if sv != null else float(def["def"])
 					_death_vals[style] = dvd
 
 
@@ -2573,9 +2629,16 @@ func _snippet_death() -> String:
 	t += "var fx := DeathEffects.new()\n"
 	t += "vfx_parent.add_child(fx)   # a node that OUTLIVES the enemy (combat scene root)\n"
 	t += "fx.play(enemy, \"%s\", {\n" % _death_style
+	if _death_style == "spinout":
+		t += "\t\"resolution\": \"%s\",   # random | instakill | flashout | wreck | descent\n" % _spinout_resolution
 	for def in DeathEffectsScript.STYLE_KNOBS.get(_death_style, []):
 		var key := String(def["key"])
-		t += "\t\"%s\": %s,\n" % [key, _fmt(float(v.get(key, def["def"])), float(def["step"]))]
+		var step := float(def["step"])
+		if def.get("range", false):
+			var arr: Array = v.get(key, def["def"])
+			t += "\t\"%s\": [%s, %s],   # randomized per death\n" % [key, _fmt(float(arr[0]), step), _fmt(float(arr[1]), step)]
+		else:
+			t += "\t\"%s\": %s,\n" % [key, _fmt(float(v.get(key, def["def"])), step)]
 	t += "}, Vector2.DOWN * %.1f,\n" % _death_primary_speed()
 	t += "\t{\"vfx_parent\": vfx_parent, \"wreck_parent\": wreck_layer, \"bounds\": play_rect})\n"
 	return t
