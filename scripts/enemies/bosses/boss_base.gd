@@ -297,7 +297,6 @@ func explode() -> void:
 	# the 0.08s explosion cadence with mild positional jitter so the dust
 	# layer mirrors the cascade rather than dumping all at the origin.
 	var DeathDust := load("res://scripts/effects/death_dust.gd")
-	var tree := get_tree()
 	for i in range(7):
 		var delay: float = float(i) * 0.08
 		var jitter := Vector2(randf_range(-28.0, 28.0), randf_range(-28.0, 28.0))
@@ -305,7 +304,7 @@ func explode() -> void:
 		if delay <= 0.001:
 			DeathDust.play_with_count(puff_pos, 16)
 		else:
-			tree.create_timer(delay).timeout.connect(DeathDust.play_with_count.bind(puff_pos, 16))
+			_paced(delay).timeout.connect(DeathDust.play_with_count.bind(puff_pos, 16))
 	if has_node("Sprite2D"):
 		var BurnFx := load("res://scripts/effects/burn_fx.gd")
 		BurnFx.apply_burn($Sprite2D, 1.2)
@@ -314,13 +313,23 @@ func explode() -> void:
 	# Old $EnemyDie clip retired (Roman 2026-06-10) — the boss death burst above sounds through
 	# the distance-based ExplosionSfx like every other death.
 	health_changed.emit(0, max_health)
-	await get_tree().create_timer(1.3).timeout
+	await _paced(1.3).timeout
 	queue_free()
 
 
 # Subclass hook: cleanup on death (free minions, cancel timers, etc).
 func _on_boss_death() -> void:
 	pass
+
+
+# Pausable pacing timer for boss attack/phase coroutines. SceneTree.create_timer()
+# defaults to process_always=true, so its timers IGNORE get_tree().paused — which
+# left bosses telegraphing, firing beams, cycling phases and spawning hazards while
+# the pause menu was up (2026-07-04). process_always=false ties every boss beat to
+# the tree's pause state, so the whole fight freezes and resumes with the game.
+# (The Commander already uses node-bound Timers, which pause for free.)
+func _paced(seconds: float) -> SceneTreeTimer:
+	return get_tree().create_timer(seconds, false)
 
 
 # ---- ShootTimer dumb-fire (wave director injects shoot_pattern) ---------
@@ -644,7 +653,7 @@ func start_telegraph(duration: float, color: Color = Color.RED, lock_to_player: 
 # spawning the visual.
 func await_telegraph(duration: float) -> void:
 	start_telegraph(duration)
-	await get_tree().create_timer(duration).timeout
+	await _paced(duration).timeout
 
 
 # ---- Attack primitives -------------------------------------------------
@@ -711,7 +720,7 @@ func fire_aimed_burst(count: int, spread_deg: float, interval: float = 0.0, vari
 		var dir: Vector2 = aim.rotated(t * spread_rad * 0.5)
 		_spawn_bullet(dir, variant)
 		if interval > 0.0 and i < count - 1:
-			await get_tree().create_timer(interval).timeout
+			await _paced(interval).timeout
 
 
 # Synchronous aimed cone — all bullets at once.
@@ -774,7 +783,7 @@ func fire_beam_telegraphed(width_px: float, gap_x: float, telegraph_duration: fl
 	tele_right.position = Vector2(gap_x + gap_half, beam_y - 0.5)
 	tele_right.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_world().add_child(tele_right)
-	await get_tree().create_timer(telegraph_duration).timeout
+	await _paced(telegraph_duration).timeout
 	if is_instance_valid(tele_left):
 		tele_left.queue_free()
 	if is_instance_valid(tele_right):
@@ -798,7 +807,7 @@ func fire_beam_telegraphed(width_px: float, gap_x: float, telegraph_duration: fl
 	# current scene so they outlive any boss reposition mid-beam.
 	_spawn_beam_hitbox(Playfield.X_MIN, gap_x - gap_half, beam_y, width_px, beam_duration, damage)
 	_spawn_beam_hitbox(gap_x + gap_half, Playfield.X_MAX, beam_y, width_px, beam_duration, damage)
-	await get_tree().create_timer(beam_duration).timeout
+	await _paced(beam_duration).timeout
 	if is_instance_valid(left):
 		left.queue_free()
 	if is_instance_valid(right):
@@ -827,7 +836,7 @@ func _spawn_beam_hitbox(x_left: float, x_right: float, beam_y: float, width_px: 
 		if other != null and other.is_in_group("player") and other.has_method("take_damage"):
 			other.take_damage(dmg)
 	)
-	get_tree().create_timer(beam_duration).timeout.connect(func() -> void:
+	_paced(beam_duration).timeout.connect(func() -> void:
 		if is_instance_valid(hb):
 			hb.queue_free()
 	)
@@ -864,7 +873,7 @@ func dive_toward(target: Vector2, speed: float, telegraph_first: bool = true) ->
 	if telegraph_first:
 		_charging = true
 		start_telegraph(0.9, Color.RED, true)
-		await get_tree().create_timer(0.9).timeout
+		await _paced(0.9).timeout
 		_charging = false
 		if _dying:
 			return
@@ -968,7 +977,7 @@ func flare_clear(radius: float = 70.0, damage: int = 1, flashes: int = 3) -> voi
 			set_invincible(false)
 			return
 		_enrage_flash(Color(1.5, 0.2, 0.2, 1.0), 0.22)
-		await get_tree().create_timer(0.3).timeout
+		await _paced(0.3).timeout
 	if _dying:
 		set_invincible(false)
 		return
@@ -978,7 +987,7 @@ func flare_clear(radius: float = 70.0, damage: int = 1, flashes: int = 3) -> voi
 	# Placeholder flare VFX — the expanding enrage ring stands in until the new art
 	# lands (spec: "use the gun muzzle flash sprite strip for now").
 	_enrage_flash(Color(1.6, 0.9, 0.4, 1.0), 0.5)
-	await get_tree().create_timer(0.5).timeout
+	await _paced(0.5).timeout
 	set_invincible(false)
 
 
@@ -998,7 +1007,7 @@ func fire_zone_strike(count: int = 3, telegraph: float = 0.8, radius: float = 26
 		var px: float = randf_range(Playfield.X_MIN + radius, Playfield.X_MAX - radius)
 		var py: float = randf_range(70.0, vp.y - 40.0)
 		_zone_strike_at(Vector2(px, py), radius, telegraph, damage)
-	await get_tree().create_timer(telegraph + 0.25).timeout
+	await _paced(telegraph + 0.25).timeout
 
 
 # Fire-and-forget single zone strike: a growing red telegraph ring, then an
@@ -1041,7 +1050,7 @@ func _spawn_circle_hitbox(center: Vector2, radius: float, duration: float, damag
 		if other != null and other.is_in_group("player") and other.has_method("take_damage"):
 			other.take_damage(dmg)
 	)
-	get_tree().create_timer(duration).timeout.connect(func() -> void:
+	_paced(duration).timeout.connect(func() -> void:
 		if is_instance_valid(hb):
 			hb.queue_free()
 	)

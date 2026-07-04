@@ -607,7 +607,7 @@ func explode() -> void:
 	# new explosion sounds, retire the old ones"). Deaths now sound exclusively through the
 	# distance-based ExplosionSfx fired by the ExplosionFx.play/burst calls above; playing the
 	# old clip here buried the new ones. The EnemyDie nodes remain in the scenes (inert).
-	await get_tree().create_timer(0.5).timeout
+	await get_tree().create_timer(0.5, false).timeout   # false = death despawn pauses with the game
 	queue_free()
 
 

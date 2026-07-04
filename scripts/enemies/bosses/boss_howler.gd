@@ -81,7 +81,7 @@ func _attack_loop() -> void:
 
 func _run_cycle_loop() -> void:
 	while not _dying and is_instance_valid(self):
-		await get_tree().create_timer(_cycle_cadence).timeout
+		await _paced(_cycle_cadence).timeout
 		if _dying:
 			return
 		match _attack_idx % 4:
@@ -94,7 +94,7 @@ func _run_cycle_loop() -> void:
 				fire_ring(12, _ring_offset_deg, _var_ring)
 				_ring_offset_deg += _ring_step_deg
 				if _ring_double_fire:
-					await get_tree().create_timer(0.25).timeout
+					await _paced(0.25).timeout
 					if _dying:
 						return
 					fire_ring(12, _ring_offset_deg + 15.0, _var_ring)

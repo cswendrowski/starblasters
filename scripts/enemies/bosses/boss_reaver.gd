@@ -92,7 +92,7 @@ func _attack_loop() -> void:
 	while not _dying and is_instance_valid(self):
 		if not _phase2:
 			# P1: 3-bullet aimed fans every 1.2s while sweeping.
-			await get_tree().create_timer(1.2).timeout
+			await _paced(1.2).timeout
 			if _dying:
 				return
 			fire_aimed_burst(3, 16.0)
@@ -106,7 +106,7 @@ func _run_dive_cycle() -> void:
 	_pattern = null
 	var p := find_player()
 	if p == null or not (p is Node2D):
-		await get_tree().create_timer(0.6).timeout
+		await _paced(0.6).timeout
 		return
 	var pp: Vector2 = (p as Node2D).global_position
 	# Cache the column the boss is committing to — used by both recycle
@@ -137,7 +137,7 @@ func _run_dive_cycle() -> void:
 	_in_dive = false
 	if _dying:
 		return
-	await get_tree().create_timer(0.6).timeout
+	await _paced(0.6).timeout
 
 
 # Drive the boss straight down past the bottom edge at dive speed.
@@ -155,7 +155,7 @@ func _continue_off_bottom(_dive_x: float) -> void:
 func _recover_recycle(dive_x: float) -> void:
 	# Brief beat off-screen before re-entering so the recycle reads as a
 	# return rather than a teleport-snap.
-	await get_tree().create_timer(0.4).timeout
+	await _paced(0.4).timeout
 	if _dying:
 		return
 	# Teleport above the playfield and slide down to anchor_y.
@@ -169,7 +169,7 @@ func _recover_recycle(dive_x: float) -> void:
 # bottom, fishtail-slide 180° near anchor_y.
 func _recover_return(dive_x: float) -> void:
 	# 1.0s beat of empty playfield.
-	await get_tree().create_timer(1.0).timeout
+	await _paced(1.0).timeout
 	if _dying:
 		return
 	# Red telegraph line down the lane. ~4 px wide, full playfield height,
@@ -220,4 +220,4 @@ func _flash_return_telegraph(x: float, duration: float) -> void:
 	tw.tween_property(bar, "color:a", 0.85, duration * 0.25)
 	tw.tween_property(bar, "color:a", 0.0, duration * 0.25)
 	tw.tween_callback(bar.queue_free)
-	await get_tree().create_timer(duration).timeout
+	await _paced(duration).timeout

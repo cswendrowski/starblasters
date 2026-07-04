@@ -310,7 +310,8 @@ func _fire_gun(enemy) -> void:
 			# each step already lands burst_interval after the previous shot — multiplying by i here
 			# (the old bug) double-counted the elapsed time, stretching the gaps to 0.1/0.2/0.3 instead
 			# of a steady 0.1 (Roman 2026-06-29: "2 fast, 1 late, 1 later").
-			await enemy.get_tree().create_timer(spec.burst_interval).timeout
+			# process_always=false so the burst FREEZES with the game on pause.
+			await enemy.get_tree().create_timer(spec.burst_interval, false).timeout
 			# Bail if the host went away OR is now held (recycling / off the playfield) — a burst that
 			# started on-screen must not keep firing into a recycle (Roman 2026-07-01).
 			if not is_instance_valid(enemy) or _held(enemy):
@@ -353,7 +354,8 @@ func _fire_launcher(enemy) -> void:
 	# moving launcher and CYCLE alternates muzzles per shot.
 	for i in n:
 		if is_burst and i > 0:
-			await enemy.get_tree().create_timer(spec.burst_interval).timeout
+			# process_always=false so the burst FREEZES with the game on pause.
+			await enemy.get_tree().create_timer(spec.burst_interval, false).timeout
 			# Bail if the host went away OR is now held (recycling / off the playfield) — a burst that
 			# started on-screen must not keep firing into a recycle (Roman 2026-07-01).
 			if not is_instance_valid(enemy) or _held(enemy):

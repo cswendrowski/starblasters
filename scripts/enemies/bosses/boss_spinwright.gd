@@ -127,28 +127,28 @@ func _attack_loop() -> void:
 				# Pressure-only ring every 5s while the deflector holds the
 				# player honest from above. Heavy slug: slow fat orbs match
 				# the boss's deliberate mechanical identity.
-				await get_tree().create_timer(5.0).timeout
+				await _paced(5.0).timeout
 				if _dying:
 					return
 				fire_ring(6, 0.0, load("res://data/bullets/boss/heavy_slug.tres"))
 			1:
 				# Single beam every ~4s; gap follows the player's X at
 				# telegraph start.
-				await get_tree().create_timer(0.8).timeout
+				await _paced(0.8).timeout
 				if _dying:
 					return
 				var gx: float = _player_x_clamped()
 				await fire_beam_telegraphed(36.0, gx, 1.0, 2.2, 1)
-				await get_tree().create_timer(1.0).timeout
+				await _paced(1.0).timeout
 			2:
 				# Two beams per cycle, gaps offset.
 				var gx1: float = _player_x_clamped()
 				var gx2: float = Playfield.CENTER.x + (Playfield.CENTER.x - gx1) * 0.5
 				gx2 = clamp(gx2, Playfield.X_MIN + 30.0, Playfield.X_MAX - 30.0)
 				fire_beam_telegraphed(36.0, gx1, 1.0, 2.0, 1)
-				await get_tree().create_timer(0.6).timeout
+				await _paced(0.6).timeout
 				await fire_beam_telegraphed(36.0, gx2, 1.0, 2.0, 1)
-				await get_tree().create_timer(0.8).timeout
+				await _paced(0.8).timeout
 
 
 func _player_x_clamped() -> float:

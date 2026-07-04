@@ -156,11 +156,11 @@ func _spawn_burn_trail() -> void:
 	# Fade the emission out and free so the wreck-smoke doesn't last forever.
 	var tree := get_tree()
 	if tree != null:
-		tree.create_timer(4.0).timeout.connect(func() -> void:
+		tree.create_timer(4.0, false).timeout.connect(func() -> void:
 			if is_instance_valid(p):
 				p.emitting = false
 				var t2 := p.get_tree()
 				if t2 != null:
-					t2.create_timer(1.0).timeout.connect(func() -> void:
+					t2.create_timer(1.0, false).timeout.connect(func() -> void:
 						if is_instance_valid(p):
 							p.queue_free()))

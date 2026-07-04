@@ -72,7 +72,12 @@ var _scroll_layers: Array = []
 
 
 func _ready() -> void:
-	process_mode = Node.PROCESS_MODE_ALWAYS
+	# PAUSABLE so the drift in _process() FREEZES with the game when the pause
+	# menu sets get_tree().paused (was ALWAYS, which left the backdrop visibly
+	# scrolling behind the near-opaque pause dim — "still animating", 2026-07-04).
+	# The backdrop only ever renders during combat (the sole place the tree is
+	# paused) or on non-pausing menu screens, so pausable is a no-op elsewhere.
+	process_mode = Node.PROCESS_MODE_PAUSABLE
 	_layer_stars         = get_node_or_null("LayerStars")
 	_layer_planet        = get_node_or_null("LayerPlanet")
 	_layer_stellar_far   = get_node_or_null("LayerStellarFar")

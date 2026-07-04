@@ -117,7 +117,7 @@ func _attack_loop() -> void:
 	while not _dying and is_instance_valid(self):
 		# 0.1s tick — friendlier on the scheduler than process_frame, fine
 		# resolution for boss cadence (rings + dives are seconds-scale).
-		await get_tree().create_timer(0.1).timeout
+		await _paced(0.1).timeout
 		if _dying:
 			return
 		var delta: float = 0.1

@@ -67,7 +67,7 @@ func _live_count() -> int:
 
 func _run_bh_loop() -> void:
 	while not _dying and is_instance_valid(self):
-		await get_tree().create_timer(8.0).timeout
+		await _paced(8.0).timeout
 		if _dying:
 			return
 		if _live_count() >= _max_holes():
@@ -113,7 +113,7 @@ func _spawn_drifting_hole() -> void:
 
 func _run_fan_loop() -> void:
 	while not _dying and is_instance_valid(self):
-		await get_tree().create_timer(2.0).timeout
+		await _paced(2.0).timeout
 		if _dying:
 			return
 		var count: int = 5 if _phase2 else 3

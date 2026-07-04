@@ -265,17 +265,17 @@ func _attack_loop() -> void:
 	while not _dying and is_instance_valid(self):
 		match _pylon_state:
 			"both":
-				await get_tree().create_timer(1.8).timeout
+				await _paced(1.8).timeout
 				if _dying:
 					return
 				fire_aimed_burst(3, 24.0)
 			"one_down":
-				await get_tree().create_timer(1.2).timeout
+				await _paced(1.2).timeout
 				if _dying:
 					return
 				fire_aimed_burst(5, 22.0)
 			"core_only":
-				await get_tree().create_timer(1.5).timeout
+				await _paced(1.5).timeout
 				if _dying:
 					return
 				# Burst round: red short-life streaks escalate the panic read

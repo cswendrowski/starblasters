@@ -31,7 +31,12 @@ var _canvas_mod: CanvasModulate = null
 
 
 func _ready() -> void:
-	process_mode = Node.PROCESS_MODE_ALWAYS
+	# PAUSABLE (was ALWAYS) so every parallax layer — and the decor drift its
+	# subclasses run in their own _process (planet spin, stellar/star drift, bg
+	# mines) — FREEZES with the game under the pause menu instead of animating
+	# behind the near-opaque dim (2026-07-04). The backdrop only shows during
+	# combat or on non-pausing menus, so this is a no-op outside pause.
+	process_mode = Node.PROCESS_MODE_PAUSABLE
 	_canvas_mod = $CanvasModulate if has_node("CanvasModulate") else null
 	if _canvas_mod != null:
 		_recompute_modulate()

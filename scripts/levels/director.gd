@@ -147,7 +147,7 @@ func start_score(score: Resource) -> void:
 	_seed_dispatch_rng()
 	# Opening grace: let the player settle after the slide-in before waves come.
 	if start_grace > 0.0:
-		await get_tree().create_timer(start_grace).timeout
+		await _paced(start_grace).timeout
 		if not _running:
 			return
 	_advance_step()
@@ -155,6 +155,16 @@ func start_score(score: Resource) -> void:
 func stop() -> void:
 	_running = false
 	_check_clear = false
+
+
+# Pausable pacing wait for the spawn loop. SceneTree.create_timer() defaults to
+# process_always=true, so its timers IGNORE get_tree().paused — which kept the
+# director advancing waves and spawning enemies behind the pause menu (the game
+# "kept going" while paused, 2026-07-04). Passing process_always=false ties every
+# pacing beat to the tree's pause state: the countdown freezes on pause and
+# resumes on unpause, so the whole spawn stream halts with the game.
+func _paced(seconds: float) -> SceneTreeTimer:
+	return get_tree().create_timer(seconds, false)
 
 
 # Seed the dispatch RNG from run_seed + the current node identity so placement (lanes, wall
@@ -425,7 +435,7 @@ func _dispatch_formation(ph: Resource) -> void:
 			if not _running:
 				return
 			while _running and _alive_slots() >= max_concurrent:
-				await get_tree().create_timer(0.1).timeout
+				await _paced(0.1).timeout
 			if not _running:
 				return
 			var spawned: Node = _spawn_enemy(sp, i)
@@ -440,7 +450,7 @@ func _dispatch_formation(ph: Resource) -> void:
 			if is_instance_valid(spawned) and spawned is Node2D and _enemy_height(spawned) >= ANCHOR_MIN_HEIGHT:
 				await _await_arrival_depth(spawned as Node2D)
 			else:
-				await get_tree().create_timer(maxf(sp.spawn_interval, ANTI_BURST_FLOOR)).timeout
+				await _paced(maxf(sp.spawn_interval, ANTI_BURST_FLOOR)).timeout
 	_advance_step()
 
 
@@ -457,7 +467,7 @@ func _dispatch_sweep_rows(ph: Resource) -> void:
 			if not _running:
 				return
 			while _running and _alive_slots() >= max_concurrent:
-				await get_tree().create_timer(0.1).timeout
+				await _paced(0.1).timeout
 			if not _running:
 				return
 			# Size this row to the remaining count AND the cap headroom, so a row never overshoots the
@@ -488,7 +498,7 @@ func _await_row_clear(enemy, min_beat: float) -> void:
 	var start_y: float = (enemy.position.y if (is_instance_valid(enemy) and enemy is Node2D) else 0.0)
 	var t: float = 0.0
 	while _running and t < SWEEP_ROW_TIMEOUT:
-		await get_tree().create_timer(0.05).timeout
+		await _paced(0.05).timeout
 		t += 0.05
 		var cleared: bool = (not is_instance_valid(enemy)) or (not (enemy is Node2D)) \
 			or (enemy.position.y - start_y >= SWEEP_ROW_CLEAR_DEPTH)
@@ -525,7 +535,7 @@ func _await_arrival_depth(enemy: Node2D) -> void:
 	while _running and is_instance_valid(enemy) and elapsed < ARRIVAL_DEPTH_TIMEOUT:
 		if enemy.position.y - start_y >= ANCHOR_ARRIVAL_DEPTH:
 			return
-		await get_tree().create_timer(0.05).timeout
+		await _paced(0.05).timeout
 		elapsed += 0.05
 
 
@@ -544,11 +554,11 @@ func _dispatch_shaped(ph: Resource) -> void:
 		if not _running:
 			return
 		while _running and _alive_slots() >= max_concurrent:
-			await get_tree().create_timer(0.1).timeout
+			await _paced(0.1).timeout
 		if not _running:
 			return
 		_spawn_enemy(members[idx], idx, int(lanes[idx]))
-		await get_tree().create_timer(0.06).timeout
+		await _paced(0.06).timeout
 
 
 # AUTHORED: an explicitly laid-out formation (wave pattern editor). Each spec is one enemy pinned
@@ -581,12 +591,12 @@ func _dispatch_authored(ph: Resource) -> void:
 			return
 		var wait: float = maxf(0.0, float(sp.spawn_delay) - elapsed)
 		if wait > 0.0:
-			await get_tree().create_timer(wait).timeout
+			await _paced(wait).timeout
 			elapsed += wait
 			if not _running:
 				return
 		while _running and _alive_slots() >= authored_cap:
-			await get_tree().create_timer(0.1).timeout
+			await _paced(0.1).timeout
 		if not _running:
 			return
 		_spawn_enemy(sp, 0, int(sp.lane))
@@ -642,11 +652,11 @@ func _dispatch_geometric(ph: Resource) -> void:
 		if not _running:
 			return
 		while _running and _alive_slots() >= cap:
-			await get_tree().create_timer(0.1).timeout
+			await _paced(0.1).timeout
 		if not _running:
 			return
 		_spawn_enemy(s, 0, int(s.lane))
-		await get_tree().create_timer(GEOMETRIC_MEMBER_STAGGER).timeout
+		await _paced(GEOMETRIC_MEMBER_STAGGER).timeout
 
 
 # Ceiled burst-fit cap for an intentional pre-stacked formation of `member_count`: fit it on top of
@@ -671,7 +681,7 @@ func _await_burst_headroom(member_count: int) -> void:
 	var target: int = ceiling - member_count
 	var elapsed: float = 0.0
 	while _running and _alive_slots() > target and elapsed < BURST_HEADROOM_TIMEOUT:
-		await get_tree().create_timer(0.1).timeout
+		await _paced(0.1).timeout
 		elapsed += 0.1
 
 
@@ -696,7 +706,7 @@ func _dispatch_wall(ph: Resource) -> void:
 			return
 		# Cap-gate before each row so a wall never blows past the concurrency cap.
 		while _running and _alive_slots() >= max_concurrent:
-			await get_tree().create_timer(0.1).timeout
+			await _paced(0.1).timeout
 		if not _running:
 			return
 		var n_this: int = mini(row_size, members.size() - idx)
@@ -711,10 +721,10 @@ func _dispatch_wall(ph: Resource) -> void:
 				return
 			_spawn_enemy(members[idx], idx, int(lanes[k]))
 			idx += 1
-			await get_tree().create_timer(WALL_MEMBER_STAGGER).timeout
+			await _paced(WALL_MEMBER_STAGGER).timeout
 		# Beat between rows (only if more remain).
 		if idx < members.size():
-			await get_tree().create_timer(WALL_ROW_BEAT).timeout
+			await _paced(WALL_ROW_BEAT).timeout
 
 
 # STEP_WALL: spawn a coordinated stepping row (P2d). The row fills a contiguous block
@@ -736,7 +746,7 @@ func _dispatch_step_wall(ph: Resource) -> void:
 		return
 	# Cap-gate before the row (one cohesive burst).
 	while _running and _alive_slots() >= max_concurrent:
-		await get_tree().create_timer(0.1).timeout
+		await _paced(0.1).timeout
 	if not _running:
 		return
 	var layout: Dictionary = _step_wall_layout(members.size())
@@ -840,7 +850,7 @@ func _dispatch_filler(ph: Resource) -> void:
 		if budget_limit < 0 and elapsed >= dur_limit:
 			break
 		while _running and _alive_slots() >= max_concurrent:
-			await get_tree().create_timer(0.1).timeout
+			await _paced(0.1).timeout
 			elapsed += 0.1
 		if not _running:
 			return
@@ -849,7 +859,7 @@ func _dispatch_filler(ph: Resource) -> void:
 			_spawn_enemy(sp, spawned)
 			spawned += 1
 		var gap: float = maxf(1.0 / maxf(ph.rate, 0.01), ANTI_BURST_FLOOR)
-		await get_tree().create_timer(gap).timeout
+		await _paced(gap).timeout
 		elapsed += gap
 	_advance_step()
 
@@ -861,7 +871,7 @@ func _dispatch_breather(ph: Resource) -> void:
 	while _running and elapsed < ph.duration:
 		if ph.alive_floor >= 0 and _alive_count() <= ph.alive_floor:
 			break
-		await get_tree().create_timer(0.1).timeout
+		await _paced(0.1).timeout
 		elapsed += 0.1
 	_advance_step()
 
@@ -1266,7 +1276,7 @@ func _wave_combatants_present() -> bool:
 func _drain_for_gate() -> void:
 	var guard: float = 0.0
 	while _running and _wave_combatants_present() and guard < BOSS_GATE_DRAIN_TIMEOUT:
-		await get_tree().create_timer(0.1).timeout
+		await _paced(0.1).timeout
 		guard += 0.1
 
 func _ready() -> void:

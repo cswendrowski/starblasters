@@ -141,7 +141,9 @@ func _fire_burst(enemy) -> void:
 	var dir: Vector2 = _aim_dir(enemy)
 	_fire_bullet(enemy, dir)   # shot 1's SFX is played by enemy_core after fire() returns
 	for i in range(1, maxi(1, burst_count)):
-		await enemy.get_tree().create_timer(burst_interval).timeout
+		# process_always=false so a multi-shot burst FREEZES with the game on pause
+		# (SceneTree.create_timer defaults to ignoring get_tree().paused).
+		await enemy.get_tree().create_timer(burst_interval, false).timeout
 		# Bail if the host went away OR is now held (dying / recycling / off the playfield) — a
 		# hull burst that started on-screen must not keep firing into a death/recycle (Roman
 		# 2026-07-01, matching mount_component's _fire_gun burst guard).

@@ -136,7 +136,7 @@ func _transition_seq() -> void:
 			set_invincible(false)
 			return
 		_flash_hull(Color(1.6, 0.2, 0.2, 1.0), 0.22)   # "engines flash red"
-		await get_tree().create_timer(0.3).timeout
+		await _paced(0.3).timeout
 	if _dying:
 		set_invincible(false)
 		return
@@ -144,7 +144,7 @@ func _transition_seq() -> void:
 	_flare_strip()                        # gun-muzzle-flash strip at the engines (placeholder art)
 	_clear_projectiles_in_radius(70.0)    # destroy incoming projectiles
 	_spawn_circle_hitbox(global_position, 70.0, 0.45, 1)
-	await get_tree().create_timer(0.5).timeout
+	await _paced(0.5).timeout
 	set_invincible(false)
 	if _state == &"TRANSITION_1" or _state == &"TRANSITION_2":
 		set_flag(&"anim_done")
@@ -177,7 +177,7 @@ func _phase2_seq() -> void:
 		})
 		if _state != &"PHASE_2":
 			break
-		await get_tree().create_timer(2.0).timeout   # 2s gap between cycles
+		await _paced(2.0).timeout   # 2s gap between cycles
 	# Stay faded on the cruiser layer while flying off the bottom, THEN restore
 	# brightness off-screen and re-arrive (so it doesn't pop bright mid-exit).
 	await fly_offscreen(Vector2.DOWN, 320.0)
@@ -257,12 +257,12 @@ func _phase3_rocket_loop() -> void:
 			if _state != &"PHASE_3" or _dying:
 				return
 			_launch_rockets(step)
-			await get_tree().create_timer(0.5).timeout
+			await _paced(0.5).timeout
 		if _cores_released < 4:
 			_cores_released += 1
 			_hide_core(_cores_released)
 			release_firecore(Vector2(randf_range(-8.0, 8.0), 14.0))
-		await get_tree().create_timer(0.6).timeout
+		await _paced(0.6).timeout
 
 
 # Launch a large rocket from the L launcher, the R launcher, or both ("LR").
@@ -336,7 +336,7 @@ func _randomize_modes() -> void:
 func _turret_combat_loop(state_name: StringName) -> void:
 	while _state == state_name and not _dying:
 		if live_parts().is_empty():
-			await get_tree().create_timer(0.5).timeout
+			await _paced(0.5).timeout
 			continue
 		var mode: int = int(_mode_seq[_mode_idx % _mode_seq.size()])
 		_mode_idx += 1
@@ -356,7 +356,7 @@ func _mode_cycle(state_name: StringName) -> void:
 			return
 		if is_instance_valid(tp):
 			tp.fire(_dir_to_player(tp.global_position))
-		await get_tree().create_timer(0.55).timeout
+		await _paced(0.55).timeout
 
 
 # Salvo: all turrets aim straight down and fire 3-shot bursts, three times over.
@@ -368,8 +368,8 @@ func _mode_salvo(state_name: StringName) -> void:
 			for tp in live_parts():
 				if is_instance_valid(tp):
 					tp.fire(Vector2.DOWN)
-			await get_tree().create_timer(0.12).timeout
-		await get_tree().create_timer(0.7).timeout
+			await _paced(0.12).timeout
+		await _paced(0.7).timeout
 
 
 # Sweep: left turrets aim outward-down then swing toward center; right turrets
@@ -387,7 +387,7 @@ func _mode_sweep(state_name: StringName) -> void:
 			var outward := Vector2(side, 1.0).normalized()
 			var inward := Vector2(-side * 0.3, 1.0).normalized()
 			tp.fire(outward.lerp(inward, t).normalized())
-		await get_tree().create_timer(0.16).timeout
+		await _paced(0.16).timeout
 
 
 func _dir_to_player(from: Vector2) -> Vector2:
