@@ -39,7 +39,9 @@ var _started_once: bool = false   # ENTITY START fires once per instance, not on
 
 func on_start(enemy) -> void:
 	_resolve_markers(enemy)
-	if int(spec.kind) == MountSpecC.Kind.GUN:
+	# Build the internal Weapon for GUN (bullet spawn) AND LAUNCHER (aim resolution — a launched
+	# projectile fires along spec.aim / the parent facing, same as a gun; Roman 2026-07-04).
+	if int(spec.kind) == MountSpecC.Kind.GUN or int(spec.kind) == MountSpecC.Kind.LAUNCHER:
 		_weapon = WeaponC.new()
 		_weapon.bullet_scene = EnemyBullet
 		_weapon.payload = spec.payload
@@ -366,7 +368,10 @@ func _fire_launcher(enemy) -> void:
 			# started on-screen must not keep firing into a recycle (Roman 2026-07-01).
 			if not is_instance_valid(enemy) or _held(enemy):
 				return
-		var dir: Vector2 = _fan(Vector2(0, 1), i, n)
+		# Aim along spec.aim (FORWARD = the parent's nose) rather than a hardcoded straight-down, so the
+		# launched projectile faces the way the launcher points (Roman 2026-07-04).
+		var base_dir: Vector2 = _weapon._aim_dir(enemy) if _weapon != null else Vector2(0, 1)
+		var dir: Vector2 = _fan(base_dir, i, n)
 		for pos in _spawn_positions(enemy):
 			var proj = spec.payload_scene.instantiate()
 			if "initial_dir" in proj:
@@ -377,6 +382,11 @@ func _fire_launcher(enemy) -> void:
 				proj.start(pos)
 			elif proj is Node2D:
 				proj.global_position = pos
+			# Inertia ON (no_inertia == false) hands the projectile the launcher's velocity so it carries
+			# the parent's motion; OFF (default) leaves the projectile's own launch velocity. (Roman:
+			# "launcher inertia does nothing for the payload".)
+			if not spec.no_inertia and "_last_move_vel" in enemy:
+				_impart_velocity(proj, enemy._last_move_vel)
 		if is_burst:
 			_play_sfx(enemy)
 	if not is_burst:

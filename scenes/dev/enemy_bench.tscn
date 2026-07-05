@@ -39,7 +39,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-texture_filter = 1
+texture_filter = 0
 stretch = true
 stretch_shrink = 4
 

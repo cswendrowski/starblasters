@@ -970,7 +970,7 @@ func _spawn_current() -> void:
 	# Stamp the faction skin (the production director does this on every spawn) so the collapsed
 	# family payloads (Ball/Bolt/Laser/Wave) restyle to THIS enemy's faction in the preview.
 	inst.set_meta("faction_skin", _faction_id_for_selected())
-	var spawn_pos := Vector2(Playfield.CENTER.x, -20)
+	var spawn_pos := Vector2(Playfield.CENTER.x, -12)   # match the director's spawn_y (wave_def.gd) so entry/facing read like live
 	# Configure BEFORE add_child + start() so enemy_core._start_with_pattern
 	# duplicates the chosen movement and the weapon/explosion are live from frame 0.
 	var key := ""
