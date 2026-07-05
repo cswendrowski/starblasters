@@ -18,6 +18,15 @@ const Drift = preload("res://scripts/enemies/patterns/drift.gd")
 const MAX_DRONES_TOTAL := 10
 const ACTIVE_TARGET    := 3
 const LEAVE_SPEED      := 105.0   # upward retreat once spent (was ENTER_SPEED * 1.5)
+const MountSpecC = preload("res://scripts/enemies/mounts/mount_spec.gd")
+
+# Drone-swarm config — defaults from the consts above, OVERRIDABLE by a spawner-provided ENTITY
+# hardpoint (the bench/roster) so the Hive is tunable instead of fully bespoke (Roman 2026-07-04:
+# "bespoke drone spawning that I can't remove/configure"). The respawn-budget loop (keep _active_target
+# alive until _max_drones total, then leave) stays bespoke — no hardpoint trigger expresses it.
+var _drone_scene: PackedScene = DRONE_SCENE
+var _active_target: int = ACTIVE_TARGET
+var _max_drones: int = MAX_DRONES_TOTAL
 
 var _total_released: int = 0
 var _active_drones: int = 0
@@ -33,19 +42,33 @@ func _ready() -> void:
 		var d := Drift.new()
 		d.hover_y = 55.0
 		movement = d
+	# Read a spawner-provided ENTITY hardpoint (bench/roster) to configure the swarm, then strip it from
+	# mounts so it doesn't ALSO auto-emit — the Hive drives spawning through its bespoke respawn loop.
+	var kept: Array = []
+	for m in mounts:
+		if m != null and "kind" in m and int(m.kind) == MountSpecC.Kind.ENTITY:
+			if m.payload_scene != null:
+				_drone_scene = m.payload_scene
+			if m.count > 0:
+				_active_target = m.count
+			if m.max_emits > 0:
+				_max_drones = m.max_emits
+		else:
+			kept.append(m)
+	mounts = kept
 	super._ready()
 	call_deferred("_release_initial_drones")
 
 
 func _release_initial_drones() -> void:
-	for i in ACTIVE_TARGET:
+	for i in _active_target:
 		_release_drone()
 
 
 func _release_drone() -> void:
-	if _total_released >= MAX_DRONES_TOTAL or _dying:
+	if _total_released >= _max_drones or _dying:
 		return
-	var d = DRONE_SCENE.instantiate()
+	var d = _drone_scene.instantiate()
 	var world: Node = BulletWorld.resolve(self, get_tree().root)
 	world.add_child(d)
 	d.global_position = global_position + Vector2(randf_range(-20, 20), 0)
@@ -60,13 +83,13 @@ func _release_drone() -> void:
 	d.connect("died", _on_drone_died)
 	_total_released += 1
 	_active_drones += 1
-	if _total_released >= MAX_DRONES_TOTAL:
+	if _total_released >= _max_drones:
 		_leaving = true
 
 
 func _on_drone_died(_value: int) -> void:
 	_active_drones = max(0, _active_drones - 1)
-	if not _leaving and _total_released < MAX_DRONES_TOTAL:
+	if not _leaving and _total_released < _max_drones:
 		_release_drone()
 
 
