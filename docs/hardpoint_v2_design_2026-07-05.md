@@ -64,12 +64,20 @@ combination — so e.g. a turret-delivered gun gets deviation + volleys for free
   works (the bench already offered projectile payloads on guns; they previously misfired down the bullet
   path). LAUNCHER kept as a zero-churn alias. **Remaining:** beam-as-payload — beams are a continuous
   `BeamEmitter` FSM node (routed by the builder), not a discrete shot, so folding them into the gun fire
-  path is a deliberate follow-on, not done here.
-- **Phase B — Turret as delivery.** Rework `EnemyTurret` to fire the hardpoint's payload + all shared
-  firing settings; turret becomes a `delivery = turret` toggle (with its rotation/arc/sprite config).
-  Retire the TURRET kind (alias → Bullet×Turret). The meaty phase.
+  path is a deliberate follow-on, not done here. **Beam-as-payload SHIPPED 2026-07-05** (`9fbfbb5d`):
+  `MountBuilder.attach` routes on a non-empty `beam_config` (any kind) → a `BeamEmitter`, so BEAM is just
+  "Beam payload × Direct" and the kind is an alias. Bench gains two pickable beam presets (Sweep/Chase)
+  so beams are authorable + previewable there at all (Copy emits the beam_config). **Phase A COMPLETE.**
+- **Phase B — Turret as delivery. SHIPPED 2026-07-05** (`ef9d0c92`). `EnemyTurret` now honors the shared
+  firing settings it was missing — deviation, burst_interval, volleys/volley_gap, payload_delay — and can
+  deliver a **projectile payload** (`payload_scene`), aimed by its own tracking. Its fire path became an
+  async volley/burst orchestrator; defaults keep all 7 existing turrets byte-identical. `MountBuilder`
+  forwards the fields; the bench gains a dedicated turret firing panel + Copy. This is the concrete fix for
+  "turrets need the rest of the firing settings." **Deferred (cosmetic, no new capability):** the formal
+  schema change — retire the TURRET *kind* in favor of a `delivery = turret` toggle on any payload — and
+  **beam × turret** (a turret that holds a beam). The TURRET kind stays as the de-facto "delivery = turret."
 - **Phase C — Ring as delivery.** `OrbitComponent` becomes `delivery = ring`; the bench ring editor
-  authors it as a hardpoint delivery; bloom + cluster/gravity mines migrate.
+  authors it as a hardpoint delivery; bloom + cluster/gravity mines migrate. *(Not started.)*
 
 ## Migration / back-compat
 - Keep the v1 roster keys/values parsing: a `"kind": "launcher"` maps to Projectile×Direct, `"turret"`
