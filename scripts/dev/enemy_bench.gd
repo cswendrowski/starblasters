@@ -91,6 +91,18 @@ const PROJECTILES := {
 	"Missile": "res://scenes/projectiles/drifting_missile.tscn",
 	"Bomblet": "res://scenes/enemies/enemy_bomblet.tscn",
 }
+# Beam payloads (Hardpoint v2 Phase A 2026-07-05): pickable presets carrying a beam_config, realized as
+# a continuous BeamEmitter by MountBuilder (which now routes on a non-empty beam_config, any kind — so a
+# beam is "Beam payload × Direct delivery"). Mirrors the roster's BEAMER_SWEEP/CHASE configs. A fuller
+# per-knob beam editor is a follow-on; these two presets make beams authorable + previewable at all.
+const BEAM_PRESETS := {
+	"Beam Sweep": { "idle_time": 0.9, "windup_time": 1.3, "firing_time": 1.1, "cooldown_time": 1.5,
+		"cycle": 0, "autostart": false, "settle_y": 58.0, "endpoint": 0, "aim_mode": 0,
+		"reach": 320.0, "dps": 3.0, "hit_radius": 8.0, "emitter_offset": Vector2(0, 0), "target_group": "player" },
+	"Beam Chase": { "idle_time": 0.9, "windup_time": 1.3, "firing_time": 1.1, "cooldown_time": 1.5,
+		"cycle": 0, "autostart": false, "settle_y": 58.0, "endpoint": 0, "aim_mode": 2, "tracking_rate": 1.3,
+		"reach": 320.0, "dps": 3.0, "hit_radius": 8.0, "emitter_offset": Vector2(0, 0), "target_group": "player" },
+}
 # Emitters editor (the reusable EmitterComponent: drop/spawn a payload scene on a trigger — the
 # generalized form of the interceptor's missile-drop).
 const EMITTER_TRIGGERS := ["start", "timer", "death"]
@@ -1090,6 +1102,8 @@ func _mount_spec_dicts() -> Array:
 		var pname: String = String(d.get("payload", "Ball"))
 		if k == "entity":
 			sd["payload_scene"] = _emitter_payload_path(pname)   # entity scene path
+		elif BEAM_PRESETS.has(pname):
+			sd["beam_config"] = (BEAM_PRESETS[pname] as Dictionary).duplicate(true)   # beam payload → BeamEmitter
 		elif PAYLOADS.has(pname):
 			sd["payload"] = PAYLOADS[pname]
 		elif PROJECTILES.has(pname):
@@ -1715,6 +1729,8 @@ func _mount_payload_names() -> Array:
 	var names: Array = PAYLOADS.keys().duplicate()
 	for p in PROJECTILES.keys():
 		names.append(p)
+	for b in BEAM_PRESETS.keys():
+		names.append(b)
 	return names
 
 
@@ -1778,6 +1794,12 @@ func _norm_payload(name: String) -> String:
 # (2026-06-29), so map by the variant's `family` first — any faction's clone (zealot/privateer ball)
 # folds to the generic "Ball". A non-family variant (e.g. legacy BV_Basic) falls back to "Ball".
 func _payload_name_of(d: Dictionary) -> String:
+	# Beam payload (Phase A): a roster mount with a beam_config maps to the nearest preset for display
+	# (aim_mode 2 = tracking = Chase, else Sweep). Best-effort — a hand-tuned roster config shows as its
+	# nearest preset; the bench doesn't overwrite the roster, so nothing is corrupted.
+	var bc = d.get("beam_config", null)
+	if bc is Dictionary and not (bc as Dictionary).is_empty():
+		return "Beam Chase" if int((bc as Dictionary).get("aim_mode", 0)) == 2 else "Beam Sweep"
 	var pv = d.get("payload", null)
 	if pv != null:
 		if "family" in pv and String(pv.family) != "":
@@ -1794,6 +1816,24 @@ func _payload_name_of(d: Dictionary) -> String:
 			if String(PROJECTILES[k]) == p:
 				return String(k)
 	return "Ball"
+
+
+# Serialize a beam_config dict to a paste-ready GDScript literal (handles Vector2/String/bool/number).
+func _beam_cfg_literal(cfg: Dictionary) -> String:
+	var parts: Array = []
+	for k in cfg:
+		var v = cfg[k]
+		var vs: String
+		if v is Vector2:
+			vs = "Vector2(%s, %s)" % [v.x, v.y]
+		elif v is String:
+			vs = "\"%s\"" % v
+		elif v is bool:
+			vs = "true" if v else "false"
+		else:
+			vs = str(v)
+		parts.append("\"%s\": %s" % [String(k), vs])
+	return "{ " + ", ".join(parts) + " }"
 
 
 # A paste-ready roster "mounts" dict literal for one mount (payload → BV_ const or scene path).
@@ -1816,6 +1856,10 @@ func _mount_copy_line(d: Dictionary) -> String:
 			eline += ", \"bullet_speed\": %.0f" % float(d.get("bullet_speed", 0.0))
 		eline += ", \"no_inertia\": %s }," % ("true" if bool(d.get("no_inertia", true)) else "false")
 		return eline
+	# Beam payload (Phase A): a kind:"beam" mount carrying the preset's beam_config (routed by MountBuilder).
+	if BEAM_PRESETS.has(String(d.get("payload", ""))):
+		var cfg: Dictionary = BEAM_PRESETS[String(d.get("payload"))]
+		return "{ \"kind\": \"beam\", \"marker\": \"%s\", \"beam_config\": %s }," % [String(d.get("marker", "")), _beam_cfg_literal(cfg)]
 	var pname: String = String(d.get("payload", "Ball"))
 	var pay: String = "\"payload\": null"
 	if PAYLOADS.has(pname):

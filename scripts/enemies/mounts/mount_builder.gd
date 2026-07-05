@@ -27,20 +27,24 @@ static func attach_all(enemy: Node, specs: Array) -> Array:
 	return comps
 
 
-# Returns a MountComponent for GUN/LAUNCHER (caller registers it), or null for TURRET/BEAM (those
-# attach as child nodes here).
+# Returns a MountComponent for a Bullet/Projectile/Entity payload (caller registers it), or null for a
+# Turret delivery / Beam payload (those attach as child nodes here).
 static func attach(enemy: Node, spec):
-	match int(spec.kind):
-		MountSpecC.Kind.TURRET:
-			_attach_turrets(enemy, spec)
-			return null
-		MountSpecC.Kind.BEAM:
-			_attach_beam(enemy, spec)
-			return null
-		_:
-			var mc = MountComponentC.new()
-			mc.spec = spec
-			return mc
+	# TURRET delivery keeps its own node realization (Phase B will let it deliver any payload).
+	if int(spec.kind) == MountSpecC.Kind.TURRET:
+		_attach_turrets(enemy, spec)
+		return null
+	# Beam PAYLOAD (Hardpoint v2 Phase A, 2026-07-05): a non-empty beam_config realizes as a continuous
+	# BeamEmitter whatever the kind, so BEAM is just "Beam payload × Direct delivery" — the kind is kept
+	# as a zero-churn alias (a kind:"beam" carries a beam_config; the routing now keys on the payload).
+	if int(spec.kind) == MountSpecC.Kind.BEAM or not spec.beam_config.is_empty():
+		_attach_beam(enemy, spec)
+		return null
+	# Bullet or Projectile payload → a MountComponent with its own fire timer (the gun-vs-launcher spawn
+	# path is chosen at fire time by payload_scene; Phase A launcher collapse). ENTITY also rides it.
+	var mc = MountComponentC.new()
+	mc.spec = spec
+	return mc
 
 
 static func _markers(enemy: Node, pattern: String) -> Array:
