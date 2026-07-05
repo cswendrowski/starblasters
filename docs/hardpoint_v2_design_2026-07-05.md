@@ -59,6 +59,12 @@ combination — so e.g. a turret-delivered gun gets deviation + volleys for free
 - **Phase A — Payload collapse.** GUN fires Bullet OR Projectile (payload type picks the spawn path);
   retire LAUNCHER (keep the roster/bench "launcher" key as an alias → Projectile×Direct). Add Beam as a
   payload (activate a BeamEmitter on fire). Lowest risk; removes a kind.
+  **Launcher→gun collapse SHIPPED 2026-07-05** (`73aa69a2`): `MountComponent._fire` selects the path by
+  `spec.payload_scene != null` instead of `kind == LAUNCHER`, so a gun carrying a projectile payload just
+  works (the bench already offered projectile payloads on guns; they previously misfired down the bullet
+  path). LAUNCHER kept as a zero-churn alias. **Remaining:** beam-as-payload — beams are a continuous
+  `BeamEmitter` FSM node (routed by the builder), not a discrete shot, so folding them into the gun fire
+  path is a deliberate follow-on, not done here.
 - **Phase B — Turret as delivery.** Rework `EnemyTurret` to fire the hardpoint's payload + all shared
   firing settings; turret becomes a `delivery = turret` toggle (with its rotation/arc/sprite config).
   Retire the TURRET kind (alias → Bullet×Turret). The meaty phase.
