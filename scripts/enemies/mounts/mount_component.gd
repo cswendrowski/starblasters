@@ -318,7 +318,11 @@ func _fire(enemy) -> void:
 			await enemy.get_tree().create_timer(spec.volley_gap, false).timeout
 			if not is_instance_valid(enemy) or _held(enemy):
 				return
-		if int(spec.kind) == MountSpecC.Kind.LAUNCHER:
+		# Payload-driven path (Hardpoint v2 Phase A, 2026-07-05): a Projectile payload (spec.payload_scene)
+		# takes the launcher spawn path; a Bullet payload (BulletVariant) takes the gun path. The LAUNCHER
+		# kind is now just a GUN carrying a payload_scene — kept as a roster/bench alias, no longer its own
+		# fire branch. (ENTITY never reaches _fire — it routes through _process_entity/_emit_scene.)
+		if spec.payload_scene != null:
 			await _fire_launcher(enemy)
 		else:
 			await _fire_gun(enemy)

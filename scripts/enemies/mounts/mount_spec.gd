@@ -15,6 +15,9 @@ extends Resource
 # ENTITY (Phase 2 unification 2026-07-03) — spawn a SCENE (mine/drone/bomblet/firecore) on a trigger,
 # folding the old EmitterComponent into this one spec+component. GUN=bullet, LAUNCHER=aimed projectile,
 # ENTITY=dropped/scattered scene. TURRET/BEAM stay separate node realizations the builder routes to.
+# Hardpoint v2 Phase A (2026-07-05): the GUN vs LAUNCHER fire path is now chosen by PAYLOAD TYPE, not
+# kind — a mount with a payload_scene takes the projectile path whatever its kind, so LAUNCHER is just a
+# GUN carrying a payload_scene. Kept as a roster/bench alias (zero-churn), no longer its own fire branch.
 enum Kind { GUN, TURRET, LAUNCHER, BEAM, ENTITY }
 enum Aim { STRAIGHT_DOWN, TOWARD_CENTER, AT_PLAYER, FORWARD, BACKWARD, LEFT, RIGHT }   # mirrors Weapon.Aim (int values MUST stay in lockstep)
 # ALL = fire from every matched marker; CYCLE = one per volley (scene order). INWARD/OUTWARD =
