@@ -1101,6 +1101,8 @@ func _mount_spec_dicts() -> Array:
 			sd["payload_delay_ms"] = float(d.get("payload_delay_ms", 0.0))
 			sd["deviation_deg"] = float(d.get("deviation_deg", 0.0))
 			sd["max_fires"] = int(d.get("max_fires", 0))
+			sd["volleys"] = int(d.get("volleys", 1))
+			sd["volley_gap"] = float(d.get("volley_gap", 0.0))
 			var burst: float = float(d.get("burst_interval", 0.0))
 			if burst > 0.0:
 				sd["burst_interval"] = burst
@@ -1271,6 +1273,16 @@ func _make_mount_row(idx: int) -> Control:
 		var maxf := _row_spin(0, 20, 1, float(d.get("max_fires", 0)))
 		maxf.value_changed.connect(func(v): _set_mount(d, "max_fires", int(v)))
 		_grid_row(grid, "max fires", maxf)
+
+		# Volleys: fire the whole spread this many times (a 3-shot spread x 4 volleys = 12), staggered
+		# by the volley gap. 1 = a single volley (burst gap above still staggers shots within it).
+		var vol := _row_spin(1, 12, 1, float(d.get("volleys", 1)))
+		vol.value_changed.connect(func(v): _set_mount(d, "volleys", int(v)))
+		_grid_row(grid, "volleys", vol)
+
+		var vgap := _row_spin(0.0, 1.0, 0.02, float(d.get("volley_gap", 0.0)))
+		vgap.value_changed.connect(func(v): _set_mount(d, "volley_gap", float(v)))
+		_grid_row(grid, "volley gap", vgap)
 
 		# Payload toggles (Roman 2026-07-03) — opt-in, off by default. Inertia ON = the shot carries the
 		# enemy's velocity (Doppler); OFF (new-mount default) = it drops at its own speed. Stored as the
@@ -1835,6 +1847,10 @@ func _mount_copy_line(d: Dictionary) -> String:
 			line += ", \"deviation_deg\": %.1f" % float(d.get("deviation_deg", 0.0))
 		if int(d.get("max_fires", 0)) > 0:
 			line += ", \"max_fires\": %d" % int(d.get("max_fires", 0))
+		if int(d.get("volleys", 1)) > 1:
+			line += ", \"volleys\": %d" % int(d.get("volleys", 1))
+		if float(d.get("volley_gap", 0.0)) > 0.0:
+			line += ", \"volley_gap\": %.2f" % float(d.get("volley_gap", 0.0))
 		if bool(d.get("nose_gated", false)):
 			line += ", \"fire_only_on_target\": true, \"fire_aim_tol_deg\": %.0f" % float(d.get("aim_tol", 18.0))
 		var pp_copy: String = String(d.get("path_phases", "")).strip_edges()

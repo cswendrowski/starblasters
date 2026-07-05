@@ -1642,6 +1642,8 @@ static func _mount_from_dict(d: Dictionary) -> Resource:
 	m.payload_delay_ms = float(d.get("payload_delay_ms", 0.0))      # Payload Delay (Phase 1)
 	m.deviation_deg = float(d.get("deviation_deg", 0.0))           # shot inaccuracy (2026-07-04)
 	m.max_fires = int(d.get("max_fires", 0))                       # GUN/LAUNCHER fire cap per pass
+	m.volleys = int(d.get("volleys", 1))                          # spread layers: repeat the fan N times
+	m.volley_gap = float(d.get("volley_gap", 0.0))               # stagger between volleys
 	m.homing_rate = float(d.get("homing_rate", 0.0))
 	m.wobble_amplitude = float(d.get("wobble_amplitude", 0.0))
 	m.wobble_frequency = float(d.get("wobble_frequency", 0.0))

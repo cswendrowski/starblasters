@@ -49,6 +49,11 @@ enum MarkerMode { ALL, CYCLE, INWARD, OUTWARD }
 # Fire cap per pass (Roman 2026-07-04): stop after this many GUN/LAUNCHER fires per parallax pass
 # (mirrors ENTITY max_emits). 0 = unlimited.
 @export var max_fires: int = 0
+# Spread layers / volleys (Roman 2026-07-04): fire the whole count-shot fan `volleys` times, staggered
+# by volley_gap seconds — so a 3-shot spread × 4 volleys = a 12-shot fan. 1 = a single volley (unchanged;
+# burst_interval still staggers the shots WITHIN a volley).
+@export var volleys: int = 1
+@export var volley_gap: float = 0.0
 
 # Projectile-movement axis driven onto each spawned bullet (mirrors Weapon).
 @export var homing_rate: float = 0.0

@@ -310,10 +310,18 @@ func _spawn_positions(enemy) -> Array:
 
 
 func _fire(enemy) -> void:
-	if int(spec.kind) == MountSpecC.Kind.LAUNCHER:
-		_fire_launcher(enemy)
-	else:
-		_fire_gun(enemy)
+	# Volleys (B2): fire the whole count-shot fan `volleys` times, staggered by volley_gap. volleys=1 is
+	# a single volley = the original behavior. burst_interval still staggers shots WITHIN each volley.
+	var volley_n: int = maxi(1, spec.volleys)
+	for v in volley_n:
+		if v > 0 and spec.volley_gap > 0.0:
+			await enemy.get_tree().create_timer(spec.volley_gap, false).timeout
+			if not is_instance_valid(enemy) or _held(enemy):
+				return
+		if int(spec.kind) == MountSpecC.Kind.LAUNCHER:
+			await _fire_launcher(enemy)
+		else:
+			await _fire_gun(enemy)
 
 
 func _fire_gun(enemy) -> void:
