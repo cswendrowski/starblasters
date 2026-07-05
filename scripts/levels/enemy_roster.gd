@@ -122,10 +122,10 @@ const BV_PrivWave     = preload("res://data/bullets/privateer_wave.tres")
 # previously hardcoded in enemy_gunship.gd — as data: an alternating-muzzle MG burst (Muzzle*) and
 # dual wingtip cannons (Cannon*). Reused across every gunship roster entry (firing is identical).
 const GUNSHIP_MOUNTS := [
-	{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_SpreadPellet,
-	  "aim": "at_player", "count": 3, "burst_interval": 0.1, "fire_min": 2.0, "fire_max": 2.0 },
-	{ "kind": "gun", "marker": "Cannon*", "marker_mode": "all", "payload": BV_HeavySlug,
-	  "aim": "straight_down", "count": 1, "fire_min": 2.4, "fire_max": 2.4 },
+	{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "all", "payload": BV_PrivLaser,
+	  "aim": "forward", "count": 2, "burst_interval": 0.25, "fire_min": 4.5, "fire_max": 4.5, "no_inertia": true },
+	{ "kind": "gun", "marker": "Cannon*", "marker_mode": "all", "payload": BV_PrivLaser,
+	  "aim": "forward", "count": 2, "burst_interval": 0.15, "fire_min": 4.5, "fire_max": 4.5, "no_inertia": true },
 ]
 
 # Helix (firecore cruiser) gun turret on its Turret marker — was zealot_turret.mount_all in the
@@ -165,30 +165,28 @@ const CRUSADER_MOUNTS := [
 # Push's player-tracking dome turrets — one per Turret* marker, aimed heavy slugs, fast traverse.
 # Was hand-built in enemy_push.gd (deleted from the scene 2026-06-19); now a data mount on enemy_core.
 const PUSH_MOUNTS := [
-	{ "kind": "turret", "marker": "Turret*", "payload": BV_HeavySlug,
-	  "rotation_speed": 3.6, "fire_min": 1.0, "fire_max": 1.6, "aim_tolerance_deg": 14.0,
+	{ "kind": "turret", "marker": "Turret*", "payload": BV_HeavySlug, "aim": "straight_down",
+	  "rotation_speed": 3.6, "fire_min": 1.0, "fire_max": 1.0, "aim_tolerance_deg": 14.0,
 	  "recoil_frames": 3, "turret_texture": "res://graphics/enemies/turret_s_dome.png", "turret_hframes": 3 },
 ]
 
 # Rocket gunship — two weapons off its marker rack, was hand-timed in enemy_rocket.gd (2026-06-19):
 # rocket salvos from the cycled launch rack + aimed tracer bursts from the hull muzzles.
 const ROCKET_MOUNTS := [
-	{ "kind": "launcher", "marker": "Launcher*", "marker_mode": "cycle",
+	{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "all", "payload": BV_Basic,
+	  "aim": "forward", "count": 1, "fire_min": 4.0, "fire_max": 4.0, "fire_only_on_target": true, "spread_deg": 0.0 },
+	{ "kind": "launcher", "marker": "Launcher*", "marker_mode": "outward",
 	  "payload_scene": "res://scenes/projectiles/enemy_rocket.tscn",
-	  "aim": "straight_down", "count": 3, "spread_deg": 24.0, "fire_min": 1.8, "fire_max": 1.8 },
-	{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_Basic,
-	  "aim": "at_player", "count": 4, "burst_interval": 0.12, "bullet_speed": 300.0,
-	  "fire_min": 2.4, "fire_max": 2.4 },
+	  "aim": "straight_down", "count": 6, "burst_interval": 0.15, "fire_min": 3.0, "fire_max": 3.0, "no_inertia": true, "spread_deg": 0.0 },
 ]
 
-# Bomber tail gun — arc-gated rear gunner, ported from enemy_bomber._spawn_tail_turret (2026-06-23):
-# an invisible (no-texture) turret on the TurretTail marker that HOLDS FIRE outside its 160° rear cone
-# (centred on +Y, toward the chasing player) and fires the default enemy bullet. Realized by
-# MountBuilder in enemy_base._ready; shared across all three bomber entries.
+# Bomber tail gun — retuned via Enemy Bench (2026-07-05): a straight-down cycling gun on the
+# TurretTail marker firing a 3-round burst of the default enemy bullet. Shared by the two B-220
+# bomber entries (the thin variant carries its own faster inline mount). Realized by MountBuilder
+# in enemy_base._ready.
 const BOMBER_TAIL_MOUNT := [
-	{ "kind": "turret", "marker": "TurretTail", "arc_gate": true, "arc_deg": 160.0,
-	  "rest_angle_deg": 180.0, "aim_tolerance_deg": 30.0, "rotation_speed": 2.0,
-	  "fire_min": 0.55, "fire_max": 0.85, "bullet_speed": 190.0 },
+	{ "kind": "gun", "marker": "TurretTail", "marker_mode": "cycle", "payload": preload("res://data/bullets/ball.tres"),
+	  "aim": "straight_down", "count": 3, "burst_interval": 0.1, "fire_min": 3.0, "fire_max": 3.0, "spread_deg": 0.0 },
 ]
 
 # Minelayer — drops dumb bomblets while crossing, then scatters a cluster on death. Was bespoke
@@ -448,10 +446,11 @@ const ENTRIES := [
 	# bullets from two muzzles (±8). Dive / weave / charge (beeline) variants.
 	{
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_rush.tscn",
+		"engine": -1,   # bench 2026-07-05 (engine_override)
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "hunt_beeline",
-		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_SpreadPellet, "aim": "straight_down", "count": 3, "burst_interval": 0.18 }],
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_SpreadPellet, "aim": "straight_down", "count": 3, "burst_interval": 0.18, "fire_min": 1.5, "fire_max": 1.5 }],
 		"base_count": 3,
 		"hp_override": 2, "bounty_override": 12,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
@@ -459,10 +458,11 @@ const ENTRIES := [
 	},
 	{
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_rush.tscn",
+		"engine": -1,   # bench 2026-07-05 (engine_override)
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "hunt_beeline",
-		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_SpreadPellet, "aim": "straight_down", "count": 3, "burst_interval": 0.18 }],
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_SpreadPellet, "aim": "straight_down", "count": 3, "burst_interval": 0.18, "fire_min": 1.5, "fire_max": 1.5 }],
 		"base_count": 3,
 		"hp_override": 2, "bounty_override": 12,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": true,
@@ -470,10 +470,11 @@ const ENTRIES := [
 	},
 	{
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_rush.tscn",
+		"engine": -1,   # bench 2026-07-05 (engine_override)
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "hunt_beeline",   # charge straight at the player
-		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_SpreadPellet, "aim": "straight_down", "count": 3, "burst_interval": 0.18 }],
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_SpreadPellet, "aim": "straight_down", "count": 3, "burst_interval": 0.18, "fire_min": 1.5, "fire_max": 1.5 }],
 		"base_count": 2,
 		"no_scale": true,   # beeline/charge waves stay small (Roman 2026-06-08: cap 1-6)
 		"hp_override": 2, "bounty_override": 12,
@@ -487,7 +488,7 @@ const ENTRIES := [
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
 		"movement": "loiter", "depth": "high",
-		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_PlasmaOrb, "aim": "at_player", "count": 1, "fire_min": 1.6, "fire_max": 2.4, "wobble_amplitude": 8.0, "wobble_frequency": 3.0 }],
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/wave.tres"), "aim": "at_player", "count": 3, "burst_interval": 0.1, "fire_min": 1.6, "fire_max": 1.6, "no_inertia": true }],
 		"base_count": 2,
 		"hp_override": 8, "bounty_override": 18,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
@@ -498,7 +499,7 @@ const ENTRIES := [
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
 		"movement": "loiter", "depth": "high",
-		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_PlasmaOrb, "aim": "at_player", "count": 1, "fire_min": 1.6, "fire_max": 2.4, "wobble_amplitude": 8.0, "wobble_frequency": 3.0 }],
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/wave.tres"), "aim": "at_player", "count": 3, "burst_interval": 0.1, "fire_min": 1.6, "fire_max": 1.6, "no_inertia": true }],
 		"base_count": 2,
 		"hp_override": 8, "bounty_override": 18,
 		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.7, "chaff": true,
@@ -509,7 +510,7 @@ const ENTRIES := [
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
 		"movement": "loiter", "depth": "high",   # slide across
-		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_PlasmaOrb, "aim": "at_player", "count": 1, "fire_min": 1.6, "fire_max": 2.4, "wobble_amplitude": 8.0, "wobble_frequency": 3.0 }],
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/wave.tres"), "aim": "at_player", "count": 3, "burst_interval": 0.1, "fire_min": 1.6, "fire_max": 1.6, "no_inertia": true }],
 		"base_count": 2,
 		"hp_override": 8, "bounty_override": 18,
 		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.6, "chaff": true,
@@ -529,7 +530,7 @@ const ENTRIES := [
 		# weave waves aren't "heavy on curves" (Roman 2026-06-08) — the drift + straight
 		# variants below add variety.
 		"scene": "res://scenes/enemies/factions/privateer/enemy_core_s_falchion.tscn",
-		"mounts": [{ "kind": "gun", "marker": "Muzzle", "payload": BV_PrivLaser, "aim": "forward", "fire_min": 0.5, "fire_max": 0.5, "count": 1, "spread_deg": 0.0 }],
+		"mounts": [{ "kind": "gun", "marker": "Muzzle", "payload": BV_PrivLaser, "aim": "forward", "fire_min": 0.5, "fire_max": 0.5, "count": 1, "fire_only_on_target": true, "spread_deg": 0.0 }],
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "straight",
@@ -542,7 +543,7 @@ const ENTRIES := [
 	{
 		# Falchion (drift) — slow lane-to-lane slide variant for wave variety.
 		"scene": "res://scenes/enemies/factions/privateer/enemy_core_s_falchion.tscn",
-		"mounts": [{ "kind": "gun", "marker": "Muzzle", "payload": BV_PrivLaser, "aim": "forward", "fire_min": 0.5, "fire_max": 0.5, "count": 1, "spread_deg": 0.0 }],
+		"mounts": [{ "kind": "gun", "marker": "Muzzle", "payload": BV_PrivLaser, "aim": "forward", "fire_min": 0.5, "fire_max": 0.5, "count": 1, "fire_only_on_target": true, "spread_deg": 0.0 }],
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "straight",
@@ -555,7 +556,7 @@ const ENTRIES := [
 	{
 		# Falchion (straight) — plain fast diver variant for wave variety.
 		"scene": "res://scenes/enemies/factions/privateer/enemy_core_s_falchion.tscn",
-		"mounts": [{ "kind": "gun", "marker": "Muzzle", "payload": BV_PrivLaser, "aim": "forward", "fire_min": 0.5, "fire_max": 0.5, "count": 1, "spread_deg": 0.0 }],
+		"mounts": [{ "kind": "gun", "marker": "Muzzle", "payload": BV_PrivLaser, "aim": "forward", "fire_min": 0.5, "fire_max": 0.5, "count": 1, "fire_only_on_target": true, "spread_deg": 0.0 }],
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "straight",
@@ -569,11 +570,11 @@ const ENTRIES := [
 		# Cobra — fast diver, now armed (Enemy Bench 2026-06-20): fires an Aimed Sniper round
 		# along its nose (forward = down once auto-rotated), a precise poke as it dives.
 		"scene": "res://scenes/enemies/core/enemy_core_s_cobra.tscn",
-		"engine": -1,   # held at 60 (was -2 → 60 on the old base; the −1 rung base drop would push it to creep)
+		"engine": -2,   # bench 2026-07-05 (engine_override)
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "straight",
-		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_AimedSniper, "aim": "forward", "count": 1, "fire_min": 1.2, "fire_max": 2.0, "fire_only_on_target": true }],
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_AimedSniper, "aim": "forward", "count": 2, "fire_min": 2.0, "fire_max": 2.0, "fire_only_on_target": true }],
 		"base_count": 8,
 		"recycle": 0,
 		"hp_override": 1, "bounty_override": 5,
@@ -587,13 +588,13 @@ const ENTRIES := [
 		# down at 45 px/s — far slower than the 180 px/s descent — so they hang in
 		# the lane behind the dropper as a lingering hazard.
 		"scene": "res://scenes/enemies/core/enemy_core_s_caltrop.tscn",
+		"engine": -1,
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "straight",
-		# Burst-once then exit (Roman 2026-06-08): a single 4-shot burst at one band
-		# position (scene fire_path_phases = [0.4]), recycle 0 = leave, don't loop.
-		# TODO(M6c r2): +2 shots per depth increment (director-driven burst_count).
-		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_DropPellet, "aim": "straight_down", "count": 4, "burst_interval": 0.18, "fire_path_phases": [0.4] }],
+		# Bench 2026-07-05: rear-firing suspension cannon — a 6-shot forward burst on the timer
+		# (was a 4-shot path-phase burst), dropped at rest (no_inertia).
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_DropPellet, "aim": "forward", "count": 6, "burst_interval": 0.1, "fire_min": 3.0, "fire_max": 3.0, "no_inertia": true, "spread_deg": 0.0 }],
 		"base_count": 4,
 		"recycle": 0,
 		"hp_override": 1, "bounty_override": 8,
@@ -645,7 +646,8 @@ const ENTRIES := [
 		# aimed-plasma gunner. The old no-shoot c_s_curve chaff entry is retired into this
 		# (curve now carries muzzles). enemy_weaver.tscn retired from the tag table.
 		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_curve.tscn",
-		"mounts": [{ "kind": "launcher", "marker": "Muzzle*", "payload_scene": "res://scenes/projectiles/drifting_missile.tscn", "aim": "forward", "fire_min": 1.5, "fire_max": 1.5, "count": 1, "spread_deg": 0.0 }],
+		# Bench 2026-07-05: single forward missile launcher (fire 2.0), dropped at rest.
+		"mounts": [{ "kind": "launcher", "marker": "", "marker_mode": "cycle", "payload_scene": "res://scenes/projectiles/drifting_missile.tscn", "aim": "forward", "fire_min": 2.0, "fire_max": 2.0, "count": 1, "no_inertia": true, "spread_deg": 0.0 }],
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "lane_cut",
@@ -663,9 +665,10 @@ const ENTRIES := [
 		# new two-frame corp sprite (hull + glow). Stays a corporate UNIVERSAL so
 		# every faction keeps a loiter-gunner; the old enemy_hover.tscn is retired.
 		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn",
-		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "payload": BV_AimedSniper, "aim": "forward", "fire_min": 0.3, "fire_max": 0.3, "count": 1, "spread_deg": 0.0 }],
+		# Bench 2026-07-05: nose-gated aimed bolt.
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "payload": BV_AimedSniper, "aim": "forward", "fire_min": 0.3, "fire_max": 0.3, "count": 1, "fire_only_on_target": true, "spread_deg": 0.0 }],
 		"tier": Tier.UNCOMMON,
-		"size": "small", "tags": [],
+		"size": "small", "tags": ["shielded"],
 		"movement": "lane_hook",
 		"base_count": 2,
 		"fire_min": 1.6, "fire_max": 2.4,
@@ -680,6 +683,7 @@ const ENTRIES := [
 	# tough mid-mission presence anchor. enemy_frigate.tscn retired from the tags.
 	{
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_push.tscn",
+		"engine": -4,   # bench 2026-07-05 (engine_override)
 		"heavy_class": "anchor",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
@@ -694,6 +698,7 @@ const ENTRIES := [
 	},
 	{
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_push.tscn",
+		"engine": -4,   # bench 2026-07-05 (engine_override)
 		"heavy_class": "anchor",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
@@ -708,6 +713,7 @@ const ENTRIES := [
 	},
 	{
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_push.tscn",
+		"engine": -4,   # bench 2026-07-05 (engine_override)
 		"heavy_class": "anchor",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": ["tough"],
@@ -739,9 +745,10 @@ const ENTRIES := [
 		# aimed-fire advance/retreat, double-muzzle (the muzzle resolver cycles hold's
 		# MuzzleL/R). The hold (loiter) entry above is kept too. enemy_skirmisher retired.
 		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn",
-		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "payload": BV_AimedSniper, "aim": "forward", "fire_min": 0.3, "fire_max": 0.3, "count": 1, "spread_deg": 0.0 }],
+		# Bench 2026-07-05: nose-gated aimed bolt.
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "payload": BV_AimedSniper, "aim": "forward", "fire_min": 0.3, "fire_max": 0.3, "count": 1, "fire_only_on_target": true, "spread_deg": 0.0 }],
 		"tier": Tier.UNCOMMON,
-		"size": "small", "tags": [],
+		"size": "small", "tags": ["shielded"],
 		"movement": "lane_hook",
 		"base_count": 3,
 		"fire_min": 0.7, "fire_max": 1.1,
@@ -764,7 +771,7 @@ const ENTRIES := [
 		"size": "medium", "tags": [],
 		"movement": "loiter",
 		# Spectre artillery — retuned via Enemy Bench (2026-06-20): bursts Privateer Bolts.
-		"mounts": [{ "kind": "gun", "marker": "Cannon*", "marker_mode": "cycle", "payload": BV_PrivBolt, "aim": "straight_down", "count": 3, "burst_interval": 0.18, "fire_min": 1.4, "fire_max": 2.0 }],
+		"mounts": [{ "kind": "gun", "marker": "Cannon*", "marker_mode": "cycle", "payload": BV_PrivBolt, "aim": "straight_down", "count": 3, "burst_interval": 0.15, "fire_min": 5.0, "fire_max": 5.0 }],
 		"base_count": 2,
 		"hp_override": 8, "bounty_override": 18,
 		"unlock_sector": 1, "unlock_depth": 2, "weight": 0.8, "chaff": true,
@@ -775,7 +782,7 @@ const ENTRIES := [
 		# (wobble 8/3, the plasma signature) from two muzzles (±8). Aimed + wobble
 		# makes it the privateer pressure unit that demands active dodging.
 		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_pulse.tscn",
-		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "payload": BV_PrivWave, "aim": "forward", "fire_min": 0.5, "fire_max": 0.5, "count": 2, "spread_deg": 0.0 }],
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "all", "payload": BV_PrivWave, "aim": "straight_down", "count": 3, "burst_interval": 0.1, "fire_min": 4.0, "fire_max": 4.0, "spread_deg": 0.0 }],
 		"engine": -2, "depth": "mid",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
@@ -964,7 +971,9 @@ const ENTRIES := [
 		"size": "large", "tags": ["tough"],
 		"movement": "drift",
 		"shoot": null,
-		"mounts": BOMBER_TAIL_MOUNT,
+		# Bench 2026-07-05: faster tail burst than the B-220 (fire 4.0 vs 3.0).
+		"mounts": [{ "kind": "gun", "marker": "TurretTail", "marker_mode": "cycle", "payload": preload("res://data/bullets/ball.tres"),
+			"aim": "straight_down", "count": 3, "burst_interval": 0.1, "fire_min": 4.0, "fire_max": 4.0, "spread_deg": 0.0 }],
 		"hp_override": 22,
 		"bounty_override": 100,
 		"base_count": 2,
@@ -1020,9 +1029,8 @@ const ENTRIES := [
 		"size": "medium", "tags": ["tough"],
 		"movement": "side_turn",
 		"shoot": null,
-		# Missile drop, now a reusable EmitterComponent (was bespoke in interceptor.gd): 3 drifting
-		# missiles per pass, 0.55s apart, only while on-screen.
-		"mounts": [{ "kind": "entity", "trigger": "cadence", "payload_scene": "res://scenes/projectiles/drifting_missile.tscn", "count": 1, "fire_min": 0.55, "fire_max": 0.55, "max_emits": 3, "band_only": true, "sfx": "missile", "no_inertia": true }],
+		# Bench 2026-07-05: forward missile launcher (kind entity→launcher) — a 4-round burst.
+		"mounts": [{ "kind": "launcher", "marker": "Launcher*", "marker_mode": "cycle", "payload_scene": "res://scenes/projectiles/drifting_missile.tscn", "aim": "forward", "count": 4, "burst_interval": 0.25, "fire_min": 5.0, "fire_max": 5.0, "spread_deg": 0.0 }],
 		"base_count": 3,
 		"unlock_sector": 1, "unlock_depth": 0,
 	},
@@ -1035,7 +1043,8 @@ const ENTRIES := [
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "lane_cut",
-		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_PrivBolt, "aim": "straight_down", "count": 1, "fire_min": 1.2, "fire_max": 1.8 }],
+		# Bench 2026-07-05: twin nose muzzles → a 3-shot forward burst of the default bullet, nose-gated.
+		"mounts": [{ "kind": "gun", "marker": "", "marker_mode": "cycle", "payload": preload("res://data/bullets/ball.tres"), "aim": "forward", "count": 3, "burst_interval": 0.1, "fire_min": 1.0, "fire_max": 1.0, "fire_only_on_target": true, "spread_deg": 0.0 }],
 		"base_count": 4,
 		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0,
 	},
@@ -1044,10 +1053,11 @@ const ENTRIES := [
 		# exit) + the reusable EmitterComponent for the drop; stats follow the medium size class.
 		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_wing.tscn",
 		"tier": Tier.UNCOMMON,
-		"size": "medium", "tags": ["tough"],
+		"size": "large", "tags": ["tough"],
 		"movement": "drift",
 		"shoot": null,
-		"mounts": [{ "kind": "entity", "trigger": "cadence", "payload_scene": "res://scenes/projectiles/drifting_missile.tscn", "count": 1, "fire_min": 0.55, "fire_max": 0.55, "max_emits": 3, "band_only": true, "sfx": "missile", "no_inertia": true }],
+		# Bench 2026-07-05: forward missile launcher (kind entity→launcher) — a 4-round nose-gated burst.
+		"mounts": [{ "kind": "launcher", "marker": "Launcher*", "marker_mode": "cycle", "payload_scene": "res://scenes/projectiles/drifting_missile.tscn", "aim": "forward", "count": 4, "burst_interval": 0.1, "fire_min": 4.0, "fire_max": 4.0, "no_inertia": true, "fire_only_on_target": true, "spread_deg": 0.0 }],
 		"base_count": 2,
 		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0,
 	},
@@ -1055,11 +1065,11 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/corporate/enemy_c_l_bulwark.tscn",
 		"heavy_class": "capital",  # 64px-wide (placeholder art) — coda capital pool
 		"tier": Tier.RARE,
-		"size": "large", "tags": [],
+		"size": "medium", "tags": [],
 		"movement": "drift", "depth": "mid",
 		"shoot": null,
-		# Tank turret ported from bulwark.gd _ready (2026-06-23): omni aim, slow traverse, default bullet.
-		"mounts": [{ "kind": "turret", "rotation_speed": 1.6, "fire_min": 2.3, "fire_max": 3.2, "aim_tolerance_deg": 30.0, "bullet_speed": 180.0 }],
+		# Bench 2026-07-05: straight-down 3-shot spread (16°) of the default bullet, dropped at rest.
+		"mounts": [{ "kind": "gun", "marker": "", "marker_mode": "all", "payload": preload("res://data/bullets/ball.tres"), "aim": "straight_down", "count": 3, "fire_min": 2.5, "fire_max": 2.5, "no_inertia": true, "spread_deg": 16.0 }],
 		"base_count": 1,
 		# Heavy elite — sector 2+.
 		"unlock_sector": 2, "unlock_depth": 0,
@@ -1179,9 +1189,9 @@ const ENTRIES := [
 		# Censer Frigate — nose wave-projectors (armed from the bench 2026-07-05; engine stays 0 —
 		# the bench's -1 was already reverted here to avoid the creep sub-rung).
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_censer.tscn",
-		"engine": 0, "tier": Tier.COMMON, "size": "medium", "tags": [],   # held at 60 (was -1; base drop would push to creep)
+		"engine": -1, "tier": Tier.COMMON, "size": "medium", "tags": [],   # bench 2026-07-05 (engine_override)
 		"movement": "straight", "shoot": null, "base_count": 2, "recycle": 0,
-		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "payload": BV_ZealotWave, "aim": "straight_down", "fire_min": 3.0, "fire_max": 3.0, "count": 2, "burst_interval": 0.15, "spread_deg": 0.0 }],
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "all", "payload": BV_ZealotWave, "aim": "straight_down", "fire_min": 3.0, "fire_max": 3.0, "count": 2, "burst_interval": 0.15, "no_inertia": true, "spread_deg": 0.0 }],
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.5,
 	},
 	{
@@ -1195,7 +1205,7 @@ const ENTRIES := [
 	{
 		# Cross Gunship — omni-thrust twin-laser gunboat.
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_cross.tscn",
-		"tier": Tier.COMMON, "size": "medium", "tags": [],
+		"engine": -1, "tier": Tier.COMMON, "size": "medium", "tags": [],   # bench 2026-07-05 (engine_override)
 		"movement": "hunt_omni", "shoot": null, "base_count": 2, "recycle": 0,
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_ZealotBolt, "aim": "forward", "fire_min": 1.0, "fire_max": 1.0, "count": 4, "spread_deg": 0.0 }],
 		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.6,
@@ -1207,7 +1217,7 @@ const ENTRIES := [
 		"movement": "straight", "shoot": null, "base_count": 2, "recycle": 0,
 		"mounts": [
 			{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_ZealotLaser, "aim": "forward", "fire_min": 0.5, "fire_max": 0.5, "count": 1, "spread_deg": 0.0 },
-			{ "kind": "launcher", "marker": "Launcher*", "payload_scene": "res://scenes/projectiles/enemy_rocket.tscn", "aim": "forward", "fire_min": 1.2, "fire_max": 1.2, "count": 1, "spread_deg": 0.0 },
+			{ "kind": "launcher", "marker": "Launcher*", "marker_mode": "cycle", "payload_scene": "res://scenes/projectiles/enemy_rocket.tscn", "aim": "forward", "fire_min": 1.2, "fire_max": 1.2, "count": 1, "spread_deg": 0.0 },
 		],
 		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5,
 	},
