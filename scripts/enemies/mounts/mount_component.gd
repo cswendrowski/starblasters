@@ -19,6 +19,7 @@ const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const FiringSchedulerC = preload("res://scripts/enemies/firing_scheduler.gd")
 const WeaponSfxC = preload("res://scripts/effects/weapon_sfx.gd")   # ENTITY emit sfx (Phase 2)
 const Playfield = preload("res://scripts/systems/playfield.gd")     # ENTITY band_only gate
+const StraightDownC = preload("res://scripts/enemies/patterns/straight_down.gd")  # dropped-enemy default movement
 
 var spec: Resource = null
 var _weapon = null            # internal Weapon, borrowed for _spawn_bullet + aim helpers (GUN)
@@ -35,6 +36,7 @@ var _next: float = 2.0
 var _scheduler = FiringSchedulerC.new()
 var _emit_count: int = 0          # ENTITY CADENCE emits this pass (vs spec.max_emits)
 var _started_once: bool = false   # ENTITY START fires once per instance, not once per parallax recycle
+var _fire_count: int = 0          # GUN/LAUNCHER fires this pass (vs spec.max_fires); reset in on_start
 
 
 func on_start(enemy) -> void:
@@ -53,6 +55,7 @@ func on_start(enemy) -> void:
 		_weapon.wobble_frequency = spec.wobble_frequency
 	_t = randf_range(0.2, maxf(0.2, spec.fire_interval_max))   # desync, matches the bespoke _ready
 	_next = _roll_interval()
+	_fire_count = 0   # GUN/LAUNCHER per-pass fire cap resets each pass (on_start re-runs per recycle)
 	# ENTITY (Phase 2): reset the per-pass emit budget; START emits once per instance (guarded vs the
 	# per-recycle on_start re-run). CADENCE uses _t from 0 as the emit timer, matching EmitterComponent.
 	if int(spec.kind) == MountSpecC.Kind.ENTITY:
@@ -87,7 +90,10 @@ func on_process(enemy, delta: float) -> void:
 		return
 	_t = 0.0
 	_next = _roll_interval()
+	if spec.max_fires > 0 and _fire_count >= spec.max_fires:
+		return   # spent this pass — hold until the next recycle resets _fire_count
 	_fire(enemy)
+	_fire_count += 1
 
 
 # Phase-event firing (spec.fire_on_phase): the host movement entered a named phase; fire if it
@@ -170,6 +176,10 @@ func _emit_scene(enemy) -> void:
 		# descent. Set BEFORE the deferred add_child so the entity's _ready reads it. Missiles ignore it.
 		if spec.bullet_speed > 0.0 and "move_speed" in inst:
 			inst.move_speed = spec.bullet_speed
+		# A dropped ENEMY needs a movement pattern or it sits inert (the director assigns one in live);
+		# give a straight-down default when it has the slot and none was set (Roman 2026-07-04).
+		if "movement" in inst and inst.movement == null:
+			inst.movement = StraightDownC.new()
 		var pos: Vector2 = base_pos
 		if spec.emit_scatter > 0.0:
 			pos += Vector2(randf_range(-spec.emit_scatter, spec.emit_scatter), randf_range(-spec.emit_scatter, spec.emit_scatter))
@@ -324,8 +334,8 @@ func _fire_gun(enemy) -> void:
 			# started on-screen must not keep firing into a recycle (Roman 2026-07-01).
 			if not is_instance_valid(enemy) or _held(enemy):
 				return
-		# Re-aim per shot (the player moves between burst shots), then fan if spread is set.
-		var dir: Vector2 = _fan(_weapon._aim_dir(enemy), i, n)
+		# Re-aim per shot (the player moves between burst shots), fan if spread is set, then deviate.
+		var dir: Vector2 = _deviate(_fan(_weapon._aim_dir(enemy), i, n))
 		if cycling:
 			var m = _markers[_cycle % _markers.size()]   # one cycled marker per shot (alternating MG muzzles)
 			_cycle += 1
@@ -371,7 +381,7 @@ func _fire_launcher(enemy) -> void:
 		# Aim along spec.aim (FORWARD = the parent's nose) rather than a hardcoded straight-down, so the
 		# launched projectile faces the way the launcher points (Roman 2026-07-04).
 		var base_dir: Vector2 = _weapon._aim_dir(enemy) if _weapon != null else Vector2(0, 1)
-		var dir: Vector2 = _fan(base_dir, i, n)
+		var dir: Vector2 = _deviate(_fan(base_dir, i, n))
 		for pos in _spawn_positions(enemy):
 			var proj = spec.payload_scene.instantiate()
 			if "initial_dir" in proj:
@@ -391,6 +401,14 @@ func _fire_launcher(enemy) -> void:
 			_play_sfx(enemy)
 	if not is_burst:
 		_play_sfx(enemy)
+
+
+# Random shot deviation (inaccuracy): jitter the direction by ±deviation_deg. No-op when 0.
+func _deviate(dir: Vector2) -> Vector2:
+	if spec.deviation_deg <= 0.0:
+		return dir
+	var d: float = deg_to_rad(spec.deviation_deg)
+	return dir.rotated(randf_range(-d, d))
 
 
 # i-th direction in a `n`-wide fan around `base` (no fan when spread_deg==0 or n==1).

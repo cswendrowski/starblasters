@@ -1640,6 +1640,8 @@ static func _mount_from_dict(d: Dictionary) -> Resource:
 	m.burst_interval = float(d.get("burst_interval", 0.0))
 	m.no_inertia = bool(d.get("no_inertia", m.kind == MountSpec.Kind.ENTITY))  # ENTITY drops at rest by default; guns carry inertia
 	m.payload_delay_ms = float(d.get("payload_delay_ms", 0.0))      # Payload Delay (Phase 1)
+	m.deviation_deg = float(d.get("deviation_deg", 0.0))           # shot inaccuracy (2026-07-04)
+	m.max_fires = int(d.get("max_fires", 0))                       # GUN/LAUNCHER fire cap per pass
 	m.homing_rate = float(d.get("homing_rate", 0.0))
 	m.wobble_amplitude = float(d.get("wobble_amplitude", 0.0))
 	m.wobble_frequency = float(d.get("wobble_frequency", 0.0))

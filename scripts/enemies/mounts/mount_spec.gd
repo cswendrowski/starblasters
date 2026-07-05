@@ -43,6 +43,12 @@ enum MarkerMode { ALL, CYCLE, INWARD, OUTWARD }
 # many milliseconds before its motion begins, then travels normally. Set onto the bullet/projectile's
 # `motion_delay` at spawn. 0 = fire immediately (unchanged).
 @export var payload_delay_ms: float = 0.0
+# Shot deviation (Roman 2026-07-04): random ± angle jitter (deg) applied to each shot's direction so a
+# weapon can be inaccurate / spray. 0 = pinpoint (unchanged). Honoured by GUN/LAUNCHER/TURRET.
+@export var deviation_deg: float = 0.0
+# Fire cap per pass (Roman 2026-07-04): stop after this many GUN/LAUNCHER fires per parallax pass
+# (mirrors ENTITY max_emits). 0 = unlimited.
+@export var max_fires: int = 0
 
 # Projectile-movement axis driven onto each spawned bullet (mirrors Weapon).
 @export var homing_rate: float = 0.0

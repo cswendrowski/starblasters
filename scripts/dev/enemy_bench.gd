@@ -1099,6 +1099,8 @@ func _mount_spec_dicts() -> Array:
 			sd["marker_mode"] = String(d.get("marker_mode", "cycle"))
 			sd["no_inertia"] = bool(d.get("no_inertia", false))
 			sd["payload_delay_ms"] = float(d.get("payload_delay_ms", 0.0))
+			sd["deviation_deg"] = float(d.get("deviation_deg", 0.0))
+			sd["max_fires"] = int(d.get("max_fires", 0))
 			var burst: float = float(d.get("burst_interval", 0.0))
 			if burst > 0.0:
 				sd["burst_interval"] = burst
@@ -1259,6 +1261,16 @@ func _make_mount_row(idx: int) -> Control:
 		var spd := _row_spin(-1.0, 600.0, 10.0, float(d.get("bullet_speed", -1.0)))
 		spd.value_changed.connect(func(v): _set_mount(d, "bullet_speed", float(v)))
 		_grid_row(grid, "speed", spd)
+
+		# Deviation: random ± angle jitter per shot (inaccuracy). 0 = pinpoint.
+		var dev := _row_spin(0.0, 90.0, 1.0, float(d.get("deviation_deg", 0.0)))
+		dev.value_changed.connect(func(v): _set_mount(d, "deviation_deg", float(v)))
+		_grid_row(grid, "deviation", dev)
+
+		# Max fires: cap the shots per pass (0 = unlimited).
+		var maxf := _row_spin(0, 20, 1, float(d.get("max_fires", 0)))
+		maxf.value_changed.connect(func(v): _set_mount(d, "max_fires", int(v)))
+		_grid_row(grid, "max fires", maxf)
 
 		# Payload toggles (Roman 2026-07-03) — opt-in, off by default. Inertia ON = the shot carries the
 		# enemy's velocity (Doppler); OFF (new-mount default) = it drops at its own speed. Stored as the
@@ -1819,6 +1831,10 @@ func _mount_copy_line(d: Dictionary) -> String:
 		var _pd: float = float(d.get("payload_delay_ms", 0.0))
 		if _pd > 0.0:
 			line += ", \"payload_delay_ms\": %.0f" % _pd
+		if float(d.get("deviation_deg", 0.0)) > 0.0:
+			line += ", \"deviation_deg\": %.1f" % float(d.get("deviation_deg", 0.0))
+		if int(d.get("max_fires", 0)) > 0:
+			line += ", \"max_fires\": %d" % int(d.get("max_fires", 0))
 		if bool(d.get("nose_gated", false)):
 			line += ", \"fire_only_on_target\": true, \"fire_aim_tol_deg\": %.0f" % float(d.get("aim_tol", 18.0))
 		var pp_copy: String = String(d.get("path_phases", "")).strip_edges()
