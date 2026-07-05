@@ -34,7 +34,8 @@ move it to `docs/archive/` with a banner rather than deleting it.
 | Player weapons — data model | [`weapon_data_centralization_2026-06-11.md`](weapon_data_centralization_2026-06-11.md) (stats live in `.tres`) |
 | Player weapons — live DPS numbers | [`weapon_dps_report_2026-06-13.md`](weapon_dps_report_2026-06-13.md) (rebalance candidates are deferred, not a to-do) |
 | Enemy weapons + projectiles | [`weapons_system_2026-06-05.md`](weapons_system_2026-06-05.md) |
-| Mount + emitter → one "Hardpoint" system | **APPROVED / NOT BUILT 2026-07-02** — [`hardpoint_unification_design_2026-07-02.md`](hardpoint_unification_design_2026-07-02.md) (unify `MountSpec`/`MountComponent` + `EmitterComponent`; new aim BACKWARD/LEFT/RIGHT, muzzle INWARD/OUTWARD, payload toggles Delay/Inertia/Nose; turret/beam stay routed) |
+| Mount + emitter → one "Hardpoint" system | **BUILT 2026-07-03** — [`hardpoint_unification_design_2026-07-02.md`](hardpoint_unification_design_2026-07-02.md) (unified `MountSpec`/`MountComponent` + `EmitterComponent`; aim BACKWARD/LEFT/RIGHT, muzzle INWARD/OUTWARD, payload Delay/Inertia/Nose, deviation, volleys, max_fires) |
+| Hardpoint v2 — Payload × Delivery × Trigger | **PROPOSED 2026-07-05** — [`hardpoint_v2_design_2026-07-05.md`](hardpoint_v2_design_2026-07-05.md) (decouple the axes: launcher→gun payload, beam→payload, turret→delivery toggle, rings→delivery; phased A/B/C) |
 | Faction bullet/muzzle recolor (grayscale + tint) | **SCOPED / NOT BUILT** — [`faction_energy_recolor_design_2026-06-22.md`](faction_energy_recolor_design_2026-06-22.md) (waits on grayscale assets; color data = `Factions.MUZZLE_GLOW_COLOR`) |
 | Shift modes (Focus / Phase / Hyper) | [`shift_mode_system_2026-06-08.md`](shift_mode_system_2026-06-08.md) |
 | Passive module bay | [`passive_module_bay_2026-06-13.md`](passive_module_bay_2026-06-13.md) |
@@ -42,6 +43,7 @@ move it to `docs/archive/` with a banner rather than deleting it.
 | Signal events | [`signal_event_redesign_2026-06-08.md`](signal_event_redesign_2026-06-08.md) |
 | Sector Conditions (ex-"sector modifiers") | **SCOPED / NOT BUILT** — [`sector_conditions_redesign_2026-06-27.md`](sector_conditions_redesign_2026-06-27.md) (parked system re-eval; effect wiring lives behind `Run.SECTOR_MODIFIERS_ENABLED`) |
 | Economy / outpost | **Code is the reference** — `scripts/autoload/run_state.gd` (bounty + Materials, outpost hub) + `scripts/screens/outpost.gd`. The old two-currency design is archived. |
+| Outpost deck life (crew/vehicles/reactions) | **SCOPED / NOT BUILT 2026-07-04** — [`deck_life_plan_2026-07-04.md`](deck_life_plan_2026-07-04.md) (2px crew + lifter/tractor on the shared `hangar_stage` plate, reacting to shop actions — welders on Repair, crate deliveries on Buy/Refill; screen-owned `DeckLife` rides `_plate`, phased) |
 | Sector map | `scripts/screens/sector_map_v3.gd` wrapped by `scripts/screens/sector_map_hd.gd` (routed via `scripts/systems/sector_map_route.gd`) |
 | Renderer / engine gotchas | [`godot-patterns.md`](godot-patterns.md); portable heuristics: [`godot-learnings-for-new-projects.md`](godot-learnings-for-new-projects.md) |
 | Asteroid HDR-2D darkening | **FIXED 2026-06-24** — [`asteroid_hdr_darkening_2026-06-23.md`](asteroid_hdr_darkening_2026-06-23.md) (asteroid shader wrote alpha-0 fragments → crushed over HDR-bright; now opaque-or-discard in `Planets/Asteroids/Asteroids.gdshader`) |
