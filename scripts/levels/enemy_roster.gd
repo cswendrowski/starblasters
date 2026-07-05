@@ -1176,10 +1176,12 @@ const ENTRIES := [
 
 	# --- Zealot units promoted from the Enemy Bench (2026-06-20) — configs from enemy_bench.json.
 	{
-		# Censer Frigate — FLAG: bench left it unarmed (codex implies nose wave-projectors; arm in bench later).
+		# Censer Frigate — nose wave-projectors (armed from the bench 2026-07-05; engine stays 0 —
+		# the bench's -1 was already reverted here to avoid the creep sub-rung).
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_censer.tscn",
 		"engine": 0, "tier": Tier.COMMON, "size": "medium", "tags": [],   # held at 60 (was -1; base drop would push to creep)
 		"movement": "straight", "shoot": null, "base_count": 2, "recycle": 0,
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "payload": BV_ZealotWave, "aim": "straight_down", "fire_min": 3.0, "fire_max": 3.0, "count": 2, "burst_interval": 0.15, "spread_deg": 0.0 }],
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.5,
 	},
 	{
@@ -1199,9 +1201,9 @@ const ENTRIES := [
 		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.6,
 	},
 	{
-		# Pilgrim — dual plasma + wing rockets.
+		# Pilgrim — dual plasma + wing rockets. (bench 2026-07-05: small hull + engine -1 = same ~60 speed.)
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_pilgrim.tscn",
-		"tier": Tier.UNCOMMON, "size": "medium", "tags": [],
+		"engine": -1, "tier": Tier.UNCOMMON, "size": "small", "tags": [],
 		"movement": "straight", "shoot": null, "base_count": 2, "recycle": 0,
 		"mounts": [
 			{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_ZealotLaser, "aim": "forward", "fire_min": 0.5, "fire_max": 0.5, "count": 1, "spread_deg": 0.0 },
