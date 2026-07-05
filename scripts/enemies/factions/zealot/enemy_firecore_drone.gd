@@ -46,20 +46,29 @@ func _ready() -> void:
 	# Orbiting bullet shells via the shared OrbitComponent (VISUAL) — set BEFORE super._ready so
 	# enemy_core inits + ticks it; released as real bullets on death (on_death). ring_count is the
 	# director's override (set before add_child), so it's already resolved here.
-	ring_count = clampi(ring_count, 1, 4)
-	var oc = OrbitComponentC.new()
-	oc.mode = OrbitComponentC.Mode.VISUAL
-	oc.release_speed = RELEASE_SPEED
-	var rings: Array = []
-	for r in ring_count:
-		var small: bool = (r % 2 == 1)
-		rings.append({
-			"radius": RING_RADIUS_BASE + RING_RADIUS_STEP * float(r),
-			"count": RING_BULLET_BASE + RING_BULLET_STEP * r,
-			"speed": RING_SPEED_BASE * pow(RING_SPEED_FALLOFF, float(r)) * (-1.0 if small else 1.0),
-			"variant": BV_Basic,
-			"scale": SMALL_SCALE if small else 1.0,
-		})
-	oc.rings = rings
-	components = [oc]
+	# If the spawner (the Enemy Bench ring editor, or a roster/faction orbit spec) already provided an
+	# OrbitComponent, USE it — so the bench's ring settings actually apply instead of being clobbered by
+	# this bespoke default (Roman 2026-07-04: "the bloom's got bespoke rings set, so I can't tell").
+	var has_orbit := false
+	for c in components:
+		if c is OrbitComponentC:
+			has_orbit = true
+			break
+	if not has_orbit:
+		ring_count = clampi(ring_count, 1, 4)
+		var oc = OrbitComponentC.new()
+		oc.mode = OrbitComponentC.Mode.VISUAL
+		oc.release_speed = RELEASE_SPEED
+		var rings: Array = []
+		for r in ring_count:
+			var small: bool = (r % 2 == 1)
+			rings.append({
+				"radius": RING_RADIUS_BASE + RING_RADIUS_STEP * float(r),
+				"count": RING_BULLET_BASE + RING_BULLET_STEP * r,
+				"speed": RING_SPEED_BASE * pow(RING_SPEED_FALLOFF, float(r)) * (-1.0 if small else 1.0),
+				"variant": BV_Basic,
+				"scale": SMALL_SCALE if small else 1.0,
+			})
+		oc.rings = rings
+		components = components + [oc]   # append, never clobber a spawner-provided component
 	super._ready()
