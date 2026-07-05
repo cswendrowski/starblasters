@@ -1142,6 +1142,18 @@ func _mount_spec_dicts() -> Array:
 			sd["turret_texture"] = g["tex"]
 			sd["turret_hframes"] = g["hframes"]
 			sd["recoil_frames"] = g["recoil"]
+			# Phase B: a turret honors these shared firing settings (deviation/burst/volleys/delay +
+			# bullet_speed). The gun/launcher-only knobs (muzzle mode, nose/path gates, max-fires) don't apply.
+			sd["deviation_deg"] = float(d.get("deviation_deg", 0.0))
+			sd["volleys"] = int(d.get("volleys", 1))
+			sd["volley_gap"] = float(d.get("volley_gap", 0.0))
+			sd["payload_delay_ms"] = float(d.get("payload_delay_ms", 0.0))
+			var tburst: float = float(d.get("burst_interval", 0.0))
+			if tburst > 0.0:
+				sd["burst_interval"] = tburst
+			var tspd: float = float(d.get("bullet_speed", -1.0))
+			if tspd >= 0.0:
+				sd["bullet_speed"] = tspd
 		elif k == "entity":
 			# ENTITY emitter fields (Phase 3): trigger + emit knobs, honoured by _mount_from_dict.
 			sd["trigger"] = String(d.get("trigger", "cadence"))
@@ -1334,6 +1346,49 @@ func _make_mount_row(idx: int) -> Control:
 		phase_ed.text_submitted.connect(func(t): _set_mount(d, "on_phase", t))
 		phase_ed.focus_exited.connect(func(): _set_mount(d, "on_phase", phase_ed.text))
 		_grid_row(grid, "phase", phase_ed)
+
+	# Turret firing settings (Hardpoint v2 Phase B 2026-07-05): a turret honors the shared burst /
+	# deviation / volley / delay knobs, and can deliver a projectile payload (pick one in the payload
+	# dropdown above). The gun/launcher-only knobs (muzzle mode, nose/path gates, max-fires) don't apply
+	# to a self-aiming turret, so they're intentionally absent here.
+	if k == "turret":
+		var is_tburst: bool = float(d.get("burst_interval", 0.0)) > 0.0
+		var tvolley_dd := _row_dd(["Simultaneous", "Burst"], 1 if is_tburst else 0)
+		_grid_row(grid, "volley", tvolley_dd)
+		var tburst_lbl := _grid_label(grid, "burst gap")
+		var tburst := _row_spin(0.02, 0.5, 0.01, maxf(0.1, float(d.get("burst_interval", 0.1))))
+		tburst.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		grid.add_child(tburst)
+		tburst_lbl.visible = is_tburst
+		tburst.visible = is_tburst
+		tvolley_dd.item_selected.connect(func(i):
+			var on: bool = i == 1
+			tburst_lbl.visible = on
+			tburst.visible = on
+			_set_mount(d, "burst_interval", float(tburst.value) if on else 0.0))
+		tburst.value_changed.connect(func(v):
+			if tvolley_dd.selected == 1:
+				_set_mount(d, "burst_interval", float(v)))
+
+		var tspd := _row_spin(-1.0, 600.0, 10.0, float(d.get("bullet_speed", -1.0)))
+		tspd.value_changed.connect(func(v): _set_mount(d, "bullet_speed", float(v)))
+		_grid_row(grid, "speed", tspd)
+
+		var tdev := _row_spin(0.0, 90.0, 1.0, float(d.get("deviation_deg", 0.0)))
+		tdev.value_changed.connect(func(v): _set_mount(d, "deviation_deg", float(v)))
+		_grid_row(grid, "deviation", tdev)
+
+		var tvol := _row_spin(1, 12, 1, float(d.get("volleys", 1)))
+		tvol.value_changed.connect(func(v): _set_mount(d, "volleys", int(v)))
+		_grid_row(grid, "volleys", tvol)
+
+		var tvgap := _row_spin(0.0, 1.0, 0.02, float(d.get("volley_gap", 0.0)))
+		tvgap.value_changed.connect(func(v): _set_mount(d, "volley_gap", float(v)))
+		_grid_row(grid, "volley gap", tvgap)
+
+		var tdelay := _row_spin(0.0, 2000.0, 10.0, float(d.get("payload_delay_ms", 0.0)))
+		tdelay.value_changed.connect(func(v): _set_mount(d, "payload_delay_ms", float(v)))
+		_grid_row(grid, "delay ms", tdelay)
 
 	# Entity emitter fields (Phase 3): spawn the payload scene on a trigger. Cadence uses the "rate" row
 	# above as the emit period; count = scenes per emit. aim/marker/spread rows are ignored for entities.
@@ -1905,6 +1960,23 @@ func _mount_copy_line(d: Dictionary) -> String:
 		var ophase: String = String(d.get("on_phase", "")).strip_edges()
 		if ophase != "":
 			line += ", \"fire_on_phase\": \"%s\"" % ophase
+	elif k == "turret":
+		# Phase B turret firing settings (emit only when non-default; muzzle/gate/max-fires don't apply).
+		var tb: float = float(d.get("burst_interval", 0.0))
+		if tb > 0.0:
+			line += ", \"burst_interval\": %.2f" % tb
+		var tspeed: float = float(d.get("bullet_speed", -1.0))
+		if tspeed >= 0.0:
+			line += ", \"bullet_speed\": %.0f" % tspeed
+		if float(d.get("deviation_deg", 0.0)) > 0.0:
+			line += ", \"deviation_deg\": %.1f" % float(d.get("deviation_deg", 0.0))
+		if int(d.get("volleys", 1)) > 1:
+			line += ", \"volleys\": %d" % int(d.get("volleys", 1))
+		if float(d.get("volley_gap", 0.0)) > 0.0:
+			line += ", \"volley_gap\": %.2f" % float(d.get("volley_gap", 0.0))
+		var tpd: float = float(d.get("payload_delay_ms", 0.0))
+		if tpd > 0.0:
+			line += ", \"payload_delay_ms\": %.0f" % tpd
 	line += " },"
 	return line
 

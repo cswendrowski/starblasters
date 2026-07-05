@@ -83,6 +83,14 @@ static func _build_turret(enemy: Node, spec, mount) -> void:
 	t.homing_rate = spec.homing_rate
 	t.wobble_amplitude = spec.wobble_amplitude
 	t.wobble_frequency = spec.wobble_frequency
+	# Phase B: forward the shared firing settings so a turret delivery honors them (deviation, burst,
+	# volleys, payload delay) and can deliver a PROJECTILE payload (payload_scene) instead of a bullet.
+	t.deviation_deg = spec.deviation_deg
+	t.burst_interval = spec.burst_interval
+	t.volleys = spec.volleys
+	t.volley_gap = spec.volley_gap
+	t.payload_delay_ms = spec.payload_delay_ms
+	t.payload_scene = spec.payload_scene
 	if spec.turret_texture != null:
 		var s := Sprite2D.new()
 		s.texture = spec.turret_texture

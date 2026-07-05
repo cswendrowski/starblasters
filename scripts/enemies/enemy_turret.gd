@@ -46,6 +46,16 @@ const ENEMY_BULLET_DAMAGE_CAP := 4   # mirrors shoot_pattern.gd — cap faction/
 # a multi-frame strip (frame 0 idle, 1..N-1 recoil), flick through the recoil frames
 # on each shot then snap back to idle. 0 = no recoil (single-frame barrels unaffected).
 @export var recoil_frames: int = 0
+# --- Shared firing settings (Hardpoint v2 Phase B 2026-07-05): a turret is now a DELIVERY that honors
+# the same firing knobs a gun mount does, so "turrets need the rest of the firing settings" is covered.
+# All default to the turret's old single-aimed-shot behavior, so existing turrets are unchanged. ---
+@export var deviation_deg: float = 0.0            # random ± angle jitter per shot (inaccuracy); 0 = pinpoint
+@export var burst_interval: float = 0.0           # space the `count` shots over time (0 = one simultaneous fan)
+@export var volleys: int = 1                      # fire the whole count-shot fan this many times per shot
+@export var volley_gap: float = 0.0               # seconds between volleys
+@export var payload_delay_ms: float = 0.0         # hold the spawned payload at the muzzle before it moves
+@export var payload_scene: PackedScene = null     # PROJECTILE payload (missile/rocket) — a turret can now
+                                                  # deliver a projectile instead of a bullet (wins over bullet_variant)
 
 var _barrel: Sprite2D = null
 var _turret_rot: float = 0.0
@@ -161,70 +171,144 @@ func _try_fire() -> void:
 		_lock_t = lock_duration
 
 
+# Fire the shot(s). Phase B: `volleys` fans, each a burst of `count` shots — so a turret honors the
+# same volley/burst/deviation knobs a gun mount does. The default (volleys 1, burst 0, deviation 0,
+# count 1) is one synchronous aimed shot, identical to the pre-Phase-B turret. Async only kicks in when
+# a burst/volley gap is set; called fire-and-forget from _try_fire.
 func _shoot() -> void:
-	var base_dir := Vector2(cos(_turret_rot - PI * 0.5), sin(_turret_rot - PI * 0.5))
-	# Faction-skin the payload + resolve its indexed scene (the new unified projectiles), so a turret
-	# fires the same frame-reskinned bullet a gun mount does (2026-06-29). Variants with no indexed
-	# scene (or no variant) fall back to the shared enemy_bullet shell.
+	var volley_n: int = maxi(1, volleys)
+	for v in volley_n:
+		if v > 0 and volley_gap > 0.0:
+			await get_tree().create_timer(volley_gap, false).timeout
+			# A turret is a Node (freed with its host mid-burst), NOT a RefCounted component — so guard
+			# self-validity INLINE before any method/property access, short-circuiting on a freed self.
+			if not is_instance_valid(self) or not enabled or not is_inside_tree() or _host_suspended():
+				return
+		await _fire_fan()
+
+
+# One fan of `count` shots from a single muzzle position (matches the old single-spawn behavior), spaced
+# by burst_interval when set. Re-aims between burst shots as the turret keeps tracking.
+func _fire_fan() -> void:
+	var world: Node = BulletWorld.resolve(_host(), get_tree().root)
+	var owner: Node = _owner_enemy()   # for the faction/sector weapon mults + velocity inheritance
+	var spawn_pos: Vector2 = _muzzle_pos()
+	var base_dir: Vector2 = _barrel_dir()
+	var n: int = maxi(1, count)
+	var is_burst: bool = burst_interval > 0.0
+	for i in n:
+		if is_burst and i > 0:
+			await get_tree().create_timer(burst_interval, false).timeout
+			if not is_instance_valid(self) or not enabled or not is_inside_tree() or _host_suspended():
+				return
+			base_dir = _barrel_dir()   # re-aim between burst shots
+		var dir: Vector2 = _deviate(_fan_dir(base_dir, i, n))
+		_spawn_shot(dir, spawn_pos, world, owner)
+		if is_burst:
+			_play_muzzle_sfx(spawn_pos, dir, world)
+	if not is_burst:
+		_play_muzzle_sfx(spawn_pos, base_dir, world)
+
+
+# Spawn one shot in `dir` — a PROJECTILE payload (payload_scene) if set, else the turret's bullet.
+func _spawn_shot(dir: Vector2, spawn_pos: Vector2, world: Node, owner: Node) -> void:
+	# Projectile payload (Phase B): a turret can now deliver a missile/rocket, aimed by its own tracking.
+	if payload_scene != null:
+		var proj = payload_scene.instantiate()
+		if "initial_dir" in proj:
+			proj.initial_dir = dir
+		_apply_delay(proj)
+		world.add_child(proj)
+		if proj.has_method("start"):
+			proj.start(spawn_pos)
+		elif proj is Node2D:
+			proj.global_position = spawn_pos
+		return
+	# Bullet payload: faction-skin the variant + resolve its indexed scene (unified projectiles), so a
+	# turret fires the same frame-reskinned bullet a gun mount does. No variant → the shared shell.
 	var bv = BulletCatalog.faction_variant(bullet_variant, _faction()) if bullet_variant != null else null
 	var scn: PackedScene = BulletCatalog.scene_for(bv) if bv != null else null
 	if scn == null:
 		scn = load("res://scenes/projectiles/enemy_bullet.tscn")
 	if scn == null:
 		return
-	# Fire from the parent enemy's muzzle marker when it has one (gun_turret
-	# has a `Muzzle`), else from this turret node's own position. Mount-only
-	# enemies (firecore_cruiser's turret_mount, bulwark) report has_muzzles()
-	# == false and are unchanged. A pink flash plays at the muzzle on a hit.
+	var b = scn.instantiate()
+	if bv != null and "variant" in b:
+		b.variant = bv
+	world.add_child(b)
+	if b.has_method("start"):
+		b.start(spawn_pos, dir)   # _apply_variant sets speed from the .tres
+	else:
+		b.global_position = spawn_pos
+		if "velocity_dir" in b:
+			b.velocity_dir = dir
+		if "speed" in b:
+			b.speed = bullet_speed   # fallback only for a variant-less bullet
+		elif "velocity" in b:
+			b.velocity = dir * bullet_speed
+	# Faction/sector weapon scaling + velocity inheritance (Doppler) — the same steps gun/hull bullets get
+	# in shoot_pattern._spawn_bullet, so a turret's shots aren't the odd one out (Roman 2026-07-02).
+	if owner != null:
+		if "speed" in b and "bullet_speed_mult" in owner and float(owner.bullet_speed_mult) != 1.0:
+			b.speed = minf(b.speed * float(owner.bullet_speed_mult), Clarity.ABS_MAX_SPEED)
+		if "damage" in b and "bullet_damage_mult" in owner and float(owner.bullet_damage_mult) != 1.0:
+			b.damage = clampi(int(round(float(b.damage) * float(owner.bullet_damage_mult))), 1, ENEMY_BULLET_DAMAGE_CAP)
+		if "speed" in b and "_last_move_vel" in owner:
+			var fwd: float = maxf(0.0, owner._last_move_vel.dot(dir))
+			if fwd > 0.0:
+				b.speed = minf(b.speed + fwd, Clarity.ABS_MAX_SPEED)
+	# Movement axis — drive homing/wobble post-spawn (after _apply_variant seeded), so the firing layer
+	# (turret) owns movement, not the bullet .tres.
+	if homing_rate > 0.0 and "homing_rate" in b:
+		b.homing_rate = homing_rate
+	if wobble_amplitude > 0.0 and "wobble_amplitude" in b:
+		b.wobble_amplitude = wobble_amplitude
+		b.wobble_frequency = wobble_frequency
+	_apply_delay(b)
+
+
+# The turret's current world-space aim direction (barrel forward).
+func _barrel_dir() -> Vector2:
+	return Vector2(cos(_turret_rot - PI * 0.5), sin(_turret_rot - PI * 0.5))
+
+
+func _host() -> Node:
 	var p := get_parent()
-	var has_mz: bool = p != null and p.has_method("has_muzzles") and p.has_muzzles()
-	var spawn_pos: Vector2 = global_position
-	if has_mz:
-		spawn_pos = p.next_muzzle_pos()
-	var world: Node = BulletWorld.resolve(p if p != null else self, get_tree().root)
-	var owner: Node = _owner_enemy()   # for the faction/sector weapon mults + velocity inheritance
-	# Fire `count` bullets fanned across `spread_deg` (1 / 0 = a single aimed shot).
-	var n: int = maxi(1, count)
-	for i in n:
-		var dir := _fan_dir(base_dir, i, n)
-		var b = scn.instantiate()
-		if bv != null and "variant" in b:
-			b.variant = bv
-		world.add_child(b)
-		if b.has_method("start"):
-			b.start(spawn_pos, dir)   # _apply_variant sets speed from the .tres
-		else:
-			b.global_position = spawn_pos
-			if "velocity_dir" in b:
-				b.velocity_dir = dir
-			if "speed" in b:
-				b.speed = bullet_speed   # fallback only for a variant-less bullet
-			elif "velocity" in b:
-				b.velocity = dir * bullet_speed
-		# Faction/sector weapon scaling + velocity inheritance (Doppler) — the same steps gun/hull
-		# bullets get in shoot_pattern._spawn_bullet, so a turret's shots aren't the odd one out that
-		# ignores a Supremacy bullet-speed buff etc. (Roman 2026-07-02).
-		if owner != null:
-			if "speed" in b and "bullet_speed_mult" in owner and float(owner.bullet_speed_mult) != 1.0:
-				b.speed = minf(b.speed * float(owner.bullet_speed_mult), Clarity.ABS_MAX_SPEED)
-			if "damage" in b and "bullet_damage_mult" in owner and float(owner.bullet_damage_mult) != 1.0:
-				b.damage = clampi(int(round(float(b.damage) * float(owner.bullet_damage_mult))), 1, ENEMY_BULLET_DAMAGE_CAP)
-			if "speed" in b and "_last_move_vel" in owner:
-				var fwd: float = maxf(0.0, owner._last_move_vel.dot(dir))
-				if fwd > 0.0:
-					b.speed = minf(b.speed + fwd, Clarity.ABS_MAX_SPEED)
-		# Movement axis — drive homing/wobble post-spawn (after _apply_variant seeded),
-		# so the firing layer (turret) owns movement, not the bullet .tres.
-		if homing_rate > 0.0 and "homing_rate" in b:
-			b.homing_rate = homing_rate
-		if wobble_amplitude > 0.0 and "wobble_amplitude" in b:
-			b.wobble_amplitude = wobble_amplitude
-			b.wobble_frequency = wobble_frequency
-	if has_mz:
+	return p if p != null else self
+
+
+# Fire from the parent enemy's muzzle marker when it has one (gun_turret has a `Muzzle`), else from this
+# turret node's own position. Mount-only enemies (bulwark, firecore_cruiser) report has_muzzles()==false.
+func _muzzle_pos() -> Vector2:
+	var p := get_parent()
+	if p != null and p.has_method("has_muzzles") and p.has_muzzles():
+		return p.next_muzzle_pos()
+	return global_position
+
+
+# Random shot deviation (inaccuracy): jitter the direction by ±deviation_deg. No-op when 0.
+func _deviate(dir: Vector2) -> Vector2:
+	if deviation_deg <= 0.0:
+		return dir
+	var d: float = deg_to_rad(deviation_deg)
+	return dir.rotated(randf_range(-d, d))
+
+
+# Payload Delay: hold the freshly-spawned payload at the muzzle before its motion begins (ms → s).
+func _apply_delay(b) -> void:
+	if b == null or payload_delay_ms <= 0.0:
+		return
+	if "motion_delay" in b:
+		b.motion_delay = payload_delay_ms / 1000.0
+
+
+# Muzzle flash (only when the host exposes muzzles) + the positional fire sound, classified off this
+# turret's bullet_variant (small/tracer → enemy_mg, else enemy_blaster).
+func _play_muzzle_sfx(spawn_pos: Vector2, dir: Vector2, world: Node) -> void:
+	var p := get_parent()
+	if p != null and p.has_method("has_muzzles") and p.has_muzzles():
 		var MuzzleFx = load("res://scripts/effects/muzzle_fx.gd")
-		MuzzleFx.play_enemy(spawn_pos, base_dir, world)
-	# Fire sound — classified off this turret's own bullet_variant (small/tracer
-	# → enemy_mg, else enemy_blaster). Positional at the muzzle.
+		MuzzleFx.play_enemy(spawn_pos, dir, world)
 	EnemySfxC.play(get_tree().root, spawn_pos, EnemySfxC.kind_for(self))
 
 
