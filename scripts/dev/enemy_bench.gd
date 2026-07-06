@@ -91,18 +91,20 @@ const PROJECTILES := {
 	"Missile": "res://scenes/projectiles/drifting_missile.tscn",
 	"Bomblet": "res://scenes/enemies/enemy_bomblet.tscn",
 }
-# Beam payloads (Hardpoint v2 Phase A 2026-07-05): pickable presets carrying a beam_config, realized as
-# a continuous BeamEmitter by MountBuilder (which now routes on a non-empty beam_config, any kind — so a
-# beam is "Beam payload × Direct delivery"). Mirrors the roster's BEAMER_SWEEP/CHASE configs. A fuller
-# per-knob beam editor is a follow-on; these two presets make beams authorable + previewable at all.
-const BEAM_PRESETS := {
-	"Beam Sweep": { "idle_time": 0.9, "windup_time": 1.3, "firing_time": 1.1, "cooldown_time": 1.5,
-		"cycle": 0, "autostart": false, "settle_y": 58.0, "endpoint": 0, "aim_mode": 0,
-		"reach": 320.0, "dps": 3.0, "hit_radius": 8.0, "emitter_offset": Vector2(0, 0), "target_group": "player" },
-	"Beam Chase": { "idle_time": 0.9, "windup_time": 1.3, "firing_time": 1.1, "cooldown_time": 1.5,
-		"cycle": 0, "autostart": false, "settle_y": 58.0, "endpoint": 0, "aim_mode": 2, "tracking_rate": 1.3,
-		"reach": 320.0, "dps": 3.0, "hit_radius": 8.0, "emitter_offset": Vector2(0, 0), "target_group": "player" },
+# Beam payload (Hardpoint v2 Phase A/beam-editor 2026-07-05): a "Beam" payload carries a beam_config,
+# realized as a continuous BeamEmitter by MountBuilder (which routes on a non-empty beam_config, any kind
+# — so a beam is "Beam payload × Direct delivery"). The bench authors it via editable beam rows (aim /
+# reach / dps / timings) built from BEAM_DEFAULT; _beam_config_from(d) assembles the live config.
+const BEAM_DEFAULT := {
+	"idle_time": 0.9, "windup_time": 1.3, "firing_time": 1.1, "cooldown_time": 1.5,
+	"cycle": 0, "autostart": false, "settle_y": 58.0, "endpoint": 0,
+	"reach": 320.0, "dps": 3.0, "hit_radius": 8.0, "emitter_offset": Vector2(0, 0), "target_group": "player",
 }
+# BeamEmitter.AimMode: LOCAL_FORWARD 0 (fire along host forward), LOCKED 1 (snapshot aim at windup, the
+# classic turret feel), TRACKING 2 (follow the player), TRACK_LOCK 4 (track between shots, freeze while firing).
+const BEAM_AIM_LABELS := ["Forward", "Locked", "Tracking", "Track-Lock"]
+const BEAM_AIM_VALUES := [0, 1, 2, 4]
+const BEAM_PAYLOAD_NAME := "Beam"
 # Emitters editor (the reusable EmitterComponent: drop/spawn a payload scene on a trigger — the
 # generalized form of the interceptor's missile-drop).
 const EMITTER_TRIGGERS := ["start", "timer", "death"]
@@ -1102,8 +1104,8 @@ func _mount_spec_dicts() -> Array:
 		var pname: String = String(d.get("payload", "Ball"))
 		if k == "entity":
 			sd["payload_scene"] = _emitter_payload_path(pname)   # entity scene path
-		elif BEAM_PRESETS.has(pname):
-			sd["beam_config"] = (BEAM_PRESETS[pname] as Dictionary).duplicate(true)   # beam payload → BeamEmitter
+		elif pname == BEAM_PAYLOAD_NAME:
+			sd["beam_config"] = _beam_config_from(d)   # beam payload → BeamEmitter (editable config)
 		elif PAYLOADS.has(pname):
 			sd["payload"] = PAYLOADS[pname]
 		elif PROJECTILES.has(pname):
@@ -1389,6 +1391,32 @@ func _make_mount_row(idx: int) -> Control:
 		var tdelay := _row_spin(0.0, 2000.0, 10.0, float(d.get("payload_delay_ms", 0.0)))
 		tdelay.value_changed.connect(func(v): _set_mount(d, "payload_delay_ms", float(v)))
 		_grid_row(grid, "delay ms", tdelay)
+
+	# Beam payload config (beam editor 2026-07-05): when the payload is a Beam, author its behavior — aim
+	# mode (Forward/Locked/Tracking/Track-Lock), reach, dps, and the FSM timings. Assembled into a
+	# beam_config by _beam_config_from; the mount kind is irrelevant (MountBuilder routes on beam_config).
+	if String(d.get("payload", "")) == BEAM_PAYLOAD_NAME:
+		var baim := _row_dd(BEAM_AIM_LABELS, maxi(0, BEAM_AIM_VALUES.find(int(d.get("beam_aim", 2)))))
+		baim.item_selected.connect(func(i): _set_mount(d, "beam_aim", int(BEAM_AIM_VALUES[i])))
+		_grid_row(grid, "beam aim", baim)
+		var breach := _row_spin(60.0, 480.0, 10.0, float(d.get("beam_reach", 320.0)))
+		breach.value_changed.connect(func(v): _set_mount(d, "beam_reach", float(v)))
+		_grid_row(grid, "reach", breach)
+		var bdps := _row_spin(0.5, 20.0, 0.5, float(d.get("beam_dps", 3.0)))
+		bdps.value_changed.connect(func(v): _set_mount(d, "beam_dps", float(v)))
+		_grid_row(grid, "dps", bdps)
+		var bidle := _row_spin(0.0, 5.0, 0.1, float(d.get("beam_idle", 0.9)))
+		bidle.value_changed.connect(func(v): _set_mount(d, "beam_idle", float(v)))
+		_grid_row(grid, "idle s", bidle)
+		var bwind := _row_spin(0.1, 5.0, 0.1, float(d.get("beam_windup", 1.3)))
+		bwind.value_changed.connect(func(v): _set_mount(d, "beam_windup", float(v)))
+		_grid_row(grid, "windup s", bwind)
+		var bfire := _row_spin(0.1, 5.0, 0.1, float(d.get("beam_firing", 1.1)))
+		bfire.value_changed.connect(func(v): _set_mount(d, "beam_firing", float(v)))
+		_grid_row(grid, "firing s", bfire)
+		var bcool := _row_spin(0.1, 5.0, 0.1, float(d.get("beam_cooldown", 1.5)))
+		bcool.value_changed.connect(func(v): _set_mount(d, "beam_cooldown", float(v)))
+		_grid_row(grid, "cooldown s", bcool)
 
 	# Entity emitter fields (Phase 3): spawn the payload scene on a trigger. Cadence uses the "rate" row
 	# above as the emit period; count = scenes per emit. aim/marker/spread rows are ignored for entities.
@@ -1804,9 +1832,23 @@ func _mount_payload_names() -> Array:
 	var names: Array = PAYLOADS.keys().duplicate()
 	for p in PROJECTILES.keys():
 		names.append(p)
-	for b in BEAM_PRESETS.keys():
-		names.append(b)
+	names.append(BEAM_PAYLOAD_NAME)
 	return names
+
+
+# Assemble a live beam_config from a mount dict's editable beam_* fields (over BEAM_DEFAULT).
+func _beam_config_from(d: Dictionary) -> Dictionary:
+	var cfg: Dictionary = BEAM_DEFAULT.duplicate(true)
+	cfg["aim_mode"] = int(d.get("beam_aim", 2))            # default Tracking
+	cfg["reach"] = float(d.get("beam_reach", 320.0))
+	cfg["dps"] = float(d.get("beam_dps", 3.0))
+	cfg["idle_time"] = float(d.get("beam_idle", 0.9))
+	cfg["windup_time"] = float(d.get("beam_windup", 1.3))
+	cfg["firing_time"] = float(d.get("beam_firing", 1.1))
+	cfg["cooldown_time"] = float(d.get("beam_cooldown", 1.5))
+	if int(cfg["aim_mode"]) == 2:                          # TRACKING needs a re-aim rate
+		cfg["tracking_rate"] = 1.3
+	return cfg
 
 
 func _dup_mounts(src) -> Array:
@@ -1838,6 +1880,9 @@ func _roster_mount_to_bench(d: Dictionary) -> Dictionary:
 	if pp_arr != null:
 		for f in pp_arr:
 			pp_toks.append(str(f))
+	# Extract a beam mount's beam_config into the editable beam_* fields so it round-trips into the editor.
+	var bcv = d.get("beam_config", null)
+	var bc: Dictionary = bcv if bcv is Dictionary else {}
 	return {
 		"kind": String(d.get("kind", "gun")),
 		"marker": String(d.get("marker", "")),
@@ -1856,6 +1901,13 @@ func _roster_mount_to_bench(d: Dictionary) -> Dictionary:
 		"path_phases": ",".join(pp_toks),
 		"beat_synced": bool(d.get("fire_beat_synced", true)),
 		"on_phase": String(d.get("fire_on_phase", "")),
+		"beam_aim": int(bc.get("aim_mode", 2)),
+		"beam_reach": float(bc.get("reach", 320.0)),
+		"beam_dps": float(bc.get("dps", 3.0)),
+		"beam_idle": float(bc.get("idle_time", 0.9)),
+		"beam_windup": float(bc.get("windup_time", 1.3)),
+		"beam_firing": float(bc.get("firing_time", 1.1)),
+		"beam_cooldown": float(bc.get("cooldown_time", 1.5)),
 	}
 
 
@@ -1869,12 +1921,11 @@ func _norm_payload(name: String) -> String:
 # (2026-06-29), so map by the variant's `family` first — any faction's clone (zealot/privateer ball)
 # folds to the generic "Ball". A non-family variant (e.g. legacy BV_Basic) falls back to "Ball".
 func _payload_name_of(d: Dictionary) -> String:
-	# Beam payload (Phase A): a roster mount with a beam_config maps to the nearest preset for display
-	# (aim_mode 2 = tracking = Chase, else Sweep). Best-effort — a hand-tuned roster config shows as its
-	# nearest preset; the bench doesn't overwrite the roster, so nothing is corrupted.
+	# Beam payload: a roster mount with a beam_config is the "Beam" payload (its knobs round-trip into the
+	# editable beam_* fields via _roster_mount_to_bench).
 	var bc = d.get("beam_config", null)
 	if bc is Dictionary and not (bc as Dictionary).is_empty():
-		return "Beam Chase" if int((bc as Dictionary).get("aim_mode", 0)) == 2 else "Beam Sweep"
+		return BEAM_PAYLOAD_NAME
 	var pv = d.get("payload", null)
 	if pv != null:
 		if "family" in pv and String(pv.family) != "":
@@ -1931,10 +1982,9 @@ func _mount_copy_line(d: Dictionary) -> String:
 			eline += ", \"bullet_speed\": %.0f" % float(d.get("bullet_speed", 0.0))
 		eline += ", \"no_inertia\": %s }," % ("true" if bool(d.get("no_inertia", true)) else "false")
 		return eline
-	# Beam payload (Phase A): a kind:"beam" mount carrying the preset's beam_config (routed by MountBuilder).
-	if BEAM_PRESETS.has(String(d.get("payload", ""))):
-		var cfg: Dictionary = BEAM_PRESETS[String(d.get("payload"))]
-		return "{ \"kind\": \"beam\", \"marker\": \"%s\", \"beam_config\": %s }," % [String(d.get("marker", "")), _beam_cfg_literal(cfg)]
+	# Beam payload: a kind:"beam" mount carrying the editable beam_config (routed by MountBuilder).
+	if String(d.get("payload", "")) == BEAM_PAYLOAD_NAME:
+		return "{ \"kind\": \"beam\", \"marker\": \"%s\", \"beam_config\": %s }," % [String(d.get("marker", "")), _beam_cfg_literal(_beam_config_from(d))]
 	var pname: String = String(d.get("payload", "Ball"))
 	var pay: String = "\"payload\": null"
 	if PAYLOADS.has(pname):
