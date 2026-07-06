@@ -227,6 +227,13 @@ var _shielded_chk: CheckBox = null
 var _omni_chk: CheckBox = null
 var _strafe_chk: CheckBox = null
 var _retro_chk: CheckBox = null
+# Faction eligibility (Roman 2026-07-06) — which factions a CORE ship (universal enemy) may appear with,
+# i.e. its Factions.ENEMY_TAGS "allowed_in" whitelist. Shown only for core/universal ships; hidden for
+# faction-exclusive units (their eligibility is fixed to their home). One checkbox per faction, ordered
+# by Factions.Id (Supremacy/Privateer/Corporate/Zealot).
+var _faction_elig_chks: Array = []
+var _faction_elig_row: Control = null
+var _faction_elig_caption: Control = null
 const _SIZE_OPTS := ["tiny", "small", "medium", "large", "huge", "giant"]
 
 # Working list of mount dicts for the selected enemy (name-based, JSON-friendly):
@@ -633,6 +640,22 @@ func _setup_enemy_template_knobs(scroll: Control) -> void:
 	_retro_chk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_retro_chk.toggled.connect(func(_p): _on_template_changed(0))
 	loco_tr.add_child(_retro_chk)
+	# Faction eligibility (core ships): which factions this universal core hull may appear with (its
+	# Factions.ENEMY_TAGS "allowed_in" whitelist). Only meaningful for core/universal ships — hidden for
+	# faction-exclusive units. Captured on Save + emitted in Copy GDScript as the ENEMY_TAGS line.
+	_faction_elig_caption = _mk_label("Faction eligibility (core ships) — which factions this hull spawns with", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70))
+	content.add_child(_faction_elig_caption)
+	_faction_elig_row = HBoxContainer.new()
+	_faction_elig_row.add_theme_constant_override("separation", 8)
+	content.add_child(_faction_elig_row)
+	_faction_elig_chks = []
+	for fname in ["Sup", "Priv", "Corp", "Zeal"]:   # ordered by Factions.Id
+		var chk := CheckBox.new()
+		chk.text = fname
+		chk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		chk.add_theme_font_size_override("font_size", FS_CAPTION)
+		_faction_elig_row.add_child(chk)
+		_faction_elig_chks.append(chk)
 	# Stat overrides (opt-in): size/traits seed HP & bounty; tick a box only when you want to pin an
 	# explicit value. Unchecked = use the template/native value, and the row stays one compact line.
 	content.add_child(_mk_label("Stat overrides (off = use template / native)", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
@@ -1054,6 +1077,52 @@ func _spawn_current() -> void:
 		var n: int = max(1, _eligible.size())
 		_pattern_lbl.text = "Pattern: %s  (%d/%d)" % [(key if key != "" else "—"), _pattern_idx + 1, n]
 	_refresh_info()
+
+
+# --- Faction eligibility (core-ship allowed_in) — Roman 2026-07-06 ---
+
+# True if this scene is a CORE/universal ship — the only kind whose faction eligibility (allowed_in) is
+# meaningful. Faction-exclusive units are fixed to their home faction, so the control is hidden for them.
+func _is_core_ship(path: String) -> bool:
+	var t: Variant = Factions.ENEMY_TAGS.get(path, null)
+	return t is Dictionary and bool(t.get("universal", false))
+
+
+# The default allowed-in faction id list for a scene, from its ENEMY_TAGS tag: an explicit "allowed_in"
+# whitelist if present, else all four (a universal with no whitelist), else the home faction alone.
+func _default_allowed_in(path: String) -> Array:
+	var t: Variant = Factions.ENEMY_TAGS.get(path, null)
+	if not (t is Dictionary):
+		return [0, 1, 2, 3]
+	var wl: Variant = t.get("allowed_in", null)
+	if wl is Array:
+		var out: Array = []
+		for v in wl:
+			out.append(int(v))
+		return out
+	if bool(t.get("universal", false)):
+		return [0, 1, 2, 3]
+	return [int(t.get("home", 0))]
+
+
+# The faction ids currently ticked in the eligibility row (ordered by Factions.Id).
+func _selected_allowed_in() -> Array:
+	var out: Array = []
+	for i in _faction_elig_chks.size():
+		if (_faction_elig_chks[i] as CheckBox).button_pressed:
+			out.append(i)
+	return out
+
+
+# Set the eligibility checkboxes from an id list + show/hide the row for core vs exclusive ships.
+func _set_faction_elig(path: String, ids: Array) -> void:
+	var is_core: bool = _is_core_ship(path)
+	if _faction_elig_row != null:
+		_faction_elig_row.visible = is_core
+	if _faction_elig_caption != null:
+		_faction_elig_caption.visible = is_core
+	for i in _faction_elig_chks.size():
+		(_faction_elig_chks[i] as CheckBox).button_pressed = i in ids
 
 
 # The "Turret payload" dropdown only does anything for enemies with BAKED child turrets and no mounts
@@ -2375,6 +2444,8 @@ func _load_settings_into_editors() -> void:
 				_strafe_chk.button_pressed = bool(s.get("strafe", false))
 			if _retro_chk != null:
 				_retro_chk.button_pressed = bool(s.get("retro", false))
+	# Faction eligibility (core ships): saved allowed_in, else the scene's ENEMY_TAGS default.
+	_set_faction_elig(_selected_path, s.get("allowed_in", _default_allowed_in(_selected_path)))
 	_name_edit.text = String(s.get("name", EnemyStrings.display_name(_selected_path)))
 	_codex_edit.text = String(s.get("codex", EnemyStrings.codex_entry(_selected_path)))
 	# Saved bench override wins; otherwise default to the enemy's production roster mounts.
@@ -2444,6 +2515,7 @@ func _current_settings() -> Dictionary:
 		"omni": _omni_chk.button_pressed if _omni_chk != null else false,
 		"strafe": _strafe_chk.button_pressed if _strafe_chk != null else false,
 		"retro": _retro_chk.button_pressed if _retro_chk != null else false,
+		"allowed_in": _selected_allowed_in(),   # core-ship faction eligibility (Factions.ENEMY_TAGS)
 	}
 
 
@@ -2539,6 +2611,22 @@ func _on_copy() -> void:
 		txt += "],\n"
 	# (Phase C: the orbit ring now emits as a kind:"ring" entry inside the "mounts" block above,
 	# not a bespoke OrbitComponent — see _orbit_mount_copy_line.)
+	# Faction eligibility → Factions.ENEMY_TAGS line (core ships only). The handoff for "which factions
+	# this core hull may appear with" (Roman 2026-07-06).
+	if _is_core_ship(_selected_path):
+		var id_names := ["Id.SUPREMACY", "Id.PRIVATEER", "Id.CORPORATE", "Id.ZEALOT"]
+		var tag: Variant = Factions.ENEMY_TAGS.get(_selected_path, {})
+		var home_i: int = int(tag.get("home", 0)) if tag is Dictionary else 0
+		var sel: Array = _selected_allowed_in()
+		var al: Array = []
+		for i in sel:
+			al.append(id_names[i])
+		txt += "\n# -> scripts/levels/factions.gd ENEMY_TAGS:\n"
+		if sel.size() >= 4:
+			# All four = unrestricted; drop the redundant whitelist.
+			txt += "\t\"%s\": {\"home\": %s, \"universal\": true},\n" % [_selected_path, id_names[home_i]]
+		else:
+			txt += "\t\"%s\": {\"home\": %s, \"universal\": true, \"allowed_in\": [%s]},\n" % [_selected_path, id_names[home_i], ", ".join(al)]
 	# Paste-ready enemy_strings.gd STRINGS entry (the name + codex live in a baked
 	# const dict, so this is the handoff back into source).
 	var codex_one_line: String = String(s["codex"]).replace("\n", " ").replace("\"", "'")
