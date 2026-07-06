@@ -24,7 +24,9 @@ const KNOBS := [
 	["hold_max", "Pre-cycle hold MAX (s)", 0.0, 3.0, 0.05],
 	["entry_inset", "Re-entry inset (px)", 0.0, 60.0, 1.0],
 	["fly_scale", "Ghost scale", 0.1, 1.0, 0.01],
-	["fly_time", "Fly-back time (s)", 0.3, 5.0, 0.05],
+	["fly_speed_mult", "Fly speed × on-field", 0.2, 3.0, 0.05],
+	["fly_time_min", "Fly time MIN (s)", 0.3, 4.0, 0.05],
+	["fly_time_max", "Fly time MAX (s)", 1.0, 8.0, 0.05],
 	["fly_target_y", "Fly-back target Y (px)", -60.0, 40.0, 1.0],
 	["tint_r", "Tint R", 0.0, 1.0, 0.01],
 	["tint_g", "Tint G", 0.0, 1.0, 0.01],
@@ -48,6 +50,11 @@ var _hold_dur: float = 0.7
 var _from_y: float = 0.0
 var _to_y: float = 0.0
 var _entry_x: float = 0.0
+# Preview-only (NOT a persisted knob): the on-field move_speed to SIMULATE, so the speed-proportional
+# recede is visible — a slow ship recedes slowly, a fast one zips. _fly_dur is the resulting duration.
+var _preview_speed: float = 150.0
+var _fly_dur: float = 1.8
+var _dur_label: Label = null
 
 
 var _hd_scope: HdViewportScope = null
@@ -90,6 +97,27 @@ func _build_ui() -> void:
 
 	for spec in KNOBS:
 		rail.add_child(_make_knob_row(spec))
+
+	# Preview-only move_speed simulator (not persisted) + a live readout of the resulting fly duration,
+	# so the speed-proportional recede can be judged at slow vs fast on-field speeds.
+	var prow := HBoxContainer.new()
+	prow.add_theme_constant_override("separation", 8)
+	var plbl := Label.new()
+	plbl.text = "Preview move_speed (px/s)"
+	plbl.custom_minimum_size = Vector2(210, 0)
+	prow.add_child(plbl)
+	var pspin := SpinBox.new()
+	pspin.min_value = 20.0
+	pspin.max_value = 480.0
+	pspin.step = 5.0
+	pspin.value = _preview_speed
+	pspin.custom_minimum_size = Vector2(110, 0)
+	pspin.value_changed.connect(func(v): _preview_speed = v; _recompute_dur())
+	prow.add_child(pspin)
+	rail.add_child(prow)
+	_dur_label = Label.new()
+	_dur_label.add_theme_color_override("font_color", Color(0.8, 0.9, 1.0))
+	rail.add_child(_dur_label)
 
 	var btn_row := HBoxContainer.new()
 	btn_row.add_theme_constant_override("separation", 8)
@@ -298,9 +326,18 @@ func _restart_preview() -> void:
 	_entry_x = randf_range(Playfield.X_MIN + inset, Playfield.X_MAX - inset)
 	_from_y = Playfield.Y_MAX - 10.0
 	_to_y = float(_values.fly_target_y)
+	_recompute_dur()
 	if _ghost:
 		_ghost.position = Vector2(_entry_x, _from_y)
 		_ghost.visible = false
+
+
+# The speed-proportional fly duration for the simulated move_speed, via the SAME helper production
+# uses (RecycleController.fly_duration), + a live readout so the recede reads correctly at any speed.
+func _recompute_dur() -> void:
+	_fly_dur = RecycleController.fly_duration(absf(_from_y - _to_y), _preview_speed, _values)
+	if _dur_label != null:
+		_dur_label.text = "→ fly duration: %.2f s  (at %d px/s)" % [_fly_dur, int(_preview_speed)]
 
 
 func _process(delta: float) -> void:
@@ -315,7 +352,7 @@ func _process(delta: float) -> void:
 				_phase_t = 0.0
 				_ghost.visible = true
 		"fly":
-			var t: float = clampf(_phase_t / max(0.05, float(_values.fly_time)), 0.0, 1.0)
+			var t: float = clampf(_phase_t / max(0.05, _fly_dur), 0.0, 1.0)
 			var s: float = float(_values.fly_scale)
 			_ghost.scale = Vector2(s, s)
 			_ghost_base.modulate = RecycleController.tint(_values)
@@ -367,7 +404,9 @@ func _build_snippet() -> String:
 	lines.append("const DEFAULTS := {")
 	lines.append("\t\"hold_min\": %.2f, \"hold_max\": %.2f," % [_values.hold_min, _values.hold_max])
 	lines.append("\t\"entry_inset\": %.1f," % _values.entry_inset)
-	lines.append("\t\"fly_scale\": %.2f, \"fly_time\": %.2f, \"fly_target_y\": %.1f," % [_values.fly_scale, _values.fly_time, _values.fly_target_y])
+	lines.append("\t\"fly_scale\": %.2f," % _values.fly_scale)
+	lines.append("\t\"fly_speed_mult\": %.2f, \"fly_time_min\": %.2f, \"fly_time_max\": %.2f," % [_values.fly_speed_mult, _values.fly_time_min, _values.fly_time_max])
+	lines.append("\t\"fly_target_y\": %.1f," % _values.fly_target_y)
 	lines.append("\t\"tint_r\": %.2f, \"tint_g\": %.2f, \"tint_b\": %.2f, \"tint_a\": %.2f," % [_values.tint_r, _values.tint_g, _values.tint_b, _values.tint_a])
 	lines.append("}")
 	return "\n".join(lines)

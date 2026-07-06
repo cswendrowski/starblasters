@@ -39,6 +39,7 @@ func _check(cond: bool, msg: String) -> void:
 
 
 func _run_all() -> void:
+	_test_fly_duration()
 	_test_resolve()
 	await _test_recycle()
 	_test_wreck()
@@ -50,6 +51,23 @@ func _run_all() -> void:
 		print("VERDICT: FAIL (", _fails, " failed)")
 	_done = true
 	quit(1 if _fails > 0 else 0)
+
+
+# --- Part 0: fly_duration() proportionality --------------------------------
+
+func _test_fly_duration() -> void:
+	print("fly_duration() is proportional to on-field speed:")
+	var d := 300.0
+	var cfg: Dictionary = RC.DEFAULTS   # fly_speed_mult 1.0, fly_time_min 1.0, fly_time_max 4.5
+	var slow := RC.fly_duration(d, 80.0, cfg)
+	var fast := RC.fly_duration(d, 240.0, cfg)
+	_check(slow > fast, "slow ship recedes longer than fast (%.2fs > %.2fs)" % [slow, fast])
+	_check(RC.fly_duration(d, 150.0, cfg) == 2.0, "mid speed = distance/speed in-range (300/150 = 2.0s)")
+	_check(RC.fly_duration(d, 5000.0, cfg) == float(cfg.fly_time_min), "very fast clamps to fly_time_min")
+	_check(RC.fly_duration(d, 0.0, cfg) == float(cfg.fly_time_max), "move_speed 0 clamps to fly_time_max")
+	var faster: Dictionary = cfg.duplicate()
+	faster["fly_speed_mult"] = 2.0
+	_check(RC.fly_duration(d, 150.0, faster) < RC.fly_duration(d, 150.0, cfg), "higher fly_speed_mult → shorter recede")
 
 
 # --- Part 1: resolve() decision matrix -------------------------------------
@@ -121,7 +139,10 @@ func _test_recycle() -> void:
 	var cfg: Dictionary = RC.config()
 	cfg["hold_min"] = 0.01
 	cfg["hold_max"] = 0.02
-	cfg["fly_time"] = 0.3   # long enough to reliably sample the mid-fly state below
+	# Pin the fly duration to 0.3s regardless of the dart's move_speed (min==max) so the mid-fly sample
+	# below is reliable — the speed-proportional math itself is unit-tested in _test_fly_duration.
+	cfg["fly_time_min"] = 0.3
+	cfg["fly_time_max"] = 0.3
 
 	var e = load(DART).instantiate()
 	get_root().add_child(e)

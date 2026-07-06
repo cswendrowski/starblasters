@@ -38,7 +38,13 @@ const DEFAULTS := {
 	"hold_max": 0.9,        # pre-cycle hold, randf_range high (s)
 	"entry_inset": 22.0,    # px inset from the playfield band edges for re-entry x
 	"fly_scale": 0.45,      # ghost-pass scale multiplier
-	"fly_time": 1.8,        # fly-back tween duration (s)
+	# Fly-back speed is PROPORTIONAL to the enemy's on-field move_speed (Roman 2026-07-05) — the ghost
+	# recedes at move_speed × fly_speed_mult px/s, so a large slow ship recedes slowly and a fast one
+	# zips, instead of every enemy sharing one fixed duration. Clamped so the quickest don't teleport
+	# and move_speed==0 (unresolved / stationary) doesn't hang.
+	"fly_speed_mult": 1.0,  # ghost recede speed as a multiple of the enemy's on-field move_speed
+	"fly_time_min": 1.0,    # clamp: even the fastest ships take at least this long to recede (s)
+	"fly_time_max": 4.5,    # clamp: the slowest (or 0-speed) ships take at most this long (s)
 	"fly_target_y": -20.0,  # tween destination y (px)
 	# Ghost tint (faux-mid-depth). Stored as 4 floats so it round-trips through JSON.
 	"tint_r": 0.75, "tint_g": 0.85, "tint_b": 1.0, "tint_a": 0.55,
@@ -95,6 +101,18 @@ static func save(cfg: Dictionary) -> bool:
 	f.close()
 	invalidate()
 	return true
+
+
+# Fly-back duration for a recede of `distance` px by an enemy whose on-field speed is `field_speed`
+# px/s. The ghost travels at field_speed × fly_speed_mult, so duration = distance / that, clamped to
+# [fly_time_min, fly_time_max]. Proportional to on-field speed (slow ship → long recede, fast → short);
+# field_speed <= 0 (unresolved / stationary) floors back_speed at 1 px/s → clamps to fly_time_max.
+# Shared by recycle() + the RecycleTuner preview so both read identically. Pure — unit-testable.
+static func fly_duration(distance: float, field_speed: float, cfg: Dictionary) -> float:
+	var back_speed: float = maxf(field_speed * float(cfg.get("fly_speed_mult", DEFAULTS.fly_speed_mult)), 1.0)
+	return clampf(distance / back_speed,
+		float(cfg.get("fly_time_min", DEFAULTS.fly_time_min)),
+		float(cfg.get("fly_time_max", DEFAULTS.fly_time_max)))
 
 
 # ---- The offscreen decision -----------------------------------------------
@@ -189,8 +207,12 @@ static func recycle(enemy) -> void:
 	enemy._last_position = enemy.position
 	enemy.visible = true
 	var tw: Tween = enemy.create_tween()
-	# Fly-back tween reads as a quick zip, not a leisurely parade (Cody, 2026-05-18).
-	tw.tween_property(enemy, "position:y", float(cfg.fly_target_y), float(cfg.fly_time)).set_trans(Tween.TRANS_LINEAR)
+	# Duration is proportional to the enemy's on-field speed (see fly_duration): a slow ship recedes
+	# slowly and a fast one zips, instead of every enemy sharing one fixed tween time.
+	var target_y: float = float(cfg.fly_target_y)
+	var field_speed: float = float(enemy.move_speed) if "move_speed" in enemy else 0.0
+	var fly_time: float = fly_duration(absf(enemy.position.y - target_y), field_speed, cfg)
+	tw.tween_property(enemy, "position:y", target_y, fly_time).set_trans(Tween.TRANS_LINEAR)
 	await tw.finished
 	if not is_instance_valid(enemy):
 		return
