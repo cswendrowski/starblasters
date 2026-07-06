@@ -33,49 +33,99 @@ const OVERRIDE_PATH := "user://tuners/enemy_paths.json"
 
 
 # name -> path definition. Author these in the Path Editor and paste its Copy GDScript output here.
+# Baked from the Path Editor (user://tuners/enemy_paths.json) on 2026-07-06. Entries here are the
+# PERMANENT production source; the four starters (s_weave/corner_hook/loop_exit/zigzag_rush) are
+# Roman's edited replacements of the originals. Three scratch entries (default-named path_4/6/8,
+# blank straight-down lines) were left out. Non-monotone paths (loops) fire on cadence, not path-phase.
 const DATA := {
-	# S-weave descent — smooth sinusoidal side-to-side while descending. Lane-relative so it reads
-	# the same from any spawn lane; smoothed into a flowing S.
+	# Stepped S-weave - lateral shifts held at fixed depths then a final drop. Absolute lanes, mirror-paired.
 	"s_weave": {
 		"name": "s_weave",
-		"relative": true,
+		"relative": false,
 		"speed_scale": 1.0,
 		"smoothing": 1.0,
-		"mirror": false,
-		"waypoints": [[0.0, 0.0], [1.2, 0.25], [-1.2, 0.5], [1.2, 0.75], [0.0, 1.0]],
+		"mirror": true,
+		"waypoints": [[0.0, 0.0], [0.0, 0.59], [3.0, 0.59], [3.0, 0.3], [6.0, 0.3], [6.0, 0.89]],
 		"dwell": [],
 	},
-	# Corner-hook dive — spawn at the top-left, dive down the left lane, then hook hard across to the
-	# right and exit low-right. Absolute lanes so the corners are fixed to the board.
+	# Corner-hook dive - down the near-left column, hook across, then climb back out top-right. Absolute lanes.
 	"corner_hook": {
 		"name": "corner_hook",
 		"relative": false,
 		"speed_scale": 1.0,
 		"smoothing": 0.6,
 		"mirror": false,
-		"waypoints": [[0.0, 0.0], [0.0, 0.45], [1.5, 0.62], [4.5, 0.72], [6.0, 0.9]],
+		"waypoints": [[0.47, 0.0], [0.49, 0.47], [1.5, 0.62], [4.92, 0.61], [5.55, 0.34], [5.53, 0.0]],
 		"dwell": [],
 	},
-	# Loop-and-exit flourish — descend to mid-band, carve a loop (rising back up on one side) then
-	# resume the descent and exit. NON-MONOTONE y (rises mid-path) → fires on cadence, not path-phase.
+	# Loop-and-exit - carve a side loop mid-descent then resume and exit. NON-MONOTONE y (cadence fire).
 	"loop_exit": {
 		"name": "loop_exit",
 		"relative": false,
 		"speed_scale": 1.0,
 		"smoothing": 1.0,
 		"mirror": false,
-		"waypoints": [[3.0, 0.0], [3.0, 0.4], [4.4, 0.5], [4.4, 0.32], [3.0, 0.32], [3.0, 0.6], [3.0, 1.0]],
+		"waypoints": [[3.0, 0.0], [3.0, 0.59], [6.0, 0.59], [6.0, 0.3], [3.0, 0.3], [2.0, 0.59], [3.0, 1.0]],
 		"dwell": [],
 	},
-	# Zigzag rush — fast, sharp alternating cuts down the band (polyline, no rounding). Lane-relative;
-	# a touch above chassis speed for an aggressive strafe.
+	# Zigzag rush - sharp alternating cuts down the band (polyline, no rounding). Lane-relative.
 	"zigzag_rush": {
 		"name": "zigzag_rush",
 		"relative": true,
 		"speed_scale": 1.0,
 		"smoothing": 0.0,
 		"mirror": false,
-		"waypoints": [[0.0, 0.0], [1.5, 0.2], [-1.5, 0.4], [1.5, 0.6], [-1.5, 0.8], [0.0, 1.0]],
+		"waypoints": [[0.0, 0.0], [0.0, 0.15], [-1.0, 0.44], [1.0, 0.59], [0.0, 0.89], [0.0, 1.0]],
+		"dwell": [],
+	},
+	# Diagonal dive - a clean relative slant across two lanes on the way down. Monotone (path-phase).
+	"dive_diagonal": {
+		"name": "dive_diagonal",
+		"relative": true,
+		"speed_scale": 1.0,
+		"smoothing": 1.0,
+		"mirror": false,
+		"waypoints": [[3.0, 0.0], [2.0, 0.15], [-2.0, 0.74], [-3.0, 0.89], [-3.0, 1.0]],
+		"dwell": [],
+	},
+	# Back-and-forth weave - gentle relative side-to-side, smoothed. Monotone descent (path-phase).
+	"back_and_forth": {
+		"name": "back_and_forth",
+		"relative": true,
+		"speed_scale": 1.0,
+		"smoothing": 0.5,
+		"mirror": false,
+		"waypoints": [[0.0, 0.0], [0.0, 0.15], [1.0, 0.15], [1.0, 0.3], [-1.0, 0.3], [-1.0, 0.44], [1.0, 0.44], [1.0, 0.59], [-1.0, 0.59], [-1.0, 0.74], [0.0, 0.74], [0.0, 1.0]],
+		"dwell": [],
+	},
+	# Wide back-and-forth - same weave, larger lateral throw. Monotone descent (path-phase).
+	"back_and_forth_wide": {
+		"name": "back_and_forth_wide",
+		"relative": true,
+		"speed_scale": 1.0,
+		"smoothing": 0.5,
+		"mirror": false,
+		"waypoints": [[0.0, 0.0], [0.0, 0.15], [3.0, 0.15], [3.0, 0.3], [-3.0, 0.3], [-3.0, 0.44], [3.0, 0.44], [3.0, 0.59], [-3.0, 0.59], [-3.0, 0.74], [0.0, 0.74], [0.0, 1.0]],
+		"dwell": [],
+	},
+	# Skirmish loop - descend then orbit a lane cluster (imported from the skirmish_loop pattern). NON-MONOTONE.
+	"skirmish_loop": {
+		"name": "skirmish_loop",
+		"relative": false,
+		"speed_scale": 1.0,
+		"smoothing": 1.0,
+		"mirror": false,
+		"waypoints": [[3.0, 0.0], [3.0, 0.3], [3.0, 0.59], [5.0, 0.59], [5.0, 0.3], [3.0, 0.15], [1.0, 0.3], [1.0, 0.59], [3.0, 0.74], [3.0, 0.89], [3.0, 1.0]],
+		"dwell": [],
+	},
+	# Skirmish figure-8 - twin looping orbit (imported from skirmish_figure8). NON-MONOTONE (cadence fire).
+	"skirmish_figure8": {
+		"name": "skirmish_figure8",
+		"relative": false,
+		"speed_scale": 1.0,
+		"smoothing": 1.0,
+		"mirror": false,
+		"waypoints": [[3.0, 0.0], [3.01, 0.22], [4.0, 0.59], [6.0, 0.59], [6.0, 0.3], [4.0, 0.3], [2.0, 0.59], [0.0, 0.59], [0.0, 0.3], [2.0, 0.3], [3.0, 0.74], [3.0, 1.0]],
 		"dwell": [],
 	},
 }
