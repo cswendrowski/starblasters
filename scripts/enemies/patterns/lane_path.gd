@@ -168,7 +168,13 @@ func compute_step(enemy, delta: float) -> Vector2:
 			# (high/mid/low), THEN start the sinusoidal swing. _weave_t0 anchors the sine to the
 			# gate crossing so the first swing leaves lane center cleanly (no mid-swing snap).
 			var amp: float = _clamp_amp(absf(weave_lanes) * Lanes.PITCH)
+			# No lateral until PAST the entry band (FIX #3): band_progress is 0.0 everywhere above
+			# y=40, so the bp gate alone (default 0.0) latched on the spawn frame and the enemy swung
+			# out of lane while still entering. Require it to clear Zones.ENTRY_END first. _weave_t0
+			# anchors the sine clock to the gate crossing so the first swing still leaves lane center
+			# cleanly (Roman's earlier phase-anchor fix, preserved).
 			if not _weave_started \
+					and enemy.position.y >= Zones.ENTRY_END \
 					and Zones.band_progress(enemy.position.y) >= _depth_bp(enemy, WEAVE_GATE_DEFAULT):
 				_weave_started = true
 				_weave_t0 = _t

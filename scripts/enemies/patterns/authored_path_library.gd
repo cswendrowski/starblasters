@@ -17,16 +17,19 @@ class_name AuthoredPathLibrary
 #     "dwell":       Array[float],       # optional per-waypoint hold seconds (parallel to waypoints)
 #   }
 #
-# WIRING into production (make_movement): keys prefixed "path_" resolve here. Because
-# scripts/levels/enemy_roster.gd is owned by another agent this pass, the one-line hook was NOT added
-# to make_movement's match; instead resolve_key()/build() are the public entry points and the
-# intended make_movement hook is documented at the bottom of this file. The Path Editor previews by
-# building AuthoredPath directly (dogfooding the runtime), so it needs no roster wiring.
+# WIRING into production: enemy_roster.make_movement resolves "path_" keys through is_path_key()/
+# resolve_key() (hooked 2026-07-06, just before its match). The Path Editor previews by building
+# AuthoredPath directly (dogfooding the runtime), so it needs no roster wiring.
 
 const AuthoredPath := preload("res://scripts/enemies/patterns/authored_path.gd")
 
 # Movement-key prefix. A key like "path_s_weave" resolves to DATA["s_weave"].
 const KEY_PREFIX := "path_"
+
+# User-override source (Path Editor Save, 2026-07-06). An edited copy of a path stored here SHADOWS
+# the baked DATA entry of the same name at resolve time — lets Roman iterate a path in the editor and
+# have it take effect in-game INSTANTLY without a code edit (Copy GDScript re-bakes it permanently).
+const OVERRIDE_PATH := "user://tuners/enemy_paths.json"
 
 
 # name -> path definition. Author these in the Path Editor and paste its Copy GDScript output here.
@@ -78,26 +81,90 @@ const DATA := {
 }
 
 
-# All baked path names.
+# --- User-override cache (lazy, one file read per session) -----------------------------------------
+# resolve_key/build run at ENEMY SPAWN TIME, so the override JSON must NOT be re-read per spawn. It is
+# loaded ONCE on first access and cached here (name -> def dict). `_overrides_loaded` guards the read
+# so an ABSENT file (fresh install / headless / no tuners dir) is a cheap no-op, cached as "checked,
+# empty". A dev tool can force a re-read with reload_overrides() (the Path Editor's "Reload
+# overrides" button) after Saving; production never calls it.
+static var _overrides: Dictionary = {}
+static var _overrides_loaded: bool = false
+
+
+# PRECEDENCE (resolve order for a given path name):
+#   1. user://tuners/enemy_paths.json entry of that name   ← SHADOWS the baked DATA (edited copy)
+#   2. baked DATA[name]                                     ← the committed default
+# The user JSON is the Path Editor's save target; saving an edited copy of a baked path under the
+# same name makes it win here until Copy GDScript re-bakes it into DATA (the permanent path).
+static func _ensure_overrides() -> void:
+	if _overrides_loaded:
+		return
+	_overrides_loaded = true
+	_overrides = {}
+	# DEV-ONLY: overrides are an iteration convenience for Roman's editor/debug builds. A release
+	# export ignores the user JSON entirely — a player-writable file must never silently change enemy
+	# behavior in a shipped build (baked DATA is the only production source).
+	if not OS.is_debug_build():
+		return
+	# Safe headless / at-runtime when the file is absent — file_exists is false, we keep the empty map.
+	if not FileAccess.file_exists(OVERRIDE_PATH):
+		return
+	var f := FileAccess.open(OVERRIDE_PATH, FileAccess.READ)
+	if f == null:
+		return
+	var parsed = JSON.parse_string(f.get_as_text())
+	f.close()
+	# The editor persists an ARRAY of path-definition dicts; key them by name for O(1) shadow lookup.
+	if parsed is Array:
+		for entry in parsed:
+			if entry is Dictionary and entry.has("name"):
+				_overrides[String(entry["name"])] = entry
+
+
+# Force a re-read of the override JSON (dev-only — the Path Editor calls this after Save).
+static func reload_overrides() -> void:
+	_overrides_loaded = false
+	_overrides = {}
+	_ensure_overrides()
+
+
+# The definition dict for a name: user override if present, else the baked DATA entry, else {}.
+static func _def_for(name: String) -> Dictionary:
+	_ensure_overrides()
+	if _overrides.has(name):
+		return _overrides[name]
+	if DATA.has(name):
+		return DATA[name]
+	return {}
+
+
+# All path names (baked + user-override-only, deduped). Override names that don't shadow a baked path
+# are still resolvable, so they belong in the roster/editor vocabulary too.
 static func names() -> Array:
-	return DATA.keys()
+	_ensure_overrides()
+	var out: Array = DATA.keys()
+	for n in _overrides.keys():
+		if not out.has(n):
+			out.append(n)
+	return out
 
 
 # All movement keys these paths register ("path_<name>").
 static func movement_keys() -> Array:
 	var out: Array = []
-	for n in DATA.keys():
+	for n in names():
 		out.append(KEY_PREFIX + String(n))
 	return out
 
 
 static func has_path(name: String) -> bool:
-	return DATA.has(name)
+	_ensure_overrides()
+	return DATA.has(name) or _overrides.has(name)
 
 
-# True if a movement key routes to an authored path.
+# True if a movement key routes to an authored path (baked OR user-override).
 static func is_path_key(key: String) -> bool:
-	return key.begins_with(KEY_PREFIX) and DATA.has(key.substr(KEY_PREFIX.length()))
+	return key.begins_with(KEY_PREFIX) and has_path(key.substr(KEY_PREFIX.length()))
 
 
 # Resolve a "path_<name>" movement key to a live AuthoredPath, or null if it isn't one of ours.
@@ -107,12 +174,13 @@ static func resolve_key(key: String) -> Resource:
 	return build(key.substr(KEY_PREFIX.length()))
 
 
-# Build a live AuthoredPath movement Resource from a baked definition (or a raw definition dict).
+# Build a live AuthoredPath movement Resource from a definition (user override shadows baked DATA).
 static func build(name: String) -> Resource:
-	if not DATA.has(name):
+	var def: Dictionary = _def_for(name)
+	if def.is_empty():
 		push_warning("AuthoredPathLibrary.build: no path named '%s'" % name)
 		return null
-	return build_from_def(DATA[name])
+	return build_from_def(def)
 
 
 # Build directly from a definition dict (the Path Editor uses this to preview un-baked paths).

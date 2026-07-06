@@ -190,10 +190,13 @@ static func recycle(enemy) -> void:
 	await enemy.get_tree().create_timer(delay).timeout
 	if not is_instance_valid(enemy):
 		return
-	# Re-entry x inside the playfield band, not the full viewport — otherwise the cycle dropped
-	# enemies into the side gutters where the player can't shoot back (Roman, 2026-05-19).
-	var inset: float = float(cfg.entry_inset)
-	var entry_x: float = randf_range(Playfield.X_MIN + inset, Playfield.X_MAX - inset)
+	# Re-entry x on a LANE CENTER (FIX #1, 2026-07-06). The old randf_range X dropped recyclers on
+	# arbitrary sub-lane X; the pattern's on_start then re-anchored to that random X for the whole pass,
+	# so re-entered enemies descended off-grid and could overlap a lane occupant. Snap to a lane center,
+	# preferring one whose entry band is free (LaneTraffic scan, which now skips _cycling ghosts). If
+	# none is free we fall back to a plain randi lane pick — recycle timing is already non-deterministic
+	# so an un-seeded pick here is acceptable and keeps re-entry on-grid regardless.
+	var entry_x: float = _pick_reentry_x(enemy)
 	enemy.position = Vector2(entry_x, enemy.screensize.y + 12.0)
 	var pre_scale: Vector2 = enemy.scale
 	var pre_modulate: Color = enemy.modulate
@@ -226,6 +229,41 @@ static func recycle(enemy) -> void:
 	enemy.set_deferred("monitorable", true)
 	enemy.set_deferred("monitoring", true)
 	enemy._recycle_resume()                        # re-arm firing + pattern/components (enemy-specific)
+
+
+# Lane-center X for a recycler's re-entry (FIX #1). Prefers a lane whose ENTRY band (top, y<=40) is
+# free of other non-hazard, non-cycling enemies — the enemy descends from the top after the fly-back,
+# so a clear entry band is what prevents an overlap. Falls back to a plain randi lane pick when every
+# lane is contested (recycle timing is already non-deterministic, so an un-seeded pick is fine here).
+static func _pick_reentry_x(enemy) -> float:
+	var tree: SceneTree = enemy.get_tree()
+	var free: Array = []
+	for ln in Lanes.COUNT:
+		if _entry_lane_free(tree, ln, enemy):
+			free.append(ln)
+	var lane: int
+	if not free.is_empty():
+		lane = free[randi() % free.size()]
+	else:
+		lane = randi() % Lanes.COUNT
+	return Lanes.lane_center(lane)
+
+
+# True if no OTHER non-hazard, non-cycling enemy sits in `lane`'s entry band (y<=40). Mirrors the
+# director's _occupied_lanes idiom, sharing lane_traffic's cycling/hazard exclusions.
+static func _entry_lane_free(tree: SceneTree, lane: int, exclude) -> bool:
+	if tree == null:
+		return true
+	for e in tree.get_nodes_in_group("enemies"):
+		if e == exclude or not is_instance_valid(e) or not (e is Node2D):
+			continue
+		if "is_hazard" in e and e.is_hazard:
+			continue
+		if "_cycling" in e and e._cycling:
+			continue
+		if e.position.y <= 40.0 and Lanes.nearest_lane(e.position.x) == lane:
+			return false
+	return true
 
 
 # Apply the ghost (faux-mid-depth) look for the fly-back. Step 4: uses Pillar 1's depth-tint

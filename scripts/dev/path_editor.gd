@@ -16,10 +16,51 @@ const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const AuthoredPath = preload("res://scripts/enemies/patterns/authored_path.gd")
 const AuthoredPathLibrary = preload("res://scripts/enemies/patterns/authored_path_library.gd")
+const EnemyRoster = preload("res://scripts/levels/enemy_roster.gd")
 
 const SAVE_PATH := "user://tuners/enemy_paths.json"
 const SZ := 7
 const NODE_GRAB := 6.0   # px pick radius for grabbing/deleting a waypoint
+
+# Import-from-pattern vocabulary (Feature 3, 2026-07-06). Movement keys from EnemyRoster.make_movement
+# offered in the "Import from pattern…" picker. Sampled against a deterministic stub + simplified into
+# editable waypoints. Player/random-dependent keys (omni/beeline/pendulum/proximity) are SNAPSHOTS
+# against a fixed player stub — noted in the imported path's name.
+const IMPORT_KEYS := [
+	"lane_weave", "lane_drift", "lane_shift", "lane_hook", "lane_cut",
+	"skirmish_loop", "skirmish_figure8", "side_turn", "side_traverse",
+	"straight_charge", "skirmish_pendulum", "loiter", "loiter_sweep",
+	"hunt_omni", "hunt_beeline", "proximity_chase",
+]
+# RDP simplification epsilon (px) + waypoint cap for imports.
+const IMPORT_EPSILON := 3.0
+const IMPORT_MAX_WPS := 16
+# Fixed player-stub position for deterministic import of player-seeking patterns (lane 3, lower band).
+const IMPORT_PLAYER_POS := Vector2(240.0, 230.0)
+
+
+# Stub enemy the import sampler drives. Declares the fields production patterns write DIRECTLY
+# (enemy.offscreen_mode = ... / enemy.allow_side_exit = ...) which a bare Node2D lacks — those are
+# hard property assignments, not .set(), so they must exist on the object or the pattern errors.
+# Locomotion accessors on movement_pattern.gd read the rest through duck-typed getters with defaults.
+class ImportStub:
+	extends Node2D
+	var move_speed: float = 180.0
+	var turn_rate: float = 300.0
+	var accel: float = 600.0
+	var weight: float = 1.0
+	var depth_bp: float = -1.0
+	var recycle_passes: int = 0
+	var auto_rotate: bool = false
+	var offscreen_mode: int = 0
+	var allow_side_exit: bool = false
+	var omni: bool = false
+	var strafe: bool = false
+	var retro: bool = false
+	func find_player() -> Node:
+		for n in get_tree().get_nodes_in_group("player"):
+			return n
+		return null
 
 # Chassis speed picker (Clarity rungs) — the ghost previews at this move_speed × speed_scale.
 const SPEED_RUNGS := [60.0, 120.0, 180.0, 240.0, 300.0, 360.0, 420.0, 480.0]
@@ -31,6 +72,10 @@ var _dwell: Array = []         # parallel per-waypoint dwell seconds
 
 var _drag_i: int = -1          # index of the waypoint being dragged, or -1
 var _speed_i: int = 2          # index into SPEED_RUNGS (180 default)
+var _snap_on: bool = true      # grid + lane snap on new placements/drags (Feature 1 default ON)
+var _hover_wp: Vector2 = Vector2(-999, -999)  # last authoring-space coord under the cursor (readout)
+var _baked_names: Dictionary = {}             # name -> true for entries sourced from baked DATA
+var _import_popup: PopupMenu = null
 
 var _world: Node2D = null
 var _overlay: Node2D = null
@@ -48,6 +93,8 @@ var _scale_lbl: Label = null
 var _smooth_lbl: Label = null
 var _rel_btn: Button = null
 var _mir_btn: Button = null
+var _snap_btn: Button = null
+var _coord_lbl: Label = null
 var _status_lbl: Label = null
 
 
@@ -71,23 +118,37 @@ func _blank_path() -> Dictionary:
 		"mirror": false, "waypoints": [[0.0, 0.0], [0.0, 1.0]], "dwell": []}
 
 
+# Load the editable list = ALL user JSON paths + every baked DATA entry NOT shadowed by a user path
+# of the same name. User entries come first (they're the live, edited copies); baked-only entries are
+# tagged "[baked]" in the list. `_baked_names` records which names originated from DATA so Save can
+# report the shadow it's creating.
 func _load_library() -> void:
 	_library = []
+	_baked_names = {}
+	var user_names := {}
 	if FileAccess.file_exists(SAVE_PATH):
 		var f := FileAccess.open(SAVE_PATH, FileAccess.READ)
 		if f != null:
 			var parsed = JSON.parse_string(f.get_as_text())
 			f.close()
 			if parsed is Array:
-				_library = parsed
-	if _library.is_empty():
-		for n in AuthoredPathLibrary.DATA:
+				for entry in parsed:
+					if entry is Dictionary:
+						_library.append(entry)
+						user_names[String(entry.get("name", ""))] = true
+	# Append baked defaults that aren't already shadowed by a user path of the same name.
+	for n in AuthoredPathLibrary.DATA:
+		if not user_names.has(String(n)):
 			_library.append((AuthoredPathLibrary.DATA[n] as Dictionary).duplicate(true))
+			_baked_names[String(n)] = true
 	if _library.is_empty():
 		_library.append(_blank_path())
 
 
 func _cur() -> Dictionary:
+	if _library.is_empty():
+		return {}
+	_idx = clampi(_idx, 0, _library.size() - 1)
 	return _library[_idx]
 
 
@@ -179,10 +240,19 @@ func _draw_overlay() -> void:
 	var top: float = Playfield.Y_MIN
 	var bot: float = Playfield.Y_MAX
 	_overlay.draw_rect(Rect2(Playfield.X_MIN, top, Playfield.W, Playfield.H), Color(0.4, 0.6, 0.9, 0.5), false, 1.0)
+	# Row grid — horizontal lines at the formation ROW_GAP pitch (AuthoredPath.ROW_GRID_BP) so the
+	# path's vertical rhythm matches formation spacing. Brighter when snap is on.
+	var row_col: Color = Color(0.5, 0.7, 1.0, 0.12) if _snap_on else Color(0.5, 0.7, 1.0, 0.05)
+	var rows: int = AuthoredPath.row_grid_count()
+	for r in rows:
+		var by: float = float(r) * AuthoredPath.ROW_GRID_BP
+		var ry: float = AuthoredPath.bandprogress_to_y(by)
+		_overlay.draw_line(Vector2(Playfield.X_MIN, ry), Vector2(Playfield.X_MAX, ry), row_col, 1.0)
 	# Lane columns + centers.
 	for i in Lanes.COUNT:
 		var cx: float = Lanes.lane_center(i)
-		_overlay.draw_line(Vector2(cx, top), Vector2(cx, bot), Color(0.5, 0.7, 1.0, 0.10), 1.0)
+		var lane_col: Color = Color(0.5, 0.7, 1.0, 0.16) if _snap_on else Color(0.5, 0.7, 1.0, 0.10)
+		_overlay.draw_line(Vector2(cx, top), Vector2(cx, bot), lane_col, 1.0)
 		_overlay.draw_string(_font, Vector2(cx - 3.0, top + 7.0), str(i), HORIZONTAL_ALIGNMENT_LEFT, -1, 6, Color(0.5, 0.7, 1.0, 0.5))
 	# Zone lines (entry / departure bands) — the path-phase firing gates.
 	_zone_line(Zones.ENTRY_END, "entry", Color(0.5, 1.0, 0.6, 0.35))
@@ -322,11 +392,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _drag_i >= 0:
 			_drag_i = -1
 			_after_edit()
-	elif event is InputEventMouseMotion and _drag_i >= 0:
+	elif event is InputEventMouseMotion:
 		var mp: Vector2 = get_global_mouse_position()
-		_wps[_drag_i] = _to_authoring(mp)
-		if _overlay:
-			_overlay.queue_redraw()
+		if _in_band(mp):
+			_hover_wp = _to_authoring(mp)
+			_update_coord_readout()
+		if _drag_i >= 0:
+			_wps[_drag_i] = _to_authoring(mp)
+			if _overlay:
+				_overlay.queue_redraw()
 
 
 func _in_band(pos: Vector2) -> bool:
@@ -341,13 +415,20 @@ func _pick_node(pos: Vector2) -> int:
 
 
 # Pixel -> authoring space (x lane units, y band progress). Relative x is offset from the anchor lane.
-func _to_authoring(pos: Vector2) -> Vector2:
+# When `snap` is on (Feature 1), x snaps to lane centers (half-lanes if Shift held for weave crossings)
+# and y snaps to the formation row grid (AuthoredPath.ROW_GRID_BP). Snap only applies to NEW
+# placements/drags — existing free-placed waypoints keep their exact values until moved.
+func _to_authoring(pos: Vector2, snap: bool = true) -> Vector2:
 	var y: float = clampf((pos.y - Playfield.Y_MIN) / (Playfield.Y_MAX - Playfield.Y_MIN), 0.0, 1.0)
 	var x: float
 	if bool(_cur().get("relative", true)):
 		x = (pos.x - _rel_anchor_x()) / Lanes.PITCH
 	else:
 		x = (pos.x - Lanes.FIRST_CENTER) / Lanes.PITCH
+	if snap and _snap_on:
+		var half: bool = Input.is_key_pressed(KEY_SHIFT)
+		x = AuthoredPath.snap_lane_x(x, half)
+		y = AuthoredPath.snap_band_y(y)
 	return Vector2(x, y)
 
 
@@ -421,6 +502,192 @@ func _toggle_preview() -> void:
 		_rebuild_ghost()
 
 
+func _toggle_snap() -> void:
+	_snap_on = not _snap_on
+	_refresh_labels()
+	if _overlay:
+		_overlay.queue_redraw()
+
+
+# Conform every waypoint of the current path to the lane + row grid (whole lanes / half-lanes off).
+func _snap_all() -> void:
+	for i in _wps.size():
+		var wp: Vector2 = _wps[i]
+		# Preserve half-lane crossings if the value is already close to a half-lane; else whole lane.
+		var half: bool = absf(wp.x - roundf(wp.x)) > 0.25
+		_wps[i] = Vector2(AuthoredPath.snap_lane_x(wp.x, half), AuthoredPath.snap_band_y(wp.y))
+	_after_edit()
+	_set_status("snapped %d nodes to grid" % _wps.size())
+
+
+func _reload_overrides() -> void:
+	AuthoredPathLibrary.reload_overrides()
+	_set_status("reloaded path overrides")
+
+
+# ---------------------------------------------------------------- import from pattern (Feature 3)
+
+func _open_import_popup() -> void:
+	if _import_popup == null:
+		_import_popup = PopupMenu.new()
+		add_child(_import_popup)
+		_import_popup.id_pressed.connect(_on_import_id)
+		for i in IMPORT_KEYS.size():
+			_import_popup.add_item(String(IMPORT_KEYS[i]), i)
+	_import_popup.reset_size()
+	_import_popup.position = Vector2(get_viewport().get_mouse_position())
+	_import_popup.popup()
+
+
+func _on_import_id(id: int) -> void:
+	if id < 0 or id >= IMPORT_KEYS.size():
+		return
+	_import_pattern(String(IMPORT_KEYS[id]))
+
+
+# Instantiate a production movement pattern, sample its full traversal against a deterministic stub,
+# simplify the polyline (RDP) into editable waypoints, and load it as a NEW path "from_<key>". Player-
+# / random-seeded patterns are snapshotted against a fixed player stub (name suffixed "_snap").
+func _import_pattern(key: String) -> void:
+	var mv: Resource = EnemyRoster.make_movement({"movement": key})
+	if mv == null:
+		_set_status("import '%s' failed (no pattern)" % key)
+		return
+	var samples: PackedVector2Array = _sample_pattern(mv, key)
+	if samples.size() < 2:
+		_set_status("import '%s' skipped (no motion)" % key)
+		return
+	# Simplify in PIXEL space, then convert to authoring space (absolute lanes).
+	var simplified: PackedVector2Array = _rdp(samples, IMPORT_EPSILON)
+	simplified = _cap_waypoints(simplified, IMPORT_MAX_WPS)
+	var wps: Array = []
+	for p in simplified:
+		var lane_u: float = (p.x - Lanes.FIRST_CENTER) / Lanes.PITCH
+		var band: float = clampf((p.y - Playfield.Y_MIN) / (Playfield.Y_MAX - Playfield.Y_MIN), 0.0, 1.0)
+		wps.append([snappedf(lane_u, 0.01), snappedf(band, 0.01)])
+	var seeded: bool = key in ["hunt_omni", "hunt_beeline", "proximity_chase", "skirmish_pendulum"]
+	var nm: String = ("from_%s_snap" % key) if seeded else ("from_%s" % key)
+	_sync_current()
+	var p := {
+		"name": nm, "relative": false, "speed_scale": 1.0, "smoothing": 0.0,
+		"mirror": false, "waypoints": wps, "dwell": [],
+	}
+	if seeded:
+		p["note"] = "snapshot: player-seeded pattern sampled vs fixed player stub"
+	_library.append(p)
+	_select_path(_library.size() - 1)
+	_set_status("imported '%s' → %d nodes" % [key, wps.size()])
+
+
+# Run a pattern to completion on a deterministic in-tree stub, returning per-frame pixel positions.
+# The stub is a real Node2D added to the tree (so enemy.get_tree() / lane-traffic / player lookups
+# work); a fixed player stub is added to the "player" group so player-seeking patterns are
+# reproducible. Both are freed before returning.
+func _sample_pattern(mv: Resource, key: String) -> PackedVector2Array:
+	var stub := ImportStub.new()
+	stub.move_speed = SPEED_RUNGS[_speed_i]
+	stub.position = Vector2(Lanes.lane_center(3), 0.0)
+	add_child(stub)
+	# Fixed player stub for deterministic player-seeking imports.
+	var player := Node2D.new()
+	player.position = IMPORT_PLAYER_POS
+	player.global_position = IMPORT_PLAYER_POS
+	player.add_to_group("player")
+	add_child(player)
+	var out := PackedVector2Array()
+	# Deterministic RNG seed so any residual randf() (e.g. mirror pick already resolved) is stable.
+	seed(hash(key))
+	if mv.has_method("on_start"):
+		mv.on_start(stub)
+	out.append(stub.position)
+	var guard: int = 0
+	# Loiter/skirmish/omni patterns can circulate without ever exiting downward; cap the sampled
+	# duration and also break on a side/top exit or a stall (near-stationary for a stretch) so the
+	# import captures ONE representative traversal instead of an endless loop.
+	const MAX_FRAMES := 1200
+	var still: int = 0
+	while guard < MAX_FRAMES:
+		guard += 1
+		var step: Vector2 = mv.compute_step(stub, 1.0 / 60.0)
+		stub.position += step
+		out.append(stub.position)
+		# Bottom / top / side exit (well outside the band = the pattern has left the field).
+		if stub.position.y >= Playfield.Y_MAX + 24.0:
+			break
+		if stub.position.y <= -48.0 and guard > 60:
+			break
+		if (stub.position.x < Playfield.X_MIN - 48.0 or stub.position.x > Playfield.X_MAX + 48.0) and guard > 60:
+			break
+		# Stall break: hovering patterns that settle into a tiny orbit or a hold — stop after a while.
+		if step.length() < 0.15:
+			still += 1
+			if still > 180:
+				break
+		else:
+			still = 0
+	player.queue_free()
+	stub.queue_free()
+	return out
+
+
+# Ramer–Douglas–Peucker polyline simplification (epsilon in px). Deterministic.
+func _rdp(pts: PackedVector2Array, eps: float) -> PackedVector2Array:
+	if pts.size() < 3:
+		return pts
+	var keep := PackedByteArray()
+	keep.resize(pts.size())
+	keep[0] = 1
+	keep[pts.size() - 1] = 1
+	_rdp_recurse(pts, 0, pts.size() - 1, eps, keep)
+	var out := PackedVector2Array()
+	for i in pts.size():
+		if keep[i] == 1:
+			out.append(pts[i])
+	return out
+
+
+func _rdp_recurse(pts: PackedVector2Array, lo: int, hi: int, eps: float, keep: PackedByteArray) -> void:
+	if hi <= lo + 1:
+		return
+	var a: Vector2 = pts[lo]
+	var b: Vector2 = pts[hi]
+	var dmax: float = -1.0
+	var idx: int = -1
+	for i in range(lo + 1, hi):
+		var d: float = _point_seg_dist(pts[i], a, b)
+		if d > dmax:
+			dmax = d
+			idx = i
+	if dmax > eps and idx > lo:
+		keep[idx] = 1
+		_rdp_recurse(pts, lo, idx, eps, keep)
+		_rdp_recurse(pts, idx, hi, eps, keep)
+
+
+func _point_seg_dist(p: Vector2, a: Vector2, b: Vector2) -> float:
+	var ab: Vector2 = b - a
+	var len2: float = ab.length_squared()
+	if len2 < 0.0001:
+		return p.distance_to(a)
+	var t: float = clampf((p - a).dot(ab) / len2, 0.0, 1.0)
+	return p.distance_to(a + ab * t)
+
+
+# Cap a polyline to at most `n` points, keeping the endpoints (drops the least-significant interior
+# points by re-running RDP with a growing epsilon).
+func _cap_waypoints(pts: PackedVector2Array, n: int) -> PackedVector2Array:
+	if pts.size() <= n:
+		return pts
+	var eps: float = IMPORT_EPSILON
+	var out: PackedVector2Array = pts
+	var guard: int = 0
+	while out.size() > n and guard < 40:
+		guard += 1
+		eps *= 1.5
+		out = _rdp(pts, eps)
+	return out
+
+
 func _dwell_last(d: int) -> void:
 	# Add/remove dwell on the LAST waypoint (quick per-waypoint hold authoring).
 	if _wps.is_empty():
@@ -434,6 +701,11 @@ func _dwell_last(d: int) -> void:
 
 # ---------------------------------------------------------------- save / copy
 
+# Save ALL paths (user + baked-that-were-loaded) to the user JSON. Because the runtime library
+# SHADOWS baked DATA with any user entry of the same name (AuthoredPathLibrary._def_for), saving an
+# edited copy of a baked path makes that edit live in-game immediately. Baked-only names in the list
+# get written too — harmless (they equal DATA) and keeps a full round-trip. reload_overrides() is
+# called so the change is live without restarting the tool.
 func _save_json() -> void:
 	_sync_current()
 	DirAccess.make_dir_recursive_absolute("user://tuners")
@@ -441,7 +713,13 @@ func _save_json() -> void:
 	if f != null:
 		f.store_string(JSON.stringify(_library, "\t"))
 		f.close()
-		_set_status("saved %d paths" % _library.size())
+		AuthoredPathLibrary.reload_overrides()
+		# Note if the current path is shadowing a baked entry of the same name.
+		var nm: String = String(_cur().get("name", ""))
+		if AuthoredPathLibrary.DATA.has(nm):
+			_set_status("saved %d paths ('%s' now shadows [baked])" % [_library.size(), nm])
+		else:
+			_set_status("saved %d paths" % _library.size())
 	else:
 		_set_status("save failed")
 
@@ -502,6 +780,7 @@ func _build_ui() -> void:
 	_add_button(pr2, "New", _new_path)
 	_add_button(pr2, "Dup", _dup_path)
 	_add_button(pr2, "Del", _del_path)
+	_add_button(lv, "Import from pattern…", _open_import_popup)
 
 	lv.add_child(_sep())
 	_add_caption(lv, "KNOBS")
@@ -510,6 +789,14 @@ func _build_ui() -> void:
 	_smooth_lbl = _knob_row(lv, "smooth", func(): _cycle_smooth(-1), func(): _cycle_smooth(1))
 	_rel_btn = _add_button(lv, "rel: on", _toggle_relative)
 	_mir_btn = _add_button(lv, "mirror: off", _toggle_mirror_flag)
+
+	lv.add_child(_sep())
+	_add_caption(lv, "GRID (Shift = half-lane)")
+	_snap_btn = _add_button(lv, "snap: on", _toggle_snap)
+	_add_button(lv, "Snap All", _snap_all)
+	_coord_lbl = _new_label("lane -  row -", UiTheme.COLOR_FAINT, SZ)
+	_coord_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lv.add_child(_coord_lbl)
 	# Per-waypoint dwell (last node).
 	var dwr := HBoxContainer.new()
 	dwr.add_theme_constant_override("separation", 2)
@@ -533,6 +820,7 @@ func _build_ui() -> void:
 	var a2 := HBoxContainer.new()
 	a2.add_theme_constant_override("separation", 2)
 	outer.add_child(a2)
+	_add_button(a2, "Reload ovr", _reload_overrides)
 	_add_button(a2, "Clear", func(): _wps = []; _dwell = []; _after_edit())
 	_add_button(a2, "Back", _on_back)
 	_status_lbl = _new_label("", UiTheme.COLOR_FAINT, SZ)
@@ -573,7 +861,9 @@ func _rebuild_path_list() -> void:
 		ch.queue_free()
 	for i in _library.size():
 		var idx: int = i
-		var b := _add_button(_path_list, String(_library[i].get("name", "path")), func(): _select_path(idx))
+		var nm: String = String(_library[i].get("name", "path"))
+		var label: String = nm + " [baked]" if _baked_names.has(nm) else nm
+		var b := _add_button(_path_list, label, func(): _select_path(idx))
 		b.custom_minimum_size = Vector2(0, 14)
 
 
@@ -590,6 +880,8 @@ func _refresh_labels() -> void:
 		_rel_btn.text = "rel: on" if bool(_cur().get("relative", true)) else "rel: off"
 	if _mir_btn:
 		_mir_btn.text = "mirror: on" if bool(_cur().get("mirror", false)) else "mirror: off"
+	if _snap_btn:
+		_snap_btn.text = "snap: on" if _snap_on else "snap: off"
 	if _path_list:
 		_rebuild_path_list()
 
@@ -604,6 +896,17 @@ func _update_status() -> void:
 		return
 	var mono: bool = AuthoredPath.is_monotone_y(_wps_as_arrays())
 	_status_lbl.text = "%d nodes  %s" % [_wps.size(), "path-phase" if mono else "cadence (non-mono)"]
+
+
+# Numeric lane/row readout of the coordinate under the cursor (or the dragged waypoint) — shows the
+# snapped values so the author sees exactly which lane/row a placement lands on.
+func _update_coord_readout() -> void:
+	if _coord_lbl == null:
+		return
+	var wp: Vector2 = _wps[_drag_i] if _drag_i >= 0 and _drag_i < _wps.size() else _hover_wp
+	var row: float = wp.y / AuthoredPath.ROW_GRID_BP
+	var kind: String = "off" if bool(_cur().get("relative", true)) else "lane"
+	_coord_lbl.text = "%s %.2f  row %.2f\n(y %.3f)" % [kind, wp.x, row, wp.y]
 
 
 func _set_status(s: String) -> void:

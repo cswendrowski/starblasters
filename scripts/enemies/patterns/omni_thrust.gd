@@ -43,6 +43,9 @@ var _strafe_t: float = 0.0
 var _strafe_period: float = 1.0
 var _alive_t: float = 0.0   # seconds since spawn (persistence clock)
 var _leaving: bool = false
+# Entry phase (FIX #3): pure descent at chassis speed until the enemy clears the entry band, so it
+# doesn't strafe sideways out of its lane while still entering (mirrors beeline_player's commit).
+var _entering: bool = true
 
 
 func on_start(enemy) -> void:
@@ -52,6 +55,7 @@ func on_start(enemy) -> void:
 	_strafe_period = randf_range(strafe_period_min, strafe_period_max)
 	_alive_t = 0.0
 	_leaving = false
+	_entering = true
 	# Pass budget: on_start re-runs on every recycle, so count passes on the ENEMY.
 	# Past the budget, disengage AND stop recycling so this re-entry leaves for good.
 	if max_passes >= 0 and enemy != null:
@@ -75,6 +79,22 @@ func compute_step(enemy, delta: float) -> Vector2:
 	_alive_t += delta
 	var top: float = _move_speed(enemy)
 	var acc: float = _accel(enemy) * ACCEL_RATIO
+	# ENTRY (FIX #3): descend straight down the spawn lane at chassis speed until we clear the entry
+	# band, THEN begin the seek/strafe. Keeps the harasser lane-centered on the way in instead of
+	# juking sideways while still above y=40. Nose points down/along travel during entry (auto_rotate
+	# off, consistent with the face-player block that also drives facing itself).
+	if _entering:
+		if enemy.position.y >= Zones.ENTRY_END:
+			_entering = false
+		else:
+			_vel = _vel.move_toward(Vector2(0.0, top), (acc / _weight(enemy)) * delta)
+			if enemy is Node2D:
+				# Sprites face up at rotation 0; downward travel = PI (the auto-rotation convention,
+				# enemy_base._apply_auto_rotation). Snap is fine — we're still above the screen.
+				enemy.rotation = PI
+				if "auto_rotate" in enemy:
+					enemy.auto_rotate = false
+			return _vel * delta
 	if not _leaving and persistence >= 0.0 and _alive_t >= persistence:
 		_leaving = true
 	if _leaving:

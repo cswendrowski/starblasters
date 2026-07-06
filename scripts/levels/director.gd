@@ -284,6 +284,9 @@ func _occupied_lanes() -> Array:
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(e) or not (e is Node2D) or _is_boss_gate_node(e):
 			continue
+		# Mid-fly-back recycler ghosts are non-collidable and shouldn't count as occupancy.
+		if "_cycling" in e and e._cycling:
+			continue
 		if e.position.y <= 40.0:
 			var ln: int = Lanes.nearest_lane(e.position.x)
 			if not out.has(ln):
@@ -299,6 +302,17 @@ func _enemy_height(e) -> float:
 		return shape.size.y * scale_y
 	return 16.0
 
+# Height of the enemy a WaveSpec would spawn, measured by instantiate-then-free (no add_child, so
+# _ready side effects don't fire). Used by row-level pre-push where we must size the gap BEFORE the
+# row spawns. Returns 16.0 (chaff default) if the spec has no scene.
+func _enemy_height_of_spec(sp) -> float:
+	if sp == null or sp.enemy_scene == null:
+		return 16.0
+	var probe = sp.enemy_scene.instantiate()
+	var h: float = _enemy_height(probe)
+	probe.free()
+	return h
+
 func _first_rect_shape(n: Node) -> RectangleShape2D:
 	for c in n.get_children():
 		if c is CollisionShape2D and (c as CollisionShape2D).shape is RectangleShape2D:
@@ -309,24 +323,39 @@ func _first_rect_shape(n: Node) -> RectangleShape2D:
 	return null
 
 
-# Raise a cruiser's spawn y so it sits at least one full enemy-length above any
-# cruiser already in its lane or an adjacent lane — descending later, so neighbours
-# never glob. Reads live positions (start() sets them synchronously), so it gates
-# both same-dispatch siblings and cruisers lingering from earlier waves.
-func _anchor_stagger_y(lane: int, base_y: float, height: float) -> float:
-	var gap: float = height + ANCHOR_GAP_PAD
+# UNIVERSAL spawn-time vertical push (FIX #2, 2026-07-06). Given a resolved spawn pos, this
+# enemy's height, and its lane, scan SAME-LANE non-exempt enemies near the spawn point and push
+# pos.y UP (more negative) until the vertical gap to the nearest same-lane enemy is at least
+# max(own_height, other_height) + ANCHOR_GAP_PAD — so descending enemies never overlap on entry.
+# Reads live positions (start() sets them synchronously), so it gates both same-dispatch siblings
+# and enemies lingering from earlier waves. Push is capped at MAX_LANE_PUSH_GAPS gaps; under
+# saturation the cap/beat/clear gates do the rest.
+#
+# This ABSORBS the old cruiser-only _anchor_stagger_y (now height-aware for ALL enemies, gated on
+# SAME lane rather than same+adjacent — a per-lane column push is what prevents in-lane globbing;
+# the adjacent-lane cruiser spacing is preserved by _pick_lane's Gap-2 neighbour check).
+#
+# Lane attribution uses nearest_lane on each other enemy's X so a pushed/off-lane enemy still
+# contests its nearest lane. Exemptions (skip the push, handled at the call site): crossers
+# (travel_y movement), formation-4 side entries, hazards, _cycling ghosts, bosses, and spawns
+# whose X is outside the playfield band.
+const MAX_LANE_PUSH_GAPS: int = 3
+func _lane_gap_push_y(lane: int, base_y: float, own_height: float) -> float:
 	var sy: float = base_y
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(e) or not (e is Node2D) or _is_boss_gate_node(e):
 			continue
 		if "is_hazard" in e and e.is_hazard:
 			continue
-		if _enemy_height(e) < ANCHOR_MIN_HEIGHT:
-			continue   # only other cruisers gate us
-		if absi(Lanes.nearest_lane(e.position.x) - lane) > 1:
-			continue   # same + adjacent lanes only
+		if "_cycling" in e and e._cycling:
+			continue
+		if Lanes.nearest_lane(e.position.x) != lane:
+			continue   # same lane only
+		var gap: float = maxf(own_height, _enemy_height(e)) + ANCHOR_GAP_PAD
 		sy = minf(sy, e.position.y - gap)
-	return sy
+	# Cap the push so a crowded lane doesn't launch a spawn far above the screen.
+	var min_y: float = base_y - float(MAX_LANE_PUSH_GAPS) * (own_height + ANCHOR_GAP_PAD)
+	return maxf(sy, min_y)
 
 
 func _advance_step() -> void:
@@ -467,6 +496,7 @@ func _dispatch_sweep_rows(ph: Resource) -> void:
 			continue
 		var i: int = 0
 		var row_index: int = 0
+		var prev_row_lanes: Array = []
 		while i < sp.count:
 			if not _running:
 				return
@@ -478,24 +508,27 @@ func _dispatch_sweep_rows(ph: Resource) -> void:
 			# clarity cap by much. At least 1 so we always make progress.
 			var room: int = maxi(1, max_concurrent - _alive_slots())
 			var group: int = mini(mini(SWEEP_ROW_SIZE, room), sp.count - i)
+			var row_lanes: Array = _sweep_row_lanes(group, row_index, prev_row_lanes)
 			var last_spawned: Node = null
-			for ln in _sweep_row_lanes(group, row_index):
+			for ln in row_lanes:
 				if i >= sp.count:
 					break
 				last_spawned = _spawn_enemy(sp, i, int(ln))
 				i += 1
+			prev_row_lanes = row_lanes
 			row_index += 1
 			# Gate the next row on THIS row clearing the spawn zone so rows descend SEPARATED (the
 			# structured lanes don't avoid occupancy the way _pick_lane did, so without this they stack).
+			# Height-aware clear depth (FIX #4): tall members need more descent to clear the entry band.
 			if i < sp.count:
-				await _await_row_clear(last_spawned, sp.spawn_interval)
+				await _await_row_clear(last_spawned, sp.spawn_interval, _row_clear_depth(last_spawned, SWEEP_ROW_CLEAR_DEPTH))
 
 
 # Wait at least `min_beat`, AND until `enemy` has descended SWEEP_ROW_CLEAR_DEPTH (so the row clears
 # the spawn zone before the next), capped at SWEEP_ROW_TIMEOUT so a held/dead row can't stall the
 # wave. `enemy` may be null/freed — then only `min_beat` applies. Adaptive: fast chaff clear quickly
 # (rhythm = the beat), slow chaff wait longer (so they never pile up).
-func _await_row_clear(enemy, min_beat: float) -> void:
+func _await_row_clear(enemy, min_beat: float, clear_depth: float = SWEEP_ROW_CLEAR_DEPTH) -> void:
 	var floor_beat: float = maxf(min_beat, ANTI_BURST_FLOOR)
 	# is_instance_valid FIRST so it short-circuits before `is Node2D` — `is` THROWS on a freed
 	# instance, and the awaited row-lead can be killed mid-sweep before the next row spawns.
@@ -505,28 +538,54 @@ func _await_row_clear(enemy, min_beat: float) -> void:
 		await _paced(0.05).timeout
 		t += 0.05
 		var cleared: bool = (not is_instance_valid(enemy)) or (not (enemy is Node2D)) \
-			or (enemy.position.y - start_y >= SWEEP_ROW_CLEAR_DEPTH)
+			or (enemy.position.y - start_y >= clear_depth)
 		if t >= floor_beat and cleared:
 			return
 
 
+# Height-aware clear depth (FIX #4): the row can't be "clear" until its tallest member has descended
+# its own body length past the spawn zone, so slow/tall members never stack. effective = max(const,
+# tallest height + ANCHOR_GAP_PAD). `enemy` is the row lead (its height stands in for the row).
+func _row_clear_depth(enemy, base: float) -> float:
+	if not (is_instance_valid(enemy) and enemy is Node2D):
+		return base
+	return maxf(base, _enemy_height(enemy) + ANCHOR_GAP_PAD)
+
+
 # Distinct, spread lane set for a sweep row: evenly spaces `n` lanes across the grid with a half-step
 # offset on alternate rows, so successive rows interleave (the gaps shift) into a readable weave.
-func _sweep_row_lanes(n: int, row_index: int) -> Array:
+# FIX #4: a lane must NOT repeat one from the immediately-previous row (`avoid`) — the half-step
+# offset can still collide (row0 {0,2,4,6}, row1 {1,3,5,6-clamped} shared lane 6). A colliding pick
+# is shifted to a free (non-avoid, non-taken) lane; if none exists it falls through, dropping the row
+# a lane narrower rather than stacking on the previous row's column.
+func _sweep_row_lanes(n: int, row_index: int, avoid: Array = []) -> Array:
 	n = clampi(n, 1, Lanes.COUNT)
 	var lanes: Array = []
 	var step: float = float(Lanes.COUNT) / float(n)
 	var off: float = step * 0.5 * float(row_index % 2)
 	for k in n:
 		var ln: int = clampi(int(floor(off + (float(k) + 0.5) * step)), 0, Lanes.COUNT - 1)
-		if not lanes.has(ln):
+		# Shift off a collision with this row OR the previous row's lanes.
+		if lanes.has(ln) or avoid.has(ln):
+			ln = _nearest_free_lane(ln, lanes, avoid)
+		if ln >= 0 and not lanes.has(ln):
 			lanes.append(ln)
-	var p: int = 0   # top up to n distinct lanes if rounding collided
+	var p: int = 0   # top up to n distinct lanes if rounding collided (skip avoid where possible)
 	while lanes.size() < n and p < Lanes.COUNT:
-		if not lanes.has(p):
+		if not lanes.has(p) and not avoid.has(p):
 			lanes.append(p)
 		p += 1
 	return lanes
+
+
+# The lane nearest `want` that is neither already `taken` this row nor in `avoid` (previous row).
+# Searches outward; returns -1 if the whole grid is taken/avoided (row drops a lane narrower).
+func _nearest_free_lane(want: int, taken: Array, avoid: Array) -> int:
+	for d in Lanes.COUNT:
+		for s in [want + d, want - d]:
+			if s >= 0 and s < Lanes.COUNT and not taken.has(s) and not avoid.has(s):
+				return s
+	return -1
 
 
 # Block until `enemy` has descended ANCHOR_ARRIVAL_DEPTH past its spawn Y (≈ half its body
@@ -665,31 +724,35 @@ func _row_release(specs: Array) -> void:
 		# a gated row would otherwise enter at its deep pre-stack Y (200px up) and the timing would be
 		# wrong — the temporal gate has already done the vertical separation.
 		var last_spawned: Node = null
+		var row_tallest_h: float = 0.0
 		for sp in row:
 			if not _running:
 				return
 			var orig_y: float = float(sp.spawn_y)
 			sp.spawn_y = ROW_RELEASE_ENTRY_Y
 			last_spawned = _spawn_enemy(sp, 0, int(sp.lane))
+			if is_instance_valid(last_spawned) and last_spawned is Node2D:
+				row_tallest_h = maxf(row_tallest_h, _enemy_height(last_spawned))
 			sp.spawn_y = orig_y   # restore so a shared/re-dispatched spec isn't mutated
 			await _paced(ROW_RELEASE_MEMBER_STAGGER).timeout
 		# Gate the next row on THIS row's lead clearing the entry zone (reuse the sweep row-clear gate).
+		# Height-aware clear depth (FIX #4): tall members need more descent to clear the entry band.
 		if ri < row_keys.size() - 1:
-			await _await_row_release_clear(last_spawned)
+			await _await_row_release_clear(last_spawned, maxf(ROW_RELEASE_CLEAR_DEPTH, row_tallest_h + ANCHOR_GAP_PAD))
 
 
 # Wait until `enemy` has descended ROW_RELEASE_CLEAR_DEPTH from its spawn Y (so the row leaves the
 # entry band before the next enters), capped at ROW_RELEASE_TIMEOUT so a held/killed lead can't stall
 # the formation. `enemy` may be null/freed — then the timeout is the only bound. (Cousin of
 # _await_row_clear, but depth-only with no min-beat: the intra-row stagger already IS the beat.)
-func _await_row_release_clear(enemy) -> void:
+func _await_row_release_clear(enemy, clear_depth: float = ROW_RELEASE_CLEAR_DEPTH) -> void:
 	var start_y: float = (enemy.position.y if (is_instance_valid(enemy) and enemy is Node2D) else 0.0)
 	var t: float = 0.0
 	while _running and t < ROW_RELEASE_TIMEOUT:
 		await _paced(0.05).timeout
 		t += 0.05
 		var cleared: bool = (not is_instance_valid(enemy)) or (not (enemy is Node2D)) \
-			or (enemy.position.y - start_y >= ROW_RELEASE_CLEAR_DEPTH)
+			or (enemy.position.y - start_y >= clear_depth)
 		if cleared:
 			return
 
@@ -780,15 +843,21 @@ func _dispatch_wall(ph: Resource) -> void:
 		for i in Lanes.COUNT:
 			if not lanes.has(i):
 				prev_gaps.append(i)
+		var last_spawned: Node = null
+		var row_tallest_h: float = 0.0
 		for k in n_this:
 			if not _running:
 				return
-			_spawn_enemy(members[idx], idx, int(lanes[k]))
+			last_spawned = _spawn_enemy(members[idx], idx, int(lanes[k]))
+			if is_instance_valid(last_spawned) and last_spawned is Node2D:
+				row_tallest_h = maxf(row_tallest_h, _enemy_height(last_spawned))
 			idx += 1
 			await _paced(WALL_MEMBER_STAGGER).timeout
-		# Beat between rows (only if more remain).
+		# Beat between rows (only if more remain). FIX #4: gate on the WALL_ROW_BEAT *and* on the row's
+		# lead descending a height-aware clear depth — whichever is LONGER — so slow/tall members can't
+		# stack. _await_row_clear already waits max(beat, cleared); pass a height-aware depth.
 		if idx < members.size():
-			await _paced(WALL_ROW_BEAT).timeout
+			await _await_row_clear(last_spawned, WALL_ROW_BEAT, maxf(SWEEP_ROW_CLEAR_DEPTH, row_tallest_h + ANCHOR_GAP_PAD))
 
 
 # STEP_WALL: spawn a coordinated stepping row (P2d). The row fills a contiguous block
@@ -816,11 +885,24 @@ func _dispatch_step_wall(ph: Resource) -> void:
 	var layout: Dictionary = _step_wall_layout(members.size())
 	var lanes: Array = layout["lanes"]
 	var sync: Dictionary = {"lo": layout["lo"], "hi": layout["hi"], "dir": layout["dir"]}
+	# Row-level Y pre-push (FIX #2): per-member Y-push would shear the level row, so compute the MAX
+	# same-lane push any member needs against existing occupancy and apply it to the WHOLE row, keeping
+	# it level. Measure the tallest member's height for the gap. Base Y is the first spec's spawn_y.
+	var base_y: float = float(members[0].spawn_y)
+	var row_h: float = 0.0
+	for i in lanes.size():
+		row_h = maxf(row_h, _enemy_height_of_spec(members[i]))
+	var pushed_y: float = base_y
+	for i in lanes.size():
+		pushed_y = minf(pushed_y, _lane_gap_push_y(int(lanes[i]), base_y, row_h))
 	# Spawn the whole row in this frame (no stagger) so their step clocks align.
 	for i in lanes.size():
 		if not _running:
 			return
+		var orig_y: float = float(members[i].spawn_y)
+		members[i].spawn_y = pushed_y
 		_spawn_enemy(members[i], i, int(lanes[i]), sync)
+		members[i].spawn_y = orig_y   # restore so a shared/re-dispatched spec isn't mutated
 
 
 # Lane layout + shared offset bounds for a step wall of n members: a contiguous block
@@ -1102,18 +1184,34 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 	# alternate-anchor selection and SIDE (4)/TANDEM (5) keep bespoke placement.
 	var x := 0.0
 	var pos: Vector2
+	# Universal Y-push (FIX #2): push_lane >= 0 marks a spawn eligible for the same-lane vertical-gap
+	# push. Exempt spawns (crossers, formation-4 sides, step_wall, hazards, out-of-band X) leave it -1.
+	var push_lane: int = -1
+	# Crossers ride a per-index latitude (travel_y stagger below) and legitimately overlap lanes on a
+	# horizontal pass — never push them vertically.
+	var is_crosser: bool = "movement" in enemy and enemy.movement != null and "travel_y" in enemy.movement
+	# step_wall members spawn one-frame as a level row; a per-member Y-push would shear the row. They get
+	# a row-level pre-push in _dispatch_step_wall instead.
+	var is_step_wall: bool = not step_sync.is_empty()
 	if lane_override >= 0:
 		var lane_x: float = Lanes.lane_center(lane_override)
 		if "spawn_x_offset" in wave:
 			lane_x += wave.spawn_x_offset   # sub-lane offset (Formation Builder sub-grid); 0 default
 		pos = Vector2(lane_x, wave.spawn_y)
+		if not is_crosser and not is_step_wall:
+			push_lane = lane_override
 	else:
 		match wave.formation:
 			5: # TOP_TANDEM_PAIRS — two streams in concert, ±tandem_offset_x from CENTER.
-				var center: float = Playfield.CENTER.x
+				# Derive X from LANE CENTERS (audit #5): round the tandem offset to a whole lane
+				# delta about the center lane, so tandem partners can never sit off-grid.
+				var center_lane: int = Lanes.nearest_lane(Playfield.CENTER.x)
+				var k: int = int(round(wave.tandem_offset_x / Lanes.PITCH))
 				var side: int = -1 if (index % 2) == 0 else 1
-				x = center + float(side) * wave.tandem_offset_x
-				pos = Vector2(x, wave.spawn_y)
+				var t_lane: int = Lanes.clamp_lane(center_lane + side * k)
+				pos = Vector2(Lanes.lane_center(t_lane), wave.spawn_y)
+				if not is_crosser:
+					push_lane = t_lane
 			4: # SIDE_ALTERNATING — alternate sides per spawn; pattern direction matches.
 				var side: int = 1 if (index % 2) == 0 else -1
 				if side > 0:
@@ -1126,17 +1224,20 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 					var mv_dup: Resource = enemy.movement.duplicate()
 					mv_dup.direction = side
 					enemy.movement = mv_dup
+				# Side entries spawn OUTSIDE the playfield band and cross horizontally — exempt.
 			_: # TOP formations (0-3) -> alternate-anchor lane placement
 				# Cruisers (tall anchors) don't glob: pick a lane whose neighbours are
-				# clear (Gap 2), then hold this one a full enemy-length above any cruiser
-				# already in its lane or an adjacent lane (Gap 1 / _anchor_stagger_y).
+				# clear (Gap 2). Vertical in-lane spacing is now the universal push below.
 				var h: float = _enemy_height(enemy)
 				var is_cruiser: bool = h >= ANCHOR_MIN_HEIGHT
 				var lane: int = _pick_lane(is_cruiser, wave.spawn_y, h)
-				var sy: float = wave.spawn_y
-				if is_cruiser:
-					sy = _anchor_stagger_y(lane, sy, h)
-				pos = Vector2(Lanes.lane_center(lane), sy)
+				pos = Vector2(Lanes.lane_center(lane), wave.spawn_y)
+				if not is_crosser:
+					push_lane = lane
+	# Apply the universal same-lane vertical-gap push. Skips out-of-band X (side entries already left
+	# push_lane -1, but re-guard in case a sub-lane offset pushed a spawn off the band).
+	if push_lane >= 0 and pos.x >= Playfield.X_MIN and pos.x <= Playfield.X_MAX:
+		pos.y = _lane_gap_push_y(push_lane, pos.y, _enemy_height(enemy))
 	# Formation Builder lateral-direction override: force which way a side-aware
 	# movement runs (or randomize per spawn). Only patterns exposing `direction` or
 	# `mirrored` respond; others are untouched. Layers over any SIDE_ALTERNATING dup.

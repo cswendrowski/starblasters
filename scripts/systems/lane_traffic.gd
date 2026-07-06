@@ -28,6 +28,10 @@ static func is_lane_free(tree: SceneTree, lane: int, y: float, exclude: Object =
 			continue
 		if "is_hazard" in e and e.is_hazard:
 			continue
+		# A mid-fly-back recycler ghost is non-collidable (shrunk + tinted, monitoring off)
+		# and must not block a lane it's merely receding through — skip it.
+		if "_cycling" in e and e._cycling:
+			continue
 		if Lanes.nearest_lane(e.position.x) == lane and absf(e.position.y - y) < y_window:
 			return false
 	return true

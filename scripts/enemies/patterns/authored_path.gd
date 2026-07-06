@@ -40,6 +40,33 @@ const SMOOTH_SUBDIV := 8
 # Band inset for the X clamp — half a lane width so a clamped hull sits fully inside the band edge.
 const EDGE_INSET := 12.0
 
+# --- Grid authoring (Path Editor grid + lane snap, 2026-07-06) -------------------------------------
+# Vertical grid pitch in BAND-PROGRESS units: the game's own formation row pitch
+# (FormationShapes.ROW_GAP = 40px) mapped across the playfield band so an authored path's vertical
+# rhythm matches formation spacing. Kept as a literal (not a scripts/levels import) so this runtime
+# pattern stays self-contained — mirror FormationShapes.ROW_GAP if it ever changes (40.0 as of
+# 2026-07-06). 40 / 270 ≈ 0.1481 → ~6.75 rows down the band.
+const ROW_GAP_PX := 40.0
+const ROW_GRID_BP := ROW_GAP_PX / (Playfield.Y_MAX - Playfield.Y_MIN)
+
+
+# Snap a lane/offset x-value to the lane grid. `half` allows x.5 (half-lane) positions for weave
+# crossings; otherwise snaps to whole lanes. Works for both absolute lanes and relative offsets
+# (the grid is the same integer/half-integer step in lane units).
+static func snap_lane_x(x: float, half: bool = false) -> float:
+	var step: float = 0.5 if half else 1.0
+	return snappedf(x, step)
+
+
+# Snap a band-progress y-value to the row grid (ROW_GRID_BP pitch), clamped to [0, 1].
+static func snap_band_y(y: float) -> float:
+	return clampf(snappedf(y, ROW_GRID_BP), 0.0, 1.0)
+
+
+# Number of row grid lines that fit in the band (for the editor's grid draw).
+static func row_grid_count() -> int:
+	return int(floor(1.0 / ROW_GRID_BP)) + 1
+
 # --- Resolved (pixel-space) state, rebuilt in on_start ---
 var _pts: PackedVector2Array = PackedVector2Array()   # resolved polyline in pixels (post-smoothing)
 var _seg_len: PackedFloat32Array = PackedFloat32Array() # length of each segment
