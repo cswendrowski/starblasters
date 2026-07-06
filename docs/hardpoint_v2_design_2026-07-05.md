@@ -66,8 +66,12 @@ combination — so e.g. a turret-delivered gun gets deviation + volleys for free
   `BeamEmitter` FSM node (routed by the builder), not a discrete shot, so folding them into the gun fire
   path is a deliberate follow-on, not done here. **Beam-as-payload SHIPPED 2026-07-05** (`9fbfbb5d`):
   `MountBuilder.attach` routes on a non-empty `beam_config` (any kind) → a `BeamEmitter`, so BEAM is just
-  "Beam payload × Direct" and the kind is an alias. Bench gains two pickable beam presets (Sweep/Chase)
-  so beams are authorable + previewable there at all (Copy emits the beam_config). **Phase A COMPLETE.**
+  "Beam payload × Direct" and the kind is an alias. Bench gains an editable beam payload (`d52af40c`): a
+  single "Beam" payload + beam rows (aim mode Forward/Locked/Tracking/Track-Lock, reach, dps, FSM timings),
+  `_beam_config_from` assembling the config, Copy emitting it, roster beam_config round-tripping back into the
+  editable fields — so the classic LOCKED "beam turret" feel is authorable. **Phase A COMPLETE.** (Note:
+  "beam × turret" — a beam that tracks/locks the player — is already covered by a beam payload's aim mode; the
+  bespoke `enemy_beam_turret` is just a `BeamEmitter` with LOCKED/TRACKING aim, no rotating barrel.)
 - **Phase B — Turret as delivery. SHIPPED 2026-07-05** (`ef9d0c92`). `EnemyTurret` now honors the shared
   firing settings it was missing — deviation, burst_interval, volleys/volley_gap, payload_delay — and can
   deliver a **projectile payload** (`payload_scene`), aimed by its own tracking. Its fire path became an
