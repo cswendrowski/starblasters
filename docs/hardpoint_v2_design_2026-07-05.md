@@ -76,8 +76,17 @@ combination — so e.g. a turret-delivered gun gets deviation + volleys for free
   "turrets need the rest of the firing settings." **Deferred (cosmetic, no new capability):** the formal
   schema change — retire the TURRET *kind* in favor of a `delivery = turret` toggle on any payload — and
   **beam × turret** (a turret that holds a beam). The TURRET kind stays as the de-facto "delivery = turret."
-- **Phase C — Ring as delivery.** `OrbitComponent` becomes `delivery = ring`; the bench ring editor
-  authors it as a hardpoint delivery; bloom + cluster/gravity mines migrate. *(Not started.)*
+- **Phase C — Ring as delivery. SHIPPED 2026-07-05** (`7a6a6bca`). `MountSpec.Kind.RING` + ring fields
+  (`rings`/`orbit_mode`/`release_speed`/`host_drift`/`release_sfx`); `MountBuilder` realizes a RING into an
+  `OrbitComponent` and returns it for registration; the roster parses `kind:"ring"` (resolving ring scene
+  paths). The bench Copy folds an authored orbit into the `"mounts"` block as a `kind:"ring"` entry (not a
+  bespoke `OrbitComponent`). **Kept separate (structural):** rings are a *nested* mode+rings collection that
+  doesn't fit a flat mount row, so the dedicated **Orbit panel** stays as the authoring UI — only its output
+  + runtime are unified onto the RING hardpoint. **Optional follow-on:** migrate the bespoke bloom +
+  cluster/gravity-mine `OrbitComponent` builds onto RING mounts (they work unchanged today).
+
+## Status: Phases A + B + C all SHIPPED 2026-07-05 (unverified in live play). Deferred-cosmetic: the formal
+## Payload+Delivery selector schema (retire the turret/launcher/beam/ring *kinds*), beam×turret, ring migration.
 
 ## Migration / back-compat
 - Keep the v1 roster keys/values parsing: a `"kind": "launcher"` maps to Projectile×Direct, `"turret"`
