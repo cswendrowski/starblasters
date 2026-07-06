@@ -103,6 +103,13 @@ const ARRIVAL_DEPTH_TIMEOUT: float = 2.5
 var _running: bool = false
 var _check_clear: bool = false
 var _score: Resource = null   # CombatScore (adapter output)
+# RECYCLE POOL (despawn+credit rework, 2026-07-06). A missed enemy's parallax fly-back now ends in a
+# DESPAWN: RecycleController frees the node and hands the director a CREDIT — the enemy's source
+# WaveSpec + its remaining recycle_passes. Credited units re-enter as CONDUCTED sweep rows at the next
+# wave boundary (drain point), so a missed chaff returns as part of the choreography instead of a
+# lone un-conducted straggler weaving through formations. Each entry: {"spec": WaveSpec, "passes": int}.
+# Pending credits count as outstanding combatants — the level cannot clear while this is non-empty.
+var _recycle_pool: Array = []
 var _steps: Array = []        # flattened phrase steps (phrase + wave context)
 var _step_idx: int = -1
 var _wave_total: int = 0
@@ -118,6 +125,10 @@ var _rng := RandomNumberGenerator.new()
 # (no per-wave clear-gate) is completely untouched.
 var boss_gate: Node = null
 const BOSS_GATE_DRAIN_TIMEOUT: float = 15.0   # safety cap (s) so a stuck/lingering enemy can't hang the gate
+# Safety cap (s) on the level-end recycle drain loop (below) so an in-flight fly-back that never lands
+# — a wedged tween — can't hang the level forever. Generous: a fly-back clamps to fly_time_max (~4.5s)
+# plus a hold, so a couple of sequential re-entries fit comfortably.
+const FINAL_DRAIN_TIMEOUT: float = 20.0
 
 func start_level(new_level: Resource = null) -> void:
 	# COMPAT SHIM (M5 native emission): production now emits a CombatScore at the
@@ -159,6 +170,8 @@ func start_score(score: Resource) -> void:
 func stop() -> void:
 	_running = false
 	_check_clear = false
+	# Level teardown — abandon any pending recycle credits (their units are gone; nothing to re-enter).
+	_recycle_pool.clear()
 
 
 # Pausable pacing wait for the spawn loop. SceneTree.create_timer() defaults to
@@ -370,6 +383,23 @@ func _advance_step() -> void:
 				await boss_gate.play_wave_maneuver(-1)
 			if _boss_gate_alive() and not _boss_defeated() and boss_gate.has_method("retreat"):
 				boss_gate.retreat()
+		# FINAL RECYCLE DRAIN (despawn+credit rework, 2026-07-06). Pending credits are outstanding
+		# combatants — the kill-gate math counts on them re-engaging, so the level must not clear leaving
+		# any stranded. But a fly-back that is STILL IN THE AIR here (node alive, is_recycling()) will
+		# credit only when it lands, seconds from now. So loop: drain the pool, then while any recycler
+		# ghost is mid-fly-back, wait and re-drain the credits it produces on landing — until both the
+		# pool is empty AND no fly-back remains. _live_combatants_present (below) counts the ghosts, so
+		# _running stays effectively "draining" for this window. Bounded by a safety cap so a wedged
+		# fly-back can never hang the level.
+		var drain_guard: float = 0.0
+		while _running and (not _recycle_pool.is_empty() or _recyclers_in_flight()) and drain_guard < FINAL_DRAIN_TIMEOUT:
+			if not _recycle_pool.is_empty():
+				await _drain_recycle_pool()
+			else:
+				await _paced(0.1).timeout
+				drain_guard += 0.1
+			if not _running:
+				return
 		_running = false
 		_check_clear = true   # all phrases dispatched; watch for clear
 		return
@@ -390,6 +420,14 @@ func _advance_step() -> void:
 		if _boss_defeated():
 			_running = false
 			_check_clear = true
+			return
+	# RECYCLE re-entry (despawn+credit rework, 2026-07-06): drain the whole pool as conducted sweep
+	# rows at each WAVE boundary, BEFORE the wave's first phrase — so returning units re-enter as their
+	# own tidy rows between the conductor's set pieces, never interleaved with a formation mid-flight.
+	# (Mid-wave trickle is deliberately NOT done — re-entries land only at these boundaries.)
+	if st["is_wave_start"] and not _recycle_pool.is_empty():
+		await _drain_recycle_pool()
+		if not _running:
 			return
 	# Non-blocking banner once per ScoreWave (bridge §1.1): emit and keep going.
 	if st["is_wave_start"]:
@@ -485,6 +523,52 @@ func _dispatch_formation(ph: Resource) -> void:
 			else:
 				await _paced(maxf(sp.spawn_interval, ANTI_BURST_FLOOR)).timeout
 	_advance_step()
+
+
+# RECYCLE DRAIN (despawn+credit rework, 2026-07-06). Re-enter every pending credited unit as conducted
+# sweep-style rows (SWEEP_ROW_SIZE abreast on spread lanes, beat-separated, cap-gated, height-aware
+# row-clear gated) — the same readable-row idiom as _dispatch_sweep_rows, so a returning unit reads as
+# part of the choreography rather than a lone straggler. Drained at each wave boundary (before the
+# wave's first phrase) and once more at level end so no pooled unit is stranded. Each credit spawns
+# EXACTLY ONE enemy (count-1 semantics — the credit is a single unit, not the spec's original count),
+# with its carried remaining recycle_passes stamped onto the fresh instance so the pass budget doesn't
+# reset on re-entry (chaff-loop guard). Damage state is NOT carried: a returning unit reads as a fresh
+# arrival at full HP (accepted simplification, flagged for playtest).
+func _drain_recycle_pool() -> void:
+	if _recycle_pool.is_empty():
+		return
+	# Snapshot + clear up front so credits arriving mid-drain (a re-entered unit that immediately exits
+	# again is impossible this frame, but a lingering fly-back could land) queue for the NEXT drain
+	# rather than extending this one unbounded.
+	var credits: Array = _recycle_pool.duplicate()
+	_recycle_pool.clear()
+	var i: int = 0
+	var row_index: int = 0
+	var prev_row_lanes: Array = []
+	while i < credits.size():
+		if not _running:
+			return
+		while _running and _alive_slots() >= max_concurrent:
+			await _paced(0.1).timeout
+		if not _running:
+			return
+		var room: int = maxi(1, max_concurrent - _alive_slots())
+		var group: int = mini(mini(SWEEP_ROW_SIZE, room), credits.size() - i)
+		var row_lanes: Array = _sweep_row_lanes(group, row_index, prev_row_lanes)
+		var last_spawned: Node = null
+		for ln in row_lanes:
+			if i >= credits.size():
+				break
+			var credit: Dictionary = credits[i]
+			last_spawned = _spawn_enemy(credit["spec"], i, int(ln))
+			# Stamp the carried remaining passes so re-entry doesn't reset the recycle budget.
+			if is_instance_valid(last_spawned) and "recycle_passes" in last_spawned:
+				last_spawned.recycle_passes = int(credit["passes"])
+			i += 1
+		prev_row_lanes = row_lanes
+		row_index += 1
+		if i < credits.size():
+			await _await_row_clear(last_spawned, ANTI_BURST_FLOOR, _row_clear_depth(last_spawned, SWEEP_ROW_CLEAR_DEPTH))
 
 
 # SWEEP rows: spawn a directional-sweep spec as descending ROWS of SWEEP_ROW_SIZE abreast on spread
@@ -1250,6 +1334,10 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 	var parent = get_parent()
 	parent.add_child(enemy)
 	enemy.add_to_group("enemies")
+	# Stash the source WaveSpec so a recycle fly-back can credit a faithful replacement back to us
+	# (despawn+credit rework, 2026-07-06). set_meta avoids schema churn on enemy_base; dev-spawned
+	# enemies (no director) simply never carry this, and RecycleController's fallback covers them.
+	enemy.set_meta("recycle_source_spec", wave)
 	# Per-instance wave context (e.g. gunship role assignment). Called before
 	# start() so the enemy can adjust its settle position before entering.
 	if enemy.has_method("on_spawned_in_wave"):
@@ -1388,13 +1476,29 @@ func _process(_delta: float) -> void:
 # True if any "enemies"-group node is alive AND not flagged is_hazard.
 # Mines / bomblets / asteroids dropped behind a minelayer don't gate
 # wave progression (Cody, 2026-05-18 playtest).
+# Recycle credits (despawn+credit rework, 2026-07-06) are outstanding combatants too — a pooled unit
+# has despawned but WILL re-enter, so the level must not clear while credits are pending. (In-flight
+# fly-back ghosts are still live "enemies" nodes, so the loop above already counts them here.)
 func _live_combatants_present() -> bool:
+	if not _recycle_pool.is_empty():
+		return true
 	for n in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(n):
 			continue
 		if "is_hazard" in n and n.is_hazard:
 			continue
 		return true
+	return false
+
+
+# True if any live "enemies" node is mid parallax fly-back (RecycleController.recycle() in progress).
+# Such a ghost will DESPAWN + credit when it lands, so the level-end drain must wait it out.
+func _recyclers_in_flight() -> bool:
+	for n in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(n):
+			continue
+		if "_cycling" in n and n._cycling:
+			return true
 	return false
 
 func _hazards_present() -> bool:
@@ -1445,5 +1549,20 @@ func _drain_for_gate() -> void:
 		guard += 0.1
 
 func _ready() -> void:
+	# Join the wave-director group so RecycleController can find us to hand back recycle credits
+	# (despawn+credit rework, 2026-07-06). Dev labs / benches / test harnesses that drive recycle()
+	# without a director simply have no member in this group → RecycleController's legacy restore path.
+	add_to_group("wave_director")
 	if auto_start and level != null:
 		start_level()
+
+
+# RECYCLE CREDIT (despawn+credit rework, 2026-07-06). Called deferred from RecycleController at the end
+# of a fly-back: the enemy has despawned; queue its source WaveSpec (carrying its remaining
+# recycle_passes) for conducted re-entry. Guarded on _running so a credit arriving during teardown is
+# dropped (the pool is also cleared in stop()). `spec` is a WaveSpec Resource; `passes` is the
+# despawned instance's remaining passes so the re-entry doesn't reset the pass budget (chaff-loop guard).
+func credit_recycled(spec: Resource, passes: int) -> void:
+	if not _running or spec == null:
+		return
+	_recycle_pool.append({"spec": spec, "passes": passes})

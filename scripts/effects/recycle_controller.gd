@@ -219,6 +219,29 @@ static func recycle(enemy) -> void:
 	await tw.finished
 	if not is_instance_valid(enemy):
 		return
+	# DESPAWN + CREDIT (despawn+credit rework, 2026-07-06). The fly-back is a DESPAWN: instead of
+	# restoring the live enemy at the top (the old un-conducted re-entry), hand the director a recycle
+	# CREDIT and free the enemy. The director re-spawns a faithful replacement as a CONDUCTED sweep row
+	# at the next wave boundary, so a missed unit returns as part of the choreography — never a lone
+	# straggler weaving through a formation. Everything above (pass accounting, suspend, ghost look,
+	# speed-proportional recede) is unchanged shipped feel.
+	#
+	# FALLBACK: with no director in the scene (dev labs, benches, test harnesses) we keep the LEGACY
+	# restore+resume path below, so every dev tool behaves exactly as before.
+	var director: Node = _find_director(enemy)
+	if director != null:
+		var spec: Resource = enemy.get_meta("recycle_source_spec", null) as Resource
+		if spec != null:
+			# recycle_passes has already been decremented above for this pass; carry the REMAINING count
+			# so the re-spawned instance doesn't reset to the spec's original budget (chaff-loop guard).
+			var remaining: int = int(enemy.recycle_passes) if "recycle_passes" in enemy else -1
+			director.call_deferred("credit_recycled", spec, remaining)
+		else:
+			# Director present but no stashed spec — a dev-spawned enemy that leaked into a real level.
+			# Free without credit and warn once so it's noticed rather than silently vanishing.
+			push_warning("RecycleController: recycling enemy has no recycle_source_spec meta; freeing without credit")
+		enemy.queue_free()
+		return
 	enemy.scale = pre_scale
 	_restore_ghost_look(enemy, pre_modulate)
 	enemy._set_outline_visible(true)        # back on the gameplay layer — restore the outline
@@ -298,3 +321,17 @@ static func _restore_ghost_look(enemy, pre_modulate: Color) -> void:
 # The body Sprite2D the depth-tint rides on (the visible hull, named "Sprite2D" across the roster).
 static func _body_sprite(enemy) -> Sprite2D:
 	return enemy.get_node_or_null("Sprite2D") as Sprite2D
+
+
+# The wave director for this enemy's scene, or null. Found via the "wave_director" group the director
+# joins in _ready (despawn+credit rework, 2026-07-06). Null in dev labs / benches / test harnesses that
+# drive recycle() without a director — the caller then keeps the legacy restore+resume path. Tolerant
+# of a freed tree (bare unit tests).
+static func _find_director(enemy) -> Node:
+	var tree: SceneTree = enemy.get_tree()
+	if tree == null:
+		return null
+	for d in tree.get_nodes_in_group("wave_director"):
+		if is_instance_valid(d):
+			return d
+	return null

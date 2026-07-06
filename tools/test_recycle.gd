@@ -42,6 +42,8 @@ func _run_all() -> void:
 	_test_fly_duration()
 	_test_resolve()
 	await _test_recycle()
+	await _test_recycle_credit()
+	_test_completion_gate()
 	_test_wreck()
 	_test_turret_suspend()
 	print("------")
@@ -182,6 +184,78 @@ func _test_recycle() -> void:
 		_check(body.material == orig_mat, "body material restored to original")
 	e.free()
 	RC.invalidate()   # drop the tiny in-memory config; next real run reloads from disk
+
+
+# --- Part 2b: despawn+credit path (a director present) ---------------------
+
+# A stub director in the "wave_director" group with a credit_recycled(spec, passes) capture. When a
+# director is present, recycle()'s fly-back must end in queue_free + one credit carrying the enemy's
+# source spec and its REMAINING (decremented) recycle_passes — not the legacy restore.
+class _StubDirector extends Node:
+	var credits: Array = []
+	func credit_recycled(spec: Resource, passes: int) -> void:
+		credits.append({"spec": spec, "passes": passes})
+
+
+func _test_recycle_credit() -> void:
+	print("recycle() despawn+credit path (director present):")
+	RC.invalidate()
+	var cfg: Dictionary = RC.config()
+	cfg["hold_min"] = 0.01
+	cfg["hold_max"] = 0.02
+	cfg["fly_time_min"] = 0.3
+	cfg["fly_time_max"] = 0.3
+
+	var director := _StubDirector.new()
+	director.add_to_group("wave_director")
+	get_root().add_child(director)
+
+	# A fake source spec (any Resource stands in — the credit just carries the reference).
+	var spec := Resource.new()
+
+	var e = load(DART).instantiate()
+	get_root().add_child(e)
+	e.position = Vector2(e.screensize.x * 0.5, e.screensize.y * 0.4)
+	e.set_meta("recycle_source_spec", spec)
+	e.recycle_passes = 2   # will decrement to 1 for this pass; the credit must carry 1
+
+	RC.recycle(e)
+	_check(e.is_recycling(), "credit path: is_recycling() true after recycle()")
+	_check(e.recycle_passes == 1, "credit path: recycle_passes decremented (2 → 1) before the pass")
+
+	# Let hold + 0.3s fly + slack elapse; the fly-back should end in queue_free + one credit.
+	await create_timer(0.5).timeout
+	_check(not is_instance_valid(e), "credit path: enemy despawned (queue_free) at fly-back end")
+	_check(director.credits.size() == 1, "credit path: exactly one credit handed to the director")
+	if director.credits.size() == 1:
+		_check(director.credits[0]["spec"] == spec, "credit path: credit carries the source spec")
+		_check(int(director.credits[0]["passes"]) == 1, "credit path: credit carries REMAINING passes (1, not the spec's 2)")
+
+	director.free()
+	RC.invalidate()
+
+
+# --- Part 2c: completion gate blocks while credits are pending --------------
+
+# A stub carrying just the completion-gate logic (a non-empty pool ⇒ combatants present). Mirrors the
+# director's _live_combatants_present short-circuit on _recycle_pool without booting a whole level.
+class _GateStub extends Node:
+	var _recycle_pool: Array = []
+	func live() -> bool:
+		if not _recycle_pool.is_empty():
+			return true
+		return false
+
+
+func _test_completion_gate() -> void:
+	print("completion gate blocks while the recycle pool is non-empty:")
+	var g := _GateStub.new()
+	_check(not g.live(), "empty pool → no combatants (can clear)")
+	g._recycle_pool.append({"spec": Resource.new(), "passes": 1})
+	_check(g.live(), "pending credit → combatants present (cannot clear)")
+	g._recycle_pool.clear()
+	_check(not g.live(), "drained pool → clear again")
+	g.free()
 
 
 # --- Part 3: the disabled-wreck recede look (shared with the recycler) ------
