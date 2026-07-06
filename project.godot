@@ -21,6 +21,11 @@ config/features=PackedStringArray("4.6", "Forward Plus")
 run/max_fps=60
 config/icon="res://Mini Pixel Pack 3/UI objects/Player_life_icon (16 x 16).png"
 
+[audio]
+
+driver/mix_rate=48000
+driver/output_latency=30
+
 [autoload]
 
 Run="*res://scripts/autoload/run_state.gd"

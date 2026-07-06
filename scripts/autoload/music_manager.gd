@@ -53,7 +53,6 @@ const CTX_BOSS := "boss"
 const CTX_SILENT := "silent"
 
 const NOMINAL_DB := 0.0
-const SILENT_DB := -80.0
 
 # Resting intensity per non-combat context (combat is computed dynamically).
 const CTX_INTENSITY := {
@@ -79,7 +78,6 @@ const COMBAT_ENTER_FADE := 1.4  # snappier drop into combat
 const WAVE_FADE := 3.0          # wave-driven escalation glide
 const DAMAGE_FADE := 1.2        # damage spikes react faster
 const RAMP_FADE := 3.0          # level-clear decompression
-const UNSILENCE_FADE := 0.8
 
 # Live combat envelope (per-frame "breathing"). Tune these for moment-to-moment feel.
 const CROWD_FULL := 5.0         # live enemy count that saturates presence (→ full ceiling)
@@ -93,10 +91,12 @@ const STREAK_DECAY := 0.5       # streak heat lost/sec when not killing (~2s to 
 const INTENSITY_RISE_TAU := 1.1 # smoothing while intensity is climbing
 const INTENSITY_FALL_TAU := 2.6 # smoothing while intensity is dropping (gentler)
 
-# Loading-screen combat warm-up.
-const WARM_TARGET := 0.22       # middle-low intensity to warm up to before combat starts
-const WARM_RAMP := 3.0          # seconds to ramp 0 → WARM_TARGET during the load
-const WARM_ENTER_FADE := 2.0    # crossfade INTO the combat track when warm-up begins
+# Loading-screen combat warm-up: settle to the LOWEST intensity, then slowly climb
+# to a LOW level-start point across the load, so combat eases in from a warm hum.
+const WARM_TARGET := 0.12       # low intensity to reach by the time the level starts
+const WARM_RAMP := 3.0          # seconds to climb 0 → WARM_TARGET during the load
+const WARM_ENTER_FADE := 2.5    # crossfade INTO the combat track when warm-up begins (smoother)
+const WARM_SETTLE_RATE := 0.6   # intensity units/sec to ease down to 0 at warm-up start (smooth, no snap)
 
 var _player: OvaniPlayer = null
 var _lib: MusicLibrary = null
@@ -104,7 +104,8 @@ var _lib: MusicLibrary = null
 var _context: String = CTX_SILENT
 var _current_track: String = ""
 var _intensity_target: float = 0.0
-var _silenced: bool = false
+var _silenced: bool = false          # true = nothing playing (stopped), not just muted
+var _started: bool = false           # has any track ever played (first play uses QueueSong)
 
 # Combat ceiling inputs (each 0..1), combined by _combat_ceiling().
 var _wave01: float = 0.0
@@ -113,6 +114,9 @@ var _damage01: float = 0.0
 # Live combat envelope state (driven per-frame in _process while in combat).
 var _combat_active: bool = false     # true only in CTX_COMBAT: run the live envelope
 var _warming: bool = false           # loading-screen combat warm-up in progress
+var _warm_climbing: bool = false     # warm-up phase: false = settling to 0, true = climbing to target
+var _warm_target: float = 0.0        # low intensity the warm-up climbs to
+var _warm_rate: float = 0.0          # intensity units/sec for the warm-up climb
 var _intensity_smoothed: float = 0.0 # damped applied combat intensity (the buffer)
 var _streak_heat: float = 0.0        # kill-streak heat 0..1, decays over time
 
@@ -142,30 +146,16 @@ func set_context(context: String, options: Dictionary = {}) -> void:
 	# re-entering silent (e.g. returning to the dev menu) can never hit the
 	# keep-playing path and un-silence a leftover track.
 	if context == CTX_SILENT:
+		# Actually END the track (stop() removes it), so nothing lurks to resurface
+		# on the next context change. No more "old track swells back in".
 		_context = CTX_SILENT
-		_combat_active = false
-		_warming = false
-		# Drop the ENERGY to nothing under the mute, not just the volume (Roman 2026-07-04). The old
-		# stop() only faded the master volume, leaving whatever track was playing looping silently AT
-		# ITS LAST INTENSITY. Entering a dev menu straight from combat/boss left an intense stem muted
-		# but live; the next context's un-silence then swelled THAT loud track back in = the jarring
-		# "music comes in loud on exit". Easing intensity to 0 here means only the calmest stem lurks,
-		# so the exit reveal is quiet. Combat re-entry cold-opens its own envelope, so this is safe.
-		_wave01 = 0.0
-		_damage01 = 0.0
-		_streak_heat = 0.0
-		_intensity_smoothed = 0.0
-		if _player != null:
-			_player.FadeIntensity(0.0, UNSILENCE_FADE)
 		stop()
 		return
 
 	var forced: bool = options.get("force", false)
-	# Idempotent re-entry: keep the track, just ensure audible + correct energy.
-	# (Skipped while warming so the warm-up → combat handoff below always runs.)
+	# Idempotent re-entry: keep the track, just ensure the right energy. (Skipped
+	# while warming so the warm-up → combat handoff below always runs.)
 	if context == _context and _current_track != "" and not forced and not _warming:
-		if _silenced:
-			_unsilence()
 		if context != CTX_COMBAT:
 			_apply_context_intensity(CTX_FADE)   # combat energy is driven live in _process
 		return
@@ -176,8 +166,6 @@ func set_context(context: String, options: Dictionary = {}) -> void:
 	var was_warming: bool = _warming and context == CTX_COMBAT
 	_warming = false
 	_context = context
-	if _silenced:
-		_unsilence()
 
 	# Combat runs a live per-frame envelope (_process); everything else glides to
 	# a fixed resting intensity.
@@ -238,31 +226,31 @@ func notify_kill() -> void:
 		_streak_heat = minf(1.0, _streak_heat + STREAK_GAIN)
 
 
-# Loading-screen combat pre-heat. Begins a combat track quietly and ramps it to a
-# middle-low "warming up" level over `ramp` seconds, so combat doesn't jam into
-# place when the level starts. The subsequent set_context("combat") (main.gd, at
-# level start) hands off from this warmed state — keeping the track + intensity —
-# instead of cold-opening at 0. Call when a load into a combat node begins
-# (LevelLauncher.go). The live envelope stays OFF until combat actually starts.
+# Loading-screen combat pre-heat. Crossfades to a combat track, then (in _process)
+# eases the intensity down to the LOWEST (0) and slowly climbs it to a LOW
+# level-start point across the load — so combat warms in from a hum instead of
+# jamming into place. The subsequent set_context("combat") (main.gd, at level
+# start) hands off from this warmed state. Call when a load into a combat node
+# begins (LevelLauncher.go). The live envelope stays OFF until combat starts.
 func warm_up_combat(target_intensity: float = WARM_TARGET, ramp: float = WARM_RAMP) -> void:
 	if _player == null:
 		return
-	if _silenced:
-		_unsilence()
 	_warming = true
+	_warm_climbing = false          # start in the "settle down to 0" phase
 	_combat_active = false
 	_context = CTX_COMBAT
 	_wave01 = 0.0
 	_damage01 = 0.0
 	_streak_heat = 0.0
-	_intensity_smoothed = 0.0
 	var track: String = _pick_track(CTX_COMBAT)
 	if track != "" and (track != _current_track or _current_track == ""):
 		_play_track(track, WARM_ENTER_FADE)
-	# Ramp intensity from the current level to the warm target (no hard set to 0 —
-	# that pops the outgoing track). The combat track fades IN by volume anyway
-	# (WARM_ENTER_FADE), so the warm-up still starts quiet.
-	_set_intensity_target(clampf(target_intensity, 0.0, 1.0), maxf(ramp, 0.05))
+	_warm_target = clampf(target_intensity, 0.0, 1.0)
+	_warm_rate = _warm_target / maxf(ramp, 0.1)
+	# Start the ramp from the current intensity and let _process drive it (settle to
+	# 0, then climb). No hard set to 0 — that would pop the outgoing track.
+	_intensity_smoothed = _player.Intensity
+	_player.FadeIntensity(_player.Intensity, 0.05)  # cancel any stale global fade; _process drives now
 
 
 func notify_boss_spawned() -> void:
@@ -291,8 +279,22 @@ func set_walk_frozen(v: bool) -> void:
 func stop(fade: float = 0.8) -> void:
 	if _player == null:
 		return
-	_player.FadeVolume(SILENT_DB, maxf(fade, 0.05))
+	# Actually END the current track — fade the SONG out (its own volume) and remove
+	# it — instead of ducking the master volume and leaving it looping silently.
+	# The old duck resurfaced the track on the next un-silence ("old track swells
+	# back in"). Master volume stays put, so nothing can be brought back.
+	_player.StopSongsNow(maxf(fade, 0.05))
+	# Ease the energy down as the track fades out, so the outgoing fade is calm and
+	# the NEXT track doesn't inherit a stale-high intensity.
+	_player.FadeIntensity(0.0, maxf(fade, 0.05))
+	_current_track = ""
 	_silenced = true
+	_combat_active = false
+	_warming = false
+	_wave01 = 0.0
+	_damage01 = 0.0
+	_streak_heat = 0.0
+	_intensity_smoothed = 0.0
 
 
 # ---- Internal -----------------------------------------------------------
@@ -301,11 +303,16 @@ func _play_track(track: String, fade: float) -> void:
 	var song: OvaniSong = _lib.make_song(track)
 	if song == null:
 		return
-	if _current_track == "":
-		_player.QueueSong(song)          # clean first start (no null-queue hop)
+	# QueueSong ONLY for the very first track (nothing to crossfade from). Every
+	# later play — including after a stop() — uses PlaySongNow so it fades in
+	# cleanly from the stopped/silent state (no abrupt full-volume start).
+	if not _started:
+		_player.QueueSong(song)
+		_started = true
 	else:
-		_player.PlaySongNow(song, fade)  # immediate crossfade over `fade` seconds
+		_player.PlaySongNow(song, fade)  # crossfade in over `fade` seconds
 	_current_track = track
+	_silenced = false
 
 
 func _apply_context_intensity(fade: float) -> void:
@@ -333,6 +340,19 @@ func _combat_ceiling() -> float:
 # only partially land. Combat opens quiet and breathes. Non-combat contexts hold
 # their fixed FadeIntensity target, so there's nothing to do for them here.
 func _process(delta: float) -> void:
+	# Loading-screen warm-up: ease intensity to the LOWEST, then slowly climb to the
+	# low level-start target across the load. Two phases so it starts at 0 (lowest)
+	# without snapping the outgoing track.
+	if _warming and _player != null and not _walk_frozen:
+		if not _warm_climbing:
+			_intensity_smoothed = move_toward(_intensity_smoothed, 0.0, WARM_SETTLE_RATE * delta)
+			if _intensity_smoothed <= 0.005:
+				_intensity_smoothed = 0.0
+				_warm_climbing = true
+		else:
+			_intensity_smoothed = move_toward(_intensity_smoothed, _warm_target, _warm_rate * delta)
+		_player.Intensity = _intensity_smoothed
+		return
 	if not _combat_active or _context != CTX_COMBAT or _walk_frozen or _player == null:
 		return
 	var count := get_tree().get_node_count_in_group("enemies")
@@ -374,7 +394,3 @@ func _pick_track(context: String) -> String:
 	return choices[randi() % choices.size()]
 
 
-func _unsilence() -> void:
-	_silenced = false
-	if _player != null:
-		_player.FadeVolume(NOMINAL_DB, UNSILENCE_FADE)

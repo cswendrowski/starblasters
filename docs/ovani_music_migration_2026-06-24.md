@@ -161,11 +161,14 @@ climbing and `INTENSITY_FALL_TAU 2.6` when dropping (gentler down). This buffers
 intensity moves (presence, ceiling jumps from waves/damage, streak spikes) and makes
 **brief action spikes only partially land** before they subside.
 
-**Loading-screen warm-up (2026-06-25):** `warm_up_combat(target 0.22, ramp 3s)` starts a
-combat track at intensity 0 and ramps to a middle-low "warming" level during the load
-(`LevelLauncher.go` calls it when the loading screen appears). `set_context("combat")` at
-level start then **hands off** from that warmed state (seeds the damping buffer from the
-current intensity, switches the live envelope on) instead of cold-opening at 0.
+**Loading-screen warm-up (2026-06-25, refined):** `warm_up_combat(target 0.12, ramp 3s)`
+crossfades to a combat track (`WARM_ENTER_FADE 2.5s`) and, per-frame in `_process`, runs a
+two-phase intensity ramp: **settle down to 0** (the lowest — `WARM_SETTLE_RATE 0.6`/s, a
+smooth ease not a snap, hidden under the outgoing track's fade) then **slowly climb to a
+low `WARM_TARGET 0.12`** across the load. So combat warms in from the lowest stem to a low
+hum. `LevelLauncher.go` calls it when the loading screen appears; `set_context("combat")`
+at level start **hands off** from the warmed state (seeds the damping buffer, switches the
+live envelope on).
 
 `set_context("combat")` cold-opens quiet; `ramp_down()` stops the envelope so the
 level-clear breather can settle. Non-combat contexts rest at fixed levels
@@ -181,6 +184,37 @@ snap). (2) The Ovani plugin constructs a crossfade's incoming copy at **full vol
 full-volume blip on every crossfade. Patched `OvaniPlayer.gd` to start a fading-in copy
 silent (`newPSM.Volume = -80`). NB: the plugin patch is a local edit — re-apply if the
 addon is updated. Loop copies are unaffected (they intentionally enter at full).
+
+**General popping fix (2026-06-25):** the source oggs are all **48 kHz** but the project
+had no `[audio]` config, so Godot mixed at its default **44.1 kHz** — every stream (Ovani
+decodes 3 stems at once, up to 6 during overlaps) was **real-time resampled 48→44.1
+continuously**, in menus and levels, starving the audio thread → underrun pops. Added
+`[audio] driver/mix_rate=48000` (match source, no resampling) + `driver/output_latency=30`
+(bigger mix buffer). The mix_rate match is the real fix; output_latency adds ~15 ms of
+latency (revert to 15 if SFX feel laggy).
+
+**Outpost/signal load pop (2026-06-25):** these use a *synchronous* `change_scene_to_file`
+(unlike combat's threaded `LevelLauncher`), so the heavy scene stalls the main thread and
+underruns the audio → pop. `sector_map_v3._duck_music_for_load()` fades music to silence
+(`stop(0.4)`, < the 0.45 s fade-to-black) before the load so the stall is silent;
+`outpost_arrival._ready` now sets `set_context("outpost")` to restore it (it never set its
+own music before — the outpost just inherited the sector track).
+
+**Track-lifecycle rework (2026-06-25) — tracks now actually END.** The old `stop()` just
+ducked the master volume and left the track **looping silently**; the next context's
+un-silence swelled it back → "old (combat) track comes back in then transitions" (seen on
+fail-run → main menu, `main.gd` `_on_player_died` → `stop(0.8)`). Rework:
+- `stop()` now calls `_player.StopSongsNow(fade)` (fades the SONG out via its own volume +
+  removes it) + `FadeIntensity(0)`, and resets state. Master volume is never touched, so
+  nothing can resurface. The `_unsilence()` / `_silenced`-volume path is gone; `stop()`
+  needing a fast sub-0.45 s fade for the outpost duck is why `StopSongsNow` was made to
+  take a **float** (was int).
+- `_play_track` uses `QueueSong` only for the very first track (`_started` flag) and
+  `PlaySongNow` thereafter — so a track started **after a stop** fades in cleanly instead
+  of an abrupt full-volume start.
+- **`OvaniPlayer.gd` fade-out silent-margin** (local patch): the plugin's linear fade-out
+  is still ~−45 dB on the last frame before `stop_stream` cuts the voice — a click ~`fade`
+  seconds (the "3 s pop") into a new track. Now it reaches silence a hair before the stop.
 
 ### Wiring + retirement
 - `main.gd` forwards `player.hull_changed` → `Music.notify_damage` in combat setup.

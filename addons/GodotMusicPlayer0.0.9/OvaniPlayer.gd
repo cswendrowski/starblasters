@@ -73,7 +73,7 @@ func PlaySongNow(song : OvaniSong, transitionTime : float = -1):
 			_soundManagers[0].FadeOut = transitionTime
 
 ## Clears the song queue, and optionally fades to silence.
-func StopSongsNow(transition_time : int = 0):
+func StopSongsNow(transition_time : float = 0.0):
 	if (len(QueuedSongs) > 0):
 		QueuedSongs = [QueuedSongs[0]]
 		PlaySongNow(null, transition_time)
@@ -225,7 +225,12 @@ func _process(delta):
 			# handle fade out
 			var remainingTime : float = -(_curTime - (psm.StartTime + psm.SongLength));
 			if (psm.FadeOut != -1 && remainingTime < psm.FadeOut):
-				psm.Volume = linear_to_db((remainingTime / psm.FadeOut) * db_to_linear(Volume));
+				# Reach full silence a hair BEFORE the stop (remainingTime<0) so the voice is
+				# silent when stop_stream cuts it — the plain linear fade is still ~-45dB at
+				# the last frame and hard-stopping that clicks. (Starblaster local patch.)
+				var _fo_margin : float = min(0.06, psm.FadeOut * 0.25)
+				var _fo_frac : float = max((remainingTime - _fo_margin) / max(psm.FadeOut - _fo_margin, 0.001), 0.0)
+				psm.Volume = -80.0 if _fo_frac <= 0.0 else linear_to_db(_fo_frac * db_to_linear(Volume));
 				
 			
 			if (remainingTime < psm.ReverbTail || remainingTime < psm.FadeOut):

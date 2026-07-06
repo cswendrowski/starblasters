@@ -2030,11 +2030,28 @@ func _on_poi_clicked(node_id: String) -> void:
 			# Zero-bounty entry is no longer gated by a modal — the HD host
 			# surfaces a "no bounty to spend" warning over the selected-node
 			# label at selection time (visiting is allowed; refills can be free).
+			# Outpost/signal load synchronously (change_scene_to_file) — the heavy
+			# scene stalls the main thread and underruns the audio → a pop. Fade the
+			# music out first (during the fade-to-black) so the stall is silent; the
+			# destination's set_context() fades it back in on arrival.
+			_duck_music_for_load()
 			SceneTransition.change_scene(get_tree(), OUTPOST_SCENE)
 		int(SectorNode.NodeType.SIGNAL):
+			_duck_music_for_load()
 			SceneTransition.change_scene(get_tree(), SIGNAL_SCENE)
 		int(SectorNode.NodeType.HAZARD):
 			LevelLauncher.go(get_tree(), HAZARD_SCENE)
+
+
+# Fade the music to silence before a synchronous scene load so the main-thread
+# load stall doesn't underrun the audio into a pop. ~0.4s < SceneTransition.FADE_OUT
+# (0.45s), so it's silent by the time the load runs; the destination's set_context()
+# fades it back in on arrival. (Combat/hazard/boss go through LevelLauncher's threaded
+# preload instead, so they don't need this.)
+func _duck_music_for_load() -> void:
+	var music := get_node_or_null("/root/Music")
+	if music != null and music.has_method("stop"):
+		music.stop(0.4)
 
 
 func _on_boss_clicked(node_id: String) -> void:
