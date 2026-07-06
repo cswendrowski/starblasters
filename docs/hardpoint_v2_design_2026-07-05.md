@@ -86,8 +86,12 @@ combination — so e.g. a turret-delivered gun gets deviation + volleys for free
   paths). The bench Copy folds an authored orbit into the `"mounts"` block as a `kind:"ring"` entry (not a
   bespoke `OrbitComponent`). **Kept separate (structural):** rings are a *nested* mode+rings collection that
   doesn't fit a flat mount row, so the dedicated **Orbit panel** stays as the authoring UI — only its output
-  + runtime are unified onto the RING hardpoint. **Optional follow-on:** migrate the bespoke bloom +
-  cluster/gravity-mine `OrbitComponent` builds onto RING mounts (they work unchanged today).
+  + runtime are unified onto the RING hardpoint. **Bloom migration NOT worth doing (verified 2026-07-05):**
+  the firecore bloom builds its rings *procedurally* from `ring_count` (a per-spawn director override, 1–4
+  rings, per-ring radius/count/speed/scale from constants) — a static roster RING mount can't express that
+  parametric variety, so bloom stays bespoke (its `has_orbit` hook is only for bench override/testing).
+  Cluster/gravity mines could migrate if their rings are static, but that's risky tidy-up on delicate enemies
+  with zero capability gain — deferred. The RING kind's value is NEW enemies + bench authoring, not retrofitting.
 
 ## Status: Phases A + B + C all SHIPPED 2026-07-05 (unverified in live play). Deferred-cosmetic: the formal
 ## Payload+Delivery selector schema (retire the turret/launcher/beam/ring *kinds*), beam×turret, ring migration.
