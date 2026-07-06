@@ -690,13 +690,14 @@ const ENTRIES := [
 		# Archer (Roman art 2026-07-06) — corporate small aimed gunner (two forward muzzles
 		# MuzzleL/R). Placeholder stats for Enemy-Bench tuning; not yet in the wave roll.
 		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_archer.tscn",
-		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "payload": BV_AimedSniper, "aim": "forward", "fire_min": 1.6, "fire_max": 2.2, "count": 1, "spread_deg": 0.0 }],
+		# Bench 2026-07-06: 6-shot bolt burst (fire 0.1, burst 0.15) capped at one burst per pass; engine -1.
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/bolt.tres"), "aim": "forward", "fire_min": 0.1, "fire_max": 0.1, "count": 6, "burst_interval": 0.15, "max_fires": 1, "spread_deg": 0.0 }],
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "lane_cut",
 		"base_count": 2,
 		"fire_min": 1.6, "fire_max": 2.4,
-		"hp_override": 2, "bounty_override": 10,
+		"engine": -1,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.9, "chaff": true,
 		"conflict_tags": ["aimed_or_spread"],
 	},
@@ -704,13 +705,13 @@ const ENTRIES := [
 		# Specter (Roman art 2026-07-06) — corporate small multi-muzzle gunner (four muzzles
 		# MuzzleL/R + MuzzleL2/R2). Placeholder stats for Enemy-Bench tuning; not yet in the wave roll.
 		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_specter.tscn",
-		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "all", "payload": BV_Basic, "aim": "straight_down", "fire_min": 1.4, "fire_max": 2.0, "count": 1, "spread_deg": 0.0 }],
+		# Bench 2026-07-06: 2-shot bolt burst (fire 1.4, burst 0.1) capped at one burst per pass.
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "all", "payload": preload("res://data/bullets/bolt.tres"), "aim": "forward", "fire_min": 1.4, "fire_max": 1.4, "count": 2, "burst_interval": 0.1, "max_fires": 1, "spread_deg": 0.0 }],
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "lane_hook",
 		"base_count": 2,
 		"fire_min": 1.4, "fire_max": 2.2,
-		"hp_override": 2, "bounty_override": 10,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.9, "chaff": true,
 		"conflict_tags": [],
 	},
