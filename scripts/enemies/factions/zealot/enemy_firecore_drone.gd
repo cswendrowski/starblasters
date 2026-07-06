@@ -12,7 +12,11 @@ class_name EnemyFirecoreDrone
 
 const StraightDown = preload("res://scripts/enemies/patterns/straight_down.gd")
 const OrbitComponentC = preload("res://scripts/enemies/components/orbit_component.gd")
-const BV_Basic = preload("res://data/bullets/basic.tres")
+# Faction-bullet migration (Roman 2026-07-06): the released ring shells are now the zealot faction ball
+# (was the non-reskinning legacy basic.tres). The OrbitComponent VISUAL release doesn't run
+# faction_variant, so a per-faction variant (inherently zealot art) is used directly rather than a
+# generic frame-reskin family — the bloom is a zealot unit.
+const BV_ZealotBall = preload("res://data/bullets/zealot_ball.tres")
 
 # Number of concentric rings (clamped 1-4). More rings = denser flower AND a bigger death release.
 @export var ring_count: int = 2
@@ -66,7 +70,7 @@ func _ready() -> void:
 				"radius": RING_RADIUS_BASE + RING_RADIUS_STEP * float(r),
 				"count": RING_BULLET_BASE + RING_BULLET_STEP * r,
 				"speed": RING_SPEED_BASE * pow(RING_SPEED_FALLOFF, float(r)) * (-1.0 if small else 1.0),
-				"variant": BV_Basic,
+				"variant": BV_ZealotBall,
 				"scale": SMALL_SCALE if small else 1.0,
 			})
 		oc.rings = rings

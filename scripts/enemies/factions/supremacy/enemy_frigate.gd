@@ -35,6 +35,11 @@ const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 const BULLET_SCENE = preload("res://scenes/projectiles/enemy_bullet.tscn")
 const MuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
 const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
+# Faction bullet (Roman 2026-07-06): the broadside now fires the frame-reskin ball family (tinted to the
+# frigate's faction at spawn), resolved through BulletCatalog like the mounts/turrets do — instead of the
+# enemy_bullet shell's baked legacy variant.
+const BulletCatalog = preload("res://scripts/projectiles/bullet_catalog.gd")
+const FACTION_BALL = preload("res://data/bullets/ball.tres")
 
 enum Mode { TOP_DESCENT, SIDE_CROSS }
 
@@ -137,14 +142,20 @@ func _update_broadside(delta: float) -> void:
 func _fire_gun(prefix: String, dir: Vector2) -> void:
 	var marker := get_node_or_null(prefix + str(_next_gun + 1)) as Marker2D
 	var spawn_pos: Vector2 = marker.global_position if marker else global_position
-	var b = BULLET_SCENE.instantiate()
-	b.speed = BULLET_SPEED
+	# Resolve the faction-reskinned ball to its indexed scene (projectile_ball with the faction frame),
+	# mirroring the mount/turret fire path; fall back to the shell if it has no indexed scene.
+	var bv = BulletCatalog.faction_variant(FACTION_BALL, int(get_meta("faction_skin", -1)))
+	var scn: PackedScene = BulletCatalog.scene_for(bv)
+	var b = scn.instantiate() if scn != null else BULLET_SCENE.instantiate()
+	if "variant" in b:
+		b.variant = bv
 	var world: Node = BulletWorld.resolve(self, get_tree().root)
 	world.add_child(b)
 	if b.has_method("start"):
 		b.start(spawn_pos, dir)
 	elif "velocity_dir" in b:
 		b.velocity_dir = dir
+	b.speed = BULLET_SPEED   # the frigate's tuned broadside speed wins over the variant's (set after start)
 	MuzzleFx.play_enemy(spawn_pos, dir, world)
 	EnemySfxC.play_for(self)
 

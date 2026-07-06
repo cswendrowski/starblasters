@@ -100,12 +100,17 @@ static func _faction_filtered(pool: Array) -> Array:
 const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
 
 # Bullet variant resources — wired per entry below.
-const BV_Basic        = preload("res://data/bullets/basic.tres")
-const BV_SpreadPellet = preload("res://data/bullets/spread_pellet.tres")
-const BV_AimedSniper  = preload("res://data/bullets/aimed_sniper.tres")
-const BV_BurstRound   = preload("res://data/bullets/burst_round.tres")
-const BV_PlasmaOrb    = preload("res://data/bullets/plasma_orb.tres")
-const BV_HeavySlug    = preload("res://data/bullets/heavy_slug.tres")
+# Faction-bullet migration (Roman 2026-07-06): these legacy-named consts now ALIAS the new frame-reskin
+# families (ball/bolt/wave — the projectile_<type> 4-frame sheets that reskin to the firing enemy's
+# faction at spawn via BulletCatalog.faction_variant). The old non-reskinning basic/spread_pellet/
+# aimed_sniper/burst_round/plasma_orb/heavy_slug .tres are retired from enemy use (kept only for the
+# bullet_catalog _map + legacy enemy_bullet_*.tscn infra). Roman keeps the per-faction zealot_*/priv_* sets.
+const BV_Basic        = preload("res://data/bullets/ball.tres")
+const BV_SpreadPellet = preload("res://data/bullets/ball.tres")
+const BV_AimedSniper  = preload("res://data/bullets/bolt.tres")
+const BV_BurstRound   = preload("res://data/bullets/ball.tres")
+const BV_PlasmaOrb    = preload("res://data/bullets/wave.tres")
+const BV_HeavySlug    = preload("res://data/bullets/bolt.tres")
 const BV_DropPellet   = preload("res://data/bullets/drop_pellet.tres")
 # Zealot faction projectiles (Roman 2026-06-16) — assignable in the Enemy Bench.
 const BV_ZealotBall   = preload("res://data/bullets/zealot_ball.tres")
