@@ -12,6 +12,7 @@ const MountSpecC = preload("res://scripts/enemies/mounts/mount_spec.gd")
 const MountComponentC = preload("res://scripts/enemies/mounts/mount_component.gd")
 const EnemyTurretC = preload("res://scripts/enemies/enemy_turret.gd")
 const BeamEmitterC = preload("res://scripts/enemies/beam_emitter.gd")
+const OrbitComponentC = preload("res://scripts/enemies/components/orbit_component.gd")
 
 
 # Realize every spec. Returns the GUN/LAUNCHER MountComponents (the caller registers them into the
@@ -40,6 +41,17 @@ static func attach(enemy: Node, spec):
 	if int(spec.kind) == MountSpecC.Kind.BEAM or not spec.beam_config.is_empty():
 		_attach_beam(enemy, spec)
 		return null
+	# Ring DELIVERY (Hardpoint v2 Phase C, 2026-07-05): an OrbitComponent holding N rings of payloads,
+	# released on death/leave. Returned as a component the caller registers — enemy_base then ticks its
+	# on_start/on_process/on_death/on_leave (the same lifecycle the bespoke bloom/mines rings use).
+	if int(spec.kind) == MountSpecC.Kind.RING:
+		var oc = OrbitComponentC.new()
+		oc.mode = int(spec.orbit_mode)
+		oc.rings = spec.rings
+		oc.release_speed = spec.release_speed
+		oc.host_drift = spec.host_drift
+		oc.release_sfx = spec.release_sfx
+		return oc
 	# Bullet or Projectile payload → a MountComponent with its own fire timer (the gun-vs-launcher spawn
 	# path is chosen at fire time by payload_scene; Phase A launcher collapse). ENTITY also rides it.
 	var mc = MountComponentC.new()

@@ -18,7 +18,7 @@ extends Resource
 # Hardpoint v2 Phase A (2026-07-05): the GUN vs LAUNCHER fire path is now chosen by PAYLOAD TYPE, not
 # kind — a mount with a payload_scene takes the projectile path whatever its kind, so LAUNCHER is just a
 # GUN carrying a payload_scene. Kept as a roster/bench alias (zero-churn), no longer its own fire branch.
-enum Kind { GUN, TURRET, LAUNCHER, BEAM, ENTITY }
+enum Kind { GUN, TURRET, LAUNCHER, BEAM, ENTITY, RING }
 enum Aim { STRAIGHT_DOWN, TOWARD_CENTER, AT_PLAYER, FORWARD, BACKWARD, LEFT, RIGHT }   # mirrors Weapon.Aim (int values MUST stay in lockstep)
 # ALL = fire from every matched marker; CYCLE = one per volley (scene order). INWARD/OUTWARD =
 # ordered cycle by horizontal distance from the hull centre — OUTWARD fires the outermost hardpoint
@@ -102,3 +102,13 @@ enum Trigger { CADENCE, START, DEATH }
 @export var attach_to_enemy: bool = false    # child of the enemy (carried turrets ride along)
 @export var emit_tag: String = ""            # optional identifier (e.g. "firecore")
 @export var emit_sfx: String = ""            # optional WeaponSfx key played on each emit
+
+# --- RING only (Hardpoint v2 Phase C, 2026-07-05) — an OrbitComponent delivery: N rings of payloads
+# orbit the host and are RELEASED on death/leave (folds firecore-bloom + cluster/gravity mines onto one
+# path). MountBuilder realizes these into an OrbitComponent. Each ring dict = { radius, count, speed,
+# variant (VISUAL BulletVariant), scene (LIVE payload), tex, scale, color }. See OrbitComponent. ---
+@export var rings: Array = []                 # the ring specs (see OrbitComponent.rings)
+@export var orbit_mode: int = 0               # 0 = VISUAL (bullet shells), 1 = LIVE (real payload scenes)
+@export var release_speed: float = 140.0      # VISUAL: outward speed of released projectiles (px/s)
+@export var host_drift: float = 0.0           # LIVE: host downward drift inherited on release (px/s)
+@export var release_sfx: String = "enemy_blaster"

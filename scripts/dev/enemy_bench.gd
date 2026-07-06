@@ -1736,6 +1736,26 @@ func _build_orbit():
 	return oc
 
 
+# A paste-ready roster "mounts" entry for the authored orbit as a kind:"ring" hardpoint (Phase C). The
+# ring is authored in the dedicated Orbit panel (a nested mode+rings collection that doesn't fit a flat
+# mount row), but its ROSTER OUTPUT is now a unified RING hardpoint, not a bespoke OrbitComponent.
+func _orbit_mount_copy_line() -> String:
+	var ring_parts: Array = []
+	for r in _orbit_rings:
+		var pname: String = String(r.get("payload", ""))
+		var pay: String
+		if _orbit_mode == "live":
+			pay = "\"scene\": preload(\"%s\")" % String(ORBIT_LIVE_PAYLOADS.get(pname, ORBIT_LIVE_PAYLOADS["Bomblet"]))
+		else:
+			pay = "\"variant\": %s" % String(PAYLOAD_CONST.get(pname, "preload(\"res://data/bullets/ball.tres\")"))
+		ring_parts.append("{ \"radius\": %.0f, \"count\": %d, \"speed\": %.2f, %s }" % [
+			float(r.get("radius", 16.0)), int(r.get("count", 6)), float(r.get("speed", 1.6)), pay])
+	# orbit_mode: 0 = VISUAL, 1 = LIVE. host_drift only matters for LIVE (matches _build_orbit's 60).
+	var mode_i: int = 1 if _orbit_mode == "live" else 0
+	var drift: String = ", \"host_drift\": 60.0" if _orbit_mode == "live" else ""
+	return "{ \"kind\": \"ring\", \"orbit_mode\": %d%s, \"rings\": [%s] }," % [mode_i, drift, ", ".join(ring_parts)]
+
+
 # Scan authored Marker2D names from a scene's state (no instantiation, like _icon_for).
 func _scan_markers(path: String) -> Array:
 	var ps := load(path) as PackedScene
@@ -2449,11 +2469,17 @@ func _on_copy() -> void:
 	if bool(s.get("retro", false)): loco_flags.append("retro")
 	if not loco_flags.is_empty():
 		txt += "# -> scene root (enemy_base): set %s = true\n" % ", ".join(loco_flags)
-	# Mounts → a roster ENTRY "mounts" block (extra emitters beyond the hull weapon).
-	if not _mount_dicts.is_empty():
+	# Mounts → a roster ENTRY "mounts" block (extra hardpoints beyond the hull weapon). Phase C: an
+	# authored orbit ring folds in here as a kind:"ring" hardpoint (was a bespoke OrbitComponent block).
+	var mount_lines: Array = []
+	for d in _mount_dicts:
+		mount_lines.append(_mount_copy_line(d))
+	if not _orbit_rings.is_empty():
+		mount_lines.append(_orbit_mount_copy_line())
+	if not mount_lines.is_empty():
 		txt += "\n# -> roster ENTRY \"mounts\":\n\"mounts\": [\n"
-		for d in _mount_dicts:
-			txt += "\t%s\n" % _mount_copy_line(d)
+		for ml in mount_lines:
+			txt += "\t%s\n" % ml
 		txt += "],\n"
 	# Emitters → a roster ENTRY "emitters" block (droppers/spawners — the EmitterComponent path).
 	if not _emitter_dicts.is_empty():
@@ -2461,22 +2487,8 @@ func _on_copy() -> void:
 		for d in _emitter_dicts:
 			txt += "\t%s\n" % _emitter_copy_line(d)
 		txt += "],\n"
-	# Orbit rings → an OrbitComponent built in the enemy's _ready (cluster-mine / bloom). Rings released on death.
-	if not _orbit_rings.is_empty():
-		txt += "\n# -> OrbitComponent (add to components in _ready, BEFORE super._ready()):\n"
-		txt += "var oc = OrbitComponent.new()\n"
-		txt += "oc.mode = OrbitComponent.Mode.%s\n" % ("LIVE" if _orbit_mode == "live" else "VISUAL")
-		txt += "oc.rings = [\n"
-		for r in _orbit_rings:
-			var pname: String = String(r.get("payload", ""))
-			var pay: String
-			if _orbit_mode == "live":
-				pay = "\"scene\": preload(\"%s\")" % String(ORBIT_LIVE_PAYLOADS.get(pname, ORBIT_LIVE_PAYLOADS["Bomblet"]))
-			else:
-				pay = "\"variant\": %s" % String(PAYLOAD_CONST.get(pname, "preload(\"res://data/bullets/ball.tres\")"))
-			txt += "\t{ \"radius\": %.0f, \"count\": %d, \"speed\": %.2f, %s },\n" % [
-				float(r.get("radius", 16.0)), int(r.get("count", 6)), float(r.get("speed", 1.6)), pay]
-		txt += "]\ncomponents = [oc]\n"
+	# (Phase C: the orbit ring now emits as a kind:"ring" entry inside the "mounts" block above,
+	# not a bespoke OrbitComponent — see _orbit_mount_copy_line.)
 	# Paste-ready enemy_strings.gd STRINGS entry (the name + codex live in a baked
 	# const dict, so this is the handoff back into source).
 	var codex_one_line: String = String(s["codex"]).replace("\n", " ").replace("\"", "'")

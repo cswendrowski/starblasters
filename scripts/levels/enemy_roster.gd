@@ -1626,7 +1626,7 @@ static func make_mount_specs(dicts: Array) -> Array:
 	return out
 
 
-const _MOUNT_KIND := {"gun": 0, "turret": 1, "launcher": 2, "beam": 3, "entity": 4}   # MountSpec.Kind
+const _MOUNT_KIND := {"gun": 0, "turret": 1, "launcher": 2, "beam": 3, "entity": 4, "ring": 5}   # MountSpec.Kind
 const _MOUNT_AIM := {"straight_down": 0, "toward_center": 1, "at_player": 2, "forward": 3, "backward": 4, "left": 5, "right": 6}  # MountSpec.Aim
 const _MOUNT_MODE := {"all": 0, "cycle": 1, "inward": 2, "outward": 3}         # MountSpec.MarkerMode
 const _HARDPOINT_TRIGGER := {"cadence": 0, "timer": 0, "start": 1, "death": 2}  # MountSpec.Trigger (ENTITY)
@@ -1691,7 +1691,30 @@ static func _mount_from_dict(d: Dictionary) -> Resource:
 	m.attach_to_enemy = bool(d.get("attach_to_enemy", d.get("attach", false)))
 	m.emit_tag = String(d.get("tag", ""))
 	m.emit_sfx = String(d.get("sfx", ""))
+	# RING (Phase C): an OrbitComponent delivery — orbiting payloads released on death/leave.
+	m.orbit_mode = int(d.get("orbit_mode", 0))
+	m.release_speed = float(d.get("release_speed", 140.0))
+	m.host_drift = float(d.get("host_drift", 0.0))
+	m.release_sfx = String(d.get("release_sfx", "enemy_blaster"))
+	m.rings = _resolve_rings(d.get("rings", []))
 	return m
+
+
+# Resolve a ring-spec list for a RING mount: load any String `scene` path into a PackedScene (roster
+# GDScript already preloads; bench-JSON rings arrive as paths). `variant` is passed through as-is.
+static func _resolve_rings(src) -> Array:
+	if not (src is Array):
+		return []
+	var out: Array = []
+	for r in src:
+		if not (r is Dictionary):
+			continue
+		var ring: Dictionary = (r as Dictionary).duplicate()
+		var sc = ring.get("scene", null)
+		if sc is String and sc != "":
+			ring["scene"] = load(sc)
+		out.append(ring)
+	return out
 
 
 # ---- Emitters (behavior components: drop/spawn a payload scene on a trigger) ----------------------
