@@ -188,6 +188,33 @@ func _run() -> void:
 					in_hold = true
 			_ck(in_hold, "blaster swap pulls the OLD blaster to the hold (no overwrite)")
 
+	# Deck life: landing builds the DeckLife node (child of the plate) + spawns wandering crew; a
+	# reaction dispatches without error.
+	_oa.begin_landed()
+	_ck(_oa._deck != null and is_instance_valid(_oa._deck), "deck life built on landing")
+	if _oa._deck != null and is_instance_valid(_oa._deck):
+		_ck(_oa._deck._crew.size() == _oa.deck_crew_count, "deck spawned the configured crew count")
+		_ck(_oa._deck._crates.size() == _oa.deck_crate_count, "deck spawned the configured crate count")
+		_oa.deck_react("repair")
+		_ck(true, "deck reaction dispatched without error")
+		# Two-crew crate carry: starts (pins 2 crew) then drives to completion without error.
+		_oa.deck_carry_now()
+		_ck(_oa._deck._carry != null, "crate carry started — 2 crew flank a crate")
+		var guard := 0
+		while _oa._deck._carry != null and guard < 6000:
+			_oa._deck._tick_carry(0.05)
+			guard += 1
+		_ck(_oa._deck._carry == null, "crate carry ran to completion (approach → carry → set down)")
+		# Lifter run: a crew boards the hover lifter, it moves a crate, returns, crew disembarks.
+		_ck(is_instance_valid(_oa._deck._lifter), "lifter spawned from the real scene")
+		_oa.deck_lifter_run_now()
+		_ck(_oa._deck._lift_job != null, "lifter run started (crew boards)")
+		var lguard := 0
+		while _oa._deck._lift_job != null and lguard < 20000:
+			_oa._deck._tick_lift_job(0.05)
+			lguard += 1
+		_ck(_oa._deck._lift_job == null, "lifter run ran to completion (board → haul → return → disembark)")
+
 	print("live: hold=%d market=%d offers=%d bounty=%d materials=%d" %
 		[_oa._hold.size(), _oa._market.size(), run.outpost_weapon_offers.size(), int(run.bounty), int(run.materials)])
 	print("VERDICT: %s" % ("PASS" if _fails == 0 else "FAIL (%d)" % _fails))

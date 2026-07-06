@@ -31,16 +31,70 @@ var _status: Label = null
 var _val_labels: Dictionary = {}   # key -> value Label
 
 
+const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
+const SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
+
+
 func _ready() -> void:
 	_hd = HdScreen.enter(self)
+	_seed_live_run()   # render the LIVE outpost (real Run loadout/economy + split slots), not the mock
 	_oa = load(OA_SCENE).instantiate()
 	_oa.manage_hd_scope = false
 	_oa.return_to_map = false   # lab owns depart (don't navigate to the sector map)
-	_oa.damage_level = 0.6   # arrive visibly battle-damaged so the shader + tells show for review
 	_oa.landed.connect(_on_landed)
 	_oa.departed.connect(_on_departed)
 	add_child(_oa)
 	_build_rail()
+	_build_tune_button()
+
+
+# A persistent config-collapser (copied from patrol_start's "Tune ⚙"): toggles the rail so the shop
+# panel underneath is reachable (the rail covers the left services column, incl. the scrap/sell toggles).
+func _build_tune_button() -> void:
+	var tune := UiTheme.make_button("Tune ⚙", true)
+	tune.position = Vector2(16, 10)
+	tune.custom_minimum_size = Vector2(120, 38)
+	tune.size = Vector2(120, 38)
+	tune.pressed.connect(func() -> void: _set_rail_visible(not _rail.visible))
+	add_child(tune)   # added after the rail → drawn on top, always clickable even when the rail is hidden
+
+
+# Seed a demo mid-run so the embedded dock detects `_live` and shows the current live UI (BLASTER +
+# PRIMARY split, hull/super header, live services with 1/All + icons, real market offers, battle-worn
+# ship). NOTE: this mutates the global Run autoload — fine for a dev tool; a real run start re-seeds it.
+func _seed_live_run() -> void:
+	var run := get_node_or_null("/root/Run")
+	if run == null:
+		return
+	if run.has_method("new_run"):
+		run.new_run()
+	run.run_seed = 0xDECA11   # non-zero → the dock renders the live path
+	run.bounty = 3500
+	run.materials = 18
+	run.repair_charges = 5
+	run.ammo_restock_charges = 4
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 77
+	var prim = PartCatalog.roll_for_slot(rng, SlotTypes.SlotType.CANNON, 3)
+	if prim != null:
+		run.equip_part(prim)
+	var sec = PartCatalog.roll_for_slot(rng, SlotTypes.SlotType.HARDPOINT_WING, 2)
+	if sec != null:
+		run.equip_part(sec)
+	var mod = PartCatalog.roll_for_slot(rng, SlotTypes.SlotType.MODULE, 2)
+	if mod != null:
+		run.add_module(mod)
+	var stored = PartCatalog.roll_for_slot(rng, SlotTypes.SlotType.HARDPOINT_WING, 1)
+	if stored != null:
+		run.weapon_storage.append(stored)
+	var inv = PartCatalog.roll_for_slot(rng, SlotTypes.SlotType.MODULE, 3)
+	if inv != null:
+		run.inventory.append(inv)
+	# Battle-worn: low hull + partial super so the ship shows damage and Repair/Refill have work to do.
+	run.current_hull = maxi(1, int(run.max_hull) - 3)
+	run.super_charges = maxi(0, int(run.max_super_charges) - 1)
+	run.outpost_weapon_offers = []
+	run.outpost_needs_refresh = false
 
 
 func _build_rail() -> void:
@@ -57,33 +111,35 @@ func _build_rail() -> void:
 	_rail = panel
 	_position_rail()
 
-	var scroll := ScrollContainer.new()
-	panel.add_child(scroll)
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 8)
-	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	v.custom_minimum_size = Vector2(424, 0)
-	scroll.add_child(v)
+	# Fixed header + tabs (Sequence / Activity, each its own scroll) + fixed footer actions.
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 8)
+	panel.add_child(outer)
 
-	v.add_child(_mk_label("OUTPOST ARRIVAL LAB", UiTheme.FONT_SIZE_HEADER, UiTheme.COLOR_ACCENT))
-	v.add_child(_mk_label("Tab: hide/show rail · Esc: back", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
-
-	# Move the rail to the other side so the shop panel it covers becomes visible to review.
+	outer.add_child(_mk_label("OUTPOST ARRIVAL LAB", UiTheme.FONT_SIZE_HEADER, UiTheme.COLOR_ACCENT))
+	outer.add_child(_mk_label("Tab: hide/show rail · Esc: back", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
 	var swap_side := UiTheme.make_button("Swap Rail Side ⇄", true)
 	swap_side.pressed.connect(_on_swap_side)
-	v.add_child(swap_side)
+	outer.add_child(swap_side)
 
-	# --- Ship variant ---
-	v.add_child(_mk_label("Ship", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
+	var tabs := TabContainer.new()
+	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tabs.add_theme_font_override("font", UiTheme.menu_font())
+	tabs.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	outer.add_child(tabs)
+
+	# ===== Sequence tab (the base cinematic + ship) =====
+	var seq := _add_tab(tabs, "Sequence")
+
+	seq.add_child(_mk_label("Ship", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
 	var dd := OptionButton.new()
 	for i in ShipCatalog.SHIPS.size():
 		dd.add_item(String(ShipCatalog.SHIPS[i]["name"]), i)
 	dd.selected = clampi(_oa.ship_variant, 0, ShipCatalog.count() - 1)
 	dd.item_selected.connect(func(i: int) -> void: _oa.set_ship(i, _oa.livery_color, _oa.livery_set))
-	v.add_child(dd)
+	seq.add_child(dd)
 
-	# --- Livery swatches ---
-	v.add_child(_mk_label("Livery", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
+	seq.add_child(_mk_label("Livery", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
 	var sw := HBoxContainer.new()
 	sw.add_theme_constant_override("separation", 6)
 	for c in SWATCHES:
@@ -97,67 +153,90 @@ func _build_rail() -> void:
 		b.add_theme_stylebox_override("pressed", bsb)
 		b.pressed.connect(func() -> void: _oa.set_ship(_oa.ship_variant, c, true))
 		sw.add_child(b)
-	v.add_child(sw)
+	seq.add_child(sw)
 
-	v.add_child(HSeparator.new())
+	seq.add_child(HSeparator.new())
 
 	# --- Fly-in ---
-	_add_slider(v, "arrival_time", "Fly-in duration (s)", 0.8, 5.0, 0.05, _oa.arrival_time, func(x): _oa.arrival_time = x)
-	_add_slider(v, "start_y", "Start Y (below screen)", 280.0, 400.0, 1.0, _oa.start_y, func(x): _oa.start_y = x)
-	_add_slider(v, "land_y", "Land Y (rest)", 100.0, 200.0, 1.0, _oa.land_y, func(x): _oa.land_y = x)
-	_add_slider(v, "idle_bob", "Idle bob amplitude", 0.0, 6.0, 0.1, _oa.idle_bob, func(x): _oa.idle_bob = x)
-	_add_slider(v, "engine_drift", "Engine plume drift (0 = motion-driven)", 0.0, 420.0, 5.0, _oa.engine_drift, func(x): _oa.engine_drift = x)
-	_add_slider(v, "star_drift", "Star parallax scroll (fly-in/out)", 0.0, 6000.0, 50.0, _oa.star_drift, func(x): _oa.star_drift = x)
-	_add_slider(v, "scene_dim", "Scene dim (whole bay; 1 = full bright)", 0.2, 1.0, 0.02, _oa.scene_dim, func(x): _oa.set_scene_dim(x))
-	_add_slider(v, "runway_speed", "Runway pulse speed (rad/s)", 0.2, 5.0, 0.1, _oa.runway_speed, func(x): _oa.set_runway_speed(x))
-	_add_slider(v, "engine_spool", "Engine spool fade (on/off, s)", 0.1, 2.5, 0.05, _oa.engine_spool, func(x): _oa.engine_spool = x)
-	_add_slider(v, "damage_level", "Damage (shader + smoke/sparks)", 0.0, 1.0, 0.05, _oa.damage_level, func(x): _oa.set_damage(x))
+	_add_slider(seq, "arrival_time", "Fly-in duration (s)", 0.8, 5.0, 0.05, _oa.arrival_time, func(x): _oa.arrival_time = x)
+	_add_slider(seq, "start_y", "Start Y (below screen)", 280.0, 400.0, 1.0, _oa.start_y, func(x): _oa.start_y = x)
+	_add_slider(seq, "land_y", "Land Y (rest)", 100.0, 200.0, 1.0, _oa.land_y, func(x): _oa.land_y = x)
+	_add_slider(seq, "idle_bob", "Idle bob amplitude", 0.0, 6.0, 0.1, _oa.idle_bob, func(x): _oa.idle_bob = x)
+	_add_slider(seq, "engine_drift", "Engine plume drift (0 = motion-driven)", 0.0, 420.0, 5.0, _oa.engine_drift, func(x): _oa.engine_drift = x)
+	_add_slider(seq, "star_drift", "Star parallax scroll (fly-in/out)", 0.0, 6000.0, 50.0, _oa.star_drift, func(x): _oa.star_drift = x)
+	_add_slider(seq, "scene_dim", "Scene dim (whole bay; 1 = full bright)", 0.2, 1.0, 0.02, _oa.scene_dim, func(x): _oa.set_scene_dim(x))
+	_add_slider(seq, "runway_speed", "Runway pulse speed (rad/s)", 0.2, 5.0, 0.1, _oa.runway_speed, func(x): _oa.set_runway_speed(x))
+	_add_slider(seq, "engine_spool", "Engine spool fade (on/off, s)", 0.1, 2.5, 0.05, _oa.engine_spool, func(x): _oa.engine_spool = x)
+	_add_slider(seq, "damage_level", "Damage (shader + smoke/sparks)", 0.0, 1.0, 0.05, _oa.damage_level, func(x): _oa.set_damage(x))
 
-	v.add_child(HSeparator.new())
+	seq.add_child(HSeparator.new())
 
 	# --- Drop shadow ---
-	_add_slider(v, "fly_off_x", "Shadow fly offset X", 0.0, 28.0, 0.5, _oa.shadow_fly_offset.x, func(x): _oa.shadow_fly_offset.x = x)
-	_add_slider(v, "fly_off_y", "Shadow fly offset Y", 0.0, 32.0, 0.5, _oa.shadow_fly_offset.y, func(x): _oa.shadow_fly_offset.y = x)
-	_add_slider(v, "land_off_x", "Shadow land offset X", 0.0, 16.0, 0.5, _oa.shadow_land_offset.x, func(x): _oa.shadow_land_offset.x = x)
-	_add_slider(v, "land_off_y", "Shadow land offset Y", 0.0, 16.0, 0.5, _oa.shadow_land_offset.y, func(x): _oa.shadow_land_offset.y = x)
-	_add_slider(v, "fly_scale", "Shadow fly scale", 0.8, 1.6, 0.02, _oa.shadow_fly_scale, func(x): _oa.shadow_fly_scale = x)
-	_add_slider(v, "land_scale", "Shadow land scale", 0.6, 1.2, 0.02, _oa.shadow_land_scale, func(x): _oa.shadow_land_scale = x)
-	_add_slider(v, "fly_alpha", "Shadow fly alpha", 0.0, 1.0, 0.02, _oa.shadow_fly_alpha, func(x): _oa.shadow_fly_alpha = x)
-	_add_slider(v, "land_alpha", "Shadow land alpha", 0.0, 1.0, 0.02, _oa.shadow_land_alpha, func(x): _oa.shadow_land_alpha = x)
-	_add_slider(v, "settle_time", "Shadow settle time (s)", 0.1, 1.2, 0.05, _oa.shadow_settle_time, func(x): _oa.shadow_settle_time = x)
+	_add_slider(seq, "fly_off_x", "Shadow fly offset X", 0.0, 28.0, 0.5, _oa.shadow_fly_offset.x, func(x): _oa.shadow_fly_offset.x = x)
+	_add_slider(seq, "fly_off_y", "Shadow fly offset Y", 0.0, 32.0, 0.5, _oa.shadow_fly_offset.y, func(x): _oa.shadow_fly_offset.y = x)
+	_add_slider(seq, "land_off_x", "Shadow land offset X", 0.0, 16.0, 0.5, _oa.shadow_land_offset.x, func(x): _oa.shadow_land_offset.x = x)
+	_add_slider(seq, "land_off_y", "Shadow land offset Y", 0.0, 16.0, 0.5, _oa.shadow_land_offset.y, func(x): _oa.shadow_land_offset.y = x)
+	_add_slider(seq, "fly_scale", "Shadow fly scale", 0.8, 1.6, 0.02, _oa.shadow_fly_scale, func(x): _oa.shadow_fly_scale = x)
+	_add_slider(seq, "land_scale", "Shadow land scale", 0.6, 1.2, 0.02, _oa.shadow_land_scale, func(x): _oa.shadow_land_scale = x)
+	_add_slider(seq, "fly_alpha", "Shadow fly alpha", 0.0, 1.0, 0.02, _oa.shadow_fly_alpha, func(x): _oa.shadow_fly_alpha = x)
+	_add_slider(seq, "land_alpha", "Shadow land alpha", 0.0, 1.0, 0.02, _oa.shadow_land_alpha, func(x): _oa.shadow_land_alpha = x)
+	_add_slider(seq, "settle_time", "Shadow settle time (s)", 0.1, 1.2, 0.05, _oa.shadow_settle_time, func(x): _oa.shadow_settle_time = x)
 
-	v.add_child(HSeparator.new())
+	seq.add_child(HSeparator.new())
 
 	# --- Reveal / exit ---
-	_add_slider(v, "bars_fade_time", "Bar reveal/hide time (s)", 0.2, 1.4, 0.05, _oa.bars_fade_time, func(x): _oa.bars_fade_time = x)
-	_add_slider(v, "rise_time", "Lift-off rise time (s)", 0.2, 1.2, 0.05, _oa.rise_time, func(x): _oa.rise_time = x)
-	_add_slider(v, "flyoff_time", "Fly-off duration (s)", 0.4, 2.6, 0.05, _oa.flyoff_time, func(x): _oa.flyoff_time = x)
+	_add_slider(seq, "bars_fade_time", "Bar reveal/hide time (s)", 0.2, 1.4, 0.05, _oa.bars_fade_time, func(x): _oa.bars_fade_time = x)
+	_add_slider(seq, "rise_time", "Lift-off rise time (s)", 0.2, 1.2, 0.05, _oa.rise_time, func(x): _oa.rise_time = x)
+	_add_slider(seq, "flyoff_time", "Fly-off duration (s)", 0.4, 2.6, 0.05, _oa.flyoff_time, func(x): _oa.flyoff_time = x)
 
-	v.add_child(HSeparator.new())
+	seq.add_child(HSeparator.new())
 
 	# --- Shadows (prototype: light-derived vs legacy drop shadows) ---
-	v.add_child(_mk_label("Shadows (prototype)", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
+	seq.add_child(_mk_label("Shadows (prototype)", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
 	var sm := OptionButton.new()
 	sm.add_item("Legacy (drop)", OutpostArrival.ShadowMode.LEGACY)
 	sm.add_item("Key light", OutpostArrival.ShadowMode.KEY)
 	sm.add_item("Fill lights (2x3)", OutpostArrival.ShadowMode.FILL)
 	sm.selected = _oa.shadow_mode
 	sm.item_selected.connect(func(i: int) -> void: _oa.set_shadow_mode(i))
-	v.add_child(sm)
+	seq.add_child(sm)
 	var dyn := CheckBox.new()
 	dyn.text = "Dynamic (engine) casters"
 	dyn.button_pressed = _oa.shadow_dynamic
 	dyn.toggled.connect(func(on: bool) -> void: _oa.set_shadow_dynamic(on))
-	v.add_child(dyn)
-	_add_slider(v, "shadow_length", "Shadow length (px)", 0.0, 16.0, 0.5, _oa.shadow_length, func(x): _oa.set_shadow_length(x))
-	_add_slider(v, "shadow_alpha", "Shadow alpha (per light)", 0.0, 1.0, 0.02, _oa.shadow_alpha, func(x): _oa.set_shadow_alpha(x))
-	_add_slider(v, "shadow_falloff", "Shadow falloff (px)", 20.0, 300.0, 5.0, _oa.shadow_falloff, func(x): _oa.set_shadow_falloff(x))
-	_add_slider(v, "shadow_softness", "Shadow softness (scale+)", 0.0, 1.0, 0.05, _oa.shadow_softness, func(x): _oa.set_shadow_softness(x))
-	_add_slider(v, "shadow_max", "Max shadows / object", 1.0, 8.0, 1.0, float(_oa.shadow_max), func(x): _oa.set_shadow_max(x))
+	seq.add_child(dyn)
+	_add_slider(seq, "shadow_length", "Shadow length (px)", 0.0, 16.0, 0.5, _oa.shadow_length, func(x): _oa.set_shadow_length(x))
+	_add_slider(seq, "shadow_alpha", "Shadow alpha (per light)", 0.0, 1.0, 0.02, _oa.shadow_alpha, func(x): _oa.set_shadow_alpha(x))
+	_add_slider(seq, "shadow_falloff", "Shadow falloff (px)", 20.0, 300.0, 5.0, _oa.shadow_falloff, func(x): _oa.set_shadow_falloff(x))
+	_add_slider(seq, "shadow_softness", "Shadow softness (scale+)", 0.0, 1.0, 0.05, _oa.shadow_softness, func(x): _oa.set_shadow_softness(x))
+	_add_slider(seq, "shadow_max", "Max shadows / object", 1.0, 8.0, 1.0, float(_oa.shadow_max), func(x): _oa.set_shadow_max(x))
 
-	v.add_child(HSeparator.new())
+	# ===== Activity tab (deck life — tuned separately from the sequence) =====
+	var act := _add_tab(tabs, "Activity")
+	act.add_child(_mk_label("Deck crew", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
+	_add_slider(act, "deck_crew_count", "Crew count", 0.0, 16.0, 1.0, float(_oa.deck_crew_count), func(x): _oa.set_deck_crew_count(int(x)))
+	_add_slider(act, "deck_crew_speed", "Crew speed (px/f)", 0.2, 2.5, 0.05, _oa.deck_crew_speed, func(x): _oa.set_deck_crew_speed(x))
+	_add_slider(act, "deck_crate_count", "Crate count", 0.0, 8.0, 1.0, float(_oa.deck_crate_count), func(x): _oa.set_deck_crate_count(int(x)))
+	act.add_child(HSeparator.new())
+	act.add_child(_mk_label("Trigger a reaction", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
+	# HFlowContainer so the reaction buttons wrap to the next line instead of running off the rail.
+	var react_flow := HFlowContainer.new()
+	react_flow.add_theme_constant_override("h_separation", 6)
+	react_flow.add_theme_constant_override("v_separation", 6)
+	for kind in ["repair", "buy", "upgrade", "scrap"]:
+		var rb := UiTheme.make_button("→ %s" % kind, true)
+		rb.pressed.connect(func() -> void: _oa.deck_react(kind))
+		react_flow.add_child(rb)
+	var carry := UiTheme.make_button("→ carry crate", true)
+	carry.pressed.connect(func() -> void: _oa.deck_carry_now())
+	react_flow.add_child(carry)
+	var lift := UiTheme.make_button("→ lifter run", true)
+	lift.pressed.connect(func() -> void: _oa.deck_lifter_run_now())
+	react_flow.add_child(lift)
+	act.add_child(react_flow)
 
-	# --- Actions ---
+	# ===== Fixed footer (Replay / Depart / Copy / Back) =====
+	outer.add_child(HSeparator.new())
 	var actions := HBoxContainer.new()
 	actions.add_theme_constant_override("separation", 8)
 	var replay := UiTheme.make_button("Replay Arrival")
@@ -166,19 +245,34 @@ func _build_rail() -> void:
 	var depart := UiTheme.make_button("Depart")
 	depart.pressed.connect(_on_depart)
 	actions.add_child(depart)
-	v.add_child(actions)
+	outer.add_child(actions)
 
 	var copy := UiTheme.make_button("Copy GDScript")
 	copy.pressed.connect(_on_copy_gdscript)
-	v.add_child(copy)
+	outer.add_child(copy)
 
 	_status = _mk_label("Watch the arrival, then Depart. Tweak → Replay to apply.", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT)
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	v.add_child(_status)
+	outer.add_child(_status)
 
 	var back := UiTheme.make_button("Back")
 	back.pressed.connect(_back)
-	v.add_child(back)
+	outer.add_child(back)
+
+
+# A scrollable tab page (vertical scroll only); the ScrollContainer's name becomes the tab title.
+func _add_tab(tabs: TabContainer, title: String) -> VBoxContainer:
+	var scroll := ScrollContainer.new()
+	scroll.name = title
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 8)
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(v)
+	tabs.add_child(scroll)
+	return v
 
 
 # label + slider + live value readout (mirrors loading_screen_lab._add_slider).

@@ -49,6 +49,7 @@ const HANGAR_STAGE := "res://scenes/hangar_stage.tscn"   # shared authorable pla
 const PointLightFx = preload("res://scripts/effects/point_light_fx.gd")
 const DockShadowRig = preload("res://scripts/effects/dock_shadow_rig.gd")
 const DockConst = preload("res://scripts/effects/dock_const.gd")
+const DeckLifeScript = preload("res://scripts/screens/deck_life.gd")   # living-deck crew (rides the plate)
 # Live shop wiring (production): the dock reads/writes the real Run loadout/economy. Mirrors outpost.gd.
 const SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
@@ -58,7 +59,13 @@ const ArmoryStrings = preload("res://scripts/strings/armory_strings.gd")   # the
 # Top-bar stat icons — one 10×10 frame each: 0=hull, 1=super, 2=bounty, 3=materials (Roman 2026-06-29).
 const ICON_SHEET = preload("res://graphics/ui/outpost_icons.png")
 const ICON_FRAME := 10       # native px per frame (sheet is 40×10)
-const ICON_DISPLAY := 40     # HD px shown = 4× (matches the game's 480→1920 pixel scale; nearest-filtered)
+const ICON_DISPLAY := 30     # HD px shown = 3× (matches the 30px header text height; nearest-filtered, crisp)
+const ICON_HULL := 0
+const ICON_SUPER := 1
+const ICON_BOUNTY := 2
+const ICON_MAT := 3
+const CHIP_ICON := 20        # inline chip icon px (market price / info values, 2×)
+const BTN_ICON := 16         # button-located icon px (one step smaller so buttons aren't cramped)
 const SHOP_MAX_MK := 9
 const CANNON_BASE_COST := 116
 const CANNON_COST_PER_MK := 70
@@ -67,6 +74,8 @@ const SUPER_REFILL_COST := 120
 const PRIMARY_REFILL_COST := 100
 const SECONDARY_REFILL_COST := 60
 const SERVICE_BTN_W := 144.0   # uniform service-button width — fits a tagged 3-digit price ("All  ₵999")
+const CARD_BTN_W := 104.0      # scrap/sell card action button (icon + "+NNN")
+const UPGRADE_BTN_W := 184.0   # upgrade card button ("Mk.N ◆N ₵NNN")
 const WEAPONS_COLUMN_COUNT := 5
 const WEAPON_SLOT_WEIGHTS := [
 	SlotTypes.SlotType.CANNON, SlotTypes.SlotType.CANNON, SlotTypes.SlotType.CANNON, SlotTypes.SlotType.CANNON,
@@ -168,6 +177,11 @@ enum ShadowMode { LEGACY, KEY, FILL }
 @export var star_drift: float = 1500.0  # star-parallax scroll rate during fly-in/out (depth)
 @export var scene_dim: float = 0.6  # uniform dim of the whole bay output (engine lights counteract it; 1 = full)
 @export var runway_speed: float = 0.9   # runway-light pulse speed (rad/s; lower = slower)
+# Deck life — wandering crew on the plate (docs/deck_life_plan_2026-07-04.md). Spawns once landed.
+@export var deck_crew_count: int = 5
+@export var deck_crew_speed: float = 0.8   # px/frame (well under the clarity ceiling)
+@export var deck_crate_count: int = 3      # movable crates for the crate-carry / walk-to-box behaviors
+@export var deck_lifter: bool = true       # spawn the hover lifter (a crew boards it to move crates)
 # Light-derived shadow prototype (Roman 2026-06-26) — see ShadowMode. Default LEGACY = unchanged.
 @export var shadow_mode: int = ShadowMode.LEGACY
 @export var shadow_dynamic: bool = false   # also cast from the bright engine lights (fade with glow)
@@ -192,6 +206,7 @@ var _damage_mat: ShaderMaterial = null
 var _engine_on: bool = false
 var _stars = null                  # layer_stars instance (two-layer parallax + deep-space void)
 var _plate: Node2D = null          # shared hangar_stage instance (descends in / slides out); owns runway + fill
+var _deck = null                   # DeckLife (crew), child of _plate so it rides in/out; built on landed
 var _bg_tween: Tween = null
 var _bg_center_y: float = 135.0    # plate rest position (centered) — set from plate_size()
 var _bg_above_y: float = -135.0    # fully off the top (fly-in start)
@@ -239,6 +254,7 @@ var _money_lbl: Label = null
 var _parts_lbl: Label = null
 var _hull_lbl: Label = null
 var _super_lbl: Label = null
+var _icon_cache: Dictionary = {}   # frame → shared AtlasTexture
 var _toast_lbl: Label = null
 var _toast_tween: Tween = null
 var _info_popup: Control = null
@@ -272,6 +288,11 @@ func _ready() -> void:
 	_build_bottom_bar()
 	_build_toast()
 	_built = true
+	# Outpost music. Also un-silences after the sector map ducked the audio for the
+	# synchronous load (sector_map_v3._duck_music_for_load) — without this the outpost
+	# would stay silent. Idempotent, so re-entries (e.g. back from the Codex) are fine.
+	if has_node("/root/Music"):
+		get_node("/root/Music").set_context("outpost")
 	if _consume_dock_skip():
 		# Returning from a side trip (e.g. the Codex) lands immediately — no second fly-in. Only the
 		# ARRIVAL is skipped; depart still animates normally unless dock cinematics are turned fully off.
@@ -1108,21 +1129,149 @@ func _stat_field(row: HBoxContainer, frame: int, initial: String, color: Color) 
 	var box := HBoxContainer.new()
 	box.add_theme_constant_override("separation", 8)
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
-	var icon := TextureRect.new()
-	var atlas := AtlasTexture.new()
-	atlas.atlas = ICON_SHEET
-	atlas.region = Rect2(frame * ICON_FRAME, 0, ICON_FRAME, ICON_FRAME)
-	icon.texture = atlas
-	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	icon.custom_minimum_size = Vector2(ICON_DISPLAY, ICON_DISPLAY)
-	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	box.add_child(icon)
+	box.add_child(_icon_widget(frame, ICON_DISPLAY, color))
 	var lbl := _label(initial, UiTheme.FONT_SIZE_HEADER, color)
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	box.add_child(lbl)
 	row.add_child(box)
 	return lbl
+
+
+# ---- Stat-icon helpers (bounty / materials / hull / super across the menus) ----
+
+# Cached AtlasTexture per frame (shared read-only across every widget).
+func _icon_tex(frame: int) -> AtlasTexture:
+	if not _icon_cache.has(frame):
+		var a := AtlasTexture.new()
+		a.atlas = ICON_SHEET
+		a.region = Rect2(frame * ICON_FRAME, 0, ICON_FRAME, ICON_FRAME)
+		_icon_cache[frame] = a
+	return _icon_cache[frame]
+
+
+# Each icon's canonical tint (matches the value colors used around the UI).
+func _icon_color(frame: int) -> Color:
+	match frame:
+		ICON_HULL: return UiTheme.COLOR_TEXT
+		ICON_SUPER: return UiTheme.COLOR_ACCENT
+		ICON_BOUNTY: return UiTheme.COLOR_BOUNTY
+		ICON_MAT: return UiTheme.COLOR_GREEN
+	return UiTheme.COLOR_TEXT
+
+
+# A crisp, nearest-filtered, color-tinted icon TextureRect sized to `px`.
+func _icon_widget(frame: int, px: int, color: Color) -> TextureRect:
+	var ic := TextureRect.new()
+	ic.texture = _icon_tex(frame)
+	ic.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	ic.custom_minimum_size = Vector2(px, px)
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	ic.modulate = color
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return ic
+
+
+# Inline [icon + text] chip for a LABEL position (market price, info values). Non-interactive.
+func _icon_chip(frame: int, text: String, color: Color) -> HBoxContainer:
+	var box := HBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(_icon_widget(frame, CHIP_ICON, color))
+	if text != "":
+		var lbl := _label(text, UiTheme.FONT_SIZE_BODY, color)
+		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(lbl)
+	return box
+
+
+# A button whose FACE is a centered icon+number row (Button can't hold rich content directly, so the
+# face is a full-rect child HBox with clicks passed through). Returns [button, face] for the caller to
+# fill. Grays out (disabled) when not `enabled`.
+func _face_button(width: float, enabled: bool, cb: Callable) -> Array:
+	var b := UiTheme.make_button("", true)
+	if width > 0.0:
+		b.custom_minimum_size = Vector2(width, 0)
+	b.disabled = not enabled
+	if enabled:
+		b.pressed.connect(cb)
+	var face := HBoxContainer.new()
+	face.alignment = BoxContainer.ALIGNMENT_CENTER
+	face.add_theme_constant_override("separation", 5)
+	face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(face)
+	face.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	return [b, face]
+
+
+func _face_add_text(face: HBoxContainer, text: String, color: Color) -> void:
+	var l := _label(text, UiTheme.FONT_SIZE_BUTTON, color)
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	face.add_child(l)
+
+
+# A price/amount button: optional [lead icon] (hull/super identity, next to the quantity) + tag
+# ("1"/"All"/"Fill") + [value icon][value]. Grays when not enabled. lead_frame < 0 = no lead icon.
+func _price_button(lead_frame: int, tag: String, frame: int, value: String, enabled: bool, cb: Callable, width: float = 0.0) -> Button:
+	var pair := _face_button(width, enabled, cb)
+	var b: Button = pair[0]
+	var face: HBoxContainer = pair[1]
+	var col: Color = _icon_color(frame) if enabled else UiTheme.COLOR_DISABLED
+	if lead_frame >= 0:
+		face.add_child(_icon_widget(lead_frame, BTN_ICON, _icon_color(lead_frame) if enabled else UiTheme.COLOR_DISABLED))
+	if tag != "":
+		_face_add_text(face, tag, UiTheme.COLOR_TEXT if enabled else UiTheme.COLOR_DISABLED)
+	face.add_child(_icon_widget(frame, BTN_ICON, col))
+	_face_add_text(face, value, col)
+	return b
+
+
+# A dual-currency button (upgrade): lead tag ("Mk.N:") + [◆ mats][₵ cost]. Grays when not enabled.
+func _dual_cost_button(tag: String, mats: int, bounty_cost: int, enabled: bool, cb: Callable, width: float = 0.0) -> Button:
+	var pair := _face_button(width, enabled, cb)
+	var b: Button = pair[0]
+	var face: HBoxContainer = pair[1]
+	var mc: Color = _icon_color(ICON_MAT) if enabled else UiTheme.COLOR_DISABLED
+	var bc: Color = _icon_color(ICON_BOUNTY) if enabled else UiTheme.COLOR_DISABLED
+	if tag != "":
+		_face_add_text(face, tag, UiTheme.COLOR_TEXT if enabled else UiTheme.COLOR_DISABLED)
+	face.add_child(_icon_widget(ICON_MAT, BTN_ICON, mc))
+	_face_add_text(face, str(mats), mc)
+	face.add_child(_icon_widget(ICON_BOUNTY, BTN_ICON, bc))
+	_face_add_text(face, str(bounty_cost), bc)
+	return b
+
+
+# A labelled value row: "Label:" + [icon][value] chip (used in the info popup).
+func _value_row(label_text: String, frame: int, value: String, color: Color) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.add_child(_label(label_text, UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_FAINT))
+	row.add_child(_icon_chip(frame, value, color))
+	return row
+
+
+# A wrapping mode-help line (caption size, tinted). RichTextLabel so the text can WRAP (the old
+# single-line captions overflowed the panel) and carry inline ◆/₵ icons. Build via add_text/_help_icon.
+func _mode_help(color: Color) -> RichTextLabel:
+	var rt := RichTextLabel.new()
+	rt.fit_content = true
+	rt.scroll_active = false
+	rt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	rt.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	rt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rt.add_theme_font_override("normal_font", UiTheme.menu_font())
+	rt.add_theme_font_size_override("normal_font_size", UiTheme.FONT_SIZE_CAPTION)
+	rt.add_theme_color_override("default_color", color)
+	return rt
+
+
+# Append an inline stat icon into a mode-help RichTextLabel (shared sheet, tinted, button-size).
+func _help_icon(rt: RichTextLabel, frame: int) -> void:
+	rt.add_image(ICON_SHEET, BTN_ICON, BTN_ICON, _icon_color(frame), INLINE_ALIGNMENT_CENTER, Rect2(frame * ICON_FRAME, 0, ICON_FRAME, ICON_FRAME))
 
 
 func _open_options() -> void:
@@ -1241,7 +1390,7 @@ func _market_card(entry: Dictionary) -> PanelContainer:
 	var price: int = _sell_price(entry) if is_bb else int(entry.get("cost", _item_value(entry)))
 	var afford: bool = _afford(price)
 	# Can't afford it → the price reddens and the buy button grays out.
-	row.add_child(_label("₵%d" % price, UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_BOUNTY if afford else UiTheme.COLOR_DANGER))
+	row.add_child(_icon_chip(ICON_BOUNTY, str(price), UiTheme.COLOR_BOUNTY if afford else UiTheme.COLOR_DANGER))
 	# Compact "i" info button (the full label pushed BUY out of frame). Same popup as owned parts.
 	row.add_child(_info_btn(entry))
 	var btn := UiTheme.make_button("BUYBACK" if is_bb else "BUY", true)
@@ -1263,6 +1412,7 @@ func _buy_market(entry: Dictionary) -> void:
 		toast("Not enough ₵")
 		return
 	OutpostSfx.play("equip")
+	deck_react("buy")   # a crew jogs over to take delivery
 	if _live:
 		var run := get_node_or_null("/root/Run")
 		var part = entry.get("part")
@@ -1314,26 +1464,26 @@ func _rebuild_services() -> void:
 		var pips: int = maxi(0, int(run.max_hull) - int(run.current_hull))
 		var chg: int = int(run.repair_charges)
 		_page_services.add_child(_service_row("Repair Hull", [
-			_svc_btn("1", HULL_REPAIR_COST, pips >= 1 and chg >= 1, func() -> void: _do_repair(1)),
-			_svc_btn("All", pips * HULL_REPAIR_COST, pips >= 1 and chg >= pips, func() -> void: _do_repair(pips)),
+			_svc_btn(ICON_HULL, "1", HULL_REPAIR_COST, pips >= 1 and chg >= 1, func() -> void: _do_repair(1)),
+			_svc_btn(ICON_HULL, "All", pips * HULL_REPAIR_COST, pips >= 1 and chg >= pips, func() -> void: _do_repair(pips)),
 		]))
 		_page_services.add_child(_service_row("Refill Primary", [
-			_svc_btn("Fill", PRIMARY_REFILL_COST, _refill_primary_avail(run), _on_refill_primary_ammo)]))
+			_svc_btn(-1, "Fill", PRIMARY_REFILL_COST, _refill_primary_avail(run), _on_refill_primary_ammo)]))
 		_page_services.add_child(_service_row("Refill Secondary", [
-			_svc_btn("Fill", SECONDARY_REFILL_COST, _refill_secondary_avail(run), _on_refill_secondary_ammo)]))
+			_svc_btn(-1, "Fill", SECONDARY_REFILL_COST, _refill_secondary_avail(run), _on_refill_secondary_ammo)]))
 		var sneed: int = maxi(0, int(run.max_super_charges) - int(run.super_charges))
 		_page_services.add_child(_service_row("Refill Super", [
-			_svc_btn("1", SUPER_REFILL_COST, sneed >= 1, func() -> void: _on_refill_super(1)),
-			_svc_btn("All", sneed * SUPER_REFILL_COST, sneed >= 1, func() -> void: _on_refill_super(sneed)),
+			_svc_btn(ICON_SUPER, "1", SUPER_REFILL_COST, sneed >= 1, func() -> void: _on_refill_super(1)),
+			_svc_btn(ICON_SUPER, "All", sneed * SUPER_REFILL_COST, sneed >= 1, func() -> void: _on_refill_super(sneed)),
 		]))
 	else:
 		# Mock (dev lab) — single stub buttons off the visual damage_level.
 		_page_services.add_child(_service_row("Repair Hull", [
-			_svc_btn("Fix", HULL_REPAIR_COST, damage_level > 0.01, func() -> void: _do_repair(1))]))
+			_svc_btn(ICON_HULL, "Fix", HULL_REPAIR_COST, damage_level > 0.01, func() -> void: _do_repair(1))]))
 		_page_services.add_child(_service_row("Refill Primary", [
-			_svc_btn("Fill", PRIMARY_REFILL_COST, true, func() -> void: toast("Refilled primary ammo (stub)"))]))
+			_svc_btn(-1, "Fill", PRIMARY_REFILL_COST, true, func() -> void: toast("Refilled primary ammo (stub)"))]))
 		_page_services.add_child(_service_row("Refill Super", [
-			_svc_btn("Fill", SUPER_REFILL_COST, true, func() -> void: toast("Refilled super (stub)"))]))
+			_svc_btn(ICON_SUPER, "Fill", SUPER_REFILL_COST, true, func() -> void: toast("Refilled super (stub)"))]))
 	_page_services.add_child(HSeparator.new())
 	_page_services.add_child(_label("PART HANDLING", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
 	# Scrap / Sell put the shop in a mode that retargets the owned-part action buttons.
@@ -1358,12 +1508,28 @@ func _rebuild_services() -> void:
 		up_btn.pressed.connect(func() -> void: _toggle_shop_mode(ShopMode.UPGRADE))
 		modes.add_child(up_btn)
 	_page_services.add_child(modes)
+	# Mode help — wrapping RichTextLabels (the old single-line captions overflowed into the bay) with the
+	# ◆/₵ icons inline instead of glyphs.
 	if _shop_mode == ShopMode.SCRAP:
-		_page_services.add_child(_label("SCRAP MODE — tap an owned part to break it for ◆ materials.", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_DANGER))
+		var h := _mode_help(UiTheme.COLOR_DANGER)
+		h.add_text("SCRAP MODE — tap an owned part to break it into ")
+		_help_icon(h, ICON_MAT)
+		h.add_text(" materials.")
+		_page_services.add_child(h)
 	elif _shop_mode == ShopMode.SELL:
-		_page_services.add_child(_label("SELL MODE — tap an owned part to sell for 20% ₵ (buyable back until you depart).", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_BOUNTY))
+		var h := _mode_help(UiTheme.COLOR_BOUNTY)
+		h.add_text("SELL MODE — tap an owned part to sell for 20% ")
+		_help_icon(h, ICON_BOUNTY)
+		h.add_text(" (buyable back until you depart).")
+		_page_services.add_child(h)
 	elif _shop_mode == ShopMode.UPGRADE:
-		_page_services.add_child(_label("UPGRADE MODE — tap an owned part to Mk-up (costs ◆ + ₵; grayed when maxed or unaffordable).", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_GREEN))
+		var h := _mode_help(UiTheme.COLOR_GREEN)
+		h.add_text("UPGRADE MODE — tap an owned part to Mk-up (costs ")
+		_help_icon(h, ICON_MAT)
+		h.add_text(" + ")
+		_help_icon(h, ICON_BOUNTY)
+		h.add_text("; grayed when maxed or unaffordable).")
+		_page_services.add_child(h)
 	_page_services.add_child(_spacer())
 
 
@@ -1397,7 +1563,8 @@ func _complete_node_shop() -> void:
 
 
 # A service row: a title label + one or more fixed-width price buttons (built by _svc_btn). The title
-# grays out when every button is disabled (nothing on this row can be done right now).
+# grays when every button is disabled (nothing to do). The hull/super identity icon lives IN the
+# buttons (next to the quantity), not on the label.
 func _service_row(title: String, buttons: Array) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
@@ -1414,16 +1581,10 @@ func _service_row(title: String, buttons: Array) -> HBoxContainer:
 	return row
 
 
-# One fixed-width service button "TAG  ₵COST" (e.g. "1  ₵250" / "All  ₵750" / "Fill  ₵100"). Uniform
-# width so a 60₵ button matches a 999₵ one. Grayed (disabled) when unavailable OR unaffordable.
-func _svc_btn(tag: String, cost: int, available: bool, cb: Callable) -> Button:
-	var enabled: bool = available and _afford(cost)
-	var b := UiTheme.make_button("%s  ₵%d" % [tag, cost], true)
-	b.custom_minimum_size = Vector2(SERVICE_BTN_W, 0)
-	b.disabled = not enabled
-	if enabled:
-		b.pressed.connect(cb)
-	return b
+# One fixed-width service button: [lead icon] TAG [₵ cost]. lead_frame (hull/super) sits next to the
+# quantity so you read "1 hull for ₵250". Uniform width; grayed when unavailable OR unaffordable.
+func _svc_btn(lead_frame: int, tag: String, cost: int, available: bool, cb: Callable) -> Button:
+	return _price_button(lead_frame, tag, ICON_BOUNTY, str(cost), available and _afford(cost), cb, SERVICE_BTN_W)
 
 
 # Per-service "is there anything to do?" predicates — mirror each refill handler's success guards so a
@@ -1489,6 +1650,7 @@ func _do_repair(times: int = 1) -> void:
 		did += 1
 	if did > 0:
 		OutpostSfx.play("repair")
+		deck_react("repair")   # crew come weld the hull as the fray recedes
 		repair(_hull_damage_fraction(run))   # tween the fray down to match the restored hull
 		toast("Hull repaired" if did == 1 else "Hull repaired ×%d" % did)
 		_refresh_live()
@@ -1663,10 +1825,10 @@ func _slot_card(sid: String) -> PanelContainer:
 		match _shop_mode:
 			ShopMode.SCRAP:
 				if not core:
-					btns.add_child(_mini_btn("Scrap (+%d)" % int(item["scrap"]), func() -> void: _scrap_slot(sid)))
+					btns.add_child(_price_button(-1, "", ICON_MAT, "+%d" % int(item["scrap"]), true, func() -> void: _scrap_slot(sid), CARD_BTN_W))
 			ShopMode.SELL:
 				if not core:
-					btns.add_child(_mini_btn("Sell (+%d)" % _sell_price(item), func() -> void: _sell_slot(sid)))
+					btns.add_child(_price_button(-1, "", ICON_BOUNTY, "+%d" % _sell_price(item), true, func() -> void: _sell_slot(sid), CARD_BTN_W))
 			ShopMode.UPGRADE:
 				_add_upgrade_action(btns, item)
 			_:
@@ -1699,10 +1861,10 @@ func _hold_card(idx: int) -> PanelContainer:
 	match _shop_mode:
 		ShopMode.SCRAP:
 			if not locked:
-				btns.add_child(_mini_btn("Scrap (+%d)" % int(item["scrap"]), func() -> void: _scrap_hold(idx)))
+				btns.add_child(_price_button(-1, "", ICON_MAT, "+%d" % int(item["scrap"]), true, func() -> void: _scrap_hold(idx), CARD_BTN_W))
 		ShopMode.SELL:
 			if not locked:
-				btns.add_child(_mini_btn("Sell (+%d)" % _sell_price(item), func() -> void: _sell_hold(idx)))
+				btns.add_child(_price_button(-1, "", ICON_BOUNTY, "+%d" % _sell_price(item), true, func() -> void: _sell_hold(idx), CARD_BTN_W))
 		ShopMode.UPGRADE:
 			if not locked:
 				_add_upgrade_action(btns, item)
@@ -1741,11 +1903,8 @@ func _add_upgrade_action(btns: HBoxContainer, item) -> void:
 	var mats: int = new_mk
 	var bounty_cost: int = _upgrade_bounty_cost(new_mk)
 	var afford: bool = int(run.materials) >= mats and int(run.bounty) >= bounty_cost
-	var b := UiTheme.make_button("Up→Mk.%d  ◆%d ₵%d" % [new_mk, mats, bounty_cost], true)
-	b.disabled = not afford
-	if afford:
-		b.pressed.connect(func() -> void: _upgrade_part_live(part))
-	btns.add_child(b)
+	# "Mk.N ◆mats ₵cost" — upgrades cost BOTH materials and bounty, so both icons show.
+	btns.add_child(_dual_cost_button("Mk.%d:" % new_mk, mats, bounty_cost, afford, func() -> void: _upgrade_part_live(part), UPGRADE_BTN_W))
 
 
 # Card subtitle "Mk.X <Quality> <ItemType>" — Quality from PartTier; NO "Tier N" roman numeral
@@ -2144,6 +2303,7 @@ func _upgrade_part_live(part) -> void:
 		toast("Need ◆%d + ₵%d to upgrade" % [mats, bounty_cost])
 		return
 	OutpostSfx.play("upgrade")
+	deck_react("upgrade")   # a pit-crew swarms the ship
 	run.spend_materials(mats)
 	run.spend_bounty(bounty_cost)
 	run.upgrade_part(part)
@@ -2325,8 +2485,8 @@ func _show_info(item: Dictionary) -> void:
 	v.add_child(_mark_ladder(cur_mk, mx, show_mk))
 	v.add_child(stats_box)
 	show_mk.call(cur_mk)
-	v.add_child(_label("Scrap value:   ◆ %d" % int(item["scrap"]), UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_GREEN))
-	v.add_child(_label("Sell value:    ₵ %d   (20%% of ₵%d)" % [_sell_price(item), _item_value(item)], UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_BOUNTY))
+	v.add_child(_value_row("Scrap value:", ICON_MAT, str(int(item["scrap"])), UiTheme.COLOR_GREEN))
+	v.add_child(_value_row("Sell value:", ICON_BOUNTY, str(_sell_price(item)), UiTheme.COLOR_BOUNTY))
 	var close := UiTheme.make_button("Close")
 	close.pressed.connect(_close_info)
 	v.add_child(close)
@@ -2490,6 +2650,7 @@ func begin_landed() -> void:
 	_set_alpha(_right_panel, 1.0)
 	_set_alpha(_top_bar, 1.0)
 	_set_alpha(_bottom_bar, 1.0)
+	_ensure_deck_life()
 	emit_signal("landed")
 
 
@@ -2530,6 +2691,8 @@ func begin_arrival() -> void:
 	if not _built:
 		return
 	_kill_phase_tween()
+	if _deck != null and is_instance_valid(_deck):
+		_deck.set_active(false)   # crew hidden while the plate flies in; respawn/shown on landing
 	_skip_anim = false
 	_state = State.ARRIVING
 	_t = 0.0
@@ -2590,7 +2753,9 @@ func _on_landed() -> void:
 	# Fully set down → cut engines (streak + smoke stop) and power the glow down, THEN announce.
 	_phase_tween.chain().tween_callback(_cut_engines)
 	_phase_tween.tween_property(_engine_glow, "modulate", ENGINE_GLOW_COLOR * ENGINE_GLOW_OFF, engine_spool)
-	_phase_tween.chain().tween_callback(func() -> void: emit_signal("landed"))
+	_phase_tween.chain().tween_callback(func() -> void:
+		_ensure_deck_life()
+		emit_signal("landed"))
 
 
 func _cut_engines() -> void:
@@ -2607,6 +2772,9 @@ func _on_depart_pressed() -> void:
 func depart() -> void:
 	if _state != State.LANDED:
 		return
+	# Crew scatter to the deck edges, then get hidden as the plate slides out.
+	if _deck != null and is_instance_valid(_deck):
+		_deck.scatter()
 	if _skip_anim:
 		# No cinematic this visit (Settings dock-anim) → instant exit, no fly-out.
 		_close_info()
@@ -2737,6 +2905,66 @@ func set_runway_speed(v: float) -> void:
 	runway_speed = v
 	if _plate != null and is_instance_valid(_plate):
 		_plate.set_runway_speed(v)
+
+
+# ---- Deck life (wandering crew) -------------------------------------------
+# Built lazily on landing as a child of the plate (so it rides the plate in/out). Bounds + the ship
+# anchor are in plate-local coords. See docs/deck_life_plan_2026-07-04.md.
+
+func _ensure_deck_life() -> void:
+	if _plate == null or not is_instance_valid(_plate):
+		return
+	if _deck == null or not is_instance_valid(_deck):
+		_deck = DeckLifeScript.new()
+		_deck.name = "DeckLife"
+		_plate.add_child(_deck)
+		var ps: Vector2 = _plate.plate_size()
+		# Walkable floor: a band centered horizontally, from just above the plate centre into the lower deck.
+		var b := Rect2(-ps.x * 0.42, -ps.y * 0.04, ps.x * 0.84, ps.y * 0.40)
+		var ship_local := Vector2(0.0, land_y - _bg_center_y)   # the docked ship, in plate-local coords
+		_deck.configure(b, ship_local, int(_clutter_seed()))
+	_deck.set_speed(deck_crew_speed)
+	_deck.set_count(deck_crew_count)
+	_deck.set_crate_count(deck_crate_count)
+	_deck.set_lifter(deck_lifter)
+	_deck.set_active(true)
+
+
+func set_deck_crew_count(n: int) -> void:
+	deck_crew_count = maxi(0, n)
+	if _deck != null and is_instance_valid(_deck):
+		_deck.set_count(deck_crew_count)
+
+
+func set_deck_crew_speed(s: float) -> void:
+	deck_crew_speed = s
+	if _deck != null and is_instance_valid(_deck):
+		_deck.set_speed(s)
+
+
+func set_deck_crate_count(n: int) -> void:
+	deck_crate_count = maxi(0, n)
+	if _deck != null and is_instance_valid(_deck):
+		_deck.set_crate_count(deck_crate_count)
+
+
+# Force a crate carry now (dev/lab).
+func deck_carry_now() -> void:
+	if _deck != null and is_instance_valid(_deck):
+		_deck.carry_now()
+
+
+# Force a lifter run now (dev/lab).
+func deck_lifter_run_now() -> void:
+	if _deck != null and is_instance_valid(_deck):
+		_deck.lifter_run_now()
+
+
+# Cosmetic deck reaction to a shop action ("repair"/"buy"/"sell"/"scrap"/"upgrade"/"refill"). No-op
+# until the deck is built (landed). Never blocks the shop.
+func deck_react(kind: String) -> void:
+	if _deck != null and is_instance_valid(_deck):
+		_deck.react(kind)
 
 
 # Heal damage to `target` over `dur`, re-driving the shader + tells each step (the overlay is

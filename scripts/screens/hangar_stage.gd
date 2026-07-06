@@ -21,8 +21,8 @@ const HangarClutter = preload("res://scripts/screens/hangar_clutter.gd")
 @export_group("Runway lights")
 @export var runway_speed: float = 0.9
 @export var runway_pixel_size: float = 2.0   # 2px amber squares
-@export var runway_dark: Color = Color(0.15, 0.08, 0.0)    # off (additive → faint)
-@export var runway_lit: Color = Color(1.0, 0.66, 0.12)     # on  (additive → glow)
+@export var runway_dark: Color = Color(0.22, 0.13, 0.0)    # off (additive → faint amber)
+@export var runway_lit: Color = Color(1.4, 1.05, 0.28)     # on  (additive HDR → bright amber/yellow glow)
 @export_group("Lighting")
 @export var scene_dim: float = 0.6     # bay dim — drives the in-scene CanvasModulate (authored value wins on load)
 @export_group("Clutter")
