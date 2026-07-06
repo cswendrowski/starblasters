@@ -677,6 +677,34 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 2, "weight": 0.9, "chaff": true,
 		"conflict_tags": ["demands_focus"],
 	},
+	{
+		# Archer (Roman art 2026-07-06) — corporate small aimed gunner (two forward muzzles
+		# MuzzleL/R). Placeholder stats for Enemy-Bench tuning; not yet in the wave roll.
+		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_archer.tscn",
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "payload": BV_AimedSniper, "aim": "forward", "fire_min": 1.6, "fire_max": 2.2, "count": 1, "spread_deg": 0.0 }],
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "lane_cut",
+		"base_count": 2,
+		"fire_min": 1.6, "fire_max": 2.4,
+		"hp_override": 2, "bounty_override": 10,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.9, "chaff": true,
+		"conflict_tags": ["aimed_or_spread"],
+	},
+	{
+		# Specter (Roman art 2026-07-06) — corporate small multi-muzzle gunner (four muzzles
+		# MuzzleL/R + MuzzleL2/R2). Placeholder stats for Enemy-Bench tuning; not yet in the wave roll.
+		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_specter.tscn",
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "all", "payload": BV_Basic, "aim": "straight_down", "fire_min": 1.4, "fire_max": 2.0, "count": 1, "spread_deg": 0.0 }],
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "lane_hook",
+		"base_count": 2,
+		"fire_min": 1.4, "fire_max": 2.2,
+		"hp_override": 2, "bounty_override": 10,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.9, "chaff": true,
+		"conflict_tags": [],
+	},
 	# Push (M6c, Roman art 2026-06-07) — REPLACES the Frigate. Supremacy lane pusher
 	# (enemy_push.gd, enemy_core) with TWO player-tracking dome turrets firing cannon
 	# slugs (aimed, no lead; fast traverse punishes sitting still). Movement from the

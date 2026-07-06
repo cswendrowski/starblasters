@@ -41,7 +41,7 @@ enum Id { SUPREMACY, PRIVATEER, CORPORATE, ZEALOT }
 # appear only in their home faction. Pool restriction: an enemy is allowed in faction F
 # if universal OR home == F. (END-STATE: drop universals, each faction owns its set.)
 const ENEMY_TAGS := {
-	"res://scenes/enemies/core/enemy_core_s_dart.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.CORPORATE, Id.PRIVATEER]},
+	"res://scenes/enemies/core/enemy_core_s_dart.tscn": {"home": Id.SUPREMACY, "universal": true, "allowed_in": [Id.SUPREMACY]},  # Roman 2026-07-06: dart is Supremacy-only now (off privateer/corpo)
 	"res://scenes/enemies/core/enemy_core_s_flechette.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.CORPORATE, Id.PRIVATEER]},  # NEW core flechette (off the dart)
 	"res://scenes/enemies/factions/zealot/enemy_z_s_manta.tscn": {"home": Id.ZEALOT, "universal": false},
 	# Roman art rework 2026-06-16: retro→acolyte, run→drifter (renamed in place, same UID).
@@ -61,6 +61,9 @@ const ENEMY_TAGS := {
 	"res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn": {"home": Id.CORPORATE, "universal": false},
 	"res://scenes/enemies/factions/corporate/enemy_c_s_curve.tscn": {"home": Id.CORPORATE, "universal": false},
 	"res://scenes/enemies/factions/corporate/enemy_c_m_widow.tscn": {"home": Id.CORPORATE, "universal": false},  # A-110 Widow → corporate (Roman 2026-06-20); scene moved privateer/enemy_p_m_widow → corporate/enemy_c_m_widow 2026-06-23.
+	# New corporate small units (Roman 2026-07-06) — Enemy-Bench-configurable, not yet in the wave roll.
+	"res://scenes/enemies/factions/corporate/enemy_c_s_archer.tscn": {"home": Id.CORPORATE, "universal": false},
+	"res://scenes/enemies/factions/corporate/enemy_c_s_specter.tscn": {"home": Id.CORPORATE, "universal": false},
 	"res://scenes/enemies/core/enemy_core_bomber.tscn": {"home": Id.CORPORATE, "universal": true, "allowed_in": [Id.CORPORATE, Id.PRIVATEER]},  # B-220 core bomber (corp+priv, per its TailGunGlow tints)
 	"res://scenes/enemies/core/enemy_core_bomber_thin.tscn": {"home": Id.CORPORATE, "universal": true, "allowed_in": [Id.CORPORATE, Id.PRIVATEER]},  # thin bomber variant — core (corp+priv)
 	"res://scenes/enemies/core/enemy_cruiser.tscn": {"home": Id.SUPREMACY, "universal": true},
