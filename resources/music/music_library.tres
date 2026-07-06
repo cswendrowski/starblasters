@@ -137,8 +137,8 @@ tracks = {
 eligibility = {
 "boss": ["Chugga", "Break 9", "Grindplates", "Knuckles", "On A Mission", "Shadowrun", "Retribution"],
 "combat": ["Break 9", "Chugga", "Knuckles", "Grindplates", "On A Mission", "Shadowrun"],
-"menu": ["Galaxy", "Milkyway", "Creep", "Battle Tech"],
-"outpost": ["Limitless", "Galaxy", "Battle Tech"],
-"sector": ["Saturn", "Jupiter", "Milkyway", "Limitless", "Creep", "Out The Way", "Swarm"],
-"signal": ["Creep", "Jupiter", "Out The Way", "Swarm"]
+"menu": ["Galaxy", "Milkyway", "Creep", "Battle Tech", "Jupiter", "Limitless"],
+"outpost": ["Battle Tech", "Milkyway"],
+"sector": ["Saturn", "Jupiter", "Milkyway", "Limitless", "Creep", "Out The Way", "Swarm", "Galaxy"],
+"signal": ["Creep", "Jupiter", "Out The Way", "Swarm", "Galaxy", "Limitless", "Saturn"]
 }
