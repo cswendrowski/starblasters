@@ -212,11 +212,11 @@ func _run() -> void:
 	var all_valid := true
 	for i in 60:
 		var m: String = b3._pick_maneuver()
-		if not (m in ["hook_firecores", "hook_laser", "hook_blockade", "firecore_slide", "laser_slide"]):
+		if not (m in ["hook_firecores", "hook_laser", "hook_blockade", "firecore_slide", "laser_slide", "lane_laser"]):
 			all_valid = false
-		if m == "hook_laser" or m == "laser_slide":
+		if m == "hook_laser" or m == "laser_slide" or m == "lane_laser":
 			laser_seen = true
-	_ck(all_valid, "picked maneuvers are always from the 5-set")
+	_ck(all_valid, "picked maneuvers are always from the eligible set")
 	_ck(laser_seen, "laser maneuvers are eligible while the main laser lives")
 	# Kill the main laser → laser maneuvers must drop out of the pool.
 	b3._main_laser.destroy()
@@ -224,7 +224,7 @@ func _run() -> void:
 	var laser_after := false
 	for i in 60:
 		var m: String = b3._pick_maneuver()
-		if m == "hook_laser" or m == "laser_slide":
+		if m == "hook_laser" or m == "laser_slide" or m == "lane_laser":
 			laser_after = true
 	_ck(not laser_after, "no laser maneuvers once the main laser is destroyed")
 	# Blockade side pick: destroy both RIGHT side lasers → the fuller side is LEFT (0).

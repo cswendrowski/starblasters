@@ -80,20 +80,27 @@ const HAZARD_MUZZLE_Y := 170.0   # off-screen ABOVE: -HAZARD_MUZZLE_Y puts the b
 # about its centre of mass; inner "top" thrusters dive it into the background (spring-restored to the
 # fore). Station-keeping trim (LIN/ANG_DAMP) bleeds momentum so it always eases to a controllable stop.
 # @export so the Battleship Lab live-tunes the heft; tune → Copy GDScript → paste this block back.
-@export var HIGH_HOLD_Y: float = 64.0        # the high-hold latitude a hook comes to rest at
+@export var HIGH_HOLD_Y: float = -12.0       # facing-down hold-Y for the CENTRE. The hull is 316px (taller
+                                             # than the 270 playspace), so a small/negative value pins the
+                                             # ship's mid-point at the TOP (rear off-screen) → nose ~mid,
+                                             # bottom half open for the player. Applies to nose-DOWN hooks + slides.
+@export var BLOCKADE_Y: float = 55.0         # broadside hold-Y for the blockade. Sideways the hull is only 128
+                                             # tall, so it sits LOWER than the nose-down hold — low enough its
+                                             # turrets are on-screen to fire/be shot, high enough to keep the
+                                             # bottom half open (centre 55 ± 64 → ~-9..119, turrets visible).
 @export var MAIN_ACCEL: float = 380.0        # forward thrust (px/s²) along the nose
 @export var STRAFE_ACCEL: float = 360.0      # LATERAL thrust (side thrusters) — it PREFERS to strafe, not turn
 @export var MAX_SPEED: float = 200.0         # linear speed cap (keep < the 480 px/s clarity ceiling)
 @export var LIN_DAMP: float = 3.0            # station-keeping drag (proportional, 1/s) → always eases to a stop
-@export var RCS_ANG_ACCEL: float = 6.5       # yaw torque (rad/s²)
-@export var MAX_ANG_SPEED: float = 2.8       # yaw-rate cap (rad/s)
-@export var ANG_DAMP: float = 4.5            # yaw drag (proportional, 1/s)
+@export var RCS_ANG_ACCEL: float = 10.0      # yaw torque (rad/s²) — brisk enough that the flip OVERLAPS the
+@export var MAX_ANG_SPEED: float = 3.4       # slide (no spinning in place after arriving)
+@export var ANG_DAMP: float = 3.2            # yaw drag (proportional, 1/s) → terminal ~3.1 rad/s (180° in ~1s)
 @export var DEPTH_ACCEL: float = 5.0         # top-thruster dive accel (1/s²)
 @export var DEPTH_SPRING: float = 6.0        # restoring pull back to the foreground
 @export var DEPTH_DAMP: float = 4.0
 @export var ARRIVE_RADIUS: float = 52.0      # cut thrust + orient to the final heading within this of the target
 @export var FACE_GAIN: float = 6.0           # yaw controller P gain
-@export var FACE_DAMP: float = 1.5           # yaw controller D gain
+@export var FACE_DAMP: float = 2.0           # yaw controller D gain (higher = less overshoot at the faster yaw)
 @export var BEAM_HOLD: float = 3.0           # hold in the centre lane while the main laser fires down it
 @export var BLOCKADE_HOLD: float = 3.5       # hold horizontal while turrets + side lasers rake down
 @export var HAZARD_MIN_GAP: float = 8.0      # stage-hazard cadence MIN (wave 3+)
@@ -347,7 +354,7 @@ func play_named_maneuver(name: String) -> void:
 
 # Names the Lab can trigger (order = its button row).
 const MANEUVER_NAMES := ["hook_firecores", "hook_laser", "hook_blockade", "firecore_slide", "laser_slide",
-	"hazard_lane_laser", "hazard_sweep"]
+	"lane_laser", "hazard_lane_laser", "hazard_sweep"]
 
 
 # Run one named maneuver/hazard, serialized against any other (the wave gate + the hazard loop share
@@ -367,6 +374,7 @@ func _run_maneuver(m: String) -> void:
 		"hook_blockade": await _m_lane_hook_blockade()
 		"firecore_slide": await _m_lane_firecore_slide()
 		"laser_slide": await _m_lane_laser_slide()
+		"lane_laser": await _m_lane_laser()
 		"hazard_lane_laser": await _hazard_lane_laser()
 		"hazard_sweep": await _hazard_lane_laser_sweep()
 	_last_maneuver = m
@@ -417,6 +425,7 @@ func _pick_maneuver() -> String:
 	if _main_laser_alive():
 		pool.append("hook_laser")
 		pool.append("laser_slide")
+		pool.append("lane_laser")
 	if _blockade_side() >= 0:
 		pool.append("hook_blockade")
 	# Avoid an immediate repeat when there's an alternative.
@@ -525,7 +534,7 @@ func _m_lane_hook_blockade() -> void:
 	# Rise up the CENTRE lane facing up (bg), then surface + rotate IN PLACE to horizontal — brings the
 	# fuller side to bear with a single 90° turn, no sideways fly (Roman 2026-07-02: fixes the setup delay).
 	_teleport(Vector2(cx, vp.y + 240.0), _heading_for(Vector2.UP), 1.0)
-	await _fly_to(Vector2(cx, HIGH_HOLD_Y), _heading_for(Vector2.UP), 1.0)
+	await _fly_to(Vector2(cx, BLOCKADE_Y), _heading_for(Vector2.UP), 1.0)   # broadside sits lower than nose-down holds
 	if not _maneuver_ok(): return
 	_dive(0.0)   # surface
 	await _face(rot_horizontal)   # rotate in place to horizontal
@@ -543,25 +552,19 @@ func _m_lane_hook_blockade() -> void:
 	await _fly_through(Vector2.DOWN, rot_horizontal, 1.0, 2.6)
 
 
-# fg edge lane from the top → ~1/3 down → sidestep across to centre (drop firecores) → to the opposite
-# lane → down + exit. Faces DOWN throughout (a lateral sidestep, not a turn).
+# fg edge lane from the top → ~1/3 down → sidestep across, DROPPING a firecore in EACH lane it passes
+# (a descending wall) → down + exit. Faces DOWN throughout (a lateral sidestep, not a turn).
 func _m_lane_firecore_slide() -> void:
-	var vp: Vector2 = get_viewport_rect().size
 	var side: int = _rand_side()
 	var ex: float = _edge_lane_x(side)
 	var ox: float = _edge_lane_x(1 - side)
-	var third_y: float = vp.y / 3.0
+	var third_y: float = HIGH_HOLD_Y   # slide/fire at the high hold (top) so the bottom half stays open
 	_firing_enabled = false
 	# Foreground, top of the edge lane, facing down.
 	_teleport(Vector2(ex, -240.0), _heading_for(Vector2.DOWN), 0.0)
 	await _fly_to(Vector2(ex, third_y), _heading_for(Vector2.DOWN), 0.0)
 	if not _maneuver_ok(): return
-	await _fly_to(Vector2(_center_x(), third_y), _heading_for(Vector2.DOWN), 0.0)   # strafe across to centre
-	if not _maneuver_ok(): return
-	await _settle()   # finish the move BEFORE dropping the volley
-	if not _maneuver_ok(): return
-	await _launch_firecore_salvos(1.0)   # drop a widening volley in the centre lane
-	await _fly_to(Vector2(ox, third_y), _heading_for(Vector2.DOWN), 0.0)   # on to the opposite lane
+	await _slide_dropping_firecores(ox, third_y)   # strafe across, dropping a firecore at each lane spot
 	if not _maneuver_ok(): return
 	await _fly_through(Vector2.DOWN, _heading_for(Vector2.DOWN), 0.0, 2.6)   # exit off the bottom
 
@@ -569,11 +572,10 @@ func _m_lane_firecore_slide() -> void:
 # fg edge lane from the top → ~1/3 down charging → fire down its lane → sidestep across (the downward
 # beam sweeps with it), cut at centre → to the opposite lane → down + exit.
 func _m_lane_laser_slide() -> void:
-	var vp: Vector2 = get_viewport_rect().size
 	var side: int = _rand_side()
 	var ex: float = _edge_lane_x(side)
 	var ox: float = _edge_lane_x(1 - side)
-	var third_y: float = vp.y / 3.0
+	var third_y: float = HIGH_HOLD_Y   # slide/fire at the high hold (top) so the bottom half stays open
 	_firing_enabled = false
 	_teleport(Vector2(ex, -240.0), _heading_for(Vector2.DOWN), 0.0)
 	_set_main_laser(true)   # charge during the descent
@@ -588,6 +590,71 @@ func _m_lane_laser_slide() -> void:
 	await _fly_to(Vector2(ox, third_y), _heading_for(Vector2.DOWN), 0.0)
 	if not _maneuver_ok(): return
 	await _fly_through(Vector2.DOWN, _heading_for(Vector2.DOWN), 0.0, 2.6)
+
+
+# Like the laser slide but COMMITS to ONE lane (any lane): descend into it, fire straight down it (no
+# sweep), then continue down + exit. Needs the main laser.
+func _m_lane_laser() -> void:
+	var lane: int = randi() % Lanes.COUNT
+	var lx: float = Lanes.lane_center(lane)
+	var third_y: float = HIGH_HOLD_Y   # slide/fire at the high hold (top) so the bottom half stays open
+	_firing_enabled = false
+	_teleport(Vector2(lx, -240.0), _heading_for(Vector2.DOWN), 0.0)   # fg, top of the CHOSEN lane, facing down
+	_set_main_laser(true)   # charge during the descent
+	await _fly_to(Vector2(lx, third_y), _heading_for(Vector2.DOWN), 0.0)
+	if not _maneuver_ok():
+		_set_main_laser(false)
+		return
+	await _settle()   # commit to the lane — hold it while the beam fires straight down (no sweep)
+	if not _maneuver_ok():
+		_set_main_laser(false)
+		return
+	await _paced(BEAM_HOLD).timeout
+	_set_main_laser(false)   # graceful shrink+flicker out
+	if not _maneuver_ok(): return
+	await _fly_through(Vector2.DOWN, _heading_for(Vector2.DOWN), 0.0, 2.6)   # continue down + exit
+
+
+# Slide across to `to_x` at latitude `y`, facing down, DROPPING one firecore straight down in each lane
+# the ship passes over (Roman 2026-07-02) — a descending wall. Sheds a decorative core per drop.
+func _slide_dropping_firecores(to_x: float, y: float) -> void:
+	_tgt_pos = Vector2(to_x, y)
+	_tgt_heading = _heading_for(Vector2.DOWN)
+	_tgt_depth = 0.0
+	_tgt_mode = M_FLY
+	var dropped: Dictionary = {}
+	var t: float = 0.0
+	while _maneuver_ok() and t < FLY_TIMEOUT:
+		await get_tree().process_frame
+		if not get_tree().paused:
+			t += get_process_delta_time()
+		var lane: int = Lanes.nearest_lane(position.x)
+		if not dropped.has(lane) and absf(position.x - Lanes.lane_center(lane)) < 10.0:
+			dropped[lane] = true
+			_drop_firecore_at(Vector2(Lanes.lane_center(lane), position.y))
+		if position.distance_to(_tgt_pos) < ARRIVE_TOL:
+			var flane: int = Lanes.nearest_lane(to_x)
+			if not dropped.has(flane):
+				_drop_firecore_at(Vector2(Lanes.lane_center(flane), position.y))
+			return
+
+
+# Drop a single firecore straight down at `pos` (no burst) + shed one decorative hull core.
+func _drop_firecore_at(pos: Vector2) -> void:
+	var world: Node = _world()
+	if FirecoreHazard == null or world == null:
+		return
+	var fc = FirecoreHazard.instantiate()
+	world.add_child(fc)
+	if fc is CanvasItem:
+		(fc as CanvasItem).z_index = UNDER_LAYER_Z
+	(fc as Node2D).global_position = pos
+	if fc.has_method("start"):
+		fc.start(pos)
+	for core in find_children("FireCore*", "", false, false):
+		if core is CanvasItem and (core as CanvasItem).visible:
+			(core as CanvasItem).visible = false
+			break
 
 
 # ---- Stage hazards (wave 3+, boss off-screen) ---------------------------

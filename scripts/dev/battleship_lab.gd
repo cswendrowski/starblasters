@@ -19,7 +19,8 @@ const CONFIG_PATH := "user://tuners/battleship.json"
 # key (= the boss @export var), label, min, max, step. The physics-inspired thrust model (2026-07-02):
 # accels + drags + caps + depth + the fly-to pilot gains.
 const KNOBS := [
-	["HIGH_HOLD_Y", "High hold Y (px)", 20.0, 150.0, 2.0],
+	["HIGH_HOLD_Y", "High hold Y (px)", -120.0, 140.0, 2.0],
+	["BLOCKADE_Y", "Blockade hold Y (px)", -60.0, 140.0, 2.0],
 	["MAIN_ACCEL", "Main thrust accel", 60.0, 700.0, 10.0],
 	["STRAFE_ACCEL", "Strafe accel", 40.0, 700.0, 10.0],
 	["MAX_SPEED", "Max speed (px/s)", 40.0, 460.0, 10.0],
@@ -47,6 +48,7 @@ const TRIGGERS := [
 	["Hook: Blockade", "hook_blockade"],
 	["Slide: Firecores", "firecore_slide"],
 	["Slide: Laser", "laser_slide"],
+	["Lane Laser", "lane_laser"],
 	["Hazard: Lane Laser", "hazard_lane_laser"],
 	["Hazard: Sweep", "hazard_sweep"],
 ]

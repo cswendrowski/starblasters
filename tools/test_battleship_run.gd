@@ -38,8 +38,13 @@ func _run() -> void:
 	_boss.on_wave_started(0)
 	_boss.on_wave_started(2)        # arm stage hazards (wave 3)
 
-	# Several between-wave maneuvers — real tweens, beams, firecore release, turret fire.
-	for i in 5:
+	# Explicitly soak the newest / changed maneuvers, then a few random ones.
+	for nm in ["lane_laser", "firecore_slide", "hook_blockade"]:
+		if not is_instance_valid(_boss):
+			break
+		await _boss.play_named_maneuver(nm)
+		print("  ran %s" % nm)
+	for i in 3:
 		if not is_instance_valid(_boss):
 			break
 		await _boss.play_wave_maneuver(i + 1)
