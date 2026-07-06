@@ -154,8 +154,20 @@ const ROW_GAP: float = 40.0
 
 # Pre-stacked spawn_y for a placement's `row` within a formation whose deepest (leading) row is
 # `max_row`. row == max_row → SPAWN_Y_TOP (enters at the edge); each row above adds ROW_GAP.
+# CONVENTION: MAX_ROW LEADS. This is the AUTHORED-pattern convention (authored_patterns.build_phrase
+# flips its editor rows so the bottom-painted row == max_row leads). Callers whose cells use the
+# ROW-0-LEADS convention (formation_shapes shape cells, escort(), hazard_shapes channel cells — all
+# documented "row 0 leads") must use leads_from_zero() instead, or they render vertically INVERTED.
 static func prestack_y(row: int, max_row: int) -> float:
 	return SPAWN_Y_TOP - float(max_row - row) * ROW_GAP
+
+
+# Pre-stacked spawn_y for cells using the ROW-0-LEADS convention (formation_shapes shape cells,
+# escort(), hazard_shapes) — row 0 enters at the top edge, each higher row trails one ROW_GAP up.
+# Equivalent to prestack_y(max_row - row, max_row); named so the row-0-leads call sites read
+# correctly instead of feeding the raw row into the max_row-leads prestack_y (which inverts them).
+static func leads_from_zero(row: int, max_row: int) -> float:
+	return SPAWN_Y_TOP - float(row) * ROW_GAP
 
 
 # Lockstep speed: clamp every speed-bearing spec to the SLOWEST member's move_speed so a mixed-speed

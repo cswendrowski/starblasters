@@ -62,6 +62,7 @@ const Skirmish = preload("res://scripts/enemies/patterns/skirmish.gd")
 const LanePath = preload("res://scripts/enemies/patterns/lane_path.gd")
 const OmniThrust = preload("res://scripts/enemies/patterns/omni_thrust.gd")
 const LaneCharge = preload("res://scripts/enemies/patterns/lane_charge.gd")
+const AuthoredPathLibrary = preload("res://scripts/enemies/patterns/authored_path_library.gd")
 const Pendulum = preload("res://scripts/enemies/patterns/pendulum.gd")
 const ProximityChase = preload("res://scripts/enemies/patterns/proximity_chase.gd")
 const LoiterSweep = preload("res://scripts/enemies/patterns/loiter_sweep.gd")
@@ -1352,6 +1353,72 @@ static func entry_for_scene(scene_path: String) -> Dictionary:
 	return {}
 
 
+# Is this roster entry ARMED — i.e. does it project a threat at the player while it's
+# on the field? Used by the wave generator's "shooter-density ramp" (early levels lean
+# on UNARMED chaff; armed chaff arrives sparingly and in smaller clusters). Inspects the
+# RAW entry dict (cheap — no scene load / MountSpec build), so it stays generic over every
+# enemy and faction with zero per-enemy special-casing.
+#
+# ARMED when ANY of:
+#   - "shoot" is a non-null shoot key (legacy Weapon slot — fires bullets)
+#   - "mounts" holds a firing hardpoint: a gun/turret/launcher/beam/ring (all fire
+#     projectiles or a beam), OR an ENTITY dropper that emits WHILE TRAVELLING
+#     (trigger cadence/timer/start — bomblet/mine/firecore trails threaten the lane).
+#   - "emitters" holds the same kind of active (non-death) emitter.
+#
+# NOT armed (harmless volume — the bulk the ramp leaves untouched):
+#   - no shoot / mounts / emitters at all (plain rammer chaff — Dart, Shiv, Drifter…)
+#   - ONLY a death-trigger entity/emitter (a death-scatter is a one-shot on kill, not
+#     sustained on-field pressure — it doesn't make the unit read as a "shooter"; killing
+#     it is the player's choice). If Roman wants death-scatterers counted as armed, flip
+#     _DEATH_EMIT_COUNTS_ARMED below.
+const _FIRING_MOUNT_KINDS := ["gun", "turret", "launcher", "beam", "ring"]
+const _DEATH_EMIT_COUNTS_ARMED := false   # tuning knob: treat pure death-scatter droppers as armed?
+
+static func entry_is_armed(entry: Dictionary) -> bool:
+	if entry == null or entry.is_empty():
+		return false
+	# Legacy shoot slot.
+	if entry.get("shoot", null) != null:
+		return true
+	# Mount hardpoints.
+	var mounts: Variant = entry.get("mounts", null)
+	if mounts is Array:
+		for m in mounts:
+			if m is Dictionary and _mount_dict_is_threat(m):
+				return true
+	# Generalized emitters (interceptor-style drops).
+	var emitters: Variant = entry.get("emitters", null)
+	if emitters is Array:
+		for em in emitters:
+			if em is Dictionary and _emitter_dict_is_threat(em):
+				return true
+	return false
+
+
+# A mount dict threatens the player if it's a projectile/beam hardpoint, or an ENTITY
+# dropper that emits while travelling (not a pure death-scatter — see entry_is_armed).
+static func _mount_dict_is_threat(m: Dictionary) -> bool:
+	var kind: String = String(m.get("kind", "gun"))
+	if kind in _FIRING_MOUNT_KINDS:
+		return true
+	if kind == "entity":
+		var trig: String = String(m.get("trigger", "cadence"))
+		if trig == "death":
+			return _DEATH_EMIT_COUNTS_ARMED
+		return true   # cadence/timer/start — spawns a hazard on the field
+	return false
+
+
+# An emitter dict threatens the player unless it's a pure death-scatter (mirrors the
+# ENTITY-mount rule; emitters default to the "timer" trigger).
+static func _emitter_dict_is_threat(em: Dictionary) -> bool:
+	var trig: String = String(em.get("trigger", "timer"))
+	if trig == "death":
+		return _DEATH_EMIT_COUNTS_ARMED
+	return true
+
+
 static func compose_stats(entry: Dictionary) -> Dictionary:
 	var size: String = entry.get("size", "medium")
 	var st: Dictionary = SIZE_TABLE.get(size, SIZE_TABLE["medium"])
@@ -1464,6 +1531,10 @@ static func make_movement(entry: Dictionary) -> Resource:
 	# preserving until eligibility is expanded + an entry opts in (pattern_eligibility.gd).
 	var key: String = PatternEligibility.resolve(entry)
 	key = MOVEMENT_ALIASES.get(key, key)   # collapse legacy speed/depth-variant keys to shapes
+	# Hand-authored flight paths (Path Editor, 2026-07-06): "path_<name>" keys resolve through the
+	# baked library instead of the shape match below. See authored_path_library.gd.
+	if AuthoredPathLibrary.is_path_key(key):
+		return AuthoredPathLibrary.resolve_key(key)
 	match key:
 		# --- STRAIGHT: pure descent. Speed is chassis-owned now (size base + engine); the old
 		# straight_crawl/slow/medium/fast/reflex keys collapsed here (locomotion refactor). ---

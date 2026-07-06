@@ -1953,6 +1953,7 @@ func _cache_blaster_config(run) -> void:
 	_blaster_bullet_scene = bullet_scene                 # fallback: whatever's loaded now
 	_blaster_damage = maxi(1, bullet_damage)
 	_blaster_cooldown = maxf(0.05, $GunCooldown.wait_time)
+	_blaster_sfx_kind = WS.FireSfxKind.BLASTER_SMALL
 	if run.cannon_pool.size() > 0:
 		var bl = run.cannon_pool[0]
 		if bl != null:
@@ -1962,6 +1963,11 @@ func _cache_blaster_config(run) -> void:
 				_blaster_damage = maxi(1, bl._effective_damage_at_mark(int(bl.mark)))
 			if "base_cooldown" in bl:
 				_blaster_cooldown = maxf(0.05, float(bl.base_cooldown))
+			# Cache the blaster's OWN fire sound — fire_sfx_kind on the ship reflects the
+			# forced-active PRIMARY while a Smart Mount is on, so the direct-spawn bolt would
+			# otherwise be silent (regression: Primary Smart Mount muted the blaster).
+			if bl.has_method("_fire_sfx_kind"):
+				_blaster_sfx_kind = int(bl._fire_sfx_kind())
 	if _blaster_bullet_scene == null:
 		_blaster_bullet_scene = load("res://scenes/projectiles/bullet_blaster.tscn")
 
@@ -2083,6 +2089,14 @@ func _fire_blaster_bolt(aim: float) -> void:
 	var MuzzleFx = load("res://scripts/effects/muzzle_fx.gd")
 	if MuzzleFx:
 		MuzzleFx.play_energy(muzzle, self, aim)
+	# Per-shot blaster SFX — mirrors fire_primary's cannon sound so the direct-spawn
+	# blaster (Smart Mount auto-turret + manual-fire-under-primary-mount + Hyper barrage)
+	# isn't silent. Uses the blaster's cached kind, NOT the ship's fire_sfx_kind (that
+	# holds the forced-active primary's sound while a mount is on).
+	if _blaster_sfx_kind != WS.FireSfxKind.NONE:
+		var WeaponSfx = load("res://scripts/effects/weapon_sfx.gd")
+		if WeaponSfx:
+			WeaponSfx.play(get_tree().root, global_position, WS.sfx_kind_string(_blaster_sfx_kind))
 
 
 # A mount is ACTIVE when equipped AND the runtime toggle (S) is on.
@@ -2231,6 +2245,7 @@ var _primary_mount_ready: bool = true        # regen-laser latch: fire a full ma
 var _blaster_bullet_scene: PackedScene = null  # cached blaster (cannon_pool[0]) fire config
 var _blaster_damage: int = 1
 var _blaster_cooldown: float = 0.2
+var _blaster_sfx_kind: int = WS.FireSfxKind.BLASTER_SMALL  # blaster's OWN fire sound (fire_sfx_kind holds the primary's while it's loaded)
 var _mounts_enabled: bool = true             # runtime on/off (S toggle); off = manual control
 var _mount_sight: Line2D = null              # teal aiming sight line (lazy-built)
 const MOUNT_SIGHT_COLOR := Color(0.2, 1.0, 0.7, 0.85)  # teal-green

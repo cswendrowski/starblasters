@@ -87,6 +87,7 @@ func _build_ui() -> void:
 	# Authoring tools (Wave Editor / Movement+Shoot Pattern editors retired 2026-06-11)
 	_add_button("[ Pattern Eligibility ]", _on_pattern_eligibility, true)
 	_add_button("[ Formation Builder ]", _on_wave_pattern_editor, true)
+	_add_button("[ Path Editor ]", _on_path_editor, true)
 	_add_button("[ Weapon Lab ]", _on_weapon_lab, true)
 	_add_button("[ Enemy Bench ]", _on_enemy_bench, true)
 	# Tuners / labs (Movement Lab / Sector Map HD Lab retired 2026-06-11)
@@ -176,6 +177,10 @@ func _on_enemy_bench() -> void:
 
 func _on_wave_pattern_editor() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/wave_pattern_editor.tscn")
+
+
+func _on_path_editor() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/path_editor.tscn")
 
 
 func _on_shader_lab() -> void:

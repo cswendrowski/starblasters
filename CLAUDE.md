@@ -25,7 +25,7 @@ Context is the scarce resource. Iteration-heavy work belongs in a dev tuner the 
 - No tuner for a 3+-knob system? Scaffold one first (see `scripts/dev/ui_designer.gd` as reference — JSON persist to `user://tuners/<name>.json`).
 - **Tuner contract:** every tuner must have a **Copy GDScript** button emitting a paste-ready snippet. Without it the handoff is broken.
 
-**For visual mechanics:** write `tools/capture_<mechanic>.gd` + `.ps1` → ffmpeg → GIF in `captures/`. Hand Roman the GIF path to review; don't read PNG frames yourself unless actively debugging a specific visual bug. (Discord/external posting is retired — produce the artifact and report its path.)
+**For visual mechanics:** captures are **on request** — Roman asks for a GIF or image when he wants one; don't proactively offer or volunteer one, and don't tack a "want me to capture a GIF?" onto finished work. When he does ask, write `tools/capture_<mechanic>.gd` + `.ps1` → ffmpeg → GIF in `captures/` and report the path. Don't read PNG frames yourself unless actively debugging a specific visual bug. (Discord/external posting is retired — produce the artifact and report its path.)
 
 ## Input map
 

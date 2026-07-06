@@ -228,6 +228,91 @@ const ACCENT_CHANCE: float = 0.35
 # uses the shared formation_shapes.prestack_y (one ROW_GAP for all formation sites). Tune CHANCE freely.
 const ESCORT_CHANCE: float = 0.4
 
+# ============================================================================
+# SHOOTER-DENSITY DIFFICULTY RAMP (Roman playtest 2026-07-06)
+# ----------------------------------------------------------------------------
+# "Enemies capable of shooting make the game much harder — use them more sparingly
+#  early, in smaller numbers, ramping across difficulty." An ARMED entry is any that
+#  projects a threat (Roster.entry_is_armed: a shoot slot, a firing mount, or an
+#  active dropper). Two independent levers, both keyed on the CHAFF layer only —
+#  heavies/capstones/mini-bosses stay armed (they're the discrete, telegraphed
+#  threats the ramp is NOT trying to soften). Generic over the armed flag; zero
+#  per-enemy special-casing.
+#
+# LEVER 1 — ARMED CHAFF-TYPE CAP (palette composition, _pick_palette/_extend_palette):
+#   How many DISTINCT armed chaff types the level's palette may carry, indexed by
+#   eff_depth (= level_index + stretch; opener of the first node = 0). Below the table
+#   length the value at [eff_depth] applies; at/after it, unbounded (-1). The opener
+#   leans fully unarmed; deep levels are unconstrained. Graceful floor: if the
+#   faction-filtered chaff pool has ONLY armed entries, we still fill the palette from
+#   them (never returns empty) — the cap governs preference, not availability.
+const ARMED_CHAFF_TYPE_CAP := [0, 1, 1, 2, 2, 3]   # eff_depth 0,1,2,3,4,5+; -1 past the end = uncapped
+const ARMED_CHAFF_TYPE_CAP_DEEP := -1              # value used once eff_depth >= table length (uncapped)
+
+# LEVER 2 — ARMED CHAFF COUNT DAMP (_make_wave_spec): when an armed chaff wave is built
+#   at a SHALLOW effective depth, scale its count down so armed shooters arrive in small
+#   clusters early instead of full walls. Unarmed chaff is untouched (harmless volume).
+#   Applies only while eff_depth < ARMED_DAMP_DEPTH; the factor lerps from
+#   ARMED_DAMP_FACTOR_MIN (eff_depth 0) up to 1.0 (at the threshold), floored so a wave
+#   never drops below ARMED_DAMP_FLOOR shooters. Heavies (chaff:false) are exempt.
+const ARMED_DAMP_DEPTH := 3            # eff_depth at/after which no damp is applied
+const ARMED_DAMP_FACTOR_MIN := 0.4     # multiplier at eff_depth 0 (ramps to 1.0 by ARMED_DAMP_DEPTH)
+const ARMED_DAMP_FLOOR := 2            # never damp an armed chaff wave below this many
+
+
+# The armed-chaff-type cap for a given effective depth (LEVER 1). -1 = uncapped.
+static func _armed_chaff_cap(eff_depth: int) -> int:
+	if eff_depth < 0:
+		eff_depth = 0
+	if eff_depth < ARMED_CHAFF_TYPE_CAP.size():
+		return int(ARMED_CHAFF_TYPE_CAP[eff_depth])
+	return ARMED_CHAFF_TYPE_CAP_DEEP
+
+
+# The armed-chaff count multiplier for a given effective depth (LEVER 2). 1.0 once past
+# the ramp; lerps up from ARMED_DAMP_FACTOR_MIN at depth 0.
+static func _armed_damp_factor(eff_depth: int) -> float:
+	if eff_depth >= ARMED_DAMP_DEPTH or ARMED_DAMP_DEPTH <= 0:
+		return 1.0
+	var t: float = float(maxi(eff_depth, 0)) / float(ARMED_DAMP_DEPTH)
+	return lerpf(ARMED_DAMP_FACTOR_MIN, 1.0, t)
+
+
+# Assemble a chaff palette from an ALREADY-SHUFFLED pool while respecting the armed-type
+# cap (LEVER 1). Deterministic: walks the pool in its (seeded-shuffled) order, taking
+# unarmed entries freely and armed entries only until the cap is reached — then it makes
+# a SECOND pass to backfill remaining slots from the armed leftovers (graceful fallback
+# so a pool with few/zero unarmed entries still fills n_want without an extra RNG draw,
+# preserving stream determinism). `already` seeds the dedup (used when extending).
+static func _fill_chaff_capped(pool: Array, n_want: int, armed_cap: int, already: Array = []) -> Array:
+	var chosen: Array = already.duplicate()
+	var armed_taken: int = 0
+	for e in already:
+		if Roster.entry_is_armed(e):
+			armed_taken += 1
+	var deferred_armed: Array = []
+	# Pass 1: prefer unarmed; take armed only under the cap.
+	for e in pool:
+		if chosen.size() >= n_want:
+			break
+		if chosen.has(e):
+			continue
+		if Roster.entry_is_armed(e):
+			if armed_cap >= 0 and armed_taken >= armed_cap:
+				deferred_armed.append(e)   # over cap for now — remember for backfill
+				continue
+			armed_taken += 1
+		chosen.append(e)
+	# Pass 2: backfill from the deferred armed leftovers (only if we still need types and
+	# the unarmed supply ran dry). Keeps the palette full rather than starving it.
+	for e in deferred_armed:
+		if chosen.size() >= n_want:
+			break
+		if not chosen.has(e):
+			chosen.append(e)
+	return chosen
+
+
 static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, level_index: int) -> Array:
 	# LevelMotif (conductor review §5, roadmap P2.7). Two things are now rolled ONCE per level and
 	# threaded through the three stretches instead of re-rolled per stretch:
@@ -449,12 +534,10 @@ static func _pick_palette(rng: RandomNumberGenerator, sector_depth: int, level_i
 	# 2 chaff types at the opener (avoids a whole level of ONE unit), up to 3 deep — a tight subset.
 	# Kitchen-sink (the full pool) is the boss lead-in's job, not a normal node's.
 	var n_chaff: int = clampi(2 + level_index, 2, 3)
-	var chaff: Array = []
-	for e in chaff_pool:
-		if chaff.size() >= n_chaff:
-			break
-		if not chaff.has(e):
-			chaff.append(e)
+	# SHOOTER-DENSITY RAMP LEVER 1: cap how many ARMED chaff types the palette carries at this depth
+	# (the base palette rolls at the opener depth = level_index). Prefers unarmed early; backfills from
+	# armed leftovers if the pool lacks enough unarmed types so the palette never starves.
+	var chaff: Array = _fill_chaff_capped(chaff_pool, n_chaff, _armed_chaff_cap(level_index))
 	# Fallback: no chaff-tagged entries unlocked (shouldn't happen) — take any common.
 	if chaff.is_empty():
 		var any: Array = Roster.entries_eligible(Roster.Tier.COMMON, sector_depth, level_index)
@@ -482,7 +565,24 @@ static func _extend_palette(rng: RandomNumberGenerator, base: Dictionary, sector
 				if bool(e.get("chaff", false)) and not e.has("force_formation") and not chaff.has(e):
 					deep_pool.append(e)
 		if not deep_pool.is_empty():
-			chaff.append(deep_pool[rng.randi() % deep_pool.size()])
+			# SHOOTER-DENSITY RAMP LEVER 1: the added deep entry must respect this stretch's armed-type
+			# cap. If the palette already holds its armed quota, prefer an UNARMED deep entry; only fall
+			# back to an armed one when no unarmed deep entry exists (graceful — the palette still grows).
+			# Draw the index unconditionally FIRST so the seeded stream stays reproducible regardless of
+			# which candidate we ultimately accept, then re-home it into the preferred sub-pool.
+			var pick_idx: int = rng.randi()
+			var armed_now: int = 0
+			for e in chaff:
+				if Roster.entry_is_armed(e):
+					armed_now += 1
+			var cap: int = _armed_chaff_cap(eff_depth)
+			var over_cap: bool = (cap >= 0 and armed_now >= cap)
+			var candidates: Array = deep_pool
+			if over_cap:
+				var unarmed_deep: Array = deep_pool.filter(func(e): return not Roster.entry_is_armed(e))
+				if not unarmed_deep.is_empty():
+					candidates = unarmed_deep   # honor the cap; else keep the full pool (grow anyway)
+			chaff.append(candidates[pick_idx % candidates.size()])
 	# Adopt a deeper heavy only if the level had none.
 	if heavy.is_empty():
 		heavy = _pick_heavy(rng, sector_depth, eff_depth, [], eff_depth >= 1 or sector_depth >= 2)
@@ -549,13 +649,16 @@ static func _roll_motif(rng: RandomNumberGenerator, palette: Dictionary, level_i
 # motif pick a signature key the level's units can actually express (review §5 "intersect with
 # pattern_eligibility"). Empty ⇒ caller falls back to "straight".
 static func _palette_movement_keys(palette: Dictionary) -> Array:
-	var known: Array = FormationComposer.FAST_KEYS + FormationComposer.SLOW_KEYS
+	# FIX 3 (2026-07-06): restrict the motif signature-key pool to LANE-PRESERVING keys only. The
+	# motif signature drives formation-fill movement; a lane-abandoning key (side_traverse crosser,
+	# lane_cut/hunt) made composed/motif formations ride across the top band and overrun their lanes.
+	# The excluded keys stay available for accents / authored library patterns elsewhere.
 	var out: Array = []
 	for e in palette.get("chaff", []):
 		var scene: String = String(e.get("scene", ""))
 		for k in PatternEligibility.eligible_for(scene):
 			var key: String = String(k)
-			if known.has(key) and not out.has(key):
+			if FormationComposer.is_lane_preserving(key) and not out.has(key):
 				out.append(key)
 	return out
 
@@ -683,9 +786,10 @@ static func _escort_spec(rng: RandomNumberGenerator, entry: Dictionary, cell: Ve
 	var w = _make_wave_spec(rng, entry, sector_depth, level_index, 0)
 	w.count = 1
 	w.lane = int(cell.x)
-	# Shared pre-stack row math (formation_shapes.prestack_y): row == max_row enters at the top edge,
-	# each row up trails one ROW_GAP higher (dedup, conductor review §3).
-	w.spawn_y = FormationShapesC.prestack_y(int(cell.y), max_row)
+	# Row-0-leads pre-stack (formation_shapes.leads_from_zero): escort() cells use row-0-leads
+	# (forward shield row 0 faces the player, rear guard trails) — so the forward screen enters
+	# FIRST. Feeding cell.y into prestack_y (max_row-leads) inverted it (core/rear led). FIX 4.
+	w.spawn_y = FormationShapesC.leads_from_zero(int(cell.y), max_row)
 	w.spawn_delay = 0.0   # authored burst — whole convoy enters together; rows are SPATIAL
 	w.movement_override = Roster.make_movement({"movement": "straight"})
 	w.silent = true
@@ -957,6 +1061,16 @@ static func _make_wave_spec(rng: RandomNumberGenerator, entry: Dictionary, secto
 	# Widen the clamp ceiling by chaff_bonus so the bonus isn't silently eaten
 	# by the existing `base * 2` cap on dense COMMON waves.
 	count = clampi(count, 1, base * 2 + chaff_bonus)
+	# SHOOTER-DENSITY RAMP LEVER 2: damp ARMED CHAFF counts at shallow depth so shooters arrive in
+	# small clusters early (unarmed chaff — the harmless volume — is untouched). `level_index` here is
+	# the stretch's eff_depth on the combat path. Boss lead-ins keep their own tuning. Heavies (chaff
+	# false) are exempt: they're the discrete telegraphed threats the ramp deliberately preserves.
+	if not is_boss_leadin and bool(entry.get("chaff", false)) and Roster.entry_is_armed(entry):
+		var damp: float = _armed_damp_factor(level_index)
+		if damp < 1.0:
+			# Floor at ARMED_DAMP_FLOOR but never ABOVE the rolled count — damping must only
+			# ever shrink a wave (a count-1 roll stays 1, it doesn't get "floored" up to 2).
+			count = clampi(int(round(float(count) * damp)), mini(count, ARMED_DAMP_FLOOR), count)
 	w.count = count
 	# Per-wave HP bonus from prior wave-clears in this sector. Read Run via the
 	# main-loop root (matches _pick_boss above). Boss lead-ins don't take this

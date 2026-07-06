@@ -113,9 +113,10 @@ static func _channel_phrase(scene, cells: Array) -> Phrase:
 		ws.enemy_scene = scene
 		ws.count = 1
 		ws.lane = int(c.x)
-		# Shared pre-stack row math (formation_shapes.prestack_y): matches the hand-authored/geometric
-		# formation spacing so a parametric channel descends identically (dedup, review §3).
-		ws.spawn_y = FormationShapes.prestack_y(int(c.y), max_row)
+		# Row-0-leads pre-stack (formation_shapes.leads_from_zero): hazard_shapes channel cells use
+		# row-0-leads (hazard_shapes.gd:21), so the corridor's leading row enters first. Feeding c.y
+		# into prestack_y (max_row-leads) mirrored the channel vertically (FIX 4, 2026-07-06).
+		ws.spawn_y = FormationShapes.leads_from_zero(int(c.y), max_row)
 		ws.spawn_delay = 0.0
 		ws.drift_mode = "straight"   # hold the lane so the corridor's gap stays crisp (no drift blur)
 		specs.append(ws)

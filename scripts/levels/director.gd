@@ -64,16 +64,20 @@ const ANCHOR_GAP_PAD: float = 8.0
 # formation_shapes.prestack_y / ROW_GAP) so the painted shape descends in intact; members spawn on a
 # near-simultaneous stagger so a whole shape lands as one gesture, not a trickle.
 const GEOMETRIC_MEMBER_STAGGER: float = 0.03
-# Burst-fit ceiling (fairness fix, 2026-07-02): an intentional pre-stacked burst (authored /
-# geometric) may exceed the clarity cap so its shape lands intact, but NOT without bound — an
-# unclamped raise let a 21-33-member injected wall stack on top of a saturated 36-cap climax
-# (conductor review §2.1). The burst-fit cap is raised at most this many slots above max_concurrent,
-# and the whole formation is gated to fit under that ceiling BEFORE the first member spawns (so a
-# lockstep formation enters coherent instead of shearing mid-spawn while it waits for room).
-const BURST_OVERSHOOT: int = 8
-# Hard cap on how long a burst waits for cap headroom before spawning anyway — so a held/stuck
-# screen (nothing dying) can never deadlock the wave on the pre-gate.
-const BURST_HEADROOM_TIMEOUT: float = 6.0
+# ROW-RELEASE for pre-stacked bursts (authored + geometric) — the bunching/lane-overrun fix
+# (2026-07-06). A pre-stacked formation used to spawn ALL its rows near-simultaneously (the spatial
+# stack was supposed to separate them as they fell), but on a busy screen the burst-cap gate dribbled
+# them out at their DEEP pre-stack Y over seconds → rows crowded the top and flew over each other.
+# Row-release instead spawns one row at a time — all members of a row together (intra-row burst kept,
+# Roman 2026-06-17) — and TEMPORALLY gates the next row on the previous row's lead descending
+# ROW_RELEASE_CLEAR_DEPTH, so the SPATIAL stack is unneeded: later rows spawn at the ROW-0 entry Y.
+# On a clear screen (whole formation fits) it bursts the old way, preserving the intact-formation feel.
+const ROW_RELEASE_CLEAR_DEPTH: float = FormationShapes.ROW_GAP   # ~40px — one row-gap of descent
+const ROW_RELEASE_TIMEOUT: float = 2.0     # per-row cap so a held/killed lead can't stall the shape
+const ROW_RELEASE_MEMBER_STAGGER: float = 0.03   # intra-row spawn stagger (near-simultaneous burst)
+const ROW_RELEASE_ENTRY_Y: float = FormationShapes.SPAWN_Y_TOP - 4.0   # row entry Y (edge - small margin)
+# (BURST_OVERSHOOT / BURST_HEADROOM_TIMEOUT retired 2026-07-06 — the pre-stacked-burst overshoot
+# pre-gate they fed was replaced by row-release (_row_release); see the retirement note there.)
 # SWEEP rows (2026-06-27): a directional sweep (left_to_right / right_to_left — the START/MIDDLE
 # bulk) used to spawn ONE enemy per spawn_interval on a side-alternating _pick_lane, reading as
 # "single enemies trickling in on random lanes". It now enters as ROWS of this many abreast (a
@@ -572,34 +576,122 @@ func _dispatch_authored(ph: Resource) -> void:
 			specs.append(sp)
 	if specs.is_empty():
 		return
-	specs.sort_custom(func(a, b): return float(a.spawn_delay) < float(b.spawn_delay))
-	# An authored formation is an EXPLICIT count — the author placed exactly these enemies and
-	# expects them all on screen on their authored schedule. The standard max_concurrent gate is a
-	# clarity throttle for ALGORITHMIC waves; applying it here partially dropped large formations and
-	# staggered same-row enemies that should burst together (Roman 2026-06-17). Raise the gate to fit
-	# the whole formation on top of whatever's already alive, so the authored layout lands intact —
-	# but CEILED (fairness fix 2026-07-02): the raise never exceeds max_concurrent + BURST_OVERSHOOT,
-	# and we wait for that headroom BEFORE the first member so the burst doesn't shear mid-formation
-	# on a saturated screen.
-	await _await_burst_headroom(specs.size())
-	if not _running:
+	# An authored formation is an EXPLICIT count — the author placed exactly these enemies and expects
+	# them all on screen. It's pre-stacked by ROW (equal spawn_y = one row); release row-by-row so the
+	# formation descends SEPARATED instead of dribbling all rows at their deep pre-stack Y on a busy
+	# screen (bunching/overrun fix, 2026-07-06). On a clear screen the whole formation bursts intact.
+	await _row_release(specs)
+
+
+# ROW-BY-ROW release of a pre-stacked formation (FIX 2 + FIX 5, 2026-07-06). Shared by the authored
+# and geometric dispatch paths. `specs` are count-1 sub-specs, each pinned to its lane + pre-stack
+# spawn_y (equal spawn_y ⇒ same row). We:
+#   1. group by pre-stack row (spawn_y), order LEADING-FIRST (deepest row = spawn_y closest to
+#      SPAWN_Y_TOP enters first; higher pre-stack rows trail),
+#   2. FAST PATH — if the whole formation fits on a clear-enough screen
+#      (_alive_slots + total <= max_concurrent), burst every member at once (intact-formation feel),
+#   3. else release one row at a time: all members of a row TOGETHER (intra-row burst kept), at the
+#      ROW-0 ENTRY Y (the temporal gate replaces the spatial stack — a gated row must NOT enter 200px
+#      up), then GATE the next row on the previous row's lead descending ROW_RELEASE_CLEAR_DEPTH
+#      (reuses _await_row_clear; ROW_RELEASE_TIMEOUT ceiling so a held/killed lead can't stall),
+#   4. FIX 5 — before releasing a row, if any of its target lanes is occupied in the entry band, wait
+#      one extra clear-beat (do NOT shift lanes — authored shapes are sacred).
+# The outer burst-cap pre-gate (_await_burst_headroom / _burst_cap) is REMOVED here: row-release
+# subsumes it — the "dribble at fixed deep Y for seconds" failure mode it guarded against can't happen
+# once rows enter at the top edge one beat apart, and the per-row occupancy/clear gates already keep
+# the top band from stacking. A single small cap-gate before each row (max_concurrent) keeps the total
+# under the clarity ceiling; the intact-burst fast path is the only place the ceiling is exceeded, and
+# only when the screen is clear enough to hold it.
+func _row_release(specs: Array) -> void:
+	var total: int = specs.size()
+	if total <= 0:
 		return
-	var authored_cap: int = _burst_cap(specs.size())
-	var elapsed: float = 0.0
+	# Group specs into rows keyed by pre-stack spawn_y (rounded so float noise doesn't split a row).
+	var rows_by_y: Dictionary = {}
 	for sp in specs:
-		if not _running:
-			return
-		var wait: float = maxf(0.0, float(sp.spawn_delay) - elapsed)
-		if wait > 0.0:
-			await _paced(wait).timeout
-			elapsed += wait
+		var key: int = int(round(float(sp.spawn_y)))
+		if not rows_by_y.has(key):
+			rows_by_y[key] = []
+		rows_by_y[key].append(sp)
+	# Order rows LEADING-FIRST: the deepest pre-stack row (spawn_y closest to SPAWN_Y_TOP, i.e. the
+	# LARGEST/least-negative y) enters first; higher rows (more negative y) trail.
+	var row_keys: Array = rows_by_y.keys()
+	row_keys.sort()          # ascending y: most-negative (trailing) first
+	row_keys.reverse()       # → least-negative (leading) first
+	# FAST PATH: whole formation fits on a clear-enough screen — burst it intact (old feel), at pre-
+	# stack Y so the shape still paints in as it descends.
+	if _alive_slots() + total <= max_concurrent:
+		for sp in specs:
 			if not _running:
 				return
-		while _running and _alive_slots() >= authored_cap:
+			_spawn_enemy(sp, 0, int(sp.lane))
+			await _paced(ROW_RELEASE_MEMBER_STAGGER).timeout
+		return
+	# GATED PATH: one row at a time, each at the ROW-0 entry Y (temporal gate replaces the spatial stack).
+	for ri in row_keys.size():
+		if not _running:
+			return
+		var row: Array = rows_by_y[row_keys[ri]]
+		# Cap-gate so a row never blows past the clarity cap (keeps total bounded without the old
+		# burst-overshoot pre-gate).
+		while _running and _alive_slots() >= max_concurrent:
 			await _paced(0.1).timeout
 		if not _running:
 			return
-		_spawn_enemy(sp, 0, int(sp.lane))
+		# FIX 5 — occupancy-aware beat: if any target lane of this row is occupied in the entry band,
+		# wait one extra clear-beat (never shift the lane — authored shapes are sacred). Bounded by the
+		# same per-row timeout so a permanently-occupied lane can't deadlock.
+		if ri > 0:
+			var occ: Array = _occupied_lanes()
+			var contested: bool = false
+			for sp in row:
+				if occ.has(int(sp.lane)):
+					contested = true
+					break
+			if contested:
+				var t: float = 0.0
+				while _running and t < ROW_RELEASE_TIMEOUT:
+					await _paced(0.1).timeout
+					t += 0.1
+					var still: Array = _occupied_lanes()
+					var clash := false
+					for sp in row:
+						if still.has(int(sp.lane)):
+							clash = true
+							break
+					if not clash:
+						break
+		# Release the whole row together at the entry Y. Overriding spawn_y here is the crux of the fix:
+		# a gated row would otherwise enter at its deep pre-stack Y (200px up) and the timing would be
+		# wrong — the temporal gate has already done the vertical separation.
+		var last_spawned: Node = null
+		for sp in row:
+			if not _running:
+				return
+			var orig_y: float = float(sp.spawn_y)
+			sp.spawn_y = ROW_RELEASE_ENTRY_Y
+			last_spawned = _spawn_enemy(sp, 0, int(sp.lane))
+			sp.spawn_y = orig_y   # restore so a shared/re-dispatched spec isn't mutated
+			await _paced(ROW_RELEASE_MEMBER_STAGGER).timeout
+		# Gate the next row on THIS row's lead clearing the entry zone (reuse the sweep row-clear gate).
+		if ri < row_keys.size() - 1:
+			await _await_row_release_clear(last_spawned)
+
+
+# Wait until `enemy` has descended ROW_RELEASE_CLEAR_DEPTH from its spawn Y (so the row leaves the
+# entry band before the next enters), capped at ROW_RELEASE_TIMEOUT so a held/killed lead can't stall
+# the formation. `enemy` may be null/freed — then the timeout is the only bound. (Cousin of
+# _await_row_clear, but depth-only with no min-beat: the intra-row stagger already IS the beat.)
+func _await_row_release_clear(enemy) -> void:
+	var start_y: float = (enemy.position.y if (is_instance_valid(enemy) and enemy is Node2D) else 0.0)
+	var t: float = 0.0
+	while _running and t < ROW_RELEASE_TIMEOUT:
+		await _paced(0.05).timeout
+		t += 0.05
+		var cleared: bool = (not is_instance_valid(enemy)) or (not (enemy is Node2D)) \
+			or (enemy.position.y - start_y >= ROW_RELEASE_CLEAR_DEPTH)
+		if cleared:
+			return
 
 
 # GEOMETRIC: perform a generator-rolled held shape (formation_shapes.gd). The phrase's specs are
@@ -623,7 +715,10 @@ func _dispatch_geometric(ph: Resource) -> void:
 	var cells: Array = FormationShapes.placements(ph.shape, total)
 	if cells.is_empty():
 		return
-	# Tallest row sets the pre-stack height (row 0 enters at the edge; each row up adds a gap).
+	# Tallest row sets the pre-stack height. formation_shapes cells use the ROW-0-LEADS convention
+	# (formation_shapes.gd:20 — row 0 is the leading latitude), so we pre-stack via leads_from_zero
+	# (row 0 → top edge, higher rows trail up). Feeding c.y into prestack_y (max_row-leads) inverted
+	# every geometric shape — spearheads entered widest-row-first (FIX 4, 2026-07-06).
 	var max_row: int = 0
 	for c in cells:
 		max_row = maxi(max_row, int(c.y))
@@ -636,53 +731,22 @@ func _dispatch_geometric(ph: Resource) -> void:
 		var s: Resource = base.duplicate()
 		s.count = 1
 		s.lane = clampi(int(c.x), 0, Lanes.COUNT - 1)
-		# Shared pre-stack row math (formation_shapes.prestack_y): row == max_row enters at the top edge,
-		# each row up trails one ROW_GAP higher (dedup, conductor review §3).
-		s.spawn_y = FormationShapes.prestack_y(int(c.y), max_row)
+		# Row-0-leads pre-stack (formation_shapes.leads_from_zero): row 0 enters at the top edge,
+		# each higher row trails one ROW_GAP up — matches the shape cells' documented convention.
+		s.spawn_y = FormationShapes.leads_from_zero(int(c.y), max_row)
 		specs.append(s)
-	# An explicit shape is an intentional burst (like authored): raise the gate to fit the whole
-	# formation on top of whatever's already alive so the clarity cap can't partially drop it —
-	# CEILED to max_concurrent + BURST_OVERSHOOT, with a whole-formation pre-gate, so it can't stack
-	# an unbounded wall on a saturated screen (fairness fix 2026-07-02; see _dispatch_authored).
-	await _await_burst_headroom(specs.size())
-	if not _running:
-		return
-	var cap: int = _burst_cap(specs.size())
-	for s in specs:
-		if not _running:
-			return
-		while _running and _alive_slots() >= cap:
-			await _paced(0.1).timeout
-		if not _running:
-			return
-		_spawn_enemy(s, 0, int(s.lane))
-		await _paced(GEOMETRIC_MEMBER_STAGGER).timeout
+	# An explicit shape is an intentional pre-stacked burst (like authored): release it ROW-BY-ROW so
+	# it descends separated on a busy screen instead of dribbling all rows at their deep pre-stack Y
+	# (bunching/overrun fix, 2026-07-06). On a clear screen the whole shape bursts intact.
+	await _row_release(specs)
 
 
-# Ceiled burst-fit cap for an intentional pre-stacked formation of `member_count`: fit it on top of
-# whatever's alive (est. up to 4 slots/member so same-row bursts aren't throttled), but never raise
-# more than BURST_OVERSHOOT above the clarity cap. Always >= max_concurrent so a burst is never
-# throttled BELOW the normal streaming rate.
-func _burst_cap(member_count: int) -> int:
-	var want: int = _alive_slots() + member_count * 4
-	return maxi(max_concurrent, mini(want, max_concurrent + BURST_OVERSHOOT))
-
-
-# Gate a burst until the WHOLE formation fits under the ceiling (max_concurrent + BURST_OVERSHOOT),
-# so a pre-stacked / lockstep formation enters coherent instead of shearing while it stalls
-# mid-spawn on a saturated screen. `member_count` is used as the slot estimate (authored members are
-# overwhelmingly 1-slot smalls; mediums under-estimate slightly and eat into the overshoot budget).
-# A formation too big to ever fit (target < 0 — dev-forced walls on a low cap) waits for the screen
-# to drain as far as it will, then the timeout releases it and it streams under _burst_cap.
-# Hard-timeout either way so a held/stuck screen can't deadlock the wave.
-func _await_burst_headroom(member_count: int) -> void:
-	var ceiling: int = max_concurrent + BURST_OVERSHOOT
-	# Room for the whole formation: alive must drop far enough that alive + member_count <= ceiling.
-	var target: int = ceiling - member_count
-	var elapsed: float = 0.0
-	while _running and _alive_slots() > target and elapsed < BURST_HEADROOM_TIMEOUT:
-		await _paced(0.1).timeout
-		elapsed += 0.1
+# (_burst_cap / _await_burst_headroom RETIRED 2026-07-06 — row-release (_row_release) subsumes the
+# burst-overshoot pre-gate: pre-stacked rows now enter at the top edge one clear-beat apart instead of
+# all dribbling at their deep pre-stack Y under a raised ceiling, so the "shear/stack on a saturated
+# screen" failure those two guarded against can no longer occur. The clarity cap is held by the
+# per-row cap-gate in _row_release; the intact-burst fast path is the only place it's exceeded, and
+# only on a clear-enough screen. BURST_OVERSHOOT / BURST_HEADROOM_TIMEOUT removed with them.)
 
 
 # WALL: spawn members as successive rows across the lanes. Each row leaves

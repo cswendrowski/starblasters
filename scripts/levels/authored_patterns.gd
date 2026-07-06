@@ -1177,6 +1177,13 @@ static func maybe_inject(score, fill_faction: int, sector: int, rng: RandomNumbe
 			# an accent, not a second wave. Draw the RNG unconditionally (fit or not) so the injection
 			# stream stays deterministic across the size filter — a node retry reproduces the same picks.
 			var pat: Dictionary = pool[rng.randi() % pool.size()]
+			# FIX 1 (2026-07-06): SKIP a wave that already got a motif capstone (tagged by
+			# inject_motif_capstones). Two guaranteed-plus-accent pre-stacked bursts on one stretch
+			# boundary was the worst-case bunching (~45 members vs a 44 ceiling). Draw the RNG FIRST
+			# (above) so the skip is draw-then-discard — the seeded stream stays deterministic across
+			# the prune (a node retry reproduces every subsequent pick).
+			if w.has_meta("motif_capstoned"):
+				continue
 			var cap: int = int(w.slot_cap) if ("slot_cap" in w and int(w.slot_cap) >= 0) else INJECT_FALLBACK_CAP
 			var max_members: int = maxi(1, int(float(cap) * INJECT_CAP_SHARE))
 			if _member_count(pat) > max_members:
@@ -1241,6 +1248,10 @@ static func inject_motif_capstones(score, variants: Array, fill_faction: int, se
 		var ph := build_phrase(v, fill_faction, sector, rng)
 		if ph != null:
 			score.waves[stretch].phrases.append(ph)
+			# FIX 1 (2026-07-06): mark this ScoreWave so maybe_inject SKIPS it — a wave that already
+			# got a guaranteed motif capstone must not ALSO receive a 22% maybe_inject accent, or the
+			# two pre-stacked bursts stack against one cap at the same stretch boundary (bunching).
+			score.waves[stretch].set_meta("motif_capstoned", true)
 
 
 # Read + clear the dev "send to conductor" one-shot. The editor can push EITHER a live pattern

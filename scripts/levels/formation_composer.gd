@@ -68,6 +68,29 @@ const SLOW_KEYS: Array = [
 	"drift", "side_traverse",
 ]
 
+# Lane-PRESERVING movement keys (FIX 3, 2026-07-06): keys whose enemy stays confined to (or holds)
+# its authored lane rather than riding across the top band / exiting sideways / free-roam chasing.
+# Formation-fill + motif-signature keys are restricted to THIS set so a composed/motif formation
+# actually holds the shape it paints — the excluded keys (side_traverse crosser, lane_cut/lane_hook
+# exits, hunt_beeline/hunt_omni free-roam, side_turn) abandoned the lane and produced the
+# "enemies spawned outside established lanes / flying over each other" overrun. The excluded keys
+# stay available everywhere else (accents, wave movement_overrides, authored library patterns that
+# deliberately use them). Verified lane-confinement against enemy_roster.make_movement:
+#   straight/straight_charge(LaneCharge)/straight_crawl(→straight) — pure descent, hold lane.
+#   lane_weave — wobble WITHIN the lane (<half lane width). lane_drift/lane_shift — slide then HOLD.
+#   loiter — hover in the fire band. drift — tank hover+jiggle, holds lane.
+const LANE_PRESERVING_KEYS: Array = [
+	"straight", "straight_charge", "straight_crawl",
+	"lane_weave", "lane_drift", "lane_shift", "loiter", "drift",
+]
+
+
+# True if a movement key keeps its enemy in (or holding) its authored lane. Unknown keys are treated
+# as lane-preserving? NO — conservative the other way: a lane-abandoning unknown would break the
+# formation, so only the explicit whitelist counts. Callers fall back to "straight" on an empty set.
+static func is_lane_preserving(key: String) -> bool:
+	return LANE_PRESERVING_KEYS.has(key)
+
 # ZONE_ASSIGN column groups (left / centre / right thirds) — one movement key per zone (spec §4
 # "one movement key per column-zone"). Lanes 0-1 | 2-4 | 5-6.
 const ZONE_LEFT: Array = [0, 1]
