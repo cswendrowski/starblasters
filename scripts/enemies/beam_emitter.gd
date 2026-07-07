@@ -42,6 +42,12 @@ var cycle: int = Cycle.LOOP_IDLE
 var autostart: bool = true
 var settle_y: float = -1.0       # >=0: a beam MOUNT begins only once the host descends past this Y
 var _settle_gated: bool = false  # internal: true once the settle-gate has fired begin()
+# Stagger (Roman 2026-07-06): delay the first begin() by this many seconds. For ALTERNATING muzzles the
+# builder gives each beam a different begin_delay (period/n × index) so they fire out of phase; BOTH-muzzle
+# beams share begin_delay 0 (fire in sync). Only applies to autostart beams.
+var begin_delay: float = 0.0
+var _begin_delay_t: float = 0.0
+var _begin_gate_done: bool = false
 
 # --- geometry ---
 var endpoint: int = Endpoint.RAY
@@ -79,6 +85,11 @@ var _fade_t: float = 0.0
 var layers: Array = []
 var telegraph_color: Color = Color(1.0, 0.95, 0.35, 0.5)
 var telegraph_width: float = 1.5
+# Faction tint (Roman 2026-07-06): the beam takes the host faction's MUZZLE color (Supremacy/Zealot gold,
+# Privateer/Corporate lime); the innermost (core) layer stays white-hot. Core faction / no faction (-1) =
+# white throughout. -2 = auto-detect from the host's `faction_skin` meta; -1..3 = explicit; -3 = OFF (keep
+# authored layer colors, e.g. a boss beam that wants bespoke colors).
+var faction: int = -2
 
 # --- state ---
 var _phase: int = Phase.OFF
@@ -96,7 +107,7 @@ signal phase_changed(phase: int)
 
 func _ready() -> void:
 	position = emitter_offset
-	if autostart:
+	if autostart and begin_delay <= 0.0:
 		begin()
 
 
@@ -194,15 +205,24 @@ func _set_phase(p: int) -> void:
 
 
 func _process(delta: float) -> void:
-	# Settle-gate (beam mounts): hold fire until the host descends into the band, then begin() once.
+	# Settle-gate (beam mounts): hold fire until the host descends into the band, then allow begin.
 	# Replaces the Beamer's bespoke begin-on-settle; pair with autostart:false + settle_y in the cfg.
 	if settle_y >= 0.0 and not _settle_gated:
 		var sh := get_parent()
 		if sh != null and sh is Node2D and (sh as Node2D).global_position.y >= settle_y:
 			_settle_gated = true
-			begin()
+			if begin_delay <= 0.0:
+				begin()
 		else:
 			return
+	# Begin-delay stagger (alternating muzzles): once cleared to begin (autostart or settled), hold the
+	# first begin() for begin_delay seconds so staggered beams fire out of phase.
+	if begin_delay > 0.0 and not _begin_gate_done and _phase == Phase.OFF and (autostart or _settle_gated):
+		_begin_delay_t += delta
+		if _begin_delay_t >= begin_delay:
+			_begin_gate_done = true
+			begin()
+		return
 	if _phase == Phase.OFF:
 		return
 	# Host-state guard (review P0): suppress the beam entirely while the host enemy is
@@ -419,15 +439,47 @@ func _default_layers() -> Array:
 	]
 
 
+const FactionsC = preload("res://scripts/levels/factions.gd")
+
+
+# The host faction that colors the beam: explicit `faction` (>= -1) wins; -2 auto-detects from the host's
+# `faction_skin` meta (walking up the tree); -1 = no faction (white).
+func _resolve_faction() -> int:
+	if faction >= -1:
+		return faction
+	var n: Node = get_parent()
+	while n != null:
+		if n.has_meta("faction_skin"):
+			return int(n.get_meta("faction_skin"))
+		n = n.get_parent()
+	return -1
+
+
 func _ensure_visuals() -> void:
 	if not _lines.is_empty():
 		return
 	var tbl: Array = layers if not layers.is_empty() else _default_layers()
+	# Faction muzzle color for the beam (white for no faction / Core), unless tinting is OFF (-3).
+	var tint_on: bool = faction != -3
+	var mc: Color = FactionsC.muzzle_glow_color(_resolve_faction()) if tint_on else Color.WHITE
 	_base_widths.clear()
-	for spec in tbl:
+	for i in tbl.size():
+		var spec = tbl[i]
 		var w: float = spec.get("width", 4.0)
 		_base_widths.append(w)
-		_lines.append(_make_line(spec.get("color", Color.WHITE), w))
+		var col: Color = spec.get("color", Color.WHITE)
+		if tint_on:
+			# Outer/mid layers take the muzzle hue; the innermost (core) layer stays white-hot. Keep the
+			# authored per-layer alpha so the outer glow stays soft and the core reads bright.
+			var is_core: bool = (i == tbl.size() - 1)
+			var base: Color = Color.WHITE if is_core else mc
+			base.a = col.a
+			col = base
+		_lines.append(_make_line(col, w))
+	if tint_on:
+		# Telegraph warning takes the faction hue too. Mutate telegraph_color (not just the line) since
+		# _show_telegraph_only re-derives the pulsing color from it every frame.
+		telegraph_color = Color(mc.r, mc.g, mc.b, telegraph_color.a)
 	_telegraph = _make_line(telegraph_color, telegraph_width)
 	for l in _lines:
 		add_child(l)

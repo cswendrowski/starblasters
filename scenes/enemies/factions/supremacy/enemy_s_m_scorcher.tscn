@@ -4,13 +4,21 @@
 [ext_resource type="Script" uid="uid://bj8dc3ktx8bt1" path="res://scripts/enemies/patterns/straight_down.gd" id="2_aijvr"]
 [ext_resource type="Texture2D" uid="uid://dgn5d1v22nvlr" path="res://graphics/enemies/enemy_s_m_scorcher.png" id="3_v3f0y"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="4_vpd1l"]
+[ext_resource type="Script" uid="uid://b2rq6tdtocx55" path="res://scripts/enemies/components/beam_charge_visual.gd" id="5_charge"]
 
 [sub_resource type="Resource" id="MovePattern"]
 script = ExtResource("2_aijvr")
 
+[sub_resource type="Resource" id="ChargeVisual"]
+script = ExtResource("5_charge")
+layer = "GlowCharge"
+fade = true
+hdr = true
+
 [node name="Enemy" type="Area2D" unique_id=1312047450 groups=["enemies"]]
 script = ExtResource("1_v3f0y")
 movement = SubResource("MovePattern")
+components = [SubResource("ChargeVisual")]
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1600621428]
 texture = ExtResource("3_v3f0y")

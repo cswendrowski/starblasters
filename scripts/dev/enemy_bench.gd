@@ -76,6 +76,7 @@ const FACTION_GROUPS := ["All", "Core", "Supremacy", "Privateer", "Corporate", "
 # lands under the "Zealot" tab.
 const BENCH_WIP_BOSSES := [
 	"res://scenes/enemies/factions/zealot/boss_z_battleship.tscn",
+	"res://scenes/enemies/factions/corporate/boss_c_director.tscn",
 ]
 
 # Mounts editor pools. Kind/aim are stored lowercase (the roster dict schema); the *_LABELS are the
@@ -1175,6 +1176,7 @@ func _mount_spec_dicts() -> Array:
 			sd["payload_scene"] = _emitter_payload_path(pname)   # entity scene path
 		elif pname == BEAM_PAYLOAD_NAME:
 			sd["beam_config"] = _beam_config_from(d)   # beam payload → BeamEmitter (editable config)
+			sd["marker_mode"] = String(d.get("marker_mode", "all"))   # Both / Alternating muzzles
 		elif PAYLOADS.has(pname):
 			sd["payload"] = PAYLOADS[pname]
 		elif PROJECTILES.has(pname):
@@ -1468,6 +1470,12 @@ func _make_mount_row(idx: int) -> Control:
 		var baim := _row_dd(BEAM_AIM_LABELS, maxi(0, BEAM_AIM_VALUES.find(int(d.get("beam_aim", 2)))))
 		baim.item_selected.connect(func(i): _set_mount(d, "beam_aim", int(BEAM_AIM_VALUES[i])))
 		_grid_row(grid, "beam aim", baim)
+		# Muzzles: Both = every matched marker fires in sync; Alternating = the markers fire out of phase
+		# (staggered by period/n). Needs a marker glob (e.g. Muzzle*) matching 2+ markers to matter.
+		var bmuz_keys: Array = ["all", "cycle"]
+		var bmuz := _row_dd(["Both", "Alternating"], maxi(0, bmuz_keys.find(String(d.get("marker_mode", "all")))))
+		bmuz.item_selected.connect(func(i): _set_mount(d, "marker_mode", String(bmuz_keys[i])))
+		_grid_row(grid, "muzzles", bmuz)
 		var breach := _row_spin(60.0, 480.0, 10.0, float(d.get("beam_reach", 320.0)))
 		breach.value_changed.connect(func(v): _set_mount(d, "beam_reach", float(v)))
 		_grid_row(grid, "reach", breach)
@@ -1477,12 +1485,13 @@ func _make_mount_row(idx: int) -> Control:
 		var bidle := _row_spin(0.0, 5.0, 0.1, float(d.get("beam_idle", 0.9)))
 		bidle.value_changed.connect(func(v): _set_mount(d, "beam_idle", float(v)))
 		_grid_row(grid, "idle s", bidle)
+		# charge time = beam windup (thin telegraph ramps up); fire time = beam firing (lethal).
 		var bwind := _row_spin(0.1, 5.0, 0.1, float(d.get("beam_windup", 1.3)))
 		bwind.value_changed.connect(func(v): _set_mount(d, "beam_windup", float(v)))
-		_grid_row(grid, "windup s", bwind)
+		_grid_row(grid, "charge s", bwind)
 		var bfire := _row_spin(0.1, 5.0, 0.1, float(d.get("beam_firing", 1.1)))
 		bfire.value_changed.connect(func(v): _set_mount(d, "beam_firing", float(v)))
-		_grid_row(grid, "firing s", bfire)
+		_grid_row(grid, "fire s", bfire)
 		var bcool := _row_spin(0.1, 5.0, 0.1, float(d.get("beam_cooldown", 1.5)))
 		bcool.value_changed.connect(func(v): _set_mount(d, "beam_cooldown", float(v)))
 		_grid_row(grid, "cooldown s", bcool)
@@ -2053,7 +2062,9 @@ func _mount_copy_line(d: Dictionary) -> String:
 		return eline
 	# Beam payload: a kind:"beam" mount carrying the editable beam_config (routed by MountBuilder).
 	if String(d.get("payload", "")) == BEAM_PAYLOAD_NAME:
-		return "{ \"kind\": \"beam\", \"marker\": \"%s\", \"beam_config\": %s }," % [String(d.get("marker", "")), _beam_cfg_literal(_beam_config_from(d))]
+		var bmm: String = String(d.get("marker_mode", "all"))
+		var bmm_str: String = (", \"marker_mode\": \"%s\"" % bmm) if bmm != "all" else ""
+		return "{ \"kind\": \"beam\", \"marker\": \"%s\"%s, \"beam_config\": %s }," % [String(d.get("marker", "")), bmm_str, _beam_cfg_literal(_beam_config_from(d))]
 	var pname: String = String(d.get("payload", "Ball"))
 	var pay: String = "\"payload\": null"
 	if PAYLOADS.has(pname):

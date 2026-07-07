@@ -113,8 +113,27 @@ static func _build_turret(enemy: Node, spec, mount) -> void:
 
 
 static func _attach_beam(enemy: Node, spec) -> void:
-	var be = BeamEmitterC.new()
-	be.configure(spec.beam_config)   # autostart in the cfg → _ready begins it (mirrors enemy_core)
 	var mounts := _markers(enemy, String(spec.marker))
-	var parent: Node = mounts[0] if not mounts.is_empty() else enemy
-	parent.add_child(be)
+	if mounts.is_empty():
+		# Hull-mounted beam (no marker) — a single emitter on the enemy.
+		var be = BeamEmitterC.new()
+		be.configure(spec.beam_config)   # autostart in the cfg → _ready begins it (mirrors enemy_core)
+		enemy.add_child(be)
+		return
+	# One BeamEmitter per matched marker (Roman 2026-07-06). marker_mode ALL/INWARD/OUTWARD = both muzzles
+	# fire in sync; CYCLE = alternating — each beam is staggered by period/n so the muzzles fire out of phase.
+	var alternating: bool = int(spec.marker_mode) == MountSpecC.MarkerMode.CYCLE
+	var period: float = _beam_period(spec.beam_config)
+	var n: int = mounts.size()
+	for i in n:
+		var be = BeamEmitterC.new()
+		be.configure(spec.beam_config)
+		if alternating and n > 1:
+			be.begin_delay = period * float(i) / float(n)
+		mounts[i].add_child(be)
+
+
+# The full BeamEmitter FSM cycle length — used to stagger alternating-muzzle beams evenly.
+static func _beam_period(cfg: Dictionary) -> float:
+	return maxf(0.1, float(cfg.get("idle_time", 0.9)) + float(cfg.get("windup_time", 1.3)) \
+		+ float(cfg.get("firing_time", 1.1)) + float(cfg.get("cooldown_time", 1.5)))
