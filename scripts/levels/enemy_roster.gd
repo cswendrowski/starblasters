@@ -452,6 +452,59 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": true,
 		"conflict_tags": ["aimed_or_spread", "wide_dodge"],
 	},
+	# --- New supremacy units (Roman 2026-07-06) — scenes set up + registered; SCAFFOLD ONLY. Movement
+	# pattern + hardpoints (mounts) are Roman's to author manually. `straight` movement + no mounts is a
+	# placeholder so they spawn + appear in the Enemy Bench for config. Bump/adjust when armed. ---
+	{
+		# Bully (supremacy small) — SCAFFOLD, add movement + hardpoints.
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_bully.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "straight",
+		"base_count": 3,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"conflict_tags": [],
+	},
+	{
+		# Abductor (supremacy small — has a MuzzleGravity marker for a gravity weapon) — SCAFFOLD.
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_abductor.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "straight",
+		"base_count": 2,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"conflict_tags": [],
+	},
+	{
+		# Ravager (supremacy medium, tall 32x64 hull) — SCAFFOLD, add movement + hardpoints.
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_ravager.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": [],
+		"movement": "straight",
+		"base_count": 2,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": false,
+		"conflict_tags": [],
+	},
+	{
+		# Ruiner (supremacy medium, uses the beamer art) — SCAFFOLD, add movement + hardpoints.
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_ruiner.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": [],
+		"movement": "straight",
+		"base_count": 2,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": false,
+		"conflict_tags": [],
+	},
+	{
+		# Scorcher (supremacy medium) — SCAFFOLD, add movement + hardpoints.
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_scorcher.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": [],
+		"movement": "straight",
+		"base_count": 2,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": false,
+		"conflict_tags": [],
+	},
 	# Rush (M6c, supremacy) — fast aggressive fighter firing 3-shot bursts of small
 	# bullets from two muzzles (±8). Dive / weave / charge (beeline) variants.
 	{

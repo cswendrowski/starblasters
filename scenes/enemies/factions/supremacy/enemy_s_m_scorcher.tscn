@@ -1,0 +1,78 @@
+[gd_scene format=3 uid="uid://vvwfv0ipidwi"]
+
+[ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemies/enemy_core.gd" id="1_v3f0y"]
+[ext_resource type="Script" uid="uid://bj8dc3ktx8bt1" path="res://scripts/enemies/patterns/straight_down.gd" id="2_aijvr"]
+[ext_resource type="Texture2D" uid="uid://dgn5d1v22nvlr" path="res://graphics/enemies/enemy_s_m_scorcher.png" id="3_v3f0y"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="4_vpd1l"]
+
+[sub_resource type="Resource" id="MovePattern"]
+script = ExtResource("2_aijvr")
+
+[node name="Enemy" type="Area2D" unique_id=1312047450 groups=["enemies"]]
+script = ExtResource("1_v3f0y")
+movement = SubResource("MovePattern")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1600621428]
+texture = ExtResource("3_v3f0y")
+hframes = 3
+
+[node name="GlowMask" type="Sprite2D" parent="." unique_id=1711695760]
+texture = ExtResource("3_v3f0y")
+hframes = 3
+frame = 1
+
+[node name="GlowCharge" type="Sprite2D" parent="." unique_id=84991625]
+visible = false
+texture = ExtResource("3_v3f0y")
+hframes = 3
+frame = 2
+
+[node name="CollisionShape2D" type="CollisionPolygon2D" parent="." unique_id=1379970341]
+visible = false
+position = Vector2(0, 8)
+polygon = PackedVector2Array(-6, -24, -9, -20, -13, -20, -13, 5, -15, 6, -15, 22, -14, 23, 14, 23, 15, 22, 15, 6, 13, 5, 13, -20, 9, -20, 6, -24)
+
+[node name="MoveTimer" type="Timer" parent="." unique_id=1975128440]
+one_shot = true
+
+[node name="ShootTimer" type="Timer" parent="." unique_id=1173289907]
+one_shot = true
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=557651409]
+stream = ExtResource("4_vpd1l")
+
+[node name="EngineL" type="Marker2D" parent="." unique_id=1348105926]
+position = Vector2(-13, 30)
+
+[node name="EngineMid" type="Marker2D" parent="." unique_id=1846511922]
+position = Vector2(0, 30)
+
+[node name="EngineR" type="Marker2D" parent="." unique_id=384316647]
+position = Vector2(13, 30)
+
+[node name="DamageMarker" type="Marker2D" parent="." unique_id=2092296301]
+position = Vector2(-3, 12)
+
+[node name="DamageMarker2" type="Marker2D" parent="." unique_id=181398905]
+position = Vector2(3, 12)
+
+[node name="DamageMarker5" type="Marker2D" parent="." unique_id=603334306]
+position = Vector2(6, 2)
+
+[node name="DamageMarker6" type="Marker2D" parent="." unique_id=1892674932]
+position = Vector2(5, -8)
+
+[node name="DamageMarker3" type="Marker2D" parent="." unique_id=334543750]
+position = Vector2(-6, 2)
+
+[node name="DamageMarker4" type="Marker2D" parent="." unique_id=406055274]
+position = Vector2(-5, -8)
+
+[node name="MuzzleL" type="Marker2D" parent="." unique_id=711387776]
+position = Vector2(-11, -10)
+
+[node name="MuzzleR" type="Marker2D" parent="." unique_id=1602098251]
+position = Vector2(11, -11)
+
+[connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
+[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

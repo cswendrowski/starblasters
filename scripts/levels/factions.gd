@@ -93,6 +93,12 @@ const ENEMY_TAGS := {
 	"res://scenes/enemies/factions/zealot/enemy_burner.tscn": {"home": Id.ZEALOT, "universal": false},
 	"res://scenes/enemies/factions/supremacy/enemy_s_m_push.tscn": {"home": Id.SUPREMACY, "universal": false},
 	"res://scenes/enemies/factions/supremacy/enemy_frigate.tscn": {"home": Id.SUPREMACY, "universal": false},
+	# New supremacy units (Roman 2026-07-06) — scenes set up; movement + hardpoints authored manually.
+	"res://scenes/enemies/factions/supremacy/enemy_s_s_bully.tscn": {"home": Id.SUPREMACY, "universal": false},
+	"res://scenes/enemies/factions/supremacy/enemy_s_s_abductor.tscn": {"home": Id.SUPREMACY, "universal": false},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_ravager.tscn": {"home": Id.SUPREMACY, "universal": false},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_ruiner.tscn": {"home": Id.SUPREMACY, "universal": false},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_scorcher.tscn": {"home": Id.SUPREMACY, "universal": false},
 }
 
 

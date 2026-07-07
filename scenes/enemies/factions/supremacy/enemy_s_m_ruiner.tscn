@@ -1,0 +1,67 @@
+[gd_scene format=3 uid="uid://dh6c48asa6jbr"]
+
+[ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemies/enemy_core.gd" id="1_iw05h"]
+[ext_resource type="Script" uid="uid://bj8dc3ktx8bt1" path="res://scripts/enemies/patterns/straight_down.gd" id="2_65e8f"]
+[ext_resource type="Texture2D" uid="uid://cta25fuplvdec" path="res://graphics/enemies/enemy_s_m_beamer.png" id="3_iw05h"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="4_scca6"]
+
+[sub_resource type="Resource" id="MovePattern"]
+script = ExtResource("2_65e8f")
+
+[node name="Enemy" type="Area2D" unique_id=1312047450 groups=["enemies"]]
+script = ExtResource("1_iw05h")
+movement = SubResource("MovePattern")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1600621428]
+texture = ExtResource("3_iw05h")
+hframes = 3
+
+[node name="GlowMask" type="Sprite2D" parent="." unique_id=1711695760]
+texture = ExtResource("3_iw05h")
+hframes = 3
+frame = 1
+
+[node name="GlowMuzzle" type="Sprite2D" parent="." unique_id=84991625]
+texture = ExtResource("3_iw05h")
+hframes = 3
+frame = 2
+
+[node name="CollisionShape2D" type="CollisionPolygon2D" parent="." unique_id=1379970341]
+position = Vector2(0, 1)
+polygon = PackedVector2Array(8, 23, 12, 19, 12, 7, 14, 4, 15, -1, 15, -21, 11, -25, -10, -25, -15, -21, -15, -1, -14, 4, -12, 7, -12, 19, -8, 23)
+
+[node name="MoveTimer" type="Timer" parent="." unique_id=1975128440]
+one_shot = true
+
+[node name="ShootTimer" type="Timer" parent="." unique_id=1173289907]
+one_shot = true
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=557651409]
+stream = ExtResource("4_scca6")
+
+[node name="EngineMid" type="Marker2D" parent="." unique_id=1846511922]
+position = Vector2(0, 22)
+
+[node name="DamageMarker" type="Marker2D" parent="." unique_id=2092296301]
+position = Vector2(-10, 8)
+
+[node name="DamageMarker2" type="Marker2D" parent="." unique_id=181398905]
+position = Vector2(10, 8)
+
+[node name="DamageMarker3" type="Marker2D" parent="." unique_id=2013955000]
+position = Vector2(-11, -1)
+
+[node name="DamageMarker4" type="Marker2D" parent="." unique_id=2057126488]
+position = Vector2(11, -1)
+
+[node name="ThrusterR" type="Marker2D" parent="." unique_id=1892674932]
+position = Vector2(11, -20)
+
+[node name="ThrusterL" type="Marker2D" parent="." unique_id=406055274]
+position = Vector2(-11, -20)
+
+[node name="Muzzle" type="Marker2D" parent="." unique_id=711387776]
+position = Vector2(0, -21)
+
+[connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
+[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]
