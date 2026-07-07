@@ -12,6 +12,7 @@ script = ExtResource("2_yj3j8")
 [node name="Enemy" type="Area2D" unique_id=266766153 groups=["enemies"]]
 script = ExtResource("1_axmv5")
 movement = SubResource("MovePattern")
+ram = true
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=973730929]
 texture = ExtResource("3_axmv5")

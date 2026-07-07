@@ -228,6 +228,7 @@ var _shielded_chk: CheckBox = null
 var _omni_chk: CheckBox = null
 var _strafe_chk: CheckBox = null
 var _retro_chk: CheckBox = null
+var _ram_chk: CheckBox = null   # Ram: no contact damage + knock the player back (any enemy)
 # Faction eligibility (Roman 2026-07-06) — which factions a CORE ship (universal enemy) may appear with,
 # i.e. its Factions.ENEMY_TAGS "allowed_in" whitelist. Shown only for core/universal ships; hidden for
 # faction-exclusive units (their eligibility is fixed to their home). One checkbox per faction, ordered
@@ -641,6 +642,11 @@ func _setup_enemy_template_knobs(scroll: Control) -> void:
 	_retro_chk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_retro_chk.toggled.connect(func(_p): _on_template_changed(0))
 	loco_tr.add_child(_retro_chk)
+	_ram_chk = CheckBox.new()
+	_ram_chk.text = "ram"
+	_ram_chk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_ram_chk.toggled.connect(func(_p): _on_template_changed(0))
+	loco_tr.add_child(_ram_chk)
 	# Faction eligibility (core ships): which factions this universal core hull may appear with (its
 	# Factions.ENEMY_TAGS "allowed_in" whitelist). Only meaningful for core/universal ships — hidden for
 	# faction-exclusive units. Captured on Save + emitted in Copy GDScript as the ENEMY_TAGS line.
@@ -1064,6 +1070,8 @@ func _spawn_current() -> void:
 		inst.strafe = _strafe_chk.button_pressed
 	if _retro_chk != null and "retro" in inst:
 		inst.retro = _retro_chk.button_pressed
+	if _ram_chk != null and "ram" in inst:
+		inst.ram = _ram_chk.button_pressed
 	if inst is Node2D:
 		(inst as Node2D).position = spawn_pos
 	_enemy_layer.add_child(inst)
@@ -2455,6 +2463,8 @@ func _load_settings_into_editors() -> void:
 				_strafe_chk.button_pressed = bool(s.get("strafe", false))
 			if _retro_chk != null:
 				_retro_chk.button_pressed = bool(s.get("retro", false))
+			if _ram_chk != null:
+				_ram_chk.button_pressed = bool(s.get("ram", false))
 	# Faction eligibility (core ships): saved allowed_in, else the scene's ENEMY_TAGS default.
 	_set_faction_elig(_selected_path, s.get("allowed_in", _default_allowed_in(_selected_path)))
 	_name_edit.text = String(s.get("name", EnemyStrings.display_name(_selected_path)))
@@ -2526,6 +2536,7 @@ func _current_settings() -> Dictionary:
 		"omni": _omni_chk.button_pressed if _omni_chk != null else false,
 		"strafe": _strafe_chk.button_pressed if _strafe_chk != null else false,
 		"retro": _retro_chk.button_pressed if _retro_chk != null else false,
+		"ram": _ram_chk.button_pressed if _ram_chk != null else false,
 		"allowed_in": _selected_allowed_in(),   # core-ship faction eligibility (Factions.ENEMY_TAGS)
 	}
 
@@ -2600,6 +2611,7 @@ func _on_copy() -> void:
 	if bool(s.get("omni", false)): loco_flags.append("omni")
 	if bool(s.get("strafe", false)): loco_flags.append("strafe")
 	if bool(s.get("retro", false)): loco_flags.append("retro")
+	if bool(s.get("ram", false)): loco_flags.append("ram")
 	if not loco_flags.is_empty():
 		txt += "# -> scene root (enemy_base): set %s = true\n" % ", ".join(loco_flags)
 	# Mounts → a roster ENTRY "mounts" block (extra hardpoints beyond the hull weapon). Phase C: an

@@ -111,6 +111,10 @@ var slot_weight: int = 1
 @export var omni: bool = false
 @export var strafe: bool = false
 @export var retro: bool = false
+# Ram (Roman 2026-07-06): this enemy takes NO damage from CONTACT with the player (it barrels through)
+# and instead knocks the player back asteroid-style. Bullets still hurt it. Handled player-side in
+# player._on_area_entered (which checks `ram` on the contacted enemy). Can be set on ANY enemy.
+@export var ram: bool = false
 # Death-explosion variant (ExplosionFx.VARIANTS key — "default" / "small_circle" / …).
 # The enemy dev tool + per-enemy scenes set this; explode() resolves it to a scene.
 @export var explosion_variant: String = "default"

@@ -22,6 +22,10 @@ var speed: float = 120.0
 # along their fire direction so the stream keeps constant spacing instead of
 # compressing when you fly toward the shots (Doppler). See fire_primary.
 var _move_velocity: Vector2 = Vector2.ZERO
+# Ram-enemy knockback (Roman 2026-07-06): an asteroid-style billiards shove on contact with a `ram` enemy.
+const RAM_KICK := 34.0            # px shoved away from the ram enemy (asteroid PLAYER_KICK is 25)
+const RAM_KICK_GRACE_MS := 400    # min ms between shoves so a ram can't pinball the player
+var _last_ram_kick_ms: int = 0
 var cooldown: float = 0.15
 var bullet_damage: int = 1
 # Spread fire knobs — used by the Spread Cannon Part. Default 1 bullet
@@ -3282,13 +3286,33 @@ func _on_area_entered(area: Area2D) -> void:
 	# for honesty. take_hit(6) is the player's ram damage TO the enemy — unrelated to what the
 	# player takes. (Roman 2026-07-04: damage is flat; difficulty scales via volume.)
 	if area.is_in_group("enemies"):
-		if area.has_method("take_hit"):
-			area.take_hit(6)
+		if "ram" in area and area.ram:
+			# Ram enemy: it barrels through (takes NO contact damage) and knocks the player back
+			# asteroid-style. The player still takes the flat 1. (Bullets still hurt a ram enemy.)
+			_ram_knockback(area)
+		elif area.has_method("take_hit"):
+			area.take_hit(6)   # player rams a normal enemy for 6
 		_play_hit_sfx()
 		take_damage(1)
 	elif area.is_in_group("bullets"):
 		_play_hit_sfx()
 		take_damage(1)
+
+
+# Asteroid-style billiards shove AWAY from a ram enemy on contact (mirrors asteroid.gd's PLAYER_KICK
+# tween). Grace-gated so successive rams don't pinball the player. The per-frame Playfield clamp in
+# _process keeps the tweened position in-band.
+func _ram_knockback(enemy) -> void:
+	if not (enemy is Node2D):
+		return
+	var now: int = Time.get_ticks_msec()
+	if now - _last_ram_kick_ms < RAM_KICK_GRACE_MS:
+		return
+	_last_ram_kick_ms = now
+	var away: Vector2 = global_position - (enemy as Node2D).global_position
+	away = away.normalized() if away.length() > 1.0 else Vector2(randf_range(-1.0, 1.0), -0.5).normalized()
+	var tw := create_tween()
+	tw.tween_property(self, "position", position + away * RAM_KICK, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
 func _play_hit_sfx() -> void:
 	# Alternate between &damage3.wav and &damage9.wav so repeated hits don't
