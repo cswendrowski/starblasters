@@ -12,7 +12,9 @@ const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const EnemyManifest = preload("res://scripts/dev/enemy_manifest.gd")
 const EnemyRoster = preload("res://scripts/levels/enemy_roster.gd")
 const EnemyStrings = preload("res://scripts/strings/enemy_strings.gd")
-const PatternEligibility = preload("res://scripts/levels/pattern_eligibility.gd")
+# Movement eligibility is READ live from DevData.eligibility_for (committed PatternEligibility.DATA +
+# pending pattern_eligibility.json), not queried directly here — the bench mirrors it, never authors it.
+const AuthoredPathLibrary = preload("res://scripts/enemies/patterns/authored_path_library.gd")
 const Playfield = preload("res://scripts/systems/playfield.gd")
 const ShieldComponentC = preload("res://scripts/enemies/components/shield_component.gd")
 const OrbitComponentC = preload("res://scripts/enemies/components/orbit_component.gd")
@@ -28,31 +30,46 @@ const SAVE_PATH := "user://tuners/enemy_bench.json"
 # projectile_<type> scene (a 4-frame sprite sheet, frame = faction). The faction-frame reskin
 # (BulletCatalog.faction_variant, via the enemy's faction_skin) picks the frame at spawn — so the
 # bench just picks the shape, and all four factions reskin from the one sheet. "Orb" is a slow round.
-const BV_Ball  = preload("res://data/bullets/ball.tres")
-const BV_Bolt  = preload("res://data/bullets/bolt.tres")
-const BV_Laser = preload("res://data/bullets/laser.tres")
-const BV_Wave  = preload("res://data/bullets/wave.tres")
-const BV_Orb   = preload("res://data/bullets/orb.tres")
-const PAYLOADS := {
-	"Ball": BV_Ball,
-	"Bolt": BV_Bolt,
-	"Laser": BV_Laser,
-	"Wave": BV_Wave,
-	"Orb": BV_Orb,
-	# "Drop" = the slow lingering caltrop pellet (45 px/s, 5s life) — pick it + aim Down for a Caltrop-
-	# style trail of dropped shots in the enemy's wake. (Still on the legacy per-faction-texture path.)
-	"Drop": EnemyRoster.BV_DropPellet,
-}
-# Family name -> the payload EXPRESSION to emit in Copy GDScript. The new families have no roster const
-# yet (enemy_roster migration is a follow-up), so emit a self-contained preload; Drop keeps its const.
-const PAYLOAD_CONST := {
-	"Ball": "preload(\"res://data/bullets/ball.tres\")",
-	"Bolt": "preload(\"res://data/bullets/bolt.tres\")",
-	"Laser": "preload(\"res://data/bullets/laser.tres\")",
-	"Wave": "preload(\"res://data/bullets/wave.tres\")",
-	"Orb": "preload(\"res://data/bullets/orb.tres\")",
+# Payload inventory now comes LIVE from DevData.bullet_variants() (2026-07-07 dev-tool unification):
+# ONE inventory of data/bullets/*.tres shared with the Weapon Lab, so a newly added .tres appears in
+# BOTH tools (was: a hardcoded list here that the weapon lab's dir-scan could diverge from). PAYLOADS
+# maps family name -> the loaded BulletVariant (live preview); PAYLOAD_CONST maps family name -> the
+# Copy-GDScript expression. Built once in _init() from the same {name, path} list; the "Drop" pellet
+# (drop_pellet.tres) keeps emitting the roster's BV_DropPellet const so Copy output stays lossless.
+const DevData = preload("res://scripts/dev/dev_data.gd")
+# Default-vs-override affordance (Phase 3): decorates stat/size/loco rows with a muted "was: <baked>"
+# aside + a per-field revert, so a shown value is never ambiguously "shipping default OR my un-pasted
+# edit" (symptom c). Opt-in per field; the bench feeds it the roster/scene BAKED default it already has
+# in hand at load. Decorated controls are refreshed on each load + on change (no per-frame work).
+const DevField = preload("res://scripts/dev/dev_field.gd")
+# Family name -> roster const NAME to emit in Copy (where the roster declares one). Families other than
+# Drop have no roster const yet (enemy_roster migration is a follow-up — see enemy_roster.gd:108), so
+# they emit a self-contained preload of their live .tres path instead.
+const PAYLOAD_ROSTER_CONST := {
 	"Drop": "BV_DropPellet",
 }
+var PAYLOADS: Dictionary = {}        # family name -> BulletVariant (loaded live)
+var PAYLOAD_CONST: Dictionary = {}   # family name -> Copy-GDScript payload expression
+
+
+# Build the payload inventory from the live data/bullets/*.tres scan. Family order follows
+# DevData.bullet_variants(). Roster consts (Drop) emit their const; the rest emit a preload of their path.
+func _build_payload_tables() -> void:
+	PAYLOADS = {}
+	PAYLOAD_CONST = {}
+	for v in DevData.bullet_variants():
+		var name: String = String(v.get("name", ""))
+		var path: String = String(v.get("path", ""))
+		if name == "" or path == "":
+			continue
+		var res: Resource = load(path)
+		if res == null:
+			continue
+		PAYLOADS[name] = res
+		if PAYLOAD_ROSTER_CONST.has(name):
+			PAYLOAD_CONST[name] = String(PAYLOAD_ROSTER_CONST[name])
+		else:
+			PAYLOAD_CONST[name] = "preload(\"%s\")" % path
 # Migration for saved tuner files written before the payload collapse (2026-06-29): the old per-faction
 # / per-shape names map to the new families so an existing saved mount doesn't load with a dead payload.
 const _LEGACY_PAYLOAD := {
@@ -106,10 +123,8 @@ const BEAM_DEFAULT := {
 const BEAM_AIM_LABELS := ["Forward", "Locked", "Tracking", "Track-Lock"]
 const BEAM_AIM_VALUES := [0, 1, 2, 4]
 const BEAM_PAYLOAD_NAME := "Beam"
-# Emitters editor (the reusable EmitterComponent: drop/spawn a payload scene on a trigger — the
-# generalized form of the interceptor's missile-drop).
-const EMITTER_TRIGGERS := ["start", "timer", "death"]
-const EMITTER_TRIGGER_LABELS := ["Spawn", "Timer", "On Death"]
+# Emitter payloads (Phase 3): the retired Emitters editor is gone, but legacy roster/saved emitters still
+# FOLD IN as entity mounts on load — so the payload set below is still the resolution table for that.
 # Expanded emitter payload set (Roman 2026-06-29): every rocket / missile / mine / bomblet / firecore,
 # plus ANY enemy (appended from the manifest at runtime — see _emitter_payload_options). The emitter
 # spawns whatever scene the name resolves to via start(pos); the roster's _emitter_from_dict accepts a
@@ -144,9 +159,8 @@ const SIZE_FIELDS := [
 	{"key": "hp", "label": "HP", "min": 1.0, "max": 9999.0, "step": 1.0},
 	{"key": "shield_cap", "label": "Shield cap", "min": 0.0, "max": 20.0, "step": 1.0},
 	{"key": "bounty", "label": "Bounty", "min": 0.0, "max": 9999.0, "step": 1.0},
-	{"key": "speed_mult", "label": "Speed ×", "min": 0.1, "max": 3.0, "step": 0.05},
 ]
-var _size_data: Dictionary = {}   # size -> {hp, shield_cap, bounty, speed_mult} (working draft)
+var _size_data: Dictionary = {}   # size -> {hp, shield_cap, bounty} (working draft)
 
 # Locomotion table (locomotion refactor 2026-06-19): per-size chassis kinematics. Tuned in the
 # "Locomotion" tab; Copy GDScript → paste into enemy_roster.gd SIZE_LOCOMOTION. Per-enemy speed is
@@ -212,9 +226,8 @@ var _engine_override_chk: CheckBox = null
 # Mounts editor — extra emitters (gun/turret/launcher/beam) beyond the hull weapon (Mount 0).
 @onready var _mounts_list: VBoxContainer = %MountsList
 @onready var _add_mount_btn: Button = %AddMountButton
-# Emitters editor — EmitterComponents (drop/spawn a payload on a trigger), separate from the weapon mounts.
-@onready var _emitters_list: VBoxContainer = %EmittersList
-@onready var _add_emitter_btn: Button = %AddEmitterButton
+# (The Emitters editor was retired 2026-07-03 — droppers/spawners are authored as "Entity" hardpoints in
+# the Mounts list; legacy roster/saved emitters still fold in on load. Its scene nodes are gone too.)
 # Per-enemy locomotion knobs (code-built, appended to the Enemy tab; locomotion refactor 2026-06-19):
 # engine = rung offset on the size base speed; depth = hold/cross band override ("" = default).
 var _engine_spin: SpinBox = null
@@ -236,14 +249,24 @@ var _ram_chk: CheckBox = null   # Ram: no contact damage + knock the player back
 var _faction_elig_chks: Array = []
 var _faction_elig_row: Control = null
 var _faction_elig_caption: Control = null
+# Eligible-movement reflection (Roman 2026-07-07) — the bench is a READ-ONLY mirror of the enemy's
+# eligible movement set (shape keys + eligible authored-path "path_<name>" keys). That set is SET only in
+# the Pattern Eligibility tool (persisted to user://tuners/pattern_eligibility.json → Export bakes it into
+# PatternEligibility.DATA); the bench merely SHOWS it (via DevData.eligibility_for, live) and cycles the
+# enemy through it (Next Pattern). No checkboxes, no editing, no eligibility persistence live here — a
+# muted display label lists the keys and highlights the one currently previewed.
+var _elig_display_lbl: Label = null
 const _SIZE_OPTS := ["tiny", "small", "medium", "large", "huge", "giant"]
 
 # Working list of mount dicts for the selected enemy (name-based, JSON-friendly):
 # {kind, marker, payload(name), aim, fire, count, spread}. Converted to MountSpecs at spawn.
 var _mount_dicts: Array = []
-# Working list of emitter dicts: {trigger, payload(name), cadence, count, max_emits, band_only}.
-# Converted to EmitterComponents at spawn via EnemyRoster.make_emitter_specs.
-var _emitter_dicts: Array = []
+# Phase 3 default-vs-override for the Mounts editor: a parallel-indexed baked reference per mount. Each
+# entry is the ROSTER-derived bench dict for that mount AT LOAD TIME (before user edits) — NOT the
+# saved-JSON-merged working dict — so a decorated mount field shows drift from the SHIPPING roster value.
+# An empty {} means "user-added / no roster counterpart": that mount's fields bake to the schema default
+# (a fresh mount shows no affordances until edited). Kept aligned with _mount_dicts on add/remove.
+var _mount_baked: Array = []
 # Orbit rings (cluster-mine / bloom): an OrbitComponent holding N rings of payloads released on death.
 # `_orbit_mode` = "visual" (bullet shells erupt outward) or "live" (real bomblets fly free).
 # `_orbit_rings` = [{radius, count, speed, payload(name)}]. Built into an OrbitComponent at spawn.
@@ -266,6 +289,7 @@ var _sfx_bus_was_muted: bool = false
 
 
 func _ready() -> void:
+	_build_payload_tables()   # live data/bullets/*.tres inventory (before any UI/load reads PAYLOADS)
 	if get_parent() == get_tree().root:
 		_hd_scope = HdViewportScope.attach(self)
 	_setup_playspace()
@@ -382,23 +406,8 @@ func _setup_ui() -> void:
 	(%CopyButton as Button).pressed.connect(_on_copy)
 	(%BackButton as Button).pressed.connect(_on_back)
 	_add_mount_btn.pressed.connect(_add_mount)
-	_add_emitter_btn.pressed.connect(_add_emitter)
-	# Phase 3: the Emitters editor is retired — droppers/spawners are now authored as an "Entity"
-	# hardpoint in the unified Mounts list (legacy emitters fold in on load). Hide the vestigial panel
-	# and rename the mount header/button to "Hardpoints".
-	_add_emitter_btn.visible = false
-	if _emitters_list != null:
-		_emitters_list.visible = false
-		var _rvbox: Node = _emitters_list.get_parent()
-		for _nm in ["EmittersSep", "EmittersHeader"]:
-			var _n = _rvbox.get_node_or_null(_nm)
-			if _n is CanvasItem:
-				(_n as CanvasItem).visible = false
-		var _mh = _rvbox.get_node_or_null("MountsHeader")
-		if _mh is Label:
-			(_mh as Label).text = "Hardpoints"
-	if _add_mount_btn != null:
-		_add_mount_btn.text = "+ Add Hardpoint"
+	# (The Emitters editor is retired — its scene nodes are gone and the MountsHeader/AddMountButton scene
+	# text now reads "Hardpoints" directly. Droppers/spawners are authored as an "Entity" hardpoint here.)
 
 	# Music stays muted for dev menus (the Music toggle button was removed 2026-06-20); SFX keeps its
 	# toggle. The prior bus state is still restored on exit (_on_back).
@@ -610,19 +619,22 @@ func _setup_enemy_template_knobs(scroll: Control) -> void:
 	_size_dd.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_size_dd.item_selected.connect(_on_template_changed)
 	content.add_child(_size_dd)
+	DevField.decorate(_size_dd, 0, FS_CAPTION)   # baked (roster size index) reset per-enemy at load
 	var tr := HBoxContainer.new()
 	tr.add_theme_constant_override("separation", 10)
 	content.add_child(tr)
 	_tough_chk = CheckBox.new()
 	_tough_chk.text = "tough (x2 HP)"
 	_tough_chk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_tough_chk.toggled.connect(func(_p): _on_template_changed(0))
+	_tough_chk.toggled.connect(func(_p): DevField.refresh(_tough_chk); _on_template_changed(0))
 	tr.add_child(_tough_chk)
+	DevField.decorate(_tough_chk, false, FS_CAPTION)
 	_shielded_chk = CheckBox.new()
 	_shielded_chk.text = "shielded"
 	_shielded_chk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_shielded_chk.toggled.connect(func(_p): _on_template_changed(0))
+	_shielded_chk.toggled.connect(func(_p): DevField.refresh(_shielded_chk); _on_template_changed(0))
 	tr.add_child(_shielded_chk)
+	DevField.decorate(_shielded_chk, false, FS_CAPTION)
 	# Locomotion capability flags (omni/strafe/retro).
 	var loco_tr := HBoxContainer.new()
 	loco_tr.add_theme_constant_override("separation", 10)
@@ -630,23 +642,27 @@ func _setup_enemy_template_knobs(scroll: Control) -> void:
 	_omni_chk = CheckBox.new()
 	_omni_chk.text = "omni"
 	_omni_chk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_omni_chk.toggled.connect(func(_p): _on_template_changed(0))
+	_omni_chk.toggled.connect(func(_p): DevField.refresh(_omni_chk); _on_template_changed(0))
 	loco_tr.add_child(_omni_chk)
+	DevField.decorate(_omni_chk, false, FS_CAPTION)
 	_strafe_chk = CheckBox.new()
 	_strafe_chk.text = "strafe"
 	_strafe_chk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_strafe_chk.toggled.connect(func(_p): _on_template_changed(0))
+	_strafe_chk.toggled.connect(func(_p): DevField.refresh(_strafe_chk); _on_template_changed(0))
 	loco_tr.add_child(_strafe_chk)
+	DevField.decorate(_strafe_chk, false, FS_CAPTION)
 	_retro_chk = CheckBox.new()
 	_retro_chk.text = "retro"
 	_retro_chk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_retro_chk.toggled.connect(func(_p): _on_template_changed(0))
+	_retro_chk.toggled.connect(func(_p): DevField.refresh(_retro_chk); _on_template_changed(0))
 	loco_tr.add_child(_retro_chk)
+	DevField.decorate(_retro_chk, false, FS_CAPTION)
 	_ram_chk = CheckBox.new()
 	_ram_chk.text = "ram"
 	_ram_chk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_ram_chk.toggled.connect(func(_p): _on_template_changed(0))
+	_ram_chk.toggled.connect(func(_p): DevField.refresh(_ram_chk); _on_template_changed(0))
 	loco_tr.add_child(_ram_chk)
+	DevField.decorate(_ram_chk, false, FS_CAPTION)
 	# Faction eligibility (core ships): which factions this universal core hull may appear with (its
 	# Factions.ENEMY_TAGS "allowed_in" whitelist). Only meaningful for core/universal ships — hidden for
 	# faction-exclusive units. Captured on Save + emitted in Copy GDScript as the ENEMY_TAGS line.
@@ -663,6 +679,12 @@ func _setup_enemy_template_knobs(scroll: Control) -> void:
 		chk.add_theme_font_size_override("font_size", FS_CAPTION)
 		_faction_elig_row.add_child(chk)
 		_faction_elig_chks.append(chk)
+	# Eligible movement (READ-ONLY reflection): the shape keys + eligible authored paths this enemy may
+	# fly, as SET in the Pattern Eligibility tool (never edited here — the bench only shows + cycles them).
+	# Filled per-enemy by _refresh_elig_display(); the bracketed key is the one Next Pattern is previewing.
+	content.add_child(_mk_label("Eligible movement (set in Pattern Eligibility)", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
+	_elig_display_lbl = _mk_label("", FS_CAPTION, Color(0.6, 0.65, 0.72, 0.85))
+	content.add_child(_elig_display_lbl)
 	# Stat overrides (opt-in): size/traits seed HP & bounty; tick a box only when you want to pin an
 	# explicit value. Unchecked = use the template/native value, and the row stays one compact line.
 	content.add_child(_mk_label("Stat overrides (off = use template / native)", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
@@ -670,25 +692,32 @@ func _setup_enemy_template_knobs(scroll: Control) -> void:
 	_hp_spin.min_value = 1.0
 	_hp_spin.max_value = 9999.0
 	_hp_spin.value = 1.0
-	_hp_spin.value_changed.connect(func(_v): if not _loading: _spawn_current())
+	_hp_spin.value_changed.connect(func(_v): DevField.refresh(_hp_spin); if not _loading: _spawn_current())
 	_hp_override_chk = _override_row(content, "Max HP", _hp_spin)
+	DevField.decorate(_hp_spin, 1.0, FS_CAPTION)   # baked reset per-enemy in _load_settings_into_editors
 	_bounty_spin = SpinBox.new()
 	_bounty_spin.max_value = 9999.0
-	_bounty_spin.value_changed.connect(func(_v): if not _loading: _apply_stats_live())
+	_bounty_spin.value_changed.connect(func(_v): DevField.refresh(_bounty_spin); if not _loading: _apply_stats_live())
 	_bounty_override_chk = _override_row(content, "Bounty", _bounty_spin)
+	DevField.decorate(_bounty_spin, 0.0, FS_CAPTION)
 	_bspeed_spin = SpinBox.new()
 	_bspeed_spin.min_value = 0.25
 	_bspeed_spin.max_value = 4.0
 	_bspeed_spin.step = 0.05
 	_bspeed_spin.value = 1.0
-	_bspeed_spin.value_changed.connect(func(_v): if not _loading: _apply_stats_live())
+	_bspeed_spin.value_changed.connect(func(_v): DevField.refresh(_bspeed_spin); if not _loading: _apply_stats_live())
 	_bspeed_override_chk = _override_row(content, "Bullet speed ×", _bspeed_spin)
+	DevField.decorate(_bspeed_spin, 1.0, FS_CAPTION)
 
 
 func _on_template_changed(_i: int) -> void:
+	DevField.refresh(_size_dd)
 	if _loading:
 		return
 	_apply_template_stats()
+	# The template reseed may move HP/bounty; re-sync their affordances.
+	DevField.refresh(_hp_spin)
+	DevField.refresh(_bounty_spin)
 	_spawn_current()
 
 
@@ -744,6 +773,7 @@ func _setup_enemy_loco_knobs(scroll: Control) -> void:
 	_engine_spin.step = 1.0
 	_engine_spin.value_changed.connect(_on_loco_knob_changed)
 	_engine_override_chk = _override_row(content, "Engine ±rung", _engine_spin)
+	DevField.decorate(_engine_spin, 0.0, FS_CAPTION)   # baked (roster engine) reset per-enemy at load
 	content.add_child(_mk_label("Depth", FS_CAPTION, Color(0.70, 0.78, 0.88, 0.70)))
 	_depth_dd = OptionButton.new()
 	_depth_dd.add_item("(default)")
@@ -754,14 +784,17 @@ func _setup_enemy_loco_knobs(scroll: Control) -> void:
 	_depth_dd.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_depth_dd.item_selected.connect(_on_loco_depth_changed)
 	content.add_child(_depth_dd)
+	DevField.decorate(_depth_dd, 0, FS_CAPTION)   # baked (roster depth index) reset per-enemy at load
 
 
 func _on_loco_knob_changed(_v: float) -> void:
+	DevField.refresh(_engine_spin)
 	if not _loading:
 		_spawn_current()
 
 
 func _on_loco_depth_changed(_i: int) -> void:
+	DevField.refresh(_depth_dd)
 	if not _loading:
 		_spawn_current()
 
@@ -818,13 +851,12 @@ func _load_size_data() -> Dictionary:
 			"hp": int(s.get("hp", base.get("hp", 8))),
 			"shield_cap": int(s.get("shield_cap", base.get("shield_cap", 2))),
 			"bounty": int(s.get("bounty", base.get("bounty", 15))),
-			"speed_mult": float(s.get("speed_mult", base.get("speed_mult", 1.0))),
 		}
 	return out
 
 
 func _on_size_changed(value: float, sz: String, field: String) -> void:
-	_size_data[sz][field] = float(value) if field == "speed_mult" else int(value)
+	_size_data[sz][field] = int(value)
 
 
 func _save_sizes() -> void:
@@ -842,8 +874,8 @@ func _copy_sizes() -> void:
 	var txt := "const SIZE_TABLE := {\n"
 	for sz in SIZE_ORDER:
 		var d: Dictionary = _size_data[sz]
-		txt += "\t\"%s\": {\"hp\": %d, \"shield_cap\": %d, \"bounty\": %d, \"speed_mult\": %s},\n" % [
-			sz, int(d["hp"]), int(d["shield_cap"]), int(d["bounty"]), String("%.2f" % float(d["speed_mult"]))]
+		txt += "\t\"%s\": {\"hp\": %d, \"shield_cap\": %d, \"bounty\": %d},\n" % [
+			sz, int(d["hp"]), int(d["shield_cap"]), int(d["bounty"])]
 	txt += "}\n"
 	DisplayServer.clipboard_set(txt)
 	if _pattern_lbl:
@@ -926,8 +958,10 @@ func _group_of(path: String) -> String:
 	if p.contains("/factions/corporate/"): return "Corporate"
 	if p.contains("/factions/zealot/"): return "Zealot"
 	if p.contains("/core/"): return "Core"
-	if p.contains("boss"): return "Bosses"
 	if p.contains("mine") or p.contains("asteroid") or p.contains("bomblet"): return "Hazards"
+	# No "Bosses" tab exists (bosses are excluded / WIP bosses bucket under their faction folder above).
+	# Any stray boss-scened script that reaches here falls through to Core so it stays reachable under
+	# both the "All" and "Core" tabs rather than a phantom group that no tab can select.
 	return "Core"
 
 
@@ -984,14 +1018,41 @@ func _on_list_select(idx: int) -> void:
 	if idx < 0 or idx >= _paths.size():
 		return
 	_selected_path = _paths[idx]
-	# Eligible patterns from the matrix (identity-only if unmapped/bespoke).
-	_eligible = PatternEligibility.eligible_for(_selected_path)
-	if _eligible.is_empty():
-		var idk := PatternEligibility.identity_for(_selected_path)
-		_eligible = [idk] if idk != "" else ["straight_medium"]
+	# Re-read the Path Editor's user:// overrides so a path authored/saved this session (without a bench
+	# restart) resolves; the library caches one file read, so reload_overrides forces a fresh read (dev-only).
+	# The cyclable eligible set is then rebuilt from DevData (live matrix + pending eligibility save).
+	AuthoredPathLibrary.reload_overrides()
 	_pattern_idx = 0
+	_rebuild_eligible_for_selected()
 	_load_settings_into_editors()
 	_spawn_current()
+
+
+# Build the cyclable _eligible list = the enemy's LIVE eligible movement set (canonical shape keys +
+# eligible authored-path "path_<name>" keys), straight from DevData.eligibility_for. That reflects the
+# committed PatternEligibility.DATA with any PENDING pattern_eligibility.json save overlaid, so eligibility
+# Roman SET in the Pattern Eligibility tool (and Saved) appears here without an Export/paste. Read-only:
+# the bench never edits this set, it only cycles through it (Next Pattern) and mirrors it in the display.
+func _rebuild_eligible_for_selected() -> void:
+	_eligible = DevData.eligibility_for(_selected_path)
+	_pattern_idx = clampi(_pattern_idx, 0, max(0, _eligible.size() - 1))
+	_refresh_elig_display()
+
+
+# Fill the read-only eligible-movement display for the selected enemy: bare key names (path_* shown
+# without the "path_" prefix), the currently-previewed one bracketed. Refreshed on selection + each cycle.
+func _refresh_elig_display() -> void:
+	if _elig_display_lbl == null:
+		return
+	if _eligible.is_empty():
+		_elig_display_lbl.text = "(none — set eligibility in Pattern Eligibility)"
+		return
+	var parts: Array = []
+	for i in _eligible.size():
+		var k: String = String(_eligible[i])
+		var disp: String = k.trim_prefix(AuthoredPathLibrary.KEY_PREFIX) if AuthoredPathLibrary.is_path_key(k) else k
+		parts.append(("[%s]" % disp) if i == _pattern_idx else disp)
+	_elig_display_lbl.text = ", ".join(parts)
 
 
 # ---- Spawn + pattern cycling ---------------------------------------------
@@ -1033,25 +1094,18 @@ func _spawn_current() -> void:
 	# bullet_damage_mult (which the mounts read via _spawn_bullet) and adds faction components
 	# (corpo shield / zealot firecore). Without this the bench fired un-multiplied vs live (Roman 2026-07-02).
 	Factions.apply(_faction_id_for_selected(), inst)
+	# Faction livery + tail-glow (Roman 2026-07-07): the director stamps these on every live spawn, so the
+	# bench must too — otherwise a previewed enemy shows an untinted hull / muzzle glow and the bench lies
+	# about its faction colours. -1 (Core / All filter) hides the livery, matching production.
+	Factions.apply_livery(_faction_id_for_selected(), inst)
+	Factions.apply_tailglow(_faction_id_for_selected(), inst)
 	if "mounts" in inst:
-		var spec_dicts: Array = _mount_spec_dicts()
-		var specs: Array = EnemyRoster.make_mount_specs(spec_dicts)
-		# Bridge no_inertia onto the specs: EnemyRoster._mount_from_dict doesn't read it yet (that edit
-		# lands when the roster WIP is committed), and make_mount_specs is 1:1 with spec_dicts.
-		for i in mini(specs.size(), spec_dicts.size()):
-			if specs[i] != null and "no_inertia" in specs[i]:
-				specs[i].no_inertia = bool(spec_dicts[i].get("no_inertia", false))
-		inst.mounts = specs   # extra emitters, BEFORE add_child
+		# _mount_spec_dicts() emits the SAME roster dict schema production uses (see MOUNT_FIELDS), so
+		# make_mount_specs reads every field (no_inertia included) directly — no post-hoc bridge needed.
+		inst.mounts = EnemyRoster.make_mount_specs(_mount_spec_dicts())   # extra hardpoints, BEFORE add_child
 	if "components" in inst:
-		var em_dicts: Array = _emitter_spec_dicts()
-		var ems: Array = EnemyRoster.make_emitter_specs(em_dicts)
-		# Bridge `drop` onto the components (EnemyRoster._emitter_from_dict doesn't read it yet — same
-		# roster-WIP follow-up as the mount no_inertia). make_emitter_specs is 1:1 with em_dicts.
-		for i in mini(ems.size(), em_dicts.size()):
-			if ems[i] != null and "drop" in ems[i]:
-				ems[i].drop = bool(em_dicts[i].get("drop", true))
-		if not ems.is_empty():
-			inst.components = inst.components + ems   # append droppers/spawners to baked components
+		# Legacy emitters now load into the Hardpoints (mounts) list as entity mounts, so there's no
+		# separate emitter-component path here — only the orbit-ring cluster is a bespoke component.
 		if not _orbit_rings.is_empty():
 			inst.components = inst.components + [_build_orbit()]   # cluster-mine / bloom ring held + released
 	# Shielded trait (template): add a CHARGE ShieldComponent sized to the template for a live preview.
@@ -1085,6 +1139,7 @@ func _spawn_current() -> void:
 	if _pattern_lbl:
 		var n: int = max(1, _eligible.size())
 		_pattern_lbl.text = "Pattern: %s  (%d/%d)" % [(key if key != "" else "—"), _pattern_idx + 1, n]
+	_refresh_elig_display()   # keep the read-only eligible list's highlight on the just-spawned pattern
 	_refresh_info()
 
 
@@ -1164,24 +1219,104 @@ func _selected_payload():
 
 
 # ---- Mounts editor -------------------------------------------------------
-# Mounts are extra emitters (gun/turret/launcher/beam) beyond the hull weapon (Mount 0). The working
-# list `_mount_dicts` holds JSON-friendly name-based dicts; _mount_spec_dicts() resolves them to the
-# roster dict schema (payload name → BulletVariant resource / projectile scene path) that
-# EnemyRoster.make_mount_specs() converts into live MountSpecs at spawn.
+# Mounts are extra hardpoints (gun/turret/launcher/beam/entity) beyond the hull weapon (Mount 0). The
+# working list `_mount_dicts` holds JSON-friendly name-based dicts; _mount_spec_dicts() resolves them to
+# the roster dict schema EnemyRoster.make_mount_specs() converts into live MountSpecs at spawn, and
+# _mount_copy_line() emits the same schema as a paste-ready roster literal.
+#
+# ONE field-schema table (MOUNT_FIELDS, Roman 2026-07-07) is the single source of truth for the
+# roster⇄bench mount round-trip. It replaces four hand-synced copies (spec_dicts / copy_line /
+# roster→bench) that drifted out of step and silently corrupted enemies on each roster→bench→Copy pass.
+# Each entry:
+#   bench   — key in the bench `_mount_dicts` dict
+#   roster  — key in the roster mount dict (what enemy_roster.gd _mount_from_dict reads / Copy emits)
+#   type    — "s"(string) "f"(float) "i"(int) "b"(bool)
+#   def     — the ROSTER default (MUST match _mount_from_dict exactly); the sentinel DEF_ENTITY_INERTIA
+#             means "true for entity, false otherwise" (roster's per-kind no_inertia default)
+#   kinds   — mount kinds the field applies to; only those serialize/round-trip/copy it
+#   omit    — Copy omit rule vs the roster default: "eq_def" (skip at default), "gt0"/"ge0"/"gt1", ""
+#             (always emit). LIVE serialization always writes (make_mount_specs reads the roster default
+#             itself, so an omitted-in-copy field stays correct live).
+# payload / the single bench "fire" key (→ roster fire_min+fire_max) / beam_config / turret gfx are
+# handled specially (not simple 1:1 fields) — see _mount_spec_dicts / _mount_copy_line.
+const DEF_ENTITY_INERTIA := "@entity_inertia"   # sentinel: roster no_inertia default is (kind == ENTITY)
+const MOUNT_FIELDS := [
+	# firing knobs shared by gun/launcher/turret
+	{"bench": "bullet_speed", "roster": "bullet_speed", "type": "f", "def": -1.0, "kinds": ["gun", "launcher", "turret"], "omit": "ge0"},
+	# entity move_speed override: the bench UI's "speed" spin (min 0) stores it as bullet_speed. Roster
+	# default is -1 (payload's own speed); a 0 is a valid explicit override, so match gun's def/omit so
+	# both an omitted (-1) and an explicit 0 round-trip losslessly.
+	{"bench": "bullet_speed", "roster": "bullet_speed", "type": "f", "def": -1.0, "kinds": ["entity"], "omit": "ge0"},
+	{"bench": "burst_interval", "roster": "burst_interval", "type": "f", "def": 0.0, "kinds": ["gun", "launcher", "turret"], "omit": "gt0"},
+	{"bench": "deviation_deg", "roster": "deviation_deg", "type": "f", "def": 0.0, "kinds": ["gun", "launcher", "turret"], "omit": "gt0"},
+	{"bench": "volleys", "roster": "volleys", "type": "i", "def": 1, "kinds": ["gun", "launcher", "turret"], "omit": "gt1"},
+	{"bench": "volley_gap", "roster": "volley_gap", "type": "f", "def": 0.0, "kinds": ["gun", "launcher", "turret"], "omit": "gt0"},
+	{"bench": "payload_delay_ms", "roster": "payload_delay_ms", "type": "f", "def": 0.0, "kinds": ["gun", "launcher", "turret", "entity"], "omit": "gt0"},
+	# gun/launcher (+entity) only
+	{"bench": "marker_mode", "roster": "marker_mode", "type": "s", "def": "all", "kinds": ["gun", "launcher", "entity"], "omit": "eq_def"},
+	# no_inertia applies to every fired/dropped kind (the push turret drops a no-inertia slug). Roster
+	# default is per-kind: true for ENTITY, false otherwise (the DEF_ENTITY_INERTIA sentinel).
+	{"bench": "no_inertia", "roster": "no_inertia", "type": "b", "def": DEF_ENTITY_INERTIA, "kinds": ["gun", "launcher", "turret", "entity"], "omit": "eq_def"},
+	{"bench": "max_fires", "roster": "max_fires", "type": "i", "def": 0, "kinds": ["gun", "launcher", "entity"], "omit": "gt0"},
+	# entity-only emit knobs
+	{"bench": "trigger", "roster": "trigger", "type": "s", "def": "cadence", "kinds": ["entity"], "omit": ""},
+	{"bench": "scatter", "roster": "scatter", "type": "f", "def": 0.0, "kinds": ["entity"], "omit": "gt0"},
+	{"bench": "max_emits", "roster": "max_emits", "type": "i", "def": 0, "kinds": ["entity"], "omit": "gt0"},
+	{"bench": "band_only", "roster": "band_only", "type": "b", "def": false, "kinds": ["entity"], "omit": "eq_def"},
+]
+
+
+# Resolve a schema field's roster default for one mount kind (handles the per-kind inertia sentinel).
+func _field_default(f: Dictionary, kind: String):
+	var d = f["def"]
+	if d is String and String(d) == DEF_ENTITY_INERTIA:
+		return kind == "entity"
+	return d
+
+
+# Read a bench-dict value for a schema field (falling back to the field's roster default), type-coerced.
+func _field_val(f: Dictionary, d: Dictionary, kind: String):
+	var raw = d.get(f["bench"], _field_default(f, kind))
+	match String(f["type"]):
+		"s": return String(raw)
+		"f": return float(raw)
+		"i": return int(raw)
+		"b": return bool(raw)
+	return raw
+
+
+# True if a schema field applies to this mount kind.
+func _field_applies(f: Dictionary, kind: String) -> bool:
+	return (f["kinds"] as Array).has(kind)
+
+
+# The bench payload NAME for a mount dict (entity/beam default to Bomblet/… vs Ball for a bullet mount).
+func _mount_payload_name(d: Dictionary) -> String:
+	var k: String = String(d.get("kind", "gun"))
+	return String(d.get("payload", ("Bomblet" if k == "entity" else "Ball")))
+
+
+# The mount's fire_max: the single-rate bench UI drives one "fire" value, but a roster mount may author
+# a min<max cadence window. We preserve that authored max in the bench dict as "fire_max" so it round-
+# trips losslessly; when absent (a bench-authored mount), it collapses to the single "fire" value.
+func _fire_max_of(d: Dictionary) -> float:
+	return float(d.get("fire_max", d.get("fire", 1.5)))
+
 
 func _mount_spec_dicts() -> Array:
 	var out: Array = []
 	for d in _mount_dicts:
 		var k: String = String(d.get("kind", "gun"))
+		var pname: String = _mount_payload_name(d)
 		var sd: Dictionary = {
 			"kind": k, "marker": String(d.get("marker", "")),
 			"aim": String(d.get("aim", "straight_down")),
-			"fire_min": float(d.get("fire", 1.5)), "fire_max": float(d.get("fire", 1.5)),
+			"fire_min": float(d.get("fire", 1.5)), "fire_max": _fire_max_of(d),
 			"count": int(d.get("count", 1)), "spread_deg": float(d.get("spread", 0.0)),
 		}
-		var pname: String = String(d.get("payload", "Ball"))
+		# Payload: entity scene path / beam config / bullet variant / projectile scene.
 		if k == "entity":
-			sd["payload_scene"] = _emitter_payload_path(pname)   # entity scene path
+			sd["payload_scene"] = _emitter_payload_path(pname)
 		elif pname == BEAM_PAYLOAD_NAME:
 			sd["beam_config"] = _beam_config_from(d)   # beam payload → BeamEmitter (editable config)
 			sd["marker_mode"] = String(d.get("marker_mode", "all"))   # Both / Alternating muzzles
@@ -1189,23 +1324,13 @@ func _mount_spec_dicts() -> Array:
 			sd["payload"] = PAYLOADS[pname]
 		elif PROJECTILES.has(pname):
 			sd["payload_scene"] = PROJECTILES[pname]
+		# Schema-driven fields (LIVE spec always writes — make_mount_specs applies the roster default itself).
+		for f in MOUNT_FIELDS:
+			if _field_applies(f, k):
+				sd[f["roster"]] = _field_val(f, d, k)
+		# Firing-condition gates (gun/launcher only) — honoured by MountComponent. The zone gate was
+		# retired 2026-06-29 (off-screen suppression is already universal via _on_playfield).
 		if k == "gun" or k == "launcher":
-			# Firing pattern: marker_mode (all/cycle), burst_interval, bullet_speed
-			sd["marker_mode"] = String(d.get("marker_mode", "cycle"))
-			sd["no_inertia"] = bool(d.get("no_inertia", false))
-			sd["payload_delay_ms"] = float(d.get("payload_delay_ms", 0.0))
-			sd["deviation_deg"] = float(d.get("deviation_deg", 0.0))
-			sd["max_fires"] = int(d.get("max_fires", 0))
-			sd["volleys"] = int(d.get("volleys", 1))
-			sd["volley_gap"] = float(d.get("volley_gap", 0.0))
-			var burst: float = float(d.get("burst_interval", 0.0))
-			if burst > 0.0:
-				sd["burst_interval"] = burst
-			var bspeed: float = float(d.get("bullet_speed", -1.0))
-			if bspeed >= 0.0:
-				sd["bullet_speed"] = bspeed
-			# Firing conditions (path-phase mode + nose gate), honoured by MountComponent. The zone gate
-			# was retired 2026-06-29 (off-screen suppression is already universal via _on_playfield).
 			sd["fire_only_on_target"] = bool(d.get("nose_gated", false))
 			sd["fire_aim_tol_deg"] = float(d.get("aim_tol", 18.0))
 			sd["fire_on_phase"] = String(d.get("on_phase", ""))
@@ -1223,41 +1348,29 @@ func _mount_spec_dicts() -> Array:
 			sd["turret_texture"] = g["tex"]
 			sd["turret_hframes"] = g["hframes"]
 			sd["recoil_frames"] = g["recoil"]
-			# Phase B: a turret honors these shared firing settings (deviation/burst/volleys/delay +
-			# bullet_speed). The gun/launcher-only knobs (muzzle mode, nose/path gates, max-fires) don't apply.
-			sd["deviation_deg"] = float(d.get("deviation_deg", 0.0))
-			sd["volleys"] = int(d.get("volleys", 1))
-			sd["volley_gap"] = float(d.get("volley_gap", 0.0))
-			sd["payload_delay_ms"] = float(d.get("payload_delay_ms", 0.0))
-			var tburst: float = float(d.get("burst_interval", 0.0))
-			if tburst > 0.0:
-				sd["burst_interval"] = tburst
-			var tspd: float = float(d.get("bullet_speed", -1.0))
-			if tspd >= 0.0:
-				sd["bullet_speed"] = tspd
-		elif k == "entity":
-			# ENTITY emitter fields (Phase 3): trigger + emit knobs, honoured by _mount_from_dict.
-			sd["trigger"] = String(d.get("trigger", "cadence"))
-			sd["scatter"] = float(d.get("scatter", 0.0))
-			sd["max_emits"] = int(d.get("max_emits", 0))
-			sd["band_only"] = bool(d.get("band_only", false))
-			sd["no_inertia"] = bool(d.get("no_inertia", true))
-			sd["payload_delay_ms"] = float(d.get("payload_delay_ms", 0.0))
-			var espd: float = float(d.get("bullet_speed", 0.0))
-			if espd > 0.0:
-				sd["bullet_speed"] = espd
 		out.append(sd)
 	return out
 
 
 func _add_mount() -> void:
-	_mount_dicts.append({"kind": "gun", "marker": "", "payload": "Ball", "aim": "straight_down", "fire": 1.5, "count": 1, "spread": 0.0, "marker_mode": "cycle", "burst_interval": 0.0, "bullet_speed": -1.0, "no_inertia": true, "payload_delay_ms": 0.0, "nose_gated": false, "aim_tol": 18.0, "path_phases": "", "beat_synced": true, "on_phase": ""})
+	var fresh: Dictionary = {"kind": "gun", "marker": "", "payload": "Ball", "aim": "straight_down", "fire": 1.5, "count": 1, "spread": 0.0, "marker_mode": "cycle", "burst_interval": 0.0, "bullet_speed": -1.0, "no_inertia": true, "payload_delay_ms": 0.0, "nose_gated": false, "aim_tol": 18.0, "path_phases": "", "beat_synced": true, "on_phase": ""}
+	_mount_dicts.append(fresh)
+	# User-added: its own initial values ARE the baseline, so a fresh mount shows NO affordances until the
+	# user edits it. (Snapshot, not {} — the fresh gun defaults intentionally diverge from the roster
+	# schema, e.g. inertia-off; comparing against schema defaults would false-positive on an untouched add.)
+	_mount_baked.append(fresh.duplicate(true))
 	_rebuild_mounts_ui()
 	_spawn_current()
 
 
 func _remove_mount(d: Dictionary) -> void:
-	_mount_dicts.erase(d)
+	var i: int = _mount_dicts.find(d)
+	if i >= 0:
+		_mount_dicts.remove_at(i)
+		if i < _mount_baked.size():
+			_mount_baked.remove_at(i)   # keep the baked reference index-aligned
+	else:
+		_mount_dicts.erase(d)
 	_rebuild_mounts_ui()
 	_spawn_current()
 
@@ -1345,7 +1458,7 @@ func _make_mount_row(idx: int) -> Control:
 		var sync_keys: Array = ["all", "cycle", "inward", "outward"]
 		var sync_dd := _row_dd(["All", "Cycle", "Inward", "Outward"], maxi(0, sync_keys.find(String(d.get("marker_mode", "cycle")))))
 		sync_dd.item_selected.connect(func(i): _set_mount(d, "marker_mode", String(sync_keys[i])))
-		_grid_row(grid, "muzzles", sync_dd)
+		_grid_row_dec(grid, "muzzles", sync_dd, maxi(0, sync_keys.find(String(_mount_field_baked(idx, "marker_mode", k)))))
 
 		# volley: fire all `count` bullets at once (Simultaneous, burst_interval 0) or spaced out (Burst,
 		# burst_interval seconds between shots). The burst-gap spin only shows in Burst mode.
@@ -1369,39 +1482,40 @@ func _make_mount_row(idx: int) -> Control:
 
 		var spd := _row_spin(-1.0, 600.0, 10.0, float(d.get("bullet_speed", -1.0)))
 		spd.value_changed.connect(func(v): _set_mount(d, "bullet_speed", float(v)))
-		_grid_row(grid, "speed", spd)
+		_grid_row_dec(grid, "speed", spd, float(_mount_field_baked(idx, "bullet_speed", k)))
 
 		# Deviation: random ± angle jitter per shot (inaccuracy). 0 = pinpoint.
 		var dev := _row_spin(0.0, 90.0, 1.0, float(d.get("deviation_deg", 0.0)))
 		dev.value_changed.connect(func(v): _set_mount(d, "deviation_deg", float(v)))
-		_grid_row(grid, "deviation", dev)
+		_grid_row_dec(grid, "deviation", dev, float(_mount_field_baked(idx, "deviation_deg", k)))
 
 		# Max fires: cap the shots per pass (0 = unlimited).
 		var maxf := _row_spin(0, 20, 1, float(d.get("max_fires", 0)))
 		maxf.value_changed.connect(func(v): _set_mount(d, "max_fires", int(v)))
-		_grid_row(grid, "max fires", maxf)
+		_grid_row_dec(grid, "max fires", maxf, float(_mount_field_baked(idx, "max_fires", k)))
 
 		# Volleys: fire the whole spread this many times (a 3-shot spread x 4 volleys = 12), staggered
 		# by the volley gap. 1 = a single volley (burst gap above still staggers shots within it).
 		var vol := _row_spin(1, 12, 1, float(d.get("volleys", 1)))
 		vol.value_changed.connect(func(v): _set_mount(d, "volleys", int(v)))
-		_grid_row(grid, "volleys", vol)
+		_grid_row_dec(grid, "volleys", vol, float(_mount_field_baked(idx, "volleys", k)))
 
 		var vgap := _row_spin(0.0, 1.0, 0.02, float(d.get("volley_gap", 0.0)))
 		vgap.value_changed.connect(func(v): _set_mount(d, "volley_gap", float(v)))
-		_grid_row(grid, "volley gap", vgap)
+		_grid_row_dec(grid, "volley gap", vgap, float(_mount_field_baked(idx, "volley_gap", k)))
 
 		# Payload toggles (Roman 2026-07-03) — opt-in, off by default. Inertia ON = the shot carries the
 		# enemy's velocity (Doppler); OFF (new-mount default) = it drops at its own speed. Stored as the
-		# inverse no_inertia, so existing mounts keep their behaviour (absent key = carries).
+		# inverse no_inertia, so existing mounts keep their behaviour (absent key = carries). The affordance
+		# compares the UI's inertia bool, so bake the INVERSE of the roster no_inertia default.
 		var inertia_chk := _row_check(not bool(d.get("no_inertia", false)))
 		inertia_chk.toggled.connect(func(on): _set_mount(d, "no_inertia", not on))
-		_grid_row(grid, "inertia", inertia_chk)
+		_grid_row_dec(grid, "inertia", inertia_chk, not bool(_mount_field_baked(idx, "no_inertia", k)))
 
 		# Delay: the payload holds at the muzzle this many milliseconds before its motion begins.
 		var delay_spin := _row_spin(0.0, 2000.0, 10.0, float(d.get("payload_delay_ms", 0.0)))
 		delay_spin.value_changed.connect(func(v): _set_mount(d, "payload_delay_ms", float(v)))
-		_grid_row(grid, "delay ms", delay_spin)
+		_grid_row_dec(grid, "delay ms", delay_spin, float(_mount_field_baked(idx, "payload_delay_ms", k)))
 
 		# Firing conditions: nose gate + path-phase mode (mirror the hull shoot). The old "zone" toggle
 		# was dropped 2026-06-29 — off-screen suppression is already universal (_on_playfield), so the
@@ -1453,23 +1567,23 @@ func _make_mount_row(idx: int) -> Control:
 
 		var tspd := _row_spin(-1.0, 600.0, 10.0, float(d.get("bullet_speed", -1.0)))
 		tspd.value_changed.connect(func(v): _set_mount(d, "bullet_speed", float(v)))
-		_grid_row(grid, "speed", tspd)
+		_grid_row_dec(grid, "speed", tspd, float(_mount_field_baked(idx, "bullet_speed", k)))
 
 		var tdev := _row_spin(0.0, 90.0, 1.0, float(d.get("deviation_deg", 0.0)))
 		tdev.value_changed.connect(func(v): _set_mount(d, "deviation_deg", float(v)))
-		_grid_row(grid, "deviation", tdev)
+		_grid_row_dec(grid, "deviation", tdev, float(_mount_field_baked(idx, "deviation_deg", k)))
 
 		var tvol := _row_spin(1, 12, 1, float(d.get("volleys", 1)))
 		tvol.value_changed.connect(func(v): _set_mount(d, "volleys", int(v)))
-		_grid_row(grid, "volleys", tvol)
+		_grid_row_dec(grid, "volleys", tvol, float(_mount_field_baked(idx, "volleys", k)))
 
 		var tvgap := _row_spin(0.0, 1.0, 0.02, float(d.get("volley_gap", 0.0)))
 		tvgap.value_changed.connect(func(v): _set_mount(d, "volley_gap", float(v)))
-		_grid_row(grid, "volley gap", tvgap)
+		_grid_row_dec(grid, "volley gap", tvgap, float(_mount_field_baked(idx, "volley_gap", k)))
 
 		var tdelay := _row_spin(0.0, 2000.0, 10.0, float(d.get("payload_delay_ms", 0.0)))
 		tdelay.value_changed.connect(func(v): _set_mount(d, "payload_delay_ms", float(v)))
-		_grid_row(grid, "delay ms", tdelay)
+		_grid_row_dec(grid, "delay ms", tdelay, float(_mount_field_baked(idx, "payload_delay_ms", k)))
 
 	# Beam payload config (beam editor 2026-07-05): when the payload is a Beam, author its behavior — aim
 	# mode (Forward/Locked/Tracking/Track-Lock), reach, dps, and the FSM timings. Assembled into a
@@ -1510,45 +1624,47 @@ func _make_mount_row(idx: int) -> Control:
 		var trig_keys: Array = ["cadence", "start", "death"]
 		var trig_dd := _row_dd(["Cadence", "Start", "Death"], maxi(0, trig_keys.find(String(d.get("trigger", "cadence")))))
 		trig_dd.item_selected.connect(func(i): _set_mount(d, "trigger", String(trig_keys[i])))
-		_grid_row(grid, "trigger", trig_dd)
+		_grid_row_dec(grid, "trigger", trig_dd, maxi(0, trig_keys.find(String(_mount_field_baked(idx, "trigger", k)))))
 
 		var maxe := _row_spin(0, 20, 1, float(d.get("max_emits", 0)))
 		maxe.value_changed.connect(func(v): _set_mount(d, "max_emits", int(v)))
-		_grid_row(grid, "max emits", maxe)
+		_grid_row_dec(grid, "max emits", maxe, float(_mount_field_baked(idx, "max_emits", k)))
 
 		var scat := _row_spin(0.0, 60.0, 2.0, float(d.get("scatter", 0.0)))
 		scat.value_changed.connect(func(v): _set_mount(d, "scatter", float(v)))
-		_grid_row(grid, "scatter", scat)
+		_grid_row_dec(grid, "scatter", scat, float(_mount_field_baked(idx, "scatter", k)))
 
 		var band_chk := _row_check(bool(d.get("band_only", false)))
 		band_chk.toggled.connect(func(on): _set_mount(d, "band_only", on))
-		_grid_row(grid, "band only", band_chk)
+		_grid_row_dec(grid, "band only", band_chk, bool(_mount_field_baked(idx, "band_only", k)))
 
-		# Inertia ON = the drop carries the enemy's velocity; OFF (default) = it drops at rest.
+		# Inertia ON = the drop carries the enemy's velocity; OFF (default) = it drops at rest. Bake the
+		# INVERSE of the roster no_inertia default (the UI shows inertia, the dict stores its negation).
 		var einertia := _row_check(not bool(d.get("no_inertia", true)))
 		einertia.toggled.connect(func(on): _set_mount(d, "no_inertia", not on))
-		_grid_row(grid, "inertia", einertia)
+		_grid_row_dec(grid, "inertia", einertia, not bool(_mount_field_baked(idx, "no_inertia", k)))
 
 		# Delay: the dropped payload holds this many ms before its motion begins (bomblets/missiles honour it).
 		var edelay := _row_spin(0.0, 2000.0, 10.0, float(d.get("payload_delay_ms", 0.0)))
 		edelay.value_changed.connect(func(v): _set_mount(d, "payload_delay_ms", float(v)))
-		_grid_row(grid, "delay ms", edelay)
+		_grid_row_dec(grid, "delay ms", edelay, float(_mount_field_baked(idx, "payload_delay_ms", k)))
 
 		# Speed: overrides the dropped entity's move_speed (px/s), so bench == live. 0 = the payload's own.
+		# The spin clamps negatives to 0 (entity roster default is -1), so clamp the baked ref the same way.
 		var espeed := _row_spin(0.0, 480.0, 10.0, maxf(0.0, float(d.get("bullet_speed", 0.0))))
 		espeed.value_changed.connect(func(v): _set_mount(d, "bullet_speed", float(v)))
-		_grid_row(grid, "speed", espeed)
+		_grid_row_dec(grid, "speed", espeed, maxf(0.0, float(_mount_field_baked(idx, "bullet_speed", k))))
 
 	return row
 
 
-# ---- Emitters editor -----------------------------------------------------
-# Emitters are EmitterComponents — drop/spawn a payload scene on START/TIMER/DEATH, the reusable form of
-# the interceptor's missile-drop. `_emitter_dicts` holds JSON-friendly dicts; _emitter_spec_dicts()
-# resolves them to the roster "emitters" shape EnemyRoster.make_emitter_specs() builds at spawn.
+# ---- Emitter payload resolution (legacy fold-in) -------------------------
+# The Emitters editor was retired (droppers/spawners are "Entity" hardpoints in the Mounts list), but a
+# legacy roster/saved "emitters" block still FOLDS IN as entity mounts on load — these helpers resolve
+# its payload names ⇄ scene paths, and _emitter_dict_to_mount rewrites one emitter dict as an entity mount.
 
 # Every emitter payload the bench offers: the named projectiles/mines (EMITTER_PAYLOADS) + every enemy
-# (so an emitter can drop other enemies, Roman 2026-06-29). Enemy entries use their display name.
+# (so an entity mount can drop other enemies, Roman 2026-06-29). Enemy entries use their display name.
 func _emitter_payload_options() -> Array:
 	var out: Array = EMITTER_PAYLOADS.keys().duplicate()
 	for p in EnemyManifest.all_enemies(false):
@@ -1585,99 +1701,6 @@ func _emitter_dict_to_mount(e: Dictionary) -> Dictionary:
 	}
 
 
-func _emitter_spec_dicts() -> Array:
-	var out: Array = []
-	for d in _emitter_dicts:
-		var pname: String = String(d.get("payload", "Missile"))
-		var sd: Dictionary = {
-			"trigger": String(d.get("trigger", "timer")),
-			"payload": _emitter_payload_path(pname),   # pass the resolved PATH (roster loads it directly)
-			"cadence": float(d.get("cadence", 0.55)),
-			"count": int(d.get("count", 1)),
-			"max_emits": int(d.get("max_emits", 0)),
-			"band_only": bool(d.get("band_only", false)),
-			"drop": bool(d.get("drop", true)),
-		}
-		if pname == "Missile":
-			sd["sfx"] = "missile"   # the drifting-missile drop carries the launch sound, like the interceptor
-		out.append(sd)
-	return out
-
-
-func _add_emitter() -> void:
-	_emitter_dicts.append({"trigger": "timer", "payload": "Missile", "cadence": 0.55, "count": 1, "max_emits": 3, "band_only": true, "drop": true})
-	_rebuild_emitters_ui()
-	_spawn_current()
-
-
-func _remove_emitter(d: Dictionary) -> void:
-	_emitter_dicts.erase(d)
-	_rebuild_emitters_ui()
-	_spawn_current()
-
-
-func _set_emitter(d: Dictionary, key: String, value) -> void:
-	d[key] = value
-	_spawn_current()
-
-
-func _rebuild_emitters_ui() -> void:
-	if _emitters_list == null:
-		return
-	for c in _emitters_list.get_children():
-		_emitters_list.remove_child(c)
-		c.queue_free()
-	for i in _emitter_dicts.size():
-		_emitters_list.add_child(_make_emitter_row(i))
-	_tighten_panel(_emitters_list)
-
-
-func _make_emitter_row(idx: int) -> Control:
-	var d: Dictionary = _emitter_dicts[idx]
-	var row := VBoxContainer.new()
-	row.add_theme_constant_override("separation", 3)
-	var head := HBoxContainer.new()
-	var title := _row_lbl("Emitter %d" % (idx + 1))
-	title.add_theme_color_override("font_color", Color(0.62, 0.82, 1, 1))
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(title)
-	var rm := Button.new()
-	rm.text = "✕"
-	_style_button(rm)
-	rm.add_theme_font_size_override("font_size", FS_CAPTION)
-	rm.pressed.connect(func(): _remove_emitter(d))
-	head.add_child(rm)
-	row.add_child(head)
-	# Every field as a labelled row in a 2-col grid (label | control) — see _grid_row.
-	var grid := _field_grid()
-	row.add_child(grid)
-	var trig_dd := _row_dd(EMITTER_TRIGGER_LABELS, maxi(0, EMITTER_TRIGGERS.find(String(d.get("trigger", "timer")))))
-	trig_dd.item_selected.connect(func(i): _set_emitter(d, "trigger", EMITTER_TRIGGERS[i]))
-	_grid_row(grid, "trigger", trig_dd)
-	var pnames: Array = _emitter_payload_options()
-	var pay_dd := _row_dd(pnames, maxi(0, pnames.find(String(d.get("payload", "Missile")))))
-	pay_dd.item_selected.connect(func(i): _set_emitter(d, "payload", String(pnames[i])))
-	_grid_row(grid, "payload", pay_dd)
-	var cad := _row_spin(0.1, 6.0, 0.05, float(d.get("cadence", 0.55)))
-	cad.value_changed.connect(func(v): _set_emitter(d, "cadence", float(v)))
-	_grid_row(grid, "every", cad)
-	var cnt := _row_spin(1, 12, 1, float(d.get("count", 1)))
-	cnt.value_changed.connect(func(v): _set_emitter(d, "count", int(v)))
-	_grid_row(grid, "count", cnt)
-	var mx := _row_spin(0, 20, 1, float(d.get("max_emits", 0)))
-	mx.value_changed.connect(func(v): _set_emitter(d, "max_emits", int(v)))
-	_grid_row(grid, "max/pass", mx)
-	var band := _row_check(bool(d.get("band_only", false)))
-	band.toggled.connect(func(p): _set_emitter(d, "band_only", p))
-	_grid_row(grid, "on-screen", band)
-	# drop = leave the payload at rest in the wake (no inherited velocity); off = launch it with the
-	# enemy's velocity. On by default — that's the classic "drop a mine/missile as you go".
-	var drop_chk := _row_check(bool(d.get("drop", true)))
-	drop_chk.toggled.connect(func(p): _set_emitter(d, "drop", p))
-	_grid_row(grid, "drop", drop_chk)
-	return row
-
-
 # Default emitters for an enemy with no saved override: its production roster "emitters" block.
 func _default_emitters_for(path: String) -> Array:
 	var entry: Dictionary = EnemyRoster.entry_for_scene(path)
@@ -1710,21 +1733,6 @@ func _emitter_payload_name(d: Dictionary) -> String:
 			if String(p) == String(pv):
 				return EnemyStrings.display_name(String(p))
 	return "Missile"
-
-
-# A paste-ready roster "emitters" dict literal for one emitter. Emits the resolved scene PATH (the
-# roster's _emitter_from_dict loads it directly), so the expanded payloads need no roster const.
-func _emitter_copy_line(d: Dictionary) -> String:
-	var pname: String = String(d.get("payload", "Missile"))
-	var ppath: String = _emitter_payload_path(pname)
-	var extra: String = ", \"sfx\": \"missile\"" if pname == "Missile" else ""
-	if not bool(d.get("drop", true)):
-		extra += ", \"drop\": false"
-	var band: String = "true" if bool(d.get("band_only", false)) else "false"
-	return "{ \"trigger\": \"%s\", \"payload\": \"%s\", \"count\": %d, \"cadence\": %.2f, \"max_emits\": %d, \"band_only\": %s%s }," % [
-		String(d.get("trigger", "timer")), ppath, int(d.get("count", 1)), float(d.get("cadence", 0.55)),
-		int(d.get("max_emits", 0)), band, extra,
-	]
 
 
 # ---- Orbit rings editor (cluster-mine / bloom) ---------------------------
@@ -1844,7 +1852,7 @@ func _build_orbit():
 		if _orbit_mode == "live":
 			ring["scene"] = load(String(ORBIT_LIVE_PAYLOADS.get(pname, ORBIT_LIVE_PAYLOADS["Bomblet"])))
 		else:
-			ring["variant"] = PAYLOADS.get(pname, BV_Ball)
+			ring["variant"] = PAYLOADS.get(pname, PAYLOADS.get("Ball", null))
 		rings.append(ring)
 	oc.rings = rings
 	return oc
@@ -1861,7 +1869,7 @@ func _orbit_mount_copy_line() -> String:
 		if _orbit_mode == "live":
 			pay = "\"scene\": preload(\"%s\")" % String(ORBIT_LIVE_PAYLOADS.get(pname, ORBIT_LIVE_PAYLOADS["Bomblet"]))
 		else:
-			pay = "\"variant\": %s" % String(PAYLOAD_CONST.get(pname, "preload(\"res://data/bullets/ball.tres\")"))
+			pay = "\"variant\": %s" % String(PAYLOAD_CONST.get(pname, PAYLOAD_CONST["Ball"]))
 		ring_parts.append("{ \"radius\": %.0f, \"count\": %d, \"speed\": %.2f, %s }" % [
 			float(r.get("radius", 16.0)), int(r.get("count", 6)), float(r.get("speed", 1.6)), pay])
 	# orbit_mode: 0 = VISUAL, 1 = LIVE. host_drift only matters for LIVE (matches _build_orbit's 60).
@@ -1960,7 +1968,14 @@ func _default_mounts_for(path: String) -> Array:
 	return out
 
 
+# Convert a production roster mount dict → the bench's name-based dict shape, so a migrated enemy shows
+# + fires its real mounts and Copy re-emits them losslessly. Schema-driven: every MOUNT_FIELDS field is
+# read back through its ROSTER default (matching _mount_from_dict exactly), so an absent-in-roster field
+# becomes the same default the roster would apply — no default-shift on the round-trip. (Roman 2026-07-07:
+# this replaces the hand-picked subset that dropped max_fires/deviation/volleys/entity-emit fields and
+# mismatched marker_mode/no_inertia defaults, corrupting enemies on each intake pass.)
 func _roster_mount_to_bench(d: Dictionary) -> Dictionary:
+	var k: String = String(d.get("kind", "gun"))
 	var pp_toks: Array = []
 	var pp_arr = d.get("fire_path_phases", [])
 	if pp_arr != null:
@@ -1969,24 +1984,24 @@ func _roster_mount_to_bench(d: Dictionary) -> Dictionary:
 	# Extract a beam mount's beam_config into the editable beam_* fields so it round-trips into the editor.
 	var bcv = d.get("beam_config", null)
 	var bc: Dictionary = bcv if bcv is Dictionary else {}
-	return {
-		"kind": String(d.get("kind", "gun")),
+	var out: Dictionary = {
+		"kind": k,
 		"marker": String(d.get("marker", "")),
 		"aim": String(d.get("aim", "straight_down")),
 		"fire": float(d.get("fire_min", d.get("fire_max", 1.5))),
+		# Preserve an authored min<max cadence window (the single-rate UI shows fire_min; fire_max is kept
+		# for a lossless Copy round-trip). Only carried when it actually differs from fire_min.
+		"fire_max": float(d.get("fire_max", d.get("fire_min", 1.5))),
 		"count": int(d.get("count", 1)),
 		"spread": float(d.get("spread_deg", 0.0)),
 		"payload": _payload_name_of(d),
-		"marker_mode": String(d.get("marker_mode", "cycle")),
-		"burst_interval": float(d.get("burst_interval", 0.0)),
-		"bullet_speed": float(d.get("bullet_speed", -1.0)),
-		"no_inertia": bool(d.get("no_inertia", false)),
-		"payload_delay_ms": float(d.get("payload_delay_ms", 0.0)),
+		# gun/launcher firing-condition gates (aliased roster keys / string+array shapes, not table fields).
 		"nose_gated": bool(d.get("fire_only_on_target", false)),
 		"aim_tol": float(d.get("fire_aim_tol_deg", 18.0)),
 		"path_phases": ",".join(pp_toks),
 		"beat_synced": bool(d.get("fire_beat_synced", true)),
 		"on_phase": String(d.get("fire_on_phase", "")),
+		# beam config → editable beam_* fields.
 		"beam_aim": int(bc.get("aim_mode", 2)),
 		"beam_reach": float(bc.get("reach", 320.0)),
 		"beam_dps": float(bc.get("dps", 3.0)),
@@ -1995,23 +2010,67 @@ func _roster_mount_to_bench(d: Dictionary) -> Dictionary:
 		"beam_firing": float(bc.get("firing_time", 1.1)),
 		"beam_cooldown": float(bc.get("cooldown_time", 1.5)),
 	}
+	# Every schema field, read back through its per-kind ROSTER default (no default-shift).
+	for f in MOUNT_FIELDS:
+		if _field_applies(f, k):
+			out[f["bench"]] = _field_val_from_roster(f, d, k)
+	return out
+
+
+# Read a schema field's value from a ROSTER mount dict (roster key), falling back to the roster default.
+func _field_val_from_roster(f: Dictionary, d: Dictionary, kind: String):
+	var raw = d.get(f["roster"], _field_default(f, kind))
+	match String(f["type"]):
+		"s": return String(raw)
+		"f": return float(raw)
+		"i": return int(raw)
+		"b": return bool(raw)
+	return raw
 
 
 # Map a (possibly legacy) saved payload name to a current dropdown key, always returning a valid one.
-func _norm_payload(name: String) -> String:
+# Beam / entity-scene payloads are valid too (an entity mount's payload is an EMITTER_PAYLOADS / enemy
+# name), so only truly-unknown names collapse — and to a kind-appropriate default, never blindly Ball.
+func _norm_payload(name: String, kind: String = "gun") -> String:
 	var n: String = String(_LEGACY_PAYLOAD.get(name, name))
-	return n if (PAYLOADS.has(n) or PROJECTILES.has(n)) else "Ball"
+	if PAYLOADS.has(n) or PROJECTILES.has(n) or n == BEAM_PAYLOAD_NAME:
+		return n
+	if kind == "entity" and (EMITTER_PAYLOADS.has(n) or _is_enemy_display_name(n)):
+		return n
+	return "Bomblet" if kind == "entity" else "Ball"
+
+
+# True if `name` is the display name of some manifest enemy (a valid entity-mount payload).
+func _is_enemy_display_name(name: String) -> bool:
+	for p in EnemyManifest.all_enemies(false):
+		if EnemyStrings.display_name(String(p)) == name:
+			return true
+	return false
 
 
 # Reverse-resolve a roster mount's payload to its bench dropdown name. Payloads collapsed to families
-# (2026-06-29), so map by the variant's `family` first — any faction's clone (zealot/privateer ball)
-# folds to the generic "Ball". A non-family variant (e.g. legacy BV_Basic) falls back to "Ball".
+# (2026-06-29), so map a BulletVariant by its `family` first — any faction's clone (zealot/privateer
+# ball) folds to the generic "Ball". A payload_scene resolves through PROJECTILES, then the wider entity
+# set (EMITTER_PAYLOADS + every enemy scene by display name) so a mine/firecore/enemy-drop mount never
+# collapses to Ball (which the entity spawn path would then mis-fire as a Missile).
 func _payload_name_of(d: Dictionary) -> String:
 	# Beam payload: a roster mount with a beam_config is the "Beam" payload (its knobs round-trip into the
 	# editable beam_* fields via _roster_mount_to_bench).
 	var bc = d.get("beam_config", null)
 	if bc is Dictionary and not (bc as Dictionary).is_empty():
 		return BEAM_PAYLOAD_NAME
+	var ps = d.get("payload_scene", null)
+	if ps != null:
+		var p: String = String(ps) if ps is String else (ps.resource_path if ps is PackedScene else "")
+		if p != "":
+			for k in PROJECTILES:
+				if String(PROJECTILES[k]) == p:
+					return String(k)
+			for k in EMITTER_PAYLOADS:
+				if String(EMITTER_PAYLOADS[k]) == p:
+					return String(k)
+			if _is_enemy_display_name(EnemyStrings.display_name(p)) and EnemyStrings.display_name(p) != p:
+				return EnemyStrings.display_name(p)
 	var pv = d.get("payload", null)
 	if pv != null:
 		if "family" in pv and String(pv.family) != "":
@@ -2021,13 +2080,8 @@ func _payload_name_of(d: Dictionary) -> String:
 		for k in PAYLOADS:
 			if PAYLOADS[k] == pv:
 				return String(k)
-	var ps = d.get("payload_scene", null)
-	if ps != null:
-		var p: String = String(ps) if ps is String else (ps.resource_path if ps is PackedScene else "")
-		for k in PROJECTILES:
-			if String(PROJECTILES[k]) == p:
-				return String(k)
-	return "Ball"
+	# Nothing resolved: an entity mount defaults to Bomblet (its own kind default), else Ball.
+	return "Bomblet" if String(d.get("kind", "gun")) == "entity" else "Ball"
 
 
 # Serialize a beam_config dict to a paste-ready GDScript literal (handles Vector2/String/bool/number).
@@ -2048,66 +2102,74 @@ func _beam_cfg_literal(cfg: Dictionary) -> String:
 	return "{ " + ", ".join(parts) + " }"
 
 
-# A paste-ready roster "mounts" dict literal for one mount (payload → BV_ const or scene path).
+# True if a schema field's value should be OMITTED from the Copy literal (it's at the roster default,
+# per the field's omit rule) — so the pasted block stays terse and re-parses to exactly this value.
+func _field_omit(f: Dictionary, val, kind: String) -> bool:
+	match String(f["omit"]):
+		"eq_def": return val == _field_default(f, kind)
+		"ge0": return float(val) < 0.0
+		"gt0": return float(val) <= 0.0
+		"gt1": return int(val) <= 1
+		"ne_empty": return String(val) == ""
+		_: return false   # "" = always emit
+
+
+# A ", \"key\": value" fragment for one schema field (typed literal), or "" when omitted.
+func _field_copy_frag(f: Dictionary, d: Dictionary, kind: String) -> String:
+	var val = _field_val(f, d, kind)
+	if _field_omit(f, val, kind):
+		return ""
+	var vs: String
+	match String(f["type"]):
+		"s": vs = "\"%s\"" % String(val)
+		"f": vs = ("%.2f" % float(val)) if String(f["roster"]) not in ["bullet_speed", "scatter", "payload_delay_ms"] else ("%.0f" % float(val))
+		"i": vs = "%d" % int(val)
+		"b": vs = "true" if bool(val) else "false"
+		_: vs = str(val)
+	return ", \"%s\": %s" % [String(f["roster"]), vs]
+
+
+# Emit every schema field applicable to this mount kind (in table order), omitting roster-default values.
+func _schema_copy_frags(d: Dictionary, kind: String) -> String:
+	var s: String = ""
+	for f in MOUNT_FIELDS:
+		if _field_applies(f, kind):
+			s += _field_copy_frag(f, d, kind)
+	return s
+
+
+# A paste-ready roster "mounts" dict literal for one mount (schema-driven; payload → const / scene path).
 func _mount_copy_line(d: Dictionary) -> String:
-	# ENTITY hardpoint (Phase 3): a "mounts" entry that spawns a scene on a trigger (read by
-	# _mount_from_dict). payload -> payload_scene path; cadence/count from the shared rate/count rows.
-	if String(d.get("kind", "gun")) == "entity":
-		var epath: String = _emitter_payload_path(String(d.get("payload", "Bomblet")))
-		var eline: String = "{ \"kind\": \"entity\", \"trigger\": \"%s\", \"payload_scene\": \"%s\", \"count\": %d, \"fire_min\": %.2f, \"fire_max\": %.2f" % [
-			String(d.get("trigger", "cadence")), epath, int(d.get("count", 1)), float(d.get("fire", 1.5)), float(d.get("fire", 1.5))]
-		if float(d.get("scatter", 0.0)) > 0.0:
-			eline += ", \"scatter\": %.1f" % float(d.get("scatter", 0.0))
-		if int(d.get("max_emits", 0)) > 0:
-			eline += ", \"max_emits\": %d" % int(d.get("max_emits", 0))
-		if bool(d.get("band_only", false)):
-			eline += ", \"band_only\": true"
-		if float(d.get("payload_delay_ms", 0.0)) > 0.0:
-			eline += ", \"payload_delay_ms\": %.0f" % float(d.get("payload_delay_ms", 0.0))
-		if float(d.get("bullet_speed", 0.0)) > 0.0:
-			eline += ", \"bullet_speed\": %.0f" % float(d.get("bullet_speed", 0.0))
-		eline += ", \"no_inertia\": %s }," % ("true" if bool(d.get("no_inertia", true)) else "false")
-		return eline
+	var k: String = String(d.get("kind", "gun"))
+	var pname: String = _mount_payload_name(d)
+	# ENTITY hardpoint: spawns a scene on a trigger (read by _mount_from_dict). payload -> payload_scene.
+	# aim/marker are honoured by _mount_from_dict for entity too (e.g. minelayer aims its bomblet drop
+	# backward), so emit them; the rest of the entity knobs come from the schema.
+	if k == "entity":
+		var epath: String = _emitter_payload_path(pname)
+		var eaim: String = String(d.get("aim", "straight_down"))
+		var eline: String = "{ \"kind\": \"entity\", \"marker\": \"%s\", \"payload_scene\": \"%s\", \"aim\": \"%s\", \"count\": %d, \"fire_min\": %.2f, \"fire_max\": %.2f" % [
+			String(d.get("marker", "")), epath, eaim, int(d.get("count", 1)), float(d.get("fire", 1.5)), _fire_max_of(d)]
+		eline += _schema_copy_frags(d, k)
+		return eline + " },"
 	# Beam payload: a kind:"beam" mount carrying the editable beam_config (routed by MountBuilder).
-	if String(d.get("payload", "")) == BEAM_PAYLOAD_NAME:
+	if pname == BEAM_PAYLOAD_NAME:
 		var bmm: String = String(d.get("marker_mode", "all"))
 		var bmm_str: String = (", \"marker_mode\": \"%s\"" % bmm) if bmm != "all" else ""
 		return "{ \"kind\": \"beam\", \"marker\": \"%s\"%s, \"beam_config\": %s }," % [String(d.get("marker", "")), bmm_str, _beam_cfg_literal(_beam_config_from(d))]
-	var pname: String = String(d.get("payload", "Ball"))
+	# Gun / launcher / turret: bullet variant or projectile scene payload.
 	var pay: String = "\"payload\": null"
 	if PAYLOADS.has(pname):
-		pay = "\"payload\": %s" % String(PAYLOAD_CONST.get(pname, "preload(\"res://data/bullets/ball.tres\")"))
+		pay = "\"payload\": %s" % String(PAYLOAD_CONST.get(pname, PAYLOAD_CONST["Ball"]))
 	elif PROJECTILES.has(pname):
 		pay = "\"payload_scene\": \"%s\"" % PROJECTILES[pname]
 	var line: String = "{ \"kind\": \"%s\", \"marker\": \"%s\", %s, \"aim\": \"%s\", \"fire_min\": %.2f, \"fire_max\": %.2f, \"count\": %d, \"spread_deg\": %.1f" % [
-		String(d.get("kind", "gun")), String(d.get("marker", "")), pay, String(d.get("aim", "straight_down")),
-		float(d.get("fire", 1.5)), float(d.get("fire", 1.5)), int(d.get("count", 1)), float(d.get("spread", 0.0)),
+		k, String(d.get("marker", "")), pay, String(d.get("aim", "straight_down")),
+		float(d.get("fire", 1.5)), _fire_max_of(d), int(d.get("count", 1)), float(d.get("spread", 0.0)),
 	]
-	# Firing pattern fields for gun/launcher (emit only when non-default).
-	var k: String = String(d.get("kind", "gun"))
+	line += _schema_copy_frags(d, k)
+	# Gun/launcher-only firing-condition gates (not table fields — string/array shapes, aliased keys).
 	if k == "gun" or k == "launcher":
-		var mode: String = String(d.get("marker_mode", "cycle"))
-		if mode != "all":
-			line += ", \"marker_mode\": \"%s\"" % mode
-		var burst: float = float(d.get("burst_interval", 0.0))
-		if burst > 0.0:
-			line += ", \"burst_interval\": %.2f" % burst
-		var bspeed: float = float(d.get("bullet_speed", -1.0))
-		if bspeed >= 0.0:
-			line += ", \"bullet_speed\": %.0f" % bspeed
-		if bool(d.get("no_inertia", false)):
-			line += ", \"no_inertia\": true"
-		var _pd: float = float(d.get("payload_delay_ms", 0.0))
-		if _pd > 0.0:
-			line += ", \"payload_delay_ms\": %.0f" % _pd
-		if float(d.get("deviation_deg", 0.0)) > 0.0:
-			line += ", \"deviation_deg\": %.1f" % float(d.get("deviation_deg", 0.0))
-		if int(d.get("max_fires", 0)) > 0:
-			line += ", \"max_fires\": %d" % int(d.get("max_fires", 0))
-		if int(d.get("volleys", 1)) > 1:
-			line += ", \"volleys\": %d" % int(d.get("volleys", 1))
-		if float(d.get("volley_gap", 0.0)) > 0.0:
-			line += ", \"volley_gap\": %.2f" % float(d.get("volley_gap", 0.0))
 		if bool(d.get("nose_gated", false)):
 			line += ", \"fire_only_on_target\": true, \"fire_aim_tol_deg\": %.0f" % float(d.get("aim_tol", 18.0))
 		var pp_copy: String = String(d.get("path_phases", "")).strip_edges()
@@ -2118,23 +2180,6 @@ func _mount_copy_line(d: Dictionary) -> String:
 		var ophase: String = String(d.get("on_phase", "")).strip_edges()
 		if ophase != "":
 			line += ", \"fire_on_phase\": \"%s\"" % ophase
-	elif k == "turret":
-		# Phase B turret firing settings (emit only when non-default; muzzle/gate/max-fires don't apply).
-		var tb: float = float(d.get("burst_interval", 0.0))
-		if tb > 0.0:
-			line += ", \"burst_interval\": %.2f" % tb
-		var tspeed: float = float(d.get("bullet_speed", -1.0))
-		if tspeed >= 0.0:
-			line += ", \"bullet_speed\": %.0f" % tspeed
-		if float(d.get("deviation_deg", 0.0)) > 0.0:
-			line += ", \"deviation_deg\": %.1f" % float(d.get("deviation_deg", 0.0))
-		if int(d.get("volleys", 1)) > 1:
-			line += ", \"volleys\": %d" % int(d.get("volleys", 1))
-		if float(d.get("volley_gap", 0.0)) > 0.0:
-			line += ", \"volley_gap\": %.2f" % float(d.get("volley_gap", 0.0))
-		var tpd: float = float(d.get("payload_delay_ms", 0.0))
-		if tpd > 0.0:
-			line += ", \"payload_delay_ms\": %.0f" % tpd
 	line += " },"
 	return line
 
@@ -2180,6 +2225,44 @@ func _grid_row(grid: GridContainer, label: String, ctl: Control) -> void:
 	_grid_label(grid, label)
 	ctl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid.add_child(ctl)
+
+
+# Like _grid_row, but decorates the control with the shared default-vs-override affordance (a muted
+# "was: X" + ↺ revert when the current value drifts from `baked`). DevField appends the affordance as
+# SIBLINGS of `ctl`, so — since a 2-col grid cell is one slot — the control is wrapped in an HBox first;
+# the affordance nodes then live inside that HBox (col2) instead of spilling into the grid's columns.
+# `baked` is in the control's own value-space (float for SpinBox, bool for CheckBox, item-index for
+# OptionButton). Idempotent across row rebuilds — the row is rebuilt from scratch each time anyway.
+func _grid_row_dec(grid: GridContainer, label: String, ctl: Control, baked) -> void:
+	_grid_label(grid, label)
+	var wrap := HBoxContainer.new()
+	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wrap.add_theme_constant_override("separation", 4)
+	ctl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wrap.add_child(ctl)
+	grid.add_child(wrap)
+	DevField.decorate(ctl, baked, FS_CAPTION)
+	# The mount widgets' own change handlers call _set_mount (not DevField.refresh), so wire the refresh
+	# here — the affordance re-evaluates on every edit, like the decorated stat/loco knobs do explicitly.
+	if ctl is SpinBox:
+		(ctl as SpinBox).value_changed.connect(func(_v): DevField.refresh(ctl))
+	elif ctl is OptionButton:
+		(ctl as OptionButton).item_selected.connect(func(_i): DevField.refresh(ctl))
+	elif ctl is CheckBox or ctl is CheckButton:
+		(ctl as BaseButton).toggled.connect(func(_p): DevField.refresh(ctl))
+
+
+# Read a schema field's baked value for mount `idx`, in the field's NATIVE type-space. The baked source is
+# the roster-derived bench dict captured at load (_mount_baked[idx]); an empty {} (user-added mount) falls
+# through to the schema default for `kind`. Driven entirely by MOUNT_FIELDS — no per-field hand-wiring.
+func _mount_field_baked(idx: int, key: String, kind: String):
+	var src: Dictionary = _mount_baked[idx] if idx >= 0 and idx < _mount_baked.size() else {}
+	for f in MOUNT_FIELDS:
+		if String(f["bench"]) == key and _field_applies(f, kind):
+			# _field_val reads bench key from src, falling back to the field's per-kind roster default —
+			# so a user-added ({}) mount bakes to exactly the schema default (=> no affordance until edited).
+			return _field_val(f, src, kind)
+	return null
 
 
 # Add just the col1 caption of a grid row (returned so the caller can toggle it with its control, e.g.
@@ -2432,54 +2515,89 @@ func _load_settings_into_editors() -> void:
 	if _recycle_chance_spin:
 		_recycle_chance_spin.value = float(s.get("recycle_chance", 1.0))
 	# Stat overrides: restore each spin's value + whether its box is ticked (default off → hidden).
+	# Phase 3 default-vs-override: the BAKED default is the committed scene/roster value (nat / le),
+	# NOT the user:// save (s). Feed it to DevField so a value that differs from shipping shows a
+	# muted "was: X" + revert. When there's no saved override, current == baked → no affordance.
 	if _hp_spin:
-		_hp_spin.value = int(s.get("max_health", nat.get("max_health", 1)))
+		var hp_baked: int = int(nat.get("max_health", 1))
+		_hp_spin.value = int(s.get("max_health", hp_baked))
 		_set_override(_hp_override_chk, _hp_spin, bool(s.get("hp_override", false)))
+		DevField.set_baked(_hp_spin, float(hp_baked))
 	if _bounty_spin:
-		_bounty_spin.value = int(s.get("bounty_value", nat.get("bounty_value", 5)))
+		var bounty_baked: int = int(nat.get("bounty_value", 5))
+		_bounty_spin.value = int(s.get("bounty_value", bounty_baked))
 		_set_override(_bounty_override_chk, _bounty_spin, bool(s.get("bounty_override", false)))
+		DevField.set_baked(_bounty_spin, float(bounty_baked))
 	if _bspeed_spin:
-		_bspeed_spin.value = float(s.get("bullet_speed_mult", nat.get("bullet_speed_mult", 1.0)))
+		var bspeed_baked: float = float(nat.get("bullet_speed_mult", 1.0))
+		_bspeed_spin.value = float(s.get("bullet_speed_mult", bspeed_baked))
 		_set_override(_bspeed_override_chk, _bspeed_spin, bool(s.get("bspeed_override", false)))
+		DevField.set_baked(_bspeed_spin, bspeed_baked)
 	if _engine_spin != null:
 		var le: Dictionary = EnemyRoster.entry_for_scene(_selected_path)
-		var eng: int = int(s.get("engine", int(le.get("engine", 0))))
+		var eng_baked: int = int(le.get("engine", 0))
+		var eng: int = int(s.get("engine", eng_baked))
 		_engine_spin.value = eng
 		# Default the engine override ON when the roster already ships a non-zero offset, so it shows.
 		_set_override(_engine_override_chk, _engine_spin, bool(s.get("engine_override", eng != 0)))
+		DevField.set_baked(_engine_spin, float(eng_baked))
+		var depth_baked: int = maxi(0, _DEPTH_ITEMS.find(String(le.get("depth", ""))))
 		var dstr: String = String(s.get("depth", String(le.get("depth", ""))))
 		var didx: int = _DEPTH_ITEMS.find(dstr)
 		_depth_dd.select(didx if didx >= 0 else 0)
+		DevField.set_baked(_depth_dd, depth_baked)
 		if _size_dd != null:
+			var size_baked: int = maxi(0, _SIZE_OPTS.find(String(le.get("size", "medium"))))
 			var sz: String = String(s.get("size", String(le.get("size", "medium"))))
 			var si: int = _SIZE_OPTS.find(sz)
 			_size_dd.select(si if si >= 0 else 2)
+			DevField.set_baked(_size_dd, size_baked)
 			var etags: Array = le.get("tags", []) if le.has("tags") else []
 			_tough_chk.button_pressed = bool(s.get("tough", "tough" in etags))
+			DevField.set_baked(_tough_chk, "tough" in etags)
 			_shielded_chk.button_pressed = bool(s.get("shielded", "shielded" in etags))
+			DevField.set_baked(_shielded_chk, "shielded" in etags)
 			if _omni_chk != null:
 				_omni_chk.button_pressed = bool(s.get("omni", false))
+				DevField.set_baked(_omni_chk, false)
 			if _strafe_chk != null:
 				_strafe_chk.button_pressed = bool(s.get("strafe", false))
+				DevField.set_baked(_strafe_chk, false)
 			if _retro_chk != null:
 				_retro_chk.button_pressed = bool(s.get("retro", false))
+				DevField.set_baked(_retro_chk, false)
 			if _ram_chk != null:
 				_ram_chk.button_pressed = bool(s.get("ram", false))
+				DevField.set_baked(_ram_chk, false)
 	# Faction eligibility (core ships): saved allowed_in, else the scene's ENEMY_TAGS default.
 	_set_faction_elig(_selected_path, s.get("allowed_in", _default_allowed_in(_selected_path)))
+	# (Authored-path eligibility is no longer edited/persisted here — the cyclable set was rebuilt from
+	# DevData.eligibility_for in _on_list_select, and the read-only display reflects it. Any legacy
+	# "path_eligible" key in an old save file is silently ignored.)
 	_name_edit.text = String(s.get("name", EnemyStrings.display_name(_selected_path)))
 	_codex_edit.text = String(s.get("codex", EnemyStrings.codex_entry(_selected_path)))
 	# Saved bench override wins; otherwise default to the enemy's production roster mounts.
 	_mount_dicts = _dup_mounts(s.get("mounts")) if s.has("mounts") else _default_mounts_for(_selected_path)
 	for md in _mount_dicts:
-		md["payload"] = _norm_payload(String(md.get("payload", "Ball")))   # migrate pre-collapse names
+		var mk: String = String(md.get("kind", "gun"))
+		md["payload"] = _norm_payload(String(md.get("payload", ("Bomblet" if mk == "entity" else "Ball"))), mk)   # migrate pre-collapse names
 	# Phase 3: legacy emitters (saved or roster-default) fold into the unified Hardpoints list as entity mounts.
 	var _raw_em: Array = _dup_mounts(s.get("emitters")) if s.has("emitters") else _default_emitters_for(_selected_path)
 	for _e in _raw_em:
 		_mount_dicts.append(_emitter_dict_to_mount(_e))
+	# Default-vs-override baked reference: the ROSTER-derived bench mounts (+ folded emitters), captured
+	# INDEPENDENTLY of the saved JSON so the affordance shows drift from shipping (not from the last save).
+	# Index-aligned to _mount_dicts; a user-added mount with no roster counterpart bakes to {} (schema
+	# defaults). The roster mount list is the drift baseline whether or not a saved override loaded over it.
+	_mount_baked = _default_mounts_for(_selected_path)
+	for _e in _default_emitters_for(_selected_path):
+		_mount_baked.append(_emitter_dict_to_mount(_e))
+	# Pad or trim so _mount_baked is index-aligned with _mount_dicts (a saved override can add/remove mounts
+	# relative to the roster; any surplus working mount bakes to {} = schema defaults = no affordance).
+	while _mount_baked.size() < _mount_dicts.size():
+		_mount_baked.append({})
+	_mount_baked.resize(_mount_dicts.size())
 	_rebuild_mounts_ui()
-	_emitter_dicts = []
-	_rebuild_emitters_ui()
 	_orbit_mode = String(s.get("orbit_mode", "live"))
 	_orbit_rings = _dup_mounts(s.get("orbit_rings")) if s.has("orbit_rings") else []
 	if _orbit_mode_dd != null:
@@ -2523,8 +2641,9 @@ func _current_settings() -> Dictionary:
 		"bullet_speed_mult": float(_bspeed_spin.value) if _bspeed_spin else 1.0,
 		"name": _name_edit.text,
 		"codex": _codex_edit.text,
+		# Legacy saved "emitters" are no longer WRITTEN (they fold into "mounts" as entity hardpoints on
+		# load), but old save files that still carry them are read on load — see _load_settings_into_editors.
 		"mounts": _dup_mounts(_mount_dicts),
-		"emitters": _dup_mounts(_emitter_dicts),
 		"orbit_mode": _orbit_mode,
 		"orbit_rings": _dup_mounts(_orbit_rings),
 		"engine_override": _override_on(_engine_override_chk),
@@ -2567,6 +2686,17 @@ func _load_saved() -> void:
 
 
 func _on_copy() -> void:
+	DisplayServer.clipboard_set(_build_copy_text())
+	if _pattern_lbl:
+		_pattern_lbl.text = "Copied GDScript to clipboard"
+
+
+# Assemble the paste-ready Copy-GDScript snippet for the selected enemy (stat overrides, recycle,
+# locomotion, roster mounts, faction eligibility, strings). Split out of _on_copy so a headless probe
+# can assert the output directly (the headless DisplayServer clipboard doesn't round-trip). NOTE: this
+# emits NO movement-eligibility / pattern_eligibility line — eligibility is authored solely in the
+# Pattern Eligibility tool, and this bench only mirrors it.
+func _build_copy_text() -> String:
 	var s := _current_settings()
 	var txt := "# Enemy Bench — %s\n" % String(s["name"])
 	# Hull weapon (Mount 0) retired 2026-06-23 — enemies fire via mounts (emitted below).
@@ -2626,12 +2756,8 @@ func _on_copy() -> void:
 		for ml in mount_lines:
 			txt += "\t%s\n" % ml
 		txt += "],\n"
-	# Emitters → a roster ENTRY "emitters" block (droppers/spawners — the EmitterComponent path).
-	if not _emitter_dicts.is_empty():
-		txt += "\n# -> roster ENTRY \"emitters\":\n\"emitters\": [\n"
-		for d in _emitter_dicts:
-			txt += "\t%s\n" % _emitter_copy_line(d)
-		txt += "],\n"
+	# (Emitters are no longer a separate copy block — droppers/spawners emit as kind:"entity" hardpoints
+	# inside the "mounts" block above.)
 	# (Phase C: the orbit ring now emits as a kind:"ring" entry inside the "mounts" block above,
 	# not a bespoke OrbitComponent — see _orbit_mount_copy_line.)
 	# Faction eligibility → Factions.ENEMY_TAGS line (core ships only). The handoff for "which factions
@@ -2650,14 +2776,15 @@ func _on_copy() -> void:
 			txt += "\t\"%s\": {\"home\": %s, \"universal\": true},\n" % [_selected_path, id_names[home_i]]
 		else:
 			txt += "\t\"%s\": {\"home\": %s, \"universal\": true, \"allowed_in\": [%s]},\n" % [_selected_path, id_names[home_i], ", ".join(al)]
+	# (No pattern_eligibility.gd DATA line is emitted here — movement eligibility is authored ONLY in the
+	# Pattern Eligibility tool, which owns the pattern_eligibility.json → Export→DATA handoff. The bench is
+	# a read-only mirror of that set; emitting an eligibility line here would be a second, conflicting author.)
 	# Paste-ready enemy_strings.gd STRINGS entry (the name + codex live in a baked
 	# const dict, so this is the handoff back into source).
 	var codex_one_line: String = String(s["codex"]).replace("\n", " ").replace("\"", "'")
 	txt += "\n# -> scripts/enemy_strings.gd STRINGS:\n"
 	txt += "\t\"%s\": {\"name\": \"%s\", \"codex\": \"%s\"},\n" % [_selected_path, String(s["name"]), codex_one_line]
-	DisplayServer.clipboard_set(txt)
-	if _pattern_lbl:
-		_pattern_lbl.text = "Copied GDScript to clipboard"
+	return txt
 
 
 # ---- Back ----------------------------------------------------------------

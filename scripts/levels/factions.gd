@@ -334,7 +334,7 @@ static var LIVERY_COLOR := {
 static var WEAPON_COLORS := {
 	"green":  {"frame": 0, "inner": Color.html("#6bff37"), "outer": Color.html("#25a030")},
 	"yellow": {"frame": 1, "inner": Color.html("#fff400"), "outer": Color.html("#2800ad")},
-	"blue":   {"frame": 2, "inner": Color.html("#fff400"), "outer": Color.html("#fff400")},
+	"blue":   {"frame": 2, "inner": Color.html("#4d9fff"), "outer": Color.html("#163f8c")},  # Roman 2026-07-07: was a paste-slip yellow (#fff400); corrected to corporate blue — tweak hexes to taste
 	"red":    {"frame": 3, "inner": Color.html("#ff0000"), "outer": Color.html("#70002a")},
 }
 static var FACTION_WEAPON_COLOR := {
