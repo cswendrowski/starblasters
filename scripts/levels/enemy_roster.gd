@@ -19,12 +19,12 @@ enum Tier { COMMON, UNCOMMON, RARE }
 # 1/2/4/8/16/32 doubling (was 3/5/15/40/100/250 — a much steeper curve); speeds slowed a touch on
 # the big classes; tiny is now 1 HP + a shield charge. NOTE: this is a sizeable economy change.
 const SIZE_TABLE := {
-	"tiny":   {"hp": 1,  "shield_cap": 1, "bounty": 1,  "speed_mult": 1.0},
-	"small":  {"hp": 4,  "shield_cap": 1, "bounty": 2,  "speed_mult": 1.3},
-	"medium": {"hp": 8,  "shield_cap": 2, "bounty": 4,  "speed_mult": 0.8},
-	"large":  {"hp": 16, "shield_cap": 3, "bounty": 8,  "speed_mult": 0.6},
-	"huge":   {"hp": 32, "shield_cap": 4, "bounty": 16, "speed_mult": 0.4},
-	"giant":  {"hp": 64, "shield_cap": 5, "bounty": 32, "speed_mult": 0.25},
+	"tiny":   {"hp": 1,  "shield_cap": 1, "bounty": 1},
+	"small":  {"hp": 4,  "shield_cap": 1, "bounty": 2},
+	"medium": {"hp": 8,  "shield_cap": 2, "bounty": 4},
+	"large":  {"hp": 16, "shield_cap": 3, "bounty": 8},
+	"huge":   {"hp": 32, "shield_cap": 4, "bounty": 16},
+	"giant":  {"hp": 64, "shield_cap": 5, "bounty": 32},
 }
 
 # Size→locomotion base (locomotion refactor 2026-06-19). The chassis owns kinematics; a movement
@@ -32,8 +32,8 @@ const SIZE_TABLE := {
 # on a clarity rung (bigger size = slower); a per-entry `engine` offset shifts ONLY this. `weight`
 # is inertia/turn mass (bigger = heavier), `turn_rate` deg/s, `accel` px/s². Behaviour-preserving
 # migration sets each enemy's `engine` so its resolved move_speed lands on its OLD speed; these
-# bases are the authoring anchors, tuned in the Enemy Bench Locomotion tab. (SIZE_TABLE.speed_mult
-# is now dead — removed with the bench rework.)
+# bases are the authoring anchors, tuned in the Enemy Bench Locomotion tab. (The old
+# SIZE_TABLE.speed_mult was dead and has been removed — speed is chassis/engine-driven now.)
 # base_rung dropped one clarity rung (−60 px/s) 2026-07-02 (Roman: "bring all enemy speeds down a
 # rung"). huge/giant stay at 60 (the lowest whole rung — one more rung would hit the 30 creep sub-rung).
 const SIZE_LOCOMOTION := {
@@ -97,14 +97,14 @@ static func _faction_filtered(pool: Array) -> Array:
 # Legacy shoot-pattern producers (SingleShot/AimedShot/BurstShot/SpreadShot) retired from
 # this file by Weapons 3b (2026-06-13) — make_shoot now builds the unified Weapon. The
 # classes themselves still exist (embedded in designer .tres + a few enemy scenes).
-const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
+const EnemyBullet = preload("res://scenes/projectiles/projectile_ball.tscn")
 
 # Bullet variant resources — wired per entry below.
-# Faction-bullet migration (Roman 2026-07-06): these legacy-named consts now ALIAS the new frame-reskin
-# families (ball/bolt/wave — the projectile_<type> 4-frame sheets that reskin to the firing enemy's
-# faction at spawn via BulletCatalog.faction_variant). The old non-reskinning basic/spread_pellet/
-# aimed_sniper/burst_round/plasma_orb/heavy_slug .tres are retired from enemy use (kept only for the
-# bullet_catalog _map + legacy enemy_bullet_*.tscn infra). Roman keeps the per-faction zealot_*/priv_* sets.
+# Faction-bullet migration (Roman 2026-07-07): ALL enemy bullets now use the frame-reskin families
+# (ball/bolt/laser/wave/orb — the projectile_<type> 4-frame sheets that reskin to the firing enemy's
+# faction at spawn via BulletCatalog.faction_variant). The old non-reskinning basic/spread_pellet/... and
+# the per-faction zealot_*/privateer_* single-texture sets are RETIRED — these legacy-named consts now
+# alias the generic families (frame-reskin reproduces the per-faction colour at spawn).
 const BV_Basic        = preload("res://data/bullets/ball.tres")
 const BV_SpreadPellet = preload("res://data/bullets/ball.tres")
 const BV_AimedSniper  = preload("res://data/bullets/bolt.tres")
@@ -112,17 +112,16 @@ const BV_BurstRound   = preload("res://data/bullets/ball.tres")
 const BV_PlasmaOrb    = preload("res://data/bullets/wave.tres")
 const BV_HeavySlug    = preload("res://data/bullets/bolt.tres")
 const BV_DropPellet   = preload("res://data/bullets/drop_pellet.tres")
-# Zealot faction projectiles (Roman 2026-06-16) — assignable in the Enemy Bench.
-const BV_ZealotBall   = preload("res://data/bullets/zealot_ball.tres")
-const BV_ZealotBolt   = preload("res://data/bullets/zealot_bolt.tres")
-const BV_ZealotLaser  = preload("res://data/bullets/zealot_laser.tres")
-const BV_ZealotWave   = preload("res://data/bullets/zealot_wave.tres")
-# Privateer faction projectiles (2026-06-20) — family-tagged; in a privateer level they ARE the
-# fired bullet, and the appearance facet maps them to other factions' clones if the unit travels.
-const BV_PrivBall     = preload("res://data/bullets/privateer_ball.tres")
-const BV_PrivBolt     = preload("res://data/bullets/privateer_bolt.tres")
-const BV_PrivLaser    = preload("res://data/bullets/privateer_laser.tres")
-const BV_PrivWave     = preload("res://data/bullets/privateer_wave.tres")
+# Legacy per-faction aliases → generic frame-reskin families (colour comes from the firing enemy's
+# faction frame; the old zealot_*/privateer_* single-texture .tres + subdir scenes are retired).
+const BV_ZealotBall   = preload("res://data/bullets/ball.tres")
+const BV_ZealotBolt   = preload("res://data/bullets/bolt.tres")
+const BV_ZealotLaser  = preload("res://data/bullets/laser.tres")
+const BV_ZealotWave   = preload("res://data/bullets/wave.tres")
+const BV_PrivBall     = preload("res://data/bullets/ball.tres")
+const BV_PrivBolt     = preload("res://data/bullets/bolt.tres")
+const BV_PrivLaser    = preload("res://data/bullets/laser.tres")
+const BV_PrivWave     = preload("res://data/bullets/wave.tres")
 
 # Shared firing mounts (M6 mount migration 2026-06-16). The privateer gunship's two weapons —
 # previously hardcoded in enemy_gunship.gd — as data: an alternating-muzzle MG burst (Muzzle*) and
@@ -212,6 +211,8 @@ const MINELAYER_MOUNTS := [
 #   unlock_sector: int — entry only eligible when sector_idx >= this (default 1)
 #   unlock_depth:  int — entry only eligible when sector_depth >= this (default 1)
 #   weight:        float — relative pool weight (default 1.0)
+#   inertia:       float — OPTIONAL chassis-mass override for resolve_locomotion (default: size base).
+#                          NOTE: this is the per-entry inertia override — NOT `weight` (that's pool weight).
 #   hp_override / bounty_override — explicit stat overrides for compose_stats
 const ENTRIES := [
 	# --- COMMON -----------------------------------------------------------
@@ -228,7 +229,7 @@ const ENTRIES := [
 		"no_scale": true,
 		"recycle": 0,
 		"hp_override": 1, "bounty_override": 5,
-		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.7, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.7, "inertia": 0.7, "chaff": true,
 	},
 	{
 		# Shiv (straight) — the same hull as plain fast-down chaff (Roman 2026-06-08:
@@ -241,7 +242,7 @@ const ENTRIES := [
 		"base_count": 8,
 		"recycle": 0,
 		"hp_override": 1, "bounty_override": 5,
-		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "chaff": true, "wall": true,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "inertia": 1.0, "chaff": true, "wall": true,
 	},
 	{
 		"scene": "res://scenes/enemies/core/enemy_core_s_dart.tscn",
@@ -250,14 +251,17 @@ const ENTRIES := [
 		"movement": "straight",
 		"shoot": null,
 		# Bench 2026-07-05: Dart now trails drifting missiles (band-only timer emit, cadence 0.55, cap 3).
-		"emitters": [{ "trigger": "timer", "payload": "Missile", "cadence": 0.55, "count": 1, "max_emits": 3, "band_only": true }],
+		# Migrated 2026-07-07 from the legacy "emitters" dialect to an equivalent ENTITY "mounts" hardpoint
+		# (field-identical MountSpec — verified by a spec diff). "timer"->CADENCE, spread->scatter,
+		# payload name->payload_scene path; ENTITY no_inertia defaults true (drop at rest) as before.
+		"mounts": [{ "kind": "entity", "trigger": "timer", "payload_scene": "res://scenes/projectiles/drifting_missile.tscn", "fire_min": 0.55, "fire_max": 0.55, "count": 1, "max_emits": 3, "band_only": true }],
 		"base_count": 8,
 		"recycle": 0,
 		"hp_override": 1, "bounty_override": 5,
 		# Dart — the canonical first-encounter chaff. Always available.
 		# wall: fast chaff arrives as a chunked, gap-shifting wall (not a trickle) so
 		# a big dart wave keeps end-of-node momentum (construction §8).
-		"unlock_sector": 0, "unlock_depth": 0, "weight": 1.4, "chaff": true, "wall": true,
+		"unlock_sector": 0, "unlock_depth": 0, "weight": 1.4, "inertia": 1.4, "chaff": true, "wall": true,
 	},
 	{
 		# Flechette (2026-06-20) — new core chaff, built off the Dart. Unarmed (no Muzzle)
@@ -272,7 +276,7 @@ const ENTRIES := [
 		"base_count": 8,
 		"recycle": 0,
 		"hp_override": 1, "bounty_override": 5,
-		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "chaff": true, "wall": true,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "inertia": 1.0, "chaff": true, "wall": true,
 	},
 	# Bomb Drone PULLED 2026-06-14 (Roman — to be reworked). Roster entry removed so it
 	# can't spawn; its factions.gd ENEMY_TAGS tag is removed too. Scene/script/codex/
@@ -289,14 +293,12 @@ const ENTRIES := [
 		"size": "small", "tags": [],
 		"movement": "straight",
 		"base_count": 4,
-		# Fire-rate pass (2026-05-30, Roman): was ~2.4-3.2s (slowest shooter).
-		# Tightened to ~1.6-2.2s (~33% faster). Drifter stays a touch slower
-		# than firecore so the two chaff types still feel distinct. First-pass.
-		"fire_min": 1.6, "fire_max": 2.2,
+		# (Cadence lives on the mount above — the old top-level fire_min/max was a dead hull stamp
+		# with no hull shoot_pattern to consume it; removed 2026-07-07.)
 		"hp_override": 1, "bounty_override": 8,
 		# Drifter — basic chaff (slow drifting shooter). Always available so the
 		# sector-1/depth-0 opener has a couple of distinct basic types.
-		"unlock_sector": 0, "unlock_depth": 0, "weight": 1.2, "chaff": true,
+		"unlock_sector": 0, "unlock_depth": 0, "weight": 1.2, "inertia": 1.2, "chaff": true,
 		"conflict_tags": ["dumb_shot"],
 	},
 
@@ -317,7 +319,7 @@ const ENTRIES := [
 		"base_count": 6,
 		"recycle": 0,
 		"hp_override": 1, "bounty_override": 6,
-		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "chaff": true, "wall": true,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "inertia": 1.0, "chaff": true, "wall": true,
 	},
 	{
 		# Run (weave) — unarmed firecore-runner; lane weave.
@@ -329,7 +331,7 @@ const ENTRIES := [
 		"base_count": 5,
 		"recycle": 0,
 		"hp_override": 1, "bounty_override": 6,
-		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.9, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.9, "inertia": 0.9, "chaff": true,
 	},
 	{
 		# Retro (hover) — firecore hover-gunner, aimed fire from a central muzzle.
@@ -340,7 +342,7 @@ const ENTRIES := [
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_Basic, "aim": "forward", "count": 2, "fire_min": 1.6, "fire_max": 1.6, "max_fires": 1 }],
 		"base_count": 2,
 		"hp_override": 2, "bounty_override": 14,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": true,
 		"conflict_tags": ["aimed_or_spread", "demands_focus"],
 	},
 	{
@@ -352,7 +354,7 @@ const ENTRIES := [
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_Basic, "aim": "forward", "count": 2, "fire_min": 1.6, "fire_max": 1.6, "max_fires": 1 }],
 		"base_count": 3,
 		"hp_override": 2, "bounty_override": 14,
-		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.7, "chaff": true,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.7, "inertia": 0.7, "chaff": true,
 		"conflict_tags": ["aimed_or_spread", "demands_focus"],
 	},
 	{
@@ -364,7 +366,7 @@ const ENTRIES := [
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_Basic, "aim": "forward", "count": 2, "fire_min": 1.6, "fire_max": 1.6, "max_fires": 1 }],
 		"base_count": 3,
 		"hp_override": 2, "bounty_override": 14,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "inertia": 0.7, "chaff": true,
 		"conflict_tags": ["aimed_or_spread"],
 	},
 	# Sword (M6c, Roman art 2026-06-07) — zealot medium-speed LANE PUSHER. A long,
@@ -389,7 +391,7 @@ const ENTRIES := [
 		"base_count": 3,
 		"recycle": 0,
 		"hp_override": 2, "bounty_override": 12,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": true,
 		"conflict_tags": ["dumb_shot"],
 	},
 	{
@@ -407,7 +409,7 @@ const ENTRIES := [
 		"shoot": null,
 		"base_count": 2,
 		"hp_override": 2, "bounty_override": 12,
-		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.7, "chaff": true,
+		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.7, "inertia": 0.7, "chaff": true,
 		"conflict_tags": ["dumb_shot"],
 	},
 	# (Strafer retired 2026-06-09 — its StrafeRun pass is superseded by the Hotrod below; the
@@ -425,7 +427,7 @@ const ENTRIES := [
 		"base_count": 4,
 		"recycle": 0,   # high-count chaff shouldn't recycle (Roman 2026-06-08)
 		"hp_override": 2, "bounty_override": 8,
-		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.9, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.9, "inertia": 0.9, "chaff": true,
 		"conflict_tags": ["aimed_or_spread"],
 	},
 	{
@@ -437,7 +439,7 @@ const ENTRIES := [
 		"base_count": 4,
 		"recycle": 0,
 		"hp_override": 2, "bounty_override": 8,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "inertia": 0.7, "chaff": true,
 		"conflict_tags": ["aimed_or_spread"],
 	},
 	{
@@ -449,7 +451,7 @@ const ENTRIES := [
 		"base_count": 3,
 		"recycle": 0,
 		"hp_override": 2, "bounty_override": 8,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "inertia": 0.7, "chaff": true,
 		"conflict_tags": ["aimed_or_spread", "wide_dodge"],
 	},
 	# --- New supremacy units (Roman 2026-07-06) — scenes set up + registered; SCAFFOLD ONLY. Movement
@@ -462,7 +464,7 @@ const ENTRIES := [
 		"size": "small", "tags": [],
 		"movement": "straight",
 		"base_count": 3,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": true,
 		"conflict_tags": [],
 	},
 	{
@@ -472,7 +474,7 @@ const ENTRIES := [
 		"size": "small", "tags": [],
 		"movement": "straight",
 		"base_count": 2,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": true,
 		"conflict_tags": [],
 	},
 	{
@@ -482,7 +484,7 @@ const ENTRIES := [
 		"size": "medium", "tags": [],
 		"movement": "straight",
 		"base_count": 2,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": false,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": false,
 		"conflict_tags": [],
 	},
 	{
@@ -492,7 +494,7 @@ const ENTRIES := [
 		"size": "medium", "tags": [],
 		"movement": "straight",
 		"base_count": 2,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": false,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": false,
 		"conflict_tags": [],
 	},
 	{
@@ -502,7 +504,7 @@ const ENTRIES := [
 		"size": "medium", "tags": [],
 		"movement": "straight",
 		"base_count": 2,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": false,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": false,
 		"conflict_tags": [],
 	},
 	# Rush (M6c, supremacy) — fast aggressive fighter firing 3-shot bursts of small
@@ -516,7 +518,7 @@ const ENTRIES := [
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "all", "payload": preload("res://data/bullets/laser.tres"), "aim": "forward", "count": 3, "burst_interval": 0.18, "fire_min": 3.0, "fire_max": 3.0, "max_fires": 3 }],
 		"base_count": 3,
 		"hp_override": 2, "bounty_override": 12,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": true,
 		"conflict_tags": ["aimed_or_spread"],
 	},
 	{
@@ -528,7 +530,7 @@ const ENTRIES := [
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "all", "payload": preload("res://data/bullets/laser.tres"), "aim": "forward", "count": 3, "burst_interval": 0.18, "fire_min": 3.0, "fire_max": 3.0, "max_fires": 3 }],
 		"base_count": 3,
 		"hp_override": 2, "bounty_override": 12,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "inertia": 0.7, "chaff": true,
 		"conflict_tags": ["aimed_or_spread", "wide_dodge"],
 	},
 	{
@@ -541,7 +543,7 @@ const ENTRIES := [
 		"base_count": 2,
 		"no_scale": true,   # beeline/charge waves stay small (Roman 2026-06-08: cap 1-6)
 		"hp_override": 2, "bounty_override": 12,
-		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.6, "chaff": true,
+		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.6, "inertia": 0.6, "chaff": true,
 		"conflict_tags": ["aimed_or_spread"],
 	},
 	# Plasma (M6c, supremacy) — NEW medium plasma gunner (the beam shooters stay).
@@ -554,7 +556,7 @@ const ENTRIES := [
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/wave.tres"), "aim": "forward", "count": 8, "burst_interval": 0.5, "fire_min": 0.1, "fire_max": 0.1, "max_fires": 1, "no_inertia": true, "fire_only_on_target": true }],
 		"base_count": 2,
 		"hp_override": 8, "bounty_override": 18,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": true,
 		"conflict_tags": ["aimed_or_spread", "demands_focus"],
 	},
 	{
@@ -565,7 +567,7 @@ const ENTRIES := [
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/wave.tres"), "aim": "forward", "count": 8, "burst_interval": 0.5, "fire_min": 0.1, "fire_max": 0.1, "max_fires": 1, "no_inertia": true, "fire_only_on_target": true }],
 		"base_count": 2,
 		"hp_override": 8, "bounty_override": 18,
-		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.7, "chaff": true,
+		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.7, "inertia": 0.7, "chaff": true,
 		"conflict_tags": ["aimed_or_spread"],
 	},
 	{
@@ -576,7 +578,7 @@ const ENTRIES := [
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/wave.tres"), "aim": "forward", "count": 8, "burst_interval": 0.5, "fire_min": 0.1, "fire_max": 0.1, "max_fires": 1, "no_inertia": true, "fire_only_on_target": true }],
 		"base_count": 2,
 		"hp_override": 8, "bounty_override": 18,
-		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.6, "chaff": true,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.6, "inertia": 0.6, "chaff": true,
 		"conflict_tags": ["aimed_or_spread"],
 	},
 	# Hunter Drone (enemy_hunter_drone) RETIRED 2026-06-20 (Roman reorg) — roster entry
@@ -601,7 +603,7 @@ const ENTRIES := [
 		"base_count": 6,
 		"recycle": 0,
 		"hp_override": 1, "bounty_override": 5,
-		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.7, "chaff": true, "wall": true,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.7, "inertia": 0.7, "chaff": true, "wall": true,
 	},
 	{
 		# Falchion (drift) — slow lane-to-lane slide variant for wave variety.
@@ -614,7 +616,7 @@ const ENTRIES := [
 		"base_count": 5,
 		"recycle": 0,
 		"hp_override": 1, "bounty_override": 5,
-		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.6, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.6, "inertia": 0.6, "chaff": true,
 	},
 	{
 		# Falchion (straight) — plain fast diver variant for wave variety.
@@ -627,7 +629,7 @@ const ENTRIES := [
 		"base_count": 6,
 		"recycle": 0,
 		"hp_override": 1, "bounty_override": 5,
-		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.6, "chaff": true, "wall": true,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.6, "inertia": 0.6, "chaff": true, "wall": true,
 	},
 	{
 		# Cobra — fast diver, now armed (Enemy Bench 2026-06-20): fires an Aimed Sniper round
@@ -641,7 +643,7 @@ const ENTRIES := [
 		"base_count": 8,
 		"recycle": 0,
 		"hp_override": 1, "bounty_override": 5,
-		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "chaff": true, "wall": true,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "inertia": 1.0, "chaff": true, "wall": true,
 	},
 	{
 		# Drop — privateer caltrop-layer. Descends steadily and DROPS a trail of
@@ -661,7 +663,7 @@ const ENTRIES := [
 		"base_count": 4,
 		"recycle": 0,
 		"hp_override": 1, "bounty_override": 8,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": true,
 		"conflict_tags": ["dumb_shot"],
 	},
 
@@ -695,7 +697,7 @@ const ENTRIES := [
 		# unlock_sector/unlock_depth via Roster.entries_eligible. Burner is an
 		# advanced beam-pair behavior, so it's gated to sector 2 (not a sector-1
 		# surprise). Within sector 2+ it can appear from the first node.
-		"weight": 0.7, "unlock_sector": 2, "unlock_depth": 0,
+		"weight": 0.7, "inertia": 0.7, "unlock_sector": 2, "unlock_depth": 0,
 		# Guarantee the pair formation + even count every time this rolls.
 		# 5 == WaveSpec.Formation.TOP_TANDEM_PAIRS (wave_def.gd). Literal because
 		# the roster doesn't preload WaveSpec; the generator validates against the
@@ -715,11 +717,11 @@ const ENTRIES := [
 		"size": "small", "tags": [],
 		"movement": "lane_cut",
 		"base_count": 2,
-		"fire_min": 1.4, "fire_max": 2.2,
+		# (dead top-level fire_min/max removed 2026-07-07 — mount above owns cadence, no hull pattern.)
 		"hp_override": 2, "bounty_override": 10,
 		# Weaver — entry-level uncommon (s-curve + aimed). The gentlest uncommon,
 		# so it's the first to appear: sector 1, one node in. (Was D4.)
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.9, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.9, "inertia": 0.9, "chaff": true,
 		"conflict_tags": ["aimed_or_spread", "wide_dodge"],
 	},
 	{
@@ -734,24 +736,29 @@ const ENTRIES := [
 		"size": "small", "tags": ["shielded"],
 		"movement": "lane_hook",
 		"base_count": 2,
-		"fire_min": 1.6, "fire_max": 2.4,
+		# (dead top-level fire_min/max removed 2026-07-07 — mount above owns cadence, no hull pattern.)
 		"hp_override": 2, "bounty_override": 12,
-		"unlock_sector": 1, "unlock_depth": 2, "weight": 0.9, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 2, "weight": 0.9, "inertia": 0.9, "chaff": true,
 		"conflict_tags": ["demands_focus"],
 	},
 	{
 		# Archer (Roman art 2026-07-06) — corporate small aimed gunner (two forward muzzles
 		# MuzzleL/R). Placeholder stats for Enemy-Bench tuning; not yet in the wave roll.
 		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_archer.tscn",
-		# Bench 2026-07-06: 6-shot bolt burst (fire 0.1, burst 0.15) capped at one burst per pass; engine -1.
+		# Bench 2026-07-06: 6-shot bolt burst (fire 0.1, burst 0.15) capped at one burst per pass.
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/bolt.tres"), "aim": "forward", "fire_min": 0.1, "fire_max": 0.1, "count": 6, "burst_interval": 0.15, "max_fires": 1, "spread_deg": 0.0 }],
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "lane_cut",
 		"base_count": 2,
-		"fire_min": 1.6, "fire_max": 2.4,
+		# (dead top-level fire_min/max removed 2026-07-07 — mount above owns cadence, no hull pattern.)
+		# engine: -1 (Roman's knob — small base 120 → 60 px/s). Restored 2026-07-07: the engine
+		# modifier is meant to be usable, so the LANE_CUT pattern was fixed to degrade gracefully at a
+		# 60 px/s crawl instead. lane_path.gd now caps the exit angle below horizontal as speed drops
+		# (keeping a downward component) so this archer exits in bounded time facing mostly down-lane,
+		# instead of the old sideways run-off that doubled its on-screen time.
 		"engine": -1,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.9, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.9, "inertia": 0.9, "chaff": true,
 		"conflict_tags": ["aimed_or_spread"],
 	},
 	{
@@ -764,8 +771,8 @@ const ENTRIES := [
 		"size": "small", "tags": [],
 		"movement": "lane_hook",
 		"base_count": 2,
-		"fire_min": 1.4, "fire_max": 2.2,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.9, "chaff": true,
+		# (dead top-level fire_min/max removed 2026-07-07 — mount above owns cadence, no hull pattern.)
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.9, "inertia": 0.9, "chaff": true,
 		"conflict_tags": [],
 	},
 	# Push (M6c, Roman art 2026-06-07) — REPLACES the Frigate. Supremacy lane pusher
@@ -801,7 +808,7 @@ const ENTRIES := [
 		"hp_override": 28,
 		"base_count": 2,
 		"recycle": 0,                       # anchor — exit at bottom, don't loop (Roman 2026-06-08)
-		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.8,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8,
 	},
 	{
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_push.tscn",
@@ -816,7 +823,7 @@ const ENTRIES := [
 		"hp_override": 28,
 		"base_count": 2,
 		"recycle": 0,                   # anchor — exit, don't loop (Roman 2026-06-08)
-		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.7,
+		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.7, "inertia": 0.7,
 	},
 	# TODO: Replace cutter with a new horizontal strafe enemy that crosses the screen cleanly
 	#{
@@ -843,9 +850,9 @@ const ENTRIES := [
 		"size": "small", "tags": ["shielded"],
 		"movement": "lane_hook",
 		"base_count": 3,
-		"fire_min": 0.7, "fire_max": 1.1,
+		# (dead top-level fire_min/max removed 2026-07-07 — mount above owns cadence, no hull pattern.)
 		"hp_override": 2, "bounty_override": 15,
-		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": true,
 		"conflict_tags": ["aimed_or_spread", "demands_focus"],
 	},
 
@@ -866,7 +873,7 @@ const ENTRIES := [
 		"mounts": [{ "kind": "gun", "marker": "Cannon*", "marker_mode": "cycle", "payload": BV_PrivBolt, "aim": "straight_down", "count": 3, "burst_interval": 0.15, "fire_min": 5.0, "fire_max": 5.0, "max_fires": 4 }],
 		"base_count": 2,
 		"hp_override": 8, "bounty_override": 18,
-		"unlock_sector": 1, "unlock_depth": 2, "weight": 0.8, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 2, "weight": 0.8, "inertia": 0.8, "chaff": true,
 		"conflict_tags": ["demands_focus"],
 	},
 	{
@@ -881,9 +888,9 @@ const ENTRIES := [
 		"size": "medium", "tags": [],
 		"movement": "straight",
 		"base_count": 2,
-		"fire_min": 1.6, "fire_max": 2.4,
+		# (dead top-level fire_min/max removed 2026-07-07 — mount above owns cadence, no hull pattern.)
 		"hp_override": 8, "bounty_override": 18,
-		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.7, "chaff": true,
+		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.7, "inertia": 0.7, "chaff": true,
 		"conflict_tags": ["aimed_or_spread", "demands_focus"],
 	},
 
@@ -915,8 +922,21 @@ const ENTRIES := [
 		"shoot": null,
 		"mounts": BEAMER_CHASE_MOUNT,   # tracking beam, ported from enemy_beam_shooter.gd
 		"base_count": 2,
-		"unlock_sector": 2, "unlock_depth": 2, "weight": 0.7,
+		"unlock_sector": 2, "unlock_depth": 2, "weight": 0.7, "inertia": 0.7,
 		"conflict_tags": ["beamshooter"],
+	},
+	{
+		# Harrier (Roman art 2026-07-07) — privateer LARGE gunship (enemy_gunship.gd, omni thrust, six
+		# Launcher* markers). SCAFFOLD ONLY: registered for Enemy-Bench config; movement pattern + weapons
+		# (mounts) are Roman's to author manually. No mounts = it roams unarmed until armed.
+		"scene": "res://scenes/enemies/factions/privateer/enemy_p_l_harrier.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "large", "tags": ["tough"],
+		"movement": "hunt_omni",
+		"shoot": null,
+		"base_count": 1,
+		"no_scale": true,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "inertia": 0.8,
 	},
 	# Omni Gunship (M6c divergence rework, Roman 2026-06-07): roams with vector
 	# thrust (omni), harassing with hull-muzzle tracer bursts + wingtip cannon
@@ -933,7 +953,7 @@ const ENTRIES := [
 		"shoot": null,   # bespoke tracer + cannon firing
 		"base_count": 1,
 		"no_scale": true,
-		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.8,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 0.8, "inertia": 0.8,
 	},
 	{
 		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_gunship.tscn",
@@ -945,7 +965,7 @@ const ENTRIES := [
 		"shoot": null,
 		"base_count": 2,
 		"no_scale": true,
-		"unlock_sector": 2, "unlock_depth": 2, "weight": 0.9,
+		"unlock_sector": 2, "unlock_depth": 2, "weight": 0.9, "inertia": 0.9,
 	},
 	# Gunship movement variants (Roman 2026-06-07): the same omni-Gunship scene
 	# wired to OTHER movements so the generator + conductor have more ways to field
@@ -964,7 +984,7 @@ const ENTRIES := [
 		"movement": "hunt_omni",
 		"shoot": null,
 		"base_count": 2,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.5, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.5, "inertia": 0.5, "chaff": true,
 		"conflict_tags": ["demands_focus"],
 	},
 	{
@@ -976,7 +996,7 @@ const ENTRIES := [
 		"movement": "hunt_omni",
 		"shoot": null,
 		"base_count": 3,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.5, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.5, "inertia": 0.5, "chaff": true,
 	},
 	{
 		# Gunship (shift) — one-way commit to an adjacent lane, then holds it.
@@ -987,7 +1007,7 @@ const ENTRIES := [
 		"movement": "hunt_omni",
 		"shoot": null,
 		"base_count": 3,
-		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.5, "chaff": true,
+		"unlock_sector": 2, "unlock_depth": 0, "weight": 0.5, "inertia": 0.5, "chaff": true,
 	},
 	{
 		# Gunship (skirmish) — aggressive advance/retreat, raking on the hold.
@@ -998,7 +1018,7 @@ const ENTRIES := [
 		"movement": "hunt_omni",
 		"shoot": null,
 		"base_count": 2,
-		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5, "chaff": true,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5, "inertia": 0.5, "chaff": true,
 		"conflict_tags": ["demands_focus"],
 	},
 	# Rocket Gunship (M6c, Roman 2026-06-07): the divergent dupe. SLOW drift hull
@@ -1017,7 +1037,7 @@ const ENTRIES := [
 		"hp_override": 14,
 		"base_count": 1,
 		"no_scale": true,
-		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.7,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.7, "inertia": 0.7,
 	},
 	# Bomber wing — large, tough rear-gunners that descend slowly and hold,
 	# raking the chasing player with tail turrets. Bespoke (enemy_bomber.gd):
@@ -1038,7 +1058,7 @@ const ENTRIES := [
 		"bounty_override": 120,
 		"base_count": 2,
 		"no_scale": true,
-		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.35,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.35, "inertia": 0.35,
 	},
 	{
 		"scene": "res://scenes/enemies/core/enemy_core_bomber.tscn",
@@ -1052,7 +1072,7 @@ const ENTRIES := [
 		"bounty_override": 120,
 		"base_count": 3,
 		"no_scale": true,
-		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.35,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.35, "inertia": 0.35,
 	},
 	{
 		# Thin bomber variant (Roman 2026-06-21) — lighter-framed B-220. Same anchor role + tail gun,
@@ -1071,7 +1091,7 @@ const ENTRIES := [
 		"bounty_override": 100,
 		"base_count": 2,
 		"no_scale": true,
-		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.35,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.35, "inertia": 0.35,
 	},
 
 	# --- RARE -------------------------------------------------------------
@@ -1143,11 +1163,11 @@ const ENTRIES := [
 			{ "kind": "launcher", "marker": "Launcher*", "marker_mode": "cycle", "payload_scene": "res://scenes/projectiles/enemy_rocket.tscn", "aim": "straight_down", "count": 2, "fire_min": 1.5, "fire_max": 1.5, "max_fires": 1, "no_inertia": true, "spread_deg": 0.0 },
 		],
 		"base_count": 4,
-		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "inertia": 1.0,
 	},
 	{
 		# Wing (privateer medium, 2026-06-17) — wide missile-dropper. Uses interceptor.gd (no-recycle
-		# exit) + the reusable EmitterComponent for the drop; stats follow the medium size class.
+		# exit) + a reusable ENTITY mount for the drop; stats follow the medium size class.
 		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_wing.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "large", "tags": ["tough"],
@@ -1156,7 +1176,7 @@ const ENTRIES := [
 		# Bench 2026-07-05: forward missile launcher (kind entity→launcher) — a 4-round nose-gated burst.
 		"mounts": [{ "kind": "launcher", "marker": "Launcher*", "marker_mode": "cycle", "payload_scene": "res://scenes/projectiles/drifting_missile.tscn", "aim": "forward", "count": 4, "burst_interval": 0.1, "fire_min": 4.0, "fire_max": 4.0, "no_inertia": true, "fire_only_on_target": true, "spread_deg": 0.0 }],
 		"base_count": 2,
-		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "inertia": 1.0,
 	},
 	{
 		"scene": "res://scenes/enemies/factions/corporate/enemy_c_l_bulwark.tscn",
@@ -1211,7 +1231,7 @@ const ENTRIES := [
 		"base_count": 1,
 		"no_scale": true,
 		"hp_override": 32, "bounty_override": 100,
-		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.6,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.6, "inertia": 0.6,
 	},
 	{
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_m_helix.tscn",
@@ -1224,7 +1244,7 @@ const ENTRIES := [
 		"base_count": 1,
 		"no_scale": true,
 		"hp_override": 32, "bounty_override": 100,
-		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5, "inertia": 0.5,
 	},
 	{
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_m_helix.tscn",
@@ -1237,7 +1257,7 @@ const ENTRIES := [
 		"base_count": 1,
 		"no_scale": true,
 		"hp_override": 32, "bounty_override": 100,
-		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5, "inertia": 0.5,
 	},
 	{
 		# Crusader (Roman 2026-06-20) — LARGE zealot capital, a heavier sibling of the Helix.
@@ -1256,7 +1276,7 @@ const ENTRIES := [
 		"base_count": 1,
 		"no_scale": true,
 		"hp_override": 60, "bounty_override": 180,
-		"unlock_sector": 3, "unlock_depth": 1, "weight": 0.4,
+		"unlock_sector": 3, "unlock_depth": 1, "weight": 0.4, "inertia": 0.4,
 	},
 	{
 		# Firecore Drone (Roman, 2026-05-31). Small + tough; descends slowly
@@ -1290,7 +1310,7 @@ const ENTRIES := [
 		"engine": -1, "tier": Tier.COMMON, "size": "medium", "tags": [],   # bench 2026-07-05 (engine_override)
 		"movement": "straight", "shoot": null, "base_count": 2, "recycle": 0,
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "all", "payload": BV_ZealotWave, "aim": "forward", "fire_min": 3.0, "fire_max": 3.0, "count": 2, "burst_interval": 0.15, "max_fires": 3, "no_inertia": true, "spread_deg": 0.0 }],
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.5,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.5, "inertia": 0.5,
 	},
 	{
 		# Crook — rapid-fire zealot laser fighter.
@@ -1298,7 +1318,7 @@ const ENTRIES := [
 		"tier": Tier.COMMON, "size": "medium", "tags": [],
 		"movement": "straight", "shoot": null, "base_count": 3, "recycle": 0,
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_ZealotLaser, "aim": "forward", "fire_min": 0.5, "fire_max": 0.5, "count": 4, "spread_deg": 0.0 }],
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "inertia": 0.7,
 	},
 	{
 		# Cross Gunship — omni-thrust twin-laser gunboat.
@@ -1306,7 +1326,7 @@ const ENTRIES := [
 		"engine": -1, "tier": Tier.COMMON, "size": "medium", "tags": [],   # bench 2026-07-05 (engine_override)
 		"movement": "hunt_omni", "shoot": null, "base_count": 2, "recycle": 0,
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_ZealotBolt, "aim": "forward", "fire_min": 1.0, "fire_max": 1.0, "count": 4, "spread_deg": 0.0 }],
-		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.6,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.6, "inertia": 0.6,
 	},
 	{
 		# Pilgrim — dual plasma + wing rockets. (bench 2026-07-05: small hull + engine -1 = same ~60 speed.)
@@ -1317,7 +1337,7 @@ const ENTRIES := [
 			{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_ZealotLaser, "aim": "forward", "fire_min": 0.5, "fire_max": 0.5, "count": 1, "spread_deg": 0.0 },
 			{ "kind": "launcher", "marker": "Launcher*", "marker_mode": "cycle", "payload_scene": "res://scenes/projectiles/enemy_rocket.tscn", "aim": "forward", "fire_min": 1.2, "fire_max": 1.2, "count": 1, "max_fires": 2, "spread_deg": 0.0 },
 		],
-		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5, "inertia": 0.5,
 	},
 	{
 		# Rebuker — slow, maneuverable, forward zealot lasers.
@@ -1325,7 +1345,7 @@ const ENTRIES := [
 		"engine": 0, "tier": Tier.COMMON, "size": "medium", "tags": [],   # held at 60 (was -1; base drop would push to creep)
 		"movement": "straight", "shoot": null, "base_count": 2, "recycle": 0,
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_ZealotLaser, "aim": "straight_down", "fire_min": 0.5, "fire_max": 0.5, "count": 1, "spread_deg": 0.0 }],
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.6,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.6, "inertia": 0.6,
 	},
 	{
 		# Spear Frigate — charged firecore BEAM. The beam_config drives its charge animation (the scene
@@ -1339,7 +1359,7 @@ const ENTRIES := [
 			"idle_time": 0.8, "windup_time": 1.2, "firing_time": 0.7, "cooldown_time": 1.2,
 			"reach": 320.0, "dps": 4.0, "hit_radius": 8.0, "autostart": true,
 		} }],
-		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5, "inertia": 0.5,
 	},
 	{
 		# Tyrant (enemy_frigate) — supremacy broadside capital. Fires a rolling naval broadside out its
@@ -1349,7 +1369,7 @@ const ENTRIES := [
 		"movement": "side_traverse",
 		"base_count": 1, "no_scale": true, "fire_min": 0.35, "fire_max": 0.5,
 		"hp_override": 16, "bounty_override": 40,
-		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5,
+		"unlock_sector": 2, "unlock_depth": 1, "weight": 0.5, "inertia": 0.5,
 	},
 ]
 
@@ -1556,7 +1576,7 @@ static func compose_stats(entry: Dictionary) -> Dictionary:
 
 
 # Resolve the chassis locomotion stats for an entry: size base + a per-entry `engine` rung offset
-# (shifts linear speed only) + optional raw overrides (move_speed/weight/turn_rate/accel) + a
+# (shifts linear speed only) + optional raw overrides (move_speed/inertia/turn_rate/accel) + a
 # default `depth` band. Pure numbers (no tree / no Zones→Y), so it is headless-safe. move_speed is
 # clamped to the rung grid and snapped. depth_bp is band_progress (0..1), or -1 = "pattern default".
 static func resolve_locomotion(entry: Dictionary, size: String = "") -> Dictionary:
@@ -1574,7 +1594,19 @@ static func resolve_locomotion(entry: Dictionary, size: String = "") -> Dictiona
 		depth_spec = _legacy_depth_for(entry)
 	return {
 		"move_speed": move_speed,
-		"weight": float(entry.get("weight", loco["weight"])),
+		# Per-entry chassis-inertia override key is "inertia" (NOT "weight"): a roster ENTRY's
+		# "weight" is its RARITY POOL weight (see line ~214 / pick pool ~line 1374), so reading
+		# "weight" here mis-read the rarity weight as inertia mass. The RETURNED "weight" below
+		# maps to enemy_base.weight (the chassis inertia property) — that's unchanged.
+		# BAKE 2026-07-07: splitting the rarity/inertia keys silently made every enemy heavier
+		# (size-base 2.0-4.0 vs the old rarity-weight 0.35-1.4), which triple-slowed the auto-rotation
+		# turn budget (deg/s ÷ weight) and the SMOOTH velocity filter — enemies flew in backwards /
+		# stalled on entry / crawled on recycle (worst on the priv/zealot medium+ chassis). To preserve
+		# the exact flight feel Roman playtested, every entry that carried a rarity "weight" now ALSO
+		# carries an explicit "inertia": <that same value> (a mechanical 1:1 bake of the historical
+		# weight-collision behaviour). So the effective inertia is unchanged; the rarity/inertia SEMANTIC
+		# split is kept. New entries: set "inertia" explicitly if you want non-size-base mass.
+		"weight": float(entry.get("inertia", loco["weight"])),
 		"turn_rate": float(entry.get("turn_rate", loco["turn_rate"])),
 		"accel": float(entry.get("accel", loco["accel"])),
 		"depth_bp": Zones.depth_to_bp(depth_spec, -1.0),
@@ -1885,14 +1917,16 @@ static func _resolve_rings(src) -> Array:
 	return out
 
 
-# ---- Emitters (behavior components: drop/spawn a payload scene on a trigger) ----------------------
-# Mirrors make_mounts: builds EmitterComponents from an entry's optional "emitters" key (dict-list).
-# Returns [] when absent (every existing entry unchanged). Used by wave_generator (production) + the
-# Enemy Bench. An emitter is the generalized form of the interceptor's missile-drop (Roman 2026-06-17).
-const EmitterComponentC = preload("res://scripts/enemies/components/emitter_component.gd")
-# Phase 2 (2026-07-03): roster/bench emitters realize as ENTITY MountComponents (the unified path);
-# EmitterComponent survives only for the faction firecore overlay. String trigger -> MountSpec.Trigger
-# (CADENCE=0, START=1, DEATH=2) — note "timer" -> CADENCE (the fire-interval emit timer).
+# ---- Emitters (DEPRECATED dialect: drop/spawn a payload scene on a trigger) ----------------------
+# DEPRECATED (2026-07-07): the "emitters" entry key is a legacy dialect kept ONLY for backward compat
+# — old Enemy Bench saves + any external data that still speaks it. No production ENTRIES entry uses it
+# anymore (all migrated to the equivalent ENTITY "mounts" hardpoint; the Dart trail was the last one).
+# Prefer authoring `"mounts": [{ "kind": "entity", ... }]` for any new drop/scatter emitter.
+# This parser realizes an "emitters" dict as an ENTITY MountComponent — the SAME primitive the "mounts"
+# path builds (Phase 2 unification 2026-07-03), so the two paths are behaviourally identical; only the
+# key + a few field aliases differ (drop->no_inertia, spread->scatter, cadence->fire_interval_*).
+# Mirrors make_mounts; returns [] when absent. Used by formation_shapes (production) + the Enemy Bench.
+# String trigger -> MountSpec.Trigger (CADENCE=0, START=1, DEATH=2) — "timer" -> CADENCE (emit timer).
 const MountComponentC = preload("res://scripts/enemies/mounts/mount_component.gd")
 const _EMIT_TRIGGER_K := {"start": 1, "timer": 0, "death": 2}
 # Friendly payload names → scene paths (the Enemy Bench dropdown picks from these).
@@ -1909,7 +1943,8 @@ static func make_emitters(entry: Dictionary) -> Array:
 	return make_emitter_specs(listed) if listed is Array else []
 
 
-# Shared dict → EmitterComponent converter, also used by the Enemy Bench preview. FRESH per call.
+# Shared dict → ENTITY MountComponent converter (deprecated dialect), also used by the Enemy Bench
+# preview. FRESH per call.
 static func make_emitter_specs(dicts: Array) -> Array:
 	var out: Array = []
 	for d in dicts:

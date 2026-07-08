@@ -22,7 +22,12 @@ extends Object
 #   zealot    (Evantian Theocracy)     — drops firecore→ DropFirecore Emitter on death
 
 const ShieldComponent = preload("res://scripts/enemies/components/shield_component.gd")
-const EmitterComponent = preload("res://scripts/enemies/components/emitter_component.gd")
+# Zealot firecore drop is an ENTITY MountSpec realized by a MountComponent (folds the retired
+# EmitterComponent, Phase 2 unification). Constructed directly here — the overlay isn't a roster
+# dict, so it doesn't route through MountBuilder/roster; the built MountComponent still rides the
+# per-instance duplication contract (enemy_base._init_components) exactly like any component.
+const MountSpecC = preload("res://scripts/enemies/mounts/mount_spec.gd")
+const MountComponentC = preload("res://scripts/enemies/mounts/mount_component.gd")
 # Zealot's firecore lane-hazard drop payload (the zealot DropFirecore Emitter spawns it
 # on death). The ResourceLoader.exists guard in build_components stays as a safety net.
 const FIRECORE_HAZARD_PATH := "res://scenes/enemies/factions/zealot/firecore_hazard.tscn"
@@ -82,6 +87,7 @@ const ENEMY_TAGS := {
 	"res://scenes/enemies/factions/privateer/enemy_p_m_interceptor.tscn": {"home": Id.PRIVATEER, "universal": false},
 	"res://scenes/enemies/factions/corporate/enemy_c_l_bulwark.tscn": {"home": Id.CORPORATE, "universal": false},
 	"res://scenes/enemies/factions/privateer/enemy_p_m_gunship.tscn": {"home": Id.PRIVATEER, "universal": false},
+	"res://scenes/enemies/factions/privateer/enemy_p_l_harrier.tscn": {"home": Id.PRIVATEER, "universal": false},  # NEW privateer large gunship (Roman 2026-07-07) — scene set up; patterns/weapons authored manually
 	"res://scenes/enemies/factions/privateer/enemy_p_m_rocket.tscn": {"home": Id.PRIVATEER, "universal": false},
 	"res://scenes/enemies/factions/corporate/enemy_c_l_hive.tscn": {"home": Id.CORPORATE, "universal": false},
 	# Roman art rework 2026-06-16: firecore_drone→bloom, firecore_cruiser→helix (renamed, same UID).
@@ -155,7 +161,7 @@ static func data(id: int) -> Dictionary:
 			return {
 				"id": "supremacy", "lore_name": "Crimson Supremacy",
 				"core_pool": [], "exclusives": [], "overlay": false,
-				"stat_mods": {}, "weapon_mods": {"fire_rate_mult": 0.7, "bullet_speed_mult": 1.25},
+				"stat_mods": {}, "weapon_mods": {"bullet_speed_mult": 1.25},
 				"modifier_components": [], "tint": LIVERY_COLOR[Id.SUPREMACY],
 			}
 		Id.PRIVATEER:
@@ -191,16 +197,23 @@ static func build_components(id: int) -> Array:
 			sh.capacity = 1   # "shielded" = a single regen charge
 			out.append(sh)
 		Id.ZEALOT:
-			var em = EmitterComponent.new()
-			em.trigger = EmitterComponent.Trigger.DEATH
-			em.count = 1
-			em.chance = 0.35   # drops a firecore by chance on death (§8)
-			# Tag drives the death-explosion routing (enemy_base.explode: firecore dropped ->
-			# normal explosion, no drop -> ball). Without it the overlay path misclassified
-			# every faction-driven drop (review fix 2026-06-10).
-			em.tag = "firecore"
+			# ENTITY MountSpec: drop ONE firecore hazard on death by 35% chance (§8). Field mapping from
+			# the old EmitterComponent: trigger DEATH, count 1, chance -> emit_chance, tag -> emit_tag,
+			# payload -> payload_scene. no_inertia = true (drop at rest — the old emitter's `drop` default).
+			var s = MountSpecC.new()
+			s.kind = MountSpecC.Kind.ENTITY
+			s.trigger = MountSpecC.Trigger.DEATH
+			s.count = 1
+			s.emit_chance = 0.35
+			s.no_inertia = true   # drop the core at rest in the wake (no inherited velocity)
+			# emit_tag drives the death-explosion routing (enemy_base.explode: firecore dropped ->
+			# normal explosion, no drop -> ball). Without it the overlay path misclassified every
+			# faction-driven drop (review fix 2026-06-10).
+			s.emit_tag = "firecore"
 			if ResourceLoader.exists(FIRECORE_HAZARD_PATH):
-				em.payload = load(FIRECORE_HAZARD_PATH)
+				s.payload_scene = load(FIRECORE_HAZARD_PATH)
+			var em = MountComponentC.new()
+			em.spec = s
 			out.append(em)
 	return out
 
@@ -231,17 +244,14 @@ static func apply(id: int, enemy) -> void:
 		enemy.max_health = int(round(float(enemy.max_health) * hp_mult))
 		if "health" in enemy:
 			enemy.health = enemy.max_health
-	# Weapon mods. Faster fire (supremacy): smaller interval = faster. Projectile SPEED mult
-	# compounds onto the per-enemy field (*=); shoot_pattern applies it (clamped) to each bullet.
+	# Weapon mods. Projectile SPEED mult compounds onto the per-enemy field (*=);
+	# shoot_pattern applies it (clamped) to each bullet.
+	# NOTE: faction fire_rate_mult was REMOVED 2026-07-07 — since the mount consolidation,
+	# MountComponent reads cadence from spec.fire_interval_*, not the enemy fields, so a
+	# faction-level fire-rate modifier is a no-op. Supremacy fire rates are set in the roster.
 	# NOTE: faction bullet_damage_mult was REMOVED 2026-07-04 — player damage is flat 1 across the
 	# board (see player.take_damage), so no faction changes per-hit damage. Difficulty is volume.
 	var wm: Dictionary = d.get("weapon_mods", {})
-	var fr: float = float(wm.get("fire_rate_mult", 1.0))
-	if fr != 1.0:
-		if "fire_interval_min" in enemy:
-			enemy.fire_interval_min *= fr
-		if "fire_interval_max" in enemy:
-			enemy.fire_interval_max *= fr
 	var bsm: float = float(wm.get("bullet_speed_mult", 1.0))
 	if bsm != 1.0 and "bullet_speed_mult" in enemy:
 		enemy.bullet_speed_mult *= bsm
@@ -287,48 +297,82 @@ static func apply_livery(faction: int, enemy) -> void:
 	if faction < 0:
 		lv.visible = false
 		return
-	var mat := ShaderMaterial.new()
-	mat.shader = LIVERY_SHADER
-	mat.set_shader_parameter("tint_color", data(faction).get("tint", Color(0.5, 0.5, 0.5)))
-	mat.set_shader_parameter("opacity", LIVERY_OPACITY)   # match the player's livery blend
-	mat.set_shader_parameter("fade", 1.0)                 # master visibility; enemy_base's death-fade tweens it to 0
+	# Core enemies now carry the livery ShaderMaterial (@0.8 opacity) IN-SCENE. Duplicate it per instance
+	# and SUPERSEDE only the colour — keeping the scene's shader + opacity + fade. Enemies without a
+	# scene material fall back to building one here (unchanged behaviour for un-migrated units).
+	var mat: ShaderMaterial
+	if lv.material is ShaderMaterial:
+		mat = (lv.material as ShaderMaterial).duplicate()
+	else:
+		mat = ShaderMaterial.new()
+		mat.shader = LIVERY_SHADER
+		mat.set_shader_parameter("opacity", LIVERY_OPACITY)   # match the player's livery blend
+		mat.set_shader_parameter("fade", 1.0)                 # master visibility; death-fade tweens it to 0
+	mat.set_shader_parameter("tint_color", livery_color(faction))
 	lv.material = mat
 	lv.visible = true
 
 
-# CENTRALIZED per-faction color (Roman 2026-06-21) — THE single source for a faction's color across
-# EVERY visual overlay facet: livery (data().tint → apply_livery), tail-glow (apply_tailglow), and the
-# codex UI. Edit HERE to recolor a faction everywhere. Privateer lime-green + corporate purple-pink are
-# Roman's calls; supremacy crimson / zealot firecore-orange follow faction identity. Bright values so
-# the WorldEnvironment bloom blooms the glow in-hue.
-# CENTRALIZED faction colors (Roman 2026-06-21) — TWO separate per-faction palettes, each the single
-# source for its facet. Edit HERE to recolor everywhere.
-#   LIVERY_COLOR      — the hull LIVERY decal color (data().tint → apply_livery; + codex). 4 distinct.
-#   MUZZLE_GLOW_COLOR — the faction's ENERGY color: muzzle flashes + tail-glow (apply_tailglow). Shared
-#                       in pairs — Supremacy+Zealot = gold, Privateer+Corporate = lime. (Distinct from
-#                       the livery color on purpose — a faction's paint ≠ its weapon energy.)
+# ══ FACTION COLOUR — SINGLE SOURCE OF TRUTH (Roman) ════════════════════════════════════════════════
+# Tune colours HERE; everything downstream reads through the accessors below, so there's no duplicated
+# or recreated colour work. Two palettes:
+#   LIVERY_COLOR        — the hull LIVERY decal tint (apply_livery + data().tint + codex). The core
+#                         enemies now carry the livery shader material (@0.8 opacity) IN-SCENE; apply_livery
+#                         only SUPERSEDES the colour per spawn — it no longer builds the material.
+#   WEAPON_COLORS       — the energy palette BY NAME: the projectile-sheet FRAME to select + the muzzle/
+#                         glow `inner` & `outer` colours. Core is ALWAYS white; a recoloured muzzle glow
+#                         uses `inner`. FACTION_WEAPON_COLOR assigns one name per faction.
 static var LIVERY_COLOR := {
-	Id.SUPREMACY: Color.html("#ac3232"),  # red
-	Id.PRIVATEER: Color.html("#4b692f"),  # green
-	Id.CORPORATE: Color.html("#4972a9"),  # blue
-	Id.ZEALOT:    Color.html("#76428a"),  # purple
+	Id.SUPREMACY: Color.html("#f38079"),
+	Id.PRIVATEER: Color.html("#91c421"),
+	Id.CORPORATE: Color.html("#a1c4ff"),
+	Id.ZEALOT:    Color.html("#cb9edd"),
 }
-static var MUZZLE_GLOW_COLOR := {
-	Id.SUPREMACY: Color.html("#fbf236"),  # gold (Supremacy + Zealot)
-	Id.ZEALOT:    Color.html("#fbf236"),  # gold
-	Id.PRIVATEER: Color.html("#99e550"),  # lime (Privateer + Corporate)
-	Id.CORPORATE: Color.html("#99e550"),  # lime
+# Named energy colours. `frame` = the frame index on a projectile_<type> 4-frame sheet.
+# ⚠️ Roman: "blue" currently has YELLOW values (inner+outer both #fff400) — looks like a paste slip
+#    from the "yellow" row; retune the two Colors here when you get a chance.
+static var WEAPON_COLORS := {
+	"green":  {"frame": 0, "inner": Color.html("#6bff37"), "outer": Color.html("#25a030")},
+	"yellow": {"frame": 1, "inner": Color.html("#fff400"), "outer": Color.html("#2800ad")},
+	"blue":   {"frame": 2, "inner": Color.html("#fff400"), "outer": Color.html("#fff400")},
+	"red":    {"frame": 3, "inner": Color.html("#ff0000"), "outer": Color.html("#70002a")},
+}
+static var FACTION_WEAPON_COLOR := {
+	Id.PRIVATEER: "green",
+	Id.CORPORATE: "blue",
+	Id.SUPREMACY: "red",
+	Id.ZEALOT:    "yellow",
 }
 
 
-# The faction's hull-livery color (white fallback for no/unknown faction).
+# The faction's hull-livery colour (white fallback for no/unknown faction).
 static func livery_color(faction: int) -> Color:
 	return LIVERY_COLOR.get(faction, Color(1.0, 1.0, 1.0))
 
 
-# The faction's ENERGY color — muzzle flashes + tail-glow (white fallback). Shared in pairs.
+# The faction's weapon-colour record {frame, inner, outer} (empty dict for no/unknown faction).
+static func weapon_color(faction: int) -> Dictionary:
+	return WEAPON_COLORS.get(FACTION_WEAPON_COLOR.get(faction, ""), {})
+
+
+# The projectile-sheet FRAME for the faction's weapon colour (-1 = none/unknown).
+static func weapon_frame(faction: int) -> int:
+	return int(weapon_color(faction).get("frame", -1))
+
+
+# The muzzle/glow INNER colour — what a recoloured muzzle glow sprite uses (white fallback).
+static func muzzle_inner(faction: int) -> Color:
+	return weapon_color(faction).get("inner", Color(1.0, 1.0, 1.0))
+
+
+# The muzzle/glow OUTER colour (white fallback).
+static func muzzle_outer(faction: int) -> Color:
+	return weapon_color(faction).get("outer", Color(1.0, 1.0, 1.0))
+
+
+# The faction's ENERGY colour for muzzle flashes + tail-glow = the weapon INNER (SSOT). White fallback.
 static func muzzle_glow_color(faction: int) -> Color:
-	return MUZZLE_GLOW_COLOR.get(faction, Color(1.0, 1.0, 1.0))
+	return muzzle_inner(faction)
 
 
 # Tint an enemy's TailGunGlow layer to the active faction's signature bullet color (Roman 2026-06-21):
@@ -345,14 +389,22 @@ static func apply_tailglow(faction: int, enemy) -> void:
 	tg.modulate = muzzle_glow_color(faction)
 
 
-# True if `c` is an Emitter that drops a firecore hazard on death — used to avoid
-# stacking the zealot overlay's chance-drop onto an enemy that bakes a guaranteed one.
+# True if `c` drops a firecore hazard on death — used to avoid stacking the zealot overlay's
+# chance-drop onto an enemy that bakes a guaranteed one. All scene-baked DropFirecore components
+# are now ENTITY MountComponents (spec.payload_scene + spec.trigger, DEATH). The legacy
+# EmitterComponent shape (top-level `payload` + `trigger`) is retired — the check below keeps a
+# defensive branch for it (harmless), but no live scene bakes it anymore. Trigger DEATH == 2 in both.
 static func _is_firecore_drop(c) -> bool:
 	if c == null:
 		return false
-	if not ("payload" in c and "trigger" in c):
-		return false
-	if c.payload == null:
-		return false
-	return int(c.trigger) == EmitterComponent.Trigger.DEATH \
-		and str(c.payload.resource_path) == FIRECORE_HAZARD_PATH
+	# Legacy EmitterComponent shape (retired — kept as a defensive fallback only).
+	if "payload" in c and "trigger" in c and c.payload != null:
+		return int(c.trigger) == MountSpecC.Trigger.DEATH \
+			and str(c.payload.resource_path) == FIRECORE_HAZARD_PATH
+	# ENTITY MountComponent shape (spec.payload_scene + spec.trigger).
+	if "spec" in c and c.spec != null:
+		var sp = c.spec
+		if "payload_scene" in sp and sp.payload_scene != null and "trigger" in sp:
+			return int(sp.trigger) == MountSpecC.Trigger.DEATH \
+				and str(sp.payload_scene.resource_path) == FIRECORE_HAZARD_PATH
+	return false
