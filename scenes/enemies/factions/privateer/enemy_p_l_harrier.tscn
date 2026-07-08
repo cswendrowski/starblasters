@@ -12,6 +12,8 @@ script = ExtResource("2_61bst")
 [node name="EnemyGunship" type="Area2D" unique_id=1892792395 groups=["enemies"]]
 script = ExtResource("1_qt5ho")
 movement = SubResource("MovePattern")
+strafe = true
+retro = true
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=946980638]
 texture = ExtResource("3_qt5ho")

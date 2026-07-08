@@ -926,10 +926,11 @@ const ENTRIES := [
 		"conflict_tags": ["beamshooter"],
 	},
 	{
-		# Harrier (Roman art 2026-07-07) — privateer LARGE gunship (enemy_gunship.gd, omni thrust, six
-		# Launcher* markers). SCAFFOLD ONLY: registered for Enemy-Bench config; movement pattern + weapons
-		# (mounts) are Roman's to author manually. No mounts = it roams unarmed until armed.
+		# Harrier (Roman art 2026-07-07) — privateer LARGE gunship (enemy_gunship.gd, omni thrust). Its six
+		# Launcher* rails cycle a 3-rocket burst x2 volleys (bench 2026-07-07). strafe+retro locomotion +
+		# authored flight paths are set on the scene / path system. Weaponry armed from the bench.
 		"scene": "res://scenes/enemies/factions/privateer/enemy_p_l_harrier.tscn",
+		"mounts": [{ "kind": "launcher", "marker": "Launcher*", "marker_mode": "cycle", "payload_scene": "res://scenes/projectiles/enemy_rocket.tscn", "aim": "forward", "fire_min": 1.5, "fire_max": 1.5, "count": 3, "burst_interval": 0.15, "volleys": 2, "no_inertia": true, "spread_deg": 0.0 }],
 		"tier": Tier.UNCOMMON,
 		"size": "large", "tags": ["tough"],
 		"movement": "hunt_omni",
