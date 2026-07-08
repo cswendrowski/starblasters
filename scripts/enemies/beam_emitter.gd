@@ -71,10 +71,11 @@ var pierce: bool = true                        # false = stop visual+damage at f
 var friendly_fire: bool = false
 var ignore_owner: Node = null
 
-# Width ENVELOPE (Roman 2026-07-02): when on, the lethal beam comes in as a thin (white-cored) line that
-# rapidly grows to full width, holds, then shrinks back down + flickers out over the tail of FIRING.
-# Default off → existing beams draw at full width the whole time.
-var envelope: bool = false
+# Width ENVELOPE (Roman 2026-07-02): the lethal beam comes in as a thin (white-cored) line that rapidly
+# grows to full width, holds, then shrinks back down + flickers out over the tail of FIRING. This is the
+# canonical laser animation cycle (Roman 2026-07-07: "all lasers use the zealot-battleship baseline") —
+# ON by default so warning-line → grow-to-size → flicker-out is uniform across every beam in the game.
+var envelope: bool = true
 var envelope_grow: float = 0.15    # rapid grow-in at fire onset
 var envelope_shrink: float = 0.45  # shrink + flicker over the tail of firing
 var _base_widths: Array = []       # authored layer widths (envelope scales these)
@@ -87,8 +88,9 @@ var telegraph_color: Color = Color(1.0, 0.95, 0.35, 0.5)
 var telegraph_width: float = 1.5
 # Faction tint (Roman 2026-07-06): the beam takes the host faction's MUZZLE color (Supremacy/Zealot gold,
 # Privateer/Corporate lime); the innermost (core) layer stays white-hot. Core faction / no faction (-1) =
-# white throughout. -2 = auto-detect from the host's `faction_skin` meta; -1..3 = explicit; -3 = OFF (keep
-# authored layer colors, e.g. a boss beam that wants bespoke colors).
+# white throughout. AUTO (-2, default) = detect from the host's `faction_skin` meta (walking up the tree);
+# -1..3 = explicit; FACTION_OFF (-3) = keep authored layer colors (a boss beam with a fixed bespoke look).
+const FACTION_OFF := -3
 var faction: int = -2
 
 # --- state ---
@@ -459,8 +461,8 @@ func _ensure_visuals() -> void:
 	if not _lines.is_empty():
 		return
 	var tbl: Array = layers if not layers.is_empty() else _default_layers()
-	# Faction muzzle color for the beam (white for no faction / Core), unless tinting is OFF (-3).
-	var tint_on: bool = faction != -3
+	# Faction muzzle color for the beam (white for no faction / Core), unless tinting is OFF.
+	var tint_on: bool = faction != FACTION_OFF
 	var mc: Color = FactionsC.muzzle_glow_color(_resolve_faction()) if tint_on else Color.WHITE
 	_base_widths.clear()
 	for i in tbl.size():

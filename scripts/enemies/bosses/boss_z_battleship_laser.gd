@@ -73,6 +73,9 @@ func _build_beam() -> void:
 	_beam.telegraph_width = 2.0
 	# Grow-in (thin white line → full width) then shrink + flicker out at the end (Roman 2026-07-02).
 	_beam.envelope = true
+	# Keep the authored firecore gold/orange gradient (this IS the reference laser); the generic faction
+	# auto-tint would otherwise whiten it, since a neutral boss resolves to no faction (Roman 2026-07-07).
+	_beam.faction = BeamEmitterC.FACTION_OFF
 	if beam_kind == "main":
 		# Fire FROM the BeamStart marker TOWARD the BeamMuzzle marker (out the muzzle), on down the lane.
 		# LOCAL_FORWARD + the marker-derived direction means it always points start→muzzle in world space,
