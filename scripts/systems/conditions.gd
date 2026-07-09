@@ -398,6 +398,56 @@ static func roll(count: int, seed_value: int) -> Array:
 	return result
 
 
+# Draw `bane_count` banes (threat > 0) THEN `boon_count` boons (threat < 0) from
+# the CATALOG using a LOCAL RandomNumberGenerator seeded with `seed_value`. A
+# SINGLE shared used-groups dict spans the whole combined pick, so an inverse pair
+# (e.g. Fast Bullets ↔ Slow Bullets, both in `bullet_speed`) can never surface as
+# bane + boon together. Same discipline as roll(): never touches global
+# randi/randf, each pool shrinks per draw (no infinite loop), the counts are
+# effectively clamped to what the mutex groups allow, and the result is
+# deterministic per seed. Returns the banes first, then the boons.
+static func roll_split(bane_count: int, boon_count: int, seed_value: int) -> Array:
+	var result: Array = []
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value
+	var used_groups: Dictionary = {}
+	_draw_into(result, _pool_by_sign(true), bane_count, rng, used_groups)
+	_draw_into(result, _pool_by_sign(false), boon_count, rng, used_groups)
+	return result
+
+
+# CATALOG ids whose Threat is > 0 (banes) when `positive`, else < 0 (boons),
+# in CATALOG declaration order. (Threat == 0 ids belong to neither pool.)
+static func _pool_by_sign(positive: bool) -> Array:
+	var pool: Array = []
+	for id in CATALOG.keys():
+		var t: int = int(CATALOG[id].get("threat", 0))
+		if (positive and t > 0) or (not positive and t < 0):
+			pool.append(id)
+	return pool
+
+
+# Append up to `count` distinct, mutex-legal ids drawn from `pool` into `result`,
+# sharing `used_groups` + `rng` with the rest of the split pick. `pool` is mutated
+# (each draw is removed); a mutex-blocked draw is discarded and the loop retries
+# from the shrunken pool, so `count` clamps to what the groups permit.
+static func _draw_into(result: Array, pool: Array, count: int, rng: RandomNumberGenerator, used_groups: Dictionary) -> void:
+	if count <= 0:
+		return
+	var drawn := 0
+	while drawn < count and not pool.is_empty():
+		var i: int = rng.randi_range(0, pool.size() - 1)
+		var id: String = pool[i]
+		pool.remove_at(i)
+		var grp: String = String(CATALOG[id].get("group", ""))
+		if grp != "" and used_groups.has(grp):
+			continue  # mutex-blocked; already removed from the pool
+		result.append(id)
+		drawn += 1
+		if grp != "":
+			used_groups[grp] = true
+
+
 # ── Display helpers ──────────────────────────────────────────────────────────
 static func label(id: String) -> String:
 	return String(_entry(id).get("label", id))
@@ -413,6 +463,12 @@ static func threat_of(id: String) -> int:
 
 static func bucket(id: String) -> String:
 	return String(_entry(id).get("bucket", ""))
+
+
+# Mutex group of `id` ("" = ungrouped/stackable). Front-ends read this to
+# live-enforce "one per group" on a curated pick.
+static func group_of(id: String) -> String:
+	return String(_entry(id).get("group", ""))
 
 
 # ── Catalog integrity check (the test calls this) ────────────────────────────

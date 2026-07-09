@@ -118,6 +118,15 @@ var _weapons_box: VBoxContainer = null
 var _loadout_box: VBoxContainer = null
 var _modules_box: VBoxContainer = null
 var _services_box: VBoxContainer = null
+# Services column tab switcher (SERVICES | STATUS) — the services body + the new
+# conditions-detail view are sibling VBoxes inside _services_box; only one is
+# visible at a time. Default = SERVICES (current behavior preserved).
+var _services_content: VBoxContainer = null
+var _status_content: VBoxContainer = null
+var _tab_services_btn: Button = null
+var _tab_status_btn: Button = null
+var _status_active: bool = false
+var _status_expanded: Dictionary = {}  # condition id -> blurb-row expanded?
 var _toast_label: Label = null
 # Card UPGRADE state: when true, every card shows its Upgrade button instead of the
 # management buttons (Set Active / Unslot / Equip / Scrap / Remove). Toggled from Services.
@@ -416,27 +425,72 @@ func _build_services() -> void:
 	for c in _services_box.get_children():
 		c.queue_free()
 
+	# Tab switcher — SERVICES | STATUS. Swaps which sibling content VBox shows
+	# inside this column. Default = SERVICES (current behavior). STATUS lists the
+	# run's active Conditions with per-row info expanders.
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 8)
+	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_tab_services_btn = Button.new()
+	_tab_services_btn.text = Strings.OUTPOST_COL_SERVICES
+	_tab_services_btn.custom_minimum_size = Vector2(0, 44)
+	_tab_services_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	UiTheme.style_button(_tab_services_btn)
+	_tab_services_btn.add_theme_font_size_override("font_size", FS_BODY)
+	_tab_services_btn.pressed.connect(_on_select_status_tab.bind(false))
+	tabs.add_child(_tab_services_btn)
+	_tab_status_btn = Button.new()
+	_tab_status_btn.text = "STATUS"
+	_tab_status_btn.custom_minimum_size = Vector2(0, 44)
+	_tab_status_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	UiTheme.style_button(_tab_status_btn)
+	_tab_status_btn.add_theme_font_size_override("font_size", FS_BODY)
+	_tab_status_btn.pressed.connect(_on_select_status_tab.bind(true))
+	tabs.add_child(_tab_status_btn)
+	_services_box.add_child(tabs)
+
+	# Content panes — one visible at a time.
+	_services_content = VBoxContainer.new()
+	_services_content.add_theme_constant_override("separation", 12)
+	_services_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_services_content.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_services_box.add_child(_services_content)
+	_build_services_content(_services_content)
+
+	_status_content = VBoxContainer.new()
+	_status_content.add_theme_constant_override("separation", 8)
+	_status_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_status_content.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_services_box.add_child(_status_content)
+	_build_status_content()
+
+	_apply_status_tab_visibility()
+
+
+# Original SERVICES body (modules bay + services + leave), now hosted in the
+# SERVICES pane of the tab switcher.
+func _build_services_content(parent: VBoxContainer) -> void:
 	# MODULES section — the installed passive bay gets its own section (Roman 2026-06-14).
 	# Re-rendered into _modules_box after every bay/currency change.
 	var mod_scroll := ScrollContainer.new()
 	mod_scroll.custom_minimum_size = Vector2(0, 380)
 	mod_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mod_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_services_box.add_child(mod_scroll)
+	parent.add_child(mod_scroll)
 	_modules_box = VBoxContainer.new()
 	_modules_box.add_theme_constant_override("separation", 8)
 	_modules_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mod_scroll.add_child(_modules_box)
 	_render_modules()
 
-	_services_box.add_child(HSeparator.new())
+	parent.add_child(HSeparator.new())
 	var svc_hdr := Label.new()
 	svc_hdr.text = Strings.OUTPOST_COL_SERVICES
 	_style_label(svc_hdr, FS_HEADER, Color(0.85, 0.90, 1.0))
-	_services_box.add_child(svc_hdr)
+	parent.add_child(svc_hdr)
 
 	# Hull Repair.
-	_services_box.add_child(_make_service_button(
+	parent.add_child(_make_service_button(
 		Strings.SERVICE_HULL_REPAIR, HULL_REPAIR_COST, _on_repair, "repair"))
 	# Restock All — buys ammo/charges for every owned ammo-using part. Per-card "Restock" buttons
 	# live on the individual cards now (Roman 2026-06-15); this is the buy-everything convenience.
@@ -446,7 +500,7 @@ func _build_services() -> void:
 	UiTheme.style_button(restock_all)
 	restock_all.add_theme_font_size_override("font_size", FS_BODY)
 	restock_all.pressed.connect(_on_restock_all)
-	_services_box.add_child(restock_all)
+	parent.add_child(restock_all)
 	# Upgrade-mode toggle — swaps every card to its Upgrade button (and back).
 	_upgrade_toggle_btn = Button.new()
 	_upgrade_toggle_btn.text = Strings.OUTPOST_BTN_MANAGE_MODE if _upgrade_mode else Strings.OUTPOST_BTN_UPGRADE_MODE
@@ -454,12 +508,12 @@ func _build_services() -> void:
 	UiTheme.style_button(_upgrade_toggle_btn)
 	_upgrade_toggle_btn.add_theme_font_size_override("font_size", FS_BODY)
 	_upgrade_toggle_btn.pressed.connect(_on_toggle_upgrade_mode)
-	_services_box.add_child(_upgrade_toggle_btn)
+	parent.add_child(_upgrade_toggle_btn)
 
 	# Spacer pushes bottom buttons down.
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_services_box.add_child(spacer)
+	parent.add_child(spacer)
 
 	# (Refresh-stock button removed 2026-06-08 — stock now re-rolls only on boss kill.)
 	var leave_btn := Button.new()
@@ -468,7 +522,130 @@ func _build_services() -> void:
 	UiTheme.style_button(leave_btn)
 	leave_btn.add_theme_font_size_override("font_size", FS_HEADER)
 	leave_btn.pressed.connect(_on_leave)
-	_services_box.add_child(leave_btn)
+	parent.add_child(leave_btn)
+
+
+# ---- STATUS tab — active-Conditions detail view ---------------------------
+# Conditions are patrol-static, so this pane is built once. Banes are listed
+# first (threat descending), then boons; each row has a threat chip + an "i"
+# button that toggles an expanded blurb row beneath it (independent toggles).
+
+func _on_select_status_tab(status: bool) -> void:
+	_status_active = status
+	_apply_status_tab_visibility()
+
+
+func _apply_status_tab_visibility() -> void:
+	if _services_content != null:
+		_services_content.visible = not _status_active
+	if _status_content != null:
+		_status_content.visible = _status_active
+	# Active tab reads bright; inactive tab dims.
+	if _tab_services_btn != null:
+		_tab_services_btn.modulate = Color(0.52, 0.55, 0.62) if _status_active else Color(1, 1, 1)
+	if _tab_status_btn != null:
+		_tab_status_btn.modulate = Color(1, 1, 1) if _status_active else Color(0.52, 0.55, 0.62)
+
+
+func _build_status_content() -> void:
+	if _status_content == null:
+		return
+	for c in _status_content.get_children():
+		c.queue_free()
+	var run = get_node_or_null("/root/Run")
+	var active: Array = []
+	if run != null and "active_conditions" in run:
+		active = run.active_conditions
+
+	# Header block.
+	if active.is_empty():
+		var none_lbl := Label.new()
+		none_lbl.text = Strings.SECTOR_MODIFIERS_NONE
+		none_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		none_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_style_label(none_lbl, FS_BODY, Color(0.72, 0.80, 0.88))
+		_status_content.add_child(none_lbl)
+		return
+
+	var net: int = run.condition_net_threat()
+	var threat_lbl := Label.new()
+	threat_lbl.text = "THREAT %d" % net
+	_style_label(threat_lbl, FS_HEADER, Color(0.95, 0.86, 0.45))
+	_status_content.add_child(threat_lbl)
+	# Payout caption — hidden for a net-boon (net ≤ 0) run (no bonus applies).
+	if net > 0:
+		var payout := Label.new()
+		payout.text = "+%d%% bounty · +%d%% materials" % [
+			roundi((run.condition_bounty_mult() - 1.0) * 100.0),
+			roundi((run.condition_materials_mult() - 1.0) * 100.0)]
+		_style_label(payout, FS_CAPTION, Color(0.55, 0.95, 0.75))
+		_status_content.add_child(payout)
+	_status_content.add_child(HSeparator.new())
+
+	# Rows in a scroll container sized to the remaining column height.
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_status_content.add_child(scroll)
+	var rows := VBoxContainer.new()
+	rows.add_theme_constant_override("separation", 4)
+	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(rows)
+
+	# Banes first (threat descending), then boons — a plain threat-descending sort.
+	var sorted: Array = active.duplicate()
+	sorted.sort_custom(func(a, b): return Conditions.threat_of(String(a)) > Conditions.threat_of(String(b)))
+	for id in sorted:
+		_add_condition_row(rows, String(id))
+
+
+func _add_condition_row(parent: VBoxContainer, id: String) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var name_lbl := Label.new()
+	name_lbl.text = Conditions.label(id)
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_lbl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_style_label(name_lbl, FS_BODY, Color(0.90, 0.93, 0.98))
+	row.add_child(name_lbl)
+
+	# Threat chip — warm for a bane (+), cool for a boon (−). Reuses the status-bar
+	# modifiers warm tone + the materials green already used in this file.
+	var t: int = Conditions.threat_of(id)
+	var chip := Label.new()
+	chip.text = ("+%d" % t) if t > 0 else ("%d" % t)
+	chip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	chip.custom_minimum_size = Vector2(52, 0)
+	chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_style_label(chip, FS_BODY, Color(0.95, 0.72, 0.55) if t > 0 else Color(0.55, 0.95, 0.75))
+	row.add_child(chip)
+
+	# Info toggle — same "i" look as the part cards.
+	var info := Button.new()
+	info.text = Strings.OUTPOST_INFO
+	info.custom_minimum_size = INFO_BTN_SIZE
+	info.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	UiTheme.style_button(info)
+	info.add_theme_font_size_override("font_size", FS_BODY)
+	row.add_child(info)
+	parent.add_child(row)
+
+	# Expanded blurb row — hidden until the "i" is pressed (independent toggle).
+	var blurb := Label.new()
+	blurb.text = Conditions.blurb(id)
+	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	blurb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_style_label(blurb, FS_CAPTION, Color(0.60, 0.68, 0.76))
+	blurb.visible = bool(_status_expanded.get(id, false))
+	parent.add_child(blurb)
+
+	info.pressed.connect(func() -> void:
+		var now := not blurb.visible
+		blurb.visible = now
+		_status_expanded[id] = now)
 
 
 # Builds a Button with a meta tag so _refresh_services() can update its
@@ -1606,9 +1783,10 @@ func _find_buy_button(card: Node) -> Button:
 
 
 func _refresh_services() -> void:
-	if _services_box == null:
+	# Service buttons now live in the SERVICES pane of the tab switcher.
+	if _services_content == null:
 		return
-	for child in _services_box.get_children():
+	for child in _services_content.get_children():
 		if child is Button and child.has_meta("kind"):
 			_apply_service_button_state(child)
 
