@@ -24,6 +24,11 @@ const RESET_THRESHOLD := 340.0
 @export var nebula_tint: Color = Color(1, 1, 1, 1)  # multiplies the cloud colour (per-POI palette)
 @export var pixel_density: float = 1.0
 @export var mine_count: int = 0
+# Per-rock lateral drift (Parallax V4 showcase). 0 = today's lockstep conveyor.
+# When > 0 each rock gets a persistent vx of ±drift_variance px/s scaled by the
+# layer's scroll_rate (far rocks drift less), applied in _process with an X-wrap
+# at the screen edge + margin, mirroring the Y wrap. Default 0 = inert.
+@export var drift_variance: float = 0.0
 
 # Use the actual ASTEROID_SCENE path from galaxy_backdrop.gd
 const ASTEROID_SCENE = "res://Planets/Asteroids/Asteroid.tscn"
@@ -143,7 +148,7 @@ func _spawn_asteroid() -> void:
 	var base_rot: float = 0.0
 	if inner != null and inner.material is ShaderMaterial:
 		base_rot = float((inner.material as ShaderMaterial).get_shader_parameter("rotation"))
-	_objects.append({"node": a, "size": sz, "spin": spin, "rot": base_rot, "mini": false, "asteroid": inner})
+	_objects.append({"node": a, "size": sz, "spin": spin, "rot": base_rot, "mini": false, "asteroid": inner, "vx": _roll_drift_vx()})
 
 
 # Baked-asteroid spawn (flagged crash-test path). A Sprite2D reading one frame cell from
@@ -191,8 +196,17 @@ func _spawn_baked_asteroid() -> void:
 	_objects.append({
 		"node": s, "size": float(fpx), "spin": 0.0, "rot": 0.0, "mini": false,
 		"baked": true, "variant": variant, "fpx": fpx, "frames": frames,
-		"phase": _local_rng.randf(), "bspin": bspin,
+		"phase": _local_rng.randf(), "bspin": bspin, "vx": _roll_drift_vx(),
 	})
+
+
+# Persistent per-rock lateral velocity (px/s). ±drift_variance scaled by this
+# layer's scroll_rate so far bands drift slower than near ones. Zero when the
+# knob is off (default) — the drift branch in _process then short-circuits.
+func _roll_drift_vx() -> float:
+	if drift_variance <= 0.0 or _local_rng == null:
+		return 0.0
+	return _local_rng.randf_range(-drift_variance, drift_variance) * scroll_rate
 
 
 # Build the Asteroids.gdshader `colors` ramp (light → mid → dark) from a single
@@ -215,7 +229,7 @@ func _spawn_mini_asteroid() -> void:
 	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	r.position = Vector2(_local_rng.randf_range(0, 480), -_local_rng.randf_range(0, 270))
 	add_child(r)
-	_objects.append({"node": r, "size": px, "spin": 0.0, "rot": 0.0, "mini": true})
+	_objects.append({"node": r, "size": px, "spin": 0.0, "rot": 0.0, "mini": true, "vx": _roll_drift_vx()})
 
 
 func _spawn_nebula() -> void:
@@ -295,9 +309,12 @@ func _on_scrolled() -> void:
 				n.position.x = _local_rng.randf_range(16, 464)
 				n.position.y = (-sz - _local_rng.randf_range(8, 220)) - offset.y
 	if _nebula_rect and is_instance_valid(_nebula_rect):
-		# Keep the nebula screen-fixed (counter the layer's offset.y) so it
-		# doesn't scroll off and leave a gap; drift comes from the shader.
+		# Keep the nebula screen-fixed (counter the layer's offset.y AND offset.x)
+		# so it doesn't scroll off and leave a gap; drift comes from the shader.
+		# Countering offset.x is what stops lateral-parallax input from sliding
+		# the nebula ColorRect across the band (Parallax V4 showcase).
 		_nebula_rect.position.y = -offset.y
+		_nebula_rect.position.x = -offset.x
 		if _nebula_rect.material is ShaderMaterial:
 			(_nebula_rect.material as ShaderMaterial).set_shader_parameter(
 				"scroll_offset", Vector2(0, offset.y / NEBULA_TILE)
@@ -305,6 +322,8 @@ func _on_scrolled() -> void:
 
 
 func _process(delta: float) -> void:
+	if drift_variance > 0.0:
+		_apply_lateral_drift(delta)
 	for entry in _objects:
 		# Baked rocks: advance the rotation frame (region_rect) from their own signed spin.
 		if entry.get("baked", false):
@@ -333,6 +352,24 @@ func _process(delta: float) -> void:
 		if inner != null and is_instance_valid(inner) and inner.material is ShaderMaterial:
 			entry.rot = float(entry.get("rot", 0.0)) + sp * delta
 			(inner.material as ShaderMaterial).set_shader_parameter("rotation", entry.rot)
+
+
+# Advance each rock's persistent lateral drift and wrap at the screen edges
+# (+16px margin, mirroring the Y wrap in _on_scrolled). Only runs when
+# drift_variance > 0 so the default conveyor is untouched.
+func _apply_lateral_drift(delta: float) -> void:
+	for entry in _objects:
+		var vx: float = float(entry.get("vx", 0.0))
+		if vx == 0.0:
+			continue
+		var n: Node = entry.node
+		if not is_instance_valid(n):
+			continue
+		n.position.x += vx * delta
+		if n.position.x < -16.0:
+			n.position.x = 496.0
+		elif n.position.x > 496.0:
+			n.position.x = -16.0
 
 
 func _on_reset() -> void:

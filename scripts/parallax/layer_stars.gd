@@ -23,6 +23,13 @@ const TILE_H := 270
 const FAR_RATE  := 0.005
 const NEAR_RATE := 0.02
 
+# Palette key-colour tint (WP3). WHITE = today's exact STAR_COLORS (identity, no
+# shift). When the coordinator sets it from the level's star colour (use_palette),
+# each star lerps KEY_TINT_AMOUNT toward it at spawn, tying the field into the
+# palette. reseed()/respawn re-reads it, so regenerate applies it.
+@export var key_tint: Color = Color.WHITE
+const KEY_TINT_AMOUNT := 0.15
+
 var _rng: RandomNumberGenerator = null
 var _seed: int = 12345
 
@@ -64,7 +71,7 @@ func _spawn_stars() -> void:
 	# Pinpricks (1×1) — far layer
 	var n_pinpricks := _rng.randi_range(pinprick_count_min, pinprick_count_max)
 	for _i in n_pinpricks:
-		var base_color: Color = STAR_COLORS[_rng.randi() % STAR_COLORS.size()]
+		var base_color: Color = _tinted(STAR_COLORS[_rng.randi() % STAR_COLORS.size()])
 		var brightness: float = 0.55 + _rng.randf() * 0.45
 		var color := Color(base_color.r * brightness, base_color.g * brightness, base_color.b * brightness)
 		var r := _make_star_rect(_rng, 1, color, _far_para)
@@ -80,7 +87,7 @@ func _spawn_stars() -> void:
 	# Pops (2×2) — near layer for depth separation
 	var n_pops := _rng.randi_range(pop_count_min, pop_count_max)
 	for _i in n_pops:
-		var base_color: Color = STAR_COLORS[_rng.randi() % STAR_COLORS.size()]
+		var base_color: Color = _tinted(STAR_COLORS[_rng.randi() % STAR_COLORS.size()])
 		var r := _make_star_rect(_rng, 2, base_color, _near_para)
 		if _rng.randf() > 0.45:
 			_twinkle_stars.append({
@@ -90,6 +97,14 @@ func _spawn_stars() -> void:
 				"amp": _rng.randf_range(0.30, 0.65),
 				"hz": _rng.randf_range(0.5, 2.0),
 			})
+
+
+# Lerp a base star colour toward key_tint. WHITE key_tint = identity (today's exact
+# colours), so the default is byte-identical; a set key_tint shifts stars 15%.
+func _tinted(c: Color) -> Color:
+	if key_tint == Color.WHITE:
+		return c
+	return c.lerp(key_tint, KEY_TINT_AMOUNT)
 
 
 func _make_star_rect(rng: RandomNumberGenerator, size: int, color: Color, parent: Node) -> ColorRect:
@@ -123,6 +138,18 @@ func scroll_stars(drift_delta: float) -> void:
 		_far_para.scroll_offset = Vector2(0, _scroll_accum_far)
 	if _near_para != null:
 		_near_para.scroll_offset = Vector2(0, _scroll_accum_near)
+
+
+# Lateral parallax override: the star layer scrolls via its two Parallax2D
+# children's `scroll_offset`, not the CanvasLayer offset, so route the lateral
+# shift there. FAR/NEAR rates are tiny (0.005/0.02) — gained ×4 so the two
+# sub-layers visibly separate on strafe (near stars swing, far stars barely).
+# Inert by default: only called when the coordinator's lateral_strength > 0.
+func apply_lateral(px: float) -> void:
+	if _far_para != null:
+		_far_para.scroll_offset.x = px * FAR_RATE * 4.0
+	if _near_para != null:
+		_near_para.scroll_offset.x = px * NEAR_RATE * 4.0
 
 
 func _on_reset() -> void:
