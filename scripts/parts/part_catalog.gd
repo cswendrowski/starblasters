@@ -72,6 +72,41 @@ const PlayerSeekingMissileLarge = preload("res://scenes/projectiles/player_seeki
 const PlayerEmTorpedo = preload("res://scenes/projectiles/player_em_torpedo.tscn")
 const PlayerSwarmMissile = preload("res://scenes/projectiles/bullet_swarm.tscn")
 
+# Canonical factory → weapon .tres map. Single source of truth for "which weapons carry a
+# stat .tres" (mirrors the paths hardcoded in _make_by_name). The Weapon Lab saves stat edits
+# straight back to these files, and tools/validate_weapon_data.gd validates them — both read this
+# accessor instead of keeping their own copy (2026-07-09 weapon-lab overhaul; retires the
+# replicated MAP in the old apply_player_weapon_tunes integrator). Pure-script parts (modes,
+# modules, side pods) have no .tres and are intentionally absent.
+const WEAPON_TRES := {
+	"_make_basic_blaster": "res://resources/weapons/energy_blaster.tres",
+	"_make_heavy_blaster": "res://resources/weapons/heavy_blaster.tres",
+	"_make_twin_blaster": "res://resources/weapons/twin_blaster.tres",
+	"_make_autocannon": "res://resources/weapons/autocannon.tres",
+	"_make_minigun": "res://resources/weapons/minigun.tres",
+	"_make_rotary_laser": "res://resources/weapons/rotary_laser.tres",
+	"_make_quad_lasers": "res://resources/weapons/quad_lasers.tres",
+	"_make_wave_gun": "res://resources/weapons/wave_gun.tres",
+	"_make_laser_beam": "res://resources/weapons/laser_beam.tres",
+	"_make_rocket_pod": "res://resources/weapons/rocket_pod.tres",
+	"_make_seeking_missile": "res://resources/weapons/seeking_missile.tres",
+	"_make_anti_ship_missile": "res://resources/weapons/anti_ship_missile.tres",
+	"_make_em_torpedo": "res://resources/weapons/em_torpedo.tres",
+	"_make_spread_cannon": "res://resources/weapons/spread_cannon.tres",
+	"_make_shredder": "res://resources/weapons/shredder.tres",
+	"_make_pulse_laser": "res://resources/weapons/pulse_laser.tres",
+	"_make_smart_bomb": "res://resources/weapons/smart_bomb.tres",
+	"_make_particle_beam": "res://resources/weapons/particle_beam.tres",
+	"_make_drone_bits": "res://resources/weapons/drone_bits.tres",
+	"_make_drone_swarm": "res://resources/weapons/drone_swarm.tres",
+	"_make_swarm_launcher": "res://resources/weapons/swarm_launcher.tres",
+}
+
+
+static func weapon_tres_map() -> Dictionary:
+	return WEAPON_TRES
+
+
 # Pool entries: [factory_callable, slot_for_factory]
 # Slot is used for the WING_LEFT vs WING_RIGHT disambiguation only.
 static func _all_pool() -> Array:
@@ -163,8 +198,38 @@ static func _build_display_index() -> void:
 				_display_to_factory[dn] = String(entry["factory"])
 
 
+# Sector Conditions pool filter (one seam for ALL grant paths). True if the No-X family
+# (pool.block_slots) or Glass Patrol (pool.block_hull_modules) blocks this catalog entry.
+# Null-safe Run fetch from static context; strict no-op (always false) when no Condition is
+# active, so the codex index (which does NOT call this) still shows everything.
+static func _condition_blocked(entry) -> bool:
+	var ml := Engine.get_main_loop()
+	var run = ml.root.get_node_or_null("/root/Run") if ml is SceneTree else null
+	if run == null:
+		return false
+	# Slot blocks — No Primaries (CANNON) / No Secondaries (HARDPOINT_WING) / No Modules
+	# (MODULE + SHIFT_MODE). Map each blocked slot NAME back to the SlotType enum value.
+	var slot: int = int(entry["slot"])
+	for nm in run.cond_union("pool.block_slots"):
+		if int(Slots.SlotType.get(String(nm), -1)) == slot:
+			return true
+	# Glass Patrol — hull-quantity modules are meaningless, so pull them from the pool.
+	if run.cond_flag("pool.block_hull_modules"):
+		var f: String = String(entry["factory"])
+		if f == "_make_reinforced_hull" or f == "_make_ablative_plating":
+			return true
+	return false
+
+
 static func roll_random_part(rng: RandomNumberGenerator):
-	var pool = _all_pool()
+	# Sector Conditions — drop pool-blocked entries (No-X families + Glass Patrol hull pull).
+	# Identity to the old pool when no Condition is active (strict no-op).
+	var pool: Array = []
+	for e in _all_pool():
+		if not _condition_blocked(e):
+			pool.append(e)
+	if pool.is_empty():
+		return null
 	var entry = pool[rng.randi() % pool.size()]
 	var part = _make_by_name(entry["factory"], entry["slot"])
 	if part == null:
@@ -182,7 +247,7 @@ static func roll_random_part(rng: RandomNumberGenerator):
 static func roll_for_slot(rng: RandomNumberGenerator, slot: int, mark: int):
 	var candidates: Array = []
 	for entry in _all_pool():
-		if int(entry["slot"]) == slot:
+		if int(entry["slot"]) == slot and not _condition_blocked(entry):
 			candidates.append(entry)
 	if candidates.is_empty():
 		return null

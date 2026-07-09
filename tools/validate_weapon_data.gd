@@ -11,29 +11,8 @@ extends SceneTree
 const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const CANNON_SLOT := 4
 
-const MAP := {
-	"_make_basic_blaster": "res://resources/weapons/energy_blaster.tres",
-	"_make_heavy_blaster": "res://resources/weapons/heavy_blaster.tres",
-	"_make_twin_blaster": "res://resources/weapons/twin_blaster.tres",
-	"_make_autocannon": "res://resources/weapons/autocannon.tres",
-	"_make_minigun": "res://resources/weapons/minigun.tres",
-	"_make_rotary_laser": "res://resources/weapons/rotary_laser.tres",
-	"_make_quad_lasers": "res://resources/weapons/quad_lasers.tres",
-	"_make_wave_gun": "res://resources/weapons/wave_gun.tres",
-	"_make_laser_beam": "res://resources/weapons/laser_beam.tres",
-	"_make_rocket_pod": "res://resources/weapons/rocket_pod.tres",
-	"_make_seeking_missile": "res://resources/weapons/seeking_missile.tres",
-	"_make_anti_ship_missile": "res://resources/weapons/anti_ship_missile.tres",
-	"_make_em_torpedo": "res://resources/weapons/em_torpedo.tres",
-	"_make_spread_cannon": "res://resources/weapons/spread_cannon.tres",
-	"_make_shredder": "res://resources/weapons/shredder.tres",
-	"_make_pulse_laser": "res://resources/weapons/pulse_laser.tres",
-	"_make_smart_bomb": "res://resources/weapons/smart_bomb.tres",
-	"_make_particle_beam": "res://resources/weapons/particle_beam.tres",
-	"_make_drone_bits": "res://resources/weapons/drone_bits.tres",
-	"_make_drone_swarm": "res://resources/weapons/drone_swarm.tres",
-	"_make_swarm_launcher": "res://resources/weapons/swarm_launcher.tres",
-}
+# factory → .tres map is owned by PartCatalog.weapon_tres_map() (single source of truth); pulled
+# into a local in _init(). The old inline copy was retired in the 2026-07-09 weapon-lab overhaul.
 
 # Fields written by ResourceSaver that aren't weapon-specific stats (skip in the
 # stale-field check — they're always-valid base/runtime props).
@@ -63,6 +42,7 @@ func _tres_resource_keys(path: String) -> Array:
 
 func _init() -> void:
 	await process_frame
+	var MAP: Dictionary = PartCatalog.weapon_tres_map()
 	var fails: Array = []
 	var warns: Array = []
 	for key in MAP.keys():
