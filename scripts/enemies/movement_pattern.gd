@@ -38,6 +38,15 @@ func path_phase_capable() -> bool:
 	return false
 
 
+# Whether an enemy driven by this pattern should ENTER facing UP ("start backward") instead of the
+# default down-facing spawn orientation — a deliberate "drift in nose-up" entry (e.g. a bomber easing
+# in backward). This is an aspect of the PATTERN, not the hull: enemy_core reads it when it pre-sets
+# spawn facing and then suppresses the first-motion snap, leaving the pattern to own facing thereafter.
+# Default false. (Roman 2026-07-09 facing model.)
+func spawn_faces_up() -> bool:
+	return false
+
+
 # Ship-kinematics fidelity class (roadmap P1.5 / review §7 — 2026-07-02). Declares HOW HEAVILY
 # enemy_core filters this pattern's step through the ShipKinematics velocity filter:
 #   ShipKinematics.Fidelity.EXACT            — bypass (default; nothing changes without an opt-in).

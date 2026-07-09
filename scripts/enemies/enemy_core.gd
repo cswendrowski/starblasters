@@ -162,6 +162,11 @@ func _start_with_pattern(pos: Vector2) -> void:
 	# rest and doesn't inherit the previous pass's velocity.
 	_kin_fidelity = _pattern.fidelity() if _pattern.has_method("fidelity") else ShipKinematics.Fidelity.EXACT
 	_applied_vel = Vector2.ZERO
+	# Pre-orient the hull for entry (Roman 2026-07-09 facing model): face DOWN by default so a slow /
+	# telegraphing top-screen mover reads forward from frame 0 instead of holding the un-rotated nose
+	# up; omni faces the player; a spawn_faces_up() pattern enters backward. Runs AFTER on_start so
+	# _pattern (and _pattern_faces_up) is live.
+	_preset_spawn_facing()
 
 
 func _start_stationary(pos: Vector2) -> void:
@@ -169,6 +174,12 @@ func _start_stationary(pos: Vector2) -> void:
 	# fires"). Firing is handled by the realized hull mount; nothing to arm here.
 	# (Replaced the legacy MoveTimer/anchor-follow path 2026-06-23.)
 	position = pos
+	_preset_spawn_facing()   # a stationary auto-rotate hull still faces DOWN (toward the player) at spawn
+
+
+# enemy_core has a movement Resource → consult its spawn_faces_up() for the "start backward" facing.
+func _pattern_faces_up() -> bool:
+	return _pattern != null and _pattern.has_method("spawn_faces_up") and _pattern.spawn_faces_up()
 
 
 func _process(delta: float) -> void:

@@ -1178,6 +1178,48 @@ func _apply_auto_rotation(delta: float = 0.0) -> void:
 		rotation = rotate_toward(rotation, target_rot, max_step)
 
 
+# Pre-orient the hull at spawn (Roman 2026-07-09 facing model). Enemies are AUTHORED facing UP; the
+# DEFAULT spawn facing is DOWN (nose along +Y) so a unit entering from the top reads forward from
+# frame 0 — auto-rotate no longer has to "discover" the heading from motion, which a SLOW or
+# telegraphing mover never accumulates past the rotate threshold (it would otherwise hold the
+# un-rotated nose UP = flying in backwards, the bully bug). omni hulls point at the player instead
+# (they rotate in place to track it). A movement pattern may instead request spawn-facing-UP
+# ("start backward" — a bomber drifting in nose-up; an aspect of the PATTERN, not the hull): then the
+# first-motion snap is suppressed so the pattern owns facing. Ongoing turning always runs through the
+# turn-rate-limited auto-rotate above — this only sets the STARTING orientation. Called by enemy_core
+# from start() (after on_start, so _pattern is live). No-op when the hull drives its own facing
+# (auto_rotate off: turrets, beamers, aim-at-player guns).
+func _preset_spawn_facing() -> void:
+	if not auto_rotate:
+		return
+	if _pattern_faces_up():
+		rotation = 0.0                 # art already faces up = the "backward" drift-in orientation
+		_rot_init = true
+		_last_position = global_position
+		_rot_snap_pending = false      # pattern owns facing — don't let the first-motion snap spin it forward
+		return
+	if omni:
+		var pl := find_player()
+		if pl is Node2D:
+			rotation = ((pl as Node2D).global_position - global_position).angle() + PI * 0.5
+		else:
+			rotation = PI
+	else:
+		rotation = PI                  # nose down (+Y travel); art faces up, so +PI points it down
+	# Oriented now. Keep the snap ARMED so a FAST entry still locks cleanly onto its true heading
+	# (identical to before for a straight descent — that heading IS down; and a side-entry crosser
+	# still snaps sideways on its first real motion frame). The pre-set is only what a SLOW mover holds
+	# until it accelerates past the rotate threshold.
+	_rot_init = true
+	_last_position = global_position
+
+
+# Whether the enemy's movement pattern wants a spawn-facing-UP entry. Base has no pattern slot → false;
+# enemy_core overrides to consult its movement Resource's spawn_faces_up().
+func _pattern_faces_up() -> bool:
+	return false
+
+
 func _offscreen_cleanup_check() -> void:
 	if _dying:
 		return
