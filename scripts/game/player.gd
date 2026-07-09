@@ -421,10 +421,10 @@ var loadout
 # Code-only ring sprite (no .tscn edit). Sits as a child of Player so it
 # follows the ship; bullets still spawn at root.
 const SHIELD_SHADER = preload("res://graphics/hex_shield.gdshader")  # committed (Roman 2026-06-11)
+const ShieldRingFx = preload("res://scripts/effects/shield_ring_fx.gd")
 var _shield_ring: ColorRect = null
 var _shield_mat: ShaderMaterial = null
-var _shield_alpha_tween: Tween = null
-var _shield_hit_tween: Tween = null
+var _shield_fx = null   # ShieldRingFx: Sparse Plates base + fraction fill/flicker + hit-flash + collapse
 
 # Machinegun audio — loop while firing, end SFX on release.
 var _mg_loop_player: AudioStreamPlayer2D = null
@@ -874,19 +874,6 @@ func _setup_shield_ring() -> void:
 	# 16x16 ship).
 	_shield_mat = ShaderMaterial.new()
 	_shield_mat.shader = SHIELD_SHADER
-	_shield_mat.set_shader_parameter("alpha", 0.0)
-	_shield_mat.set_shader_parameter("hit_strength", 0.0)
-	# Look intaken from the Player FX Lab (Roman's saved tuning, 2026-06-17): sparser hex cells,
-	# bolder lines, tighter rim, static (no scroll), light-cyan. The ring is invisible until a hit
-	# (alpha 0); these define how the flash reads.
-	_shield_mat.set_shader_parameter("shield_color", Color.html("59d9ff"))
-	_shield_mat.set_shader_parameter("cells", 4.0)
-	_shield_mat.set_shader_parameter("scroll", Vector2(0.0, 0.0))
-	_shield_mat.set_shader_parameter("line_width", 0.25)
-	_shield_mat.set_shader_parameter("rim_power", 3.5)
-	_shield_mat.set_shader_parameter("fill_alpha", 0.05)
-	_shield_mat.set_shader_parameter("flicker", 1.0)
-	_shield_mat.set_shader_parameter("dome", 0.2)
 
 	_shield_ring = ColorRect.new()
 	_shield_ring.name = "ShieldRing"
@@ -897,6 +884,10 @@ func _setup_shield_ring() -> void:
 	_shield_ring.material = _shield_mat
 	_shield_ring.z_index = 1
 	add_child(_shield_ring)
+
+	# Shared shield driver (Sparse Plates base look + charge-fraction fill/flicker + hit-flash +
+	# collapse). The ring starts invisible (alpha 0 / scale 0); start()'s initial sync raises it.
+	_shield_fx = ShieldRingFx.new(_shield_mat, _shield_ring, ShieldRingFx.PLAYER_COLOR)
 
 func start() -> void:
 	show()
@@ -1719,7 +1710,7 @@ func take_damage(amount: int) -> void:
 				_reflect_bullet()
 		_invuln_t = SHIELD_HIT_INVULN_SECONDS
 		damaged.emit(0)
-		_pulse_shield_ring()
+		_flash_shield_ring()
 		if has_node("Ship"):
 			HitFlashFx.flash($Ship, HitFlashFx.FLASH_SHIELD)
 		return
@@ -1777,6 +1768,8 @@ func set_shield(value: int) -> void:
 	var prev := shield
 	shield = clampi(value, 0, max_shield)
 	shield_changed.emit(max_shield, shield)
+	# Shield-ring look tracks the charge fraction (fill_alpha up / flicker down as it fills).
+	_apply_shield_state()
 	# Roman, 2026-05-18: shield-hit / shield-break SFX. Only on DRAINS
 	# (regen ticks back up silently). Break plays when the last charge
 	# is consumed; otherwise it's a normal hit.
@@ -2840,18 +2833,14 @@ func _spawn_burst_rocket() -> void:
 func _tick_deploy(delta: float) -> void:
 	if not is_alive:
 		return
-	if _drones_active:
-		_deploy_timer -= delta
-		# Prune freed drones from the tracking list (early MAX_HITS deaths).
-		for i in range(_deployed_drones.size() - 1, -1, -1):
-			if not is_instance_valid(_deployed_drones[i]):
-				_deployed_drones.remove_at(i)
-		if _deploy_timer <= 0.0:
-			_end_deploy()
-		else:
-			secondary_timer_changed.emit(_deploy_timer, true)
-		return
-	# Idle — wait for a deploy press. Ammo-gated (0 = empty).
+	# Prune freed drones from the tracking list (each drone self-expires + blue-disintegrates on its own
+	# 30s timer now — the wave is no longer player-timed).
+	for i in range(_deployed_drones.size() - 1, -1, -1):
+		if not is_instance_valid(_deployed_drones[i]):
+			_deployed_drones.remove_at(i)
+	# Combat Drones REBUILD (Roman 2026-07-08): DRONE-owned lifetime, so there's no wave gate or deploy
+	# timer — every shoot2 press spends 1 ammo and spawns another wave while ammo remains; waves overlap.
+	# The HUD stays on the ammo count (no secondary_timer emitted).
 	if not Input.is_action_just_pressed("shoot2"):
 		return
 	if secondary_ammo == 0:
@@ -2862,15 +2851,8 @@ func _tick_deploy(delta: float) -> void:
 	var spawned: Array = part.deploy(self)
 	if spawned.is_empty():
 		return
-	_deployed_drones = spawned
-	_drones_active = true
-	# Duration: prefer the live Part value (Mk-scaled) over the cached field.
-	var dur: float = secondary_deploy_duration
-	if part.has_method("deploy_duration"):
-		dur = float(part.deploy_duration())
-	_deploy_timer = dur
-	secondary_timer_changed.emit(_deploy_timer, true)
-	# Consume one deploy.
+	_deployed_drones.append_array(spawned)
+	# Consume one ammo.
 	if secondary_ammo > 0 and not _hyper_on():
 		secondary_ammo -= 1
 		secondary_ammo_changed.emit(secondary_ammo, secondary_ammo_max)
@@ -3484,6 +3466,7 @@ func _on_shield_regen_timer_timeout() -> void:
 	# Regen tick: +1 charge per interval (shield_regen_interval; default 1s).
 	if shield < max_shield:
 		set_shield(shield + 1)
+		_pulse_shield_ring()   # per-charge regen pulse (reuses the hit ripple)
 		# Energy Routers: re-evaluate the interval each tick so the regen RATE tracks
 		# the trigger — speeds up while idle, slows the moment you open fire.
 		var iv: float = _effective_regen_interval()
@@ -3540,33 +3523,27 @@ func _self_repair_amount() -> int:
 	return 0
 
 
-# ---- Shield ring helpers ----
+# ---- Shield ring helpers (thin wrappers over the shared ShieldRingFx driver) ----
+# Collapse (fade opacity + shrink size to 0) or come online (reverse). `target` is the old
+# alpha convention: > 0 = online, 0 = offline.
 func _set_shield_ring_alpha(target: float, duration: float) -> void:
-	if _shield_mat == null:
-		return
-	if _shield_alpha_tween and _shield_alpha_tween.is_valid():
-		_shield_alpha_tween.kill()
-	if duration <= 0.0:
-		_shield_mat.set_shader_parameter("alpha", target)
-		return
-	_shield_alpha_tween = create_tween()
-	var current: float = float(_shield_mat.get_shader_parameter("alpha"))
-	_shield_alpha_tween.tween_method(
-		func(v): _shield_mat.set_shader_parameter("alpha", v),
-		current, target, duration
-	)
+	if _shield_fx != null:
+		_shield_fx.set_online(target > 0.0, duration)
 
+# The hit_strength ripple pulse — reused for shield regen (per recovered charge) + bullet-steal.
 func _pulse_shield_ring() -> void:
-	if _shield_mat == null:
-		return
-	if _shield_hit_tween and _shield_hit_tween.is_valid():
-		_shield_hit_tween.kill()
-	_shield_mat.set_shader_parameter("hit_strength", 1.0)
-	_shield_hit_tween = create_tween()
-	_shield_hit_tween.tween_method(
-		func(v): _shield_mat.set_shader_parameter("hit_strength", v),
-		1.0, 0.0, 0.35
-	).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+	if _shield_fx != null:
+		_shield_fx.pulse()
+
+# fill_alpha + flicker track the current shield fraction (full → bold/steady, empty → faint/flickering).
+func _apply_shield_state() -> void:
+	if _shield_fx != null:
+		_shield_fx.apply_state(float(shield) / float(maxi(1, max_shield)))
+
+# Shield-absorbed hit: bright white flash held through the i-frame, then resettle to base + state.
+func _flash_shield_ring() -> void:
+	if _shield_fx != null:
+		_shield_fx.hit_flash(float(shield) / float(maxi(1, max_shield)), SHIELD_HIT_INVULN_SECONDS)
 
 
 # Brief on-screen toast announcing the new autofire state. Mounts a

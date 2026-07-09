@@ -1,27 +1,15 @@
 extends "res://scripts/parts/secondary_weapon.gd"
 
-# Combat Drones — SECONDARY weapon (HARDPOINT_WING). Tap the secondary fire
-# action (shoot2) → DEPLOYS a burst of companion drones (2-6, by Mk) for a
-# timed duration. The drones tether to the ship and autonomously fire at
-# bosses-first, otherwise the nearest enemy.
+# Combat Drones — SECONDARY weapon (HARDPOINT_WING). Roman 2026-07-08 REBUILD (scrapped the old
+# timed orbit/intercept swarm). Tap the secondary fire action (shoot2) → spends 1 AMMO and spawns a
+# wave of companion drones that flank the ship and blast the nearest threat. Each drone owns its own
+# 30s lifetime (movement/firing/blue-disintegrate all live in autonomous_drone.gd), so waves overlap —
+# the player just spawns the wave + decrements ammo (no wave gate / deploy timer). See player._tick_deploy.
 #
-# Roman 2026-05-30 rework: converted from a SUPER (DEVICE_BAY_1) to a
-# SECONDARY. The deploy is a timed deployable secondary (SecondaryMode.DEPLOY,
-# mirroring the Rocket Pod's BURST mode). The Part only sets knobs + spawns
-# the wave on deploy(); the player owns the duration countdown, the active
-# gate (no re-deploy while live), the deploy-ammo decrement, and the HUD
-# timer. See player._tick_deploy.
-#
-# "Ammo" = number of deploys available, scaled by base_charges/charges_per_mark
-# (kept from the old super-charge plumbing). Each press consumes one deploy.
-#
-# Mk scales drone COUNT + DURATION (alternating +1s then +1 drone):
-#   Mk1: 2 drones / 8.0s   Mk2: 2 / 9.0   Mk3: 3 / 9.0    Mk4: 3 / 10.0
-#   Mk5: 4 / 10.0          Mk6: 4 / 11.0  Mk7: 5 / 11.0   Mk8: 5 / 12.0
-#   Mk9: 6 / 12.0
-# Drones spread out around the player on spawn and avoid each other
-# (boids separation lives in autonomous_drone.gd). When the duration
-# expires the drones darken + fall away (shutdown anim, also in the drone).
+# Mk scaling (see the three helpers below):
+#   drone COUNT per fire = 1 + floor((mark-1)/2)  → +1 on each ODD mark → 1,1,2,2,3,3,4,4,5 (5 at Mk9)
+#   AMMO (fires available)= 1 + floor(mark/3)      → +1 every 3 marks   → 1,1,1,2,2,2,3,3,4 (4 at Mk9)
+#   BLASTER mark          = 1 + floor(mark/2)       → +1 on each EVEN mark→ 1,2,2,3,3,4,4,5,5 (drone dmg 2/mark)
 #
 # NOTE: internal class/file/.tres names are kept as "drone_swarm" — they
 # are loadout serialization keys, not player-facing text.
@@ -41,26 +29,33 @@ const SPAWN_RADIUS: float = 16.0
 @export var charges_per_mark: int = 1
 
 
-# Mk -> drone count. 2 + floor((mark-1)/2): 2,2,3,3,4,4,5,5,6 for Mk1-9.
+# Mk -> drone count per fire (Roman 2026-07-08 rebuild). 1 + floor((mark-1)/2), i.e. +1 on each ODD mark:
+# 1,1,2,2,3,3,4,4,5 for Mk1-9 (5 drones at Mk9).
 func _drones_at_mark(at_mark: int) -> int:
-	return 2 + (at_mark - 1) / 2
+	return 1 + (at_mark - 1) / 2
 
 
-# Mk -> duration seconds. 8 + floor(mark/2): 8,9,9,10,10,11,11,12,12 for Mk1-9.
-# Roman 2026-05-30: base timer raised 5s -> 8s.
-func _duration_at_mark(at_mark: int) -> float:
-	return 8.0 + float(at_mark / 2)
+# Fixed 30s drone lifetime (mark-independent now; the drone owns its own countdown).
+func _duration_at_mark(_at_mark: int) -> float:
+	return 30.0
 
 
-# Number of deploys available at a given Mk (the secondary "ammo" count).
+# Ammo = number of times the weapon can fire (Roman 2026-07-08). 1 + floor(mark/3), i.e. +1 every 3 marks:
+# 1,1,1,2,2,2,3,3,4 for Mk1-9 (4 ammo at Mk9). Overrides the linear base_charges plumbing.
 func _charges_at_mark(at_mark: int) -> int:
-	return base_charges + (at_mark - 1) * charges_per_mark
+	return 1 + at_mark / 3
+
+
+# Effective BLASTER mark the drones fire at. Base Mk1 blaster; each EVEN mark bumps it +1:
+# 1 + floor(mark/2) → 1,2,2,3,3,4,4,5,5 for Mk1-9. Scales the drone bullet's damage (blaster is 2/mark).
+func _blaster_mark_at(at_mark: int) -> int:
+	return 1 + at_mark / 2
 
 
 func _init() -> void:
 	super._init()
 	display_name = "Combat Drones"
-	description = "Deploys a timed burst of companion drones that fire alongside your primary. Mk adds drones and duration. Secondary."
+	description = "Fires a wave of companion drones that flank your ship and blast the nearest threat for 30s. Mk adds drones, blaster power, and ammo. Secondary."
 
 
 # Deploy pipeline mode — player._tick_deploy owns the lifecycle.
@@ -135,25 +130,20 @@ func deploy(ship) -> Array:
 	if tree == null:
 		return spawned
 	var n: int = _drones_at_mark(int(mark))
+	var blaster_mk: int = _blaster_mark_at(int(mark))
+	# Drones spawn UNDER the player one at a time, 0.15s apart (drone owns the stagger via spawn_delay),
+	# then slide to their flank slot (slot i alternates R/L, stacking outward). blaster_mk scales their shot.
 	for i in n:
 		var drone = DroneScene.instantiate()
-		# Spread drones evenly around the player on spawn so they don't
-		# stack into a single pixel; boids separation keeps them apart after.
-		var angle_seed: float = TAU * float(i) / float(max(1, n))
-		# Emit from the player CENTER (Roman: drones should spawn at the ship,
-		# not on a wing-halfspan ring); angle_seed still seeds the boids fan-out
-		# so they spread apart immediately after.
-		drone.position = ship.global_position
-		# Honor the ship's bullet_parent (the Hangar's SubViewport world) so drones
-		# render + collide in the same space as the player; else tree.root per
-		# convention (live game leaves bullet_parent null).
+		drone.position = ship.global_position + Vector2(0, 8.0)
+		# Honor the ship's bullet_parent (the Hangar's SubViewport world) so drones render in the same
+		# space as the player; else tree.root per convention (live game leaves bullet_parent null).
 		var drone_parent: Node = tree.root
 		if "bullet_parent" in ship and ship.bullet_parent != null:
 			drone_parent = ship.bullet_parent
 		drone_parent.call_deferred("add_child", drone)
-		drone.call_deferred("bind_player", ship, angle_seed)
+		drone.call_deferred("bind", ship, i, 0.15 * float(i), blaster_mk)
 		spawned.append(drone)
-	# Drones just appear — no explosion/flash VFX (Roman 2026-05-29).
 	return spawned
 
 
