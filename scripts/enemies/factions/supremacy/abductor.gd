@@ -44,7 +44,10 @@ func _ready() -> void:
 	# raw bench/dev spawns. No silent <=1 backfill here (the banned default pattern — boss 1-HP bug).
 	if bounty_value <= 0:
 		bounty_value = 15
-	auto_rotate = false   # a fixed facing keeps the beam + sprite steady while it leashes
+	# auto_rotate stays ON (default) so the omni hull turns to face the player — muzzle (front) toward the
+	# grab target, engines trailing (Roman 2026-07-08 facing fix; was false, which froze the facing and
+	# left it pointing away while moving). The gravity beam is redrawn every frame in local space, so a
+	# rotating hull is fine — it just keeps the beam attached to the muzzle marker.
 	super._ready()
 	_muzzle = get_node_or_null("MuzzleGravity")
 
