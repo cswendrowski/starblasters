@@ -1,14 +1,60 @@
 # Sector Conditions — redesign (rename of "Sector Modifiers")
 
-**Status: SCOPED / NOT BUILT.** This is the re-eval the parked sector-modifier subsystem was
-flagged for (Roman 2026-06-10). The old code is intact behind a kill-switch; this doc says what
-to keep, what to fix, and how to bring it back as a *chosen, rewarded* system rather than hidden
-difficulty. No code has been written against this yet.
+**Status: BUILT (v1, 2026-07-09) — unplaytested.** The pipe, all effect sites, and the Wildcard
+front-end shipped; see **Build status** below. This doc remains the design reference; the code is
+the source of truth for exact numbers.
 
 Rev 3 (2026-07-06): Roman resolved the two damage-rule conflicts (Glass Patrol + Heavy Ordnance are
 now defined) and added a large player-weapon / loadout-restriction / bounty-grant batch. Vocabulary
 reorganized into functional buckets with a signed **Threat** column (§4), reward model is one signed
 Threat budget (§5). Supersedes the modifier notes in the archived `economy_2026-05-24.md` §1.3.
+
+## Build status (v1 shipped 2026-07-09)
+
+- **Core** — `scripts/systems/conditions.gd` (`class_name Conditions`): 45-entry declarative
+  CATALOG (label/blurb/threat/mutex-group/mods), generic aggregators (scalar=product, sum, flag,
+  union), `net_threat`/`bounty_mult`/`materials_mult` (K_BOUNTY 0.08 / K_MATERIALS 0.06,
+  tuner-bound), deterministic mutex-respecting `roll(count, seed)`, `validate()`. Run integration:
+  `Run.active_conditions` (+ save whitelist + run_save mirror), `cond_*` delegates, and
+  **`Run.apply_conditions(ids)`** — the ONE front-end entry (sets list → re-seeds loadout snapshot
+  so start.no_* gates fire → awards `grant.start_bounty`). Effects read ONLY via aggregators — no
+  per-id match statements anywhere.
+- **Combat sites** — director `_apply_conditions` (replaces the legacy `_apply_sector_modifiers`;
+  `armed` arm deleted) with one `_is_heavy_enemy` predicate (reuses ANCHOR_MIN_HEIGHT);
+  `_resolve_shields` Condition read (heavy-scoped); `Clarity.step_rung` ladder-walker (creep-aware);
+  `ProjectileMods` (NEW — centralizes the 3× copy-pasted bullet scaling + the twice-defined
+  damage cap; launcher path gets Condition speed only); player `take_damage`: Heavy Ordnance mult
+  (sanctioned flat-damage break) + Glass Patrol instant death (pip branch; the super death-bomb
+  save IS respected — Roman 2026-07-09).
+- **Player kit** — `_wpn_dmg()` choke point wrapping **10** damage-write sites (incl. Echo ghost,
+  Reflect bounce, burst rockets, Particle Beam DPS; ram excluded); fire-rate into `_fire_bonus` +
+  blaster + secondary (+ burst cadence via follow-up); mode duration; hull bonus; shield charges
+  ×mult + regen delay/interval (floored 1.0s/0.25s); ammo caps scaled once per flow (Run seeds +
+  part-apply caps); No-X filters INSIDE `part_catalog.roll_for_slot/roll_random_part` (covers
+  outpost + all signal-event grants; codex unfiltered); starting-kit gates in both
+  `default_starting_loadout` and `_seed_default_loadout_snapshot`.
+- **Economy** — `Run.award_bounty`/`award_combat_materials` choke points (record_kill routes
+  through; miner payout + hazard +25 no longer bypass); grants in `_on_level_cleared` (Hazard Pay
+  non-boss, Salvage Rights level/boss split; grant-then-mult stacking documented);
+  `mine_bonus_bounty` field + per-mine reads (5 mines) + asteroid `grant.asteroid_bounty`; outpost:
+  price mult at roll time, stock delta, mk_bias in `_roll_weighted_mark` (dead `MK_HIGH_OFFSET`
+  deleted), shared `_upgrade_costs()` (display/spend dup killed), repair cost/mats
+  (repair pairs recast: complex=+1 mat, cheap=2 mats no bounty, easy=baseline placeholder),
+  restock mult (flat + per-round variants).
+- **Front-end (Wildcard)** — patrol stepper (relabeled "Conditions", 0–5) → `Conditions.roll(n,
+  run_seed ^ 0x51EC7C0D)` (decorrelated; sector-gen RNG untouched) → `apply_conditions`. Outpost
+  readout shows active labels + `Threat N · +X% bounty · +Y% materials`. A `conditions_summary`
+  Run meta is stashed as the reveal hook.
+- **Tests** — `tools/test_conditions{,_economy,_player,_wildcard}.gd`, all PASS headless;
+  parse_check 377/0.
+- **NOT built (deferred)** — the four design-heavy enemy banes (Debris Fields, Elite Patrol,
+  Reinforced, Bounty Hunters — not in the catalog yet), pacts, the reveal UI beat + projected-payout
+  panel at setup, Curated picker, Threat Level selector, per-node Hotspots, the Threat/K tuner,
+  legacy `sector_modifiers` retirement (roll machinery still parked behind the kill-switch).
+- **Playtest flags** — Glass Patrol respects the death-bomb save (a charged super rescues the
+  lethal hull hit; Roman 2026-07-09); Hazard Pay/Starting Funds stack under bounty_mult
+  (grant-then-mult); Faster Weapons covers all four cadence paths incl. burst rockets; beams no-op
+  for Fast/Slow Bullets.
 
 ---
 

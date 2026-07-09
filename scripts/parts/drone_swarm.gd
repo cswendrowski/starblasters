@@ -88,11 +88,21 @@ func _apply_visuals(ship) -> void:
 	if ship.has_method("set_secondary_ammo"):
 		var deploys: int = _charges_at_mark(int(mark))
 		var seeded: int = deploys
+		# Sector Conditions — More Ammo scales the deploy-count CAP. Run-side
+		# _seed_secondary_ammo can't seed drones (no base_ammo field), so this
+		# ship apply is the SINGLE cap seam for the deploy count. The live
+		# run.secondary_ammo (once positive) is the consumed remainder — used
+		# as-is, never rescaled.
+		var cap: int = deploys
 		if ship.has_node("/root/Run"):
 			var run = ship.get_node("/root/Run")
+			if deploys > 0:
+				cap = maxi(1, roundi(deploys * run.cond_scalar("player.ammo_max_mult")))
 			if "secondary_ammo" in run and int(run.secondary_ammo) >= 0:
 				seeded = int(run.secondary_ammo)
-		ship.set_secondary_ammo(seeded, deploys)
+			else:
+				seeded = cap
+		ship.set_secondary_ammo(seeded, cap)
 	# Tell the player how long a deploy lasts so its countdown matches Mk.
 	if "secondary_deploy_duration" in ship:
 		ship.secondary_deploy_duration = _duration_at_mark(int(mark))

@@ -394,15 +394,18 @@ func _on_enemy_died(value: int, scene_path: String) -> void:
 		if run.has_meta("bounty_type_bonus_path") and scene_path != "":
 			if scene_path == String(run.get_meta("bounty_type_bonus_path")):
 				value = int(ceil(float(value) * float(run.get_meta("bounty_type_bonus_mult", 1.0))))
-	bounty += value
 	if has_node("/root/Run"):
 		var _r = get_node("/root/Run")
-		_r.record_kill(value)
+		# record_kill applies the Condition bounty multiplier and returns the awarded
+		# amount — mirror EXACTLY that into the local HUD bounty so the two never drift.
+		bounty += _r.record_kill(value)
 		# Run-summary Phase 2: count cleared mines (by scene basename). Precise match
 		# so the privateer "enemy_minelayer" SHIP isn't counted as a mine.
 		var _fn: String = scene_path.get_file()
 		if (_fn.begins_with("enemy_mine") and not _fn.begins_with("enemy_minelayer")) or _fn.begins_with("tether_mine"):
 			_r.stat_add("mines_cleared", 1)
+	else:
+		bounty += value  # no Run autoload (dev/headless) — keep the local mirror moving
 	# Phase Shift mode refills its charges on player-caused kills — this hook fires
 	# only on real deaths (same path as bounty), so off-screen departs don't count.
 	if is_instance_valid(player) and player.has_method("on_enemy_killed"):
@@ -456,6 +459,27 @@ func _on_level_cleared() -> void:
 		# and unlock the row boss when all POIs are done.
 		if String(run.current_node_id) != "":
 			run.mark_node_completed(String(run.current_node_id))
+		# ── Sector Conditions grants (design §4f) ──────────────────────────────
+		var is_boss_node: bool = run.current_node_type == SectorNode.NodeType.BOSS
+		# Hazard Pay: flat +bounty on clearing any non-boss combat/hazard POI.
+		# award_bounty ALSO folds the Condition bounty_mult over the flat grant —
+		# accepted stacking (grant, THEN mult): the flat grant is Hazard Pay's own
+		# effect, the mult is the separate net-Threat payout bonus (§5), two levers.
+		if not is_boss_node:
+			var node_pay := int(run.cond_sum("grant.node_clear_bounty"))
+			if node_pay > 0:
+				bounty += run.award_bounty(node_pay)
+				$CanvasLayer/UI.update_score(bounty)
+		# Salvage Rights: materials floor on clear — level grant on non-boss
+		# clears, the larger boss grant on boss clears (award applies mat_mult).
+		if is_boss_node:
+			var boss_mat := int(run.cond_sum("grant.boss_clear_materials"))
+			if boss_mat > 0:
+				run.award_combat_materials(boss_mat)
+		else:
+			var mat_grant := int(run.cond_sum("grant.level_clear_materials"))
+			if mat_grant > 0:
+				run.award_combat_materials(mat_grant)
 		# NOTE: Run.sector_complete() (per-level sectors_cleared bump) is
 		# V2-era. Sector advance now happens once all 3 row bosses are
 		# defeated — driven by sector_map_v3._advance_if_complete().
@@ -465,8 +489,9 @@ func _on_level_cleared() -> void:
 		if run.has_meta("asteroid_miners_event"):
 			var miner_payout: int = _asteroids_killed_this_level * 5
 			if miner_payout > 0:
-				bounty += miner_payout
-				run.bounty += miner_payout
+				# Route through award_bounty (Condition mult + stat tally) and mirror the
+				# awarded amount into the local HUD bounty so the two stay in lockstep.
+				bounty += run.award_bounty(miner_payout)
 				$CanvasLayer/UI.update_score(bounty)
 			run.set_meta(
 				"post_combat_banner",
@@ -476,8 +501,7 @@ func _on_level_cleared() -> void:
 		# Hazard-clear bounty (Roman 2026-06-08): hazard fields (asteroid/minefield)
 		# otherwise pay 0 per-kill bounty — a flat +25 on clear so they're worth running.
 		if run.current_node_type == SectorNode.NodeType.HAZARD:
-			bounty += 25
-			run.bounty += 25
+			bounty += run.award_bounty(25)
 			$CanvasLayer/UI.update_score(bounty)
 			# The "field cleared" note now rides the hazard CLEAR SCREEN (Roman 2026-06-27)
 			# instead of a sector-map banner — the cleared summary reads hazard_clear_note. The

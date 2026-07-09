@@ -5,7 +5,7 @@ const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
 const BulletCatalog = preload("res://scripts/projectiles/bullet_catalog.gd")
 const Clarity = preload("res://scripts/systems/clarity.gd")
-const ENEMY_BULLET_DAMAGE_CAP := 4   # mirrors shoot_pattern.gd — cap faction/sector damage scaling
+const ProjectileMods = preload("res://scripts/enemies/projectile_mods.gd")
 
 # Reusable aiming + firing component. Add as a child of any enemy node.
 # Handles player tracking, arc clamping, post-shot rotation lock, and
@@ -248,11 +248,9 @@ func _spawn_shot(dir: Vector2, spawn_pos: Vector2, world: Node, owner: Node) -> 
 			b.velocity = dir * bullet_speed
 	# Faction/sector weapon scaling + velocity inheritance (Doppler) — the same steps gun/hull bullets get
 	# in shoot_pattern._spawn_bullet, so a turret's shots aren't the odd one out (Roman 2026-07-02).
+	ProjectileMods.apply_weapon_scalars(b, owner)
+	ProjectileMods.apply_condition_speed(b)
 	if owner != null:
-		if "speed" in b and "bullet_speed_mult" in owner and float(owner.bullet_speed_mult) != 1.0:
-			b.speed = minf(b.speed * float(owner.bullet_speed_mult), Clarity.ABS_MAX_SPEED)
-		if "damage" in b and "bullet_damage_mult" in owner and float(owner.bullet_damage_mult) != 1.0:
-			b.damage = clampi(int(round(float(b.damage) * float(owner.bullet_damage_mult))), 1, ENEMY_BULLET_DAMAGE_CAP)
 		if "speed" in b and "_last_move_vel" in owner:
 			var fwd: float = maxf(0.0, owner._last_move_vel.dot(dir))
 			if fwd > 0.0:

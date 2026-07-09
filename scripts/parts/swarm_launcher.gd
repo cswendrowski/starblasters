@@ -52,11 +52,16 @@ func _apply_visuals(ship) -> void:
 	# Seed ammo (6); survives scene changes via the Run snapshot like other secondaries.
 	if ship.has_method("set_secondary_ammo"):
 		var seeded: int = base_ammo
+		# Sector Conditions — More Ammo scales the salvo-ammo CAP once, matching the
+		# run-side scaled secondary_ammo seed (avoids a current>max transient).
+		var cap: int = base_ammo
 		if ship.has_node("/root/Run"):
 			var run = ship.get_node("/root/Run")
+			if base_ammo > 0:
+				cap = maxi(1, roundi(base_ammo * run.cond_scalar("player.ammo_max_mult")))
 			if "secondary_ammo" in run and int(run.secondary_ammo) >= 0:
 				seeded = int(run.secondary_ammo)
-		ship.set_secondary_ammo(seeded, base_ammo)
+		ship.set_secondary_ammo(seeded, cap)
 
 
 func _on_unapply(ship) -> void:

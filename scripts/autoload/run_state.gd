@@ -63,6 +63,12 @@ var current_node_type: int = -1  # SectorNode.NodeType; -1 if none
 # "armored", "heavily_armored", "aggressive", "wanted", "fleeing", "dangerous",
 # "cruiser_support".
 var sector_modifiers: Array = []
+# Active Sector CONDITIONS for the current patrol (new system — Conditions catalog
+# in scripts/systems/conditions.gd). Distinct from the legacy `sector_modifiers`
+# above (per-POI kill-switched rolls): conditions are patrol-scoped, chosen/rolled
+# up front, and aggregated declaratively via the Conditions helpers. Array of
+# Condition id Strings. Reset in new_run(); persisted via _SAVE_FIELDS.
+var active_conditions: Array = []
 # When current_node_type is HAZARD, this picks which hazard played out:
 #   "minefield" or "asteroid_field". Set by sector_map._on_node_pressed.
 var current_hazard_subtype: String = ""
@@ -74,6 +80,10 @@ var test_mode_active: bool = false
 # Freespace Miner signal event so the player gets paid for cracking them.
 # Cleared by main.gd after consumption.
 var asteroid_bonus_bounty: int = 0
+# Bonus bounty per mine cleared on minefield runs. Mirrors asteroid_bonus_bounty
+# (event seam, additive) — the Ordnance Disposal Condition stacks its own grant
+# on top (grant.mine_bounty) at the mine death sites. Reset in new_run().
+var mine_bonus_bounty: int = 0
 # Optional special intro for the next combat level. "fly_up_from_below" is
 # the Ambush intro (fighters parallax-up before attacking). Empty = default.
 # Cleared by main.gd after consumption.
@@ -323,6 +333,61 @@ func has_modifier(id: String) -> bool:
 	return sector_modifiers.has(id)
 
 
+# ── Sector CONDITION query helpers (new system) ─────────────────────────────
+# Thin delegates so gameplay sites route their Condition queries through Run
+# with `active_conditions` — the aggregation logic lives in Conditions (SSOT).
+func has_condition(id: String) -> bool:
+	return Conditions.has(active_conditions, id)
+
+func cond_scalar(key: String, default: float = 1.0) -> float:
+	return Conditions.scalar(active_conditions, key, default)
+
+func cond_sum(key: String) -> float:
+	return Conditions.sum(active_conditions, key)
+
+func cond_flag(key: String) -> bool:
+	return Conditions.flag(active_conditions, key)
+
+func cond_union(key: String) -> Array:
+	return Conditions.union(active_conditions, key)
+
+func condition_bounty_mult() -> float:
+	return Conditions.bounty_mult(active_conditions)
+
+func condition_materials_mult() -> float:
+	return Conditions.materials_mult(active_conditions)
+
+func condition_net_threat() -> int:
+	return Conditions.net_threat(active_conditions)
+
+
+# ── Single pipe entry: install a set of active Conditions on the run ─────────
+# Every front-end (Wildcard now; Curated / Threat-Level later) funnels its
+# chosen ids through here so the install order + one-time grants live in ONE
+# place. Call AFTER new_run() and after any run-settings writes (new_run resets
+# active_conditions to [] and re-seeds the loadout snapshot with EMPTY
+# conditions, so the start-gate flags below only take effect once we install
+# here and re-seed).
+#
+# NOT idempotent: it awards start_bounty, so calling it twice would double-grant
+# the flat bounty. Front-ends must call it EXACTLY ONCE per run.
+func apply_conditions(ids: Array) -> void:
+	active_conditions = ids.duplicate()
+	# Re-seed the loadout snapshot so start.no_super / start.no_mode gates in
+	# _seed_default_loadout_snapshot fire against the just-installed conditions.
+	# The seed only ADDS slots (never removes), so clear the snapshot first —
+	# otherwise a stale super/mode entry from the new_run seed would survive.
+	loadout_snapshot = {}
+	_seed_default_loadout_snapshot()
+	# Starting Funds grant: award through award_bounty so the net-Threat bounty
+	# multiplier folds over the flat grant (same accepted grant-then-mult
+	# stacking as Hazard Pay — the grant carries −Threat, so with an all-boon
+	# list the mult floors at 1.0 and the grant lands flat).
+	var start_bounty := int(cond_sum("grant.start_bounty"))
+	if start_bounty > 0:
+		award_bounty(start_bounty)
+
+
 # Multiplier applied to ANY rare cruiser-encounter roll while the
 # "cruiser_support" sector modifier is active. Returns 1.0 (no-op) otherwise.
 # Reusable seam: future cruiser-flavored encounters (escort packs, cruiser
@@ -331,9 +396,12 @@ func has_modifier(id: String) -> bool:
 const CRUISER_SUPPORT_CHANCE_MULT: float = 2.75
 
 func cruiser_encounter_chance_mult() -> float:
+	# New Conditions system (Heavy Escort) reads through the generic aggregator;
+	# the legacy per-POI modifier stays as a floor (always-false while kill-switched).
+	var m := cond_scalar("cruiser.encounter_mult", 1.0)
 	if has_modifier("cruiser_support"):
-		return CRUISER_SUPPORT_CHANCE_MULT
-	return 1.0
+		m = maxf(m, CRUISER_SUPPORT_CHANCE_MULT)
+	return m
 
 
 func new_run() -> void:
@@ -388,9 +456,11 @@ func new_run() -> void:
 	current_hazard_subtype = ""
 	current_stellar = {}
 	asteroid_bonus_bounty = 0
+	mine_bonus_bounty = 0
 	combat_intro = ""
 	forced_boss_scene = ""
 	sector_modifiers = []
+	active_conditions = []
 	loadout_snapshot = {}
 	inventory = []
 	current_hull = 3
@@ -479,12 +549,34 @@ func on_boss_defeated() -> void:
 	outpost_needs_refresh = true
 
 
-func record_kill(value: int) -> void:
+func record_kill(value: int) -> int:
 	enemies_killed += 1
-	bounty += value
+	return award_bounty(value)
+
+
+# Bounty award choke-point: applies the Condition bounty multiplier, adds to
+# bounty, tallies the bounty-gained run stat, returns the AWARDED amount (what
+# actually landed). All combat bounty grants (kills, hazard clears, node/grant
+# payouts) route through here so the Condition multiplier is applied exactly
+# once and callers can mirror Run's number (e.g. main.gd's local HUD bounty).
+# Outpost/shop refunds are not "awards" — they don't come through here.
+func award_bounty(amount: int) -> int:
+	var awarded := maxi(0, roundi(amount * condition_bounty_mult()))
+	bounty += awarded
 	if bounty > max_bounty_earned:
 		max_bounty_earned = bounty
-	stat_add("bounty_gained", value)
+	stat_add("bounty_gained", awarded)
+	return awarded
+
+
+# Materials award choke-point for COMBAT drops/grants only: applies the
+# Condition materials multiplier, routes through add_materials (which tallies
+# materials_gained), returns the AWARDED amount. Outpost scrap keeps calling
+# raw add_materials — the multiplier is for combat drops/grants (design §5).
+func award_combat_materials(amount: int) -> int:
+	var awarded := maxi(0, roundi(amount * condition_materials_mult()))
+	add_materials(awarded)
+	return awarded
 
 
 # Run-summary stat accumulator (Phase 1). Additive into run_stats; missing keys seed 0.
@@ -971,15 +1063,20 @@ func _seed_default_loadout_snapshot() -> void:
 	# snapshot's CANNON entry is a derived view of cannon_pool[active_idx].
 	cannon_pool = [cannon]
 	active_cannon_idx = 0
-	var super_part = _PartFactory._load_or_default(
-		"res://resources/weapons/smart_bomb.tres", _SmartBomb)
-	loadout_snapshot[_SlotTypes.SlotType.DEVICE_BAY_1] = super_part
-	# Smart Bomb hasn't run apply() on a player yet (no live player in meta
-	# scenes), so seed super_charges from the part's per-mark formula directly
-	# so the Manage Ship modal's "Super x/y" reads correctly on a fresh run.
-	_seed_super_from_part(super_part)
-	# Shift-Mode slot starts with Focus (default stance) so meta scenes show it.
-	loadout_snapshot[_SlotTypes.SlotType.SHIFT_MODE] = _FocusMode.new()
+	# Sector Conditions — No Starting Super skips the default smart-bomb (mirrors
+	# PartFactory.default_starting_loadout so the meta-scene snapshot agrees with the ship).
+	if not cond_flag("start.no_super"):
+		var super_part = _PartFactory._load_or_default(
+			"res://resources/weapons/smart_bomb.tres", _SmartBomb)
+		loadout_snapshot[_SlotTypes.SlotType.DEVICE_BAY_1] = super_part
+		# Smart Bomb hasn't run apply() on a player yet (no live player in meta
+		# scenes), so seed super_charges from the part's per-mark formula directly
+		# so the Manage Ship modal's "Super x/y" reads correctly on a fresh run.
+		_seed_super_from_part(super_part)
+	# Shift-Mode slot starts with Focus (default stance) so meta scenes show it — unless
+	# No Starting Mode is active.
+	if not cond_flag("start.no_mode"):
+		loadout_snapshot[_SlotTypes.SlotType.SHIFT_MODE] = _FocusMode.new()
 
 
 # Derive the max super charges a DEVICE_BAY_1 part would grant at its current
@@ -1007,6 +1104,16 @@ func _super_charges_from_part(part) -> int:
 # new `_base_ammo()` method and legacy @export `base_ammo`. reset_if_none: on a fresh equip an
 # unmetered/zero-ammo secondary clears the pool to -1; on an in-place Mk upgrade it leaves the
 # existing pool untouched (an upgrade must never wipe ammo). (Health audit 2026-06-15.)
+# Sector Conditions — More Ammo scales a metered capacity. Applied at the CAP-ESTABLISHING
+# points only (each cap scaled exactly once; unmetered <= 0 passes through untouched). This is
+# the run-side cap seam — the ship seeds its live magazine from these (current_ammo / Run
+# secondary_ammo), so scaling here is the single place the boost enters. Rounded, floored at 1.
+func _cond_ammo_cap(base: int) -> int:
+	if base <= 0:
+		return base
+	return maxi(1, roundi(base * cond_scalar("player.ammo_max_mult")))
+
+
 func _seed_secondary_ammo(part, reset_if_none: bool) -> void:
 	var sec_ammo: int = -1
 	if part.has_method("_base_ammo"):
@@ -1014,6 +1121,7 @@ func _seed_secondary_ammo(part, reset_if_none: bool) -> void:
 	elif "base_ammo" in part:
 		sec_ammo = int(part.base_ammo)
 	if sec_ammo > 0:
+		sec_ammo = _cond_ammo_cap(sec_ammo)  # More Ammo capacity boost
 		secondary_ammo = sec_ammo
 		secondary_ammo_max = sec_ammo
 	elif reset_if_none:
@@ -1177,6 +1285,7 @@ func _equip_primary(part) -> void:
 	if part.has_method("ammo_at_mark") and "current_ammo" in part and "ammo_max" in part:
 		var mag: int = int(part.ammo_at_mark(int(part.mark)))
 		if mag >= 0 and int(part.current_ammo) < 0:
+			mag = _cond_ammo_cap(mag)  # More Ammo capacity boost
 			part.current_ammo = mag
 			part.ammo_max = mag
 	if cur != null:
@@ -1287,7 +1396,7 @@ func mark_bump_owned_cannon(bump_part) -> void:
 		owned.mark = int(bump_part.mark)
 	# Refill ammo from the new mark's per-mark formula.
 	if owned.has_method("ammo_at_mark") and "current_ammo" in owned and "ammo_max" in owned:
-		var seed: int = int(owned.ammo_at_mark(int(owned.mark)))
+		var seed: int = _cond_ammo_cap(int(owned.ammo_at_mark(int(owned.mark))))  # More Ammo capacity boost
 		owned.current_ammo = seed
 		owned.ammo_max = seed
 	# Keep loadout_snapshot mirror in sync if the bumped cannon is active.
@@ -1326,7 +1435,7 @@ func _reseed_part_mark_state(part) -> void:
 	match int(part.slot_type):
 		_SlotTypes.SlotType.CANNON:
 			if part.has_method("ammo_at_mark") and "current_ammo" in part and "ammo_max" in part:
-				var mag: int = int(part.ammo_at_mark(int(part.mark)))
+				var mag: int = _cond_ammo_cap(int(part.ammo_at_mark(int(part.mark))))  # More Ammo capacity boost
 				part.current_ammo = mag
 				part.ammo_max = mag
 				if get_active_cannon() == part:
@@ -1370,8 +1479,8 @@ const _SAVE_FIELDS := [
 	"bounty", "materials", "current_hull", "max_hull", "current_shield", "max_shield",
 	"super_charges", "max_super_charges",
 	"loadout_snapshot", "inventory", "weapon_storage",
-	"current_node_id", "current_node_type", "sector_modifiers",
-	"current_hazard_subtype", "asteroid_bonus_bounty", "combat_intro",
+	"current_node_id", "current_node_type", "sector_modifiers", "active_conditions",
+	"current_hazard_subtype", "asteroid_bonus_bounty", "mine_bonus_bounty", "combat_intro",
 	"current_stellar",
 	"ammo", "secondary_ammo", "secondary_ammo_max",
 	"visited_nodes", "sectors_cleared", "bosses_defeated", "combats_in_sector", "used_boss_scenes",

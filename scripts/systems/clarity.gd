@@ -138,3 +138,25 @@ static func label_for_speed(speed: float) -> String:
 	var snapped: float = snap_to_rung(speed)
 	var nm: String = String(SPEED_RUNGS.get(snapped, "r%d" % rung_of(snapped)))
 	return "%s (%d)" % [nm, int(round(snapped))]
+
+
+# The Sector Conditions Fast/Slow Enemies|Bullets stepper. Build the ladder from the SPEED_RUNGS
+# keys sorted ascending (30,60,…,480 — the creep half-rung IS included), snap `speed` onto it
+# (snap_to_rung semantics), step `delta` rungs, clamp the index to the ladder bounds, then clamp the
+# value to [min_speed, ABS_MAX_SPEED]. Enemies default min_speed = CREEP_SPEED (they may sit on the
+# half-rung); BULLETS pass min_speed = RUNG_STEP (no creep bullets). delta 0 returns the snapped rung.
+static func step_rung(speed: float, delta: int, min_speed: float = CREEP_SPEED) -> float:
+	var ladder: Array = SPEED_RUNGS.keys()
+	ladder.sort()
+	var snapped: float = snap_to_rung(speed)
+	# Nearest ladder index — snap_to_rung can land a rung above 480 for out-of-range input, so scan
+	# for the closest ladder value rather than trusting an exact find().
+	var idx: int = 0
+	var best: float = INF
+	for i in ladder.size():
+		var d: float = absf(float(ladder[i]) - snapped)
+		if d < best:
+			best = d
+			idx = i
+	idx = clampi(idx + delta, 0, ladder.size() - 1)
+	return clampf(float(ladder[idx]), min_speed, ABS_MAX_SPEED)

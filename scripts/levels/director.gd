@@ -1241,10 +1241,13 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 	# on entry, cease fire once low. Guarded so non-enemy_core types skip it.
 	if "fire_zone_gated" in enemy:
 		enemy.fire_zone_gated = true
-	# Sector modifiers — applied last so they stack on top of wave overrides.
+	# Sector Conditions — applied last so they stack on top of wave overrides, and BEFORE the faction
+	# overlay + add_child (stat mods must land before enemy_base dups components / _ready seeds health).
+	# Effects read ONLY through Run's generic cond_* aggregators (§4a; docs/sector_conditions_redesign
+	# _2026-07-06.md) — empty active_conditions is a strict no-op.
 	var _run = get_node_or_null("/root/Run")
-	if _run and "sector_modifiers" in _run and not _run.sector_modifiers.is_empty():
-		_apply_sector_modifiers(enemy, _run.sector_modifiers)
+	if _run != null:
+		_apply_conditions(enemy, _run)
 	# M6b faction overlay: theme + modify every spawn with the level's faction (Shield /
 	# firecore-drop / tough / fast-fire + tint). Applied BEFORE add_child so enemy_base
 	# dups the attached components. Privateer sprinkles in as an interloper by chance.
@@ -1428,43 +1431,55 @@ func _apply_direction(enemy, dir: int) -> void:
 		enemy.movement = d
 
 
-func _apply_sector_modifiers(enemy: Node, modifiers: Array) -> void:
-	for mod in modifiers:
-		match mod:
-			"shielded":
-				# Handled in _resolve_shields() (after the faction overlay) so the boost
-				# lands on an existing ShieldComponent instead of stacking a parallel one
-				# (shield_unification_2026-06-08.md). No-op here.
-				pass
-			"armored":
-				if "damage_reduction" in enemy:
-					enemy.damage_reduction = max(enemy.damage_reduction, 0.10)
-			"heavily_armored":
-				if "damage_reduction" in enemy:
-					enemy.damage_reduction = max(enemy.damage_reduction, 0.20)
-			"aggressive":
-				# Faster fire AND faster projectiles (M6b weapon scaling). Scale the
-				# SINGLE-SOURCED fire_interval (review P1): tweaking $ShootTimer.wait_time
-				# was a no-op — enemy_core re-arms wait_time from fire_interval on every
-				# shot, clobbering it.
-				if "fire_interval_min" in enemy:
-					enemy.fire_interval_min *= 0.85
-				if "fire_interval_max" in enemy:
-					enemy.fire_interval_max *= 0.85
-				if "bullet_speed_mult" in enemy:
-					enemy.bullet_speed_mult *= 1.15
-			"armed":
-				# Heavier, slightly faster shots (M6b weapon scaling).
-				if "bullet_damage_mult" in enemy:
-					enemy.bullet_damage_mult *= 1.3
-				if "bullet_speed_mult" in enemy:
-					enemy.bullet_speed_mult *= 1.1
-			"wanted":
-				if "bounty_value" in enemy:
-					enemy.bounty_value = int(enemy.bounty_value * 1.20)
-			"fleeing":
-				if "recycle_passes" in enemy:
-					enemy.recycle_passes = 0
+# Sector Conditions per-enemy overlay (§4a/§4b). Reads ONLY the generic Run.cond_* aggregators — no
+# per-condition-id branching (the point of the Conditions core is to retire the old bespoke-island
+# match). Empty active_conditions is a strict no-op: every scalar defaults to identity, every sum to
+# 0. Runs pre-add_child so stat mods land before enemy_base dups components / _ready seeds health.
+func _apply_conditions(enemy: Node, run) -> void:
+	# Armored (§4a): a MAX damage-reduction FLOOR on heavies/elites only (global DR on chaff drags the
+	# fast-kill rhythm). dr_floor is set by exactly one (mutexed) Condition, so cond_scalar's PRODUCT
+	# aggregation returns that lone value; default 0.0 when unset — it's a floor, NOT a multiplier.
+	var dr: float = run.cond_scalar("enemy.dr_floor", 0.0)
+	if dr > 0.0 and "damage_reduction" in enemy and _is_heavy_enemy(enemy):
+		enemy.damage_reduction = maxf(enemy.damage_reduction, dr)
+	# Armored Heavies (§4a): +max HP pool on non-chaff. Scale the SAME field the wave max_health
+	# override does (~L1208) so _ready's `health = max_health` picks up the boost; custom hull-based
+	# enemies (bomber/bulwark) use max_hull/hull instead.
+	var hp_mult: float = run.cond_scalar("enemy.heavy_hp_mult", 1.0)
+	if not is_equal_approx(hp_mult, 1.0) and _is_heavy_enemy(enemy):
+		if "max_health" in enemy:
+			enemy.max_health = int(round(float(enemy.max_health) * hp_mult))
+			if "health" in enemy:
+				enemy.health = enemy.max_health
+		elif "max_hull" in enemy:
+			enemy.max_hull = int(round(float(enemy.max_hull) * hp_mult))
+			if "hull" in enemy:
+				enemy.hull = enemy.max_hull
+	# Trigger-Happy (§4a): faster fire. Scale the SINGLE-SOURCED fire_interval (tweaking a ShootTimer
+	# wait_time is a no-op — enemy_core re-arms wait_time from fire_interval each shot), as the legacy
+	# `aggressive` arm did. Applies to all firing enemies (fire-rate is not a heavy-only tax).
+	var fi_mult: float = run.cond_scalar("enemy.fire_interval_mult", 1.0)
+	if not is_equal_approx(fi_mult, 1.0):
+		if "fire_interval_min" in enemy:
+			enemy.fire_interval_min *= fi_mult
+		if "fire_interval_max" in enemy:
+			enemy.fire_interval_max *= fi_mult
+	# Fast / Slow Enemies (§4a): step the chassis move_speed along the Clarity rung ladder (creep
+	# half-rung included, capped at rung 8 / floored at creep). EXCLUDES hazard drift (is_hazard).
+	# Movement patterns read move_speed via movement_pattern._move_speed, so a pre-add_child write
+	# covers every enemy_core pattern (bosses keep their own bespoke enter_speed — out of scope). Only
+	# steps a mover with an authored speed (>0) so a stationary chassis isn't given motion.
+	var rung_delta: int = int(run.cond_sum("enemy.rung_delta"))
+	if rung_delta != 0 and "move_speed" in enemy and float(enemy.move_speed) > 0.0 \
+			and not (("is_hazard" in enemy) and enemy.is_hazard):
+		enemy.move_speed = Clarity.step_rung(enemy.move_speed, rung_delta)
+
+
+# Heavy = anchor-class by the director's existing size signal: _enemy_height >= ANCHOR_MIN_HEIGHT
+# (the same 40px cruiser threshold used for lane-anchoring). Armored / Armored-Heavies / Shielded
+# Conditions all scope to non-chaff through this one predicate — no new magic number.
+func _is_heavy_enemy(enemy) -> bool:
+	return _enemy_height(enemy) >= ANCHOR_MIN_HEIGHT
 
 
 # Attach/boost a ShieldComponent for data-driven shields (shield_unification_2026-06-08.md).
@@ -1501,6 +1516,21 @@ func _resolve_shields(enemy: Node, wave, run) -> void:
 			sc.capacity = 1
 			sc.regen_interval = 0.0
 			enemy.components = enemy.components + [sc]
+	# Sector CONDITION "Shielded" (§4a) → +N charge, scoped to non-chaff (heavies). Reads the generic
+	# aggregator; empty active_conditions → sum 0 → no-op. Parallel to the legacy sector_modifiers path
+	# above (which stays but is always [] while kill-switched — harmless). Boosts the (possibly just-
+	# added) CHARGE component so it never stacks a parallel ring.
+	if run != null and _is_heavy_enemy(enemy):
+		var cond_bonus: int = int(run.cond_sum("enemy.shield_bonus"))
+		if cond_bonus > 0:
+			if charge != null:
+				charge.capacity += cond_bonus
+			else:
+				var sc2 = ShieldComponentC.new()
+				sc2.mode = ShieldComponentC.Mode.CHARGE
+				sc2.capacity = cond_bonus
+				sc2.regen_interval = 0.0
+				enemy.components = enemy.components + [sc2]
 
 
 # First CHARGE-mode ShieldComponent in the enemy's authored components (pre-dup), or null.

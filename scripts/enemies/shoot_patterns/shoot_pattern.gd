@@ -14,11 +14,7 @@ const MuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
 const Clarity = preload("res://scripts/systems/clarity.gd")
 const BulletCatalog = preload("res://scripts/projectiles/bullet_catalog.gd")
 const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
-# Ceiling on an enemy bullet's final damage after weapon multipliers (faction +
-# sector compound via *=). Guard rail so a late-sector + 'armed' + future damage
-# faction can't stack into a one-shot. Heaviest base today (heavy_slug=2) × armed
-# (1.3) = ~3, so 4 leaves headroom without capping existing content.
-const ENEMY_BULLET_DAMAGE_CAP := 4
+const ProjectileMods = preload("res://scripts/enemies/projectile_mods.gd")
 
 @export var bullet_scene: PackedScene
 
@@ -130,13 +126,11 @@ func _spawn_bullet(enemy, dir: Vector2, bv = null, spawn_override = null):
 	# mult below so that scaling still compounds on top. Clamped to the ceiling.
 	if bullet_speed > 0.0 and "speed" in b:
 		b.speed = minf(bullet_speed, Clarity.ABS_MAX_SPEED)
-	# Weapon multipliers (M6b faction/sector): scale the bullet's speed (clamped to the
-	# clarity ceiling so a buff can't strobe) and damage. Applied after _apply_variant
-	# set the baselines.
-	if "bullet_speed_mult" in enemy and float(enemy.bullet_speed_mult) != 1.0 and "speed" in b:
-		b.speed = minf(b.speed * float(enemy.bullet_speed_mult), Clarity.ABS_MAX_SPEED)
-	if "bullet_damage_mult" in enemy and float(enemy.bullet_damage_mult) != 1.0 and "damage" in b:
-		b.damage = clampi(int(round(float(b.damage) * float(enemy.bullet_damage_mult))), 1, ENEMY_BULLET_DAMAGE_CAP)
+	# Weapon multipliers (M6b faction/sector) + Sector Conditions Fast/Slow Bullets — centralized in
+	# ProjectileMods so gun/turret/hull shots share one scaling path. Applied after _apply_variant set
+	# the baselines; both are no-ops when nothing opts in (mult == 1.0 / no active Conditions).
+	ProjectileMods.apply_weapon_scalars(b, enemy)
+	ProjectileMods.apply_condition_speed(b)
 	# Velocity inheritance ("Doppler"), mirrors player.gd: add the forward component of the
 	# enemy's own velocity so a mover advancing toward its line of fire keeps even stream
 	# spacing instead of bunching it. Forward-only (retreating never slows the shot) and

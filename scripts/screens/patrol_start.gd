@@ -988,7 +988,8 @@ func _make_toggle(text: String, initial: bool, on_change: Callable) -> CheckButt
 func _make_sectormod_rocker() -> VBoxContainer:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 4)
-	box.add_child(_label("Sector Modifiers", UiTheme.LabelKind.CAPTION))
+	box.tooltip_text = "random Conditions rolled at launch — bane or boon"
+	box.add_child(_label("Conditions", UiTheme.LabelKind.CAPTION))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -1426,6 +1427,26 @@ func _on_begin_pressed() -> void:
 		run.set_meta("patrol_skip_tutorial", _skip_tutorial)
 		run.set_meta("patrol_endless", _endless)
 		run.set_meta("patrol_sector_modifiers", _sector_modifiers)
+		# Wildcard Conditions: roll N mutex-respecting Conditions off a DECORRELATED
+		# seed (run_seed ^ const — same trick as outpost_name; never consume the
+		# global RNG or the sector-gen rng, so layouts don't shift) and install them
+		# through the single Run pipe. Called exactly once here (apply_conditions is
+		# not idempotent — it grants Starting Funds bounty). Must come AFTER new_run()
+		# and the run-settings writes above.
+		if _sector_modifiers > 0:
+			var picks: Array = Conditions.roll(_sector_modifiers, int(run.run_seed) ^ 0x51EC7C0D)
+			run.apply_conditions(picks)
+			# Reveal hook (v1): store a one-line summary meta for a future reveal beat.
+			# Authoritative surfacing is the outpost readout; no new UI is built here.
+			var labels: Array = []
+			for id in picks:
+				labels.append(Conditions.label(id))
+			var summary := "CONDITIONS: %s (Threat %d" % [
+				"  ·  ".join(labels), run.condition_net_threat()]
+			if run.condition_net_threat() > 0:
+				summary += ", +%d%% bounty" % roundi((run.condition_bounty_mult() - 1.0) * 100.0)
+			summary += ")"
+			run.set_meta("conditions_summary", summary)
 	await _launch(_ships[_readied_idx])
 	# Hand off to the run: the tutorial onboarding (which funnels to the sector map), or straight to
 	# the map when the player asked to skip it. The fly-out covers the swap.

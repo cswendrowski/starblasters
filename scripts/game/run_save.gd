@@ -29,8 +29,12 @@ extends Resource
 @export var current_node_id: String = ""
 @export var current_node_type: int = -1
 @export var sector_modifiers: Array = []
+# New Sector Conditions system (patrol-scoped; scripts/systems/conditions.gd).
+# Distinct from the legacy per-POI sector_modifiers above.
+@export var active_conditions: Array = []
 @export var current_hazard_subtype: String = ""
 @export var asteroid_bonus_bounty: int = 0
+@export var mine_bonus_bounty: int = 0
 @export var combat_intro: String = ""
 @export var current_stellar: Dictionary = {}
 

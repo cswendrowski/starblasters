@@ -23,6 +23,7 @@ const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const SectorMapRoute = preload("res://scripts/systems/sector_map_route.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const Strings = preload("res://scripts/strings/strings.gd")
+const Conditions = preload("res://scripts/systems/conditions.gd")
 const OutpostSfx = preload("res://scripts/effects/outpost_sfx.gd")
 
 # RETIRED 2026-06-13 — ALL upgrades are now bay MODULES (hull → Reinforced Hull, thrusters
@@ -49,9 +50,6 @@ const PRIMARY_REFILL_COST := 100
 const SUPER_REFILL_COST := 120
 const CANNON_BASE_COST := 116
 const CANNON_COST_PER_MK := 70
-# Mark distribution: roll picks from sector_index + 3 max, with weighting
-# that favors the middle of the available range and tapers at the high end.
-const MK_HIGH_OFFSET := 3
 
 # Weapons column slot weights: cannon dominates (it's primary), with secondary,
 # super, Shift-mode, and passive-module swaps as occasional offers. 4 cannon /
@@ -671,8 +669,9 @@ func _upgrade_button_spec(part) -> Dictionary:
 	if run == null or not run.can_upgrade_part(part):
 		return {"text": Strings.OUTPOST_BTN_UPGRADE_MAX, "disabled": true}
 	var new_mk: int = int(part.mark) + 1
-	var mats: int = new_mk
-	var bounty_cost: int = _upgrade_bounty_cost(new_mk)
+	var costs := _upgrade_costs(new_mk)
+	var mats: int = int(costs["mats"])
+	var bounty_cost: int = int(costs["bounty"])
 	var afford: bool = int(run.materials) >= mats and int(run.bounty) >= bounty_cost
 	return {
 		"text": Strings.OUTPOST_BTN_UPGRADE % [new_mk, mats, bounty_cost],
@@ -837,6 +836,19 @@ func _scrap_value(part) -> int:
 # Upgrade bounty cost = 50% of the new Mk's shop value (the outpost labor fee).
 func _upgrade_bounty_cost(new_mk: int) -> int:
 	return int(floor(0.5 * float(CANNON_BASE_COST + (new_mk - 1) * CANNON_COST_PER_MK)))
+
+
+# Single source for an upgrade's material + bounty cost — read by BOTH the button
+# label/affordability (_upgrade_button_spec) AND the spend (_on_upgrade_part), so
+# the shown cost can never drift from the charged cost. Folds the Sector Conditions
+# economy hooks: material mult / no-mats flag, bounty mult / no-bounty flag.
+func _upgrade_costs(new_mk: int) -> Dictionary:
+	var run = get_node_or_null("/root/Run")
+	if run == null:
+		return {"mats": new_mk, "bounty": _upgrade_bounty_cost(new_mk)}
+	var mats: int = 0 if run.cond_flag("econ.upgrade_no_mats") else ceili(new_mk * run.cond_scalar("econ.upgrade_mat_mult"))
+	var bounty_cost: int = 0 if run.cond_flag("econ.upgrade_no_bounty") else roundi(_upgrade_bounty_cost(new_mk) * run.cond_scalar("econ.upgrade_bounty_mult"))
+	return {"mats": mats, "bounty": bounty_cost}
 
 
 func _run_materials() -> int:
@@ -1042,8 +1054,9 @@ func _on_upgrade_part(part) -> void:
 	if run == null or not run.can_upgrade_part(part):
 		return
 	var new_mk: int = int(part.mark) + 1
-	var mats: int = new_mk
-	var bounty_cost: int = _upgrade_bounty_cost(new_mk)
+	var costs := _upgrade_costs(new_mk)
+	var mats: int = int(costs["mats"])
+	var bounty_cost: int = int(costs["bounty"])
 	if int(run.materials) < mats or int(run.bounty) < bounty_cost:
 		return
 	run.spend_materials(mats)
@@ -1100,7 +1113,8 @@ func _on_restock_all() -> void:
 	var run = get_node_or_null("/root/Run")
 	if run != null:
 		var guard := 0
-		while int(run.super_charges) < int(run.max_super_charges) and int(run.bounty) >= SUPER_REFILL_COST and guard < 30:
+		var super_cost: int = _restock_cost(SUPER_REFILL_COST)  # Sector Conditions restock mult
+		while int(run.super_charges) < int(run.max_super_charges) and int(run.bounty) >= super_cost and guard < 30:
 			_on_super_refill(null)
 			guard += 1
 	_refresh_status_panel()
@@ -1154,7 +1168,11 @@ func _roll_offers() -> void:
 	#   don't loop forever if the catalog can't fill 5 unique slots at the cap.
 	_weapon_offers.clear()
 	var seen: Dictionary = {}
-	for i in WEAPONS_COLUMN_COUNT:
+	# Sector Conditions — Market Scarcity/Surplus shift the stock count (econ.stock_delta).
+	var stock_count: int = WEAPONS_COLUMN_COUNT
+	if has_node("/root/Run"):
+		stock_count = maxi(1, WEAPONS_COLUMN_COUNT + int(get_node("/root/Run").cond_sum("econ.stock_delta")))
+	for i in stock_count:
 		var picked = null
 		var picked_mk: int = 1
 		for attempt in 8:
@@ -1199,6 +1217,11 @@ func _roll_offers() -> void:
 		if picked == null:
 			continue
 		var cost: int = CANNON_BASE_COST + (picked_mk - 1) * CANNON_COST_PER_MK
+		# Sector Conditions — Galactic Tariffs/Buyer's Market scale the offer price at
+		# ROLL time so the STORED cost is both what's displayed and what's spent. Applies
+		# to every slot type (all offers price via this one site — shift-mode/modules too).
+		if has_node("/root/Run"):
+			cost = maxi(1, roundi(cost * get_node("/root/Run").cond_scalar("econ.shop_price_mult")))
 		_weapon_offers.append({"part": picked, "cost": cost, "sold": false})
 
 
@@ -1208,7 +1231,12 @@ func _roll_weighted_mark(rng: RandomNumberGenerator, lo: int, hi: int) -> int:
 		return clampi(lo, 1, MAX_MK)
 	var a: int = rng.randi_range(lo, hi)
 	var b: int = rng.randi_range(lo, hi)
-	return clampi(int(round(float(a + b) * 0.5)), lo, hi)
+	var mk: int = int(round(float(a + b) * 0.5))
+	# Sector Conditions — Shoddy Imports/Quality Goods shift the rolled Mk (econ.mk_bias),
+	# clamped to [1, cap]; the triangular distribution is otherwise intact.
+	if has_node("/root/Run"):
+		mk += int(get_node("/root/Run").cond_sum("econ.mk_bias"))
+	return clampi(mk, 1, hi)
 
 
 # Count of row-bosses already killed in the current sector. Drives the
@@ -1307,7 +1335,24 @@ func _hull_repair_cost() -> int:
 		var run := get_node("/root/Run")
 		if "hull_mk" in run and int(run.hull_mk) >= 9:
 			base = int(round(float(base) * 0.70))
+		# Sector Conditions — Easy/Costly Repairs scale the bounty cost (composes with
+		# the Mk-9 discount); Cheap Repairs zeroes the bounty entirely.
+		if run.cond_flag("econ.repair_no_bounty"):
+			return 0
+		base = roundi(base * run.cond_scalar("econ.repair_cost_mult"))
 	return base
+
+
+# Material cost of a hull repair. Baseline repairs cost NO material (design §8);
+# Complex/Cheap Repairs add a flat material delta (econ.repair_mat_delta), and the
+# baseline-equivalent Easy Repairs no-mats flag zeroes it.
+func _hull_repair_mats() -> int:
+	if not has_node("/root/Run"):
+		return 0
+	var run := get_node("/root/Run")
+	if run.cond_flag("econ.repair_no_mats"):
+		return 0
+	return int(run.cond_sum("econ.repair_mat_delta"))
 
 
 func _on_repair(btn: Button) -> void:
@@ -1321,9 +1366,14 @@ func _on_repair(btn: Button) -> void:
 	if int(run.repair_charges) <= 0:
 		return  # outpost out of repair charges (refresh at next boss)
 	var cost: int = _hull_repair_cost()
+	var mat_cost: int = _hull_repair_mats()
 	if int(run.bounty) < cost:
 		return
+	if mat_cost > 0 and int(run.materials) < mat_cost:
+		return
 	run.spend_bounty(cost)
+	if mat_cost > 0:
+		run.spend_materials(mat_cost)
 	run.repair_charges -= 1
 	run.current_hull = clampi(int(run.current_hull) + 1, 0, int(run.max_hull))
 	OutpostSfx.play("repair")
@@ -1355,10 +1405,29 @@ func _primary_ammo_max() -> int:
 	return 0
 
 
+# Sector Conditions — Costly/Cheap Restock scales every flat restock cost
+# (econ.restock_cost_mult). One helper so display + spend can't drift.
+func _restock_cost(base: int) -> int:
+	if not has_node("/root/Run"):
+		return base
+	return maxi(1, roundi(base * get_node("/root/Run").cond_scalar("econ.restock_cost_mult")))
+
+
+# Per-round ammo cost with the restock mult folded in — keeps the partial-refill
+# math (ceil/floor over a per-round rate) structurally intact while scaling the
+# TOTAL. Used by both _ammo_refill_cost and _ammo_refill_partial so display + spend
+# stay consistent (a flat _restock_cost wrapper's maxi(1) floor would corrupt the
+# zero-missing / affordable-rounds math, hence the per-round approach here).
+func _restock_per_round() -> float:
+	if not has_node("/root/Run"):
+		return AMMO_COST_PER_ROUND
+	return AMMO_COST_PER_ROUND * get_node("/root/Run").cond_scalar("econ.restock_cost_mult")
+
+
 func _ammo_refill_cost(missing: int) -> int:
 	if missing <= 0:
 		return 0
-	return int(ceil(float(missing) * AMMO_COST_PER_ROUND))
+	return int(ceil(float(missing) * _restock_per_round()))
 
 
 # Returns [refilled_rounds, cost_paid] for the affordability of `bounty`
@@ -1366,16 +1435,17 @@ func _ammo_refill_cost(missing: int) -> int:
 func _ammo_refill_partial(bounty: int, missing: int) -> Array:
 	if missing <= 0 or bounty <= 0:
 		return [0, 0]
+	var per_round: float = _restock_per_round()
 	var full_cost: int = _ammo_refill_cost(missing)
 	if bounty >= full_cost:
 		return [missing, full_cost]
 	# Partial — floor(bounty / per_round), capped at missing.
-	var rounds: int = int(floor(float(bounty) / AMMO_COST_PER_ROUND))
+	var rounds: int = int(floor(float(bounty) / per_round))
 	if rounds <= 0:
 		return [0, 0]
 	if rounds > missing:
 		rounds = missing
-	var cost: int = int(ceil(float(rounds) * AMMO_COST_PER_ROUND))
+	var cost: int = int(ceil(float(rounds) * per_round))
 	return [rounds, cost]
 
 
@@ -1404,6 +1474,7 @@ func _on_primary_ammo_refill(btn: Button) -> void:
 	var cost: int = PRIMARY_REFILL_COST
 	if "refill_cost_override" in active and int(active.refill_cost_override) >= 0:
 		cost = int(active.refill_cost_override)
+	cost = _restock_cost(cost)  # Sector Conditions restock mult
 	if int(run.bounty) < cost:
 		return
 	run.spend_bounty(cost)
@@ -1444,7 +1515,8 @@ func _on_super_refill(btn: Button) -> void:
 	if not has_node("/root/Run"):
 		return
 	var run := get_node("/root/Run")
-	if int(run.bounty) < SUPER_REFILL_COST:
+	var super_cost: int = _restock_cost(SUPER_REFILL_COST)  # Sector Conditions restock mult
+	if int(run.bounty) < super_cost:
 		return
 	if not ("super_charges" in run) or not ("max_super_charges" in run):
 		return
@@ -1452,7 +1524,7 @@ func _on_super_refill(btn: Button) -> void:
 		return
 	if int(run.super_charges) >= int(run.max_super_charges):
 		return
-	run.spend_bounty(SUPER_REFILL_COST)
+	run.spend_bounty(super_cost)
 	run.super_charges = clampi(int(run.super_charges) + 1, 0, int(run.max_super_charges))
 	OutpostSfx.play("repair")
 	_refresh_status_panel()
@@ -1565,8 +1637,13 @@ func _apply_service_button_state(btn: Button) -> void:
 				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SOLD_OUT]
 				return
 			var repair_cost: int = _hull_repair_cost()
-			btn.disabled = _run_bounty() < repair_cost
-			btn.text = "%s  (%d) ·%d left" % [base_label, repair_cost, int(run.repair_charges)]
+			var repair_mats: int = _hull_repair_mats()
+			var can_afford_repair: bool = _run_bounty() >= repair_cost and (repair_mats <= 0 or int(run.materials) >= repair_mats)
+			btn.disabled = not can_afford_repair
+			if repair_mats > 0:
+				btn.text = "%s  (%d +%dm) ·%d left" % [base_label, repair_cost, repair_mats, int(run.repair_charges)]
+			else:
+				btn.text = "%s  (%d) ·%d left" % [base_label, repair_cost, int(run.repair_charges)]
 		"primary_ammo":
 			# Weapons Phase 1: flat-cost refill on the active replacement
 			# primary. Blaster active → greyed (no ammo to refill). Active
@@ -1603,6 +1680,7 @@ func _apply_service_button_state(btn: Button) -> void:
 			var pcost: int = PRIMARY_REFILL_COST
 			if "refill_cost_override" in active and int(active.refill_cost_override) >= 0:
 				pcost = int(active.refill_cost_override)
+			pcost = _restock_cost(pcost)  # Sector Conditions restock mult (matches spend)
 			btn.disabled = _run_bounty() < pcost
 			btn.text = "%s  %s ·%d left" % [base_label, Strings.SERVICE_SUFFIX_REFILL_COST % pcost, int(run.ammo_restock_charges)]
 		"secondary_ammo":
@@ -1641,8 +1719,11 @@ func _apply_service_button_state(btn: Button) -> void:
 				btn.disabled = true
 				btn.text = Strings.SERVICE_STATE_SUPER_FULL
 				return
-			btn.disabled = _run_bounty() < cost
-			btn.text = "%s  (%d)" % [base_label, cost]
+			# The super button's meta cost is SUPER_REFILL_COST — apply the restock mult
+			# so display matches the spend in _on_super_refill.
+			var super_cost: int = _restock_cost(cost)
+			btn.disabled = _run_bounty() < super_cost
+			btn.text = "%s  (%d)" % [base_label, super_cost]
 
 
 # ---- Toast ----------------------------------------------------------------
@@ -1707,6 +1788,23 @@ func _slot_color(slot: int) -> Color:
 # Reads the sector theme pool (sector_map_cache.sector_modifiers) — the whole-sector
 # conditions, not the per-combat list. (#6, Roman 2026-06-08.)
 func _format_sector_modifiers(run) -> String:
+	# New Conditions system takes precedence when the run carries active Conditions;
+	# append a Threat/payout suffix (payout terms omitted for a net-boon run).
+	if "active_conditions" in run and not run.active_conditions.is_empty():
+		var cond_labels: Array[String] = []
+		for id in run.active_conditions:
+			cond_labels.append(Conditions.label(String(id)))
+		var line := Strings.SECTOR_MODIFIERS_LABEL % "   ·   ".join(cond_labels)
+		var net: int = run.condition_net_threat()
+		if net > 0:
+			line += "   —   Threat %d · +%d%% bounty · +%d%% materials" % [
+				net,
+				roundi((run.condition_bounty_mult() - 1.0) * 100.0),
+				roundi((run.condition_materials_mult() - 1.0) * 100.0)]
+		else:
+			line += "   —   Threat %d" % net
+		return line
+	# Legacy kill-switched modifier cache path (unchanged).
 	var mods: Array = []
 	if "sector_map_cache" in run and run.sector_map_cache is Dictionary:
 		mods = run.sector_map_cache.get("sector_modifiers", [])

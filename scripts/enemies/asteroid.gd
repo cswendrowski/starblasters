@@ -59,12 +59,12 @@ func _ready() -> void:
 	_drift = LateralDrift.new()
 	_drift.mode = LateralDrift.mode_from_key(drift_mode)
 	add_to_group("asteroids")   # for mutual soft-separation (HazardSpacing)
-	# Freespace Miner signal event sets a per-asteroid bonus bounty for one
-	# hazard run. Apply it on spawn; main.gd clears the flag at level end.
+	# Freespace Miner signal event (asteroid_bonus_bounty) + the Mining Contract
+	# Condition (grant.asteroid_bounty) both raise per-asteroid bounty; additive so
+	# they STACK (design §4f). main.gd clears the event flag at level end.
 	if has_node("/root/Run"):
-		var bonus: int = int(get_node("/root/Run").asteroid_bonus_bounty)
-		if bonus > 0:
-			bounty_value += bonus
+		var _run = get_node("/root/Run")
+		bounty_value += int(_run.asteroid_bonus_bounty) + int(_run.cond_sum("grant.asteroid_bounty"))
 	# Replace the placeholder Sprite2D with the procgen Asteroid scene so each
 	# hazard rock has a unique generated silhouette. Existing collision shape
 	# stays as the gameplay hitbox.

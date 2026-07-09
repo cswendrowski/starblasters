@@ -977,7 +977,7 @@ func _process(delta: float) -> void:
 	# Cap one frame past ready so the sub-frame overshoot can bank into the next
 	# shot (consumers subtract secondary_cooldown rather than zeroing) — same
 	# tick-alignment fix as the primary; carry stays bounded to one frame.
-	_secondary_t = min(_secondary_t + delta, secondary_cooldown + FIRE_CARRY)
+	_secondary_t = min(_secondary_t + delta, _eff_secondary_cd() + FIRE_CARRY)
 	if not controls_enabled:
 		# Ship still animates "forward" so it reads as actively flying during
 		# the intro slide-in / outro fly-out cinematic.
@@ -1258,7 +1258,13 @@ func _on_mode_changed() -> void:
 	if mode_part != null:
 		var mk: int = int(mode_part.mark) if "mark" in mode_part else 1
 		if mode_part.has_method("mode_duration"):
-			mode_duration = maxf(0.1, float(mode_part.mode_duration(mk)))
+			# Sector Conditions — Better Modes scale the cached duration; _tick_shift_mode
+			# consumes it untouched. Null-safe: identity when no Condition set it.
+			var _md: float = float(mode_part.mode_duration(mk))
+			var _run_md = _run_ref()
+			if _run_md != null:
+				_md *= _run_md.cond_scalar("player.mode_duration_mult")
+			mode_duration = maxf(0.1, _md)
 		if mode_part.has_method("mode_charges"):
 			mode_charges_max = maxi(1, int(mode_part.mode_charges(mk)))
 		if mode_part.has_method("mode_regen_kind"):
@@ -1565,7 +1571,7 @@ func _echo_fire_ghost_bolt() -> void:
 	if b is Node2D:
 		(b as Node2D).z_index = -1
 	if "damage" in b:
-		b.damage = maxi(1, bullet_damage)
+		b.damage = _wpn_dmg(bullet_damage)
 	if b.has_method("start"):
 		b.start(_echo_ghost.global_position + Vector2(0, -10), Vector2(0, -1))
 
@@ -1676,13 +1682,15 @@ func take_damage(amount: int) -> void:
 	# Phase mode takes NO damage at all — handled by the full-duration i-frame the runtime
 	# sets (_invuln_t = mode_active_t in _tick_shift_mode), caught at the i-frame check below.
 	# (Bullet-absorb → +shield is now Thief mode's job, via its catch bubble.)
-	# "dangerous" sector modifier doubles all incoming enemy damage. (The flat
-	# per-sector damage ramp `× (1 + 0.05 × sectors_cleared)` was dropped
-	# 2026-06-23 with the single-sector switch — sectors_cleared stays 0 now.)
-	if has_node("/root/Run"):
-		var _run = get_node("/root/Run")
-		if "sector_modifiers" in _run and "dangerous" in _run.sector_modifiers:
-			amount *= 2
+	# Sector Condition "Heavy Ordnance" (§4b): all incoming damage counts double. This is the ONE
+	# Condition Roman sanctioned to BREAK the flat-damage rule ([[flat-player-damage]]) — the mult
+	# lands AFTER the flat clamp above and BEFORE the i-frame check, so it burns 2 shield charges / 2
+	# hull pips per hit. Read via the generic aggregator; empty active_conditions → scalar 1.0 → no-op.
+	# (The old per-sector damage ramp `× (1 + 0.05 × sectors_cleared)` was dropped 2026-06-23 with the
+	# single-sector switch — sectors_cleared stays 0 now.)
+	var _run = get_node_or_null("/root/Run")
+	if _run != null:
+		amount = maxi(1, roundi(float(amount) * _run.cond_scalar("player.damage_taken_mult")))
 	# I-frame window after a shield or hull hit.
 	if _invuln_t > 0.0:
 		return
@@ -1732,6 +1740,21 @@ func take_damage(amount: int) -> void:
 		die()
 		return
 	# Normal hull pip loss (hull > 0, shield == 0).
+	# Sector Condition "Glass Patrol" (§4b): any hull damage is instant death — skip pips, shrug,
+	# ablative and damage tells. The shield branch above already returned, so shields still absorb
+	# normally; this fires only once the shield pool is empty and a hull hit lands. Every hull hit
+	# is LETHAL under Glass Patrol, so the Touhou death-bomb save applies exactly as in the
+	# hull-empty branch above (Roman 2026-07-09: the save is respected as normal) — a charged super
+	# fires and the guaranteed i-frame saves you; otherwise the hit ends the run.
+	# Empty active_conditions → flag false → no-op.
+	if _run != null and _run.cond_flag("player.glass_hull"):
+		if super_charges > 0 and super_part != null:
+			fire_super()
+			_invuln_t = maxf(_invuln_t, SHIELD_INVULN_SECONDS)
+			if _invuln_t > 0.0:
+				return
+		die()
+		return
 	# Shrug: milestone perk — chance to absorb the hit with no pip loss.
 	if hull_shrug_chance > 0.0 and randf() < hull_shrug_chance:
 		return
@@ -1847,7 +1870,7 @@ func _fire_pulse_laser() -> void:
 	var half: float = deg_to_rad(_pulse_dispersion) * 0.5
 	var ang: float = randf_range(-half, half)
 	var dir := Vector2(sin(ang), -cos(ang))
-	var dmg: int = bullet_damage
+	var dmg: int = _wpn_dmg(bullet_damage)
 	var hit := _pulse_hitscan(origin, dir, PULSE_RANGE)
 	var enemy = hit["enemy"]
 	if enemy != null and is_instance_valid(enemy):
@@ -1913,7 +1936,7 @@ func _reflect_bullet() -> void:
 	if b is Node2D:
 		(b as Node2D).z_index = -1
 	if "damage" in b:
-		b.damage = maxi(1, bullet_damage)
+		b.damage = _wpn_dmg(bullet_damage)
 	if b.has_method("start"):
 		b.start(global_position, dir)
 
@@ -1976,6 +1999,10 @@ func _cache_blaster_config(run) -> void:
 				_blaster_sfx_kind = int(bl._fire_sfx_kind())
 	if _blaster_bullet_scene == null:
 		_blaster_bullet_scene = load("res://scenes/projectiles/bullet_blaster.tscn")
+	# Sector Conditions — Faster Weapons shortens the direct-spawn blaster cadence at this
+	# single computation point; the three _blaster_cd_t consumers all read this var.
+	if _cond_fire_rate_mult != 1.0:
+		_blaster_cooldown = maxf(0.05, _blaster_cooldown / _cond_fire_rate_mult)
 
 
 # Nearest enemy inside the 120° front arc (±mount_arc of up) within mount_range, or null.
@@ -2082,7 +2109,8 @@ func _fire_blaster_bolt(aim: float) -> void:
 		var _delim: float = _delimiter_bonus()
 		if _delim > 0.0:
 			dmg = int(round(float(dmg) * (1.0 + _delim)))
-		b.damage = maxi(1, dmg)
+		# Sector Conditions weapon-damage choke — scale the NET (post module/delimiter).
+		b.damage = _wpn_dmg(dmg)
 	var dir := Vector2(sin(aim), -cos(aim))
 	# Muzzle (bullet spawn + flash) rotates with the turret aim so the bolt leaves the
 	# aimed barrel; aim 0 (manual / mount off) = the normal nose.
@@ -2252,6 +2280,39 @@ var _blaster_bullet_scene: PackedScene = null  # cached blaster (cannon_pool[0])
 var _blaster_damage: int = 1
 var _blaster_cooldown: float = 0.2
 var _blaster_sfx_kind: int = WS.FireSfxKind.BLASTER_SMALL  # blaster's OWN fire sound (fire_sfx_kind holds the primary's while it's loaded)
+
+# Sector Conditions — cached player-kit multipliers (Weak/Better/Faster Weapons). Refreshed
+# in apply_run_upgrades() (the combat-init choke, called from start() before the first shot).
+# Default 1.0 keeps every effect site a strict no-op when no Condition is active.
+var _cond_wpn_dmg_mult: float = 1.0    # player.weapon_damage_mult (Weak/Better Weapons)
+var _cond_fire_rate_mult: float = 1.0  # player.fire_rate_mult (Faster Weapons)
+
+
+# Sector Conditions weapon-damage CHOKE POINT (design §8): scale the FINAL per-shot
+# damage at every player armament's damage-write site. One helper, N one-line call swaps —
+# never scale the source vars (bullet_damage / _blaster_damage / secondary_damage /
+# drone_bits_damage are rebuilt on equip and would double-scale). Rounded, floored at 1.
+func _wpn_dmg(base: int) -> int:
+	return maxi(1, roundi(base * _cond_wpn_dmg_mult))
+
+
+# Effective secondary cooldown — Faster Weapons shortens the shared _secondary_t re-arm
+# cadence. Reads the cached mult so the whole fire-gate machinery (cap / ready-gate /
+# carry-subtract) stays consistent; identity when no Condition is active.
+func _eff_secondary_cd() -> float:
+	return secondary_cooldown / _cond_fire_rate_mult if _cond_fire_rate_mult != 1.0 else secondary_cooldown
+
+
+# Faster Weapons for the burst-fire Rocket Pod (secondary_mode == BURST) — the 4th
+# cadence path. Shortens both the intra-cycle rocket spacing and the post-cycle
+# lockout, applied at CONSUMPTION time in _tick_burst (never at part-apply). Reads
+# the cached mult so it stays consistent with _eff_secondary_cd; identity at 1.0.
+func _eff_burst_interval() -> float:
+	return secondary_burst_interval / _cond_fire_rate_mult if _cond_fire_rate_mult != 1.0 else secondary_burst_interval
+
+
+func _eff_burst_cooldown() -> float:
+	return secondary_burst_cooldown / _cond_fire_rate_mult if _cond_fire_rate_mult != 1.0 else secondary_burst_cooldown
 var _mounts_enabled: bool = true             # runtime on/off (S toggle); off = manual control
 var _mount_sight: Line2D = null              # teal aiming sight line (lazy-built)
 const MOUNT_SIGHT_COLOR := Color(0.2, 1.0, 0.7, 0.85)  # teal-green
@@ -2336,6 +2397,10 @@ func fire_primary(aim_angle: float = 0.0) -> void:
 		_overclock_idle_t = 0.0
 		_fire_bonus += _overclock_ramp * module_overclock_max
 	_fire_bonus += _delimiter_bonus()
+	# Sector Conditions — Faster Weapons fold into the same fire-rate bonus sum so the
+	# _eff_cd = cooldown / (1 + _fire_bonus) below picks it up (sub-frame carry preserved).
+	# (mult 1.0 → adds 0.0, strict no-op.)
+	_fire_bonus += (_cond_fire_rate_mult - 1.0)
 	# Add this cycle's interval to the carried (negative) remainder so the previous
 	# shot's sub-frame overshoot self-corrects — the average rate matches `cooldown`
 	# instead of rounding each interval up to the next whole frame. The fire-rate
@@ -2421,7 +2486,8 @@ func fire_primary(aim_angle: float = 0.0) -> void:
 			# Targeting Computer: a crit shot hits for ×2.
 			if _crit_shot:
 				dmg *= 2
-			b.damage = dmg
+			# Sector Conditions weapon-damage choke — scale the NET (post module/delimiter/crit).
+			b.damage = _wpn_dmg(dmg)
 		# Targeting Computer crit VFX — tint the bolt purple (HDR so the bloom glows it).
 		if _crit_shot and b is CanvasItem:
 			(b as CanvasItem).modulate = MODULE_CRIT_COLOR
@@ -2473,7 +2539,7 @@ func fire_primary(aim_angle: float = 0.0) -> void:
 				var db: Node = drone_scene.instantiate()
 				_bullet_parent().add_child(db)
 				if "damage" in db:
-					db.damage = drone_bits_damage
+					db.damage = _wpn_dmg(drone_bits_damage)
 				db.start(drone.global_position + Vector2(0, -4))
 	# Unified player muzzle flash (Roman 2026-06-09): bottom-anchored, ~1 frame, diffuse glow,
 	# above the bullets. Colour rules: Auto Laser + Rotary = pure blue; MG family (machinegun,
@@ -2640,14 +2706,14 @@ func fire_secondary() -> void:
 		return
 	if not is_alive:
 		return
-	if _secondary_t < secondary_cooldown:
+	if _secondary_t < _eff_secondary_cd():
 		return
 	# Ammo gate — only applies to metered secondaries (Rocket Pod / Seeking
 	# Missile set secondary_ammo_max > 0). Unmetered (-1) fires forever. Hyper grants
 	# free secondary fire, so a dry metered secondary still launches while Hyper is active.
 	if secondary_ammo == 0 and not _hyper_on():
 		return
-	_secondary_t -= secondary_cooldown  # carry the sub-frame overshoot, don't zero
+	_secondary_t -= _eff_secondary_cd()  # carry the sub-frame overshoot, don't zero
 	var count: int = max(1, secondary_pod_count)
 	var _rs_sec := _run_ref()
 	if _rs_sec != null:
@@ -2661,7 +2727,7 @@ func fire_secondary() -> void:
 		var b: Node = secondary_bullet_scene.instantiate()
 		_bullet_parent().add_child(b)
 		if "damage" in b:
-			b.damage = secondary_damage
+			b.damage = _wpn_dmg(secondary_damage)
 		if secondary_homing and "guided" in b:
 			b.guided = true
 		# Single-missile secondaries (seeker / anti-ship) launch from the wing markers,
@@ -2715,10 +2781,10 @@ func _tick_burst(held: bool, delta: float) -> void:
 					break
 				_spawn_burst_rocket()
 				_burst_shots_left -= 1
-				_burst_shot_t += secondary_burst_interval
+				_burst_shot_t += _eff_burst_interval()  # Faster Weapons: shorten rocket spacing
 			if _burst_shots_left <= 0:
 				_burst_phase = 2
-				_burst_cool_t = secondary_burst_cooldown
+				_burst_cool_t = _eff_burst_cooldown()  # Faster Weapons: shorten cycle lockout
 		2:  # cooldown lockout
 			_burst_cool_t -= delta
 			if _burst_cool_t <= 0.0:
@@ -2744,9 +2810,9 @@ func _spawn_burst_rocket() -> void:
 	var b: Node = secondary_bullet_scene.instantiate()
 	_bullet_parent().add_child(b)
 	if "damage_on_contact" in b:
-		b.damage_on_contact = secondary_damage
+		b.damage_on_contact = _wpn_dmg(secondary_damage)
 	if "damage" in b:
-		b.damage = secondary_damage
+		b.damage = _wpn_dmg(secondary_damage)
 	var sp_burst: Vector2 = _muzzle_offset(wing, fallback)
 	b.start(position + sp_burst)
 	_secondary_muzzle(global_position + sp_burst)
@@ -2838,7 +2904,7 @@ func _tick_salvo() -> void:
 		return
 	if secondary_ammo == 0:
 		return
-	if _secondary_t < secondary_cooldown:
+	if _secondary_t < _eff_secondary_cd():
 		return  # still cooling down
 	var part = _secondary_part()
 	if part == null or not part.has_method("fire_salvo"):
@@ -2846,7 +2912,7 @@ func _tick_salvo() -> void:
 	if not part.fire_salvo(self):
 		return
 	_secondary_muzzle(global_position + _muzzle_offset("Ship/Muzzle", Vector2(0, -8)))
-	_secondary_t -= secondary_cooldown  # restart, carrying the sub-frame overshoot
+	_secondary_t -= _eff_secondary_cd()  # restart, carrying the sub-frame overshoot
 	if secondary_ammo > 0 and not _hyper_on():
 		secondary_ammo -= 1
 		secondary_ammo_changed.emit(secondary_ammo, secondary_ammo_max)
@@ -3108,7 +3174,9 @@ func _tick_beam(holding: bool, delta: float) -> void:
 	# DPS × delta — frame-rate independent. At 60 fps + 30 DPS that
 	# rounds to 1 dmg/tick (since int(round(0.5)) = 1 on tied rounding,
 	# but max(1, ...) guards anyway).
-	var dmg_amount: int = max(1, int(round(secondary_beam_dps * delta)))
+	# Particle Beam is a player armament — Sector Conditions weapon-damage choke applies to its
+	# per-tick DPS too (identity when no Condition is active).
+	var dmg_amount: int = _wpn_dmg(max(1, int(round(secondary_beam_dps * delta))))
 	var stop_y: float = -screensize.y  # default: top of world
 	for e in enemies_in_column:
 		if e.has_method("take_hit"):
@@ -3379,14 +3447,30 @@ func _is_weapon_idle() -> bool:
 	return _shot_recency >= ROUTER_IDLE_GRACE
 
 func _effective_regen_delay() -> float:
+	var d: float = shield_regen_delay
 	if module_energy_router_pct > 0.0 and _is_weapon_idle():
-		return maxf(0.1, shield_regen_delay * (1.0 - module_energy_router_pct))
-	return shield_regen_delay
+		d = maxf(0.1, shield_regen_delay * (1.0 - module_energy_router_pct))
+	# Sector Conditions — Better Shields shorten the recharge delay; composes with the
+	# module-adjusted value, floored at 1.0s. Identity (no floor) when no Condition set it.
+	var run = _run_ref()
+	if run != null:
+		var m: float = run.cond_scalar("player.shield_regen_delay_mult")
+		if m != 1.0:
+			d = maxf(1.0, d * m)
+	return d
 
 func _effective_regen_interval() -> float:
+	var iv: float = shield_regen_interval
 	if module_energy_router_pct > 0.0 and _is_weapon_idle():
-		return maxf(0.1, shield_regen_interval * (1.0 - module_energy_router_pct))
-	return shield_regen_interval
+		iv = maxf(0.1, shield_regen_interval * (1.0 - module_energy_router_pct))
+	# Sector Conditions — Better Shields speed up the regen ticks; composes with the
+	# module-adjusted value, floored at 0.25s. Identity when no Condition set it.
+	var run = _run_ref()
+	if run != null:
+		var m: float = run.cond_scalar("player.shield_regen_rate_mult")
+		if m != 1.0:
+			iv = maxf(0.25, iv / m)
+	return iv
 
 
 func _on_shield_regen_timer_timeout() -> void:
@@ -3419,8 +3503,15 @@ func apply_run_upgrades() -> void:
 	if not has_node("/root/Run"):
 		return
 	var run = get_node("/root/Run")
+	# Sector Conditions — refresh the cached player-kit multipliers before the first shot
+	# (this is the combat-init choke). Null-safe defaults keep everything a no-op when
+	# active_conditions is empty.
+	_cond_wpn_dmg_mult = run.cond_scalar("player.weapon_damage_mult")
+	_cond_fire_rate_mult = run.cond_scalar("player.fire_rate_mult")
 	# Hull: 2 base + the Reinforced Hull module's pips. Mk.9 perk = repair discount.
 	max_hull = 2 + module_hull_bonus
+	# Sector Conditions — Better Hull adds flat pips on top of the module hull.
+	max_hull += int(run.cond_sum("player.hull_bonus"))
 	hull_repair_discount = module_hull_repair_discount
 	hull_shrug_chance = 0.0  # the RNG shrug is the Ablative Plating module now (module_ablative_n)
 	# Speed: baseline + the Thrusters module's bonus.
@@ -3431,6 +3522,11 @@ func apply_run_upgrades() -> void:
 	if bool(run.get("bay_initialized")) and not run.has_module("shield_core"):
 		max_shield = 0
 	max_shield = maxi(0, max_shield)
+	# Sector Conditions — Weak/Better Shields scale the whole assembled charge pool, but
+	# only when a shield actually exists (respect the shieldless gate above). Weak Shields'
+	# "half now + half per progression" falls out of scaling the module-assembled pool.
+	if max_shield > 0:
+		max_shield = maxi(1, roundi(max_shield * run.cond_scalar("player.shield_charges_mult")))
 	# shield_recharge_mk retired — regen is now always 1/sec after 5s delay.
 	# Re-emit so the damage tells (fire/smoke) re-evaluate their activation FRACTION
 	# (1 - hull/max_hull) against the NEW max_hull whenever upgrades change it — not just

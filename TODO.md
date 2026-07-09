@@ -93,13 +93,15 @@ The Worklist was cleared this session. Items below were the active worklist; sta
 - [ ] **EM Torpedo** — BUILT; electric-ball ring detonation reworked 2026-06-11 (`34b33be`). NEEDS
   FEEL PASS. NOT in the shop pool yet — promote by adding `_make_em_torpedo` to `part_catalog._all_pool`
   + authoring `resources/weapons/em_torpedo.tres`. (Behind Test Combat → "EM Torpedo + Wreck Test", fire C.)
-- [ ] **Sector modifiers → Sector Conditions** — PULLED (kill-switch `Run.SECTOR_MODIFIERS_ENABLED = false`
-  gates rolling + application; vocabulary + effect wiring kept). **RE-EVAL DONE — design doc:
-  `docs/sector_conditions_redesign_2026-07-06.md`** (rev 3; ~40 Conditions in functional buckets,
-  signed-Threat-budget reward, one `active_conditions` pipe behind patrol-setup / wildcard-count /
-  threat-level / per-node front-ends). Not built yet — build order §7. New code prereqs (§8): a
-  `mine_bonus_bounty` field (Ordnance Disposal), a single player weapon-damage choke point
-  (Weak/Better Weapons), and a repair material-cost baseline (repair pairs).
+- [ ] **Sector Conditions (ex-modifiers) — v1 BUILT 2026-07-09, unplaytested.** Design + build
+  status: `docs/sector_conditions_redesign_2026-07-06.md`. 45-Condition catalog
+  (`scripts/systems/conditions.gd`), signed-Threat payout, all effect sites wired (combat / player
+  kit / loadout filters / economy / grants), Wildcard front-end live (patrol "Conditions" stepper →
+  seeded roll → `Run.apply_conditions`), outpost Threat/payout readout. 4 headless test suites
+  PASS. Open: playtest + tune (Threat values, K knobs — wants a tuner), reveal UI beat +
+  projected-payout panel, Curated picker / Threat Level / per-node Hotspots, the 4 deferred enemy
+  banes (Debris Fields / Elite Patrol / Reinforced / Bounty Hunters), pacts, legacy
+  `sector_modifiers` retirement.
 
 **Done this session** (were on the Worklist):
 - [x] **Forward+ renderer + Windows-only build** — pivoted and locked in (non-negotiable per Roman 2026-06-11).

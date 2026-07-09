@@ -20,6 +20,7 @@ const FiringSchedulerC = preload("res://scripts/enemies/firing_scheduler.gd")
 const WeaponSfxC = preload("res://scripts/effects/weapon_sfx.gd")   # ENTITY emit sfx (Phase 2)
 const Playfield = preload("res://scripts/systems/playfield.gd")     # ENTITY band_only gate
 const StraightDownC = preload("res://scripts/enemies/patterns/straight_down.gd")  # dropped-enemy default movement
+const ProjectileMods = preload("res://scripts/enemies/projectile_mods.gd")  # Sector Conditions Fast/Slow Bullets
 
 # @export so Resource.duplicate() carries the spec reference through per-instance duplication — the
 # faction firecore overlay routes a MountComponent through enemy_base.components[] (which dups each
@@ -455,6 +456,11 @@ func _fire_launcher(enemy) -> void:
 				proj.start(pos)
 			elif proj is Node2D:
 				proj.global_position = pos
+			# Sector Conditions Fast/Slow Bullets (§4a): step the payload's speed AFTER start()/pos set
+			# its baseline. LAUNCHER never carried faction/sector weapon scalars (no bullet_speed_mult
+			# on this path — noted island), so ONLY the Condition-speed step is applied; no-op when no
+			# Conditions are active or the payload has no `speed`.
+			ProjectileMods.apply_condition_speed(proj)
 			# Inertia ON (no_inertia == false) hands the projectile the launcher's velocity so it carries
 			# the parent's motion; OFF (default) leaves the projectile's own launch velocity. (Roman:
 			# "launcher inertia does nothing for the payload".)
