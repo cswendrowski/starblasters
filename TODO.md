@@ -97,11 +97,12 @@ The Worklist was cleared this session. Items below were the active worklist; sta
   status: `docs/sector_conditions_redesign_2026-07-06.md`. 45-Condition catalog
   (`scripts/systems/conditions.gd`), signed-Threat payout, all effect sites wired (combat / player
   kit / loadout filters / economy / grants), Wildcard front-end live (patrol "Conditions" stepper →
-  seeded roll → `Run.apply_conditions`), outpost Threat/payout readout. 4 headless test suites
-  PASS. Open: playtest + tune (Threat values, K knobs — wants a tuner), reveal UI beat +
-  projected-payout panel, Curated picker / Threat Level / per-node Hotspots, the 4 deferred enemy
-  banes (Debris Fields / Elite Patrol / Reinforced / Bounty Hunters), pacts, legacy
-  `sector_modifiers` retirement.
+  seeded roll → `Run.apply_conditions`), outpost Threat/payout readout. Front-end 2nd pass
+  (2026-07-09): patrol LOADOUT|CONDITIONS tab (Off/Picked/Random/Blind, persisted setup) +
+  outpost SERVICES|STATUS tab (per-condition ⓘ blurbs — the blind-run reveal surface). 5 headless
+  test suites PASS. Open: playtest + tune (Threat values, K knobs — wants a tuner), Threat Level
+  selector, per-node Hotspots, the 4 deferred enemy banes (Debris Fields / Elite Patrol /
+  Reinforced / Bounty Hunters), pacts, launch reveal beat, legacy `sector_modifiers` retirement.
 
 **Done this session** (were on the Worklist):
 - [x] **Forward+ renderer + Windows-only build** — pivoted and locked in (non-negotiable per Roman 2026-06-11).

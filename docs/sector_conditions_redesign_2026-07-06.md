@@ -41,16 +41,23 @@ Threat budget (§5). Supersedes the modifier notes in the archived `economy_2026
   deleted), shared `_upgrade_costs()` (display/spend dup killed), repair cost/mats
   (repair pairs recast: complex=+1 mat, cheap=2 mats no bounty, easy=baseline placeholder),
   restock mult (flat + per-round variants).
-- **Front-end (Wildcard)** — patrol stepper (relabeled "Conditions", 0–5) → `Conditions.roll(n,
-  run_seed ^ 0x51EC7C0D)` (decorrelated; sector-gen RNG untouched) → `apply_conditions`. Outpost
-  readout shows active labels + `Threat N · +X% bounty · +Y% materials`. A `conditions_summary`
-  Run meta is stashed as the reveal hook.
+- **Front-ends (2026-07-09, second pass)** — patrol setup got a LOADOUT|CONDITIONS tab with four
+  modes: **Off / Picked** (curated bucket-grouped picker, live mutex de-selection, Threat chips +
+  running Threat/payout summary) / **Random** (Bad+Good count steppers, visible re-rollable Roll —
+  uses `Conditions.roll_split(banes, boons, seed)`, one shared mutex dict across both pools) /
+  **Blind** (counts only; rolled secretly at Begin from `run_seed ^ salt`, deterministic per run).
+  Setup persists to `user://conditions_setup.json`; the old 0–5 stepper + `patrol_sector_modifiers`
+  meta are retired. The outpost services column got a **SERVICES|STATUS tab**: Status lists active
+  Conditions threat-sorted with ±chips and per-row ⓘ expanding the catalog blurb — the in-run
+  reveal surface for blind patrols. The top-bar one-liner readout remains.
 - **Tests** — `tools/test_conditions{,_economy,_player,_wildcard}.gd`, all PASS headless;
   parse_check 377/0.
 - **NOT built (deferred)** — the four design-heavy enemy banes (Debris Fields, Elite Patrol,
-  Reinforced, Bounty Hunters — not in the catalog yet), pacts, the reveal UI beat + projected-payout
-  panel at setup, Curated picker, Threat Level selector, per-node Hotspots, the Threat/K tuner,
-  legacy `sector_modifiers` retirement (roll machinery still parked behind the kill-switch).
+  Reinforced, Bounty Hunters — not in the catalog yet), pacts, a launch reveal *beat* (the Status
+  tab + summary meta cover the functional need), Threat Level selector, per-node Hotspots, the
+  Threat/K tuner, legacy `sector_modifiers` retirement (roll machinery still parked behind the
+  kill-switch). ~~Curated picker~~ ~~projected-payout panel~~ — built as the Picked mode + summary
+  line (2026-07-09).
 - **Playtest flags** — Glass Patrol respects the death-bomb save (a charged super rescues the
   lethal hull hit; Roman 2026-07-09); Hazard Pay/Starting Funds stack under bounty_mult
   (grant-then-mult); Faster Weapons covers all four cadence paths incl. burst rockets; beams no-op
