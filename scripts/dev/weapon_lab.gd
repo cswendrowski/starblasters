@@ -69,6 +69,13 @@ const ENEMY_PREFIXES := ["enemy_", "drifting_"]
 enum Side { PLAYER, ENEMY }
 enum Kind { BULLET, MISSILE }
 
+# Velocity @exports that are constrained to the motion-clarity speed rungs (multiples of 60 px/s,
+# ceiling 480 = 8 px/f). `speed` = bullets/BulletVariant; `drift_speed`/`homing_max_speed` = the
+# base_missile travel-speed fields (rockets + missiles). `speed_lock_mult` is a MULTIPLIER, not a
+# speed — deliberately excluded. Constants come from Clarity (SSOT). The rung SpinBox sets .value
+# BEFORE connecting value_changed, so loading never silently re-clamps — only a user edit snaps.
+const RUNG_SPEED_FIELDS := ["speed", "drift_speed", "homing_max_speed"]
+
 var PAYLOADS: Dictionary = {}   # family name -> BulletVariant (live from DevData.bullet_variants())
 
 const FS_TITLE := 40
@@ -948,18 +955,22 @@ func _build_object_form(vbox: VBoxContainer, obj: Object, overridden: PackedStri
 		var cap_col := UiTheme.COLOR_FAINT
 		match ptype:
 			TYPE_INT, TYPE_FLOAT:
-				if pname == "speed":
-					vbox.add_child(_label("speed  (rung 1–8 → px/s)%s" % ("   (set by weapon Part)" if is_over else ""), FS_CAPTION, cap_col))
+				if pname in RUNG_SPEED_FIELDS:
+					# Rung-clamped velocity: only 60·k px/s up to the 480 (8 px/f) ceiling. Snapping
+					# routes through Clarity (SSOT). Rockets/missiles author their travel speed here too.
+					var snapped: float = clampf(Clarity.snap_to_rung(float(val)), Clarity.RUNG_STEP, Clarity.ABS_MAX_SPEED)
+					var over_tag := "   (set by weapon Part)" if is_over else ""
+					vbox.add_child(_label("%s  →  %s%s" % [pname, Clarity.label_for_speed(snapped), over_tag], FS_CAPTION, cap_col))
 					var rsb := SpinBox.new()
 					rsb.add_theme_font_override("font", UiTheme.active_font())
 					rsb.add_theme_font_size_override("font_size", FS_BODY)
 					rsb.custom_minimum_size = Vector2(0, 32)
-					rsb.min_value = 60.0
-					rsb.max_value = 480.0
-					rsb.step = 60.0
-					rsb.value = clampf(roundf(float(val) / 60.0) * 60.0, 60.0, 480.0)
+					rsb.min_value = Clarity.RUNG_STEP
+					rsb.max_value = Clarity.ABS_MAX_SPEED
+					rsb.step = Clarity.RUNG_STEP
+					rsb.value = snapped
 					rsb.value_changed.connect(func(v):
-						obj.set("speed", clampf(roundf(v / 60.0) * 60.0, 60.0, 480.0)))
+						obj.set(pname, clampf(Clarity.snap_to_rung(v), Clarity.RUNG_STEP, Clarity.ABS_MAX_SPEED)))
 					vbox.add_child(rsb)
 				elif hint == PROPERTY_HINT_ENUM:
 					var opts := hint_str.split(",")
