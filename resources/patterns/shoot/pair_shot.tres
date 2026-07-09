@@ -1,7 +1,7 @@
 [gd_resource type="Resource" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/shoot_patterns/pair_shot.gd" id="1_pr"]
-[ext_resource type="PackedScene" uid="uid://iqys12s5srvb" path="res://scenes/projectiles/enemy_bullet.tscn" id="2_b"]
+[ext_resource type="PackedScene" uid="uid://dcsh3xnycnsq3" path="res://scenes/projectiles/projectile_ball.tscn" id="2_b"]
 
 [resource]
 script = ExtResource("1_pr")
