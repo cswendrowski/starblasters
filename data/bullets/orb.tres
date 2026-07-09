@@ -5,7 +5,7 @@
 
 [resource]
 script = ExtResource("1_variant")
+speed = 60.0
+lifetime = 6.0
 family = &"orb"
 bullet_scene = ExtResource("2_scene")
-speed = 90.0
-lifetime = 4.0

@@ -5,8 +5,8 @@
 
 [resource]
 script = ExtResource("1_variant")
+speed = 60.0
+lifetime = 5.0
 family = &"ball"
 bullet_scene = ExtResource("2_scene")
-speed = 180.0
-lifetime = 3.0
 enemy_sfx_kind = "enemy_mg"

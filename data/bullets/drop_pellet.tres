@@ -1,14 +1,12 @@
 [gd_resource type="Resource" script_class="BulletVariant" format=3]
 
 [ext_resource type="Script" path="res://scripts/projectiles/bullet_variant.gd" id="1_variant"]
-[ext_resource type="PackedScene" uid="uid://dcsh3xnycnsq3" path="res://scenes/projectiles/projectile_ball.tscn" id="2_scene"]
+[ext_resource type="PackedScene" path="res://scenes/projectiles/projectile_ball.tscn" id="2_scene"]
 
 [resource]
 script = ExtResource("1_variant")
+speed = 45.0
+lifetime = 8.0
 family = &"drop"
 bullet_scene = ExtResource("2_scene")
-speed = 45.0
-damage = 1
-lifetime = 5.0
-impact_kind = 0
 enemy_sfx_kind = "enemy_mg"
