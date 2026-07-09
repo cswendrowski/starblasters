@@ -15,6 +15,7 @@ size = Vector2(32, 32)
 [node name="Enemy" type="Area2D" unique_id=784938465 groups=["enemies"]]
 script = ExtResource("1_kay73")
 movement = SubResource("MovePattern")
+ram = true
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1305763441]
 texture = ExtResource("3_kay73")

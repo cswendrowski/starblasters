@@ -250,11 +250,8 @@ const ENTRIES := [
 		"size": "small", "tags": [],
 		"movement": "straight",
 		"shoot": null,
-		# Bench 2026-07-05: Dart now trails drifting missiles (band-only timer emit, cadence 0.55, cap 3).
-		# Migrated 2026-07-07 from the legacy "emitters" dialect to an equivalent ENTITY "mounts" hardpoint
-		# (field-identical MountSpec — verified by a spec diff). "timer"->CADENCE, spread->scatter,
-		# payload name->payload_scene path; ENTITY no_inertia defaults true (drop at rest) as before.
-		"mounts": [{ "kind": "entity", "trigger": "timer", "payload_scene": "res://scenes/projectiles/drifting_missile.tscn", "fire_min": 0.55, "fire_max": 0.55, "count": 1, "max_emits": 3, "band_only": true }],
+		# Bench 2026-07-08: Dart DISARMED — Roman removed its drifting-missile dropper; it's back to
+		# pure ram chaff (no mounts). (Was an ENTITY timer-emit dropper 2026-07-05/07.)
 		"base_count": 8,
 		"recycle": 0,
 		"hp_override": 1, "bounty_override": 5,
@@ -478,30 +475,42 @@ const ENTRIES := [
 		"conflict_tags": [],
 	},
 	{
-		# Ravager (supremacy medium, tall 32x64 hull) — SCAFFOLD, add movement + hardpoints.
+		# Ravager (supremacy large, tall 32x64 hull) — armed from Enemy Bench (2026-07-08): a 12-shot
+		# 90°-spread ball barrage (4 volleys, 0.26 gap) PLUS an aimed straight-down orb pot-shot; both
+		# fire slowed bullets (49px/s over base), dropped at rest. Bench: large hull, engine -1.
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_ravager.tscn",
+		"mounts": [
+			{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "all", "payload": preload("res://data/bullets/ball.tres"), "aim": "forward", "count": 12, "fire_min": 0.1, "fire_max": 0.1, "bullet_speed": 49.0, "max_fires": 1, "volleys": 4, "volley_gap": 0.26, "no_inertia": true, "spread_deg": 90.0 },
+			{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "all", "payload": preload("res://data/bullets/orb.tres"), "aim": "straight_down", "count": 1, "fire_min": 2.5, "fire_max": 2.5, "bullet_speed": 49.0, "burst_interval": 0.1, "max_fires": 3, "no_inertia": true, "spread_deg": 0.0 },
+		],
+		"engine": -1,   # bench 2026-07-08 (engine_override)
 		"tier": Tier.UNCOMMON,
-		"size": "medium", "tags": [],
+		"size": "large", "tags": [],
 		"movement": "straight",
 		"base_count": 2,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": false,
 		"conflict_tags": [],
 	},
 	{
-		# Ruiner (supremacy medium, uses the beamer art) — SCAFFOLD, add movement + hardpoints.
+		# Ruiner (supremacy large, uses the beamer art) — armed from Enemy Bench (2026-07-08): a wide
+		# 5-shot straight-down wave fan (46° spread) walked across 9 volleys (0.3 gap) of fast waves
+		# (89px/s over base), dropped at rest. Bench: large hull.
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_ruiner.tscn",
+		"mounts": [{ "kind": "gun", "marker": "Muzzle", "marker_mode": "all", "payload": preload("res://data/bullets/wave.tres"), "aim": "straight_down", "count": 5, "fire_min": 0.1, "fire_max": 0.1, "bullet_speed": 89.0, "max_fires": 1, "volleys": 9, "volley_gap": 0.3, "no_inertia": true, "spread_deg": 46.0 }],
 		"tier": Tier.UNCOMMON,
-		"size": "medium", "tags": [],
+		"size": "large", "tags": [],
 		"movement": "straight",
 		"base_count": 2,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": false,
 		"conflict_tags": [],
 	},
 	{
-		# Scorcher (supremacy medium) — SCAFFOLD, add movement + hardpoints.
+		# Scorcher (supremacy large) — armed from Enemy Bench (2026-07-08): a cycling default beam off
+		# its muzzle rack (bench carries no beam_* knobs → default BeamEmitter config). Bench: large hull.
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_scorcher.tscn",
+		"mounts": [{ "kind": "beam", "marker": "Muzzle*", "marker_mode": "cycle" }],
 		"tier": Tier.UNCOMMON,
-		"size": "medium", "tags": [],
+		"size": "large", "tags": [],
 		"movement": "straight",
 		"base_count": 2,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": false,
@@ -510,8 +519,10 @@ const ENTRIES := [
 	# --- More new supremacy units (Roman 2026-07-07) — SCAFFOLD ONLY: registered for Enemy-Bench config;
 	# movement pattern + hardpoints are Roman's to author manually. `straight` + no mounts placeholder. ---
 	{
-		# Striker (supremacy small) — SCAFFOLD, add movement + hardpoints.
+		# Striker (supremacy small) — armed from Enemy Bench (2026-07-08): a 2-shot spread burst walked
+		# across 6 volleys from cycling nose muzzles (slow bullets 19px/s over base).
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_striker.tscn",
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/ball.tres"), "aim": "forward", "count": 2, "fire_min": 0.1, "fire_max": 0.1, "bullet_speed": 19.0, "max_fires": 3, "volleys": 6, "volley_gap": 0.76, "spread_deg": 30.0 }],
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "straight",
@@ -520,8 +531,10 @@ const ENTRIES := [
 		"conflict_tags": [],
 	},
 	{
-		# Piercer (supremacy small) — SCAFFOLD, add movement + hardpoints.
+		# Piercer (supremacy small) — armed from Enemy Bench (2026-07-08): a fast single-muzzle laser
+		# stream (up to 6 fires, 0.25 burst) of quicker bolts (59px/s over base).
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_piercer.tscn",
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/laser.tres"), "aim": "forward", "count": 1, "fire_min": 0.1, "fire_max": 0.1, "bullet_speed": 59.0, "burst_interval": 0.25, "max_fires": 6, "volley_gap": 0.26, "spread_deg": 0.0 }],
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "straight",
@@ -540,8 +553,10 @@ const ENTRIES := [
 		"conflict_tags": [],
 	},
 	{
-		# Chaser (supremacy medium) — SCAFFOLD, add movement + hardpoints.
+		# Chaser (supremacy medium) — armed from Enemy Bench (2026-07-08): rapid forward bolt volleys
+		# (3 volleys x 2 fires, 0.16 gap), dropped at rest.
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_chaser.tscn",
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/bolt.tres"), "aim": "forward", "count": 1, "fire_min": 0.1, "fire_max": 0.1, "max_fires": 2, "volleys": 3, "volley_gap": 0.16, "no_inertia": true, "spread_deg": 0.0 }],
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
 		"movement": "straight",
@@ -550,8 +565,10 @@ const ENTRIES := [
 		"conflict_tags": [],
 	},
 	{
-		# Hunter (supremacy medium) — SCAFFOLD, add movement + hardpoints.
+		# Hunter (supremacy medium) — armed from Enemy Bench (2026-07-08): twin straight-down laser
+		# volleys (3 volleys, 0.26 gap) of fast bolts (109px/s over base).
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_hunter.tscn",
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/laser.tres"), "aim": "straight_down", "count": 2, "fire_min": 0.1, "fire_max": 0.1, "bullet_speed": 109.0, "max_fires": 1, "volleys": 3, "volley_gap": 0.26, "no_inertia": true, "spread_deg": 0.0 }],
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
 		"movement": "straight",
@@ -560,8 +577,10 @@ const ENTRIES := [
 		"conflict_tags": [],
 	},
 	{
-		# Breaker (supremacy medium) — SCAFFOLD, add movement + hardpoints.
+		# Breaker (supremacy medium) — armed from Enemy Bench (2026-07-08): a steady straight-down
+		# bolt (fire 1.5) dropped at rest.
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_breaker.tscn",
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/bolt.tres"), "aim": "straight_down", "count": 1, "fire_min": 1.5, "fire_max": 1.5, "no_inertia": true, "spread_deg": 0.0 }],
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
 		"movement": "straight",

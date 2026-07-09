@@ -16,6 +16,7 @@ size = Vector2(16, 16)
 script = ExtResource("1_wb6p6")
 max_health = 4
 movement = SubResource("MovePattern")
+omni = true
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=973730929]
 texture = ExtResource("3_wb6p6")
