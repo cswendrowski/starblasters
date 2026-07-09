@@ -2,6 +2,12 @@
 
 **Status:** approved for build (Roman 2026-07-02). Supersedes the split mount/emitter model.
 
+> **Shipped-key note (2026-07-07):** the unified roster key was implemented as **`"mounts"`**, NOT
+> `"hardpoints"`. The proposed `"hardpoints"` key + its alias were never wired up — production
+> authors `"mounts": [{ "kind": "entity"/"gun"/… }]` (with a deprecated `"emitters"` dialect kept for
+> legacy Bench saves). Decision: keep `"mounts"`, no `"hardpoints"` alias. Read `"hardpoints"` in the
+> plan below as `"mounts"`.
+
 Merge the two enemy-spawner systems — the **gun/launcher mount** (`MountSpec` → `MountComponent`)
 and the **emitter** (`EmitterComponent`) — into one **Hardpoint** spec + component, and add three
 authoring features on top: rear/side aim directions, inward/outward muzzle ordering, and an opt-in

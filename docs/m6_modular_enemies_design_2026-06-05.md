@@ -346,7 +346,7 @@ which is the payoff of sequencing the refactor first.
 
 | id (internal) | Display / lore name | Mechanic | Implementation |
 |---|---|---|---|
-| `supremacy` | **Crimson Supremacy** | faster fire **+ faster projectiles** (Roman, 2026-06-06) | **weapon_mods on the Weapon** (§9): fire_rate_mult 0.7 **+ bullet_speed_mult 1.25** (speed clamped to the clarity ceiling), not a per-enemy bool |
+| `supremacy` | **Crimson Supremacy** | faster fire **+ faster projectiles** (Roman, 2026-06-06) | **weapon_mods on the Weapon** (§9): ~~fire_rate_mult 0.7~~ (removed 2026-07-07 — fire rates authored directly in roster config) **+ bullet_speed_mult 1.25** (speed clamped to the clarity ceiling), not a per-enemy bool |
 | `privateer` | **Vertarine Armada** | tough + mixes in | `tough` stat modifier (2× HP); the one faction that **overlays** others |
 | `corporate` | **UltraGalactic Concerns** | shielded | every spawn gets the **`Shield` component** (§3 regen shield) |
 | `zealot` | **Evantian Theocracy** | drops firecore | every spawn gets a **`DropFirecore` component** |

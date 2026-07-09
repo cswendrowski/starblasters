@@ -95,9 +95,11 @@ The Worklist was cleared this session. Items below were the active worklist; sta
   + authoring `resources/weapons/em_torpedo.tres`. (Behind Test Combat → "EM Torpedo + Wreck Test", fire C.)
 - [ ] **Sector modifiers → Sector Conditions** — PULLED (kill-switch `Run.SECTOR_MODIFIERS_ENABLED = false`
   gates rolling + application; vocabulary + effect wiring kept). **RE-EVAL DONE — design doc:
-  `docs/sector_conditions_redesign_2026-06-27.md`** (reframe as chosen, bounty+materials-rewarded
-  Conditions; one `active_conditions` pipe behind patrol-setup / wildcard-count / threat-level /
-  per-node front-ends). Not built yet — build order in the doc §7.
+  `docs/sector_conditions_redesign_2026-07-06.md`** (rev 3; ~40 Conditions in functional buckets,
+  signed-Threat-budget reward, one `active_conditions` pipe behind patrol-setup / wildcard-count /
+  threat-level / per-node front-ends). Not built yet — build order §7. New code prereqs (§8): a
+  `mine_bonus_bounty` field (Ordnance Disposal), a single player weapon-damage choke point
+  (Weak/Better Weapons), and a repair material-cost baseline (repair pairs).
 
 **Done this session** (were on the Worklist):
 - [x] **Forward+ renderer + Windows-only build** — pivoted and locked in (non-negotiable per Roman 2026-06-11).

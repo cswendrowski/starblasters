@@ -41,10 +41,11 @@ move it to `docs/archive/` with a banner rather than deleting it.
 | Passive module bay | [`passive_module_bay_2026-06-13.md`](passive_module_bay_2026-06-13.md) |
 | Enemy shields | [`shield_unification_2026-06-08.md`](shield_unification_2026-06-08.md) |
 | Signal events | [`signal_event_redesign_2026-06-08.md`](signal_event_redesign_2026-06-08.md) |
-| Sector Conditions (ex-"sector modifiers") | **SCOPED / NOT BUILT** — [`sector_conditions_redesign_2026-06-27.md`](sector_conditions_redesign_2026-06-27.md) (parked system re-eval; effect wiring lives behind `Run.SECTOR_MODIFIERS_ENABLED`) |
+| Sector Conditions (ex-"sector modifiers") | **SCOPED / NOT BUILT** — [`sector_conditions_redesign_2026-07-06.md`](sector_conditions_redesign_2026-07-06.md) (parked system re-eval; effect wiring lives behind `Run.SECTOR_MODIFIERS_ENABLED`) |
 | Economy / outpost | **Code is the reference** — `scripts/autoload/run_state.gd` (bounty + Materials, outpost hub) + `scripts/screens/outpost.gd`. The old two-currency design is archived. |
 | Outpost deck life (crew/vehicles/reactions) | **IN PROGRESS 2026-07-04 (Phase 0–3 partial, uncommitted)** — [`deck_life_plan_2026-07-04.md`](deck_life_plan_2026-07-04.md). BUILT: `scripts/screens/deck_life.gd`+`deck_crew.gd` (2px top-down crew wander + weld-on-repair + congregate + two-crew crate carry + walk-to-boxes), rides `_plate`, tuned via Outpost Arrival Lab. NOT built: vehicle runs (lifter/tractor), real art, ship-select |
 | Sector map | `scripts/screens/sector_map_v3.gd` wrapped by `scripts/screens/sector_map_hd.gd` (routed via `scripts/systems/sector_map_route.gd`) |
+| Backdrop/parallax system review | **REVIEW 2026-07-06, handoff doc** — [`parallax_backdrop_review_2026-07-06.md`](parallax_backdrop_review_2026-07-06.md) (why depth feels "off": bunched scroll ratios + inverted brightness ramp + 6 independent color authorities + conveyor motion; P0 global-RNG reseed bug; dead V1/V2/V3; tuner-pipeline gaps; 4-phase roadmap) |
 | Renderer / engine gotchas | [`godot-patterns.md`](godot-patterns.md); portable heuristics: [`godot-learnings-for-new-projects.md`](godot-learnings-for-new-projects.md) |
 | Asteroid HDR-2D darkening | **FIXED 2026-06-24** — [`asteroid_hdr_darkening_2026-06-23.md`](asteroid_hdr_darkening_2026-06-23.md) (asteroid shader wrote alpha-0 fragments → crushed over HDR-bright; now opaque-or-discard in `Planets/Asteroids/Asteroids.gdshader`) |
 | UI palette | [`ui_color_reference.md`](ui_color_reference.md) |
