@@ -12,7 +12,7 @@ const OUT_DIR := "res://captures/glow_fix"
 const FPS: int = 30
 const DURATION: float = 2.0
 const FRAME_TIME: float = 1.0 / float(FPS)
-const BULLET_SCENE := "res://scenes/projectiles/enemy_bullet.tscn"
+const BULLET_SCENE := "res://scenes/projectiles/projectile_ball.tscn"
 
 
 func _initialize() -> void:

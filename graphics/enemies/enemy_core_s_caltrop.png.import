@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://b3qm65qx4r7ig"
-path="res://.godot/imported/enemy_core_caltrop.png-613ffa019ea28eac487a5d22c21d3a48.ctex"
+uid="uid://vy1gmobovt57"
+path="res://.godot/imported/enemy_core_s_caltrop.png-fba8577d90b5b8015466feb9561119ba.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://graphics/enemies/enemy_core_caltrop.png"
-dest_files=["res://.godot/imported/enemy_core_caltrop.png-613ffa019ea28eac487a5d22c21d3a48.ctex"]
+source_file="res://graphics/enemies/enemy_core_s_caltrop.png"
+dest_files=["res://.godot/imported/enemy_core_s_caltrop.png-fba8577d90b5b8015466feb9561119ba.ctex"]
 
 [params]
 

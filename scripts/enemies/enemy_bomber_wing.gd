@@ -24,9 +24,15 @@ extends "res://scripts/enemies/enemy_base.gd"
 # 150° wedge centered on +Y so the player gets hit when chasing.
 
 const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
-const BulletScene = preload("res://scenes/projectiles/enemy_bullet.tscn")
+const BulletScene = preload("res://scenes/projectiles/projectile_ball.tscn")
 const TURRET_BULLET_TEX = preload("res://graphics/projectiles/tracer-yellow.png")
 const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
+# Simple-shield RING (moved here from enemy_base 2026-07-07 — this preserved wing is the only
+# consumer of the retired charge-shield ring; the base sheds the draw code).
+const SHIELD_SHADER = preload("res://graphics/hex_shield.gdshader")
+var _shield_ring: ColorRect = null
+var _shield_mat: ShaderMaterial = null
+var _shield_hit_tween: Tween = null
 
 # --- Shape / stats ------------------------------------------------------
 @export var shield_charges_max: int = 2

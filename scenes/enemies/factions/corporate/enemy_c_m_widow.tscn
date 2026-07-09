@@ -257,9 +257,6 @@ libraries = {
 [node name="MoveTimer" type="Timer" parent="."]
 one_shot = true
 
-[node name="ShootTimer" type="Timer" parent="."]
-one_shot = true
-
 [node name="ParticleExplode" type="GPUParticles2D" parent="."]
 emitting = false
 amount = 128
@@ -294,4 +291,3 @@ stream = ExtResource("4_gqutq")
 stream = ExtResource("5_41ijo")
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
-[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

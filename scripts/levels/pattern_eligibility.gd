@@ -75,6 +75,27 @@ const DATA := {
 }
 
 
+# Canonical SHAPE-only movement keys (locomotion refactor 2026-06-19): speed + depth are chassis/
+# formation axes now, not movement keys. Speed = size base + per-enemy engine (Enemy Bench Locomotion
+# tab); depth = enemy default + per-placement override. This is the SINGLE canonical list — it moved
+# here from pattern_eligibility_editor.gd:27 (2026-07-07 dev-tool unification) so DevData.movement_keys()
+# composes `canonical shapes + live authored paths` and BOTH the eligibility editor and Formation Builder
+# read it via DevData instead of hand-maintaining a private copy. The trailing HAZARD drift modes are
+# selectable in the wave editor for asteroid/mine/firecore placements (LateralDrift envelopes); on a
+# combat enemy they fall back to a straight descent, so they're harmless there.
+const MOVEMENT_KEYS := [
+	"straight", "straight_charge",
+	"skirmish_loop", "skirmish_figure8", "skirmish_pendulum",
+	"drift",
+	"loiter",
+	"lane_weave", "lane_drift", "lane_shift", "lane_hook", "lane_cut",
+	"side_turn", "side_traverse",
+	"hunt_beeline", "hunt_omni",
+	"proximity_chase", "loiter_sweep",
+	"drift_lane", "drift_adjacent", "drift_all",
+]
+
+
 # The enemy's signature movement key, or "" if the scene isn't in the matrix.
 static func identity_for(scene: String) -> String:
 	var rec: Variant = DATA.get(scene, null)

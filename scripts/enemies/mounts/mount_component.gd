@@ -15,13 +15,27 @@ const WeaponC = preload("res://scripts/enemies/shoot_patterns/weapon.gd")
 const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
 const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 const MountSpecC = preload("res://scripts/enemies/mounts/mount_spec.gd")
-const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
+const EnemyBullet = preload("res://scenes/projectiles/projectile_ball.tscn")
 const FiringSchedulerC = preload("res://scripts/enemies/firing_scheduler.gd")
 const WeaponSfxC = preload("res://scripts/effects/weapon_sfx.gd")   # ENTITY emit sfx (Phase 2)
 const Playfield = preload("res://scripts/systems/playfield.gd")     # ENTITY band_only gate
 const StraightDownC = preload("res://scripts/enemies/patterns/straight_down.gd")  # dropped-enemy default movement
 
-var spec: Resource = null
+# @export so Resource.duplicate() carries the spec reference through per-instance duplication — the
+# faction firecore overlay routes a MountComponent through enemy_base.components[] (which dups each
+# component), and a NON-exported spec would be dropped by duplicate() (leaving spec == null). The
+# roster/MountBuilder path appends already-built MountComponents straight into _components (no dup),
+# so this only matters for the overlay — but exporting is harmless for both (spec is read-only config
+# shared across dups, matching how EmitterComponent's @export fields were shared). (Roman 2026-07-07.)
+@export var spec: Resource = null
+# HULL-PATTERN delegation (firing-engine consolidation 2026-07-07): when set, this mount is the
+# realized form of an enemy's hull `shoot_pattern` (assigned via wave override / dev lab / .tscn). Its
+# _fire delegates straight to `hull_pattern.fire(enemy)` so the Weapon's OWN volley shape + muzzle
+# cycling (next_muzzle_pos) are preserved byte-for-byte — the mount engine only supplies the shared
+# cadence / gate / path-phase / on-phase timing that used to live in enemy_core's ShootTimer path. The
+# spec carries the hull's fire fields (interval, zone/nose gates, path phases, fire_on_phase). Built by
+# enemy_core._realize_shoot_pattern_mount; null for every roster/bench mount (they fire via spec).
+@export var hull_pattern: Resource = null
 var _weapon = null            # internal Weapon, borrowed for _spawn_bullet + aim helpers (GUN)
 var _markers: Array = []
 var _cycle: int = 0
@@ -36,11 +50,28 @@ var _next: float = 2.0
 var _scheduler = FiringSchedulerC.new()
 var _emit_count: int = 0          # ENTITY CADENCE emits this pass (vs spec.max_emits)
 var _started_once: bool = false   # ENTITY START fires once per instance, not once per parallax recycle
+var _last_emit_succeeded: bool = false   # ENTITY: did the last DEATH emit actually fire? (explosion routing;
+                                         # mirrors EmitterComponent — read by enemy_base.did_emit_tagged)
 var _fire_count: int = 0          # GUN/LAUNCHER fires this pass (vs spec.max_fires); reset in on_start
 
 
 func on_start(enemy) -> void:
 	_resolve_markers(enemy)
+	# Reset the path-phase cursor for a fresh descent (spawn OR parallax recycle — on_start re-runs per
+	# recycle via _recycle_resume -> _components_start). The old enemy_core hull reset its scheduler in
+	# _recycle_resume; folding that here keeps recycling path-phase mounts (incl. realized hull patterns)
+	# re-firing on every pass instead of staying exhausted after the first (firing-engine consolidation).
+	_scheduler.reset()
+	# HULL-PATTERN delegation: the Weapon does its own spawning, so skip the internal _weapon build +
+	# marker resolution. Arm the cadence to match the OLD hull ShootTimer EXACTLY (not the mount's
+	# randomized desync): the hull armed its first shot at a DETERMINISTIC _fire_interval() (the midpoint),
+	# not a randf-seeded _t — so start _t at 0 and _next at the interval. This keeps shoot_pattern-realized
+	# timing byte-identical to the retired enemy_core._on_shoot_timer_timeout path (baseline Case A).
+	if hull_pattern != null:
+		_t = 0.0
+		_next = _roll_interval()
+		_fire_count = 0
+		return
 	# Build the internal Weapon for GUN (bullet spawn) AND LAUNCHER (aim resolution — a launched
 	# projectile fires along spec.aim / the parent facing, same as a gun; Roman 2026-07-04).
 	if int(spec.kind) == MountSpecC.Kind.GUN or int(spec.kind) == MountSpecC.Kind.LAUNCHER:
@@ -109,10 +140,16 @@ func on_phase(enemy, phase_name: String) -> void:
 # --- ENTITY payload (Phase 2 2026-07-03) — folds EmitterComponent: spawn payload_scene on a trigger.
 # START fires in on_start, DEATH here, CADENCE via _process_entity. Behaviourally identical to the
 # retired EmitterComponent (deferred insert, scatter, attach, drop-vs-launch, per-emit sfx). ---
+# DEATH trigger. Tracks _last_emit_succeeded exactly like EmitterComponent: the flag is set true when
+# the chance-roll passes AND the emit produced at least one payload, and cleared when the roll fails or
+# there's nothing to spawn. enemy_base.did_emit_tagged reads this fresh every death for the firecore
+# ball-vs-default explosion routing.
 func on_death(enemy) -> void:
 	if int(spec.kind) == MountSpecC.Kind.ENTITY and int(spec.trigger) == MountSpecC.Trigger.DEATH:
 		if _roll_chance():
-			_emit_scene(enemy)
+			_last_emit_succeeded = _emit_scene(enemy)
+		else:
+			_last_emit_succeeded = false
 
 
 func _process_entity(enemy, delta: float) -> void:
@@ -149,16 +186,18 @@ func _in_band(enemy) -> bool:
 # Spawn spec.count scenes at the origin (centre + scatter, or attached to the enemy). Parents to the
 # BulletWorld so drops survive the enemy's queue_free, unless attach_to_enemy. Deferred insert — a
 # DEATH emit runs inside a physics callback and adding an Area2D mid-flush trips the query-flush guard.
-func _emit_scene(enemy) -> void:
+func _emit_scene(enemy) -> bool:
+	# Returns true when at least one payload was queued for insertion (used by on_death to track
+	# _last_emit_succeeded, mirroring EmitterComponent — a null payload / missing parent is a failed emit).
 	if spec.payload_scene == null:
-		return
+		return false
 	var parent: Node = enemy
 	if not spec.attach_to_enemy:
 		parent = BulletWorld.resolve(enemy, enemy.get_tree().current_scene)
 		if parent == null:
 			parent = enemy.get_tree().root
 	if parent == null:
-		return
+		return false
 	var base_pos: Vector2 = enemy.global_position
 	# Inertia ON (no_inertia == false) launches the scene with the enemy's velocity; OFF drops it at rest.
 	var launch_vel: Vector2 = Vector2.ZERO
@@ -166,10 +205,12 @@ func _emit_scene(enemy) -> void:
 		launch_vel = enemy._last_move_vel
 	if String(spec.emit_sfx) != "":
 		WeaponSfxC.play(enemy.get_tree().root, base_pos, spec.emit_sfx)
+	var any_emitted: bool = false
 	for _i in maxi(1, spec.count):
 		var inst = spec.payload_scene.instantiate()
 		if inst == null:
 			continue
+		any_emitted = true
 		# Drop speed (Roman 2026-07-04): an EXPLICIT hardpoint speed (spec.bullet_speed > 0) sets the
 		# dropped entity's move_speed, so the bench preview matches live and it's directly tunable —
 		# instead of implicitly inheriting the dropper's (lateral) speed. 0 = the entity's own authored
@@ -184,6 +225,7 @@ func _emit_scene(enemy) -> void:
 		if spec.emit_scatter > 0.0:
 			pos += Vector2(randf_range(-spec.emit_scatter, spec.emit_scatter), randf_range(-spec.emit_scatter, spec.emit_scatter))
 		_insert_scene.call_deferred(inst, parent, pos, spec.attach_to_enemy, launch_vel)
+	return any_emitted
 
 
 func _insert_scene(inst, parent: Node, pos: Vector2, attach: bool, launch_vel: Vector2) -> void:
@@ -213,7 +255,8 @@ func _impart_velocity(inst, v: Vector2) -> void:
 			return
 
 
-# Deterministic fire cadence (firing-consistency pass 2026-07-02, parity with enemy_core._fire_interval).
+# Deterministic fire cadence (firing-consistency pass 2026-07-02). This IS the single cadence formula for
+# every enemy weapon now (hull shoot_patterns are realized as mounts too — firing-engine consolidation).
 # Replaces the old per-shot randf_range(min, max): re-rolling every shot made the mount's rhythm wander
 # unpredictably. We fire at a FIXED interval — the midpoint of the roster's min/max — for a steady,
 # readable cadence. The random spawn-time desync (on_start _t seed) keeps identical mounts from firing in
@@ -310,6 +353,14 @@ func _spawn_positions(enemy) -> Array:
 
 
 func _fire(enemy) -> void:
+	# HULL-PATTERN delegation: the realized hull `shoot_pattern` owns its own volley shape (SINGLE/
+	# SPREAD/BURST/BROADSIDE/AIMED) + muzzle cycling + fire SFX, so fire it directly and skip the mount's
+	# gun/launcher spawn path entirely. This reproduces enemy_core's old `shoot_pattern.fire(self)` +
+	# EnemySfxC.play_for(self) exactly (the Weapon plays its own burst SFX; play_for covers shot 1).
+	if hull_pattern != null:
+		hull_pattern.fire(enemy)
+		EnemySfxC.play_for(enemy)
+		return
 	# Volleys (B2): fire the whole count-shot fan `volleys` times, staggered by volley_gap. volleys=1 is
 	# a single volley = the original behavior. burst_interval still staggers shots WITHIN each volley.
 	var volley_n: int = maxi(1, spec.volleys)

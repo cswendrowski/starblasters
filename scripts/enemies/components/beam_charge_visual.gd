@@ -57,7 +57,7 @@ func on_process(enemy, _delta: float) -> void:
 	_mask.frame = clampi(int(round((1.0 - f) * float(_last_frame))), 0, _last_frame)
 
 
-# The host's BeamEmitter (attached as a descendant by MountBuilder, or by enemy_core's beam weapon).
+# The host's BeamEmitter (attached as a descendant by MountBuilder, or by a bespoke boss host).
 func _find_beam(enemy):
 	for n in enemy.find_children("*", "", true, false):
 		if n.get_script() == BeamEmitterC:

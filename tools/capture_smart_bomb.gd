@@ -19,7 +19,7 @@ const LARGE_ENEMY := "res://scenes/enemies/core/enemy_cruiser.tscn"
 const TOUGH_ENEMY := "res://scenes/enemies/factions/corporate/enemy_c_l_bulwark.tscn"
 const CHAFF_SHIELDED := "res://scenes/enemies/core/enemy_core_s_dart.tscn"
 const PLAYER_SCENE := preload("res://scenes/player/player.tscn")
-const BULLET_SCENE := "res://scenes/projectiles/enemy_bullet.tscn"
+const BULLET_SCENE := "res://scenes/projectiles/projectile_ball.tscn"
 
 var _enemies: Array = []
 var _bullets: Array = []

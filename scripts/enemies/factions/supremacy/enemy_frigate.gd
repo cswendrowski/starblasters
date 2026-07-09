@@ -32,7 +32,7 @@ class_name EnemyFrigate
 # overlay never darkens/frays with damage — exactly as intended.
 
 const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
-const BULLET_SCENE = preload("res://scenes/projectiles/enemy_bullet.tscn")
+const BULLET_SCENE = preload("res://scenes/projectiles/projectile_ball.tscn")
 const MuzzleFx = preload("res://scripts/effects/muzzle_fx.gd")
 const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
 # Faction bullet (Roman 2026-07-06): the broadside now fires the frame-reskin ball family (tinted to the

@@ -88,7 +88,7 @@ func _fire_burst() -> void:
 	var aim: Vector2 = ((p as Node2D).global_position - global_position).normalized()
 	if aim == Vector2.ZERO:
 		aim = Vector2(0, 1)
-	var bs: PackedScene = preload("res://scenes/projectiles/enemy_bullet.tscn")
+	var bs: PackedScene = preload("res://scenes/projectiles/projectile_ball.tscn")
 	var spread_rad: float = deg_to_rad(8.0)
 	var world: Node = BulletWorld.resolve(self, get_tree().root)
 	for i in 3:

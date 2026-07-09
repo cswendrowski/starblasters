@@ -6,9 +6,14 @@
 # hit + offscreen + player-finding logic lives in EnemyBase; this script is
 # just the combat-fighter specifics.
 
-const _DEFAULT_BULLET = preload("res://scenes/projectiles/enemy_bullet.tscn")
-const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
+const _DEFAULT_BULLET = preload("res://scenes/projectiles/projectile_ball.tscn")
+# (EnemySfxC removed 2026-07-07: the fire SFX moved to the hull mount's _fire with the firing-engine
+# consolidation — enemy_core no longer plays a shot sound directly.)
 const FiringSchedulerC = preload("res://scripts/enemies/firing_scheduler.gd")
+# Named _Hull* to avoid colliding with the same preloads a subclass (enemy_drone_carrier) declares —
+# a child GDScript can't redeclare a parent const of the same name.
+const _HullMountSpecC = preload("res://scripts/enemies/mounts/mount_spec.gd")
+const _HullMountComponentC = preload("res://scripts/enemies/mounts/mount_component.gd")
 # RecycleController is inherited from EnemyBase (don't redeclare — GDScript errors on a const that
 # already exists in the parent). enemy_core uses it via _on_offscreen → RecycleController.recycle().
 var bullet_scene: PackedScene = _DEFAULT_BULLET
@@ -17,44 +22,44 @@ var bullet_scene: PackedScene = _DEFAULT_BULLET
 @export var movement: Resource = null
 var _pattern: Resource = null
 
+# --- Hull weapon (shoot_pattern) ---------------------------------------------------------------
+# A shoot_pattern (a Weapon Resource) is the enemy's hull weapon. Assigned via a wave override
+# (director.gd), a dev lab, or baked into the .tscn. Firing-engine consolidation (2026-07-07): the
+# hull no longer runs its own ShootTimer/path-phase loop — instead _realize_shoot_pattern_mount()
+# wraps it in a MountComponent (kind GUN, hull_pattern = shoot_pattern) at _ready, so ONE engine
+# (the mount cadence/gate/path-phase/on-phase logic on FiringScheduler) drives BOTH hull + roster
+# weapons. The fields below feed that realized mount's spec; they keep the same public names so the
+# director/dev/tscn consumers need zero changes. See _realize_shoot_pattern_mount.
 @export var shoot_pattern: Resource = null
 @export var fire_interval_min: float = 1.2
 @export var fire_interval_max: float = 2.5
-# Gate the shoot timer on "is my nose pointed at the player". Set by the
-# Viper enemy (Roman, 2026-05-18) â€” uses dot(facing, dir_to_player) >=
-# cos(fire_aim_tol_deg) before firing. When false, the timer continues
-# polling but no bullet is emitted until alignment.
+# Gate firing on "is my nose pointed at the player" (Viper). dot(facing, dir_to_player) >=
+# cos(fire_aim_tol_deg) before a shot leaves. Forwarded to spec.fire_only_on_target.
 @export var fire_only_on_target: bool = false
 @export var fire_aim_tol_deg: float = 18.0
-# When non-empty, fire one shot whenever the movement pattern emits
-# `phase_entered(phase_name)` with this name. Replaces the statistical
-# ShootTimer for patterns that have a meaningful "shoot here" beat
-# (Hover hold, Skirmisher hold). Empty = legacy timer-only firing.
+# Fire one shot whenever the movement pattern emits `phase_entered(phase_name)` == this name
+# (Hover/Skirmisher hold). Forwarded to spec.fire_on_phase (the mount fires from on_phase). Empty =
+# cadence/path-phase firing.
 @export var fire_on_phase: String = ""
-# Firing-zone gating (bridge Â§1.8-1.9): when true, only fire while inside the
-# engagement Y-band (Zones) â€” hold fire just after spawn (entry band) and cease
-# fire once low (departure band, committed to leaving). The director enables this
-# for the enemies it spawns; bosses/bespoke firing are unaffected.
+# Firing-zone gating (bridge Â§1.8-1.9): only fire inside the engagement Y-band (Zones) — hold fire
+# on entry, cease fire once low. The director enables this per spawn. Forwarded to spec.fire_zone_gated.
 @export var fire_zone_gated: bool = false
-# Path-phase firing (construction Â§8): fractions [0,1] of engagement-band progress
-# (Zones.band_progress) at which to fire â€” fires at fixed screen positions during the
-# descent, instead of on the random ShootTimer. MUST be ascending. Non-empty disables
-# the timer. Auto-populated in _start_with_pattern for monotonic descenders
-# (path_phase_capable patterns) that have a weapon and no fire_on_phase; a scene/roster
-# may set it explicitly to override.
+# Path-phase firing (construction Â§8): ascending [0,1] band-progress fractions to fire at, instead of
+# cadence. Auto-populated in _realize_shoot_pattern_mount for monotonic descenders (path_phase_capable
+# patterns) with a weapon + no fire_on_phase; a scene/roster preset is respected. Forwarded to
+# spec.fire_path_phases.
 @export var fire_path_phases: PackedFloat32Array = PackedFloat32Array()
-# The default phases + the path-phase line-crossing / beat-sync state now live in the shared
-# FiringScheduler (roadmap P3.9). DEFAULT_PATH_PHASES is its single source; this alias keeps the
-# auto-populate site below readable. (Plain Array — a PackedFloat32Array(...) constructor is NOT a
-# constant expression; converted to a packed array at the assignment site.)
+# The default phases live in the shared FiringScheduler (roadmap P3.9). DEFAULT_PATH_PHASES is its
+# single source; the auto-populate at realize time reads it. (Plain Array — a PackedFloat32Array(...)
+# constructor is NOT a constant expression; converted to a packed array at the assignment site.)
 const DEFAULT_PATH_PHASES := FiringSchedulerC.DEFAULT_PATH_PHASES
-# Shared beat (Beat): when true, a path-phase shot doesn't fire the instant it crosses
-# its phase line - it quantizes to the next global beat (Beat.next_beat_time) so enemies
-# across formations volley together. Set false to fire immediately on the phase line.
+# Shared beat (Beat): quantize path-phase shots to the next global beat so formations volley together.
+# Forwarded to spec.fire_beat_synced. False = fire immediately on the phase line.
 @export var fire_beat_synced: bool = true
-# Trigger-resolution engine (path-phase line crossing + beat-sync quantize + shared gates).
-# Owns _phase_fire_idx / _beat_fire_at internally; reset via _scheduler.reset() on start/recycle.
-var _scheduler = FiringSchedulerC.new()
+# The realized hull-weapon mount (a MountComponent wrapping shoot_pattern), or null when the enemy has
+# no hull weapon. Built lazily by _realize_shoot_pattern_mount so a late shoot_pattern assignment (dev
+# labs assign then call start()) still gets a working weapon.
+var _hull_mount = null
 
 # Ship-kinematics applied-velocity state (roadmap P1.5 — 2026-07-02). The velocity actually applied
 # last frame; the ShipKinematics filter eases it toward the pattern's desired velocity per the
@@ -80,10 +85,53 @@ var external_control: bool = false
 
 func _ready() -> void:
 	super._ready()
+	# Realize the hull weapon (shoot_pattern) as a MountComponent so ONE firing engine drives both hull
+	# + roster weapons (firing-engine consolidation 2026-07-07). Done AFTER super._ready() so it lands in
+	# the same _components list roster mounts do; the deferred _components_start (forced below) fires its
+	# on_start after start() positions the enemy — exactly like the old ShootTimer arm-on-start.
+	_realize_shoot_pattern_mount()
 	# Oblique drop-shadow under the enemy sprite.
 	if has_node("Sprite2D"):
 		var ShadowFx = load("res://scripts/effects/shadow_fx.gd")
 		ShadowFx.attach_shadow($Sprite2D)
+
+
+# Wrap the hull `shoot_pattern` in a MountComponent (kind GUN, hull_pattern = shoot_pattern) so the
+# mount cadence/gate/path-phase/on-phase engine drives it — the single firing path. No-op when there's
+# no hull weapon (mine carriers, mount-only enemies) or when already realized (idempotent for a late
+# start()-time re-check). The spec mirrors what enemy_core's ShootTimer path used to read directly.
+func _realize_shoot_pattern_mount() -> void:
+	if _hull_mount != null or shoot_pattern == null:
+		return
+	var spec = _HullMountSpecC.new()
+	spec.kind = _HullMountSpecC.Kind.GUN
+	spec.fire_interval_min = fire_interval_min
+	spec.fire_interval_max = fire_interval_max
+	spec.fire_zone_gated = fire_zone_gated
+	spec.fire_only_on_target = fire_only_on_target
+	spec.fire_aim_tol_deg = fire_aim_tol_deg
+	spec.fire_on_phase = fire_on_phase
+	spec.fire_beat_synced = fire_beat_synced
+	# Path-phase auto-populate (was in _start_with_pattern): a monotonic descender with a weapon fires by
+	# band-Y progress instead of cadence when nothing more specific is set (explicit phases / fire_on_phase).
+	# `movement` (the resource) is available here pre-start; a pre-set fire_path_phases is respected as-is.
+	var phases: PackedFloat32Array = fire_path_phases
+	if fire_on_phase == "" and phases.is_empty() and movement != null \
+			and movement.has_method("path_phase_capable") and movement.path_phase_capable():
+		phases = PackedFloat32Array(DEFAULT_PATH_PHASES)
+	spec.fire_path_phases = phases
+	var mc = _HullMountComponentC.new()
+	mc.spec = spec
+	mc.hull_pattern = shoot_pattern
+	_hull_mount = mc
+	# super._ready() defers _components_start ONLY when _components was already non-empty at its check.
+	# If the hull mount is the FIRST/only component, super skipped the deferral — schedule it here so the
+	# hull weapon's on_start fires. When other components already existed, super deferred it, so appending
+	# is enough (don't double-defer → double on_start).
+	var need_defer: bool = _components.is_empty()
+	_components.append(mc)
+	if need_defer:
+		call_deferred("_components_start")
 
 
 func start(pos: Vector2) -> void:
@@ -106,48 +154,28 @@ func _start_with_pattern(pos: Vector2) -> void:
 		_pattern.phase_entered.connect(_on_movement_phase_entered)
 	if _pattern.has_method("on_start"):
 		_pattern.on_start(self)
-	# Path-phase firing (Â§8): a monotonic descender with a weapon fires by band-Y
-	# progress instead of the random timer. Auto-enable when the pattern supports it
-	# and nothing more specific is configured (explicit phases, or a fire_on_phase
-	# event). A pre-set fire_path_phases (scene/roster) is respected as-is.
-	if shoot_pattern != null and fire_on_phase == "" and fire_path_phases.is_empty() \
-			and _pattern.has_method("path_phase_capable") and _pattern.path_phase_capable():
-		fire_path_phases = PackedFloat32Array(DEFAULT_PATH_PHASES)
-	_scheduler.reset()
+	# Firing is owned by the realized hull mount (see _realize_shoot_pattern_mount): cadence, path-phase
+	# auto-populate, zone/nose gates, and beat-sync all live on the MountComponent + FiringScheduler now.
+	# The mount's on_start (via the deferred _components_start / recycle _components_start) re-arms it.
 	# Ship-kinematics: cache the pattern's fidelity class + reset the applied-velocity filter state
 	# (spec §7 constraint 5 — reset on start/recycle) so a fresh spawn / re-used instance starts from
 	# rest and doesn't inherit the previous pass's velocity.
 	_kin_fidelity = _pattern.fidelity() if _pattern.has_method("fidelity") else ShipKinematics.Fidelity.EXACT
 	_applied_vel = Vector2.ZERO
-	# Only arm the shoot timer if the enemy *can* shoot. A null shoot_pattern
-	# means this enemy has no weapon â€” don't let a timer fire bullets via
-	# the legacy bullet_scene fallback. Roman, 2026-05-17: minelayer/mine
-	# carriers should not shoot.
-	# Phase-driven (fire_on_phase) and path-phase (fire_path_phases) enemies fire on
-	# their own triggers, so we skip the random timer for them.
-	if shoot_pattern != null and has_node("ShootTimer") and fire_on_phase == "" and fire_path_phases.is_empty():
-		# Zone-gated enemies arm a short first poll so the FIRST shot lands as soon
-		# as they enter the engagement band (the gate fast-polls until then). The
-		# full fire interval would otherwise delay the first shot until they've
-		# descended near the bottom. Subsequent shots re-arm on the normal interval.
-		if fire_zone_gated:
-			$ShootTimer.wait_time = 0.2
-		else:
-			$ShootTimer.wait_time = _fire_interval()
-		$ShootTimer.start()
 
 
 func _start_stationary(pos: Vector2) -> void:
-	# No movement pattern → hold the spawn position (e.g. the Weapon Lab dummy: "sits at the
-	# top and just fires"). Still arm the shoot timer so a weapon-carrying stationary enemy fires.
+	# No movement pattern → hold the spawn position (e.g. the Weapon Lab dummy: "sits at the top and just
+	# fires"). Firing is handled by the realized hull mount; nothing to arm here.
 	# (Replaced the legacy MoveTimer/anchor-follow path 2026-06-23.)
 	position = pos
-	if shoot_pattern != null and has_node("ShootTimer") and fire_on_phase == "" and fire_path_phases.is_empty():
-		$ShootTimer.wait_time = _fire_interval()
-		$ShootTimer.start()
 
 
 func _process(delta: float) -> void:
+	# A dying enemy has handed its transform to the death VFX (DeathEffects controller / wreck drift) —
+	# the pattern must NOT keep moving it, or it fights the death's own motion (2026-07-07 death wiring).
+	if _dying:
+		return
 	# A sequenced attack (bombing run) owns the transform — skip movement/firing/components.
 	if external_control:
 		return
@@ -192,7 +220,7 @@ func _process(delta: float) -> void:
 			_clamp_to_sides()
 			_offscreen_cleanup_check()
 			_apply_auto_rotation(safe_delta)
-			_check_path_phase_fire()
+			# Firing (cadence + path-phase) is ticked by the hull mount's on_process via _tick_components.
 			_tick_components(safe_delta)
 		return
 	# No movement pattern (stationary enemy, e.g. the Weapon Lab dummy): just tick components.
@@ -222,125 +250,31 @@ func _on_offscreen() -> void:
 	RecycleController.recycle(self)
 
 
-# RecycleController hook: stop firing for the duration of the fly-back.
+# RecycleController hook: firing is suspended automatically for the fly-back — the hull mount's on_process
+# holds fire while `_cycling` (MountComponent._held checks it), so there's nothing to stop here.
 func _recycle_suspend() -> void:
-	if has_node("ShootTimer"):
-		$ShootTimer.stop()
+	pass
 
 
-# RecycleController hook: re-arm firing for the next pass + re-run the pattern/components.
-# Path-phase enemies just reset their phase index (they re-fire by band progress on the new
-# descent); timer enemies re-arm the ShootTimer with the same short first-poll as spawn.
+# RecycleController hook: re-run the pattern + re-arm firing for the next pass. _components_start re-fires
+# every component's on_start, which for the hull mount resets its path-phase scheduler + re-seeds cadence
+# (the old _scheduler.reset() + ShootTimer re-arm now live in MountComponent.on_start).
 func _recycle_resume() -> void:
-	_scheduler.reset()
 	# Reset the kinematics filter for the new pass (spec §7 constraint 5) — the fly-back tween owns
 	# the transform, so the applied velocity must restart from rest when the pattern resumes.
 	_applied_vel = Vector2.ZERO
-	if has_node("ShootTimer") and fire_on_phase == "" and fire_path_phases.is_empty():
-		$ShootTimer.wait_time = 0.2 if fire_zone_gated else _fire_interval()
-		$ShootTimer.start()
 	if _pattern and _pattern.has_method("on_start"):
 		_pattern.on_start(self)
-	_components_start()  # re-fire component on_start for the new pass (no-op if none)
+	_components_start()  # re-fire component on_start for the new pass (hull mount + any others)
 
 
-# Deterministic fire cadence (firing-consistency pass 2026-07-02). Replaces the old
-# per-shot randf_range(fire_interval_min, fire_interval_max): re-rolling every shot made an
-# enemy's rhythm wander unpredictably. We now fire at a FIXED interval â€” the midpoint of the
-# roster's min/max â€” so a given enemy type has a steady, readable cadence. (Staggered band
-# entry across a wave keeps identical enemies from firing in perfect lockstep, so the fixed
-# rate doesn't read as robotic.) The roster's min/max are kept as the tuning source; their
-# average IS the cadence. Floor at 0.1s so a degenerate 0/0 can't busy-loop the timer.
-func _fire_interval() -> float:
-	return maxf(0.1, (fire_interval_min + fire_interval_max) * 0.5)
-
-
-func _on_shoot_timer_timeout() -> void:
-	# Dead enemies don't shoot: explode() sets _dying before the ~0.5s death
-	# animation, during which the timer could otherwise fire a phantom shot.
-	if _dying:
-		return
-	# Suspended by an external driver (bombing run): keep the timer alive but don't fire,
-	# so normal firing resumes cleanly once control returns.
-	if external_control:
-		if has_node("ShootTimer"):
-			$ShootTimer.wait_time = 0.2
-			$ShootTimer.start()
-		return
-	# Hard requirements before any bullet leaves the muzzle:
-	#   - not parallax-cycling
-	#   - fully inside the playfield
-	#   - has a shoot pattern
-	#   - if `fire_only_on_target`, nose must be aligned with the player
-	if shoot_pattern == null:
-		return
-	if _cycling or not _on_playfield():
-		# Zone-gated enemies fast-poll here too (not just in the zone check below),
-		# so a slow enemy still above the playfield margin doesn't get bumped onto
-		# the full fire interval and fire late once it's finally low.
-		$ShootTimer.wait_time = 0.15 if fire_zone_gated else _fire_interval()
-		$ShootTimer.start()
-		return
-	# Firing zones (bridge Â§1.8-1.9): hold fire above the engagement band (just
-	# spawned) and cease fire below it (committed to leaving). Poll quickly while
-	# outside so the first shot lands promptly on entering engagement.
-	if fire_zone_gated and not Zones.in_engagement(position.y):
-		$ShootTimer.wait_time = 0.15
-		$ShootTimer.start()
-		return
-	if fire_only_on_target and not FiringSchedulerC.nose_on_player(self, fire_aim_tol_deg):
-		# Re-arm the poll but skip this trigger so the enemy waits for a
-		# clean line. Slightly faster re-check than the normal interval.
-		$ShootTimer.wait_time = max(0.1, _fire_interval() * 0.4)
-		$ShootTimer.start()
-		return
-	shoot_pattern.fire(self)
-	$ShootTimer.wait_time = _fire_interval()
-	$ShootTimer.start()
-	EnemySfxC.play_for(self)
-
-
-# Path-phase firing (Â§8): called each movement frame. Delegates the line-crossing + beat-sync
-# quantize (with the fast-mover departure escape) to the shared FiringScheduler, which fires shots
-# at fixed band-progress positions during the pass (telegraph-friendly, never "too late") and
-# volleys a descending formation together at the same Y line. shoot_pattern==null bails first (the
-# scheduler is weapon-agnostic; the hull only path-fires with a weapon). _do_path_shot re-checks the
-# live guards because the beat-synced path defers the shot.
-func _check_path_phase_fire() -> void:
-	if shoot_pattern == null:
-		return
-	_scheduler.tick_path_phases(self, fire_path_phases, fire_beat_synced, _do_path_shot)
-
-
-# Fire one path-phase shot, re-checking the live guards (the beat-synced path defers
-# the shot, so the enemy may have started dying / left the band by the time it fires).
-func _do_path_shot() -> void:
-	if _dying or _cycling or shoot_pattern == null or not _on_playfield():
-		return
-	if fire_only_on_target and not FiringSchedulerC.nose_on_player(self, fire_aim_tol_deg):
-		return
-	shoot_pattern.fire(self)
-	EnemySfxC.play_for(self)
-
-
+# Movement-phase event fan-out. The firing that used to live here (fire_on_phase) is now the hull
+# mount's on_phase (fanned out by _components_phase below) — one firing engine. This just relays the
+# event to every component (mounts + shields + emitters); _dying guards a phantom shot on a dying host.
 func _on_movement_phase_entered(phase_name: String) -> void:
 	if _dying:
 		return
-	_components_phase(phase_name)   # mounts/components react to the phase (fire_on_phase mounts fire here)
-	if fire_on_phase == "" or phase_name != fire_on_phase:
-		return
-	if shoot_pattern == null:
-		return
-	if _cycling or not _on_playfield():
-		return
-	if fire_only_on_target and not FiringSchedulerC.nose_on_player(self, fire_aim_tol_deg):
-		return
-	shoot_pattern.fire(self)
-	EnemySfxC.play_for(self)
-
-
-# _nose_on_player moved to FiringSchedulerC.nose_on_player (shared static) as part of the P3.9
-# firing unification — the hull + mount copies of the nose-cone math were identical.
+	_components_phase(phase_name)
 
 
 # Strict "fully inside the visible playfield" check, used by the shoot

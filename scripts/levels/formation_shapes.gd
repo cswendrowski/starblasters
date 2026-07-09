@@ -198,15 +198,23 @@ static func fisher_yates(arr: Array, rng: RandomNumberGenerator) -> void:
 # Stamp the SHARED roster-behavior block onto a count-1 WaveSpec `ws` from roster `entry` — the
 # verbatim-identical portion that wave_generator._make_wave_spec and authored_patterns._spec_for_placement
 # both apply so a placed enemy behaves like a normal spawn: shoot pattern, components(+emitters), fire
-# interval overrides, composed stats (health/bounty/shield/recycle), and chassis locomotion. Callers
-# apply their DIVERGENT extras separately (wave_generator: mounts + chaff-recycle override; authored:
-# per-placement depth-band override) — those are intentionally NOT here (dedup, conductor review §3).
+# interval overrides, composed stats (health/bounty/shield/recycle), chassis locomotion, AND mounts
+# (extra guns/turrets — since the 2026-06-23 consolidation these are the ONLY weapon source for most
+# enemies, so authored placements must stamp them too or they spawn UNARMED). Mounts are stamped only
+# when the WaveSpec doesn't already carry an explicit mounts_override, so a wave-level weapon override
+# (set by the caller BEFORE this call) still wins — precedence wave > pattern > .tscn is preserved.
+# Callers apply their remaining DIVERGENT extras separately (wave_generator: chaff-recycle override;
+# authored: per-placement depth-band override) — those are intentionally NOT here (dedup, review §3).
 # `entry` must be non-empty; caller guards for the non-roster (raw-scene) case where none of this applies.
 static func stamp_roster_behavior(ws, entry: Dictionary) -> void:
 	var sp = Roster.make_shoot(entry)
 	if sp != null:
 		ws.shoot_pattern_override = sp
 	ws.components_override = Roster.make_components(entry) + Roster.make_emitters(entry)
+	# Mounts: don't clobber an explicit wave-level override (default is []; a caller that
+	# pre-sets a non-empty mounts_override keeps it — wave > pattern precedence).
+	if ws.mounts_override.is_empty():
+		ws.mounts_override = Roster.make_mounts(entry)
 	if entry.has("fire_min"):
 		ws.fire_interval_min = float(entry["fire_min"])
 	if entry.has("fire_max"):

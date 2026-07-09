@@ -9,7 +9,7 @@ extends SceneTree
 const RESULT := "res://tools/_weapon_mods_result.txt"
 const Factions := preload("res://scripts/levels/factions.gd")
 const Weapon := preload("res://scripts/enemies/shoot_patterns/weapon.gd")
-const BulletScene := preload("res://scenes/projectiles/enemy_bullet.tscn")
+const BulletScene := preload("res://scenes/projectiles/projectile_ball.tscn")
 const BV := preload("res://scripts/projectiles/bullet_variant.gd")
 const Clarity := preload("res://scripts/systems/clarity.gd")
 

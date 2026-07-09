@@ -72,7 +72,11 @@ static func _min_dist_sq(p: Vector2, pts: Array) -> float:
 # player-group lookup — pass null to skip damage (a dev lab with no player, pure VFX
 # tuning). `parent` is the explosion's parent (resolve via BulletWorld for SubViewport
 # benches; null = window root, the production default).
-static func detonate_aoe(world_pos: Vector2, radius: float, damage: int, tree: SceneTree, parent: Node = null) -> void:
+# FRIENDLY FIRE (Roman 2026-07-06, for the Director's missile hazards): when `friendly_fire`
+# is on, the same AoE also damages the "enemies" group (via take_hit), EXCEPT `ff_owner`
+# and its descendants (so a boss never blows up its own parts). Defaults off → every
+# existing caller stays player-only.
+static func detonate_aoe(world_pos: Vector2, radius: float, damage: int, tree: SceneTree, parent: Node = null, friendly_fire: bool = false, ff_owner: Node = null) -> void:
 	if tree != null:
 		for p in tree.get_nodes_in_group("player"):
 			if not (p is Node2D):
@@ -80,7 +84,26 @@ static func detonate_aoe(world_pos: Vector2, radius: float, damage: int, tree: S
 			var pn: Node2D = p as Node2D
 			if pn.global_position.distance_to(world_pos) <= radius and pn.has_method("take_damage"):
 				pn.take_damage(damage)
+		if friendly_fire:
+			for e in tree.get_nodes_in_group("enemies"):
+				if not (e is Node2D):
+					continue
+				if ff_owner != null and _owned_by(e, ff_owner):
+					continue
+				var en: Node2D = e as Node2D
+				if en.global_position.distance_to(world_pos) <= radius and en.has_method("take_hit"):
+					en.take_hit(damage)
 	ExplosionFx.play(world_pos, 1.0, true, parent)
+
+
+# True if `n` is `owner` or a descendant of it (the friendly-fire self-exclusion).
+static func _owned_by(n: Node, owner: Node) -> bool:
+	var cur: Node = n
+	while cur != null:
+		if cur == owner:
+			return true
+		cur = cur.get_parent()
+	return false
 
 
 # ---- Missile glow texture (built once, shared) -----------------------------
@@ -130,6 +153,9 @@ static func run_salvo(host: Node2D, world: Node, opts: Dictionary = {}) -> void:
 	# (default) = a straight lerp — the cruiser is unchanged.
 	var forward: Vector2 = opts.get("launch_forward", Vector2.ZERO)
 	var forward_dist: float = float(opts.get("launch_forward_dist", 0.0))
+	# Friendly fire (the Director's barrage): the AoE also torches enemies, minus ff_owner + descendants.
+	var friendly_fire: bool = bool(opts.get("friendly_fire", false))
+	var ff_owner: Node = opts.get("ff_owner", null)
 
 	var zones: Array = pick_zone_points(zone_count, y_min, y_max, min_sep)
 	var teles: Array = []
@@ -148,7 +174,7 @@ static func run_salvo(host: Node2D, world: Node, opts: Dictionary = {}) -> void:
 		if forward_dist > 0.0 and forward != Vector2.ZERO:
 			control = from + forward.normalized() * forward_dist
 		var m := Missile.new()
-		m.setup(from, t["zone"], travel, fuse, radius, damage, t["node"], control)
+		m.setup(from, t["zone"], travel, fuse, radius, damage, t["node"], control, friendly_fire, ff_owner)
 		world.add_child(m)
 		WeaponSfx.play(tree.root, from, "missile")
 		if stagger > 0.0 and i < teles.size() - 1:
@@ -210,6 +236,8 @@ class Missile extends Node2D:
 	var _telegraph: Node2D = null
 	var _control: Vector2 = Vector2(INF, INF)  # quadratic-bezier control; INF = straight
 	var _curved: bool = false
+	var _friendly_fire: bool = false           # detonate also hits enemies (minus _ff_owner)
+	var _ff_owner: Node = null
 
 	var _t: float = 0.0
 	var _arrived: bool = false
@@ -231,7 +259,8 @@ class Missile extends Node2D:
 
 	func setup(
 		from: Vector2, to: Vector2, travel: float, fuse: float,
-		radius: float, damage: int, telegraph: Node2D, control: Vector2 = Vector2(INF, INF)
+		radius: float, damage: int, telegraph: Node2D, control: Vector2 = Vector2(INF, INF),
+		friendly_fire: bool = false, ff_owner: Node = null
 	) -> void:
 		_from = from
 		_to = to
@@ -242,6 +271,8 @@ class Missile extends Node2D:
 		_telegraph = telegraph
 		_control = control
 		_curved = not is_inf(control.x)
+		_friendly_fire = friendly_fire
+		_ff_owner = ff_owner
 		global_position = from
 		_heading = ((control if _curved else to) - from).angle()
 
@@ -277,7 +308,7 @@ class Missile extends Node2D:
 		if _detonated:
 			return
 		_detonated = true
-		MissileSalvo.detonate_aoe(_to, _radius, _damage, get_tree())
+		MissileSalvo.detonate_aoe(_to, _radius, _damage, get_tree(), null, _friendly_fire, _ff_owner)
 		if _trail != null and is_instance_valid(_trail):
 			_trail.attach_to(null)
 			_trail = null

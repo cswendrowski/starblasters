@@ -32,9 +32,6 @@ shape = SubResource("Hit")
 [node name="MoveTimer" type="Timer" parent="." unique_id=2138472634]
 one_shot = true
 
-[node name="ShootTimer" type="Timer" parent="." unique_id=1120492575]
-one_shot = true
-
 [node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=175444521]
 stream = ExtResource("4_q1q7a")
 
@@ -59,4 +56,3 @@ position = Vector2(-4, 7)
 scale = Vector2(1, 12.542187)
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
-[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

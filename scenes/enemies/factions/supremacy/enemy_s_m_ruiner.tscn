@@ -33,9 +33,6 @@ polygon = PackedVector2Array(8, 23, 12, 19, 12, 7, 14, 4, 15, -1, 15, -21, 11, -
 [node name="MoveTimer" type="Timer" parent="." unique_id=1975128440]
 one_shot = true
 
-[node name="ShootTimer" type="Timer" parent="." unique_id=1173289907]
-one_shot = true
-
 [node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=557651409]
 stream = ExtResource("4_scca6")
 
@@ -64,4 +61,3 @@ position = Vector2(-11, -20)
 position = Vector2(0, -21)
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
-[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

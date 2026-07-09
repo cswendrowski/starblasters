@@ -1020,6 +1020,8 @@ func _process(delta: float) -> void:
 	_move_velocity = input * eff_speed
 	position += _move_velocity * minf(delta, 1.0 / 30.0)
 	position = Playfield.clamp_pos(position, 8.0)
+	# Bleed off any residual tractor-beam momentum (Abductor grab) once it stops pulling this frame.
+	_decay_pull_velocity(delta)
 	# Autofire toggle (Settings.autofire) latches primary fire on so
 	# players don't have to hold the button. Holding still works
 	# explicitly when autofire is off. The "autofire_toggle" action (R)
@@ -3313,6 +3315,49 @@ func _ram_knockback(enemy) -> void:
 	away = away.normalized() if away.length() > 1.0 else Vector2(randf_range(-1.0, 1.0), -0.5).normalized()
 	var tw := create_tween()
 	tw.tween_property(self, "position", position + away * RAM_KICK, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+# External pull (Roman 2026-07-06, spring rework 2026-07-07) — a leash/tractor drag applied by another
+# entity (the Abductor's grab beam). Keeps player-motion authority player-side (mirrors _ram_knockback).
+# Instead of a rigid position-lerp, the caller hands us a WORLD-SPACE anchor it wants to reel us toward
+# (the leash edge). We run a critically-ish-damped SPRING against a persistent `_pull_velocity`, so the
+# ship is smoothly ACCELERATED toward the anchor and carries momentum (it feels like mass) rather than
+# snapping. `strength` scales the spring pull, `damping` bleeds velocity (higher = less overshoot),
+# `max_speed` caps how fast the tractor can haul us. The integrated step is re-clamped to the playfield
+# band so the drag can never haul the ship out of bounds.
+const PULL_SPRING_DEFAULT: float = 14.0     # spring stiffness (accel toward anchor per px of error)
+const PULL_DAMPING_DEFAULT: float = 6.0     # velocity bleed per second (higher = calmer, less overshoot)
+const PULL_MAX_SPEED_DEFAULT: float = 260.0 # px/s ceiling on the tractor drag
+const PULL_VELOCITY_DECAY: float = 8.0      # per-second decay applied to residual pull velocity when idle
+var _pull_velocity: Vector2 = Vector2.ZERO
+var _pull_active_frame: bool = false        # set true by apply_external_pull, consumed in _process
+
+func apply_external_pull(anchor: Vector2, delta: float, strength: float = PULL_SPRING_DEFAULT, damping: float = PULL_DAMPING_DEFAULT, max_speed: float = PULL_MAX_SPEED_DEFAULT) -> void:
+	if delta <= 0.0:
+		return
+	var step: float = minf(delta, 1.0 / 30.0)   # match the movement delta cap so a hitch can't teleport
+	var error: Vector2 = anchor - global_position
+	# Spring accel toward the anchor, exponential velocity damping (frame-rate independent).
+	_pull_velocity += error * strength * step
+	_pull_velocity *= exp(-damping * step)
+	if _pull_velocity.length() > max_speed:
+		_pull_velocity = _pull_velocity.normalized() * max_speed
+	position += _pull_velocity * step
+	position = Playfield.clamp_pos(position, 8.0)
+	_pull_active_frame = true
+
+
+# Called each _process frame to bleed off residual tractor momentum once the beam stops pulling, so the
+# ship doesn't keep coasting after release. When actively pulled the flag is set fresh each frame.
+func _decay_pull_velocity(delta: float) -> void:
+	if _pull_active_frame:
+		_pull_active_frame = false
+		return
+	if _pull_velocity == Vector2.ZERO:
+		return
+	_pull_velocity *= exp(-PULL_VELOCITY_DECAY * delta)
+	if _pull_velocity.length() < 1.0:
+		_pull_velocity = Vector2.ZERO
+
 
 func _play_hit_sfx() -> void:
 	# Alternate between &damage3.wav and &damage9.wav so repeated hits don't

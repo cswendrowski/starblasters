@@ -24,7 +24,7 @@ const LevelData = preload("res://scripts/levels/level_def.gd")
 const BossSweep = preload("res://scripts/enemies/patterns/boss_sweep.gd")
 # Weapons 3b (2026-06-13): the boss sweep config fires via the unified Weapon (was SpreadShot).
 const Weapon = preload("res://scripts/enemies/shoot_patterns/weapon.gd")
-const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
+const EnemyBullet = preload("res://scenes/projectiles/projectile_ball.tscn")
 const FormationShapesC = preload("res://scripts/levels/formation_shapes.gd")
 const FormationComposer = preload("res://scripts/levels/formation_composer.gd")
 const PatternEligibility = preload("res://scripts/levels/pattern_eligibility.gd")
@@ -846,10 +846,11 @@ static func _pick_elite(rng: RandomNumberGenerator, sector_depth: int, level_ind
 # trickle). The final lead-in is thinned + re-bannered so the boss arrival reads cleanly.
 static func _build_boss_waves(rng: RandomNumberGenerator, sector_depth: int, level_index: int) -> Array:
 	var boss_entry: Dictionary = _pick_boss(rng, sector_depth)
-	# The Zealot Battleship (Roman 2026-07-01) is a PERSISTENT boss spawned at level start by main.gd
-	# and gated by the wave director — the level is just its ~5-6 boss-less enemy waves (one maneuver
-	# between each). So we build the run-up waves but skip the final _make_boss_wave for it.
-	var is_battleship: bool = String(boss_entry["scene"]).contains("boss_z_battleship")
+	# PERSISTENT director-gated bosses (the Zealot Battleship + the Corporate Director) are spawned at
+	# level start by main.gd and gated by the wave director — the level is just their ~5-6 boss-less enemy
+	# waves (one maneuver between each). So we build the run-up waves but skip the final _make_boss_wave.
+	var scene_s: String = String(boss_entry["scene"])
+	var is_persistent_boss: bool = scene_s.contains("boss_z_battleship") or scene_s.contains("boss_c_director")
 	var conflict_tags: PackedStringArray = PackedStringArray(
 		BOSS_LEADIN_CONFLICTS.get(boss_entry["scene"], []))
 	var n_leadin: int = clampi(4 + sector_depth, 5, 6)  # S1=5, S2=6, deep=6 — a full run-up
@@ -859,7 +860,7 @@ static func _build_boss_waves(rng: RandomNumberGenerator, sector_depth: int, lev
 		var entry: Dictionary = _pick_entry(rng, sector_depth, level_index + i, used, conflict_tags)
 		used.append(entry)
 		var w = _make_wave_spec(rng, entry, sector_depth, level_index + i, i, true)
-		if i == n_leadin - 1 and not is_battleship:
+		if i == n_leadin - 1 and not is_persistent_boss:
 			# Thin the final lead-in and re-banner so the boss arrival reads cleanly.
 			w.count = maxi(2, int(w.count / 2))
 			w.announce_text = "BOSS APPROACHING"
@@ -870,7 +871,7 @@ static func _build_boss_waves(rng: RandomNumberGenerator, sector_depth: int, lev
 			var floor_n: int = (5 + i * 2) if bool(entry.get("chaff", false)) else mini(3 + i, 5)
 			w.count = maxi(int(w.count), floor_n)
 		waves.append(w)
-	if not is_battleship:
+	if not is_persistent_boss:
 		var w_boss = _make_boss_wave(boss_entry)
 		w_boss.spawn_delay = 5.0 - 0.5 * float(sector_depth - 1)  # 4.5/4.0/3.5
 		waves.append(w_boss)
@@ -1132,12 +1133,13 @@ static func _make_wave_spec(rng: RandomNumberGenerator, entry: Dictionary, secto
 	# was force-set.
 	if want_wall and not entry.has("force_formation"):
 		w.formation = WaveSpec.Formation.WALL
-	# Shared roster-behavior stamp (shoot/components/fire/stats/locomotion) — one impl in
+	# Shared roster-behavior stamp (shoot/components/fire/stats/locomotion/mounts) — one impl in
 	# formation_shapes, also used by authored_patterns._spec_for_placement (dedup, review §3).
+	# Mounts moved INTO the shared stamp 2026-07-07 so authored placements arm their enemies too
+	# (roster mounts are the only weapon source post-consolidation); the stamp respects an explicit
+	# pre-set mounts_override, so a wave-level weapon override still wins.
 	FormationShapesC.stamp_roster_behavior(w, entry)
 	# DIVERGENT extras (not in the shared block, this path only):
-	# Mounts (extra guns/turrets) — authored placements don't stamp these.
-	w.mounts_override = Roster.make_mounts(entry)
 	# Chaff roll-back: combat chaff RECYCLE a couple of times (fly back + re-enter) so missed enemies
 	# feed the next sub-wave and ~300 enemies fill ~3 min, rather than leaking off the bottom in ~60s.
 	# Overrides the roster's recycle:0 for high-count chaff (see CHAFF_RECYCLE_PASSES). Boss lead-ins

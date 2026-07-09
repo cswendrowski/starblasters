@@ -7,7 +7,7 @@ extends SceneTree
 #   godot --headless --script res://tools/test_bullet_movement_axis.gd
 
 const RESULT := "res://tools/_bullet_axis_result.txt"
-const BulletScene := preload("res://scenes/projectiles/enemy_bullet.tscn")
+const BulletScene := preload("res://scenes/projectiles/projectile_ball.tscn")
 const BulletVariantC := preload("res://scripts/projectiles/bullet_variant.gd")
 
 const DT := 1.0 / 60.0

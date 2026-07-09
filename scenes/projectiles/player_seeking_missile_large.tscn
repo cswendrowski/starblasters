@@ -19,6 +19,7 @@ speed_lock_mult = 3.0
 lock_accel_mult = 2.5
 prefer_large = true
 damage_on_contact = 32
+direct_kill_style = "punchy"
 flame_trail = true
 initial_dir = Vector2(0, -1)
 

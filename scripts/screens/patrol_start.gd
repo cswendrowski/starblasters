@@ -1234,16 +1234,28 @@ func _build_live_crossfade() -> void:
 	_menu_snapshot = null
 
 
+# Player-facing "skip the patrol cinematics" preference (Settings.skip_patrol_anim). Only honored on a
+# LIVE launch — the dev-tool launch always animates so the tuner stays useful. When true, the hangar
+# drops straight into place (no rise/pan) and readying a different ship is instant (no lifter carry).
+func _skip_anim() -> bool:
+	if not _live_launch:
+		return false
+	var s := get_node_or_null("/root/Settings")
+	return s != null and bool(s.skip_patrol_anim)
+
+
 # LIVE launch (from the real main menu): no dummy menu, no second click, no dev chrome. Crossfade the
 # captured menu frame out (no black) so the menu dissolves into the patrol backdrop, then run the
 # hangar-rise sequence directly. With no snapshot (e.g. headless) just run the rise.
 func _begin_live_launch() -> void:
 	if _crossfade_layer != null and is_instance_valid(_crossfade_layer):
-		var tr := _crossfade_layer.get_node_or_null("MenuFrame")
-		if tr != null:
-			var tw := create_tween()
-			tw.tween_property(tr, "modulate:a", 0.0, menu_fade_time)
-			await tw.finished
+		# Skip mode: drop the captured menu frame immediately (no crossfade) — straight into the bay.
+		if not _skip_anim():
+			var tr := _crossfade_layer.get_node_or_null("MenuFrame")
+			if tr != null:
+				var tw := create_tween()
+				tw.tween_property(tr, "modulate:a", 0.0, menu_fade_time)
+				await tw.finished
 		if is_instance_valid(_crossfade_layer):
 			_crossfade_layer.queue_free()
 		_crossfade_layer = null
@@ -1256,6 +1268,10 @@ func _on_start_patrol() -> void:
 		return
 	_started = true
 	_music_intensity(1)   # Intensity_1 → Intensity_2
+	# Skip mode (live launch only): no rise/pan — drop the assembled bay straight into place.
+	if _skip_anim():
+		_snap_hangar_in_place()
+		return
 	# 1. Fade the dummy menu out — DEV launch only. A live launch never built one (the real main menu
 	#    already played that role), so this step is skipped and we go straight to the rise.
 	if _menu_ui != null:
@@ -1278,6 +1294,28 @@ func _on_start_patrol() -> void:
 	await tw.finished
 	# 4. In place — everything's stationary, so the streaks switch off.
 	_set_streaks(false)
+	for s in _ships:
+		_position_ship_button(s)
+	_click_layer.visible = true
+
+
+# Skip-mode counterpart to the rise: place the bay + panels at their post-rise end-state in one step,
+# no tweens. Pans the celestials to where the rise would have left them (so the sky matches), then
+# syncs _prev_hangar_y so _update_bg_pan is a no-op afterward.
+func _snap_hangar_in_place() -> void:
+	if _menu_ui != null:
+		_menu_ui.visible = false
+	_set_streaks(false)
+	var dy: float = 0.0 - _prev_hangar_y
+	for L in _celestial_layers:
+		if is_instance_valid(L):
+			(L as CanvasLayer).offset.y += dy * bg_pan_ratio
+	_hangar.position.y = 0.0
+	_prev_hangar_y = 0.0
+	_left_sidebar.modulate.a = 1.0
+	_right_sidebar.modulate.a = 1.0
+	_left_panel.modulate.a = 1.0
+	_right_panel.modulate.a = 1.0
 	for s in _ships:
 		_position_ship_button(s)
 	_click_layer.visible = true
@@ -1322,6 +1360,10 @@ func _on_sectormod_step(delta: int) -> void:
 func _on_ready_pressed() -> void:
 	if _busy or _selected_idx < 0 or _selected_idx == _readied_idx:
 		return
+	# Skip mode (live launch only): no lifter carry — swap the hull onto the pad instantly.
+	if _skip_anim():
+		_ready_ship_instant(_selected_idx)
+		return
 	_busy = true
 	var incoming := _selected_idx
 	if _status != null:
@@ -1338,6 +1380,26 @@ func _on_ready_pressed() -> void:
 	_move_select_light(incoming)
 	_music_intensity(2)   # progress into Main — rising energy
 	_busy = false
+	if _begin_btn != null:
+		_begin_btn.disabled = false
+	if _status != null:
+		_status.text = "%s readied on the pad. Begin the patrol when ready." % ShipCatalog.display_name(incoming)
+	_refresh_left_panel()
+
+
+# Skip-mode counterpart to the lifter carry: return the currently-readied hull to its slot and drop
+# the incoming hull straight onto the pad — no lifter, no tweens.
+func _ready_ship_instant(incoming: int) -> void:
+	if _readied_idx >= 0 and _readied_idx != incoming:
+		var prev: Dictionary = _ships[_readied_idx]
+		(prev["host"] as Node2D).position = prev["park_pos"]
+		_position_ship_button(prev)
+	var ship: Dictionary = _ships[incoming]
+	(ship["host"] as Node2D).position = _pad
+	_position_ship_button(ship)
+	_readied_idx = incoming
+	_move_select_light(incoming)
+	_music_intensity(2)   # progress into Main — rising energy
 	if _begin_btn != null:
 		_begin_btn.disabled = false
 	if _status != null:

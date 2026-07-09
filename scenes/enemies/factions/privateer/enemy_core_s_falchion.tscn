@@ -3,11 +3,17 @@
 [ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemies/enemy_core.gd" id="1_core"]
 [ext_resource type="Script" uid="uid://bj8dc3ktx8bt1" path="res://scripts/enemies/patterns/straight_down.gd" id="3_mov"]
 [ext_resource type="Texture2D" uid="uid://chemaqq1r2vkc" path="res://graphics/enemies/enemy_core_falchion.png" id="3_x485k"]
+[ext_resource type="Shader" uid="uid://cakr26sn2n1b3" path="res://scenes/player/livery_color.gdshader" id="4_8fi4y"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="4_die"]
 
 [sub_resource type="Resource" id="MovePattern"]
 script = ExtResource("3_mov")
-speed = 180.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_t88yh"]
+shader = ExtResource("4_8fi4y")
+shader_parameter/tint_color = Color(0.5, 0.5, 0.5, 1)
+shader_parameter/opacity = 0.800000038
+shader_parameter/fade = 1.0
 
 [sub_resource type="RectangleShape2D" id="Hit"]
 size = Vector2(16, 16)
@@ -26,6 +32,7 @@ hframes = 3
 frame = 1
 
 [node name="Livery" type="Sprite2D" parent="." unique_id=2083373110]
+material = SubResource("ShaderMaterial_t88yh")
 texture = ExtResource("3_x485k")
 hframes = 3
 frame = 2
@@ -34,9 +41,6 @@ frame = 2
 shape = SubResource("Hit")
 
 [node name="MoveTimer" type="Timer" parent="." unique_id=681336695]
-one_shot = true
-
-[node name="ShootTimer" type="Timer" parent="." unique_id=973016088]
 one_shot = true
 
 [node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1064120404]
@@ -52,4 +56,3 @@ position = Vector2(4, 6)
 position = Vector2(0, -7)
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
-[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

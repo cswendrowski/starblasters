@@ -1,19 +1,11 @@
 extends Area2D
 class_name EnemyBase
 
-# Debris strip used on death (Roman 2026-05-18).
-const DEBRIS_STRIP_TEX = preload("res://graphics/effects/debris.png")
-const DEBRIS_FRAME_COUNT: int = 6
-const DEBRIS_LIFETIME: float = 1.6
-const DEBRIS_DRIFT_BASE: float = 225.0
-const DEBRIS_DRIFT_GAIN: float = 400.0
-const DEBRIS_BURST_MIN: float = 140.0
-const DEBRIS_BURST_MAX: float = 280.0
-# Fixed sprite scale regardless of enemy size — only count scales with
-# enemy (Roman 2026-05-18).
-const DEBRIS_PIECE_SCALE: float = 1.0   # native size (Roman 2026-05-19)
-const DEBRIS_SPIN_MIN: float = -8.0
-const DEBRIS_SPIN_MAX: float = 8.0
+# The death VISUAL pipeline (classic instant blast + debris, and the DeathEffects size-gated auto-pick)
+# lives in scripts/effects/enemy_death_fx.gd. explode() below stays the virtual entry point and owns the
+# GAME-LOGIC of a death (bounty/died, component on_death, firecore routing, queue_free timing); it hands
+# the pixels to EnemyDeathFx. Debris consts + _spawn_debris* + _burn_origin_uv moved into that module.
+const EnemyDeathFx = preload("res://scripts/effects/enemy_death_fx.gd")
 
 # Module-level preloads — every enemy _ready + every enemy explode used
 # to do `load(...)` and re-parse these scripts. Hoisted to const so the
@@ -23,16 +15,12 @@ const ParallaxShadowScript = preload("res://scripts/effects/parallax_shadow.gd")
 const DamageOverlayShader = preload("res://graphics/damage_noise.gdshader")
 const _DamageNoiseTex = preload("res://resources/noise_damage.tres")
 const _DamageEdgeTex = preload("res://resources/edge_distance_flat.tres")
-const ExplosionFxScript = preload("res://scripts/effects/explosion_fx.gd")
-const DeathDustScript = preload("res://scripts/effects/death_dust.gd")
-const BurnFxScript = preload("res://scripts/effects/burn_fx.gd")
 const MountBuilder = preload("res://scripts/enemies/mounts/mount_builder.gd")
+# Shared medium-chassis locomotion fallbacks (ONE source) — _apply_auto_rotation reads the turn/weight
+# defaults from here rather than re-hardcoding them (they mirror movement_pattern's pattern accessors).
+const MovementPattern = preload("res://scripts/enemies/movement_pattern.gd")
 # Single owner of the offscreen→recycle/free/ignore decision + the parallax fly-back (2026-06-29).
 const RecycleController = preload("res://scripts/effects/recycle_controller.gd")
-# Dead-code holdover: the simple max_shield charge + its ring are retired (nothing in the
-# live spawn path sets max_shield > 0). Repointed to hex_shield so the only consumer left —
-# the preserved-but-unscened enemy_bomber_wing — matches the committed shield (Roman 2026-06-11).
-const SHIELD_SHADER = preload("res://graphics/hex_shield.gdshader")
 
 # Shared base for everything that joins the "enemies" group — regular
 # pattern-driven ships (via enemy_core), hazards (mines, asteroids,
@@ -226,6 +214,16 @@ var _last_position: Vector2 = Vector2.ZERO
 # Recent world velocity (px/s), updated each movement frame. Read by _die_as_wreck so a wreck
 # preserves the enemy's motion at the moment of death before drifting into the fall (Roman 2026-06-10).
 var _last_move_vel: Vector2 = Vector2.ZERO
+# Overkill of the KILLING blow = fatal-hit hull damage / max_health (0.0 = no lethal-hit info yet).
+# Set only on the fatal hit in take_hit and read by EnemyDeathFx.styled so the DeathEffects "random"
+# auto-pick can bias toward punchy instant deaths when a big weapon one-shots small chaff (Roman
+# 2026-07-08). Non-take_hit deaths (ram / mass-wipe / offscreen) leave it 0.0 → no bias.
+var _last_hit_overkill: float = 0.0
+# Forced death style (default "" = none). Set by "delete this ship" ordnance via kill_with_style() so the
+# death routes to an explicit DeathEffects style (flashout / instakill) instead of the "random" size-gated
+# auto-pick. Read by EnemyDeathFx.styled and by _use_styled_death (which honours it regardless of the
+# damage-tells toggle, so a direct kill always reads as the punchy styled death). Roman 2026-07-08.
+var _forced_death_style: String = ""
 var _rot_init: bool = false
 # Armed on spawn/recycle re-init; the first frame that produces a facing target snaps to it
 # (no turn-rate limit) so units enter the screen already oriented. See _apply_auto_rotation.
@@ -368,10 +366,6 @@ func set_engine_trail_emitting(v: bool) -> void:
 func cull_engine_trail() -> void:
 	if _engine_trail != null and is_instance_valid(_engine_trail) and _engine_trail.has_method("cull"):
 		_engine_trail.cull()
-var _shield_ring: ColorRect = null
-var _shield_mat: ShaderMaterial = null
-var _shield_alpha_tween: Tween = null
-var _shield_hit_tween: Tween = null
 
 
 # Whether the progressive damage tells should attach. ON by default (the user setting
@@ -518,10 +512,31 @@ func take_hit(damage: int = 1) -> bool:
 	else:
 		_update_damage_visual()
 	if health < 1:
+		# Stash the killing blow's overkill (fatal hull damage relative to max health) so the death VFX
+		# auto-pick can bias toward instant styles when a big weapon massively overkills small chaff.
+		_last_hit_overkill = float(effective_dmg) / maxf(1.0, float(max_health))
 		explode()
 		return true
 	hit()
 	return false
+
+
+# Force an immediate DIRECT death with an explicit DeathEffects style, bypassing the hull subtraction
+# and the progressive damage-tell escalation. For "delete this ship" ordnance (the Anti-Ship Missile):
+# a sub-lethal contact on a tanky hull would otherwise just chip it and escalate its damage tells, which
+# reads wrong for a ship-killer — this destroys the hull outright with a punchy flashout / instakill
+# instead (Roman 2026-07-08). Guards match take_hit (no-op on a dying / recycling / off-screen hull, so
+# a wild missile can't kill a mid-flyback enemy). The forced style overrides the death auto-pick.
+func kill_with_style(style: String) -> void:
+	if _dying:
+		return
+	if is_recycling() or is_fully_offscreen():
+		return
+	_forced_death_style = style
+	_last_hit_overkill = 0.0   # explicit style wins; no overkill auto-pick bias
+	health = 0
+	health_changed.emit(health, max_health)
+	explode()
 
 
 # Non-fatal hit reaction. Overridable; default plays the ParticleHit node
@@ -555,8 +570,6 @@ func explode() -> void:
 		if wlayer_g != null and is_instance_valid(wlayer_g):
 			_die_as_wreck(wlayer_g, 0.70)
 			return
-	if _shield_ring and is_instance_valid(_shield_ring):
-		_shield_ring.visible = false
 	_dying = true
 	set_deferred("monitorable", false)
 	died.emit(bounty_value)
@@ -570,49 +583,71 @@ func explode() -> void:
 	# _components_death() fires the emitters.
 	if _has_emitter_tagged("firecore"):
 		explosion_variant = "default" if did_emit_tagged("firecore") else "ball"
-	# Explosions are always 1× scale; bigger enemies just get MORE blasts
-	# with random jitter (Roman 2026-05-18). 16-px chaff = 1, 48-px boss-
-	# class = ~4-5, clamped to a sane upper bound.
 	# Spawn all death VFX into THIS node's own container (get_parent) so they
 	# share its coordinate space. In combat that's the main scene (identical to
 	# the old root/current_scene parenting); in the hangar's SubViewport preview
 	# it's `_world`, which keeps the blasts over the ship instead of the window's
 	# top-left corner.
 	var fx_parent: Node = _fx_parent()
-	# Fade the non-body overlay sprites (glow mask, hull outline, decorative cores) FAST so they don't
-	# outlive the disintegrating body, and stop the exhaust (the streak ages out on its own). Both
-	# paths want this.
-	_fade_death_overlays()
-	set_engine_trail_emitting(false)
 	# Quiet the progressive damage tells so their emitters stop churning the draw order through the
-	# death animation. The tells drive LIVE damage only (overlay + sparks + burn trails); enemy_base
-	# owns the death VFX below — the per-enemy tell death-delegation was reverted (Roman 2026-06-17)
-	# after it surfaced a render-server draw-index race on the death frame (ShipDebrisEmber absolute-z).
+	# death animation. The tells drive LIVE damage only (overlay + sparks + burn trails); the death
+	# VFX below owns the death frame (the per-enemy tell death-delegation was reverted 2026-06-17 after
+	# it surfaced a render-server draw-index race on the death frame -- ShipDebrisEmber absolute-z).
 	if _dmg_tells != null and is_instance_valid(_dmg_tells):
 		_dmg_tells.quiet()
-	var ex_scene: PackedScene = ExplosionFxScript.scene_for(explosion_variant)
-	# Explosions are always 1× scale; bigger enemies just get MORE blasts with jitter. 16-px
-	# chaff = 1, 48-px boss-class = ~4-5, clamped.
-	var blast_count: int = clampi(int(round(max(1.0, display_scale * 1.4))), 1, 6)
-	if blast_count <= 1:
-		ExplosionFxScript.play(global_position, 1.0, true, fx_parent, ex_scene)
-	else:
-		ExplosionFxScript.burst(global_position, blast_count, 12.0 * max(1.0, display_scale * 0.6), 0.06, fx_parent, ex_scene)
-	# Settling dust supplement (Roman 2026-05-24): 1px gray particles, count scales with size.
-	DeathDustScript.play(global_position, display_scale, fx_parent)
-	# Debris scatter — parent under the same container so the pieces survive queue_free.
-	_spawn_debris(fx_parent, global_position, display_scale)
-	# Burn starts from a random hardpoint marker so the body dissolves from a believable point.
-	if has_node("Sprite2D"):
-		BurnFxScript.apply_burn($Sprite2D, 0.45, Color(0, 0, 0, 0), _burn_origin_uv())
-	if has_node("ParticleExplode"):
-		$ParticleExplode.restart()
-	# Death audio: the scene-embedded $EnemyDie clip is RETIRED (Roman 2026-06-10 — "wire up the
-	# new explosion sounds, retire the old ones"). Deaths now sound exclusively through the
-	# distance-based ExplosionSfx fired by the ExplosionFx.play/burst calls above; playing the
-	# old clip here buried the new ones. The EnemyDie nodes remain in the scenes (inert).
+	# STYLED death (DeathEffects size-gated auto-pick) vs the CLASSIC instant blast. Real ships get the
+	# styled controller; hazards, the firecore "ball" death, and mass-wipe kills (smart-bomb / EM burst
+	# clearing many at once) take the cheap classic path -- a multi-second wreck animation per enemy would
+	# be far too expensive at chaff volume. The DeathEffects controller REPARENTS + frees the hull itself,
+	# so on that path we do NOT run the classic overlay-fade / queue_free.
+	if _use_styled_death():
+		# DeathEffects flickers the glow itself + hard-culls the other overlays; it also culls the engine
+		# trail. Hand it the hull; it owns the reparent + queue_free from here.
+		# A drifting wreck-hull is an Area2D still — stop it registering collisions with the player as it
+		# tumbles/sinks (the classic path queue_frees fast, but styled lives for seconds).
+		set_deferred("monitoring", false)
+		# LEAVE the "enemies" group NOW (Roman 2026-07-07 regression fix). A styled wreck lingers in the
+		# wreck layer for SECONDS (shrink_time up to 5s + drift) — at HEAD, deaths were classic (~0.5s to
+		# queue_free) so a dying hull barely mattered to any group scan. With styled deaths live, a wreck
+		# that stayed in "enemies" was (a) counted for concurrency/lane occupancy by the director +
+		# lane_traffic, shoving live lane-changers off their intended lanes ("ineligible paths"), and (b)
+		# gating level_cleared. The died signal already fired (bounty credited), monitoring is off — it is
+		# no longer a live combatant, so it must leave the group. This is the SINGLE-POINT root fix that
+		# covers every group scanner (director slots/clear/occupancy/push, lane_traffic, homing/drones,
+		# HUD) uniformly, superseding the per-scanner _dying skips.
+		remove_from_group("enemies")
+		var wlayer: Node = get_tree().get_first_node_in_group("wreck_layer") if is_inside_tree() else null
+		var wreck_parent: Node = wlayer if (wlayer != null and is_instance_valid(wlayer)) else fx_parent
+		var vp: Vector2 = get_viewport_rect().size
+		EnemyDeathFx.styled(self, fx_parent, wreck_parent, Rect2(Vector2.ZERO, vp), _last_move_vel)
+		return
+	# Classic path: fade the non-body overlays fast so they don't outlive the disintegrating body, stop
+	# the exhaust (its streak ages out on its own), paint the blast/dust/debris/burn, wait a beat, free.
+	# Death audio rides the ExplosionSfx fired by the blast (the old $EnemyDie clip is inert).
+	_fade_death_overlays()
+	set_engine_trail_emitting(false)
+	EnemyDeathFx.classic(self, fx_parent)
 	await get_tree().create_timer(0.5, false).timeout   # false = death despawn pauses with the game
 	queue_free()
+
+
+# Whether this death should route through the DeathEffects size-gated auto-pick (styled) rather than the
+# classic instant blast. STYLED requires a real ship (has_ship_vfx, not a hazard) with a hull body, and
+# is skipped for: the firecore "ball" death (explosion_variant flipped to ball above -- that read is tied
+# to the classic blast), a cheap-death opt-out (mass-wipe callers set meta "death_cheap"), and when the
+# damage-tells user setting is off (styled deaths are part of the same presentation tier).
+func _use_styled_death() -> bool:
+	if is_hazard or not has_ship_vfx or not has_node("Sprite2D"):
+		return false
+	if explosion_variant == "ball":
+		return false   # firecore no-drop -> classic ball pop
+	if _forced_death_style != "":
+		return true   # direct-kill ordnance: always the punchy styled death, even with the tells toggle off
+	if has_meta("death_cheap"):
+		return false   # mass-wipe / bulk kill opted for the cheap path
+	if not _damage_tells_enabled():
+		return false
+	return true
 
 
 # Disabled-wreck death (Roman 2026-06-10): instead of exploding, steal this enemy's hull Sprite2D
@@ -623,28 +658,6 @@ func explode() -> void:
 # to carry (outline, glow) are reparented onto the hull so they can fade/flicker out.
 const _WreckDriftScript = preload("res://scripts/effects/wreck_drift.gd")
 static var _wreck_seq: int = 0
-
-
-# Pick a random hardpoint marker (engine / muzzle / turret / cannon) and return its UV
-# on the Sprite2D, so the death burn (pixelated_burn `position`) starts from that point
-# instead of always the centre (Roman 2026-06-11). Falls back to centre if no markers.
-func _burn_origin_uv() -> Vector2:
-	if not has_node("Sprite2D"):
-		return Vector2(0.5, 0.5)
-	var spr: Sprite2D = $Sprite2D
-	if spr.texture == null:
-		return Vector2(0.5, 0.5)
-	var markers: Array = []
-	for pat in ["Engine*", "Muzzle*", "Cannon*", "Turret*"]:
-		for m in find_children(pat, "Marker2D", true, false):
-			if m is Node2D:
-				markers.append(m)
-	if markers.is_empty():
-		return Vector2(0.5, 0.5)
-	var mk: Node2D = markers[randi() % markers.size()]
-	var lp: Vector2 = spr.to_local(mk.global_position)
-	var uv: Vector2 = Vector2(0.5, 0.5) + lp / spr.texture.get_size()
-	return uv.clamp(Vector2(0.05, 0.05), Vector2(0.95, 0.95))
 
 
 # True when this enemy should use the GENERAL disable death (Roman 2026-06-10): opted in via the Run
@@ -668,6 +681,10 @@ func _die_as_wreck(wlayer: Node, exit_explode_chance: float) -> void:
 	_dying = true
 	set_deferred("monitorable", false)
 	set_deferred("monitoring", false)
+	# Leave "enemies" NOW — a disabled wreck drifts for seconds; same regression fix as the styled path
+	# in explode() (Roman 2026-07-07): a lingering group member skews concurrency/lane occupancy + gates
+	# level_cleared. died already fired; monitoring is off; it is not a live combatant.
+	remove_from_group("enemies")
 	died.emit(bounty_value)        # kill still counts toward bounty + level-clear
 	_components_death()
 	set_engine_trail_emitting(false)
@@ -832,55 +849,6 @@ func _fx_parent() -> Node:
 	return cs if cs != null else get_tree().root
 
 
-func _spawn_debris(parent: Node, world_pos: Vector2, scale_factor: float) -> void:
-	# Piece count scaled by enemy size. 16-px chaff → ~3 pieces, 48-px
-	# elite → ~9. Clamped.
-	var count: int = clampi(int(round(2.0 + scale_factor * 2.3)), 2, 12)
-	for i in count:
-		_spawn_debris_piece(parent, world_pos, scale_factor)
-
-
-func _spawn_debris_piece(parent: Node, world_pos: Vector2, scale_factor: float) -> void:
-	var s := Sprite2D.new()
-	s.texture = DEBRIS_STRIP_TEX
-	s.hframes = DEBRIS_FRAME_COUNT
-	s.vframes = 1
-	s.frame = randi() % DEBRIS_FRAME_COUNT
-	s.scale = Vector2.ONE * DEBRIS_PIECE_SCALE
-	s.global_position = world_pos
-	s.rotation = randf_range(0.0, TAU)
-	s.z_index = 6
-	s.z_as_relative = false
-	parent.add_child(s)
-	var spin: float = randf_range(DEBRIS_SPIN_MIN, DEBRIS_SPIN_MAX)
-	# Burst direction biased to the LOWER hemisphere (Roman 2026-05-18):
-	# the enemy was already moving down when it died, so debris should
-	# scatter outward AND immediately start heading down — no "frozen in
-	# place then falls" beat. 0=right, PI/2=down, PI=left. Tiny clamp off
-	# the horizontal so a piece doesn't go perfectly sideways.
-	var burst_angle: float = randf_range(0.10, PI - 0.10)
-	var burst_speed: float = randf_range(DEBRIS_BURST_MIN, DEBRIS_BURST_MAX)
-	var burst_vel: Vector2 = Vector2(cos(burst_angle), sin(burst_angle)) * burst_speed
-	# X (lateral scatter): pops out fast then plateaus.
-	# Y (downward): accelerates over the full lifetime — burst contributes
-	# the initial Y, drift compounds it. TRANS_QUAD ease_in mimics gravity.
-	var burst_dx: float = burst_vel.x * (DEBRIS_LIFETIME * 0.35)
-	var burst_dy: float = burst_vel.y * (DEBRIS_LIFETIME * 0.5)
-	var drift_dy: float = DEBRIS_DRIFT_BASE * DEBRIS_LIFETIME + 0.5 * DEBRIS_DRIFT_GAIN * DEBRIS_LIFETIME
-	var end_x: float = world_pos.x + burst_dx
-	var end_y: float = world_pos.y + burst_dy + drift_dy
-	var tw := s.create_tween()
-	tw.set_parallel(true)
-	tw.tween_property(s, "rotation", s.rotation + spin * DEBRIS_LIFETIME, DEBRIS_LIFETIME)
-	tw.tween_property(s, "global_position:x", end_x, DEBRIS_LIFETIME)\
-		.set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_OUT)
-	tw.tween_property(s, "global_position:y", end_y, DEBRIS_LIFETIME)\
-		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	tw.tween_property(s, "modulate:a", 0.0, DEBRIS_LIFETIME * 0.3).set_delay(DEBRIS_LIFETIME * 0.7)
-	tw.set_parallel(false)
-	tw.tween_callback(s.queue_free)
-
-
 # ---- Shared helpers ----------------------------------------------------
 
 # True while this enemy is in the transient parallax fly-back (RecycleController.recycle()).
@@ -1005,24 +973,41 @@ func _components_leave() -> void:
 			c.on_leave(self)
 
 
-# True if this enemy CARRIES a tagged EmitterComponent (e.g. "firecore") — regardless of
-# whether it has emitted. Drives the dropper-explosion routing in explode().
+# True if this enemy CARRIES a tagged emitter (e.g. "firecore") — regardless of whether it has
+# emitted. Drives the dropper-explosion routing in explode(). Reads the tag via _component_emit_tag,
+# which handles the live ENTITY MountComponent shape (`spec.emit_tag`) plus a defensive fallback for
+# the retired EmitterComponent shape (Roman 2026-07-07 — EmitterComponent is gone).
 func _has_emitter_tagged(tag: String) -> bool:
 	for c in _components:
-		if "tag" in c and "payload" in c and String(c.get("tag")) == tag:
+		if _component_emit_tag(c) == tag:
 			return true
 	return false
 
 
-# Check if a tagged EmitterComponent (e.g. "firecore") successfully emitted on_death.
-# Used by the explosion-variant routing. (on_death always writes _last_emit_succeeded
-# fresh — true on a successful roll, false otherwise — so this is never stale.)
+# Check if a tagged emitter (e.g. "firecore") successfully emitted on_death. Used by the
+# explosion-variant routing. The ENTITY MountComponent tracks a fresh `_last_emit_succeeded` on
+# every on_death (true on a successful roll, false otherwise — never stale), so this reads that flag
+# off the component. (The retired EmitterComponent tracked the same field — kept working defensively.)
 func did_emit_tagged(tag: String) -> bool:
 	for c in _components:
-		if "tag" in c and "payload" in c and "_last_emit_succeeded" in c:
-			if String(c.get("tag")) == tag and bool(c.get("_last_emit_succeeded")):
-				return true
+		if _component_emit_tag(c) == tag and "_last_emit_succeeded" in c and bool(c.get("_last_emit_succeeded")):
+			return true
 	return false
+
+
+# The emit tag carried by a component, "" if none. An ENTITY MountComponent keeps it on
+# `spec.emit_tag` (the live shape). The retired EmitterComponent kept it as a top-level `tag`
+# alongside `payload` — matched defensively below but no longer produced. Anything else = "".
+func _component_emit_tag(c) -> String:
+	if c == null:
+		return ""
+	if "tag" in c and "payload" in c:
+		return String(c.get("tag"))
+	if "spec" in c and c.get("spec") != null:
+		var sp = c.get("spec")
+		if "emit_tag" in sp:
+			return String(sp.get("emit_tag"))
+	return ""
 
 
 # ---- Muzzle resolution -------------------------------------------------
@@ -1145,10 +1130,10 @@ func _apply_auto_rotation(delta: float = 0.0) -> void:
 		return  # zero delta this frame — nothing to face yet; snap stays pending
 	var delta_pos: Vector2 = global_position - _last_position
 	_last_position = global_position
-	# Chassis turn budget: deg/s divided by weight so heavy ships turn laggier (mirrors
-	# movement_pattern.gd's 300 deg/s + weight 1 medium defaults and omni_thrust's rate math).
-	var eff_turn_rate: float = turn_rate if turn_rate > 0.0 else 300.0
-	var eff_weight: float = weight if weight > 0.0 else 1.0
+	# Chassis turn budget: deg/s divided by weight so heavy ships turn laggier. Medium-chassis
+	# fallbacks come from movement_pattern's shared DEFAULT_* consts (single source; omni_thrust math).
+	var eff_turn_rate: float = turn_rate if turn_rate > 0.0 else MovementPattern.DEFAULT_TURN_RATE
+	var eff_weight: float = weight if weight > 0.0 else MovementPattern.DEFAULT_WEIGHT
 	var max_step: float = deg_to_rad(eff_turn_rate) / maxf(eff_weight, 0.1) * delta
 	# Resolve the TARGET heading (all the existing facing filters apply to the target, not the
 	# raw application), then approach it under the rate cap.
@@ -1230,7 +1215,9 @@ func _leave() -> void:
 
 
 # ---- Shield ring helpers — RETIRED (shield_unification_2026-06-08.md) ---
-# The simple max_shield/shield charge + its ring are gone; shields are now a
-# ShieldComponent (which carries its own ring). The `_shield_*` vars + SHIELD_SHADER
-# const are retained only because the UNWIRED legacy enemy_bomber_wing.gd still draws
-# its own ring through them; nothing in the live spawn path sets max_shield anymore.
+# The simple max_shield/shield charge is gone; shields are now a ShieldComponent (which carries
+# its own ring). The old `_shield_ring/_shield_mat/_shield_hit_tween` ring-DRAWING vars + the
+# SHIELD_SHADER const moved OUT of the base (2026-07-07) into their only consumer,
+# enemy_bomber_wing.gd. The inert `max_shield`/`shield_ring_size` exports + the `shield` var stay
+# here: `shield` is the smart_bomb/EM-torpedo legacy shield-strip guard target (break_shields()),
+# referenced across bosses/sapper — NOT wing-specific, so it is not the ring code and stays put.

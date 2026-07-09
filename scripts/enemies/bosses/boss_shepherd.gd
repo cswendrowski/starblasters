@@ -17,7 +17,8 @@ extends "res://scripts/enemies/bosses/boss_base.gd"
 
 const TurretPart = preload("res://scripts/enemies/bosses/boss_turret_part.gd")
 const TurretTex = preload("res://graphics/enemies/zealot-tank-turret.png")
-const BoltVariant = preload("res://data/bullets/zealot_bolt.tres")
+const BoltVariant = preload("res://data/bullets/bolt.tres")   # generic frame-reskin bolt (zealot colour via faction_skin)
+const FactionsC = preload("res://scripts/levels/factions.gd")
 const RocketScene = preload("res://scenes/projectiles/enemy_rocket_large.tscn")
 const MuzzleFlashTex = preload("res://graphics/gun_muzzle_flash.png")  # 5 frames, 16×16
 const EngineFx = preload("res://scripts/effects/enemy_engine_fx.gd")
@@ -40,6 +41,9 @@ func _ready() -> void:
 	bounty_value = 400
 	display_scale = 1.0
 	boss_hover_y = 46.0
+	# Zealot boss — tag it so its turret bolts frame-reskin to the zealot colour (frame 1).
+	if not has_meta("faction_skin"):
+		set_meta("faction_skin", FactionsC.Id.ZEALOT)
 	super._ready()
 	set_part_loss_thresholds([0.75, 0.5, 0.25])
 	_build_turrets()

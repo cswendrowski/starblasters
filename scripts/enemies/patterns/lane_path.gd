@@ -104,6 +104,31 @@ const ZONE_COMMIT_MAX: float = 0.7
 # A depth authored on the enemy (or the Lane Visualizer's randomized high/mid/low) overrides these.
 const WEAVE_GATE_DEFAULT: float = 0.0
 const SHIFT_GATE_DEFAULT: float = 0.3
+# LANE_CUT low-speed exit-angle scaling (Roman 2026-07-07). The exit leg's max turn angle from
+# straight-down: at/above LANE_CUT_FULL_SPEED it's the full 90° (pure horizontal run-off = the tuned
+# 120 px/s baseline, unchanged). Below it, the max angle eases DOWN toward LANE_CUT_MIN_EXIT_DEG so a
+# slow chassis keeps a downward component and exits the bottom in bounded time instead of crawling
+# sideways for seconds. Tunables Roman can adjust:
+#   LANE_CUT_FULL_SPEED  — px/s at/above which the exit is unchanged (the small-chassis base rung).
+#   LANE_CUT_MIN_EXIT_DEG — shallowest exit angle (deg from down) at/below creep speed; 55° keeps a
+#                           solid downward component (cos 55° ≈ 0.57 of speed still descending) while
+#                           still carrying the ship clearly off toward its cut side.
+const LANE_CUT_FULL_SPEED: float = 120.0
+const LANE_CUT_MIN_EXIT_DEG: float = 55.0
+# DIVE_RETURN low-speed U-turn scaling (Roman 2026-07-07). Same fixed-distance-vs-speed root cause as
+# LANE_CUT, but on the VERTICAL axis: the U-turn's climb-back-UP leg is a FIXED ~150px height, so a
+# slow chassis spends seconds facing pure-backwards/up (a wrong-facing crawl). The terminal turn angle
+# (measured from straight-DOWN) is the full 180° at/above DIVE_RETURN_FULL_SPEED — a straight-up climb
+# off the top, the tuned 120 px/s baseline, unchanged. Below full speed it steps to DIVE_RETURN_MIN_EXIT_DEG
+# (a fixed down-diagonal, cos>0 so it always descends out the BOTTOM in bounded time) — NOT a linear ramp
+# up toward 180°, because DIVE_RETURN's full angle is 180° (up), so any ramp would pass through the >90°
+# climbing region and reintroduce the crawl. Tunables Roman can adjust:
+#   DIVE_RETURN_FULL_SPEED  — px/s at/above which the U-turn is unchanged (the small-chassis base rung).
+#   DIVE_RETURN_MIN_EXIT_DEG — terminal angle (deg from down) for any sub-full chassis; 60° keeps a
+#                              downward component (cos 60° = 0.5 of speed still descending) while the
+#                              lateral throw still carries the ship clearly off toward its hook side.
+const DIVE_RETURN_FULL_SPEED: float = 120.0
+const DIVE_RETURN_MIN_EXIT_DEG: float = 60.0
 # STEP state
 var _anchor_lane: int = 0
 var _cur_lane: int = 0
@@ -231,11 +256,33 @@ func compute_step(enemy, delta: float) -> Vector2:
 			var ru: float = clampf(_return_t / maxf(return_curve_time, 0.0001), 0.0, 1.0)
 			var reased: float = smoothstep(0.0, 1.0, ru)
 			var rtx: float = _return_anchor_x + sign_x * float(maxi(1, shift_lanes)) * Lanes.PITCH * reased
-			var rvy: float = lerpf(spd, -spd, reased)  # +down -> 0 -> -down
+			# Low-speed graceful degrade (Roman 2026-07-07, mirrors LANE_CUT): the U-turn's terminal
+			# heading used to HARD-lerp to -spd (a pure straight-UP climb off the top). At the tuned
+			# small-chassis 120 px/s that reads fine (~1.25s climb, exits the top in ~2.75s). But with
+			# `engine: -1` the chassis drops to 60 px/s and the FIXED-height climb back up (~150px)
+			# doubles the on-screen time (~2.5s of pure BACKWARDS/up facing) — the same fixed-distance-
+			# vs-speed-scaled degeneration LANE_CUT already fixes. Fix: cap the terminal turn angle
+			# BELOW straight-up as speed drops, so a slow chassis keeps a DOWNWARD component and exits
+			# the BOTTOM in bounded time (facing stays mostly down-lane) instead of crawling back up.
+			# At/above DIVE_RETURN_FULL_SPEED the terminal angle is the full 180 deg (straight up) -> the
+			# 120 px/s baseline is byte-identical. term_ang is from straight-DOWN, so vy sweeps from
+			# +spd (down, angle 0) to cos(term_ang)*spd; at full speed term_ang=PI -> -spd (old form).
+			var term_ang: float = _dive_return_term_angle(spd)
+			var rvy: float = lerpf(spd, cos(term_ang) * spd, reased)  # +down -> ... -> terminal vy
 			return Vector2(rtx - enemy.position.x, rvy * delta)
 		Shape.LANE_CUT:
 			# Dive down until the fire-zone midpoint, then a rounded turn LEFT/RIGHT and run
-			# HORIZONTALLY off the side (like DIVE_RETURN but exiting a side, not climbing up).
+			# off the side (like DIVE_RETURN but exiting a side, not climbing up).
+			#
+			# Low-speed graceful degrade (Roman 2026-07-07): the exit used to ramp to a PURE
+			# horizontal run (cang -> PI/2). At the tuned small-chassis 120 px/s that reads fine
+			# (~0.7s of sideways run, exits the side in ~2.5s total). But with `engine: -1` the
+			# chassis drops to 60 px/s and the DISTANCE-bound sideways leg doubles the on-screen
+			# time (~4.75s) while facing sits at a dead 90/270 for ~2s — a wrong-facing crawl.
+			# Fix: cap the exit angle BELOW horizontal as speed drops, keeping a downward
+			# component so (a) the ship keeps progressing and exits the BOTTOM in bounded time,
+			# and (b) facing stays mostly down-lane (diagonal, not pure sideways). At/above
+			# LANE_CUT_FULL_SPEED the cap is the full 90° → the 120 px/s baseline is unchanged.
 			if not _return_started:
 				if Zones.band_progress(enemy.position.y) >= turn_bp:
 					_return_started = true
@@ -243,7 +290,8 @@ func compute_step(enemy, delta: float) -> Vector2:
 				return Vector2(0.0, spd * delta)   # dive down
 			_return_t += delta
 			var cu: float = clampf(_return_t / maxf(return_curve_time, 0.0001), 0.0, 1.0)
-			var cang: float = lerpf(0.0, PI * 0.5, smoothstep(0.0, 1.0, cu))  # 0=down..PI/2=horizontal
+			var max_ang: float = _lane_cut_max_angle(spd)
+			var cang: float = lerpf(0.0, max_ang, smoothstep(0.0, 1.0, cu))  # 0=down..max_ang
 			return Vector2(sign_x * sin(cang) * spd * delta, cos(cang) * spd * delta)
 		Shape.STEP:
 			if step_synced:
@@ -265,6 +313,37 @@ func _clamp_amp(amp: float) -> float:
 		(Playfield.X_MAX - 12.0) - _anchor_x
 	)
 	return min(amp, max(room, 0.0))
+
+
+# LANE_CUT max exit angle (radians from straight-down) for a chassis moving at `spd` px/s. Full 90°
+# at/above LANE_CUT_FULL_SPEED (baseline), easing to LANE_CUT_MIN_EXIT_DEG at/below creep so slow
+# ships keep descending (bounded on-screen time, facing stays mostly down-lane). Linear in speed
+# between creep and full — a monotone, predictable knob.
+func _lane_cut_max_angle(spd: float) -> float:
+	var full: float = PI * 0.5
+	if spd >= LANE_CUT_FULL_SPEED:
+		return full
+	var lo: float = Clarity.CREEP_SPEED
+	var t: float = clampf((spd - lo) / maxf(LANE_CUT_FULL_SPEED - lo, 0.0001), 0.0, 1.0)
+	return lerpf(deg_to_rad(LANE_CUT_MIN_EXIT_DEG), full, t)
+
+
+# DIVE_RETURN terminal U-turn angle (radians from straight-DOWN) for a chassis at `spd` px/s. Full PI
+# (180°, straight-up climb off the top) at/above DIVE_RETURN_FULL_SPEED — the tuned baseline, byte-
+# identical. Eases DOWN toward DIVE_RETURN_MIN_EXIT_DEG at/below creep so a slow ship keeps a downward
+# component (bounded bottom exit, facing stays mostly down-lane). Linear in speed between creep and
+# full — a monotone, predictable knob (mirrors _lane_cut_max_angle).
+func _dive_return_term_angle(spd: float) -> float:
+	# At/above full speed: the tuned 180° straight-up climb (baseline, byte-identical). ANY speed below
+	# full degrades to a bounded DOWNWARD exit: clamp the terminal angle at DIVE_RETURN_MIN_EXIT_DEG
+	# (a fixed down-diagonal, cos>0 so it always descends out the bottom). We do NOT interpolate up
+	# toward 180° below full speed — unlike LANE_CUT (whose full is only 90°/horizontal), DIVE_RETURN's
+	# full is 180°/up, so any linear ramp would pass through the >90° "climbing-up" region and reintroduce
+	# the slow backwards crawl for a slow chassis. A hard step (down-diagonal below full, up-climb at
+	# full) keeps every sub-full rung strictly descending + bounded, which is the whole point.
+	if spd >= DIVE_RETURN_FULL_SPEED:
+		return PI   # straight up (180° from down) — the tuned baseline
+	return deg_to_rad(DIVE_RETURN_MIN_EXIT_DEG)
 
 
 # STEP: hold the current lane for hold_time, then hop step_lanes toward _step_dir

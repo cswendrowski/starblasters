@@ -3,7 +3,14 @@
 [ext_resource type="Script" uid="uid://bd1l72v0x85xw" path="res://scripts/enemies/core/enemy_bomber.gd" id="1_bomber"]
 [ext_resource type="Texture2D" uid="uid://dlwv3m7lentxk" path="res://graphics/enemies/enemy_core_m_bomber.png" id="2_7p3iw"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="3_die"]
+[ext_resource type="Shader" uid="uid://cakr26sn2n1b3" path="res://scenes/player/livery_color.gdshader" id="3_owvlf"]
 [ext_resource type="AudioStream" uid="uid://bhiuomm0cj0w2" path="res://assets/audio/SFX_flameShot3b.wav" id="4_shot"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_k4tok"]
+shader = ExtResource("3_owvlf")
+shader_parameter/tint_color = Color(0.5, 0.5, 0.5, 1)
+shader_parameter/opacity = 0.800000038
+shader_parameter/fade = 1.0
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_bomber"]
 size = Vector2(32, 64)
@@ -23,11 +30,13 @@ hframes = 4
 frame = 1
 
 [node name="Livery" type="Sprite2D" parent="." unique_id=694849499]
+material = SubResource("ShaderMaterial_k4tok")
 texture = ExtResource("2_7p3iw")
 hframes = 4
 frame = 3
 
 [node name="TailGunGlow" type="Sprite2D" parent="." unique_id=1019058680]
+modulate = Color(1, 0, 1, 1)
 texture = ExtResource("2_7p3iw")
 hframes = 4
 frame = 2

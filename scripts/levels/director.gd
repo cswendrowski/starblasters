@@ -229,6 +229,8 @@ func _alive_count() -> int:
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(e) or _is_boss_gate_node(e):
 			continue
+		if "_dying" in e and e._dying:   # a dying wreck no longer competes for density/concurrency
+			continue
 		n += 1
 	return n
 
@@ -242,6 +244,8 @@ func _alive_slots() -> int:
 	var n: int = 0
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(e) or _is_boss_gate_node(e):
+			continue
+		if "_dying" in e and e._dying:   # a dying wreck no longer competes for density/concurrency
 			continue
 		n += (int(e.slot_weight) if "slot_weight" in e else 1)
 	return n
@@ -393,6 +397,16 @@ func _advance_step() -> void:
 		# fly-back can never hang the level.
 		var drain_guard: float = 0.0
 		while _running and (not _recycle_pool.is_empty() or _recyclers_in_flight()) and drain_guard < FINAL_DRAIN_TIMEOUT:
+			# LAST-WAVE ABANDON (ISSUE 2, Roman 2026-07-08): all phrases are dispatched (this IS the final
+			# wave). If the only thing keeping the level alive is TRIVIAL chaff recyclers — in-flight ghosts
+			# + pending credits, with no live non-recycling combatant and no big cruiser/miniboss/elite among
+			# them — abandon them and let the level clear. The last few chaff flying back aren't a challenge.
+			# A big recycler (height >= ANCHOR_MIN_HEIGHT) is the EXCEPTION: it keeps the drain going so the
+			# fight stays alive for a meaningful unit. Only reachable at level end, so non-final-wave drains
+			# (the wave-boundary drain) are untouched.
+			if _only_trivial_recyclers_left():
+				_abandon_trivial_recyclers()
+				break
 			if not _recycle_pool.is_empty():
 				await _drain_recycle_pool()
 			else:
@@ -560,7 +574,9 @@ func _drain_recycle_pool() -> void:
 			if i >= credits.size():
 				break
 			var credit: Dictionary = credits[i]
-			last_spawned = _spawn_enemy(credit["spec"], i, int(ln))
+			# is_recycle_reentry=true → don't re-count this unit toward the level total (ISSUE 1); it was
+			# already counted on its original spawn. Its died wire is still hooked so its kill registers.
+			last_spawned = _spawn_enemy(credit["spec"], i, int(ln), {}, true)
 			# Stamp the carried remaining passes so re-entry doesn't reset the recycle budget.
 			if is_instance_valid(last_spawned) and "recycle_passes" in last_spawned:
 				last_spawned.recycle_passes = int(credit["passes"])
@@ -1106,7 +1122,7 @@ func _dispatch_breather(ph: Resource) -> void:
 	_advance_step()
 
 
-func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync: Dictionary = {}) -> Node:
+func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync: Dictionary = {}, is_recycle_reentry: bool = false) -> Node:
 	if wave.enemy_scene == null:
 		push_warning("WaveDirector: spec has no enemy_scene")
 		return null
@@ -1354,7 +1370,14 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 	var bounty_val: int = 0
 	if "bounty_value" in enemy:
 		bounty_val = enemy.bounty_value
-	enemy_spawned.emit(scene_path, bounty_val)
+	# Level-total tally (ISSUE 1, Roman 2026-07-08). A recycle RE-ENTRY is the SAME combatant returning
+	# (despawn+credit rework), not a new spawn — the cleared-summary denominator counts enemy_spawned
+	# emissions (main.gd::_on_enemy_spawned), so re-counting a re-entry inflated the total (a unit that
+	# recycled 3× read 1/4 instead of 1/1). Suppress the emit on re-entry so each unit counts ONCE. The
+	# died wire below is UNCONDITIONAL, so the re-entered unit's eventual single death still records the
+	# one kill (numerator) exactly as before.
+	if not is_recycle_reentry:
+		enemy_spawned.emit(scene_path, bounty_val)
 	if enemy.has_signal("died"):
 		enemy.died.connect(_on_enemy_died.bind(scene_path))
 	return enemy
@@ -1362,6 +1385,28 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 
 func _on_enemy_died(value: int, scene_path: String) -> void:
 	enemy_died.emit(value, scene_path)
+
+
+# Wire a boss/hazard-spawned enemy into the ongoing wave (Roman 2026-07-06, for the Director's flechette
+# interlude). The caller has already parented it + put it in "enemies" + started it, so the concurrency
+# cap + clear-gate already see it; this adds the HUD/economy tracking a normal _spawn_enemy does — emit
+# enemy_spawned + re-emit the enemy's death through us. `source_spec` (optional) lets a recycle fly-back
+# credit a replacement. Idempotent (guarded by a meta flag) so a double-inject is harmless.
+func inject_live_enemy(enemy: Node, source_spec: Resource = null) -> void:
+	if enemy == null or not is_instance_valid(enemy) or enemy.get_meta("_injected", false):
+		return
+	enemy.set_meta("_injected", true)
+	if not enemy.is_in_group("enemies"):
+		enemy.add_to_group("enemies")
+	if source_spec != null:
+		enemy.set_meta("recycle_source_spec", source_spec)
+	var scene_path: String = enemy.scene_file_path
+	var bounty_val: int = 0
+	if "bounty_value" in enemy:
+		bounty_val = enemy.bounty_value
+	enemy_spawned.emit(scene_path, bounty_val)
+	if enemy.has_signal("died"):
+		enemy.died.connect(_on_enemy_died.bind(scene_path))
 
 
 # Apply an absolute lateral direction (+1 right / -1 left) to whatever side knob the
@@ -1487,6 +1532,13 @@ func _live_combatants_present() -> bool:
 			continue
 		if "is_hazard" in n and n.is_hazard:
 			continue
+		# A DYING enemy (already fired died.emit + counted for bounty, monitoring off, reparented into the
+		# wreck layer for its multi-second styled death) is NOT a live combatant — it must not gate
+		# level_cleared. This is the fix for the multipart cruiser's styled death leaving dying chunks in
+		# the "enemies" group and stalling the level (Roman 2026-07-07). Covers the wreck-hull core AND any
+		# DestructiblePart children still mid death VFX.
+		if "_dying" in n and n._dying:
+			continue
 		return true
 	return false
 
@@ -1500,6 +1552,51 @@ func _recyclers_in_flight() -> bool:
 		if "_cycling" in n and n._cycling:
 			return true
 	return false
+
+
+# LAST-WAVE ABANDON gate (ISSUE 2, Roman 2026-07-08). True when the ONLY thing keeping the level alive is
+# TRIVIAL chaff recyclers — in-flight fly-back ghosts + pending pool credits — with NO live non-recycling
+# combatant still fighting and NO big (cruiser/miniboss/elite-sized) recycler among them. "Big" reuses the
+# director's existing anchor-class size signal (_enemy_height >= ANCHOR_MIN_HEIGHT), so a returning cruiser
+# keeps the level going (the EXCEPTION) while lone chaff can be dropped. Called only from the level-end
+# drain loop, where at least one recycler is guaranteed present.
+func _only_trivial_recyclers_left() -> bool:
+	# Any live non-hazard, non-dying "enemies" node that is NOT an in-flight recycler ghost is a real
+	# combatant still in play → the level is not waiting only on recyclers. A big-sized cycling ghost also
+	# vetoes the abandon (keep it alive). A trivial cycling ghost is fine to drop.
+	for n in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(n):
+			continue
+		if "is_hazard" in n and n.is_hazard:
+			continue
+		if "_dying" in n and n._dying:
+			continue
+		if "_cycling" in n and n._cycling:
+			if _enemy_height(n) >= ANCHOR_MIN_HEIGHT:
+				return false   # big recycler ghost — keep the level going
+			continue           # trivial ghost — droppable
+		return false           # a live non-recycling combatant is still fighting
+	# No live combatant vetoed; check the pending pool credits for a big-sized recycler.
+	for credit in _recycle_pool:
+		if _enemy_height_of_spec(credit.get("spec", null)) >= ANCHOR_MIN_HEIGHT:
+			return false
+	return true
+
+
+# Abandon the level-end trivial recyclers (ISSUE 2): drop every pending pool credit and free the in-flight
+# chaff fly-back ghosts so neither gates the clear. Big recyclers are never here (the caller gated on
+# _only_trivial_recyclers_left). A freed ghost never fired died → no phantom kill is recorded; its
+# would-be landing credit is dropped because credit_recycled ignores credits once _running goes false
+# (set right after this in the drain block).
+func _abandon_trivial_recyclers() -> void:
+	_recycle_pool.clear()
+	for n in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(n):
+			continue
+		if "is_hazard" in n and n.is_hazard:
+			continue
+		if "_cycling" in n and n._cycling:
+			n.queue_free()
 
 func _hazards_present() -> bool:
 	for n in get_tree().get_nodes_in_group("enemies"):

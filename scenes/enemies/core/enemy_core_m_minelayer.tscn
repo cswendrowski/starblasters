@@ -3,9 +3,17 @@
 [ext_resource type="Script" uid="uid://4n1x8omps3dw" path="res://scripts/enemies/factions/privateer/minelayer.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://ccl2u8jguqf3k" path="res://graphics/enemies/enemy_core_minelayer.png" id="2_7ijq0"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="3_die"]
+[ext_resource type="Shader" uid="uid://cakr26sn2n1b3" path="res://scenes/player/livery_color.gdshader" id="3_n17qq"]
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
-size = Vector2(16, 32)
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_i8422"]
+shader = ExtResource("3_n17qq")
+shader_parameter/tint_color = Color(0.5, 0.5, 0.5, 1)
+shader_parameter/opacity = 0.800000038
+shader_parameter/fade = 1.0
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_n17qq"]
+radius = 8.0
+height = 32.0
 
 [node name="Enemy" type="Area2D" unique_id=210885848 groups=["enemies"]]
 script = ExtResource("1_script")
@@ -22,17 +30,23 @@ hframes = 3
 frame = 1
 
 [node name="Livery" type="Sprite2D" parent="." unique_id=649531378]
+material = SubResource("ShaderMaterial_i8422")
 texture = ExtResource("2_7ijq0")
 hframes = 3
 frame = 2
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1503502057]
-shape = SubResource("RectangleShape2D_1")
-
-[node name="ShootTimer" type="Timer" parent="." unique_id=249278247]
-one_shot = true
+shape = SubResource("CapsuleShape2D_n17qq")
 
 [node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1986354148]
 stream = ExtResource("3_die")
 
-[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]
+[node name="EngineL" type="Marker2D" parent="." unique_id=1480987077]
+position = Vector2(-5, 9)
+
+[node name="EngineR" type="Marker2D" parent="." unique_id=1471368983]
+position = Vector2(5, 9)
+
+[node name="Minelayer" type="Marker2D" parent="." unique_id=827316569]
+position = Vector2(0, 10)
+

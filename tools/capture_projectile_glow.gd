@@ -16,9 +16,9 @@ const SPECS := [
 	"res://scenes/projectiles/bullet_blaster_heavy.tscn",  # cyan player bolt
 	"res://scenes/projectiles/bullet_minigun.tscn",        # warm tracer
 	"res://scenes/projectiles/bullet_wave_small.tscn",     # green wave
-	"res://scenes/projectiles/enemy_bullet_wave.tscn",     # magenta orb
-	"res://scenes/projectiles/enemy_bullet_diamond.tscn",  # purple diamond
-	"res://scenes/projectiles/enemy_bullet_tracer.tscn",   # cyan tracer
+	"res://scenes/projectiles/projectile_wave.tscn",     # magenta orb
+	"res://scenes/projectiles/projectile_bolt.tscn",  # purple diamond
+	"res://scenes/projectiles/projectile_bolt.tscn",   # cyan tracer
 ]
 
 

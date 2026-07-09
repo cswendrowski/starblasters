@@ -153,3 +153,7 @@ func _free_lines() -> void:
 			line.queue_free()
 	_lines.clear()
 	_point_t.clear()
+	# Clear the parallel marker list too — _process iterates _markers.size() and indexes _lines[i], so
+	# leaving markers behind after a cull()/free would index the now-empty _lines (out-of-bounds crash on
+	# the common ship-death path, which culls the exhaust; 2026-07-07 death-wiring fix).
+	_markers.clear()

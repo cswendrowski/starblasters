@@ -34,6 +34,7 @@ var _sfx_slider: HSlider = null
 var _shake_slider: HSlider = null
 var _fullscreen_check: CheckButton = null
 var _damage_tells_check: CheckButton = null
+var _skip_patrol_check: CheckButton = null
 
 var _rebind_pending_action: String = ""
 var _rebind_pending_button: Button = null
@@ -143,6 +144,19 @@ func _build_ui() -> void:
 	_damage_tells_check.button_pressed = _settings().damage_tells
 	_damage_tells_check.toggled.connect(_on_damage_tells_toggled)
 	tells_row.add_child(_damage_tells_check)
+
+	var patrol_row := HBoxContainer.new()
+	patrol_row.add_theme_constant_override("separation", 8)
+	left.add_child(patrol_row)
+	var patrol_label := Label.new()
+	patrol_label.text = "Skip New Patrol Animations"
+	patrol_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	UiTheme.style_label(patrol_label, UiTheme.LabelKind.BODY)
+	patrol_row.add_child(patrol_label)
+	_skip_patrol_check = CheckButton.new()
+	_skip_patrol_check.button_pressed = _settings().skip_patrol_anim
+	_skip_patrol_check.toggled.connect(_on_skip_patrol_toggled)
+	patrol_row.add_child(_skip_patrol_check)
 
 	var font_row := HBoxContainer.new()
 	font_row.add_theme_constant_override("separation", 8)
@@ -369,6 +383,10 @@ func _on_fullscreen_toggled(on: bool) -> void:
 
 func _on_damage_tells_toggled(on: bool) -> void:
 	_settings().set_damage_tells(on)
+
+
+func _on_skip_patrol_toggled(on: bool) -> void:
+	_settings().set_skip_patrol_anim(on)
 
 
 func _on_font_picked(idx: int) -> void:

@@ -6,8 +6,11 @@ extends Resource
 # -> director) consume. Realized at spawn by MountBuilder into the matching primitive:
 #   GUN/LAUNCHER -> a MountComponent (own fire timer)   TURRET -> an EnemyTurret   BEAM -> a BeamEmitter
 #
-# Mounts COMPLEMENT the hull `shoot_pattern` (which stays the primary weapon, timed by enemy_core);
-# they are the EXTRA guns/turrets/launchers/beams that used to be hardcoded in bespoke scripts.
+# The roster fires almost entirely through mounts — the enemy-firing→mount consolidation (2026-06-23)
+# retired the old "Mount 0"/hull-weapon-only path, so mounts ARE the guns/turrets/launchers/beams. As of
+# the firing-engine consolidation (2026-07-07) even a hull `shoot_pattern` is realized as a MountComponent
+# (kind GUN, hull_pattern = the pattern) by enemy_core._realize_shoot_pattern_mount, so ONE engine (this
+# spec's cadence/gate/path-phase/on-phase, ticked on FiringScheduler) drives every enemy weapon.
 #
 # Preload-const, NOT class_name (a fresh class_name doesn't resolve under headless --script until the
 # cache regenerates — the firing-resource convention, see weapon.gd / movement_pattern.gd).
@@ -19,7 +22,10 @@ extends Resource
 # kind — a mount with a payload_scene takes the projectile path whatever its kind, so LAUNCHER is just a
 # GUN carrying a payload_scene. Kept as a roster/bench alias (zero-churn), no longer its own fire branch.
 enum Kind { GUN, TURRET, LAUNCHER, BEAM, ENTITY, RING }
-enum Aim { STRAIGHT_DOWN, TOWARD_CENTER, AT_PLAYER, FORWARD, BACKWARD, LEFT, RIGHT }   # mirrors Weapon.Aim (int values MUST stay in lockstep)
+# Aim is ALIASED to Weapon.Aim (not re-declared) so the two can never drift — the old manual mirror
+# is now mechanical. Referenced as MountSpec.Aim exactly as before. Weapon.Aim stays the source of truth.
+const _WeaponScript = preload("res://scripts/enemies/shoot_patterns/weapon.gd")
+const Aim = _WeaponScript.Aim
 # ALL = fire from every matched marker; CYCLE = one per volley (scene order). INWARD/OUTWARD =
 # ordered cycle by horizontal distance from the hull centre — OUTWARD fires the outermost hardpoint
 # first working in, INWARD the reverse (Roman 2026-07-03). Pair with burst_interval for a ripple.

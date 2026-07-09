@@ -63,10 +63,19 @@ static func spray(parent: Node, pos: Vector2, direction: Vector2 = Vector2.UP, p
 
 	var p := GPUParticles2D.new()
 	p.name = "EmberSpray"
-	p.amount = int(v["amount"])
+	# amount must be >= 1 and is applied BEFORE the node enters the tree so the particle buffer is sized
+	# to the full count on the first (and only) one-shot cycle.
+	p.amount = maxi(1, int(v["amount"]))
 	p.lifetime = float(v["lifetime"])
 	p.one_shot = true
 	p.explosiveness = float(v["explosiveness"])
+	# GOTCHA (Roman 2026-07-07): the default fixed_fps=30 substeps the emission — a one-shot burst at the
+	# game's 60fps only advances the emitter on the 30Hz sim tick, so most of the burst window is skipped
+	# and only a HANDFUL of particles ever spawn (the "spray ignores amount, emits ~2" bug). Simulating at
+	# the render framerate (fixed_fps=0) makes the full `amount` burst land. interpolate off avoids a
+	# first-frame ghost with the free-running sim.
+	p.fixed_fps = 0
+	p.interpolate = false
 	p.local_coords = false
 	p.texture = _pixel()
 	p.position = pos
@@ -96,8 +105,16 @@ static func spray(parent: Node, pos: Vector2, direction: Vector2 = Vector2.UP, p
 	p.process_material = mat
 
 	p.modulate = VfxGlow.prod_hdr("particles")   # HDR-bright so the WorldEnvironment blooms the embers
+	p.emitting = false   # arm cold; restart() below fires the ONE clean cycle once the node is in-tree
 	parent.add_child(p)
-	p.emitting = true
+	# GOTCHA (Roman 2026-07-07, take 2): the earlier fixed_fps=0 change did NOT cure the "spray ignores
+	# amount / only ~2 particles" symptom. Root cause: setting `emitting = true` on a freshly-created
+	# one_shot GPUParticles2D the same frame it enters the tree races the emitter's internal cycle
+	# bookkeeping — the first (and only) burst starts mid-setup and emits a tiny fraction of `amount`
+	# before the one_shot cycle latches closed. restart() forces a fresh, fully-configured emission cycle
+	# from a known-zero phase, so the full `amount` lands. Must be called AFTER add_child (restart is a
+	# no-op outside the tree) and with amount/lifetime/one_shot already set (done above).
+	p.restart()
 	p.finished.connect(p.queue_free)
 	return p
 

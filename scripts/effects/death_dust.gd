@@ -81,7 +81,7 @@ static func _spawn_one(parent: Node, world_pos: Vector2, tex: Texture2D) -> void
 	s.texture = tex
 	s.scale = Vector2.ONE  # 1px, fixed
 	s.global_position = world_pos
-	s.z_index = 5  # under debris (z=6), above most parallax
+	s.z_index = -4  # under death debris (z=-3) + gameplay actors, above parallax (Roman 2026-07-07)
 	s.z_as_relative = false
 	# Per-particle gray tint, varied for texture.
 	var g: float = randf_range(0.6, 0.8)

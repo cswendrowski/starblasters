@@ -1,7 +1,7 @@
 extends "res://scripts/enemies/enemy_core.gd"
 
-# Minelayer. Crosses the playfield (side_traverse pattern) dropping DUMB bomblets via a TIMER
-# EmitterComponent + a DEATH-scatter emitter — both configured in the roster ("emitters" =
+# Minelayer. Crosses the playfield (side_traverse pattern) dropping DUMB bomblets via a CADENCE
+# ENTITY mount + a DEATH-scatter emitter — both configured in the roster ("emitters" =
 # MINELAYER_EMITTERS). The drop firing was bespoke (_process timer + explode scatter); migrated to
 # the configured emitter system 2026-06-19. The only bespoke piece left is the SIDE-ENTRY spawn:
 # the carrier enters from a side edge at the mid-upper band and crosses, not the standard top rig.

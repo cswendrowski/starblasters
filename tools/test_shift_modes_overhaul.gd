@@ -100,7 +100,7 @@ func _run() -> void:
 	player.mode_active_t = 2.0
 	await process_frame
 	_assert(player._mode_field != null and is_instance_valid(player._mode_field), "Reflect field spawned")
-	var eb = preload("res://scenes/projectiles/enemy_bullet.tscn").instantiate()
+	var eb = preload("res://scenes/projectiles/projectile_ball.tscn").instantiate()
 	player.get_tree().root.add_child(eb)
 	eb.start(Vector2(240, 100), Vector2(0, 1))
 	player._on_mode_field_hit(eb)

@@ -14,7 +14,7 @@ func _process(_dt: float) -> bool:
 	var lines: Array = []
 	var fails := 0
 	var world := Node2D.new(); root.add_child(world)
-	var b = load("res://scenes/projectiles/enemy_bullet_cannon.tscn").instantiate()
+	var b = load("res://scenes/projectiles/projectile_ball.tscn").instantiate()
 	world.add_child(b)   # _ready -> _apply_variant
 	if int(round(b.speed)) != 240:
 		lines.append("FAIL cannon speed %d != 240" % int(round(b.speed))); fails += 1

@@ -32,9 +32,6 @@ shape = SubResource("RectangleShape2D_004cm")
 [node name="MoveTimer" type="Timer" parent="." unique_id=1380023245]
 one_shot = true
 
-[node name="ShootTimer" type="Timer" parent="." unique_id=674172378]
-one_shot = true
-
 [node name="EnemyShoot" type="AudioStreamPlayer2D" parent="." unique_id=892052681]
 stream = ExtResource("4_8aaq4")
 
@@ -57,4 +54,3 @@ position = Vector2(5, -3)
 position = Vector2(0, 14)
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
-[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

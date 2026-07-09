@@ -7,7 +7,7 @@ extends SceneTree
 const RESULT := "res://tools/_supremacy_units_result.txt"
 const Roster := preload("res://scripts/levels/enemy_roster.gd")
 const Factions := preload("res://scripts/levels/factions.gd")
-const BV_PlasmaOrb := preload("res://data/bullets/plasma_orb.tres")
+const BV_PlasmaOrb := preload("res://data/bullets/wave.tres")
 
 const RUSH := "res://scenes/enemies/factions/supremacy/enemy_s_s_rush.tscn"
 const HOTROD := "res://scenes/enemies/factions/supremacy/enemy_s_s_hotrod.tscn"

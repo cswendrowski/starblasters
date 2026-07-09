@@ -3,7 +3,8 @@
 [ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemies/enemy_core.gd" id="1_core"]
 [ext_resource type="Texture2D" uid="uid://dh8noop5cyxlb" path="res://graphics/enemies/enemy_z_s_acolyte.png" id="2_tex"]
 [ext_resource type="Script" uid="uid://bj8dc3ktx8bt1" path="res://scripts/enemies/patterns/straight_down.gd" id="3_mov"]
-[ext_resource type="Script" uid="uid://5imwobncfuhu" path="res://scripts/enemies/components/emitter_component.gd" id="4_emit"]
+[ext_resource type="Script" uid="uid://d4k48gruciwxk" path="res://scripts/enemies/mounts/mount_spec.gd" id="4_spec"]
+[ext_resource type="Script" uid="uid://clcm5jvfo6wky" path="res://scripts/enemies/mounts/mount_component.gd" id="4_emit"]
 [ext_resource type="PackedScene" uid="uid://dxfppn7uceaea" path="res://scenes/enemies/factions/zealot/firecore_hazard.tscn" id="5_fc"]
 [ext_resource type="PackedScene" uid="uid://uoof4kuon0td" path="res://scenes/enemies/factions/zealot/firecore_core.tscn" id="6_corevis"]
 [ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://assets/audio/SFX_shot7.wav" id="7_shoot"]
@@ -13,10 +14,18 @@
 script = ExtResource("3_mov")
 speed = 130.0
 
+[sub_resource type="Resource" id="FirecoreSpec"]
+script = ExtResource("4_spec")
+kind = 4
+trigger = 2
+count = 1
+no_inertia = true
+emit_tag = "firecore"
+payload_scene = ExtResource("5_fc")
+
 [sub_resource type="Resource" id="DropFirecore"]
 script = ExtResource("4_emit")
-payload = ExtResource("5_fc")
-tag = "firecore"
+spec = SubResource("FirecoreSpec")
 
 [sub_resource type="RectangleShape2D" id="Hit"]
 size = Vector2(14, 14.5)
@@ -43,9 +52,6 @@ shape = SubResource("Hit")
 [node name="MoveTimer" type="Timer" parent="." unique_id=1918411655]
 one_shot = true
 
-[node name="ShootTimer" type="Timer" parent="." unique_id=1648907592]
-one_shot = true
-
 [node name="EnemyShoot" type="AudioStreamPlayer2D" parent="." unique_id=98443780]
 stream = ExtResource("7_shoot")
 
@@ -65,4 +71,3 @@ position = Vector2(-5, -5)
 position = Vector2(5, -5)
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
-[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

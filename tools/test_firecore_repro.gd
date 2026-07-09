@@ -36,7 +36,9 @@ func _process(_dt: float) -> void:
 		var comps: Array = Factions.build_components(Factions.Id.ZEALOT)
 		for c in comps:
 			if "chance" in c:
-				c.chance = 1.0   # force the drop
+				c.chance = 1.0   # force the drop (legacy EmitterComponent)
+			elif "spec" in c and c.spec != null and "emit_chance" in c.spec:
+				c.spec.emit_chance = 1.0   # force the drop (ENTITY MountComponent overlay)
 		_host.components = comps
 		_main.add_child(_host)
 		if _host is Node2D:

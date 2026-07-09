@@ -1,9 +1,9 @@
 extends "res://scripts/enemies/enemy_core.gd"
 
 # Interceptor / Wing. Dives top→bottom quickly, dropping homing missiles on the way through. The
-# missile-drop USED to live here as bespoke logic; it was generalized into an EmitterComponent
-# (roster "emitters": a band-gated, drops-per-pass TIMER emit of drifting_missile.tscn) on 2026-06-17,
-# so any enemy can carry it and the Enemy Bench can tune it.
+# missile-drop USED to live here as bespoke logic; it was generalized into an ENTITY mount hardpoint
+# (roster "emitters"/"mounts": a band-gated, drops-per-pass CADENCE emit of drifting_missile.tscn) on
+# 2026-06-17, so any enemy can carry it and the Enemy Bench can tune it.
 #
 # This script carries the no-recycle exit (interceptors leave the bottom and STAY GONE) plus an
 # OPT-IN bombing run: when bombing_run_enabled, the wing transitions out mid-dive and carpet-bombs a

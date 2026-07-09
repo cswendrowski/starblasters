@@ -43,6 +43,7 @@ var _missile_cruiser_delay: float = 0.0
 # creeps up through the parallax during the opening waves (Roman 2026-07-01, "Option A"). Set from the
 # forced_boss_scene when the boss level is selected (before the generator consumes it).
 var _bg_battleship: bool = false
+var _bg_director: bool = false
 
 # ── Rare in-level Missile Cruiser encounter (Roman 2026-05-31) ──────────────
 # On a STANDARD combat level (not boss/hazard/custom) roll a rare chance to
@@ -292,7 +293,13 @@ func _warm_up_level() -> void:
 	# weapon's first shot compiled its glow live).
 	var scene_paths := {
 		"res://scenes/projectiles/bullet_blaster.tscn": true,        # stock player bullet
-		"res://scenes/projectiles/enemy_bullet.tscn": true,  # shared enemy bullet
+		# Shared enemy bullets — the faction frame-reskin families. Warm all five so a first shot's
+		# HDR-glow shader doesn't compile live on spawn.
+		"res://scenes/projectiles/projectile_ball.tscn": true,
+		"res://scenes/projectiles/projectile_bolt.tscn": true,
+		"res://scenes/projectiles/projectile_laser.tscn": true,
+		"res://scenes/projectiles/projectile_orb.tscn": true,
+		"res://scenes/projectiles/projectile_wave.tscn": true,
 	}
 	if _current_level != null and "waves" in _current_level:
 		for w in _current_level.waves:
@@ -623,6 +630,9 @@ func new_game() -> void:
 			# scene NOW — the generator consumes forced_boss_scene during WaveGen.build below.
 			if String(run.forced_boss_scene).contains("boss_z_battleship"):
 				_bg_battleship = true
+			# The Corporate Director (Roman 2026-07-06) is the same persistent-gated boss pattern.
+			elif String(run.forced_boss_scene).contains("boss_c_director"):
+				_bg_director = true
 		elif run.current_node_type == SectorNode.NodeType.HAZARD:
 			is_hazard = true
 			hazard_subtype = run.current_hazard_subtype
@@ -638,7 +648,14 @@ func new_game() -> void:
 		if has_node("/root/Run"):
 			sd = get_node("/root/Run").sectors_cleared + 1
 			li = get_node("/root/Run").combats_in_sector
-		_current_level = WaveGen.build(sd, li, true)
+		# The Corporate Director is a faction-locked boss — its run-up waves are CORPORATE enemies only
+		# (Roman 2026-07-08). Other bosses stay faction-agnostic (-1).
+		var boss_faction: int = -1
+		if _bg_director:
+			boss_faction = Factions.Id.CORPORATE
+			if has_node("/root/Run"):
+				get_node("/root/Run").set_meta("active_faction", boss_faction)
+		_current_level = WaveGen.build(sd, li, true, boss_faction)
 		wave_director.max_concurrent = WaveGen.cap_for(sd, li)
 	elif is_hazard:
 		if hazard_subtype == "asteroid_field":
@@ -846,6 +863,12 @@ func _run_intro(is_boss: bool) -> void:
 		var battleship := _spawn_battleship_boss()
 		if battleship != null:
 			wave_director.boss_gate = battleship   # director drains each wave, then awaits its maneuver
+	# The Corporate Director (Roman 2026-07-06): the same persistent-gated spawn.
+	if _bg_director:
+		_bg_director = false
+		var director_boss := _spawn_director_boss()
+		if director_boss != null:
+			wave_director.boss_gate = director_boss
 	# Spawn the unattackable background Missile Cruiser now that the Backdrop +
 	# player + camera all exist (deferred from level selection).
 	if _want_missile_cruiser:
@@ -959,6 +982,20 @@ func _spawn_battleship_boss() -> Node:
 	if bs.has_method("start"):
 		bs.start(Vector2(Playfield.CENTER.x, get_viewport_rect().size.y + 260.0))
 	return bs
+
+
+# The Corporate Director — same persistent-gated spawn as the battleship (Roman 2026-07-06).
+func _spawn_director_boss() -> Node:
+	var ps: PackedScene = load("res://scenes/enemies/factions/corporate/boss_c_director.tscn")
+	if ps == null:
+		return null
+	var db: Node2D = ps.instantiate() as Node2D
+	if db == null:
+		return null
+	MidDepthPresentation.add_above_backdrop(self, db)
+	if db.has_method("start"):
+		db.start(Vector2(Playfield.CENTER.x, get_viewport_rect().size.y + 260.0))
+	return db
 
 
 func _spawn_missile_cruiser() -> void:

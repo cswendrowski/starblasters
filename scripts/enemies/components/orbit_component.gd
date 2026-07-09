@@ -17,7 +17,8 @@ extends EnemyComponent
 # Per-instance state (_orbs) lives here — components are duplicate()'d per spawn (the resource rule).
 
 const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
-const EnemyBulletScene = preload("res://scenes/projectiles/enemy_bullet.tscn")
+const BulletCatalog = preload("res://scripts/projectiles/bullet_catalog.gd")
+const EnemyBulletScene = preload("res://scenes/projectiles/projectile_ball.tscn")   # release fallback (variant's own scene wins)
 const EnemySfxC = preload("res://scripts/effects/enemy_sfx.gd")
 const DEFAULT_ORB_TEX = preload("res://graphics/projectiles/enemy_bullet.png")
 
@@ -156,8 +157,10 @@ func _release_visual(enemy) -> void:
 		var dir: Vector2 = wpos - origin
 		dir = dir.normalized() if dir.length_squared() > 0.0001 else Vector2(0, 1)
 		var ring: Dictionary = rings[int(orb["ring"])] if int(orb["ring"]) < rings.size() else {}
-		var b = EnemyBulletScene.instantiate()
 		var variant = ring.get("variant", null)
+		# The variant's own indexed scene wins (projectile_<type> 4-frame sheet); else the default ball.
+		var scene: PackedScene = BulletCatalog.scene_for(variant) if variant != null else null
+		var b = (scene if scene != null else EnemyBulletScene).instantiate()
 		if variant != null:
 			b.variant = variant
 		world.add_child(b)

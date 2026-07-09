@@ -149,6 +149,10 @@ func _deal_hull(e, dmg: int) -> void:
 		if "max_health" in e and e.has_signal("health_changed"):
 			e.health_changed.emit(e.health, e.max_health)
 		if e.health < 1 and e.has_method("explode"):
+			# Mass-wipe: the bomb can clear a whole screen at once, so opt into the CHEAP classic death
+			# (a multi-second styled wreck per enemy would be far too costly). See EnemyBase._use_styled_death.
+			if e.has_method("set_meta"):
+				e.set_meta("death_cheap", true)
 			e.explode()
 	elif e.has_method("take_hit"):
 		e.take_hit(dmg)

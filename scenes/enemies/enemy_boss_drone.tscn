@@ -27,10 +27,6 @@ texture = ExtResource("2_tex")
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_drone")
 
-[node name="ShootTimer" type="Timer" parent="."]
-one_shot = true
-
 [node name="EnemyDie" type="AudioStreamPlayer2D" parent="."]
 stream = ExtResource("3_die")
 
-[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

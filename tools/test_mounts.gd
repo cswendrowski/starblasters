@@ -22,7 +22,7 @@ func _ready() -> void:
 	inst.mounts = Roster.make_mount_specs([
 		{"kind": "turret", "marker": "Turret*", "payload": Roster.BV_Basic},
 		{"kind": "gun", "marker": "Muzzle*", "payload": Roster.BV_Basic, "aim": "straight_down"},
-		{"kind": "launcher", "marker": "Launch*", "payload_scene": "res://scenes/projectiles/enemy_bullet.tscn"},
+		{"kind": "launcher", "marker": "Launch*", "payload_scene": "res://scenes/projectiles/projectile_ball.tscn"},
 		{"kind": "beam", "marker": "Beam1", "beam_config": {"reach": 120.0, "dps": 2.0}},
 	])
 	add_child(inst)

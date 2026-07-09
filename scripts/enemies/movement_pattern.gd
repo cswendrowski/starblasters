@@ -64,20 +64,27 @@ func uses_inertia() -> bool:
 # Patterns express SHAPE only; they read SCALE from the enemy through these. Each falls back to a
 # "medium enemy" default when the enemy lacks the field or leaves it unset (0) — load-bearing for
 # bosses/hazards without the stat block AND the bare-Node2D dummies in dev tools / headless tests.
+# The DEFAULT_* consts are the ONE source for those medium-chassis fallbacks — enemy_base's
+# _apply_auto_rotation reads DEFAULT_TURN_RATE/DEFAULT_WEIGHT from here too (no re-hardcoding).
+const DEFAULT_MOVE_SPEED := 180.0   # px/s
+const DEFAULT_TURN_RATE := 300.0    # deg/s
+const DEFAULT_ACCEL := 600.0        # px/s²
+const DEFAULT_WEIGHT := 1.0
+
 func _move_speed(enemy) -> float:
-	return enemy.move_speed if ("move_speed" in enemy and enemy.move_speed > 0.0) else 180.0
+	return enemy.move_speed if ("move_speed" in enemy and enemy.move_speed > 0.0) else DEFAULT_MOVE_SPEED
 
 
 func _turn_rate(enemy) -> float:   # deg/s
-	return enemy.turn_rate if ("turn_rate" in enemy and enemy.turn_rate > 0.0) else 300.0
+	return enemy.turn_rate if ("turn_rate" in enemy and enemy.turn_rate > 0.0) else DEFAULT_TURN_RATE
 
 
 func _accel(enemy) -> float:       # px/s²
-	return enemy.accel if ("accel" in enemy and enemy.accel > 0.0) else 600.0
+	return enemy.accel if ("accel" in enemy and enemy.accel > 0.0) else DEFAULT_ACCEL
 
 
 func _weight(enemy) -> float:
-	return enemy.weight if ("weight" in enemy and enemy.weight > 0.0) else 1.0
+	return enemy.weight if ("weight" in enemy and enemy.weight > 0.0) else DEFAULT_WEIGHT
 
 
 # Effective engagement depth (Zones.band_progress 0..1). `fallback` is the pattern's OWN default

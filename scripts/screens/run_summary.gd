@@ -119,6 +119,14 @@ func _fmt_time(secs: float) -> String:
 func _new_game() -> void:
 	# New Patrol → the hangar patrol-start sequence (same as the main menu, 2026-06-27). It resets
 	# the run, writes the chosen hull/livery, and hands off to onboarding / the sector map.
+	# Flag a LIVE launch (like main_menu._on_new_game) so patrol_start builds the real player-facing
+	# menu — default hull pre-readied on the pad, NO dummy main-menu bridge, NO Tune ⚙ dev rail. Without
+	# this the death screen dropped into the dev-clone tuner. We don't hand over a backdrop/snapshot
+	# (the death screen's backdrop is a static painting, not the live parallax), so SceneTransition's
+	# black fade covers the swap and patrol_start builds a fresh backdrop.
+	var run := get_node_or_null("/root/Run")
+	if run != null:
+		run.set_meta("patrol_live_launch", true)
 	SceneTransition.change_scene(get_tree(), "res://scenes/patrol_start.tscn")
 
 func _to_menu() -> void:

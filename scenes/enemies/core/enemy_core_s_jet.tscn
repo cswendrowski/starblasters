@@ -2,8 +2,15 @@
 
 [ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemies/enemy_core.gd" id="1_ev1t7"]
 [ext_resource type="Texture2D" uid="uid://bb6llpj3xb60e" path="res://graphics/enemies/enemy_core_s_jet.png" id="2_503lp"]
+[ext_resource type="Shader" uid="uid://cakr26sn2n1b3" path="res://scenes/player/livery_color.gdshader" id="3_iofcb"]
 [ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://assets/audio/SFX_shot7.wav" id="4_wy22s"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="5_q0cbu"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_w121y"]
+shader = ExtResource("3_iofcb")
+shader_parameter/tint_color = Color(0.5691606, 0.77054703, 0.13093203, 1)
+shader_parameter/opacity = 0.800000038
+shader_parameter/fade = 1.0
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hit"]
 size = Vector2(14, 16)
@@ -124,17 +131,16 @@ hframes = 3
 frame = 1
 
 [node name="Livery" type="Sprite2D" parent="." unique_id=1258248859]
+material = SubResource("ShaderMaterial_w121y")
 texture = ExtResource("2_503lp")
 hframes = 3
 frame = 2
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=900412659]
+visible = false
 shape = SubResource("RectangleShape2D_hit")
 
 [node name="MoveTimer" type="Timer" parent="." unique_id=1073718068]
-one_shot = true
-
-[node name="ShootTimer" type="Timer" parent="." unique_id=1423625087]
 one_shot = true
 
 [node name="ParticleExplode" type="GPUParticles2D" parent="." unique_id=2133553033]
@@ -186,4 +192,3 @@ position = Vector2(-5, 2)
 position = Vector2(5, 2)
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
-[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

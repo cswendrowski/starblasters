@@ -34,6 +34,18 @@ const STYLES := ["random", "spinout", "flashout", "instakill", "blow_out", "wrec
 # Spinout resolutions (how the spin-out ends). "random" picks uniformly among the concrete four.
 const RESOLUTIONS := ["random", "instakill", "flashout", "wreck", "blow_out"]
 
+# Overkill-biased death pick (Roman 2026-07-08). When the killing blow massively overkills a hull —
+# overkill_ratio = fatal hull damage / max_health, supplied by the caller (enemy_base.take_hit → styled)
+# — the "random" auto-pick leans toward the punchy INSTANT styles (instakill / flashout) and away from
+# the slow spin-out, so a big weapon one-shotting small chaff reads snappy instead of a lazy tumble.
+# This is the small-chaff-hit-hard case (a boss taking 2× overkill is rare/irrelevant, and composes with
+# the size-gating below). The bias is a WEIGHTING, not a hard override, so variety is preserved. Absent
+# or modest overkill (0.0 = no info, e.g. bosses / mass-wipe / ram deaths, or ratio ≤ threshold) leaves
+# the pick EXACTLY as before.
+const OVERKILL_RATIO_THRESHOLD := 2.0   # ratio above which the bias engages (Roman: "> 2× max health")
+const OVERKILL_SPINOUT_CHANCE := 0.2    # spin-out probability in _run_random when overkilled (baseline 0.5)
+const OVERKILL_INSTANT_WEIGHT := 3.0    # weight multiplier on instakill/flashout in the gated pick when overkilled
+
 const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
 const ShipDebrisEmber = preload("res://scripts/effects/ship_debris_ember.gd")
 const EmberFx = preload("res://scripts/effects/ember_fx.gd")
@@ -70,10 +82,10 @@ const BLAST_MARKER_GROUPS := [
 const STYLE_KNOBS := {
 	# Spin-out params randomize per death (each spin-out looks different). spinout_amp is fixed.
 	"spinout": [
-		{"key": "spinout_speed", "label": "Spinout speed", "range": true, "min": 0.0, "max": 320.0, "step": 5.0, "def": [0.0, 40.0]},
+		{"key": "spinout_speed", "label": "Spinout speed", "range": true, "min": 0.0, "max": 320.0, "step": 5.0, "def": [40.0, 60.0]},
 		{"key": "spinout_veer", "label": "Edge veer", "range": true, "min": 0.0, "max": 1.0, "step": 0.05, "def": [0.0, 0.3]},
 		{"key": "spinout_spin", "label": "Spinout spin", "range": true, "min": 0.0, "max": 20.0, "step": 0.5, "def": [0.0, 1.0]},
-		{"key": "spinout_swirl", "label": "Spinout swirl", "range": true, "min": 0.0, "max": 20.0, "step": 0.5, "def": [0.0, 1.0]},
+		{"key": "spinout_swirl", "label": "Spinout swirl", "range": true, "min": 0.0, "max": 20.0, "step": 0.5, "def": [0.0, 0.0]},
 		{"key": "spinout_amp", "label": "Spinout amplitude", "min": 0.0, "max": 120.0, "step": 5.0, "def": 35.0},
 		{"key": "glow_flicker_time", "label": "Glow flicker (s)", "range": true, "min": 0.0, "max": 1.0, "step": 0.05, "def": [0.1, 0.3]},
 	],
@@ -85,8 +97,8 @@ const STYLE_KNOBS := {
 	"flashout": [
 		{"key": "explosion_density", "label": "Explosion density ×", "min": 0.5, "max": 3.0, "step": 0.1, "def": 1.0},
 		{"key": "burn_time", "label": "Disintegrate time (s)", "min": 0.2, "max": 2.0, "step": 0.05, "def": 0.45},
-		{"key": "spark_amount", "label": "Spark count", "min": 0.0, "max": 96.0, "step": 2.0, "def": 24.0},
-		{"key": "spark_spread", "label": "Spark cone (deg)", "min": 5.0, "max": 120.0, "step": 5.0, "def": 40.0},
+		{"key": "spark_amount", "label": "Spark count", "min": 0.0, "max": 96.0, "step": 2.0, "def": 10.0},
+		{"key": "spark_spread", "label": "Spark cone (deg)", "min": 5.0, "max": 120.0, "step": 5.0, "def": 85.0},
 		{"key": "glow_flicker_time", "label": "Glow flicker (s)", "min": 0.0, "max": 1.0, "step": 0.05, "def": 0.3},
 	],
 	# instakill = all enemies. No spark/ember sliders (those effects aren't in this one); the DEBRIS is
@@ -105,7 +117,7 @@ const STYLE_KNOBS := {
 		{"key": "shrink_to", "label": "Shrink to (×)", "min": 0.4, "max": 1.0, "step": 0.02, "def": 0.7},
 		{"key": "shrink_dur", "label": "Shrink time (s)", "min": 0.5, "max": 6.0, "step": 0.1, "def": 3.5},
 		{"key": "blast_count", "label": "Blast count", "min": 1.0, "max": 16.0, "step": 1.0, "def": 10.0},
-		{"key": "blast_window", "label": "Blast window (s)", "min": 0.3, "max": 4.0, "step": 0.1, "def": 0.9},
+		{"key": "blast_window", "label": "Blast window (s)", "min": 0.3, "max": 4.0, "step": 0.1, "def": 2.5},
 		{"key": "max_dur", "label": "Max duration (s)", "min": 1.0, "max": 8.0, "step": 0.5, "def": 6.0},
 		{"key": "glow_flicker_time", "label": "Glow flicker (s)", "min": 0.0, "max": 1.0, "step": 0.05, "def": 0.3},
 	],
@@ -119,7 +131,7 @@ const STYLE_KNOBS := {
 		{"key": "spinout_swirl", "label": "Swirl freq", "min": 0.0, "max": 20.0, "step": 0.5, "def": 1.0},
 		{"key": "spinout_amp", "label": "Wobble amp", "min": 0.0, "max": 120.0, "step": 5.0, "def": 10.0},
 		{"key": "shrink_to", "label": "Shrink to (×, shallow)", "min": 0.2, "max": 1.0, "step": 0.02, "def": 0.6},
-		{"key": "shrink_time", "label": "Shrink time (s, shallow)", "min": 0.5, "max": 6.0, "step": 0.1, "def": 3.0},
+		{"key": "shrink_time", "label": "Shrink time (s, shallow)", "min": 0.5, "max": 6.0, "step": 0.1, "def": 5.0},
 		{"key": "glow_flicker_time", "label": "Glow flicker (s)", "min": 0.0, "max": 1.0, "step": 0.05, "def": 0.3},
 	],
 }
@@ -134,11 +146,29 @@ static func default_cfg(style: String) -> Dictionary:
 	return d
 
 
+# Seed the cfg for the style play() was handed. For the concrete styles this is just its own knob
+# defaults. For the META styles ("random" / "spinout"), which delegate to another style's run/tick
+# functions at runtime, we DON'T pre-flatten every delegate here (spinout & wreck share keys with
+# CONFLICTING defs) — instead each delegation point calls _apply_style_defaults() to lay in the delegate
+# style's baked defaults just-in-time (Roman 2026-07-07: production plays "random"/{} — without this the
+# spin-out corkscrew fell back to the hardcoded swirl=6.0 instead of the baked 0.0, so in-game spinouts
+# over-swirled vs the Death tab, which plays each style directly with its own seeded cfg).
+static func _seed_cfg(style: String) -> Dictionary:
+	return default_cfg(style)
+
+
 var _host: Node2D = null
 var _body: Sprite2D = null
 var _size_scale: float = 1.0
 var _cfg: Dictionary = {}
+var _explicit_keys: Array = []   # cfg keys the caller passed explicitly (never overridden by delegate defaults)
+# Death VFX renders UNDER gameplay actors (player / live enemies / bullets sit at z_index 0) so a
+# death never occludes a live target — playspace clarity under all circumstances (Roman 2026-07-07).
+# Every blast / ember / spark / smoke this controller spawns goes through _death_sink(), a relative-z
+# container at this depth (explosion instances are z_as_relative=true so they inherit it).
+const DEATH_VFX_Z: int = -3
 var _vfx_parent: Node = null
+var _sink: Node2D = null
 var _wreck_parent: Node = null
 var _bounds: Rect2 = Rect2(0, 0, 480, 270)
 var _travel: Vector2 = Vector2.ZERO
@@ -151,6 +181,7 @@ var _cork_speed: float = 40.0              # current cork/drift speed (fixed for
 var _keep_momentum: bool = false           # wreck: decay the entry speed toward a floor, don't reset it
 var _drift_floor: float = 15.0             # momentum decay floor (retain forward motion)
 var _resolution: String = "instakill"      # spin-out ending
+var _overkill_ratio: float = 0.0           # killing-blow overkill (fatal dmg / max_health); 0 = no bias. Set from opts.
 var _drift_off: bool = false               # wreck: keep drifting until off-screen
 var _shrinking: bool = false               # shrink the hull each tick (wreck)
 var _shrink0: Vector2 = Vector2.ONE
@@ -182,8 +213,9 @@ func play(host: Node2D, style: String, cfg: Dictionary = {}, travel: Vector2 = V
 		return
 	_body = _find_body(_host)
 	_size_scale = _measure_scale(_host, _body)
-	_cfg = default_cfg(style)
+	_cfg = _seed_cfg(style)
 	_cfg.merge(cfg, true)
+	_explicit_keys = cfg.keys()   # caller overrides win over any just-in-time delegate defaults
 	_resolve_ranges()
 	_travel = travel
 	_vfx_parent = opts.get("vfx_parent", null)
@@ -193,6 +225,7 @@ func play(host: Node2D, style: String, cfg: Dictionary = {}, travel: Vector2 = V
 	if _wreck_parent == null or not is_instance_valid(_wreck_parent):
 		_wreck_parent = _vfx_parent
 	_bounds = opts.get("bounds", _bounds)
+	_overkill_ratio = float(opts.get("overkill_ratio", 0.0))   # biases the "random" auto-pick when the kill overkilled
 	match style:
 		"random":
 			_run_random()
@@ -218,6 +251,23 @@ func _resolve_ranges() -> void:
 			var lo := float(v[0])
 			var hi := float(v[1])
 			_cfg[k] = randf_range(minf(lo, hi), maxf(lo, hi))
+
+
+# Lay a delegate STYLE's baked knob defaults into _cfg just before its run/tick functions execute — but
+# only for keys the caller didn't explicitly override, and only where _cfg doesn't already carry the key
+# (so a meta-style's OWN seeded value wins over a later delegate's). Range defs are resolved to a single
+# pick immediately (play()'s _resolve_ranges already ran). This is what makes production's "random"/{}
+# death read the LAB-TUNED spin/swirl/etc. defs instead of the hardcoded `_c(..., fallback)` values.
+func _apply_style_defaults(style: String) -> void:
+	for def in STYLE_KNOBS.get(style, []):
+		var k := String(def["key"])
+		if _explicit_keys.has(k) or _cfg.has(k):
+			continue
+		var dv = def["def"]
+		if dv is Array and dv.size() == 2:
+			_cfg[k] = randf_range(minf(float(dv[0]), float(dv[1])), maxf(float(dv[0]), float(dv[1])))
+		else:
+			_cfg[k] = dv
 
 
 func _process(delta: float) -> void:
@@ -248,7 +298,10 @@ func _process(delta: float) -> void:
 # Random meta-style: half the time a full spin-out (which resolves randomly), half the time jump
 # straight to a size-gated resolution — the production-representative "surprise me" death.
 func _run_random() -> void:
-	if randf() < 0.5:
+	# Overkill bias: a massively-overkilled hull spins out far less often — the slow tumble reads wrong on
+	# a one-shot chaff kill, so most go straight to a punchy gated resolution (itself overkill-biased).
+	var spin_chance: float = OVERKILL_SPINOUT_CHANCE if _overkill_ratio > OVERKILL_RATIO_THRESHOLD else 0.5
+	if randf() < spin_chance:
 		_run_spinout()
 		return
 	match _pick_gated_resolution():
@@ -265,7 +318,12 @@ func _run_random() -> void:
 
 
 func _run_spinout() -> void:
+	_apply_style_defaults("spinout")
 	_resolution = _resolve_resolution()
+	# The resolution's knobs (burn_time / explosion_density / blow_out params) feed the inline resolution
+	# handlers below — seed them from the resolution style's baked defaults too (spinout's shared spin/
+	# swirl/veer/amp keys are already set above, so they win over wreck's conflicting defs).
+	_apply_style_defaults(_resolution)
 	_phase = "glide"
 	var engines: Array = _engine_local()
 	var first: Vector2 = (engines[0] if not engines.is_empty() else Vector2.ZERO)
@@ -305,6 +363,7 @@ func _run_spinout() -> void:
 
 # flashout keeps a bit of the ship's incoming motion rather than a hard stop, then blasts + disintegrates.
 func _run_flashout() -> void:
+	_apply_style_defaults("flashout")
 	var dir: Vector2 = _travel.normalized() if _travel.length() > 0.1 else Vector2.DOWN
 	_travel *= 0.45   # keep a bit of the incoming motion rather than a hard stop
 	_phase = "glide"
@@ -316,6 +375,7 @@ func _run_flashout() -> void:
 
 
 func _run_instakill() -> void:
+	_apply_style_defaults("instakill")
 	_phase = "idle"
 	_explode_velocity(_travel)   # debris matches the enemy's incoming velocity + extra
 	_finish()
@@ -325,7 +385,7 @@ func _run_instakill() -> void:
 func _spark_cone(dir: Vector2) -> void:
 	if not _host_ok():
 		return
-	EmberFx.spray(_vfx_parent, _host.global_position, dir, {
+	EmberFx.spray(_death_sink(), _host.global_position, dir, {
 		"amount": int(_c("spark_amount", 24.0)),
 		"spread_deg": _c("spark_spread", 40.0),
 		"variant": "normal",
@@ -335,6 +395,7 @@ func _spark_cone(dir: Vector2) -> void:
 # Standalone wreck: the damaged hull KEEPS GLIDING as it sinks (no stop-then-go hitch), a brief fire
 # trail tapers into smoke + sparks, then it retains its momentum and drifts off-screen while shrinking.
 func _run_wreck() -> void:
+	_apply_style_defaults("wreck")
 	_cork_travel = _travel.normalized() if _travel.length() > 0.1 else Vector2.DOWN
 	_phase = "glide"          # keep moving through the fire→smoke beat, so the drift transition is smooth
 	_to_wreck_layer()
@@ -395,6 +456,7 @@ func _pick_shrink_variant() -> void:
 # Blow-out: keep downward momentum, decelerate to a drift, DARKEN + SHRINK, and erupt a cascade of
 # blasts from WEIGHTED hull markers (engines favoured) — each leaving a spark trail — then slip off.
 func _run_blowout() -> void:
+	_apply_style_defaults("blow_out")
 	_cull_host_overlays()
 	_start_scale = _host.scale
 	_travel = Vector2(0.0, _c("enter_speed", 40.0) * 1.6)
@@ -458,7 +520,7 @@ func _tick_blowout(delta: float) -> void:
 		if bt >= 0.0 and _style_t >= bt:
 			_blast_times[i] = -1.0
 			var mk: Vector2 = _pick_blast_marker(_blast_markers_cache)
-			ExplosionFx.play_config(_host.to_global(mk), HULL_RIPPLE_CFG, _vfx_parent)
+			ExplosionFx.play_config(_host.to_global(mk), HULL_RIPPLE_CFG, _death_sink())
 			_spark_at_marker(mk)
 	if _style_t >= _c("max_dur", 6.0) or _host.global_position.y > _bounds.position.y + _bounds.size.y + 60.0:
 		_finish()
@@ -532,7 +594,11 @@ func _attach_smoke(local_pos: Vector2) -> void:
 	smoke.activate_below = 0.0
 	smoke.emit_local = local_pos
 	smoke.drift_sign = -1.0            # enemy smoke trails up/behind the falling ship
-	_vfx_parent.add_child(smoke)
+	_death_sink().add_child(smoke)
+	# Sink the smoke's Line2D under the gameplay-actor band (it's absolute-z, so the sink's relative z
+	# doesn't reach it) — same playspace-clarity rule as the rest of the death VFX (Roman 2026-07-07).
+	if smoke.get("_line") != null and is_instance_valid(smoke._line):
+		smoke._line.z_index = DEATH_VFX_Z - 1
 	smoke.set_player(_host)
 	smoke._damage_level = 1.0
 	smoke._severity = 1.0
@@ -550,7 +616,10 @@ func _make_smoulder_torch(local_pos: Vector2) -> ColorRect:
 	rect.rotation = PI
 	rect.color = Color(0, 0, 0, 0)
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	rect.z_index = 1
+	# Relative to the wreck host (z -1 in the wreck layer) but nudged DOWN so the flame never climbs
+	# into the gameplay-actor band (z 0) (Roman 2026-07-07).
+	rect.z_index = -1
+	rect.z_as_relative = false
 	var mat := ShaderMaterial.new()
 	mat.shader = TORCH_SHADER
 	mat.set_shader_parameter("pixelSize", 0.06)
@@ -641,7 +710,7 @@ func _explode(with_embers: bool) -> void:
 		"sparks": _c("sparks", 1.0),
 		"glow": 1.2,
 		"shockwave": _c("explosion_shockwave", 0.0) * clampf(_size_scale, 0.6, 2.5),
-	}, _vfx_parent)
+	}, _death_sink())
 	if with_embers:
 		_spawn_embers(world, Vector2.ZERO)
 
@@ -657,21 +726,26 @@ func _explode_velocity(inherit: Vector2) -> void:
 		"density": maxi(1, int(round((1.0 + _size_scale * 0.6) * _c("explosion_density", 1.0)))),
 		"area": 6.0 + _size_scale * 5.0, "sparks": 1.0, "glow": 1.2,
 		"shockwave": _c("explosion_shockwave", 0.0) * clampf(_size_scale, 0.6, 2.5),
-	}, _vfx_parent)
+	}, _death_sink())
 	_spawn_embers(world, inherit)
 
 
 # Scatter ShipDebrisEmber chunks (size-derived count). Every chunk inherits `base_vel` (the enemy's
-# velocity going into the kill) plus a little extra outward energy.
+# velocity going into the kill) plus a little extra outward energy. Per-chunk recipe = Roman's Shader
+# Lab Explosions-tab ember-debris tune (2026-07-07): lower-hemisphere spread, light gravity/drag, a
+# short randomized burn that fades its fire out at the end (see ship_debris_ember _stop_trails/fade).
 func _spawn_embers(world: Vector2, base_vel: Vector2) -> void:
 	var n: int = clampi(int(round((2.0 + _size_scale * 4.0) * _c("debris", 1.0))), 0, 24)
 	for i in n:
-		var ang: float = randf_range(0.0, TAU)
-		var spd: float = randf_range(30.0, 90.0)   # extra energy on top of the matched enemy velocity
-		ShipDebrisEmber.spawn(_vfx_parent, world, {
+		var ang: float = randf_range(0.15, PI - 0.15)
+		var spd: float = randf_range(60.0, 105.0)   # extra energy on top of the matched enemy velocity
+		ShipDebrisEmber.spawn(_death_sink(), world, {
 			"velocity": base_vel + Vector2(cos(ang), sin(ang)) * spd,
 			"spin": randf_range(-6.0, 6.0),
-			"piece_scale": randf_range(0.8, 1.4),
+			"piece_scale": randf_range(0.50, 1.00),
+			"gravity": 10.0, "drag": 0.25,
+			"burn_time": randf_range(0.50, 1.00),
+			"flame_size": Vector2(0.10, 1.00), "flame_speed": 3.0,
 		})
 
 
@@ -680,7 +754,7 @@ func _ball_explode(world: Vector2) -> void:
 	ExplosionFx.play_config(world, {
 		"type": "ball", "size": 1.0,
 		"density": 1, "area": 0.0, "glow": 1.0, "shockwave": 0.0, "sparks": 1.0,
-	}, _vfx_parent)
+	}, _death_sink())
 
 
 # Sink the hull into the wreck layer (reparent, world transform preserved) + dim it.
@@ -787,6 +861,23 @@ func _c(key: String, fallback: float) -> float:
 	return float(_cfg.get(key, fallback))
 
 
+# A relative-z container under the vfx parent that holds every death VFX so it all renders BELOW the
+# gameplay-actor band (z 0). Explosion instances are z_as_relative=true → they inherit this depth;
+# ember chunks / spark trails / smoke set their own absolute negative z (still under actors). Lazily
+# created; survives the host (parented to _vfx_parent, not the dying hull).
+func _death_sink() -> Node:
+	if _sink != null and is_instance_valid(_sink):
+		return _sink
+	if _vfx_parent == null or not is_instance_valid(_vfx_parent):
+		return _vfx_parent
+	_sink = Node2D.new()
+	_sink.name = "DeathVfxSink"
+	_sink.z_index = DEATH_VFX_Z
+	_sink.z_as_relative = false
+	_vfx_parent.add_child(_sink)
+	return _sink
+
+
 func _host_ok() -> bool:
 	return _host != null and is_instance_valid(_host)
 
@@ -806,7 +897,30 @@ func _pick_gated_resolution() -> String:
 		opts.append("flashout")
 	else:
 		opts.append("blow_out")
-	return opts[randi() % opts.size()]
+	# No overkill info (bosses / mass-wipe / ram) or a modest hit → the original uniform pick, unchanged.
+	if _overkill_ratio <= OVERKILL_RATIO_THRESHOLD:
+		return opts[randi() % opts.size()]
+	# Overkill: weight the punchy instant styles heavier so a one-shot chaff kill reads snappy. For small
+	# chaff (the target case) that's instakill + flashout; on medium+ hulls only instakill is in the gate.
+	var weighted := {}
+	for o in opts:
+		weighted[o] = OVERKILL_INSTANT_WEIGHT if (o == "instakill" or o == "flashout") else 1.0
+	return _weighted_pick(weighted)
+
+
+# Pick a key from a {name: weight} dictionary proportional to its weight (insertion-ordered, deterministic).
+func _weighted_pick(weighted: Dictionary) -> String:
+	var total := 0.0
+	for k in weighted:
+		total += float(weighted[k])
+	if total <= 0.0:
+		return "instakill"
+	var r := randf() * total
+	for k in weighted:
+		r -= float(weighted[k])
+		if r <= 0.0:
+			return String(k)
+	return String(weighted.keys()[weighted.size() - 1])
 
 
 func _off_screen(pos: Vector2) -> bool:
@@ -907,14 +1021,16 @@ func _release_trails() -> void:
 		if parts != null:
 			parts.emitting = false
 		# Only reparent WORLD-space (Node2D) trails to linger — a Control (the smoulder torch) frees
-		# with the host instead of surviving.
-		if _vfx_parent != null and is_instance_valid(_vfx_parent) and bt is Node2D:
+		# with the host instead of surviving. Reparent into the death SINK (negative z) so the lingering
+		# streak stays UNDER the gameplay-actor band, not the raw vfx parent (z 0) (Roman 2026-07-07).
+		var sink: Node = _death_sink()
+		if sink != null and is_instance_valid(sink) and bt is Node2D:
 			var n2d: Node2D = bt
 			var gp: Vector2 = n2d.global_position
 			var cur: Node = bt.get_parent()
-			if cur != null and cur != _vfx_parent:
+			if cur != null and cur != sink:
 				cur.remove_child(bt)
-				_vfx_parent.add_child(bt)
+				sink.add_child(bt)
 				n2d.global_position = gp
 			if get_tree() != null:
 				get_tree().create_timer(0.9).timeout.connect(bt.queue_free)
@@ -927,6 +1043,11 @@ func _finish() -> void:
 	_done = true
 	_phase = "done"
 	_release_trails()
+	# The sink holds lingering trails/embers that outlive this controller — free it once they've
+	# faded so it doesn't leak (well past the 0.9s trail linger + ember burn) (Roman 2026-07-07).
+	if _sink != null and is_instance_valid(_sink) and get_tree() != null:
+		get_tree().create_timer(4.0).timeout.connect(_sink.queue_free)
+	_sink = null
 	if _host != null and is_instance_valid(_host):
 		_host.queue_free()
 	_host = null

@@ -19,10 +19,10 @@ func _process(_dt: float) -> bool:
 	if _t == 1:
 		_world = Node2D.new()
 		root.add_child(_world)
-		_cannon = load("res://scenes/projectiles/enemy_bullet_cannon.tscn").instantiate()
+		_cannon = load("res://scenes/projectiles/projectile_ball.tscn").instantiate()
 		_world.add_child(_cannon)
-		_slug = load("res://scenes/projectiles/enemy_bullet.tscn").instantiate()
-		_slug.variant = load("res://data/bullets/heavy_slug.tres")
+		_slug = load("res://scenes/projectiles/projectile_ball.tscn").instantiate()
+		_slug.variant = load("res://data/bullets/bolt.tres")
 		_world.add_child(_slug)
 		return false
 	if _t < 5 or _done:

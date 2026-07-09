@@ -10,8 +10,8 @@ const RESULT := "res://tools/_privateer_units_result.txt"
 const Roster := preload("res://scripts/levels/enemy_roster.gd")
 const Factions := preload("res://scripts/levels/factions.gd")
 const BV_DropPellet := preload("res://data/bullets/drop_pellet.tres")
-const BV_HeavySlug := preload("res://data/bullets/heavy_slug.tres")
-const BV_PlasmaOrb := preload("res://data/bullets/plasma_orb.tres")
+const BV_HeavySlug := preload("res://data/bullets/bolt.tres")
+const BV_PlasmaOrb := preload("res://data/bullets/wave.tres")
 
 const GREEN := "res://scenes/enemies/factions/privateer/enemy_core_s_falchion.tscn"
 const GRAY := "res://scenes/enemies/core/enemy_core_s_cobra.tscn"

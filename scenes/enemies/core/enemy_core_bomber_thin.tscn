@@ -2,8 +2,21 @@
 
 [ext_resource type="Script" uid="uid://bd1l72v0x85xw" path="res://scripts/enemies/core/enemy_bomber.gd" id="1_0ukpm"]
 [ext_resource type="Texture2D" uid="uid://csppslglnf1oa" path="res://graphics/enemies/enemy_core_m_bomber_thin.png" id="2_0ukpm"]
+[ext_resource type="Shader" uid="uid://cakr26sn2n1b3" path="res://scenes/player/livery_color.gdshader" id="3_csevs"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="3_fhst2"]
 [ext_resource type="AudioStream" uid="uid://bhiuomm0cj0w2" path="res://assets/audio/SFX_flameShot3b.wav" id="4_khdsf"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_fhst2"]
+shader = ExtResource("3_csevs")
+shader_parameter/tint_color = Color(0.5, 0.5, 0.5, 1)
+shader_parameter/opacity = 1.0
+shader_parameter/fade = 1.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_khdsf"]
+shader = ExtResource("3_csevs")
+shader_parameter/tint_color = Color(0.5019608, 1, 0, 1)
+shader_parameter/opacity = 1.0
+shader_parameter/fade = 1.0
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_bomber"]
 size = Vector2(32, 64)
@@ -23,16 +36,19 @@ hframes = 4
 frame = 1
 
 [node name="Livery" type="Sprite2D" parent="." unique_id=1264672898]
+material = SubResource("ShaderMaterial_fhst2")
 texture = ExtResource("2_0ukpm")
 hframes = 4
 frame = 3
 
 [node name="TailGunGlow" type="Sprite2D" parent="." unique_id=948271332]
+material = SubResource("ShaderMaterial_khdsf")
 texture = ExtResource("2_0ukpm")
 hframes = 4
 frame = 2
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=926190180]
+visible = false
 shape = SubResource("RectangleShape2D_bomber")
 
 [node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=328881185]

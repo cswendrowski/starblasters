@@ -661,14 +661,17 @@ func await_telegraph(duration: float) -> void:
 # scene contract (subclasses pass the same `bullet_scene` they'd give a
 # shoot_pattern Resource). Pull from a member if subclass set one.
 
-const _DEFAULT_BULLET = preload("res://scenes/projectiles/enemy_bullet.tscn")
+const _DEFAULT_BULLET = preload("res://scenes/projectiles/projectile_ball.tscn")
+const _BulletCatalogC = preload("res://scripts/projectiles/bullet_catalog.gd")
 
 
-func _bullet_scene() -> PackedScene:
+func _bullet_scene(v: BulletVariant = null) -> PackedScene:
 	# Prefer subclass-provided bullet via shoot_pattern.bullet_scene if set.
 	if shoot_pattern != null and "bullet_scene" in shoot_pattern and shoot_pattern.bullet_scene != null:
 		return shoot_pattern.bullet_scene
-	return _DEFAULT_BULLET
+	# Then the resolved variant's own indexed scene (projectile_<type> 4-frame sheet); else the default ball.
+	var mapped: PackedScene = _BulletCatalogC.scene_for(v) if v != null else null
+	return mapped if mapped != null else _DEFAULT_BULLET
 
 
 # Resolve which variant to use: explicit override wins, then
@@ -687,14 +690,17 @@ func _world() -> Node:
 
 
 func _spawn_bullet(dir: Vector2, variant: BulletVariant = null) -> void:
-	var bs := _bullet_scene()
+	var v: BulletVariant = _resolve_variant(variant)
+	# Faction reskin: frame-select on the projectile_<type> sheet. A neutral boss (no faction_skin meta)
+	# keeps the sheet's default frame; a faction-tagged boss gets its colour. No-op for -1.
+	v = _BulletCatalogC.faction_variant(v, int(get_meta("faction_skin", -1)))
+	var bs := _bullet_scene(v)
 	if bs == null:
 		return
 	var b = bs.instantiate()
 	# IMPORTANT: set variant BEFORE add_child so _apply_variant() fires in
 	# _ready(), which runs at add_child time. Setting it after add_child
 	# would be a no-op.
-	var v: BulletVariant = _resolve_variant(variant)
 	if v != null:
 		b.variant = v
 	_world().add_child(b)

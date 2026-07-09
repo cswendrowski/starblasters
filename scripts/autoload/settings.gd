@@ -48,6 +48,10 @@ var outpost_dock_anim: int = 0
 # fails (scripts/effects/ship_damage_tells.gd, attached per ship-vfx enemy by enemy_base). ON by
 # default; a perf/clarity kill-switch — when off, enemies fall back to the plain damage overlay.
 var damage_tells: bool = true
+# Skip the new-patrol hangar cinematics (patrol_start.gd). When true, the player-facing New Patrol
+# flow drops STRAIGHT into the assembled hangar menu (no rise/pan) and readying a different ship is
+# instant (no lifter carry). OFF by default. Dev-tool launches always animate regardless.
+var skip_patrol_anim: bool = false
 
 
 func _ready() -> void:
@@ -75,6 +79,7 @@ func load_from_disk() -> void:
 	font_style = String(cfg.get_value("video", "font_style", font_style))
 	outpost_dock_anim = int(cfg.get_value("video", "outpost_dock_anim", outpost_dock_anim))
 	damage_tells = bool(cfg.get_value("video", "damage_tells", damage_tells))
+	skip_patrol_anim = bool(cfg.get_value("video", "skip_patrol_anim", skip_patrol_anim))
 	# autofire intentionally NOT loaded — runtime-only, defaults off each launch.
 	# Keybind overrides — stored as a JSON-serialised dict (ConfigFile
 	# doesn't natively round-trip Dictionary cleanly across versions).
@@ -98,6 +103,7 @@ func save_to_disk() -> void:
 	cfg.set_value("video", "font_style", font_style)
 	cfg.set_value("video", "outpost_dock_anim", outpost_dock_anim)
 	cfg.set_value("video", "damage_tells", damage_tells)
+	cfg.set_value("video", "skip_patrol_anim", skip_patrol_anim)
 	# autofire intentionally NOT saved — runtime-only, defaults off each launch.
 	cfg.set_value("controls", "keyboard_overrides", JSON.stringify(keyboard_overrides))
 	cfg.save(CFG_PATH)
@@ -161,6 +167,12 @@ func set_autofire(on: bool) -> void:
 
 func set_damage_tells(on: bool) -> void:
 	damage_tells = on
+	save_to_disk()
+	settings_changed.emit()
+
+
+func set_skip_patrol_anim(on: bool) -> void:
+	skip_patrol_anim = on
 	save_to_disk()
 	settings_changed.emit()
 

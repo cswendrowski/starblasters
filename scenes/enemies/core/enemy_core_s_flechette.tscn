@@ -2,8 +2,15 @@
 
 [ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemies/enemy_core.gd" id="1_xi4dg"]
 [ext_resource type="Texture2D" uid="uid://bslig6ux5yvoa" path="res://graphics/enemies/enemy_core_s_flechette.png" id="2_xi4dg"]
+[ext_resource type="Shader" uid="uid://cakr26sn2n1b3" path="res://scenes/player/livery_color.gdshader" id="3_0v8ie"]
 [ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://assets/audio/SFX_shot7.wav" id="3_umasp"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="4_ap5q7"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_umasp"]
+shader = ExtResource("3_0v8ie")
+shader_parameter/tint_color = Color(0.5, 0.5, 0.5, 1)
+shader_parameter/opacity = 0.800000038
+shader_parameter/fade = 1.0
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hit"]
 size = Vector2(10, 16)
@@ -124,6 +131,7 @@ hframes = 3
 frame = 1
 
 [node name="Livery" type="Sprite2D" parent="." unique_id=1161048189]
+material = SubResource("ShaderMaterial_umasp")
 texture = ExtResource("2_xi4dg")
 hframes = 3
 frame = 2
@@ -132,9 +140,6 @@ frame = 2
 shape = SubResource("RectangleShape2D_hit")
 
 [node name="MoveTimer" type="Timer" parent="." unique_id=1073718068]
-one_shot = true
-
-[node name="ShootTimer" type="Timer" parent="." unique_id=1423625087]
 one_shot = true
 
 [node name="ParticleExplode" type="GPUParticles2D" parent="." unique_id=2133553033]
@@ -174,4 +179,3 @@ stream = ExtResource("4_ap5q7")
 position = Vector2(0, 5)
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
-[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

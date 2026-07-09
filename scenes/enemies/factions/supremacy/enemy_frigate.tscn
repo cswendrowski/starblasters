@@ -25,9 +25,6 @@ frame = 1
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1479952011]
 shape = SubResource("RectangleShape2D_1")
 
-[node name="ShootTimer" type="Timer" parent="." unique_id=1760994453]
-one_shot = true
-
 [node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1662856502]
 stream = ExtResource("3_die")
 
@@ -65,4 +62,3 @@ position = Vector2(9, -10)
 [node name="GunRight5" type="Marker2D" parent="." unique_id=1823850295]
 position = Vector2(9, -5)
 
-[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

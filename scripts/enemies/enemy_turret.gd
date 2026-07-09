@@ -133,7 +133,7 @@ func _host_suspended() -> bool:
 	return false
 
 
-# Deterministic fire cadence (firing-consistency pass 2026-07-02, parity with enemy_core._fire_interval).
+# Deterministic fire cadence (firing-consistency pass 2026-07-02, parity with MountComponent._roll_interval).
 # Replaces the old per-shot randf_range(min, max): re-rolling every shot made the turret's rhythm wander
 # unpredictably. We fire at a FIXED interval — the midpoint of min/max — for a steady, readable cadence.
 # The random spawn-time desync (_fire_t seed in _ready) keeps identical turrets from firing in perfect
@@ -229,7 +229,7 @@ func _spawn_shot(dir: Vector2, spawn_pos: Vector2, world: Node, owner: Node) -> 
 	var bv = BulletCatalog.faction_variant(bullet_variant, _faction()) if bullet_variant != null else null
 	var scn: PackedScene = BulletCatalog.scene_for(bv) if bv != null else null
 	if scn == null:
-		scn = load("res://scenes/projectiles/enemy_bullet.tscn")
+		scn = load("res://scenes/projectiles/projectile_ball.tscn")
 	if scn == null:
 		return
 	var b = scn.instantiate()

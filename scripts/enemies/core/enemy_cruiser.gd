@@ -27,9 +27,18 @@ func _ready() -> void:
 
 
 # Cascade: detonate every surviving section (their died signals fire → bounties count), then the
-# core's own explosion. Freeing the core frees the part children anyway; this gives them death VFX.
+# core's own explosion.
+#
+# The parts get the CHEAP (classic) death, NOT the styled DeathEffects controller (Roman 2026-07-07
+# fix for "dying chunks that never cleared"): a part's styled controller is parented under THIS core
+# (its fx_parent) and reparents the part hull into the wreck layer for a multi-second animation — but
+# super.explode() then reparents/frees the core, killing the part's controller before it can _finish(),
+# stranding the reparented part hull in the wreck layer FOREVER (still in the "enemies" group, gating
+# level_cleared). Forcing the classic path makes each part queue_free deterministically (~0.5s) with a
+# blast, independent of the core's fate.
 func explode() -> void:
 	for c in get_children():
 		if c is DestructiblePart and is_instance_valid(c) and not (("_dying" in c) and c._dying):
+			c.set_meta("death_cheap", true)   # classic blast + deterministic queue_free, no stranded wreck
 			c.explode()
 	super.explode()

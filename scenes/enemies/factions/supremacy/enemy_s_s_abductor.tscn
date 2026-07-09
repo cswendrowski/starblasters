@@ -14,6 +14,7 @@ size = Vector2(16, 16)
 
 [node name="Enemy" type="Area2D" unique_id=266766153 groups=["enemies"]]
 script = ExtResource("1_wb6p6")
+max_health = 4
 movement = SubResource("MovePattern")
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=973730929]
@@ -34,9 +35,6 @@ frame = 2
 shape = SubResource("Hit")
 
 [node name="MoveTimer" type="Timer" parent="." unique_id=335333767]
-one_shot = true
-
-[node name="ShootTimer" type="Timer" parent="." unique_id=1063622614]
 one_shot = true
 
 [node name="EnemyShoot" type="AudioStreamPlayer2D" parent="." unique_id=541424054]
@@ -61,4 +59,3 @@ position = Vector2(-4, -4)
 position = Vector2(4, -4)
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
-[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

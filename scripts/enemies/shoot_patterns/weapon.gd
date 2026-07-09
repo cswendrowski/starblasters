@@ -16,7 +16,7 @@ extends "res://scripts/enemies/shoot_patterns/shoot_pattern.gd"
 
 const Playfield = preload("res://scripts/systems/playfield.gd")
 
-enum FirePattern { SINGLE, AIMED, SPREAD, BURST, LOB, BROADSIDE }
+enum FirePattern { SINGLE, AIMED, SPREAD, BURST, BROADSIDE }
 # FORWARD (Roman 2026-06-08): fire along the enemy's NOSE (its facing / global_rotation),
 # extracted from the strafer/crystal nose-ray firing. Pair with enemy_core.fire_only_on_target
 # (the _nose_on_player gate) so the forward shot only releases when lined up on the player.
@@ -63,8 +63,6 @@ func fire(enemy) -> void:
 			_fire_burst(enemy)
 		FirePattern.BROADSIDE:
 			_fire_broadside(enemy)
-		FirePattern.LOB:
-			pass  # deferred payload
 		_:
 			_fire_bullet(enemy, _aim_dir(enemy))
 

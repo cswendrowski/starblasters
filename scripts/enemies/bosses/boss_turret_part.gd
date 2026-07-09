@@ -6,7 +6,7 @@ extends "res://scripts/enemies/bosses/boss_part.gd"
 # Shepherd run squad patterns (cycle / salvo / sweep) instead of N independent
 # turrets. Reusable by any future multi-turret boss.
 
-const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
+const EnemyBullet = preload("res://scenes/projectiles/projectile_ball.tscn")
 const BulletWorld = preload("res://scripts/systems/bullet_world.gd")
 
 var bullet_variant: BulletVariant = null

@@ -46,6 +46,14 @@ var _locked: bool = false
 var _locked_target: Node = null
 @export var fuse: float = 6.0
 @export var damage_on_contact: int = 1
+# Direct-kill ordnance (Anti-Ship Missile, Roman 2026-07-08). When non-empty, a contact hit on a
+# NON-BOSS enemy DESTROYS it outright with a forced DeathEffects style instead of dealing
+# damage_on_contact — so a ship-killer missile reads as a punchy flashout/instakill kill, never the
+# progressive damage-tell escalation a sub-lethal hit on a tanky hull would trigger. "" = normal damage
+# (regular seeking missiles + all enemy ordnance keep chip-damage behaviour). "punchy" = size-choose
+# (flashout for light hulls, instakill for heavies). Bosses are ALWAYS excluded (their phase system owns
+# their HP) → they take the normal contact damage instead of being one-shot.
+@export var direct_kill_style: String = ""
 # Dumb-fire mode (Roman, 2026-05-16): straight-line acceleration in the
 # initial direction, NO homing toward the player. Used for rocket-pod
 # style ordnance where the launch direction is the lock.
@@ -427,10 +435,13 @@ func _on_area_entered(area: Area2D) -> void:
 			area.take_damage(damage_on_contact)
 			explode()
 	else:
-		# Player missile hitting enemy. Use the unified take_hit contract
-		# from EnemyBase; fall back to direct health decrement for any
-		# legacy enemy that hasn't migrated.
-		if area.has_method("take_hit"):
+		# Player missile hitting enemy. Anti-ship "delete" ordnance destroys a non-boss hull outright
+		# with a forced punchy death (see direct_kill_style); everything else uses the unified take_hit
+		# contract from EnemyBase, falling back to a direct health decrement for any legacy enemy that
+		# hasn't migrated.
+		if direct_kill_style != "" and _direct_kill(area):
+			pass
+		elif area.has_method("take_hit"):
 			area.take_hit(damage_on_contact)
 		elif "health" in area:
 			area.health -= damage_on_contact
@@ -439,6 +450,26 @@ func _on_area_entered(area: Area2D) -> void:
 			elif area.has_method("hit"):
 				area.hit()
 		explode()
+
+
+# Try to destroy `area` outright with a forced punchy death (anti-ship ordnance). Returns true if it
+# handled the target, false to fall through to the normal take_hit damage path. NEVER force-kills a boss
+# (its phase system owns its HP) or a target without the styled-death entry point (kill_with_style), so
+# hazards/legacy hulls that lack it drop through to chip damage. "punchy" chooses flashout for light hulls
+# and instakill for heavies off max_health, keeping the size feel the DeathEffects auto-pick would give.
+func _direct_kill(area: Node) -> bool:
+	if area == null or not is_instance_valid(area):
+		return false
+	if _is_boss(area):
+		return false
+	if not area.has_method("kill_with_style"):
+		return false
+	var style: String = direct_kill_style
+	if style == "punchy":
+		var heavy: bool = ("max_health" in area) and int(area.max_health) >= 8
+		style = "instakill" if heavy else "flashout"
+	area.kill_with_style(style)
+	return true
 
 
 # Single HP — any bullet hit is fatal. EnemyBase.take_hit covers this

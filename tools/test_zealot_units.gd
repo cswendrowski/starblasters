@@ -9,7 +9,6 @@ extends SceneTree
 const RESULT := "res://tools/_zealot_units_result.txt"
 const Roster := preload("res://scripts/levels/enemy_roster.gd")
 const Factions := preload("res://scripts/levels/factions.gd")
-const StraightDown := preload("res://scripts/enemies/patterns/straight_down.gd")
 
 const CORE := "res://scenes/enemies/factions/zealot/firecore_core.tscn"
 const MANTA := "res://scenes/enemies/factions/zealot/enemy_z_s_manta.tscn"
@@ -38,30 +37,48 @@ func _has(n: Node, child: String) -> bool:
 	return n.get_node_or_null(child) != null
 
 
-# True if the enemy has a baked always-on DEATH firecore drop component.
+# True if the enemy carries ANY marker matching the glob (e.g. "Muzzle*" covers the
+# MuzzleL/MuzzleR marker-naming scheme, 2026-06-28). find_children globs are case-sensitive.
+func _has_marker(n: Node, glob: String) -> bool:
+	return n.find_children(glob, "Marker2D", true, false).size() > 0
+
+
+# True if the enemy has a baked always-on DEATH firecore drop. Since the mounts-migration
+# (2026-07-07) a baked firecore is a Kind.ENTITY MountSpec in `mounts`, realized by
+# _attach_mounts into a MountComponent (spec.trigger DEATH, spec.emit_chance 1.0) that lives in
+# the live `_components` list. The old EmitterComponent shape (c.trigger/c.chance) is gone.
 func _always_drops(n: Node) -> bool:
-	if not ("components" in n):
-		return false
-	for c in n.components:
-		if c == null:
+	for c in _live_components(n):
+		if c == null or not ("spec" in c) or c.spec == null:
 			continue
-		if "trigger" in c and "chance" in c and int(c.trigger) == 2 and float(c.chance) >= 1.0:
+		var sp = c.spec
+		if "trigger" in sp and "emit_chance" in sp and int(sp.trigger) == 2 and float(sp.emit_chance) >= 1.0:
 			return true
 	return false
 
 
+# Live components after _ready() realized the `mounts` array (firecore drops now ride here as
+# MountComponents). Falls back to the authored `components` array when `_components` is absent.
+func _live_components(n: Node) -> Array:
+	if "_components" in n and n._components != null:
+		return n._components
+	if "components" in n and n.components != null:
+		return n.components
+	return []
+
+
 const FIRECORE_PATH := "res://scenes/enemies/factions/zealot/firecore_hazard.tscn"
 
-# Count DEATH emitters that drop a firecore (baked guaranteed + overlay chance both).
+# Count DEATH emitters that drop a firecore (baked guaranteed + overlay chance both). Both are now
+# ENTITY MountComponents (spec.trigger DEATH, spec.payload_scene = firecore) in the live components.
 func _count_firecore_drops(n: Node) -> int:
-	if not ("components" in n):
-		return 0
 	var c := 0
-	for comp in n.components:
-		if comp == null:
+	for comp in _live_components(n):
+		if comp == null or not ("spec" in comp) or comp.spec == null:
 			continue
-		if "trigger" in comp and "payload" in comp and int(comp.trigger) == 2 \
-				and comp.payload != null and str(comp.payload.resource_path) == FIRECORE_PATH:
+		var sp = comp.spec
+		if "trigger" in sp and "payload_scene" in sp and int(sp.trigger) == 2 \
+				and sp.payload_scene != null and str(sp.payload_scene.resource_path) == FIRECORE_PATH:
 			c += 1
 	return c
 
@@ -97,14 +114,14 @@ func _process(_dt: float) -> bool:
 		if not _always_drops(n):
 			_fail("%s should ALWAYS drop a firecore (DEATH chance 1.0 component)" % p)
 		n.free()
-	# Retro fires; Run does not.
+	# Retro fires; Run does not. (Muzzle markers follow the MuzzleL/MuzzleR naming scheme.)
 	var retro2 := _inst(RETRO)
-	if not _has(retro2, "Muzzle"):
-		_fail("retro (gunner) missing Muzzle")
+	if not _has_marker(retro2, "Muzzle*"):
+		_fail("retro (gunner) missing a Muzzle marker")
 	retro2.free()
 	var run2 := _inst(RUN)
-	if _has(run2, "Muzzle"):
-		_fail("run should have no Muzzle (unarmed)")
+	if _has_marker(run2, "Muzzle*"):
+		_fail("run should have no Muzzle marker (unarmed)")
 	run2.free()
 
 	# --- 4) Bloom (firecore drone re-skin): core + sprite ---------------------
@@ -117,18 +134,23 @@ func _process(_dt: float) -> bool:
 
 	# --- 5) Helix: beam turret + two cores + drop + speed clamp ----------------
 	var helix := _inst(HELIX)
-	if not _has(helix, "HookTurret"):
-		_fail("helix missing HookTurret beam")
+	if not _has_marker(helix, "Turret*"):
+		_fail("helix missing its Turret marker")
 	if helix.get_node_or_null("FirecoreCoreTop") == null or helix.get_node_or_null("FirecoreCoreBot") == null:
 		_fail("helix should carry two cores")
 	if not _always_drops(helix):
 		_fail("helix should drop firecores on death")
-	# Speed clamp: a fast rolled movement is held to <= 60 px/s.
-	var fast := StraightDown.new()
-	helix.movement = fast
+	# Speed clamp: the helix holds every speed-like field of its rolled movement to <= 60 px/s
+	# (SPEED_CAP in enemy_firecore_cruiser). straight_down carries no bindable `speed` anymore
+	# (it reads move_speed off the enemy), so the clamp iterates whatever *_speed floats exist.
 	helix.start(Vector2(240, 60))
-	if helix._pattern != null and float(helix._pattern.speed) > 60.0:
-		_fail("helix did not clamp movement to ~1px/f (got %.0f)" % helix._pattern.speed)
+	if helix._pattern != null:
+		for prop in helix._pattern.get_property_list():
+			if int(prop.get("type", -1)) != TYPE_FLOAT:
+				continue
+			var pn: String = str(prop.get("name", ""))
+			if (pn == "speed" or pn == "down_speed" or pn.ends_with("_speed")) and float(helix._pattern.get(pn)) > 60.0:
+				_fail("helix did not clamp movement '%s' to ~1px/f (got %.0f)" % [pn, helix._pattern.get(pn)])
 	helix.free()
 
 	# --- 5b) Sword: multiple muzzles + rear core, no death-drop ---------------
@@ -153,27 +175,32 @@ func _process(_dt: float) -> bool:
 	# --- 6b) Overlay does not stack onto a guaranteed firecore dropper --------
 	# apply(ZEALOT) adds a CHANCE firecore drop — but NOT to enemies that already
 	# bake a GUARANTEED one (retro/run/helix). manta (no baked drop) still gets it.
+	# Factions.apply MUST run BEFORE add_child (its contract — enemy_base._ready dups the attached
+	# components), exactly as director._spawn_enemy does. A baked firecore lives in `components` as a
+	# MountComponent; the overlay's stacking guard scans `components` and skips retro's baked drop.
 	var r3 = load(RETRO).instantiate()
-	root.add_child(r3)
 	Factions.apply(Factions.Id.ZEALOT, r3)
+	root.add_child(r3)
 	if _count_firecore_drops(r3) != 1:
 		_fail("retro should have exactly 1 firecore drop after overlay (got %d)" % _count_firecore_drops(r3))
 	r3.free()
 	var m3 = load(MANTA).instantiate()
-	root.add_child(m3)
 	Factions.apply(Factions.Id.ZEALOT, m3)
+	root.add_child(m3)
 	if _count_firecore_drops(m3) != 1:
 		_fail("manta (no baked drop) should get the overlay firecore (got %d)" % _count_firecore_drops(m3))
 	m3.free()
 
-	# --- 7) Helix movement variants in roster ---------------------------------
-	var helix_moves: Array = []
+	# --- 7) Helix carries multiple roster variants (the capital appears several ways) ---------
+	# The movement keys were consolidated to "straight" (locomotion shape-key cleanup), so assert
+	# the helix has 2+ roster entries rather than pinning the retired side_traverse/loiter/lane_drift
+	# key names.
+	var helix_entries: int = 0
 	for e in Roster.ENTRIES:
 		if str(e.get("scene", "")) == HELIX:
-			helix_moves.append(str(e.get("movement", "")))
-	for needed in ["side_traverse", "loiter", "lane_drift"]:
-		if not (needed in helix_moves):
-			_fail("helix missing movement variant '%s'" % needed)
+			helix_entries += 1
+	if helix_entries < 2:
+		_fail("helix should have 2+ roster variants (got %d)" % helix_entries)
 
 	_lines.append("ZEALOT UNITS: " + ("PASS" if _fails == 0 else "FAIL (%d)" % _fails))
 	var f := FileAccess.open(RESULT, FileAccess.WRITE)

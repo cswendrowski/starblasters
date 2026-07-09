@@ -79,7 +79,9 @@ static func spawn(parent: Node, world_pos: Vector2, opts: Dictionary = {}) -> No
 
 
 func _ready() -> void:
-	z_index = 6
+	# Death VFX renders UNDER gameplay actors (player/enemies/bullets at z 0) — the chunk never
+	# occludes a live target (Roman 2026-07-07).
+	z_index = -3
 	z_as_relative = false
 	# Hero chunk wearing the randomized battle-damage overlay (Roman: sensitivity
 	# 0.25–0.8, max_strength 0.95, random seed per piece).
@@ -155,18 +157,27 @@ func _begin_burn() -> void:
 
 func _stop_trails() -> void:
 	_trails_stopped = true
-	# SHRINK + fade the FLAME out rather than letting it blink off (Roman 2026-06-11): the flame
-	# shrinks (shader `size` → ~0) AND fades alpha. The sparks just stop emitting — their live
-	# pixels finish on their own (Roman: don't fade the live sparks). _finish frees ≥0.6s later.
+	# FADE the FLAME out at the tail of burn_time rather than letting it blink off (Roman 2026-06-11 /
+	# 2026-07-07): the flame both shrinks (shader `size` → ~0) AND fades its alpha over a short tail, so
+	# the fire dies down smoothly as the chunk finishes disintegrating instead of snapping to nothing.
+	# The tail scales with burn_time (short bursts get a quick, proportional fade) but is clamped so it
+	# always reads as a fade. The sparks just stop emitting — their live pixels finish on their own
+	# (Roman: don't fade the live sparks). _finish frees ≥0.4s later.
+	var fade: float = clampf(burn_time * 0.35, 0.18, 0.5)
 	if _torch != null and is_instance_valid(_torch):
 		var tw := _torch.create_tween()
 		tw.set_parallel(true)
-		tw.tween_property(_torch, "modulate:a", 0.0, 0.35)
+		tw.tween_property(_torch, "modulate:a", 0.0, fade)
 		var mat := _torch.material as ShaderMaterial
 		if mat != null:
+			# Also ease the flame shader alpha down so the fire dims from within, not just via modulate.
+			var a0: float = float(mat.get_shader_parameter("alpha"))
 			tw.tween_method(
 				func(v: float): mat.set_shader_parameter("size", flame_size * v),
-				1.0, 0.05, 0.35)
+				1.0, 0.05, fade)
+			tw.tween_method(
+				func(v: float): mat.set_shader_parameter("alpha", a0 * v),
+				1.0, 0.0, fade)
 	if _sparks_parts != null and is_instance_valid(_sparks_parts):
 		_sparks_parts.emitting = false
 
@@ -234,7 +245,7 @@ func _make_smoke_line() -> Line2D:
 	line.joint_mode = Line2D.LINE_JOINT_ROUND
 	line.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	line.end_cap_mode = Line2D.LINE_CAP_ROUND
-	line.z_index = 2
+	line.z_index = -4   # under the chunk (-3) + gameplay actors (Roman 2026-07-07)
 	line.z_as_relative = false
 	return line
 
@@ -249,7 +260,7 @@ func _make_torch() -> ColorRect:
 	rect.position = -sz * 0.5            # centered on the chunk origin
 	rect.color = Color(0, 0, 0, 0)
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	rect.z_index = 7                     # over the chunk + embers
+	rect.z_index = -2                    # over the chunk (-3) but still under gameplay actors (Roman 2026-07-07)
 	rect.z_as_relative = false
 	var mat := ShaderMaterial.new()
 	mat.shader = TORCH_SHADER

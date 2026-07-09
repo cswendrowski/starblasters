@@ -19,7 +19,7 @@ const DEFAULT_SCENARIO := "first_wave"
 # cost and first-wave spawn spikes don't dominate the p95.
 const WARMUP_TIME := 1.5
 const MAIN_SCENE := "res://scenes/main.tscn"
-const BULLET_SCENE := "res://scenes/projectiles/enemy_bullet.tscn"
+const BULLET_SCENE := "res://scenes/projectiles/projectile_ball.tscn"
 const SETTLE_TIME := 0.4
 const STRESS_BULLET_COUNT := 200
 

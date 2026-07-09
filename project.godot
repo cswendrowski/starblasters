@@ -23,8 +23,8 @@ config/icon="res://Mini Pixel Pack 3/UI objects/Player_life_icon (16 x 16).png"
 
 [audio]
 
-driver/mix_rate=48000
 driver/output_latency=30
+driver/mix_rate=48000
 
 [autoload]
 

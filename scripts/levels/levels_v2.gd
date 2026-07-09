@@ -13,7 +13,7 @@ const Loiter = preload("res://scripts/enemies/patterns/loiter.gd")
 # Weapons 3b (2026-06-13): hazard shoot helpers build the unified Weapon (was the legacy
 # SingleShot/SpreadShot/AimedShot/BurstShot classes).
 const Weapon = preload("res://scripts/enemies/shoot_patterns/weapon.gd")
-const EnemyBullet = preload("res://scenes/projectiles/enemy_bullet.tscn")
+const EnemyBullet = preload("res://scenes/projectiles/projectile_ball.tscn")
 const CrystalScene = preload("res://scenes/enemies/factions/corporate/enemy_c_m_widow.tscn")
 const DartScene = preload("res://scenes/enemies/core/enemy_core_s_dart.tscn")
 const BossScene = preload("res://scenes/enemies/bosses/boss.tscn")
