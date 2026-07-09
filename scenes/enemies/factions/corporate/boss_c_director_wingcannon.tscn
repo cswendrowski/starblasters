@@ -1,0 +1,43 @@
+[gd_scene format=3 uid="uid://bo0crpfpqk2cs"]
+
+[ext_resource type="Script" uid="uid://lhbkwin2xcoo" path="res://scripts/enemies/bosses/boss_c_director_wing.gd" id="1_qthx4"]
+[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://assets/audio/SFX_shot7.wav" id="2_cwv42"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="3_4yusf"]
+[ext_resource type="Texture2D" uid="uid://c5li04b56vwr4" path="res://graphics/enemies/boss_c_director_wing_cannon.png" id="4_rfh5k"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_7pjw5"]
+radius = 8.0
+height = 33.0
+
+[node name="Enemy" type="Area2D" unique_id=1039400681 groups=["enemies"]]
+script = ExtResource("1_qthx4")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1919948137]
+visible = false
+position = Vector2(6, 0)
+shape = SubResource("CapsuleShape2D_7pjw5")
+
+[node name="MoveTimer" type="Timer" parent="." unique_id=1380023246]
+one_shot = true
+
+[node name="ShootTimer" type="Timer" parent="." unique_id=674172379]
+one_shot = true
+
+[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="." unique_id=892052682]
+visible = false
+stream = ExtResource("2_cwv42")
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=6464872]
+visible = false
+stream = ExtResource("3_4yusf")
+
+[node name="Body" type="Sprite2D" parent="." unique_id=1040821665]
+position = Vector2(6, 0)
+texture = ExtResource("4_rfh5k")
+hframes = 2
+
+[node name="MuzzleL" type="Marker2D" parent="Body" unique_id=538420612]
+position = Vector2(-6, -16)
+
+[connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
+[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]
