@@ -105,6 +105,13 @@ const ENEMY_TAGS := {
 	"res://scenes/enemies/factions/supremacy/enemy_s_m_ravager.tscn": {"home": Id.SUPREMACY, "universal": false},
 	"res://scenes/enemies/factions/supremacy/enemy_s_m_ruiner.tscn": {"home": Id.SUPREMACY, "universal": false},
 	"res://scenes/enemies/factions/supremacy/enemy_s_m_scorcher.tscn": {"home": Id.SUPREMACY, "universal": false},
+	# More new supremacy units (Roman 2026-07-07) — scenes set up; movement + hardpoints authored manually.
+	"res://scenes/enemies/factions/supremacy/enemy_s_s_striker.tscn": {"home": Id.SUPREMACY, "universal": false},
+	"res://scenes/enemies/factions/supremacy/enemy_s_s_piercer.tscn": {"home": Id.SUPREMACY, "universal": false},
+	"res://scenes/enemies/factions/supremacy/enemy_s_s_spearhead.tscn": {"home": Id.SUPREMACY, "universal": false},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_chaser.tscn": {"home": Id.SUPREMACY, "universal": false},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_hunter.tscn": {"home": Id.SUPREMACY, "universal": false},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_breaker.tscn": {"home": Id.SUPREMACY, "universal": false},
 }
 
 

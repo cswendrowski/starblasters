@@ -507,6 +507,68 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": false,
 		"conflict_tags": [],
 	},
+	# --- More new supremacy units (Roman 2026-07-07) — SCAFFOLD ONLY: registered for Enemy-Bench config;
+	# movement pattern + hardpoints are Roman's to author manually. `straight` + no mounts placeholder. ---
+	{
+		# Striker (supremacy small) — SCAFFOLD, add movement + hardpoints.
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_striker.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "straight",
+		"base_count": 3,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"conflict_tags": [],
+	},
+	{
+		# Piercer (supremacy small) — SCAFFOLD, add movement + hardpoints.
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_piercer.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "straight",
+		"base_count": 2,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"conflict_tags": [],
+	},
+	{
+		# Spearhead (supremacy small — no muzzles; likely a ram/melee unit) — SCAFFOLD, add movement + hardpoints.
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_spearhead.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "straight",
+		"base_count": 2,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"conflict_tags": [],
+	},
+	{
+		# Chaser (supremacy medium) — SCAFFOLD, add movement + hardpoints.
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_chaser.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": [],
+		"movement": "straight",
+		"base_count": 2,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": false,
+		"conflict_tags": [],
+	},
+	{
+		# Hunter (supremacy medium) — SCAFFOLD, add movement + hardpoints.
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_hunter.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": [],
+		"movement": "straight",
+		"base_count": 2,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": false,
+		"conflict_tags": [],
+	},
+	{
+		# Breaker (supremacy medium) — SCAFFOLD, add movement + hardpoints.
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_breaker.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": [],
+		"movement": "straight",
+		"base_count": 2,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": false,
+		"conflict_tags": [],
+	},
 	# Rush (M6c, supremacy) — fast aggressive fighter firing 3-shot bursts of small
 	# bullets from two muzzles (±8). Dive / weave / charge (beeline) variants.
 	{

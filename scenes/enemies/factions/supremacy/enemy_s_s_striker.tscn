@@ -1,0 +1,60 @@
+[gd_scene format=3 uid="uid://bsa8274fhhhc1"]
+
+[ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemies/enemy_core.gd" id="1_0rtmj"]
+[ext_resource type="Script" uid="uid://bj8dc3ktx8bt1" path="res://scripts/enemies/patterns/straight_down.gd" id="2_bqwjp"]
+[ext_resource type="Texture2D" uid="uid://cqxgvsehviexg" path="res://graphics/enemies/enemy_s_s_striker.png" id="3_0rtmj"]
+[ext_resource type="AudioStream" uid="uid://dfmkolxrpqea1" path="res://assets/audio/SFX_shot7.wav" id="4_xmie3"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="5_on4dj"]
+
+[sub_resource type="Resource" id="MovePattern"]
+script = ExtResource("2_bqwjp")
+
+[sub_resource type="RectangleShape2D" id="Hit"]
+size = Vector2(16, 16)
+
+[node name="Enemy" type="Area2D" unique_id=266766153 groups=["enemies"]]
+script = ExtResource("1_0rtmj")
+movement = SubResource("MovePattern")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=973730929]
+texture = ExtResource("3_0rtmj")
+hframes = 3
+
+[node name="GlowMask" type="Sprite2D" parent="." unique_id=347091668]
+texture = ExtResource("3_0rtmj")
+hframes = 3
+frame = 1
+
+[node name="GlowMuzzle" type="Sprite2D" parent="." unique_id=991315234]
+texture = ExtResource("3_0rtmj")
+hframes = 3
+frame = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=629837266]
+shape = SubResource("Hit")
+
+[node name="MoveTimer" type="Timer" parent="." unique_id=335333767]
+one_shot = true
+
+[node name="EnemyShoot" type="AudioStreamPlayer2D" parent="." unique_id=541424054]
+stream = ExtResource("4_xmie3")
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1943838862]
+stream = ExtResource("5_on4dj")
+
+[node name="EngineM" type="Marker2D" parent="." unique_id=447236164]
+position = Vector2(0, 6)
+
+[node name="EngineL" type="Marker2D" parent="." unique_id=381553885]
+position = Vector2(-6, 6)
+
+[node name="EngineR" type="Marker2D" parent="." unique_id=782628338]
+position = Vector2(6, 6)
+
+[node name="MuzzleL" type="Marker2D" parent="." unique_id=5887981]
+position = Vector2(-6, -1)
+
+[node name="MuzzleR" type="Marker2D" parent="." unique_id=904500595]
+position = Vector2(6, -1)
+
+[connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
