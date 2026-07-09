@@ -80,11 +80,11 @@ const MODE_ZOOM := 3.0
 
 # Enemy bullet sprites for the glow showcase: {texture path, hframes}.
 const BULLETS := [
-	{"name": "Plasma orb", "path": "res://graphics/projectiles/enemy_bullet.png", "frames": 3},
-	{"name": "Pellet", "path": "res://graphics/projectiles/enemy_bullet_small.png", "frames": 3},
-	{"name": "Tracer", "path": "res://graphics/projectiles/enemy_tracer.png", "frames": 3},
-	{"name": "Cannon slug", "path": "res://graphics/projectiles/enemy_cannon.png", "frames": 2},
-	{"name": "Wave orb", "path": "res://graphics/projectiles/enemy_bullet_wave.png", "frames": 4},
+	{"name": "Orb", "path": "res://graphics/projectiles/enemy_bullet.png", "frames": 3},
+	{"name": "Ball", "path": "res://graphics/projectiles/projectile_ball.png", "frames": 4},
+	{"name": "Bolt", "path": "res://graphics/projectiles/projectile_bolt.png", "frames": 4},
+	{"name": "Laser", "path": "res://graphics/projectiles/projectile_laser.png", "frames": 4},
+	{"name": "Wave", "path": "res://graphics/projectiles/projectile_wave.png", "frames": 4},
 ]
 
 const SAVE_PATH := "user://tuners/shader_lab.json"

@@ -28,10 +28,11 @@ const WaveGen = preload("res://scripts/levels/wave_generator.gd")
 # Pattern list for PATTERN mode. ["label", kind, arg]
 #   kind "lane"   → arg = lane_path Shape int (0 STRAIGHT / 1 WEAVE / 2 HOOK / 3 STEP)
 #   kind "roster" → arg = EnemyRoster.make_movement key (real production tuning)
-# The roster keys are pulled LIVE from pattern_eligibility_editor.MOVEMENT_KEYS (the canonical
-# authored set) at _ready, so this tool never drifts from the real pattern registry the way the old
-# hardcoded list did (it was missing pendulum / proximity_chase / loiter_sweep). Roman 2026-06-10.
-const MovementKeys = preload("res://scripts/dev/pattern_eligibility_editor.gd")
+# The roster keys are pulled LIVE from DevData.movement_keys() (the canonical shapes + authored paths)
+# at _ready, so this tool never drifts from the real pattern registry the way the old hardcoded list did
+# (it was missing pendulum / proximity_chase / loiter_sweep). Routed through DevData 2026-07-07 (was
+# pattern_eligibility_editor.MOVEMENT_KEYS). Roman 2026-06-10.
+const DevData = preload("res://scripts/dev/dev_data.gd")
 
 # Retired 2026-06-17: the 4 raw lane_path shapes ("lane STRAIGHT/WEAVE/HOOK/STEP") were pre-roster-key
 # inspection artifacts. STRAIGHT/HOOK were degenerate (shift_lanes unset → a plain descent), WEAVE was
@@ -39,7 +40,7 @@ const MovementKeys = preload("res://scripts/dev/pattern_eligibility_editor.gd")
 # STEP (a SYNCED row step-wall — seen properly in CONDUCTOR mode). The canonical patterns are now the
 # roster MOVEMENT_KEYS only (lane_weave/lane_drift/lane_shift/lane_hook/lane_cut cover the lane shapes).
 
-# Built in _ready: one ["key","roster","key"] per live MovementKeys.MOVEMENT_KEYS.
+# Built in _ready: one ["key","roster","key"] per live DevData.movement_keys().
 var _patterns: Array = []
 var _move_buttons: Array = []   # the clickable movement-list buttons (right gutter)
 
@@ -104,7 +105,7 @@ func _ready() -> void:
 # canonical MOVEMENT_KEYS, so the visualizer always matches the real registry.
 func _build_pattern_list() -> void:
 	_patterns = []
-	for key in MovementKeys.MOVEMENT_KEYS:
+	for key in DevData.movement_keys():
 		_patterns.append([str(key), "roster", str(key)])
 
 

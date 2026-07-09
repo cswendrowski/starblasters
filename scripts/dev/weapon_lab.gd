@@ -48,12 +48,33 @@ const STYLE_NAMES := ["Energy", "Machinegun", "Rotary Laser", "Beam", "Autocanno
 # Enemy weapon option pools (shared with the Enemy Bench).
 const FIRE_PATTERNS := ["SINGLE", "AIMED", "SPREAD", "BURST", "BEAM", "BROADSIDE"]
 const AIMS := ["AT_PLAYER", "STRAIGHT_DOWN", "TOWARD_CENTER", "FORWARD"]
-const PAYLOADS := {
-	"Basic": EnemyRoster.BV_Basic, "Spread Pellet": EnemyRoster.BV_SpreadPellet,
-	"Aimed Sniper": EnemyRoster.BV_AimedSniper, "Burst Round": EnemyRoster.BV_BurstRound,
-	"Plasma Orb": EnemyRoster.BV_PlasmaOrb, "Heavy Slug": EnemyRoster.BV_HeavySlug,
-	"Drop Pellet": EnemyRoster.BV_DropPellet,
-}
+# Enemy-weapon payload inventory now comes LIVE from DevData.bullet_variants() (2026-07-07 dev-tool
+# unification): the SAME data/bullets/*.tres list the Enemy Bench uses, reconciled onto the new family
+# vocabulary (Ball/Bolt/Laser/Wave/Orb/Drop) — was the OLD BV_* labels (Basic/Spread Pellet/…), a
+# divergent second vocabulary for the same physical bullets. A newly added .tres now appears here AND in
+# the bench. Built in _ready() (instance dict). This dropdown selection isn't persisted, so no saved-file
+# migration is needed; the old names are kept only as a comment trail.
+const DevData = preload("res://scripts/dev/dev_data.gd")
+# Default-vs-override affordance (Phase 3, docs/dev_tool_unification_design_2026-07-07.md §3.2): the
+# player-stat rows compare each spinner/toggle against the committed weapon .tres value (a fresh untuned
+# Part) so a shown stat is never ambiguously "shipping default OR my un-saved tune" (symptom c). Opt-in
+# per row; refreshed on rebuild + on change. No data-model / Copy / save-format change.
+const DevField = preload("res://scripts/dev/dev_field.gd")
+var PAYLOADS: Dictionary = {}   # family name -> BulletVariant (loaded live from DevData.bullet_variants())
+
+
+# Build the enemy-weapon payload inventory from the live data/bullets/*.tres scan (family order follows
+# DevData). Shares the exact vocabulary with enemy_bench so the two tools never diverge.
+func _build_payload_table() -> void:
+	PAYLOADS = {}
+	for v in DevData.bullet_variants():
+		var name: String = String(v.get("name", ""))
+		var path: String = String(v.get("path", ""))
+		if name == "" or path == "":
+			continue
+		var res: Resource = load(path)
+		if res != null:
+			PAYLOADS[name] = res
 
 # Bullet-tab resource pools.
 const ENEMY_BULLET_DIR := "res://data/bullets/"
@@ -141,6 +162,7 @@ var _autofire: bool = false
 
 
 func _ready() -> void:
+	_build_payload_table()   # live data/bullets/*.tres inventory (before the UI reads PAYLOADS.keys())
 	if get_parent() == get_tree().root:
 		_hd_scope = HdViewportScope.attach(self)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -540,6 +562,10 @@ func _rebuild_stat_editors(part) -> void:
 		return
 	for c in _p_stat_box.get_children():
 		c.queue_free()
+	# Phase 3 default-vs-override baseline: a fresh UNTUNED Part at the same Mark = the committed .tres
+	# values (the baked default). Compared per-stat against the tuned `part` shown in the row, so a row
+	# that carries an override reads "was: X" + revert; a clean-loaded weapon shows none.
+	var baked = _baked_ref_part()
 	for spec in _tunable_stats(part):
 		var stat: String = String(spec["name"])
 		var row := HBoxContainer.new()
@@ -547,11 +573,13 @@ func _rebuild_stat_editors(part) -> void:
 		var lbl := _label(stat, FS_CAPTION, UiTheme.COLOR_TEXT)
 		lbl.custom_minimum_size = Vector2(150, 0)
 		row.add_child(lbl)
+		var baked_val = (baked.get(stat) if (baked != null and stat in baked) else part.get(stat))
 		if int(spec["type"]) == TYPE_BOOL:
 			var cb := CheckButton.new()
 			cb.button_pressed = bool(part.get(stat))
-			cb.toggled.connect(func(v): _on_stat_changed(stat, v))
+			cb.toggled.connect(func(v): _on_stat_changed(stat, v); DevField.refresh(cb))
 			row.add_child(cb)
+			DevField.decorate(cb, bool(baked_val), FS_CAPTION)
 		else:
 			var sb := SpinBox.new()
 			var is_float: bool = int(spec["type"]) == TYPE_FLOAT
@@ -560,9 +588,23 @@ func _rebuild_stat_editors(part) -> void:
 			sb.max_value = 99999.0
 			sb.value = float(part.get(stat))
 			sb.custom_minimum_size = Vector2(110, 0)
-			sb.value_changed.connect(func(v): _on_stat_changed(stat, v if is_float else int(round(v))))
+			sb.value_changed.connect(func(v): _on_stat_changed(stat, v if is_float else int(round(v))); DevField.refresh(sb))
 			row.add_child(sb)
+			DevField.decorate(sb, float(baked_val), FS_CAPTION)
 		_p_stat_box.add_child(row)
+
+
+# A fresh Part at the current factory/slot/Mark with NO overrides applied — its stats are the committed
+# weapon .tres values (the baked default the Phase 3 affordance compares against). Freed by the caller's
+# scope (Parts are RefCounted Resources). Returns null if the factory can't build.
+func _baked_ref_part():
+	if _p_factory == "":
+		return null
+	var p = PartCatalog._make_by_name(_p_factory, _p_slot)
+	if p == null:
+		return null
+	p.mark = int(_p_mark.value)
+	return p
 
 
 # A stat changed: record the override, re-equip a fresh tuned Part on the live ship so
@@ -703,8 +745,11 @@ func _spawn_enemy_host() -> void:
 	_enemy_host = inst
 	if inst.has_method("start"):
 		inst.start(pos)
-	if not _autofire and inst.has_node("ShootTimer"):
-		inst.get_node("ShootTimer").stop()
+	# Firing-engine consolidation (2026-07-07): the enemy fires via its realized hull mount (ticked in
+	# _process), not a ShootTimer. Suspend cadence firing while autofire is off by flagging
+	# external_control (skips _tick_components); manual "fire once" still calls shoot_pattern.fire directly.
+	if "external_control" in inst:
+		inst.external_control = not _autofire
 	_refresh_enemy_info()
 
 
@@ -1059,14 +1104,10 @@ func _set_autofire_state(on: bool) -> void:
 		var s = get_node("/root/Settings")
 		if s.has_method("set_autofire"):
 			s.set_autofire(on and _tab == Tab.PLAYER)
-	# Enemy host fires on its ShootTimer.
-	if _enemy_host != null and is_instance_valid(_enemy_host) and _enemy_host.has_node("ShootTimer"):
-		var t = _enemy_host.get_node("ShootTimer")
-		if on and _tab == Tab.ENEMY:
-			if t.is_stopped():
-				t.start()
-		else:
-			t.stop()
+	# Enemy host fires via its realized hull mount (ticked in _process). Gate cadence firing with
+	# external_control (true = suspend _tick_components) instead of the retired ShootTimer node.
+	if _enemy_host != null and is_instance_valid(_enemy_host) and "external_control" in _enemy_host:
+		_enemy_host.external_control = not (on and _tab == Tab.ENEMY)
 	# Bullets tab streams the selected bullet from the dummy weapon on a repeating timer.
 	if _tab == Tab.BULLETS:
 		if _b_fire_timer == null:

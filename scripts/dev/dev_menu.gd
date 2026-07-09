@@ -94,6 +94,7 @@ func _build_ui() -> void:
 	_add_button("[ Lane Visualizer ]", _on_lane_visualizer, true)
 	_add_button("[ Parallax Tuner ]", _on_parallax_tuner, true)
 	_add_button("[ Nebula Lab ]", _on_nebula_lab, true)
+	_add_button("[ Parallax Showcase ]", _on_parallax_showcase, true)
 	_add_button("[ Asteroid Lab ]", _on_asteroid_lab, true)
 	_add_button("[ Asteroid Bake Lab ]", _on_asteroid_bake_lab, true)
 	_add_button("[ Asteroid Field Test ]", _on_asteroid_field_test, true)
@@ -117,6 +118,7 @@ func _build_ui() -> void:
 	# Test launchers
 	_add_button("[ Combat Lab ]", _on_combat_lab, true)
 	_add_button("[ Battleship Lab ]", _on_battleship_lab, true)
+	_add_button("[ Director Lab ]", _on_director_lab, true)
 	_add_button("[ Hangar ]", _on_hangar, true)
 	_add_button("[ EM Torpedo Test ]", _launch_em_torpedo_test, true)
 	# All-Signal Sector rolled into Combat Lab as the "All-Signal Sector" encounter (2026-06-17).
@@ -255,6 +257,10 @@ func _on_nebula_lab() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/nebula_lab.tscn")
 
 
+func _on_parallax_showcase() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/parallax_showcase.tscn")
+
+
 func _on_crash_loop() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/crash_loop.tscn")
 
@@ -272,6 +278,11 @@ func _on_combat_lab() -> void:
 # Battleship Lab — trigger + live-tune the Zealot Battleship's maneuvers (Roman 2026-07-02).
 func _on_battleship_lab() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/battleship_lab.tscn")
+
+
+# Director Lab — trigger + live-tune the Corporate Director's maneuvers (Roman 2026-07-06).
+func _on_director_lab() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/director_lab.tscn")
 
 
 # Smart Mount Lab — controlled turret tuner (live player + randomized targets + knobs).

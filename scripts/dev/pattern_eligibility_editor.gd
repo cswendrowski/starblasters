@@ -17,33 +17,29 @@ const PatternEligibility = preload("res://scripts/levels/pattern_eligibility.gd"
 const EnemyRoster = preload("res://scripts/levels/enemy_roster.gd")
 const EnemyManifest = preload("res://scripts/dev/enemy_manifest.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
+const DevData = preload("res://scripts/dev/dev_data.gd")
 
 const SAVE_PATH := "user://tuners/pattern_eligibility.json"
 const EXPORT_PATH := "user://tuners/pattern_eligibility_export.txt"
 
-# The offerable movement keys — SHAPE-only after the locomotion refactor (2026-06-19): speed +
-# depth are chassis/formation axes now, not movement keys. Speed = size base + per-enemy engine
-# (Enemy Bench Locomotion tab); depth = enemy default + per-placement override.
-const MOVEMENT_KEYS := [
-	"straight", "straight_charge",
-	"skirmish_loop", "skirmish_figure8", "skirmish_pendulum",
-	"drift",
-	"loiter",
-	"lane_weave", "lane_drift", "lane_shift", "lane_hook", "lane_cut",
-	"side_turn", "side_traverse",
-	"hunt_beeline", "hunt_omni",
-	"proximity_chase", "loiter_sweep",
-	# HAZARD drift modes (Roman 2026-06-23) — selectable in the wave editor for asteroid/mine/firecore
-	# placements (LateralDrift envelopes). On a combat enemy these have no drift_mode hook and fall
-	# back to a straight descent, so they're harmless there. ("straight" above is shared.)
-	"drift_lane", "drift_adjacent", "drift_all",
-]
+# The offerable movement keys now come LIVE from DevData.movement_keys() (2026-07-07 dev-tool
+# unification): the canonical SHAPE keys (owned by pattern_eligibility.gd, the production source) PLUS
+# the live authored-path keys ("path_<name>") from AuthoredPathLibrary. _movement_keys() caches the
+# composed list per build; _refresh_keys() re-reads it after reload_overrides() so a mid-session
+# authored path appears as an eligible toggle. The private hardcoded copy that lived here (and had NO
+# path_* entries) is gone — it was the stale table that made authored paths invisible in this tool.
+var _movement_keys_cache: Array = []
+
+func _movement_keys() -> Array:
+	if _movement_keys_cache.is_empty():
+		_movement_keys_cache = DevData.movement_keys()
+	return _movement_keys_cache
 
 # Legacy/retired movement keys → their current SHAPE replacement. The committed matrix is itself
 # all shape keys now (2026-06-20 cleanup), so this is a no-op for it; it remains the load-time net
 # for OLD saved user:// JSON whose identities/eligibles still use the speed/depth-variant keys
 # (2026-06-08 set) or older retired names — they collapse to the shape key instead of vanishing.
-# Anything not here and not in MOVEMENT_KEYS is dropped on load.
+# Anything not here and not in DevData.movement_keys() (canonical shapes + authored paths) is dropped on load.
 const KEY_REMAP := {
 	# 2026-06-08 speed/depth-variant keys → shape (locomotion refactor 2026-06-19)
 	"straight_crawl": "straight", "straight_slow": "straight", "straight_medium": "straight",
@@ -86,6 +82,7 @@ var _preview: Node2D = null
 var _enemy_lbl: Label = null
 var _identity_lbl: Label = null
 var _status_lbl: Label = null
+var _pending_lbl: Label = null      # passive cross-tool banner: authored paths pending in the Path Editor
 var _check_box: VBoxContainer = null
 var _checks: Dictionary = {}        # key -> Button(toggle)
 var _preview_key: String = ""       # behavior currently previewed
@@ -102,13 +99,28 @@ func _ready() -> void:
 	add_child(_world)
 	_build_ui()
 	_apply_filter()
+	_refresh_pending_banner()
+
+
+# Refresh the passive "paths pending in Path Editor" banner. Reads DevData.pending_paths() fresh; hides
+# when empty. Called on load + after "Reload paths" (a path authored mid-session), NOT per-frame.
+func _refresh_pending_banner() -> void:
+	if _pending_lbl == null:
+		return
+	var pend: Array = DevData.pending_paths()
+	if pend.is_empty():
+		_pending_lbl.visible = false
+		_pending_lbl.text = ""
+	else:
+		_pending_lbl.visible = true
+		_pending_lbl.text = "%d authored path(s) pending in Path Editor (unpasted)" % pend.size()
 
 
 # ---------------------------------------------------------------- data
 
 func _load_data() -> void:
 	# Start from the committed matrix, then overlay any saved iteration JSON. Both pass
-	# through _canon (legacy-key remap) + a MOVEMENT_KEYS filter so retired keys never surface.
+	# through _canon (legacy-key remap) + a live-key filter (DevData.movement_keys()) so retired keys never surface.
 	for scene in PatternEligibility.DATA.keys():
 		var rec: Dictionary = PatternEligibility.DATA[scene]
 		_data[scene] = {
@@ -148,10 +160,42 @@ func _load_data() -> void:
 	_scenes.sort()
 
 
+# --- Phase 3 default-vs-override (docs/dev_tool_unification_design_2026-07-07.md §3.2) ---
+# BAKED baseline = the committed pattern_eligibility.gd DATA (NOT the user:// save). A scene has a
+# "pending" edit when its working record (identity + eligible set) differs from what DATA ships. Both
+# sides pass through _canon/_canon_list so a legacy-key remap alone (which Export would bake identically)
+# doesn't read as a spurious pending edit — we compare the canonicalized, sorted forms.
+
+# True if `scene` is present in the committed DATA const.
+func _in_committed(scene: String) -> bool:
+	return PatternEligibility.DATA.has(scene)
+
+
+# True if the working record for `scene` differs from the committed DATA (a pending, un-exported edit).
+# A scene not in DATA at all counts as NOT-differing here (it's "new", flagged separately) so the header
+# marker means specifically "you changed a shipping default", the ambiguity Roman wants surfaced.
+func _differs_from_baked(scene: String) -> bool:
+	if not PatternEligibility.DATA.has(scene):
+		return false
+	var rec: Dictionary = _data.get(scene, {})
+	var baked: Dictionary = PatternEligibility.DATA[scene]
+	if _canon(str(rec.get("identity", ""))) != _canon(str(baked.get("identity", ""))):
+		return true
+	var cur: Array = _canon_list(rec.get("eligible", []))
+	var base: Array = _canon_list(baked.get("eligible", []))
+	cur.sort()
+	base.sort()
+	return cur != base
+
+
 # Map a possibly-legacy movement key to its current name; "" if it isn't a live key.
+# A live key is either a canonical shape key OR an authored-path key ("path_<name>") — both are surfaced
+# by DevData.movement_keys(). CRITICAL: this must NOT strip path_* keys (it used to, because the old
+# private MOVEMENT_KEYS filter had none), else a saved eligibility entry naming a path would vanish on
+# load and Export would drop it. KEY_REMAP still collapses legacy speed/depth names to their shape.
 func _canon(key: String) -> String:
 	var k: String = str(KEY_REMAP.get(key, key))
-	return k if k in MOVEMENT_KEYS else ""
+	return k if k in _movement_keys() else ""
 
 
 # Canonicalize + filter a list of keys to live keys, de-duplicated, order-preserving.
@@ -209,7 +253,14 @@ func _refresh_enemy() -> void:
 	if scene == "":
 		return
 	if _enemy_lbl:
-		_enemy_lbl.text = "%d/%d  %s" % [_idx + 1, _filtered.size(), scene.get_file().replace(".tscn", "")]
+		# Phase 3 default-vs-override marker (docs/dev_tool_unification_design_2026-07-07.md §3.2): a "*"
+		# prefix flags a scene whose WORKING record differs from the committed pattern_eligibility.gd DATA
+		# — i.e. it carries a pending, un-exported edit. Baseline = the committed DATA, NOT the user://
+		# save. A per-checkbox affordance would be too noisy in this tiny checklist, so the signal lives
+		# in the enemy header (and the status line spells out what differs). Clean-loaded scenes show none.
+		var pending: bool = _differs_from_baked(scene)
+		var mark: String = "* " if pending else ""
+		_enemy_lbl.text = "%s%d/%d  %s" % [mark, _idx + 1, _filtered.size(), scene.get_file().replace(".tscn", "")]
 	var rec: Dictionary = _data.get(scene, {})
 	if _identity_lbl:
 		_identity_lbl.text = "id: " + str(rec.get("identity", ""))
@@ -219,6 +270,14 @@ func _refresh_enemy() -> void:
 		(_checks[key] as Button).set_pressed_no_signal(key in elig)
 	# Preview the identity behavior by default.
 	_set_preview(str(rec.get("identity", "")))
+	# Phase 3: spell out the default-vs-override state in the status line so "* " on the header is legible.
+	if _status_lbl:
+		if _differs_from_baked(scene):
+			_status_lbl.text = "pending edit (differs from committed DATA — Export to bake)"
+		elif _in_committed(scene):
+			_status_lbl.text = "matches committed DATA"
+		else:
+			_status_lbl.text = "new (not yet in committed DATA)"
 
 
 func _set_preview(key: String) -> void:
@@ -285,6 +344,15 @@ func _toggle_eligible(key: String, on: bool) -> void:
 		if _checks.has(ident):
 			(_checks[ident] as Button).set_pressed_no_signal(true)
 	_data[scene]["eligible"] = elig
+	# Refresh the pending-edit marker/status without rebuilding the checklist (which would fight the
+	# in-flight toggle). Only touches the header + status labels — no per-frame cost.
+	if _enemy_lbl:
+		var pending: bool = _differs_from_baked(scene)
+		var mark: String = "* " if pending else ""
+		_enemy_lbl.text = "%s%d/%d  %s" % [mark, _idx + 1, _filtered.size(), scene.get_file().replace(".tscn", "")]
+	if _status_lbl:
+		_status_lbl.text = ("pending edit (differs from committed DATA — Export to bake)" if _differs_from_baked(scene) \
+			else ("matches committed DATA" if _in_committed(scene) else "new (not yet in committed DATA)"))
 
 
 func _cycle_identity(dir: int) -> void:
@@ -367,6 +435,14 @@ func _build_ui() -> void:
 	add_child(left)
 	var lv := _vbox(left)
 	lv.add_child(_label("PATTERN ELIGIBILITY", UiTheme.COLOR_ACCENT))
+	# Passive cross-tool banner (Phase 4, design §3.3): authored paths appear as eligible toggles here, so
+	# if the Path Editor holds path definitions not yet pasted into the baked library, the path_* toggles
+	# in this tool reference data that may not ship. Quiet (faint, wraps, hidden when empty); refreshed on
+	# load + on "Reload paths", not per-frame. Sits alongside the existing per-scene pending-edit markers.
+	_pending_lbl = _label("", UiTheme.COLOR_FAINT)
+	_pending_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_pending_lbl.visible = false
+	lv.add_child(_pending_lbl)
 	_add_caption(lv, "FACTION")
 	var fr := HBoxContainer.new()
 	fr.add_theme_constant_override("separation", 1)
@@ -413,7 +489,19 @@ func _build_ui() -> void:
 	_check_box.add_theme_constant_override("separation", 1)
 	_check_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(_check_box)
-	for key in MOVEMENT_KEYS:
+	# "Reload paths" (mirrors enemy_bench): re-read the authored-path override JSON, recompose the live
+	# movement-key list, and rebuild the checklist so a path authored in the Path Editor this session
+	# shows up here as an eligible toggle without relaunching the tool.
+	_btn(rv, "Reload paths", _reload_keys)
+	_build_checks()
+
+
+# (Re)build the eligible-key checklist from the live movement-key vocabulary.
+func _build_checks() -> void:
+	for c in _check_box.get_children():
+		c.queue_free()
+	_checks.clear()
+	for key in _movement_keys():
 		var b := Button.new()
 		b.text = key
 		b.toggle_mode = true
@@ -427,6 +515,18 @@ func _build_ui() -> void:
 			_set_preview(key))
 		_check_box.add_child(b)
 		_checks[key] = b
+
+
+# Reload the authored-path overrides + recompose the live movement-key list, then rebuild the checklist
+# and re-sync it to the current enemy. Lets a mid-session authored path appear as an eligible toggle.
+func _reload_keys() -> void:
+	AuthoredPathLibrary.reload_overrides()
+	_movement_keys_cache = []
+	_build_checks()
+	_refresh_enemy()
+	_refresh_pending_banner()
+	if _status_lbl:
+		_status_lbl.text = "reloaded paths"
 
 
 func _process(_delta: float) -> void:

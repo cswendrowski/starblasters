@@ -18,7 +18,7 @@ const DirectorScript = preload("res://scripts/levels/director.gd")
 const AuthoredPatterns = preload("res://scripts/levels/authored_patterns.gd")
 const EnemyRosterC = preload("res://scripts/levels/enemy_roster.gd")
 const EnemyManifestC = preload("res://scripts/dev/enemy_manifest.gd")
-const MovementKeys = preload("res://scripts/dev/pattern_eligibility_editor.gd")
+const DevData = preload("res://scripts/dev/dev_data.gd")
 
 const SAVE_PATH := "user://tuners/wave_patterns.json"
 const EXPORT_PATH := "user://tuners/wave_patterns_export.txt"
@@ -44,7 +44,7 @@ var _brush_size: String = ""       # "" = any, else small/medium/...
 var _brush_dir: String = ""        # "" = any (authored), else left/right/random — side-aware movements only
 var _brush_depth: String = ""      # "" = enemy default, else high/mid/low — hold/cross depth (locomotion refactor)
 
-var _move_keys: Array = []         # ["" (Any)] + MOVEMENT_KEYS
+var _move_keys: Array = []         # ["" (Any)] + DevData.movement_keys()
 var _move_idx: int = 0
 var _size_idx: int = 0
 var _dir_idx: int = 0
@@ -79,6 +79,7 @@ var _stagger_lbl: Label = null
 var _mode_btn: Button = null       # Formation/Free speed-mode toggle (per-pattern)
 var _status_lbl: Label = null
 var _note_edit: TextEdit = null    # free-text note saved on the pattern (for review/evaluation)
+var _pending_lbl: Label = null     # passive cross-tool banner: authored paths pending in the Path Editor
 
 
 func _ready() -> void:
@@ -93,8 +94,10 @@ func _ready() -> void:
 	# _unhandled_input fires (so placement silently did nothing). IGNORE lets empty-area clicks
 	# fall through to _unhandled_input; the side panels/buttons keep their own STOP filter.
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Live movement vocabulary from DevData (canonical shapes + authored paths) — was the eligibility
+	# editor's private MOVEMENT_KEYS (path-blind); now the Formation Builder gets path_* brushes too.
 	_move_keys = [""]
-	for k in MovementKeys.MOVEMENT_KEYS:
+	for k in DevData.movement_keys():
 		_move_keys.append(str(k))
 	_build_enemy_choices()
 	_load_library()
@@ -102,6 +105,21 @@ func _ready() -> void:
 	_build_world()
 	_build_ui()
 	_select_pattern(0)
+	_refresh_pending_banner()
+
+
+# Refresh the passive "paths pending in Path Editor" banner. Called after the movement-key load (the
+# tool's natural (re)load point), NOT per-frame. Reads DevData.pending_paths() fresh; hides when empty.
+func _refresh_pending_banner() -> void:
+	if _pending_lbl == null:
+		return
+	var pend: Array = DevData.pending_paths()
+	if pend.is_empty():
+		_pending_lbl.visible = false
+		_pending_lbl.text = ""
+	else:
+		_pending_lbl.visible = true
+		_pending_lbl.text = "%d authored path(s) pending in Path Editor (unpasted)" % pend.size()
 
 
 func _build_enemy_choices() -> void:
@@ -388,6 +406,14 @@ func _build_ui() -> void:
 	lsc.add_child(lv)
 
 	lv.add_child(_new_label("FORMATION BUILDER", UiTheme.COLOR_ACCENT, SZ))
+
+	# Passive cross-tool banner (Phase 4, design §3.3): if the Path Editor holds authored paths not yet
+	# pasted into the baked library, the path_* movements placed here may not match shipping data. Quiet
+	# (faint, wraps, hidden when empty) — refreshed with the movement-key load in _ready, not per-frame.
+	_pending_lbl = _new_label("", UiTheme.COLOR_FAINT, SZ)
+	_pending_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_pending_lbl.visible = false
+	lv.add_child(_pending_lbl)
 
 	# Pattern nav.
 	var pr := HBoxContainer.new()

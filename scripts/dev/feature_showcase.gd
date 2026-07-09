@@ -324,7 +324,7 @@ func _demo_lighting_showcase() -> void:
 	var main_inst = MAIN_SCENE.instantiate()
 	add_child(main_inst)
 	var player_bullet := preload("res://scenes/projectiles/bullet_blaster.tscn")
-	var enemy_bullet := preload("res://scenes/projectiles/enemy_bullet.tscn")
+	var enemy_bullet := preload("res://scenes/projectiles/projectile_ball.tscn")
 	# Fire a steady player bullet stream so the cyan halo + engine glow read.
 	for i in 30:
 		get_tree().create_timer(2.5 + i * 0.18).timeout.connect(func():

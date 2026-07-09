@@ -17,6 +17,7 @@ const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const AuthoredPath = preload("res://scripts/enemies/patterns/authored_path.gd")
 const AuthoredPathLibrary = preload("res://scripts/enemies/patterns/authored_path_library.gd")
 const EnemyRoster = preload("res://scripts/levels/enemy_roster.gd")
+const DevData = preload("res://scripts/dev/dev_data.gd")
 
 const SAVE_PATH := "user://tuners/enemy_paths.json"
 const SZ := 7
@@ -96,6 +97,7 @@ var _mir_btn: Button = null
 var _snap_btn: Button = null
 var _coord_lbl: Label = null
 var _status_lbl: Label = null
+var _pending_lbl: Label = null   # passive cross-tool banner: eligibility edits pending in the Eligibility Editor
 
 
 func _ready() -> void:
@@ -109,6 +111,21 @@ func _ready() -> void:
 	_build_world()
 	_build_ui()
 	_select_path(0)
+	_refresh_pending_banner()
+
+
+# Refresh the passive "eligibility edits pending in Eligibility Editor" banner. Reads
+# DevData.pending_eligibility() fresh; hides when empty. Called on load + after "Reload ovr", not per-frame.
+func _refresh_pending_banner() -> void:
+	if _pending_lbl == null:
+		return
+	var pend: Array = DevData.pending_eligibility()
+	if pend.is_empty():
+		_pending_lbl.visible = false
+		_pending_lbl.text = ""
+	else:
+		_pending_lbl.visible = true
+		_pending_lbl.text = "%d eligibility edit(s) pending in Eligibility Editor (unexported)" % pend.size()
 
 
 # ---------------------------------------------------------------- library / path
@@ -522,6 +539,7 @@ func _snap_all() -> void:
 
 func _reload_overrides() -> void:
 	AuthoredPathLibrary.reload_overrides()
+	_refresh_pending_banner()
 	_set_status("reloaded path overrides")
 
 
@@ -840,6 +858,14 @@ func _build_ui() -> void:
 	rv.add_child(_new_label("drag: move node", UiTheme.COLOR_TEXT, SZ))
 	rv.add_child(_new_label("R-click: delete", UiTheme.COLOR_TEXT, SZ))
 	rv.add_child(_new_label("x=lane, y=band", UiTheme.COLOR_FAINT, SZ))
+	# Passive cross-tool banner (Phase 4, design §3.3): the inverse of the eligibility/formation tools'
+	# "paths pending" note — if the Eligibility Editor holds un-exported edits, the eligible-set meaning
+	# of paths authored here may not match shipping. Quiet (faint, wraps, hidden when empty); refreshed on
+	# load. No data merge — this tool never reads or writes the eligibility file, only counts its pending.
+	_pending_lbl = _new_label("", UiTheme.COLOR_FAINT, SZ)
+	_pending_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_pending_lbl.visible = false
+	rv.add_child(_pending_lbl)
 	rv.add_child(_sep())
 	_add_caption(rv, "PATHS")
 	var lscroll := ScrollContainer.new()

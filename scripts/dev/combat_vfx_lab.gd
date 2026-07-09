@@ -23,11 +23,11 @@ const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
 
 # Bullet payloads cycled at random for ambiance.
 const PAYLOADS := [
-	preload("res://data/bullets/basic.tres"),
-	preload("res://data/bullets/plasma_orb.tres"),
-	preload("res://data/bullets/laser_bolt.tres"),
-	preload("res://data/bullets/zealot_ball.tres"),
-	preload("res://data/bullets/privateer_bolt.tres"),
+	preload("res://data/bullets/ball.tres"),
+	preload("res://data/bullets/wave.tres"),
+	preload("res://data/bullets/laser.tres"),
+	preload("res://data/bullets/orb.tres"),
+	preload("res://data/bullets/bolt.tres"),
 ]
 
 # A curated spawn pool: small/medium common+uncommon ships, no mines/hazards/bosses (they don't

@@ -35,7 +35,7 @@ const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const PlayerScene = preload("res://scenes/player/player.tscn")
 const DummyTargetScript = preload("res://scripts/dev/hangar_dummy_target.gd")
 const Playfield = preload("res://scripts/systems/playfield.gd")
-const EnemyBulletScene = preload("res://scenes/projectiles/enemy_bullet.tscn")
+const EnemyBulletScene = preload("res://scenes/projectiles/projectile_ball.tscn")
 
 # HD font sizes — UiTheme defaults are sized for 480×270; bump for 1080p.
 const FS_TITLE := 40

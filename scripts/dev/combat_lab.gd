@@ -43,6 +43,9 @@ const BOSS_PICKS := [
 	# turrets to make it flee. This is the ONLY way to exercise the destroy→flee mechanic (the Enemy
 	# Bench dummy can't shoot back).
 	["Battleship", "res://scenes/enemies/factions/zealot/boss_z_battleship.tscn"],
+	# Director — corporate multi-part mega-boss (WIP, dev-only). Hittable body (knock-away on hit) + 2
+	# destructible wing cannons; kill the body OR outlast its maneuver cycle. Same persistent-gated pattern.
+	["Director", "res://scenes/enemies/factions/corporate/boss_c_director.tscn"],
 ]
 const FACTION_PICKS := [
 	["Auto (deterministic)", -1],
