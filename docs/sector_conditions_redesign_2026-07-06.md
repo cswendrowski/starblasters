@@ -41,15 +41,24 @@ Threat budget (§5). Supersedes the modifier notes in the archived `economy_2026
   deleted), shared `_upgrade_costs()` (display/spend dup killed), repair cost/mats
   (repair pairs recast: complex=+1 mat, cheap=2 mats no bounty, easy=baseline placeholder),
   restock mult (flat + per-round variants).
-- **Front-ends (2026-07-09, second pass)** — patrol setup got a LOADOUT|CONDITIONS tab with four
-  modes: **Off / Picked** (curated bucket-grouped picker, live mutex de-selection, Threat chips +
-  running Threat/payout summary) / **Random** (Bad+Good count steppers, visible re-rollable Roll —
-  uses `Conditions.roll_split(banes, boons, seed)`, one shared mutex dict across both pools) /
-  **Blind** (counts only; rolled secretly at Begin from `run_seed ^ salt`, deterministic per run).
-  Setup persists to `user://conditions_setup.json`; the old 0–5 stepper + `patrol_sector_modifiers`
-  meta are retired. The outpost services column got a **SERVICES|STATUS tab**: Status lists active
-  Conditions threat-sorted with ±chips and per-row ⓘ expanding the catalog blurb — the in-run
-  reveal surface for blind patrols. The top-bar one-liner readout remains.
+- **Front-end (2026-07-09, third pass — Roman's UX feedback)** — a **Customize Patrol** button on
+  the settings panel (under Endless) opens a full-screen overlay: background fades to black, the
+  right panel slide-expands left. Two pick columns **BANES | BOONS** with inverse mutex pairs
+  aligned per row (paired programmatically by group); left detail panel shows the hovered
+  condition's name, signed value, blurb; names colored by sign (red bane / blue boon); compact
+  tick column. Controls: Reset · Random (fills the checkboxes via
+  `Conditions.roll_split(banes, boons, seed)`) · Bad/Good steppers · **Blind toggle** (dims the
+  columns; rolls the counts secretly at Begin from `run_seed ^ salt`, deterministic). "Confirm
+  Modifiers" saves + shrinks the panel back (Esc = Confirm); Begin Patrol starts the run. Setup
+  `{picked,bad,good,blind}` persists to `user://conditions_setup.json`. **Player-facing rename:
+  Threat → "Difficulty" (%+d)**; summary is "N picked · Difficulty +X", no percentages. The outpost
+  **SERVICES|STATUS tab** shows a DIFFICULTY header + per-condition ⓘ blurbs — the in-run reveal
+  surface for blind patrols.
+- **Reward coupling CUT (2026-07-09, Roman)** — `K_BOUNTY`/`K_MATERIALS` = 0.0: the §5 payout
+  multipliers are identity; difficulty is self-motivated. The award_bounty/award_combat_materials
+  choke points + the K dials remain in place (flip the two consts to restore §5). Grant Conditions
+  (Hazard Pay, Salvage Rights, Starting Funds, Mining Contract, Ordnance Disposal) still pay their
+  flat effects. All payout-% displays removed.
 - **Tests** — `tools/test_conditions{,_economy,_player,_wildcard}.gd`, all PASS headless;
   parse_check 377/0.
 - **NOT built (deferred)** — the four design-heavy enemy banes (Debris Fields, Elite Patrol,
