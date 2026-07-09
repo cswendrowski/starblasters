@@ -182,32 +182,33 @@ var _live_launch: bool = false   # main-menu launch: seamless auto-run, no dev c
 var _menu_snapshot: Texture2D = null   # captured main-menu frame, crossfaded out on a live launch
 var _crossfade_layer: CanvasLayer = null
 
-# ---- Conditions setup (the manager tab; persisted to user://conditions_setup.json) ----
-# OFF = no Conditions (default, strict no-op). PICKED = hand-picked ids. RANDOM =
-# roll bad/good counts NOW, preview + re-rollable. BLIND = roll bad/good silently
-# at Begin (revealed in-run via the outpost Status readout — other agent's work).
-enum CondMode { OFF, PICKED, RANDOM, BLIND }
+# ---- Customize Patrol (the Conditions overlay; persisted to user://conditions_setup.json) ----
+# State = { picked, bad, good, blind }. An empty pick list is a STRICT no-op (no
+# apply_conditions). Blind rolls the bane/good split SECRETLY at Begin off a
+# decorrelated seed (run_seed ^ salt) — deterministic per run, hidden until in-run.
 const COND_SETUP_PATH := "user://conditions_setup.json"
 const COND_SEED_SALT := 0x51EC7C0D   # decorrelates the Blind roll from sector-gen (matches the legacy salt)
-const BUCKET_HEADERS := {
-	"enemy_bane": "ENEMY BANES", "fragility_bane": "FRAGILITY BANES",
-	"loadout_bane": "LOADOUT BANES", "player_boon": "PLAYER BOONS",
-	"economy_pair": "ECONOMY", "grant": "GRANTS",
-}
-const BUCKET_ORDER := ["enemy_bane", "fragility_bane", "loadout_bane", "player_boon", "economy_pair", "grant"]
-var _cond_mode: int = CondMode.OFF
-var _cond_picked: Array = []       # curated ids (PICKED mode)
-var _cond_bad: int = 0             # bane count (RANDOM / BLIND)
-var _cond_good: int = 0            # boon count (RANDOM / BLIND)
-var _cond_rolled: Array = []       # last RANDOM roll result (ephemeral — not persisted)
-# UI refs (Conditions manager).
-var _settings_tab: VBoxContainer = null
-var _cond_tab: VBoxContainer = null
-var _cond_body: VBoxContainer = null      # swaps per mode
-var _cond_summary_lbl: Label = null
-var _cond_mode_btns: Array = []           # 4 toggle buttons, indexed by CondMode
-var _cond_checks: Dictionary = {}         # id -> CheckBox (PICKED list)
-var _tab_btns: Array = []                 # [loadout, conditions] tab toggles
+# Boon blue — the game's blue (#4d9fff family; corporate livery). UiTheme.COLOR_ACCENT
+# reads pale/cyan, so a saturated blue keeps a boon NAME legible against the panel.
+const COLOR_BOON := Color(0.30, 0.62, 1.0, 1.0)
+var _cond_picked: Array = []       # hand-picked (or Random-filled) ids
+var _cond_bad: int = 0             # bane count (Random fill / Blind roll)
+var _cond_good: int = 0            # boon count (Random fill / Blind roll)
+var _cond_blind: bool = false      # roll secretly at Begin, ignore the visible picks
+# UI refs — settings panel + the Customize overlay.
+var _cond_setup_summary_lbl: Label = null   # summary echoed beside Customize on the settings panel
+var _cust_layer: CanvasLayer = null
+var _cust_dim: ColorRect = null
+var _cust_panel: PanelContainer = null
+var _cust_open: bool = false
+var _cust_busy: bool = false                # guards the open/close animation
+var _cond_checks: Dictionary = {}           # id -> CheckBox (overlay pick rows)
+var _cust_columns_box: Control = null       # BANES/BOONS grid — dimmed/disabled when Blind
+var _cust_blind_caption: Label = null
+var _cust_summary_lbl: Label = null         # overlay summary line
+var _cust_detail_name: Label = null         # hovered-condition detail panel
+var _cust_detail_value: Label = null
+var _cust_detail_blurb: Label = null
 
 # UI refs.
 var _menu_ui: Control = null
@@ -980,18 +981,20 @@ func _build_right_panel(layer: CanvasLayer) -> void:
 	margin.add_child(v)
 	v.add_child(_label("PATROL SETUP", UiTheme.LabelKind.HEADER))
 	v.add_child(HSeparator.new())
-	# Two-tab switcher: LOADOUT (the run-settings toggles) | CONDITIONS (the manager).
-	v.add_child(_build_tab_bar())
-	# Tab host — both tab bodies live here; the inactive one is hidden (VBox skips it).
-	var host := VBoxContainer.new()
-	host.add_theme_constant_override("separation", 12)
-	host.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	v.add_child(host)
-	_settings_tab = _build_settings_tab()
-	host.add_child(_settings_tab)
-	_cond_tab = _build_conditions_tab()
-	host.add_child(_cond_tab)
-	_show_tab(0)
+	# Plain run-settings list (the LOADOUT|CONDITIONS tabs were cut 2026-07-09).
+	v.add_child(_make_toggle("Skip Tutorial", _skip_tutorial, func(on): _skip_tutorial = on))
+	v.add_child(_make_toggle("Endless Mode", _endless, func(on): _endless = on))
+	# Customize Patrol — opens the full-screen Conditions overlay (banes/boons picker).
+	var cust_btn := UiTheme.make_button("Customize Patrol")
+	cust_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cust_btn.pressed.connect(_open_customize)
+	v.add_child(cust_btn)
+	_cond_setup_summary_lbl = _label(_cond_summary_text(), UiTheme.LabelKind.CAPTION)
+	_cond_setup_summary_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(_cond_setup_summary_lbl)
+	var setup_spacer := Control.new()
+	setup_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_child(setup_spacer)
 	v.add_child(HSeparator.new())
 	_status = _label("Ready a ship, then begin the patrol.", UiTheme.LabelKind.CAPTION)
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1018,161 +1021,294 @@ func _make_toggle(text: String, initial: bool, on_change: Callable) -> CheckButt
 	return cb
 
 
-# ---- Setup tabs (LOADOUT | CONDITIONS) -----------------------------------
+# ---- Customize Patrol overlay (full-screen Conditions picker) -------------
+# Clicking "Customize Patrol" on the settings panel fades the background to black
+# and slide-expands a full-screen overlay out of the right-hand panel. The overlay
+# holds a hovered-condition DETAIL panel (left) + paired BANES/BOONS pick columns,
+# a controls row (Reset / Random / Bad-Good steppers / Blind), and a Confirm button
+# that shrinks it back. Esc == Confirm. Begin Patrol (the normal button) is unchanged.
 
-func _build_tab_bar() -> HBoxContainer:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	_tab_btns = []
-	var names := ["LOADOUT", "CONDITIONS"]
-	for i in names.size():
-		var b := UiTheme.make_button(names[i], true)
-		b.toggle_mode = true
-		b.focus_mode = Control.FOCUS_NONE
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.button_pressed = (i == 0)
-		b.pressed.connect(_show_tab.bind(i))
-		row.add_child(b)
-		_tab_btns.append(b)
-	return row
-
-
-func _show_tab(idx: int) -> void:
-	for i in _tab_btns.size():
-		(_tab_btns[i] as Button).button_pressed = (i == idx)
-	if _settings_tab != null:
-		_settings_tab.visible = (idx == 0)
-	if _cond_tab != null:
-		_cond_tab.visible = (idx == 1)
-
-
-func _build_settings_tab() -> VBoxContainer:
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 12)
-	v.add_child(_make_toggle("Skip Tutorial", _skip_tutorial, func(on): _skip_tutorial = on))
-	v.add_child(_make_toggle("Endless Mode", _endless, func(on): _endless = on))
-	return v
+func _open_customize() -> void:
+	if _cust_busy or _cust_open:
+		return
+	_cust_busy = true
+	_cust_open = true
+	_build_customize_overlay()
+	# The overlay starts exactly over the right panel + grows left, so hide the
+	# behind-panels the same frame — the grow reads as the right menu expanding.
+	if _right_panel != null:
+		_right_panel.visible = false
+	if _left_panel != null:
+		_left_panel.visible = false
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(_cust_dim, "modulate:a", 0.92, 0.3)
+	tw.tween_property(_cust_panel, "position", Vector2(16, 16), 0.3) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(_cust_panel, "size", Vector2(HD_W - 32, HD_H - 32), 0.3) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	await tw.finished
+	_cust_busy = false
 
 
-# ---- Conditions manager tab ----------------------------------------------
+func _close_customize() -> void:
+	if _cust_busy or not _cust_open:
+		return
+	_cust_busy = true
+	_save_cond_setup()
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(_cust_dim, "modulate:a", 0.0, 0.28)
+	tw.tween_property(_cust_panel, "position", Vector2(RIGHT_HD + 16, 16), 0.28) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(_cust_panel, "size", Vector2(HD_W - RIGHT_HD - 32, HD_H - 32), 0.28) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	await tw.finished
+	if is_instance_valid(_cust_layer):
+		_cust_layer.queue_free()
+	_cust_layer = null
+	_cust_dim = null
+	_cust_panel = null
+	_cond_checks = {}
+	_cust_columns_box = null
+	_cust_blind_caption = null
+	_cust_summary_lbl = null
+	_cust_detail_name = null
+	_cust_detail_value = null
+	_cust_detail_blurb = null
+	if _right_panel != null:
+		_right_panel.visible = true
+	if _left_panel != null:
+		_left_panel.visible = true
+	_cust_open = false
+	_cust_busy = false
+	_refresh_setup_summary()   # echo the new setup beside the Customize button
 
-func _build_conditions_tab() -> VBoxContainer:
+
+func _build_customize_overlay() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 6   # above PatrolUI (5)
+	layer.name = "CustomizeOverlay"
+	add_child(layer)
+	_cust_layer = layer
+	# Dim — fades the whole hangar/backdrop to black behind the overlay.
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 1.0)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.modulate.a = 0.0
+	layer.add_child(dim)
+	_cust_dim = dim
+	# Panel — starts at the right-panel rect, grows to full-screen on open.
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _panel_stylebox())
+	panel.position = Vector2(RIGHT_HD + 16, 16)
+	panel.size = Vector2(HD_W - RIGHT_HD - 32, HD_H - 32)
+	layer.add_child(panel)
+	_cust_panel = panel
+	var margin := MarginContainer.new()
+	for side in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
+		margin.add_theme_constant_override(side, 18)
+	panel.add_child(margin)
+	var root := VBoxContainer.new()
+	root.add_theme_constant_override("separation", 12)
+	margin.add_child(root)
+	_build_customize_content(root)
+
+
+func _build_customize_content(root: VBoxContainer) -> void:
+	# Header — title + live summary.
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 16)
+	head.add_child(_label("CUSTOMIZE PATROL", UiTheme.LabelKind.HEADER))
+	var head_spacer := Control.new()
+	head_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(head_spacer)
+	_cust_summary_lbl = _label(_cond_summary_text(), UiTheme.LabelKind.STATUS_VALUE)
+	head.add_child(_cust_summary_lbl)
+	root.add_child(head)
+
+	# Controls row — Reset · Random · Bad/Good steppers · Blind.
+	var controls := HBoxContainer.new()
+	controls.add_theme_constant_override("separation", 16)
+	controls.alignment = BoxContainer.ALIGNMENT_CENTER
+	var reset_btn := UiTheme.make_button("Reset", true)
+	reset_btn.pressed.connect(_on_cond_reset)
+	controls.add_child(reset_btn)
+	var random_btn := UiTheme.make_button("Random", true)
+	random_btn.pressed.connect(_on_cond_random)
+	controls.add_child(random_btn)
+	controls.add_child(_make_stepper("Bad", _cond_bad, 0, 10, func(v):
+		_cond_bad = v
+		_save_cond_setup()
+		_apply_blind_state()
+		_update_customize_summary()))
+	controls.add_child(_make_stepper("Good", _cond_good, 0, 10, func(v):
+		_cond_good = v
+		_save_cond_setup()
+		_apply_blind_state()
+		_update_customize_summary()))
+	controls.add_child(_make_toggle("Blind", _cond_blind, _on_blind_toggled))
+	root.add_child(controls)
+
+	# Blind caption — hidden unless Blind is on.
+	_cust_blind_caption = _label("", UiTheme.LabelKind.CAPTION)
+	_cust_blind_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	root.add_child(_cust_blind_caption)
+	root.add_child(HSeparator.new())
+
+	# Body — detail panel (left) + BANES/BOONS columns (right).
+	var body := HBoxContainer.new()
+	body.add_theme_constant_override("separation", 24)
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(body)
+	body.add_child(_build_detail_panel())
+	body.add_child(VSeparator.new())
+	var cols_scroll := ScrollContainer.new()
+	cols_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	cols_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cols_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.add_child(cols_scroll)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 32)
+	grid.add_theme_constant_override("v_separation", 4)
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cols_scroll.add_child(grid)
+	_cust_columns_box = grid
+	_build_condition_grid(grid)
+
+	root.add_child(HSeparator.new())
+	# Confirm — saves + shrinks the overlay back.
+	var confirm_row := CenterContainer.new()
+	var confirm := UiTheme.make_button("Confirm Modifiers")
+	confirm.pressed.connect(_close_customize)
+	confirm_row.add_child(confirm)
+	root.add_child(confirm_row)
+
+	_apply_blind_state()
+	_update_customize_summary()
+	_set_detail_prompt()
+
+
+# Detail panel — shows the currently hovered (or last toggled) condition.
+func _build_detail_panel() -> Control:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 10)
-	v.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	# Mode selector — Off / Picked / Random / Blind (one active).
-	var sel := HBoxContainer.new()
-	sel.add_theme_constant_override("separation", 6)
-	_cond_mode_btns = []
-	var labels := ["Off", "Picked", "Random", "Blind"]
-	for i in labels.size():
-		var b := UiTheme.make_button(labels[i], true)
-		b.toggle_mode = true
-		b.focus_mode = Control.FOCUS_NONE
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.button_pressed = (i == _cond_mode)
-		b.pressed.connect(_on_cond_mode_picked.bind(i))
-		sel.add_child(b)
-		_cond_mode_btns.append(b)
-	v.add_child(sel)
-	# Body — swaps per mode.
-	_cond_body = VBoxContainer.new()
-	_cond_body.add_theme_constant_override("separation", 8)
-	_cond_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	v.add_child(_cond_body)
-	# Summary — always visible below the body.
-	_cond_summary_lbl = _label("", UiTheme.LabelKind.CAPTION)
-	_cond_summary_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	v.add_child(_cond_summary_lbl)
-	_refresh_cond_body()
+	v.custom_minimum_size = Vector2(440, 0)
+	_cust_detail_name = _label("", UiTheme.LabelKind.HEADER)
+	_cust_detail_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(_cust_detail_name)
+	_cust_detail_value = _label("", UiTheme.LabelKind.STATUS_VALUE)
+	v.add_child(_cust_detail_value)
+	_cust_detail_blurb = _label("", UiTheme.LabelKind.BODY)
+	_cust_detail_blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(_cust_detail_blurb)
 	return v
 
 
-func _on_cond_mode_picked(mode: int) -> void:
-	_cond_mode = mode
-	for i in _cond_mode_btns.size():
-		(_cond_mode_btns[i] as Button).button_pressed = (i == mode)
-	_save_cond_setup()
-	_refresh_cond_body()
-
-
-# Rebuild the mode-specific body + refresh the summary line.
-func _refresh_cond_body() -> void:
-	if _cond_body == null:
+# Neutral prompt when nothing is hovered.
+func _set_detail_prompt() -> void:
+	if _cust_detail_name == null:
 		return
-	for c in _cond_body.get_children():
-		c.queue_free()
-	_cond_checks = {}
-	match _cond_mode:
-		CondMode.OFF:
-			var cap := _label("No Conditions this patrol.", UiTheme.LabelKind.CAPTION)
-			cap.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			_cond_body.add_child(cap)
-		CondMode.PICKED:
-			_build_picked_body()
-		CondMode.RANDOM:
-			_build_random_body()
-		CondMode.BLIND:
-			_build_blind_body()
-	_update_cond_summary()
+	_cust_detail_name.text = "Hover a condition"
+	_cust_detail_name.add_theme_color_override("font_color", UiTheme.COLOR_ACCENT)
+	_cust_detail_value.text = ""
+	_cust_detail_blurb.text = "Banes raise the patrol's Difficulty; boons lower it. Pick any mix — or roll a random split with the Random button."
 
 
-# --- Picked mode: scrollable, bucket-grouped list of all 45 Conditions ---
-func _build_picked_body() -> void:
-	var scroll := ScrollContainer.new()
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_cond_body.add_child(scroll)
-	var list := VBoxContainer.new()
-	list.add_theme_constant_override("separation", 4)
-	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(list)
-	# Group ids by bucket in the authored order.
-	var by_bucket: Dictionary = {}
+# Show a condition's name (colored by sign), signed Difficulty value, + blurb.
+func _show_detail(id: String) -> void:
+	if _cust_detail_name == null:
+		return
+	var t := Conditions.threat_of(id)
+	var col := UiTheme.COLOR_DANGER if t > 0 else COLOR_BOON
+	_cust_detail_name.text = Conditions.label(id)
+	_cust_detail_name.add_theme_color_override("font_color", col)
+	_cust_detail_value.text = "Difficulty %+d" % t
+	_cust_detail_value.add_theme_color_override("font_color", col)
+	_cust_detail_blurb.text = Conditions.blurb(id)
+
+
+# Build the paired BANES | BOONS grid. Pairing is programmatic via group_of/
+# threat_of — a mutex group with one bane + one boon becomes one aligned grid row;
+# a group with two same-sign members stacks (one per row, opposite cell empty);
+# ungrouped singles fill below in catalog order on their sign's side.
+func _build_condition_grid(grid: GridContainer) -> void:
+	grid.add_child(_column_header("BANES", UiTheme.COLOR_DANGER))
+	grid.add_child(_column_header("BOONS", COLOR_BOON))
+	var rows: Array = []            # each = {"bane": id|"", "boon": id|""}
+	var seen: Dictionary = {}
+	# First: grouped members, in first-encounter (catalog) order.
 	for id in Conditions.CATALOG.keys():
-		var bk := Conditions.bucket(id)
-		if not by_bucket.has(bk):
-			by_bucket[bk] = []
-		by_bucket[bk].append(id)
-	for bk in BUCKET_ORDER:
-		if not by_bucket.has(bk):
+		var grp := Conditions.group_of(String(id))
+		if grp == "" or seen.has(id):
 			continue
-		list.add_child(_label(String(BUCKET_HEADERS.get(bk, bk)), UiTheme.LabelKind.SLOT_PILL))
-		for id in by_bucket[bk]:
-			list.add_child(_make_picked_row(id))
+		var banes: Array = []
+		var boons: Array = []
+		for other in Conditions.CATALOG.keys():
+			if Conditions.group_of(String(other)) == grp:
+				seen[other] = true
+				if Conditions.threat_of(String(other)) > 0:
+					banes.append(String(other))
+				else:
+					boons.append(String(other))
+		var n: int = maxi(banes.size(), boons.size())
+		for i in n:
+			rows.append({
+				"bane": banes[i] if i < banes.size() else "",
+				"boon": boons[i] if i < boons.size() else "",
+			})
+	# Then: ungrouped singles, catalog order, on their sign's side.
+	for id in Conditions.CATALOG.keys():
+		var sid := String(id)
+		if Conditions.group_of(sid) != "":
+			continue
+		if Conditions.threat_of(sid) > 0:
+			rows.append({"bane": sid, "boon": ""})
+		else:
+			rows.append({"bane": "", "boon": sid})
+	for r in rows:
+		grid.add_child(_make_cond_cell(String(r["bane"])))
+		grid.add_child(_make_cond_cell(String(r["boon"])))
 
 
-func _make_picked_row(id: String) -> HBoxContainer:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	row.tooltip_text = Conditions.blurb(id)
-	var cb := CheckBox.new()
-	cb.button_pressed = _cond_picked.has(id)
-	cb.focus_mode = Control.FOCUS_NONE
-	cb.toggled.connect(_on_picked_toggled.bind(id))
-	row.add_child(cb)
-	_cond_checks[id] = cb
-	var name_lbl := _label(Conditions.label(id), UiTheme.LabelKind.BODY)
-	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(name_lbl)
-	row.add_child(_threat_chip(Conditions.threat_of(id)))
-	return row
-
-
-# A signed Threat chip: "+2" warm (bane) / "−1" cool (boon) / "0" faint.
-func _threat_chip(t: int) -> Label:
-	var lbl := Label.new()
-	lbl.text = ("+%d" % t) if t > 0 else (("−%d" % -t) if t < 0 else "0")
-	lbl.custom_minimum_size = Vector2(36, 0)
-	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	UiTheme.style_label(lbl, UiTheme.LabelKind.STATUS_VALUE)
-	var col := UiTheme.COLOR_DANGER if t > 0 else (UiTheme.COLOR_ACCENT if t < 0 else UiTheme.COLOR_FAINT)
+func _column_header(text: String, col: Color) -> Label:
+	var lbl := _label(text, UiTheme.LabelKind.SLOT_PILL)
 	lbl.add_theme_color_override("font_color", col)
 	return lbl
 
 
-func _on_picked_toggled(on: bool, id: String) -> void:
+# One pick cell: compact checkbox + sign-colored name. An empty id → a spacer that
+# keeps the paired column aligned. Hover (or toggle) updates the detail panel.
+func _make_cond_cell(id: String) -> Control:
+	if id == "":
+		var spacer := Control.new()
+		spacer.custom_minimum_size = Vector2(0, 30)
+		return spacer
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.mouse_filter = Control.MOUSE_FILTER_PASS
+	row.tooltip_text = Conditions.blurb(id)
+	var cb := CheckBox.new()
+	cb.button_pressed = _cond_picked.has(id)
+	cb.focus_mode = Control.FOCUS_NONE
+	cb.add_theme_constant_override("h_separation", 0)   # trim the box footprint (no text)
+	cb.custom_minimum_size = Vector2(30, 0)
+	cb.toggled.connect(_on_overlay_toggled.bind(id))
+	row.add_child(cb)
+	_cond_checks[id] = cb
+	var name_lbl := _label(Conditions.label(id), UiTheme.LabelKind.BODY)
+	name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var col := UiTheme.COLOR_DANGER if Conditions.threat_of(id) > 0 else COLOR_BOON
+	name_lbl.add_theme_color_override("font_color", col)
+	row.add_child(name_lbl)
+	row.mouse_entered.connect(_show_detail.bind(id))
+	return row
+
+
+func _on_overlay_toggled(on: bool, id: String) -> void:
 	if on:
 		if not _cond_picked.has(id):
 			_cond_picked.append(id)
@@ -1187,94 +1323,60 @@ func _on_picked_toggled(on: bool, id: String) -> void:
 	else:
 		_cond_picked.erase(id)
 	_save_cond_setup()
-	_update_cond_summary()
+	_update_customize_summary()
+	_show_detail(id)   # keyboard-less clarity: reflect the toggle in the detail panel
 
 
-# --- Random mode: bad/good steppers + Roll button + previewed result ---
-func _build_random_body() -> void:
-	var steppers := HBoxContainer.new()
-	steppers.add_theme_constant_override("separation", 16)
-	steppers.alignment = BoxContainer.ALIGNMENT_CENTER
-	steppers.add_child(_make_stepper("Bad", _cond_bad, 0, 10, func(v):
-		_cond_bad = v
-		_save_cond_setup()))
-	steppers.add_child(_make_stepper("Good", _cond_good, 0, 10, func(v):
-		_cond_good = v
-		_save_cond_setup()))
-	_cond_body.add_child(steppers)
-	var roll_row := CenterContainer.new()
-	var roll_btn := UiTheme.make_button("Roll")
-	roll_btn.pressed.connect(_on_cond_roll)
-	roll_row.add_child(roll_btn)
-	_cond_body.add_child(roll_row)
-	# Result preview.
-	var scroll := ScrollContainer.new()
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_cond_body.add_child(scroll)
-	var list := VBoxContainer.new()
-	list.name = "RolledList"
-	list.add_theme_constant_override("separation", 4)
-	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(list)
-	_render_rolled_list(list)
+func _on_cond_reset() -> void:
+	_cond_picked = []
+	for id in _cond_checks:
+		(_cond_checks[id] as CheckBox).set_pressed_no_signal(false)
+	_save_cond_setup()
+	_update_customize_summary()
+	_set_detail_prompt()
 
 
-func _on_cond_roll() -> void:
-	# Explicit pre-run UI action — a fresh randomized local RNG is fine here (this
-	# is NOT the deterministic per-run roll; that happens at Begin for Blind mode).
+func _on_cond_random() -> void:
+	# Fresh randomize() seed — a pre-run UI action, NOT the deterministic Begin roll.
+	# Clears previous picks first; re-click = re-roll.
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
-	_cond_rolled = Conditions.roll_split(_cond_bad, _cond_good, rng.randi())
-	# Re-render just the rolled list + summary (steppers/buttons stay put).
-	var list := _cond_body.find_child("RolledList", true, false)
-	if list != null:
-		_render_rolled_list(list as VBoxContainer)
-	_update_cond_summary()
+	_cond_picked = _mutex_filter(Conditions.roll_split(_cond_bad, _cond_good, rng.randi()))
+	for id in _cond_checks:
+		(_cond_checks[id] as CheckBox).set_pressed_no_signal(_cond_picked.has(String(id)))
+	_save_cond_setup()
+	_update_customize_summary()
 
 
-func _render_rolled_list(list: VBoxContainer) -> void:
-	for c in list.get_children():
-		c.queue_free()
-	if _cond_rolled.is_empty():
-		var cap := _label("Press Roll to draw your Conditions.", UiTheme.LabelKind.CAPTION)
-		cap.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		list.add_child(cap)
-		return
-	for id in _cond_rolled:
-		list.add_child(_make_result_row(id))
+func _on_blind_toggled(on: bool) -> void:
+	_cond_blind = on
+	_save_cond_setup()
+	_apply_blind_state()
+	_update_customize_summary()
 
 
-# A read-only rolled/blind result row: label + Threat chip (no checkbox).
-func _make_result_row(id: String) -> HBoxContainer:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	row.tooltip_text = Conditions.blurb(id)
-	var name_lbl := _label(Conditions.label(id), UiTheme.LabelKind.BODY)
-	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(name_lbl)
-	row.add_child(_threat_chip(Conditions.threat_of(id)))
-	return row
+# Blind ON → dim + disable the pick columns and show the "rolled secretly" caption.
+func _apply_blind_state() -> void:
+	if _cust_columns_box != null:
+		_cust_columns_box.modulate.a = 0.35 if _cond_blind else 1.0
+		for id in _cond_checks:
+			(_cond_checks[id] as CheckBox).disabled = _cond_blind
+	if _cust_blind_caption != null:
+		_cust_blind_caption.visible = _cond_blind
+		_cust_blind_caption.text = "Rolled secretly at launch — Bad %d · Good %d" % [_cond_bad, _cond_good]
 
 
-# --- Blind mode: bad/good steppers, no roll button, no preview ---
-func _build_blind_body() -> void:
-	var steppers := HBoxContainer.new()
-	steppers.add_theme_constant_override("separation", 16)
-	steppers.alignment = BoxContainer.ALIGNMENT_CENTER
-	steppers.add_child(_make_stepper("Bad", _cond_bad, 0, 10, func(v):
-		_cond_bad = v
-		_save_cond_setup()
-		_update_cond_summary()))
-	steppers.add_child(_make_stepper("Good", _cond_good, 0, 10, func(v):
-		_cond_good = v
-		_save_cond_setup()
-		_update_cond_summary()))
-	_cond_body.add_child(steppers)
-	var cap := _label("Rolled secretly at launch — check the outpost Status readout in-run.", UiTheme.LabelKind.CAPTION)
-	cap.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_cond_body.add_child(cap)
+func _update_customize_summary() -> void:
+	var txt := _cond_summary_text()
+	if _cust_summary_lbl != null:
+		_cust_summary_lbl.text = txt
+	_refresh_setup_summary()
+
+
+# Echo the setup summary on the settings panel (visible when the overlay is closed).
+func _refresh_setup_summary() -> void:
+	if _cond_setup_summary_lbl != null:
+		_cond_setup_summary_lbl.text = _cond_summary_text()
 
 
 # Generic −/value/+ integer stepper (reuses the retired rocker's shape).
@@ -1308,37 +1410,13 @@ func _make_stepper(caption: String, initial: int, lo: int, hi: int, on_change: C
 	return box
 
 
-# The live setup summary line (mode-dependent).
-func _update_cond_summary() -> void:
-	if _cond_summary_lbl == null:
-		return
-	_cond_summary_lbl.text = _cond_summary_text()
-
-
+# The live setup summary line: "N picked · Difficulty %+d" (or Blind counts).
+# No payout percentages (reward coupling cut 2026-07-09).
 func _cond_summary_text() -> String:
-	match _cond_mode:
-		CondMode.OFF:
-			return "Threat 0 — a clean patrol, no bonus."
-		CondMode.PICKED:
-			return _payout_line("%d picked" % _cond_picked.size(), _cond_picked)
-		CondMode.RANDOM:
-			if _cond_rolled.is_empty():
-				return "Not rolled yet."
-			return _payout_line("%d rolled" % _cond_rolled.size(), _cond_rolled)
-		CondMode.BLIND:
-			return "Bad %d · Good %d · Threat ? (hidden until in-run)" % [_cond_bad, _cond_good]
-	return ""
-
-
-# "<lead> · Threat T · +X% bounty · +Y% materials" — payout terms hidden at T ≤ 0.
-func _payout_line(lead: String, ids: Array) -> String:
-	var t := Conditions.net_threat(ids)
-	var s := "%s · Threat %d" % [lead, t]
-	if t > 0:
-		s += " · +%d%% bounty · +%d%% materials" % [
-			roundi((Conditions.bounty_mult(ids) - 1.0) * 100.0),
-			roundi((Conditions.materials_mult(ids) - 1.0) * 100.0)]
-	return s
+	if _cond_blind:
+		return "Blind · Bad %d · Good %d" % [_cond_bad, _cond_good]
+	var eff := _mutex_filter(_cond_picked)
+	return "%d picked · Difficulty %+d" % [eff.size(), Conditions.net_threat(eff)]
 
 
 # ---- Conditions persistence ----------------------------------------------
@@ -1354,9 +1432,12 @@ func _load_cond_setup() -> void:
 	var data = JSON.parse_string(txt)
 	if not (data is Dictionary):
 		return
-	_cond_mode = clampi(int(data.get("mode", CondMode.OFF)), 0, 3)
+	# Migration: the old file carried a `mode` enum (Off/Picked/Random/Blind) — ignored
+	# now; `blind` + `picked` fully describe the state. Legacy files gracefully load their
+	# bad/good/picked and default blind=false.
 	_cond_bad = clampi(int(data.get("bad", 0)), 0, 10)
 	_cond_good = clampi(int(data.get("good", 0)), 0, 10)
+	_cond_blind = bool(data.get("blind", false))
 	_cond_picked = []
 	for id in data.get("picked", []):
 		var sid := String(id)
@@ -1367,10 +1448,10 @@ func _load_cond_setup() -> void:
 
 func _save_cond_setup() -> void:
 	var data := {
-		"mode": _cond_mode,
 		"picked": _cond_picked,
 		"bad": _cond_bad,
 		"good": _cond_good,
+		"blind": _cond_blind,
 	}
 	var f := FileAccess.open(COND_SETUP_PATH, FileAccess.WRITE)
 	if f != null:
@@ -1822,36 +1903,29 @@ func _on_begin_pressed() -> void:
 # for a non-empty list.
 func _apply_conditions_for_run(run) -> void:
 	var final_list: Array = []
-	var blind := false
-	match _cond_mode:
-		CondMode.OFF:
-			pass   # strict no-op — no apply_conditions, no summary meta
-		CondMode.PICKED:
-			final_list = _mutex_filter(_cond_picked)   # defensive: heal a stale save
-		CondMode.RANDOM:
-			final_list = _mutex_filter(_cond_rolled)    # empty if never rolled → treated as Off
-		CondMode.BLIND:
-			# Deterministic per-run roll off a DECORRELATED seed (run_seed ^ salt — the
-			# same trick as outpost_name; never consumes the global/sector-gen RNG, so
-			# layouts don't shift). Rolled here, hidden from the player until in-run.
-			blind = true
-			final_list = Conditions.roll_split(_cond_bad, _cond_good, int(run.run_seed) ^ COND_SEED_SALT)
+	var blind := _cond_blind
+	if blind:
+		# Deterministic per-run roll off a DECORRELATED seed (run_seed ^ salt — the
+		# same trick as outpost_name; never consumes the global/sector-gen RNG, so
+		# layouts don't shift). Rolled here, hidden from the player until in-run. A
+		# 0/0 blind roll yields an empty list → strict no-op below.
+		final_list = Conditions.roll_split(_cond_bad, _cond_good, int(run.run_seed) ^ COND_SEED_SALT)
+	else:
+		final_list = _mutex_filter(_cond_picked)   # defensive: heal a stale save
 	if final_list.is_empty():
-		return
+		return   # strict no-op — no apply_conditions, no summary meta
 	run.apply_conditions(final_list)
-	# Reveal hook (v1): a one-line summary meta. Visible modes list the labels;
-	# Blind hides them (the outpost Status readout reveals them in-run).
+	# Reveal hook (v1): a one-line summary meta. Visible picks list the labels + signed
+	# Difficulty; Blind hides them (the outpost Status readout reveals them in-run).
+	# No payout percentages (reward coupling cut 2026-07-09).
 	if blind:
 		run.set_meta("conditions_summary", "CONDITIONS: ??? (blind patrol)")
 	else:
 		var labels: Array = []
 		for id in final_list:
 			labels.append(Conditions.label(id))
-		var summary := "CONDITIONS: %s (Threat %d" % ["  ·  ".join(labels), run.condition_net_threat()]
-		if run.condition_net_threat() > 0:
-			summary += ", +%d%% bounty" % roundi((run.condition_bounty_mult() - 1.0) * 100.0)
-		summary += ")"
-		run.set_meta("conditions_summary", summary)
+		run.set_meta("conditions_summary", "CONDITIONS: %s (Difficulty %+d)" % [
+			"  ·  ".join(labels), run.condition_net_threat()])
 
 
 # Spool engines, then the ship flies up while the whole BAY slides down off the bottom — the
@@ -2003,7 +2077,11 @@ func _back() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_ESCAPE:
-			_back()
+			# Esc closes the Customize overlay (== Confirm); otherwise it backs out.
+			if _cust_open:
+				_close_customize()
+			else:
+				_back()
 			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_TAB:
 			_toggle_rail()

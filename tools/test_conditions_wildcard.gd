@@ -29,10 +29,10 @@ func _run() -> void:
 		lines.append("FAIL No Starting Mode left a SHIFT_MODE entry"); fails += 1
 	if run.active_conditions.size() != 3:
 		lines.append("FAIL expected 3 active conditions, got %d" % run.active_conditions.size()); fails += 1
-	# Starting Funds = 500, folded through the net-Threat bounty mult (compute, don't hardcode).
-	var expected_bounty: int = roundi(500.0 * Conditions.bounty_mult(
-		["no_starting_super", "no_starting_mode", "starting_funds"]))
-	lines.append("expected bounty (500 * bounty_mult) = %d" % expected_bounty)
+	# Starting Funds = 500. Reward coupling CUT 2026-07-09 (bounty_mult identity 1.0), so the
+	# grant lands EXACTLY 500 with no net-Threat scaling.
+	var expected_bounty: int = 500
+	lines.append("expected bounty (flat Starting Funds, coupling cut) = %d" % expected_bounty)
 	if int(run.bounty) != expected_bounty:
 		lines.append("FAIL bounty expected %d got %d" % [expected_bounty, int(run.bounty)]); fails += 1
 

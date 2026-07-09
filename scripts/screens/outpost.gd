@@ -569,17 +569,10 @@ func _build_status_content() -> void:
 
 	var net: int = run.condition_net_threat()
 	var threat_lbl := Label.new()
-	threat_lbl.text = "THREAT %d" % net
+	# Player-facing rename Threat → Difficulty (payout coupling cut 2026-07-09; no % caption).
+	threat_lbl.text = "DIFFICULTY %+d" % net
 	_style_label(threat_lbl, FS_HEADER, Color(0.95, 0.86, 0.45))
 	_status_content.add_child(threat_lbl)
-	# Payout caption — hidden for a net-boon (net ≤ 0) run (no bonus applies).
-	if net > 0:
-		var payout := Label.new()
-		payout.text = "+%d%% bounty · +%d%% materials" % [
-			roundi((run.condition_bounty_mult() - 1.0) * 100.0),
-			roundi((run.condition_materials_mult() - 1.0) * 100.0)]
-		_style_label(payout, FS_CAPTION, Color(0.55, 0.95, 0.75))
-		_status_content.add_child(payout)
 	_status_content.add_child(HSeparator.new())
 
 	# Rows in a scroll container sized to the remaining column height.
@@ -1973,14 +1966,8 @@ func _format_sector_modifiers(run) -> String:
 		for id in run.active_conditions:
 			cond_labels.append(Conditions.label(String(id)))
 		var line := Strings.SECTOR_MODIFIERS_LABEL % "   ·   ".join(cond_labels)
-		var net: int = run.condition_net_threat()
-		if net > 0:
-			line += "   —   Threat %d · +%d%% bounty · +%d%% materials" % [
-				net,
-				roundi((run.condition_bounty_mult() - 1.0) * 100.0),
-				roundi((run.condition_materials_mult() - 1.0) * 100.0)]
-		else:
-			line += "   —   Threat %d" % net
+		# Player-facing rename Threat → Difficulty; payout coupling cut 2026-07-09 (no % suffix).
+		line += "   —   Difficulty %+d" % run.condition_net_threat()
 		return line
 	# Legacy kill-switched modifier cache path (unchanged).
 	var mods: Array = []

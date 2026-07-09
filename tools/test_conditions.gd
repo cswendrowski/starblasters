@@ -78,11 +78,13 @@ func _run() -> void:
 		lines.append("FAIL expected net threat 4"); fails += 1
 	var bm: float = Conditions.bounty_mult(mixed)
 	var mm: float = Conditions.materials_mult(mixed)
-	lines.append("bounty_mult=%s materials_mult=%s" % [str(bm), str(mm)])
-	if not is_equal_approx(bm, 1.0 + Conditions.K_BOUNTY * 4.0):
-		lines.append("FAIL bounty_mult math"); fails += 1
-	if not is_equal_approx(mm, 1.0 + Conditions.K_MATERIALS * 4.0):
-		lines.append("FAIL materials_mult math"); fails += 1
+	lines.append("bounty_mult=%s materials_mult=%s (net threat %d)" % [str(bm), str(mm), nt])
+	# Reward coupling CUT 2026-07-09 (K_BOUNTY = K_MATERIALS = 0.0): the payout mults
+	# are IDENTITY (1.0) even at a positive net Threat. This guards the coupling-cut state.
+	if not is_equal_approx(bm, 1.0):
+		lines.append("FAIL bounty_mult expected identity 1.0 (coupling cut), got %s" % str(bm)); fails += 1
+	if not is_equal_approx(mm, 1.0):
+		lines.append("FAIL materials_mult expected identity 1.0 (coupling cut), got %s" % str(mm)); fails += 1
 	# All-boon → net negative → payout floors at 1.0.
 	var boons: Array = ["better_weapons", "faster_weapons", "salvage_rights"]
 	lines.append("net_threat(boons)=%d bounty_mult=%s" % [Conditions.net_threat(boons), str(Conditions.bounty_mult(boons))])

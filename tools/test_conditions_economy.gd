@@ -29,7 +29,8 @@ func _run() -> void:
 	var b0: int = int(run.bounty)
 	var s0: int = int(run.run_stats.get("bounty_gained", 0))
 	var awarded: int = run.award_bounty(100)
-	var expected: int = roundi(100 * (1.0 + Conditions.K_BOUNTY * 4.0))  # 132
+	# Reward coupling CUT 2026-07-09 (K_BOUNTY = 0.0): award is the FLAT amount (was 132 at T4).
+	var expected: int = 100
 	lines.append("award_bounty(100)|T4 => awarded=%d bountyΔ=%d statΔ=%d (expect %d)"
 		% [awarded, int(run.bounty) - b0, int(run.run_stats.get("bounty_gained", 0)) - s0, expected])
 	if awarded != expected:
@@ -73,7 +74,8 @@ func _run() -> void:
 	var m0: int = int(run.materials)
 	var mg0: int = int(run.run_stats.get("materials_gained", 0))
 	var mat_awarded: int = run.award_combat_materials(100)
-	var mat_expected: int = roundi(100 * (1.0 + Conditions.K_MATERIALS * 4.0))  # 124
+	# Reward coupling CUT 2026-07-09 (K_MATERIALS = 0.0): award is the FLAT amount (was 124 at T4).
+	var mat_expected: int = 100
 	lines.append("award_combat_materials(100)|T4 => awarded=%d matΔ=%d statΔ=%d (expect %d)"
 		% [mat_awarded, int(run.materials) - m0, int(run.run_stats.get("materials_gained", 0)) - mg0, mat_expected])
 	if mat_awarded != mat_expected:

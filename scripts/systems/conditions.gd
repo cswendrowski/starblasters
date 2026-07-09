@@ -21,10 +21,12 @@ extends RefCounted
 #   * list keys           → aggregate by UNION      (union),  e.g. "pool.block_slots": ["CANNON"]
 
 # --- Reward-model knobs (first-pass; tuner-bound — see design §5) ---
-# Payout bonus derives from net Threat floored at zero. Two global dials rather
-# than a per-bane weight matrix; a future Threat/K_* tuner tunes these.
-const K_BOUNTY := 0.08     # tuner-bound
-const K_MATERIALS := 0.06  # tuner-bound
+# reward coupling cut 2026-07-09 (Roman) — difficulty is self-motivated; the
+# award_bounty/award_combat_materials choke points + these dials stay in place if
+# it ever returns. Both K set to 0.0 → bounty_mult/materials_mult are identity
+# (1.0) at any net Threat, so no payout scaling is applied anywhere.
+const K_BOUNTY := 0.0     # tuner-bound (coupling cut — 0.08 to re-enable)
+const K_MATERIALS := 0.0  # tuner-bound (coupling cut — 0.06 to re-enable)
 
 # Valid `bucket` values — validate() rejects anything outside this set.
 const BUCKETS := [
