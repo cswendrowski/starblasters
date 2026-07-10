@@ -117,6 +117,19 @@ func _process(_dt: float) -> void:
 		fails += 1
 		lines.append("FAIL re-entering silent should stay silenced")
 
+	# Dev silent-lock: while locked, set_context (incl. a boss preview's
+	# set_context("boss")) is ignored and the autoload stays stopped — no track to
+	# blast when the Enemy Bench un-mutes the bus on exit.
+	music.set_context("menu")     # something playing
+	music.lock_silent(true)
+	music.set_context("combat")   # ignored
+	music.set_context("boss")     # ignored
+	lines.append("silent-lock: context=%s track='%s' (expect silent + empty)" % [music._context, music._current_track])
+	if music._context != "silent" or music._current_track != "":
+		fails += 1
+		lines.append("FAIL silent-lock should block set_context + stay stopped")
+	music.lock_silent(false)
+
 	lines.append("MUSIC SCHEMA: " + ("PASS" if fails == 0 else "FAIL (%d)" % fails))
 	_finish(lines, fails)
 

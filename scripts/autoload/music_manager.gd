@@ -106,6 +106,7 @@ var _current_track: String = ""
 var _intensity_target: float = 0.0
 var _silenced: bool = false          # true = nothing playing (stopped), not just muted
 var _started: bool = false           # has any track ever played (first play uses QueueSong)
+var _silent_locked: bool = false     # dev tools force silence: set_context is ignored while true
 
 # Combat ceiling inputs (each 0..1), combined by _combat_ceiling().
 var _wave01: float = 0.0
@@ -142,6 +143,17 @@ func _ready() -> void:
 # ---- Public API ---------------------------------------------------------
 
 func set_context(context: String, options: Dictionary = {}) -> void:
+	# Dev-tool silent lock: while engaged, ignore ALL context changes and stay
+	# stopped. Prevents a previewed enemy from starting music — e.g. a boss in the
+	# Enemy Bench whose _ready calls set_context("boss"). Without this, that track
+	# played under the bench's muted Music bus and BLASTED when the bus un-muted on
+	# exit. (Dev tools: lock_silent(true) on enter, lock_silent(false) on leave.)
+	if _silent_locked:
+		if _current_track != "":
+			stop()
+		_context = CTX_SILENT
+		return
+
 	# Silent is special: always fade out. Handled BEFORE the idempotency check so
 	# re-entering silent (e.g. returning to the dev menu) can never hit the
 	# keep-playing path and un-silence a leftover track.
@@ -295,6 +307,17 @@ func stop(fade: float = 0.8) -> void:
 	_damage01 = 0.0
 	_streak_heat = 0.0
 	_intensity_smoothed = 0.0
+
+
+# Dev-tool hard mute of the music autoload. While locked, set_context() is a
+# no-op (stays stopped), so nothing a previewed enemy/boss does can start a
+# track. Call lock_silent(true) on entering a music-free dev tool and
+# lock_silent(false) on leaving. Locking stops whatever is playing immediately.
+func lock_silent(locked: bool) -> void:
+	_silent_locked = locked
+	if locked:
+		_context = CTX_SILENT
+		stop()
 
 
 # ---- Internal -----------------------------------------------------------

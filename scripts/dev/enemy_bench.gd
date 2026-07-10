@@ -413,6 +413,12 @@ func _setup_ui() -> void:
 	# toggle. The prior bus state is still restored on exit (_on_back).
 	_set_bus_muted("Music", true)
 	_wire_mute_toggle(%SfxMute as Button, "SFX", _sfx_bus_was_muted)
+	# Hard-lock the music autoload silent. The bus mute alone only HIDES music: a
+	# previewed boss's _ready calls Music.set_context("boss"), which then blasts
+	# when the bus un-mutes on exit. Locking makes those set_context calls no-ops.
+	var _music := get_node_or_null("/root/Music")
+	if _music != null and _music.has_method("lock_silent"):
+		_music.lock_silent(true)
 
 
 func _fill_options(dd: OptionButton, items) -> void:
@@ -2790,6 +2796,12 @@ func _build_copy_text() -> String:
 # ---- Back ----------------------------------------------------------------
 
 func _on_back() -> void:
+	# Release the music silent-lock. It kept the autoload stopped the whole time, so
+	# there's no track to blast when the Music bus un-mutes below; the dev menu we're
+	# returning to sets its own silent context.
+	var _music := get_node_or_null("/root/Music")
+	if _music != null and _music.has_method("lock_silent"):
+		_music.lock_silent(false)
 	# Restore the audio bus mute state the bench inherited, so the Mute toggles never
 	# leave Music/SFX muted out in the rest of the game.
 	_set_bus_muted("Music", _music_bus_was_muted)
