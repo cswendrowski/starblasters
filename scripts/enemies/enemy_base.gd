@@ -444,6 +444,20 @@ func _update_damage_visual() -> void:
 	_damage_material.set_shader_parameter("sensitivity", lvl)
 
 
+# Paint heavy battle damage onto the base sprite at the moment of death (Roman 2026-07-09). A one-hit
+# kill never ran the progressive damage ramp (set_damage / _update_damage_visual fire only on NON-fatal
+# hits), so without this the hull dies PRISTINE — it loses its livery + glow the same instant the
+# wreck/spin/flashout death starts, reading as a bare, undamaged sprite ("rather lame"). Cranking the
+# damage_noise overlay to near-full paints it "shot to pieces" AND masks the culled livery layer. Snapped
+# under the white hit-flash (at full strength the same frame the fatal hit lands) so it reveals seamlessly
+# as the flash fades. No-op on hulls without the damage material (pre-existing hologram/other material).
+const _DEATH_DAMAGE_SENS := 0.85
+func _apply_death_damage_overlay() -> void:
+	if _damage_material == null:
+		return
+	_damage_material.set_shader_parameter("sensitivity", _DEATH_DAMAGE_SENS)
+
+
 # White hit-flash. On ships the damage material owns the sprite's material slot, so we
 # drive its flash_strength uniform (and the per-hit damage update lands during the flash
 # for a seamless reveal). Enemies without a damage material use the standalone flash.
@@ -552,6 +566,10 @@ func hit() -> void:
 func explode() -> void:
 	if _dying:
 		return
+	# Paint the hull "shot to pieces" for the death itself — a one-hit kill never ramped the damage
+	# overlay, so without this it dies pristine + bare (see _apply_death_damage_overlay). Runs before ALL
+	# death routing (disabled-wreck / styled / classic) so every path shows the battle damage.
+	_apply_death_damage_overlay()
 	# Two SEPARATE disabled-wreck death styles (Roman 2026-06-10), both routing the hull into the
 	# wreck layer as a burning, smoking, falling disabled wreck. They differ only in trigger + exit
 	# resolution; both require a wreck layer (else they fall through to the normal explosion below):
