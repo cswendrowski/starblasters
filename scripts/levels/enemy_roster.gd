@@ -519,10 +519,10 @@ const ENTRIES := [
 	# --- More new supremacy units (Roman 2026-07-07) — SCAFFOLD ONLY: registered for Enemy-Bench config;
 	# movement pattern + hardpoints are Roman's to author manually. `straight` + no mounts placeholder. ---
 	{
-		# Striker (supremacy small) — armed from Enemy Bench (2026-07-08): a 2-shot spread burst walked
-		# across 6 volleys from cycling nose muzzles (slow bullets 19px/s over base).
+		# Striker (supremacy small, RAM) — reworked 2026-07-09: muzzles removed from the scene, now a ram
+		# unit (ram=true → barrels through + asteroid-bounce knockback, no ranged weapon). Mount dropped
+		# (its Muzzle* markers no longer exist). Re-arm it in the Enemy Bench if it ever regains guns.
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_striker.tscn",
-		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/ball.tres"), "aim": "forward", "count": 2, "fire_min": 0.1, "fire_max": 0.1, "bullet_speed": 19.0, "max_fires": 3, "volleys": 6, "volley_gap": 0.76, "spread_deg": 30.0 }],
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "straight",
@@ -550,6 +550,41 @@ const ENTRIES := [
 		"movement": "straight",
 		"base_count": 2,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"conflict_tags": [],
+	},
+	{
+		# Butcher (supremacy medium, 16x32 hull) — SCAFFOLD (art + markers only, 2026-07-09): straight
+		# descent, no mounts. Muzzle + 3 DamageMakers + GlowMuzzle placed; arm it in the Enemy Bench.
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_butcher.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": [],
+		"movement": "straight",
+		"base_count": 2,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": true,
+		"conflict_tags": [],
+	},
+	{
+		# Devastator (supremacy large, 32x64 hull) — SCAFFOLD (art + markers only, 2026-07-09): straight
+		# descent, no mounts. MuzzleL/Cannon/MuzzleR + 9 DamageMarkers placed; arm it in the Enemy Bench.
+		# Elite tank (not chaff), spawns solo.
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_devastator.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "large", "tags": [],
+		"movement": "straight",
+		"base_count": 1,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "inertia": 0.7, "chaff": false,
+		"conflict_tags": [],
+	},
+	{
+		# Harasser (supremacy medium, 30x24 hull, RAM) — SCAFFOLD (art + markers only, 2026-07-09): straight
+		# descent, no mounts. ram=true in the scene (barrels through + asteroid-bounce knockback); Muzzle
+		# placed for a future weapon. Arm it in the Enemy Bench.
+		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_harasser.tscn",
+		"tier": Tier.COMMON,
+		"size": "medium", "tags": [],
+		"movement": "straight",
+		"base_count": 3,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": true,
 		"conflict_tags": [],
 	},
 	{

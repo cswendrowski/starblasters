@@ -82,6 +82,9 @@ const DATA := {
 	"res://scenes/enemies/factions/supremacy/enemy_s_m_scorcher.tscn": {"identity": "loiter", "eligible": ["loiter", "straight"]},
 	"res://scenes/enemies/factions/supremacy/enemy_s_s_abductor.tscn": {"identity": "hunt_omni", "eligible": ["hunt_omni", "loiter", "path_skirmish_figure8", "path_skirmish_loop"]},
 	"res://scenes/enemies/factions/supremacy/enemy_s_s_bully.tscn": {"identity": "straight_charge", "eligible": ["straight_charge", "straight"]},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_butcher.tscn": {"identity": "straight", "eligible": ["straight", "loiter"]},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_devastator.tscn": {"identity": "straight", "eligible": ["straight", "loiter"]},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_harasser.tscn": {"identity": "straight", "eligible": ["straight", "straight_charge"]},
 	"res://scenes/enemies/core/enemy_core_s_jet.tscn": {"identity": "lane_cut", "eligible": ["lane_cut", "lane_weave", "side_turn", "straight", "straight_charge"]},
 	"res://scenes/enemies/factions/privateer/enemy_p_m_wing.tscn": {"identity": "drift", "eligible": ["drift", "side_turn", "side_traverse", "straight", "straight_charge"]},
 }

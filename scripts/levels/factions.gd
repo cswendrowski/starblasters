@@ -112,6 +112,9 @@ const ENEMY_TAGS := {
 	"res://scenes/enemies/factions/supremacy/enemy_s_m_chaser.tscn": {"home": Id.SUPREMACY, "universal": false},
 	"res://scenes/enemies/factions/supremacy/enemy_s_m_hunter.tscn": {"home": Id.SUPREMACY, "universal": false},
 	"res://scenes/enemies/factions/supremacy/enemy_s_m_breaker.tscn": {"home": Id.SUPREMACY, "universal": false},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_butcher.tscn": {"home": Id.SUPREMACY, "universal": false},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_devastator.tscn": {"home": Id.SUPREMACY, "universal": false},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_harasser.tscn": {"home": Id.SUPREMACY, "universal": false},
 }
 
 

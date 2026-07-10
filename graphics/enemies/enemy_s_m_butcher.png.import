@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dajj3lux218b5"
-path="res://.godot/imported/enemy_s_m_breaker.png-632965d4479ad50136a7f764ddefb68e.ctex"
+uid="uid://cmetyps8b05j4"
+path="res://.godot/imported/enemy_s_m_butcher.png-e547fdd7fb0889eea6e7734bffc20cea.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://graphics/enemies/enemy_s_m_breaker.png"
-dest_files=["res://.godot/imported/enemy_s_m_breaker.png-632965d4479ad50136a7f764ddefb68e.ctex"]
+source_file="res://graphics/enemies/enemy_s_m_butcher.png"
+dest_files=["res://.godot/imported/enemy_s_m_butcher.png-e547fdd7fb0889eea6e7734bffc20cea.ctex"]
 
 [params]
 

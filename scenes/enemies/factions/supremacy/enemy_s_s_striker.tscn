@@ -26,11 +26,6 @@ texture = ExtResource("3_0rtmj")
 hframes = 3
 frame = 1
 
-[node name="GlowMuzzle" type="Sprite2D" parent="." unique_id=991315234]
-texture = ExtResource("3_0rtmj")
-hframes = 3
-frame = 2
-
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=629837266]
 shape = SubResource("Hit")
 
@@ -51,11 +46,5 @@ position = Vector2(-6, 6)
 
 [node name="EngineR" type="Marker2D" parent="." unique_id=782628338]
 position = Vector2(6, 6)
-
-[node name="MuzzleL" type="Marker2D" parent="." unique_id=5887981]
-position = Vector2(-6, -1)
-
-[node name="MuzzleR" type="Marker2D" parent="." unique_id=904500595]
-position = Vector2(6, -1)
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]

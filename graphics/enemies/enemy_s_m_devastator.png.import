@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cxq8p01dtruwl"
-path="res://.godot/imported/enemy_s_m_plasma.png-922d65f46588bc8756033fdf21ca1c38.ctex"
+uid="uid://plexsvywwog7"
+path="res://.godot/imported/enemy_s_m_devastator.png-b707fc6d036f68d62bdf35c8476ab127.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://graphics/enemies/enemy_s_m_plasma.png"
-dest_files=["res://.godot/imported/enemy_s_m_plasma.png-922d65f46588bc8756033fdf21ca1c38.ctex"]
+source_file="res://graphics/enemies/enemy_s_m_devastator.png"
+dest_files=["res://.godot/imported/enemy_s_m_devastator.png-b707fc6d036f68d62bdf35c8476ab127.ctex"]
 
 [params]
 

@@ -8,10 +8,9 @@
 
 [sub_resource type="Resource" id="MovePattern"]
 script = ExtResource("3_mov")
-speed = 240.0
 
-[sub_resource type="RectangleShape2D" id="Hit"]
-size = Vector2(14, 14)
+[sub_resource type="CircleShape2D" id="CircleShape2D_r5m6d"]
+radius = 8.0
 
 [node name="Enemy" type="Area2D" unique_id=266766153 groups=["enemies"]]
 script = ExtResource("1_core")
@@ -27,7 +26,7 @@ hframes = 2
 frame = 1
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=629837266]
-shape = SubResource("Hit")
+shape = SubResource("CircleShape2D_r5m6d")
 
 [node name="MoveTimer" type="Timer" parent="." unique_id=335333767]
 one_shot = true

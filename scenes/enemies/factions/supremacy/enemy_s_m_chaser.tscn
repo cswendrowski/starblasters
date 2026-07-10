@@ -19,11 +19,11 @@ ram = true
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1305763441]
 texture = ExtResource("3_4upa3")
-hframes = 2
+hframes = 3
 
 [node name="GlowMask" type="Sprite2D" parent="." unique_id=641385598]
 texture = ExtResource("3_4upa3")
-hframes = 2
+hframes = 3
 frame = 1
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1445500383]
