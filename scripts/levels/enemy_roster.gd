@@ -519,10 +519,11 @@ const ENTRIES := [
 	# --- More new supremacy units (Roman 2026-07-07) — SCAFFOLD ONLY: registered for Enemy-Bench config;
 	# movement pattern + hardpoints are Roman's to author manually. `straight` + no mounts placeholder. ---
 	{
-		# Striker (supremacy small, RAM) — reworked 2026-07-09: muzzles removed from the scene, now a ram
-		# unit (ram=true → barrels through + asteroid-bounce knockback, no ranged weapon). Mount dropped
-		# (its Muzzle* markers no longer exist). Re-arm it in the Enemy Bench if it ever regains guns.
+		# Striker (supremacy small, RAM + guns) — a ram unit (ram=true → barrels through + asteroid-bounce
+		# knockback) that ALSO fires: a 2-shot spread burst walked across 6 volleys from cycling nose muzzles
+		# (slow bullets 19px/s over base). Muzzles were briefly removed 2026-07-09 then restored 2026-07-10.
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_striker.tscn",
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/ball.tres"), "aim": "forward", "count": 2, "fire_min": 0.1, "fire_max": 0.1, "bullet_speed": 19.0, "max_fires": 3, "volleys": 6, "volley_gap": 0.76, "spread_deg": 30.0 }],
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "straight",

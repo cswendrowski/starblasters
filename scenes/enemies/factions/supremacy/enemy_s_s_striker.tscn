@@ -47,4 +47,10 @@ position = Vector2(-6, 6)
 [node name="EngineR" type="Marker2D" parent="." unique_id=782628338]
 position = Vector2(6, 6)
 
+[node name="MuzzleR" type="Marker2D" parent="." unique_id=1106643089]
+position = Vector2(2, -3)
+
+[node name="MuzzleL" type="Marker2D" parent="." unique_id=2025265544]
+position = Vector2(-2, -3)
+
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
