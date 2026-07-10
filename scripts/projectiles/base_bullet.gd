@@ -397,13 +397,20 @@ func _fx_parent() -> Node:
 	return p if (p != null and is_instance_valid(p)) else get_tree().root
 
 
+const ImpactCircleFxCls = preload("res://scripts/effects/impact_circle_fx.gd")
+
 func _finish_hit(_target: Node) -> void:
-	# Drop an impact effect at the hit position before the bullet frees, parented
-	# to the bullet's own container so it outlives the queue_free this frame AND
-	# renders in the right space (window-root in combat, SubViewport in hangar).
-	var ImpactFxCls = load("res://scripts/effects/impact_fx.gd")
-	if ImpactFxCls:
-		ImpactFxCls.spawn(_fx_parent(), global_position, impact_color, impact_kind)
+	# Drop an impact effect at the hit position before the bullet frees, parented to the bullet's own
+	# container so it outlives the queue_free this frame AND renders in the right space (window-root in
+	# combat, SubViewport in hangar). The impact_circle burst plays for EVERY bullet hit, rotated to the
+	# bullet's heading + tinted to impact_color (faction muzzle colour for enemies; per-projectile tunable
+	# for the player). EXPLOSIVE warhead rounds ALSO layer the fiery explosion boom under it.
+	var parent: Node = _fx_parent()
+	ImpactCircleFxCls.spawn(parent, global_position, velocity_dir, impact_color)
+	if impact_kind == 1:   # ImpactFx.ImpactKind.EXPLOSIVE — warhead boom under the circle
+		var ImpactFxCls = load("res://scripts/effects/impact_fx.gd")
+		if ImpactFxCls:
+			ImpactFxCls.spawn(parent, global_position, impact_color, impact_kind)
 	_kill()
 
 

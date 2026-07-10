@@ -50,6 +50,10 @@ static func faction_variant(variant, faction: int):
 		if not _skin_cache.has(key):
 			var clone = variant.duplicate()
 			clone.frame = fr
+			# Bullet-impact tint tracks the faction muzzle/glow colour (SSOT: Factions.muzzle_glow_color)
+			# so an enemy's hit flash + sparks match its muzzle flash + bolt colour (Roman 2026-07-09).
+			if "impact_color" in clone:
+				clone.impact_color = FactionsC.muzzle_glow_color(faction)
 			_skin_cache[key] = clone
 		return _skin_cache[key]
 	return variant

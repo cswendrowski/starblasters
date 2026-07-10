@@ -907,7 +907,32 @@ func _load_projectile(idx: int) -> void:
 				_pj_baseline[String(spec["name"])] = _pj_edit_obj.get(String(spec["name"]))
 		_pj_status.text = "%s — scene projectile. Save writes the .tscn." % _pj_path.get_file()
 	if _pj_edit_obj != null:
-		_build_object_form(_pj_form, _pj_edit_obj, _override_fields_for(_pj_side_dd.selected, _pj_kind_dd.selected))
+		var side: int = _pj_side_dd.selected
+		var kind: int = _pj_kind_dd.selected
+		# Dedicated per-player-projectile Impact Color picker (Roman 2026-07-09): tints this bullet's
+		# impact_circle flash + spark burst. Enemy bullets pull their impact tint from the faction muzzle
+		# colour at spawn (BulletCatalog.faction_variant), so the picker is player-bullet-only; skip the
+		# reflected impact_color field so there's exactly one control.
+		var skip := PackedStringArray()
+		if side == Side.PLAYER and kind == Kind.BULLET and "impact_color" in _pj_edit_obj:
+			_add_impact_color_picker(_pj_form, _pj_edit_obj)
+			skip = PackedStringArray(["impact_color"])
+		_build_object_form(_pj_form, _pj_edit_obj, _override_fields_for(side, kind), skip)
+
+
+# Prominent Impact Color picker at the top of the player-bullet projectile settings. Writes impact_color
+# (alpha forced opaque) on the edited scene root; Save persists it into the .tscn, and Fire ▶ live-previews
+# the unsaved colour (see _fire_projectile_preview). The impact_circle FX HDR-boosts the tint so it glows.
+func _add_impact_color_picker(vbox: VBoxContainer, obj: Object) -> void:
+	vbox.add_child(_label("IMPACT COLOR", FS_BODY, UiTheme.COLOR_ACCENT))
+	vbox.add_child(_label("Flash + spark tint for this projectile's hit (HDR — glows).", FS_CAPTION, UiTheme.COLOR_FAINT))
+	var cp := ColorPickerButton.new()
+	cp.custom_minimum_size = Vector2(0, 40)
+	cp.edit_alpha = false
+	cp.color = obj.get("impact_color")
+	cp.color_changed.connect(func(c): obj.set("impact_color", Color(c.r, c.g, c.b, 1.0)))
+	vbox.add_child(cp)
+	vbox.add_child(HSeparator.new())
 
 
 # Fields the firing layer (weapon Part) stamps at spawn, so tuning them on the projectile is inert.
@@ -938,7 +963,7 @@ func _scalar_props(obj: Object) -> Array:
 
 # Reflection form: SpinBox/CheckBox/LineEdit/Color/enum per editable property. `overridden` props
 # get a faint "(set by weapon Part)" tag so a dead tune reads as dead.
-func _build_object_form(vbox: VBoxContainer, obj: Object, overridden: PackedStringArray) -> void:
+func _build_object_form(vbox: VBoxContainer, obj: Object, overridden: PackedStringArray, skip: PackedStringArray = PackedStringArray()) -> void:
 	for prop in obj.get_property_list():
 		var usage: int = int(prop.get("usage", 0))
 		if (usage & PROPERTY_USAGE_SCRIPT_VARIABLE) == 0:
@@ -946,6 +971,8 @@ func _build_object_form(vbox: VBoxContainer, obj: Object, overridden: PackedStri
 		if (usage & PROPERTY_USAGE_STORAGE) == 0:
 			continue
 		var pname: String = String(prop["name"])
+		if pname in skip:
+			continue   # handled by a dedicated editor (e.g. the player Impact Color picker)
 		var ptype: int = int(prop["type"])
 		var hint: int = int(prop.get("hint", 0))
 		var hint_str: String = String(prop.get("hint_string", ""))
@@ -1066,6 +1093,10 @@ func _fire_projectile_preview() -> void:
 		return
 	var b = ps.instantiate()
 	_world.add_child(b)
+	# Live-preview the UNSAVED impact colour so the picker gives instant feedback before a Save (the
+	# preview instance is a fresh on-disk load; copy the edited value over).
+	if _pj_edit_obj != null and "impact_color" in b and "impact_color" in _pj_edit_obj:
+		b.impact_color = _pj_edit_obj.impact_color
 	# Give a visible damage so the dummy flashes / DPS ticks.
 	if "damage" in b and int(b.damage) <= 0:
 		b.damage = 3
