@@ -34,136 +34,143 @@ const BUCKETS := [
 	"player_boon", "economy_pair", "grant",
 ]
 
+# Valid `category` values — the front-end groups the picker into these three columns
+# (enemy behaviour / player loadout+survivability / economy). validate() rejects anything
+# outside this set. NOTE: category is orthogonal to `bucket` and to threat sign — e.g.
+# Slow Enemies is a player_boon but an "enemy" category (it changes enemy behaviour).
+const CATEGORIES := ["enemy", "player", "economy"]
+
 # id → entry. Entry shape:
 #   { "label": String, "blurb": String, "threat": int (signed),
-#     "group": String (mutex group; "" = none), "bucket": String, "mods": Dictionary }
+#     "group": String (mutex group; "" = none), "bucket": String,
+#     "category": String ("enemy"|"player"|"economy"), "mods": Dictionary }
 # Labels/blurbs are the player-facing vocabulary SSOT (names verbatim from the
 # design doc). Economy-pair numbers + grant amounts are first-pass, tuner-bound.
 const CATALOG := {
 	# ── 4a. Enemy banes ──────────────────────────────────────────────────────
 	"armored": {
-		"label": "Armored", "threat": 2, "group": "enemy_toughness", "bucket": "enemy_bane",
+		"label": "Armored", "threat": 2, "group": "enemy_toughness", "bucket": "enemy_bane", "category": "enemy",
 		"blurb": "Elite enemies shrug off a slice of incoming damage.",
 		"mods": {"enemy.dr_floor": 0.10},
 	},
 	"armored_heavies": {
-		"label": "Armored Heavies", "threat": 2, "group": "enemy_toughness", "bucket": "enemy_bane",
+		"label": "Armored Heavies", "threat": 2, "group": "enemy_toughness", "bucket": "enemy_bane", "category": "enemy",
 		"blurb": "Non-chaff enemies have 50% more hull.",
 		"mods": {"enemy.heavy_hp_mult": 1.5},
 	},
 	"shielded": {
-		"label": "Shielded", "threat": 2, "group": "", "bucket": "enemy_bane",
-		"blurb": "Enemies carry an extra shield charge.",
+		"label": "Shielded", "threat": 2, "group": "", "bucket": "enemy_bane", "category": "enemy",
+		"blurb": "Elite enemies carry an extra shield charge.",
 		"mods": {"enemy.shield_bonus": 1},
 	},
 	"trigger_happy": {
-		"label": "Trigger-Happy", "threat": 2, "group": "", "bucket": "enemy_bane",
-		"blurb": "Enemies fire 15% faster.",
+		"label": "Trigger-Happy", "threat": 2, "group": "", "bucket": "enemy_bane", "category": "enemy",
+		"blurb": "Enemies fire faster (−15% between shots).",
 		"mods": {"enemy.fire_interval_mult": 0.85},
 	},
 	"fast_enemies": {
-		"label": "Fast Enemies", "threat": 2, "group": "enemy_speed", "bucket": "enemy_bane",
+		"label": "Fast Enemies", "threat": 2, "group": "enemy_speed", "bucket": "enemy_bane", "category": "enemy",
 		"blurb": "Enemy ships move one speed rung faster.",
 		"mods": {"enemy.rung_delta": 1},
 	},
 	"fast_bullets": {
-		"label": "Fast Bullets", "threat": 2, "group": "bullet_speed", "bucket": "enemy_bane",
+		"label": "Fast Bullets", "threat": 2, "group": "bullet_speed", "bucket": "enemy_bane", "category": "enemy",
 		"blurb": "Enemy fire travels one speed rung faster.",
 		"mods": {"bullet.rung_delta": 1},
 	},
 	"heavy_escort": {
-		"label": "Heavy Escort", "threat": 2, "group": "", "bucket": "enemy_bane",
-		"blurb": "Rare cruisers appear far more often.",
+		"label": "Heavy Escort", "threat": 2, "group": "", "bucket": "enemy_bane", "category": "enemy",
+		"blurb": "Supremacy patrols field rare cruisers far more often.",
 		"mods": {"cruiser.encounter_mult": 2.75},  # tuner-bound
 	},
 
 	# ── 4b. Player-fragility banes ───────────────────────────────────────────
 	"glass_patrol": {
-		"label": "Glass Patrol", "threat": 5, "group": "", "bucket": "fragility_bane",
+		"label": "Glass Patrol", "threat": 5, "group": "", "bucket": "fragility_bane", "category": "player",
 		"blurb": "Any hull damage is instant death. Hull modules are pulled from the pool.",
 		"mods": {"player.glass_hull": true, "pool.block_hull_modules": true},
 	},
 	"heavy_ordnance": {
-		"label": "Heavy Ordnance", "threat": 4, "group": "", "bucket": "fragility_bane",
+		"label": "Heavy Ordnance", "threat": 4, "group": "", "bucket": "fragility_bane", "category": "player",
 		"blurb": "All damage you take counts double.",
 		"mods": {"player.damage_taken_mult": 2.0},
 	},
 	"weak_shields": {
-		"label": "Weak Shields", "threat": 3, "group": "shield_strength", "bucket": "fragility_bane",
+		"label": "Weak Shields", "threat": 3, "group": "shield_strength", "bucket": "fragility_bane", "category": "player",
 		"blurb": "Your shield starts with half its charges.",
 		"mods": {"player.shield_charges_mult": 0.5},
 	},
 	"weak_weapons": {
-		"label": "Weak Weapons", "threat": 3, "group": "weapon_damage", "bucket": "fragility_bane",
+		"label": "Weak Weapons", "threat": 3, "group": "weapon_damage", "bucket": "fragility_bane", "category": "player",
 		"blurb": "Your weapon damage is halved.",
 		"mods": {"player.weapon_damage_mult": 0.5},
 	},
 
 	# ── 4c. Loadout-restriction banes (independent slots — may stack) ─────────
 	"no_primaries": {
-		"label": "No Primaries", "threat": 2, "group": "", "bucket": "loadout_bane",
+		"label": "No Primaries", "threat": 2, "group": "", "bucket": "loadout_bane", "category": "player",
 		"blurb": "No primary cannons roll or drop. Keep your blaster.",
 		"mods": {"pool.block_slots": ["CANNON"]},
 	},
 	"no_secondaries": {
-		"label": "No Secondaries", "threat": 1, "group": "", "bucket": "loadout_bane",
+		"label": "No Secondaries", "threat": 1, "group": "", "bucket": "loadout_bane", "category": "player",
 		"blurb": "No wing secondaries roll or drop.",
 		"mods": {"pool.block_slots": ["HARDPOINT_WING"]},
 	},
 	"no_modules": {
-		"label": "No Modules", "threat": 2, "group": "", "bucket": "loadout_bane",
+		"label": "No Modules", "threat": 2, "group": "", "bucket": "loadout_bane", "category": "player",
 		"blurb": "No modules or shift-modes roll or drop.",
 		"mods": {"pool.block_slots": ["MODULE", "SHIFT_MODE"]},
 	},
 	"no_starting_super": {
-		"label": "No Starting Super", "threat": 1, "group": "", "bucket": "loadout_bane",
+		"label": "No Starting Super", "threat": 1, "group": "", "bucket": "loadout_bane", "category": "player",
 		"blurb": "You start without the smart-bomb super.",
 		"mods": {"start.no_super": true},
 	},
 	"no_starting_mode": {
-		"label": "No Starting Mode", "threat": 1, "group": "", "bucket": "loadout_bane",
+		"label": "No Starting Mode", "threat": 1, "group": "", "bucket": "loadout_bane", "category": "player",
 		"blurb": "You start without a shift-mode.",
 		"mods": {"start.no_mode": true},
 	},
 
 	# ── 4d. Player boons ─────────────────────────────────────────────────────
 	"better_weapons": {
-		"label": "Better Weapons", "threat": -2, "group": "weapon_damage", "bucket": "player_boon",
+		"label": "Better Weapons", "threat": -2, "group": "weapon_damage", "bucket": "player_boon", "category": "player",
 		"blurb": "Your weapon damage is boosted 50%.",
 		"mods": {"player.weapon_damage_mult": 1.5},
 	},
 	"faster_weapons": {
-		"label": "Faster Weapons", "threat": -2, "group": "", "bucket": "player_boon",
+		"label": "Faster Weapons", "threat": -2, "group": "", "bucket": "player_boon", "category": "player",
 		"blurb": "Your rate of fire is boosted 50%.",
 		"mods": {"player.fire_rate_mult": 1.5},
 	},
 	"better_modes": {
-		"label": "Better Modes", "threat": -1, "group": "", "bucket": "player_boon",
+		"label": "Better Modes", "threat": -1, "group": "", "bucket": "player_boon", "category": "player",
 		"blurb": "Shift-modes last 50% longer.",
 		"mods": {"player.mode_duration_mult": 1.5},
 	},
 	"better_hull": {
-		"label": "Better Hull", "threat": -2, "group": "", "bucket": "player_boon",
+		"label": "Better Hull", "threat": -2, "group": "", "bucket": "player_boon", "category": "player",
 		"blurb": "Start with +3 hull pips.",
 		"mods": {"player.hull_bonus": 3},
 	},
 	"better_shields": {
-		"label": "Better Shields", "threat": -2, "group": "shield_strength", "bucket": "player_boon",
+		"label": "Better Shields", "threat": -2, "group": "shield_strength", "bucket": "player_boon", "category": "player",
 		"blurb": "Shields recharge sooner and faster.",
 		"mods": {"player.shield_regen_delay_mult": 0.6, "player.shield_regen_rate_mult": 1.5},
 	},
 	"more_ammo": {
-		"label": "More Ammo", "threat": -1, "group": "", "bucket": "player_boon",
+		"label": "More Ammo", "threat": -1, "group": "", "bucket": "player_boon", "category": "player",
 		"blurb": "All ammo capacities are boosted 50%.",
 		"mods": {"player.ammo_max_mult": 1.5},
 	},
 	"slow_enemies": {
-		"label": "Slow Enemies", "threat": -2, "group": "enemy_speed", "bucket": "player_boon",
+		"label": "Slow Enemies", "threat": -2, "group": "enemy_speed", "bucket": "player_boon", "category": "enemy",
 		"blurb": "Enemy ships move one speed rung slower.",
 		"mods": {"enemy.rung_delta": -1},
 	},
 	"slow_bullets": {
-		"label": "Slow Bullets", "threat": -2, "group": "bullet_speed", "bucket": "player_boon",
+		"label": "Slow Bullets", "threat": -2, "group": "bullet_speed", "bucket": "player_boon", "category": "enemy",
 		"blurb": "Enemy fire travels one speed rung slower.",
 		"mods": {"bullet.rung_delta": -1},
 	},
@@ -171,74 +178,74 @@ const CATALOG := {
 	# ── 4e. Economy pairs (inverse boon ↔ bane, mutex by group) ───────────────
 	# All economy numbers below are first-pass — tuner-bound (economy-sim §5).
 	"galactic_tariffs": {
-		"label": "Galactic Tariffs", "threat": 1, "group": "econ_buy_prices", "bucket": "economy_pair",
+		"label": "Galactic Tariffs", "threat": 1, "group": "econ_buy_prices", "bucket": "economy_pair", "category": "economy",
 		"blurb": "All outpost prices are 20% higher.",
 		"mods": {"econ.shop_price_mult": 1.2},
 	},
 	"buyers_market": {
-		"label": "Buyer's Market", "threat": -1, "group": "econ_buy_prices", "bucket": "economy_pair",
+		"label": "Buyer's Market", "threat": -1, "group": "econ_buy_prices", "bucket": "economy_pair", "category": "economy",
 		"blurb": "All outpost prices are 20% lower.",
 		"mods": {"econ.shop_price_mult": 0.8},
 	},
 	"market_scarcity": {
-		"label": "Market Scarcity", "threat": 1, "group": "econ_stock", "bucket": "economy_pair",
+		"label": "Market Scarcity", "threat": 1, "group": "econ_stock", "bucket": "economy_pair", "category": "economy",
 		"blurb": "Outposts stock fewer offers.",
 		"mods": {"econ.stock_delta": -1},
 	},
 	"market_surplus": {
-		"label": "Market Surplus", "threat": -1, "group": "econ_stock", "bucket": "economy_pair",
+		"label": "Market Surplus", "threat": -1, "group": "econ_stock", "bucket": "economy_pair", "category": "economy",
 		"blurb": "Outposts stock more offers.",
 		"mods": {"econ.stock_delta": 1},
 	},
 	"shoddy_imports": {
-		"label": "Shoddy Imports", "threat": 1, "group": "econ_mk_quality", "bucket": "economy_pair",
+		"label": "Shoddy Imports", "threat": 1, "group": "econ_mk_quality", "bucket": "economy_pair", "category": "economy",
 		"blurb": "Outpost gear rolls at lower Mk quality.",
 		"mods": {"econ.mk_bias": -1},
 	},
 	"quality_goods": {
-		"label": "Quality Goods", "threat": -1, "group": "econ_mk_quality", "bucket": "economy_pair",
+		"label": "Quality Goods", "threat": -1, "group": "econ_mk_quality", "bucket": "economy_pair", "category": "economy",
 		"blurb": "Outpost gear rolls at higher Mk quality.",
 		"mods": {"econ.mk_bias": 1},
 	},
 	"complex_upgrades": {
-		"label": "Complex Upgrades", "threat": 1, "group": "econ_upgrade_mats", "bucket": "economy_pair",
+		"label": "Complex Upgrades", "threat": 1, "group": "econ_upgrade_mats", "bucket": "economy_pair", "category": "economy",
 		"blurb": "Upgrades cost more materials.",
 		"mods": {"econ.upgrade_mat_mult": 1.5},
 	},
 	"cheap_upgrades": {
-		"label": "Cheap Upgrades", "threat": -1, "group": "econ_upgrade_mats", "bucket": "economy_pair",
+		"label": "Cheap Upgrades", "threat": -1, "group": "econ_upgrade_mats", "bucket": "economy_pair", "category": "economy",
 		"blurb": "Upgrades cost materials only.",
 		"mods": {"econ.upgrade_no_bounty": true},
 	},
 	"costly_upgrades": {
-		"label": "Costly Upgrades", "threat": 1, "group": "econ_upgrade_bounty", "bucket": "economy_pair",
+		"label": "Costly Upgrades", "threat": 1, "group": "econ_upgrade_bounty", "bucket": "economy_pair", "category": "economy",
 		"blurb": "Upgrades cost more bounty.",
 		"mods": {"econ.upgrade_bounty_mult": 1.5},
 	},
 	"easy_upgrades": {
-		"label": "Easy Upgrades", "threat": -1, "group": "econ_upgrade_bounty", "bucket": "economy_pair",
+		"label": "Easy Upgrades", "threat": -1, "group": "econ_upgrade_bounty", "bucket": "economy_pair", "category": "economy",
 		"blurb": "Upgrades cost bounty only.",
 		"mods": {"econ.upgrade_no_mats": true},
 	},
 	"complex_repairs": {
-		"label": "Complex Repairs", "threat": 1, "group": "econ_repair_mats", "bucket": "economy_pair",
+		"label": "Complex Repairs", "threat": 1, "group": "econ_repair_mats", "bucket": "economy_pair", "category": "economy",
 		"blurb": "Repairs also cost 1 material.",
 		# Repairs cost no material at baseline (design §8), so a ×mult would be a no-op
 		# ×0 — model the "adds material" bane as a flat material delta instead.
 		"mods": {"econ.repair_mat_delta": 1},
 	},
 	"cheap_repairs": {
-		"label": "Cheap Repairs", "threat": -1, "group": "econ_repair_mats", "bucket": "economy_pair",
+		"label": "Cheap Repairs", "threat": -1, "group": "econ_repair_mats", "bucket": "economy_pair", "category": "economy",
 		"blurb": "Repairs cost 2 materials instead of bounty.",
 		"mods": {"econ.repair_no_bounty": true, "econ.repair_mat_delta": 2},
 	},
 	"costly_repairs": {
-		"label": "Costly Repairs", "threat": 1, "group": "econ_repair_bounty", "bucket": "economy_pair",
+		"label": "Costly Repairs", "threat": 1, "group": "econ_repair_bounty", "bucket": "economy_pair", "category": "economy",
 		"blurb": "Repairs cost more bounty.",
 		"mods": {"econ.repair_cost_mult": 1.5},
 	},
 	"easy_repairs": {
-		"label": "Easy Repairs", "threat": -1, "group": "econ_repair_bounty", "bucket": "economy_pair",
+		"label": "Easy Repairs", "threat": -1, "group": "econ_repair_bounty", "bucket": "economy_pair", "category": "economy",
 		"blurb": "Repairs cost bounty only.",
 		# Baseline repairs already cost no material, so repair_no_mats is baseline-
 		# equivalent until a baseline repair-material cost lands (design §8). Kept so
@@ -246,40 +253,40 @@ const CATALOG := {
 		"mods": {"econ.repair_no_mats": true},
 	},
 	"costly_restock": {
-		"label": "Costly Restock", "threat": 1, "group": "econ_restock", "bucket": "economy_pair",
+		"label": "Costly Restock", "threat": 1, "group": "econ_restock", "bucket": "economy_pair", "category": "economy",
 		"blurb": "Ammo and super restocks cost 50% more.",
 		"mods": {"econ.restock_cost_mult": 1.5},
 	},
 	"cheap_restock": {
-		"label": "Cheap Restock", "threat": -1, "group": "econ_restock", "bucket": "economy_pair",
+		"label": "Cheap Restock", "threat": -1, "group": "econ_restock", "bucket": "economy_pair", "category": "economy",
 		"blurb": "Ammo and super restocks cost 30% less.",
 		"mods": {"econ.restock_cost_mult": 0.7},
 	},
 
 	# ── 4f. Economy grants (bounty / material boons; flat effects) ────────────
 	"salvage_rights": {
-		"label": "Salvage Rights", "threat": -2, "group": "", "bucket": "grant",
+		"label": "Salvage Rights", "threat": -2, "group": "", "bucket": "grant", "category": "economy",
 		"blurb": "Every combat clear grants materials; bosses grant more.",
 		"mods": {"grant.level_clear_materials": 1, "grant.boss_clear_materials": 3},  # tuner-bound
 	},
 	"hazard_pay": {
-		"label": "Hazard Pay", "threat": -2, "group": "", "bucket": "grant",
+		"label": "Hazard Pay", "threat": -2, "group": "", "bucket": "grant", "category": "economy",
 		"blurb": "Clearing any combat node pays +100 bounty.",
 		"mods": {"grant.node_clear_bounty": 100},  # tuner-bound
 	},
 	"starting_funds": {
-		"label": "Starting Funds", "threat": -1, "group": "", "bucket": "grant",
+		"label": "Starting Funds", "threat": -1, "group": "", "bucket": "grant", "category": "economy",
 		"blurb": "Begin the patrol with 500 bounty.",
 		"mods": {"grant.start_bounty": 500},  # tuner-bound
 	},
 	"mining_contract": {
-		"label": "Mining Contract", "threat": -1, "group": "", "bucket": "grant",
+		"label": "Mining Contract", "threat": -1, "group": "", "bucket": "grant", "category": "economy",
 		"blurb": "Asteroids are worth 5 bounty each.",
 		"mods": {"grant.asteroid_bounty": 5},  # tuner-bound
 	},
 	"ordnance_disposal": {
-		"label": "Ordnance Disposal", "threat": -1, "group": "", "bucket": "grant",
-		"blurb": "Mines are worth 5 bounty each.",
+		"label": "Ordnance Disposal", "threat": -1, "group": "", "bucket": "grant", "category": "economy",
+		"blurb": "Mines pay +5 bounty each.",
 		"mods": {"grant.mine_bounty": 5},  # tuner-bound
 	},
 }
@@ -467,6 +474,12 @@ static func bucket(id: String) -> String:
 	return String(_entry(id).get("bucket", ""))
 
 
+# Picker category of `id` ("enemy"|"player"|"economy") — the front-end groups the
+# customize picker into these three columns. (Orthogonal to bucket + threat sign.)
+static func category_of(id: String) -> String:
+	return String(_entry(id).get("category", ""))
+
+
 # Mutex group of `id` ("" = ungrouped/stackable). Front-ends read this to
 # live-enforce "one per group" on a curated pick.
 static func group_of(id: String) -> String:
@@ -478,7 +491,7 @@ static func group_of(id: String) -> String:
 static func validate() -> Array:
 	var problems: Array = []
 	var seen_labels: Dictionary = {}
-	var required := ["label", "blurb", "threat", "group", "bucket", "mods"]
+	var required := ["label", "blurb", "threat", "group", "bucket", "category", "mods"]
 	for id in CATALOG.keys():
 		var entry: Dictionary = CATALOG[id]
 		for field in required:
@@ -486,6 +499,8 @@ static func validate() -> Array:
 				problems.append("'%s' missing field '%s'" % [id, field])
 		if entry.has("bucket") and not BUCKETS.has(entry["bucket"]):
 			problems.append("'%s' has unknown bucket '%s'" % [id, String(entry["bucket"])])
+		if entry.has("category") and not CATEGORIES.has(entry["category"]):
+			problems.append("'%s' has unknown category '%s'" % [id, String(entry["category"])])
 		if entry.has("mods") and not (entry["mods"] is Dictionary):
 			problems.append("'%s' mods is not a Dictionary" % id)
 		if entry.has("label"):

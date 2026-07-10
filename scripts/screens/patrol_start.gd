@@ -1024,9 +1024,10 @@ func _make_toggle(text: String, initial: bool, on_change: Callable) -> CheckButt
 # ---- Customize Patrol overlay (full-screen Conditions picker) -------------
 # Clicking "Customize Patrol" on the settings panel fades the background to black
 # and slide-expands a full-screen overlay out of the right-hand panel. The overlay
-# holds a hovered-condition DETAIL panel (left) + paired BANES/BOONS pick columns,
-# a controls row (Reset / Random / Bad-Good steppers / Blind), and a Confirm button
-# that shrinks it back. Esc == Confirm. Begin Patrol (the normal button) is unchanged.
+# holds a hovered-condition DETAIL panel (left) + three category groups (ENEMY | PLAYER
+# | ECONOMY), each its own paired BANES/BOONS pick columns (six columns, no vertical
+# scroll), a controls row (Reset / Random / Bad-Good steppers / Blind), and a Confirm
+# button that shrinks it back. Esc == Confirm. Begin Patrol (the normal button) is unchanged.
 
 func _open_customize() -> void:
 	if _cust_busy or _cust_open:
@@ -1157,26 +1158,27 @@ func _build_customize_content(root: VBoxContainer) -> void:
 	root.add_child(_cust_blind_caption)
 	root.add_child(HSeparator.new())
 
-	# Body — detail panel (left) + BANES/BOONS columns (right).
+	# Body — detail panel (left) + three category groups (ENEMY | PLAYER | ECONOMY), each its own
+	# bane|boon column pair (six columns total). The horizontal spread lets every condition sit
+	# visible at once — no vertical scroll (the tallest column is ~13 rows, which fits the full-screen
+	# HD overlay). No ScrollContainer: the design goal is everything on screen (see design doc).
 	var body := HBoxContainer.new()
 	body.add_theme_constant_override("separation", 24)
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_child(body)
 	body.add_child(_build_detail_panel())
 	body.add_child(VSeparator.new())
-	var cols_scroll := ScrollContainer.new()
-	cols_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	cols_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	cols_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_child(cols_scroll)
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 32)
-	grid.add_theme_constant_override("v_separation", 4)
-	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	cols_scroll.add_child(grid)
-	_cust_columns_box = grid
-	_build_condition_grid(grid)
+	# The three category groups share the remaining width equally. Dimming this HBox (Blind) dims all
+	# three at once, so it's the single node _apply_blind_state fades.
+	var groups := HBoxContainer.new()
+	groups.add_theme_constant_override("separation", 20)
+	groups.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	groups.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.add_child(groups)
+	_cust_columns_box = groups
+	groups.add_child(_build_category_group("ENEMY", "enemy"))
+	groups.add_child(_build_category_group("PLAYER", "player"))
+	groups.add_child(_build_category_group("ECONOMY", "economy"))
 
 	root.add_child(HSeparator.new())
 	# Confirm — saves + shrinks the overlay back.
@@ -1230,29 +1232,59 @@ func _show_detail(id: String) -> void:
 	_cust_detail_blurb.text = Conditions.blurb(id)
 
 
-# Build the paired BANES | BOONS grid. Pairing is programmatic via group_of/
-# threat_of — a mutex group with one bane + one boon becomes one aligned grid row;
-# a group with two same-sign members stacks (one per row, opposite cell empty);
-# ungrouped singles fill below in catalog order on their sign's side.
-func _build_condition_grid(grid: GridContainer) -> void:
+# One category group: a header pill + its own 2-column bane|boon grid. Three of these
+# sit side by side (ENEMY | PLAYER | ECONOMY) so the whole vocabulary is visible without
+# vertical scroll. Each group filters the CATALOG to its `category` (Conditions.category_of).
+func _build_category_group(header_text: String, category: String) -> Control:
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 4)
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.size_flags_vertical = Control.SIZE_FILL
+	var hdr := _label(header_text, UiTheme.LabelKind.SLOT_PILL)
+	hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(hdr)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 16)
+	grid.add_theme_constant_override("v_separation", 4)
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.add_child(grid)
+	_build_condition_grid(grid, category)
+	return v
+
+
+# Build one category's paired BANES | BOONS grid. Pairing is programmatic via group_of/
+# threat_of, over just the ids in `category` (Conditions.category_of) — a mutex group with
+# one bane + one boon becomes one aligned grid row; a group with two same-sign members stacks
+# (one per row, opposite cell empty); ungrouped singles fill below in catalog order on their
+# sign's side. (Cross-category mutex pairs — e.g. Fast Enemies here vs a same-group boon in
+# another column — stay mutex-enforced live in _on_overlay_toggled, which reads group_of
+# globally; within a column they simply render as singles.)
+func _build_condition_grid(grid: GridContainer, category: String) -> void:
 	grid.add_child(_column_header("BANES", UiTheme.COLOR_DANGER))
 	grid.add_child(_column_header("BOONS", COLOR_BOON))
 	var rows: Array = []            # each = {"bane": id|"", "boon": id|""}
 	var seen: Dictionary = {}
 	# First: grouped members, in first-encounter (catalog) order.
 	for id in Conditions.CATALOG.keys():
-		var grp := Conditions.group_of(String(id))
-		if grp == "" or seen.has(id):
+		var sid := String(id)
+		if Conditions.category_of(sid) != category:
+			continue
+		var grp := Conditions.group_of(sid)
+		if grp == "" or seen.has(sid):
 			continue
 		var banes: Array = []
 		var boons: Array = []
 		for other in Conditions.CATALOG.keys():
-			if Conditions.group_of(String(other)) == grp:
-				seen[other] = true
-				if Conditions.threat_of(String(other)) > 0:
-					banes.append(String(other))
+			var soid := String(other)
+			if Conditions.category_of(soid) != category:
+				continue
+			if Conditions.group_of(soid) == grp:
+				seen[soid] = true
+				if Conditions.threat_of(soid) > 0:
+					banes.append(soid)
 				else:
-					boons.append(String(other))
+					boons.append(soid)
 		var n: int = maxi(banes.size(), boons.size())
 		for i in n:
 			rows.append({
@@ -1262,6 +1294,8 @@ func _build_condition_grid(grid: GridContainer) -> void:
 	# Then: ungrouped singles, catalog order, on their sign's side.
 	for id in Conditions.CATALOG.keys():
 		var sid := String(id)
+		if Conditions.category_of(sid) != category:
+			continue
 		if Conditions.group_of(sid) != "":
 			continue
 		if Conditions.threat_of(sid) > 0:
@@ -1296,6 +1330,9 @@ func _make_cond_cell(id: String) -> Control:
 	cb.add_theme_constant_override("h_separation", 0)   # trim the box footprint (no text)
 	cb.custom_minimum_size = Vector2(30, 0)
 	cb.toggled.connect(_on_overlay_toggled.bind(id))
+	# The CheckBox swallows mouse_entered on itself, so hover it directly too (the label passes
+	# through to the row via MOUSE_FILTER_IGNORE) — the WHOLE row drives the detail panel.
+	cb.mouse_entered.connect(_show_detail.bind(id))
 	row.add_child(cb)
 	_cond_checks[id] = cb
 	var name_lbl := _label(Conditions.label(id), UiTheme.LabelKind.BODY)
