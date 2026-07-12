@@ -119,6 +119,40 @@ func _run() -> void:
 	if int(run.cond_sum("grant.asteroid_bounty")) != 5:
 		lines.append("FAIL grant.asteroid_bounty sum"); fails += 1
 
+	# 6. Repair cost model (design §8, Roman 2026-07-11) — baseline is now bounty + 1
+	#    material, and all four repair conditions share ONE mutex group. Outpost cost
+	#    funcs need a live scene, so assert at the CATALOG + Run-cond surface the outpost
+	#    reads. Baseline mats = REPAIR_BASE_MATERIALS(1) + cond_sum(repair_mat_delta),
+	#    zeroed by the repair_no_mats flag.
+	const REPAIR_BASE_MATERIALS := 1
+	for rid in ["complex_repairs", "cheap_repairs", "costly_repairs", "easy_repairs"]:
+		if String(Conditions.group_of(rid)) != "econ_repair":
+			lines.append("FAIL %s not in merged 'econ_repair' group (got '%s')" % [rid, Conditions.group_of(rid)]); fails += 1
+	# cheap_repairs: mat_delta now 1 (baseline 1 + 1 = 2 total), no bounty.
+	if int(Conditions.CATALOG["cheap_repairs"]["mods"]["econ.repair_mat_delta"]) != 1:
+		lines.append("FAIL cheap_repairs mat_delta should be 1 (baseline+1=2 total)"); fails += 1
+	if not bool(Conditions.CATALOG["cheap_repairs"]["mods"].get("econ.repair_no_bounty", false)):
+		lines.append("FAIL cheap_repairs should zero bounty"); fails += 1
+	# Run-cond surface the outpost reads for each active repair condition.
+	run.new_run()  # no conditions → baseline mats = 1, full bounty.
+	var base_mats: int = REPAIR_BASE_MATERIALS + (0 if run.cond_flag("econ.repair_no_mats") else int(run.cond_sum("econ.repair_mat_delta")))
+	if base_mats != 1:
+		lines.append("FAIL baseline repair mats should be 1, got %d" % base_mats); fails += 1
+	run.active_conditions = ["cheap_repairs"]  # no bounty, 2 mats
+	var cheap_mats: int = REPAIR_BASE_MATERIALS + int(run.cond_sum("econ.repair_mat_delta"))
+	if not run.cond_flag("econ.repair_no_bounty") or cheap_mats != 2:
+		lines.append("FAIL cheap_repairs run surface (no_bounty=%s mats=%d)" % [str(run.cond_flag("econ.repair_no_bounty")), cheap_mats]); fails += 1
+	run.active_conditions = ["complex_repairs"]  # bounty + 2 mats
+	if REPAIR_BASE_MATERIALS + int(run.cond_sum("econ.repair_mat_delta")) != 2:
+		lines.append("FAIL complex_repairs should total 2 mats"); fails += 1
+	run.active_conditions = ["costly_repairs"]  # bounty ×1.5 + baseline 1 mat
+	if not is_equal_approx(run.cond_scalar("econ.repair_cost_mult"), 1.5) or REPAIR_BASE_MATERIALS + int(run.cond_sum("econ.repair_mat_delta")) != 1:
+		lines.append("FAIL costly_repairs should be 1.5x bounty + 1 mat"); fails += 1
+	run.active_conditions = ["easy_repairs"]  # bounty only, no mats
+	if not run.cond_flag("econ.repair_no_mats"):
+		lines.append("FAIL easy_repairs should strip materials (repair_no_mats)"); fails += 1
+	lines.append("repair model: baseline 1 mat; cheap=2/no-bounty, complex=2, costly=1.5x+1, easy=0-mat")
+
 	run.new_run()  # leave Run clean
 	lines.append("CONDITIONS_ECONOMY: " + ("PASS" if fails == 0 else "FAIL (%d)" % fails))
 	for l in lines:

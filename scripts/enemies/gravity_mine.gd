@@ -1,4 +1,4 @@
-extends "res://scripts/enemies/enemy_core.gd"
+extends "res://scripts/enemies/mine_base.gd"
 
 # Gravity Mine (Roman 2026-06-09) — drifts down like any mine, ringed by 4/6/8 real Bomblets slowly
 # orbiting it (CW or CCW). The bomblets are hittable + killable on their own; on the mine's death (or
@@ -24,18 +24,8 @@ const OrbitComponentC = preload("res://scripts/enemies/components/orbit_componen
 
 func _ready() -> void:
 	max_health = hull_hp
-	is_hazard = true
 	bounty_value = 0
-	# Ordnance Disposal Condition (grant.mine_bounty) + events (mine_bonus_bounty)
-	# both raise per-mine bounty; additive so they STACK (design §4f). Mirror of the
-	# asteroid_bonus_bounty path in asteroid.gd.
-	if has_node("/root/Run"):
-		var _run = get_node("/root/Run")
-		bounty_value += int(_run.mine_bonus_bounty) + int(_run.cond_sum("grant.mine_bounty"))
-	display_scale = 1.0
-	auto_rotate = false
-	has_ship_vfx = false
-	recycle_passes = 0
+	# Shared hazard flags + Ordnance-Disposal bounty bonus land in mine_base.super._ready() (below).
 	if has_node("Sprite2D"):
 		$Sprite2D.frame = 0
 	# Descent = chassis move_speed (StraightDown reads it). Seed from the authored drift_speed when

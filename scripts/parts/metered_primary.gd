@@ -33,13 +33,20 @@ func _apply_visuals(ship) -> void:
 	if "ammo_recharge_rate" in ship:
 		ship.ammo_recharge_rate = ammo_recharge_rate
 	if "ammo_max" in ship:
-		# Sector Conditions — More Ammo scales the ship's live magazine CAP so it
-		# matches the scaled current (run-side seeds part.current_ammo the same
-		# way; without this the unscaled base_ammo cap caused a current>max transient).
-		var cap: int = base_ammo
-		if base_ammo > 0 and ship.has_node("/root/Run"):
-			cap = maxi(1, roundi(base_ammo * ship.get_node("/root/Run").cond_scalar("player.ammo_max_mult")))
-		ship.ammo_max = cap
+		# Prefer the Part's OWN ammo_max: run_state stamps it from ammo_at_mark(mark) at equip/reseed
+		# (run_state._cond_ammo_cap) so it's ALREADY Condition-scaled AND tracks the mark curve. For a
+		# compound-magazine weapon (Minigun/Machinegun: Mk1=1000 … Mk9≈4300) the flat `base_ammo` export
+		# only equals the Mk1 magazine, so using it capped the CAP below the mark-scaled current_ammo —
+		# a persistent current>max mismatch. Use ammo_max verbatim; do NOT rescale it (it's pre-scaled —
+		# a second cond_scalar would double-count More Ammo). Fall back to the scaled base_ammo curve only
+		# when ammo_max is uninitialized (-1) — a dev/headless equip before run_state seeded the Part.
+		if ammo_max > 0:
+			ship.ammo_max = ammo_max
+		else:
+			var cap: int = base_ammo
+			if base_ammo > 0 and ship.has_node("/root/Run"):
+				cap = maxi(1, roundi(base_ammo * ship.get_node("/root/Run").cond_scalar("player.ammo_max_mult")))
+			ship.ammo_max = cap
 	# Seed ammo from the Part's own current_ammo (Weapons Phase 1: each
 	# non-blaster primary owns its magazine on the cannon_pool entry). Fall
 	# back to Run.ammo for pre-Phase-1 saves or first-equip cases where

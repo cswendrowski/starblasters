@@ -17,6 +17,9 @@ extends "res://scripts/enemies/enemy_base.gd"
 #   F2 = active (during ACTIVE / beam phase).
 
 const GravityGlow = preload("res://scripts/effects/gravity_glow.gd")
+# Tether stays on enemy_base (bespoke pull/beam; must NOT gain enemy_core's drop-shadow), so it can't
+# extend mine_base — but it reuses the shared Ordnance-Disposal bounty math via the static helper.
+const MineBase = preload("res://scripts/enemies/mine_base.gd")
 
 # DORMANT is the non-boss minefield variant's resting phase (drift down, glow off) until the player
 # crosses into tether_range; then it fades its glow in and grabs (ARRIVING -> ACTIVE). The boss
@@ -68,12 +71,9 @@ func _ready() -> void:
 	max_health = 4 if non_boss else 6   # non-boss matches the Armored Mine
 	is_hazard = true
 	bounty_value = 0
-	# Ordnance Disposal Condition (grant.mine_bounty) + events (mine_bonus_bounty)
-	# both raise per-mine bounty; additive so they STACK (design §4f). Mirror of the
-	# asteroid_bonus_bounty path in asteroid.gd.
-	if has_node("/root/Run"):
-		var _run = get_node("/root/Run")
-		bounty_value += int(_run.mine_bonus_bounty) + int(_run.cond_sum("grant.mine_bounty"))
+	# Ordnance Disposal Condition (grant.mine_bounty) + events (mine_bonus_bounty) both raise per-mine
+	# bounty; additive so they STACK (design §4f). Shared with the field mines via mine_base.
+	MineBase.apply_mine_bounty_bonus(self)
 	display_scale = 1.0
 	auto_rotate = false
 	has_ship_vfx = false  # no ground shadow / damage-overlay — mines explode, not fray

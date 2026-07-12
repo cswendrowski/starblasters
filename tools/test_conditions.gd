@@ -122,6 +122,22 @@ func _run() -> void:
 	if small.size() != 5:
 		lines.append("FAIL roll(5) returned %d ids" % small.size()); fails += 1
 
+	# 4b. Merged econ_repair mutex — all four repair conditions share ONE group now
+	#     (Roman 2026-07-11), so mutex_ok must reject any second repair condition once
+	#     one is active. This kills the old cheap+easy free-repair stack.
+	var repair_ids := ["complex_repairs", "cheap_repairs", "costly_repairs", "easy_repairs"]
+	for rid in repair_ids:
+		if Conditions.group_of(rid) != "econ_repair":
+			lines.append("FAIL %s not in merged 'econ_repair' group (got '%s')" % [rid, Conditions.group_of(rid)]); fails += 1
+	if Conditions.mutex_ok(["cheap_repairs"], "easy_repairs"):
+		lines.append("FAIL mutex_ok let easy_repairs stack on cheap_repairs"); fails += 1
+	if Conditions.mutex_ok(["complex_repairs"], "costly_repairs"):
+		lines.append("FAIL mutex_ok let costly_repairs stack on complex_repairs"); fails += 1
+	# Sanity: an unrelated condition is still allowed alongside a repair pick.
+	if not Conditions.mutex_ok(["cheap_repairs"], "fast_enemies"):
+		lines.append("FAIL mutex_ok wrongly blocked an unrelated condition"); fails += 1
+	lines.append("merged econ_repair mutex: rejects second repair pick, allows unrelated")
+
 	# 5. determinism — roll(5, 1234) twice → identical.
 	var a: Array = Conditions.roll(5, 1234)
 	var b: Array = Conditions.roll(5, 1234)

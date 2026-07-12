@@ -1,4 +1,4 @@
-extends "res://scripts/enemies/enemy_core.gd"
+extends "res://scripts/enemies/mine_base.gd"
 
 # Basic mine (Roman 2026-05-18; on-lane migration 2026-06-08). Drifts straight down, explodes on
 # player contact. Now extends enemy_core and moves via the shared StraightDown pattern so the
@@ -23,18 +23,9 @@ const LateralDrift = preload("res://scripts/enemies/patterns/lateral_drift.gd")
 
 func _ready() -> void:
 	max_health = hull_hp
-	is_hazard = true
 	bounty_value = 1
-	# Ordnance Disposal Condition (grant.mine_bounty) + events (mine_bonus_bounty)
-	# both raise per-mine bounty; additive so they STACK (design §4f). Mirror of the
-	# asteroid_bonus_bounty path in asteroid.gd.
-	if has_node("/root/Run"):
-		var _run = get_node("/root/Run")
-		bounty_value += int(_run.mine_bonus_bounty) + int(_run.cond_sum("grant.mine_bounty"))
-	display_scale = 1.0
-	auto_rotate = false       # mines don't have a "forward"
-	has_ship_vfx = false      # no engine flame / damage-overlay — mines explode, not fray
-	recycle_passes = 0        # off the bottom = free, never parallax-cycle
+	# Shared hazard flags + Ordnance-Disposal bounty bonus land in mine_base.super._ready() (called
+	# below, AFTER bounty_value is set).
 	# Descent = chassis move_speed (StraightDown/LateralDrift read it). Seed it from the authored
 	# drift_speed when unset so the mine descends at the WRITTEN rate instead of the pattern's 180
 	# fallback; a handed move_speed (bench/director) still wins. (Roman 2026-07-02 speed-source pass,

@@ -1,4 +1,4 @@
-extends "res://scripts/enemies/enemy_core.gd"
+extends "res://scripts/enemies/mine_base.gd"
 
 # Smart Mine (Roman 2026-05-18; on-lane migration 2026-06-08). Drifts straight down (a plain
 # medium descent) until the player comes within range, then transitions and flies relentlessly at
@@ -27,18 +27,8 @@ var _armed: bool = false
 
 func _ready() -> void:
 	max_health = 3
-	is_hazard = true
 	bounty_value = 2
-	# Ordnance Disposal Condition (grant.mine_bounty) + events (mine_bonus_bounty)
-	# both raise per-mine bounty; additive so they STACK (design §4f). Mirror of the
-	# asteroid_bonus_bounty path in asteroid.gd.
-	if has_node("/root/Run"):
-		var _run = get_node("/root/Run")
-		bounty_value += int(_run.mine_bonus_bounty) + int(_run.cond_sum("grant.mine_bounty"))
-	display_scale = 1.0
-	auto_rotate = false
-	has_ship_vfx = false
-	recycle_passes = 0
+	# Shared hazard flags + Ordnance-Disposal bounty bonus land in mine_base.super._ready() (below).
 	if has_node("Sprite2D"):
 		$Sprite2D.hframes = 4
 		$Sprite2D.frame = 0

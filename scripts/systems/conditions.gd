@@ -227,29 +227,33 @@ const CATALOG := {
 		"blurb": "Upgrades cost bounty only.",
 		"mods": {"econ.upgrade_no_mats": true},
 	},
+	# Repair model (design §8, Roman 2026-07-11): baseline hull repair costs bounty
+	# + 1 material (see outpost REPAIR_BASE_MATERIALS). All four repair conditions
+	# now share ONE mutex group "econ_repair" — only one can ever be active, which
+	# kills the old cheap+easy free-repair stack. Deltas below are relative to the
+	# 1-material baseline.
 	"complex_repairs": {
-		"label": "Complex Repairs", "threat": 1, "group": "econ_repair_mats", "bucket": "economy_pair", "category": "economy",
-		"blurb": "Repairs also cost 1 material.",
-		# Repairs cost no material at baseline (design §8), so a ×mult would be a no-op
-		# ×0 — model the "adds material" bane as a flat material delta instead.
+		"label": "Complex Repairs", "threat": 1, "group": "econ_repair", "bucket": "economy_pair", "category": "economy",
+		"blurb": "Repairs cost an extra material.",
+		# +1 over the baseline 1 material → 2 materials + bounty.
 		"mods": {"econ.repair_mat_delta": 1},
 	},
 	"cheap_repairs": {
-		"label": "Cheap Repairs", "threat": -1, "group": "econ_repair_mats", "bucket": "economy_pair", "category": "economy",
+		"label": "Cheap Repairs", "threat": -1, "group": "econ_repair", "bucket": "economy_pair", "category": "economy",
 		"blurb": "Repairs cost 2 materials instead of bounty.",
-		"mods": {"econ.repair_no_bounty": true, "econ.repair_mat_delta": 2},
+		# No bounty; +1 over the baseline 1 material → 2 materials, no bounty.
+		"mods": {"econ.repair_no_bounty": true, "econ.repair_mat_delta": 1},
 	},
 	"costly_repairs": {
-		"label": "Costly Repairs", "threat": 1, "group": "econ_repair_bounty", "bucket": "economy_pair", "category": "economy",
-		"blurb": "Repairs cost more bounty.",
+		"label": "Costly Repairs", "threat": 1, "group": "econ_repair", "bucket": "economy_pair", "category": "economy",
+		"blurb": "Repairs cost 50% more bounty.",
+		# Bounty ×1.5 (keeps the baseline 1 material).
 		"mods": {"econ.repair_cost_mult": 1.5},
 	},
 	"easy_repairs": {
-		"label": "Easy Repairs", "threat": -1, "group": "econ_repair_bounty", "bucket": "economy_pair", "category": "economy",
+		"label": "Easy Repairs", "threat": -1, "group": "econ_repair", "bucket": "economy_pair", "category": "economy",
 		"blurb": "Repairs cost bounty only.",
-		# Baseline repairs already cost no material, so repair_no_mats is baseline-
-		# equivalent until a baseline repair-material cost lands (design §8). Kept so
-		# the pair is symmetric and future-proof.
+		# Strips the baseline material → bounty only (now a real, meaningful boon).
 		"mods": {"econ.repair_no_mats": true},
 	},
 	"costly_restock": {

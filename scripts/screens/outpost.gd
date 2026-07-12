@@ -32,6 +32,9 @@ const OutpostSfx = preload("res://scripts/effects/outpost_sfx.gd")
 # in the PARTS column. The upgrades shop column was removed; the Run int fields stay for save compat.
 const MAX_MK := 9
 const HULL_REPAIR_COST := 250
+# Repairs now ALWAYS cost a material at baseline (Roman 2026-07-11, design §8) —
+# Cheap/Complex Repairs adjust the count, and Easy Repairs strips it to bounty only.
+const REPAIR_BASE_MATERIALS := 1
 # Ammo refill: cost scales with the number of rounds the player is missing,
 # so a near-empty mag is more expensive than a top-up. COST_PER_ROUND tuned
 # so a full 1000-round MG refill = 500 bounty (still a major expense), a
@@ -390,14 +393,7 @@ func _make_weapon_card(offer: Dictionary) -> Control:
 	v.add_child(desc_lbl)
 
 	# Info "i" button — same part/mark codex as the loadout cards.
-	var info_btn := Button.new()
-	info_btn.text = Strings.OUTPOST_INFO
-	info_btn.custom_minimum_size = INFO_BTN_SIZE
-	info_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	UiTheme.style_button(info_btn)
-	info_btn.add_theme_font_size_override("font_size", FS_BODY)
-	info_btn.pressed.connect(_show_info_popup.bind(part))
-	row.add_child(info_btn)
+	row.add_child(_make_info_button(_show_info_popup.bind(part)))
 
 	# Buy / equipped button (right).
 	var buy_btn := Button.new()
@@ -432,7 +428,7 @@ func _build_services() -> void:
 	tabs.add_theme_constant_override("separation", 8)
 	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_tab_services_btn = Button.new()
-	_tab_services_btn.text = Strings.OUTPOST_COL_SERVICES
+	_tab_services_btn.text = Strings.OUTPOST_TAB_SERVICES
 	_tab_services_btn.custom_minimum_size = Vector2(0, 44)
 	_tab_services_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	UiTheme.style_button(_tab_services_btn)
@@ -440,7 +436,7 @@ func _build_services() -> void:
 	_tab_services_btn.pressed.connect(_on_select_status_tab.bind(false))
 	tabs.add_child(_tab_services_btn)
 	_tab_status_btn = Button.new()
-	_tab_status_btn.text = "STATUS"
+	_tab_status_btn.text = Strings.OUTPOST_TAB_STATUS
 	_tab_status_btn.custom_minimum_size = Vector2(0, 44)
 	_tab_status_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	UiTheme.style_button(_tab_status_btn)
@@ -570,7 +566,7 @@ func _build_status_content() -> void:
 	var net: int = run.condition_net_threat()
 	var threat_lbl := Label.new()
 	# Player-facing rename Threat → Difficulty (payout coupling cut 2026-07-09; no % caption).
-	threat_lbl.text = "DIFFICULTY %+d" % net
+	threat_lbl.text = Strings.OUTPOST_STATUS_DIFFICULTY % net
 	_style_label(threat_lbl, FS_HEADER, Color(0.95, 0.86, 0.45))
 	_status_content.add_child(threat_lbl)
 	_status_content.add_child(HSeparator.new())
@@ -616,29 +612,23 @@ func _add_condition_row(parent: VBoxContainer, id: String) -> void:
 	_style_label(chip, FS_BODY, Color(0.95, 0.72, 0.55) if t > 0 else Color(0.55, 0.95, 0.75))
 	row.add_child(chip)
 
-	# Info toggle — same "i" look as the part cards.
-	var info := Button.new()
-	info.text = Strings.OUTPOST_INFO
-	info.custom_minimum_size = INFO_BTN_SIZE
-	info.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	UiTheme.style_button(info)
-	info.add_theme_font_size_override("font_size", FS_BODY)
-	row.add_child(info)
-	parent.add_child(row)
-
 	# Expanded blurb row — hidden until the "i" is pressed (independent toggle).
+	# Built before the info button so the toggle closure can capture it; added to
+	# the parent AFTER the row so it still renders beneath it (layout unchanged).
 	var blurb := Label.new()
 	blurb.text = Conditions.blurb(id)
 	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	blurb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_style_label(blurb, FS_CAPTION, Color(0.60, 0.68, 0.76))
 	blurb.visible = bool(_status_expanded.get(id, false))
-	parent.add_child(blurb)
 
-	info.pressed.connect(func() -> void:
+	# Info toggle — same "i" look as the part cards.
+	row.add_child(_make_info_button(func() -> void:
 		var now := not blurb.visible
 		blurb.visible = now
-		_status_expanded[id] = now)
+		_status_expanded[id] = now))
+	parent.add_child(row)
+	parent.add_child(blurb)
 
 
 # Builds a Button with a meta tag so _refresh_services() can update its
@@ -654,6 +644,20 @@ func _make_service_button(label_text: String, cost: int, handler: Callable, kind
 	btn.set_meta("cost", cost)
 	btn.pressed.connect(handler.bind(btn))
 	_apply_service_button_state(btn)
+	return btn
+
+
+# The square "i" info button — one builder for all three sites (shop cards, loadout/
+# module cards, STATUS-tab condition rows). Pixel-identical styling; only the pressed
+# target differs, so callers pass the Callable to wire.
+func _make_info_button(on_pressed: Callable) -> Button:
+	var btn := Button.new()
+	btn.text = Strings.OUTPOST_INFO
+	btn.custom_minimum_size = INFO_BTN_SIZE
+	btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	UiTheme.style_button(btn)
+	btn.add_theme_font_size_override("font_size", FS_BODY)
+	btn.pressed.connect(on_pressed)
 	return btn
 
 
@@ -898,14 +902,7 @@ func _make_managed_card(slot_label: String, part, buttons: Array, stats_text: St
 
 	# Info "i" button — opens the part's stat/mark codex (Roman 2026-06-15). Always available.
 	if part != null:
-		var info := Button.new()
-		info.text = Strings.OUTPOST_INFO
-		info.custom_minimum_size = INFO_BTN_SIZE
-		info.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		UiTheme.style_button(info)
-		info.add_theme_font_size_override("font_size", FS_BODY)
-		info.pressed.connect(_show_info_popup.bind(part))
-		row.add_child(info)
+		row.add_child(_make_info_button(_show_info_popup.bind(part)))
 
 	for spec in buttons:
 		if spec.has("badge"):
@@ -1527,16 +1524,16 @@ func _hull_repair_cost() -> int:
 	return base
 
 
-# Material cost of a hull repair. Baseline repairs cost NO material (design §8);
-# Complex/Cheap Repairs add a flat material delta (econ.repair_mat_delta), and the
-# baseline-equivalent Easy Repairs no-mats flag zeroes it.
+# Material cost of a hull repair. Baseline repairs cost REPAIR_BASE_MATERIALS (design
+# §8, Roman 2026-07-11); Complex/Cheap Repairs add a flat material delta on top
+# (econ.repair_mat_delta), and Easy Repairs' no-mats flag strips it to zero.
 func _hull_repair_mats() -> int:
 	if not has_node("/root/Run"):
-		return 0
+		return REPAIR_BASE_MATERIALS
 	var run := get_node("/root/Run")
 	if run.cond_flag("econ.repair_no_mats"):
 		return 0
-	return int(run.cond_sum("econ.repair_mat_delta"))
+	return REPAIR_BASE_MATERIALS + int(run.cond_sum("econ.repair_mat_delta"))
 
 
 func _on_repair(btn: Button) -> void:
@@ -1800,10 +1797,13 @@ func _refresh_services() -> void:
 
 # Per-kind enable/disable + label update. Centralizes the rules so we
 # don't drift between _build_services() and the per-purchase handlers.
+# Only "repair" is ever built (via _make_service_button in _build_services_content).
+# Ammo/super restock moved onto the individual part cards — see the per-card wrappers
+# _on_restock_primary/_secondary/_super wired from _cannon_buttons/_slot_buttons — so
+# the old primary_ammo/secondary_ammo/super arms here were unreachable and were removed.
 func _apply_service_button_state(btn: Button) -> void:
 	var kind: String = String(btn.get_meta("kind"))
 	var base_label: String = String(btn.get_meta("base_label"))
-	var cost: int = int(btn.get_meta("cost"))
 	var run = null
 	if has_node("/root/Run"):
 		run = get_node("/root/Run")
@@ -1829,86 +1829,6 @@ func _apply_service_button_state(btn: Button) -> void:
 				btn.text = "%s  (%d +%dm) ·%d left" % [base_label, repair_cost, repair_mats, int(run.repair_charges)]
 			else:
 				btn.text = "%s  (%d) ·%d left" % [base_label, repair_cost, int(run.repair_charges)]
-		"primary_ammo":
-			# Weapons Phase 1: flat-cost refill on the active replacement
-			# primary. Blaster active → greyed (no ammo to refill). Active
-			# slot not metered or already full → greyed with reason. Cost is
-			# PRIMARY_REFILL_COST unless the cannon declares refill_cost_override.
-			# Cannons with no_outpost_refill (lasers) show as auto-regen.
-			if run == null:
-				btn.disabled = true
-				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_NO_RUN]
-				return
-			var active = run.get_primary_cannon() if run.has_method("get_primary_cannon") else null
-			if active == null or not ("current_ammo" in active) or not ("ammo_max" in active):
-				# No Primary equipped (just the unlimited Blaster) → nothing to refill.
-				btn.disabled = true
-				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_NO_PRIMARY_AMMO]
-				return
-			if "no_outpost_refill" in active and bool(active.no_outpost_refill):
-				btn.disabled = true
-				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_AUTO_REGEN]
-				return
-			var pmax: int = int(active.ammo_max)
-			if pmax <= 0:
-				btn.disabled = true
-				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_NO_PRIMARY_AMMO]
-				return
-			if int(active.current_ammo) >= pmax:
-				btn.disabled = true
-				btn.text = Strings.SERVICE_STATE_AMMO_FULL % base_label
-				return
-			if int(run.ammo_restock_charges) <= 0:
-				btn.disabled = true
-				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SOLD_OUT]
-				return
-			var pcost: int = PRIMARY_REFILL_COST
-			if "refill_cost_override" in active and int(active.refill_cost_override) >= 0:
-				pcost = int(active.refill_cost_override)
-			pcost = _restock_cost(pcost)  # Sector Conditions restock mult (matches spend)
-			btn.disabled = _run_bounty() < pcost
-			btn.text = "%s  %s ·%d left" % [base_label, Strings.SERVICE_SUFFIX_REFILL_COST % pcost, int(run.ammo_restock_charges)]
-		"secondary_ammo":
-			if run == null or int(run.secondary_ammo) < 0 or int(run.secondary_ammo_max) <= 0:
-				btn.disabled = true
-				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_NONE_EQUIPPED]
-				return
-			var smiss: int = int(run.secondary_ammo_max) - int(run.secondary_ammo)
-			if smiss <= 0:
-				btn.disabled = true
-				btn.text = Strings.SERVICE_STATE_AMMO_FULL % base_label
-				return
-			if int(run.ammo_restock_charges) <= 0:
-				btn.disabled = true
-				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SOLD_OUT]
-				return
-			var sfull: int = _ammo_refill_cost(smiss)
-			var saff: Array = _ammo_refill_partial(_run_bounty(), smiss)
-			var saff_rounds: int = int(saff[0])
-			var saff_cost: int = int(saff[1])
-			if saff_rounds <= 0:
-				btn.disabled = true
-				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_NEED % [smiss, sfull]]
-				return
-			btn.disabled = false
-			if saff_rounds < smiss:
-				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_PARTIAL % [saff_rounds, saff_cost]]
-			else:
-				btn.text = "%s  %s" % [base_label, Strings.SERVICE_SUFFIX_AMMO_COST % [saff_rounds, saff_cost]]
-		"super":
-			if run == null or int(run.max_super_charges) <= 0:
-				btn.disabled = true
-				btn.text = Strings.SERVICE_STATE_SUPER_NONE
-				return
-			if int(run.super_charges) >= int(run.max_super_charges):
-				btn.disabled = true
-				btn.text = Strings.SERVICE_STATE_SUPER_FULL
-				return
-			# The super button's meta cost is SUPER_REFILL_COST — apply the restock mult
-			# so display matches the spend in _on_super_refill.
-			var super_cost: int = _restock_cost(cost)
-			btn.disabled = _run_bounty() < super_cost
-			btn.text = "%s  (%d)" % [base_label, super_cost]
 
 
 # ---- Toast ----------------------------------------------------------------

@@ -188,6 +188,11 @@ var _crossfade_layer: CanvasLayer = null
 # decorrelated seed (run_seed ^ salt) — deterministic per run, hidden until in-run.
 const COND_SETUP_PATH := "user://conditions_setup.json"
 const COND_SEED_SALT := 0x51EC7C0D   # decorrelates the Blind roll from sector-gen (matches the legacy salt)
+# First-pass dials for the 0/0 "surprise me" spread — when both steppers sit at 0/0,
+# Random / Blind roll a random count from these (inclusive) ranges instead of a strict
+# no-op. Bad-biased (bad floor ≥ 1) so a surprise roll always has spice.
+const RAND_BAD_RANGE := Vector2i(1, 4)
+const RAND_GOOD_RANGE := Vector2i(0, 3)
 # Boon blue — the game's blue (#4d9fff family; corporate livery). UiTheme.COLOR_ACCENT
 # reads pale/cyan, so a saturated blue keeps a boon NAME legible against the panel.
 const COLOR_BOON := Color(0.30, 0.62, 1.0, 1.0)
@@ -204,6 +209,9 @@ var _cust_open: bool = false
 var _cust_busy: bool = false                # guards the open/close animation
 var _cond_checks: Dictionary = {}           # id -> CheckBox (overlay pick rows)
 var _cust_columns_box: Control = null       # BANES/BOONS grid — dimmed/disabled when Blind
+var _cust_random_btn: Button = null         # disabled + dimmed under Blind (a blind roll ignores it)
+var _bad_stepper_set: Callable = Callable()  # setter to reflect a rolled Bad count in the stepper UI
+var _good_stepper_set: Callable = Callable() # setter to reflect a rolled Good count in the stepper UI
 var _cust_blind_caption: Label = null
 var _cust_summary_lbl: Label = null         # overlay summary line
 var _cust_detail_name: Label = null         # hovered-condition detail panel
@@ -1072,6 +1080,9 @@ func _close_customize() -> void:
 	_cust_panel = null
 	_cond_checks = {}
 	_cust_columns_box = null
+	_cust_random_btn = null
+	_bad_stepper_set = Callable()
+	_good_stepper_set = Callable()
 	_cust_blind_caption = null
 	_cust_summary_lbl = null
 	_cust_detail_name = null
@@ -1139,16 +1150,19 @@ func _build_customize_content(root: VBoxContainer) -> void:
 	var random_btn := UiTheme.make_button("Random", true)
 	random_btn.pressed.connect(_on_cond_random)
 	controls.add_child(random_btn)
+	_cust_random_btn = random_btn
 	controls.add_child(_make_stepper("Bad", _cond_bad, 0, 10, func(v):
 		_cond_bad = v
 		_save_cond_setup()
 		_apply_blind_state()
-		_update_customize_summary()))
+		_update_customize_summary(),
+		func(setter): _bad_stepper_set = setter))
 	controls.add_child(_make_stepper("Good", _cond_good, 0, 10, func(v):
 		_cond_good = v
 		_save_cond_setup()
 		_apply_blind_state()
-		_update_customize_summary()))
+		_update_customize_summary(),
+		func(setter): _good_stepper_set = setter))
 	controls.add_child(_make_toggle("Blind", _cond_blind, _on_blind_toggled))
 	root.add_child(controls)
 
@@ -1378,11 +1392,43 @@ func _on_cond_random() -> void:
 	# Clears previous picks first; re-click = re-roll.
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
+	# 0/0 = "surprise me": roll a random bad/good spread from this same rng, then reflect the
+	# rolled counts in the steppers (visible feedback) before rolling the picks as usual.
+	if _cond_bad <= 0 and _cond_good <= 0:
+		var counts := _roll_surprise_counts(rng)
+		_cond_bad = counts.x
+		_cond_good = counts.y
+		if _bad_stepper_set.is_valid():
+			_bad_stepper_set.call(_cond_bad)
+		if _good_stepper_set.is_valid():
+			_good_stepper_set.call(_cond_good)
 	_cond_picked = _mutex_filter(Conditions.roll_split(_cond_bad, _cond_good, rng.randi()))
 	for id in _cond_checks:
 		(_cond_checks[id] as CheckBox).set_pressed_no_signal(_cond_picked.has(String(id)))
 	_save_cond_setup()
 	_update_customize_summary()
+
+
+# Draw a "surprise me" bad/good count from `rng` for the 0/0 case. Pure over the rng
+# state, so a SEEDED rng (the Blind path) makes this deterministic per run_seed. Bad is
+# drawn before good so both the Random (randomize) and Blind (seeded) paths agree.
+static func _roll_surprise_counts(rng: RandomNumberGenerator) -> Vector2i:
+	var bad := rng.randi_range(RAND_BAD_RANGE.x, RAND_BAD_RANGE.y)
+	var good := rng.randi_range(RAND_GOOD_RANGE.x, RAND_GOOD_RANGE.y)
+	return Vector2i(bad, good)
+
+
+# Resolve a Blind roll into its final Condition list from a decorrelated seed. 0/0 = the
+# "surprise me" case: draw a random bad/good spread from a rng seeded with `seed_value`,
+# then roll the picks with the SAME stream's next draw (rng.randi()) — fully deterministic
+# per run_seed. Any other count pair rolls straight. Pure + static → headless-testable.
+static func _resolve_blind_conditions(bad: int, good: int, seed_value: int) -> Array:
+	if bad <= 0 and good <= 0:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = seed_value
+		var counts := _roll_surprise_counts(rng)
+		return Conditions.roll_split(counts.x, counts.y, rng.randi())
+	return Conditions.roll_split(bad, good, seed_value)
 
 
 func _on_blind_toggled(on: bool) -> void:
@@ -1398,9 +1444,19 @@ func _apply_blind_state() -> void:
 		_cust_columns_box.modulate.a = 0.35 if _cond_blind else 1.0
 		for id in _cond_checks:
 			(_cond_checks[id] as CheckBox).disabled = _cond_blind
+	# Random rolls into the visible picks — meaningless (and misleading) under Blind, which
+	# ignores them and rolls secretly at Begin. Disable + dim it to match the checkboxes.
+	# (Reset stays active: clearing hidden picks is harmless and reads as "clear picks," not
+	# "affect the blind roll," which is count-driven.)
+	if _cust_random_btn != null:
+		_cust_random_btn.disabled = _cond_blind
+		_cust_random_btn.modulate.a = 0.35 if _cond_blind else 1.0
 	if _cust_blind_caption != null:
 		_cust_blind_caption.visible = _cond_blind
-		_cust_blind_caption.text = "Rolled secretly at launch — Bad %d · Good %d" % [_cond_bad, _cond_good]
+		if _cond_bad <= 0 and _cond_good <= 0:
+			_cust_blind_caption.text = "Rolled secretly at launch — random spread"
+		else:
+			_cust_blind_caption.text = "Rolled secretly at launch — Bad %d · Good %d" % [_cond_bad, _cond_good]
 
 
 func _update_customize_summary() -> void:
@@ -1417,7 +1473,9 @@ func _refresh_setup_summary() -> void:
 
 
 # Generic −/value/+ integer stepper (reuses the retired rocker's shape).
-func _make_stepper(caption: String, initial: int, lo: int, hi: int, on_change: Callable) -> VBoxContainer:
+# `register_setter` (optional) is handed a `func(int)` that sets the stepper's value +
+# label programmatically — used to reflect a rolled 0/0 "surprise me" count in the UI.
+func _make_stepper(caption: String, initial: int, lo: int, hi: int, on_change: Callable, register_setter: Callable = Callable()) -> VBoxContainer:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 4)
 	box.add_child(_label(caption, UiTheme.LabelKind.CAPTION))
@@ -1428,6 +1486,10 @@ func _make_stepper(caption: String, initial: int, lo: int, hi: int, on_change: C
 	val_lbl.custom_minimum_size = Vector2(48, 0)
 	val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var cur := {"v": initial}
+	if register_setter.is_valid():
+		register_setter.call(func(nv: int) -> void:
+			cur["v"] = clampi(nv, lo, hi)
+			val_lbl.text = str(cur["v"]))
 	var minus := UiTheme.make_button("−", true)
 	minus.custom_minimum_size = Vector2(48, 0)
 	minus.pressed.connect(func() -> void:
@@ -1451,6 +1513,8 @@ func _make_stepper(caption: String, initial: int, lo: int, hi: int, on_change: C
 # No payout percentages (reward coupling cut 2026-07-09).
 func _cond_summary_text() -> String:
 	if _cond_blind:
+		if _cond_bad <= 0 and _cond_good <= 0:
+			return "Blind · random spread"
 		return "Blind · Bad %d · Good %d" % [_cond_bad, _cond_good]
 	var eff := _mutex_filter(_cond_picked)
 	return "%d picked · Difficulty %+d" % [eff.size(), Conditions.net_threat(eff)]
@@ -1865,6 +1929,10 @@ func _on_ready_pressed() -> void:
 		_ready_ship_instant(_selected_idx)
 		return
 	_busy = true
+	# Gray Begin Patrol out for the whole carry — the pad is in flux until the lifter sets the
+	# incoming hull down (clicks were already _busy-guarded; this makes the state visible).
+	if _begin_btn != null:
+		_begin_btn.disabled = true
 	var incoming := _selected_idx
 	if _status != null:
 		_status.text = "Lifter moving %s to the pad…" % ShipCatalog.display_name(incoming)
@@ -1944,9 +2012,12 @@ func _apply_conditions_for_run(run) -> void:
 	if blind:
 		# Deterministic per-run roll off a DECORRELATED seed (run_seed ^ salt — the
 		# same trick as outpost_name; never consumes the global/sector-gen RNG, so
-		# layouts don't shift). Rolled here, hidden from the player until in-run. A
-		# 0/0 blind roll yields an empty list → strict no-op below.
-		final_list = Conditions.roll_split(_cond_bad, _cond_good, int(run.run_seed) ^ COND_SEED_SALT)
+		# layouts don't shift). Rolled here, hidden from the player until in-run. 0/0 =
+		# the "surprise me" case: a random bad/good spread rolled from the SAME seeded
+		# stream (still deterministic per run_seed). The result is empty → strict no-op
+		# below ONLY if the rolled counts land at 0 (bad floor ≥ 1 makes that impossible
+		# for the 0/0 case; a strict no-op still happens for an all-zero picked list).
+		final_list = _resolve_blind_conditions(_cond_bad, _cond_good, int(run.run_seed) ^ COND_SEED_SALT)
 	else:
 		final_list = _mutex_filter(_cond_picked)   # defensive: heal a stale save
 	if final_list.is_empty():

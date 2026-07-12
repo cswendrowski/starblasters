@@ -10,10 +10,13 @@ const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const ClearedSummaryScene = preload("res://scenes/cleared_summary.tscn")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 
+# Dev/headless-only bounty mirror. When the Run autoload exists it is the SINGLE source of truth
+# (award sites mutate Run.bounty directly; the HUD reads it via _current_bounty()) and this local var
+# is left untouched. Only the no-Run dev/headless path advances it, so a standalone combat scene still
+# scores. (Was a hand-synced mirror of Run.bounty — collapsed 2026-07-11 so the two can't drift.)
 var bounty: int = 0
-# Bounty carry-in from Run at new_game() — subtract from `bounty` at clear
-# to compute what was earned in THIS combat/hazard only. Read by the
-# cleared summary (e.g. asteroid mining miners-thank-you line).
+# Bounty snapshot at new_game() — subtract from the live bounty at clear to compute what was earned in
+# THIS combat/hazard only. Read by the cleared summary (e.g. asteroid mining miners-thank-you line).
 var _bounty_at_combat_start: int = 0
 # Combat screen-space sweeteners (renderer-polish D, 2026-06-11): post-fx band
 # (chromatic aberration + explosion ripple) + the low-hull danger pulse. Created
@@ -380,6 +383,15 @@ func _on_enemy_spawned(scene_path: String, bounty_value: int) -> void:
 	if has_node("/root/Run"):
 		get_node("/root/Run").mark_encountered(scene_path)
 
+# Single source for the HUD bounty read: Run.bounty when the Run autoload exists (every award site —
+# record_kill / award_bounty — mutates Run.bounty directly), else the local dev/headless mirror. This
+# collapses the old hand-synced `bounty` accumulator so Run and the HUD can never drift.
+func _current_bounty() -> int:
+	if has_node("/root/Run"):
+		return int(get_node("/root/Run").bounty)
+	return bounty
+
+
 func _on_enemy_died(value: int, scene_path: String) -> void:
 	# Kill-streak heat for the music — a mild, decaying lift while scoring fast.
 	var music := get_node_or_null("/root/Music")
@@ -396,21 +408,21 @@ func _on_enemy_died(value: int, scene_path: String) -> void:
 				value = int(ceil(float(value) * float(run.get_meta("bounty_type_bonus_mult", 1.0))))
 	if has_node("/root/Run"):
 		var _r = get_node("/root/Run")
-		# record_kill applies the Condition bounty multiplier and returns the awarded
-		# amount — mirror EXACTLY that into the local HUD bounty so the two never drift.
-		bounty += _r.record_kill(value)
+		# record_kill applies the Condition bounty multiplier AND advances Run.bounty (the single
+		# source of truth); the HUD read below picks it up via _current_bounty().
+		_r.record_kill(value)
 		# Run-summary Phase 2: count cleared mines (by scene basename). Precise match
 		# so the privateer "enemy_minelayer" SHIP isn't counted as a mine.
 		var _fn: String = scene_path.get_file()
 		if (_fn.begins_with("enemy_mine") and not _fn.begins_with("enemy_minelayer")) or _fn.begins_with("tether_mine"):
 			_r.stat_add("mines_cleared", 1)
 	else:
-		bounty += value  # no Run autoload (dev/headless) — keep the local mirror moving
+		bounty += value  # no Run autoload (dev/headless) — advance the local dev mirror
 	# Phase Shift mode refills its charges on player-caused kills — this hook fires
 	# only on real deaths (same path as bounty), so off-screen departs don't count.
 	if is_instance_valid(player) and player.has_method("on_enemy_killed"):
 		player.on_enemy_killed()
-	$CanvasLayer/UI.update_score(bounty)
+	$CanvasLayer/UI.update_score(_current_bounty())
 	$Camera2D.add_trauma(0.25)
 	if scene_path != "" and _enemy_stats.has(scene_path):
 		_enemy_stats[scene_path]["killed"] += 1
@@ -468,8 +480,8 @@ func _on_level_cleared() -> void:
 		if not is_boss_node:
 			var node_pay := int(run.cond_sum("grant.node_clear_bounty"))
 			if node_pay > 0:
-				bounty += run.award_bounty(node_pay)
-				$CanvasLayer/UI.update_score(bounty)
+				run.award_bounty(node_pay)   # advances Run.bounty (single source)
+				$CanvasLayer/UI.update_score(_current_bounty())
 		# Salvage Rights: materials floor on clear — level grant on non-boss
 		# clears, the larger boss grant on boss clears (award applies mat_mult).
 		if is_boss_node:
@@ -489,10 +501,10 @@ func _on_level_cleared() -> void:
 		if run.has_meta("asteroid_miners_event"):
 			var miner_payout: int = _asteroids_killed_this_level * 5
 			if miner_payout > 0:
-				# Route through award_bounty (Condition mult + stat tally) and mirror the
-				# awarded amount into the local HUD bounty so the two stay in lockstep.
-				bounty += run.award_bounty(miner_payout)
-				$CanvasLayer/UI.update_score(bounty)
+				# Route through award_bounty (Condition mult + stat tally + Run.bounty advance);
+				# the HUD read picks up the new Run.bounty via _current_bounty().
+				run.award_bounty(miner_payout)
+				$CanvasLayer/UI.update_score(_current_bounty())
 			run.set_meta(
 				"post_combat_banner",
 				"The miners thank you for the help, and transfer your share of credits over. (+%d)" % miner_payout
@@ -501,8 +513,8 @@ func _on_level_cleared() -> void:
 		# Hazard-clear bounty (Roman 2026-06-08): hazard fields (asteroid/minefield)
 		# otherwise pay 0 per-kill bounty — a flat +25 on clear so they're worth running.
 		if run.current_node_type == SectorNode.NodeType.HAZARD:
-			bounty += run.award_bounty(25)
-			$CanvasLayer/UI.update_score(bounty)
+			run.award_bounty(25)   # advances Run.bounty (single source)
+			$CanvasLayer/UI.update_score(_current_bounty())
 			# The "field cleared" note now rides the hazard CLEAR SCREEN (Roman 2026-06-27)
 			# instead of a sector-map banner — the cleared summary reads hazard_clear_note. The
 			# miners event keeps its own sector-map thank-you (planted just above), so there we
@@ -608,10 +620,10 @@ func new_game() -> void:
 	# the standard-combat branch sets it for this level (read per spawn by the director).
 	if has_node("/root/Run"):
 		get_node("/root/Run").set_meta("active_faction", -1)
-	if has_node("/root/Run"):
-		bounty = get_node("/root/Run").bounty
-	_bounty_at_combat_start = bounty
-	$CanvasLayer/UI.update_score(bounty)
+	# Snapshot the combat-start bounty from the live source (Run.bounty when present, else the local
+	# dev mirror just zeroed above) so the cleared-summary delta measures only what THIS combat earned.
+	_bounty_at_combat_start = _current_bounty()
+	$CanvasLayer/UI.update_score(_current_bounty())
 	_ensure_combat_overlays()
 	if player and is_instance_valid(player):
 		player.start()
@@ -1159,14 +1171,14 @@ func _run_outro() -> void:
 	# context lines like the asteroid-mining "miners thank you" message
 	# without re-summing _enemy_stats. Persists via Run meta because the
 	# summary scene is added as a sibling and reads Run on _ready.
-	var combat_bounty_earned: int = max(0, bounty - _bounty_at_combat_start)
+	var combat_bounty_earned: int = max(0, _current_bounty() - _bounty_at_combat_start)
 	if has_node("/root/Run"):
 		get_node("/root/Run").set_meta("last_combat_bounty", combat_bounty_earned)
 	if summary.has_method("populate"):
 		if is_hazard_level:
 			summary.populate({}, 0, true)
 		else:
-			summary.populate(_enemy_stats, bounty, false, was_boss)
+			summary.populate(_enemy_stats, _current_bounty(), false, was_boss)
 
 func _on_start_pressed() -> void:
 	new_game()

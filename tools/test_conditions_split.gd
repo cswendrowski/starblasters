@@ -110,6 +110,41 @@ func _run() -> void:
 		if Conditions.threat_of(id) <= 0:
 			lines.append("FAIL banes-only drew a non-bane"); fails += 1
 
+	# 6. Blind 0/0 "surprise me" determinism — patrol_start._resolve_blind_conditions is a
+	#    pure static helper (seed in → picks out). Same run_seed must yield identical picks,
+	#    the 0/0 case must be NON-empty (bad floor ≥ 1), and a non-0/0 pair must pass straight
+	#    through to roll_split unchanged.
+	var PatrolStart = load("res://scripts/screens/patrol_start.gd")
+	var blind_det_ok := true
+	var blind_nonempty_ok := true
+	for rs in [1, 4242, 99999, -7, 314159]:
+		var seed_v: int = rs ^ 0x51EC7C0D   # mirror COND_SEED_SALT
+		var a: Array = PatrolStart._resolve_blind_conditions(0, 0, seed_v)
+		var b: Array = PatrolStart._resolve_blind_conditions(0, 0, seed_v)
+		if a != b:
+			blind_det_ok = false
+			lines.append("FAIL blind 0/0 non-deterministic at run_seed %d: %s vs %s" % [rs, str(a), str(b)])
+		if a.is_empty():
+			blind_nonempty_ok = false
+			lines.append("FAIL blind 0/0 produced an empty list at run_seed %d" % rs)
+	lines.append("blind 0/0 determinism = %s  nonempty = %s" % [str(blind_det_ok), str(blind_nonempty_ok)])
+	if not blind_det_ok:
+		fails += 1
+	if not blind_nonempty_ok:
+		fails += 1
+	# Non-0/0 blind passes straight to roll_split (same seed → same as a direct roll_split).
+	var passthru_ok := true
+	for rs in [1, 4242, 99999]:
+		var seed_v: int = rs ^ 0x51EC7C0D
+		var via: Array = PatrolStart._resolve_blind_conditions(3, 2, seed_v)
+		var direct: Array = Conditions.roll_split(3, 2, seed_v)
+		if via != direct:
+			passthru_ok = false
+			lines.append("FAIL non-0/0 blind diverged from roll_split at run_seed %d" % rs)
+	lines.append("blind non-0/0 passthrough = %s" % str(passthru_ok))
+	if not passthru_ok:
+		fails += 1
+
 	lines.append("CONDITIONS_SPLIT: " + ("PASS" if fails == 0 else "FAIL(%d)" % fails))
 	for l in lines:
 		print("[test] " + l)
