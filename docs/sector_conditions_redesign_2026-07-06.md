@@ -328,9 +328,10 @@ stream ([run_state.gd:765](../scripts/autoload/run_state.gd)); preserve that.
   damage — weapons fire via several parts/paths. Cleanest: a `Run`-level `player_weapon_damage_mult`
   read where the player bullet's `damage` is set at spawn. Confirm there's a single such site (or add
   one) before building these two.
-- **Repair cost model (blocks the repair pairs).** Repairs cost bounty + a charge, **no material**.
-  Pick: **(a)** add a small baseline material cost so the matrix mirrors upgrades *(recommended)*, or
-  **(b)** define Complex/Cheap Repairs as "adds/swaps" and accept Easy Repairs is near-baseline.
+- **Repair cost model — RESOLVED (Roman 2026-07-11, option a + merge; built same day).** Baseline
+  hull repair costs `REPAIR_BASE_MATERIALS` (1) alongside bounty; Easy Repairs is real (strips the
+  material); all four repair Conditions share ONE mutex group (`econ_repair`), killing the
+  cheap+easy free-repair stack.
 - **Charge economy is a separate axis.** Repair/restock are charge-limited (2d6 +1d6/boss) — a
   different lever than cost. A future Quartermaster (+charges) / Supply Shortage (−charges) pair
   lives there; out of scope for v1.
