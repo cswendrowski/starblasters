@@ -1,17 +1,33 @@
 [gd_scene format=3 uid="uid://bbulwrk000001"]
 
-[ext_resource type="Script" uid="uid://wxt26inqb360" path="res://scripts/enemies/factions/corporate/bulwark.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://c2jua6ov70wm4" path="res://scripts/enemies/enemy_core.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://ij24hdl8uc8l" path="res://graphics/enemies/enemy_c_m_bulwark.png" id="2_citdn"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="3_die"]
+[ext_resource type="Script" uid="uid://x871u1idais4" path="res://scripts/enemies/patterns/drift.gd" id="4_drift"]
+[ext_resource type="Script" uid="uid://d4am35h5bte4f" path="res://scripts/enemies/components/shield_component.gd" id="5_shield"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
 size = Vector2(32, 32)
+
+[sub_resource type="Resource" id="DriftMove"]
+script = ExtResource("4_drift")
+hover_y = 90.0
+
+[sub_resource type="Resource" id="ShieldCharge"]
+script = ExtResource("5_shield")
+capacity = 4
+regen_interval = 6.0
+ring_size = 48.0
 
 [node name="Enemy" type="Area2D" unique_id=466720719 groups=["enemies"]]
 script = ExtResource("1_script")
 max_health = 8
 bounty_value = 75
 faction_shield_exempt = true
+auto_rotate = false
+offscreen_mode = 3
+movement = SubResource("DriftMove")
+components = [SubResource("ShieldCharge")]
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=946770351]
 texture = ExtResource("2_citdn")

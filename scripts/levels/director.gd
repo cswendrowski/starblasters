@@ -38,6 +38,20 @@ const FormationShapes = preload("res://scripts/levels/formation_shapes.gd")
 # Minimum gap between spawns regardless of cap headroom — stops a fast-killing
 # player from machine-gunning fresh spawns (wave §1.2).
 const ANTI_BURST_FLOOR: float = 0.20
+# COHORT CLEAR-GATE (wave-pacing fix, 2026-07-09). Designer intent: "new waves must not come in until
+# the first wave has been MOSTLY cleared — 51% of the wave has left the screen or been destroyed", and
+# the same applies to SUB-WAVES inside a larger wave. Each dispatched phrase (= a sub-wave; a ScoreWave
+# is a run of phrases) is a COHORT; before pouring the next phrase in, we wait until at least this
+# FRACTION of the previous cohort's genuinely-spawned members have RESOLVED (died, left the screen, or
+# recycled). Fixes slow enemies from wave N still descending when wave N+1 poured in on top of them.
+const COHORT_CLEAR_FRACTION: float = 0.51
+# Anti-softlock ceiling (s) on the clear-gate, measured from the moment the cohort finished spawning
+# (≈ gate entry, since the gate opens the instant a phrase's dispatch completes). Some movement patterns
+# LOITER indefinitely and the player may never kill them, so the gate must always release eventually —
+# after this it proceeds regardless, with no warning (this is normal gameplay, not an error). Generous:
+# a slow ~1-rung descender crosses the 270px playfield in ~4.5s, so 13s clears any genuine transit and
+# only true loiterers (hover/orbit patterns) ever hit it.
+const COHORT_CLEAR_TIMEOUT: float = 13.0
 # WALL dispatch (construction §8): a wall arrives as successive ROWS. Each row fills
 # all but WALL_GAP_LANES lanes (the gap shifts row-to-row so the safe lane moves),
 # members within a row spawn on a tight stagger, and WALL_ROW_BEAT pauses between
@@ -110,9 +124,22 @@ var _score: Resource = null   # CombatScore (adapter output)
 # lone un-conducted straggler weaving through formations. Each entry: {"spec": WaveSpec, "passes": int}.
 # Pending credits count as outstanding combatants — the level cannot clear while this is non-empty.
 var _recycle_pool: Array = []
+# Row-interleave state for the recycle trickle (rate-limit rework, 2026-07-09): a row is released at
+# most once per phrase boundary, so these persist ACROSS calls (unlike the sweep dispatch's local
+# counters) — successive released rows shift their lane set instead of stacking a repeated column.
+var _recycle_row_index: int = 0
+var _recycle_prev_row_lanes: Array = []
 var _steps: Array = []        # flattened phrase steps (phrase + wave context)
 var _step_idx: int = -1
 var _wave_total: int = 0
+# COHORT tracking for the clear-gate (see COHORT_CLEAR_FRACTION). Each dispatched phrase opens a new
+# cohort; every genuinely-spawned member is tagged to it (recycle re-entries belong to NO cohort). A
+# member RESOLVES when it leaves the tree for any reason (tree_exited: death, offscreen free, recycle
+# despawn). _cohort_id is the current/most-recent cohort (-1 before the first phrase); _cohorts maps a
+# cohort id → {"spawned": int, "resolved": int}. Only the current cohort is ever gated on again, so
+# older entries are pruned in _open_cohort (their still-living members' handlers no-op on a missing key).
+var _cohort_id: int = -1
+var _cohorts: Dictionary = {}
 var _last_lane: int = -1      # last lane chosen by _pick_lane (alternate-anchor)
 # Seeded dispatch RNG — lane / wall-gap / filler placement picks draw from this so a
 # same-seed run reproduces PLACEMENT, not just wave content. Seeded per combat node in
@@ -159,6 +186,10 @@ func start_score(score: Resource) -> void:
 	_step_idx = -1
 	_check_clear = false
 	_last_lane = -1
+	_recycle_row_index = 0
+	_recycle_prev_row_lanes = []
+	_cohort_id = -1
+	_cohorts = {}
 	_seed_dispatch_rng()
 	# Opening grace: let the player settle after the slide-in before waves come.
 	if start_grace > 0.0:
@@ -245,8 +276,11 @@ func _alive_slots() -> int:
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(e) or _is_boss_gate_node(e):
 			continue
-		if "_dying" in e and e._dying:   # a dying wreck no longer competes for density/concurrency
-			continue
+		# A DYING wreck DOES still count toward the spawn cap (2026-07-09): DeathEffects styled deaths
+		# linger multiple seconds on screen, and refilling the cap while wrecks are still visible pushed
+		# real density past the 16/26/36 ceiling. (The _dying exclusion is kept in _alive_count /
+		# _live_combatants_present so a lingering wreck never BLOCKS wave/level completion — only here,
+		# the density gate, does it hold a slot.)
 		n += (int(e.slot_weight) if "slot_weight" in e else 1)
 	return n
 
@@ -310,25 +344,53 @@ func _occupied_lanes() -> Array:
 				out.append(ln)
 	return out
 
-# Vertical extent of an enemy from its first RectangleShape2D collision (× scale).
-# Used to tell "cruiser" (tall) from chaff and to size the lane-gap.
+# Vertical extent of an enemy — used to tell "cruiser" (tall) from chaff and to size the lane-gap.
+# Measured from the collision hull (RectangleShape2D OR CollisionPolygon2D AABB, × display_scale),
+# falling back to the sprite frame height, then a roster-nominal floor (stamped as meta at spawn),
+# then 16px chaff. The poly/sprite branches were added 2026-07-09: new units (scorcher/ruiner/harrier)
+# use CollisionPolygon2D hulls the old rect-only path measured as the bare 16px fallback, which
+# collapsed their lane-gap spacing and skipped the anchor stagger → pairs arrived overlapping.
 func _enemy_height(e) -> float:
-	var scale_y: float = float(e.display_scale) if (e != null and "display_scale" in e) else 1.0
-	var shape := _first_rect_shape(e)
-	if shape != null:
-		return shape.size.y * scale_y
-	return 16.0
+	var measured: float = _measured_height(e)
+	var eff: float = measured if measured > 0.0 else 16.0
+	# Roster-nominal floor (spawn-spacing fix): max(measured, nominal). Stamped on the node at spawn
+	# from the WaveSpec's declared size class; absent on probes / dev spawns (floor is a no-op then).
+	if e != null and e.has_meta("nominal_height"):
+		eff = maxf(eff, float(e.get_meta("nominal_height")))
+	return eff
+
+# Raw measured body height (px) from the collision hull, else the sprite frame, or -1.0 if NOTHING
+# could be measured (no collision node + no sprite) — the caller then applies the 16px chaff floor.
+# Honours display_scale so the collision units map to on-screen pixels.
+func _measured_height(e) -> float:
+	if e == null:
+		return -1.0
+	var scale_y: float = float(e.display_scale) if ("display_scale" in e) else 1.0
+	var rect := _first_rect_shape(e)
+	if rect != null:
+		return rect.size.y * scale_y
+	var poly := _first_poly_shape(e)
+	if poly != null:
+		return _poly_aabb_height(poly) * scale_y
+	var spr := _first_sprite(e)
+	if spr != null and spr.texture != null:
+		return _sprite_frame_height(spr) * scale_y
+	return -1.0
 
 # Height of the enemy a WaveSpec would spawn, measured by instantiate-then-free (no add_child, so
 # _ready side effects don't fire). Used by row-level pre-push where we must size the gap BEFORE the
-# row spawns. Returns 16.0 (chaff default) if the spec has no scene.
+# row spawns. Applies the spec's roster-nominal floor (the probe carries no meta). Returns 16.0
+# (chaff default) if the spec has no scene.
 func _enemy_height_of_spec(sp) -> float:
 	if sp == null or sp.enemy_scene == null:
 		return 16.0
 	var probe = sp.enemy_scene.instantiate()
-	var h: float = _enemy_height(probe)
+	var measured: float = _measured_height(probe)
 	probe.free()
-	return h
+	var eff: float = measured if measured > 0.0 else 16.0
+	if sp != null and "nominal_height" in sp and float(sp.nominal_height) > 0.0:
+		eff = maxf(eff, float(sp.nominal_height))
+	return eff
 
 func _first_rect_shape(n: Node) -> RectangleShape2D:
 	for c in n.get_children():
@@ -338,6 +400,51 @@ func _first_rect_shape(n: Node) -> RectangleShape2D:
 		if deep != null:
 			return deep
 	return null
+
+# First CollisionPolygon2D anywhere under `n` (depth-first) — the hull shape the new units use in
+# place of a RectangleShape2D. Null if none.
+func _first_poly_shape(n: Node) -> CollisionPolygon2D:
+	for c in n.get_children():
+		if c is CollisionPolygon2D:
+			return c as CollisionPolygon2D
+		var deep := _first_poly_shape(c)
+		if deep != null:
+			return deep
+	return null
+
+# First Sprite2D anywhere under `n` (depth-first) — the last-resort height source when no collision
+# node matches. Null if none.
+func _first_sprite(n: Node) -> Sprite2D:
+	for c in n.get_children():
+		if c is Sprite2D:
+			return c as Sprite2D
+		var deep := _first_sprite(c)
+		if deep != null:
+			return deep
+	return null
+
+# Vertical extent of a CollisionPolygon2D's point AABB (local units, before node scale).
+func _poly_aabb_height(poly: CollisionPolygon2D) -> float:
+	var pts: PackedVector2Array = poly.polygon
+	if pts.is_empty():
+		return 0.0
+	var lo: float = pts[0].y
+	var hi: float = pts[0].y
+	for p in pts:
+		lo = minf(lo, p.y)
+		hi = maxf(hi, p.y)
+	return hi - lo
+
+# One sprite frame's texel height, honouring region_rect + vframes (the sprite sheet may pack rows).
+func _sprite_frame_height(spr: Sprite2D) -> float:
+	var h: float
+	if spr.region_enabled:
+		h = spr.region_rect.size.y
+	else:
+		h = spr.texture.get_height()
+	if spr.vframes > 1:
+		h /= float(spr.vframes)
+	return h
 
 
 # UNIVERSAL spawn-time vertical push (FIX #2, 2026-07-06). Given a resolved spawn pos, this
@@ -378,6 +485,7 @@ func _lane_gap_push_y(lane: int, base_y: float, own_height: float) -> float:
 func _advance_step() -> void:
 	_step_idx += 1
 	if _step_idx >= _steps.size():
+		# (level-end flow — the cohort clear-gate is deliberately NOT applied here; clears must never stall)
 		# All authored phrases dispatched (the "survive the waves" win). If a live boss is still gating,
 		# give it ONE final maneuver over the drained field then have it retreat — it frees itself, so
 		# the clear-watch below fires once it's gone. A boss already defeated mid-fight is a no-op.
@@ -408,7 +516,9 @@ func _advance_step() -> void:
 				_abandon_trivial_recyclers()
 				break
 			if not _recycle_pool.is_empty():
-				await _drain_recycle_pool()
+				# Level-end drain: release rows one at a time (blocking on cap headroom), so any pool
+				# remainder the phrase-boundary trickle didn't reach still gets out before the level clears.
+				await _release_recycle_row(true)
 			else:
 				await _paced(0.1).timeout
 				drain_guard += 0.1
@@ -435,14 +545,6 @@ func _advance_step() -> void:
 			_running = false
 			_check_clear = true
 			return
-	# RECYCLE re-entry (despawn+credit rework, 2026-07-06): drain the whole pool as conducted sweep
-	# rows at each WAVE boundary, BEFORE the wave's first phrase — so returning units re-enter as their
-	# own tidy rows between the conductor's set pieces, never interleaved with a formation mid-flight.
-	# (Mid-wave trickle is deliberately NOT done — re-entries land only at these boundaries.)
-	if st["is_wave_start"] and not _recycle_pool.is_empty():
-		await _drain_recycle_pool()
-		if not _running:
-			return
 	# Non-blocking banner once per ScoreWave (bridge §1.1): emit and keep going.
 	if st["is_wave_start"]:
 		# Per-stretch density ramp (level_structure_redesign_2026-07-01): a stretch-opening wave sets
@@ -453,6 +555,30 @@ func _advance_step() -> void:
 		# Let a gating boss know a wave began (it enables stage hazards from wave 3 = wave_idx 2).
 		if _boss_gate_alive() and boss_gate.has_method("on_wave_started"):
 			boss_gate.on_wave_started(int(st["wave_idx"]))
+	# RECYCLE TRICKLE (rate-limit rework, 2026-07-09): at EVERY phrase boundary, release AT MOST one
+	# conducted sweep row of pooled recycle credits, and ONLY when the cap has headroom — so returning
+	# units feed back gradually and compete for the same density budget as fresh spawns. This replaces
+	# the old wave-boundary FULL drain, which (with one ScoreWave per stretch = 3 drain points) dumped
+	# the whole pool as stacked sweep-walls at the START of stretch 2/3, before that stretch's own first
+	# phrase and on top of its cap-26/36 content. The remainder rides the pool to the next phrase
+	# boundary (and the level-end final drain). Runs after the banner so it uses the stretch's own cap.
+	if not _recycle_pool.is_empty():
+		await _release_recycle_row(false)
+		if not _running:
+			return
+	# COHORT CLEAR-GATE (wave-pacing fix, 2026-07-09): hold the NEXT phrase's spawns until the PREVIOUS
+	# phrase's cohort is >= COHORT_CLEAR_FRACTION resolved (or the anti-softlock timeout elapses), so a
+	# fresh wave/sub-wave never pours in on top of slow enemies still descending from the last one.
+	# Placed AFTER the recycle trickle so background re-entry rows are never blocked by (nor counted in)
+	# this gate. Bypassed entirely on boss levels — the boss's discrete-wave drain (above) owns pacing
+	# there, and level-end flow returned before reaching this point (clears must never stall).
+	if not _boss_gate_alive():
+		await _await_cohort_clear(_cohort_id)
+		if not _running:
+			return
+	# Open this phrase's cohort so its spawns are tagged + counted (the just-finished previous cohort is
+	# now the one we gated on above).
+	_open_cohort()
 	var ph: Resource = st["phrase"]
 	match ph.kind:
 		Phrase.Kind.FORMATION:
@@ -463,6 +589,53 @@ func _advance_step() -> void:
 			_dispatch_breather(ph)
 		_:
 			_advance_step()
+
+
+# ---- Cohort clear-gate (wave pacing; see COHORT_CLEAR_FRACTION) ------------
+
+# Open a fresh cohort for the phrase about to dispatch. Genuinely-spawned members are tagged to it in
+# _spawn_enemy. Prunes every older cohort: only the current one is ever gated on again, and its still-
+# living members' tree_exited handlers no-op on the (now-missing) older keys — so the dict can't grow
+# unbounded over a long level.
+func _open_cohort() -> void:
+	_cohort_id += 1
+	_cohorts[_cohort_id] = {"spawned": 0, "resolved": 0}
+	for k in _cohorts.keys():
+		if k < _cohort_id:
+			_cohorts.erase(k)
+
+
+# Block until >= COHORT_CLEAR_FRACTION of `cohort_id`'s spawned members have resolved, or the anti-
+# softlock timeout elapses. Called with the PREVIOUS cohort id right before the next phrase dispatches.
+# No-ops (returns at once) when: cohort_id < 0 (the first phrase has no predecessor), the cohort was
+# pruned/absent, or it spawned NOTHING (an empty phrase — enemies that never spawned don't count in the
+# denominator). The timeout clock is the awaited elapsed inside this loop, which begins the instant the
+# previous phrase's dispatch completed (≈ "from the moment the cohort fully spawned") and is pause-safe
+# because _paced ties to the tree's pause state.
+func _await_cohort_clear(cohort_id: int) -> void:
+	if cohort_id < 0 or not _cohorts.has(cohort_id):
+		return
+	var c: Dictionary = _cohorts[cohort_id]
+	var spawned: int = int(c.get("spawned", 0))
+	if spawned <= 0:
+		return
+	var need: float = float(spawned) * COHORT_CLEAR_FRACTION
+	var waited: float = 0.0
+	while _running:
+		if float(int(c.get("resolved", 0))) >= need:
+			return
+		if waited >= COHORT_CLEAR_TIMEOUT:
+			return   # anti-softlock: loiterers the player never kills must not stall the stream (no warning)
+		await _paced(0.1).timeout
+		waited += 0.1
+
+
+# A cohort member left the tree — for ANY reason (death, offscreen free, or recycle despawn). tree_exited
+# fires exactly once, so this is the single universal "resolved its part in the wave" signal. Guarded on
+# the cohort still existing (a pruned older cohort's late exits are harmless no-ops).
+func _on_cohort_member_exited(cohort_id: int) -> void:
+	if _cohorts.has(cohort_id):
+		_cohorts[cohort_id]["resolved"] = int(_cohorts[cohort_id].get("resolved", 0)) + 1
 
 
 # FORMATION: spawn the phrase's spec group(s), cap-gated, at each spec's cadence
@@ -539,52 +712,53 @@ func _dispatch_formation(ph: Resource) -> void:
 	_advance_step()
 
 
-# RECYCLE DRAIN (despawn+credit rework, 2026-07-06). Re-enter every pending credited unit as conducted
-# sweep-style rows (SWEEP_ROW_SIZE abreast on spread lanes, beat-separated, cap-gated, height-aware
-# row-clear gated) — the same readable-row idiom as _dispatch_sweep_rows, so a returning unit reads as
-# part of the choreography rather than a lone straggler. Drained at each wave boundary (before the
-# wave's first phrase) and once more at level end so no pooled unit is stranded. Each credit spawns
-# EXACTLY ONE enemy (count-1 semantics — the credit is a single unit, not the spec's original count),
-# with its carried remaining recycle_passes stamped onto the fresh instance so the pass budget doesn't
-# reset on re-entry (chaff-loop guard). Damage state is NOT carried: a returning unit reads as a fresh
-# arrival at full HP (accepted simplification, flagged for playtest).
-func _drain_recycle_pool() -> void:
+# RECYCLE ROW RELEASE (rate-limit rework, 2026-07-09; supersedes the old whole-pool _drain_recycle_pool).
+# Release AT MOST ONE conducted sweep row of pooled credits — SWEEP_ROW_SIZE abreast on spread lanes,
+# the same readable-row idiom as _dispatch_sweep_rows so a returning unit reads as part of the
+# choreography, not a lone straggler. Called once per phrase boundary (blocking=false, the trickle) and
+# repeatedly at level end (blocking=true, drains the remainder). Recycled rows COMPETE for the cap:
+#   - blocking=false → if the screen is already at the cap, release nothing and try again next boundary
+#     (the trickle must never stall the dispatch, and must never push past the density ceiling).
+#   - blocking=true  → wait for cap headroom, then release one row + a row-clear beat so the level-end
+#     remainder descends separated.
+# Row lanes interleave across successive releases via the persistent _recycle_row_index / _recycle_
+# prev_row_lanes (a trickle spread over many phrases still reads as shifting rows, not a repeated column).
+# Each credit spawns EXACTLY ONE enemy (count-1 — the credit is a single unit) with is_recycle_reentry=
+# true (suppresses the level-tally re-count, ISSUE 1) and its carried remaining recycle_passes stamped
+# on so the pass budget doesn't reset (chaff-loop guard). Damage state is NOT carried (full-HP re-entry,
+# accepted simplification). Returns true if it released a row.
+func _release_recycle_row(blocking: bool) -> bool:
 	if _recycle_pool.is_empty():
-		return
-	# Snapshot + clear up front so credits arriving mid-drain (a re-entered unit that immediately exits
-	# again is impossible this frame, but a lingering fly-back could land) queue for the NEXT drain
-	# rather than extending this one unbounded.
-	var credits: Array = _recycle_pool.duplicate()
-	_recycle_pool.clear()
-	var i: int = 0
-	var row_index: int = 0
-	var prev_row_lanes: Array = []
-	while i < credits.size():
-		if not _running:
-			return
+		return false
+	if blocking:
 		while _running and _alive_slots() >= max_concurrent:
 			await _paced(0.1).timeout
 		if not _running:
-			return
-		var room: int = maxi(1, max_concurrent - _alive_slots())
-		var group: int = mini(mini(SWEEP_ROW_SIZE, room), credits.size() - i)
-		var row_lanes: Array = _sweep_row_lanes(group, row_index, prev_row_lanes)
-		var last_spawned: Node = null
-		for ln in row_lanes:
-			if i >= credits.size():
-				break
-			var credit: Dictionary = credits[i]
-			# is_recycle_reentry=true → don't re-count this unit toward the level total (ISSUE 1); it was
-			# already counted on its original spawn. Its died wire is still hooked so its kill registers.
-			last_spawned = _spawn_enemy(credit["spec"], i, int(ln), {}, true)
-			# Stamp the carried remaining passes so re-entry doesn't reset the recycle budget.
-			if is_instance_valid(last_spawned) and "recycle_passes" in last_spawned:
-				last_spawned.recycle_passes = int(credit["passes"])
-			i += 1
-		prev_row_lanes = row_lanes
-		row_index += 1
-		if i < credits.size():
-			await _await_row_clear(last_spawned, ANTI_BURST_FLOOR, _row_clear_depth(last_spawned, SWEEP_ROW_CLEAR_DEPTH))
+			return false
+	elif _alive_slots() >= max_concurrent:
+		return false   # trickle: no cap headroom this phrase — the pool waits for the next boundary
+	var room: int = maxi(1, max_concurrent - _alive_slots())
+	var group: int = mini(mini(SWEEP_ROW_SIZE, room), _recycle_pool.size())
+	var row_lanes: Array = _sweep_row_lanes(group, _recycle_row_index, _recycle_prev_row_lanes)
+	var released: int = 0
+	var last_spawned: Node = null
+	for ln in row_lanes:
+		if released >= group or _recycle_pool.is_empty():
+			break
+		var credit: Dictionary = _recycle_pool.pop_front()
+		# is_recycle_reentry=true → don't re-count this unit toward the level total (ISSUE 1); it was
+		# already counted on its original spawn. Its died wire is still hooked so its kill registers.
+		last_spawned = _spawn_enemy(credit["spec"], released, int(ln), {}, true)
+		# Stamp the carried remaining passes so re-entry doesn't reset the recycle budget.
+		if is_instance_valid(last_spawned) and "recycle_passes" in last_spawned:
+			last_spawned.recycle_passes = int(credit["passes"])
+		released += 1
+	_recycle_prev_row_lanes = row_lanes
+	_recycle_row_index += 1
+	# Level-end drains release rows back-to-back — separate this one from the next so they descend apart.
+	if blocking and not _recycle_pool.is_empty():
+		await _await_row_clear(last_spawned, ANTI_BURST_FLOOR, _row_clear_depth(last_spawned, SWEEP_ROW_CLEAR_DEPTH))
+	return released > 0
 
 
 # SWEEP rows: spawn a directional-sweep spec as descending ROWS of SWEEP_ROW_SIZE abreast on spread
@@ -1127,6 +1301,15 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 		push_warning("WaveDirector: spec has no enemy_scene")
 		return null
 	var enemy = wave.enemy_scene.instantiate()
+	# Roster-nominal height floor (spawn-spacing fix, 2026-07-09): stamp the spec's declared size-class
+	# height so _enemy_height takes max(measured, nominal) during placement (which runs BEFORE add_child).
+	# Also surface a collision-shape mismatch: if a medium/large unit measures as the bare 16px chaff
+	# fallback (no rect/poly/sprite the director could read), its authored spacing is silently wrong —
+	# warn at spawn instead of letting the pair arrive overlapping.
+	if "nominal_height" in wave and float(wave.nominal_height) > 0.0:
+		enemy.set_meta("nominal_height", float(wave.nominal_height))
+		if float(wave.nominal_height) >= 32.0 and _measured_height(enemy) <= 0.0:
+			push_warning("WaveDirector: %s is roster size >= medium but the director could measure no collision/sprite height (falls back to 16px) — spawn spacing relies on the nominal floor" % String(wave.enemy_scene.resource_path))
 	# 320×400 internal resolution rework (Roman, 2026-05-17): sprites render
 	# at native 1× by default. Per-ship display_scale overrides still apply
 	# but are now sized for the new playfield (e.g. boss 1.0 instead of 3.0).
@@ -1383,6 +1566,15 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 		enemy_spawned.emit(scene_path, bounty_val)
 	if enemy.has_signal("died"):
 		enemy.died.connect(_on_enemy_died.bind(scene_path))
+	# COHORT MEMBERSHIP (wave clear-gate, 2026-07-09). Tag every genuinely-spawned enemy with the current
+	# phrase's cohort + count it toward that cohort's denominator, so the next phrase can gate on >=51%
+	# resolution. A recycle RE-ENTRY (is_recycle_reentry) belongs to NO cohort — it's background re-entry
+	# that must never block a fresh wave, and its original spawn was already counted. tree_exited is the
+	# single universal "resolved" hook: it fires exactly once when the node leaves the tree, covering
+	# death (incl. the reparent-into-wreck path), offscreen free, AND the recycle despawn+credit event.
+	if not is_recycle_reentry and _cohort_id >= 0 and _cohorts.has(_cohort_id):
+		_cohorts[_cohort_id]["spawned"] = int(_cohorts[_cohort_id]["spawned"]) + 1
+		enemy.tree_exited.connect(_on_cohort_member_exited.bind(_cohort_id))
 	return enemy
 
 
@@ -1691,5 +1883,14 @@ func _ready() -> void:
 # despawned instance's remaining passes so the re-entry doesn't reset the pass budget (chaff-loop guard).
 func credit_recycled(spec: Resource, passes: int) -> void:
 	if not _running or spec == null:
+		return
+	# POOL CAP (rate-limit rework, 2026-07-09): never let credits pile past the current stretch's slot
+	# cap. Beyond it the surplus can only ever come back as extra sweep-walls, so the excess credit is
+	# DROPPED. This is safe for the clear condition: a recycle re-entry is suppressed from the level
+	# tally (is_recycle_reentry in _spawn_enemy), and level_cleared keys off pool-emptiness + live-node
+	# presence (_live_combatants_present), NOT a kill/spawn tally match — so dropping a credit can only
+	# let the level clear SOONER, never strand it. (A dropped unit simply reads as "escaped".)
+	if _recycle_pool.size() >= max_concurrent:
+		push_warning("WaveDirector: recycle pool at cap (%d) — dropping excess credit" % max_concurrent)
 		return
 	_recycle_pool.append({"spec": spec, "passes": passes})

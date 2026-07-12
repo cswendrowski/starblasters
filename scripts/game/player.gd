@@ -871,7 +871,7 @@ func _setup_shield_ring() -> void:
 	_shield_ring.name = "ShieldRing"
 	_shield_ring.color = Color(1, 1, 1, 1) # shader drives final color
 	_shield_ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_shield_ring.size = Vector2(22, 22)
+	_shield_ring.size = Vector2(24, 24)
 	_shield_ring.position = -_shield_ring.size * 0.5
 	_shield_ring.material = _shield_mat
 	_shield_ring.z_index = 1

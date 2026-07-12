@@ -130,6 +130,22 @@ func _process(_dt: float) -> void:
 		lines.append("FAIL silent-lock should block set_context + stay stopped")
 	music.lock_silent(false)
 
+	# Settle buffer: an ambient→ambient switch is HELD as pending (not committed) so
+	# rapid scene hops don't churn; returning to the active context cancels it.
+	music.set_context("sector")     # from silent → immediate (a sector track plays)
+	var track_before: String = music._current_track
+	music.set_context("signal")     # sector→signal ambient switch → BUFFERED, not committed
+	lines.append("settle-buffer: pending='%s' track_held=%s (expect signal + true)" % [
+		music._pending_context, str(music._current_track == track_before)])
+	if music._pending_context != "signal" or music._current_track != track_before:
+		fails += 1
+		lines.append("FAIL ambient switch should buffer, not commit immediately")
+	music.set_context("sector")     # rapid return before settle → cancels the pending change
+	lines.append("settle-cancel: pending='%s' (expect empty)" % music._pending_context)
+	if music._pending_context != "":
+		fails += 1
+		lines.append("FAIL returning to the active context should cancel the pending change")
+
 	lines.append("MUSIC SCHEMA: " + ("PASS" if fails == 0 else "FAIL (%d)" % fails))
 	_finish(lines, fails)
 

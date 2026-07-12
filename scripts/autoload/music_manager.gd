@@ -52,6 +52,13 @@ const CTX_COMBAT := "combat"
 const CTX_BOSS := "boss"
 const CTX_SILENT := "silent"
 
+# Ambient contexts route through the settle buffer (below); combat/boss commit now.
+const AMBIENT_CONTEXTS: Array[String] = [CTX_MENU, CTX_SECTOR, CTX_SIGNAL, CTX_OUTPOST]
+# Seconds an ambient context must stay put before its music change actually commits.
+# Rapid scene hops (e.g. into a signal event and straight back to the sector map)
+# resolve inside this window, so the music never churns. Tune to taste.
+const SETTLE_BUFFER := 2.0
+
 const NOMINAL_DB := 0.0
 
 # Resting intensity per non-combat context (combat is computed dynamically).
@@ -107,6 +114,8 @@ var _intensity_target: float = 0.0
 var _silenced: bool = false          # true = nothing playing (stopped), not just muted
 var _started: bool = false           # has any track ever played (first play uses QueueSong)
 var _silent_locked: bool = false     # dev tools force silence: set_context is ignored while true
+var _pending_context: String = ""    # ambient context awaiting the settle buffer ("" = none)
+var _settle_timer: float = 0.0        # seconds left before _pending_context commits
 
 # Combat ceiling inputs (each 0..1), combined by _combat_ceiling().
 var _wave01: float = 0.0
@@ -149,6 +158,7 @@ func set_context(context: String, options: Dictionary = {}) -> void:
 	# played under the bench's muted Music bus and BLASTED when the bus un-muted on
 	# exit. (Dev tools: lock_silent(true) on enter, lock_silent(false) on leave.)
 	if _silent_locked:
+		_pending_context = ""
 		if _current_track != "":
 			stop()
 		_context = CTX_SILENT
@@ -165,13 +175,33 @@ func set_context(context: String, options: Dictionary = {}) -> void:
 		return
 
 	var forced: bool = options.get("force", false)
-	# Idempotent re-entry: keep the track, just ensure the right energy. (Skipped
-	# while warming so the warm-up → combat handoff below always runs.)
+	# Idempotent re-entry: keep the track, just ensure the right energy. Returning to
+	# the context that's already playing also CANCELS a pending buffered change — the
+	# rapid-detour case (sector → signal → sector before the signal change committed).
+	# (Skipped while warming so the warm-up → combat handoff always runs.)
 	if context == _context and _current_track != "" and not forced and not _warming:
+		_pending_context = ""
 		if context != CTX_COMBAT:
 			_apply_context_intensity(CTX_FADE)   # combat energy is driven live in _process
 		return
 
+	# Settle buffer: an AMBIENT → AMBIENT switch (menu/sector/signal/outpost) doesn't
+	# crossfade now — it's held as pending and only committed in _process after
+	# SETTLE_BUFFER seconds of the context staying put, so rapid scene hops don't
+	# churn the music. Combat/boss, forced, and first-play commit immediately.
+	if not forced and _current_track != "" and AMBIENT_CONTEXTS.has(context) and AMBIENT_CONTEXTS.has(_context):
+		_pending_context = context
+		_settle_timer = SETTLE_BUFFER
+		return
+
+	_pending_context = ""
+	_commit_context(context, options)
+
+
+# Actually apply a context: pick + crossfade to a track and set the energy. Called
+# immediately for combat/boss/first-play/forced, or by _process when a buffered
+# ambient change settles.
+func _commit_context(context: String, options: Dictionary = {}) -> void:
 	# Handing off from a loading-screen warm-up into actual combat: keep the
 	# already-playing combat track and its warmed intensity; just seed the damping
 	# buffer and switch the live envelope on (no reset-to-0, no re-pick, no jam).
@@ -299,6 +329,7 @@ func stop(fade: float = 0.8) -> void:
 	# Ease the energy down as the track fades out, so the outgoing fade is calm and
 	# the NEXT track doesn't inherit a stale-high intensity.
 	_player.FadeIntensity(0.0, maxf(fade, 0.05))
+	_pending_context = ""
 	_current_track = ""
 	_silenced = true
 	_combat_active = false
@@ -363,6 +394,17 @@ func _combat_ceiling() -> float:
 # only partially land. Combat opens quiet and breathes. Non-combat contexts hold
 # their fixed FadeIntensity target, so there's nothing to do for them here.
 func _process(delta: float) -> void:
+	# Settle buffer: commit a pending ambient context change once it has held for
+	# SETTLE_BUFFER seconds. Rapid detours cancel it before it ever fires (see the
+	# idempotent branch in set_context), so the music doesn't churn on quick hops.
+	if _pending_context != "":
+		_settle_timer -= delta
+		if _settle_timer <= 0.0:
+			var pending := _pending_context
+			_pending_context = ""
+			if pending != _context:
+				_commit_context(pending)
+
 	# Loading-screen warm-up: ease intensity to the LOWEST, then slowly climb to the
 	# low level-start target across the load. Two phases so it starts at 0 (lowest)
 	# without snapping the outgoing track.

@@ -128,6 +128,38 @@ static func eligible_for(scene: String) -> Array:
 	return e if e is Array else []
 
 
+# True if `key` is an eligible movement for `scene`. FAIL-OPEN (permissive) whenever we can't
+# judge: scene=="" or key=="" (nothing to check), the scene is unmapped (eligible_for empty), or
+# the key is an authored path_* flight (resolved via AuthoredPathLibrary, not the shape matrix —
+# the eligibility matrix tracks SHAPE keys, so path_* keys are a class it doesn't govern and are
+# never coerced). FAIL-CLOSED only when the scene IS mapped and the (shape) key is absent from its
+# eligible list. `key` MUST already be alias-collapsed by the caller (see enemy_roster.
+# MOVEMENT_ALIASES) — this file does NOT preload the roster (circular: the roster preloads this).
+static func allows(scene: String, key: String) -> bool:
+	if scene == "" or key == "":
+		return true
+	if key.begins_with("path_"):
+		return true
+	var elig: Array = eligible_for(scene)
+	if elig.is_empty():
+		return true
+	return elig.has(key)
+
+
+# Return `key` if the scene allows it; otherwise push_error (naming both scene and key) and coerce
+# to a movement the scene actually supports: its identity pattern, else the first eligible key, else
+# "straight". `key` MUST already be alias-collapsed by the caller.
+static func guard_key(scene: String, key: String) -> String:
+	if allows(scene, key):
+		return key
+	var fallback: String = identity_for(scene)
+	if fallback == "":
+		var elig: Array = eligible_for(scene)
+		fallback = str(elig[0]) if not elig.is_empty() else "straight"
+	push_error("PatternEligibility.guard_key: movement '%s' is not eligible for '%s' — coercing to '%s'." % [key, scene, fallback])
+	return fallback
+
+
 # The movement KEY make_movement should build for this roster entry. A "vary": true entry gets
 # a flat-random pick from the scene's eligible set (needs >1 to vary). Otherwise the MATRIX
 # identity drives (so the eligibility tool controls assignment); unmapped scenes fall back to

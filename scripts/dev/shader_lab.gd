@@ -29,6 +29,7 @@ const ShipDamageTells = preload("res://scripts/effects/ship_damage_tells.gd")
 const DeathEffectsScript = preload("res://scripts/effects/death_effects.gd")
 const EnemyManifest = preload("res://scripts/dev/enemy_manifest.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
+const ShieldRingFxC = preload("res://scripts/effects/shield_ring_fx.gd")
 # Tunable damage-tell suite, tuned PER SIZE category (Roman 2026-06-12).
 const SD_DMG_SCHEMA := [
 	{"key": "max_sens", "label": "Overlay max", "min": 0.0, "max": 1.0, "step": 0.02, "def": 0.85},
@@ -108,7 +109,7 @@ const GLOW_DEMO_TEX := {
 	"engines": "res://graphics/enemies/enemy_core_cobra.png",
 	"explosions": "res://graphics/effects/explosion_small_circle.png",
 }
-const MODES := ["Embers", "Smoke", "Glow", "Bloom Env", "Modes", "Damage", "Disintegrate", "Explosions", "Expl. Tuner", "Ship Dmg", "Death", "Nebula", "Asteroids", "Gallery"]
+const MODES := ["Embers", "Smoke", "Glow", "Bloom Env", "Modes", "Damage", "Disintegrate", "Explosions", "Expl. Tuner", "Ship Dmg", "Enemy Shields", "Death", "Nebula", "Asteroids", "Gallery"]
 
 const EMBER_VARIANTS := ["normal", "inverted", "smoke"]
 
@@ -272,6 +273,16 @@ var _note: Label = null
 # State.
 var _mode: int = 0
 var _values: Dictionary = {}
+
+# Enemy Shields tab — fit the shield bubble (size + roundness) to a spawned enemy.
+var _esh_enemy: Node2D = null
+var _esh_ring: ColorRect = null
+var _esh_mat: ShaderMaterial = null
+var _esh_fx = null
+var _esh_idx: int = 0
+var _esh_list: Array = []
+var _esh_by_enemy: Dictionary = {}   # enemy path -> {ring_size, elongation}; persisted to disk
+var _esh_knob_box: VBoxContainer = null
 
 # Mode-specific refs (nulled on every mode switch).
 var _orb: Sprite2D = null
@@ -577,6 +588,13 @@ func _set_mode(idx: int) -> void:
 	_death_ship = null
 	_death_fx = null
 	_death_knob_box = null
+	# Enemy Shields refs (the enemy + ring live in _stage, freed above; just drop the refs). The
+	# per-enemy fit dict PERSISTS across modes — don't clear it.
+	_esh_enemy = null
+	_esh_ring = null
+	_esh_mat = null
+	_esh_fx = null
+	_esh_knob_box = null
 	match MODES[_mode]:
 		"Embers":
 			_enter_embers()
@@ -598,6 +616,8 @@ func _set_mode(idx: int) -> void:
 			_enter_expl_tuner()
 		"Ship Dmg":
 			_enter_ship_dmg()
+		"Enemy Shields":
+			_enter_enemy_shields()
 		"Death":
 			_enter_death()
 		"Nebula":
@@ -2090,6 +2110,172 @@ func _apply_damage_knobs() -> void:
 	_dmg_mat.set_shader_parameter("details_color", _dmg_colors["details_color"])
 
 
+# ---- Enemy Shields tab -----------------------------------------------------
+# Spawn a frozen enemy and wrap it in the REAL hex-shield ring (shared ShieldRingFx driver), so the
+# bubble SIZE (ring_size) + ROUNDNESS (elongation) can be fitted to each shielded enemy. Copy emits the
+# two values to paste into that enemy's ShieldComponent (bulwark .tscn exports; sapper + mine in code).
+func _enter_enemy_shields() -> void:
+	_esh_list = EnemyManifest.all_enemies()
+	_knob_box.add_child(_label("Enemy Shields", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("Fit the hex-shield bubble to each enemy —\nsize + roundness, stored PER enemy.\nSave persists; Copy → every enemy's\nShieldComponent.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_knob_box.add_child(_label("Enemy", FS_CAPTION, UiTheme.COLOR_FAINT))
+	var dd := OptionButton.new()
+	dd.add_theme_font_override("font", UiTheme.active_font())
+	dd.add_theme_font_size_override("font_size", FS_BODY)
+	dd.custom_minimum_size = Vector2(0, 34)
+	for p in _esh_list:
+		dd.add_item(_esh_enemy_name(String(p)))
+	dd.select(clampi(_esh_idx, 0, maxi(0, _esh_list.size() - 1)))
+	dd.item_selected.connect(func(i: int):
+		_esh_idx = i
+		_spawn_shield_enemy()
+		_rebuild_esh_knobs())
+	_knob_box.add_child(dd)
+	_add_action("Pulse Hit", _esh_pulse_hit)
+	_knob_box.add_child(HSeparator.new())
+	# Size/roundness sliders live in a sub-box, rebuilt per enemy so each loads ITS stored values.
+	_esh_knob_box = VBoxContainer.new()
+	_esh_knob_box.add_theme_constant_override("separation", 6)
+	_knob_box.add_child(_esh_knob_box)
+	_hd_note("SHIELD FIT", Vector2(Playfield.CENTER.x - 26.0, 84.0))
+	_spawn_shield_enemy()
+	_rebuild_esh_knobs()
+
+
+func _esh_enemy_name(path: String) -> String:
+	return path.get_file().replace(".tscn", "").replace("enemy_", "")
+
+
+func _esh_path() -> String:
+	if _esh_list.is_empty():
+		return ""
+	return String(_esh_list[clampi(_esh_idx, 0, _esh_list.size() - 1)])
+
+
+# The current enemy's {ring_size, elongation} (seeded on spawn); defaults if never touched.
+func _esh_cur() -> Dictionary:
+	var path := _esh_path()
+	if path == "" or not _esh_by_enemy.has(path):
+		return {"ring_size": 32.0, "elongation": 0.0}
+	return _esh_by_enemy[path]
+
+
+func _esh_faction_color(path: String) -> Color:
+	var home: int = int((Factions.ENEMY_TAGS.get(path, {}) as Dictionary).get("home", -1))
+	if home < 0:
+		return ShieldRingFxC.PLAYER_COLOR
+	return Factions.muzzle_inner(home)
+
+
+func _esh_pulse_hit() -> void:
+	if _esh_fx != null:
+		_esh_fx.hit_flash(1.0, 0.1)
+
+
+# Rebuild the size/roundness sliders for the SELECTED enemy (loads ITS stored values). Mirrors the
+# Death tab's per-style knob box.
+func _rebuild_esh_knobs() -> void:
+	if _esh_knob_box == null or not is_instance_valid(_esh_knob_box):
+		return
+	for c in _esh_knob_box.get_children():
+		c.queue_free()
+	var path := _esh_path()
+	var cur := _esh_cur()
+	var knobs := [
+		{"key": "ring_size", "label": "Bubble size (px)", "min": 12.0, "max": 96.0, "step": 1.0},
+		{"key": "elongation", "label": "Roundness → capsule", "min": 0.0, "max": 0.85, "step": 0.02},
+	]
+	for def in knobs:
+		var key := String(def["key"])
+		var row_lbl := _label("%s: %s" % [def["label"], _fmt(float(cur[key]), float(def["step"]))], FS_CAPTION, UiTheme.COLOR_FAINT)
+		_esh_knob_box.add_child(row_lbl)
+		var sl := HSlider.new()
+		sl.min_value = float(def["min"])
+		sl.max_value = float(def["max"])
+		sl.step = float(def["step"])
+		sl.value = float(cur[key])
+		sl.custom_minimum_size = Vector2(0, 26)
+		sl.value_changed.connect(func(v: float):
+			if _esh_by_enemy.has(path):
+				_esh_by_enemy[path][key] = v
+			row_lbl.text = "%s: %s" % [def["label"], _fmt(v, float(def["step"]))]
+			_apply_esh_knobs())
+		_esh_knob_box.add_child(sl)
+
+
+func _spawn_shield_enemy() -> void:
+	if _esh_enemy != null and is_instance_valid(_esh_enemy):
+		_esh_enemy.queue_free()
+	_esh_enemy = null
+	_esh_ring = null
+	_esh_mat = null
+	_esh_fx = null
+	if _esh_list.is_empty():
+		return
+	var path := _esh_path()
+	var enemy: Node2D = load(path).instantiate()
+	_stage.add_child(enemy)          # run _ready so the sprite/scale + components settle
+	# Seed this enemy's stored fit from its CURRENT ShieldComponent once, so tuning starts from live.
+	if not _esh_by_enemy.has(path):
+		_esh_by_enemy[path] = _esh_baked_fit(enemy)
+	_freeze_node(enemy)              # no movement / firing / audio
+	if enemy.is_in_group("enemies"):
+		enemy.remove_from_group("enemies")
+	# Drop any ring the enemy's own ShieldComponent built — the tuner drives its own.
+	for r in enemy.find_children("ShieldRing", "ColorRect", true, false):
+		r.queue_free()
+	enemy.position = Vector2(Playfield.CENTER.x, 135.0)
+	enemy.rotation = 0.0
+	enemy.scale = Vector2(GALLERY_SPRITE_ZOOM, GALLERY_SPRITE_ZOOM)   # inspection zoom (tuned values stay 1×)
+	_esh_enemy = enemy
+	# The real hex-shield ring, driven by the shared ShieldRingFx (Sparse Plates base + HDR bloom).
+	_esh_mat = ShaderMaterial.new()
+	_esh_mat.shader = load("res://graphics/hex_shield.gdshader")
+	_esh_ring = ColorRect.new()
+	_esh_ring.name = "ShieldRing"
+	_esh_ring.color = Color(1, 1, 1, 1)
+	_esh_ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_esh_ring.z_index = 2
+	_esh_ring.material = _esh_mat
+	enemy.add_child(_esh_ring)
+	_esh_fx = ShieldRingFxC.new(_esh_mat, _esh_ring, _esh_faction_color(path))
+	_apply_esh_knobs()
+	_esh_fx.apply_state(1.0)
+	_esh_fx.set_online(true, 0.0)
+
+
+# An enemy's baked ShieldComponent fit (ring_size + elongation), or defaults if it has no shield.
+func _esh_baked_fit(enemy: Node) -> Dictionary:
+	var fit := {"ring_size": 32.0, "elongation": 0.0}
+	if "components" in enemy:
+		for c in enemy.components:
+			if c != null and "ring_size" in c and "elongation" in c:
+				fit["ring_size"] = float(c.ring_size)
+				fit["elongation"] = float(c.elongation)
+				break
+	return fit
+
+
+func _apply_esh_knobs() -> void:
+	if _esh_ring == null or not is_instance_valid(_esh_ring) or _esh_mat == null or _esh_fx == null:
+		return
+	var cur := _esh_cur()
+	_esh_fx.set_ring_size(float(cur["ring_size"]))   # size + centre + resolution-scaled cells (1:1 px)
+	_esh_mat.set_shader_parameter("elongation", float(cur["elongation"]))
+
+
+# Every TOUCHED enemy → a ShieldComponent line (only enemies you've spawned/tuned appear).
+func _snippet_esh() -> String:
+	var lines := ["# Enemy shield fit — paste each enemy's ring_size / elongation onto its ShieldComponent",
+		"# (bulwark = .tscn ShieldComponent exports; sapper/mine = sh.ring_size / sh.elongation in code)."]
+	var names: Array = _esh_by_enemy.keys()
+	names.sort()
+	for path in names:
+		var fit: Dictionary = _esh_by_enemy[path]
+		lines.append("%s:  ring_size = %.0f   elongation = %.2f" % [_esh_enemy_name(String(path)), float(fit["ring_size"]), float(fit["elongation"])])
+	return "\n".join(lines) + "\n"
+
+
 # ---- Disintegrate (burn-away) tuner ----------------------------------------
 
 func _enter_disintegrate() -> void:
@@ -2384,6 +2570,8 @@ func _apply_live() -> void:
 			_apply_disintegrate_knobs()
 		"Nebula":
 			_apply_nebula_knobs()
+		"Enemy Shields":
+			_apply_esh_knobs()
 
 
 func _add_action(text: String, cb: Callable) -> void:
@@ -2470,6 +2658,8 @@ func _on_save() -> void:
 		out["ShipDmgSizes"] = _sd_dmg_vals
 	if not _death_vals.is_empty():
 		out["DeathStyles"] = _death_vals
+	if not _esh_by_enemy.is_empty():
+		out["EnemyShieldFit"] = _esh_by_enemy
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f != null:
 		f.store_string(JSON.stringify(out, "\t"))
@@ -2491,6 +2681,10 @@ func _load_saved() -> void:
 			for key in _values[mode]:
 				if saved.has(key):
 					_values[mode][key] = float(saved[key])
+		var esh: Dictionary = data.get("EnemyShieldFit", {})
+		for esh_path in esh:
+			var e: Dictionary = esh[esh_path]
+			_esh_by_enemy[String(esh_path)] = {"ring_size": float(e.get("ring_size", 32.0)), "elongation": float(e.get("elongation", 0.0))}
 		var cols: Dictionary = data.get("DamageColors", {})
 		for k in _dmg_colors:
 			if cols.has(k):
@@ -2555,6 +2749,8 @@ func _on_copy() -> void:
 			txt = _snippet_death()
 		"Nebula":
 			txt = _snippet_nebula()
+		"Enemy Shields":
+			txt = _snippet_esh()
 		"Asteroids":
 			txt = "# Shader Lab — gameplay asteroid hazard (scenes/enemies/enemy_asteroid.tscn)\n# var a = load(\"res://scenes/enemies/enemy_asteroid.tscn\").instantiate()\n# parent.add_child(a); a.start(pos)   # then a.explode() for the dusty shatter\n"
 		"Gallery":

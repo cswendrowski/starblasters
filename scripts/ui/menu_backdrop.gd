@@ -25,12 +25,24 @@ const _CELESTIAL_LAYERS := ["LayerPlanet", "LayerStellarFar", "LayerStellarMid",
 static func make() -> Node:
 	var bd := BackdropCoordinatorScene.instantiate()
 	bd.name = "Backdrop"
-	# Calm lobby tune — present, some motion. Same call the combat scene uses, slower planet drift.
-	bd.set("drift_speed", 14.0)
+	# Lobby tune — AT REST (Roman 2026-07-11): no parallax scroll while idling in the menu/hangar.
+	# Motion comes only from the patrol-start rise (celestial pan + warp streaks, toggled there).
+	# Streak knobs stay so the LayerStreaks node is configured for that rise.
+	bd.set("drift_speed", 0.0)
 	bd.set("warp_streak_count", 8)
 	bd.set("warp_streak_speed", 432.0)
 	bd.set("asteroid_presence", 0.5)
 	return bd
+
+
+# Switch the warp streaks off for an at-rest lobby (menu idle — nothing else moves, so streaming
+# warp lines would contradict the static sky). patrol_start re-enables them during the hangar rise
+# via its _set_streaks. Like drop_celestials, call AFTER the backdrop is added (layers exist
+# post-_ready).
+static func still_streaks(bd: Node) -> void:
+	var streaks := bd.get_node_or_null("LayerStreaks")
+	if streaks != null:
+		streaks.set("enabled", false)
 
 
 # Drop the celestial bodies toward the band centre (they normally stage near the top). The parallax

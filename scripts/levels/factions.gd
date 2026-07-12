@@ -339,12 +339,10 @@ static var LIVERY_COLOR := {
 	Id.ZEALOT:    Color.html("#cb9edd"),
 }
 # Named energy colours. `frame` = the frame index on a projectile_<type> 4-frame sheet.
-# ⚠️ Roman: "blue" currently has YELLOW values (inner+outer both #fff400) — looks like a paste slip
-#    from the "yellow" row; retune the two Colors here when you get a chance.
 static var WEAPON_COLORS := {
 	"green":  {"frame": 0, "inner": Color.html("#6bff37"), "outer": Color.html("#25a030")},
 	"yellow": {"frame": 1, "inner": Color.html("#fff400"), "outer": Color.html("#2800ad")},
-	"blue":   {"frame": 2, "inner": Color.html("#4d9fff"), "outer": Color.html("#163f8c")},  # Roman 2026-07-07: was a paste-slip yellow (#fff400); corrected to corporate blue — tweak hexes to taste
+	"blue":   {"frame": 2, "inner": Color.html("#4d9fff"), "outer": Color.html("#163f8c")},   # corporate blue
 	"red":    {"frame": 3, "inner": Color.html("#ff0000"), "outer": Color.html("#70002a")},
 }
 static var FACTION_WEAPON_COLOR := {

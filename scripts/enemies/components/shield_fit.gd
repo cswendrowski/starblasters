@@ -1,0 +1,83 @@
+extends Object
+
+# Per-enemy shield-bubble FIT (ring_size + elongation), tuned in the Shader Lab "Enemy Shields"
+# tab (2026-07-09) and baked here so ANY enemy that gets a ShieldComponent wraps its own sprite
+# instead of a one-size bubble. Keyed by the enemy scene path (Node.scene_file_path); a tuned
+# entry wins over the ShieldComponent @export defaults. Preload-referenced, no class_name.
+# Regenerate from the tuner save (EnemyShieldFit in user://tuners/shader_lab.json).
+
+const FIT := {
+	"res://scenes/enemies/core/enemy_core_bomber.tscn": {"ring_size": 71.0, "elongation": 0.4},
+	"res://scenes/enemies/core/enemy_core_bomber_thin.tscn": {"ring_size": 70.0, "elongation": 0.48},
+	"res://scenes/enemies/core/enemy_core_m_minelayer.tscn": {"ring_size": 37.0, "elongation": 0.34},
+	"res://scenes/enemies/core/enemy_core_s_caltrop.tscn": {"ring_size": 21.0, "elongation": 0.0},
+	"res://scenes/enemies/core/enemy_core_s_cobra.tscn": {"ring_size": 19.0, "elongation": 0.0},
+	"res://scenes/enemies/core/enemy_core_s_dart.tscn": {"ring_size": 26.0, "elongation": 0.12},
+	"res://scenes/enemies/core/enemy_core_s_flechette.tscn": {"ring_size": 20.0, "elongation": 0.32},
+	"res://scenes/enemies/core/enemy_core_s_jet.tscn": {"ring_size": 22.0, "elongation": 0.0},
+	"res://scenes/enemies/core/enemy_cruiser.tscn": {"ring_size": 96.0, "elongation": 0.0},
+	"res://scenes/enemies/enemy_asteroid.tscn": {"ring_size": 32.0, "elongation": 0.0},
+	"res://scenes/enemies/enemy_bomblet.tscn": {"ring_size": 32.0, "elongation": 0.0},
+	"res://scenes/enemies/enemy_mine.tscn": {"ring_size": 32.0, "elongation": 0.0},
+	"res://scenes/enemies/enemy_mine_armored.tscn": {"ring_size": 32.0, "elongation": 0.0},
+	"res://scenes/enemies/enemy_mine_gravity.tscn": {"ring_size": 32.0, "elongation": 0.0},
+	"res://scenes/enemies/enemy_mine_shield.tscn": {"ring_size": 24.0, "elongation": 0.0},
+	"res://scenes/enemies/enemy_mine_smart.tscn": {"ring_size": 32.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/corporate/enemy_c_l_bulwark.tscn": {"ring_size": 96.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/corporate/enemy_c_l_hive.tscn": {"ring_size": 70.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/corporate/enemy_c_m_widow.tscn": {"ring_size": 50.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/corporate/enemy_c_s_archer.tscn": {"ring_size": 22.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/corporate/enemy_c_s_curve.tscn": {"ring_size": 22.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn": {"ring_size": 20.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/corporate/enemy_c_s_sapper.tscn": {"ring_size": 22.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/corporate/enemy_c_s_specter.tscn": {"ring_size": 22.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/privateer/enemy_core_s_falchion.tscn": {"ring_size": 22.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/privateer/enemy_p_l_harrier.tscn": {"ring_size": 72.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/privateer/enemy_p_m_cannon.tscn": {"ring_size": 32.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/privateer/enemy_p_m_gunship.tscn": {"ring_size": 32.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/privateer/enemy_p_m_interceptor.tscn": {"ring_size": 38.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/privateer/enemy_p_m_pulse.tscn": {"ring_size": 40.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/privateer/enemy_p_m_rocket.tscn": {"ring_size": 36.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/privateer/enemy_p_m_wing.tscn": {"ring_size": 68.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/supremacy/enemy_frigate.tscn": {"ring_size": 80.0, "elongation": 0.48},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_breaker.tscn": {"ring_size": 38.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_butcher.tscn": {"ring_size": 43.0, "elongation": 0.4},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_chaser.tscn": {"ring_size": 44.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_devastator.tscn": {"ring_size": 80.0, "elongation": 0.5},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_harasser.tscn": {"ring_size": 36.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_hunter.tscn": {"ring_size": 38.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_plasma.tscn": {"ring_size": 40.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_push.tscn": {"ring_size": 74.0, "elongation": 0.28},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_ravager.tscn": {"ring_size": 80.0, "elongation": 0.44},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_ruiner.tscn": {"ring_size": 62.0, "elongation": 0.4},
+	"res://scenes/enemies/factions/supremacy/enemy_s_m_scorcher.tscn": {"ring_size": 77.0, "elongation": 0.46},
+	"res://scenes/enemies/factions/supremacy/enemy_s_s_abductor.tscn": {"ring_size": 24.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/supremacy/enemy_s_s_bully.tscn": {"ring_size": 24.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/supremacy/enemy_s_s_hotrod.tscn": {"ring_size": 20.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/supremacy/enemy_s_s_piercer.tscn": {"ring_size": 24.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/supremacy/enemy_s_s_rush.tscn": {"ring_size": 20.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/supremacy/enemy_s_s_spearhead.tscn": {"ring_size": 22.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/supremacy/enemy_s_s_striker.tscn": {"ring_size": 22.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/zealot/enemy_beam_shooter.tscn": {"ring_size": 40.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/zealot/enemy_beamer_tracker.tscn": {"ring_size": 40.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/zealot/enemy_burner.tscn": {"ring_size": 40.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/zealot/enemy_z_l_crusader.tscn": {"ring_size": 80.0, "elongation": 0.32},
+	"res://scenes/enemies/factions/zealot/enemy_z_m_helix.tscn": {"ring_size": 40.0, "elongation": 0.42},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_acolyte.tscn": {"ring_size": 22.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_bloom.tscn": {"ring_size": 20.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_censer.tscn": {"ring_size": 42.0, "elongation": 0.32},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_crook.tscn": {"ring_size": 22.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_cross.tscn": {"ring_size": 40.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_drifter.tscn": {"ring_size": 22.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_manta.tscn": {"ring_size": 22.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_pilgrim.tscn": {"ring_size": 24.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_rebuker.tscn": {"ring_size": 44.0, "elongation": 0.24},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_shiv.tscn": {"ring_size": 22.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_spear.tscn": {"ring_size": 48.0, "elongation": 0.0},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_sword.tscn": {"ring_size": 40.0, "elongation": 0.38},
+}
+
+
+# The tuned {ring_size, elongation} for an enemy scene path, or {} if it was never tuned.
+static func fit_for(path: String) -> Dictionary:
+	return FIT.get(path, {})

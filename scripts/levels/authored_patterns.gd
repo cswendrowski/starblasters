@@ -19,6 +19,7 @@ extends Object
 
 const WaveSpecScript = preload("res://scripts/levels/wave_def.gd")
 const Roster = preload("res://scripts/levels/enemy_roster.gd")
+const PatternEligibility = preload("res://scripts/levels/pattern_eligibility.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
 const Lanes = preload("res://scripts/systems/lanes.gd")
 const FormationShapesC = preload("res://scripts/levels/formation_shapes.gd")
@@ -1052,12 +1053,19 @@ static func build_phrase(pattern: Dictionary, fill_faction: int, sector: int, rn
 static func _spec_for_placement(pl: Dictionary, fill_faction: int, sector: int, max_row: int, rng: RandomNumberGenerator):
 	var enemy_path: String = String(pl.get("enemy", ""))
 	var move_key: String = String(pl.get("movement", ""))
+	# Collapse legacy speed/depth-variant keys to their SHAPE the same way make_movement does, so
+	# eligibility (which is keyed on shapes) can judge the placement's movement. Raw move_key is kept
+	# for the banded-depth suffix + hazard drift_mode logic below.
+	var collapsed_key: String = String(Roster.MOVEMENT_ALIASES.get(move_key, move_key))
 	var size_hint: String = String(pl.get("size", ""))
 	var entry: Dictionary = {}
 	if enemy_path != "":
 		entry = Roster.entry_for_scene(enemy_path)
 	else:
-		entry = _pick_wildcard_entry(fill_faction, sector, size_hint, rng)
+		# Primary guard (shape-preserving): a fixed-movement wildcard only fills with enemies whose
+		# eligibility actually permits that movement — a crossing shape (lane_cut/side_traverse) can't
+		# land on a hold-class unit whose matrix forbids it (the bug this fixes).
+		entry = _pick_wildcard_entry(fill_faction, sector, size_hint, collapsed_key, rng)
 		if not entry.is_empty():
 			enemy_path = String(entry.get("scene", ""))
 	if enemy_path == "":
@@ -1094,7 +1102,11 @@ static func _spec_for_placement(pl: Dictionary, fill_faction: int, sector: int, 
 	# stomp it — same trick the eligibility editor's preview uses); else the entry's roster
 	# default. Leave the scene's authored movement when neither applies (non-roster enemy).
 	if move_key != "":
-		ws.movement_override = Roster.make_movement({"movement": move_key})
+		# Secondary guard (coercion net): route the collapsed key through eligibility before building
+		# the override. Catches wildcard fills whose primary filter had to fall back to the unfiltered
+		# pool AND authored fixed-enemy + fixed-movement mismatches. Fail-open scenes/keys pass through.
+		var guarded_key: String = PatternEligibility.guard_key(enemy_path, collapsed_key)
+		ws.movement_override = Roster.make_movement({"movement": guarded_key})
 		# Also carry the key as a hazard drift mode: for a self-drifting hazard (asteroid/mine/firecore)
 		# the movement_override Resource is inert (no movement slot), and director._spawn_enemy instead
 		# reads drift_mode to pick the LateralDrift envelope. Harmless for non-hazards (no drift_mode
@@ -1127,8 +1139,10 @@ static func _spec_for_placement(pl: Dictionary, fill_faction: int, sector: int, 
 
 
 # Pick a roster entry to fill a wildcard slot: eligible in `fill_faction` at `sector`, matching
-# `size_hint` when given (falls back to any size if none match). Seeded by `rng`. {} if empty.
-static func _pick_wildcard_entry(fill_faction: int, sector: int, size_hint: String, rng: RandomNumberGenerator) -> Dictionary:
+# `size_hint` when given (falls back to any size if none match), and — when `move_key` is set —
+# restricted to enemies whose PatternEligibility permits that (alias-collapsed) movement. Seeded by
+# `rng`. {} if empty.
+static func _pick_wildcard_entry(fill_faction: int, sector: int, size_hint: String, move_key: String, rng: RandomNumberGenerator) -> Dictionary:
 	var prev: int = Roster.get_faction_filter()
 	Roster.set_faction_filter(fill_faction)
 	var pool: Array = []
@@ -1137,6 +1151,16 @@ static func _pick_wildcard_entry(fill_faction: int, sector: int, size_hint: Stri
 	Roster.set_faction_filter(prev)
 	if pool.is_empty():
 		return {}
+	# Movement-eligibility filter (primary guard). allows() fails open for unmapped scenes + path_*
+	# keys, so this only prunes when the matrix actively forbids the movement for a scene. If the
+	# filter empties the pool, log and fall back to the unfiltered pool — the guard_key coercion net
+	# at the stamp site then repairs whatever gets picked.
+	if move_key != "":
+		var moved: Array = pool.filter(func(e): return PatternEligibility.allows(String(e.get("scene", "")), move_key))
+		if not moved.is_empty():
+			pool = moved
+		else:
+			push_error("AuthoredPatterns._pick_wildcard_entry: no faction=%d enemy eligible for movement '%s' — falling back to unfiltered pool." % [fill_faction, move_key])
 	if size_hint != "":
 		var sized: Array = pool.filter(func(e): return String(e.get("size", "")) == size_hint)
 		if not sized.is_empty():

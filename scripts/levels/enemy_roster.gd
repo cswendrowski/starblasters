@@ -469,7 +469,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_abductor.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "straight",
+		"movement": "hunt_omni",   # was stale scaffold "straight" (not eligible); matches its matrix identity (2026-07-09 eligibility audit)
 		"base_count": 2,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": true,
 		"conflict_tags": [],
@@ -528,7 +528,7 @@ const ENTRIES := [
 		"size": "small", "tags": [],
 		"movement": "straight",
 		"base_count": 3,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 2, "weight": 0.8, "chaff": true,
 		"conflict_tags": [],
 	},
 	{
@@ -538,9 +538,9 @@ const ENTRIES := [
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/laser.tres"), "aim": "forward", "count": 1, "fire_min": 0.1, "fire_max": 0.1, "bullet_speed": 59.0, "burst_interval": 0.25, "max_fires": 6, "volley_gap": 0.26, "spread_deg": 0.0 }],
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "straight",
+		"movement": "lane_drift",   # was stale scaffold "straight" (not eligible); matches its matrix identity (2026-07-09 eligibility audit)
 		"base_count": 2,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 2, "weight": 0.8, "chaff": true,
 		"conflict_tags": [],
 	},
 	{
@@ -548,7 +548,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_spearhead.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "straight",
+		"movement": "hunt_beeline",   # was stale scaffold "straight" (not eligible); matches its matrix identity (2026-07-09 eligibility audit)
 		"base_count": 2,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "chaff": true,
 		"conflict_tags": [],
@@ -619,7 +619,7 @@ const ENTRIES := [
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/bolt.tres"), "aim": "straight_down", "count": 1, "fire_min": 1.5, "fire_max": 1.5, "no_inertia": true, "spread_deg": 0.0 }],
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
-		"movement": "straight",
+		"movement": "side_turn",   # was stale scaffold "straight" (not eligible); matches its matrix identity (2026-07-09 eligibility audit)
 		"base_count": 2,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": false,
 		"conflict_tags": [],
@@ -875,7 +875,7 @@ const ENTRIES := [
 		# (keeping a downward component) so this archer exits in bounded time facing mostly down-lane,
 		# instead of the old sideways run-off that doubled its on-screen time.
 		"engine": -1,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.9, "inertia": 0.9, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 2, "weight": 0.9, "inertia": 0.9, "chaff": true,
 		"conflict_tags": ["aimed_or_spread"],
 	},
 	{
@@ -889,7 +889,7 @@ const ENTRIES := [
 		"movement": "lane_hook",
 		"base_count": 2,
 		# (dead top-level fire_min/max removed 2026-07-07 — mount above owns cadence, no hull pattern.)
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.9, "inertia": 0.9, "chaff": true,
+		"unlock_sector": 1, "unlock_depth": 2, "weight": 0.9, "inertia": 0.9, "chaff": true,
 		"conflict_tags": [],
 	},
 	# Push (M6c, Roman art 2026-06-07) — REPLACES the Frigate. Supremacy lane pusher
@@ -1298,7 +1298,7 @@ const ENTRIES := [
 	},
 	{
 		"scene": "res://scenes/enemies/factions/corporate/enemy_c_l_bulwark.tscn",
-		"heavy_class": "capital",  # 64px-wide (placeholder art) — coda capital pool
+		"heavy_class": "anchor",  # 32px-wide medium barrier — presence-holding anchor (not a 64px capital)
 		"tier": Tier.RARE,
 		"size": "medium", "tags": [],
 		"movement": "drift", "depth": "mid",

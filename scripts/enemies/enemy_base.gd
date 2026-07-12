@@ -305,18 +305,36 @@ func _ready() -> void:
 	_attach_engine_trail()
 
 
-# Grid footprint = ceil(w/24) * ceil(h/24) from the first RectangleShape2D collision (× display_scale
-# for scaled sprites). Hazards (asteroids/mines) stay weight 1 so their count-tuned fields are
-# untouched. 1 for anything without a rect box (bosses etc. are excluded from the cap elsewhere).
+# Grid footprint = ceil(w/24) * ceil(h/24) from the collision hull (× display_scale for scaled
+# sprites). Measured from a RectangleShape2D, else a CollisionPolygon2D AABB, else the sprite frame
+# size (the poly/sprite branches added 2026-07-09 — new units use CollisionPolygon2D hulls the old
+# rect-only path measured as weight 1, undercounting their concurrency footprint). Hazards
+# (asteroids/mines) stay weight 1 so their count-tuned fields are untouched. 1 for anything the
+# director can't measure (bosses etc. are excluded from the cap elsewhere anyway).
 func _compute_slot_weight() -> int:
 	if is_hazard:
 		return 1
-	var rect := _first_rect_shape_self(self)
-	if rect == null:
+	var wh: Vector2 = _measure_footprint_self()
+	if wh.x <= 0.0 or wh.y <= 0.0:
 		return 1
-	var w: float = rect.size.x * display_scale
-	var h: float = rect.size.y * display_scale
+	var w: float = wh.x * display_scale
+	var h: float = wh.y * display_scale
 	return maxi(1, int(ceil(w / SLOT_CELL)) * int(ceil(h / SLOT_CELL)))
+
+
+# Body extent (w, h) in local units from the collision hull, else the sprite frame. Zero vector if
+# nothing measurable (→ weight 1).
+func _measure_footprint_self() -> Vector2:
+	var rect := _first_rect_shape_self(self)
+	if rect != null:
+		return rect.size
+	var poly := _first_poly_shape_self(self)
+	if poly != null:
+		return _poly_aabb_self(poly)
+	var spr := _first_sprite_self(self)
+	if spr != null and spr.texture != null:
+		return _sprite_frame_size_self(spr)
+	return Vector2.ZERO
 
 
 func _first_rect_shape_self(n: Node) -> RectangleShape2D:
@@ -327,6 +345,49 @@ func _first_rect_shape_self(n: Node) -> RectangleShape2D:
 		if deep != null:
 			return deep
 	return null
+
+
+func _first_poly_shape_self(n: Node) -> CollisionPolygon2D:
+	for c in n.get_children():
+		if c is CollisionPolygon2D:
+			return c as CollisionPolygon2D
+		var deep := _first_poly_shape_self(c)
+		if deep != null:
+			return deep
+	return null
+
+
+func _first_sprite_self(n: Node) -> Sprite2D:
+	for c in n.get_children():
+		if c is Sprite2D:
+			return c as Sprite2D
+		var deep := _first_sprite_self(c)
+		if deep != null:
+			return deep
+	return null
+
+
+# (w, h) AABB of a CollisionPolygon2D's points (local units, before node scale).
+func _poly_aabb_self(poly: CollisionPolygon2D) -> Vector2:
+	var pts: PackedVector2Array = poly.polygon
+	if pts.is_empty():
+		return Vector2.ZERO
+	var lo: Vector2 = pts[0]
+	var hi: Vector2 = pts[0]
+	for p in pts:
+		lo = lo.min(p)
+		hi = hi.max(p)
+	return hi - lo
+
+
+# One sprite frame's texel (w, h), honouring region_rect + hframes/vframes.
+func _sprite_frame_size_self(spr: Sprite2D) -> Vector2:
+	var sz: Vector2 = spr.region_rect.size if spr.region_enabled else spr.texture.get_size()
+	if spr.hframes > 1:
+		sz.x /= float(spr.hframes)
+	if spr.vframes > 1:
+		sz.y /= float(spr.vframes)
+	return sz
 
 
 const _OutlineFx = preload("res://scripts/effects/outline_fx.gd")

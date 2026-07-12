@@ -2,32 +2,50 @@ extends Control
 
 # Main menu. First scene shown on launch. Styled to match the in-game
 # hologram aesthetic: parallax backdrop, big centered teal title, outlined
-# buttons. All styling is code-driven so the .tscn cache-bind trap doesn't
-# bite when we iterate.
+# buttons. Node structure (CanvasLayer host, buttons, anchors, HD sizing)
+# lives in main_menu.tscn; this script only wires signals and applies the
+# runtime UiTheme styling (theme boxes + holo material can't be baked).
 
 const MenuBackdrop = preload("res://scripts/ui/menu_backdrop.gd")
 const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const SectorMapRoute = preload("res://scripts/systems/sector_map_route.gd")
+const ShipCatalog = preload("res://scripts/strings/ship_catalog.gd")
 
-@onready var continue_btn: Button = $Center/VBox/ContinueBtn
-@onready var new_game_btn: Button = $Center/VBox/NewGameBtn
-@onready var options_btn: Button = $Center/VBox/OptionsBtn
-@onready var credits_btn: Button = $Center/VBox/CreditsBtn
-@onready var test_bed_btn: Button = $Center/VBox/TestBedBtn if has_node("Center/VBox/TestBedBtn") else null
-@onready var exit_btn: Button = $Center/VBox/ExitBtn
-# Test Hazard button is code-injected next to the Test Bed shortcut so we
-# don't have to edit the .tscn (which triggers the scene-cache bind trap).
-var test_hazard_btn: Button = null
+const PATROL_SCENE := "res://scenes/patrol_start.tscn"
+# Everything patrol_start load()s at runtime (hangar stage, dressing scenes/sheets — see its consts).
+# Background-requested at menu load so "New Patrol"'s direct swap doesn't hitch on synchronous loads;
+# ship sprite sheets are appended from ShipCatalog (see _patrol_preload_paths).
+const PATROL_PRELOADS := [
+	PATROL_SCENE,
+	"res://scenes/hangar_stage.tscn",
+	"res://scenes/outpost/outpost_lifter.tscn",
+	"res://scenes/outpost/outpost_tractor.tscn",
+	"res://scenes/outpost/outpost_tractor_trailer.tscn",
+	"res://scenes/enemies/factions/zealot/firecore_core.tscn",
+	"res://graphics/backgrounds/outpost_tractor.png",
+	"res://graphics/backgrounds/outpost_tractor_trailer.png",
+	"res://graphics/backgrounds/outpost_lifter.png",
+	"res://graphics/backgrounds/outpost_ammo_crates.png",
+]
+
+@onready var continue_btn: Button = $MenuUI/Center/VBox/ContinueBtn
+@onready var new_game_btn: Button = $MenuUI/Center/VBox/NewGameBtn
+@onready var options_btn: Button = $MenuUI/Center/VBox/OptionsBtn
+@onready var credits_btn: Button = $MenuUI/Center/VBox/CreditsBtn
+@onready var test_bed_btn: Button = $MenuUI/Center/VBox/TestBedBtn
+@onready var dev_menu_btn: Button = $MenuUI/Center/VBox/DevMenuBtn
+@onready var codex_btn: Button = $MenuUI/Center/VBox/CodexBtn
+@onready var run_history_btn: Button = $MenuUI/Center/VBox/RunHistoryBtn
+@onready var exit_btn: Button = $MenuUI/Center/VBox/ExitBtn
 var _test_hazard_modal: CanvasLayer = null
 var _hd_scope: HdViewportScope = null
 # The upscaled-backdrop SubViewport (from HdScreen.add_upscaled_backdrop). Handed to patrol_start on a
 # live "Start New Patrol" so the LIVE backdrop (drift + star scatter) survives the swap (Roman 2026-07-02).
 var _backdrop_sub: SubViewport = null
-@onready var title_label: Label = $Center/VBox/Title
-@onready var version_label: Label = $VersionLabel if has_node("VersionLabel") else null
-@onready var center: CenterContainer = $Center
-@onready var vbox: VBoxContainer = $Center/VBox
+@onready var version_label: Label = $MenuUI/VersionLabel
+@onready var center: CenterContainer = $MenuUI/Center
+@onready var vbox: VBoxContainer = $MenuUI/Center/VBox
 
 
 func _ready() -> void:
@@ -35,11 +53,8 @@ func _ready() -> void:
 	# with the scene; SceneTransition keeps the screen black during the swap
 	# so the native combat scene we hand off to doesn't flash an HD blow-up.
 	_hd_scope = HdScreen.enter(self)
-	_fix_center_anchors()
-	_host_ui_on_canvaslayer()
 	_install_backdrop()
-	_style_title()
-	_add_subtitle()
+	_preload_patrol_assets()
 	_style_buttons()
 	_style_version()
 	# Continue is enabled only if a save exists (placeholder for now)
@@ -48,15 +63,10 @@ func _ready() -> void:
 	new_game_btn.pressed.connect(_on_new_game)
 	options_btn.pressed.connect(_on_options)
 	credits_btn.pressed.connect(_on_credits)
+	dev_menu_btn.pressed.connect(_on_dev_menu)
+	codex_btn.pressed.connect(_on_codex)
+	run_history_btn.pressed.connect(_on_run_history)
 	exit_btn.pressed.connect(_on_exit)
-	# Dev shortcuts moved to a dedicated Dev Menu (Roman, 2026-05-16). The
-	# old Test Bed button in the .tscn stays hidden; everything dev-related
-	# lives behind one entry now.
-	if test_bed_btn != null:
-		test_bed_btn.visible = false
-	_install_dev_menu_button()
-	_install_codex_button()
-	_install_run_history_button()
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("menu")
 	# Debug-only: warn if any menu Control spills past the 480×270 viewport
@@ -64,90 +74,96 @@ func _ready() -> void:
 	UiTheme.assert_inside_viewport.call_deferred(self)
 
 
-# The packed scene's CenterContainer doesn't actually center because its
-# anchors weren't fully set. Force full-rect anchors so the VBox centers on
-# the viewport.
-func _fix_center_anchors() -> void:
-	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	position = Vector2.ZERO
-	# Bump the menu Control's render bucket above 0 so any parallax planet
-	# halos or transient overlays inside the Backdrop can't accidentally
-	# draw over the buttons.
-	z_index = 10
-	z_as_relative = false
-	if center == null:
-		return
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	center.position = Vector2.ZERO
-	center.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	center.grow_vertical = Control.GROW_DIRECTION_BOTH
-
-
-# Move the interactive UI onto a CanvasLayer. Root-canvas Controls under the
-# runtime HD content_scale swap can show an input-vs-visual offset (the menu's
-# hover/click landed off the buttons); CanvasLayer-hosted UI — like the outpost,
-# options, pause — is immune. This brings the main menu in line with them.
-func _host_ui_on_canvaslayer() -> void:
-	if center == null:
-		return
-	var ui_layer := CanvasLayer.new()
-	ui_layer.name = "MenuUI"
-	add_child(ui_layer)
-	center.reparent(ui_layer)
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	center.position = Vector2.ZERO
-	if version_label != null and is_instance_valid(version_label):
-		version_label.reparent(ui_layer)
-
-
+# NOTE: the interactive UI lives under the MenuUI CanvasLayer in the .tscn.
+# Root-canvas Controls under the runtime HD content_scale swap can show an
+# input-vs-visual offset (hover/click landing off the buttons); CanvasLayer-
+# hosted UI — like the outpost, options, pause — is immune. The root Control
+# also keeps z_index=10 (baked in the scene) so parallax planet halos or
+# transient overlays inside the Backdrop can't draw over the buttons.
 func _install_backdrop() -> void:
-	# Spawn the same parallax setup the combat scene uses, on the shared calm-lobby tune (slower
-	# planet drift so the menu's planet doesn't blow past — this is the lobby, not a level).
+	# Back-out from patrol_start: it hands the SAME live backdrop back via the `menu_backdrop_live`
+	# Run meta (mirror of the forward handoff in _on_new_game) — adopt it so the sky doesn't visibly
+	# regenerate, and fade the menu UI in to finish the reversed intro transition.
+	if _adopt_backdrop_from_patrol():
+		_fade_in_menu_ui()
+		return
+	# Fresh build: the same at-rest parallax setup the patrol-start lobby uses (static sky — motion
+	# only happens during the patrol-start rise).
 	var bd := MenuBackdrop.make()
 	# The parallax backdrop renders in native 480×270; this menu is HD. Show it
 	# via a native SubViewport upscaled 4× (nearest) so it fills the screen the
 	# same way combat's canvas stretch does — see HdScreen.add_upscaled_backdrop.
 	# Stash the SubViewport so a live "Start New Patrol" can HAND THE WHOLE LIVE
-	# backdrop to patrol_start (drift + star scatter intact) instead of rebuilding.
+	# backdrop to patrol_start (star scatter intact) instead of rebuilding.
 	_backdrop_sub = HdScreen.add_upscaled_backdrop(self, bd)
 	# Drop the celestial bodies toward the centre of the menu (they normally stage near the top); the
 	# patrol-start sequence starts them here and pans them up as the hangar rises (kept in sync).
 	MenuBackdrop.drop_celestials(bd)
+	# Menu is at rest — no scroll (make() sets drift 0), so the warp streaks park too.
+	MenuBackdrop.still_streaks(bd)
 
 
-func _style_title() -> void:
-	if title_label == null:
-		return
-	title_label.text = "STARBLASTER"
-	UiTheme.style_label(title_label, UiTheme.LabelKind.TITLE)
-	# Main menu title is the biggest text in the game — override the theme
-	# title size up from the canonical 64 to a dramatic 88.
-	title_label.add_theme_font_size_override("font_size", 24)  # 320×400 res
-	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_label.material = UiTheme.make_holo_material(UiTheme.HoloPreset.TITLE)
+# Adopt the live backdrop SubViewport stashed by patrol_start._back() (if any). Returns true when
+# adopted; consumes the meta either way, freeing an unusable stashed node so it never dangles.
+func _adopt_backdrop_from_patrol() -> bool:
+	var run := get_node_or_null("/root/Run")
+	if run == null or not run.has_meta("menu_backdrop_live"):
+		return false
+	var sub = run.get_meta("menu_backdrop_live")
+	run.remove_meta("menu_backdrop_live")   # consume unconditionally
+	if not (sub is SubViewport) or not is_instance_valid(sub):
+		return false
+	if HdScreen.adopt_upscaled_backdrop(self, sub) == null:
+		(sub as SubViewport).queue_free()
+		return false
+	_backdrop_sub = sub
+	return true
 
 
-func _add_subtitle() -> void:
-	# Subtitle cut by design — title carries the menu on its own. Keep the
-	# function as a no-op hook in case we want to bring it back later.
-	return
+# Tail end of the reversed patrol-start intro: the bay has sunk away and the sky panned back —
+# now the logo/buttons/version fade back in over the persistent backdrop.
+func _fade_in_menu_ui() -> void:
+	center.modulate.a = 0.0
+	version_label.modulate.a = 0.0
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(center, "modulate:a", 1.0, 0.5)
+	tw.tween_property(version_label, "modulate:a", 1.0, 0.5)
 
 
+# Kick background threaded loads for the patrol-start scene + everything it load()s at runtime.
+# By the time the player clicks "New Patrol" these are normally finished; _on_new_game drains them
+# into the resource cache so the direct swap doesn't hitch.
+func _preload_patrol_assets() -> void:
+	for p in _patrol_preload_paths():
+		ResourceLoader.load_threaded_request(p, "", true)
+
+
+func _patrol_preload_paths() -> Array:
+	var paths: Array = PATROL_PRELOADS.duplicate()
+	for i in ShipCatalog.count():
+		var ship: Dictionary = ShipCatalog.get_ship(i)
+		for key in ["body", "livery", "engine"]:
+			if ship.has(key):
+				paths.append(ship[key])
+	return paths
+
+
+# Title is the StarBlaster logo sprite (Logo TextureRect in the .tscn, native
+# 265×108 art at a 2× integer scale, nearest-filtered) — it replaced the old
+# holo-styled "STARBLASTER" Label 2026-07-11.
 func _style_buttons() -> void:
-	# HD layout: the .tscn sizes (160×22, VBox 160) assume the old 480 canvas;
-	# widen for 1920×1080 so the centered button stack reads at HD scale.
-	if vbox != null:
-		vbox.custom_minimum_size = Vector2(460, 0)
-		vbox.add_theme_constant_override("separation", 14)
-	var btns: Array = [continue_btn, new_game_btn, options_btn, credits_btn, test_bed_btn, exit_btn]
+	# HD sizes (460×64, VBox 460, separation 14) are baked in the .tscn; here
+	# we only apply the runtime theme (StyleBoxes + fonts can't be baked).
+	var btns: Array = [continue_btn, new_game_btn, options_btn, credits_btn, test_bed_btn, dev_menu_btn, codex_btn, run_history_btn, exit_btn]
 	for b in btns:
 		if b == null:
 			continue
 		UiTheme.style_button(b, true)  # dense — menu has 5+ buttons
-		b.custom_minimum_size = Vector2(460, 64)
-	# Test bed keeps its distinct green to mark it as a dev shortcut.
-	if test_bed_btn != null:
-		test_bed_btn.add_theme_color_override("font_color", UiTheme.COLOR_GREEN)
+	# Dev shortcuts keep their distinct green to mark them as such.
+	for b in [test_bed_btn, dev_menu_btn]:
+		if b != null:
+			b.add_theme_color_override("font_color", UiTheme.COLOR_GREEN)
 
 
 func _style_version() -> void:
@@ -160,18 +176,8 @@ func _style_version() -> void:
 	# 2026-05-18 wanted it legible on the web build).
 	version_label.add_theme_font_size_override("font_size", 24)
 	version_label.add_theme_color_override("font_color", Color(0.95, 0.98, 1.0, 1.0))
-	# CLIPPING FIX (Roman 2026-06-11): the .tscn box is 42×10 px (480-era offsets);
-	# the 24px HD font overflowed it off the bottom-right corner. Size a real HD box
-	# in the bottom-right corner, right+bottom aligned, with margin so it never clips.
-	version_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	version_label.offset_left = -240.0
-	version_label.offset_top = -52.0
-	version_label.offset_right = -18.0
-	version_label.offset_bottom = -14.0
-	version_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	version_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	version_label.clip_text = false
-	version_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	# Box placement (HD bottom-right anchors + offsets sized for the 24px font,
+	# per the 2026-06-11 clipping fix) is baked in the .tscn.
 
 
 func _on_test_bed() -> void:
@@ -218,7 +224,21 @@ func _on_new_game() -> void:
 	# Direct swap (no SceneTransition black) — patrol_start owns the crossfade reveal. main_menu's
 	# backdrop renders in a SubViewport (off the root canvas), so the change_scene backdrop-free
 	# SIGSEGV guard SceneTransition adds for combat's direct-child Backdrop doesn't apply here.
-	get_tree().change_scene_to_file("res://scenes/patrol_start.tscn")
+	# Drain the background preload first (kicked off in _ready): load_threaded_get finishes any
+	# stragglers and parks every resource in the cache, so the swap + patrol_start's runtime load()s
+	# don't hitch.
+	var packed: PackedScene = null
+	for p in _patrol_preload_paths():
+		var st := ResourceLoader.load_threaded_get_status(p)
+		if st != ResourceLoader.THREAD_LOAD_IN_PROGRESS and st != ResourceLoader.THREAD_LOAD_LOADED:
+			continue   # bad path / never requested — fall through to the plain load
+		var res := ResourceLoader.load_threaded_get(p)
+		if p == PATROL_SCENE:
+			packed = res as PackedScene
+	if packed != null:
+		get_tree().change_scene_to_packed(packed)
+	else:
+		get_tree().change_scene_to_file(PATROL_SCENE)
 
 
 # Capture the current rendered frame as a texture for patrol_start's crossfade hand-off. Returns null
@@ -253,50 +273,20 @@ func _on_exit() -> void:
 # One green dev-shortcut button replaces the per-tool sprinkle (Test Bed,
 # Test Hazard, Hangar). Opens scenes/dev_menu.tscn which carries all of
 # those plus Maneuver Sim and Shipyard.
-func _install_dev_menu_button() -> void:
-	var btn := Button.new()
-	btn.text = "[ Dev Menu ]"
-	btn.custom_minimum_size = Vector2(160, 22)
-	UiTheme.style_button(btn, true)
-	btn.add_theme_color_override("font_color", UiTheme.COLOR_GREEN)
-	btn.pressed.connect(func():
-		SceneTransition.change_scene(get_tree(), "res://scenes/dev_menu.tscn")
-	)
-	vbox.add_child(btn)
-	if exit_btn != null:
-		vbox.move_child(btn, exit_btn.get_index())
+func _on_dev_menu() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev_menu.tscn")
 
 
 # Enemy Codex — main-menu entry into the holo-shaded enemy reference.
 # Player-facing (not a dev shortcut) — placed between Credits and Exit.
-func _install_codex_button() -> void:
-	var btn := Button.new()
-	btn.text = "Codex"
-	btn.custom_minimum_size = Vector2(160, 22)
-	UiTheme.style_button(btn)
-	btn.pressed.connect(func():
-		var SceneTransition = load("res://scripts/systems/scene_transition.gd")
-		SceneTransition.change_scene(get_tree(), "res://scenes/enemy_codex.tscn")
-	)
-	vbox.add_child(btn)
-	if exit_btn != null:
-		vbox.move_child(btn, exit_btn.get_index())
+func _on_codex() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/enemy_codex.tscn")
 
 
 # Run History — main-menu entry into the dated past-runs list. Player-facing;
 # placed just above Exit, next to the Codex entry.
-func _install_run_history_button() -> void:
-	var btn := Button.new()
-	btn.text = "Run History"
-	btn.custom_minimum_size = Vector2(160, 22)
-	UiTheme.style_button(btn)
-	btn.pressed.connect(func():
-		var SceneTransition = load("res://scripts/systems/scene_transition.gd")
-		SceneTransition.change_scene(get_tree(), "res://scenes/run_history.tscn")
-	)
-	vbox.add_child(btn)
-	if exit_btn != null:
-		vbox.move_child(btn, exit_btn.get_index())
+func _on_run_history() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/run_history.tscn")
 
 
 # Build a CanvasLayer modal with a dim backdrop + centered panel that asks

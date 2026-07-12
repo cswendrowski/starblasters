@@ -10,6 +10,12 @@ extends Resource
 enum Formation { TOP_LEFT_TO_RIGHT, TOP_RIGHT_TO_LEFT, TOP_RANDOM, TOP_CENTER_OUT, SIDE_ALTERNATING, TOP_TANDEM_PAIRS, WALL, PINCER, STEP_WALL }
 
 @export var enemy_scene: PackedScene
+# Roster-nominal body height (px) for this enemy's declared size class — small=16 / medium=32 /
+# large=48 (spawn-spacing fix, 2026-07-09). The director takes max(measured, nominal) as the
+# effective height so a new unit whose collision shape it can't measure (CollisionPolygon2D hulls)
+# is never mistaken for 16px chaff by the lane-gap / anchor-stagger spacing. 0 = unset (bosses /
+# bare-scene specs) → the measured height stands alone. Set by WaveGenerator._make_wave_spec.
+@export var nominal_height: float = 0.0
 @export var count: int = 6
 @export var spawn_interval: float = 0.35
 @export var spawn_delay: float = 0.5

@@ -43,8 +43,9 @@ const TORCH_SLIDERS := [
 # Hex shield tuner (moved here from the Shader Lab, Roman 2026-06-11) — tunes the
 # hex_shield bubble live on the actual player ship.
 const HEX_SHIELD := preload("res://graphics/hex_shield.gdshader")
+const ShieldRingFx = preload("res://scripts/effects/shield_ring_fx.gd")
 const SHIELD_SLIDERS := [
-	{"key": "ring_px", "label": "Bubble size (px)", "min": 16.0, "max": 96.0, "step": 2.0, "def": 30.0},
+	{"key": "ring_px", "label": "Bubble size (px)", "min": 16.0, "max": 96.0, "step": 2.0, "def": 24.0},
 	{"key": "cells", "label": "Hex cells across", "min": 2.0, "max": 24.0, "step": 0.5, "def": 7.0},
 	{"key": "scroll_x", "label": "Scroll X", "min": -0.3, "max": 0.3, "step": 0.01, "def": 0.08},
 	{"key": "scroll_y", "label": "Scroll Y", "min": -0.3, "max": 0.3, "step": 0.01, "def": 0.05},
@@ -54,6 +55,7 @@ const SHIELD_SLIDERS := [
 	{"key": "flicker", "label": "Cell flicker", "min": 0.0, "max": 1.0, "step": 0.05, "def": 0.35},
 	{"key": "dome", "label": "Dome warp", "min": 0.0, "max": 1.0, "step": 0.05, "def": 0.65},
 	{"key": "elongation", "label": "Capsule elongation", "min": 0.0, "max": 0.85, "step": 0.05, "def": 0.0},
+	{"key": "hdr", "label": "HDR brightness (bloom)", "min": 1.0, "max": 4.0, "step": 0.05, "def": 1.6},
 ]
 
 # Idle-look presets — each is a set of SHIELD_SLIDERS overrides (unset keys fall back to the
@@ -95,6 +97,10 @@ var _shield_on: bool = false
 var _shield_rows: Dictionary = {}   # key -> {"slider": HSlider, "label": Label, "name": String}
 var _hit_dur: float = 0.45
 var _hit_peak: float = 1.0
+# Shield STATES preview — the real in-game ShieldRingFx driver bound to the player's own ring.
+var _state_fx = null
+var _state_frac_label: Label = null
+var _state_charge_val: float = 1.0
 
 
 func _ready() -> void:
@@ -226,6 +232,12 @@ func _attach_shield() -> void:
 	_shield_mat = null
 	if _shield_rect != null and _shield_rect.material is ShaderMaterial:
 		_shield_mat = _shield_rect.material
+	# Bind the REAL in-game driver to the player's own ring for the SHIELD STATES section. Its _init
+	# resets the ring to the Sparse Plates base + scale 0; restore scale so the base-look tuner below
+	# stays visible (the state buttons drive scale/opacity themselves).
+	if _shield_mat != null and is_instance_valid(_shield_rect):
+		_state_fx = ShieldRingFx.new(_shield_mat, _shield_rect, ShieldRingFx.PLAYER_COLOR)
+		_shield_rect.scale = Vector2.ONE
 	_apply_shield_knobs()
 	_set_shield_visible(_shield_on)
 
@@ -241,10 +253,12 @@ func _apply_shield_knobs() -> void:
 	_shield_mat.set_shader_parameter("flicker", float(_shield_vals["flicker"]))
 	_shield_mat.set_shader_parameter("dome", float(_shield_vals["dome"]))
 	_shield_mat.set_shader_parameter("elongation", float(_shield_vals["elongation"]))
+	_shield_mat.set_shader_parameter("hdr", float(_shield_vals.get("hdr", 1.6)))
 	_shield_mat.set_shader_parameter("shield_color", _shield_color)
 	var s := float(_shield_vals["ring_px"])
 	_shield_rect.size = Vector2(s, s)
 	_shield_rect.position = Vector2(-s * 0.5, -s * 0.5)   # centered on the ship origin
+	_shield_rect.pivot_offset = _shield_rect.size * 0.5   # keep the STATE collapse shrinking from centre
 
 
 func _set_shield_visible(on: bool) -> void:
@@ -270,6 +284,48 @@ func _pulse_shield() -> void:
 		tw.tween_callback(func():
 			if _shield_mat != null:
 				_shield_mat.set_shader_parameter("alpha", 0.0))
+
+
+# ---- Shield STATES preview (drives the player's ring through the real ShieldRingFx driver) ----
+func _on_state_charge(v: float) -> void:
+	_state_charge_val = v
+	if _state_frac_label != null:
+		_state_frac_label.text = "Charge   %.2f   (full → bold+steady · empty → faint+flicker)" % v
+	if _state_fx == null:
+		return
+	_state_fx.apply_base()   # assert the true in-game Sparse Plates base (over the look sliders)
+	_state_fx.apply_state(v)
+	_state_fx.set_online(v > 0.001, 0.3)
+
+
+func _on_state_hit() -> void:
+	if _state_fx == null:
+		return
+	_state_fx.apply_base()
+	_state_fx.set_online(true, 0.0)          # ensure the ring is up so the flash reads
+	_state_fx.apply_state(_state_charge_val)
+	_state_fx.hit_flash(_state_charge_val, 0.1)
+
+
+func _on_state_pulse() -> void:
+	if _state_fx == null:
+		return
+	_state_fx.apply_base()
+	_state_fx.set_online(true, 0.0)
+	_state_fx.pulse()
+
+
+func _on_state_collapse() -> void:
+	if _state_fx != null:
+		_state_fx.set_online(false, 0.35)
+
+
+func _on_state_online() -> void:
+	if _state_fx == null:
+		return
+	_state_fx.apply_base()
+	_state_fx.apply_state(_state_charge_val)
+	_state_fx.set_online(true, 0.35)
 
 
 # A labelled OptionButton row for a preset group. `keys` is the preset-name list; the callback
@@ -437,6 +493,33 @@ func _build_ui() -> void:
 	for d in SHIELD_SLIDERS:
 		_add_shield_slider_row(kb, d)
 
+	# --- SHIELD STATES: preview the live in-game ShieldRingFx behaviour on the player's own ring —
+	# charge-driven fill/flicker, the white hit-flash, collapse / come-online (fade + shrink), and the
+	# regen pulse. These drive the same driver combat uses, so this is exactly what a full / low / hit /
+	# dying shield looks like. (The sliders above still tune the base LOOK; these own the state params.)
+	kb.add_child(HSeparator.new())
+	kb.add_child(_mk_label("SHIELD STATES (live driver)", 22))
+	_state_frac_label = _mk_label("Charge   %.2f   (full → bold+steady · empty → faint+flicker)" % _state_charge_val, 15)
+	kb.add_child(_state_frac_label)
+	var frac_sl := HSlider.new()
+	frac_sl.min_value = 0.0
+	frac_sl.max_value = 1.0
+	frac_sl.step = 0.01
+	frac_sl.value = _state_charge_val
+	frac_sl.custom_minimum_size = Vector2(panel_slider_w(), 26)
+	frac_sl.value_changed.connect(_on_state_charge)
+	kb.add_child(frac_sl)
+	var st_row := HBoxContainer.new()
+	st_row.add_theme_constant_override("separation", 8)
+	st_row.add_child(_mk_button("Hit flash", _on_state_hit))
+	st_row.add_child(_mk_button("Regen pulse", _on_state_pulse))
+	kb.add_child(st_row)
+	var st_row2 := HBoxContainer.new()
+	st_row2.add_theme_constant_override("separation", 8)
+	st_row2.add_child(_mk_button("Collapse", _on_state_collapse))
+	st_row2.add_child(_mk_button("Bring online", _on_state_online))
+	kb.add_child(st_row2)
+
 	# Save / Copy row pinned at the bottom.
 	var actions := HBoxContainer.new()
 	actions.position = Vector2(rx, 1080 - 96)
@@ -585,6 +668,7 @@ func _on_copy() -> void:
 	lines.append('mat.set_shader_parameter("fill_alpha", %.2f)' % float(_shield_vals["fill_alpha"]))
 	lines.append('mat.set_shader_parameter("flicker", %.2f)' % float(_shield_vals["flicker"]))
 	lines.append('mat.set_shader_parameter("dome", %.2f)' % float(_shield_vals["dome"]))
+	lines.append('mat.set_shader_parameter("hdr", %.2f)' % float(_shield_vals.get("hdr", 1.6)))
 	lines.append("# bubble size (px): %.0f" % float(_shield_vals["ring_px"]))
 	var text := "\n".join(lines)
 	DisplayServer.clipboard_set(text)

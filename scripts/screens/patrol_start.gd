@@ -2108,7 +2108,42 @@ func _label(text: String, kind: int) -> Label:
 
 
 func _back() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/main_menu.tscn")
+	if _busy:
+		return
+	# LIVE launch backs out by REVERSING the intro (Roman 2026-07-11): panels fade out, the bay sinks
+	# away (celestials pan back down automatically via _update_bg_pan), then the main menu re-adopts
+	# the live backdrop and fades its logo/buttons in — no fade-to-black, no regenerated sky.
+	# Dev launch, skip-anim mode, or mid-intro (rise still running) keep the plain covered transition.
+	if not _live_launch or _skip_anim() or _click_layer == null or not _click_layer.visible:
+		SceneTransition.change_scene(get_tree(), "res://scenes/main_menu.tscn")
+		return
+	_busy = true
+	_click_layer.visible = false
+	_music_intensity(0)   # back to the menu's calm base layer
+	var fade := create_tween()
+	fade.set_parallel(true)
+	fade.tween_property(_left_sidebar, "modulate:a", 0.0, bars_fade_time)
+	fade.tween_property(_right_sidebar, "modulate:a", 0.0, bars_fade_time)
+	fade.tween_property(_left_panel, "modulate:a", 0.0, bars_fade_time)
+	fade.tween_property(_right_panel, "modulate:a", 0.0, bars_fade_time)
+	await fade.finished
+	# Streaks on for the descent (motion), bay sinks back out of view — the exact reverse of the rise.
+	_set_streaks(true)
+	var tw := create_tween()
+	tw.tween_property(_hangar, "position:y", float(NATIVE_H), slide_time).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	await tw.finished
+	_set_streaks(false)
+	# Hand the LIVE backdrop back to the menu (mirror of the forward handoff in main_menu._on_new_game):
+	# detach the upscaled-backdrop SubViewport so change_scene's free of this scene leaves it alive;
+	# main_menu re-adopts + consumes it (freeing it if adoption is impossible).
+	var run := get_node_or_null("/root/Run")
+	if run != null and _backdrop != null and is_instance_valid(_backdrop):
+		var sub := _backdrop.get_parent() as SubViewport
+		if sub != null:
+			if sub.get_parent() != null:
+				sub.get_parent().remove_child(sub)
+			run.set_meta("menu_backdrop_live", sub)
+	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
 
 
 func _unhandled_input(event: InputEvent) -> void:

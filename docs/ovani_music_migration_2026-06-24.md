@@ -216,6 +216,17 @@ fail-run → main menu, `main.gd` `_on_player_died` → `stop(0.8)`). Rework:
   is still ~−45 dB on the last frame before `stop_stream` cuts the voice — a click ~`fade`
   seconds (the "3 s pop") into a new track. Now it reaches silence a hair before the stop.
 
+**Settle buffer (2026-06-25) — no churn on rapid scene hops.** Every screen's `_ready`
+calls `set_context`, and each change crossfaded immediately, so sector → signal → sector
+(resolving a signal event fast) gave two crossfades in a couple seconds and often re-picked
+a different sector track on return. Now an **ambient → ambient** switch
+(`AMBIENT_CONTEXTS` = menu/sector/signal/outpost) is held as `_pending_context` and only
+commits (`_commit_context`, in `_process`) after it stays put for `SETTLE_BUFFER` (2.0 s).
+Returning to the already-playing context within the window **cancels** the pending change
+(the idempotent branch clears it) — so a quick detour never touches the music. Combat/boss,
+`forced`, and first-play (nothing playing) still commit immediately. `set_context`'s commit
+body was extracted into `_commit_context(context, options)`.
+
 ### Wiring + retirement
 - `main.gd` forwards `player.hull_changed` → `Music.notify_damage` in combat setup.
 - Imported all 16 Ovani folders (`loop=false`); **deleted the 24 old loose

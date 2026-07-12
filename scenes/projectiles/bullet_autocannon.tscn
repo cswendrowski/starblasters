@@ -9,6 +9,7 @@ size = Vector2(4, 14)
 [node name="Bullet_Autocannon" type="Area2D" unique_id=1921940008]
 script = ExtResource("1_8tkay")
 
+impact_color = Color(1.0, 0.8171, 0.502, 1.0)
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=826429187]
 rotation = -1.5707964
 texture = ExtResource("2_2tyab")

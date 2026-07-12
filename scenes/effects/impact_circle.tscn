@@ -24,18 +24,6 @@ anim_speed_max = 1.0
 [sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_hty0i"]
 blend_mode = 1
 
-[sub_resource type="Gradient" id="Gradient_4dyil"]
-colors = PackedColorArray(1.5720325, 1.5720325, 1.5720325, 1, 1.5720325, 1.5720325, 1.5720325, 0)
-
-[sub_resource type="GradientTexture2D" id="GradientTexture2D_f7dug"]
-gradient = SubResource("Gradient_4dyil")
-width = 4
-height = 4
-use_hdr = true
-fill = 1
-fill_from = Vector2(0.5, 0.5)
-fill_to = Vector2(0, 1)
-
 [sub_resource type="Curve" id="Curve_hr6vi"]
 _data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
 point_count = 2
@@ -94,7 +82,6 @@ process_material = SubResource("ParticleProcessMaterial_mm22f")
 material = SubResource("CanvasItemMaterial_hty0i")
 emitting = false
 amount = 16
-texture = SubResource("GradientTexture2D_f7dug")
 one_shot = true
 explosiveness = 0.95
 fixed_fps = 60

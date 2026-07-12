@@ -10,6 +10,7 @@ size = Vector2(4, 16)
 script = ExtResource("1_script")
 speed = 480
 
+impact_color = Color(0.4392, 0.6431, 1.0, 1.0)
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1412851644]
 texture = ExtResource("2_tex")
 hframes = 4

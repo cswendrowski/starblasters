@@ -34,6 +34,9 @@ uniform float dome : hint_range(0.0, 1.0) = 0.65;
 // Capsule elongation along Y: 0 = a round bubble; >0 stretches it into a vertical
 // stadium/capsule so it can hug a longer (taller) enemy sprite (Roman 2026-06-11).
 uniform float elongation : hint_range(0.0, 0.85) = 0.0;
+// HDR output multiplier — pushes the bright hex lines / rim / hit-flash above the
+// WorldEnvironment glow threshold so the shield blooms. 1.0 = LDR (no bloom).
+uniform float hdr : hint_range(1.0, 4.0) = 1.0;
 
 float hex_dist(vec2 p) {
 	p = abs(p);
@@ -101,6 +104,6 @@ void fragment() {
 		col = mix(col, hit_color.rgb, clamp(ripple, 0.0, 1.0) * 0.8);
 		intensity += ripple * (0.35 + line);
 
-		COLOR = vec4(col, clamp(intensity, 0.0, 1.0) * shield_color.a * alpha);
+		COLOR = vec4(col * hdr, clamp(intensity, 0.0, 1.0) * shield_color.a * alpha);
 	}
 }

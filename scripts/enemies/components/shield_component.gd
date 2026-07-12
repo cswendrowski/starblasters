@@ -10,9 +10,22 @@ extends EnemyComponent
 # DISTINCT from enemy_base's simple `max_shield` charge-shield (used by chaff): that one
 # is per-hit pips with no regen and is consumed in take_hit BEFORE components. This one
 # regenerates and carries its own ring visual. An enemy uses one or the other, not both.
+#
+# The ring look is the shared ShieldRingFx driver (2026-07-09), identical to the player's:
+# Sparse Plates base, charge-fraction fill/flicker, white hit-flash, collapse on break.
+# Colour = the enemy's FACTION laser-inner (so enemy shields read as "not yours"); the sapper
+# (POOL mode) is the exception — it shows the player cyan because its pool IS stolen player shield.
 
 const SHIELD_SHADER = preload("res://graphics/hex_shield.gdshader")  # committed (Roman 2026-06-11)
 const HitFlashFx = preload("res://scripts/effects/hit_flash_fx.gd")
+const ShieldRingFxC = preload("res://scripts/effects/shield_ring_fx.gd")
+const FactionsC = preload("res://scripts/levels/factions.gd")
+const ShieldFitC = preload("res://scripts/enemies/components/shield_fit.gd")
+
+# Enemy hit-flash hold (enemies have no i-frames; a fixed brief hold before the resettle).
+const HIT_HOLD := 0.12
+# Collapse / come-online transition length.
+const TRANSITION_SECS := 0.25
 
 # The single shared enemy shield (shield_unification_2026-06-08.md). Two modes:
 #   CHARGE — per-HIT charge shield: each hit spends one charge regardless of damage
@@ -27,6 +40,9 @@ enum Mode { CHARGE, POOL }
 @export var capacity: int = 3
 @export var regen_interval: float = 6.0   # seconds to regenerate one CHARGE; <= 0 = no regen
 @export var ring_size: float = 32.0
+# Bubble roundness: 0 = a round dome; >0 stretches it into a taller vertical capsule so it hugs a
+# longer (taller) enemy sprite. Tuned per-enemy in the Shader Lab "Enemy Shields" tab.
+@export var elongation: float = 0.0
 # Spawn with the shield DOWN (0 charges / empty pool) and raise it later via
 # raise_shield(). Used by the Shielded Mine: a transition pageant plays, then the
 # shield activates — a brief window to kill it unshielded.
@@ -37,7 +53,7 @@ var _pool: float = 0.0   # POOL mode: banked damage capacity
 var _regen_t: float = 0.0
 var _ring: ColorRect = null
 var _mat: ShaderMaterial = null
-var _hit_tween: Tween = null
+var _fx = null           # ShieldRingFx driver (owns the look + tweens)
 
 
 func on_start(enemy) -> void:
@@ -79,6 +95,8 @@ func bank(amount: float) -> void:
 	if mode != Mode.POOL:
 		return
 	_pool += max(0.0, amount)
+	if _fx != null:
+		_fx.pulse()   # "gulp" feedback as it eats a charge
 	_update_visual()
 
 
@@ -99,19 +117,15 @@ func on_hit(enemy, damage: int) -> int:
 			return damage
 		var absorbed: float = minf(float(damage), _pool)
 		_pool -= absorbed
-		_pulse()
 		_update_visual()
-		if enemy.has_node("Sprite2D"):
-			HitFlashFx.flash(enemy.get_node("Sprite2D"), HitFlashFx.FLASH_SHIELD)
+		_flash(enemy)
 		return int(ceil(float(damage) - absorbed))
 	if _charges <= 0:
 		return damage
 	_charges -= 1
 	_regen_t = 0.0                      # taking a hit restarts the regen delay
-	_pulse()
 	_update_visual()
-	if enemy.has_node("Sprite2D"):
-		HitFlashFx.flash(enemy.get_node("Sprite2D"), HitFlashFx.FLASH_SHIELD)
+	_flash(enemy)
 	return 0
 
 
@@ -125,6 +139,8 @@ func on_process(_enemy, delta: float) -> void:
 	if _regen_t >= regen_interval:
 		_regen_t = 0.0
 		_charges = mini(_charges + 1, capacity)
+		if _fx != null:
+			_fx.pulse()   # per-charge regen pulse
 		_update_visual()
 
 
@@ -137,46 +153,61 @@ func on_leave(_enemy) -> void:
 
 
 func _build_ring(enemy) -> void:
+	# Per-enemy shield FIT (Shader Lab "Enemy Shields" tab): a tuned size/roundness for THIS enemy scene
+	# wins over the @export defaults, so every enemy's bubble hugs its own sprite.
+	var fit: Dictionary = ShieldFitC.fit_for(String(enemy.scene_file_path))
+	var use_size: float = float(fit.get("ring_size", ring_size))
+	var use_elong: float = float(fit.get("elongation", elongation))
 	_mat = ShaderMaterial.new()
 	_mat.shader = SHIELD_SHADER
-	_mat.set_shader_parameter("alpha", 0.0)
-	_mat.set_shader_parameter("hit_strength", 0.0)
 	_ring = ColorRect.new()
 	_ring.name = "ShieldRing"
 	_ring.color = Color(1, 1, 1, 1)
 	_ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_ring.size = Vector2(ring_size, ring_size)
+	_ring.size = Vector2(use_size, use_size)
 	_ring.position = -_ring.size * 0.5
 	_ring.material = _mat
 	_ring.z_index = 1
 	enemy.add_child(_ring)
+	_fx = ShieldRingFxC.new(_mat, _ring, _pick_color(enemy))
+	_mat.set_shader_parameter("elongation", use_elong)   # per-enemy bubble roundness (Shader Lab tuned)
+
+
+# The sapper (POOL) shows the player cyan (its pool is stolen player shield); every other enemy
+# shield takes its faction's laser-inner colour (white fallback for un-factioned units).
+func _pick_color(enemy) -> Color:
+	if mode == Mode.POOL:
+		return ShieldRingFxC.PLAYER_COLOR
+	return FactionsC.muzzle_inner(int(enemy.get_meta("faction_skin", -1)))
+
+
+func _fraction() -> float:
+	var denom: float = float(maxi(1, capacity))
+	if mode == Mode.POOL:
+		return clampf(_pool / denom, 0.0, 1.0)
+	return clampf(float(_charges) / denom, 0.0, 1.0)
+
+
+func _shield_up() -> bool:
+	return _pool > 0.0 if mode == Mode.POOL else _charges > 0
 
 
 func _update_visual() -> void:
-	if _mat == null:
+	if _fx == null:
 		return
-	var lit: float = 0.0
-	if mode == Mode.POOL:
-		if _pool > 0.0:
-			# Scale brightness with how full the pool is vs its initial capacity,
-			# but never fully dark while any charge remains.
-			lit = clampf(_pool / float(maxi(1, capacity)), 0.25, 1.0)
-	elif _charges > 0:
-		lit = clampf(float(_charges) / float(maxi(1, capacity)), 0.25, 1.0)
-	_mat.set_shader_parameter("alpha", lit * 0.85)
+	_fx.apply_state(_fraction())
+	_fx.set_online(_shield_up(), TRANSITION_SECS)
 
 
-func _pulse() -> void:
-	if _mat == null or _ring == null or not is_instance_valid(_ring):
-		return
-	_mat.set_shader_parameter("hit_strength", 1.0)
-	if _hit_tween and _hit_tween.is_valid():
-		_hit_tween.kill()
-	_hit_tween = _ring.create_tween()
-	_hit_tween.tween_method(func(v): _mat.set_shader_parameter("hit_strength", v), 1.0, 0.0, 0.4)
+func _flash(enemy) -> void:
+	if _fx != null:
+		_fx.hit_flash(_fraction(), HIT_HOLD)
+	if enemy.has_node("Sprite2D"):
+		HitFlashFx.flash(enemy.get_node("Sprite2D"), HitFlashFx.FLASH_SHIELD)
 
 
 func _free_ring() -> void:
 	if _ring and is_instance_valid(_ring):
 		_ring.queue_free()
 	_ring = null
+	_fx = null

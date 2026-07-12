@@ -256,8 +256,8 @@ const ARMED_CHAFF_TYPE_CAP_DEEP := -1              # value used once eff_depth >
 #   ARMED_DAMP_FACTOR_MIN (eff_depth 0) up to 1.0 (at the threshold), floored so a wave
 #   never drops below ARMED_DAMP_FLOOR shooters. Heavies (chaff:false) are exempt.
 const ARMED_DAMP_DEPTH := 3            # eff_depth at/after which no damp is applied
-const ARMED_DAMP_FACTOR_MIN := 0.4     # multiplier at eff_depth 0 (ramps to 1.0 by ARMED_DAMP_DEPTH)
-const ARMED_DAMP_FLOOR := 2            # never damp an armed chaff wave below this many
+const ARMED_DAMP_FACTOR_MIN := 0.25    # multiplier at eff_depth 0 (ramps to 1.0 by ARMED_DAMP_DEPTH)
+const ARMED_DAMP_FLOOR := 1            # never damp an armed chaff wave below this many
 
 
 # The armed-chaff-type cap for a given effective depth (LEVER 1). -1 = uncapped.
@@ -280,18 +280,21 @@ static func _armed_damp_factor(eff_depth: int) -> float:
 
 # Assemble a chaff palette from an ALREADY-SHUFFLED pool while respecting the armed-type
 # cap (LEVER 1). Deterministic: walks the pool in its (seeded-shuffled) order, taking
-# unarmed entries freely and armed entries only until the cap is reached — then it makes
-# a SECOND pass to backfill remaining slots from the armed leftovers (graceful fallback
-# so a pool with few/zero unarmed entries still fills n_want without an extra RNG draw,
-# preserving stream determinism). `already` seeds the dedup (used when extending).
-static func _fill_chaff_capped(pool: Array, n_want: int, armed_cap: int, already: Array = []) -> Array:
+# unarmed entries freely and armed entries only until the cap is reached. The armed cap is
+# HARD (2026-07-09 composition-difficulty fix): when the unarmed supply can't reach n_want
+# and the armed quota is already met (including armed_cap == 0), we return the SHORTER
+# palette rather than backfilling armed types past the cap. A 1-type unarmed opener is
+# acceptable and intended; the old backfill silently armed the eff_depth-0 opener whenever a
+# faction's unarmed pool was thin (e.g. privateer/corporate after dart left their pools).
+# `already` seeds the dedup (used when extending). `eff_depth` is diagnostic only (warning).
+static func _fill_chaff_capped(pool: Array, n_want: int, armed_cap: int, already: Array = [], eff_depth: int = -1) -> Array:
 	var chosen: Array = already.duplicate()
 	var armed_taken: int = 0
 	for e in already:
 		if Roster.entry_is_armed(e):
 			armed_taken += 1
-	var deferred_armed: Array = []
-	# Pass 1: prefer unarmed; take armed only under the cap.
+	# Prefer unarmed; take armed only under the cap. Never exceed the cap — an entry that
+	# would push armed_taken over the cap is simply skipped (palette comes up short instead).
 	for e in pool:
 		if chosen.size() >= n_want:
 			break
@@ -299,17 +302,14 @@ static func _fill_chaff_capped(pool: Array, n_want: int, armed_cap: int, already
 			continue
 		if Roster.entry_is_armed(e):
 			if armed_cap >= 0 and armed_taken >= armed_cap:
-				deferred_armed.append(e)   # over cap for now — remember for backfill
-				continue
+				continue   # over the armed-type cap — leave it out entirely
 			armed_taken += 1
 		chosen.append(e)
-	# Pass 2: backfill from the deferred armed leftovers (only if we still need types and
-	# the unarmed supply ran dry). Keeps the palette full rather than starving it.
-	for e in deferred_armed:
-		if chosen.size() >= n_want:
-			break
-		if not chosen.has(e):
-			chosen.append(e)
+	# Surface thin unarmed pools: a short palette means the faction lacked enough unarmed
+	# chaff to fill n_want under this depth's armed cap (LEVER 1). Legitimate, but logged.
+	if chosen.size() < n_want:
+		push_warning("_fill_chaff_capped: short palette (%d/%d) faction=%d eff_depth=%d armed_cap=%d — thin unarmed pool" % [
+			chosen.size(), n_want, Roster.get_faction_filter(), eff_depth, armed_cap])
 	return chosen
 
 
@@ -413,17 +413,26 @@ static func _build_stretch(rng: RandomNumberGenerator, sector_depth: int, level_
 			if not e_end.has("force_formation") and geo_roll and not motif_covers:
 				s_end2.shape_override = FormationShapesC.SHAPES[rng.randi() % FormationShapesC.SHAPES.size()]
 				s_end2.count = clampi(int(s_end2.count), GEOMETRIC_FLOCK_MIN, GEOMETRIC_FLOCK_MAX)
-				s_end2.movement_override = Roster.make_movement({"movement": "straight"})
+				# Guarded: a lane-pinned straight descent holds the painted flock, but the enemy filling it
+				# must actually permit "straight" (eligibility contract) — coerce to its identity if not.
+				s_end2.movement_override = _guarded_override(String(e_end.get("scene", "")), "straight")
 				waves.append(s_end2); chaff_flags.append(false)   # discrete capped flock
 			else:
 				s_end2.formation = WaveSpec.Formation.WALL if lead_lr else WaveSpec.Formation.PINCER
 				_apply_force_formation(s_end2, e_end)
 				waves.append(s_end2); chaff_flags.append(true)    # scaled chaff wall
-		# ACCENT — a crossing sting on the tail of non-last units.
+		# ACCENT — a crossing sting on the tail of non-last units. The sting forces a horizontal cross
+		# (side_traverse), so it may ONLY use a palette chaff whose eligibility permits that (leak fix
+		# 2026-07-09: the old `chaff_types[random]` pick forced side_traverse onto whatever chaff rolled —
+		# including non-crossers whose matrix forbids it, the designer's "flying side_traverse without it
+		# in their eligibility" complaint). We pick a cross-capable chaff from the palette; if the palette
+		# has none, the sting is skipped this beat (shape-preserving — never force a non-crosser to cross).
 		if not is_last_unit and rng.randf() < ACCENT_CHANCE:
-			var s_acc = _make_accent_wave(rng, chaff_types[rng.randi() % chaff_types.size()], sector_depth, eff_depth, u)
-			if s_acc != null:
-				waves.append(s_acc); chaff_flags.append(false)   # discrete sting
+			var acc_entry: Dictionary = _pick_cross_capable(chaff_types, rng)
+			if not acc_entry.is_empty():
+				var s_acc = _make_accent_wave(rng, acc_entry, sector_depth, eff_depth, u)
+				if s_acc != null:
+					waves.append(s_acc); chaff_flags.append(false)   # discrete sting
 	# CLIMAX finale: a mini-boss (if registered) or an elite pack, after the chaff wall.
 	if is_climax:
 		_append_climax_finale(rng, sector_depth, eff_depth, waves, chaff_flags)
@@ -451,7 +460,11 @@ const MINIBOSS_ROSTER: Array = [
 	# MUST compose (unarmed bare); both descend straight at recycle 0 → loiter override keeps them
 	# on-screen for the fight instead of exiting in ~5s.
 	{"scene": "res://scenes/enemies/factions/zealot/enemy_z_m_helix.tscn", "min_depth": 2, "faction": 3, "movement": "loiter"},
-	{"scene": "res://scenes/enemies/factions/zealot/enemy_z_l_crusader.tscn", "min_depth": 4, "faction": 3, "movement": "loiter"},
+	# Crusader's eligibility permits loiter_sweep (descend-to-band + L↔R rake) but NOT plain loiter, so
+	# the field-hold override uses loiter_sweep — it keeps the capital on-screen for the fight AND passes
+	# the eligibility contract (was "loiter", which _guarded_override would have coerced to its straight
+	# identity → the ~5s exit the override exists to prevent). Flagged by validate_pattern_eligibility.gd.
+	{"scene": "res://scenes/enemies/factions/zealot/enemy_z_l_crusader.tscn", "min_depth": 4, "faction": 3, "movement": "loiter_sweep"},
 	# Considered + deferred: Tyrant broadside frigate (supremacy) — scene bakes 6 HP and its script
 	# header still says retired; needs a bench pass before it anchors a climax (review 2026-07-02).
 ]
@@ -497,7 +510,10 @@ static func _append_climax_finale(rng: RandomNumberGenerator, sector_depth: int,
 			# holds the field for the fight instead of exiting with its recycle-0 descent.
 			var mv: String = String(mb.get("movement", ""))
 			if mv != "":
-				wm.movement_override = Roster.make_movement({"movement": mv})
+				# Guarded: the registry override must be an eligible movement for THIS mini-boss (the
+				# eligibility list is the design contract — a registry key the scene forbids is a data
+				# bug, coerced here + flagged by validate_pattern_eligibility.gd).
+				wm.movement_override = _guarded_override(String(mb.get("scene", "")), mv)
 			waves.append(wm); chaff_flags.append(false)
 			return
 	# Elite pack fallback: 2-3 distinct heavies, a couple of each, centre-out.
@@ -537,7 +553,7 @@ static func _pick_palette(rng: RandomNumberGenerator, sector_depth: int, level_i
 	# SHOOTER-DENSITY RAMP LEVER 1: cap how many ARMED chaff types the palette carries at this depth
 	# (the base palette rolls at the opener depth = level_index). Prefers unarmed early; backfills from
 	# armed leftovers if the pool lacks enough unarmed types so the palette never starves.
-	var chaff: Array = _fill_chaff_capped(chaff_pool, n_chaff, _armed_chaff_cap(level_index))
+	var chaff: Array = _fill_chaff_capped(chaff_pool, n_chaff, _armed_chaff_cap(level_index), [], level_index)
 	# Fallback: no chaff-tagged entries unlocked (shouldn't happen) — take any common.
 	if chaff.is_empty():
 		var any: Array = Roster.entries_eligible(Roster.Tier.COMMON, sector_depth, level_index)
@@ -687,6 +703,34 @@ static func _stash_motif(motif: Dictionary) -> void:
 	run.set_meta("level_motif", motif)
 
 
+# Guarded movement override (eligibility enforcement, 2026-07-09). Build a movement Resource for a
+# wave whose enemy is `scene`, coercing `key` to a movement that scene is actually ELIGIBLE for first
+# (PatternEligibility.guard_key = identity/first-eligible fallback + push_error) so a forced wave-level
+# override can never stamp a movement the target enemy isn't allowed to fly. `key` is alias-collapsed
+# here (the same collapse make_movement does), so callers may pass a raw or shape key interchangeably.
+# scene=="" (non-roster / unknown) fails OPEN — guard_key returns the key unchanged.
+static func _guarded_override(scene: String, key: String) -> Resource:
+	var collapsed: String = String(Roster.MOVEMENT_ALIASES.get(key, key))
+	var guarded: String = PatternEligibility.guard_key(scene, collapsed)
+	return Roster.make_movement({"movement": guarded})
+
+
+# Pick a random entry from `pool` whose eligibility PERMITS the crossing sting (side_traverse) and that
+# doesn't demand its own formation. Returns {} when the pool has no cross-capable member — the caller
+# then SKIPS the accent (shape-preserving: we never force a non-crosser to fly side_traverse). allows()
+# fails open for unmapped scenes, so an eligibility-less chaff still qualifies (no contract to breach).
+static func _pick_cross_capable(pool: Array, rng: RandomNumberGenerator) -> Dictionary:
+	var capable: Array = []
+	for e in pool:
+		if e.has("force_formation"):
+			continue
+		if PatternEligibility.allows(String(e.get("scene", "")), "side_traverse"):
+			capable.append(e)
+	if capable.is_empty():
+		return {}
+	return capable[rng.randi() % capable.size()]
+
+
 # Build a tiny crossing-sting WaveSpec (the audit's "2-3 enemy accent") from a palette chaff `entry`,
 # forced to a side-alternating cross (one from each edge, scissoring across the upper band via the
 # director's existing crosser dispatch). Returns null if the entry is empty or demands its own
@@ -695,11 +739,16 @@ static func _make_accent_wave(rng: RandomNumberGenerator, entry: Dictionary, sec
 	var e: Dictionary = entry
 	if e.is_empty() or e.has("force_formation"):
 		return null
+	# Eligibility contract (leak fix 2026-07-09): the sting forces a horizontal cross — only an enemy
+	# whose matrix permits side_traverse may fly it. Defensive net even though _pick_cross_capable already
+	# pre-filters the caller's pick; a caller passing a non-crosser gets a skipped accent, not a leak.
+	if not PatternEligibility.allows(String(e.get("scene", "")), "side_traverse"):
+		return null
 	var w = _make_wave_spec(rng, e, sector_depth, level_index, wave_index)
 	w.count = 2 + (rng.randi() % 2)   # 2 or 3
 	w.formation = WaveSpec.Formation.SIDE_ALTERNATING
-	# Force the horizontal cross so the sting reads regardless of the entry's own movement.
-	w.movement_override = Roster.make_movement({"movement": "side_traverse"})
+	# Force the horizontal cross (guarded — the pre-check above guarantees side_traverse is eligible here).
+	w.movement_override = _guarded_override(String(e.get("scene", "")), "side_traverse")
 	# Pin to the high band so it cuts cleanly across the TOP (away from the player's lane) instead of
 	# riding the chaff's natural depth — the crosser dispatch reads depth_override for the cross latitude.
 	w.depth_override = Zones.depth_to_bp("high", w.depth_override)
@@ -791,7 +840,9 @@ static func _escort_spec(rng: RandomNumberGenerator, entry: Dictionary, cell: Ve
 	# FIRST. Feeding cell.y into prestack_y (max_row-leads) inverted it (core/rear led). FIX 4.
 	w.spawn_y = FormationShapesC.leads_from_zero(int(cell.y), max_row)
 	w.spawn_delay = 0.0   # authored burst — whole convoy enters together; rows are SPATIAL
-	w.movement_override = Roster.make_movement({"movement": "straight"})
+	# Guarded: the convoy holds via a straight descent, but the core/screen enemy must actually permit
+	# "straight" (eligibility contract) — a hold-class core that forbids it is coerced to its identity.
+	w.movement_override = _guarded_override(String(entry.get("scene", "")), "straight")
 	w.silent = true
 	return w
 
@@ -1012,9 +1063,25 @@ static func _roll_tier(rng: RandomNumberGenerator, sector_depth: int, level_inde
 # Build a WaveSpec for a given roster entry, scaled by sector depth + level
 # index. wave_index_in_level just shifts spawn_delay so consecutive waves don't
 # collide.
+# Roster size class → nominal body height (px). Matches the director's ANCHOR_MIN_HEIGHT (40) split:
+# medium/large both clear it, small sits at the chaff floor. (spawn-spacing fix, 2026-07-09.)
+static func _nominal_height_for_size(size: String) -> float:
+	match size:
+		"large":
+			return 48.0
+		"medium":
+			return 32.0
+		_:
+			return 16.0
+
+
 static func _make_wave_spec(rng: RandomNumberGenerator, entry: Dictionary, sector_depth: int, level_index: int, wave_index_in_level: int, is_boss_leadin: bool = false) -> WaveSpec:
 	var w = WaveSpec.new()
 	w.enemy_scene = load(entry["scene"])
+	# Roster-nominal height floor (spawn-spacing fix, 2026-07-09): thread the entry's declared size
+	# class down as a px height so the director's spacing math never mis-sizes a unit whose collision
+	# hull it can't measure (CollisionPolygon2D) as 16px chaff. Small=16 / medium=32 / large=48.
+	w.nominal_height = _nominal_height_for_size(String(entry.get("size", "small")))
 	# Count scales with level_index + sector_depth. Capped so rarer enemies
 	# don't overflow the playfield.
 	var base: int = int(entry.get("base_count", 4))

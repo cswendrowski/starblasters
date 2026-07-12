@@ -9,6 +9,7 @@ size = Vector2(16, 8)
 [node name="BulletWaveSmall" type="Area2D" unique_id=1884644584]
 script = ExtResource("1_script")
 
+impact_color = Color(0.7059, 1.0, 0.3828, 1.0)
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1225875099]
 texture = ExtResource("2_tex")
 
