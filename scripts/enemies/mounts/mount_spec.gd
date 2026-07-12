@@ -91,6 +91,11 @@ enum MarkerMode { ALL, CYCLE, INWARD, OUTWARD }
 @export var recoil_frames: int = 0
 @export var turret_texture: Texture2D = null
 @export var turret_hframes: int = 1
+# Which hframe of turret_texture is the barrel art. Default 0 (turret sheets whose frame 0 IS the
+# turret, e.g. the zealot tank-turret). Set >0 when the turret lives in a COMBINED base sheet where an
+# earlier frame is the immobile platform (the core turret's enemy_turret_base.png: 0=base, 1=destroyed,
+# 2=turret). Clamped to the strip in the builder. (Roman 2026-07-12.)
+@export var turret_frame: int = 0
 
 # --- BEAM only (a BeamEmitter.configure() dict) ---
 @export var beam_config: Dictionary = {}

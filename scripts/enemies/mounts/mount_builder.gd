@@ -107,6 +107,7 @@ static func _build_turret(enemy: Node, spec, mount) -> void:
 		var s := Sprite2D.new()
 		s.texture = spec.turret_texture
 		s.hframes = maxi(1, int(spec.turret_hframes))
+		s.frame = clampi(int(spec.turret_frame), 0, s.hframes - 1)   # combined base sheets: pick the barrel frame
 		t.add_child(s)
 	var parent: Node = mount if mount != null else enemy
 	parent.add_child(t)

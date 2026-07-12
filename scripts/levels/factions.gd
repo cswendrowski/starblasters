@@ -72,6 +72,7 @@ const ENEMY_TAGS := {
 	"res://scenes/enemies/core/enemy_core_bomber.tscn": {"home": Id.CORPORATE, "universal": true, "allowed_in": [Id.CORPORATE, Id.PRIVATEER]},  # B-220 core bomber (corp+priv, per its TailGunGlow tints)
 	"res://scenes/enemies/core/enemy_core_bomber_thin.tscn": {"home": Id.CORPORATE, "universal": true, "allowed_in": [Id.CORPORATE, Id.PRIVATEER]},  # thin bomber variant — core (corp+priv)
 	"res://scenes/enemies/core/enemy_cruiser.tscn": {"home": Id.SUPREMACY, "universal": true},
+	"res://scenes/enemies/core/enemy_core_building_turret.tscn": {"home": Id.SUPREMACY, "universal": true},   # core turret — appears in every faction's waves
 	"res://scenes/enemies/core/enemy_core_m_minelayer.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.SUPREMACY, Id.PRIVATEER, Id.CORPORATE]},  # core minelayer (Zealot gets its own later)
 	"res://scenes/enemies/factions/privateer/enemy_core_s_falchion.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.PRIVATEER]},  # core Falchion (was Hornet/p_s_green), privateer-only for now
 	"res://scenes/enemies/core/enemy_core_s_cobra.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.CORPORATE, Id.PRIVATEER]},  # CF-9D Cobra core (corpo twin enemy_c_s_gray cut)
