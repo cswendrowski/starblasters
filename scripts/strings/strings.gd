@@ -263,22 +263,9 @@ const CARD_MATERIALS_HINT := "Spend on Mk upgrades at the outpost."
 # OUTPOST  (outpost.gd)
 # ===========================================================================
 
-# ---- Upgrade card names and descriptions ----
-
-const UPGRADE_HULL_NAME := "Hull"
-const UPGRADE_HULL_DESC := "Increases max hull. Mk.9: Hull Repair -30%."
-
-const UPGRADE_THRUSTERS_NAME := "Thrusters"
-const UPGRADE_THRUSTERS_DESC := "+3% movement speed per Mk."
-
-const UPGRADE_SELF_REPAIR_NAME := "Self Repair"
-const UPGRADE_SELF_REPAIR_DESC := "+1 hull pip on sector map return."
-
-const UPGRADE_SHIELD_CAP_NAME := "Shield Capacity"
-const UPGRADE_SHIELD_CAP_DESC := "+2 max shield HP per Mk (base 10)."
-
-const UPGRADE_HULL_PLATING_NAME := "Hull Plating"
-const UPGRADE_HULL_PLATING_DESC := "3% chance per Mk to shrug hull hits (Mk.1–8). Mk.9: +6% bonus → 30% total."
+# (The old UPGRADE_* card strings were deleted 2026-07-11 — the Upgrades column was
+# retired 2026-06-13 when Hull/Thrusters/Shield Capacity/etc. became bay MODULES, and
+# several described mechanics that no longer exist, e.g. Hull Plating's RNG shrug.)
 
 # ---- Service button base labels ----
 

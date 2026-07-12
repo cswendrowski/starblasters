@@ -20,15 +20,18 @@ func _pips() -> int:
 func apply(ship) -> void:
 	if "module_hull_bonus" in ship:
 		ship.module_hull_bonus += _pips()
-	if int(mark) >= 9 and "module_hull_repair_discount" in ship:
-		ship.module_hull_repair_discount = 0.30
 
 
 func unapply(ship) -> void:
 	if "module_hull_bonus" in ship:
 		ship.module_hull_bonus -= _pips()
-	if "module_hull_repair_discount" in ship:
-		ship.module_hull_repair_discount = 0.0
+
+
+# Mk.9 perk. Repairs happen at the OUTPOST, not in combat, so the discount is read
+# straight off the module via Run.hull_repair_discount() (outpost._hull_repair_cost) —
+# it never routes through the player ship.
+func repair_discount() -> float:
+	return 0.30 if int(mark) >= 9 else 0.0
 
 
 func bonus_description(mk: int) -> String:

@@ -509,6 +509,17 @@ func has_module(mod_id: String) -> bool:
 	return false
 
 
+# Hull-repair discount from the module bay (Reinforced Hull Mk.9 = 30%). Best wins.
+# Read by outpost._hull_repair_cost — repairs happen at the outpost, so the discount
+# never routes through the player ship.
+func hull_repair_discount() -> float:
+	var best := 0.0
+	for m in modules:
+		if m != null and m.has_method("repair_discount"):
+			best = maxf(best, float(m.repair_discount()))
+	return best
+
+
 # Append a module if there's room (≤ MODULE_BAY_SIZE). Returns false if full/null.
 func add_module(part) -> bool:
 	if part == null or modules.size() >= MODULE_BAY_SIZE:

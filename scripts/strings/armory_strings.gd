@@ -46,7 +46,7 @@ const CODEX := {
 	"_make_vectoring_engine": "Vectoring thrusters — crisper handling and a higher speed band.",
 	# --- Passive Modules (MODULE bay — automatic, no-input) ---
 	"_make_shield_core": "a central shield emitter surrounds your ship in a protective sphere of energy that can shrug off anything thrown at it. Limited charges mean it will collapse if hit enough, but it will recharge after a delay if it hasn't taken any further hits. Upgrading this modules adds additional shield charges.",
-	"_make_overcharge_core": "Shunt shield energy into weapon drivers, making all your weapons fire faster at the cost of weaker shields.",
+	"_make_overcharge_core": "Shunt shield energy into weapon drivers — your primary weapon hits harder at the cost of weaker shields.",
 	"_make_siphon_core": "A combination of energy siphons and particle catchers on your hull allow you to capture energy from enemy kills, siphoning that energy into your shields bit by bit. The net effect is that every few kills gets you a shield charge back. Upgrades improve the kills to charges rate.",
 	"_make_repair_nanites": "Regrows hull over time.",
 	"_make_ablative_plating": "Layered plates shrug off every Nth hull hit outright.",

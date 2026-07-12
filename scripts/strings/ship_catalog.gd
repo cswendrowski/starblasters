@@ -50,7 +50,7 @@ const SHIPS := [
 		"livery_color": Color(0.25, 0.62, 0.97),
 		"codex": "A broad-wing delta interceptor, the F/A-29 is an general purpose fighter with powerful engines and light armaments. It's fast and maneuvable, and despite it's minimal armaments, can mount just about any weapon needed in its enclosed weapon bays, exposing them to fire only when necessary.",
 		"armament": "Minigun",
-		"modules": "Shield Core, ",
+		"modules": "Shield Core",
 	},
 	{
 		"id": "cobra",
@@ -64,8 +64,8 @@ const SHIPS := [
 		"muzzle": Vector2(0, -8),
 		"livery_color": Color(0.98, 0.85, 0.25),
 		"codex": "A workhorse fighter fielded by numerous miitaries across the stars. It is relatively sturdy, and its broad wings allow it to mount nearly any weapon system built. It comes with a pair of wing-mounted auto-lasers with supplementary capacitors.",
-		"armament": "Auto Laser, Ammo Pods",
-		"modules": "Shield Core",
+		"armament": "Auto Laser",
+		"modules": "Shield Core, Ammo Pods",
 	},
 	{
 		"id": "stiletto",
@@ -80,7 +80,7 @@ const SHIPS := [
 		"livery_color": Color(0.20, 0.80, 0.65),
 		"codex": "A captured Evantian Shiv stripped of its suicide rig and refitted for a pilot who intends to fly home. The reinforced hull has been retained, but removal of the firecore also required a complete overhaul of the engines, fitting a new reactor, and proper gun hardpoints. What it's lost in raw speed it makes up for in proper weaponry and general reliability. This one-of-a-kind ship is sturdy, dangerous, and an affront to the Theocracy that originally built it.",
 		"armament": "Blaster",
-		"modules": "Ablative Armor, Hull Reinforcement",
+		"modules": "Ablative Plating, Reinforced Hull",
 	},
 	{
 		"id": "pilgrim",
@@ -95,7 +95,7 @@ const SHIPS := [
 		"livery_color": Color(0.96, 0.55, 0.13),
 		"codex": "An Evantian Pilgrim taken whole, its firecore left burning rather than torn out — a calculated risk but the power is generates outstrips most reactors at the same size class. Slow and lightly armored, its plasma cannons have been replaced with dual blasters, and  spit fire as fast as the day it was consecrated. Salvage with a sermon still ringing in it.",
 		"armament": "Dual Blaster",
-		"modules": "Critical De-Limiter, Overcharger",
+		"modules": "Critical System De-Limiter, Overcharge Core",
 	},
 	{
 		"id": "wraith",

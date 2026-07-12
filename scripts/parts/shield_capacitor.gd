@@ -22,6 +22,16 @@ func _interval() -> float:
 	return maxf(0.3, 1.0 - float(clampi(int(mark), 1, 9)) * 0.07)
 
 
+# Public reads for shop/info displays (outpost's Shield Core card shows the LIVE
+# regen numbers, not the hardcoded 5s/1s base).
+func regen_delay() -> float:
+	return _delay()
+
+
+func regen_interval() -> float:
+	return _interval()
+
+
 func apply(ship) -> void:
 	# Best (lowest) value wins if stacked; the ship's defaults are the base 5s / 1s.
 	if "shield_regen_delay" in ship:

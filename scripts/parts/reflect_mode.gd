@@ -3,7 +3,8 @@ extends "res://scripts/parts/mode_part.gd"
 # Reflect — Shift mode. For the duration, incoming shots have a CHANCE to bounce back at
 # the enemy (negating that hit). Stacks with the Reflective Shield Tuning module (which
 # reflects every Nth absorbed bullet) — both can fire. Effect lives in player.gd's
-# take_damage (gated on _reflect_on()). Charges refill over time. Numbers first-pass.
+# catch-field handler _on_mode_field_hit (rolls reflect_chance → bullet.reflect_to_enemies();
+# gated on _reflect_on()). Charges refill over time. Numbers first-pass.
 
 @export var duration: float = 4.0
 @export var charges: int = 2
@@ -35,3 +36,7 @@ func mode_regen_secs() -> float:
 # Per-hit reflect probability while active. Mk1 = base; each further Mk adds a step.
 func reflect_chance_at_mark(at_mark: int) -> float:
 	return clampf(base_reflect_chance + float(clampi(at_mark, 1, 9) - 1) * reflect_chance_per_mark, 0.0, 1.0)
+
+
+func bonus_description(mk: int) -> String:
+	return "%.1fs · %d charges · %d%% reflect" % [mode_duration(mk), mode_charges(mk), roundi(reflect_chance_at_mark(mk) * 100.0)]

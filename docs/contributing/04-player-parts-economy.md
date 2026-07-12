@@ -92,7 +92,7 @@ Each ship has **12 slot enum values** (see `scripts/weapons/SlotTypes.gd`), but 
 | HARDPOINT_WING | Secondary weapon | Seeking Missile, Rocket Pod, Particle Beam |
 | DEVICE_BAY_1 | Super ability | Smart Bomb (the **only** super) |
 | SHIFT_MODE | Shift stance (Shift) | Focus (default), Phase, Hyper — `ModePart`s; one occupies the slot, swapped at outposts. See `docs/shift_mode_system_2026-06-08.md`. |
-| **MODULE** (list bay) | Passive upgrades | Hull Core, Thrusters, Shield Core, Self-Repair, Hull Plating, etc. (6-slot list, not pegboard) |
+| **MODULE** (list bay) | Passive upgrades | Shield Core, Reinforced Hull, Thrusters, Repair Nanites, Ablative Plating, etc. (6-slot list, not pegboard; full pool in `part_catalog.gd`) |
 | **Dead slots** (no parts) | — | WING_LEFT, WING_RIGHT, TAIL, SHIELD, HARDPOINT_WINGTIP, DEVICE_BAY_2 (enum entries for save compatibility; no Parts target these) |
 
 **Module bay (2026-06-13):** Unlike the pegboard slots above, the **MODULE** slot stores parts in a **list** (`Run.modules`, up to 6 items) rather than one-per-slot. Modules are passive upgrades that roll in the shop weighted like any other part. Each module instance in the bay is independently applied/unapplied.
@@ -173,7 +173,7 @@ The outpost rolls **5 weapon cards** each visit, drawn with replacement from `WE
 - HARDPOINT_WING ×2 (secondary weapon)
 - DEVICE_BAY_1 ×1 (super ability — Smart Bomb)
 - SHIFT_MODE ×2 (Phase/Hyper mode swaps; Focus is default-only)
-- MODULE ×2 (passive bay upgrades: Hull Core, Thrusters, Shield Core, Self-Repair, Hull Plating)
+- MODULE ×2 (passive bay upgrades: Shield Core, Reinforced Hull, Thrusters, Repair Nanites, Ablative Plating, …)
 
 All weapon/shift/module parts price identically:
 ```

@@ -235,15 +235,11 @@ var hull: int = 3:
 	set = set_hull
 # Chance (0.0–1.0) to shrug off a hull hit entirely. 3% per Hull Plating Mk.
 var hull_shrug_chance: float = 0.0
-var hull_repair_discount: float = 0.0
 # armor_mk DR retired. Field kept for save compat.
 var hull_damage_reduction: float = 0.0
 # Speed multiplier from upgrades (Thrusters). Applied
 # in _process so the live speed = base * speed_multiplier.
 var speed_multiplier: float = 1.0
-# Focus-mode slowdown — held `focus` action drops the ship to FOCUS_FACTOR
-# of normal speed for precision dodging. Cave / Touhou convention; ~2/3.
-const FOCUS_FACTOR := 0.55
 var _focus_dot: Node2D = null
 # Real 1px central collision swapped in while focused (the main hitbox is disabled).
 var _focus_hitbox: CollisionShape2D = null
@@ -261,8 +257,8 @@ const PHASE_GLOW_COLOR := Color(0.2, 0.5, 1.0) # bright blue phase-out aura (no 
 const GlowFx = preload("res://scripts/effects/glow_fx.gd")
 var _focus_glow: CanvasItem = null
 # Focus's resource is now the unified Shift-mode system below (mode_charges /
-# mode_active_t / mode_duration). FOCUS_FACTOR (above) still drives the speed cut while
-# Focus is active.
+# mode_active_t / mode_duration). The old FOCUS_FACTOR speed cut is retired — Focus no
+# longer slows the ship (speed is only touched by Rush).
 
 # Shift-Mode slot (Focus / Phase / Hyper). The equipped ModePart sets `mode_part`
 # + `active_mode` in apply(); `active_mode` selects WHICH effect the unified runtime
@@ -324,10 +320,6 @@ var reflect_chance: float = 0.35       # Reflect: per-hit chance an incoming sho
 var thief_regen_per_hit: int = 1       # Thief: shield restored per caught bullet
 var thief_catch_radius: float = 40.0   # Thief: bubble radius (px) that grabs enemy bullets
 var echo_delay: float = 0.35           # Echo: ghost trails the player by this many seconds
-# Hyper effect tunables (legacy fire/dmg getters retained on the part; Hyper's new effect is
-# autofire-all + free ammo, so these are no longer applied — kept for back-compat reads).
-var hyper_fire_bonus: float = 0.10
-var hyper_damage_mult: float = 1.0
 # Hyper "tell": a pulsing orange outline that speeds up as the window runs out.
 var _hyper_outline: Sprite2D = null
 var _hyper_pulse_t: float = 0.0
@@ -1264,17 +1256,15 @@ func _on_mode_changed() -> void:
 			mode_regen_secs = maxf(0.1, float(mode_part.mode_regen_secs()))
 		if mode_part.has_method("mode_kills_per_charge"):
 			mode_kills_per_charge = maxi(1, int(mode_part.mode_kills_per_charge()))
-		# Hyper effect tunables (only meaningful while Hyper is active).
-		if active_mode == ShiftMode.HYPER:
-			if mode_part.has_method("fire_bonus_at_mark"):
-				hyper_fire_bonus = float(mode_part.fire_bonus_at_mark(mk))
-			if mode_part.has_method("damage_mult_at_mark"):
-				hyper_damage_mult = float(mode_part.damage_mult_at_mark(mk))
-		elif active_mode == ShiftMode.FOCUS:
+		# Per-mode effect tunables (Hyper's effect is autofire-all + free ammo — no
+		# extra tunables; its Mk scales duration/charges via the getters above).
+		if active_mode == ShiftMode.FOCUS:
 			if mode_part.has_method("crit_chance_at_mark"):
 				focus_crit_chance = float(mode_part.crit_chance_at_mark(mk))
 		elif active_mode == ShiftMode.RUSH:
-			if "speed_bonus" in mode_part:
+			if mode_part.has_method("speed_bonus_at_mark"):
+				rush_speed_bonus = float(mode_part.speed_bonus_at_mark(mk))
+			elif "speed_bonus" in mode_part:
 				rush_speed_bonus = float(mode_part.speed_bonus)
 		elif active_mode == ShiftMode.REFIRE:
 			if mode_part.has_method("fire_bonus_at_mark"):
@@ -1639,8 +1629,9 @@ func on_enemy_killed() -> void:
 		if _siphon_kill_count >= module_siphon_kills_per_charge:
 			_siphon_kill_count = 0
 			if shield < max_shield:
-				shield = mini(max_shield, shield + 1)
-				shield_changed.emit()
+				# Through set_shield so the HUD gets its (max, val) args and the
+				# shield-ring fill updates (a bare emit() errored both handlers).
+				set_shield(mini(max_shield, shield + 1))
 	# Unified Shift-mode KILLS regen — only for modes that refill on kills (Phase).
 	if mode_regen_kind != ModeRegen.KILLS or mode_charges >= mode_charges_max:
 		return
@@ -2241,7 +2232,6 @@ var _overclock_idle_t: float = 0.0
 # former hull_mk / thrusters_mk / shield_cap_mk are now bay modules. Default-safe (no
 # module = baseline). shield_regen_* default to the old hardcoded 5.0s delay / 1.0s ticks.
 var module_hull_bonus: int = 0               # Reinforced Hull: +max_hull pips
-var module_hull_repair_discount: float = 0.0 # Reinforced Hull Mk.9 perk
 var module_speed_pct: float = 0.0            # Thrusters: +speed fraction
 var shield_regen_delay: float = 5.0          # Shield Capacitor lowers it (sec before regen begins)
 var shield_regen_interval: float = 1.0       # Shield Capacitor lowers it (sec per +1 charge)
@@ -3491,11 +3481,11 @@ func apply_run_upgrades() -> void:
 	# active_conditions is empty.
 	_cond_wpn_dmg_mult = run.cond_scalar("player.weapon_damage_mult")
 	_cond_fire_rate_mult = run.cond_scalar("player.fire_rate_mult")
-	# Hull: 2 base + the Reinforced Hull module's pips. Mk.9 perk = repair discount.
+	# Hull: 2 base + the Reinforced Hull module's pips. (Its Mk.9 repair discount is
+	# read by the outpost via Run.hull_repair_discount() — repairs happen there, not here.)
 	max_hull = 2 + module_hull_bonus
 	# Sector Conditions — Better Hull adds flat pips on top of the module hull.
 	max_hull += int(run.cond_sum("player.hull_bonus"))
-	hull_repair_discount = module_hull_repair_discount
 	hull_shrug_chance = 0.0  # the RNG shrug is the Ablative Plating module now (module_ablative_n)
 	# Speed: baseline + the Thrusters module's bonus.
 	speed_multiplier = max(0.3, 1.0 + module_speed_pct)

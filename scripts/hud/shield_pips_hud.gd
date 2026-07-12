@@ -1,7 +1,9 @@
 extends HBoxContainer
 
-# Shield HP bar — replaces pip strip. Blue-tinted fill bar.
-# Width scales proportionally with shield HP vs max (capped at BAR_MAX_WIDTH).
+# Shield HP bar — replaces pip strip. Blue-tinted fill bar. DEV-DEMO ONLY (see
+# shield_pips_demo.gd) — the live combat HUD is scripts/hud/ui.gd's pip grid.
+# Fixed-width track (BAR_MAX_WIDTH); the FILL is the shield/max ratio, so a
+# 30-charge shield looks the same width as a 10-charge one when full.
 # Pulses during the 5s regen delay countdown (polls _shield_in_delay on player).
 # Shield spec 2026-05-26 rework.
 

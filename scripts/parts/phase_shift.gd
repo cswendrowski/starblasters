@@ -20,7 +20,7 @@ func _init() -> void:
 	super._init()
 	mode_id = Mode.PHASE
 	display_name = "Phase"
-	description = "Tap Shift to phase out for 3s — invulnerable, no offense; absorbs enemy bullets, each restoring 1 shield. Charges refill by killing enemies."
+	description = "Tap Shift to phase out for 3s — intangible and invulnerable, but no offense; bullets and enemies pass right through you. Charges refill by killing enemies."
 
 
 # Even Mk (2,4,6,8) each add +1s. Cumulative adds at Mk M = floor(M/2).

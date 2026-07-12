@@ -825,12 +825,23 @@ func _equipped_stats_line(part, slot: int) -> String:
 	return ""
 
 
-# Shield Core stats: total charges (mark-driven) + base recharge delay / pips-per-second.
+# Shield Core stats: total charges (mark-driven) + LIVE recharge delay / pips-per-second
+# (base 5s / 1 per s, improved by an installed Shield Capacitor — best wins, mirroring
+# the player-side minf in shield_capacitor.apply; was hardcoded 5.0/1.0 before 2026-07-11).
 func _shield_core_stats_line(part) -> String:
 	var cap: int = 10
 	if part != null and part.has_method("_capacity_bonus"):
 		cap += int(part._capacity_bonus())
-	return Strings.CARD_STAT_SHIELD % [cap, 5.0, 1.0]
+	var delay := 5.0
+	var interval := 1.0
+	var run = get_node_or_null("/root/Run")
+	if run != null and "modules" in run:
+		for m in run.modules:
+			if m != null and m.has_method("regen_delay"):
+				delay = minf(delay, float(m.regen_delay()))
+			if m != null and m.has_method("regen_interval"):
+				interval = minf(interval, float(m.regen_interval()))
+	return Strings.CARD_STAT_SHIELD % [cap, delay, 1.0 / maxf(interval, 0.01)]
 
 
 # Upgrade button: target Mk + materials + bounty cost, disabled at max Mk or when unaffordable.
@@ -1503,8 +1514,11 @@ func _hull_repair_cost() -> int:
 	var base: int = HULL_REPAIR_COST
 	if has_node("/root/Run"):
 		var run := get_node("/root/Run")
-		if "hull_mk" in run and int(run.hull_mk) >= 9:
-			base = int(round(float(base) * 0.70))
+		# Reinforced Hull Mk.9 perk — read off the module bay (run.hull_mk is retired,
+		# always 0; the old check here left the discount dead. Audit 2026-07-11.)
+		var disc: float = float(run.hull_repair_discount()) if run.has_method("hull_repair_discount") else 0.0
+		if disc > 0.0:
+			base = int(round(float(base) * (1.0 - disc)))
 		# Sector Conditions — Easy/Costly Repairs scale the bounty cost (composes with
 		# the Mk-9 discount); Cheap Repairs zeroes the bounty entirely.
 		if run.cond_flag("econ.repair_no_bounty"):
@@ -2208,6 +2222,11 @@ func _stats_display_for_part(part, mk: int) -> String:
 	if part == null:
 		return ""
 	mk = clampi(mk, 1, 9)
+	# Modules + mode parts: no dmg/rof/ammo fields — their progression line is
+	# bonus_description (was blank in this popup before 2026-07-11). Weapons keep the
+	# numeric path below (base_damage present).
+	if part.has_method("bonus_description") and not ("base_damage" in part):
+		return String(part.bonus_description(mk))
 	var dmg: int = 0
 	if "base_damage" in part:
 		var base: int = int(part.base_damage)

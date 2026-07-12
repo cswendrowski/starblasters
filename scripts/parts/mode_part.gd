@@ -89,3 +89,9 @@ func mode_regen_secs() -> float:
 # KILLS regen: enemy kills to earn back one charge.
 func mode_kills_per_charge() -> int:
 	return 4
+
+
+# Mk-progression line for shop/info displays (outpost popup + arrival shop). Subclasses
+# with an Mk-scaled effect should override and append it (see rush_mode.gd).
+func bonus_description(mk: int) -> String:
+	return "%.1fs · %d charges" % [mode_duration(mk), mode_charges(mk)]

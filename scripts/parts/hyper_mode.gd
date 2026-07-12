@@ -5,14 +5,17 @@ extends "res://scripts/parts/mode_part.gd"
 # AND your secondary, all at once, hands-off. The "ultimate" burst. The EFFECT lives in
 # player.gd (autofire dispatch + blaster-direct + secondary ammo-skip, gated on _hyper_on()).
 # (The old +fire-rate/+damage buff moved to Refire; fire_bonus_at_mark/damage_mult_at_mark
-# remain as back-compat reads but are no longer applied.) Numbers first-pass (tuner job).
+# remain for save-compat but nothing reads them.) Mk scaling (2026-07-11, the Phase
+# alternation): even Mk (2,4,6,8) each add duration_per_even_mark seconds of uptime; odd
+# Mk >1 (3,5,7,9) each add +1 charge → Mk.9 = 6s / 6 charges. First-pass (tuner job).
 
-@export var base_fire_bonus: float = 0.10        # +10% fire rate at Mk1
-@export var fire_bonus_per_odd_mark: float = 0.05  # each further odd Mk (3,5,7,9)
-@export var dmg_bonus_per_even_mark: float = 0.10  # each even Mk (2,4,6,8) stacks
+@export var base_fire_bonus: float = 0.10        # legacy (unread) — kept for save-compat
+@export var fire_bonus_per_odd_mark: float = 0.05  # legacy (unread) — kept for save-compat
+@export var dmg_bonus_per_even_mark: float = 0.10  # legacy (unread) — kept for save-compat
 @export var bar_seconds: float = 4.0             # active uptime per activation (duration bar)
+@export var duration_per_even_mark: float = 0.5  # +0.5s per even Mk (2,4,6,8)
 @export var recharge_per_sec: float = 0.8        # legacy refill rate → derives regen cadence
-@export var charges: int = 2                     # discrete charges (HUD pips)
+@export var charges: int = 2                     # discrete charges (HUD pips) at Mk.1
 
 
 func _init() -> void:
@@ -34,14 +37,15 @@ func damage_mult_at_mark(at_mark: int) -> float:
 	return 1.0 + float(int(at_mark / 2)) * dmg_bonus_per_even_mark
 
 
-# --- Unified Shift-mode interface (Mk getters above drive the fire/dmg effect) ---
-# Duration = bar_seconds; regen derives from the legacy recharge_per_sec (0.8/s on a 4s
-# bar = one charge per 5s). Charges are flat (Mk unchanged).
-func mode_duration(_at_mark: int) -> float:
-	return bar_seconds
+# --- Unified Shift-mode interface ---
+# Regen derives from the legacy recharge_per_sec (0.8/s on a 4s bar = one charge per 5s).
+# Even Mk (2,4,6,8) each add duration_per_even_mark: adds at Mk M = floor(M/2).
+func mode_duration(at_mark: int) -> float:
+	return bar_seconds + float(int(at_mark / 2)) * duration_per_even_mark
 
-func mode_charges(_at_mark: int) -> int:
-	return charges
+# Odd Mk >1 (3,5,7,9) each add +1 charge: adds at Mk M = floor((M-1)/2).
+func mode_charges(at_mark: int) -> int:
+	return charges + int((at_mark - 1) / 2)
 
 func mode_regen_kind() -> int:
 	return ModeRegen.TIME

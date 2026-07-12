@@ -6,6 +6,9 @@ whole pattern. **Decisions locked with Roman 2026-06-13:** reify the defensive s
 present-only), and **6 bay slots** — Shield Core auto-takes one, leaving 5 to play with (or 6
 if you drop shields for a glass-cannon build).
 
+> **Note (2026-07-11):** the shipped bay is `MODULE_BAY_SIZE = 6` (`run_state.gd`). The
+> "≤5" figures in the plan sections below predate the 6-slot lock above — trust the code.
+
 ## The one open architectural decision (resolved here)
 
 A bay holds **up to 5 modules, any module in any slot** — but the existing loadout keys ONE

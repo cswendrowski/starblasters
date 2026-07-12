@@ -4,7 +4,7 @@ extends "res://scripts/parts/module_part.gd"
 # N shrinking as you upgrade it (Mk.1 = every 10 kills … Mk.9 = every 2). Restores
 # SHIELD charge only — never Mode Energy (spec §8: that's the runaway lever). Default-
 # safe: module_siphon_kills_per_charge (0 = off) until this applies. The player's
-# notify_kill() drives the counter (main.gd pings it on each enemy death).
+# on_enemy_killed() drives the counter (main.gd pings it on each enemy death).
 
 
 func _init() -> void:
