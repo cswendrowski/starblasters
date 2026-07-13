@@ -124,20 +124,20 @@ func _run() -> void:
 
 	# ── (b) run_state More-Ammo cap seam ─────────────────────────────────────
 	run.new_run()
-	# _cond_ammo_cap math: 1.5× rounded, unmetered/zero passthrough.
+	# cond_ammo_cap math: 1.5× rounded, unmetered/zero passthrough.
 	run.active_conditions = ["more_ammo"]
-	var cap_100: int = run._cond_ammo_cap(100)
-	var cap_neg: int = run._cond_ammo_cap(-1)
-	var cap_zero: int = run._cond_ammo_cap(0)
-	lines.append("more_ammo: _cond_ammo_cap 100->%d, -1->%d, 0->%d" % [cap_100, cap_neg, cap_zero])
+	var cap_100: int = run.cond_ammo_cap(100)
+	var cap_neg: int = run.cond_ammo_cap(-1)
+	var cap_zero: int = run.cond_ammo_cap(0)
+	lines.append("more_ammo: cond_ammo_cap 100->%d, -1->%d, 0->%d" % [cap_100, cap_neg, cap_zero])
 	if cap_100 != roundi(100 * 1.5):
-		lines.append("FAIL _cond_ammo_cap(100) expected %d" % roundi(100 * 1.5)); fails += 1
+		lines.append("FAIL cond_ammo_cap(100) expected %d" % roundi(100 * 1.5)); fails += 1
 	if cap_neg != -1 or cap_zero != 0:
-		lines.append("FAIL _cond_ammo_cap should pass unmetered/zero through"); fails += 1
+		lines.append("FAIL cond_ammo_cap should pass unmetered/zero through"); fails += 1
 	# No-condition identity.
 	run.active_conditions = []
-	if run._cond_ammo_cap(100) != 100:
-		lines.append("FAIL _cond_ammo_cap identity without Conditions"); fails += 1
+	if run.cond_ammo_cap(100) != 100:
+		lines.append("FAIL cond_ammo_cap identity without Conditions"); fails += 1
 
 	# Drive _seed_secondary_ammo with a real metered secondary (Rocket Pod) and confirm the
 	# established cap is the scaled value.
@@ -146,7 +146,7 @@ func _run() -> void:
 	if rocket != null and rocket.has_method("_base_ammo"):
 		var base_sec: int = int(rocket._base_ammo())
 		run._seed_secondary_ammo(rocket, true)
-		var expect_sec: int = run._cond_ammo_cap(base_sec)
+		var expect_sec: int = run.cond_ammo_cap(base_sec)
 		lines.append("more_ammo: rocket base_ammo=%d -> secondary_ammo_max=%d (expect %d)"
 			% [base_sec, int(run.secondary_ammo_max), expect_sec])
 		if base_sec > 0 and int(run.secondary_ammo_max) != expect_sec:
@@ -171,7 +171,7 @@ func _run() -> void:
 			var got_cur: int = stub.last_ammo
 			root.remove_child(stub)
 			stub.free()
-			var rp_expect: int = run._cond_ammo_cap(rp_base)
+			var rp_expect: int = run.cond_ammo_cap(rp_base)
 			lines.append("more_ammo: rocket _apply_visuals ship cap=%d current=%d (expect cap=%d, current<=cap)"
 				% [got_cap, got_cur, rp_expect])
 			if got_cap != rp_expect:

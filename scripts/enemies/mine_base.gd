@@ -35,3 +35,42 @@ static func apply_mine_bounty_bonus(mine: Node) -> void:
 	if mine.has_node("/root/Run"):
 		var _run = mine.get_node("/root/Run")
 		mine.bounty_value += int(_run.mine_bonus_bounty) + int(_run.cond_sum("grant.mine_bounty"))
+
+
+# Helper for the common mine-explosion skeleton. Handles dying guard, dying flag,
+# monitorable deactivation, bounty emit, component cleanup (early/late), overlays, SFX, burn, and
+# cleanup. Accepts callables for pre-dying component work (gravity_mine), post-dying component work
+# (mine_shielded), and the explosion effect itself (which may vary by mine type).
+# Usage: await _mine_explode_sequence(func(): ExplosionFx.burst(...), pre_dying_cb, post_dying_cb)
+func _mine_explode_sequence(explosion_callback: Callable, pre_dying_callback: Callable = Callable(), post_dying_callback: Callable = Callable()) -> void:
+	if _dying:
+		return
+
+	# Pre-dying callback (e.g., gravity_mine releases bomblets before _dying flag is set).
+	if pre_dying_callback.is_valid():
+		pre_dying_callback.call()
+
+	_dying = true
+	set_deferred("monitorable", false)
+	died.emit(bounty_value)
+
+	# Post-dying callback (e.g., mine_shielded frees shield after _dying flag is set).
+	if post_dying_callback.is_valid():
+		post_dying_callback.call()
+
+	_fade_death_overlays()
+
+	# Play the explosion effect (specific to mine type).
+	if explosion_callback.is_valid():
+		explosion_callback.call()
+	else:
+		var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
+		ExplosionFx.play(global_position, 1.0)
+
+	var MineSfx = load("res://scripts/effects/mine_sfx.gd")
+	MineSfx.play_at(global_position)
+	if has_node("Sprite2D"):
+		var BurnFx = load("res://scripts/effects/burn_fx.gd")
+		BurnFx.apply_burn($Sprite2D, 0.4)
+	await get_tree().create_timer(0.45).timeout
+	queue_free()

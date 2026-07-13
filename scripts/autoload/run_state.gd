@@ -1119,7 +1119,7 @@ func _super_charges_from_part(part) -> int:
 # points only (each cap scaled exactly once; unmetered <= 0 passes through untouched). This is
 # the run-side cap seam — the ship seeds its live magazine from these (current_ammo / Run
 # secondary_ammo), so scaling here is the single place the boost enters. Rounded, floored at 1.
-func _cond_ammo_cap(base: int) -> int:
+func cond_ammo_cap(base: int) -> int:
 	if base <= 0:
 		return base
 	return maxi(1, roundi(base * cond_scalar("player.ammo_max_mult")))
@@ -1132,7 +1132,7 @@ func _seed_secondary_ammo(part, reset_if_none: bool) -> void:
 	elif "base_ammo" in part:
 		sec_ammo = int(part.base_ammo)
 	if sec_ammo > 0:
-		sec_ammo = _cond_ammo_cap(sec_ammo)  # More Ammo capacity boost
+		sec_ammo = cond_ammo_cap(sec_ammo)  # More Ammo capacity boost
 		secondary_ammo = sec_ammo
 		secondary_ammo_max = sec_ammo
 	elif reset_if_none:
@@ -1296,7 +1296,7 @@ func _equip_primary(part) -> void:
 	if part.has_method("ammo_at_mark") and "current_ammo" in part and "ammo_max" in part:
 		var mag: int = int(part.ammo_at_mark(int(part.mark)))
 		if mag >= 0 and int(part.current_ammo) < 0:
-			mag = _cond_ammo_cap(mag)  # More Ammo capacity boost
+			mag = cond_ammo_cap(mag)  # More Ammo capacity boost
 			part.current_ammo = mag
 			part.ammo_max = mag
 	if cur != null:
@@ -1407,7 +1407,7 @@ func mark_bump_owned_cannon(bump_part) -> void:
 		owned.mark = int(bump_part.mark)
 	# Refill ammo from the new mark's per-mark formula.
 	if owned.has_method("ammo_at_mark") and "current_ammo" in owned and "ammo_max" in owned:
-		var seed: int = _cond_ammo_cap(int(owned.ammo_at_mark(int(owned.mark))))  # More Ammo capacity boost
+		var seed: int = cond_ammo_cap(int(owned.ammo_at_mark(int(owned.mark))))  # More Ammo capacity boost
 		owned.current_ammo = seed
 		owned.ammo_max = seed
 	# Keep loadout_snapshot mirror in sync if the bumped cannon is active.
@@ -1446,7 +1446,7 @@ func _reseed_part_mark_state(part) -> void:
 	match int(part.slot_type):
 		_SlotTypes.SlotType.CANNON:
 			if part.has_method("ammo_at_mark") and "current_ammo" in part and "ammo_max" in part:
-				var mag: int = _cond_ammo_cap(int(part.ammo_at_mark(int(part.mark))))  # More Ammo capacity boost
+				var mag: int = cond_ammo_cap(int(part.ammo_at_mark(int(part.mark))))  # More Ammo capacity boost
 				part.current_ammo = mag
 				part.ammo_max = mag
 				if get_active_cannon() == part:

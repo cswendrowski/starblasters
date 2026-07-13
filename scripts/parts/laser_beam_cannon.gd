@@ -50,11 +50,12 @@ func _mk_knobs() -> Dictionary:
 func _apply_visuals(ship) -> void:
 	# Seed the per-mark ammo BEFORE super so metered_primary._apply_visuals
 	# reads the correct current_ammo value (not the stale -1 default).
-	current_ammo = ammo_at_mark(int(mark))
+	# The helper returns the mag for post-super ammo_max override.
+	var mag: int = _seed_metered_ammo_for_mark(int(mark))
 	super._apply_visuals(ship)
 	# Overwrite ammo_max after super (super writes base_ammo = 200 flat).
 	if "ammo_max" in ship:
-		ship.ammo_max = ammo_at_mark(int(mark))
+		ship.ammo_max = mag
 	if "fire_tandem_alternating" in ship:
 		ship.fire_tandem_alternating = true
 	if "_tandem_side" in ship:

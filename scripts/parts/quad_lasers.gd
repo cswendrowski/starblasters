@@ -57,10 +57,11 @@ func _snapshot_keys() -> Array:
 
 func _apply_visuals(ship) -> void:
 	# Seed per-mark ammo BEFORE super so metered_primary reads the right current_ammo.
-	current_ammo = ammo_at_mark(int(mark))
+	# The helper returns the mag for post-super ammo_max override.
+	var mag: int = _seed_metered_ammo_for_mark(int(mark))
 	super._apply_visuals(ship)
 	if "ammo_max" in ship:
-		ship.ammo_max = ammo_at_mark(int(mark))
+		ship.ammo_max = mag
 	# Rotary look (flash) + 4 parallel bolts + the rotary bolt sprite.
 	if "use_rotary_laser_muzzle" in ship:
 		ship.use_rotary_laser_muzzle = true

@@ -92,7 +92,7 @@ func _apply_visuals(ship) -> void:
 		if ship.has_node("/root/Run"):
 			var run = ship.get_node("/root/Run")
 			if deploys > 0:
-				cap = maxi(1, roundi(deploys * run.cond_scalar("player.ammo_max_mult")))
+				cap = run.cond_ammo_cap(deploys)
 			if "secondary_ammo" in run and int(run.secondary_ammo) >= 0:
 				seeded = int(run.secondary_ammo)
 			else:

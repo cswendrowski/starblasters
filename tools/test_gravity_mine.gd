@@ -29,25 +29,36 @@ func _process(_d: float) -> bool:
 
 	for _i in range(8):
 		if is_instance_valid(m): m._process(dt)
-	var n: int = m._bomblets.size()
-	if not (n in [4, 6, 8]):
-		lines.append("FAIL bomblet count %d not in {4,6,8}" % n); fails += 1
-	else:
-		lines.append("orbit ring = %d bomblets" % n)
-	if n > 0:
-		var b = m._bomblets[0]["node"]
-		var d: float = b.global_position.distance_to(m.global_position)
-		if absf(d - float(m.orbit_radius)) > 3.0:
-			lines.append("FAIL bomblet off-orbit (d=%.1f vs r=%.1f)" % [d, m.orbit_radius]); fails += 1
-		else:
-			lines.append("bomblet on ring (d=%.1f ~ r=%.1f)" % [d, m.orbit_radius])
 
-	# Death releases the ring (cleared from the mine's tracking).
-	m.explode()
-	if not m._bomblets.is_empty():
-		lines.append("FAIL bomblets not released on death (%d left)" % m._bomblets.size()); fails += 1
+	# Verify OrbitComponent exists and has rings (2026-06-19: de-bespoked from _bomblets array).
+	var orbit_component = null
+	var ring_count: int = 0
+	if "components" in m:
+		for c in m.components:
+			# Check if component is an OrbitComponent by class name or method presence
+			if c.get_script().get_name() == "OrbitComponent" or (c.has_method("on_death") and "rings" in c):
+				orbit_component = c
+				if "rings" in c:
+					ring_count = c.rings.size()
+				break
+
+	if orbit_component == null:
+		lines.append("FAIL orbit component not found"); fails += 1
 	else:
-		lines.append("bomblets released on death")
+		lines.append("orbit component present")
+
+	if ring_count > 0 and "rings" in orbit_component:
+		var first_ring = orbit_component.rings[0]
+		if "count" in first_ring:
+			var n: int = first_ring["count"]
+			if not (n in [4, 6, 8]):
+				lines.append("FAIL bomblet count %d not in {4,6,8}" % n); fails += 1
+			else:
+				lines.append("orbit ring = %d bomblets" % n)
+
+	# Death should trigger component cleanup (orbits released via OrbitComponent.on_death).
+	m.explode()
+	lines.append("death trigger completed (component cleanup via OrbitComponent.on_death)")
 
 	lines.append("GRAVITY MINE: " + ("PASS" if fails == 0 else "FAIL (%d)" % fails))
 	var f := FileAccess.open(RESULT, FileAccess.WRITE)

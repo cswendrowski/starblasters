@@ -43,11 +43,12 @@ func _weapon_style() -> int:
 func _apply_visuals(ship) -> void:
 	# Seed the per-mark ammo BEFORE super so metered_primary._apply_visuals
 	# reads the correct current_ammo value (not the stale -1 default).
-	current_ammo = ammo_at_mark(int(mark))
+	# The helper returns the mag for post-super ammo_max override.
+	var mag: int = _seed_metered_ammo_for_mark(int(mark))
 	super._apply_visuals(ship)
 	# Overwrite ammo_max after super (super writes base_ammo = 120 flat).
 	if "ammo_max" in ship:
-		ship.ammo_max = ammo_at_mark(int(mark))
+		ship.ammo_max = mag
 	# Mk.5+ swaps to the Auto Laser bolt sprite (cosmetic — same speed/damage/RoF). Set after super
 	# so it overrides the .tres-pinned rotary bullet that primary_weapon._apply_visuals just wrote.
 	if "bullet_scene" in ship:

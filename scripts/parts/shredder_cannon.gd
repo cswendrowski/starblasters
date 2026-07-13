@@ -64,11 +64,12 @@ func ammo_at_mark(mk: int) -> int:
 
 # Seed per-mark ammo BEFORE super (mirrors quad_lasers — metered_primary's base
 # seeds flat base_ammo, so the per-mark magazine must be stamped here).
+# The helper returns the mag for post-super ammo_max override.
 func _apply_visuals(ship) -> void:
-	current_ammo = ammo_at_mark(int(mark))
+	var mag: int = _seed_metered_ammo_for_mark(int(mark))
 	super._apply_visuals(ship)
 	if "ammo_max" in ship:
-		ship.ammo_max = ammo_at_mark(int(mark))
+		ship.ammo_max = mag
 	# Shotgun: randomize each pellet's angle in the cone (snapshotted → restored on swap).
 	if "bullet_spread_random" in ship:
 		ship.bullet_spread_random = true

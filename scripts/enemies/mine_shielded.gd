@@ -73,24 +73,14 @@ func _activate_shield() -> void:
 
 
 func explode() -> void:
-	if _dying:
-		return
-	_dying = true
-	set_deferred("monitorable", false)
-	died.emit(bounty_value)
-	# Free the shield ring instantly so it doesn't linger over the explosion (this explode()
-	# doesn't call super.explode(), so fire the component death hook by hand).
-	_components_death()
-	_fade_death_overlays()   # drop outline / centre-blink instantly so only the body burns
+	# Free the shield ring instantly so it doesn't linger over the explosion. The post-dying
+	# callback lets us fire the component death hook after _dying is set (intentional for shield cleanup).
 	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
-	ExplosionFx.play(global_position, 1.0)
-	var MineSfx = load("res://scripts/effects/mine_sfx.gd")
-	MineSfx.play_at(global_position)
-	if has_node("Sprite2D"):
-		var BurnFx = load("res://scripts/effects/burn_fx.gd")
-		BurnFx.apply_burn($Sprite2D, 0.4)
-	await get_tree().create_timer(0.45).timeout
-	queue_free()
+	await _mine_explode_sequence(
+		func(): ExplosionFx.play(global_position, 1.0),
+		Callable(),   # no pre-dying callback
+		func(): _components_death()   # post-dying: free the shield ring
+	)
 
 
 func _on_area_entered(area: Area2D) -> void:

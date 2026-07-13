@@ -63,22 +63,13 @@ func hit() -> void:
 
 
 func explode() -> void:
-	if _dying:
-		return
-	_components_death()   # release the orbiting bomblets (OrbitComponent.on_death)
-	_dying = true
-	set_deferred("monitorable", false)
-	died.emit(bounty_value)
-	_fade_death_overlays()   # drop glow-mask / gravity glow / outline / centre-blink instantly
+	# Release the orbiting bomblets via the pre-dying callback (must happen before _dying flag is set
+	# so the OrbitComponent.on_death logic runs cleanly). The helper handles the common skeleton.
 	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
-	ExplosionFx.burst(global_position, 2, 8.0, 0.05)
-	var MineSfx = load("res://scripts/effects/mine_sfx.gd")
-	MineSfx.play_at(global_position)
-	if has_node("Sprite2D"):
-		var BurnFx = load("res://scripts/effects/burn_fx.gd")
-		BurnFx.apply_burn($Sprite2D, 0.4)
-	await get_tree().create_timer(0.45).timeout
-	queue_free()
+	await _mine_explode_sequence(
+		func(): ExplosionFx.burst(global_position, 2, 8.0, 0.05),
+		func(): _components_death()   # pre-dying: release the orbiting bomblets (OrbitComponent.on_death)
+	)
 
 
 # Catch-all: if the mine is freed for ANY reason (off-screen, level wipe), don't strand the

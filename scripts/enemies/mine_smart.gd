@@ -71,25 +71,12 @@ func hit() -> void:
 
 
 func explode() -> void:
-	if _dying:
-		return
-	_dying = true
-	set_deferred("monitorable", false)
-	died.emit(bounty_value)
-	_fade_death_overlays()   # drop outline / centre-blink instantly so only the body burns
-	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
 	# Armed/chasing mines pop with a 2nd jitter blast; dormant a single 1×.
-	if _armed:
-		ExplosionFx.burst(global_position, 2, 6.0, 0.05)
-	else:
-		ExplosionFx.play(global_position, 1.0)
-	var MineSfx = load("res://scripts/effects/mine_sfx.gd")
-	MineSfx.play_at(global_position)
-	if has_node("Sprite2D"):
-		var BurnFx = load("res://scripts/effects/burn_fx.gd")
-		BurnFx.apply_burn($Sprite2D, 0.4)
-	await get_tree().create_timer(0.45).timeout
-	queue_free()
+	# The helper handles the common skeleton.
+	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
+	await _mine_explode_sequence(
+		func(): if _armed: ExplosionFx.burst(global_position, 2, 6.0, 0.05) else: ExplosionFx.play(global_position, 1.0)
+	)
 
 
 func _on_area_entered(area: Area2D) -> void:

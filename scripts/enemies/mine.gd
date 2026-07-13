@@ -52,22 +52,12 @@ func hit() -> void:
 
 # Mine-specific death VFX — larger explosion + sfx + burn — overrides EnemyBase.explode.
 func explode() -> void:
-	if _dying:
-		return
-	_dying = true
-	set_deferred("monitorable", false)
-	died.emit(bounty_value)
-	_fade_death_overlays()   # drop glow-mask / outline / centre-blink instantly so only the body burns
 	# Single circle explosion (Roman 2026-06-11) — not the fiery default blast.
+	# The helper handles the common skeleton (dying guard, flags, emit, overlays, sfx, burn, cleanup).
 	var ExplosionFx = load("res://scripts/effects/explosion_fx.gd")
-	ExplosionFx.play(global_position, 1.0, true, null, ExplosionFx.scene_for("small_circle"))
-	var MineSfx = load("res://scripts/effects/mine_sfx.gd")
-	MineSfx.play_at(global_position)
-	if has_node("Sprite2D"):
-		var BurnFx = load("res://scripts/effects/burn_fx.gd")
-		BurnFx.apply_burn($Sprite2D, 0.4)
-	await get_tree().create_timer(0.45).timeout
-	queue_free()
+	await _mine_explode_sequence(
+		func(): ExplosionFx.play(global_position, 1.0, true, null, ExplosionFx.scene_for("small_circle"))
+	)
 
 
 func _on_area_entered(area: Area2D) -> void:

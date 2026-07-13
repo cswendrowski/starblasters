@@ -17,6 +17,17 @@ func ammo_at_mark(_mk: int) -> int:
 	return int(base_ammo)
 
 
+# Protected helper for metered subclasses that override _apply_visuals. Seeds
+# current_ammo from the mark (so super._apply_visuals reads the correct per-mark
+# value instead of stale -1), and returns the value for post-super ammo_max setting.
+# Usage: var mag = _seed_metered_ammo_for_mark(int(mark)); super._apply_visuals(ship);
+# then set ship.ammo_max = mag if needed.
+func _seed_metered_ammo_for_mark(mark: int) -> int:
+	var mag: int = ammo_at_mark(int(mark))
+	current_ammo = mag
+	return mag
+
+
 func _snapshot_keys() -> Array:
 	# ammo_max + ammo_recharge_rate live on ship; both must round-trip.
 	# The actual `ammo` field is driven via set_ammo(); we restore by
@@ -34,7 +45,7 @@ func _apply_visuals(ship) -> void:
 		ship.ammo_recharge_rate = ammo_recharge_rate
 	if "ammo_max" in ship:
 		# Prefer the Part's OWN ammo_max: run_state stamps it from ammo_at_mark(mark) at equip/reseed
-		# (run_state._cond_ammo_cap) so it's ALREADY Condition-scaled AND tracks the mark curve. For a
+		# (run_state.cond_ammo_cap) so it's ALREADY Condition-scaled AND tracks the mark curve. For a
 		# compound-magazine weapon (Minigun/Machinegun: Mk1=1000 … Mk9≈4300) the flat `base_ammo` export
 		# only equals the Mk1 magazine, so using it capped the CAP below the mark-scaled current_ammo —
 		# a persistent current>max mismatch. Use ammo_max verbatim; do NOT rescale it (it's pre-scaled —
@@ -45,7 +56,7 @@ func _apply_visuals(ship) -> void:
 		else:
 			var cap: int = base_ammo
 			if base_ammo > 0 and ship.has_node("/root/Run"):
-				cap = maxi(1, roundi(base_ammo * ship.get_node("/root/Run").cond_scalar("player.ammo_max_mult")))
+				cap = ship.get_node("/root/Run").cond_ammo_cap(base_ammo)
 			ship.ammo_max = cap
 	# Seed ammo from the Part's own current_ammo (Weapons Phase 1: each
 	# non-blaster primary owns its magazine on the cannon_pool entry). Fall
