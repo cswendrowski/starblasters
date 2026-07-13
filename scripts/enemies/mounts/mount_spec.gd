@@ -101,6 +101,10 @@ enum MarkerMode { ALL, CYCLE, INWARD, OUTWARD }
 # z_index for the mount-drawn turret sprite. Default 0. Raise it (e.g. 2) when the turret must render
 # ABOVE the hull's own z_index-1 building/overlay layers (the ground launcher's Building sits at z 1).
 @export var turret_z: int = 0
+# Multi-muzzle firing: a marker glob (e.g. "Launcher*") whose Marker2Ds the builder REPARENTS under the
+# turret so they rotate with it and the turret fires from them like a GUN mount (marker_mode picks ALL
+# vs cycle-one). "" = single-barrel turret (fire from the pivot / muzzle_distance).
+@export var turret_muzzle: String = ""
 
 # --- BEAM only (a BeamEmitter.configure() dict) ---
 @export var beam_config: Dictionary = {}

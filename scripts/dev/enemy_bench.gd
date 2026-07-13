@@ -1366,6 +1366,10 @@ func _mount_spec_dicts() -> Array:
 				sd["recoil_frames"] = g["recoil"]
 			sd["rotation_speed"] = float(d.get("rotation_speed", 3.6))
 			sd["aim_tolerance_deg"] = float(d.get("aim_tolerance_deg", 14.0))
+			var tmz := String(d.get("turret_muzzle", ""))
+			if tmz != "":
+				sd["turret_muzzle"] = tmz
+				sd["marker_mode"] = String(d.get("marker_mode", "all"))
 		out.append(sd)
 	return out
 
@@ -2044,6 +2048,8 @@ func _roster_mount_to_bench(d: Dictionary) -> Dictionary:
 		out["recoil_frames"] = int(d.get("recoil_frames", 0))
 		out["rotation_speed"] = float(d.get("rotation_speed", 3.6))
 		out["aim_tolerance_deg"] = float(d.get("aim_tolerance_deg", 14.0))
+		out["turret_muzzle"] = String(d.get("turret_muzzle", ""))   # multi-muzzle glob + its cycle mode
+		out["marker_mode"] = String(d.get("marker_mode", "all"))
 	return out
 
 
@@ -2223,6 +2229,9 @@ func _mount_copy_line(d: Dictionary) -> String:
 			if int(d.get("recoil_frames", 0)) != 0:
 				line += ", \"recoil_frames\": %d" % int(d.get("recoil_frames", 0))
 		line += ", \"rotation_speed\": %.2f, \"aim_tolerance_deg\": %.1f" % [float(d.get("rotation_speed", 3.6)), float(d.get("aim_tolerance_deg", 14.0))]
+		var tmz2 := String(d.get("turret_muzzle", ""))
+		if tmz2 != "":
+			line += ", \"turret_muzzle\": \"%s\", \"marker_mode\": \"%s\"" % [tmz2, String(d.get("marker_mode", "all"))]
 	line += " },"
 	return line
 

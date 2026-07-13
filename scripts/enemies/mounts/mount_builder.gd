@@ -113,6 +113,13 @@ static func _build_turret(enemy: Node, spec, mount) -> void:
 		t.add_child(s)
 	var parent: Node = mount if mount != null else enemy
 	parent.add_child(t)
+	# Multi-muzzle firing (Roman 2026-07-13): reparent the enemy's turret-muzzle markers UNDER the turret
+	# so they rotate with the barrel — the turret then fires from them exactly like an on-hull GUN mount.
+	if String(spec.turret_muzzle) != "":
+		t.marker_mode = int(spec.marker_mode)
+		for m in enemy.find_children(String(spec.turret_muzzle), "Marker2D", true, false):
+			if is_instance_valid(m):
+				m.reparent(t, true)   # keep_global — preserves each tube's world offset, then rotates with t
 
 
 static func _attach_beam(enemy: Node, spec) -> void:

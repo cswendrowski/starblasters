@@ -33,8 +33,13 @@ const ProjectileMods = preload("res://scripts/enemies/projectile_mods.gd")
 @export var bullet_speed: float = 160.0
 # Fire this far along the barrel from the turret pivot (the barrel TIP), so bullets leave the muzzle
 # instead of the turret's centre. Rotates with the aim. 0 = fire from the pivot (the old behaviour).
-# Only used when the host has no Muzzle markers of its own (mount-drawn turrets). (Roman 2026-07-13.)
+# Used only when the turret has NO muzzle markers of its own (single-barrel mount-drawn turrets). (Roman 2026-07-13.)
 @export var muzzle_distance: float = 0.0
+# Multi-muzzle firing (Roman 2026-07-13): a turret fires from its OWN child Marker2D muzzles (they rotate
+# WITH the barrel), the same way an on-hull GUN mount fires from Muzzle* markers. marker_mode: 0 = ALL
+# muzzles fire each shot; any other value cycles ONE muzzle per fan. No child markers → single-point
+# (muzzle_distance) fallback, so existing single-barrel turrets are unchanged.
+@export var marker_mode: int = 0
 @export var enabled: bool = true
 # Volley shape (Roman 2026-06-29): fire `count` bullets fanned across `spread_deg` each shot, mirroring
 # gun/launcher mounts. Defaults (1 / 0) = a single aimed shot, so existing turrets are unchanged.
@@ -62,6 +67,9 @@ const ProjectileMods = preload("res://scripts/enemies/projectile_mods.gd")
                                                   # deliver a projectile instead of a bullet (wins over bullet_variant)
 
 var _barrel: Sprite2D = null
+var _muzzles: Array = []          # child Marker2D muzzles (rotate with the barrel); empty = single-point
+var _muzzles_resolved: bool = false
+var _mcycle: int = 0              # cycle cursor for marker_mode != ALL
 var _turret_rot: float = 0.0
 var _fire_t: float = 0.0
 var _next_interval: float = 2.0
@@ -191,12 +199,12 @@ func _shoot() -> void:
 		await _fire_fan()
 
 
-# One fan of `count` shots from a single muzzle position (matches the old single-spawn behavior), spaced
-# by burst_interval when set. Re-aims between burst shots as the turret keeps tracking.
+# One fan of `count` shots from EACH selected muzzle (ALL markers, or one cycled — same firing support an
+# on-hull GUN mount has), spaced by burst_interval when set. Re-aims between burst shots as it tracks.
 func _fire_fan() -> void:
 	var world: Node = BulletWorld.resolve(_host(), get_tree().root)
 	var owner: Node = _owner_enemy()   # for the faction/sector weapon mults + velocity inheritance
-	var spawn_pos: Vector2 = _muzzle_pos()
+	var muzzles: Array = _select_muzzles()   # marker NODES for this fan (all / one cycled), or [null] = single-point
 	var base_dir: Vector2 = _barrel_dir()
 	var n: int = maxi(1, count)
 	var is_burst: bool = burst_interval > 0.0
@@ -207,11 +215,43 @@ func _fire_fan() -> void:
 				return
 			base_dir = _barrel_dir()   # re-aim between burst shots
 		var dir: Vector2 = _deviate(_fan_dir(base_dir, i, n))
-		_spawn_shot(dir, spawn_pos, world, owner)
-		if is_burst:
-			_play_muzzle_sfx(spawn_pos, dir, world)
+		for m in muzzles:
+			var spawn_pos: Vector2 = _muzzle_world(m)   # reads the (rotated) muzzle world position each shot
+			_spawn_shot(dir, spawn_pos, world, owner)
+			if is_burst:
+				_play_muzzle_sfx(spawn_pos, dir, world)
 	if not is_burst:
-		_play_muzzle_sfx(spawn_pos, base_dir, world)
+		for m in muzzles:
+			_play_muzzle_sfx(_muzzle_world(m), base_dir, world)
+
+
+# The turret's muzzle markers = its OWN child Marker2Ds (reparented under it by the mount, or authored
+# under a scene-embedded turret) so they ROTATE with the barrel. Resolved once, lazily (they may be
+# reparented after _ready).
+func _resolve_muzzles() -> void:
+	_muzzles = []
+	for c in get_children():
+		if c is Marker2D:
+			_muzzles.append(c)
+	_muzzles_resolved = true
+
+
+# The marker NODES this fan fires from: ALL of them (marker_mode 0), or ONE cycled (any other mode, one
+# per fan). No child markers → [null] = the single-point (muzzle_distance) fallback.
+func _select_muzzles() -> Array:
+	if not _muzzles_resolved:
+		_resolve_muzzles()
+	if _muzzles.is_empty():
+		return [null]
+	if marker_mode != 0:
+		var m = _muzzles[_mcycle % _muzzles.size()]
+		_mcycle += 1
+		return [m]
+	return _muzzles.duplicate()
+
+
+func _muzzle_world(m) -> Vector2:
+	return (m as Marker2D).global_position if (m != null and is_instance_valid(m)) else _muzzle_pos()
 
 
 # Spawn one shot in `dir` — a PROJECTILE payload (payload_scene) if set, else the turret's bullet.
