@@ -1579,16 +1579,14 @@ func _rebuild_status() -> void:
 	var sorted: Array = active.duplicate()
 	sorted.sort_custom(func(a, b): return Conditions.threat_of(String(a)) > Conditions.threat_of(String(b)))
 
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_page_status.add_child(scroll)
-
+	# Rows go DIRECTLY on the page VBox — _add_page already wraps every page in a
+	# ScrollContainer, and a nested inner scroll with EXPAND_FILL has no bounded
+	# height inside it, so it collapses to 0 and the rows render invisible (the
+	# "Difficulty but no modifiers" bug, Roman 2026-07-12). The page scroll owns overflow.
 	var rows := VBoxContainer.new()
 	rows.add_theme_constant_override("separation", 8)
 	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(rows)
+	_page_status.add_child(rows)
 
 	for id in sorted:
 		var row := HBoxContainer.new()

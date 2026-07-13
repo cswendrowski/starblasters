@@ -65,20 +65,21 @@ func _run() -> void:
 	# STATUS should show difficulty header (or condition rows if empty, but we set conditions).
 	_ck(_oa._page_status.get_child_count() > 0, "STATUS page has content")
 
-	# Count condition rows: each active condition gets a row + an info button within.
-	# The scroll container is a child; inside it is a VBoxContainer with rows.
+	# Count condition rows + assert they RENDER (nonzero height). Rows live in a VBox
+	# DIRECTLY on the page (the page's _add_page scroll owns overflow — a nested inner
+	# ScrollContainer collapses to 0 height inside it, which is exactly the "Difficulty
+	# but no modifiers" bug this guards against, Roman 2026-07-12).
 	var rows_found: int = 0
+	var rows_rendered: int = 0
 	for child in _oa._page_status.get_children():
-		if child is ScrollContainer:
-			for row_child in child.get_children():
-				if row_child is VBoxContainer:
-					# Each row is an HBoxContainer (name + chip + info button).
-					# Count HBoxContainers that are direct children of the VBox.
-					for hbox in row_child.get_children():
-						if hbox is HBoxContainer:
-							rows_found += 1
-					break
+		if child is VBoxContainer:
+			for hbox in child.get_children():
+				if hbox is HBoxContainer:
+					rows_found += 1
+					if hbox.size.y > 0.0:
+						rows_rendered += 1
 	_ck(rows_found >= 3, "STATUS page lists all 3 active conditions (%d rows found)" % rows_found)
+	_ck(rows_rendered == rows_found, "all condition rows have nonzero rendered height (%d/%d)" % [rows_rendered, rows_found])
 
 	# TAB button should show a count badge (if implemented) or at least exist.
 	# The left_tabs is a TabContainer, so we can check if STATUS tab is present.
