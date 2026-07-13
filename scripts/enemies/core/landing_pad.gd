@@ -6,8 +6,8 @@ extends "res://scripts/enemies/core/enemy_core_building_turret.gd"
 # with the ship still alive (not destroyed), the ship is handed to the director (inject_live_enemy) so it
 # recycles into a later wave.
 
-const RosterC = preload("res://scripts/levels/enemy_roster.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
+# RosterC is inherited from enemy_core_building_turret.gd (the parent) — do not redeclare.
 
 var _parked: Node = null
 var _released: bool = false
@@ -32,7 +32,7 @@ func _spawn_parked() -> void:
 	# Live health from the roster (instantiated directly, so the director's size-scaling doesn't run).
 	var stats: Dictionary = RosterC.compose_stats(entry)
 	if "max_health" in e:
-		e.max_health = maxi(1, int(stats.get("hp", 4)))
+		e.max_health = maxi(1, int(stats.get("max_health", 4)))
 	add_child(e)
 	if e is Node2D:
 		(e as Node2D).position = Vector2(0, -3)   # sit on the pad

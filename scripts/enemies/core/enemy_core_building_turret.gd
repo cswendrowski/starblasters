@@ -15,6 +15,12 @@ extends "res://scripts/enemies/enemy_core.gd"
 
 const ExplosionFxC = preload("res://scripts/effects/explosion_fx.gd")
 const EnemyDeathFxC = preload("res://scripts/effects/enemy_death_fx.gd")
+const RosterC = preload("res://scripts/levels/enemy_roster.gd")
+
+## Whether the PLAYER takes contact damage from / rams this structure. Structures default to FALSE — the
+## ship flies THROUGH them (they stay shootable, they're just not rammers). Set true per-scene to opt in.
+## Read player-side in player._on_area_entered.
+@export var player_impact: bool = false
 
 var _husk: bool = false   # true once destroyed — the base is now inert, drifting debris
 
@@ -27,7 +33,20 @@ func _ready() -> void:
 	# Never recycle (Roman 2026-07-13): a ground structure that drifts off-screen must despawn, not fly
 	# back through the parallax. recycle_passes == 0 makes RecycleController._leave() instead of cycling.
 	recycle_passes = 0
+	# no_wave structures spawn OUTSIDE the director/WaveGen path, so its size→HP scaling never runs and
+	# max_health would stay at the scene default (1 → one-hit death). Derive HP from our own roster entry
+	# (size + tough), BEFORE super._ready() initializes the hull from max_health.
+	_apply_roster_health()
 	super._ready()
+
+
+# Set max_health from this structure's own roster entry (size template × tough), so it isn't a one-hit
+# kill when spawned directly. No-op if the scene isn't in the roster (keeps the scene default).
+func _apply_roster_health() -> void:
+	var entry: Dictionary = RosterC.entry_for_scene(scene_file_path)
+	if entry.is_empty():
+		return
+	max_health = maxi(1, int(RosterC.compose_stats(entry).get("max_health", max_health)))
 
 
 func _process(delta: float) -> void:

@@ -3328,6 +3328,10 @@ func _on_area_entered(area: Area2D) -> void:
 	# for honesty. take_hit(6) is the player's ram damage TO the enemy — unrelated to what the
 	# player takes. (Roman 2026-07-04: damage is flat; difficulty scales via volume.)
 	if area.is_in_group("enemies"):
+		# A structure can opt OUT of player impact (player_impact=false) — the ship flies THROUGH it
+		# (no contact damage, no ram). It stays shootable; only this player-side contact is skipped.
+		if "player_impact" in area and not area.player_impact:
+			return
 		if "ram" in area and area.ram:
 			# Ram enemy: it barrels through (takes NO contact damage) and knocks the player back
 			# asteroid-style. The player still takes the flat 1. (Bullets still hurt a ram enemy.)
