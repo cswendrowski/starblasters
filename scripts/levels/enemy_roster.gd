@@ -1339,6 +1339,7 @@ const ENTRIES := [
 		"movement": "asteroid_lane",
 		"base_count": 1,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": false,
+		"no_wave": true,   # reserved for specific level conditions (placed with the buildings) — never in the random wave roll
 		"conflict_tags": [],
 	},
 	{
@@ -1352,6 +1353,7 @@ const ENTRIES := [
 		"movement": "asteroid_lane",
 		"base_count": 1,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": false,
+		"no_wave": true,   # reserved for specific level conditions (placed with the buildings) — never in the random wave roll
 		"conflict_tags": [],
 	},
 	{
@@ -1367,6 +1369,7 @@ const ENTRIES := [
 		"movement": "asteroid_lane",
 		"base_count": 1,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": false,
+		"no_wave": true,   # reserved for specific level conditions (placed with the buildings) — never in the random wave roll
 		"conflict_tags": [],
 	},
 	{
