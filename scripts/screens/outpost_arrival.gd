@@ -56,6 +56,7 @@ const PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const PartTier = preload("res://scripts/parts/part_tier.gd")
 const OutpostSfx = preload("res://scripts/effects/outpost_sfx.gd")   # carried over from the old outpost menu
 const ArmoryStrings = preload("res://scripts/strings/armory_strings.gd")   # the Codex's item blurbs (one source)
+const Conditions = preload("res://scripts/systems/conditions.gd")
 # Top-bar stat icons — one 10×10 frame each: 0=hull, 1=super, 2=bounty, 3=materials (Roman 2026-06-29).
 const ICON_SHEET = preload("res://graphics/ui/outpost_icons.png")
 const ICON_FRAME := 10       # native px per frame (sheet is 40×10)
@@ -260,6 +261,7 @@ var _toast_tween: Tween = null
 var _info_popup: Control = null
 var _page_market: VBoxContainer = null
 var _page_services: VBoxContainer = null
+var _page_status: VBoxContainer = null
 var _page_armaments: VBoxContainer = null
 var _page_systems: VBoxContainer = null
 var _page_hold: VBoxContainer = null
@@ -1076,6 +1078,7 @@ func _build_left_panel() -> void:
 	_left_tabs = tc
 	_page_market = _add_page(tc, "MARKET")
 	_page_services = _add_page(tc, "SERVICES")
+	_page_status = _add_page(tc, "STATUS")
 	v.add_child(tc)
 	# Swapping back to the part market ends scrap/sell mode.
 	tc.tab_changed.connect(func(idx: int) -> void:
@@ -1083,6 +1086,7 @@ func _build_left_panel() -> void:
 			_set_shop_mode(ShopMode.NONE))
 	_rebuild_market()
 	_rebuild_services()
+	_rebuild_status()
 
 
 func _build_right_panel() -> void:
@@ -1531,6 +1535,139 @@ func _rebuild_services() -> void:
 		h.add_text("; grayed when maxed or unaffordable).")
 		_page_services.add_child(h)
 	_page_services.add_child(_spacer())
+
+
+# ---- STATUS tab — active-Conditions detail view ---------------------------
+# Patrol-static modifiers listed with their impact (difficulty sign and value).
+# Each condition has an ⓘ button that opens a detail popup showing the label,
+# signed value, blurb, and category.
+
+func _rebuild_status() -> void:
+	if _page_status == null:
+		return
+	_clear(_page_status)
+	var run := get_node_or_null("/root/Run")
+	var active: Array = []
+	if run != null and "active_conditions" in run:
+		active = run.active_conditions
+
+	# Header with Difficulty value and count badge.
+	if active.is_empty():
+		_page_status.add_child(_caption("No active modifiers"))
+		return
+
+	var net: int = 0
+	if run != null and run.has_method("condition_net_threat"):
+		net = run.condition_net_threat()
+	var hdr := _label("Difficulty: %+d" % net, UiTheme.FONT_SIZE_BODY, Color(0.95, 0.86, 0.45))
+	_page_status.add_child(hdr)
+	_page_status.add_child(HSeparator.new())
+
+	# Rows sorted by threat descending (banes first, then boons).
+	var sorted: Array = active.duplicate()
+	sorted.sort_custom(func(a, b): return Conditions.threat_of(String(a)) > Conditions.threat_of(String(b)))
+
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_page_status.add_child(scroll)
+
+	var rows := VBoxContainer.new()
+	rows.add_theme_constant_override("separation", 8)
+	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(rows)
+
+	for id in sorted:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+		var name_lbl := _label(Conditions.label(String(id)), UiTheme.FONT_SIZE_BODY, Color(0.90, 0.93, 0.98))
+		name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_lbl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(name_lbl)
+
+		# Threat chip — warm for bane (+), cool for boon (−).
+		var t: int = Conditions.threat_of(String(id))
+		var chip := _label(("%+d" % t) if t > 0 else ("%d" % t), UiTheme.FONT_SIZE_BODY,
+			Color(0.95, 0.72, 0.55) if t > 0 else Color(0.55, 0.95, 0.75))
+		chip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		chip.custom_minimum_size = Vector2(52, 0)
+		chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(chip)
+
+		# Info button opens the condition detail popup.
+		var info_btn := UiTheme.make_button("i", true)
+		info_btn.custom_minimum_size = Vector2(40, 0)
+		info_btn.pressed.connect(_show_condition_info.bind(String(id)))
+		row.add_child(info_btn)
+
+		rows.add_child(row)
+
+
+func _show_condition_info(id: String) -> void:
+	_close_info()
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.6)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.gui_input.connect(func(e: InputEvent) -> void:
+		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+			_close_info())
+	add_child(dim)
+	_info_popup = dim
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dim.add_child(center)
+
+	var panel := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.05, 0.07, 0.11, 0.98)
+	sb.border_color = UiTheme.COLOR_ACCENT
+	sb.set_border_width_all(2)
+	sb.set_content_margin_all(28)
+	sb.set_corner_radius_all(6)
+	panel.add_theme_stylebox_override("panel", sb)
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	center.add_child(panel)
+
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 14)
+	v.custom_minimum_size = Vector2(600, 0)
+	panel.add_child(v)
+
+	# Title: condition label, colored by sign (threat).
+	var t: int = Conditions.threat_of(id)
+	var threat_color: Color = Color(0.95, 0.72, 0.55) if t > 0 else Color(0.55, 0.95, 0.75)
+	var title := _label(Conditions.label(id), UiTheme.FONT_SIZE_TITLE, threat_color)
+	v.add_child(title)
+
+	# Signed difficulty value.
+	var diff_text: String = "Difficulty: %+d" % t
+	var diff_lbl := _label(diff_text, UiTheme.FONT_SIZE_BODY, threat_color)
+	v.add_child(diff_lbl)
+
+	# Blurb (wrapping).
+	var blurb_text := Conditions.blurb(id)
+	if blurb_text != "":
+		var blurb := _label(blurb_text, UiTheme.FONT_SIZE_BODY, Color(0.78, 0.85, 0.92))
+		blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		blurb.custom_minimum_size = Vector2(560, 0)
+		v.add_child(blurb)
+
+	# Category (e.g. "ENEMY", "PLAYER", "ECONOMY").
+	var category := Conditions.category_of(id)
+	if category != "":
+		v.add_child(HSeparator.new())
+		var cat_lbl := _label("Category: " + category, UiTheme.FONT_SIZE_CAPTION, Color(0.62, 0.80, 0.92))
+		v.add_child(cat_lbl)
+
+	var close := UiTheme.make_button("Close")
+	close.pressed.connect(_close_info)
+	v.add_child(close)
 
 
 func _toggle_shop_mode(mode: int) -> void:
