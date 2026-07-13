@@ -1348,12 +1348,24 @@ func _mount_spec_dicts() -> Array:
 				sd["fire_path_phases"] = phases
 				sd["fire_beat_synced"] = bool(d.get("beat_synced", true))
 		elif k == "turret":
-			# Give the turret a graphic so it's visible — faction dome/tank strip, else a generic
-			# 1-frame turret. (The roster→bench conversion drops the texture, so we re-derive it here.)
-			var g: Dictionary = TURRET_GFX.get(_group_of(_selected_path), TURRET_GFX_DEFAULT)
-			sd["turret_texture"] = g["tex"]
-			sd["turret_hframes"] = g["hframes"]
-			sd["recoil_frames"] = g["recoil"]
+			# Prefer the enemy's OWN turret graphic/config when it carries one (ground turrets: per-enemy
+			# barrel art + frame + z + muzzle_distance); else derive a visible turret from the faction
+			# group (bench-added mounts, which have no roster gfx).
+			var tex := String(d.get("turret_texture", ""))
+			if tex != "":
+				sd["turret_texture"] = tex
+				sd["turret_hframes"] = int(d.get("turret_hframes", 1))
+				sd["turret_frame"] = int(d.get("turret_frame", 0))
+				sd["turret_z"] = int(d.get("turret_z", 0))
+				sd["muzzle_distance"] = float(d.get("muzzle_distance", 0.0))
+				sd["recoil_frames"] = int(d.get("recoil_frames", 0))
+			else:
+				var g: Dictionary = TURRET_GFX.get(_group_of(_selected_path), TURRET_GFX_DEFAULT)
+				sd["turret_texture"] = g["tex"]
+				sd["turret_hframes"] = g["hframes"]
+				sd["recoil_frames"] = g["recoil"]
+			sd["rotation_speed"] = float(d.get("rotation_speed", 3.6))
+			sd["aim_tolerance_deg"] = float(d.get("aim_tolerance_deg", 14.0))
 		out.append(sd)
 	return out
 
@@ -2020,6 +2032,18 @@ func _roster_mount_to_bench(d: Dictionary) -> Dictionary:
 	for f in MOUNT_FIELDS:
 		if _field_applies(f, k):
 			out[f["bench"]] = _field_val_from_roster(f, d, k)
+	# Turret graphic + aim config — carried as data (NOT MOUNT_FIELDS, to avoid a path text field in the
+	# UI) so a ground turret's per-enemy barrel art / frame / z / muzzle round-trips instead of being
+	# re-derived to a generic faction turret. (Roman 2026-07-13.)
+	if k == "turret":
+		out["turret_texture"] = String(d.get("turret_texture", ""))
+		out["turret_hframes"] = int(d.get("turret_hframes", 1))
+		out["turret_frame"] = int(d.get("turret_frame", 0))
+		out["turret_z"] = int(d.get("turret_z", 0))
+		out["muzzle_distance"] = float(d.get("muzzle_distance", 0.0))
+		out["recoil_frames"] = int(d.get("recoil_frames", 0))
+		out["rotation_speed"] = float(d.get("rotation_speed", 3.6))
+		out["aim_tolerance_deg"] = float(d.get("aim_tolerance_deg", 14.0))
 	return out
 
 
@@ -2186,6 +2210,19 @@ func _mount_copy_line(d: Dictionary) -> String:
 		var ophase: String = String(d.get("on_phase", "")).strip_edges()
 		if ophase != "":
 			line += ", \"fire_on_phase\": \"%s\"" % ophase
+	elif k == "turret":
+		# Turret graphic + aim config (per-enemy): emit carried barrel art/frame/z/muzzle so a ground
+		# turret round-trips through Copy instead of losing its graphic to the group fallback.
+		var ttex := String(d.get("turret_texture", ""))
+		if ttex != "":
+			line += ", \"turret_texture\": \"%s\", \"turret_hframes\": %d, \"turret_frame\": %d" % [ttex, int(d.get("turret_hframes", 1)), int(d.get("turret_frame", 0))]
+			if int(d.get("turret_z", 0)) != 0:
+				line += ", \"turret_z\": %d" % int(d.get("turret_z", 0))
+			if float(d.get("muzzle_distance", 0.0)) != 0.0:
+				line += ", \"muzzle_distance\": %.1f" % float(d.get("muzzle_distance", 0.0))
+			if int(d.get("recoil_frames", 0)) != 0:
+				line += ", \"recoil_frames\": %d" % int(d.get("recoil_frames", 0))
+		line += ", \"rotation_speed\": %.2f, \"aim_tolerance_deg\": %.1f" % [float(d.get("rotation_speed", 3.6)), float(d.get("aim_tolerance_deg", 14.0))]
 	line += " },"
 	return line
 
