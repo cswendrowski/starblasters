@@ -80,11 +80,11 @@ const _LEGACY_PAYLOAD := {
 }
 
 # Faction filter tabs (Roman 2026-06-12). "All" + the 4 factions + Core (universal chaff) +
-# Hazards (mines/asteroid) + Bosses. Group is derived from the scene PATH (folder), not the
-# ENEMY_TAGS home, so untagged hazards/bosses bucket cleanly and a universal chaff stays under Core.
-# Bosses are excluded from the bench (they don't tune cleanly here — a dedicated boss tuning tool
-# is a separate effort). The "Bosses" group is gone and boss scenes are filtered out of the list.
-const FACTION_GROUPS := ["All", "Core", "Supremacy", "Privateer", "Corporate", "Zealot", "Hazards"]
+# Hazards (mines/asteroid) + Buildings (ground structures) + Bosses. Group is derived from the scene
+# PATH (folder), not the ENEMY_TAGS home, so untagged hazards/bosses bucket cleanly and a universal
+# chaff stays under Core. Bosses are excluded from the bench (they don't tune cleanly here — a dedicated
+# boss tuning tool is a separate effort). The "Bosses" group is gone and boss scenes are filtered out.
+const FACTION_GROUPS := ["All", "Core", "Supremacy", "Privateer", "Corporate", "Zealot", "Hazards", "Buildings"]
 
 # WIP mega-bosses waived from the blanket boss exclusion above, so their destructible-turret rig can be
 # iterated against the dummy here (the enemy still fires at the dummy; the flee-on-turret-clear mechanic
@@ -963,6 +963,7 @@ func _group_of(path: String) -> String:
 	if p.contains("/factions/privateer/"): return "Privateer"
 	if p.contains("/factions/corporate/"): return "Corporate"
 	if p.contains("/factions/zealot/"): return "Zealot"
+	if p.contains("/ground/"): return "Buildings"   # ground structures — buildings + emplacement turrets, not core chaff
 	if p.contains("/core/"): return "Core"
 	if p.contains("mine") or p.contains("asteroid") or p.contains("bomblet"): return "Hazards"
 	# No "Bosses" tab exists (bosses are excluded / WIP bosses bucket under their faction folder above).
