@@ -34,7 +34,8 @@ const MAX_MK := 9
 const HULL_REPAIR_COST := 250
 # Repairs now ALWAYS cost a material at baseline (Roman 2026-07-11, design §8) —
 # Cheap/Complex Repairs adjust the count, and Easy Repairs strips it to bounty only.
-const REPAIR_BASE_MATERIALS := 1
+# The baseline count + all condition-aware cost math live in OutpostEcon (the SSOT
+# shared with the LIVE dock outpost_arrival.gd) — see OutpostEcon.REPAIR_BASE_MATERIALS.
 # Ammo refill: cost scales with the number of rounds the player is missing,
 # so a near-empty mag is more expensive than a top-up. COST_PER_ROUND tuned
 # so a full 1000-round MG refill = 500 bounty (still a major expense), a
@@ -1018,15 +1019,10 @@ func _upgrade_bounty_cost(new_mk: int) -> int:
 
 # Single source for an upgrade's material + bounty cost — read by BOTH the button
 # label/affordability (_upgrade_button_spec) AND the spend (_on_upgrade_part), so
-# the shown cost can never drift from the charged cost. Folds the Sector Conditions
-# economy hooks: material mult / no-mats flag, bounty mult / no-bounty flag.
+# the shown cost can never drift from the charged cost. Delegates to OutpostEcon
+# (the SSOT shared with the dock): material mult / no-mats + bounty mult / no-bounty.
 func _upgrade_costs(new_mk: int) -> Dictionary:
-	var run = get_node_or_null("/root/Run")
-	if run == null:
-		return {"mats": new_mk, "bounty": _upgrade_bounty_cost(new_mk)}
-	var mats: int = 0 if run.cond_flag("econ.upgrade_no_mats") else ceili(new_mk * run.cond_scalar("econ.upgrade_mat_mult"))
-	var bounty_cost: int = 0 if run.cond_flag("econ.upgrade_no_bounty") else roundi(_upgrade_bounty_cost(new_mk) * run.cond_scalar("econ.upgrade_bounty_mult"))
-	return {"mats": mats, "bounty": bounty_cost}
+	return OutpostEcon.upgrade_costs(get_node_or_null("/root/Run"), new_mk, _upgrade_bounty_cost(new_mk))
 
 
 func _run_materials() -> int:
@@ -1346,10 +1342,8 @@ func _roll_offers() -> void:
 	#   don't loop forever if the catalog can't fill 5 unique slots at the cap.
 	_weapon_offers.clear()
 	var seen: Dictionary = {}
-	# Sector Conditions — Market Scarcity/Surplus shift the stock count (econ.stock_delta).
-	var stock_count: int = WEAPONS_COLUMN_COUNT
-	if has_node("/root/Run"):
-		stock_count = maxi(1, WEAPONS_COLUMN_COUNT + int(get_node("/root/Run").cond_sum("econ.stock_delta")))
+	# Sector Conditions — Market Scarcity/Surplus shift the stock count (econ.stock_delta). Via OutpostEcon SSOT.
+	var stock_count: int = OutpostEcon.stock_count(get_node_or_null("/root/Run"), WEAPONS_COLUMN_COUNT)
 	for i in stock_count:
 		var picked = null
 		var picked_mk: int = 1
@@ -1397,9 +1391,8 @@ func _roll_offers() -> void:
 		var cost: int = CANNON_BASE_COST + (picked_mk - 1) * CANNON_COST_PER_MK
 		# Sector Conditions — Galactic Tariffs/Buyer's Market scale the offer price at
 		# ROLL time so the STORED cost is both what's displayed and what's spent. Applies
-		# to every slot type (all offers price via this one site — shift-mode/modules too).
-		if has_node("/root/Run"):
-			cost = maxi(1, roundi(cost * get_node("/root/Run").cond_scalar("econ.shop_price_mult")))
+		# to every slot type (all offers price via this one site). Via OutpostEcon SSOT.
+		cost = OutpostEcon.offer_price(get_node_or_null("/root/Run"), cost)
 		_weapon_offers.append({"part": picked, "cost": cost, "sold": false})
 
 
@@ -1411,10 +1404,8 @@ func _roll_weighted_mark(rng: RandomNumberGenerator, lo: int, hi: int) -> int:
 	var b: int = rng.randi_range(lo, hi)
 	var mk: int = int(round(float(a + b) * 0.5))
 	# Sector Conditions — Shoddy Imports/Quality Goods shift the rolled Mk (econ.mk_bias),
-	# clamped to [1, cap]; the triangular distribution is otherwise intact.
-	if has_node("/root/Run"):
-		mk += int(get_node("/root/Run").cond_sum("econ.mk_bias"))
-	return clampi(mk, 1, hi)
+	# clamped to [1, cap]; the triangular distribution is otherwise intact. Via OutpostEcon SSOT.
+	return OutpostEcon.bias_mark(get_node_or_null("/root/Run"), mk, hi)
 
 
 # Count of row-bosses already killed in the current sector. Drives the
@@ -1509,31 +1500,24 @@ func _buy_slot_occupied(run, part, slot: int) -> bool:
 
 func _hull_repair_cost() -> int:
 	var base: int = HULL_REPAIR_COST
-	if has_node("/root/Run"):
-		var run := get_node("/root/Run")
+	var run = get_node_or_null("/root/Run")
+	if run != null:
 		# Reinforced Hull Mk.9 perk — read off the module bay (run.hull_mk is retired,
 		# always 0; the old check here left the discount dead. Audit 2026-07-11.)
 		var disc: float = float(run.hull_repair_discount()) if run.has_method("hull_repair_discount") else 0.0
 		if disc > 0.0:
 			base = int(round(float(base) * (1.0 - disc)))
-		# Sector Conditions — Easy/Costly Repairs scale the bounty cost (composes with
-		# the Mk-9 discount); Cheap Repairs zeroes the bounty entirely.
-		if run.cond_flag("econ.repair_no_bounty"):
-			return 0
-		base = roundi(base * run.cond_scalar("econ.repair_cost_mult"))
-	return base
+	# Sector Conditions — Easy/Costly Repairs scale the bounty side (composes with the
+	# Mk-9 discount already folded into `base`); Cheap Repairs zeroes it. Via OutpostEcon SSOT.
+	return int(OutpostEcon.repair_costs(run, base)["bounty"])
 
 
 # Material cost of a hull repair. Baseline repairs cost REPAIR_BASE_MATERIALS (design
 # §8, Roman 2026-07-11); Complex/Cheap Repairs add a flat material delta on top
 # (econ.repair_mat_delta), and Easy Repairs' no-mats flag strips it to zero.
 func _hull_repair_mats() -> int:
-	if not has_node("/root/Run"):
-		return REPAIR_BASE_MATERIALS
-	var run := get_node("/root/Run")
-	if run.cond_flag("econ.repair_no_mats"):
-		return 0
-	return REPAIR_BASE_MATERIALS + int(run.cond_sum("econ.repair_mat_delta"))
+	# Mats side is base_bounty-independent, so any base works here. Via OutpostEcon SSOT.
+	return int(OutpostEcon.repair_costs(get_node_or_null("/root/Run"), HULL_REPAIR_COST)["mats"])
 
 
 func _on_repair(btn: Button) -> void:
@@ -1589,9 +1573,7 @@ func _primary_ammo_max() -> int:
 # Sector Conditions — Costly/Cheap Restock scales every flat restock cost
 # (econ.restock_cost_mult). One helper so display + spend can't drift.
 func _restock_cost(base: int) -> int:
-	if not has_node("/root/Run"):
-		return base
-	return maxi(1, roundi(base * get_node("/root/Run").cond_scalar("econ.restock_cost_mult")))
+	return OutpostEcon.restock_cost(get_node_or_null("/root/Run"), base)
 
 
 # Per-round ammo cost with the restock mult folded in — keeps the partial-refill
@@ -1600,9 +1582,7 @@ func _restock_cost(base: int) -> int:
 # stay consistent (a flat _restock_cost wrapper's maxi(1) floor would corrupt the
 # zero-missing / affordable-rounds math, hence the per-round approach here).
 func _restock_per_round() -> float:
-	if not has_node("/root/Run"):
-		return AMMO_COST_PER_ROUND
-	return AMMO_COST_PER_ROUND * get_node("/root/Run").cond_scalar("econ.restock_cost_mult")
+	return OutpostEcon.restock_per_round(get_node_or_null("/root/Run"), AMMO_COST_PER_ROUND)
 
 
 func _ammo_refill_cost(missing: int) -> int:

@@ -95,5 +95,17 @@ func _run() -> void:
 	_ck(status_tab_idx >= 0, "STATUS tab found at index %d" % status_tab_idx)
 
 	print("live: conditions=%d rows=%d" % [run.active_conditions.size(), rows_found])
+
+	# Live economy wiring: the dock repair path is condition-aware via OutpostEcon (the SSOT that
+	# both _rebuild_services' button label AND _do_repair's spend read from the SAME call). With
+	# costly_repairs active, the repair cost the dock uses on its HULL_REPAIR_COST base == 375/1.
+	run.active_conditions = ["costly_repairs"]
+	var rc: Dictionary = OutpostEcon.repair_costs(run, _oa.HULL_REPAIR_COST)
+	_ck(int(rc["bounty"]) == 375, "dock repair reflects costly_repairs (bounty=%d, expect 375)" % int(rc["bounty"]))
+	_ck(int(rc["mats"]) == 1, "dock repair keeps 1 material under costly_repairs (mats=%d)" % int(rc["mats"]))
+	# Cheap restock flows through the same engine the dock refill buttons/handlers use.
+	run.active_conditions = ["cheap_restock"]
+	_ck(OutpostEcon.restock_cost(run, _oa.SUPER_REFILL_COST) == 84, "dock super refill reflects cheap_restock (=%d, expect 84)" % OutpostEcon.restock_cost(run, _oa.SUPER_REFILL_COST))
+
 	print("VERDICT: %s" % ("PASS" if _fails == 0 else "FAIL (%d)" % _fails))
 	quit(0 if _fails == 0 else 1)

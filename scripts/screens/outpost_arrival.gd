@@ -518,7 +518,8 @@ func _roll_live_offers(run) -> void:
 	var max_mk: int = mini(SHOP_MAX_MK, 3 + 3 * int(run.bosses_defeated))
 	var offers: Array = []
 	var seen: Dictionary = {}
-	for i in WEAPONS_COLUMN_COUNT:
+	# Sector Conditions — Market Scarcity/Surplus shift the stock count (econ.stock_delta). SSOT = OutpostEcon.
+	for i in OutpostEcon.stock_count(run, WEAPONS_COLUMN_COUNT):
 		var picked = null
 		var picked_mk: int = 1
 		for attempt in 8:
@@ -535,7 +536,9 @@ func _roll_live_offers(run) -> void:
 			break
 		if picked == null:
 			continue
-		offers.append({"part": picked, "cost": _full_cost(picked), "sold": false})
+		# Sector Conditions — Galactic Tariffs/Buyer's Market scale the STORED offer price at roll
+		# time so display (market card) and spend (buy handler) read the same value. SSOT = OutpostEcon.
+		offers.append({"part": picked, "cost": OutpostEcon.offer_price(run, _full_cost(picked)), "sold": false})
 	run.outpost_weapon_offers = offers
 
 
@@ -544,7 +547,9 @@ func _roll_weighted_mark(rng: RandomNumberGenerator, lo: int, hi: int) -> int:
 		return clampi(lo, 1, SHOP_MAX_MK)
 	var a: int = rng.randi_range(lo, hi)
 	var b: int = rng.randi_range(lo, hi)
-	return clampi(int(round(float(a + b) * 0.5)), lo, hi)
+	# Sector Conditions — Shoddy Imports/Quality Goods shift the rolled Mk (econ.mk_bias),
+	# clamped to [1, hi]; the triangular distribution is otherwise intact. SSOT = OutpostEcon.
+	return OutpostEcon.bias_mark(get_node_or_null("/root/Run"), int(round(float(a + b) * 0.5)), hi)
 
 
 func _full_cost(part) -> int:
@@ -1467,18 +1472,25 @@ func _rebuild_services() -> void:
 		# (production never sets damage_level, so the old gate left Repair grayed forever). 1 charge / pip.
 		var pips: int = maxi(0, int(run.max_hull) - int(run.current_hull))
 		var chg: int = int(run.repair_charges)
+		# Sector Conditions — repairs cost bounty + materials at baseline (design §8), condition-adjusted
+		# by the repair pairs. One OutpostEcon call feeds BOTH the button label and _do_repair's spend.
+		var rc: Dictionary = OutpostEcon.repair_costs(run, HULL_REPAIR_COST)
+		var r_bounty: int = int(rc["bounty"])
+		var r_mats: int = int(rc["mats"])
 		_page_services.add_child(_service_row("Repair Hull", [
-			_svc_btn(ICON_HULL, "1", HULL_REPAIR_COST, pips >= 1 and chg >= 1, func() -> void: _do_repair(1)),
-			_svc_btn(ICON_HULL, "All", pips * HULL_REPAIR_COST, pips >= 1 and chg >= pips, func() -> void: _do_repair(pips)),
+			_repair_btn("1", r_mats, r_bounty, pips >= 1 and chg >= 1, func() -> void: _do_repair(1)),
+			_repair_btn("All", r_mats * pips, r_bounty * pips, pips >= 1 and chg >= pips, func() -> void: _do_repair(pips)),
 		]))
+		# Sector Conditions — Costly/Cheap Restock scale every flat restock cost (econ.restock_cost_mult).
 		_page_services.add_child(_service_row("Refill Primary", [
-			_svc_btn(-1, "Fill", PRIMARY_REFILL_COST, _refill_primary_avail(run), _on_refill_primary_ammo)]))
+			_svc_btn(-1, "Fill", OutpostEcon.restock_cost(run, PRIMARY_REFILL_COST), _refill_primary_avail(run), _on_refill_primary_ammo)]))
 		_page_services.add_child(_service_row("Refill Secondary", [
-			_svc_btn(-1, "Fill", SECONDARY_REFILL_COST, _refill_secondary_avail(run), _on_refill_secondary_ammo)]))
+			_svc_btn(-1, "Fill", OutpostEcon.restock_cost(run, SECONDARY_REFILL_COST), _refill_secondary_avail(run), _on_refill_secondary_ammo)]))
 		var sneed: int = maxi(0, int(run.max_super_charges) - int(run.super_charges))
+		var super_cost: int = OutpostEcon.restock_cost(run, SUPER_REFILL_COST)
 		_page_services.add_child(_service_row("Refill Super", [
-			_svc_btn(ICON_SUPER, "1", SUPER_REFILL_COST, sneed >= 1, func() -> void: _on_refill_super(1)),
-			_svc_btn(ICON_SUPER, "All", sneed * SUPER_REFILL_COST, sneed >= 1, func() -> void: _on_refill_super(sneed)),
+			_svc_btn(ICON_SUPER, "1", super_cost, sneed >= 1, func() -> void: _on_refill_super(1)),
+			_svc_btn(ICON_SUPER, "All", sneed * super_cost, sneed >= 1, func() -> void: _on_refill_super(sneed)),
 		]))
 	else:
 		# Mock (dev lab) — single stub buttons off the visual damage_level.
@@ -1724,6 +1736,28 @@ func _svc_btn(lead_frame: int, tag: String, cost: int, available: bool, cb: Call
 	return _price_button(lead_frame, tag, ICON_BOUNTY, str(cost), available and _afford(cost), cb, SERVICE_BTN_W)
 
 
+# Repair button: [hull][tag] (◆mats) ₵bounty. Repairs cost bounty + materials at baseline (condition-
+# adjusted via OutpostEcon), so the mats chip shows whenever mats > 0 and affordability gates on BOTH
+# currencies — display and spend both derive from the same OutpostEcon.repair_costs call in _rebuild_services.
+func _repair_btn(tag: String, mats: int, bounty_cost: int, available: bool, cb: Callable) -> Button:
+	var run := get_node_or_null("/root/Run")
+	var have_mats: int = int(run.materials) if run != null else 0
+	var enabled: bool = available and _afford(bounty_cost) and (mats <= 0 or have_mats >= mats)
+	var pair := _face_button(SERVICE_BTN_W, enabled, cb)
+	var face: HBoxContainer = pair[1]
+	face.add_child(_icon_widget(ICON_HULL, BTN_ICON, _icon_color(ICON_HULL) if enabled else UiTheme.COLOR_DISABLED))
+	if tag != "":
+		_face_add_text(face, tag, UiTheme.COLOR_TEXT if enabled else UiTheme.COLOR_DISABLED)
+	if mats > 0:
+		var mc: Color = _icon_color(ICON_MAT) if enabled else UiTheme.COLOR_DISABLED
+		face.add_child(_icon_widget(ICON_MAT, BTN_ICON, mc))
+		_face_add_text(face, str(mats), mc)
+	var bc: Color = _icon_color(ICON_BOUNTY) if enabled else UiTheme.COLOR_DISABLED
+	face.add_child(_icon_widget(ICON_BOUNTY, BTN_ICON, bc))
+	_face_add_text(face, str(bounty_cost), bc)
+	return pair[0]
+
+
 # Per-service "is there anything to do?" predicates — mirror each refill handler's success guards so a
 # grayed button always corresponds to a no-op (full / nothing equipped / out of restock charges).
 func _refill_primary_avail(run) -> bool:
@@ -1771,6 +1805,12 @@ func _do_repair(times: int = 1) -> void:
 	if int(run.current_hull) >= int(run.max_hull):
 		toast("Hull already full")
 		return
+	# Sector Conditions — per-pip cost (bounty + materials) via the ONE OutpostEcon call the button
+	# label also uses, so the shown cost can never drift from the charged cost. Conditions are
+	# patrol-static, so resolve once before the loop.
+	var rc: Dictionary = OutpostEcon.repair_costs(run, HULL_REPAIR_COST)
+	var pip_bounty: int = int(rc["bounty"])
+	var pip_mats: int = int(rc["mats"])
 	var did: int = 0
 	for _i in range(maxi(1, times)):
 		if int(run.current_hull) >= int(run.max_hull):
@@ -1778,10 +1818,15 @@ func _do_repair(times: int = 1) -> void:
 		if int(run.repair_charges) <= 0:
 			if did == 0: toast("No repair charges left")
 			break
-		if int(run.bounty) < HULL_REPAIR_COST:
+		if int(run.bounty) < pip_bounty:
 			if did == 0: toast("Not enough ₵")
 			break
-		run.spend_bounty(HULL_REPAIR_COST)
+		if pip_mats > 0 and int(run.materials) < pip_mats:
+			if did == 0: toast("Need ◆%d to repair" % pip_mats)
+			break
+		run.spend_bounty(pip_bounty)
+		if pip_mats > 0:
+			run.spend_materials(pip_mats)
 		run.repair_charges -= 1
 		run.current_hull = clampi(int(run.current_hull) + 1, 0, int(run.max_hull))
 		did += 1
@@ -1819,7 +1864,7 @@ func _on_refill_primary_ammo() -> void:
 	if int(run.ammo_restock_charges) <= 0:
 		toast("No ammo restock charges left")
 		return
-	var cost: int = PRIMARY_REFILL_COST
+	var cost: int = OutpostEcon.restock_cost(run, PRIMARY_REFILL_COST)  # Sector Conditions restock mult
 	if int(run.bounty) < cost:
 		toast("Not enough bounty")
 		return
@@ -1849,7 +1894,7 @@ func _on_refill_secondary_ammo() -> void:
 	if int(run.ammo_restock_charges) <= 0:
 		toast("No ammo restock charges left")
 		return
-	var cost: int = SECONDARY_REFILL_COST
+	var cost: int = OutpostEcon.restock_cost(run, SECONDARY_REFILL_COST)  # Sector Conditions restock mult
 	if int(run.bounty) < cost:
 		toast("Not enough bounty")
 		return
@@ -1872,14 +1917,15 @@ func _on_refill_super(times: int = 1) -> void:
 	if int(run.super_charges) >= int(run.max_super_charges):
 		toast("Super charges already full")
 		return
+	var super_cost: int = OutpostEcon.restock_cost(run, SUPER_REFILL_COST)  # Sector Conditions restock mult
 	var did: int = 0
 	for _i in range(maxi(1, times)):
 		if int(run.super_charges) >= int(run.max_super_charges):
 			break
-		if int(run.bounty) < SUPER_REFILL_COST:
+		if int(run.bounty) < super_cost:
 			if did == 0: toast("Not enough bounty")
 			break
-		run.spend_bounty(SUPER_REFILL_COST)
+		run.spend_bounty(super_cost)
 		run.super_charges = clampi(int(run.super_charges) + 1, 0, int(run.max_super_charges))
 		did += 1
 	if did > 0:
@@ -2037,8 +2083,11 @@ func _add_upgrade_action(btns: HBoxContainer, item) -> void:
 		btns.add_child(mb)
 		return
 	var new_mk: int = int(part.mark) + 1
-	var mats: int = new_mk
-	var bounty_cost: int = _upgrade_bounty_cost(new_mk)
+	# Sector Conditions — Complex/Cheap/Costly/Easy Upgrades adjust both currencies. One OutpostEcon
+	# call feeds BOTH this label and _upgrade_part_live's spend so they can't drift.
+	var uc: Dictionary = OutpostEcon.upgrade_costs(run, new_mk, _upgrade_bounty_cost(new_mk))
+	var mats: int = int(uc["mats"])
+	var bounty_cost: int = int(uc["bounty"])
 	var afford: bool = int(run.materials) >= mats and int(run.bounty) >= bounty_cost
 	# "Mk.N ◆mats ₵cost" — upgrades cost BOTH materials and bounty, so both icons show.
 	btns.add_child(_dual_cost_button("Mk.%d:" % new_mk, mats, bounty_cost, afford, func() -> void: _upgrade_part_live(part), UPGRADE_BTN_W))
@@ -2434,8 +2483,10 @@ func _upgrade_part_live(part) -> void:
 	if run == null or part == null or not run.can_upgrade_part(part):
 		return
 	var new_mk: int = int(part.mark) + 1
-	var mats: int = new_mk
-	var bounty_cost: int = _upgrade_bounty_cost(new_mk)
+	# Sector Conditions — same OutpostEcon call the upgrade button label uses (display == spend).
+	var uc: Dictionary = OutpostEcon.upgrade_costs(run, new_mk, _upgrade_bounty_cost(new_mk))
+	var mats: int = int(uc["mats"])
+	var bounty_cost: int = int(uc["bounty"])
 	if int(run.materials) < mats or int(run.bounty) < bounty_cost:
 		toast("Need ◆%d + ₵%d to upgrade" % [mats, bounty_cost])
 		return
