@@ -1433,6 +1433,20 @@ const ENTRIES := [
 		"conflict_tags": [],
 	},
 	{
+		# Landing Pad — a drifting platform with a RANDOM small faction enemy parked on it (idle: no
+		# move/fire, engines off, but a LIVE, killable enemy with its own health). If the pad drifts off
+		# the bottom with the ship still alive, the ship is injected to the director + recycles into a
+		# later wave. Bespoke landing_pad.gd.
+		"scene": "res://scenes/enemies/ground/building_square_landing_pad.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "asteroid_lane",
+		"base_count": 1,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.4, "chaff": false,
+		"no_wave": true,   # reserved for specific level conditions — never in the random wave roll
+		"conflict_tags": [],
+	},
+	{
 		"scene": "res://scenes/enemies/factions/corporate/enemy_c_l_hive.tscn",
 		"heavy_class": "capital",  # 64px-wide (placeholder art) — coda capital pool
 		"tier": Tier.RARE,
