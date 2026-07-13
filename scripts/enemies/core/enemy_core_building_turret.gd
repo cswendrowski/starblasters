@@ -13,7 +13,6 @@ extends "res://scripts/enemies/enemy_core.gd"
 #   - the base keeps drifting with collision OFF (bullets AND the player pass through), freed once it
 #     clears the bottom of the screen.
 
-const ExplosionFxC = preload("res://scripts/effects/explosion_fx.gd")
 const EnemyDeathFxC = preload("res://scripts/effects/enemy_death_fx.gd")
 
 var _husk: bool = false   # true once destroyed — the base is now inert, drifting debris
@@ -51,20 +50,17 @@ func explode() -> void:
 	# spin-out / classic hull death — the base survives.
 	died.emit(bounty_value)
 	_components_death()
-	# Blast origin: the rotating turret if there is one, else the structure's own centre.
+	# The rotating turret layer (if any) is destroyed + removed first.
 	var tur := _find_turret(self)
-	var at: Vector2 = (tur.global_position if (tur != null and is_instance_valid(tur)) else global_position)
 	if tur != null and is_instance_valid(tur):
-		tur.queue_free()   # the rotating turret layer is destroyed + removed
-	# Explode WITH DEBRIS: a random explosion type + a debris scatter (both parented to the world so they
-	# outlive the husk).
-	var fx: Node = _fx_parent()
-	var names: Array = ExplosionFxC.variant_names()
-	var scn: PackedScene = null
-	if not names.is_empty():
-		scn = ExplosionFxC.scene_for(String(names[randi() % names.size()]))
-	ExplosionFxC.play(at, 1.0, true, fx, scn)
-	EnemyDeathFxC.spawn_debris(fx, at, display_scale)
+		tur.queue_free()
+	# EXPLODE (Roman 2026-07-14): route the death through the classic blast VFX — a size-scaled MULTI-blast
+	# burst + settling dust + debris (honoring explosion_variant), NEVER a stretched sprite. This is the
+	# ONLY death VFX: a structure is a stationary emplacement, so it gets no styled spin-out / drifting
+	# wreck. Size the blast to the structure's own footprint so a big building erupts big even when spawned
+	# directly (display_scale left at 1 by a non-director spawn path).
+	display_scale = maxf(display_scale, _structure_heft())
+	EnemyDeathFxC.classic(self, _fx_parent())
 	# Base → Destroyed look (hide the intact overlays, show the "Destroyed" frame) + inert drifting husk.
 	_hide_layer("Building")
 	_hide_layer("GlowMuzzle")
@@ -74,6 +70,22 @@ func explode() -> void:
 	set_deferred("monitoring", false)
 	set_deferred("monitorable", false)
 	remove_from_group("enemies")
+
+
+# Blast heft for the death explosion. A structure is a dense emplacement, not a fighter, so it always
+# erupts with a MULTI-blast burst (floor 2.0 ≈ 3 blasts) regardless of its small pixel-art footprint, and
+# scales up for genuinely large sprites. Combined with display_scale in explode() so a director-scaled
+# (huge/giant) spawn erupts even bigger. Feeds classic()'s size-scaled blast count. 16px→3, 48px→4, 64px+→6.
+func _structure_heft() -> float:
+	var px: float = 16.0
+	for n in find_children("*", "Sprite2D", true, false):
+		var sp: Sprite2D = n
+		if sp.texture == null or not sp.visible:
+			continue
+		var fw: float = float(sp.texture.get_width()) / float(maxi(1, sp.hframes))
+		var fh: float = float(sp.texture.get_height()) / float(maxi(1, sp.vframes))
+		px = maxf(px, maxf(fw, fh) * maxf(sp.scale.x, 0.01))
+	return clampf(px / 16.0, 2.0, 4.0)
 
 
 func _hide_layer(layer_name: String) -> void:
