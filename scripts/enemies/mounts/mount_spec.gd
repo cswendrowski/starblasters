@@ -105,6 +105,11 @@ enum MarkerMode { ALL, CYCLE, INWARD, OUTWARD }
 # turret so they rotate with it and the turret fires from them like a GUN mount (marker_mode picks ALL
 # vs cycle-one). "" = single-barrel turret (fire from the pivot / muzzle_distance).
 @export var turret_muzzle: String = ""
+# The name of a SCENE Sprite2D to use as the rotating barrel (e.g. "Turret2"): the builder REPARENTS it
+# (and its child muzzle markers) under the turret instead of drawing turret_texture, so a scene-authored
+# turret layer + its muzzles rotate as one. Muzzles resolve recursively; marker_mode still applies. "" =
+# use turret_texture (mount-drawn) instead. (Roman 2026-07-14.)
+@export var turret_node: String = ""
 
 # --- BEAM only (a BeamEmitter.configure() dict) ---
 @export var beam_config: Dictionary = {}

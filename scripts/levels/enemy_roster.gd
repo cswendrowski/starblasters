@@ -1327,13 +1327,12 @@ const ENTRIES := [
 		# down the lane like an asteroid (asteroid_lane) and, on death, explode with debris + leave a
 		# drifting "Destroyed" husk (collision off). Shared script enemy_core_building_turret.gd: no ship
 		# vfx (no damage tells / spiral / wreck). Weapons are hardpoints, bench-tunable. ---
-		# Square Turret — a ROTATING turret: TURRET hardpoint on the "Turret" marker, barrel = frame 2 of
-		# the combined sheet (enemy_turret_base.png: 0=base, 1=destroyed, 2=turret). Default aimed ball ~1.4s.
+		# Square Turret — a ROTATING turret: TURRET hardpoint on the "Turret" marker. The barrel is the
+		# scene's authored "Turret" sprite (frame 3), reparented so it + its "Muzzle" rotate. Default ball ~1.4s.
 		"scene": "res://scenes/enemies/ground/enemy_square_turret.tscn",
 		"mounts": [{ "kind": "turret", "marker": "Turret", "payload": preload("res://data/bullets/ball.tres"),
 			"aim": "at_player", "rotation_speed": 2.4, "fire_min": 1.4, "fire_max": 1.4, "aim_tolerance_deg": 12.0,
-			"count": 1, "spread_deg": 0.0, "muzzle_distance": 6.0,
-			"turret_texture": "res://graphics/enemies/ground/enemy_turret_base.png", "turret_hframes": 3, "turret_frame": 2 }],
+			"count": 1, "spread_deg": 0.0, "turret_node": "Turret", "marker_mode": "all" }],
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "asteroid_lane",
@@ -1363,8 +1362,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/ground/enemy_square_launcher.tscn",
 		"mounts": [{ "kind": "turret", "marker": "Turret", "payload_scene": "res://scenes/projectiles/enemy_rocket.tscn",
 			"aim": "at_player", "rotation_speed": 1.8, "fire_min": 2.0, "fire_max": 2.0, "aim_tolerance_deg": 14.0, "count": 1,
-			"turret_z": 2, "turret_muzzle": "Launcher*", "marker_mode": "cycle",
-			"turret_texture": "res://graphics/enemies/ground/building_square_launcher.png", "turret_hframes": 4, "turret_frame": 3 }],
+			"turret_node": "Turret2", "marker_mode": "cycle" }],
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "asteroid_lane",
@@ -1404,6 +1402,33 @@ const ENTRIES := [
 		"movement": "asteroid_lane",
 		"base_count": 1,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.4, "chaff": false,
+		"no_wave": true,   # reserved for specific level conditions — never in the random wave roll
+		"conflict_tags": [],
+	},
+	{
+		# Building: Fuel Tanks — destroyable structure (same as the round bunker tank), does NOT shoot;
+		# explodes with debris on death.
+		"scene": "res://scenes/enemies/ground/building_square_tanks.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "asteroid_lane",
+		"base_count": 1,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.4, "chaff": false,
+		"no_wave": true,   # reserved for specific level conditions — never in the random wave roll
+		"conflict_tags": [],
+	},
+	{
+		# Turret Wave — a ROTATING turret variant (new art): the scene's "Turret" sprite (frame 3) is
+		# reparented + its "Muzzle" rotates. Fires wave bullets by default. Bench-configurable.
+		"scene": "res://scenes/enemies/ground/enemy_square_turret_wave.tscn",
+		"mounts": [{ "kind": "turret", "marker": "Turret", "payload": preload("res://data/bullets/wave.tres"),
+			"aim": "at_player", "rotation_speed": 2.4, "fire_min": 1.6, "fire_max": 1.6, "aim_tolerance_deg": 12.0,
+			"count": 1, "spread_deg": 0.0, "turret_node": "Turret", "marker_mode": "all" }],
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "asteroid_lane",
+		"base_count": 1,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": false,
 		"no_wave": true,   # reserved for specific level conditions — never in the random wave roll
 		"conflict_tags": [],
 	},
@@ -2102,6 +2127,7 @@ static func _mount_from_dict(d: Dictionary) -> Resource:
 	m.muzzle_distance = float(d.get("muzzle_distance", 0.0))
 	m.turret_z = int(d.get("turret_z", 0))
 	m.turret_muzzle = String(d.get("turret_muzzle", ""))
+	m.turret_node = String(d.get("turret_node", ""))
 	m.beam_config = d.get("beam_config", {})
 	# ENTITY (Phase 3): trigger + emit fields when a hardpoint spawns a scene on start/cadence/death.
 	m.trigger = int(_HARDPOINT_TRIGGER.get(String(d.get("trigger", "cadence")), 0))

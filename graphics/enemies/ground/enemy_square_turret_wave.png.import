@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://d0xcxcmokxnou"
-path="res://.godot/imported/enemy_turret_base.png-b0c2fef04b2dd91886333dcaed050d2b.ctex"
+uid="uid://drmeskdbx3k3x"
+path="res://.godot/imported/enemy_square_turret_wave.png-11672279ab4a870c1fdd47b27aaada3c.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://graphics/enemies/ground/enemy_turret_base.png"
-dest_files=["res://.godot/imported/enemy_turret_base.png-b0c2fef04b2dd91886333dcaed050d2b.ctex"]
+source_file="res://graphics/enemies/ground/enemy_square_turret_wave.png"
+dest_files=["res://.godot/imported/enemy_square_turret_wave.png-11672279ab4a870c1fdd47b27aaada3c.ctex"]
 
 [params]
 

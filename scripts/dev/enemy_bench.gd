@@ -1351,8 +1351,11 @@ func _mount_spec_dicts() -> Array:
 			# Prefer the enemy's OWN turret graphic/config when it carries one (ground turrets: per-enemy
 			# barrel art + frame + z + muzzle_distance); else derive a visible turret from the faction
 			# group (bench-added mounts, which have no roster gfx).
+			var tnode := String(d.get("turret_node", ""))
 			var tex := String(d.get("turret_texture", ""))
-			if tex != "":
+			if tnode != "":
+				sd["turret_node"] = tnode
+			elif tex != "":
 				sd["turret_texture"] = tex
 				sd["turret_hframes"] = int(d.get("turret_hframes", 1))
 				sd["turret_frame"] = int(d.get("turret_frame", 0))
@@ -1369,6 +1372,7 @@ func _mount_spec_dicts() -> Array:
 			var tmz := String(d.get("turret_muzzle", ""))
 			if tmz != "":
 				sd["turret_muzzle"] = tmz
+			if tnode != "" or tmz != "":
 				sd["marker_mode"] = String(d.get("marker_mode", "all"))
 		out.append(sd)
 	return out
@@ -2050,6 +2054,7 @@ func _roster_mount_to_bench(d: Dictionary) -> Dictionary:
 		out["aim_tolerance_deg"] = float(d.get("aim_tolerance_deg", 14.0))
 		out["turret_muzzle"] = String(d.get("turret_muzzle", ""))   # multi-muzzle glob + its cycle mode
 		out["marker_mode"] = String(d.get("marker_mode", "all"))
+		out["turret_node"] = String(d.get("turret_node", ""))
 	return out
 
 
@@ -2219,6 +2224,9 @@ func _mount_copy_line(d: Dictionary) -> String:
 	elif k == "turret":
 		# Turret graphic + aim config (per-enemy): emit carried barrel art/frame/z/muzzle so a ground
 		# turret round-trips through Copy instead of losing its graphic to the group fallback.
+		var tn := String(d.get("turret_node", ""))
+		if tn != "":
+			line += ", \"turret_node\": \"%s\", \"marker_mode\": \"%s\"" % [tn, String(d.get("marker_mode", "all"))]
 		var ttex := String(d.get("turret_texture", ""))
 		if ttex != "":
 			line += ", \"turret_texture\": \"%s\", \"turret_hframes\": %d, \"turret_frame\": %d" % [ttex, int(d.get("turret_hframes", 1)), int(d.get("turret_frame", 0))]

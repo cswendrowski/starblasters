@@ -104,7 +104,8 @@ static func _build_turret(enemy: Node, spec, mount) -> void:
 	t.payload_delay_ms = spec.payload_delay_ms
 	t.payload_scene = spec.payload_scene
 	t.muzzle_distance = spec.muzzle_distance   # fire from the barrel tip, not the pivot
-	if spec.turret_texture != null:
+	# Mount-drawn barrel: only when NOT reusing a scene turret sprite (turret_node).
+	if String(spec.turret_node) == "" and spec.turret_texture != null:
 		var s := Sprite2D.new()
 		s.texture = spec.turret_texture
 		s.hframes = maxi(1, int(spec.turret_hframes))
@@ -113,6 +114,16 @@ static func _build_turret(enemy: Node, spec, mount) -> void:
 		t.add_child(s)
 	var parent: Node = mount if mount != null else enemy
 	parent.add_child(t)
+	# Scene-authored barrel (Roman 2026-07-14): reparent the named scene Sprite2D (+ its child muzzle
+	# markers) UNDER the turret so the authored turret layer + its muzzles rotate as one — no mount-drawn
+	# duplicate. Muzzles resolve recursively inside EnemyTurret; marker_mode picks ALL vs cycle-one.
+	if String(spec.turret_node) != "":
+		t.marker_mode = int(spec.marker_mode)
+		var src := enemy.find_children(String(spec.turret_node), "Sprite2D", true, false)
+		if not src.is_empty():
+			var ts: Sprite2D = src[0]
+			ts.visible = true
+			ts.reparent(t, true)   # keep_global — rotates with the turret now
 	# Multi-muzzle firing (Roman 2026-07-13): reparent the enemy's turret-muzzle markers UNDER the turret
 	# so they rotate with the barrel — the turret then fires from them exactly like an on-hull GUN mount.
 	if String(spec.turret_muzzle) != "":

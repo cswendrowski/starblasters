@@ -1,39 +1,39 @@
-[gd_scene format=3 uid="uid://dwtvk7monpr1h"]
+[gd_scene format=3 uid="uid://b4fgqbdm37ycp"]
 
-[ext_resource type="Script" uid="uid://c5wsmf6b8n7h2" path="res://scripts/enemies/core/enemy_core_building_turret.gd" id="1_o0k4f"]
-[ext_resource type="Script" uid="uid://dmi3hcj15y78l" path="res://scripts/enemies/patterns/lateral_drift.gd" id="2_n6sys"]
-[ext_resource type="Texture2D" uid="uid://bh0am03r6x6gs" path="res://graphics/enemies/ground/enemy_square_turret.png" id="3_o0k4f"]
-[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="4_rws85"]
+[ext_resource type="Script" uid="uid://c5wsmf6b8n7h2" path="res://scripts/enemies/core/enemy_core_building_turret.gd" id="1_nuf5k"]
+[ext_resource type="Script" uid="uid://dmi3hcj15y78l" path="res://scripts/enemies/patterns/lateral_drift.gd" id="2_38jpq"]
+[ext_resource type="Texture2D" uid="uid://drmeskdbx3k3x" path="res://graphics/enemies/ground/enemy_square_turret_wave.png" id="3_nuf5k"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="4_fwv30"]
 
 [sub_resource type="Resource" id="MovePattern"]
-script = ExtResource("2_n6sys")
+script = ExtResource("2_38jpq")
 mode = 1
 
 [sub_resource type="RectangleShape2D" id="Hit"]
 size = Vector2(16, 16)
 
 [node name="Enemy" type="Area2D" unique_id=754549290 groups=["enemies"]]
-script = ExtResource("1_o0k4f")
+script = ExtResource("1_nuf5k")
 movement = SubResource("MovePattern")
 auto_rotate = false
 
 [node name="Base" type="Sprite2D" parent="." unique_id=1066864286]
-texture = ExtResource("3_o0k4f")
+texture = ExtResource("3_nuf5k")
 hframes = 4
 
 [node name="Building" type="Sprite2D" parent="." unique_id=1711045693]
-texture = ExtResource("3_o0k4f")
+texture = ExtResource("3_nuf5k")
 hframes = 4
 frame = 1
 
 [node name="Destroyed" type="Sprite2D" parent="Building" unique_id=1128100416]
 visible = false
-texture = ExtResource("3_o0k4f")
+texture = ExtResource("3_nuf5k")
 hframes = 4
 frame = 2
 
 [node name="Turret" type="Sprite2D" parent="Building" unique_id=669332257]
-texture = ExtResource("3_o0k4f")
+texture = ExtResource("3_nuf5k")
 hframes = 4
 frame = 3
 
@@ -50,6 +50,6 @@ shape = SubResource("Hit")
 one_shot = true
 
 [node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1949868089]
-stream = ExtResource("4_rws85")
+stream = ExtResource("4_fwv30")
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]

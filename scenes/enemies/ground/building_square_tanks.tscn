@@ -1,0 +1,47 @@
+[gd_scene format=3 uid="uid://dwn67qme1xmb5"]
+
+[ext_resource type="Script" uid="uid://c5wsmf6b8n7h2" path="res://scripts/enemies/core/enemy_core_building_turret.gd" id="1_o5bdw"]
+[ext_resource type="Script" uid="uid://dmi3hcj15y78l" path="res://scripts/enemies/patterns/lateral_drift.gd" id="2_d0tp3"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="3_3uwmr"]
+[ext_resource type="Texture2D" uid="uid://b75kd1j3wgaa" path="res://graphics/enemies/ground/building_tanks.png" id="4_o5bdw"]
+
+[sub_resource type="Resource" id="MovePattern"]
+script = ExtResource("2_d0tp3")
+mode = 1
+
+[sub_resource type="RectangleShape2D" id="Hit"]
+size = Vector2(16, 16)
+
+[node name="Enemy" type="Area2D" unique_id=754549290 groups=["enemies"]]
+script = ExtResource("1_o5bdw")
+movement = SubResource("MovePattern")
+auto_rotate = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1272048509]
+visible = false
+shape = SubResource("Hit")
+
+[node name="MoveTimer" type="Timer" parent="." unique_id=1704481542]
+one_shot = true
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1949868089]
+stream = ExtResource("3_3uwmr")
+
+[node name="Base" type="Sprite2D" parent="." unique_id=1318315942]
+texture = ExtResource("4_o5bdw")
+hframes = 3
+
+[node name="Building" type="Sprite2D" parent="." unique_id=1019395447]
+z_index = 1
+texture = ExtResource("4_o5bdw")
+hframes = 3
+frame = 1
+
+[node name="Destroyed" type="Sprite2D" parent="." unique_id=5494077]
+visible = false
+z_index = 1
+texture = ExtResource("4_o5bdw")
+hframes = 3
+frame = 2
+
+[connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]

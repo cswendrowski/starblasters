@@ -229,10 +229,11 @@ func _fire_fan() -> void:
 # under a scene-embedded turret) so they ROTATE with the barrel. Resolved once, lazily (they may be
 # reparented after _ready).
 func _resolve_muzzles() -> void:
+	# Recursive: markers may be DIRECT children (reparented markers) or nested under a reparented scene
+	# turret sprite (turret_node — the muzzle marker rides under it).
 	_muzzles = []
-	for c in get_children():
-		if c is Marker2D:
-			_muzzles.append(c)
+	for m in find_children("*", "Marker2D", true, false):
+		_muzzles.append(m)
 	_muzzles_resolved = true
 
 
