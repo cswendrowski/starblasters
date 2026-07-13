@@ -1378,6 +1378,7 @@ const ENTRIES := [
 		"movement": "asteroid_lane",
 		"base_count": 1,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.4, "chaff": false,
+		"no_wave": true,   # reserved for specific level conditions — never in the random wave roll
 		"conflict_tags": [],
 	},
 	{
@@ -1388,6 +1389,7 @@ const ENTRIES := [
 		"movement": "asteroid_lane",
 		"base_count": 1,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.4, "chaff": false,
+		"no_wave": true,   # reserved for specific level conditions — never in the random wave roll
 		"conflict_tags": [],
 	},
 	{
@@ -1398,6 +1400,7 @@ const ENTRIES := [
 		"movement": "asteroid_lane",
 		"base_count": 1,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.4, "chaff": false,
+		"no_wave": true,   # reserved for specific level conditions — never in the random wave roll
 		"conflict_tags": [],
 	},
 	{
@@ -1580,6 +1583,8 @@ const ENTRIES := [
 static func eligible_pool(sector_idx: int, sector_depth: int, tier_max: int) -> Array:
 	var pool: Array = []
 	for e in ENTRIES:
+		if bool(e.get("no_wave", false)):
+			continue   # reserved for specific level conditions — out of the random wave roll
 		if not bool(e.get("chaff", false)):
 			continue
 		if int(e.get("tier", Tier.COMMON)) > tier_max:
@@ -1598,6 +1603,8 @@ static func eligible_pool(sector_idx: int, sector_depth: int, tier_max: int) -> 
 static func entries_of(tier: int) -> Array:
 	var out: Array = []
 	for e in ENTRIES:
+		if bool(e.get("no_wave", false)):
+			continue   # reserved for specific level conditions — out of the random wave roll
 		if int(e["tier"]) == tier:
 			out.append(e)
 	return out
@@ -1621,6 +1628,8 @@ static func entries_of(tier: int) -> Array:
 static func entries_eligible(tier: int, sector_idx: int, sector_depth: int) -> Array:
 	var out: Array = []
 	for e in ENTRIES:
+		if bool(e.get("no_wave", false)):
+			continue   # reserved for specific level conditions — out of the random wave roll
 		if int(e["tier"]) != tier:
 			continue
 		if int(e.get("unlock_sector", 0)) > sector_idx:
