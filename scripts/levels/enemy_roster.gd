@@ -1332,7 +1332,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/ground/enemy_square_turret.tscn",
 		"mounts": [{ "kind": "turret", "marker": "Turret", "payload": preload("res://data/bullets/ball.tres"),
 			"aim": "at_player", "rotation_speed": 2.4, "fire_min": 1.4, "fire_max": 1.4, "aim_tolerance_deg": 12.0,
-			"count": 1, "spread_deg": 0.0,
+			"count": 1, "spread_deg": 0.0, "muzzle_distance": 6.0,
 			"turret_texture": "res://graphics/enemies/ground/enemy_turret_base.png", "turret_hframes": 3, "turret_frame": 2 }],
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
@@ -1363,6 +1363,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/ground/enemy_square_launcher.tscn",
 		"mounts": [{ "kind": "turret", "marker": "Turret", "payload_scene": "res://scenes/projectiles/enemy_rocket.tscn",
 			"aim": "at_player", "rotation_speed": 1.8, "fire_min": 2.0, "fire_max": 2.0, "aim_tolerance_deg": 14.0, "count": 1,
+			"muzzle_distance": 5.0, "turret_z": 2,
 			"turret_texture": "res://graphics/enemies/ground/building_square_launcher.png", "turret_hframes": 4, "turret_frame": 3 }],
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
@@ -2098,6 +2099,8 @@ static func _mount_from_dict(d: Dictionary) -> Resource:
 		m.turret_texture = tt
 	m.turret_hframes = int(d.get("turret_hframes", 1))
 	m.turret_frame = int(d.get("turret_frame", 0))
+	m.muzzle_distance = float(d.get("muzzle_distance", 0.0))
+	m.turret_z = int(d.get("turret_z", 0))
 	m.beam_config = d.get("beam_config", {})
 	# ENTITY (Phase 3): trigger + emit fields when a hardpoint spawns a scene on start/cadence/death.
 	m.trigger = int(_HARDPOINT_TRIGGER.get(String(d.get("trigger", "cadence")), 0))

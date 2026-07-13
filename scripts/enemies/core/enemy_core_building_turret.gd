@@ -24,6 +24,9 @@ func _ready() -> void:
 	# styled/wreck death is skipped (explode() below is fully overridden anyway). Set before super._ready
 	# so the vfx gating reads it.
 	has_ship_vfx = false
+	# Never recycle (Roman 2026-07-13): a ground structure that drifts off-screen must despawn, not fly
+	# back through the parallax. recycle_passes == 0 makes RecycleController._leave() instead of cycling.
+	recycle_passes = 0
 	super._ready()
 
 

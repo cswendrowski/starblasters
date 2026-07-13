@@ -96,6 +96,11 @@ enum MarkerMode { ALL, CYCLE, INWARD, OUTWARD }
 # earlier frame is the immobile platform (the core turret's enemy_turret_base.png: 0=base, 1=destroyed,
 # 2=turret). Clamped to the strip in the builder. (Roman 2026-07-12.)
 @export var turret_frame: int = 0
+# Fire this far along the barrel from the pivot (barrel tip) — forwarded to EnemyTurret.muzzle_distance.
+@export var muzzle_distance: float = 0.0
+# z_index for the mount-drawn turret sprite. Default 0. Raise it (e.g. 2) when the turret must render
+# ABOVE the hull's own z_index-1 building/overlay layers (the ground launcher's Building sits at z 1).
+@export var turret_z: int = 0
 
 # --- BEAM only (a BeamEmitter.configure() dict) ---
 @export var beam_config: Dictionary = {}

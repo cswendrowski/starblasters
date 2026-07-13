@@ -31,6 +31,10 @@ const ProjectileMods = preload("res://scripts/enemies/projectile_mods.gd")
 @export var lead_factor: float = 0.0
 @export var bullet_variant: BulletVariant = null
 @export var bullet_speed: float = 160.0
+# Fire this far along the barrel from the turret pivot (the barrel TIP), so bullets leave the muzzle
+# instead of the turret's centre. Rotates with the aim. 0 = fire from the pivot (the old behaviour).
+# Only used when the host has no Muzzle markers of its own (mount-drawn turrets). (Roman 2026-07-13.)
+@export var muzzle_distance: float = 0.0
 @export var enabled: bool = true
 # Volley shape (Roman 2026-06-29): fire `count` bullets fanned across `spread_deg` each shot, mirroring
 # gun/launcher mounts. Defaults (1 / 0) = a single aimed shot, so existing turrets are unchanged.
@@ -281,6 +285,8 @@ func _muzzle_pos() -> Vector2:
 	var p := get_parent()
 	if p != null and p.has_method("has_muzzles") and p.has_muzzles():
 		return p.next_muzzle_pos()
+	if muzzle_distance != 0.0:
+		return global_position + _barrel_dir() * muzzle_distance   # fire from the barrel tip
 	return global_position
 
 

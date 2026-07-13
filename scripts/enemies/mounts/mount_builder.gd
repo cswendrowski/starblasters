@@ -103,11 +103,13 @@ static func _build_turret(enemy: Node, spec, mount) -> void:
 	t.volley_gap = spec.volley_gap
 	t.payload_delay_ms = spec.payload_delay_ms
 	t.payload_scene = spec.payload_scene
+	t.muzzle_distance = spec.muzzle_distance   # fire from the barrel tip, not the pivot
 	if spec.turret_texture != null:
 		var s := Sprite2D.new()
 		s.texture = spec.turret_texture
 		s.hframes = maxi(1, int(spec.turret_hframes))
 		s.frame = clampi(int(spec.turret_frame), 0, s.hframes - 1)   # combined base sheets: pick the barrel frame
+		s.z_index = int(spec.turret_z)   # render above the hull's building/overlay layers when needed
 		t.add_child(s)
 	var parent: Node = mount if mount != null else enemy
 	parent.add_child(t)
