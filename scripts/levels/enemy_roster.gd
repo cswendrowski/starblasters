@@ -1323,22 +1323,81 @@ const ENTRIES := [
 		"unlock_sector": 2, "unlock_depth": 0,
 	},
 	{
-		# Core Turret (Roman 2026-07-12) — drifts down its lane like an asteroid (asteroid_lane); the
-		# TURRET layer tracks the player + fires. Destroying it pops the TURRET (random explosion, removed)
-		# and leaves the BASE husk drifting on with collision off (bespoke enemy_core_building_turret.gd).
-		# The weapon is a TURRET hardpoint on the "Turret" marker, drawing the barrel from frame 2 of the
-		# combined base sheet (enemy_turret_base.png: 0=base, 1=destroyed, 2=turret). Fully tunable in the
-		# Enemy Bench (payload / rate / count / spread / rotation). Default: a slow aimed ball ~every 1.4s.
-		"scene": "res://scenes/enemies/core/enemy_core_building_turret.tscn",
+		# --- Ground structures (Roman 2026-07-12, scenes/enemies/ground/) — buildings + turrets that drift
+		# down the lane like an asteroid (asteroid_lane) and, on death, explode with debris + leave a
+		# drifting "Destroyed" husk (collision off). Shared script enemy_core_building_turret.gd: no ship
+		# vfx (no damage tells / spiral / wreck). Weapons are hardpoints, bench-tunable. ---
+		# Square Turret — a ROTATING turret: TURRET hardpoint on the "Turret" marker, barrel = frame 2 of
+		# the combined sheet (enemy_turret_base.png: 0=base, 1=destroyed, 2=turret). Default aimed ball ~1.4s.
+		"scene": "res://scenes/enemies/ground/enemy_square_turret.tscn",
 		"mounts": [{ "kind": "turret", "marker": "Turret", "payload": preload("res://data/bullets/ball.tres"),
 			"aim": "at_player", "rotation_speed": 2.4, "fire_min": 1.4, "fire_max": 1.4, "aim_tolerance_deg": 12.0,
 			"count": 1, "spread_deg": 0.0,
-			"turret_texture": "res://graphics/enemies/enemy_turret_base.png", "turret_hframes": 3, "turret_frame": 2 }],
+			"turret_texture": "res://graphics/enemies/ground/enemy_turret_base.png", "turret_hframes": 3, "turret_frame": 2 }],
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "asteroid_lane",
 		"base_count": 1,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": false,
+		"conflict_tags": [],
+	},
+	{
+		# Diamond Turret — a FIXED (non-rotating) turret with four N/E/S/W muzzles: a GUN hardpoint on the
+		# Muzzle markers, aimed at the player (cycles the four ports). Bench-tunable (payload/rate/count).
+		"scene": "res://scenes/enemies/ground/enemy_diamond_turret.tscn",
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/ball.tres"),
+			"aim": "at_player", "fire_min": 1.0, "fire_max": 1.0, "count": 1, "spread_deg": 0.0 }],
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "asteroid_lane",
+		"base_count": 1,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": false,
+		"conflict_tags": [],
+	},
+	{
+		# Square Launcher — a ROTATING launcher turret: TURRET hardpoint on the "Turret" marker (barrel =
+		# frame 3) delivering rockets, tracking the player. Bench-tunable (payload/rate/count/spread/rotation).
+		# NOTE: fires from the turret centre, not yet the 5 embedded "Launcher" tube-markers (see report).
+		"scene": "res://scenes/enemies/ground/enemy_square_launcher.tscn",
+		"mounts": [{ "kind": "turret", "marker": "Turret", "payload_scene": "res://scenes/projectiles/enemy_rocket.tscn",
+			"aim": "at_player", "rotation_speed": 1.8, "fire_min": 2.0, "fire_max": 2.0, "aim_tolerance_deg": 14.0, "count": 1,
+			"turret_texture": "res://graphics/enemies/ground/building_square_launcher.png", "turret_hframes": 4, "turret_frame": 3 }],
+		"tier": Tier.UNCOMMON,
+		"size": "small", "tags": [],
+		"movement": "asteroid_lane",
+		"base_count": 1,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": false,
+		"conflict_tags": [],
+	},
+	{
+		# Building: Round Bunker (glass) — destroyable structure, does NOT shoot; drifts in, explodes with
+		# debris on death. Placement is Roman's to author; registered so it spawns + shows in the bench.
+		"scene": "res://scenes/enemies/ground/building_round_glass.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "asteroid_lane",
+		"base_count": 1,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.4, "chaff": false,
+		"conflict_tags": [],
+	},
+	{
+		# Building: Round Tank — destroyable structure, does NOT shoot; explodes with debris on death.
+		"scene": "res://scenes/enemies/ground/building_round_tank.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "asteroid_lane",
+		"base_count": 1,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.4, "chaff": false,
+		"conflict_tags": [],
+	},
+	{
+		# Building: Square Glass — destroyable structure, does NOT shoot; explodes with debris on death.
+		"scene": "res://scenes/enemies/ground/building_square_glass.tscn",
+		"tier": Tier.COMMON,
+		"size": "small", "tags": [],
+		"movement": "asteroid_lane",
+		"base_count": 1,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.4, "chaff": false,
 		"conflict_tags": [],
 	},
 	{

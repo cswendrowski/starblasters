@@ -1,0 +1,71 @@
+[gd_scene format=3 uid="uid://cpsgw1byvoueh"]
+
+[ext_resource type="Script" uid="uid://c5wsmf6b8n7h2" path="res://scripts/enemies/core/enemy_core_building_turret.gd" id="1_4mdk5"]
+[ext_resource type="Script" uid="uid://dmi3hcj15y78l" path="res://scripts/enemies/patterns/lateral_drift.gd" id="2_fwhm2"]
+[ext_resource type="Texture2D" uid="uid://dtbro5r1fd1l3" path="res://graphics/enemies/ground/building_square_launcher.png" id="3_ho0vj"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="5_1tfdm"]
+
+[sub_resource type="Resource" id="MovePattern"]
+script = ExtResource("2_fwhm2")
+mode = 1
+
+[sub_resource type="RectangleShape2D" id="Hit"]
+size = Vector2(16, 16)
+
+[node name="Enemy" type="Area2D" unique_id=754549290 groups=["enemies"]]
+script = ExtResource("1_4mdk5")
+movement = SubResource("MovePattern")
+auto_rotate = false
+
+[node name="Base" type="Sprite2D" parent="." unique_id=1066864286]
+texture = ExtResource("3_ho0vj")
+hframes = 4
+
+[node name="Building" type="Sprite2D" parent="." unique_id=1128100416]
+z_index = 1
+texture = ExtResource("3_ho0vj")
+hframes = 4
+frame = 1
+
+[node name="Destroyed" type="Sprite2D" parent="." unique_id=677987446]
+visible = false
+z_index = 1
+texture = ExtResource("3_ho0vj")
+hframes = 4
+frame = 2
+
+[node name="Turret2" type="Sprite2D" parent="." unique_id=711617126]
+visible = false
+z_index = 1
+texture = ExtResource("3_ho0vj")
+hframes = 4
+frame = 3
+
+[node name="Launcher" type="Marker2D" parent="Turret2" unique_id=698225223]
+position = Vector2(-6, -5)
+
+[node name="Launcher2" type="Marker2D" parent="Turret2" unique_id=1233113058]
+position = Vector2(-3, -5)
+
+[node name="Launcher3" type="Marker2D" parent="Turret2" unique_id=1695127992]
+position = Vector2(0, -5)
+
+[node name="Launcher4" type="Marker2D" parent="Turret2" unique_id=2139333798]
+position = Vector2(3, -5)
+
+[node name="Launcher5" type="Marker2D" parent="Turret2" unique_id=2103668187]
+position = Vector2(6, -5)
+
+[node name="Turret" type="Marker2D" parent="." unique_id=769785475]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1272048509]
+visible = false
+shape = SubResource("Hit")
+
+[node name="MoveTimer" type="Timer" parent="." unique_id=1704481542]
+one_shot = true
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1949868089]
+stream = ExtResource("5_1tfdm")
+
+[connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]

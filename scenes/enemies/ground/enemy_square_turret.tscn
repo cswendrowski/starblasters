@@ -1,29 +1,29 @@
-[gd_scene format=3 uid="uid://cpsgw1byvoueh"]
+[gd_scene format=3 uid="uid://dwtvk7monpr1h"]
 
-[ext_resource type="Script" uid="uid://c5wsmf6b8n7h2" path="res://scripts/enemies/core/enemy_core_building_turret.gd" id="1_4mdk5"]
-[ext_resource type="Script" uid="uid://dmi3hcj15y78l" path="res://scripts/enemies/patterns/lateral_drift.gd" id="2_fwhm2"]
-[ext_resource type="Texture2D" uid="uid://d0xcxcmokxnou" path="res://graphics/enemies/enemy_turret_base.png" id="3_bjby7"]
-[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="5_1tfdm"]
+[ext_resource type="Script" uid="uid://c5wsmf6b8n7h2" path="res://scripts/enemies/core/enemy_core_building_turret.gd" id="1_o0k4f"]
+[ext_resource type="Script" uid="uid://dmi3hcj15y78l" path="res://scripts/enemies/patterns/lateral_drift.gd" id="2_n6sys"]
+[ext_resource type="Texture2D" uid="uid://d0xcxcmokxnou" path="res://graphics/enemies/ground/enemy_turret_base.png" id="3_jqyk7"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="4_rws85"]
 
 [sub_resource type="Resource" id="MovePattern"]
-script = ExtResource("2_fwhm2")
+script = ExtResource("2_n6sys")
 mode = 1
 
 [sub_resource type="RectangleShape2D" id="Hit"]
 size = Vector2(16, 16)
 
 [node name="Enemy" type="Area2D" unique_id=754549290 groups=["enemies"]]
-script = ExtResource("1_4mdk5")
+script = ExtResource("1_o0k4f")
 movement = SubResource("MovePattern")
 auto_rotate = false
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1066864286]
-texture = ExtResource("3_bjby7")
+texture = ExtResource("3_jqyk7")
 hframes = 3
 
 [node name="Destroyed" type="Sprite2D" parent="Sprite2D" unique_id=1128100416]
 visible = false
-texture = ExtResource("3_bjby7")
+texture = ExtResource("3_jqyk7")
 hframes = 3
 frame = 1
 
@@ -37,6 +37,6 @@ shape = SubResource("Hit")
 one_shot = true
 
 [node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1949868089]
-stream = ExtResource("5_1tfdm")
+stream = ExtResource("4_rws85")
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
