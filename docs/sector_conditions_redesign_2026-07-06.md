@@ -11,6 +11,16 @@ Threat budget (§5). Supersedes the modifier notes in the archived `economy_2026
 
 ## Build status (v1 shipped 2026-07-09)
 
+> **2026-07-12 — the dead-scene fix.** `outpost.tscn`/`outpost.gd` is a legacy scene production
+> never loads; the LIVE outpost is the dock (`outpost_arrival.gd`). The STATUS tab and ALL economy
+> hooks below had been wired into the dead scene. Both were re-landed for production: the STATUS
+> tab now lives on the dock's MARKET|SERVICES|STATUS TabContainer (ⓘ → dock info popup), and the
+> economy conditions run through **`scripts/systems/outpost_econ.gd`** (`OutpostEcon`, the static
+> SSOT cost engine) consumed by BOTH the dock's live handlers (repair incl. the baseline material,
+> refills, upgrades, its own `_roll_live_offers` market roll) and the legacy scene's delegates.
+> Tests: `tools/test_outpost_econ.gd` (condition matrix) + `tools/test_outpost_status.gd`
+> (live-boot dock assertions).
+
 - **Core** — `scripts/systems/conditions.gd` (`class_name Conditions`): 45-entry declarative
   CATALOG (label/blurb/threat/mutex-group/mods), generic aggregators (scalar=product, sum, flag,
   union), `net_threat`/`bounty_mult`/`materials_mult` (K_BOUNTY 0.08 / K_MATERIALS 0.06,
