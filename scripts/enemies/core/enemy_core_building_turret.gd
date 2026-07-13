@@ -13,6 +13,7 @@ extends "res://scripts/enemies/enemy_core.gd"
 #   - the base keeps drifting with collision OFF (bullets AND the player pass through), freed once it
 #     clears the bottom of the screen.
 
+const ExplosionFxC = preload("res://scripts/effects/explosion_fx.gd")
 const EnemyDeathFxC = preload("res://scripts/effects/enemy_death_fx.gd")
 
 var _husk: bool = false   # true once destroyed — the base is now inert, drifting debris
@@ -50,23 +51,33 @@ func explode() -> void:
 	# spin-out / classic hull death — the base survives.
 	died.emit(bounty_value)
 	_components_death()
-	# The rotating turret layer (if any) is destroyed + removed first.
+	# Blast origin: the rotating turret if there is one, else the structure centre. Capture BEFORE freeing.
 	var tur := _find_turret(self)
+	var at: Vector2 = (tur.global_position if (tur != null and is_instance_valid(tur)) else global_position)
 	if tur != null and is_instance_valid(tur):
-		tur.queue_free()
-	# EXPLODE (Roman 2026-07-14): route the death through the classic blast VFX — a size-scaled MULTI-blast
-	# burst + settling dust + debris (honoring explosion_variant), NEVER a stretched sprite. This is the
-	# ONLY death VFX: a structure is a stationary emplacement, so it gets no styled spin-out / drifting
-	# wreck. Size the blast to the structure's own footprint so a big building erupts big even when spawned
-	# directly (display_scale left at 1 by a non-director spawn path).
-	display_scale = maxf(display_scale, _structure_heft())
-	EnemyDeathFxC.classic(self, _fx_parent())
+		tur.queue_free()   # the rotating turret layer is destroyed + removed
+	# EXPLODE (Roman 2026-07-14): a size-scaled MULTI-blast burst + debris rendered at NORMAL z, so the
+	# fireball reads OVER the drifting husk. (The classic death-VFX path sinks the blast to z -3 — it was
+	# hiding behind the big opaque structure, so buildings looked like they didn't explode.) Explosions
+	# stay 1x — only the blast COUNT + debris scale with heft. This is the ONLY death VFX: a stationary
+	# emplacement gets NO styled spin-out / drifting wreck.
+	var fx: Node = _fx_parent()
+	var heft: float = maxf(display_scale, _structure_heft())
+	var scn: PackedScene = ExplosionFxC.scene_for(explosion_variant)
+	var blasts: int = clampi(int(round(heft * 1.4)), 2, 6)
+	ExplosionFxC.burst(at, blasts, 12.0 * maxf(1.0, heft * 0.6), 0.06, fx, scn)
+	EnemyDeathFxC.spawn_debris(fx, at, heft)
 	# Base → Destroyed look (hide the intact overlays, show the "Destroyed" frame) + inert drifting husk.
+	# Lift "Destroyed" out of any layer we're about to hide first — on the square turret it's a child of
+	# "Building", so hiding Building would keep the destroyed frame invisible (a parent hides its children).
+	var d := find_child("Destroyed", true, false)
+	if d != null and d is Node2D and d.get_parent() != self:
+		(d as Node2D).reparent(self, true)   # keep world transform; now a root sibling, unaffected by _hide_layer
 	_hide_layer("Building")
 	_hide_layer("GlowMuzzle")
-	var d := find_child("Destroyed", true, false)
 	if d != null and d is CanvasItem:
 		(d as CanvasItem).visible = true
+		(d as CanvasItem).z_index = maxi((d as CanvasItem).z_index, 1)   # ensure it reads above the Base husk
 	set_deferred("monitoring", false)
 	set_deferred("monitorable", false)
 	remove_from_group("enemies")

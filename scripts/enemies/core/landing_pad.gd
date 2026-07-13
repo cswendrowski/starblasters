@@ -7,6 +7,7 @@ extends "res://scripts/enemies/core/enemy_core_building_turret.gd"
 # recycles into a later wave.
 
 const RosterC = preload("res://scripts/levels/enemy_roster.gd")
+const Factions = preload("res://scripts/levels/factions.gd")
 
 var _parked: Node = null
 var _released: bool = false
@@ -18,6 +19,9 @@ func _ready() -> void:
 
 
 func _spawn_parked() -> void:
+	# 20% of pads arrive empty (Roman 2026-07-14).
+	if randf() < 0.20:
+		return
 	var entry: Dictionary = _pick_parked_entry()
 	if entry.is_empty():
 		return
@@ -38,6 +42,9 @@ func _spawn_parked() -> void:
 	e.set_physics_process(false)
 	if "engine_trail_enabled" in e:
 		e.engine_trail_enabled = false
+	# Killed WHILE parked → a DIRECT explosion, not the flying-ship spin-out/wreck (death_cheap routes
+	# enemy_base to the classic instant blast). Cleared on release so a recycled ship dies normally.
+	e.set_meta("death_cheap", true)
 	_parked = e
 
 
@@ -48,11 +55,22 @@ func _pick_parked_entry() -> Dictionary:
 	var sector: int = 1
 	if run != null and "sectors_cleared" in run:
 		sector = int(run.sectors_cleared) + 1
+	var faction: int = -1
+	if run != null and run.has_meta("active_faction"):
+		faction = int(run.get_meta("active_faction", -1))
+	# ONLY the level's faction (Roman 2026-07-14). No active faction known → leave the pad EMPTY rather
+	# than risk parking a wrong-faction ship. (entries_eligible only faction-filters via the scoped roster
+	# filter, which a no_wave stronghold/condition spawn doesn't set — so we gate on active_faction here.)
+	if faction < 0:
+		return {}
 	var pool: Array = []
 	for tier in [RosterC.Tier.COMMON, RosterC.Tier.UNCOMMON]:
 		for e in RosterC.entries_eligible(tier, sector, 9):
-			if String(e.get("size", "")) == "small" and bool(e.get("chaff", false)):
-				pool.append(e)
+			if String(e.get("size", "")) != "small" or not bool(e.get("chaff", false)):
+				continue
+			if not Factions.allowed_in(String(e.get("scene", "")), faction):
+				continue
+			pool.append(e)
 	if pool.is_empty():
 		return {}
 	return pool[randi() % pool.size()]
@@ -80,6 +98,8 @@ func _release_parked() -> void:
 		p.reparent(world, true)
 	p.set_process(true)
 	p.set_physics_process(true)
+	if p.has_meta("death_cheap"):
+		p.remove_meta("death_cheap")   # released → flies + dies like a normal enemy (styled) again
 	if p.has_method("start"):
 		p.start(p.global_position)   # arm its movement/firing from where it sits
 	var dir := get_tree().get_first_node_in_group("wave_director")
