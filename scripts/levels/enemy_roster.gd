@@ -62,7 +62,7 @@ const Skirmish = preload("res://scripts/enemies/patterns/skirmish.gd")
 const LanePath = preload("res://scripts/enemies/patterns/lane_path.gd")
 const OmniThrust = preload("res://scripts/enemies/patterns/omni_thrust.gd")
 const LaneCharge = preload("res://scripts/enemies/patterns/lane_charge.gd")
-const TurretHold = preload("res://scripts/enemies/patterns/turret_hold.gd")
+const LateralDrift = preload("res://scripts/enemies/patterns/lateral_drift.gd")
 const AuthoredPathLibrary = preload("res://scripts/enemies/patterns/authored_path_library.gd")
 const Pendulum = preload("res://scripts/enemies/patterns/pendulum.gd")
 const ProximityChase = preload("res://scripts/enemies/patterns/proximity_chase.gd")
@@ -1323,9 +1323,10 @@ const ENTRIES := [
 		"unlock_sector": 2, "unlock_depth": 0,
 	},
 	{
-		# Core Turret (Roman 2026-07-12) — immobile emplacement: flies in, settles at a hold depth
-		# (turret_hold), then the BASE is fixed while the TURRET layer tracks the player + fires. The
-		# weapon is a TURRET hardpoint on the "Turret" marker, drawing the barrel from frame 2 of the
+		# Core Turret (Roman 2026-07-12) — drifts down its lane like an asteroid (asteroid_lane); the
+		# TURRET layer tracks the player + fires. Destroying it pops the TURRET (random explosion, removed)
+		# and leaves the BASE husk drifting on with collision off (bespoke enemy_core_building_turret.gd).
+		# The weapon is a TURRET hardpoint on the "Turret" marker, drawing the barrel from frame 2 of the
 		# combined base sheet (enemy_turret_base.png: 0=base, 1=destroyed, 2=turret). Fully tunable in the
 		# Enemy Bench (payload / rate / count / spread / rotation). Default: a slow aimed ball ~every 1.4s.
 		"scene": "res://scenes/enemies/core/enemy_core_building_turret.tscn",
@@ -1335,7 +1336,7 @@ const ENTRIES := [
 			"turret_texture": "res://graphics/enemies/enemy_turret_base.png", "turret_hframes": 3, "turret_frame": 2 }],
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "turret_hold",
+		"movement": "asteroid_lane",
 		"base_count": 1,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": false,
 		"conflict_tags": [],
@@ -1809,10 +1810,13 @@ static func make_movement(entry: Dictionary) -> Resource:
 		"straight_charge":
 			# Slow telegraphed entry, then accelerate hard in the fire zone (was lane_charge).
 			return LaneCharge.new()
-		"turret_hold":
-			# Immobile emplacement: descend to a hold depth, then stop dead (core turret). The turret
-			# LAYER does the aiming; the base is fixed. NOT a shape that should vary — no eligibility entry.
-			return TurretHold.new()
+		"asteroid_lane":
+			# The core turret drifts down its spawn lane like an asteroid (the shared LateralDrift, LANE
+			# mode = a slow in-lane weave). The turret LAYER does the aiming; the base just drifts. Swap
+			# the mode for STRAIGHT / drift_adjacent / drift_all if a different wander is wanted.
+			var _ld = LateralDrift.new()
+			_ld.mode = LateralDrift.Mode.LANE
+			return _ld
 		# --- SKIRMISH loops (replaces the broken advance_retreat) ---
 		"skirmish_loop":
 			return _skirmish(Skirmish.Shape.LOOP)
