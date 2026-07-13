@@ -124,6 +124,8 @@ static func _build_turret(enemy: Node, spec, mount) -> void:
 			var ts: Sprite2D = src[0]
 			ts.visible = true
 			ts.reparent(t, true)   # keep_global — rotates with the turret now
+			if int(spec.turret_z) != 0:
+				ts.z_index = int(spec.turret_z)   # lift into a higher z bucket than the hull building layers
 	# Multi-muzzle firing (Roman 2026-07-13): reparent the enemy's turret-muzzle markers UNDER the turret
 	# so they rotate with the barrel — the turret then fires from them exactly like an on-hull GUN mount.
 	if String(spec.turret_muzzle) != "":

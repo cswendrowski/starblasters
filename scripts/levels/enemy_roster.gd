@@ -1362,7 +1362,7 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/ground/enemy_square_launcher.tscn",
 		"mounts": [{ "kind": "turret", "marker": "Turret", "payload_scene": "res://scenes/projectiles/enemy_rocket.tscn",
 			"aim": "at_player", "rotation_speed": 1.8, "fire_min": 2.0, "fire_max": 2.0, "aim_tolerance_deg": 14.0, "count": 1,
-			"turret_node": "Turret2", "marker_mode": "cycle" }],
+			"turret_node": "Turret2", "marker_mode": "cycle", "turret_z": 2 }],
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "asteroid_lane",
