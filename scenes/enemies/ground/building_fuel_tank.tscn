@@ -1,0 +1,79 @@
+[gd_scene format=3 uid="uid://bfjj2ndcqc0jg"]
+
+[ext_resource type="Script" uid="uid://dx560ah1br2p0" path="res://scripts/enemies/core/composed_building.gd" id="1_w3iw1"]
+[ext_resource type="Script" uid="uid://dmi3hcj15y78l" path="res://scripts/enemies/patterns/lateral_drift.gd" id="2_v14lf"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="3_shu32"]
+[ext_resource type="Texture2D" uid="uid://dlqtdjg3dcam1" path="res://graphics/enemies/ground/building_htank.png" id="4_gyqen"]
+[ext_resource type="Shader" uid="uid://cm5hxyugvcow3" path="res://shaders/multiply.gdshader" id="5_uxjnb"]
+
+[sub_resource type="Resource" id="MovePattern"]
+script = ExtResource("2_v14lf")
+mode = 1
+
+[sub_resource type="RectangleShape2D" id="Hit"]
+size = Vector2(16, 16)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_oung5"]
+shader = ExtResource("5_uxjnb")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_bnbv2"]
+shader = ExtResource("5_uxjnb")
+
+[node name="Enemy" type="Area2D" unique_id=754549290 groups=["enemies"]]
+script = ExtResource("1_w3iw1")
+movement = SubResource("MovePattern")
+auto_rotate = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1272048509]
+visible = false
+shape = SubResource("Hit")
+
+[node name="MoveTimer" type="Timer" parent="." unique_id=1704481542]
+one_shot = true
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1949868089]
+stream = ExtResource("3_shu32")
+
+[node name="Base" type="Sprite2D" parent="." unique_id=1318315942]
+texture = ExtResource("4_gyqen")
+hframes = 6
+
+[node name="Building" type="Sprite2D" parent="Base" unique_id=1277737506]
+z_index = 1
+texture = ExtResource("4_gyqen")
+hframes = 6
+frame = 1
+
+[node name="OverlayHaz" type="Sprite2D" parent="Base/Building" unique_id=5494077]
+visible = false
+z_index = 1
+material = SubResource("ShaderMaterial_oung5")
+texture = ExtResource("4_gyqen")
+hframes = 6
+frame = 2
+
+[node name="OverlayRed" type="Sprite2D" parent="Base/Building" unique_id=785217129]
+visible = false
+z_index = 2
+material = SubResource("ShaderMaterial_bnbv2")
+texture = ExtResource("4_gyqen")
+hframes = 6
+frame = 3
+
+[node name="Destroyed1" type="Sprite2D" parent="Base/Building" unique_id=1521895983]
+visible = false
+z_index = 1
+material = SubResource("ShaderMaterial_bnbv2")
+texture = ExtResource("4_gyqen")
+hframes = 6
+frame = 4
+
+[node name="Destroyed2" type="Sprite2D" parent="Base/Building" unique_id=510399160]
+visible = false
+z_index = 1
+material = SubResource("ShaderMaterial_bnbv2")
+texture = ExtResource("4_gyqen")
+hframes = 6
+frame = 5
+
+[connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]

@@ -86,9 +86,18 @@ func explode() -> void:
 	var blasts: int = clampi(int(round(heft * 1.4)), 2, 6)
 	ExplosionFxC.burst(at, blasts, 12.0 * maxf(1.0, heft * 0.6), 0.06, fx, scn)
 	EnemyDeathFxC.spawn_debris(fx, at, heft)
-	# Base → Destroyed look (hide the intact overlays, show the "Destroyed" frame) + inert drifting husk.
-	# Lift "Destroyed" out of any layer we're about to hide first — on the square turret it's a child of
-	# "Building", so hiding Building would keep the destroyed frame invisible (a parent hides its children).
+	# Swap in the destroyed look, then become an inert drifting husk. Subclasses override _show_destroyed_look
+	# for a different look (composed_building.gd overlays damage decals on a SURVIVING building instead).
+	_show_destroyed_look()
+	set_deferred("monitoring", false)
+	set_deferred("monitorable", false)
+	remove_from_group("enemies")
+
+
+# The death look: hide the intact "Building"/"GlowMuzzle" overlays and reveal the "Destroyed" frame. Lift
+# "Destroyed" out of any layer we hide first — on the square turret it's a child of "Building", so hiding
+# Building would keep it invisible (a parent hides its children). Overridable (see composed_building.gd).
+func _show_destroyed_look() -> void:
 	var d := find_child("Destroyed", true, false)
 	if d != null and d is Node2D and d.get_parent() != self:
 		(d as Node2D).reparent(self, true)   # keep world transform; now a root sibling, unaffected by _hide_layer
@@ -97,9 +106,6 @@ func explode() -> void:
 	if d != null and d is CanvasItem:
 		(d as CanvasItem).visible = true
 		(d as CanvasItem).z_index = maxi((d as CanvasItem).z_index, 1)   # ensure it reads above the Base husk
-	set_deferred("monitoring", false)
-	set_deferred("monitorable", false)
-	remove_from_group("enemies")
 
 
 # Blast heft for the death explosion. A structure is a dense emplacement, not a fighter, so it always

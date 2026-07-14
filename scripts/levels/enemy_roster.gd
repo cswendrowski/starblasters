@@ -1418,6 +1418,30 @@ const ENTRIES := [
 		"conflict_tags": [],
 	},
 	{
+		# Building: Fuel Tank — composed structure (composed_building.gd): a random STYLE overlay (either
+		# one or neither) at spawn + 1–2 damage decals on death. Does NOT shoot; explodes with debris.
+		"scene": "res://scenes/enemies/ground/building_fuel_tank.tscn",
+		"tier": Tier.COMMON,
+		"size": "large", "tags": ["tough"],
+		"movement": "asteroid_lane",
+		"base_count": 1,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.4, "chaff": false,
+		"no_wave": true,   # reserved for specific level conditions — never in the random wave roll
+		"conflict_tags": [],
+	},
+	{
+		# Building: Shed — composed structure (composed_building.gd): a random building VARIANT + windows
+		# (one/both/neither, or a hazard overlay when windowless) at spawn + 1–2 damage decals on death.
+		"scene": "res://scenes/enemies/ground/building_square_shed.tscn",
+		"tier": Tier.COMMON,
+		"size": "large", "tags": ["tough"],
+		"movement": "asteroid_lane",
+		"base_count": 1,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.4, "chaff": false,
+		"no_wave": true,   # reserved for specific level conditions — never in the random wave roll
+		"conflict_tags": [],
+	},
+	{
 		# Turret Wave — a ROTATING turret variant (new art): the scene's "Turret" sprite (frame 3) is
 		# reparented + its "Muzzle" rotates. Fires wave bullets by default. Bench-configurable.
 		"scene": "res://scenes/enemies/ground/enemy_square_turret_wave.tscn",

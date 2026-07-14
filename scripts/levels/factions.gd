@@ -80,6 +80,8 @@ const ENEMY_TAGS := {
 	"res://scenes/enemies/ground/building_round_tank.tscn": {"home": Id.SUPREMACY, "universal": true},
 	"res://scenes/enemies/ground/building_square_glass.tscn": {"home": Id.SUPREMACY, "universal": true},
 	"res://scenes/enemies/ground/building_square_tanks.tscn": {"home": Id.SUPREMACY, "universal": true},
+	"res://scenes/enemies/ground/building_fuel_tank.tscn": {"home": Id.SUPREMACY, "universal": true},
+	"res://scenes/enemies/ground/building_square_shed.tscn": {"home": Id.SUPREMACY, "universal": true},
 	"res://scenes/enemies/ground/enemy_square_turret_wave.tscn": {"home": Id.SUPREMACY, "universal": true},
 	"res://scenes/enemies/ground/building_square_landing_pad.tscn": {"home": Id.SUPREMACY, "universal": true},
 	"res://scenes/enemies/core/enemy_core_m_minelayer.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.SUPREMACY, Id.PRIVATEER, Id.CORPORATE]},  # core minelayer (Zealot gets its own later)
