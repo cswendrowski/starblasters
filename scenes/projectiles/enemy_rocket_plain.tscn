@@ -1,0 +1,22 @@
+[gd_scene format=3 uid="uid://cq7plainrkt0jg"]
+
+[ext_resource type="Script" uid="uid://dwrm84hgmxod6" path="res://scripts/weapons/enemy_rocket_plain.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://j88xtqkwfxoq" path="res://graphics/projectiles/rocket.png" id="2_tex"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
+size = Vector2(6, 8)
+
+[node name="EnemyRocketPlain" type="Area2D" unique_id=484008050 groups=["bullets", "enemies"]]
+script = ExtResource("1_script")
+drift_speed = 180.0
+homing_max_speed = 180.0
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=622124442]
+texture = ExtResource("2_tex")
+hframes = 3
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1117520510]
+shape = SubResource("RectangleShape2D_1")
+
+[node name="exhaust_point" type="Marker2D" parent="." unique_id=1207878151]
+position = Vector2(0, 4)

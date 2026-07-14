@@ -27,6 +27,11 @@ const SMOKE_COLOR := Color(0.78, 0.78, 0.80, 0.85)
 # instead of forward (downward). Player missiles leave this false.
 var flip_drift: bool = false
 
+# PLAIN trail (Roman 2026-07-14): the smoke points don't drift/wander at all — the trail just follows the
+# exact flight path and fades. Used by building-launcher rockets, which shouldn't leave settling smoke like
+# a player/enemy-SHIP missile does.
+var plain: bool = false
+
 var _emitter: Node2D = null
 var _line: Line2D = null
 var _sample_t: float = 0.0
@@ -111,6 +116,10 @@ func _age_points(delta: float) -> void:
 	var n: int = _point_t.size()
 	for i in range(n):
 		_point_t[i] = float(_point_t[i]) + delta
+		# Plain trail: points stay on the exact flight path — no downward drift / wander. They still age
+		# out below so the trail keeps a finite length + fades via the gradient.
+		if plain:
+			continue
 		var t: float = clamp(float(_point_t[i]) / POINT_LIFETIME, 0.0, 1.0)
 		var drop: float = (DRIFT_BASE_SPEED + DRIFT_AGE_GAIN * t) * delta
 		if flip_drift:
