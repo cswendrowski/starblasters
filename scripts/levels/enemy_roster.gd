@@ -1442,6 +1442,18 @@ const ENTRIES := [
 		"conflict_tags": [],
 	},
 	{
+		# Building: Cross Tank — simple composed structure (composed_building.gd) with a LIVERY layer, so it
+		# takes the level faction's colour; reveals a damage decal on death. Does NOT shoot; explodes w/ debris.
+		"scene": "res://scenes/enemies/ground/building_cross_tank.tscn",
+		"tier": Tier.COMMON,
+		"size": "large", "tags": ["tough"],
+		"movement": "asteroid_lane",
+		"base_count": 1,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.4, "chaff": false,
+		"no_wave": true,   # reserved for specific level conditions — never in the random wave roll
+		"conflict_tags": [],
+	},
+	{
 		# Turret Wave — a ROTATING turret variant (new art): the scene's "Turret" sprite (frame 3) is
 		# reparented + its "Muzzle" rotates. Fires wave bullets by default. Bench-configurable.
 		"scene": "res://scenes/enemies/ground/enemy_square_turret_wave.tscn",

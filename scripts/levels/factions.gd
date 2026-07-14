@@ -82,6 +82,7 @@ const ENEMY_TAGS := {
 	"res://scenes/enemies/ground/building_square_tanks.tscn": {"home": Id.SUPREMACY, "universal": true},
 	"res://scenes/enemies/ground/building_fuel_tank.tscn": {"home": Id.SUPREMACY, "universal": true},
 	"res://scenes/enemies/ground/building_square_shed.tscn": {"home": Id.SUPREMACY, "universal": true},
+	"res://scenes/enemies/ground/building_cross_tank.tscn": {"home": Id.SUPREMACY, "universal": true},
 	"res://scenes/enemies/ground/enemy_square_turret_wave.tscn": {"home": Id.SUPREMACY, "universal": true},
 	"res://scenes/enemies/ground/building_square_landing_pad.tscn": {"home": Id.SUPREMACY, "universal": true},
 	"res://scenes/enemies/core/enemy_core_m_minelayer.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.SUPREMACY, Id.PRIVATEER, Id.CORPORATE]},  # core minelayer (Zealot gets its own later)
@@ -313,7 +314,9 @@ static func apply(id: int, enemy) -> void:
 static func apply_livery(faction: int, enemy) -> void:
 	if enemy == null:
 		return
-	var lv = enemy.get_node_or_null("Livery")
+	# Recursive: a normal enemy carries "Livery" as a direct child; a composed structure (cross tank) nests
+	# it under Base/Building. find_child finds either.
+	var lv = enemy.find_child("Livery", true, false)
 	if lv == null:
 		return
 	if faction < 0:

@@ -1,0 +1,65 @@
+[gd_scene format=3 uid="uid://ce4h5qaadk552"]
+
+[ext_resource type="Script" uid="uid://dx560ah1br2p0" path="res://scripts/enemies/core/composed_building.gd" id="1_o1u3a"]
+[ext_resource type="Script" uid="uid://dmi3hcj15y78l" path="res://scripts/enemies/patterns/lateral_drift.gd" id="2_f7m4k"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="3_pnsto"]
+[ext_resource type="Texture2D" uid="uid://db4c7rffwmoiu" path="res://graphics/enemies/ground/building_cross_tank.png" id="4_o1u3a"]
+[ext_resource type="Shader" uid="uid://cakr26sn2n1b3" path="res://scenes/player/livery_color.gdshader" id="5_f7m4k"]
+[ext_resource type="Shader" uid="uid://cm5hxyugvcow3" path="res://shaders/multiply.gdshader" id="5_slxaj"]
+
+[sub_resource type="Resource" id="MovePattern"]
+script = ExtResource("2_f7m4k")
+mode = 1
+
+[sub_resource type="RectangleShape2D" id="Hit"]
+size = Vector2(16, 16)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_f7m4k"]
+shader = ExtResource("5_f7m4k")
+shader_parameter/tint_color = Color(0.9384497, 0.9384497, 0.9384497, 1)
+shader_parameter/opacity = 1.0
+shader_parameter/fade = 0.800000038
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_bnbv2"]
+shader = ExtResource("5_slxaj")
+
+[node name="Enemy" type="Area2D" unique_id=754549290 groups=["enemies"]]
+script = ExtResource("1_o1u3a")
+movement = SubResource("MovePattern")
+auto_rotate = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1272048509]
+visible = false
+shape = SubResource("Hit")
+
+[node name="MoveTimer" type="Timer" parent="." unique_id=1704481542]
+one_shot = true
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1949868089]
+stream = ExtResource("3_pnsto")
+
+[node name="Base" type="Sprite2D" parent="." unique_id=1318315942]
+texture = ExtResource("4_o1u3a")
+hframes = 4
+
+[node name="Building" type="Sprite2D" parent="Base" unique_id=1277737506]
+z_index = 1
+texture = ExtResource("4_o1u3a")
+hframes = 4
+frame = 1
+
+[node name="Livery" type="Sprite2D" parent="Base/Building" unique_id=1521895983]
+z_index = 1
+material = SubResource("ShaderMaterial_f7m4k")
+texture = ExtResource("4_o1u3a")
+hframes = 4
+frame = 2
+
+[node name="Destroyed1" type="Sprite2D" parent="Base/Building" unique_id=510399160]
+z_index = 2
+material = SubResource("ShaderMaterial_bnbv2")
+texture = ExtResource("4_o1u3a")
+hframes = 4
+frame = 3
+
+[connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
