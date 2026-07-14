@@ -16,6 +16,7 @@ extends "res://scripts/enemies/enemy_core.gd"
 const ExplosionFxC = preload("res://scripts/effects/explosion_fx.gd")
 const EnemyDeathFxC = preload("res://scripts/effects/enemy_death_fx.gd")
 const RosterC = preload("res://scripts/levels/enemy_roster.gd")
+const FactionsC = preload("res://scripts/levels/factions.gd")
 
 ## Whether the PLAYER takes contact damage from / rams this structure. Structures default to FALSE — the
 ## ship flies THROUGH them (they stay shootable, they're just not rammers). Set true per-scene to opt in.
@@ -38,6 +39,20 @@ func _ready() -> void:
 	# (size + tough), BEFORE super._ready() initializes the hull from max_health.
 	_apply_roster_health()
 	super._ready()
+	_apply_livery()   # tint a "Livery" layer with the level faction, if this structure carries one
+
+
+# Tint a "Livery" decal layer with the active level faction's colour. no_wave structures spawn OUTSIDE the
+# director's livery pass, so we apply it here (covers turrets + composed buildings alike). No active faction
+# or no "Livery" node → keeps the scene default (apply_livery is a no-op without a Livery layer).
+func _apply_livery() -> void:
+	var run = get_node_or_null("/root/Run")
+	if run == null or not run.has_meta("active_faction"):
+		return
+	var faction: int = int(run.get_meta("active_faction", -1))
+	if faction < 0:
+		return
+	FactionsC.apply_livery(faction, self)
 
 
 # Set max_health from this structure's own roster entry (size template × tough), so it isn't a one-hit

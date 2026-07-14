@@ -1,7 +1,5 @@
 extends "res://scripts/enemies/core/enemy_core_building_turret.gd"
 
-const FactionsC = preload("res://scripts/levels/factions.gd")
-
 # Composed ground structures (Roman 2026-07-14): buildings whose LOOK is randomly assembled from layered
 # sprite overlays at spawn, and that reveal 1–2 damage decals (on the SURVIVING building) when destroyed —
 # rather than swapping a whole "Destroyed" frame. Shares everything else with the base structure script
@@ -19,20 +17,7 @@ const FactionsC = preload("res://scripts/levels/factions.gd")
 
 func _ready() -> void:
 	_compose()          # assemble the random look BEFORE super wires shadows to the visible layers
-	super._ready()
-	_apply_livery()     # tint a "Livery" layer (cross tank) with the level faction, if any
-
-
-# Tint a "Livery" decal layer with the active level faction's colour. no_wave structures spawn outside the
-# director's livery pass, so we apply it here. No active faction / no Livery node → keep the scene default.
-func _apply_livery() -> void:
-	var run = get_node_or_null("/root/Run")
-	if run == null or not run.has_meta("active_faction"):
-		return
-	var faction: int = int(run.get_meta("active_faction", -1))
-	if faction < 0:
-		return
-	FactionsC.apply_livery(faction, self)
+	super._ready()      # base applies faction livery (any "Livery" layer) + roster HP + shadows
 
 
 # Assemble a random look. Which structure we are is read from the node layout (each has distinct layers).
