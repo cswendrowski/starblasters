@@ -223,6 +223,8 @@ var _menu_ui: Control = null
 var _left_body: VBoxContainer = null
 var _ready_btn: Button = null
 var _begin_btn: Button = null
+var _seed_edit: LineEdit = null       # optional custom run-seed box (blank = random); not persisted
+var _seed_caption: Label = null       # live "→ <resolved seed>" echo under the box
 var _left_sidebar: ColorRect = null
 var _right_sidebar: ColorRect = null
 var _left_panel: Control = null
@@ -1013,6 +1015,23 @@ func _build_right_panel(layer: CanvasLayer) -> void:
 	_begin_btn.disabled = true
 	_begin_btn.pressed.connect(_on_begin_pressed)
 	begin_row.add_child(_begin_btn)
+	# Custom run seed (2026-07-14): an optional box overriding the randomly-rolled run seed so a
+	# player can replay a specific patrol. Placed right under Begin; blank = random. Deliberately NOT
+	# persisted to conditions_setup.json — a sticky seed silently reused every run is a trap, so it
+	# clears each time the panel opens. The resolved seed is echoed live in a caption below.
+	v.add_child(HSeparator.new())
+	v.add_child(_label("SEED", UiTheme.LabelKind.CAPTION))
+	_seed_edit = LineEdit.new()
+	_seed_edit.placeholder_text = "Seed (blank = random)"
+	_seed_edit.max_length = 24
+	_seed_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_seed_edit.add_theme_font_override("font", UiTheme.menu_font())
+	_seed_edit.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	_seed_edit.text_changed.connect(func(_t: String) -> void: _update_seed_caption())
+	v.add_child(_seed_edit)
+	_seed_caption = _label("→ random", UiTheme.LabelKind.CAPTION)
+	_seed_caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(_seed_caption)
 	var back := UiTheme.make_button("Back", true)
 	back.pressed.connect(_back)
 	v.add_child(back)
@@ -1520,6 +1539,38 @@ func _cond_summary_text() -> String:
 	return "%d picked · Difficulty %+d" % [eff.size(), Conditions.net_threat(eff)]
 
 
+# ---- Custom run seed ------------------------------------------------------
+# Resolve the seed box text into the int handed to Run.new_run(). Pure + static so
+# tools/test_run_seed.gd can exercise it via load() without instancing the scene.
+# Rules:
+#   • trimmed-empty  → 0  (sentinel = "random roll" — new_run() falls back to randi())
+#   • valid integer  → that int, via int() (GDScript ints are 64-bit; run_seed only ever
+#                      feeds RNG seeding + a decorrelated XOR, never a %d-into-fixed-width
+#                      format, so seeds beyond randi()'s 32-bit range are harmless)
+#   • anything else  → String.hash() (a deterministic 32-bit hash, stable ACROSS sessions
+#                      and platforms — same string always yields the same run), remapped to a
+#                      nonzero constant if it happens to hash to 0 (0 would silently mean random)
+# Reserved-0 edge: a player typing literal "0" parses to 0 → a RANDOM run (documented; 0 is the
+# no-override sentinel). Accepted per spec.
+const _SEED_HASH_ZERO_FALLBACK := 0x5EED  # nonzero stand-in when a text seed hashes to 0
+static func parse_seed(text: String) -> int:
+	var t := text.strip_edges()
+	if t.is_empty():
+		return 0
+	if t.is_valid_int():
+		return int(t)
+	var h := int(t.hash())
+	return h if h != 0 else _SEED_HASH_ZERO_FALLBACK
+
+
+# Echo the resolved seed under the box so the player sees exactly what they'll get.
+func _update_seed_caption() -> void:
+	if _seed_caption == null:
+		return
+	var resolved := parse_seed(_seed_edit.text if _seed_edit != null else "")
+	_seed_caption.text = "→ random" if resolved == 0 else "→ %d" % resolved
+
+
 # ---- Conditions persistence ----------------------------------------------
 
 func _load_cond_setup() -> void:
@@ -1987,7 +2038,9 @@ func _on_begin_pressed() -> void:
 	# it must come FIRST — mirrors main_menu._on_new_game's order).
 	var run := get_node_or_null("/root/Run")
 	if run != null:
-		run.new_run()
+		# Custom seed override (blank box → 0 → random). Passed INTO new_run() so the outpost
+		# charge rolls + blind-condition split + sector gen all reproduce from the player's seed.
+		run.new_run(parse_seed(_seed_edit.text if _seed_edit != null else ""))
 		run.ship_variant = _readied_idx
 		run.livery_color = _ships[_readied_idx]["livery_color"]
 		run.livery_chosen = true

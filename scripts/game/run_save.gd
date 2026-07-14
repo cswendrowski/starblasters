@@ -60,6 +60,9 @@ extends Resource
 @export var max_bounty_earned: int = 0
 @export var run_distance: float = 0.0
 @export var run_seed: int = 0
+# True when run_seed came from a player-entered custom seed (patrol_start's seed box).
+# Mirrors Run.seed_was_custom; the boot lockstep guard requires both surfaces to carry it.
+@export var seed_was_custom: bool = false
 
 # Ship choice (per-patrol; picked in the ship-select modal). Persisted so a resumed patrol
 # keeps the same hull + livery the player chose.

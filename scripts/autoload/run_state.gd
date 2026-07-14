@@ -147,6 +147,11 @@ var run_stats: Dictionary = {}
 
 # Random seed for reproducible runs (sector map + shop rolls).
 var run_seed: int = 0
+# True when the current run's run_seed came from a player-entered custom seed
+# (via patrol_start's seed box), false when it was randomly rolled. Surfaced on
+# the run summary + history record. Set both ways in new_run(); persisted via
+# _SAVE_FIELDS so a resumed run keeps the "(custom)" tag.
+var seed_was_custom: bool = false
 
 # ---- Ship choice (per-patrol; picked in the ship-select modal at new-patrol start) ----
 # ship_variant: index into ShipCatalog.SHIPS (0 = the default Starblaster; the full roster +
@@ -286,6 +291,7 @@ func record_run_history(outcome: String) -> void:
 		"bounty": int(max_bounty_earned),
 		"distance": int(run_distance),
 		"seed": int(run_seed),
+		"seed_custom": bool(seed_was_custom),
 		# Run-summary Phase 1 stats (so the history detail can surface them).
 		"time": int(run_time_seconds),
 		"bounty_gained": int(run_stats.get("bounty_gained", 0)),
@@ -404,7 +410,15 @@ func cruiser_encounter_chance_mult() -> float:
 	return m
 
 
-func new_run() -> void:
+# seed_override: when non-zero, forces run_seed to that value (a player-entered
+# custom seed) instead of randi(), so the whole run reproduces. 0 = "no override"
+# = random roll. RESERVED-0 EDGE: a player who literally types "0" resolves (via
+# parse_seed) to 0 and therefore gets a RANDOM run, not a seed-0 run — an accepted
+# corner case (0 doubles as the sentinel). Everything downstream (outpost 2d6
+# charge rolls, blind-condition split, sector gen, node factions) derives from
+# run_seed, so setting it here — at the SAME early point randi() used to land —
+# keeps the entire run reproducible from the custom seed.
+func new_run(seed_override: int = 0) -> void:
 	# Starting fresh — invalidate any saved run so Resume Patrol on the main
 	# menu can't drop the player back into the old state if they bail before
 	# the first sector map entry rewrites the save.
@@ -435,8 +449,14 @@ func new_run() -> void:
 	combats_in_sector = 0
 	# run_seed drives the run's generated state — set it FIRST so the outpost-charge rolls below
 	# derive from it (randi() is the only intentionally-random source; everything else keys off
-	# run_seed for seed-consistent runs).
-	run_seed = randi()
+	# run_seed for seed-consistent runs). A non-zero seed_override substitutes a player-entered
+	# custom seed here so the charges + all downstream generation reproduce from it.
+	if seed_override != 0:
+		run_seed = seed_override
+		seed_was_custom = true
+	else:
+		run_seed = randi()
+		seed_was_custom = false
 	# Outpost hub: seed 2d6 repair + 2d6 ammo-restock charges; stock rolls on first visit.
 	repair_charges = _roll_dice(2, 6, 0)
 	ammo_restock_charges = _roll_dice(2, 6, 1)
@@ -1495,7 +1515,7 @@ const _SAVE_FIELDS := [
 	"current_stellar",
 	"ammo", "secondary_ammo", "secondary_ammo_max",
 	"visited_nodes", "sectors_cleared", "bosses_defeated", "combats_in_sector", "used_boss_scenes",
-	"enemies_killed", "max_bounty_earned", "run_distance", "run_seed",
+	"enemies_killed", "max_bounty_earned", "run_distance", "run_seed", "seed_was_custom",
 	"ship_variant", "livery_color", "livery_chosen",
 	"hull_mk", "armor_mk", "thrusters_mk", "self_repair_mk",
 	"shield_cap_mk", "shield_recharge_mk", "hull_plating_mk",

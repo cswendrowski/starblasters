@@ -96,7 +96,11 @@ func _render() -> void:
 		var sh: int = int(st.get("shots_hit", 0))
 		var acc: String = ("%d%%" % int(round(100.0 * float(sh) / float(sf)))) if sf > 0 else "—"
 		var uniq_weapons: int = int((st.get("weapons_used", {}) as Dictionary).size())
-		text = "Time: %s\nEnemies destroyed: %d\nBosses defeated: %d\nSectors cleared: %d\nBounty earned: %d\nBounty spent: %d\nDamage taken: %d shield · %d hull\nShots: %d fired · %d hit  (%s)\nUnique weapons: %d\nLocations: %d   ·   Outposts: %d   ·   Signals: %d\nAsteroids destroyed: %d\nMines cleared: %d\nDistance: %d" % [
+		# Seed line: always shown so a player can note/replay the run; "(custom)" when they
+		# entered it themselves. strings.gd is mid-edit in another session, so this label is
+		# inlined like the rest of the summary text rather than pulled from a strings const.
+		var seed_suffix: String = "  (custom)" if ("seed_was_custom" in run and run.seed_was_custom) else ""
+		text = "Time: %s\nEnemies destroyed: %d\nBosses defeated: %d\nSectors cleared: %d\nBounty earned: %d\nBounty spent: %d\nDamage taken: %d shield · %d hull\nShots: %d fired · %d hit  (%s)\nUnique weapons: %d\nLocations: %d   ·   Outposts: %d   ·   Signals: %d\nAsteroids destroyed: %d\nMines cleared: %d\nDistance: %d\nSeed: %d%s" % [
 			_fmt_time(run.run_time_seconds if "run_time_seconds" in run else 0.0),
 			run.enemies_killed, run.bosses_defeated, run.sectors_cleared,
 			int(st.get("bounty_gained", run.max_bounty_earned)),
@@ -106,7 +110,8 @@ func _render() -> void:
 			uniq_weapons,
 			int(st.get("locations_visited", 0)), int(st.get("stations_visited", 0)), int(st.get("signals_visited", 0)),
 			int(st.get("asteroids", 0)), int(st.get("mines_cleared", 0)),
-			int(run.run_distance)
+			int(run.run_distance),
+			int(run.run_seed), seed_suffix
 		]
 	else:
 		text = "No run data."
