@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://c5wsmf6b8n7h2" path="res://scripts/enemies/core/enemy_core_building_turret.gd" id="1_bwn8d"]
 [ext_resource type="Script" uid="uid://dmi3hcj15y78l" path="res://scripts/enemies/patterns/lateral_drift.gd" id="2_2loa6"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="4_2t4am"]
-[ext_resource type="Texture2D" uid="uid://db4c7rffwmoiu" path="res://graphics/enemies/ground/building_round_tank.png" id="4_bwn8d"]
+[ext_resource type="Texture2D" uid="uid://px527n3uop2o" path="res://graphics/enemies/ground/building_bunker_tank.png" id="4_bwn8d"]
 
 [sub_resource type="Resource" id="MovePattern"]
 script = ExtResource("2_2loa6")
@@ -29,13 +29,18 @@ stream = ExtResource("4_2t4am")
 
 [node name="Base" type="Sprite2D" parent="." unique_id=1318315942]
 texture = ExtResource("4_bwn8d")
-hframes = 2
+hframes = 3
+
+[node name="Building" type="Sprite2D" parent="." unique_id=48449230]
+texture = ExtResource("4_bwn8d")
+hframes = 3
+frame = 1
 
 [node name="Destroyed" type="Sprite2D" parent="." unique_id=5494077]
 visible = false
 z_index = 1
 texture = ExtResource("4_bwn8d")
-hframes = 2
-frame = 1
+hframes = 3
+frame = 2
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]

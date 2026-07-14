@@ -1372,9 +1372,9 @@ const ENTRIES := [
 		"conflict_tags": [],
 	},
 	{
-		# Building: Round Bunker (glass) — destroyable structure, does NOT shoot; drifts in, explodes with
+		# Building: Bunker Glass — destroyable structure, does NOT shoot; drifts in, explodes with
 		# debris on death. Placement is Roman's to author; registered so it spawns + shows in the bench.
-		"scene": "res://scenes/enemies/ground/building_round_glass.tscn",
+		"scene": "res://scenes/enemies/ground/building_bunker_glass.tscn",
 		"tier": Tier.COMMON,
 		"size": "huge", "tags": ["tough"],
 		"movement": "asteroid_lane",
@@ -1384,8 +1384,8 @@ const ENTRIES := [
 		"conflict_tags": [],
 	},
 	{
-		# Building: Round Tank — destroyable structure, does NOT shoot; explodes with debris on death.
-		"scene": "res://scenes/enemies/ground/building_round_tank.tscn",
+		# Building: Bunker Tank — destroyable structure, does NOT shoot; explodes with debris on death.
+		"scene": "res://scenes/enemies/ground/building_bunker_tank.tscn",
 		"tier": Tier.COMMON,
 		"size": "giant", "tags": ["tough"],
 		"movement": "asteroid_lane",
