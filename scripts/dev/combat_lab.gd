@@ -61,9 +61,13 @@ var _primary_dd: OptionButton
 var _primary_mk: SpinBox
 var _secondary_dd: OptionButton
 var _secondary_mk: SpinBox
-var _module_list: ItemList
-var _module_mk: SpinBox
-var _glass_cb: CheckBox
+# Per-module install rows (2026-07-14): one CheckBox + one mark SpinBox per module
+# factory, parallel to _module_factories. Replaces the old multi-select ItemList +
+# single shared "all selected" mark, and the separate Glass-cannon checkbox — the
+# Shield Core is now just a module row you tick/untick at the mark you want, and the
+# bay is built entirely from these rows (no hidden auto-seeded Mk.1 core).
+var _module_checks: Array = []   # Array[CheckBox]
+var _module_marks: Array = []    # Array[SpinBox]
 var _enc_dd: OptionButton
 var _faction_dd: OptionButton
 var _sectors_spin: SpinBox
@@ -88,11 +92,28 @@ func _ready() -> void:
 	_primary_factories = _factories_for(SlotTypes.SlotType.CANNON)
 	_secondary_factories = [{"factory": "", "name": "None"}]
 	_secondary_factories.append_array(_factories_for(SlotTypes.SlotType.HARDPOINT_WING))
-	_module_factories = _factories_for(SlotTypes.SlotType.MODULE)
+	_module_factories = _module_list_factories()
 	_build_ui()
 	_load()
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("silent")
+
+
+# Module rows for the lab. The Shield Core is auto-seeded by new_run() and the lab builds
+# the bay entirely from these rows, so it must be listed or every launch is a glass cannon.
+# It's pinned FIRST (and default-checked in _build_ui) so the shield sits at the top and
+# mirrors the normal starting ship — then the rest of the pool is appended, skipping the
+# Shield Core so it isn't listed twice (it now also rolls in the shop pool, so _factories_for
+# includes it). Regression fix 2026-07-14.
+func _module_list_factories() -> Array:
+	var out: Array = []
+	var sc = PartCatalog._make_by_name("_make_shield_core", SlotTypes.SlotType.MODULE)
+	var sc_name: String = String(sc.display_name) if sc != null and "display_name" in sc else "Shield Core"
+	out.append({"factory": "_make_shield_core", "name": sc_name})
+	for e in _factories_for(SlotTypes.SlotType.MODULE):
+		if String(e["factory"]) != "_make_shield_core":
+			out.append(e)
+	return out
 
 
 # Enumerate the dedup'd factory list for a slot, with display names (mirrors hangar).
@@ -149,19 +170,27 @@ func _build_ui() -> void:
 	_primary_mk = _mk_row(left, "Primary mark")
 	_secondary_dd = _dd_row(left, "Secondary weapon", _secondary_factories.map(func(e): return e["name"]))
 	_secondary_mk = _mk_row(left, "Secondary mark")
-	left.add_child(_cap("Modules (Ctrl/Shift-click for multiple; bay holds 6)"))
-	_module_list = ItemList.new()
-	_module_list.select_mode = ItemList.SELECT_MULTI
-	_module_list.custom_minimum_size = Vector2(0, 300)
-	_module_list.add_theme_font_override("font", UiTheme.menu_font())
+	left.add_child(_cap("Modules — tick to install, set each mark (bay holds 6). Untick Shield Core for glass cannon."))
+	# Scrollable list of per-module rows so the panel stays a fixed height regardless
+	# of how many module types exist.
+	var mod_scroll := ScrollContainer.new()
+	mod_scroll.custom_minimum_size = Vector2(0, 340)
+	mod_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	left.add_child(mod_scroll)
+	var mod_box := VBoxContainer.new()
+	mod_box.add_theme_constant_override("separation", 4)
+	mod_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mod_scroll.add_child(mod_box)
+	_module_checks.clear()
+	_module_marks.clear()
 	for e in _module_factories:
-		_module_list.add_item(String(e["name"]))
-	left.add_child(_module_list)
-	_module_mk = _mk_row(left, "Module mark (all selected)")
-	_glass_cb = CheckBox.new()
-	_glass_cb.text = "Glass cannon (drop default Shield Core)"
-	_glass_cb.add_theme_font_override("font", UiTheme.menu_font())
-	left.add_child(_glass_cb)
+		var row := _module_row(mod_box, String(e["name"]))
+		# Default the ship to the normal starting kit: Shield Core installed at Mk.1,
+		# everything else off. What's ticked here is exactly what flies.
+		if String(e["factory"]) == "_make_shield_core":
+			(row["cb"] as CheckBox).button_pressed = true
+		_module_checks.append(row["cb"])
+		_module_marks.append(row["mk"])
 
 	# ---- Right: encounter ----
 	var right := VBoxContainer.new()
@@ -230,6 +259,32 @@ func _dd_row(parent: VBoxContainer, caption: String, items) -> OptionButton:
 func _mk_row(parent: VBoxContainer, caption: String) -> SpinBox:
 	return _spin_row(parent, caption, 1, 9, 1, 1)
 
+# One module install row: [✓ Name .............] [Mk (1–9)]. Returns {cb, mk}.
+func _module_row(parent: VBoxContainer, module_name: String) -> Dictionary:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var cb := CheckBox.new()
+	cb.text = module_name
+	cb.add_theme_font_override("font", UiTheme.menu_font())
+	cb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(cb)
+	var mk_lbl := Label.new()
+	mk_lbl.text = "Mk"
+	UiTheme.style_label(mk_lbl, UiTheme.LabelKind.CAPTION)
+	mk_lbl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(mk_lbl)
+	var sb := SpinBox.new()
+	sb.add_theme_font_override("font", UiTheme.menu_font())
+	sb.custom_minimum_size = Vector2(96, 36)
+	sb.min_value = 1
+	sb.max_value = 9
+	sb.step = 1
+	sb.value = 1
+	row.add_child(sb)
+	parent.add_child(row)
+	return {"cb": cb, "mk": sb}
+
 func _spin_row(parent: VBoxContainer, caption: String, lo: float, hi: float, step: float, val: float) -> SpinBox:
 	parent.add_child(_cap(caption))
 	var sb := SpinBox.new()
@@ -265,19 +320,25 @@ func _launch() -> void:
 			if "mark" in sec:
 				sec.mark = int(_secondary_mk.value)
 			run.equip_part(sec)
-	# Glass cannon — drop the auto-seeded Shield Core before adding chosen modules.
-	if _glass_cb.button_pressed:
-		_drop_shield_core(run)
-	# Modules.
-	var mk: int = int(_module_mk.value)
-	var added := 0
-	for idx in _module_list.get_selected_items():
-		var mod = PartCatalog._make_by_name(_module_factories[idx]["factory"], SlotTypes.SlotType.MODULE)
+	# Modules — build the bay ENTIRELY from the panel. new_run() auto-seeds a Mk.1
+	# Shield Core; clear it first so there's no hidden core underneath and what's ticked
+	# is exactly what flies (unticking Shield Core = glass cannon; bay_initialized stays
+	# true so the shieldless gate applies).
+	var want: Array = []   # [{factory, mk}] in row order
+	for i in _module_factories.size():
+		if (_module_checks[i] as CheckBox).button_pressed:
+			want.append({"factory": String(_module_factories[i]["factory"]), "mk": int((_module_marks[i] as SpinBox).value)})
+	if want.size() > run.MODULE_BAY_SIZE:
+		_status.text = "Bay holds %d modules — you ticked %d. Untick %d." % [run.MODULE_BAY_SIZE, want.size(), want.size() - run.MODULE_BAY_SIZE]
+		return
+	while run.modules.size() > 0:
+		run.remove_module(run.modules.size() - 1)
+	for w in want:
+		var mod = PartCatalog._make_by_name(String(w["factory"]), SlotTypes.SlotType.MODULE)
 		if mod != null:
 			if "mark" in mod:
-				mod.mark = mk
-			if run.add_module(mod):
-				added += 1
+				mod.mark = int(w["mk"])
+			run.add_module(mod)
 	# Encounter.
 	match _enc_dd.selected:
 		Enc.COMBAT:
@@ -294,6 +355,14 @@ func _launch() -> void:
 		Enc.ASTEROID:
 			run.current_node_type = 5
 			run.current_hazard_subtype = "asteroid_field"
+			# Reframed as the "Asteroid Stronghold" (2026-07-13): overlay loose rocks + authored
+			# stronghold prefabs on standard faction combat; honor the depth spinners + faction
+			# dropdown so the overlaid enemy ships scale + theme like a standard fight.
+			run.sectors_cleared = int(_sectors_spin.value)
+			run.combats_in_sector = int(_combats_spin.value)
+			var ast_fid: int = int(FACTION_PICKS[_faction_dd.selected][1])
+			if ast_fid >= 0:
+				run.set_meta("forced_faction", ast_fid)
 			# Turn the DECORATIVE backdrop asteroid field on. The coordinator zeroes it unless
 			# current_stellar flags has_asteroids — the sector map sets that for real asteroid
 			# nodes, but Combat Lab doesn't, so the backdrop came up empty. Merge it in (keeping
@@ -329,13 +398,6 @@ func _launch() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/main.tscn", func(): HdScreen.drop(scope))
 
 
-func _drop_shield_core(run) -> void:
-	for i in range(run.modules.size() - 1, -1, -1):
-		var m = run.modules[i]
-		if m != null and String(m.module_id) == "shield_core":
-			run.remove_module(i)
-
-
 # ---- Persistence ----
 
 func _save() -> void:
@@ -346,8 +408,8 @@ func _save() -> void:
 	f.store_string(JSON.stringify({
 		"primary": _primary_dd.selected, "primary_mk": int(_primary_mk.value),
 		"secondary": _secondary_dd.selected, "secondary_mk": int(_secondary_mk.value),
-		"modules": _module_list.get_selected_items(), "module_mk": int(_module_mk.value),
-		"glass": _glass_cb.button_pressed,
+		# Per-module state keyed by factory name (index-independent if the pool changes).
+		"module_states": _module_states(),
 		"enc": _enc_dd.selected, "faction": _faction_dd.selected,
 		"sectors": int(_sectors_spin.value), "combats": int(_combats_spin.value),
 		"mine": _mine_dd.selected, "boss": _boss_dd.selected,
@@ -369,20 +431,31 @@ func _load() -> void:
 	_primary_mk.value = float(d.get("primary_mk", 1))
 	_secondary_dd.select(_clampi_sel(d.get("secondary", 0), _secondary_dd))
 	_secondary_mk.value = float(d.get("secondary_mk", 1))
-	_module_mk.value = float(d.get("module_mk", 1))
-	_glass_cb.button_pressed = bool(d.get("glass", false))
 	_enc_dd.select(_clampi_sel(d.get("enc", 0), _enc_dd))
 	_faction_dd.select(_clampi_sel(d.get("faction", 0), _faction_dd))
 	_sectors_spin.value = float(d.get("sectors", 2))
 	_combats_spin.value = float(d.get("combats", 2))
 	_mine_dd.select(_clampi_sel(d.get("mine", 0), _mine_dd))
 	_boss_dd.select(_clampi_sel(d.get("boss", 0), _boss_dd))
-	var mods: Variant = d.get("modules", [])
-	if mods is Array:
-		for idx in mods:
-			var i := int(idx)
-			if i >= 0 and i < _module_list.item_count:
-				_module_list.select(i, false)
+	# Per-module install state (missing/old saves keep the build-time defaults — Shield Core on).
+	var ms: Variant = d.get("module_states", null)
+	if ms is Dictionary:
+		for i in _module_factories.size():
+			var st: Variant = ms.get(String(_module_factories[i]["factory"]), null)
+			if st is Dictionary:
+				(_module_checks[i] as CheckBox).button_pressed = bool(st.get("on", false))
+				(_module_marks[i] as SpinBox).value = float(st.get("mk", 1))
+
+
+# Per-module install state keyed by factory name → {on, mk}.
+func _module_states() -> Dictionary:
+	var d := {}
+	for i in _module_factories.size():
+		d[String(_module_factories[i]["factory"])] = {
+			"on": (_module_checks[i] as CheckBox).button_pressed,
+			"mk": int((_module_marks[i] as SpinBox).value),
+		}
+	return d
 
 
 func _clampi_sel(v: Variant, dd: OptionButton) -> int:

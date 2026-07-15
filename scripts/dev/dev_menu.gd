@@ -88,17 +88,17 @@ func _build_ui() -> void:
 	_add_button("[ Pattern Eligibility ]", _on_pattern_eligibility, true)
 	_add_button("[ Formation Builder ]", _on_wave_pattern_editor, true)
 	_add_button("[ Path Editor ]", _on_path_editor, true)
+	_add_button("[ Asteroid Stronghold ]", _on_asteroid_stronghold, true)
 	_add_button("[ Weapon Lab ]", _on_weapon_lab, true)
 	_add_button("[ Enemy Bench ]", _on_enemy_bench, true)
 	# Tuners / labs (Movement Lab / Sector Map HD Lab retired 2026-06-11)
 	_add_button("[ Lane Visualizer ]", _on_lane_visualizer, true)
 	_add_button("[ Parallax Tuner ]", _on_parallax_tuner, true)
 	_add_button("[ Nebula Lab ]", _on_nebula_lab, true)
+	_add_button("[ Planet Flyover Lab ]", _on_planet_flyover_lab, true)
 	_add_button("[ Parallax Showcase ]", _on_parallax_showcase, true)
 	_add_button("[ Asteroid Lab ]", _on_asteroid_lab, true)
 	_add_button("[ Asteroid Bake Lab ]", _on_asteroid_bake_lab, true)
-	_add_button("[ Asteroid Field Test ]", _on_asteroid_field_test, true)
-	_add_button("[ Asteroid HDR Lab ]", _on_asteroid_hdr_lab, true)
 	# Crash-test toggle: flips the backdrop's asteroid layer to the baked Sprite2D path
 	# (AsteroidBakeCache). Bakes the shared atlas on first enable. Then launch an asteroid
 	# POI via Combat Lab to A/B whether baked asteroids stop the #116172 combat-load crash.
@@ -117,8 +117,7 @@ func _build_ui() -> void:
 	_add_button("[ Smart Mount Lab ]", _on_smart_mount_lab, true)
 	# Test launchers
 	_add_button("[ Combat Lab ]", _on_combat_lab, true)
-	_add_button("[ Battleship Lab ]", _on_battleship_lab, true)
-	_add_button("[ Director Lab ]", _on_director_lab, true)
+	_add_button("[ Boss Bench ]", _on_boss_bench, true)
 	_add_button("[ Hangar ]", _on_hangar, true)
 	_add_button("[ EM Torpedo Test ]", _launch_em_torpedo_test, true)
 	# All-Signal Sector rolled into Combat Lab as the "All-Signal Sector" encounter (2026-06-17).
@@ -185,6 +184,10 @@ func _on_path_editor() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/path_editor.tscn")
 
 
+func _on_asteroid_stronghold() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/asteroid_stronghold_editor.tscn")
+
+
 func _on_shader_lab() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/shader_lab.tscn")
 
@@ -245,16 +248,12 @@ func _on_asteroid_bake_lab() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/asteroid_bake_lab.tscn")
 
 
-func _on_asteroid_field_test() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev/asteroid_field_test.tscn")
-
-
-func _on_asteroid_hdr_lab() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev/asteroid_hdr_lab.tscn")
-
-
 func _on_nebula_lab() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/nebula_lab.tscn")
+
+
+func _on_planet_flyover_lab() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/planet_flyover_lab.tscn")
 
 
 func _on_parallax_showcase() -> void:
@@ -275,14 +274,10 @@ func _on_combat_lab() -> void:
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev/combat_lab.tscn")
 
 
-# Battleship Lab — trigger + live-tune the Zealot Battleship's maneuvers (Roman 2026-07-02).
-func _on_battleship_lab() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev/battleship_lab.tscn")
-
-
-# Director Lab — trigger + live-tune the Corporate Director's maneuvers (Roman 2026-07-06).
-func _on_director_lab() -> void:
-	SceneTransition.change_scene(get_tree(), "res://scenes/dev/director_lab.tscn")
+# Boss Bench — pick a physics-driven boss (Zealot Battleship / Corporate Director), trigger + live-tune
+# its maneuvers (merges the retired Battleship + Director labs; Roman 2026-07-12).
+func _on_boss_bench() -> void:
+	SceneTransition.change_scene(get_tree(), "res://scenes/dev/boss_bench.tscn")
 
 
 # Smart Mount Lab — controlled turret tuner (live player + randomized targets + knobs).

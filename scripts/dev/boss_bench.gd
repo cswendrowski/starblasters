@@ -1,22 +1,26 @@
 extends Control
 
-# DirectorLab (Roman 2026-07-06) — live-tune + trigger the Corporate Director's maneuvers. Spawns the REAL
-# boss + backdrop + a "bullet_world" sink + an invulnerable arrow-key dummy player in a native-480
-# SubViewport, so the maneuver feel (knock-away, thrust, bays, missiles, flechettes) can be judged in
-# context. Trigger any single maneuver / interlude, or "Run gated combat" for the full director-driven
-# wave→maneuver flow. Knob sliders live-apply to the boss's @export vars; Copy GDScript emits a paste-ready
-# block. House tuner contract: JSON save/load, Reset, Esc-to-close, Copy GDScript. (Mirrors battleship_lab.)
+# BossBench (Roman 2026-07-12) — live-tune + trigger the game's physics-driven "flying-fortress" bosses in
+# ONE bench. Merges the retired battleship_lab + director_lab (they were near-identical twins) behind a boss
+# selector. Both the Zealot Battleship and the Corporate Director extend physics_boss.gd and share the same
+# maneuver API (play_named_maneuver / play_wave_maneuver / live_parts / start + the physics @export knobs),
+# so a single data-driven bench covers them: pick a boss, trigger any maneuver / interlude, live-tune its
+# knobs, or "Run gated combat" for the full director-driven wave→maneuver flow. Copy GDScript emits the
+# paste-ready block. House tuner contract (scripts/dev/ui_designer.gd): JSON save/load, Reset, Esc-to-close,
+# mandatory Copy GDScript.
+#
+# Adding a boss: give it physics_boss + the maneuver API, then append a BOSSES entry (scene / config path /
+# snippet file / faction / own_knobs / int_keys / triggers / actions). No other change needed.
 
 const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const Playfield = preload("res://scripts/systems/playfield.gd")
 const BackdropCoordinatorScene = preload("res://scenes/parallax/backdrop_coordinator.tscn")
 const DirectorScript = preload("res://scripts/levels/director.gd")
 const WaveGen = preload("res://scripts/levels/wave_generator.gd")
-const BOSS_SCENE := "res://scenes/enemies/factions/corporate/boss_c_director.tscn"
-const CONFIG_PATH := "user://tuners/director.json"
 
-# Shared thrust knobs (inherited from physics_boss — tuning here overrides THIS instance; Copy emits them
-# as _ready() overrides so the Director can feel different from the battleship without shadowing the base).
+# Shared thrust knobs (inherited from physics_boss.gd). Tuning here overrides THIS boss instance; Copy emits
+# them as _ready() overrides (NOT @export) so a boss can feel different from its siblings WITHOUT redeclaring
+# — and shadowing — the base-class exports.
 const PHYS_KNOBS := [
 	["MAIN_ACCEL", "Main thrust accel", 60.0, 700.0, 10.0],
 	["STRAFE_ACCEL", "Strafe accel", 40.0, 700.0, 10.0],
@@ -33,45 +37,89 @@ const PHYS_KNOBS := [
 	["DEPTH_DAMP", "Depth drag", 1.0, 12.0, 0.5],
 ]
 
-# Director-specific @export knobs (live in boss_c_director.gd — Copy emits them as @export defaults).
-const DIR_KNOBS := [
-	["ARRIVE_Y", "Combat hold Y (px)", -40.0, 180.0, 2.0],
-	["PARK_Y", "BG park Y (px)", -40.0, 180.0, 2.0],
-	["SECTION_HP", "Section HP (per stage)", 10.0, 200.0, 5.0],
-	["SECTION_DEBRIS", "Section debris pieces", 0.0, 16.0, 1.0],
-	["WING_HP", "Wing cannon HP", 20.0, 300.0, 10.0],
-	["GUN_VOLLEYS", "Gun volleys", 1.0, 8.0, 1.0],
-	["GUN_BEAT", "Gun beat (s)", 0.1, 2.0, 0.05],
-	["WING_BEAM_HOLD", "Wing beam hold (s)", 0.5, 6.0, 0.25],
-	["RUSH_DUR", "Rush / exit dur (s)", 1.0, 5.0, 0.2],
-	["KNOCK_UP", "Knock-away up", 0.0, 220.0, 4.0],
-	["KNOCK_SIDE", "Knock-away side", 0.0, 120.0, 4.0],
-	["MISSILE_SALVO", "Missiles / salvo", 1.0, 8.0, 1.0],
-	["MISSILE_SHOT_DELAY", "Missile shot delay", 0.0, 1.0, 0.05],
-	["BARRAGE_SALVO_GAP", "Barrage salvo gap", 0.5, 5.0, 0.25],
-	["LANE_STRIKE_SPOTS", "Lane-strike spots", 2.0, 10.0, 1.0],
-	["SKIRMISH_STOPS", "Skirmish stops", 2.0, 10.0, 1.0],
-	["SKIRMISH_SLIDE_X", "Skirmish slide (px)", 20.0, 100.0, 4.0],
-	["SKIRMISH_BURST_SHOTS", "Skirmish burst shots", 1.0, 6.0, 1.0],
-	["SKIRMISH_BURST_GAP", "Skirmish burst gap", 0.05, 0.6, 0.02],
-	["SKIRMISH_MISSILES", "Skirmish missiles", 1.0, 6.0, 1.0],
-	["HAZARD_MIN_GAP", "Interlude gap MIN", 3.0, 20.0, 0.5],
-	["HAZARD_MAX_GAP", "Interlude gap MAX", 3.0, 30.0, 0.5],
+# --- Per-boss config. Each: name, scene, config (user:// JSON), snippet_file (where Copy pastes back),
+# faction (Factions.Id for the gated run-up waves; -1 = generic), own_knobs (boss-specific @export knobs,
+# [key,label,min,max,step]), int_keys (own_knobs emitted as int in the snippet), triggers ([label, maneuver
+# name]), actions ([label, action id → _do_action]).
+const BOSSES := [
+	{
+		"name": "Zealot Battleship",
+		"scene": "res://scenes/enemies/factions/zealot/boss_z_battleship.tscn",
+		"config": "user://tuners/battleship.json",
+		"snippet_file": "scripts/enemies/bosses/boss_z_battleship.gd",
+		"faction": 3,   # Factions.Id.ZEALOT
+		"own_knobs": [
+			["HIGH_HOLD_Y", "High hold Y (px)", -120.0, 140.0, 2.0],
+			["BLOCKADE_Y", "Blockade hold Y (px)", -60.0, 140.0, 2.0],
+			["BEAM_HOLD", "Beam hold (s)", 0.5, 8.0, 0.25],
+			["BLOCKADE_HOLD", "Blockade hold (s)", 0.5, 8.0, 0.25],
+			["HAZARD_MIN_GAP", "Hazard gap MIN (s)", 2.0, 20.0, 0.5],
+			["HAZARD_MAX_GAP", "Hazard gap MAX (s)", 2.0, 30.0, 0.5],
+			["HAZARD_SWEEP_SPEED", "Hazard sweep speed", 10.0, 120.0, 5.0],
+		],
+		"int_keys": [],
+		"triggers": [
+			["Hook: Firecores", "hook_firecores"],
+			["Hook: Laser", "hook_laser"],
+			["Hook: Blockade", "hook_blockade"],
+			["Slide: Firecores", "firecore_slide"],
+			["Slide: Laser", "laser_slide"],
+			["Lane Laser", "lane_laser"],
+			["Hazard: Lane Laser", "hazard_lane_laser"],
+			["Hazard: Sweep", "hazard_sweep"],
+		],
+		"actions": [
+			["Destroy parts", "destroy_parts"],
+		],
+	},
+	{
+		"name": "Corporate Director",
+		"scene": "res://scenes/enemies/factions/corporate/boss_c_director.tscn",
+		"config": "user://tuners/director.json",
+		"snippet_file": "scripts/enemies/bosses/boss_c_director.gd",
+		"faction": 2,   # Factions.Id.CORPORATE — the Director only appears with corpo enemies
+		"own_knobs": [
+			["ARRIVE_Y", "Combat hold Y (px)", -40.0, 180.0, 2.0],
+			["PARK_Y", "BG park Y (px)", -40.0, 180.0, 2.0],
+			["SECTION_HP", "Section HP (per stage)", 10.0, 200.0, 5.0],
+			["SECTION_DEBRIS", "Section debris pieces", 0.0, 16.0, 1.0],
+			["WING_HP", "Wing cannon HP", 20.0, 300.0, 10.0],
+			["GUN_VOLLEYS", "Gun volleys", 1.0, 8.0, 1.0],
+			["GUN_BEAT", "Gun beat (s)", 0.1, 2.0, 0.05],
+			["WING_BEAM_HOLD", "Wing beam hold (s)", 0.5, 6.0, 0.25],
+			["RUSH_DUR", "Rush / exit dur (s)", 1.0, 5.0, 0.2],
+			["KNOCK_UP", "Knock-away up", 0.0, 220.0, 4.0],
+			["KNOCK_SIDE", "Knock-away side", 0.0, 120.0, 4.0],
+			["MISSILE_SALVO", "Missiles / salvo", 1.0, 8.0, 1.0],
+			["MISSILE_SHOT_DELAY", "Missile shot delay", 0.0, 1.0, 0.05],
+			["BARRAGE_SALVO_GAP", "Barrage salvo gap", 0.5, 5.0, 0.25],
+			["LANE_STRIKE_SPOTS", "Lane-strike spots", 2.0, 10.0, 1.0],
+			["SKIRMISH_STOPS", "Skirmish stops", 2.0, 10.0, 1.0],
+			["SKIRMISH_SLIDE_X", "Skirmish slide (px)", 20.0, 100.0, 4.0],
+			["SKIRMISH_BURST_SHOTS", "Skirmish burst shots", 1.0, 6.0, 1.0],
+			["SKIRMISH_BURST_GAP", "Skirmish burst gap", 0.05, 0.6, 0.02],
+			["SKIRMISH_MISSILES", "Skirmish missiles", 1.0, 6.0, 1.0],
+			["HAZARD_MIN_GAP", "Interlude gap MIN", 3.0, 20.0, 0.5],
+			["HAZARD_MAX_GAP", "Interlude gap MAX", 3.0, 30.0, 0.5],
+		],
+		"int_keys": ["SECTION_HP", "SECTION_DEBRIS", "WING_HP", "GUN_VOLLEYS", "MISSILE_SALVO", "LANE_STRIKE_SPOTS", "SKIRMISH_STOPS", "SKIRMISH_BURST_SHOTS", "SKIRMISH_MISSILES"],
+		"triggers": [
+			["Gun Charge", "gun_charge"],
+			["Laser Lane", "laser_lane"],
+			["Missile Weave", "missile_weave"],
+			["Cannon Skirmish", "cannon_skirmish"],
+			["Missile Barrage", "missile_barrage"],
+			["Missile Lane-Strike", "missile_lane_strike"],
+		],
+		"actions": [
+			["Destroy wings", "destroy_wings"],
+			["Kill (all sections)", "kill_body"],
+		],
+	},
 ]
 
-# Whole-number knobs (emitted without a decimal in the snippet).
-const INT_KEYS := ["SECTION_HP", "SECTION_DEBRIS", "WING_HP", "GUN_VOLLEYS", "MISSILE_SALVO", "LANE_STRIKE_SPOTS", "SKIRMISH_STOPS", "SKIRMISH_BURST_SHOTS", "SKIRMISH_MISSILES"]
-
-# Trigger buttons: label, maneuver-name (boss.MANEUVER_NAMES)
-const TRIGGERS := [
-	["Gun Charge", "gun_charge"],
-	["Laser Lane", "laser_lane"],
-	["Missile Weave", "missile_weave"],
-	["Cannon Skirmish", "cannon_skirmish"],
-	["Missile Barrage", "missile_barrage"],
-	["Missile Lane-Strike", "missile_lane_strike"],
-]
-
+var _boss_idx: int = 0
+var _cfg: Dictionary = {}
 var _values: Dictionary = {}
 var _spins: Dictionary = {}
 var _status_label: Label = null
@@ -80,6 +128,11 @@ var _boss = null
 var _player = null
 var _director = null
 var _hd_scope: HdViewportScope = null
+
+# Dynamic UI sections rebuilt on each boss switch.
+var _trigger_grid: GridContainer = null
+var _action_row: HBoxContainer = null
+var _knob_box: VBoxContainer = null
 
 
 class DummyPlayer extends Area2D:
@@ -98,7 +151,7 @@ class DummyPlayer extends Area2D:
 		poly.color = Color(0.4, 0.9, 1.0)
 		poly.z_index = 10
 		add_child(poly)
-	func take_damage(_d: int = 0) -> void: pass   # never dies (lab target)
+	func take_damage(_d: int = 0) -> void: pass   # never dies (bench target)
 	func take_hit(_d: int = 1) -> bool: return false
 	func _process(dt: float) -> void:
 		var v := Vector2(Input.get_axis("left", "right"), Input.get_axis("up", "down"))
@@ -110,15 +163,13 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_ui()
 	_build_preview()
-	_seed_values()
-	_load_from_disk()
-	_apply_all_to_boss()
+	await _select_boss(_boss_idx)
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("silent")
 
 
 func _all_knobs() -> Array:
-	return PHYS_KNOBS + DIR_KNOBS
+	return PHYS_KNOBS + (_cfg.get("own_knobs", []) as Array)
 
 
 # --- UI -------------------------------------------------------------------
@@ -135,29 +186,30 @@ func _build_ui() -> void:
 	root.add_child(rail)
 
 	var title := Label.new()
-	title.text = "DIRECTOR LAB"
+	title.text = "BOSS BENCH"
 	title.add_theme_font_size_override("font_size", 22)
 	rail.add_child(title)
 	var hint := Label.new()
-	hint.text = "Arrow keys fly the (invulnerable) player. Shoot the body to feel the knock-away."
+	hint.text = "Arrow keys fly the (invulnerable) player."
 	hint.add_theme_color_override("font_color", Color(0.7, 0.8, 0.95))
 	rail.add_child(hint)
 
+	rail.add_child(_section("Boss"))
+	var picker := OptionButton.new()
+	for b in BOSSES:
+		picker.add_item(String(b["name"]))
+	picker.selected = _boss_idx
+	picker.item_selected.connect(_on_boss_selected)
+	rail.add_child(picker)
+
 	rail.add_child(_section("Trigger maneuver / interlude"))
-	var tgrid := GridContainer.new()
-	tgrid.columns = 2
-	tgrid.add_theme_constant_override("h_separation", 6)
-	tgrid.add_theme_constant_override("v_separation", 4)
-	rail.add_child(tgrid)
-	for t in TRIGGERS:
-		var nm: String = String(t[1])
-		_add_button(tgrid, String(t[0]), func(): _trigger(nm))
-	var trow := HBoxContainer.new()
-	rail.add_child(trow)
-	_add_button(trow, "Random", func(): _trigger(""))
-	_add_button(trow, "Respawn", _respawn_boss)
-	_add_button(trow, "Destroy wings", _destroy_wings)
-	_add_button(trow, "Kill (all sections)", _kill_body)
+	_trigger_grid = GridContainer.new()
+	_trigger_grid.columns = 2
+	_trigger_grid.add_theme_constant_override("h_separation", 6)
+	_trigger_grid.add_theme_constant_override("v_separation", 4)
+	rail.add_child(_trigger_grid)
+	_action_row = HBoxContainer.new()
+	rail.add_child(_action_row)
 
 	rail.add_child(_section("Full combat (director-gated waves)"))
 	var crow := HBoxContainer.new()
@@ -169,11 +221,9 @@ func _build_ui() -> void:
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size = Vector2(0, 320)
 	rail.add_child(scroll)
-	var kbox := VBoxContainer.new()
-	kbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(kbox)
-	for spec in _all_knobs():
-		kbox.add_child(_make_knob_row(spec))
+	_knob_box = VBoxContainer.new()
+	_knob_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(_knob_box)
 
 	var brow := HBoxContainer.new()
 	rail.add_child(brow)
@@ -187,9 +237,9 @@ func _build_ui() -> void:
 
 	_status_label = Label.new()
 	_status_label.add_theme_color_override("font_color", Color(0.6, 1.0, 0.6))
-	_status_label.text = "Editing director.json"
 	rail.add_child(_status_label)
 
+	# Preview: native-480 SubViewport, crisp 3× upscale.
 	var svc := SubViewportContainer.new()
 	svc.position = Vector2(420, 40)
 	svc.stretch = true
@@ -203,6 +253,30 @@ func _build_ui() -> void:
 	_world.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	svc.add_child(_world)
 	add_child(svc)
+
+
+# Repopulate the per-boss sections (triggers, actions, knob rows) for _cfg.
+func _rebuild_dynamic() -> void:
+	_spins.clear()
+	_clear(_trigger_grid)
+	_clear(_action_row)
+	_clear(_knob_box)
+	for t in (_cfg.get("triggers", []) as Array):
+		var nm: String = String(t[1])
+		_add_button(_trigger_grid, String(t[0]), func(): _trigger(nm))
+	_add_button(_action_row, "Random", func(): _trigger(""))
+	_add_button(_action_row, "Respawn", _respawn_boss)
+	for a in (_cfg.get("actions", []) as Array):
+		var id: String = String(a[1])
+		_add_button(_action_row, String(a[0]), func(): _do_action(id))
+	for spec in _all_knobs():
+		_knob_box.add_child(_make_knob_row(spec))
+
+
+func _clear(node: Node) -> void:
+	for c in node.get_children():
+		node.remove_child(c)
+		c.queue_free()
 
 
 func _section(text: String) -> Label:
@@ -251,6 +325,7 @@ func _apply_all_to_boss() -> void:
 		_boss.set(key, _values[key])
 
 
+# Seed the knob values from the live boss's export defaults.
 func _seed_values() -> void:
 	for spec in _all_knobs():
 		var key: String = String(spec[0])
@@ -260,16 +335,38 @@ func _seed_values() -> void:
 			(_spins[key] as SpinBox).set_value_no_signal(dv)
 
 
+# --- Boss selection -------------------------------------------------------
+
+func _on_boss_selected(idx: int) -> void:
+	await _select_boss(idx)
+
+
+func _select_boss(idx: int) -> void:
+	_stop_combat()
+	if _boss != null and is_instance_valid(_boss):
+		_boss.queue_free()
+		_boss = null
+		await get_tree().process_frame
+	_boss_idx = idx
+	_cfg = BOSSES[idx]
+	_values.clear()
+	_rebuild_dynamic()
+	_spawn_boss()
+	_seed_values()
+	_load_from_disk()   # override seed with any saved tuning for THIS boss
+	_apply_all_to_boss()
+	_set_status("Editing %s" % _cfg_file())
+
+
 # --- Preview --------------------------------------------------------------
 
 func _build_preview() -> void:
 	if _world == null:
 		return
-	var bw := Node2D.new()
+	var bw := Node2D.new()          # projectile / firecore sink INSIDE the SubViewport (BulletWorld group)
 	bw.add_to_group("bullet_world")
 	_world.add_child(bw)
 	_spawn_backdrop()
-	_spawn_boss()
 	_player = DummyPlayer.new()
 	_player.position = Vector2(Playfield.CENTER.x, Playfield.Y_MAX - 30.0)
 	_world.add_child(_player)
@@ -288,13 +385,13 @@ func _spawn_backdrop() -> void:
 
 
 func _spawn_boss() -> void:
-	var scn := load(BOSS_SCENE) as PackedScene
+	var scn := load(String(_cfg["scene"])) as PackedScene
 	if scn == null:
 		return
 	_boss = scn.instantiate()
 	_world.add_child(_boss)
 	if _boss.has_method("start"):
-		_boss.start(Vector2(Playfield.CENTER.x, 330.0))
+		_boss.start(Vector2(Playfield.CENTER.x, 330.0))   # off-screen below (idle)
 	_apply_all_to_boss()
 
 
@@ -306,28 +403,6 @@ func _respawn_boss() -> void:
 	await get_tree().process_frame
 	_spawn_boss()
 	_set_status("Boss respawned")
-
-
-func _destroy_wings() -> void:
-	if _boss == null or not is_instance_valid(_boss):
-		return
-	for w in _boss._wings.duplicate():
-		if is_instance_valid(w) and w.has_method("destroy"):
-			w.destroy()
-	_set_status("Destroyed the wing cannons (Laser Lane now falls back)")
-
-
-# Kill every section + wing (the fight IS the sections → kill-all = death). Hits each a few times so the
-# 2-stage hood/missile fully clears.
-func _kill_body() -> void:
-	if _boss == null or not is_instance_valid(_boss):
-		return
-	for p in _boss.live_parts().duplicate():
-		for _n in 3:
-			if not is_instance_valid(p) or (p.has_method("is_destroyed") and p.is_destroyed()):
-				break
-			p.take_hit(999999)
-	_set_status("All sections destroyed → death sequence")
 
 
 func _trigger(nm: String) -> void:
@@ -342,21 +417,63 @@ func _trigger(nm: String) -> void:
 		_set_status("Playing: %s" % nm)
 
 
+# --- Per-boss special actions (dispatched from the config's `actions`) -----
+
+func _do_action(id: String) -> void:
+	match id:
+		"destroy_parts": _destroy_parts()
+		"destroy_wings": _destroy_wings()
+		"kill_body": _kill_body()
+
+
+func _destroy_parts() -> void:
+	if _boss == null or not is_instance_valid(_boss) or not _boss.has_method("live_parts"):
+		return
+	for p in _boss.live_parts().duplicate():
+		if is_instance_valid(p) and p.has_method("destroy"):
+			p.destroy()
+	_set_status("Destroyed all parts → death sequence")
+
+
+func _destroy_wings() -> void:
+	if _boss == null or not is_instance_valid(_boss) or not ("_wings" in _boss):
+		return
+	for w in _boss._wings.duplicate():
+		if is_instance_valid(w) and w.has_method("destroy"):
+			w.destroy()
+	_set_status("Destroyed the wing cannons (Laser Lane now falls back)")
+
+
+# Kill every section + wing (the fight IS the sections → kill-all = death). Hits each a few times so the
+# 2-stage hood/missile fully clears.
+func _kill_body() -> void:
+	if _boss == null or not is_instance_valid(_boss) or not _boss.has_method("live_parts"):
+		return
+	for p in _boss.live_parts().duplicate():
+		for _n in 3:
+			if not is_instance_valid(p) or (p.has_method("is_destroyed") and p.is_destroyed()):
+				break
+			p.take_hit(999999)
+	_set_status("All sections destroyed → death sequence")
+
+
 # --- Full gated combat ----------------------------------------------------
 
 func _run_combat() -> void:
 	_stop_combat()
 	if _boss == null or not is_instance_valid(_boss):
 		_spawn_boss()
+	var fac: int = int(_cfg.get("faction", -1))
 	var run := get_node_or_null("/root/Run")
 	if run != null:
-		run.forced_boss_scene = BOSS_SCENE
-		run.set_meta("active_faction", 2)   # CORPORATE — the Director only appears with corpo enemies
-	var score = WaveGen.build_score(1, 0, true, 2)   # 2 = CORPORATE faction run-up waves
+		run.forced_boss_scene = String(_cfg["scene"])
+		if fac >= 0:
+			run.set_meta("active_faction", fac)   # the boss's faction gates its run-up waves
+	var score = WaveGen.build_score(1, 0, true, fac)
 	_director = DirectorScript.new()
 	_director.max_concurrent = 16
 	_director.start_grace = 0.4
-	_world.add_child(_director)
+	_world.add_child(_director)   # enemies spawn as its children → into the SubViewport
 	_director.boss_gate = _boss
 	_director.start_score(score)
 	_set_status("Gated combat running (drain → maneuver → next wave)")
@@ -370,22 +487,26 @@ func _stop_combat() -> void:
 		if not is_instance_valid(e):
 			continue
 		if e == _boss or (_boss != null and is_instance_valid(_boss) and _boss.is_ancestor_of(e)):
-			continue
+			continue   # leave the boss + its parts
 		e.queue_free()
 	_set_status("Combat stopped")
 
 
 # --- Persistence + snippet ------------------------------------------------
 
+func _cfg_file() -> String:
+	return String(_cfg.get("config", "user://tuners/boss.json")).get_file()
+
+
 func _on_save() -> void:
 	DirAccess.make_dir_recursive_absolute("user://tuners")
-	var f := FileAccess.open(CONFIG_PATH, FileAccess.WRITE)
+	var f := FileAccess.open(String(_cfg["config"]), FileAccess.WRITE)
 	if f == null:
 		_set_status("Save FAILED")
 		return
 	f.store_string(JSON.stringify(_values, "\t"))
 	f.close()
-	_set_status("Saved → %s" % CONFIG_PATH)
+	_set_status("Saved → %s" % _cfg_file())
 
 
 func _on_load() -> void:
@@ -397,9 +518,10 @@ func _on_load() -> void:
 
 
 func _load_from_disk() -> bool:
-	if not FileAccess.file_exists(CONFIG_PATH):
+	var path := String(_cfg["config"])
+	if not FileAccess.file_exists(path):
 		return false
-	var f := FileAccess.open(CONFIG_PATH, FileAccess.READ)
+	var f := FileAccess.open(path, FileAccess.READ)
 	if f == null:
 		return false
 	var data = JSON.parse_string(f.get_as_text())
@@ -416,7 +538,8 @@ func _load_from_disk() -> bool:
 
 
 func _on_reset() -> void:
-	var scn := load(BOSS_SCENE) as PackedScene
+	# Reset to the boss SCRIPT defaults (a fresh instance's export values).
+	var scn := load(String(_cfg["scene"])) as PackedScene
 	var tmp = scn.instantiate() if scn != null else null
 	for spec in _all_knobs():
 		var key: String = String(spec[0])
@@ -438,13 +561,13 @@ func _on_copy() -> void:
 
 func _build_snippet() -> String:
 	var lines := PackedStringArray()
-	lines.append("# Director tuning (Director Lab). Director-specific @exports → boss_c_director.gd defaults:")
-	for spec in DIR_KNOBS:
+	lines.append("# %s tuning (Boss Bench). Boss-specific @exports → %s defaults:" % [String(_cfg["name"]), String(_cfg["snippet_file"])])
+	for spec in (_cfg.get("own_knobs", []) as Array):
 		var key: String = String(spec[0])
 		lines.append("@export var %s%s = %s" % [key, _type_of(key), _val_str(key)])
 	lines.append("")
-	lines.append("# Shared thrust knobs are inherited from physics_boss.gd — to give the Director its OWN feel")
-	lines.append("# without shadowing the base, set these in boss_c_director._ready() AFTER super._ready():")
+	lines.append("# Shared thrust knobs are inherited from physics_boss.gd — to give this boss its OWN feel")
+	lines.append("# without shadowing the base, set these in _ready() AFTER super._ready():")
 	for spec in PHYS_KNOBS:
 		var key: String = String(spec[0])
 		lines.append("\t%s = %s" % [key, _val_str(key)])
@@ -452,12 +575,12 @@ func _build_snippet() -> String:
 
 
 func _type_of(key: String) -> String:
-	return ": int" if key in INT_KEYS else ": float"
+	return ": int" if key in (_cfg.get("int_keys", []) as Array) else ": float"
 
 
 func _val_str(key: String) -> String:
 	var v: float = float(_values.get(key, 0.0))
-	if key in INT_KEYS:
+	if key in (_cfg.get("int_keys", []) as Array):
 		return str(int(round(v)))
 	return _fmt(v)
 
