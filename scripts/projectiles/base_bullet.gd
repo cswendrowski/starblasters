@@ -299,6 +299,10 @@ func _homing_target() -> Node2D:
 	for n in tree.get_nodes_in_group(target_group):
 		if not is_instance_valid(n) or not (n is Node2D):
 			continue
+		# Off-screen-kill hardening (2026-07-13): don't home an enemy that hasn't appeared yet / has left.
+		# Only for player bullets (target_group "enemies") — the player is always valid for enemy bullets.
+		if target_group == "enemies" and n.has_method("is_targetable") and not n.is_targetable():
+			continue
 		var d: float = (n as Node2D).global_position.distance_squared_to(global_position)
 		if d < best_d:
 			best_d = d

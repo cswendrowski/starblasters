@@ -129,6 +129,10 @@ func _sorted_targets(ship) -> Array:
 			continue
 		if e.has_meta("bulwark_shielded"):
 			continue
+		# Off-screen-kill hardening (2026-07-13): don't assign a swarm missile to an enemy that hasn't
+		# appeared yet / has left.
+		if e.has_method("is_targetable") and not e.is_targetable():
+			continue
 		out.append(e)
 	var sp: Vector2 = ship.global_position
 	out.sort_custom(func(a, b): return sp.distance_squared_to(a.global_position) < sp.distance_squared_to(b.global_position))

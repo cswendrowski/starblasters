@@ -321,6 +321,10 @@ func _find_homing_target_in_cone(fwd: Vector2):
 			continue
 		if n.has_meta("bulwark_shielded"):
 			continue
+		# Off-screen-kill hardening (2026-07-13): don't acquire a not-yet-appeared / exited enemy. This
+		# loop is only reached by player seeking missiles (the enemy-missile "player" branch returns above).
+		if n.has_method("is_targetable") and not n.is_targetable():
+			continue
 		var to_n: Vector2 = n.global_position - global_position
 		if to_n.length_squared() < 1.0:
 			continue
@@ -415,6 +419,10 @@ func _find_homing_target():
 			continue
 		if n.has_meta("bulwark_shielded"):
 			continue
+		# Off-screen-kill hardening (2026-07-13): don't acquire an enemy that hasn't appeared yet / has
+		# left — a player missile isn't top-bounded, so without this it chases into the spawn stack.
+		if n.has_method("is_targetable") and not n.is_targetable():
+			continue
 		var nd: float = abs(n.global_position.x - global_position.x) + abs(n.global_position.y - global_position.y)
 		if nd < best_d:
 			best_d = nd
@@ -496,6 +504,20 @@ func _leave() -> void:
 	super._leave()
 
 
+# Rockets/missiles are one-hit ordnance, not ships — they DETONATE, they don't do the ship-death
+# presentation. base_missile extends EnemyBase, so super.explode() would otherwise route through the
+# styled death (wreck/spin/flashout tumble) + the death battle-damage overlay, making a rocket read like
+# a dying ship. Force the classic instant blast instead so every rocket/missile (player + enemy) just
+# explodes (Roman 2026-07-09). Subclasses that own their whole death (swarm_missile / em_torpedo) never
+# call super.explode(), so this only governs the plain base_missile path (seekers, rockets, enemy_rocket).
+func _use_styled_death() -> bool:
+	return false
+
+
+func _apply_death_damage_overlay() -> void:
+	pass   # no livery to mask + no lingering hull — a missile just explodes
+
+
 func explode() -> void:
 	if _dying:
 		return
@@ -508,5 +530,6 @@ func explode() -> void:
 	var ImpactFxCls = load("res://scripts/effects/impact_fx.gd")
 	if ImpactFxCls:
 		ImpactFxCls.spawn(_fx_parent(), global_position, Color(1.0, 0.65, 0.25, 1.0), 1)
-	# Fall through to EnemyBase.explode for the standard die-emit + VFX.
+	# Fall through to EnemyBase.explode for the standard die-emit + classic-blast VFX (_use_styled_death
+	# is forced false above, so this never routes to the styled wreck/spin death).
 	super.explode()

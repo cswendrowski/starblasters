@@ -78,6 +78,11 @@ enum OffscreenMode { CYCLE_BOTTOM, FREE_ANY_EDGE, FREE_OPPOSITE_SIDE, NONE }
 # director._alive_slots() sums it for the density cap.
 const SLOT_CELL: float = 24.0
 var slot_weight: int = 1
+# LOCAL half-height (px) for the top-edge appearance gate in is_fully_offscreen(): a descending enemy
+# is not a valid hit target until its leading (bottom) edge crosses the visible top edge. Measured once
+# from the collision hull in _ready (same footprint as slot_weight); scaled by the live node scale at
+# read time. See is_fully_offscreen() / _appear_half_height().
+var _appear_half_h: float = 8.0
 # --- Locomotion stat block (chassis-owned kinematics; locomotion refactor 2026-06-19) ---
 # Movement patterns express SHAPE only and read these for SCALE (movement_pattern.gd accessors).
 # Resolved per-spawn from the roster (size base rung + engine modifier) in director._spawn_enemy;
@@ -253,6 +258,10 @@ func _ready() -> void:
 	if not is_in_group("enemies"):
 		add_to_group("enemies")
 	slot_weight = _compute_slot_weight()   # grid footprint for the slot-weighted concurrency cap
+	# Cache the local half-height for the top-edge appearance gate (is_fully_offscreen). Same collision-
+	# hull footprint the slot weight uses; a small floor covers anything the director can't measure.
+	var _fh: Vector2 = _measure_footprint_self()
+	_appear_half_h = maxf(_fh.y * 0.5, 4.0)
 	# Behavior components: duplicate per-instance, then fire on_start AFTER the spawner
 	# positions us (deferred so it lands after start(pos), uniformly for every enemy
 	# type). No-op while components is empty.
@@ -405,9 +414,15 @@ var _dmg_tells: Node = null
 var _flash_tween: Tween = null
 
 
+# Engine trails are CUT from all enemies/bosses (Roman 2026-07-11) — set true only by the firecore
+# ember, which still wants its yellow exhaust. Engine/thruster effects are moving to sprites instead.
+var engine_trail_enabled: bool = false
+
 # Find Engine* markers (recursive — they may sit under CollisionShape2D) and attach a
-# shared yellow trail. No-op when the enemy has no engine markers.
+# shared yellow trail. No-op when the enemy has no engine markers OR the trail is disabled.
 func _attach_engine_trail() -> void:
+	if not engine_trail_enabled:
+		return
 	var markers: Array = find_children("Engine*", "Marker2D", true, false)
 	if markers.is_empty():
 		return
@@ -964,7 +979,43 @@ func is_fully_offscreen() -> bool:
 		return false
 	var vp: Vector2 = get_viewport_rect().size
 	var m: float = offscreen_margin
-	return position.y < -m or position.y > vp.y + m or position.x < -m or position.x > vp.x + m
+	# WORLD position (Roman 2026-07-13): for a direct child of the world this equals `position`, but an
+	# enemy parented under a moving/offset holder (stronghold buildings, cruiser parts) has a LOCAL
+	# position that is its authored offset — using it made left/up-offset buildings read as permanently
+	# "off-screen", so take_hit() rejected every shot (hit flashed but never killed).
+	var gp: Vector2 = global_position
+	# EXIT edges (bottom + sides): keep the LENIENT cleanup margin — a leaver stays a valid target until
+	# it is clearly gone, so on-screen wobble at an edge never trips the hit-rejection.
+	if gp.y > vp.y + m or gp.x < -m or gp.x > vp.x + m:
+		return true
+	# TOP ENTRY edge (Roman 2026-07-13 off-screen-kill fix): reject hits until the enemy has actually
+	# APPEARED. Enemies spawn ABOVE the top edge (spawn_y = -12; pre-stacked formation rows higher) and
+	# descend in. The old code reused the +margin cleanup band here (gp.y < -32), which is the WRONG
+	# polarity for hit-rejection: it left the whole y ∈ [-32, 0] entry band hittable, so bullets, the
+	# pulse/particle beams, the smart bomb and seeking missiles could kill a fresh lead-row enemy (y=-12)
+	# before it ever crossed into view. Arm the target the instant its leading (bottom) edge reaches the
+	# visible top edge instead. Once it has entered, the _entered_playfield latch keeps it armed (a
+	# pattern may briefly lift it back above the edge). Self-contained geometry: does NOT rely on the
+	# latch being maintained — a stationary enemy that spawns on screen reads gp.y + half >= 0 and stays
+	# hittable (stationary enemies never run the cleanup that sets the latch).
+	if not _entered_playfield and (gp.y + _appear_half_height()) < 0.0:
+		return true
+	return false
+
+
+# World-space half-height for the appearance gate = the cached LOCAL half-height scaled by the live node
+# scale (the director sets scale = display_scale at spawn; reparented sub-units compose their holder's
+# scale via global_scale).
+func _appear_half_height() -> float:
+	return _appear_half_h * maxf(absf(global_scale.y), 0.05)
+
+
+# True when this enemy is a valid combat TARGET right now: it has appeared on screen (and not exited)
+# and is not mid parallax-recycle. Targeting SCANS (homing, hitscan, beam, AoE) filter on this so player
+# weapons don't ACQUIRE an enemy that hasn't appeared yet — defense-in-depth on top of the take_hit /
+# smart-bomb damage sinks, which re-check the same predicate before applying damage.
+func is_targetable() -> bool:
+	return not is_recycling() and not is_fully_offscreen()
 
 
 # Cheap player lookup. Returns null if the player isn't in the scene tree

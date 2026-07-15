@@ -124,6 +124,9 @@ func _nearest_threat() -> Node2D:
 	for n in tree.get_nodes_in_group("enemies"):
 		if not is_instance_valid(n) or not (n is Node2D):
 			continue
+		# Off-screen-kill hardening (2026-07-13): don't aim at an enemy that hasn't appeared yet / has left.
+		if n.has_method("is_targetable") and not n.is_targetable():
+			continue
 		var d: float = (n.global_position - global_position).length_squared()
 		if d < best_d:
 			best_d = d

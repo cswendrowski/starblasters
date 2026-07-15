@@ -153,6 +153,14 @@ class EmBurstRing extends Node2D:
 				continue
 			if (e as Node2D).global_position.distance_to(_center) > r:
 				continue
+			# Off-screen-kill hardening (2026-07-13): a combatant that hasn't appeared yet (or has left)
+			# must not consume a zap slot OR get its shields stripped / be tagged for the disable death
+			# before it enters view — the break_shields()/death_style side-effects in _zap_enemy run
+			# BEFORE the take_hit guard, so filter here. Enemy ordnance (target_group=="player") is a
+			# projectile, not an entering combatant — it's always safe to detonate, so exempt it.
+			var is_ordnance: bool = ("target_group" in e and String(e.get("target_group")) == "player")
+			if not is_ordnance and e.has_method("is_targetable") and not e.is_targetable():
+				continue
 			_hit[id] = true
 			_applied += 1
 			_zap_enemy(e)
