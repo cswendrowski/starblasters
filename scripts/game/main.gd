@@ -2,6 +2,7 @@ extends Node2D
 
 const Levels = preload("res://scripts/levels/levels_v2.gd")
 const WaveGen = preload("res://scripts/levels/wave_generator.gd")
+const StrongholdField = preload("res://scripts/levels/stronghold_field.gd")
 const AuthoredPatterns = preload("res://scripts/levels/authored_patterns.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
 const SectorNode = preload("res://scripts/systems/sector_node.gd")
@@ -35,6 +36,7 @@ var _current_score = null
 # into the Backdrop world AFTER the intro completes. Set by the showcase
 # subtype or the Run.set_meta("missile_cruiser", true) one-shot trigger.
 var _want_missile_cruiser: bool = false
+var _want_stronghold_field: bool = false
 # Showcase only: keep respawning the cruiser after each fly-through so the
 # tuner sees repeated salvos. Off for production one-shot spawns.
 var _missile_cruiser_respawn: bool = false
@@ -185,7 +187,9 @@ func _install_playfield_frame() -> void:
 	glass_layer.layer = 1
 	add_child(glass_layer)
 
-	var glass_bg = Color(0.04, 0.06, 0.10, 0.55)
+	# Fully opaque (Roman 2026-07-12) — the gutters read as solid console
+	# surface; the backdrop only shows through the playfield band.
+	var glass_bg = Color(0.04, 0.06, 0.10, 1.0)
 	var glass_edge = UiTheme.COLOR_ACCENT_DIM
 	for spec in [
 		{"name": "GutterLeft",  "x": 0.0,             "w": Playfield.X_MIN,           "edge": "right"},
@@ -361,13 +365,16 @@ func _on_wave_started(idx: int, total: int, silent: bool, announce_text: String 
 		return
 	_show_wave_banner(idx, total, announce_text)
 
-func _show_wave_banner(idx: int, total: int, announce_text: String = "") -> void:
+func _show_wave_banner(_idx: int, _total: int, announce_text: String = "") -> void:
+	# Numeric "WAVE X / X" banners retired (Roman 2026-07-12) — the HUD warn-light
+	# stack carries wave progress now. Only named announcements (boss inbound
+	# text etc.) still banner.
+	if announce_text == "":
+		return
 	var banner = WaveBannerScene.instantiate()
 	add_child(banner)
-	if announce_text != "" and banner.has_method("show_text"):
+	if banner.has_method("show_text"):
 		banner.show_text(announce_text)
-	elif banner.has_method("show_wave"):
-		banner.show_wave(idx, total)
 
 func _on_enemy_spawned(scene_path: String, bounty_value: int) -> void:
 	if scene_path == "":
@@ -512,7 +519,7 @@ func _on_level_cleared() -> void:
 			run.remove_meta("asteroid_miners_event")
 		# Hazard-clear bounty (Roman 2026-06-08): hazard fields (asteroid/minefield)
 		# otherwise pay 0 per-kill bounty — a flat +25 on clear so they're worth running.
-		if run.current_node_type == SectorNode.NodeType.HAZARD:
+		if run.current_node_type == SectorNode.NodeType.HAZARD and run.current_hazard_subtype != "asteroid_field":
 			run.award_bounty(25)   # advances Run.bounty (single source)
 			$CanvasLayer/UI.update_score(_current_bounty())
 			# The "field cleared" note now rides the hazard CLEAR SCREEN (Roman 2026-06-27)
@@ -684,24 +691,67 @@ func new_game() -> void:
 		if has_node("/root/Run"):
 			sd = get_node("/root/Run").sectors_cleared + 1
 			li = get_node("/root/Run").combats_in_sector
-		# The Corporate Director is a faction-locked boss — its run-up waves are CORPORATE enemies only
-		# (Roman 2026-07-08). Other bosses stay faction-agnostic (-1).
+		# BOSS LEAD-IN FACTION PURITY (faction-mix fix): the boss SCENE is faction-agnostic, but its
+		# ~5-6 lead-in run-up waves must still roll ONE faction. Passing -1 here left the Roster faction
+		# filter OFF, so _build_boss_waves drew chaff from the WHOLE cross-faction roster — the reported
+		# 3-faction mix on a boss level (a zealot boss over supremacy + privateer chaff). Faction-locked
+		# persistent bosses use their own faction; every other boss derives a DETERMINISTIC faction the
+		# same way a combat node does — boss nodes carry none in the sector cache, so pick_for_level off
+		# the run seed keeps it stable per node/retry.
 		var boss_faction: int = -1
 		if _bg_director:
-			boss_faction = Factions.Id.CORPORATE
-			if has_node("/root/Run"):
-				get_node("/root/Run").set_meta("active_faction", boss_faction)
+			boss_faction = Factions.Id.CORPORATE          # Corporate Director — corpo lead-in
+		elif _bg_battleship:
+			boss_faction = Factions.Id.ZEALOT             # Zealot Battleship — zealot lead-in
+		elif has_node("/root/Run"):
+			var brun = get_node("/root/Run")
+			boss_faction = Factions.pick_for_level(sd, li, int(brun.run_seed))
+			# Dev override: Test Combat -> Faction... forces a faction (persists across levels).
+			if brun.has_meta("forced_faction"):
+				boss_faction = int(brun.get_meta("forced_faction", boss_faction))
+		# Publish the resolved faction so the director themes the lead-in (livery + overlay) to match
+		# the filtered spawn pool. The boss itself is untagged → no overlay, and boss scenes carry no
+		# "Livery" node → no tint, so this only colours the run-up chaff.
+		if boss_faction >= 0 and has_node("/root/Run"):
+			get_node("/root/Run").set_meta("active_faction", boss_faction)
 		_current_level = WaveGen.build(sd, li, true, boss_faction)
 		wave_director.max_concurrent = WaveGen.cap_for(sd, li)
 	elif is_hazard:
 		if hazard_subtype == "asteroid_field":
-			# Hazards are now phrase-native CombatScores (lane-shaped drops +
-			# breathers); set _current_score directly so the chokepoint below
-			# (which only adapts a LevelData) leaves it untouched.
-			_current_score = Levels.build_asteroid_field_score()
-			# Conduct asteroids like enemies (Roman 2026-06-23): a concurrency cap so the
-			# field STREAMS at a navigable peak instead of walling up. Tunable for density.
-			wave_director.max_concurrent = 14
+			# Reframed 2026-07-13 as the "Asteroid Stronghold": standard faction combat (enemy ships)
+			# with loose rocks + authored stronghold prefabs overlaid as drifting ground hazards
+			# (StrongholdField, spawned at level start in _run_intro). Ships come from the normal
+			# generator so they follow standard faction rules; rocks + strongholds come from the overlay.
+			var sh_sd: int = 1
+			var sh_li: int = 0
+			var sh_faction: int = -1
+			if has_node("/root/Run"):
+				var shrun = get_node("/root/Run")
+				sh_sd = shrun.sectors_cleared + 1
+				sh_li = shrun.combats_in_sector
+				sh_faction = shrun.get_node_faction(shrun.current_node_id)
+				if sh_faction < 0:
+					sh_faction = Factions.pick_for_level(sh_sd, sh_li, int(shrun.run_seed))
+				if shrun.has_meta("forced_faction"):
+					sh_faction = int(shrun.get_meta("forced_faction", sh_faction))
+				shrun.set_meta("active_faction", sh_faction)
+			# Lighten the flying-enemy presence (ground targets are the focus): cap the ship
+			# generator's effective combat depth. Clamps BOTH wave composition AND the per-chaff
+			# HP bonus (which reads Run.combats_in_sector directly), so the ships stop reading as
+			# excessive tanky mediums. Tunable via Run meta "stronghold_ship_depth_cap" (default 1).
+			if has_node("/root/Run"):
+				var shr2 = get_node("/root/Run")
+				var ship_cap: int = int(shr2.get_meta("stronghold_ship_depth_cap", 1))
+				var real_ci: int = shr2.combats_in_sector
+				var ship_ci: int = mini(real_ci, ship_cap)
+				shr2.combats_in_sector = ship_ci
+				_current_level = WaveGen.build(sh_sd, ship_ci, false, sh_faction)
+				wave_director.max_concurrent = WaveGen.cap_for(sh_sd, ship_ci)
+				shr2.combats_in_sector = real_ci
+			else:
+				_current_level = WaveGen.build(sh_sd, sh_li, false, sh_faction)
+				wave_director.max_concurrent = WaveGen.cap_for(sh_sd, sh_li)
+			_want_stronghold_field = true
 		elif hazard_subtype == "roster_test":
 			_current_level = Levels.build_roster_test()
 		elif hazard_subtype == "firecore_drone_showcase":
@@ -892,6 +942,17 @@ func _run_intro(is_boss: bool) -> void:
 	else:
 		# Fallback for any LevelData that skipped the chokepoint (defensive).
 		wave_director.start_level(_current_level)
+	# Asteroid Stronghold field (Roman 2026-07-13): overlay loose rocks + authored stronghold prefabs
+	# as drifting ground hazards while the director runs faction combat. Finite + tunable via Run meta
+	# "stronghold_field_knobs" (enemies-vs-rocks-vs-prefabs ratios).
+	if _want_stronghold_field:
+		_want_stronghold_field = false
+		var sfield := StrongholdField.new()
+		add_child(sfield)
+		var sf_knobs: Dictionary = {}
+		if has_node("/root/Run") and get_node("/root/Run").has_meta("stronghold_field_knobs"):
+			sf_knobs = get_node("/root/Run").get_meta("stronghold_field_knobs", {})
+		sfield.start(sf_knobs)
 	# Zealot Battleship (Roman 2026-07-01): spawn the PERSISTENT boss now (level start) so it's present
 	# from wave 1, and register it as the director's wave gate (it plays one maneuver between waves).
 	if _bg_battleship:
@@ -1165,7 +1226,7 @@ func _run_outro() -> void:
 	var was_boss: bool = false
 	if has_node("/root/Run"):
 		var run = get_node("/root/Run")
-		is_hazard_level = run.current_node_type == SectorNode.NodeType.HAZARD
+		is_hazard_level = run.current_node_type == SectorNode.NodeType.HAZARD and run.current_hazard_subtype != "asteroid_field"
 		was_boss = run.current_node_type == SectorNode.NodeType.BOSS
 	# Stash combat-only bounty (delta from start) so the summary can render
 	# context lines like the asteroid-mining "miners thank you" message
