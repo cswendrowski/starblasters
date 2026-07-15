@@ -100,6 +100,13 @@ func _run() -> void:
 	var alm: Vector3 = bd.get("asteroid_layer_mult")                                  # coordinator export
 	_ck(alm.is_equal_approx(Vector3(2.0, 1.0, 0.7)),
 		"PROPOSED asteroid_layer_mult == (2,1,0.7) (%s)" % alm)
+	# WP9: star FX tiers land on LayerPlanet under PROPOSED.
+	_expect_bool("PROPOSED star_fx on LayerPlanet", lp.get("star_fx"), true)      # layer_planet export
+	_expect("PROPOSED star_sparkle_max", lp.get("star_sparkle_max"), 32.0)
+	_expect("PROPOSED star_clamp_max", lp.get("star_clamp_max"), 120.0)
+	_expect("PROPOSED halo_scale_mult", lp.get("halo_scale_mult"), 1.0)
+	_expect_bool("PROPOSED star_fx _vals value true", lab._vals.get("star_fx"), true)
+
 	# pixel_snap OFF under PROPOSED -> viewport snap OFF (the property acts viewport-wide).
 	var sub7 = lab._backdrop_sub
 	_ck(sub7 != null and is_instance_valid(sub7), "backdrop SubViewport exists (WP7)")
@@ -125,6 +132,11 @@ func _run() -> void:
 	_expect_bool("CURRENT pixel_snap value true", lab._vals.get("pixel_snap"), true)
 	if sub7 != null:
 		_expect_bool("CURRENT pixel_snap ON -> viewport snap ON", sub7.snap_2d_transforms_to_pixel, true)
+	# WP9 CURRENT: star FX off, thresholds back at the inert defaults.
+	_expect_bool("CURRENT star_fx off", lp.get("star_fx"), false)
+	_expect("CURRENT star_sparkle_max", lp.get("star_sparkle_max"), 32.0)
+	_expect("CURRENT star_clamp_max", lp.get("star_clamp_max"), 120.0)
+	_expect("CURRENT halo_scale_mult", lp.get("halo_scale_mult"), 1.0)
 
 	# ── WP4: forced_kind round-trip (Asteroid) ───────────────────────────────
 	lab._on_kind_selected(3)   # KIND_VALUES[3] == "asteroid"
@@ -151,7 +163,10 @@ func _run() -> void:
 	if not ("forced_planet_idx" in bd):
 		_fail("property 'forced_planet_idx' NOT on coordinator")
 	_check_names(block, ln, ["scroll_rate", "brightness", "contrast", "nebula_alpha", "drift_variance", "asteroid_min_size", "asteroid_max_size", "asteroid_size_pow"])
-	_check_names(block, lp, ["scroll_rate", "lateral_wander", "body_parallax", "pixel_snap"])
+	_check_names(block, lp, ["scroll_rate", "lateral_wander", "body_parallax", "pixel_snap",
+		"star_fx", "star_sparkle_max", "star_clamp_max", "halo_scale_mult",
+		"halo_mid_alpha", "halo_core_intensity",
+		"sparkle_decay", "sparkle_scale_mult", "dot_size_frac", "dot_hdr"])
 	_check_names(block, ls, ["streak_speed", "streak_alpha", "streak_count", "streak_speed_variance_min", "streak_tint"])
 	_check_names(block, stars, ["key_tint"])
 	# WP7: HD raster is a lab-only render mode — it must NEVER appear in the shipped Copy block.
@@ -210,6 +225,29 @@ func _run() -> void:
 	if panel != null:
 		_ck(panel.size.x <= LabScript.PANEL_W + 4.0,
 			"panel width %.1f fits column %.0f" % [panel.size.x, LabScript.PANEL_W])
+
+	# ── WP11: composition source (Composer / Gameplay) round-trip ─────────────
+	# Composer (default / index 0) → the coordinator's stellar_override is empty.
+	lab._on_source_selected(0)
+	await process_frame
+	_ck((bd.get("stellar_override") as Dictionary).is_empty(), "Composer source → stellar_override empty")
+	_expect_bool("Composer source → composer fallback ON", bd.get("use_composer_fallback"), true)
+	# Gameplay (index 1) → override authored + non-empty; composer fallback off; Generate rolls a node.
+	lab._on_source_selected(1)
+	await process_frame
+	lab._on_generate_new()
+	await process_frame
+	await process_frame
+	_ck(not (bd.get("stellar_override") as Dictionary).is_empty(), "Gameplay Generate → stellar_override non-empty")
+	_expect_bool("Gameplay source → composer fallback OFF", bd.get("use_composer_fallback"), false)
+	lab._refresh_status_line()
+	_ck(lab._status_line != null and String(lab._status_line.text).contains("src=gameplay"),
+		"Gameplay status line contains src=gameplay (%s)" % (lab._status_line.text if lab._status_line else "-"))
+	# Back to Composer → override cleared, fallback restored.
+	lab._on_source_selected(0)
+	await process_frame
+	_ck((bd.get("stellar_override") as Dictionary).is_empty(), "back to Composer → stellar_override cleared")
+	_expect_bool("back to Composer → composer fallback ON", bd.get("use_composer_fallback"), true)
 
 	_finish()
 

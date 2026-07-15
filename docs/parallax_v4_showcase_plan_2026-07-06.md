@@ -352,6 +352,136 @@ if it drops in cleanly; else `hframes = 3, frame = 1`. Same playfield-band clamp
 - Planet section: `body_parallax` slider 0–1.5 (CURRENT 0, PROPOSED 1.0).
 - Presets/JSON/Copy block updated (real names only); lab test extended for the new keys.
 
+## WP8–9 — star FX tiers: sparkle / halo / clamp (added 2026-07-08, Roman's spec)
+
+> **STATUS: BOTH BUILT + VERIFIED 2026-07-08 (WP9 finished by the orchestrator after the
+> agent hit a session limit mid-test).** As-built: all logic in layer_planet.gd behind
+> `star_fx` (default off, byte-identical); exports `star_sparkle_max 32` / `star_clamp_max
+> 120` / `halo_scale_mult 1.0`. Sparkle rect = 2× star (Shader Lab ratio), `scale` param
+> 4300 scaled by star_px/32, params verbatim from Roman's block, white center dot at 3× HDR.
+> Halo = Star Glow recipe, 3-stop gradient from the kit's own palette (luma-sorted,
+> SDR-normalized), lerp(98,360) on the 32→120 anchors. Sparkle/halo shaders run on raw
+> shader TIME (matches pulse_glow convention — keeps animating under pause; acceptable for
+> backdrop). glow_boost path fully replaced when on. DEVIATION (accepted): rare 15%
+> companion binary stars stay on the plain kit path. Lab: STAR FX section + tier readout in
+> the status line (`star=sparkle@24px`). NOTE: an unrelated pre-existing
+> patrol_start/livery_color.gdshader UID error appears in headless boots — Roman's parallel
+> main-menu work, not this build.
+>
+> **Post-drive fixes (Roman's screenshots, 2026-07-08):** (1) the sparkle-tier "dot" was a
+> square ColorRect — at 3× HDR the bloom rendered a glowing SLAB; now a Sprite2D on the
+> shared radial-falloff `_build_halo_texture` (round core, bloom does the flare). (2) Halo
+> anchors re-set from Roman's first-pass ×3 spec (98/360) to the Shader-Lab-proven **star×2**
+> (64 @ 32px → 240 @ 120px) — the 3:1 render + additive gradient + HDR kit bloom read far
+> larger than the lab reference; `halo_scale_mult` slider widened to 0.5–2.0 (×1.5
+> reproduces the original 360 spec).
+>
+> **WP10 (2026-07-08, Roman-sanctioned PRODUCTION change): Nebula Lab tune ported to the V4
+> nebula.** layer_stellar gains `nebula_warp_strength/warp_scale/wisp_strength/breathe_speed/
+> phase` exports consumed by `_spawn_nebula` (old hardcoded warp 0.8/wisp 0.2/opacity 1.0
+> retired); per-layer values from Roman's `user://tuners/nebula_lab.json` baked into
+> `layer_stellar_{far,mid,near}.tscn` (Far moved off the legacy nebula.gdshader to nebula2;
+> alphas 1.0/0.5/1.0; density+opacity breathe frozen at per-layer phases 0/2.1/4.2; the old
+> random 1.0–1.5 alpha multiplier dropped for determinism). Nebula Lab's Copy block now emits
+> the REAL export names (closes the review's no-landing-site finding); AltB stays lab-only
+> (Roman's tune is all-Neb2). Showcase NEBULA alpha presets re-anchored to 1.0/0.5/1.0.
+> FLAGGED: the coordinator flattens per-layer swirl to its single global 0.25 whenever a POI
+> band is present — Roman's per-layer swirl (0.16/0.16/0.7) needs a coordinator model change
+> to express in combat. Halo brightness levers `halo_mid_alpha` + `halo_core_intensity`
+> exposed in STAR FX.
+
+Stars in the parallax get a size-tiered rendering treatment, behind
+`@export var star_fx: bool = false` (inert default; showcase PROPOSED = on). Applies to
+every star body the planet layer renders (main planet idx 8 AND system star entries).
+All thresholds/sizes below are lab-tunable consts/exports.
+
+### Tiers (display px = the star's actual_size)
+1. **< 32px — sparkle swap.** The PixelPlanets Star kit is NOT instanced. Instead:
+   - A ColorRect running `graphics/sparkle_star.gdshader` (the sparkle backdrop), shader
+     `color` = the star's color, sized proportionally to the star (reference: Roman's
+     Shader Lab block below is tuned at star size 32 — read `scripts/dev/shader_lab.gd`
+     for the lab's rect-vs-star sizing and scale-param handling; sparkle rect + `scale`
+     param must shrink with the star).
+   - A white HDR-glow dot at center, same px size as the replaced star (HDR-bright
+     modulate so the WorldEnvironment blooms it).
+2. **32–120px — halo.** PixelPlanets star + `graphics/pixel_halo_glow.gdshader` halo
+   (Shader Lab "Star Glow" mode is the reference implementation — 1:1 pixel sizing via
+   pixelation=size, 3-colour gradient from the star's colors, ANCHOR-NORMALIZE before
+   sizing or SIGSEGV). Halo size lerps on star size: 32px → 98px, 120px → 360px
+   (≈3.06→3.0 ratio, effectively halo ≈ star×3, linear between the two anchor points).
+3. **> 120px — clamp.** Star bodies are capped at 120px display size when star_fx is on
+   (the halo stops looking good past that, and stars are bright enough to carry a scene
+   at 120). Composer near_star scales (0.75-1.2 × 330 ceiling ≈ 247-396px) hit this
+   clamp — the layer clamps at spawn; the composer is untouched.
+
+Roman's sparkle reference block (Shader Lab export, tuned at star size 32):
+```gdscript
+mat.set_shader_parameter("color", Color("b1ff71ff"))   # ← replaced by star color
+mat.set_shader_parameter("scale", 4300.0)
+mat.set_shader_parameter("circle_ratio", 0.00)
+mat.set_shader_parameter("decay_magnitude", 0.12)
+mat.set_shader_parameter("cut_magnitude", 0.000)
+mat.set_shader_parameter("rotate_speed", 0.00)
+mat.set_shader_parameter("time_speed", 1.00)
+mat.set_shader_parameter("frequency_base", 1.75)
+mat.set_shader_parameter("frequency_disturbance_scale", 2.35)
+mat.set_shader_parameter("stop_shine", true)
+```
+
+### WP8 (engine — layer_planet.gd + coordinator pass-through)
+- `star_fx` export + the three tiers at every star spawn site; sparkle/halo children must
+  ride the body (position/scale/cleanup with it, register with per-body parallax as ONE
+  unit), be cleared by clear_planet(), and respect determinism (no unseeded randomness).
+- Existing glow_boost halo (WP5's distant-star boost) folds INTO this system when star_fx
+  is on (don't double-halo); untouched when off.
+- Consts for the knobs: `STAR_SPARKLE_MAX := 32.0`, `STAR_HALO_MAX := 120.0`,
+  halo anchors (32→98, 120→360). Verify against tests.
+
+### WP9 (lab wiring)
+- STAR FX section: master CheckButton (_vals "star_fx", CURRENT false, PROPOSED true;
+  respawn-class), sliders for sparkle-max (8–48), star-clamp (60–200), halo-scale mult
+  (0.5–1.5 on the lerped size). Force kind=System + regenerate to demo.
+- Copy block: star_fx + the threshold values (real property names). Tests extended.
+
+## WP11 — gameplay-true generation in the showcase (added 2026-07-08, Roman's spec)
+
+> **STATUS: BUILT + VERIFIED 2026-07-08.** As-built: `stellar_gameplay.gd` (verbatim move,
+> all rng salts checked); map delegates (+32/−121; unreachable private funcs deliberately
+> left to minimize parallel-session diff — cleanup later); coordinator `stellar_override`
+> (plain var, empty = byte-identical production); lab Source [Composer|Gameplay] + Sector
+> depth slider; node weights combat .46 / asteroid .16 / mine .14 / belt-adj .16 / boss .08.
+> PRODUCTION change (sanctioned): the row star's intrinsic scale was a CONSTANT 1.0 — now a
+> per-ROW continuous roll (isolated rng salt `star_scale:row:seed`; deco stream untouched so
+> planet picks stay byte-identical) using the composer's size curve, in map AND lab. The
+> pre-existing `tools/test_row_system.gd` regression suite still passes.
+
+The showcase's Generate New only exercises the composer fallback; real gameplay backdrops
+come from the sector map's per-node authoring (`sector_map_v3._compute_poi_stellar` /
+`_compute_boss_stellar` / `_compute_row_system` + `asteroid_base_color` meta). Roman wants
+the showcase to roll THE SORTS OF BACKGROUNDS PLAY PRODUCES — keeping V4 compositing + the
+new star-FX scaling.
+
+1. **Extract, don't imitate:** move the sector map's stellar-authoring into a static module
+   `scripts/parallax/stellar_gameplay.gd` (verbatim logic move), taking a lightweight node
+   descriptor {node id, row, hazard_subtype, belt-adjacency flag, sectors_cleared, run_seed}.
+   Rewire sector_map_v3 to delegate to it (thin calls, minimal diff — Roman runs a parallel
+   session; keep the map edit surgical). One implementation = the showcase stays true as
+   the map evolves.
+2. **Coordinator override input:** `stellar_override: Dictionary` (empty = production
+   behavior unchanged) consumed by _populate ahead of Run.current_stellar; carries
+   `asteroid_base_color` too (production gets it via Run meta; the lab must NOT write Run —
+   the P1 lesson). Palette/star-FX tiers apply as normal.
+3. **Showcase GAMEPLAY mode:** a source toggle (Composer / Gameplay). Gameplay rolls a
+   simulated node: run_seed (stored), row/sectors_cleared slider (drives exotic-star odds),
+   node-type weighting approximating a real map (combat / asteroid_field / minefield /
+   belt-adjacent / boss), authors via the module, feeds stellar_override + regenerate.
+   Status line gains node type + row.
+4. **Star scaling continuity:** the star-FX tiers (clamp/sparkle/halo/glint) apply to
+   sector-map dicts automatically at the layer. BUT if _compute_row_system's star scale is
+   near-constant across nodes (exponential _stage_scale at frac 0), inject the composer's
+   continuous star-scale roll (seeded per node) into the module's system authoring so
+   gameplay stars get the new size variety — flag what was found.
+
 ## Explicitly OUT of scope (this build)
 
 - Changing any production default (the presets live in the lab; shipping PROPOSED = a later

@@ -12,6 +12,7 @@ extends SceneTree
 
 const SCENE := "res://scenes/parallax/backdrop_coordinator.tscn"
 const StellarComposer = preload("res://scripts/parallax/stellar_composer.gd")
+const StellarGameplay = preload("res://scripts/parallax/stellar_gameplay.gd")
 
 var _fails: int = 0
 
@@ -83,6 +84,32 @@ func _floats_equal(a: Array, b: Array) -> bool:
 		if not is_equal_approx(a[i], b[i]):
 			return false
 	return true
+
+
+# True when the ColorRect runs a ShaderMaterial whose shader path contains `frag`.
+func _is_shader(cr: ColorRect, frag: String) -> bool:
+	var m = cr.material
+	return m is ShaderMaterial and m.shader != null and String(m.shader.resource_path).find(frag) >= 0
+
+
+# A minimal gameplay descriptor (StellarGameplay.compute_poi_stellar input) for a plain combat node
+# in a synthetic 4-POI row. Mirrors the lab's _synth_row_pois shape.
+func _gp_desc(run_seed: int, row: int, sectors: int) -> Dictionary:
+	var pois: Array = []
+	for i in 4:
+		pois.append({"id": "s0_r%d_p%d" % [row, i], "pos_x": 160.0 + float(i) * 64.0})
+	var idx: int = abs(run_seed) % pois.size()
+	return {
+		"id": String(pois[idx]["id"]),
+		"row": row,
+		"pos_x": float(pois[idx]["pos_x"]),
+		"row_end_x": 448.0,
+		"hazard_subtype": "",
+		"belt_adjacent": false,
+		"sectors_cleared": sectors,
+		"run_seed": run_seed,
+		"row_pois": pois,
+	}
 
 
 func _rocks_equal(a: PackedVector2Array, b: PackedVector2Array) -> bool:
@@ -300,6 +327,156 @@ func _run() -> void:
 	for _i in 10:
 		coord._process(0.016)
 	_ck(not is_equal_approx(pl.offset.y, oy_f), "pixel_snap=false boots + scrolls (%.3f)" % pl.offset.y)
+
+	# ─── WP8: star FX tiers (sparkle / halo / clamp) ──────────────────────────
+	pl.body_parallax = 0.0
+	coord.use_palette = false
+	coord.use_composer_fallback = true
+	coord.forced_planet_idx = -1
+	coord.forced_kind = "system"     # always spawns a star (idx 8) at frac 0
+
+	# (a) star_fx OFF (default) → the star is a PixelPlanets kit, no star-fx container.
+	pl.star_fx = false
+	coord.regenerate(1212)
+	var off_kit := false
+	var off_tier := false
+	for c in pl.get_children():
+		if c.has_method("update_time"):
+			off_kit = true
+		if c.has_meta("star_tier"):
+			off_tier = true
+	_ck(off_kit and not off_tier, "star_fx=false → PixelPlanets kit spawns, no StarFx container")
+
+	# (c) halo size formula spot-checks (call before ON so it reads the default mult 1.0).
+	_ck(absf(pl._star_halo_size(32.0) - 90.0) < 0.01, "halo size @32px == 90 (%.2f)" % pl._star_halo_size(32.0))
+	_ck(absf(pl._star_halo_size(120.0) - 336.0) < 0.01, "halo size @120px == 336 (%.2f)" % pl._star_halo_size(120.0))
+
+	# (b) star_fx ON → find a sparkle-tier + a halo-tier star across seeds; no size exceeds the clamp.
+	pl.star_fx = true
+	var sparkle_found := false
+	var sparkle_ok := false
+	var halo_found := false
+	var halo_ok := false
+	var halo_sz_ok := false
+	var clamp_ok := true
+	for s in 60:
+		coord.regenerate(3000 + s)
+		for c in pl.get_children():
+			if not c.has_meta("star_tier") or c.is_queued_for_deletion():
+				continue
+			var spx: float = float(c.get_meta("star_px"))
+			if spx > pl.star_clamp_max + 0.01:
+				clamp_ok = false
+			var tier := String(c.get_meta("star_tier"))
+			if tier == "sparkle" and not sparkle_found:
+				sparkle_found = true
+				var has_kit := false
+				var has_rect := false
+				var has_dot := false
+				for gc in c.get_children():
+					if gc.has_method("update_time"):
+						has_kit = true
+					if gc is ColorRect and String(gc.name).begins_with("StarSparkle") and _is_shader(gc, "sparkle_star"):
+						has_rect = true
+					# Star point: a ColorRect running the separable star_glint shader (round-3 fix).
+					if gc is ColorRect and String(gc.name).begins_with("StarDot") and _is_shader(gc, "star_glint"):
+						has_dot = true
+				sparkle_ok = has_rect and has_dot and not has_kit
+			elif tier == "halo" and not halo_found:
+				halo_found = true
+				var has_kit2 := false
+				var halo_rect: ColorRect = null
+				for gc in c.get_children():
+					if gc.has_method("update_time"):
+						has_kit2 = true
+					if gc is ColorRect and String(gc.name).begins_with("StarHalo"):
+						halo_rect = gc
+				halo_ok = has_kit2 and halo_rect != null and _is_shader(halo_rect, "pixel_halo_glow")
+				if halo_rect != null:
+					halo_sz_ok = absf(halo_rect.size.x - pl._star_halo_size(spx)) < 1.0
+		if sparkle_found and halo_found:
+			break
+	_ck(sparkle_found and sparkle_ok, "sparkle tier: sparkle ColorRect + StarDot, NO kit")
+	_ck(halo_found and halo_ok, "halo tier: PixelPlanets kit + pixel_halo_glow StarHalo")
+	_ck(halo_sz_ok, "halo node size ≈ lerp(90,336,t)×mult")
+	_ck(clamp_ok, "no star body display size exceeds star_clamp_max")
+
+	# (d) clear/regenerate leaves no live StarFx orphans; on = exactly one (system has one star).
+	pl.star_fx = true
+	coord.regenerate(4445)
+	var live_on := 0
+	for c in pl.get_children():
+		if c.has_meta("star_tier") and not c.is_queued_for_deletion():
+			live_on += 1
+	_ck(live_on == 1, "star_fx on system → exactly 1 live StarFx container (%d)" % live_on)
+	pl.star_fx = false
+	coord.regenerate(4446)
+	var live_off := 0
+	for c in pl.get_children():
+		if c.has_meta("star_tier") and not c.is_queued_for_deletion():
+			live_off += 1
+	_ck(live_off == 0, "star_fx off regenerate → no live StarFx orphans (%d)" % live_off)
+	coord.forced_kind = ""
+
+	# ─── WP11: StellarGameplay module + coordinator stellar_override ──────────
+	# (a) determinism: same descriptor twice → identical dict; different node id → different seed.
+	var d1 := _gp_desc(7777, 1, 3)
+	var poi_a: Dictionary = StellarGameplay.compute_poi_stellar(d1)
+	var poi_b: Dictionary = StellarGameplay.compute_poi_stellar(d1)
+	_ck(int(poi_a["planet_seed"]) == int(poi_b["planet_seed"])
+			and int(poi_a["planet_idx"]) == int(poi_b["planet_idx"])
+			and String(poi_a["nebula_band"]) == String(poi_b["nebula_band"])
+			and (poi_a["system"] as Array).size() == (poi_b["system"] as Array).size(),
+		"compute_poi_stellar deterministic (same descriptor → identical dict)")
+	var d_diff := d1.duplicate(true)
+	d_diff["id"] = "s0_r1_pZ"
+	var poi_c: Dictionary = StellarGameplay.compute_poi_stellar(d_diff)
+	_ck(int(poi_c["planet_seed"]) != int(poi_a["planet_seed"]), "different node id → different planet_seed")
+
+	# (b) exotic-star chance rises with sectors_cleared (monotone by construction, strictly over samples).
+	var low_ex := 0
+	var high_ex := 0
+	for s in 300:
+		if int(StellarGameplay.compute_poi_stellar(_gp_desc(9000 + s, 0, 0))["exotic_idx"]) >= 0:
+			low_ex += 1
+		if int(StellarGameplay.compute_poi_stellar(_gp_desc(9000 + s, 0, 16))["exotic_idx"]) >= 0:
+			high_ex += 1
+	_ck(high_ex > low_ex, "exotic-star chance rises with sectors_cleared (low %d < high %d)" % [low_ex, high_ex])
+
+	# (d) gameplay star scales VARY across nodes (per-row intrinsic roll, item 4).
+	var gp_scales := {}
+	for s in 40:
+		var st: Dictionary = StellarGameplay.compute_poi_stellar(_gp_desc(20000 + s * 13, s % 3, s % 5))
+		var sysa: Array = st["system"]
+		if not sysa.is_empty():
+			gp_scales["%.4f" % float(sysa[0]["scale"])] = true
+	_ck(gp_scales.size() >= 10, "gameplay star scales vary across 40 nodes (%d distinct)" % gp_scales.size())
+
+	# (c) coordinator stellar_override: consumed ahead of Run.current_stellar; asteroid_base_color lands.
+	coord.forced_kind = ""
+	coord.use_composer_fallback = false
+	coord.use_palette = false
+	coord.forced_planet_idx = -1
+	var ov_color := Color(0.20, 0.70, 0.90, 1.0)
+	coord.stellar_override = {
+		"planet_idx": 5, "planet_seed": 4242, "star_color": Color(1.0, 0.7, 0.2, 1.0),
+		"has_asteroids": true, "asteroid_density": 1.5,
+		"nebula_band": "", "nebula_tint": Color.WHITE, "moons": [], "system": [],
+		"asteroid_base_color": ov_color,
+	}
+	coord.regenerate(2024)
+	_ck(int(coord.last_stellar.get("planet_idx", -99)) == 5,
+		"stellar_override consumed: last_stellar.planet_idx == 5 (%s)" % coord.last_stellar.get("planet_idx"))
+	var near_ov := coord.get_node_or_null("LayerStellarNear")
+	_ck((near_ov.get("asteroid_tint") as Color).is_equal_approx(ov_color),
+		"override asteroid_base_color on near-band ramp (%s)" % near_ov.get("asteroid_tint"))
+	# Clear → falls back off the override (Run.current_stellar empty in headless → asteroid_tint reverts).
+	coord.stellar_override = {}
+	coord.regenerate(2024)
+	_ck(int(coord.last_stellar.get("planet_idx", -99)) != 5,
+		"stellar_override cleared → last_stellar no longer the override dict")
+	_ck(not (near_ov.get("asteroid_tint") as Color).is_equal_approx(ov_color),
+		"stellar_override cleared → asteroid_tint reverts (%s)" % near_ov.get("asteroid_tint"))
 
 	print("VERDICT: %s (%d checks failed)" % ["PASS" if _fails == 0 else "FAIL", _fails])
 	quit(0 if _fails == 0 else 1)

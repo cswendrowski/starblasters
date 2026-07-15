@@ -608,20 +608,44 @@ func _load() -> void:
 							_altb[layer][key] = float(d["altb"][layer][key])
 
 
-func _copy_snippet() -> void:
-	var t := "# Nebula Lab — tuned Neb2 per-layer configs (density/opacity breathe over time; warp is per-layer).\n"
-	# Output per-layer Neb2 configs.
-	for layer in LAYERS:
-		t += "const NEB2_%s := {\n" % layer.to_upper()
-		for key in _neb2[layer].keys():
-			t += "\t\"%s\": %s,\n" % [key, _fmt(_neb2[layer][key])]
-		t += "}\n"
-	t += "const NEB2_WARP_SCALE := { \"Far\": %s, \"Mid\": %s, \"Near\": %s }\n" % [_fmt(_layer_warp["Far"]), _fmt(_layer_warp["Mid"]), _fmt(_layer_warp["Near"])]
-	t += "const NEB2_DENSITY_RANGE := Vector2(%s, %s)\n" % [_fmt(DENSITY_RANGE.x), _fmt(DENSITY_RANGE.y)]
-	t += "const NEB2_OPACITY_RANGE := Vector2(%s, %s)  # breathes with density\n" % [_fmt(OPACITY_RANGE.x), _fmt(OPACITY_RANGE.y)]
-	t += "const NEB2_BREATHE_SPEED := %s\n" % _fmt(_breathe_speed)
+func _copy_snippet() -> String:
+	# Emit paste-ready per-layer overrides for the PRODUCTION nebula exports on
+	# scripts/parallax/layer_stellar.gd (consumed by _spawn_nebula). Paste each block
+	# into the matching scenes/parallax/layers/layer_stellar_{far,mid,near}.tscn under
+	# the LayerStellar node. These are the REAL destinations — no dead NEB2_* constants.
+	var t := ""
+	if _style == Style.NEB2:
+		t += "# Nebula Lab → production layer_stellar.gd exports (paste per-layer into\n"
+		t += "# scenes/parallax/layers/layer_stellar_{far,mid,near}.tscn).\n"
+		t += "# density/opacity BREATHE together (frozen at nebula_phase when breathe_speed == 0).\n"
+		for layer in LAYERS:
+			var p: Dictionary = _neb2[layer]
+			t += "# --- LayerStellar%s ---\n" % layer
+			t += "nebula_shader_path = \"res://graphics/nebula2.gdshader\"\n"
+			t += "nebula_scale = %s\n" % _fmt(p["scale"])
+			t += "nebula_octaves = %d\n" % int(p["octaves"])
+			t += "nebula_edge = %s\n" % _fmt(p["edge"])
+			t += "nebula_warp_strength = %s\n" % _fmt(p["warp_strength"])
+			t += "nebula_warp_scale = %s\n" % _fmt(_layer_warp[layer])
+			t += "nebula_wisp_strength = %s\n" % _fmt(0.2)
+			t += "nebula_swirl = %s\n" % _fmt(p["swirl"])
+			t += "nebula_drift = %s\n" % _fmt(p["drift"])
+			t += "nebula_alpha = %s\n" % _fmt(p["max_alpha"])
+			t += "nebula_breathe_speed = %s\n" % _fmt(_breathe_speed)
+			t += "nebula_phase = %s\n" % _fmt(LAYER_PHASE[layer])
+	else:
+		# AltB (nebula_alt2.gdshader) has no production export path yet — emit the raw
+		# per-layer config as a reference so the tune isn't lost. Not paste-ready for .tscn.
+		t += "# Nebula Lab — AltB (nebula_alt2.gdshader) per-layer config. No production\n"
+		t += "# consumer yet (layer_stellar ships the Neb2 path). Reference only.\n"
+		for layer in LAYERS:
+			t += "const ALTB_%s := {\n" % layer.to_upper()
+			for key in _altb[layer].keys():
+				t += "\t\"%s\": %s,\n" % [key, _fmt(_altb[layer][key])]
+			t += "}\n"
 	DisplayServer.clipboard_set(t)
 	_set_status("Copied GDScript to clipboard.")
+	return t
 
 
 func _fmt(v) -> String:

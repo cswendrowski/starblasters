@@ -43,6 +43,12 @@ uniform vec2 uv_correct = vec2(1.0);
 // uniform-UV snap gave non-square, off-grid cells on the 480×270 rect = glitchy pixelation).
 uniform vec2 rect_size = vec2(480.0, 270.0);
 
+// Ship drop shadows (Planet Flyover lab) — `shadow_mask` is a viewport texture holding
+// every caster's silhouette; darkens rgb only, density-gated so shadow lives only on the
+// dense cloud body. strength 0 = off (the default: other users of this shader unaffected).
+uniform sampler2D shadow_mask : filter_nearest;
+uniform float shadow_strength = 0.0;
+
 // Integer hash — precision-robust at large/negative coords. The old fract(sin(...)) hash banded once
 // scale × warp × the FBM octave multiplier pushed sample coords into the thousands (sin loses float32
 // precision there), which read as glitchy blocky patches. (Roman 2026-06-12)
@@ -139,4 +145,11 @@ void fragment() {
 	vec3 col = texture(colorscheme, vec2(clamp(v, 0.0, 1.0), 0.5)).rgb;
 
 	COLOR = vec4(col, t * max_alpha * opacity);
+
+	if (shadow_strength > 0.0) {
+		// Density gate on t (pre-max_alpha density): shadow only on the dense body,
+		// exactly zero on wisps and clear sky.
+		float sm = texture(shadow_mask, uv).a;
+		COLOR.rgb *= 1.0 - sm * shadow_strength * smoothstep(0.45, 0.85, t);
+	}
 }

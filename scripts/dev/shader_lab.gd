@@ -57,6 +57,8 @@ const PLAYER_BODY_PATH := "res://graphics/player/player_ship_a_body.png"
 
 const DAMAGE_SHADER: Shader = preload("res://graphics/damage_noise.gdshader")
 const BURN_SHADER: Shader = preload("res://graphics/pixelated_burn.gdshader")
+const HALO_SHADER := preload("res://graphics/pixel_halo_glow.gdshader")
+const SPARKLE_SHADER := preload("res://graphics/sparkle_star.gdshader")
 const SMOKE_TRAIL_FX = preload("res://scripts/effects/smoke_trail_fx.gd")
 
 # Real in-game damage-overlay resources (so the tuner matches enemy_base.gd).
@@ -109,7 +111,7 @@ const GLOW_DEMO_TEX := {
 	"engines": "res://graphics/enemies/enemy_core_cobra.png",
 	"explosions": "res://graphics/effects/explosion_small_circle.png",
 }
-const MODES := ["Embers", "Smoke", "Glow", "Bloom Env", "Modes", "Damage", "Disintegrate", "Explosions", "Expl. Tuner", "Ship Dmg", "Enemy Shields", "Death", "Nebula", "Asteroids", "Gallery"]
+const MODES := ["Embers", "Smoke", "Glow", "Bloom Env", "Modes", "Damage", "Disintegrate", "Explosions", "Expl. Tuner", "Ship Dmg", "Damage Smoke", "Building Shadow", "Enemy Shields", "Death", "Nebula", "Asteroids", "Firecore Glow", "Star Glow", "Gallery"]
 
 const EMBER_VARIANTS := ["normal", "inverted", "smoke"]
 
@@ -205,6 +207,76 @@ const KNOBS := {
 		{"key": "pixels", "label": "Pixelation", "min": 0.0, "max": 480.0, "step": 10.0, "def": 200.0},
 	],
 	"Asteroids": [],
+	"Firecore Glow": [
+		{"key":"halo_px","label":"Halo size (px)","min":16.0,"max":240.0,"step":2.0,"def":72.0},
+		{"key":"spread","label":"Ray length (spread)","min":0.01,"max":0.4,"step":0.005,"def":0.33},
+		{"key":"size","label":"Ray size","min":-1.0,"max":1.0,"step":0.01,"def":0.365},
+		{"key":"speed","label":"Spin speed","min":0.0,"max":4.0,"step":0.05,"def":1.0},
+		{"key":"ray1_density","label":"Ray 1 density","min":0.0,"max":16.0,"step":0.1,"def":8.5},
+		{"key":"ray2_density","label":"Ray 2 density","min":0.0,"max":16.0,"step":0.1,"def":8.5},
+		{"key":"ray2_intensity","label":"Ray 2 intensity","min":-2.0,"max":10.0,"step":0.1,"def":0.5},
+		{"key":"core_intensity","label":"Core intensity","min":-1.0,"max":3.0,"step":0.02,"def":2.0},
+		{"key":"gradient_steps","label":"Gradient steps","min":2.0,"max":64.0,"step":1.0,"def":64.0},
+		{"key":"seed","label":"Seed","min":0.0,"max":20.0,"step":0.1,"def":1.0},
+	],
+	"Star Glow": [
+		{"key":"star_size","label":"Star size (px)","min":32.0,"max":220.0,"step":2.0,"def":110.0},
+		{"key":"halo_px","label":"Halo size (px)","min":16.0,"max":360.0,"step":2.0,"def":220.0},
+		{"key":"spread","label":"Ray length (spread)","min":0.01,"max":0.4,"step":0.005,"def":0.33},
+		{"key":"size","label":"Ray size","min":-1.0,"max":1.0,"step":0.01,"def":0.365},
+		{"key":"speed","label":"Spin speed","min":0.0,"max":4.0,"step":0.05,"def":0.6},
+		{"key":"ray1_density","label":"Ray 1 density","min":0.0,"max":16.0,"step":0.1,"def":8.5},
+		{"key":"ray2_density","label":"Ray 2 density","min":0.0,"max":16.0,"step":0.1,"def":8.5},
+		{"key":"ray2_intensity","label":"Ray 2 intensity","min":-2.0,"max":10.0,"step":0.1,"def":0.5},
+		{"key":"core_intensity","label":"Core intensity","min":-1.0,"max":3.0,"step":0.02,"def":1.5},
+		{"key":"gradient_steps","label":"Gradient steps","min":2.0,"max":64.0,"step":1.0,"def":64.0},
+		{"key":"seed","label":"Seed","min":0.0,"max":20.0,"step":0.1,"def":1.0},
+	],
+	"Firecore Sparkle": [
+		{"key":"halo_px","label":"Sparkle size (px)","min":16.0,"max":240.0,"step":2.0,"def":96.0},
+		{"key":"scale","label":"Scale","min":100.0,"max":10000.0,"step":50.0,"def":7500.0},
+		{"key":"circle_ratio","label":"Circle ratio","min":0.0,"max":2.0,"step":0.02,"def":0.0},
+		{"key":"decay_magnitude","label":"Decay","min":0.0,"max":1.0,"step":0.01,"def":0.1},
+		{"key":"cut_magnitude","label":"Cut","min":0.0,"max":0.3,"step":0.005,"def":0.05},
+		{"key":"rotate_speed","label":"Rotate speed","min":-5.0,"max":5.0,"step":0.05,"def":1.0},
+		{"key":"time_speed","label":"Twinkle speed","min":-5.0,"max":5.0,"step":0.05,"def":1.0},
+		{"key":"frequency_base","label":"Frequency base","min":0.0,"max":10.0,"step":0.05,"def":1.0},
+		{"key":"frequency_disturbance_scale","label":"Freq disturbance","min":0.0,"max":10.0,"step":0.05,"def":0.0},
+	],
+	"Star Sparkle": [
+		{"key":"star_size","label":"Star size (px)","min":32.0,"max":220.0,"step":2.0,"def":110.0},
+		{"key":"halo_px","label":"Sparkle size (px)","min":16.0,"max":360.0,"step":2.0,"def":220.0},
+		{"key":"scale","label":"Scale","min":100.0,"max":10000.0,"step":50.0,"def":7500.0},
+		{"key":"circle_ratio","label":"Circle ratio","min":0.0,"max":2.0,"step":0.02,"def":0.0},
+		{"key":"decay_magnitude","label":"Decay","min":0.0,"max":1.0,"step":0.01,"def":0.1},
+		{"key":"cut_magnitude","label":"Cut","min":0.0,"max":0.3,"step":0.005,"def":0.05},
+		{"key":"rotate_speed","label":"Rotate speed","min":-5.0,"max":5.0,"step":0.05,"def":0.5},
+		{"key":"time_speed","label":"Twinkle speed","min":-5.0,"max":5.0,"step":0.05,"def":1.0},
+		{"key":"frequency_base","label":"Frequency base","min":0.0,"max":10.0,"step":0.05,"def":1.0},
+		{"key":"frequency_disturbance_scale","label":"Freq disturbance","min":0.0,"max":10.0,"step":0.05,"def":0.0},
+	],
+	"Damage Smoke": [
+		{"key":"min_width","label":"Min width (px)","min":2.0,"max":24.0,"step":0.5,"def":6.0},
+		{"key":"max_width","label":"Max width (px)","min":4.0,"max":40.0,"step":0.5,"def":16.0},
+		{"key":"tail_width_mult","label":"Tail width mult","min":1.0,"max":20.0,"step":0.1,"def":10.0},
+		{"key":"point_lifetime","label":"Point lifetime (s)","min":0.3,"max":4.0,"step":0.1,"def":1.8},
+		{"key":"sample_interval_min","label":"Sample min (s)","min":0.01,"max":0.2,"step":0.01,"def":0.04},
+		{"key":"sample_interval_max","label":"Sample max (s)","min":0.05,"max":0.4,"step":0.01,"def":0.16},
+		{"key":"drift_base_speed","label":"Drift base speed","min":0.0,"max":500.0,"step":10.0,"def":225.0},
+		{"key":"drift_age_gain","label":"Drift age gain","min":0.0,"max":800.0,"step":20.0,"def":400.0},
+		{"key":"wander_px_per_sec","label":"Wander (px/s)","min":0.0,"max":60.0,"step":1.0,"def":18.0},
+	],
+	"Building Shadow": [
+		{"key":"sun_angle_deg","label":"Sun angle (deg)","min":0.0,"max":360.0,"step":1.0,"def":250.0},
+		{"key":"sun_elevation","label":"Sun elevation","min":0.05,"max":1.5,"step":0.05,"def":0.45},
+		{"key":"shadow_strength","label":"Shadow strength","min":0.0,"max":1.0,"step":0.02,"def":0.6},
+		{"key":"shadow_softness","label":"Shadow softness","min":0.001,"max":0.5,"step":0.01,"def":0.08},
+		{"key":"steps","label":"Ray-march steps","min":4.0,"max":96.0,"step":1.0,"def":40.0},
+		{"key":"step_px","label":"Step size (px)","min":0.25,"max":3.0,"step":0.05,"def":1.0},
+		{"key":"shadow_aa_radius_px","label":"AA radius (px)","min":0.0,"max":2.0,"step":0.05,"def":0.75},
+		{"key":"shadow_ray_offset_px","label":"Ray offset (px)","min":0.0,"max":4.0,"step":0.1,"def":0.0},
+		{"key":"carrier_scale","label":"Carrier scale","min":1.5,"max":5.0,"step":0.1,"def":3.0},
+	],
 	"Gallery": [],
 }
 
@@ -283,6 +355,19 @@ var _esh_idx: int = 0
 var _esh_list: Array = []
 var _esh_by_enemy: Dictionary = {}   # enemy path -> {ring_size, elongation}; persisted to disk
 var _esh_knob_box: VBoxContainer = null
+
+# Halo glow modes (Firecore Glow / Star Glow) — shared infrastructure.
+var _halo_mat: ShaderMaterial = null
+var _halo_rect: ColorRect = null
+var _halo_wrap: Node2D = null          # inspection-zoom wrapper holding the halo + subject
+var _halo_subject: Node = null         # the firecore sprite OR the star
+var _halo_colors: Array = [Color(0.8,0.25,0.0,0.0), Color(1.0,0.55,0.1,0.75), Color(1.0,0.98,0.85,1.0)]
+var _halo_hdr: bool = false
+var _halo_star_size: float = 100.0
+var _halo_kind: String = "Halo"         # "Halo" or "Sparkle" — the selected shader
+var _halo_knob_box: VBoxContainer = null  # sub-box the shader-specific knobs rebuild into
+var _halo_sparkle_color: Color = Color(1.0, 0.85, 0.4, 1.0)
+var _halo_stop_shine: bool = false
 
 # Mode-specific refs (nulled on every mode switch).
 var _orb: Sprite2D = null
@@ -363,6 +448,22 @@ var _sd_suite_label: Label = null     # "Damage-tell suite — <size>" header (u
 var _sd_dmg_vals: Dictionary = {}     # size → {key: value}
 var _sd_dead: bool = false            # ship destroyed — stays put until New Ship (no auto-respawn)
 var _sd_pool_by_cat: Dictionary = {}  # "small"/"medium"/"large" → [scene paths] (measured once)
+
+# Damage Smoke tab.
+var _dmg_smoke_ship: Node2D = null    # the flying host ship with the trail attached
+var _dmg_smoke_trail: Node = null     # the live DamageSmokeTrail controller
+var _dmg_smoke_color: Color = Color(0.10, 0.10, 0.11, 0.90)
+var _dmg_smoke_t: float = 0.0
+var _dmg_smoke_vel: Vector2 = Vector2.ZERO
+
+# Building Shadow tab.
+var _bshadow_building: Node2D = null           # the instantiated building scene
+var _bshadow_pairs: Array = []                 # [{rect, layer}, ...] for live re-tune
+var _bshadow_knob_box: VBoxContainer = null    # sub-box for per-layer sliders
+var _bshadow_ground: ColorRect = null          # mid-grey ground plane behind building
+var _bshadow_idx: int = 0                      # selected building index
+var _bshadow_tint: Color = Color(0.0, 0.0, 0.0, 0.8)  # shadow tint (persist)
+var _bshadow_heights: Dictionary = {}          # scene_path -> {layer_name -> float}
 
 # Death-effects tab.
 var _death_ship: Node2D = null        # the live dummy flying down the middle, awaiting a death
@@ -584,6 +685,15 @@ func _set_mode(idx: int) -> void:
 	_sd_slider = null
 	_sd_label = null
 	_sd_respawn_t = -1.0
+	# Damage smoke host + trail live in _stage, freed above; just drop the refs.
+	_dmg_smoke_ship = null
+	_dmg_smoke_trail = null
+	_dmg_smoke_t = 0.0
+	# Building shadow — building + ground plane + carrier rects live in _stage; heights + tint PERSIST.
+	_bshadow_building = null
+	_bshadow_pairs.clear()
+	_bshadow_knob_box = null
+	_bshadow_ground = null
 	# Death dummy + controller live in _stage, freed above; just drop the refs.
 	_death_ship = null
 	_death_fx = null
@@ -595,6 +705,12 @@ func _set_mode(idx: int) -> void:
 	_esh_mat = null
 	_esh_fx = null
 	_esh_knob_box = null
+	# Halo glow refs (subject + wrap live in _stage, freed above). Color stops + kind + colors PERSIST.
+	_halo_mat = null
+	_halo_rect = null
+	_halo_wrap = null
+	_halo_subject = null
+	_halo_knob_box = null
 	match MODES[_mode]:
 		"Embers":
 			_enter_embers()
@@ -616,6 +732,10 @@ func _set_mode(idx: int) -> void:
 			_enter_expl_tuner()
 		"Ship Dmg":
 			_enter_ship_dmg()
+		"Damage Smoke":
+			_enter_damage_smoke()
+		"Building Shadow":
+			_enter_building_shadow()
 		"Enemy Shields":
 			_enter_enemy_shields()
 		"Death":
@@ -624,6 +744,10 @@ func _set_mode(idx: int) -> void:
 			_enter_nebula()
 		"Asteroids":
 			_enter_asteroids()
+		"Firecore Glow":
+			_enter_firecore_glow()
+		"Star Glow":
+			_enter_star_glow()
 		"Gallery":
 			_enter_gallery()
 
@@ -1903,6 +2027,252 @@ func _tick_asteroids(delta: float) -> void:
 		_spawn_asteroid(true)
 
 
+# ---- Firecore Glow mode -----------------------------------------------------------
+
+func _enter_firecore_glow() -> void:
+	_knob_box.add_child(_label("Firecore Glow", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("Radial glow behind a hazard firecore. Tune + Copy → bake behind the firecore.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_halo_wrap = Node2D.new()
+	_halo_wrap.position = Vector2(Playfield.CENTER.x, 135.0)
+	_halo_wrap.scale = Vector2(GALLERY_SPRITE_ZOOM, GALLERY_SPRITE_ZOOM)
+	_stage.add_child(_halo_wrap)
+	_make_halo_rect()
+	var fc = load("res://scenes/enemies/factions/zealot/firecore_hazard.tscn").instantiate()
+	_halo_wrap.add_child(fc)
+	_freeze_node(fc)
+	if fc.is_in_group("enemies"):
+		fc.remove_from_group("enemies")
+	fc.position = Vector2.ZERO
+	fc.z_index = 2
+	_halo_subject = fc
+	_hd_note("FIRECORE GLOW", Vector2(Playfield.CENTER.x - 30.0, 84.0))
+	_halo_common_rail("Firecore Glow")
+	_apply_halo("Firecore Glow")
+
+
+# ---- Star Glow mode ---------------------------------------------------------------
+
+func _enter_star_glow() -> void:
+	_knob_box.add_child(_label("Star Glow", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("Radial glow on a backdrop star. Star size is 1:1 pixel-scaled. New Star re-rolls seed + colours.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_halo_wrap = Node2D.new()
+	_halo_wrap.position = Vector2(Playfield.CENTER.x, 135.0)
+	_halo_wrap.scale = Vector2(1.0, 1.0)
+	_stage.add_child(_halo_wrap)
+	_make_halo_rect()
+	var st = load("res://Planets/Star/Star.tscn").instantiate()
+	_halo_wrap.add_child(st)
+	# Fix for pixel-parity SIGSEGV (anchor mismatch on ColorRect children).
+	for c in st.find_children("*", "ColorRect", true, false):
+		c.anchor_left = 0
+		c.anchor_top = 0
+		c.anchor_right = 0
+		c.anchor_bottom = 0
+	st.z_index = 1
+	_halo_subject = st
+	_size_star(float(_values["Star Glow"]["star_size"]))
+	_hd_note("STAR GLOW", Vector2(Playfield.CENTER.x - 24.0, 84.0))
+	_add_action("New Star", _new_star)
+	_halo_common_rail("Star Glow")
+	_apply_halo("Star Glow")
+
+
+# ---- Halo glow shared helpers -----------------------------------------------------
+
+func _make_halo_rect() -> void:
+	_halo_mat = ShaderMaterial.new()
+	_halo_mat.shader = HALO_SHADER
+	_halo_rect = ColorRect.new()
+	_halo_rect.color = Color(1, 1, 1, 1)
+	_halo_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_halo_rect.z_index = 0
+	_halo_rect.material = _halo_mat
+	_halo_wrap.add_child(_halo_rect)
+
+
+func _halo_gradient_tex() -> GradientTexture1D:
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
+	g.colors = PackedColorArray([_halo_colors[0], _halo_colors[1], _halo_colors[2]])
+	var t := GradientTexture1D.new()
+	t.gradient = g
+	t.width = 64
+	return t
+
+
+func _apply_halo(mode: String) -> void:
+	if _halo_mat == null:
+		return
+	var key := _halo_values_key(mode)
+	var v: Dictionary = _values[key]
+	var px := float(v["halo_px"])
+	_halo_rect.size = Vector2(px, px)
+	_halo_rect.position = -_halo_rect.size * 0.5
+	if _halo_kind == "Halo":
+		_halo_mat.set_shader_parameter("pixelation", Vector2(px, px))
+		_halo_mat.set_shader_parameter("gradient_steps", float(v["gradient_steps"]))
+		_halo_mat.set_shader_parameter("spread", float(v["spread"]))
+		_halo_mat.set_shader_parameter("size", float(v["size"]))
+		_halo_mat.set_shader_parameter("speed", float(v["speed"]))
+		_halo_mat.set_shader_parameter("ray1_density", float(v["ray1_density"]))
+		_halo_mat.set_shader_parameter("ray2_density", float(v["ray2_density"]))
+		_halo_mat.set_shader_parameter("ray2_intensity", float(v["ray2_intensity"]))
+		_halo_mat.set_shader_parameter("core_intensity", float(v["core_intensity"]))
+		_halo_mat.set_shader_parameter("seed", float(v["seed"]))
+		_halo_mat.set_shader_parameter("hdr", _halo_hdr)
+		_halo_mat.set_shader_parameter("gradient", _halo_gradient_tex())
+	else:
+		_halo_mat.set_shader_parameter("color", _halo_sparkle_color)
+		_halo_mat.set_shader_parameter("scale", float(v["scale"]))
+		_halo_mat.set_shader_parameter("circle_ratio", float(v["circle_ratio"]))
+		_halo_mat.set_shader_parameter("decay_magnitude", float(v["decay_magnitude"]))
+		_halo_mat.set_shader_parameter("cut_magnitude", float(v["cut_magnitude"]))
+		_halo_mat.set_shader_parameter("rotate_speed", float(v["rotate_speed"]))
+		_halo_mat.set_shader_parameter("time_speed", float(v["time_speed"]))
+		_halo_mat.set_shader_parameter("frequency_base", float(v["frequency_base"]))
+		_halo_mat.set_shader_parameter("frequency_disturbance_scale", float(v["frequency_disturbance_scale"]))
+		_halo_mat.set_shader_parameter("stop_shine", _halo_stop_shine)
+	if mode == "Star Glow" or mode == "Star Sparkle":
+		_size_star(float(v["star_size"]))
+
+
+# Adds into the rebuildable _halo_knob_box (NOT the main _knob_box) so the rows are cleared + rebuilt
+# on every shader-kind switch instead of accumulating duplicates.
+func _add_halo_color_row(caption: String, idx: int) -> void:
+	_halo_knob_box.add_child(_label(caption, FS_CAPTION, UiTheme.COLOR_FAINT))
+	var cp := ColorPickerButton.new()
+	cp.color = _halo_colors[idx]
+	cp.edit_alpha = true
+	cp.custom_minimum_size = Vector2(0, 34)
+	cp.color_changed.connect(func(c: Color):
+		_halo_colors[idx] = c
+		_apply_halo(MODES[_mode]))
+	_halo_knob_box.add_child(cp)
+
+
+func _halo_common_rail(mode: String) -> void:
+	_knob_box.add_child(_label("Shader", FS_CAPTION, UiTheme.COLOR_FAINT))
+	var dd := OptionButton.new()
+	dd.add_theme_font_override("font", UiTheme.active_font())
+	dd.add_theme_font_size_override("font_size", FS_BODY)
+	dd.custom_minimum_size = Vector2(0, 34)
+	dd.add_item("Halo")
+	dd.add_item("Sparkle")
+	dd.select(0 if _halo_kind == "Halo" else 1)
+	dd.item_selected.connect(func(i: int):
+		_halo_kind = "Halo" if i == 0 else "Sparkle"
+		_halo_mat.shader = HALO_SHADER if _halo_kind == "Halo" else SPARKLE_SHADER
+		_rebuild_halo_knobs(mode)
+		_apply_halo(mode))
+	_knob_box.add_child(dd)
+	_halo_mat.shader = HALO_SHADER if _halo_kind == "Halo" else SPARKLE_SHADER
+	_knob_box.add_child(HSeparator.new())
+	_halo_knob_box = VBoxContainer.new()
+	_halo_knob_box.add_theme_constant_override("separation", 6)
+	_knob_box.add_child(_halo_knob_box)
+	_rebuild_halo_knobs(mode)
+
+
+func _size_star(size: float) -> void:
+	if _halo_subject == null or not is_instance_valid(_halo_subject):
+		return
+	if not _halo_subject.has_method("set_pixels"):
+		return
+	_halo_subject.set_pixels(size)
+	(_halo_subject as Control).position = Vector2(-size * 0.5, -size * 0.5)
+
+
+func _new_star() -> void:
+	if _halo_subject == null or not is_instance_valid(_halo_subject):
+		return
+	if _halo_subject.has_method("set_seed"):
+		_halo_subject.set_seed(randi())
+	if _halo_subject.has_method("randomize_colors"):
+		_halo_subject.randomize_colors()
+	_size_star(float(_values[_halo_values_key("Star Glow")]["star_size"]))
+
+
+func _halo_values_key(mode: String) -> String:
+	if _halo_kind == "Halo":
+		return mode
+	if mode == "Firecore Glow":
+		return "Firecore Sparkle"
+	if mode == "Star Glow":
+		return "Star Sparkle"
+	return mode
+
+
+func _rebuild_halo_knobs(mode: String) -> void:
+	if _halo_knob_box == null or not is_instance_valid(_halo_knob_box):
+		return
+	for c in _halo_knob_box.get_children():
+		c.queue_free()
+	var key := _halo_values_key(mode)
+	var v: Dictionary = _values[key]
+	for def in KNOBS[key]:
+		var def_key := String(def["key"])
+		var row_lbl := _label("%s: %s" % [def["label"], _fmt(float(v[def_key]), float(def["step"]))], FS_CAPTION, UiTheme.COLOR_FAINT)
+		_halo_knob_box.add_child(row_lbl)
+		var sl := HSlider.new()
+		sl.min_value = float(def["min"])
+		sl.max_value = float(def["max"])
+		sl.step = float(def["step"])
+		sl.value = float(v[def_key])
+		sl.custom_minimum_size = Vector2(0, 24)
+		sl.value_changed.connect(func(val: float):
+			v[def_key] = val
+			row_lbl.text = "%s: %s" % [def["label"], _fmt(val, float(def["step"]))]
+			_apply_halo(mode))
+		_halo_knob_box.add_child(sl)
+	_halo_knob_box.add_child(HSeparator.new())
+	if _halo_kind == "Halo":
+		var hdr_check := CheckButton.new()
+		hdr_check.text = "HDR bloom"
+		hdr_check.button_pressed = _halo_hdr
+		hdr_check.add_theme_font_override("font", UiTheme.active_font())
+		hdr_check.add_theme_font_size_override("font_size", FS_BODY)
+		hdr_check.toggled.connect(func(v: bool):
+			_halo_hdr = v
+			_apply_halo(mode))
+		_halo_knob_box.add_child(hdr_check)
+		_halo_knob_box.add_child(HSeparator.new())
+		_halo_knob_box.add_child(_label("Gradient Colours", FS_BODY, UiTheme.COLOR_ACCENT))
+		_add_halo_color_row("Ray core / low", 0)
+		_add_halo_color_row("Ray mid", 1)
+		_add_halo_color_row("Ray tip / bright", 2)
+		_halo_knob_box.add_child(HSeparator.new())
+		var seed_btn := Button.new()
+		seed_btn.text = "New Seed"
+		UiTheme.style_button(seed_btn, true)
+		seed_btn.add_theme_font_size_override("font_size", FS_BODY)
+		seed_btn.custom_minimum_size = Vector2(0, 36)
+		seed_btn.pressed.connect(func():
+			var vals: Dictionary = _values[key]
+			vals["seed"] = fmod(vals["seed"] + 3.7, 20.0)
+			_apply_halo(mode))
+		_halo_knob_box.add_child(seed_btn)
+	else:
+		_halo_knob_box.add_child(_label("Sparkle Colour", FS_CAPTION, UiTheme.COLOR_FAINT))
+		var cp := ColorPickerButton.new()
+		cp.color = _halo_sparkle_color
+		cp.edit_alpha = true
+		cp.custom_minimum_size = Vector2(0, 34)
+		cp.color_changed.connect(func(c: Color):
+			_halo_sparkle_color = c
+			_apply_halo(mode))
+		_halo_knob_box.add_child(cp)
+		_halo_knob_box.add_child(HSeparator.new())
+		var shine_check := CheckButton.new()
+		shine_check.text = "Stop shine"
+		shine_check.button_pressed = _halo_stop_shine
+		shine_check.add_theme_font_override("font", UiTheme.active_font())
+		shine_check.add_theme_font_size_override("font_size", FS_BODY)
+		shine_check.toggled.connect(func(v: bool):
+			_halo_stop_shine = v
+			_apply_halo(mode))
+		_halo_knob_box.add_child(shine_check)
+
+
 # ---- Bloom Env mode (WorldEnvironment glow) --------------------------------
 
 # ---- Glow mode: per-category HDR-bright modulate tuner ---------------------
@@ -2110,6 +2480,239 @@ func _apply_damage_knobs() -> void:
 	_dmg_mat.set_shader_parameter("details_color", _dmg_colors["details_color"])
 
 
+# ---- Damage Smoke tuner -------------------------------------------------------
+
+func _enter_damage_smoke() -> void:
+	_knob_box.add_child(_label("Damage Smoke Trail", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("Tunable dark damage-smoke trail from burnt\ncomponents. Spawns a flying host to emit\nthe trail continuously.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_hd_note("DAMAGE SMOKE", Vector2(Playfield.CENTER.x - 40.0, 56.0))
+	_spawn_damage_smoke_ship()
+	_build_knobs("Damage Smoke")
+	_knob_box.add_child(HSeparator.new())
+	_knob_box.add_child(_label("Smoke Colour", FS_CAPTION, UiTheme.COLOR_FAINT))
+	var cp := ColorPickerButton.new()
+	cp.color = _dmg_smoke_color
+	cp.edit_alpha = true
+	cp.custom_minimum_size = Vector2(0, 34)
+	cp.color_changed.connect(func(c: Color):
+		_dmg_smoke_color = c
+		_apply_damage_smoke())
+	_knob_box.add_child(cp)
+
+
+func _spawn_damage_smoke_ship() -> void:
+	if _dmg_smoke_ship != null and is_instance_valid(_dmg_smoke_ship):
+		_dmg_smoke_ship.queue_free()
+	_dmg_smoke_ship = null
+	_dmg_smoke_trail = null
+	_dmg_smoke_t = 0.0
+	var ship := _make_ship(Vector2(Playfield.CENTER.x, 10.0))
+	_freeze_node(ship)
+	if ship.is_in_group("enemies"):
+		ship.remove_from_group("enemies")
+	_dmg_smoke_ship = ship
+	_dmg_smoke_vel = Vector2.DOWN * 60.0
+	var trail = load("res://scripts/effects/damage_smoke_trail.gd").new()
+	ship.add_child(trail)
+	trail.set_player(ship)
+	_dmg_smoke_trail = trail
+	_apply_damage_smoke()
+
+
+func _apply_damage_smoke() -> void:
+	if _dmg_smoke_trail == null or not is_instance_valid(_dmg_smoke_trail):
+		return
+	var v: Dictionary = _values["Damage Smoke"]
+	_dmg_smoke_trail.min_width = float(v["min_width"])
+	_dmg_smoke_trail.max_width = float(v["max_width"])
+	_dmg_smoke_trail.tail_width_mult = float(v["tail_width_mult"])
+	_dmg_smoke_trail.point_lifetime = float(v["point_lifetime"])
+	_dmg_smoke_trail.sample_interval_min = float(v["sample_interval_min"])
+	_dmg_smoke_trail.sample_interval_max = float(v["sample_interval_max"])
+	_dmg_smoke_trail.drift_base_speed = float(v["drift_base_speed"])
+	_dmg_smoke_trail.drift_age_gain = float(v["drift_age_gain"])
+	_dmg_smoke_trail.wander_px_per_sec = float(v["wander_px_per_sec"])
+	_dmg_smoke_trail.smoke_color = _dmg_smoke_color
+	_dmg_smoke_trail.apply_look()
+	# Drive the trail to heavy damage so it actually EMITS in the lab. Production gates emission on the
+	# host's hull dropping below activate_below (0.5); the frozen dummy never takes damage, so without this
+	# it stays silent. Full severity (hull 0 / max 1) shows the densest max_width trail; re-driven after
+	# apply_look (which resets Line2D width to min_width) so every slider change keeps the emission on.
+	_dmg_smoke_trail._on_hull_changed(1.0, 0.0)
+
+
+func _tick_damage_smoke(delta: float) -> void:
+	if _dmg_smoke_ship != null and is_instance_valid(_dmg_smoke_ship):
+		_dmg_smoke_ship.position += _dmg_smoke_vel * delta
+		if _dmg_smoke_ship.position.y > 290.0:
+			_dmg_smoke_ship.position = Vector2(Playfield.CENTER.x, 10.0)
+
+
+# ---- Building Shadow tuner ---------------------------------------------------
+
+# Building list = the enemy bench's "Buildings" category, pulled LIVE so NEW structures auto-appear here
+# without editing this file (Roman 2026-07-13). Same source + filter the bench uses: EnemyManifest.all_enemies
+# (the curated manifest ∪ every faction-tagged enemy) restricted to /ground/ scenes (enemy_bench._group_of →
+# "Buildings"). Sorted + deterministic, so the OptionButton order + _bshadow_idx stay consistent across calls.
+func _bshadow_buildings() -> Array:
+	var out: Array = []
+	for p in EnemyManifest.all_enemies(false):
+		if String(p).to_lower().contains("/ground/"):
+			out.append(String(p))
+	return out
+
+func _enter_building_shadow() -> void:
+	_knob_box.add_child(_label("Building Shadow", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("Oblique drop shadow for top-down buildings.\nPick a building; tune the sun globally + each layer's height.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_hd_note("BUILDING SHADOW", Vector2(Playfield.CENTER.x - 50.0, 56.0))
+	# Ground plane — mid-grey so dark shadow is visible.
+	_bshadow_ground = ColorRect.new()
+	_bshadow_ground.color = Color(0.62, 0.63, 0.66, 1.0)
+	_bshadow_ground.size = Vector2(160, 160)
+	_bshadow_ground.position = Vector2(Playfield.CENTER.x - 80.0, 135.0 - 80.0)
+	_bshadow_ground.z_index = -6
+	_bshadow_ground.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_stage.add_child(_bshadow_ground)
+	# Building selector — pulled live from the bench's "Buildings" category (_bshadow_buildings).
+	var paths: Array = _bshadow_buildings()
+	if _bshadow_idx < 0 or _bshadow_idx >= paths.size():
+		_bshadow_idx = 0
+	_knob_box.add_child(_label("Building", FS_CAPTION, UiTheme.COLOR_FAINT))
+	var dd := OptionButton.new()
+	dd.add_theme_font_override("font", UiTheme.active_font())
+	dd.add_theme_font_size_override("font_size", FS_BODY)
+	dd.custom_minimum_size = Vector2(0, 34)
+	for path in paths:
+		dd.add_item(String(path).get_file().replace(".tscn", "").replace("building_", "").replace("enemy_", ""))
+	if not paths.is_empty():
+		dd.select(_bshadow_idx)
+	dd.item_selected.connect(func(i: int):
+		_bshadow_idx = i
+		_spawn_building_shadow(_bshadow_buildings()[i]))
+	_knob_box.add_child(dd)
+	# Global look knobs.
+	_knob_box.add_child(HSeparator.new())
+	_knob_box.add_child(_label("Global Look", FS_BODY, UiTheme.COLOR_ACCENT))
+	_build_knobs("Building Shadow")
+	_knob_box.add_child(HSeparator.new())
+	_knob_box.add_child(_label("Shadow Tint", FS_CAPTION, UiTheme.COLOR_FAINT))
+	var cp := ColorPickerButton.new()
+	cp.color = _bshadow_tint
+	cp.edit_alpha = true
+	cp.custom_minimum_size = Vector2(0, 34)
+	cp.color_changed.connect(func(c: Color):
+		_bshadow_tint = c
+		_apply_building_shadow())
+	_knob_box.add_child(cp)
+	# Per-layer sliders (built by _spawn_building_shadow).
+	_knob_box.add_child(HSeparator.new())
+	_knob_box.add_child(_label("Per-layer Height", FS_BODY, UiTheme.COLOR_ACCENT))
+	_bshadow_knob_box = VBoxContainer.new()
+	_bshadow_knob_box.add_theme_constant_override("separation", 6)
+	_knob_box.add_child(_bshadow_knob_box)
+	if not paths.is_empty():
+		_spawn_building_shadow(paths[_bshadow_idx])
+
+
+func _spawn_building_shadow(path: String) -> void:
+	if _bshadow_building != null and is_instance_valid(_bshadow_building):
+		_bshadow_building.queue_free()
+	_bshadow_building = null
+	_bshadow_pairs.clear()
+	if _bshadow_knob_box != null and is_instance_valid(_bshadow_knob_box):
+		for c in _bshadow_knob_box.get_children():
+			c.queue_free()
+	var scn: PackedScene = load(path)
+	if scn == null:
+		return
+	var building: Node2D = scn.instantiate()
+	_freeze_node(building)
+	if building.is_in_group("enemies"):
+		building.remove_from_group("enemies")
+	var wrap := Node2D.new()
+	wrap.position = Vector2(Playfield.CENTER.x, 135.0)
+	# 4× pixel zoom + NEAREST filtering so the buildings read as crisp in-game-style pixel art (Roman
+	# 2026-07-13) — matches the game's 4× display scale. NEAREST on the wrapper propagates to the layer
+	# sprites (they inherit PARENT_NODE); the shadow's own src_tex already samples filter_nearest.
+	wrap.scale = Vector2(4.0, 4.0)
+	wrap.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	wrap.add_child(building)
+	_stage.add_child(wrap)
+	_bshadow_building = building
+	var layers = load("res://scripts/effects/building_shadow.gd").casting_layers(building)
+	if not _bshadow_heights.has(path):
+		_bshadow_heights[path] = {}
+	for layer in layers:
+		var layer_name: String = String(layer.name)
+		if not _bshadow_heights[path].has(layer_name):
+			_bshadow_heights[path][layer_name] = 1.0 if layer_name == "Base" else 2.2
+		var rect = load("res://scripts/effects/building_shadow.gd").attach(layer, _shadow_params_for(path, layer))
+		if rect != null:
+			building.add_child(rect)
+			_bshadow_pairs.append({"rect": rect, "layer": layer})
+	_rebuild_bshadow_knobs(path)
+
+
+func _rebuild_bshadow_knobs(path: String) -> void:
+	if _bshadow_knob_box == null or not is_instance_valid(_bshadow_knob_box):
+		return
+	for c in _bshadow_knob_box.get_children():
+		c.queue_free()
+	var layers = load("res://scripts/effects/building_shadow.gd").casting_layers(_bshadow_building)
+	for layer in layers:
+		var layer_name: String = String(layer.name)
+		var h: float = _bshadow_heights[path].get(layer_name, 1.0)
+		var row_lbl := _label("%s height: %.2f" % [layer_name, h], FS_CAPTION, UiTheme.COLOR_FAINT)
+		_bshadow_knob_box.add_child(row_lbl)
+		var sl := HSlider.new()
+		sl.min_value = 0.2
+		sl.max_value = 5.0
+		sl.step = 0.05
+		sl.value = h
+		sl.custom_minimum_size = Vector2(0, 24)
+		sl.value_changed.connect(func(v: float):
+			_bshadow_heights[path][layer_name] = v
+			row_lbl.text = "%s height: %.2f" % [layer_name, v]
+			_apply_building_shadow())
+		_bshadow_knob_box.add_child(sl)
+
+
+func _shadow_params_for(path: String, layer: Sprite2D) -> Dictionary:
+	var v: Dictionary = _values["Building Shadow"]
+	var angle_deg: float = float(v["sun_angle_deg"])
+	var sun_dir: Vector2 = Vector2(cos(deg_to_rad(angle_deg)), sin(deg_to_rad(angle_deg)))
+	var height: float = _bshadow_heights.get(path, {}).get(layer.name, 1.0)
+	return {
+		"sun_dir": sun_dir,
+		"sun_elevation": float(v["sun_elevation"]),
+		"shadow_strength": float(v["shadow_strength"]),
+		"shadow_softness": float(v["shadow_softness"]),
+		"steps": int(v["steps"]),
+		"step_px": float(v["step_px"]),
+		"shadow_aa_radius_px": float(v["shadow_aa_radius_px"]),
+		"shadow_ray_offset_px": float(v["shadow_ray_offset_px"]),
+		"carrier_scale": float(v["carrier_scale"]),
+		"shadow_tint": _bshadow_tint,
+		"height_scale": height,
+	}
+
+
+func _apply_building_shadow() -> void:
+	for pair in _bshadow_pairs:
+		var rect = pair["rect"]
+		var layer = pair["layer"]
+		load("res://scripts/effects/building_shadow.gd").apply_params(rect, layer, _shadow_params_for(_bshadow_idx_to_path(), layer))
+
+
+func _bshadow_idx_to_path() -> String:
+	var paths: Array = _bshadow_buildings()
+	if paths.is_empty():
+		return ""
+	if _bshadow_idx < 0 or _bshadow_idx >= paths.size():
+		return String(paths[0])
+	return String(paths[_bshadow_idx])
+
+
 # ---- Enemy Shields tab -----------------------------------------------------
 # Spawn a frozen enemy and wrap it in the REAL hex-shield ring (shared ShieldRingFx driver), so the
 # bubble SIZE (ring_size) + ROUNDNESS (elongation) can be fitted to each shielded enemy. Copy emits the
@@ -2276,6 +2879,99 @@ func _snippet_esh() -> String:
 	return "\n".join(lines) + "\n"
 
 
+func _snippet_firecore() -> String:
+	var key := _halo_values_key("Firecore Glow")
+	var v: Dictionary = _values[key]
+	var px := float(v["halo_px"])
+	var t := ""
+	if _halo_kind == "Halo":
+		t = "# Shader Lab — firecore glow (graphics/pixel_halo_glow.gdshader)\n"
+		t += "var mat := ShaderMaterial.new()\n"
+		t += "mat.shader = preload(\"res://graphics/pixel_halo_glow.gdshader\")\n"
+		t += "mat.set_shader_parameter(\"pixelation\", Vector2(%.0f, %.0f))\n" % [px, px]
+		t += "mat.set_shader_parameter(\"gradient_steps\", %.0f)\n" % float(v["gradient_steps"])
+		t += "mat.set_shader_parameter(\"spread\", %.3f)\n" % float(v["spread"])
+		t += "mat.set_shader_parameter(\"size\", %.3f)\n" % float(v["size"])
+		t += "mat.set_shader_parameter(\"speed\", %.2f)\n" % float(v["speed"])
+		t += "mat.set_shader_parameter(\"ray1_density\", %.1f)\n" % float(v["ray1_density"])
+		t += "mat.set_shader_parameter(\"ray2_density\", %.1f)\n" % float(v["ray2_density"])
+		t += "mat.set_shader_parameter(\"ray2_intensity\", %.2f)\n" % float(v["ray2_intensity"])
+		t += "mat.set_shader_parameter(\"core_intensity\", %.2f)\n" % float(v["core_intensity"])
+		t += "mat.set_shader_parameter(\"seed\", %.1f)\n" % float(v["seed"])
+		t += "mat.set_shader_parameter(\"hdr\", %s)\n" % ("true" if _halo_hdr else "false")
+		t += "var grad := Gradient.new()\n"
+		t += "grad.offsets = PackedFloat32Array([0.0, 0.5, 1.0])\n"
+		t += "grad.colors = PackedColorArray([Color(\"%s\"), Color(\"%s\"), Color(\"%s\")])\n" % [_halo_colors[0].to_html(true), _halo_colors[1].to_html(true), _halo_colors[2].to_html(true)]
+		t += "var gtex := GradientTexture1D.new()\n"
+		t += "gtex.gradient = grad\n"
+		t += "mat.set_shader_parameter(\"gradient\", gtex)\n"
+		t += "# Apply to a ColorRect(size=(px,px)) or sprite with the gradient & halo params.\n"
+	else:
+		t = "# Shader Lab — firecore sparkle (graphics/sparkle_star.gdshader)\n"
+		t += "var mat := ShaderMaterial.new()\n"
+		t += "mat.shader = preload(\"res://graphics/sparkle_star.gdshader\")\n"
+		t += "mat.set_shader_parameter(\"color\", Color(\"%s\"))\n" % _halo_sparkle_color.to_html(true)
+		t += "mat.set_shader_parameter(\"scale\", %.1f)\n" % float(v["scale"])
+		t += "mat.set_shader_parameter(\"circle_ratio\", %.2f)\n" % float(v["circle_ratio"])
+		t += "mat.set_shader_parameter(\"decay_magnitude\", %.2f)\n" % float(v["decay_magnitude"])
+		t += "mat.set_shader_parameter(\"cut_magnitude\", %.3f)\n" % float(v["cut_magnitude"])
+		t += "mat.set_shader_parameter(\"rotate_speed\", %.2f)\n" % float(v["rotate_speed"])
+		t += "mat.set_shader_parameter(\"time_speed\", %.2f)\n" % float(v["time_speed"])
+		t += "mat.set_shader_parameter(\"frequency_base\", %.2f)\n" % float(v["frequency_base"])
+		t += "mat.set_shader_parameter(\"frequency_disturbance_scale\", %.2f)\n" % float(v["frequency_disturbance_scale"])
+		t += "mat.set_shader_parameter(\"stop_shine\", %s)\n" % ("true" if _halo_stop_shine else "false")
+		t += "# Apply to a ColorRect(size=(px,px)) for the sparkle overlay.\n"
+	return t
+
+
+func _snippet_star() -> String:
+	var key := _halo_values_key("Star Glow")
+	var v: Dictionary = _values[key]
+	var px := float(v["halo_px"])
+	var star_size := float(v["star_size"])
+	var t := ""
+	if _halo_kind == "Halo":
+		t = "# Shader Lab — star glow (graphics/pixel_halo_glow.gdshader)\n"
+		t += "var mat := ShaderMaterial.new()\n"
+		t += "mat.shader = preload(\"res://graphics/pixel_halo_glow.gdshader\")\n"
+		t += "mat.set_shader_parameter(\"pixelation\", Vector2(%.0f, %.0f))\n" % [px, px]
+		t += "mat.set_shader_parameter(\"gradient_steps\", %.0f)\n" % float(v["gradient_steps"])
+		t += "mat.set_shader_parameter(\"spread\", %.3f)\n" % float(v["spread"])
+		t += "mat.set_shader_parameter(\"size\", %.3f)\n" % float(v["size"])
+		t += "mat.set_shader_parameter(\"speed\", %.2f)\n" % float(v["speed"])
+		t += "mat.set_shader_parameter(\"ray1_density\", %.1f)\n" % float(v["ray1_density"])
+		t += "mat.set_shader_parameter(\"ray2_density\", %.1f)\n" % float(v["ray2_density"])
+		t += "mat.set_shader_parameter(\"ray2_intensity\", %.2f)\n" % float(v["ray2_intensity"])
+		t += "mat.set_shader_parameter(\"core_intensity\", %.2f)\n" % float(v["core_intensity"])
+		t += "mat.set_shader_parameter(\"seed\", %.1f)\n" % float(v["seed"])
+		t += "mat.set_shader_parameter(\"hdr\", %s)\n" % ("true" if _halo_hdr else "false")
+		t += "var grad := Gradient.new()\n"
+		t += "grad.offsets = PackedFloat32Array([0.0, 0.5, 1.0])\n"
+		t += "grad.colors = PackedColorArray([Color(\"%s\"), Color(\"%s\"), Color(\"%s\")])\n" % [_halo_colors[0].to_html(true), _halo_colors[1].to_html(true), _halo_colors[2].to_html(true)]
+		t += "var gtex := GradientTexture1D.new()\n"
+		t += "gtex.gradient = grad\n"
+		t += "mat.set_shader_parameter(\"gradient\", gtex)\n"
+		t += "# Star size (set_pixels): %.0f\n" % star_size
+		t += "# Apply to a ColorRect(size=(px,px)) for the halo backdrop.\n"
+	else:
+		t = "# Shader Lab — star sparkle (graphics/sparkle_star.gdshader)\n"
+		t += "var mat := ShaderMaterial.new()\n"
+		t += "mat.shader = preload(\"res://graphics/sparkle_star.gdshader\")\n"
+		t += "mat.set_shader_parameter(\"color\", Color(\"%s\"))\n" % _halo_sparkle_color.to_html(true)
+		t += "mat.set_shader_parameter(\"scale\", %.1f)\n" % float(v["scale"])
+		t += "mat.set_shader_parameter(\"circle_ratio\", %.2f)\n" % float(v["circle_ratio"])
+		t += "mat.set_shader_parameter(\"decay_magnitude\", %.2f)\n" % float(v["decay_magnitude"])
+		t += "mat.set_shader_parameter(\"cut_magnitude\", %.3f)\n" % float(v["cut_magnitude"])
+		t += "mat.set_shader_parameter(\"rotate_speed\", %.2f)\n" % float(v["rotate_speed"])
+		t += "mat.set_shader_parameter(\"time_speed\", %.2f)\n" % float(v["time_speed"])
+		t += "mat.set_shader_parameter(\"frequency_base\", %.2f)\n" % float(v["frequency_base"])
+		t += "mat.set_shader_parameter(\"frequency_disturbance_scale\", %.2f)\n" % float(v["frequency_disturbance_scale"])
+		t += "mat.set_shader_parameter(\"stop_shine\", %s)\n" % ("true" if _halo_stop_shine else "false")
+		t += "# Star size (set_pixels): %.0f\n" % star_size
+		t += "# Apply to a ColorRect(size=(px,px)) for the sparkle backdrop.\n"
+	return t
+
+
 # ---- Disintegrate (burn-away) tuner ----------------------------------------
 
 func _enter_disintegrate() -> void:
@@ -2387,6 +3083,8 @@ func _process(delta: float) -> void:
 			_tick_expl_tuner(delta)
 		"Ship Dmg":
 			_tick_ship_dmg(delta)
+		"Damage Smoke":
+			_tick_damage_smoke(delta)
 		"Death":
 			_tick_death(delta)
 		"Nebula":
@@ -2570,8 +3268,16 @@ func _apply_live() -> void:
 			_apply_disintegrate_knobs()
 		"Nebula":
 			_apply_nebula_knobs()
+		"Damage Smoke":
+			_apply_damage_smoke()
+		"Building Shadow":
+			_apply_building_shadow()
 		"Enemy Shields":
 			_apply_esh_knobs()
+		"Firecore Glow":
+			_apply_halo("Firecore Glow")
+		"Star Glow":
+			_apply_halo("Star Glow")
 
 
 func _add_action(text: String, cb: Callable) -> void:
@@ -2660,6 +3366,11 @@ func _on_save() -> void:
 		out["DeathStyles"] = _death_vals
 	if not _esh_by_enemy.is_empty():
 		out["EnemyShieldFit"] = _esh_by_enemy
+	if not _bshadow_heights.is_empty():
+		out["BuildingShadowHeights"] = _bshadow_heights
+	var bshadow_tint_html := (_bshadow_tint as Color).to_html(true)
+	out["BuildingShadowTint"] = bshadow_tint_html
+	out["BuildingShadowIdx"] = _bshadow_idx
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f != null:
 		f.store_string(JSON.stringify(out, "\t"))
@@ -2720,6 +3431,19 @@ func _load_saved() -> void:
 						else:
 							dvd[key2] = float(sv) if sv != null else float(def["def"])
 					_death_vals[style] = dvd
+		var bsh: Dictionary = data.get("BuildingShadowHeights", {})
+		if not bsh.is_empty():
+			for path in bsh:
+				var heights: Dictionary = bsh[path]
+				_bshadow_heights[String(path)] = {}
+				for layer_name in heights:
+					_bshadow_heights[String(path)][String(layer_name)] = float(heights[layer_name])
+		var bst: Variant = data.get("BuildingShadowTint", null)
+		if bst != null:
+			_bshadow_tint = Color(String(bst))
+		var bsi: Variant = data.get("BuildingShadowIdx", 0)
+		if bsi != null:
+			_bshadow_idx = int(bsi)
 
 
 func _on_copy() -> void:
@@ -2745,12 +3469,20 @@ func _on_copy() -> void:
 			txt = _snippet_expl_tuner()
 		"Ship Dmg":
 			txt = _snippet_ship_dmg()
+		"Damage Smoke":
+			txt = _snippet_damage_smoke()
+		"Building Shadow":
+			txt = _snippet_building_shadow()
 		"Death":
 			txt = _snippet_death()
 		"Nebula":
 			txt = _snippet_nebula()
 		"Enemy Shields":
 			txt = _snippet_esh()
+		"Firecore Glow":
+			txt = _snippet_firecore()
+		"Star Glow":
+			txt = _snippet_star()
 		"Asteroids":
 			txt = "# Shader Lab — gameplay asteroid hazard (scenes/enemies/enemy_asteroid.tscn)\n# var a = load(\"res://scenes/enemies/enemy_asteroid.tscn\").instantiate()\n# parent.add_child(a); a.start(pos)   # then a.explode() for the dusty shatter\n"
 		"Gallery":
@@ -2846,6 +3578,60 @@ func _snippet_ship_dmg() -> String:
 			var key := String(def["key"])
 			t += "\t\"%s\": %s,\n" % [key, _fmt(float(vals.get(key, def["def"])), float(def["step"]))]
 		t += "}\n"
+	return t
+
+
+func _snippet_damage_smoke() -> String:
+	var v: Dictionary = _values["Damage Smoke"]
+	var t := "# Shader Lab — damage smoke trail (scripts/effects/damage_smoke_trail.gd)\n"
+	t += "# Apply these vars to a DamageSmokeTrail instance, then call apply_look().\n"
+	t += "var trail := DamageSmokeTrail.new()\n"
+	t += "trail.min_width = %.1f\n" % float(v["min_width"])
+	t += "trail.max_width = %.1f\n" % float(v["max_width"])
+	t += "trail.tail_width_mult = %.1f\n" % float(v["tail_width_mult"])
+	t += "trail.point_lifetime = %.2f\n" % float(v["point_lifetime"])
+	t += "trail.sample_interval_min = %.3f\n" % float(v["sample_interval_min"])
+	t += "trail.sample_interval_max = %.3f\n" % float(v["sample_interval_max"])
+	t += "trail.drift_base_speed = %.1f\n" % float(v["drift_base_speed"])
+	t += "trail.drift_age_gain = %.1f\n" % float(v["drift_age_gain"])
+	t += "trail.wander_px_per_sec = %.1f\n" % float(v["wander_px_per_sec"])
+	t += "trail.smoke_color = Color(\"%s\")\n" % _dmg_smoke_color.to_html(true)
+	t += "trail.apply_look()\n"
+	t += "host.add_child(trail)\n"
+	t += "trail.set_player(host)\n"
+	return t
+
+
+func _snippet_building_shadow() -> String:
+	var v: Dictionary = _values["Building Shadow"]
+	var angle_deg: float = float(v["sun_angle_deg"])
+	var sun_dir: Vector2 = Vector2(cos(deg_to_rad(angle_deg)), sin(deg_to_rad(angle_deg)))
+	var t := "# Shader Lab — building shadow look (scripts/effects/building_shadow.gd)\n"
+	t += "const BUILDING_SHADOW_LOOK := {\n"
+	t += "\t\"sun_dir\": Vector2(%.3f, %.3f),\n" % [sun_dir.x, sun_dir.y]
+	t += "\t\"sun_elevation\": %.2f,\n" % float(v["sun_elevation"])
+	t += "\t\"shadow_strength\": %.2f,\n" % float(v["shadow_strength"])
+	t += "\t\"shadow_softness\": %.3f,\n" % float(v["shadow_softness"])
+	t += "\t\"steps\": %d,\n" % int(v["steps"])
+	t += "\t\"step_px\": %.2f,\n" % float(v["step_px"])
+	t += "\t\"shadow_aa_radius_px\": %.2f,\n" % float(v["shadow_aa_radius_px"])
+	t += "\t\"shadow_ray_offset_px\": %.1f,\n" % float(v["shadow_ray_offset_px"])
+	t += "\t\"carrier_scale\": %.1f,\n" % float(v["carrier_scale"])
+	t += "\t\"shadow_tint\": Color(\"%s\"),\n" % _bshadow_tint.to_html(true)
+	t += "}\n"
+	t += "const BUILDING_SHADOW_HEIGHTS := {\n"
+	for path in _bshadow_heights.keys():
+		var heights: Dictionary = _bshadow_heights[path]
+		t += "\t\"%s\": {" % path.get_file().replace(".tscn", "")
+		var first: bool = true
+		for layer_name in heights.keys():
+			if not first:
+				t += ", "
+			t += "\"%s\": %.2f" % [layer_name, heights[layer_name]]
+			first = false
+		t += "},\n"
+	t += "}\n"
+	t += "# Paste into BuildingShadow.DEFAULTS + per-building heights table.\n"
 	return t
 
 

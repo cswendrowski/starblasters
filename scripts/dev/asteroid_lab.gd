@@ -13,6 +13,18 @@ const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const PROCGEN_ASTEROID = "res://Planets/Asteroids/Asteroid.tscn"
 
+# Ship drop-shadow demo (asteroid_shadow_rig): demo ships fly over the rock and
+# cast band-scaled shadows on it — the same rig + settings production combat uses.
+const AsteroidShadowRig = preload("res://scripts/parallax/asteroid_shadow_rig.gd")
+const SHIP_TEX := preload("res://graphics/player/player_ship_a_body.png")
+const DEMO_ENEMY_TEXES: Array = [
+	preload("res://graphics/enemies/enemy_core_s_jet.png"),
+	preload("res://graphics/enemies/enemy_c_s_skirmisher.png"),
+]
+# Band order matches the OptionButton below (near = full-size shadow, 8px offset).
+const SHADOW_BANDS := ["near", "mid", "far"]
+const SHADOW_BAND_LABELS := ["Near band (1.0×, 8 px)", "Mid band (0.5×, 16 px)", "Far band (0.25×, 26 px)"]
+
 # Native-viewport centre the asteroid sits at (preview SubViewport is 480×270).
 const ASTEROID_CENTER := Vector2(240.0, 135.0)
 const PIXEL_DENSITY := 1.0
@@ -40,6 +52,14 @@ var _vals: Dictionary = {}
 var _draw_outline: bool = true
 var _dither: bool = true
 var _readout: Label = null
+# Ship drop-shadow demo state.
+var _rig: Node = null
+var _ships_on: bool = true
+var _shadow_strength: float = 0.35
+var _shadow_band: int = 0   # index into SHADOW_BANDS
+var _demo_ship: Sprite2D = null
+var _demo_enemies: Array = []
+var _demo_time: float = 0.0
 
 
 func _ready() -> void:
@@ -48,6 +68,7 @@ func _ready() -> void:
 	for d in KNOBS:
 		_vals[d["key"]] = float(d["def"])
 	_build_preview_subviewport()
+	_build_demo_ships()
 	_build_ui()
 	_regenerate()
 	if has_node("/root/Music"):
@@ -72,6 +93,39 @@ func _build_preview_subviewport() -> void:
 	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	container.add_child(_world)
 	add_child(container)
+
+
+# Demo ships flying over the rock, exercising the PRODUCTION shadow path: the rig
+# auto-tracks the "player"/"enemies" groups, so the demo sprites just join those
+# groups (safe in a lab — no director/bullets alive to react to them).
+func _build_demo_ships() -> void:
+	_rig = AsteroidShadowRig.new()
+	_rig.strength = _shadow_strength
+	add_child(_rig)
+	_demo_ship = Sprite2D.new()
+	_demo_ship.name = "DemoShip"
+	_demo_ship.texture = SHIP_TEX
+	_demo_ship.hframes = 3   # banking strip; frame 1 = level flight
+	_demo_ship.frame = 1
+	_demo_ship.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_demo_ship.position = Vector2(240.0, 130.0)
+	_demo_ship.z_index = 40
+	_demo_ship.add_to_group("player")
+	_world.add_child(_demo_ship)
+	for i in 2:
+		var e := Sprite2D.new()
+		e.name = "DemoEnemy%d" % i
+		e.texture = DEMO_ENEMY_TEXES[i % DEMO_ENEMY_TEXES.size()]
+		e.hframes = 3   # body/glow/livery strip; frame 0 = the body
+		e.frame = 0
+		e.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		e.rotation = PI   # art faces up; these fly down
+		e.z_index = 40
+		e.position = Vector2(randf_range(140.0, 340.0), randf_range(-200.0, -20.0))
+		e.set_meta("speed", randf_range(30.0, 60.0))
+		e.add_to_group("enemies")
+		_world.add_child(e)
+		_demo_enemies.append(e)
 
 
 func _build_ui() -> void:
@@ -115,6 +169,23 @@ func _build_ui() -> void:
 	# Toggles: outline + dither.
 	_add_toggle(v, "Draw outline", _draw_outline, func(on: bool): _draw_outline = on; _regenerate())
 	_add_toggle(v, "Dither", _dither, func(on: bool): _dither = on; _regenerate())
+
+	v.add_child(HSeparator.new())
+	# Ship drop shadows — the asteroid_shadow_rig ported from the Flyover cloud
+	# shadows. Band picks which depth's offset/scale/weight the rock samples.
+	var shdr := Label.new()
+	shdr.text = "SHIP SHADOWS"
+	shdr.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	shdr.add_theme_color_override("font_color", UiTheme.COLOR_ACCENT)
+	v.add_child(shdr)
+	_add_toggle(v, "Demo ships", _ships_on, func(on: bool): _ships_on = on)
+	var band_dd := OptionButton.new()
+	for n in SHADOW_BAND_LABELS:
+		band_dd.add_item(n)
+	band_dd.select(_shadow_band)
+	band_dd.item_selected.connect(func(idx: int): _shadow_band = idx; _apply_shadow_params())
+	v.add_child(band_dd)
+	_add_shadow_slider(v)
 
 	v.add_child(HSeparator.new())
 	_readout = Label.new()
@@ -231,7 +302,53 @@ func _regenerate() -> void:
 	v.set_meta("spin", float(_vals["spin"]))
 	_world.add_child(v)
 	_visual = v
+	_apply_shadow_params()
 	_update_readout()
+
+
+# Bind the selected band's mask + strength into the current rock's material —
+# the exact params layer_stellar sets at production rock spawn.
+func _apply_shadow_params() -> void:
+	if _rig == null or _visual == null or not is_instance_valid(_visual):
+		return
+	var inner := _visual.get_node_or_null("Asteroid")
+	if inner == null or not (inner.material is ShaderMaterial):
+		return
+	_rig.strength = _shadow_strength
+	var band: String = SHADOW_BANDS[_shadow_band]
+	var mat: ShaderMaterial = inner.material
+	mat.set_shader_parameter("shadow_mask", _rig.mask_texture(band))
+	mat.set_shader_parameter("shadow_strength", _rig.band_strength(band))
+
+
+# Strength slider — separate from KNOBS so tuning it doesn't regenerate the rock.
+func _add_shadow_slider(parent: Container) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	parent.add_child(row)
+	var l := Label.new()
+	l.text = "Shadow strength"
+	l.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(l)
+	var val := Label.new()
+	val.text = "%.2f" % _shadow_strength
+	val.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	val.add_theme_color_override("font_color", Color(0.85, 0.92, 1.0))
+	val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	val.custom_minimum_size = Vector2(90, 0)
+	row.add_child(val)
+	var s := HSlider.new()
+	s.min_value = 0.0
+	s.max_value = 1.0
+	s.step = 0.02
+	s.value = _shadow_strength
+	s.custom_minimum_size = Vector2(0, 24)
+	s.value_changed.connect(func(x: float):
+		_shadow_strength = x
+		val.text = "%.2f" % x
+		_apply_shadow_params())
+	parent.add_child(s)
 
 
 func _process(delta: float) -> void:
@@ -239,6 +356,22 @@ func _process(delta: float) -> void:
 		var spin: float = float(_visual.get_meta("spin", 0.0))
 		if abs(spin) > 0.001 and _visual is Control:
 			_visual.rotation += spin * delta
+	# Demo ships: player sweeps across the rock so the shadow visibly crosses it;
+	# enemies travel down-screen and respawn above. Mask sync is the rig's job.
+	_demo_time += delta
+	if _demo_ship != null and is_instance_valid(_demo_ship):
+		_demo_ship.visible = _ships_on
+		# y ≈ rock centre so the offset shadow lands ON the rock, not under it.
+		_demo_ship.position = Vector2(240.0 + sin(_demo_time * 0.4) * 110.0, 130.0 + sin(_demo_time * 1.3) * 4.0)
+	for e in _demo_enemies:
+		if e == null or not is_instance_valid(e):
+			continue
+		e.visible = _ships_on
+		if _ships_on:
+			e.position.y += float(e.get_meta("speed", 40.0)) * delta
+			if e.position.y > 300.0:
+				e.position = Vector2(randf_range(140.0, 340.0), -randf_range(20.0, 160.0))
+				e.set_meta("speed", randf_range(30.0, 60.0))
 
 
 func _update_readout() -> void:

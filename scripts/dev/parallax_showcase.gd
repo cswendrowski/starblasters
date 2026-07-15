@@ -16,6 +16,9 @@ const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const MenuBackdrop = preload("res://scripts/ui/menu_backdrop.gd")
 const HdScreen = preload("res://scripts/ui/hd_screen.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
+# WP11: gameplay-true backdrop authoring (the same module the sector map uses). GAMEPLAY source rolls
+# a simulated node through this and feeds the result to coordinator.stellar_override.
+const StellarGameplay = preload("res://scripts/parallax/stellar_gameplay.gd")
 
 const CONFIG_PATH := "user://tuners/parallax_showcase.json"
 const SHIP_TEX := preload("res://graphics/player/player_ship_a_body.png")
@@ -33,7 +36,9 @@ const CURRENT := {
 	"bright_far": 0.2, "bright_mid": 0.4, "bright_near": 0.6,
 	"contrast_far": 0.0, "contrast_mid": 0.7,
 	"rock_near_min": 72.0, "rock_near_max": 308.0, "rock_size_pow": 3.0,
-	"neb_far": 0.1, "neb_mid": 0.2, "neb_near": 0.15,
+	# WP10: alphas re-anchored to Roman's ported Nebula Lab tune (the OLD 0.1/0.2/0.15 presets
+	# were authored against the retired nebula recipe and would crush the new one).
+	"neb_far": 1.0, "neb_mid": 0.5, "neb_near": 1.0,
 	"streak_speed": 750.0, "streak_alpha": 0.6, "streak_var_min": 0.8, "streak_count": 14.0,
 	"use_dominant_grade": false, "streak_tint_palette": false,
 	"lateral_strength": 0.0, "drift_variance": 0.0, "lateral_wander": 0.0,
@@ -42,6 +47,10 @@ const CURRENT := {
 	"pixel_snap": true,                                      # viewport snap ON (today's steppy motion)
 	"ast_mult_far": 1.0, "ast_mult_mid": 1.0, "ast_mult_near": 1.0,   # asteroid_layer_mult = ONE
 	"body_parallax": 0.0,                                    # layer scrolls as one rigid plate
+	# WP9 — star FX tiers (LayerPlanet exports, respawn-class).
+	"star_fx": false, "star_sparkle_max": 32.0, "star_clamp_max": 120.0, "halo_scale_mult": 1.0,
+	"halo_mid_alpha": 0.75, "halo_core_intensity": 1.5,
+	"sparkle_decay": 0.3, "sparkle_scale_mult": 1.0, "dot_size_frac": 0.45, "dot_hdr": 2.5,
 }
 const PROPOSED := {
 	"stars_far": 0.01, "stars_near": 0.03, "planet_rate": 0.07,
@@ -49,7 +58,7 @@ const PROPOSED := {
 	"bright_far": 0.2, "bright_mid": 0.5, "bright_near": 0.95,
 	"contrast_far": 0.5, "contrast_mid": 0.7,
 	"rock_near_min": 110.0, "rock_near_max": 308.0, "rock_size_pow": 1.6,
-	"neb_far": 0.08, "neb_mid": 0.14, "neb_near": 0.2,
+	"neb_far": 1.0, "neb_mid": 0.5, "neb_near": 1.0,   # WP10: the ported lab tune (both presets)
 	"streak_speed": 480.0, "streak_alpha": 0.35, "streak_var_min": 0.5, "streak_count": 14.0,
 	"use_dominant_grade": true, "streak_tint_palette": true,
 	"lateral_strength": 28.0, "drift_variance": 2.0, "lateral_wander": 0.3,
@@ -58,11 +67,36 @@ const PROPOSED := {
 	"pixel_snap": false,                                     # smooth planet motion (needs HD raster to SEE it)
 	"ast_mult_far": 2.0, "ast_mult_mid": 1.0, "ast_mult_near": 0.7,   # far busiest, near sparsest
 	"body_parallax": 1.0,                                    # full per-body depth spread
+	# WP9 — star FX tiers ON; thresholds start at the plan-doc anchors (sparkle<32, cap 120, halo ×1.0).
+	"star_fx": true, "star_sparkle_max": 32.0, "star_clamp_max": 120.0, "halo_scale_mult": 1.0,
+	"halo_mid_alpha": 0.75, "halo_core_intensity": 1.5,
+	"sparkle_decay": 0.3, "sparkle_scale_mult": 1.0, "dot_size_frac": 0.45, "dot_hdr": 2.5,
 }
 
 # Composition-kind picker (WP4): OptionButton index → coordinator.forced_kind ("" = Auto/weighted).
 const KIND_NAMES := ["Auto", "System", "Planet", "Asteroid", "Nebula"]
 const KIND_VALUES := ["", "system", "planet", "asteroid", "nebula"]
+
+# ── Composition source (WP11) ────────────────────────────────────────────────
+# Composer = the StellarComposer full-variety fallback (WP3/4). Gameplay = the sector-map authoring
+# (StellarGameplay) piped through coordinator.stellar_override — rolls THE SORTS OF BACKGROUNDS PLAY
+# PRODUCES. The kind picker only applies to Composer mode.
+const SOURCE_NAMES := ["Composer", "Gameplay"]
+const SOURCE_VALUES := ["composer", "gameplay"]
+
+# Simulated node-type weights for GAMEPLAY mode. Approximates a real sector row's backdrop mix:
+# run_state rolls per-POI combat 5/9, hazard 2/9 (→ minefield/asteroid_field 50/50), signal 2/9
+# (signal reads visually like combat for the backdrop, folded into "combat"). belt_adjacent (a
+# combat node NEXT TO a belt) + boss (the row's star-only endpoint) are added for backdrop variety —
+# they aren't POI-type rolls in the map, but they ARE distinct backdrops the player sees. Weights sum 1.
+const GP_TYPE_WEIGHTS := {
+	"combat": 0.46,          # planet backdrop (combat + signal), the common case
+	"asteroid_field": 0.16,  # belt: has_asteroids, no planet
+	"minefield": 0.14,       # planet backdrop (mine decor is off in the lab)
+	"belt_adjacent": 0.16,   # planet + BELT_DENSITY_ADJACENT drifting rocks
+	"boss": 0.08,            # star-only endpoint (compute_boss_stellar)
+}
+const GP_ROW_END_X := 448.0  # boss column — the frac span denominator (matches run_state)
 
 # Slider specs per section: [key, label, min, max, step]. Section master keys listed in SECTIONS.
 const SEC_SCROLL := "scroll"
@@ -79,7 +113,7 @@ const SEC_DENSITY := "density"   # WP7: asteroid count gradient (asteroid_layer_
 # WP7 respawn-class additions: asteroid_layer_mult (count scaling happens in _populate) and
 # body_parallax (bodies register their depth_mult at spawn only). pixel_snap is NOT here — it's
 # a live viewport flag.
-const RESPAWN_KEYS := ["rock_near_min", "rock_near_max", "rock_size_pow", "streak_speed", "streak_count", "streak_var_min", "streak_alpha", "drift_variance", "ast_mult_far", "ast_mult_mid", "ast_mult_near", "body_parallax"]
+const RESPAWN_KEYS := ["rock_near_min", "rock_near_max", "rock_size_pow", "streak_speed", "streak_count", "streak_var_min", "streak_alpha", "drift_variance", "ast_mult_far", "ast_mult_mid", "ast_mult_near", "body_parallax", "star_fx", "star_sparkle_max", "star_clamp_max", "halo_scale_mult", "halo_mid_alpha", "halo_core_intensity", "sparkle_decay", "sparkle_scale_mult", "dot_size_frac", "dot_hdr"]
 
 var _backdrop_sub: SubViewport = null
 var _backdrop: Node = null
@@ -125,6 +159,13 @@ var _clamp_lbl: Label = null
 var _slider_val_labels := {}         # key -> Label (to refresh on preset)
 var _slider_nodes := {}              # key -> HSlider
 var _bool_cbs := {}                  # _vals bool-key -> CheckButton (refresh on preset)
+
+# WP11 composition source (Composer / Gameplay).
+var _source: String = "composer"     # persisted; default Composer (WP4 behavior unchanged)
+var _gp_depth: int = 0               # sector depth → sectors_cleared (exotic-star odds); row = depth % 3
+var _gp_type: String = "combat"      # rolled node type (only changes on Generate New)
+var _source_dd: OptionButton = null
+var _gp_depth_lbl: Label = null
 
 # WP4 composition + palette UI refs.
 var _kind_dd: OptionButton = null
@@ -290,11 +331,18 @@ func _v(section: String, key: String):
 func _apply_all(force_respawn: bool = false) -> void:
 	if _backdrop == null or not is_instance_valid(_backdrop):
 		return
-	# Composition + palette (WP4). Composer fallback stays ON in the lab; forced_kind + use_palette
-	# are respawn-class (composition/palette consumers apply during _populate), so any change here
+	# Composition source (WP11): Composer fallback (WP4) vs Gameplay (sector-map authoring via
+	# stellar_override). Both are respawn-class — consumers apply during _populate, so any change here
 	# arrives via a regenerate below.
-	_backdrop.set("use_composer_fallback", true)
-	_backdrop.set("forced_kind", String(_vals.get("forced_kind", "")))
+	if _source == "gameplay":
+		# Author a gameplay-true dict from the module + pipe it in — NEVER writes Run (the P1 lesson).
+		_backdrop.set("use_composer_fallback", false)
+		_backdrop.set("forced_kind", "")   # composer-only; ignored while an override drives the scene
+		_backdrop.set("stellar_override", _author_gameplay_dict())
+	else:
+		_backdrop.set("stellar_override", {})   # clear so Composer sees an empty stellar + composes
+		_backdrop.set("use_composer_fallback", true)
+		_backdrop.set("forced_kind", String(_vals.get("forced_kind", "")))
 	_backdrop.set("use_palette", bool(_vals.get("use_palette", false)))
 	# Scroll ratios (live).
 	var stars := _layer("LayerStars")
@@ -354,6 +402,21 @@ func _apply_all(force_respawn: bool = false) -> void:
 		if "body_parallax" in lp:
 			lp.set("body_parallax", float(_v(SEC_DRIFT, "body_parallax")))
 
+	# Star FX tiers (WP9) — respawn-class: layer_planet builds sparkle/halo children + clamps star
+	# size at spawn, so these land on the regenerate below. Read straight from _vals (the star_fx
+	# CheckButton is the section master, like use_palette — no _sec_on gating).
+	if lp != null:
+		lp.set("star_fx", bool(_vals.get("star_fx", false)))
+		lp.set("star_sparkle_max", float(_vals.get("star_sparkle_max", 32.0)))
+		lp.set("star_clamp_max", float(_vals.get("star_clamp_max", 120.0)))
+		lp.set("halo_scale_mult", float(_vals.get("halo_scale_mult", 1.0)))
+		lp.set("halo_mid_alpha", float(_vals.get("halo_mid_alpha", 0.75)))
+		lp.set("halo_core_intensity", float(_vals.get("halo_core_intensity", 1.5)))
+		lp.set("sparkle_decay", float(_vals.get("sparkle_decay", 0.3)))
+		lp.set("sparkle_scale_mult", float(_vals.get("sparkle_scale_mult", 1.0)))
+		lp.set("dot_size_frac", float(_vals.get("dot_size_frac", 0.45)))
+		lp.set("dot_hdr", float(_vals.get("dot_hdr", 2.5)))
+
 	# Streaks (speed/count/var-min = respawn; alpha/tint = respawn too since the emitter
 	# builds its gradient at spawn — layer_streaks.reset() rebuilds it).
 	var ls := _layer("LayerStreaks")
@@ -406,6 +469,82 @@ func _reassert_post_regen() -> void:
 			ls.rebuild()
 
 
+# ── Gameplay-source authoring (WP11) ──────────────────────────────────────────
+# Author a sector-map-shaped stellar dict via StellarGameplay for the current rolled node. Deterministic
+# from _seed (used AS run_seed) + _gp_depth + _gp_type, so slider changes re-author without a fresh roll.
+# Carries `asteroid_base_color` (production reads it from Run meta; the lab MUST NOT touch Run).
+func _author_gameplay_dict() -> Dictionary:
+	var run_seed: int = _seed
+	var sectors_cleared: int = _gp_depth
+	var row: int = _gp_depth % 3
+	var stellar: Dictionary
+	if _gp_type == "boss":
+		stellar = StellarGameplay.compute_boss_stellar({
+			"row": row, "run_seed": run_seed, "sectors_cleared": sectors_cleared})
+	else:
+		var row_pois: Array = _synth_row_pois(run_seed, row)
+		var cur: Dictionary = _pick_current_node(row_pois, run_seed, row)
+		var hazard: String = ""
+		var belt: bool = false
+		match _gp_type:
+			"asteroid_field": hazard = "asteroid_field"
+			"minefield": hazard = "minefield"
+			"belt_adjacent": belt = true
+		stellar = StellarGameplay.compute_poi_stellar({
+			"id": String(cur["id"]),
+			"row": row,
+			"pos_x": float(cur["pos_x"]),
+			"row_end_x": GP_ROW_END_X,
+			"hazard_subtype": hazard,
+			"belt_adjacent": belt,
+			"sectors_cleared": sectors_cleared,
+			"run_seed": run_seed,
+			"row_pois": row_pois,
+		})
+	stellar["asteroid_base_color"] = StellarGameplay.asteroid_color_for_row(row, run_seed)
+	return stellar
+
+
+# Synthesize a plausible row of POIs, mirroring run_state._gen_row_pois's position geometry (3-5 nodes,
+# evenly spaced 128..432 with jitter, cell-snapped to 16px) so the row-system staging reads like a real
+# star system. Deterministic from run_seed + row. The lab rolls belt-adjacency as a direct flag rather
+# than deriving it from neighbors (simpler; the map computes it from the grid).
+func _synth_row_pois(run_seed: int, row: int) -> Array:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = abs(hash("gp_row:%d:%d" % [row, run_seed]))
+	var count: int = rng.randi_range(3, 5)
+	var pois: Array = []
+	var step: float = (432.0 - 128.0) / float(count)
+	for i in range(count):
+		var base_x: float = 128.0 + step * (0.5 + float(i))
+		var jitter: float = rng.randf_range(-step * 0.25, step * 0.25)
+		var x: float = base_x + jitter
+		x = float(int(x / 16.0)) * 16.0
+		pois.append({"id": "s0_r%d_p%d" % [row, i], "pos_x": x})
+	return pois
+
+
+func _pick_current_node(row_pois: Array, run_seed: int, row: int) -> Dictionary:
+	if row_pois.is_empty():
+		return {"id": "s0_r%d_p0" % row, "pos_x": 240.0}
+	var rng := RandomNumberGenerator.new()
+	rng.seed = abs(hash("gp_cur:%d:%d" % [row, run_seed]))
+	return row_pois[rng.randi() % row_pois.size()]
+
+
+func _roll_gameplay_type() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = abs(_seed) ^ 0x60D1
+	var r: float = rng.randf()
+	var acc: float = 0.0
+	for k in GP_TYPE_WEIGHTS:
+		acc += float(GP_TYPE_WEIGHTS[k])
+		if r <= acc:
+			_gp_type = String(k)
+			return
+	_gp_type = "combat"
+
+
 func _refresh_palette_swatches() -> void:
 	if _pal_swatches.is_empty() or _backdrop == null or not is_instance_valid(_backdrop):
 		return
@@ -434,7 +573,25 @@ func _refresh_status_line() -> void:
 	var star_mode: String = String(st.get("star_mode", ""))
 	if star_mode == "":
 		star_mode = "-"
-	_status_line.text = "kind=%s   nebula=%s   asteroids=%s   bodies=%d   star=%s" % [kind, neb, ast, bodies, star_mode]
+	# WP11: prepend the composition source. GAMEPLAY dicts carry no `kind` (sector-map shape), so show
+	# the rolled node type + row/depth instead.
+	var prefix: String = "src=composer   "
+	if _source == "gameplay":
+		prefix = "src=gameplay row=%d depth=%d type=%s   " % [_gp_depth % 3, _gp_depth, _gp_type]
+	_status_line.text = prefix + "kind=%s   nebula=%s   asteroids=%s   bodies=%d   star=%s   starfx=%s" % [kind, neb, ast, bodies, star_mode, _hero_star_tier()]
+
+
+# Hero star's rendered tier from the LayerPlanet StarFx container metas (WP9 status readout).
+# "<tier>@<px>px" (e.g. "sparkle@24px") when a StarFx child exists, "-" otherwise (star_fx off,
+# or the composed scene has no star body).
+func _hero_star_tier() -> String:
+	var lp := _layer("LayerPlanet")
+	if lp == null:
+		return "-"
+	for c in lp.get_children():
+		if c.name == "StarFx" and c.has_meta("star_tier"):
+			return "%s@%dpx" % [String(c.get_meta("star_tier")), int(round(float(c.get_meta("star_px", 0.0))))]
+	return "-"
 
 
 func _refresh_clamp() -> void:
@@ -562,6 +719,9 @@ func _build_ui() -> void:
 	# Palette section (WP4).
 	_build_palette(v)
 
+	# Star FX section (WP9) — placed after PALETTE, before the slider sections.
+	_build_star_fx(v)
+
 	# Feature sections.
 	_section(v, SEC_SCROLL, "SCROLL RATIOS", [
 		["stars_far", "Stars far (const)", 0.0, 0.1, 0.001],
@@ -607,9 +767,9 @@ func _build_ui() -> void:
 		["streak_var_min", "Var min", 0.0, 1.2, 0.02],
 	], false, false, true)   # streak-tint bool + clamp indicator
 	_section(v, SEC_NEBULA, "NEBULA ALPHAS", [
-		["neb_far", "Far", 0.0, 0.5, 0.01],
-		["neb_mid", "Mid", 0.0, 0.5, 0.01],
-		["neb_near", "Near", 0.0, 0.5, 0.01],
+		["neb_far", "Far", 0.0, 1.0, 0.01],
+		["neb_mid", "Mid", 0.0, 1.0, 0.01],
+		["neb_near", "Near", 0.0, 1.0, 0.01],
 	])
 
 	v.add_child(HSeparator.new())
@@ -631,9 +791,35 @@ func _build_ui() -> void:
 
 func _build_composition(parent: VBoxContainer) -> void:
 	parent.add_child(HSeparator.new())
-	parent.add_child(_label("COMPOSITION (composer fallback: always on)", UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_ACCENT))
+	parent.add_child(_label("COMPOSITION", UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_ACCENT))
+	# Source picker (WP11): Composer fallback vs Gameplay (sector-map authoring).
+	var srow := HBoxContainer.new()
+	srow.add_child(_label("Source", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_TEXT))
+	_source_dd = OptionButton.new()
+	for sn in SOURCE_NAMES:
+		_source_dd.add_item(sn)
+	_source_dd.select(maxi(0, SOURCE_VALUES.find(_source)))
+	_source_dd.item_selected.connect(_on_source_selected)
+	srow.add_child(_source_dd)
+	parent.add_child(srow)
+	# Sector depth (GAMEPLAY only): drives sectors_cleared (exotic-star odds) + row = depth % 3.
+	var drow := HBoxContainer.new()
+	_gp_depth_lbl = _label("Sector depth: %d (row %d)" % [_gp_depth, _gp_depth % 3], UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_TEXT)
+	_gp_depth_lbl.custom_minimum_size = Vector2(180, 0)
+	drow.add_child(_gp_depth_lbl)
+	var ds := HSlider.new()
+	ds.min_value = 0
+	ds.max_value = 16
+	ds.step = 1
+	ds.value = _gp_depth
+	ds.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ds.custom_minimum_size = Vector2(0, 16)
+	ds.value_changed.connect(_on_gp_depth_changed)
+	drow.add_child(ds)
+	parent.add_child(drow)
+	# Kind picker (COMPOSER only — ignored in Gameplay).
 	var krow := HBoxContainer.new()
-	krow.add_child(_label("Kind", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_TEXT))
+	krow.add_child(_label("Kind (composer only)", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_TEXT))
 	_kind_dd = OptionButton.new()
 	for kn in KIND_NAMES:
 		_kind_dd.add_item(kn)
@@ -641,9 +827,9 @@ func _build_composition(parent: VBoxContainer) -> void:
 	_kind_dd.item_selected.connect(_on_kind_selected)
 	krow.add_child(_kind_dd)
 	parent.add_child(krow)
-	_status_line = _label("kind=-   nebula=-   asteroids=-   bodies=-", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_GREEN)
+	_status_line = _label("src=-   kind=-", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_GREEN)
 	parent.add_child(_status_line)
-	parent.add_child(_label("Auto = weighted random. Changing kind rolls a fresh example of it.", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
+	parent.add_child(_label("Composer = full-variety fallback (kind picker applies). Gameplay = the sector\nmap's per-node authoring; ⟲ New rolls a node, depth sets exotic-star odds.", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
 
 
 func _build_palette(parent: VBoxContainer) -> void:
@@ -669,11 +855,53 @@ func _build_palette(parent: VBoxContainer) -> void:
 	parent.add_child(srow)
 
 
+# Star FX section (WP9). The master is the `star_fx` bool CheckButton itself (respawn-class, wired
+# through _bool_cbs so presets refresh it — like PALETTE's use_palette master). Three respawn-class
+# threshold sliders land on the LayerPlanet exports in _apply_all. Consts/exports only — no new
+# section-toggle in _sec_on (values read straight from _vals).
+func _build_star_fx(parent: VBoxContainer) -> void:
+	parent.add_child(HSeparator.new())
+	parent.add_child(_label("STAR FX (tiered star rendering, respawn)", UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_ACCENT))
+	parent.add_child(_bool_cb("star_fx (sparkle / halo / clamp tiers)", "star_fx", true))
+	parent.add_child(_slider("star_sparkle_max", "Sparkle below (px)", float(_vals["star_sparkle_max"]), 8.0, 48.0, 1.0))
+	parent.add_child(_slider("star_clamp_max", "Star size cap (px)", float(_vals["star_clamp_max"]), 60.0, 200.0, 5.0))
+	# 1.0 = the lab-proven star×2 halo; 1.5 reproduces Roman's first-pass ×3 spec (120px → 360).
+	parent.add_child(_slider("halo_scale_mult", "Halo scale", float(_vals["halo_scale_mult"]), 0.5, 2.0, 0.05))
+	# The two brightness levers that stack with the HDR kit + bloom (Roman 2026-07-08).
+	parent.add_child(_slider("halo_mid_alpha", "Halo mid alpha", float(_vals["halo_mid_alpha"]), 0.0, 1.0, 0.05))
+	parent.add_child(_slider("halo_core_intensity", "Halo core intensity", float(_vals["halo_core_intensity"]), -1.0, 3.0, 0.05))
+	# Sparkle-tier levers (round 2 of the "giant central dot"): decay tightens the shader's own
+	# gaussian core (0.12 = the fat lab reference, 0.3 ≈ 17% of star), scale mult tightens
+	# core+spikes together, dot frac/hdr shape the white HDR point.
+	parent.add_child(_slider("sparkle_decay", "Sparkle decay (core)", float(_vals["sparkle_decay"]), 0.05, 1.0, 0.01))
+	parent.add_child(_slider("sparkle_scale_mult", "Sparkle scale ×", float(_vals["sparkle_scale_mult"]), 0.5, 3.0, 0.05))
+	parent.add_child(_slider("dot_size_frac", "Glint energy", float(_vals["dot_size_frac"]), 0.1, 1.5, 0.05))
+	parent.add_child(_slider("dot_hdr", "Glint HDR", float(_vals["dot_hdr"]), 1.0, 4.0, 0.1))
+	parent.add_child(_label("tiers: sparkle < N px < kit+halo <= cap; force kind=System to demo.", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
+
+
 func _on_kind_selected(idx: int) -> void:
 	_vals["forced_kind"] = KIND_VALUES[idx]
-	_seed = abs(int(randi()))   # fresh example of the picked kind
+	if _source != "gameplay":   # kind picker is composer-only
+		_seed = abs(int(randi()))   # fresh example of the picked kind
 	_apply_all(true)
 	_set_status("Kind = %s (seed %d)." % [KIND_NAMES[idx], _seed])
+
+
+func _on_source_selected(idx: int) -> void:
+	_source = SOURCE_VALUES[idx]
+	if _source == "gameplay":
+		_roll_gameplay_type()   # roll an initial node so the scene isn't empty
+	_apply_all(true)
+	_set_status("Source = %s." % SOURCE_NAMES[idx])
+
+
+func _on_gp_depth_changed(v: float) -> void:
+	_gp_depth = int(v)
+	if _gp_depth_lbl != null and is_instance_valid(_gp_depth_lbl):
+		_gp_depth_lbl.text = "Sector depth: %d (row %d)" % [_gp_depth, _gp_depth % 3]
+	if _source == "gameplay":
+		_apply_all(true)   # re-author + respawn
 
 
 func _section(parent: VBoxContainer, section: String, title: String, sliders: Array, is_grade: bool = false, add_sweep: bool = false, is_streak: bool = false) -> void:
@@ -766,17 +994,22 @@ func _on_planet_type(idx: int) -> void:
 
 func _on_generate_new() -> void:
 	_seed = abs(int(randi()))
-	if _backdrop != null and is_instance_valid(_backdrop) and _backdrop.has_method("regenerate"):
-		_backdrop.regenerate(_seed)
-	_apply_all(false)   # re-push live knobs after respawn
-	_set_status("Generated new backdrop (seed %d)." % _seed)
+	if _source == "gameplay":
+		# Fresh node type from the new seed, then author + respawn through _apply_all (which sets the
+		# stellar_override BEFORE the regenerate). Never touches Run.
+		_roll_gameplay_type()
+		_apply_all(true)
+		_set_status("Rolled gameplay node (seed %d, %s)." % [_seed, _gp_type])
+	else:
+		_apply_all(true)   # composer path: _apply_all clears the override + composes, then regenerates
+		_set_status("Generated new backdrop (seed %d)." % _seed)
 
 
 # ── Persistence ───────────────────────────────────────────────────────────────
 
 func _save() -> void:
 	DirAccess.make_dir_recursive_absolute("user://tuners")
-	var data := {"vals": _vals, "sections": _sec_on, "planet_type": _planet_type, "seed": _seed, "auto_sweep": _auto_sweep, "hd_raster": _hd_raster}
+	var data := {"vals": _vals, "sections": _sec_on, "planet_type": _planet_type, "seed": _seed, "auto_sweep": _auto_sweep, "hd_raster": _hd_raster, "source": _source, "gp_depth": _gp_depth, "gp_type": _gp_type}
 	var f := FileAccess.open(CONFIG_PATH, FileAccess.WRITE)
 	if f:
 		f.store_string(JSON.stringify(data, "\t"))
@@ -812,6 +1045,11 @@ func _load() -> void:
 		_seed = int(d.get("seed", _seed))
 		_auto_sweep = bool(d.get("auto_sweep", _auto_sweep))
 		_hd_raster = bool(d.get("hd_raster", _hd_raster))   # WP7 lab-only render mode
+		# WP11 composition source.
+		var src := String(d.get("source", _source))
+		_source = src if SOURCE_VALUES.has(src) else _source
+		_gp_depth = int(d.get("gp_depth", _gp_depth))
+		_gp_type = String(d.get("gp_type", _gp_type))
 
 
 # ── Copy GDScript ─────────────────────────────────────────────────────────────
@@ -840,6 +1078,16 @@ func _copy_snippet() -> String:
 	t += "#   LayerPlanet: body_parallax = %s\n" % _fmt(_v(SEC_DRIFT, "body_parallax"))
 	t += "#   LayerPlanet: pixel_snap = %s  (viewport-wide: OFF unsnaps snap_2d_transforms_to_pixel for the\n" % str(bool(_v(SEC_SCROLL, "pixel_snap")))
 	t += "#     whole backdrop viewport — production combat renders 1080p canvas_items + snaps, so it honors this)\n"
+	t += "#   LayerPlanet: star_fx = %s  (tiered star rendering: sparkle / halo / clamp)\n" % str(bool(_vals.get("star_fx", false)))
+	t += "#   LayerPlanet: star_sparkle_max = %s  (below this px → sparkle tier, no kit)\n" % _fmt(_vals.get("star_sparkle_max", 32.0))
+	t += "#   LayerPlanet: star_clamp_max = %s  (star display size capped here at spawn)\n" % _fmt(_vals.get("star_clamp_max", 120.0))
+	t += "#   LayerPlanet: halo_scale_mult = %s  (multiplier on the lerped 90→336 halo size)\n" % _fmt(_vals.get("halo_scale_mult", 1.0))
+	t += "#   LayerPlanet: halo_mid_alpha = %s  (halo gradient mid-stop alpha)\n" % _fmt(_vals.get("halo_mid_alpha", 0.75))
+	t += "#   LayerPlanet: halo_core_intensity = %s  (1.5 = at the bloom threshold)\n" % _fmt(_vals.get("halo_core_intensity", 1.5))
+	t += "#   LayerPlanet: sparkle_decay = %s  (sparkle shader core tightness)\n" % _fmt(_vals.get("sparkle_decay", 0.3))
+	t += "#   LayerPlanet: sparkle_scale_mult = %s\n" % _fmt(_vals.get("sparkle_scale_mult", 1.0))
+	t += "#   LayerPlanet: dot_size_frac = %s  (glint energy: core heat + ray length)\n" % _fmt(_vals.get("dot_size_frac", 0.45))
+	t += "#   LayerPlanet: dot_hdr = %s  (glint HDR boost)\n" % _fmt(_vals.get("dot_hdr", 2.5))
 	t += "\n# backdrop_coordinator.tscn per-layer overrides (layer_base / layer_stellar exports):\n"
 	t += "#   LayerStellarFar:  scroll_rate=%s brightness=%s contrast=%s nebula_alpha=%s drift_variance=%s\n" % [
 		_fmt(_v(SEC_SCROLL, "far_rate")), _fmt(_v(SEC_BRIGHT, "bright_far")), _fmt(_v(SEC_BRIGHT, "contrast_far")),
