@@ -417,6 +417,9 @@ const ShieldRingFx = preload("res://scripts/effects/shield_ring_fx.gd")
 var _shield_ring: ColorRect = null
 var _shield_mat: ShaderMaterial = null
 var _shield_fx = null   # ShieldRingFx: Sparse Plates base + fraction fill/flicker + hit-flash + collapse
+# Warning-alarm loops (shield-down + hull-critical klaxons) — scripts/game/player_alarms.gd,
+# attached in _ready, re-armed per level via reset() in start().
+var _alarms: Node = null
 
 # Machinegun audio — loop while firing, end SFX on release.
 var _mg_loop_player: AudioStreamPlayer2D = null
@@ -523,6 +526,11 @@ func _ready() -> void:
 	# EngineL/R = engine-trail markers (#00d3ff trails, above the sprites).
 	_setup_ship_visuals()
 	_install_damage_material()
+	# Shield-down / hull-critical alarm loops (Roman 2026-07-14) — polls player state,
+	# so it must exist before start() re-arms it.
+	_alarms = load("res://scripts/game/player_alarms.gd").new()
+	_alarms.name = "Alarms"
+	add_child(_alarms)
 	start()
 
 const ENGINE_GLOW_COLOR := Color(0.0, 0.827, 1.0)   # #00d3ff (engine trails)
@@ -588,18 +596,8 @@ func _setup_ship_visuals() -> void:
 	# 1px black outline on the ship body — same outline_fx shader/look the enemies get. Rebuilt on
 	# bank since the body is a 3-frame strip (the outline is a single padded frame).
 	_rebuild_outline()
-	# Engine trails — the SAME style as enemy engines (engine_trail_fx Line2D streak), but in the
-	# engine colour (#00d3ff) instead of the enemy yellow.
-	# Find every engine marker (any "Engine*" Marker2D): ship A has a single "Engine",
-	# ships B/C have "EngineL" + "EngineR" — one trail per marker, no per-variant code.
-	var markers: Array = find_children("Engine*", "Marker2D", true, false)
-	if not markers.is_empty():
-		var EngineTrailFx = preload("res://scripts/effects/engine_trail_fx.gd")
-		var trail = EngineTrailFx.new()
-		add_child(trail)
-		# Drift the exhaust downward: the player hovers (the world scrolls past), so without it the
-		# trail piles up behind the ship and is invisible. ~160 px/s reads as a steady blue plume.
-		trail.setup(self, markers, ENGINE_GLOW_COLOR, PLAYER_TRAIL_DRIFT)
+	# Engine trail CUT (Roman 2026-07-11) — the blue Line2D exhaust plume is retired (engine effects
+	# are moving to sprites). Firecore embers are the only thing that keeps an engine trail.
 	_apply_livery_color()
 
 
@@ -893,6 +891,9 @@ func start() -> void:
 	# Reflective Shield counter starts fresh each combat.
 	_backup_cap_used = false
 	_reflect_hit_count = 0
+	# Alarm loops re-arm per level (hull alarm stays silent in a level entered at 0 hull).
+	if _alarms != null:
+		_alarms.reset()
 	# Smart Mounts: cache the blaster turret config + force the primary active so the
 	# pipeline drives it. Runs after apply_run_upgrades (module flags are set in _ready).
 	_setup_smart_mounts()
@@ -1692,6 +1693,11 @@ func take_damage(amount: int) -> void:
 			_backup_cap_used = true
 			var back: int = maxi(1, int(round(float(max_shield) * module_backup_shield_pct)))
 			set_shield(mini(max_shield, shield + back))
+			# Emergency-cell whine on top of the break SFX the drop just played. The same-frame
+			# restore also means the shield-down alarm never trips (player_alarms polls at frame end).
+			var CapSfx = load("res://scripts/effects/shield_sfx.gd")
+			if CapSfx:
+				CapSfx.play_capacitor(get_tree().root, global_position)
 		# Module bay — Reflective Shield Tuning: every Nth absorbed bullet is bounced back
 		# into the playfield at the nearest enemy.
 		if module_reflect_n > 0:
@@ -1894,6 +1900,11 @@ func _pulse_hitscan(origin: Vector2, dir: Vector2, max_dist: float) -> Dictionar
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if not (e is Node2D) or not is_instance_valid(e):
 			continue
+		# Off-screen-kill hardening (2026-07-13): the pulse ray points straight up the column with
+		# unlimited reach — skip enemies that haven't appeared yet / have left so it never nails a
+		# spawn-stack enemy above the top edge (take_hit re-rejects it, but don't even select it).
+		if e.has_method("is_targetable") and not e.is_targetable():
+			continue
 		var to_e: Vector2 = (e as Node2D).global_position - origin
 		var t: float = to_e.dot(dir)
 		if t < 0.0 or t > best_t:
@@ -1923,6 +1934,10 @@ func _reflect_bullet() -> void:
 		b.damage = _wpn_dmg(bullet_damage)
 	if b.has_method("start"):
 		b.start(global_position, dir)
+	# Reflective Shield Tuning bounce SFX — the module just ricocheted a blocked shot.
+	var BounceSfx = load("res://scripts/effects/shield_sfx.gd")
+	if BounceSfx:
+		BounceSfx.play_bounce(get_tree().root, global_position)
 
 
 # Nearest live enemy Node2D (squared-distance), or null if the field is clear.
@@ -3135,6 +3150,10 @@ func _tick_beam(holding: bool, delta: float) -> void:
 	var enemies_in_column: Array = []
 	for e in tree.get_nodes_in_group("enemies"):
 		if not is_instance_valid(e):
+			continue
+		# Off-screen-kill hardening (2026-07-13): the beam column reaches to the top of the world — skip
+		# enemies that haven't appeared yet / have left so it doesn't tick damage into the spawn stack.
+		if e.has_method("is_targetable") and not e.is_targetable():
 			continue
 		# Skip enemies BELOW the player or outside the beam's x band.
 		if e.global_position.y > global_position.y:
