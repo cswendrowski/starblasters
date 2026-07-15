@@ -3,36 +3,32 @@ extends MarginContainer
 const HologramHUDCls = preload("res://scripts/hud/hologram_hud.gd")
 const HudLight = preload("res://scripts/hud/hud_light.gd")
 
+# HUD layout lives in scenes/ui.tscn (2026-07-13): every label, light, bar and
+# pip-row origin is a scene node — move/edit them in the editor. This script only
+# fills the variable-count pip rows (shield/hull/mode charges) and drives state.
 const DOT_TEX   := "res://graphics/ui/hud_dot_light.png"
-const ANN_TEX   := "res://graphics/ui/hud_annunciator_danger.png"
-const FONT_PATH := "res://graphics/fonts/PixelOperator.ttf"
 
-const DOT_W      := 8
-const DOT_H      := 8
 const DOT_STEP   := 10
+const SHIELD_ROW_STEP := 8
 const SHIELD_ROWS := 3
 const SHIELD_COLS := 10
 const HULL_COLS   := 10
-const BAR_W := 48
-const BAR_H := 4
+const BAR_W := 48   # fallback duration-bar width; live width reads ModeBarBG's scene size
 const Slots = preload("res://scripts/weapons/SlotTypes.gd")
 
-const COLOR_GRAY   := Color(0.70, 0.78, 0.88, 0.70)
-const COLOR_GREEN  := Color(0.55, 1.00, 0.50, 1.0)
+# Static label/light colors are authored in scenes/ui.tscn now; these remain for
+# the state-driven tints the script still writes (pips + warn lights).
 const COLOR_AMBER  := Color(1.00, 0.65, 0.10, 1.0)
 const COLOR_SHIELD := Color(0.35, 0.65, 1.00, 1.0)
 const COLOR_HULL   := Color(1.00, 0.30, 0.30, 1.0)
-const COLOR_KEY    := Color(1.00, 1.00, 1.00, 0.50)
-const COLOR_GOLD   := Color(1.00, 0.86, 0.42, 1.0)
-const COLOR_BLACK  := Color(0.00, 0.00, 0.00, 1.0)
 
 var _hud_root_node: Control = null
 
 var _shield_pips: Array = []  # Array[Array[Sprite2D]] — SHIELD_ROWS × SHIELD_COLS
 var _hull_pips: Array = []    # Array[Sprite2D] — HULL_COLS
 
-var _shield_pip_container: Control = null
-var _hull_pip_container: Control = null
+var _shield_pip_container: Node2D = null
+var _hull_pip_container: Node2D = null
 
 var _bounty_value_lbl: Label = null
 var _blaster_status_lbl: Label = null
@@ -55,17 +51,31 @@ var _ann_pulse_t: float = 0.0
 var _light_sec: Sprite2D = null
 var _light_sup: Sprite2D = null
 var _fire_light: Sprite2D = null
-var _threat_light: Sprite2D = null
 var _ann: Sprite2D = null
+
+# THREAT warn-light stack (replaces the single threat light + WAVE X/X banners,
+# Roman 2026-07-12): vertical amber lights, declared as WarnLights/Light* scene
+# nodes. Steady state = bottom N lights lit, N = waves remaining in the level.
+# While enemies are arriving (the old BLINK state) the stack runs a downward
+# chase, then settles back into the wave count.
+const WARN_CHASE_STEP_S := 0.09       # chase advance interval
+const WARN_CHASE_BAND := 3            # lit lights in the moving chase band
+const COLOR_WARN_OFF := Color(0.30, 0.22, 0.10, 0.8)
+var _warn_lights: Array = []          # Array[Sprite2D], index 0 = top (from scene)
+var _warn_light_container: Node2D = null
+var _waves_remaining: int = 0
+var _warn_chase_t: float = 0.0
+var _warn_chase_step: int = 0
 
 # Shift-Mode meter (unified system): a DURATION bar (active countdown) + a row of
 # discrete CHARGE pips (light sprites, like hull/shield). The label + bar colour + pip
 # count swap by active mode in _on_mode_changed_ui.
-var _focus_bar_fill: ColorRect = null   # repurposed as the active-duration bar
+var _focus_bar_fill: ColorRect = null   # ModeBarFill — the active-duration bar
+var _mode_bar_w: float = float(BAR_W)   # full-charge fill width, read from ModeBarBG's scene size
 var _mode_label: Label = null
 var _mode_pips: Array = []              # Array[Sprite2D] — one per charge
-var _mode_pip_container: Control = null
-var _mode_pip_color: Color = Color(0.4, 0.7, 1.0, 0.9)  # tint of the current mode's lit pips
+var _mode_pip_container: Node2D = null
+var _mode_pip_color: Color = Color(0.7, 0.45, 1.0, 0.9)  # tint of the lit charge pips (fixed purple)
 var _prev_mode_charges: int = -1        # for pip-spend flash
 var _ui_active_mode: int = 0  # ShiftMode enum: 0=FOCUS 1=PHASE 2=HYPER 3=RUSH 4=REFIRE 5=ECHO 6=THIEF 7=REFLECT
 const _MODE_COL_FOCUS := Color(0.4, 0.7, 1.0, 0.9)
@@ -89,6 +99,9 @@ const _MODE_META := {
 	7: ["REFLECT", _MODE_COL_REFLECT],
 }
 const _MODE_PIP_OFF := Color(0.2, 0.22, 0.3, 0.7)  # spent/empty charge pip
+# Meter body is fixed purple regardless of equipped mode (Roman 2026-07-12) —
+# the mode label keeps its per-mode colour, the bar + charge pips don't swap.
+const _MODE_METER_PURPLE := Color(0.7, 0.45, 1.0, 0.9)
 
 var _player_ref = null
 var _wave_spawning: bool = false
@@ -98,8 +111,6 @@ var _sec_ammo: int = -1
 # gates _on_secondary_ammo_changed so the ammo signal can't clobber the timer.
 var _sec_timer_active: bool = false
 var _super_charge_count: int = 0
-
-var _font: Font = null
 
 var hologram_hud = null
 
@@ -111,57 +122,23 @@ var _prev_shield: int = -1
 var _cached_shield: int = 0
 var _cached_shield_max: int = 1
 var _hull_crit: bool = false
-var _threat_state: int = 0  # 0=OFF 1=BLINK 2=STEADY
 
 
 func _ready() -> void:
-	anchor_left = 0.0; anchor_right = 1.0
-	anchor_top = 0.0; anchor_bottom = 0.0
-	offset_left = 0.0; offset_right = 0.0
-	offset_top = 0.0; offset_bottom = 270.0
-	# Zero margins so _hud_root_node lands at viewport (0,0).
-	add_theme_constant_override("margin_left", 0)
-	add_theme_constant_override("margin_right", 0)
-	add_theme_constant_override("margin_top", 0)
-	add_theme_constant_override("margin_bottom", 0)
-
-	_hud_root_node = Control.new()
-	_hud_root_node.name = "HUDElements"
-	_hud_root_node.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_hud_root_node.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(_hud_root_node)
-
-	_font = load(FONT_PATH) as Font
+	# Root anchors/margins are authored in scenes/ui.tscn — no runtime layout
+	# overrides here, so editor tweaks stick.
+	_hud_root_node = $HUDElements
 
 	# Off-state pip lights: neutral dark
 	_color_shield_off = Color(0.18, 0.18, 0.18, 1.0)
 	_color_hull_off   = Color(0.18, 0.18, 0.18, 1.0)
 
-	_install_hud()
+	_bind_hud_nodes()
 
 	hologram_hud = HologramHUDCls.new()
 	hologram_hud.name = "HologramHUD"
 	hologram_hud._hud_root = self
 	add_child(hologram_hud)
-
-
-func _mpos(path: String, fallback: Vector2) -> Vector2:
-	if has_node(path):
-		return (get_node(path) as Marker2D).global_position
-	return fallback
-
-
-func _make_label(pos: Vector2, text: String, color: Color, font_size: int = 7) -> Label:
-	var l := Label.new()
-	l.text = text
-	l.position = pos
-	l.add_theme_font_override("font", _font)
-	l.add_theme_font_size_override("font_size", font_size)
-	l.add_theme_color_override("font_color", color)
-	l.add_theme_color_override("font_outline_color", COLOR_BLACK)
-	l.add_theme_constant_override("outline_size", 1)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	return l
 
 
 func _make_dot(pos: Vector2, tint: Color) -> Sprite2D:
@@ -175,107 +152,54 @@ func _make_dot(pos: Vector2, tint: Color) -> Sprite2D:
 	return s
 
 
-func _install_hud() -> void:
+# Grab references to the scene-authored HUD nodes (scenes/ui.tscn) and fill the
+# variable-count pip rows. All positions/colors are the scene's; this only wires
+# state-driven behavior onto the declared nodes.
+func _bind_hud_nodes() -> void:
 	var c := _hud_root_node
 
-	# Section header labels
-	c.add_child(_make_label(_mpos("shield_label",   Vector2(16,  16)), "SHIELD",    COLOR_GRAY))
-	c.add_child(_make_label(_mpos("hull_label",     Vector2(16,  72)), "HULL",      COLOR_GRAY))
-	c.add_child(_make_label(_mpos("fire_label",     Vector2(48, 104)), "FIRE",      COLOR_GRAY))
-	c.add_child(_make_label(_mpos("threat_label",   Vector2(376, 72)), "THREAT",    COLOR_GRAY))
-	c.add_child(_make_label(_mpos("armanent_label", Vector2(392, 16)), "ARMAMENT",  COLOR_GRAY))
+	_ann = c.get_node("Annunciator") as Sprite2D
+	_fire_light = c.get_node("FireLight") as Sprite2D
 
-	# Hull annunciator
-	_ann = Sprite2D.new()
-	_ann.texture = load(ANN_TEX) as Texture2D
-	_ann.hframes = 4
-	_ann.centered = false
-	_ann.frame = 1
-	_ann.position = _mpos("hull_annuciator", Vector2(16, 104))
-	c.add_child(_ann)
+	# Pip rows: containers are scene nodes (move them to move the row); the pips
+	# themselves are code-built at local offsets since their counts are live data.
+	_shield_pip_container = c.get_node("ShieldPips") as Node2D
+	_hull_pip_container = c.get_node("HullPips") as Node2D
+	_rebuild_shield_pips(SHIELD_ROWS * SHIELD_COLS)
+	_rebuild_hull_pips(HULL_COLS)
 
-	# Shield pip container + rows (3 × 10)
-	_shield_pip_container = Control.new()
-	_shield_pip_container.name = "ShieldPips"
-	_shield_pip_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_shield_pip_container.set_anchors_preset(Control.PRESET_FULL_RECT)
-	c.add_child(_shield_pip_container)
-	var row_origins := [
-		_mpos("shield_label/shield_pip_row_1", Vector2(16, 24)),
-		_mpos("shield_label/shield_pip_row_2", Vector2(16, 40)),
-		_mpos("shield_label/shield_pip_row_3", Vector2(16, 56)),
-	]
-	_shield_pips.clear()
-	for row_i in SHIELD_ROWS:
-		var row_arr: Array = []
-		for col_i in SHIELD_COLS:
-			var pip := _make_dot(row_origins[row_i] + Vector2(col_i * DOT_STEP, 0), COLOR_SHIELD)
-			_shield_pip_container.add_child(pip)
-			row_arr.append(pip)
-		_shield_pips.append(row_arr)
+	# THREAT warn-light stack — the lights are the WarnLights/Light* scene nodes.
+	_warn_light_container = c.get_node("WarnLights") as Node2D
+	_warn_lights.clear()
+	for child in _warn_light_container.get_children():
+		if child is Sprite2D:
+			_warn_lights.append(child)
 
-	# Hull pip container + row (10)
-	_hull_pip_container = Control.new()
-	_hull_pip_container.name = "HullPips"
-	_hull_pip_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_hull_pip_container.set_anchors_preset(Control.PRESET_FULL_RECT)
-	c.add_child(_hull_pip_container)
-	var hull_origin := _mpos("hull_label/hull_pip_row_1", Vector2(16, 88))
-	_hull_pips.clear()
-	for col_i in HULL_COLS:
-		var pip := _make_dot(hull_origin + Vector2(col_i * DOT_STEP, 0), COLOR_HULL)
-		_hull_pip_container.add_child(pip)
-		_hull_pips.append(pip)
+	# Armament rows. Key hints render the live InputMap binding over the scene's
+	# placeholder text (bindings drift + are user-rebindable).
+	_light_blaster = c.get_node("BlasterRow/Light") as Sprite2D
+	_blaster_status_lbl = c.get_node("BlasterRow/Status") as Label
+	_light_pri = c.get_node("PriRow/Light") as Sprite2D
+	_pri_name_lbl = c.get_node("PriRow/Name") as Label
+	_pri_ammo_lbl = c.get_node("PriRow/Ammo") as Label
+	_light_sec = c.get_node("SecRow/Light") as Sprite2D
+	_sec_name_lbl = c.get_node("SecRow/Name") as Label
+	_sec_ammo_lbl = c.get_node("SecRow/Ammo") as Label
+	_light_sup = c.get_node("SupRow/Light") as Sprite2D
+	_sup_name_lbl = c.get_node("SupRow/Name") as Label
+	_sup_ammo_lbl = c.get_node("SupRow/Ammo") as Label
+	(c.get_node("BlasterRow/Key") as Label).text = "[%s]" % _action_key_label("shoot")
+	(c.get_node("PriRow/Key") as Label).text = "[%s]" % _action_key_label("shoot")
+	(c.get_node("SecRow/Key") as Label).text = "[%s]" % _action_key_label("shoot2")
+	(c.get_node("SupRow/Key") as Label).text = "[%s]" % _action_key_label("shoot_nose")
 
-	# Fire + threat lights
-	_fire_light = _make_dot(_mpos("fire_label/fire_light",       Vector2(64,  104)), COLOR_AMBER)
-	c.add_child(_fire_light)
-	_threat_light = _make_dot(_mpos("threat_label/threat_light", Vector2(376,  80)), COLOR_AMBER)
-	c.add_child(_threat_light)
+	_bounty_value_lbl = c.get_node("BountyValue") as Label
 
-	# BLASTER row
-	c.add_child(_make_label(_mpos("pri_blaster_label",              Vector2(392, 24)), "BLASTER", COLOR_GRAY))
-	c.add_child(_make_label(_mpos("pri_blaster_label/weapon_key",   Vector2(360, 24)),
-		"[%s]" % _action_key_label("shoot"), COLOR_KEY))
-	_light_blaster = _make_dot(_mpos("pri_blaster_label/weapon_light", Vector2(376, 24)), COLOR_GREEN)
-	c.add_child(_light_blaster)
-	_blaster_status_lbl = _make_label(_mpos("pri_blaster_label/blaster_status", Vector2(456, 24)), "READY", COLOR_GREEN)
-	c.add_child(_blaster_status_lbl)
-
-	# PRI weapon row
-	_pri_name_lbl = _make_label(_mpos("pri_blaster_label/pri_weapon_label", Vector2(392, 32)), "—", COLOR_GREEN)
-	c.add_child(_pri_name_lbl)
-	c.add_child(_make_label(_mpos("pri_blaster_label/pri_weapon_label/weapon_key", Vector2(360, 32)),
-		"[%s]" % _action_key_label("shoot"), COLOR_KEY))
-	_light_pri = _make_dot(_mpos("pri_blaster_label/pri_weapon_label/weapon_light", Vector2(376, 32)), COLOR_GREEN)
-	c.add_child(_light_pri)
-	_pri_ammo_lbl = _make_label(_mpos("pri_blaster_label/pri_weapon_label/pri_ammo_count", Vector2(456, 32)), "", COLOR_GREEN)
-	c.add_child(_pri_ammo_lbl)
-
-	# SEC weapon row
-	_sec_name_lbl = _make_label(_mpos("pri_blaster_label/sec_weapon_label", Vector2(392, 40)), "—", COLOR_GREEN)
-	c.add_child(_sec_name_lbl)
-	c.add_child(_make_label(_mpos("pri_blaster_label/sec_weapon_label/weapon_key", Vector2(360, 40)),
-		"[%s]" % _action_key_label("shoot2"), COLOR_KEY))
-	_light_sec = _make_dot(_mpos("pri_blaster_label/sec_weapon_label/weapon_light", Vector2(376, 40)), COLOR_GREEN)
-	c.add_child(_light_sec)
-	_sec_ammo_lbl = _make_label(_mpos("pri_blaster_label/sec_weapon_label/sec_ammo_count", Vector2(456, 40)), "", COLOR_GREEN)
-	c.add_child(_sec_ammo_lbl)
-
-	# SUP weapon row
-	_sup_name_lbl = _make_label(_mpos("pri_blaster_label/sup_weapon_label", Vector2(392, 48)), "—", COLOR_GREEN)
-	c.add_child(_sup_name_lbl)
-	c.add_child(_make_label(_mpos("pri_blaster_label/sup_weapon_label/weapon_key", Vector2(360, 48)),
-		"[%s]" % _action_key_label("shoot_nose"), COLOR_KEY))
-	_light_sup = _make_dot(_mpos("pri_blaster_label/sup_weapon_label/weapon_light", Vector2(376, 48)), COLOR_GREEN)
-	c.add_child(_light_sup)
-	_sup_ammo_lbl = _make_label(_mpos("pri_blaster_label/sup_weapon_label/sup_ammo_bars", Vector2(456, 48)), "", COLOR_GREEN)
-	c.add_child(_sup_ammo_lbl)
-
-	# Bounty
-	c.add_child(_make_label(_mpos("bounty_label",              Vector2(392, 240)), "BOUNTY", COLOR_GOLD))
-	_bounty_value_lbl = _make_label(_mpos("bounty_label/bounty_count", Vector2(448, 240)), "0", COLOR_GOLD)
-	c.add_child(_bounty_value_lbl)
+	# Shift-mode meter: label + duration bar + charge-pip row origin.
+	_mode_label = c.get_node("ModeLabel") as Label
+	_focus_bar_fill = c.get_node("ModeBarFill") as ColorRect
+	_mode_bar_w = (c.get_node("ModeBarBG") as ColorRect).size.x
+	_mode_pip_container = c.get_node("ModePips") as Node2D
 
 
 # ---------------------------------------------------------------------------
@@ -359,9 +283,8 @@ func _rebuild_hull_pips(count: int) -> void:
 	_hull_pips.clear()
 	if not is_instance_valid(_hull_pip_container):
 		return
-	var hull_origin := _mpos("hull_label/hull_pip_row_1", Vector2(16, 88))
 	for _i in range(count):
-		var pip := _make_dot(hull_origin + Vector2(_i * DOT_STEP, 0), COLOR_HULL)
+		var pip := _make_dot(Vector2(_i * DOT_STEP, 0), COLOR_HULL)
 		_hull_pip_container.add_child(pip)
 		_hull_pips.append(pip)
 
@@ -374,18 +297,13 @@ func _rebuild_shield_pips(count: int) -> void:
 	_shield_pips.clear()
 	if not is_instance_valid(_shield_pip_container):
 		return
-	var row_origins := [
-		_mpos("shield_label/shield_pip_row_1", Vector2(16, 24)),
-		_mpos("shield_label/shield_pip_row_2", Vector2(16, 40)),
-		_mpos("shield_label/shield_pip_row_3", Vector2(16, 56)),
-	]
 	var pips_placed := 0
 	for row_i in SHIELD_ROWS:
 		var row_arr: Array = []
 		for col_i in SHIELD_COLS:
 			if pips_placed >= count:
 				break
-			var pip := _make_dot(row_origins[row_i] + Vector2(col_i * DOT_STEP, 0), COLOR_SHIELD)
+			var pip := _make_dot(Vector2(col_i * DOT_STEP, row_i * SHIELD_ROW_STEP), COLOR_SHIELD)
 			_shield_pip_container.add_child(pip)
 			row_arr.append(pip)
 			pips_placed += 1
@@ -410,8 +328,9 @@ func update_score(value) -> void:
 		_bounty_value_lbl.text = "%d" % int(value)
 
 
-func update_wave(_idx: int, _total: int) -> void:
-	pass  # wave banners carry this info
+func update_wave(idx: int, total: int) -> void:
+	# Warn-light stack: waves remaining includes the wave that just started.
+	_waves_remaining = clampi(total - idx, 0, _warn_lights.size())
 
 
 func flicker_in(duration: float = 0.6) -> void:
@@ -466,7 +385,6 @@ func bind_player(player) -> void:
 	if "super_charges" in player and "max_super_charges" in player:
 		_on_super_charges_changed(int(player.super_charges), int(player.max_super_charges))
 
-	_install_focus_bar()
 	# Seed the mode meter to the player's current Shift mode (rebuilds pips + colour),
 	# then push the live charge + duration values into it.
 	if "active_mode" in player:
@@ -491,34 +409,9 @@ func _install_ammo_label() -> void:
 	pass  # no-op kept for external callers
 
 
-func _install_focus_bar() -> void:
-	if _focus_bar_fill != null and is_instance_valid(_focus_bar_fill):
-		return
-	var c := _hud_root_node
-	_mode_label = _make_label(_mpos("focus_label", Vector2(8, 247)), "FOCUS", Color(0.5, 0.75, 1.0, 0.85), 7)
-	c.add_child(_mode_label)
-	var bg := ColorRect.new()
-	bg.color = Color(0.1, 0.15, 0.3, 0.7)
-	bg.position = _mpos("focus_bar", Vector2(8, 256))
-	bg.size = Vector2(BAR_W, BAR_H)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	c.add_child(bg)
-	_focus_bar_fill = ColorRect.new()
-	_focus_bar_fill.color = Color(0.4, 0.7, 1.0, 0.9)
-	_focus_bar_fill.position = _mpos("focus_bar", Vector2(8, 256))
-	_focus_bar_fill.size = Vector2(BAR_W, BAR_H)
-	_focus_bar_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	c.add_child(_focus_bar_fill)
-	# Charge pips (discrete light sprites, like hull/shield) below the duration bar.
-	# Rebuilt to the active mode's charge count by _on_mode_changed_ui.
-	_mode_pip_container = Control.new()
-	_mode_pip_container.name = "ModePips"
-	_mode_pip_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_mode_pip_container.set_anchors_preset(Control.PRESET_FULL_RECT)
-	c.add_child(_mode_pip_container)
-
-
-# Rebuild the Shift-mode charge pips to `count` (one light per charge).
+# Rebuild the Shift-mode charge pips to `count` (one light per charge). The pips
+# sit on top of the duration bar (Roman 2026-07-12) — the ModePips scene node is
+# parked 2 px above the bar origin so the 8×8 dots centre over the 4 px bar.
 func _rebuild_mode_pips(count: int) -> void:
 	for p in _mode_pips:
 		if is_instance_valid(p):
@@ -526,9 +419,8 @@ func _rebuild_mode_pips(count: int) -> void:
 	_mode_pips.clear()
 	if not is_instance_valid(_mode_pip_container):
 		return
-	var origin := _mpos("mode_pips", Vector2(8, 263))
 	for i in range(count):
-		var pip := _make_dot(origin + Vector2(i * DOT_STEP, 0), _MODE_PIP_OFF)
+		var pip := _make_dot(Vector2(i * DOT_STEP, 0), _MODE_PIP_OFF)
 		_mode_pip_container.add_child(pip)
 		_mode_pips.append(pip)
 
@@ -560,7 +452,7 @@ func _on_mode_charges_changed(charges: int, max_charges: int) -> void:
 func _on_mode_duration_changed(active_t: float, duration: float) -> void:
 	if _focus_bar_fill == null:
 		return
-	_focus_bar_fill.size.x = float(BAR_W) * clamp(active_t / max(0.001, duration), 0.0, 1.0)
+	_focus_bar_fill.size.x = _mode_bar_w * clamp(active_t / max(0.001, duration), 0.0, 1.0)
 
 
 # Swap the mode meter (label, bar colour, pip count/colour) when the equipped Shift
@@ -573,8 +465,9 @@ func _on_mode_changed_ui(mode: int) -> void:
 	var col: Color = meta[1]
 	_mode_label.text = String(meta[0])
 	_mode_label.add_theme_color_override("font_color", Color(col.r, col.g, col.b, 0.9))
-	_focus_bar_fill.color = col
-	_mode_pip_color = col
+	# Bar + pips stay fixed purple — only the label carries the mode colour.
+	_focus_bar_fill.color = _MODE_METER_PURPLE
+	_mode_pip_color = _MODE_METER_PURPLE
 	# Rebuild pips for this mode's charge count, then reseed live values.
 	_prev_mode_charges = -1
 	var p = _player_ref
@@ -587,8 +480,8 @@ func _on_mode_changed_ui(mode: int) -> void:
 
 
 func _on_player_damaged(_amount: int) -> void:
-	if _threat_light != null:
-		HudLight.hit_flash(_threat_light)
+	if _warn_light_container != null and is_instance_valid(_warn_light_container):
+		HudLight.pip_flash(_warn_light_container)
 
 
 func _refresh_weapon_names() -> void:
@@ -665,6 +558,7 @@ func _on_wave_started_threat(_idx, _total, _silent, _text) -> void:
 
 func _on_level_cleared_threat() -> void:
 	_wave_spawning = false
+	_waves_remaining = 0
 
 
 func _disconnect_player_signals(player) -> void:
@@ -773,28 +667,33 @@ func _process(delta: float) -> void:
 		var blaster_on: bool = has_node("/root/Run") and get_node("/root/Run").is_active_cannon_infinite()
 		_blaster_status_lbl.text = "STANDBY" if not blaster_on else ("FIRING" if Input.is_action_pressed("shoot") else "READY")
 
-	# --- Threat light (state-tracked to avoid restarting tween every frame) ---
+	# --- Warn-light stack ---
+	# Arriving (old BLINK state: enemies offscreen/recycling or wave incoming) →
+	# downward chase across all 7 lights. Otherwise the stack settles into the
+	# wave indicator: bottom N lights lit, N = waves remaining.
 	var enemy_count: int = get_tree().get_nodes_in_group("enemies").size()
 	var on_screen: int = _enemies_on_screen() if enemy_count > 0 else 0
-	var new_threat: int = 0  # OFF
-	if on_screen > 0:
-		# Enemies visible on screen → STEADY threat
-		new_threat = 2
-	elif enemy_count > 0 or _wave_spawning:
-		# Enemies exist but offscreen (recycling) or wave incoming → BLINK
-		new_threat = 1
-	# else new_threat = 0 (OFF)
+	var arriving: bool = on_screen == 0 and (enemy_count > 0 or _wave_spawning)
 
-	if new_threat != _threat_state:
-		_threat_state = new_threat
-		if _threat_light != null:
-			match _threat_state:
-				2:  # STEADY
-					_threat_light.frame = 1
-					HudLight.apply(_threat_light, HudLight.Pattern.STEADY)
-				1:  # BLINK
-					_threat_light.frame = 1
-					HudLight.apply(_threat_light, HudLight.Pattern.BLINK)
-				0:  # OFF
-					HudLight.stop(_threat_light)
-					_threat_light.frame = 0
+	var n: int = _warn_lights.size()
+	if arriving and n > 0:
+		_warn_chase_t += delta
+		if _warn_chase_t >= WARN_CHASE_STEP_S:
+			_warn_chase_t = fmod(_warn_chase_t, WARN_CHASE_STEP_S)
+			_warn_chase_step = (_warn_chase_step + 1) % n
+		for i in n:
+			var lit: bool = posmod(i - _warn_chase_step, n) < WARN_CHASE_BAND
+			_set_warn_light(i, lit)
+	else:
+		_warn_chase_t = 0.0
+		_warn_chase_step = 0
+		for i in n:
+			_set_warn_light(i, i >= n - _waves_remaining)
+
+
+func _set_warn_light(i: int, lit: bool) -> void:
+	var light := _warn_lights[i] as Sprite2D
+	if light == null or not is_instance_valid(light):
+		return
+	light.frame = 1 if lit else 0
+	light.modulate = COLOR_AMBER if lit else COLOR_WARN_OFF
