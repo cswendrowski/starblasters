@@ -13,6 +13,13 @@ extends "res://scripts/enemies/enemy_base.gd"
 # Firecore embers share the "engines" HDR-glow multiplier (Roman 2026-06-22) so the WorldEnvironment
 # blooms them. VfxGlow is inherited from enemy_base.
 
+# Radiant-halo glow behind the ember (Shader Lab "Firecore Glow" tuning, Roman 2026-07-09) — makes the
+# hazard read as a striking star on any backdrop. The bubble SIZE is randomised per firecore so a field
+# of embers has variety; pixelation tracks the size for the 1:1 pixel look.
+const GLOW_SHADER = preload("res://graphics/pixel_halo_glow.gdshader")
+const GLOW_SIZE_MIN := 24
+const GLOW_SIZE_MAX := 48
+
 @export var drift_speed: float = 45.0        # slow lane drift (mines are 120)
 @export var damage_on_collide: int = 2
 @export var lifetime: float = 7.0            # safety despawn if it never clears the band
@@ -48,6 +55,7 @@ func _ready() -> void:
 	has_ship_vfx = false    # no ground shadow / damage-overlay — it explodes, not frays
 	wants_outline = false  # firecores are excepted from the hull outline
 	offscreen_mode = OffscreenMode.NONE
+	engine_trail_enabled = true   # the firecore ember KEEPS its yellow exhaust (cut from all other enemies)
 	# Descent intake (speed-source pass): a handed move_speed (bench/director) drives the drop;
 	# otherwise the authored drift_speed holds. Never overrides a handed value.
 	if move_speed > 0.0:
@@ -62,6 +70,42 @@ func _ready() -> void:
 		# HDR modulate → the WorldEnvironment bloom glows the ember (uses the tuned "engines"
 		# multiplier). The engine trail comes from the Engine marker.
 		spr.modulate = VfxGlow.prod_hdr("engines")
+	_add_glow()
+
+
+# Build the radiant-halo glow ColorRect behind the ember, sized randomly per instance.
+func _add_glow() -> void:
+	if has_node("Glow"):
+		return   # already built (defensive against a recycled ember re-running setup)
+	var glow_size: float = float(randi_range(GLOW_SIZE_MIN, GLOW_SIZE_MAX))
+	var mat := ShaderMaterial.new()
+	mat.shader = GLOW_SHADER
+	mat.set_shader_parameter("pixelation", Vector2(glow_size, glow_size))   # 1:1 pixel = the bubble size
+	mat.set_shader_parameter("gradient_steps", 16.0)
+	mat.set_shader_parameter("spread", 0.375)
+	mat.set_shader_parameter("size", 0.320)
+	mat.set_shader_parameter("speed", 1.5)
+	mat.set_shader_parameter("ray1_density", 6.0)
+	mat.set_shader_parameter("ray2_density", 6.0)
+	mat.set_shader_parameter("ray2_intensity", -1.0)
+	mat.set_shader_parameter("core_intensity", -1.0)
+	mat.set_shader_parameter("seed", 10.5)
+	mat.set_shader_parameter("hdr", false)
+	var grad := Gradient.new()
+	grad.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
+	grad.colors = PackedColorArray([Color("ffe67500"), Color("f7ff00ff"), Color("fdff00ff")])
+	var gtex := GradientTexture1D.new()
+	gtex.gradient = grad
+	mat.set_shader_parameter("gradient", gtex)
+	var glow := ColorRect.new()
+	glow.name = "Glow"
+	glow.color = Color(1, 1, 1, 1)
+	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	glow.material = mat
+	glow.size = Vector2(glow_size, glow_size)
+	glow.position = -glow.size * 0.5   # centred on the ember origin
+	glow.z_index = -1                   # behind the ember sprite
+	add_child(glow)
 
 
 func _sprite() -> CanvasItem:
