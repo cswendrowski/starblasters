@@ -58,17 +58,23 @@ static func compose(rng: RandomNumberGenerator, opts: Dictionary = {}) -> Dictio
 	if kind == "":
 		kind = _weighted_kind(rng)
 
-	# Star-mode roll (item 5, astral size variation) — ONE per composition, stamped on the
-	# dict for the lab status line + read by the planet layer's per-body parallax (item 6).
-	# distant_star ~60%: a small, brilliant point paired with a glow boost; hero planets large.
-	# near_star ~40%: a dominant star that outshines everything; planets small/distant.
-	var star_mode: String = "distant_star" if rng.randf() < 0.6 else "near_star"
+	# Star SIZE roll (item 5, astral size variation — Roman 2026-07-08 round 2). SIZE-first,
+	# mode-derived: the old mode-first roll was bimodal — distant 0.06-0.14 (20-46px) vs near
+	# 0.75-1.2, which ALWAYS saturated the 120px clamp, so stars were either tiny or exactly
+	# 120 with nothing between. One continuous small-biased roll now covers the whole band
+	# (scale 0.03-0.36 ≈ 10-119px at the 330 ceiling — under the layer's star_clamp_max);
+	# the mode label (planet sizing, depth weighting, lab status) derives from the result
+	# (< ~48px reads "distant"). Glow boost is continuous too: the smaller the star, the
+	# harder it over-boosts so a 10px point still blooms brilliant.
+	var star_scale: float = lerpf(0.03, 0.36, pow(rng.randf(), 1.4))
+	var star_mode: String = "distant_star" if star_scale < 0.145 else "near_star"
 
 	var st := {
 		"planet_idx": PLANET_PICK[rng.randi() % PLANET_PICK.size()],
 		"planet_seed": rng.randi(),
 		"star_color": star_color,
 		"star_mode": star_mode,
+		"star_scale": star_scale,
 		"has_asteroids": false,
 		"asteroid_density": 0.0,
 		"nebula_band": "",
@@ -79,7 +85,7 @@ static func compose(rng: RandomNumberGenerator, opts: Dictionary = {}) -> Dictio
 
 	match kind:
 		"system":
-			st["system"] = _build_system(rng, star_color, star_mode)
+			st["system"] = _build_system(rng, star_color, star_mode, star_scale)
 		"planet":
 			st["moons"] = _build_moons(rng)
 			# Widen the single-planet size spread well past planet_size_variance (0.35). The
@@ -90,12 +96,12 @@ static func compose(rng: RandomNumberGenerator, opts: Dictionary = {}) -> Dictio
 			st["asteroid_density"] = rng.randf_range(1.4, 2.4)
 			# An asteroid belt still wants a couple of distant bodies behind it.
 			if rng.randf() < 0.6:
-				st["system"] = _build_system(rng, star_color, star_mode)
+				st["system"] = _build_system(rng, star_color, star_mode, star_scale)
 		"nebula":
 			var nb: Dictionary = NEBULA_BANDS[rng.randi() % NEBULA_BANDS.size()]
 			st["nebula_band"] = String(nb["name"])
 			st["nebula_tint"] = nb["tint"]
-			st["system"] = _build_system(rng, star_color, star_mode)
+			st["system"] = _build_system(rng, star_color, star_mode, star_scale)
 
 	# Independent overlays, like real nodes layer a belt-edge or a nebula onto a planet view.
 	if (kind == "system" or kind == "planet"):
@@ -171,12 +177,14 @@ static func _weighted_kind(rng: RandomNumberGenerator) -> String:
 
 
 # A staged star-system: a star (planet_idx 8) at frac 0 plus 2–4 planets spread across the band.
-# star_mode (item 5) sets the STAR's scale + glow and the planet size band:
-#   distant_star → tiny brilliant star (0.06–0.14) + glow_boost; planets 0.15–0.95, one hero large.
-#   near_star    → dominant star (0.75–1.2) that outshines; planets small/distant (0.05–0.30).
-# The hero is chosen among the PLANETS (never the star) so the star always follows its mode scale.
+# The star's scale is the CONTINUOUS size rolled in compose() (star_scale, 0.03–0.36); its
+# glow_boost scales inversely with size (small = brilliant point, big = today's glow). The
+# mode label still sets the planet size band:
+#   distant_star → hero planet large (0.70–0.95), rest 0.15–0.50.
+#   near_star    → planets recede (0.05–0.45 — widened for mid-size coverage).
+# The hero is chosen among the PLANETS (never the star) so the star always follows its roll.
 # Matches the entry shape _spawn_system reads (kind/planet_idx/planet_seed/frac/scale/star_color/glow_boost).
-static func _build_system(rng: RandomNumberGenerator, star_color: Color, star_mode: String = "distant_star") -> Array:
+static func _build_system(rng: RandomNumberGenerator, star_color: Color, star_mode: String = "distant_star", star_scale: float = 0.1) -> Array:
 	var n: int = rng.randi_range(3, 5)
 	var hero: int = rng.randi_range(1, n - 1)   # big foreground PLANET (never the star)
 	var sys: Array = []
@@ -185,15 +193,14 @@ static func _build_system(rng: RandomNumberGenerator, star_color: Color, star_mo
 		var scale_f: float
 		var glow_boost: float = 1.0
 		if is_star:
-			if star_mode == "distant_star":
-				scale_f = rng.randf_range(0.06, 0.14)
-				glow_boost = 1.8   # tiny but brilliant — over-boost so it still blooms
-			else:
-				scale_f = rng.randf_range(0.75, 1.2)
+			scale_f = star_scale
+			# Continuous brightness compensation: 10px point → ~1.9×, 119px → 1.0×.
+			var t: float = clampf((star_scale - 0.03) / 0.33, 0.0, 1.0)
+			glow_boost = lerpf(1.9, 1.0, t)
 		elif star_mode == "distant_star":
 			scale_f = rng.randf_range(0.70, 0.95) if i == hero else rng.randf_range(0.15, 0.50)
 		else:
-			scale_f = rng.randf_range(0.05, 0.30)   # near_star: planets recede
+			scale_f = rng.randf_range(0.05, 0.45)   # near_star: planets recede
 		sys.append({
 			"kind": "star" if is_star else "planet",
 			"planet_idx": 8 if is_star else PLANET_PICK[rng.randi() % PLANET_PICK.size()],

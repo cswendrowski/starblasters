@@ -50,6 +50,11 @@ extends Node2D
 # (through the _base_counts cache, so it never compounds across regenerate). Vector3.ONE = today
 # exactly. PROPOSED (2.0, 1.0, 0.7) makes far the busiest band, near the sparsest.
 @export var asteroid_layer_mult: Vector3 = Vector3.ONE
+# Asteroid drop shadows (ports the Flyover cloud-shadow rig): player + enemy
+# silhouettes darken the decorative rocks, band-scaled exactly like the flyover
+# cloud layers. OFF by default — only the combat backdrop (main.tscn) turns it
+# on, so menu/signal-event coordinators never pay for the 3 mask viewports.
+@export var asteroid_shadows: bool = false
 
 # Planet-to-tint mapping from V1 PLANET_TINT. Read galaxy_backdrop.gd for the exact colors.
 const PLANET_TINT := {
@@ -67,6 +72,8 @@ const SKIP_TINT := [6, 8]
 
 # Full-variety fallback + palette authoring (WP3). Preload const, NOT class_name.
 const StellarComposer = preload("res://scripts/parallax/stellar_composer.gd")
+# Asteroid drop-shadow rig (mask viewports + caster tracking). Preload const, NOT class_name.
+const AsteroidShadowRig = preload("res://scripts/parallax/asteroid_shadow_rig.gd")
 
 # ── Row-system staging position knobs (Roman to tune) ──────────────────────
 # When current_stellar carries a `system` array (star + nearest planets), the
@@ -121,6 +128,15 @@ var palette: Dictionary = {}
 # The stellar dict _populate last consumed (composed or sector-map) — exposes the
 # rolled `kind` / `nebula_band` / `has_asteroids` for the showcase status line.
 var last_stellar: Dictionary = {}
+# The asteroid drop-shadow rig (created in _populate only while asteroid_shadows
+# is on AND rocks will actually spawn — 3 always-updating mask viewports aren't free).
+var _shadow_rig: Node = null
+# Direct stellar-dict injection (WP11): when non-empty, _populate consumes THIS ahead of
+# Run.current_stellar and reads `asteroid_base_color` from it (key optional) instead of Run meta.
+# Empty = production behavior unchanged. Lets the showcase lab drive gameplay-authored (sector-map
+# shaped) backdrops without writing into Run (the P1 lesson). regenerate(seed) stays deterministic —
+# the override IS the stellar dict; the seed drives the rest (rocks / star layout / etc.).
+var stellar_override: Dictionary = {}
 
 
 func _ready() -> void:
@@ -144,7 +160,11 @@ func _ready() -> void:
 func _populate() -> void:
 	var run_node := get_node_or_null("/root/Run")
 	var stellar: Dictionary = {}
-	if run_node and "current_stellar" in run_node:
+	# stellar_override (WP11) wins over Run.current_stellar when set — the lab injects a
+	# gameplay-authored dict here without touching Run.
+	if not stellar_override.is_empty():
+		stellar = stellar_override
+	elif run_node and "current_stellar" in run_node:
 		stellar = run_node.current_stellar
 
 	var rng := RandomNumberGenerator.new()
@@ -257,9 +277,28 @@ func _populate() -> void:
 	# per layer regardless of density. Planets / nebula / stars are unaffected.
 	var has_asteroids: bool = bool(stellar.get("has_asteroids", false)) or force_asteroids
 	var asteroid_density: float = float(stellar.get("asteroid_density", 0.0))
+	# Asteroid drop shadows: (re)create or drop the rig BEFORE the layer loop —
+	# layer_stellar binds mask textures at rock spawn via the rig's group. When
+	# dropping, leave the group first so this populate's rocks can't bind a
+	# dying rig's viewport texture.
+	if asteroid_shadows and has_asteroids:
+		if _shadow_rig == null or not is_instance_valid(_shadow_rig):
+			_shadow_rig = AsteroidShadowRig.new()
+			add_child(_shadow_rig)
+	elif _shadow_rig != null:
+		if is_instance_valid(_shadow_rig):
+			_shadow_rig.remove_from_group("asteroid_shadow_rig")
+			_shadow_rig.queue_free()
+		_shadow_rig = null
 	var density_mult: float = (0.5 + asteroid_density) * asteroid_density_scale
 	var ast_color: Color = Color(0.9, 0.88, 0.85, 1.0)
-	if run_node != null and run_node.has_meta("asteroid_base_color"):
+	# Authored asteroid colour source: the stellar_override dict (lab / WP11) carries it directly (key
+	# optional); production reads it from Run meta. When an override is active we NEVER consult Run meta
+	# (the lab must not depend on Run state). Either authored source wins over the palette-dust fallback.
+	var override_active: bool = not stellar_override.is_empty()
+	if override_active and stellar_override.has("asteroid_base_color"):
+		ast_color = stellar_override["asteroid_base_color"]
+	elif not override_active and run_node != null and run_node.has_meta("asteroid_base_color"):
 		ast_color = run_node.get_meta("asteroid_base_color")
 	elif use_palette:
 		# No authored sector-map asteroid colour → ramp rocks from the palette dust hue.

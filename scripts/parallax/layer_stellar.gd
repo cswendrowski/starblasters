@@ -22,6 +22,19 @@ const RESET_THRESHOLD := 340.0
 @export var nebula_chance: float = 0.7
 @export var nebula_swirl: float = 0.0           # TIME-driven filament churn (0 = static); coordinator drives it
 @export var nebula_tint: Color = Color(1, 1, 1, 1)  # multiplies the cloud colour (per-POI palette)
+# ── Nebula Lab port (WP10, Roman 2026-07-12) ───────────────────────────────
+# The Nebula Lab (scripts/dev/nebula_lab.gd) evolved past the old hardcoded
+# warp_strength 0.8 / wisp 0.2 / opacity 1.0 literals. These per-layer exports
+# carry the lab's tuned Neb2 config into production; authored per-layer in the
+# layer_stellar_{far,mid,near}.tscn overrides (same mechanism as nebula_alpha).
+# nebula2.gdshader only — consumed in _spawn_nebula's nebula2 branch.
+@export var nebula_warp_strength: float = 0.8   # domain-warp curl amount (was hardcoded 0.8)
+@export var nebula_warp_scale: float = 1.0      # domain-warp frequency; per-layer for variety (was 1.0)
+@export var nebula_wisp_strength: float = 0.2   # filament wisp band (was hardcoded 0.2)
+# Density + opacity BREATHE together over time (lab convention): higher opacity <-> higher density,
+# phase-offset per layer so bands don't pulse in lockstep. breathe_speed 0 = frozen at the phase value.
+@export var nebula_breathe_speed: float = 0.0   # 0 = static (frozen density/opacity at nebula_phase)
+@export var nebula_phase: float = 0.0           # per-layer breathe phase offset (radians)
 @export var pixel_density: float = 1.0
 @export var mine_count: int = 0
 # Per-rock lateral drift (Parallax V4 showcase). 0 = today's lockstep conveyor.
@@ -44,6 +57,12 @@ var _nebula_rect: ColorRect = null
 var _local_rng: RandomNumberGenerator = null
 
 const NEBULA_TILE: float = 270.0
+# Density/opacity breathe ranges (Nebula Lab port). density high <-> opacity high opens breaks +
+# texture in the cloud; floor > 0 so a layer never fully vanishes. Matched to nebula_lab.gd.
+const NEBULA_DENSITY_RANGE := Vector2(0.75, 1.4)
+const NEBULA_OPACITY_RANGE := Vector2(0.4, 1.0)
+
+var _nebula_time: float = 0.0
 
 
 func populate(rng: RandomNumberGenerator) -> void:
@@ -140,6 +159,7 @@ func _spawn_asteroid() -> void:
 		inner.position = Vector2.ZERO
 		if inner.material is ShaderMaterial:
 			(inner.material as ShaderMaterial).set_shader_parameter("draw_outline", false)
+			_apply_shadow_params(inner.material as ShaderMaterial)
 	var spin: float = 0.0
 	if _local_rng.randf() < 0.35:
 		spin = _local_rng.randf_range(0.05, 0.25)
@@ -209,6 +229,30 @@ func _roll_drift_vx() -> float:
 	return _local_rng.randf_range(-drift_variance, drift_variance) * scroll_rate
 
 
+# Ship drop shadows (asteroid_shadow_rig): bind this band's screen-space caster
+# mask + strength into the rock's (already per-instance) material. No rig in the
+# tree — menus, labs, coordinator flag off — leaves the params untouched, and the
+# shader's shadow_strength default of 0 keeps the rock byte-identical to today.
+func _apply_shadow_params(mat: ShaderMaterial) -> void:
+	var rig: Node = get_tree().get_first_node_in_group("asteroid_shadow_rig")
+	if rig == null or rig.is_queued_for_deletion() or not rig.has_method("mask_texture"):
+		return
+	var band := _shadow_band()
+	mat.set_shader_parameter("shadow_mask", rig.mask_texture(band))
+	mat.set_shader_parameter("shadow_strength", rig.band_strength(band))
+
+
+# Which shadow band this layer is, derived from the scene root name
+# (LayerStellarFar/Mid/Near) so the band needs no .tscn edit. Unknown → mid.
+func _shadow_band() -> String:
+	var n := String(name).to_lower()
+	if n.contains("far"):
+		return "far"
+	if n.contains("near"):
+		return "near"
+	return "mid"
+
+
 # Build the Asteroids.gdshader `colors` ramp (light → mid → dark) from a single
 # base hue, matching the spread of the shader's default blue-gray palette.
 func _tint_ramp(base: Color) -> PackedColorArray:
@@ -254,24 +298,40 @@ func _spawn_nebula() -> void:
 	mat.set_shader_parameter("seed", sd)
 	mat.set_shader_parameter("pixels", nebula_px)
 	mat.set_shader_parameter("drift_speed", nebula_drift)
-	var alpha_mult: float = _local_rng.randf_range(1.0, 1.5) if _local_rng else 1.0
-	mat.set_shader_parameter("max_alpha", nebula_alpha * alpha_mult)
+	# max_alpha IS the lab's per-layer max_alpha now (nebula_alpha). The old random
+	# alpha_mult was dropped in the WP10 lab port — the lab's config is deterministic
+	# per layer, so band brightness comes straight from the authored nebula_alpha.
+	mat.set_shader_parameter("max_alpha", nebula_alpha)
 	mat.set_shader_parameter("density", nebula_density)
 	mat.set_shader_parameter("edge_sharpness", nebula_edge)
 	mat.set_shader_parameter("uv_correct", Vector2(1.0, 1.0))
 	if cs != null:
 		mat.set_shader_parameter("colorscheme", cs)
-	# nebula2-only knobs — gentle swirl/filaments per V1's live near pass.
+	# nebula2-only knobs — tuned in the Nebula Lab, carried by the per-layer exports.
 	if nebula_shader_path.ends_with("nebula2.gdshader"):
-		mat.set_shader_parameter("warp_strength", 0.8)
-		mat.set_shader_parameter("warp_scale", 1.0)
-		mat.set_shader_parameter("wisp_strength", 0.2)
-		mat.set_shader_parameter("swirl_speed", nebula_swirl)   # dynamic filament churn
-		mat.set_shader_parameter("opacity", 1.0)
+		mat.set_shader_parameter("warp_strength", nebula_warp_strength)
+		mat.set_shader_parameter("warp_scale", nebula_warp_scale)   # per-depth curl variety
+		mat.set_shader_parameter("wisp_strength", nebula_wisp_strength)
+		mat.set_shader_parameter("swirl_speed", nebula_swirl)   # dynamic filament churn (coordinator-driven)
 		mat.set_shader_parameter("scroll_offset", Vector2.ZERO)
 		mat.set_shader_parameter("rect_size", _nebula_rect.size)   # square, native-aligned pixelation
+		# density + opacity breathe together (frozen at nebula_phase when breathe_speed == 0).
+		_nebula_time = 0.0
+		_apply_nebula_breathe(mat)
 	_nebula_rect.material = mat
 	add_child(_nebula_rect)
+
+
+# Drive the nebula2 density/opacity breathe from _nebula_time + nebula_phase. At
+# breathe_speed 0 the value is frozen (constant per layer); > 0 it slowly pulses.
+# Set once at spawn (initial frame) and re-applied per-frame in _process while
+# breathe_speed > 0. No-op for non-nebula2 shaders.
+func _apply_nebula_breathe(mat: ShaderMaterial) -> void:
+	if mat == null:
+		return
+	var o: float = 0.5 + 0.5 * sin(_nebula_time * nebula_breathe_speed + nebula_phase)
+	mat.set_shader_parameter("density", lerpf(NEBULA_DENSITY_RANGE.x, NEBULA_DENSITY_RANGE.y, o))
+	mat.set_shader_parameter("opacity", lerpf(NEBULA_OPACITY_RANGE.x, NEBULA_OPACITY_RANGE.y, o))
 
 
 func _spawn_bg_mines() -> void:
@@ -322,6 +382,13 @@ func _on_scrolled() -> void:
 
 
 func _process(delta: float) -> void:
+	# Nebula density/opacity breathe (Nebula Lab port). Only ticks when a nebula is
+	# live AND breathe_speed > 0 — at 0 the value stays frozen at its spawn (phase) value.
+	if nebula_breathe_speed > 0.0 and _nebula_rect != null and is_instance_valid(_nebula_rect) \
+			and _nebula_rect.material is ShaderMaterial \
+			and nebula_shader_path.ends_with("nebula2.gdshader"):
+		_nebula_time += delta
+		_apply_nebula_breathe(_nebula_rect.material as ShaderMaterial)
 	if drift_variance > 0.0:
 		_apply_lateral_drift(delta)
 	for entry in _objects:

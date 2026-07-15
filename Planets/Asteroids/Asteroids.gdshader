@@ -20,6 +20,12 @@ uniform float roundness : hint_range(0.0, 1.0) = 0.0;
 // thick on the final 480x270 viewport.
 uniform bool draw_outline = true;
 uniform vec4 outline_color : source_color = vec4(0.0, 0.0, 0.0, 1.0);
+// Ship drop shadows (scripts/parallax/asteroid_shadow_rig.gd) — a screen-space viewport
+// texture holding every caster's offset/scaled silhouette, sampled at SCREEN_UV so the
+// shadow lands wherever the rock happens to be as it scrolls. Same mechanism as the
+// Planet Flyover cloud shadows (nebula2/cloud_layer). Inert at the default strength 0.
+uniform sampler2D shadow_mask : hint_default_transparent, filter_nearest;
+uniform float shadow_strength : hint_range(0.0, 1.0) = 0.0;
 
 float rand(vec2 coord) {
 	return fract(sin(dot(coord.xy ,vec2(12.9898,78.233))) * 15.5453 * seed);
@@ -163,7 +169,15 @@ void fragment() {
 		is_outline = neighbor > 0.5;
 	}
 	if (inside) {
-		COLOR = vec4(col.rgb, 1.0);
+		vec3 out_rgb = col.rgb;
+		// Ship drop shadows: darken rgb only, gated to the FULL base silhouette (`inside`
+		// = n_step) — craters/noise bands are colour detail within the same mask, so the
+		// shadow reads as one shape crossing one rock, never a per-band cutout.
+		if (shadow_strength > 0.0) {
+			float sm = texture(shadow_mask, SCREEN_UV).a;
+			out_rgb *= 1.0 - sm * shadow_strength;
+		}
+		COLOR = vec4(out_rgb, 1.0);
 	} else if (is_outline) {
 		COLOR = vec4(outline_color.rgb, 1.0);
 	} else {

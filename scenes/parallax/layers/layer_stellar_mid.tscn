@@ -13,10 +13,18 @@ asteroid_min_size = 75.0
 asteroid_max_size = 150.0
 nebula_enabled = false
 nebula_shader_path = "res://graphics/nebula2.gdshader"
-nebula_alpha = 0.2
-nebula_scale = 2.5
+nebula_alpha = 0.5
+nebula_scale = 3.0
+nebula_octaves = 8
 nebula_density = 0.9
-nebula_drift = 0.008
+nebula_edge = 0.5
+nebula_drift = 0.2
+nebula_warp_strength = 1.65
+nebula_warp_scale = 2.198825
+nebula_wisp_strength = 0.2
+nebula_swirl = 0.16
+nebula_breathe_speed = 0.0
+nebula_phase = 2.1
 
 [node name="CanvasModulate" type="CanvasModulate" parent="."]
 color = Color(1, 1, 1, 1)

@@ -16,6 +16,57 @@ extends "res://scripts/parallax/layer_base.gd"
 # the per-body depth: near_star bodies read CLOSE (fast), distant_star ≈ static, "" = moderate.
 var star_mode: String = ""
 
+# ── Star FX tiers (Parallax V4 showcase, WP8) ────────────────────────────────
+# Size-tiered rendering for star bodies (hero planet idx 8 + system star entries). OFF (default)
+# = byte-identical: the PixelPlanets Star kit + WP5's glow_boost bloom halo, untouched. ON:
+#   < star_sparkle_max px → sparkle ColorRect (diffraction twinkle) + white HDR center dot, NO kit;
+#   star_sparkle_max..star_clamp_max → kit + pixel_halo_glow ring (size lerps on the star px);
+#   > star_clamp_max → clamped to star_clamp_max at spawn (then it lands in the halo tier).
+# The new tiers REPLACE glow_boost when on (no double-halo — a distant small star lands in the
+# strictly-brighter sparkle tier). All thresholds are lab-tunable (WP9 drives these exports).
+@export var star_fx: bool = false
+# Below this display px a star renders as the sparkle tier (no PixelPlanets kit).
+@export var star_sparkle_max: float = 32.0
+# Star display size is capped here when star_fx is on (the halo stops reading past it, and a
+# 120px star is bright enough to carry the scene). Composer near_star sizes hit this cap.
+@export var star_clamp_max: float = 120.0
+# Multiplier on the lerped halo size (WP9 tuner knob). 1.0 = the raw 64→240 lerp.
+@export var halo_scale_mult: float = 1.0
+# Halo brightness levers (Roman 2026-07-08 — the two knobs that run hot when the halo,
+# HDR kit palette, and WorldEnv bloom stack): the gradient's mid-stop alpha, and the
+# shader's core_intensity (1.5 sits exactly at the bloom threshold).
+@export var halo_mid_alpha: float = 0.75
+@export var halo_core_intensity: float = 1.5
+# Sparkle-tier levers (Roman 2026-07-08 "giant central dot" round 2). The sparkle shader's
+# gaussian envelope M = exp(-L²·decay²/scale) paints a FULL-brightness core ≈40% of the star
+# diameter at the Shader-Lab decay 0.12 — fine there (it sat BEHIND a textured kit star),
+# a featureless blob here where the dot replaces the kit. 0.30 → core ≈17% of the star.
+@export var sparkle_decay: float = 0.3
+# Multiplier on the reference shader `scale` (4300 @ 32px). Higher = tighter core + spikes.
+@export var sparkle_scale_mult: float = 1.0
+# Glint energy — scales the star point's core heat + cross-ray length (0.45 = reference).
+@export var dot_size_frac: float = 0.45
+# The glint's HDR boost (bloom threshold is 1.5).
+@export var dot_hdr: float = 2.5
+
+const STAR_HALO_SHADER := preload("res://graphics/pixel_halo_glow.gdshader")
+const STAR_SPARKLE_SHADER := preload("res://graphics/sparkle_star.gdshader")
+const STAR_GLINT_SHADER := preload("res://graphics/star_glint.gdshader")
+# Halo size lerp anchors: ≈ star×2.8. History: Roman's first-pass ×3 (98/360) read enormous,
+# the Shader-Lab ×2 (64/240) read too tight in the showcase — settled at ×2 + 40%
+# (Roman 2026-07-08 after driving the glint build). Fixed anchors (the sparkle/clamp EXPORTS
+# move the tier boundaries; these stay put; halo_scale_mult scales the result).
+const STAR_HALO_ANCHOR_LO := 32.0
+const STAR_HALO_ANCHOR_HI := 120.0
+const STAR_HALO_PX_LO := 90.0
+const STAR_HALO_PX_HI := 336.0
+# Sparkle sizing reference (Roman's Shader Lab block, tuned at star size 32): the sparkle ColorRect
+# is 2× the star (lab "Star Sparkle" default halo_px 220 / star 110 = 2:1) and the shader `scale`
+# param is 4300 at that 32px reference. Both shrink proportionally with the star (rect & scale).
+const SPARKLE_REF_STAR := 32.0
+const SPARKLE_REF_SCALE := 4300.0
+const SPARKLE_RECT_RATIO := 2.0
+
 # Reference display size for depth weighting — a body at this size sits at ~unit depth. Roughly
 # the main planet's footprint (planet_size default 240); larger bodies read as nearer (faster).
 const BODY_DEPTH_REF := 240.0
@@ -147,6 +198,12 @@ func apply_lateral(px: float) -> void:
 
 func spawn_planet(planet_idx: int, actual_size: float, rng: RandomNumberGenerator, poi_id: String = "", planet_seed: int = -1, star_color: Color = Color.WHITE) -> void:
 	clear_planet()
+	# WP8 star FX: a hero star (idx 8) reroutes to the tiered sparkle/halo renderer. Companions
+	# (binary star) still spawn from the shared path — they're a separate, rarer site.
+	if star_fx and planet_idx == 8:
+		_spawn_star_planet(actual_size, rng, planet_seed, star_color)
+		_spawn_companions(rng, planet_idx, _planet_spawn_x, -_planet_actual_size * 0.78, _planet_actual_size)
+		return
 	var scene_path: String = PLANETS.get(planet_idx, PLANETS[2])
 	var ps := load(scene_path) as PackedScene
 	if ps == null:
@@ -219,6 +276,13 @@ func spawn_planet(planet_idx: int, actual_size: float, rng: RandomNumberGenerato
 # `top_left` is the body's top-left in LayerPlanet-local coords (Control planets
 # are authored top-left); pass center - actual_size/2 if you have a center.
 func spawn_system_body(planet_idx: int, actual_size: float, top_left: Vector2, planet_seed: int, star_color: Color = Color.WHITE, glow_boost: float = 1.0) -> void:
+	# WP8 star FX: system star entries route to the tiered renderer (replaces glow_boost — no
+	# double-halo). Re-center on the original body center when the clamp shrinks a near_star.
+	if star_fx and planet_idx == 8:
+		var clamped: float = minf(actual_size, star_clamp_max)
+		var orig_center: Vector2 = top_left + Vector2(actual_size, actual_size) * 0.5
+		_spawn_star_fx(clamped, orig_center - Vector2(clamped, clamped) * 0.5, planet_seed, star_color)
+		return
 	var scene_path: String = PLANETS.get(planet_idx, PLANETS[2])
 	var ps := load(scene_path) as PackedScene
 	if ps == null:
@@ -338,6 +402,224 @@ func _compute_dominant_color(p: Node, planet_idx: int) -> Color:
 	if m > 1.0:
 		return Color(best.r / m, best.g / m, best.b / m, 1.0)
 	return Color(best.r, best.g, best.b, 1.0)
+
+
+# ── Star FX tiers (WP8) ──────────────────────────────────────────────────────
+# Halo display px for a star of `star_px`, linearly interpolated between the fixed anchors
+# (32→98, 120→360) × the tuner multiplier. Exposed so the test can spot-check the formula.
+func _star_halo_size(star_px: float) -> float:
+	var t: float = clampf((star_px - STAR_HALO_ANCHOR_LO) / (STAR_HALO_ANCHOR_HI - STAR_HALO_ANCHOR_LO), 0.0, 1.0)
+	return lerpf(STAR_HALO_PX_LO, STAR_HALO_PX_HI, t) * halo_scale_mult
+
+
+# Hero-star (idx 8) FX spawn — mirrors spawn_planet's bookkeeping (screen position, _planet_node,
+# dominant color) but routes through the tiered star renderer. star_fx-only caller.
+func _spawn_star_planet(actual_size: float, rng: RandomNumberGenerator, planet_seed: int, star_color: Color) -> void:
+	var size: float = minf(actual_size, star_clamp_max)
+	var x: float = (480.0 - size) * 0.5
+	var y: float = -size * 0.78
+	# planet_seed < 0 = tuner/no-Run: fall back to the spawn rng (deterministic within the run).
+	var s_seed: int = planet_seed if planet_seed >= 0 else rng.randi()
+	var grp := _spawn_star_fx(size, Vector2(x, y), s_seed, star_color)
+	_planet_node = grp
+	_planet_actual_size = size
+	_planet_spawn_x = x
+	# Dominant color: sample the kit's palette in the halo tier, else the per-type star fallback.
+	var kit = grp.get_meta("star_kit", null)
+	_dominant_color = _compute_dominant_color(kit, 8) if kit != null else FALLBACK_TINT[8]
+
+
+# Build a star body's FX into a container at `top_left` and return it. Every child (kit/halo/
+# sparkle/dot) rides the container as ONE unit — scroll()/apply_lateral()/body_parallax act on
+# grp.position, and clear_planet() frees grp (freeing them with it). Caller MUST clamp `actual_size`
+# to star_clamp_max first. Deterministic from `star_seed` (no unseeded randomness).
+func _spawn_star_fx(actual_size: float, top_left: Vector2, star_seed: int, star_color: Color) -> Node2D:
+	var grp := Node2D.new()
+	grp.name = "StarFx"
+	grp.position = top_left
+	grp.set_meta("star_px", actual_size)
+	add_child(grp)  # in-tree BEFORE the kit's _apply_pixel_parity (SIGSEGV contract)
+	var center: Vector2 = Vector2(actual_size, actual_size) * 0.5   # grp-local star center
+	if actual_size < star_sparkle_max:
+		grp.set_meta("star_tier", "sparkle")
+		_make_star_sparkle(grp, center, actual_size, star_color)
+		_make_star_dot(grp, center, actual_size, star_color)
+	else:
+		grp.set_meta("star_tier", "halo")
+		var kit := _make_star_kit(grp, actual_size, star_seed, star_color)
+		grp.set_meta("star_kit", kit)
+		_make_star_halo(grp, center, actual_size, star_seed, star_color, kit)
+	_register_parallax_body(grp, actual_size)
+	return grp
+
+
+# The PixelPlanets Star kit as a child of the FX container — mirrors spawn_system_body's kit
+# setup (anchors/scale/seed with global-RNG capture-restore/HDR palette). Returns the kit node.
+func _make_star_kit(grp: Node2D, actual_size: float, star_seed: int, star_color: Color) -> Node:
+	var ps := load(PLANETS[8]) as PackedScene
+	if ps == null:
+		return null
+	var p := ps.instantiate()
+	if p is Control:
+		p.anchor_left = 0.0; p.anchor_top = 0.0
+		p.anchor_right = 0.0; p.anchor_bottom = 0.0
+		p.offset_left = 0.0; p.offset_top = 0.0
+		p.offset_right = 100.0; p.offset_bottom = 100.0
+		p.size = Vector2(100, 100)
+		p.custom_minimum_size = Vector2(100, 100)
+		p.pivot_offset = Vector2.ZERO
+	var sf: float = actual_size / 100.0
+	p.scale = Vector2(sf, sf)
+	p.position = Vector2.ZERO   # relative to grp (already at top_left)
+	grp.add_child(p)  # MUST come before _apply_pixel_parity
+	_apply_pixel_parity(p, actual_size)
+	_duplicate_materials(p)
+	if p.has_method("set_seed"): p.set_seed(star_seed % 100000)
+	# Capture/restore the global RNG around seed() (see spawn_planet's note).
+	var _rng_state := randi()
+	seed(star_seed)
+	if p.has_method("randomize_colors"): p.randomize_colors()
+	seed(_rng_state)
+	if p.has_method("set_rotates"): p.set_rotates(true)
+	if p.has_method("set_light"):   p.set_light(Vector2(0.0, 0.5))
+	if "override_time" in p:
+		p.override_time = true
+	if p.has_method("update_time"):
+		_animated.append(p)   # driven at ANIM_SPEED like the other kits
+	var pg: float = PlanetGlow.prod_mult(8)
+	if pg != 1.0:
+		apply_palette_glow(p, pg)   # kit blooms in its own hue (before the halo samples get_colors)
+	if p is CanvasItem:
+		p.z_index = 1   # above the halo ring
+	return p
+
+
+# pixel_halo_glow ray-burst ring behind the star kit (Shader Lab "Star Glow" recipe: pixelation =
+# displayed px for a 1:1 pixel effect, 3-stop gradient from the star's own palette). Sibling of the
+# kit inside grp so it rides the body. Animates on raw shader TIME (backdrop convention, see below).
+func _make_star_halo(grp: Node2D, center: Vector2, actual_size: float, star_seed: int, star_color: Color, kit: Node) -> void:
+	var halo_px: float = _star_halo_size(actual_size)
+	var rect := ColorRect.new()
+	rect.name = "StarHalo"
+	rect.color = Color(1, 1, 1, 1)
+	rect.size = Vector2(halo_px, halo_px)
+	rect.position = center - rect.size * 0.5
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rect.z_index = 0   # behind the kit
+	var mat := ShaderMaterial.new()
+	mat.shader = STAR_HALO_SHADER
+	mat.set_shader_parameter("pixelation", Vector2(halo_px, halo_px))
+	mat.set_shader_parameter("gradient_steps", 64.0)
+	mat.set_shader_parameter("spread", 0.33)
+	mat.set_shader_parameter("size", 0.365)
+	mat.set_shader_parameter("speed", 0.6)
+	mat.set_shader_parameter("ray1_density", 8.5)
+	mat.set_shader_parameter("ray2_density", 8.5)
+	mat.set_shader_parameter("ray2_intensity", 0.5)
+	mat.set_shader_parameter("core_intensity", halo_core_intensity)
+	mat.set_shader_parameter("hdr", false)
+	mat.set_shader_parameter("seed", float(abs(star_seed) % 100) * 0.1)   # deterministic ray phase
+	mat.set_shader_parameter("gradient", _star_halo_gradient(kit, star_color))
+	rect.material = mat
+	grp.add_child(rect)
+
+
+# 3-stop horizontal gradient for the halo shader, sourced from the star's own palette
+# (darkest→mid→brightest by luma, alphas 0→0.75→1). Palette is HDR-boosted, so normalize each
+# stop to SDR. Falls back to a star_color ramp when the kit exposes no CPU-readable palette.
+func _star_halo_gradient(kit: Node, star_color: Color) -> GradientTexture1D:
+	var lo := Color(star_color.r * 0.6, star_color.g * 0.6, star_color.b * 0.6, 0.0)
+	var mid := Color(star_color.r, star_color.g, star_color.b, halo_mid_alpha)
+	var hi := Color(1, 1, 1, 1).lerp(Color(star_color.r, star_color.g, star_color.b, 1.0), 0.4)
+	hi.a = 1.0
+	if kit != null and kit.has_method("get_colors"):
+		var cols = kit.get_colors()
+		if cols is Array and cols.size() >= 2:
+			var s := _sorted_by_luma(cols)
+			lo = _norm_sdr(s[0]);                 lo.a = 0.0
+			mid = _norm_sdr(s[s.size() / 2]);     mid.a = halo_mid_alpha
+			hi = _norm_sdr(s[s.size() - 1]);      hi.a = 1.0
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
+	g.colors = PackedColorArray([lo, mid, hi])
+	var t := GradientTexture1D.new()
+	t.gradient = g
+	t.width = 64
+	return t
+
+
+func _norm_sdr(c: Color) -> Color:
+	var m: float = maxf(c.r, maxf(c.g, c.b))
+	if m > 1.0:
+		return Color(c.r / m, c.g / m, c.b / m, c.a)
+	return c
+
+
+func _sorted_by_luma(cols) -> Array:
+	var arr: Array = []
+	for c in cols:
+		arr.append(c)
+	arr.sort_custom(func(a, b): return (a.r + a.g + a.b) < (b.r + b.g + b.b))
+	return arr
+
+
+# Sparkle diffraction-spike overlay (Shader Lab "Star Sparkle" recipe, Roman's tuned block at star
+# size 32). The rect is 2× the star and the shader `scale` is 4300 at that 32px reference — both
+# shrink proportionally with the star so tiny distant stars twinkle at the right scale. The shader's
+# render_mode is blend_add (additive on its own) and animates on raw TIME (backdrop convention).
+func _make_star_sparkle(grp: Node2D, center: Vector2, actual_size: float, star_color: Color) -> void:
+	var f: float = actual_size / SPARKLE_REF_STAR
+	var rect_px: float = actual_size * SPARKLE_RECT_RATIO
+	var rect := ColorRect.new()
+	rect.name = "StarSparkle"
+	rect.color = Color(1, 1, 1, 1)
+	rect.size = Vector2(rect_px, rect_px)
+	rect.position = center - rect.size * 0.5
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rect.z_index = 0
+	var mat := ShaderMaterial.new()
+	mat.shader = STAR_SPARKLE_SHADER
+	mat.set_shader_parameter("color", star_color)
+	mat.set_shader_parameter("scale", SPARKLE_REF_SCALE * f * sparkle_scale_mult)
+	mat.set_shader_parameter("circle_ratio", 0.0)
+	mat.set_shader_parameter("decay_magnitude", sparkle_decay)
+	mat.set_shader_parameter("cut_magnitude", 0.0)
+	mat.set_shader_parameter("rotate_speed", 0.0)
+	mat.set_shader_parameter("time_speed", 1.0)
+	mat.set_shader_parameter("frequency_base", 1.75)
+	mat.set_shader_parameter("frequency_disturbance_scale", 2.35)
+	mat.set_shader_parameter("stop_shine", true)
+	rect.material = mat
+	grp.add_child(rect)
+
+
+# The star POINT — a separable glint (star_glint.gdshader, Starry-Night technique: intensity
+# = k / clamp(|dx|) / clamp(|dy|), cross-shaped by construction). Round profiles (flat disc,
+# then radial gaussians) all read as circles at this size no matter how steep (Roman
+# 2026-07-08, rounds 1-3) — a distant star wants a POINT + thin cross rays, which only a
+# separable falloff gives. dot_size_frac scales the glint energy (core heat + ray length);
+# dot_hdr pushes it past the 1.5 bloom threshold.
+func _make_star_dot(grp: Node2D, center: Vector2, actual_size: float, star_color: Color) -> void:
+	var quad_px: float = actual_size * SPARKLE_RECT_RATIO   # same footprint as the sparkle rect
+	var dot := ColorRect.new()
+	dot.name = "StarDot"
+	dot.color = Color(1, 1, 1, 1)
+	dot.size = Vector2(quad_px, quad_px)
+	dot.position = center - dot.size * 0.5
+	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mat := ShaderMaterial.new()
+	mat.shader = STAR_GLINT_SHADER
+	# Near-white core faintly tinted toward the star hue.
+	var tint := Color.WHITE.lerp(Color(star_color.r, star_color.g, star_color.b, 1.0), 0.3)
+	mat.set_shader_parameter("color", Color(tint.r, tint.g, tint.b, 1.0))
+	mat.set_shader_parameter("quad_px", quad_px)
+	# dot_size_frac 0.45 (default) → brightness 2.0; slider scales energy monotonically.
+	mat.set_shader_parameter("brightness", 2.0 * (dot_size_frac / 0.45))
+	mat.set_shader_parameter("hdr_boost", dot_hdr)
+	mat.set_shader_parameter("ray_falloff", 1.0)
+	dot.material = mat
+	dot.z_index = 1
+	grp.add_child(dot)
 
 
 func clear_planet() -> void:
