@@ -28,6 +28,7 @@ const EnemyBullet = preload("res://scenes/projectiles/projectile_ball.tscn")
 const FormationShapesC = preload("res://scripts/levels/formation_shapes.gd")
 const FormationComposer = preload("res://scripts/levels/formation_composer.gd")
 const PatternEligibility = preload("res://scripts/levels/pattern_eligibility.gd")
+const FactionsC = preload("res://scripts/levels/factions.gd")
 
 # Per-boss chaff conflict tags. Lead-in waves drop chaff carrying any of
 # these tags so the boss's signature pressure doesn't overlap a chaff
@@ -116,8 +117,26 @@ static func build(sector_depth: int, level_index_in_sector: int, is_boss: bool, 
 	else:
 		level.level_name = "Sector %d — %d" % [sector_depth, level_index_in_sector + 1]
 		level.waves = _build_combat_waves(rng, sector_depth, level_index_in_sector)
+	# HARDENING (faction-mix fix): with a faction filter active, EVERY finalized wave's enemy must be
+	# universal or home to that faction. A foreign home here means a picker escaped the scoped Roster
+	# filter (the boss-lead-in faction=-1 bug). Build-time, debug-only (not per-frame); untagged scenes
+	# (bosses / minelayers-etc. / mines / asteroids) pass allowed_in and are exempt by design.
+	if faction >= 0 and OS.is_debug_build():
+		_assert_faction_purity(level.waves, faction)
 	Roster.set_faction_filter(_prev_faction)   # restore (nested-build safe)
 	return level
+
+
+# Debug-time choke-point assertion: every spec's enemy scene must be universal or home to `faction`
+# (the same predicate the Roster filter uses). push_error names the offender so a data/producer drift
+# that reintroduces the cross-faction leak is caught at build time rather than seen mid-fight.
+static func _assert_faction_purity(waves: Array, faction: int) -> void:
+	for w in waves:
+		if w == null or w.enemy_scene == null:
+			continue
+		var path: String = String(w.enemy_scene.resource_path)
+		if not FactionsC.allowed_in(path, faction):
+			push_error("wave_generator faction purity: '%s' is not universal/home for faction %d — it leaked past the scoped Roster filter" % [path, faction])
 
 
 # Native CombatScore emission (M5 end-state). The producer-side score the conductor
@@ -223,6 +242,13 @@ const GEOMETRIC_FLOCK_MAX: int = 12
 # a quick grace-note before the breather, not another wall. Tune CHANCE freely.
 const ACCENT_CHANCE: float = 0.35
 
+# Motif repeat-avoidance memory (variety restore, 2026-07-11). The LAST rolled motif signature
+# ("<movement>|<primitive>"), kept as a static so it persists across build() calls within a session —
+# exactly the cross-level memory we want (a fresh session starts blank; deterministic within a build
+# given this prior state). _roll_motif rerolls ONCE when its first roll collides with this, so the
+# same signature can't repeat level-to-level whenever the candidate pool offers an alternative.
+static var _last_motif_sig: String = ""
+
 # ESCORT (audit follow-on, 2026-06-23). Per-level chance build_score splices a heavy-core-plus-chaff-
 # screen convoy into a mid wave. Discrete spectacle, lockstep-clamped to the slow core. Row pre-stack
 # uses the shared formation_shapes.prestack_y (one ROW_GAP for all formation sites). Tune CHANCE freely.
@@ -323,7 +349,7 @@ static func _build_combat_waves(rng: RandomNumberGenerator, sector_depth: int, l
 	#      formation variants (v1 bare / v2 grown / v3 full density). Each stretch's END capstone draws
 	#      escalation[stretch] so the player watches ONE formation idea build across the level.
 	var base_palette: Dictionary = _pick_palette(rng, sector_depth, level_index)
-	var motif: Dictionary = _roll_motif(rng, base_palette, level_index)
+	var motif: Dictionary = _roll_motif(rng, base_palette, sector_depth, level_index)
 	var waves: Array = []
 	for s in STRETCH_COUNT:
 		waves.append_array(_build_stretch(rng, sector_depth, level_index, s, base_palette, motif))
@@ -428,11 +454,9 @@ static func _build_stretch(rng: RandomNumberGenerator, sector_depth: int, level_
 		# in their eligibility" complaint). We pick a cross-capable chaff from the palette; if the palette
 		# has none, the sting is skipped this beat (shape-preserving — never force a non-crosser to cross).
 		if not is_last_unit and rng.randf() < ACCENT_CHANCE:
-			var acc_entry: Dictionary = _pick_cross_capable(chaff_types, rng)
-			if not acc_entry.is_empty():
-				var s_acc = _make_accent_wave(rng, acc_entry, sector_depth, eff_depth, u)
-				if s_acc != null:
-					waves.append(s_acc); chaff_flags.append(false)   # discrete sting
+			var s_acc = _build_accent_sting(rng, chaff_types, sector_depth, eff_depth, u)
+			if s_acc != null:
+				waves.append(s_acc); chaff_flags.append(false)   # discrete sting
 	# CLIMAX finale: a mini-boss (if registered) or an elite pack, after the chaff wall.
 	if is_climax:
 		_append_climax_finale(rng, sector_depth, eff_depth, waves, chaff_flags)
@@ -614,20 +638,31 @@ static func _extend_palette(rng: RandomNumberGenerator, base: Dictionary, sector
 # fallback for that stretch). Escalation: v1 bare primitive (small N, fits the opener's 0.6 share of
 # cap 16), v2 + ECHO/THICKEN/ZONE_ASSIGN (obstacles, cap 26), v3 + LEAD/CORE_SCREEN at full density
 # (climax, cap 36).
-static func _roll_motif(rng: RandomNumberGenerator, palette: Dictionary, level_index: int) -> Dictionary:
+static func _roll_motif(rng: RandomNumberGenerator, palette: Dictionary, sector_depth: int, level_index: int) -> Dictionary:
 	# Signature MOVEMENT key: pick one that's actually present among the palette chaff's eligible keys
 	# (intersect palette eligibility with the composer's known key vocabulary) so the motif reads with
 	# the units the level actually fields. Falls back to "straight" if the intersection is empty.
-	var key_pool: Array = _palette_movement_keys(palette)
-	var mv: String = key_pool[rng.randi() % key_pool.size()] if not key_pool.is_empty() else "straight"
-	# Signature PRIMITIVE. Fast keys favor shallow directional shapes (SLASH/WEDGE/PICKET); slow keys
-	# favor holding shapes (PICKET/FILE/PILLAR/CORRIDOR). CORE_SCREEN/CROSS_PAIR reserved for the v3
-	# LEAD/escort escalation, not the base signature.
-	var prim: String
-	if FormationComposer.is_fast_key(mv):
-		prim = [FormationComposer.PRIM_SLASH, FormationComposer.PRIM_WEDGE, FormationComposer.PRIM_PICKET][rng.randi() % 3]
-	else:
-		prim = [FormationComposer.PRIM_PICKET, FormationComposer.PRIM_FILE, FormationComposer.PRIM_PILLAR, FormationComposer.PRIM_CORRIDOR][rng.randi() % 4]
+	var key_pool: Array = _palette_movement_keys(palette, sector_depth, level_index)
+	# REPEAT-AVOIDANCE (variety restore, 2026-07-11): roll the signature (movement key + primitive), and
+	# if it collides with the previous level's motif signature, reroll ONCE. The primitive pool always
+	# offers ≥3 options, so a reroll can always break a tie even when the key pool is a single key. One
+	# conditional reroll off the same seeded rng — deterministic within the build given the prior sig.
+	var mv: String = ""
+	var prim: String = ""
+	var sig: String = ""
+	for _attempt in 2:
+		mv = key_pool[rng.randi() % key_pool.size()] if not key_pool.is_empty() else "straight"
+		# Signature PRIMITIVE. Fast keys favor shallow directional shapes (SLASH/WEDGE/PICKET); slow keys
+		# favor holding shapes (PICKET/FILE/PILLAR/CORRIDOR). CORE_SCREEN/CROSS_PAIR reserved for the v3
+		# LEAD/escort escalation, not the base signature.
+		if FormationComposer.is_fast_key(mv):
+			prim = [FormationComposer.PRIM_SLASH, FormationComposer.PRIM_WEDGE, FormationComposer.PRIM_PICKET][rng.randi() % 3]
+		else:
+			prim = [FormationComposer.PRIM_PICKET, FormationComposer.PRIM_FILE, FormationComposer.PRIM_PILLAR, FormationComposer.PRIM_CORRIDOR][rng.randi() % 4]
+		sig = mv + "|" + prim
+		if sig != _last_motif_sig:
+			break   # distinct from the previous level — keep it
+	_last_motif_sig = sig
 
 	# Per-stretch member budgets: the composed capstone is a DISCRETE burst, held to a share of the
 	# stretch slot cap (v1 must fit the opener's 0.6 × 16 ≈ 9; v2 ~15; v3 ~24 at cap 36).
@@ -664,7 +699,7 @@ static func _roll_motif(rng: RandomNumberGenerator, palette: Dictionary, level_i
 # pattern-eligibility keys, intersected with the composer's known key vocabulary (fast + slow). Lets the
 # motif pick a signature key the level's units can actually express (review §5 "intersect with
 # pattern_eligibility"). Empty ⇒ caller falls back to "straight".
-static func _palette_movement_keys(palette: Dictionary) -> Array:
+static func _palette_movement_keys(palette: Dictionary, sector_depth: int = 1, level_index: int = 0) -> Array:
 	# FIX 3 (2026-07-06): restrict the motif signature-key pool to LANE-PRESERVING keys only. The
 	# motif signature drives formation-fill movement; a lane-abandoning key (side_traverse crosser,
 	# lane_cut/hunt) made composed/motif formations ride across the top band and overrun their lanes.
@@ -676,6 +711,24 @@ static func _palette_movement_keys(palette: Dictionary) -> Array:
 			var key: String = String(k)
 			if FormationComposer.is_lane_preserving(key) and not out.has(key):
 				out.append(key)
+	# OPENER WIDENING (variety restore, 2026-07-11): at eff_depth 0 the opener palette is a single chaff
+	# type, collapsing the signature-key pool to [straight, straight_charge]. Union in the lane-preserving
+	# keys of EVERY chaff type this LEVEL can field (all stretches — the eff_depth-eligible chaff pool up
+	# to level_index + STRETCH_COUNT-1) so the once-per-level motif can pick a richer signature the level's
+	# deeper units express. SAFE: composed-motif placements are filled per-enemy through the gated wildcard
+	# path (authored_patterns._spec_for_placement — primary eligibility-aware wildcard pick + secondary
+	# guard_key coercion), so a wider signature-key pool can never stamp an ineligible key onto anyone.
+	# Opener-only (level_index == 0) — deeper openers already have a multi-type palette with keys.
+	if level_index == 0:
+		var deep_eff: int = level_index + STRETCH_COUNT - 1
+		for tier in [Roster.Tier.COMMON, Roster.Tier.UNCOMMON]:
+			for e in Roster.entries_eligible(tier, sector_depth, deep_eff):
+				if not bool(e.get("chaff", false)) or e.has("force_formation"):
+					continue
+				for k in PatternEligibility.eligible_for(String(e.get("scene", ""))):
+					var key2: String = String(k)
+					if FormationComposer.is_lane_preserving(key2) and not out.has(key2):
+						out.append(key2)
 	return out
 
 
@@ -715,6 +768,103 @@ static func _guarded_override(scene: String, key: String) -> Resource:
 	return Roster.make_movement({"movement": guarded})
 
 
+# Build the crossing-sting accent for this beat, restoring its presence across ALL factions (variety
+# restore, 2026-07-11). Three tiers, most-preferred first, so the rhythmic grace-note between bulk waves
+# is (almost) never skipped — the sting's cadence/injection probability is UNCHANGED (this restores
+# presence, it doesn't fire more often):
+#   TIER 1 — a REAL crosser already in the level palette (the original path): a palette chaff whose
+#            eligibility permits side_traverse. Genuine scissoring cross, count 2-3.
+#   TIER 2 — a REAL crosser from the roster: when NO palette chaff crosses (the collapse cause — most
+#            side_traverse units are mediums absent from small-chaff palettes, plus the universal
+#            minelayer which isn't chaff-tagged), widen the draw to ANY small/medium side_traverse-
+#            eligible entry unlocked at this depth under the CURRENT scoped faction filter. Count 2 (a
+#            lighter off-palette pop). Restores real crossers for supremacy/privateer/corp/zealot alike.
+#   TIER 3 — a lane-preserving micro-phrase: only when the faction truly has NO crosser at this depth,
+#            keep the BEAT without a cross — 2-3 of a random palette chaff on a guarded random key from
+#            that unit's OWN eligible set. A small grace-note pop, no crossing. Fully skipped ONLY when
+#            the palette itself is empty.
+# Returns the accent WaveSpec, or null when nothing at all can be fielded.
+static func _build_accent_sting(rng: RandomNumberGenerator, chaff_types: Array, sector_depth: int, eff_depth: int, wave_index: int) -> WaveSpec:
+	# TIER 1 — a real crosser already in the palette.
+	var acc_entry: Dictionary = _pick_cross_capable(chaff_types, rng)
+	if not acc_entry.is_empty():
+		return _make_accent_wave(rng, acc_entry, sector_depth, eff_depth, wave_index)
+	# TIER 2 — widen to any small/medium crosser in the faction-filtered roster at this depth.
+	var wide: Dictionary = _pick_roster_crosser(rng, sector_depth, eff_depth)
+	if not wide.is_empty():
+		return _make_accent_wave(rng, wide, sector_depth, eff_depth, wave_index, 2)
+	# TIER 3 — lane-preserving grace-note (no cross) so the beat still lands.
+	return _make_grace_note(rng, chaff_types, sector_depth, eff_depth, wave_index)
+
+
+# TIER 2 accent source (2026-07-11): any SMALL or MEDIUM entry, unlocked at this depth under the CURRENT
+# scoped faction filter, whose eligibility permits side_traverse and that doesn't demand its own
+# formation. Draws through the SAME faction-filtered entries_eligible path the rest of build() uses, so
+# faction purity is preserved (universal minelayer + home crossers only). Restores real crossers for
+# factions whose only side_traverse units are mediums absent from the small-chaff palette. {} when none
+# unlock at this coordinate — the caller then falls through to the lane-preserving grace-note.
+static func _pick_roster_crosser(rng: RandomNumberGenerator, sector_depth: int, eff_depth: int) -> Dictionary:
+	var capable: Array = []
+	# All tiers (not just COMMON/UNCOMMON): "unlocked at this depth" is the gate, not the rarity roll —
+	# several crossers are RARE-tier by weight yet unlock early (the universal minelayer is RARE/depth-0,
+	# and is the only side_traverse unit privateer/corporate can field at a shallow opener). The size +
+	# side_traverse + force_formation filters keep the pick a genuine small/medium crosser regardless.
+	for tier in [Roster.Tier.COMMON, Roster.Tier.UNCOMMON, Roster.Tier.RARE]:
+		for e in Roster.entries_eligible(tier, sector_depth, eff_depth):
+			if e.has("force_formation"):
+				continue
+			var size: String = String(e.get("size", "medium"))
+			if size != "small" and size != "medium":
+				continue
+			if PatternEligibility.allows(String(e.get("scene", "")), "side_traverse"):
+				capable.append(e)
+	if capable.is_empty():
+		return {}
+	return capable[rng.randi() % capable.size()]
+
+
+# TIER 3 accent fallback (2026-07-11): the faction has NO crosser at this depth, so keep the rhythmic
+# BEAT without a cross — a lane-preserving grace-note pop. Pick a random palette chaff (skipping
+# force-formation units), draw a random key from that unit's OWN eligible set (preferring a key richer
+# than plain "straight" when it has one), and stamp it GUARDED so it can never fly a movement it isn't
+# allowed. Count 2-3, high band, quick one-two — the sting's cadence, minus the cross. Uses a TOP
+# center-out formation (NOT SIDE_ALTERNATING, which spawns off-band expecting a crossing movement).
+# null only when the palette is entirely force-formation / empty.
+static func _make_grace_note(rng: RandomNumberGenerator, chaff_types: Array, sector_depth: int, eff_depth: int, wave_index: int) -> WaveSpec:
+	var pool: Array = []
+	for e in chaff_types:
+		if not e.has("force_formation"):
+			pool.append(e)
+	if pool.is_empty():
+		return null
+	var entry: Dictionary = pool[rng.randi() % pool.size()]
+	var scene: String = String(entry.get("scene", ""))
+	# Random key from THIS unit's own eligible set, preferring anything with more texture than plain
+	# "straight" (and never an authored path_* flight — those resolve outside the shape matrix).
+	var elig: Array = PatternEligibility.eligible_for(scene)
+	var richer: Array = []
+	for k in elig:
+		var key: String = String(k)
+		if key != "straight" and not key.begins_with("path_"):
+			richer.append(key)
+	var chosen_key: String
+	if not richer.is_empty():
+		chosen_key = String(richer[rng.randi() % richer.size()])
+	elif not elig.is_empty():
+		chosen_key = String(elig[rng.randi() % elig.size()])
+	else:
+		chosen_key = "straight"
+	var w = _make_wave_spec(rng, entry, sector_depth, eff_depth, wave_index)
+	w.count = 2 + (rng.randi() % 2)   # 2 or 3
+	w.formation = WaveSpec.Formation.TOP_CENTER_OUT
+	w.movement_override = _guarded_override(scene, chosen_key)
+	w.depth_override = Zones.depth_to_bp("high", w.depth_override)
+	w.silent = true
+	w.spawn_delay = 0.4
+	w.spawn_interval = 0.12   # quick one-two
+	return w
+
+
 # Pick a random entry from `pool` whose eligibility PERMITS the crossing sting (side_traverse) and that
 # doesn't demand its own formation. Returns {} when the pool has no cross-capable member — the caller
 # then SKIPS the accent (shape-preserving: we never force a non-crosser to fly side_traverse). allows()
@@ -735,7 +885,7 @@ static func _pick_cross_capable(pool: Array, rng: RandomNumberGenerator) -> Dict
 # forced to a side-alternating cross (one from each edge, scissoring across the upper band via the
 # director's existing crosser dispatch). Returns null if the entry is empty or demands its own
 # formation (e.g. Burner's beam-pair), so the accent is simply skipped that beat. Silent + count 2-3.
-static func _make_accent_wave(rng: RandomNumberGenerator, entry: Dictionary, sector_depth: int, level_index: int, wave_index: int) -> WaveSpec:
+static func _make_accent_wave(rng: RandomNumberGenerator, entry: Dictionary, sector_depth: int, level_index: int, wave_index: int, count_override: int = 0) -> WaveSpec:
 	var e: Dictionary = entry
 	if e.is_empty() or e.has("force_formation"):
 		return null
@@ -745,7 +895,7 @@ static func _make_accent_wave(rng: RandomNumberGenerator, entry: Dictionary, sec
 	if not PatternEligibility.allows(String(e.get("scene", "")), "side_traverse"):
 		return null
 	var w = _make_wave_spec(rng, e, sector_depth, level_index, wave_index)
-	w.count = 2 + (rng.randi() % 2)   # 2 or 3
+	w.count = count_override if count_override > 0 else (2 + (rng.randi() % 2))   # 2 or 3 by default
 	w.formation = WaveSpec.Formation.SIDE_ALTERNATING
 	# Force the horizontal cross (guarded — the pre-check above guarantees side_traverse is eligible here).
 	w.movement_override = _guarded_override(String(e.get("scene", "")), "side_traverse")
