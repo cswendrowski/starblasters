@@ -224,7 +224,6 @@ var _left_body: VBoxContainer = null
 var _ready_btn: Button = null
 var _begin_btn: Button = null
 var _seed_edit: LineEdit = null       # optional custom run-seed box (blank = random); not persisted
-var _seed_caption: Label = null       # live "→ <resolved seed>" echo under the box
 var _left_sidebar: ColorRect = null
 var _right_sidebar: ColorRect = null
 var _left_panel: Control = null
@@ -994,6 +993,24 @@ func _build_right_panel(layer: CanvasLayer) -> void:
 	# Plain run-settings list (the LOADOUT|CONDITIONS tabs were cut 2026-07-09).
 	v.add_child(_make_toggle("Skip Tutorial", _skip_tutorial, func(on): _skip_tutorial = on))
 	v.add_child(_make_toggle("Endless Mode", _endless, func(on): _endless = on))
+	# Custom run seed (2026-07-14): an optional box overriding the randomly-rolled run seed so a
+	# player can replay a specific patrol. Empty box reads "random" (placeholder); a typed seed shows
+	# as typed (numbers used as-is, words hashed — see parse_seed). Deliberately NOT persisted to
+	# conditions_setup.json — a sticky seed silently reused every run is a trap; clears per open.
+	var seed_row := HBoxContainer.new()
+	seed_row.add_theme_constant_override("separation", 10)
+	var seed_lbl := _label("SEED", UiTheme.LabelKind.CAPTION)
+	seed_lbl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	seed_row.add_child(seed_lbl)
+	_seed_edit = LineEdit.new()
+	_seed_edit.placeholder_text = "random"
+	_seed_edit.max_length = 24
+	_seed_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_seed_edit.add_theme_font_override("font", UiTheme.menu_font())
+	_seed_edit.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
+	_seed_edit.tooltip_text = "Numbers are used as-is; words are hashed to a seed. Blank = random."
+	seed_row.add_child(_seed_edit)
+	v.add_child(seed_row)
 	# Customize Patrol — opens the full-screen Conditions overlay (banes/boons picker).
 	var cust_btn := UiTheme.make_button("Customize Patrol")
 	cust_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1015,23 +1032,6 @@ func _build_right_panel(layer: CanvasLayer) -> void:
 	_begin_btn.disabled = true
 	_begin_btn.pressed.connect(_on_begin_pressed)
 	begin_row.add_child(_begin_btn)
-	# Custom run seed (2026-07-14): an optional box overriding the randomly-rolled run seed so a
-	# player can replay a specific patrol. Placed right under Begin; blank = random. Deliberately NOT
-	# persisted to conditions_setup.json — a sticky seed silently reused every run is a trap, so it
-	# clears each time the panel opens. The resolved seed is echoed live in a caption below.
-	v.add_child(HSeparator.new())
-	v.add_child(_label("SEED", UiTheme.LabelKind.CAPTION))
-	_seed_edit = LineEdit.new()
-	_seed_edit.placeholder_text = "Seed (blank = random)"
-	_seed_edit.max_length = 24
-	_seed_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_seed_edit.add_theme_font_override("font", UiTheme.menu_font())
-	_seed_edit.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_BODY)
-	_seed_edit.text_changed.connect(func(_t: String) -> void: _update_seed_caption())
-	v.add_child(_seed_edit)
-	_seed_caption = _label("→ random", UiTheme.LabelKind.CAPTION)
-	_seed_caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	v.add_child(_seed_caption)
 	var back := UiTheme.make_button("Back", true)
 	back.pressed.connect(_back)
 	v.add_child(back)
@@ -1563,12 +1563,6 @@ static func parse_seed(text: String) -> int:
 	return h if h != 0 else _SEED_HASH_ZERO_FALLBACK
 
 
-# Echo the resolved seed under the box so the player sees exactly what they'll get.
-func _update_seed_caption() -> void:
-	if _seed_caption == null:
-		return
-	var resolved := parse_seed(_seed_edit.text if _seed_edit != null else "")
-	_seed_caption.text = "→ random" if resolved == 0 else "→ %d" % resolved
 
 
 # ---- Conditions persistence ----------------------------------------------
