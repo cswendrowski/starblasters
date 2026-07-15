@@ -1,23 +1,22 @@
-[gd_scene load_steps=3 format=3 uid="uid://wwk7rhc4vrrc"]
+[gd_scene format=3 uid="uid://wwk7rhc4vrrc"]
 
 [ext_resource type="Script" uid="uid://dab5h088pwupn" path="res://scripts/screens/main_menu.gd" id="1_kdyrn"]
 [ext_resource type="Texture2D" uid="uid://bqowsx4stw5yk" path="res://graphics/StarBlasterLogo.png" id="2_logo"]
 
 [node name="MainMenu" type="Control" unique_id=1665772018]
+z_index = 10
+z_as_relative = false
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-z_index = 10
-z_as_relative = false
 script = ExtResource("1_kdyrn")
 
-[node name="MenuUI" type="CanvasLayer" parent="."]
+[node name="MenuUI" type="CanvasLayer" parent="." unique_id=136932697]
 
 [node name="Center" type="CenterContainer" parent="MenuUI" unique_id=1481814771]
-layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -29,7 +28,7 @@ custom_minimum_size = Vector2(460, 0)
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="Logo" type="TextureRect" parent="MenuUI/Center/VBox"]
+[node name="Logo" type="TextureRect" parent="MenuUI/Center/VBox" unique_id=143678018]
 custom_minimum_size = Vector2(530, 216)
 layout_mode = 2
 texture = ExtResource("2_logo")
@@ -66,17 +65,17 @@ custom_minimum_size = Vector2(460, 64)
 layout_mode = 2
 text = "[ Test Bed ]"
 
-[node name="DevMenuBtn" type="Button" parent="MenuUI/Center/VBox"]
+[node name="DevMenuBtn" type="Button" parent="MenuUI/Center/VBox" unique_id=790777934]
 custom_minimum_size = Vector2(460, 64)
 layout_mode = 2
 text = "[ Dev Menu ]"
 
-[node name="CodexBtn" type="Button" parent="MenuUI/Center/VBox"]
+[node name="CodexBtn" type="Button" parent="MenuUI/Center/VBox" unique_id=112900409]
 custom_minimum_size = Vector2(460, 64)
 layout_mode = 2
 text = "Codex"
 
-[node name="RunHistoryBtn" type="Button" parent="MenuUI/Center/VBox"]
+[node name="RunHistoryBtn" type="Button" parent="MenuUI/Center/VBox" unique_id=1789065386]
 custom_minimum_size = Vector2(460, 64)
 layout_mode = 2
 text = "Run History"
@@ -87,7 +86,6 @@ layout_mode = 2
 text = "Exit"
 
 [node name="VersionLabel" type="Label" parent="MenuUI" unique_id=97978072]
-layout_mode = 3
 anchors_preset = 3
 anchor_left = 1.0
 anchor_top = 1.0
