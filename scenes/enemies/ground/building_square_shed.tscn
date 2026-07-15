@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://dmi3hcj15y78l" path="res://scripts/enemies/patterns/lateral_drift.gd" id="2_oojht"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="3_2thp4"]
 [ext_resource type="Texture2D" uid="uid://c4b14p8fyuwkg" path="res://graphics/enemies/ground/building_shed.png" id="4_2thp4"]
+[ext_resource type="Shader" uid="uid://cakr26sn2n1b3" path="res://scenes/player/livery_color.gdshader" id="5_2thp4"]
 [ext_resource type="Shader" uid="uid://cm5hxyugvcow3" path="res://shaders/multiply.gdshader" id="5_oojht"]
 
 [sub_resource type="Resource" id="MovePattern"]
@@ -12,6 +13,20 @@ mode = 1
 
 [sub_resource type="RectangleShape2D" id="Hit"]
 size = Vector2(16, 16)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_7tk4g"]
+shader = ExtResource("5_2thp4")
+shader_parameter/tint_color = Color(1, 1, 1, 1)
+shader_parameter/opacity = 1.0
+shader_parameter/fade = 0.800000038
+
+[sub_resource type="Gradient" id="Gradient_2thp4"]
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_ce7u0"]
+gradient = SubResource("Gradient_2thp4")
+width = 16
+height = 16
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_2thp4"]
 shader = ExtResource("5_oojht")
@@ -39,7 +54,6 @@ texture = ExtResource("4_2thp4")
 hframes = 8
 
 [node name="Building1" type="Sprite2D" parent="Base" unique_id=436041805]
-visible = false
 z_index = 1
 texture = ExtResource("4_2thp4")
 hframes = 8
@@ -51,8 +65,14 @@ texture = ExtResource("4_2thp4")
 hframes = 8
 frame = 1
 
+[node name="Livery" type="Sprite2D" parent="Base" unique_id=1526819728]
+z_index = 1
+material = SubResource("ShaderMaterial_7tk4g")
+position = Vector2(-5.9604645e-08, -1.1920929e-07)
+scale = Vector2(0.75000006, 0.74999994)
+texture = SubResource("GradientTexture2D_ce7u0")
+
 [node name="WindowsSide" type="Sprite2D" parent="Base" unique_id=57730293]
-visible = false
 z_index = 1
 texture = ExtResource("4_2thp4")
 hframes = 8

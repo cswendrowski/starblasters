@@ -17,6 +17,7 @@ const ExplosionFxC = preload("res://scripts/effects/explosion_fx.gd")
 const EnemyDeathFxC = preload("res://scripts/effects/enemy_death_fx.gd")
 const RosterC = preload("res://scripts/levels/enemy_roster.gd")
 const FactionsC = preload("res://scripts/levels/factions.gd")
+const BulletWorldC = preload("res://scripts/systems/bullet_world.gd")
 
 ## Whether the PLAYER takes contact damage from / rams this structure. Structures default to FALSE — the
 ## ship flies THROUGH them (they stay shootable, they're just not rammers). Set true per-scene to opt in.
@@ -39,6 +40,9 @@ func _ready() -> void:
 	# (size + tough), BEFORE super._ready() initializes the hull from max_health.
 	_apply_roster_health()
 	super._ready()
+	# Oblique drop shadow (Roman 2026-07-13) — a shadow carrier per casting layer, using the tuned
+	# per-building heights; parented under each layer so it hides with the layer on death.
+	BuildingShadow.attach_to_building(self)
 	_apply_livery()   # tint a "Livery" layer with the level faction, if this structure carries one
 
 
@@ -154,3 +158,20 @@ func _find_turret(n: Node) -> Node:
 		if r != null:
 			return r
 	return null
+
+
+# Death VFX (burst + debris) must play in the FOREGROUND world at the correct WORLD position. The base
+# _fx_parent() returns get_parent(), which for a STANDALONE ground structure is Main (origin, fine) but
+# for a building nested in an Asteroid Stronghold is the "Buildings" holder under the DRIFTING rock — a
+# non-origin, ground-z parent. ExplosionFx.play sets global_position BEFORE reparenting, so a blast there
+# lands at holder_offset + world_pos (way off to the right) and at the rock's ground z (hidden).
+#
+# Route through BulletWorld: in a SubViewport dev bench (Enemy Bench) that returns the bench's IN-VIEWPORT
+# world (the registered "bullet_world" group node), so blasts stay in the simulated playfield instead of
+# the outer window's top-left corner (the SubViewport-fx bug). In production nothing registers the group,
+# so it's the current scene (Main, origin) — the off-right / foreground fix. NEVER the drifting holder.
+func _fx_parent() -> Node:
+	var fb: Node = get_tree().current_scene
+	if fb == null:
+		fb = super._fx_parent()
+	return BulletWorldC.spawn_root(get_tree(), fb)

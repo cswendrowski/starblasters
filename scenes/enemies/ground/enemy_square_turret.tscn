@@ -3,11 +3,32 @@
 [ext_resource type="Script" uid="uid://c5wsmf6b8n7h2" path="res://scripts/enemies/core/enemy_core_building_turret.gd" id="1_o0k4f"]
 [ext_resource type="Script" uid="uid://dmi3hcj15y78l" path="res://scripts/enemies/patterns/lateral_drift.gd" id="2_n6sys"]
 [ext_resource type="Texture2D" uid="uid://bh0am03r6x6gs" path="res://graphics/enemies/ground/enemy_square_turret.png" id="3_o0k4f"]
+[ext_resource type="Shader" uid="uid://cakr26sn2n1b3" path="res://scenes/player/livery_color.gdshader" id="4_n6sys"]
 [ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="4_rws85"]
 
 [sub_resource type="Resource" id="MovePattern"]
 script = ExtResource("2_n6sys")
 mode = 1
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_jqyk7"]
+shader = ExtResource("4_n6sys")
+shader_parameter/tint_color = Color(1, 1, 1, 1)
+shader_parameter/opacity = 1.0
+shader_parameter/fade = 0.850000040375
+
+[sub_resource type="Gradient" id="Gradient_d5s2w"]
+offsets = PackedFloat32Array(0, 0.8, 0.9, 1)
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.19999999, 1, 1, 1, 0)
+metadata/_snap_enabled = true
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_rws85"]
+gradient = SubResource("Gradient_d5s2w")
+width = 16
+height = 16
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(1, 0.5)
+metadata/_snap_enabled = true
 
 [sub_resource type="RectangleShape2D" id="Hit"]
 size = Vector2(16, 16)
@@ -26,6 +47,11 @@ texture = ExtResource("3_o0k4f")
 hframes = 4
 frame = 1
 
+[node name="Livery" type="Sprite2D" parent="Building" unique_id=849499790]
+z_index = 1
+material = SubResource("ShaderMaterial_jqyk7")
+texture = SubResource("GradientTexture2D_rws85")
+
 [node name="Destroyed" type="Sprite2D" parent="Building" unique_id=1128100416]
 visible = false
 texture = ExtResource("3_o0k4f")
@@ -33,6 +59,7 @@ hframes = 4
 frame = 2
 
 [node name="Turret" type="Sprite2D" parent="Building" unique_id=669332257]
+z_index = 1
 texture = ExtResource("3_o0k4f")
 hframes = 4
 frame = 3
