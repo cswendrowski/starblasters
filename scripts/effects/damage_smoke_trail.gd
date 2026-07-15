@@ -14,33 +14,33 @@ var activate_below: float = ACTIVATE_BELOW_DEFAULT  # lost-hull FRACTION; player
 # Emission rate scales with damage severity (Roman 2026-05-29): a lightly
 # damaged ship puffs slowly + sparsely, a near-dead ship emits at the fast
 # rate. Interpolated per hull_changed into _sample_interval.
-const SAMPLE_INTERVAL_MIN: float = 0.04   # near death: dense, fast puffs
-const SAMPLE_INTERVAL_MAX: float = 0.16   # lightly damaged: sparse puffs
-var _sample_interval: float = SAMPLE_INTERVAL_MAX
+var sample_interval_min: float = 0.04   # near death: dense, fast puffs
+var sample_interval_max: float = 0.16   # lightly damaged: sparse puffs
+var _sample_interval: float = 0.16
 # Severity easing exponent — must match engine_torch.SEVERITY_EXP so fire
 # and smoke ramp together. ROMAN'S TO TUNE. See engine_torch.gd for the
 # 3-pip-hull reasoning behind 1.5.
 const SEVERITY_EXP: float = 1.5
-const MAX_POINTS: int = 56
-const POINT_LIFETIME: float = 1.8
+var max_points: int = 56
+var point_lifetime: float = 1.8
 
-# Line width at the head (engine) ramps from MIN_WIDTH at 50% hull to
-# MAX_WIDTH at 0% hull (Roman 2026-05-18 "thicker the closer to 0").
-const MIN_WIDTH: float = 6.0
-const MAX_WIDTH: float = 16.0
-# Multiplier at the tail-most point of the curve. 1.0 at head → TAIL_WIDTH_MULT at tail.
+# Line width at the head (engine) ramps from min_width at 50% hull to
+# max_width at 0% hull (Roman 2026-05-18 "thicker the closer to 0").
+var min_width: float = 6.0
+var max_width: float = 16.0
+# Multiplier at the tail-most point of the curve. 1.0 at head → tail_width_mult at tail.
 # Roman 2026-05-18: bumped to 10× — dramatic flare at the dissipation end.
-const TAIL_WIDTH_MULT: float = 10.0
+var tail_width_mult: float = 10.0
 
 # Drift: older points fall faster (forward-motion left-behind).
 # Roman 2026-05-18: +25% over the previous pass.
-const DRIFT_BASE_SPEED: float = 225.0
-const DRIFT_AGE_GAIN: float = 400.0
+var drift_base_speed: float = 225.0
+var drift_age_gain: float = 400.0
 # +1.0 = drift downward (player default), -1.0 = drift upward (enemy smoke).
 var drift_sign: float = 1.0
 
 # Per-point sideways wander so the column breathes.
-const WANDER_PX_PER_SEC: float = 18.0
+var wander_px_per_sec: float = 18.0
 
 # Default emit coord (player engine pixel). Bombers / other units pass
 # their own via set_player_with_offset() — Roman 2026-05-18.
@@ -48,7 +48,7 @@ const EMIT_LOCAL_DEFAULT: Vector2 = Vector2(0, 6)
 var emit_local: Vector2 = EMIT_LOCAL_DEFAULT
 
 # Dark industrial palette.
-const SMOKE_COLOR := Color(0.10, 0.10, 0.11, 0.90)
+var smoke_color: Color = Color(0.10, 0.10, 0.11, 0.90)
 
 var _player: Node2D = null
 var _damage_level: float = 0.0
@@ -62,27 +62,6 @@ var _finishing: bool = false   # one-shot guard for the fade-out when the host d
 func _ready() -> void:
 	_line = Line2D.new()
 	_line.name = "DamageTrailLine"
-	_line.width = MIN_WIDTH
-	_line.default_color = SMOKE_COLOR
-	# Width curve: thin at head (1.0) → fat at tail (TAIL_WIDTH_MULT).
-	var curve := Curve.new()
-	curve.add_point(Vector2(0.0, TAIL_WIDTH_MULT))   # tail
-	curve.add_point(Vector2(1.0, 1.0))               # head
-	_line.width_curve = curve
-	# Alpha gradient: head dense at the engine, tail dissipates to 0 even
-	# though the WIDTH keeps growing. Combined with width_curve this reads
-	# as smoke widening AND fading as it disperses (Roman 2026-05-18).
-	# Steeper falloff so the dissipation is obvious — alpha drops fast in
-	# the last third of the trail.
-	var grad := Gradient.new()
-	grad.offsets = PackedFloat32Array([0.0, 0.5, 0.85, 1.0])
-	grad.colors = PackedColorArray([
-		Color(SMOKE_COLOR.r, SMOKE_COLOR.g, SMOKE_COLOR.b, 0.0),
-		Color(SMOKE_COLOR.r, SMOKE_COLOR.g, SMOKE_COLOR.b, 0.35),
-		Color(SMOKE_COLOR.r, SMOKE_COLOR.g, SMOKE_COLOR.b, 0.80),
-		Color(SMOKE_COLOR.r, SMOKE_COLOR.g, SMOKE_COLOR.b, SMOKE_COLOR.a),
-	])
-	_line.gradient = grad
 	_line.joint_mode = Line2D.LINE_JOINT_ROUND
 	_line.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	_line.end_cap_mode = Line2D.LINE_CAP_ROUND
@@ -95,6 +74,7 @@ func _ready() -> void:
 	# along the line's length via Line2D.texture_mode.
 	_line.texture = _build_noise_texture()
 	_line.texture_mode = Line2D.LINE_TEXTURE_TILE
+	apply_look()
 	# Parent the world-space line into the host's container (same viewport). This
 	# node is a child of the host (player), so get_parent() is the host and its
 	# parent is the world node. current_scene put it in the HD-root scene when the
@@ -144,9 +124,9 @@ func _on_hull_changed(max_hull, hull) -> void:
 	var ramp: float = clamp((_damage_level - activate_below) / (1.0 - activate_below), 0.0, 1.0)
 	_severity = pow(ramp, SEVERITY_EXP)
 	# Emission rate: slow/sparse when light, fast/dense near death.
-	_sample_interval = lerp(SAMPLE_INTERVAL_MAX, SAMPLE_INTERVAL_MIN, _severity)
+	_sample_interval = lerp(sample_interval_max, sample_interval_min, _severity)
 	if _line and is_instance_valid(_line):
-		_line.width = lerp(MIN_WIDTH, MAX_WIDTH, _severity)
+		_line.width = lerp(min_width, max_width, _severity)
 		# Opacity scales with severity — was fixed (full-density on the first
 		# pip), the binary "worst appearance" Roman flagged. Floor keeps a
 		# faint wisp visible once damaged at all.
@@ -180,7 +160,7 @@ func _process(delta: float) -> void:
 	pos += Vector2(randf_range(-1.5, 1.5), randf_range(-0.5, 0.5))
 	_line.add_point(pos)
 	_point_t.append(0.0)
-	while _line.get_point_count() > MAX_POINTS:
+	while _line.get_point_count() > max_points:
 		_line.remove_point(0)
 		_point_t.pop_front()
 
@@ -191,12 +171,12 @@ func _age_points(delta: float) -> void:
 	var n: int = _point_t.size()
 	for i in range(n):
 		_point_t[i] = float(_point_t[i]) + delta
-		var t: float = clamp(float(_point_t[i]) / POINT_LIFETIME, 0.0, 1.0)
-		var drop: float = (DRIFT_BASE_SPEED + DRIFT_AGE_GAIN * t) * delta * drift_sign
-		var wander: float = WANDER_PX_PER_SEC * delta * sin(float(i) * 0.55 + float(_point_t[i]) * 4.5)
+		var t: float = clamp(float(_point_t[i]) / point_lifetime, 0.0, 1.0)
+		var drop: float = (drift_base_speed + drift_age_gain * t) * delta * drift_sign
+		var wander: float = wander_px_per_sec * delta * sin(float(i) * 0.55 + float(_point_t[i]) * 4.5)
 		var p: Vector2 = _line.get_point_position(i)
 		_line.set_point_position(i, p + Vector2(wander, drop))
-	while _point_t.size() > 0 and float(_point_t[0]) >= POINT_LIFETIME:
+	while _point_t.size() > 0 and float(_point_t[0]) >= point_lifetime:
 		_line.remove_point(0)
 		_point_t.pop_front()
 
@@ -205,6 +185,30 @@ func _clear_line() -> void:
 	if _line and is_instance_valid(_line):
 		_line.clear_points()
 	_point_t.clear()
+
+
+func apply_look() -> void:
+	if _line == null or not is_instance_valid(_line):
+		return
+	_line.width = min_width
+	_line.default_color = smoke_color
+	# Width curve: thin at head (1.0) → fat at tail (tail_width_mult).
+	var curve := Curve.new()
+	curve.add_point(Vector2(0.0, tail_width_mult))   # tail
+	curve.add_point(Vector2(1.0, 1.0))               # head
+	_line.width_curve = curve
+	# Alpha gradient: head dense at the engine, tail dissipates to 0 even
+	# though the WIDTH keeps growing. Combined with width_curve this reads
+	# as smoke widening AND fading as it disperses (Roman 2026-05-18).
+	var grad := Gradient.new()
+	grad.offsets = PackedFloat32Array([0.0, 0.5, 0.85, 1.0])
+	grad.colors = PackedColorArray([
+		Color(smoke_color.r, smoke_color.g, smoke_color.b, 0.0),
+		Color(smoke_color.r, smoke_color.g, smoke_color.b, 0.35),
+		Color(smoke_color.r, smoke_color.g, smoke_color.b, 0.80),
+		Color(smoke_color.r, smoke_color.g, smoke_color.b, smoke_color.a),
+	])
+	_line.gradient = grad
 
 
 # Build a 128×16 grayscale noise texture (white billows on alpha=0). Tiled

@@ -1,0 +1,16 @@
+[gd_scene load_steps=4 format=3 uid="uid://dng3ngl0w22"]
+
+[ext_resource type="Script" path="res://scripts/effects/engine_glow.gd" id="1_engl"]
+[ext_resource type="Texture2D" uid="uid://bgnm0flsh01" path="res://graphics/gun_muzzle_flash.png" id="2_strip"]
+
+[sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_engl"]
+blend_mode = 1
+
+[node name="EngineGlow" type="Sprite2D"]
+material = SubResource("CanvasItemMaterial_engl")
+texture = ExtResource("2_strip")
+hframes = 5
+flip_v = true
+offset = Vector2(0, 8)
+z_index = -2
+script = ExtResource("1_engl")
