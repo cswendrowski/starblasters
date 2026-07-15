@@ -419,6 +419,11 @@ func _render_item_detail(cat: Dictionary, factory: String) -> void:
 	cls.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	cls.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_right_root.add_child(cls)
+	# Full stats + an interactive Mark track — the same widget the outpost info popup uses
+	# (PartStatsView), so the dock and the Codex never show different numbers. Reference view:
+	# owned=false drops the "(current)" flag; the ladder previews every Mk.1–9.
+	if part != null:
+		_right_root.add_child(PartStatsView.build(part, maxi(1, int(part.mark)), 9, false))
 	var blurb: String = ArmoryStrings.codex_for(factory)
 	if blurb == "" and part != null:
 		blurb = String(part.description)
