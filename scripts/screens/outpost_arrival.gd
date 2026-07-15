@@ -1124,20 +1124,23 @@ func _build_top_bar() -> void:
 	row.add_theme_constant_override("separation", 48)
 	v.add_child(row)
 	# Each field is [icon + number]: 0=hull, 1=super, 2=bounty, 3=materials (custom pixel-art icons).
-	_hull_lbl = _stat_field(row, 0, "", UiTheme.COLOR_TEXT)
-	_super_lbl = _stat_field(row, 1, "", UiTheme.COLOR_ACCENT)
-	_money_lbl = _stat_field(row, 2, "%d" % _money, UiTheme.COLOR_BOUNTY)
-	_parts_lbl = _stat_field(row, 3, "%d" % _materials, UiTheme.COLOR_GREEN)
+	_hull_lbl = _stat_field(row, ICON_HULL, "", UiTheme.COLOR_TEXT, OutpostHelpStrings.TIP_HULL)
+	_super_lbl = _stat_field(row, ICON_SUPER, "", UiTheme.COLOR_ACCENT, OutpostHelpStrings.TIP_SUPER)
+	_money_lbl = _stat_field(row, ICON_BOUNTY, "%d" % _money, UiTheme.COLOR_BOUNTY, OutpostHelpStrings.TIP_BOUNTY)
+	_parts_lbl = _stat_field(row, ICON_MAT, "%d" % _materials, UiTheme.COLOR_GREEN, OutpostHelpStrings.TIP_MATERIALS)
 	_update_status()
 
 
 # One top-bar stat: a pixel-art icon (frame `frame` of the outpost_icons sheet, nearest-filtered so it
 # stays crisp at 4×) + a value Label. Returns the Label so callers can update the number; hull/super
 # hide the whole field (icon included) when there's no data via _stat_visible().
-func _stat_field(row: HBoxContainer, frame: int, initial: String, color: Color) -> Label:
+func _stat_field(row: HBoxContainer, frame: int, initial: String, color: Color, tip: String = "") -> Label:
 	var box := HBoxContainer.new()
 	box.add_theme_constant_override("separation", 8)
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	# Hover tooltip explaining the resource (what it is + where it's found). STOP so the box gets hover.
+	box.mouse_filter = Control.MOUSE_FILTER_STOP
+	box.tooltip_text = tip
 	box.add_child(_icon_widget(frame, ICON_DISPLAY, color))
 	var lbl := _label(initial, UiTheme.FONT_SIZE_HEADER, color)
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -1333,6 +1336,11 @@ func _build_bottom_bar() -> void:
 	codex.custom_minimum_size = Vector2(160, 60)
 	codex.pressed.connect(_open_codex)
 	row.add_child(codex)
+	var help := UiTheme.make_button("?", true)
+	help.custom_minimum_size = Vector2(70, 60)
+	help.tooltip_text = "How the outpost works"
+	help.pressed.connect(_show_help)
+	row.add_child(help)
 
 
 # Solid-black gutter backdrops that STAY on (so the side menus read on a solid background).
@@ -1408,7 +1416,7 @@ func _market_card(entry: Dictionary) -> PanelContainer:
 		btn.pressed.connect(func() -> void: _buy_market(entry))
 	row.add_child(btn)
 	v.add_child(row)
-	v.add_child(_label(_card_subtitle_live(entry), UiTheme.FONT_SIZE_CAPTION, _tier_color(entry)))
+	v.add_child(_label(_card_subtitle_live(entry), UiTheme.FONT_SIZE_CAPTION + 2, _tier_color(entry)))
 	if is_bb:
 		v.add_child(_label("· sold — buyback until you depart", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
 	return card
@@ -1995,7 +2003,7 @@ func _slot_card(sid: String) -> PanelContainer:
 	top.add_child(nm)
 	v.add_child(top)
 	if item != null:
-		v.add_child(_label(_card_subtitle_live(item), UiTheme.FONT_SIZE_CAPTION, _tier_color(item)))
+		v.add_child(_label(_card_subtitle_live(item), UiTheme.FONT_SIZE_CAPTION + 2, _tier_color(item)))
 		var btns := HBoxContainer.new()
 		btns.add_theme_constant_override("separation", 8)
 		btns.add_child(_info_btn(item))
@@ -2031,7 +2039,7 @@ func _hold_card(idx: int) -> PanelContainer:
 	nm.clip_text = true
 	top.add_child(nm)
 	v.add_child(top)
-	v.add_child(_label(_card_subtitle_live(item), UiTheme.FONT_SIZE_CAPTION, _tier_color(item)))
+	v.add_child(_label(_card_subtitle_live(item), UiTheme.FONT_SIZE_CAPTION + 2, _tier_color(item)))
 
 	var btns := HBoxContainer.new()
 	btns.add_theme_constant_override("separation", 6)
@@ -2143,45 +2151,6 @@ func _info_btn(item) -> Button:
 # part's real Mk-scaled getters so the panel can preview ANY Mk (tap the mark track to compare).
 # MODULE → computed bonus; SHIFT_MODE → duration/charges/refill; WEAPON → damage/ammo (+ super charges).
 # Empty for mock items (no real part) or parts with no numeric stats.
-func _stats_lines_at_mark(part, mk: int) -> Array:
-	var lines: Array = []
-	if part == null:
-		return lines
-	var st: int = int(part.slot_type) if "slot_type" in part else -1
-	if st == SlotTypes.SlotType.MODULE:
-		var bd: String = String(part.bonus_description(mk)) if part.has_method("bonus_description") else ""
-		if bd != "":
-			lines.append(bd)
-		return lines
-	if st == SlotTypes.SlotType.SHIFT_MODE:
-		if part.has_method("mode_duration"):
-			lines.append("Duration: %.1fs" % float(part.mode_duration(mk)))
-		if part.has_method("mode_charges"):
-			lines.append("Charges: %d" % int(part.mode_charges(mk)))
-		if part.has_method("mode_regen_kind"):
-			if int(part.mode_regen_kind()) == 1:   # ModeRegen.KILLS
-				var kpc: int = int(part.mode_kills_per_charge()) if part.has_method("mode_kills_per_charge") else 0
-				lines.append("Refill: %d kills / charge" % kpc)
-			else:
-				var rs: float = float(part.mode_regen_secs()) if part.has_method("mode_regen_secs") else 0.0
-				lines.append("Refill: %.1fs / charge" % rs)
-		return lines
-	# Weapons (CANNON / HARDPOINT_WING / DEVICE_BAY_1).
-	if part.has_method("effective_damage"):
-		var dmg: int = int(part.effective_damage(mk))
-		if dmg >= 0:
-			lines.append("Damage: %d" % dmg)
-	if part.has_method("ammo_at_mark"):
-		var ammo: int = int(part.ammo_at_mark(mk))
-		lines.append("Ammo: %s" % ("∞" if ammo < 0 else str(ammo)))
-	elif part.has_method("_base_ammo"):
-		var ammo2: int = int(part._base_ammo())
-		lines.append("Ammo: %s" % ("∞" if ammo2 < 0 else str(ammo2)))
-	if st == SlotTypes.SlotType.DEVICE_BAY_1 and part.has_method("_charges_at_mark"):
-		lines.append("Charges: %d" % int(part._charges_at_mark(mk)))
-	return lines
-
-
 # ---- Inventory actions ----------------------------------------------------
 
 func _pull(sid: String) -> void:
@@ -2625,8 +2594,10 @@ func _show_info(item: Dictionary) -> void:
 	dim.color = Color(0, 0, 0, 0.6)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	# Close only on a real LEFT click on the dim — NOT the mouse wheel (scrolling a maxed-out
+	# ScrollContainer bubbles the wheel button here) and not right-click.
 	dim.gui_input.connect(func(e: InputEvent) -> void:
-		if e is InputEventMouseButton and e.pressed:
+		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
 			_close_info())
 	add_child(dim)
 	_info_popup = dim
@@ -2661,16 +2632,9 @@ func _show_info(item: Dictionary) -> void:
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	desc.custom_minimum_size = Vector2(760, 0)
 	v.add_child(desc)
-	v.add_child(_label("MARK LEVELS — tap to compare (current ringed)", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
-	# Live, Mk-aware stat box. Defaults to the current Mk; tapping a chip on the mark track previews
-	# that Mk's stats so the player can see what an upgrade buys before paying.
-	var stats_box := VBoxContainer.new()
-	stats_box.add_theme_constant_override("separation", 4)
-	var show_mk := func(mk: int) -> void:
-		_fill_stats_box(stats_box, item, part, mk, cur_mk)
-	v.add_child(_mark_ladder(cur_mk, mx, show_mk))
-	v.add_child(stats_box)
-	show_mk.call(cur_mk)
+	# Live, Mk-aware stat box + tappable Mark ladder — shared with the Codex via PartStatsView so the
+	# two never drift. Defaults to the current Mk; tapping a chip previews that Mk before you pay.
+	v.add_child(PartStatsView.build(part, cur_mk, mx))
 	v.add_child(_value_row("Scrap value:", ICON_MAT, str(int(item["scrap"])), UiTheme.COLOR_GREEN))
 	v.add_child(_value_row("Sell value:", ICON_BOUNTY, str(_sell_price(item)), UiTheme.COLOR_BOUNTY))
 	var close := UiTheme.make_button("Close")
@@ -2680,59 +2644,173 @@ func _show_info(item: Dictionary) -> void:
 
 # Clickable Mk ladder: the current Mk is highlighted; every chip is tappable to preview that Mk's
 # stats (on_pick(mk)). Lower Mks read as "owned", higher Mks as "locked/upgrade target".
-func _mark_ladder(cur: int, mx: int, on_pick: Callable) -> HBoxContainer:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 4)
-	for i in range(1, mx + 1):
-		var chip := Button.new()
-		chip.text = str(i)
-		chip.custom_minimum_size = Vector2(40, 40)
-		chip.add_theme_font_override("font", UiTheme.menu_font())
-		chip.add_theme_font_size_override("font_size", UiTheme.FONT_SIZE_CAPTION)
-		var sb := StyleBoxFlat.new()
-		sb.set_corner_radius_all(3)
-		var fg: Color = UiTheme.COLOR_DISABLED
-		if i == cur:
-			sb.bg_color = UiTheme.COLOR_BOUNTY
-			fg = Color(0.05, 0.05, 0.08)
-		elif i < cur:
-			sb.bg_color = Color(UiTheme.COLOR_ACCENT_DIM.r, UiTheme.COLOR_ACCENT_DIM.g, UiTheme.COLOR_ACCENT_DIM.b, 0.55)
-			fg = UiTheme.COLOR_TEXT
-		else:
-			sb.bg_color = Color(0, 0, 0, 0.35)
-			fg = UiTheme.COLOR_DISABLED
-		for state in ["normal", "hover", "pressed", "focus"]:
-			chip.add_theme_stylebox_override(state, sb)
-		chip.add_theme_color_override("font_color", fg)
-		chip.add_theme_color_override("font_hover_color", fg)
-		chip.add_theme_color_override("font_pressed_color", fg)
-		chip.add_theme_color_override("font_focus_color", fg)
-		var mk: int = i
-		chip.pressed.connect(func() -> void: on_pick.call(mk))
-		row.add_child(chip)
-	return row
-
-
-# Render the stat box for a chosen Mk: a header (flagged when it's the current Mk) + each stat line.
-func _fill_stats_box(box: VBoxContainer, _item, part, mk: int, cur_mk: int) -> void:
-	if box == null or not is_instance_valid(box):
-		return
-	_clear(box)
-	var hdr: String = "Mk.%d stats" % mk
-	if mk == cur_mk:
-		hdr += "   (current)"
-	box.add_child(_label(hdr, UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_BOUNTY if mk == cur_mk else UiTheme.COLOR_ACCENT))
-	var lines: Array = _stats_lines_at_mark(part, mk)
-	if lines.is_empty():
-		box.add_child(_label("(no numeric stats)", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
-	for ln in lines:
-		box.add_child(_label(String(ln), UiTheme.FONT_SIZE_BODY, UiTheme.COLOR_GREEN))
-
-
 func _close_info() -> void:
 	if _info_popup != null and is_instance_valid(_info_popup):
 		_info_popup.queue_free()
 	_info_popup = null
+
+
+# ---- Help overlay ---------------------------------------------------------
+# A scrollable manual that explains every section / feature / button, each with a live visual example
+# (the real icons + sample buttons). Shares the _info_popup slot so only one modal shows at a time.
+
+func _show_help() -> void:
+	_close_info()
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.66)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	# Close only on a real LEFT click on the dim — NOT the mouse wheel (scrolling a maxed-out
+	# ScrollContainer bubbles the wheel button here) and not right-click.
+	dim.gui_input.connect(func(e: InputEvent) -> void:
+		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+			_close_info())
+	add_child(dim)
+	_info_popup = dim
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dim.add_child(center)
+
+	var panel := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.05, 0.07, 0.11, 0.99)
+	sb.border_color = UiTheme.COLOR_ACCENT
+	sb.set_border_width_all(2)
+	sb.set_content_margin_all(28)
+	sb.set_corner_radius_all(6)
+	panel.add_theme_stylebox_override("panel", sb)
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	center.add_child(panel)
+
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 12)
+	panel.add_child(outer)
+	outer.add_child(_label(OutpostHelpStrings.HELP_TITLE, UiTheme.FONT_SIZE_TITLE, UiTheme.COLOR_ACCENT))
+
+	# Fixed title + Close; the sections scroll between them.
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.custom_minimum_size = Vector2(880, 720)
+	outer.add_child(scroll)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 12)
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(v)
+
+	v.add_child(_help_para(OutpostHelpStrings.HELP_INTRO))
+
+	v.add_child(_help_head(OutpostHelpStrings.HELP_HEAD_RESOURCES))
+	v.add_child(_help_row(_icon_widget(ICON_HULL, 26, UiTheme.COLOR_TEXT), OutpostHelpStrings.HELP_HULL))
+	v.add_child(_help_row(_icon_widget(ICON_SUPER, 26, UiTheme.COLOR_ACCENT), OutpostHelpStrings.HELP_SUPER))
+	v.add_child(_help_row(_icon_widget(ICON_BOUNTY, 26, UiTheme.COLOR_BOUNTY), OutpostHelpStrings.HELP_BOUNTY))
+	v.add_child(_help_row(_icon_widget(ICON_MAT, 26, UiTheme.COLOR_GREEN), OutpostHelpStrings.HELP_MATERIALS))
+
+	v.add_child(_help_head(OutpostHelpStrings.HELP_HEAD_MARKET))
+	v.add_child(_help_row(_icon_chip(ICON_BOUNTY, "116", UiTheme.COLOR_BOUNTY), OutpostHelpStrings.HELP_MARKET))
+	v.add_child(_help_row(_help_static_i(), OutpostHelpStrings.HELP_MARKET_INFO))
+
+	v.add_child(_help_head(OutpostHelpStrings.HELP_HEAD_SERVICES))
+	v.add_child(_help_row(_help_svc_example(), OutpostHelpStrings.HELP_SERVICES))
+	v.add_child(_help_para(OutpostHelpStrings.HELP_MODES_INTRO))
+	v.add_child(_help_row(_help_mode_example("Scrap", UiTheme.COLOR_DANGER), OutpostHelpStrings.HELP_MODE_SCRAP))
+	v.add_child(_help_row(_help_mode_example("Sell", UiTheme.COLOR_BOUNTY), OutpostHelpStrings.HELP_MODE_SELL))
+	v.add_child(_help_row(_help_mode_example("Upgrade", UiTheme.COLOR_ACCENT), OutpostHelpStrings.HELP_MODE_UPGRADE))
+
+	v.add_child(_help_head(OutpostHelpStrings.HELP_HEAD_CONDITIONS))
+	v.add_child(_help_row(_help_static_i(), OutpostHelpStrings.HELP_CONDITIONS))
+
+	v.add_child(_help_head(OutpostHelpStrings.HELP_HEAD_ACTIONS))
+	v.add_child(_help_row(_help_static_i(), OutpostHelpStrings.HELP_ACTION_INFO))
+	v.add_child(_help_row(_help_mode_example("Slot", UiTheme.COLOR_TEXT), OutpostHelpStrings.HELP_ACTION_SLOT))
+	v.add_child(_help_row(_help_mode_example("Swap", UiTheme.COLOR_TEXT), OutpostHelpStrings.HELP_ACTION_SWAP))
+	v.add_child(_help_row(_help_mode_example("Pull", UiTheme.COLOR_TEXT), OutpostHelpStrings.HELP_ACTION_PULL))
+	v.add_child(_help_row(_help_mode_example("Lock", UiTheme.COLOR_FAINT), OutpostHelpStrings.HELP_ACTION_LOCK))
+
+	v.add_child(_help_head(OutpostHelpStrings.HELP_HEAD_ARMAMENTS))
+	v.add_child(_help_para(OutpostHelpStrings.HELP_ARMAMENTS))
+
+	v.add_child(_help_head(OutpostHelpStrings.HELP_HEAD_SYSTEMS))
+	v.add_child(_help_para(OutpostHelpStrings.HELP_SYSTEMS))
+
+	v.add_child(_help_head(OutpostHelpStrings.HELP_HEAD_HOLD))
+	v.add_child(_help_para(OutpostHelpStrings.HELP_HOLD))
+
+	v.add_child(_help_head(OutpostHelpStrings.HELP_HEAD_BOTTOM))
+	v.add_child(_help_para(OutpostHelpStrings.HELP_BOTTOM))
+
+	var close := UiTheme.make_button(OutpostHelpStrings.HELP_CLOSE)
+	close.pressed.connect(_close_info)
+	outer.add_child(close)
+
+
+func _help_head(text: String) -> Label:
+	return _label(text, UiTheme.FONT_SIZE_BODY + 2, UiTheme.COLOR_ACCENT)
+
+
+func _help_para(text: String) -> Label:
+	var l := _label(text, UiTheme.FONT_SIZE_CAPTION + 2, UiTheme.COLOR_FAINT)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(800, 0)
+	return l
+
+
+# One help entry: a fixed example column (a live, INERT widget) + a wrapping description.
+func _help_row(example: Control, text: String) -> HBoxContainer:
+	_inert(example)   # examples are illustrations only — no hover glow, no clicks
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 16)
+	var box := CenterContainer.new()
+	box.custom_minimum_size = Vector2(360, 0)
+	box.add_child(example)
+	row.add_child(box)
+	var lbl := _label(text, UiTheme.FONT_SIZE_CAPTION + 2, UiTheme.COLOR_TEXT)
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl.custom_minimum_size = Vector2(460, 0)
+	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(lbl)
+	return row
+
+
+# Make a help example non-interactive: no hover highlight, no press. Recurses so face-button
+# children (mouse-ignore already) and icon/label parts all stop receiving mouse events.
+func _inert(ctrl: Control) -> void:
+	ctrl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for c in ctrl.get_children():
+		if c is Control:
+			_inert(c)
+
+
+func _help_static_i() -> Button:
+	var b := UiTheme.make_button("i", true)
+	b.custom_minimum_size = Vector2(40, 48)
+	return b
+
+
+func _help_svc_example() -> HBoxContainer:
+	# Wide enough that the icon+quantity+price face isn't clipped (the real service buttons are
+	# roomier than the card buttons). Minimum height ensures icon+text fit without squeezing.
+	var box := HBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	var btn1 := _price_button(ICON_HULL, "1", ICON_BOUNTY, "250", true, _help_noop, 168)
+	btn1.custom_minimum_size = Vector2(168, 48)
+	box.add_child(btn1)
+	var btn2 := _price_button(ICON_HULL, "All", ICON_BOUNTY, "0", true, _help_noop, 168)
+	btn2.custom_minimum_size = Vector2(168, 48)
+	box.add_child(btn2)
+	return box
+
+
+func _help_mode_example(text: String, color: Color) -> Button:
+	var b := UiTheme.make_button(text, true)
+	b.add_theme_color_override("font_color", color)
+	b.custom_minimum_size = Vector2(0, 48)
+	return b
+
+
+func _help_noop() -> void:
+	pass
 
 
 # ---- Small UI helpers -----------------------------------------------------

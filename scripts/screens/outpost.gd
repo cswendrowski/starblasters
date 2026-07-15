@@ -2081,6 +2081,23 @@ func _should_roll_weapon(slot: int, part_name: String, offered_mk: int) -> bool:
 		return true
 	var run := get_node("/root/Run")
 
+	# Modules live in the bay LIST (run.modules) + spare-module cargo (run.inventory), NOT
+	# loadout_snapshot. A bought module APPENDS to the bay (add_module) rather than swapping,
+	# so re-offering one already owned would just stack a duplicate — reject any owned module
+	# regardless of mark (owned modules progress via the in-place Upgrade button, not by buying
+	# a higher-Mk copy). This is the seam that keeps the always-owned Shield Core out of the
+	# shop once you have it (Roman 2026-07-14).
+	if slot == SlotTypes.SlotType.MODULE:
+		if "modules" in run and run.modules is Array:
+			for m in run.modules:
+				if m != null and "display_name" in m and String(m.display_name) == part_name:
+					return false
+		if "inventory" in run and run.inventory is Array:
+			for it in run.inventory:
+				if it != null and "display_name" in it and String(it.display_name) == part_name:
+					return false
+		return true
+
 	# Check loadout_snapshot for non-CANNON slots.
 	if slot != SlotTypes.SlotType.CANNON:
 		var equipped = run.loadout_snapshot.get(slot, null)

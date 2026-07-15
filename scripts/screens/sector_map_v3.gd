@@ -129,6 +129,10 @@ const HAZARD_SCENE  := "res://scenes/main.tscn"
 # Heavy main.tscn loads (combat/boss/hazard) route through the "Flying to <POI>" loading
 # screen instead of a plain fade; light scenes (outpost/signal) keep the plain fade.
 const LevelLauncher = preload("res://scripts/systems/level_launcher.gd")
+# Combat-backdrop stellar authoring (WP11). The per-node current_stellar dict + asteroid_base_color
+# are authored here so the Parallax Showcase lab can roll the same backgrounds play produces. The
+# _compute_poi/boss_stellar + _get_asteroid_color methods below are thin wrappers over this module.
+const StellarGameplay = preload("res://scripts/parallax/stellar_gameplay.gd")
 
 # Per-POI decoration object types: 0=planet, 1=large_asteroid, 2=asteroid_cluster
 const OBJ_PLANET    := 0
@@ -638,12 +642,8 @@ func _get_star_variant(row_idx: int) -> Dictionary:
 # (gray/brown/silvery), 15% exotic. Seeded from row_idx + run_seed so the
 # same row always gets the same color within a run, independent of star color.
 func _get_asteroid_color(row_idx: int) -> Color:
-	var run := get_node("/root/Run")
-	var rng := RandomNumberGenerator.new()
-	rng.seed = abs(hash("asteroid_color:%d:%d" % [row_idx, run.run_seed]))
-	if rng.randf() < 0.15:
-		return ASTEROID_EXOTIC_COLORS[rng.randi() % ASTEROID_EXOTIC_COLORS.size()]
-	return ASTEROID_REALISTIC_COLORS[rng.randi() % ASTEROID_REALISTIC_COLORS.size()]
+	# Thin wrapper (WP11) — delegates to the shared authoring module.
+	return StellarGameplay.asteroid_color_for_row(row_idx, int(get_node("/root/Run").run_seed))
 
 
 # Flat descriptor for the combat backdrop. Deterministic per poi.id, no
@@ -663,95 +663,32 @@ const NEBULA_BANDS := [
 
 
 func _compute_poi_stellar(poi: Dictionary, row_idx: int) -> Dictionary:
+	# Thin wrapper (WP11): flatten the poi + row cache into a plain descriptor and delegate the
+	# authoring to StellarGameplay (one implementation, shared with the Parallax Showcase lab).
+	return StellarGameplay.compute_poi_stellar(_stellar_descriptor(poi, row_idx))
+
+
+# Flatten a poi + its row into the plain-data descriptor StellarGameplay authors from (data, not poi
+# object references). belt_adjacency is precomputed here (grid-derived) + gated on SYSTEM_BACKDROP_ENABLED
+# exactly as before; row_pois carries the row's {id, pos_x} for the row-system staging.
+func _stellar_descriptor(poi: Dictionary, row_idx: int) -> Dictionary:
 	var run := get_node("/root/Run")
 	var rows: Array = run.sector_map_cache.get("rows", [])
 	var row_end_x: float = float(rows[row_idx].boss.pos.x) if row_idx < rows.size() else 416.0
-	var deco_rng := RandomNumberGenerator.new()
-	# Mix run_seed — MUST match the map-render seed in _build_pois_from_cache
-	# (:451) so obj_kind/px/planet_type combat-derive in lockstep with the map.
-	deco_rng.seed = abs(hash(poi.id) ^ run.run_seed)
-	var obj_kind: int = deco_rng.randi() % 3
-	var planet_idx: int = -1
-	var planet_type: int = -1
-	var moons: Array = []
-	var has_asteroids: bool = false
-	var asteroid_density: float = 0.0
-	# Decorative parallax asteroids in COMBAT must appear ONLY when the node the
-	# player entered is an asteroid-field hazard (Roman 2026-05-30). The old code
-	# keyed has_asteroids off `obj_kind` (a purely-decorative random pick shared
-	# with the sector-map icon), which sprinkled background asteroids onto ~2/3 of
-	# ALL levels. We now gate purely on hazard_subtype. NOTE: this only governs the
-	# DECORATIVE backdrop — real gameplay asteroids are spawned by main.gd /
-	# Levels.asteroid_field_level keyed off Run.current_hazard_subtype, untouched.
-	var is_asteroid_field: bool = String(poi.get("hazard_subtype", "")) == "asteroid_field"
-	# Belt adjacency (GATED): when the current node is next to a belt, we still
-	# want a planet backdrop here but with amped decorative asteroids drifting in
-	# from the neighboring field. Only consulted when SYSTEM_BACKDROP_ENABLED so
-	# the live path keeps today's behavior (no asteroids on non-field nodes).
-	var belt_adjacent: bool = SYSTEM_BACKDROP_ENABLED and _is_belt_adjacent(poi, row_idx)
-	if is_asteroid_field:
-		has_asteroids = true
-		# Cluster-grade density for a real field; the old OBJ_CLUSTER used 1.2.
-		# When the system backdrop is enabled, crank it to BELT_DENSITY_SELF so the
-		# field reads as a vast belt across all 3 stellar layers.
-		asteroid_density = BELT_DENSITY_SELF if SYSTEM_BACKDROP_ENABLED else 1.2
-		# An asteroid field has no planet of its own — asteroids ARE the backdrop.
-	elif belt_adjacent:
-		# Adjacent to a belt: keep this node's planet backdrop AND sprinkle dense
-		# drifting asteroids so the belt's edge is visible from here.
-		has_asteroids = true
-		asteroid_density = BELT_DENSITY_ADJACENT
-		var px_adj: float = PLANET_MIN_PX + float(deco_rng.randi() % 3) * 8.0
-		var frac_adj: float = (poi.pos.x - 128.0) / max(1.0, row_end_x - 128.0)
-		planet_type = _pick_planet_type(deco_rng, frac_adj)
-		planet_idx = int(V3_TO_BACKDROP_PLANET_IDX.get(planet_type, 0))
-		moons = _derive_moon_descriptors(String(poi.id), px_adj)
-	else:
-		# Every non-asteroid-field node gets a real planet backdrop. Previously
-		# the OBJ_LARGE_AST / OBJ_CLUSTER arms left planet_idx = -1 (the combat
-		# coordinator then fell back to DryTerran), so forcing the planet path
-		# here gives a deliberate planet instead of a fallback and avoids leaving
-		# the now-asteroid-less nodes as bare starfields.
-		var px: float = PLANET_MIN_PX + float(deco_rng.randi() % 3) * 8.0
-		var frac: float = (poi.pos.x - 128.0) / max(1.0, row_end_x - 128.0)
-		planet_type = _pick_planet_type(deco_rng, frac)
-		planet_idx = int(V3_TO_BACKDROP_PLANET_IDX.get(planet_type, 0))
-		moons = _derive_moon_descriptors(String(poi.id), px)
-	var sv: Dictionary = _get_star_variant(row_idx)
-	var base_type: int  = sv.base_type_idx
-	var star_color: Color = EXOTIC_GLOW_COLORS[sv.exotic_idx] if sv.exotic_idx >= 0 else STAR_GLOW_COLORS[base_type]
-	# Decorative nebula roll — separate salted rng so it doesn't shift the deco_rng sequence.
-	var neb_rng := RandomNumberGenerator.new()
-	neb_rng.seed = abs(hash(poi.id) ^ run.run_seed ^ 0x4E42)
-	var nebula_band: String = ""
-	var nebula_tint: Color = Color.WHITE
-	if neb_rng.randf() < NEBULA_NODE_CHANCE:
-		var nb: Dictionary = NEBULA_BANDS[neb_rng.randi() % NEBULA_BANDS.size()]
-		nebula_band = String(nb["name"])
-		nebula_tint = nb["tint"]
+	var row_pois: Array = []
+	if row_idx >= 0 and row_idx < rows.size():
+		for p in rows[row_idx].get("pois", []):
+			row_pois.append({"id": String(p.id), "pos_x": float(p.pos.x)})
 	return {
-		"obj_kind":         obj_kind,
-		"planet_idx":       planet_idx,
-		"planet_type":      planet_type,
-		# Planet PIXEL appearance seed. MUST equal _spawn_planet's psd (:889) so
-		# the map planet and the combat planet look identical. Mixed with run_seed
-		# in lockstep with psd.
-		"planet_seed":      abs(hash(poi.id) ^ run.run_seed),
-		"has_asteroids":    has_asteroids,
-		"asteroid_density": asteroid_density,
-		"nebula_band":      nebula_band,
-		"nebula_tint":      nebula_tint,
-		"moons":            moons,
-		"star_color":       star_color,
-		"star_cool":        STAR_COOL[base_type],
-		"row_idx":          row_idx,
-		"poi_id":           String(poi.id),
-		"exotic_idx":       sv.exotic_idx,
-		"has_binary":       sv.has_binary,
-		# Row-system staging array (star + nearest planet POIs) for the combat
-		# backdrop. See _compute_row_system. Single planet_idx/seed keys above
-		# remain authoritative for tint + asteroid gating + fallback.
-		"system":           _compute_row_system(poi, row_idx),
+		"id":              String(poi.id),
+		"row":             row_idx,
+		"pos_x":           float(poi.pos.x),
+		"row_end_x":       row_end_x,
+		"hazard_subtype":  String(poi.get("hazard_subtype", "")),
+		"belt_adjacent":   SYSTEM_BACKDROP_ENABLED and _is_belt_adjacent(poi, row_idx),
+		"sectors_cleared": int(run.sectors_cleared),
+		"run_seed":        int(run.run_seed),
+		"row_pois":        row_pois,
 	}
 
 
@@ -896,35 +833,13 @@ func _derive_moon_descriptors(poi_id: String, planet_px: float) -> Array:
 # decoration of their own. Tint the scene with the row's star color so the
 # boss arena still feels "visited from" that line.
 func _compute_boss_stellar(row_idx: int) -> Dictionary:
+	# Thin wrapper (WP11) — delegates to the shared authoring module.
 	var run := get_node("/root/Run")
-	var sv: Dictionary = _get_star_variant(row_idx)
-	var base_type: int  = sv.base_type_idx
-	var star_color: Color = EXOTIC_GLOW_COLORS[sv.exotic_idx] if sv.exotic_idx >= 0 else STAR_GLOW_COLORS[base_type]
-	return {
-		"obj_kind":         -1,
-		"planet_idx":       -1,
-		"planet_type":      -1,
-		"has_asteroids":    false,
-		"asteroid_density": 0.0,
-		"moons":            [],
-		"star_color":       star_color,
-		"star_cool":        STAR_COOL[base_type],
-		"row_idx":          row_idx,
-		"poi_id":           "boss:%d" % row_idx,
-		"exotic_idx":       sv.exotic_idx,
-		"has_binary":       sv.has_binary,
-		# Boss sits at the row's far-right endpoint (frac 1.0), so it views the
-		# star at maximum distance -> small/distant (consistent with the staging
-		# model). Star-only system; bosses have no planet of their own.
-		"system":           ([{
-			"kind":        "star",
-			"planet_idx":  8,
-			"planet_seed": abs(hash("star:%d:%d" % [row_idx, run.run_seed])),
-			"frac":        0.0,
-			"scale":       _stage_scale(1.0, 0.0),
-			"star_color":  star_color,
-		}] if SYSTEM_BACKDROP_ENABLED else []),
-	}
+	return StellarGameplay.compute_boss_stellar({
+		"row":             row_idx,
+		"run_seed":        int(run.run_seed),
+		"sectors_cleared": int(run.sectors_cleared),
+	})
 
 
 # PixelPlanets/Control parity setup shared by every celestial spawn. PlanetKit scenes are

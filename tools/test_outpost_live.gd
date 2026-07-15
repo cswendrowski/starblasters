@@ -215,6 +215,30 @@ func _run() -> void:
 			lguard += 1
 		_ck(_oa._deck._lift_job == null, "lifter run ran to completion (board → haul → return → disembark)")
 
+	# Info popup — now builds its stats + Mark ladder via the shared PartStatsView (owned path).
+	if _oa._hold.size() > 0:
+		_oa._show_info(_oa._hold[0])
+		_ck(_oa._info_popup != null and is_instance_valid(_oa._info_popup), "info popup built (shared PartStatsView)")
+		_oa._close_info()
+		_ck(_oa._info_popup == null, "info popup closed")
+
+	# Shared stats+mark widget, Codex reference path (owned=false → no "(current)" flag).
+	var rng2 := RandomNumberGenerator.new()
+	rng2.seed = 7
+	var demo_part = PartCatalog.roll_for_slot(rng2, SlotTypes.SlotType.CANNON, 3)
+	if demo_part != null:
+		var block = PartStatsView.build(demo_part, 1, 9, false)
+		_ck(block != null and block.get_child_count() >= 3, "PartStatsView builds hint + ladder + stats box")
+		var ladder = block.get_child(1)
+		_ck(ladder is HBoxContainer and ladder.get_child_count() == 9, "mark ladder has 9 chips (Mk.1-9)")
+		block.free()
+
+	# Help overlay: builds every section + its live example widgets, then closes cleanly.
+	_oa._show_help()
+	_ck(_oa._info_popup != null and is_instance_valid(_oa._info_popup), "help overlay built")
+	_oa._close_info()
+	_ck(_oa._info_popup == null, "help overlay closed")
+
 	print("live: hold=%d market=%d offers=%d bounty=%d materials=%d" %
 		[_oa._hold.size(), _oa._market.size(), run.outpost_weapon_offers.size(), int(run.bounty), int(run.materials)])
 	print("VERDICT: %s" % ("PASS" if _fails == 0 else "FAIL (%d)" % _fails))
