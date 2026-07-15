@@ -151,7 +151,11 @@ static func _all_pool() -> Array:
 		# equips in the HARDPOINT_WING slot and fires on shoot2 (deploy).
 		{"factory": "_make_drone_swarm", "slot": Slots.SlotType.HARDPOINT_WING},
 		{"factory": "_make_swarm_launcher", "slot": Slots.SlotType.HARDPOINT_WING},
-		# Module bay — roll in the shop. Shield Core is default-only (not here), like Focus.
+		# Module bay — all roll in the shop. Shield Core is default-equipped (auto-seeded by
+		# new_run) AND rolls here too (Roman 2026-07-14) — the shop's own-better filter keeps
+		# it from re-offering the one you already own. (Focus is still default-only — see
+		# _build_display_index — because shift modes swap in loadout_snapshot, one at a time.)
+		{"factory": "_make_shield_core", "slot": Slots.SlotType.MODULE},
 		{"factory": "_make_overcharge_core", "slot": Slots.SlotType.MODULE},
 		{"factory": "_make_siphon_core", "slot": Slots.SlotType.MODULE},
 		{"factory": "_make_repair_nanites", "slot": Slots.SlotType.MODULE},
@@ -186,10 +190,10 @@ static func factory_for_part(part) -> String:
 
 
 static func _build_display_index() -> void:
-	# The roll pool + the two default-only parts (Focus, Shield Core) that never roll but are owned.
+	# The roll pool + Focus, the one default-only part that never rolls but is owned.
+	# (Shield Core now rolls too, so it's already in _all_pool.)
 	var entries: Array = _all_pool().duplicate()
 	entries.append({"factory": "_make_focus_mode", "slot": Slots.SlotType.SHIFT_MODE})
-	entries.append({"factory": "_make_shield_core", "slot": Slots.SlotType.MODULE})
 	for entry in entries:
 		var p = _make_by_name(String(entry["factory"]), int(entry["slot"]))
 		if p != null and "display_name" in p:
