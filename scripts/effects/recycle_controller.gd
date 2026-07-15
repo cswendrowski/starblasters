@@ -176,8 +176,11 @@ static func recycle(enemy) -> void:
 		enemy.recycle_passes -= 1
 	enemy._cycling = true
 	enemy._recycle_suspend()                       # stop firing (enemy-specific hook)
-	enemy.set_deferred("monitorable", false)
-	enemy.set_deferred("monitoring", false)
+	# Non-interactive for the WHOLE fly-back — root AND every descendant Area2D section. Multi-part hulls
+	# (the cruiser's gun pods / engine / bridge) are independent Area2D "enemies"-group parts; neutralizing
+	# only the root left them shootable through the ghost pass (bullets hit by group + monitorable). Restore
+	# is symmetric on the legacy revive path below.
+	_set_subtree_interactive(enemy, false)
 	# Drop the hull outline + engine exhaust for the whole fly-back: a recycling ship reads as
 	# faux-parallax (shrunk + tinted), which shouldn't carry either effect.
 	enemy._set_outline_visible(false)
@@ -228,8 +231,14 @@ static func recycle(enemy) -> void:
 	#
 	# FALLBACK: with no director in the scene (dev labs, benches, test harnesses) we keep the LEGACY
 	# restore+resume path below, so every dev tool behaves exactly as before.
+	# STATE-PRESERVING EXCEPTION (2026-07-11): the despawn+credit path re-spawns a FRESH instance from the
+	# source WaveSpec — full HP, all destructible sections resurrected. That's fine for chaff (a pristine
+	# re-entry is imperceptible) but wrong for a damaged or multi-part hull (the cruiser "Dreadnought"): it
+	# would heal to full and grow its shot-off gun pods back. For those we keep the SAME live node via the
+	# legacy restore-in-place path below, so hull HP + per-section damage state is inherently preserved. No
+	# director-side change needed (the director owns the from-spec respawn we're opting out of).
 	var director: Node = _find_director(enemy)
-	if director != null:
+	if director != null and not _should_restore_in_place(enemy):
 		var spec: Resource = enemy.get_meta("recycle_source_spec", null) as Resource
 		if spec != null:
 			# recycle_passes has already been decremented above for this pass; carry the REMAINING count
@@ -249,8 +258,7 @@ static func recycle(enemy) -> void:
 	enemy._cycling = false
 	# Reset the auto-rotate tracker so the first post-cycle move computes a fresh delta vector.
 	enemy._rot_init = false
-	enemy.set_deferred("monitorable", true)
-	enemy.set_deferred("monitoring", true)
+	_set_subtree_interactive(enemy, true)          # re-arm root + every descendant section as targets
 	enemy._recycle_resume()                        # re-arm firing + pattern/components (enemy-specific)
 
 
@@ -294,33 +302,75 @@ static func _entry_lane_free(tree: SceneTree, lane: int, exclude) -> bool:
 # stashing the body's original material so _restore_ghost_look can put it back. Falls back to a
 # plain modulate tint when there's no body Sprite2D to grade.
 static func _apply_ghost_look(enemy, cfg: Dictionary) -> void:
-	var body := _body_sprite(enemy)
-	if body == null:
+	var bodies: Array = _hull_sprites(enemy)
+	if bodies.is_empty():
 		enemy.modulate = tint(cfg)
 		return
-	enemy.set_meta("_recycle_prev_mat", body.material)
 	# Recede via the SHARED mid-depth body look (MidDepthPresentation.recede_body — same call the wreck
 	# + missile cruiser use, so a receding ship reads consistently). The tuner's ghost color drives the
 	# tint, its alpha the depth-blend amount, so RecycleTuner still dials "how faded". coordinator = the
 	# backdrop the enemy lives under (grade-match the live mid layer); null-safe in bare scenes.
+	# Grade EVERY hull body in the subtree — a multi-part hull (the cruiser) carries a body Sprite2D per
+	# destructible section, and the old single-root grade left those sections at full brightness so the
+	# ship never read as background. Stash each sprite's prior material for a symmetric restore.
 	var c: Color = tint(cfg)
 	var scene: Node = enemy.get_tree().current_scene
 	var coordinator: Node = scene.get_node_or_null("Backdrop") if scene != null else null
-	MidDepthPresentation.recede_body(body, coordinator, Color(c.r, c.g, c.b, 1.0), c.a)
+	var graded: Array = []
+	for body in bodies:
+		graded.append([body, body.material])
+		MidDepthPresentation.recede_body(body, coordinator, Color(c.r, c.g, c.b, 1.0), c.a)
+	enemy.set_meta("_recycle_graded", graded)
 
 
-# Restore the body material the ghost look replaced + the pre-cycle modulate.
+# Restore every hull material the ghost look replaced + the pre-cycle modulate.
 static func _restore_ghost_look(enemy, pre_modulate: Color) -> void:
 	enemy.modulate = pre_modulate
-	var body := _body_sprite(enemy)
-	if body != null and enemy.has_meta("_recycle_prev_mat"):
-		body.material = enemy.get_meta("_recycle_prev_mat")
-		enemy.remove_meta("_recycle_prev_mat")
+	if enemy.has_meta("_recycle_graded"):
+		for pair in enemy.get_meta("_recycle_graded"):
+			var spr: Sprite2D = pair[0]
+			if is_instance_valid(spr):
+				spr.material = pair[1]
+		enemy.remove_meta("_recycle_graded")
 
 
-# The body Sprite2D the depth-tint rides on (the visible hull, named "Sprite2D" across the roster).
-static func _body_sprite(enemy) -> Sprite2D:
-	return enemy.get_node_or_null("Sprite2D") as Sprite2D
+# Every visible hull BODY sprite in the subtree — the root's "Sprite2D" plus each descendant section's
+# own "Sprite2D" (multi-part hulls). Name-filtered to the hull body so the overlay layers (GlowMask /
+# Livery / Outline) are left on their own presentation axis. Single-body enemies yield exactly one.
+static func _hull_sprites(enemy) -> Array:
+	var out: Array = []
+	for n in enemy.find_children("Sprite2D", "Sprite2D", true, false):
+		if n is Sprite2D:
+			out.append(n)
+	return out
+
+
+# ---- State-preserving + subtree-interactivity helpers (2026-07-11) --------
+
+# Whether this recycler must keep its SAME live node (legacy restore-in-place) instead of the
+# despawn+credit from-spec respawn: true for a MULTI-PART hull (any DestructiblePart section — a
+# from-spec respawn resurrects shot-off sections) or an already-DAMAGED hull (health < max_health —
+# a respawn heals it to full). An undamaged single-body chaff respawns identically from spec, so it
+# still takes the conducted despawn+credit path.
+static func _should_restore_in_place(enemy) -> bool:
+	if not enemy.find_children("*", "DestructiblePart", true, false).is_empty():
+		return true
+	if ("health" in enemy) and ("max_health" in enemy) and enemy.health < enemy.max_health:
+		return true
+	return false
+
+
+# Toggle collision on the root AND every descendant Area2D section. A recycling ship is faux-parallax
+# (shrunk + tinted background) and must be non-interactive; the root guard alone misses the independent
+# Area2D parts of a multi-part hull. monitorable off stops incoming bullet hits (area_entered never
+# fires); monitoring off stops the part registering contacts.
+static func _set_subtree_interactive(enemy, on: bool) -> void:
+	enemy.set_deferred("monitorable", on)
+	enemy.set_deferred("monitoring", on)
+	for part in enemy.find_children("*", "Area2D", true, false):
+		if is_instance_valid(part):
+			part.set_deferred("monitorable", on)
+			part.set_deferred("monitoring", on)
 
 
 # The wave director for this enemy's scene, or null. Found via the "wave_director" group the director

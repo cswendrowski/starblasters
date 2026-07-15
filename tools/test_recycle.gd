@@ -43,6 +43,7 @@ func _run_all() -> void:
 	_test_resolve()
 	await _test_recycle()
 	await _test_recycle_credit()
+	await _test_cruiser_recycle()
 	_test_completion_gate()
 	_test_wreck()
 	_test_turret_suspend()
@@ -167,7 +168,7 @@ func _test_recycle() -> void:
 		_check(e.is_recycling(), "is_recycling() still true mid-fly")
 		_check(not e.monitorable, "monitorable dropped during cycle")
 		if body != null:
-			_check(e.has_meta("_recycle_prev_mat"), "ghost material stashed during cycle")
+			_check(e.has_meta("_recycle_graded"), "ghost material stashed during cycle")
 
 	# Let the rest of the cycle finish (0.3s fly + slack).
 	await create_timer(0.4).timeout
@@ -180,7 +181,7 @@ func _test_recycle() -> void:
 	_check(e.scale == orig_scale, "scale restored after the cycle")
 	_check(e.monitorable, "monitorable restored after the cycle")
 	if body != null:
-		_check(not e.has_meta("_recycle_prev_mat"), "ghost material meta cleared")
+		_check(not e.has_meta("_recycle_graded"), "ghost material meta cleared")
 		_check(body.material == orig_mat, "body material restored to original")
 	e.free()
 	RC.invalidate()   # drop the tiny in-memory config; next real run reloads from disk
@@ -231,6 +232,69 @@ func _test_recycle_credit() -> void:
 		_check(director.credits[0]["spec"] == spec, "credit path: credit carries the source spec")
 		_check(int(director.credits[0]["passes"]) == 1, "credit path: credit carries REMAINING passes (1, not the spec's 2)")
 
+	director.free()
+	RC.invalidate()
+
+
+# --- Part 2d: multi-part hull (the "Dreadnought" cruiser) ------------------
+
+# The cruiser is a composite: an EnemyCruiser core with DestructiblePart child sections (gun pods /
+# engine / bridge), each an Area2D in the "enemies" group. Three designer fixes are asserted here:
+#   1) sections are NON-interactive during the ghost fly-back (root + every part monitorable off),
+#   2) it does NOT despawn+credit even with a director present (state-preserving restore-in-place),
+#   3) EVERY hull body (core + each section) is depth-graded, not just the root.
+const CRUISER := "res://scenes/enemies/core/enemy_cruiser.tscn"
+
+func _test_cruiser_recycle() -> void:
+	print("cruiser (multi-part 'Dreadnought') recycle:")
+	RC.invalidate()
+	var cfg: Dictionary = RC.config()
+	cfg["hold_min"] = 0.01
+	cfg["hold_max"] = 0.02
+	cfg["fly_time_min"] = 0.3
+	cfg["fly_time_max"] = 0.3
+
+	# A director present would normally trigger despawn+credit; the cruiser must opt OUT of it.
+	var director := _StubDirector.new()
+	director.add_to_group("wave_director")
+	get_root().add_child(director)
+
+	var e = load(CRUISER).instantiate()
+	get_root().add_child(e)
+	e.position = Vector2(e.screensize.x * 0.5, e.screensize.y * 0.4)
+	e.set_meta("recycle_source_spec", Resource.new())
+
+	var parts: Array = e.find_children("*", "DestructiblePart", true, false)
+	_check(parts.size() >= 2, "cruiser exposes multiple destructible sections (%d)" % parts.size())
+	_check(RC._should_restore_in_place(e), "multi-part hull → restore-in-place (not despawn+credit)")
+
+	RC.recycle(e)
+	# Sample mid-fly: root AND every section must be non-interactive, every hull body graded.
+	await create_timer(0.1).timeout
+	if is_instance_valid(e):
+		_check(not e.monitorable, "cruiser root monitorable off during ghost")
+		var parts_off := true
+		for p in e.find_children("*", "Area2D", true, false):
+			if is_instance_valid(p) and p.monitorable:
+				parts_off = false
+		_check(parts_off, "every cruiser section monitorable off during ghost")
+		var graded: Array = e.get_meta("_recycle_graded", [])
+		_check(graded.size() >= 1 + parts.size(), "every hull body graded (core + %d sections = %d)" % [parts.size(), graded.size()])
+
+	# End of fly-back: with a director present but restore-in-place, the SAME node survives (no credit).
+	await create_timer(0.4).timeout
+	_check(is_instance_valid(e), "cruiser survives the cycle (restore-in-place, not despawned)")
+	if is_instance_valid(e):
+		_check(director.credits.is_empty(), "no recycle credit handed for a multi-part hull")
+		_check(not e.is_recycling(), "cruiser not recycling after the cycle")
+		_check(e.monitorable, "cruiser root monitorable restored")
+		var restored := true
+		for p in e.find_children("*", "Area2D", true, false):
+			if is_instance_valid(p) and not p.monitorable:
+				restored = false
+		_check(restored, "every cruiser section monitorable restored")
+		_check(not e.has_meta("_recycle_graded"), "cruiser ghost grade meta cleared")
+		e.free()
 	director.free()
 	RC.invalidate()
 
