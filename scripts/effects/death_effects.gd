@@ -52,7 +52,9 @@ const EmberFx = preload("res://scripts/effects/ember_fx.gd")
 const BurnFx = preload("res://scripts/effects/burn_fx.gd")
 const SparkTrailFx = preload("res://scripts/effects/spark_trail_fx.gd")
 const DamageSmokeTrail = preload("res://scripts/effects/damage_smoke_trail.gd")
-const BURNING_TRAIL := preload("res://scenes/effects/burning_trail.tscn")
+# Small fireball trail for general use (Roman 2026-07-16). The bigger explosion-strip trail is kept on
+# hand at burning_trail.tscn / burning_trail_old.tscn for a future use.
+const BURNING_TRAIL := preload("res://scenes/effects/burning_trail_small.tscn")
 const TORCH_SHADER := preload("res://graphics/torch_fire.gdshader")
 
 # Ships at/above this size_scale get the FULL fire trail; smaller ones get the smoulder trail

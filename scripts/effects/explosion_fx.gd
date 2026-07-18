@@ -37,11 +37,15 @@ static func scene_for(variant: String) -> PackedScene:
 # play()/burst()/scene_for() stay for the existing callers; new tunable callers use play_config().
 
 const BALL_STRIP = preload("res://graphics/effects/explosion_small_circle.png")
+# Small fireball strip (Roman 2026-07-16) — drives the "fireball" type; 11-frame small_fireball.png, same
+# art as the standalone scenes/effects/explosion_small_fireball.tscn. Previewable in the Shader Lab Expl. Tuner.
+const FIREBALL_STRIP = preload("res://graphics/small_fireball.png")
 
-# Per-type base look — the "basic" vs "ball" defaults play_config starts from before applying cfg.
+# Per-type base look — the "basic" / "ball" / "fireball" defaults play_config starts from before applying cfg.
 const TYPE_DEFAULTS := {
 	"basic": {"frames": 8, "frame_duration": 0.07, "satellite_radius": 28.0, "sparks": 18, "debris": 8, "strip": null},
 	"ball":  {"frames": 9, "frame_duration": 0.05, "satellite_radius": 12.0, "sparks": 10, "debris": 3, "strip": BALL_STRIP},
+	"fireball": {"frames": 11, "frame_duration": 0.05, "satellite_radius": 12.0, "sparks": 10, "debris": 3, "strip": FIREBALL_STRIP},
 }
 
 const EXPLOSION_DEFAULTS := {

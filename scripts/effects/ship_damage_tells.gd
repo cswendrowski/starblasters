@@ -27,7 +27,9 @@ signal destroyed
 static var force_live: bool = false
 
 const SparkTrailFx = preload("res://scripts/effects/spark_trail_fx.gd")
-const BURNING_TRAIL := preload("res://scenes/effects/burning_trail.tscn")
+# Small fireball trail for general use (Roman 2026-07-16). The bigger explosion-strip trail is kept on
+# hand at burning_trail.tscn / burning_trail_old.tscn for a future use.
+const BURNING_TRAIL := preload("res://scenes/effects/burning_trail_small.tscn")
 const TORCH_SHADER := preload("res://graphics/torch_fire.gdshader")
 const ShipDebrisEmber = preload("res://scripts/effects/ship_debris_ember.gd")
 const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")

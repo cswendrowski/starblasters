@@ -34,7 +34,11 @@ static func spawn(parent: Node, world_pos: Vector2, travel_dir: Vector2, color: 
 	var fx := IMPACT_CIRCLE.instantiate() as Node2D
 	if fx == null:
 		return
+	# Parentless global_position writes are really LOCAL — correct only under an
+	# identity-transform parent. Stash the intended world point and re-assert it in
+	# _ignite once the deferred add lands, so a transformed parent can't shift it.
 	fx.global_position = world_pos
+	fx.set_meta("impact_world_pos", world_pos)
 	fx.z_index = IMPACT_Z
 	# The emitters fire along their local +X; rotate the root so +X points along travel (an up-moving
 	# bullet sprays up). A zero/degenerate direction leaves the authored orientation.
@@ -52,6 +56,8 @@ static func spawn(parent: Node, world_pos: Vector2, travel_dir: Vector2, color: 
 static func _ignite(fx: Node2D) -> void:
 	if fx == null or not is_instance_valid(fx):
 		return
+	if fx.has_meta("impact_world_pos"):
+		fx.global_position = fx.get_meta("impact_world_pos")
 	var longest: float = 0.0
 	for nm in ["Flash", "Sparks", "Smoke"]:
 		var p := fx.get_node_or_null(nm)

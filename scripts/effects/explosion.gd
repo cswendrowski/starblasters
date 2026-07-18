@@ -135,12 +135,29 @@ func _make_explosion_sprite(offset: Vector2, sc: float, delay: float) -> Diction
 const SPARK_SCENE = preload("res://scenes/effects/explosion_spark.tscn")
 const EMBER_SCENE = preload("res://scenes/effects/explosion_ember.tscn")
 
+# The ember_spray shader stretches a small white texture into streaks; explosion_ember.tscn ships without
+# one, so it must be supplied at runtime. Cached 2×2 white pixel (mirrors ember_fx._pixel()).
+static var _ember_pixel_tex: ImageTexture = null
+
+static func _ember_pixel() -> ImageTexture:
+	if _ember_pixel_tex == null:
+		var img := Image.create(2, 2, false, Image.FORMAT_RGBA8)
+		img.fill(Color.WHITE)
+		_ember_pixel_tex = ImageTexture.create_from_image(img)
+	return _ember_pixel_tex
+
+
 func _spawn_sparks() -> void:
 	if spark_count <= 0:
 		return
 	var p: GPUParticles2D = SPARK_SCENE.instantiate()
 	p.amount = maxi(1, spark_count)
+	# Emit in LOCAL space so the burst lands ON the explosion, not the world origin. With local_coords=false
+	# (the scene default) a one-shot fired the same frame the node is added emits before the transform is
+	# uploaded to the GPU → particles at (0,0) / upper-left. Local coords sidestep that (Roman 2026-07-16).
+	p.local_coords = true
 	add_child(p)   # child of the explosion → frees with it
+	p.restart()   # fire the FULL one-shot burst — emitting=true on a fresh one-shot under-emits (~2), see ember_fx
 
 
 # Debris swapped for an EMBER burst (Roman 2026-06-12): the editor-tweakable explosion_ember.tscn
@@ -160,9 +177,16 @@ func _spawn_debris() -> void:
 	var root2d: Node2D = EMBER_SCENE.instantiate()
 	var p: GPUParticles2D = root2d.get_node("Particles")
 	p.amount = maxi(4, int(round(float(debris_count) * 4.0)))
+	# The ember_spray shader stretches a 2×2 WHITE pixel into streaks, but the scene ships with NO texture
+	# (Roman's in-flight hand-pass) → the particles have no quad and render INVISIBLE ("no debris"). Mirror
+	# the proven ember_fx.gd setup: give it the pixel texture, emit local (lands on the boom, not (0,0)),
+	# and restart() AFTER the deferred add — emitting=true under-emits a fresh one-shot (Roman 2026-07-16).
+	p.texture = _ember_pixel()
+	p.local_coords = true
 	root2d.global_position = global_position
 	host.add_child.call_deferred(root2d)
 	p.finished.connect(root2d.queue_free)
+	p.restart.call_deferred()   # full one-shot cycle after the deferred add
 
 
 func _spawn_light() -> void:

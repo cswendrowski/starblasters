@@ -1,0 +1,48 @@
+[gd_scene format=3 uid="uid://8v7irvryn7v2"]
+
+[ext_resource type="Script" uid="uid://bdo5ayk6oh7ij" path="res://scripts/effects/explosion.gd" id="1_1iby8"]
+[ext_resource type="Texture2D" uid="uid://bl1tesl35y0hi" path="res://graphics/small_fireball.png" id="2_1iby8"]
+
+[sub_resource type="Gradient" id="Gradient_fire"]
+offsets = PackedFloat32Array(0, 0.5, 1)
+colors = PackedColorArray(1, 1, 0.85, 1, 1, 0.55, 0.15, 1, 0.6, 0.15, 0.05, 0)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_fire"]
+gradient = SubResource("Gradient_fire")
+width = 32
+
+[sub_resource type="Curve" id="Curve_sc"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_sc"]
+curve = SubResource("Curve_sc")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_spark"]
+emission_shape = 1
+emission_sphere_radius = 4.0
+direction = Vector3(0, -1, 0)
+spread = 180.0
+initial_velocity_min = 100.0
+initial_velocity_max = 200.0
+gravity = Vector3(0, 70, 0)
+scale_min = 0.5
+scale_curve = SubResource("CurveTexture_sc")
+color_ramp = SubResource("GradientTexture1D_fire")
+
+[node name="ExplosionSmallCircle" type="Node2D" unique_id=2042468395]
+script = ExtResource("1_1iby8")
+strip = ExtResource("2_1iby8")
+frames = 11
+frame_duration = 0.05
+spark_count = 10
+debris_count = 3
+max_radius = 12.0
+
+[node name="SparkParticles" type="GPUParticles2D" parent="." unique_id=1667172079]
+emitting = false
+amount = 10
+lifetime = 0.4
+one_shot = true
+explosiveness = 1.0
+process_material = SubResource("ParticleProcessMaterial_spark")
