@@ -1494,13 +1494,39 @@ const ENTRIES := [
 		"conflict_tags": [],
 	},
 	{
-		# Landing Pad — a drifting platform with a RANDOM small faction enemy parked on it (idle: no
-		# move/fire, engines off, but a LIVE, killable enemy with its own health). If the pad drifts off
-		# the bottom with the ship still alive, the ship is injected to the director + recycles into a
-		# later wave. Bespoke landing_pad.gd.
-		"scene": "res://scenes/enemies/ground/building_square_landing_pad.tscn",
+		# Landing Pad (small) — a drifting platform with a RANDOM small faction enemy parked on it (idle:
+		# no move/fire, engines off, but a LIVE, killable enemy with its own health). While a ship is
+		# parked it soaks hits BEFORE the pad. If the pad drifts off the bottom with the ship still alive,
+		# the ship is injected to the director + recycles into a later wave; 20% of occupied pads scramble
+		# their ship mid-descent instead (escape launch). Bespoke landing_pad.gd (parked size from the
+		# scene filename). Renamed from building_square_landing_pad 2026-07-17.
+		"scene": "res://scenes/enemies/ground/building_landing_pad_small.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
+		"movement": "asteroid_lane",
+		"base_count": 1,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.4, "chaff": false,
+		"no_wave": true,   # reserved for specific level conditions — never in the random wave roll
+		"conflict_tags": [],
+	},
+	{
+		# Landing Pad (medium) — same behavior, parks a MEDIUM faction enemy (which soaks hits before
+		# the pad). Pad hull scales with its size class.
+		"scene": "res://scenes/enemies/ground/building_landing_pad_medium.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": [],
+		"movement": "asteroid_lane",
+		"base_count": 1,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.4, "chaff": false,
+		"no_wave": true,   # reserved for specific level conditions — never in the random wave roll
+		"conflict_tags": [],
+	},
+	{
+		# Landing Pad (large) — same behavior, parks a LARGE faction enemy (incl. rares/capitals), which
+		# soaks hits before the pad. Pad hull scales with its size class.
+		"scene": "res://scenes/enemies/ground/building_landing_pad_large.tscn",
+		"tier": Tier.UNCOMMON,
+		"size": "large", "tags": [],
 		"movement": "asteroid_lane",
 		"base_count": 1,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.4, "chaff": false,

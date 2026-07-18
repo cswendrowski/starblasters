@@ -30,6 +30,7 @@ static var _order: Array = []
 const ALIASES := {
 	"building_round_tank": "building_bunker_tank",
 	"building_round_glass": "building_bunker_glass",
+	"building_square_landing_pad": "building_landing_pad_small",   # pad size split 2026-07-17
 }
 
 
