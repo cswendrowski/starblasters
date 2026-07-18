@@ -18,6 +18,7 @@ extends EnemyComponent
 
 const SHIELD_SHADER = preload("res://graphics/hex_shield.gdshader")  # committed (Roman 2026-06-11)
 const HitFlashFx = preload("res://scripts/effects/hit_flash_fx.gd")
+const ShieldSfxC = preload("res://scripts/effects/shield_sfx.gd")
 const ShieldRingFxC = preload("res://scripts/effects/shield_ring_fx.gd")
 const FactionsC = preload("res://scripts/levels/factions.gd")
 const ShieldFitC = preload("res://scripts/enemies/components/shield_fit.gd")
@@ -119,6 +120,7 @@ func on_hit(enemy, damage: int) -> int:
 		_pool -= absorbed
 		_update_visual()
 		_flash(enemy)
+		_play_absorb_sfx(enemy, _pool <= 0.0)
 		return int(ceil(float(damage) - absorbed))
 	if _charges <= 0:
 		return damage
@@ -126,6 +128,7 @@ func on_hit(enemy, damage: int) -> int:
 	_regen_t = 0.0                      # taking a hit restarts the regen delay
 	_update_visual()
 	_flash(enemy)
+	_play_absorb_sfx(enemy, _charges <= 0)
 	return 0
 
 
@@ -197,6 +200,17 @@ func _update_visual() -> void:
 		return
 	_fx.apply_state(_fraction())
 	_fx.set_online(_shield_up(), TRANSITION_SECS)
+
+
+# Shared shield hit/break clips (same pool as the player's shield, 2026-07-14) —
+# break plays on the hit that empties the charges/pool, hit otherwise. Positional.
+func _play_absorb_sfx(enemy, broke: bool) -> void:
+	if enemy == null or not enemy.is_inside_tree():
+		return
+	if broke:
+		ShieldSfxC.play_break(enemy.get_tree().root, enemy.global_position)
+	else:
+		ShieldSfxC.play_hit(enemy.get_tree().root, enemy.global_position)
 
 
 func _flash(enemy) -> void:

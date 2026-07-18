@@ -49,6 +49,7 @@ func _build_beam() -> void:
 	_beam.forward_local = Vector2(0, -1)
 	_beam.emitter_offset = _muzzle_local()               # emit from the authored barrel-tip marker
 	_beam.faction = CORP_FACTION                         # BeamEmitter tints the outer layers to the corpo laser colour; core stays white
+	_beam.sfx_profile = "boss"                           # large blasts + power flutters + field loops 4/5 (Roman 2026-07-15)
 	_beam.telegraph_width = 1.5                          # (telegraph colour auto-derives from the faction hue)
 	_beam.envelope = true                                # grow-in thin→full, shrink+flicker out
 	_beam.cycle = BeamEmitterC.Cycle.LOOP_WINDUP

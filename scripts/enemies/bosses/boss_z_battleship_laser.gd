@@ -76,6 +76,7 @@ func _build_beam() -> void:
 	# Keep the authored firecore gold/orange gradient (this IS the reference laser); the generic faction
 	# auto-tint would otherwise whiten it, since a neutral boss resolves to no faction (Roman 2026-07-07).
 	_beam.faction = BeamEmitterC.FACTION_OFF
+	_beam.sfx_profile = "boss"   # large blasts + power flutters + field loops 4/5 (Roman 2026-07-15)
 	if beam_kind == "main":
 		# Fire FROM the BeamStart marker TOWARD the BeamMuzzle marker (out the muzzle), on down the lane.
 		# LOCAL_FORWARD + the marker-derived direction means it always points start→muzzle in world space,

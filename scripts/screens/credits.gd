@@ -78,6 +78,15 @@ func _build_ui() -> void:
 	_add_section_header(vbox, "TESTERS")
 	_add_names(vbox, "Stacey, Cody, Nath, Pao, Kyle, Doug, Ellen")
 
+	# Spacer between sections.
+	var spacer_audio := Control.new()
+	spacer_audio.custom_minimum_size = Vector2(0, 8)
+	vbox.add_child(spacer_audio)
+
+	# Section: AUDIO
+	_add_section_header(vbox, "AUDIO")
+	_add_names(vbox, "Energy Field Loops by unfa (CC0)")
+
 	# Spacer before button.
 	var spacer2 := Control.new()
 	spacer2.custom_minimum_size = Vector2(0, 8)

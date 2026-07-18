@@ -125,6 +125,7 @@ func _ensure_beam() -> void:
 	# SEGMENT endpoint = the sapper sets the sapper→player endpoints each frame.
 	var b := BeamEmitterC.new()
 	b.configure({
+		"sfx_profile": "sapper",   # energy-force loop while draining (Roman 2026-07-15)
 		"cycle": BeamEmitterC.Cycle.MANUAL,
 		"endpoint": BeamEmitterC.Endpoint.SEGMENT,
 		"autostart": true,

@@ -93,6 +93,15 @@ var telegraph_width: float = 1.5
 const FACTION_OFF := -3
 var faction: int = -2
 
+# --- audio (Roman 2026-07-15) ---
+# Sound family for this beam: "enemy" (default — small start/stop blasts, power_up
+# charge warning, field loops 1-3), "boss" (large blasts, power up/down flutters,
+# field loops 4-5), "sapper" (force loop), "silent" (no beam audio).
+# The charge warning plays at WINDUP start, so the sound ALWAYS precedes firing
+# (the visual tell may run longer). The firing loop fades out with the envelope
+# shrink as the beam finishes.
+var sfx_profile: String = "enemy"
+
 # --- state ---
 var _phase: int = Phase.OFF
 var _t: float = 0.0
@@ -103,6 +112,14 @@ var _seg_a: Vector2 = Vector2.ZERO             # SEGMENT world endpoints
 var _seg_b: Vector2 = Vector2.ZERO
 var _lines: Array = []                         # lethal Line2D layers
 var _telegraph: Line2D = null
+# Audio state: the firing loop node (child, reused across shots), its fade tween,
+# and the hit-effect tint (faction laser-inner, or the authored mid-layer color for
+# FACTION_OFF boss beams) captured in _ensure_visuals.
+var _loop_player: AudioStreamPlayer2D = null
+var _loop_tween: Tween = null
+var _loop_fading: bool = false
+var _audio_fire_on: bool = false
+var _fx_color: Color = Color.WHITE
 
 signal phase_changed(phase: int)
 
@@ -141,6 +158,7 @@ func fade_out() -> void:
 	if _phase == Phase.FIRING and envelope and not _fading:
 		_fading = true
 		_fade_t = 0.0
+		_begin_loop_fade()   # loop fades with the shrink; the stop blast lands at stop()
 	else:
 		stop()
 
@@ -199,10 +217,23 @@ func set_locked_aim(world_dir: Vector2) -> void:
 
 
 func _set_phase(p: int) -> void:
+	var prev: int = _phase
 	_phase = p
 	_t = 0.0
 	_fading = false
 	_fade_t = 0.0
+	# Audio on the transitions (covers BOTH the FSM and the MANUAL show_*/cease drive):
+	# WINDUP entry = charge warning; FIRING entry = start blast + loop; FIRING exit =
+	# stop blast (+ boss spin-down). fade_out() keeps the phase FIRING while it shrinks,
+	# so its final stop() lands here as the FIRING exit — the blast plays as the beam
+	# visually disappears, same as a natural cycle end.
+	if sfx_profile != "silent" and is_inside_tree():
+		if p == Phase.WINDUP and prev != Phase.WINDUP:
+			LaserSfxC.play_charge(get_tree().root, global_position, sfx_profile == "boss")
+		if p == Phase.FIRING and prev != Phase.FIRING:
+			_audio_start_fire(true)
+		elif prev == Phase.FIRING and p != Phase.FIRING:
+			_audio_end_fire(true)
 	phase_changed.emit(p)
 
 
@@ -236,6 +267,11 @@ func _process(delta: float) -> void:
 	var host := get_parent()
 	if host != null and (("_dying" in host and host._dying) or ("_cycling" in host and host._cycling)):
 		_hide_all()
+		# Cut the firing loop silently (no stop blast — the host's death/recycle audio
+		# covers it). If the host resumes FIRING after a recycle, _show_lethal restarts
+		# the loop without a fresh start blast.
+		if _audio_fire_on:
+			_audio_end_fire(false)
 		return
 	_t += delta
 	_beam_t += delta
@@ -363,13 +399,23 @@ func _apply_damage(delta: float) -> void:
 	var seg: Array = _world_segment()
 	var a: Vector2 = seg[0]
 	var b: Vector2 = seg[1]
+	var first_hit := Vector2.INF
 	for t in _damage_candidates():
 		if not is_instance_valid(t) or not (t is Node2D) or _is_ignored(t):
 			continue
 		if _dist_point_to_segment((t as Node2D).global_position, a, b) <= hit_radius:
 			_damage_target(t, dmg)
+			# Hit effect at the strike point (the beam-line point nearest the target),
+			# tinted with the beam's laser-inner color — same family as bullet impacts.
+			var hp := _spawn_hit_fx(t as Node2D, a, b)
+			if first_hit == Vector2.INF:
+				first_hit = hp
 			if not pierce:
 				break
+	# One hit SOUND per damage tick (a friendly-fire lane beam can strike many targets
+	# at once — per-target audio would stack into a wall).
+	if first_hit != Vector2.INF and sfx_profile != "silent" and is_inside_tree():
+		LaserSfxC.play_hit(get_tree().root, first_hit)
 
 
 func _damage_target(t: Object, dmg: int) -> void:
@@ -464,6 +510,14 @@ func _ensure_visuals() -> void:
 	# Faction muzzle color for the beam (white for no faction / Core), unless tinting is OFF.
 	var tint_on: bool = faction != FACTION_OFF
 	var mc: Color = FactionsC.muzzle_glow_color(_resolve_faction()) if tint_on else Color.WHITE
+	# Hit-effect tint: the faction laser-inner when tinted; a FACTION_OFF (authored
+	# palette) beam falls back to its mid layer so boss beams keep their bespoke hue.
+	if tint_on:
+		_fx_color = mc
+	elif tbl.size() >= 2:
+		_fx_color = (tbl[tbl.size() - 2] as Dictionary).get("color", Color.WHITE)
+	elif not tbl.is_empty():
+		_fx_color = (tbl[0] as Dictionary).get("color", Color.WHITE)
 	_base_widths.clear()
 	for i in tbl.size():
 		var spec = tbl[i]
@@ -511,6 +565,9 @@ func _line_points() -> PackedVector2Array:
 
 func _show_lethal() -> void:
 	_ensure_visuals()
+	# Loop upkeep: restart silently if it was cut mid-FIRING (host recycle pause).
+	if not _audio_fire_on and not _fading and sfx_profile != "silent":
+		_audio_start_fire(false)
 	var pts := _line_points()
 	var wscale := 1.0
 	var alpha := 1.0
@@ -524,6 +581,8 @@ func _show_lethal() -> void:
 		elif _t > ft - envelope_shrink:
 			wscale = clampf((ft - _t) / maxf(0.01, envelope_shrink), 0.0, 1.0)   # natural shrink at the end
 			alpha = 1.0 if fmod(_t * 34.0, 1.0) < 0.5 else 0.2                    # flicker out
+			if cycle != Cycle.HOLD and cycle != Cycle.MANUAL:
+				_begin_loop_fade()   # loop fades WITH the natural end-of-firing shrink
 	for i in _lines.size():
 		var l: Line2D = _lines[i]
 		l.visible = true
@@ -555,3 +614,67 @@ func _hide_all() -> void:
 			l.visible = false
 	if _telegraph and is_instance_valid(_telegraph):
 		_telegraph.visible = false
+
+
+# ---------------------------------------------------------------- audio
+
+const LaserSfxC = preload("res://scripts/effects/laser_sfx.gd")
+const ImpactCircleFxC = preload("res://scripts/effects/impact_circle_fx.gd")
+
+
+# Fire onset: start blast (small/large per profile) + the sustained loop. with_blast
+# false = silent loop restart after a recycle pause.
+func _audio_start_fire(with_blast: bool) -> void:
+	if sfx_profile == "silent" or not is_inside_tree():
+		return
+	if with_blast:
+		LaserSfxC.play_blast(get_tree().root, global_position, sfx_profile == "boss")
+	if _loop_player == null or not is_instance_valid(_loop_player):
+		_loop_player = LaserSfxC.make_loop_player(sfx_profile)
+		add_child(_loop_player)
+	if _loop_tween != null and _loop_tween.is_valid():
+		_loop_tween.kill()
+	_loop_player.volume_db = LaserSfxC.LOOP_VOLUME_DB
+	_loop_player.play()
+	_loop_fading = false
+	_audio_fire_on = true
+
+
+# Fire end: stop blast (+ boss spin-down flutter) and make sure the loop is fading.
+# with_blast false = silent cut (host died / recycle pause).
+func _audio_end_fire(with_blast: bool) -> void:
+	if not _audio_fire_on:
+		return
+	_audio_fire_on = false
+	if with_blast and sfx_profile != "silent" and is_inside_tree():
+		LaserSfxC.play_blast(get_tree().root, global_position, sfx_profile == "boss")
+		if sfx_profile == "boss":
+			LaserSfxC.play_spin_down(get_tree().root, global_position)
+	_begin_loop_fade()
+
+
+# Fade the firing loop out over the envelope-shrink window ("fades out as the laser
+# finishes firing"). Idempotent per shot.
+func _begin_loop_fade() -> void:
+	if _loop_fading or _loop_player == null or not is_instance_valid(_loop_player) or not _loop_player.playing:
+		return
+	_loop_fading = true
+	if _loop_tween != null and _loop_tween.is_valid():
+		_loop_tween.kill()
+	_loop_tween = create_tween()
+	_loop_tween.tween_property(_loop_player, "volume_db", LaserSfxC.SILENT_DB, maxf(envelope_shrink, 0.2))
+	_loop_tween.tween_callback(_loop_player.stop)
+
+
+# Impact-circle burst where the beam strikes a target — the same effect family bullets
+# use, tinted with the beam's laser-inner color. Returns the strike point.
+func _spawn_hit_fx(t: Node2D, a: Vector2, b: Vector2) -> Vector2:
+	var p: Vector2 = t.global_position
+	var ab: Vector2 = b - a
+	var lsq: float = ab.length_squared()
+	if lsq > 0.0001:
+		p = a + ab * clampf((p - a).dot(ab) / lsq, 0.0, 1.0)
+	if is_inside_tree():
+		var dir: Vector2 = (ab / sqrt(lsq)) if lsq > 0.0001 else Vector2.DOWN
+		ImpactCircleFxC.spawn(get_tree().root, p, dir, _fx_color)
+	return p
