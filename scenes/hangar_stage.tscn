@@ -122,25 +122,34 @@ texture_scale = 0.8
 position = Vector2(0, 91)
 
 [node name="Park0" type="Marker2D" parent="Slots" unique_id=2028529373]
-position = Vector2(-56, -69)
+position = Vector2(-64, -80)
 
 [node name="Park1" type="Marker2D" parent="Slots" unique_id=516017740]
-position = Vector2(56, -69)
+position = Vector2(-64, -40)
 
 [node name="Park2" type="Marker2D" parent="Slots" unique_id=1909132594]
-position = Vector2(-56, -25)
+position = Vector2(-64, 0)
 
 [node name="Park3" type="Marker2D" parent="Slots" unique_id=1259165287]
-position = Vector2(56, -25)
+position = Vector2(-64, 40)
 
 [node name="Park4" type="Marker2D" parent="Slots" unique_id=36643573]
-position = Vector2(-56, 19)
+position = Vector2(-64, 80)
 
 [node name="Park5" type="Marker2D" parent="Slots" unique_id=2095255974]
-position = Vector2(56, 19)
+position = Vector2(64, -80)
 
 [node name="Park6" type="Marker2D" parent="Slots" unique_id=207293956]
-position = Vector2(-56, 63)
+position = Vector2(64, -40)
+
+[node name="Park7" type="Marker2D" parent="Slots"]
+position = Vector2(64, 0)
+
+[node name="Park8" type="Marker2D" parent="Slots"]
+position = Vector2(64, 40)
+
+[node name="Park9" type="Marker2D" parent="Slots"]
+position = Vector2(64, 80)
 
 [node name="FlankL" type="Marker2D" parent="Slots" unique_id=1419023866]
 position = Vector2(-43, 0)
