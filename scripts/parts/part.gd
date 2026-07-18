@@ -12,6 +12,14 @@ extends Resource
 # and mark rolls respect it so the shop/events never push a part past its cap.
 @export_range(1, 9) var max_mark: int = 9
 
+# Shop pricing overrides (2026-07-11). The outpost prices every offer + upgrade fee off
+# one flat curve: base + (Mk−1) × per_mk (116 / 70 — outpost.gd CANNON_BASE_COST /
+# CANNON_COST_PER_MK). Parts whose real value sits far off that curve (the shield cores:
+# a Shield Core IS the shield — ~10 hull-pips-equivalent) override these in _init();
+# -1 = use the flat defaults.
+@export var shop_base_cost: int = -1
+@export var shop_cost_per_mk: int = -1
+
 # Mk.1 = 1x, Mk.2 = 2x, ... Mk.9 = 9x (per design doc).
 func mark_multiplier() -> float:
 	return float(mark)

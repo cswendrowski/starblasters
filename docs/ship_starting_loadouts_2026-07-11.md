@@ -1,8 +1,16 @@
-# Per-Ship Starting Loadouts — scoping (2026-07-11, rev 2)
+# Per-Ship Starting Loadouts — (2026-07-11, rev 3)
 
-**Status: PROPOSAL — nothing built.** Rev 2 replaces the codex-string mapping with Roman's
-faction-aligned kits (2026-07-11) + the Mk.1 value tally. Companion doc:
-`docs/ship_unlock_system_2026-07-11.md` (hull unlock via cross-run kill counts).
+**Status: BUILT 2026-07-11 (unplaytested).** Kits live in `ship_catalog.gd` `loadout`
+entries, seeded by `Run._seed_default_loadout_snapshot` via `PartCatalog.make_part`;
+verified headless by `tools/test_ship_loadouts.gd` (VERDICT: PASS). The corpo-hull squeeze
+resolved via Option B: the **Corpo Shield Core** (`scripts/parts/corpo_shield_core.gd`) —
+base 5 charges (+1/Mk, +2 @Mk.9 → 15 = half the vintage curve), regen 3.0s/0.6s at Mk.1 →
+1.5s/0.35s at Mk.9 (min-wins alongside Shield Capacitor), rolls in the shop. Shield charges
+are PART-DRIVEN now (`module_shield_base`, max-wins; player's hardcoded base-10 retired —
+legacy pre-bay saves keep 10). Shop pricing: parts may override the flat 116+70/Mk curve
+(`Part.shop_base_cost/shop_cost_per_mk`, offer + upgrade-fee sites) — vintage core
+**520+140/Mk**, corpo core **380+90/Mk**. Companion doc:
+`docs/ship_unlock_system_2026-07-11.md` (hull unlocks — still unbuilt).
 
 ## Current state (unchanged)
 
@@ -37,6 +45,16 @@ weakest starting hull); Weaver gets Hyper so it can auto-fire its missiles.
 | **Falchion** (privateer) | Minigun (`minigun.tres`, metered) + Ammo Pods | 2 hull modules (propose Ablative Plating + Repair Nanites) — **shieldless** | Focus |
 | **Stiletto** (zealot) | Energy Blaster only | Ablative Plating + **Reinforced Hull Mk.2** (decided — ram hull wants hull depth) — **shieldless ram hull** | **Rush** |
 | **Pilgrim** (zealot) | **Twin Blaster Mk.2** (decided — more teeth) | Critical System De-Limiter + Overcharge Core — **shieldless glass cannon** (Overcharge's −1 shield charge is moot with no shield) | **Refire** |
+| **Mongoose** (supremacy, added 2026-07-11; kit rev 2 same day) | **Heavy Blaster** (pool[0]) | Speed + crit build (Roman): Overclock Core Mk.2 + Targeting Computer Mk.2 + Thrusters Mk.2 | Focus |
+| **Piercer** (supremacy, added 2026-07-11) | Twin Blaster (pool[0]) + Auto Laser (pool[1], active) — "dual blasters, dual lasers" | Reinforced Hull Mk.4 (the Stiletto's deep-hull setup; NOTE: adding its Ablative too would cost 860 — interpreted as RH only to stay on par) | **Rush** |
+| **Hive** (prestige, added 2026-07-11) | Energy Blaster + **Combat Drones** secondary | Purely defensive drone fortress (Roman): Corpo Shield Core + Intercept Drones + Micro Fabricator + Repair Nanites | **Thief** (enemy fire → shield) |
+
+**Hive budget exception:** the five named pillars can't fit 659 — a shield core alone is
+396–536 effective. Wired at **≈976 effective** (corpo core + 4×116 + Thief) and treated
+as PRESTIGE-PRICED: its 30-boss unlock (≥10 flawless full patrols) is the cost. The corpo
+core is the mechanical pick (fast recharge = the sustain loop; Thief refills it mid-fight).
+Vintage-core variant would be ~1116. Trimming to par would mean cutting two of Roman's
+five pillars — rejected.
 
 - Ammo Pods is a MODULE (module bay), listed under weapons above only because Roman paired
   it with the guns; it counts against the module bay (size 6).
@@ -65,15 +83,47 @@ ignored ≈ +17% effective hull.)
 | Falchion | Minigun, Ammo Pods, 2 hull modules | 464 | 464 |
 | Stiletto | Ablative Plating, Reinforced Hull Mk.2, Rush | 418 | 418 (+ablative premium) |
 | Pilgrim | Twin Blaster Mk.2, De-Limiter, Overcharge Core, Refire | 534 | 534 |
+| Mongoose | Heavy Blaster, Overclock Core Mk.2, Targeting Computer Mk.2, Thrusters Mk.2 | 674 | 674 |
+| Piercer | Twin Blaster, Auto Laser, Reinforced Hull Mk.4, Rush | 674 | 674 |
+| Hive | Combat Drones, Corpo Shield Core, Intercept Drones, Micro Fabricator, Repair Nanites, Thief | 960 | **976 — prestige exception** |
 
-Reading: on effective value the shielded corpo hulls sit ~2× the shieldless ones, with the
-Reaver in between at 652 (652 of pure defense — it has the durability floor but nothing
-else, which is what "weakest playable start" means in practice). That gap IS
-the faction identity (corpo = protected/technical, privateer/zealot = tough-or-glass, you
-feel the hits). The shieldless kits compensate with offense/utility, and Ablative/RH are
-themselves worth more than sticker. If playtest says the gap is too wide, the lever is Mk
-bumps on the shieldless kits (each +70 shop / more in effect), not adding Shield Cores.
-Reaver remains the weakest playable START (one defensive item + Refire) by design.
+## Par target ~659 (Roman 2026-07-11)
+
+Direction: bring every ship to **~659 effective value** — i.e. par with the Reaver's 652.
+"Reaver weakest" then means *fewest toys* (pure defense, zero offense/utility), not least
+value; unlocked hulls differ in flavor, not power. Proposed kits (628–674, ±5% of par):
+
+| Ship | Kit at par | Effective |
+|---|---|---|
+| **Reaver** | unchanged: Shield Core + Refire | 652 |
+| **Wraith** | see corpo options below | 628–652 |
+| **Weaver** | see corpo options below | 628–652 |
+| **Cobra** | Autocannon **Mk.2**, Ammo Pods, Reinforced Hull **Mk.3**, Repair Nanites | 674 |
+| **Falchion** | Minigun **Mk.3** (signature gun deep), Ablative **Mk.2**, Repair Nanites, Ammo Pods | 674 |
+| **Stiletto** | Ablative Mk.2, Reinforced Hull **Mk.4**, Rush | 628 (+ablative premium ≈ par) |
+| **Pilgrim** | Twin Blaster **Mk.3**, De-Limiter, Overcharge **Mk.2**, Refire | 674 |
+
+**The corpo problem:** Shield Core alone is 536 of the 659 — a full-shield corpo hull has
+room for exactly ONE more 116 item. Two ways out:
+
+- **Option A — no new parts:** each corpo hull = Shield Core + its single signature item,
+  Focus mode. Wraith = SC + Scatter Blaster (652; "agile" moves into the hull's base
+  handling stats instead of a Thrusters part). Weaver = SC + Seeking Missile (652; loses
+  Hyper auto-fire + Fabricator — missiles restock at shops only). Preserves full shields,
+  guts the kit personality.
+- **Option B — one new part, "Compact Shield Core" (RECOMMENDED):** a corpo-surplus
+  half-core at **5 charges**. Value: base hull 3 → 8 pips of durability = RH Mk.5 = **396**.
+  That buys back two kit slots: **Wraith** = Compact SC + Scatter Blaster + Echo **(628)**
+  (or Thrusters instead of Echo); **Weaver** = Compact SC + Seeking Missile + Hyper
+  **(628)** — the auto-firing-missiles fantasy survives. Fits the fiction (mass-produced
+  corpo hardware) and gives the shop a mid-tier shield rung as a bonus. Build note: the
+  base-10 charge count currently lives in `player.apply_run_upgrades`, not the part — it
+  needs to become part-driven (a `base_charges` the module supplies) for a 5-charge
+  variant to exist.
+
+Residual notes: Ablative/RH punch above sticker (every-6th-hit ≈ +17% hull), so the
+Stiletto's 628 is effectively at or above par. Playtest arbitrates the last ±5%; the
+lever stays Mk bumps.
 
 ## Open items
 

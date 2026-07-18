@@ -39,6 +39,7 @@ const SwarmLauncher = preload("res://scripts/parts/swarm_launcher.gd")
 # Passive Module bay (MODULE slot). Shield Core is the default-equipped Core (NOT in the
 # roll pool, like Focus); Overcharge/Siphon roll in the shop. See docs/passive_module_bay_2026-06-13.md.
 const ShieldCore = preload("res://scripts/parts/shield_core.gd")
+const CorpoShieldCore = preload("res://scripts/parts/corpo_shield_core.gd")
 const OverchargeCore = preload("res://scripts/parts/overcharge_core.gd")
 const SiphonCore = preload("res://scripts/parts/siphon_core.gd")
 const RepairNanites = preload("res://scripts/parts/repair_nanites.gd")
@@ -156,6 +157,7 @@ static func _all_pool() -> Array:
 		# it from re-offering the one you already own. (Focus is still default-only — see
 		# _build_display_index — because shift modes swap in loadout_snapshot, one at a time.)
 		{"factory": "_make_shield_core", "slot": Slots.SlotType.MODULE},
+		{"factory": "_make_corpo_shield_core", "slot": Slots.SlotType.MODULE},  # fast-recharge half-core (2026-07-11)
 		{"factory": "_make_overcharge_core", "slot": Slots.SlotType.MODULE},
 		{"factory": "_make_siphon_core", "slot": Slots.SlotType.MODULE},
 		{"factory": "_make_repair_nanites", "slot": Slots.SlotType.MODULE},
@@ -263,6 +265,16 @@ static func roll_for_slot(rng: RandomNumberGenerator, slot: int, mark: int):
 	return part
 
 
+# Public factory-by-name at a given Mk — the ship starting-kit seeder
+# (Run._seed_default_loadout_snapshot) builds kit parts through this so kits reuse the
+# exact same construction (.tres stats, bullet fallbacks, identity stamping) as shop rolls.
+static func make_part(factory: String, mark: int = 1):
+	var part = _make_by_name(factory, -1)
+	if part != null and "mark" in part:
+		part.mark = clampi(mark, 1, int(part.max_mark) if "max_mark" in part else 9)
+	return part
+
+
 static func _make_by_name(name: String, slot: int):
 	match name:
 		"_make_basic_engine":
@@ -346,6 +358,8 @@ static func _make_by_name(name: String, slot: int):
 		# Module bay — pure-script Parts (no .tres; effects are code, not editor stats).
 		"_make_shield_core":
 			return ShieldCore.new()
+		"_make_corpo_shield_core":
+			return CorpoShieldCore.new()
 		"_make_overcharge_core":
 			return OverchargeCore.new()
 		"_make_siphon_core":

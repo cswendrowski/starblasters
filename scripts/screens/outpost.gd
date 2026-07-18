@@ -744,7 +744,7 @@ func _render_modules() -> void:
 		return
 	for i in range(run.modules.size()):
 		var m = run.modules[i]
-		var mst: String = _shield_core_stats_line(m) if (m != null and "module_id" in m and String(m.module_id) == "shield_core") else ""
+		var mst: String = _shield_core_stats_line(m) if (m != null and "module_id" in m and String(m.module_id) in ["shield_core", "shield_core_corpo"]) else ""
 		_modules_box.add_child(_make_managed_card("MODULE", m, _module_buttons(m, i), mst))
 
 
@@ -830,11 +830,13 @@ func _equipped_stats_line(part, slot: int) -> String:
 	return ""
 
 
-# Shield Core stats: total charges (mark-driven) + LIVE recharge delay / pips-per-second
-# (base 5s / 1 per s, improved by an installed Shield Capacitor — best wins, mirroring
-# the player-side minf in shield_capacitor.apply; was hardcoded 5.0/1.0 before 2026-07-11).
+# Shield-core stats: total charges (core base + mark bonus) + LIVE recharge delay /
+# pips-per-second (base 5s / 1 per s, improved by an installed Shield Capacitor or the
+# Corpo core's own fast-recharge — best wins, mirroring the player-side minf applies).
 func _shield_core_stats_line(part) -> String:
 	var cap: int = 10
+	if part != null and part.has_method("base_charges"):
+		cap = int(part.base_charges())
 	if part != null and part.has_method("_capacity_bonus"):
 		cap += int(part._capacity_bonus())
 	var delay := 5.0
@@ -855,7 +857,7 @@ func _upgrade_button_spec(part) -> Dictionary:
 	if run == null or not run.can_upgrade_part(part):
 		return {"text": Strings.OUTPOST_BTN_UPGRADE_MAX, "disabled": true}
 	var new_mk: int = int(part.mark) + 1
-	var costs := _upgrade_costs(new_mk)
+	var costs := _upgrade_costs(new_mk, part)
 	var mats: int = int(costs["mats"])
 	var bounty_cost: int = int(costs["bounty"])
 	var afford: bool = int(run.materials) >= mats and int(run.bounty) >= bounty_cost
@@ -1012,17 +1014,18 @@ func _scrap_value(part) -> int:
 	return int(part.mark) if (part != null and "mark" in part) else 1
 
 
-# Upgrade bounty cost = 50% of the new Mk's shop value (the outpost labor fee).
-func _upgrade_bounty_cost(new_mk: int) -> int:
-	return int(floor(0.5 * float(CANNON_BASE_COST + (new_mk - 1) * CANNON_COST_PER_MK)))
+# Upgrade bounty cost = 50% of the new Mk's shop value (the outpost labor fee). Respects
+# the part's shop-cost overrides (shield cores) so a core's Mk isn't a flat-fee steal.
+func _upgrade_bounty_cost(new_mk: int, part = null) -> int:
+	return int(floor(0.5 * float(_part_shop_cost(part, new_mk))))
 
 
 # Single source for an upgrade's material + bounty cost — read by BOTH the button
 # label/affordability (_upgrade_button_spec) AND the spend (_on_upgrade_part), so
 # the shown cost can never drift from the charged cost. Delegates to OutpostEcon
 # (the SSOT shared with the dock): material mult / no-mats + bounty mult / no-bounty.
-func _upgrade_costs(new_mk: int) -> Dictionary:
-	return OutpostEcon.upgrade_costs(get_node_or_null("/root/Run"), new_mk, _upgrade_bounty_cost(new_mk))
+func _upgrade_costs(new_mk: int, part = null) -> Dictionary:
+	return OutpostEcon.upgrade_costs(get_node_or_null("/root/Run"), new_mk, _upgrade_bounty_cost(new_mk, part))
 
 
 func _run_materials() -> int:
@@ -1228,7 +1231,7 @@ func _on_upgrade_part(part) -> void:
 	if run == null or not run.can_upgrade_part(part):
 		return
 	var new_mk: int = int(part.mark) + 1
-	var costs := _upgrade_costs(new_mk)
+	var costs := _upgrade_costs(new_mk, part)
 	var mats: int = int(costs["mats"])
 	var bounty_cost: int = int(costs["bounty"])
 	if int(run.materials) < mats or int(run.bounty) < bounty_cost:
@@ -1388,12 +1391,26 @@ func _roll_offers() -> void:
 			break
 		if picked == null:
 			continue
-		var cost: int = CANNON_BASE_COST + (picked_mk - 1) * CANNON_COST_PER_MK
+		var cost: int = _part_shop_cost(picked, picked_mk)
 		# Sector Conditions — Galactic Tariffs/Buyer's Market scale the offer price at
 		# ROLL time so the STORED cost is both what's displayed and what's spent. Applies
 		# to every slot type (all offers price via this one site). Via OutpostEcon SSOT.
 		cost = OutpostEcon.offer_price(get_node_or_null("/root/Run"), cost)
 		_weapon_offers.append({"part": picked, "cost": cost, "sold": false})
+
+
+# Offer price for a part at a Mk: the flat curve (116 + 70/Mk) unless the part carries
+# its own shop_base_cost / shop_cost_per_mk overrides (the shield cores — a core IS the
+# shield, worth several Reinforced Hull Mks; part.gd 2026-07-11).
+func _part_shop_cost(part, mk: int) -> int:
+	var base: int = CANNON_BASE_COST
+	var per_mk: int = CANNON_COST_PER_MK
+	if part != null:
+		if "shop_base_cost" in part and int(part.shop_base_cost) > 0:
+			base = int(part.shop_base_cost)
+		if "shop_cost_per_mk" in part and int(part.shop_cost_per_mk) > 0:
+			per_mk = int(part.shop_cost_per_mk)
+	return base + (maxi(1, mk) - 1) * per_mk
 
 
 # Triangular mark roll — average of two dice peaks at the midpoint.

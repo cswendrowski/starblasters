@@ -45,7 +45,8 @@ const CODEX := {
 	"_make_basic_engine": "Main Engine — your baseline thrust. Mk raises top speed toward the clarity ceiling.",
 	"_make_vectoring_engine": "Vectoring thrusters — crisper handling and a higher speed band.",
 	# --- Passive Modules (MODULE bay — automatic, no-input) ---
-	"_make_shield_core": "a central shield emitter surrounds your ship in a protective sphere of energy that can shrug off anything thrown at it. Limited charges mean it will collapse if hit enough, but it will recharge after a delay if it hasn't taken any further hits. Upgrading this modules adds additional shield charges.",
+	"_make_shield_core": "an old, rare, and powerful shield core built by the Free Systems military before the stars were carved up, providing unmatched protection for its form factor. Its dense particle lattice surrounds your ship in a sphere of energy that can shrug off anything thrown at it, collapsing only when its charges are spent and recharging after a delay. They really aren't built like this any more. Upgrading this module adds additional shield charges.",
+	"_make_corpo_shield_core": "a mass-produced Ultra Galactic shield design meant to charge quickly, without the particle density or charge capacity of a vintage Free Systems core. It holds half the charges, but snaps back online sooner and refills faster after taking fire. Upgrading this module adds additional shield charges.",
 	"_make_overcharge_core": "Shunt shield energy into weapon drivers — your primary weapon hits harder at the cost of weaker shields.",
 	"_make_siphon_core": "A combination of energy siphons and particle catchers on your hull allow you to capture energy from enemy kills, siphoning that energy into your shields bit by bit. The net effect is that every few kills gets you a shield charge back. Upgrades improve the kills to charges rate.",
 	"_make_repair_nanites": "Regrows hull over time.",

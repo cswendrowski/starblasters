@@ -512,13 +512,13 @@ func new_run(seed_override: int = 0) -> void:
 	# (Manage Ship modal, outpost status bar) match what combat will apply.
 	super_charges = 0
 	max_super_charges = 3
-	# Seed default Energy Blaster + Smart Bomb so meta scenes see the same
-	# loadout the combat scene will apply via PartFactory.default_starting_loadout.
-	_seed_default_loadout_snapshot()
-	# Module bay: every patrol starts with the default Shield Core equipped (drop it
-	# later for a free slot = glass cannon). bay_initialized arms the glass-cannon gate.
-	modules = [_ShieldCore.new()]
+	# Seed the ship starting kit (2026-07-11: per-ship, from ShipCatalog `loadout`) so meta
+	# scenes see the same loadout combat will apply. new_run resets ship_variant to 0 above —
+	# a front-end that picks a different hull (patrol_start) writes ship_variant AFTER this
+	# and must call reseed_loadout_for_ship(). The seeder also owns the module bay now
+	# (the old unconditional `modules = [ShieldCore]` seed folded in).
 	bay_initialized = true
+	_seed_default_loadout_snapshot()
 
 
 # ---- Module bay helpers (the LIST-backed passive bay) -----------------------
@@ -1074,27 +1074,51 @@ func is_sector_complete() -> bool:
 # No live Player exists in meta scenes, so player-side apply runs at next combat.
 const _SlotTypes = preload("res://scripts/weapons/SlotTypes.gd")
 const _PartFactory = preload("res://scripts/parts/part_factory.gd")
+const _PartCatalog = preload("res://scripts/parts/part_catalog.gd")
 const _BasicBlasterCannon = preload("res://scripts/parts/basic_blaster_cannon.gd")
 const _SmartBomb = preload("res://scripts/parts/smart_bomb.gd")
 const _FocusMode = preload("res://scripts/parts/focus_mode.gd")
 const _BulletDefault = preload("res://scenes/projectiles/bullet_blaster.tscn")
 
 
-# Seed loadout_snapshot with the same Mk.1 defaults PartFactory.default_starting_loadout
-# would equip on the player. Without this, meta scenes (sector map Manage Ship modal,
-# outpost loadout line) see an empty dict for the swappable slots until the player
-# performs their first outpost swap — leading to "PRIMARY: — (empty)" on a fresh run
-# even though the player is flying with an Energy Blaster + Smart Bomb. Mirrors the
-# PartFactory load path so a designer-edited .tres applies here too. Called from
-# new_run() so the snapshot is always populated before any meta scene reads it.
+# Seed loadout_snapshot + cannon_pool + the module bay with the chosen ship's starting
+# kit (2026-07-11 — per-ship kits from ShipCatalog `loadout`; docs/
+# ship_starting_loadouts_2026-07-11.md). A ship with no `loadout` entry (or a missing
+# key) gets the classic defaults: Energy Blaster + Smart Bomb + Focus + Shield Core.
+# Without this, meta scenes (sector map Manage Ship modal, outpost loadout line) see an
+# empty dict for the swappable slots until the player performs their first outpost swap.
+# Called from new_run() and apply_conditions() (so the start.no_* gates fire against the
+# just-installed conditions) — must therefore be idempotent for a given ship_variant.
 func _seed_default_loadout_snapshot() -> void:
-	var cannon = _make_default_blaster()
-	loadout_snapshot[_SlotTypes.SlotType.CANNON] = cannon
-	# Seed cannon_pool[0] with the same blaster instance — the loadout
-	# snapshot's CANNON entry is a derived view of cannon_pool[active_idx].
-	cannon_pool = [cannon]
+	var kit: Dictionary = _ship_kit()
+	# ---- Cannons: pool[0] = permanent infinite blaster, pool[1] = optional metered
+	# primary (the two-slot model). A kit "blaster" replaces the Energy Blaster at [0];
+	# a kit "primary" rides at [1] and starts ACTIVE (its dry-out swaps back to [0]).
+	var blaster = _make_kit_part(kit.get("blaster")) if kit.has("blaster") else null
+	if blaster == null:
+		blaster = _make_default_blaster()
+	cannon_pool = [blaster]
 	active_cannon_idx = 0
-	# Sector Conditions — No Starting Super skips the default smart-bomb (mirrors
+	if kit.has("primary"):
+		var prim = _make_kit_part(kit.get("primary"))
+		if prim != null:
+			# Seed the magazine exactly like _equip_primary does on a shop buy.
+			if prim.has_method("ammo_at_mark") and "current_ammo" in prim and "ammo_max" in prim:
+				var mag: int = int(prim.ammo_at_mark(int(prim.mark)))
+				if mag >= 0:
+					mag = cond_ammo_cap(mag)  # More Ammo capacity boost
+					prim.current_ammo = mag
+					prim.ammo_max = mag
+			cannon_pool.append(prim)
+			active_cannon_idx = 1
+	loadout_snapshot[_SlotTypes.SlotType.CANNON] = get_active_cannon()
+	# ---- Wing secondary: pre-equipped stand-off munition (Weaver's Seeking Missile).
+	if kit.has("secondary"):
+		var sec = _make_kit_part(kit.get("secondary"))
+		if sec != null:
+			loadout_snapshot[_SlotTypes.SlotType.HARDPOINT_WING] = sec
+			_seed_secondary_ammo(sec, true)
+	# Sector Conditions — No Starting Super skips the universal smart-bomb (mirrors
 	# PartFactory.default_starting_loadout so the meta-scene snapshot agrees with the ship).
 	if not cond_flag("start.no_super"):
 		var super_part = _PartFactory._load_or_default(
@@ -1104,10 +1128,83 @@ func _seed_default_loadout_snapshot() -> void:
 		# scenes), so seed super_charges from the part's per-mark formula directly
 		# so the Manage Ship modal's "Super x/y" reads correctly on a fresh run.
 		_seed_super_from_part(super_part)
-	# Shift-Mode slot starts with Focus (default stance) so meta scenes show it — unless
-	# No Starting Mode is active.
+	# Shift-Mode slot: the kit's signature mode, else Focus — unless No Starting Mode.
 	if not cond_flag("start.no_mode"):
-		loadout_snapshot[_SlotTypes.SlotType.SHIFT_MODE] = _FocusMode.new()
+		var mode = _make_kit_part(kit.get("mode")) if kit.has("mode") else null
+		loadout_snapshot[_SlotTypes.SlotType.SHIFT_MODE] = mode if mode != null else _FocusMode.new()
+	# ---- Module bay: the kit list (shieldless kits simply list no core), else the
+	# classic default Shield Core. Rebuilt wholesale — seed-time only, nothing acquired yet.
+	if kit.has("modules"):
+		modules = []
+		for spec in kit.get("modules"):
+			var m = _make_kit_part(spec)
+			if m != null:
+				modules.append(m)
+	else:
+		modules = [_ShieldCore.new()]
+	_seed_meta_stats_from_modules()
+
+
+# The chosen hull's starting-kit dict from ShipCatalog ({} = classic defaults).
+func _ship_kit() -> Dictionary:
+	var kit = ShipCatalog.get_ship(ship_variant).get("loadout", {})
+	return kit if kit is Dictionary else {}
+
+
+# Build one kit part from its ShipCatalog spec — "factory" or [factory, mk] — via
+# PartCatalog.make_part (same construction as shop rolls: .tres stats, bullet
+# fallbacks, identity stamping). Unknown factories error loudly and seed nothing.
+func _make_kit_part(spec):
+	var factory := ""
+	var mk := 1
+	if spec is String:
+		factory = spec
+	elif spec is Array and spec.size() >= 1:
+		factory = String(spec[0])
+		if spec.size() >= 2:
+			mk = int(spec[1])
+	if factory == "":
+		return null
+	var part = _PartCatalog.make_part(factory, mk)
+	if part == null:
+		push_error("ShipKit: unknown part factory '%s' (ship_variant %d)" % [factory, ship_variant])
+	return part
+
+
+# Mirror the seeded module bay into the Run meta stats (max_hull/max_shield + currents)
+# so meta scenes show the kit's real capacities before the first combat writes back.
+# Mirrors player.apply_run_upgrades' assembly: core-driven shield base (max-wins) + Mk
+# capacity bonuses − Overcharge's −1; hull = 3 (2 + danger pip) + Reinforced Hull pips.
+func _seed_meta_stats_from_modules() -> void:
+	var shield_base := 0
+	var shield_bonus := 0
+	var hull_pips := 0
+	for m in modules:
+		if m == null:
+			continue
+		if m.has_method("base_charges"):
+			shield_base = maxi(shield_base, int(m.base_charges()))
+		if m.has_method("_capacity_bonus"):
+			shield_bonus += int(m._capacity_bonus())
+		if "module_id" in m:
+			match String(m.module_id):
+				"reinforced_hull":
+					hull_pips += mini(int(m.mark), 8)
+				"overcharge_core":
+					shield_bonus -= 1
+	max_shield = maxi(0, shield_base + shield_bonus) if shield_base > 0 else 0
+	current_shield = max_shield
+	max_hull = 3 + hull_pips
+	current_hull = max_hull
+
+
+# Re-seed the starting kit for the CURRENT ship_variant. Front-ends that pick a hull
+# (patrol_start) call this right after writing ship_variant — new_run() has already
+# seeded, but with the default variant 0 (the write comes after, by design; see the
+# post-new_run pattern note at ship_variant's reset).
+func reseed_loadout_for_ship() -> void:
+	loadout_snapshot = {}
+	_seed_default_loadout_snapshot()
 
 
 # Derive the max super charges a DEVICE_BAY_1 part would grant at its current

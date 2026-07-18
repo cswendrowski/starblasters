@@ -39,6 +39,10 @@ const SectorMapRoute = preload("res://scripts/systems/sector_map_route.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const ShipCatalog = preload("res://scripts/strings/ship_catalog.gd")
 const EngineTrailFx = preload("res://scripts/effects/engine_trail_fx.gd")
+const EngineSfx = preload("res://scripts/effects/engine_sfx.gd")
+# +20% linear (≈ +1.6 dB) on the ignition/exit-thruster one-shots — this scene's music
+# bed drowns them at stock level (Roman 2026-07-15).
+const PATROL_ENGINE_SFX_BOOST_DB := 1.6
 const PF = preload("res://scripts/systems/playfield.gd")
 const MenuBackdrop = preload("res://scripts/ui/menu_backdrop.gd")
 const ShipVisual = preload("res://scripts/ui/ship_visual.gd")
@@ -921,14 +925,21 @@ func _refresh_left_panel() -> void:
 	var ship: Dictionary = ShipCatalog.get_ship(_selected_idx)
 	_left_body.add_child(_label(String(ship["name"]), UiTheme.LabelKind.HEADER))
 	_left_body.add_child(_label(String(ship["tag"]), UiTheme.LabelKind.CAPTION))
+	# Loadout lines are DERIVED from the ship's real starting kit (in-game part labels +
+	# marks via ShipCatalog.loadout_display) — never hand-written, so they can't drift.
+	var kit: Dictionary = ShipCatalog.loadout_display(_selected_idx)
 	_left_body.add_child(_label("ARMAMENT", UiTheme.LabelKind.CAPTION))
-	var arm := _label(String(ship["armament"]), UiTheme.LabelKind.BODY)
+	var arm := _label(String(kit["armament"]), UiTheme.LabelKind.BODY)
 	arm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_left_body.add_child(arm)
 	_left_body.add_child(_label("MODULES", UiTheme.LabelKind.CAPTION))
-	var mod := _label(String(ship["modules"]), UiTheme.LabelKind.BODY)
+	var mod := _label(String(kit["modules"]), UiTheme.LabelKind.BODY)
 	mod.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_left_body.add_child(mod)
+	_left_body.add_child(_label("MODE", UiTheme.LabelKind.CAPTION))
+	var mode_lbl := _label(String(kit["mode"]), UiTheme.LabelKind.BODY)
+	mode_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_left_body.add_child(mode_lbl)
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1882,7 +1893,10 @@ func _on_start_patrol() -> void:
 	if _started:
 		return
 	_started = true
-	_music_intensity(1)   # Intensity_1 → Intensity_2
+	# Full ramp on the pad transition itself (Roman 2026-07-15): the pad now starts
+	# with a hull pre-readied, so the old ready-a-ship ramp (still called in
+	# _ready_ship, harmlessly re-asserting) only fired if the player swapped hulls.
+	_music_intensity(2)
 	# Skip mode (live launch only): no rise/pan — drop the assembled bay straight into place.
 	if _skip_anim():
 		_snap_hangar_in_place()
@@ -2038,8 +2052,17 @@ func _on_begin_pressed() -> void:
 		run.ship_variant = _readied_idx
 		run.livery_color = _ships[_readied_idx]["livery_color"]
 		run.livery_chosen = true
+		# new_run() seeded the starting kit for the default variant 0 — re-seed for the hull
+		# just chosen (per-ship kits 2026-07-11). apply_conditions below may re-seed again
+		# for its start.no_* gates; the seeder is ship-aware either way.
+		run.reseed_loadout_for_ship()
 		run.set_meta("patrol_skip_tutorial", _skip_tutorial)
 		run.set_meta("patrol_endless", _endless)
+		# Music hold (Roman 2026-07-15): the sector map keeps THIS hangar track +
+		# intensity on first arrival instead of switching to the sector context —
+		# launch energy carries through until the player leaves for their first
+		# level (LevelLauncher.go clears the flag).
+		run.set_meta("music_hold_hangar", true)
 		_apply_conditions_for_run(run)
 	await _launch(_ships[_readied_idx])
 	# Hand off to the run: the tutorial onboarding (which funnels to the sector map), or straight to
@@ -2106,6 +2129,10 @@ func _launch(s: Dictionary) -> void:
 		host.add_child(el)
 		lights.append(el)
 	s["engine_lights"] = lights
+	# Ignition SFX as the engines spool: Pilgrim firecore / single-nozzle / twin-engine
+	# clip family per the readied hull (Roman 2026-07-15). +20% (~1.6 dB) over the base
+	# level — the hangar music bed drowns the stock volume here (Roman 2026-07-15).
+	EngineSfx.play_jet_start(self, ShipCatalog.get_ship(_readied_idx), PATROL_ENGINE_SFX_BOOST_DB)
 	var spool := create_tween()
 	spool.set_parallel(true)
 	spool.tween_property(glow, "modulate:a", 1.0, engine_spool)
@@ -2133,6 +2160,8 @@ func _launch(s: Dictionary) -> void:
 		fly.parallel().tween_property(shadow, "scale", Vector2(shadow_fly_scale, shadow_fly_scale), rise_time)
 		fly.parallel().tween_property(shadow, "modulate:a", shadow_fly_alpha, rise_time)
 	fly.parallel().tween_property(host, "position:y", _pad.y - 10.0, rise_time).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	# Exit-thruster burn fires at the launch instant — after the rise, as the ship accelerates off.
+	fly.chain().tween_callback(func() -> void: EngineSfx.play_exit_thruster(self, PATROL_ENGINE_SFX_BOOST_DB))
 	fly.chain().tween_property(host, "position:y", FLYOFF_TARGET_Y, flyoff_time).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	await fly.finished
 	var trail = s["trail"]

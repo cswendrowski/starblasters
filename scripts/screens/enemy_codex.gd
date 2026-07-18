@@ -345,7 +345,10 @@ func _render_ship_detail(idx: int) -> void:
 	cls.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	cls.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_right_root.add_child(cls)
-	var loadout := _label("ARMAMENT   %s\nMODULES   %s" % [String(ship["armament"]), String(ship["modules"])], UiTheme.LabelKind.CAPTION)
+	# Derived from the real starting kit (ShipCatalog.loadout_display) — in-game labels +
+	# marks, single-sourced with the patrol-start panel.
+	var kd: Dictionary = ShipCatalog.loadout_display(idx)
+	var loadout := _label("ARMAMENT   %s\nMODULES   %s\nMODE   %s" % [String(kd["armament"]), String(kd["modules"]), String(kd["mode"])], UiTheme.LabelKind.CAPTION)
 	loadout.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	loadout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_right_root.add_child(loadout)
