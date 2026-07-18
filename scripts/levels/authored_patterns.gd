@@ -1149,6 +1149,10 @@ static func _pick_wildcard_entry(fill_faction: int, sector: int, size_hint: Stri
 	for tier in [Roster.Tier.COMMON, Roster.Tier.UNCOMMON, Roster.Tier.RARE]:
 		pool += Roster.entries_eligible(tier, sector, 99)
 	Roster.set_faction_filter(prev)
+	# Exclude force_formation entries (Burner etc.): they demand their own dedicated beat (Burner
+	# arrives in TOP_TANDEM_PAIRS so each member finds a beam partner), so a lone wildcard fill would
+	# strand a partner-less unit. Mirrors the palette skip in wave_generator._pick_palette (~:571).
+	pool = pool.filter(func(e): return not e.has("force_formation"))
 	if pool.is_empty():
 		return {}
 	# Movement-eligibility filter (primary guard). allows() fails open for unmapped scenes + path_*

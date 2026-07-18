@@ -484,6 +484,7 @@ const ENTRIES := [
 			{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "all", "payload": preload("res://data/bullets/ball.tres"), "aim": "forward", "count": 12, "fire_min": 0.1, "fire_max": 0.1, "bullet_speed": 49.0, "max_fires": 1, "volleys": 4, "volley_gap": 0.26, "no_inertia": true, "spread_deg": 90.0 },
 			{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "all", "payload": preload("res://data/bullets/orb.tres"), "aim": "straight_down", "count": 1, "fire_min": 2.5, "fire_max": 2.5, "bullet_speed": 49.0, "burst_interval": 0.1, "max_fires": 3, "no_inertia": true, "spread_deg": 0.0 },
 		],
+		"heavy_class": "capital",  # 32x64 hull (64px-tall) — coda capital pool
 		"engine": -1,   # bench 2026-07-08 (engine_override)
 		"tier": Tier.UNCOMMON,
 		"size": "large", "tags": [],
@@ -498,6 +499,7 @@ const ENTRIES := [
 		# (89px/s over base), dropped at rest. Bench: large hull.
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_ruiner.tscn",
 		"mounts": [{ "kind": "gun", "marker": "Muzzle", "marker_mode": "all", "payload": preload("res://data/bullets/wave.tres"), "aim": "straight_down", "count": 5, "fire_min": 0.1, "fire_max": 0.1, "bullet_speed": 89.0, "max_fires": 1, "volleys": 9, "volley_gap": 0.3, "no_inertia": true, "spread_deg": 46.0 }],
+		"heavy_class": "anchor",  # 30x48 hull — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "large", "tags": [],
 		"movement": "straight",
@@ -510,6 +512,7 @@ const ENTRIES := [
 		# its muzzle rack (bench carries no beam_* knobs → default BeamEmitter config). Bench: large hull.
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_scorcher.tscn",
 		"mounts": [{ "kind": "beam", "marker": "Muzzle*", "marker_mode": "cycle" }],
+		"heavy_class": "capital",  # 32x64 hull (64px-tall) — coda capital pool
 		"tier": Tier.UNCOMMON,
 		"size": "large", "tags": [],
 		"movement": "straight",
@@ -566,10 +569,16 @@ const ENTRIES := [
 		"conflict_tags": [],
 	},
 	{
-		# Devastator (supremacy large, 32x64 hull) — SCAFFOLD (art + markers only, 2026-07-09): straight
-		# descent, no mounts. MuzzleL/Cannon/MuzzleR + 9 DamageMarkers placed; arm it in the Enemy Bench.
-		# Elite tank (not chaff), spawns solo.
+		# Devastator (supremacy large, 32x64 hull) — armed from Enemy Bench (2026-07-15): the cycling
+		# MuzzleL/R ports fire a 4-shot 8°-spread bolt spray walked across 4 volleys (0.5 gap, cap 1),
+		# PLUS a wide 3-shot 40°-spread wave fan (bullet_speed 79, cap 3) off the center Cannon. Both
+		# dropped at rest (no_inertia). Elite tank (not chaff), spawns solo.
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_devastator.tscn",
+		"mounts": [
+			{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/bolt.tres"), "aim": "forward", "count": 4, "fire_min": 1.0, "fire_max": 1.0, "max_fires": 1, "volleys": 4, "volley_gap": 0.5, "no_inertia": true, "spread_deg": 8.0 },
+			{ "kind": "gun", "marker": "Cannon", "marker_mode": "cycle", "payload": preload("res://data/bullets/wave.tres"), "aim": "forward", "count": 3, "fire_min": 1.0, "fire_max": 1.0, "bullet_speed": 79.0, "max_fires": 3, "no_inertia": true, "spread_deg": 40.0 },
+		],
+		"heavy_class": "capital",  # 32x64 hull (64px-tall) — coda capital pool
 		"tier": Tier.UNCOMMON,
 		"size": "large", "tags": [],
 		"movement": "straight",
@@ -598,13 +607,17 @@ const ENTRIES := [
 		"size": "medium", "tags": [],
 		"movement": "straight",
 		"base_count": 2,
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": false,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": true,   # chaff-flipped 2026-07-15 (armed-cap/damp gates it early)
 		"conflict_tags": [],
 	},
 	{
 		# Hunter (supremacy medium) — armed from Enemy Bench (2026-07-08): twin straight-down laser
 		# volleys (3 volleys, 0.26 gap) of fast bolts (109px/s over base).
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_hunter.tscn",
+		# combat_role support (reachability audit 2026-07-15): chaff:false + no heavy_class means the wave
+		# beats (chaff palette / heavy pool / crosser) never pick it — reachable via escort/authored/boss
+		# lead-in only. Explicit so validate_reachability.gd classifies it instead of flagging it unreachable.
+		"combat_role": "support",
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/laser.tres"), "aim": "straight_down", "count": 2, "fire_min": 0.1, "fire_max": 0.1, "bullet_speed": 109.0, "max_fires": 1, "volleys": 3, "volley_gap": 0.26, "no_inertia": true, "spread_deg": 0.0 }],
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
@@ -617,6 +630,7 @@ const ENTRIES := [
 		# Breaker (supremacy medium) — armed from Enemy Bench (2026-07-08): a steady straight-down
 		# bolt (fire 1.5) dropped at rest.
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_m_breaker.tscn",
+		"combat_role": "support",   # chaff:false + no heavy_class — escort/authored/boss-lead-in only (reachability audit 2026-07-15)
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/bolt.tres"), "aim": "straight_down", "count": 1, "fire_min": 1.5, "fire_max": 1.5, "no_inertia": true, "spread_deg": 0.0 }],
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
@@ -625,15 +639,15 @@ const ENTRIES := [
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": false,
 		"conflict_tags": [],
 	},
-	# Rush (M6c, supremacy) — fast aggressive fighter firing 3-shot bursts of small
-	# bullets from two muzzles (±8). Dive / weave / charge (beeline) variants.
+	# Rush (M6c, supremacy) — fast aggressive fighter. Bench 2026-07-15: a single-shot forward laser
+	# walked across 4 volleys (0.2 gap, cap 3) from both muzzles. Dive / weave / charge (beeline) variants.
 	{
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_s_s_rush.tscn",
 		"engine": -1,   # bench 2026-07-05 (engine_override)
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "hunt_beeline",
-		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "all", "payload": preload("res://data/bullets/laser.tres"), "aim": "forward", "count": 3, "burst_interval": 0.18, "fire_min": 3.0, "fire_max": 3.0, "max_fires": 3 }],
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "all", "payload": preload("res://data/bullets/laser.tres"), "aim": "forward", "count": 1, "fire_min": 3.0, "fire_max": 3.0, "max_fires": 3, "volleys": 4, "volley_gap": 0.2 }],
 		"base_count": 3,
 		"hp_override": 2, "bounty_override": 12,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.8, "inertia": 0.8, "chaff": true,
@@ -645,7 +659,7 @@ const ENTRIES := [
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "hunt_beeline",
-		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "all", "payload": preload("res://data/bullets/laser.tres"), "aim": "forward", "count": 3, "burst_interval": 0.18, "fire_min": 3.0, "fire_max": 3.0, "max_fires": 3 }],
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "all", "payload": preload("res://data/bullets/laser.tres"), "aim": "forward", "count": 1, "fire_min": 3.0, "fire_max": 3.0, "max_fires": 3, "volleys": 4, "volley_gap": 0.2 }],
 		"base_count": 3,
 		"hp_override": 2, "bounty_override": 12,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "inertia": 0.7, "chaff": true,
@@ -657,7 +671,7 @@ const ENTRIES := [
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "hunt_beeline",   # charge straight at the player
-		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "all", "payload": preload("res://data/bullets/laser.tres"), "aim": "forward", "count": 3, "burst_interval": 0.18, "fire_min": 3.0, "fire_max": 3.0, "max_fires": 3 }],
+		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "all", "payload": preload("res://data/bullets/laser.tres"), "aim": "forward", "count": 1, "fire_min": 3.0, "fire_max": 3.0, "max_fires": 3, "volleys": 4, "volley_gap": 0.2 }],
 		"base_count": 2,
 		"no_scale": true,   # beeline/charge waves stay small (Roman 2026-06-08: cap 1-6)
 		"hp_override": 2, "bounty_override": 12,
@@ -753,7 +767,7 @@ const ENTRIES := [
 		# Cobra — fast diver, now armed (Enemy Bench 2026-06-20): fires an Aimed Sniper round
 		# along its nose (forward = down once auto-rotated), a precise poke as it dives.
 		"scene": "res://scenes/enemies/core/enemy_core_s_cobra.tscn",
-		"engine": -2,   # bench 2026-07-05 (engine_override)
+		"engine": -1,   # bench 2026-07-15 (engine_override)
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "straight",
@@ -805,6 +819,7 @@ const ENTRIES := [
 		# and the mixed-wave re-apply in _build_combat_waves. (Roman, 2026-05-31:
 		# rolls as a normal UNCOMMON now, wired into production waves.)
 		"scene": "res://scenes/enemies/factions/zealot/enemy_burner.tscn",
+		"combat_role": "support",   # bespoke beam-pair, force_formation + chaff:false — not a normal-beat pick (reachability audit 2026-07-15)
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
 		"movement": null,   # handles own movement
@@ -867,14 +882,12 @@ const ENTRIES := [
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/bolt.tres"), "aim": "forward", "fire_min": 0.1, "fire_max": 0.1, "count": 6, "burst_interval": 0.15, "max_fires": 1, "spread_deg": 0.0 }],
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "lane_cut",
+		# Movement realigned to the matrix identity path_dive_diagonal (2026-07-15 eligibility bake) —
+		# the scene's baked identity now drives a diagonal dive, so lane_cut is no longer eligible here.
+		"movement": "path_dive_diagonal",
 		"base_count": 2,
 		# (dead top-level fire_min/max removed 2026-07-07 — mount above owns cadence, no hull pattern.)
-		# engine: -1 (Roman's knob — small base 120 → 60 px/s). Restored 2026-07-07: the engine
-		# modifier is meant to be usable, so the LANE_CUT pattern was fixed to degrade gracefully at a
-		# 60 px/s crawl instead. lane_path.gd now caps the exit angle below horizontal as speed drops
-		# (keeping a downward component) so this archer exits in bounded time facing mostly down-lane,
-		# instead of the old sideways run-off that doubled its on-screen time.
+		# engine: -1 (Roman's knob — small base 120 → 60 px/s).
 		"engine": -1,
 		"unlock_sector": 1, "unlock_depth": 2, "weight": 0.9, "inertia": 0.9, "chaff": true,
 		"conflict_tags": ["aimed_or_spread"],
@@ -887,7 +900,7 @@ const ENTRIES := [
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "all", "payload": preload("res://data/bullets/bolt.tres"), "aim": "forward", "fire_min": 1.4, "fire_max": 1.4, "count": 2, "burst_interval": 0.1, "max_fires": 1, "spread_deg": 0.0 }],
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
-		"movement": "lane_hook",
+		"movement": "lane_cut",   # realigned to the matrix identity (2026-07-15 eligibility bake; lane_hook dropped)
 		"base_count": 2,
 		# (dead top-level fire_min/max removed 2026-07-07 — mount above owns cadence, no hull pattern.)
 		"unlock_sector": 1, "unlock_depth": 2, "weight": 0.9, "inertia": 0.9, "chaff": true,
@@ -1049,9 +1062,10 @@ const ENTRIES := [
 		# authored flight paths are set on the scene / path system. Weaponry armed from the bench.
 		"scene": "res://scenes/enemies/factions/privateer/enemy_p_l_harrier.tscn",
 		"mounts": [{ "kind": "launcher", "marker": "Launcher*", "marker_mode": "cycle", "payload_scene": "res://scenes/projectiles/enemy_rocket.tscn", "aim": "forward", "fire_min": 1.5, "fire_max": 1.5, "count": 3, "burst_interval": 0.15, "volleys": 2, "no_inertia": true, "spread_deg": 0.0 }],
+		"heavy_class": "anchor",  # 64x32 hull — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "large", "tags": ["tough"],
-		"movement": "hunt_omni",
+		"movement": "loiter",   # realigned to the matrix identity (2026-07-15 eligibility bake; hunt_omni dropped)
 		"shoot": null,
 		"base_count": 1,
 		"no_scale": true,
@@ -1171,6 +1185,7 @@ const ENTRIES := [
 		"tier": Tier.UNCOMMON,
 		"size": "large", "tags": ["tough"],
 		"movement": "drift",
+		"depth": "high",   # bench 2026-07-16 (hold near the top of the field)
 		"shoot": null,
 		"mounts": BOMBER_TAIL_MOUNT,
 		"hp_override": 30,
@@ -1185,6 +1200,7 @@ const ENTRIES := [
 		"tier": Tier.UNCOMMON,
 		"size": "large", "tags": ["tough"],
 		"movement": "drift",
+		"depth": "high",   # bench 2026-07-16 (hold near the top of the field)
 		"shoot": null,
 		"mounts": BOMBER_TAIL_MOUNT,
 		"hp_override": 30,
@@ -1202,6 +1218,7 @@ const ENTRIES := [
 		"tier": Tier.UNCOMMON,
 		"size": "large", "tags": ["tough"],
 		"movement": "drift",
+		"depth": "high",   # bench 2026-07-16 (hold near the top of the field)
 		"shoot": null,
 		# Bench 2026-07-05: faster tail burst than the B-220 (fire 4.0 vs 3.0).
 		"mounts": [{ "kind": "gun", "marker": "TurretTail", "marker_mode": "cycle", "payload": preload("res://data/bullets/ball.tres"),
@@ -1216,6 +1233,7 @@ const ENTRIES := [
 	# --- RARE -------------------------------------------------------------
 	{
 		"scene": "res://scenes/enemies/factions/corporate/enemy_c_s_sapper.tscn",
+		"combat_role": "support",   # chaff:false + no heavy_class — escort/authored/boss-lead-in only (reachability audit 2026-07-15)
 		"engine": -1,
 		"tier": Tier.RARE,
 		"size": "small", "tags": [],
@@ -1233,6 +1251,7 @@ const ENTRIES := [
 	},
 	{
 		"scene": "res://scenes/enemies/factions/corporate/enemy_c_m_widow.tscn",
+		"combat_role": "support",   # chaff:false + no heavy_class — escort/authored/boss-lead-in only (reachability audit 2026-07-15)
 		"tier": Tier.RARE,
 		"size": "medium", "tags": [],
 		# High hold (Roman 2026-06-07: crystal was coming too far down) — hovers in the
@@ -1244,6 +1263,7 @@ const ENTRIES := [
 	},
 	{
 		"scene": "res://scenes/enemies/core/enemy_core_m_minelayer.tscn",
+		"combat_role": "support",   # chaff:false + no heavy_class — escort/authored/boss-lead-in only (reachability audit 2026-07-15)
 		"tier": Tier.RARE,
 		"size": "medium", "tags": [],   # bench 2026-07-05: large -> medium
 		"movement": "side_traverse",
@@ -1264,7 +1284,7 @@ const ENTRIES := [
 		# Bench 2026-07-05: forward missile launcher — a single 4-round burst per pass (max_fires 1, fire 2.0).
 		"mounts": [{ "kind": "launcher", "marker": "Launcher*", "marker_mode": "cycle", "payload_scene": "res://scenes/projectiles/drifting_missile.tscn", "aim": "forward", "count": 4, "burst_interval": 0.25, "fire_min": 2.0, "fire_max": 2.0, "max_fires": 1, "spread_deg": 0.0 }],
 		"base_count": 3,
-		"unlock_sector": 1, "unlock_depth": 0,
+		"unlock_sector": 1, "unlock_depth": 0, "chaff": true,   # chaff-flipped 2026-07-15 (armed-cap/damp gates it early)
 	},
 	{
 		# Jet (privateer small, 2026-06-17) — fast light fighter that dives in firing from its twin
@@ -1282,12 +1302,13 @@ const ENTRIES := [
 			{ "kind": "launcher", "marker": "Launcher*", "marker_mode": "cycle", "payload_scene": "res://scenes/projectiles/enemy_rocket.tscn", "aim": "straight_down", "count": 2, "fire_min": 1.5, "fire_max": 1.5, "max_fires": 1, "no_inertia": true, "spread_deg": 0.0 },
 		],
 		"base_count": 4,
-		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "inertia": 1.0,
+		"unlock_sector": 1, "unlock_depth": 0, "weight": 1.0, "inertia": 1.0, "chaff": true,   # chaff-flipped 2026-07-15 (armed-cap/damp gates it early)
 	},
 	{
 		# Wing (privateer medium, 2026-06-17) — wide missile-dropper. Uses interceptor.gd (no-recycle
 		# exit) + a reusable ENTITY mount for the drop; stats follow the medium size class.
 		"scene": "res://scenes/enemies/factions/privateer/enemy_p_m_wing.tscn",
+		"heavy_class": "anchor",  # 64x32 hull — midpoint/coda heavy-beat pool
 		"tier": Tier.UNCOMMON,
 		"size": "large", "tags": ["tough"],
 		"movement": "drift",
@@ -1334,7 +1355,8 @@ const ENTRIES := [
 			"aim": "at_player", "rotation_speed": 2.4, "fire_min": 1.4, "fire_max": 1.4, "aim_tolerance_deg": 12.0,
 			"count": 1, "spread_deg": 0.0, "turret_node": "Turret", "marker_mode": "all" }],
 		"tier": Tier.UNCOMMON,
-		"size": "large", "tags": ["tough"],
+		"size": "medium", "tags": ["tough"],   # bench 2026-07-16 (was large)
+		"engine": -4,   # bench 2026-07-16 (creep-slow drift; clamps to CREEP_SPEED)
 		"movement": "asteroid_lane",
 		"base_count": 1,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": false,
@@ -1348,7 +1370,8 @@ const ENTRIES := [
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/ball.tres"),
 			"aim": "at_player", "fire_min": 1.0, "fire_max": 1.0, "count": 6, "spread_deg": 90.0, "volleys": 3, "volley_gap": 1.0, "burst_interval": 0.15, "max_fires": 4 }],
 		"tier": Tier.UNCOMMON,
-		"size": "huge", "tags": ["tough"],
+		"size": "large", "tags": ["tough"],   # bench 2026-07-16 (was huge)
+		"engine": -4,   # bench 2026-07-16 (creep-slow drift; clamps to CREEP_SPEED)
 		"movement": "asteroid_lane",
 		"base_count": 1,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": false,
@@ -1364,7 +1387,8 @@ const ENTRIES := [
 			"aim": "at_player", "rotation_speed": 1.8, "fire_min": 2.0, "fire_max": 2.0, "aim_tolerance_deg": 14.0, "count": 1,
 			"turret_node": "Turret2", "marker_mode": "cycle", "turret_z": 2 }],   # plain (non-drifting) rocket trail — it's an emplacement, not a ship
 		"tier": Tier.UNCOMMON,
-		"size": "large", "tags": ["tough"],
+		"size": "medium", "tags": ["tough"],   # bench 2026-07-16 (was large)
+		"engine": -4,   # bench 2026-07-16 (creep-slow drift; clamps to CREEP_SPEED)
 		"movement": "asteroid_lane",
 		"base_count": 1,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": false,
@@ -1387,7 +1411,7 @@ const ENTRIES := [
 		# Building: Bunker Tank — destroyable structure, does NOT shoot; explodes with debris on death.
 		"scene": "res://scenes/enemies/ground/building_bunker_tank.tscn",
 		"tier": Tier.COMMON,
-		"size": "giant", "tags": ["tough"],
+		"size": "huge", "tags": ["tough"],   # bench 2026-07-16 (was giant)
 		"movement": "asteroid_lane",
 		"base_count": 1,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.4, "chaff": false,
@@ -1461,7 +1485,8 @@ const ENTRIES := [
 			"aim": "at_player", "rotation_speed": 2.4, "fire_min": 2.0, "fire_max": 2.0, "aim_tolerance_deg": 12.0,
 			"count": 3, "spread_deg": 10.0, "turret_node": "Turret", "marker_mode": "all" }],
 		"tier": Tier.UNCOMMON,
-		"size": "large", "tags": ["tough"],
+		"size": "medium", "tags": ["tough"],   # bench 2026-07-16 (was large)
+		"engine": -4,   # bench 2026-07-16 (creep-slow drift; clamps to CREEP_SPEED)
 		"movement": "asteroid_lane",
 		"base_count": 1,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": false,
@@ -1476,6 +1501,47 @@ const ENTRIES := [
 		"scene": "res://scenes/enemies/ground/building_square_landing_pad.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
+		"movement": "asteroid_lane",
+		"base_count": 1,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.4, "chaff": false,
+		"no_wave": true,   # reserved for specific level conditions — never in the random wave roll
+		"conflict_tags": [],
+	},
+	{
+		# Bunker Turret — a ROTATING dual-muzzle turret (new art, 2026-07-17): the "Turret" sprite (frame 3)
+		# reparents under the turret with its MuzzleL/MuzzleR markers so barrel + both muzzles rotate + fire
+		# as one. Hull-mounted pivot (this scene has no root "Turret" marker). Default ball ~1.6s, bench-tunable.
+		"scene": "res://scenes/enemies/ground/enemy_bunker_turret.tscn",
+		"mounts": [{ "kind": "turret", "payload": preload("res://data/bullets/ball.tres"),
+			"aim": "at_player", "rotation_speed": 2.4, "fire_min": 1.6, "fire_max": 1.6, "aim_tolerance_deg": 12.0,
+			"count": 1, "spread_deg": 0.0, "turret_node": "Turret", "marker_mode": "all" }],
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": ["tough"],
+		"engine": -4,   # creep-slow drift; clamps to CREEP_SPEED
+		"movement": "asteroid_lane",
+		"base_count": 1,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": false,
+		"no_wave": true,   # reserved for specific level conditions (placed with the buildings) — never in the random wave roll
+		"conflict_tags": [],
+	},
+	{
+		# Building: Hangar — composed structure (composed_building.gd): base + building layers + a "Destroyed"
+		# overlay revealed on death. Does NOT shoot; explodes with debris. 128px-wide → huge.
+		"scene": "res://scenes/enemies/ground/building_hangar.tscn",
+		"tier": Tier.COMMON,
+		"size": "huge", "tags": ["tough"],
+		"movement": "asteroid_lane",
+		"base_count": 1,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.4, "chaff": false,
+		"no_wave": true,   # reserved for specific level conditions — never in the random wave roll
+		"conflict_tags": [],
+	},
+	{
+		# Building: Bunker Square Glass — small destroyable glass structure (new art): reveals a "Destroyed"
+		# frame + explodes with debris on death. Does NOT shoot.
+		"scene": "res://scenes/enemies/ground/building_bunker_square_glass.tscn",
+		"tier": Tier.COMMON,
+		"size": "medium", "tags": ["tough"],
 		"movement": "asteroid_lane",
 		"base_count": 1,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.4, "chaff": false,
@@ -1568,6 +1634,7 @@ const ENTRIES := [
 		# requirement). Keep hp_override in sync with the script's max_health (10)
 		# so the codex matches.
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_bloom.tscn",
+		"combat_role": "support",   # bespoke ring-release, chaff:false + no heavy_class — not a normal-beat pick (reachability audit 2026-07-15)
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": null,   # handles own movement
@@ -1586,6 +1653,7 @@ const ENTRIES := [
 		# Censer Frigate — nose wave-projectors (armed from the bench 2026-07-05; engine stays 0 —
 		# the bench's -1 was already reverted here to avoid the creep sub-rung).
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_censer.tscn",
+		"combat_role": "support",   # chaff:false + no heavy_class — escort/authored/boss-lead-in only (reachability audit 2026-07-15)
 		"engine": -1, "tier": Tier.COMMON, "size": "medium", "tags": [],   # bench 2026-07-05 (engine_override)
 		"movement": "straight", "shoot": null, "base_count": 2, "recycle": 0,
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "all", "payload": BV_ZealotWave, "aim": "forward", "fire_min": 3.0, "fire_max": 3.0, "count": 2, "burst_interval": 0.15, "max_fires": 3, "no_inertia": true, "spread_deg": 0.0 }],
@@ -1594,6 +1662,7 @@ const ENTRIES := [
 	{
 		# Crook — rapid-fire zealot laser fighter.
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_crook.tscn",
+		"combat_role": "support",   # chaff:false + no heavy_class — escort/authored/boss-lead-in only (reachability audit 2026-07-15)
 		"tier": Tier.COMMON, "size": "medium", "tags": [],
 		"movement": "straight", "shoot": null, "base_count": 3, "recycle": 0,
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_ZealotLaser, "aim": "forward", "fire_min": 0.5, "fire_max": 0.5, "count": 4, "spread_deg": 0.0 }],
@@ -1605,7 +1674,7 @@ const ENTRIES := [
 		"engine": -1, "tier": Tier.COMMON, "size": "medium", "tags": [],   # bench 2026-07-05 (engine_override)
 		"movement": "hunt_omni", "shoot": null, "base_count": 2, "recycle": 0,
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_ZealotBolt, "aim": "forward", "fire_min": 1.0, "fire_max": 1.0, "count": 4, "spread_deg": 0.0 }],
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.6, "inertia": 0.6,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.6, "inertia": 0.6, "chaff": true,   # chaff-flipped 2026-07-15 (armed-cap/damp gates it early)
 	},
 	{
 		# Pilgrim — dual plasma + wing rockets. (bench 2026-07-05: small hull + engine -1 = same ~60 speed.)
@@ -1616,11 +1685,12 @@ const ENTRIES := [
 			{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_ZealotLaser, "aim": "forward", "fire_min": 0.5, "fire_max": 0.5, "count": 1, "spread_deg": 0.0 },
 			{ "kind": "launcher", "marker": "Launcher*", "marker_mode": "cycle", "payload_scene": "res://scenes/projectiles/enemy_rocket.tscn", "aim": "forward", "fire_min": 1.2, "fire_max": 1.2, "count": 1, "max_fires": 2, "spread_deg": 0.0 },
 		],
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.5, "inertia": 0.5,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.5, "inertia": 0.5, "chaff": true,   # chaff-flipped 2026-07-15 (armed-cap/damp gates it early)
 	},
 	{
 		# Rebuker — slow, maneuverable, forward zealot lasers.
 		"scene": "res://scenes/enemies/factions/zealot/enemy_z_s_rebuker.tscn",
+		"combat_role": "support",   # chaff:false + no heavy_class — escort/authored/boss-lead-in only (reachability audit 2026-07-15)
 		"engine": 0, "tier": Tier.COMMON, "size": "medium", "tags": [],   # held at 60 (was -1; base drop would push to creep)
 		"movement": "straight", "shoot": null, "base_count": 2, "recycle": 0,
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": BV_ZealotLaser, "aim": "straight_down", "fire_min": 0.5, "fire_max": 0.5, "count": 1, "spread_deg": 0.0 }],
@@ -1638,12 +1708,13 @@ const ENTRIES := [
 			"idle_time": 0.8, "windup_time": 1.2, "firing_time": 0.7, "cooldown_time": 1.2,
 			"reach": 320.0, "dps": 4.0, "hit_radius": 8.0, "autostart": true,
 		} }],
-		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.5, "inertia": 0.5,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.5, "inertia": 0.5, "chaff": true,   # chaff-flipped 2026-07-15 (armed-cap/damp gates it early)
 	},
 	{
 		# Tyrant (enemy_frigate) — supremacy broadside capital. Fires a rolling naval broadside out its
 		# player-facing flank (GunLeft1..5 / GunRight1..5 markers on the scene).
 		"scene": "res://scenes/enemies/factions/supremacy/enemy_frigate.tscn",
+		"combat_role": "support",   # Tyrant broadside capital, chaff:false + no heavy_class — escort/authored/elite-fallback only (reachability audit 2026-07-15)
 		"tier": Tier.RARE, "size": "large", "tags": ["tough"],
 		"movement": "side_traverse",
 		"base_count": 1, "no_scale": true, "fire_min": 0.35, "fire_max": 0.5,

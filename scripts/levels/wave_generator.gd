@@ -254,6 +254,14 @@ static var _last_motif_sig: String = ""
 # uses the shared formation_shapes.prestack_y (one ROW_GAP for all formation sites). Tune CHANCE freely.
 const ESCORT_CHANCE: float = 0.4
 
+# CLIMAX finale mix (reachability audit, 2026-07-15). When BOTH a mini-boss qualifies AND the elite
+# pack can field heavies at the climax coordinate, roll between them at this chance (mini-boss) vs the
+# elite pack (1 - chance). Fixes the dead elite-pack branch: the universal Cruiser (MINIBOSS_ROSTER,
+# faction -1, min_depth 2) always qualifies at climax depth, so the old "mini-boss unless empty" gate
+# meant the elite pack NEVER fired. Mini-boss-always when no elite is available; elite-always when no
+# mini-boss qualifies. Rolled off the seeded content rng (determinism preserved).
+const CLIMAX_MINIBOSS_CHANCE := 0.6
+
 # ============================================================================
 # SHOOTER-DENSITY DIFFICULTY RAMP (Roman playtest 2026-07-06)
 # ----------------------------------------------------------------------------
@@ -439,9 +447,10 @@ static func _build_stretch(rng: RandomNumberGenerator, sector_depth: int, level_
 			if not e_end.has("force_formation") and geo_roll and not motif_covers:
 				s_end2.shape_override = FormationShapesC.SHAPES[rng.randi() % FormationShapesC.SHAPES.size()]
 				s_end2.count = clampi(int(s_end2.count), GEOMETRIC_FLOCK_MIN, GEOMETRIC_FLOCK_MAX)
-				# Guarded: a lane-pinned straight descent holds the painted flock, but the enemy filling it
-				# must actually permit "straight" (eligibility contract) — coerce to its identity if not.
-				s_end2.movement_override = _guarded_override(String(e_end.get("scene", "")), "straight")
+				# A lane-pinned descent holds the painted flock; _hold_key_for picks a key the enemy
+				# actually permits (straight when eligible, else its identity) so the guard stays quiet.
+				var end_scene: String = String(e_end.get("scene", ""))
+				s_end2.movement_override = _guarded_override(end_scene, _hold_key_for(end_scene))
 				waves.append(s_end2); chaff_flags.append(false)   # discrete capped flock
 			else:
 				s_end2.formation = WaveSpec.Formation.WALL if lead_lr else WaveSpec.Formation.PINCER
@@ -507,12 +516,38 @@ static func _pick_miniboss(rng: RandomNumberGenerator, eff_depth: int, faction: 
 	return pool[rng.randi() % pool.size()]
 
 
+# True when the elite-pack finale could field at least one heavy at this coordinate — any anchor or
+# capital, or the generic RARE / tough-or-large UNCOMMON fallback pool _pick_elite draws from. rng-free
+# so the climax mini-boss-vs-elite roll can peek availability without perturbing the seeded stream.
+static func _elite_pack_available(sector_depth: int, eff_depth: int) -> bool:
+	if not Roster.heavies_eligible("capital", sector_depth, eff_depth).is_empty():
+		return true
+	if not Roster.heavies_eligible("anchor", sector_depth, eff_depth).is_empty():
+		return true
+	if not Roster.entries_eligible(Roster.Tier.RARE, sector_depth, eff_depth).is_empty():
+		return true
+	for e in Roster.entries_eligible(Roster.Tier.UNCOMMON, sector_depth, eff_depth):
+		var tags: Array = e.get("tags", [])
+		var size: String = String(e.get("size", "medium"))
+		if "tough" in tags or size == "large" or size == "huge":
+			return true
+	return false
+
+
 # Append the CLIMAX finale onto `waves`: a mini-boss (registered) or an elite pack — 2-3 heavy TYPES,
 # a small cluster of each, arriving centre-out after a beat. Discrete (chaff_flags false) so the chaff
 # budget flows around it. This is the level's peak threat at the 36-slot cap.
 static func _append_climax_finale(rng: RandomNumberGenerator, sector_depth: int, eff_depth: int, waves: Array, chaff_flags: Array) -> void:
 	var mb: Dictionary = _pick_miniboss(rng, eff_depth, Roster.get_faction_filter())
+	# ROLL between the mini-boss and the elite pack when BOTH are available (the universal Cruiser
+	# always qualifies as a mini-boss at climax depth, so a straight "mini-boss unless empty" gate
+	# left the elite-pack branch dead). Mini-boss-always when no elite is available; elite-always
+	# (mb empty → fall through) when no mini-boss qualifies. Peek elite availability rng-free.
+	var elite_ok: bool = _elite_pack_available(sector_depth, eff_depth)
+	var use_miniboss: bool = false
 	if not mb.is_empty():
+		use_miniboss = (not elite_ok) or (rng.randf() < CLIMAX_MINIBOSS_CHANCE)
+	if use_miniboss:
 		# Roster-known scenes COMPOSE through _make_wave_spec (review P2.8, 2026-07-02): a bare
 		# WaveSpec skips the roster's mounts/stats overlay, so roster-mounted capitals (Crusader,
 		# Helix) would arrive UNARMED. Composing inherits weapons, tuned HP/bounty, and locomotion;
@@ -768,6 +803,20 @@ static func _guarded_override(scene: String, key: String) -> Resource:
 	return Roster.make_movement({"movement": guarded})
 
 
+# Lane-hold key a scene ACTUALLY permits: "straight" when eligible (the preferred lane-pinned descent),
+# else the scene's matrix identity (always eligible), else its first eligible key. Use this instead of
+# handing a bare "straight" to _guarded_override — the guard would coerce identically but push_error
+# on every spawn of a loiter/beam-only unit (pure log noise for an expected, legal substitution).
+static func _hold_key_for(scene: String) -> String:
+	if PatternEligibility.allows(scene, "straight"):
+		return "straight"
+	var id: String = PatternEligibility.identity_for(scene)
+	if id != "":
+		return id
+	var elig: Array = PatternEligibility.eligible_for(scene)
+	return String(elig[0]) if not elig.is_empty() else "straight"
+
+
 # Build the crossing-sting accent for this beat, restoring its presence across ALL factions (variety
 # restore, 2026-07-11). Three tiers, most-preferred first, so the rhythmic grace-note between bulk waves
 # is (almost) never skipped — the sting's cadence/injection probability is UNCHANGED (this restores
@@ -990,11 +1039,21 @@ static func _escort_spec(rng: RandomNumberGenerator, entry: Dictionary, cell: Ve
 	# FIRST. Feeding cell.y into prestack_y (max_row-leads) inverted it (core/rear led). FIX 4.
 	w.spawn_y = FormationShapesC.leads_from_zero(int(cell.y), max_row)
 	w.spawn_delay = 0.0   # authored burst — whole convoy enters together; rows are SPATIAL
-	# Guarded: the convoy holds via a straight descent, but the core/screen enemy must actually permit
-	# "straight" (eligibility contract) — a hold-class core that forbids it is coerced to its identity.
-	w.movement_override = _guarded_override(String(entry.get("scene", "")), "straight")
+	# Hold movement: the convoy prefers a straight descent so members hold their lane, but a loiter/beam-
+	# only core (e.g. enemy_beam_shooter — eligible loiter_sweep only) can't fly "straight" —
+	# _hold_key_for picks a key the scene actually permits, keeping the guard quiet.
+	var scene: String = String(entry.get("scene", ""))
+	w.movement_override = _guarded_override(scene, _hold_key_for(scene))
 	w.silent = true
 	return w
+
+
+# When the eligible capital pool holds BOTH a faction-HOME capital and the universal Cruiser (the only
+# universal capital), draw a universal only this often — otherwise pick uniformly among the home
+# capitals (reachability audit, 2026-07-15). Keeps faction capitals (Helix/Crusader/Hive/...) rolling
+# regularly instead of the always-eligible universal Cruiser monopolizing the capital slot. Where a
+# faction has NO home capital, the pool is universal-only and the Cruiser stays common as before.
+const CRUISER_UNIVERSAL_SHARE := 0.35
 
 
 # Pick a heavy for a beat (midpoint or coda). prefer_capital orders the two pools:
@@ -1013,8 +1072,40 @@ static func _pick_heavy(rng: RandomNumberGenerator, sector_depth: int, level_ind
 				fresh.append(e)
 		if not fresh.is_empty():
 			pool = fresh
+		if cls == "capital":
+			return _pick_capital_fair(pool, rng)
 		return pool[rng.randi() % pool.size()]
 	return _pick_elite(rng, sector_depth, level_index, exclude)
+
+
+# Fair capital draw (reachability audit, 2026-07-15). Split the eligible capital pool into faction-HOME
+# capitals vs the universal Cruiser. When a faction fields its own capital(s), pick uniformly among the
+# home entries with only a CRUISER_UNIVERSAL_SHARE chance of still drawing a universal one — so the
+# always-eligible Cruiser stops starving faction capitals. No home capital in the pool ⇒ uniform over
+# the whole (universal-only) pool, keeping the Cruiser common where a faction has no capital of its own.
+static func _pick_capital_fair(pool: Array, rng: RandomNumberGenerator) -> Dictionary:
+	var home: Array = []
+	var universal: Array = []
+	for e in pool:
+		if _entry_is_universal(e):
+			universal.append(e)
+		else:
+			home.append(e)
+	if not home.is_empty():
+		if not universal.is_empty() and rng.randf() < CRUISER_UNIVERSAL_SHARE:
+			return universal[rng.randi() % universal.size()]
+		return home[rng.randi() % home.size()]
+	return pool[rng.randi() % pool.size()]
+
+
+# True when the roster entry's scene is faction-universal (a core hull legal in every faction's waves —
+# e.g. the Cruiser). Untagged scenes are treated as universal (never specially down-weighted).
+static func _entry_is_universal(entry: Dictionary) -> bool:
+	var scene: String = String(entry.get("scene", ""))
+	var t: Variant = FactionsC.ENEMY_TAGS.get(scene, null)
+	if t == null:
+		return true
+	return bool(t.get("universal", false))
 
 
 # Pick a heavy from the generic RARE/tough fallback pool (used when no heavy_class

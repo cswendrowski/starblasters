@@ -22,8 +22,11 @@ extends Object
 # 2026-06-09; collapsed to shape-only keys 2026-06-20. Strafer dropped (retired); "beam_sweep"
 # renamed to "loiter_sweep". Re-exported 2026-06-21 (Roman's authoring pass): identity/eligible
 # edits across ~20 enemies + two new entries (enemy_core_s_jet, enemy_p_m_wing). Empty-identity
-# records the tool unions in (mines/asteroid/burner/bloom) are intentionally NOT carried here —
+# records the tool unions in (mines/asteroid/burner) are intentionally NOT carried here —
 # resolve() falls back to the roster entry's own movement for scenes absent from the matrix.
+# Re-exported 2026-07-15 (Roman's pattern-eligibility pass): baked four previously-empty records now
+# carrying real identities/eligibles — enemy_c_s_archer (path_dive_diagonal), enemy_c_s_specter
+# (lane_cut), enemy_p_l_harrier (loiter), enemy_z_s_bloom (straight).
 const DATA := {
 	"res://scenes/enemies/core/enemy_core_bomber.tscn": {"identity": "drift", "eligible": ["drift", "side_traverse"]},
 	"res://scenes/enemies/core/enemy_core_bomber_thin.tscn": {"identity": "drift", "eligible": ["drift", "side_traverse"]},
@@ -45,13 +48,13 @@ const DATA := {
 	"res://scenes/enemies/factions/corporate/enemy_c_l_bulwark.tscn": {"identity": "drift", "eligible": ["drift", "lane_drift", "lane_hook", "lane_shift", "lane_weave", "straight"]},
 	"res://scenes/enemies/factions/corporate/enemy_c_l_hive.tscn": {"identity": "loiter", "eligible": ["loiter", "loiter_sweep"]},
 	"res://scenes/enemies/factions/corporate/enemy_c_m_widow.tscn": {"identity": "loiter", "eligible": ["loiter", "straight_charge"]},
-	"res://scenes/enemies/factions/corporate/enemy_c_s_archer.tscn": {"identity": "", "eligible": []},
+	"res://scenes/enemies/factions/corporate/enemy_c_s_archer.tscn": {"identity": "path_dive_diagonal", "eligible": ["path_dive_diagonal", "straight"]},
 	"res://scenes/enemies/factions/corporate/enemy_c_s_curve.tscn": {"identity": "lane_cut", "eligible": ["lane_cut", "lane_drift", "lane_shift", "lane_weave", "side_turn", "straight", "straight_charge"]},
 	"res://scenes/enemies/factions/corporate/enemy_c_s_hold.tscn": {"identity": "lane_hook", "eligible": ["lane_hook", "loiter", "path_back_and_forth_wide", "path_loop_exit", "path_skirmish_figure8", "path_skirmish_loop", "skirmish_figure8", "skirmish_loop", "skirmish_pendulum", "straight"]},
 	"res://scenes/enemies/factions/corporate/enemy_c_s_sapper.tscn": {"identity": "hunt_omni", "eligible": ["hunt_omni", "proximity_chase"]},
-	"res://scenes/enemies/factions/corporate/enemy_c_s_specter.tscn": {"identity": "", "eligible": []},
+	"res://scenes/enemies/factions/corporate/enemy_c_s_specter.tscn": {"identity": "lane_cut", "eligible": ["lane_cut", "path_corner_hook", "side_turn", "straight"]},
 	"res://scenes/enemies/factions/privateer/enemy_core_s_falchion.tscn": {"identity": "straight", "eligible": ["hunt_beeline", "lane_cut", "lane_drift", "lane_hook", "lane_weave", "side_turn", "straight", "straight_charge"]},
-	"res://scenes/enemies/factions/privateer/enemy_p_l_harrier.tscn": {"identity": "", "eligible": []},
+	"res://scenes/enemies/factions/privateer/enemy_p_l_harrier.tscn": {"identity": "loiter", "eligible": ["loiter", "path_corner_hook", "path_skirmish_loop", "straight"]},
 	"res://scenes/enemies/factions/privateer/enemy_p_m_cannon.tscn": {"identity": "loiter", "eligible": ["lane_drift", "lane_shift", "loiter", "loiter_sweep", "straight"]},
 	"res://scenes/enemies/factions/privateer/enemy_p_m_gunship.tscn": {"identity": "hunt_omni", "eligible": ["hunt_omni", "loiter", "loiter_sweep", "straight"]},
 	"res://scenes/enemies/factions/privateer/enemy_p_m_interceptor.tscn": {"identity": "straight_charge", "eligible": ["lane_cut", "lane_shift", "side_turn", "straight", "straight_charge"]},
@@ -81,11 +84,15 @@ const DATA := {
 	"res://scenes/enemies/factions/zealot/enemy_beam_shooter.tscn": {"identity": "loiter_sweep", "eligible": ["loiter_sweep"]},
 	"res://scenes/enemies/factions/zealot/enemy_beamer_lock.tscn": {"identity": "drift", "eligible": ["drift"]},
 	"res://scenes/enemies/factions/zealot/enemy_beamer_tracker.tscn": {"identity": "drift", "eligible": ["drift"]},
-	"res://scenes/enemies/factions/zealot/enemy_burner.tscn": {"identity": "", "eligible": []},
+	# Burner self-drives a straight vertical descent in tandem beam-pairs (enemy_burner.gd); its
+	# roster movement is null (bespoke), so this entry never assigns a key — it exists only so
+	# allows()/the wildcard filter stop FAILING OPEN on the empty record (a lone Burner must never
+	# fill a wildcard slot). "straight" reflects the real descent; the tandem beat assigns no key.
+	"res://scenes/enemies/factions/zealot/enemy_burner.tscn": {"identity": "straight", "eligible": ["straight"]},
 	"res://scenes/enemies/factions/zealot/enemy_z_l_crusader.tscn": {"identity": "straight", "eligible": ["lane_drift", "lane_shift", "loiter_sweep", "straight"]},
 	"res://scenes/enemies/factions/zealot/enemy_z_m_helix.tscn": {"identity": "straight", "eligible": ["drift", "loiter", "side_traverse", "straight"]},
 	"res://scenes/enemies/factions/zealot/enemy_z_s_acolyte.tscn": {"identity": "straight", "eligible": ["lane_drift", "lane_shift", "straight"]},
-	"res://scenes/enemies/factions/zealot/enemy_z_s_bloom.tscn": {"identity": "", "eligible": []},
+	"res://scenes/enemies/factions/zealot/enemy_z_s_bloom.tscn": {"identity": "straight", "eligible": ["path_back_and_forth", "path_back_and_forth_wide", "side_traverse", "straight"]},
 	"res://scenes/enemies/factions/zealot/enemy_z_s_censer.tscn": {"identity": "straight", "eligible": ["drift", "hunt_beeline", "straight", "straight_charge"]},
 	"res://scenes/enemies/factions/zealot/enemy_z_s_crook.tscn": {"identity": "straight", "eligible": ["hunt_beeline", "lane_drift", "lane_shift", "path_dive_diagonal", "side_turn", "straight"]},
 	"res://scenes/enemies/factions/zealot/enemy_z_s_cross.tscn": {"identity": "hunt_omni", "eligible": ["hunt_omni", "loiter", "loiter_sweep", "straight", "straight_charge"]},
