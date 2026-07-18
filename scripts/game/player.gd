@@ -311,6 +311,32 @@ func _thief_on() -> bool:
 func _reflect_on() -> bool:
 	return mode_active_t > 0.0 and active_mode == ShiftMode.REFLECT
 
+# ---- Companion-drone support API (2026-07-16) -----------------------------
+# Read by shield_drone.gd (intercept) + autonomous_drone.gd (combat) so both drone
+# systems react to the ship's Shift mode without poking at private mode state.
+
+# True while a mode that (effectively) prevents player damage is running — Phase
+# (intangible), Rush (i-frames), Thief (catch-field eats the bullets). Intercept
+# drones RECALL while this holds so they don't spend hits the ship doesn't need.
+# Reflect is deliberately excluded: its bounce is chance-based, so non-reflected
+# shots still land and the drone screen stays useful.
+func defense_mode_active() -> bool:
+	return _phase_on() or _rush_on() or _thief_on()
+
+
+# Fire-interval multiplier for combat drones: Refire overclocks them alongside the
+# ship's own guns (same +fire-rate fraction fire_primary applies).
+func drone_fire_interval_mult() -> float:
+	if _refire_on() and refire_fire_bonus > 0.0:
+		return 1.0 / (1.0 + refire_fire_bonus)
+	return 1.0
+
+
+# Crit chance for combat-drone shots — the ship's own crit pipeline (Targeting
+# Computer module + Focus mode), so crit builds amplify the drones too.
+func drone_crit_chance() -> float:
+	return module_crit_chance + (focus_crit_chance if _focus_on() else 0.0)
+
 # Per-mode effect tunables, pulled from the equipped part in _on_mode_changed (only the
 # active mode's value is meaningful at a time). Magnitudes are first-pass placeholders.
 var focus_crit_chance: float = 0.15    # Focus: +crit chance while active (stacks w/ module)
@@ -468,8 +494,16 @@ var _pb_stop_player: AudioStreamPlayer2D = null
 # in the same scene tree as the player + dummy target.
 var bullet_parent: Node = null
 
+const _BulletWorldP = preload("res://scripts/systems/bullet_world.gd")
+
 func _bullet_parent() -> Node:
-	return bullet_parent if bullet_parent != null else get_tree().root
+	if bullet_parent != null:
+		return bullet_parent
+	# A SubViewport dev bench that registered its world in the "bullet_world"
+	# group catches the fallback even when it forgot to set bullet_parent —
+	# otherwise player fire lands in the 1920 window's top-left corner.
+	# Production registers no such node, so this stays get_tree().root there.
+	return _BulletWorldP.spawn_root(get_tree(), get_tree().root)
 
 
 func _ready() -> void:
@@ -1412,6 +1446,10 @@ func _on_mode_field_hit(area: Area2D) -> void:
 	elif _reflect_on():
 		if randf() < reflect_chance and area.has_method("reflect_to_enemies"):
 			area.reflect_to_enemies()
+			# Same bounce SFX as the Reflective Shield module ricochet.
+			var BounceSfx = load("res://scripts/effects/shield_sfx.gd")
+			if BounceSfx:
+				BounceSfx.play_bounce(get_tree().root, global_position)
 
 
 func _clear_thief_sphere() -> void:
@@ -2224,7 +2262,8 @@ func _spawn_pulse_beam(origin: Vector2, end_pt: Vector2) -> void:
 # Passive Module bay contributions — default-safe (all no-op until a module applies).
 # Set by equipped modules' apply()/unapply(); read in apply_run_upgrades + the fire path.
 # See docs/passive_module_bay_2026-06-13.md.
-var module_shield_bonus: int = 0             # Shield Core: +1 max shield charge per Mk
+var module_shield_base: int = 0              # Shield cores: BASE charge pool (vintage 10 / corpo 5, max-wins; 0 = no core = shieldless)
+var module_shield_bonus: int = 0             # Shield cores: Mk capacity bonus above the base
 var module_damage_mult: float = 1.0          # Overcharge Core: primary-damage multiplier
 var module_shield_charge_penalty: int = 0    # Overcharge Core: −1 max shield charge
 var module_siphon_kills_per_charge: int = 0  # Siphon Core: 0 = off, else kills per +1 charge
@@ -3010,6 +3049,9 @@ func _tick_beam_flash(delta: float) -> void:
 					_pb_charge_player.stop()
 				if _pb_loop_player:
 					_pb_loop_player.play()
+				# Overlaid start blast (Roman 2026-07-15) — the beam goes live here
+				# (WARMUP → HOLD), on top of the particle loop.
+				LaserSfxP.play_blast(get_tree().root, global_position, false)
 		BeamFlashState.HOLD:
 			# Hold on BEAM_HOLD_FRAME with a subtle scale jitter.
 			_beam_flash.frame = BEAM_HOLD_FRAME
@@ -3083,9 +3125,18 @@ func _play_shield_anim(tex: Texture2D) -> void:
 # Damage applied = secondary_beam_dps × delta to every enemy in the path.
 const TOUGH_HP_THRESHOLD := 8  # enemies with > 8 max_hull count as "tough"
 
+# Laser hit feedback (Roman 2026-07-15): the beam damages per-frame, so hit FX/SFX are
+# throttled to this interval — impact circles + a ducked energy-blast tick at each
+# struck enemy, matching the bullet impact family.
+const BEAM_HIT_FX_INTERVAL := 0.15
+const LaserSfxP = preload("res://scripts/effects/laser_sfx.gd")
+const ImpactCircleFxP = preload("res://scripts/effects/impact_circle_fx.gd")
+var _beam_hit_fx_t: float = 0.0
+
 
 func _tick_beam(holding: bool, delta: float) -> void:
 	_ensure_beam_visual()
+	_beam_hit_fx_t = maxf(0.0, _beam_hit_fx_t - delta)
 	# Drive the flash sprite state machine. The beam itself only fires
 	# during HOLD; during WARMUP we play the windup frames and the beam
 	# lines stay hidden. On release we kick into COOLDOWN frames before
@@ -3106,6 +3157,8 @@ func _tick_beam(holding: bool, delta: float) -> void:
 				_pb_loop_player.stop()
 			if _pb_stop_player:
 				_pb_stop_player.play()
+			# Overlaid stop blast (Roman 2026-07-15) — on top of the particle stop sound.
+			LaserSfxP.play_blast(get_tree().root, global_position, false)
 		elif _beam_flash_state == BeamFlashState.WARMUP:
 			# Tap-fire: released during warmup — stop charge, skip loop+stop.
 			if _pb_charge_player and _pb_charge_player.playing:
@@ -3169,13 +3222,25 @@ func _tick_beam(holding: bool, delta: float) -> void:
 	# per-tick DPS too (identity when no Condition is active).
 	var dmg_amount: int = _wpn_dmg(max(1, int(round(secondary_beam_dps * delta))))
 	var stop_y: float = -screensize.y  # default: top of world
+	# Throttled hit feedback: when the interval is up, every enemy struck this frame
+	# gets an impact circle (beam-colored, upward) and ONE hit tick plays.
+	var fx_ready: bool = _beam_hit_fx_t <= 0.0
+	var fx_col: Color = _beam_line.default_color if _beam_line != null else Color(0.6, 0.9, 1.0)
+	var fx_hit_y: float = INF   # nearest struck enemy's Y (sorted nearest-first)
 	for e in enemies_in_column:
 		if e.has_method("take_hit"):
 			e.take_hit(dmg_amount)
+			if fx_ready:
+				ImpactCircleFxP.spawn(_bullet_parent(), Vector2(global_position.x, e.global_position.y), Vector2.UP, fx_col)
+				if fx_hit_y == INF:
+					fx_hit_y = e.global_position.y
 		if _is_tough_or_boss(e):
 			# Beam stops here — set end point at the enemy's Y, exit.
 			stop_y = e.global_position.y - global_position.y
 			break
+	if fx_hit_y != INF:
+		_beam_hit_fx_t = BEAM_HIT_FX_INTERVAL
+		LaserSfxP.play_hit(_bullet_parent(), Vector2(global_position.x, fx_hit_y))
 	# All three layers share the same start/end points so they composite
 	# as halo-under-beam-under-core. Muzzle just above the ship.
 	var points := PackedVector2Array([
@@ -3493,7 +3558,7 @@ func _on_shield_regen_timer_timeout() -> void:
 # ship fields the module apply loop set in _ready, NOT Run ints.
 #   Hull            base 2 + Reinforced Hull module pips; its Mk.9 = repair −30%
 #   Thrusters       +speed % from the Thrusters module
-#   Shield          base 10 + Shield Core Mk capacity − Overcharge penalty, gated on the Core
+#   Shield          core-driven base (vintage 10 / corpo 5) + Mk capacity − Overcharge penalty; no core = shieldless
 #   Armor / shield-recharge / self-repair / hull-plating upgrades RETIRED (save-compat fields only)
 func apply_run_upgrades() -> void:
 	if not has_node("/root/Run"):
@@ -3512,10 +3577,16 @@ func apply_run_upgrades() -> void:
 	hull_shrug_chance = 0.0  # the RNG shrug is the Ablative Plating module now (module_ablative_n)
 	# Speed: baseline + the Thrusters module's bonus.
 	speed_multiplier = max(0.3, 1.0 + module_speed_pct)
-	# Shield: base 10 + the Shield Core's Mk capacity (module_shield_bonus) − Overcharge's
-	# charge penalty, then the glass-cannon gate (initialized bay + no Shield Core = no shield).
-	max_shield = 10 + module_shield_bonus - module_shield_charge_penalty
-	if bool(run.get("bay_initialized")) and not run.has_module("shield_core"):
+	# Shield: base charges are PART-DRIVEN since the Corpo Shield Core split (2026-07-11) —
+	# the equipped core's apply() wrote module_shield_base (vintage 10 / corpo 5, max-wins);
+	# add the cores' Mk capacity bonuses, subtract Overcharge's penalty. No core → base 0 →
+	# shieldless (the old has_module("shield_core") glass-cannon gate is now implicit).
+	# Legacy pre-module-bay saves never initialized the bay: keep their unconditional 10.
+	var shield_base: int = module_shield_base
+	if not bool(run.get("bay_initialized")):
+		shield_base = 10
+	max_shield = shield_base + module_shield_bonus - module_shield_charge_penalty
+	if shield_base <= 0:
 		max_shield = 0
 	max_shield = maxi(0, max_shield)
 	# Sector Conditions — Weak/Better Shields scale the whole assembled charge pool, but

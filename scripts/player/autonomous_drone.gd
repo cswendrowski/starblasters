@@ -92,7 +92,8 @@ func _process(delta: float) -> void:
 	global_position += _vel * delta
 	global_position.x = clampf(global_position.x, Playfield.X_MIN + 4.0, Playfield.X_MAX - 4.0)
 	global_position.y = clampf(global_position.y, Playfield.Y_MIN + 4.0, Playfield.Y_MAX - 4.0)
-	# Turn + fire at the nearest threat.
+	# Turn + fire at the nearest threat. Refire overclocks the drone's cadence with
+	# the ship (player.drone_fire_interval_mult — 2026-07-16 mode-benefit pass).
 	_cooldown -= delta
 	var target: Node2D = _nearest_threat()
 	if target != null:
@@ -100,7 +101,10 @@ func _process(delta: float) -> void:
 		if aim.length_squared() > 0.01:
 			rotation = aim.angle() + PI * 0.5   # up-pointing sprite → face the target
 			if _cooldown <= 0.0:
-				_cooldown = FIRE_INTERVAL
+				var iv_mult: float = 1.0
+				if _player.has_method("drone_fire_interval_mult"):
+					iv_mult = float(_player.drone_fire_interval_mult())
+				_cooldown = FIRE_INTERVAL * iv_mult
 				_fire_at(target)
 	else:
 		rotation = lerp_angle(rotation, 0.0, clampf(6.0 * delta, 0.0, 1.0))   # ease back upright when idle
@@ -134,6 +138,8 @@ func _nearest_threat() -> Node2D:
 	return best
 
 
+const CRIT_COLOR := Color(0.85, 0.45, 1.35)   # matches player.MODULE_CRIT_COLOR (purple HDR)
+
 func _fire_at(target: Node2D) -> void:
 	if BULLET_SCENE == null or target == null:
 		return
@@ -141,6 +147,15 @@ func _fire_at(target: Node2D) -> void:
 	get_tree().root.add_child(b)
 	if "damage" in b:
 		b.damage = BLASTER_BASE_DMG * _blaster_mark   # effective blaster mark (Mk1 blaster = 2)
+		# Crit builds amplify the drones too (2026-07-16): roll the ship's crit
+		# pipeline (Targeting Computer + Focus) per shot — ×2 damage + purple bolt,
+		# same convention as the player's primary.
+		if _player != null and is_instance_valid(_player) and _player.has_method("drone_crit_chance"):
+			var crit: float = float(_player.drone_crit_chance())
+			if crit > 0.0 and randf() < crit:
+				b.damage *= 2
+				if b is CanvasItem:
+					b.modulate = CRIT_COLOR
 	var dir: Vector2 = target.global_position - global_position
 	dir = dir.normalized() if dir.length_squared() > 0.01 else Vector2(0, -1)
 	if b.has_method("start"):

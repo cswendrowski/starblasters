@@ -33,6 +33,10 @@ func _init() -> void:
 
 
 func apply(ship) -> void:
+	# No drones on presentation copies (loading screen / FX lab) — they set
+	# controls_enabled = false before add_child. See intercept_drones.apply.
+	if "controls_enabled" in ship and not ship.controls_enabled:
+		return
 	_spawn_drones(ship)
 	# Clear any drone_bits primary-piggyback hook left over from the old
 	# design — fire_primary checks this array, and we don't want shield
@@ -64,18 +68,16 @@ func _spawn_drones(ship) -> void:
 	_spawned_drones.clear()
 	var n: int = mini(base_drones, max_drones)
 	var hp: int = base_hits + (int(mark) - 1) * hits_per_mark
-	# Drones are parented under the SceneTree root so they keep their
-	# orbit even if the ship rotates (we drive position manually in
-	# _process). bind_player gives each drone its starting angle so the
-	# three are evenly spaced.
+	# Drones are parented under the SceneTree root so the formation survives ship
+	# rotation (position driven manually in _process). bind_player gives each drone
+	# its arc slot index (2026-07-16: forward arc, shared with the module version).
+	# IMMEDIATE add + bind — never deferred: the combat-load player swap re-applies
+	# parts and a deferred add racing that swap's queue_free was a heap-corruption
+	# CTD (see intercept_drones._spawn_drones, same fix).
 	for i in n:
 		var drone = ShieldDroneScene.instantiate()
-		var start_angle: float = TAU * (float(i) / float(n))
-		ship.get_tree().root.call_deferred("add_child", drone)
-		# Defer the bind so the drone's _ready has fired first.
-		drone.call_deferred("bind_player", ship, start_angle, hp)
-		drone.call_deferred("set", "orbit_radius", orbit_radius)
-		drone.call_deferred("set", "orbit_speed", orbit_speed)
+		ship.get_tree().root.add_child(drone)
+		drone.bind_player(ship, i, n, hp)
 		_spawned_drones.append(drone)
 
 
