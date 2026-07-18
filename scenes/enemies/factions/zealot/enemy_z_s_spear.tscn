@@ -21,6 +21,8 @@ size = Vector2(32, 32)
 
 [node name="Enemy" type="Area2D" unique_id=354957993 groups=["enemies"]]
 script = ExtResource("1_d2wt5")
+strafe = true
+retro = true
 movement = SubResource("MovePattern")
 components = [SubResource("ChargeVisual")]
 

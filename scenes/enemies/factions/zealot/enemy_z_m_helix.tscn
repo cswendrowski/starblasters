@@ -32,6 +32,8 @@ size = Vector2(14, 32)
 
 [node name="EnemyFirecoreCruiser" type="Area2D" unique_id=1597328774 groups=["enemies"]]
 script = ExtResource("1_i25qm")
+strafe = true
+retro = true
 movement = SubResource("MovePattern")
 components = [SubResource("DropFirecore")]
 

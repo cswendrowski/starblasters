@@ -118,6 +118,8 @@ color_ramp = SubResource("GradientTexture1D_4lmie")
 
 [node name="Enemy" type="Area2D" unique_id=525729173 groups=["enemies"]]
 script = ExtResource("1_core")
+strafe = true
+retro = true
 movement = SubResource("MovePattern")
 fire_on_phase = "hold"
 

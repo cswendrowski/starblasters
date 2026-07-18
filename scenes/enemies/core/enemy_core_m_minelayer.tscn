@@ -17,6 +17,7 @@ height = 32.0
 
 [node name="Enemy" type="Area2D" unique_id=210885848 groups=["enemies"]]
 script = ExtResource("1_script")
+explosion_variant = "small_then_default"
 max_health = 12
 bounty_value = 40
 

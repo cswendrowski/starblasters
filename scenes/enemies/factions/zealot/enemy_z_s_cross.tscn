@@ -17,6 +17,7 @@ height = 32.0
 
 [node name="Enemy" type="Area2D" unique_id=354957993 groups=["enemies"]]
 script = ExtResource("1_a2j72")
+omni = true
 movement = SubResource("MovePattern")
 
 [node name="FirecoreCore" parent="." unique_id=655469713 instance=ExtResource("3_us6vd")]

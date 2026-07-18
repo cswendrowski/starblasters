@@ -21,6 +21,7 @@ ring_size = 48.0
 
 [node name="Enemy" type="Area2D" unique_id=466720719 groups=["enemies"]]
 script = ExtResource("1_script")
+strafe = true
 max_health = 8
 bounty_value = 75
 faction_shield_exempt = true

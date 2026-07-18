@@ -10,6 +10,7 @@ size = Vector2(14, 14)
 
 [node name="EnemyFirecoreDrone" type="Area2D" unique_id=1639620296 groups=["enemies"]]
 script = ExtResource("1_drone")
+omni = true
 
 [node name="FirecoreCore" parent="." unique_id=2114016041 instance=ExtResource("3_core")]
 
