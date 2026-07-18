@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://bw2xps404m6sd"
+path="res://.godot/imported/Jet Start B.ogg-62f981d38e3e8492164aebc86289759a.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/engines/Jet Start B.ogg"
+dest_files=["res://.godot/imported/Jet Start B.ogg-62f981d38e3e8492164aebc86289759a.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

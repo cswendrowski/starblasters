@@ -41,6 +41,22 @@ const WORLD_SCALE := 4.0         # 1920/480 — maps native 480 world coords int
 # around the throwaway player's init and restore them — it must never damage/repair/re-arm the run.
 const _RUN_GUARD_FIELDS := ["super_charges", "max_super_charges", "ammo", "secondary_ammo", "secondary_ammo_max", "active_cannon_idx"]
 
+# Engine audio (Roman 2026-06-19). One of two burn loops fades in FROM THE SHIP for the life of the
+# loading screen; a random exit-thruster one-shot fires on fly-off as the burn fades out.
+const BURN_LOOP_CLIPS := [
+	"res://assets/audio/engines/engine_burn_loop_1.ogg",
+	"res://assets/audio/engines/engine_burn_loop_2.ogg",
+]
+const EXIT_THRUSTER_CLIPS := [
+	"res://assets/audio/engines/exit_thruster_1.ogg",
+	"res://assets/audio/engines/exit_thruster_2.ogg",
+]
+const BURN_VOLUME_DB := -1.0    # steady loop level once faded in
+const BURN_QUIET_DB := -40.0    # near-silent fade endpoint
+const BURN_FADE_IN := 0.8
+const BURN_FADE_OUT := 0.5
+const EXIT_THRUSTER_VOLUME_DB := 3.0   # fly-off one-shot gain
+
 signal flight_complete
 
 # ---- Identity (set before add_child, or via configure(); -1/false = read from Run) ----
@@ -70,6 +86,8 @@ var _world: Node2D = null
 var _stars: CanvasLayer = null
 var _streaks: GPUParticles2D = null
 var _ship: Node2D = null
+var _burn_player: AudioStreamPlayer2D = null   # looping engine burn, child of the ship
+var _burn_tween: Tween = null
 var _name_label: Label = null
 var _enroute_label: Label = null
 var _t: float = 0.0
@@ -269,6 +287,64 @@ func rebuild_ship() -> void:
 	await get_tree().process_frame
 	if is_instance_valid(_ship):
 		apply_hull()
+	_start_burn_loop()
+
+
+# ---- Engine audio ---------------------------------------------------------
+
+# Fade one of the two burn loops in FROM THE SHIP (child of the ship → emanates from it + follows
+# the drift), looping for the life of the loading screen. Re-armable (dev-lab respawn/replay).
+func _start_burn_loop() -> void:
+	if _burn_tween != null and _burn_tween.is_valid():
+		_burn_tween.kill()
+	if _burn_player != null and is_instance_valid(_burn_player):
+		_burn_player.queue_free()
+		_burn_player = null
+	if _ship == null or not is_instance_valid(_ship):
+		return
+	var stream := load(BURN_LOOP_CLIPS[randi() % BURN_LOOP_CLIPS.size()]) as AudioStream
+	if stream == null:
+		return
+	if stream is AudioStreamOggVorbis:
+		(stream as AudioStreamOggVorbis).loop = true
+	var pl := AudioStreamPlayer2D.new()
+	pl.name = "BurnLoop"
+	pl.stream = stream
+	pl.bus = "SFX"
+	pl.volume_db = BURN_QUIET_DB
+	_ship.add_child(pl)
+	pl.play()
+	_burn_player = pl
+	_burn_tween = create_tween()
+	_burn_tween.tween_property(pl, "volume_db", BURN_VOLUME_DB, BURN_FADE_IN)
+
+
+# Fade the burn loop out, then free it (on fly-off / re-test).
+func _fade_out_burn() -> void:
+	if _burn_tween != null and _burn_tween.is_valid():
+		_burn_tween.kill()
+		_burn_tween = null
+	if _burn_player == null or not is_instance_valid(_burn_player):
+		return
+	var pl := _burn_player
+	_burn_player = null
+	_burn_tween = create_tween()
+	_burn_tween.tween_property(pl, "volume_db", BURN_QUIET_DB, BURN_FADE_OUT)
+	_burn_tween.tween_callback(pl.queue_free)
+
+
+# One-shot exit-thruster on fly-off. Non-positional so it stays full-volume as the ship leaves.
+func _play_exit_thruster() -> void:
+	var stream := load(EXIT_THRUSTER_CLIPS[randi() % EXIT_THRUSTER_CLIPS.size()]) as AudioStream
+	if stream == null:
+		return
+	var pl := AudioStreamPlayer.new()
+	pl.stream = stream
+	pl.bus = "SFX"
+	pl.volume_db = EXIT_THRUSTER_VOLUME_DB
+	add_child(pl)
+	pl.play()
+	pl.finished.connect(pl.queue_free)
 
 
 # Drive the ship's hull → emits hull_changed → engine_torch / damage_smoke_trail / spark_trail update
@@ -362,6 +438,8 @@ func fly_off() -> void:
 	if not _flying:
 		return
 	_flying = false
+	_play_exit_thruster()
+	_fade_out_burn()
 	if _ship == null or not is_instance_valid(_ship):
 		emit_signal("flight_complete")
 		return
@@ -384,3 +462,4 @@ func replay() -> void:
 	_t = 0.0
 	if _ship != null and is_instance_valid(_ship):
 		_ship.position = Vector2(SHIP_X, ship_rest_y)
+	_start_burn_loop()

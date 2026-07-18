@@ -31,6 +31,7 @@ extends Control
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const EngineTrailFx = preload("res://scripts/effects/engine_trail_fx.gd")
+const EngineSfx = preload("res://scripts/effects/engine_sfx.gd")
 const SparkTrailFx = preload("res://scripts/effects/spark_trail_fx.gd")
 const DamageSmokeTrail = preload("res://scripts/effects/damage_smoke_trail.gd")
 const PF = preload("res://scripts/systems/playfield.gd")
@@ -2983,6 +2984,10 @@ func begin_arrival() -> void:
 	_set_alpha(_top_bar, 0.0)
 	_set_alpha(_bottom_bar, 0.0)
 
+	# Fly-in SFX: decelerating afterburner — the Pilgrim gets its own clip (A), every
+	# other craft rolls B/C (Roman 2026-07-15).
+	EngineSfx.play_afterburner(self, ShipCatalog.get_ship(ship_variant))
+
 	_phase_tween = create_tween()
 	_phase_tween.tween_property(_ship, "position:y", land_y, arrival_time) \
 		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
@@ -3069,6 +3074,10 @@ func depart() -> void:
 		_bg_tween.tween_property(_plate, "position:y", _bg_below_y, rise_time + flyoff_time) \
 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 
+	# Ignition SFX as the engines spool: Pilgrim firecore / single-nozzle / twin-engine
+	# clip family per the current hull (Roman 2026-07-15).
+	EngineSfx.play_jet_start(self, ShipCatalog.get_ship(ship_variant))
+
 	# Engine spool (ship still static): a DAMAGED ship STUTTERS to life + sprays sparks off the
 	# engine(s) before catching; a clean ship just fades the glow up smoothly. Roman 2026-06-19.
 	if damaged:
@@ -3095,6 +3104,8 @@ func depart() -> void:
 	_phase_tween.parallel().tween_property(self, "_ship_altitude", 1.0, rise_time)   # rising → shadow pulls away
 	_phase_tween.parallel().tween_property(_ship, "position:y", hover_y, rise_time) \
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	# Exit-thruster burn fires at the launch instant — after the rise, as the ship accelerates off.
+	_phase_tween.tween_callback(func() -> void: EngineSfx.play_exit_thruster(self))
 	_phase_tween.tween_property(_ship, "position:y", FLYOFF_TARGET_Y, flyoff_time) \
 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	_phase_tween.tween_callback(_on_departed)

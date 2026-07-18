@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://cgei1031damld"
+path="res://.godot/imported/Afterburner Slowing B.ogg-4fbc71e0183744c63aa1443d1b184f11.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/engines/Afterburner Slowing B.ogg"
+dest_files=["res://.godot/imported/Afterburner Slowing B.ogg-4fbc71e0183744c63aa1443d1b184f11.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4
