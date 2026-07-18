@@ -191,7 +191,14 @@ func _ready() -> void:
 	_fx_rng = RandomNumberGenerator.new()
 	_fx_rng.seed = randi()
 	if has_node("/root/Music"):
-		get_node("/root/Music").set_context("sector")
+		# Music hold (Roman 2026-07-15): while the hold flag is up (set at patrol
+		# launch, cleared by LevelLauncher.go on the first level flight), DON'T
+		# switch to the sector context — keep the current track + intensity running
+		# so the launch energy carries onto the map. Later map returns (post-level)
+		# find the flag cleared and take the sector context as before.
+		var run_m := get_node_or_null("/root/Run")
+		if run_m == null or not bool(run_m.get_meta("music_hold_hangar", false)):
+			get_node("/root/Music").set_context("sector")
 	_ensure_sector_cache()
 	_advance_if_complete()
 	# Single mid-run save point: every time the player lands on the sector

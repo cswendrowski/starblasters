@@ -69,6 +69,12 @@ func _ready() -> void:
 	exit_btn.pressed.connect(_on_exit)
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("menu")
+	# Stale-hold safety: quitting to the menu mid-run (before the first level flight)
+	# must not leave the hangar-music hold armed for a later Resume — the map would
+	# keep the MENU track instead of taking the sector context.
+	var run_hold := get_node_or_null("/root/Run")
+	if run_hold != null and run_hold.has_meta("music_hold_hangar"):
+		run_hold.remove_meta("music_hold_hangar")
 	# Debug-only: warn if any menu Control spills past the 480×270 viewport
 	# (deferred so the layout pass has resolved). No-op in release.
 	UiTheme.assert_inside_viewport.call_deferred(self)

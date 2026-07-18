@@ -43,6 +43,12 @@ static func go(tree: SceneTree, target_path: String) -> void:
 	var music: Node = tree.root.get_node_or_null("Music")
 	if music != null and music.has_method("warm_up_combat"):
 		music.warm_up_combat()
+	# Flying to a level ends the hangar-music hold (Roman 2026-07-15): the sector map
+	# keeps the patrol-launch track + intensity until the FIRST level flight — this,
+	# the single funnel for all level launches (combat/boss/hazard), is where it ends.
+	var run_hold: Node = tree.root.get_node_or_null("Run")
+	if run_hold != null and run_hold.has_meta("music_hold_hangar"):
+		run_hold.remove_meta("music_hold_hangar")
 	# 4. Hold until the target is loaded AND the minimum dwell (visible time) has elapsed.
 	var visible_ms: int = Time.get_ticks_msec()
 	while true:
