@@ -123,5 +123,3 @@ script = ExtResource("11_jjei3")
 
 [connection signal="pressed" from="CanvasLayer/CenterContainer/Start" to="." method="_on_start_pressed"]
 [connection signal="died" from="Player" to="." method="_on_player_died"]
-[connection signal="hull_changed" from="Player" to="CanvasLayer/UI" method="update_hull"]
-[connection signal="shield_changed" from="Player" to="CanvasLayer/UI" method="update_shield"]

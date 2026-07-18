@@ -1,0 +1,56 @@
+[gd_scene format=3 uid="uid://dqncunxfejv6r"]
+
+[ext_resource type="Script" path="res://scripts/hud/hud_system_status.gd" id="1_ceb5n"]
+[ext_resource type="Texture2D" uid="uid://ckqbgb0cnf4pr" path="res://graphics/ui/hud_annunciator_lights.png" id="2_lhnu7"]
+[ext_resource type="Theme" uid="uid://dlmd6488u5dva" path="res://resources/ui/starblaster_theme.tres" id="2_scnu3"]
+[ext_resource type="Texture2D" uid="uid://c0ktvm6qm150h" path="res://graphics/ui/hud_dot_light.png" id="3_lhnu7"]
+
+[node name="SystemStatus" type="Node2D" unique_id=1239750159]
+script = ExtResource("1_ceb5n")
+
+[node name="Annunciator" type="Node2D" parent="." unique_id=1899660619]
+
+[node name="WARN Off" type="Sprite2D" parent="Annunciator" unique_id=1296630720]
+position = Vector2(12, 5)
+texture = ExtResource("2_lhnu7")
+hframes = 2
+vframes = 2
+
+[node name="WARN On" type="Sprite2D" parent="Annunciator" unique_id=1127757970]
+position = Vector2(12, 5)
+texture = ExtResource("2_lhnu7")
+hframes = 2
+vframes = 2
+frame = 1
+
+[node name="DANGER Off" type="Sprite2D" parent="Annunciator" unique_id=1492016472]
+position = Vector2(12, 16)
+texture = ExtResource("2_lhnu7")
+hframes = 2
+vframes = 2
+frame = 2
+
+[node name="DANGER On" type="Sprite2D" parent="Annunciator" unique_id=830143378]
+position = Vector2(12, 16)
+texture = ExtResource("2_lhnu7")
+hframes = 2
+vframes = 2
+frame = 3
+
+[node name="FIRE" type="Label" parent="." unique_id=1959091115]
+offset_left = 1.0
+offset_top = 22.0
+offset_right = 136.0
+offset_bottom = 45.0
+theme = ExtResource("2_scnu3")
+theme_override_font_sizes/font_size = 7
+text = "FIRE"
+metadata/_edit_use_anchors_ = true
+
+[node name="Node2D" type="Node2D" parent="." unique_id=594155142]
+
+[node name="light1" type="Sprite2D" parent="Node2D" unique_id=1626760081]
+modulate = Color(1, 0.65, 0.1, 1)
+position = Vector2(19, 26)
+texture = ExtResource("3_lhnu7")
+hframes = 2

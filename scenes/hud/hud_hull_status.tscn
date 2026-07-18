@@ -1,0 +1,79 @@
+[gd_scene format=3 uid="uid://ds47wcd0t3hg2"]
+
+[ext_resource type="Script" path="res://scripts/hud/hud_hull_status.gd" id="1_xgyoj"]
+[ext_resource type="Theme" uid="uid://dlmd6488u5dva" path="res://resources/ui/starblaster_theme.tres" id="2_eih40"]
+[ext_resource type="Texture2D" uid="uid://c0ktvm6qm150h" path="res://graphics/ui/hud_dot_light.png" id="3_2uvtw"]
+
+[node name="HullStatus" type="Node2D" unique_id=1239750159]
+script = ExtResource("1_xgyoj")
+
+[node name="Hull" type="Label" parent="." unique_id=1959091115]
+offset_left = -8.0
+offset_top = -9.0
+offset_right = 127.0
+offset_bottom = 14.0
+theme = ExtResource("2_eih40")
+theme_override_font_sizes/font_size = 7
+text = "Hull"
+
+[node name="Node2D" type="Node2D" parent="." unique_id=832927758]
+
+[node name="light1" type="Sprite2D" parent="Node2D" unique_id=1626760081]
+modulate = Color(1, 0.3, 0.3, 1)
+position = Vector2(-4, 4)
+texture = ExtResource("3_2uvtw")
+hframes = 2
+
+[node name="light2" type="Sprite2D" parent="Node2D" unique_id=799839131]
+modulate = Color(1, 0.3, 0.3, 1)
+position = Vector2(5, 4)
+texture = ExtResource("3_2uvtw")
+hframes = 2
+
+[node name="light3" type="Sprite2D" parent="Node2D" unique_id=538669418]
+modulate = Color(1, 0.3, 0.3, 1)
+position = Vector2(14, 4)
+texture = ExtResource("3_2uvtw")
+hframes = 2
+
+[node name="light4" type="Sprite2D" parent="Node2D" unique_id=392765701]
+modulate = Color(1, 0.3, 0.3, 1)
+position = Vector2(23, 4)
+texture = ExtResource("3_2uvtw")
+hframes = 2
+
+[node name="light5" type="Sprite2D" parent="Node2D" unique_id=478226241]
+modulate = Color(1, 0.3, 0.3, 1)
+position = Vector2(32, 4)
+texture = ExtResource("3_2uvtw")
+hframes = 2
+
+[node name="light6" type="Sprite2D" parent="Node2D" unique_id=2120736909]
+modulate = Color(1, 0.3, 0.3, 1)
+position = Vector2(41, 4)
+texture = ExtResource("3_2uvtw")
+hframes = 2
+
+[node name="light7" type="Sprite2D" parent="Node2D" unique_id=1180860149]
+modulate = Color(1, 0.3, 0.3, 1)
+position = Vector2(50, 4)
+texture = ExtResource("3_2uvtw")
+hframes = 2
+
+[node name="light8" type="Sprite2D" parent="Node2D" unique_id=562667642]
+modulate = Color(1, 0.3, 0.3, 1)
+position = Vector2(59, 4)
+texture = ExtResource("3_2uvtw")
+hframes = 2
+
+[node name="light9" type="Sprite2D" parent="Node2D" unique_id=237124556]
+modulate = Color(1, 0.3, 0.3, 1)
+position = Vector2(68, 4)
+texture = ExtResource("3_2uvtw")
+hframes = 2
+
+[node name="light10" type="Sprite2D" parent="Node2D" unique_id=649351629]
+modulate = Color(1, 0.3, 0.3, 1)
+position = Vector2(77, 4)
+texture = ExtResource("3_2uvtw")
+hframes = 2

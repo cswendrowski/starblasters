@@ -160,11 +160,8 @@ func _install_chosen_player() -> void:
 	if np is Node2D:
 		(np as Node2D).position = pos
 	# Re-create the connections the .tscn baked onto the old Player node.
+	# (Hull/shield HUD widgets self-bind via the "player" group — no rewire.)
 	np.died.connect(_on_player_died)
-	if has_node("CanvasLayer/UI"):
-		var ui := $CanvasLayer/UI
-		np.hull_changed.connect(ui.update_hull)
-		np.shield_changed.connect(ui.update_shield)
 	player = np
 
 
@@ -353,8 +350,7 @@ func _warm_up_level() -> void:
 
 
 func _on_wave_started(idx: int, total: int, silent: bool, announce_text: String = "") -> void:
-	if $CanvasLayer/UI.has_method("update_wave"):
-		$CanvasLayer/UI.update_wave(idx, total)
+	# (Wave progress HUD: the WaveStatus widget listens to the director itself.)
 	# Music intensity walks up with wave progress.
 	if has_node("/root/Music"):
 		var has_boss: bool = false
@@ -1131,25 +1127,12 @@ func _on_missile_cruiser_freed() -> void:
 # ---- Outro sequence -----------------------------------------------------
 # 2.5s grace → controls off → HUD flicker out → ship flies up off-screen →
 # black wipe → cleared summary screen.
-const EXIT_THRUSTER_CLIPS := [
-	"res://assets/audio/exit_thruster_1.ogg",
-	"res://assets/audio/exit_thruster_2.ogg",
-]
-
-
 func _play_exit_thruster_sfx() -> void:
-	var pick: String = EXIT_THRUSTER_CLIPS[randi() % EXIT_THRUSTER_CLIPS.size()]
-	var stream = load(pick) as AudioStream
-	if stream == null:
-		return
-	var p = AudioStreamPlayer.new()
-	p.stream = stream
-	p.bus = "SFX"
-	p.autoplay = false
-	add_child(p)
-	p.play()
-	# Free the player when the clip finishes so we don't pile up.
-	p.finished.connect(p.queue_free)
+	# Clip list + self-freeing one-shot player live in the shared helper (also used by
+	# the patrol-start / outpost-depart fly-offs).
+	var EngineSfx = load("res://scripts/effects/engine_sfx.gd")
+	if EngineSfx:
+		EngineSfx.play_exit_thruster(self)
 
 
 func _run_outro() -> void:

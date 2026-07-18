@@ -1,9 +1,13 @@
-[gd_scene load_steps=6 format=3 uid="uid://b54c7ad6cogrm"]
+[gd_scene load_steps=10 format=3 uid="uid://b54c7ad6cogrm"]
 
 [ext_resource type="Script" uid="uid://bjujuqgar0xmh" path="res://scripts/hud/ui.gd" id="1_script"]
-[ext_resource type="Texture2D" uid="uid://c0ktvm6qm150h" path="res://graphics/ui/hud_dot_light.png" id="2_dot"]
-[ext_resource type="Texture2D" uid="uid://ixd0gkho077l" path="res://graphics/ui/hud_annunciator_danger.png" id="3_ann"]
 [ext_resource type="FontFile" uid="uid://da377e6y8gadk" path="res://graphics/fonts/PixelOperator.ttf" id="4_font"]
+[ext_resource type="PackedScene" uid="uid://dvwyrmhl26ef" path="res://scenes/hud/hud_shield_status.tscn" id="5_shield"]
+[ext_resource type="PackedScene" uid="uid://ds47wcd0t3hg2" path="res://scenes/hud/hud_hull_status.tscn" id="6_hull"]
+[ext_resource type="PackedScene" uid="uid://dqncunxfejv6r" path="res://scenes/hud/hud_system_status.tscn" id="7_system"]
+[ext_resource type="PackedScene" uid="uid://b8pxnx2vcdepb" path="res://scenes/hud/hud_mode_status.tscn" id="8_mode"]
+[ext_resource type="PackedScene" uid="uid://du46hxj60cn0t" path="res://scenes/hud/hud_weapon_status.tscn" id="9_weapon"]
+[ext_resource type="PackedScene" uid="uid://c2b5bnui18lh3" path="res://scenes/hud/hud_wave_status.tscn" id="10_wave"]
 
 [sub_resource type="Theme" id="Theme_hud"]
 default_font = ExtResource("4_font")
@@ -29,224 +33,23 @@ layout_mode = 2
 mouse_filter = 2
 theme = SubResource("Theme_hud")
 
-[node name="ShieldLabel" type="Label" parent="HUDElements"]
-offset_left = 16.0
-offset_top = 16.0
-theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
-text = "SHIELD"
+[node name="ShieldStatus" parent="HUDElements" instance=ExtResource("5_shield")]
+position = Vector2(24, 25)
 
-[node name="ShieldPips" type="Node2D" parent="HUDElements"]
-position = Vector2(16, 24)
+[node name="HullStatus" parent="HUDElements" instance=ExtResource("6_hull")]
+position = Vector2(24, 65)
 
-[node name="HullLabel" type="Label" parent="HUDElements"]
-offset_left = 16.0
-offset_top = 56.0
-theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
-text = "HULL"
-
-[node name="HullPips" type="Node2D" parent="HUDElements"]
-position = Vector2(16, 64)
-
-[node name="Annunciator" type="Sprite2D" parent="HUDElements"]
+[node name="SystemStatus" parent="HUDElements" instance=ExtResource("7_system")]
 position = Vector2(16, 80)
-texture = ExtResource("3_ann")
-centered = false
-hframes = 4
-frame = 1
 
-[node name="FireLabel" type="Label" parent="HUDElements"]
-offset_left = 64.0
-offset_top = 80.0
-theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
-text = "FIRE"
+[node name="ModeStatus" parent="HUDElements" instance=ExtResource("8_mode")]
+position = Vector2(24, 233)
 
-[node name="FireLight" type="Sprite2D" parent="HUDElements"]
-modulate = Color(1, 0.65, 0.1, 1)
-position = Vector2(80, 80)
-texture = ExtResource("2_dot")
-centered = false
-hframes = 2
+[node name="WeaponStatus" parent="HUDElements" instance=ExtResource("9_weapon")]
+position = Vector2(376, 24)
 
-[node name="ModeLabel" type="Label" parent="HUDElements"]
-offset_left = 16.0
-offset_top = 224.0
-theme_override_colors/font_color = Color(0.5, 0.75, 1, 0.85)
-text = "FOCUS"
-
-[node name="ModeBarBG" type="ColorRect" parent="HUDElements"]
-offset_left = 16.0
-offset_top = 240.0
-offset_right = 64.0
-offset_bottom = 244.0
-mouse_filter = 2
-color = Color(0.1, 0.15, 0.3, 0.7)
-
-[node name="ModeBarFill" type="ColorRect" parent="HUDElements"]
-offset_left = 16.0
-offset_top = 240.0
-offset_right = 64.0
-offset_bottom = 244.0
-mouse_filter = 2
-color = Color(0.7, 0.45, 1, 0.9)
-
-[node name="ModePips" type="Node2D" parent="HUDElements"]
-position = Vector2(16, 238)
-
-[node name="ThreatLabel" type="Label" parent="HUDElements"]
-offset_left = 376.0
-offset_top = 72.0
-theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
-text = "THREAT"
-
-[node name="WarnLights" type="Node2D" parent="HUDElements"]
-position = Vector2(376, 80)
-
-[node name="Light1" type="Sprite2D" parent="HUDElements/WarnLights"]
-modulate = Color(0.3, 0.22, 0.1, 0.8)
-texture = ExtResource("2_dot")
-centered = false
-hframes = 2
-
-[node name="Light2" type="Sprite2D" parent="HUDElements/WarnLights"]
-modulate = Color(0.3, 0.22, 0.1, 0.8)
-position = Vector2(0, 10)
-texture = ExtResource("2_dot")
-centered = false
-hframes = 2
-
-[node name="Light3" type="Sprite2D" parent="HUDElements/WarnLights"]
-modulate = Color(0.3, 0.22, 0.1, 0.8)
-position = Vector2(0, 20)
-texture = ExtResource("2_dot")
-centered = false
-hframes = 2
-
-[node name="Light4" type="Sprite2D" parent="HUDElements/WarnLights"]
-modulate = Color(0.3, 0.22, 0.1, 0.8)
-position = Vector2(0, 30)
-texture = ExtResource("2_dot")
-centered = false
-hframes = 2
-
-[node name="Light5" type="Sprite2D" parent="HUDElements/WarnLights"]
-modulate = Color(0.3, 0.22, 0.1, 0.8)
-position = Vector2(0, 40)
-texture = ExtResource("2_dot")
-centered = false
-hframes = 2
-
-[node name="Light6" type="Sprite2D" parent="HUDElements/WarnLights"]
-modulate = Color(0.3, 0.22, 0.1, 0.8)
-position = Vector2(0, 50)
-texture = ExtResource("2_dot")
-centered = false
-hframes = 2
-
-[node name="Light7" type="Sprite2D" parent="HUDElements/WarnLights"]
-modulate = Color(0.3, 0.22, 0.1, 0.8)
-position = Vector2(0, 60)
-texture = ExtResource("2_dot")
-centered = false
-hframes = 2
-
-[node name="ArmamentLabel" type="Label" parent="HUDElements"]
-offset_left = 392.0
-offset_top = 16.0
-theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
-text = "ARMAMENT"
-
-[node name="BlasterRow" type="Node2D" parent="HUDElements"]
-position = Vector2(360, 24)
-
-[node name="Key" type="Label" parent="HUDElements/BlasterRow"]
-theme_override_colors/font_color = Color(1, 1, 1, 0.5)
-text = "[Z]"
-
-[node name="Light" type="Sprite2D" parent="HUDElements/BlasterRow"]
-modulate = Color(0.55, 1, 0.5, 1)
-position = Vector2(16, 0)
-texture = ExtResource("2_dot")
-centered = false
-hframes = 2
-
-[node name="Name" type="Label" parent="HUDElements/BlasterRow"]
-offset_left = 32.0
-theme_override_colors/font_color = Color(0.7, 0.78, 0.88, 0.7)
-text = "BLASTER"
-
-[node name="Status" type="Label" parent="HUDElements/BlasterRow"]
-offset_left = 96.0
-theme_override_colors/font_color = Color(0.55, 1, 0.5, 1)
-text = "READY"
-
-[node name="PriRow" type="Node2D" parent="HUDElements"]
-position = Vector2(360, 32)
-
-[node name="Key" type="Label" parent="HUDElements/PriRow"]
-theme_override_colors/font_color = Color(1, 1, 1, 0.5)
-text = "[Z]"
-
-[node name="Light" type="Sprite2D" parent="HUDElements/PriRow"]
-modulate = Color(0.55, 1, 0.5, 1)
-position = Vector2(16, 0)
-texture = ExtResource("2_dot")
-centered = false
-hframes = 2
-
-[node name="Name" type="Label" parent="HUDElements/PriRow"]
-offset_left = 32.0
-theme_override_colors/font_color = Color(0.55, 1, 0.5, 1)
-text = "—"
-
-[node name="Ammo" type="Label" parent="HUDElements/PriRow"]
-offset_left = 96.0
-theme_override_colors/font_color = Color(0.55, 1, 0.5, 1)
-
-[node name="SecRow" type="Node2D" parent="HUDElements"]
-position = Vector2(360, 40)
-
-[node name="Key" type="Label" parent="HUDElements/SecRow"]
-theme_override_colors/font_color = Color(1, 1, 1, 0.5)
-text = "[C]"
-
-[node name="Light" type="Sprite2D" parent="HUDElements/SecRow"]
-modulate = Color(0.55, 1, 0.5, 1)
-position = Vector2(16, 0)
-texture = ExtResource("2_dot")
-centered = false
-hframes = 2
-
-[node name="Name" type="Label" parent="HUDElements/SecRow"]
-offset_left = 32.0
-theme_override_colors/font_color = Color(0.55, 1, 0.5, 1)
-text = "—"
-
-[node name="Ammo" type="Label" parent="HUDElements/SecRow"]
-offset_left = 96.0
-theme_override_colors/font_color = Color(0.55, 1, 0.5, 1)
-
-[node name="SupRow" type="Node2D" parent="HUDElements"]
-position = Vector2(360, 48)
-
-[node name="Key" type="Label" parent="HUDElements/SupRow"]
-theme_override_colors/font_color = Color(1, 1, 1, 0.5)
-text = "[X]"
-
-[node name="Light" type="Sprite2D" parent="HUDElements/SupRow"]
-modulate = Color(0.55, 1, 0.5, 1)
-position = Vector2(16, 0)
-texture = ExtResource("2_dot")
-centered = false
-hframes = 2
-
-[node name="Name" type="Label" parent="HUDElements/SupRow"]
-offset_left = 32.0
-theme_override_colors/font_color = Color(0.55, 1, 0.5, 1)
-text = "—"
-
-[node name="Ammo" type="Label" parent="HUDElements/SupRow"]
-offset_left = 96.0
-theme_override_colors/font_color = Color(0.55, 1, 0.5, 1)
+[node name="WaveStatus" parent="HUDElements" instance=ExtResource("10_wave")]
+position = Vector2(386, 81)
 
 [node name="BountyLabel" type="Label" parent="HUDElements"]
 offset_left = 392.0

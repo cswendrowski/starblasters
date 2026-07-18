@@ -1,12 +1,25 @@
 [gd_scene format=3 uid="uid://du46hxj60cn0t"]
 
 [ext_resource type="Texture2D" uid="uid://c0ktvm6qm150h" path="res://graphics/ui/hud_dot_light.png" id="1_22k8l"]
+[ext_resource type="Script" uid="uid://dmlnjgs0lfkng" path="res://scripts/hud/hud_weapon_status.gd" id="1_script"]
+[ext_resource type="Theme" uid="uid://dlmd6488u5dva" path="res://resources/ui/starblaster_theme.tres" id="2_abk7c"]
 
 [node name="WeaponStatus" type="Node2D" unique_id=1239750159]
+script = ExtResource("1_script")
+
+[node name="Armaments" type="Label" parent="." unique_id=356169320]
+offset_left = -16.0
+offset_top = -14.0
+offset_right = 119.0
+offset_bottom = 9.0
+theme = ExtResource("2_abk7c")
+theme_override_font_sizes/font_size = 7
+text = "Armaments"
 
 [node name="Blaster" type="Node2D" parent="." unique_id=1690056824]
 
 [node name="weapon_light" type="Sprite2D" parent="Blaster" unique_id=361885291]
+modulate = Color(0.55, 1, 0.5, 1)
 texture = ExtResource("1_22k8l")
 hframes = 2
 
@@ -15,7 +28,8 @@ offset_left = 8.0
 offset_top = -5.0
 offset_right = 143.0
 offset_bottom = 18.0
-theme_override_font_sizes/font_size = 8
+theme = ExtResource("2_abk7c")
+theme_override_font_sizes/font_size = 7
 text = "label"
 
 [node name="weapon_ammo" type="Label" parent="Blaster" unique_id=2127956833]
@@ -23,7 +37,8 @@ offset_left = 53.0
 offset_top = -5.0
 offset_right = 188.0
 offset_bottom = 18.0
-theme_override_font_sizes/font_size = 8
+theme = ExtResource("2_abk7c")
+theme_override_font_sizes/font_size = 7
 text = "label"
 
 [node name="weapon_key" type="Label" parent="Blaster" unique_id=1959091115]
@@ -31,13 +46,15 @@ offset_left = -16.0
 offset_top = -5.0
 offset_right = 119.0
 offset_bottom = 18.0
-theme_override_font_sizes/font_size = 8
+theme = ExtResource("2_abk7c")
+theme_override_font_sizes/font_size = 7
 text = "[?]"
 
 [node name="Primary" type="Node2D" parent="." unique_id=211482058]
 position = Vector2(0, 10)
 
 [node name="weapon_light" type="Sprite2D" parent="Primary" unique_id=1676896674]
+modulate = Color(0.55, 1, 0.5, 1)
 texture = ExtResource("1_22k8l")
 hframes = 2
 
@@ -46,7 +63,8 @@ offset_left = 8.0
 offset_top = -5.0
 offset_right = 143.0
 offset_bottom = 18.0
-theme_override_font_sizes/font_size = 8
+theme = ExtResource("2_abk7c")
+theme_override_font_sizes/font_size = 7
 text = "label"
 
 [node name="weapon_ammo" type="Label" parent="Primary" unique_id=160046777]
@@ -54,7 +72,8 @@ offset_left = 53.0
 offset_top = -5.0
 offset_right = 188.0
 offset_bottom = 18.0
-theme_override_font_sizes/font_size = 8
+theme = ExtResource("2_abk7c")
+theme_override_font_sizes/font_size = 7
 text = "label"
 
 [node name="weapon_key" type="Label" parent="Primary" unique_id=1733279267]
@@ -62,13 +81,15 @@ offset_left = -16.0
 offset_top = -5.0
 offset_right = 119.0
 offset_bottom = 18.0
-theme_override_font_sizes/font_size = 8
+theme = ExtResource("2_abk7c")
+theme_override_font_sizes/font_size = 7
 text = "[?]"
 
 [node name="Secondary" type="Node2D" parent="." unique_id=1118411883]
 position = Vector2(0, 20)
 
 [node name="weapon_light" type="Sprite2D" parent="Secondary" unique_id=680165502]
+modulate = Color(0.55, 1, 0.5, 1)
 texture = ExtResource("1_22k8l")
 hframes = 2
 
@@ -77,7 +98,8 @@ offset_left = 8.0
 offset_top = -5.0
 offset_right = 143.0
 offset_bottom = 18.0
-theme_override_font_sizes/font_size = 8
+theme = ExtResource("2_abk7c")
+theme_override_font_sizes/font_size = 7
 text = "label"
 
 [node name="weapon_ammo" type="Label" parent="Secondary" unique_id=934083613]
@@ -85,7 +107,8 @@ offset_left = 53.0
 offset_top = -5.0
 offset_right = 188.0
 offset_bottom = 18.0
-theme_override_font_sizes/font_size = 8
+theme = ExtResource("2_abk7c")
+theme_override_font_sizes/font_size = 7
 text = "label"
 
 [node name="weapon_key" type="Label" parent="Secondary" unique_id=594362250]
@@ -93,13 +116,15 @@ offset_left = -16.0
 offset_top = -5.0
 offset_right = 119.0
 offset_bottom = 18.0
-theme_override_font_sizes/font_size = 8
+theme = ExtResource("2_abk7c")
+theme_override_font_sizes/font_size = 7
 text = "[?]"
 
 [node name="Super" type="Node2D" parent="." unique_id=1186744758]
 position = Vector2(0, 30)
 
 [node name="weapon_light" type="Sprite2D" parent="Super" unique_id=1626760081]
+modulate = Color(0.55, 1, 0.5, 1)
 texture = ExtResource("1_22k8l")
 hframes = 2
 
@@ -108,7 +133,8 @@ offset_left = 8.0
 offset_top = -5.0
 offset_right = 143.0
 offset_bottom = 18.0
-theme_override_font_sizes/font_size = 8
+theme = ExtResource("2_abk7c")
+theme_override_font_sizes/font_size = 7
 text = "label"
 
 [node name="weapon_ammo" type="Label" parent="Super" unique_id=1838449406]
@@ -116,7 +142,8 @@ offset_left = 53.0
 offset_top = -5.0
 offset_right = 188.0
 offset_bottom = 18.0
-theme_override_font_sizes/font_size = 8
+theme = ExtResource("2_abk7c")
+theme_override_font_sizes/font_size = 7
 text = "label"
 
 [node name="weapon_key" type="Label" parent="Super" unique_id=2042596482]
@@ -124,5 +151,6 @@ offset_left = -16.0
 offset_top = -5.0
 offset_right = 119.0
 offset_bottom = 18.0
-theme_override_font_sizes/font_size = 8
+theme = ExtResource("2_abk7c")
+theme_override_font_sizes/font_size = 7
 text = "[?]"

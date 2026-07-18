@@ -1,0 +1,77 @@
+[gd_scene format=3 uid="uid://b8pxnx2vcdepb"]
+
+[ext_resource type="Texture2D" uid="uid://c0ktvm6qm150h" path="res://graphics/ui/hud_dot_light.png" id="1_8iryn"]
+[ext_resource type="Script" uid="uid://bb64x3lv3nrgf" path="res://scripts/hud/hud_mode_status.gd" id="1_script"]
+[ext_resource type="Theme" uid="uid://dlmd6488u5dva" path="res://resources/ui/starblaster_theme.tres" id="2_71tn3"]
+[ext_resource type="Texture2D" uid="uid://cj4eqne1b3dpv" path="res://graphics/ui/bar_background.png" id="2_fxv2w"]
+[ext_resource type="Texture2D" uid="uid://87y1mtphk6e8" path="res://graphics/ui/bar_foreground_white.png" id="3_ug5sa"]
+
+[node name="ModeStatus" type="Node2D" unique_id=1239750159]
+script = ExtResource("1_script")
+
+[node name="ModeLabel" type="Label" parent="." unique_id=1959091115]
+offset_left = -8.0
+offset_top = -9.0
+offset_right = 127.0
+offset_bottom = 14.0
+theme = ExtResource("2_71tn3")
+theme_override_font_sizes/font_size = 7
+text = "label"
+
+[node name="light1" type="Sprite2D" parent="." unique_id=1626760081]
+modulate = Color(0.7, 0.45, 1, 0.9)
+position = Vector2(-4, 4)
+texture = ExtResource("1_8iryn")
+hframes = 2
+
+[node name="light2" type="Sprite2D" parent="." unique_id=799839131]
+modulate = Color(0.7, 0.45, 1, 0.9)
+position = Vector2(5, 4)
+texture = ExtResource("1_8iryn")
+hframes = 2
+
+[node name="light3" type="Sprite2D" parent="." unique_id=538669418]
+modulate = Color(0.7, 0.45, 1, 0.9)
+position = Vector2(14, 4)
+texture = ExtResource("1_8iryn")
+hframes = 2
+
+[node name="light4" type="Sprite2D" parent="." unique_id=392765701]
+modulate = Color(0.7, 0.45, 1, 0.9)
+position = Vector2(23, 4)
+texture = ExtResource("1_8iryn")
+hframes = 2
+
+[node name="light5" type="Sprite2D" parent="." unique_id=478226241]
+modulate = Color(0.7, 0.45, 1, 0.9)
+position = Vector2(32, 4)
+texture = ExtResource("1_8iryn")
+hframes = 2
+
+[node name="light6" type="Sprite2D" parent="." unique_id=2120736909]
+modulate = Color(0.7, 0.45, 1, 0.9)
+position = Vector2(41, 4)
+texture = ExtResource("1_8iryn")
+hframes = 2
+
+[node name="light7" type="Sprite2D" parent="." unique_id=1180860149]
+modulate = Color(0.7, 0.45, 1, 0.9)
+position = Vector2(50, 4)
+texture = ExtResource("1_8iryn")
+hframes = 2
+
+[node name="TimerBar" type="TextureProgressBar" parent="." unique_id=2119871490]
+offset_left = -8.0
+offset_top = 7.0
+offset_right = 54.0
+offset_bottom = 23.0
+mouse_filter = 2
+max_value = 1.0
+step = 0.0
+nine_patch_stretch = true
+stretch_margin_left = 2
+stretch_margin_right = 2
+texture_under = ExtResource("2_fxv2w")
+texture_progress = ExtResource("3_ug5sa")
+tint_under = Color(0.4952249, 0.31949997, 0.71, 1)
+tint_progress = Color(0.7, 0.45, 1, 0.9)

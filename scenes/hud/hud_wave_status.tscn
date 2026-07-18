@@ -1,48 +1,61 @@
 [gd_scene format=3 uid="uid://c2b5bnui18lh3"]
 
 [ext_resource type="Texture2D" uid="uid://c0ktvm6qm150h" path="res://graphics/ui/hud_dot_light.png" id="1_2rdut"]
+[ext_resource type="Script" uid="uid://tbaqept174be" path="res://scripts/hud/hud_wave_status.gd" id="1_script"]
+[ext_resource type="Theme" uid="uid://dlmd6488u5dva" path="res://resources/ui/starblaster_theme.tres" id="2_0rooh"]
 
 [node name="WaveStatus" type="Node2D" unique_id=1239750159]
+script = ExtResource("1_script")
 
 [node name="Label" type="Label" parent="." unique_id=1959091115]
 offset_left = -10.0
 offset_top = -9.0
 offset_right = 125.0
 offset_bottom = 14.0
-theme_override_font_sizes/font_size = 8
+theme = ExtResource("2_0rooh")
+theme_override_font_sizes/font_size = 7
 text = "THREAT"
 
-[node name="light1" type="Sprite2D" parent="." unique_id=1626760081]
+[node name="Node2D" type="Node2D" parent="." unique_id=594155142]
+
+[node name="light1" type="Sprite2D" parent="Node2D" unique_id=1626760081]
+modulate = Color(1, 0.65, 0.1, 1)
 position = Vector2(-4, 4)
 texture = ExtResource("1_2rdut")
 hframes = 2
 
-[node name="light2" type="Sprite2D" parent="." unique_id=799839131]
+[node name="light2" type="Sprite2D" parent="Node2D" unique_id=799839131]
+modulate = Color(1, 0.65, 0.1, 1)
 position = Vector2(4, 10)
 texture = ExtResource("1_2rdut")
 hframes = 2
 
-[node name="light3" type="Sprite2D" parent="." unique_id=538669418]
+[node name="light3" type="Sprite2D" parent="Node2D" unique_id=538669418]
+modulate = Color(1, 0.65, 0.1, 1)
 position = Vector2(-4, 16)
 texture = ExtResource("1_2rdut")
 hframes = 2
 
-[node name="light4" type="Sprite2D" parent="." unique_id=392765701]
+[node name="light4" type="Sprite2D" parent="Node2D" unique_id=392765701]
+modulate = Color(1, 0.65, 0.1, 1)
 position = Vector2(4, 22)
 texture = ExtResource("1_2rdut")
 hframes = 2
 
-[node name="light5" type="Sprite2D" parent="." unique_id=478226241]
+[node name="light5" type="Sprite2D" parent="Node2D" unique_id=478226241]
+modulate = Color(1, 0.65, 0.1, 1)
 position = Vector2(-4, 28)
 texture = ExtResource("1_2rdut")
 hframes = 2
 
-[node name="light6" type="Sprite2D" parent="." unique_id=1550724352]
+[node name="light6" type="Sprite2D" parent="Node2D" unique_id=1550724352]
+modulate = Color(1, 0.65, 0.1, 1)
 position = Vector2(4, 34)
 texture = ExtResource("1_2rdut")
 hframes = 2
 
-[node name="light7" type="Sprite2D" parent="." unique_id=2137057686]
+[node name="light7" type="Sprite2D" parent="Node2D" unique_id=2137057686]
+modulate = Color(1, 0.65, 0.1, 1)
 position = Vector2(-4, 40)
 texture = ExtResource("1_2rdut")
 hframes = 2

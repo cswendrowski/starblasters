@@ -183,6 +183,9 @@ func _install_live_preview() -> bool:
 	_hud_root = inst
 
 	_mock_player = MockPlayer.new()
+	# The decomposed HUD widgets (2026-07-15) self-bind to the first node in
+	# the "player" group — group the mock so they pick it up in the preview.
+	_mock_player.add_to_group("player")
 	add_child(_mock_player)
 	# bind_player wires hull/shield/ammo signals + seeds initial values.
 	if _hud_root.has_method("bind_player"):
