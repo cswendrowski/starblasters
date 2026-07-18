@@ -12,7 +12,7 @@ script = ExtResource("2_oojht")
 mode = 1
 
 [sub_resource type="RectangleShape2D" id="Hit"]
-size = Vector2(16, 16)
+size = Vector2(12, 12)
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_7tk4g"]
 shader = ExtResource("5_2thp4")

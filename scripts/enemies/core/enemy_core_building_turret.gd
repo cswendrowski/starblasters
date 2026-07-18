@@ -19,6 +19,10 @@ const RosterC = preload("res://scripts/levels/enemy_roster.gd")
 const FactionsC = preload("res://scripts/levels/factions.gd")
 const BulletWorldC = preload("res://scripts/systems/bullet_world.gd")
 
+# Ground plane: structures sort BELOW the z-0 actor/bullet canvas so enemy bullets + ships always render
+# over them. Matches asteroid_stronghold.GROUND_Z — keep the two in sync (pinned absolutely in _ready).
+const GROUND_Z := -5
+
 ## Whether the PLAYER takes contact damage from / rams this structure. Structures default to FALSE — the
 ## ship flies THROUGH them (they stay shootable, they're just not rammers). Set true per-scene to opt in.
 ## Read player-side in player._on_area_entered.
@@ -32,6 +36,13 @@ func _ready() -> void:
 	# styled/wreck death is skipped (explode() below is fully overridden anyway). Set before super._ready
 	# so the vfx gating reads it.
 	has_ship_vfx = false
+	# Ground z (Roman 2026-07-17): structures are GROUND — pin the whole building BELOW the z-0 actor/bullet
+	# plane so enemy bullets (and ships) always render OVER the roofs (readability). Pin ABSOLUTELY
+	# (z_as_relative=false) so a STANDALONE building (director/bench spawn — its root would sit at z 0, with
+	# barrel/roof frames floating to +1 and eating the turret's own shots) matches one riding a STRONGHOLD
+	# (root already at GROUND_Z): both land the base at -5 and overlay frames at -4, all under the bullets.
+	z_as_relative = false
+	z_index = GROUND_Z
 	# Never recycle (Roman 2026-07-13): a ground structure that drifts off-screen must despawn, not fly
 	# back through the parallax. recycle_passes == 0 makes RecycleController._leave() instead of cycling.
 	recycle_passes = 0
@@ -101,9 +112,10 @@ func explode() -> void:
 	# emplacement gets NO styled spin-out / drifting wreck.
 	var fx: Node = _fx_parent()
 	var heft: float = maxf(display_scale, _structure_heft())
-	var scn: PackedScene = ExplosionFxC.scene_for(explosion_variant)
-	var blasts: int = clampi(int(round(heft * 1.4)), 2, 6)
-	ExplosionFxC.burst(at, blasts, 12.0 * maxf(1.0, heft * 0.6), 0.06, fx, scn)
+	# Per-building tuned death explosion (Shader Lab "Building Boom" → BuildingBoom.CONFIG) — sparks + embers.
+	# display_scale scales it up for a director-scaled (huge) spawn. Replaces the old generic size-scaled burst.
+	BuildingBoom.play(scene_file_path, at, fx, display_scale)
+	# Scattered debris.png chunk pieces on top of the sparks + embers (Roman 2026-07-17).
 	EnemyDeathFxC.spawn_debris(fx, at, heft)
 	# Swap in the destroyed look, then become an inert drifting husk. Subclasses override _show_destroyed_look
 	# for a different look (composed_building.gd overlays damage decals on a SURVIVING building instead).

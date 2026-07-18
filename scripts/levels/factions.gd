@@ -85,6 +85,9 @@ const ENEMY_TAGS := {
 	"res://scenes/enemies/ground/building_cross_tank.tscn": {"home": Id.SUPREMACY, "universal": true},
 	"res://scenes/enemies/ground/enemy_square_turret_wave.tscn": {"home": Id.SUPREMACY, "universal": true},
 	"res://scenes/enemies/ground/building_square_landing_pad.tscn": {"home": Id.SUPREMACY, "universal": true},
+	"res://scenes/enemies/ground/enemy_bunker_turret.tscn": {"home": Id.SUPREMACY, "universal": true},
+	"res://scenes/enemies/ground/building_hangar.tscn": {"home": Id.SUPREMACY, "universal": true},
+	"res://scenes/enemies/ground/building_bunker_square_glass.tscn": {"home": Id.SUPREMACY, "universal": true},
 	"res://scenes/enemies/core/enemy_core_m_minelayer.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.SUPREMACY, Id.PRIVATEER, Id.CORPORATE]},  # core minelayer (Zealot gets its own later)
 	"res://scenes/enemies/factions/privateer/enemy_core_s_falchion.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.PRIVATEER]},  # core Falchion (was Hornet/p_s_green), privateer-only for now
 	"res://scenes/enemies/core/enemy_core_s_cobra.tscn": {"home": Id.PRIVATEER, "universal": true, "allowed_in": [Id.CORPORATE, Id.PRIVATEER]},  # CF-9D Cobra core (corpo twin enemy_c_s_gray cut)

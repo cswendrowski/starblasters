@@ -23,7 +23,7 @@ const GlowFx = preload("res://scripts/effects/glow_fx.gd")
 const OutlineFx = preload("res://scripts/effects/outline_fx.gd")
 const ExplosionFx = preload("res://scripts/effects/explosion_fx.gd")
 const ShipDebrisEmber = preload("res://scripts/effects/ship_debris_ember.gd")
-const BURNING_TRAIL = preload("res://scenes/effects/burning_trail.tscn")
+const BURNING_TRAIL = preload("res://scenes/effects/burning_trail_small.tscn")
 const SPARK_TRAIL = preload("res://scenes/effects/spark_trail.tscn")
 const ShipDamageTells = preload("res://scripts/effects/ship_damage_tells.gd")
 const DeathEffectsScript = preload("res://scripts/effects/death_effects.gd")
@@ -111,7 +111,7 @@ const GLOW_DEMO_TEX := {
 	"engines": "res://graphics/enemies/enemy_core_cobra.png",
 	"explosions": "res://graphics/effects/explosion_small_circle.png",
 }
-const MODES := ["Embers", "Smoke", "Glow", "Bloom Env", "Modes", "Damage", "Disintegrate", "Explosions", "Expl. Tuner", "Ship Dmg", "Damage Smoke", "Building Shadow", "Enemy Shields", "Death", "Nebula", "Asteroids", "Firecore Glow", "Star Glow", "Gallery"]
+const MODES := ["Embers", "Smoke", "Glow", "Bloom Env", "Modes", "Damage", "Disintegrate", "Explosions", "Expl. Tuner", "Ship Dmg", "Damage Smoke", "Building Shadow", "Building Boom", "Enemy Shields", "Death", "Nebula", "Asteroids", "Firecore Glow", "Star Glow", "Gallery"]
 
 const EMBER_VARIANTS := ["normal", "inverted", "smoke"]
 
@@ -465,6 +465,15 @@ var _bshadow_idx: int = 0                      # selected building index
 var _bshadow_tint: Color = Color(0.0, 0.0, 0.0, 0.8)  # shadow tint (persist)
 var _bshadow_heights: Dictionary = {}          # scene_path -> {layer_name -> float}
 
+# Building Boom tab.
+var _bboom_building: Node2D = null             # the instantiated building scene
+var _bboom_wrap: Node2D = null                 # the 4× zoom wrapper
+var _bboom_idx: int = 0                        # selected building index (persist)
+var _bboom_cfg: Dictionary = {}                # scene_path -> cfg dict (persist)
+var _bboom_knob_box: VBoxContainer = null      # sub-box for explosion knobs
+var _bboom_auto: bool = true
+var _bboom_acc: float = 0.0
+
 # Death-effects tab.
 var _death_ship: Node2D = null        # the live dummy flying down the middle, awaiting a death
 var _death_ship_vel: Vector2 = Vector2.ZERO  # its downward travel (handed to the death as the glide)
@@ -539,7 +548,8 @@ func _build_playspace() -> void:
 	_preview_vp.size = Vector2i(480, 270)   # honored now (stretch_shrink=4)
 	_preview_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_preview_vp.handle_input_locally = false
-	_preview_vp.use_hdr_2d = true  # screen_glow + bloom-env modes need HDR
+	HdScreen.apply_native_parity(_preview_vp)
+	HdScreen.verify_native_subviewport.call_deferred(_preview_vp, "shader_lab")
 	sub_container.add_child(_preview_vp)
 
 	# Content lives at NATIVE 480 coords directly in the viewport (no 4× node). Background fills sit
@@ -694,6 +704,11 @@ func _set_mode(idx: int) -> void:
 	_bshadow_pairs.clear()
 	_bshadow_knob_box = null
 	_bshadow_ground = null
+	# Building boom — building + wrap live in _stage; cfg + idx + auto PERSIST.
+	_bboom_building = null
+	_bboom_wrap = null
+	_bboom_knob_box = null
+	_bboom_acc = 0.0
 	# Death dummy + controller live in _stage, freed above; just drop the refs.
 	_death_ship = null
 	_death_fx = null
@@ -736,6 +751,8 @@ func _set_mode(idx: int) -> void:
 			_enter_damage_smoke()
 		"Building Shadow":
 			_enter_building_shadow()
+		"Building Boom":
+			_enter_building_boom()
 		"Enemy Shields":
 			_enter_enemy_shields()
 		"Death":
@@ -1113,7 +1130,7 @@ func _enter_explosions() -> void:
 	_build_knobs("Explosions")
 	_knob_box.add_child(HSeparator.new())
 	_knob_box.add_child(_label("Burning Trail (particle effect)", FS_BODY, UiTheme.COLOR_ACCENT))
-	_knob_box.add_child(_label("scenes/effects/burning_trail.tscn — GPUParticles2D\nthat plays the explosion strip per puff (fire →\nsmoke), spins + grows. Drifts down so the trail\nreads (local_coords forced off for the preview).", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_knob_box.add_child(_label("scenes/effects/burning_trail_small.tscn — GPUParticles2D\nthat plays the small-fireball strip per puff (fire →\nsmoke), spins + grows. Drifts down so the trail\nreads (local_coords forced off for the preview).", FS_CAPTION, UiTheme.COLOR_FAINT))
 	_add_action("Burning Trail", func(): _fire_burning_trail(false))
 	_add_action("Burning Trail + Sparks", func(): _fire_burning_trail(true))
 	var auto := CheckButton.new()
@@ -1160,7 +1177,7 @@ func _fire_ember_debris(pos: Vector2) -> void:
 		})
 
 
-# Drift a few burning_trail.tscn particle emitters down across the playfield so the trail reads.
+# Drift a few burning_trail_small.tscn particle emitters down across the playfield so the trail reads.
 # with_sparks adds a spark_trail.tscn on each emitter (the "burning trail + sparks" variant).
 func _fire_burning_trail(with_sparks: bool) -> void:
 	for i in 3:
@@ -1210,7 +1227,7 @@ func _enter_expl_tuner() -> void:
 	type_dd.add_theme_font_override("font", UiTheme.active_font())
 	type_dd.add_theme_font_size_override("font_size", FS_BODY)
 	type_dd.custom_minimum_size = Vector2(0, 34)
-	var et_types := ["basic", "ball", "mixed"]
+	var et_types := ["basic", "ball", "fireball", "mixed"]
 	for tn in et_types:
 		type_dd.add_item(tn)
 	type_dd.select(maxi(0, et_types.find(_et_type)))
@@ -1307,16 +1324,17 @@ func _enter_ship_dmg() -> void:
 func _init_sd_dmg_vals() -> void:
 	if not _sd_dmg_vals.is_empty():
 		return
+	# Seed each size from the LIVE damage-tell presets — ship_damage_tells.SIZE_PRESETS is the SSOT the
+	# game applies at spawn (cfg_for_size), so the tuner always opens at the current live configuration
+	# rather than a hand-copied baseline that drifts (Roman 2026-07-15). Any schema knob the preset
+	# doesn't carry falls back to its schema default.
 	for sz in SD_SIZES:
+		var preset: Dictionary = ShipDamageTells.SIZE_PRESETS.get(sz, {})
 		var d := {}
 		for def in SD_DMG_SCHEMA:
-			d[String(def["key"])] = float(def["def"])
+			var key := String(def["key"])
+			d[key] = float(preset.get(key, def["def"]))
 		_sd_dmg_vals[sz] = d
-	# Differentiated per-size baselines so the suite visibly shifts out of the box (small = subtler,
-	# large = more dramatic). These are just starting points — tune each from here.
-	_sd_dmg_vals["small"].merge({"spark_amount": 30.0, "expl_size": 0.8, "expl_density": 1.0, "expl_shockwave": 0.6, "debris": 0.7, "burn_trails": 1.0}, true)
-	_sd_dmg_vals["medium"].merge({"burn_trails": 2.0}, true)
-	_sd_dmg_vals["large"].merge({"spark_amount": 90.0, "expl_size": 1.3, "expl_density": 1.4, "expl_shockwave": 1.5, "debris": 1.4, "burn_trails": 3.0}, true)
 
 
 func _rebuild_sd_dmg_knobs() -> void:
@@ -2639,6 +2657,15 @@ func _spawn_building_shadow(path: String) -> void:
 	wrap.add_child(building)
 	_stage.add_child(wrap)
 	_bshadow_building = building
+	# The building's _ready applies PRODUCTION setup that fights this isolated tuner: a ground z (-5 absolute,
+	# which shoves the lab's shadows to -7 BEHIND the grey ground plane at -6) + its own auto-attached
+	# shadows (whose raised-layer carriers collide with the ground plane as stray grey boxes). Reset z to
+	# neutral so the ground plane sits UNDER the lab shadows, and strip the auto-attached ones so only the
+	# lab's LIVE-tunable shadows show (Roman 2026-07-17).
+	building.z_as_relative = true
+	building.z_index = 0
+	for existing in building.find_children("Shadow_*", "ColorRect", true, false):
+		existing.free()
 	var layers = load("res://scripts/effects/building_shadow.gd").casting_layers(building)
 	if not _bshadow_heights.has(path):
 		_bshadow_heights[path] = {}
@@ -2711,6 +2738,162 @@ func _bshadow_idx_to_path() -> String:
 	if _bshadow_idx < 0 or _bshadow_idx >= paths.size():
 		return String(paths[0])
 	return String(paths[_bshadow_idx])
+
+
+# ---- Building Boom tuner (death explosion per building) ----------------------
+
+func _enter_building_boom() -> void:
+	_knob_box.add_child(_label("Building Destruction", FS_BODY, UiTheme.COLOR_ACCENT))
+	_knob_box.add_child(_label("Configure each building's DEATH explosion. Pick a building,\ntune its boom, Beat to preview. Same knobs as Expl. Tuner,\nstored per building.", FS_CAPTION, UiTheme.COLOR_FAINT))
+	_hd_note("BUILDING BOOM", Vector2(Playfield.CENTER.x - 50.0, 56.0))
+	# Building selector.
+	_knob_box.add_child(_label("Building", FS_CAPTION, UiTheme.COLOR_FAINT))
+	var dd := OptionButton.new()
+	dd.add_theme_font_override("font", UiTheme.active_font())
+	dd.add_theme_font_size_override("font_size", FS_BODY)
+	dd.custom_minimum_size = Vector2(0, 34)
+	var paths: Array = _bshadow_buildings()
+	for path in paths:
+		dd.add_item(path.get_file().replace(".tscn", "").replace("building_", "").replace("enemy_", ""))
+	_bboom_idx = clampi(_bboom_idx, 0, maxi(0, paths.size() - 1))
+	dd.select(_bboom_idx)
+	dd.item_selected.connect(func(i: int):
+		_bboom_idx = i
+		_spawn_bboom_building(_bshadow_buildings()[i]))
+	_knob_box.add_child(dd)
+	# Beat button.
+	_add_action("💥 Beat Building", _beat_building)
+	# Auto-replay checkbox.
+	var auto := CheckButton.new()
+	auto.text = "Auto-replay loop"
+	auto.button_pressed = _bboom_auto
+	auto.add_theme_font_override("font", UiTheme.active_font())
+	auto.add_theme_font_size_override("font_size", FS_BODY)
+	auto.toggled.connect(func(v: bool): _bboom_auto = v)
+	_knob_box.add_child(auto)
+	# Per-building knob rail (built by _spawn_bboom_building).
+	_knob_box.add_child(HSeparator.new())
+	_knob_box.add_child(_label("Explosion Config", FS_BODY, UiTheme.COLOR_ACCENT))
+	_bboom_knob_box = VBoxContainer.new()
+	_bboom_knob_box.add_theme_constant_override("separation", 6)
+	_knob_box.add_child(_bboom_knob_box)
+	_spawn_bboom_building(_bshadow_buildings()[_bboom_idx])
+
+
+func _spawn_bboom_building(path: String) -> void:
+	if _bboom_building != null and is_instance_valid(_bboom_building):
+		_bboom_building.queue_free()
+	_bboom_building = null
+	if _bboom_wrap != null and is_instance_valid(_bboom_wrap):
+		_bboom_wrap.queue_free()
+	_bboom_wrap = null
+	if _bboom_knob_box != null and is_instance_valid(_bboom_knob_box):
+		for c in _bboom_knob_box.get_children():
+			c.queue_free()
+	var scn: PackedScene = load(path)
+	if scn == null:
+		return
+	var building: Node2D = scn.instantiate()
+	_freeze_node(building)
+	if building.is_in_group("enemies"):
+		building.remove_from_group("enemies")
+	# Gameplay size (1×, no zoom) — the building reads at the same scale it appears in combat (Roman 2026-07-16).
+	var wrap := Node2D.new()
+	wrap.position = Vector2(Playfield.CENTER.x, 135.0)
+	wrap.add_child(building)
+	_stage.add_child(wrap)
+	_bboom_building = building
+	_bboom_wrap = wrap
+	# Init config if absent.
+	if not _bboom_cfg.has(path):
+		_bboom_cfg[path] = {
+			"type": "basic",
+			"size": 1.5,
+			"area": 16.0,
+			"duration": 0.07,
+			"density": 3.0,
+			"stagger": 0.06,
+			"secondaries": 1.0,
+			"glow": 0.9,
+			"shockwave": 0.0,
+			"sparks": 1.0,
+			"debris": 1.0,
+		}
+	_rebuild_bboom_knobs(path)
+
+
+func _rebuild_bboom_knobs(path: String) -> void:
+	if _bboom_knob_box == null or not is_instance_valid(_bboom_knob_box):
+		return
+	for c in _bboom_knob_box.get_children():
+		c.queue_free()
+	var cfg: Dictionary = _bboom_cfg[path]
+	# Type dropdown.
+	_bboom_knob_box.add_child(_label("Type", FS_CAPTION, UiTheme.COLOR_FAINT))
+	var type_dd := OptionButton.new()
+	type_dd.add_theme_font_override("font", UiTheme.active_font())
+	type_dd.add_theme_font_size_override("font_size", FS_BODY)
+	type_dd.custom_minimum_size = Vector2(0, 34)
+	for t in ["basic", "ball", "fireball", "mixed"]:
+		type_dd.add_item(String(t))
+	type_dd.select(maxi(0, ["basic", "ball", "fireball", "mixed"].find(cfg["type"])))
+	type_dd.item_selected.connect(func(i: int):
+		cfg["type"] = ["basic", "ball", "fireball", "mixed"][i])
+	_bboom_knob_box.add_child(type_dd)
+	# Explosion knobs (from Expl. Tuner KNOBS).
+	var knob_defs := [
+		{"key": "size", "label": "Size", "min": 0.2, "max": 5.0, "step": 0.05},
+		{"key": "area", "label": "Area", "min": 0.0, "max": 80.0, "step": 1.0},
+		{"key": "duration", "label": "Duration", "min": 0.02, "max": 0.2, "step": 0.005},
+		{"key": "density", "label": "Density", "min": 1.0, "max": 12.0, "step": 1.0},
+		{"key": "stagger", "label": "Stagger", "min": 0.0, "max": 0.4, "step": 0.01},
+		{"key": "secondaries", "label": "Secondaries", "min": 0.0, "max": 4.0, "step": 0.25},
+		{"key": "glow", "label": "Glow", "min": 0.0, "max": 3.0, "step": 0.1},
+		{"key": "shockwave", "label": "Shockwave", "min": 0.0, "max": 3.0, "step": 0.1},
+		{"key": "sparks", "label": "Sparks", "min": 0.0, "max": 3.0, "step": 0.1},
+		{"key": "debris", "label": "Debris", "min": 0.0, "max": 3.0, "step": 0.1},
+	]
+	for def in knob_defs:
+		var key := String(def["key"])
+		var val := float(cfg.get(key, def.get("def", 0.0)))
+		var row_lbl := _label("%s: %s" % [def["label"], _fmt(val, float(def["step"]))], FS_CAPTION, UiTheme.COLOR_FAINT)
+		_bboom_knob_box.add_child(row_lbl)
+		var sl := HSlider.new()
+		sl.min_value = float(def["min"])
+		sl.max_value = float(def["max"])
+		sl.step = float(def["step"])
+		sl.value = val
+		sl.custom_minimum_size = Vector2(0, 24)
+		sl.value_changed.connect(func(v: float):
+			cfg[key] = v
+			row_lbl.text = "%s: %s" % [def["label"], _fmt(v, float(def["step"]))])
+		_bboom_knob_box.add_child(sl)
+
+
+func _beat_building() -> void:
+	if _bboom_building == null or not is_instance_valid(_bboom_building):
+		return
+	if _bshadow_buildings().is_empty():
+		return
+	var cfg: Dictionary = _bboom_cfg.get(_bshadow_buildings()[_bboom_idx], {})
+	if cfg.is_empty():
+		return
+	# Parent the boom to _stage (at origin), NOT the wrap: play_config sets global_position BEFORE add_child,
+	# so under an offset/scaled parent the world pos blows up. _stage is at origin → the world pos resolves
+	# correctly (same as the Expl. Tuner). At 1× this matches the building's gameplay scale.
+	ExplosionFx.play_config(_bboom_building.global_position, cfg, _stage)
+	# Also scatter the debris.png chunks the real building death throws (EnemyDeathFx.spawn_debris), so the
+	# preview shows the FULL death — explosion (sparks + embers) + chunks (Roman 2026-07-17).
+	load("res://scripts/effects/enemy_death_fx.gd").spawn_debris(_stage, _bboom_building.global_position, 3.0)
+
+
+func _tick_building_boom(delta: float) -> void:
+	if not _bboom_auto:
+		return
+	_bboom_acc += delta
+	if _bboom_acc >= 2.0:
+		_bboom_acc = 0.0
+		_beat_building()
 
 
 # ---- Enemy Shields tab -----------------------------------------------------
@@ -3085,6 +3268,8 @@ func _process(delta: float) -> void:
 			_tick_ship_dmg(delta)
 		"Damage Smoke":
 			_tick_damage_smoke(delta)
+		"Building Boom":
+			_tick_building_boom(delta)
 		"Death":
 			_tick_death(delta)
 		"Nebula":
@@ -3360,10 +3545,9 @@ func _on_save() -> void:
 	for s in _ember_stops:
 		stops.append({"color": (s["color"] as Color).to_html(false), "offset": float(s["offset"])})
 	out["EmberGradient"] = stops
-	if not _sd_dmg_vals.is_empty():
-		out["ShipDmgSizes"] = _sd_dmg_vals
-	if not _death_vals.is_empty():
-		out["DeathStyles"] = _death_vals
+	# Ship Dmg + Death-style knobs are intentionally NOT persisted (Roman 2026-07-15) — they re-seed from
+	# the live SSOT (SIZE_PRESETS / STYLE_KNOBS) each session so the tuner can't drift from the game. Bake
+	# tunes back into those code tables via Copy GDScript instead of a save blob.
 	if not _esh_by_enemy.is_empty():
 		out["EnemyShieldFit"] = _esh_by_enemy
 	if not _bshadow_heights.is_empty():
@@ -3371,6 +3555,9 @@ func _on_save() -> void:
 	var bshadow_tint_html := (_bshadow_tint as Color).to_html(true)
 	out["BuildingShadowTint"] = bshadow_tint_html
 	out["BuildingShadowIdx"] = _bshadow_idx
+	if not _bboom_cfg.is_empty():
+		out["BuildingBoomCfg"] = _bboom_cfg
+	out["BuildingBoomIdx"] = _bboom_idx
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f != null:
 		f.store_string(JSON.stringify(out, "\t"))
@@ -3405,32 +3592,10 @@ func _load_saved() -> void:
 			_ember_stops.clear()
 			for s in stops:
 				_ember_stops.append({"color": Color(String(s["color"])), "offset": float(s["offset"])})
-		var sds: Dictionary = data.get("ShipDmgSizes", {})
-		if not sds.is_empty():
-			_sd_dmg_vals = {}
-			for sz in SD_SIZES:
-				var d := {}
-				for def in SD_DMG_SCHEMA:
-					var key := String(def["key"])
-					d[key] = float((sds.get(sz, {}) as Dictionary).get(key, def["def"]))
-				_sd_dmg_vals[sz] = d
-			var dss: Dictionary = data.get("DeathStyles", {})
-			if not dss.is_empty():
-				_death_vals = {}
-				for style in DeathEffectsScript.STYLES:
-					var dvd := {}
-					var saved_style: Dictionary = dss.get(style, {})
-					for def in DeathEffectsScript.STYLE_KNOBS.get(style, []):
-						var key2 := String(def["key"])
-						var sv = saved_style.get(key2, null)
-						if def.get("range", false):
-							if sv is Array and (sv as Array).size() == 2:
-								dvd[key2] = [float(sv[0]), float(sv[1])]
-							else:
-								dvd[key2] = (def["def"] as Array).duplicate()
-						else:
-							dvd[key2] = float(sv) if sv != null else float(def["def"])
-					_death_vals[style] = dvd
+		# Ship Dmg + Death-style knobs are NOT loaded from the save (Roman 2026-07-15): they always re-seed
+		# from the live SSOT — ship_damage_tells.SIZE_PRESETS (_init_sd_dmg_vals) and DeathEffects.STYLE_KNOBS
+		# (_init_death_vals) — so the tuner opens at the current live configuration and can't go stale from an
+		# old persisted blob. Tune from there; bake changes back into those tables via Copy GDScript.
 		var bsh: Dictionary = data.get("BuildingShadowHeights", {})
 		if not bsh.is_empty():
 			for path in bsh:
@@ -3444,6 +3609,20 @@ func _load_saved() -> void:
 		var bsi: Variant = data.get("BuildingShadowIdx", 0)
 		if bsi != null:
 			_bshadow_idx = int(bsi)
+		var bbc: Dictionary = data.get("BuildingBoomCfg", {})
+		if not bbc.is_empty():
+			for path in bbc:
+				var cfg: Dictionary = bbc[path]
+				var out_cfg: Dictionary = {}
+				for k in cfg:
+					if String(k) == "type":
+						out_cfg["type"] = String(cfg[k])
+					else:
+						out_cfg[String(k)] = float(cfg[k])
+				_bboom_cfg[String(path)] = out_cfg
+		var bbi: Variant = data.get("BuildingBoomIdx", 0)
+		if bbi != null:
+			_bboom_idx = int(bbi)
 
 
 func _on_copy() -> void:
@@ -3473,6 +3652,8 @@ func _on_copy() -> void:
 			txt = _snippet_damage_smoke()
 		"Building Shadow":
 			txt = _snippet_building_shadow()
+		"Building Boom":
+			txt = _snippet_building_boom()
 		"Death":
 			txt = _snippet_death()
 		"Nebula":
@@ -3632,6 +3813,29 @@ func _snippet_building_shadow() -> String:
 		t += "},\n"
 	t += "}\n"
 	t += "# Paste into BuildingShadow.DEFAULTS + per-building heights table.\n"
+	return t
+
+
+func _snippet_building_boom() -> String:
+	var t := "# Shader Lab — per-building death explosion config (ExplosionFx.play_config)\n"
+	t += "const BUILDING_BOOM_CFG := {\n"
+	for path in _bboom_cfg.keys():
+		var cfg: Dictionary = _bboom_cfg[path]
+		t += "\t\"%s\": {\n" % path.get_file().replace(".tscn", "")
+		t += "\t\t\"type\": \"%s\",\n" % cfg["type"]
+		t += "\t\t\"size\": %.2f,\n" % cfg["size"]
+		t += "\t\t\"area\": %.1f,\n" % cfg["area"]
+		t += "\t\t\"duration\": %.3f,\n" % cfg["duration"]
+		t += "\t\t\"density\": %.1f,\n" % cfg["density"]
+		t += "\t\t\"stagger\": %.3f,\n" % cfg["stagger"]
+		t += "\t\t\"secondaries\": %.2f,\n" % cfg["secondaries"]
+		t += "\t\t\"glow\": %.2f,\n" % cfg["glow"]
+		t += "\t\t\"shockwave\": %.2f,\n" % cfg["shockwave"]
+		t += "\t\t\"sparks\": %.2f,\n" % cfg["sparks"]
+		t += "\t\t\"debris\": %.2f,\n" % cfg["debris"]
+		t += "\t},\n"
+	t += "}\n"
+	t += "# Paste per-building into BuildingDestructible or building director spawn.\n"
 	return t
 
 

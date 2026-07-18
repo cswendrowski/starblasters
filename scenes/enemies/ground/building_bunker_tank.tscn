@@ -9,8 +9,8 @@
 script = ExtResource("2_2loa6")
 mode = 1
 
-[sub_resource type="RectangleShape2D" id="Hit"]
-size = Vector2(16, 16)
+[sub_resource type="CircleShape2D" id="CircleShape2D_q32en"]
+radius = 15.0
 
 [node name="Enemy" type="Area2D" unique_id=754549290 groups=["enemies"]]
 script = ExtResource("1_bwn8d")
@@ -19,7 +19,7 @@ auto_rotate = false
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1272048509]
 visible = false
-shape = SubResource("Hit")
+shape = SubResource("CircleShape2D_q32en")
 
 [node name="MoveTimer" type="Timer" parent="." unique_id=1704481542]
 one_shot = true
