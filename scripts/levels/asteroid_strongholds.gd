@@ -5,9 +5,10 @@ extends RefCounted
 #
 # Each entry:
 #   { "name": String,
+#     "role": "normal" | "miniboss" | "boss",   # boss/miniboss = set-piece encounters (stronghold_field.gd)
 #     "asteroid": { "seed": int, "size": float, "roundness": float, "dither": bool,
 #                   "tint": [r, g, b], "drift_speed": float },
-#     "buildings": [ { "type": <palette key>, "x": float, "y": float }, ... ] }
+#     "buildings": [ { "type": <palette key>, "x": float, "y": float, "rot": int }, ... ] }
 # Building type keys + scenes: scripts/enemies/stronghold_building_palette.gd (SCENES/TYPES).
 #
 # The reframed asteroid_field hazard consumes these at runtime via load_all() (below): the editor's

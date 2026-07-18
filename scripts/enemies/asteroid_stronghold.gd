@@ -29,9 +29,26 @@ const SHADOW_BAND := "near"
 @export var drift_speed: float = 40.0
 @export var damage_on_collide: int = 2
 
+# --- Boss/miniboss encounter (a prefab with role != "normal") ---
+signal locked_in()                          # emitted ONCE the base has drifted fully into view
+signal health_changed(cur: int, mx: int)    # aggregate structure HP, drives the boss health bar
+signal cleared()                            # all structures destroyed
+
+# Where an encounter locks: rock-CENTRE hold height as a fraction of screen height (size-independent so
+# even a 400px boss rock locks; matches the editor's 50%-height preview so authored buildings stay framed).
+const HOLD_FRAC := 0.45
+
 var _size: float = 120.0
 var _visual: Node = null
 var screensize: Vector2 = Vector2(480, 270)
+
+var _role: String = "normal"
+var _locked: bool = false
+var _drift_stashed: float = 0.0
+var _hp_max: int = 0
+var _bld_total: int = 0
+var _bld_dead: int = 0
+var _alive_hp: Dictionary = {}   # building node -> last-reported current hp
 
 
 func _ready() -> void:
@@ -47,6 +64,7 @@ func configure(prefab: Dictionary) -> void:
 	var ast: Dictionary = prefab.get("asteroid", {})
 	_size = float(ast.get("size", 120.0))
 	drift_speed = float(ast.get("drift_speed", drift_speed))
+	_role = String(prefab.get("role", "normal"))
 	# Rock visual, centered on this Area2D's origin.
 	_visual = build_rock_visual(self, ast)
 	move_child(_visual, 0)   # keep the rock behind the buildings
@@ -69,11 +87,22 @@ func configure(prefab: Dictionary) -> void:
 		if not (b is Dictionary):
 			continue
 		var t := String(b.get("type", ""))
-		if Palette.is_type(t):
-			Palette.spawn(t, holder, Vector2(float(b.get("x", 0.0)), float(b.get("y", 0.0))), float(b.get("rot", 0.0)))
+		if not Palette.is_type(t):
+			continue
+		var inst := Palette.spawn(t, holder, Vector2(float(b.get("x", 0.0)), float(b.get("y", 0.0))), float(b.get("rot", 0.0)))
+		# Encounter HP aggregation: track every structure so the boss health bar = Σ structure HP.
+		if inst != null and "max_health" in inst:
+			_register_building(inst)
 
 
 func _process(delta: float) -> void:
+	# Encounter lock-in: once a miniboss/boss base has drifted fully into view, freeze it in place and
+	# fire locked_in (the field then stops the parallax, shows the bar, raises music). Once only.
+	if not _locked and _role != "normal" and position.y >= screensize.y * HOLD_FRAC:
+		_locked = true
+		_drift_stashed = drift_speed
+		drift_speed = 0.0
+		locked_in.emit()
 	position.y += drift_speed * delta
 	if position.y > screensize.y + _size:
 		queue_free()
@@ -84,6 +113,64 @@ func _process(delta: float) -> void:
 func _on_area_entered(area: Area2D) -> void:
 	if area.has_method("take_damage") and "hull" in area:
 		area.take_damage(damage_on_collide)
+
+
+# ---------------------------------------------------------------- encounter (boss / miniboss)
+
+func role() -> String:
+	return _role
+
+
+# Aggregate max HP (Σ structure HP) — the boss health bar's max, read at lock-in.
+func max_hp() -> int:
+	return _hp_max
+
+
+# True once every structure is destroyed — the director.boss_gate contract for the BOSS finale. Guards on
+# _bld_total > 0 so a structureless prefab never auto-clears (author contract: encounters need >= 1 building).
+func is_defeated() -> bool:
+	return _bld_total > 0 and _bld_dead >= _bld_total
+
+
+# Release the frozen rock so a cleared MINIBOSS husk drifts off again (restores the pre-lock speed).
+func release_drift() -> void:
+	drift_speed = _drift_stashed if _drift_stashed > 0.0 else 40.0
+
+
+func _register_building(b: Node) -> void:
+	var mh: int = maxi(1, int(b.max_health))
+	_hp_max += mh
+	_bld_total += 1
+	_alive_hp[b] = mh
+	if b.has_signal("health_changed"):
+		b.health_changed.connect(_on_bld_hp.bind(b))
+	if b.has_signal("died"):
+		b.died.connect(_on_bld_died.bind(b))
+
+
+# health_changed fires on every hit incl. the lethal one (cur < 1) BEFORE died, so we hold each building's
+# current HP and re-sum; the lethal hit zeroes it, then died erases it — no double-count.
+func _on_bld_hp(cur: int, _mx: int, b: Node) -> void:
+	if _alive_hp.has(b):
+		_alive_hp[b] = maxi(0, cur)
+		_emit_hp()
+
+
+func _on_bld_died(_v: int, b: Node) -> void:
+	if not _alive_hp.has(b):
+		return
+	_alive_hp.erase(b)
+	_bld_dead += 1
+	_emit_hp()
+	if _bld_dead >= _bld_total and _bld_total > 0:
+		cleared.emit()
+
+
+func _emit_hp() -> void:
+	var cur := 0
+	for v in _alive_hp.values():
+		cur += int(v)
+	health_changed.emit(cur, _hp_max)
 
 
 # Bind the rock into the asteroid drop-shadow system (scripts/parallax/asteroid_shadow_rig.gd), the
@@ -153,10 +240,10 @@ static func build_rock_visual(parent: Node, ast: Dictionary) -> Node:
 			var m := inner.material as ShaderMaterial
 			m.set_shader_parameter("draw_outline", false)
 			m.set_shader_parameter("roundness", float(ast.get("roundness", 0.0)))
-			# COMBAT recipe, not the backdrop one this builder was copied from (layer_stellar): combat-scale
-			# rocks that MOVE must NOT dither — the checkerboard samples raw UV so it shifts as the rock drifts,
-			# moiréing into "odd colours" (the exact reason asteroid.gd + asteroid_fragment.gd force it false).
-			m.set_shader_parameter("should_dither", false)
+			# Honor the prefab's authored dither (editor toggle). The stronghold rock wears the NEAR-LAYER
+			# look (layer_stellar leaves dither at the shader default = on), NOT the gameplay-rock look
+			# (asteroid.gd forces it off). Default on so existing prefabs keep the dithered near-layer feel.
+			m.set_shader_parameter("should_dither", bool(ast.get("dither", true)))
 	# The rock is a PixelPlanets Control tree — Controls default to mouse_filter STOP and would EAT
 	# clicks over the rock (the editor places buildings there; combat has no use for it either). Make
 	# the whole visual click-through so mouse events fall through to the tool's _unhandled_input.
