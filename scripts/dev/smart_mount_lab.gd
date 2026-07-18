@@ -125,7 +125,8 @@ func _build_playspace() -> void:
 	_preview_vp.size = Vector2i(480, 270)
 	_preview_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_preview_vp.handle_input_locally = false
-	_preview_vp.use_hdr_2d = bool(ProjectSettings.get_setting("rendering/viewport/hdr_2d", false))
+	HdScreen.apply_native_parity(_preview_vp)
+	HdScreen.verify_native_subviewport.call_deferred(_preview_vp, "smart_mount_lab")
 	sub.add_child(_preview_vp)
 
 	# Opaque backdrop on a z=-1 layer so player bullets (z=-1) render in front of it.

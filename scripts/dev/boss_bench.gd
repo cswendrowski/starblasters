@@ -239,20 +239,22 @@ func _build_ui() -> void:
 	_status_label.add_theme_color_override("font_color", Color(0.6, 1.0, 0.6))
 	rail.add_child(_status_label)
 
-	# Preview: native-480 SubViewport, crisp 3× upscale.
-	var svc := SubViewportContainer.new()
-	svc.position = Vector2(420, 40)
-	svc.stretch = true
-	svc.stretch_shrink = 3
-	svc.custom_minimum_size = Vector2(1440, 810)
-	svc.size = Vector2(1440, 810)
-	svc.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	svc.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_world = SubViewport.new()
-	_world.size = Vector2i(480, 270)
-	_world.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	svc.add_child(_world)
-	add_child(svc)
+	# Preview: canonical full-rect native-480 host (4× nearest upscale, hdr/snap
+	# parity), drawn BEHIND the rail UI. Replaces the fixed 1440×810 shrink-3
+	# container at (420,40) that diverged from the lab convention and crowded the
+	# right edge (2026-07-17). The rail gets a dark backing so it stays readable
+	# over the live backdrop; it only covers the left gutter (playfield X starts
+	# at 132 native = 528 on screen).
+	_world = HdScreen.make_play_subviewport(self)
+	move_child(_world.get_parent(), 0)
+	var rail_bg := ColorRect.new()
+	rail_bg.color = Color(0.04, 0.05, 0.08, 0.85)
+	rail_bg.set_anchors_and_offsets_preset(Control.PRESET_LEFT_WIDE)
+	rail_bg.offset_right = 410.0
+	rail_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(rail_bg)
+	move_child(rail_bg, 1)
+	HdScreen.verify_native_subviewport.call_deferred(_world, "boss_bench")
 
 
 # Repopulate the per-boss sections (triggers, actions, knob rows) for _cfg.

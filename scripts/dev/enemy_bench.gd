@@ -312,9 +312,8 @@ func _ready() -> void:
 # runtime-only bits the scene can't carry.
 
 func _setup_playspace() -> void:
-	# HDR-2D parity: match the project's hdr_2d root or additive blends (enemy muzzle flashes /
-	# bullet glow) composite in the wrong colour space. (Roman 2026-06-11; docs/godot-patterns.md.)
-	_preview_vp.use_hdr_2d = bool(ProjectSettings.get_setting("rendering/viewport/hdr_2d", false))
+	HdScreen.apply_native_parity(_preview_vp)
+	HdScreen.verify_native_subviewport.call_deferred(_preview_vp, "enemy_bench")
 	# The dummy's CURRENT composed player visual (hull + livery + glow, neutral frame), cloned out
 	# of player.tscn, not the retired 16×16 strip. Root sprite named "Sprite2D" so the dummy's
 	# take_hit flash (hangar_dummy_target.gd) still finds it. EnemyLayer carries the "bullet_world"

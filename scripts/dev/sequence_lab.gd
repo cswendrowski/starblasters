@@ -56,6 +56,8 @@ func _ready() -> void:
 	if get_parent() == get_tree().root:
 		_hd_scope = HdViewportScope.attach(self)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	if has_node("/root/Music"):
+		get_node("/root/Music").set_context("silent")
 	_spawn_pos = Vector2(Playfield.CENTER.x, 90.0)
 	_init_values()
 	_load_saved()
@@ -87,7 +89,8 @@ func _build_playspace() -> void:
 	_preview_vp.size = Vector2i(480, 270)
 	_preview_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_preview_vp.handle_input_locally = false
-	_preview_vp.use_hdr_2d = true
+	HdScreen.apply_native_parity(_preview_vp)
+	HdScreen.verify_native_subviewport.call_deferred(_preview_vp, "sequence_lab")
 	sub_container.add_child(_preview_vp)
 
 	var gutter := ColorRect.new()

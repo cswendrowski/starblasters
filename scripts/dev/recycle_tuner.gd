@@ -136,23 +136,24 @@ func _build_ui() -> void:
 	_status_label.text = "Editing recycle.json"
 	rail.add_child(_status_label)
 
-	# Right: a native-480 SubViewport (3× upscale = 1440×810) showing the live game context.
-	var svc := SubViewportContainer.new()
-	svc.position = Vector2(400, 60)
-	svc.stretch = true
-	svc.stretch_shrink = 3   # 480*3 = 1440 wide; renders native, crisp 3× upscale
-	svc.custom_minimum_size = Vector2(1440, 810)
-	svc.size = Vector2(1440, 810)
-	svc.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	svc.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_world = SubViewport.new()
-	_world.size = Vector2i(480, 270)
-	_world.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	# Preview: canonical full-rect native-480 host (4× nearest upscale, hdr/snap
+	# parity), drawn BEHIND the rail UI. Replaces the fixed 1440×810 shrink-3
+	# container at (400,60) (2026-07-17). Rail gets a dark backing for readability
+	# over the live scene; it only covers the left gutter (playfield X starts at
+	# 132 native = 528 on screen).
+	_world = HdScreen.make_play_subviewport(self)
 	# "bullet_world" sink so any parent-less fx from the backdrop/idle enemies resolve into this native
 	# SubViewport, not the 1920×1080 window's top-left corner (BulletWorld.spawn_root; no-op in prod).
 	_world.add_to_group("bullet_world")
-	svc.add_child(_world)
-	add_child(svc)
+	move_child(_world.get_parent(), 0)
+	var rail_bg := ColorRect.new()
+	rail_bg.color = Color(0.04, 0.05, 0.08, 0.85)
+	rail_bg.set_anchors_and_offsets_preset(Control.PRESET_LEFT_WIDE)
+	rail_bg.offset_right = 400.0
+	rail_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(rail_bg)
+	move_child(rail_bg, 1)
+	HdScreen.verify_native_subviewport.call_deferred(_world, "recycle_tuner")
 
 
 func _make_knob_row(spec: Array) -> Control:

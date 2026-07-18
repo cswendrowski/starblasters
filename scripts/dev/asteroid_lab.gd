@@ -85,6 +85,11 @@ func _build_preview_subviewport() -> void:
 	_world.size = Vector2i(480, 270)
 	_world.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_world.transparent_bg = true
+	HdScreen.apply_native_parity(_world)
+	HdScreen.verify_native_subviewport.call_deferred(_world, "asteroid_lab")
+	# "bullet_world" sink so parent-less fx from the demo ship/enemies resolve into this native
+	# SubViewport, not the window's top-left corner (BulletWorld.spawn_root; no-op in prod).
+	_world.add_to_group("bullet_world")
 	var container := SubViewportContainer.new()
 	container.stretch = true
 	container.stretch_shrink = 4   # 1920/4 = 480 → renders native, upscaled 4×

@@ -65,6 +65,18 @@ static func _run(tree: SceneTree, path: String, packed: PackedScene, on_covered:
 	if on_covered.is_valid():
 		on_covered.call()
 
+	# Sweep stray gameplay actors. The projectile/drone convention parents them to
+	# tree.root so they outlive their spawner's queue_free — which also means the
+	# scene swap below never frees them: a root-parented flechette keeps recycling
+	# at 0.45× over the NEXT scene (dev menus, cleared summary, sector map) forever.
+	# Members inside the leaving scene are freed by the swap anyway; queue_free is
+	# idempotent, so sweeping the whole group is safe and catches only-the-strays.
+	# (Mirrors the player-death cleanup in main.gd, which call_groups "enemies".)
+	for grp in ["enemies", "enemy_bullets", "bullets"]:
+		for stray in tree.get_nodes_in_group(grp):
+			if is_instance_valid(stray):
+				stray.queue_free()
+
 	# Tear down the leaving scene's parallax backdrop BEFORE the swap. change_scene_to_file frees the
 	# whole scene at once; with a heavy backdrop's many shader CanvasItems in that batch, the engine's
 	# draw-order reindex walks a freed RID -> "canvas_item is null" flood -> SIGSEGV. remove_child

@@ -53,21 +53,28 @@ static func make_play_subviewport(host: Node, native_size: Vector2i = NATIVE, sh
 	vp.size = native_size
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	vp.handle_input_locally = false
-	# CRITICAL (Roman 2026-06-11, "no bullets / wrong muzzle colour" regression): a SubViewport
-	# defaults use_hdr_2d=FALSE, but the project root viewport is hdr_2d=true. A gameplay play area
-	# that stays LDR while the root is HDR composites every ADDITIVE blend (muzzle flashes, bullet
-	# glow halos, explosions) in the wrong colour space — flashes tint wrong and faint glows wash
-	# out to nothing. Mirror the project's 2D-HDR mode so the dev play area matches combat exactly.
-	vp.use_hdr_2d = bool(ProjectSettings.get_setting("rendering/viewport/hdr_2d", false))
-	# Same gotcha as use_hdr_2d (Roman 2026-06-29): a hand-built SubViewport does NOT inherit the
-	# project's `2d/snap/snap_2d_transforms_to_pixel` — it defaults to FALSE while the root (combat)
-	# viewport snaps. So native-pixel content that MOVES inside this viewport (the dock-cinematic bay,
-	# the landing ship, crate clutter) renders at sub-pixel positions and shimmers/jitters under the 4×
-	# nearest upscale, where combat does not. Mirror the project setting so the play area steps on whole
-	# native pixels exactly like combat.
-	vp.snap_2d_transforms_to_pixel = bool(ProjectSettings.get_setting("rendering/2d/snap/snap_2d_transforms_to_pixel", false))
+	apply_native_parity(vp)
 	container.add_child(vp)
 	return vp
+
+
+# Mirror onto a hand-built gameplay SubViewport the two root-viewport settings a SubViewport
+# does NOT inherit from project.godot. Labs that can't use make_play_subviewport (scene-authored
+# preview, bespoke container geometry) MUST still call this on their viewport or their preview
+# diverges from combat:
+# - use_hdr_2d (Roman 2026-06-11, "no bullets / wrong muzzle colour" regression): a SubViewport
+#   defaults use_hdr_2d=FALSE, but the project root viewport is hdr_2d=true. A gameplay play area
+#   that stays LDR while the root is HDR composites every ADDITIVE blend (muzzle flashes, bullet
+#   glow halos, explosions) in the wrong colour space — flashes tint wrong and faint glows wash
+#   out to nothing.
+# - snap_2d_transforms_to_pixel (Roman 2026-06-29): defaults FALSE while the root (combat)
+#   viewport snaps. Native-pixel content that MOVES inside a non-snapping viewport renders at
+#   sub-pixel positions and shimmers/jitters under the 3–4× nearest upscale, where combat does not.
+static func apply_native_parity(vp: SubViewport) -> void:
+	if vp == null:
+		return
+	vp.use_hdr_2d = bool(ProjectSettings.get_setting("rendering/viewport/hdr_2d", false))
+	vp.snap_2d_transforms_to_pixel = bool(ProjectSettings.get_setting("rendering/2d/snap/snap_2d_transforms_to_pixel", false))
 
 
 # Regression guard. Call DEFERRED / after a frame (the container resizes the viewport on its first

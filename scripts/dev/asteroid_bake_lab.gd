@@ -92,7 +92,8 @@ func _build_playspace() -> void:
 	_preview_vp.size = Vector2i(480, 270)
 	_preview_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_preview_vp.handle_input_locally = false
-	_preview_vp.use_hdr_2d = true
+	HdScreen.apply_native_parity(_preview_vp)
+	HdScreen.verify_native_subviewport.call_deferred(_preview_vp, "asteroid_bake_lab")
 	sub_container.add_child(_preview_vp)
 
 	var gutter := ColorRect.new()
@@ -110,6 +111,8 @@ func _build_playspace() -> void:
 
 	_stage = Node2D.new()
 	_stage.name = "Stage"
+	# "bullet_world" sink so parent-less fx resolve into this native SubViewport, not the window corner.
+	_stage.add_to_group("bullet_world")
 	_preview_vp.add_child(_stage)
 
 	# A/B labels (in the 480-stage; the 4× upscale makes the small font readable).

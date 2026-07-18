@@ -180,12 +180,8 @@ func _build_playspace() -> void:
 	# The player + dummy self-drive off the GLOBAL Input singleton, so the viewport doesn't need
 	# local GUI input. (handle_input_locally false = it never steals the overlay's button clicks.)
 	_preview_vp.handle_input_locally = false
-	# HDR-2D parity (Roman 2026-06-11, "no bullets / wrong muzzle colour"): the root viewport is
-	# hdr_2d=true, but a SubViewport defaults use_hdr_2d=FALSE. An LDR play area under an HDR root
-	# composites every ADDITIVE blend (muzzle flash, bullet glow halo, explosions) in the wrong
-	# colour space — flashes tint wrong, faint glows wash out. Match the project so it renders
-	# exactly like combat. See docs/godot-patterns.md "HD SubViewport host".
-	_preview_vp.use_hdr_2d = bool(ProjectSettings.get_setting("rendering/viewport/hdr_2d", false))
+	HdScreen.apply_native_parity(_preview_vp)
+	HdScreen.verify_native_subviewport.call_deferred(_preview_vp, "hangar")
 	sub_container.add_child(_preview_vp)
 
 	# Gutter dim + brighter playfield band, matching the real frame.

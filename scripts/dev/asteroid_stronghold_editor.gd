@@ -2,8 +2,9 @@ extends Control
 
 # Asteroid Stronghold editor (Roman 2026-07-13) — a mouse-driven prefab editor. Generate an asteroid
 # (near-layer look; seed/size/roundness/dither/tint knobs) and place destructible "building" enemies
-# on it with the mouse, then save reusable prefabs. Native 480×270 dev tool (mirrors path_editor):
-# controls in the side gutters, the rock + buildings in the center.
+# on it with the mouse, then save reusable prefabs. HD-scoped shell (1920×1080 UI in the side gutters)
+# around a native-480 play SubViewport (HdScreen.make_play_subviewport) holding the rock + buildings —
+# converted from the original all-native 480 layout 2026-07-17; mouse maps window→world via /4.
 #
 #   L-click empty : place the selected building brush at that offset (spawns a LIVE instance)
 #   L-click a node: drag it (moves the offset + the live instance)
@@ -22,8 +23,9 @@ const Stronghold = preload("res://scripts/enemies/asteroid_stronghold.gd")
 const Strongholds = preload("res://scripts/levels/asteroid_strongholds.gd")
 
 const SAVE_PATH := "user://tuners/asteroid_strongholds.json"
-const SZ := 7
-const GRAB := 8.0                       # px pick radius for grabbing/deleting a building
+const SZ := 28                          # HD gutter-UI font size (was 7 at native 480; ×4 under the HD scope)
+const HD_SCALE := 4.0                   # HD window px per native world px (1920 / 480)
+const GRAB := 8.0                       # WORLD-px pick radius for grabbing/deleting a building
 const ROCK_CENTER := Vector2(240.0, 135.0)
 const PANEL_L := 128.0                   # left gutter right edge — canvas starts past it
 const PANEL_R := 348.0                   # right gutter left edge — canvas ends before it
@@ -47,6 +49,7 @@ var _brush_rot: int = 0                 # rotation for NEW placements, locked to
 var _drag_i: int = -1
 var _tint_i: int = 0
 
+var _hd_scope: HdViewportScope = null
 var _world: Node2D = null
 var _overlay: Node2D = null
 var _rock: Node = null                  # live rock visual
@@ -59,6 +62,7 @@ var _round_lbl: Label = null
 var _dither_btn: Button = null
 var _tint_lbl: Label = null
 var _drift_lbl: Label = null
+var _role_lbl: Label = null
 var _seed_lbl: Label = null
 var _status_lbl: Label = null
 var _prefab_list: VBoxContainer = null
@@ -69,7 +73,9 @@ func _ready() -> void:
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("silent")
 	_font = UiTheme.active_font()
-	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# HD shell like every other dev tool (readable gutter UI); the world lives in a
+	# native-480 SubViewport below, so the rock/buildings still render combat-exact.
+	_hd_scope = HdScreen.enter(self)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# Default the brush to a building that actually exists (the palette self-discovers from the roster).
 	if not Palette.is_type(_brush):
@@ -87,6 +93,7 @@ func _ready() -> void:
 func _blank_prefab() -> Dictionary:
 	return {
 		"name": "stronghold_%d" % _library.size(),
+		"role": "normal",   # normal | miniboss | boss — set via the ROLE knob
 		"asteroid": {"seed": randi() % 100000, "size": 120.0, "roundness": 0.0,
 			"dither": true, "tint": TINTS[0].duplicate(), "drift_speed": 40.0},
 		"buildings": [],
@@ -109,6 +116,8 @@ func _normalize(p: Dictionary) -> Dictionary:
 		p["buildings"] = []
 	if not p.has("name"):
 		p["name"] = "stronghold_%d" % _library.size()
+	var role := String(p.get("role", "normal"))
+	p["role"] = role if role in ["normal", "miniboss", "boss"] else "normal"
 	return p
 
 
@@ -220,9 +229,16 @@ func _build_bg() -> void:
 
 
 func _build_world() -> void:
+	# Canonical native-480 play host (4× nearest upscale + hdr/snap parity). Added after
+	# the bg and before the gutter panels, so it naturally draws between them.
+	var vp := HdScreen.make_play_subviewport(self)
 	_world = Node2D.new()
 	_world.name = "World"
-	add_child(_world)
+	# Turrets on the rock really fire (dogfooded runtime) — sink their BulletWorld-routed
+	# bullets/fx into this native viewport instead of the 1920 window's top-left.
+	_world.add_to_group("bullet_world")
+	vp.add_child(_world)
+	HdScreen.verify_native_subviewport.call_deferred(vp, "asteroid_stronghold_editor")
 	# Cursor-following dummy in group "player" so turrets/guns resolve a target and visibly fire.
 	_dummy = Node2D.new()
 	_dummy.name = "CursorTarget"
@@ -284,9 +300,15 @@ func _draw_overlay() -> void:
 		_overlay.draw_line(c, c + Vector2.UP.rotated(deg_to_rad(rr)) * 5.0, col, 1.0)
 
 
+# Window (HD 1920-logical) mouse → native world coords inside the play SubViewport.
+# The full-rect shrink-4 container maps them 1:4, no offset.
+func _mouse_world() -> Vector2:
+	return get_global_mouse_position() / HD_SCALE
+
+
 func _process(_delta: float) -> void:
 	if _dummy != null:
-		_dummy.global_position = get_global_mouse_position()
+		_dummy.global_position = _mouse_world()
 	if _overlay:
 		_overlay.queue_redraw()
 
@@ -300,7 +322,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	# R: rotate 90° (pixel-safe). On a building under the cursor → rotate it; otherwise cycle the brush
 	# rotation for the next placements.
 	if event is InputEventKey and event.pressed and event.keycode == KEY_R:
-		var mpos: Vector2 = get_global_mouse_position()
+		var mpos: Vector2 = _mouse_world()
 		var hit: int = _pick_building(mpos) if _in_canvas(mpos) else -1
 		if hit >= 0:
 			_rotate_building(hit)
@@ -309,7 +331,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_update_status()
 		return
 	if event is InputEventMouseButton and event.pressed:
-		var pos: Vector2 = get_global_mouse_position()
+		var pos: Vector2 = _mouse_world()
 		if not _in_canvas(pos):
 			return
 		if event.button_index == MOUSE_BUTTON_LEFT:
@@ -328,7 +350,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_sync_current()
 			_update_status()
 	elif event is InputEventMouseMotion and _drag_i >= 0 and _drag_i < _buildings.size():
-		var mp: Vector2 = get_global_mouse_position()
+		var mp: Vector2 = _mouse_world()
 		var off: Vector2 = mp - ROCK_CENTER
 		_buildings[_drag_i]["x"] = snappedf(off.x, 0.5)
 		_buildings[_drag_i]["y"] = snappedf(off.y, 0.5)
@@ -397,7 +419,7 @@ func _new_asteroid() -> void:
 
 
 func _cycle_size(d: int) -> void:
-	_ast()["size"] = clampf(float(_ast().get("size", 120.0)) + 8.0 * float(d), 48.0, 220.0)
+	_ast()["size"] = clampf(float(_ast().get("size", 120.0)) + 16.0 * float(d), 48.0, 400.0)
 	_rebuild_rock()
 	_refresh_labels()
 
@@ -423,6 +445,15 @@ func _cycle_tint(d: int) -> void:
 
 func _cycle_drift(d: int) -> void:
 	_ast()["drift_speed"] = clampf(float(_ast().get("drift_speed", 40.0)) + 10.0 * float(d), 0.0, 120.0)
+	_refresh_labels()
+
+
+# Prefab role: normal → miniboss → boss. miniboss/boss become set-piece encounters (parallax stop, boss
+# health bar, music) mid-level (miniboss) / at the end (boss).
+func _cycle_role(d: int) -> void:
+	const ROLES := ["normal", "miniboss", "boss"]
+	var i: int = ROLES.find(String(_cur().get("role", "normal")))
+	_cur()["role"] = ROLES[(maxi(i, 0) + d + ROLES.size()) % ROLES.size()]
 	_refresh_labels()
 
 
@@ -469,20 +500,21 @@ func _on_back() -> void:
 # ---------------------------------------------------------------- UI
 
 func _build_ui() -> void:
-	# Left gutter — prefab nav + asteroid knobs + actions.
-	var left := _make_panel(Vector2(0, 0), Vector2(128, 270))
+	# Left gutter — prefab nav + asteroid knobs + actions. Panel geometry is the native
+	# gutter (0..128 / 348..480) × HD_SCALE — the canvas between them stays clear.
+	var left := _make_panel(Vector2(0, 0), Vector2(128, 270) * HD_SCALE)
 	add_child(left)
 	var lv := VBoxContainer.new()
-	lv.add_theme_constant_override("separation", 2)
+	lv.add_theme_constant_override("separation", 8)
 	left.add_child(lv)
 	_fill_panel(lv)
 
 	lv.add_child(_new_label("ASTEROID STRONGHOLD", UiTheme.COLOR_ACCENT, SZ))
 
 	var pr := HBoxContainer.new()
-	pr.add_theme_constant_override("separation", 2)
+	pr.add_theme_constant_override("separation", 8)
 	lv.add_child(pr)
-	_add_fixed_button(pr, "<", func(): _select_prefab(_idx - 1), 14)
+	_add_fixed_button(pr, "<", func(): _select_prefab(_idx - 1), 56)
 	_name_edit = LineEdit.new()
 	_name_edit.add_theme_font_size_override("font_size", SZ)
 	_name_edit.add_theme_color_override("font_color", UiTheme.COLOR_TEXT)
@@ -491,9 +523,9 @@ func _build_ui() -> void:
 	_name_edit.text_submitted.connect(_commit_name)
 	_name_edit.focus_exited.connect(func(): _commit_name(_name_edit.text))
 	pr.add_child(_name_edit)
-	_add_fixed_button(pr, ">", func(): _select_prefab(_idx + 1), 14)
+	_add_fixed_button(pr, ">", func(): _select_prefab(_idx + 1), 56)
 	var pr2 := HBoxContainer.new()
-	pr2.add_theme_constant_override("separation", 2)
+	pr2.add_theme_constant_override("separation", 8)
 	lv.add_child(pr2)
 	_add_button(pr2, "New", _new_prefab)
 	_add_button(pr2, "Dup", _dup_prefab)
@@ -509,34 +541,35 @@ func _build_ui() -> void:
 	_dither_btn = _add_button(lv, "dither: on", _toggle_dither)
 	_tint_lbl = _knob_row(lv, "tint", func(): _cycle_tint(-1), func(): _cycle_tint(1))
 	_drift_lbl = _knob_row(lv, "drift", func(): _cycle_drift(-1), func(): _cycle_drift(1))
+	_role_lbl = _knob_row(lv, "role", func(): _cycle_role(-1), func(): _cycle_role(1))
 
 	lv.add_child(_sep())
 	var a1 := HBoxContainer.new()
-	a1.add_theme_constant_override("separation", 2)
+	a1.add_theme_constant_override("separation", 8)
 	lv.add_child(a1)
 	_add_button(a1, "Save", _save_json)
 	_add_button(a1, "Copy GDScript", _copy_gdscript)
 	_add_button(lv, "Back", _on_back)
 	_status_lbl = _new_label("", UiTheme.COLOR_FAINT, SZ)
 	_status_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_status_lbl.custom_minimum_size = Vector2(120, 0)
+	_status_lbl.custom_minimum_size = Vector2(480, 0)
 	lv.add_child(_status_lbl)
 
 	# Right gutter — building brush + help + prefab list.
-	var right := _make_panel(Vector2(348, 0), Vector2(132, 270))
+	var right := _make_panel(Vector2(348, 0) * HD_SCALE, Vector2(132, 270) * HD_SCALE)
 	add_child(right)
 	var rv := VBoxContainer.new()
-	rv.add_theme_constant_override("separation", 2)
+	rv.add_theme_constant_override("separation", 8)
 	right.add_child(rv)
 	_fill_panel(rv)
 	_add_caption(rv, "BUILDING")
 	# Bounded scroll so a growing building roster doesn't shove HELP / PREFABS off the bottom of the panel.
 	var bscroll := ScrollContainer.new()
 	bscroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	bscroll.custom_minimum_size = Vector2(0, 90)
+	bscroll.custom_minimum_size = Vector2(0, 360)
 	rv.add_child(bscroll)
 	var bvb := VBoxContainer.new()
-	bvb.add_theme_constant_override("separation", 1)
+	bvb.add_theme_constant_override("separation", 4)
 	bvb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bscroll.add_child(bvb)
 	for t in Palette.types():
@@ -556,7 +589,7 @@ func _build_ui() -> void:
 	lscroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	rv.add_child(lscroll)
 	_prefab_list = VBoxContainer.new()
-	_prefab_list.add_theme_constant_override("separation", 1)
+	_prefab_list.add_theme_constant_override("separation", 4)
 	_prefab_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lscroll.add_child(_prefab_list)
 	_rebuild_prefab_list()
@@ -573,7 +606,7 @@ func _rebuild_prefab_list() -> void:
 		var idx: int = i
 		var nm: String = String(_library[i].get("name", "stronghold"))
 		var b := _add_button(_prefab_list, nm, func(): _select_prefab(idx))
-		b.custom_minimum_size = Vector2(0, 14)
+		b.custom_minimum_size = Vector2(0, 56)
 
 
 func _refresh_brush_btns() -> void:
@@ -599,6 +632,8 @@ func _refresh_labels() -> void:
 		_tint_lbl.text = "tint: %d" % (_tint_i + 1)
 	if _drift_lbl:
 		_drift_lbl.text = "drift: %d" % int(_ast().get("drift_speed", 40.0))
+	if _role_lbl:
+		_role_lbl.text = "role: %s" % String(_cur().get("role", "normal"))
 	if _prefab_list:
 		_rebuild_prefab_list()
 	_update_status()
@@ -622,7 +657,7 @@ func _style_label(l: Label, color: Color, size: int) -> void:
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", color)
 	l.add_theme_color_override("font_outline_color", UiTheme.COLOR_OUTLINE)
-	l.add_theme_constant_override("outline_size", 1)
+	l.add_theme_constant_override("outline_size", 4)
 
 
 func _new_label(text: String, color: Color, size: int) -> Label:
@@ -641,7 +676,7 @@ func _make_panel(pos: Vector2, sz: Vector2) -> Panel:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = UiTheme.COLOR_PANEL_BG
 	sb.border_color = UiTheme.COLOR_ACCENT_DIM
-	sb.set_border_width_all(1)
+	sb.set_border_width_all(4)
 	p.add_theme_stylebox_override("panel", sb)
 	return p
 
@@ -649,10 +684,10 @@ func _make_panel(pos: Vector2, sz: Vector2) -> Panel:
 func _fill_panel(c: Control) -> void:
 	c.anchor_right = 1.0
 	c.anchor_bottom = 1.0
-	c.offset_left = 3
-	c.offset_top = 3
-	c.offset_right = -3
-	c.offset_bottom = -3
+	c.offset_left = 12
+	c.offset_top = 12
+	c.offset_right = -12
+	c.offset_bottom = -12
 
 
 func _sep() -> HSeparator:
@@ -667,11 +702,11 @@ func _native_button_stylebox(bg: Color) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = bg
 	sb.border_color = UiTheme.COLOR_ACCENT_DIM
-	sb.set_border_width_all(1)
-	sb.content_margin_left = 3
-	sb.content_margin_right = 3
-	sb.content_margin_top = 1
-	sb.content_margin_bottom = 1
+	sb.set_border_width_all(4)
+	sb.content_margin_left = 12
+	sb.content_margin_right = 12
+	sb.content_margin_top = 4
+	sb.content_margin_bottom = 4
 	return sb
 
 
@@ -683,7 +718,7 @@ func _style_button(b: Button) -> void:
 	b.add_theme_color_override("font_hover_color", UiTheme.COLOR_TEXT)
 	b.add_theme_color_override("font_pressed_color", UiTheme.COLOR_TEXT)
 	b.add_theme_color_override("font_outline_color", UiTheme.COLOR_OUTLINE)
-	b.add_theme_constant_override("outline_size", 1)
+	b.add_theme_constant_override("outline_size", 4)
 	b.add_theme_stylebox_override("normal", _native_button_stylebox(Color(0.08, 0.11, 0.16, 0.9)))
 	b.add_theme_stylebox_override("hover", _native_button_stylebox(Color(0.12, 0.17, 0.24, 0.95)))
 	b.add_theme_stylebox_override("pressed", _native_button_stylebox(Color(0.06, 0.09, 0.13, 1.0)))
@@ -692,7 +727,7 @@ func _style_button(b: Button) -> void:
 func _add_button(parent: Node, text: String, cb: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.custom_minimum_size = Vector2(0, 12)
+	b.custom_minimum_size = Vector2(0, 48)
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_style_button(b)
 	b.pressed.connect(cb)
@@ -703,7 +738,7 @@ func _add_button(parent: Node, text: String, cb: Callable) -> Button:
 func _add_fixed_button(parent: Node, text: String, cb: Callable, w: float) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.custom_minimum_size = Vector2(w, 12)
+	b.custom_minimum_size = Vector2(w, 48)
 	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_style_button(b)
 	b.pressed.connect(cb)
@@ -713,12 +748,12 @@ func _add_fixed_button(parent: Node, text: String, cb: Callable, w: float) -> Bu
 
 func _knob_row(parent: Node, knob_name: String, dec: Callable, inc: Callable) -> Label:
 	var r := HBoxContainer.new()
-	r.add_theme_constant_override("separation", 2)
+	r.add_theme_constant_override("separation", 8)
 	parent.add_child(r)
-	_add_fixed_button(r, "<", dec, 14)
+	_add_fixed_button(r, "<", dec, 56)
 	var l := _new_label(knob_name, UiTheme.COLOR_TEXT, SZ)
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	r.add_child(l)
-	_add_fixed_button(r, ">", inc, 14)
+	_add_fixed_button(r, ">", inc, 56)
 	return l

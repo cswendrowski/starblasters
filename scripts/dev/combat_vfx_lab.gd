@@ -118,7 +118,8 @@ func _build_playspace() -> void:
 	_vp.size = Vector2i(480, 270)
 	_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_vp.handle_input_locally = false
-	_vp.use_hdr_2d = true   # required for the WorldEnvironment bloom + additive glows to composite
+	HdScreen.apply_native_parity(_vp)
+	HdScreen.verify_native_subviewport.call_deferred(_vp, "combat_vfx_lab")
 	sub.add_child(_vp)
 	# Gameplay layer — enemies + their bullets live here. In "bullet_world" so bespoke firers
 	# (turrets/beamers/drops) resolve their projectiles into THIS viewport, not the window corner.
