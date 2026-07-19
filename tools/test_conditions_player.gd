@@ -34,6 +34,22 @@ class StubShip extends Node:
 		last_cap = maximum
 
 
+# Minimal PRIMARY-cannon ship stand-in — the fields a metered_primary (+ its laser
+# subclasses) touch in _apply_visuals. Records the final magazine cap + current so the
+# laser-family More-Ammo cap assertion can prove the cap ends Condition-scaled. In the
+# tree so has_node("/root/Run") resolves for the uninitialized fallback branch.
+class StubPrimaryShip extends Node:
+	var ammo_max: int = -1
+	var ammo: int = -1
+	var ammo_recharge_rate: float = 0.0
+	var bullet_scene = null
+	var weapon_style: int = 0
+	var use_rotary_laser_muzzle: bool = false
+	var primary_parallel_offsets = null
+	func set_ammo(v: int) -> void:
+		ammo = v
+
+
 func _initialize() -> void:
 	_run.call_deferred()
 
@@ -182,6 +198,41 @@ func _run() -> void:
 			lines.append("NOTE rocket pod unavailable for part-apply cap assertion")
 	else:
 		lines.append("NOTE rocket pod has no _base_ammo — skipped secondary seed assertion")
+
+	# ── (b2) laser-family More-Ammo cap must survive the post-super re-stamp ──
+	# Audit #2: quad/rotary/shredder/auto-laser overwrite ship.ammo_max AFTER super with the
+	# helper's return. The helper used to return RAW ammo_at_mark, clobbering the Part's
+	# already-scaled cap (More Ammo's +50% lost). It now returns the Part's pre-scaled ammo_max.
+	# Drive quad_lasers + rotary _apply_visuals under More Ammo against a stub ship; the cap must
+	# land at the SCALED value and current must equal it (no current>max, no double-scaling).
+	var LaserParts := {
+		"quad_lasers": preload("res://scripts/parts/quad_lasers.gd"),
+		"rotary_laser": preload("res://scripts/parts/rotary_laser_cannon.gd"),
+	}
+	for lname in LaserParts:
+		run.new_run()
+		run.active_conditions = ["more_ammo"]
+		var lp = LaserParts[lname].new()
+		lp.mark = 1
+		var raw_mag: int = int(lp.ammo_at_mark(1))
+		var scaled_cap: int = run.cond_ammo_cap(raw_mag)  # run_state stamps ammo_max/current to this
+		lp.ammo_max = scaled_cap
+		lp.current_ammo = scaled_cap
+		var lstub := StubPrimaryShip.new()
+		root.add_child(lstub)
+		lp._apply_visuals(lstub)
+		var got := lstub.ammo_max
+		var gotcur := lstub.ammo
+		root.remove_child(lstub)
+		lstub.free()
+		lines.append("more_ammo: %s Mk1 raw=%d scaled=%d -> ship.ammo_max=%d ammo=%d (expect cap=%d)"
+			% [lname, raw_mag, scaled_cap, got, gotcur, scaled_cap])
+		if got != scaled_cap:
+			lines.append("FAIL %s post-super re-stamp clobbered the scaled cap (got %d, raw was %d)" % [lname, got, raw_mag]); fails += 1
+		if got == raw_mag and scaled_cap != raw_mag:
+			lines.append("FAIL %s ammo_max fell back to RAW ammo_at_mark under More Ammo" % lname); fails += 1
+		if gotcur > got:
+			lines.append("FAIL %s produced a current>max transient" % lname); fails += 1
 
 	# ── (c) starting-kit skips ───────────────────────────────────────────────
 	# Without the flags, both DEVICE_BAY_1 (super) and SHIFT_MODE (mode) are equipped.

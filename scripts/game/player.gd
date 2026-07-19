@@ -3569,11 +3569,12 @@ func apply_run_upgrades() -> void:
 	# active_conditions is empty.
 	_cond_wpn_dmg_mult = run.cond_scalar("player.weapon_damage_mult")
 	_cond_fire_rate_mult = run.cond_scalar("player.fire_rate_mult")
-	# Hull: 2 base + the Reinforced Hull module's pips. (Its Mk.9 repair discount is
-	# read by the outpost via Run.hull_repair_discount() — repairs happen there, not here.)
-	max_hull = 2 + module_hull_bonus
-	# Sector Conditions — Better Hull adds flat pips on top of the module hull.
-	max_hull += int(run.cond_sum("player.hull_bonus"))
+	# Hull: THE one formula, owned by Run.effective_max_hull() (base 2 + Reinforced Hull
+	# pips + Better Hull condition). Single-sourced so the dock meta seed and combat can
+	# never disagree; run.module_hull_pips() == this ship's module_hull_bonus by construction
+	# (both = Σ mini(mark,8) over reinforced_hull modules). (The Mk.9 repair discount is read
+	# by the outpost via Run.hull_repair_discount() — repairs happen there, not here.)
+	max_hull = run.effective_max_hull()
 	hull_shrug_chance = 0.0  # the RNG shrug is the Ablative Plating module now (module_ablative_n)
 	# Speed: baseline + the Thrusters module's bonus.
 	speed_multiplier = max(0.3, 1.0 + module_speed_pct)

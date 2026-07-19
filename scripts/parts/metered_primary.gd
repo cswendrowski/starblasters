@@ -18,12 +18,21 @@ func ammo_at_mark(_mk: int) -> int:
 
 
 # Protected helper for metered subclasses that override _apply_visuals. Seeds
-# current_ammo from the mark (so super._apply_visuals reads the correct per-mark
-# value instead of stale -1), and returns the value for post-super ammo_max setting.
+# current_ammo (so super._apply_visuals reads the correct value instead of stale -1)
+# and returns the magazine cap for a post-super `ship.ammo_max = mag` override.
 # Usage: var mag = _seed_metered_ammo_for_mark(int(mark)); super._apply_visuals(ship);
 # then set ship.ammo_max = mag if needed.
+#
+# Prefer the Part's OWN already-Condition-scaled cap: run_state stamps
+# ammo_max = cond_ammo_cap(ammo_at_mark(mark)) at equip/reseed, so it tracks BOTH the
+# mark curve AND the More Ammo condition. Seeding from raw ammo_at_mark() here (the old
+# behavior) clobbered that scaling — More Ammo's +50% cap was lost the instant the laser
+# subclass re-stamped ship.ammo_max post-super, and current_ammo desynced below the cap.
+# NO re-scaling: ammo_max is pre-scaled at the Run seam; wrapping it in cond_ammo_cap
+# again would double-count. Fall back to the raw per-mark magazine only when the cap is
+# uninitialized (-1) — a dev/headless equip before run_state seeded the Part.
 func _seed_metered_ammo_for_mark(mark: int) -> int:
-	var mag: int = ammo_at_mark(int(mark))
+	var mag: int = ammo_max if ammo_max > 0 else ammo_at_mark(int(mark))
 	current_ammo = mag
 	return mag
 

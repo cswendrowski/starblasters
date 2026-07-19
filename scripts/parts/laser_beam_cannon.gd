@@ -53,7 +53,8 @@ func _apply_visuals(ship) -> void:
 	# The helper returns the mag for post-super ammo_max override.
 	var mag: int = _seed_metered_ammo_for_mark(int(mark))
 	super._apply_visuals(ship)
-	# Overwrite ammo_max after super (super writes base_ammo = 200 flat).
+	# Re-stamp the (Condition-scaled) cap after super. `mag` comes from the Part's own
+	# pre-scaled ammo_max via the helper — NOT raw ammo_at_mark — so More Ammo survives.
 	if "ammo_max" in ship:
 		ship.ammo_max = mag
 	if "fire_tandem_alternating" in ship:

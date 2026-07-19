@@ -1224,14 +1224,39 @@ func _make_kit_part(spec):
 	return part
 
 
+# Reinforced Hull pips currently in the module bay — mini(mark,8) per reinforced_hull
+# module, summed. SSOT for the hull-pip half of the max-hull formula; mirrors
+# reinforced_hull.gd's _pips() EXACTLY so this and the player's module_hull_bonus
+# (set by that part's apply) can never diverge.
+func module_hull_pips() -> int:
+	var pips := 0
+	for m in modules:
+		if m == null:
+			continue
+		if "module_id" in m and String(m.module_id) == "reinforced_hull":
+			pips += mini(int(m.mark), 8)
+	return pips
+
+
+# THE single max-hull formula: base 2 + Reinforced Hull pips + Better Hull condition.
+# Base is 2 — the documented player-side spec (player.gd apply_run_upgrades). The meta
+# seed formerly used 3 (a stray "danger pip"), a latent split-owner bug that made a
+# conditionless fresh run show 3 at the dock but 2 in combat; base 2 here is correct and
+# intentionally changes the dock's fresh-run display from 3 to 2. Both the dock (via
+# _seed_meta_stats_from_modules) and combat (player.apply_run_upgrades) route through
+# this, so they can never disagree again.
+func effective_max_hull() -> int:
+	return 2 + module_hull_pips() + int(cond_sum("player.hull_bonus"))
+
+
 # Mirror the seeded module bay into the Run meta stats (max_hull/max_shield + currents)
 # so meta scenes show the kit's real capacities before the first combat writes back.
 # Mirrors player.apply_run_upgrades' assembly: core-driven shield base (max-wins) + Mk
-# capacity bonuses − Overcharge's −1; hull = 3 (2 + danger pip) + Reinforced Hull pips.
+# capacity bonuses − Overcharge's −1, then the Weak/Better Shields scale; hull via the
+# shared effective_max_hull() formula.
 func _seed_meta_stats_from_modules() -> void:
 	var shield_base := 0
 	var shield_bonus := 0
-	var hull_pips := 0
 	for m in modules:
 		if m == null:
 			continue
@@ -1239,15 +1264,16 @@ func _seed_meta_stats_from_modules() -> void:
 			shield_base = maxi(shield_base, int(m.base_charges()))
 		if m.has_method("_capacity_bonus"):
 			shield_bonus += int(m._capacity_bonus())
-		if "module_id" in m:
-			match String(m.module_id):
-				"reinforced_hull":
-					hull_pips += mini(int(m.mark), 8)
-				"overcharge_core":
-					shield_bonus -= 1
+		if "module_id" in m and String(m.module_id) == "overcharge_core":
+			shield_bonus -= 1
 	max_shield = maxi(0, shield_base + shield_bonus) if shield_base > 0 else 0
+	# Sector Conditions — Weak/Better Shields scale the assembled charge pool, but only
+	# when a shield actually exists (respect the shieldless gate). Mirrors player.gd
+	# apply_run_upgrades so the dock's charge count matches combat's.
+	if max_shield > 0:
+		max_shield = maxi(1, roundi(max_shield * cond_scalar("player.shield_charges_mult")))
 	current_shield = max_shield
-	max_hull = 3 + hull_pips
+	max_hull = effective_max_hull()
 	current_hull = max_hull
 
 
