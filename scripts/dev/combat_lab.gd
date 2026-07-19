@@ -21,7 +21,7 @@ const SectorMapRoute = preload("res://scripts/systems/sector_map_route.gd")
 const SAVE_PATH := "user://tuners/combat_lab.json"
 
 enum Enc { COMBAT, MINEFIELD, ASTEROID, BOSS, BEAM_SHOWCASE, CUSTOM, SIGNAL_SECTOR }
-const ENC_NAMES := ["Standard Combat", "Hazard: Minefield", "Hazard: Asteroid Field", "Boss Fight", "Beam Enemy Showcase", "Custom Level (test_level.tres)", "All-Signal Sector"]
+const ENC_NAMES := ["Standard Combat", "Hazard: Minefield", "Stronghold Attack", "Boss Fight", "Beam Enemy Showcase", "Custom Level (test_level.tres)", "All-Signal Sector"]
 const TEST_LEVEL_PATH := "res://resources/levels/test_level.tres"
 
 const MINEFIELD_OPTIONS := [
@@ -353,11 +353,11 @@ func _launch() -> void:
 			run.current_hazard_subtype = "minefield"
 			run.set_meta("minefield_mine_type", String(MINEFIELD_OPTIONS[_mine_dd.selected][1]))
 		Enc.ASTEROID:
-			run.current_node_type = 5
-			run.current_hazard_subtype = "asteroid_field"
-			# Reframed as the "Asteroid Stronghold" (2026-07-13): overlay loose rocks + authored
-			# stronghold prefabs on standard faction combat; honor the depth spinners + faction
-			# dropdown so the overlaid enemy ships scale + theme like a standard fight.
+			# Stronghold Attack (production node type 2026-07-18, SectorNode.NodeType.STRONGHOLD=6):
+			# loose rocks + authored stronghold prefabs over standard faction combat; honor the depth
+			# spinners + faction dropdown so the overlaid enemy ships scale + theme like a standard fight.
+			run.current_node_type = 6
+			run.current_hazard_subtype = ""
 			run.sectors_cleared = int(_sectors_spin.value)
 			run.combats_in_sector = int(_combats_spin.value)
 			var ast_fid: int = int(FACTION_PICKS[_faction_dd.selected][1])

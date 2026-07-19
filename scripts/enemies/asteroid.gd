@@ -47,6 +47,10 @@ func _ready() -> void:
 	has_ship_vfx = false  # no ground shadow / damage-overlay — asteroids shatter, not fray
 	wants_outline = false  # asteroids carry their own procgen outline
 	offscreen_mode = OffscreenMode.NONE
+	# Low altitude (Roman 2026-07-18, stronghold-assault go-live): ships + bullets (z 0) FLY OVER rocks.
+	# -1 keeps the rock above the ground plane (structures/stronghold bases at -5..-4) — it's airborne,
+	# just lower than the combatants — and its own children (debris trail -1 rel) stay under it.
+	z_index = -1
 	# Descent intake (Roman 2026-07-02 speed-source pass): when the bench/director hands a move_speed,
 	# drive off it (rung-scale tunable); otherwise keep the authored drift_speed. Never overrides a
 	# handed value. drift_speed stays the live working var — collision slowdown mutates it below.
@@ -129,6 +133,10 @@ func _ready() -> void:
 		_visual = visual
 		_visual_size = visual_size
 		_rock_color = base   # drive the death-burst tint off the rock's own colour
+		# Close-up drop shadows (Roman 2026-07-18): bind the shadow rig's NEAR band into the rock's
+		# material so ships passing over cast a tight 8px shadow onto the rock face — the "flying right
+		# over it" read. Same one-shot bind the stronghold base uses; no-op when no rig is in the tree.
+		_bind_flyover_shadow(visual)
 	# Light per-spawn rotation jitter so the asteroid field doesn't look
 	# perfectly uniform.
 	rotation = randf_range(-0.3, 0.3)
@@ -142,6 +150,24 @@ var _rock_color: Color = Color(0.48, 0.46, 0.45)   # set from the procgen base c
 var _visual: Node = null                           # the procgen rock visual (hidden on explode)
 var _visual_size: float = 50.0
 var _trail: Node2D = null                          # attached asteroid_debris_trail scene
+
+
+# Bind the NEAR shadow band (8px offset, full scale — the close flyover read) from the shared
+# asteroid_shadow_rig into this rock's duplicated Asteroids.gdshader material. Mirrors
+# asteroid_stronghold._apply_shadow. Procgen rocks only — the baked-atlas visual is a plain Sprite2D
+# with no shader, so it can't receive mask shadows (flagged path, off in production).
+func _bind_flyover_shadow(visual: Node) -> void:
+	if visual == null or not is_inside_tree():
+		return
+	var rig: Node = get_tree().get_first_node_in_group("asteroid_shadow_rig")
+	if rig == null or not rig.has_method("mask_texture") or not rig.has_method("band_strength"):
+		return
+	var inner: Node = visual.get_node_or_null("Asteroid")
+	if inner == null or not (inner is CanvasItem) or not (inner.material is ShaderMaterial):
+		return
+	var mat := inner.material as ShaderMaterial
+	mat.set_shader_parameter("shadow_mask", rig.mask_texture("near"))
+	mat.set_shader_parameter("shadow_strength", rig.band_strength("near"))
 
 
 # Baked main-rock visual: a Sprite2D reading one frame cell from the shared atlas at its

@@ -2,7 +2,10 @@ extends Resource
 
 # One node in the sector map graph.
 
-enum NodeType { COMBAT, OUTPOST, SIGNAL, BOSS, START, HAZARD }
+# STRONGHOLD (2026-07-18, appended — the int is serialized in sector_map_cache, never renumber):
+# the Asteroid Stronghold assault — faction combat + the StrongholdField prefab overlay, placed on
+# asteroid POIs. Capped ≤2 per row / ≤4 per sector (run_state._promote_stronghold_pois).
+enum NodeType { COMBAT, OUTPOST, SIGNAL, BOSS, START, HAZARD, STRONGHOLD }
 
 @export var id: String = ""
 @export var node_type: int = NodeType.COMBAT
@@ -43,6 +46,7 @@ static func type_name(t: int) -> String:
 		NodeType.BOSS: return "Boss"
 		NodeType.START: return "Start"
 		NodeType.HAZARD: return "Hazard"
+		NodeType.STRONGHOLD: return "Stronghold"
 		_: return "?"
 
 static func type_symbol(t: int) -> String:
@@ -53,4 +57,5 @@ static func type_symbol(t: int) -> String:
 		NodeType.BOSS: return "!"
 		NodeType.START: return "*"
 		NodeType.HAZARD: return "!"
+		NodeType.STRONGHOLD: return "#"
 		_: return "."

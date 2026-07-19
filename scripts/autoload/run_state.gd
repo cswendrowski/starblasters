@@ -750,6 +750,13 @@ func start_new_sector(sector_idx: int, seed_value: int) -> void:
 		})
 	# (Outpost POI rules removed 2026-06-08 — outposts are a sector-map hub button,
 	# not POIs, so the per-row cap + min-promotion no longer apply.)
+	# STRONGHOLD promotion (2026-07-18, stronghold-assault go-live): convert eligible COMBAT POIs on
+	# ASTEROID POIs (deco obj_kind = large_asteroid/cluster — the same deterministic roll the map +
+	# stellar authoring derive from hash(id)^run_seed, so the node always sits on asteroid scenery)
+	# into Stronghold Attack nodes. Caps: ≤ STRONGHOLD_MAX_PER_ROW per system line, ≤
+	# STRONGHOLD_MAX_PER_SECTOR total. Decorrelated rng (seed ^ salt) so the promotion never shifts
+	# positions/bosses/subtypes rolled above. Faction carries over (a stronghold IS faction combat).
+	_promote_stronghold_pois(rows, seed_value)
 	# sector_modifiers (for the outpost display) = the DISTINCT modifiers actually present on the
 	# sector's POIs, so the readout matches what the player will encounter.
 	var active_mods: Array = []
@@ -877,7 +884,13 @@ func _gen_row_pois(rng: RandomNumberGenerator, sector_idx: int, row_idx: int, an
 			node_type = int(SectorNodeType.SIGNAL)
 		var hazard_sub: String = ""
 		if node_type == int(SectorNodeType.HAZARD):
-			hazard_sub = "minefield" if rng.randi() % 2 == 0 else "asteroid_field"
+			# asteroid_field RETIRED as a hazard subtype (2026-07-18, stronghold go-live): hazard nodes
+			# are all minefields now; the asteroid content moved to the STRONGHOLD node type (promotion
+			# pass in start_new_sector) + rock-peppered combat on asteroid POIs. The rng roll is KEPT
+			# (result discarded) so the rng-call count — and therefore positions/bosses — match the
+			# pre-retirement maps for a given seed.
+			var _dead_roll: int = rng.randi() % 2
+			hazard_sub = "minefield"
 		# Per-POI modifier: chance to be null, else roll one from the FULL modifier range
 		# (Roman 2026-06-09 — was drawing from a tiny per-sector pool, which made early sectors
 		# show the same single modifier on every POI). Independent per-POI roll → a sector now
@@ -906,6 +919,46 @@ func _gen_row_pois(rng: RandomNumberGenerator, sector_idx: int, row_idx: int, an
 			"faction": _faction_for_poi(poi_id) if node_type == int(SectorNodeType.COMBAT) else -1,
 		})
 	return pois
+
+
+const STRONGHOLD_MAX_PER_ROW: int = 2      # ≤2 stronghold assaults per system line (Roman 2026-07-18)
+const STRONGHOLD_MAX_PER_SECTOR: int = 4   # ≤4 in the full sector
+const STRONGHOLD_CHANCE: float = 0.5       # per eligible asteroid-POI combat node (before caps)
+
+
+# Promote eligible COMBAT POIs to STRONGHOLD (Asteroid Stronghold assault) nodes. Eligible = the POI's
+# deterministic deco kind is an asteroid (large_asteroid/cluster, NOT planet), so the map decoration +
+# combat backdrop already show asteroid scenery there. Walks rows top-to-bottom, POIs left-to-right,
+# rolling per-POI on a decorrelated rng; row/sector caps enforce Roman's ≤2-per-line / ≤4-per-sector.
+# The node keeps its combat faction (a stronghold assault is faction combat with the ground overlay).
+func _promote_stronghold_pois(rows: Array, seed_value: int) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(seed_value) ^ 0x53544841   # "STHA" — decorrelated from the sector-gen rng
+	var sector_total: int = 0
+	for row in rows:
+		var row_total: int = 0
+		for poi in row.get("pois", []):
+			if sector_total >= STRONGHOLD_MAX_PER_SECTOR or row_total >= STRONGHOLD_MAX_PER_ROW:
+				break
+			if int(poi.get("node_type", -1)) != int(SectorNodeType.COMBAT):
+				continue
+			if _poi_obj_kind(String(poi.get("id", ""))) == 0:
+				continue   # planet POI — strongholds sit on asteroid POIs (for now; more kinds later)
+			if rng.randf() >= STRONGHOLD_CHANCE:
+				continue
+			poi["node_type"] = int(SectorNodeType.STRONGHOLD)
+			row_total += 1
+			sector_total += 1
+
+
+# The POI's deterministic map-deco object kind: 0 = planet, 1 = large_asteroid, 2 = cluster.
+# MUST mirror the deco seeding in sector_map_v3._build_pois_from_cache / StellarGameplay
+# .compute_poi_stellar (abs(hash(id) ^ run_seed), first randi() % 3) so gen-time eligibility,
+# the map render, and the combat backdrop all agree on what scenery the node sits on.
+func _poi_obj_kind(poi_id: String) -> int:
+	var r := RandomNumberGenerator.new()
+	r.seed = abs(hash(poi_id) ^ int(run_seed))
+	return r.randi() % 3
 
 
 # Deterministic per-node faction (0-3, matching Factions.Id). Uses its own RNG

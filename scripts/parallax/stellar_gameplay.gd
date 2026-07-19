@@ -125,7 +125,11 @@ static func compute_poi_stellar(desc: Dictionary) -> Dictionary:
 	var moons: Array = []
 	var has_asteroids: bool = false
 	var asteroid_density: float = 0.0
-	var is_asteroid_field: bool = String(desc.get("hazard_subtype", "")) == "asteroid_field"
+	# Stronghold Attack node (2026-07-18) is THE asteroid-belt node now; the retired asteroid_field
+	# hazard subtype stays as a legacy match (old caches + Combat Lab). node_type 6 = STRONGHOLD
+	# (sector_node.gd — literal here: this module stays preload-only, no class deps).
+	var is_asteroid_field: bool = String(desc.get("hazard_subtype", "")) == "asteroid_field" \
+		or int(desc.get("node_type", 0)) == 6
 	# Belt adjacency (GATED): the caller precomputes it (map applies the SYSTEM_BACKDROP_ENABLED gate).
 	var belt_adjacent: bool = bool(desc.get("belt_adjacent", false))
 	if is_asteroid_field:
@@ -145,6 +149,15 @@ static func compute_poi_stellar(desc: Dictionary) -> Dictionary:
 		planet_type = _pick_planet_type(deco_rng, frac)
 		planet_idx = int(V3_TO_BACKDROP_PLANET_IDX.get(planet_type, 0))
 		moons = _derive_moon_descriptors(id, px, run_seed)
+	# ASTEROID POI (2026-07-18, asteroid-hazard retirement): a COMBAT node whose map deco is an
+	# asteroid (obj_kind large_asteroid/cluster) keeps the asteroid look as its combat BACKDROP —
+	# and main.gd peppers destructible rocks into the fight off the asteroid_poi flag below. Applied
+	# AFTER the branch above (flag-only) so the deco_rng consumption order — and therefore every
+	# planet pick on the map — stays byte-identical.
+	var asteroid_poi: bool = obj_kind != 0
+	if asteroid_poi and not has_asteroids:
+		has_asteroids = true
+		asteroid_density = BELT_DENSITY_ADJACENT
 	var sv: Dictionary = _get_star_variant(row_idx, run_seed, sectors_cleared)
 	var base_type: int  = sv.base_type_idx
 	var star_color: Color = EXOTIC_GLOW_COLORS[sv.exotic_idx] if sv.exotic_idx >= 0 else STAR_GLOW_COLORS[base_type]
@@ -165,6 +178,7 @@ static func compute_poi_stellar(desc: Dictionary) -> Dictionary:
 		"planet_seed":      abs(hash(id) ^ run_seed),
 		"has_asteroids":    has_asteroids,
 		"asteroid_density": asteroid_density,
+		"asteroid_poi":     asteroid_poi,   # combat here peppers destructible rocks (asteroid_pepper.gd)
 		"nebula_band":      nebula_band,
 		"nebula_tint":      nebula_tint,
 		"moons":            moons,

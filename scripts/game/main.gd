@@ -3,6 +3,7 @@ extends Node2D
 const Levels = preload("res://scripts/levels/levels_v2.gd")
 const WaveGen = preload("res://scripts/levels/wave_generator.gd")
 const StrongholdField = preload("res://scripts/levels/stronghold_field.gd")
+const AsteroidPepper = preload("res://scripts/levels/asteroid_pepper.gd")
 const AuthoredPatterns = preload("res://scripts/levels/authored_patterns.gd")
 const Factions = preload("res://scripts/levels/factions.gd")
 const SectorNode = preload("res://scripts/systems/sector_node.gd")
@@ -37,6 +38,9 @@ var _current_score = null
 # subtype or the Run.set_meta("missile_cruiser", true) one-shot trigger.
 var _want_missile_cruiser: bool = false
 var _want_stronghold_field: bool = false
+# Standard combat on an ASTEROID POI (stellar asteroid_poi flag): pepper destructible rocks
+# into the fight alongside the faction waves (asteroid_pepper.gd, spawned in _run_intro).
+var _want_asteroid_pepper: bool = false
 # Showcase only: keep respawning the cruiser after each fly-through so the
 # tuner sees repeated salvos. Off for production one-shot spawns.
 var _missile_cruiser_respawn: bool = false
@@ -653,6 +657,7 @@ func new_game() -> void:
 	# Pick level by current sector node type
 	var is_boss = false
 	var is_hazard = false
+	var is_stronghold = false
 	var hazard_subtype: String = ""
 	# Authored-pattern auto-mix (wave pattern editor, 2026-06-16): captured in the standard-combat
 	# branch and applied to the lifted score at the producer chokepoint below — STANDARD generated
@@ -672,9 +677,17 @@ func new_game() -> void:
 			# The Corporate Director (Roman 2026-07-06) is the same persistent-gated boss pattern.
 			elif String(run.forced_boss_scene).contains("boss_c_director"):
 				_bg_director = true
+		elif run.current_node_type == SectorNode.NodeType.STRONGHOLD:
+			# Stronghold Attack node (2026-07-18) — the production Asteroid Stronghold assault.
+			is_stronghold = true
 		elif run.current_node_type == SectorNode.NodeType.HAZARD:
 			is_hazard = true
 			hazard_subtype = run.current_hazard_subtype
+			# Legacy alias: the retired asteroid_field hazard subtype (old caches / Combat Lab
+			# presets) plays as the Stronghold Attack.
+			if hazard_subtype == "asteroid_field":
+				is_hazard = false
+				is_stronghold = true
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_context("combat")
 	if is_boss:
@@ -712,43 +725,43 @@ func new_game() -> void:
 			get_node("/root/Run").set_meta("active_faction", boss_faction)
 		_current_level = WaveGen.build(sd, li, true, boss_faction)
 		wave_director.max_concurrent = WaveGen.cap_for(sd, li)
+	elif is_stronghold:
+		# Stronghold Attack (production node 2026-07-18; reframed from the asteroid_field hazard
+		# 2026-07-13): standard faction combat (enemy ships) with loose rocks + authored stronghold
+		# prefabs overlaid as drifting ground hazards (StrongholdField, spawned at level start in
+		# _run_intro; prefabs pulled LIVE from AsteroidStrongholds.load_all so Roman keeps authoring).
+		var sh_sd: int = 1
+		var sh_li: int = 0
+		var sh_faction: int = -1
+		if has_node("/root/Run"):
+			var shrun = get_node("/root/Run")
+			sh_sd = shrun.sectors_cleared + 1
+			sh_li = shrun.combats_in_sector
+			sh_faction = shrun.get_node_faction(shrun.current_node_id)
+			if sh_faction < 0:
+				sh_faction = Factions.pick_for_level(sh_sd, sh_li, int(shrun.run_seed))
+			if shrun.has_meta("forced_faction"):
+				sh_faction = int(shrun.get_meta("forced_faction", sh_faction))
+			shrun.set_meta("active_faction", sh_faction)
+		# Lighten the flying-enemy presence (ground targets are the focus): cap the ship
+		# generator's effective combat depth. Clamps BOTH wave composition AND the per-chaff
+		# HP bonus (which reads Run.combats_in_sector directly), so the ships stop reading as
+		# excessive tanky mediums. Tunable via Run meta "stronghold_ship_depth_cap" (default 1).
+		if has_node("/root/Run"):
+			var shr2 = get_node("/root/Run")
+			var ship_cap: int = int(shr2.get_meta("stronghold_ship_depth_cap", 1))
+			var real_ci: int = shr2.combats_in_sector
+			var ship_ci: int = mini(real_ci, ship_cap)
+			shr2.combats_in_sector = ship_ci
+			_current_level = WaveGen.build(sh_sd, ship_ci, false, sh_faction)
+			wave_director.max_concurrent = WaveGen.cap_for(sh_sd, ship_ci)
+			shr2.combats_in_sector = real_ci
+		else:
+			_current_level = WaveGen.build(sh_sd, sh_li, false, sh_faction)
+			wave_director.max_concurrent = WaveGen.cap_for(sh_sd, sh_li)
+		_want_stronghold_field = true
 	elif is_hazard:
-		if hazard_subtype == "asteroid_field":
-			# Reframed 2026-07-13 as the "Asteroid Stronghold": standard faction combat (enemy ships)
-			# with loose rocks + authored stronghold prefabs overlaid as drifting ground hazards
-			# (StrongholdField, spawned at level start in _run_intro). Ships come from the normal
-			# generator so they follow standard faction rules; rocks + strongholds come from the overlay.
-			var sh_sd: int = 1
-			var sh_li: int = 0
-			var sh_faction: int = -1
-			if has_node("/root/Run"):
-				var shrun = get_node("/root/Run")
-				sh_sd = shrun.sectors_cleared + 1
-				sh_li = shrun.combats_in_sector
-				sh_faction = shrun.get_node_faction(shrun.current_node_id)
-				if sh_faction < 0:
-					sh_faction = Factions.pick_for_level(sh_sd, sh_li, int(shrun.run_seed))
-				if shrun.has_meta("forced_faction"):
-					sh_faction = int(shrun.get_meta("forced_faction", sh_faction))
-				shrun.set_meta("active_faction", sh_faction)
-			# Lighten the flying-enemy presence (ground targets are the focus): cap the ship
-			# generator's effective combat depth. Clamps BOTH wave composition AND the per-chaff
-			# HP bonus (which reads Run.combats_in_sector directly), so the ships stop reading as
-			# excessive tanky mediums. Tunable via Run meta "stronghold_ship_depth_cap" (default 1).
-			if has_node("/root/Run"):
-				var shr2 = get_node("/root/Run")
-				var ship_cap: int = int(shr2.get_meta("stronghold_ship_depth_cap", 1))
-				var real_ci: int = shr2.combats_in_sector
-				var ship_ci: int = mini(real_ci, ship_cap)
-				shr2.combats_in_sector = ship_ci
-				_current_level = WaveGen.build(sh_sd, ship_ci, false, sh_faction)
-				wave_director.max_concurrent = WaveGen.cap_for(sh_sd, ship_ci)
-				shr2.combats_in_sector = real_ci
-			else:
-				_current_level = WaveGen.build(sh_sd, sh_li, false, sh_faction)
-				wave_director.max_concurrent = WaveGen.cap_for(sh_sd, sh_li)
-			_want_stronghold_field = true
-		elif hazard_subtype == "roster_test":
+		if hazard_subtype == "roster_test":
 			_current_level = Levels.build_roster_test()
 		elif hazard_subtype == "firecore_drone_showcase":
 			_current_level = Levels.build_firecore_drone_showcase()
@@ -808,6 +821,12 @@ func new_game() -> void:
 					rsd.remove_meta("forced_faction_once")
 				rsd.set_meta("active_faction", faction)
 			_current_level = WaveGen.build(sd, li, false, faction)
+			# Asteroid POI (2026-07-18): combat here gets destructible rocks peppered through the
+			# fight (spawned in _run_intro), matching the asteroid backdrop the stellar flag drives.
+			if has_node("/root/Run"):
+				var prun = get_node("/root/Run")
+				if prun.current_stellar is Dictionary:
+					_want_asteroid_pepper = bool(prun.current_stellar.get("asteroid_poi", false))
 			# Eligible for authored-pattern auto-mix (applied after the lift, below).
 			allow_authored = true
 			auth_faction = faction
@@ -949,6 +968,16 @@ func _run_intro(is_boss: bool) -> void:
 		if has_node("/root/Run") and get_node("/root/Run").has_meta("stronghold_field_knobs"):
 			sf_knobs = get_node("/root/Run").get_meta("stronghold_field_knobs", {})
 		sfield.start(sf_knobs)
+	# Asteroid-POI combat (2026-07-18): pepper destructible rocks through the fight — the light
+	# overlay for STANDARD combat on an asteroid POI (the stronghold node has its own field above).
+	if _want_asteroid_pepper:
+		_want_asteroid_pepper = false
+		var pepper := AsteroidPepper.new()
+		add_child(pepper)
+		var ap_knobs: Dictionary = {}
+		if has_node("/root/Run") and get_node("/root/Run").has_meta("asteroid_pepper_knobs"):
+			ap_knobs = get_node("/root/Run").get_meta("asteroid_pepper_knobs", {})
+		pepper.start(ap_knobs)
 	# Zealot Battleship (Roman 2026-07-01): spawn the PERSISTENT boss now (level start) so it's present
 	# from wave 1, and register it as the director's wave gate (it plays one maneuver between waves).
 	if _bg_battleship:

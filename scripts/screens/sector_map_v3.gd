@@ -692,6 +692,7 @@ func _stellar_descriptor(poi: Dictionary, row_idx: int) -> Dictionary:
 		"pos_x":           float(poi.pos.x),
 		"row_end_x":       row_end_x,
 		"hazard_subtype":  String(poi.get("hazard_subtype", "")),
+		"node_type":       int(poi.get("node_type", 0)),
 		"belt_adjacent":   SYSTEM_BACKDROP_ENABLED and _is_belt_adjacent(poi, row_idx),
 		"sectors_cleared": int(run.sectors_cleared),
 		"run_seed":        int(run.run_seed),
@@ -711,11 +712,12 @@ func _stellar_descriptor(poi: Dictionary, row_idx: int) -> Dictionary:
 #   1. randi() % 3          -> obj_kind            (matches :423)
 #   2. (only if PLANET) randi() % 3  -> the `px` draw (matches :433)
 #   3. _pick_planet_type(rng, frac)  -> planet_type (matches :435)
-# True when an immediate row-neighbor of `current_poi` is an asteroid_field.
+# True when an immediate row-neighbor of `current_poi` is an asteroid belt node — a STRONGHOLD
+# (2026-07-18; the retired asteroid_field hazard subtype is kept as a legacy match for old caches).
 # Row POIs are generated left→right with monotonically increasing pos.x and
 # stored in that order (run_state._gen_row_pois), so the neighbors are simply
-# the entries at index±1. The current node itself being a field is handled by
-# the caller (is_asteroid_field) — this only reports NEIGHBORS.
+# the entries at index±1. The current node itself being a belt is handled by
+# the caller — this only reports NEIGHBORS.
 func _is_belt_adjacent(current_poi: Dictionary, row_idx: int) -> bool:
 	var run := get_node("/root/Run")
 	var rows: Array = run.sector_map_cache.get("rows", [])
@@ -732,7 +734,8 @@ func _is_belt_adjacent(current_poi: Dictionary, row_idx: int) -> bool:
 		return false
 	for n in [idx - 1, idx + 1]:
 		if n >= 0 and n < pois.size():
-			if String(pois[n].get("hazard_subtype", "")) == "asteroid_field":
+			if int(pois[n].get("node_type", -1)) == int(SectorNode.NodeType.STRONGHOLD) \
+					or String(pois[n].get("hazard_subtype", "")) == "asteroid_field":
 				return true
 	return false
 
@@ -1328,6 +1331,11 @@ func _add_node_dressing(pos: Vector2, node_type: int, rng: RandomNumberGenerator
 		int(SectorNode.NodeType.HAZARD):  _add_pulse_glow(pos, Color(1.0,  0.25, 0.20), rng)
 		int(SectorNode.NodeType.SIGNAL):  _add_pulse_glow(pos, Color(1.0,  0.90, 0.15), rng)
 		int(SectorNode.NodeType.COMBAT):  _add_glitter_zone(pos, faction)
+		int(SectorNode.NodeType.STRONGHOLD):
+			# Stronghold Attack: orange pulse (fortified target) + the combat faction glitter — it
+			# IS faction combat, so the player can still read who they'll fight there.
+			_add_pulse_glow(pos, Color(1.0, 0.55, 0.15), rng)
+			_add_glitter_zone(pos, faction)
 
 
 # Faction int (Factions.Id: SUPREMACY 0 / PRIVATEER 1 / CORPORATE 2 / ZEALOT 3) →
@@ -1420,6 +1428,9 @@ func _icon_for_type(node_type: int) -> int:
 		int(SectorNode.NodeType.SIGNAL):  return ICON_SIGNAL
 		int(SectorNode.NodeType.HAZARD):  return ICON_HAZARD
 		int(SectorNode.NodeType.BOSS):    return ICON_BOSS
+		# Stronghold Attack reuses the hazard icon frame for now (its dressing color + label
+		# distinguish it); a dedicated sector_icons.png frame is Roman's to author later.
+		int(SectorNode.NodeType.STRONGHOLD): return ICON_HAZARD
 	return ICON_COMBAT
 
 
@@ -1639,6 +1650,8 @@ const _PN_HAZARD_ASTEROID  := ["Debris Field", "Rock Field", "Scatter Zone", "Fr
 								"Dust Belt", "Shard Cloud"]
 const _PN_HAZARD_MINE      := ["Mine Zone", "Exclusion Zone", "Mine Field", "Danger Zone",
 								"Interdiction Field"]
+const _PN_STRONGHOLD_PREFIX := ["Assault on", "Siege of", "Stronghold", "Fortified Belt",
+								"Entrenchment at", "Raid on"]
 const _PN_HAZARD_SUFFIX    := ["Kappa", "Alpha", "Delta", "Sigma", "Tau", "Mu", "Zeta"]
 
 # Generate a deterministic celestial name seeded by the node's position hash.
@@ -1702,7 +1715,9 @@ func _generate_celestial_name(type: String, seed_val: int) -> String:
 
 # Body name shown on the POI row (planet, or asteroid for hazards).
 func _poi_body_name(node_type: int, seed_val: int, _hazard_subtype: String = "") -> String:
-	var t: String = "asteroid" if node_type == int(SectorNode.NodeType.HAZARD) else "planet"
+	var is_rock: bool = node_type == int(SectorNode.NodeType.HAZARD) \
+		or node_type == int(SectorNode.NodeType.STRONGHOLD)
+	var t: String = "asteroid" if is_rock else "planet"
 	return _generate_celestial_name(t, seed_val)
 
 
@@ -1722,6 +1737,8 @@ func _poi_event_prefix(node_type: int, seed_val: int, hazard_subtype: String = "
 			if hazard_subtype == "minefield":
 				return _PN_HAZARD_MINE[rng.randi() % _PN_HAZARD_MINE.size()]
 			return _PN_HAZARD_ASTEROID[rng.randi() % _PN_HAZARD_ASTEROID.size()]
+		int(SectorNode.NodeType.STRONGHOLD):
+			return _PN_STRONGHOLD_PREFIX[rng.randi() % _PN_STRONGHOLD_PREFIX.size()]
 	return ""
 
 
@@ -1963,6 +1980,10 @@ func _on_poi_clicked(node_id: String) -> void:
 			SceneTransition.change_scene(get_tree(), SIGNAL_SCENE)
 		int(SectorNode.NodeType.HAZARD):
 			LevelLauncher.go(get_tree(), HAZARD_SCENE)
+		int(SectorNode.NodeType.STRONGHOLD):
+			# Stronghold Attack (2026-07-18): faction combat + the StrongholdField prefab overlay.
+			# Same combat scene — main.gd branches on current_node_type.
+			LevelLauncher.go(get_tree(), COMBAT_SCENE)
 
 
 # Fade the music to silence before a synchronous scene load so the main-thread
