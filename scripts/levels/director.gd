@@ -289,7 +289,7 @@ func _alive_slots() -> int:
 # side opposite the previous spawn (Toaplan rhythm, composition guide §3),
 # among lanes not currently occupied near the entry band so the stream spreads
 # across the 7 lanes and forces player movement.
-func _pick_lane(clear_neighbours: bool = false, check_y: float = 0.0, height: float = 0.0) -> int:
+func _pick_lane(clear_neighbours: bool = false, check_y: float = 0.0, height: float = 0.0, half_width: float = 0.0) -> int:
 	var occupied: Array = _occupied_lanes()
 	var candidates: Array = []
 	for i in Lanes.COUNT:
@@ -298,6 +298,17 @@ func _pick_lane(clear_neighbours: bool = false, check_y: float = 0.0, height: fl
 	if candidates.is_empty():
 		for i in Lanes.COUNT:
 			candidates.append(i)
+	# Wide-enemy edge exclusion (2026-07-18): a wide hull (cruiser composite / harrier, ~64-78px)
+	# whose half-width would overhang the band in an edge lane must not pick that lane — prefer any
+	# lane whose center keeps both hull edges inside [X_MIN, X_MAX]. Falls through (keeps the edge
+	# lanes) only if EVERY candidate would overhang, so a saturated screen never deadlocks the pick;
+	# the spawn-X clamp downstream is the backstop there.
+	if half_width > 0.0:
+		var inboard: Array = candidates.filter(func(i):
+			var cx: float = Lanes.lane_center(i)
+			return cx - half_width >= Playfield.X_MIN and cx + half_width <= Playfield.X_MAX)
+		if not inboard.is_empty():
+			candidates = inboard
 	# Supremacy Push Gap 2 (Roman 2026-06-11): a big cruiser prefers a lane whose
 	# ADJACENT lanes are ALSO clear (full-column check via lane_traffic), so it arrives
 	# with its neighbours open instead of being passively vertical-queued behind one.
@@ -445,6 +456,59 @@ func _sprite_frame_height(spr: Sprite2D) -> float:
 	if spr.vframes > 1:
 		h /= float(spr.vframes)
 	return h
+
+
+# Half the enemy's on-screen WIDTH (px) — used to keep a wide hull's left/right edge inside the
+# playfield band (wide-enemy edge-lane fix, 2026-07-18). Companion to _enemy_height, but a WIDTH
+# measure and, crucially, a COMPOSITE one: a multi-part unit (cruiser = core + gun pods at ±28)
+# extends well beyond the root's own collision rect, so we span the FULL point-cloud of every
+# rect/poly hull under the node (each offset by its cumulative local X from the root) rather than
+# reading only the first shape the way the height chain does. Falls back to the sprite frame's
+# half-width, then a half of the roster-nominal-height square proxy, then 8px chaff. Honours
+# display_scale so collision units map to on-screen pixels.
+func _enemy_half_width(e) -> float:
+	if e == null:
+		return 0.0
+	var scale_x: float = float(e.display_scale) if ("display_scale" in e) else 1.0
+	var ext: float = _collect_x_extent(e, 0.0)
+	if ext > 0.0:
+		return ext * scale_x
+	var spr := _first_sprite(e)
+	if spr != null and spr.texture != null:
+		return _sprite_frame_width(spr) * 0.5 * scale_x
+	# No collision/sprite the director could read — approximate from the roster-nominal height square.
+	if e.has_meta("nominal_height"):
+		return maxf(8.0, float(e.get_meta("nominal_height")) * 0.5)
+	return 8.0
+
+# Max |x| (from the root origin) reached by any RectangleShape2D / CollisionPolygon2D anywhere under
+# `n`, given the accumulated local X-offset of `n` from the root. Recurses so nested part hulls (the
+# cruiser's Area2D gun pods) contribute their offset. Local units (before the root's display_scale).
+func _collect_x_extent(n: Node, off_x: float) -> float:
+	var best: float = 0.0
+	for c in n.get_children():
+		var child_off: float = off_x
+		if c is Node2D:
+			child_off += (c as Node2D).position.x
+		if c is CollisionShape2D and (c as CollisionShape2D).shape is RectangleShape2D:
+			var hw: float = ((c as CollisionShape2D).shape as RectangleShape2D).size.x * 0.5
+			best = maxf(best, maxf(absf(child_off - hw), absf(child_off + hw)))
+		elif c is CollisionPolygon2D:
+			for p in (c as CollisionPolygon2D).polygon:
+				best = maxf(best, absf(child_off + p.x))
+		best = maxf(best, _collect_x_extent(c, child_off))
+	return best
+
+# One sprite frame's texel width, honouring region_rect + hframes (the sprite sheet may pack columns).
+func _sprite_frame_width(spr: Sprite2D) -> float:
+	var w: float
+	if spr.region_enabled:
+		w = spr.region_rect.size.x
+	else:
+		w = spr.texture.get_width()
+	if spr.hframes > 1:
+		w /= float(spr.hframes)
+	return w
 
 
 # UNIVERSAL spawn-time vertical push (FIX #2, 2026-07-06). Given a resolved spawn pos, this
@@ -1516,10 +1580,21 @@ func _spawn_enemy(wave: Resource, index: int, lane_override: int = -1, step_sync
 				# clear (Gap 2). Vertical in-lane spacing is now the universal push below.
 				var h: float = _enemy_height(enemy)
 				var is_cruiser: bool = h >= ANCHOR_MIN_HEIGHT
-				var lane: int = _pick_lane(is_cruiser, wave.spawn_y, h)
+				# Wide hulls also avoid the edge lanes (half-width would overhang the band).
+				var lane: int = _pick_lane(is_cruiser, wave.spawn_y, h, _enemy_half_width(enemy))
 				pos = Vector2(Lanes.lane_center(lane), wave.spawn_y)
 				if not is_crosser:
 					push_lane = lane
+	# Wide-enemy edge clamp (2026-07-18): keep a wide hull's edges inside the playfield band so large
+	# units (cruiser composite ~78px, harrier 64px) never enter half off-screen from an edge lane. This
+	# is the UNIVERSAL backstop covering EVERY in-band spawn path (lane_override walls/sweeps/authored,
+	# tandem, and the TOP pick above) — the _pick_lane exclusion only steers the natural TOP path.
+	# In-band only: SIDE_ALTERNATING crossers deliberately start off-band (X_MIN-12 / X_MAX+12) and must
+	# not be pulled inward, so the guard skips them. Narrow chaff (half-width < edge gap) is untouched.
+	if pos.x >= Playfield.X_MIN and pos.x <= Playfield.X_MAX:
+		var half_w: float = _enemy_half_width(enemy)
+		if half_w > 0.0 and half_w * 2.0 < Playfield.W:
+			pos.x = clampf(pos.x, Playfield.X_MIN + half_w, Playfield.X_MAX - half_w)
 	# Apply the universal same-lane vertical-gap push. Skips out-of-band X (side entries already left
 	# push_lane -1, but re-guard in case a sub-lane offset pushed a spawn off the band).
 	if push_lane >= 0 and pos.x >= Playfield.X_MIN and pos.x <= Playfield.X_MAX:
