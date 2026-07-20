@@ -41,7 +41,12 @@ func _ready() -> void:
 	bounty_value = 20
 	auto_rotate = true
 	display_scale = 1.0
-	movement = OmniThrust.new()
+	# Guard the omni install (2026-07-18) like cruiser/bomber: the director sets the roster-assigned
+	# movement BEFORE add_child (so it's already live in _ready). Only self-install omni when nothing
+	# assigned one — a bench/dev spawn with no director — so an assigned NON-omni movement (e.g. a
+	# vary/wildcard "proximity_chase") is respected instead of being stomped back into omni-hunt.
+	if movement == null:
+		movement = OmniThrust.new()
 	super._ready()
 	start(global_position)
 

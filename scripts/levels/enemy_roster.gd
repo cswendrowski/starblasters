@@ -265,8 +265,9 @@ const ENTRIES := [
 		# Flechette (2026-06-20) — new core chaff, built off the Dart. Unarmed (no Muzzle)
 		# wall-filler; carries a Livery layer (auto-tinted per faction). allowed_in
 		# [Corp, Priv] via factions.ENEMY_TAGS. Also the Hive's released swarm unit.
+		# (Stale "engine": -1 removed 2026-07-15 — bench engine_override is OFF, so the
+		# intended speed is the size rung, 120 px/s like the Dart; the -1 halved it live.)
 		"scene": "res://scenes/enemies/core/enemy_core_s_flechette.tscn",
-		"engine": -1,
 		"tier": Tier.COMMON,
 		"size": "small", "tags": [],
 		"movement": "straight",

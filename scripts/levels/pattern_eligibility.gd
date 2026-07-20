@@ -192,6 +192,15 @@ static func guard_key(scene: String, key: String) -> String:
 # a flat-random pick from the scene's eligible set (needs >1 to vary). Otherwise the MATRIX
 # identity drives (so the eligibility tool controls assignment); unmapped scenes fall back to
 # the entry's own "movement".
+#
+# OMNI-RESPECT (2026-07-18): the one exception to identity-drives. An omni-capable scene carries a
+# "hunt_omni" matrix identity, and identity-drives means that identity used to STOMP whatever movement
+# a roster entry ASSIGNED — so an omni hull could never be fielded with a non-omni movement; it always
+# dropped into omni-hunt (designer: "omni capable enemies should respect the movement pattern they've
+# been assigned"). Now: when the identity is hunt_omni but the entry explicitly assigns a DIFFERENT,
+# eligible, NON-omni movement, that assigned key wins. Entries that assign hunt_omni (the gunship/
+# abductor/sapper anchors) keep hunting, and every NON-omni identity still drives unchanged (the
+# eligibility tool stays the SSOT for all other enemies), so this is scoped strictly to the omni case.
 static func resolve(entry: Dictionary) -> String:
 	var scene: String = str(entry.get("scene", ""))
 	if bool(entry.get("vary", false)):
@@ -199,6 +208,10 @@ static func resolve(entry: Dictionary) -> String:
 		if elig.size() > 1:
 			return str(elig[randi() % elig.size()])
 	var id: String = identity_for(scene)
+	if id == "hunt_omni":
+		var assigned: String = str(entry.get("movement", ""))
+		if assigned != "" and assigned != "hunt_omni" and allows(scene, assigned):
+			return assigned
 	if id != "":
 		return id
 	return str(entry.get("movement", "straight"))
