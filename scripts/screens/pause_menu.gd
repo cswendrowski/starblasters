@@ -11,17 +11,24 @@ const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 
 var _paused: bool = false
 # HD scope is attached only WHILE paused — the live combat behind renders at
-# native 480×270, so we can't swap content_scale permanently. On pause we go
-# HD (for a roomy menu) and the near-opaque dim hides the frozen game (which
-# would otherwise show blown-up at HD scale); on resume we restore native.
+# native 480×270, so we can't swap content_scale permanently. On pause we grab
+# the last rendered frame BEFORE the swap and show it as an opaque full-screen
+# backdrop: the real (now quarter-sized, overflow-spilling) game render hides
+# underneath it, the menu gets HD, and the player still sees the frozen game
+# properly scaled behind a translucent dim. On resume we restore native.
 var _hd_scope: HdViewportScope = null
+var _shot: TextureRect = null
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
-	# Near-opaque so the HD-scaled frozen combat behind isn't visible.
-	_dim.color = Color(0.02, 0.03, 0.06, 0.98)
+	# Above every combat CanvasLayer (Glass=1, HUD=5, Outline=10) so no game
+	# element can float over the pause backdrop; below make_modal's 95 (the
+	# leave-warning) and SceneTransition's fade at 128.
+	layer = 80
+	# Translucent — the frozen-frame backdrop underneath is what hides the game.
+	_dim.color = Color(0.02, 0.03, 0.06, 0.85)
 	_vbox.custom_minimum_size = Vector2(360, 0)
 	_vbox.add_theme_constant_override("separation", 14)
 	for b in [_menu_btn, _opts_btn, _back_btn]:
@@ -40,6 +47,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _toggle() -> void:
 	_paused = not _paused
+	if _paused:
+		_capture_backdrop()   # grab the native-rendered frame BEFORE the HD swap
 	visible = _paused
 	get_tree().paused = _paused
 	if _paused:
@@ -47,8 +56,35 @@ func _toggle() -> void:
 	else:
 		HdScreen.drop(_hd_scope)
 		_hd_scope = null
+		_drop_backdrop()
 	if has_node("/root/Music"):
 		get_node("/root/Music").set_walk_frozen(_paused)
+
+
+# Freeze the window's last rendered frame (still at native content scale, so it
+# looks exactly like the moment of pausing) into an opaque full-rect backdrop
+# behind the dim. Physical window pixels, so any window size stretches cleanly.
+func _capture_backdrop() -> void:
+	_drop_backdrop()
+	var tex := get_viewport().get_texture()
+	if tex == null:
+		return
+	var img := tex.get_image()
+	if img == null:
+		return
+	_shot = TextureRect.new()
+	_shot.texture = ImageTexture.create_from_image(img)
+	_shot.stretch_mode = TextureRect.STRETCH_SCALE
+	_shot.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_shot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_shot)
+	move_child(_shot, 0)   # behind Dim + buttons
+
+
+func _drop_backdrop() -> void:
+	if _shot != null and is_instance_valid(_shot):
+		_shot.queue_free()
+	_shot = null
 
 
 func _resume() -> void:
