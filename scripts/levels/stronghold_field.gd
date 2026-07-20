@@ -5,9 +5,10 @@ extends Node2D
 # prefab-asteroids in escalating themed WAVES, with loose asteroids peppered around them. The wave
 # director runs a (lightened) faction SHIP overlay on top.
 #
-# Progression (fly INTO the base, then back OUT): outer light-turret pickets → heavy turrets →
-# turrets + non-combat structures → core base → …and back out. Each wave = `wave_size` prefabs (6-12)
-# of one category; categories are classified from each prefab's building content (see _classify).
+# Progression (fly INTO the base): light outer pickets escalate through heavy/mixed toward a
+# core-dominated finale that feeds the BOSS stronghold — each slot's category rolls from
+# progress-weighted buckets (PROG_WEIGHTS below) and wave size ramps up alongside, matching the
+# flying-wave generator's density ramp. Categories classify from building content (see _classify).
 # Prefabs spawn with VERTICAL CLEARANCE (gated on the last one descending) so big rocks don't wall up.
 #
 # FINITE (the sequence ends, then rocks stop) so the director's level_cleared can fire once everything
@@ -18,9 +19,23 @@ const StrongholdScene := preload("res://scenes/enemies/asteroid_stronghold.tscn"
 const RockScene := preload("res://scenes/enemies/enemy_asteroid.tscn")
 const Strongholds := preload("res://scripts/levels/asteroid_strongholds.gd")
 
-# Base-assault order: pickets inward to the core, then back out. (Tunable via knobs.)
-var wave_sequence: Array = ["light", "heavy", "mixed", "core", "mixed", "heavy", "light"]
-var wave_size: int = 6                 # prefabs per wave (Roman: 6-12)
+# WEIGHTED PROGRESSION (Roman 2026-07-18): prefab composition escalates toward the midpoint +
+# finale IN STEP with the flying-enemy generator (whose 3 stretches ramp density 16/26/36). Each
+# prefab slot rolls its category from progress-dependent weights — early waves are light pickets,
+# the middle turns heavy/mixed, the finale is core-dominated (feeding the boss stronghold, which
+# spawns right after the last wave). Columns = weights at progress 0 / 0.5 / 1, lerped piecewise.
+# Tunable via knobs ("progression_weights"); passing a "wave_sequence" knob instead restores the
+# legacy fixed-category-per-wave mode.
+const PROG_WEIGHTS := {
+	"light": [0.75, 0.30, 0.05],
+	"heavy": [0.20, 0.40, 0.30],
+	"mixed": [0.05, 0.25, 0.25],
+	"core":  [0.00, 0.05, 0.40],
+}
+var prog_weights: Dictionary = PROG_WEIGHTS
+var wave_count: int = 7                # waves in the assault (legacy wave_sequence knob overrides)
+var wave_sequence: Array = []          # LEGACY knob: fixed category per wave; empty = weighted mode
+var wave_size: int = 6                 # prefabs per MID wave; ramps -2..+2 across the level (4→8 at default)
 var gap_factor: float = 1.3            # next prefab waits until the last has descended size × (this-1)
 var drift_mult: float = 1.25           # ×authored prefab drift — faster so big rocks clear sooner and
                                        # the whole field fits ~the 3-min ship schedule (so the SHIP +
@@ -59,8 +74,12 @@ func start(knobs: Dictionary = {}) -> void:
 	rock_interval_min = float(knobs.get("rock_interval_min", rock_interval_min))
 	rock_interval_max = float(knobs.get("rock_interval_max", rock_interval_max))
 	rock_first_delay = float(knobs.get("rock_first_delay", rock_first_delay))
+	wave_count = int(knobs.get("wave_count", wave_count))
+	if knobs.get("progression_weights", null) is Dictionary and not (knobs["progression_weights"] as Dictionary).is_empty():
+		prog_weights = knobs["progression_weights"]
 	if knobs.get("wave_sequence", null) is Array and not (knobs["wave_sequence"] as Array).is_empty():
-		wave_sequence = knobs["wave_sequence"]
+		wave_sequence = knobs["wave_sequence"]   # legacy fixed-category mode
+		wave_count = wave_sequence.size()
 	# Partition by role: only "normal" prefabs feed the classified wave rotation; miniboss/boss are pulled
 	# out into their own pools (spawned as set-piece encounters) so they can't also appear as ambient chaff.
 	var all_prefabs: Array = Strongholds.load_all()
@@ -69,9 +88,9 @@ func start(knobs: Dictionary = {}) -> void:
 	_buckets = _classify_all(all_prefabs.filter(func(p): return _role_of(p) == "normal"))
 	_has_mini = not _miniboss_pool.is_empty()
 	_has_boss = not _boss_pool.is_empty()
-	_mini_at = int(wave_sequence.size() / 2)
+	_mini_at = int(wave_count / 2)
 	_wave_i = 0
-	_wave_left = wave_size
+	_wave_left = _wave_size_for(0)
 	_rock_timer = rock_first_delay
 	_rng.randomize()
 	if _all_empty() and not _has_mini and not _has_boss:
@@ -105,7 +124,7 @@ func _tick_prefabs() -> void:
 			_spawn_encounter(mp, "miniboss")
 			return
 	# Normal waves exhausted → the BOSS finale (once), then stop.
-	if _wave_i >= wave_sequence.size():
+	if _wave_i >= wave_count:
 		if _has_boss:
 			_has_boss = false
 			var bp := _pick_pool(_boss_pool)
@@ -120,10 +139,10 @@ func _tick_prefabs() -> void:
 	if _last_prefab != null and is_instance_valid(_last_prefab):
 		if _last_prefab.position.y < _last_size * (gap_factor - 1.0):
 			return
-	var cat := String(wave_sequence[_wave_i])
+	var cat := _category_for_wave(_wave_i)
 	var prefab := _pick(cat)
 	if prefab.is_empty():
-		_advance_wave()   # no prefabs of this category authored — skip the wave, don't stall
+		_advance_wave()   # nothing pickable at this progress point — skip the wave, don't stall
 		return
 	_spawn_stronghold(prefab)
 	_wave_left -= 1
@@ -133,9 +152,57 @@ func _tick_prefabs() -> void:
 
 func _advance_wave() -> void:
 	_wave_i += 1
-	_wave_left = wave_size
-	if _wave_i >= wave_sequence.size():
+	_wave_left = _wave_size_for(_wave_i)
+	if _wave_i >= wave_count:
 		_done_prefabs = true
+
+
+# ---------------------------------------------------------------- weighted progression
+
+func _progress(wave_i: int) -> float:
+	return clampf(float(wave_i) / maxf(1.0, float(wave_count - 1)), 0.0, 1.0)
+
+
+# Piecewise-lerped weight from the [early, mid, late] checkpoints.
+func _weight_at(pts: Array, t: float) -> float:
+	if pts.size() < 3:
+		return float(pts[0]) if pts.size() > 0 else 0.0
+	if t <= 0.5:
+		return lerpf(float(pts[0]), float(pts[1]), t * 2.0)
+	return lerpf(float(pts[1]), float(pts[2]), (t - 0.5) * 2.0)
+
+
+# Category for this wave: legacy fixed sequence when authored, else a weighted roll at this wave's
+# progress — renormalized over the buckets that actually have prefabs, so an unauthored category
+# (e.g. no "core" prefabs yet) just redistributes its weight instead of stalling the assault.
+func _category_for_wave(wave_i: int) -> String:
+	if not wave_sequence.is_empty():
+		return String(wave_sequence[clampi(wave_i, 0, wave_sequence.size() - 1)])
+	var t := _progress(wave_i)
+	var total := 0.0
+	var cats: Array = []
+	for c in prog_weights:
+		if (_buckets.get(c, []) as Array).is_empty():
+			continue
+		var w := _weight_at(prog_weights[c], t)
+		if w <= 0.0:
+			continue
+		cats.append([c, w])
+		total += w
+	if cats.is_empty() or total <= 0.0:
+		return "light"   # nothing weighted at this t — _pick falls through to the skip path
+	var roll := _rng.randf() * total
+	for cw in cats:
+		roll -= float(cw[1])
+		if roll <= 0.0:
+			return String(cw[0])
+	return String(cats[cats.size() - 1][0])
+
+
+# Wave size ramps ±2 around the tuned midpoint (default 6 → 4 early, 8 at the finale), mirroring the
+# ship generator's per-stretch density ramp so ground + air pressure escalate together.
+func _wave_size_for(wave_i: int) -> int:
+	return maxi(1, roundi(lerpf(float(wave_size - 2), float(wave_size + 2), _progress(wave_i))))
 
 
 func _spawn_stronghold(prefab: Dictionary) -> void:

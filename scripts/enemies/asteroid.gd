@@ -19,11 +19,16 @@ var _drift: Resource = null
 const HazardSpacing = preload("res://scripts/enemies/hazard_spacing.gd")
 const SEP_STIFFNESS: float = 6.0
 
-# Impact jolt (Roman 2026-06-14): halved the player kick (was 50) AND added a short
-# per-player grace so a chain of asteroids can't pinball the ship energetically off one
-# impact. The grace lives on the PLAYER (a meta) so ANY asteroid respects a recent kick.
+# (Impact jolt RETIRED 2026-07-18 with player contact — see _on_area_entered. Consts kept for
+# reference; the fly-over altitude model means rocks never strike the ship.)
 const PLAYER_KICK := 25.0
 const JOLT_GRACE_MS := 450
+
+# Fly-over opt-out (2026-07-18): the PLAYER's own contact handler (player._on_area_entered) rams any
+# "enemies"-group area for 6 and takes 1 — that was the real "hit by something invincible": passing
+# over a rock hurt the ship AND popped the 5-HP rock. player_impact=false routes the player-side
+# early-return the ground structures already use — the ship truly flies over; rocks stay shootable.
+var player_impact: bool = false
 
 const PROCGEN_ASTEROID = "res://Planets/Asteroids/Asteroid.tscn"
 
@@ -310,29 +315,13 @@ func _spawn_asteroid_fragments() -> void:
 		})
 
 
-func _on_area_entered(area: Area2D) -> void:
-	if area.has_method("take_damage") and "hull" in area:
-		area.take_damage(damage_on_collide)
-		# Billiards: shove the player aside, asteroid drifts the opposite way.
-		var to_player: Vector2 = area.global_position - global_position
-		if to_player.length() < 1.0:
-			to_player = Vector2(randf_range(-1, 1), randf_range(-1, 1)).normalized()
-		var push: Vector2 = to_player.normalized() * PLAYER_KICK
-		# Tween the player away briefly (mimic a kinematic impulse) — but only if it wasn't
-		# kicked very recently, so successive asteroids don't pinball it. Damage + the
-		# asteroid bounce + dust still happen on every contact.
-		var now: int = Time.get_ticks_msec()
-		if area is Node2D and now - int(area.get_meta("last_asteroid_kick_ms", 0)) >= JOLT_GRACE_MS:
-			area.set_meta("last_asteroid_kick_ms", now)
-			var p2 := area as Node2D
-			var tw = p2.create_tween()
-			tw.tween_property(p2, "position", p2.position + push, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		# Asteroid bounces the other way + slows briefly.
-		if _drift != null:
-			_drift.nudge_lateral(-push.x * 0.4)
-		drift_speed = max(drift_speed * 0.4, 15.0)
-		# Dust burst at the contact point.
-		_spawn_dust(global_position + to_player.normalized() * 8.0)
+# Player contact RETIRED (2026-07-18 altitude model): rocks sit BELOW the flight plane (z -1) —
+# ships, the player's included, pass right over them (the near-band drop shadows sell the altitude).
+# The old contact damage + billiard kick read as hits from an invincible unseen source once the rock
+# rendered under the ship. Rocks stay shootable is_hazard targets; they just can't strike the plane
+# above. (Method kept: enemy_asteroid.tscn authors the area_entered connection.)
+func _on_area_entered(_area: Area2D) -> void:
+	pass
 
 
 # Dusty particle burst. Defaults match the original "bumped into a player"

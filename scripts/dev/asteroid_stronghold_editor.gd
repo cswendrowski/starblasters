@@ -257,6 +257,8 @@ func _rebuild_rock() -> void:
 	_rock = Stronghold.build_rock_visual(_world, _ast())
 	if _rock != null:
 		_rock.position += ROCK_CENTER
+		# Rock z is pinned by build_rock_visual itself (abs GROUND_Z-3 = -8): under the BuildingShadow
+		# carriers (-7) and the abs-pinned buildings (-5..-4) in EVERY host, editor included.
 	_restack()
 
 
