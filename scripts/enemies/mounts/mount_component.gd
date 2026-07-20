@@ -286,7 +286,7 @@ func _off_screen(enemy) -> bool:
 		return false
 	const M := 8.0
 	var sz: Vector2 = enemy.get_viewport_rect().size
-	var p: Vector2 = enemy.position
+	var p: Vector2 = enemy.global_position   # global — a parented host's local pos is its authored offset (2026-07-18)
 	return p.x < M or p.x > sz.x - M or p.y < M or p.y > sz.y - M
 
 

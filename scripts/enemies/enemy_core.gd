@@ -293,7 +293,11 @@ func _on_movement_phase_entered(phase_name: String) -> void:
 # clamped is still considered on-screen.
 func _on_playfield() -> bool:
 	const PF_MARGIN := 8.0
-	var p: Vector2 = position
+	# GLOBAL position (2026-07-18) — a PARENTED enemy's local position is its authored offset (a
+	# stronghold building at rock-offset (0,0) read as permanently off-playfield, so its GUN mount
+	# never fired — "the diamond turret doesn't shoot"). Same class of bug as the is_fully_offscreen
+	# global fix; identical for direct world children (local == global there).
+	var p: Vector2 = global_position
 	return p.x >= PF_MARGIN \
 		and p.x <= screensize.x - PF_MARGIN \
 		and p.y >= PF_MARGIN \
