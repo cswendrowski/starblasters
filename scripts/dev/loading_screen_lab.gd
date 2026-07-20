@@ -12,7 +12,15 @@ extends Control
 
 const SceneTransition = preload("res://scripts/systems/scene_transition.gd")
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
+const FlyoverPlanner = preload("res://scripts/parallax/flyover_planner.gd")
 const LOADING_SCENE := "res://scenes/loading_screen.tscn"
+
+# Destination dropdown labels for each eligible flyover planet_type (keys of
+# FlyoverPlanner.TYPE_TO_PRESET). "Space" (the normal starfield) is prepended at runtime.
+const PTYPE_LABELS := {
+	0: "Lava World", 1: "Dry Terran", 2: "No Atmosphere",
+	3: "Land Masses", 5: "Ice World", 7: "Rivers",
+}
 
 const SWATCHES := [
 	Color(0.90, 0.16, 0.16), Color(0.96, 0.55, 0.13), Color(0.98, 0.85, 0.25),
@@ -25,6 +33,9 @@ var _hd: HdViewportScope = null
 var _poi_edit: LineEdit = null
 var _status: Label = null
 var _val_labels: Dictionary = {}   # key -> value Label
+var _dest_map: Array = [-1]        # dropdown index -> planet_type (-1 = Space)
+var _planet_seed: int = 20260718   # flyover colour/terrain seed; Reroll randomizes it
+var _night_on: bool = false        # Night CheckButton state (forces the flyover night bool)
 
 
 func _ready() -> void:
@@ -111,6 +122,35 @@ func _build_panel() -> void:
 	reroll.pressed.connect(_on_reroll)
 	row.add_child(reroll)
 	v.add_child(row)
+
+	v.add_child(HSeparator.new())
+
+	# --- Destination backdrop: Space (starfield) or a flyover planet type ---
+	v.add_child(_mk_label("Destination backdrop", UiTheme.FONT_SIZE_CAPTION, UiTheme.COLOR_FAINT))
+	var drow := HBoxContainer.new()
+	drow.add_theme_constant_override("separation", 6)
+	var dest := OptionButton.new()
+	dest.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	dest.add_item("Space", 0)
+	_dest_map = [-1]
+	for t in FlyoverPlanner.TYPE_TO_PRESET.keys():
+		dest.add_item(String(PTYPE_LABELS.get(t, "Type %d" % t)))
+		_dest_map.append(int(t))
+	dest.selected = 0
+	dest.item_selected.connect(_on_dest_selected)
+	drow.add_child(dest)
+	var seed_btn := UiTheme.make_button("Reroll", true)
+	seed_btn.pressed.connect(func() -> void:
+		_planet_seed = randi()
+		_rebuild_backdrop())
+	drow.add_child(seed_btn)
+	v.add_child(drow)
+
+	var night := CheckButton.new()
+	night.text = "Night"
+	night.button_pressed = _night_on
+	night.toggled.connect(_on_night_toggled)
+	v.add_child(night)
 
 	v.add_child(HSeparator.new())
 
@@ -206,6 +246,46 @@ func _on_flight_complete() -> void:
 		_status.text = "flight_complete fired — hit Replay to re-test."
 
 
+# Destination dropdown → Space (clear override + forced_flyover meta) or a flyover planet type
+# (inject a stellar_override dict + force the plan past its chance roll via Run meta). The lab
+# writing Run meta is established dev practice here (same as the livery swatches writing Run).
+func _on_dest_selected(index: int) -> void:
+	var ptype: int = int(_dest_map[index]) if index < _dest_map.size() else -1
+	if ptype < 0:
+		_ls.stellar_override = {}
+		_clear_forced_flyover()
+	else:
+		_ls.stellar_override = {"obj_kind": 0, "planet_type": ptype, "planet_seed": _planet_seed}
+		_set_forced_flyover()
+	_rebuild_backdrop()
+
+
+func _on_night_toggled(on: bool) -> void:
+	_night_on = on
+	_ls.night_override = 1 if on else 0
+	_rebuild_backdrop()
+
+
+# Re-plan + swap the live LoadingScreen's backdrop, keeping the instance (and the slider closures
+# that capture it) intact rather than re-instancing.
+func _rebuild_backdrop() -> void:
+	if _ls != null and is_instance_valid(_ls):
+		_ls.rebuild_backdrop()
+
+
+# Force the planner past its chance roll (dev override read by FlyoverPlanner._forced_meta).
+func _set_forced_flyover() -> void:
+	var run := get_node_or_null("/root/Run")
+	if run != null:
+		run.set_meta("forced_flyover", {"force": true})
+
+
+func _clear_forced_flyover() -> void:
+	var run := get_node_or_null("/root/Run")
+	if run != null and run.has_meta("forced_flyover"):
+		run.remove_meta("forced_flyover")
+
+
 # Livery comes from Run (the real player reads it on spawn), so preview a swatch by writing Run
 # then respawning the ship. Dev-only mutation of Run is fine here.
 func _set_livery(c: Color) -> void:
@@ -241,6 +321,9 @@ func _on_copy_gdscript() -> void:
 		"ship_drift_ax = %s" % _f(_ls.ship_drift_ax),
 		"ship_drift_ay = %s" % _f(_ls.ship_drift_ay),
 		"flyoff_time = %s" % _f(_ls.flyoff_time),
+		"# Flyover destination preview (lab-only injection; not shipped defaults):",
+		"# stellar_override = %s" % str(_ls.stellar_override),
+		"# night_override = %d  # -1 auto / 0 day / 1 night" % _ls.night_override,
 	]
 	var text := "\n".join(lines)
 	DisplayServer.clipboard_set(text)
@@ -262,7 +345,12 @@ func _mk_label(text: String, size: int, color: Color) -> Label:
 
 
 func _back() -> void:
+	_clear_forced_flyover()   # don't leak the dev override into the next scene
 	SceneTransition.change_scene(get_tree(), "res://scenes/dev_menu.tscn")
+
+
+func _exit_tree() -> void:
+	_clear_forced_flyover()
 
 
 func _unhandled_input(event: InputEvent) -> void:

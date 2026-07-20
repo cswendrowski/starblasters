@@ -97,6 +97,7 @@ horizontal_alignment = 1
 drift_speed = 50.0
 asteroid_shadows = true
 enable_hazard_decor = true
+allow_flyover = true
 
 [node name="Player" parent="." unique_id=1846889269 instance=ExtResource("6_t4pur")]
 position = Vector2(160, 320)

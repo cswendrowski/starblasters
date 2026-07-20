@@ -23,6 +23,10 @@ extends Control
 
 const UiTheme = preload("res://scripts/ui/ui_theme.gd")
 const ShipCatalog = preload("res://scripts/strings/ship_catalog.gd")
+# Both preloaded (not via FlyoverBackdrop's class_name): a fresh class_name isn't registered when
+# this scene is parsed under the -s headless test harness until the cache regenerates.
+const FlyoverPlanner = preload("res://scripts/parallax/flyover_planner.gd")
+const FlyoverBackdropScript = preload("res://scripts/parallax/flyover_backdrop.gd")
 
 const STARS_SCENE := "res://scenes/parallax/layers/layer_stars.tscn"
 
@@ -66,6 +70,13 @@ signal flight_complete
 @export var ship_max_hull: int = -1   # max hull;     -1 = read Run.max_hull
 @export var manage_hd_scope: bool = true
 
+# ---- Flyover backdrop (Planet Flyover consumer, Phase B2) ----
+# When non-empty, `stellar_override` REPLACES Run.current_stellar for flyover planning (the
+# Loading Screen Lab injects a planet dict here). `night_override`: -1 auto (plan decides) /
+# 0 force day / 1 force night — a lab knob merged over the plan's night bool.
+@export var stellar_override: Dictionary = {}
+@export var night_override: int = -1
+
 # ---- Visual tuning knobs (the dev lab drives these; defaults are the shipped look) ----
 @export var star_drift: float = 18000.0       # star scroll rate — "swiftness" of the rush
 @export var star_alpha: float = 0.5           # fade the star layers (1 = full bright)
@@ -86,6 +97,9 @@ var _world: Node2D = null
 var _stars: CanvasLayer = null
 var _streaks: GPUParticles2D = null
 var _ship: Node2D = null
+var _flyover_plan: Dictionary = {}   # {} = space starfield; non-empty = Planet Flyover backdrop
+var _flyover_layer: CanvasLayer = null
+var _flyover: FlyoverBackdropScript = null
 var _burn_player: AudioStreamPlayer2D = null   # looping engine burn, child of the ship
 var _burn_tween: Tween = null
 var _name_label: Label = null
@@ -101,9 +115,14 @@ func _ready() -> void:
 	else:
 		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_resolve_identity()
+	_compute_flyover_plan()
 	_build_world()
-	rebuild_streaks()
-	_build_stars()
+	# Flyover levels swap the space starfield for the Planet Flyover backdrop (skip stars/streaks).
+	if _flyover_plan.is_empty():
+		rebuild_streaks()
+		_build_stars()
+	else:
+		_build_flyover()
 	rebuild_ship()
 	_build_title()
 	_built = true
@@ -158,6 +177,131 @@ func _default_poi_name(run: Node) -> String:
 	else:
 		seed_value = randi()
 	return SectorNameGenerator.generate(seed_value)
+
+
+# ---- Flyover backdrop -----------------------------------------------------
+
+# Decide, ONCE, whether this fly-to lands on a Planet Flyover level. stellar_override (lab) beats
+# Run.current_stellar; absent Run / empty stellar / planner returning {} → the normal space screen.
+# The lab night_override is merged over the planned night bool.
+func _compute_flyover_plan() -> void:
+	var run := get_node_or_null("/root/Run")
+	var stellar: Dictionary = {}
+	if not stellar_override.is_empty():
+		stellar = stellar_override
+	elif run != null and "current_stellar" in run and run.current_stellar is Dictionary:
+		stellar = run.current_stellar
+	if stellar.is_empty():
+		_flyover_plan = {}
+		return
+	var node_id: String = ""
+	var run_seed: int = 0
+	if run != null:
+		if "current_node_id" in run:
+			node_id = String(run.current_node_id)
+		if "run_seed" in run:
+			run_seed = int(run.run_seed)
+	_flyover_plan = FlyoverPlanner.plan(stellar, run_seed, node_id)
+	if not _flyover_plan.is_empty() and night_override >= 0:
+		_flyover_plan["night"] = (night_override == 1)
+
+
+# Build the flyover stack in its OWN CanvasLayer (layer -10, scale ×4 — same pattern as the stars
+# layer: CanvasLayers ignore Node2D transforms, so scale directly). The FlyoverBackdrop's night
+# CanvasModulate lives inside this layer, darkening ONLY the backdrop (ship + title stay lit). The
+# ship is registered as the single shadow caster after rebuild_ship() spawns it; the world is HD ×4
+# so casters convert with caster_coord_scale = 0.25. NOT parented under World (which would expose a
+# hull/max_hull-free child there is fine, but the backdrop belongs on its own canvas anyway).
+func _build_flyover() -> void:
+	_teardown_flyover()
+	var layer := CanvasLayer.new()
+	layer.name = "FlyoverLayer"
+	layer.layer = -10
+	layer.scale = Vector2(WORLD_SCALE, WORLD_SCALE)
+	add_child(layer)
+	var bd := FlyoverBackdropScript.new()
+	bd.name = "FlyoverBackdrop"
+	bd.base_z = 0
+	bd.caster_coord_scale = 0.25   # ship global_position is HD ×4; masks are native 480×270
+	layer.add_child(bd)
+	bd.apply_settings(_flyover_plan)
+	_flyover_layer = layer
+	_flyover = bd
+
+
+# Recompute the plan and swap the backdrop live between the space starfield and the flyover stack.
+# Dev-lab entry point (Destination / Night knobs); keeps THIS LoadingScreen instance (and the lab's
+# slider closures that capture it) stable rather than re-instancing.
+func rebuild_backdrop() -> void:
+	_compute_flyover_plan()
+	if _flyover_plan.is_empty():
+		_teardown_flyover()
+		if _stars == null or not is_instance_valid(_stars):
+			_build_stars()
+		if _streaks == null or not is_instance_valid(_streaks):
+			rebuild_streaks()
+	else:
+		_teardown_space()
+		_build_flyover()
+		_register_ship_caster()
+
+
+func _teardown_flyover() -> void:
+	if _flyover != null and is_instance_valid(_flyover) and _ship != null and is_instance_valid(_ship):
+		_flyover.unregister_caster(_ship)
+	if _flyover_layer != null and is_instance_valid(_flyover_layer):
+		_flyover_layer.queue_free()
+	_flyover_layer = null
+	_flyover = null
+
+
+func _teardown_space() -> void:
+	if _stars != null and is_instance_valid(_stars):
+		_stars.queue_free()
+	_stars = null
+	if _streaks != null and is_instance_valid(_streaks):
+		_streaks.queue_free()
+	_streaks = null
+
+
+# Register the spawned ship as the single flyover shadow caster: a one-frame AtlasTexture of the
+# ship's 3-hframe body strip (frame 1 = level flight). Idempotent — unregisters any prior player
+# node first so lab respawns don't leave a stale caster in the mask viewports.
+func _register_ship_caster() -> void:
+	if _flyover == null or not is_instance_valid(_flyover):
+		return
+	if _ship == null or not is_instance_valid(_ship):
+		return
+	_flyover.unregister_caster(_ship)
+	var body := _find_ship_body(_ship)
+	if body == null or body.texture == null:
+		return
+	var tex := _single_frame_tex(body.texture, body.hframes, 1)
+	if tex != null:
+		_flyover.register_caster(_ship, tex)
+
+
+# The player's body sprite: the conventional "Ship" layer (player.tscn), else first textured Sprite2D.
+func _find_ship_body(p: Node) -> Sprite2D:
+	var s := p.get_node_or_null("Ship")
+	if s is Sprite2D:
+		return s as Sprite2D
+	for c in p.find_children("*", "Sprite2D", true, false):
+		if c is Sprite2D and (c as Sprite2D).texture != null:
+			return c as Sprite2D
+	return null
+
+
+# One frame of an N-hframe sprite strip as a standalone texture (mirrors planet_flyover_lab).
+func _single_frame_tex(tex: Texture2D, hframes: int, frame: int) -> AtlasTexture:
+	if tex == null:
+		return null
+	var frames: int = maxi(1, hframes)
+	var fw: float = float(tex.get_width()) / float(frames)
+	var at := AtlasTexture.new()
+	at.atlas = tex
+	at.region = Rect2(fw * float(clampi(frame, 0, frames - 1)), 0.0, fw, float(tex.get_height()))
+	return at
 
 
 # ---- World build ----------------------------------------------------------
@@ -249,6 +393,9 @@ func _build_streak_texture() -> Texture2D:
 # from Run then lights up the tells the ship would show in combat at the same damage.
 func rebuild_ship() -> void:
 	if _ship != null and is_instance_valid(_ship):
+		# Drop the outgoing ship's flyover caster before it frees (avoid a stale mask entry).
+		if _flyover != null and is_instance_valid(_flyover):
+			_flyover.unregister_caster(_ship)
 		_ship.queue_free()
 	var idx: int = clampi(ship_variant, 0, ShipCatalog.count() - 1)
 	var p: Node2D = load(ShipCatalog.scene_path(idx)).instantiate()
@@ -287,6 +434,7 @@ func rebuild_ship() -> void:
 	await get_tree().process_frame
 	if is_instance_valid(_ship):
 		apply_hull()
+		_register_ship_caster()   # no-op unless a flyover backdrop is active
 	_start_burn_loop()
 
 

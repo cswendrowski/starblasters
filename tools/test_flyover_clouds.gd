@@ -3,6 +3,8 @@
 # "clean" while rendering zero clouds. Parse checks can't catch that; this asserts the
 # built tree: 3 cloud rects with materials, 3 shadow-mask viewports, ground, atmo slices,
 # and the casters (1 player + 3 enemies) with composed single-frame textures.
+# 2026-07-18: the world builder moved into the hosted FlyoverBackdrop (lab._backdrop), so
+# the built tree is asserted on that component instead of the lab root.
 # Run: godot --path . --headless -s res://tools/test_flyover_clouds.gd
 extends SceneTree
 
@@ -26,7 +28,13 @@ func _process(_delta: float) -> bool:
 
 func _run_checks(n) -> void:
 	var failures: Array = []
-	var clouds: Dictionary = n._clouds
+	var bd = n._backdrop
+	if bd == null or not is_instance_valid(bd):
+		print("FAIL: lab has no hosted FlyoverBackdrop (_backdrop)")
+		print("VERDICT: FAIL")
+		quit(1)
+		return
+	var clouds: Dictionary = bd._clouds
 	if clouds.size() != 3:
 		failures.append("expected 3 cloud rects, got %d" % clouds.size())
 	for k in clouds:
@@ -35,18 +43,18 @@ func _run_checks(n) -> void:
 			failures.append("cloud rect %s invalid" % k)
 		elif rect.material == null:
 			failures.append("cloud rect %s has no material" % k)
-	if n._mask_vps.size() != 3:
-		failures.append("expected 3 shadow-mask viewports, got %d" % n._mask_vps.size())
-	if n._casters.size() != 4:
-		failures.append("expected 4 casters (player + 3 enemies), got %d" % n._casters.size())
-	for c in n._casters:
-		var node = c["node"]
+	if bd._mask_vps.size() != 3:
+		failures.append("expected 3 shadow-mask viewports, got %d" % bd._mask_vps.size())
+	if bd._casters.size() != 4:
+		failures.append("expected 4 casters (player + 3 enemies), got %d" % bd._casters.size())
+	for id in bd._casters:
+		var node = bd._casters[id]["node"]
 		if not (node.texture is AtlasTexture):
 			failures.append("caster %s is not a composed single frame (texture %s)" % [node.name, node.texture])
-	if n._ground == null or n._ground.material == null:
+	if bd._ground == null or bd._ground.material == null:
 		failures.append("ground missing or has no material")
-	if n._atmo_rects.size() != 3:
-		failures.append("expected 3 atmosphere slices, got %d" % n._atmo_rects.size())
+	if bd._atmo_rects.size() != 3:
+		failures.append("expected 3 atmosphere slices, got %d" % bd._atmo_rects.size())
 	if failures.is_empty():
 		print("VERDICT: PASS — flyover lab scene graph intact")
 		quit(0)

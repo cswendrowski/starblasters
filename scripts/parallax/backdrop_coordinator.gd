@@ -56,6 +56,11 @@ extends Node2D
 # on, so menu/signal-event coordinators never pay for the 3 mask viewports.
 @export var asteroid_shadows: bool = false
 
+# Planet Flyover eligibility. OFF by default — only combat's main.tscn Backdrop instance turns
+# it on. Menu / signal-event / lab / capture coordinators always keep the space parallax stack
+# regardless of whatever mid-run node state Run is carrying (Roman 2026-07-18).
+@export var allow_flyover: bool = false
+
 # Planet-to-tint mapping from V1 PLANET_TINT. Read galaxy_backdrop.gd for the exact colors.
 const PLANET_TINT := {
 	0: Color(1.0, 0.45, 0.20),  # LavaWorld
@@ -74,6 +79,17 @@ const SKIP_TINT := [6, 8]
 const StellarComposer = preload("res://scripts/parallax/stellar_composer.gd")
 # Asteroid drop-shadow rig (mask viewports + caster tracking). Preload const, NOT class_name.
 const AsteroidShadowRig = preload("res://scripts/parallax/asteroid_shadow_rig.gd")
+# Planet Flyover combat backdrop (Phase B1). Both preload consts, NOT class_name (the planner
+# has no class_name by design; keep the pair symmetric).
+const FlyoverPlanner = preload("res://scripts/parallax/flyover_planner.gd")
+const FlyoverBackdrop = preload("res://scripts/parallax/flyover_backdrop.gd")
+# base_z for the flyover stack. The space parallax layers live on deeply-negative CanvasLayers
+# (LayerStars -10 … LayerComposite -1), so they always sit behind the default layer-0 gameplay.
+# The FlyoverBackdrop, by contrast, is a child of THIS Node2D (default CanvasLayer 0), so it must
+# use z_index to stay behind gameplay. The component's topmost layer is Near = base_z + 24; the
+# design pins that at ≤ -8 (below ships 0, rocks -1, ground plane -5..-4). -32 puts Near at -8
+# and the ground floor at -32, preserving the fixed ground<atmo<cloud interleave.
+const FLYOVER_BASE_Z := -32
 
 # ── Row-system staging position knobs (Roman to tune) ──────────────────────
 # When current_stellar carries a `system` array (star + nearest planets), the
@@ -131,6 +147,9 @@ var last_stellar: Dictionary = {}
 # The asteroid drop-shadow rig (created in _populate only while asteroid_shadows
 # is on AND rocks will actually spawn — 3 always-updating mask viewports aren't free).
 var _shadow_rig: Node = null
+# The Planet Flyover backdrop (Phase B1) — built by _populate's early branch when a real-run
+# planet POI rolls a flyover; when present the entire space stack is skipped. Freed on teardown.
+var _flyover: Node = null
 # Direct stellar-dict injection (WP11): when non-empty, _populate consumes THIS ahead of
 # Run.current_stellar and reads `asteroid_base_color` from it (key optional) instead of Run meta.
 # Empty = production behavior unchanged. Lets the showcase lab drive gameplay-authored (sector-map
@@ -159,6 +178,25 @@ func _ready() -> void:
 
 func _populate() -> void:
 	var run_node := get_node_or_null("/root/Run")
+
+	# Planet Flyover branch (Phase B1): in a REAL run on a planet POI, a deterministic per-node
+	# roll can replace the whole space parallax stack with the close-to-planet flyover backdrop.
+	# OPT-IN via allow_flyover — only combat's main.tscn Backdrop instance enables it. Every other
+	# coordinator host (main menu via menu_backdrop, signal_event, dev labs, capture tools) keeps
+	# the space parallax unconditionally, even when Run still carries mid-run node state (Roman
+	# 2026-07-18: main screen stays space). Labs that inject stellar_override never roll flyover;
+	# dev testing of flyover in combat goes through the forced_flyover Run meta (handled inside
+	# FlyoverPlanner.plan). Non-planet POIs (obj_kind != 0) never plan, so stronghold/asteroid-
+	# pepper nodes fall through to the standard stack for free.
+	if allow_flyover and stellar_override.is_empty() and run_node != null \
+			and String(run_node.get("current_node_id") if "current_node_id" in run_node else "") != "":
+		var fstellar: Dictionary = run_node.current_stellar if "current_stellar" in run_node else {}
+		var frun_seed: int = int(run_node.run_seed) if "run_seed" in run_node else 0
+		var plan: Dictionary = FlyoverPlanner.plan(fstellar, frun_seed, String(run_node.current_node_id))
+		if not plan.is_empty():
+			_build_flyover(plan)
+			return
+
 	var stellar: Dictionary = {}
 	# stellar_override (WP11) wins over Run.current_stellar when set — the lab injects a
 	# gameplay-authored dict here without touching Run.
@@ -378,6 +416,22 @@ func _populate() -> void:
 		_spawn_background_mines(rng)
 
 
+# Build the Planet Flyover backdrop child from a planner settings dict and slot it behind
+# gameplay via FLYOVER_BASE_Z. apply_settings applies night too (the dict carries night keys),
+# so night is NOT wired separately. track_combat_casters = true polls player/enemies for cloud
+# shadows. base_z MUST be set before add_child — the component reads it while building rects.
+func _build_flyover(plan: Dictionary) -> void:
+	if _flyover != null and is_instance_valid(_flyover):
+		_flyover.queue_free()
+	var fb := FlyoverBackdrop.new()
+	fb.name = "FlyoverBackdrop"
+	fb.base_z = FLYOVER_BASE_Z
+	fb.track_combat_casters = true
+	add_child(fb)
+	fb.apply_settings(plan)
+	_flyover = fb
+
+
 const BgMineScript = preload("res://scripts/parallax/bg_mine.gd")
 # Live-mine art (the SAME sprites the gameplay mines use) so the background reads as
 # dimmed, distant versions of the real thing — NOT the retired mine_basic.png (Roman 2026-06-11).
@@ -595,6 +649,11 @@ func _clear_spawned() -> void:
 		_layer_stars.reset()
 	if _layer_streaks != null and _layer_streaks.has_method("reset"):
 		_layer_streaks.reset()
+	# Planet Flyover backdrop (Phase B1): free it so a repopulate rebuilds cleanly (or falls
+	# back to the space stack if the new context isn't a flyover).
+	if _flyover != null and is_instance_valid(_flyover):
+		_flyover.queue_free()
+	_flyover = null
 	# Lateral state resets so a regen doesn't carry a stale offset.
 	_lateral_pos = 0.0
 	_lateral_target = 0.0
