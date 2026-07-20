@@ -23,6 +23,29 @@ var _parked_entry: Dictionary = {}
 var _released: bool = false
 var _launch_at_y: float = -1.0   # global y that triggers the escape launch; -1 = this pad never launches
 var _launching: bool = false
+var _dark_layers: Array = []     # glow layers hidden while parked (powered down); restored on release/launch
+
+
+# Hide the parked ship's glow layers so it reads powered down: every GlowMask* sprite (the HDR
+# engine/muzzle glow frames — the layer-naming convention) + any authored EngineGlow plume sprites.
+func _power_down(e: Node) -> void:
+	_dark_layers.clear()
+	for n in e.find_children("GlowMask*", "Sprite2D", true, false):
+		if (n as CanvasItem).visible:
+			(n as CanvasItem).visible = false
+			_dark_layers.append(n)
+	for n in e.find_children("*", "EngineGlow", true, false):
+		if (n as CanvasItem).visible:
+			(n as CanvasItem).visible = false
+			_dark_layers.append(n)
+
+
+# Power the glow layers back on (release / escape-launch power-up).
+func _power_up_visuals() -> void:
+	for n in _dark_layers:
+		if is_instance_valid(n):
+			(n as CanvasItem).visible = true
+	_dark_layers.clear()
 
 
 func _ready() -> void:
@@ -57,6 +80,11 @@ func _spawn_parked() -> void:
 	# Killed WHILE parked → a DIRECT explosion, not the flying-ship spin-out/wreck (death_cheap routes
 	# enemy_base to the classic instant blast). Cleared on release so a recycled ship dies normally.
 	e.set_meta("death_cheap", true)
+	# POWERED DOWN read (Roman 2026-07-18, "the Bulwark's engines/muzzles still glowed"): hide the
+	# HDR glow layers (GlowMask engine/muzzle frames) + any EngineGlow plume sprites while parked.
+	# Restored on release (bottom exit) or at the escape-launch power-up — the glows coming back on
+	# IS the power-up tell.
+	_power_down(e)
 	_parked = e
 	_parked_entry = entry
 	# Escape-launch roll: trigger somewhere in the upper-middle band so the whole power-up + lift-off +
@@ -150,6 +178,7 @@ func _launch() -> void:
 	# POWER UP — glows fade in while the ship still sits on the pad. z 0 RELATIVE (not the scene's
 	# authored -2 hull-tuck, which under the GROUND_Z pad would land below the rock and hide): at 0 they
 	# draw with the ship's subtree, which tree-orders above the pad while grounded.
+	_power_up_visuals()   # authored glow layers relight as the plumes fade in — the power-up tell
 	var glow_pos: Array = []
 	for m in p.find_children("Engine*", "Marker2D", true, false):
 		glow_pos.append(p.to_local((m as Node2D).global_position))
@@ -225,6 +254,7 @@ func _release_parked() -> void:
 	var world := get_parent()
 	if world != null and is_instance_valid(world):
 		p.reparent(world, true)
+	_power_up_visuals()   # glow layers back on — it's a live flying ship again
 	p.set_process(true)
 	p.set_physics_process(true)
 	if p.has_meta("death_cheap"):
