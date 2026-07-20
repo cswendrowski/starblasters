@@ -55,6 +55,9 @@ var _regen_t: float = 0.0
 var _ring: ColorRect = null
 var _mat: ShaderMaterial = null
 var _fx = null           # ShieldRingFx driver (owns the look + tweens)
+var _outer_shape: CollisionShape2D = null   # optional bubble-sized hitbox (see on_start)
+var _use_size: float = 0.0                  # fit-resolved bubble size (set in _build_ring)
+var _use_elong: float = 0.0
 
 
 func on_start(enemy) -> void:
@@ -68,6 +71,12 @@ func on_start(enemy) -> void:
 	_regen_t = 0.0
 	if _ring == null or not is_instance_valid(_ring):
 		_build_ring(enemy)
+	# Oversized-shield HITBOX (bulwark): an enemy whose bubble is meant to physically
+	# block shots aimed PAST it authors a sibling CollisionShape2D named
+	# "CollisionOuterShield". The component sizes it to the resolved bubble and keeps
+	# it live only while the shield is up — with it down, only the hull shape takes hits.
+	_outer_shape = enemy.get_node_or_null("CollisionOuterShield") as CollisionShape2D
+	_fit_outer_shape()
 	_update_visual()
 
 
@@ -159,21 +168,35 @@ func _build_ring(enemy) -> void:
 	# Per-enemy shield FIT (Shader Lab "Enemy Shields" tab): a tuned size/roundness for THIS enemy scene
 	# wins over the @export defaults, so every enemy's bubble hugs its own sprite.
 	var fit: Dictionary = ShieldFitC.fit_for(String(enemy.scene_file_path))
-	var use_size: float = float(fit.get("ring_size", ring_size))
-	var use_elong: float = float(fit.get("elongation", elongation))
+	_use_size = float(fit.get("ring_size", ring_size))
+	_use_elong = float(fit.get("elongation", elongation))
 	_mat = ShaderMaterial.new()
 	_mat.shader = SHIELD_SHADER
 	_ring = ColorRect.new()
 	_ring.name = "ShieldRing"
 	_ring.color = Color(1, 1, 1, 1)
 	_ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_ring.size = Vector2(use_size, use_size)
+	_ring.size = Vector2(_use_size, _use_size)
 	_ring.position = -_ring.size * 0.5
 	_ring.material = _mat
 	_ring.z_index = 1
 	enemy.add_child(_ring)
 	_fx = ShieldRingFxC.new(_mat, _ring, _pick_color(enemy))
-	_mat.set_shader_parameter("elongation", use_elong)   # per-enemy bubble roundness (Shader Lab tuned)
+	_mat.set_shader_parameter("elongation", _use_elong)   # per-enemy bubble roundness (Shader Lab tuned)
+
+
+# Size the authored CollisionOuterShield to the fit-resolved bubble so hitbox == visual.
+# The hex_shield bubble fills its rect: circle radius = size/2; elongation > 0 makes a
+# vertical capsule of half-width (1 - elongation) * size/2 and full height = size.
+func _fit_outer_shape() -> void:
+	if _outer_shape == null:
+		return
+	if _outer_shape.shape is CapsuleShape2D:
+		var cap := _outer_shape.shape as CapsuleShape2D
+		cap.radius = maxf(1.0 - _use_elong, 0.05) * _use_size * 0.5
+		cap.height = _use_size
+	elif _outer_shape.shape is CircleShape2D:
+		(_outer_shape.shape as CircleShape2D).radius = _use_size * 0.5
 
 
 # The sapper (POOL) shows the player cyan (its pool is stolen player shield); every other enemy
@@ -196,6 +219,10 @@ func _shield_up() -> bool:
 
 
 func _update_visual() -> void:
+	# The outer hitbox tracks shield state 1:1 — live only while charges/pool remain.
+	# Deferred: hits arrive inside physics callbacks where flipping shapes is blocked.
+	if _outer_shape != null and is_instance_valid(_outer_shape):
+		_outer_shape.set_deferred("disabled", not _shield_up())
 	if _fx == null:
 		return
 	_fx.apply_state(_fraction())
@@ -225,3 +252,6 @@ func _free_ring() -> void:
 		_ring.queue_free()
 	_ring = null
 	_fx = null
+	if _outer_shape != null and is_instance_valid(_outer_shape):
+		_outer_shape.set_deferred("disabled", true)
+	_outer_shape = null

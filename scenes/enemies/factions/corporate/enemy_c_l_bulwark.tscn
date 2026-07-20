@@ -6,28 +6,29 @@
 [ext_resource type="Script" uid="uid://x871u1idais4" path="res://scripts/enemies/patterns/drift.gd" id="4_drift"]
 [ext_resource type="Script" uid="uid://d4am35h5bte4f" path="res://scripts/enemies/components/shield_component.gd" id="5_shield"]
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
-size = Vector2(32, 32)
-
 [sub_resource type="Resource" id="DriftMove"]
 script = ExtResource("4_drift")
-hover_y = 90.0
 
 [sub_resource type="Resource" id="ShieldCharge"]
 script = ExtResource("5_shield")
 capacity = 4
-regen_interval = 6.0
 ring_size = 48.0
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
+size = Vector2(32, 32)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_fpyfi"]
+radius = 48.0
 
 [node name="Enemy" type="Area2D" unique_id=466720719 groups=["enemies"]]
 script = ExtResource("1_script")
-strafe = true
+movement = SubResource("DriftMove")
 max_health = 8
 bounty_value = 75
-faction_shield_exempt = true
-auto_rotate = false
+strafe = true
 offscreen_mode = 3
-movement = SubResource("DriftMove")
+auto_rotate = false
+faction_shield_exempt = true
 components = [SubResource("ShieldCharge")]
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=946770351]
@@ -51,6 +52,10 @@ frame = 2
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=648455350]
 shape = SubResource("RectangleShape2D_1")
+
+[node name="CollisionOuterShield" type="CollisionShape2D" parent="." unique_id=1477527975]
+shape = SubResource("CircleShape2D_fpyfi")
+disabled = true
 
 [node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=59104030]
 stream = ExtResource("3_die")
