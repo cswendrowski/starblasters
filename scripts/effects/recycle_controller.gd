@@ -302,6 +302,7 @@ static func _entry_lane_free(tree: SceneTree, lane: int, exclude) -> bool:
 # stashing the body's original material so _restore_ghost_look can put it back. Falls back to a
 # plain modulate tint when there's no body Sprite2D to grade.
 static func _apply_ghost_look(enemy, cfg: Dictionary) -> void:
+	_sink_ghost(enemy)
 	var bodies: Array = _hull_sprites(enemy)
 	if bodies.is_empty():
 		enemy.modulate = tint(cfg)
@@ -323,15 +324,50 @@ static func _apply_ghost_look(enemy, cfg: Dictionary) -> void:
 	enemy.set_meta("_recycle_graded", graded)
 
 
-# Restore every hull material the ghost look replaced + the pre-cycle modulate.
+# Restore every hull material the ghost look replaced + the pre-cycle modulate + the pre-cycle depth.
 static func _restore_ghost_look(enemy, pre_modulate: Color) -> void:
 	enemy.modulate = pre_modulate
+	_raise_ghost(enemy)
 	if enemy.has_meta("_recycle_graded"):
 		for pair in enemy.get_meta("_recycle_graded"):
 			var spr: Sprite2D = pair[0]
 			if is_instance_valid(spr):
 				spr.material = pair[1]
 		enemy.remove_meta("_recycle_graded")
+
+
+# ---- Ghost depth (Roman 2026-07-28) --------------------------------------
+# A recycling ship has RECEDED into the mid-depth band (shrunk + depth-tinted), so it must render
+# BEHIND the ground plane it's flying back over — not in front of it. The ghost keeps its normal
+# z_index otherwise (recycle never touched it), which left it at 0: over the asteroid stronghold
+# rock (-8), over loose asteroid-POI rocks (-1), and over the starbase decks (-16..-10, see
+# docs/starbase_assault_design_2026-07-28.md §5.1). GHOST_Z clears the deepest of those.
+#
+# Pinned ABSOLUTELY so the ghost lands at the same depth regardless of its host's z (Main at 0, a
+# dev lab's world node, a boss's parent). Children keep z_as_relative, so a multi-part hull (the
+# cruiser's pods/bridge) sinks as one piece with its internal ordering intact.
+#
+# MidDepthPresentation.add_above_backdrop warns against a z_index override — that warning is about a
+# POSITIVE one lifting a mid-depth object above the ships. Sinking is the direction a receded object
+# should go, and the two don't conflict: nothing routes a recycling ghost through that helper.
+const GHOST_Z: int = -18
+
+
+static func _sink_ghost(enemy) -> void:
+	if enemy.has_meta("_recycle_depth"):
+		return   # already sunk (defensive — recycle() guards on _cycling, but keep it idempotent)
+	enemy.set_meta("_recycle_depth", [enemy.z_index, enemy.z_as_relative])
+	enemy.z_as_relative = false
+	enemy.z_index = GHOST_Z
+
+
+static func _raise_ghost(enemy) -> void:
+	if not enemy.has_meta("_recycle_depth"):
+		return
+	var prev: Array = enemy.get_meta("_recycle_depth")
+	enemy.z_index = int(prev[0])
+	enemy.z_as_relative = bool(prev[1])
+	enemy.remove_meta("_recycle_depth")
 
 
 # Every visible hull BODY sprite in the subtree — the root's "Sprite2D" plus each descendant section's
