@@ -12,21 +12,21 @@ const ExplosionFxC = preload("res://scripts/effects/explosion_fx.gd")
 const DEFAULT := {"type": "basic", "size": 1.0, "area": 10.0, "duration": 0.07, "density": 3.0, "stagger": 0.06, "secondaries": 1.0, "glow": 0.9, "shockwave": 0.0, "sparks": 1.0, "debris": 1.0}
 
 const CONFIG := {
-	"res://scenes/enemies/ground/building_bunker_glass.tscn": {"type": "basic", "size": 1.0, "area": 8.0, "duration": 0.07, "density": 3.0, "stagger": 0.06, "secondaries": 1.0, "glow": 1.0, "shockwave": 0.0, "sparks": 1.0, "debris": 1.0},
-	"res://scenes/enemies/ground/building_bunker_square_glass.tscn": {"type": "basic", "size": 1.0, "area": 8.0, "duration": 0.07, "density": 3.0, "stagger": 0.06, "secondaries": 1.0, "glow": 0.9, "shockwave": 0.0, "sparks": 1.0, "debris": 1.0},
-	"res://scenes/enemies/ground/building_bunker_tank.tscn": {"type": "fireball", "size": 1.0, "area": 19.0, "duration": 0.06, "density": 8.0, "stagger": 0.05, "secondaries": 4.0, "glow": 0.9, "shockwave": 0.1, "sparks": 1.0, "debris": 1.0},
-	"res://scenes/enemies/ground/building_cross_tank.tscn": {"type": "fireball", "size": 1.0, "area": 10.0, "duration": 0.05, "density": 8.0, "stagger": 0.06, "secondaries": 1.0, "glow": 0.9, "shockwave": 0.1, "sparks": 1.0, "debris": 1.0},
-	"res://scenes/enemies/ground/building_fuel_tank.tscn": {"type": "fireball", "size": 1.0, "area": 7.0, "duration": 0.05, "density": 8.0, "stagger": 0.06, "secondaries": 1.5, "glow": 0.9, "shockwave": 0.0, "sparks": 1.0, "debris": 1.0},
-	"res://scenes/enemies/ground/building_hangar.tscn": {"type": "mixed", "size": 1.0, "area": 63.0, "duration": 0.07, "density": 12.0, "stagger": 0.1, "secondaries": 4.0, "glow": 0.9, "shockwave": 0.0, "sparks": 1.2, "debris": 3.0},
-	"res://scenes/enemies/ground/building_square_glass.tscn": {"type": "ball", "size": 1.0, "area": 8.0, "duration": 0.055, "density": 3.0, "stagger": 0.06, "secondaries": 1.0, "glow": 0.3, "shockwave": 0.0, "sparks": 1.0, "debris": 1.0},
-	"res://scenes/enemies/ground/building_square_landing_pad.tscn": {"type": "basic", "size": 0.6, "area": 8.0, "duration": 0.07, "density": 1.0, "stagger": 0.06, "secondaries": 0.0, "glow": 0.9, "shockwave": 0.0, "sparks": 0.6, "debris": 0.2},
-	"res://scenes/enemies/ground/building_square_shed.tscn": {"type": "basic", "size": 1.0, "area": 16.0, "duration": 0.07, "density": 3.0, "stagger": 0.06, "secondaries": 1.0, "glow": 0.9, "shockwave": 0.0, "sparks": 1.0, "debris": 1.0},
-	"res://scenes/enemies/ground/building_square_tanks.tscn": {"type": "mixed", "size": 1.05, "area": 9.0, "duration": 0.07, "density": 3.0, "stagger": 0.06, "secondaries": 1.0, "glow": 0.9, "shockwave": 0.0, "sparks": 1.0, "debris": 3.0},
-	"res://scenes/enemies/ground/enemy_bunker_turret.tscn": {"type": "basic", "size": 1.0, "area": 6.0, "duration": 0.065, "density": 3.0, "stagger": 0.06, "secondaries": 1.0, "glow": 0.9, "shockwave": 0.0, "sparks": 1.0, "debris": 1.0},
-	"res://scenes/enemies/ground/enemy_diamond_turret.tscn": {"type": "basic", "size": 1.0, "area": 8.0, "duration": 0.065, "density": 3.0, "stagger": 0.06, "secondaries": 1.0, "glow": 0.9, "shockwave": 0.0, "sparks": 1.0, "debris": 1.0},
-	"res://scenes/enemies/ground/enemy_square_launcher.tscn": {"type": "basic", "size": 1.0, "area": 8.0, "duration": 0.06, "density": 3.0, "stagger": 0.06, "secondaries": 1.0, "glow": 0.9, "shockwave": 0.0, "sparks": 1.0, "debris": 2.0},
-	"res://scenes/enemies/ground/enemy_square_turret.tscn": {"type": "basic", "size": 1.0, "area": 6.0, "duration": 0.05, "density": 1.0, "stagger": 0.06, "secondaries": 1.0, "glow": 0.5, "shockwave": 0.0, "sparks": 1.0, "debris": 1.0},
-	"res://scenes/enemies/ground/enemy_square_turret_wave.tscn": {"type": "basic", "size": 1.0, "area": 9.0, "duration": 0.07, "density": 2.0, "stagger": 0.06, "secondaries": 0.0, "glow": 0.7, "shockwave": 0.0, "sparks": 1.0, "debris": 2.0},
+	"res://scenes/enemies/ground/b_b_glass.tscn": {"type": "basic", "size": 1.0, "area": 8.0, "duration": 0.07, "density": 3.0, "stagger": 0.06, "secondaries": 1.0, "glow": 1.0, "shockwave": 0.0, "sparks": 1.0, "debris": 1.0},
+	"res://scenes/enemies/ground/b_b_glass_square.tscn": {"type": "basic", "size": 1.0, "area": 8.0, "duration": 0.07, "density": 3.0, "stagger": 0.06, "secondaries": 1.0, "glow": 0.9, "shockwave": 0.0, "sparks": 1.0, "debris": 1.0},
+	"res://scenes/enemies/ground/b_f_bunker.tscn": {"type": "fireball", "size": 1.0, "area": 19.0, "duration": 0.06, "density": 8.0, "stagger": 0.05, "secondaries": 4.0, "glow": 0.9, "shockwave": 0.1, "sparks": 1.0, "debris": 1.0},
+	"res://scenes/enemies/ground/b_f_cross.tscn": {"type": "fireball", "size": 1.0, "area": 10.0, "duration": 0.05, "density": 8.0, "stagger": 0.06, "secondaries": 1.0, "glow": 0.9, "shockwave": 0.1, "sparks": 1.0, "debris": 1.0},
+	"res://scenes/enemies/ground/b_f_tank.tscn": {"type": "fireball", "size": 1.0, "area": 7.0, "duration": 0.05, "density": 8.0, "stagger": 0.06, "secondaries": 1.5, "glow": 0.9, "shockwave": 0.0, "sparks": 1.0, "debris": 1.0},
+	"res://scenes/enemies/ground/b_s_hangar.tscn": {"type": "mixed", "size": 1.0, "area": 63.0, "duration": 0.07, "density": 12.0, "stagger": 0.1, "secondaries": 4.0, "glow": 0.9, "shockwave": 0.0, "sparks": 1.2, "debris": 3.0},
+	"res://scenes/enemies/ground/b_s_glass.tscn": {"type": "ball", "size": 1.0, "area": 8.0, "duration": 0.055, "density": 3.0, "stagger": 0.06, "secondaries": 1.0, "glow": 0.3, "shockwave": 0.0, "sparks": 1.0, "debris": 1.0},
+	"res://scenes/enemies/ground/b_p_small.tscn": {"type": "basic", "size": 0.6, "area": 8.0, "duration": 0.07, "density": 1.0, "stagger": 0.06, "secondaries": 0.0, "glow": 0.9, "shockwave": 0.0, "sparks": 0.6, "debris": 0.2},
+	"res://scenes/enemies/ground/b_s_shed.tscn": {"type": "basic", "size": 1.0, "area": 16.0, "duration": 0.07, "density": 3.0, "stagger": 0.06, "secondaries": 1.0, "glow": 0.9, "shockwave": 0.0, "sparks": 1.0, "debris": 1.0},
+	"res://scenes/enemies/ground/b_f_farm.tscn": {"type": "mixed", "size": 1.05, "area": 9.0, "duration": 0.07, "density": 3.0, "stagger": 0.06, "secondaries": 1.0, "glow": 0.9, "shockwave": 0.0, "sparks": 1.0, "debris": 3.0},
+	"res://scenes/enemies/ground/b_t_twin.tscn": {"type": "basic", "size": 1.0, "area": 6.0, "duration": 0.065, "density": 3.0, "stagger": 0.06, "secondaries": 1.0, "glow": 0.9, "shockwave": 0.0, "sparks": 1.0, "debris": 1.0},
+	"res://scenes/enemies/ground/b_t_scatter.tscn": {"type": "basic", "size": 1.0, "area": 8.0, "duration": 0.065, "density": 3.0, "stagger": 0.06, "secondaries": 1.0, "glow": 0.9, "shockwave": 0.0, "sparks": 1.0, "debris": 1.0},
+	"res://scenes/enemies/ground/b_t_rocket.tscn": {"type": "basic", "size": 1.0, "area": 8.0, "duration": 0.06, "density": 3.0, "stagger": 0.06, "secondaries": 1.0, "glow": 0.9, "shockwave": 0.0, "sparks": 1.0, "debris": 2.0},
+	"res://scenes/enemies/ground/b_t_ball.tscn": {"type": "basic", "size": 1.0, "area": 6.0, "duration": 0.05, "density": 1.0, "stagger": 0.06, "secondaries": 1.0, "glow": 0.5, "shockwave": 0.0, "sparks": 1.0, "debris": 1.0},
+	"res://scenes/enemies/ground/b_t_wave.tscn": {"type": "basic", "size": 1.0, "area": 9.0, "duration": 0.07, "density": 2.0, "stagger": 0.06, "secondaries": 0.0, "glow": 0.7, "shockwave": 0.0, "sparks": 1.0, "debris": 2.0},
 }
 
 

@@ -1351,7 +1351,7 @@ const ENTRIES := [
 		# vfx (no damage tells / spiral / wreck). Weapons are hardpoints, bench-tunable. ---
 		# Square Turret — a ROTATING turret: TURRET hardpoint on the "Turret" marker. The barrel is the
 		# scene's authored "Turret" sprite (frame 3), reparented so it + its "Muzzle" rotate. Default ball ~1.4s.
-		"scene": "res://scenes/enemies/ground/enemy_square_turret.tscn",
+		"scene": "res://scenes/enemies/ground/b_t_ball.tscn",
 		"mounts": [{ "kind": "turret", "marker": "Turret", "payload": preload("res://data/bullets/ball.tres"),
 			"aim": "at_player", "rotation_speed": 2.4, "fire_min": 1.4, "fire_max": 1.4, "aim_tolerance_deg": 12.0,
 			"count": 1, "spread_deg": 0.0, "turret_node": "Turret", "marker_mode": "all" }],
@@ -1365,9 +1365,29 @@ const ENTRIES := [
 		"conflict_tags": [],
 	},
 	{
+		# Cannon Bay (Roman 2026-07-28) — a DEPLOYING emplacement: bay doors open, the cannon rises, and
+		# only then does it fire. The deploy sequence + its vulnerability/firing gates + the per-shot recoil
+		# and casing ejection live in the bespoke scripts/enemies/core/cannon_bay.gd (a multi-phase state
+		# machine, so not expressible as a pattern resource). The mount is a plain FIXED gun on the barrel's
+		# "Muzzle1" — the script holds fire until deployed via its _on_playfield override, so no mount-side
+		# gating is needed. Slow, heavy cadence to match the shell-casing read.
+		"scene": "res://scenes/enemies/ground/b_t_cannon_bay.tscn",
+		"mounts": [{ "kind": "gun", "marker": "Muzzle1", "marker_mode": "all",
+			"payload": preload("res://data/bullets/ball.tres"),
+			"aim": "at_player", "fire_min": 2.0, "fire_max": 2.4, "count": 1, "spread_deg": 0.0 }],
+		"tier": Tier.UNCOMMON,
+		"size": "medium", "tags": ["tough"],
+		"engine": -4,   # creep-slow drift, matching its ground-structure siblings
+		"movement": "asteroid_lane",
+		"base_count": 1,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.7, "chaff": false,
+		"no_wave": true,   # placed with the buildings — never in the random wave roll
+		"conflict_tags": [],
+	},
+	{
 		# Diamond Turret — a FIXED (non-rotating) turret with four N/E/S/W muzzles: a GUN hardpoint on the
 		# Muzzle markers, aimed at the player (cycles the four ports). Bench-tunable (payload/rate/count).
-		"scene": "res://scenes/enemies/ground/enemy_diamond_turret.tscn",
+		"scene": "res://scenes/enemies/ground/b_t_scatter.tscn",
 		"mounts": [{ "kind": "gun", "marker": "Muzzle*", "marker_mode": "cycle", "payload": preload("res://data/bullets/ball.tres"),
 			"aim": "at_player", "fire_min": 1.0, "fire_max": 1.0, "count": 6, "spread_deg": 90.0, "volleys": 3, "volley_gap": 1.0, "burst_interval": 0.15, "max_fires": 4 }],
 		"tier": Tier.UNCOMMON,
@@ -1383,7 +1403,7 @@ const ENTRIES := [
 		# Square Launcher — a ROTATING launcher turret: TURRET hardpoint on the "Turret" marker (barrel =
 		# frame 3) delivering rockets, tracking the player. Bench-tunable (payload/rate/count/spread/rotation).
 		# NOTE: fires from the turret centre, not yet the 5 embedded "Launcher" tube-markers (see report).
-		"scene": "res://scenes/enemies/ground/enemy_square_launcher.tscn",
+		"scene": "res://scenes/enemies/ground/b_t_rocket.tscn",
 		"mounts": [{ "kind": "turret", "marker": "Turret", "payload_scene": "res://scenes/projectiles/enemy_rocket_plain.tscn",
 			"aim": "at_player", "rotation_speed": 1.8, "fire_min": 2.0, "fire_max": 2.0, "aim_tolerance_deg": 14.0, "count": 1,
 			"turret_node": "Turret2", "marker_mode": "cycle", "turret_z": 2 }],   # plain (non-drifting) rocket trail — it's an emplacement, not a ship
@@ -1399,7 +1419,7 @@ const ENTRIES := [
 	{
 		# Building: Bunker Glass — destroyable structure, does NOT shoot; drifts in, explodes with
 		# debris on death. Placement is Roman's to author; registered so it spawns + shows in the bench.
-		"scene": "res://scenes/enemies/ground/building_bunker_glass.tscn",
+		"scene": "res://scenes/enemies/ground/b_b_glass.tscn",
 		"tier": Tier.COMMON,
 		"size": "huge", "tags": ["tough"],
 		"movement": "asteroid_lane",
@@ -1410,7 +1430,7 @@ const ENTRIES := [
 	},
 	{
 		# Building: Bunker Tank — destroyable structure, does NOT shoot; explodes with debris on death.
-		"scene": "res://scenes/enemies/ground/building_bunker_tank.tscn",
+		"scene": "res://scenes/enemies/ground/b_f_bunker.tscn",
 		"tier": Tier.COMMON,
 		"size": "huge", "tags": ["tough"],   # bench 2026-07-16 (was giant)
 		"movement": "asteroid_lane",
@@ -1421,7 +1441,7 @@ const ENTRIES := [
 	},
 	{
 		# Building: Square Glass — destroyable structure, does NOT shoot; explodes with debris on death.
-		"scene": "res://scenes/enemies/ground/building_square_glass.tscn",
+		"scene": "res://scenes/enemies/ground/b_s_glass.tscn",
 		"tier": Tier.COMMON,
 		"size": "large", "tags": ["tough"],
 		"movement": "asteroid_lane",
@@ -1433,7 +1453,7 @@ const ENTRIES := [
 	{
 		# Building: Fuel Tanks — destroyable structure (same as the round bunker tank), does NOT shoot;
 		# explodes with debris on death.
-		"scene": "res://scenes/enemies/ground/building_square_tanks.tscn",
+		"scene": "res://scenes/enemies/ground/b_f_farm.tscn",
 		"tier": Tier.COMMON,
 		"size": "large", "tags": ["tough"],
 		"movement": "asteroid_lane",
@@ -1445,7 +1465,7 @@ const ENTRIES := [
 	{
 		# Building: Fuel Tank — composed structure (composed_building.gd): a random STYLE overlay (either
 		# one or neither) at spawn + 1–2 damage decals on death. Does NOT shoot; explodes with debris.
-		"scene": "res://scenes/enemies/ground/building_fuel_tank.tscn",
+		"scene": "res://scenes/enemies/ground/b_f_tank.tscn",
 		"tier": Tier.COMMON,
 		"size": "large", "tags": ["tough"],
 		"movement": "asteroid_lane",
@@ -1457,7 +1477,7 @@ const ENTRIES := [
 	{
 		# Building: Shed — composed structure (composed_building.gd): a random building VARIANT + windows
 		# (one/both/neither, or a hazard overlay when windowless) at spawn + 1–2 damage decals on death.
-		"scene": "res://scenes/enemies/ground/building_square_shed.tscn",
+		"scene": "res://scenes/enemies/ground/b_s_shed.tscn",
 		"tier": Tier.COMMON,
 		"size": "large", "tags": ["tough"],
 		"movement": "asteroid_lane",
@@ -1469,7 +1489,7 @@ const ENTRIES := [
 	{
 		# Building: Cross Tank — simple composed structure (composed_building.gd) with a LIVERY layer, so it
 		# takes the level faction's colour; reveals a damage decal on death. Does NOT shoot; explodes w/ debris.
-		"scene": "res://scenes/enemies/ground/building_cross_tank.tscn",
+		"scene": "res://scenes/enemies/ground/b_f_cross.tscn",
 		"tier": Tier.COMMON,
 		"size": "large", "tags": ["tough"],
 		"movement": "asteroid_lane",
@@ -1481,7 +1501,7 @@ const ENTRIES := [
 	{
 		# Turret Wave — a ROTATING turret variant (new art): the scene's "Turret" sprite (frame 3) is
 		# reparented + its "Muzzle" rotates. Fires wave bullets by default. Bench-configurable.
-		"scene": "res://scenes/enemies/ground/enemy_square_turret_wave.tscn",
+		"scene": "res://scenes/enemies/ground/b_t_wave.tscn",
 		"mounts": [{ "kind": "turret", "marker": "Turret", "payload": preload("res://data/bullets/wave.tres"),
 			"aim": "at_player", "rotation_speed": 2.4, "fire_min": 2.0, "fire_max": 2.0, "aim_tolerance_deg": 12.0,
 			"count": 3, "spread_deg": 10.0, "turret_node": "Turret", "marker_mode": "all" }],
@@ -1501,7 +1521,7 @@ const ENTRIES := [
 		# the ship is injected to the director + recycles into a later wave; 20% of occupied pads scramble
 		# their ship mid-descent instead (escape launch). Bespoke landing_pad.gd (parked size from the
 		# scene filename). Renamed from building_square_landing_pad 2026-07-17.
-		"scene": "res://scenes/enemies/ground/building_landing_pad_small.tscn",
+		"scene": "res://scenes/enemies/ground/b_p_small.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "small", "tags": [],
 		"movement": "asteroid_lane",
@@ -1513,7 +1533,7 @@ const ENTRIES := [
 	{
 		# Landing Pad (medium) — same behavior, parks a MEDIUM faction enemy (which soaks hits before
 		# the pad). Pad hull scales with its size class.
-		"scene": "res://scenes/enemies/ground/building_landing_pad_medium.tscn",
+		"scene": "res://scenes/enemies/ground/b_p_medium.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "medium", "tags": [],
 		"movement": "asteroid_lane",
@@ -1525,9 +1545,46 @@ const ENTRIES := [
 	{
 		# Landing Pad (large) — same behavior, parks a LARGE faction enemy (incl. rares/capitals), which
 		# soaks hits before the pad. Pad hull scales with its size class.
-		"scene": "res://scenes/enemies/ground/building_landing_pad_large.tscn",
+		"scene": "res://scenes/enemies/ground/b_p_large.tscn",
 		"tier": Tier.UNCOMMON,
 		"size": "large", "tags": [],
+		"movement": "asteroid_lane",
+		"base_count": 1,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.4, "chaff": false,
+		"no_wave": true,   # reserved for specific level conditions — never in the random wave roll
+		"conflict_tags": [],
+	},
+	{
+		# Building: Energy Cage — composed structure (new art 2026-07-18, b_ filename convention):
+		# base + glowing Orb layer. Does NOT shoot; explodes with debris on death.
+		"scene": "res://scenes/enemies/ground/b_e_cage.tscn",
+		"tier": Tier.COMMON,
+		"size": "medium", "tags": ["tough"],
+		"movement": "asteroid_lane",
+		"base_count": 1,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.4, "chaff": false,
+		"no_wave": true,   # reserved for specific level conditions — never in the random wave roll
+		"conflict_tags": [],
+	},
+	{
+		# Building: Shield Pylon — composed structure: base + glowing Orb layer. Does NOT shoot;
+		# explodes with debris on death. (Plain structure for now — any shield-projection behavior
+		# is a future design pass.)
+		"scene": "res://scenes/enemies/ground/b_e_pylon.tscn",
+		"tier": Tier.COMMON,
+		"size": "medium", "tags": ["tough"],
+		"movement": "asteroid_lane",
+		"base_count": 1,
+		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.4, "chaff": false,
+		"no_wave": true,   # reserved for specific level conditions — never in the random wave roll
+		"conflict_tags": [],
+	},
+	{
+		# Building: Armored Shed — composed shed variant. "large" size class for the beefier armored
+		# HP (hitbox stays the authored 16px — difficulty via HP, never hitbox size). Does NOT shoot.
+		"scene": "res://scenes/enemies/ground/b_s_armored.tscn",
+		"tier": Tier.COMMON,
+		"size": "large", "tags": ["tough"],
 		"movement": "asteroid_lane",
 		"base_count": 1,
 		"unlock_sector": 1, "unlock_depth": 1, "weight": 0.4, "chaff": false,
@@ -1538,7 +1595,7 @@ const ENTRIES := [
 		# Bunker Turret — a ROTATING dual-muzzle turret (new art, 2026-07-17): the "Turret" sprite (frame 3)
 		# reparents under the turret with its MuzzleL/MuzzleR markers so barrel + both muzzles rotate + fire
 		# as one. Hull-mounted pivot (this scene has no root "Turret" marker). Default ball ~1.6s, bench-tunable.
-		"scene": "res://scenes/enemies/ground/enemy_bunker_turret.tscn",
+		"scene": "res://scenes/enemies/ground/b_t_twin.tscn",
 		"mounts": [{ "kind": "turret", "payload": preload("res://data/bullets/ball.tres"),
 			"aim": "at_player", "rotation_speed": 2.4, "fire_min": 1.6, "fire_max": 1.6, "aim_tolerance_deg": 12.0,
 			"count": 1, "spread_deg": 0.0, "turret_node": "Turret", "marker_mode": "all" }],
@@ -1554,7 +1611,7 @@ const ENTRIES := [
 	{
 		# Building: Hangar — composed structure (composed_building.gd): base + building layers + a "Destroyed"
 		# overlay revealed on death. Does NOT shoot; explodes with debris. 128px-wide → huge.
-		"scene": "res://scenes/enemies/ground/building_hangar.tscn",
+		"scene": "res://scenes/enemies/ground/b_s_hangar.tscn",
 		"tier": Tier.COMMON,
 		"size": "huge", "tags": ["tough"],
 		"movement": "asteroid_lane",
@@ -1566,7 +1623,7 @@ const ENTRIES := [
 	{
 		# Building: Bunker Square Glass — small destroyable glass structure (new art): reveals a "Destroyed"
 		# frame + explodes with debris on death. Does NOT shoot.
-		"scene": "res://scenes/enemies/ground/building_bunker_square_glass.tscn",
+		"scene": "res://scenes/enemies/ground/b_b_glass_square.tscn",
 		"tier": Tier.COMMON,
 		"size": "medium", "tags": ["tough"],
 		"movement": "asteroid_lane",

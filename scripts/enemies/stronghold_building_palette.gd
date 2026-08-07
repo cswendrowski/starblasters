@@ -15,8 +15,11 @@ extends RefCounted
 
 const EnemyRoster := preload("res://scripts/levels/enemy_roster.gd")
 const EnemyBase := preload("res://scripts/enemies/enemy_base.gd")
+const Factions := preload("res://scripts/levels/factions.gd")
 
 const GROUND_DIR := "/ground/"   # the Enemy Bench's "Buildings" group = any roster scene under here
+# Class-affix words for the b_<class>_<name> taxonomy (2026-07-18).
+const CLASS_WORDS := {"t": "Turret", "p": "Pad", "b": "Bunker", "s": "Storage", "f": "Fuel", "e": "Energy"}
 
 # Lazily built {type_key: scene_path} + ordered key list, discovered from the roster. Key = scene
 # filename minus ".tscn" and a leading "enemy_" — stable, and matches the keys the prefab editor already
@@ -27,10 +30,41 @@ static var _order: Array = []
 # Retired/renamed buildings: old prefab type keys → their replacement, so existing prefabs keep working
 # after an art swap instead of silently dropping the building (round_tank/round_glass were replaced by
 # bunker_tank/bunker_glass, 2026-07-13). Resolved in is_type/scene_for/label_for.
+# Old prefab keys → current keys. Saved stronghold prefabs reference keys by the filename of the
+# scene AT AUTHOR TIME — every rename adds a row here (never edit the user JSON). All targets are
+# FINAL keys (_resolve_key does ONE hop, no chains). b_ taxonomy migration 2026-07-18:
+# b_<class>_<name> with t=turret, p=pad, b=bunker, s=shed/storage, f=fuel, e=energy.
 const ALIASES := {
-	"building_round_tank": "building_bunker_tank",
-	"building_round_glass": "building_bunker_glass",
-	"building_square_landing_pad": "building_landing_pad_small",   # pad size split 2026-07-17
+	# pre-taxonomy art swaps
+	"building_round_tank": "f_bunker",
+	"building_round_glass": "b_glass",
+	"building_square_landing_pad": "p_small",
+	# turrets
+	"square_turret": "t_ball",
+	"square_turret_wave": "t_wave",
+	"diamond_turret": "t_scatter",
+	"square_launcher": "t_rocket",
+	"bunker_turret": "t_twin",
+	# pads
+	"building_landing_pad_small": "p_small",
+	"building_landing_pad_medium": "p_medium",
+	"building_landing_pad_large": "p_large",
+	# bunkers
+	"building_bunker_glass": "b_glass",
+	"building_bunker_square_glass": "b_glass_square",
+	# sheds / storage
+	"building_square_shed": "s_shed",
+	"shed_armored": "s_armored",
+	"building_hangar": "s_hangar",
+	"building_square_glass": "s_glass",
+	# fuel
+	"building_fuel_tank": "f_tank",
+	"building_cross_tank": "f_cross",
+	"building_square_tanks": "f_farm",
+	"building_bunker_tank": "f_bunker",
+	# energy
+	"energy_cage": "e_cage",
+	"shield_pylon": "e_pylon",
 }
 
 
@@ -57,7 +91,10 @@ static func _scan() -> void:
 
 
 static func _key_for(path: String) -> String:
-	return path.get_file().trim_suffix(".tscn").trim_prefix("enemy_")
+	# Strip the filename conventions so keys/labels read clean: enemy_ (turrets) and the newer b_
+	# (2026-07-18 buildings, e.g. b_energy_cage → "energy_cage"). "building_*" is untouched — "b_"
+	# needs the underscore immediately after the b.
+	return path.get_file().trim_suffix(".tscn").trim_prefix("enemy_").trim_prefix("b_")
 
 
 # Ordered building type keys (roster order) — the editor brush palette.
@@ -79,8 +116,15 @@ static func scene_for(type_key: String) -> String:
 # Short brush label derived from the key: "square_turret" → "Square Turret",
 # "building_round_tank" → "Round Tank".
 static func label_for(type_key: String) -> String:
+	# b_ taxonomy (2026-07-18): keys arrive with the leading "b_" stripped, so the first segment is
+	# the CLASS — expand it ("t_ball" → "Turret: Ball", "f_bunker" → "Fuel: Bunker") so the picker
+	# groups + scans by class. Legacy long keys fall through to the plain title-case.
+	var parts: PackedStringArray = _resolve_key(type_key).trim_prefix("building_").split("_", false)
 	var out := ""
-	for w in _resolve_key(type_key).trim_prefix("building_").split("_", false):
+	if parts.size() >= 2 and CLASS_WORDS.has(String(parts[0])):
+		out = String(CLASS_WORDS[String(parts[0])]) + ": "
+		parts.remove_at(0)
+	for w in parts:
 		var s := String(w)
 		if s == "":
 			continue
@@ -118,6 +162,18 @@ static func spawn(type_key: String, parent: Node, local_offset: Vector2, rot_deg
 	var md: Array = mounts_for(type_key)
 	if "mounts" in inst and not md.is_empty():
 		inst.mounts = EnemyRoster.make_mount_specs(md)
+	# Faction parity with the director path (Roman 2026-07-18, "zealot mission, green turret shots"):
+	# the director stamps `faction_skin` + runs the home-gated Factions.apply on EVERY spawn, but
+	# palette spawns bypassed it — so building shots resolved to the BASE bullet frames (green), not
+	# the level faction's styling, even while the livery (which reads active_faction itself) matched.
+	# Stamp before add_child; the shared bullet-spawn paths (turret/gun/beam) all walk to this meta.
+	if parent.is_inside_tree():
+		var run: Node = parent.get_tree().root.get_node_or_null("Run")
+		if run != null and run.has_meta("active_faction"):
+			var pf: int = int(run.get_meta("active_faction", -1))
+			if pf >= 0:
+				inst.set_meta("faction_skin", pf)
+				Factions.apply(pf, inst)
 	if inst is Node2D:
 		(inst as Node2D).position = local_offset
 	parent.add_child(inst)
