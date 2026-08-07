@@ -881,7 +881,7 @@ func _spawn_one_asteroid(pos_center: Vector2, px: float, row_tint_idx: int, spee
 	_disable_asteroid_outlines(ast)   # Change 3
 	if ast.has_method("set_pixels"): ast.set_pixels(px)
 	if ast.has_method("set_seed"):   ast.set_seed(rng.randi())
-	if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
+	SceneLight.apply_to_planetkit(ast, SceneLight.RADIUS_PLANET)   # was a hardcoded due-left 180°
 	add_child(ast)
 	_disable_celestial_mouse(ast)
 	_reset_planet_colorrects(ast)
@@ -915,8 +915,7 @@ func _spawn_planet(center: Vector2, display_px: float, type_idx: int, row_idx: i
 	add_child(p)
 	_disable_celestial_mouse(p)
 	_reset_planet_colorrects(p)
-	if p.has_method("set_light"):
-		p.set_light(Vector2(0.0, 0.5))
+	SceneLight.apply_to_planetkit(p, SceneLight.RADIUS_PLANET)   # was a hardcoded due-left 180°
 	# Mild star-color wash — use effective (randomized) star color for this row.
 	var _psv: Dictionary = _get_star_variant(row_idx)
 	var _p_star: Color = EXOTIC_GLOW_COLORS[_psv.exotic_idx] if _psv.exotic_idx >= 0 else STAR_GLOW_COLORS[_psv.base_type_idx]

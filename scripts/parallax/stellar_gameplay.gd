@@ -188,6 +188,11 @@ static func compute_poi_stellar(desc: Dictionary) -> Dictionary:
 		"poi_id":           id,
 		"exotic_idx":       sv.exotic_idx,
 		"has_binary":       sv.has_binary,
+		# Position along the row: 0.0 = hard against the star, 1.0 = the far/boss end. Same
+		# expression _build_row_system uses for `current_frac`. Drives the per-level scene light
+		# (SceneLight.azimuth_for_stellar) — a pure float, so it consumes no deco_rng and cannot
+		# shift the map/combat draw lockstep above.
+		"system_frac":      clampf((pos_x - 128.0) / max(1.0, row_end_x - 128.0), 0.0, 1.0),
 		"system":           _build_row_system(desc),
 	}
 
@@ -214,6 +219,7 @@ static func compute_boss_stellar(desc: Dictionary) -> Dictionary:
 		"poi_id":           "boss:%d" % row_idx,
 		"exotic_idx":       sv.exotic_idx,
 		"has_binary":       sv.has_binary,
+		"system_frac":      1.0,   # boss = the row's far endpoint; scene light rakes hardest here
 		# Boss sits at the row's far-right endpoint (frac 1.0), so it views the star at maximum
 		# distance -> small/distant. Star-only system; bosses have no planet of their own. The
 		# per-row intrinsic star scale (item 4) multiplies in — a visual no-op here (the boss star

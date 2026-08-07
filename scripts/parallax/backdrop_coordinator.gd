@@ -179,6 +179,20 @@ func _ready() -> void:
 func _populate() -> void:
 	var run_node := get_node_or_null("/root/Run")
 
+	# Scene light (docs/scene_light_direction_2026-07-28.md §4): resolve THIS level's sun FIRST.
+	# Everything built below samples SceneLight during construction — the flyover ground's sun_dir,
+	# every PlanetKit body's light_origin, the asteroid shadow rig — so publishing here, before the
+	# flyover branch returns, is what makes the whole scene agree. _populate is the single funnel
+	# every backdrop host uses (combat, signal events, labs, capture tools), so labs that inject a
+	# stellar_override get a consistent sun for free. Constant for the level by contract: nothing
+	# re-publishes until the next _populate.
+	var light_stellar: Dictionary = {}
+	if not stellar_override.is_empty():
+		light_stellar = stellar_override
+	elif run_node != null and "current_stellar" in run_node and run_node.current_stellar is Dictionary:
+		light_stellar = run_node.current_stellar
+	SceneLight.set_level_azimuth_deg(SceneLight.azimuth_for_stellar(light_stellar))
+
 	# Planet Flyover branch (Phase B1): in a REAL run on a planet POI, a deterministic per-node
 	# roll can replace the whole space parallax stack with the close-to-planet flyover backdrop.
 	# OPT-IN via allow_flyover — only combat's main.tscn Backdrop instance enables it. Every other

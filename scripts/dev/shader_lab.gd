@@ -266,16 +266,20 @@ const KNOBS := {
 		{"key":"drift_age_gain","label":"Drift age gain","min":0.0,"max":800.0,"step":20.0,"def":400.0},
 		{"key":"wander_px_per_sec","label":"Wander (px/s)","min":0.0,"max":60.0,"step":1.0,"def":18.0},
 	],
+	# Defaults MUST mirror BuildingShadow.DEFAULTS — this tab tunes what production ships, so opening
+	# it on different values makes every Copy→bake a silent regression. (They had drifted to the raw
+	# shader uniform defaults; realigned 2026-07-28 with the scene-light pass.) `sun_angle_deg` is the
+	# odd one out: it derives from SceneLight in _init_values, since a const can't call a function.
 	"Building Shadow": [
-		{"key":"sun_angle_deg","label":"Sun angle (deg)","min":0.0,"max":360.0,"step":1.0,"def":250.0},
-		{"key":"sun_elevation","label":"Sun elevation","min":0.05,"max":1.5,"step":0.05,"def":0.45},
-		{"key":"shadow_strength","label":"Shadow strength","min":0.0,"max":1.0,"step":0.02,"def":0.6},
-		{"key":"shadow_softness","label":"Shadow softness","min":0.001,"max":0.5,"step":0.01,"def":0.08},
-		{"key":"steps","label":"Ray-march steps","min":4.0,"max":96.0,"step":1.0,"def":40.0},
-		{"key":"step_px","label":"Step size (px)","min":0.25,"max":3.0,"step":0.05,"def":1.0},
-		{"key":"shadow_aa_radius_px","label":"AA radius (px)","min":0.0,"max":2.0,"step":0.05,"def":0.75},
+		{"key":"sun_angle_deg","label":"Sun angle (deg)","min":0.0,"max":360.0,"step":1.0,"def":45.0},
+		{"key":"sun_elevation","label":"Sun elevation","min":0.05,"max":1.5,"step":0.05,"def":1.0},
+		{"key":"shadow_strength","label":"Shadow strength","min":0.0,"max":1.0,"step":0.02,"def":0.5},
+		{"key":"shadow_softness","label":"Shadow softness","min":0.001,"max":0.5,"step":0.01,"def":0.001},
+		{"key":"steps","label":"Ray-march steps","min":4.0,"max":96.0,"step":1.0,"def":50.0},
+		{"key":"step_px","label":"Step size (px)","min":0.25,"max":3.0,"step":0.05,"def":0.25},
+		{"key":"shadow_aa_radius_px","label":"AA radius (px)","min":0.0,"max":2.0,"step":0.05,"def":0.0},
 		{"key":"shadow_ray_offset_px","label":"Ray offset (px)","min":0.0,"max":4.0,"step":0.1,"def":0.0},
-		{"key":"carrier_scale","label":"Carrier scale","min":1.5,"max":5.0,"step":0.1,"def":3.0},
+		{"key":"carrier_scale","label":"Carrier scale","min":1.5,"max":5.0,"step":0.1,"def":1.5},
 	],
 	"Gallery": [],
 }
@@ -512,6 +516,11 @@ func _init_values() -> void:
 		for def in KNOBS[mode]:
 			d[def["key"]] = float(def["def"])
 		_values[mode] = d
+	# The Building Shadow tab's sun angle is the canonical scene light expressed in the shader's
+	# SHADOW-direction space (building_shadow.gdshader's `sun_dir` points along the shadow, not at
+	# the light — see docs/scene_light_direction_2026-07-28.md §1.1). Derived rather than hardcoded
+	# so the tuner can never disagree with what BuildingShadow ships.
+	_values["Building Shadow"]["sun_angle_deg"] = fposmod(rad_to_deg(SceneLight.shadow_dir().angle()), 360.0)
 
 
 # ---- Playspace -----------------------------------------------------------

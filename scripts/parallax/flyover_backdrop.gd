@@ -31,7 +31,8 @@ const LAYER_STYLE_NAMES := ["Nebula", "Clouds"]
 
 # Ship drop shadows: deeper layers get a bigger offset, SMALLER shadow (half per layer — the
 # depth read), slightly weaker. Verbatim from the lab (asteroid_shadow_rig ports these too).
-const SHADOW_DIR := Vector2(0.35, 0.9)   # normalized in _update_masks; down + slightly right
+# Direction comes from SceneLight, same as every other shadow in the game — the old local
+# `SHADOW_DIR = (0.35, 0.9)` here was the ORIGINAL of the duplicate asteroid_shadow_rig carried.
 const SHADOW_DIST := {"Far": 26.0, "Mid": 16.0, "Near": 8.0}
 const SHADOW_SCALE := {"Far": 0.25, "Mid": 0.5, "Near": 1.0}
 const SHADOW_MULT := {"Far": 0.8, "Mid": 0.9, "Near": 1.0}
@@ -339,7 +340,11 @@ func _apply_ground() -> void:
 	mat.set_shader_parameter("OCTAVES", _octaves)
 	mat.set_shader_parameter("relief", _relief)
 	mat.set_shader_parameter("seed", _seed)
-	mat.set_shader_parameter("sun_dir", Vector2(0.40, 0.35))
+	# planet_ground's `sun_dir` is the LIGHT direction (lambert hillshade), NOT the shadow direction
+	# building_shadow.gdshader's identically-named uniform wants — light_dir(), never shadow_dir().
+	# Was hardcoded (0.40, 0.35) ≈ 41°, i.e. lit from down-right while the rest of the game lit from
+	# up-left. Shader normalizes it, so only the direction matters.
+	mat.set_shader_parameter("sun_dir", SceneLight.light_dir())
 	mat.set_shader_parameter("surface_type", _surface_type)
 	mat.set_shader_parameter("river_cutoff", _river_cutoff)
 	mat.set_shader_parameter("emissive", _emissive)
@@ -466,7 +471,7 @@ func _scroll(delta: float) -> void:
 
 
 func _update_masks() -> void:
-	var dir := SHADOW_DIR.normalized()
+	var dir := SceneLight.shadow_dir()
 	for id in _casters.keys():
 		var rec: Dictionary = _casters[id]
 		# Untyped on purpose: a caster may have been freed since last frame (enemies die + free

@@ -17,11 +17,15 @@ extends RefCounted
 const SHADER = preload("res://graphics/building_shadow.gdshader")
 
 # Shipped GLOBAL look — Roman's Shader Lab "Building Shadow" tune (2026-07-13). `height_scale` is the
-# per-layer default; the real per-building/layer heights live in HEIGHTS below. sun_dir = 45° (cos/sin).
+# per-layer default; the real per-building/layer heights live in HEIGHTS below.
+#
+# `sun_dir` is NOT here: the direction comes from SceneLight (one source of truth for the whole
+# scene, docs/scene_light_direction_2026-07-28.md) and a `const` can't hold a function call. It is
+# injected in _merged() below, where explicit params still override it. Note the shader's `sun_dir`
+# is the SHADOW direction despite its name — hence shadow_dir(), not light_dir().
 const DEFAULTS := {
 	"carrier_scale": 1.5,
 	"height_scale": 1.0,
-	"sun_dir": Vector2(0.7071, 0.7071),   # 45°
 	"sun_elevation": 1.0,
 	"step_px": 0.25,
 	"steps": 50,
@@ -39,15 +43,25 @@ const DEFAULTS := {
 # the building's scene path → { layer_name: height_scale }. Layers absent here fall back to DEFAULTS.height_scale.
 # Flat footprints ≈ 0.2 (a hugging ground shadow); raised overlays cast longer. Edit via the Shader Lab tuner.
 const HEIGHTS := {
-	"res://scenes/enemies/ground/building_round_glass.tscn": {"Base": 0.2},
-	"res://scenes/enemies/ground/building_round_tank.tscn": {"Base": 0.2},
-	"res://scenes/enemies/ground/building_square_glass.tscn": {"Base": 0.2, "Building": 1.0},
-	"res://scenes/enemies/ground/building_square_landing_pad.tscn": {"Base": 0.2},
-	"res://scenes/enemies/ground/building_square_tanks.tscn": {"Base": 0.2, "Building": 0.8},
-	"res://scenes/enemies/ground/enemy_diamond_turret.tscn": {"Base": 0.2, "Building": 0.2, "GlowMuzzle": 0.2},
-	"res://scenes/enemies/ground/enemy_square_launcher.tscn": {"Base": 0.2, "Building": 1.0},
-	"res://scenes/enemies/ground/enemy_square_turret.tscn": {"Base": 0.2, "Building": 0.75},
+	"res://scenes/enemies/ground/b_b_glass.tscn": {"Base": 0.2},
+	"res://scenes/enemies/ground/b_f_bunker.tscn": {"Base": 0.2},
+	"res://scenes/enemies/ground/b_s_glass.tscn": {"Base": 0.2, "Building": 1.0},
+	"res://scenes/enemies/ground/b_p_small.tscn": {"Base": 0.2},
+	"res://scenes/enemies/ground/b_f_farm.tscn": {"Base": 0.2, "Building": 0.8},
+	"res://scenes/enemies/ground/b_t_scatter.tscn": {"Base": 0.2, "Building": 0.2, "GlowMuzzle": 0.2},
+	"res://scenes/enemies/ground/b_t_rocket.tscn": {"Base": 0.2, "Building": 1.0},
+	"res://scenes/enemies/ground/b_t_ball.tscn": {"Base": 0.2, "Building": 0.75},
 }
+
+
+# DEFAULTS + the scene-wide light direction + the caller's overrides (caller wins — the Shader Lab
+# passes its own `sun_dir` from the tuner slider).
+static func _merged(params: Dictionary) -> Dictionary:
+	var p: Dictionary = DEFAULTS.duplicate()
+	p["sun_dir"] = SceneLight.shadow_dir()
+	for k in params:
+		p[k] = params[k]
+	return p
 
 
 # Build the shadow carrier for `layer`. Returns a ColorRect (NOT yet in the tree — caller adds it under the
@@ -55,9 +69,7 @@ const HEIGHTS := {
 static func attach(layer: Sprite2D, params: Dictionary = {}) -> ColorRect:
 	if layer == null or layer.texture == null:
 		return null
-	var p: Dictionary = DEFAULTS.duplicate()
-	for k in params:
-		p[k] = params[k]
+	var p: Dictionary = _merged(params)
 	var rect := ColorRect.new()
 	rect.name = "Shadow_" + layer.name
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -72,9 +84,7 @@ static func attach(layer: Sprite2D, params: Dictionary = {}) -> ColorRect:
 static func apply_params(rect: ColorRect, layer: Sprite2D, params: Dictionary) -> void:
 	if rect == null or layer == null or layer.texture == null:
 		return
-	var p: Dictionary = DEFAULTS.duplicate()
-	for k in params:
-		p[k] = params[k]
+	var p: Dictionary = _merged(params)
 	var mat := rect.material as ShaderMaterial
 	if mat == null:
 		return

@@ -361,8 +361,7 @@ func _spawn_planet(center_y: float, center_x: float, display_px: float, type_idx
 	if p.has_method("set_rotates"): p.set_rotates(true)
 	add_child(p)
 	_reset_planet_colorrects(p)
-	if p.has_method("set_light"):
-		p.set_light(Vector2(0.0, 0.5))
+	SceneLight.apply_to_planetkit(p, SceneLight.RADIUS_PLANET)   # was a hardcoded due-left 180°
 	p.modulate = Color.WHITE.lerp(STAR_GLOW_COLORS[_cur_sys_i], 0.18)
 	p.override_time = true
 	_celestial_nodes.append(p)
@@ -387,7 +386,7 @@ func _spawn_large_asteroid(center_y: float, center_x: float, letter: String = "?
 	_duplicate_materials(ast)                        # own material per instance
 	if ast.has_method("set_pixels"): ast.set_pixels(PX)
 	if ast.has_method("set_seed"):   ast.set_seed(_map_rng.randi())
-	if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
+	SceneLight.apply_to_planetkit(ast, SceneLight.RADIUS_PLANET)   # was a hardcoded due-left 180°
 	add_child(ast)
 	_reset_planet_colorrects(ast)
 	ast.modulate = Color.WHITE.lerp(STAR_GLOW_COLORS[_cur_sys_i], 0.18)
@@ -420,7 +419,7 @@ func _spawn_asteroid_cluster(center_y: float, center_x: float, letter: String = 
 		_duplicate_materials(ast)
 		if ast.has_method("set_pixels"): ast.set_pixels(px)
 		if ast.has_method("set_seed"):   ast.set_seed(_map_rng.randi())
-		if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
+		SceneLight.apply_to_planetkit(ast, SceneLight.RADIUS_PLANET)   # was a hardcoded due-left 180°
 		add_child(ast)
 		_reset_planet_colorrects(ast)
 		ast.modulate = Color.WHITE.lerp(STAR_GLOW_COLORS[_cur_sys_i], 0.18)
@@ -456,7 +455,7 @@ func _scatter_asteroid_band(center_y: float, center_x: float) -> void:
 		_duplicate_materials(ast)
 		if ast.has_method("set_pixels"): ast.set_pixels(px)
 		if ast.has_method("set_seed"):   ast.set_seed(_map_rng.randi())
-		if ast.has_method("set_light"):  ast.set_light(Vector2(0.0, 0.5))
+		SceneLight.apply_to_planetkit(ast, SceneLight.RADIUS_PLANET)   # was a hardcoded due-left 180°
 		add_child(ast)
 		_reset_planet_colorrects(ast)
 		_asteroid_rotators.append({

@@ -20,9 +20,11 @@ extends Node
 
 const GROUP := "asteroid_shadow_rig"
 const BANDS := ["far", "mid", "near"]
-# Flyover cloud-shadow settings, verbatim (SHADOW_* consts there): direction is
-# down + slightly right; per-band offset/scale/weight keyed far/mid/near.
-const SHADOW_DIR := Vector2(0.35, 0.9)
+# Per-band offset/scale/weight keyed far/mid/near — the flyover cloud-shadow settings, verbatim.
+# The DIRECTION is no longer one of them: it comes from SceneLight (225°, canonical for the whole
+# scene — docs/scene_light_direction_2026-07-28.md). The old local `SHADOW_DIR = (0.35, 0.9)` was a
+# ~249° sun inherited from the flyover lab's CLOUD shadows, where a near-vertical offset stood for
+# cloud height over a scrolling surface; on side-lit rocks it just read as a second sun.
 const SHADOW_DIST := {"far": 26.0, "mid": 16.0, "near": 8.0}
 const SHADOW_SCALE := {"far": 0.25, "mid": 0.5, "near": 1.0}
 const SHADOW_MULT := {"far": 0.8, "mid": 0.9, "near": 1.0}
@@ -91,7 +93,7 @@ func _process(_delta: float) -> void:
 
 
 func _update_masks() -> void:
-	var dir := SHADOW_DIR.normalized()
+	var dir := SceneLight.shadow_dir()
 	for id in _tracked.keys():
 		var rec: Dictionary = _tracked[id]
 		# Untyped on purpose: a caster/src may have been freed since last frame (enemies die + free

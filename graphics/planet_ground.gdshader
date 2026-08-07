@@ -41,8 +41,11 @@ uniform float scroll = 0.0;
 
 uniform int surface_type : hint_range(0, 5) = 0;
 uniform vec4[8] colors : source_color;
-// Sun direction — biases the coastline erosion (as light_origin did) AND the hillshade.
-uniform vec2 sun_dir = vec2(0.40, 0.35);
+// Sun direction — biases the coastline erosion (as light_origin did) AND the hillshade. This one IS
+// the direction of the LIGHT (contrast building_shadow.gdshader's same-named uniform, which is the
+// SHADOW direction). Always normalized before use, so only the direction matters. Default = the
+// canonical 225° up-left scene light; flyover_backdrop.gd sets it from SceneLight.light_dir().
+uniform vec2 sun_dir = vec2(-0.7071, -0.7071);
 uniform float relief : hint_range(0.0, 1.0) = 0.35;
 uniform float river_cutoff : hint_range(0.0, 1.0) = 0.5;
 uniform float emissive : hint_range(0.0, 4.0) = 2.2;   // lava-channel HDR glow

@@ -236,7 +236,7 @@ func spawn_planet(planet_idx: int, actual_size: float, rng: RandomNumberGenerato
 		if p.has_method("randomize_colors"): p.randomize_colors()
 		seed(_rng_state)
 		if p.has_method("set_rotates"): p.set_rotates(true)
-		if p.has_method("set_light"):   p.set_light(Vector2(0.0, 0.5))
+		SceneLight.apply_to_planetkit(p, SceneLight.RADIUS_PLANET)   # was a hardcoded due-left 180°
 	else:
 		# No stored seed (tuner / no Run) — random per spawn.
 		if p.has_method("set_seed"):    p.set_seed(rng.randi() % 100000)
@@ -311,7 +311,7 @@ func spawn_system_body(planet_idx: int, actual_size: float, top_left: Vector2, p
 	if p.has_method("randomize_colors"): p.randomize_colors()
 	seed(_rng_state)
 	if p.has_method("set_rotates"): p.set_rotates(true)
-	if p.has_method("set_light"):   p.set_light(Vector2(0.0, 0.5))
+	SceneLight.apply_to_planetkit(p, SceneLight.RADIUS_PLANET)   # was a hardcoded due-left 180°
 	if "override_time" in p:
 		p.override_time = true
 	if p.has_method("update_time"):
@@ -481,7 +481,7 @@ func _make_star_kit(grp: Node2D, actual_size: float, star_seed: int, star_color:
 	if p.has_method("randomize_colors"): p.randomize_colors()
 	seed(_rng_state)
 	if p.has_method("set_rotates"): p.set_rotates(true)
-	if p.has_method("set_light"):   p.set_light(Vector2(0.0, 0.5))
+	SceneLight.apply_to_planetkit(p, SceneLight.RADIUS_PLANET)   # was a hardcoded due-left 180°
 	if "override_time" in p:
 		p.override_time = true
 	if p.has_method("update_time"):

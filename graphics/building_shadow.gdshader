@@ -11,7 +11,12 @@ render_mode blend_mix;
 //
 // The occluder is flat (all silhouette pixels = height_scale), so the ray-march reads as an oblique DROP
 // shadow whose LENGTH is set by height_scale (taller ⇒ longer) and sun_elevation (higher ⇒ shorter), capped
-// by steps × step_px. sun_dir.xy is the light direction (shadow falls opposite).
+// by steps × step_px.
+//
+// ⚠ NAMING: `sun_dir` is the direction the SHADOW is cast along, NOT the direction of the light — the
+// ray-march below steps `uv -= step_uv`, so the light sits at -sun_dir. (The name predates
+// scripts/systems/scene_light.gd; feed it SceneLight.shadow_dir(), never light_dir(). Contrast
+// planet_ground.gdshader, whose identically-named uniform IS the light direction.)
 
 // --- Carrier: this material lives on a ColorRect sized carrier_scale× the sprite frame, centred on it.
 // to_local() maps the carrier's UV → frame-local [0,1]; outside the frame there is no occluder.
@@ -25,7 +30,7 @@ uniform float alpha_cutoff = 0.05;
 uniform float height_scale = 1.0;        // silhouette "height" — taller ⇒ LONGER shadow
 
 // --- Light / projection.
-uniform vec2 sun_dir = vec2(0.45, 0.85); // xy direction of the light in UV space (shadow falls opposite)
+uniform vec2 sun_dir = vec2(0.45, 0.85); // UV-space direction the SHADOW falls (light is at -sun_dir)
 uniform float sun_elevation = 0.45;      // higher ⇒ ray rises faster ⇒ SHORTER shadow
 uniform float step_px = 1.0;             // ray-march step in px (bigger = faster, coarser)
 uniform int steps = 40;                  // max march iterations (× step_px = max reach)
@@ -63,7 +68,8 @@ float sample_height(vec2 uv) {
 }
 
 
-// March from a ground pixel TOWARD the light; if the rising ray is overtopped by a silhouette pixel, occlude.
+// March from a ground pixel TOWARD the light — i.e. along -sun_dir, hence `uv -= step_uv` below. If the
+// rising ray is overtopped by a silhouette pixel, occlude.
 float trace(vec2 start_uv, float start_h, vec2 step_uv, float rise, float soft) {
 	float occ = 0.0;
 	float ray_h = start_h;

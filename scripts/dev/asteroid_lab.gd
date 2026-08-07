@@ -67,6 +67,9 @@ func _ready() -> void:
 	_hd_scope = HdViewportScope.attach(self)
 	for d in KNOBS:
 		_vals[d["key"]] = float(d["def"])
+	# The light-angle slider is a LIVE override for experimenting; its starting point is the
+	# canonical scene light, not a second opinion (docs/scene_light_direction_2026-07-28.md).
+	_vals["light_ang"] = SceneLight.azimuth_deg()
 	_build_preview_subviewport()
 	_build_demo_ships()
 	_build_ui()

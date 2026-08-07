@@ -77,6 +77,11 @@ static func _run(tree: SceneTree, path: String, packed: PackedScene, on_covered:
 			if is_instance_valid(stray):
 				stray.queue_free()
 
+	# Scene light: the per-level sun is level state, so drop it at the hop rather than letting the
+	# last combat's angle bleed into the outpost / summaries / sector map. Any scene with a backdrop
+	# re-publishes its own in BackdropCoordinator._populate; scenes without one stay canonical.
+	SceneLight.reset_level_azimuth()
+
 	# Tear down the leaving scene's parallax backdrop BEFORE the swap. change_scene_to_file frees the
 	# whole scene at once; with a heavy backdrop's many shader CanvasItems in that batch, the engine's
 	# draw-order reindex walks a freed RID -> "canvas_item is null" flood -> SIGSEGV. remove_child

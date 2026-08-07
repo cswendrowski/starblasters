@@ -95,8 +95,12 @@ static func ensure_baked(host: Node, variants: int = 10, frames: int = 24) -> vo
 					m.set_shader_parameter("roundness", rnd)
 					m.set_shader_parameter("size", lerp(8.0, 1.5, rnd))
 					m.set_shader_parameter("octaves", 3)
-					var ang := deg_to_rad(225.0)
-					m.set_shader_parameter("light_origin", Vector2(0.5 + 0.45 * cos(ang), 0.5 + 0.45 * sin(ang)))
+					# Lighting is baked INTO the atlas pixels, so these rocks can't follow a per-level
+					# azimuth — they pin to the CANONICAL constant, not SceneLight.azimuth_deg().
+					# (docs/scene_light_direction_2026-07-28.md §5, option 1.)
+					var ang := deg_to_rad(SceneLight.DEFAULT_AZIMUTH_DEG)
+					m.set_shader_parameter("light_origin",
+						Vector2(0.5, 0.5) + Vector2(cos(ang), sin(ang)) * SceneLight.RADIUS_BAKED_ROCK)
 				# Atlas stays neutral (modulate white) — the consumer applies the POI colour.
 				inner.modulate = Color(1.0, 1.0, 1.0, 1.0)
 		var atlas: Dictionary = await SpriteBaker.bake_variant_atlas(host, scene, configure, variants, fpx, frames)
