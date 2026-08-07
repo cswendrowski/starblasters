@@ -30,22 +30,64 @@ it are shootable.
 
 ### Measured footprints
 
-Decoded from the `tile_map_data` PackedByteArrays (16 px tiles, parent transforms applied):
+Decoded from the `tile_map_data` PackedByteArrays (16 px tiles, parent transforms applied).
+**Re-measured 2026-07-28 after Roman's recentring pass:**
 
-| prefab | deck (`Angled Platform`) | full tile footprint | buildings | reads as |
-|---|---|---|---|---|
-| `prefab_platform` | x[128,320] y[48,144] | y[40,152] — **112 px** | y 64–128 | connector |
-| `prefab_platform_fuel` | x[128,320] y[48,144] | y[40,152] — **112 px** | y 64–128 | connector, fuel farm |
-| `prefab_hangar` | x[128,320] y[0,272] | y[−16,288] — **304 px** | y 16–256 | set piece, ~1.1 screens |
-| `prefab_battle_station` | x[128,320] y[0,768] | y[−16,800] — **816 px** | y 16–256 *(WIP)* | boss gauntlet, ~3 screens |
+| prefab | deck (`Angled Platform`) | deck h | full tile footprint | tiles h | buildings |
+|---|---|---|---|---|---|
+| `prefab_platform` | x[144,336] y[8,104] | **96** | x[144,336] y[0,112] | **112** | y 24–88 |
+| `prefab_platform_fuel` | x[144,336] y[8,104] | **96** | x[128,352] y[0,112] | **112** | y 24–88 |
+| `prefab_hangar` | x[144,336] y[16,288] | **272** | x[128,352] y[0,304] | **304** | y 32–272 |
+| `prefab_battle_station` | x[144,336] y[16,784] | **768** | x[128,352] y[0,816] | **816** | y 32–272 *(WIP)* |
 
-**All four decks are exactly x 128–320.** The understructure girder layers vary (112–336 on three,
-160–288 on `prefab_platform`) but that's decorative depth behind the deck, so it doesn't affect
-stitching.
+**Recentring verified exact.** Every deck is now x[144, 336] — centre **240.0**, dead on
+`Playfield.CENTER.x`, offset +0.0. Every tile layer and every building anchor centres on 240 too.
+The earlier 16 px left bias is fully gone; no `x_offset` is needed and the registry field stays
+unused.
+
+Deck 144–336 sits 12 px inside the 132–348 band on each side. The understructure girder layers run
+wider — x[128, 352], i.e. 4 px past the band on each side — which is correct: the gutters host glass
+panels, so the station reading as extending under them sells that it continues past the play area.
 
 `prefab_battle_station` is in progress — it will become a long stretch of structure lined with
-weaponry. **Its height will keep changing**, which is why every footprint below is measured at
-runtime from `TileMapLayer.get_used_rect()` rather than baked into a table.
+weaponry. **Its height will keep changing**, which is why every footprint is measured at runtime
+from `TileMapLayer.get_used_rect()` rather than baked into a table. `prefab_hangar` (272 deck /
+304 tiles) and `prefab_battle_station` (768 / 816) already exceed one 270 px screen.
+
+### Play Area markers — the authoring bound
+
+Each prefab carries a `Play Area` Sprite2D at the root marking exactly what the player will see.
+**The marker is authoritative**: the workflow is to align art *to* it (Roman, 2026-07-28), so a
+marker even 1 px off silently biases everything authored flush to it.
+
+**Corrected 2026-07-28** — all four were 218 wide (1 px proud each side) against the band's 216, and
+the one-screen markers sat 1 px low:
+
+| prefab | marker | spans | visible |
+|---|---|---|---|
+| `prefab_platform` | 216×270 @ (240,135) | x[132,348] y[0,270] | no |
+| `prefab_platform_fuel` | 216×270 @ (240,135) | x[132,348] y[0,270] | no |
+| `prefab_hangar` | 216×270 @ (240,135) | x[132,348] y[0,270] | no |
+| `prefab_battle_station` | 216×1200 ×(1,1.579) @ (240,483.5) | x[132,348] y[−464,1431] | no |
+
+Horizontal is now **exactly** `Playfield.X_MIN..X_MAX` (132–348, width 216, centre 240) in all four.
+
+**Vertical is deliberately unconstrained** — this is a scroller, so a marker taller than one screen
+is legitimate; `prefab_battle_station` uses one to mark its planned extent. The three one-screen
+markers were nudged 136→135 so they span y 0–270 exactly, matching the visible screen.
+
+### Two guards against a marker reaching the screen
+
+1. **`tools/validate_station_prefabs.gd`** (author-time). Fails if any marker is missing, isn't a
+   direct child of the root, is left **visible**, or deviates by >0.01 px from the band in width or
+   centre — honouring node scale, `centered`, and `offset` so a scaled marker is measured as drawn.
+   Also reports each deck's extent and warns if it drifts off-centre or the `Angled Platform` layer
+   is missing (which would silently change the stitch metric, §3). Must print `VERDICT: PASS`.
+2. **`station_section.configure()` strips any root node named `Play Area` unconditionally**,
+   regardless of its visibility flag — an authoring guide must never be able to reach the screen
+   through a forgotten toggle. (P1.)
+
+The validator is the reminder; the runtime strip is the guarantee.
 
 ### Deck is 16 px left of playfield centre
 
@@ -129,6 +171,18 @@ So: **stitch height = the deck layer's `get_used_rect()` height**, resolved as
 2. the layer named `Angled Platform`, if present; else
 3. the union of all `TileMapLayer` used rects.
 
+> **Open — wants Roman's eye once a ribbon is on screen (P2).** The two candidate metrics give
+> different seams, and the art decides which is right:
+>
+> | metric | platform | hangar | seam behaviour |
+> |---|---|---|---|
+> | **deck** (`Angled Platform`) | 96 | 272 | walkable surface butts flush; girder frames overlap ~16 px |
+> | **tiles** (union) | 112 | 304 | girder frames butt; 8–16 px of girder shows between decks |
+>
+> Deck-stitching reads as one continuous surface; tile-stitching reads as distinct platforms joined
+> by their girder-work. The `stitch_height` registry override exists so this can be settled per
+> prefab without touching code.
+
 ---
 
 ## 4. Architecture
@@ -157,8 +211,8 @@ const DATA: Array = [
 Runtime wrapper for one prefab. Mirrors `asteroid_stronghold.gd`'s **exact public surface** so the
 shared field base drives either without knowing which it holds:
 
-- `configure(entry: Dictionary)` — instantiate, adopt buildings (§2), measure stitch height,
-  normalize the z-stack, register per-building HP.
+- `configure(entry: Dictionary)` — instantiate, **strip the `Play Area` marker** (§1), adopt
+  buildings (§2), measure stitch height, normalize the z-stack, register per-building HP.
 - `role()`, `max_hp()`, `is_defeated()`, `release_drift()`
 - signals `locked_in()`, `health_changed(cur, mx)`, `cleared()`
 
@@ -375,8 +429,10 @@ duration of the fly-back, restored in `_restore_ghost_look` alongside the materi
 
 ## 6. Build order
 
-- **P0 — prefab prep.** Resolve the 16 px centring (§1). Add `station_sections.gd` with role +
-  `speed_mult` per prefab.
+- **P0 — prefab prep.** ✅ Recentring done 2026-07-28 (§1, verified exact). Remaining: rename the
+  conduit layer to `Conduits` in `prefab_platform` + `prefab_platform_fuel` (still `TileMapLayer`;
+  the other two are already renamed) so §5.2's conduit shadow can find it by name. Then add
+  `station_sections.gd` with role + `speed_mult` per prefab.
 - **P1 — one section on screen.** `station_section.gd` + the palette `adopt_*` split + a Combat Lab
   entry that drops a **single** section, no field. This is the checkpoint that proves the armed-turret
   fix, HP from roster, the z-stack, faction livery, and self-free on exit.
