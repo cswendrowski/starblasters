@@ -18,6 +18,7 @@ extends Node2D
 const StrongholdScene := preload("res://scenes/enemies/asteroid_stronghold.tscn")
 const RockScene := preload("res://scenes/enemies/enemy_asteroid.tscn")
 const Strongholds := preload("res://scripts/levels/asteroid_strongholds.gd")
+const Palette := preload("res://scripts/enemies/stronghold_building_palette.gd")
 
 # WEIGHTED PROGRESSION (Roman 2026-07-18): prefab composition escalates toward the midpoint +
 # finale IN STEP with the flying-enemy generator (whose 3 stretches ramp density 16/26/36). Each
@@ -239,6 +240,18 @@ func _spawn_encounter(prefab: Dictionary, role: String) -> void:
 	s.position = Vector2(x, -size)   # drifts in at its AUTHORED speed (no drift_mult — deliberate arrival)
 	add_child(s)
 	s.configure(prefab)
+	# CENTERING SAFETY (Roman 2026-07-18): the whole encounter footprint (rock + every building,
+	# collision-padded) must fit the playfield — half the hangar prefab's landing pads spawned
+	# off-screen and were unhittable. Clamp X so the footprint sits inside the band (footprints wider
+	# than the band center on it), and hand the extents to the lock so the Y parks fully on screen.
+	if s.has_method("building_extents"):
+		var ext: Rect2 = s.building_extents()
+		var min_x: float = (Playfield.X_MIN + 8.0) - ext.position.x
+		var max_x: float = (Playfield.X_MAX - 8.0) - ext.end.x
+		s.position.x = Playfield.CENTER.x - (ext.position.x + ext.end.x) * 0.5 if min_x > max_x \
+			else clampf(s.position.x, min_x, max_x)
+		if s.has_method("set_lock_extents"):
+			s.set_lock_extents(ext)
 	_encounter = s
 	_last_prefab = s
 	_last_size = size
@@ -436,12 +449,13 @@ func _classify(p: Dictionary) -> String:
 	for b in p.get("buildings", []):
 		if not (b is Dictionary):
 			continue
-		var t := String(b.get("type", ""))
-		# Classify by key substring so NEW ground buildings + variants (e.g. "square_turret_wave") bucket
-		# correctly without a hand-kept list.
-		if "launcher" in t:
+		# Resolve legacy prefab keys through the palette ALIASES first (b_ taxonomy 2026-07-18), so
+		# old and new prefabs classify identically: t_* = turret class (t_rocket = the launcher);
+		# substring fallbacks keep any unaliased legacy key bucketing as before.
+		var t: String = Palette._resolve_key(String(b.get("type", "")))
+		if t == "t_rocket" or "launcher" in t:
 			launchers += 1
-		elif "turret" in t:
+		elif t.begins_with("t_") or "turret" in t:
 			turrets += 1
 		else:
 			noncombat += 1

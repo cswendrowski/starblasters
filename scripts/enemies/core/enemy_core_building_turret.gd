@@ -51,6 +51,20 @@ func _ready() -> void:
 	# (size + tough), BEFORE super._ready() initializes the hull from max_health.
 	_apply_roster_health()
 	super._ready()
+	# Hit feedback (Roman 2026-07-18, "the hangar isn't taking hits"): buildings have no "Sprite2D"
+	# hull node, so enemy_base never installed the damage material — hits LANDED (hull drained fine)
+	# but showed ZERO flash and zero damage ramp, and a 64-HP hangar read as invulnerable. Install it
+	# on the "Base" layer and let the composed overlays inherit it (use_parent_material), so the
+	# white hit-flash + progressive damage fray cover the whole structure. Layers with their own
+	# materials (Livery tint, GlowMask glow) keep them.
+	var base_spr := get_node_or_null("Base")
+	if base_spr is Sprite2D and _damage_material == null:
+		_install_damage_material(base_spr)
+		for d in find_children("*", "Sprite2D", true, false):
+			if d == base_spr:
+				continue
+			if (d as Sprite2D).material == null:
+				(d as Sprite2D).use_parent_material = true
 	# Oblique drop shadow (Roman 2026-07-13) — a shadow carrier per casting layer, using the tuned
 	# per-building heights; parented under each layer so it hides with the layer on death.
 	BuildingShadow.attach_to_building(self)

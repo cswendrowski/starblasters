@@ -77,9 +77,11 @@ func _spawn_parked() -> void:
 	e.set_physics_process(false)
 	if "engine_trail_enabled" in e:
 		e.engine_trail_enabled = false
-	# Killed WHILE parked → a DIRECT explosion, not the flying-ship spin-out/wreck (death_cheap routes
-	# enemy_base to the classic instant blast). Cleared on release so a recycled ship dies normally.
-	e.set_meta("death_cheap", true)
+	# Killed WHILE parked → WRECK IN PLACE (Roman 2026-07-18): the ship "dies" (blast + max damage
+	# fray) but STAYS on the pad as a burnt-out prop, and the pad drops its Destroyed decal over
+	# both (died hookup below). Cleared on release/launch so a freed ship dies normally airborne.
+	e.set_meta("wreck_in_place", true)
+	e.died.connect(_on_parked_wrecked.bind(e))
 	# POWERED DOWN read (Roman 2026-07-18, "the Bulwark's engines/muzzles still glowed"): hide the
 	# HDR glow layers (GlowMask engine/muzzle frames) + any EngineGlow plume sprites while parked.
 	# Restored on release (bottom exit) or at the escape-launch power-up — the glows coming back on
@@ -93,9 +95,9 @@ func _spawn_parked() -> void:
 		_launch_at_y = randf_range(60.0, 150.0)
 
 
-# The size class this pad parks — from the scene filename (building_landing_pad_<size>.tscn, size split
-# 2026-07-17). Small pads park small chaff; medium/large pads park medium/large ships (any role, and
-# large includes RAREs/capitals — the marquee "guarded capital on the ground" moment).
+# The size class this pad parks — from the scene filename (b_p_<size>.tscn, b_ taxonomy 2026-07-18).
+# Small pads park small chaff; medium/large pads park medium/large ships (any role, and large
+# includes RAREs/capitals — the marquee "guarded capital on the ground" moment).
 func _parked_size() -> String:
 	var f := scene_file_path.get_file()
 	if f.contains("_large"):
@@ -142,14 +144,28 @@ func _pick_parked_entry() -> Dictionary:
 	return pool[randi() % pool.size()]
 
 
-# While a ship is parked, IT soaks the damage — the pad can only be hurt once the ship is gone (dead,
-# released, or launched). Bullets that overlap the ship directly already hit it; this routes the ones
-# that land on the PAD's own hitbox, so an occupied pad never dies out from under its ship.
+# While a live ship is parked, IT soaks the damage (hits on the pad's hitbox route to the ship).
+# Otherwise the pad is INDESTRUCTIBLE (Roman 2026-07-18) — empty pads and pads carrying a wreck are
+# ground scenery; hits fizzle (false = the bullet flies over, same as the rest of the ground plane).
 func take_hit(damage: int = 1) -> bool:
 	var p = _parked
 	if p != null and is_instance_valid(p) and not ("_dying" in p and p._dying) and p.has_method("take_hit"):
 		return p.take_hit(damage)
-	return super.take_hit(damage)
+	return false
+
+
+# The parked ship wrecked in place (enemy_base._wreck_in_place fired its died) — dress the scene: the
+# pad's Destroyed decal drops OVER the ship + pad (z above the ship's layer), reading as the destroyed
+# ship burnt onto an intact pad. Guarded on identity: a RELEASED/LAUNCHED ship dying later in open
+# combat must not scorch the pad it left.
+func _on_parked_wrecked(_bounty: int, ship: Node) -> void:
+	if ship != _parked:
+		return
+	var d := get_node_or_null("Destroyed")
+	if d is CanvasItem:
+		var dc := d as CanvasItem
+		dc.z_index = maxi(dc.z_index, 1)   # above the parked ship (relative, within the pad's ground z)
+		dc.visible = true
 
 
 # Escape-launch trigger: once the pad has descended into the rolled band with the ship still alive.
@@ -199,8 +215,8 @@ func _launch() -> void:
 	if world == null or not is_instance_valid(world):
 		return
 	p.reparent(world, true)
-	if p.has_meta("death_cheap"):
-		p.remove_meta("death_cheap")   # airborne — a mid-flight kill dies styled like a normal ship
+	if p.has_meta("wreck_in_place"):
+		p.remove_meta("wreck_in_place")   # airborne — a mid-flight kill dies styled like a normal ship
 	# Track it as a live combatant while it climbs (kill/bounty accounting, same as the bottom-exit
 	# release). Its ticks stay FROZEN so the tween owns the motion (no pattern fighting the ascent).
 	var dir := get_tree().get_first_node_in_group("wave_director")
@@ -257,8 +273,8 @@ func _release_parked() -> void:
 	_power_up_visuals()   # glow layers back on — it's a live flying ship again
 	p.set_process(true)
 	p.set_physics_process(true)
-	if p.has_meta("death_cheap"):
-		p.remove_meta("death_cheap")   # released → flies + dies like a normal enemy (styled) again
+	if p.has_meta("wreck_in_place"):
+		p.remove_meta("wreck_in_place")   # released → flies + dies like a normal enemy (styled) again
 	if p.has_method("start"):
 		p.start(p.global_position)   # arm its movement/firing from where it sits
 	var dir := get_tree().get_first_node_in_group("wave_director")

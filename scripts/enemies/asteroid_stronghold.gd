@@ -44,6 +44,7 @@ var screensize: Vector2 = Vector2(480, 270)
 
 var _role: String = "normal"
 var _locked: bool = false
+var _lock_y: float = -1.0   # encounter lock Y from the footprint safety (set_lock_extents); <0 = HOLD_FRAC
 var _drift_stashed: float = 0.0
 var _hp_max: int = 0
 var _bld_total: int = 0
@@ -116,7 +117,10 @@ func configure(prefab: Dictionary) -> void:
 func _process(delta: float) -> void:
 	# Encounter lock-in: once a miniboss/boss base has drifted fully into view, freeze it in place and
 	# fire locked_in (the field then stops the parallax, shows the bar, raises music). Once only.
-	if not _locked and _role != "normal" and position.y >= screensize.y * HOLD_FRAC:
+	# The lock Y honors the footprint safety (_lock_y, set from building extents) so every attached
+	# building/pad is ON SCREEN when the base parks — not half the hangar's pads off the bottom.
+	var lock_at: float = _lock_y if _lock_y > 0.0 else screensize.y * HOLD_FRAC
+	if not _locked and _role != "normal" and position.y >= lock_at:
 		_locked = true
 		_drift_stashed = drift_speed
 		drift_speed = 0.0
@@ -133,6 +137,37 @@ func _process(delta: float) -> void:
 
 func role() -> String:
 	return _role
+
+
+# LOCAL-space bounding box of the whole encounter footprint: the rock plus every building, each
+# padded by its collision half-extent (fallback 16px). The field's centering safety reads this to
+# clamp the spawn X and pick a lock Y that keeps everything on screen + hittable.
+func building_extents() -> Rect2:
+	var half_rock: float = _size * 0.5
+	var r := Rect2(Vector2(-half_rock, -half_rock), Vector2(_size, _size))
+	var holder := get_node_or_null("Buildings")
+	if holder != null:
+		for b in holder.get_children():
+			if not (b is Node2D):
+				continue
+			var half := 16.0
+			var cs = b.get_node_or_null("CollisionShape2D")
+			if cs != null and cs.shape is RectangleShape2D:
+				var sz: Vector2 = (cs.shape as RectangleShape2D).size
+				half = maxf(sz.x, sz.y) * 0.5
+			var pos: Vector2 = (b as Node2D).position
+			r = r.merge(Rect2(pos - Vector2(half, half), Vector2(half * 2.0, half * 2.0)))
+	return r
+
+
+# Footprint safety (Roman 2026-07-18): pick the encounter lock Y so the WHOLE footprint sits on
+# screen — topmost edge below the top HUD band, bottommost above the screen edge — preferring the
+# HOLD_FRAC anchor when the footprint allows it. A footprint taller than the screen locks centered.
+func set_lock_extents(ext: Rect2) -> void:
+	var want: float = screensize.y * HOLD_FRAC
+	var lo: float = 24.0 - ext.position.y                  # top edge at y >= 24
+	var hi: float = (screensize.y - 12.0) - ext.end.y      # bottom edge at y <= H-12
+	_lock_y = clampf(want, lo, hi) if lo <= hi else (lo + hi) * 0.5
 
 
 # Aggregate max HP (Σ structure HP) — the boss health bar's max, read at lock-in.
@@ -258,6 +293,11 @@ static func build_rock_visual(parent: Node, ast: Dictionary) -> Node:
 			# look (layer_stellar leaves dither at the shader default = on), NOT the gameplay-rock look
 			# (asteroid.gd forces it off). Default on so existing prefabs keep the dithered near-layer feel.
 			m.set_shader_parameter("should_dither", bool(ast.get("dither", true)))
+			# Scene light, explicit (docs/scene_light_direction_2026-07-28.md). This used to ride the
+			# kit's shader default; identical value today, but now it moves with everything else.
+			# Keeps the KIT terminator radius — the loose near-layer rocks it sits among use it too.
+			m.set_shader_parameter("light_origin",
+				SceneLight.planetkit_light_origin(SceneLight.RADIUS_PLANETKIT_DEFAULT))
 	# The rock is a PixelPlanets Control tree — Controls default to mouse_filter STOP and would EAT
 	# clicks over the rock (the editor places buildings there; combat has no use for it either). Make
 	# the whole visual click-through so mouse events fall through to the tool's _unhandled_input.

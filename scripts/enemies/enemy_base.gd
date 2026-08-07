@@ -642,6 +642,12 @@ func hit() -> void:
 func explode() -> void:
 	if _dying:
 		return
+	# Wreck-in-place (landing pads, Roman 2026-07-18): opt-in via meta "wreck_in_place" — the hull
+	# "dies" (blast + died + max damage fray + non-targetable) but the NODE STAYS as an inert prop
+	# where it sits; the spawner dresses it (the pad drops its Destroyed decal) and owns its lifetime.
+	if get_meta("wreck_in_place", false):
+		_wreck_in_place()
+		return
 	# Paint the hull "shot to pieces" for the death itself — a one-hit kill never ramped the damage
 	# overlay, so without this it dies pristine + bare (see _apply_death_damage_overlay). Runs before ALL
 	# death routing (disabled-wreck / styled / classic) so every path shows the battle damage.
@@ -723,6 +729,27 @@ func explode() -> void:
 	EnemyDeathFx.classic(self, fx_parent)
 	await get_tree().create_timer(0.5, false).timeout   # false = death despawn pauses with the game
 	queue_free()
+
+
+# Wreck-in-place death (see explode's meta hook): everything a death does EXCEPT leaving — blast +
+# died signal + components fired, then the hull becomes a frozen, non-targetable prop with the damage
+# fray ramped ALL the way up ("shot to pieces"). It leaves the "enemies" group (never gates
+# level_cleared, bullets ignore it) and rides its parent's lifecycle — the pad carries it off-screen.
+func _wreck_in_place() -> void:
+	_dying = true
+	set_deferred("monitorable", false)
+	set_deferred("monitoring", false)
+	died.emit(bounty_value)
+	_components_death()
+	if _dmg_tells != null and is_instance_valid(_dmg_tells):
+		_dmg_tells.quiet()
+	if _damage_material != null:
+		_damage_material.set_shader_parameter("sensitivity", 1.0)   # maxed — reads as a burnt-out husk
+	set_engine_trail_emitting(false)
+	EnemyDeathFx.classic(self, _fx_parent())
+	remove_from_group("enemies")
+	set_process(false)
+	set_physics_process(false)
 
 
 # Whether this death should route through the DeathEffects size-gated auto-pick (styled) rather than the
