@@ -492,6 +492,11 @@ func _fan(base: Vector2, i: int, n: int) -> Vector2:
 func _finish_shot(enemy, b, dir: Vector2) -> void:
 	_apply_delay(b)
 	_drop_strip(enemy, b, dir)
+	# Per-shot host hook (Roman 2026-07-28). Duck-typed, so this is a no-op for every enemy that
+	# doesn't define it. Lets a host add recoil / extra flashes / casing ejection tied to the actual
+	# shot rather than guessing at the cadence — see cannon_bay.on_mount_fired.
+	if enemy != null and enemy.has_method("on_mount_fired"):
+		enemy.on_mount_fired(dir, b.global_position if b is Node2D else Vector2.ZERO)
 
 
 # Payload Delay (spec.payload_delay_ms): hold the freshly-spawned payload at the muzzle before its

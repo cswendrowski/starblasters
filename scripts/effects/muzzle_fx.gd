@@ -118,12 +118,18 @@ static func play_rotary_laser(world_pos: Vector2, host: Node = null) -> void:
 # parented at ROOT in WORLD space — most enemies have auto_rotate=true, so
 # parenting under them would double-rotate the flash and contaminate its
 # angle with the enemy's banking. An ~80 ms flash needn't follow the enemy.
-static func play_enemy(world_pos: Vector2, dir: Vector2, root: Node) -> void:
+# `flash_scale` (Roman 2026-07-28, default 1.0 = unchanged for every existing caller) sizes the flame
+# so one enemy can mix sizes of the SAME style — the Cannon Bay's large forward flash plus two small
+# L/R flares. Scale is applied on top of the 16x16 frame, around the base-anchored offset below, so a
+# scaled flash still starts at the muzzle rather than floating off it.
+static func play_enemy(world_pos: Vector2, dir: Vector2, root: Node, flash_scale: float = 1.0) -> void:
 	if root == null:
 		root = Engine.get_main_loop().root
 	var flash := Sprite2D.new()
 	flash.texture = ENEMY_MUZZLE_STRIP
 	flash.hframes = ENEMY_MUZZLE_STRIP_HFRAMES
+	if not is_equal_approx(flash_scale, 1.0):
+		flash.scale = Vector2(flash_scale, flash_scale)
 	# Random frame per shot so consecutive flashes differ.
 	flash.frame = randi() % ENEMY_MUZZLE_STRIP_HFRAMES
 	# Anchor the BASE (bottom-center) of the 16×16 frame at the node origin:
@@ -200,6 +206,23 @@ static func play_player(world_pos: Vector2, host: Node, color: Color, with_smoke
 # Minigun ejection (Roman 2026-06-11): a single brass-coloured PIXEL flicked out the
 # right side (with slight per-shot colour variation), trailing a thin 1px wisp of gun
 # smoke. Replaces the shell casing + smoke puff for the minigun's rapid bullet hose.
+# Directional casing (Roman 2026-07-28) — a casing thrown along an ARBITRARY velocity, for guns whose
+# ejection port doesn't point down-and-right. `_spawn_shell`/`eject_brass` both bake in the player
+# ship's port geometry (downward coast, rightward kick), which is wrong for a ground turret ejecting
+# backward along its own barrel axis. `large` picks the 3x1 casing over the 2x1.
+static func eject_casing_dir(parent: Node, world_pos: Vector2, velocity: Vector2, large: bool = false) -> void:
+	if parent == null:
+		return
+	var shell := Sprite2D.new()
+	shell.texture = SHELL_TEX_LARGE if large else SHELL_TEX
+	shell.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	shell.position = world_pos
+	shell.z_index = 4
+	shell.set_script(ShellCasing)
+	parent.add_child(shell)
+	shell.call_deferred("launch", velocity, randf_range(-10.0, 10.0))
+
+
 static func eject_brass(parent: Node, world_pos: Vector2) -> void:
 	if parent == null:
 		return

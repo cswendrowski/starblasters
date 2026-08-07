@@ -1,0 +1,81 @@
+[gd_scene format=3 uid="uid://byfuno3edjuht"]
+
+[ext_resource type="Script" path="res://scripts/enemies/core/cannon_bay.gd" id="1_wvmd8"]
+[ext_resource type="Script" uid="uid://dmi3hcj15y78l" path="res://scripts/enemies/patterns/lateral_drift.gd" id="2_c18ti"]
+[ext_resource type="AudioStream" uid="uid://cai1gm5ivl0tn" path="res://assets/audio/SFX_creatureDie4.wav" id="3_51x7l"]
+[ext_resource type="Texture2D" uid="uid://bb5yx8i5uyp1w" path="res://graphics/enemies/ground/b_t_cannon_bay.png" id="4_yf0cm"]
+[ext_resource type="Texture2D" uid="uid://cwpcxw84eatps" path="res://graphics/enemies/ground/b_t_cannon_bay_doors.png" id="5_m68ki"]
+[ext_resource type="Shader" uid="uid://cm5hxyugvcow3" path="res://shaders/multiply.gdshader" id="6_t37w5"]
+[ext_resource type="Texture2D" uid="uid://0jq3mi4k7abt" path="res://graphics/enemies/ground/building_diamond_turret.png" id="7_oqed4"]
+
+[sub_resource type="Resource" id="MovePattern"]
+script = ExtResource("2_c18ti")
+mode = 1
+
+[sub_resource type="RectangleShape2D" id="Hit"]
+size = Vector2(30, 30)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_cak1c"]
+shader = ExtResource("6_t37w5")
+
+[node name="Enemy" type="Area2D" unique_id=754549290 groups=["enemies"]]
+script = ExtResource("1_wvmd8")
+movement = SubResource("MovePattern")
+auto_rotate = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1272048509]
+visible = false
+shape = SubResource("Hit")
+
+[node name="MoveTimer" type="Timer" parent="." unique_id=1704481542]
+one_shot = true
+
+[node name="EnemyDie" type="AudioStreamPlayer2D" parent="." unique_id=1949868089]
+stream = ExtResource("3_51x7l")
+
+[node name="Base" type="Sprite2D" parent="." unique_id=12532442]
+texture = ExtResource("4_yf0cm")
+hframes = 3
+
+[node name="Cover" type="Sprite2D" parent="." unique_id=753959734]
+texture = ExtResource("5_m68ki")
+hframes = 7
+
+[node name="Cannon" type="Node2D" parent="." unique_id=2106805115]
+visible = false
+position = Vector2(0, 6)
+scale = Vector2(0.9, 0.9)
+
+[node name="Tower" type="Sprite2D" parent="Cannon" unique_id=237264783]
+position = Vector2(0, -6)
+texture = ExtResource("4_yf0cm")
+hframes = 3
+frame = 1
+
+[node name="Barrel" type="Sprite2D" parent="Cannon/Tower" unique_id=231358777]
+z_index = 1
+texture = ExtResource("4_yf0cm")
+hframes = 3
+frame = 2
+
+[node name="Muzzle1" type="Marker2D" parent="Cannon/Tower/Barrel" unique_id=769785475]
+position = Vector2(0, -14)
+
+[node name="FlareR" type="Marker2D" parent="Cannon/Tower/Barrel" unique_id=1333146148]
+position = Vector2(2, -12)
+
+[node name="FlareL" type="Marker2D" parent="Cannon/Tower/Barrel" unique_id=1109416661]
+position = Vector2(-2, -12)
+
+[node name="Ejection" type="Marker2D" parent="Cannon/Tower/Barrel" unique_id=237743502]
+position = Vector2(0, 13)
+
+[node name="Destroyed" type="Sprite2D" parent="Cannon/Tower/Barrel" unique_id=278095570]
+visible = false
+z_index = 1
+material = SubResource("ShaderMaterial_cak1c")
+texture = ExtResource("7_oqed4")
+hframes = 3
+frame = 1
+
+[connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]

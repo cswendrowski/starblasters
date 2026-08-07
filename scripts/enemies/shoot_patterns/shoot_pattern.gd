@@ -117,7 +117,12 @@ func _spawn_bullet(enemy, dir: Vector2, bv = null, spawn_override = null):
 	else:
 		b.position = spawn_pos
 	if has_mz or spawn_override != null:
-		MuzzleFx.play_enemy(spawn_pos, dir, bullet_parent)
+		# Optional per-host flash size (duck-typed, absent on every existing enemy => 1.0 = unchanged).
+		# Lets one enemy mix sizes of the same flash style — see cannon_bay.muzzle_flash_scale.
+		var mz_scale: float = 1.0
+		if enemy.has_method("muzzle_flash_scale"):
+			mz_scale = float(enemy.muzzle_flash_scale())
+		MuzzleFx.play_enemy(spawn_pos, dir, bullet_parent, mz_scale)
 	# Drive the projectile-movement axis (homing/wobble) — applied after
 	# _ready/_apply_variant so the pattern's axis overrides the variant's seed.
 	_apply_axis(b)

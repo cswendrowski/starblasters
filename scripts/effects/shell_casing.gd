@@ -7,6 +7,11 @@ extends Sprite2D
 var _velocity: Vector2 = Vector2.ZERO
 var _angular_velocity: float = 0.0
 var _spawn_y: float = 0.0
+var _age: float = 0.0
+# Lifetime backstop (Roman 2026-07-28). The off-screen cleanup below only catches casings that leave
+# via the bottom or the sides — a casing thrown UPWARD (a rotated ground turret ejecting "backward"
+# toward screen-top) satisfies neither and would live forever. Any direction, always freed.
+const MAX_LIFE := 3.0
 # Shells start large (2x) at the ship's muzzle and shrink to 1x with 50%
 # opacity as they reach the bottom of the playfield — sells the depth of the
 # falling motion (Roman, 2026-05-16). Zero-g coast, no gravity/drag.
@@ -27,6 +32,10 @@ func launch(velocity: Vector2, spin: float = 0.0) -> void:
 func _process(delta: float) -> void:
 	position += _velocity * delta
 	rotation += _angular_velocity * delta
+	_age += delta
+	if _age > MAX_LIFE:
+		queue_free()
+		return
 	# Progress: 0 at spawn → 1 at screen bottom. Drives scale + alpha falloff.
 	var span: float = max(_screensize.y - _spawn_y, 1.0)
 	var t: float = clamp((position.y - _spawn_y) / span, 0.0, 1.0)
